@@ -17,6 +17,8 @@ don't rewrite.
 | The verdict | "blocked", "passed", "sent to review" | "rejected", "denied", "failed" (people fail; PRs get blocked) |
 | The subject | "contributor", "change request" | "user" (users are maintainers), "PR" in agnostic contexts |
 | AI-generated junk | "slop" | euphemisms |
+| Comment/issue checks | "rules" (they're rules with a content target) | "automod", "filters", "AI moderation" |
+| Reversible content action | "hide", "hidden" (unhide to reverse) | "delete", "remove" (deletion is a human verb in moderation) |
 | Tone | terse, lowercase-friendly, zero exclamation marks | marketing superlatives |
 
 Applies to UI strings, empty states, error copy, the PR comment, docs, and

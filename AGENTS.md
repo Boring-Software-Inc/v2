@@ -104,7 +104,12 @@ files from it.** It contains the scope creep that killed v1.
 ## The cut list (append, never delete)
 GitLab / any second forge adapter · SDK publishing · public OpenAPI surface ·
 `apps/mcp` implementation · ML layer · org-level features · billing ·
-email/password auth · deep observability beyond pino · deployment automation.
+email/password auth · deep observability beyond pino · deployment automation ·
+content classifiers (profanity / harassment / NSFW) · `lock-thread` escalation ·
+PR-description content matching · discussions / wiki / commit-message scanning ·
+community report buttons · auto-delete (permanent) · cross-repo content bans ·
+signal nodes in the workflow editor (trigger/rule/gate/action nodes already exist
+— only SIGNAL nodes are deferred).
 A helpful agent scaffolding `forge-gitlab` because the sibling slot visibly
 exists is the same scope creep that killed v1, typing faster.
 

@@ -135,3 +135,14 @@ to failure (updated in place). Approve on a second PR ⇒ pass/success.
 ## 9. Rollups sanity
 After a day of events: `select * from rollups_daily;` matches reality; Home
 stat cards show real counts (bannedUsers is intentionally 0 — no ban concept).
+
+## 10. REGRESSION — maintainer-exemption integration test fails on main
+Surfaced during the unified-rules spec-merge pre-flight (docs-only session, did
+NOT touch code — the failure is on `HEAD`). `bun test
+apps/worker/src/process-event.integration.test.ts` → the case
+"maintainer PR ⇒ exempt, no run" expects 0 runs for a PR whose contributor
+profile is injected `isMaintainer: true`, but gets 1 (a run is created). Either
+the change-request exemption regressed in the worker's process-event path, or the
+test's expectation is stale vs. an intentional change. Diagnose against the
+last few commits (`45832ac`, `594aedb`, `bf6e66e`); fix the code or update the
+test with a DECISIONS entry. Not caused by, and out of scope for, the docs merge.

@@ -122,11 +122,16 @@ src/
   events.ts        # NormalizedEvent, EventKind, payload discriminated union
   runs.ts          # Run, RunStep, Verdict = 'pass' | 'block' | 'needs_review'
   rules.ts         # RuleResult envelope { ruleId, version, status, passed, evidence, evaluatedAt }
+                   #   + RuleTarget = 'change-request' | 'comment' | 'issue' (see §6)
   review.ts        # AiReviewOutput (see §8 — the schema IS the muzzle)
   check.ts         # CheckState (see §7 — the merge-gate contract)
   contributor.ts   # ContributorSummary, signal shapes
   repo.ts          # Repo, RepoConfig
-  workflow.ts      # WorkflowDefinition JSON DAG: trigger/rule/gate/action nodes + edges
+  content.ts       # content-rule config/evidence shapes + ContentMatch index row (§6)
+  workflow.ts      # WorkflowDefinition JSON DAG: trigger/rule/gate/action nodes + edges.
+                   #   Actions split by trigger kind: gate actions (block/comment/label/
+                   #   request-review/send-to-moderation) vs content actions (hide-comment/
+                   #   label/send-to-moderation). validate enforces target/action fit (§6)
   index.ts
 ```
 
@@ -155,13 +160,22 @@ src/
     registry.ts      # typed registry keyed by `id@version`
     account-age.ts   min-merged-prs.ts   pr-rate-limit.ts   max-files-changed.ts
     english-only.ts  crypto-address.ts   honeypot.ts        profile-readme.ts
+                     # crypto-address also declares target: 'comment' (already text-matching)
+    content/         # comment/issue-target rules (§6): spam-domains.ts, blocked-terms.ts,
+                     #   custom-pattern.ts (RE2-class / timeout+length cap — untrusted regex),
+                     #   comment-burst.ts. Same defineRule primitive, different target.
     ai-review/
       rule.ts          # evaluate delegates to injected generate() — core never imports the AI SDK
       instructions.md  # versioned WITH the rule; material prompt change ⇒ version bump
       template.md
   workflow/
-    executor.ts      # boring DAG walk: topo order, gate short-circuit, record every step
-    validate.ts
+    executor.ts      # boring DAG walk: topo order, gate short-circuit, record every step.
+                     #   A node whose rule is disabled for the repo is skipped
+                     #   (skipped: disabled, conducts as pass, off the degradation floor — §6)
+    validate.ts      # + target/action compatibility (no block under a comment trigger,
+                     #   no hide-comment under a change-request trigger — §6)
+    derive.ts        # derive the default workflow from enabled rules when a repo has
+                     #   no saved workflow (§6 toggle semantics; no DEFAULT_WORKFLOW constant)
   scoring/
     score.ts         # 0–100 composition
     signals.ts       # ABSTRACT signal taxonomy: identity-investment, community-standing,
@@ -198,11 +212,17 @@ is it. All three heads (web, api, worker) call these services.
 ```
 src/
   schema/
-    events.ts      # id uuidv7, raw jsonb, normalized cols, delivery_id UNIQUE, received_at
+    events.ts      # id uuidv7, raw jsonb, normalized cols, delivery_id UNIQUE, received_at.
+                   #   kinds include comment/issue ingest: issues.opened, issues.edited,
+                   #   issue_comment.edited (spammers post clean, edit dirty) — §5
     runs.ts        # runs (workflow_snapshot jsonb!) + run_steps (evidence jsonb, timings)
-    repos.ts       # repos, rule_configs, workflow_definitions
+                   #   + run_actions rows (rows-first, idempotent; content actions store the
+                   #   reversal handle e.g. comment node id for unhide) — §6
+    repos.ts       # repos, rule_configs (enabled flag = kill switch, §6), workflow_definitions
+    content.ts     # content_matches — thin index over content-rule failures for /rules counts;
+                   #   derived data, rebuildable from runs (§6)
     moderation.ts  # moderation items = paused runs
-    rollups.ts     # daily per-repo stats for Home
+    rollups.ts     # daily per-repo stats for Home + per-rule match rollups for /rules sparklines
     auth.ts        # Better Auth tables + forge_identities
   services/
     events.ts      # insertRawEvent (tx: insert + pg-boss enqueue), listEvents (cursor)
@@ -261,9 +281,12 @@ src/
 
 ### `apps/web` — the dashboard
 Four surfaces: **Home** (rollup charts) · **Workflows** (React Flow editor — last) ·
-**Rules** (boolean requirement config) · **Insights**. Plus `/events`,
-`/runs/$runId`, `/moderation`. Redesign demo lands here day 1 on mocks;
-`src/mocks/` shrinks to empty as build steps land. Structure in §9.
+**Rules** (the rules page — absorbs the old automod mockup's charts/toggles UI over
+real data; per-rule cards, target chips, kill-switch toggles, sparklines; §9) ·
+**Insights**. Plus `/events`, `/runs/$runId`, `/moderation`. The old `/automod`
+page is **deleted** — its UI folds into `/rules`, its targets into the rule
+primitive (§6). Redesign demo lands here day 1 on mocks; `src/mocks/` shrinks to
+empty as build steps land. Structure in §9.
 
 ---
 
@@ -281,7 +304,10 @@ GitHub ──webhook──▶ apps/api POST /webhooks/github
   6. write NormalizedEvent, NOTIFY 'events'
   6b. change-request events: emit `pending` check for the head SHA immediately —
      the merge button is held during evaluation, not just after it
-  7. match enabled workflows by trigger for the repo
+  7. match enabled workflows by trigger for the repo (or DERIVE the default from
+     enabled rules when the repo has no saved workflow — §6). comment/issue events
+     (issues.opened, issues.edited, issue_comment.edited) skip 6b and drive content
+     rules → content actions; change-request events drive the gate as before
   8. build RuleContext through the adapter (all reads happen HERE, pre-fetched)
   9. core executor walks the DAG; every node's input/output recorded as run_steps
  10. persist run — SNAPSHOT the workflow definition onto the run (edits later must
@@ -301,24 +327,129 @@ fixture library, the replay corpus, and the future ML dataset.
 
 ## 6. Rules & workflows
 
+**Three words, no fourth: rule · workflow · run.** A **rule** is one yes/no check
+that declares its target. A **workflow** is the recipe — which events trigger
+which rules and what happens on pass/fail — and is the ONLY thing that executes.
+A **run** is the receipt. "Automod" is not a fourth concept: what the mockup
+called automod was a better rules UI plus a new class of rule targets
+(comments/issues). Both are absorbed — the UI into `/rules` (§9), the targets into
+the rule primitive below.
+
+### Rules (targets)
 - **Rule** = single boolean requirement all non-exempt users of a repo must meet
   (org members / maintainers exempt). Primitive: Zod config schema + Zod result
   schema + `evaluate(ctx, config)`. Results serialize as validated JSON on the
   server; the typed registry is what gets exposed to the SDK later — **types in
   code, JSON on the wire.**
+- **Every rule declares a `target`:** `"change-request" | "comment" | "issue"`.
+  A rule version may support several; the workflow trigger decides which context
+  it receives. Same `defineRule` primitive, same `id@version`, same registry,
+  same envelope law. **The executor does not change — only the `RuleContext` the
+  worker builds differs per trigger kind.**
+  - **change-request rules** (all 9 existing): context = contributor + diff + PR
+    metadata. Verdict feeds the merge gate (check / comment / review).
+  - **comment / issue rules** (new class): context = the posted text + author
+    signals. Verdict feeds CONTENT actions, never the merge gate.
 - **Evidence** is rule-specific typed payload (actual account age, the CoV value
   that tripped spray detection). Evidence is what makes the run page and appeals
   real instead of "computer says no."
+
+### Workflows (actions, closed vocabulary split by trigger kind)
 - **Workflow** = node-based composition: trigger nodes (PR opened / comment /
-  push) → rule nodes → gate nodes (all-of / any-of / not) → action nodes (block,
-  comment, label, request-review, send-to-moderation). Serialized as a JSON DAG in
-  `contracts/workflow.ts`. The executor eats this JSON from build step 6; the
-  React Flow editor that *emits* it comes last — the engine is validated with
-  hand-seeded definitions long before the editor exists.
+  push / issue) → rule nodes → gate nodes (all-of / any-of / not) → action nodes.
+  Serialized as a JSON DAG in `contracts/workflow.ts`. The executor eats this JSON
+  from build step 6; the React Flow editor that *emits* it comes last — the engine
+  is validated with hand-seeded definitions long before the editor exists.
+- **Gate actions** (change-request triggers only): `block`, `comment`, `label`,
+  `request-review`, `send-to-moderation`.
+- **Content actions** (comment / issue triggers only), all REVERSIBLE:
+  - `hide-comment` — GitHub `minimizeComment` (GraphQL). The workhorse.
+  - `label` — on the parent issue/PR.
+  - `send-to-moderation` — same queue, same paused-run semantics.
+  - **NEVER auto-delete.** Deletion is a human verb in the moderation queue.
+  - `lock-thread` — deferred (escalation, post-v1; cut list).
+- **`workflow/validate.ts` enforces target/action compatibility:** a `block` node
+  downstream of a comment trigger is a validation error, and a `hide-comment`
+  node under a change-request trigger is too.
+
+### Toggles: kill switch, and defaults are derived
+The `/rules` and `/workflows` pages stay fully separate (owner decision). A rule
+toggle never silently does nothing — its meaning depends on whether the repo has
+a saved workflow:
+- **Repo with NO saved workflow:** the workflow is DERIVED from the toggles —
+  "on change-request → every *enabled* change-request rule → all-of gate → block
+  on fail"; the same derivation covers content ("on comment/issue → every enabled
+  content rule → content actions"). Toggle ON = the rule runs; toggle OFF = it
+  doesn't. There is no fixed `DEFAULT_WORKFLOW` constant — the default *is* this
+  derivation.
+- **Repo WITH a saved custom workflow:** the graph wins. Toggle OFF is a **kill
+  switch** — nodes referencing that rule are skipped at execution (recorded
+  `skipped: disabled`, conducts as pass, and **excluded from the degradation
+  floor**: disabled is deliberate, degraded is accidental). Toggle ON does NOT
+  insert nodes; the rule's card shows a **"managed by your workflow"** tag.
+- The worker consults `rule_configs.enabled` at node evaluation. This is the one
+  engine change the unified-rules work requires; everything else is UI + new
+  targets over the unchanged executor.
+
+### Moderation & the content pipeline
 - **Moderation queue = a paused run**, not a separate system. `needs_review`
   verdict halts the run, creates a moderation item; approve/deny resumes down the
   corresponding edge. Audit trail, run page, and PR button work identically for
   moderated and automatic outcomes.
+- **Content evaluations are runs too.** Comment/issue triggers are ordinary
+  trigger nodes; their evaluations persist as runs + run_steps (auditable,
+  replayable, deep-linkable) exactly like change-request runs. Content actions are
+  `run_actions` rows (rows-first, idempotent) that store the **reversal handle**
+  (the comment node id, for unhide). `content_matches` is a thin index over
+  content-rule failures for the `/rules` counts — derived data, rebuildable from
+  runs.
+- **v1 content rule set (small, dumb, effective):**
+  - `spam-domains@1` — Tripwire-curated global domain list + per-repo additions.
+  - `blocked-terms@1` — per-repo custom term list.
+  - `custom-pattern@1` — user regex. **HARD REQUIREMENT: linear-time matching
+    (RE2-class) or a timeout guard + input-length cap.** Untrusted regex is a
+    denial-of-service invitation.
+  - `comment-burst@1` — account age × comment velocity heuristic; reuses
+    contributor signals.
+  - `crypto-address@1` gains `target: "comment"` (it already matches text).
+  - Classifiers (profanity / harassment / NSFW) are DEFERRED (cut list): word
+    lists are bad harassment detectors, per-comment LLM calls are a cost bomb, and
+    the FP loop below must accumulate labels first. Same cold-start doctrine as
+    scoring ML — heuristics first, model later.
+- **Edge policies (locked):**
+  - Never scan Tripwire's own comments (marker check) or App/bot-authored content
+    by default.
+  - Maintainer / org-member exemption applies (also solves the quoting problem: a
+    maintainer citing a spam domain isn't spam).
+  - Strip fenced code blocks before term/profanity matching; KEEP them for
+    URL/domain matching.
+  - **Wave batching:** matches by one actor within a window collapse into ONE
+    moderation item / one summary action set — never 200 hide calls + 200 queue
+    items. Heavy content matches emit a red-flag signal into contributor scoring
+    (the two planes share intelligence, not machinery).
+  - PR descriptions are out of scope for v1 (the gate already reads them; a PR body
+    can't be minimized, so actions would collapse to `label` anyway).
+
+### The false-positive loop
+Every reversal is a label. A moderation item from rule X approved-as-fine ⇒ false
+positive for X; upheld ⇒ true positive; an **unhide** of a hidden comment ⇒ FP.
+FP rate = reversals / actions over the window, per rule. This requires an unhide
+affordance on content moderation items (v1 ships it — reversibility is the point
+of `hide-comment`). Below a floor N the stat renders honestly ("not enough data"),
+never a fake percentage. This loop is also the classifier training set accruing
+quietly — same doctrine as scoring: heuristics first, model later, labels from
+real decisions.
+
+### Redundancy ledger (what "automod" resolves into)
+The mockup's pull-scoped rows were never a separate system — they map onto the
+rule primitive: workflow tampering = `honeypot@1` (exists) · destructive-PR guard
+= a **new change-request rule** (mass-deletion evidence over the diff) wired to
+`send-to-moderation` · tracking pixels = a change-request rule or an `ai-review`
+finding class. Home's mock queue list is replaced by real moderation items (one
+queue, two views — a preview of `/moderation`). During mock-shrink the demo
+`automod.ts`-descended types squatting in `contracts` get cleaned, and the old
+enum values (flag / hide / close) reconcile to the surviving vocabulary above
+(gate actions + content actions) — no code lands in this docs pass.
 
 ---
 
@@ -326,6 +457,10 @@ fixture library, the replay corpus, and the future ML dataset.
 
 Two artifacts per PR, always in sync, both emitted at the end of a run:
 **one comment** (the human-readable face) and **one check run** (the merge gate).
+This section is the *change-request* surface. Content-rule outcomes on
+comments/issues (§6) never emit a check or touch the merge gate — they hide the
+offending comment, label the parent, or open a moderation item, and their run
+lives on the same run page.
 
 ### The comment
 **As condensed as possible. One comment. Never a CodeRabbit essay.**
@@ -465,13 +600,38 @@ apps/web/src/components/
   home/            header.tsx  activity-chart.tsx  verdict-summary.tsx
   events/          event-list.tsx  event-row.tsx  live-indicator.tsx
   runs/            run-page.tsx  step-card.tsx  evidence-view.tsx  ai-findings.tsx
-  rules/           rule-card.tsx  rule-config-form.tsx
+  rules/           rule-card.tsx  rule-config-form.tsx  rule-header-stats.tsx
+                   #   match-sparkline.tsx  rule-filters.tsx  (absorbs the automod mockup)
   workflows/editor/ canvas.tsx  rule-node.tsx  gate-node.tsx  action-node.tsx  trigger-node.tsx
-  moderation/      queue.tsx  review-item.tsx
+  moderation/      queue.tsx  review-item.tsx  unhide-action.tsx
   layout/          app-shell.tsx  sidebar.tsx  nav.tsx
 ```
 Primitives → `packages/ui`. Custom app UI → here. Extract when 50+ lines, used in
 2+ files, or owns state; keep inline when <10 lines, single-use, presentational.
+
+### The rules page (`/rules` — the absorbed automod mockup over real data)
+The old automod mockup's charts/toggles UI *becomes* the rules page, populated by
+real data — no new analytics system.
+- **Header stats (4 cards + sparklines):** active rules · matches 24h (rule-node
+  fails across runs + content matches) · actioned 24h (executed run_actions +
+  content actions) · FP rate (§6 loop; "not enough data" below the floor).
+- **Per-rule cards:** name + `id@version` chip · target chip (PRs / comments /
+  issues) · action summary ("block · pull", "hide · comment") · enabled toggle
+  (kill switch, §6) · 24h match count · sparkline over the window · config editor
+  (JSON textarea now, per-field later) · **"managed by your workflow" tag** when
+  the repo has a saved workflow (§6). There is **no "not wired" state** — derived
+  defaults make it impossible for no-workflow repos, and the managed tag covers
+  custom ones.
+- **Filters:** target (all / PRs / comments+issues) · sort: most active · FP rate
+  · A–Z. The mockup's matcher-type chips (blocklist / heuristic / classifier /
+  regex) become a `kind` tag on rule metadata — filterable, not structural.
+- **Data sources:** change-request matches derive from run_steps (already stored);
+  content matches from `content_matches` (§6); sparklines from the daily/hourly
+  rollup extension.
+
+> **Future editor palette (owner vision, post-v1 — cut list for now):** the React
+> Flow editor gains **signal nodes** (trigger / rule / gate / action nodes already
+> exist — only SIGNAL nodes are deferred). Not built in v1.
 
 ### Data conventions
 - Server state: TanStack Query fed by server functions calling `db/services`.
@@ -661,6 +821,8 @@ drifts. Tripwire's version (Grim expands over time):
 | The verdict | "blocked", "passed", "sent to review" | "rejected", "denied", "failed" (people fail; PRs get blocked) |
 | The subject | "contributor", "change request" | "user" (users are maintainers), "PR" in agnostic contexts |
 | AI-generated junk | "slop" | euphemisms |
+| Comment/issue checks | "rules" (content-target rules) | "automod", "filters", "AI moderation" |
+| Reversible content action | "hide", "hidden" (unhide reverses) | "delete", "remove" (deletion is a human verb) |
 | Tone | terse, lowercase-friendly, zero exclamation marks | marketing superlatives |
 
 ### Scoped file template (content varies; shape is constant)
@@ -696,7 +858,13 @@ GitLab / any second forge adapter · SDK publishing · public OpenAPI surface ·
 marketplace GitHub Action (dumb API client only, if ever) · mutating customer
 branch protection · `apps/mcp` implementation · ML layer · org-level features ·
 billing ·
-email/password auth · deep observability beyond pino · deployment automation.
+email/password auth · deep observability beyond pino · deployment automation ·
+content classifiers (profanity / harassment / NSFW) · `lock-thread` escalation ·
+PR-description content matching · discussions / wiki / commit-message scanning ·
+community report buttons · auto-delete (permanent — deletion stays a human verb in
+moderation) · cross-repo content bans (scoring's jurisdiction) · signal nodes in
+the workflow editor (trigger/rule/gate/action nodes already exist — only SIGNAL
+nodes are deferred).
 A helpful agent scaffolding `forge-gitlab` because the sibling slot visibly
 exists is the same scope creep that killed v1, typing faster.
 

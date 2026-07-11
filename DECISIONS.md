@@ -742,3 +742,48 @@ on the public view (free top-of-funnel).
   marker, badge path/width) stay with the presenters — they are not copy.
 - When a second forge adapter lands, lift the forge-neutral pieces to a shared
   home; noted inline in copy.ts.
+
+### Unified-rules spec merge (2026-07-11) — "automod" killed as a concept
+
+Owner-approved amendment folded into spec.md (docs only, no code this pass).
+"Automod" is not a fourth primitive — it was a better rules UI plus a new class
+of rule targets. Both absorbed: UI into `/rules`, targets into the rule
+primitive. Rules now declare `target: change-request | comment | issue`; the
+executor is unchanged, only the RuleContext per trigger differs. Actions split
+into gate actions (change-request) vs reversible content actions (`hide-comment`
+/ `label` / `send-to-moderation`; never auto-delete; `lock-thread` cut).
+`validate.ts` enforces target/action compatibility. Content evals are runs +
+run_steps + `run_actions` (reversal handle stored); `content_matches` is a
+derived index for `/rules` counts. v1 content rules: spam-domains@1,
+blocked-terms@1, custom-pattern@1 (RE2-class / timeout+length cap — untrusted
+regex is a DoS invite), comment-burst@1; crypto-address@1 gains `target:comment`.
+Classifiers (profanity/harassment/NSFW) deferred to the cut list. FP loop:
+reversals are labels, FP rate = reversals/actions per rule, "not enough data"
+below a floor; unhide affordance ships v1. New ingest kinds `issues.opened` /
+`issues.edited` / `issue_comment.edited`. `/automod` page deleted; its charts/
+toggles UI becomes `/rules` over real data.
+
+**Amendment §4 (toggle semantics) SUPERSEDED by owner's derived-default model:**
+- No-workflow repos: the workflow is DERIVED from enabled rules ("on
+  change-request → every enabled change-request rule → all-of gate → block on
+  fail"; same shape for content). Toggle on = runs, off = doesn't.
+- Custom-workflow repos: the graph wins. Toggle off = kill switch (nodes
+  referencing the rule skipped, recorded `skipped: disabled`, conducts as pass,
+  EXCLUDED from the degradation floor — disabled is deliberate, degraded is
+  accidental). Toggle on does NOT insert nodes; cards show a "managed by your
+  workflow" tag.
+- The amendment's "not wired — won't run" indicator is DELETED (derived defaults
+  make it impossible for no-workflow repos; the managed tag covers custom ones).
+- The `DEFAULT_WORKFLOW` fixed constant is superseded by `core/workflow/derive.ts`.
+- Only engine change implied: the worker consults `rule_configs.enabled` at node
+  evaluation. Deferred to the toggle-semantics session (§9-step-2 sequencing).
+
+Renames/kills: "automod" vocabulary banned in constitution.md (use "rules"),
+`hide/unhide` over `delete/remove`. Mockup's pull rows reclassify onto rules
+(workflow tampering = honeypot@1; destructive-PR guard = a new change-request
+rule → send-to-moderation; tracking pixels = change-request rule / ai-review
+finding). Cut-list additions: content classifiers · lock-thread · PR-description
+matching · discussions/wiki/commit scanning · report buttons · auto-delete ·
+cross-repo content bans · signal nodes in the editor (trigger/rule/gate/action
+already exist — only SIGNAL nodes deferred). Sequencing unchanged: this is
+spec-merge step 1; toggle-fix, rules-page absorption, content pipeline follow.

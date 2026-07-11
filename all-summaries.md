@@ -730,3 +730,34 @@ raw trace gated. Session prompt in DECISIONS.md; patch after rule calibration.
 
 **Checks (final):** biome clean · 11/11 typecheck · boundaries ✓ · 126 tests,
 0 fail.
+
+---
+
+## Spec-merge — unified rules (2026-07-11) — docs only
+
+Owner-approved amendment merged into spec.md; "automod" killed as a concept.
+Not a fourth primitive — a better rules UI (folds into `/rules`) plus a new
+class of rule targets (fold into the rule primitive). Rules declare
+`target: change-request | comment | issue`; executor unchanged, only the
+RuleContext per trigger differs. Gate actions (change-request) vs reversible
+content actions (`hide-comment`/`label`/`send-to-moderation`; never auto-delete);
+`validate.ts` enforces target/action fit. Content evals are runs + run_steps +
+`run_actions` (reversal handle); `content_matches` derived index. v1 content
+rules: spam-domains@1, blocked-terms@1, custom-pattern@1 (RE2/timeout+cap),
+comment-burst@1; crypto-address@1 gains `target:comment`. Classifiers deferred.
+FP loop = reversals/actions per rule + unhide affordance. New ingest kinds
+issues.opened/edited + issue_comment.edited. `/automod` deleted → `/rules`.
+
+**Amendment §4 SUPERSEDED** by owner's derived-default semantics: no-workflow
+repos derive the workflow from enabled toggles; custom-workflow repos let the
+graph win with toggle = kill switch (`skipped: disabled`, off the degradation
+floor); no "not wired" state; `DEFAULT_WORKFLOW` constant → `core/workflow/
+derive.ts`; one engine change (worker reads `rule_configs.enabled`) deferred to
+the toggle-semantics session. constitution.md bans "automod" (use "rules").
+Cut-list additions incl. SIGNAL nodes only (trigger/rule/gate/action exist).
+Full ledger in DECISIONS.md. Docs-only pass — no code changed.
+
+**Checks:** biome clean · 11/11 typecheck · boundaries ✓ · tests 125 pass /
+1 fail — the failure (`process-event.integration`: "maintainer PR ⇒ exempt, no
+run", expects 0 runs, got 1) is PRE-EXISTING on main and code-unrelated to this
+docs-only pass; flagged to VERIFICATION-QUEUE, not introduced here.
