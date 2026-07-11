@@ -4,10 +4,12 @@ import { setCheck } from "./check.ts";
 import { upsertComment } from "./comment.ts";
 
 /**
- * Executes a ForgeAction idempotently (§4). `block` carries no forge call of
- * its own: the failing `tripwire` check IS the block (§7 — required status ⇒
- * dead merge button); closing PRs is not tripwire's job. Comment and check
- * upsert their existing artifact.
+ * Executes a ForgeAction idempotently (§4). `block` files a request-changes
+ * review so unprotected repos still get friction; the failing `tripwire`
+ * check remains the primary gate (§7 — required status ⇒ dead merge button).
+ * Closing PRs is not tripwire's job. Comment and check upsert their artifact.
+ * Review submission is best-effort at the caller: GitHub legally 403s
+ * request-changes on your own PRs.
  */
 export async function executeAction(
 	http: GithubHttp,
@@ -15,7 +17,12 @@ export async function executeAction(
 ): Promise<ForgeActionResult> {
 	switch (action.kind) {
 		case "block": {
-			return { externalId: null };
+			const review = (await http.post(
+				action.repoFullName,
+				`/repos/${action.repoFullName}/pulls/${action.number}/reviews`,
+				{ event: "REQUEST_CHANGES", body: action.reason },
+			)) as { id?: number };
+			return { externalId: review.id ? String(review.id) : null };
 		}
 		case "label": {
 			await http.post(

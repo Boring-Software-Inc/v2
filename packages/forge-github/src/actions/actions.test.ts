@@ -161,3 +161,26 @@ describe("setCheck", () => {
 		expect((post?.body as Record<string, unknown>).conclusion).toBeUndefined();
 	});
 });
+
+describe("executeAction — block files a request-changes review", () => {
+	test("posts REQUEST_CHANGES with the constitution one-liner", async () => {
+		const { http, calls } = fakeHttp({
+			"POST /repos/a/b/pulls/7/reviews": { id: 91 },
+		});
+		const { executeAction } = await import("./execute.ts");
+		const result = await executeAction(http, {
+			kind: "block",
+			repoFullName: "a/b",
+			number: 7,
+			reason:
+				"**tripwire: blocked** — 2 of 6 rules failed; merge is held. details: https://tripwire.sh/runs/x",
+		});
+		expect(result.externalId).toBe("91");
+		const post = calls.find((c) => c.method === "POST");
+		expect(post?.path).toBe("/repos/a/b/pulls/7/reviews");
+		expect(post?.body).toMatchObject({ event: "REQUEST_CHANGES" });
+		expect(String((post?.body as { body: string }).body)).toContain(
+			"tripwire: blocked",
+		);
+	});
+});

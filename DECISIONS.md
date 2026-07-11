@@ -489,3 +489,15 @@ is untouched.
   throw. The api head exits at boot on the throw; the web head's getAuth
   throws per request (no single boot hook in the vite/nitro server) — either
   way production never silently publishes the dashboard. Guard unit-tested.
+
+### Unit 3 — block files a request-changes review (AMENDS the step-7 entry)
+
+- The step-7 "block executes no forge call" decision is amended: `block` now
+  ALSO submits a request-changes PR review (one adapter call, constitution-
+  voice one-liner + run link) so unprotected repos get friction. The failing
+  check remains the primary gate.
+- Best-effort by design: review submission failing (403 on own PRs is legal
+  GitHub behavior; also covers missing permission) logs a warn and marks the
+  row executed — it never kills the run and never blocks retry of other rows.
+- Idempotency unchanged: block rows are per-run verdict-scoped like
+  comment/check (re-runs conflict; resume rows carry the :resume suffix).

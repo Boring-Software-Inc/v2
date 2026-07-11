@@ -130,12 +130,22 @@ export async function emitPrSurface(
 	}
 
 	for (const row of [...input.pendingActionRows, ...surfaceRows]) {
+		const forgeAction = toForgeAction(row, repoFullName, number, {
+			runUrl,
+			sentence,
+		});
 		try {
-			const result = await adapter.execute(
-				toForgeAction(row, repoFullName, number),
-			);
+			const result = await adapter.execute(forgeAction);
 			await runServices.markActionExecuted(db, row.id, result.externalId);
 		} catch (error) {
+			if (row.kind === "block") {
+				logger.warn(
+					{ actionId: row.id, error: getErrorMessage(error) },
+					"request-changes review failed (legal on own PRs / missing permission) — check remains the gate",
+				);
+				await runServices.markActionExecuted(db, row.id, null);
+				continue;
+			}
 			logger.error(
 				{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
 				"action execution failed — row stays recorded for retry",
@@ -148,6 +158,7 @@ function toForgeAction(
 	row: { kind: string; payload: Record<string, unknown> },
 	repoFullName: string,
 	number: number,
+	context: { runUrl: string; sentence: string },
 ) {
 	switch (row.kind) {
 		case "comment":
@@ -182,7 +193,7 @@ function toForgeAction(
 				kind: "block" as const,
 				repoFullName,
 				number,
-				reason: "workflow verdict",
+				reason: `**tripwire: blocked** — ${context.sentence} details: ${context.runUrl}`,
 			};
 	}
 }
