@@ -1,7 +1,7 @@
-import type { NormalizedEvent } from "@tripwire/contracts";
+import type { InstallationEvent, RepoScopedEvent } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
-import { eventServices } from "@tripwire/db";
+import { eventServices, repoServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { normalizeWebhook } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
@@ -20,7 +20,7 @@ export interface ProcessEventDeps {
 	/** null ⇒ actions recorded but not executed (no credentials). */
 	adapter: ForgeAdapter | null;
 	/** §8 — null without ANTHROPIC_API_KEY; ai-review skips. */
-	makeGenerate: ((event: NormalizedEvent) => AiReviewGenerate) | null;
+	makeGenerate: ((event: RepoScopedEvent) => AiReviewGenerate) | null;
 	/** Base URL for run deep links. */
 	appUrl: string;
 }
@@ -80,10 +80,41 @@ export async function processEvent(
 		{
 			eventId: event.id,
 			kind: normalized.kind,
-			repo: normalized.repo.fullName,
+			repo: "repo" in normalized ? normalized.repo.fullName : null,
 		},
 		"event normalized",
 	);
+
+	if ("installation" in normalized) {
+		await syncInstallation(db, normalized, logger);
+		return;
+	}
+
+	/** Lazy repo upsert — covers installs that happened while the tunnel was down. */
+	if (
+		"changeRequest" in normalized &&
+		!(await repoServices.getRepoByFullName(db, normalized.repo.fullName))
+	) {
+		await repoServices.syncInstallationRepos(
+			db,
+			"",
+			[
+				{
+					externalId:
+						normalized.repoExternalId ?? `unknown:${normalized.repo.fullName}`,
+					owner: normalized.repo.owner,
+					name: normalized.repo.name,
+					fullName: normalized.repo.fullName,
+					private: false,
+				},
+			],
+			[],
+		);
+		logger.info(
+			{ repo: normalized.repo.fullName },
+			"repo lazily upserted (no installation event seen)",
+		);
+	}
 
 	const surfaceDeps = {
 		db,
@@ -108,4 +139,33 @@ export async function processEvent(
 			pendingActionRows: result.actionRows,
 		});
 	}
+}
+
+async function syncInstallation(
+	db: Db,
+	event: InstallationEvent,
+	logger: Logger,
+): Promise<void> {
+	const installationId = event.installation.externalId;
+	if (event.kind === "installation.deleted") {
+		await repoServices.removeInstallation(db, installationId);
+	} else if (event.kind === "installation-repositories.removed") {
+		await repoServices.syncInstallationRepos(
+			db,
+			installationId,
+			[],
+			event.repositories,
+		);
+	} else {
+		await repoServices.syncInstallationRepos(
+			db,
+			installationId,
+			event.repositories,
+			[],
+		);
+	}
+	logger.info(
+		{ kind: event.kind, installationId, repos: event.repositories.length },
+		"installation synced — no run, no surface",
+	);
 }

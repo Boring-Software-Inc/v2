@@ -643,3 +643,29 @@ full: 120 pass, 0 fail · biome clean · 11/11 typecheck · boundaries ✓
 
 **Needs Grim's eyes:** none new — transport + gate follow the recorded
 precedents.
+
+---
+
+## Installation-sync fix (live gap)
+
+**Scope:** installation/installation_repositories events → 4 new normalized
+kinds → repos rows synced (upsert / soft-delete); lazy repo upsert on unknown-
+repo change requests; /rules lists active repos only; first SELF-CAPTURED
+fixture (our App's live installation delivery).
+
+**Machine-verified:**
+```
+bun test packages/forge-github → 21 pass (installation.created fixture
+  normalizes with our real installation id 145946161 + Boring-Software-Inc/
+  scratch; deleted/added/removed map to their kinds)
+bun test apps/worker →
+✓ install event ⇒ repo row (external_id, installation_id, removed_at null),
+  visible via listActiveRepos, NO run created
+✓ uninstall ⇒ removed_at set, excluded from active list
+✓ change-request for unknown repo ⇒ lazily upserted row
+full: 126 pass, 0 fail · biome clean · 11/11 typecheck · boundaries ✓
+```
+
+**Live follow-up:** restart the worker, then re-deliver the installation
+webhook from the App's Advanced tab (or reinstall) — /rules should show
+Boring-Software-Inc/scratch.

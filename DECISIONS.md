@@ -611,3 +611,25 @@ is untouched.
 - getSession is faked at the Auth seam in tests (better-auth cookie internals
   are not under test): no session ⇒ 401, session ⇒ heartbeat, dev-open ⇒
   heartbeat, webhook/healthz untouched. Live smoke: cookieless curl ⇒ 401.
+
+### Installation sync (live gap: installing the App created no repo row)
+
+- The §5 ingest list never included installation events — /rules showed "no
+  repos" after a real install. Fixed minimally: `installation`
+  (created/deleted) and `installation_repositories` (added/removed) normalize
+  to four new NormalizedEvent kinds. Installation events carry an
+  `installation { externalId, account }` + `repositories[]` instead of a base
+  repo — the union split produced `RepoScopedEvent` / `InstallationEvent`
+  helper types, and repo-carrying events now also record `repoExternalId`.
+- Worker: installation kinds sync repos rows (upsert refreshes installation
+  id + clears removed_at on re-add; removal/uninstall soft-deletes per the
+  step-2 decision) and produce NO run, NO check, NO comment. Lazy repo upsert
+  on change-request events for unknown repos covers installs made while the
+  tunnel was down (placeholder external id when the payload lacks one).
+- Dashboard repo lists now exclude soft-deleted rows (listActiveRepos).
+- **Fixture provenance:** installation.created is SELF-CAPTURED from our
+  App's live delivery (58273eb0…, no scrubbing needed — installation payloads
+  carry URLs, not tokens). deleted/added/removed variants from octokit
+  captures until real ones occur. The integration uninstall test flips the
+  action field of our own capture in memory (same installation id required)
+  — flagged as the one synthesized variant.

@@ -1,4 +1,8 @@
-import type { NormalizedEvent, WorkflowDefinition } from "@tripwire/contracts";
+import type {
+	NormalizedEvent,
+	RepoScopedEvent,
+	WorkflowDefinition,
+} from "@tripwire/contracts";
 import { workflowDefinitionSchema } from "@tripwire/contracts";
 import { executeWorkflow, type NodeOutcome } from "@tripwire/core";
 import { eventServices, moderationServices, runServices } from "@tripwire/db";
@@ -33,7 +37,12 @@ export async function resumeRun(
 		logger.error({ runId: item.runId }, "run event missing normalized form");
 		return;
 	}
-	const normalized = event.normalized as NormalizedEvent;
+	const parsed = event.normalized as NormalizedEvent;
+	if (!("repo" in parsed)) {
+		logger.error({ runId: item.runId }, "run event is not repo-scoped");
+		return;
+	}
+	const normalized: RepoScopedEvent = parsed;
 
 	if (item.nodeId === "run:degraded") {
 		await resumeDegradedRun(

@@ -1,5 +1,5 @@
 import type {
-	NormalizedEvent,
+	RepoScopedEvent,
 	RuleResult,
 	Verdict,
 	WorkflowDefinition,
@@ -57,7 +57,7 @@ export interface RunWorkflowsDeps {
 	logger: Logger;
 	reads: WorkerReads | null;
 	/** §8 — injected AI effect factory; null without ANTHROPIC_API_KEY. */
-	makeGenerate: ((event: NormalizedEvent) => AiReviewGenerate) | null;
+	makeGenerate: ((event: RepoScopedEvent) => AiReviewGenerate) | null;
 }
 
 export interface RunWorkflowsResult {
@@ -72,7 +72,7 @@ export interface RunWorkflowsResult {
 
 export async function runWorkflows(
 	deps: RunWorkflowsDeps,
-	event: NormalizedEvent,
+	event: RepoScopedEvent,
 	eventId: string,
 ): Promise<RunWorkflowsResult> {
 	const { db, logger } = deps;

@@ -40,6 +40,78 @@ export async function ensureRepo(db: Db, input: EnsureRepoInput) {
 	return id;
 }
 
+export interface InstallationRepoInput {
+	externalId: string;
+	owner: string;
+	name: string;
+	fullName: string;
+	private: boolean;
+}
+
+/**
+ * Installation sync (§4): upsert on install/add (re-adds clear removed_at and
+ * refresh the installation id), soft-delete on remove/uninstall — history
+ * stays interpretable (step-2 decision).
+ */
+export async function syncInstallationRepos(
+	db: Db,
+	installationId: string,
+	added: InstallationRepoInput[],
+	removed: InstallationRepoInput[],
+): Promise<void> {
+	for (const repo of added) {
+		await db
+			.insert(repos)
+			.values({
+				id: generateId(),
+				forge: "github",
+				externalId: repo.externalId,
+				owner: repo.owner,
+				name: repo.name,
+				fullName: repo.fullName,
+				private: repo.private,
+				installationId,
+			})
+			.onConflictDoUpdate({
+				target: [repos.forge, repos.externalId],
+				set: {
+					owner: repo.owner,
+					name: repo.name,
+					fullName: repo.fullName,
+					private: repo.private,
+					installationId,
+					removedAt: null,
+				},
+			});
+	}
+	for (const repo of removed) {
+		await db
+			.update(repos)
+			.set({ removedAt: new Date() })
+			.where(
+				and(eq(repos.forge, "github"), eq(repos.externalId, repo.externalId)),
+			);
+	}
+}
+
+/** Uninstall: soft-delete every repo the installation granted. */
+export async function removeInstallation(
+	db: Db,
+	installationId: string,
+): Promise<void> {
+	await db
+		.update(repos)
+		.set({ removedAt: new Date() })
+		.where(
+			and(eq(repos.forge, "github"), eq(repos.installationId, installationId)),
+		);
+}
+
+/** Repos visible to the dashboard — soft-deleted rows excluded. */
+export async function listActiveRepos(db: Db) {
+	return await db.select().from(repos).where(isNull(repos.removedAt));
+}
+
 export async function getRepoById(db: Db, repoId: string) {
 	const rows = await db.select().from(repos).where(eq(repos.id, repoId));
 	return rows[0] ?? null;

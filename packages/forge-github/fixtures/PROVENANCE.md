@@ -14,3 +14,7 @@ Captured payloads only — never hand-written (spec §11).
 TODO (VERIFICATION-QUEUE): once the App is live, replace/augment with
 self-captured deliveries from the events table via /capture-fixture — octokit
 examples are real captures but not from OUR App's permission set.
+| installation.created.json | SELF-CAPTURED from our App's live events table, delivery 58273eb0-7d62-11f1-9480-7cc9b03d66cb | 2026-07-11 | no scrubbing needed (installation payloads carry URLs, not tokens) |
+| installation.deleted.json | @octokit/webhooks-examples@7.6.1 | 2026-07-11 | replace with self-capture on next uninstall |
+| installation_repositories.added.json | @octokit/webhooks-examples@7.6.1 | 2026-07-11 | |
+| installation_repositories.removed.json | @octokit/webhooks-examples@7.6.1 | 2026-07-11 | |

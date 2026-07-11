@@ -22,6 +22,7 @@ const ghAccount = z.object({
 });
 
 const ghRepository = z.object({
+	id: z.number(),
 	name: z.string(),
 	full_name: z.string(),
 	owner: z.object({ login: z.string() }),
@@ -55,6 +56,34 @@ const issueCommentPayload = z.object({
 		created_at: z.string(),
 	}),
 	repository: ghRepository,
+	sender: ghAccount,
+});
+
+const ghInstallationRepo = z.object({
+	id: z.number(),
+	name: z.string(),
+	full_name: z.string(),
+	private: z.boolean().default(false),
+});
+
+const installationPayload = z.object({
+	action: z.string(),
+	installation: z.object({
+		id: z.number(),
+		account: z.object({ login: z.string() }),
+	}),
+	repositories: z.array(ghInstallationRepo).optional(),
+	sender: ghAccount,
+});
+
+const installationRepositoriesPayload = z.object({
+	action: z.string(),
+	installation: z.object({
+		id: z.number(),
+		account: z.object({ login: z.string() }),
+	}),
+	repositories_added: z.array(ghInstallationRepo).default([]),
+	repositories_removed: z.array(ghInstallationRepo).default([]),
 	sender: ghAccount,
 });
 
@@ -98,6 +127,7 @@ function base(
 			name: repo.name,
 			fullName: repo.full_name,
 		},
+		repoExternalId: String(repo.id),
 		actor: {
 			login: sender.login,
 			externalId: String(sender.id),
@@ -157,6 +187,58 @@ export function normalizeWebhook(
 		});
 	}
 
+	if (event.eventName === "installation") {
+		const p = installationPayload.parse(payload);
+		if (p.action !== "created" && p.action !== "deleted") {
+			return null;
+		}
+		return normalizedEventSchema.parse({
+			id: generateId(),
+			forge: "github" as const,
+			deliveryId: event.deliveryId,
+			actor: {
+				login: p.sender.login,
+				externalId: String(p.sender.id),
+				avatarUrl: p.sender.avatar_url,
+			},
+			occurredAt: receivedAt,
+			receivedAt,
+			kind: `installation.${p.action}` as const,
+			installation: {
+				externalId: String(p.installation.id),
+				account: p.installation.account.login,
+			},
+			repositories: (p.repositories ?? []).map(toInstallationRepo),
+		});
+	}
+
+	if (event.eventName === "installation_repositories") {
+		const p = installationRepositoriesPayload.parse(payload);
+		if (p.action !== "added" && p.action !== "removed") {
+			return null;
+		}
+		const repositories =
+			p.action === "added" ? p.repositories_added : p.repositories_removed;
+		return normalizedEventSchema.parse({
+			id: generateId(),
+			forge: "github" as const,
+			deliveryId: event.deliveryId,
+			actor: {
+				login: p.sender.login,
+				externalId: String(p.sender.id),
+				avatarUrl: p.sender.avatar_url,
+			},
+			occurredAt: receivedAt,
+			receivedAt,
+			kind: `installation-repositories.${p.action}` as const,
+			installation: {
+				externalId: String(p.installation.id),
+				account: p.installation.account.login,
+			},
+			repositories: repositories.map(toInstallationRepo),
+		});
+	}
+
 	if (event.eventName === "push") {
 		const p = pushPayload.parse(payload);
 		return normalizedEventSchema.parse({
@@ -172,4 +254,15 @@ export function normalizeWebhook(
 	}
 
 	return null;
+}
+
+function toInstallationRepo(repo: z.infer<typeof ghInstallationRepo>) {
+	const [owner, name] = repo.full_name.split("/");
+	return {
+		externalId: String(repo.id),
+		owner: owner ?? repo.full_name,
+		name: name ?? repo.name,
+		fullName: repo.full_name,
+		private: repo.private,
+	};
 }

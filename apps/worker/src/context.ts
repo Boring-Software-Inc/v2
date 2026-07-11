@@ -1,4 +1,4 @@
-import type { NormalizedEvent } from "@tripwire/contracts";
+import type { RepoScopedEvent } from "@tripwire/contracts";
 import type { AiReviewGenerate, RuleContext } from "@tripwire/core";
 import type {
 	ContributorProfile,
@@ -30,7 +30,7 @@ export interface BuiltRuleContext {
 }
 
 export async function buildRuleContext(
-	event: NormalizedEvent,
+	event: RepoScopedEvent,
 	reads: WorkerReads | null,
 	now: string,
 	logger: Logger,

@@ -535,3 +535,122 @@ describe("PR surface (§5.12–13, §7)", () => {
 		expect(fake.executed.length).toBe(executedBefore);
 	});
 });
+
+describe("installation sync (§4 installation sync — live gap fix)", () => {
+	async function installationFixture(name: string): Promise<unknown> {
+		return await Bun.file(
+			new URL(
+				`../../../packages/forge-github/fixtures/${name}.json`,
+				import.meta.url,
+			).pathname,
+		).json();
+	}
+
+	test("install event ⇒ repo row with installation id (visible to /rules)", async () => {
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "install-1",
+			rawKind: "installation",
+			raw: await installationFixture("installation.created"),
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		await processEvent(
+			{
+				db,
+				pool,
+				logger,
+				reads: null,
+				adapter: null,
+				makeGenerate: null,
+				appUrl: "http://localhost:3000",
+			},
+			{ eventId },
+		);
+		const rows = await pool.query(
+			"SELECT external_id, installation_id, removed_at FROM repos WHERE full_name = 'Boring-Software-Inc/scratch'",
+		);
+		expect(rows.rowCount).toBe(1);
+		expect(rows.rows[0].external_id).toBe("1297742259");
+		expect(rows.rows[0].installation_id).toBe("145946161");
+		expect(rows.rows[0].removed_at).toBeNull();
+
+		const { repoServices } = await import("@tripwire/db");
+		const active = await repoServices.listActiveRepos(db);
+		expect(
+			active.some((r) => r.fullName === "Boring-Software-Inc/scratch"),
+		).toBe(true);
+
+		const runs = await pool.query(
+			"SELECT count(*)::int AS n FROM runs WHERE event_id = $1",
+			[eventId],
+		);
+		expect(runs.rows[0].n).toBe(0);
+	});
+
+	test("uninstall ⇒ soft delete (removed_at set), history intact", async () => {
+		const raw = (await installationFixture("installation.created")) as {
+			action: string;
+		};
+		const uninstall = { ...raw, action: "deleted" };
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "install-2",
+			rawKind: "installation",
+			raw: uninstall,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		await processEvent(
+			{
+				db,
+				pool,
+				logger,
+				reads: null,
+				adapter: null,
+				makeGenerate: null,
+				appUrl: "http://localhost:3000",
+			},
+			{ eventId },
+		);
+		const rows = await pool.query(
+			"SELECT removed_at FROM repos WHERE full_name = 'Boring-Software-Inc/scratch'",
+		);
+		expect(rows.rows[0].removed_at).not.toBeNull();
+
+		const { repoServices } = await import("@tripwire/db");
+		const active = await repoServices.listActiveRepos(db);
+		expect(
+			active.some((r) => r.fullName === "Boring-Software-Inc/scratch"),
+		).toBe(false);
+	});
+
+	test("change-request for an unknown repo lazily upserts the row", async () => {
+		const raw = await fixtureRaw();
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "lazy-1",
+			rawKind: "pull_request",
+			raw,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		await processEvent(
+			{
+				db,
+				pool,
+				logger,
+				reads: null,
+				adapter: null,
+				makeGenerate: null,
+				appUrl: "http://localhost:3000",
+			},
+			{ eventId },
+		);
+		const rows = await pool.query(
+			"SELECT external_id FROM repos WHERE full_name = 'Codertocat/Hello-World' AND removed_at IS NULL",
+		);
+		expect(rows.rowCount).toBe(1);
+		expect(rows.rows[0].external_id).toMatch(/^\d+$/);
+	});
+});

@@ -19,9 +19,9 @@ export interface RuleConfigView {
 
 export const listRepoOptions = createServerFn({ method: "GET" }).handler(
 	async (): Promise<RepoOption[]> => {
-		const { schema } = await import("@tripwire/db");
+		const { repoServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		const rows = await getDb().db.select().from(schema.repos);
+		const rows = await repoServices.listActiveRepos(getDb().db);
 		return rows.map((row) => ({ id: row.id, fullName: row.fullName }));
 	},
 );

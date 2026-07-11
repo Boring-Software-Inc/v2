@@ -116,3 +116,64 @@ describe("normalizeWebhook — fixture corpus (contract layer §11)", () => {
 		).toThrow();
 	});
 });
+
+describe("normalizeWebhook — installation sync (self-captured fixture)", () => {
+	test("installation created (OUR App's live delivery) → installation.created", async () => {
+		const body = await fixture("installation.created");
+		const event = normalizeWebhook(
+			{ deliveryId: "d-i1", eventName: "installation", body, signature: null },
+			NOW,
+		);
+		expect(event?.kind).toBe("installation.created");
+		if (!event || !("installation" in event)) {
+			throw new Error("wrong kind");
+		}
+		expect(event.installation.externalId).toBe("145946161");
+		expect(event.installation.account).toBe("Boring-Software-Inc");
+		expect(event.repositories).toEqual([
+			{
+				externalId: "1297742259",
+				owner: "Boring-Software-Inc",
+				name: "scratch",
+				fullName: "Boring-Software-Inc/scratch",
+				private: false,
+			},
+		]);
+		expect(normalizedEventSchema.parse(event)).toBeTruthy();
+	});
+
+	test("installation deleted → installation.deleted", async () => {
+		const body = await fixture("installation.deleted");
+		const event = normalizeWebhook(
+			{ deliveryId: "d-i2", eventName: "installation", body, signature: null },
+			NOW,
+		);
+		expect(event?.kind).toBe("installation.deleted");
+	});
+
+	test("installation_repositories added/removed map to their kinds", async () => {
+		for (const [name, kind] of [
+			["installation_repositories.added", "installation-repositories.added"],
+			[
+				"installation_repositories.removed",
+				"installation-repositories.removed",
+			],
+		] as const) {
+			const body = await fixture(name);
+			const event = normalizeWebhook(
+				{
+					deliveryId: `d-${name}`,
+					eventName: "installation_repositories",
+					body,
+					signature: null,
+				},
+				NOW,
+			);
+			expect(event?.kind).toBe(kind);
+			if (!event || !("installation" in event)) {
+				throw new Error("wrong kind");
+			}
+			expect(event.repositories.length).toBeGreaterThan(0);
+		}
+	});
+});

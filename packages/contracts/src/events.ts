@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { repoRefSchema } from "./repo.ts";
+import { type RepoRef, repoRefSchema } from "./repo.ts";
 
 /**
  * Events domain (spec §4 `events.ts`) — AUTHORED from §5/§6, no demo shape
@@ -14,6 +14,10 @@ export const eventKindSchema = z.enum([
 	"change-request.closed",
 	"comment.created",
 	"push",
+	"installation.created",
+	"installation.deleted",
+	"installation-repositories.added",
+	"installation-repositories.removed",
 ]);
 export type EventKind = z.infer<typeof eventKindSchema>;
 
@@ -62,9 +66,36 @@ const eventBase = {
 	/** The forge's delivery id (X-GitHub-Delivery) — the idempotency key. */
 	deliveryId: z.string(),
 	repo: repoRefSchema,
+	/** The forge's repo id, as a string — installation sync + lazy repo upsert. */
+	repoExternalId: z.string().optional(),
 	actor: eventActorSchema,
 	occurredAt: z.iso.datetime(),
 	receivedAt: z.iso.datetime(),
+};
+
+/** Installation events span repos, so they carry a list, not a base repo. */
+const installationBase = {
+	id: z.string(),
+	forge: z.literal("github"),
+	deliveryId: z.string(),
+	actor: eventActorSchema,
+	occurredAt: z.iso.datetime(),
+	receivedAt: z.iso.datetime(),
+	installation: z.object({
+		/** The App installation id, as a string. */
+		externalId: z.string(),
+		/** The org/user account the App is installed on. */
+		account: z.string(),
+	}),
+	repositories: z.array(
+		z.object({
+			externalId: z.string(),
+			owner: z.string(),
+			name: z.string(),
+			fullName: z.string(),
+			private: z.boolean(),
+		}),
+	),
 };
 
 export const normalizedEventSchema = z.discriminatedUnion("kind", [
@@ -93,5 +124,24 @@ export const normalizedEventSchema = z.discriminatedUnion("kind", [
 		kind: z.literal("push"),
 		push: pushPayloadSchema,
 	}),
+	z.object({ ...installationBase, kind: z.literal("installation.created") }),
+	z.object({ ...installationBase, kind: z.literal("installation.deleted") }),
+	z.object({
+		...installationBase,
+		kind: z.literal("installation-repositories.added"),
+	}),
+	z.object({
+		...installationBase,
+		kind: z.literal("installation-repositories.removed"),
+	}),
 ]);
 export type NormalizedEvent = z.infer<typeof normalizedEventSchema>;
+
+/** Events scoped to a single repo — everything except installation sync. */
+export type RepoScopedEvent = Extract<NormalizedEvent, { repo: RepoRef }>;
+
+/** Installation-sync events (no single base repo). */
+export type InstallationEvent = Extract<
+	NormalizedEvent,
+	{ installation: { externalId: string } }
+>;

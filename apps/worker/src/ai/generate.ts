@@ -1,5 +1,5 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import type { NormalizedEvent } from "@tripwire/contracts";
+import type { RepoScopedEvent } from "@tripwire/contracts";
 import { aiReviewOutputSchema } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import { generateText, hasToolCall, stepCountIs, tool } from "ai";
@@ -19,7 +19,7 @@ export function createGenerate(options: {
 	defaultModel: string;
 	reads: WorkerReads | null;
 	readFile: (repo: string, path: string, ref: string) => Promise<string | null>;
-	event: NormalizedEvent;
+	event: RepoScopedEvent;
 }): AiReviewGenerate {
 	const openrouter = createOpenRouter({ apiKey: options.apiKey });
 	const repo = options.event.repo.fullName;

@@ -13,6 +13,10 @@ const KIND_LABEL: Record<EventKind, string> = {
 	"change-request.closed": "change request closed",
 	"comment.created": "comment",
 	push: "push",
+	"installation.created": "installed the app",
+	"installation.deleted": "uninstalled the app",
+	"installation-repositories.added": "granted repos",
+	"installation-repositories.removed": "revoked repos",
 };
 
 function kindIcon(kind: EventKind) {
@@ -26,6 +30,9 @@ function kindIcon(kind: EventKind) {
 }
 
 function subjectLine(event: NormalizedEvent): string {
+	if ("installation" in event) {
+		return event.repositories.map((repo) => repo.fullName).join(", ");
+	}
 	if (event.kind === "comment.created") {
 		return `#${event.comment.subjectNumber}`;
 	}
@@ -60,7 +67,7 @@ export function EventRow({ event }: { event: NormalizedEvent }) {
 					<span className="truncate">{subjectLine(event)}</span>
 				</div>
 				<div className="truncate text-muted-foreground text-xs">
-					{event.repo.fullName}
+					{"repo" in event ? event.repo.fullName : event.installation.account}
 				</div>
 			</div>
 			<span className="shrink-0 text-muted-foreground text-xs">

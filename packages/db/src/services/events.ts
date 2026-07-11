@@ -90,7 +90,7 @@ export async function markEventNormalized(
 		.update(events)
 		.set({
 			kind: valid.kind,
-			repoFullName: valid.repo.fullName,
+			repoFullName: "repo" in valid ? valid.repo.fullName : null,
 			actorLogin: valid.actor.login,
 			subjectNumber,
 			headSha,
