@@ -248,3 +248,23 @@ is untouched.
   actions are not ingested (null). `issue_comment` only `created`.
 - **No octokit anywhere:** App JWT is RS256 via node:crypto; installation
   tokens fetched with plain fetch + cached (client/auth.ts).
+
+### Step 4 — Worker + live event list
+
+- **SSE chosen over 2s polling** (the §2 decision deferred to this step): the
+  LISTEN/NOTIFY plumbing already existed from §5, Hono ships `streamSSE`, and
+  polling would add a second data path for no gain. Fallback stays documented
+  in the spec if SSE misbehaves behind proxies.
+- **NOTIFY lives in `db/services/events.markEventNormalized`** (parameterized
+  `pg_notify`), not a separate `worker/notify.ts` as the §4 sketch names —
+  the notify belongs beside the write it announces; a one-line wrapper file
+  would be an abstraction with a single consumer.
+- **`lib/seo.ts` AUTHORED** (demo had none to port despite §9's "port" wording
+  — no seo.ts existed in the redesign demo): buildSeo/formatPageTitle/
+  summarizeText/toAbsoluteUrl/schemas/PRIVATE_ROUTE_HEADERS, greenfield
+  buildSeo-only shape.
+- **`useEventStream` uses one `useEffect`** — sanctioned: syncing an EXTERNAL
+  push source (EventSource) into the Query cache is the effect use-case §9
+  permits; the list itself stays a cache read.
+- **Web reads db via dynamic import inside server-function handlers**
+  (`#/lib/server/db`) so pg never enters the client bundle.

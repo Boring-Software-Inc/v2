@@ -98,7 +98,7 @@ export async function markEventNormalized(
 			normalizedAt: new Date(),
 		})
 		.where(eq(events.id, eventId));
-	await pool.query(`NOTIFY events, '${eventId}'`);
+	await pool.query("SELECT pg_notify('events', $1)", [eventId]);
 }
 
 /** §5.5 — parse failure ⇒ quarantine + fixture candidate (raw stays intact). */

@@ -1,4 +1,5 @@
 import {
+	ActivityIcon,
 	Analytics01Icon,
 	Logout01Icon,
 	MoonIcon,
@@ -51,6 +52,7 @@ export function DashboardTopbar({ moderator, counts }: DashboardTopbarProps) {
 
 			<div className="hidden shrink-0 items-center gap-0.5 md:flex">
 				<NavLink to="/" label="Queue" icon={Queue01Icon} value={counts.queue} />
+				<NavLink to="/events" label="Events" icon={ActivityIcon} />
 				<NavLink
 					to="/automod"
 					label="Automod"

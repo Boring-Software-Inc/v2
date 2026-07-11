@@ -9,6 +9,8 @@ export interface ApiDeps {
 	pool: Pool;
 	boss: PgBoss;
 	webhookSecret: string;
+	/** Allowed CORS origin for the SSE stream (the web dashboard). */
+	webOrigin: string;
 	logger: Logger;
 }
 

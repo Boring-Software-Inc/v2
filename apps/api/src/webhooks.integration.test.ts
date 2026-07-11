@@ -39,6 +39,7 @@ beforeAll(async () => {
 		pool,
 		boss,
 		webhookSecret: SECRET,
+		webOrigin: "http://localhost:3000",
 		logger: pino({ level: "silent" }),
 	});
 }, 120_000);

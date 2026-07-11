@@ -78,3 +78,48 @@ typecheck:  10/10 workspaces exit 0
 boundaries: ✓ passed
 tests:      15 pass, 0 fail (49 expect) across 2 files
 ```
+
+---
+
+## Step 3 — GitHub App + ingest — 0715bb2
+
+**Scope:** ForgeAdapter interface (forge); forge-github inbound: timing-safe
+HMAC verify, normalize (GitHub → NormalizedEvent), App JWT + installation
+token cache, captured fixture corpus + PROVENANCE.md; contracts/check.ts (§7
+verbatim); db: pg-boss queue, events service (transactional insert+enqueue,
+markEventNormalized+NOTIFY, quarantine, cursor listEvents), docker-cli test
+postgres helper; api: Hono POST /webhooks/github per §5.1–5.4.
+
+**Machine-verified — §11 integration on REAL postgres:**
+```
+bun test apps/api →
+✓ verify → tx(insert + enqueue) → 200; row and job exist
+✓ same delivery-id twice ⇒ still one row, one job, 200 duplicate
+✓ bad signature ⇒ 401, nothing written
+✓ missing signature ⇒ 401; missing headers ⇒ 400
+4 pass, 0 fail [1.62s]
+```
+Fixture corpus (6 captured payloads) parses + normalizes:
+```
+bun test packages/forge-github → 8 pass, 0 fail
+(opened/synchronize/closed/comment/push normalize + contract-parse; ping → null;
+ malformed ingested payload throws)
+```
+
+**Awaiting live verification:** QUEUE #1 (register App), #2 (tunnel + webhook
+URL), #3 (real PR ⇒ one row; redelivery ⇒ still one — the step-3 done-when).
+
+**Decisions:** DECISIONS.md "Step 3" — transactional enqueue mechanics,
+testcontainers dropped (hangs under Bun) for docker-cli helper, octokit
+fixture provenance, authored check.ts, adapter mapping judgments, no octokit.
+
+**Needs Grim's eyes:** contracts/check.ts (authored); ForgeAdapter surface;
+normalize action→kind mapping (reopened/ready_for_review → opened).
+
+**Checks:**
+```
+biome:      Checked 235 files. No fixes applied.
+typecheck:  10/10 workspaces exit 0
+boundaries: ✓ passed
+tests:      27 pass, 0 fail (84 expect) across 4 files
+```
