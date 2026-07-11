@@ -729,3 +729,16 @@ on the public view (free top-of-funnel).
 > approve/deny and list routes return 401/redirect; private-repo run 404s or
 > gates without a session. Spec §10 already records the model; DECISIONS +
 > all-summaries per protocol.
+
+### Bot copy centralized — packages/forge-github/src/copy.ts
+
+- Every user-facing string the bot writes to GitHub now lives in one file
+  (verdict headlines + words, the four verdict sentences, the for-maintainers
+  dropdown label + intro, button alt, review body, pending/final check
+  summaries). Tune the voice in one place; governed by constitution.md.
+- Placed in the GitHub adapter (not a new package — anti-BS) because it is who
+  renders it; the worker's pr-surface imports the check/review/sentence copy
+  via `@tripwire/forge-github`. Structural tokens (`<!-- tripwire:run -->`
+  marker, badge path/width) stay with the presenters — they are not copy.
+- When a second forge adapter lands, lift the forge-neutral pieces to a shared
+  home; noted inline in copy.ts.

@@ -18,5 +18,16 @@ export {
 } from "./client/auth.ts";
 export { GithubHttp, type GithubHttpOptions } from "./client/http.ts";
 export { GithubReads, type GithubReadsOptions } from "./client/reads.ts";
+export {
+	BUTTON_ALT,
+	checkSummary,
+	MAINTAINER_INTRO,
+	MAINTAINER_SUMMARY,
+	PENDING_CHECK_SUMMARY,
+	REVIEW_BODY,
+	VERDICT_WORD,
+	verdictHeadline,
+	verdictSentence,
+} from "./copy.ts";
 export { normalizeWebhook } from "./webhook/normalize.ts";
 export { signWebhookBody, verifyWebhookSignature } from "./webhook/verify.ts";

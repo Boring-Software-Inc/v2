@@ -2,7 +2,13 @@ import type { CheckState, NormalizedEvent, Verdict } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
-import { renderCommentBody } from "@tripwire/forge-github";
+import {
+	checkSummary,
+	PENDING_CHECK_SUMMARY,
+	REVIEW_BODY,
+	renderCommentBody,
+	verdictSentence,
+} from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 
@@ -18,23 +24,6 @@ const VERDICT_TO_CONCLUSION: Record<Verdict, CheckState["conclusion"]> = {
 	block: "failure",
 	needs_review: "neutral",
 };
-
-export function verdictSentence(
-	verdict: Verdict,
-	stats: { evaluated: number; failed: number },
-	degraded = false,
-): string {
-	if (verdict === "block") {
-		const rules = stats.failed === 1 ? "rule" : "rules";
-		return `this change tripped ${stats.failed} of ${stats.evaluated} ${rules}. it can't merge until they clear.`;
-	}
-	if (verdict === "needs_review") {
-		return degraded
-			? "couldn't finish checking this change, so a maintainer will make the call."
-			: "this change needs a maintainer's eyes before it can merge.";
-	}
-	return `cleared all ${stats.evaluated} rules — good to merge.`;
-}
 
 export interface PrSurfaceDeps {
 	db: Db;
@@ -59,7 +48,7 @@ export async function emitPendingCheck(
 			check: {
 				sha: event.changeRequest.headSha,
 				conclusion: "pending",
-				summary: "tripwire is evaluating this change request.",
+				summary: PENDING_CHECK_SUMMARY,
 				detailsUrl: deps.appUrl,
 			},
 		});
@@ -116,7 +105,7 @@ export async function emitPrSurface(
 			payload: {
 				sha,
 				conclusion: VERDICT_TO_CONCLUSION[verdict],
-				summary: `tripwire: ${verdict === "needs_review" ? "sent to review" : verdict === "block" ? "blocked" : "passed"} — ${sentence}`,
+				summary: checkSummary(verdict, sentence),
 				detailsUrl: runUrl,
 			},
 			idempotencyKey: `check:${sha}:${verdict}`,
@@ -191,8 +180,7 @@ function toForgeAction(
 				kind: "block" as const,
 				repoFullName,
 				number,
-				reason:
-					"blocked by tripwire — the details are in the tripwire comment on this PR.",
+				reason: REVIEW_BODY,
 			};
 	}
 }

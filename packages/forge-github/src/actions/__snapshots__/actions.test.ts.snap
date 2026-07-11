@@ -5,7 +5,7 @@ exports[`renderCommentBody — snapshot golden files blocked 1`] = `
 
 <details><summary>for maintainers</summary>
 
-every rule, its evidence, and the ai review are on the run page:
+every rule, its evidence, and the AI review are on the run page:
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
@@ -19,7 +19,7 @@ exports[`renderCommentBody — snapshot golden files passed 1`] = `
 
 <details><summary>for maintainers</summary>
 
-every rule, its evidence, and the ai review are on the run page:
+every rule, its evidence, and the AI review are on the run page:
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
@@ -33,7 +33,7 @@ exports[`renderCommentBody — snapshot golden files sent to review 1`] = `
 
 <details><summary>for maintainers</summary>
 
-every rule, its evidence, and the ai review are on the run page:
+every rule, its evidence, and the AI review are on the run page:
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 

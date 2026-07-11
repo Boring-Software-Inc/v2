@@ -1,5 +1,11 @@
 import type { Verdict } from "@tripwire/contracts";
 import type { GithubHttp } from "../client/http.ts";
+import {
+	BUTTON_ALT,
+	MAINTAINER_INTRO,
+	MAINTAINER_SUMMARY,
+	verdictHeadline,
+} from "../copy.ts";
 
 /**
  * THE condensed comment (§7): verdict line + ONE sentence + the "View on
@@ -19,12 +25,6 @@ export const BADGE_PATH = "/badges/view-run.png";
 /** The button's intrinsic 1x design width — the 3x asset renders crisp. */
 const BADGE_WIDTH = 185;
 
-const VERDICT_LINE: Record<Verdict, string> = {
-	pass: "**tripwire: passed**",
-	block: "**tripwire: blocked**",
-	needs_review: "**tripwire: sent to review**",
-};
-
 export interface CommentInput {
 	verdict: Verdict;
 	/** ONE sentence of context — the presenter enforces it stays one line. */
@@ -36,13 +36,13 @@ export interface CommentInput {
 
 export function renderCommentBody(input: CommentInput): string {
 	const sentence = input.sentence.replaceAll(/\s+/g, " ").trim();
-	const button = `<a href="${input.runUrl}"><img src="${input.badgeUrl}" width="${BADGE_WIDTH}" alt="View on Tripwire" /></a>`;
+	const button = `<a href="${input.runUrl}"><img src="${input.badgeUrl}" width="${BADGE_WIDTH}" alt="${BUTTON_ALT}" /></a>`;
 	return [
-		`${VERDICT_LINE[input.verdict]} — ${sentence}`,
+		`${verdictHeadline(input.verdict)} — ${sentence}`,
 		"",
-		"<details><summary>for maintainers</summary>",
+		`<details><summary>${MAINTAINER_SUMMARY}</summary>`,
 		"",
-		"every rule, its evidence, and the ai review are on the run page:",
+		MAINTAINER_INTRO,
 		"",
 		button,
 		"",
