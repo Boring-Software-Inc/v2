@@ -30,7 +30,10 @@ if (import.meta.main) {
 	const boss = await createBoss();
 
 	const appId = process.env.GITHUB_APP_ID;
-	const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+	const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replaceAll(
+		"\\n",
+		"\n",
+	);
 	let reads: WorkerReads | null = null;
 	let adapter: ForgeAdapter | null = null;
 	if (appId && privateKey) {
