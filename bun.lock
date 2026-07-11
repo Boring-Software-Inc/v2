@@ -15,6 +15,7 @@
       "name": "@tripwire/api",
       "version": "0.0.0",
       "dependencies": {
+        "@tripwire/auth": "workspace:*",
         "@tripwire/contracts": "workspace:*",
         "@tripwire/db": "workspace:*",
         "@tripwire/forge-github": "workspace:*",
