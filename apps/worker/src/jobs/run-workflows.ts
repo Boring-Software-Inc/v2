@@ -5,6 +5,7 @@ import type {
 	WorkflowDefinition,
 } from "@tripwire/contracts";
 import {
+	type AiReviewGenerate,
 	evaluateRule,
 	executeWorkflow,
 	getRule,
@@ -55,6 +56,8 @@ export interface RunWorkflowsDeps {
 	db: Db;
 	logger: Logger;
 	reads: WorkerReads | null;
+	/** §8 — injected AI effect factory; null without ANTHROPIC_API_KEY. */
+	makeGenerate: ((event: NormalizedEvent) => AiReviewGenerate) | null;
 }
 
 export interface RunWorkflowsResult {
@@ -95,7 +98,13 @@ export async function runWorkflows(
 	}
 
 	const now = new Date().toISOString();
-	const ctx = await buildRuleContext(event, deps.reads, now, logger);
+	const ctx = await buildRuleContext(
+		event,
+		deps.reads,
+		now,
+		logger,
+		deps.makeGenerate?.(event),
+	);
 
 	if (ctx.contributor?.isMaintainer || ctx.contributor?.isOrgMember) {
 		logger.info(

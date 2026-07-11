@@ -69,3 +69,17 @@ held." with the view-run badge; the merge button is dead.
 SHOULD HAPPEN: the comment is EDITED (same comment, no second one); a fresh
 `tripwire` check appears on the new SHA.
 5. `/capture-fixture` the deliveries afterwards.
+
+## 6. GitHub OAuth app + sign-in (closes step 8 auth done-when)
+1. github.com → Settings → Developer settings → OAuth Apps → New OAuth App.
+   Homepage: http://localhost:3000 · Authorization callback URL:
+   http://localhost:3000/api/auth/callback/github
+2. `.env`: set GITHUB_OAUTH_CLIENT_ID / GITHUB_OAUTH_CLIENT_SECRET, and
+   BETTER_AUTH_SECRET (`openssl rand -hex 32`), BETTER_AUTH_URL=http://localhost:3000.
+3. Restart api + web (`bun run dev`); open http://localhost:3000.
+SHOULD HAPPEN: you are redirected to /login; "continue with github" completes
+OAuth and lands you back on the queue; `select * from forge_identities;` shows
+your GitHub identity; user.id is a UUIDv7, no GitHub id anywhere else.
+4. Open a run page from a real blocked run (item 5's badge link).
+SHOULD HAPPEN: verdict chip, per-rule step cards with evidence JSON, actions
+list all render from run_steps.

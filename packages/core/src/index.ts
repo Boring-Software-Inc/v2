@@ -3,6 +3,9 @@
  * octokit, no env vars. Effects arrive injected via RuleContext / generate().
  */
 export type {
+	AiReviewGenerate,
+	AiReviewRequest,
+	AiReviewResponse,
 	ContextCommit,
 	ContextContributor,
 	ContextDiffFile,

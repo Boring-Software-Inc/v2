@@ -1,5 +1,5 @@
 import type { NormalizedEvent } from "@tripwire/contracts";
-import type { RuleContext } from "@tripwire/core";
+import type { AiReviewGenerate, RuleContext } from "@tripwire/core";
 import type {
 	ContributorProfile,
 	DiffFile,
@@ -28,6 +28,7 @@ export async function buildRuleContext(
 	reads: WorkerReads | null,
 	now: string,
 	logger: Logger,
+	generate?: AiReviewGenerate,
 ): Promise<RuleContext> {
 	const number = "changeRequest" in event ? event.changeRequest.number : null;
 	const repo = event.repo.fullName;
@@ -61,6 +62,7 @@ export async function buildRuleContext(
 	return {
 		event,
 		now,
+		generate,
 		diff:
 			diff?.map((file) => ({
 				path: file.path,

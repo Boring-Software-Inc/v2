@@ -38,6 +38,28 @@ export interface ContextContributor {
 	isMaintainer: boolean;
 }
 
+/**
+ * §8 inversion: ai-review's effect arrives INJECTED — core never imports the
+ * AI SDK. The worker supplies an implementation wrapping the bounded tool
+ * loop; `output` is validated by the rule, `trace` persists as evidence.
+ */
+export interface AiReviewRequest {
+	model: string;
+	maxSteps: number;
+	instructions: string;
+	prompt: string;
+}
+
+export interface AiReviewResponse {
+	output: unknown;
+	/** Full trace: messages, tool calls, tokens, cost — "show me why". */
+	trace: unknown;
+}
+
+export type AiReviewGenerate = (
+	request: AiReviewRequest,
+) => Promise<AiReviewResponse>;
+
 export interface RuleContext {
 	event: NormalizedEvent;
 	/** ISO — the evaluation clock. Determinism: time is an input. */
@@ -46,4 +68,6 @@ export interface RuleContext {
 	diff: ContextDiffFile[] | null;
 	commits: ContextCommit[] | null;
 	contributor: ContextContributor | null;
+	/** Injected by the worker when AI credentials exist (§8). */
+	generate?: AiReviewGenerate;
 }

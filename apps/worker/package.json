@@ -11,15 +11,18 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@ai-sdk/anthropic": "^4.0.12",
 		"@tripwire/contracts": "workspace:*",
 		"@tripwire/core": "workspace:*",
 		"@tripwire/db": "workspace:*",
 		"@tripwire/forge": "workspace:*",
 		"@tripwire/forge-github": "workspace:*",
 		"@tripwire/utils": "workspace:*",
+		"ai": "^7.0.22",
 		"pg": "^8.22.0",
 		"pg-boss": "^12.26.0",
-		"pino": "^10.3.1"
+		"pino": "^10.3.1",
+		"zod": "^4.0.0"
 	},
 	"devDependencies": {
 		"@types/pg": "^8.20.0"

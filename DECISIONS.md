@@ -388,3 +388,34 @@ is untouched.
 - **`getStartContext().request`** is how server functions read headers in
   this @tanstack/react-start version (dep `@tanstack/start-storage-context`
   pinned to the workspace's existing transitive version).
+
+### Step 9 — ai-review
+
+- **`~/tripwire-eve-demo` DOES NOT EXIST on this machine** — the §8 "port the
+  review process from the eve demo" input is missing. instructions.md,
+  template.md, and the tool flow are AUTHORED fresh from §8's locked
+  decisions. **MORNING REVIEW TARGET #1** — if the demo lives elsewhere,
+  point a rework session at it; a material prompt change is `ai-review@2` by
+  the versioning law.
+- **Deps added:** `ai` + `@ai-sdk/anthropic` (worker — §2-locked "AI SDK,
+  Anthropic provider first"), `zod` (worker, tool input schemas).
+- **Injection shape:** `RuleContext.generate?: AiReviewGenerate` — matches the
+  scoped agents.md wording ("effects arrive injected via RuleContext /
+  generate()"). Core defines the TYPE; the worker's `createGenerate` wraps
+  the AI SDK. Core never imports the AI SDK or the adapter.
+- **Structured output via a `submit_review` tool** whose input schema IS
+  `aiReviewOutputSchema`; `stopWhen: [stepCountIs(cap), hasToolCall]`. Chosen
+  over experimental output modes: the tool call is the muzzle, validation
+  happens twice (SDK input schema + rule safeParse). Schema-violating output
+  ⇒ skipped, never a throw.
+- **Verdict → boolean:** passed iff verdict === "pass"; block AND needs_review
+  both fail the boolean requirement. Workflow routing to moderation keys off
+  the workflow's own send-to-moderation node, not the rule verdict — the §8
+  composition example works by wiring ai-review's fail edge into a gate.
+- **Prompt files imported as compile-time text** (`with { type: "text" }`,
+  Bun-native) — no runtime I/O in core; md.d.ts ambient declaration included
+  by worker's tsconfig (the only legal importer of core).
+- **ai-review added to the default workflow** (skips harmlessly without
+  ANTHROPIC_API_KEY). Diff char budget 60k up front.
+- **Trace persistence:** evidence = { output, trace: {model, steps, usage,
+  finishReason} } — "show me why" on appeal + the future dataset.

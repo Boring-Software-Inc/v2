@@ -288,3 +288,41 @@ typecheck:  10/10 workspaces exit 0
 boundaries: ✓ passed
 tests:      90 pass, 0 fail (3 snapshots, 221 expect)
 ```
+
+---
+
+## Step 8 — Run page + rules UI + auth — 205930c
+
+**Scope:** Better Auth (createAuth in db, handler on api, session reads +
+gate + login page + signOut in web, forge_identities hook), /runs/$runId with
+real run_steps evidence rendering, /rules with per-repo config CRUD, rule
+config schemas single-sourced in contracts (RULE_CATALOG).
+
+**Machine-verified:**
+```
+typecheck 10/10 · biome clean (306 files) · boundaries ✓ ·
+tests 90 pass, 0 fail
+dev-server smoke: /login → 200, /rules → 200, /events → 200,
+/runs/<missing-id> → 200 ("run not found" state)
+core tests still green after config-schema move (46 pass)
+```
+
+**Awaiting live verification:** QUEUE #6 — GitHub OAuth app + real sign-in
+(gate closes, forge_identities row appears); run page over a real blocked run
+(part of #5's flow).
+
+**Decisions:** DECISIONS.md "Step 8" — createAuth placement, auth proxy,
+open-gate-when-unconfigured, config schemas → contracts, JSON-textarea config
+editing.
+
+**Needs Grim's eyes:** RULE_CATALOG copy + defaults (authored); the
+open-gate fallback call; run page + rules page design fidelity (new
+surfaces); auth stack (better-auth config).
+
+**Checks:**
+```
+biome:      Checked 306 files. No fixes applied.
+typecheck:  10/10 workspaces exit 0
+boundaries: ✓ passed
+tests:      90 pass, 0 fail (3 snapshots, 221 expect)
+```

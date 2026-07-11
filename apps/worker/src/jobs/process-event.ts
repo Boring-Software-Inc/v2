@@ -1,3 +1,5 @@
+import type { NormalizedEvent } from "@tripwire/contracts";
+import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
 import { eventServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
@@ -17,6 +19,8 @@ export interface ProcessEventDeps {
 	reads: WorkerReads | null;
 	/** null ⇒ actions recorded but not executed (no credentials). */
 	adapter: ForgeAdapter | null;
+	/** §8 — null without ANTHROPIC_API_KEY; ai-review skips. */
+	makeGenerate: ((event: NormalizedEvent) => AiReviewGenerate) | null;
 	/** Base URL for run deep links. */
 	appUrl: string;
 }
@@ -90,7 +94,7 @@ export async function processEvent(
 	await emitPendingCheck(surfaceDeps, normalized);
 
 	const result = await runWorkflows(
-		{ db, logger, reads: deps.reads },
+		{ db, logger, reads: deps.reads, makeGenerate: deps.makeGenerate },
 		normalized,
 		event.id,
 	);

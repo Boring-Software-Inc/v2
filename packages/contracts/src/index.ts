@@ -17,6 +17,7 @@ export * from "./insights.ts";
 export * from "./moderation.ts";
 export * from "./repo.ts";
 export * from "./repo-content.ts";
+export * from "./review.ts";
 export * from "./rules.ts";
 export * from "./runs.ts";
 export * from "./workflow.ts";

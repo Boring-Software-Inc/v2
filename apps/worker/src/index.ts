@@ -12,6 +12,7 @@ import {
 	InstallationTokenCache,
 } from "@tripwire/forge-github";
 import pino from "pino";
+import { createGenerate } from "./ai/generate.ts";
 import type { WorkerReads } from "./context.ts";
 import { processEvent } from "./jobs/process-event.ts";
 
@@ -45,6 +46,23 @@ if (import.meta.main) {
 		);
 	}
 
+	const anthropicKey = process.env.ANTHROPIC_API_KEY;
+	const makeGenerate =
+		anthropicKey && reads && adapter
+			? (event: Parameters<typeof createGenerate>[0]["event"]) =>
+					createGenerate({
+						apiKey: anthropicKey,
+						reads,
+						readFile: (repo, path, ref) => adapter.readFile(repo, path, ref),
+						event,
+					})
+			: null;
+	if (!makeGenerate) {
+		logger.warn(
+			"ANTHROPIC_API_KEY or forge creds missing — ai-review will skip",
+		);
+	}
+
 	await boss.work<ProcessEventJob>(PROCESS_EVENT_QUEUE, async (jobs) => {
 		for (const job of jobs) {
 			await processEvent(
@@ -53,6 +71,7 @@ if (import.meta.main) {
 					pool,
 					reads,
 					adapter,
+					makeGenerate,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({ eventId: job.data.eventId }),
 				},

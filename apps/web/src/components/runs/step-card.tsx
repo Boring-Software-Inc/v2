@@ -1,3 +1,6 @@
+import type { AiReviewOutput } from "@tripwire/contracts";
+import { aiReviewOutputSchema } from "@tripwire/contracts";
+import { AiFindings } from "#/components/runs/ai-findings";
 import { EvidenceView } from "#/components/runs/evidence-view";
 import type { RunStepView } from "#/lib/runs.functions";
 import { cn } from "#/lib/utils";
@@ -8,6 +11,31 @@ const STATUS_DOT: Record<string, string> = {
 	skipped: "bg-muted-foreground/40",
 	paused: "bg-amber-500",
 };
+
+function renderRuleEvidence(step: RunStepView) {
+	if (step.ruleRef?.startsWith("ai-review@")) {
+		const output = extractReview(step.evidence);
+		if (output) {
+			return <AiFindings output={output} />;
+		}
+	}
+	return <EvidenceView evidence={step.evidence} />;
+}
+
+function extractReview(evidence: unknown): AiReviewOutput | null {
+	if (
+		evidence &&
+		typeof evidence === "object" &&
+		"evidence" in evidence &&
+		evidence.evidence &&
+		typeof evidence.evidence === "object" &&
+		"output" in evidence.evidence
+	) {
+		const parsed = aiReviewOutputSchema.safeParse(evidence.evidence.output);
+		return parsed.success ? parsed.data : null;
+	}
+	return null;
+}
 
 export function StepCard({ step }: { step: RunStepView }) {
 	const title =
@@ -27,9 +55,7 @@ export function StepCard({ step }: { step: RunStepView }) {
 					{step.durationMs}ms
 				</span>
 			</div>
-			{step.nodeKind === "rule" ? (
-				<EvidenceView evidence={step.evidence} />
-			) : null}
+			{step.nodeKind === "rule" ? renderRuleEvidence(step) : null}
 		</div>
 	);
 }

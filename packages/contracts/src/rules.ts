@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
+import { aiReviewConfigSchema } from "./review.ts";
 
 /**
  * Rules domain (spec §4 `rules.ts`, §6). Extracted from the demo's
@@ -195,5 +196,14 @@ export const RULE_CATALOG = [
 		blurb: "requires a minimum of profile text — identity investment.",
 		configSchema: profileReadmeConfigSchema,
 		defaultConfig: { minLength: 32 },
+	},
+	{
+		ruleId: "ai-review",
+		version: 1,
+		name: "ai review",
+		blurb:
+			"bounded ai review of the change request — structured verdict, never prose.",
+		configSchema: aiReviewConfigSchema,
+		defaultConfig: { model: "claude-fable-5", maxSteps: 12 },
 	},
 ] as const;

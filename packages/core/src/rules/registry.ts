@@ -1,4 +1,5 @@
 import { accountAge } from "./account-age.ts";
+import { aiReview } from "./ai-review/rule.ts";
 import { cryptoAddress } from "./crypto-address.ts";
 import { type RuleDefinition, ruleRef } from "./define.ts";
 import { englishOnly } from "./english-only.ts";
@@ -31,6 +32,7 @@ register(englishOnly);
 register(cryptoAddress);
 register(honeypot);
 register(profileReadme);
+register(aiReview);
 
 /** Looks up `account-age@1`-style refs. Unknown refs are the caller's skipped case. */
 export function getRule(ref: string): RuleDefinition | null {

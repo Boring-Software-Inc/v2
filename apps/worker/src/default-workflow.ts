@@ -42,6 +42,12 @@ const DEFINITION: WorkflowDefinition = {
 			ref: "english-only@1",
 			config: { maxNonLatinRatio: 0.5 },
 		},
+		{
+			id: "ai-review",
+			type: "rule",
+			ref: "ai-review@1",
+			config: { model: "claude-fable-5", maxSteps: 12 },
+		},
 		{ id: "gate", type: "gate", mode: "all-of" },
 		{ id: "block", type: "action", action: "block" },
 	],
@@ -57,6 +63,8 @@ const DEFINITION: WorkflowDefinition = {
 		{ id: "e9", from: "max-files", to: "gate" },
 		{ id: "e10", from: "english", to: "gate" },
 		{ id: "e11", from: "gate", to: "block", when: "fail" },
+		{ id: "e12", from: "trigger", to: "ai-review" },
+		{ id: "e13", from: "ai-review", to: "gate" },
 	],
 };
 
