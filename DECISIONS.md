@@ -179,3 +179,39 @@ is untouched.
   items, 10 rules, 7 runs, integration, insights, repo content, 3 contributor
   profiles) against the tightened schemas — all pass. Contract tests now cover
   the range bounds and datetime rejection.
+
+---
+
+## Autonomous run (2026-07-11) — step-by-step ledger
+
+### Step 2 — DB + local infra
+
+- **Deps added:** `drizzle-orm` + `pg` (runtime), `drizzle-kit` + `@types/pg`
+  (dev) in `@tripwire/db`. Drizzle is §2-locked; driver choice was open — picked
+  **node-postgres (`pg`)** over postgres.js because pg-boss (§2 queue) is built
+  on `pg` and LISTEN/NOTIFY needs a dedicated `pg` Client; one driver everywhere
+  is the boring option.
+- **`generateId()` = `Bun.randomUUIDv7()`** — no uuid dependency at all; the
+  runtime is Bun-locked (§2) and ships UUIDv7 natively.
+- **AUTHORED — morning review target: `contracts/events.ts`** (NormalizedEvent,
+  EventKind, payload discriminated union) derived from §5/§6 trigger vocabulary
+  in forge-neutral terms (change-request, not PR). Kinds: change-request
+  opened/updated/closed, comment.created, push.
+- **AUTHORED — morning review target: `Verdict`** (`pass|block|needs_review`)
+  added to contracts/runs.ts per §4.
+- **Naming collision resolved — morning review target:** the vocab session
+  had renamed demo `LogEntry`→`Run`; the canonical §4 backend Run
+  (verdict/steps/snapshot) is structurally different from the demo's audit-log
+  view. Spec wins the name: demo shapes are now `RunLog*`
+  (`RunLogEntry/RunLogStep/RunLogItem/...`); web shims still alias `LogEntry`
+  etc., zero component churn. Canonical `Run`/`RunStep` contracts land at step 6
+  with the workflow contract.
+- **Schema judgment calls:** `run_actions.idempotency_key` is unique **per run**
+  (retry-dedupe); cross-run artifact identity (one comment per PR, one check per
+  SHA) is the adapter's upsert job. Events table carries
+  `quarantined/quarantine_reason` for §5.5 and nullable normalized cols filled
+  by the worker. `repos.removed_at` soft-delete keeps history interpretable.
+  `raw` jsonb is validated only as JSON on write (it is raw by definition);
+  contracts validation happens at normalize (§5.5).
+- **Better Auth tables hand-written** to the adapter's standard column set now
+  (step 2 owns schema); Better Auth itself (dep + config) arrives in step 8.

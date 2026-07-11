@@ -15,7 +15,9 @@
 		"check": "biome check .",
 		"check:boundaries": "bun run scripts/check-boundaries.ts",
 		"test": "bun test",
-		"db:up": "docker compose up -d postgres"
+		"db:up": "docker compose up -d postgres",
+		"db:generate": "bun run --filter '@tripwire/db' generate",
+		"db:migrate": "DATABASE_URL=${DATABASE_URL:-postgres://tripwire:tripwire@localhost:5432/tripwire} bun run --filter '@tripwire/db' migrate"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.5",

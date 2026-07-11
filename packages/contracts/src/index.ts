@@ -11,6 +11,7 @@
  */
 
 export * from "./contributor.ts";
+export * from "./events.ts";
 export * from "./insights.ts";
 export * from "./moderation.ts";
 export * from "./repo.ts";

@@ -6,7 +6,7 @@ import {
 	repoContentSchema,
 	repoInsightsSchema,
 	ruleSchema,
-	runSchema,
+	runLogEntrySchema,
 } from "./index.ts";
 
 /**
@@ -78,7 +78,7 @@ describe("contracts parse demo shapes", () => {
 
 	test("run — null moderator, lifecycle history", () => {
 		expect(() =>
-			runSchema.parse({
+			runLogEntrySchema.parse({
 				id: "log_01",
 				label: "New-account spam burst",
 				reason: "spam",
@@ -256,11 +256,13 @@ describe("contracts parse demo shapes", () => {
 
 	test("timestamps must be ISO datetimes", () => {
 		expect(
-			runSchema.shape.at.safeParse("2026-07-11T00:00:00.000Z").success,
+			runLogEntrySchema.shape.at.safeParse("2026-07-11T00:00:00.000Z").success,
 		).toBe(true);
-		expect(runSchema.shape.at.safeParse("2026-07-11").success).toBe(false);
-		expect(runSchema.shape.at.safeParse("five minutes ago").success).toBe(
+		expect(runLogEntrySchema.shape.at.safeParse("2026-07-11").success).toBe(
 			false,
 		);
+		expect(
+			runLogEntrySchema.shape.at.safeParse("five minutes ago").success,
+		).toBe(false);
 	});
 });

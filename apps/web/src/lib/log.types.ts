@@ -5,10 +5,10 @@
 export type {
 	CaughtBy,
 	CaughtKind,
-	Run as LogEntry,
-	RunAction as LogAction,
-	RunActionKind as LogActionKind,
-	RunItem as LogItem,
-	RunStatus as LogStatus,
-	RunStep as LogStep,
+	RunLogAction as LogAction,
+	RunLogActionKind as LogActionKind,
+	RunLogEntry as LogEntry,
+	RunLogItem as LogItem,
+	RunLogStatus as LogStatus,
+	RunLogStep as LogStep,
 } from "@tripwire/contracts";

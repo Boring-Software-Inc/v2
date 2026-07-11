@@ -8,10 +8,18 @@
 	},
 	"types": "./src/index.ts",
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsc --noEmit",
+		"migrate": "bun run src/migrate.ts",
+		"generate": "drizzle-kit generate"
 	},
 	"dependencies": {
 		"@tripwire/contracts": "workspace:*",
-		"@tripwire/utils": "workspace:*"
+		"@tripwire/utils": "workspace:*",
+		"drizzle-orm": "^0.45.2",
+		"pg": "^8.22.0"
+	},
+	"devDependencies": {
+		"@types/pg": "^8.20.0",
+		"drizzle-kit": "^0.31.10"
 	}
 }
