@@ -14,7 +14,8 @@ describe("renderCommentBody — snapshot golden files", () => {
 		expect(
 			renderCommentBody({
 				verdict: "block",
-				sentence: "2 of 6 rules failed; merge is held.",
+				sentence:
+					"this change tripped 2 of 6 rules. it can\u2019t merge until they clear.",
 				runUrl: "https://tripwire.sh/runs/0198abcd",
 				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
@@ -25,7 +26,7 @@ describe("renderCommentBody — snapshot golden files", () => {
 		expect(
 			renderCommentBody({
 				verdict: "pass",
-				sentence: "all 6 rules passed.",
+				sentence: "cleared all 6 rules \u2014 good to merge.",
 				runUrl: "https://tripwire.sh/runs/0198abcd",
 				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
@@ -36,7 +37,8 @@ describe("renderCommentBody — snapshot golden files", () => {
 		expect(
 			renderCommentBody({
 				verdict: "needs_review",
-				sentence: "awaiting moderation — a maintainer decides next.",
+				sentence:
+					"this change needs a maintainer\u2019s eyes before it can merge.",
 				runUrl: "https://tripwire.sh/runs/0198abcd",
 				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),

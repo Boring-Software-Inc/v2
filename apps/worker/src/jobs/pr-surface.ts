@@ -25,14 +25,15 @@ export function verdictSentence(
 	degraded = false,
 ): string {
 	if (verdict === "block") {
-		return `${stats.failed} of ${stats.evaluated} rules failed; merge is held.`;
+		const rules = stats.failed === 1 ? "rule" : "rules";
+		return `this change tripped ${stats.failed} of ${stats.evaluated} ${rules}. it can't merge until they clear.`;
 	}
 	if (verdict === "needs_review") {
 		return degraded
-			? "sent to review — evaluation degraded."
-			: "awaiting moderation — a maintainer decides next.";
+			? "couldn't finish checking this change, so a maintainer will make the call."
+			: "this change needs a maintainer's eyes before it can merge.";
 	}
-	return `all ${stats.evaluated} rules passed.`;
+	return `cleared all ${stats.evaluated} rules — good to merge.`;
 }
 
 export interface PrSurfaceDeps {
@@ -194,7 +195,7 @@ function toForgeAction(
 				kind: "block" as const,
 				repoFullName,
 				number,
-				reason: `**tripwire: blocked** — ${context.sentence} details: ${context.runUrl}`,
+				reason: `blocked by tripwire. the full breakdown is in the tripwire comment on this PR — ${context.runUrl}`,
 			};
 	}
 }
