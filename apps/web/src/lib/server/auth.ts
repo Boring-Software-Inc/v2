@@ -1,10 +1,14 @@
-import { type Auth, createAuth, resolveAuthPosture } from "@tripwire/db";
+import {
+	type Auth,
+	createAuth,
+	resolveAuthPosture,
+} from "@tripwire/auth/server";
 import { getDb } from "#/lib/server/db";
 
 /**
- * The web head's Better Auth instance — same config, same database as the api
- * head's handler; sessions written there validate here. null when auth env is
- * absent (local dev before the OAuth app exists — see VERIFICATION-QUEUE).
+ * The web head's Better Auth instance — the nitro server route mounts its
+ * handler; server functions read sessions from it. null in dev when auth env
+ * is absent (fail-closed in production via resolveAuthPosture).
  */
 let instance: Auth | null | undefined;
 

@@ -21,6 +21,7 @@ import { Glob } from "bun";
  */
 const ALLOWED: Record<string, readonly string[]> = {
 	// packages
+	auth: ["contracts", "utils", "db"],
 	contracts: [],
 	utils: ["contracts"],
 	forge: ["contracts"],
@@ -29,7 +30,7 @@ const ALLOWED: Record<string, readonly string[]> = {
 	db: ["contracts", "utils"],
 	ui: [],
 	// apps
-	web: ["contracts", "utils", "db", "ui"],
+	web: ["auth", "contracts", "utils", "db", "ui"],
 	api: ["contracts", "utils", "db", "forge-github"],
 	worker: ["contracts", "utils", "core", "db", "forge", "forge-github"],
 };

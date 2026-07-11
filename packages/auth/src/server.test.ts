@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { resolveAuthPosture } from "./auth.ts";
+import { resolveAuthPosture } from "./server.ts";
 
 describe("resolveAuthPosture — fail-closed in production", () => {
 	test("secret present ⇒ enabled anywhere", () => {

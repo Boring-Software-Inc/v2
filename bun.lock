@@ -50,6 +50,7 @@
         "@tanstack/react-router-ssr-query": "~1.166.10",
         "@tanstack/react-start": "~1.167.23",
         "@tanstack/start-storage-context": "~1.166.35",
+        "@tripwire/auth": "workspace:*",
         "@tripwire/contracts": "workspace:*",
         "@tripwire/db": "workspace:*",
         "@xyflow/react": "^12.11.2",
@@ -104,6 +105,16 @@
         "@types/pg": "^8.20.0",
       },
     },
+    "packages/auth": {
+      "name": "@tripwire/auth",
+      "version": "0.0.0",
+      "dependencies": {
+        "@tripwire/db": "workspace:*",
+        "@tripwire/utils": "workspace:*",
+        "better-auth": "^1.6.23",
+        "drizzle-orm": "^0.45.2",
+      },
+    },
     "packages/contracts": {
       "name": "@tripwire/contracts",
       "version": "0.0.0",
@@ -129,7 +140,6 @@
       "dependencies": {
         "@tripwire/contracts": "workspace:*",
         "@tripwire/utils": "workspace:*",
-        "better-auth": "^1.6.23",
         "drizzle-orm": "^0.45.2",
         "pg": "^8.22.0",
         "pg-boss": "^12.26.0",
@@ -608,6 +618,8 @@
     "@tanstack/virtual-file-routes": ["@tanstack/virtual-file-routes@1.161.7", "", { "bin": { "intent": "bin/intent.js" } }, "sha512-olW33+Cn+bsCsZKPwEGhlkqS6w3M2slFv11JIobdnCFKMLG97oAI2kWKdx5/zsywTL8flpnoIgaZZPlQTFYhdQ=="],
 
     "@tripwire/api": ["@tripwire/api@workspace:apps/api"],
+
+    "@tripwire/auth": ["@tripwire/auth@workspace:packages/auth"],
 
     "@tripwire/contracts": ["@tripwire/contracts@workspace:packages/contracts"],
 

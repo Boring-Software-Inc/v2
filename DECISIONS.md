@@ -556,3 +556,30 @@ is untouched.
   between 15s heartbeats.
 - Query errors now render on the events page instead of hiding in the
   server-fn serialization frame.
+
+### packages/auth (OWNER-AUTHORIZED §3 layout amendment)
+
+- Grim's instruction: fold auth into its own package. `@tripwire/auth` with
+  split entrypoints — `./server` (createAuth + resolveAuthPosture, moved from
+  db) and `./client` (the browser authClient; must never import server code).
+  Arrows: auth ← web (api no longer touches auth); auth imports db + utils.
+  Boundary script updated.
+- **Auth transport rebuilt after live debugging.** The vite `server.proxy`
+  NEVER fired — nitro owns the request pipeline, so /api/auth fell through to
+  the TanStack router where the auth gate 307'd it to /login (the "button
+  does nothing" bug: the client was fetching login HTML). Attempts, in order:
+  nitro `server/routes` convention (not picked up by this nitro/vite beta,
+  with or without srcDir) → **TanStack Start request middleware** (works):
+  `src/start.ts` exports `startInstance = createStart(() => ({
+  requestMiddleware }))`; the middleware serves /api/auth/* via
+  `auth.handler(request)` before routing. Same-origin cookies, OAuth callback
+  on :3000, zero proxy. The api head's auth mount, CORS block, and the vite
+  proxy are removed.
+- **`generateId()` made portable**: the web head's nitro dev runtime is NODE
+  — `Bun.randomUUIDv7` threw "Bun is not defined" the moment better-auth
+  wrote its OAuth state row. Bun fast path kept; RFC 9562 UUIDv7 fallback
+  (crypto.getRandomValues + 48-bit ms timestamp) added. This also un-blocks
+  any future non-Bun runtime touching utils.
+- Live-debug fixes folded in along the way: `.env` PEM re-quoted (raw
+  multiline broke Bun's parser), `GITHUB_CLIENT_ID/SECRET` → the
+  `GITHUB_OAUTH_*` names the code reads, sign-in errors now toast.

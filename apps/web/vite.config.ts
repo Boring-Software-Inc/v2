@@ -17,12 +17,5 @@ export default defineConfig({
 		// Leading dot = the domain and all its subdomains, so every fresh ngrok
 		// tunnel is allowed without re-pinning the random URL on each restart.
 		allowedHosts: [".ngrok-free.app", ".ngrok.app", ".trycloudflare.com"],
-		// Better Auth lives on the api head; proxying keeps cookies same-origin.
-		proxy: {
-			"/api/auth": {
-				target: process.env.VITE_API_URL ?? "http://localhost:8787",
-				changeOrigin: true,
-			},
-		},
 	},
 });

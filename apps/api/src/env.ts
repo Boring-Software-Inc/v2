@@ -1,12 +1,10 @@
-import type { Auth, Db } from "@tripwire/db";
+import type { Db } from "@tripwire/db";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
 
 /** Dependencies injected into every route via context — testable by design. */
 export interface ApiDeps {
-	/** null ⇒ auth endpoints disabled (no BETTER_AUTH_SECRET). */
-	auth: Auth | null;
 	db: Db;
 	pool: Pool;
 	boss: PgBoss;

@@ -1,9 +1,9 @@
+import type { Db } from "@tripwire/db";
+import { schema } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
-import type { Db } from "./client.ts";
-import * as schema from "./schema/index.ts";
 
 /**
  * Better Auth (§10): GitHub OAuth only at launch. One `createAuth` shared by

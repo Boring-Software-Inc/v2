@@ -1,0 +1,19 @@
+{
+	"name": "@tripwire/auth",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./server": "./src/server.ts",
+		"./client": "./src/client.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@tripwire/db": "workspace:*",
+		"@tripwire/utils": "workspace:*",
+		"better-auth": "^1.6.23",
+		"drizzle-orm": "^0.45.2"
+	}
+}

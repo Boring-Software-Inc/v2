@@ -35,7 +35,6 @@ beforeAll(async () => {
 	await applyMigrations(db);
 	boss = await createBoss(url);
 	app = createApi({
-		auth: null,
 		db,
 		pool,
 		boss,
