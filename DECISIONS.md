@@ -658,3 +658,21 @@ is untouched.
   live. Remaining for full queue #5: mark `tripwire` required in branch
   protection to kill the merge button, and re-push to confirm the comment
   edits in place.
+
+### PR comment button: shields.io badge → hosted "View on Tripwire" PNG
+
+- Grim's Paper design for the run deep-link button (dithered Geist-Pixel
+  "◆ View on Tripwire →") ported. GitHub comments render only a safe HTML
+  subset — no shaders, no custom fonts — so the button is a STATIC PNG
+  (exported 3x, 555×93) wrapped in a link:
+  `<a href="{runUrl}"><img src="{appUrl}/badges/view-run.png" width="185" ...>`.
+  GitHub allows `<a>`/`<img>` + width in comments.
+- The button is now VERDICT-NEUTRAL (one image, "View on Tripwire") — the bold
+  verdict line above carries block/pass/review; dropped the 3-color shields
+  badge. Simpler and matches the design.
+- Asset lives at `apps/web/public/badges/view-run.png`, served by the web
+  head. Reachability caveat (same as the run deep-link): renders on GitHub
+  only when APP_URL is public (deploy, or a tunnel to the web head) — on
+  localhost the image shows its alt text, exactly like the localhost run link.
+- Snapshot goldens regenerated; the condensed-comment test now asserts the
+  linked-image button instead of the shields url.

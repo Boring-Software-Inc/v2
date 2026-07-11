@@ -16,6 +16,7 @@ describe("renderCommentBody — snapshot golden files", () => {
 				verdict: "block",
 				sentence: "2 of 6 rules failed; merge is held.",
 				runUrl: "https://tripwire.sh/runs/0198abcd",
+				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
 		).toMatchSnapshot();
 	});
@@ -26,6 +27,7 @@ describe("renderCommentBody — snapshot golden files", () => {
 				verdict: "pass",
 				sentence: "all 6 rules passed.",
 				runUrl: "https://tripwire.sh/runs/0198abcd",
+				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
 		).toMatchSnapshot();
 	});
@@ -36,6 +38,7 @@ describe("renderCommentBody — snapshot golden files", () => {
 				verdict: "needs_review",
 				sentence: "awaiting moderation — a maintainer decides next.",
 				runUrl: "https://tripwire.sh/runs/0198abcd",
+				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
 		).toMatchSnapshot();
 	});
@@ -45,12 +48,14 @@ describe("renderCommentBody — snapshot golden files", () => {
 			verdict: "block",
 			sentence: "multi\nline\nsentence   collapses.",
 			runUrl: "https://tripwire.sh/runs/x",
+			badgeUrl: "https://tripwire.sh/badges/view-run.png",
 		});
 		const lines = body.trim().split("\n").filter(Boolean);
 		expect(lines).toHaveLength(3);
 		expect(lines[0]).toContain("**tripwire: blocked**");
 		expect(lines[0]).toContain("multi line sentence collapses.");
-		expect(lines[1]).toContain("img.shields.io");
+		expect(lines[1]).toContain("badges/view-run.png");
+		expect(lines[1]).toContain('href="https://tripwire.sh/runs/x"');
 		expect(lines[2]).toBe(COMMENT_MARKER);
 	});
 });

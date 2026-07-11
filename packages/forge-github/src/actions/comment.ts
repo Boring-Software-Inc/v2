@@ -2,12 +2,22 @@ import type { Verdict } from "@tripwire/contracts";
 import type { GithubHttp } from "../client/http.ts";
 
 /**
- * THE condensed comment (§7): verdict line + ONE sentence + a shields-style
- * button deep-linking the run page. The hidden marker makes subsequent events
- * EDIT the comment (upsert) — tripwire never litters a thread.
+ * THE condensed comment (§7): verdict line + ONE sentence + the "View on
+ * Tripwire" button deep-linking the run page. The hidden marker makes
+ * subsequent events EDIT the comment (upsert) — tripwire never litters a
+ * thread.
+ *
+ * The button is a hosted PNG (the dithered Geist-Pixel design) wrapped in a
+ * link — GitHub comments render only a safe HTML subset, so a shader/font
+ * button can't live inline; the image is verdict-neutral and the bold verdict
+ * line above carries the meaning. Served by the web head at
+ * `${appUrl}/badges/view-run.png`.
  */
 
 export const COMMENT_MARKER = "<!-- tripwire:run -->";
+export const BADGE_PATH = "/badges/view-run.png";
+/** The button's intrinsic 1x design width — the 3x asset renders crisp. */
+const BADGE_WIDTH = 185;
 
 const VERDICT_LINE: Record<Verdict, string> = {
 	pass: "**tripwire: passed**",
@@ -15,23 +25,19 @@ const VERDICT_LINE: Record<Verdict, string> = {
 	needs_review: "**tripwire: sent to review**",
 };
 
-const BADGE_COLOR: Record<Verdict, string> = {
-	pass: "2ea043",
-	block: "d1242f",
-	needs_review: "bf8700",
-};
-
 export interface CommentInput {
 	verdict: Verdict;
 	/** ONE sentence of context — the presenter enforces it stays one line. */
 	sentence: string;
 	runUrl: string;
+	/** Absolute URL to the button PNG (`${appUrl}${BADGE_PATH}`). */
+	badgeUrl: string;
 }
 
 export function renderCommentBody(input: CommentInput): string {
 	const sentence = input.sentence.replaceAll(/\s+/g, " ").trim();
-	const badge = `[![tripwire run](https://img.shields.io/badge/tripwire-view_run-${BADGE_COLOR[input.verdict]})](${input.runUrl})`;
-	return `${VERDICT_LINE[input.verdict]} — ${sentence}\n\n${badge}\n${COMMENT_MARKER}\n`;
+	const button = `<a href="${input.runUrl}"><img src="${input.badgeUrl}" width="${BADGE_WIDTH}" alt="View on Tripwire" /></a>`;
+	return `${VERDICT_LINE[input.verdict]} — ${sentence}\n\n${button}\n${COMMENT_MARKER}\n`;
 }
 
 interface IssueComment {

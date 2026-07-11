@@ -98,6 +98,7 @@ export async function emitPrSurface(
 	const number = event.changeRequest.number;
 	const sha = event.changeRequest.headSha;
 	const runUrl = `${deps.appUrl}/runs/${runId}`;
+	const badgeUrl = `${deps.appUrl}/badges/view-run.png`;
 	const sentence = verdictSentence(verdict, input.stats, input.degraded);
 
 	const surfaceRows = await runServices.recordActions(db, runId, [
@@ -105,7 +106,7 @@ export async function emitPrSurface(
 			kind: "comment",
 			payload: {
 				number,
-				body: renderCommentBody({ verdict, sentence, runUrl }),
+				body: renderCommentBody({ verdict, sentence, runUrl, badgeUrl }),
 			},
 			idempotencyKey: `comment:${number}:${verdict}`,
 		},
