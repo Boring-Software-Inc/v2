@@ -541,3 +541,18 @@ is untouched.
   default. `aiReviewConfigSchema.model` became optional accordingly; the
   default workflow and RULE_CATALOG no longer pin a model.
 - Resolved model (not the config value) persists in the trace evidence.
+
+
+### Dev-env plumbing (live bring-up findings)
+
+- **Nitro's dev server-fn runtime does not inherit shell/bun env** — it loads
+  dotenv from the app dir. Convention: root `.env` is the single source of
+  truth; `apps/web/.env` is a SYMLINK to it (`ln -sf ../../.env
+  apps/web/.env`, gitignored, documented in .env.example). api/worker load
+  the root .env by being run from the root (`bun run dev:api|dev:worker`).
+- **`PORT` renamed `API_PORT`** — the generic name leaked into vite through
+  the symlinked env and moved the web dev server onto the api's port.
+- **Bun.serve idleTimeout 45s** (api) — the 10s default severed SSE streams
+  between 15s heartbeats.
+- Query errors now render on the events page instead of hiding in the
+  server-fn serialization frame.

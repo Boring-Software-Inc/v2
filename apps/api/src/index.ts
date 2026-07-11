@@ -86,7 +86,7 @@ if (import.meta.main) {
 		logger,
 	});
 	const server = Bun.serve({
-		port: Number(process.env.PORT ?? 8787),
+		port: Number(process.env.API_PORT ?? 8787),
 		/** SSE connections heartbeat every 15s; Bun's default 10s idle timeout
 		 * would sever them between beats. */
 		idleTimeout: 45,

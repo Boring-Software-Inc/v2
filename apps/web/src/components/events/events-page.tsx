@@ -4,7 +4,7 @@ import { LiveIndicator } from "#/components/events/live-indicator";
 import { eventsQueryOptions, useEventStream } from "#/lib/events.query";
 
 export function EventsPage() {
-	const { data, isSuccess } = useQuery(eventsQueryOptions());
+	const { data, error, isSuccess } = useQuery(eventsQueryOptions());
 	useEventStream();
 
 	return (
@@ -18,6 +18,11 @@ export function EventsPage() {
 				</div>
 				<LiveIndicator live={isSuccess} />
 			</header>
+			{error ? (
+				<div className="mb-4 rounded-md bg-red-500/10 px-4 py-3 text-red-600 text-sm dark:text-red-400">
+					events query failed: {error.message}
+				</div>
+			) : null}
 			{data && data.items.length === 0 ? (
 				<div className="rounded-lg border border-dashed px-6 py-16 text-center text-muted-foreground text-sm">
 					no events yet — open a change request on a connected repo and it lands
