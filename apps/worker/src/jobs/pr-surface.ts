@@ -132,10 +132,7 @@ export async function emitPrSurface(
 	}
 
 	for (const row of [...input.pendingActionRows, ...surfaceRows]) {
-		const forgeAction = toForgeAction(row, repoFullName, number, {
-			runUrl,
-			sentence,
-		});
+		const forgeAction = toForgeAction(row, repoFullName, number);
 		try {
 			const result = await adapter.execute(forgeAction);
 			await runServices.markActionExecuted(db, row.id, result.externalId);
@@ -160,7 +157,6 @@ function toForgeAction(
 	row: { kind: string; payload: Record<string, unknown> },
 	repoFullName: string,
 	number: number,
-	context: { runUrl: string; sentence: string },
 ) {
 	switch (row.kind) {
 		case "comment":
@@ -195,7 +191,8 @@ function toForgeAction(
 				kind: "block" as const,
 				repoFullName,
 				number,
-				reason: `blocked by tripwire. the full breakdown is in the tripwire comment on this PR — ${context.runUrl}`,
+				reason:
+					"blocked by tripwire — the details are in the tripwire comment on this PR.",
 			};
 	}
 }

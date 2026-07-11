@@ -37,7 +37,19 @@ export interface CommentInput {
 export function renderCommentBody(input: CommentInput): string {
 	const sentence = input.sentence.replaceAll(/\s+/g, " ").trim();
 	const button = `<a href="${input.runUrl}"><img src="${input.badgeUrl}" width="${BADGE_WIDTH}" alt="View on Tripwire" /></a>`;
-	return `${VERDICT_LINE[input.verdict]} — ${sentence}\n\n${button}\n${COMMENT_MARKER}\n`;
+	return [
+		`${VERDICT_LINE[input.verdict]} — ${sentence}`,
+		"",
+		"<details><summary>for maintainers</summary>",
+		"",
+		"every rule, its evidence, and the ai review are on the run page:",
+		"",
+		button,
+		"",
+		"</details>",
+		COMMENT_MARKER,
+		"",
+	].join("\n");
 }
 
 interface IssueComment {

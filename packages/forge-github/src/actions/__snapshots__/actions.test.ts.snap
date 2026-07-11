@@ -3,7 +3,13 @@
 exports[`renderCommentBody — snapshot golden files blocked 1`] = `
 "**tripwire: blocked** — this change tripped 2 of 6 rules. it can’t merge until they clear.
 
+<details><summary>for maintainers</summary>
+
+every rule, its evidence, and the ai review are on the run page:
+
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+</details>
 <!-- tripwire:run -->
 "
 `;
@@ -11,7 +17,13 @@ exports[`renderCommentBody — snapshot golden files blocked 1`] = `
 exports[`renderCommentBody — snapshot golden files passed 1`] = `
 "**tripwire: passed** — cleared all 6 rules — good to merge.
 
+<details><summary>for maintainers</summary>
+
+every rule, its evidence, and the ai review are on the run page:
+
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+</details>
 <!-- tripwire:run -->
 "
 `;
@@ -19,7 +31,13 @@ exports[`renderCommentBody — snapshot golden files passed 1`] = `
 exports[`renderCommentBody — snapshot golden files sent to review 1`] = `
 "**tripwire: sent to review** — this change needs a maintainer’s eyes before it can merge.
 
+<details><summary>for maintainers</summary>
+
+every rule, its evidence, and the ai review are on the run page:
+
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+</details>
 <!-- tripwire:run -->
 "
 `;

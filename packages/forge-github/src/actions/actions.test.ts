@@ -45,7 +45,7 @@ describe("renderCommentBody — snapshot golden files", () => {
 		).toMatchSnapshot();
 	});
 
-	test("is condensed: verdict line + one sentence + one button + marker", () => {
+	test("verdict line up top; run button tucked in a for-maintainers dropdown; one marker", () => {
 		const body = renderCommentBody({
 			verdict: "block",
 			sentence: "multi\nline\nsentence   collapses.",
@@ -53,12 +53,15 @@ describe("renderCommentBody — snapshot golden files", () => {
 			badgeUrl: "https://tripwire.sh/badges/view-run.png",
 		});
 		const lines = body.trim().split("\n").filter(Boolean);
-		expect(lines).toHaveLength(3);
 		expect(lines[0]).toContain("**tripwire: blocked**");
 		expect(lines[0]).toContain("multi line sentence collapses.");
-		expect(lines[1]).toContain("badges/view-run.png");
-		expect(lines[1]).toContain('href="https://tripwire.sh/runs/x"');
-		expect(lines[2]).toBe(COMMENT_MARKER);
+		expect(body).toContain("<details><summary>for maintainers</summary>");
+		expect(body).toContain("badges/view-run.png");
+		expect(body).toContain('href="https://tripwire.sh/runs/x"');
+		expect(body).toContain("</details>");
+		expect((body.match(/<details>/g) ?? []).length).toBe(1);
+		expect((body.match(new RegExp(COMMENT_MARKER)) ?? []).length).toBe(1);
+		expect(lines.at(-1)).toBe(COMMENT_MARKER);
 	});
 });
 
