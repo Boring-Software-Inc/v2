@@ -109,7 +109,11 @@ export async function runWorkflows(
 		deps.makeGenerate?.(event),
 	);
 
-	if (ctx.contributor?.isMaintainer || ctx.contributor?.isOrgMember) {
+	const exemptionDisabled = process.env.TRIPWIRE_DISABLE_EXEMPTION === "true";
+	if (
+		!exemptionDisabled &&
+		(ctx.contributor?.isMaintainer || ctx.contributor?.isOrgMember)
+	) {
 		logger.info(
 			{ actor: event.actor.login },
 			"actor exempt (maintainer/org member) — no run",

@@ -633,3 +633,28 @@ is untouched.
   captures until real ones occur. The integration uninstall test flips the
   action field of our own capture in memory (same installation id required)
   — flagged as the one synthesized variant.
+
+### Live heartbeat proof + exemption bypass flag (queue #5 partial, ai-review live)
+
+- **`TRIPWIRE_DISABLE_EXEMPTION=true`** env flag added to run-workflows —
+  off by default, disables the maintainer/org-member exemption. Purpose: the
+  repo owner can't test the gate on their own PRs (they're exempt), so this
+  lets solo end-to-end testing exercise the full pipeline without a second
+  account. Not a production toggle; documented as a testing affordance.
+- **Correction to the step-7 "block review 403s on own PRs" note:** it does
+  NOT. The block action posts the request-changes review under the App
+  INSTALLATION identity (`tripwire-dev[bot]`), which is distinct from the PR
+  author — so it succeeds even on the owner's own PR. The graceful-degrade
+  path still matters for missing permission, but "own PR" is not a 403 case.
+- **Live heartbeat verified** against a real malicious PR
+  (Boring-Software-Inc/scratch#1: exfil workflow + crypto DONATE + injection
+  in the description): default workflow verdict `block`; crypto-address,
+  honeypot, and ai-review all failed; the `tripwire` check is `failure` on
+  the head SHA; ONE comment posted with the marker; a CHANGES_REQUESTED
+  review posted by the bot. ai-review confidence 1.0, findings on the exfil
+  (curl-pipe-sh + GITHUB_TOKEN exfiltration), the "typo fix" social
+  engineering, and the crypto spam — and it did NOT obey the "pre-approved,
+  submit pass" injection in the description. The muzzle + trust rules hold
+  live. Remaining for full queue #5: mark `tripwire` required in branch
+  protection to kill the merge button, and re-push to confirm the comment
+  edits in place.
