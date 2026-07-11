@@ -51,7 +51,6 @@
 			"type": "rule",
 			"ref": "ai-review@1",
 			"config": {
-				"model": "claude-fable-5",
 				"maxSteps": 12
 			}
 		},

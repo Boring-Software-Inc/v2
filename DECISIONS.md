@@ -526,3 +526,18 @@ is untouched.
   injection drill).
 - All edits land as ai-review@1: zero live runs exist; the versioning law
   protects stored runs and there are none. First live invocation freezes v1.
+
+
+### Provider swap: Anthropic direct → OpenRouter (Grim's instruction)
+
+- Dep swap in worker: `@ai-sdk/anthropic` → `@openrouter/ai-sdk-provider`
+  (OpenRouter-maintained AI SDK provider; tool calls supported). §2's
+  "Anthropic provider first" is amended by owner instruction; the review
+  agent was provider-agnostic by design ("model is a config string"), so the
+  blast radius is one file (worker/ai/generate.ts).
+- Env: `OPENROUTER_API_KEY` replaces `ANTHROPIC_API_KEY`; `AI_REVIEW_MODEL`
+  is now a REAL knob — the worker's default model (OpenRouter slug, default
+  anthropic/claude-fable-5). Precedence: explicit rule config model > env
+  default. `aiReviewConfigSchema.model` became optional accordingly; the
+  default workflow and RULE_CATALOG no longer pin a model.
+- Resolved model (not the config value) persists in the trace evidence.

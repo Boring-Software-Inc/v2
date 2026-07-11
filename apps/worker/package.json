@@ -11,7 +11,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@ai-sdk/anthropic": "^4.0.12",
+		"@openrouter/ai-sdk-provider": "^3.0.0",
 		"@tripwire/contracts": "workspace:*",
 		"@tripwire/core": "workspace:*",
 		"@tripwire/db": "workspace:*",

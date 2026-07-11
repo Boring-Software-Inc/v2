@@ -44,7 +44,8 @@ export interface ContextContributor {
  * loop; `output` is validated by the rule, `trace` persists as evidence.
  */
 export interface AiReviewRequest {
-	model: string;
+	/** Absent ⇒ the worker's configured default model. */
+	model?: string;
 	maxSteps: number;
 	instructions: string;
 	prompt: string;

@@ -50,12 +50,15 @@ if (import.meta.main) {
 		);
 	}
 
-	const anthropicKey = process.env.ANTHROPIC_API_KEY;
+	const openrouterKey = process.env.OPENROUTER_API_KEY;
+	const defaultModel =
+		process.env.AI_REVIEW_MODEL ?? "anthropic/claude-fable-5";
 	const makeGenerate =
-		anthropicKey && reads && adapter
+		openrouterKey && reads && adapter
 			? (event: Parameters<typeof createGenerate>[0]["event"]) =>
 					createGenerate({
-						apiKey: anthropicKey,
+						apiKey: openrouterKey,
+						defaultModel,
 						reads,
 						readFile: (repo, path, ref) => adapter.readFile(repo, path, ref),
 						event,
@@ -63,7 +66,7 @@ if (import.meta.main) {
 			: null;
 	if (!makeGenerate) {
 		logger.warn(
-			"ANTHROPIC_API_KEY or forge creds missing — ai-review will skip",
+			"OPENROUTER_API_KEY or forge creds missing — ai-review will skip",
 		);
 	}
 

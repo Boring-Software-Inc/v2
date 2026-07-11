@@ -148,7 +148,7 @@ export const DEFAULT_WORKFLOW: WorkflowDefinition = {
 			id: "ai-review",
 			type: "rule",
 			ref: "ai-review@1",
-			config: { model: "claude-fable-5", maxSteps: 12 },
+			config: { maxSteps: 12 },
 		},
 		{ id: "gate", type: "gate", mode: "all-of" },
 		{ id: "block", type: "action", action: "block" },

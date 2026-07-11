@@ -28,8 +28,12 @@ export const aiReviewOutputSchema = z.object({
 });
 export type AiReviewOutput = z.infer<typeof aiReviewOutputSchema>;
 
-/** Config for ai-review@1 — the model is a config string (§8). */
+/**
+ * Config for ai-review@1 — the model is a config string (§8). When omitted,
+ * the worker's AI_REVIEW_MODEL env supplies the default (explicit config
+ * wins).
+ */
 export const aiReviewConfigSchema = z.object({
-	model: z.string().default("claude-fable-5"),
+	model: z.string().optional(),
 	maxSteps: z.number().int().min(1).max(15).default(12),
 });

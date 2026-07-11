@@ -94,7 +94,8 @@ SHOULD HAPPEN: verdict chip, per-rule step cards with evidence JSON, actions
 list all render from run_steps.
 
 ## 7. ai-review live (closes step 9 live check)
-1. `.env`: set ANTHROPIC_API_KEY (and optionally AI_REVIEW_MODEL).
+1. `.env`: set OPENROUTER_API_KEY (and AI_REVIEW_MODEL — an OpenRouter slug,
+   default anthropic/claude-fable-5).
 2. Restart the worker; push a commit to the sockpuppet PR (item 5).
 SHOULD HAPPEN: the run page shows an `ai-review@1` step with a one-sentence
 summary + findings; `select evidence from run_steps where rule_id='ai-review@1'`

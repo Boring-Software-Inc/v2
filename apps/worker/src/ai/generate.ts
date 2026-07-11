@@ -1,4 +1,4 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { NormalizedEvent } from "@tripwire/contracts";
 import { aiReviewOutputSchema } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
@@ -15,11 +15,13 @@ import type { WorkerReads } from "../context.ts";
  */
 export function createGenerate(options: {
 	apiKey: string;
+	/** AI_REVIEW_MODEL env — explicit rule config wins over this. */
+	defaultModel: string;
 	reads: WorkerReads | null;
 	readFile: (repo: string, path: string, ref: string) => Promise<string | null>;
 	event: NormalizedEvent;
 }): AiReviewGenerate {
-	const anthropic = createAnthropic({ apiKey: options.apiKey });
+	const openrouter = createOpenRouter({ apiKey: options.apiKey });
 	const repo = options.event.repo.fullName;
 	const number =
 		"changeRequest" in options.event
@@ -32,9 +34,10 @@ export function createGenerate(options: {
 
 	return async ({ model, maxSteps, instructions, prompt }) => {
 		let review: unknown = null;
+		const resolvedModel = model ?? options.defaultModel;
 
 		const result = await generateText({
-			model: anthropic(model),
+			model: openrouter(resolvedModel),
 			system: instructions,
 			prompt,
 			stopWhen: [stepCountIs(maxSteps), hasToolCall("submit_review")],
@@ -78,7 +81,7 @@ export function createGenerate(options: {
 		return {
 			output: review,
 			trace: {
-				model,
+				model: resolvedModel,
 				steps: result.steps.map((step) => ({
 					text: step.text,
 					toolCalls: step.toolCalls.map((call) => ({

@@ -204,6 +204,6 @@ export const RULE_CATALOG = [
 		blurb:
 			"bounded ai review of the change request — structured verdict, never prose.",
 		configSchema: aiReviewConfigSchema,
-		defaultConfig: { model: "claude-fable-5", maxSteps: 12 },
+		defaultConfig: { maxSteps: 12 },
 	},
 ] as const;

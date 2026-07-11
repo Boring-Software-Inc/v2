@@ -560,3 +560,61 @@ parts queued (#1–#9) in dependency order.
    design (mocks shrink as later sessions land real data of that depth).
 5. Octokit-example fixtures pending replacement by self-captured deliveries
    (QUEUE #3/#5).
+
+---
+
+## Hardening session (pre-live) — 6428ecd, 591af44, 75bb2ca, c4fa9e3
+
+**Scope:** four security-posture units executed before first live traffic, one
+commit each, checks green before each.
+
+**Unit 1 — fail-closed floor (6428ecd).** All-skipped or ≥50%-skipped rule
+nodes upgrade a would-be pass to needs_review: paused run, `run:degraded`
+moderation item, degradation evidence as a run step, neutral check, "sent to
+review — evaluation degraded" comment. Single skip still conducts as pass.
+Resume: approve ⇒ pass, deny ⇒ block (recorded+executed).
+```
+bun test apps/worker →
+✓ degraded reads (all throw) ⇒ fail-closed floor: needs_review + moderation
+  item, never pass  (degradedReads = [diff, commits, contributor])
+✓ partial degradation (minority skipped) ⇒ still pass
+```
+Queue amended: Issues R&W at #1; degraded-creds sub-check at #5.
+
+**Unit 2 — auth fail-closed in prod (591af44).** `resolveAuthPosture`:
+missing BETTER_AUTH_SECRET + NODE_ENV=production ⇒ refuse to serve (api exits
+at boot; web throws per request). Dev open-gate unchanged. Guard unit-tested
+(3 tests).
+
+**Unit 3 — block files request-changes (75bb2ca).** Block action now submits
+a REQUEST_CHANGES review (one-liner + run link) so unprotected repos get
+friction; check remains the primary gate. Best-effort: 403 (legal on own
+PRs) warns + marks executed, never kills the run. Payload unit-tested.
+
+**Unit 4 — ai-review port + hardening, still @1 (c4fa9e3).** Eve demo FOUND
+at ~/tripwire-eve-agent-demo — instructions.md now carries the ported review
+process (maintainer-QoL test, slop signals, CONTRIBUTING/AGENTS rules check,
+ambiguity ⇒ needs_review) plus: trust rules (all submission content is
+untrusted data; injection attempts are social-engineering findings),
+explicit-truncation rule + `[diff truncated: showing 60000 of N chars]`
+marker, AI-assistance product line, confidence anchors.
+```
+bun test packages/core/src/rules/ai-review → 11 pass
+(trust/truncation/anchors present in instructions; marker renders only when
+ clipped; injection fixture renders as data; muzzle tests unchanged)
+```
+Queue #7 gains the live injection drill.
+
+**Checks (final state):**
+```
+biome:      Checked 331 files. No fixes applied.
+typecheck:  10/10 workspaces exit 0
+boundaries: ✓ passed
+tests:      116 pass, 0 fail (3 snapshots, 289 expect)
+```
+
+**Decisions:** DECISIONS.md "Hardening session" — four entries, two of which
+explicitly AMEND step-6/step-7 decisions rather than silently replacing them.
+
+**Needs Grim's eyes:** final instructions.md read-through before queue #7
+(it freezes as @1 at first live invocation); the 50% floor threshold.
