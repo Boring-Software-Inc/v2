@@ -1,4 +1,9 @@
 import {
+	type ActivityFeed,
+	type ActivityFeedItem,
+	type ActivityGroup,
+	type ActivityRunSummary,
+	type ActivityTimelineEntry,
 	type NormalizedEvent,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
@@ -142,27 +147,32 @@ export async function listEvents(
 	};
 }
 
-/** A normalized event joined to its run (0..1) — the /activity feed row. */
-export interface ActivityRunSummary {
-	runId: string;
-	verdict: string | null;
-	status: string;
-	/** The first failing rule's plain-English one-liner (§10), when blocked. */
-	reason: string | null;
-}
-export interface ActivityRow {
-	event: NormalizedEvent;
-	run: ActivityRunSummary | null;
+/**
+ * `db.execute()` returns RAW pg rows (`Record<string, unknown>`), NOT the typed
+ * shapes Drizzle's query builder maps: jsonb → object, int4 → number, text →
+ * string, and the trap — timestamptz → an ISO **string**, never a `Date`. So the
+ * mappers below coerce every field explicitly; nothing downstream trusts a raw
+ * row. The wire shapes themselves (ActivityTimelineEntry/Group/FeedItem) live in
+ * @tripwire/contracts — one home, re-validated at the server-fn boundary.
+ */
+type RawRow = Record<string, unknown>;
+
+function asString(v: unknown): string | null {
+	return typeof v === "string" ? v : v == null ? null : String(v);
 }
 
-interface ActivityQueryRow {
-	normalized: unknown;
-	run_id: string | null;
-	verdict: string | null;
-	status: string | null;
-	reason: string | null;
-	/** `id@version` of the first failing rule — the fallback when summary is null. */
-	failing_rule_id?: string | null;
+function asMs(v: unknown): number {
+	if (v instanceof Date) {
+		return v.getTime();
+	}
+	if (typeof v === "string") {
+		return new Date(v).getTime();
+	}
+	return 0;
+}
+
+function asIso(v: unknown): string {
+	return new Date(asMs(v)).toISOString();
 }
 
 /**
@@ -170,28 +180,33 @@ interface ActivityQueryRow {
  * a historical run predates the projection (null summary), fall back to the bare
  * failing rule name — e.g. "account-age failed" — never a blank reason.
  */
-function leadingReason(row: ActivityQueryRow): string | null {
-	if (row.reason) {
+function leadingReason(row: RawRow): string | null {
+	if (typeof row.reason === "string" && row.reason) {
 		return row.reason;
 	}
-	if (row.failing_rule_id) {
+	if (typeof row.failing_rule_id === "string" && row.failing_rule_id) {
 		return `${row.failing_rule_id.split("@")[0]} failed`;
 	}
 	return null;
 }
 
-function toActivityRow(row: ActivityQueryRow): ActivityRow {
+function mapRun(row: RawRow): ActivityRunSummary | null {
+	if (row.run_id == null) {
+		return null;
+	}
 	return {
-		event: row.normalized as NormalizedEvent,
-		run: row.run_id
-			? {
-					runId: row.run_id,
-					verdict: row.verdict,
-					status: row.status ?? "running",
-					reason: leadingReason(row),
-				}
-			: null,
+		runId: String(row.run_id),
+		verdict: asString(row.verdict),
+		status: asString(row.status) ?? "running",
+		reason: leadingReason(row),
 	};
+}
+
+function mapEntry(row: RawRow): ActivityTimelineEntry {
+	// `normalized` (jsonb) is a validated NormalizedEvent at write time (§5.6); the
+	// server fn re-parses the whole feed against activityFeedSchema, so a drifted
+	// row fails loudly there, not inside a downstream field access.
+	return { event: row.normalized as NormalizedEvent, run: mapRun(row) };
 }
 
 const ACTIVITY_FROM = sql`
@@ -212,7 +227,7 @@ const ACTIVITY_FROM = sql`
 export async function listActivity(
 	db: Db,
 	{ cursor, limit = 50 }: { cursor?: string; limit?: number } = {},
-): Promise<{ items: ActivityRow[]; nextCursor: string | null }> {
+): Promise<{ items: ActivityTimelineEntry[]; nextCursor: string | null }> {
 	const result = await db.execute(sql`
 		SELECT e.id AS event_id, e.normalized, r.id AS run_id, r.verdict,
 		       r.status, fr.summary AS reason, fr.rule_id AS failing_rule_id
@@ -222,13 +237,10 @@ export async function listActivity(
 		ORDER BY e.id DESC
 		LIMIT ${limit}
 	`);
-	const rows = result.rows as unknown as (ActivityQueryRow & {
-		event_id: string;
-	})[];
-	const items = rows.map(toActivityRow);
+	const { rows } = result;
 	return {
-		items,
-		nextCursor: rows.length === limit ? (rows.at(-1)?.event_id ?? null) : null,
+		items: rows.map(mapEntry),
+		nextCursor: rows.length === limit ? asString(rows.at(-1)?.event_id) : null,
 	};
 }
 
@@ -236,7 +248,7 @@ export async function listActivity(
 export async function getActivityForEvent(
 	db: Db,
 	eventId: string,
-): Promise<ActivityRow | null> {
+): Promise<ActivityTimelineEntry | null> {
 	const result = await db.execute(sql`
 		SELECT e.normalized, r.id AS run_id, r.verdict, r.status,
 		       fr.summary AS reason, fr.rule_id AS failing_rule_id
@@ -244,8 +256,8 @@ export async function getActivityForEvent(
 		WHERE e.id = ${eventId}
 		LIMIT 1
 	`);
-	const row = (result.rows as unknown as ActivityQueryRow[])[0];
-	return row?.normalized ? toActivityRow(row) : null;
+	const row = result.rows[0];
+	return row?.normalized ? mapEntry(row) : null;
 }
 
 /**
@@ -259,37 +271,6 @@ export async function getActivityForEvent(
  * push) are standalone entries. Groups and standalone entries interleave by
  * latest activity.
  */
-export interface ActivityTimelineEntry {
-	event: NormalizedEvent;
-	run: ActivityRunSummary | null;
-}
-export interface ActivityGroup {
-	repoFullName: string;
-	subjectNumber: number;
-	title: string;
-	url: string | null;
-	actor: { login: string; avatarUrl: string | null };
-	currentVerdict: string | null;
-	currentRunId: string | null;
-	latestActivityAt: string;
-	eventCount: number;
-	timeline: ActivityTimelineEntry[];
-}
-export type ActivityFeedItem =
-	| { type: "group"; group: ActivityGroup }
-	| { type: "event"; entry: ActivityTimelineEntry };
-
-interface GroupedQueryRow extends ActivityQueryRow {
-	repo_full_name: string;
-	subject_number: number;
-	/** node-postgres may hand back a Date or an ISO string — coerce before use. */
-	received_at: string | Date;
-}
-
-function receivedMs(value: string | Date): number {
-	return (value instanceof Date ? value : new Date(value)).getTime();
-}
-
 function eventUrl(event: NormalizedEvent): string | null {
 	if ("changeRequest" in event) {
 		return event.changeRequest.url;
@@ -298,6 +279,10 @@ function eventUrl(event: NormalizedEvent): string | null {
 		return event.comment.url;
 	}
 	return null;
+}
+
+function isTripwireComment(event: NormalizedEvent): boolean {
+	return event.kind === "comment.created" && event.comment.byTripwire === true;
 }
 
 /** Tripwire's own comment is ONE upserted artifact (§7): create + edits collapse
@@ -315,41 +300,37 @@ function dedupeTripwireComments(
 	);
 }
 
-function isTripwireComment(event: NormalizedEvent): boolean {
-	return event.kind === "comment.created" && event.comment.byTripwire === true;
-}
-
-function buildGroup(rows: GroupedQueryRow[]): ActivityGroup {
+function buildGroup(rows: RawRow[]): ActivityGroup {
 	const chrono = [...rows].sort(
-		(a, b) => receivedMs(a.received_at) - receivedMs(b.received_at),
+		(a, b) => asMs(a.received_at) - asMs(b.received_at),
 	);
-	const timeline = dedupeTripwireComments(
-		chrono.map((r) => toActivityRow(r) as ActivityTimelineEntry),
-	);
-	const latest = chrono.at(-1) as GroupedQueryRow;
+	const timeline = dedupeTripwireComments(chrono.map(mapEntry));
+	const events = timeline.map((entry) => entry.event);
+	const latest = chrono.at(-1);
+	if (!latest) {
+		throw new Error("buildGroup called with no rows");
+	}
+	const header = events.at(-1);
 	// Header identity: the most recent change-request event carries the title.
-	const cr = [...chrono]
-		.reverse()
-		.map((r) => r.normalized as NormalizedEvent)
-		.find((e) => "changeRequest" in e);
-	const header = (latest.normalized as NormalizedEvent) ?? cr;
+	const cr = [...events].reverse().find((e) => "changeRequest" in e);
 	// Current verdict = the verdict of the latest event that produced a run.
-	const withRun = [...chrono].reverse().find((r) => r.run_id);
+	const withRun = [...chrono].reverse().find((r) => r.run_id != null);
+	const subjectNumber = Number(latest.subject_number);
 	return {
-		repoFullName: latest.repo_full_name,
-		subjectNumber: latest.subject_number,
+		repoFullName: String(latest.repo_full_name),
+		subjectNumber,
 		title:
 			cr && "changeRequest" in cr
 				? cr.changeRequest.title
-				: `#${latest.subject_number}`,
-		url: cr ? eventUrl(cr) : eventUrl(header),
+				: `#${subjectNumber}`,
+		url: cr ? eventUrl(cr) : header ? eventUrl(header) : null,
 		actor: {
-			login: header.actor.login,
-			avatarUrl: header.actor.avatarUrl ?? null,
+			login: header?.actor.login ?? "",
+			avatarUrl: header?.actor.avatarUrl ?? null,
 		},
-		currentVerdict: withRun?.verdict ?? null,
-		currentRunId: withRun?.run_id ?? null,
-		latestActivityAt: new Date(receivedMs(latest.received_at)).toISOString(),
+		currentVerdict: withRun ? asString(withRun.verdict) : null,
+		currentRunId: withRun ? asString(withRun.run_id) : null,
+		latestActivityAt: asIso(latest.received_at),
 		eventCount: rows.length,
 		timeline,
 	};
@@ -358,7 +339,7 @@ function buildGroup(rows: GroupedQueryRow[]): ActivityGroup {
 export async function listActivityFeed(
 	db: Db,
 	{ limit = 50 }: { limit?: number } = {},
-): Promise<{ items: ActivityFeedItem[] }> {
+): Promise<ActivityFeed> {
 	const grouped = await db.execute(sql`
 		WITH grp AS (
 			SELECT repo_full_name, subject_number, max(received_at) AS latest_at
@@ -382,9 +363,9 @@ export async function listActivityFeed(
 			ORDER BY s.started_at ASC LIMIT 1
 		) fr ON true
 	`);
-	const byKey = new Map<string, GroupedQueryRow[]>();
-	for (const row of grouped.rows as unknown as GroupedQueryRow[]) {
-		const key = `${row.repo_full_name}#${row.subject_number}`;
+	const byKey = new Map<string, RawRow[]>();
+	for (const row of grouped.rows) {
+		const key = `${String(row.repo_full_name)}#${Number(row.subject_number)}`;
 		const bucket = byKey.get(key);
 		if (bucket) {
 			bucket.push(row);
@@ -402,10 +383,10 @@ export async function listActivityFeed(
 		ORDER BY e.id DESC
 		LIMIT ${limit}
 	`);
-	const standalone = (loose.rows as unknown as GroupedQueryRow[]).map((r) => ({
+	const standalone = loose.rows.map((r) => ({
 		type: "event" as const,
-		entry: toActivityRow(r) as ActivityTimelineEntry,
-		at: receivedMs(r.received_at),
+		entry: mapEntry(r),
+		at: asMs(r.received_at),
 	}));
 
 	const items: (ActivityFeedItem & { at: number })[] = [

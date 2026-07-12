@@ -10,6 +10,7 @@
  * land with the build steps that produce their shapes — see DECISIONS.md.
  */
 
+export * from "./activity.ts";
 export * from "./check.ts";
 export * from "./contributor.ts";
 export * from "./events.ts";

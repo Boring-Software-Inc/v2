@@ -1279,3 +1279,30 @@ not 15 things. The feed is now grouped.
 - Root `package.json` gained `@tripwire/core`, `@tripwire/db`, `drizzle-orm` as
   devDeps so one-shot scripts in `scripts/` resolve the workspace packages
   (the boundary check only scans `packages/*`/`apps/*`, so this is legal).
+
+### /activity — wire shapes to contracts + typed raw-row mapping (§4)
+
+A live bug exposed a typing lie: `listActivityFeed` used `db.execute()` (raw SQL,
+required for the LATERAL + grp CTE) and typed the rows `as unknown as
+{received_at: Date}`. But raw pg rows are NOT Drizzle-mapped — timestamptz comes
+back an **ISO string**, so `latest.received_at.toISOString()` threw at runtime.
+
+Fixed structurally, not with a band-aid:
+- **Wire shapes moved to `@tripwire/contracts/activity.ts`** as Zod schemas
+  (activityRunSummary/TimelineEntry/Group/FeedItem/Feed). They crossed the
+  server→client boundary and were duplicated in db/services AND web — the drift
+  class. Both copies deleted; db + web import from contracts. `pending` is an
+  explicit optional CLIENT flag in the entry schema (server never emits it) so
+  the web augments the wire shape in place without a second type.
+- **Every raw query maps through explicit coercion** (`mapEntry`/`mapRun`/`asMs`/
+  `asIso`/`asString`), keyed off `Record<string, unknown>` — no `as unknown as`
+  on query results. The one surviving `as` is `row.normalized as NormalizedEvent`
+  (jsonb validated at write time, §5.6) with a comment; the audit found the only
+  mistyped field was the timestamp (int4/text/jsonb come back correctly typed).
+- **The server fn parses** `activityFeedSchema.parse(feed)` — a drifted normalized
+  event or mistyped timestamp fails LOUDLY at the boundary, not in a render.
+- **Integration test** (real postgres): `listActivityFeed` returns a group whose
+  `latestActivityAt` is a valid ISO string and whose output parses clean against
+  the contract, including a standalone (subject_number IS NULL) row.
+- Audit of other web server-fn casts: only `rules.functions.ts` has two
+  field-level `as JsonValue` (JSON coercion, not a return-shape cast) — left as is.

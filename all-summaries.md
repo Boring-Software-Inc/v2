@@ -960,3 +960,17 @@ one-off SQL statement (append-only preserved — no app delete path). Root
 package.json gained core/db/drizzle devDeps so scripts/ resolves workspace pkgs.
 Spec §4 surface line updated. Checks green: biome, typecheck, boundaries, 196
 tests, replay corpus 2 flips (unchanged causes).
+
+**Unit — activity feed wire shapes to contracts + typed row mapping.** A live bug
+(received_at.toISOString threw) traced to a typing lie: db.execute() raw rows
+aren't Drizzle-mapped, so timestamptz is an ISO string not a Date, muted by `as
+unknown as {received_at: Date}`. Fixed structurally: moved the feed wire shapes
+(run summary, timeline entry, group, feed item) into @tripwire/contracts as Zod
+schemas — deleted the duplicate copies in db/services AND web (the drift class),
+both now import from contracts. Every raw query maps through explicit coercion
+(mapEntry/mapRun/asMs/asIso/asString) off Record<string,unknown> — no `as unknown
+as` on results (only row.normalized as NormalizedEvent, jsonb validated on write).
+The getActivityFeed server fn now activityFeedSchema.parse()s its output — shape
+mismatch fails loudly at the boundary. Added a real-postgres integration test:
+groups carry ISO-string timestamps + parse clean against the contract, incl. a
+standalone row. Checks green: biome, typecheck (all pkgs), boundaries, 197 tests.
