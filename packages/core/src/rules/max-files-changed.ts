@@ -27,4 +27,6 @@ export const maxFilesChanged = defineRule({
 	publicEvidence: (e) => ({ filesChanged: e.filesChanged }),
 	summarize: (e) =>
 		`this change touches ${e.filesChanged} ${e.filesChanged === 1 ? "file" : "files"}`,
+	// Fixable in the change itself — split it or drop files.
+	remedy: "revise",
 });

@@ -37,6 +37,22 @@ export interface RuleDefinition<
 	publicEvidence?: (evidence: z.infer<TEvidence>) => Record<string, unknown>;
 	/** §10 plain-English outcome for the public view — constitution voice. */
 	summarize?: (evidence: z.infer<TEvidence>) => string | null;
+	/**
+	 * What a contributor can DO about a block from this rule — drives the PR
+	 * comment's "how do i fix this?" body (§12). Versioned WITH the rule.
+	 *   revise — fixable in the change itself (drop the crypto address, split the PR)
+	 *   wait   — a property of the account / recent behavior; time or activity
+	 *            clears it, not a commit (account age, a rate-limit window)
+	 *   appeal — only a maintainer can let it through
+	 */
+	remedy: "revise" | "wait" | "appeal";
+	/**
+	 * OPTIONAL, wait-rules only — a DERIVED, threshold-free, public-safe hint at
+	 * when the block clears ("it clears in 5 days"). Derive from observed + config
+	 * INTERNALLY and emit only the remainder; it MUST NOT print the configured
+	 * threshold (enforced by the leak-invariant test).
+	 */
+	waitHint?: (evidence: z.infer<TEvidence>) => string | null;
 }
 
 const RULE_ID = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;

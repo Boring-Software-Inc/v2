@@ -100,4 +100,6 @@ export const aiReview = defineRule({
 	// + mildly evasion-aiding (§10).
 	publicEvidence: (e) => ({ output: e.output }),
 	summarize: (e) => e.output.summary,
+	// The model reviews the change content — fixable in the change itself.
+	remedy: "revise",
 });

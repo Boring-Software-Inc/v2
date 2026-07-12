@@ -974,3 +974,15 @@ The getActivityFeed server fn now activityFeedSchema.parse()s its output — sha
 mismatch fails loudly at the boundary. Added a real-postgres integration test:
 groups carry ISO-string timestamps + parse clean against the contract, incl. a
 standalone row. Checks green: biome, typecheck (all pkgs), boundaries, 197 tests.
+
+**Unit A — rules declare a remedy (§12).** defineRule gains a required
+remedy ("revise"|"wait"|"appeal") + optional waitHint(evidence) — rule-owned,
+versioned with the rule, same pattern as publicEvidence/summarize. remedy drives
+the PR comment's "how do i fix this?" body; required means a rule can't ship
+without deciding (compiler + registry table test enforce it). account-age/
+min-merged-prs/pr-rate-limit=wait (account-age +waitHint deriving a threshold-free
+"it clears in N days"; pr-rate-limit omits — no timestamps in evidence to derive a
+window remainder without leaking windowHours), the rest=revise. Extended the
+leak-invariant test: a waitHint names no config key. Not a version bump (presentation
+metadata, no verdict/evidence change; replay unchanged 2 flips). Checks green:
+biome, typecheck, boundaries, 200 tests.

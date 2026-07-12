@@ -37,6 +37,12 @@ const SAMPLE_EVIDENCE: Record<string, Record<string, unknown>> = {
 	},
 };
 
+/** Evidence that TRIGGERS a wait-rule's hint (a positive remainder), so the */
+/** leak guard checks a real string, not a vacuous null. */
+const WAIT_SAMPLE: Record<string, Record<string, unknown>> = {
+	"account-age": { accountAgeDays: 2, minDays: 7 },
+};
+
 function configKeys(schema: z.ZodType): string[] {
 	const shape = (schema as unknown as { shape?: Record<string, unknown> })
 		.shape;
@@ -74,6 +80,30 @@ describe("§10 public partition", () => {
 				expect(serialized).not.toContain(`"${key}"`);
 			}
 		}
+	});
+
+	test("LEAK INVARIANT: a waitHint never names a configured-threshold field", () => {
+		for (const { rule } of listRules()) {
+			if (!rule.waitHint) {
+				continue;
+			}
+			const sample = WAIT_SAMPLE[rule.id] ?? SAMPLE_EVIDENCE[rule.id];
+			// The hint must be derivable (a real remainder), else the guard is vacuous.
+			const hint = rule.waitHint(sample) ?? "";
+			for (const key of configKeys(rule.configSchema)) {
+				expect(hint).not.toContain(key);
+			}
+		}
+	});
+
+	test("account-age waitHint derives a threshold-free remainder", () => {
+		const { rule } = listRules().find((r) => r.rule.id === "account-age") ?? {};
+		expect(rule?.remedy).toBe("wait");
+		expect(rule?.waitHint?.({ accountAgeDays: 2, minDays: 7 })).toBe(
+			"it clears in 5 days",
+		);
+		// A contributor already over the bar has nothing to wait for.
+		expect(rule?.waitHint?.({ accountAgeDays: 30, minDays: 7 })).toBeNull();
 	});
 
 	test("ai-review keeps findings/summary but drops the raw trace", () => {

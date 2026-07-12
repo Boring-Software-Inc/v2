@@ -37,4 +37,6 @@ export const profileReadme = defineRule({
 	}),
 	summarize: (e) =>
 		`this profile has ${e.length} ${e.length === 1 ? "character" : "characters"} of text`,
+	// Fixable off-change — add a profile readme/bio (not this PR, but the person's).
+	remedy: "revise",
 });

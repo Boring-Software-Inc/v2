@@ -27,4 +27,6 @@ export const minMergedPrs = defineRule({
 	publicEvidence: (e) => ({ mergedInRepo: e.mergedInRepo }),
 	summarize: (e) =>
 		`${e.mergedInRepo} merged change ${e.mergedInRepo === 1 ? "request" : "requests"} in this repo`,
+	// Clears by landing merged changes in the repo — activity, not this commit.
+	remedy: "wait",
 });

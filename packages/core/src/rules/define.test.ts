@@ -8,6 +8,7 @@ const echo = defineRule({
 	version: 1,
 	configSchema: z.object({ want: z.boolean() }),
 	resultSchema: z.object({ got: z.boolean() }),
+	remedy: "revise",
 	evaluate(_ctx, config) {
 		return {
 			status: "evaluated",
@@ -22,6 +23,7 @@ const badEvidence = defineRule({
 	version: 1,
 	configSchema: z.object({}),
 	resultSchema: z.object({ mustBeNumber: z.number() }),
+	remedy: "revise",
 	evaluate() {
 		return {
 			status: "evaluated",

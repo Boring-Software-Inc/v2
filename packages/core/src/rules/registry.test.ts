@@ -30,11 +30,18 @@ describe("registry", () => {
 	test("defineRule rejects non-kebab ids and bad versions", () => {
 		const schemas = { configSchema: z.object({}), resultSchema: z.object({}) };
 		const evaluate = () => ({ status: "skipped" as const, reason: "x" });
+		const remedy = "revise" as const;
 		expect(() =>
-			defineRule({ id: "CamelCase", version: 1, ...schemas, evaluate }),
+			defineRule({ id: "CamelCase", version: 1, remedy, ...schemas, evaluate }),
 		).toThrow();
 		expect(() =>
-			defineRule({ id: "ok-rule", version: 0, ...schemas, evaluate }),
+			defineRule({ id: "ok-rule", version: 0, remedy, ...schemas, evaluate }),
 		).toThrow();
+	});
+
+	test("every rule declares a remedy (§12)", () => {
+		for (const { rule } of listRules()) {
+			expect(["revise", "wait", "appeal"]).toContain(rule.remedy);
+		}
 	});
 });

@@ -1306,3 +1306,28 @@ Fixed structurally, not with a band-aid:
   the contract, including a standalone (subject_number IS NULL) row.
 - Audit of other web server-fn casts: only `rules.functions.ts` has two
   field-level `as JsonValue` (JSON coercion, not a return-shape cast) — left as is.
+
+### Rules declare a remedy (§12, Unit A)
+
+`defineRule` gains a REQUIRED `remedy: "revise" | "wait" | "appeal"` and an
+optional `waitHint(evidence)` — same rule-owned, versioned-with-the-rule pattern
+as publicEvidence/summarize. `remedy` answers "what can the contributor DO about
+this block?" and drives the PR comment's "how do i fix this?" body; making it
+required means a new rule can't ship without deciding (enforced by the compiler
++ a registry table test).
+
+- Assignments: account-age=wait (+waitHint) · min-merged-prs=wait ·
+  pr-rate-limit=wait · max-files-changed / english-only / crypto-address /
+  honeypot / profile-readme / ai-review=revise.
+- `waitHint` is wait-rules only and emits a DERIVED, threshold-free remainder
+  ("it clears in 5 days" = minDays − accountAgeDays), never the configured
+  threshold. Only account-age has a derivable one today; pr-rate-limit
+  deliberately omits it — its evidence carries no per-request timestamps, so a
+  window remainder can't be derived without leaking `windowHours`.
+- The leak-invariant test is extended: a waitHint's output must contain no
+  config-schema key (proven with wait-triggering sample evidence). Summarize
+  one-liners are unchanged in this unit — the wording lands with the copy so the
+  comment snapshots move in one place.
+- Not a version bump: `remedy` is presentation metadata; it doesn't change any
+  verdict or evidence, so historical `@1` runs stay interpretable (replay
+  unchanged: 2 flips, same causes).

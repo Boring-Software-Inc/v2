@@ -67,4 +67,6 @@ export const englishOnly = defineRule({
 	}),
 	summarize: (e) =>
 		`${Math.round(e.ratio * 100)}% of the title is non-latin script`,
+	// Fixable in the change itself — rewrite the title/body in latin script.
+	remedy: "revise",
 });
