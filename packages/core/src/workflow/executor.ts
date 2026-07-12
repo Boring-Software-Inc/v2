@@ -19,8 +19,12 @@ export interface StepRecord {
 	nodeKind: WorkflowNode["type"];
 	/** `id@version` for rule nodes. */
 	ruleRef?: string;
-	/** pass | fail | skipped (rule couldn't evaluate) | paused | not-reached */
-	status: "pass" | "fail" | "skipped" | "paused";
+	/**
+	 * pass | fail | skipped (rule couldn't evaluate) | disabled (rule toggled
+	 * off for the repo — conducts as pass, off the degradation floor, §6) |
+	 * paused | not-reached
+	 */
+	status: "pass" | "fail" | "skipped" | "disabled" | "paused";
 	input: unknown;
 	output: unknown;
 	startedAt: string;
@@ -48,6 +52,13 @@ export interface ExecuteWorkflowOptions {
 	event: NormalizedEvent;
 	/** Injected: evaluates `ref` with `config` over the pre-built RuleContext. */
 	evaluateRuleRef: (ref: string, config: unknown) => Promise<RuleResult>;
+	/**
+	 * Injected kill switch (§6): a rule ref disabled for the repo is NOT
+	 * evaluated — its node records `disabled`, conducts as pass, and is excluded
+	 * from the degradation floor. Only meaningful for saved workflows; the
+	 * derived default omits disabled rules as nodes entirely.
+	 */
+	isRuleDisabled?: (ref: string) => boolean;
 	/** Injected clock for step timings. */
 	now: () => string;
 	/**
@@ -58,6 +69,20 @@ export interface ExecuteWorkflowOptions {
 		outcomes: Record<string, NodeOutcome>;
 		nodeId: string;
 		decision: "approve" | "deny";
+	};
+}
+
+/** The recorded envelope for a rule skipped because it is toggled off (§6). */
+function disabledResult(ref: string, evaluatedAt: string): RuleResult {
+	const [id, version] = ref.split("@");
+	return {
+		ruleId: id ?? ref,
+		version: Number(version ?? 1) || 1,
+		status: "skipped",
+		passed: false,
+		evidence: null,
+		reason: "rule disabled for this repo",
+		evaluatedAt,
 	};
 }
 
@@ -89,7 +114,8 @@ function topoOrder(def: WorkflowDefinition): WorkflowNode[] {
 export async function executeWorkflow(
 	options: ExecuteWorkflowOptions,
 ): Promise<ExecutionResult> {
-	const { definition, event, evaluateRuleRef, now, resume } = options;
+	const { definition, event, evaluateRuleRef, isRuleDisabled, now, resume } =
+		options;
 	const outcomes = new Map<string, NodeOutcome>(
 		Object.entries(resume?.outcomes ?? {}),
 	);
@@ -193,6 +219,18 @@ export async function executeWorkflow(
 		}
 
 		if (node.type === "rule") {
+			if (isRuleDisabled?.(node.ref)) {
+				outcomes.set(node.id, "pass");
+				conducted.add(node.id);
+				record(
+					node,
+					"disabled",
+					{ ref: node.ref, config: node.config },
+					disabledResult(node.ref, startedAt),
+					startedAt,
+				);
+				continue;
+			}
 			const result = await evaluateRuleRef(node.ref, node.config);
 			const outcome: NodeOutcome =
 				result.status === "skipped" || result.passed ? "pass" : "fail";

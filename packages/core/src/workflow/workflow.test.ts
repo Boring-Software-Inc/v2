@@ -207,6 +207,25 @@ describe("executeWorkflow", () => {
 		expect(step?.status).toBe("skipped");
 	});
 
+	test("disabled rule records `disabled`, conducts as pass, is not evaluated (§6 kill switch)", async () => {
+		let evaluated = 0;
+		const result = await executeWorkflow({
+			definition: GATED,
+			event: await fixtureEvent("change-request.opened.event"),
+			evaluateRuleRef: (ref) => {
+				evaluated++;
+				return fakeEvaluator({})(ref);
+			},
+			isRuleDisabled: (ref) => ref === "account-age@1",
+			now: clock,
+		});
+		expect(result.verdict).toBe("pass");
+		const step = result.steps.find((s) => s.nodeId === "r1");
+		expect(step?.status).toBe("disabled");
+		// only r2 was evaluated; the disabled r1 never called the evaluator.
+		expect(evaluated).toBe(1);
+	});
+
 	test("non-matching trigger ⇒ nothing runs", async () => {
 		const result = await executeWorkflow({
 			definition: GATED,

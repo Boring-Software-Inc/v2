@@ -152,6 +152,28 @@ export async function listEnabledWorkflows(
 	return rows.map((row) => workflowDefinitionSchema.parse(row.definition));
 }
 
+/**
+ * Does the repo have a saved, enabled workflow? When true, the /rules toggles
+ * are a kill switch over that graph (not a derived default) — the UI shows a
+ * "managed by your workflow" tag (§6).
+ */
+export async function hasEnabledWorkflow(
+	db: Db,
+	repoId: string,
+): Promise<boolean> {
+	const rows = await db
+		.select({ id: workflowDefinitions.id })
+		.from(workflowDefinitions)
+		.where(
+			and(
+				eq(workflowDefinitions.repoId, repoId),
+				eq(workflowDefinitions.enabled, true),
+			),
+		)
+		.limit(1);
+	return rows.length > 0;
+}
+
 export async function saveWorkflowDefinition(
 	db: Db,
 	repoId: string,

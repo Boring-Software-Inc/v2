@@ -1,4 +1,5 @@
 import type {
+	JsonValue,
 	RepoScopedEvent,
 	RuleResult,
 	Verdict,
@@ -6,6 +7,7 @@ import type {
 } from "@tripwire/contracts";
 import {
 	type AiReviewGenerate,
+	deriveDefaultWorkflow,
 	evaluateRule,
 	executeWorkflow,
 	getRule,
@@ -17,7 +19,6 @@ import { moderationServices, repoServices, runServices } from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { buildRuleContext, type WorkerReads } from "../context.ts";
-import { DEFAULT_WORKFLOW } from "../default-workflow.ts";
 
 /**
  * §5.7–5.12: match enabled workflows by trigger → build RuleContext (reads
@@ -85,12 +86,38 @@ export async function runWorkflows(
 		degraded: false,
 	};
 
+	/**
+	 * §6 toggles are REAL now (live-test surprise #1 — the worker never read
+	 * rule_configs before). Saved workflows win as authored; with none, the
+	 * default workflow is DERIVED from the repo's enabled rules + their configs
+	 * (no hardcoded DEFAULT_WORKFLOW execution). `disabledRefs` also kill-switch
+	 * nodes inside a saved workflow — those rules skip as `disabled`.
+	 */
+	const repo = await repoServices.getRepoByFullName(db, event.repo.fullName);
+	const ruleConfigs = repo
+		? await repoServices.listRuleConfigs(db, repo.id)
+		: [];
+	const disabledRefs = new Set(
+		ruleConfigs
+			.filter((config) => !config.enabled)
+			.map((config) => `${config.ruleId}@${config.version}`),
+	);
 	const custom = await repoServices.listEnabledWorkflows(
 		db,
 		event.repo.fullName,
 	);
 	const definitions: WorkflowDefinition[] =
-		custom.length > 0 ? custom : [DEFAULT_WORKFLOW];
+		custom.length > 0
+			? custom
+			: [
+					deriveDefaultWorkflow(
+						ruleConfigs.map((config) => ({
+							ref: `${config.ruleId}@${config.version}`,
+							enabled: config.enabled,
+							config: config.config as JsonValue,
+						})),
+					),
+				];
 	const matching = definitions.filter((def) =>
 		def.nodes.some(
 			(node) => node.type === "trigger" && node.kinds.includes(event.kind),
@@ -130,6 +157,7 @@ export async function runWorkflows(
 				definition,
 				event,
 				evaluateRuleRef,
+				isRuleDisabled: (ref) => disabledRefs.has(ref),
 				now: () => new Date().toISOString(),
 			}),
 		});
@@ -149,8 +177,12 @@ export async function runWorkflows(
 	 * still conducts as pass — a flaky read must not block a human — but a
 	 * run whose evaluation is mostly guesswork never passes. All-skipped or
 	 * skipped ≥ 50% of rule nodes ⇒ needs_review, routed to moderation.
+	 * Disabled rules (§6 kill switch) are DELIBERATE, not degraded — excluded
+	 * from both sides of the ratio.
 	 */
-	const ruleSteps0 = steps.filter((step) => step.nodeKind === "rule");
+	const ruleSteps0 = steps.filter(
+		(step) => step.nodeKind === "rule" && step.status !== "disabled",
+	);
 	const skippedCount = ruleSteps0.filter(
 		(step) => step.status === "skipped",
 	).length;

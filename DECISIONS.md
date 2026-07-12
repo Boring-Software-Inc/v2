@@ -801,3 +801,35 @@ matching · discussions/wiki/commit scanning · report buttons · auto-delete ·
 cross-repo content bans · signal nodes in the editor (trigger/rule/gate/action
 already exist — only SIGNAL nodes deferred). Sequencing unchanged: this is
 spec-merge step 1; toggle-fix, rules-page absorption, content pipeline follow.
+
+### Toggles become real — derived default workflow (post-live, live-test surprise #1)
+
+The worker never read `rule_configs` — only the web UI did — so `/rules`
+toggles were cosmetic: execution ran saved `workflow_definitions` or the
+hardcoded contracts `DEFAULT_WORKFLOW`, and `core/workflow/derive.ts` didn't
+exist. Live evidence: T1, run `019f5388-a3cd-…f575f9`, account-age disabled yet
+evaluated (`accountAgeDays 2037`). Fix:
+- **`core/workflow/derive.ts`** — for a repo with NO saved workflow the executed
+  workflow is DERIVED from the toggles: "on change-request → every enabled rule
+  → all-of gate → block on fail". Baseline = the contracts `DEFAULT_WORKFLOW`
+  rule set (retired as an executed constant, kept as the derivation's baseline).
+- **Overlay model (the fresh-repo default — decided here):** a baseline rule
+  runs UNLESS a toggle explicitly disables it; a disabling toggle drops it; a
+  toggle's config overrides; an enabled toggle for a non-baseline rule opts it
+  in. So a fresh repo (zero rule_configs) keeps the boring default gate exactly
+  as before — the existing heartbeat + integration tests stay green — while a
+  configured repo honors its toggles. Alternative "unconfigured = off" rejected:
+  it silently ungates every fresh install (a security regression) and would have
+  required rewriting the step-6 done-when test's premise.
+- **Saved-workflow path** — the graph wins; a node whose rule is disabled skips
+  as `disabled` (conducts as pass per the Unit-1 gate fix, EXCLUDED from both
+  sides of the degradation-floor ratio — disabled is deliberate, degraded is
+  accidental). Injected into the pure executor via `isRuleDisabled(ref)`.
+- **`/rules` managed tag** — `hasEnabledWorkflow(repoId)` drives a "managed by
+  your workflow" tag on rule cards; the toggle there is a kill switch over the
+  saved graph, not a derived default.
+- **KNOWN RESIDUAL (out of scope — the four units are the execution engine):**
+  the `/rules` display default is still `enabled ?? false` for an unconfigured
+  rule, which under-reports the baseline rules a fresh repo actually runs. The
+  honest display fix (baseline rules show on) belongs to the §9 rules-page
+  absorption session, not this engine pass. Flagged, not fixed.

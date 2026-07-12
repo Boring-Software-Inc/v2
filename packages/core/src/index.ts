@@ -27,6 +27,10 @@ export {
 	type SignalCategory,
 } from "./scoring/signals.ts";
 export {
+	deriveDefaultWorkflow,
+	type RuleToggle,
+} from "./workflow/derive.ts";
+export {
 	type ExecutionResult,
 	executeWorkflow,
 	type NodeOutcome,

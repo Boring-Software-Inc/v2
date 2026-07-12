@@ -66,6 +66,11 @@ export function RuleConfigForm({
 						<span className="font-mono text-muted-foreground text-xs">
 							{rule.ruleId}@{rule.version}
 						</span>
+						{rule.managedByWorkflow ? (
+							<span className="rounded bg-surface-1 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+								managed by your workflow
+							</span>
+						) : null}
 					</div>
 					<p className="mt-0.5 text-muted-foreground text-xs">{rule.blurb}</p>
 				</div>

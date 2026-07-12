@@ -15,6 +15,8 @@ export interface RuleConfigView {
 	enabled: boolean;
 	config: JsonValue;
 	defaultConfig: JsonValue;
+	/** Repo has a saved workflow — the toggle is a kill switch over it (§6). */
+	managedByWorkflow: boolean;
 }
 
 export const listRepoOptions = createServerFn({ method: "GET" }).handler(
@@ -31,7 +33,12 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 	.handler(async ({ data }): Promise<RuleConfigView[]> => {
 		const { repoServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		const stored = await repoServices.listRuleConfigs(getDb().db, data.repoId);
+		const db = getDb().db;
+		const stored = await repoServices.listRuleConfigs(db, data.repoId);
+		const managedByWorkflow = await repoServices.hasEnabledWorkflow(
+			db,
+			data.repoId,
+		);
 		return RULE_CATALOG.map((entry) => {
 			const row = stored.find((c) => c.ruleId === entry.ruleId);
 			return {
@@ -42,6 +49,7 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				enabled: row?.enabled ?? false,
 				config: (row?.config ?? entry.defaultConfig) as JsonValue,
 				defaultConfig: entry.defaultConfig as JsonValue,
+				managedByWorkflow,
 			};
 		});
 	});
