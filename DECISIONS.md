@@ -1411,3 +1411,20 @@ id. Cross-user run authorization remains an open punt (spec §10).
 (`analyticsActivityQueryOptions` → listRecentDecisions/Runs) is not yet
 repo-scoped (only its moderation stat cards are, via getHomeStats/getModerationStats).
 A small follow-up; the owner's scope list was home / activity / moderation queue.
+
+### Real empty states (§9, Unit 2)
+
+A freshly-installed repo is the COMMON case, not an error — so every empty
+surface now says what will fill it, not just that it's empty. One shared
+`components/common/empty-state.tsx` (genuinely reused ≥2 surfaces, frontend.md):
+a dashed card, one earned icon, terse title + a description of what lands there,
+optional action — matched to the tripwire-design tokens (near-monochrome, small
+calm type, rounded-lg).
+- Home moderation queue: "nothing awaiting moderation — blocked changes that need
+  a maintainer's decision land here."
+- /activity: distinct "no activity yet" (repo linked and listening) vs "nothing
+  matches this filter"; the error branch is an EmptyState too.
+- /rules + /workflows: a "no repo linked yet" state (the real empty — reached in
+  open-dev with an empty DB), plus a pre-first-run hint on /rules when nothing's
+  been evaluated in 24h.
+- Stat cards stay honest zeros (a real number beats a fabricated one).

@@ -1,3 +1,4 @@
+import { FlowIcon } from "@hugeicons/core-free-icons";
 import {
 	queryOptions,
 	useMutation,
@@ -5,6 +6,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { EmptyState } from "#/components/common/empty-state";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { WorkflowCanvas } from "#/components/workflows/editor/canvas";
 import { activeRepoQueryOptions } from "#/lib/onboarding.query";
@@ -58,7 +60,13 @@ export function WorkflowsPage() {
 						</span>
 					) : null}
 				</header>
-				{definition ? (
+				{repo === null ? (
+					<EmptyState
+						description="link a repo to shape its workflow. until then there's nothing to wire — the DAG runs per-repo."
+						icon={FlowIcon}
+						title="no repo linked yet"
+					/>
+				) : definition ? (
 					<WorkflowCanvas
 						definition={definition}
 						key={`${repoId}-${definition.id}`}

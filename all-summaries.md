@@ -1021,3 +1021,11 @@ listRepoOptions/repoOptionsQueryOptions. Documented GITHUB_APP_SLUG + Setup URL 
 .env.example. Spec §4/§10 updated. Ledgered honestly: cross-user run-by-id
 visibility is still open. Checks green: typecheck all, boundaries, 204 tests
 (+onboarding integration), migration applied.
+
+**Unit 2 — real empty states.** One shared components/common/empty-state.tsx
+(dashed card, icon, terse title + a description of what fills it, optional action;
+tripwire-design tokens). Wired into the home moderation queue ("nothing awaiting
+moderation — blocked changes that need a decision land here"), /activity (distinct
+no-activity-yet vs no-filter-match, plus the error branch), and /rules + /workflows
+("no repo linked yet" + a /rules pre-first-run hint). Stat cards keep honest zeros.
+Checks green: typecheck, biome, boundaries, 204 tests.

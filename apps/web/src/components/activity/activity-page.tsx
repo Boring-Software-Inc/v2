@@ -1,8 +1,10 @@
+import { ActivityIcon } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { ActivityGroupRow } from "#/components/activity/activity-group";
 import { ActivityRow } from "#/components/activity/activity-row";
 import { LiveIndicator } from "#/components/activity/live-indicator";
+import { EmptyState } from "#/components/common/empty-state";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import type { ActivityFeedItem } from "#/lib/activity.functions";
 import { activityQueryOptions, useActivityStream } from "#/lib/activity.query";
@@ -80,15 +82,25 @@ export function ActivityPage() {
 				</div>
 
 				{error ? (
-					<div className="rounded-lg border border-dashed px-6 py-16 text-center text-red-500 text-sm">
-						couldn't load activity. retry shortly.
-					</div>
+					<EmptyState
+						className="text-red-500"
+						description="something went wrong reading the feed. it'll refresh on its own, or reload the page."
+						title="couldn't load activity"
+					/>
 				) : isSuccess && items.length === 0 ? (
-					<div className="rounded-lg border border-dashed px-6 py-16 text-center text-muted-foreground text-sm">
-						{filter === "all"
-							? "no activity yet — open a change request to see it here."
-							: "nothing matches this filter yet."}
-					</div>
+					filter === "all" ? (
+						<EmptyState
+							description="this repo is linked and listening. the moment a change request opens, its timeline and verdict show up here — live."
+							icon={ActivityIcon}
+							title="no activity yet"
+						/>
+					) : (
+						<EmptyState
+							description="no change request matches this filter yet. clear it to see everything."
+							icon={ActivityIcon}
+							title="nothing matches this filter"
+						/>
+					)
 				) : (
 					<div className="flex flex-col gap-1.5">
 						{items.map((item) =>

@@ -1,5 +1,7 @@
+import { CheckListIcon } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
+import { EmptyState } from "#/components/common/empty-state";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { RuleCard } from "#/components/rules/rule-card";
 import { RuleFilters, type RuleSort } from "#/components/rules/rule-filters";
@@ -59,22 +61,36 @@ export function RulesPage() {
 					) : null}
 				</header>
 
-				<div className="flex flex-col gap-6">
-					{statsQuery.data ? (
-						<RuleHeaderStats
-							animate={fetchedStats.current}
-							stats={statsQuery.data}
-						/>
-					) : null}
-					<div className="flex items-center justify-end">
-						<RuleFilters onSortChange={setSort} sort={sort} />
+				{repo === null ? (
+					<EmptyState
+						description="finish linking a repo and its rules — account age, rate limits, hidden links, and the rest — show up here to tune."
+						icon={CheckListIcon}
+						title="no repo linked yet"
+					/>
+				) : (
+					<div className="flex flex-col gap-6">
+						{statsQuery.data ? (
+							<RuleHeaderStats
+								animate={fetchedStats.current}
+								stats={statsQuery.data}
+							/>
+						) : null}
+						{statsQuery.data && statsQuery.data.matches24h.value === 0 ? (
+							<p className="rounded-lg border border-dashed px-4 py-3 text-center text-muted-foreground text-xs">
+								no change requests evaluated in the last 24h — these rules take
+								effect on the next one that opens.
+							</p>
+						) : null}
+						<div className="flex items-center justify-end">
+							<RuleFilters onSortChange={setSort} sort={sort} />
+						</div>
+						<div className="flex flex-col gap-3">
+							{sorted.map((rule) => (
+								<RuleCard key={rule.ruleId} repoId={repoId} rule={rule} />
+							))}
+						</div>
 					</div>
-					<div className="flex flex-col gap-3">
-						{sorted.map((rule) => (
-							<RuleCard key={rule.ruleId} repoId={repoId} rule={rule} />
-						))}
-					</div>
-				</div>
+				)}
 			</div>
 		</DashboardLayout>
 	);

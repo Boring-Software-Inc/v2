@@ -1,3 +1,4 @@
+import { Queue01Icon } from "@hugeicons/core-free-icons";
 import {
 	queryOptions,
 	useMutation,
@@ -7,6 +8,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
+import { EmptyState } from "#/components/common/empty-state";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import {
 	decideModeration,
@@ -44,9 +46,11 @@ export function ModerationQueue({ title }: { title?: ReactNode }) {
 		<div className="flex flex-col gap-2">
 			{title}
 			{items && items.length === 0 ? (
-				<div className="rounded-lg border border-dashed px-6 py-16 text-center text-muted-foreground text-sm">
-					nothing awaiting moderation.
-				</div>
+				<EmptyState
+					description="blocked changes that need a maintainer's decision land here. approve or deny and the run resumes."
+					icon={Queue01Icon}
+					title="nothing awaiting moderation"
+				/>
 			) : (
 				items?.map((item) => (
 					<div
