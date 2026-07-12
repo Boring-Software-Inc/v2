@@ -37,7 +37,7 @@ const VERDICT_RANK: Record<Verdict, number> = {
 	block: 2,
 };
 
-function worstVerdict(verdicts: Verdict[]): Verdict {
+export function worstVerdict(verdicts: Verdict[]): Verdict {
 	return verdicts.reduce<Verdict>(
 		(worst, v) => (VERDICT_RANK[v] > VERDICT_RANK[worst] ? v : worst),
 		"pass",

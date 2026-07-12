@@ -942,3 +942,43 @@ Adopted and hardened:
   shapes didn't change, only handles.
 - Known gap, out of scope here: **no node-config UI** (rule nodes always save
   `defaultConfig`) — separate session.
+
+### Verdict replay — the missing §11 row + core CI gate (built on real flips)
+
+Timely by design: units 1 (gate reachability) and 5 (deny floor) changed gate
+and deny-resume semantics; the 15 stored runs were decided under the OLD
+semantics. Replay is the review artifact that proves exactly what those changes
+flip and nothing else.
+
+- **`apps/worker/src/jobs/replay.ts`** (`bun run replay`): loads every stored
+  run (or `--corpus <json>` / `--limit N`), re-normalizes the raw event with
+  the CURRENT normalizer (stored normalized form as fallback), replays each
+  rule node's recorded envelope verbatim from run_steps (what the rule
+  actually SAW — replay NEVER fetches live GitHub; an uncaptured evaluation
+  replays as `skipped: replay — evaluation not captured`), re-executes the
+  run's own workflow SNAPSHOT through the current executor + degradation
+  floor + resume/deny-floor semantics (moderation decisions re-applied from
+  moderation_items), and diffs the derived verdict against the stored one.
+- **Flip report** to stdout + `--out <json>`: run id, old→new, responsible
+  semantics change (deny-floor / gate reachability / degradation floor /
+  UNATTRIBUTED — investigate), evidence delta. **Fails ONLY on crash, never on
+  flips** — flips are for human review.
+- **Why envelope replay, not context rebuild:** diff/contributor reads are not
+  stored anywhere except rule evidence; reconstructing RuleContext from
+  rule-specific evidence shapes would be reverse-engineering. Replaying the
+  recorded envelopes replays the ENGINE (executor, gates, floors, resume) over
+  ground truth — which is precisely what the CI gate on core changes must
+  catch. Rule-internal semantic changes are covered by the rules' own unit
+  suites over fixture contexts.
+- **CI (`.github/workflows/replay.yml`):** gated on `packages/core/**` paths,
+  replays the committed corpus `apps/worker/fixtures/replay-corpus.json` —
+  the 15 live scratch runs dumped via `--dump-corpus` (public-repo data,
+  secret-scanned). Full-DB replay stays manual/local. `replay.test.ts` pins
+  the corpus expectation (exactly the two explained flips, none UNATTRIBUTED)
+  so `bun test` catches drift too; updating that expectation IS the human
+  review moment.
+- **Proof over all 15 stored runs:** 13 unchanged, 2 flips, 0 skipped, 0
+  unattributed — exactly the T2a single-failing-rule pass→block (unit 1) and
+  the T4 deny-produced pass→block (unit 5). Full report in all-summaries.
+- `worstVerdict` exported from run-workflows (shared with replay);
+  `runServices.listRunsForReplay` added (read-only corpus loader).

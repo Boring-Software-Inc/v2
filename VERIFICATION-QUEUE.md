@@ -149,3 +149,11 @@ and failed. On a clean env the file passes 12/12. Fixed permanently:
   exemption.ts`, resolveAuthPosture pattern) so it can never disable maintainer
   exemption in production; unit-tested in `exemption.test.ts`.
 No code path regressed exemption; nothing further to verify here.
+
+## 11. Run page + /moderation surface run:deny-floor distinctly — UI pass, post-replay
+A run blocked by the deny floor (unit 5: deny with no deny edge) currently
+reads like any other block on the run page and in /moderation history. Surface
+the synthetic `run:deny-floor` step distinctly ("denied by maintainer — no
+deny edge drawn") so the audit trail says WHO blocked it and why the graph
+didn't. Bundle with the public-run-page patch (DECISIONS: deferred to
+post-rule-testing) — same surfaces, one UI session.

@@ -1,0 +1,30 @@
+name: Verdict replay
+
+# §11 CI gate on core changes: replay the committed corpus (captured live
+# runs) through the working-tree engine. Fails ONLY on crash — flips print
+# for human review in the job log. Full-DB replay stays a manual/local run
+# (`bun run replay`).
+on:
+  pull_request:
+    paths:
+      - "packages/core/**"
+  push:
+    branches: [main]
+    paths:
+      - "packages/core/**"
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Replay fixture corpus
+        run: bun run replay --corpus apps/worker/fixtures/replay-corpus.json

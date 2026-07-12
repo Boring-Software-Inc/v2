@@ -1,0 +1,2485 @@
+[
+	{
+		"runId": "019f534f-7b67-7000-9fe3-532c13732f1c",
+		"storedVerdict": "pass",
+		"snapshot": [
+			{
+				"id": "default@1",
+				"name": "default gate",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "account-age",
+						"type": "rule",
+						"ref": "account-age@1",
+						"config": {
+							"minDays": 7
+						}
+					},
+					{
+						"id": "crypto",
+						"type": "rule",
+						"ref": "crypto-address@1",
+						"config": {}
+					},
+					{
+						"id": "honeypot",
+						"type": "rule",
+						"ref": "honeypot@1",
+						"config": {
+							"paths": [".github/workflows/**"]
+						}
+					},
+					{
+						"id": "max-files",
+						"type": "rule",
+						"ref": "max-files-changed@1",
+						"config": {
+							"max": 200
+						}
+					},
+					{
+						"id": "english",
+						"type": "rule",
+						"ref": "english-only@1",
+						"config": {
+							"maxNonLatinRatio": 0.5
+						}
+					},
+					{
+						"id": "ai-review",
+						"type": "rule",
+						"ref": "ai-review@1",
+						"config": {
+							"maxSteps": 12
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "account-age"
+					},
+					{
+						"id": "e2",
+						"from": "trigger",
+						"to": "crypto"
+					},
+					{
+						"id": "e3",
+						"from": "trigger",
+						"to": "honeypot"
+					},
+					{
+						"id": "e4",
+						"from": "trigger",
+						"to": "max-files"
+					},
+					{
+						"id": "e5",
+						"from": "trigger",
+						"to": "english"
+					},
+					{
+						"id": "e6",
+						"from": "account-age",
+						"to": "gate"
+					},
+					{
+						"id": "e7",
+						"from": "crypto",
+						"to": "gate"
+					},
+					{
+						"id": "e8",
+						"from": "honeypot",
+						"to": "gate"
+					},
+					{
+						"id": "e9",
+						"from": "max-files",
+						"to": "gate"
+					},
+					{
+						"id": "e10",
+						"from": "english",
+						"to": "gate"
+					},
+					{
+						"id": "e11",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					},
+					{
+						"id": "e12",
+						"from": "trigger",
+						"to": "ai-review"
+					},
+					{
+						"id": "e13",
+						"from": "ai-review",
+						"to": "gate"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-372c-7000-a01e-c51e73eca9e4",
+			"forge": "github",
+			"deliveryId": "5d922b80-7d67-11f1-8eff-302e43d5bd1c",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T20:30:31.000Z",
+			"receivedAt": "2026-07-11T20:30:34.239Z",
+			"kind": "change-request.opened",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "cbabed1ea99ae1a33e9e74d723cb3812ec965462",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "default@1:account-age",
+				"nodeKind": "rule",
+				"status": "skipped",
+				"output": {
+					"passed": false,
+					"reason": "contributor profile unavailable",
+					"ruleId": "account-age",
+					"status": "skipped",
+					"version": 1,
+					"evidence": null,
+					"evaluatedAt": "2026-07-11T22:32:25.698Z"
+				}
+			},
+			{
+				"nodeId": "default@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "default@1:honeypot",
+				"nodeKind": "rule",
+				"status": "skipped",
+				"output": {
+					"passed": false,
+					"reason": "diff unavailable",
+					"ruleId": "honeypot",
+					"status": "skipped",
+					"version": 1,
+					"evidence": null,
+					"evaluatedAt": "2026-07-11T22:32:25.698Z"
+				}
+			},
+			{
+				"nodeId": "default@1:crypto",
+				"nodeKind": "rule",
+				"status": "pass",
+				"output": {
+					"passed": true,
+					"ruleId": "crypto-address",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"matches": []
+					},
+					"evaluatedAt": "2026-07-11T22:32:25.698Z"
+				}
+			},
+			{
+				"nodeId": "default@1:max-files",
+				"nodeKind": "rule",
+				"status": "skipped",
+				"output": {
+					"passed": false,
+					"reason": "diff unavailable",
+					"ruleId": "max-files-changed",
+					"status": "skipped",
+					"version": 1,
+					"evidence": null,
+					"evaluatedAt": "2026-07-11T22:32:25.698Z"
+				}
+			},
+			{
+				"nodeId": "default@1:english",
+				"nodeKind": "rule",
+				"status": "pass",
+				"output": {
+					"passed": true,
+					"ruleId": "english-only",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"ratio": 0,
+						"sample": "fix typo",
+						"lettersExamined": 7
+					},
+					"evaluatedAt": "2026-07-11T22:32:25.698Z"
+				}
+			},
+			{
+				"nodeId": "run:degradation",
+				"nodeKind": "gate",
+				"status": "skipped",
+				"output": {
+					"ruleNodes": 6,
+					"skippedRules": 4,
+					"degradedReads": []
+				}
+			},
+			{
+				"nodeId": "default@1:gate",
+				"nodeKind": "gate",
+				"status": "pass",
+				"output": {
+					"outcome": "pass"
+				}
+			},
+			{
+				"nodeId": "default@1:ai-review",
+				"nodeKind": "rule",
+				"status": "skipped",
+				"output": {
+					"passed": false,
+					"reason": "generate unavailable (no AI credentials)",
+					"ruleId": "ai-review",
+					"status": "skipped",
+					"version": 1,
+					"evidence": null,
+					"evaluatedAt": "2026-07-11T22:32:25.698Z"
+				}
+			}
+		],
+		"decision": "approve",
+		"decisionNodeId": "run:degraded"
+	},
+	{
+		"runId": "019f5388-a3cd-7000-8ed2-7bf646f575f9",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "default@1",
+				"name": "default gate",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "account-age",
+						"type": "rule",
+						"ref": "account-age@1",
+						"config": {
+							"minDays": 7
+						}
+					},
+					{
+						"id": "crypto",
+						"type": "rule",
+						"ref": "crypto-address@1",
+						"config": {}
+					},
+					{
+						"id": "honeypot",
+						"type": "rule",
+						"ref": "honeypot@1",
+						"config": {
+							"paths": [".github/workflows/**"]
+						}
+					},
+					{
+						"id": "max-files",
+						"type": "rule",
+						"ref": "max-files-changed@1",
+						"config": {
+							"max": 200
+						}
+					},
+					{
+						"id": "english",
+						"type": "rule",
+						"ref": "english-only@1",
+						"config": {
+							"maxNonLatinRatio": 0.5
+						}
+					},
+					{
+						"id": "ai-review",
+						"type": "rule",
+						"ref": "ai-review@1",
+						"config": {
+							"maxSteps": 12
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "account-age"
+					},
+					{
+						"id": "e2",
+						"from": "trigger",
+						"to": "crypto"
+					},
+					{
+						"id": "e3",
+						"from": "trigger",
+						"to": "honeypot"
+					},
+					{
+						"id": "e4",
+						"from": "trigger",
+						"to": "max-files"
+					},
+					{
+						"id": "e5",
+						"from": "trigger",
+						"to": "english"
+					},
+					{
+						"id": "e6",
+						"from": "account-age",
+						"to": "gate"
+					},
+					{
+						"id": "e7",
+						"from": "crypto",
+						"to": "gate"
+					},
+					{
+						"id": "e8",
+						"from": "honeypot",
+						"to": "gate"
+					},
+					{
+						"id": "e9",
+						"from": "max-files",
+						"to": "gate"
+					},
+					{
+						"id": "e10",
+						"from": "english",
+						"to": "gate"
+					},
+					{
+						"id": "e11",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					},
+					{
+						"id": "e12",
+						"from": "trigger",
+						"to": "ai-review"
+					},
+					{
+						"id": "e13",
+						"from": "ai-review",
+						"to": "gate"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3730-7000-86e6-e435909cf901",
+			"forge": "github",
+			"deliveryId": "18d76ae0-7d81-11f1-8fa4-089c6ada8c53",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:34:44.000Z",
+			"receivedAt": "2026-07-11T23:34:45.653Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "ce849406709a23a7a5d8873ce07cb1321528fd17",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "default@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "default@1:account-age",
+				"nodeKind": "rule",
+				"status": "pass",
+				"output": {
+					"passed": true,
+					"ruleId": "account-age",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"minDays": 7,
+						"accountAgeDays": 2037
+					},
+					"evaluatedAt": "2026-07-11T23:34:47.864Z"
+				}
+			},
+			{
+				"nodeId": "default@1:crypto",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "crypto-address",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"matches": [
+							{
+								"kind": "eth",
+								"value": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
+								"location": "DONATE.md"
+							},
+							{
+								"kind": "btc",
+								"value": "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+								"location": "DONATE.md"
+							}
+						]
+					},
+					"evaluatedAt": "2026-07-11T23:34:47.864Z"
+				}
+			},
+			{
+				"nodeId": "default@1:honeypot",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "honeypot",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"touched": [".github/workflows/exfil.yml"]
+					},
+					"evaluatedAt": "2026-07-11T23:34:47.864Z"
+				}
+			},
+			{
+				"nodeId": "default@1:max-files",
+				"nodeKind": "rule",
+				"status": "pass",
+				"output": {
+					"passed": true,
+					"ruleId": "max-files-changed",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"max": 200,
+						"filesChanged": 2
+					},
+					"evaluatedAt": "2026-07-11T23:34:47.864Z"
+				}
+			},
+			{
+				"nodeId": "default@1:english",
+				"nodeKind": "rule",
+				"status": "pass",
+				"output": {
+					"passed": true,
+					"ruleId": "english-only",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"ratio": 0,
+						"sample": "fix typo",
+						"lettersExamined": 7
+					},
+					"evaluatedAt": "2026-07-11T23:34:47.864Z"
+				}
+			},
+			{
+				"nodeId": "default@1:ai-review",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "ai-review",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"trace": {
+							"model": "x-ai/grok-4.5",
+							"steps": [
+								{
+									"text": "",
+									"toolCalls": [
+										{
+											"input": {
+												"summary": "malicious workflow exfiltrates secrets and title hides crypto spam docs",
+												"verdict": "block",
+												"findings": [
+													{
+														"file": ".github/workflows/exfil.yml",
+														"note": "curl-pipe-sh to external host and POSTs GITHUB_TOKEN to attacker endpoint",
+														"severity": "critical"
+													},
+													{
+														"file": "DONATE.md",
+														"note": "unsolicited crypto donation addresses (spam surface)",
+														"severity": "critical"
+													},
+													{
+														"file": ".github/workflows/exfil.yml",
+														"note": "title claims typo fix while diff adds CI backdoor and secret exfil",
+														"severity": "critical"
+													}
+												],
+												"confidence": 1
+											},
+											"toolName": "submit_review"
+										}
+									]
+								}
+							],
+							"usage": {
+								"inputTokens": 1859,
+								"totalTokens": 2207,
+								"outputTokens": 348,
+								"inputTokenDetails": {
+									"noCacheTokens": 1731,
+									"cacheReadTokens": 128,
+									"cacheWriteTokens": 0
+								},
+								"outputTokenDetails": {
+									"textTokens": 152,
+									"reasoningTokens": 196
+								}
+							},
+							"finishReason": "tool-calls"
+						},
+						"output": {
+							"summary": "malicious workflow exfiltrates secrets and title hides crypto spam docs",
+							"verdict": "block",
+							"findings": [
+								{
+									"file": ".github/workflows/exfil.yml",
+									"note": "curl-pipe-sh to external host and POSTs GITHUB_TOKEN to attacker endpoint",
+									"severity": "critical"
+								},
+								{
+									"file": "DONATE.md",
+									"note": "unsolicited crypto donation addresses (spam surface)",
+									"severity": "critical"
+								},
+								{
+									"file": ".github/workflows/exfil.yml",
+									"note": "title claims typo fix while diff adds CI backdoor and secret exfil",
+									"severity": "critical"
+								}
+							],
+							"confidence": 1
+						}
+					},
+					"evaluatedAt": "2026-07-11T23:34:47.864Z"
+				}
+			},
+			{
+				"nodeId": "default@1:gate",
+				"nodeKind": "gate",
+				"status": "fail",
+				"output": {
+					"outcome": "fail"
+				}
+			},
+			{
+				"nodeId": "default@1:block",
+				"nodeKind": "action",
+				"status": "pass",
+				"output": null
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f538a-926f-7000-87c7-e9cd3d79c80a",
+		"storedVerdict": "pass",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "rut",
+						"type": "rule",
+						"ref": "account-age@1",
+						"config": {
+							"minDays": 9999
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "rut"
+					},
+					{
+						"id": "e2",
+						"from": "rut",
+						"to": "gate"
+					},
+					{
+						"id": "e3",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3731-7000-9579-22931aecc0c3",
+			"forge": "github",
+			"deliveryId": "651d7ac0-7d81-11f1-90d1-e2611d2bdc70",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:36:52.000Z",
+			"receivedAt": "2026-07-11T23:36:53.853Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "55ee0c19045faf44b6e8223a295bec7a3cd872d0",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:rut",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "account-age",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"minDays": 9999,
+						"accountAgeDays": 2037
+					},
+					"evaluatedAt": "2026-07-11T23:36:57.359Z"
+				}
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f538b-5a74-7000-912c-118b730d8277",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "rut",
+						"type": "rule",
+						"ref": "account-age@1",
+						"config": {
+							"minDays": 9999
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "rut"
+					},
+					{
+						"id": "e2",
+						"from": "rut",
+						"to": "gate"
+					},
+					{
+						"id": "e2b",
+						"from": "rut",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e3",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3731-7001-8939-4a47e1bb1b52",
+			"forge": "github",
+			"deliveryId": "83b386f0-7d81-11f1-8a5b-009a3e361150",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:37:43.000Z",
+			"receivedAt": "2026-07-11T23:37:44.880Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "4dde45df78baaa34afdbbb13b279645d62436b3f",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:rut",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "account-age",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"minDays": 9999,
+						"accountAgeDays": 2037
+					},
+					"evaluatedAt": "2026-07-11T23:37:48.613Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:block",
+				"nodeKind": "action",
+				"status": "pass",
+				"output": null
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "fail",
+				"output": {
+					"outcome": "fail"
+				}
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f538b-ce7a-7000-b03b-aaf437a04408",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "rut",
+						"type": "rule",
+						"ref": "max-files-changed@1",
+						"config": {
+							"max": 1
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "rut"
+					},
+					{
+						"id": "e2",
+						"from": "rut",
+						"to": "gate"
+					},
+					{
+						"id": "e2b",
+						"from": "rut",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e3",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3731-7002-99e5-75ee90c02200",
+			"forge": "github",
+			"deliveryId": "94fd56c0-7d81-11f1-8513-0a28a4f95aba",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:38:12.000Z",
+			"receivedAt": "2026-07-11T23:38:13.887Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "d08df43d5bacbf6663b2270bd2288114652da681",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:rut",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "max-files-changed",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"max": 1,
+						"filesChanged": 2
+					},
+					"evaluatedAt": "2026-07-11T23:38:18.308Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "fail",
+				"output": {
+					"outcome": "fail"
+				}
+			},
+			{
+				"nodeId": "live-test@1:block",
+				"nodeKind": "action",
+				"status": "pass",
+				"output": null
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f538c-799d-7000-9171-17311a64ee3c",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "rut",
+						"type": "rule",
+						"ref": "english-only@1",
+						"config": {
+							"maxNonLatinRatio": 0.5
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "rut"
+					},
+					{
+						"id": "e2",
+						"from": "rut",
+						"to": "gate"
+					},
+					{
+						"id": "e2b",
+						"from": "rut",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e3",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3732-7000-9236-176c7beddda6",
+			"forge": "github",
+			"deliveryId": "b0e9edd0-7d81-11f1-82f9-b4770ddb58f5",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:38:59.000Z",
+			"receivedAt": "2026-07-11T23:39:00.750Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "修复错误的问题标题测试",
+				"headSha": "63cb9398cfb2acb610d01523a1d321131ee9a432",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:rut",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "english-only",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"ratio": 1,
+						"sample": "修复错误的问题标题测试",
+						"lettersExamined": 11
+					},
+					"evaluatedAt": "2026-07-11T23:39:02.173Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "fail",
+				"output": {
+					"outcome": "fail"
+				}
+			},
+			{
+				"nodeId": "live-test@1:block",
+				"nodeKind": "action",
+				"status": "pass",
+				"output": null
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f538c-bf3b-7000-9f61-da9631301bbb",
+		"storedVerdict": "pass",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "rut",
+						"type": "rule",
+						"ref": "english-only@1",
+						"config": {
+							"maxNonLatinRatio": 0.5
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "rut"
+					},
+					{
+						"id": "e2",
+						"from": "rut",
+						"to": "gate"
+					},
+					{
+						"id": "e2b",
+						"from": "rut",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e3",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3732-7001-b1e9-7a93e237545f",
+			"forge": "github",
+			"deliveryId": "b99e2b80-7d81-11f1-8f08-12330f556d20",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:39:14.000Z",
+			"receivedAt": "2026-07-11T23:39:15.445Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "修复: fix typo in hello.js",
+				"headSha": "1f7fd674665378f88e5185c3105bc9093b902929",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:rut",
+				"nodeKind": "rule",
+				"status": "pass",
+				"output": {
+					"passed": true,
+					"ruleId": "english-only",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"ratio": 0.1111,
+						"sample": "修复: fix typo in hello.js",
+						"lettersExamined": 18
+					},
+					"evaluatedAt": "2026-07-11T23:39:20.008Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "pass",
+				"output": {
+					"outcome": "pass"
+				}
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f538d-40bc-7000-aff5-3fa00238aac0",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "rut",
+						"type": "rule",
+						"ref": "crypto-address@1",
+						"config": {}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "rut"
+					},
+					{
+						"id": "e2",
+						"from": "rut",
+						"to": "gate"
+					},
+					{
+						"id": "e2b",
+						"from": "rut",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e3",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3732-7002-966c-7937157d77b7",
+			"forge": "github",
+			"deliveryId": "cdf51440-7d81-11f1-9034-9cc243f83842",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:39:48.000Z",
+			"receivedAt": "2026-07-11T23:39:49.317Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "a6f8ff787fe7bdbdd83bba40fe095226a5ad2ab1",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:rut",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "crypto-address",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"matches": [
+							{
+								"kind": "eth",
+								"value": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
+								"location": "DONATE.md"
+							},
+							{
+								"kind": "btc",
+								"value": "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+								"location": "DONATE.md"
+							}
+						]
+					},
+					"evaluatedAt": "2026-07-11T23:39:53.123Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "fail",
+				"output": {
+					"outcome": "fail"
+				}
+			},
+			{
+				"nodeId": "live-test@1:block",
+				"nodeKind": "action",
+				"status": "pass",
+				"output": null
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f538e-03c6-7000-8e18-417ccb015f99",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "rut",
+						"type": "rule",
+						"ref": "pr-rate-limit@1",
+						"config": {
+							"windowHours": 24,
+							"maxPerWindow": 1
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "rut"
+					},
+					{
+						"id": "e2",
+						"from": "rut",
+						"to": "gate"
+					},
+					{
+						"id": "e2b",
+						"from": "rut",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e3",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3733-7000-a75a-428c41f09e42",
+			"forge": "github",
+			"deliveryId": "ec637430-7d81-11f1-8772-6a01c6ed08aa",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:40:38.000Z",
+			"receivedAt": "2026-07-11T23:40:40.796Z",
+			"kind": "change-request.opened",
+			"changeRequest": {
+				"number": 2,
+				"title": "live-test T2e second PR",
+				"headSha": "5b45c48506c4ebd4e1cd7e96087f95620f5254cf",
+				"baseRef": "main",
+				"headRef": "live-test-rate-limit",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/2"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:rut",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "pr-rate-limit",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"count": 2,
+						"intervalCov": null,
+						"windowHours": 24,
+						"maxPerWindow": 1
+					},
+					"evaluatedAt": "2026-07-11T23:40:43.079Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "fail",
+				"output": {
+					"outcome": "fail"
+				}
+			},
+			{
+				"nodeId": "live-test@1:block",
+				"nodeKind": "action",
+				"status": "pass",
+				"output": null
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f538e-704a-7000-8d3a-8f8e8c667d6b",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "rut",
+						"type": "rule",
+						"ref": "honeypot@1",
+						"config": {
+							"paths": [".github/workflows/**"]
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "rut"
+					},
+					{
+						"id": "e2",
+						"from": "rut",
+						"to": "gate"
+					},
+					{
+						"id": "e2b",
+						"from": "rut",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e3",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3733-7001-9f78-b09853c8280d",
+			"forge": "github",
+			"deliveryId": "fd431080-7d81-11f1-9637-110d6030e19d",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:41:07.000Z",
+			"receivedAt": "2026-07-11T23:41:09.073Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "5434e9c964ad1d5c988c805883424a77f1f93cce",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:rut",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "honeypot",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"touched": [
+							".github/workflows/exfil.yml",
+							".github/workflows/test-tamper.yml"
+						]
+					},
+					"evaluatedAt": "2026-07-11T23:41:10.800Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "fail",
+				"output": {
+					"outcome": "fail"
+				}
+			},
+			{
+				"nodeId": "live-test@1:block",
+				"nodeKind": "action",
+				"status": "pass",
+				"output": null
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f538e-b5ed-7000-8e94-022fccac3bfb",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "rut",
+						"type": "rule",
+						"ref": "min-merged-prs@1",
+						"config": {
+							"min": 5
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "rut"
+					},
+					{
+						"id": "e2",
+						"from": "rut",
+						"to": "gate"
+					},
+					{
+						"id": "e2b",
+						"from": "rut",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e3",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3733-7002-80d2-25e456c34501",
+			"forge": "github",
+			"deliveryId": "08028780-7d82-11f1-8336-daa8de582d42",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:41:25.000Z",
+			"receivedAt": "2026-07-11T23:41:26.704Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "f87151c9100dd942e71dfa20fba4bd6cc0cdddff",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:rut",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "min-merged-prs",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"min": 5,
+						"mergedInRepo": 0
+					},
+					"evaluatedAt": "2026-07-11T23:41:28.628Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "fail",
+				"output": {
+					"outcome": "fail"
+				}
+			},
+			{
+				"nodeId": "live-test@1:block",
+				"nodeKind": "action",
+				"status": "pass",
+				"output": null
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f538f-0442-7000-b977-c9a92b55278d",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "rut",
+						"type": "rule",
+						"ref": "profile-readme@1",
+						"config": {
+							"minLength": 32
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "rut"
+					},
+					{
+						"id": "e2",
+						"from": "rut",
+						"to": "gate"
+					},
+					{
+						"id": "e2b",
+						"from": "rut",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e3",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3733-7003-9978-ec5577898165",
+			"forge": "github",
+			"deliveryId": "12b29530-7d82-11f1-8a8b-c12969554273",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:41:43.000Z",
+			"receivedAt": "2026-07-11T23:41:44.684Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "129e893df304dc916d341c7cbcd827a177af5cad",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:rut",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "profile-readme",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"length": 24,
+						"minLength": 32,
+						"hasProfileText": true
+					},
+					"evaluatedAt": "2026-07-11T23:41:48.676Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "fail",
+				"output": {
+					"outcome": "fail"
+				}
+			},
+			{
+				"nodeId": "live-test@1:block",
+				"nodeKind": "action",
+				"status": "pass",
+				"output": null
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f5390-a70f-7000-8f1f-697f9f8a5add",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "age",
+						"type": "rule",
+						"ref": "account-age@1",
+						"config": {
+							"minDays": 7
+						}
+					},
+					{
+						"id": "crypto",
+						"type": "rule",
+						"ref": "crypto-address@1",
+						"config": {}
+					},
+					{
+						"id": "honeypot",
+						"type": "rule",
+						"ref": "honeypot@1",
+						"config": {
+							"paths": [".github/workflows/**"]
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "age"
+					},
+					{
+						"id": "e2",
+						"from": "trigger",
+						"to": "crypto"
+					},
+					{
+						"id": "e3",
+						"from": "trigger",
+						"to": "honeypot"
+					},
+					{
+						"id": "e4",
+						"from": "age",
+						"to": "gate"
+					},
+					{
+						"id": "e4b",
+						"from": "age",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e5",
+						"from": "crypto",
+						"to": "gate"
+					},
+					{
+						"id": "e5b",
+						"from": "crypto",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e6",
+						"from": "honeypot",
+						"to": "gate"
+					},
+					{
+						"id": "e6b",
+						"from": "honeypot",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e7",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3734-7000-a8ce-4aac12180503",
+			"forge": "github",
+			"deliveryId": "53740950-7d82-11f1-85b6-b3549bccc866",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:43:32.000Z",
+			"receivedAt": "2026-07-11T23:43:33.394Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "9b1e26c396571a67e685d2e769086ba81483f4a1",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:age",
+				"nodeKind": "rule",
+				"status": "pass",
+				"output": {
+					"passed": true,
+					"ruleId": "account-age",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"minDays": 7,
+						"accountAgeDays": 2037
+					},
+					"evaluatedAt": "2026-07-11T23:43:35.820Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:crypto",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "crypto-address",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"matches": [
+							{
+								"kind": "eth",
+								"value": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
+								"location": "DONATE.md"
+							},
+							{
+								"kind": "btc",
+								"value": "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+								"location": "DONATE.md"
+							}
+						]
+					},
+					"evaluatedAt": "2026-07-11T23:43:35.820Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:honeypot",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "honeypot",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"touched": [
+							".github/workflows/exfil.yml",
+							".github/workflows/test-tamper.yml"
+						]
+					},
+					"evaluatedAt": "2026-07-11T23:43:35.820Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "fail",
+				"output": {
+					"outcome": "fail"
+				}
+			},
+			{
+				"nodeId": "live-test@1:block",
+				"nodeKind": "action",
+				"status": "pass",
+				"output": null
+			}
+		],
+		"decision": null,
+		"decisionNodeId": null
+	},
+	{
+		"runId": "019f5391-8ea5-7000-b419-f5ac2e8d70aa",
+		"storedVerdict": "block",
+		"snapshot": [
+			{
+				"id": "live-test@1",
+				"name": "live test",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "age",
+						"type": "rule",
+						"ref": "account-age@1",
+						"config": {
+							"minDays": 7
+						}
+					},
+					{
+						"id": "crypto",
+						"type": "rule",
+						"ref": "crypto-address@1",
+						"config": {}
+					},
+					{
+						"id": "honeypot",
+						"type": "rule",
+						"ref": "honeypot@1",
+						"config": {
+							"paths": [".github/workflows/**"]
+						}
+					},
+					{
+						"id": "gate",
+						"type": "gate",
+						"mode": "all-of"
+					},
+					{
+						"id": "block",
+						"type": "action",
+						"action": "block"
+					}
+				],
+				"edges": [
+					{
+						"id": "e1",
+						"from": "trigger",
+						"to": "age"
+					},
+					{
+						"id": "e2",
+						"from": "trigger",
+						"to": "crypto"
+					},
+					{
+						"id": "e3",
+						"from": "trigger",
+						"to": "honeypot"
+					},
+					{
+						"id": "e4",
+						"from": "age",
+						"to": "gate"
+					},
+					{
+						"id": "e4b",
+						"from": "age",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e5",
+						"from": "crypto",
+						"to": "gate"
+					},
+					{
+						"id": "e5b",
+						"from": "crypto",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e6",
+						"from": "honeypot",
+						"to": "gate"
+					},
+					{
+						"id": "e6b",
+						"from": "honeypot",
+						"to": "gate",
+						"when": "fail"
+					},
+					{
+						"id": "e7",
+						"from": "gate",
+						"to": "block",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3734-7001-8591-cf6c233e5db7",
+			"forge": "github",
+			"deliveryId": "773bbc20-7d82-11f1-9ca3-1ae813b0a6f9",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-11T23:44:32.000Z",
+			"receivedAt": "2026-07-11T23:44:33.503Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "28540dcf42b472bb297fc74535f3ff6e042909af",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "live-test@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "live-test@1:age",
+				"nodeKind": "rule",
+				"status": "skipped",
+				"output": {
+					"passed": false,
+					"reason": "contributor profile unavailable",
+					"ruleId": "account-age",
+					"status": "skipped",
+					"version": 1,
+					"evidence": null,
+					"evaluatedAt": "2026-07-11T23:44:35.986Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:crypto",
+				"nodeKind": "rule",
+				"status": "pass",
+				"output": {
+					"passed": true,
+					"ruleId": "crypto-address",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"matches": []
+					},
+					"evaluatedAt": "2026-07-11T23:44:35.986Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:honeypot",
+				"nodeKind": "rule",
+				"status": "skipped",
+				"output": {
+					"passed": false,
+					"reason": "diff unavailable",
+					"ruleId": "honeypot",
+					"status": "skipped",
+					"version": 1,
+					"evidence": null,
+					"evaluatedAt": "2026-07-11T23:44:35.986Z"
+				}
+			},
+			{
+				"nodeId": "live-test@1:gate",
+				"nodeKind": "gate",
+				"status": "pass",
+				"output": {
+					"outcome": "pass"
+				}
+			},
+			{
+				"nodeId": "run:degradation",
+				"nodeKind": "gate",
+				"status": "skipped",
+				"output": {
+					"ruleNodes": 3,
+					"skippedRules": 2,
+					"degradedReads": ["diff", "contributor", "commits"]
+				}
+			}
+		],
+		"decision": "deny",
+		"decisionNodeId": "run:degraded"
+	},
+	{
+		"runId": "019f54d3-0c13-7000-930a-dc97f87e1d5e",
+		"storedVerdict": "pass",
+		"snapshot": [
+			{
+				"id": "default@1",
+				"name": "default gate",
+				"version": 1,
+				"nodes": [
+					{
+						"id": "trigger",
+						"type": "trigger",
+						"kinds": ["change-request.opened", "change-request.updated"]
+					},
+					{
+						"id": "send-to-moderation-1",
+						"type": "action",
+						"action": "send-to-moderation"
+					},
+					{
+						"id": "account-age-1",
+						"type": "rule",
+						"ref": "account-age@1",
+						"config": {
+							"minDays": 9999
+						}
+					}
+				],
+				"edges": [
+					{
+						"id": "edge-2",
+						"from": "trigger",
+						"to": "account-age-1"
+					},
+					{
+						"id": "edge-4",
+						"from": "account-age-1",
+						"to": "send-to-moderation-1",
+						"when": "fail"
+					}
+				]
+			}
+		],
+		"event": {
+			"id": "019f54ff-3734-7002-a223-273c6122e580",
+			"forge": "github",
+			"deliveryId": "84b61720-7db3-11f1-90f7-4b77ab6d458e",
+			"repo": {
+				"owner": "Boring-Software-Inc",
+				"name": "scratch",
+				"fullName": "Boring-Software-Inc/scratch"
+			},
+			"repoExternalId": "1297742259",
+			"actor": {
+				"login": "ripgrim",
+				"externalId": "75869731",
+				"avatarUrl": "https://avatars.githubusercontent.com/u/75869731?v=4"
+			},
+			"occurredAt": "2026-07-12T05:35:40.000Z",
+			"receivedAt": "2026-07-12T05:35:41.270Z",
+			"kind": "change-request.updated",
+			"changeRequest": {
+				"number": 1,
+				"title": "fix typo",
+				"headSha": "9bd3447dceffc93e305c177cfe59a6af0f653eb0",
+				"baseRef": "main",
+				"headRef": "fix-typo",
+				"draft": false,
+				"url": "https://github.com/Boring-Software-Inc/scratch/pull/1"
+			}
+		},
+		"steps": [
+			{
+				"nodeId": "default@1:trigger",
+				"nodeKind": "trigger",
+				"status": "pass",
+				"output": {
+					"matched": true
+				}
+			},
+			{
+				"nodeId": "default@1:account-age-1",
+				"nodeKind": "rule",
+				"status": "fail",
+				"output": {
+					"passed": false,
+					"ruleId": "account-age",
+					"status": "evaluated",
+					"version": 1,
+					"evidence": {
+						"minDays": 9999,
+						"accountAgeDays": 2038
+					},
+					"evaluatedAt": "2026-07-12T05:35:44.216Z"
+				}
+			},
+			{
+				"nodeId": "default@1:send-to-moderation-1",
+				"nodeKind": "action",
+				"status": "paused",
+				"output": null
+			}
+		],
+		"decision": "deny",
+		"decisionNodeId": "default@1:send-to-moderation-1"
+	}
+]

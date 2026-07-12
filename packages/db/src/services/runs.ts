@@ -285,3 +285,84 @@ export async function listRuns(
 ) {
 	return await db.select().from(runs).orderBy(desc(runs.id)).limit(limit);
 }
+
+export interface ReplayRunRow {
+	id: string;
+	status: string;
+	verdict: string | null;
+	workflowSnapshot: unknown;
+	deliveryId: string;
+	rawKind: string;
+	raw: unknown;
+	receivedAt: Date;
+	normalized: unknown;
+	steps: {
+		nodeId: string;
+		nodeKind: string;
+		status: string;
+		output: unknown;
+	}[];
+	/** Latest moderation decision (approved | denied), when one was made. */
+	decision: string | null;
+	decisionNodeId: string | null;
+}
+
+/**
+ * §11 verdict replay corpus: every stored run with its raw event, original
+ * steps, and the moderation decision that resolved it. Read-only — the
+ * append-only store is the replay corpus, never mutated.
+ */
+export async function listRunsForReplay(
+	db: Db,
+	limit: number | null,
+): Promise<ReplayRunRow[]> {
+	const { events } = await import("../schema/events.ts");
+	const { moderationItems } = await import("../schema/moderation.ts");
+	const base = db
+		.select({
+			id: runs.id,
+			status: runs.status,
+			verdict: runs.verdict,
+			workflowSnapshot: runs.workflowSnapshot,
+			deliveryId: events.deliveryId,
+			rawKind: events.rawKind,
+			raw: events.raw,
+			receivedAt: events.receivedAt,
+			normalized: events.normalized,
+		})
+		.from(runs)
+		.innerJoin(events, eq(runs.eventId, events.id))
+		.orderBy(runs.id);
+	const rows = await (limit ? base.limit(limit) : base);
+	const result: ReplayRunRow[] = [];
+	for (const row of rows) {
+		const steps = await db
+			.select({
+				nodeId: runSteps.nodeId,
+				nodeKind: runSteps.nodeKind,
+				status: runSteps.status,
+				output: runSteps.output,
+			})
+			.from(runSteps)
+			.where(eq(runSteps.runId, row.id))
+			.orderBy(runSteps.startedAt);
+		const decisions = await db
+			.select({
+				status: moderationItems.status,
+				nodeId: moderationItems.nodeId,
+			})
+			.from(moderationItems)
+			.where(eq(moderationItems.runId, row.id))
+			.orderBy(desc(moderationItems.decidedAt));
+		const decided = decisions.find(
+			(d) => d.status === "approved" || d.status === "denied",
+		);
+		result.push({
+			...row,
+			steps,
+			decision: decided?.status ?? null,
+			decisionNodeId: decided?.nodeId ?? null,
+		});
+	}
+	return result;
+}

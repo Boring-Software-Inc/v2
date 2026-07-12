@@ -822,3 +822,28 @@ when-edges reload onto their handles. Round-trip tested (5 new tests); worker
 emission fixture unchanged (node shapes untouched). Editor can now draw the
 full moderation loop that Unit 5's deny floor backstops.
 Checks: biome clean · typecheck ✓ · boundaries ✓ · 153 tests, 0 fail.
+
+**Unit 7 — verdict replay, the missing §11 row (this commit).** `bun run
+replay` re-runs the CURRENT engine over stored runs — raw events re-normalized,
+rule envelopes replayed verbatim from run_steps (never a live GitHub read),
+snapshots re-executed through the current executor/floors/resume — and diffs
+verdicts. CI gate on `packages/core/**` replays the committed 15-run corpus
+(`.github/workflows/replay.yml`); `replay.test.ts` pins the expectation. Known
+gap #2 closed. Flip report over ALL 15 stored runs, verbatim:
+
+```
+verdict replay — 15 runs · 13 unchanged · 2 flips · 0 skipped
+FLIP 019f538a-926f-7000-87c7-e9cd3d79c80a: pass → block
+  responsible: gate reachability (unit 1) — gates now run once a source settles, failures included
+  failed rules: account-age@1
+  evidence delta: none — rule envelopes replayed verbatim from stored run_steps; only the walk changed
+FLIP 019f54d3-0c13-7000-930a-dc97f87e1d5e: pass → block
+  responsible: deny-floor resume semantics (unit 5) — deny with no deny edge now blocks
+  failed rules: account-age@1
+  evidence delta: none — rule envelopes replayed verbatim from stored run_steps; only the walk changed
+```
+
+Exactly the two explainable flips (T2a first-attempt single-failing-rule pass,
+T4 deny-produced pass), zero unexplained, zero skipped — the done-when held.
+Ledgered for later: VERIFICATION-QUEUE #11 (run page + /moderation surface
+`run:deny-floor` distinctly — UI pass, bundles with the public-run-page patch).
