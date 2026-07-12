@@ -39,7 +39,7 @@ export function RulesPage() {
 
 	return (
 		<DashboardLayout counts={{}} moderator={MODERATOR}>
-			<div className="mx-auto w-full max-w-4xl px-6 py-8">
+			<div className="overflow-stable mx-auto h-full w-full max-w-4xl px-6 py-8">
 				<header className="mb-6 flex items-center justify-between gap-4">
 					<div>
 						<h1 className="font-semibold text-2xl tracking-tight">Rules</h1>
@@ -93,7 +93,7 @@ export function RulesPage() {
 export function RulesPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}} moderator={MODERATOR}>
-			<div className="mx-auto w-full max-w-4xl px-6 py-8">
+			<div className="overflow-stable mx-auto h-full w-full max-w-4xl px-6 py-8">
 				<div className="mb-6 h-8 w-40 animate-pulse rounded-md bg-surface-1" />
 				<div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
 					{Array.from({ length: 4 }, (_, i) => `stat-skel-${i}`).map((key) => (

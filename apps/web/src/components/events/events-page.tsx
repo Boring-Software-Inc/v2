@@ -11,7 +11,7 @@ export function EventsPage() {
 
 	return (
 		<DashboardLayout counts={{}} moderator={MODERATOR}>
-			<div className="mx-auto w-full max-w-3xl px-6 py-8">
+			<div className="overflow-stable mx-auto h-full w-full max-w-3xl px-6 py-8">
 				<header className="mb-6 flex items-center justify-between">
 					<div>
 						<h1 className="font-semibold text-2xl tracking-tight">Events</h1>
@@ -46,7 +46,7 @@ export function EventsPage() {
 export function EventsPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}} moderator={MODERATOR}>
-			<div className="mx-auto w-full max-w-3xl px-6 py-8">
+			<div className="overflow-stable mx-auto h-full w-full max-w-3xl px-6 py-8">
 				<div className="mb-6 h-8 w-40 animate-pulse rounded-md bg-surface-1" />
 				<div className="flex flex-col gap-2">
 					{Array.from({ length: 8 }, (_, i) => `events-skel-${i}`).map(

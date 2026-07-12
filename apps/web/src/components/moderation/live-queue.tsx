@@ -37,7 +37,7 @@ export function LiveModerationQueue() {
 
 	return (
 		<DashboardLayout counts={{}} moderator={MODERATOR}>
-			<div className="mx-auto w-full max-w-3xl px-6 py-8">
+			<div className="overflow-stable mx-auto h-full w-full max-w-3xl px-6 py-8">
 				<header className="mb-6">
 					<h1 className="font-semibold text-2xl tracking-tight">Moderation</h1>
 					<p className="text-muted-foreground text-sm">
@@ -123,7 +123,7 @@ export function LiveModerationQueue() {
 export function LiveModerationQueueSkeleton() {
 	return (
 		<DashboardLayout counts={{}} moderator={MODERATOR}>
-			<div className="mx-auto w-full max-w-3xl px-6 py-8">
+			<div className="overflow-stable mx-auto h-full w-full max-w-3xl px-6 py-8">
 				<div className="mb-6 h-8 w-48 animate-pulse rounded-md bg-surface-1" />
 				<div className="flex flex-col gap-2">
 					{Array.from({ length: 4 }, (_, i) => `mod-skel-${i}`).map((key) => (

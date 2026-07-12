@@ -65,7 +65,9 @@ export function RunPage() {
 
 	return (
 		<DashboardLayout counts={{}} moderator={MODERATOR}>
-			<RunBody run={run} />
+			<div className="overflow-stable h-full">
+				<RunBody run={run} />
+			</div>
 		</DashboardLayout>
 	);
 }
