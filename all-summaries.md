@@ -806,3 +806,10 @@ under `NODE_ENV=production` (resolveAuthPosture pattern), unit-tested. #10 close
 
 **Checks (final, all four units): biome clean · 12/12 typecheck · boundaries ✓ ·
 145 tests, 0 fail.**
+
+**Unit 5 — deny never fails open (this commit).** T4 headline: a deny on a
+moderation node with no deny edge resumed to PASS — green check from an explicit
+maintainer no. `resume-run.ts` now floors that case to block (synthetic
+`run:deny-floor` step + recorded/executed block action); approve semantics and
+explicit-deny-edge graphs untouched; degraded-floor resume pinned by test.
+Checks: biome clean · typecheck ✓ · boundaries ✓ · 148 tests, 0 fail.

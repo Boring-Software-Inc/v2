@@ -178,3 +178,188 @@ describe("moderation queue = paused run", () => {
 		expect(second).toBe(false);
 	});
 });
+
+/**
+ * T4 live finding — deny must never fail open. The graph below is the T4
+ * editor emission verbatim: fail edge straight into send-to-moderation, NO
+ * deny edge. Deny floors to block; approve stays resume-to-pass.
+ */
+const T4_GRAPH: WorkflowDefinition = {
+	id: "default@1",
+	name: "default gate",
+	version: 1,
+	nodes: [
+		{
+			id: "trigger",
+			type: "trigger",
+			kinds: ["change-request.opened", "change-request.updated"],
+		},
+		{
+			id: "send-to-moderation-1",
+			type: "action",
+			action: "send-to-moderation",
+		},
+		{
+			id: "account-age-1",
+			type: "rule",
+			ref: "account-age@1",
+			config: { minDays: 9999 },
+		},
+	],
+	edges: [
+		{ id: "edge-2", from: "trigger", to: "account-age-1" },
+		{
+			id: "edge-4",
+			from: "account-age-1",
+			to: "send-to-moderation-1",
+			when: "fail",
+		},
+	],
+};
+
+async function pauseT4Run(deliveryId: string) {
+	const raw = await Bun.file(
+		new URL(
+			"../../../packages/forge-github/fixtures/pull_request.opened.json",
+			import.meta.url,
+		).pathname,
+	).json();
+	const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+		deliveryId,
+		rawKind: "pull_request",
+		raw,
+	});
+	if (!eventId) {
+		throw new Error("insert failed");
+	}
+	await processEvent(deps(), { eventId });
+	const items = await moderationServices.listPendingItems(db);
+	const item = items[0];
+	if (!item) {
+		throw new Error("no pending item");
+	}
+	return item;
+}
+
+describe("deny floor — deny with no deny edge never fails open", () => {
+	beforeAll(async () => {
+		const repoId = await repoServices.ensureRepo(db, {
+			externalId: "186853002",
+			owner: "Codertocat",
+			name: "Hello-World",
+			fullName: "Codertocat/Hello-World",
+		});
+		await pool.query(
+			"UPDATE workflow_definitions SET enabled = false WHERE repo_id = $1",
+			[repoId],
+		);
+		await repoServices.saveWorkflowDefinition(db, repoId, T4_GRAPH);
+	});
+
+	test("deny ⇒ verdict floors to block; synthetic step + executed block action; failure check + blocked comment rows", async () => {
+		const item = await pauseT4Run("deny-floor-1");
+		expect(item.nodeId).toBe("default@1:send-to-moderation-1");
+
+		await moderationServices.decideModerationItem(pool, boss, {
+			itemId: item.id,
+			decision: "deny",
+			decidedBy: null,
+		});
+		await resumeRun(deps(), { itemId: item.id, decision: "deny" });
+
+		const run = await pool.query(
+			"SELECT status, verdict FROM runs WHERE id = $1",
+			[item.runId],
+		);
+		expect(run.rows[0].status).toBe("completed");
+		expect(run.rows[0].verdict).toBe("block");
+
+		const floor = await pool.query(
+			"SELECT status, output FROM run_steps WHERE run_id = $1 AND node_id = 'run:deny-floor'",
+			[item.runId],
+		);
+		expect(floor.rowCount).toBe(1);
+		expect(floor.rows[0].output.rule).toBe(
+			"deny (no deny edge) → block by default",
+		);
+
+		const actions = await pool.query(
+			"SELECT kind, payload, idempotency_key FROM run_actions WHERE run_id = $1",
+			[item.runId],
+		);
+		const kinds = actions.rows.map((r) => r.kind);
+		expect(kinds).toContain("block");
+		const check = actions.rows.find(
+			(r) => r.kind === "set-check" && r.idempotency_key.endsWith(":block"),
+		);
+		expect(check?.payload.conclusion).toBe("failure");
+		const comment = actions.rows.find(
+			(r) => r.kind === "comment" && r.idempotency_key.endsWith(":block"),
+		);
+		expect(comment).toBeDefined();
+	});
+
+	test("approve on the same graph ⇒ pass (no floor)", async () => {
+		const item = await pauseT4Run("deny-floor-2");
+		await moderationServices.decideModerationItem(pool, boss, {
+			itemId: item.id,
+			decision: "approve",
+			decidedBy: null,
+		});
+		await resumeRun(deps(), { itemId: item.id, decision: "approve" });
+
+		const run = await pool.query(
+			"SELECT status, verdict FROM runs WHERE id = $1",
+			[item.runId],
+		);
+		expect(run.rows[0].status).toBe("completed");
+		expect(run.rows[0].verdict).toBe("pass");
+
+		const floor = await pool.query(
+			"SELECT 1 FROM run_steps WHERE run_id = $1 AND node_id = 'run:deny-floor'",
+			[item.runId],
+		);
+		expect(floor.rowCount).toBe(0);
+	});
+
+	test("degraded-floor resume (run:degraded) unchanged: deny ⇒ block via resumeDegradedRun", async () => {
+		const raw = await Bun.file(
+			new URL(
+				"../../../packages/forge-github/fixtures/pull_request.opened.json",
+				import.meta.url,
+			).pathname,
+		).json();
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "deny-floor-degraded",
+			rawKind: "pull_request",
+			raw,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		const brokenReads = {
+			...freshReads,
+			getContributorProfile: () => Promise.reject(new Error("creds down")),
+		};
+		await processEvent({ ...deps(), reads: brokenReads }, { eventId });
+
+		const items = await moderationServices.listPendingItems(db);
+		const item = items.find((i) => i.nodeId === "run:degraded");
+		if (!item) {
+			throw new Error("no degraded item");
+		}
+		await moderationServices.decideModerationItem(pool, boss, {
+			itemId: item.id,
+			decision: "deny",
+			decidedBy: null,
+		});
+		await resumeRun(deps(), { itemId: item.id, decision: "deny" });
+
+		const run = await pool.query(
+			"SELECT status, verdict FROM runs WHERE id = $1",
+			[item.runId],
+		);
+		expect(run.rows[0].status).toBe("completed");
+		expect(run.rows[0].verdict).toBe("block");
+	});
+});

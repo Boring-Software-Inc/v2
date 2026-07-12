@@ -83,20 +83,45 @@ export async function resumeRun(
 		resume: { outcomes, nodeId: pausedNode, decision: job.decision },
 	});
 
-	await runServices.recordSteps(
-		db,
-		item.runId,
-		result.steps.map((step) => ({
-			...step,
-			nodeId: `${definition.id}:${step.nodeId}:resume`,
-		})),
+	/**
+	 * Deny floor (T4 live finding): deny means no, whether or not the graph
+	 * author drew the consequence. A deny with no deny edge off the moderation
+	 * node would otherwise resume to `pass` — a maintainer's explicit no
+	 * producing a green merge button. Approve-with-no-approve-edge stays
+	 * resume-to-pass (that IS the correct reading of approve).
+	 */
+	const hasDenyEdge = definition.edges.some(
+		(edge) => edge.from === pausedNode && edge.when === "deny",
 	);
-	await runServices.completeRun(db, item.runId, result.verdict);
+	const denyFloored = job.decision === "deny" && !hasDenyEdge;
+	const verdict = denyFloored ? "block" : result.verdict;
 
-	const actionRows = await runServices.recordActions(
-		db,
-		item.runId,
-		result.actions.map((action) => ({
+	const steps = result.steps.map((step) => ({
+		...step,
+		nodeId: `${definition.id}:${step.nodeId}:resume`,
+	}));
+	if (denyFloored) {
+		const at = new Date().toISOString();
+		steps.push({
+			nodeId: "run:deny-floor",
+			nodeKind: "action",
+			status: "pass",
+			input: { decision: "deny", pausedNodeId: item.nodeId },
+			output: { rule: "deny (no deny edge) → block by default" },
+			startedAt: at,
+			finishedAt: at,
+			durationMs: 0,
+		});
+		logger.warn(
+			{ runId: item.runId, pausedNodeId: item.nodeId },
+			"deny with no deny edge — verdict floored to block",
+		);
+	}
+	await runServices.recordSteps(db, item.runId, steps);
+	await runServices.completeRun(db, item.runId, verdict);
+
+	const actionRows = await runServices.recordActions(db, item.runId, [
+		...result.actions.map((action) => ({
 			kind: action.action,
 			payload: {
 				...action.params,
@@ -104,7 +129,16 @@ export async function resumeRun(
 			},
 			idempotencyKey: `${action.action}:${definition.id}:${action.nodeId}:resume`,
 		})),
-	);
+		...(denyFloored
+			? [
+					{
+						kind: "block",
+						payload: { reason: "denied by maintainer — no deny edge drawn" },
+						idempotencyKey: `block:${definition.id}:${pausedNode}:deny-floor`,
+					},
+				]
+			: []),
+	]);
 
 	const allRuleSteps = [...runData.steps].filter(
 		(step) => step.nodeKind === "rule",
@@ -118,7 +152,7 @@ export async function resumeRun(
 		},
 		{
 			runId: item.runId,
-			verdict: result.verdict,
+			verdict,
 			event: normalized,
 			stats: {
 				evaluated: allRuleSteps.length,
@@ -128,7 +162,7 @@ export async function resumeRun(
 		},
 	);
 	logger.info(
-		{ runId: item.runId, decision: job.decision, verdict: result.verdict },
+		{ runId: item.runId, decision: job.decision, verdict },
 		"moderated run resumed",
 	);
 }

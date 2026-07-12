@@ -886,3 +886,32 @@ maintainer test saw a run. Hardening:
 - Env audit: `TRIPWIRE_DISABLE_EXEMPTION` was the only run-time-env-sensitive
   behavior in the worker's evaluation path; `APP_URL` / `GITHUB_APP_*` /
   `OPENROUTER_API_KEY` are boot-time composition, not per-run branches.
+
+### Deny floor — deny must never fail open (T4 live headline)
+
+T4 live: the editor-emitted graph (trigger → account-age → fail →
+send-to-moderation, no deny edge) paused correctly, but Grim's DENY resumed the
+run to verdict PASS — the check flipped neutral → SUCCESS and the comment said
+"good to merge". Deny semantics lived exclusively on `deny` edges; a graph
+without one had no consequence to conduct, and the resume path read "nothing
+failed downstream" as pass. A maintainer's explicit no produced a green merge
+button.
+
+- **Deny floor (`resume-run.ts`):** a deny whose paused moderation node has NO
+  outgoing `deny` edge floors the verdict to **block** — recorded as a synthetic
+  `run:deny-floor` step (`"deny (no deny edge) → block by default"`) plus a
+  recorded+executed `block` action row
+  (`block:<wf>:<node>:deny-floor`). Deny means no, whether or not the graph
+  author drew the consequence.
+- **Approve stays as-is:** approve-with-no-approve-edge resuming to pass IS the
+  correct reading of approve. Untouched.
+- **Graphs WITH an explicit deny edge are unchanged** — the floor only fires
+  when no deny edge exists (an existing deny edge always conducts on deny, so
+  "no conducting deny edge" ≡ "no deny edge").
+- **validate.ts unchanged:** a moderation node with no deny edge stays LEGAL —
+  the floor covers it. Derive/editor templates should still draw explicit
+  approve/deny edges where sensible.
+- Tests (moderation integration): the T4 graph verbatim — deny ⇒ block +
+  failure check + blocked comment rows; approve ⇒ pass, no floor step;
+  deny-with-edge (existing test) unchanged; degraded-floor resume
+  (`run:degraded` deny ⇒ block) pinned.
