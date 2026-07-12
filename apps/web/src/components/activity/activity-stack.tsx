@@ -7,14 +7,14 @@ import { formatRelativeTime } from "#/lib/format-relative-time";
 import { cn } from "#/lib/utils";
 
 /**
- * A change request as a STACK of cards (§9) — always fully visible, no toggle.
- * The container rounds the outer corners and clips; inner cards are divided by a
- * top border with no gaps, so the top card rounds up, the bottom rounds down,
- * and the middle is square. Long stacks (≥10 entries) collapse their middle
- * behind a progressive blur with "show all" that expands inline.
+ * A change request as a STACK of cards (§9). The container rounds the outer
+ * corners and clips; inner cards are divided by a top border with no gaps, so
+ * the top card rounds up, the bottom rounds down, and the middle is square. A
+ * long stack shows its FIRST 10 entries, then a bottom progressive blur with a
+ * "show more (N)" pill that reveals the rest inline (no pagination).
  */
 
-const TRUNCATE_AT = 10;
+const VISIBLE = 10;
 
 /** The event's own GitHub deep link (§9): PR, comment, or push compare. */
 function entryUrl(event: NormalizedEvent): string | null {
@@ -83,13 +83,13 @@ function LinkWrap({
 export function ActivityStack({ group }: { group: ActivityGroup }) {
 	const [showAll, setShowAll] = useState(false);
 	const entries = group.timeline;
-	const truncated = entries.length >= TRUNCATE_AT && !showAll;
+	const truncated = entries.length > VISIBLE && !showAll;
 
 	return (
 		<div className="overflow-hidden rounded-xl border bg-card">
 			<StackHeader group={group} />
 			{truncated ? (
-				<TruncatedBody entries={entries} onShowAll={() => setShowAll(true)} />
+				<TruncatedBody entries={entries} onShowMore={() => setShowAll(true)} />
 			) : (
 				entries.map((entry) => (
 					<div className="border-t" key={entry.event.id}>
@@ -128,52 +128,41 @@ function StackHeader({ group }: { group: ActivityGroup }) {
 
 function TruncatedBody({
 	entries,
-	onShowAll,
+	onShowMore,
 }: {
 	entries: ActivityItem[];
-	onShowAll: () => void;
+	onShowMore: () => void;
 }) {
-	const first = entries[0];
-	const last = entries[entries.length - 1];
-	const midStart = Math.max(1, Math.floor(entries.length / 2) - 1);
-	const middle = entries.slice(midStart, midStart + 3);
-	const hiddenCount = entries.length - 2 - middle.length;
+	const visible = entries.slice(0, VISIBLE);
+	const hidden = entries.length - visible.length;
 
 	return (
-		<>
-			{first ? (
-				<div className="border-t">
-					<EntryCard entry={first} />
+		<div className="relative">
+			{visible.map((entry) => (
+				<div className="border-t" key={entry.event.id}>
+					<EntryCard entry={entry} />
 				</div>
-			) : null}
-			<div className="relative border-t">
-				<div aria-hidden className="select-none">
-					{middle.map((entry) => (
-						<EntryCard entry={entry} key={entry.event.id} static />
-					))}
-				</div>
+			))}
+			{/* Bottom progressive blur fading the tail of the visible rows, with the
+			    reveal pill — the rest expand inline, no pagination. */}
+			<div className="pointer-events-none absolute inset-x-0 bottom-0 h-[121px]">
 				<ProgressiveBlur />
-				<div className="absolute inset-0 flex items-center justify-center">
+				<div className="absolute inset-0 flex items-end justify-center pb-6">
 					<button
 						className="pointer-events-auto rounded-full border bg-card px-3 py-1 font-medium text-muted-foreground text-xs shadow-sm transition-colors hover:text-foreground"
-						onClick={onShowAll}
+						onClick={onShowMore}
 						type="button"
 					>
-						show all {entries.length}
-						{hiddenCount > 0 ? ` · ${hiddenCount} hidden` : ""}
+						show more ({hidden})
 					</button>
 				</div>
 			</div>
-			{last ? (
-				<div className="border-t">
-					<EntryCard entry={last} />
-				</div>
-			) : null}
-		</>
+		</div>
 	);
 }
 
-/** Stacked backdrop-blur layers, each masked lower, so the blur intensifies. */
+/** Stacked backdrop-blur layers, each masked lower, so the blur intensifies
+ * toward the bottom of the visible rows. */
 function ProgressiveBlur() {
 	return (
 		<>
@@ -194,13 +183,7 @@ function ProgressiveBlur() {
 	);
 }
 
-function EntryCard({
-	entry,
-	static: isStatic = false,
-}: {
-	entry: ActivityItem;
-	static?: boolean;
-}) {
+function EntryCard({ entry }: { entry: ActivityItem }) {
 	const { event, run, pending } = entry;
 	const ours = isTripwireComment(event);
 	// A decision (a run) stands full; context (no run: exempt, push, comment)
@@ -250,10 +233,6 @@ function EntryCard({
 		</div>
 	);
 
-	// Cards behind the blur are decorative — not clickable.
-	if (isStatic) {
-		return inner;
-	}
 	return (
 		<LinkWrap
 			className="block transition-colors hover:bg-surface-1"

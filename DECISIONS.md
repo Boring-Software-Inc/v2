@@ -1441,10 +1441,11 @@ glance. Supersedes the earlier "one collapsible group per PR" decision.
   the exact per-card corner rule without per-card radius bookkeeping.
 - The top card is the stack header (repo · #num · title · actor · current verdict
   chip · time), linking to the current run (else the PR).
-- **Truncation:** a stack with ≥10 entries renders the first card, ~3 middle
-  cards, and the last card; the middle span sits behind a PROGRESSIVE BLUR
-  (stacked backdrop-blur layers, each masked lower) with a "show all N" button
-  that expands the full timeline INLINE (no nav, no modal).
+- **Truncation (revised to match owner's Paper design):** a stack shows its
+  FIRST 10 entries; the tail fades under a bottom PROGRESSIVE BLUR (stacked
+  backdrop-blur layers `[1,2,4,8]px`, each masked lower at 22% steps) with a
+  "show more (N)" pill (N = hidden count) that reveals the rest INLINE — no
+  pagination, no first+middle+last sampling.
 - Unchanged: live SSE merge (event upserts + bumps the stack, run resolves in
   place), verdict chips, filter chips, tripwire-comment dedup+label, dimmed
   exempt/no-run entries, every entry clickable (run → /runs/$id else html_url).
