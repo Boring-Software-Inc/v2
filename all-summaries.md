@@ -1041,3 +1041,17 @@ middle behind a progressive blur (stacked masked backdrop-blur layers) with a
 filter chips, tripwire-comment dedup+label, dimmed exempt/no-run entries, every
 entry clickable. SQL grouping + active-repo scope unchanged. Checks green:
 typecheck, biome, boundaries, 204 tests.
+
+**Design correction — /login + /onboarding first contact.** These are the only
+pages a stranger sees before trusting us, so: quiet and confident, not decorated.
+Ported the real tripwire logo (monochrome SVG, from ~/tripwire's
+@tripwire/ui/icons) into components/common/tripwire-logo.tsx and retired the
+pixel/display wordmark on both pages. /login is now cardless — the page IS the
+card: centered logo, "a firewall for your repo.", the github button, nothing else
+(dropped the panel + the "maintainers only" line). /onboarding: cardless shell,
+copy rewritten in constitution voice ("install the app and pick one repo to
+start." / "pick one repo to start.", no "gates"); the repo picker restyled to the
+app's surface tokens with consistent card height, a clear selected state
+(border-foreground + check), one-repo selection, and a continue CTA disabled until
+a repo is picked. Topbar wordmark left untouched (not a first-contact page).
+Checks: typecheck, biome, boundaries, 204 tests.

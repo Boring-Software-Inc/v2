@@ -1,24 +1,21 @@
 import { GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
+import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { Button } from "#/components/ui/button";
 import { authClient } from "#/lib/auth-client";
 import { siteConfig } from "#/lib/site-config";
 
 export function LoginPage() {
 	return (
-		<div className="flex min-h-dvh items-center justify-center bg-background">
-			<div className="flex w-full max-w-sm flex-col items-center gap-6 rounded-xl border bg-card px-8 py-10">
-				<div className="text-center">
-					<div className="font-pixel text-lg tracking-tight">
-						{siteConfig.name}
-					</div>
-					<p className="mt-1 text-muted-foreground text-sm">
-						{siteConfig.tagline}
-					</p>
-				</div>
+		<div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">
+			<div className="flex w-full max-w-xs flex-col items-center text-center">
+				<TripwireLogo className="text-foreground" size={36} />
+				<p className="mt-5 text-muted-foreground text-sm">
+					{siteConfig.tagline}
+				</p>
 				<Button
-					className="w-full"
+					className="mt-8 w-full"
 					iconLeft={
 						<HugeiconsIcon icon={GithubIcon} size={16} strokeWidth={2} />
 					}
@@ -37,9 +34,6 @@ export function LoginPage() {
 				>
 					continue with github
 				</Button>
-				<p className="text-center text-muted-foreground text-xs">
-					maintainers only — contributors never need an account.
-				</p>
 			</div>
 		</div>
 	);
@@ -47,8 +41,12 @@ export function LoginPage() {
 
 export function LoginPageSkeleton() {
 	return (
-		<div className="flex min-h-dvh items-center justify-center">
-			<div className="h-64 w-full max-w-sm animate-pulse rounded-xl bg-surface-1" />
+		<div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">
+			<div className="flex w-full max-w-xs flex-col items-center gap-5">
+				<div className="size-9 animate-pulse rounded-md bg-surface-1" />
+				<div className="h-4 w-40 animate-pulse rounded bg-surface-1" />
+				<div className="mt-3 h-9 w-full animate-pulse rounded-md bg-surface-1" />
+			</div>
 		</div>
 	);
 }

@@ -1,9 +1,10 @@
-import { GithubIcon } from "@hugeicons/core-free-icons";
+import { CheckmarkCircle02Icon, GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { Button } from "#/components/ui/button";
 import { authQueryKeys } from "#/lib/auth.query";
 import { chooseActiveRepo, type RepoLite } from "#/lib/onboarding.functions";
@@ -14,20 +15,20 @@ import {
 } from "#/lib/onboarding.query";
 import { cn } from "#/lib/utils";
 
-function Shell({ children }: { children: React.ReactNode }) {
+/** The cardless first-contact shell — the page IS the surface, no panel. */
+function Shell({
+	children,
+	line,
+}: {
+	children: ReactNode;
+	line: string;
+}) {
 	return (
-		<div className="flex min-h-dvh items-center justify-center bg-background px-6">
-			<div className="flex w-full max-w-md flex-col gap-6 rounded-xl border bg-card px-8 py-10">
-				<div className="text-center">
-					<div className="font-pixel text-lg tracking-tight">
-						link your github
-					</div>
-					<p className="mt-1 text-muted-foreground text-sm">
-						tripwire gates one repo at a time. install the app, then pick the
-						repo to protect.
-					</p>
-				</div>
-				{children}
+		<div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6 py-16">
+			<div className="flex w-full max-w-sm flex-col items-center text-center">
+				<TripwireLogo className="text-foreground" size={36} />
+				<p className="mt-5 text-muted-foreground text-sm">{line}</p>
+				<div className="mt-8 w-full">{children}</div>
 			</div>
 		</div>
 	);
@@ -38,6 +39,7 @@ export function OnboardingPage() {
 	const queryClient = useQueryClient();
 	const { data: state, isLoading } = useQuery(onboardingStateQueryOptions());
 	const { data: installUrl } = useQuery(installUrlQueryOptions());
+	const [selectedId, setSelectedId] = useState<string | null>(null);
 
 	const finish = useMutation({
 		mutationFn: (repoId: string) => chooseActiveRepo({ data: { repoId } }),
@@ -80,7 +82,7 @@ export function OnboardingPage() {
 
 	if (!state?.hasInstallation) {
 		return (
-			<Shell>
+			<Shell line="install the app and pick one repo to start.">
 				<Button
 					className="w-full"
 					disabled={!installUrl}
@@ -93,88 +95,103 @@ export function OnboardingPage() {
 						}
 					}}
 				>
-					install the github app
+					install on github
 				</Button>
-				<p className="text-center text-muted-foreground text-xs">
-					{installUrl
-						? "github will ask which account and repos to grant. you can pick one or all — you'll choose the active one next."
-						: "the github app isn't configured yet (set GITHUB_APP_SLUG). nothing to install against."}
-				</p>
+				{installUrl ? null : (
+					<p className="mt-4 text-muted-foreground text-xs">
+						the github app isn't configured yet (set GITHUB_APP_SLUG).
+					</p>
+				)}
 			</Shell>
 		);
 	}
 
-	if (repos.length === 0) {
+	if (repos.length === 0 || single) {
 		return (
-			<Shell>
-				<div className="flex flex-col items-center gap-3 py-2">
-					<div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-					<p className="text-center text-muted-foreground text-sm">
-						finishing setup — syncing the repos you just granted. this takes a
-						moment.
+			<Shell line="finishing setup.">
+				<div className="flex flex-col items-center gap-3">
+					<div className="size-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+					<p className="text-muted-foreground text-xs">
+						syncing the repos you just granted — this takes a moment.
 					</p>
 				</div>
 			</Shell>
 		);
 	}
 
-	if (single) {
-		return <OnboardingPageSkeleton />;
-	}
-
 	return (
-		<Shell>
-			<p className="text-muted-foreground text-sm">
-				pick the repo to protect. the others stay linked but idle — tripwire
-				gates one repo for now.
-			</p>
-			<div className="flex flex-col gap-1.5">
+		<Shell line="pick one repo to start.">
+			<div className="flex flex-col gap-1.5 text-left">
 				{repos.map((repo) => (
 					<RepoRow
 						key={repo.id}
-						disabled={finish.isPending}
-						onSelect={() => finish.mutate(repo.id)}
+						onSelect={() => setSelectedId(repo.id)}
 						repo={repo}
+						selected={selectedId === repo.id}
 					/>
 				))}
 			</div>
+			<p className="mt-3 text-muted-foreground text-xs">
+				one repo for now — the rest stay linked.
+			</p>
+			<Button
+				className="mt-5 w-full"
+				disabled={!selectedId || finish.isPending}
+				onClick={() => selectedId && finish.mutate(selectedId)}
+			>
+				continue
+			</Button>
 		</Shell>
 	);
 }
 
 function RepoRow({
 	repo,
+	selected,
 	onSelect,
-	disabled,
 }: {
 	repo: RepoLite;
+	selected: boolean;
 	onSelect: () => void;
-	disabled: boolean;
 }) {
 	return (
 		<button
 			className={cn(
-				"flex items-center justify-between rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
-				"hover:bg-surface-1 disabled:opacity-50",
+				"flex h-11 w-full shrink-0 items-center gap-3 rounded-lg border bg-card px-3.5 text-sm transition-colors",
+				selected ? "border-foreground bg-surface-1" : "hover:bg-surface-1",
 			)}
-			disabled={disabled}
 			onClick={onSelect}
 			type="button"
 		>
-			<span className="truncate font-medium">{repo.fullName}</span>
+			<span className="min-w-0 flex-1 truncate text-left font-medium">
+				{repo.fullName}
+			</span>
 			{repo.private ? (
-				<span className="ml-2 shrink-0 rounded-full bg-surface-1 px-2 py-0.5 text-muted-foreground text-xs">
+				<span className="shrink-0 rounded-full bg-surface-1 px-2 py-0.5 text-muted-foreground text-xs">
 					private
 				</span>
 			) : null}
+			<HugeiconsIcon
+				className={cn(
+					"shrink-0 transition-opacity",
+					selected ? "text-foreground opacity-100" : "opacity-0",
+				)}
+				icon={CheckmarkCircle02Icon}
+				size={16}
+				strokeWidth={2}
+			/>
 		</button>
 	);
 }
 
 export function OnboardingPageSkeleton() {
 	return (
-		<div className="flex min-h-dvh items-center justify-center bg-background px-6">
-			<div className="h-72 w-full max-w-md animate-pulse rounded-xl bg-surface-1" />
+		<div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">
+			<div className="flex w-full max-w-sm flex-col items-center gap-5">
+				<div className="size-9 animate-pulse rounded-md bg-surface-1" />
+				<div className="h-4 w-52 animate-pulse rounded bg-surface-1" />
+				<div className="mt-3 h-9 w-full animate-pulse rounded-md bg-surface-1" />
+			</div>
 		</div>
 	);
 }
