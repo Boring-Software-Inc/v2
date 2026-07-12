@@ -17,6 +17,12 @@ describe("ruleExecutes — display matches derive.ts execution", () => {
 		expect(BASELINE_RULE_REFS.has(nonBaseline)).toBe(false);
 	});
 
+	test("ai-review is opt-in (non-baseline): absent ⇒ off, enabled ⇒ on (§8)", () => {
+		expect(BASELINE_RULE_REFS.has("ai-review@1")).toBe(false);
+		expect(ruleExecutes("ai-review@1", undefined)).toBe(false);
+		expect(ruleExecutes("ai-review@1", true)).toBe(true);
+	});
+
 	test("baseline rule with NO explicit row shows ON", () => {
 		expect(ruleExecutes(baseline, undefined)).toBe(true);
 	});

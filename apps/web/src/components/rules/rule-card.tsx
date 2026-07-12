@@ -26,6 +26,8 @@ export function RuleCard({
 	);
 	const [parseError, setParseError] = useState<string | null>(null);
 	const hasTrend = rule.trend.some((n) => n > 0);
+	/** An opt-in rule that's off is an OFFER, not a silently-disabled toggle. */
+	const offering = rule.optIn && !enabled && !rule.managedByWorkflow;
 
 	const mutation = useMutation({
 		mutationFn: saveRuleConfig,
@@ -99,6 +101,17 @@ export function RuleCard({
 						<span className="rounded bg-surface-1 px-1.5 py-0.5 text-[10px] text-muted-foreground">
 							managed by your workflow
 						</span>
+					) : offering ? (
+						<button
+							className="rounded-md bg-primary px-2.5 py-1 font-medium text-primary-foreground text-xs transition-colors hover:bg-primary/90"
+							onClick={() => {
+								setEnabled(true);
+								save(true, configText);
+							}}
+							type="button"
+						>
+							enable
+						</button>
 					) : (
 						<Switch
 							checked={enabled}
@@ -111,15 +124,17 @@ export function RuleCard({
 				</div>
 			</div>
 
-			<textarea
-				className="mt-3 w-full rounded-md border bg-surface-1 px-3 py-2 font-mono text-xs leading-relaxed outline-none focus:ring-1 focus:ring-ring"
-				disabled={rule.managedByWorkflow}
-				onBlur={() => save(enabled, configText)}
-				onChange={(e) => setConfigText(e.target.value)}
-				rows={Math.min(6, configText.split("\n").length)}
-				spellCheck={false}
-				value={configText}
-			/>
+			{offering ? null : (
+				<textarea
+					className="mt-3 w-full rounded-md border bg-surface-1 px-3 py-2 font-mono text-xs leading-relaxed outline-none focus:ring-1 focus:ring-ring"
+					disabled={rule.managedByWorkflow}
+					onBlur={() => save(enabled, configText)}
+					onChange={(e) => setConfigText(e.target.value)}
+					rows={Math.min(6, configText.split("\n").length)}
+					spellCheck={false}
+					value={configText}
+				/>
+			)}
 			{parseError ? (
 				<p className="mt-1 text-red-500 text-xs">{parseError}</p>
 			) : null}

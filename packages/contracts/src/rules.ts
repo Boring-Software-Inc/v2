@@ -130,7 +130,12 @@ export const profileReadmeConfigSchema = z.object({
 	minLength: z.number().int().min(1).default(32),
 });
 
-/** UI-facing catalog of launch rules. The registry (core) is engine truth. */
+/**
+ * UI-facing catalog of launch rules. The registry (core) is engine truth.
+ * `optIn` rules are NON-baseline (§8): off until a maintainer turns them on,
+ * and absent from the derived default. The /rules card renders them as an
+ * offer, not a silently-off toggle.
+ */
 export const RULE_CATALOG = [
 	{
 		ruleId: "account-age",
@@ -139,6 +144,7 @@ export const RULE_CATALOG = [
 		blurb: "the contributor's forge account must be at least N days old.",
 		configSchema: accountAgeConfigSchema,
 		defaultConfig: { minDays: 7 },
+		optIn: false,
 	},
 	{
 		ruleId: "min-merged-prs",
@@ -147,6 +153,7 @@ export const RULE_CATALOG = [
 		blurb: "requires N merged change requests in this repo.",
 		configSchema: minMergedPrsConfigSchema,
 		defaultConfig: { min: 0 },
+		optIn: false,
 	},
 	{
 		ruleId: "pr-rate-limit",
@@ -156,6 +163,7 @@ export const RULE_CATALOG = [
 			"caps change requests per window; spray patterns surface in evidence.",
 		configSchema: prRateLimitConfigSchema,
 		defaultConfig: { maxPerWindow: 5, windowHours: 24 },
+		optIn: false,
 	},
 	{
 		ruleId: "max-files-changed",
@@ -164,6 +172,7 @@ export const RULE_CATALOG = [
 		blurb: "caps the number of files a change request may touch.",
 		configSchema: maxFilesChangedConfigSchema,
 		defaultConfig: { max: 200 },
+		optIn: false,
 	},
 	{
 		ruleId: "english-only",
@@ -172,6 +181,7 @@ export const RULE_CATALOG = [
 		blurb: "title/comment must be predominantly latin-script.",
 		configSchema: englishOnlyConfigSchema,
 		defaultConfig: { maxNonLatinRatio: 0.5 },
+		optIn: false,
 	},
 	{
 		ruleId: "crypto-address",
@@ -180,6 +190,7 @@ export const RULE_CATALOG = [
 		blurb: "blocks cryptocurrency addresses in titles, comments, and diffs.",
 		configSchema: cryptoAddressConfigSchema,
 		defaultConfig: {},
+		optIn: false,
 	},
 	{
 		ruleId: "honeypot",
@@ -188,6 +199,7 @@ export const RULE_CATALOG = [
 		blurb: "no legitimate change request touches these paths.",
 		configSchema: honeypotConfigSchema,
 		defaultConfig: { paths: [".github/workflows/**"] },
+		optIn: false,
 	},
 	{
 		ruleId: "profile-readme",
@@ -196,14 +208,15 @@ export const RULE_CATALOG = [
 		blurb: "requires a minimum of profile text — identity investment.",
 		configSchema: profileReadmeConfigSchema,
 		defaultConfig: { minLength: 32 },
+		optIn: false,
 	},
 	{
 		ruleId: "ai-review",
 		version: 1,
 		name: "ai review",
-		blurb:
-			"bounded ai review of the change request — structured verdict, never prose.",
+		blurb: "off until you turn it on — ai review costs tokens.",
 		configSchema: aiReviewConfigSchema,
 		defaultConfig: { maxSteps: 12 },
+		optIn: true,
 	},
 ] as const;

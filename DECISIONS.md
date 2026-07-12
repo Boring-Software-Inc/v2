@@ -1078,3 +1078,42 @@ content-rule work, no comment/issue targets, no ai-review opt-in changes, no
 **Follow-up ledgered:** FP rate stays "not enough data" until the §6 reversal
 loop (unhide/approve-as-FP) is tracked; matcher-kind chips need a `kind` field
 on RULE_CATALOG if ever wanted.
+
+### ai-review opt-in per repo (§8 owner decision)
+
+ai-review costs tokens, so it's OFF by default and enabled per repo by a
+maintainer — feature-flag-style, gated in the dashboard, recorded in the db.
+
+- **Non-baseline rule.** `ai-review@1` is removed from `DEFAULT_WORKFLOW`
+  (the baseline rule set). That single source of truth is what
+  `deriveDefaultWorkflow` (execution) and `ruleExecutes` (the /rules display)
+  both read, so they agree by construction: absent rule_configs row ⇒ ai-review
+  doesn't run and shows OFF; enabled=true ⇒ opts in. No new repo seeds it (there
+  is no rule_configs seeding on install — rows appear only when a maintainer
+  saves a config), so fresh repos get it off for free.
+- **RULE_CATALOG** entries gain an `optIn` marker (ai-review true, all others
+  false) + a constitution-voice blurb ("off until you turn it on — ai review
+  costs tokens"). The /rules card renders a disabled opt-in rule as an **enable
+  affordance** (an offer with an "enable" button, config editor hidden), not a
+  silently-off toggle like the others.
+- **Keyless behavior unchanged** (confirmed, pinned): a workflow that includes
+  ai-review with no `OPENROUTER_API_KEY` ⇒ the rule returns `skipped` ("generate
+  unavailable") and counts toward the degradation floor. Rule-level skip was
+  already covered (`ai-review/rule.test.ts`); the opt-in composition (enabled +
+  keyless ⇒ skipped step in the run) is now pinned in `toggles.integration`.
+- scratch's ai-review row set enabled=false (owner's test repo).
+- **Replay invariant held.** `bun run replay --corpus` (the CI gate over the
+  frozen 15-run corpus) stays EXACTLY 13 unchanged / 2 flips — a default change
+  must not touch history, and it doesn't (snapshots are frozen; replay replays
+  recorded envelopes). Live-DB replay reads 14/2 only because a 16th run
+  (`019f5509`, the /rules-session derive live-check, a block replaying to block)
+  was added to the DB between sessions — not a config-consultation regression.
+- Tests: derive.test (ai-review non-baseline, opts in when enabled),
+  rule-execution.test (predicate agreement), toggles.integration (opt-in +
+  keyless skip).
+
+**LEDGERED, not built:** an operator-level flag service (Databuddy) may later
+gate WHO can enable ai-review — a DASHBOARD-layer concern only. Flag reads must
+NEVER enter the worker's evaluation path; verdicts stay a pure function of
+event + snapshot + rule_configs (the replay invariant). No billing, no budget
+caps, no global kill switch — those are deploy-era.

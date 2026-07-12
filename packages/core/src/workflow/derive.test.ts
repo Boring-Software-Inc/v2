@@ -54,6 +54,15 @@ describe("deriveDefaultWorkflow", () => {
 		expect(refsOf(def)).toContain(extra);
 	});
 
+	test("ai-review is opt-in (§8): absent from the baseline, opted in only when enabled", () => {
+		expect(baselineRefs).not.toContain("ai-review@1");
+		expect(refsOf(deriveDefaultWorkflow([]))).not.toContain("ai-review@1");
+		const def = deriveDefaultWorkflow([
+			{ ref: "ai-review@1", enabled: true, config: { maxSteps: 12 } },
+		]);
+		expect(refsOf(def)).toContain("ai-review@1");
+	});
+
 	test("all baseline rules disabled ⇒ trigger-only workflow ⇒ verdict pass", async () => {
 		const toggles: RuleToggle[] = baselineRefs.map((ref) => ({
 			ref,

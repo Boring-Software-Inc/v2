@@ -160,6 +160,28 @@ describe("toggles → derived default workflow", () => {
 		expect(refs).toContain("crypto-address@1");
 	});
 
+	test("ai-review is opt-in: absent ⇒ not in the run; enabled but keyless ⇒ skipped step (§8)", async () => {
+		// No ai-review row ⇒ non-baseline ⇒ absent from the derived default.
+		const absent = await processFresh("aireview-absent");
+		expect((await ruleSteps(absent)).map((s) => s.rule_id)).not.toContain(
+			"ai-review@1",
+		);
+
+		// Opted in, but processFresh runs with makeGenerate: null (no key) ⇒
+		// ai-review runs as a rule node and SKIPS (counts toward the floor).
+		await repoServices.upsertRuleConfig(db, repoId, {
+			ruleId: "ai-review",
+			version: 1,
+			enabled: true,
+			config: { maxSteps: 12 },
+		});
+		const optedIn = await processFresh("aireview-optin-nokey");
+		const ai = (await ruleSteps(optedIn)).find(
+			(s) => s.rule_id === "ai-review@1",
+		);
+		expect(ai?.status).toBe("skipped");
+	});
+
 	test("config edit in rule_configs ⇒ reflected in the derived run's evidence", async () => {
 		await repoServices.upsertRuleConfig(db, repoId, {
 			ruleId: "account-age",

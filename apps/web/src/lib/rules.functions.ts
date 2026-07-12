@@ -20,6 +20,8 @@ export interface RuleConfigView {
 	defaultConfig: JsonValue;
 	/** Repo has a saved workflow — the toggle is a kill switch over it (§6). */
 	managedByWorkflow: boolean;
+	/** Opt-in rule (§8): off until enabled, rendered as an offer not a toggle. */
+	optIn: boolean;
 	/** Rule-node fails for this rule over the last 24h, this repo. */
 	matches24h: number;
 	/** Hourly fail counts over the last 24h — the card sparkline. */
@@ -76,6 +78,7 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				config: (row?.config ?? entry.defaultConfig) as JsonValue,
 				defaultConfig: entry.defaultConfig as JsonValue,
 				managedByWorkflow,
+				optIn: entry.optIn,
 				matches24h: perRule?.matches24h ?? 0,
 				trend: perRule?.series ?? Array(24).fill(0),
 			};

@@ -109,9 +109,15 @@ export const workflowDefinitionSchema = z.object({
 export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
 
 /**
- * The hand-seeded default workflow (§13.6) — used for any repo without its
- * own definitions, and as the editor's starting canvas. Boring thresholds;
- * per-repo tuning happens in the Rules UI / editor.
+ * The hand-seeded default workflow (§13.6) — the BASELINE rule set a fresh
+ * repo runs (derive.ts overlays toggles onto it) and the editor's starting
+ * canvas. Boring thresholds; per-repo tuning happens in the Rules UI / editor.
+ *
+ * `ai-review@1` is deliberately ABSENT: it is opt-in per repo (§8 owner
+ * decision — it costs tokens), so it is a NON-baseline rule that only runs
+ * when a maintainer explicitly enables it. Keeping it out of the baseline is
+ * what makes `ruleExecutes` (the /rules display) and `deriveDefaultWorkflow`
+ * (execution) agree — both read this list.
  */
 export const DEFAULT_WORKFLOW: WorkflowDefinition = {
 	id: "default@1",
@@ -148,12 +154,6 @@ export const DEFAULT_WORKFLOW: WorkflowDefinition = {
 			ref: "english-only@1",
 			config: { maxNonLatinRatio: 0.5 },
 		},
-		{
-			id: "ai-review",
-			type: "rule",
-			ref: "ai-review@1",
-			config: { maxSteps: 12 },
-		},
 		{ id: "gate", type: "gate", mode: "all-of" },
 		{ id: "block", type: "action", action: "block" },
 	],
@@ -169,7 +169,5 @@ export const DEFAULT_WORKFLOW: WorkflowDefinition = {
 		{ id: "e9", from: "max-files", to: "gate" },
 		{ id: "e10", from: "english", to: "gate" },
 		{ id: "e11", from: "gate", to: "block", when: "fail" },
-		{ id: "e12", from: "trigger", to: "ai-review" },
-		{ id: "e13", from: "ai-review", to: "gate" },
 	],
 };

@@ -381,7 +381,9 @@ a saved workflow:
   on fail"; the same derivation covers content ("on comment/issue → every enabled
   content rule → content actions"). Toggle ON = the rule runs; toggle OFF = it
   doesn't. There is no fixed `DEFAULT_WORKFLOW` constant — the default *is* this
-  derivation.
+  derivation. **Baseline vs opt-in:** baseline rules (the hand-seeded gate) run
+  unless disabled; opt-in rules (`ai-review@1`, §8) are non-baseline — absent
+  from the derived default until a maintainer explicitly enables them per repo.
 - **Repo WITH a saved custom workflow:** the graph wins. Toggle OFF is a **kill
   switch** — nodes referencing that rule are skipped at execution (recorded
   `skipped: disabled`, conducts as pass, and **excluded from the degradation
@@ -521,6 +523,12 @@ SDK, never a second engine.
 
 ## 8. Review agent (locked decisions)
 
+- **Opt-in per repo (owner decision):** `ai-review@1` is OFF by default — it
+  costs tokens, so it is a non-baseline rule absent from the derived default
+  until a maintainer explicitly enables it on `/rules`. Opt-in is dashboard +
+  `rule_configs` state only; it never enters the worker's evaluation path
+  beyond the ordinary toggle (verdicts stay a pure function of event + snapshot
+  + rule_configs — the replay invariant).
 - Runtime: **AI SDK** called from the **worker**, inside rule `ai-review@1`.
   Provider-agnostic: **OpenRouter** (`@openrouter/ai-sdk-provider`,
   `OPENROUTER_API_KEY`); the model is a slug — `AI_REVIEW_MODEL` env is the

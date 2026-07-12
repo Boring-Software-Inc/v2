@@ -877,3 +877,18 @@ rate ("not enough data" — reversals untracked). Cards: id@version chip, target
 chip, action summary, corrected toggle, 24h count, sparkline, JSON config.
 Matcher-kind chips + FP sort omitted (no data, not faked). Checks: biome clean ·
 typecheck 0 · boundaries ✓ · 184 tests, 0 fail (+7).
+
+**Unit 9 — ai-review opt-in per repo (this commit).** ai-review costs tokens, so
+it's now OFF by default and enabled per repo from the dashboard (§8 owner
+decision). Removed ai-review from DEFAULT_WORKFLOW (the baseline) — the single
+source both deriveDefaultWorkflow and ruleExecutes read, so display and
+execution agree: absent row ⇒ off, enabled ⇒ opts in. RULE_CATALOG gains an
+`optIn` marker + voice blurb; the /rules card renders opt-in-off as an "enable"
+offer, not a silent toggle. Keyless behavior unchanged and pinned (workflow with
+ai-review + no key ⇒ skipped, counts toward the floor). scratch's ai-review row
+set false. Replay CI gate (frozen corpus) stays EXACTLY 13 unchanged / 2 flips —
+the default change touched no history (live-DB 14/2 only reflects a new run added
+between sessions). Ledgered (not built): an operator flag service (Databuddy) may
+later gate WHO can enable ai-review — dashboard-only, never in the worker's
+evaluation path. Checks: biome clean · typecheck 0 · boundaries ✓ · 187 tests, 0
+fail.
