@@ -118,6 +118,20 @@ export async function executeWorkflow(
 		});
 	};
 
+	/**
+	 * Gate reachability (security fix — live-test surprise #2): a gate runs once
+	 * at least one of its source nodes has SETTLED (been reached and produced an
+	 * outcome). Topo order guarantees every source is processed before the gate,
+	 * so "conducted" == "settled" here. Edge when-conduction does NOT gate gate
+	 * execution — otherwise a gate whose feeding rules ALL fail (rule→gate edges
+	 * default to `when: "pass"`) would never run, never fire block, and the run
+	 * would derive verdict `pass`. The gate aggregates its sources' outcomes,
+	 * failures included; when-conduction still governs rule→action and
+	 * gate→action edges.
+	 */
+	const gateHasSettledSource = (nodeId: string): boolean =>
+		definition.edges.some((e) => e.to === nodeId && conducted.has(e.from));
+
 	const record = (
 		node: WorkflowNode,
 		status: StepRecord["status"],
@@ -170,7 +184,11 @@ export async function executeWorkflow(
 			continue;
 		}
 
-		if (!(incomingConducts(node.id) || isResumeTarget)) {
+		const reached =
+			node.type === "gate"
+				? gateHasSettledSource(node.id)
+				: incomingConducts(node.id);
+		if (!(reached || isResumeTarget)) {
 			continue;
 		}
 

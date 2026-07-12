@@ -27,8 +27,12 @@ export type JsonValue =
  * editor that emits it comes last.
  *
  * Semantics (enforced by core/workflow):
- * - a node runs when ≥1 incoming edge conducts; a trigger conducts when its
- *   kinds include the event kind.
+ * - a rule/action node runs when ≥1 incoming edge conducts; a trigger conducts
+ *   when its kinds include the event kind.
+ * - a GATE node runs once ≥1 of its source nodes has settled (been reached) and
+ *   aggregates their OUTCOMES — edge when-conduction does NOT gate gate
+ *   execution, so a gate whose feeding rules all fail still runs and fails (the
+ *   security fix; otherwise an all-failing gate would derive `pass`).
  * - rule nodes produce pass/fail; `skipped` conducts as pass but is recorded
  *   (a rule that can't evaluate must not block — §6 purity).
  * - edges conduct on the source's outcome: `when: "pass"` (default) | "fail";

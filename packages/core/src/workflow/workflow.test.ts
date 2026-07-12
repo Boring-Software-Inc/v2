@@ -97,6 +97,98 @@ describe("executeWorkflow", () => {
 		expect(gateStep?.status).toBe("fail");
 	});
 
+	test("single failing rule → all-of gate → block (live-test surprise #2)", async () => {
+		// trigger → ONE rule → all-of gate → block. The failing lone rule's
+		// pass-edge never conducts; the gate must still run and fail.
+		const single: WorkflowDefinition = {
+			id: "wf-single",
+			name: "single",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				{ id: "r1", type: "rule", ref: "account-age@1", config: {} },
+				{ id: "g", type: "gate", mode: "all-of" },
+				{ id: "block", type: "action", action: "block" },
+			],
+			edges: [
+				{ id: "e1", from: "t", to: "r1" },
+				{ id: "e2", from: "r1", to: "g" },
+				{ id: "e3", from: "g", to: "block", when: "fail" },
+			],
+		};
+		const result = await executeWorkflow({
+			definition: single,
+			event: await fixtureEvent("change-request.opened.event"),
+			evaluateRuleRef: fakeEvaluator({ "account-age@1": { passed: false } }),
+			now: clock,
+		});
+		expect(result.verdict).toBe("block");
+		expect(result.actions.map((a) => a.action)).toEqual(["block"]);
+	});
+
+	test("ALL rules fail ⇒ gate fails ⇒ block (the hole, closed)", async () => {
+		const result = await executeWorkflow({
+			definition: GATED,
+			event: await fixtureEvent("change-request.opened.event"),
+			evaluateRuleRef: fakeEvaluator({
+				"account-age@1": { passed: false },
+				"crypto-address@1": { passed: false },
+			}),
+			now: clock,
+		});
+		expect(result.verdict).toBe("block");
+		const gateStep = result.steps.find((s) => s.nodeId === "g");
+		expect(gateStep?.status).toBe("fail");
+	});
+
+	test("property: derived shape with ≥1 failing rule never verdicts pass", async () => {
+		// Exhaustive over all 2^N pass/fail combinations of a derived-shape
+		// workflow (trigger → N rules → all-of gate → block on fail). No
+		// combination with a failing rule may yield pass; all-pass yields pass.
+		const N = 5;
+		const refs = Array.from({ length: N }, (_, i) => `account-age@${i + 1}`);
+		const derived: WorkflowDefinition = {
+			id: "wf-derived",
+			name: "derived",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				...refs.map((ref, i) => ({
+					id: `r${i}`,
+					type: "rule" as const,
+					ref,
+					config: {},
+				})),
+				{ id: "g", type: "gate", mode: "all-of" as const },
+				{ id: "block", type: "action", action: "block" as const },
+			],
+			edges: [
+				...refs.map((_ref, i) => ({ id: `t${i}`, from: "t", to: `r${i}` })),
+				...refs.map((_ref, i) => ({ id: `g${i}`, from: `r${i}`, to: "g" })),
+				{ id: "eb", from: "g", to: "block", when: "fail" as const },
+			],
+		};
+		const event = await fixtureEvent("change-request.opened.event");
+		for (let mask = 0; mask < 1 << N; mask++) {
+			const passing = refs.map((_ref, i) => (mask & (1 << i)) !== 0);
+			const overlay: Record<string, Partial<RuleResult>> = {};
+			refs.forEach((ref, i) => {
+				overlay[ref] = { passed: passing[i] };
+			});
+			const result = await executeWorkflow({
+				definition: derived,
+				event,
+				evaluateRuleRef: fakeEvaluator(overlay),
+				now: clock,
+			});
+			if (passing.every(Boolean)) {
+				expect(result.verdict).toBe("pass");
+			} else {
+				expect(result.verdict).toBe("block");
+			}
+		}
+	});
+
 	test("skipped rule conducts as pass but records skipped (§6)", async () => {
 		const result = await executeWorkflow({
 			definition: GATED,

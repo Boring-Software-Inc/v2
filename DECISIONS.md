@@ -311,6 +311,20 @@ is untouched.
   send-to-moderation nodes and only conduct on resume; a node runs when ≥1
   incoming edge conducts. **Skipped rules conduct as pass** — a rule that
   can't evaluate must not block (§6 purity); the skip is still recorded.
+- **AMENDED (post-live-bring-up — SECURITY, live-test surprise #2):** the "a
+  node runs when ≥1 incoming edge conducts" rule was a merge-gate hole for GATE
+  nodes. Rule→gate edges default `when: "pass"`, so a gate whose feeding rules
+  ALL fail never conducted, never fired `block`, and the run derived verdict
+  **pass**. Live evidence: T2a first attempt, run
+  `019f538a-926f-7000-87c7-e9cd3d79c80a`, a single failing rule ⇒ verdict pass;
+  the default workflow only blocked because sibling PASSING rules conducted the
+  gate open. Fix (executor.ts): **a gate runs once ≥1 source node has settled
+  (been reached) and aggregates its sources' OUTCOMES** — edge when-conduction
+  no longer gates gate execution; it still governs rule→action and gate→action
+  edges. `validateWorkflow` is unchanged: the same graphs are well-formed (a
+  gate still needs ≥1 input, already enforced by the unreachable-node check).
+  Guarded by an exhaustive property test: for the derived shape, no rule-outcome
+  combination with ≥1 failing rule can verdict pass.
 - **Verdict derivation:** paused ⇒ needs_review; any conducted `block` action
   ⇒ block; else pass. Multi-workflow JOIN takes the worst verdict
   (block > needs_review > pass); step nodeIds are prefixed `wfId:` to keep
