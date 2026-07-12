@@ -10,7 +10,7 @@ const VERDICT: Record<string, { label: string; className: string }> = {
 		className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
 	},
 	needs_review: {
-		label: "sent to review",
+		label: "review",
 		className: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
 	},
 };
@@ -18,8 +18,7 @@ const VERDICT: Record<string, { label: string; className: string }> = {
 /**
  * The one verdict language across the feed (constitution: blocked/passed/…).
  * FIXED WIDTH + centered so every chip occupies the same column — they line up
- * row to row instead of staggering with the label length. Width fits the
- * longest label ("sent to review").
+ * row to row instead of staggering with the label length.
  */
 export function VerdictChip({ verdict }: { verdict: string | null }) {
 	const v = verdict ? VERDICT[verdict] : undefined;

@@ -120,7 +120,7 @@ function RevealPill({
 }) {
 	return (
 		<button
-			className="pointer-events-auto rounded-full border bg-primary px-3 py-1 font-medium text-background text-xs shadow-sm transition-all hover:scale-95 hover:bg-primary/90"
+			className="pointer-events-auto rounded-full border bg-primary px-3 py-1 font-medium text-background text-xs shadow-sm transition-transform hover:scale-98 hover:bg-primary/90"
 			onClick={onClick}
 			type="button"
 		>
@@ -170,8 +170,10 @@ function TruncatedBody({
 				<EntryCard entry={entry} key={entry.event.id} />
 			))}
 			{/* Bottom progressive blur fading the tail of the visible rows, with the
-			    reveal pill — the rest expand inline, no pagination. */}
-			<div className="pointer-events-none absolute inset-x-0 bottom-0 h-[121px]">
+			    reveal pill. The overlay CAPTURES pointer events, so the faded rows
+			    behind it don't hover or click — only the pill does. Reveal expands
+			    the rest inline (no pagination). */}
+			<div className="absolute inset-x-0 bottom-0 h-[121px]">
 				<ProgressiveBlur />
 				<div className="absolute inset-0 flex items-end justify-center pb-6">
 					<RevealPill onClick={onShowMore}>show more ({hidden})</RevealPill>

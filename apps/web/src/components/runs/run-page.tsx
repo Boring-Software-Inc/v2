@@ -71,6 +71,15 @@ export function RunPage() {
 	);
 }
 
+/** The stack-style section header — surface-1 fill, matching the activity feed. */
+function SectionHeader({ children }: { children: React.ReactNode }) {
+	return (
+		<div className="bg-surface-1 px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+			{children}
+		</div>
+	);
+}
+
 function RunBody({ run }: { run: RunView }) {
 	return (
 		<div className="mx-auto w-full max-w-3xl px-6 py-8">
@@ -103,33 +112,29 @@ function RunBody({ run }: { run: RunView }) {
 				</p>
 			</header>
 
-			<section className="flex flex-col gap-2">
-				<h2 className="mb-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
-					steps
-				</h2>
+			<section className="overflow-hidden rounded-xl border bg-card">
+				<SectionHeader>steps</SectionHeader>
 				{run.steps.map((step) => (
 					<StepCard key={step.id} step={step} />
 				))}
 			</section>
 
 			{run.actions.length > 0 ? (
-				<section className="mt-8">
-					<h2 className="mb-2 font-medium text-muted-foreground text-xs uppercase tracking-wide">
-						actions
-					</h2>
-					<div className="flex flex-col gap-1">
-						{run.actions.map((action) => (
-							<div
-								className="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-surface-1"
-								key={`${action.kind}-${action.recordedAt}`}
-							>
-								<span className="font-mono">{action.kind}</span>
-								<span className="ml-auto text-muted-foreground text-xs">
-									{action.status}
-								</span>
-							</div>
-						))}
-					</div>
+				<section className="mt-4 overflow-hidden rounded-xl border bg-card">
+					<SectionHeader>actions</SectionHeader>
+					{run.actions.map((action) => (
+						<div
+							className="flex items-center gap-3 px-4 py-3 text-sm"
+							key={`${action.kind}-${action.recordedAt}`}
+						>
+							<span className="min-w-0 flex-1 truncate font-mono">
+								{action.kind}
+							</span>
+							<span className="text-muted-foreground text-xs">
+								{action.status}
+							</span>
+						</div>
+					))}
 				</section>
 			) : null}
 		</div>
@@ -144,13 +149,12 @@ function RunSkeletonBody() {
 				<div className="h-8 w-40 animate-pulse rounded-md bg-surface-1" />
 				<div className="mt-2 h-4 w-64 animate-pulse rounded-md bg-surface-1" />
 			</header>
-			<div className="mb-1 h-3 w-12 animate-pulse rounded bg-surface-1" />
-			<div className="flex flex-col gap-2">
+			<div className="overflow-hidden rounded-xl border bg-card">
+				<div className="h-9 animate-pulse bg-surface-1" />
 				{Array.from({ length: 6 }, (_, i) => `run-skel-${i}`).map((key) => (
-					<div
-						className="h-16 animate-pulse rounded-lg bg-surface-1"
-						key={key}
-					/>
+					<div className="px-4 py-3.5" key={key}>
+						<div className="h-4 w-1/2 animate-pulse rounded bg-surface-1" />
+					</div>
 				))}
 			</div>
 		</div>

@@ -69,7 +69,7 @@ const VERDICT: Record<string, { label: string; className: string }> = {
 		className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
 	},
 	needs_review: {
-		label: "sent to review",
+		label: "review",
 		className: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
 	},
 };
