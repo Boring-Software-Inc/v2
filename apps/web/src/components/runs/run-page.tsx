@@ -114,8 +114,13 @@ function RunBody({ run }: { run: RunView }) {
 
 			<section className="overflow-hidden rounded-xl border bg-card">
 				<SectionHeader>steps</SectionHeader>
-				{run.steps.map((step) => (
-					<StepCard key={step.id} step={step} />
+				{run.steps.map((step, i) => (
+					<StepCard
+						isFirst={i === 0}
+						isLast={i === run.steps.length - 1}
+						key={step.id}
+						step={step}
+					/>
 				))}
 			</section>
 

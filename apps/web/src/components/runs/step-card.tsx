@@ -38,49 +38,90 @@ function extractReview(evidence: unknown): AiReviewOutput | null {
 	return null;
 }
 
-export function StepCard({ step }: { step: RunStepView }) {
+/**
+ * The left rail: the status dot with a vertical connector line threading every
+ * step's dot into one timeline. The line is clipped at the first/last dot so it
+ * never sticks out past the ends. The dot sits at ~22px (the title's centre).
+ */
+function StepRail({
+	color,
+	isFirst,
+	isLast,
+}: {
+	color: string;
+	isFirst: boolean;
+	isLast: boolean;
+}) {
+	return (
+		<div className="relative w-1.5 shrink-0">
+			<span
+				className={cn(
+					"absolute left-1/2 w-px -translate-x-1/2 bg-border",
+					isFirst ? "top-[22px]" : "top-0",
+					isLast ? "bottom-[calc(100%-22px)]" : "bottom-0",
+				)}
+			/>
+			<span
+				className={cn(
+					"absolute top-[19px] left-0 size-1.5 rounded-full",
+					color,
+				)}
+			/>
+		</div>
+	);
+}
+
+export function StepCard({
+	step,
+	isFirst,
+	isLast,
+}: {
+	step: RunStepView;
+	isFirst: boolean;
+	isLast: boolean;
+}) {
 	const synthetic = describeSyntheticStep(step);
-	if (synthetic) {
-		return (
-			<div className="px-4 py-3">
-				<div className="flex items-center gap-2.5">
-					<span
-						className={cn(
-							"size-1.5 shrink-0 rounded-full",
-							synthetic.kind === "deny-floor" ? "bg-red-500" : "bg-amber-500",
-						)}
-					/>
-					<span className="font-medium text-sm">{synthetic.title}</span>
-					<span className="ml-auto font-mono text-muted-foreground text-xs">
-						{step.nodeId}
-					</span>
-				</div>
-				<p className="mt-1 pl-4 text-muted-foreground text-xs">
-					{synthetic.detail}
-				</p>
-			</div>
-		);
-	}
+	const dotColor = synthetic
+		? synthetic.kind === "deny-floor"
+			? "bg-red-500"
+			: "bg-amber-500"
+		: (STATUS_DOT[step.status] ?? "bg-muted-foreground/40");
 	const title =
 		step.ruleRef ?? `${step.nodeKind}: ${step.nodeId.split(":").at(-1)}`;
+
 	return (
-		<div className="px-4 py-3">
-			<div className="flex items-center gap-2.5">
-				<span
-					className={cn(
-						"size-1.5 shrink-0 rounded-full",
-						STATUS_DOT[step.status] ?? "bg-muted-foreground/40",
-					)}
-				/>
-				<span className="min-w-0 flex-1 truncate font-medium font-mono text-sm">
-					{title}
-				</span>
-				<StepStatus status={step.status} />
-				<span className="w-14 shrink-0 text-right text-muted-foreground text-xs">
-					{step.durationMs}ms
-				</span>
+		<div className="flex gap-3 px-4">
+			<StepRail color={dotColor} isFirst={isFirst} isLast={isLast} />
+			<div className="min-w-0 flex-1 py-3">
+				{synthetic ? (
+					<>
+						<div className="flex items-center gap-2.5">
+							<span className="min-w-0 flex-1 truncate font-medium text-sm">
+								{synthetic.title}
+							</span>
+							<span className="shrink-0 font-mono text-muted-foreground text-xs">
+								{step.nodeId}
+							</span>
+						</div>
+						<p className="mt-1 text-muted-foreground text-xs">
+							{synthetic.detail}
+						</p>
+					</>
+				) : (
+					<>
+						<div className="flex items-center gap-2.5">
+							<span className="min-w-0 flex-1 truncate font-medium font-mono text-sm">
+								{title}
+							</span>
+							<StepStatus status={step.status} />
+							<span className="w-11 shrink-0 text-right text-muted-foreground text-xs">
+								{step.durationMs}ms
+							</span>
+						</div>
+						{step.nodeKind === "rule" ? renderRuleEvidence(step) : null}
+					</>
+				)}
 			</div>
-			{step.nodeKind === "rule" ? renderRuleEvidence(step) : null}
 		</div>
 	);
 }
