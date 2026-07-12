@@ -1,4 +1,4 @@
-import type { ModStats } from "@tripwire/contracts";
+import type { ModStat, ModStats } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -209,6 +209,144 @@ export interface DecisionActivityRow {
 	subjectNumber: number | null;
 	actorLogin: string | null;
 	decidedAt: Date | null;
+}
+
+/**
+ * Enforcement action kinds counted as "actioned" (§9 rules header). The PR
+ * surface artifacts — `comment` and `set-check` — are emitted on EVERY run
+ * (a passing run still posts a success check), so counting them would report
+ * passes as enforcement. Only these discrete enforcement verbs count.
+ */
+const ENFORCEMENT_KINDS = [
+	"block",
+	"label",
+	"request-review",
+	"send-to-moderation",
+	"hide-comment",
+];
+const ENFORCEMENT_LIST = sql.join(
+	ENFORCEMENT_KINDS.map((kind) => sql`${kind}`),
+	sql`, `,
+);
+
+export interface RuleStat {
+	/** `id@version` as stored in run_steps.rule_id. */
+	ref: string;
+	matches24h: number;
+	/** Hourly fail counts over the last 24h — the card sparkline. */
+	series: number[];
+}
+
+export interface RulesStats {
+	/** Rule-node fails across runs for this repo, last 24h. */
+	matches24h: ModStat;
+	/** Executed enforcement actions for this repo, last 24h. */
+	actioned24h: ModStat;
+	perRule: RuleStat[];
+}
+
+/**
+ * Real per-repo rules-page stats over stored data (§9) — no new pipeline:
+ * matches from `run_steps` (rule-node fails), actioned from `run_actions`
+ * (executed enforcement kinds). FP rate is intentionally absent — reversals
+ * aren't tracked yet, so the caller renders "not enough data" (§6 loop).
+ */
+export async function getRulesStats(
+	db: Db,
+	repoFullName: string,
+): Promise<RulesStats> {
+	const scalar = async (query: ReturnType<typeof sql>): Promise<number> => {
+		const result = await db.execute(query);
+		return Number(
+			(result.rows[0] as Record<string, unknown> | undefined)?.n ?? 0,
+		);
+	};
+
+	const matches24h = await scalar(sql`
+		SELECT count(*)::int AS n FROM run_steps s
+		JOIN runs r ON r.id = s.run_id
+		WHERE r.repo_full_name = ${repoFullName}
+		  AND s.node_kind = 'rule' AND s.status = 'fail'
+		  AND s.started_at > now() - interval '24 hours'`);
+	const matchesPrev = await scalar(sql`
+		SELECT count(*)::int AS n FROM run_steps s
+		JOIN runs r ON r.id = s.run_id
+		WHERE r.repo_full_name = ${repoFullName}
+		  AND s.node_kind = 'rule' AND s.status = 'fail'
+		  AND s.started_at BETWEEN now() - interval '48 hours' AND now() - interval '24 hours'`);
+	const matchesSeries = await hourlySeries(
+		db,
+		sql`SELECT extract(hour FROM s.started_at)::int AS bucket, count(*)::int AS n
+		    FROM run_steps s JOIN runs r ON r.id = s.run_id
+		    WHERE r.repo_full_name = ${repoFullName}
+		      AND s.node_kind = 'rule' AND s.status = 'fail'
+		      AND s.started_at > now() - interval '24 hours'
+		    GROUP BY 1`,
+	);
+
+	const actioned24h = await scalar(sql`
+		SELECT count(*)::int AS n FROM run_actions a
+		JOIN runs r ON r.id = a.run_id
+		WHERE r.repo_full_name = ${repoFullName}
+		  AND a.status = 'executed' AND a.kind IN (${ENFORCEMENT_LIST})
+		  AND a.executed_at > now() - interval '24 hours'`);
+	const actionedPrev = await scalar(sql`
+		SELECT count(*)::int AS n FROM run_actions a
+		JOIN runs r ON r.id = a.run_id
+		WHERE r.repo_full_name = ${repoFullName}
+		  AND a.status = 'executed' AND a.kind IN (${ENFORCEMENT_LIST})
+		  AND a.executed_at BETWEEN now() - interval '48 hours' AND now() - interval '24 hours'`);
+	const actionedSeries = await hourlySeries(
+		db,
+		sql`SELECT extract(hour FROM a.executed_at)::int AS bucket, count(*)::int AS n
+		    FROM run_actions a JOIN runs r ON r.id = a.run_id
+		    WHERE r.repo_full_name = ${repoFullName}
+		      AND a.status = 'executed' AND a.kind IN (${ENFORCEMENT_LIST})
+		      AND a.executed_at > now() - interval '24 hours'
+		    GROUP BY 1`,
+	);
+
+	const perRuleResult = await db.execute(sql`
+		SELECT s.rule_id AS ref,
+		       extract(hour FROM s.started_at)::int AS bucket,
+		       count(*)::int AS n
+		FROM run_steps s JOIN runs r ON r.id = s.run_id
+		WHERE r.repo_full_name = ${repoFullName}
+		  AND s.node_kind = 'rule' AND s.status = 'fail'
+		  AND s.rule_id IS NOT NULL
+		  AND s.started_at > now() - interval '24 hours'
+		GROUP BY 1, 2`);
+	const perRuleMap = new Map<string, RuleStat>();
+	for (const row of perRuleResult.rows as unknown as {
+		ref: string;
+		bucket: number;
+		n: number;
+	}[]) {
+		let stat = perRuleMap.get(row.ref);
+		if (!stat) {
+			stat = { ref: row.ref, matches24h: 0, series: Array(24).fill(0) };
+			perRuleMap.set(row.ref, stat);
+		}
+		const index = Number(row.bucket);
+		stat.matches24h += Number(row.n);
+		if (index >= 0 && index < 24) {
+			stat.series[index] = Number(row.n);
+		}
+	}
+
+	return {
+		matches24h: {
+			value: matches24h,
+			delta: matches24h - matchesPrev,
+			series: matchesSeries,
+		},
+		actioned24h: {
+			value: actioned24h,
+			delta: actioned24h - actionedPrev,
+			series: actionedSeries,
+		},
+		perRule: [...perRuleMap.values()],
+	};
 }
 
 /** Recent moderation decisions — the activity behind "resolved". */

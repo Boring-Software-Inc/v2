@@ -1031,3 +1031,50 @@ public, deciding is gated:
   no-session public-repo read returns verdict+findings sans trace, private
   and orphan repos return nothing without a session, sessions/open-dev get
   the trace back.
+
+### /rules absorption — the automod mockup over real data (§9 step 3)
+
+The old automod mockup's charts/toggles UI becomes `/rules` populated by REAL
+stored data — no new analytics system, no invented numbers. Honest-render
+throughout: a stat/sparkline with no data shows the empty state, never a
+seeded figure.
+
+**Unit-2 residual fixed (the honest-display bug):** `/rules` showed an
+unconfigured rule as `enabled ?? false`, UNDER-reporting what a fresh repo
+actually runs — derive.ts runs baseline rules unless explicitly disabled. New
+`apps/web/src/lib/rule-execution.ts#ruleExecutes` mirrors
+`deriveDefaultWorkflow`'s overlay: explicit toggle wins; absent, a baseline
+rule (a rule node in `DEFAULT_WORKFLOW`, the shared source of truth) runs and a
+non-baseline rule does not. The toggle a maintainer sees now matches what the
+engine executes. Where a repo has a saved workflow, the card shows "managed by
+your workflow" (and the config editor is disabled) instead of a live-execution
+toggle. Unit-tested (the 3 predicate cases + baseline membership).
+
+**Data (no new pipeline):** `insightServices.getRulesStats(db, repoFullName)`
+reads existing tables — matches from `run_steps` (rule-node fails), actioned
+from `run_actions` (executed *enforcement* kinds only: block / label /
+request-review / send-to-moderation / hide-comment — the always-emitted
+`comment` and `set-check` surface artifacts are excluded, else a passing run's
+success check would count as enforcement). Repo-scoped via `runs.repo_full_name`,
+24h window, hourly sparkline buckets (the `hourlySeries` pattern from
+`getHomeStats`). Per-rule 24h fail count + hourly series drives each card's
+sparkline. Integration-tested on real Postgres (repo isolation, enforcement-only
+counting, honest zeros).
+
+**Header (4 cards):** active rules (execution count — a config number, so NO
+faked chart/delta), matches · 24h and actioned · 24h (genuine time series →
+dither sparkline), FP rate → "not enough data" (§6 loop needs reversals, which
+aren't tracked yet). Per-rule cards: name + id@version chip + "change request"
+target chip + action summary + the corrected toggle + 24h count + sparkline
+(only when the trend is non-zero) + JSON config editor. Filters: sort (most
+active / A–Z). **Omitted, not faked:** matcher-kind chips (RULE_CATALOG carries
+no kind metadata) and FP-rate sort (empty stat).
+
+Components: `rule-header-stats.tsx`, `rule-card.tsx` (folds in the retired
+`rule-config-form.tsx`), `rule-filters.tsx`, rebuilt `rules-page.tsx`. No
+content-rule work, no comment/issue targets, no ai-review opt-in changes, no
+/automod route touched (all deferred per scope).
+
+**Follow-up ledgered:** FP rate stays "not enough data" until the §6 reversal
+loop (unhide/approve-as-FP) is tracked; matcher-kind chips need a `kind` field
+on RULE_CATALOG if ever wanted.

@@ -1,22 +1,45 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { RuleConfigForm } from "#/components/rules/rule-config-form";
+import { RuleCard } from "#/components/rules/rule-card";
+import { RuleFilters, type RuleSort } from "#/components/rules/rule-filters";
+import { RuleHeaderStats } from "#/components/rules/rule-header-stats";
 import {
 	repoOptionsQueryOptions,
 	ruleConfigsQueryOptions,
+	rulesStatsQueryOptions,
 } from "#/lib/rules.query";
 import { MODERATOR } from "#/lib/site-config";
 
 export function RulesPage() {
 	const { data: repos } = useQuery(repoOptionsQueryOptions());
 	const [selected, setSelected] = useState<string | null>(null);
+	const [sort, setSort] = useState<RuleSort>("active");
 	const repoId = selected ?? repos?.[0]?.id ?? "";
 	const { data: rules } = useQuery(ruleConfigsQueryOptions(repoId));
+	const statsQuery = useQuery(rulesStatsQueryOptions(repoId));
+
+	const fetchedStats = useRef(false);
+	if (statsQuery.isLoading) {
+		fetchedStats.current = true;
+	}
+
+	const sorted = useMemo(() => {
+		if (!rules) {
+			return [];
+		}
+		const copy = [...rules];
+		copy.sort((a, b) =>
+			sort === "az"
+				? a.name.localeCompare(b.name)
+				: b.matches24h - a.matches24h || a.name.localeCompare(b.name),
+		);
+		return copy;
+	}, [rules, sort]);
 
 	return (
 		<DashboardLayout counts={{}} moderator={MODERATOR}>
-			<div className="mx-auto w-full max-w-3xl px-6 py-8">
+			<div className="mx-auto w-full max-w-4xl px-6 py-8">
 				<header className="mb-6 flex items-center justify-between gap-4">
 					<div>
 						<h1 className="font-semibold text-2xl tracking-tight">Rules</h1>
@@ -38,16 +61,28 @@ export function RulesPage() {
 						</select>
 					) : null}
 				</header>
+
 				{repos && repos.length === 0 ? (
 					<div className="rounded-lg border border-dashed px-6 py-16 text-center text-muted-foreground text-sm">
 						no repos yet — install the github app on a repo and its rules appear
 						here.
 					</div>
 				) : (
-					<div className="flex flex-col gap-3">
-						{rules?.map((rule) => (
-							<RuleConfigForm key={rule.ruleId} repoId={repoId} rule={rule} />
-						))}
+					<div className="flex flex-col gap-6">
+						{statsQuery.data ? (
+							<RuleHeaderStats
+								animate={fetchedStats.current}
+								stats={statsQuery.data}
+							/>
+						) : null}
+						<div className="flex items-center justify-end">
+							<RuleFilters onSortChange={setSort} sort={sort} />
+						</div>
+						<div className="flex flex-col gap-3">
+							{sorted.map((rule) => (
+								<RuleCard key={rule.ruleId} repoId={repoId} rule={rule} />
+							))}
+						</div>
 					</div>
 				)}
 			</div>
@@ -58,8 +93,16 @@ export function RulesPage() {
 export function RulesPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}} moderator={MODERATOR}>
-			<div className="mx-auto w-full max-w-3xl px-6 py-8">
+			<div className="mx-auto w-full max-w-4xl px-6 py-8">
 				<div className="mb-6 h-8 w-40 animate-pulse rounded-md bg-surface-1" />
+				<div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+					{Array.from({ length: 4 }, (_, i) => `stat-skel-${i}`).map((key) => (
+						<div
+							className="h-24 animate-pulse rounded-xl bg-surface-1"
+							key={key}
+						/>
+					))}
+				</div>
 				<div className="flex flex-col gap-3">
 					{Array.from({ length: 5 }, (_, i) => `rules-skel-${i}`).map((key) => (
 						<div

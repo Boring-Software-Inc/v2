@@ -863,3 +863,17 @@ with the skipped ratio; /moderation pills `run:degraded` items. Ledgered:
 any-session-sees-any-run (no repo-membership model yet) and visibility not
 threaded through change-request payloads.
 Checks: biome clean · typecheck ✓ (12/12) · boundaries ✓ · 177 tests, 0 fail.
+
+**Unit 8 — /rules over real data (this commit).** The automod mockup's UI
+becomes `/rules` on real stored data (§9 step 3), honest-render throughout.
+Fixes the Unit-2 residual: the toggle now shows ACTUAL execution state
+(`ruleExecutes` mirrors derive.ts — baseline rules ON unless disabled), not the
+old `enabled ?? false` that hid the baseline rules a fresh repo runs; saved-
+workflow repos show "managed by your workflow". New `getRulesStats` reads
+run_steps (matches) + run_actions (executed enforcement kinds only, never the
+always-emitted comment/check) repo-scoped over 24h with hourly sparklines — no
+new pipeline. Header: active rules + matches/actioned (real sparklines) + FP
+rate ("not enough data" — reversals untracked). Cards: id@version chip, target
+chip, action summary, corrected toggle, 24h count, sparkline, JSON config.
+Matcher-kind chips + FP sort omitted (no data, not faked). Checks: biome clean ·
+typecheck 0 · boundaries ✓ · 184 tests, 0 fail (+7).
