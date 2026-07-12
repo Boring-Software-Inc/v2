@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { StepCard } from "#/components/runs/step-card";
+import { currentUserQueryOptions } from "#/lib/auth.query";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { RunView } from "#/lib/runs.functions";
 import { runQueryOptions } from "#/lib/runs.query";
@@ -135,27 +136,44 @@ function RunBody({ run }: { run: RunView }) {
 	);
 }
 
-export function RunPageSkeleton() {
-	// Render inside the app shell (like every other *Skeleton) so navigating to a
-	// run doesn't flash a bare full-bleed background before the chrome mounts. The
-	// inner layout mirrors RunBody: header + a "steps" list.
+function RunSkeletonBody() {
+	// Mirrors RunBody: a header + a "steps" list, on the surface the shell owns.
 	return (
-		<DashboardLayout counts={{}}>
-			<div className="mx-auto w-full max-w-3xl px-6 py-8">
-				<header className="mb-6">
-					<div className="h-8 w-40 animate-pulse rounded-md bg-surface-1" />
-					<div className="mt-2 h-4 w-64 animate-pulse rounded-md bg-surface-1" />
-				</header>
-				<div className="mb-1 h-3 w-12 animate-pulse rounded bg-surface-1" />
-				<div className="flex flex-col gap-2">
-					{Array.from({ length: 6 }, (_, i) => `run-skel-${i}`).map((key) => (
-						<div
-							className="h-16 animate-pulse rounded-lg bg-surface-1"
-							key={key}
-						/>
-					))}
-				</div>
+		<div className="mx-auto w-full max-w-3xl px-6 py-8">
+			<header className="mb-6">
+				<div className="h-8 w-40 animate-pulse rounded-md bg-surface-1" />
+				<div className="mt-2 h-4 w-64 animate-pulse rounded-md bg-surface-1" />
+			</header>
+			<div className="mb-1 h-3 w-12 animate-pulse rounded bg-surface-1" />
+			<div className="flex flex-col gap-2">
+				{Array.from({ length: 6 }, (_, i) => `run-skel-${i}`).map((key) => (
+					<div
+						className="h-16 animate-pulse rounded-lg bg-surface-1"
+						key={key}
+					/>
+				))}
 			</div>
-		</DashboardLayout>
+		</div>
+	);
+}
+
+export function RunPageSkeleton() {
+	// The run page is dual-mode (§10): maintainers get the dashboard shell, public
+	// viewers get a chromeless page. Branch the skeleton on session so neither
+	// flashes the wrong frame — a signed-in maintainer's currentUser query is
+	// already cached (chrome up front), a logged-out visitor resolves to null
+	// (bare page, no chrome to flash away).
+	const { data: user } = useQuery(currentUserQueryOptions());
+	if (user) {
+		return (
+			<DashboardLayout counts={{}}>
+				<RunSkeletonBody />
+			</DashboardLayout>
+		);
+	}
+	return (
+		<div className="min-h-dvh bg-background">
+			<RunSkeletonBody />
+		</div>
 	);
 }
