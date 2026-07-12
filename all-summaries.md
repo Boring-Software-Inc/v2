@@ -761,3 +761,48 @@ Full ledger in DECISIONS.md. Docs-only pass — no code changed.
 1 fail — the failure (`process-event.integration`: "maintainer PR ⇒ exempt, no
 run", expects 0 runs, got 1) is PRE-EXISTING on main and code-unrelated to this
 docs-only pass; flagged to VERIFICATION-QUEUE, not introduced here.
+
+---
+
+## Live-fix session — four live-test defects + env hardening (2026-07-11)
+
+Four units, one commit each, all four checks green before each. The live-test
+report (`live-test-report.md`) is the test agent's artifact — left untouched.
+
+**Unit 1 — gates must see failures (`b221093`, SECURITY).** A gate whose feeding
+rules ALL fail never ran: rule→gate edges default `when: pass`, so nothing
+conducted the gate, `block` never fired, and the run derived verdict **pass**.
+Live evidence: T2a first attempt, single failing rule ⇒ pass; the default gate
+only blocked because sibling passing rules opened it. Fix: a gate runs once ≥1
+source has settled and aggregates outcomes; when-conduction no longer gates gate
+execution. Exhaustive property test: no derived-shape run with ≥1 failing rule
+can verdict pass.
+
+**Unit 2 — toggles become real (`c485503`).** The worker never read
+`rule_configs` (only the web UI did), so `/rules` toggles were cosmetic —
+disabled account-age evaluated anyway (T1). New `core/workflow/derive.ts`: a
+repo with no saved workflow gets a workflow DERIVED from enabled rules (baseline
+= the retired `DEFAULT_WORKFLOW`); baseline rule runs unless disabled, config
+overrides, non-baseline enabled rules opt in. Saved-workflow path skips disabled
+nodes as `disabled` (conducts as pass, off the degradation floor). `/rules`
+gains a "managed by your workflow" tag.
+
+**Unit 3 — surface sweeper + comment ownership + boot health (`ef9b797`).** T3:
+a creds outage left needs_review surface actions stuck at `recorded` — the
+neutral check never posted, the stale comment stood, no retry. Plus a follow-on
+finding: two moderation items on one PR decided out of order, an older run's
+approve overwrote the blocked comment. Fixes: a minutely sweeper re-attempts
+stuck actions (idempotent, age-windowed cap); a staleness guard supersedes rows
+whose verdict moved on; **comment ownership** — only the latest run per PR
+executes its comment (per-SHA checks still post), enforced in `emitPrSurface` +
+the sweeper; a boot health check (GitHub `GET /app` + ai-review creds) makes a
+broken-env worker loud at startup.
+
+**Unit 4 — env hardening + queue #10 closed (this commit).** #10 was env
+contamination, not code: `TRIPWIRE_DISABLE_EXEMPTION` leaked into the process
+env. Worker integration tests now delete/restore the flag in setup (proven: the
+maintainer test passes even with the flag set ambiently); the flag is refused
+under `NODE_ENV=production` (resolveAuthPosture pattern), unit-tested. #10 closed.
+
+**Checks (final, all four units): biome clean · 12/12 typecheck · boundaries ✓ ·
+145 tests, 0 fail.**

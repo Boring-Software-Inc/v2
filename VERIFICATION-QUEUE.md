@@ -136,13 +136,16 @@ to failure (updated in place). Approve on a second PR ⇒ pass/success.
 After a day of events: `select * from rollups_daily;` matches reality; Home
 stat cards show real counts (bannedUsers is intentionally 0 — no ban concept).
 
-## 10. REGRESSION — maintainer-exemption integration test fails on main
-Surfaced during the unified-rules spec-merge pre-flight (docs-only session, did
-NOT touch code — the failure is on `HEAD`). `bun test
-apps/worker/src/process-event.integration.test.ts` → the case
-"maintainer PR ⇒ exempt, no run" expects 0 runs for a PR whose contributor
-profile is injected `isMaintainer: true`, but gets 1 (a run is created). Either
-the change-request exemption regressed in the worker's process-event path, or the
-test's expectation is stale vs. an intentional change. Diagnose against the
-last few commits (`45832ac`, `594aedb`, `bf6e66e`); fix the code or update the
-test with a DECISIONS entry. Not caused by, and out of scope for, the docs merge.
+## 10. CLOSED — maintainer-exemption test failure was env contamination, not code
+Root cause (owner-verified, confirmed this session on a clean env): the failure
+was **environmental**, not a code regression. `TRIPWIRE_DISABLE_EXEMPTION=true`
+had leaked into the process env during a live-test pre-flight; the worker reads
+it at run time, so the maintainer-exemption assertion (expects 0 runs) saw a run
+and failed. On a clean env the file passes 12/12. Fixed permanently:
+- Worker integration tests (`process-event`, `toggles`) now `delete` the flag in
+  `beforeAll` and restore it in `afterAll` — ambient env can no longer
+  contaminate the suite.
+- The flag is now **refused under `NODE_ENV=production`** (`apps/worker/src/
+  exemption.ts`, resolveAuthPosture pattern) so it can never disable maintainer
+  exemption in production; unit-tested in `exemption.test.ts`.
+No code path regressed exemption; nothing further to verify here.

@@ -866,3 +866,23 @@ won. Fixes:
   is that a worker on stale/broken env is visible at boot, not discovered one
   degraded run at a time (the live session ran a whole pass on broken creds).
 - New `run_actions` status `superseded` (text column — no enum migration).
+
+### Exemption env hardening + queue #10 closed (post-live)
+
+VERIFICATION-QUEUE #10 (maintainer-exemption integration test failing) was
+**environmental, not a code regression** (owner-verified; reconfirmed here on a
+clean env — 12/12). `TRIPWIRE_DISABLE_EXEMPTION=true` had leaked into the process
+env during a live-test pre-flight; the worker reads it at run time so the
+maintainer test saw a run. Hardening:
+- **`apps/worker/src/exemption.ts`** — `isExemptionDisabled(env)` is pure and
+  REFUSES the flag under `NODE_ENV=production` (resolveAuthPosture pattern: fail
+  toward the safe posture — exemption stays on, maintainers never get gated in
+  prod by a stray flag). `exemptionFlagRefusedInProd` drives a loud worker warn.
+  Unit-tested, including the affordance (flag set in dev ⇒ exemption disabled).
+- **Test isolation** — the worker integration tests that exercise the exemption
+  path (`process-event`, `toggles`) `delete` the flag in `beforeAll` and restore
+  it in `afterAll`. Proven: the maintainer test passes even when the flag is set
+  in the ambient env. This permanently prevents the #10 contamination.
+- Env audit: `TRIPWIRE_DISABLE_EXEMPTION` was the only run-time-env-sensitive
+  behavior in the worker's evaluation path; `APP_URL` / `GITHUB_APP_*` /
+  `OPENROUTER_API_KEY` are boot-time composition, not per-run branches.

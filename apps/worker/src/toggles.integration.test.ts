@@ -107,7 +107,12 @@ async function ruleSteps(eventId: string) {
 	return steps.rows as { rule_id: string; status: string; evidence: unknown }[];
 }
 
+const exemptionBefore = process.env.TRIPWIRE_DISABLE_EXEMPTION;
+
 beforeAll(async () => {
+	// Pin the exemption flag OFF — ambient env must not affect the derived run
+	// (VERIFICATION-QUEUE #10 root cause: env contamination).
+	delete process.env.TRIPWIRE_DISABLE_EXEMPTION;
 	container = await createTestDatabase();
 	({ db, pool } = createDb(container.url));
 	await applyMigrations(db);
@@ -129,6 +134,11 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+	if (exemptionBefore === undefined) {
+		delete process.env.TRIPWIRE_DISABLE_EXEMPTION;
+	} else {
+		process.env.TRIPWIRE_DISABLE_EXEMPTION = exemptionBefore;
+	}
 	await boss?.stop({ close: true, graceful: false }).catch(() => undefined);
 	await pool?.end().catch(() => undefined);
 	await container?.stop();

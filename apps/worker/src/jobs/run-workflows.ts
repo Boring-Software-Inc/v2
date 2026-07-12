@@ -19,6 +19,10 @@ import { moderationServices, repoServices, runServices } from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { buildRuleContext, type WorkerReads } from "../context.ts";
+import {
+	exemptionFlagRefusedInProd,
+	isExemptionDisabled,
+} from "../exemption.ts";
 
 /**
  * §5.7–5.12: match enabled workflows by trigger → build RuleContext (reads
@@ -136,7 +140,12 @@ export async function runWorkflows(
 		deps.makeGenerate?.(event),
 	);
 
-	const exemptionDisabled = process.env.TRIPWIRE_DISABLE_EXEMPTION === "true";
+	if (exemptionFlagRefusedInProd()) {
+		logger.warn(
+			"TRIPWIRE_DISABLE_EXEMPTION=true REFUSED under NODE_ENV=production — maintainer exemption stays on",
+		);
+	}
+	const exemptionDisabled = isExemptionDisabled();
 	if (
 		!exemptionDisabled &&
 		(ctx.contributor?.isMaintainer || ctx.contributor?.isOrgMember)

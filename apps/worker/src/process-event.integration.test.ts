@@ -25,7 +25,12 @@ let pool: Pool;
 let boss: PgBoss;
 const logger = pino({ level: "silent" });
 
+// Pin the exemption flag OFF so ambient env can't contaminate the maintainer
+// exemption assertions (VERIFICATION-QUEUE #10 root cause).
+const exemptionBefore = process.env.TRIPWIRE_DISABLE_EXEMPTION;
+
 beforeAll(async () => {
+	delete process.env.TRIPWIRE_DISABLE_EXEMPTION;
 	container = await createTestDatabase();
 	({ db, pool } = createDb(container.url));
 	await applyMigrations(db);
@@ -33,6 +38,11 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
+	if (exemptionBefore === undefined) {
+		delete process.env.TRIPWIRE_DISABLE_EXEMPTION;
+	} else {
+		process.env.TRIPWIRE_DISABLE_EXEMPTION = exemptionBefore;
+	}
 	await boss?.stop({ close: true, graceful: false }).catch(() => undefined);
 	await pool?.end().catch(() => undefined);
 	await container?.stop();
