@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { ActivityGroupRow } from "#/components/activity/activity-group";
 import { ActivityRow } from "#/components/activity/activity-row";
 import { LiveIndicator } from "#/components/activity/live-indicator";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import type { ActivityItem } from "#/lib/activity.functions";
+import type { ActivityFeedItem } from "#/lib/activity.functions";
 import { activityQueryOptions, useActivityStream } from "#/lib/activity.query";
 import { cn } from "#/lib/utils";
 
@@ -17,14 +18,23 @@ const FILTERS: { key: Filter; label: string }[] = [
 	{ key: "no-run", label: "no run" },
 ];
 
-function matches(item: ActivityItem, filter: Filter): boolean {
+/** Filter GROUPS by their current verdict; standalone events only match all/no-run. */
+function matches(item: ActivityFeedItem, filter: Filter): boolean {
 	if (filter === "all") {
 		return true;
 	}
-	if (filter === "no-run") {
-		return item.run === null && !item.pending;
+	if (item.type === "group") {
+		return filter === "no-run"
+			? item.group.currentVerdict === null
+			: item.group.currentVerdict === filter;
 	}
-	return item.run?.verdict === filter;
+	return filter === "no-run" && item.entry.run === null && !item.entry.pending;
+}
+
+function itemKey(item: ActivityFeedItem): string {
+	return item.type === "group"
+		? `${item.group.repoFullName}#${item.group.subjectNumber}`
+		: item.entry.event.id;
 }
 
 export function ActivityPage() {
@@ -45,7 +55,7 @@ export function ActivityPage() {
 					<div>
 						<h1 className="font-semibold text-2xl tracking-tight">Activity</h1>
 						<p className="text-muted-foreground text-sm">
-							every forge event and the verdict it triggered, live.
+							every change request and the verdicts it triggered, live.
 						</p>
 					</div>
 					<LiveIndicator live={isSuccess} />
@@ -80,10 +90,14 @@ export function ActivityPage() {
 							: "nothing matches this filter yet."}
 					</div>
 				) : (
-					<div className="flex flex-col gap-1">
-						{items.map((item) => (
-							<ActivityRow item={item} key={item.event.id} />
-						))}
+					<div className="flex flex-col gap-1.5">
+						{items.map((item) =>
+							item.type === "group" ? (
+								<ActivityGroupRow group={item.group} key={itemKey(item)} />
+							) : (
+								<ActivityRow item={item.entry} key={itemKey(item)} />
+							),
+						)}
 					</div>
 				)}
 			</div>

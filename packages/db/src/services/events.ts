@@ -230,3 +230,148 @@ export async function getActivityForEvent(
 	const row = (result.rows as unknown as ActivityQueryRow[])[0];
 	return row?.normalized ? toActivityRow(row) : null;
 }
+
+/**
+ * The /activity feed grouped by CHANGE REQUEST (§9). The real unit is the
+ * change request, not the event: "#1 fix typo" evaluated 15 times is one group,
+ * not 15 rows. Grouping is done HERE (by repo + subject number) — never
+ * client-side over a paged list, or a group would split across pages.
+ *
+ * Each group carries its timeline (events + runs, chronological), the LATEST
+ * run's verdict, and the count. Events with no change request (installation,
+ * push) are standalone entries. Groups and standalone entries interleave by
+ * latest activity.
+ */
+export interface ActivityTimelineEntry {
+	event: NormalizedEvent;
+	run: ActivityRunSummary | null;
+}
+export interface ActivityGroup {
+	repoFullName: string;
+	subjectNumber: number;
+	title: string;
+	url: string | null;
+	actor: { login: string; avatarUrl: string | null };
+	currentVerdict: string | null;
+	currentRunId: string | null;
+	latestActivityAt: string;
+	eventCount: number;
+	timeline: ActivityTimelineEntry[];
+}
+export type ActivityFeedItem =
+	| { type: "group"; group: ActivityGroup }
+	| { type: "event"; entry: ActivityTimelineEntry };
+
+interface GroupedQueryRow extends ActivityQueryRow {
+	repo_full_name: string;
+	subject_number: number;
+	received_at: Date;
+}
+
+function eventUrl(event: NormalizedEvent): string | null {
+	if ("changeRequest" in event) {
+		return event.changeRequest.url;
+	}
+	if (event.kind === "comment.created") {
+		return event.comment.url;
+	}
+	return null;
+}
+
+function buildGroup(rows: GroupedQueryRow[]): ActivityGroup {
+	const chrono = [...rows].sort(
+		(a, b) => a.received_at.getTime() - b.received_at.getTime(),
+	);
+	const timeline = chrono.map((r) => toActivityRow(r) as ActivityTimelineEntry);
+	const latest = chrono.at(-1) as GroupedQueryRow;
+	// Header identity: the most recent change-request event carries the title.
+	const cr = [...chrono]
+		.reverse()
+		.map((r) => r.normalized as NormalizedEvent)
+		.find((e) => "changeRequest" in e);
+	const header = (latest.normalized as NormalizedEvent) ?? cr;
+	// Current verdict = the verdict of the latest event that produced a run.
+	const withRun = [...chrono].reverse().find((r) => r.run_id);
+	return {
+		repoFullName: latest.repo_full_name,
+		subjectNumber: latest.subject_number,
+		title:
+			cr && "changeRequest" in cr
+				? cr.changeRequest.title
+				: `#${latest.subject_number}`,
+		url: cr ? eventUrl(cr) : eventUrl(header),
+		actor: {
+			login: header.actor.login,
+			avatarUrl: header.actor.avatarUrl ?? null,
+		},
+		currentVerdict: withRun?.verdict ?? null,
+		currentRunId: withRun?.run_id ?? null,
+		latestActivityAt: latest.received_at.toISOString(),
+		eventCount: rows.length,
+		timeline,
+	};
+}
+
+export async function listActivityFeed(
+	db: Db,
+	{ limit = 50 }: { limit?: number } = {},
+): Promise<{ items: ActivityFeedItem[] }> {
+	const grouped = await db.execute(sql`
+		WITH grp AS (
+			SELECT repo_full_name, subject_number, max(received_at) AS latest_at
+			FROM events
+			WHERE normalized_at IS NOT NULL AND subject_number IS NOT NULL
+			GROUP BY repo_full_name, subject_number
+			ORDER BY latest_at DESC
+			LIMIT ${limit}
+		)
+		SELECT e.normalized, e.repo_full_name, e.subject_number, e.received_at,
+		       r.id AS run_id, r.verdict, r.status, fr.summary AS reason
+		FROM grp g
+		JOIN events e ON e.repo_full_name = g.repo_full_name
+		            AND e.subject_number = g.subject_number
+		            AND e.normalized_at IS NOT NULL
+		LEFT JOIN runs r ON r.event_id = e.id
+		LEFT JOIN LATERAL (
+			SELECT s.summary FROM run_steps s
+			WHERE s.run_id = r.id AND s.node_kind = 'rule' AND s.status = 'fail'
+			ORDER BY s.started_at ASC LIMIT 1
+		) fr ON true
+	`);
+	const byKey = new Map<string, GroupedQueryRow[]>();
+	for (const row of grouped.rows as unknown as GroupedQueryRow[]) {
+		const key = `${row.repo_full_name}#${row.subject_number}`;
+		const bucket = byKey.get(key);
+		if (bucket) {
+			bucket.push(row);
+		} else {
+			byKey.set(key, [row]);
+		}
+	}
+	const groups = [...byKey.values()].map(buildGroup);
+
+	const loose = await db.execute(sql`
+		SELECT e.normalized, r.id AS run_id, r.verdict, r.status, fr.summary AS reason,
+		       e.received_at
+		${ACTIVITY_FROM}
+		WHERE e.normalized_at IS NOT NULL AND e.subject_number IS NULL
+		ORDER BY e.id DESC
+		LIMIT ${limit}
+	`);
+	const standalone = (loose.rows as unknown as GroupedQueryRow[]).map((r) => ({
+		type: "event" as const,
+		entry: toActivityRow(r) as ActivityTimelineEntry,
+		at: r.received_at.getTime(),
+	}));
+
+	const items: (ActivityFeedItem & { at: number })[] = [
+		...groups.map((group) => ({
+			type: "group" as const,
+			group,
+			at: new Date(group.latestActivityAt).getTime(),
+		})),
+		...standalone,
+	];
+	items.sort((a, b) => b.at - a.at);
+	return { items: items.map(({ at: _at, ...item }) => item) };
+}

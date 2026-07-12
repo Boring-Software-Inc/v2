@@ -1223,3 +1223,29 @@ feed: each row is a normalized event joined to the run it triggered.
   filtered-out chip still lands.
 - Route renamed `/events` → `/activity` (it's no longer an event log); nav +
   SEO updated. Honest empty/error states. `listActivity` integration-tested.
+
+### /activity — chain the feed by CHANGE REQUEST (§9)
+
+Owner review of the flat feed: the real unit isn't the event, it's the change
+request. "#1 fix typo" appearing 15× across 11h is one PR evaluated 15 times,
+not 15 things. The feed is now grouped.
+
+- **Grouping is done in SQL** (`eventServices.listActivityFeed`, db/services —
+  never client-side over a paged list, or a group would split across pages). A
+  CTE picks the top N change requests by `max(received_at)`; a second join pulls
+  each group's full timeline (events + runs + the §10 leading reason). Standalone
+  events (no `subject_number`: installation/push) are fetched separately.
+  Groups and standalone rows interleave by latest activity.
+- **One group = one collapsible row, collapsed by default.** Collapsed header:
+  `#number title · actor · repo · current-verdict chip · count · relative time`.
+  The current verdict follows the LATEST run in the timeline. Expanded shows the
+  PR's timeline in chronological order — each entry links to `/runs/$runId` when
+  it produced a run, else the event's GitHub `html_url`.
+- **Live merge over the grouped cache** (`activity.query.ts`): a new `event`
+  upserts a timeline entry into its group and BUMPS the group to the top (never
+  grows the list); a new PR is a new group; a `run` resolves the entry in place
+  and re-derives the group's current verdict. Ungrouped events prepend as
+  standalone rows. Same SSE plumbing (`events` + `runs` NOTIFY), no polling.
+- **Filter chips filter GROUPS by current verdict** (all/blocked/sent to
+  review/passed/no run); standalone events only match all/no-run.
+- Shared `VerdictChip` is the one verdict language across header + timeline.

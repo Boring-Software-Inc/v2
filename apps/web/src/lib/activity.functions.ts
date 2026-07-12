@@ -10,6 +10,7 @@ export interface ActivityRun {
 	reason: string | null;
 }
 
+/** One timeline entry (or standalone row): an event + the run it triggered. */
 export interface ActivityItem {
 	event: NormalizedEvent;
 	run: ActivityRun | null;
@@ -17,21 +18,37 @@ export interface ActivityItem {
 	pending?: boolean;
 }
 
-export interface ActivityPageData {
-	items: ActivityItem[];
-	nextCursor: string | null;
+/** A change request — the real unit of the feed. One collapsible group. */
+export interface ActivityGroup {
+	repoFullName: string;
+	subjectNumber: number;
+	title: string;
+	url: string | null;
+	actor: { login: string; avatarUrl: string | null };
+	currentVerdict: string | null;
+	currentRunId: string | null;
+	latestActivityAt: string;
+	eventCount: number;
+	timeline: ActivityItem[];
 }
 
-export const getActivity = createServerFn({ method: "GET" })
-	.inputValidator((input: { cursor?: string } = {}) => input)
-	.handler(async ({ data }): Promise<ActivityPageData> => {
+export type ActivityFeedItem =
+	| { type: "group"; group: ActivityGroup }
+	| { type: "event"; entry: ActivityItem };
+
+export interface ActivityFeedData {
+	items: ActivityFeedItem[];
+}
+
+export const getActivityFeed = createServerFn({ method: "GET" }).handler(
+	async (): Promise<ActivityFeedData> => {
 		const { requireSession } = await import("#/lib/server/session");
 		await requireSession();
 		const { eventServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		const page = await eventServices.listActivity(getDb().db, {
-			cursor: data.cursor,
+		const feed = await eventServices.listActivityFeed(getDb().db, {
 			limit: 50,
 		});
-		return { items: page.items as ActivityItem[], nextCursor: page.nextCursor };
-	});
+		return feed as ActivityFeedData;
+	},
+);

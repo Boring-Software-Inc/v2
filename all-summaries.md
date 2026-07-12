@@ -929,3 +929,18 @@ SSE `run` event → resolves the row in place (no polling, no second row).
 Client-side filter chips (all/blocked/sent to review/passed/no run) over the
 cached feed. Route + nav renamed to /activity. Checks green: biome, typecheck,
 boundaries, 196 tests (+ a listActivity integration test).
+
+**Unit — activity feed restructure (chain by change request).** The flat feed
+(one row per event) is regrouped: the real unit is the change request, not the
+event. New `eventServices.listActivityFeed` (db) groups by (repo, subject_number)
+IN SQL — a CTE picks the top-N change requests by latest activity, a second join
+pulls each group's chronological timeline (events + runs + §10 leading reason);
+standalone events (installation/push) fetched separately, interleaved by latest
+activity. Each group is one collapsible row, collapsed by default (header:
+#num title · actor · repo · current-verdict chip · count · time; expanded = the
+PR's timeline, each entry links to /runs/$runId or the event's GitHub html_url).
+Grouped live merge (activity.query.ts): a new event upserts into its group and
+bumps it to the top without growing the list; a run resolves in place and
+re-derives the current verdict — same SSE plumbing, no polling. Filter chips
+filter GROUPS by current verdict. Shared VerdictChip. Checks green: biome scoped,
+typecheck (web+db) 0, boundaries ✓, 196 tests 0 fail.
