@@ -23,7 +23,26 @@ export interface EditorEdge {
 	id: string;
 	source: string;
 	target: string;
+	/**
+	 * Outcome handles set this to their `when` ("fail" on rule/gate nodes,
+	 * "approve"/"deny" on send-to-moderation nodes); pass edges leave it unset.
+	 */
+	sourceHandle?: string | null;
 	label?: string;
+}
+
+const HANDLE_WHENS = new Set(["fail", "approve", "deny"]);
+
+/**
+ * The handle an edge was drawn from is the source of truth for its `when` —
+ * a label can go stale, the handle cannot.
+ */
+export function handleWhen(
+	sourceHandle: string | null | undefined,
+): "fail" | "approve" | "deny" | undefined {
+	return sourceHandle && HANDLE_WHENS.has(sourceHandle)
+		? (sourceHandle as "fail" | "approve" | "deny")
+		: undefined;
 }
 
 function depthOf(
@@ -67,6 +86,8 @@ export function definitionToGraph(definition: WorkflowDefinition): {
 		id: edge.id,
 		source: edge.from,
 		target: edge.to,
+		sourceHandle:
+			edge.when && HANDLE_WHENS.has(edge.when) ? edge.when : undefined,
 		label: edge.when,
 	}));
 	return { nodes, edges };
@@ -90,7 +111,10 @@ export function graphToDefinition(
 			id: edge.id,
 			from: edge.source,
 			to: edge.target,
-			...(edge.label ? { when: edge.label } : {}),
+			...(() => {
+				const when = handleWhen(edge.sourceHandle) ?? edge.label;
+				return when ? { when } : {};
+			})(),
 		})),
 	};
 	const parsed = workflowDefinitionSchema.safeParse(candidate);

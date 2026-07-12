@@ -915,3 +915,30 @@ button.
   failure check + blocked comment rows; approve ⇒ pass, no floor step;
   deny-with-edge (existing test) unchanged; degraded-floor resume
   (`run:degraded` deny ⇒ block) pinned.
+
+### Editor outcome handles — fail/approve/deny expressible (T4 editor fix adopted)
+
+Before T4, node cards had ONE source handle and `onConnect` created unlabeled
+edges — every hand-drawn edge was a pass edge; `when:"fail"` (and approve/deny)
+were inexpressible in the editor. The T2a footgun reproduced in the UI: the T4
+graph could not have been drawn correctly without the mid-test fix Grim
+authorized live ("make the fail handle red and the input handle white").
+Adopted and hardened:
+
+- **Handles are the source of truth for `when`.** `handleWhen()` in
+  `workflow-editor.ts` maps sourceHandle → `when` for `fail`/`approve`/`deny`;
+  a stale label never wins over the handle the edge was drawn from.
+  `definitionToGraph` re-attaches when-edges to their outcome handle on load.
+- **Rule + gate nodes:** pass handle (top-right) + red **fail** handle
+  (bottom-right, `id="fail"`).
+- **send-to-moderation nodes:** green **approve** + red **deny** handles, same
+  mapping. `validate.ts` already restricts approve/deny edges to moderation
+  nodes — unchanged, still enforcing.
+- **Target handles white** for contrast against outcome colors.
+- Round-trip tests: fail-handle edge saves as `when:"fail"`; approve/deny save
+  as their when; handle-beats-stale-label; when-edges reload onto their
+  handles; full graph→definition→graph identity with fail+deny edges. The
+  committed editor-emission fixture (worker round-trip) is unchanged — node
+  shapes didn't change, only handles.
+- Known gap, out of scope here: **no node-config UI** (rule nodes always save
+  `defaultConfig`) — separate session.

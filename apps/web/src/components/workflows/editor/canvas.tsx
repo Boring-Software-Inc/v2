@@ -18,6 +18,7 @@ import {
 	type EditorEdge,
 	type EditorNode,
 	graphToDefinition,
+	handleWhen,
 } from "#/lib/workflow-editor";
 import "@xyflow/react/dist/style.css";
 
@@ -42,10 +43,19 @@ export function WorkflowCanvas({ definition, onSave, saving }: CanvasProps) {
 	const [error, setError] = useState<string | null>(null);
 
 	const onConnect = useCallback(
-		(connection: Connection) =>
+		(connection: Connection) => {
+			const when = handleWhen(connection.sourceHandle);
 			setEdges((current) =>
-				addEdge({ ...connection, id: `edge-${++addCounter}` }, current),
-			),
+				addEdge(
+					{
+						...connection,
+						id: `edge-${++addCounter}`,
+						...(when ? { label: when } : {}),
+					},
+					current,
+				),
+			);
+		},
 		[setEdges],
 	);
 

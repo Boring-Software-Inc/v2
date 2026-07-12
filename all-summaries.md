@@ -813,3 +813,12 @@ maintainer no. `resume-run.ts` now floors that case to block (synthetic
 `run:deny-floor` step + recorded/executed block action); approve semantics and
 explicit-deny-edge graphs untouched; degraded-floor resume pinned by test.
 Checks: biome clean · typecheck ✓ · boundaries ✓ · 148 tests, 0 fail.
+
+**Unit 6 — editor outcome handles (this commit).** Adopted the T4 mid-test fix
+(red fail handle on rule/gate nodes, white targets, sourceHandle ⇒ when:"fail")
+and hardened it: `handleWhen()` generalizes the mapping, send-to-moderation
+nodes gain green approve / red deny handles, handles beat stale labels, and
+when-edges reload onto their handles. Round-trip tested (5 new tests); worker
+emission fixture unchanged (node shapes untouched). Editor can now draw the
+full moderation loop that Unit 5's deny floor backstops.
+Checks: biome clean · typecheck ✓ · boundaries ✓ · 153 tests, 0 fail.

@@ -30,12 +30,26 @@ function nodeBody(node: WorkflowNode): string {
 	}
 }
 
+/** Rule and gate outcomes fork — those nodes expose a second, fail handle. */
+function canFail(node: WorkflowNode): boolean {
+	return node.type === "rule" || node.type === "gate";
+}
+
+/** Moderation decisions fork — approve/deny handles (validate.ts restricts these edges to moderation nodes). */
+function isModeration(node: WorkflowNode): boolean {
+	return node.type === "action" && node.action === "send-to-moderation";
+}
+
 export function TripwireNode({ data }: { data: { node: WorkflowNode } }) {
 	const { node } = data;
 	return (
 		<div className="min-w-40 rounded-md border bg-card px-3 py-2 shadow-sm">
 			{node.type !== "trigger" ? (
-				<Handle position={Position.Left} type="target" />
+				<Handle
+					position={Position.Left}
+					style={{ background: "#fff", border: "1px solid #a1a1aa" }}
+					type="target"
+				/>
 			) : null}
 			<div className="flex items-center gap-2">
 				<span
@@ -48,7 +62,38 @@ export function TripwireNode({ data }: { data: { node: WorkflowNode } }) {
 				</span>
 			</div>
 			<div className="mt-1 truncate font-mono text-xs">{nodeBody(node)}</div>
-			<Handle position={Position.Right} type="source" />
+			{canFail(node) ? (
+				<>
+					<Handle
+						position={Position.Right}
+						style={{ top: "35%" }}
+						type="source"
+					/>
+					<Handle
+						id="fail"
+						position={Position.Right}
+						style={{ top: "70%", background: "#ef4444" }}
+						type="source"
+					/>
+				</>
+			) : isModeration(node) ? (
+				<>
+					<Handle
+						id="approve"
+						position={Position.Right}
+						style={{ top: "35%", background: "#22c55e" }}
+						type="source"
+					/>
+					<Handle
+						id="deny"
+						position={Position.Right}
+						style={{ top: "70%", background: "#ef4444" }}
+						type="source"
+					/>
+				</>
+			) : (
+				<Handle position={Position.Right} type="source" />
+			)}
 		</div>
 	);
 }
