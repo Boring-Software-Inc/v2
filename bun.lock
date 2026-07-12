@@ -6,7 +6,10 @@
       "name": "tripwire",
       "devDependencies": {
         "@biomejs/biome": "2.4.5",
+        "@tripwire/core": "workspace:*",
+        "@tripwire/db": "workspace:*",
         "@types/bun": "^1.2.0",
+        "drizzle-orm": "^0.45.2",
         "typescript": "^5.7.2",
         "ultracite": "7.8.3",
       },

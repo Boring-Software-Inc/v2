@@ -944,3 +944,19 @@ bumps it to the top without growing the list; a run resolves in place and
 re-derives the current verdict — same SSE plumbing, no polling. Filter chips
 filter GROUPS by current verdict. Shared VerdictChip. Checks green: biome scoped,
 typecheck (web+db) 0, boundaries ✓, 196 tests 0 fail.
+
+**Unit — activity feed polish (5 defects).** (1) Tripwire's own comments stay but
+nest in the change-request timeline, labeled `bot` and deduped to one entry
+(normalize sets a neutral comment.byTripwire from COMMENT_MARKER; buildGroup +
+mergeEvent collapse create/edits); copy "commented on #1". (2) A blocked entry
+always says why: the leading-reason lateral falls back to the failing rule name
+when the §10 summary is null, plus a one-shot scripts/backfill-public-projection.ts
+re-projected stored evidence through the worker's own projectRulePublic —
+backfilled 31 of 37 stale rule steps. (3) Exempt + non-run context render dimmed
+so they don't compete with verdicts. (4) Every entry clickable: run → /runs/$runId
+else the event's GitHub html_url (push gained an optional compare url through
+contracts + normalize). (5) The garbage Codertocat fixture event deleted via a
+one-off SQL statement (append-only preserved — no app delete path). Root
+package.json gained core/db/drizzle devDeps so scripts/ resolves workspace pkgs.
+Spec §4 surface line updated. Checks green: biome, typecheck, boundaries, 196
+tests, replay corpus 2 flips (unchanged causes).

@@ -1,25 +1,14 @@
 import { ArrowDown01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
-import type { EventKind, NormalizedEvent } from "@tripwire/contracts";
+import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
 import { VerdictChip } from "#/components/activity/verdict-chip";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import { cn } from "#/lib/utils";
 
-const ENTRY_LABEL: Record<EventKind, string> = {
-	"change-request.opened": "opened",
-	"change-request.updated": "updated",
-	"change-request.closed": "closed",
-	"comment.created": "commented",
-	push: "pushed",
-	"installation.created": "installed the app",
-	"installation.deleted": "uninstalled the app",
-	"installation-repositories.added": "granted repos",
-	"installation-repositories.removed": "revoked repos",
-};
-
+/** The event's own GitHub deep link (§9): PR, comment, or push compare. */
 function entryUrl(event: NormalizedEvent): string | null {
 	if ("changeRequest" in event) {
 		return event.changeRequest.url;
@@ -27,7 +16,32 @@ function entryUrl(event: NormalizedEvent): string | null {
 	if (event.kind === "comment.created") {
 		return event.comment.url;
 	}
+	if (event.kind === "push") {
+		return event.push.url ?? null;
+	}
 	return null;
+}
+
+function isTripwireComment(event: NormalizedEvent): boolean {
+	return event.kind === "comment.created" && event.comment.byTripwire === true;
+}
+
+/** Constitution copy: "commented on #1", never "comment #3". */
+function entryLabel(event: NormalizedEvent): string {
+	switch (event.kind) {
+		case "change-request.opened":
+			return "opened";
+		case "change-request.updated":
+			return "pushed a change";
+		case "change-request.closed":
+			return "closed";
+		case "comment.created":
+			return `commented on #${event.comment.subjectNumber}`;
+		case "push":
+			return "pushed";
+		default:
+			return event.kind;
+	}
 }
 
 /** A collapsed change request — the glance. Expands to its timeline. */
@@ -78,8 +92,17 @@ export function ActivityGroupRow({ group }: { group: ActivityGroup }) {
 function TimelineRow({ entry }: { entry: ActivityItem }) {
 	const { event, run, pending } = entry;
 	const url = entryUrl(event);
+	const ours = isTripwireComment(event);
+	// A decision (a run) stands full; context (no run: exempt, push, comment)
+	// dims so it never competes with the verdicts (§9).
+	const dim = !run && !pending;
 	const inner = (
-		<div className="flex items-center gap-3 rounded-md py-1.5">
+		<div
+			className={cn(
+				"flex items-center gap-3 rounded-md py-1.5",
+				dim && "opacity-55",
+			)}
+		>
 			<span className="w-2 shrink-0">
 				<span
 					className={cn(
@@ -94,10 +117,17 @@ function TimelineRow({ entry }: { entry: ActivityItem }) {
 					)}
 				/>
 			</span>
-			<span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
-				<span className="text-foreground">{event.actor.login}</span>{" "}
-				{ENTRY_LABEL[event.kind]}
-				{run?.reason ? <span> · {run.reason}</span> : null}
+			<span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-muted-foreground text-xs">
+				<span className="text-foreground">
+					{ours ? "tripwire" : event.actor.login}
+				</span>
+				{ours ? (
+					<span className="rounded-sm bg-surface-1 px-1 py-px font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
+						bot
+					</span>
+				) : null}
+				<span className="truncate">{entryLabel(event)}</span>
+				{run?.reason ? <span className="truncate"> · {run.reason}</span> : null}
 			</span>
 			{run ? (
 				<VerdictChip verdict={run.verdict} />

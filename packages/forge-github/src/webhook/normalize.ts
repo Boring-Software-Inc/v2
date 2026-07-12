@@ -6,6 +6,7 @@ import {
 import type { RawForgeEvent } from "@tripwire/forge";
 import { generateId } from "@tripwire/utils";
 import { z } from "zod";
+import { COMMENT_MARKER } from "../actions/comment.ts";
 
 /**
  * Raw GitHub payload → NormalizedEvent (§5.5/§5.6). Domain-internal Zod
@@ -90,6 +91,7 @@ const installationRepositoriesPayload = z.object({
 const pushPayload = z.object({
 	ref: z.string(),
 	after: z.string(),
+	compare: z.string().optional(),
 	commits: z.array(z.unknown()),
 	head_commit: z.object({ timestamp: z.string() }).nullable(),
 	repository: ghRepository,
@@ -183,6 +185,7 @@ export function normalizeWebhook(
 				body: p.comment.body,
 				url: p.comment.html_url,
 				subjectNumber: p.issue.number,
+				byTripwire: p.comment.body.includes(COMMENT_MARKER),
 			},
 		});
 	}
@@ -249,6 +252,7 @@ export function normalizeWebhook(
 				ref: p.ref,
 				headSha: p.after,
 				commitCount: p.commits.length,
+				url: p.compare,
 			},
 		});
 	}

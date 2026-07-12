@@ -49,6 +49,8 @@ export const commentPayloadSchema = z.object({
 	url: z.string(),
 	/** The change request / issue number the comment belongs to. */
 	subjectNumber: z.number().int(),
+	/** True when this is Tripwire's own comment (carries the run marker, §7). */
+	byTripwire: z.boolean().optional(),
 });
 export type CommentPayload = z.infer<typeof commentPayloadSchema>;
 
@@ -56,6 +58,8 @@ export const pushPayloadSchema = z.object({
 	ref: z.string(),
 	headSha: z.string(),
 	commitCount: z.number().int(),
+	/** The forge's compare view for the pushed range (§9 deep link). */
+	url: z.string().optional(),
 });
 export type PushPayload = z.infer<typeof pushPayloadSchema>;
 

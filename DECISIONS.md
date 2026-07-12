@@ -1249,3 +1249,33 @@ not 15 things. The feed is now grouped.
 - **Filter chips filter GROUPS by current verdict** (all/blocked/sent to
   review/passed/no run); standalone events only match all/no-run.
 - Shared `VerdictChip` is the one verdict language across header + timeline.
+
+### /activity — polish (5 defects on the grouped feed, §9)
+
+- **Tripwire's own comments** stay (proof of action) but live INSIDE the change
+  request's timeline, labeled `bot` and deduped. `normalize` sets a neutral
+  `comment.byTripwire` flag (the forge-github COMMENT_MARKER stays its only home;
+  a boolean threads through contracts, same pattern as html_url). One upserted
+  artifact (§7) ⇒ create+edits collapse to ONE timeline entry (`buildGroup`
+  server-side, `mergeEvent` live). Copy: "commented on #1", never "comment #3".
+- **A blocked entry always says why.** The db's leading-reason lateral now also
+  returns the first failing rule id; when the §10 summary is null (historical
+  runs), the reason falls back to the bare rule name ("account-age failed").
+  Plus a ONE-SHOT `scripts/backfill-public-projection.ts` (NOT scheduled) that
+  re-projects stored evidence through the SAME `projectRulePublic` the worker
+  uses — no second home for rule knowledge. Ran once: **backfilled 31 of 37**
+  stale rule steps (6 yield no projection; 0 shape errors after unwrapping the
+  RuleResult envelope stored in `run_steps.evidence`).
+- **Exempt evaluations + all non-run context (push, comment) render DIMMED**
+  inside the timeline — the system saw it and stood down; it must not compete
+  with the verdicts.
+- **Every entry is clickable**: a run → `/runs/$runId`; otherwise the event's
+  GitHub `html_url` (PR, comment, or push `compare`). `push` gained an optional
+  `url` (compare view) threaded through contracts + normalize.
+- **The garbage fixture event** (`Codertocat/Hello-World`, 0 runs) was deleted
+  with a one-off SQL statement — NOT an app delete path (the event store stays
+  append-only, §5):
+  `DELETE FROM events WHERE id = '019f50da-83f2-7000-909b-3bdf301e36c7' AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.event_id = events.id);`
+- Root `package.json` gained `@tripwire/core`, `@tripwire/db`, `drizzle-orm` as
+  devDeps so one-shot scripts in `scripts/` resolve the workspace packages
+  (the boundary check only scans `packages/*`/`apps/*`, so this is legal).

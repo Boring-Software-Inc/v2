@@ -161,6 +161,23 @@ interface ActivityQueryRow {
 	verdict: string | null;
 	status: string | null;
 	reason: string | null;
+	/** `id@version` of the first failing rule — the fallback when summary is null. */
+	failing_rule_id?: string | null;
+}
+
+/**
+ * A blocked entry must ALWAYS say why (§9). Prefer the rule's §10 one-liner; when
+ * a historical run predates the projection (null summary), fall back to the bare
+ * failing rule name — e.g. "account-age failed" — never a blank reason.
+ */
+function leadingReason(row: ActivityQueryRow): string | null {
+	if (row.reason) {
+		return row.reason;
+	}
+	if (row.failing_rule_id) {
+		return `${row.failing_rule_id.split("@")[0]} failed`;
+	}
+	return null;
 }
 
 function toActivityRow(row: ActivityQueryRow): ActivityRow {
@@ -171,7 +188,7 @@ function toActivityRow(row: ActivityQueryRow): ActivityRow {
 					runId: row.run_id,
 					verdict: row.verdict,
 					status: row.status ?? "running",
-					reason: row.reason,
+					reason: leadingReason(row),
 				}
 			: null,
 	};
@@ -181,7 +198,7 @@ const ACTIVITY_FROM = sql`
 	FROM events e
 	LEFT JOIN runs r ON r.event_id = e.id
 	LEFT JOIN LATERAL (
-		SELECT s.summary FROM run_steps s
+		SELECT s.summary, s.rule_id FROM run_steps s
 		WHERE s.run_id = r.id AND s.node_kind = 'rule' AND s.status = 'fail'
 		ORDER BY s.started_at ASC LIMIT 1
 	) fr ON true
@@ -198,7 +215,7 @@ export async function listActivity(
 ): Promise<{ items: ActivityRow[]; nextCursor: string | null }> {
 	const result = await db.execute(sql`
 		SELECT e.id AS event_id, e.normalized, r.id AS run_id, r.verdict,
-		       r.status, fr.summary AS reason
+		       r.status, fr.summary AS reason, fr.rule_id AS failing_rule_id
 		${ACTIVITY_FROM}
 		WHERE e.normalized_at IS NOT NULL
 		  ${cursor ? sql`AND e.id < ${cursor}` : sql``}
@@ -222,7 +239,7 @@ export async function getActivityForEvent(
 ): Promise<ActivityRow | null> {
 	const result = await db.execute(sql`
 		SELECT e.normalized, r.id AS run_id, r.verdict, r.status,
-		       fr.summary AS reason
+		       fr.summary AS reason, fr.rule_id AS failing_rule_id
 		${ACTIVITY_FROM}
 		WHERE e.id = ${eventId}
 		LIMIT 1
@@ -265,7 +282,12 @@ export type ActivityFeedItem =
 interface GroupedQueryRow extends ActivityQueryRow {
 	repo_full_name: string;
 	subject_number: number;
-	received_at: Date;
+	/** node-postgres may hand back a Date or an ISO string — coerce before use. */
+	received_at: string | Date;
+}
+
+function receivedMs(value: string | Date): number {
+	return (value instanceof Date ? value : new Date(value)).getTime();
 }
 
 function eventUrl(event: NormalizedEvent): string | null {
@@ -278,11 +300,32 @@ function eventUrl(event: NormalizedEvent): string | null {
 	return null;
 }
 
+/** Tripwire's own comment is ONE upserted artifact (§7): create + edits collapse
+ * to a single timeline entry, so the group shows "commented on #1" once, not
+ * three identical rows. Keep the latest occurrence. */
+function dedupeTripwireComments(
+	timeline: ActivityTimelineEntry[],
+): ActivityTimelineEntry[] {
+	const lastOursIdx = timeline.reduce(
+		(acc, entry, i) => (isTripwireComment(entry.event) ? i : acc),
+		-1,
+	);
+	return timeline.filter(
+		(entry, i) => !isTripwireComment(entry.event) || i === lastOursIdx,
+	);
+}
+
+function isTripwireComment(event: NormalizedEvent): boolean {
+	return event.kind === "comment.created" && event.comment.byTripwire === true;
+}
+
 function buildGroup(rows: GroupedQueryRow[]): ActivityGroup {
 	const chrono = [...rows].sort(
-		(a, b) => a.received_at.getTime() - b.received_at.getTime(),
+		(a, b) => receivedMs(a.received_at) - receivedMs(b.received_at),
 	);
-	const timeline = chrono.map((r) => toActivityRow(r) as ActivityTimelineEntry);
+	const timeline = dedupeTripwireComments(
+		chrono.map((r) => toActivityRow(r) as ActivityTimelineEntry),
+	);
 	const latest = chrono.at(-1) as GroupedQueryRow;
 	// Header identity: the most recent change-request event carries the title.
 	const cr = [...chrono]
@@ -306,7 +349,7 @@ function buildGroup(rows: GroupedQueryRow[]): ActivityGroup {
 		},
 		currentVerdict: withRun?.verdict ?? null,
 		currentRunId: withRun?.run_id ?? null,
-		latestActivityAt: latest.received_at.toISOString(),
+		latestActivityAt: new Date(receivedMs(latest.received_at)).toISOString(),
 		eventCount: rows.length,
 		timeline,
 	};
@@ -326,14 +369,15 @@ export async function listActivityFeed(
 			LIMIT ${limit}
 		)
 		SELECT e.normalized, e.repo_full_name, e.subject_number, e.received_at,
-		       r.id AS run_id, r.verdict, r.status, fr.summary AS reason
+		       r.id AS run_id, r.verdict, r.status, fr.summary AS reason,
+		       fr.rule_id AS failing_rule_id
 		FROM grp g
 		JOIN events e ON e.repo_full_name = g.repo_full_name
 		            AND e.subject_number = g.subject_number
 		            AND e.normalized_at IS NOT NULL
 		LEFT JOIN runs r ON r.event_id = e.id
 		LEFT JOIN LATERAL (
-			SELECT s.summary FROM run_steps s
+			SELECT s.summary, s.rule_id FROM run_steps s
 			WHERE s.run_id = r.id AND s.node_kind = 'rule' AND s.status = 'fail'
 			ORDER BY s.started_at ASC LIMIT 1
 		) fr ON true
@@ -352,7 +396,7 @@ export async function listActivityFeed(
 
 	const loose = await db.execute(sql`
 		SELECT e.normalized, r.id AS run_id, r.verdict, r.status, fr.summary AS reason,
-		       e.received_at
+		       fr.rule_id AS failing_rule_id, e.received_at
 		${ACTIVITY_FROM}
 		WHERE e.normalized_at IS NOT NULL AND e.subject_number IS NULL
 		ORDER BY e.id DESC
@@ -361,7 +405,7 @@ export async function listActivityFeed(
 	const standalone = (loose.rows as unknown as GroupedQueryRow[]).map((r) => ({
 		type: "event" as const,
 		entry: toActivityRow(r) as ActivityTimelineEntry,
-		at: r.received_at.getTime(),
+		at: receivedMs(r.received_at),
 	}));
 
 	const items: (ActivityFeedItem & { at: number })[] = [

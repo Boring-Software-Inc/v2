@@ -51,7 +51,14 @@ function eventUrl(event: NormalizedEvent): string | null {
 	if (event.kind === "comment.created") {
 		return event.comment.url;
 	}
+	if (event.kind === "push") {
+		return event.push.url ?? null;
+	}
 	return null;
+}
+
+function isTripwireComment(event: NormalizedEvent): boolean {
+	return event.kind === "comment.created" && event.comment.byTripwire === true;
 }
 
 function groupTitle(event: NormalizedEvent, subjectNumber: number): string {
@@ -119,10 +126,19 @@ function mergeEvent(
 	const idx = findGroup(items, key);
 	if (idx >= 0 && items[idx].type === "group") {
 		const group = (items[idx] as { group: ActivityGroup }).group;
+		// Tripwire's comment is one upserted artifact (§7): replace our existing
+		// entry in place instead of stacking identical "commented on #1" rows.
+		const oursIdx = isTripwireComment(event)
+			? group.timeline.findIndex((t) => isTripwireComment(t.event))
+			: -1;
+		const timeline =
+			oursIdx >= 0
+				? group.timeline.map((t, i) => (i === oursIdx ? entry : t))
+				: [...group.timeline, entry];
 		const updated: ActivityGroup = {
 			...group,
-			timeline: [...group.timeline, entry],
-			eventCount: group.eventCount + 1,
+			timeline,
+			eventCount: oursIdx >= 0 ? group.eventCount : group.eventCount + 1,
 			latestActivityAt: event.receivedAt,
 		};
 		return {

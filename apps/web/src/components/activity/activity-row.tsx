@@ -32,6 +32,20 @@ function kindIcon(kind: EventKind) {
 	return GitPullRequestIcon;
 }
 
+/** The event's own GitHub deep link — the fallback target when no run (§9). */
+function eventUrl(event: NormalizedEvent): string | null {
+	if ("changeRequest" in event) {
+		return event.changeRequest.url;
+	}
+	if (event.kind === "comment.created") {
+		return event.comment.url;
+	}
+	if (event.kind === "push") {
+		return event.push.url ?? null;
+	}
+	return null;
+}
+
 function subjectLine(event: NormalizedEvent): string {
 	if ("installation" in event) {
 		return event.repositories.map((repo) => repo.fullName).join(", ");
@@ -120,13 +134,22 @@ export function ActivityRow({ item }: { item: ActivityItem }) {
 		</div>
 	);
 
-	return hasRun ? (
-		<Link params={{ runId: run.runId }} to="/runs/$runId">
-			{inner}
-		</Link>
-	) : (
-		inner
-	);
+	if (hasRun) {
+		return (
+			<Link params={{ runId: run.runId }} to="/runs/$runId">
+				{inner}
+			</Link>
+		);
+	}
+	const url = eventUrl(event);
+	if (url) {
+		return (
+			<a href={url} rel="noreferrer" target="_blank">
+				{inner}
+			</a>
+		);
+	}
+	return inner;
 }
 
 function Status({

@@ -285,7 +285,9 @@ GitHub**, so the demo's GitHub-browser pages are cut):
 - `/` — **Home**: the REAL moderation queue (paused runs, approve/deny,
   view-run) under the real `getHomeStats` header. The one queue surface;
   `/moderation` redirects here.
-- `/events` — live forge event feed (SSE) · `/rules` — rule config over real
+- `/activity` — live feed chained by CHANGE REQUEST (SSE): one collapsible group
+  per PR (current verdict + timeline of every event/run), standalone rows for
+  installation events · `/rules` — rule config over real
   data (absorbs the old automod mockup's UI; §9) · `/workflows` — React Flow
   editor · `/analytics` — metric drill-down, **moderation source only** ·
   `/runs/$runId` — the run page (public + maintainer, §10) · `/login`.
