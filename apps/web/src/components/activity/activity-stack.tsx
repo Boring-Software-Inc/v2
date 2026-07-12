@@ -7,11 +7,12 @@ import { formatRelativeTime } from "#/lib/format-relative-time";
 import { cn } from "#/lib/utils";
 
 /**
- * A change request as a STACK of cards (§9). The container rounds the outer
- * corners and clips; inner cards are divided by a top border with no gaps, so
- * the top card rounds up, the bottom rounds down, and the middle is square. A
- * long stack shows its FIRST 10 entries, then a bottom progressive blur with a
- * "show more (N)" pill that reveals the rest inline (no pagination).
+ * A change request as a STACK of cards (§9). One bordered, rounded container:
+ * the HEADER carries the surface fill (surface-1); the rows sit on the darker
+ * base (card) with NO dividers between them. A long stack shows its FIRST 10
+ * entries, then a bottom progressive blur with a "show more (N)" pill that
+ * reveals the rest inline (no pagination); expanded, a "show less" collapses it.
+ * The verdict chip is a FIXED-WIDTH column so chips line up row to row.
  */
 
 const VISIBLE = 10;
@@ -83,7 +84,8 @@ function LinkWrap({
 export function ActivityStack({ group }: { group: ActivityGroup }) {
 	const [showAll, setShowAll] = useState(false);
 	const entries = group.timeline;
-	const truncated = entries.length > VISIBLE && !showAll;
+	const canTruncate = entries.length > VISIBLE;
+	const truncated = canTruncate && !showAll;
 
 	return (
 		<div className="overflow-hidden rounded-xl border bg-card">
@@ -91,21 +93,48 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 			{truncated ? (
 				<TruncatedBody entries={entries} onShowMore={() => setShowAll(true)} />
 			) : (
-				entries.map((entry) => (
-					<div className="border-t" key={entry.event.id}>
-						<EntryCard entry={entry} />
-					</div>
-				))
+				<>
+					{entries.map((entry) => (
+						<EntryCard entry={entry} key={entry.event.id} />
+					))}
+					{canTruncate ? (
+						<div className="flex justify-center py-3">
+							<RevealPill onClick={() => setShowAll(false)}>
+								show less
+							</RevealPill>
+						</div>
+					) : null}
+				</>
 			)}
 		</div>
 	);
 }
 
-/** The top card: the change request's identity + its CURRENT verdict. */
+/** The floating reveal control — same pill for "show more (N)" and "show less". */
+function RevealPill({
+	onClick,
+	children,
+}: {
+	onClick: () => void;
+	children: React.ReactNode;
+}) {
+	return (
+		<button
+			className="pointer-events-auto rounded-full border bg-primary px-3 py-1 font-medium text-background text-xs shadow-sm transition-all hover:scale-95 hover:bg-primary/90"
+			onClick={onClick}
+			type="button"
+		>
+			{children}
+		</button>
+	);
+}
+
+/** The top card: the change request's identity + its CURRENT verdict. Carries
+ * the surface fill; the rows below sit on the darker base with no dividers. */
 function StackHeader({ group }: { group: ActivityGroup }) {
 	return (
 		<LinkWrap
-			className="flex items-center gap-3 px-3.5 py-3 transition-colors hover:bg-surface-1"
+			className="flex items-center gap-3 bg-surface-1 px-3.5 py-3 transition-colors hover:bg-surface-2"
 			runId={group.currentRunId}
 			url={group.url}
 		>
@@ -118,7 +147,6 @@ function StackHeader({ group }: { group: ActivityGroup }) {
 					{group.actor.login} · {group.repoFullName}
 				</div>
 			</div>
-			<VerdictChip verdict={group.currentVerdict} />
 			<span className="w-14 shrink-0 text-right text-muted-foreground text-xs">
 				{formatRelativeTime(group.latestActivityAt)}
 			</span>
@@ -139,22 +167,14 @@ function TruncatedBody({
 	return (
 		<div className="relative">
 			{visible.map((entry) => (
-				<div className="border-t" key={entry.event.id}>
-					<EntryCard entry={entry} />
-				</div>
+				<EntryCard entry={entry} key={entry.event.id} />
 			))}
 			{/* Bottom progressive blur fading the tail of the visible rows, with the
 			    reveal pill — the rest expand inline, no pagination. */}
 			<div className="pointer-events-none absolute inset-x-0 bottom-0 h-[121px]">
 				<ProgressiveBlur />
 				<div className="absolute inset-0 flex items-end justify-center pb-6">
-					<button
-						className="pointer-events-auto rounded-full border bg-card px-3 py-1 font-medium text-muted-foreground text-xs shadow-sm transition-colors hover:text-foreground"
-						onClick={onShowMore}
-						type="button"
-					>
-						show more ({hidden})
-					</button>
+					<RevealPill onClick={onShowMore}>show more ({hidden})</RevealPill>
 				</div>
 			</div>
 		</div>
@@ -180,6 +200,30 @@ function ProgressiveBlur() {
 				/>
 			))}
 		</>
+	);
+}
+
+/**
+ * The fixed-width verdict column: a chip when there's a verdict, a pulse while
+ * evaluating, else an empty reserve — so the time column never sways whether or
+ * not a row carries a verdict (the chips line up, no stagger).
+ */
+function VerdictSlot({
+	verdict,
+	pending = false,
+}: {
+	verdict: string | null;
+	pending?: boolean;
+}) {
+	if (verdict) {
+		return <VerdictChip verdict={verdict} />;
+	}
+	return (
+		<span className="flex w-[60px] shrink-0 items-center justify-center">
+			{pending ? (
+				<span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
+			) : null}
+		</span>
 	);
 }
 
@@ -220,13 +264,7 @@ function EntryCard({ entry }: { entry: ActivityItem }) {
 				<span className="truncate">{entryLabel(event)}</span>
 				{run?.reason ? <span className="truncate"> · {run.reason}</span> : null}
 			</span>
-			{run ? (
-				<VerdictChip verdict={run.verdict} />
-			) : pending ? (
-				<span className="shrink-0 animate-pulse text-muted-foreground text-xs">
-					evaluating…
-				</span>
-			) : null}
+			<VerdictSlot pending={pending} verdict={run?.verdict ?? null} />
 			<span className="w-12 shrink-0 text-right text-muted-foreground text-xs">
 				{formatRelativeTime(event.occurredAt)}
 			</span>

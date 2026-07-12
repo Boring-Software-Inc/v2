@@ -15,7 +15,12 @@ const VERDICT: Record<string, { label: string; className: string }> = {
 	},
 };
 
-/** The one verdict language across the feed (constitution: blocked/passed/…). */
+/**
+ * The one verdict language across the feed (constitution: blocked/passed/…).
+ * FIXED WIDTH + centered so every chip occupies the same column — they line up
+ * row to row instead of staggering with the label length. Width fits the
+ * longest label ("sent to review").
+ */
 export function VerdictChip({ verdict }: { verdict: string | null }) {
 	const v = verdict ? VERDICT[verdict] : undefined;
 	if (!v) {
@@ -24,7 +29,7 @@ export function VerdictChip({ verdict }: { verdict: string | null }) {
 	return (
 		<span
 			className={cn(
-				"shrink-0 rounded-full px-2 py-0.5 font-medium text-xs",
+				"inline-flex w-[60px] shrink-0 items-center justify-center rounded-full py-0.5 text-center font-medium text-xs",
 				v.className,
 			)}
 		>
