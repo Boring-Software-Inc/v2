@@ -2,16 +2,19 @@ import type { Verdict } from "@tripwire/contracts";
 import type { GithubHttp } from "../client/http.ts";
 import {
 	BUTTON_ALT,
-	MAINTAINER_INTRO,
-	MAINTAINER_SUMMARY,
-	verdictHeadline,
+	type CommentReason,
+	commentHeadline,
+	howDoIFix,
+	reasonsBlock,
+	WHAT_IS_TRIPWIRE,
 } from "../copy.ts";
 
 /**
- * THE condensed comment (§7): verdict line + ONE sentence + the "View on
- * Tripwire" button deep-linking the run page. The hidden marker makes
- * subsequent events EDIT the comment (upsert) — tripwire never litters a
- * thread.
+ * THE comment (§7): the verdict line, the failing rules' plain-English reasons,
+ * the "View on Tripwire" run button (VISIBLE — the run page is the contributor's
+ * appeal surface, §10), and collapsible "how do i fix this?" / "what is tripwire?"
+ * blocks. The hidden marker makes subsequent events EDIT the comment (upsert) —
+ * tripwire never litters a thread.
  *
  * The button is a hosted PNG (the dithered Geist-Pixel design) wrapped in a
  * link — GitHub comments render only a safe HTML subset, so a shader/font
@@ -27,29 +30,35 @@ const BADGE_WIDTH = 185;
 
 export interface CommentInput {
 	verdict: Verdict;
-	/** ONE sentence of context — the presenter enforces it stays one line. */
-	sentence: string;
+	/** The contributor, @-mentioned on blocked + sent-to-review. */
+	contributorLogin: string;
+	/** The failing rules' reasons (block only); empty for pass / needs_review. */
+	reasons: CommentReason[];
 	runUrl: string;
 	/** Absolute URL to the button PNG (`${appUrl}${BADGE_PATH}`). */
 	badgeUrl: string;
+	/** Fail-closed floor fired — the headline names the degradation. */
+	degraded?: boolean;
 }
 
 export function renderCommentBody(input: CommentInput): string {
-	const sentence = input.sentence.replaceAll(/\s+/g, " ").trim();
 	const button = `<a href="${input.runUrl}"><img src="${input.badgeUrl}" width="${BADGE_WIDTH}" alt="${BUTTON_ALT}" /></a>`;
-	return [
-		`${verdictHeadline(input.verdict)} — ${sentence}`,
-		"",
-		`<details><summary>${MAINTAINER_SUMMARY}</summary>`,
-		"",
-		MAINTAINER_INTRO,
-		"",
-		button,
-		"",
-		"</details>",
-		COMMENT_MARKER,
-		"",
-	].join("\n");
+	const headline = commentHeadline(
+		input.verdict,
+		input.contributorLogin,
+		input.degraded,
+	);
+	const lines: string[] = [headline, ""];
+	if (input.verdict === "block") {
+		lines.push(reasonsBlock(input.reasons), "", button, "");
+		lines.push(howDoIFix(input.reasons), "", WHAT_IS_TRIPWIRE);
+	} else if (input.verdict === "needs_review") {
+		lines.push(button, "", WHAT_IS_TRIPWIRE);
+	} else {
+		lines.push(button);
+	}
+	lines.push(COMMENT_MARKER, "");
+	return lines.join("\n");
 }
 
 interface IssueComment {

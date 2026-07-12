@@ -3,11 +3,11 @@ import type { Db } from "@tripwire/db";
 import { runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import {
+	type CommentReason,
 	checkSummary,
 	PENDING_CHECK_SUMMARY,
-	REVIEW_BODY,
 	renderCommentBody,
-	verdictSentence,
+	reviewBody,
 } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
@@ -64,8 +64,9 @@ export interface EmitSurfaceInput {
 	runId: string;
 	verdict: Verdict;
 	event: NormalizedEvent;
-	stats: { evaluated: number; failed: number };
-	/** Fail-closed floor fired — the sentence names the degradation. */
+	/** The failing rules' reasons → the comment body (never a rule count, §12). */
+	reasons: CommentReason[];
+	/** Fail-closed floor fired — the headline names the degradation. */
 	degraded?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
 	pendingActionRows: {
@@ -89,14 +90,22 @@ export async function emitPrSurface(
 	const sha = event.changeRequest.headSha;
 	const runUrl = `${deps.appUrl}/runs/${runId}`;
 	const badgeUrl = `${deps.appUrl}/badges/view-run.png`;
-	const sentence = verdictSentence(verdict, input.stats, input.degraded);
+	const { reasons } = input;
+	const review = reviewBody(reasons);
 
 	const surfaceRows = await runServices.recordActions(db, runId, [
 		{
 			kind: "comment",
 			payload: {
 				number,
-				body: renderCommentBody({ verdict, sentence, runUrl, badgeUrl }),
+				body: renderCommentBody({
+					verdict,
+					contributorLogin: event.actor.login,
+					reasons,
+					runUrl,
+					badgeUrl,
+					degraded: input.degraded,
+				}),
 			},
 			idempotencyKey: `comment:${number}:${verdict}`,
 		},
@@ -105,7 +114,7 @@ export async function emitPrSurface(
 			payload: {
 				sha,
 				conclusion: VERDICT_TO_CONCLUSION[verdict],
-				summary: checkSummary(verdict, sentence),
+				summary: checkSummary(verdict, reasons, input.degraded),
 				detailsUrl: runUrl,
 			},
 			idempotencyKey: `check:${sha}:${verdict}`,
@@ -142,7 +151,7 @@ export async function emitPrSurface(
 			);
 			continue;
 		}
-		const forgeAction = toForgeAction(row, repoFullName, number);
+		const forgeAction = toForgeAction(row, repoFullName, number, review);
 		try {
 			const result = await adapter.execute(forgeAction);
 			await runServices.markActionExecuted(db, row.id, result.externalId);
@@ -167,6 +176,7 @@ export function toForgeAction(
 	row: { kind: string; payload: Record<string, unknown> },
 	repoFullName: string,
 	number: number,
+	reviewText: string,
 ) {
 	switch (row.kind) {
 		case "comment":
@@ -201,7 +211,9 @@ export function toForgeAction(
 				kind: "block" as const,
 				repoFullName,
 				number,
-				reason: REVIEW_BODY,
+				// A workflow-authored block may carry its own message; else the
+				// computed review stamp.
+				reason: (row.payload.reason as string | undefined) ?? reviewText,
 			};
 	}
 }

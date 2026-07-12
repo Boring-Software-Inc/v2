@@ -266,7 +266,7 @@ describe("comment ownership (§6 — decide older run after newer)", () => {
 			runId: runB,
 			verdict: "block",
 			event: eventFor(shaB),
-			stats: { evaluated: 1, failed: 1 },
+			reasons: [{ text: "your account is 2 days old", remedy: "wait" }],
 			pendingActionRows: [],
 		});
 		// A (older) resolves LATER — its comment must NOT overwrite B's.
@@ -274,7 +274,7 @@ describe("comment ownership (§6 — decide older run after newer)", () => {
 			runId: runA,
 			verdict: "pass",
 			event: eventFor(shaA),
-			stats: { evaluated: 1, failed: 0 },
+			reasons: [],
 			pendingActionRows: [],
 		});
 

@@ -479,21 +479,28 @@ lives on the same run page.
 ### The comment
 **As condensed as possible. One comment. Never a CodeRabbit essay.**
 
-- Comment = a contributor-facing verdict line (`**tripwire: blocked/passed/
-  sent to review** — one sentence`, constitution voice) THEN a
-  `<details><summary>for maintainers</summary>` collapsible holding the run
-  deep-link as the **"View on Tripwire" button**. The reason is for everyone;
-  the run button is a maintainer action, tucked away so it never clutters the
-  contributor's view — the two read as one cohesive message.
-- The button is a hosted PNG of the dithered Geist-Pixel design (GitHub
-  comments render no shaders/custom fonts, so it is `<a><img width=185>`,
-  verdict-neutral, served at `${appUrl}/badges/view-run.png`).
+- Comment = a contributor-facing verdict line (`**blocked/passed/sent to
+  review**`, constitution voice, no `tripwire:` prefix — the bot name carries
+  it), @-mentioning the contributor on blocked + sent-to-review. It NEVER counts
+  rules ("1 of 8" is meaningless to a stranger); on a block it speaks the failing
+  rules' plain-English one-liners (max 2 inline, each with a wait-rule's derived
+  "it clears in 5 days" appended; 3+ collapse to "…, plus N other things.").
+- The **"View on Tripwire" button** renders VISIBLY (not in a dropdown) — the run
+  page is the contributor's appeal surface (§10), not a maintainer-only action.
+  It is a hosted PNG of the dithered Geist-Pixel design (GitHub comments render no
+  shaders/custom fonts, so `<a><img width=185>`, verdict-neutral, served at
+  `${appUrl}/badges/view-run.png`).
+- A `<details>` "how do i fix this?" body is chosen by the failing rules'
+  **remedies** (rule-owned, §6: revise / wait / appeal) — all-revise ⇒ push
+  again; nothing revisable ⇒ no commit clears it; mixed ⇒ fix what you can; the
+  appeal path shows whenever anything is non-revise. A shared `<details>` "what
+  is tripwire?" explainer rides on blocked + sent-to-review.
 - Hidden marker `<!-- tripwire:run -->` in the comment body; subsequent events on
   the same PR **edit** the comment (upsert), never append. Tripwire never litters
   a thread.
 - The request-changes **review** (unprotected-repo friction, §4) restates NO
-  verdict — a one-liner deferring to the tripwire comment keeps the comment
-  the single source of truth.
+  verdict — one line (`blocked — {first reason}.`, no link/button) keeps the
+  comment the single source of truth.
 - Multiple workflows on one PR ⇒ joined into one run ⇒ still exactly one button.
 - All depth (per-rule steps, evidence, AI findings, timings) lives on the run
   page — which a blocked contributor MUST be able to read (see §10 access model).
@@ -711,13 +718,16 @@ page is unlisted-public, gist-style:
   repo internals**: it shows the CONTRIBUTOR FACTS (observed values already
   public on the diff — matched crypto addresses + locations, touched honeypot
   paths, files-changed, account age, ai-review findings) plus a **plain-English
-  one-liner per rule** ("this account is 2038 days old"); it GATES the REPO
+  one-liner per rule** ("your account is 2038 days old"); it GATES the REPO
   INTERNALS (configured thresholds — minDays, max, watched globs — the
   ai-review raw trace, timings, and the workflow snapshot). The split is
-  rule-owned: each rule declares `publicEvidence`/`summarize` (versioned with
-  it), the worker projects at persist time (`run_steps.public_evidence` +
-  `summary`), and the public render just serves the stored projection — web
-  holds zero rule knowledge, one home for the partition (no drift). A "powered
+  rule-owned: each rule declares `publicEvidence`/`summarize` — plus a `remedy`
+  (revise/wait/appeal) and an optional wait-rule `waitHint` (a derived,
+  threshold-free "it clears in 5 days") that shape the PR comment (§7) — all
+  versioned with it; the worker projects at persist time
+  (`run_steps.public_evidence` + `summary`), and the public render just serves
+  the stored projection — web holds zero rule knowledge, one home for the
+  partition (no drift). A "powered
   by tripwire" footer shows on the public view (every public run is a demo to
   exactly the audience that installs Tripwire).
 - **Everything mutating or list-shaped stays session-gated:** approve/deny on a

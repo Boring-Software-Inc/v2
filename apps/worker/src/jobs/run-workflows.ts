@@ -17,6 +17,7 @@ import {
 } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
 import { moderationServices, repoServices, runServices } from "@tripwire/db";
+import type { CommentReason } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { buildRuleContext, type WorkerReads } from "../context.ts";
@@ -24,6 +25,7 @@ import {
 	exemptionFlagRefusedInProd,
 	isExemptionDisabled,
 } from "../exemption.ts";
+import { buildCommentReasons } from "./comment-reasons.ts";
 
 /**
  * §5.7–5.12: match enabled workflows by trigger → build RuleContext (reads
@@ -71,7 +73,8 @@ export interface RunWorkflowsResult {
 	verdict: Verdict | null;
 	paused: boolean;
 	actionRows: { id: string; kind: string; payload: Record<string, unknown> }[];
-	stats: { evaluated: number; failed: number };
+	/** The failing rules' reasons for the PR comment (§7/§12). */
+	reasons: CommentReason[];
 	/** True when the fail-closed floor fired (evaluation degraded). */
 	degraded: boolean;
 }
@@ -87,7 +90,7 @@ export async function runWorkflows(
 		verdict: null,
 		paused: false,
 		actionRows: [],
-		stats: { evaluated: 0, failed: 0 },
+		reasons: [],
 		degraded: false,
 	};
 
@@ -265,12 +268,9 @@ export async function runWorkflows(
 		),
 	);
 
-	const stats = {
-		evaluated: ruleSteps0.length,
-		failed: ruleSteps0.filter((step) => step.status === "fail").length,
-	};
+	const reasons = buildCommentReasons(steps);
 	logger.info({ runId, verdict, paused, steps: steps.length }, "run persisted");
-	return { runId, verdict, paused, actionRows, stats, degraded };
+	return { runId, verdict, paused, actionRows, reasons, degraded };
 }
 
 /**

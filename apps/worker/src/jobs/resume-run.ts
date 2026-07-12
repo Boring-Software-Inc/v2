@@ -8,6 +8,7 @@ import { executeWorkflow, type NodeOutcome } from "@tripwire/core";
 import { eventServices, moderationServices, runServices } from "@tripwire/db";
 import { z } from "zod";
 import { buildRuleContext } from "../context.ts";
+import { buildCommentReasons } from "./comment-reasons.ts";
 import { emitPrSurface } from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import { makeEvaluator, withPublicProjection } from "./run-workflows.ts";
@@ -140,9 +141,6 @@ export async function resumeRun(
 			: []),
 	]);
 
-	const allRuleSteps = [...runData.steps].filter(
-		(step) => step.nodeKind === "rule",
-	);
 	await emitPrSurface(
 		{
 			db,
@@ -154,10 +152,7 @@ export async function resumeRun(
 			runId: item.runId,
 			verdict,
 			event: normalized,
-			stats: {
-				evaluated: allRuleSteps.length,
-				failed: allRuleSteps.filter((step) => step.status === "fail").length,
-			},
+			reasons: buildCommentReasons(runData.steps),
 			pendingActionRows: actionRows,
 		},
 	);
@@ -192,7 +187,6 @@ async function resumeDegradedRun(
 					},
 				])
 			: [];
-	const ruleSteps = runData.steps.filter((step) => step.nodeKind === "rule");
 	await emitPrSurface(
 		{
 			db: deps.db,
@@ -204,10 +198,7 @@ async function resumeDegradedRun(
 			runId,
 			verdict,
 			event: normalized,
-			stats: {
-				evaluated: ruleSteps.length,
-				failed: ruleSteps.filter((step) => step.status === "fail").length,
-			},
+			reasons: buildCommentReasons(runData.steps),
 			pendingActionRows: actionRows,
 		},
 	);

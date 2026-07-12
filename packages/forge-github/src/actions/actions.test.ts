@@ -9,13 +9,41 @@ import { COMMENT_MARKER, renderCommentBody, upsertComment } from "./comment.ts";
  * comment per thread, one check per SHA, edits never appends.
  */
 
+const BLOCKED_REASONS = [
+	{
+		text: "your account is 2 days old",
+		remedy: "wait" as const,
+		waitHint: "it clears in 5 days",
+	},
+	{
+		text: "it adds 2 crypto addresses in DONATE.md",
+		remedy: "revise" as const,
+	},
+];
+
 describe("renderCommentBody — snapshot golden files", () => {
-	test("blocked", () => {
+	test("blocked (mixed remedies, wait-hint inline)", () => {
 		expect(
 			renderCommentBody({
 				verdict: "block",
-				sentence:
-					"this change tripped 2 of 6 rules. it can\u2019t merge until they clear.",
+				contributorLogin: "octocat",
+				reasons: BLOCKED_REASONS,
+				runUrl: "https://tripwire.sh/runs/0198abcd",
+				badgeUrl: "https://tripwire.sh/badges/view-run.png",
+			}),
+		).toMatchSnapshot();
+	});
+
+	test("blocked (3+ reasons collapse to plus-N)", () => {
+		expect(
+			renderCommentBody({
+				verdict: "block",
+				contributorLogin: "octocat",
+				reasons: [
+					{ text: "it adds 2 crypto addresses in DONATE.md", remedy: "revise" },
+					{ text: "this change touches 40 files", remedy: "revise" },
+					{ text: "the title isn't in latin script", remedy: "revise" },
+				],
 				runUrl: "https://tripwire.sh/runs/0198abcd",
 				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
@@ -26,7 +54,8 @@ describe("renderCommentBody — snapshot golden files", () => {
 		expect(
 			renderCommentBody({
 				verdict: "pass",
-				sentence: "cleared all 6 rules \u2014 good to merge.",
+				contributorLogin: "octocat",
+				reasons: [],
 				runUrl: "https://tripwire.sh/runs/0198abcd",
 				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
@@ -37,29 +66,41 @@ describe("renderCommentBody — snapshot golden files", () => {
 		expect(
 			renderCommentBody({
 				verdict: "needs_review",
-				sentence:
-					"this change needs a maintainer\u2019s eyes before it can merge.",
+				contributorLogin: "octocat",
+				reasons: [],
 				runUrl: "https://tripwire.sh/runs/0198abcd",
 				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
 		).toMatchSnapshot();
 	});
 
-	test("verdict line up top; run button tucked in a for-maintainers dropdown; one marker", () => {
+	test("the comment speaks reasons, not counts; button visible; @-mentions", () => {
 		const body = renderCommentBody({
 			verdict: "block",
-			sentence: "multi\nline\nsentence   collapses.",
+			contributorLogin: "octocat",
+			reasons: BLOCKED_REASONS,
 			runUrl: "https://tripwire.sh/runs/x",
 			badgeUrl: "https://tripwire.sh/badges/view-run.png",
 		});
 		const lines = body.trim().split("\n").filter(Boolean);
-		expect(lines[0]).toContain("**tripwire: blocked**");
-		expect(lines[0]).toContain("multi line sentence collapses.");
-		expect(body).toContain("<details><summary>for maintainers</summary>");
-		expect(body).toContain("badges/view-run.png");
-		expect(body).toContain('href="https://tripwire.sh/runs/x"');
-		expect(body).toContain("</details>");
-		expect((body.match(/<details>/g) ?? []).length).toBe(1);
+		// Verdict line present, @-mentions the contributor, no "tripwire:" prefix
+		// in the visible copy (the hidden marker is the only legit occurrence).
+		expect(lines[0]).toBe("**blocked** \u2014 @octocat, this can't merge yet.");
+		expect(body.replaceAll(COMMENT_MARKER, "")).not.toContain("tripwire:");
+		// Never counts rules.
+		expect(body).not.toMatch(/\d+ of \d+ rules?/);
+		// The wait-hint rides inline after its reason.
+		expect(body).toContain(
+			"your account is 2 days old \u2014 it clears in 5 days",
+		);
+		// The button is VISIBLE \u2014 not wrapped in any <details>.
+		const buttonLine = lines.find((l) => l.includes("badges/view-run.png"));
+		expect(buttonLine).toContain('href="https://tripwire.sh/runs/x"');
+		expect(buttonLine).not.toContain("<details>");
+		expect(body).not.toContain("for maintainers");
+		// The how-to-fix + explainer collapse into details; one marker, last line.
+		expect(body).toContain("<details><summary>how do i fix this?</summary>");
+		expect(body).toContain("<details><summary>what is tripwire?</summary>");
 		expect((body.match(new RegExp(COMMENT_MARKER)) ?? []).length).toBe(1);
 		expect(lines.at(-1)).toBe(COMMENT_MARKER);
 	});
@@ -126,7 +167,7 @@ describe("setCheck", () => {
 	const state = {
 		sha: "a".repeat(40),
 		conclusion: "failure" as const,
-		summary: "tripwire: blocked — 2 of 6 rules failed; merge is held.",
+		summary: "blocked — your account is 2 days old",
 		detailsUrl: "https://tripwire.sh/runs/x",
 	};
 
@@ -182,15 +223,14 @@ describe("executeAction — block files a request-changes review", () => {
 			kind: "block",
 			repoFullName: "a/b",
 			number: 7,
-			reason:
-				"**tripwire: blocked** — 2 of 6 rules failed; merge is held. details: https://tripwire.sh/runs/x",
+			reason: "blocked — your account is 2 days old.",
 		});
 		expect(result.externalId).toBe("91");
 		const post = calls.find((c) => c.method === "POST");
 		expect(post?.path).toBe("/repos/a/b/pulls/7/reviews");
 		expect(post?.body).toMatchObject({ event: "REQUEST_CHANGES" });
 		expect(String((post?.body as { body: string }).body)).toContain(
-			"tripwire: blocked",
+			"blocked — your account is 2 days old.",
 		);
 	});
 });

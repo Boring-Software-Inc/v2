@@ -986,3 +986,20 @@ window remainder without leaking windowHours), the rest=revise. Extended the
 leak-invariant test: a waitHint names no config key. Not a version bump (presentation
 metadata, no verdict/evidence change; replay unchanged 2 flips). Checks green:
 biome, typecheck, boundaries, 200 tests.
+
+**Unit B — the PR comment + review copy.** Rewrote packages/forge-github/copy.ts +
+the comment presenter: never count rules (speaks the failing rules' summarize()
+one-liners — max 2 inline with wait-hints appended, 3+ collapse to "plus N other
+things"); the run button renders VISIBLY outside any <details> (killed the "for
+maintainers" wrapper — the run page is the contributor's appeal surface); the "how
+do i fix this?" body is chosen by the failing rules' remedies (all-revise / nothing-
+revisable / mixed, appeal sentence when anything non-revise); @-mention the
+contributor on blocked + sent-to-review; drop the "tripwire:" prefix everywhere.
+Review stamp is one line "blocked — {first reason}.". Reasons built in the worker
+(comment-reasons.ts) from each step's envelope via the rule's own summarize/remedy/
+waitHint; emitPrSurface takes reasons (dropped the stats rule-count). Adjusted the
+rule one-liners to speak to the contributor. Regenerated the comment snapshots and
+replaced the condensedness test with meaningful assertions (verdict line, visible
+button, no rule count, no prefix, @-mention). Not a version bump (summaries stored
+at persist time; replay unchanged 2 flips). Checks green: biome, typecheck,
+boundaries, 201 tests.

@@ -1331,3 +1331,37 @@ required means a new rule can't ship without deciding (enforced by the compiler
 - Not a version bump: `remedy` is presentation metadata; it doesn't change any
   verdict or evidence, so historical `@1` runs stay interpretable (replay
   unchanged: 2 flips, same causes).
+
+### The PR comment + review copy rewrite (§7/§12, Unit B)
+
+The old comment counted rules ("tripped 1 of 8 rules" — meaningless to a
+stranger), buried the run button in a "for maintainers" dropdown (but the run
+page is the CONTRIBUTOR's appeal surface now, §10), and told everyone to "fix and
+push" even when the failing rule was account age (no commit fixes that).
+
+- **Never count rules.** The comment speaks the failing rules' `summarize()`
+  one-liners: max 2 inline (each with its wait-hint appended — "your account is
+  2 days old — it clears in 5 days"), 3+ collapse to "<first>, plus N other
+  things." (no trailing pointer — the button implies it).
+- **The button renders VISIBLY**, outside any `<details>`. The "for maintainers"
+  wrapper is gone.
+- **The "how do i fix this?" body is chosen by the failing rules' remedies**
+  (Unit A): all-revise ⇒ push again · nothing-revisable ⇒ no commit clears it ·
+  mixed ⇒ fix what you can. The appeal sentence rides along whenever anything is
+  non-revise.
+- **@-mention the contributor** on blocked + sent-to-review. **Drop the
+  "tripwire:" prefix** everywhere (the bot name carries it) — headline is
+  `**blocked**`, check summary/review body drop it too.
+- The review stamp is one line: `blocked — {first reason}.` (no link/button).
+- Reasons are built in the WORKER (`comment-reasons.ts`) — the only legal core
+  importer — from each rule step's stored envelope via the rule's own
+  summarize/remedy/waitHint. `emitPrSurface` takes `reasons: CommentReason[]`
+  (dropped the `stats` rule-count entirely). Copy stays centralized in copy.ts.
+- **Rule one-liners adjusted** to speak TO the contributor (this account → your
+  account; found N → it adds N; percentage → "the title isn't in latin script";
+  character count → "your github profile has no readme"). Not a version bump —
+  summaries are projected/stored at persist time, so historical runs keep their
+  stored text and stay interpretable; replay unchanged (2 flips).
+- The condensedness test (asserted a 3-line shape) is replaced with assertions
+  that matter: verdict line present, button OUTSIDE any `<details>`, no rule
+  count, no "tripwire:" prefix in visible copy, contributor @-mentioned.

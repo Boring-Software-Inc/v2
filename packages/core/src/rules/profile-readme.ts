@@ -36,7 +36,9 @@ export const profileReadme = defineRule({
 		length: e.length,
 	}),
 	summarize: (e) =>
-		`this profile has ${e.length} ${e.length === 1 ? "character" : "characters"} of text`,
+		e.hasProfileText
+			? "your github profile readme is too short"
+			: "your github profile has no readme",
 	// Fixable off-change — add a profile readme/bio (not this PR, but the person's).
 	remedy: "revise",
 });

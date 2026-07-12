@@ -6,6 +6,7 @@
 export { CHECK_NAME, setCheck } from "./actions/check.ts";
 export {
 	COMMENT_MARKER,
+	type CommentInput,
 	renderCommentBody,
 	upsertComment,
 } from "./actions/comment.ts";
@@ -21,14 +22,16 @@ export { GithubHttp, type GithubHttpOptions } from "./client/http.ts";
 export { GithubReads, type GithubReadsOptions } from "./client/reads.ts";
 export {
 	BUTTON_ALT,
+	type CommentReason,
 	checkSummary,
-	MAINTAINER_INTRO,
-	MAINTAINER_SUMMARY,
+	commentHeadline,
+	howDoIFix,
 	PENDING_CHECK_SUMMARY,
-	REVIEW_BODY,
+	type Remedy,
+	reasonsBlock,
+	reviewBody,
 	VERDICT_WORD,
-	verdictHeadline,
-	verdictSentence,
+	WHAT_IS_TRIPWIRE,
 } from "./copy.ts";
 export { normalizeWebhook } from "./webhook/normalize.ts";
 export { signWebhookBody, verifyWebhookSignature } from "./webhook/verify.ts";

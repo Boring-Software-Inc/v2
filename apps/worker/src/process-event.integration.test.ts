@@ -509,7 +509,9 @@ describe("PR surface (§5.12–13, §7)", () => {
 		);
 		expect(finalCheck).toBeDefined();
 		const comment = fake.executed.find((e) => e.kind === "comment");
-		expect(comment?.detail).toContain("**tripwire: blocked**");
+		expect(comment?.detail).toContain("**blocked**");
+		// The comment speaks reasons, never a rule count.
+		expect(comment?.detail).not.toMatch(/\d+ of \d+ rules?/);
 
 		const runRow = await pool.query("SELECT id FROM runs WHERE event_id = $1", [
 			eventId,
@@ -538,7 +540,7 @@ describe("PR surface (§5.12–13, §7)", () => {
 				verdict: "block",
 				event: (await eventServices.getEventById(db, eventId))
 					?.normalized as never,
-				stats: { evaluated: 5, failed: 1 },
+				reasons: [{ text: "your account is 2 days old", remedy: "wait" }],
 				pendingActionRows: [],
 			},
 		);

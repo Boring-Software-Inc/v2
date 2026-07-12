@@ -140,7 +140,7 @@ export async function processEvent(
 			runId: result.runId,
 			verdict: result.verdict,
 			event: normalized,
-			stats: result.stats,
+			reasons: result.reasons,
 			degraded: result.degraded,
 			pendingActionRows: result.actionRows,
 		});

@@ -123,13 +123,13 @@ describe("§10 public partition", () => {
 			SAMPLE_EVIDENCE["account-age"],
 		);
 		expect(age.publicEvidence).toEqual({ accountAgeDays: 2038 });
-		expect(age.summary).toBe("this account is 2038 days old");
+		expect(age.summary).toBe("your account is 2038 days old");
 
 		const crypto = projectRulePublic(
 			"crypto-address@1",
 			SAMPLE_EVIDENCE["crypto-address"],
 		);
-		expect(crypto.summary).toBe("found 1 crypto address in DONATE.md");
+		expect(crypto.summary).toBe("it adds 1 crypto address in DONATE.md");
 	});
 
 	test("skipped evidence (null) projects to nothing — safe by default", () => {

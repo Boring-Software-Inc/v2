@@ -65,7 +65,7 @@ export const cryptoAddress = defineRule({
 		}
 		const locations = [...new Set(e.matches.map((m) => m.location))];
 		const where = locations.length > 0 ? ` in ${locations.join(", ")}` : "";
-		return `found ${e.matches.length} crypto ${e.matches.length === 1 ? "address" : "addresses"}${where}`;
+		return `it adds ${e.matches.length} crypto ${e.matches.length === 1 ? "address" : "addresses"}${where}`;
 	},
 	// Fixable in the change itself — remove the address(es).
 	remedy: "revise",

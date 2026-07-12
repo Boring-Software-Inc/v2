@@ -1,6 +1,7 @@
 import type { Db } from "@tripwire/db";
 import { runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
+import { reviewBody } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { toForgeAction } from "./pr-surface.ts";
@@ -127,6 +128,9 @@ export async function sweepActions(
 				{ kind: row.kind, payload: row.payload },
 				row.repoFullName,
 				row.subjectNumber,
+				// Recovery path: a recorded block carries its own reason in payload;
+				// the generic stamp is the fallback.
+				reviewBody([]),
 			);
 			const executed = await adapter.execute(forgeAction);
 			await runServices.markActionExecuted(db, row.id, executed.externalId);

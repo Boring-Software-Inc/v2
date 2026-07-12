@@ -32,7 +32,7 @@ export const accountAge = defineRule({
 		};
 	},
 	publicEvidence: (e) => ({ accountAgeDays: e.accountAgeDays }),
-	summarize: (e) => `this account is ${e.accountAgeDays} days old`,
+	summarize: (e) => `your account is ${e.accountAgeDays} days old`,
 	remedy: "wait",
 	// Derived remainder only — the age needed never appears, just how much is left.
 	waitHint: (e) => {
