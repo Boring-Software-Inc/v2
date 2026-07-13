@@ -1608,3 +1608,41 @@ between the six real product states, and auto-created fixtures per persona.
   `tripwire-demo/*` repos and their runs/steps/actions/moderation/rollups/config,
   the `demo-evt-*` events, and `@tripwire.demo` users (auth cascades their
   sessions/accounts/installations). It never truncates a real table.
+
+### `dev:demo` — embedded PGlite, web head only (§13)
+
+`bun run dev:demo` seeds a story and serves the WEB HEAD ALONE — no Docker, no
+worker, no api, no queue. A demo never processes a webhook; it looks at a
+dashboard with a story in it.
+
+- **New dependency: `@electric-sql/pglite` (`^0.2.17`).** An embedded, in-process
+  Postgres (WASM). Chosen because it is the SAME dialect as prod: the identical
+  Drizzle schema and the identical generated migrations run on it (via
+  `drizzle-orm/pglite` + its migrator), so there is no second dialect and no
+  drift.
+- **SQLite was considered and REJECTED.** It would fork the read path — the
+  activity feed's LATERAL query, `jsonb`, `timestamptz` — into a second dialect
+  for zero benefit PGlite doesn't already give. One dialect is the whole point.
+- **Hoisted at the ROOT, not per-package.** `drizzle-orm` treats
+  `@electric-sql/pglite` as an OPTIONAL peer, so declaring it inside
+  `@tripwire/db` forked db's drizzle into a second variant and broke the web↔db
+  type identity (web passes `eq`/`sql` into db services). Declaring it once at
+  the root makes the peer resolvable for every drizzle consumer, collapsing back
+  to a single `drizzle-orm` instance.
+- **`PGLITE_DATA_DIR` selects the driver.** `getDb()` (web) branches: when the
+  env var is set it returns a PGlite-backed drizzle instance; otherwise the
+  node-postgres pool. The shared `Db` type stays single-driver — one documented
+  cast in `createPgliteDb` bridges the pglite drizzle instance, rather than
+  widening `Db` across the whole services layer.
+- **No queue in demo, so one write path degrades.** Only the approve/deny action
+  needs pg + pg-boss. In demo mode it calls a worker-free
+  `markModerationDecided` (records the decision so the queue updates; nothing
+  resumes, because there is no worker). Every other server function uses `.db`
+  and is unaffected. A stub pool throws loudly if any code reaches for `.pool` in
+  demo — never a silent hang.
+- **The seed process and the web process are sequential over the PGlite dir.**
+  PGlite is single-connection; the `dev:demo` script seeds (owns the dir),
+  closes, then spawns vite with `PGLITE_DATA_DIR` pointing at the same dir.
+- **`dev:demo` sets a fixed `BETTER_AUTH_SECRET`** so posture is "enabled" and the
+  gates + persona switcher work (the anonymous/public-run persona needs real
+  no-session semantics). `.demo/` is gitignored.

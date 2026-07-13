@@ -8,6 +8,7 @@
 	],
 	"scripts": {
 		"dev": "bun --filter '@tripwire/web' dev",
+		"dev:demo": "bun run scripts/dev-demo.ts",
 		"build": "bun --filter '*' build",
 		"typecheck": "bun --filter '*' typecheck",
 		"lint": "biome lint .",
@@ -34,5 +35,8 @@
 	},
 	"engines": {
 		"bun": ">=1.3.0"
+	},
+	"dependencies": {
+		"@electric-sql/pglite": "^0.2.17"
 	}
 }

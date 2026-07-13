@@ -44,7 +44,17 @@ export const decideModeration = createServerFn({ method: "POST" })
 		const { requireSession } = await import("#/lib/server/session");
 		const decidedBy = await requireSession();
 		const { moderationServices } = await import("@tripwire/db");
-		const { getDb, getBoss } = await import("#/lib/server/db");
+		const { getDb, getBoss, isDemoMode } = await import("#/lib/server/db");
+		// dev:demo has no worker to resume the run — record the decision so the
+		// queue updates; a real head enqueues a resume job in one transaction.
+		if (isDemoMode()) {
+			const ok = await moderationServices.markModerationDecided(getDb().db, {
+				itemId: data.itemId,
+				decision: data.decision,
+				decidedBy,
+			});
+			return { ok };
+		}
 		const ok = await moderationServices.decideModerationItem(
 			getDb().pool,
 			await getBoss(),

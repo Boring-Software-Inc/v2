@@ -1129,3 +1129,23 @@ namespace, never a real table. The shape-correct seed builder lives in
 without importing core. New tests: guard (prod ⇒ throws, non-localhost ⇒ throws),
 the session-mint mechanism over real Postgres, and the seeded story's home stats.
 Checks: typecheck all, biome, boundaries, 215 tests.
+
+**Unit — `bun run dev:demo` (embedded PGlite, no docker).** One command serves a
+fully seeded, presentable app — the WEB HEAD ONLY (no worker/api/queue) on
+embedded PGlite (in-process WASM Postgres) at `.demo/`, running the SAME Drizzle
+schema and SAME generated migrations as prod (one dialect, no drift; SQLite was
+rejected precisely because it would fork the read path). `createPgliteDb` +
+`applyPgliteMigrations` land in `@tripwire/db`; `getDb()` (web) branches on
+`PGLITE_DATA_DIR` between the pglite instance and the node-postgres pool, with the
+shared `Db` type kept single-driver via one documented cast. The demo has no
+queue, so the lone write that needs pg-boss (approve/deny) degrades to a
+worker-free `markModerationDecided`; a stub pool throws loudly if anything else
+reaches for `.pool`. `@electric-sql/pglite` is hoisted at the ROOT (not in
+`@tripwire/db`) because it is drizzle-orm's optional peer — declaring it
+per-package forked drizzle into a second variant and broke web↔db type identity;
+one root declaration collapses it back to a single drizzle instance. The script
+seeds the story (owning the single-connection PGlite dir), closes, then spawns
+vite pointed at the same dir with a fixed `BETTER_AUTH_SECRET` so the gates +
+persona switcher work. README documents the command; `.demo/` is gitignored. New
+test: prod migrations + services + the worker-free decision path all run on
+PGlite (dialect parity). Checks: typecheck all, biome, boundaries, 216 tests.

@@ -114,6 +114,36 @@ export async function decideModerationItem(
 	}
 }
 
+/**
+ * Record a decision WITHOUT enqueuing a resume job — for `dev:demo`, where the
+ * web head runs alone (no worker to walk the edge). The queue item resolves so
+ * the UI updates; nothing downstream runs. Never used with a real worker.
+ */
+export async function markModerationDecided(
+	db: Db,
+	input: {
+		itemId: string;
+		decision: "approve" | "deny";
+		decidedBy: string | null;
+	},
+): Promise<boolean> {
+	const updated = await db
+		.update(moderationItems)
+		.set({
+			status: input.decision === "approve" ? "approved" : "denied",
+			decidedAt: new Date(),
+			decidedBy: input.decidedBy,
+		})
+		.where(
+			and(
+				eq(moderationItems.id, input.itemId),
+				eq(moderationItems.status, "pending"),
+			),
+		)
+		.returning({ id: moderationItems.id });
+	return updated.length === 1;
+}
+
 export async function getModerationItem(db: Db, itemId: string) {
 	const rows = await db
 		.select()

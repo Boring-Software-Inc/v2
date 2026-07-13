@@ -10,6 +10,11 @@ export type { Db } from "./client.ts";
 export { createDb, schema } from "./client.ts";
 export { applyMigrations } from "./migrate.ts";
 export {
+	applyPgliteMigrations,
+	createPgliteDb,
+	type PgliteHandle,
+} from "./pglite.ts";
+export {
 	createBoss,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
