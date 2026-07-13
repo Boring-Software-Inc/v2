@@ -5,7 +5,7 @@ import { type RuleDefinition, ruleRef } from "./define.ts";
 import { englishOnly } from "./english-only.ts";
 import { honeypot } from "./honeypot.ts";
 import { maxFilesChanged } from "./max-files-changed.ts";
-import { minMergedPrs } from "./min-merged-prs.ts";
+import { minMergedPrs, minMergedPrsV2 } from "./min-merged-prs.ts";
 import { prRateLimit } from "./pr-rate-limit.ts";
 import { profileReadme } from "./profile-readme.ts";
 
@@ -25,7 +25,9 @@ function register(rule: RuleDefinition): void {
 }
 
 register(accountAge);
+// @1 stays registered (frozen) so stored runs stay interpretable; @2 is current.
 register(minMergedPrs);
+register(minMergedPrsV2);
 register(prRateLimit);
 register(maxFilesChanged);
 register(englishOnly);

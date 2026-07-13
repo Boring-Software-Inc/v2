@@ -4,7 +4,7 @@ import { defineRule } from "./define.ts";
 import { getRule, listRules } from "./registry.ts";
 
 describe("registry", () => {
-	test("every launch rule is registered; ai-review carries @1 AND @2", () => {
+	test("every launch rule is registered; ai-review + min-merged-prs carry @1 AND @2", () => {
 		const refs = listRules().map((r) => r.ref);
 		expect(refs.sort()).toEqual(
 			[
@@ -17,7 +17,10 @@ describe("registry", () => {
 				"english-only@1",
 				"honeypot@1",
 				"max-files-changed@1",
+				// min-merged-prs@1 stays frozen; @2 (global merges) is the current
+				// version — @1 required merges in-repo, unsatisfiable for first-timers.
 				"min-merged-prs@1",
+				"min-merged-prs@2",
 				"pr-rate-limit@1",
 				"profile-readme@1",
 			].sort(),

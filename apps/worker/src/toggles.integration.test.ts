@@ -57,6 +57,7 @@ const freshReads = {
 			publicRepos: 0,
 			profileText: null,
 			mergedInRepo: 0,
+			mergedElsewhere: 0,
 			recentChangeRequestTimes: [],
 			isOrgMember: false,
 			isMaintainer: false,

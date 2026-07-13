@@ -109,8 +109,28 @@ export type RuleResult = z.infer<typeof ruleResultSchema>;
 export const accountAgeConfigSchema = z.object({
 	minDays: z.number().int().min(0),
 });
+/** @1 — FROZEN. Stored `min-merged-prs@1` runs validate against this forever. */
 export const minMergedPrsConfigSchema = z.object({
 	min: z.number().int().min(0),
+});
+/**
+ * @2 config. `.describe()` on every field is the rule-owned label/help the
+ * generated /rules form reads (never the raw key). The meaning changed: `min`
+ * now counts merges in OTHER people's repos.
+ */
+export const minMergedPrsConfigSchemaV2 = z.object({
+	min: z
+		.number()
+		.int()
+		.min(0)
+		.default(1)
+		.describe("minimum merged change requests in other people's repos"),
+	trustedAfter: z
+		.number()
+		.int()
+		.min(1)
+		.default(1)
+		.describe("merges in this repo that exempt a proven local contributor"),
 });
 export const prRateLimitConfigSchema = z.object({
 	maxPerWindow: z.number().int().min(1),
@@ -148,11 +168,12 @@ export const RULE_CATALOG = [
 	},
 	{
 		ruleId: "min-merged-prs",
-		version: 1,
+		version: 2,
 		name: "merged change requests",
-		blurb: "requires N merged change requests in this repo.",
-		configSchema: minMergedPrsConfigSchema,
-		defaultConfig: { min: 0 },
+		blurb:
+			"requires N merged change requests in OTHER people's repos — proof someone else accepted their work.",
+		configSchema: minMergedPrsConfigSchemaV2,
+		defaultConfig: { min: 1, trustedAfter: 1 },
 		optIn: false,
 	},
 	{

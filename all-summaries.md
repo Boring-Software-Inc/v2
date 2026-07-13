@@ -1183,3 +1183,26 @@ by the year-long story and the single-run/public path) so every run reads real;
 fixed a latent seed bug where a decided review's `decided_at` could land in the
 future (broke series[23] === value) by clamping to `now`. Checks: typecheck all,
 biome, boundaries, 216 tests.
+
+**Unit — min-merged-prs@2 (fix an unsatisfiable rule).** @1 required merged change
+requests IN THIS repo — unsatisfiable for any first-timer (can't merge here without
+merging here), silently banning new contributors with a lying "wait" remedy.
+Shipped @2 (leaving @1 frozen + registered so stored runs stay interpretable):
+the requirement is now GLOBAL merged CRs EXCLUDING repos the contributor owns
+(a single `author:X is:pr is:merged -user:X` search) — "someone else accepted
+their work", and unforgeable by a self-created self-merge. Extended the
+ForgeAdapter contributor read with `mergedElsewhere: number | null` (null, not 0,
+on a failed read → the rule SKIPS, never guesses) threaded through the worker's
+RuleContext. `mergedInRepo` became an EXEMPTION (a proven local contributor past
+`trustedAfter` passes regardless of global count). Config `{ min: 1,
+trustedAfter: 1 }` with `.describe()` on every field — safe because the rule is
+non-baseline (off until enabled) and `min: 1` is always satisfiable (contribute
+anywhere you don't own), the property @1 lacked. remedy honestly `wait` with a
+threshold-free waitHint; publicEvidence exposes observed counts only. Ownership
+exclusion covers the stated attack; push-to-others'-repos isn't a cheap search
+qualifier and is a recorded limitation. Tests: @1 frozen behavior pinned; @2
+pass/fail/skip + the exemption (trusted-local, zero-global ⇒ pass) + global-count-
+unavailable ⇒ skip; a reads test proving the search excludes owned repos and
+degrades to null; leak-invariant + registry table updated. History proven
+untouched: `replay --corpus` = 15 · 13 unchanged · 2 flips · 0 skipped. Checks:
+typecheck all, biome, boundaries, 223 tests.

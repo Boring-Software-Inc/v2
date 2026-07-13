@@ -1683,3 +1683,53 @@ facts); the page now consumes them.
   fixed: a decided review's `decided_at` could land in the future, counting in
   queue depth but not the pending count (breaking series[23] === value) — clamped
   to `now`.
+
+### min-merged-prs@2 — an unsatisfiable rule, fixed by versioning
+
+@1 required `contributor.mergedInRepo >= min` — merged change requests IN THIS
+repo. That is unsatisfiable for any first-timer (to merge here you must open here;
+to be allowed to open you must already have merged here). A repo with `min: 1`
+silently banned every new contributor, forever; its "wait" remedy was a lie.
+
+- **Shipped as @2; @1 is FROZEN and registered, byte-for-byte.** Stored `@1` runs
+  reference it forever (versioning law). Replay proves history is untouched:
+  `bun run replay --corpus …` → **15 runs · 13 unchanged · 2 flips · 0 skipped**
+  (the two flips are the pre-existing unit-1 gate-reachability + unit-5 deny-floor
+  flips on `account-age@1`, NOT min-merged-prs).
+- **New meaning: GLOBAL merged change requests, excluding repos the contributor
+  owns.** The real signal is "someone else reviewed and accepted their work."
+  Without the exclusion an attacker self-creates a repo, self-merges a PR, and
+  fakes the check in 90 seconds.
+- **Exclusion implementation + its honest limit.** The read adds ONE GitHub
+  search — `author:X is:pr is:merged -user:X` — and takes `total_count`. The
+  `-user:X` qualifier drops repos the contributor OWNS (the stated attack vector).
+  "Repos they can PUSH to" (collaborator on someone else's repo) is NOT
+  expressible as a search qualifier and would need a per-repo permission call per
+  result — rate-limit-heavy, beyond the one-page MVP read. So @2 excludes by
+  OWNERSHIP; the self-owned self-merge (the 90-second attack) is closed, and the
+  narrower collaborator case is a recorded limitation, not a silent gap.
+- **Degrades honestly.** `ContributorProfile.mergedElsewhere` is `number | null`;
+  null (not 0) on a failed search — 0 would read as "no reputation". The rule
+  SKIPS when the contributor read or the global count is unavailable (§6), never
+  guesses.
+- **`mergedInRepo` became an EXEMPTION, not a requirement (owner decision).** A
+  proven local contributor (`mergedInRepo >= trustedAfter`) passes regardless of
+  their global count — you don't re-gate someone the repo already trusts. The
+  count stays in evidence either way; it's a free trust signal.
+- **Config default: `{ min: 1, trustedAfter: 1 }` — justified.** min-merged-prs is
+  NON-baseline (absent from the derived default), so a fresh install never runs it
+  — the default applies ONLY when a maintainer explicitly enables it. At that
+  point `min: 1` asks for a single externally-accepted merge — the minimal honest
+  reputation floor — and is ALWAYS satisfiable (contribute to any repo you don't
+  own), the exact property @1 lacked. `trustedAfter: 1` exempts anyone who has
+  already landed one merge in THIS repo. Safe (satisfiable, off-by-default) and
+  meaningful. Every config field carries `.describe()` (rule-owned form copy).
+- **remedy is now honestly `wait`** (contribute elsewhere and it clears) with a
+  `waitHint` that prints only the remainder ("it clears after N more accepted
+  merges elsewhere"), never the configured threshold — the leak-invariant test
+  covers it. publicEvidence exposes observed counts only (`mergedElsewhere`,
+  `mergedInRepo`); `min`/`trustedAfter` stay gated.
+- **Catalog → @2; baseline unchanged.** `deriveDefaultWorkflow` derives from
+  `DEFAULT_WORKFLOW`, which never referenced min-merged-prs, so no baseline/derive
+  edit was needed; `ruleExecutes` and the derived default still agree (both keyed
+  off the same baseline set).

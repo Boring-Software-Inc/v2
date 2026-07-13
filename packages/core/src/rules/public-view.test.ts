@@ -17,7 +17,14 @@ import {
 /** so the test proves the thresholds are dropped, not merely absent. */
 const SAMPLE_EVIDENCE: Record<string, Record<string, unknown>> = {
 	"account-age": { accountAgeDays: 2038, minDays: 7 },
-	"min-merged-prs": { mergedInRepo: 3, min: 5 },
+	// @2 evidence — observed counts AND both thresholds, so the leak guard proves
+	// `min` and `trustedAfter` are dropped, not merely absent.
+	"min-merged-prs": {
+		mergedElsewhere: 2,
+		mergedInRepo: 3,
+		min: 5,
+		trustedAfter: 3,
+	},
 	"pr-rate-limit": {
 		count: 2,
 		maxPerWindow: 1,

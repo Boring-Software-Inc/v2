@@ -53,6 +53,12 @@ export interface ContributorProfile {
 	profileText: string | null;
 	/** Merged change requests by this contributor in the subject repo. */
 	mergedInRepo: number;
+	/**
+	 * Merged change requests by this contributor in repos they do NOT own — the
+	 * "someone else accepted their work" signal (min-merged-prs@2). null when the
+	 * read failed, so the rule can skip honestly rather than guess.
+	 */
+	mergedElsewhere: number | null;
 	/** ISO timestamps of the contributor's recent change requests, newest first. */
 	recentChangeRequestTimes: string[];
 	/** Whether the contributor is a member/owner of the repo's org. */

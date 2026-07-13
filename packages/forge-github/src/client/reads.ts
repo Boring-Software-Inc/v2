@@ -113,27 +113,39 @@ export class GithubReads {
 			public_repos: number;
 			bio: string | null;
 		};
-		const [merged, recent, permission, profileReadme] = await Promise.all([
-			this.get(
-				repoFullName,
-				`/search/issues?q=${encodeURIComponent(
-					`repo:${repoFullName} author:${login} is:pr is:merged`,
-				)}&per_page=1`,
-			).catch(() => null) as Promise<{ total_count: number } | null>,
-			this.get(
-				repoFullName,
-				`/search/issues?q=${encodeURIComponent(
-					`author:${login} is:pr created:>=${recentWindowIso()}`,
-				)}&per_page=100`,
-			).catch(() => null) as Promise<{
-				items: { created_at: string }[];
-			} | null>,
-			this.get(
-				repoFullName,
-				`/repos/${repoFullName}/collaborators/${login}/permission`,
-			).catch(() => null) as Promise<{ permission: string } | null>,
-			this.readFile(`${login}/${login}`, "README.md", "HEAD").catch(() => null),
-		]);
+		const [merged, mergedElsewhere, recent, permission, profileReadme] =
+			await Promise.all([
+				this.get(
+					repoFullName,
+					`/search/issues?q=${encodeURIComponent(
+						`repo:${repoFullName} author:${login} is:pr is:merged`,
+					)}&per_page=1`,
+				).catch(() => null) as Promise<{ total_count: number } | null>,
+				// GLOBAL merged CRs, EXCLUDING repos the contributor owns (`-user:X`),
+				// so a self-created + self-merged PR can't manufacture reputation
+				// (min-merged-prs@2). null on failure ⇒ the rule skips, never guesses.
+				this.get(
+					repoFullName,
+					`/search/issues?q=${encodeURIComponent(
+						`author:${login} is:pr is:merged -user:${login}`,
+					)}&per_page=1`,
+				).catch(() => null) as Promise<{ total_count: number } | null>,
+				this.get(
+					repoFullName,
+					`/search/issues?q=${encodeURIComponent(
+						`author:${login} is:pr created:>=${recentWindowIso()}`,
+					)}&per_page=100`,
+				).catch(() => null) as Promise<{
+					items: { created_at: string }[];
+				} | null>,
+				this.get(
+					repoFullName,
+					`/repos/${repoFullName}/collaborators/${login}/permission`,
+				).catch(() => null) as Promise<{ permission: string } | null>,
+				this.readFile(`${login}/${login}`, "README.md", "HEAD").catch(
+					() => null,
+				),
+			]);
 		const perm = permission?.permission ?? "none";
 		return {
 			login,
@@ -144,6 +156,8 @@ export class GithubReads {
 			publicRepos: user.public_repos,
 			profileText: profileReadme ?? user.bio,
 			mergedInRepo: merged?.total_count ?? 0,
+			// null (not 0) on a failed read — 0 would falsely read as "no reputation".
+			mergedElsewhere: mergedElsewhere ? mergedElsewhere.total_count : null,
 			recentChangeRequestTimes: (recent?.items ?? []).map((i) => i.created_at),
 			isOrgMember: perm === "admin" || perm === "maintain" || perm === "write",
 			isMaintainer: perm === "admin" || perm === "maintain" || perm === "write",

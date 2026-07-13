@@ -34,6 +34,7 @@ export function fixtureContributor(
 		publicRepos: 8,
 		profileText: "I build things. Mostly things that build other things.",
 		mergedInRepo: 3,
+		mergedElsewhere: 4,
 		recentChangeRequestTimes: [],
 		isOrgMember: false,
 		isMaintainer: false,

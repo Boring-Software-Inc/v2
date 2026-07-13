@@ -76,6 +76,7 @@ const freshReads = {
 			publicRepos: 0,
 			profileText: null,
 			mergedInRepo: 0,
+			mergedElsewhere: 0,
 			recentChangeRequestTimes: [],
 			isOrgMember: false,
 			isMaintainer: false,
@@ -125,7 +126,10 @@ describe("moderation queue = paused run", () => {
 		expect(run.rows[0].status).toBe("paused");
 		expect(run.rows[0].verdict).toBe("needs_review");
 
-		const items = await moderationServices.listPendingItems(db, "Codertocat/Hello-World");
+		const items = await moderationServices.listPendingItems(
+			db,
+			"Codertocat/Hello-World",
+		);
 		expect(items).toHaveLength(1);
 		expect(items[0]?.runId).toBe(run.rows[0].id);
 		expect(items[0]?.nodeId).toBe("moderated@1:mod");
@@ -133,7 +137,10 @@ describe("moderation queue = paused run", () => {
 	});
 
 	test("deny resumes down the deny edge ⇒ block; item decided; surface re-emitted", async () => {
-		const items = await moderationServices.listPendingItems(db, "Codertocat/Hello-World");
+		const items = await moderationServices.listPendingItems(
+			db,
+			"Codertocat/Hello-World",
+		);
 		const item = items[0];
 		if (!item) {
 			throw new Error("no pending item");
@@ -168,7 +175,9 @@ describe("moderation queue = paused run", () => {
 		expect(kinds).toContain("block");
 		expect(kinds.filter((k) => k === "comment").length).toBe(2);
 
-		expect(await moderationServices.listPendingItems(db, "Codertocat/Hello-World")).toHaveLength(0);
+		expect(
+			await moderationServices.listPendingItems(db, "Codertocat/Hello-World"),
+		).toHaveLength(0);
 
 		const second = await moderationServices.decideModerationItem(pool, boss, {
 			itemId: item.id,
@@ -233,7 +242,10 @@ async function pauseT4Run(deliveryId: string) {
 		throw new Error("insert failed");
 	}
 	await processEvent(deps(), { eventId });
-	const items = await moderationServices.listPendingItems(db, "Codertocat/Hello-World");
+	const items = await moderationServices.listPendingItems(
+		db,
+		"Codertocat/Hello-World",
+	);
 	const item = items[0];
 	if (!item) {
 		throw new Error("no pending item");
@@ -343,7 +355,10 @@ describe("deny floor — deny with no deny edge never fails open", () => {
 		};
 		await processEvent({ ...deps(), reads: brokenReads }, { eventId });
 
-		const items = await moderationServices.listPendingItems(db, "Codertocat/Hello-World");
+		const items = await moderationServices.listPendingItems(
+			db,
+			"Codertocat/Hello-World",
+		);
 		const item = items.find((i) => i.nodeId === "run:degraded");
 		if (!item) {
 			throw new Error("no degraded item");

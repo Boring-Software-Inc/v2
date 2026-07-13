@@ -94,6 +94,7 @@ export async function buildRuleContext(
 					publicRepos: contributor.publicRepos,
 					profileText: contributor.profileText,
 					mergedInRepo: contributor.mergedInRepo,
+					mergedElsewhere: contributor.mergedElsewhere,
 					recentChangeRequestTimes: contributor.recentChangeRequestTimes,
 					isOrgMember: contributor.isOrgMember,
 					isMaintainer: contributor.isMaintainer,
