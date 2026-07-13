@@ -1251,3 +1251,23 @@ READS well — the script proves mechanics, a human reads the thread once. Impor
 `COMMENT_MARKER`/`CHECK_NAME` from `@tripwire/forge-github` (added to root
 devDependencies) rather than hardcoding drift-prone tokens. Checks: typecheck all,
 biome, boundaries, 229 tests (the live script is not part of `bun test`).
+
+**Unit — deploy to Railway, Unit 1: containerize (§13).** Three Dockerfiles built
+from the monorepo root. api + worker: `oven/bun:1.3-slim`, run TypeScript
+directly (no compile). web: build under Bun, **serve under `node:22-slim`** —
+the nitro SSR runtime is Node, not Bun, so `NITRO_PRESET=node-server` is forced
+at build (an un-forced build emitted a `Bun.serve` bundle that threw `Bun is not
+defined` under node — the generateId portability lesson again). `VITE_SITE_URL`
+is a build ARG (inlined via `import.meta.env` in seo.ts), not a runtime var;
+every other web env is runtime `process.env`. The Bun installs are NOT
+`--production` (that dropped the `@tripwire/*` workspace symlinks); since bun
+nests workspace links per package/app, the runtime stage copies the whole
+installed tree then overlays source. PORT handling: Railway injects `PORT` per
+isolated service (no cross-service collision), api binds `PORT ?? API_PORT ??
+8787`. New worker `/healthz` (`Bun.serve` on `PORT ?? WORKER_HEALTH_PORT ??
+8181`, reports `{ok,github,aiReview}`) so a dead worker is visible to Railway.
+`.dockerignore` added; `docker-compose.yml` unchanged (local dev untouched).
+Verified against the compose Postgres: all three images build + boot; api/worker
+`/healthz` return ok; web serves (307→/login under node); the production posture
+guard fires — api exits 1 without `BETTER_AUTH_SECRET`. Checks: biome + typecheck
+clean on the touched app files, boundary check passes.

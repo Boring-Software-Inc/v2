@@ -72,7 +72,10 @@ if (import.meta.main) {
 		logger,
 	});
 	const server = Bun.serve({
-		port: Number(process.env.API_PORT ?? 8787),
+		/** Railway injects `PORT` per service; `API_PORT` is the local default.
+		 * Each Railway service is an isolated container, so there is no PORT
+		 * collision across api/web the way there is on one local host. */
+		port: Number(process.env.PORT ?? process.env.API_PORT ?? 8787),
 		/** SSE connections heartbeat every 15s; Bun's default 10s idle timeout
 		 * would sever them between beats. */
 		idleTimeout: 45,

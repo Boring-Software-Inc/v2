@@ -1821,3 +1821,52 @@ incident.
 - **New dep:** `@tripwire/forge-github` in the root devDependencies, so the script
   imports `COMMENT_MARKER` + `CHECK_NAME` from the source of truth rather than
   hardcoding structural tokens that would silently drift.
+
+## Deploy to Railway (2026-07-13)
+
+Owner call: all three services on Railway (web + api + worker), Postgres on
+PlanetScale, Railway Hobby. Motivation: `APP_URL` was `localhost`, so every
+blocked contributor got a dead run link + a broken badge image (this hit a real
+contributor on dither-kit#8). Local dev (`dev:demo`, tunnel, `test:run`) stays
+unchanged — this is an infrastructure unit, application code is touched only
+where deployment genuinely requires it (PORT handling, worker healthcheck, the
+LISTEN/NOTIFY connection split in Unit 3).
+
+### Unit 1 — containerize
+
+- **Three Dockerfiles, build context = monorepo root** (`docker build -f
+  apps/<svc>/Dockerfile .`). api + worker use `oven/bun:1.3-slim` and run
+  TypeScript **directly** (Bun, no compile step). web uses `oven/bun` to build
+  and **`node:22-slim` to serve** — the nitro SSR runtime is Node, not Bun.
+- **web: `NITRO_PRESET=node-server` is forced at build.** Built under the Bun
+  image, nitro auto-detected the Bun runtime and emitted a `Bun.serve` bundle
+  that throws `Bun is not defined` under `node`. Forcing the node preset makes
+  the output node-native (the generateId portability lesson, second instance).
+- **web: `VITE_SITE_URL` is a build ARG, not a runtime env.** It is read via
+  `import.meta.env` (seo.ts) and inlined at build; a runtime value is ignored, so
+  the real public URL must be passed to `docker build`/Railway's build step or
+  canonical/OG tags bake to localhost. Everything else the web server reads
+  (`VITE_API_URL`, `BETTER_AUTH_*`, `APP_URL`, `GITHUB_OAUTH_*`, `DATABASE_URL`)
+  is runtime `process.env`.
+- **No `--production` on the Bun installs.** The `@tripwire/*` workspace packages
+  link through the ROOT devDependencies; `--production` dropped the
+  `node_modules/@tripwire` symlinks and every import failed. bun also nests
+  workspace links (`apps/<app>/node_modules`, `packages/*/node_modules`), so the
+  runtime stage copies the **whole installed tree** from the install stage, then
+  overlays real source over the manifest-only stubs (COPY merges).
+- **PORT handling.** Railway injects `PORT` per service; each service is an
+  isolated container so there is no cross-service PORT collision (the collision
+  that bit us was two heads on one local host). api now binds
+  `PORT ?? API_PORT ?? 8787`; the worker's new health server and web (nitro) both
+  honor `PORT`.
+- **Worker healthcheck.** The worker had no HTTP surface, so a crashed/hung
+  consumer was invisible. Added a tiny `Bun.serve` `/healthz` on
+  `PORT ?? WORKER_HEALTH_PORT ?? 8181` reporting `{ok, github, aiReview}` so
+  Railway's healthcheck sees a dead worker and the degradation posture is legible.
+- **`.dockerignore`** keeps `node_modules`, build output, `.demo`, `.env*`, and
+  docs out of every build context. `docker-compose.yml` is unchanged (local dev).
+- **Verified locally against the compose Postgres:** all three images build; api
+  `/healthz`→`{ok:true}`, worker `/healthz`→`{ok:true,github:disabled,...}`, web
+  serves (307→/login under node). Posture guard confirmed: api with
+  `NODE_ENV=production` and no `BETTER_AUTH_SECRET` **exits 1** ("refusing to
+  boot").

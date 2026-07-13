@@ -145,7 +145,34 @@ if (import.meta.main) {
 		await sweepActions({ db, adapter, logger });
 	});
 
+	/**
+	 * Liveness surface. The worker has no other HTTP endpoint; Railway's
+	 * healthcheck hits `/healthz` so a crashed or hung consumer is visible
+	 * instead of silently draining the queue. Binds `PORT` (Railway injects it)
+	 * with a local fallback. `github` reflects the boot credential check —
+	 * `disabled` means forge reads are off (rules skip), which is a real
+	 * degradation worth surfacing on the health page.
+	 */
+	const healthPort = Number(
+		process.env.PORT ?? process.env.WORKER_HEALTH_PORT ?? 8181,
+	);
+	const health = Bun.serve({
+		port: healthPort,
+		fetch(req) {
+			const { pathname } = new URL(req.url);
+			if (pathname === "/healthz") {
+				return Response.json({
+					ok: true,
+					github: adapter ? "live" : "disabled",
+					aiReview: makeGenerate ? "wired" : "disabled",
+				});
+			}
+			return new Response("not found", { status: 404 });
+		},
+	});
+
 	logger.info(
+		{ healthPort: health.port },
 		"worker consuming process-event + resume-run + rollup + sweep-actions",
 	);
 }

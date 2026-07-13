@@ -1,0 +1,23 @@
+# Build context is the monorepo root for every service image. Keep it lean:
+# node_modules is reinstalled inside the image, and build artifacts / local
+# state must never leak into a layer.
+**/node_modules
+**/dist
+**/.output
+**/.nitro
+**/.tanstack
+**/.vercel
+.demo
+.git
+.github
+.agents
+.claude
+*.log
+.env
+.env.*
+!.env.example
+**/.DS_Store
+coverage
+# Docs and specs are not needed at build/runtime.
+*.md
+!README.md
