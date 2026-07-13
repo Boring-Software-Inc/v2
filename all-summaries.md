@@ -1307,3 +1307,21 @@ PlanetScale AWS us-east-1 (N. Virginia), colocated. Verified: exits 0 against
 compose Postgres, exits 1 when DATABASE_URL_DIRECT is unset; 52 api/db/worker
 tests pass; typecheck all + biome + boundaries clean; api/worker images rebuilt
 and boot.
+
+**Unit — deploy, Unit 4: cut over (runbook + deploy smoke).** Owner-gated steps
+(create DB, deploy, webhook repoint, smoke PR) documented as copy-paste runbooks
+in DEPLOY.md §5; the assertable parts are scripts. New `bun run smoke:deploy`
+(zero deps) is the crux regression guard for the dead-badge/dead-link bug: it
+asserts the badge PNG `${APP_URL}/badges/view-run.png` returns 200 + image/png,
+and the public run page `${APP_URL}/runs/:id` resolves 200 UNAUTHENTICATED with
+the "powered by tripwire" footer and no login redirect — the mechanical half of
+smoke steps 4 + 5. Verified against the containerized web (badge served, 200
+image/png, ~29KB). The PR flow (steps 1–3, 6) reuses the existing
+`test:lifecycle` (real GitHub state: check conclusion on head SHA, one
+@-mention comment naming the rule, block→pass supersede + resolution + review
+present→DISMISSED). Two steps stay human by the owner's call: eyeball the badge
+renders + the run page reads right; step 7 is a maintainer-session SSE live tick
+on /activity that also proves LISTEN/NOTIFY survives the deployed direct
+connection end to end. Runbook covers deploy order + boot-health assertions
+(worker "github app credentials OK"), webhook repoint, the APP_URL fix, and
+rollback. Checks: biome clean on the new script + package.json; typecheck all.

@@ -196,10 +196,70 @@ taxes every one. Colocate the Railway region with the PlanetScale region:
 
 ---
 
-## 5. Cut over — see Unit 4
+## 5. Cut over (Unit 4)
 
-Deploy order, webhook repoint, `APP_URL`, the 7-step smoke test, and rollback are
-in **Unit 4** below.
+### 5a. Deploy all three + boot health
+
+1. Set every var from the §2 matrix on each service (secrets sealed). Set
+   `VITE_SITE_URL` as a **build variable** on web BEFORE the first build.
+2. Deploy. Confirm boot health:
+   - **web** loads (`GET /login` → 200); sign-in works (GitHub OAuth round-trips).
+   - **api** `GET /healthz` → `{"ok":true}`.
+   - **worker** logs `github app credentials OK — reads + actions live` (not the
+     "credentials invalid at boot" warning; not "GITHUB_APP_* env missing").
+   - Posture guards (assert they FIRE — see §2): removing `BETTER_AUTH_SECRET`
+     crash-loops web/api by design; never paper over it.
+
+### 5b. Repoint the webhook + set APP_URL
+
+3. GitHub App → Webhook URL: from the cloudflared tunnel to
+   **`https://<api-public-url>/webhooks/github`**. Keep the same
+   `GITHUB_WEBHOOK_SECRET`. (Local dev keeps working by repointing back — see
+   Rollback.)
+4. Set **`APP_URL`** (worker) to the **real public web URL** — THE FIX. This is
+   what makes the run link and badge in every PR comment resolve.
+
+### 5c. Smoke test — the acceptance criteria (on the SCRATCH repo, not dither-kit)
+
+Run the scripts, then eyeball the two visual steps. Any failure of the badge (4)
+or run page (5) means the deploy has NOT achieved its purpose.
+
+```sh
+# Steps 1–3 + 6: real PR → check fails on head SHA → ONE @-mention comment naming
+# the rule → push fix → block superseded + resolution comment + review dismissed.
+# Asserts REAL GitHub state via gh api (needs a non-exempt pushing account):
+bun run test:lifecycle
+
+# Step 4 + 5 (mechanical): the badge PNG and the public run page resolve over the
+# internet. SMOKE_RUN_ID = a run id from the smoke PR's comment link.
+APP_URL='https://<web-public-url>' SMOKE_RUN_ID='<run-id>' bun run smoke:deploy
+```
+
+The 7 criteria and how each is covered:
+
+1. **Open a PR that trips a rule.** — `test:lifecycle` (trips `crypto-address`).
+2. **`tripwire` check appears and FAILS on the head SHA.** — `test:lifecycle`
+   (polls GitHub's head SHA, asserts the check conclusion).
+3. **ONE comment posts, @-mentioning the contributor, naming the failing rule in
+   plain English.** — `test:lifecycle` (comment count by bot author + marker).
+4. **The "View on Tripwire" BADGE IMAGE RENDERS** (was alt text — the whole
+   point). — `smoke:deploy` asserts 200 + `image/png`; **owner eyeballs** it
+   renders in the PR.
+5. **The run link RESOLVES to a real public run page, incognito, no session**:
+   plain-English summaries, ai-review findings, no raw trace, no thresholds,
+   "powered by tripwire" footer. — `smoke:deploy` asserts 200 unauthenticated +
+   footer + no login redirect; **owner eyeballs** it reads right.
+6. **Push a fix ⇒ block comment superseded + resolution comment below it +
+   request-changes review dismissed.** — `test:lifecycle` (drives blocked →
+   passed, asserts supersede/marker/review present→DISMISSED).
+7. **`/activity` streams the run live (SSE through the deployed stack).** — with a
+   maintainer session open on `<web-public-url>/activity`, watch the smoke PR's
+   run resolve in place (evaluating… → verdict) without a refresh. The web SSR
+   proxies the browser's `EventSource` to the api's `/events/stream`; a live tick
+   proves LISTEN/NOTIFY survives the deployed direct connection end to end.
+
+If ANY of 4 or 5 fail, the deploy has not achieved its purpose — that is the
+entire reason for this work.
 
 ---
 

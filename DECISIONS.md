@@ -1926,3 +1926,31 @@ LISTEN/NOTIFY connection split in Unit 3).
 - **Region pair (recorded):** Northern Virginia — Railway `us-east4` +
   PlanetScale AWS `us-east-1`. Colocated because pg-boss polls and rules are
   chatty; a cross-continent hop taxes every query.
+
+### Unit 4 — cut over (runbook + deploy smoke)
+
+- **Owner-gated, scripted where it can be.** Creating the DB, deploying,
+  repointing the webhook, and pushing the smoke PR are the owner's (secrets never
+  enter an agent session). The assertable parts are scripts the owner runs.
+- **`bun run smoke:deploy` (`scripts/smoke-deploy.ts`, zero deps) is the crux
+  regression guard:** the badge PNG (`${APP_URL}/badges/view-run.png`) returns
+  200 + `image/png` (not the alt-text/404 of the localhost bug), and the public
+  run page (`${APP_URL}/runs/:id`) resolves 200 UNAUTHENTICATED with the "powered
+  by tripwire" footer and no login redirect. This is the mechanical half of smoke
+  steps 4 + 5 — the exact surfaces the deploy exists to fix (dither-kit#8).
+  *Verified against the containerized web: the badge is served, 200 image/png,
+  ~29KB.*
+- **The PR flow (steps 1–3, 6) reuses `bun run test:lifecycle`** — it already
+  asserts REAL GitHub state (check conclusion on head SHA, one @-mention comment
+  by the bot naming the rule, block→pass supersede + resolution + review
+  present→DISMISSED→new). No duplicate script.
+- **Two steps stay human by design:** the owner eyeballs that the badge *renders*
+  in the PR and the run page *reads* right (§10 taste — plain-English, no raw
+  trace/thresholds). Step 7 (SSE live tick on `/activity`) is a maintainer-session
+  eyeball that also proves LISTEN/NOTIFY survives the deployed direct connection
+  end to end.
+- **Runbook in DEPLOY.md §5:** deploy order + boot-health assertions (worker logs
+  "github app credentials OK"), webhook repoint to `https://<api>/webhooks/github`,
+  set `APP_URL` to the real web URL, the 7-criteria smoke mapped to the scripts,
+  and rollback (Railway redeploy / revert+push / repoint webhook back to the
+  tunnel / PlanetScale branch restore).

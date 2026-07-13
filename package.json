@@ -24,7 +24,8 @@
 		"replay": "bun run apps/worker/src/jobs/replay.ts",
 		"test:run": "bun run scripts/trigger-test-run.ts",
 		"test:lifecycle": "bun run scripts/test-lifecycle.ts",
-		"verify:planetscale": "bun run scripts/verify-planetscale.ts"
+		"verify:planetscale": "bun run scripts/verify-planetscale.ts",
+		"smoke:deploy": "bun run scripts/smoke-deploy.ts"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.5",
