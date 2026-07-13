@@ -56,18 +56,40 @@ function usePersonaActions() {
 	return { busy, pick, reset };
 }
 
+type PanelVariant = "list" | "grid";
+
 /** The persona list — shared by the floating switcher and the /login panel. */
-export function DevPersonaPanel({ className }: { className?: string }) {
+export function DevPersonaPanel({
+	className,
+	variant = "list",
+}: {
+	className?: string;
+	variant?: PanelVariant;
+}) {
 	if (!import.meta.env.DEV) {
 		return null;
 	}
-	return <PersonaList className={className} />;
+	return <PersonaList className={className} variant={variant} />;
 }
 
-function PersonaList({ className }: { className?: string }) {
+function PersonaList({
+	className,
+	variant = "list",
+}: {
+	className?: string;
+	variant?: PanelVariant;
+}) {
 	const { busy, pick, reset } = usePersonaActions();
+	const grid = variant === "grid";
 	return (
-		<div className={cn("flex flex-col gap-1 text-left", className)}>
+		<div
+			className={cn(
+				grid
+					? "grid grid-cols-2 gap-1.5 text-left"
+					: "flex flex-col gap-1 text-left",
+				className,
+			)}
+		>
 			{PERSONAS.map((persona) => (
 				<button
 					key={persona.id}
@@ -75,15 +97,21 @@ function PersonaList({ className }: { className?: string }) {
 					disabled={busy !== null}
 					onClick={() => pick(persona.id)}
 					className={cn(
-						"flex flex-col gap-0.5 rounded-md px-2.5 py-2 transition-colors",
+						"flex flex-col gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors",
 						"hover:bg-surface-1 disabled:opacity-50",
+						grid && "h-full border border-border/60",
 						busy === persona.id && "bg-surface-1",
 					)}
 				>
 					<span className="font-medium text-foreground text-xs">
 						{persona.label}
 					</span>
-					<span className="text-[11px] text-muted-foreground">
+					<span
+						className={cn(
+							"text-[11px] text-muted-foreground",
+							grid && "line-clamp-2",
+						)}
+					>
 						{persona.description}
 					</span>
 				</button>
@@ -92,7 +120,10 @@ function PersonaList({ className }: { className?: string }) {
 				type="button"
 				disabled={busy !== null}
 				onClick={() => reset()}
-				className="mt-1 rounded-md px-2.5 py-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-surface-1 hover:text-foreground disabled:opacity-50"
+				className={cn(
+					"rounded-md px-2.5 py-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-surface-1 hover:text-foreground disabled:opacity-50",
+					grid ? "col-span-2 text-center" : "mt-1",
+				)}
 			>
 				reset dev data
 			</button>

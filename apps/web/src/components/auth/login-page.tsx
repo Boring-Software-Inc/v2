@@ -35,15 +35,15 @@ export function LoginPage() {
 				>
 					continue with github
 				</Button>
-				{import.meta.env.DEV ? (
-					<div className="mt-8 w-full border-border border-t pt-5">
-						<p className="mb-2 text-[11px] text-muted-foreground uppercase tracking-wide">
-							dev personas
-						</p>
-						<DevPersonaPanel />
-					</div>
-				) : null}
 			</div>
+			{import.meta.env.DEV ? (
+				<div className="mt-8 w-full max-w-sm border-border border-t pt-5">
+					<p className="mb-2.5 text-center text-[11px] text-muted-foreground uppercase tracking-wide">
+						dev personas
+					</p>
+					<DevPersonaPanel variant="grid" />
+				</div>
+			) : null}
 		</div>
 	);
 }
