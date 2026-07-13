@@ -1070,3 +1070,14 @@ inline backticks → mono `<code>` chips (sanitized). Wrote the type+spacing sca
 into the tripwire-design skill. Hygiene: severity map typed against FindingSeverity,
 deleted the translate-y-[-1px] hack, feed truncation fog reuses .fluted-glass.
 Checks: typecheck all, biome, boundaries, 204 tests.
+
+**Unit — ai-review@2 (backticked identifiers).** A finding's reason now quotes the
+code it accuses in backticks — a material prompt change, so a version bump.
+instructions.md (@1) stays byte-identical and registered (stored runs stay
+interpretable); @2 uses instructions-v2.md (= @1 + the backtick output rule).
+rule.ts became a defineAiReview(version, instructions) factory registering both;
+RULE_CATALOG pins ai-review to @2 so newly-enabled repos run it. The findings
+renderer already turns inline backticks into sanitized mono <code> chips, handling
+@2 backticked and @1 plain notes alike. Replay unchanged: 15 runs · 13 unchanged ·
+2 flips · 0 skipped (replay reuses stored snapshots/envelopes, never re-invokes the
+model). Checks: typecheck all, biome, boundaries, 204 tests.

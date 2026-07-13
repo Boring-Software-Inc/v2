@@ -1505,3 +1505,23 @@ verdict).
   `translate-y-[-1px]` baseline hack (the grid handles it); the feed's
   truncation fog now reuses the existing `.fluted-glass` class (masked to fade
   in) instead of a second progressive-blur primitive.
+
+### ai-review@2 — backticked identifiers (version bump)
+
+The finding reason must quote the code it accuses (`secrets.GITHUB_TOKEN`,
+`pull_request`, `.github/workflows/exfil.yml`) so it reads as evidence, not
+prose. That's a material prompt change ⇒ a new version.
+
+- `instructions.md` (@1) is untouched, byte-for-byte; `@1` stays registered so
+  stored @1 runs remain interpretable (versioning law). `@2` uses a new
+  `instructions-v2.md` = @1 + one output rule about backticks. `rule.ts` is a
+  small factory (`defineAiReview(version, instructions)`) registering both.
+- `RULE_CATALOG` pins ai-review to `@2`, so a repo that enables it now runs the
+  current version; existing @1 configs keep working.
+- The findings renderer already parses inline backticks → `<code>` chips
+  (surface-2 mono, sanitized as text) — it handles @2's backticked notes and
+  @1's plain notes identically.
+- **Replay unchanged:** `bun run replay --corpus` = 15 runs · 13 unchanged · 2
+  flips · 0 skipped (the same unit-1 gate-reachability + unit-5 deny-floor
+  flips). Replay reuses each run's stored snapshot and stored step envelopes and
+  never re-invokes the model, so a prompt change cannot move a verdict.

@@ -6,13 +6,17 @@ import {
 import { z } from "zod";
 import type { RuleContext } from "../../context.ts";
 import { defineRule } from "../define.ts";
-import instructions from "./instructions.md" with { type: "text" };
+import instructionsV1 from "./instructions.md" with { type: "text" };
+import instructionsV2 from "./instructions-v2.md" with { type: "text" };
 import template from "./template.md" with { type: "text" };
 
 /**
- * ai-review@1 (§8) — bounded tool loop, structured output, injected effect.
- * `instructions.md` + `template.md` are versioned WITH this rule: a material
- * prompt change is `ai-review@2`. The full trace persists in evidence.
+ * ai-review (§8) — bounded tool loop, structured output, injected effect. The
+ * instructions are versioned WITH the rule (a material prompt change bumps the
+ * version): `@1` keeps `instructions.md` byte-for-byte so its stored runs stay
+ * interpretable; `@2` adds the backticked-identifier rule (`instructions-v2.md`)
+ * so a finding's reason quotes the code it accuses. The full trace persists in
+ * evidence. `template.md` (the per-run prompt) is shared and unversioned.
  */
 
 const DIFF_CHAR_BUDGET = 60_000;
@@ -55,51 +59,59 @@ function renderPrompt(ctx: RuleContext): string | null {
 		.replace("{{diff}}", clipDiff(diff));
 }
 
-export const aiReview = defineRule({
-	id: "ai-review",
-	version: 1,
-	configSchema: aiReviewConfigSchema,
-	resultSchema: z.object({
-		output: aiReviewOutputSchema,
-		/** Full invocation trace — messages, tool calls, tokens, cost. */
-		trace: z.unknown(),
-	}),
-	async evaluate(ctx, config) {
-		if (!ctx.generate) {
+/** The rule is identical across versions except for its instruction prompt. */
+function defineAiReview(version: number, instructions: string) {
+	return defineRule({
+		id: "ai-review",
+		version,
+		configSchema: aiReviewConfigSchema,
+		resultSchema: z.object({
+			output: aiReviewOutputSchema,
+			/** Full invocation trace — messages, tool calls, tokens, cost. */
+			trace: z.unknown(),
+		}),
+		async evaluate(ctx, config) {
+			if (!ctx.generate) {
+				return {
+					status: "skipped",
+					reason: "generate unavailable (no AI credentials)",
+				};
+			}
+			const prompt = renderPrompt(ctx);
+			if (prompt === null) {
+				return { status: "skipped", reason: "not a change-request event" };
+			}
+			const response = await ctx.generate({
+				model: config.model,
+				maxSteps: config.maxSteps,
+				instructions,
+				prompt,
+			});
+			const parsed = aiReviewOutputSchema.safeParse(response.output);
+			if (!parsed.success) {
+				return {
+					status: "skipped",
+					reason: `review output failed the muzzle schema: ${parsed.error.issues[0]?.message}`,
+				};
+			}
+			const output: AiReviewOutput = parsed.data;
 			return {
-				status: "skipped",
-				reason: "generate unavailable (no AI credentials)",
+				status: "evaluated",
+				passed: output.verdict === "pass",
+				evidence: { output, trace: response.trace },
 			};
-		}
-		const prompt = renderPrompt(ctx);
-		if (prompt === null) {
-			return { status: "skipped", reason: "not a change-request event" };
-		}
-		const response = await ctx.generate({
-			model: config.model,
-			maxSteps: config.maxSteps,
-			instructions,
-			prompt,
-		});
-		const parsed = aiReviewOutputSchema.safeParse(response.output);
-		if (!parsed.success) {
-			return {
-				status: "skipped",
-				reason: `review output failed the muzzle schema: ${parsed.error.issues[0]?.message}`,
-			};
-		}
-		const output: AiReviewOutput = parsed.data;
-		return {
-			status: "evaluated",
-			passed: output.verdict === "pass",
-			evidence: { output, trace: response.trace },
-		};
-	},
-	// Keep the structured output (verdict, summary, confidence, findings); the
-	// sibling `trace` (tool calls, tokens, prompt flow) stays gated — internals
-	// + mildly evasion-aiding (§10).
-	publicEvidence: (e) => ({ output: e.output }),
-	summarize: (e) => e.output.summary,
-	// The model reviews the change content — fixable in the change itself.
-	remedy: "revise",
-});
+		},
+		// Keep the structured output (verdict, summary, confidence, findings); the
+		// sibling `trace` (tool calls, tokens, prompt flow) stays gated — internals
+		// + mildly evasion-aiding (§10).
+		publicEvidence: (e) => ({ output: e.output }),
+		summarize: (e) => e.output.summary,
+		// The model reviews the change content — fixable in the change itself.
+		remedy: "revise",
+	});
+}
+
+/** @1 — unchanged prompt; stored @1 runs stay interpretable (versioning law). */
+export const aiReview = defineAiReview(1, instructionsV1);
+/** @2 — the current version; findings quote code in backticks. */
+export const aiReviewV2 = defineAiReview(2, instructionsV2);

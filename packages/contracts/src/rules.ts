@@ -212,7 +212,9 @@ export const RULE_CATALOG = [
 	},
 	{
 		ruleId: "ai-review",
-		version: 1,
+		// @2 — findings quote code in backticks. @1 stays registered for stored
+		// runs, but a repo enabling ai-review now pins the current version.
+		version: 2,
 		name: "ai review",
 		blurb: "off until you turn it on — ai review costs tokens.",
 		configSchema: aiReviewConfigSchema,

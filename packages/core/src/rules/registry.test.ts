@@ -4,12 +4,15 @@ import { defineRule } from "./define.ts";
 import { getRule, listRules } from "./registry.ts";
 
 describe("registry", () => {
-	test("all 9 launch rules are registered at @1", () => {
+	test("every launch rule is registered; ai-review carries @1 AND @2", () => {
 		const refs = listRules().map((r) => r.ref);
 		expect(refs.sort()).toEqual(
 			[
 				"account-age@1",
+				// ai-review@1 stays registered so stored @1 runs remain interpretable;
+				// @2 (backticked findings) is the current version.
 				"ai-review@1",
+				"ai-review@2",
 				"crypto-address@1",
 				"english-only@1",
 				"honeypot@1",
