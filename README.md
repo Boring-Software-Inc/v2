@@ -44,3 +44,30 @@ bun run check              # biome
 bun run check:boundaries   # §3 dependency arrows
 bun test
 ```
+
+## live E2E (nightly / pre-release, not per-PR CI)
+
+`bun test` proves the logic against a fake adapter. Two scripts prove the real
+thing against GitHub — they are §11 "live E2E": they need real credentials, a
+running worker, a tunnel routing the sacrificial repo's webhooks, and a pushing
+account that is **not exempt** (not an org member / maintainer) on the repo, or
+nothing trips.
+
+```
+bun run test:run         # push an empty commit → one fresh run lands
+bun run test:lifecycle   # drive one PR through blocked → passed → blocked and
+                         # assert the comment thread, the request-changes review,
+                         # and the tripwire check against REAL GitHub state
+```
+
+`test:lifecycle` is the regression guard for the incident where a block→pass
+resolution was edited in place and vanished (dither-kit#8). It exits non-zero on
+any assertion failure and wipes its own PR/branch first, so re-running is a clean
+slate. Config is env-routed (`TEST_REPO`, `TEST_BASE`, `TEST_LIFECYCLE_BRANCH`,
+`TEST_WORKDIR`, `TEST_TIMEOUT_MS`); it trips `crypto-address` (a wallet address in
+the diff), so it needs no `workflow` OAuth scope.
+
+**Not automated (by design):** whether the copy READS well. The script proves the
+mechanics — one comment vs. a struck-through supersede + a fresh resolution, the
+dismissed review, the flipped check. A human reads the thread once; taste stays
+human.

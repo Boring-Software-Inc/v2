@@ -1782,3 +1782,42 @@ SUPERSEDES the earlier "one comment, always upsert" decision.
   latest run per change request may post a transition or dismiss a review; a stale
   run's comment/dismiss row is superseded. The sweeper's staleness guard is
   untouched.
+
+### Live E2E for the comment lifecycle — `bun run test:lifecycle` (§11)
+
+The comment-lifecycle integration tests prove the LOGIC against a fake adapter;
+they do not prove GitHub accepts our calls or that the THREAD ends up correct.
+The block→pass transition is the exact flow that broke on a real contributor's PR
+(dither-kit#8), so it earns a scripted live E2E — a regression guard for that
+incident.
+
+- **Tier: §11 live E2E — nightly / pre-release only, NOT per-PR CI.** It needs
+  real credentials, a running worker, a tunnel routing the sacrificial repo's
+  webhooks, and a non-exempt pushing account. Documented in the README; not wired
+  into `bun test` or the CI gate.
+- **Asserts REAL GitHub state, never our DB.** It reads issue comments, reviews,
+  and check runs via `gh api` and drives one PR through blocked → passed → blocked,
+  asserting at each step: the number of tripwire comments (by bot author), which
+  one carries the `<!-- tripwire:run -->` marker, that a superseded comment is
+  struck and marker-less, the request-changes review's state (present →
+  DISMISSED → a new one), and the `tripwire` check conclusion on each head SHA.
+- **Trips `crypto-address`, not honeypot.** A wallet address in the diff is
+  deterministic and — unlike a `.github/workflows/**` honeypot file — needs no
+  `workflow` OAuth scope to push. Extends the existing `test:run` harness's
+  env-routing (`TEST_REPO` / `TEST_BASE` / `TEST_LIFECYCLE_BRANCH` / `TEST_WORKDIR`
+  / `TEST_TIMEOUT_MS`).
+- **Idempotent + self-diagnosing failures.** It wipes any prior lifecycle
+  PR/branch before starting (clean slate on every run), polls GITHUB'S PR head SHA
+  (not the local git SHA — so propagation lag or any local↔remote divergence can't
+  masquerade as a stall) until the `tripwire` check completes, and on timeout
+  PRINTS exactly what GitHub sees: the head vs the expected SHA, every check run on
+  that SHA ("NONE" ⇒ the run never reached GitHub — worker creds / app install /
+  webhook secret / tunnel), and the tripwire comment count. Exits non-zero on any
+  assertion failure; leaves the artifacts on failure to inspect (cleanup on
+  success only).
+- **Deliberately NOT automated: whether the copy READS well.** The script proves
+  the mechanics; a human reads the thread once. Taste stays human — stated in the
+  README and the script header.
+- **New dep:** `@tripwire/forge-github` in the root devDependencies, so the script
+  imports `COMMENT_MARKER` + `CHECK_NAME` from the source of truth rather than
+  hardcoding structural tokens that would silently drift.

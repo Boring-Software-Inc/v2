@@ -1231,3 +1231,23 @@ ten re-runs = one comment; transition supersedes old + posts new; a transition
 whose old comment was DELETED still posts (no supersede, no crash); superseded
 golden snapshot; dismiss-review PUT; the two decision queries over real Postgres.
 Goldens regenerated. Checks: typecheck all, biome, boundaries, 229 tests.
+
+**Unit — live E2E for the comment lifecycle (`bun run test:lifecycle`, §11).** The
+integration tests prove the lifecycle logic against a fake adapter; they don't
+prove GitHub accepts our calls or the thread ends up right — the block→pass
+transition is the exact flow that broke on a real PR (dither-kit#8). Added a
+scripted live E2E that drives ONE PR through blocked → passed → blocked on a
+sacrificial repo (tripping `crypto-address` with a wallet address in the diff — no
+`workflow` scope needed) and asserts REAL GitHub state via `gh api`, never our DB:
+the count of tripwire comments (by bot author), which one carries the marker, that
+a superseded comment is struck + marker-less, the request-changes review going
+present → DISMISSED → new, and the `tripwire` check conclusion on each head SHA. It
+extends the `test:run` env-routing, is idempotent (wipes its prior PR/branch first),
+polls with a timeout and a clear "is the worker up?" message, and exits non-zero on
+any assertion failure (artifacts left for inspection on failure, cleaned up on
+success). Tier documented as §11 nightly/pre-release, NOT per-PR CI (needs real
+creds + tunnel + non-exempt pusher). Explicitly NOT automated: whether the copy
+READS well — the script proves mechanics, a human reads the thread once. Imports
+`COMMENT_MARKER`/`CHECK_NAME` from `@tripwire/forge-github` (added to root
+devDependencies) rather than hardcoding drift-prone tokens. Checks: typecheck all,
+biome, boundaries, 229 tests (the live script is not part of `bun test`).
