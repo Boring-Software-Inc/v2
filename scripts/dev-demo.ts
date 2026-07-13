@@ -23,7 +23,8 @@ import {
 const DATA_DIR = join(process.cwd(), ".demo", "pgdata");
 // A fixed dev secret flips auth to "enabled" so the gates (onboarding, the
 // public-run stranger view) actually function and the persona switcher works.
-const DEV_SECRET = "tripwire-dev-demo-secret";
+// ≥32 chars to satisfy better-auth's entropy check; local-only, never a real key.
+const DEV_SECRET = "tripwire-dev-demo-secret-not-for-production-use";
 
 async function seed(): Promise<void> {
 	const { db, client } = createPgliteDb(DATA_DIR);

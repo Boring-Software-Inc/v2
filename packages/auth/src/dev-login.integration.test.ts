@@ -61,6 +61,14 @@ test("devLogin enables email/password minting; cookie resolves to the user", asy
 	});
 	expect(session?.user.email).toBe("active@tripwire.demo");
 
+	// The switcher's fallback assumption: a MISSING user is a non-ok 401 with
+	// `asResponse` (NOT a throw), so mintSession must check `ok`, not just catch.
+	const missing = await auth.api.signInEmail({
+		body: { email: "ghost@tripwire.demo", password: "tripwire-dev-persona" },
+		asResponse: true,
+	});
+	expect(missing.ok).toBe(false);
+
 	// Re-signing in the same persona works (the switcher's returning path).
 	const signIn = await auth.api.signInEmail({
 		body: { email: "active@tripwire.demo", password: "tripwire-dev-persona" },

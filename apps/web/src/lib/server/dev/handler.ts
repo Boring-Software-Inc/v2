@@ -47,17 +47,24 @@ async function mintSession(
 	email: string,
 	name: string,
 ): Promise<Response> {
+	// With `asResponse`, a missing user is a non-ok 401 (not a throw), so check
+	// `ok` before falling back to sign-up — the returning path (user exists)
+	// short-circuits here.
 	try {
-		return await auth.api.signInEmail({
+		const signIn = await auth.api.signInEmail({
 			body: { email, password: DEV_PASSWORD },
 			asResponse: true,
 		});
+		if (signIn.ok) {
+			return signIn;
+		}
 	} catch {
-		return await auth.api.signUpEmail({
-			body: { email, password: DEV_PASSWORD, name },
-			asResponse: true,
-		});
+		// fall through to sign-up
 	}
+	return await auth.api.signUpEmail({
+		body: { email, password: DEV_PASSWORD, name },
+		asResponse: true,
+	});
 }
 
 async function setupPersona(
