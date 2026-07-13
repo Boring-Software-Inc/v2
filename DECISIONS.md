@@ -1465,3 +1465,43 @@ Live bring-up surfaced two blockers in the Setup URL callback:
   installs land on `/setup`), the `__root` gate now funnels any signed-in
   request carrying `?installation_id=…` into `/onboarding/setup` WITH its search
   params, before the onboarding redirect can drop them.
+
+### Run page — step + findings enrichment (§8/§10, owner Paper design)
+
+An enrichment of the live run page (the rail/steps already existed). Fidelity
+pulled from the owner's Paper `/run/:runId`; finding SEMANTICS from the written
+spec where the two diverged (the Paper still showed old per-finding pass/fail
+badges — a finding is a negative observation and carries a SEVERITY, not a
+verdict).
+
+- **Steps.** A PASSED step stays one line: label · its `summarize()` one-liner
+  (muted, sans) · status · timing. A FAILED step expands: header, then the
+  statement (the same one-liner at 15px/24, foreground, weight 500), then
+  evidence. Colour is a budget — the status badge is the only saturated element;
+  a passed step is quiet. Step label uses the rule ref (mono), "ai review" for
+  the AI step, and a bare node kind for non-rules — never "trigger: trigger".
+- **Status/timing hug their content** (no fixed-width right gutter) — spec §3's
+  "no third edge". (The activity feed keeps its own fixed-width chip column; a
+  different surface, a different earlier decision.)
+- **`summary` now rides the FULL run view.** `toFullRunView` previously dropped
+  it ("the maintainer reads raw evidence"); the run page needs the one-liner, and
+  it's public-safe (derived from `publicEvidence`), so only the `publicEvidence`
+  carrier is stripped now.
+- **AI-review file containers.** Findings group by file into surface-1,
+  fill-only, rounded containers (raised, not nested). Header: file icon · path
+  (directory dim ~55% / basename bright + weight 500) · severity counts
+  ("3 critical · 1 note"), linking to `github.com/{repo}/blob/{sha}/{file}`. A
+  file with ≥ 3 findings collapses behind a chevron; < 3 renders inline.
+- **Finding cards** are fill-only, `rounded-md`, tinted by severity so no two
+  share a surface (critical surface-1+7% destructive · warning +6% amber · note
+  plain surface-1). Meta = severity word (its colour) + "line N" (muted); the
+  reason is the brightest text (13px/20, foreground) and links to the line. No
+  pass/fail badge.
+- **Type + spacing scale** written into `.claude/skills/tripwire-design` so it
+  isn't re-invented: mono only for rule ids/paths/code, 4px rhythm, line-heights
+  16/20/24, sizes 11/12/13/15, two horizontal axes.
+- **Hygiene.** The findings severity map is typed `Record<FindingSeverity, …>`
+  (a new severity can't render as an invisible dot); deleted the
+  `translate-y-[-1px]` baseline hack (the grid handles it); the feed's
+  truncation fog now reuses the existing `.fluted-glass` class (masked to fade
+  in) instead of a second progressive-blur primitive.

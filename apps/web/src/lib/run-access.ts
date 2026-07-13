@@ -89,15 +89,14 @@ export function toPublicRunView(view: RunView): RunView {
 }
 
 /**
- * Session render — full raw evidence, unchanged. Drops only the public-partition
- * carrier fields (they exist to feed `toPublicRunView`, never shown to a
- * maintainer, who reads the complete `evidence`).
+ * Session render — full raw evidence, plus the rule's plain-English `summary`
+ * (the run page shows it: quiet on a passed step, the statement on a failed
+ * one). Drops only the `publicEvidence` carrier, which exists solely to feed
+ * `toPublicRunView` and is never rendered.
  */
 export function toFullRunView(view: RunView): RunView {
 	return {
 		...view,
-		steps: view.steps.map(
-			({ publicEvidence: _pe, summary: _s, ...step }) => step,
-		),
+		steps: view.steps.map(({ publicEvidence: _pe, ...step }) => step),
 	};
 }

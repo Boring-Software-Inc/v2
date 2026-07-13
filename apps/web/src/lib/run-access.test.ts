@@ -215,14 +215,15 @@ describe("toPublicRunView", () => {
 });
 
 describe("toFullRunView", () => {
-	test("session view is unchanged raw evidence — carrier fields stripped", () => {
+	test("session view is unchanged raw evidence — publicEvidence stripped, summary kept", () => {
 		const full = toFullRunView(fullView);
 		expect(full.access).toBe("full");
 		// full raw evidence (thresholds + trace) intact for the maintainer.
 		expect(JSON.stringify(full)).toContain("minDays");
 		expect(JSON.stringify(full)).toContain("trace");
-		// the public-partition carriers never ship in the session view.
+		// the publicEvidence carrier never ships; but the plain-English summary
+		// stays — the run page shows it (quiet on pass, the statement on fail).
 		expect(full.steps[0]?.publicEvidence).toBeUndefined();
-		expect(full.steps[0]?.summary).toBeUndefined();
+		expect(full.steps[0]?.summary).toBe("this account is 1 days old");
 	});
 });

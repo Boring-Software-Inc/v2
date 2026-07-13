@@ -169,39 +169,26 @@ function TruncatedBody({
 			{visible.map((entry) => (
 				<EntryCard entry={entry} key={entry.event.id} />
 			))}
-			{/* Bottom progressive blur fading the tail of the visible rows, with the
-			    reveal pill. The overlay CAPTURES pointer events, so the faded rows
-			    behind it don't hover or click — only the pill does. Reveal expands
-			    the rest inline (no pagination). */}
+			{/* Fog the tail of the visible rows with the shared .fluted-glass class
+			    ("fog sensitive log content until revealed") — masked to fade in from
+			    the top. The overlay CAPTURES pointer events, so the fogged rows
+			    behind it don't hover or click; only the pill does. Reveal expands the
+			    rest inline (no pagination). */}
 			<div className="absolute inset-x-0 bottom-0 h-[121px]">
-				<ProgressiveBlur />
+				<div
+					aria-hidden
+					className="fluted-glass absolute inset-0"
+					style={{
+						maskImage: "linear-gradient(to bottom, transparent, black 66%)",
+						WebkitMaskImage:
+							"linear-gradient(to bottom, transparent, black 66%)",
+					}}
+				/>
 				<div className="absolute inset-0 flex items-end justify-center pb-6">
 					<RevealPill onClick={onShowMore}>show more ({hidden})</RevealPill>
 				</div>
 			</div>
 		</div>
-	);
-}
-
-/** Stacked backdrop-blur layers, each masked lower, so the blur intensifies
- * toward the bottom of the visible rows. */
-function ProgressiveBlur() {
-	return (
-		<>
-			{[1, 2, 4, 8].map((radius, i) => (
-				<div
-					aria-hidden
-					className="pointer-events-none absolute inset-0"
-					key={radius}
-					style={{
-						backdropFilter: `blur(${radius}px)`,
-						WebkitBackdropFilter: `blur(${radius}px)`,
-						maskImage: `linear-gradient(to bottom, transparent ${i * 22}%, black ${i * 22 + 22}%)`,
-						WebkitMaskImage: `linear-gradient(to bottom, transparent ${i * 22}%, black ${i * 22 + 22}%)`,
-					}}
-				/>
-			))}
-		</>
 	);
 }
 

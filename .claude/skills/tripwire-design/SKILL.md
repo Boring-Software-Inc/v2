@@ -70,3 +70,41 @@ Dense, near-monochrome, zinc-and-grey dashboard; brand blue as punctuation;
 severity as the only earned hue; small 13px calm type; `rounded-md` default;
 snappy springs, color-transitions everywhere else. When unsure, open the nearest
 existing demo component and match it.
+
+## Type + spacing scale (run page, evidence — locked)
+Do not re-invent a 13px padding. This scale is the source; snap to it.
+
+- **Mono is reserved.** ONLY rule ids (`account-age@1`), file paths, and inline
+  code render in Geist Mono. Line numbers, severity words, confidence, timings,
+  and statuses are all SANS. Monospacing a status label is a bug.
+- **Vertical rhythm is a 4px unit.** Every padding, margin, and gap is a multiple
+  of 4 (`p-1`/`p-2`/`p-3`/`p-4`, `gap-2`/`gap-3`/`gap-4`). No `p-3.5` (14px), no
+  `py-2.5` (10px) — if a Paper export lands off-grid, snap it to the nearest 4.
+- **Line-heights snap to 16 / 20 / 24.** Sizes: `11px/16` (meta — line numbers,
+  counts) · `12px/16` (labels, rule ids) · `13px/20` (body, finding reasons) ·
+  `15px/24` (the statement — a rule's summarize line on a failed step).
+- **Two horizontal axes inside a step: the content edge, and ONE indent for
+  evidence.** Do not add a right-aligned gutter column (a duration/status column
+  pinned right invents a third edge and opens a dead gap) — keep trailing meta
+  inline, hugging its content.
+- **Colour is a budget.** In a step, the status badge is the only saturated
+  element; a passed step is muted/quiet. In a finding, the severity word carries
+  the one hue and the card's fill is tinted by severity — nothing else (line
+  numbers, paths, code chips) takes colour.
+
+## File + finding evidence (ai-review — locked)
+- **File container:** `surface-1` fill, `rounded-xl`, NO border (fill-only reads
+  as raised, not nested). Header = file icon · path (directory dim ~55% /
+  basename bright + weight 500) · severity counts on the right. Links to
+  `github.com/{repo}/blob/{sha}/{file}`.
+- **Collapse is a density affordance, not a default:** a file with ≥ 3 findings
+  renders COLLAPSED behind a disclosure chevron; < 3 renders inline, no chevron.
+- **Finding card:** fill-only, no border, `rounded-md` (8px), background TINTED by
+  severity so no two severities share a surface — critical = surface-1 + ~7%
+  destructive · warning = surface-1 + ~6% amber · note = plain surface-1. Meta
+  line = severity word in its colour then `line N` (muted sans); the reason is
+  the brightest text in the block (`13px/20`, foreground). The reason is the
+  payload, the path is a label — never invert that weight. A finding is always a
+  negative observation: it has NO pass/fail badge.
+- Inline backticks in a reason render as `<code>` chips (`surface-2` fill, mono,
+  11.5px), sanitized as text — never as HTML.

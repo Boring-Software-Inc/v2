@@ -148,12 +148,14 @@ describe("loadRunView — §10 access model", () => {
 		expect(view.steps[0]?.summary).toBe("exfiltrates tokens in ci.");
 	});
 
-	test("session ⇒ full view, trace intact, no public-partition carriers", async () => {
+	test("session ⇒ full view, trace intact, summary kept, no publicEvidence carrier", async () => {
 		const view = await loadRunView(db, publicRunId, SESSION);
 		expect(view?.access).toBe("full");
 		expect(JSON.stringify(view)).toContain("trace");
 		expect(view?.snapshot).not.toBeNull();
-		expect(view?.steps[0]?.summary).toBeUndefined();
+		// the plain-English summary rides along (the run page renders it); only the
+		// publicEvidence carrier is stripped from the session view.
+		expect(view?.steps[0]?.summary).toBe("exfiltrates tokens in ci.");
 		expect(view?.steps[0]?.publicEvidence).toBeUndefined();
 	});
 

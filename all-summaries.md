@@ -1055,3 +1055,18 @@ app's surface tokens with consistent card height, a clear selected state
 (border-foreground + check), one-repo selection, and a continue CTA disabled until
 a repo is picked. Topbar wordmark left untouched (not a first-contact page).
 Checks: typecheck, biome, boundaries, 204 tests.
+
+**Unit — run page step + findings enrichment (§8/§10).** Enriched the live run
+page to the owner's Paper design. Steps: passed = one line (label · summarize
+one-liner muted · status · timing); failed = expand (header, then the statement at
+15px/24 foreground w500, then evidence). Status/timing hug content (no right
+gutter, spec §3); step label never "trigger: trigger"; colour budgeted to the
+status badge. Kept `summary` on the full run view (toFullRunView) so the maintainer
+sees the one-liner. AI-review evidence rebuilt as per-file surface-1 fill-only
+containers (dir-dim/basename-bright path, severity counts, GitHub blob links,
+collapse ≥3 behind a chevron) with severity-tinted finding cards (critical/warning/
+note words, reason brightest, line links, no pass/fail). Findings renderer parses
+inline backticks → mono `<code>` chips (sanitized). Wrote the type+spacing scale
+into the tripwire-design skill. Hygiene: severity map typed against FindingSeverity,
+deleted the translate-y-[-1px] hack, feed truncation fog reuses .fluted-glass.
+Checks: typecheck all, biome, boundaries, 204 tests.

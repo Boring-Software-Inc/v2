@@ -13,15 +13,24 @@ const STATUS_DOT: Record<string, string> = {
 	paused: "bg-amber-500",
 };
 
-function renderRuleEvidence(step: RunStepView) {
-	if (step.ruleRef?.startsWith("ai-review@")) {
-		const output = extractReview(step.evidence);
-		if (output) {
-			return <AiFindings output={output} />;
-		}
-	}
-	return <EvidenceView evidence={step.evidence} />;
-}
+const STATUS_CHIP: Record<string, { label: string; className: string }> = {
+	pass: {
+		label: "passed",
+		className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+	},
+	fail: {
+		label: "failed",
+		className: "bg-red-500/10 text-red-600 dark:text-red-400",
+	},
+	skipped: {
+		label: "skipped",
+		className: "bg-surface-1 text-muted-foreground",
+	},
+	paused: {
+		label: "review",
+		className: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+	},
+};
 
 function extractReview(evidence: unknown): AiReviewOutput | null {
 	if (
@@ -36,6 +45,50 @@ function extractReview(evidence: unknown): AiReviewOutput | null {
 		return parsed.success ? parsed.data : null;
 	}
 	return null;
+}
+
+function renderRuleEvidence(
+	step: RunStepView,
+	repo: string,
+	sha: string | null,
+) {
+	if (step.ruleRef?.startsWith("ai-review@")) {
+		const output = extractReview(step.evidence);
+		if (output) {
+			return <AiFindings output={output} repo={repo} sha={sha} />;
+		}
+	}
+	return <EvidenceView evidence={step.evidence} />;
+}
+
+/** The step's display label: rule ref in mono, ai-review as its friendly name,
+ * a non-rule node as its bare kind (never "trigger: trigger"). */
+function stepLabel(step: RunStepView): { text: string; mono: boolean } {
+	if (step.ruleRef) {
+		if (step.ruleRef.startsWith("ai-review@")) {
+			return { text: "ai review", mono: false };
+		}
+		return { text: step.ruleRef, mono: true };
+	}
+	return { text: step.nodeId.split(":").at(-1) ?? step.nodeKind, mono: false };
+}
+
+/** The status badge — the only saturated element in a step; hugs its text. */
+function StepStatus({ status }: { status: string }) {
+	const chip = STATUS_CHIP[status];
+	if (!chip) {
+		return null;
+	}
+	return (
+		<span
+			className={cn(
+				"shrink-0 rounded-full px-2 py-0.5 font-medium text-xs",
+				chip.className,
+			)}
+		>
+			{chip.label}
+		</span>
+	);
 }
 
 /**
@@ -75,10 +128,14 @@ export function StepCard({
 	step,
 	isFirst,
 	isLast,
+	repo,
+	sha,
 }: {
 	step: RunStepView;
 	isFirst: boolean;
 	isLast: boolean;
+	repo: string;
+	sha: string | null;
 }) {
 	const synthetic = describeSyntheticStep(step);
 	const dotColor = synthetic
@@ -86,79 +143,68 @@ export function StepCard({
 			? "bg-red-500"
 			: "bg-amber-500"
 		: (STATUS_DOT[step.status] ?? "bg-muted-foreground/40");
-	const title =
-		step.ruleRef ?? `${step.nodeKind}: ${step.nodeId.split(":").at(-1)}`;
+
+	if (synthetic) {
+		return (
+			<div className="flex gap-3 px-4">
+				<StepRail color={dotColor} isFirst={isFirst} isLast={isLast} />
+				<div className="min-w-0 flex-1 py-3">
+					<div className="flex items-center gap-2">
+						<span className="min-w-0 flex-1 truncate font-medium text-sm">
+							{synthetic.title}
+						</span>
+						<span className="shrink-0 font-mono text-muted-foreground text-xs">
+							{step.nodeId}
+						</span>
+					</div>
+					<p className="mt-1 text-muted-foreground text-xs">
+						{synthetic.detail}
+					</p>
+				</div>
+			</div>
+		);
+	}
+
+	const label = stepLabel(step);
+	// step.summary is the rule's plain-English line: quiet inline when passed,
+	// the prominent statement when failed.
+	const line = step.summary ?? null;
+	const failed = step.status === "fail";
 
 	return (
 		<div className="flex gap-3 px-4">
 			<StepRail color={dotColor} isFirst={isFirst} isLast={isLast} />
 			<div className="min-w-0 flex-1 py-3">
-				{synthetic ? (
+				<div className="flex items-center gap-2">
+					<span
+						className={cn(
+							"shrink-0 truncate font-medium text-sm",
+							label.mono && "font-mono",
+						)}
+					>
+						{label.text}
+					</span>
+					<span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
+						{failed ? "" : line}
+					</span>
+					<StepStatus status={step.status} />
+					<span className="shrink-0 text-muted-foreground text-xs">
+						{step.durationMs}ms
+					</span>
+				</div>
+				{failed ? (
 					<>
-						<div className="flex items-center gap-2.5">
-							<span className="min-w-0 flex-1 truncate font-medium text-sm">
-								{synthetic.title}
-							</span>
-							<span className="shrink-0 font-mono text-muted-foreground text-xs">
-								{step.nodeId}
-							</span>
-						</div>
-						<p className="mt-1 text-muted-foreground text-xs">
-							{synthetic.detail}
-						</p>
+						{line ? (
+							<p className="mt-2 font-medium text-[15px]/6 text-foreground">
+								{line}
+							</p>
+						) : null}
+						{step.nodeKind === "rule"
+							? renderRuleEvidence(step, repo, sha)
+							: null}
 					</>
-				) : (
-					<>
-						<div className="flex items-center gap-2.5">
-							<span className="min-w-0 flex-1 truncate font-medium font-mono text-sm">
-								{title}
-							</span>
-							<StepStatus status={step.status} />
-							<span className="w-11 shrink-0 text-right text-muted-foreground text-xs">
-								{step.durationMs}ms
-							</span>
-						</div>
-						{step.nodeKind === "rule" ? renderRuleEvidence(step) : null}
-					</>
-				)}
+				) : null}
 			</div>
 		</div>
-	);
-}
-
-const STATUS_CHIP: Record<string, { label: string; className: string }> = {
-	pass: {
-		label: "passed",
-		className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-	},
-	fail: {
-		label: "failed",
-		className: "bg-red-500/10 text-red-600 dark:text-red-400",
-	},
-	skipped: {
-		label: "skipped",
-		className: "bg-surface-1 text-muted-foreground",
-	},
-	paused: {
-		label: "review",
-		className: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-	},
-};
-
-/** Fixed-width status column so chips line up across steps (matches the feed). */
-function StepStatus({ status }: { status: string }) {
-	const chip = STATUS_CHIP[status];
-	if (!chip) {
-		return <span className="w-[60px] shrink-0" />;
-	}
-	return (
-		<span
-			className={cn(
-				"inline-flex w-[60px] shrink-0 items-center justify-center rounded-full py-0.5 text-center font-medium text-xs",
-				chip.className,
-			)}
-		>
-			{chip.label}
-		</span>
 	);
 }
