@@ -18,6 +18,13 @@ export interface CreateAuthInput {
 	secret: string;
 	baseUrl: string;
 	github: { clientId: string; clientSecret: string } | null;
+	/**
+	 * DEV ONLY — enable email/password so the dev persona switcher can mint a
+	 * REAL session without the OAuth round-trip (§13). The web head passes
+	 * `import.meta.env.DEV`, so production builds never enable it (the sign-up /
+	 * sign-in endpoints are absent). Never set this true in a real deployment.
+	 */
+	devLogin?: boolean;
 }
 
 export function createAuth(input: CreateAuthInput) {
@@ -33,6 +40,8 @@ export function createAuth(input: CreateAuthInput) {
 		}),
 		secret: input.secret,
 		baseURL: input.baseUrl,
+		// Dev persona switcher only — off unless the web head is a dev build.
+		emailAndPassword: { enabled: input.devLogin ?? false },
 		advanced: {
 			database: {
 				generateId: () => generateId(),

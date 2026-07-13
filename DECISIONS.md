@@ -1563,3 +1563,48 @@ they contradicted each other. The fix is one rule: **a card's `value` and its
   bannedUsers` → `sentToReview/blocked/passed`.
 - **Dither chart primitives untouched** — the owner considers them final; only the
   card wrapper's delta logic and empty-state changed.
+
+### Dev persona switcher — dev-only auto-login without OAuth (§13)
+
+A dev convenience (inspired by spatie/laravel-login-link, adapted to Tripwire's
+STATES not SaaS tiers): auto-login as a default persona, a switcher to jump
+between the six real product states, and auto-created fixtures per persona.
+
+- **Real sessions, no OAuth.** The switcher mints a REAL better-auth session via
+  email/password (`auth.api.signUpEmail`/`signInEmail`, `asResponse` → the
+  Set-Cookie is forwarded), never a faked cookie and never bypassing session
+  *verification*. `createAuth` gains a `devLogin` flag that enables the
+  email/password provider; the web head passes `import.meta.env.DEV`, so a
+  production bundle never enables it (the sign-up/sign-in endpoints are absent).
+- **This implies auth is ENABLED locally.** The personas only mean anything when
+  the gates actually function (onboarding redirect, the picker, the public-run
+  stranger view). So the switcher requires `BETTER_AUTH_SECRET` to be set — in
+  open-dev posture (no secret) `getAuth()` is null and `/api/dev/*` returns 503.
+  `dev:demo` (Unit 2) sets a dev secret so the switcher works there.
+- **Two guards, both throw, layered.** (a) COMPILE-TIME: every entry point lives
+  behind `import.meta.env.DEV` — the `/api/dev/*` route in `start.ts`, the
+  switcher UI, the auto-login trampoline — so the code is dead-code-eliminated
+  from prod. (b) RUNTIME: `assertDevLoginAllowed` refuses any non-loopback host
+  even in a dev build. No env flag can enable this elsewhere; there is no escape
+  hatch. Unit-tested: production ⇒ throws, non-localhost ⇒ throws.
+- **Auto-login is a trampoline, not a /login bounce.** A gated route with no
+  session in dev redirects to `/dev/auto-login?to=…`, which mints the DEFAULT
+  persona and lands you in the app — zero clicks, and you never see /login.
+  `/login` stays reachable directly and shows the persona panel.
+- **Default persona = `active`** (the populated dashboard) — the best first
+  view of the product, not the empty "fresh maintainer" state.
+- **Fixtures auto-create on demand** (spatie's create-missing-users): each
+  persona's installation/repos/story are built on click, keyed by the resolved
+  user id + deterministic `demo-inst-*` installation ids, so there is no seed
+  script to remember. Persona repos are per-persona names (`solo-webapp`,
+  `many-*`, `active-webapp`, …) so their installation ids never collide.
+- **Seeding lives in `@tripwire/db`** (`seed.ts`), NOT in an app, so BOTH the web
+  switcher and the `dev:demo` CLI share ONE shape-correct builder. `@tripwire/db`
+  cannot import `@tripwire/core`, so runs are constructed to satisfy the same
+  contracts (snapshot, RuleResult step envelopes, public evidence + summary,
+  recorded-then-executed actions) rather than by invoking the executor — §13
+  explicitly permits this. Locked by an integration test over real Postgres.
+- **`reset dev data` is namespaced.** `resetDemoData` deletes ONLY the
+  `tripwire-demo/*` repos and their runs/steps/actions/moderation/rollups/config,
+  the `demo-evt-*` events, and `@tripwire.demo` users (auth cascades their
+  sessions/accounts/installations). It never truncates a real table.

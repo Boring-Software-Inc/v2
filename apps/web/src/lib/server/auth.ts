@@ -32,6 +32,8 @@ export function getAuth(): Auth | null {
 		secret,
 		baseUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
 		github: clientId && clientSecret ? { clientId, clientSecret } : null,
+		// Compile-time DEV flag: production bundles never enable email/password.
+		devLogin: import.meta.env.DEV,
 	});
 	return instance;
 }

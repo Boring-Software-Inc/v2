@@ -29,8 +29,20 @@ export const Route = createRootRouteWithContext<{
 		if (isPublicPath(location.pathname)) {
 			return;
 		}
+		// The dev auto-login trampoline renders without a session (it mints one).
+		if (import.meta.env.DEV && location.pathname === "/dev/auto-login") {
+			return;
+		}
 		const session = await getSessionInfo();
 		if (session.authEnabled && !session.user) {
+			// §13 auto-login: in dev, silently establish the default persona
+			// instead of bouncing to /login. /login stays reachable directly.
+			if (import.meta.env.DEV && location.pathname !== "/login") {
+				throw redirect({
+					to: "/dev/auto-login",
+					search: { to: location.pathname },
+				});
+			}
 			throw redirect({ to: "/login" });
 		}
 		if (!session.user) {

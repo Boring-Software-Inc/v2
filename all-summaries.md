@@ -1106,3 +1106,26 @@ DitherStatCard became explicit `goodDirection: "up"|"down"|"neutral"` (rules-pag
 `series[23] === value`, honest zeros for a quiet repo. Dither chart primitives
 untouched (owner considers them final). Checks: typecheck all, biome, boundaries,
 206 tests.
+
+**Unit — dev persona switcher (§13, dev-only auto-login).** A local convenience,
+compile-time excluded from prod. Auto-login: a gated route with no session in a
+dev build trampolines through `/dev/auto-login`, which mints the DEFAULT persona
+(`active` — the populated dashboard) and lands you in the app; you never see
+/login (it stays reachable directly, with a persona panel). A floating switcher
+in the shell + the /login panel jump between Tripwire's SIX real states: fresh
+maintainer (→ onboarding), one repo (auto-select), many repos (the picker path),
+empty dashboard (every empty state), active dashboard (a story), and anonymous
+(signs out and opens a seeded PUBLIC run as a stranger — the persona that finally
+lets the owner SEE the public run view under open-dev). Sessions are REAL
+better-auth sessions minted via email/password (`asResponse` → forwarded
+Set-Cookie), never OAuth and never bypassing verification; `createAuth` gains a
+`devLogin` flag enabled only when the web head is a dev build. Security is
+layered and both layers throw: compile-time `import.meta.env.DEV` (code absent
+from prod) + runtime loopback-host check (`assertDevLoginAllowed`), no escape
+hatch. Fixtures auto-create per persona on click (installation + repos + story),
+namespaced under `tripwire-demo/*` + `demo-*`; `reset dev data` wipes ONLY that
+namespace, never a real table. The shape-correct seed builder lives in
+`@tripwire/db` (shared with `dev:demo`), constructing contract-valid runs
+without importing core. New tests: guard (prod ⇒ throws, non-localhost ⇒ throws),
+the session-mint mechanism over real Postgres, and the seeded story's home stats.
+Checks: typecheck all, biome, boundaries, 215 tests.

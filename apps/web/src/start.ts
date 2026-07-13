@@ -10,6 +10,13 @@ import { createMiddleware, createStart } from "@tanstack/react-start";
 const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 	async ({ next, request }) => {
 		const url = new URL(request.url);
+		// DEV persona switcher (§13). `import.meta.env.DEV` is a compile-time
+		// constant, so this whole branch is dead-code-eliminated from the
+		// production bundle — the endpoint cannot exist in prod.
+		if (import.meta.env.DEV && url.pathname.startsWith("/api/dev/")) {
+			const { handleDevRequest } = await import("#/lib/server/dev/handler");
+			return await handleDevRequest(request);
+		}
 		if (url.pathname === "/api/events/stream") {
 			const apiOrigin = process.env.VITE_API_URL ?? "http://localhost:8787";
 			return await fetch(`${apiOrigin}/events/stream`, {

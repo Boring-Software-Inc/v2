@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef } from "react";
+import { DevPersonaSwitcher } from "#/components/dev/persona-switcher";
 import { useMediaQuery } from "#/hooks/use-media-query";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 import {
@@ -151,6 +152,7 @@ function DashboardShell({ counts, children }: DashboardLayoutProps) {
 			</motion.div>
 
 			<MobileFooter counts={counts} />
+			<DevPersonaSwitcher />
 		</div>
 	);
 }

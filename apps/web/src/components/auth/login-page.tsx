@@ -2,6 +2,7 @@ import { GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { toast } from "sonner";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
+import { DevPersonaPanel } from "#/components/dev/persona-switcher";
 import { Button } from "#/components/ui/button";
 import { authClient } from "#/lib/auth-client";
 import { siteConfig } from "#/lib/site-config";
@@ -34,6 +35,14 @@ export function LoginPage() {
 				>
 					continue with github
 				</Button>
+				{import.meta.env.DEV ? (
+					<div className="mt-8 w-full border-border border-t pt-5">
+						<p className="mb-2 text-[11px] text-muted-foreground uppercase tracking-wide">
+							dev personas
+						</p>
+						<DevPersonaPanel />
+					</div>
+				) : null}
 			</div>
 		</div>
 	);

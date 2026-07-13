@@ -17,6 +17,17 @@ export {
 	type ResumeRunJob,
 } from "./queue.ts";
 export * from "./schema/index.ts";
+export {
+	DEMO_EMAIL_DOMAIN,
+	DEMO_OWNER,
+	ensureDemoRepo,
+	resetDemoData,
+	resetRepoData,
+	type SeedRunOptions,
+	seedPublicRun,
+	seedRun,
+	seedStory,
+} from "./seed.ts";
 export * as eventServices from "./services/events.ts";
 export * as insightServices from "./services/insights.ts";
 export * as moderationServices from "./services/moderation.ts";
