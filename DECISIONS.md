@@ -2170,3 +2170,29 @@ equivalent (clig.dev).
 - **Checks**: biome (338 files), boundaries, typecheck all packages, 248 tests. The
   harness itself is typechecked out-of-band (scripts aren't in a package tsconfig,
   same as the scripts it replaced).
+
+## Live E2E is now a deployed-instance activity (2026-07-13, §11 consequence)
+
+Deploying to Railway had an unplanned consequence for the live harness: **prod
+owns the GitHub App's webhook URL**. The App posts `scratch`'s webhooks to the
+Railway api, so a LOCAL worker never sees them — a real PR fires zero local
+webhooks (verified: PR opened, local api log silent, `scratch` absent from a
+fresh local DB). Two corollaries, ledgered so nobody re-learns them the hard way:
+
+- **Never point the harness at the prod DB.** `test:lifecycle:prod` pins +
+  snapshot/restores `rule_configs` on the LIVE PlanetScale DB now gating a real
+  contributor's repo (dither-kit). A half-failed restore leaves prod
+  misconfigured — not worth it to prove a test harness works. Running the harness
+  is not worth a prod write.
+- **Live E2E needs its OWN sacrificial repo + its OWN webhook path.** Either (a)
+  temporarily repoint the App's webhook at a cloudflared tunnel → local api, run
+  the harness, repoint back to Railway; or (b) a separate sacrificial repo that
+  is NOT in the prod install, with its own App/webhook. The harness's preflights
+  (DB `select 1`, api `/healthz` at TEST_API_URL) already fail fast when the
+  local stack isn't the webhook target — but they can't detect that GitHub is
+  posting elsewhere, so this is a documented operator responsibility.
+
+Unrelated but noted: recovering a corrupted Docker daemon here required a factory
+reset of Docker Desktop's data (the 60GB VM disk) — all local images were wiped
+(re-pullable). The corruption was real (containerd content-store I/O errors); a
+plain restart did not clear it.
