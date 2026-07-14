@@ -1,7 +1,7 @@
 import type { InstallationEvent, RepoScopedEvent } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
-import { eventServices, repoServices } from "@tripwire/db";
+import { eventServices, onboardingServices, repoServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { normalizeWebhook } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
@@ -181,6 +181,27 @@ async function syncInstallation(
 			event.repositories,
 			[],
 		);
+		/**
+		 * Link the installation to the tripwire user who installed it, matched by
+		 * their forge identity (the webhook's actor) — the durable path that does
+		 * not rely on GitHub's post-install redirect carrying `installation_id`
+		 * back to the Setup URL. No-op if the installer hasn't signed in yet.
+		 */
+		const link = await onboardingServices.claimInstallationForForgeUser(db, {
+			installerExternalId: event.actor.externalId,
+			installationId,
+		});
+		if (link.claimed) {
+			logger.info(
+				{ installationId, userId: link.userId },
+				"installation linked to installer via forge identity",
+			);
+		} else if (!link.userId) {
+			logger.info(
+				{ installationId, installer: event.actor.login },
+				"installer has no tripwire identity yet — link deferred to setup callback",
+			);
+		}
 	}
 	logger.info(
 		{ kind: event.kind, installationId, repos: event.repositories.length },

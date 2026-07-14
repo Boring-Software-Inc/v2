@@ -6,8 +6,9 @@ import {
 	type Db,
 	type TestDatabase,
 } from "../index.ts";
-import { user } from "../schema/auth.ts";
+import { forgeIdentities, user } from "../schema/auth.ts";
 import {
+	claimInstallationForForgeUser,
 	getActiveRepo,
 	getOnboardingState,
 	linkUserInstallation,
@@ -117,5 +118,48 @@ describe("onboarding links", () => {
 		}
 		expect(await setActiveRepo(db, "u-3", foreign.id)).toBe(false);
 		expect(await getActiveRepo(db, "u-3")).toBeNull();
+	});
+});
+
+describe("claimInstallationForForgeUser — the durable webhook link path", () => {
+	async function seedIdentity(
+		userId: string,
+		externalId: string,
+	): Promise<void> {
+		await db
+			.insert(forgeIdentities)
+			.values({
+				id: `fi-${userId}`,
+				userId,
+				forge: "github",
+				externalId,
+				username: userId,
+			})
+			.onConflictDoNothing();
+	}
+
+	test("links the installer (matched by forge id) → repos granted", async () => {
+		await seedUser("u-installer");
+		await seedIdentity("u-installer", "gh-9001");
+		await seedRepo("inst-webhook", "r-w", "acme/webhook");
+
+		const result = await claimInstallationForForgeUser(db, {
+			installerExternalId: "gh-9001",
+			installationId: "inst-webhook",
+		});
+		expect(result).toEqual({ claimed: true, userId: "u-installer" });
+
+		const state = await getOnboardingState(db, "u-installer");
+		expect(state.hasInstallation).toBe(true);
+		expect(state.repos.map((r) => r.fullName)).toEqual(["acme/webhook"]);
+	});
+
+	test("installer with no forge identity yet ⇒ no-op, deferred to setup callback", async () => {
+		await seedRepo("inst-orphan", "r-o", "acme/orphan");
+		const result = await claimInstallationForForgeUser(db, {
+			installerExternalId: "gh-unknown",
+			installationId: "inst-orphan",
+		});
+		expect(result).toEqual({ claimed: false, userId: null });
 	});
 });

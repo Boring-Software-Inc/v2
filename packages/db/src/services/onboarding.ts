@@ -1,7 +1,7 @@
 import { generateId } from "@tripwire/utils";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { user, userInstallations } from "../schema/auth.ts";
+import { forgeIdentities, user, userInstallations } from "../schema/auth.ts";
 import { repos } from "../schema/repos.ts";
 
 /**
@@ -59,6 +59,46 @@ export async function linkUserInstallation(
 			),
 		);
 	return { claimed: owner[0]?.userId === input.userId };
+}
+
+/**
+ * Claim an installation for the user who INSTALLED it, matched by their forge
+ * identity from the `installation` webhook's actor. This is the DURABLE link
+ * path: it does not depend on the browser carrying `installation_id` through
+ * GitHub's post-install redirect (the Setup URL callback is the fallback). A
+ * no-op when the installer has no `forge_identities` row yet (they installed
+ * before signing in) — onboarding's callback still links them later. Idempotent
+ * via `linkUserInstallation`'s `(forge, installationId)` unique.
+ */
+export async function claimInstallationForForgeUser(
+	db: Db,
+	input: {
+		forge?: string;
+		installerExternalId: string;
+		installationId: string;
+	},
+): Promise<{ claimed: boolean; userId: string | null }> {
+	const forge = input.forge ?? "github";
+	const identities = await db
+		.select({ userId: forgeIdentities.userId })
+		.from(forgeIdentities)
+		.where(
+			and(
+				eq(forgeIdentities.forge, forge),
+				eq(forgeIdentities.externalId, input.installerExternalId),
+			),
+		)
+		.limit(1);
+	const userId = identities[0]?.userId ?? null;
+	if (!userId) {
+		return { claimed: false, userId: null };
+	}
+	const { claimed } = await linkUserInstallation(db, {
+		userId,
+		installationId: input.installationId,
+		forge,
+	});
+	return { claimed, userId };
 }
 
 /** Every non-removed repo the user's installations grant. */
