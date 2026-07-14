@@ -150,6 +150,7 @@ export async function runScenario(
 			db,
 			asserter,
 			method: options.method,
+			defaultMode: config.contributor ? "fork" : "direct",
 			log: hooks.log,
 			handoff: hooks.handoff,
 			pushTarget,

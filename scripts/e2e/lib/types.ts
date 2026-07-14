@@ -30,6 +30,13 @@ export interface ScenarioContext {
 	db: Db | null;
 	asserter: Asserter;
 	method: Method;
+	/**
+	 * The non-exempt push mode for THIS environment: `fork` when a contributor
+	 * account is configured (prod — genuinely non-exempt), else `direct` (local,
+	 * relying on the worker's TRIPWIRE_DISABLE_EXEMPTION). Scenarios that aren't
+	 * about a specific actor use this so one entry covers local and prod.
+	 */
+	defaultMode: ActorMode;
 	/** Progress line into the live spinner/log. */
 	log(message: string): void;
 	/**

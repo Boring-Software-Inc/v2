@@ -1416,3 +1416,29 @@ and flagged: deep-link ?repo= on scoped routes (active repo is persisted
 per-user, so a shared link shows the recipient's repo — a safe default; the
 override is a focused follow-up). Checks: typecheck all, biome, boundaries,
 242/242.
+
+**Unit — the interactive live-E2E harness (`bun run test`, §11).** Replaced three
+one-off scripts + a dozen untested App states with ONE funnel-driven CLI under
+`scripts/e2e/`: 3 prompts (axis → outcome → method) reach ~18 scenarios, and every
+interactive path has a `--only <name> --expect <verdict>` flag equivalent
+(clig.dev). Stack is owner-locked — @clack/prompts · commander · picocolors, no Ink
+(DECISIONS entry covers the deps). Scenarios are DATA (a registry: name, axis,
+plan, expects, needs, enableRules, run), so adding a state is a new entry, not new
+menu code; assertions are DATA too (a shared Asserter → a ✓/✗ result diff, exit 0
+all-pass / non-zero on any failure so it can gate a release). Every GitHub-facing
+assertion reads real GitHub via `gh api` (check conclusion on the head SHA, comment
+supersede + marker, review dismissal), never our DB. Non-exemption is picked
+automatically — `direct` (local, worker's TRIPWIRE_DISABLE_EXEMPTION) when
+TEST_CONTRIBUTOR is unset, `fork` (a genuinely non-exempt cross-repo PR) when it's
+set — so one scenario entry covers local and prod. New worker env
+`TRIPWIRE_FAIL_READS` (gated non-production like the exemption flag) forces context
+reads to throw so the fail-closed floor (`gate-degraded`) can be exercised on a
+live PR. Folded `test:run` → `--only gate-pass` and `test:lifecycle` → `--only
+comment-lifecycle` (both standalone scripts deleted — no parallel entry points);
+`test` now runs the harness, the suite is `bun test` / `test:suite` (CI calls
+`bun test` directly, untouched). Config reuses the existing TEST_* surface; rule
+pinning snapshots + restores the maintainer's real config; cleanup is idempotent
+and runs on interrupt. Hybrids (uninstall / rename / merged-elsewhere) hand off to
+a human (`[YOU: do X — done?]`) then assert. README documents the funnel, the
+scenario list, the two accounts, and the honest preconditions. Checks: biome (338
+files), boundaries, typecheck all, 248 tests; harness typechecked out-of-band.

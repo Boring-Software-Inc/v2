@@ -2101,3 +2101,72 @@ being gated; only dither-kit was intended. Fixed by arming.
   shows the RECIPIENT's active repo (a safe default, not the wrong config) — the
   `?repo=` override (validateSearch + active-repo override on each scoped route)
   is a focused follow-up, flagged rather than half-built.
+
+## The interactive live-E2E harness — `bun run test` (2026-07-13, §11)
+
+Three one-off scripts (`test:run`, `test:lifecycle`, `smoke:deploy`) and a dozen
+untested App states (fork PRs, drafts, force-push, bot authors, uninstall mid-run,
+rename, rate limits, private repos, member/outside/stranger). Replaced the scatter
+with ONE funnel-driven harness under `scripts/e2e/` — 3 prompts (axis → outcome →
+method) reach ~18 scenarios, every interactive path has a `--only/--expect` flag
+equivalent (clig.dev).
+
+### Dependencies (owner-locked stack)
+
+- **`@clack/prompts` · `commander` · `picocolors`** added to root devDependencies.
+  Net-new — they replace nothing; the harness is a new surface. Bun/node can't do
+  a funnel prompt UI + POSIX flag parsing + TTY-gated colour without them. Stack
+  matches the dither-kit CLI (owner decision). **No Ink** (owner). This is the
+  DECISIONS entry AGENTS.md requires for new deps.
+
+### Unit 1 — `TRIPWIRE_FAIL_READS` (the degraded floor, on a live PR)
+
+- The fail-closed floor (reads degrade → rules skip → verdict floors to
+  `needs_review`) had no way to be exercised end-to-end. Added a dev-only env,
+  **gated non-production exactly like `TRIPWIRE_DISABLE_EXEMPTION`**: a value of
+  `diff,commits,contributor` (or `all`) makes those context guards in
+  `worker/context.ts` throw. Refused under `NODE_ENV=production` — a prod worker
+  never self-degrades on a flag. `readsInjectionRefusedInProd` logs the refusal at
+  run time, mirroring the exemption warning. Pure over an env bag; unit-tested.
+
+### The harness (Units 2–4)
+
+- **Scenarios are DATA** (`scenarios.ts`): `{ name, axis, plan, expects, needs,
+  enableRules, run }`. Adding a state is a new entry, never new menu code. `run`
+  does setup AND records assertions on a shared `Asserter` — assertions are data,
+  so the runner renders a ✓/✗ diff and the exit code follows (0 all-pass, non-zero
+  on any failure → it can gate a release).
+- **Assert against REAL GitHub** via `gh api` (check conclusion on the head SHA,
+  comment count + marker + supersede, review dismissal) — never our DB for the
+  GitHub-facing checks. `waitForVerdict` polls GitHub's head (not the local SHA)
+  and dumps a diagnosis on timeout (ported from the old lifecycle script).
+- **Two ways to be non-exempt, picked automatically**: `direct` (local, worker has
+  `TRIPWIRE_DISABLE_EXEMPTION`) when `TEST_CONTRIBUTOR` is unset; `fork` (a
+  genuinely non-exempt cross-repo PR) when it's set. Environment-agnostic scenarios
+  read `ctx.defaultMode`, so ONE entry covers local and prod. The exempt-member
+  scenario asserts the ABSENCE of a run (a shorter bounded wait).
+- **Reused, not reinvented**: the config surface is identical to `test:lifecycle`
+  (`TEST_REPO/TEST_BASE/TEST_CONTRIBUTOR/…`) — no new config. Rule-config pinning
+  snapshots + restores the maintainer's real config on exit (extracted + generalised
+  from the lifecycle script).
+- **Folded in**: `test:run` → `--only gate-pass`; `test:lifecycle` → `--only
+  comment-lifecycle`; `:prod` → the same under `.env.e2e` (fork mode). The two
+  standalone scripts (`trigger-test-run.ts`, `test-lifecycle.ts`) were DELETED — no
+  parallel entry points. `smoke:deploy` stays separate (HTTP surface, not PR flow).
+- **`test` rebinds to the harness**; the unit/integration/contract/snapshot suite is
+  `bun test` (the runner, unchanged) with a new `test:suite` alias. CI invokes
+  `bun test` directly, so the rebind doesn't touch the CI gate.
+- **clig.dev**: `--no-input` requires `--only`/`--everything`; colour + spinners
+  only on a TTY; `NO_COLOR`/`--no-color` respected; `--json` for machines;
+  `--everything` runs the scriptable set (skips hybrids unless `--with-hybrid`) with
+  a summary + `--only` repro hints; `--keep` leaves a PR open; cleanup is idempotent
+  and fires in each run's `finally` (so an interrupt doesn't leave half-open PRs).
+- **Hybrids** (uninstall / rename / merged-elsewhere) print `[YOU: do X — done?]`,
+  wait, then assert — the deploy-runbook pattern. Interactive only.
+- **Honest degradation**: scenarios that need a precondition the harness can't force
+  (a moderation-routing workflow for `gate-needs-review`, a populated recent-PR
+  window for `edge-rate-limit`, a bot author) say so in the plan and log, rather
+  than faking a pass. README documents every one.
+- **Checks**: biome (338 files), boundaries, typecheck all packages, 248 tests. The
+  harness itself is typechecked out-of-band (scripts aren't in a package tsconfig,
+  same as the scripts it replaced).

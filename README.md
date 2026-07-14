@@ -47,27 +47,34 @@ bun test
 
 ## live E2E (nightly / pre-release, not per-PR CI)
 
-`bun test` proves the logic against a fake adapter. Two scripts prove the real
-thing against GitHub — they are §11 "live E2E": they need real credentials, a
-running worker, a tunnel routing the sacrificial repo's webhooks, and a pushing
-account that is **not exempt** (not an org member / maintainer) on the repo, or
-nothing trips.
+`bun test` (aka `bun run test:suite`) proves the logic against a fake adapter. One
+funnel-driven harness proves the real thing against GitHub — §11 "live E2E": it
+needs real credentials, a running worker, a tunnel routing the sacrificial repo's
+webhooks, and a pushing account that is **not exempt** (not an org member /
+maintainer) on the repo, or nothing trips.
 
 ```
-bun run test:run         # push an empty commit → one fresh run lands
-bun run test:lifecycle   # drive one PR through blocked → passed → blocked and
-                         # assert the comment thread, the request-changes review,
-                         # and the tripwire check against REAL GitHub state
+bun run test                 # interactive funnel: axis → outcome → method
+bun run test --list          # the scenario registry (~18 states)
+bun run test --only gate-block --expect block   # headless, scriptable
+bun run test --everything    # every scriptable scenario + a summary table
+
+bun run test:run             # → --only gate-pass       (a fresh run lands + passes)
+bun run test:lifecycle       # → --only comment-lifecycle
 ```
 
-`test:lifecycle` is the regression guard for the incident where a block→pass
-resolution was edited in place and vanished (dither-kit#8). It exits non-zero on
-any assertion failure and wipes its own PR/branch first, so re-running is a clean
-slate. Config is env-routed (`TEST_REPO`, `TEST_BASE`, `TEST_LIFECYCLE_BRANCH`,
-`TEST_WORKDIR`, `TEST_TIMEOUT_MS`); it trips `crypto-address` (a wallet address in
-the diff), so it needs no `workflow` OAuth scope.
+Three prompts reach ~18 scenarios across the gate, the comment, the contributor,
+the edge cases, and the hybrids (which hand off a human GitHub action mid-run).
+Scenarios are **data** (`scripts/e2e/scenarios.ts`) — adding a state is a new
+entry, not new menu code. Assertions read **real GitHub state** via `gh api`; the
+run exits non-zero on any failure, so it can gate a release. Full docs, the two
+accounts, and the degraded-floor hook: **`scripts/e2e/README.md`**.
 
-**Not automated (by design):** whether the copy READS well. The script proves the
+`comment-lifecycle` is the regression guard for the incident where a block→pass
+resolution was edited in place and vanished (dither-kit#8). Cleanup is idempotent
+and fires on interrupt — re-running is a clean slate.
+
+**Not automated (by design):** whether the copy READS well. The harness proves the
 mechanics — one comment vs. a struck-through supersede + a fresh resolution, the
 dismissed review, the flipped check. A human reads the thread once; taste stays
 human.

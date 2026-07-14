@@ -270,8 +270,9 @@ export class GitHub {
 			}
 			await sleep(this.config.pollMs);
 		}
+		const diagnosis = await this.diagnose(pr, sha);
 		throw new Error(
-			`no completed \`${CHECK_NAME}\` check for ${sha.slice(0, 7)} within ${this.config.timeoutMs / 1000}s — is the worker up, and the pusher non-exempt (fork mode / TRIPWIRE_DISABLE_EXEMPTION)?`,
+			`no completed \`${CHECK_NAME}\` check for ${sha.slice(0, 7)} within ${this.config.timeoutMs / 1000}s — is the worker up, and the pusher non-exempt (fork mode / TRIPWIRE_DISABLE_EXEMPTION)?\n  ${diagnosis.join("\n  ")}`,
 		);
 	}
 

@@ -87,7 +87,7 @@ export const SCENARIOS: Scenario[] = [
 		run: (ctx) =>
 			forceGate(ctx, {
 				branch: "tw-e2e-pass",
-				mode: "direct",
+				mode: ctx.defaultMode,
 				edits: { "E2E.md": CLEAN_DOC },
 				message: "e2e: clean change (should pass)",
 				expectConclusion: "success",
@@ -108,7 +108,7 @@ export const SCENARIOS: Scenario[] = [
 		run: (ctx) =>
 			forceGate(ctx, {
 				branch: "tw-e2e-block",
-				mode: "direct",
+				mode: ctx.defaultMode,
 				edits: { "WALLET.md": `# donate\n\n${WALLET}\n` },
 				message: "e2e: add wallet (should block)",
 				expectConclusion: "failure",
@@ -131,7 +131,7 @@ export const SCENARIOS: Scenario[] = [
 		run: (ctx) =>
 			forceGate(ctx, {
 				branch: "tw-e2e-degraded",
-				mode: "direct",
+				mode: ctx.defaultMode,
 				edits: { "E2E.md": CLEAN_DOC },
 				message: "e2e: clean change under forced read failure",
 				expectConclusion: "neutral",
@@ -153,7 +153,7 @@ export const SCENARIOS: Scenario[] = [
 		run: async (ctx) => {
 			await forceGate(ctx, {
 				branch: "tw-e2e-needs-review",
-				mode: "direct",
+				mode: ctx.defaultMode,
 				edits: { "E2E.md": CLEAN_DOC },
 				message: "e2e: route to moderation",
 				expectConclusion: "neutral",
@@ -181,7 +181,7 @@ export const SCENARIOS: Scenario[] = [
 		run: async (ctx) => {
 			const { gh, base, asserter } = ctx;
 			const branch = "tw-e2e-comment";
-			const mode: ActorMode = "direct";
+			const mode = ctx.defaultMode;
 			await gh.freshBranch(base, branch);
 			const target = await ctx.pushTarget(branch, mode);
 
@@ -271,7 +271,7 @@ export const SCENARIOS: Scenario[] = [
 		run: async (ctx) => {
 			const { gh, base, asserter } = ctx;
 			const branch = "tw-e2e-idem";
-			const mode: ActorMode = "direct";
+			const mode = ctx.defaultMode;
 			await gh.freshBranch(base, branch);
 			const target = await ctx.pushTarget(branch, mode);
 			const sha1 = await gh.commit(
@@ -404,7 +404,7 @@ export const SCENARIOS: Scenario[] = [
 		run: async (ctx) => {
 			const { gh, base, asserter } = ctx;
 			const branch = "tw-e2e-force";
-			const mode: ActorMode = "direct";
+			const mode = ctx.defaultMode;
 			await gh.freshBranch(base, branch);
 			const target = await ctx.pushTarget(branch, mode);
 			const sha1 = await gh.commit(
@@ -446,7 +446,7 @@ export const SCENARIOS: Scenario[] = [
 		run: async (ctx) => {
 			const { gh, base, asserter } = ctx;
 			const branch = "tw-e2e-draft";
-			const mode: ActorMode = "direct";
+			const mode = ctx.defaultMode;
 			await gh.freshBranch(base, branch);
 			const target = await ctx.pushTarget(branch, mode);
 			const sha = await gh.commit(
@@ -487,7 +487,7 @@ export const SCENARIOS: Scenario[] = [
 		run: async (ctx) => {
 			const { gh, base, asserter } = ctx;
 			const branch = "tw-e2e-closed";
-			const mode: ActorMode = "direct";
+			const mode = ctx.defaultMode;
 			await gh.freshBranch(base, branch);
 			const target = await ctx.pushTarget(branch, mode);
 			const sha = await gh.commit(
@@ -522,7 +522,7 @@ export const SCENARIOS: Scenario[] = [
 		run: async (ctx) => {
 			const { gh, base, asserter } = ctx;
 			const branch = "tw-e2e-reopen";
-			const mode: ActorMode = "direct";
+			const mode = ctx.defaultMode;
 			await gh.freshBranch(base, branch);
 			const target = await ctx.pushTarget(branch, mode);
 			const sha = await gh.commit(
@@ -566,7 +566,7 @@ export const SCENARIOS: Scenario[] = [
 		run: async (ctx) => {
 			const { gh, base, asserter } = ctx;
 			const branch = "tw-e2e-title";
-			const mode: ActorMode = "direct";
+			const mode = ctx.defaultMode;
 			await gh.freshBranch(base, branch);
 			const target = await ctx.pushTarget(branch, mode);
 			const sha = await gh.commit(
@@ -638,7 +638,7 @@ export const SCENARIOS: Scenario[] = [
 		run: (ctx) =>
 			forceGate(ctx, {
 				branch: "tw-e2e-private",
-				mode: "direct",
+				mode: ctx.defaultMode,
 				edits: { "WALLET.md": `# donate\n\n${WALLET}\n` },
 				message: "e2e(private): add wallet",
 				expectConclusion: "failure",
@@ -660,7 +660,7 @@ export const SCENARIOS: Scenario[] = [
 		run: async (ctx) => {
 			const { gh, base } = ctx;
 			const branch = "tw-e2e-uninstall";
-			const mode: ActorMode = "direct";
+			const mode = ctx.defaultMode;
 			await gh.freshBranch(base, branch);
 			const target = await ctx.pushTarget(branch, mode);
 			const sha = await gh.commit(
