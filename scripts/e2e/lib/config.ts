@@ -27,6 +27,8 @@ export interface HarnessConfig {
 	maintainer: string | null;
 	/** postgres — the DB the worker reads; required to pin rule_configs. */
 	databaseUrl: string | null;
+	/** The webhook API base URL — its `/healthz` is the pre-run liveness probe. */
+	apiUrl: string;
 }
 
 const stripSlash = (value: string): string => value.replace(/\/$/, "");
@@ -47,6 +49,9 @@ export function loadConfig(
 		contributor: env.TEST_CONTRIBUTOR ?? null,
 		maintainer: env.TEST_MAINTAINER ?? null,
 		databaseUrl: env.DATABASE_URL ?? null,
+		apiUrl: stripSlash(
+			env.TEST_API_URL ?? env.VITE_API_URL ?? "http://localhost:8787",
+		),
 	};
 }
 

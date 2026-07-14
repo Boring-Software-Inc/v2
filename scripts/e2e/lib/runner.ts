@@ -82,6 +82,23 @@ async function pingDb(db: Db): Promise<boolean> {
 	}
 }
 
+/**
+ * Probe the webhook API's `/healthz` before opening a real PR — a down API means
+ * no webhook lands, so no run. The WORKER has no HTTP surface; its silence still
+ * surfaces as the "no run in 60s — worker up?" verdict timeout, so this only
+ * proves the ingest half. Bounded so a hung host fails fast, not after minutes.
+ */
+async function pingApi(apiUrl: string): Promise<boolean> {
+	try {
+		const res = await fetch(`${apiUrl}/healthz`, {
+			signal: AbortSignal.timeout(5000),
+		});
+		return res.ok;
+	} catch {
+		return false;
+	}
+}
+
 /** Requirements gate — returns a reason string when a scenario can't run. */
 export function unmetRequirement(
 	scenario: Scenario,
@@ -134,6 +151,14 @@ export async function runScenario(
 					status: "error",
 					results: [],
 					error: `can't reach the database (DATABASE_URL) — is Postgres up? the local stack runs it in Docker; start it with \`bun run db:up\` (and the worker + webhook tunnel) before a live scenario`,
+				};
+			}
+			if (!(await pingApi(config.apiUrl))) {
+				return {
+					scenario: scenario.name,
+					status: "error",
+					results: [],
+					error: `the webhook API isn't responding at ${config.apiUrl}/healthz — start it (\`bun run dev:api\`) and point TEST_API_URL at the URL GitHub posts webhooks to. a down API means no webhook lands, so no run`,
 				};
 			}
 		}

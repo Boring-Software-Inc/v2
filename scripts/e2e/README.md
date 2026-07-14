@@ -82,6 +82,17 @@ context reads to throw, so ≥50% of rules skip and the verdict floors to
 | `TEST_WORKDIR` | clone dir | `$TMPDIR/tripwire-e2e` |
 | `TEST_TIMEOUT_MS` | per-verdict wait | `120000` |
 | `DATABASE_URL` | the DB the worker reads (to pin rule_configs) | — |
+| `TEST_API_URL` | webhook API base (its `/healthz` is the pre-run probe) | `VITE_API_URL` → `localhost:8787` |
+
+## Preflight
+
+Before opening a real PR, a db-backed scenario probes two things and fails fast
+with an actionable message if either is down:
+
+- **`DATABASE_URL`** — a `select 1`; needed to pin rule_configs.
+- **`TEST_API_URL/healthz`** — the webhook receiver; a down API means no webhook
+  lands, so no run. The **worker** has no HTTP surface — its silence still
+  surfaces as the `no run in 60s — worker up?` verdict timeout.
 
 ## CLI (clig.dev)
 
