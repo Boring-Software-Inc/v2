@@ -1,4 +1,5 @@
 import { createDb, type Db } from "@tripwire/db";
+import { sql } from "drizzle-orm";
 import { Asserter } from "./assert.ts";
 import type { HarnessConfig } from "./config.ts";
 import { GitHub, type PushTarget } from "./github.ts";
@@ -71,6 +72,16 @@ async function assertExisting(
 	);
 }
 
+/** A cheap connectivity probe so a DB outage reads clearly, not as a raw query dump. */
+async function pingDb(db: Db): Promise<boolean> {
+	try {
+		await db.execute(sql`select 1`);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 /** Requirements gate — returns a reason string when a scenario can't run. */
 export function unmetRequirement(
 	scenario: Scenario,
@@ -116,6 +127,15 @@ export async function runScenario(
 	try {
 		if (scenario.needs?.db && config.databaseUrl) {
 			({ db, pool } = createDb(config.databaseUrl));
+			const reachable = await pingDb(db);
+			if (!reachable) {
+				return {
+					scenario: scenario.name,
+					status: "error",
+					results: [],
+					error: `can't reach the database (DATABASE_URL) — is Postgres up? the local stack runs it in Docker; start it with \`bun run db:up\` (and the worker + webhook tunnel) before a live scenario`,
+				};
+			}
 		}
 		startAccount = await gh.activeAccount();
 		const base = await gh.resolveBase();
