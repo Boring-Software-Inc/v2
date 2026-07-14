@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 import { DevPersonaSwitcher } from "#/components/dev/persona-switcher";
 import { useMediaQuery } from "#/hooks/use-media-query";
 import { currentUserQueryOptions } from "#/lib/auth.query";
+import { BetaBanner } from "./beta-banner";
 import {
 	SIDE_PANEL_WIDTH,
 	SidePanelProvider,
@@ -89,6 +90,7 @@ function DashboardShell({ counts, children }: DashboardLayoutProps) {
 				className="grid flex-1 overflow-hidden p-2 pt-0"
 			>
 				<div className="relative flex h-full flex-col overflow-hidden rounded-xl bg-card">
+					<BetaBanner />
 					{/* The shell owns page scroll: this container scrolls full-width so
 					    the whole page area (not just a centered column) is a scroll +
 					    hover target. Pages render natural-height content; they must NOT
