@@ -66,6 +66,13 @@ export interface RunWorkflowsDeps {
 	reads: WorkerReads | null;
 	/** §8 — injected AI effect factory; null without ANTHROPIC_API_KEY. */
 	makeGenerate: ((event: RepoScopedEvent) => AiReviewGenerate) | null;
+	/**
+	 * §5.6b — fire AFTER we know this event will evaluate (matched workflow,
+	 * actor not exempt). Emitting the pending check earlier orphans an
+	 * `in_progress` gate when exemption returns no run (DECISIONS: exempt
+	 * ⇒ no gate, no comment, no check).
+	 */
+	onBeforeEvaluate?: () => Promise<void>;
 }
 
 export interface RunWorkflowsResult {
@@ -160,6 +167,9 @@ export async function runWorkflows(
 		);
 		return none;
 	}
+
+	// Hold the merge button only once evaluation is actually about to run.
+	await deps.onBeforeEvaluate?.();
 
 	const evaluateRuleRef = makeEvaluator(ctx, logger);
 	const executions = [];

@@ -128,10 +128,18 @@ export async function processEvent(
 		logger,
 		appUrl: deps.appUrl,
 	};
-	await emitPendingCheck(surfaceDeps, normalized);
 
 	const result = await runWorkflows(
-		{ db, logger, reads: deps.reads, makeGenerate: deps.makeGenerate },
+		{
+			db,
+			logger,
+			reads: deps.reads,
+			makeGenerate: deps.makeGenerate,
+			// Pending check only after exemption/match — otherwise an exempt
+			// actor leaves `tripwire` stuck in_progress forever (lifecycle E2E
+			// hang: waitForVerdict never sees a completed check).
+			onBeforeEvaluate: () => emitPendingCheck(surfaceDeps, normalized),
+		},
 		normalized,
 		event.id,
 	);

@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { join } from "node:path";
+import { createDb, type Db, repoServices } from "@tripwire/db";
 import { CHECK_NAME, COMMENT_MARKER } from "@tripwire/forge-github";
 import { $ } from "bun";
 
@@ -18,10 +19,20 @@ import { $ } from "bun";
  * and asserts the comment thread, the request-changes review, and the `tripwire`
  * check at each step. Idempotent: it wipes any prior lifecycle PR/branch first.
  *
+ * Isolates the gate to crypto-address@1 for the duration (other baseline +
+ * opt-in rules on TEST_REPO would keep phase 2 blocked — pr-rate-limit after
+ * a few retries, ai-review on junk docs, profile-readme, …). Prior rule_configs
+ * are snapshotted and restored on exit.
+ *
  * REQUIRES (document in the README): the gh CLI authenticated with push access;
- * a running worker + a tunnel routing TEST_REPO's webhooks; and a pushing account
- * that is NOT exempt (org member / maintainer) on TEST_REPO, or nothing trips.
- * crypto-address must be enabled (it is, by default). Needs no `workflow` scope.
+ * `DATABASE_URL` (to pin rule_configs); a running worker + a tunnel routing
+ * TEST_REPO's webhooks; and either
+ *   - a pushing account that is NOT exempt (org member / maintainer) on
+ *     TEST_REPO, OR
+ *   - `TRIPWIRE_DISABLE_EXEMPTION=true` on the worker (dev only — refused in
+ *     production). Without one of those, the actor is exempt → no run → the
+ *     script times out waiting for a completed `tripwire` check.
+ * Needs no `workflow` scope.
  *
  * NOT AUTOMATED (by design): whether the copy READS well. A human reads the
  * thread once — the script proves the mechanics, taste stays human.
@@ -31,6 +42,7 @@ import { $ } from "bun";
  *   TEST_LIFECYCLE_BRANCH  head branch       (default tripwire-lifecycle-e2e)
  *   TEST_WORKDIR     clone dir               (default $TMPDIR/tripwire-lifecycle)
  *   TEST_TIMEOUT_MS  per-verdict wait        (default 120000)
+ *   DATABASE_URL     postgres                (same DB the worker reads)
  */
 
 const REPO = process.env.TEST_REPO ?? "Boring-Software-Inc/scratch";
@@ -43,6 +55,59 @@ const POLL_MS = 3000;
 
 // A checksum-valid-looking eth address (40 hex) — trips crypto-address@1.
 const WALLET = "0x000000000000000000000000000000000000dEaD";
+
+/**
+ * Every rule that could keep the PR blocked after crypto clears. Baseline
+ * rules with no row still run — so we must DISABLE them explicitly. Opt-ins
+ * only run when enabled; disable any that may already be on the sacrificial
+ * repo (ai-review, pr-rate-limit, …).
+ */
+const CRYPTO_ONLY: repoServices.RuleConfigRow[] = [
+	{ ruleId: "account-age", version: 1, enabled: false, config: { minDays: 7 } },
+	{ ruleId: "crypto-address", version: 1, enabled: true, config: {} },
+	{
+		ruleId: "honeypot",
+		version: 1,
+		enabled: false,
+		config: { paths: [".github/workflows/**"] },
+	},
+	{
+		ruleId: "max-files-changed",
+		version: 1,
+		enabled: false,
+		config: { max: 200 },
+	},
+	{
+		ruleId: "english-only",
+		version: 1,
+		enabled: false,
+		config: { maxNonLatinRatio: 0.5 },
+	},
+	{
+		ruleId: "ai-review",
+		version: 1,
+		enabled: false,
+		config: { maxSteps: 12 },
+	},
+	{
+		ruleId: "pr-rate-limit",
+		version: 1,
+		enabled: false,
+		config: { windowHours: 24, maxPerWindow: 5 },
+	},
+	{
+		ruleId: "min-merged-prs",
+		version: 1,
+		enabled: false,
+		config: { min: 0 },
+	},
+	{
+		ruleId: "profile-readme",
+		version: 1,
+		enabled: false,
+		config: { minLength: 32 },
+	},
+];
 
 $.throws(true);
 
@@ -61,6 +126,7 @@ interface CheckRun {
 	status: string;
 	conclusion: string | null;
 	head_sha: string;
+	output?: { title?: string | null; summary?: string | null };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -69,9 +135,10 @@ function sleep(ms: number): Promise<void> {
 
 function fail(message: string): never {
 	console.error(`\n✗ ${message}`);
-	console.error(`  PR: https://github.com/${REPO}/pull/ (branch ${BRANCH})`);
+	console.error(`  PR: https://github.com/${REPO}/pulls?q=head%3A${BRANCH}`);
 	console.error("  artifacts left for inspection; re-run for a clean slate.\n");
-	process.exit(1);
+	// Throw (don't process.exit) so the finally in main restores rule_configs.
+	throw new Error(message);
 }
 
 function ok(message: string): void {
@@ -121,9 +188,12 @@ async function diagnose(pr: number, expected: string): Promise<void> {
 		const checks = await api<{ check_runs: CheckRun[] }>(
 			`/repos/${REPO}/commits/${head}/check-runs`,
 		);
+		const inProgress = checks.check_runs.filter(
+			(r) => r.status === "in_progress" || r.status === "queued",
+		);
 		console.error(
 			checks.check_runs.length === 0
-				? "  check runs on that SHA: NONE — the run never reached GitHub. check the worker logs: no forge creds (app not installed on this repo?), a 401 webhook (secret mismatch), or the tunnel isn't the app's webhook URL."
+				? "  check runs on that SHA: NONE — the run never reached GitHub. check the worker logs: no forge creds (app not installed on this repo?), a 401 webhook (secret mismatch), the tunnel isn't the app's webhook URL, or the pusher is exempt (maintainer/org member) without TRIPWIRE_DISABLE_EXEMPTION=true."
 				: `  check runs on that SHA: ${checks.check_runs
 						.map(
 							(r) =>
@@ -131,6 +201,11 @@ async function diagnose(pr: number, expected: string): Promise<void> {
 						)
 						.join(", ")}`,
 		);
+		if (inProgress.length > 0) {
+			console.error(
+				"  stuck in_progress usually means the worker posted the pending gate then returned without a run (actor exempt) — set TRIPWIRE_DISABLE_EXEMPTION=true and restart the worker, or push as a non-maintainer.",
+			);
+		}
 		const cs = await comments(pr);
 		console.error(
 			`  active tripwire comments on the PR: ${cs.filter(hasMarker).length}`,
@@ -146,18 +221,31 @@ async function diagnose(pr: number, expected: string): Promise<void> {
  */
 async function waitForVerdict(pr: number, pushed: string): Promise<CheckRun> {
 	const start = Date.now();
+	let lastLogAt = 0;
 	while (Date.now() - start < TIMEOUT_MS) {
-		if ((await prHeadSha(pr)) === pushed) {
+		const head = await prHeadSha(pr);
+		if (head === pushed) {
 			const run = await completedCheck(pushed);
 			if (run) {
 				return run;
 			}
 		}
+		const now = Date.now();
+		// Progress every 15s so a stall is visible without spamming.
+		if (now - lastLogAt >= 15_000) {
+			const elapsed = Math.round((now - start) / 1000);
+			console.log(
+				head === pushed
+					? `  … waiting for completed \`${CHECK_NAME}\` on ${pushed.slice(0, 7)} (${elapsed}s)`
+					: `  … waiting for GitHub head ${pushed.slice(0, 7)} (now ${head.slice(0, 7)}, ${elapsed}s)`,
+			);
+			lastLogAt = now;
+		}
 		await sleep(POLL_MS);
 	}
 	await diagnose(pr, pushed);
 	return fail(
-		`no completed \`${CHECK_NAME}\` check for ${pushed.slice(0, 7)} within ${TIMEOUT_MS / 1000}s`,
+		`no completed \`${CHECK_NAME}\` check for ${pushed.slice(0, 7)} within ${TIMEOUT_MS / 1000}s — if the check is stuck in_progress or missing: is the pusher a maintainer/org member without TRIPWIRE_DISABLE_EXEMPTION=true on the worker?`,
 	);
 }
 
@@ -188,159 +276,250 @@ async function cleanup(): Promise<void> {
 	await $`git push origin --delete ${BRANCH}`.cwd(WORKDIR).nothrow().quiet();
 }
 
+/**
+ * Pin TEST_REPO to crypto-address alone so the three-phase script is a pure
+ * crypto trip/clear/re-trip. Snapshot + restore so a maintainer's real
+ * rule_configs on the sacrificial repo aren't left gutted after the run.
+ */
+async function pinCryptoOnly(db: Db): Promise<{
+	repoId: string;
+	prior: repoServices.RuleConfigRow[];
+}> {
+	const repo = await repoServices.getRepoByFullName(db, REPO);
+	if (!repo) {
+		fail(
+			`repo ${REPO} is not in the DB — is the app installed / has a webhook for this repo landed yet?`,
+		);
+	}
+	const prior = await repoServices.listRuleConfigs(db, repo.id);
+	for (const row of CRYPTO_ONLY) {
+		await repoServices.upsertRuleConfig(db, repo.id, row);
+	}
+	// Any extra opt-in rows not in CRYPTO_ONLY stay enabled would still run —
+	// force-disable unknowns so a future rule can't quietly break phase 2.
+	for (const row of prior) {
+		if (!CRYPTO_ONLY.some((r) => r.ruleId === row.ruleId)) {
+			await repoServices.upsertRuleConfig(db, repo.id, {
+				...row,
+				enabled: false,
+			});
+		}
+	}
+	return { repoId: repo.id, prior };
+}
+
+async function restoreRuleConfigs(
+	db: Db,
+	repoId: string,
+	prior: repoServices.RuleConfigRow[],
+): Promise<void> {
+	// Re-apply the snapshot; anything we introduced that wasn't prior stays
+	// disabled (we don't delete rows — the Rules UI created them).
+	const priorIds = new Set(prior.map((r) => r.ruleId));
+	for (const row of prior) {
+		await repoServices.upsertRuleConfig(db, repoId, row);
+	}
+	for (const row of CRYPTO_ONLY) {
+		if (!priorIds.has(row.ruleId)) {
+			await repoServices.upsertRuleConfig(db, repoId, {
+				...row,
+				enabled: false,
+			});
+		}
+	}
+}
+
 async function main(): Promise<void> {
 	console.log(`lifecycle E2E on ${REPO} (branch ${BRANCH})`);
 
-	// ── setup: clean slate, fresh branch off the base, open the PR ──────────────
-	const clone = await $`test -d ${WORKDIR}/.git`.nothrow().quiet();
-	if (clone.exitCode !== 0) {
-		await $`gh repo clone ${REPO} ${WORKDIR}`.quiet();
+	if (!process.env.DATABASE_URL) {
+		fail("DATABASE_URL is required — the script pins rule_configs on TEST_REPO");
 	}
-	const base =
-		process.env.TEST_BASE ??
-		(
-			await $`gh repo view ${REPO} --json defaultBranchRef --jq .defaultBranchRef.name`.text()
-		).trim();
+	const { db, pool } = createDb();
+	let restore: (() => Promise<void>) | null = null;
 
-	await $`git fetch origin ${base}`.cwd(WORKDIR).quiet();
-	await cleanup();
-	await git("checkout", base);
-	await git("reset", "--hard", `origin/${base}`);
-	await $`git branch -D ${BRANCH}`.cwd(WORKDIR).nothrow().quiet();
-	await git("checkout", "-b", BRANCH);
-	await Bun.write(join(WORKDIR, "LIFECYCLE.md"), "# tripwire lifecycle e2e\n");
-	await git("add", "LIFECYCLE.md");
+	try {
+		const { repoId, prior } = await pinCryptoOnly(db);
+		restore = () => restoreRuleConfigs(db, repoId, prior);
+		ok("rule_configs pinned to crypto-address@1 only (will restore on exit)");
 
-	// ── phase 1: a wallet address trips crypto-address ⇒ blocked ────────────────
-	console.log("\nphase 1 — blocked");
-	const sha1 = await pushWallet(true, "lifecycle: add wallet (trips crypto)");
-	await $`gh pr create --repo ${REPO} --base ${base} --head ${BRANCH} --title ${"tripwire lifecycle e2e"} --body ${"automated §11 live E2E — safe to close."}`
-		.nothrow()
-		.quiet();
-	const pr = Number(
-		(
-			await $`gh pr view ${BRANCH} --repo ${REPO} --json number --jq .number`.text()
-		).trim(),
-	);
-	assert(Number.isInteger(pr), "could not open or find the lifecycle PR");
-	ok(`PR #${pr} opened`);
+		// ── setup: clean slate, fresh branch off the base, open the PR ────────
+		const clone = await $`test -d ${WORKDIR}/.git`.nothrow().quiet();
+		if (clone.exitCode !== 0) {
+			await $`gh repo clone ${REPO} ${WORKDIR}`.quiet();
+		}
+		const base =
+			process.env.TEST_BASE ??
+			(
+				await $`gh repo view ${REPO} --json defaultBranchRef --jq .defaultBranchRef.name`.text()
+			).trim();
 
-	const check1 = await waitForVerdict(pr, sha1);
-	assert(
-		check1.conclusion === "failure",
-		`expected the check to be failure (blocked), got ${check1.conclusion} — is the pushing account exempt (org member/maintainer), or crypto-address disabled?`,
-	);
-	ok("tripwire check is failure on the head SHA");
+		await $`git fetch origin ${base}`.cwd(WORKDIR).quiet();
+		await cleanup();
+		await git("checkout", base);
+		await git("reset", "--hard", `origin/${base}`);
+		await $`git branch -D ${BRANCH}`.cwd(WORKDIR).nothrow().quiet();
+		await git("checkout", "-b", BRANCH);
+		await Bun.write(
+			join(WORKDIR, "LIFECYCLE.md"),
+			"# tripwire lifecycle e2e\n",
+		);
+		await git("add", "LIFECYCLE.md");
 
-	let thread = await comments(pr);
-	const active1 = thread.filter(hasMarker);
-	assert(
-		active1.length === 1,
-		`expected exactly ONE active tripwire comment (with the marker), found ${active1.length}`,
-	);
-	const bot = active1[0]?.user.login as string;
-	const mine = (list: Comment[]) => list.filter((c) => c.user.login === bot);
-	assert(
-		mine(thread).length === 1,
-		`expected exactly ONE tripwire comment total, found ${mine(thread).length}`,
-	);
-	assert(
-		active1[0]?.body.includes("**blocked**"),
-		"the active comment does not read as blocked",
-	);
-	ok("exactly one tripwire comment, carries the marker, reads blocked");
+		// ── phase 1: a wallet address trips crypto-address ⇒ blocked ──────────
+		console.log("\nphase 1 — blocked");
+		const sha1 = await pushWallet(
+			true,
+			"lifecycle: add wallet (trips crypto)",
+		);
+		await $`gh pr create --repo ${REPO} --base ${base} --head ${BRANCH} --title ${"tripwire lifecycle e2e"} --body ${"automated §11 live E2E — safe to close."}`
+			.nothrow()
+			.quiet();
+		const pr = Number(
+			(
+				await $`gh pr view ${BRANCH} --repo ${REPO} --json number --jq .number`.text()
+			).trim(),
+		);
+		assert(Number.isInteger(pr), "could not open or find the lifecycle PR");
+		ok(`PR #${pr} opened`);
 
-	const review1 = (await reviews(pr)).find(
-		(r) => r.user.login === bot && r.state === "CHANGES_REQUESTED",
-	);
-	assert(review1, "no CHANGES_REQUESTED review from the bot");
-	ok("a request-changes review exists");
+		const check1 = await waitForVerdict(pr, sha1);
+		assert(
+			check1.conclusion === "failure",
+			`expected the check to be failure (blocked), got ${check1.conclusion} — is the pushing account exempt (org member/maintainer), or crypto-address disabled?`,
+		);
+		ok("tripwire check is failure on the head SHA");
 
-	// ── phase 2: remove the address ⇒ passed (transition) ───────────────────────
-	console.log("\nphase 2 — passed (transition)");
-	const sha2 = await pushWallet(false, "lifecycle: remove wallet address");
-	const check2 = await waitForVerdict(pr, sha2);
-	assert(
-		check2.conclusion === "success",
-		`expected the check to be success (passed), got ${check2.conclusion}`,
-	);
-	ok("tripwire check is success on the new SHA");
+		let thread = await comments(pr);
+		const active1 = thread.filter(hasMarker);
+		assert(
+			active1.length === 1,
+			`expected exactly ONE active tripwire comment (with the marker), found ${active1.length}`,
+		);
+		const bot = active1[0]?.user.login as string;
+		const mine = (list: Comment[]) =>
+			list.filter((c) => c.user.login === bot);
+		assert(
+			mine(thread).length === 1,
+			`expected exactly ONE tripwire comment total, found ${mine(thread).length}`,
+		);
+		assert(
+			active1[0]?.body.includes("**blocked**"),
+			"the active comment does not read as blocked",
+		);
+		ok("exactly one tripwire comment, carries the marker, reads blocked");
 
-	thread = await comments(pr);
-	assert(
-		mine(thread).length === 2,
-		`expected TWO tripwire comments after the transition, found ${mine(thread).length}`,
-	);
-	const active2 = thread.filter(hasMarker);
-	assert(
-		active2.length === 1,
-		`expected exactly ONE active comment, found ${active2.length}`,
-	);
-	const newest = mine(thread).at(-1) as Comment;
-	assert(
-		hasMarker(newest) && newest.body.includes("**passed**"),
-		"the newest comment is not the passed resolution",
-	);
-	assert(
-		newest.body.includes("that's cleared"),
-		"the resolution copy doesn't acknowledge the change",
-	);
-	const oldest = mine(thread)[0] as Comment;
-	assert(
-		isSuperseded(oldest) && !hasMarker(oldest),
-		"the first (blocked) comment is not struck/superseded, or still carries the marker",
-	);
-	ok(
-		"old comment superseded (marker-less); new comment is a passed resolution",
-	);
+		const review1 = (await reviews(pr)).find(
+			(r) => r.user.login === bot && r.state === "CHANGES_REQUESTED",
+		);
+		assert(review1, "no CHANGES_REQUESTED review from the bot");
+		ok("a request-changes review exists");
 
-	const review1After = (await reviews(pr)).find((r) => r.id === review1?.id);
-	assert(
-		review1After?.state === "DISMISSED",
-		`the request-changes review was not dismissed (state ${review1After?.state})`,
-	);
-	ok("the stale request-changes review is dismissed");
+		// ── phase 2: remove the address ⇒ passed (transition) ─────────────────
+		console.log("\nphase 2 — passed (transition)");
+		const sha2 = await pushWallet(false, "lifecycle: remove wallet address");
+		const check2 = await waitForVerdict(pr, sha2);
+		assert(
+			check2.conclusion === "success",
+			`expected the check to be success (passed), got ${check2.conclusion}${check2.output?.summary ? ` — ${check2.output.summary}` : ""}`,
+		);
+		ok("tripwire check is success on the new SHA");
 
-	// ── phase 3: re-add the address ⇒ blocked (transition) ──────────────────────
-	console.log("\nphase 3 — blocked again (transition)");
-	const sha3 = await pushWallet(true, "lifecycle: re-add wallet address");
-	const check3 = await waitForVerdict(pr, sha3);
-	assert(
-		check3.conclusion === "failure",
-		`expected the check to be failure again, got ${check3.conclusion}`,
-	);
-	ok("tripwire check is failure on the newest SHA");
+		thread = await comments(pr);
+		assert(
+			mine(thread).length === 2,
+			`expected TWO tripwire comments after the transition, found ${mine(thread).length}`,
+		);
+		const active2 = thread.filter(hasMarker);
+		assert(
+			active2.length === 1,
+			`expected exactly ONE active comment, found ${active2.length}`,
+		);
+		const newest = mine(thread).at(-1) as Comment;
+		assert(
+			hasMarker(newest) && newest.body.includes("**passed**"),
+			"the newest comment is not the passed resolution",
+		);
+		assert(
+			newest.body.includes("that's cleared"),
+			"the resolution copy doesn't acknowledge the change",
+		);
+		const oldest = mine(thread)[0] as Comment;
+		assert(
+			isSuperseded(oldest) && !hasMarker(oldest),
+			"the first (blocked) comment is not struck/superseded, or still carries the marker",
+		);
+		ok(
+			"old comment superseded (marker-less); new comment is a passed resolution",
+		);
 
-	thread = await comments(pr);
-	assert(
-		mine(thread).length === 3,
-		`expected THREE tripwire comments, found ${mine(thread).length}`,
-	);
-	const newest3 = mine(thread).at(-1) as Comment;
-	assert(
-		hasMarker(newest3) && newest3.body.includes("**blocked**"),
-		"the newest comment is not a fresh blocked comment",
-	);
-	const passedComment = mine(thread)[1] as Comment;
-	assert(
-		isSuperseded(passedComment) && !hasMarker(passedComment),
-		"the passed comment was not superseded on the re-block",
-	);
-	const review3 = (await reviews(pr)).find(
-		(r) =>
-			r.user.login === bot &&
-			r.state === "CHANGES_REQUESTED" &&
-			r.id !== review1?.id,
-	);
-	assert(review3, "no NEW request-changes review on the re-block");
-	ok("three comments; a fresh blocked comment is last; a new review exists");
+		const review1After = (await reviews(pr)).find(
+			(r) => r.id === review1?.id,
+		);
+		assert(
+			review1After?.state === "DISMISSED",
+			`the request-changes review was not dismissed (state ${review1After?.state})`,
+		);
+		ok("the stale request-changes review is dismissed");
 
-	// ── cleanup (success only — failures leave artifacts to inspect) ────────────
-	await cleanup();
-	console.log(
-		"\n✓ lifecycle E2E passed — thread mechanics verified. cleaned up.",
-	);
-	console.log("  (a human still reads the thread once — taste stays human.)");
+		// ── phase 3: re-add the address ⇒ blocked (transition) ────────────────
+		console.log("\nphase 3 — blocked again (transition)");
+		const sha3 = await pushWallet(true, "lifecycle: re-add wallet address");
+		const check3 = await waitForVerdict(pr, sha3);
+		assert(
+			check3.conclusion === "failure",
+			`expected the check to be failure again, got ${check3.conclusion}`,
+		);
+		ok("tripwire check is failure on the newest SHA");
+
+		thread = await comments(pr);
+		assert(
+			mine(thread).length === 3,
+			`expected THREE tripwire comments, found ${mine(thread).length}`,
+		);
+		const newest3 = mine(thread).at(-1) as Comment;
+		assert(
+			hasMarker(newest3) && newest3.body.includes("**blocked**"),
+			"the newest comment is not a fresh blocked comment",
+		);
+		const passedComment = mine(thread)[1] as Comment;
+		assert(
+			isSuperseded(passedComment) && !hasMarker(passedComment),
+			"the passed comment was not superseded on the re-block",
+		);
+		const review3 = (await reviews(pr)).find(
+			(r) =>
+				r.user.login === bot &&
+				r.state === "CHANGES_REQUESTED" &&
+				r.id !== review1?.id,
+		);
+		assert(review3, "no NEW request-changes review on the re-block");
+		ok("three comments; a fresh blocked comment is last; a new review exists");
+
+		// ── cleanup (success only — failures leave artifacts to inspect) ──────
+		await cleanup();
+		console.log(
+			"\n✓ lifecycle E2E passed — thread mechanics verified. cleaned up.",
+		);
+		console.log("  (a human still reads the thread once — taste stays human.)");
+	} finally {
+		if (restore) {
+			try {
+				await restore();
+				console.log("  rule_configs restored");
+			} catch (error) {
+				console.error(
+					`  ✗ failed to restore rule_configs: ${String(error)} — fix by hand on ${REPO}`,
+				);
+			}
+		}
+		await pool.end();
+	}
 }
 
-await main();
+try {
+	await main();
+} catch {
+	// fail() already printed the human message; keep the exit code non-zero.
+	process.exit(1);
+}

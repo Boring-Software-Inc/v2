@@ -285,7 +285,7 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 		]);
 	});
 
-	test("maintainer PR ⇒ exempt, no run", async () => {
+	test("maintainer PR ⇒ exempt, no run, no pending check", async () => {
 		const raw = await fixtureRaw();
 		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
 			deliveryId: "worker-run-2",
@@ -295,12 +295,20 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 		if (!eventId) {
 			throw new Error("insert failed");
 		}
+		const executed: string[] = [];
 		await processEvent(
 			{
 				db,
 				pool,
 				logger,
-				adapter: null,
+				// Adapter present so a premature pending check would land —
+				// exemption must fire first (DECISIONS: no gate for exempt).
+				adapter: {
+					execute: (action: { kind: string }) => {
+						executed.push(action.kind);
+						return Promise.resolve({ externalId: "x" });
+					},
+				} as never,
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
 				reads: {
@@ -319,6 +327,7 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 			[eventId],
 		);
 		expect(runRows.rows[0].n).toBe(0);
+		expect(executed).toEqual([]);
 	});
 
 	test("degraded reads (all throw) ⇒ fail-closed floor: needs_review + moderation item, never pass", async () => {
