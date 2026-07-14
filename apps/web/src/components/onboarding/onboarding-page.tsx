@@ -16,13 +16,7 @@ import {
 import { cn } from "#/lib/utils";
 
 /** The cardless first-contact shell — the page IS the surface, no panel. */
-function Shell({
-	children,
-	line,
-}: {
-	children: ReactNode;
-	line: string;
-}) {
+function Shell({ children, line }: { children: ReactNode; line: string }) {
 	return (
 		<div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6 py-16">
 			<div className="flex w-full max-w-sm flex-col items-center text-center">
