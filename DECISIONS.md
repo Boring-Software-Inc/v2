@@ -2141,6 +2141,56 @@ being gated; only dither-kit was intended. Fixed by arming.
   `role=dialog` sibling, Esc closes). Deep-link `?repo=` still the flagged
   follow-up — navigation here uses `to:path` without search, so it doesn't touch it.
 
+## In-app feedback flow ported from ~/tripwire (2026-07-14)
+
+Copied the feedback flow (element-grab → comment + screenshot → Discord webhook)
+from ~/tripwire's `@tripwire/feedback` package. It's a real user-feedback surface
+Grim wanted in v2 too.
+
+### Home: apps/web, NOT a new package
+
+- **Ported INTO `apps/web/src/components/feedback/`, not as `@tripwire/feedback`.**
+  The §3 layout is closed — a new top-level package needs a DECISIONS entry AND a
+  boundary-arrow edit. The flow is 100% web-only (provider, dialog, overlay, a
+  submit server-fn), so it fits `apps/web` with zero architecture change. This is
+  the deliberate deviation from a verbatim copy.
+- **Submission is a server FUNCTION, not an `/api/feedback` REST route** (the
+  source used a TanStack `server.handlers` file route). §9 says "no internal REST —
+  server functions calling services." `submitFeedback` (`lib/feedback.functions.ts`)
+  takes the comment/route/element/metadata + the screenshot as a **base64 data URL**
+  (JSON-serialisable, so no multipart plumbing) and forwards a Discord embed to
+  `FEEDBACK_WEBHOOK_URL`. Unset ⇒ a logged no-op that still returns ok, so dev and
+  self-host without the env don't error the form.
+- **Restyled to v2 tokens.** The source's `tw-*` Tailwind tokens + `@tripwire/ui`
+  Dialog don't exist here; the dialog uses v2's overlay pattern (button backdrop +
+  `role=dialog`, Esc closes — same as the command palette) and surface/foreground/
+  muted tokens. The element-picker's blue selection highlight is kept verbatim
+  (transient, intentionally distinct from the app palette).
+
+### Dependencies (owner-locked — "all of it")
+
+- **`html2canvas-pro ^2` · `react-grab ^0.1` · `bippy ^0.6`** added to `apps/web`.
+  They ARE the flow: `bippy` walks the fiber tree for the component name under the
+  cursor, `react-grab/primitives` resolves an element's source context (file:line
+  stack), `html2canvas-pro` snaps the viewport. Verified: `react-grab/primitives`
+  and `bippy` are import-safe under SSR (the nitro build bundles them without a
+  `window` crash); `html2canvas-pro` is dynamic-imported client-side only. This is
+  the DECISIONS entry AGENTS.md requires for new deps.
+
+### Entry points (the ask)
+
+- **Header user-dropdown → "Send feedback"** opens the dialog directly.
+- **Beta banner is now press-to-summon.** The whole banner is a button that opens
+  feedback, with an explicit "Send feedback" pill so the affordance is unmissable
+  (replaces the old "DM on X" copy). The dismiss ✕ stays a separate sibling button.
+- Both live inside `<FeedbackProvider>` (mounted in `DashboardShell`, wrapping the
+  topbar + banner + dialog + overlay), which also attaches the signed-in
+  maintainer's login as submission metadata.
+- Direct-open (dropdown/banner) has no pre-grabbed element; the form captures the
+  viewport screenshot on submit. The dialog's "inspect" button enters the picker
+  overlay for a component-scoped report (source stack + highlighted screenshot).
+- **Env:** `FEEDBACK_WEBHOOK_URL` documented in `.env.example` (web section).
+
 ## The interactive live-E2E harness — `bun run test` (2026-07-13, §11)
 
 Three one-off scripts (`test:run`, `test:lifecycle`, `smoke:deploy`) and a dozen

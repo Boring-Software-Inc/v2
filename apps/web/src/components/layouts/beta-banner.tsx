@@ -1,6 +1,7 @@
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, Comment01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState, useSyncExternalStore } from "react";
+import { useFeedback } from "#/components/feedback";
 import { Button } from "#/components/ui/button";
 import { cn } from "#/lib/utils";
 
@@ -32,6 +33,7 @@ export function BetaBanner() {
 		getServerSnapshot,
 	);
 	const [closing, setClosing] = useState(false);
+	const { open: openFeedback } = useFeedback();
 
 	if (dismissed) return null;
 
@@ -53,17 +55,19 @@ export function BetaBanner() {
 						closing && "opacity-0",
 					)}
 				>
-					<p className="text-[13px] font-medium leading-tight text-foreground">
-						Tripwire is in closed beta. Please raise any issues via DM on X{" "}
-						<a
-							href="https://x.com/tripwiredotsh"
-							target="_blank"
-							rel="noreferrer"
-							className="underline underline-offset-2"
-						>
-							@tripwiredotsh
-						</a>
-					</p>
+					<button
+						type="button"
+						onClick={openFeedback}
+						className="group flex flex-1 items-center justify-center gap-2 text-[13px] font-medium leading-tight text-foreground"
+					>
+						<span>
+							Tripwire is in closed beta — hit a bug or something rough?
+						</span>
+						<span className="inline-flex items-center gap-1 rounded-md bg-foreground/10 px-2 py-0.5 text-xs transition-colors group-hover:bg-foreground/[0.16]">
+							<HugeiconsIcon icon={Comment01Icon} size={12} strokeWidth={2} />
+							Send feedback
+						</span>
+					</button>
 					<Button
 						variant="ghost"
 						aria-label="Dismiss beta banner"

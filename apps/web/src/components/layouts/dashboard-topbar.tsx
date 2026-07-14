@@ -2,6 +2,7 @@ import {
 	ActivityIcon,
 	Analytics01Icon,
 	CheckListIcon,
+	Comment01Icon,
 	FlowIcon,
 	Home01Icon,
 	Logout01Icon,
@@ -13,6 +14,7 @@ import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
+import { useFeedback } from "#/components/feedback";
 import { RepoSwitcher } from "#/components/layouts/repo-switcher";
 import { Avatar, AvatarFallback, AvatarImage } from "#/components/ui/avatar";
 import { Button } from "#/components/ui/button";
@@ -86,6 +88,7 @@ const PLACEHOLDER_USER: CurrentUser = {
 
 function UserMenu({ user }: { user: CurrentUser | null }) {
 	const moderator = user ?? PLACEHOLDER_USER;
+	const { open: openFeedback } = useFeedback();
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -118,6 +121,10 @@ function UserMenu({ user }: { user: CurrentUser | null }) {
 					</span>
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />
+				<DropdownMenuItem onClick={openFeedback}>
+					<HugeiconsIcon icon={Comment01Icon} size={14} strokeWidth={2} />
+					Send feedback
+				</DropdownMenuItem>
 				<DropdownMenuItem
 					className="text-destructive focus:text-destructive"
 					onClick={() =>
