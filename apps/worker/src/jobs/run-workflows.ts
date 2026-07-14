@@ -25,6 +25,7 @@ import {
 	exemptionFlagRefusedInProd,
 	isExemptionDisabled,
 } from "../exemption.ts";
+import { readsInjectionRefusedInProd } from "../reads-injection.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
 
 /**
@@ -177,6 +178,11 @@ export async function runWorkflows(
 	if (exemptionFlagRefusedInProd()) {
 		logger.warn(
 			"TRIPWIRE_DISABLE_EXEMPTION=true REFUSED under NODE_ENV=production — maintainer exemption stays on",
+		);
+	}
+	if (readsInjectionRefusedInProd()) {
+		logger.warn(
+			"TRIPWIRE_FAIL_READS REFUSED under NODE_ENV=production — reads run for real",
 		);
 	}
 	const exemptionDisabled = isExemptionDisabled();

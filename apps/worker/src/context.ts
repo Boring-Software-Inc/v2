@@ -7,6 +7,7 @@ import type {
 } from "@tripwire/forge";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
+import { forcedReadFailures } from "./reads-injection.ts";
 
 /**
  * §5.8 — ALL reads happen HERE, pre-fetched through the adapter's read
@@ -39,9 +40,15 @@ export async function buildRuleContext(
 	const number = "changeRequest" in event ? event.changeRequest.number : null;
 	const repo = event.repo.fullName;
 	const degradedReads: string[] = [];
+	const forcedFailures = forcedReadFailures();
 
 	const guard = async <T>(name: string, fn: () => Promise<T>) => {
 		try {
+			if (forcedFailures.has(name)) {
+				throw new Error(
+					`TRIPWIRE_FAIL_READS: forced failure of "${name}" read`,
+				);
+			}
 			return await fn();
 		} catch (error) {
 			degradedReads.push(name);
