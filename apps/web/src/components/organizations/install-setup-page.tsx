@@ -12,6 +12,7 @@ import {
 	claimInstallation,
 	getInstallPreview,
 	type InstallPreview,
+	listClaimableInstallations,
 } from "#/lib/onboarding.functions";
 import { myOrgsQueryOptions, orgQueryKeys } from "#/lib/org.query";
 
@@ -26,14 +27,68 @@ export function InstallSetupPage() {
 	const search = route.useSearch();
 	const installationId = search.installation_id;
 
+	// GitHub sometimes bounces back WITHOUT installation_id — notably when the
+	// App is already installed on the chosen account (nothing new to install)
+	// and for pending installation requests. Recover instead of dead-ending.
 	if (!installationId) {
+		if (search.setup_action === "request") {
+			return (
+				<SetupShell>
+					<h1 className="font-semibold text-[17px] text-foreground">
+						waiting on github.
+					</h1>
+					<p className="text-[13px] text-muted-foreground leading-relaxed">
+						your installation request needs approval from an admin of that
+						github account. once they approve, you'll get the callback here.
+					</p>
+					<Button asChild size="sm" variant="outline">
+						<Link to="/">back home</Link>
+					</Button>
+				</SetupShell>
+			);
+		}
+		return <RecoverInstallation state={search.state} />;
+	}
+
+	return <SetupFlow installationId={installationId} state={search.state} />;
+}
+
+/**
+ * The id-less callback: GitHub confirmed an install/update but didn't say
+ * WHICH installation. The webhook already synced it — offer every unclaimed
+ * installation for an explicit pick (still never auto-claimed). Exactly one
+ * candidate ⇒ pre-select it into the normal confirm flow, carrying the
+ * original signed state so the org confirmation still names both sides.
+ */
+function RecoverInstallation({ state }: { state: string | undefined }) {
+	const { data: claimable } = useQuery({
+		queryKey: ["onboarding", "claimable-installations"],
+		queryFn: ({ signal }) => listClaimableInstallations({ signal }),
+		staleTime: 10_000,
+	});
+	const [picked, setPicked] = useState<string | null>(null);
+
+	if (!claimable) {
+		return <InstallSetupPageSkeleton />;
+	}
+	if (
+		picked ??
+		(claimable.length === 1 ? claimable[0]?.installationId : null)
+	) {
+		const id = picked ?? (claimable[0]?.installationId as string);
+		return <SetupFlow installationId={id} state={state} />;
+	}
+	if (claimable.length === 0) {
 		return (
 			<SetupShell>
 				<h1 className="font-semibold text-[17px] text-foreground">
-					nothing to connect.
+					nothing to connect yet.
 				</h1>
 				<p className="text-[13px] text-muted-foreground leading-relaxed">
-					this page expects a github installation callback.
+					github didn't hand back an installation id, and no unclaimed
+					installation has arrived over webhooks. if you just installed, give it
+					a moment and refresh — the webhook may still be in flight.
+					already-connected installations live with their org.
 				</p>
 				<Button asChild size="sm" variant="outline">
 					<Link to="/">back home</Link>
@@ -41,8 +96,35 @@ export function InstallSetupPage() {
 			</SetupShell>
 		);
 	}
-
-	return <SetupFlow installationId={installationId} state={search.state} />;
+	return (
+		<SetupShell>
+			<h1 className="font-semibold text-[17px] text-foreground">
+				which installation?
+			</h1>
+			<p className="text-[13px] text-muted-foreground leading-relaxed">
+				github didn't say which installation it just confirmed — pick the one to
+				connect.
+			</p>
+			<div className="flex w-full flex-col gap-1.5">
+				{claimable.map((c) => (
+					<button
+						className="flex items-center gap-2 rounded-md border bg-surface-0 px-3 py-2 text-left text-[13px] transition-colors hover:bg-surface-1"
+						key={c.installationId}
+						onClick={() => setPicked(c.installationId)}
+						type="button"
+					>
+						<GithubIcon className="size-4 shrink-0 text-muted-foreground" />
+						<span className="font-medium text-foreground">
+							{c.account ?? "installation"}
+						</span>
+						<span className="text-muted-foreground">
+							{c.repoCount} {c.repoCount === 1 ? "repo" : "repos"}
+						</span>
+					</button>
+				))}
+			</div>
+		</SetupShell>
+	);
 }
 
 function SetupFlow({

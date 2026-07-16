@@ -230,3 +230,38 @@ export const moveInstallationToOrg = createServerFn({ method: "POST" })
 			return { moved: false, error: "sign in required" };
 		},
 	);
+
+export interface ClaimableInstallation {
+	installationId: string;
+	account: string | null;
+	repoCount: number;
+}
+
+/**
+ * Unclaimed installations the webhook has already synced (repos with NULL
+ * org_id). Recovery path for GitHub's id-less Setup callbacks: when the App
+ * is ALREADY installed on the chosen account, GitHub bounces back with
+ * `setup_action=install` and a state but NO installation_id — the id must be
+ * recovered from what the webhook delivered. Session-gated only; claiming
+ * remains a separate admin-gated act.
+ */
+export const listClaimableInstallations = createServerFn({ method: "GET" })
+	.middleware([accessGuardMiddleware])
+	.handler(async (): Promise<ClaimableInstallation[]> => {
+		const { getDb } = await import("#/lib/server/db");
+		const { sql } = await import("drizzle-orm");
+		const result = await getDb().db.execute(sql`
+			SELECT r.installation_id AS "installationId",
+			       min(r.owner) AS account,
+			       count(*)::int AS "repoCount"
+			FROM repos r
+			LEFT JOIN organization_installations oi
+			  ON oi.installation_id = r.installation_id AND oi.forge = r.forge
+			WHERE r.installation_id IS NOT NULL
+			  AND r.removed_at IS NULL
+			  AND oi.id IS NULL
+			GROUP BY r.installation_id
+			ORDER BY min(r.installed_at) DESC
+		`);
+		return result.rows as unknown as ClaimableInstallation[];
+	});
