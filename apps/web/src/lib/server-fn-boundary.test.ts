@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { SERVER_FN_CLASSIFICATION } from "./server-fn-classification.ts";
 
 /**
  * Structural authz boundary (invariant 3). Server functions are HTTP endpoints;
@@ -83,5 +84,40 @@ describe("server-fn access boundary (invariant 3)", () => {
 			).toBeDefined();
 			expect(f?.gated).toBe(false);
 		}
+	});
+
+	// ── §4 role classification (amendment): the auditable list ─────────────
+	// Deny-by-default at the LIST level in checkpoint 1: an unclassified server
+	// function fails the build. The checkpoint-2 URL rewrite adds the org-role
+	// middlewares and upgrades this to assert the CHAIN matches the class.
+
+	test("every server function is classified (admin/member/public)", () => {
+		const unclassified = fns
+			.filter((f) => !(f.name in SERVER_FN_CLASSIFICATION))
+			.map((f) => `${f.file}:${f.name}`);
+		// New endpoint? Add a deliberate row to SERVER_FN_CLASSIFICATION.
+		expect(unclassified).toEqual([]);
+	});
+
+	test("classification has no stale entries", () => {
+		const stale = Object.keys(SERVER_FN_CLASSIFICATION).filter(
+			(name) => !fns.some((f) => f.name === name),
+		);
+		expect(stale).toEqual([]);
+	});
+
+	test("classification agrees with the public allowlist", () => {
+		const classifiedPublic = Object.entries(SERVER_FN_CLASSIFICATION)
+			.filter(([, cls]) => cls === "public")
+			.map(([name]) => name)
+			.sort();
+		expect(classifiedPublic).toEqual([...PUBLIC_ALLOWLIST].sort());
+	});
+
+	test("member/admin functions all carry the access-gate middleware", () => {
+		const ungated = fns
+			.filter((f) => SERVER_FN_CLASSIFICATION[f.name] !== "public" && !f.gated)
+			.map((f) => `${f.file}:${f.name}`);
+		expect(ungated).toEqual([]);
 	});
 });

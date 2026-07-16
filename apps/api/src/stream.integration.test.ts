@@ -6,6 +6,7 @@ import {
 	createDb,
 	createTestDatabase,
 	type Db,
+	schema,
 	type TestDatabase,
 } from "@tripwire/db";
 import type { Pool } from "pg";
@@ -51,6 +52,16 @@ beforeAll(async () => {
 	({ db, pool } = createDb(container.url));
 	await applyMigrations(db);
 	boss = await createBoss(container.url);
+	// Hermetic gate state: assertApproved reads accessStatus fresh from the
+	// DB, and the Databuddy access-gate flag can resolve LIVE (on) in tests —
+	// so the "valid session" case must be an APPROVED user row, not a phantom
+	// id that falls back to "pending" and 403s whenever the network flag is up.
+	await db.insert(schema.user).values({
+		id: "u1",
+		name: "approved tester",
+		email: "u1@example.com",
+		accessStatus: "approved",
+	});
 }, 120_000);
 
 afterAll(async () => {

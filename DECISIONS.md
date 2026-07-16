@@ -2305,3 +2305,71 @@ Unrelated but noted: recovering a corrupted Docker daemon here required a factor
 reset of Docker Desktop's data (the 60GB VM disk) — all local images were wiped
 (re-pullable). The corruption was real (containerd content-store I/O errors); a
 plain restart did not clear it.
+
+## Organizations — the org model ships on Better Auth's plugin (2026-07-16, §org-model)
+
+Everything a user reaches now hangs off an organization; users get access
+through membership. Two roles only — member reads, admin additionally mutates.
+The load-bearing choices, in the order they were argued:
+
+- **Better Auth `organization` plugin ADOPTED** for orgs/membership/roles/AC —
+  we do not hand-roll org CRUD. Two-role access control (`org-access.ts`):
+  `creatorRole: "admin"`, no owner tier (the plugin's leave-route guard on the
+  creator role thereby doubles as the last-admin-on-leave guard). Teams and
+  dynamicAccessControl stay OFF. `session.activeOrganizationId` exists (plugin
+  field) but is never an authority — the URL is the source of truth (§8); it's
+  at most the `/` redirect breadcrumb.
+- **Invite links are OURS, on top of the plugin** (`organization_invite_links`):
+  shareable token links — sha-256-hashed token, `{org, role, expiresAt,
+  maxUses}`, revocable, NO email. The plugin's email-keyed single-use
+  `invitation` table can't model that; its endpoints are hard-refused in
+  `beforeCreateInvitation` so the dormant table stays dormant. Redemption is
+  ONE transaction: row-lock the link, membership insert (existing member = full
+  no-op — role untouched, use NOT consumed), guarded increment
+  (`SET uses = uses + 1 WHERE uses < max_uses`) so concurrent redemptions of
+  the last use cannot both win (integration-tested with 8 racers).
+- **Invite→beta-approval is about the INVITER, not the org**: a redeemer is
+  promoted iff the link creator's `accessStatus` is "approved" read fresh AT
+  REDEMPTION TIME — a later rejection of the inviter kills their outstanding
+  links' side-door. No org-level approval concept exists anywhere. The write
+  goes through `accessServices.promoteUserAccess` — THE single promotion path
+  (audit fields set together), created for this and shared by any future
+  review UI.
+- **Personal orgs are direct inserts, not plugin calls** (`ensurePersonalOrg`,
+  idempotent, used by both the signup hook and the migration backfill) — so the
+  plugin hooks can refuse ALL member/invite mutations on personal orgs
+  unconditionally. Slug from the user's display name (the closest thing to the
+  GitHub login the system holds at create time), numeric-suffix on collision.
+- **Org deletion is disabled plugin-wide** (`disableOrganizationDeletion`) and
+  happens only through our admin-gated server fn: typed-name confirm verified
+  server-side, cascade enumerated first (`enumerateOrgCascade`: members,
+  invite links, installations, repos, rule configs, workflows). Repos
+  soft-remove (org_id cleared + removed_at); event/run history is append-only
+  and RETAINED. **Billing**: Autumn is not integrated yet — nothing re-keys;
+  when it lands, customers key to `organization.id` and the cascade list gains
+  the external Autumn customer (it won't cascade via FK).
+- **Installations belong to orgs** (`organization_installations`,
+  `(forge, installationId)` UNIQUE = one installation ↔ exactly one org, §3).
+  The webhook ingest path resolves installation→org→repos with zero
+  user/session assumptions; the worker's auto-claim-for-installer is GONE —
+  an unclaimed install syncs repos with NULL `org_id` (invisible; org-scoped
+  queries filter `org_id = $org`, which NULL never matches) until a human
+  claims it (§10: never auto-attach on a guess). `repos.org_id` is denormalized
+  at sync/claim; NULL is a legitimate long-term state ONLY for unclaimed
+  installs — the migration verifies zero claimed-but-NULL rows.
+- **Migration** (`scripts/migrate-orgs.ts` → `backfillOrgs`): idempotent,
+  re-runnable, integration-tested twice-run. Personal orgs backfilled,
+  `user_installations` re-parented to them, `repos.org_id` filled, end-state
+  verified. `moveInstallation` ships with it (admin op) — the founding team's
+  install moves personal→team org right after cutover; history follows free
+  because events/runs key on `repoFullName`.
+- **Moderation decisions are admin-only.** Approving a paused run releases code
+  through the gate — the most consequential action in the product, same trust
+  level as editing rules. First candidate for a per-org setting / third role
+  when a customer needs member triage; the `need` is declared per server fn so
+  loosening is a one-site change.
+- **The auditable classification** (`server-fn-classification.ts`): every
+  server fn is admin/member/public; the boundary test fails the build on an
+  unclassified fn. Checkpoint 1 enforces list completeness; the checkpoint-2
+  URL rewrite (`/:org/:repo/…`) adds `assertOrgRole` middlewares per fn and
+  upgrades the test to assert the chain matches the class.

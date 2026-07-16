@@ -43,6 +43,16 @@ export const repos = pgTable(
 		backfillDone: integer("backfill_done"),
 		/** GitHub App installation that grants access. */
 		installationId: text("installation_id"),
+		/**
+		 * Owning org (§org-model), denormalized from the installation's org at
+		 * sync/claim so scope queries are one hop. NULL is a legitimate long-term
+		 * state — a GitHub-side install nobody has claimed yet. Org-scoped queries
+		 * are null-safe by construction: they filter `org_id = $org`, which a NULL
+		 * can never match. No drizzle-level FK: organizations.ts imports auth.ts
+		 * which imports this file — the org service enforces referential integrity
+		 * at claim time instead of adding a three-module import cycle.
+		 */
+		orgId: text("org_id"),
 		installedAt: timestamp("installed_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

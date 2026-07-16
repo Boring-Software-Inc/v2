@@ -43,6 +43,13 @@
       "when": 1784134797889,
       "tag": "0005_blue_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784191715791,
+      "tag": "0006_dusty_black_bird",
+      "breakpoints": true
     }
   ]
 }

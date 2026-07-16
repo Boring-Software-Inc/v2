@@ -90,6 +90,12 @@ const installationBase = {
 		externalId: z.string(),
 		/** The org/user account the App is installed on. */
 		account: z.string(),
+		/**
+		 * GitHub's account type for `account` — decides how the install is
+		 * presented at claim time (an org install still binds to exactly ONE
+		 * platform org). Optional: older stored payloads predate the field.
+		 */
+		accountType: z.enum(["User", "Organization"]).optional(),
 	}),
 	repositories: z.array(
 		z.object({

@@ -59,6 +59,13 @@ export async function syncInstallationRepos(
 	installationId: string,
 	added: InstallationRepoInput[],
 	removed: InstallationRepoInput[],
+	/**
+	 * The org that owns this installation (organization_installations), or
+	 * null when nobody has claimed it yet — unclaimed repos keep NULL org_id
+	 * and stay invisible to org-scoped queries until the claim screen binds
+	 * them (§10: never auto-attach on a guess).
+	 */
+	orgId: string | null = null,
 ): Promise<void> {
 	for (const repo of added) {
 		await db
@@ -72,6 +79,7 @@ export async function syncInstallationRepos(
 				fullName: repo.fullName,
 				private: repo.private,
 				installationId,
+				orgId,
 			})
 			.onConflictDoUpdate({
 				target: [repos.forge, repos.externalId],
@@ -81,6 +89,7 @@ export async function syncInstallationRepos(
 					fullName: repo.fullName,
 					private: repo.private,
 					installationId,
+					...(orgId ? { orgId } : {}),
 					removedAt: null,
 				},
 			});

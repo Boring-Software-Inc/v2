@@ -84,6 +84,13 @@ export const session = pgTable("session", {
 	userId: text("user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
+	/**
+	 * Better Auth organization-plugin field. Tripwire does NOT scope by it —
+	 * the URL is the source of truth (§8); this is only the "last visited"
+	 * breadcrumb the `/` redirect may consult. Plain text on purpose: a stale
+	 * id falls back to the personal org, no FK integrity needed.
+	 */
+	activeOrganizationId: text("active_organization_id"),
 	token: text("token").notNull().unique(),
 	expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 	ipAddress: text("ip_address"),

@@ -6,6 +6,7 @@
  * Every jsonb column has a contracts schema validated ON WRITE (services).
  */
 
+export { type BackfillReport, backfillOrgs } from "./backfill-orgs.ts";
 export type { Db } from "./client.ts";
 export { createDb, createDirectPool, schema } from "./client.ts";
 export { applyMigrations } from "./migrate.ts";
@@ -35,6 +36,7 @@ export {
 	seedRun,
 	seedStory,
 } from "./seed.ts";
+export * as accessServices from "./services/access.ts";
 export * as eventServices from "./services/events.ts";
 export * as insightServices from "./services/insights.ts";
 export * as moderationServices from "./services/moderation.ts";
@@ -44,6 +46,14 @@ export type {
 	SwitcherRepo,
 } from "./services/onboarding.ts";
 export * as onboardingServices from "./services/onboarding.ts";
+export type {
+	InviteLinkView,
+	OrgCascade,
+	OrgSummary,
+	OrgWithRole,
+	RedeemResult,
+} from "./services/organizations.ts";
+export * as orgServices from "./services/organizations.ts";
 export * as repoServices from "./services/repos.ts";
 export * as runServices from "./services/runs.ts";
 export { createTestDatabase, type TestDatabase } from "./testing.ts";

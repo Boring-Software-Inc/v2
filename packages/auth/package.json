@@ -8,7 +8,9 @@
 		"./client": "./src/client.ts",
 		"./access": "./src/access.ts",
 		"./access-gate": "./src/access-gate.ts",
-		"./databuddy": "./src/databuddy.ts"
+		"./databuddy": "./src/databuddy.ts",
+		"./org-access": "./src/org-access.ts",
+		"./org-gate": "./src/org-gate.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"

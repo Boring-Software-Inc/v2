@@ -1,10 +1,13 @@
+import { orgSlugSchema } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
-import { schema } from "@tripwire/db";
+import { orgServices, schema } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { organization } from "better-auth/plugins/organization";
 import { eq } from "drizzle-orm";
 import { applySignupAccessDefaults } from "./access.ts";
+import { orgAc, orgRoles } from "./org-access.ts";
 
 /**
  * Better Auth (§10): GitHub OAuth only at launch. One `createAuth` shared by
@@ -37,6 +40,9 @@ export function createAuth(input: CreateAuthInput) {
 				session: schema.session,
 				account: schema.account,
 				verification: schema.verification,
+				organization: schema.organization,
+				member: schema.member,
+				invitation: schema.invitation,
 			},
 		}),
 		secret: input.secret,
@@ -72,12 +78,133 @@ export function createAuth(input: CreateAuthInput) {
 				waitlistedAt: { type: "date", required: false, input: false },
 			},
 		},
+		plugins: [
+			organization({
+				ac: orgAc,
+				roles: orgRoles,
+				/**
+				 * Two roles only (§org-model): the creator is a plain admin — there
+				 * is no owner tier. The leave route's built-in "last creatorRole"
+				 * guard therefore doubles as our last-admin-on-leave guard.
+				 */
+				creatorRole: "admin",
+				/**
+				 * Deletion is disabled plugin-wide: the spec requires typed-name
+				 * confirmation server-side + an enumerated cascade, which the raw
+				 * plugin endpoint cannot verify. Deletion happens ONLY through our
+				 * admin-gated server fn → orgServices.deleteOrganization.
+				 */
+				disableOrganizationDeletion: true,
+				schema: {
+					organization: {
+						additionalFields: {
+							isPersonal: {
+								type: "boolean",
+								required: false,
+								defaultValue: false,
+								input: false,
+							},
+							avatarHue: { type: "number", required: false },
+						},
+					},
+				},
+				organizationHooks: {
+					/** Team-org creation (plugin path): hold the slug line. Personal
+					 * orgs never come through here — they're direct inserts. */
+					beforeCreateOrganization: async ({ organization: org }) => {
+						if (org.slug) {
+							const parsed = orgSlugSchema.safeParse(org.slug);
+							if (!parsed.success) {
+								throw new Error(
+									parsed.error.issues[0]?.message ?? "invalid slug",
+								);
+							}
+						}
+						return { data: { ...org, isPersonal: false } };
+					},
+					/** Rename/slug-change (admin-gated by AC): same slug line, and the
+					 * server-set flags stay server-set. */
+					beforeUpdateOrganization: async ({ organization: patch }) => {
+						if (patch.slug) {
+							const parsed = orgSlugSchema.safeParse(patch.slug);
+							if (!parsed.success) {
+								throw new Error(
+									parsed.error.issues[0]?.message ?? "invalid slug",
+								);
+							}
+						}
+						const { isPersonal: _ignored, ...rest } = patch;
+						return { data: rest };
+					},
+					/** §1: a personal org has exactly one member, forever. */
+					beforeAddMember: async ({ organization: org, member }) => {
+						if (org.isPersonal) {
+							throw new Error("personal orgs cannot add members");
+						}
+						if (member.role !== "admin" && member.role !== "member") {
+							throw new Error("unknown role");
+						}
+					},
+					/** Last-admin guard on removal (covers the remove endpoint; the
+					 * leave endpoint has its own creatorRole guard). */
+					beforeRemoveMember: async ({ organization: org, member }) => {
+						if (org.isPersonal) {
+							throw new Error("cannot leave or edit a personal org");
+						}
+						if (member.role.split(",").includes("admin")) {
+							const admins = await orgServices.countAdmins(input.db, org.id);
+							if (admins <= 1) {
+								throw new Error("an org must keep at least one admin");
+							}
+						}
+					},
+					/** Last-admin guard on demotion + two-role enforcement. */
+					beforeUpdateMemberRole: async ({
+						organization: org,
+						member,
+						newRole,
+					}) => {
+						if (org.isPersonal) {
+							throw new Error("cannot change roles in a personal org");
+						}
+						if (newRole !== "admin" && newRole !== "member") {
+							throw new Error("unknown role");
+						}
+						if (
+							member.role.split(",").includes("admin") &&
+							newRole !== "admin"
+						) {
+							const admins = await orgServices.countAdmins(input.db, org.id);
+							if (admins <= 1) {
+								throw new Error("an org must keep at least one admin");
+							}
+						}
+					},
+					/** Tripwire invites are token LINKS (organization_invite_links) —
+					 * the plugin's email-invitation path is hard-refused so its raw
+					 * HTTP endpoints stay dead. */
+					beforeCreateInvitation: async () => {
+						throw new Error(
+							"email invitations are disabled — use invite links",
+						);
+					},
+				},
+			}),
+		],
 		databaseHooks: {
 			user: {
 				create: {
 					/** New signups land in the access queue as "pending" (server-set). */
 					before: async (user) => {
 						return { data: applySignupAccessDefaults(user, null) };
+					},
+					/** §1: every user gets a personal org at signup (idempotent —
+					 * the migration backfill uses the same service). */
+					after: async (user) => {
+						await orgServices.ensurePersonalOrg(input.db, {
+							userId: user.id,
+							name: user.name,
+						});
 					},
 				},
 			},

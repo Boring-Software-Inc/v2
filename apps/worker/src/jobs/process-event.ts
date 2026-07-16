@@ -1,7 +1,7 @@
 import type { InstallationEvent, RepoScopedEvent } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
-import { eventServices, onboardingServices, repoServices } from "@tripwire/db";
+import { eventServices, orgServices, repoServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { normalizeWebhook } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
@@ -175,31 +175,35 @@ async function syncInstallation(
 			event.repositories,
 		);
 	} else {
+		/**
+		 * §2 org resolution — installation→org→repos with ZERO user/session
+		 * assumptions. The claim itself is a human act (setup callback with a
+		 * signed org state, or the claim screen); the webhook path only reads
+		 * an existing claim and records account metadata on it. An unclaimed
+		 * install syncs repos with NULL org_id — invisible until claimed,
+		 * never auto-attached on a guess (§10).
+		 */
+		const orgId = await orgServices.getInstallationOrg(db, {
+			installationId,
+		});
 		await repoServices.syncInstallationRepos(
 			db,
 			installationId,
 			event.repositories,
 			[],
+			orgId,
 		);
-		/**
-		 * Link the installation to the tripwire user who installed it, matched by
-		 * their forge identity (the webhook's actor) — the durable path that does
-		 * not rely on GitHub's post-install redirect carrying `installation_id`
-		 * back to the Setup URL. No-op if the installer hasn't signed in yet.
-		 */
-		const link = await onboardingServices.claimInstallationForForgeUser(db, {
-			installerExternalId: event.actor.externalId,
+		await orgServices.recordInstallationAccount(db, {
 			installationId,
+			accountType: event.installation.accountType,
+			accountLogin: event.installation.account,
 		});
-		if (link.claimed) {
+		if (orgId) {
+			logger.info({ installationId, orgId }, "installation resolved to org");
+		} else {
 			logger.info(
-				{ installationId, userId: link.userId },
-				"installation linked to installer via forge identity",
-			);
-		} else if (!link.userId) {
-			logger.info(
-				{ installationId, installer: event.actor.login },
-				"installer has no tripwire identity yet — link deferred to setup callback",
+				{ installationId, account: event.installation.account },
+				"installation unclaimed — repos synced without org, awaiting claim",
 			);
 		}
 	}

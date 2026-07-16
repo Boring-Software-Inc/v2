@@ -67,11 +67,18 @@ const ghInstallationRepo = z.object({
 	private: z.boolean().default(false),
 });
 
+/** GitHub's installable account types; anything else is omitted, not guessed. */
+function toAccountType(
+	t: string | undefined,
+): "User" | "Organization" | undefined {
+	return t === "User" || t === "Organization" ? t : undefined;
+}
+
 const installationPayload = z.object({
 	action: z.string(),
 	installation: z.object({
 		id: z.number(),
-		account: z.object({ login: z.string() }),
+		account: z.object({ login: z.string(), type: z.string().optional() }),
 	}),
 	repositories: z.array(ghInstallationRepo).optional(),
 	sender: ghAccount,
@@ -81,7 +88,7 @@ const installationRepositoriesPayload = z.object({
 	action: z.string(),
 	installation: z.object({
 		id: z.number(),
-		account: z.object({ login: z.string() }),
+		account: z.object({ login: z.string(), type: z.string().optional() }),
 	}),
 	repositories_added: z.array(ghInstallationRepo).default([]),
 	repositories_removed: z.array(ghInstallationRepo).default([]),
@@ -210,6 +217,7 @@ export function normalizeWebhook(
 			installation: {
 				externalId: String(p.installation.id),
 				account: p.installation.account.login,
+				accountType: toAccountType(p.installation.account.type),
 			},
 			repositories: (p.repositories ?? []).map(toInstallationRepo),
 		});
@@ -237,6 +245,7 @@ export function normalizeWebhook(
 			installation: {
 				externalId: String(p.installation.id),
 				account: p.installation.account.login,
+				accountType: toAccountType(p.installation.account.type),
 			},
 			repositories: repositories.map(toInstallationRepo),
 		});
