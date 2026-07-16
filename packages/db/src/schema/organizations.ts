@@ -123,8 +123,7 @@ export const organizationInviteLinks = pgTable(
 );
 
 /**
- * Which App installation belongs to which ORG (§2/§3) — replaces
- * `user_installations` after the re-parent migration. `(forge, installationId)`
+ * Which App installation belongs to which ORG (§2/§3). `(forge, installationId)`
  * unique enforces §3 at the schema level: one GitHub installation maps to
  * exactly one platform org, never shared. Repos are reached through this:
  * `repos.installationId = organization_installations.installationId`, with

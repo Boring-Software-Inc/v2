@@ -9,7 +9,7 @@ import {
 	type Db,
 	type TestDatabase,
 } from "../index.ts";
-import { user, userInstallations } from "../schema/auth.ts";
+import { user } from "../schema/auth.ts";
 import {
 	member,
 	organization,
@@ -492,9 +492,13 @@ describe("deletion cascade (§5 + amendment 4)", () => {
 describe("migration backfill (§11) — idempotency", () => {
 	test("run twice ⇒ identical state; claimed-but-null verification holds", async () => {
 		await seedUser("legacy-user");
-		await db.insert(userInstallations).values({
-			id: generateId(),
+		// A claimed installation whose repos predate the denormalized org_id.
+		const legacyOrg = await ensurePersonalOrg(db, {
 			userId: "legacy-user",
+			name: "legacy-user",
+		});
+		await linkOrgInstallation(db, {
+			orgId: legacyOrg.id,
 			installationId: "inst-legacy",
 		});
 		await syncInstallationRepos(
@@ -510,7 +514,7 @@ describe("migration backfill (§11) — idempotency", () => {
 				},
 			],
 			[],
-			null, // pre-migration repos have no org
+			null, // simulate a pre-org sync: no denormalized org pointer
 		);
 
 		const first = await backfillOrgs(db);
@@ -528,18 +532,14 @@ describe("migration backfill (§11) — idempotency", () => {
 			membersAfterFirst.length,
 		);
 
-		// The legacy user's installation landed in their personal org.
-		const personal = await ensurePersonalOrg(db, {
-			userId: "legacy-user",
-			name: "legacy-user",
-		});
+		// The fill routed the legacy repo to the claiming org.
 		expect(
 			await getInstallationOrg(db, { installationId: "inst-legacy" }),
-		).toBe(personal.id);
+		).toBe(legacyOrg.id);
 		const repoRows = await db
 			.select({ orgId: repos.orgId })
 			.from(repos)
 			.where(eq(repos.fullName, "legacy/app"));
-		expect(repoRows[0]?.orgId).toBe(personal.id);
+		expect(repoRows[0]?.orgId).toBe(legacyOrg.id);
 	});
 });

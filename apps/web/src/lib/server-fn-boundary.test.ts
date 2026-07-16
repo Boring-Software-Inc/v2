@@ -147,8 +147,7 @@ describe("server-fn access boundary (invariant 3)", () => {
 /**
  * §8 grep-proof (CP2 amendment): `active_repo_id` is DEAD. Scope comes from
  * the URL; the one call site that quietly still reads the DB field is the
- * failure mode this scan makes impossible. The legacy `user_installations`
- * table (different name) survives only as migration source data.
+ * failure mode this scan makes impossible.
  */
 describe("active-repo is dead (URL owns scope)", () => {
 	const FORBIDDEN =

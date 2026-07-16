@@ -44,34 +44,6 @@ export const user = pgTable(
 	(t) => [index("user_access_status_idx").on(t.accessStatus)],
 );
 
-/**
- * LEGACY (pre-org): which App installation belonged to which USER. Superseded
- * by `organization_installations` (§org-model) — this table remains ONLY as
- * the §11 migration's source data (backfillOrgs re-parents it) and is dropped
- * by a later migration once production has cut over. No product code reads it.
- */
-export const userInstallations = pgTable(
-	"user_installations",
-	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		forge: text("forge").notNull().default("github"),
-		/** The GitHub App installation id, as a string. */
-		installationId: text("installation_id").notNull(),
-		createdAt: timestamp("created_at", { withTimezone: true })
-			.notNull()
-			.defaultNow(),
-	},
-	(t) => [
-		uniqueIndex("user_installations_forge_installation_unique").on(
-			t.forge,
-			t.installationId,
-		),
-	],
-);
-
 export const session = pgTable("session", {
 	id: text("id").primaryKey(),
 	userId: text("user_id")

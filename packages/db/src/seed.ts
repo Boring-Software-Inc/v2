@@ -1216,7 +1216,7 @@ export async function resetDemoData(db: Db): Promise<void> {
 		sql`DELETE FROM workflow_definitions WHERE repo_id IN (${demoRepos})`,
 	);
 	await db.execute(sql`DELETE FROM events WHERE id LIKE ${"demo-evt-%"}`);
-	// Auth cascades sessions/accounts/forge_identities/user_installations.
+	// Auth cascades sessions/accounts/forge_identities/memberships.
 	await db.execute(
 		sql`DELETE FROM "user" WHERE email LIKE ${`%@${DEMO_EMAIL_DOMAIN}`}`,
 	);

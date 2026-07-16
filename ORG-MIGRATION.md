@@ -51,12 +51,13 @@ Rehearse against a copy of prod first; every step is idempotent.
 1. **Deploy the new build** (api, worker, web) — new code reads org tables that
    don't exist yet? No: DDL ships with the app (`applyMigrations` on boot for
    the worker path) but run it explicitly first to be deliberate:
-2. `DATABASE_URL=<prod> bun run scripts/migrate-orgs.ts`
+2. `DATABASE_URL=<target> bun run scripts/migrate-orgs.ts`
    — applies drizzle migrations 0006 (org tables) + 0007 (drop
-   `user.active_repo_id`), then the data backfill: personal org per user →
-   `user_installations` re-parent → `repos.org_id` fill → END-STATE
-   verification (exits non-zero if any claimed installation left a repo with
-   NULL org_id). Re-run at will; a second run is a no-op.
+   `user.active_repo_id`) + 0008 (drop legacy `user_installations` — pre-prod,
+   nothing to re-parent), then the data backfill: personal org per user →
+   `repos.org_id` fill from claimed installations → END-STATE verification
+   (exits non-zero if any claimed installation left a repo with NULL org_id).
+   Re-run at will; a second run is a no-op.
 3. **Verify**: the printed report shows `claimedButNullRepos: 0`;
    `unclaimedRepos` counts GitHub-side installs nobody claimed (legitimately
    invisible until claimed).
@@ -65,9 +66,6 @@ Rehearse against a copy of prod first; every step is idempotent.
    move-installation server op (`moveInstallationToOrg` — requires admin on
    BOTH orgs). History follows automatically (events/runs key on
    repoFullName).
-5. **Later cleanup migration** (separate PR, after prod soak):
-   `DROP TABLE user_installations`.
-
 New env: none. (`GITHUB_APP_SLUG`, `BETTER_AUTH_SECRET` unchanged; install
 state now signs {userId, orgId} with the same secret.)
 
