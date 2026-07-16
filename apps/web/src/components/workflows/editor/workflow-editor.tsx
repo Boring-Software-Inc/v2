@@ -42,6 +42,8 @@ import {
 	TripwireNode,
 } from "#/components/workflows/editor/node-card";
 import { NodeIssuesContext } from "#/components/workflows/editor/node-issues";
+import { KIND_STYLES } from "#/components/workflows/editor/node-kind-styles";
+import { cn } from "#/lib/utils";
 import {
 	definitionToGraph,
 	type EditorEdge,
@@ -396,7 +398,12 @@ function EditorBody({
 				</div>
 				<DragOverlay dropAnimation={null}>
 					{dragged ? (
-						<div className="rounded-md border bg-card px-2 py-1.5 text-xs shadow-md">
+						<div
+							className={cn(
+								"rounded-md border border-l-2 bg-card px-2 py-1.5 text-xs shadow-md",
+								KIND_STYLES[dragged.kind].accent,
+							)}
+						>
 							{dragged.name}
 						</div>
 					) : null}

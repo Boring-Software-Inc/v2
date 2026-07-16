@@ -7,6 +7,7 @@ import {
 } from "@tripwire/contracts";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { useNodeIssues } from "#/components/workflows/editor/node-issues";
+import { KIND_STYLES } from "#/components/workflows/editor/node-kind-styles";
 import { cn } from "#/lib/utils";
 
 /** The one node data shape the canvas renders. */
@@ -18,13 +19,6 @@ export type TripwireFlowNode = Node<{ node: WorkflowNode }, "tripwire">;
  * as its tooltip. Handle ids are LOAD-BEARING: `handleWhen` maps "fail" /
  * "approve" / "deny" handle ids to edge `when`s.
  */
-
-const KIND_CHIP: Record<WorkflowNode["type"], string> = {
-	trigger: "bg-brand/10 text-brand",
-	rule: "bg-surface-2 text-foreground",
-	gate: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
-	action: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-};
 
 /** Catalog display name for the node; falls back to the raw ref/kind. */
 function nodeName(node: WorkflowNode): string {
@@ -85,10 +79,12 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 	const { node } = data;
 	const issues = useNodeIssues(node.id);
 	const detail = nodeDetail(node);
+	const style = KIND_STYLES[node.type];
 	return (
 		<div
 			className={cn(
-				"relative min-w-40 max-w-56 rounded-md border bg-card px-3 py-2 shadow-sm transition-colors",
+				"relative min-w-40 max-w-56 rounded-md border border-l-2 bg-card px-3 py-2 shadow-sm transition-colors",
+				style.accent,
 				selected && "border-brand/50 ring-2 ring-brand/40",
 				issues.length > 0 && !selected && "border-red-500/40",
 			)}
@@ -110,7 +106,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				<span
 					className={cn(
 						"rounded-full px-1.5 py-0.5 font-medium text-[10px] uppercase tracking-wide",
-						KIND_CHIP[node.type],
+						style.chip,
 					)}
 				>
 					{node.type}
