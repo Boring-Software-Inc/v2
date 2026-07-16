@@ -14,6 +14,8 @@
 		"charts:pull": "node scripts/pull-dither-kit.mjs"
 	},
 	"dependencies": {
+		"@databuddy/sdk": "^2.4.20",
+		"@dnd-kit/core": "^6.3.1",
 		"@fontsource-variable/geist": "^5.2.9",
 		"@fontsource-variable/geist-mono": "^5.2.7",
 		"@fontsource-variable/inter": "^5.2.8",
@@ -33,7 +35,6 @@
 		"@tanstack/react-router-ssr-query": "~1.166.10",
 		"@tanstack/react-start": "~1.167.23",
 		"@tanstack/start-storage-context": "~1.166.35",
-		"@databuddy/sdk": "^2.4.20",
 		"@tripwire/auth": "workspace:*",
 		"@tripwire/contracts": "workspace:*",
 		"@tripwire/db": "workspace:*",
@@ -57,7 +58,8 @@
 		"react-grab": "^0.1.48",
 		"sonner": "^2.0.1",
 		"tailwind-merge": "^3.3.0",
-		"tailwindcss": "^4.1.18"
+		"tailwindcss": "^4.1.18",
+		"zod": "^4.0.0"
 	},
 	"devDependencies": {
 		"@tanstack/router-plugin": "~1.167.12",

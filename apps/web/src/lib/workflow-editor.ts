@@ -65,7 +65,11 @@ function depthOf(
 	return depth;
 }
 
-/** Layered layout: columns by topo depth, rows by arrival order. */
+/**
+ * Stored positions win (the user arranged them); nodes without one fall back
+ * to the layered layout — columns by topo depth, rows by arrival order — so
+ * pre-position definitions and generated graphs still render sensibly.
+ */
 export function definitionToGraph(definition: WorkflowDefinition): {
 	nodes: EditorNode[];
 	edges: EditorEdge[];
@@ -77,7 +81,7 @@ export function definitionToGraph(definition: WorkflowDefinition): {
 		rows.set(depth, row + 1);
 		return {
 			id: node.id,
-			position: { x: depth * 260, y: row * 110 },
+			position: node.position ?? { x: depth * 260, y: row * 110 },
 			data: { node },
 			type: "tripwire" as const,
 		};
@@ -106,7 +110,12 @@ export function graphToDefinition(
 		id: meta.id,
 		name: meta.name,
 		version: meta.version,
-		nodes: nodes.map((node) => node.data.node),
+		// Canvas position rides along on the wire (optional, executor-inert) so
+		// the user's arrangement survives the round trip.
+		nodes: nodes.map((node) => ({
+			...node.data.node,
+			position: node.position,
+		})),
 		edges: edges.map((edge) => ({
 			id: edge.id,
 			from: edge.source,

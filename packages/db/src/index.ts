@@ -51,4 +51,10 @@ export type {
 export * as orgServices from "./services/organizations.ts";
 export * as repoServices from "./services/repos.ts";
 export * as runServices from "./services/runs.ts";
+export type {
+	SetEnabledResult,
+	WorkflowListItem,
+	WorkflowRow,
+} from "./services/workflows.ts";
+export * as workflowServices from "./services/workflows.ts";
 export { createTestDatabase, type TestDatabase } from "./testing.ts";

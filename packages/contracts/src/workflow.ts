@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eventKindSchema } from "./events.ts";
+import { type EventKind, eventKindSchema } from "./events.ts";
 
 /** JSON — rule configs and action params are JSON on the wire by definition. */
 export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
@@ -40,6 +40,15 @@ export type JsonValue =
  *   when the moderation decision resumes the run (§6: paused run).
  */
 
+/**
+ * Editor layout (§editor rebuild): where the node sits on the canvas.
+ * OPTIONAL and semantically inert — the executor ignores it, historical
+ * snapshots without it still parse. Persisting it in the definition keeps
+ * one artifact (no separate layout blob that can drift).
+ */
+export const nodePositionSchema = z.object({ x: z.number(), y: z.number() });
+export type NodePosition = z.infer<typeof nodePositionSchema>;
+
 export const gateModeSchema = z.enum(["all-of", "any-of", "not"]);
 export type GateMode = z.infer<typeof gateModeSchema>;
 
@@ -56,6 +65,7 @@ export const triggerNodeSchema = z.object({
 	id: z.string(),
 	type: z.literal("trigger"),
 	kinds: z.array(eventKindSchema).min(1),
+	position: nodePositionSchema.optional(),
 });
 
 export const ruleNodeSchema = z.object({
@@ -64,12 +74,14 @@ export const ruleNodeSchema = z.object({
 	/** `id@version`, e.g. "account-age@1" — the versioning law (§6). */
 	ref: z.string().regex(/^[a-z][a-z0-9-]*@\d+$/),
 	config: jsonValueSchema,
+	position: nodePositionSchema.optional(),
 });
 
 export const gateNodeSchema = z.object({
 	id: z.string(),
 	type: z.literal("gate"),
 	mode: gateModeSchema,
+	position: nodePositionSchema.optional(),
 });
 
 export const actionNodeSchema = z.object({
@@ -77,6 +89,7 @@ export const actionNodeSchema = z.object({
 	type: z.literal("action"),
 	action: workflowActionKindSchema,
 	params: z.record(z.string(), jsonValueSchema).optional(),
+	position: nodePositionSchema.optional(),
 });
 
 export const workflowNodeSchema = z.discriminatedUnion("type", [
@@ -171,3 +184,134 @@ export const DEFAULT_WORKFLOW: WorkflowDefinition = {
 		{ id: "e11", from: "gate", to: "block", when: "fail" },
 	],
 };
+
+/**
+ * Toolbox catalogs (§editor rebuild) — machine-readable metadata for every
+ * node kind the editor can place, so the palette renders from data and a new
+ * kind appears without touching components. Descriptions are UX copy
+ * (constitution voice): one plain-language line, no jargon. Rule metadata
+ * lives in RULE_CATALOG (rules.ts), which carries `description` for the same
+ * purpose.
+ */
+export interface TriggerCatalogEntry {
+	kind: EventKind;
+	name: string;
+	description: string;
+	/** Installation events are plumbing — no workflow triggers on them. */
+	toolbox: boolean;
+}
+
+export const TRIGGER_CATALOG: TriggerCatalogEntry[] = [
+	{
+		kind: "change-request.opened",
+		name: "change request opened",
+		description: "Runs when someone opens a change request.",
+		toolbox: true,
+	},
+	{
+		kind: "change-request.updated",
+		name: "change request updated",
+		description: "Runs when a change request gets new commits or edits.",
+		toolbox: true,
+	},
+	{
+		kind: "change-request.closed",
+		name: "change request closed",
+		description: "Runs when a change request is closed.",
+		toolbox: true,
+	},
+	{
+		kind: "comment.created",
+		name: "comment created",
+		description: "Runs when someone comments on a change request or issue.",
+		toolbox: true,
+	},
+	{
+		kind: "push",
+		name: "push",
+		description: "Runs when commits are pushed to the repo.",
+		toolbox: true,
+	},
+	{
+		kind: "installation.created",
+		name: "installation created",
+		description: "Plumbing event — installations sync outside workflows.",
+		toolbox: false,
+	},
+	{
+		kind: "installation.deleted",
+		name: "installation deleted",
+		description: "Plumbing event — installations sync outside workflows.",
+		toolbox: false,
+	},
+	{
+		kind: "installation-repositories.added",
+		name: "repos added",
+		description: "Plumbing event — installations sync outside workflows.",
+		toolbox: false,
+	},
+	{
+		kind: "installation-repositories.removed",
+		name: "repos removed",
+		description: "Plumbing event — installations sync outside workflows.",
+		toolbox: false,
+	},
+];
+
+export interface GateCatalogEntry {
+	mode: GateMode;
+	name: string;
+	description: string;
+}
+
+export const GATE_CATALOG: GateCatalogEntry[] = [
+	{
+		mode: "all-of",
+		name: "all of",
+		description: "Passes only when every connected check passes.",
+	},
+	{
+		mode: "any-of",
+		name: "any of",
+		description: "Passes when at least one connected check passes.",
+	},
+	{
+		mode: "not",
+		name: "not",
+		description: "Flips its input — pass becomes fail, fail becomes pass.",
+	},
+];
+
+export interface ActionCatalogEntry {
+	action: WorkflowActionKind;
+	name: string;
+	description: string;
+}
+
+export const ACTION_CATALOG: ActionCatalogEntry[] = [
+	{
+		action: "block",
+		name: "block",
+		description: "Blocks the change request with a request-changes review.",
+	},
+	{
+		action: "comment",
+		name: "comment",
+		description: "Posts the run's verdict as a comment on the thread.",
+	},
+	{
+		action: "label",
+		name: "label",
+		description: "Adds labels you choose to the change request.",
+	},
+	{
+		action: "request-review",
+		name: "request review",
+		description: "Asks maintainers for a human review.",
+	},
+	{
+		action: "send-to-moderation",
+		name: "send to moderation",
+		description: "Pauses here — a human decides in your moderation queue.",
+	},
+];

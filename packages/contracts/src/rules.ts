@@ -165,6 +165,9 @@ export const RULE_CATALOG = [
 		configSchema: accountAgeConfigSchema,
 		defaultConfig: { minDays: 7 },
 		optIn: false,
+		/** Toolbox one-liner (§editor rebuild, approved copy). */
+		description:
+			"Flags change requests from accounts younger than a threshold you set.",
 	},
 	{
 		ruleId: "min-merged-prs",
@@ -175,6 +178,9 @@ export const RULE_CATALOG = [
 		configSchema: minMergedPrsConfigSchemaV2,
 		defaultConfig: { min: 1, trustedAfter: 1 },
 		optIn: false,
+		/** Toolbox one-liner (§editor rebuild, approved copy). */
+		description:
+			"Requires N merged change requests in other people's repos — proof someone else accepted their work.",
 	},
 	{
 		ruleId: "pr-rate-limit",
@@ -185,6 +191,9 @@ export const RULE_CATALOG = [
 		configSchema: prRateLimitConfigSchema,
 		defaultConfig: { maxPerWindow: 5, windowHours: 24 },
 		optIn: false,
+		/** Toolbox one-liner (§editor rebuild, approved copy). */
+		description:
+			"Caps how many change requests one person can open in a time window.",
 	},
 	{
 		ruleId: "max-files-changed",
@@ -194,6 +203,8 @@ export const RULE_CATALOG = [
 		configSchema: maxFilesChangedConfigSchema,
 		defaultConfig: { max: 200 },
 		optIn: false,
+		/** Toolbox one-liner (§editor rebuild, approved copy). */
+		description: "Flags change requests that touch more files than you allow.",
 	},
 	{
 		ruleId: "english-only",
@@ -203,6 +214,8 @@ export const RULE_CATALOG = [
 		configSchema: englishOnlyConfigSchema,
 		defaultConfig: { maxNonLatinRatio: 0.5 },
 		optIn: false,
+		/** Toolbox one-liner (§editor rebuild, approved copy). */
+		description: "Flags titles and comments that aren't mostly latin script.",
 	},
 	{
 		ruleId: "crypto-address",
@@ -212,6 +225,9 @@ export const RULE_CATALOG = [
 		configSchema: cryptoAddressConfigSchema,
 		defaultConfig: {},
 		optIn: false,
+		/** Toolbox one-liner (§editor rebuild, approved copy). */
+		description:
+			"Catches cryptocurrency addresses in titles, comments, and diffs.",
 	},
 	{
 		ruleId: "honeypot",
@@ -221,6 +237,9 @@ export const RULE_CATALOG = [
 		configSchema: honeypotConfigSchema,
 		defaultConfig: { paths: [".github/workflows/**"] },
 		optIn: false,
+		/** Toolbox one-liner (§editor rebuild, approved copy). */
+		description:
+			"Catches change requests that touch paths no legitimate change would.",
 	},
 	{
 		ruleId: "profile-readme",
@@ -230,6 +249,9 @@ export const RULE_CATALOG = [
 		configSchema: profileReadmeConfigSchema,
 		defaultConfig: { minLength: 32 },
 		optIn: false,
+		/** Toolbox one-liner (§editor rebuild, approved copy). */
+		description:
+			"Requires a minimum of profile text — throwaway accounts rarely bother.",
 	},
 	{
 		ruleId: "ai-review",
@@ -241,5 +263,8 @@ export const RULE_CATALOG = [
 		configSchema: aiReviewConfigSchema,
 		defaultConfig: { maxSteps: 12 },
 		optIn: true,
+		/** Toolbox one-liner (§editor rebuild, approved copy). */
+		description:
+			"Reads the change like a reviewer and flags slop. Off until you turn it on — it costs tokens.",
 	},
 ] as const;

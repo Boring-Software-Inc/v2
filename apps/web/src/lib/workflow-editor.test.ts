@@ -10,6 +10,17 @@ import {
 	graphToDefinition,
 } from "./workflow-editor.ts";
 
+/** Positions are layout, persisted since the editor rebuild — identity is
+ * asserted mod layout, and position fidelity has its own test below. */
+function stripPositions(def: WorkflowDefinition): WorkflowDefinition {
+	return {
+		...def,
+		nodes: def.nodes.map(
+			({ position: _p, ...node }) => node,
+		) as WorkflowDefinition["nodes"],
+	};
+}
+
 describe("workflow editor round-trip", () => {
 	test("definition → graph → definition is identity (mod layout)", () => {
 		const graph = definitionToGraph(DEFAULT_WORKFLOW);
@@ -24,7 +35,34 @@ describe("workflow editor round-trip", () => {
 		);
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.definition).toEqual(DEFAULT_WORKFLOW);
+			expect(stripPositions(result.definition)).toEqual(
+				stripPositions(DEFAULT_WORKFLOW),
+			);
+			// And every emitted node now carries its canvas position.
+			expect(result.definition.nodes.every((n) => n.position)).toBe(true);
+		}
+	});
+
+	test("stored positions survive definition → graph → definition", () => {
+		const positioned: WorkflowDefinition = {
+			...DEFAULT_WORKFLOW,
+			nodes: DEFAULT_WORKFLOW.nodes.map((node, i) => ({
+				...node,
+				position: { x: 42 + i, y: 1000 - i },
+			})),
+		};
+		const graph = definitionToGraph(positioned);
+		// The graph honors the stored positions, not the derived layout…
+		expect(graph.nodes[0]?.position).toEqual({ x: 42, y: 1000 });
+		const result = graphToDefinition(
+			{ id: positioned.id, name: positioned.name, version: positioned.version },
+			graph.nodes,
+			graph.edges,
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			// …and the emission carries them back out unchanged.
+			expect(result.definition).toEqual(positioned);
 		}
 	});
 
@@ -161,7 +199,9 @@ describe("outcome handles ↔ when (T4 editor fix)", () => {
 		);
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.definition).toEqual(definition);
+			expect(stripPositions(result.definition)).toEqual(
+				stripPositions(definition),
+			);
 		}
 	});
 });

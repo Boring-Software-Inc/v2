@@ -2439,3 +2439,46 @@ Post-review fixes ledgered so the reasoning survives:
 - **Analytics deep links**: /$org/$repo/analytics takes optional `?metric=`;
   the dither stat cards pass it (blocked/passed) so chart focus survives the
   jump again.
+
+## Workflows surface — grid CRUD + editor rebuild (2026-07-16, §workflows)
+
+The editor is a new face on the executor's existing contract. Ledger:
+
+- **Contract evolutions, both additive, no version bump:** (1) optional
+  `position: {x, y}` on every workflow node — the executor ignores it,
+  historical snapshots without it still parse; persisting layout IN the
+  definition keeps one artifact (a separate layout blob can drift). (2)
+  `validateWorkflow` MOVED core → contracts (`workflow-validate.ts`) so the
+  web editor runs the same validator live — core is worker-only by the §3
+  arrows and the validator is pure zod+graph logic, which is exactly what
+  contracts may hold; core re-exports unchanged.
+- **`validateWorkflowForEnable` is a separate, stricter fn**: base invariants
+  + an action reachable from a trigger + every rule config parsing against
+  its CURRENT catalog schema (unknown refs refuse). Separate on purpose:
+  historical run snapshots carry frozen rule versions absent from
+  RULE_CATALOG and must keep validating STRUCTURALLY forever — only the
+  enable path (and the editor's live feedback) uses the strict form.
+- **Enable is explicit and separate from save.** Drafts save in any
+  structural state; new, duplicated, and template-instantiated workflows are
+  created DISABLED; `setWorkflowEnabled(true)` refuses with the issues list.
+  A zero-node canvas cannot save (kept `nodes.min(1)` rather than loosening
+  the contract — a blank draft persists as a single default trigger node).
+- **Toolbox is registry-driven**: TRIGGER/GATE/ACTION_CATALOG added to
+  contracts (bare enums grew names + one-line descriptions — approved copy);
+  RULE_CATALOG entries gained `description`. Installation event kinds carry
+  `toolbox: false` (plumbing, not workflow triggers). A new defineRule +
+  catalog row appears in the palette with zero component changes.
+- **dnd-kit (@dnd-kit/core) added** for the sidebar→canvas drag-in ONLY;
+  react-flow owns all in-canvas interaction (drag/select/delete/reconnect).
+  Drop coords: activatorEvent + delta → screenToFlowPosition. `zod` added to
+  apps/web's own deps (properties panel introspects schemas directly).
+- **CRUD keys on the ROW id** (workflow_definitions.id); `definition.id` is
+  wire identity inside runs/snapshots — duplicates mint a fresh one so
+  snapshots never alias. Names unique per repo; auto-names are seeded
+  adjective-noun (`pickWorkflowName`, @tripwire/utils) with collision retry
+  + numeric-suffix fallback. Templates are DATA
+  (apps/web/src/lib/workflow-templates.ts); one ships: "Block new accounts".
+- **No DB migration needed** — positions ride the jsonb, `enabled` existed.
+  The legacy single-workflow fns (`getWorkflowForRepo` returning
+  `workflows[0]`) are gone; the worker's listEnabledWorkflows/derive fallback
+  is untouched (multiple enabled workflows already JOIN into one run, §5.11).

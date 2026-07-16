@@ -44,7 +44,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getLatestRunId: "member",
 	listRuleConfigViews: "member",
 	getRulesHeaderStats: "member",
-	getWorkflowForRepo: "member",
+	listRepoWorkflows: "member",
+	getRepoWorkflow: "member",
 	listModerationQueue: "member",
 
 	// ── admin (org mutations) ────────────────────────────────────────────
@@ -62,7 +63,12 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	armRepo: "admin",
 	disarmRepo: "admin",
 	armRepoById: "admin",
-	saveWorkflowForRepo: "admin",
+	createRepoWorkflow: "admin",
+	saveRepoWorkflow: "admin",
+	renameRepoWorkflow: "admin",
+	duplicateRepoWorkflow: "admin",
+	deleteRepoWorkflow: "admin",
+	setRepoWorkflowEnabled: "admin",
 	saveRuleConfig: "admin",
 	/**
 	 * Approving a paused run releases code through the gate — a trust-level
