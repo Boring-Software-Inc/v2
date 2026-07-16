@@ -206,6 +206,14 @@ export async function handleDevRequest(request: Request): Promise<Response> {
 		if (!userId) {
 			return json({ error: "failed to establish dev session" }, 500);
 		}
+		// Dev personas are approved: the live Databuddy access-gate flag can be
+		// ON, and a pending persona would land on /queue instead of the product.
+		// This endpoint only exists in dev builds on loopback (guard.ts).
+		const { accessServices } = await import("@tripwire/db");
+		await accessServices.promoteUserAccess(db, {
+			userId,
+			reviewedBy: userId,
+		});
 		await setupPersona(db, persona.id, userId, persona.label, now);
 		const res = json({ landing: persona.landing });
 		copySetCookies(authRes, res);

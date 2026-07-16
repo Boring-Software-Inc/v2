@@ -109,7 +109,7 @@ export function ModerationPage() {
 								delta={statsQuery.data.blocked.delta}
 								goodDirection="neutral"
 								label="Blocked · 24h"
-								linkTo={{ org, repo: repoName }}
+								linkTo={{ org, repo: repoName, metric: "blocked" }}
 								series={statsQuery.data.blocked.series}
 								value={String(statsQuery.data.blocked.value)}
 							/>
@@ -121,7 +121,7 @@ export function ModerationPage() {
 								delta={statsQuery.data.passed.delta}
 								goodDirection="up"
 								label="Passed · 24h"
-								linkTo={{ org, repo: repoName }}
+								linkTo={{ org, repo: repoName, metric: "passed" }}
 								series={statsQuery.data.passed.series}
 								value={String(statsQuery.data.passed.value)}
 							/>

@@ -6,6 +6,8 @@ import {
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/$org/$repo/analytics")({
+	validateSearch: (search: Record<string, unknown>): { metric?: string } =>
+		typeof search.metric === "string" ? { metric: search.metric } : {},
 	component: AnalyticsPage,
 	pendingComponent: AnalyticsPageSkeleton,
 	head: ({ params, match }) =>

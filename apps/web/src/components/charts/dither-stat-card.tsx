@@ -29,7 +29,7 @@ export type DitherStatCardProps = {
 	animate?: boolean;
 	/** When set, the card links into the analytics view for this metric. */
 	/** Deep link into /$org/$repo/analytics (URL-scoped, §8). */
-	linkTo?: { org: string; repo: string };
+	linkTo?: { org: string; repo: string; metric?: string };
 	/** Replaces the scrambled value (e.g. a live NumberFlow on analytics). */
 	valueNode?: ReactNode;
 	/** Rings the card to mark it as the focused metric. */
@@ -160,6 +160,7 @@ export function DitherStatCard({
 			<Link
 				to="/$org/$repo/analytics"
 				params={{ org: linkTo.org, repo: linkTo.repo }}
+				search={linkTo.metric ? { metric: linkTo.metric } : {}}
 				className="block rounded-xl outline-none ring-ring/50 transition-shadow focus-visible:ring-2 hover:ring-1 hover:ring-border"
 			>
 				{body}

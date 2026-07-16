@@ -222,15 +222,27 @@ function ClaimError({ message }: { message: Error }) {
 }
 
 function GithubSummary({ preview }: { preview: InstallPreview }) {
+	// The preview derives from webhook-synced repos — right after an install
+	// the webhook may not have landed yet. Say so instead of "0 repos".
+	const syncing = preview.account === null && preview.repoCount === 0;
 	return (
-		<div className="flex items-center gap-2 rounded-md border bg-surface-0 px-3 py-2 text-[13px]">
-			<GithubIcon className="size-4 shrink-0 text-muted-foreground" />
-			<span className="font-medium text-foreground">
-				{preview.account ?? "github installation"}
-			</span>
-			<span className="text-muted-foreground">
-				{preview.repoCount} {preview.repoCount === 1 ? "repo" : "repos"}
-			</span>
+		<div className="flex flex-col gap-1">
+			<div className="flex items-center gap-2 rounded-md border bg-surface-0 px-3 py-2 text-[13px]">
+				<GithubIcon className="size-4 shrink-0 text-muted-foreground" />
+				<span className="font-medium text-foreground">
+					{preview.account ?? "github installation"}
+				</span>
+				<span className="text-muted-foreground">
+					{syncing
+						? "syncing…"
+						: `${preview.repoCount} ${preview.repoCount === 1 ? "repo" : "repos"}`}
+				</span>
+			</div>
+			{syncing ? (
+				<p className="text-[11px] text-muted-foreground">
+					still syncing from github — the repos land in a moment either way.
+				</p>
+			) : null}
 		</div>
 	);
 }

@@ -56,7 +56,9 @@ export function InvitePage() {
 					then come back to this link.
 				</p>
 				<Button asChild size="sm">
-					<Link to="/login">sign in</Link>
+					<Link to="/login" search={{ redirect: `/invite/${token}` }}>
+						sign in
+					</Link>
 				</Button>
 			</InviteShell>
 		);

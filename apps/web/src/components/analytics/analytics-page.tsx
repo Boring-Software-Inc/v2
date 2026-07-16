@@ -34,7 +34,9 @@ export function AnalyticsPage() {
 		[moderationStats.data],
 	);
 
-	const [focused, setFocused] = useState("review");
+	// Deep links (?metric=blocked from the stat cards) seed the focus.
+	const { metric: metricParam } = routeApi.useSearch();
+	const [focused, setFocused] = useState(metricParam ?? "review");
 	const [committedIndex, setCommittedIndex] = useState<number | null>(null);
 	const [showMetrics, setShowMetrics] = useState(false);
 

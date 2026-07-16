@@ -1,5 +1,6 @@
 import { GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { getRouteApi } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { DevPersonaPanel } from "#/components/dev/persona-switcher";
@@ -7,7 +8,12 @@ import { Button } from "#/components/ui/button";
 import { authClient } from "#/lib/auth-client";
 import { siteConfig } from "#/lib/site-config";
 
+const route = getRouteApi("/login");
+
 export function LoginPage() {
+	// Where OAuth lands after sign-in — lets /invite/:token round-trip a
+	// signed-out redeemer back to the link instead of dropping them at "/".
+	const { redirect } = route.useSearch();
 	return (
 		<div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">
 			<div className="flex w-full max-w-xs flex-col items-center text-center">
@@ -23,7 +29,7 @@ export function LoginPage() {
 					onClick={async () => {
 						const { error } = await authClient.signIn.social({
 							provider: "github",
-							callbackURL: "/",
+							callbackURL: redirect ?? "/",
 						});
 						if (error) {
 							toast(
