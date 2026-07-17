@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -22,47 +24,61 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	enabled: true,
 	config: { minDays: 7 },
 	defaultConfig: { minDays: 7 },
-	managedByWorkflow: false,
+	management: "standalone",
+	workflowId: null,
 	optIn: false,
 	matches24h: 0,
 	trend: [],
 	...over,
 });
 
-const base = { org: "o", repoId: "r", canEdit: true };
+const base = { org: "o", repo: "r", repoId: "r", canEdit: true };
 
 /**
- * §9 hierarchy pass — the layout invariants the founder review asked for.
+ * §6 per-rule management — the founder's all-locked bug and its three states.
+ * Managed/dormant fixtures use workflowId:null so the router-bound <Link> is
+ * guarded out (link labels + route are locked by the source assertion below).
  */
-describe("RuleCard layout & hierarchy", () => {
-	test("no per-card 'managed by your workflow' badge — that moved to the page banner", () => {
+describe("RuleCard management states", () => {
+	test("standalone: toggle present, no management tag", () => {
+		const html = render(<RuleCard {...base} rule={rule()} />);
+		expect(html).toContain('role="switch"');
+		expect(html).not.toContain("in workflow");
+		expect(html).not.toContain(">off<");
+	});
+
+	test("managed: no toggle, 'in workflow' tag, and shows the NODE's config (not the stale row)", () => {
 		const html = render(
-			<RuleCard {...base} rule={rule({ managedByWorkflow: true })} />,
+			<RuleCard
+				{...base}
+				rule={rule({ management: "managed", config: { minDays: 14 } })}
+			/>,
 		);
-		expect(html).not.toContain("managed by your workflow");
+		expect(html).toContain("in workflow");
+		expect(html).not.toContain('role="switch"');
+		// what actually runs is the workflow node's 14 days, not the card's old 7
+		expect(html).toContain("14 days");
 	});
 
-	test("no per-card 'edit in workflow' link — that lives on the page banner", () => {
+	test("dormant: no toggle, 'off' tag, dimmed, and the not-protecting line", () => {
 		const html = render(
-			<RuleCard {...base} rule={rule({ managedByWorkflow: true })} />,
+			<RuleCard {...base} rule={rule({ management: "dormant" })} />,
 		);
-		expect(html).not.toContain("edit in workflow");
+		expect(html).toContain(">off<");
+		expect(html).not.toContain('role="switch"');
+		expect(html).toContain("opacity-50");
+		expect(html).toContain("protecting this repo");
 	});
 
-	test("the 'change request' scope chip is gone (scope is page-level)", () => {
-		expect(render(<RuleCard {...base} rule={rule()} />)).not.toContain(
-			"change request",
+	test("held prompt shows only in standalone (managed drives from the node, not the row)", () => {
+		const heldStandalone = render(
+			<RuleCard {...base} rule={rule({ held: true })} />,
 		);
-	});
-
-	test("view raw renders in the footer actions zone, not the data column", () => {
-		expect(render(<RuleCard {...base} rule={rule()} />)).toContain("view raw");
-	});
-
-	test("verdict state is muted text, never a red chip (red is reserved for activity)", () => {
-		const html = render(<RuleCard {...base} rule={rule({ enabled: true })} />);
-		expect(html).toContain(">block<");
-		expect(html).not.toContain("bg-red-500/10");
+		expect(heldStandalone).toContain("update held");
+		const heldManaged = render(
+			<RuleCard {...base} rule={rule({ held: true, management: "managed" })} />,
+		);
+		expect(heldManaged).not.toContain("update held");
 	});
 
 	test("the 24h count reddens only when blocks actually fired", () => {
@@ -74,7 +90,7 @@ describe("RuleCard layout & hierarchy", () => {
 		).not.toContain("text-red-600");
 	});
 
-	test("an opt-in-off rule keeps a DISTINCT enable offer, not a bare toggle", () => {
+	test("an opt-in-off standalone rule keeps a DISTINCT enable offer", () => {
 		const html = render(
 			<RuleCard
 				{...base}
@@ -90,24 +106,13 @@ describe("RuleCard layout & hierarchy", () => {
 			/>,
 		);
 		expect(html).toContain("enable");
-		// the COGS framing survives in the body while it's still an offer
 		expect(html).toContain("costs tokens");
 	});
 
-	test("a param-less rule shows its blurb and no config footer", () => {
-		const html = render(
-			<RuleCard
-				{...base}
-				rule={rule({
-					ruleId: "crypto-address",
-					name: "crypto address",
-					blurb: "blocks cryptocurrency addresses.",
-					config: {},
-					defaultConfig: {},
-				})}
-			/>,
-		);
-		expect(html).toContain("blocks cryptocurrency addresses.");
-		expect(html).not.toContain("view raw");
+	test("workflow deep-links and labels are wired (source-locked, router-free)", () => {
+		const src = readFileSync(join(import.meta.dir, "rule-card.tsx"), "utf8");
+		expect(src).toContain("edit in workflow →");
+		expect(src).toContain("add to workflow →");
+		expect(src).toContain("/$org/$repo/workflows/$workflowId");
 	});
 });

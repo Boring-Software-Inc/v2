@@ -2,7 +2,7 @@ import { z } from "zod";
 import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
 import { aiReviewConfigSchema } from "./review.ts";
-import type { JsonValue } from "./workflow.ts";
+import type { JsonValue, WorkflowDefinition } from "./workflow.ts";
 
 /**
  * Rules domain (spec §4 `rules.ts`, §6). Extracted from the demo's
@@ -558,6 +558,59 @@ export function formatParamValue(param: RuleParam, value: unknown): string {
 		return value;
 	}
 	return param.kind === "string" ? (param.default ?? "") : "";
+}
+
+/**
+ * A rule's management state on the Rules page. Execution is WORKFLOW-ONLY: an
+ * enabled workflow fully replaces standalone rule evaluation (run-workflows.ts —
+ * `definitions = custom.length ? custom : [derived]`). So a rule is:
+ *   standalone — no workflow enabled; its own config runs.
+ *   managed    — its id is a rule node in an enabled workflow; the NODE's config
+ *                is what runs, and edits happen in the workflow editor.
+ *   dormant    — a workflow is enabled but doesn't include this rule, so it isn't
+ *                evaluated at all until it's added to the workflow.
+ */
+export type RuleManagement = "standalone" | "managed" | "dormant";
+
+export interface ResolvedRuleManagement {
+	state: RuleManagement;
+	/** Deep-link target: the owning workflow when managed, the first enabled
+	 * workflow when dormant (a place to add the rule), null when standalone. */
+	workflowId: string | null;
+	/** For a MANAGED rule, the workflow node's config — what the executor walks,
+	 * shown read-only so the card never displays a config that isn't running.
+	 * null for standalone/dormant (they use the rule's own config). */
+	managedConfig: JsonValue | null;
+}
+
+/**
+ * Derive a rule's management state from the repo's ENABLED workflows. Pure and
+ * keyed on node refs (`ruleIdOf`), so per-rule state comes from what the executor
+ * would walk, never from a repo-level boolean.
+ */
+export function resolveRuleManagement(
+	ruleId: string,
+	enabledWorkflows: WorkflowDefinition[],
+): ResolvedRuleManagement {
+	if (enabledWorkflows.length === 0) {
+		return { state: "standalone", workflowId: null, managedConfig: null };
+	}
+	for (const workflow of enabledWorkflows) {
+		for (const node of workflow.nodes) {
+			if (node.type === "rule" && ruleIdOf(node.ref) === ruleId) {
+				return {
+					state: "managed",
+					workflowId: workflow.id,
+					managedConfig: node.config,
+				};
+			}
+		}
+	}
+	return {
+		state: "dormant",
+		workflowId: enabledWorkflows[0]?.id ?? null,
+		managedConfig: null,
+	};
 }
 
 /** A stored rule_configs row, as far as version resolution needs it. */

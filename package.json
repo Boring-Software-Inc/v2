@@ -18,6 +18,7 @@
 		"test": "bun run scripts/e2e/harness.ts",
 		"db:up": "docker compose up -d postgres",
 		"db:generate": "bun run --filter '@tripwire/db' generate",
+		"db:studio": "bun run --filter '@tripwire/db' studio",
 		"db:migrate": "DATABASE_URL=${DATABASE_URL:-postgres://tripwire:tripwire@localhost:5432/tripwire} bun run --filter '@tripwire/db' migrate",
 		"dev:api": "bun run apps/api/src/index.ts",
 		"dev:worker": "bun run apps/worker/src/index.ts",

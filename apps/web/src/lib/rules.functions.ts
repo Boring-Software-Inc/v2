@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { ModStat } from "@tripwire/contracts";
+import type { ModStat, RuleManagement } from "@tripwire/contracts";
 import {
 	RULE_CATALOG,
 	resolveEffectiveRuleConfig,
+	resolveRuleManagement,
 	ruleChangeNote,
 } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
@@ -32,10 +33,19 @@ export interface RuleConfigView {
 	blurb: string;
 	/** ACTUAL execution state (derive.ts): baseline rules run unless disabled. */
 	enabled: boolean;
+	/** For a MANAGED rule this is the workflow NODE's config (what runs); for
+	 * standalone/dormant it's the rule's own config. Never a config that isn't
+	 * what the executor walks. */
 	config: JsonValue;
 	defaultConfig: JsonValue;
-	/** Repo has a saved workflow — the toggle is a kill switch over it (§6). */
-	managedByWorkflow: boolean;
+	/**
+	 * Per-rule management (§6, workflow-only): `managed` (a node in an enabled
+	 * workflow), `dormant` (a workflow is enabled but doesn't include this rule,
+	 * so it isn't evaluated), or `standalone` (no workflow; edit it here).
+	 */
+	management: RuleManagement;
+	/** Deep-link target for edit/add-to-workflow; null when standalone. */
+	workflowId: string | null;
 	/** Opt-in rule (§8): off until enabled, rendered as an offer not a toggle. */
 	optIn: boolean;
 	/** Rule-node fails for this rule over the last 24h, this repo. */
@@ -65,10 +75,11 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 		const db = getDb().db;
 		const repo = await repoServices.getRepoById(db, data.repoId);
 		const stored = await repoServices.listRuleConfigs(db, data.repoId);
-		const managedByWorkflow = await repoServices.hasEnabledWorkflow(
-			db,
-			data.repoId,
-		);
+		// Per-rule management derives from ENABLED workflow node refs (§6,
+		// workflow-only), not a repo-level boolean — that was the all-locked bug.
+		const enabledWorkflows = repo
+			? await repoServices.listEnabledWorkflows(db, repo.fullName)
+			: [];
 		const stats = repo
 			? await insightServices.getRulesStats(db, repo.fullName)
 			: { perRule: [] };
@@ -85,6 +96,13 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 						config: row.config as JsonValue,
 					}).held
 				: false;
+			const mgmt = resolveRuleManagement(entry.ruleId, enabledWorkflows);
+			// Managed ⇒ show the node's config (what runs); else the rule's own.
+			const config = (
+				mgmt.state === "managed"
+					? mgmt.managedConfig
+					: (row?.config ?? entry.defaultConfig)
+			) as JsonValue;
 			return {
 				ruleId: entry.ruleId,
 				version: entry.version,
@@ -93,9 +111,10 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				name: entry.name,
 				blurb: entry.blurb,
 				enabled: ruleExecutes(ref, row?.enabled),
-				config: (row?.config ?? entry.defaultConfig) as JsonValue,
+				config,
 				defaultConfig: entry.defaultConfig as JsonValue,
-				managedByWorkflow,
+				management: mgmt.state,
+				workflowId: mgmt.workflowId,
 				optIn: entry.optIn,
 				matches24h: perRule?.matches24h ?? 0,
 				trend: perRule?.series ?? Array(24).fill(0),

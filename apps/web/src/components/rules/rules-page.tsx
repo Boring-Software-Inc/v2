@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
@@ -11,6 +11,7 @@ import {
 	ruleConfigsQueryOptions,
 	rulesStatsQueryOptions,
 } from "#/lib/rules.query";
+import { workflowBannerCopy } from "#/lib/workflow-banner-copy";
 
 const routeApi = getRouteApi("/$org/$repo/rules");
 
@@ -43,9 +44,12 @@ export function RulesPage() {
 		return copy;
 	}, [rules, sort]);
 
-	// `managedByWorkflow` is repo-level (a saved workflow owns evaluation for the
-	// whole repo), so it's all-or-nothing — one page banner, never per-card badges.
-	const managed = sorted.length > 0 && sorted.every((r) => r.managedByWorkflow);
+	// Management is per-rule (§6, workflow-only): if any rule is managed/dormant, a
+	// workflow is enabled. The banner explains the model; per-card affordances act.
+	const hasEnabledWorkflow = sorted.some((r) => r.management !== "standalone");
+	const ownedRuleNames = sorted
+		.filter((r) => r.management === "managed")
+		.map((r) => r.name);
 
 	return (
 		<DashboardLayout counts={{}}>
@@ -69,18 +73,11 @@ export function RulesPage() {
 				) : null}
 
 				<div className="flex flex-col gap-6">
-					{managed ? (
-						<div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-surface-1 px-4 py-2.5">
+					{hasEnabledWorkflow ? (
+						<div className="rounded-lg border bg-surface-1 px-4 py-2.5">
 							<p className="text-muted-foreground text-xs">
-								these rules are managed by your workflow — it owns what runs.
+								{workflowBannerCopy(ownedRuleNames)}
 							</p>
-							<Link
-								className="shrink-0 font-medium text-primary text-xs hover:underline"
-								params={{ org, repo: repoName }}
-								to="/$org/$repo/workflows"
-							>
-								edit in workflow →
-							</Link>
 						</div>
 					) : null}
 					{statsQuery.data ? (
@@ -104,6 +101,7 @@ export function RulesPage() {
 								canEdit={isAdmin}
 								key={rule.ruleId}
 								org={org}
+								repo={repoName}
 								repoId={repoId}
 								rule={rule}
 							/>
