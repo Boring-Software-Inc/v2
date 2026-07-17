@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
+import { DitherStatCard } from "#/components/charts/dither-stat-card";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Skeleton } from "#/components/ui/skeleton";
 import { orgAnalyticsQueryOptions } from "#/lib/org.query";
@@ -32,13 +33,50 @@ export function OrgAnalyticsPage() {
 
 					{summary ? (
 						<div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-							<StatCard label="repos" value={summary.repos} />
-							<StatCard label="armed" value={summary.armedRepos} />
-							<StatCard label="events (24h)" value={summary.events24h} />
-							<StatCard label="blocked (24h)" value={summary.blocked24h} />
-							<StatCard
+							<DitherStatCard
+								label="repos"
+								value={String(summary.repos)}
+								delta={0}
+								series={[]}
+								color="grey"
+								goodDirection="neutral"
+								delay={0}
+							/>
+							<DitherStatCard
+								label="armed"
+								value={String(summary.armedRepos)}
+								delta={0}
+								series={[]}
+								color="green"
+								goodDirection="neutral"
+								delay={60}
+							/>
+							<DitherStatCard
+								label="events (24h)"
+								value={String(summary.events24h)}
+								delta={trendDelta(summary.eventsSeries)}
+								series={summary.eventsSeries}
+								color="blue"
+								goodDirection="neutral"
+								delay={120}
+							/>
+							<DitherStatCard
+								label="blocked (24h)"
+								value={String(summary.blocked24h)}
+								delta={trendDelta(summary.blockedSeries)}
+								series={summary.blockedSeries}
+								color="orange"
+								goodDirection="neutral"
+								delay={180}
+							/>
+							<DitherStatCard
 								label="awaiting review"
-								value={summary.pendingModeration}
+								value={String(summary.pendingModeration)}
+								delta={0}
+								series={[]}
+								color="purple"
+								goodDirection="down"
+								delay={240}
 							/>
 						</div>
 					) : (
@@ -50,15 +88,15 @@ export function OrgAnalyticsPage() {
 	);
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
-	return (
-		<div className="flex flex-col gap-1.5 rounded-xl bg-card px-3.5 py-3.5">
-			<span className="text-muted-foreground text-xs">{label}</span>
-			<span className="font-sans text-2xl text-foreground tabular-nums">
-				{value}
-			</span>
-		</div>
-	);
+/** Trend delta for the 24h sparkline: recent-half total minus prior-half. */
+function trendDelta(series: number[]): number {
+	if (series.length < 2) {
+		return 0;
+	}
+	const mid = Math.floor(series.length / 2);
+	const prior = series.slice(0, mid).reduce((a, b) => a + b, 0);
+	const recent = series.slice(mid).reduce((a, b) => a + b, 0);
+	return recent - prior;
 }
 
 function StatGridSkeleton() {

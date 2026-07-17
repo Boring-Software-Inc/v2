@@ -427,6 +427,10 @@ export interface OrgAnalyticsSummary {
 	events24h: number;
 	blocked24h: number;
 	pendingModeration: number;
+	/** 24h hourly counts (oldest→newest) for the two flow metrics that have a
+	 * real trend. Totals (repos/armed) + current depth (awaiting) have none. */
+	eventsSeries: number[];
+	blockedSeries: number[];
 }
 
 /**
@@ -445,7 +449,8 @@ export const getOrgAnalyticsSummary = createServerFn({ method: "GET" })
 			WITH org_repos AS (
 				SELECT id, full_name, armed FROM repos
 				WHERE org_id = ${org.id} AND removed_at IS NULL
-			)
+			),
+			hours AS (SELECT generate_series(0, 23) AS h)
 			SELECT
 				(SELECT count(*) FROM org_repos)::int AS repos,
 				(SELECT count(*) FROM org_repos WHERE armed)::int AS "armedRepos",
@@ -455,7 +460,23 @@ export const getOrgAnalyticsSummary = createServerFn({ method: "GET" })
 				  WHERE run.verdict = 'block' AND run.created_at > now() - interval '24 hours')::int AS "blocked24h",
 				(SELECT count(*) FROM moderation_items mi JOIN runs run ON run.id = mi.run_id
 				  JOIN org_repos r ON r.full_name = run.repo_full_name
-				  WHERE mi.status = 'pending')::int AS "pendingModeration"
+				  WHERE mi.status = 'pending')::int AS "pendingModeration",
+				(SELECT array_agg(COALESCE(ev.n, 0) ORDER BY hours.h DESC)
+				  FROM hours LEFT JOIN (
+				    SELECT floor(extract(epoch FROM now() - e.received_at) / 3600)::int AS ha,
+				           count(*)::int AS n
+				    FROM events e JOIN org_repos r ON r.full_name = e.repo_full_name
+				    WHERE e.received_at > now() - interval '24 hours'
+				    GROUP BY 1
+				  ) ev ON ev.ha = hours.h) AS "eventsSeries",
+				(SELECT array_agg(COALESCE(bl.n, 0) ORDER BY hours.h DESC)
+				  FROM hours LEFT JOIN (
+				    SELECT floor(extract(epoch FROM now() - run.created_at) / 3600)::int AS ha,
+				           count(*)::int AS n
+				    FROM runs run JOIN org_repos r ON r.full_name = run.repo_full_name
+				    WHERE run.verdict = 'block' AND run.created_at > now() - interval '24 hours'
+				    GROUP BY 1
+				  ) bl ON bl.ha = hours.h) AS "blockedSeries"
 		`);
 		const row = result.rows[0] as
 			| {
@@ -464,6 +485,8 @@ export const getOrgAnalyticsSummary = createServerFn({ method: "GET" })
 					events24h: number;
 					blocked24h: number;
 					pendingModeration: number;
+					eventsSeries: number[] | null;
+					blockedSeries: number[] | null;
 			  }
 			| undefined;
 		return {
@@ -472,5 +495,7 @@ export const getOrgAnalyticsSummary = createServerFn({ method: "GET" })
 			events24h: row?.events24h ?? 0,
 			blocked24h: row?.blocked24h ?? 0,
 			pendingModeration: row?.pendingModeration ?? 0,
+			eventsSeries: row?.eventsSeries ?? [],
+			blockedSeries: row?.blockedSeries ?? [],
 		};
 	});
