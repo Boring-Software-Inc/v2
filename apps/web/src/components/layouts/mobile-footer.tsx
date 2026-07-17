@@ -31,8 +31,8 @@ export function MobileFooter({ counts }: MobileFooterProps) {
 		return null;
 	}
 	return (
-		<nav className="flex min-w-0 items-center justify-between gap-3 px-3 pb-4 md:hidden">
-			<div className="flex w-full shrink-0 items-center justify-center gap-0.5">
+		<nav className="min-w-0 pb-4 md:hidden">
+			<div className="flex items-center justify-start gap-0.5 overflow-x-auto scroll-smooth px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 				{repo ? (
 					<>
 						<NavLink
@@ -102,7 +102,7 @@ function NavLink({
 		<Link
 			to={to}
 			activeOptions={{ exact }}
-			className="flex h-8 items-center gap-2 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-0 hover:text-foreground [&.active]:bg-surface-0 [&.active]:text-foreground"
+			className="flex h-8 shrink-0 items-center gap-2 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-0 hover:text-foreground [&.active]:bg-surface-0 [&.active]:text-foreground"
 			activeProps={{ className: "active" }}
 		>
 			<HugeiconsIcon icon={icon} size={14} strokeWidth={2} />
