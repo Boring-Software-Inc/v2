@@ -2672,3 +2672,68 @@ trace blobs in `run_steps` evidence (old shape fails `aiReviewTraceSchema`, so t
 new display renders nothing for them). If a storage audit finds fat jsonb rows,
 that is the cause. A one-off cleanup query to null out pre-cutover oversized
 traces is available if needed; not required at current volumes.
+
+## Workflows compose with standalone rules (2026-07-19, §6)
+
+REVERSES "workflow-only execution" (the `definitions = custom.length ? custom
+: [derived]` fork). A saved workflow orchestrates the rules it CONTAINS — it
+never disables the rest. Founder feedback: a workflow holding only account-age
+must not turn off every other rule.
+
+- **Worker composes.** `run-workflows.ts` collects the rule ids owned by
+  enabled workflows and derives the default workflow over the LEFTOVER toggles
+  (`deriveDefaultWorkflow(toggles, excludeRuleIds)`), running it alongside the
+  saved workflows. Exclusion is what keeps a rule from running twice with two
+  configs — the workflow node's config wins for owned rules. Results still
+  JOIN into one run (§5.11).
+- **Leftover derivation with zero rule nodes is dropped** when saved workflows
+  exist (no trigger-only noise workflow). With NO saved workflow the previous
+  behavior holds exactly, including all-rules-off ⇒ trigger-only ⇒ pass run.
+- **`dormant` retired.** `RuleManagement` is `standalone | managed`; a rule
+  outside every enabled workflow is plain standalone — toggle live, config
+  editable, its own config runs. Rules-page banner copy now reads "Every other
+  rule runs on its own toggle."
+- **Kill switches unchanged.** A disabled toggle still drops the rule from the
+  derived graph, and `disabledRefs` still skips owned nodes as `disabled`.
+
+## Navigation performance pass (2026-07-19, §9)
+
+Every navigation was paying a serial server chain before render; the perf audit
+traced the "sluggish even with the loader" feel to code, not the DB region
+(colocation per DEPLOY §4 still needs eyeballing in the Railway + PlanetScale
+dashboards — nothing in the repo pins it).
+
+- **The root gate is cached.** `__root` beforeLoad reads
+  `sessionInfoQueryOptions()` (5m staleTime) via `ensureQueryData` instead of
+  calling `getSessionInfo` per nav. The old chain — getSession (DB) → Databuddy
+  flag (external HTTP) → user select → listUserOrgs — ran on EVERY route
+  change. All one-off `["session-info"]` query keys collapsed onto the shared
+  key; /queue and oauth pages keep their fresher staleTime by spreading the
+  options.
+- **Better Auth `session.cookieCache` (5m)** — server fns stop hitting the DB
+  per `getSession`. Revocation latency ≤5m is the accepted trade.
+- **Access-gate flag memoized in-process (60s TTL)** in
+  `packages/auth/access-gate.ts` — the Databuddy HTTP call was on the nav hot
+  path. Dashboard toggle now takes ≤60s to propagate; env kill-switch behavior
+  unchanged.
+- **`$org` / `$org.$repo` beforeLoads use `ensureQueryData`** on the existing
+  org/repo query options — warm navs resolve scope from cache (60s/30s) with
+  zero round trips; cold entry behaves as before (404 via notFound).
+- **pendingComponent was defeating route code splitting.** TanStack's splitter
+  splits `component` only; importing `*Skeleton` from the page module kept
+  every page statically reachable and collapsed the whole app (xyflow
+  included) into one 1.3MB shared chunk. Skeletons now live in sibling
+  `<page>-skeleton.tsx` files; `parseOrgSettingsTab` moved to
+  `org-settings-tab.ts` for the same reason. Convention going forward: a route
+  file may import ONLY the page component (split away) and the skeleton
+  module — never anything else from the page's graph. Entry: 428KB→300KB gz;
+  workflow editor (+xyflow) is its own 235KB chunk loaded on its route only.
+- **Bundle**: command palette (cmdk) lazy-loads on first open; Databuddy
+  lazy-mounts; root `LayoutGroup` removed (layoutId works globally); Inter +
+  Silkscreen font families dropped (Inter served one topbar span, Silkscreen
+  was an unused fallback) — Geist + Geist Mono remain.
+- **Nitro**: `compressPublicAssets` (gzip+brotli) + immutable cache-control on
+  `/assets/**` and `/fonts/**`. Railway does not compress at the edge; the
+  entry was shipping uncompressed.
+- **`repos(org_id)` index** (drizzle 0009) — org-scoped repo queries were
+  table scans.

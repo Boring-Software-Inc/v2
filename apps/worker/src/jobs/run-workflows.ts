@@ -5,7 +5,7 @@ import type {
 	Verdict,
 	WorkflowDefinition,
 } from "@tripwire/contracts";
-import { resolveEffectiveRuleConfig } from "@tripwire/contracts";
+import { resolveEffectiveRuleConfig, ruleIdOf } from "@tripwire/contracts";
 import {
 	type AiReviewGenerate,
 	deriveDefaultWorkflow,
@@ -128,9 +128,9 @@ export async function runWorkflows(
 
 	/**
 	 * §6 toggles are REAL now (live-test surprise #1 — the worker never read
-	 * rule_configs before). Saved workflows win as authored; with none, the
-	 * default workflow is DERIVED from the repo's enabled rules + their configs
-	 * (no hardcoded DEFAULT_WORKFLOW execution). `disabledRefs` also kill-switch
+	 * rule_configs before). Saved workflows run as authored AND compose with the
+	 * derived default over the rules they don't own — a workflow orchestrates
+	 * its own rules, it never disables the rest. `disabledRefs` also kill-switch
 	 * nodes inside a saved workflow — those rules skip as `disabled`.
 	 */
 	const repo = await repoServices.getRepoByFullName(db, event.repo.fullName);
@@ -163,25 +163,41 @@ export async function runWorkflows(
 		db,
 		event.repo.fullName,
 	);
+	// Saved workflows orchestrate the rules they CONTAIN — they do not turn the
+	// rest off. Rules outside every enabled workflow keep running standalone via
+	// the derived default over the leftover toggles; owned rule ids are excluded
+	// from the derivation so a rule never runs twice with two configs (the
+	// workflow node's config wins for owned rules). With no saved workflow the
+	// derived default runs alone, even trigger-only (all rules off ⇒ pass run).
+	const ownedRuleIds = new Set(
+		custom.flatMap((def) =>
+			def.nodes.flatMap((node) =>
+				node.type === "rule" ? [ruleIdOf(node.ref)] : [],
+			),
+		),
+	);
+	// §6 (b) — resolve each pinned config to the version it ACTUALLY runs:
+	// auto-advance to current when the config carries forward, hold on the
+	// pinned (still-registered) version when it can't. derive keys by rule
+	// id, so a held old version replaces — never doubles — the baseline.
+	const derived = deriveDefaultWorkflow(
+		ruleConfigs.map((config) =>
+			resolveEffectiveRuleConfig({
+				ruleId: config.ruleId,
+				version: config.version,
+				enabled: config.enabled,
+				config: config.config as JsonValue,
+			}),
+		),
+		ownedRuleIds,
+	);
+	const derivedHasRules = derived.nodes.some((node) => node.type === "rule");
 	const definitions: WorkflowDefinition[] =
 		custom.length > 0
-			? custom
-			: [
-					// §6 (b) — resolve each pinned config to the version it ACTUALLY runs:
-					// auto-advance to current when the config carries forward, hold on the
-					// pinned (still-registered) version when it can't. derive keys by rule
-					// id, so a held old version replaces — never doubles — the baseline.
-					deriveDefaultWorkflow(
-						ruleConfigs.map((config) =>
-							resolveEffectiveRuleConfig({
-								ruleId: config.ruleId,
-								version: config.version,
-								enabled: config.enabled,
-								config: config.config as JsonValue,
-							}),
-						),
-					),
-				];
+			? derivedHasRules
+				? [...custom, derived]
+				: custom
+			: [derived];
 	const matching = definitions.filter((def) =>
 		def.nodes.some(
 			(node) => node.type === "trigger" && node.kinds.includes(event.kind),

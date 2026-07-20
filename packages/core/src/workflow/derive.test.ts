@@ -76,6 +76,22 @@ describe("deriveDefaultWorkflow", () => {
 		expect(refsOf(def)).toContain("ai-review@1");
 	});
 
+	test("excluded rule ids (owned by a saved workflow) are left out of the derivation", () => {
+		// §6 — workflows compose: the worker derives the default over the rules a
+		// saved workflow does NOT own. Exclusion beats the toggle: an enabled
+		// baseline rule AND an enabled opt-in both drop when a workflow owns them.
+		const owned = baselineRefs[0] as string;
+		const ownedId = owned.split("@")[0] as string;
+		const def = deriveDefaultWorkflow(
+			[{ ref: "min-merged-prs@1", enabled: true, config: { min: 5 } }],
+			new Set([ownedId, "min-merged-prs"]),
+		);
+		expect(refsOf(def)).not.toContain(owned);
+		expect(refsOf(def)).not.toContain("min-merged-prs@1");
+		expect(refsOf(def).length).toBe(baselineRefs.length - 1);
+		expect(validateWorkflow(def).valid).toBe(true);
+	});
+
 	test("all baseline rules disabled ⇒ trigger-only workflow ⇒ verdict pass", async () => {
 		const toggles: RuleToggle[] = baselineRefs.map((ref) => ({
 			ref,

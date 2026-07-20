@@ -13,7 +13,7 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
-import { getSessionInfo } from "#/lib/auth.functions";
+import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { InviteLinkView, OrgMemberView } from "#/lib/org.functions";
 import {
@@ -36,11 +36,7 @@ const ROLE_SELECT_CLASS =
 export function OrgMembersPage({ org }: { org: string }) {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const { data: members } = useQuery(orgMembersQueryOptions(org));
-	const { data: session } = useQuery({
-		queryKey: ["session-info"],
-		queryFn: ({ signal }) => getSessionInfo({ signal }),
-		staleTime: 15_000,
-	});
+	const { data: session } = useQuery(sessionInfoQueryOptions());
 
 	const isAdmin = orgContext?.role === "admin";
 	const isPersonal = orgContext?.isPersonal ?? true;

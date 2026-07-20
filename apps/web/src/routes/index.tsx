@@ -1,9 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import {
-	NoOrgsPage,
-	NoOrgsPageSkeleton,
-} from "#/components/organizations/no-orgs-page";
-import { getSessionInfo } from "#/lib/auth.functions";
+import { NoOrgsPage } from "#/components/organizations/no-orgs-page";
+import { NoOrgsPageSkeleton } from "#/components/organizations/no-orgs-page-skeleton";
+import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 /**
@@ -13,8 +11,10 @@ import { buildSeo, formatPageTitle } from "#/lib/seo";
  * create-first-org screen.
  */
 export const Route = createFileRoute("/")({
-	beforeLoad: async () => {
-		const session = await getSessionInfo();
+	beforeLoad: async ({ context }) => {
+		const session = await context.queryClient.ensureQueryData(
+			sessionInfoQueryOptions(),
+		);
 		if (session.defaultOrgSlug) {
 			throw redirect({
 				to: "/$org/home",

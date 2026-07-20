@@ -35,9 +35,10 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 const base = { org: "o", repo: "r", repoId: "r", canEdit: true };
 
 /**
- * §6 per-rule management — the founder's all-locked bug and its three states.
- * Managed/dormant fixtures use workflowId:null so the router-bound <Link> is
- * guarded out (link labels + route are locked by the source assertion below).
+ * §6 per-rule management — workflows compose with standalone rules, so a card
+ * is either standalone (its own toggle runs) or managed (a workflow node).
+ * Managed fixtures use workflowId:null so the router-bound <Link> is guarded
+ * out (link labels + route are locked by the source assertion below).
  */
 describe("RuleCard management states", () => {
 	test("standalone: toggle present, no management tag", () => {
@@ -58,16 +59,6 @@ describe("RuleCard management states", () => {
 		expect(html).not.toContain('role="switch"');
 		// what actually runs is the workflow node's 14 days, not the card's old 7
 		expect(html).toContain("14 days");
-	});
-
-	test("dormant: no toggle, 'off' tag, dimmed, and the not-protecting line", () => {
-		const html = render(
-			<RuleCard {...base} rule={rule({ management: "dormant" })} />,
-		);
-		expect(html).toContain(">off<");
-		expect(html).not.toContain('role="switch"');
-		expect(html).toContain("opacity-50");
-		expect(html).toContain("protecting this repo");
 	});
 
 	test("held prompt shows only in standalone (managed drives from the node, not the row)", () => {
@@ -112,7 +103,6 @@ describe("RuleCard management states", () => {
 	test("workflow deep-links and labels are wired (source-locked, router-free)", () => {
 		const src = readFileSync(join(import.meta.dir, "rule-card.tsx"), "utf8");
 		expect(src).toContain("edit in workflow →");
-		expect(src).toContain("add to workflow →");
 		expect(src).toContain("/$org/$repo/workflows/$workflowId");
 	});
 });

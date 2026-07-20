@@ -1,4 +1,3 @@
-import { Databuddy } from "@databuddy/sdk/react";
 import type { QueryClient } from "@tanstack/react-query";
 import {
 	createRootRouteWithContext,
@@ -8,14 +7,18 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
-import { LayoutGroup } from "motion/react";
 import { ThemeProvider } from "next-themes";
+import { lazy, Suspense } from "react";
 import { Toaster } from "#/components/ui/sonner";
-import { getSessionInfo } from "#/lib/auth.functions";
+import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { isPublicPath } from "#/lib/run-access";
 import { siteConfig } from "#/lib/site-config";
 
 import appCss from "../styles.css?url";
+
+const Databuddy = lazy(() =>
+	import("@databuddy/sdk/react").then((m) => ({ default: m.Databuddy })),
+);
 
 export const Route = createRootRouteWithContext<{
 	queryClient: QueryClient;
@@ -27,7 +30,7 @@ export const Route = createRootRouteWithContext<{
 	 * stand open. The run page is unlisted-public (isPublicPath) so blocked
 	 * contributors can read the judgment — they can't sign in.
 	 */
-	beforeLoad: async ({ location }) => {
+	beforeLoad: async ({ location, context }) => {
 		if (isPublicPath(location.pathname)) {
 			return;
 		}
@@ -37,7 +40,9 @@ export const Route = createRootRouteWithContext<{
 		if (location.pathname.startsWith("/oauth")) {
 			return;
 		}
-		const session = await getSessionInfo();
+		const session = await context.queryClient.ensureQueryData(
+			sessionInfoQueryOptions(),
+		);
 		if (session.authEnabled && !session.user) {
 			// No session anywhere ⇒ the login screen, in dev exactly as in prod.
 			// The §13 auto-login trampoline that used to silently mint
@@ -130,20 +135,20 @@ function RootComponent() {
 			enableSystem
 			disableTransitionOnChange
 		>
-			<LayoutGroup>
-				<Outlet />
-			</LayoutGroup>
+			<Outlet />
 			<Toaster />
 			{/* Global product analytics — one mount covers every route (pageviews,
 			    interactions, outgoing links, hash changes, web vitals). */}
-			<Databuddy
-				clientId={DATABUDDY_CLIENT_ID}
-				trackHashChanges
-				trackAttributes
-				trackOutgoingLinks
-				trackInteractions
-				trackWebVitals
-			/>
+			<Suspense fallback={null}>
+				<Databuddy
+					clientId={DATABUDDY_CLIENT_ID}
+					trackHashChanges
+					trackAttributes
+					trackOutgoingLinks
+					trackInteractions
+					trackWebVitals
+				/>
+			</Suspense>
 		</ThemeProvider>
 	);
 }

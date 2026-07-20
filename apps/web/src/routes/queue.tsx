@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AccessPendingScreen } from "#/components/auth/access-pending-screen";
 import { toast } from "#/components/ui/sonner";
 import { Spinner } from "#/components/ui/spinner";
-import { getSessionInfo } from "#/lib/auth.functions";
+import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/queue")({
@@ -22,8 +22,7 @@ function QueuePage() {
 	const router = useRouter();
 	const [checking, setChecking] = useState(false);
 	const { data, isLoading, refetch } = useQuery({
-		queryKey: ["session-info"],
-		queryFn: () => getSessionInfo(),
+		...sessionInfoQueryOptions(),
 		staleTime: 15_000,
 	});
 

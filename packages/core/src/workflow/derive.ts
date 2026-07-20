@@ -59,6 +59,14 @@ function baselineTrigger(): WorkflowNode {
 
 export function deriveDefaultWorkflow(
 	toggles: RuleToggle[],
+	/**
+	 * Rule ids already owned by an enabled saved workflow. Saved workflows
+	 * orchestrate the rules they contain — they do NOT turn the rest off — so
+	 * the worker derives the default over the LEFTOVER rules and runs it
+	 * alongside. Excluding owned ids here is what keeps a rule from running
+	 * twice with two configs (the workflow node's config wins for owned rules).
+	 */
+	excludeRuleIds?: ReadonlySet<string>,
 ): WorkflowDefinition {
 	// Key by rule ID, not full ref (§6 b): a repo has ONE config per rule, and a
 	// toggle whose version differs from the baseline's (a repo HELD on an older
@@ -70,7 +78,11 @@ export function deriveDefaultWorkflow(
 
 	const included: BaselineRule[] = [];
 	for (const rule of baseline) {
-		const toggle = byId.get(ruleIdOf(rule.ref));
+		const id = ruleIdOf(rule.ref);
+		if (excludeRuleIds?.has(id)) {
+			continue;
+		}
+		const toggle = byId.get(id);
 		if (toggle && !toggle.enabled) {
 			continue;
 		}
@@ -80,6 +92,9 @@ export function deriveDefaultWorkflow(
 		});
 	}
 	for (const toggle of toggles) {
+		if (excludeRuleIds?.has(ruleIdOf(toggle.ref))) {
+			continue;
+		}
 		if (toggle.enabled && !baselineIds.has(ruleIdOf(toggle.ref))) {
 			included.push({ ref: toggle.ref, config: toggle.config });
 		}

@@ -22,8 +22,10 @@ function workflow(id: string, refs: string[]): WorkflowDefinition {
 }
 
 /**
- * §6 workflow-only execution — a rule's state derives from whether its id is a
- * node in an enabled workflow, per-rule, never a repo-level boolean.
+ * §6 — workflows compose with standalone rules. A rule's state derives from
+ * whether its id is a node in an enabled workflow, per-rule, never a
+ * repo-level boolean; a rule OUTSIDE every workflow stays standalone and
+ * keeps running on its own toggle.
  */
 describe("resolveRuleManagement", () => {
 	test("no enabled workflow ⇒ standalone", () => {
@@ -48,20 +50,22 @@ describe("resolveRuleManagement", () => {
 		expect(resolveRuleManagement("min-merged-prs", [wf]).state).toBe("managed");
 	});
 
-	test("workflow enabled but rule absent ⇒ dormant, pointing at the first workflow", () => {
+	test("workflow enabled but rule absent ⇒ standalone (it still runs on its own toggle)", () => {
 		const wf = workflow("wf-1", ["account-age@1"]);
 		expect(resolveRuleManagement("crypto-address", [wf])).toEqual({
-			state: "dormant",
-			workflowId: "wf-1",
+			state: "standalone",
+			workflowId: null,
 			managedConfig: null,
 		});
 	});
 
-	test("the founder bug: a workflow with ONLY account-age locks account-age, not the rest", () => {
+	test("the founder bug: a workflow with ONLY account-age owns account-age, and ONLY account-age", () => {
 		const wfs = [workflow("wf-1", ["account-age@1"])];
 		expect(resolveRuleManagement("account-age", wfs).state).toBe("managed");
-		expect(resolveRuleManagement("honeypot", wfs).state).toBe("dormant");
-		expect(resolveRuleManagement("crypto-address", wfs).state).toBe("dormant");
+		expect(resolveRuleManagement("honeypot", wfs).state).toBe("standalone");
+		expect(resolveRuleManagement("crypto-address", wfs).state).toBe(
+			"standalone",
+		);
 	});
 
 	test("owning workflow wins across multiple enabled workflows", () => {
