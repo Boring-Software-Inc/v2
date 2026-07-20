@@ -23,6 +23,7 @@ import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { armRepo, disarmRepo } from "#/lib/arm.functions";
 import { authClient } from "#/lib/auth-client";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
+import { orgInstallUrlQueryOptions } from "#/lib/onboarding.query";
 import { createOrg } from "#/lib/org.functions";
 import {
 	myOrgsQueryOptions,
@@ -81,6 +82,15 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 	const { data: orgHome } = useQuery({
 		...orgHomeQueryOptions(currentOrg ?? ""),
 		enabled: currentOrg !== undefined,
+	});
+	// Admin-only: the org-bound install URL. GitHub's installations/new page is
+	// also the "add more repos" screen once the app is installed — same URL,
+	// same signed state, the setup callback + webhook sync pick up the rest.
+	const isOrgAdmin =
+		(orgs ?? []).find((org) => org.slug === currentOrg)?.role === "admin";
+	const { data: installUrl } = useQuery({
+		...orgInstallUrlQueryOptions(currentOrg ?? ""),
+		enabled: Boolean(currentOrg) && isOrgAdmin,
 	});
 	const repoScope =
 		currentOrg && currentRepo ? { org: currentOrg, repo: currentRepo } : null;
@@ -175,16 +185,25 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 		return items.filter((item) => matches(item, terms));
 	})();
 
-	// ── REPOS: only inside an org route; each jump is a URL change ──────────────
-	const repoGroups = (() => {
+	// ── REPOS: only inside an org route; each jump is a URL change. Browse
+	// (empty query) is curated: the activity sort already puts the repos you
+	// visit on top, so cap it and teach typing for the tail. A query searches
+	// the FULL set — matching shrinks the list naturally. ───────────────────────
+	const BROWSE_CAP = 8;
+	const { repoGroups, hiddenRepoCount } = (() => {
 		if (!currentOrg) {
-			return [] as [string, PaletteItem[]][];
+			return {
+				repoGroups: [] as [string, PaletteItem[]][],
+				hiddenRepoCount: 0,
+			};
 		}
 		const sorted = [...(orgHome?.repos ?? [])].sort(
 			(a, b) => activityRank(b) - activityRank(a),
 		);
+		const browsing = terms.length === 0;
+		const visible = browsing ? sorted.slice(0, BROWSE_CAP) : sorted;
 		const byOwner = new Map<string, PaletteItem[]>();
-		for (const repo of sorted) {
+		for (const repo of visible) {
 			const item = repoItem(repo, currentRepo ?? null, () =>
 				go(`/${currentOrg}/${repo.name}${featurePath}`),
 			);
@@ -195,8 +214,36 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 			bucket.push(item);
 			byOwner.set(repo.owner, bucket);
 		}
-		return [...byOwner.entries()];
+		return {
+			repoGroups: [...byOwner.entries()],
+			hiddenRepoCount: browsing ? Math.max(0, sorted.length - BROWSE_CAP) : 0,
+		};
 	})();
+
+	// ── under the repo list: add repos to the existing installation ─────────────
+	const addReposItem: PaletteItem | null =
+		currentOrg && installUrl?.status === "ready"
+			? {
+					id: "repos:add",
+					label: "add repos",
+					searchTags: [
+						"add",
+						"repos",
+						"repository",
+						"install",
+						"github",
+						"more",
+						"grant",
+					],
+					icon: hugeicon(PlusSignIcon),
+					onSelect: () => {
+						window.location.assign(installUrl.url);
+					},
+					hint: <span className="text-muted-foreground text-xs">github</span>,
+				}
+			: null;
+	const visibleAddRepos =
+		addReposItem && matches(addReposItem, terms) ? addReposItem : null;
 
 	// ── ACTIONS (cheap to build; not memoized so closures stay fresh) ───────────
 	const actionItems: PaletteItem[] = [];
@@ -314,6 +361,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 	const resultCount =
 		orgItems.length +
 		repoGroups.reduce((sum, [, list]) => sum + list.length, 0) +
+		(visibleAddRepos ? 1 : 0) +
 		visibleActions.length +
 		visibleNav.length;
 
@@ -380,6 +428,31 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 									))}
 								</CommandPrimitive.Group>
 							))}
+
+							{hiddenRepoCount > 0 ? (
+								<CommandPrimitive.Group>
+									<CommandPrimitive.Item
+										className="flex cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-muted-foreground text-xs data-[selected=true]:bg-surface-1"
+										onSelect={() => inputRef.current?.focus()}
+										value="repos:more"
+									>
+										<span className="flex size-[15px] shrink-0 items-center justify-center">
+											<HugeiconsIcon
+												icon={Search01Icon}
+												size={13}
+												strokeWidth={1.9}
+											/>
+										</span>
+										{hiddenRepoCount} more — type to search
+									</CommandPrimitive.Item>
+								</CommandPrimitive.Group>
+							) : null}
+
+							{visibleAddRepos ? (
+								<CommandPrimitive.Group>
+									<PaletteRow item={visibleAddRepos} />
+								</CommandPrimitive.Group>
+							) : null}
 
 							{visibleActions.length > 0 ? (
 								<CommandPrimitive.Group heading="Actions">
