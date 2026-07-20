@@ -235,12 +235,31 @@ function mapEntry(row: RawRow): ActivityTimelineEntry {
 	// `normalized` (jsonb) is a validated NormalizedEvent at write time (§5.6); the
 	// server fn re-parses the whole feed against activityFeedSchema, so a drifted
 	// row fails loudly there, not inside a downstream field access.
-	return { event: row.normalized as NormalizedEvent, run: mapRun(row) };
+	const run = mapRun(row);
+	const pending =
+		run != null &&
+		run.verdict == null &&
+		(run.status === "queued" || run.status === "running");
+	return {
+		event: row.normalized as NormalizedEvent,
+		run,
+		pending: pending || undefined,
+	};
 }
 
-const ACTIVITY_FROM = sql`
-	FROM events e
-	LEFT JOIN runs r ON r.event_id = e.id
+/**
+ * Latest run for the event. Manual re-run creates a SECOND run on the same
+ * event_id; a plain JOIN picks an arbitrary row and the feed freezes on the
+ * original pass. Order by created_at (UUIDv7 id breaks ties).
+ */
+const LATEST_RUN_LATERAL = sql`
+	LEFT JOIN LATERAL (
+		SELECT r.id, r.verdict, r.status
+		FROM runs r
+		WHERE r.event_id = e.id
+		ORDER BY r.created_at DESC, r.id DESC
+		LIMIT 1
+	) r ON true
 	LEFT JOIN LATERAL (
 		SELECT s.summary, s.rule_id FROM run_steps s
 		WHERE s.run_id = r.id AND s.node_kind = 'rule' AND s.status = 'fail'
@@ -248,10 +267,16 @@ const ACTIVITY_FROM = sql`
 	) fr ON true
 `;
 
+const ACTIVITY_FROM = sql`
+	FROM events e
+	${LATEST_RUN_LATERAL}
+`;
+
 /**
  * The /activity feed (§9): cursor-paginated normalized events, each joined to
- * its run (verdict + status) and the first failing rule's one-liner. UUIDv7
- * event ids are the cursor. One run per event (§5.11 joins workflows into one).
+ * its LATEST run (verdict + status) and the first failing rule's one-liner.
+ * UUIDv7 event ids are the cursor. Re-runs share an event_id with the original
+ * evaluation — the lateral picks the newest run so the card moves.
  */
 export async function listActivity(
 	db: Db,
@@ -423,7 +448,13 @@ export async function listActivityFeed(
 		JOIN events e ON e.repo_full_name = g.repo_full_name
 		            AND e.subject_number = g.subject_number
 		            AND e.normalized_at IS NOT NULL
-		LEFT JOIN runs r ON r.event_id = e.id
+		LEFT JOIN LATERAL (
+			SELECT lr.id, lr.verdict, lr.status
+			FROM runs lr
+			WHERE lr.event_id = e.id
+			ORDER BY lr.created_at DESC, lr.id DESC
+			LIMIT 1
+		) r ON true
 		LEFT JOIN LATERAL (
 			SELECT s.summary, s.rule_id FROM run_steps s
 			WHERE s.run_id = r.id AND s.node_kind = 'rule' AND s.status = 'fail'

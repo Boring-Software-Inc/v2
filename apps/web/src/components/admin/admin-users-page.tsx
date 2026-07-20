@@ -10,7 +10,10 @@ import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
-import { reviewUserAccess } from "#/lib/admin.functions";
+import {
+	reviewUserAccess,
+	setUserRerunCooldownExempt,
+} from "#/lib/admin.functions";
 import {
 	ADMIN_PAGE_SIZE,
 	adminQueryKeys,
@@ -48,6 +51,12 @@ export function AdminUsersPage() {
 
 	const review = useMutation({
 		mutationFn: reviewUserAccess,
+		onSettled: () =>
+			queryClient.invalidateQueries({ queryKey: adminQueryKeys.all }),
+	});
+
+	const flagRerun = useMutation({
+		mutationFn: setUserRerunCooldownExempt,
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: adminQueryKeys.all }),
 	});
@@ -106,7 +115,9 @@ export function AdminUsersPage() {
 					<h1 className="font-semibold text-2xl tracking-tight">Users</h1>
 					<p className="text-muted-foreground text-sm">
 						beta access review. approve writes through the same promotion path
-						invite redemption uses.
+						invite redemption uses. re-run cooldown duration is env-global (
+						<code className="text-xs">RERUN_COOLDOWN_SECONDS</code>); the
+						per-account exempt flag is toggled below.
 					</p>
 				</header>
 
@@ -186,6 +197,7 @@ export function AdminUsersPage() {
 								orgs
 							</span>
 							<span className="hidden w-24 shrink-0 md:block">joined</span>
+							<span className="hidden w-28 shrink-0 lg:block">flags</span>
 							<span className="w-36 shrink-0" />
 						</div>
 						{users.map((u) => (
@@ -237,6 +249,47 @@ export function AdminUsersPage() {
 								</span>
 								<span className="hidden w-24 shrink-0 text-muted-foreground text-xs md:block">
 									{formatAdminDate(u.createdAt)}
+								</span>
+								<span className="hidden w-28 shrink-0 lg:block">
+									<button
+										aria-pressed={u.rerunCooldownExempt}
+										className={cn(
+											"rounded-md px-2 py-1 font-medium text-xs transition-colors",
+											u.rerunCooldownExempt
+												? "bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:text-amber-400"
+												: "bg-surface-2 text-muted-foreground hover:text-foreground",
+										)}
+										disabled={flagRerun.isPending}
+										onClick={() =>
+											flagRerun.mutate(
+												{
+													data: {
+														userId: u.id,
+														exempt: !u.rerunCooldownExempt,
+													},
+												},
+												{
+													onSuccess: (result) => {
+														if (result.changed) {
+															toast(
+																u.rerunCooldownExempt
+																	? "re-run cooldown restored"
+																	: "re-run cooldown exempt",
+															);
+														}
+													},
+												},
+											)
+										}
+										title={
+											u.rerunCooldownExempt
+												? "exempt from re-run cooldown — click to restore"
+												: "subject to re-run cooldown — click to exempt"
+										}
+										type="button"
+									>
+										{u.rerunCooldownExempt ? "no cooldown" : "cooldown"}
+									</button>
 								</span>
 								<span className="flex w-36 shrink-0 items-center justify-end gap-1.5">
 									{u.accessStatus !== "approved" ? (

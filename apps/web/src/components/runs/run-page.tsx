@@ -101,6 +101,16 @@ function RunBody({ run }: { run: RunView }) {
 							awaiting moderation
 						</span>
 					) : null}
+					{run.status === "queued" || run.status === "running" ? (
+						<span className="rounded-full bg-muted px-2.5 py-0.5 font-medium text-muted-foreground text-xs">
+							evaluating
+						</span>
+					) : null}
+					{run.status === "failed" ? (
+						<span className="rounded-full bg-red-500/10 px-2.5 py-0.5 font-medium text-red-600 text-xs dark:text-red-400">
+							failed
+						</span>
+					) : null}
 				</div>
 				<p className="mt-1 text-muted-foreground text-sm">
 					{run.repoFullName}
@@ -119,17 +129,27 @@ function RunBody({ run }: { run: RunView }) {
 
 			<section className="overflow-hidden rounded-xl border bg-card">
 				<SectionHeader>steps</SectionHeader>
-				{run.steps.map((step, i) => (
-					<StepCard
-						isFirst={i === 0}
-						isLast={i === run.steps.length - 1}
-						key={step.id}
-						maintainer={run.access !== "public"}
-						repo={run.repoFullName}
-						sha={run.headSha}
-						step={step}
-					/>
-				))}
+				{run.steps.length === 0 ? (
+					<p className="px-4 py-6 text-muted-foreground text-sm">
+						{run.status === "queued" || run.status === "running"
+							? "evaluating under current rules…"
+							: run.status === "failed"
+								? "this re-run never evaluated — try again."
+								: "no steps recorded."}
+					</p>
+				) : (
+					run.steps.map((step, i) => (
+						<StepCard
+							isFirst={i === 0}
+							isLast={i === run.steps.length - 1}
+							key={step.id}
+							maintainer={run.access !== "public"}
+							repo={run.repoFullName}
+							sha={run.headSha}
+							step={step}
+						/>
+					))
+				)}
 			</section>
 
 			{run.actions.length > 0 ? (

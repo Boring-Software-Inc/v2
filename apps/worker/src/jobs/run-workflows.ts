@@ -100,6 +100,11 @@ export interface RunWorkflowsDeps {
 	surface?: boolean;
 	/** Manual re-run: the triggering admin's user id, stamped on the run. */
 	triggeredBy?: string;
+	/**
+	 * Pre-materialized run id (re-run enqueue). When set, finalize that row
+	 * instead of inserting a new one — the activity card already points here.
+	 */
+	claimRunId?: string;
 }
 
 export interface RunWorkflowsResult {
@@ -150,6 +155,9 @@ export async function runWorkflows(
 			{ repo: event.repo.fullName },
 			"repo not armed — event ingested, run skipped",
 		);
+		if (deps.claimRunId) {
+			await runServices.failRun(db, deps.claimRunId);
+		}
 		return none;
 	}
 
@@ -206,7 +214,14 @@ export async function runWorkflows(
 		),
 	);
 	if (matching.length === 0) {
+		if (deps.claimRunId) {
+			await runServices.failRun(db, deps.claimRunId);
+		}
 		return none;
+	}
+
+	if (deps.claimRunId) {
+		await runServices.markRunRunning(db, deps.claimRunId);
 	}
 
 	const now = new Date().toISOString();
@@ -237,6 +252,9 @@ export async function runWorkflows(
 			{ actor: event.actor.login },
 			"actor exempt (maintainer/org member) — no run",
 		);
+		if (deps.claimRunId) {
+			await runServices.failRun(db, deps.claimRunId);
+		}
 		return none;
 	}
 
@@ -306,16 +324,36 @@ export async function runWorkflows(
 		);
 	}
 
-	const runId = await runServices.createRun(db, {
-		eventId,
-		repoFullName: event.repo.fullName,
-		subjectNumber: "changeRequest" in event ? event.changeRequest.number : null,
-		headSha: "changeRequest" in event ? event.changeRequest.headSha : null,
-		snapshot: matching,
-		status: paused ? "paused" : "completed",
-		verdict,
-		triggeredBy: deps.triggeredBy ?? null,
-	});
+	const headSha = "changeRequest" in event ? event.changeRequest.headSha : null;
+	const subjectNumber =
+		"changeRequest" in event ? event.changeRequest.number : null;
+	const terminalStatus = paused ? "paused" : "completed";
+	let runId: string;
+	const claimed =
+		deps.claimRunId != null
+			? await runServices.getRunById(db, deps.claimRunId)
+			: null;
+	if (claimed) {
+		runId = claimed.id;
+		await runServices.finalizeRun(db, runId, {
+			headSha,
+			snapshot: matching,
+			status: terminalStatus,
+			verdict,
+		});
+	} else {
+		// Missing claim row (legacy job or race) — create as a normal run.
+		runId = await runServices.createRun(db, {
+			eventId,
+			repoFullName: event.repo.fullName,
+			subjectNumber,
+			headSha,
+			snapshot: matching,
+			status: terminalStatus,
+			verdict,
+			triggeredBy: deps.triggeredBy ?? null,
+		});
+	}
 	await runServices.recordSteps(db, runId, withPublicProjection(steps));
 
 	for (const execution of executions) {

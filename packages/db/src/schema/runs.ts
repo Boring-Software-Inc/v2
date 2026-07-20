@@ -26,7 +26,10 @@ export const runs = pgTable(
 		/** The change-request number the run gates, when applicable. */
 		subjectNumber: integer("subject_number"),
 		headSha: text("head_sha"),
-		/** running → completed | paused (needs_review moderation, §6). */
+		/**
+		 * queued (re-run materialised at enqueue) → running → completed | paused
+		 * (needs_review moderation, §6) | failed (never evaluated).
+		 */
 		status: text("status").notNull().default("running"),
 		/** 'pass' | 'block' | 'needs_review' — null while running. */
 		verdict: text("verdict"),

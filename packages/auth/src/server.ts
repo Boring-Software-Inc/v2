@@ -93,6 +93,16 @@ export function createAuth(input: CreateAuthInput) {
 					defaultValue: false,
 					input: false,
 				},
+				/**
+				 * Staff flag: skip re-run cooldown. `input: false` — only
+				 * /admin/users writes this via staffServices.
+				 */
+				rerunCooldownExempt: {
+					type: "boolean",
+					required: false,
+					defaultValue: false,
+					input: false,
+				},
 			},
 		},
 		plugins: [

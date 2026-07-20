@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { DEFAULT_WORKFLOW } from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -9,6 +10,7 @@ import {
 	RERUN_COOLDOWN_SECONDS,
 	RERUN_QUEUE,
 	repoServices,
+	runServices,
 	type TestDatabase,
 } from "@tripwire/db";
 import type { Pool } from "pg";
@@ -50,17 +52,24 @@ const trustedProfile = {
 	isMaintainer: false,
 };
 
-function makeReads(headSha: string) {
+function makeReads(
+	headSha: string,
+	diff: {
+		path: string;
+		status: "added" | "modified" | "removed" | "renamed";
+		additions: number;
+		deletions: number;
+	}[] = [
+		{
+			path: "src/app.ts",
+			status: "modified",
+			additions: 3,
+			deletions: 1,
+		},
+	],
+) {
 	return {
-		getDiff: () =>
-			Promise.resolve([
-				{
-					path: "src/app.ts",
-					status: "modified" as const,
-					additions: 3,
-					deletions: 1,
-				},
-			]),
+		getDiff: () => Promise.resolve(diff),
 		getCommits: () =>
 			Promise.resolve([
 				{
@@ -293,6 +302,116 @@ describe("manual re-run (§ re-run feature)", () => {
 		});
 		const after = await pool.query("SELECT count(*)::int AS n FROM runs");
 		expect(after.rows[0].n).toBe(before.rows[0].n);
+	});
+
+	test("founder repro: enable honeypot after pass → claim queued re-run → block", async () => {
+		// Sequence: PR evaluated with honeypot OFF → maintainer enables it →
+		// re-run under CURRENT configs must include honeypot@1 and block when
+		// the fresh diff touches .github/workflows/**. Also exercises the
+		// pre-materialized claim path (runId set at enqueue).
+		const repo = await repoServices.getRepoByFullName(
+			db,
+			"Codertocat/Hello-World",
+		);
+		if (!repo) {
+			throw new Error("repo missing");
+		}
+		await repoServices.upsertRuleConfig(db, repo.id, {
+			ruleId: "honeypot",
+			version: 1,
+			enabled: false,
+			config: { paths: [".github/workflows/**"] },
+		});
+		// Neutralize other baseline rules that would block a clean pass.
+		await repoServices.upsertRuleConfig(db, repo.id, {
+			ruleId: "account-age",
+			version: 1,
+			enabled: true,
+			config: { minDays: 0 },
+		});
+
+		const raw = await fixtureRaw();
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "rerun-honeypot-base",
+			rawKind: "pull_request",
+			raw,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		// Force a fresh subject number so we don't collide with #2 above —
+		// the fixture is PR #2; overwrite via a second delivery is fine for
+		// the same event pipeline as long as we re-run by number.
+		const fakePass = fakeAdapter();
+		await processEvent(baseDeps(fakePass.adapter, ORIGINAL_SHA), { eventId });
+
+		// Enable honeypot AFTER the original pass (the founder's toggle).
+		await repoServices.upsertRuleConfig(db, repo.id, {
+			ruleId: "honeypot",
+			version: 1,
+			enabled: true,
+			config: { paths: [".github/workflows/**"] },
+		});
+
+		// Materialize the queued run the way the server fn does.
+		const eventRow = await eventServices.getLatestChangeRequestEvent(
+			db,
+			"Codertocat/Hello-World",
+			2,
+		);
+		if (!eventRow) {
+			throw new Error("no event for re-run");
+		}
+		const queuedId = await runServices.createRun(db, {
+			eventId: eventRow.id,
+			repoFullName: "Codertocat/Hello-World",
+			subjectNumber: 2,
+			headSha: ORIGINAL_SHA,
+			snapshot: [DEFAULT_WORKFLOW],
+			status: "queued",
+			verdict: null,
+			triggeredBy: "admin-1",
+		});
+
+		const honeypotDiff = [
+			{
+				path: ".github/workflows/ci.yml",
+				status: "modified" as const,
+				additions: 1,
+				deletions: 0,
+			},
+		];
+		const fake = fakeAdapter();
+		await rerunChangeRequest(
+			{
+				...baseDeps(fake.adapter, MOVED_SHA),
+				reads: makeReads(MOVED_SHA, honeypotDiff),
+			},
+			{
+				repoFullName: "Codertocat/Hello-World",
+				number: 2,
+				requestedBy: "admin-1",
+				runId: queuedId,
+			},
+		);
+
+		const claimed = await pool.query(
+			"SELECT id, verdict, status, triggered_by FROM runs WHERE id = $1",
+			[queuedId],
+		);
+		expect(claimed.rows[0].status).toBe("completed");
+		expect(claimed.rows[0].verdict).toBe("block");
+		expect(claimed.rows[0].triggered_by).toBe("admin-1");
+
+		const steps = await pool.query(
+			"SELECT rule_id, status FROM run_steps WHERE run_id = $1 AND node_kind = 'rule'",
+			[queuedId],
+		);
+		const honeypot = steps.rows.find(
+			(s: { rule_id: string | null }) => s.rule_id === "honeypot@1",
+		);
+		expect(honeypot).toBeDefined();
+		expect(honeypot.status).toBe("fail");
 	});
 
 	test("dedup + cooldown: singletonKey rejects a second enqueue in the window", async () => {

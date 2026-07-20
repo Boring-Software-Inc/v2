@@ -85,6 +85,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	 * rewrites the PR's verdict surfaces — a trust-level admin action.
 	 */
 	rerunChangeRequest: "admin",
+	getRerunPreview: "admin",
 
 	// ── staff (platform admin portal — /admin) ───────────────────────────
 	getAdminContext: "staff",
@@ -94,4 +95,5 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	listAdminOrgMembers: "staff",
 	reviewUserAccess: "staff", // writes through promote/rejectUserAccess only
 	adminUpdateOrgMemberRole: "staff", // shares the plugin hook's guard
+	setUserRerunCooldownExempt: "staff",
 };

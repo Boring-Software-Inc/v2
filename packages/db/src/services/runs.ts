@@ -26,15 +26,21 @@ export interface CreateRunInput {
 	headSha: string | null;
 	/** Every workflow definition that fired, joined into ONE run (§5.11). */
 	snapshot: WorkflowDefinition[];
-	status: "running" | "paused" | "completed";
+	/**
+	 * `queued` = materialized at re-run enqueue before the worker claims it.
+	 * `running` | `paused` | `completed` | `failed` as the worker progresses.
+	 */
+	status: "queued" | "running" | "paused" | "completed" | "failed";
 	verdict: Verdict | null;
 	/** Set for manual re-runs: the triggering admin's user id. */
 	triggeredBy?: string | null;
+	/** Optional pre-assigned id (re-run materializes the id at enqueue). */
+	id?: string;
 }
 
 export async function createRun(db: Db, input: CreateRunInput) {
 	const snapshot = snapshotSchema.parse(input.snapshot);
-	const id = generateId();
+	const id = input.id ?? generateId();
 	await db.insert(runs).values({
 		id,
 		eventId: input.eventId,
@@ -48,6 +54,64 @@ export async function createRun(db: Db, input: CreateRunInput) {
 		completedAt: input.status === "completed" ? new Date() : null,
 	});
 	return id;
+}
+
+export interface FinalizeRunInput {
+	headSha: string | null;
+	snapshot: WorkflowDefinition[];
+	status: "paused" | "completed" | "failed";
+	verdict: Verdict | null;
+}
+
+/**
+ * Claim a pre-materialized re-run row: write the real snapshot + verdict and
+ * mark it terminal. Steps/actions are recorded separately against the same id.
+ */
+export async function finalizeRun(
+	db: Db,
+	runId: string,
+	input: FinalizeRunInput,
+): Promise<void> {
+	const snapshot = snapshotSchema.parse(input.snapshot);
+	await db
+		.update(runs)
+		.set({
+			headSha: input.headSha,
+			workflowSnapshot: snapshot,
+			status: input.status,
+			verdict: input.verdict,
+			completedAt: new Date(),
+		})
+		.where(eq(runs.id, runId));
+}
+
+/** Mark a queued re-run as actively evaluating (worker claimed it). */
+export async function markRunRunning(db: Db, runId: string): Promise<void> {
+	await db
+		.update(runs)
+		.set({ status: "running" })
+		.where(and(eq(runs.id, runId), eq(runs.status, "queued")));
+}
+
+/**
+ * Fail a pre-materialized re-run that never evaluated (unarmed, no event,
+ * exempt, worker error). Leaves the row visible so the activity card is not
+ * forever-queued.
+ */
+export async function failRun(db: Db, runId: string): Promise<void> {
+	await db
+		.update(runs)
+		.set({
+			status: "failed",
+			verdict: null,
+			completedAt: new Date(),
+		})
+		.where(eq(runs.id, runId));
+}
+
+export async function getRunById(db: Db, runId: string) {
+	const rows = await db.select().from(runs).where(eq(runs.id, runId)).limit(1);
+	return rows[0] ?? null;
 }
 
 export interface RecordStepInput {

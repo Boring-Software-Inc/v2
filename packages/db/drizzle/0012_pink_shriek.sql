@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "rerun_cooldown_exempt" boolean DEFAULT false NOT NULL;

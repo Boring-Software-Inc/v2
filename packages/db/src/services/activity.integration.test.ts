@@ -202,6 +202,50 @@ describe("listActivityFeed — grouped by change request", () => {
 		});
 	}
 
+	test("latest run wins when an event has multiple runs (re-run path)", async () => {
+		await seedGrouped(
+			"multi-run-event",
+			changeRequest("multi-run-event", "change-request.opened"),
+			{ subjectNumber: 42, repoFullName: "acme/y" },
+		);
+		const first = await createRun(db, {
+			eventId: "multi-run-event",
+			repoFullName: "acme/y",
+			subjectNumber: 42,
+			headSha: "aaa",
+			snapshot: [DEFAULT_WORKFLOW],
+			status: "completed",
+			verdict: "pass",
+		});
+		// Second run on the SAME event — the re-run materialization path.
+		await new Promise((r) => setTimeout(r, 5));
+		const second = await createRun(db, {
+			eventId: "multi-run-event",
+			repoFullName: "acme/y",
+			subjectNumber: 42,
+			headSha: "bbb",
+			snapshot: [DEFAULT_WORKFLOW],
+			status: "completed",
+			verdict: "block",
+			triggeredBy: "admin-1",
+		});
+		const feed = await listActivityFeed(db, { repoFullName: "acme/y" });
+		const group = feed.items.find(
+			(i) => i.type === "group" && i.group.subjectNumber === 42,
+		);
+		expect(group?.type).toBe("group");
+		if (group?.type !== "group") {
+			return;
+		}
+		expect(group.group.currentVerdict).toBe("block");
+		expect(group.group.currentRunId).toBe(second);
+		expect(group.group.currentRunId).not.toBe(first);
+
+		const row = await getActivityForEvent(db, "multi-run-event");
+		expect(row?.run?.runId).toBe(second);
+		expect(row?.run?.verdict).toBe("block");
+	});
+
 	test("collapses a change request into one group with a typed timestamp", async () => {
 		await seedGrouped(
 			"feed-open",

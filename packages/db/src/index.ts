@@ -21,6 +21,8 @@ export {
 	createBoss,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	DEFAULT_RERUN_COOLDOWN_SECONDS,
+	getRerunCooldownSeconds,
 	RERUN_COOLDOWN_SECONDS,
 	RERUN_QUEUE,
 	RESUME_RUN_QUEUE,

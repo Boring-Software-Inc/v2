@@ -36,6 +36,8 @@ export interface StaffUserRow {
 	accessReviewedAt: Date | null;
 	accessReviewedBy: string | null;
 	isPlatformAdmin: boolean;
+	/** Staff flag: skip the global re-run cooldown window. */
+	rerunCooldownExempt: boolean;
 	createdAt: Date;
 	personalOrgSlug: string | null;
 	membershipCount: number;
@@ -84,6 +86,7 @@ export async function listUsersForStaff(
 				accessReviewedAt: user.accessReviewedAt,
 				accessReviewedBy: user.accessReviewedBy,
 				isPlatformAdmin: user.isPlatformAdmin,
+				rerunCooldownExempt: user.rerunCooldownExempt,
 				createdAt: user.createdAt,
 				personalOrgSlug: sql<string | null>`(${personalOrgSlug})`,
 				membershipCount: sql<number>`(${membershipCount})::int`,
@@ -96,6 +99,44 @@ export async function listUsersForStaff(
 		db.select({ n: count() }).from(user).where(where),
 	]);
 	return { users: rows, total: totals[0]?.n ?? 0 };
+}
+
+/**
+ * Staff flag write: re-run cooldown exemption. Server-only; the /admin portal
+ * is the only caller. Idempotent — setting the same value is a no-op.
+ */
+export async function setRerunCooldownExempt(
+	db: Db,
+	input: { userId: string; exempt: boolean },
+): Promise<{ changed: boolean }> {
+	const updated = await db
+		.update(user)
+		.set({
+			rerunCooldownExempt: input.exempt,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(user.id, input.userId),
+				// Only write when the value actually flips — keeps the toast honest.
+				eq(user.rerunCooldownExempt, !input.exempt),
+			),
+		)
+		.returning({ id: user.id });
+	return { changed: updated.length > 0 };
+}
+
+/** Read the re-run cooldown exempt flag for the acting user (enqueue path). */
+export async function isRerunCooldownExempt(
+	db: Db,
+	userId: string,
+): Promise<boolean> {
+	const rows = await db
+		.select({ exempt: user.rerunCooldownExempt })
+		.from(user)
+		.where(eq(user.id, userId))
+		.limit(1);
+	return rows[0]?.exempt ?? false;
 }
 
 export interface StaffOrgRow {

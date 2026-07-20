@@ -139,3 +139,16 @@ export const adminUpdateOrgMemberRole = createServerFn({ method: "POST" })
 			});
 		},
 	);
+
+/**
+ * Toggle a user's re-run cooldown exemption (staff flag). Duration stays
+ * global via `RERUN_COOLDOWN_SECONDS`; this only opts an account out.
+ */
+export const setUserRerunCooldownExempt = createServerFn({ method: "POST" })
+	.middleware([accessGuardMiddleware, platformAdminMiddleware])
+	.inputValidator((input: { userId: string; exempt: boolean }) => input)
+	.handler(async ({ data }): Promise<{ changed: boolean }> => {
+		const { getDb } = await import("#/lib/server/db");
+		const { staffServices } = await import("@tripwire/db");
+		return staffServices.setRerunCooldownExempt(getDb().db, data);
+	});

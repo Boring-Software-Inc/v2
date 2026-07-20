@@ -40,6 +40,15 @@ export const user = pgTable(
 		 * fresh from the DB by the staff gate, never from session claims.
 		 */
 		isPlatformAdmin: boolean("is_platform_admin").notNull().default(false),
+		/**
+		 * Staff-flaggable: skip the global re-run cooldown (`RERUN_COOLDOWN_SECONDS`).
+		 * Dogfood / staff accounts that need rapid re-evaluation without waiting
+		 * the env window. Server-assigned only (`input: false`); written from
+		 * /admin/users. Default false for every account.
+		 */
+		rerunCooldownExempt: boolean("rerun_cooldown_exempt")
+			.notNull()
+			.default(false),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
