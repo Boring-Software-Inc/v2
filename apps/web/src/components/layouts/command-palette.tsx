@@ -349,10 +349,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 				// Opens the settings dialog over whatever page is showing.
 				navigate({
 					to: ".",
-					search: (prev: Record<string, unknown>) => ({
-						...prev,
-						settings: "members",
-					}),
+					search: (prev) => ({ ...prev, settings: "members" as const }),
 				});
 				onClose();
 			},

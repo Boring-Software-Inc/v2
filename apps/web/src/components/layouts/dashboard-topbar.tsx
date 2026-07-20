@@ -148,10 +148,7 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 					<DropdownMenuItem asChild>
 						{/* `to="."` — the dialog opens over whatever page you're on. */}
 						<Link
-							search={(prev: Record<string, unknown>) => ({
-								...prev,
-								settings: "members",
-							})}
+							search={(prev) => ({ ...prev, settings: "members" as const })}
 							to="."
 						>
 							<HugeiconsIcon icon={Settings01Icon} size={14} strokeWidth={2} />
