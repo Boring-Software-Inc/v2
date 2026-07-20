@@ -2751,3 +2751,33 @@ shell default expands BEFORE bun injects `.env`, so migrate needs the URL
 exported explicitly). Approval only bites while the access gate
 (Databuddy flag / `ACCESS_GATE_ENABLED`) is on; the flag is cached in-process
 for 60s.
+
+## Platform admin portal + isPlatformAdmin (2026-07-20, §4/§6)
+
+`/admin` is a face on existing authority: staff-scoped list queries plus the
+mutations that already existed. `user.is_platform_admin` (boolean, drizzle
+0010) is the platform staff bit — a NEW column; nothing platform-level existed
+before this (founders ran scripts/beta-approve.ts). Better Auth `input: false`
+makes it server-assigned only (a client payload carrying it is refused with
+FIELD_NOT_ALLOWED — integration-tested). The gate (`@tripwire/auth/staff-gate`
+→ `platformAdminMiddleware`) reads the bit fresh per request, never from
+session claims; every denial is a 404, including no-session — /admin's
+existence is not disclosed, same posture as non-member org URLs. New "staff"
+class in server-fn-classification; the boundary test asserts the chain.
+
+Write paths stayed singular: approve goes through `promoteUserAccess` (already
+stamps accessReviewedAt/By, already idempotent); `rejectUserAccess` is its new
+mirror in access.ts — the first-ever writer of "rejected" (the enum value was
+dormant). Legal transitions: pending|rejected → approved, pending|approved →
+rejected; both idempotent by status guard. Org role changes: the plugin's
+update-member-role endpoint refuses non-member callers, so the hook body moved
+to `orgServices.assertRoleChangeAllowed` and both the plugin hook and the
+staff path (`updateMemberRoleForStaff`) run the SAME guard — the portal cannot
+demote a last admin or touch a personal org.
+
+**Grant ops + audit gap:** `bun run grant-admin <email> [--revoke]` is THE
+write path for the staff bit — deliberately outside the web app so the portal
+cannot mint its own gate's privilege. The only audit trail is shell history
+and the DB value; acceptable for two founders. REVISIT BEFORE THE FIRST
+NON-FOUNDER STAFF GRANT: a grant needs a durable actor+timestamp record by
+then (columns or an events row), and probably a second-founder ack.

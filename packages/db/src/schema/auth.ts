@@ -34,6 +34,12 @@ export const user = pgTable(
 		accessReviewedAt: timestamp("access_reviewed_at", { withTimezone: true }),
 		accessReviewedBy: text("access_reviewed_by"),
 		waitlistedAt: timestamp("waitlisted_at", { withTimezone: true }),
+		/**
+		 * Platform staff bit — gates /admin. Server-assigned only (Better Auth
+		 * `input: false`); the ONLY write path is scripts/grant-admin.ts. Read
+		 * fresh from the DB by the staff gate, never from session claims.
+		 */
+		isPlatformAdmin: boolean("is_platform_admin").notNull().default(false),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

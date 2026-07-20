@@ -10,7 +10,8 @@
 		"./access-gate": "./src/access-gate.ts",
 		"./databuddy": "./src/databuddy.ts",
 		"./org-access": "./src/org-access.ts",
-		"./org-gate": "./src/org-gate.ts"
+		"./org-gate": "./src/org-gate.ts",
+		"./staff-gate": "./src/staff-gate.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"

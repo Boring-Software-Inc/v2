@@ -8,8 +8,10 @@
  *   authed — accessGuardMiddleware only (approved session; no org context).
  *   member — accessGuard + orgMemberMiddleware (org-scoped read).
  *   admin  — accessGuard + orgAdminMiddleware (org-scoped mutation).
+ *   staff  — accessGuard + platformAdminMiddleware (/admin portal; platform
+ *            role on the user row, NOT org membership; denial is always 404).
  */
-export type ServerFnClass = "public" | "authed" | "member" | "admin";
+export type ServerFnClass = "public" | "authed" | "member" | "admin" | "staff";
 
 export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	// ── public (deliberately reachable without the beta gate) ───────────
@@ -78,4 +80,13 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	 * triage; the middleware + this row are the one-site change.
 	 */
 	decideModeration: "admin",
+
+	// ── staff (platform admin portal — /admin) ───────────────────────────
+	getAdminContext: "staff",
+	getAdminOverview: "staff",
+	listAdminUsers: "staff",
+	listAdminOrgs: "staff",
+	listAdminOrgMembers: "staff",
+	reviewUserAccess: "staff", // writes through promote/rejectUserAccess only
+	adminUpdateOrgMemberRole: "staff", // shares the plugin hook's guard
 };

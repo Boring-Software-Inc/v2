@@ -29,6 +29,8 @@ interface ServerFn {
 	gated: boolean;
 	/** Which org-role middleware (if any) the chain attaches. */
 	orgRole: "admin" | "member" | null;
+	/** Whether the chain attaches the platform-staff middleware. */
+	staff: boolean;
 	file: string;
 }
 
@@ -58,6 +60,7 @@ function discoverServerFns(): ServerFn[] {
 					: chain.includes("orgMemberMiddleware")
 						? "member"
 						: null,
+				staff: chain.includes("platformAdminMiddleware"),
 				file,
 			});
 			m = re.exec(src);
@@ -128,15 +131,21 @@ describe("server-fn access boundary (invariant 3)", () => {
 			const cls = SERVER_FN_CLASSIFICATION[f.name];
 			const want =
 				cls === "public"
-					? { gated: false, orgRole: null }
+					? { gated: false, orgRole: null, staff: false }
 					: cls === "authed"
-						? { gated: true, orgRole: null }
+						? { gated: true, orgRole: null, staff: false }
 						: cls === "member"
-							? { gated: true, orgRole: "member" as const }
-							: { gated: true, orgRole: "admin" as const };
-			if (f.gated !== want.gated || f.orgRole !== want.orgRole) {
+							? { gated: true, orgRole: "member" as const, staff: false }
+							: cls === "staff"
+								? { gated: true, orgRole: null, staff: true }
+								: { gated: true, orgRole: "admin" as const, staff: false };
+			if (
+				f.gated !== want.gated ||
+				f.orgRole !== want.orgRole ||
+				f.staff !== want.staff
+			) {
 				mismatches.push(
-					`${f.file}:${f.name} — class "${cls}" wants gated=${want.gated}/org=${want.orgRole}, chain has gated=${f.gated}/org=${f.orgRole}`,
+					`${f.file}:${f.name} — class "${cls}" wants gated=${want.gated}/org=${want.orgRole}/staff=${want.staff}, chain has gated=${f.gated}/org=${f.orgRole}/staff=${f.staff}`,
 				);
 			}
 		}

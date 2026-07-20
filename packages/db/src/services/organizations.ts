@@ -144,6 +144,84 @@ export async function countAdmins(db: Db, orgId: string): Promise<number> {
 }
 
 /**
+ * THE role-change invariants, extracted so every path shares one guard:
+ * the Better Auth plugin hook (`beforeUpdateMemberRole`) and the staff
+ * portal's `updateMemberRoleForStaff`. Personal orgs refuse, two roles only,
+ * and a demotion may not remove the last admin. Throws the same messages the
+ * hook always threw; callers surface them as-is.
+ */
+export async function assertRoleChangeAllowed(
+	db: Db,
+	input: {
+		orgId: string;
+		isPersonal: boolean;
+		currentRole: string;
+		newRole: string;
+	},
+): Promise<void> {
+	if (input.isPersonal) {
+		throw new Error("cannot change roles in a personal org");
+	}
+	if (input.newRole !== "admin" && input.newRole !== "member") {
+		throw new Error("unknown role");
+	}
+	if (
+		input.currentRole.split(",").includes("admin") &&
+		input.newRole !== "admin"
+	) {
+		const admins = await countAdmins(db, input.orgId);
+		if (admins <= 1) {
+			throw new Error("an org must keep at least one admin");
+		}
+	}
+}
+
+/**
+ * Staff-portal role change. The plugin's update-member-role endpoint refuses
+ * callers who are not org members, so platform staff cannot route through it —
+ * this is the sanctioned alternative: the SAME guard (`assertRoleChangeAllowed`,
+ * shared with the plugin hook), then the one-column update. The portal gets no
+ * bypass powers over org invariants.
+ */
+export async function updateMemberRoleForStaff(
+	db: Db,
+	input: { memberId: string; role: OrgRole },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+	const rows = await db
+		.select({
+			orgId: member.organizationId,
+			currentRole: member.role,
+			isPersonal: organization.isPersonal,
+		})
+		.from(member)
+		.innerJoin(organization, eq(organization.id, member.organizationId))
+		.where(eq(member.id, input.memberId))
+		.limit(1);
+	const row = rows[0];
+	if (!row) {
+		return { ok: false, error: "member not found" };
+	}
+	try {
+		await assertRoleChangeAllowed(db, {
+			orgId: row.orgId,
+			isPersonal: row.isPersonal,
+			currentRole: row.currentRole,
+			newRole: input.role,
+		});
+	} catch (error) {
+		return {
+			ok: false,
+			error: error instanceof Error ? error.message : "role change refused",
+		};
+	}
+	await db
+		.update(member)
+		.set({ role: input.role })
+		.where(eq(member.id, input.memberId));
+	return { ok: true };
+}
+
+/**
  * Idempotently ensure the user's personal org (§1). Called from the Better
  * Auth user-create hook AND the migration backfill — safe to re-run. Personal
  * orgs bypass the plugin entirely (direct inserts), so the plugin hooks can

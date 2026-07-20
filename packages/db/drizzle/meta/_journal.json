@@ -71,6 +71,13 @@
       "when": 1784524127848,
       "tag": "0009_daily_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784529631668,
+      "tag": "0010_loud_ares",
+      "breakpoints": true
     }
   ]
 }

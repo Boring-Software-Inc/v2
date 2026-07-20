@@ -82,6 +82,17 @@ export function createAuth(input: CreateAuthInput) {
 				accessReviewedAt: { type: "date", required: false, input: false },
 				accessReviewedBy: { type: "string", required: false, input: false },
 				waitlistedAt: { type: "date", required: false, input: false },
+				/**
+				 * Platform staff bit — the most privileged field in the system.
+				 * `input: false` keeps it out of every client payload; the only
+				 * write path is the grant-admin CLI script.
+				 */
+				isPlatformAdmin: {
+					type: "boolean",
+					required: false,
+					defaultValue: false,
+					input: false,
+				},
 			},
 		},
 		plugins: [
@@ -164,27 +175,22 @@ export function createAuth(input: CreateAuthInput) {
 							}
 						}
 					},
-					/** Last-admin guard on demotion + two-role enforcement. */
+					/**
+					 * Last-admin guard on demotion + two-role enforcement — shared with
+					 * the staff portal path (updateMemberRoleForStaff) so both routes
+					 * enforce identical invariants from ONE guard.
+					 */
 					beforeUpdateMemberRole: async ({
 						organization: org,
 						member,
 						newRole,
 					}) => {
-						if (org.isPersonal) {
-							throw new Error("cannot change roles in a personal org");
-						}
-						if (newRole !== "admin" && newRole !== "member") {
-							throw new Error("unknown role");
-						}
-						if (
-							member.role.split(",").includes("admin") &&
-							newRole !== "admin"
-						) {
-							const admins = await orgServices.countAdmins(input.db, org.id);
-							if (admins <= 1) {
-								throw new Error("an org must keep at least one admin");
-							}
-						}
+						await orgServices.assertRoleChangeAllowed(input.db, {
+							orgId: org.id,
+							isPersonal: Boolean(org.isPersonal),
+							currentRole: member.role,
+							newRole,
+						});
 					},
 					/** Tripwire invites are token LINKS (organization_invite_links) —
 					 * the plugin's email-invitation path is hard-refused so its raw

@@ -52,6 +52,15 @@ export * as orgServices from "./services/organizations.ts";
 export * as repoServices from "./services/repos.ts";
 export * as runServices from "./services/runs.ts";
 export type {
+	StaffOrgList,
+	StaffOrgMemberRow,
+	StaffOrgRow,
+	StaffOverview,
+	StaffUserList,
+	StaffUserRow,
+} from "./services/staff.ts";
+export * as staffServices from "./services/staff.ts";
+export type {
 	SetEnabledResult,
 	WorkflowListItem,
 	WorkflowRow,

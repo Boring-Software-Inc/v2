@@ -35,6 +35,34 @@ export async function promoteUserAccess(
 	return { promoted: rows.length > 0 };
 }
 
+/**
+ * THE access-status rejection path — `promoteUserAccess`'s mirror, and the
+ * first-ever writer of "rejected" (the enum value predates any write site).
+ * Same shape on purpose: audit fields set atomically, idempotent via the
+ * status guard. Legal transitions: pending|approved → rejected here,
+ * pending|rejected → approved via promote. Both directions are real; the
+ * admin portal offers both.
+ */
+export async function rejectUserAccess(
+	db: DbLike,
+	input: {
+		userId: string;
+		/** The reviewing admin. */
+		reviewedBy: string;
+	},
+): Promise<{ rejected: boolean }> {
+	const rows = await db
+		.update(user)
+		.set({
+			accessStatus: "rejected",
+			accessReviewedAt: new Date(),
+			accessReviewedBy: input.reviewedBy,
+		})
+		.where(and(eq(user.id, input.userId), ne(user.accessStatus, "rejected")))
+		.returning({ id: user.id });
+	return { rejected: rows.length > 0 };
+}
+
 /** Test/seed helper: a user row shaped like a fresh pending signup. */
 export function pendingUserRow(input: { name: string; email: string }) {
 	return {
