@@ -95,6 +95,7 @@
         "zod": "^4.0.0",
       },
       "devDependencies": {
+        "@tanstack/router-generator": "1.166.42",
         "@tanstack/router-plugin": "~1.167.12",
         "@types/d3-scale": "^4.0.9",
         "@types/d3-shape": "^3.1.8",

@@ -19,7 +19,10 @@ are only additions or version pins that warranted a call.
   the root as the single Biome config (§2). Not a new choice; the demo's.
 - **`@types/bun`** — dev-only, so `bun test` / `Bun` globals typecheck at the
   root. No runtime footprint.
-- No other dependencies added. Package graph is workspace-internal only.
+- **`@tanstack/router-generator` (web devDep)** — already a transitive of
+  `@tanstack/router-plugin`. Pinned direct so `bun run typecheck` can generate
+  gitignored `routeTree.gen.ts` in CI without a Vite boot. Not a new stack
+  choice; resolvability for the typecheck pre-step.
 
 ## Layout / structure
 

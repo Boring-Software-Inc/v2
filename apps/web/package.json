@@ -10,7 +10,8 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"start": "node .output/server/index.mjs",
-		"typecheck": "tsc --noEmit",
+		"routes:gen": "bun run scripts/generate-route-tree.ts",
+		"typecheck": "bun run routes:gen && tsc --noEmit",
 		"charts:pull": "node scripts/pull-dither-kit.mjs"
 	},
 	"dependencies": {
@@ -63,6 +64,7 @@
 		"zod": "^4.0.0"
 	},
 	"devDependencies": {
+		"@tanstack/router-generator": "1.166.42",
 		"@tanstack/router-plugin": "~1.167.12",
 		"@types/d3-scale": "^4.0.9",
 		"@types/d3-shape": "^3.1.8",
