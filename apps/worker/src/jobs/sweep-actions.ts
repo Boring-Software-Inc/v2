@@ -48,6 +48,9 @@ export interface SweepResult {
 	abandoned: number;
 }
 
+/** Re-run rows still `queued` after this: worker never claimed (fail the card). */
+const QUEUED_RUN_STUCK_MS = 3 * 60_000;
+
 export async function sweepActions(
 	deps: SweepDeps,
 	options: SweepOptions = {},
@@ -57,6 +60,24 @@ export async function sweepActions(
 	const recordedBefore =
 		options.recordedBefore ?? new Date(now - RETRY_AFTER_MS);
 	const giveUpBefore = options.giveUpBefore ?? new Date(now - GIVE_UP_MS);
+
+	// Fail forever-queued re-runs so the activity card is honest when the
+	// worker is not consuming rerun-change-request (or is lagging hard).
+	const stuckQueued = await runServices.listStuckQueuedRuns(
+		db,
+		new Date(now - QUEUED_RUN_STUCK_MS),
+	);
+	for (const row of stuckQueued) {
+		await runServices.failRun(db, row.id);
+		logger.warn(
+			{
+				runId: row.id,
+				repo: row.repoFullName,
+				eventId: row.eventId,
+			},
+			"queued re-run never claimed — marked failed (worker not consuming?)",
+		);
+	}
 
 	const stuck = await runServices.listStuckActions(db, recordedBefore);
 	const result: SweepResult = {

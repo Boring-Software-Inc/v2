@@ -85,7 +85,28 @@ export async function finalizeRun(
 		.where(eq(runs.id, runId));
 }
 
-/** Mark a queued re-run as actively evaluating (worker claimed it). */
+/**
+ * Claim a pre-materialized re-run: set status running and pin the real
+ * snapshot (planned rule list) so the run page can show the queue while
+ * steps stream in.
+ */
+export async function beginRunEvaluation(
+	db: Db,
+	runId: string,
+	input: { snapshot: WorkflowDefinition[]; headSha: string | null },
+): Promise<void> {
+	const snapshot = snapshotSchema.parse(input.snapshot);
+	await db
+		.update(runs)
+		.set({
+			status: "running",
+			workflowSnapshot: snapshot,
+			headSha: input.headSha,
+		})
+		.where(eq(runs.id, runId));
+}
+
+/** @deprecated Prefer beginRunEvaluation (writes snapshot + head). */
 export async function markRunRunning(db: Db, runId: string): Promise<void> {
 	await db
 		.update(runs)
@@ -112,6 +133,26 @@ export async function failRun(db: Db, runId: string): Promise<void> {
 export async function getRunById(db: Db, runId: string) {
 	const rows = await db.select().from(runs).where(eq(runs.id, runId)).limit(1);
 	return rows[0] ?? null;
+}
+
+/**
+ * Pre-materialized re-runs still `queued` past a cutoff — the web created the
+ * row but no worker claimed it (undeployed consumer, boss lag). The minute
+ * sweeper fails them so the activity card never says "evaluating" forever.
+ */
+export async function listStuckQueuedRuns(
+	db: Db,
+	createdBefore: Date,
+): Promise<{ id: string; eventId: string; repoFullName: string }[]> {
+	const rows = await db
+		.select({
+			id: runs.id,
+			eventId: runs.eventId,
+			repoFullName: runs.repoFullName,
+		})
+		.from(runs)
+		.where(and(eq(runs.status, "queued"), lt(runs.createdAt, createdBefore)));
+	return rows;
 }
 
 export interface RecordStepInput {

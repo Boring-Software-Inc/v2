@@ -22,4 +22,10 @@ export const runQueryOptions = (runId: string) =>
 		queryKey: runsQueryKeys.detail(runId),
 		queryFn: ({ signal }) => getRun({ data: { runId }, signal }),
 		staleTime: 10_000,
+		// Live re-run: poll while the worker streams steps so finished checks
+		// appear without a refresh. Stops once the run is terminal.
+		refetchInterval: (query) => {
+			const status = query.state.data?.status;
+			return status === "queued" || status === "running" ? 1_000 : false;
+		},
 	});

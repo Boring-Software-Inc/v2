@@ -9,6 +9,7 @@ const STATUS_DOT: Record<string, string> = {
 	fail: "bg-red-500",
 	skipped: "bg-muted-foreground/40",
 	paused: "bg-amber-500",
+	pending: "bg-muted-foreground/40 animate-pulse",
 };
 
 const STATUS_CHIP: Record<string, { label: string; className: string }> = {
@@ -27,6 +28,10 @@ const STATUS_CHIP: Record<string, { label: string; className: string }> = {
 	paused: {
 		label: "review",
 		className: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+	},
+	pending: {
+		label: "queued",
+		className: "bg-surface-1 text-muted-foreground",
 	},
 };
 

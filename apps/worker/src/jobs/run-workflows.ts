@@ -220,8 +220,21 @@ export async function runWorkflows(
 		return none;
 	}
 
-	if (deps.claimRunId) {
-		await runServices.markRunRunning(db, deps.claimRunId);
+	const headShaEarly =
+		"changeRequest" in event ? event.changeRequest.headSha : null;
+	/**
+	 * Live progress: pin the real definition set and flip to running before
+	 * the DAG walk so the run page can list planned rules and stream steps.
+	 */
+	const liveRunId =
+		deps.claimRunId != null
+			? ((await runServices.getRunById(db, deps.claimRunId))?.id ?? null)
+			: null;
+	if (liveRunId) {
+		await runServices.beginRunEvaluation(db, liveRunId, {
+			snapshot: matching,
+			headSha: headShaEarly,
+		});
 	}
 
 	const now = new Date().toISOString();
@@ -262,18 +275,41 @@ export async function runWorkflows(
 	await deps.onBeforeEvaluate?.();
 
 	const evaluateRuleRef = makeEvaluator(ctx, logger);
-	const executions = [];
-	for (const definition of matching) {
-		executions.push({
-			definition,
-			result: await executeWorkflow({
+	const executions: {
+		definition: WorkflowDefinition;
+		result: Awaited<ReturnType<typeof executeWorkflow>>;
+	}[] = [];
+	try {
+		for (const definition of matching) {
+			executions.push({
 				definition,
-				event,
-				evaluateRuleRef,
-				isRuleDisabled: (ref) => disabledRefs.has(ref),
-				now: () => new Date().toISOString(),
-			}),
-		});
+				result: await executeWorkflow({
+					definition,
+					event,
+					evaluateRuleRef,
+					isRuleDisabled: (ref) => disabledRefs.has(ref),
+					now: () => new Date().toISOString(),
+					// Stream each finished step onto the pre-materialized run so the
+					// run page can list completed checks as the DAG walks.
+					onStep: liveRunId
+						? async (step) => {
+								const projected = withPublicProjection([
+									{
+										...step,
+										nodeId: `${definition.id}:${step.nodeId}`,
+									},
+								]);
+								await runServices.recordSteps(db, liveRunId, projected);
+							}
+						: undefined,
+				}),
+			});
+		}
+	} catch (error) {
+		if (liveRunId) {
+			await runServices.failRun(db, liveRunId);
+		}
+		throw error;
 	}
 
 	let verdict = worstVerdict(executions.map((e) => e.result.verdict));
@@ -304,7 +340,7 @@ export async function runWorkflows(
 		verdict = "needs_review";
 		paused = true;
 		const startedAt = new Date().toISOString();
-		steps.push({
+		const degradationStep: StepRecord = {
 			nodeId: "run:degradation",
 			nodeKind: "gate",
 			status: "skipped",
@@ -317,7 +353,15 @@ export async function runWorkflows(
 			startedAt,
 			finishedAt: startedAt,
 			durationMs: 0,
-		});
+		};
+		steps.push(degradationStep);
+		if (liveRunId) {
+			await runServices.recordSteps(
+				db,
+				liveRunId,
+				withPublicProjection([degradationStep]),
+			);
+		}
 		logger.warn(
 			{ degradedReads, skippedCount, ruleNodes: ruleSteps0.length },
 			"evaluation degraded — fail-closed floor routes run to moderation",
@@ -329,18 +373,15 @@ export async function runWorkflows(
 		"changeRequest" in event ? event.changeRequest.number : null;
 	const terminalStatus = paused ? "paused" : "completed";
 	let runId: string;
-	const claimed =
-		deps.claimRunId != null
-			? await runServices.getRunById(db, deps.claimRunId)
-			: null;
-	if (claimed) {
-		runId = claimed.id;
+	if (liveRunId) {
+		runId = liveRunId;
 		await runServices.finalizeRun(db, runId, {
 			headSha,
 			snapshot: matching,
 			status: terminalStatus,
 			verdict,
 		});
+		// Steps already streamed via onStep — do not insert them again.
 	} else {
 		// Missing claim row (legacy job or race) — create as a normal run.
 		runId = await runServices.createRun(db, {
@@ -353,8 +394,8 @@ export async function runWorkflows(
 			verdict,
 			triggeredBy: deps.triggeredBy ?? null,
 		});
+		await runServices.recordSteps(db, runId, withPublicProjection(steps));
 	}
-	await runServices.recordSteps(db, runId, withPublicProjection(steps));
 
 	for (const execution of executions) {
 		if (execution.result.pausedAtNodeId) {

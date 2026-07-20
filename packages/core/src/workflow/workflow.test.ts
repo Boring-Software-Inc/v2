@@ -68,6 +68,20 @@ let tick = 0;
 const clock = () => new Date(1_752_000_000_000 + tick++ * 10).toISOString();
 
 describe("executeWorkflow", () => {
+	test("onStep fires once per recorded step in order", async () => {
+		const seen: string[] = [];
+		await executeWorkflow({
+			definition: GATED,
+			event: await fixtureEvent("change-request.opened.event"),
+			evaluateRuleRef: fakeEvaluator({}),
+			now: clock,
+			onStep: (step) => {
+				seen.push(step.nodeId);
+			},
+		});
+		expect(seen).toEqual(["t", "r1", "r2", "g"]);
+	});
+
 	test("all rules pass ⇒ verdict pass, block never conducts", async () => {
 		const result = await executeWorkflow({
 			definition: GATED,

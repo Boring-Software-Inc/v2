@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
 import { StepCard } from "#/components/runs/step-card";
 import { formatRelativeTime } from "#/lib/format-relative-time";
+import { mergeLiveSteps } from "#/lib/run-live-steps";
 import type { RunView } from "#/lib/runs.functions";
 import { runQueryOptions } from "#/lib/runs.query";
 import { siteConfig } from "#/lib/site-config";
@@ -81,6 +83,14 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 }
 
 function RunBody({ run }: { run: RunView }) {
+	const liveSteps = useMemo(
+		() => mergeLiveSteps(run.status, run.snapshot, run.steps),
+		[run.status, run.snapshot, run.steps],
+	);
+	const evaluating = run.status === "queued" || run.status === "running";
+	const finishedRules = run.steps.filter((s) => s.nodeKind === "rule").length;
+	const plannedRules = liveSteps.filter((s) => s.nodeKind === "rule").length;
+
 	return (
 		<div className="mx-auto w-full max-w-3xl px-6 py-8">
 			<header className="mb-6">
@@ -101,9 +111,11 @@ function RunBody({ run }: { run: RunView }) {
 							awaiting moderation
 						</span>
 					) : null}
-					{run.status === "queued" || run.status === "running" ? (
+					{evaluating ? (
 						<span className="rounded-full bg-muted px-2.5 py-0.5 font-medium text-muted-foreground text-xs">
-							evaluating
+							{plannedRules > 0
+								? `evaluating · ${finishedRules} of ${plannedRules}`
+								: "evaluating"}
 						</span>
 					) : null}
 					{run.status === "failed" ? (
@@ -129,19 +141,19 @@ function RunBody({ run }: { run: RunView }) {
 
 			<section className="overflow-hidden rounded-xl border bg-card">
 				<SectionHeader>steps</SectionHeader>
-				{run.steps.length === 0 ? (
+				{liveSteps.length === 0 ? (
 					<p className="px-4 py-6 text-muted-foreground text-sm">
-						{run.status === "queued" || run.status === "running"
-							? "evaluating under current rules…"
+						{evaluating
+							? "starting evaluation…"
 							: run.status === "failed"
 								? "this re-run never evaluated — try again."
 								: "no steps recorded."}
 					</p>
 				) : (
-					run.steps.map((step, i) => (
+					liveSteps.map((step, i) => (
 						<StepCard
 							isFirst={i === 0}
-							isLast={i === run.steps.length - 1}
+							isLast={i === liveSteps.length - 1}
 							key={step.id}
 							maintainer={run.access !== "public"}
 							repo={run.repoFullName}

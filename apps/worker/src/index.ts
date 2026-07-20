@@ -221,7 +221,17 @@ if (import.meta.main) {
 	});
 
 	logger.info(
-		{ healthPort: health.port },
-		"worker consuming process-event + resume-run + rollup + sweep-actions",
+		{
+			healthPort: health.port,
+			queues: [
+				PROCESS_EVENT_QUEUE,
+				RESUME_RUN_QUEUE,
+				RERUN_QUEUE,
+				BACKFILL_REPO_QUEUE,
+				"rollup",
+				"sweep-actions",
+			],
+		},
+		"worker consuming process-event + resume-run + rerun-change-request + backfill + rollup + sweep-actions",
 	);
 }

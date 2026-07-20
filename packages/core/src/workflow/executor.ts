@@ -70,6 +70,11 @@ export interface ExecuteWorkflowOptions {
 		nodeId: string;
 		decision: "approve" | "deny";
 	};
+	/**
+	 * Optional live progress hook (worker injects persist + notify). Called
+	 * after each step is recorded; core stays pure — no I/O here.
+	 */
+	onStep?: (step: StepRecord) => void | Promise<void>;
 }
 
 /** The recorded envelope for a rule skipped because it is toggled off (§6). */
@@ -114,8 +119,15 @@ function topoOrder(def: WorkflowDefinition): WorkflowNode[] {
 export async function executeWorkflow(
 	options: ExecuteWorkflowOptions,
 ): Promise<ExecutionResult> {
-	const { definition, event, evaluateRuleRef, isRuleDisabled, now, resume } =
-		options;
+	const {
+		definition,
+		event,
+		evaluateRuleRef,
+		isRuleDisabled,
+		now,
+		resume,
+		onStep,
+	} = options;
 	const outcomes = new Map<string, NodeOutcome>(
 		Object.entries(resume?.outcomes ?? {}),
 	);
@@ -158,15 +170,15 @@ export async function executeWorkflow(
 	const gateHasSettledSource = (nodeId: string): boolean =>
 		definition.edges.some((e) => e.to === nodeId && conducted.has(e.from));
 
-	const record = (
+	const record = async (
 		node: WorkflowNode,
 		status: StepRecord["status"],
 		input: unknown,
 		output: unknown,
 		startedAt: string,
-	): void => {
+	): Promise<void> => {
 		const finishedAt = now();
-		steps.push({
+		const step: StepRecord = {
 			nodeId: node.id,
 			nodeKind: node.type,
 			ruleRef: node.type === "rule" ? node.ref : undefined,
@@ -176,7 +188,9 @@ export async function executeWorkflow(
 			startedAt,
 			finishedAt,
 			durationMs: Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt)),
-		});
+		};
+		steps.push(step);
+		await onStep?.(step);
 	};
 
 	for (const node of topoOrder(definition)) {
@@ -192,7 +206,7 @@ export async function executeWorkflow(
 				outcomes.set(node.id, "pass");
 				conducted.add(node.id);
 				if (!resuming) {
-					record(
+					await record(
 						node,
 						"pass",
 						{ kinds: node.kinds },
@@ -222,7 +236,7 @@ export async function executeWorkflow(
 			if (isRuleDisabled?.(node.ref)) {
 				outcomes.set(node.id, "pass");
 				conducted.add(node.id);
-				record(
+				await record(
 					node,
 					"disabled",
 					{ ref: node.ref, config: node.config },
@@ -236,7 +250,7 @@ export async function executeWorkflow(
 				result.status === "skipped" || result.passed ? "pass" : "fail";
 			outcomes.set(node.id, outcome);
 			conducted.add(node.id);
-			record(
+			await record(
 				node,
 				result.status === "skipped" ? "skipped" : outcome,
 				{ ref: node.ref, config: node.config },
@@ -269,7 +283,7 @@ export async function executeWorkflow(
 			}
 			outcomes.set(node.id, outcome);
 			conducted.add(node.id);
-			record(
+			await record(
 				node,
 				outcome,
 				{ mode: node.mode, inputs },
@@ -283,14 +297,14 @@ export async function executeWorkflow(
 			outcomes.set(node.id, "pass");
 			conducted.add(node.id);
 			pausedAtNodeId = node.id;
-			record(node, "paused", { action: node.action }, null, startedAt);
+			await record(node, "paused", { action: node.action }, null, startedAt);
 			continue;
 		}
 
 		if (isResumeTarget) {
 			outcomes.set(node.id, "pass");
 			conducted.add(node.id);
-			record(
+			await record(
 				node,
 				"pass",
 				{ action: node.action, decision: resume?.decision },
@@ -310,7 +324,7 @@ export async function executeWorkflow(
 			action: node.action,
 			params: node.params ?? {},
 		});
-		record(
+		await record(
 			node,
 			"pass",
 			{ action: node.action, params: node.params },
