@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	InstallSetupPage,
-	InstallSetupPageSkeleton,
-} from "#/components/organizations/install-setup-page";
+import { InstallSetupPage } from "#/components/organizations/install-setup-page";
+import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 /**

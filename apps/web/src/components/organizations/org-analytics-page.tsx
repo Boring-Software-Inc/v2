@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { DitherStatCard } from "#/components/charts/dither-stat-card";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Skeleton } from "#/components/ui/skeleton";
+import { StatGridSkeleton } from "#/components/organizations/org-analytics-page-skeleton";
 import { orgAnalyticsQueryOptions } from "#/lib/org.query";
 
 const route = getRouteApi("/$org/analytics");
@@ -97,30 +97,4 @@ function trendDelta(series: number[]): number {
 	const prior = series.slice(0, mid).reduce((a, b) => a + b, 0);
 	const recent = series.slice(mid).reduce((a, b) => a + b, 0);
 	return recent - prior;
-}
-
-function StatGridSkeleton() {
-	return (
-		<div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-			{["a", "b", "c", "d", "e"].map((slot) => (
-				<Skeleton className="h-20 rounded-xl" key={slot} />
-			))}
-		</div>
-	);
-}
-
-export function OrgAnalyticsPageSkeleton() {
-	return (
-		<DashboardLayout counts={{}}>
-			<div className="px-5 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
-					<header className="flex flex-col gap-1.5">
-						<Skeleton className="h-8 w-40" />
-						<Skeleton className="h-5 w-80" />
-					</header>
-					<StatGridSkeleton />
-				</div>
-			</div>
-		</DashboardLayout>
-	);
 }

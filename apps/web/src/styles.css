@@ -1,8 +1,5 @@
 @import "@fontsource-variable/geist";
-@import "@fontsource-variable/inter";
 @import "@fontsource-variable/geist-mono";
-@import "@fontsource/silkscreen/400.css";
-@import "@fontsource/silkscreen/700.css";
 @import "tailwindcss";
 
 /* Geist Pixel (Square) — vendored from the `geist` package (OFL). Display face
@@ -19,8 +16,7 @@
 
 @theme {
 	--font-sans:
-		"Geist Variable", "Inter Variable", "Avenir Next", ui-sans-serif,
-		system-ui, sans-serif;
+		"Geist Variable", "Avenir Next", ui-sans-serif, system-ui, sans-serif;
 	--font-mono:
 		"Geist Mono Variable", "SF Mono", ui-monospace, "Cascadia Code", monospace;
 	--font-pixel: "Silkscreen", "Geist Mono Variable", ui-monospace, monospace;

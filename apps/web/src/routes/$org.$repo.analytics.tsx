@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	AnalyticsPage,
-	AnalyticsPageSkeleton,
-} from "#/components/analytics/analytics-page";
+import { AnalyticsPage } from "#/components/analytics/analytics-page";
+import { AnalyticsPageSkeleton } from "#/components/analytics/analytics-page-skeleton";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/$org/$repo/analytics")({

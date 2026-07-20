@@ -64,6 +64,13 @@
       "when": 1784223626211,
       "tag": "0008_famous_stepford_cuckoos",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784524127848,
+      "tag": "0009_daily_guardian",
+      "breakpoints": true
     }
   ]
 }

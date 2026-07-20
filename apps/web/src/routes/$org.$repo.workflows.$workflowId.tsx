@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	WorkflowEditorPage,
-	WorkflowEditorPageSkeleton,
-} from "#/components/workflows/editor/workflow-editor-page";
+import { WorkflowEditorPage } from "#/components/workflows/editor/workflow-editor-page";
+import { WorkflowEditorPageSkeleton } from "#/components/workflows/editor/workflow-editor-page-skeleton";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 /** The full-screen editor (§editor rebuild). */

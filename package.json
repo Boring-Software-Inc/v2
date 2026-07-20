@@ -19,6 +19,7 @@
 		"check": "biome check .",
 		"check:boundaries": "bun run scripts/check-boundaries.ts",
 		"test": "bun run scripts/e2e/harness.ts",
+		"beta": "bun run scripts/beta-approve.ts",
 		"db:up": "docker compose up -d postgres",
 		"db:generate": "bun run --filter '@tripwire/db' generate",
 		"db:studio": "bun run --filter '@tripwire/db' studio",

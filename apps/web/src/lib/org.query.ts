@@ -75,7 +75,7 @@ export const orgCascadeQueryOptions = (org: string) =>
 	queryOptions({
 		queryKey: orgQueryKeys.cascade(org),
 		queryFn: ({ signal }) => getOrgCascade({ data: { org }, signal }),
-		staleTime: 0,
+		staleTime: 60_000,
 	});
 
 export const orgRepoQueryOptions = (org: string, repo: string) =>

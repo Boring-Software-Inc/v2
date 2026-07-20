@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { RunPage, RunPageSkeleton } from "#/components/runs/run-page";
+import { RunPage } from "#/components/runs/run-page";
+import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/runs/$runId")({

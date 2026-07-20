@@ -52,12 +52,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 				className="flex shrink-0 items-center gap-2 rounded-md pr-1 pl-1 transition-colors hover:bg-surface-0"
 			>
 				<TripwireWordmark className="text-foreground" height={15} width={24} />
-				<span
-					className="text-sm font-medium tracking-tight"
-					style={{
-						fontFamily: '"Inter Variable", Inter, ui-sans-serif, sans-serif',
-					}}
-				>
+				<span className="text-sm font-medium tracking-tight">
 					{siteConfig.name}
 				</span>
 			</Link>
@@ -152,10 +147,7 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 				{org ? (
 					<DropdownMenuItem asChild>
 						{/* `to="."` — the dialog opens over whatever page you're on. */}
-						<Link
-							search={(prev) => ({ ...prev, settings: "members" })}
-							to="."
-						>
+						<Link search={(prev) => ({ ...prev, settings: "members" })} to=".">
 							<HugeiconsIcon icon={Settings01Icon} size={14} strokeWidth={2} />
 							Settings
 						</Link>

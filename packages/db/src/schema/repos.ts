@@ -1,5 +1,6 @@
 import {
 	boolean,
+	index,
 	integer,
 	jsonb,
 	pgTable,
@@ -62,6 +63,7 @@ export const repos = pgTable(
 	(t) => [
 		uniqueIndex("repos_forge_external_unique").on(t.forge, t.externalId),
 		uniqueIndex("repos_forge_full_name_unique").on(t.forge, t.fullName),
+		index("repos_org_id_idx").on(t.orgId),
 	],
 );
 

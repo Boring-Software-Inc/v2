@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	InvitePage,
-	InvitePageSkeleton,
-} from "#/components/organizations/invite-page";
+import { InvitePage } from "#/components/organizations/invite-page";
+import { InvitePageSkeleton } from "#/components/organizations/invite-page-skeleton";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/invite/$token")({

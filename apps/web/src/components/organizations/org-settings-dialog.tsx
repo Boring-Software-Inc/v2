@@ -1,24 +1,23 @@
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { OrgBillingPage } from "#/components/organizations/org-billing-page";
 import { OrgGeneralSettingsPage } from "#/components/organizations/org-general-settings-page";
 import { OrgMembersPage } from "#/components/organizations/org-members-page";
+import {
+	type OrgSettingsTab,
+	parseOrgSettingsTab,
+} from "#/components/organizations/org-settings-tab";
 import { InsetDialog } from "#/components/ui/inset-dialog";
-import { orgContextQueryOptions } from "#/lib/org.query";
+import {
+	orgContextQueryOptions,
+	orgInvitesQueryOptions,
+	orgMembersQueryOptions,
+} from "#/lib/org.query";
 import { cn } from "#/lib/utils";
-
-export type OrgSettingsTab = "members" | "settings" | "billing";
-
-export function parseOrgSettingsTab(
-	value: unknown,
-): OrgSettingsTab | undefined {
-	return value === "members" || value === "settings" || value === "billing"
-		? value
-		: undefined;
-}
 
 const TABS: OrgSettingsTab[] = ["members", "settings", "billing"];
 
@@ -36,10 +35,23 @@ export function OrgSettingsDialog() {
 	const org = params.org;
 	const tab = parseOrgSettingsTab(search.settings);
 
+	const queryClient = useQueryClient();
 	const { data: orgContext } = useQuery({
 		...orgContextQueryOptions(org ?? ""),
 		enabled: Boolean(org),
 	});
+	const open = Boolean(org && tab);
+	const isAdmin = orgContext?.role === "admin";
+
+	useEffect(() => {
+		if (!open || !org) {
+			return;
+		}
+		queryClient.prefetchQuery(orgMembersQueryOptions(org));
+		if (isAdmin) {
+			queryClient.prefetchQuery(orgInvitesQueryOptions(org));
+		}
+	}, [open, org, isAdmin, queryClient]);
 
 	if (!org) {
 		return null;

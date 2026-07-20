@@ -1,6 +1,6 @@
 import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
 import { OrgNotFound } from "#/components/organizations/org-not-found";
-import { parseOrgSettingsTab } from "#/components/organizations/org-settings-dialog";
+import { parseOrgSettingsTab } from "#/components/organizations/org-settings-tab";
 import { orgContextQueryOptions } from "#/lib/org.query";
 
 /**

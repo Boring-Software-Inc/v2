@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	ActivityPage,
-	ActivityPageSkeleton,
-} from "#/components/activity/activity-page";
+import { ActivityPage } from "#/components/activity/activity-page";
+import { ActivityPageSkeleton } from "#/components/activity/activity-page-skeleton";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/$org/$repo/activity")({

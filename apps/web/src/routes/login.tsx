@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LoginPage, LoginPageSkeleton } from "#/components/auth/login-page";
+import { LoginPage } from "#/components/auth/login-page";
+import { LoginPageSkeleton } from "#/components/auth/login-page-skeleton";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/login")({

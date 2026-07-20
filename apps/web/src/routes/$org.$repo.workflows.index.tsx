@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-	WorkflowsGridPage,
-	WorkflowsGridPageSkeleton,
-} from "#/components/workflows/workflows-grid-page";
+import { WorkflowsGridPage } from "#/components/workflows/workflows-grid-page";
+import { WorkflowsGridPageSkeleton } from "#/components/workflows/workflows-grid-page-skeleton";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 /** The workflows GRID (§grid). Index route on purpose — a flat workflows.tsx

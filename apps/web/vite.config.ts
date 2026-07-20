@@ -11,7 +11,21 @@ export default defineConfig({
 		tsconfigPaths({ projects: ["./tsconfig.json"] }),
 		tailwindcss(),
 		tanstackStart(),
-		nitro(),
+		nitro({
+			compressPublicAssets: { gzip: true, brotli: true },
+			routeRules: {
+				"/assets/**": {
+					headers: {
+						"cache-control": "public, max-age=31536000, immutable",
+					},
+				},
+				"/fonts/**": {
+					headers: {
+						"cache-control": "public, max-age=31536000, immutable",
+					},
+				},
+			},
+		}),
 		viteReact(),
 	],
 	server: {
