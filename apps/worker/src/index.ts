@@ -6,7 +6,9 @@ import {
 	createDirectPool,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	RERUN_QUEUE,
 	RESUME_RUN_QUEUE,
+	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	repoServices,
 } from "@tripwire/db";
@@ -23,6 +25,7 @@ import { createGenerate } from "./ai/generate.ts";
 import type { WorkerReads } from "./context.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
 import { processEvent } from "./jobs/process-event.ts";
+import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { rollup } from "./jobs/rollup.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
@@ -138,6 +141,25 @@ if (import.meta.main) {
 					makeGenerate,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({ itemId: job.data.itemId }),
+				},
+				job.data,
+			);
+		}
+	});
+
+	await boss.work<RerunChangeRequestJob>(RERUN_QUEUE, async (jobs) => {
+		for (const job of jobs) {
+			await rerunChangeRequest(
+				{
+					db,
+					pool: directPool,
+					reads,
+					adapter,
+					makeGenerate,
+					appUrl: process.env.APP_URL ?? "http://localhost:3000",
+					logger: logger.child({
+						rerun: `${job.data.repoFullName}#${job.data.number}`,
+					}),
 				},
 				job.data,
 			);

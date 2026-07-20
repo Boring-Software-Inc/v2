@@ -28,6 +28,8 @@ export interface CreateRunInput {
 	snapshot: WorkflowDefinition[];
 	status: "running" | "paused" | "completed";
 	verdict: Verdict | null;
+	/** Set for manual re-runs: the triggering admin's user id. */
+	triggeredBy?: string | null;
 }
 
 export async function createRun(db: Db, input: CreateRunInput) {
@@ -42,6 +44,7 @@ export async function createRun(db: Db, input: CreateRunInput) {
 		status: input.status,
 		verdict: input.verdict,
 		workflowSnapshot: snapshot,
+		triggeredBy: input.triggeredBy ?? null,
 		completedAt: input.status === "completed" ? new Date() : null,
 	});
 	return id;

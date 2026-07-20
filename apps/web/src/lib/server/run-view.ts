@@ -51,6 +51,11 @@ export async function loadRunView(
 		completedAt: result.run.completedAt?.toISOString() ?? null,
 		snapshot: result.run.workflowSnapshot as JsonValue,
 		access: "full",
+		rerun: result.run.triggeredBy !== null,
+		rerunBy:
+			result.run.triggeredBy && access === "full"
+				? await resolveTriggeredByName(db, result.run.triggeredBy)
+				: null,
 		steps: result.steps.map((step) => ({
 			id: step.id,
 			nodeId: step.nodeId,
@@ -71,4 +76,16 @@ export async function loadRunView(
 		})),
 	};
 	return access === "public" ? toPublicRunView(view) : toFullRunView(view);
+}
+
+/** The re-run admin's display name; falls back to the raw id ("dev", "cli:…"). */
+async function resolveTriggeredByName(db: Db, userId: string): Promise<string> {
+	const { schema } = await import("@tripwire/db");
+	const { eq } = await import("drizzle-orm");
+	const rows = await db
+		.select({ name: schema.user.name })
+		.from(schema.user)
+		.where(eq(schema.user.id, userId))
+		.limit(1);
+	return rows[0]?.name ?? userId;
 }

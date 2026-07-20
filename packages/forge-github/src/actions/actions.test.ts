@@ -78,6 +78,21 @@ describe("renderCommentBody — snapshot golden files", () => {
 		).toMatchSnapshot();
 	});
 
+	test("re-run: the quiet re-evaluation note rides under the headline", () => {
+		const body = renderCommentBody({
+			verdict: "pass",
+			contributorLogin: "octocat",
+			reasons: [],
+			runUrl: "https://tripwire.sh/runs/0198abcd",
+			badgeUrl: "https://tripwire.sh/badges/view-run.png",
+			rerun: true,
+		});
+		// Same-verdict re-run edits the comment in place — this line is the only
+		// visible evidence a maintainer deliberately re-evaluated.
+		expect(body).toContain("re-evaluated under the repo's current rules.");
+		expect(body).toMatchSnapshot();
+	});
+
 	test("the comment speaks reasons, not counts; button visible; @-mentions", () => {
 		const body = renderCommentBody({
 			verdict: "block",

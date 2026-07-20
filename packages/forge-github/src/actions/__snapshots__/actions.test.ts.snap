@@ -80,3 +80,13 @@ exports[`upsertComment — verdict-aware lifecycle (§7) superseded body — str
 
 superseded — see the newer check below."
 `;
+
+exports[`renderCommentBody — snapshot golden files re-run: the quiet re-evaluation note rides under the headline 1`] = `
+"**passed** — nothing tripped. good to merge.
+
+re-evaluated under the repo's current rules.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+<!-- tripwire:run -->
+"
+`;

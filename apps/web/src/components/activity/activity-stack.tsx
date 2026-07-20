@@ -1,8 +1,21 @@
+import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
+import { toast } from "sonner";
 import { VerdictChip } from "#/components/activity/verdict-chip";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "#/components/ui/dialog";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
+import { rerunChangeRequest } from "#/lib/activity.functions";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import { cn } from "#/lib/utils";
 
@@ -81,7 +94,19 @@ function LinkWrap({
 	return <div className={className}>{children}</div>;
 }
 
-export function ActivityStack({ group }: { group: ActivityGroup }) {
+/** Admin-only re-run wiring: the URL scope the mutation needs. Null ⇒ hidden. */
+export interface RerunScope {
+	org: string;
+	repo: string;
+}
+
+export function ActivityStack({
+	group,
+	rerun = null,
+}: {
+	group: ActivityGroup;
+	rerun?: RerunScope | null;
+}) {
 	const [showAll, setShowAll] = useState(false);
 	const entries = group.timeline;
 	const canTruncate = entries.length > VISIBLE;
@@ -89,7 +114,7 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 
 	return (
 		<div className="overflow-hidden rounded-xl border bg-card">
-			<StackHeader group={group} />
+			<StackHeader group={group} rerun={rerun} />
 			{truncated ? (
 				<TruncatedBody entries={entries} onShowMore={() => setShowAll(true)} />
 			) : (
@@ -130,27 +155,135 @@ function RevealPill({
 }
 
 /** The top card: the change request's identity + its CURRENT verdict. Carries
- * the surface fill; the rows below sit on the darker base with no dividers. */
-function StackHeader({ group }: { group: ActivityGroup }) {
+ * the surface fill; the rows below sit on the darker base with no dividers.
+ * The re-run affordance sits OUTSIDE the LinkWrap (no button-in-link nesting);
+ * its confirm step opens a modal so the header stays uncrowded. */
+function StackHeader({
+	group,
+	rerun,
+}: {
+	group: ActivityGroup;
+	rerun: RerunScope | null;
+}) {
 	return (
-		<LinkWrap
-			className="flex items-center gap-3 bg-surface-1 px-3.5 py-3 transition-colors hover:bg-surface-2"
-			runId={group.currentRunId}
-			url={group.url}
-		>
-			<div className="min-w-0 flex-1">
-				<div className="truncate text-sm">
-					<span className="font-medium">#{group.subjectNumber}</span>{" "}
-					<span className="truncate">{group.title}</span>
-				</div>
-				<div className="truncate text-muted-foreground text-xs">
-					{group.actor.login} · {group.repoFullName}
-				</div>
+		<div className="bg-surface-1">
+			<div className="flex items-center gap-3 px-3.5 py-3">
+				<LinkWrap
+					className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 transition-colors hover:bg-surface-2"
+					runId={group.currentRunId}
+					url={group.url}
+				>
+					<div className="min-w-0 flex-1">
+						<div className="truncate text-sm">
+							<span className="font-medium">#{group.subjectNumber}</span>{" "}
+							<span className="truncate">{group.title}</span>
+						</div>
+						<div className="truncate text-muted-foreground text-xs">
+							{group.actor.login} · {group.repoFullName}
+						</div>
+					</div>
+					<span className="w-14 shrink-0 text-right text-muted-foreground text-xs">
+						{formatRelativeTime(group.latestActivityAt)}
+					</span>
+				</LinkWrap>
+				{rerun ? <RerunControl group={group} scope={rerun} /> : null}
 			</div>
-			<span className="w-14 shrink-0 text-right text-muted-foreground text-xs">
-				{formatRelativeTime(group.latestActivityAt)}
-			</span>
-		</LinkWrap>
+		</div>
+	);
+}
+
+/**
+ * Re-run confirm in the Dialog primitive (portaled — the card's
+ * overflow-hidden can't clip it). The header keeps only the compact button;
+ * the dialog carries the cost copy per the founder requirement — this spends
+ * real evaluation and updates the public review surfaces — and the confirm
+ * sits in the destructive register.
+ */
+function RerunControl({
+	group,
+	scope,
+}: {
+	group: ActivityGroup;
+	scope: RerunScope;
+}) {
+	const [open, setOpen] = useState(false);
+	const [unavailable, setUnavailable] = useState<string | null>(null);
+	const mutation = useMutation({
+		mutationFn: rerunChangeRequest,
+		onSuccess: (result) => {
+			if (result.status === "queued") {
+				setOpen(false);
+				toast("re-run queued — the verdict updates here when it lands");
+			} else if (result.status === "cooldown") {
+				setOpen(false);
+				toast(
+					`re-run available again in ~${Math.max(1, Math.ceil(result.retryInSeconds / 60))} min`,
+				);
+			} else if (result.status === "no-workflow") {
+				setUnavailable(
+					"no enabled workflow — nothing to evaluate. enable rules or a workflow first.",
+				);
+			} else {
+				setUnavailable("this repo isn't armed — arm it first.");
+			}
+		},
+	});
+
+	return (
+		<Dialog
+			onOpenChange={(next) => {
+				setOpen(next);
+				if (!next) {
+					setUnavailable(null);
+				}
+			}}
+			open={open}
+		>
+			<DialogTrigger
+				className="shrink-0 rounded-md bg-red-500/10 px-2.5 py-1 font-medium text-red-600 text-xs transition-colors hover:bg-red-500/20 dark:text-red-400"
+				type="button"
+			>
+				re-run rules
+			</DialogTrigger>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>re-run rules?</DialogTitle>
+					<DialogDescription className="truncate">
+						#{group.subjectNumber} {group.title}
+					</DialogDescription>
+				</DialogHeader>
+				<p className="px-5 pb-4 text-muted-foreground text-sm">
+					{unavailable ??
+						"this runs your current workflow again and may cost ai review usage. the pr's review comment and check will be updated."}
+				</p>
+				<DialogFooter>
+					<DialogClose
+						className="text-muted-foreground text-xs transition-colors hover:text-foreground"
+						type="button"
+					>
+						cancel
+					</DialogClose>
+					{unavailable ? null : (
+						<button
+							className="rounded-md bg-red-500/10 px-3 py-1.5 font-medium text-red-600 text-xs transition-colors hover:bg-red-500/20 dark:text-red-400"
+							disabled={mutation.isPending}
+							onClick={() =>
+								mutation.mutate({
+									data: {
+										org: scope.org,
+										repo: scope.repo,
+										number: group.subjectNumber,
+									},
+								})
+							}
+							type="button"
+						>
+							{mutation.isPending ? "queueing…" : "confirm re-run"}
+						</button>
+					)}
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 }
 

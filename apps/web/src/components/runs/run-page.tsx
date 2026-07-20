@@ -109,6 +109,11 @@ function RunBody({ run }: { run: RunView }) {
 					{run.headSha ? (
 						<span className="font-mono"> · {run.headSha.slice(0, 7)}</span>
 					) : null}
+					{/* §10: the fact of a manual re-run is public; the actor only
+					    shows on the full view. */}
+					{run.rerun
+						? ` · manual re-run${run.rerunBy ? ` by ${run.rerunBy}` : ""}`
+						: ""}
 				</p>
 			</header>
 

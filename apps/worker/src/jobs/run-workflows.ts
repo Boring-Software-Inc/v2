@@ -98,6 +98,8 @@ export interface RunWorkflowsDeps {
 	 * change request (no comment, no check, no sweeper pickup). Default true.
 	 */
 	surface?: boolean;
+	/** Manual re-run: the triggering admin's user id, stamped on the run. */
+	triggeredBy?: string;
 }
 
 export interface RunWorkflowsResult {
@@ -312,6 +314,7 @@ export async function runWorkflows(
 		snapshot: matching,
 		status: paused ? "paused" : "completed",
 		verdict,
+		triggeredBy: deps.triggeredBy ?? null,
 	});
 	await runServices.recordSteps(db, runId, withPublicProjection(steps));
 

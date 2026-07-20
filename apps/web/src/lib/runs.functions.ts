@@ -44,6 +44,10 @@ export interface RunView {
 	snapshot: JsonValue;
 	/** §10 — "public" renders the no-session view (footer, no trace). */
 	access: "full" | "public";
+	/** Manual re-run by an admin. The FACT is public; the actor is not. */
+	rerun: boolean;
+	/** The triggering admin's display name — full view only (§10). */
+	rerunBy: string | null;
 	steps: RunStepView[];
 	actions: { kind: string; status: string; recordedAt: string }[];
 }

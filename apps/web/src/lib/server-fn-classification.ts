@@ -80,6 +80,11 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	 * triage; the middleware + this row are the one-site change.
 	 */
 	decideModeration: "admin",
+	/**
+	 * Manual re-run spends real evaluation (ai-review tokens) and publicly
+	 * rewrites the PR's verdict surfaces — a trust-level admin action.
+	 */
+	rerunChangeRequest: "admin",
 
 	// ── staff (platform admin portal — /admin) ───────────────────────────
 	getAdminContext: "staff",

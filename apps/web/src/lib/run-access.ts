@@ -84,6 +84,8 @@ export function toPublicRunView(view: RunView): RunView {
 		...view,
 		access: "public",
 		snapshot: null,
+		// §10: the FACT of a manual re-run is public; the actor never is.
+		rerunBy: null,
 		steps: view.steps.map(toPublicStep),
 	};
 }

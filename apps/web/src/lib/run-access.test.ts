@@ -171,6 +171,8 @@ const fullView: RunView = {
 	completedAt: "2026-07-11T00:00:01.000Z",
 	snapshot: [{ id: "default@1" }],
 	access: "full",
+	rerun: true,
+	rerunBy: "Maintainer",
 	steps: [ruleStep, aiReviewStep],
 	actions: [
 		{
@@ -195,6 +197,13 @@ describe("toPublicRunView", () => {
 		expect(JSON.stringify(publicView.steps[0])).not.toContain("minDays");
 		// the carrier field is not echoed back out.
 		expect(publicView.steps[0]?.publicEvidence).toBeUndefined();
+	});
+
+	test("keeps the re-run FACT, drops the actor (§10)", () => {
+		expect(publicView.rerun).toBe(true);
+		expect(publicView.rerunBy).toBeNull();
+		// the full view keeps both.
+		expect(toFullRunView(fullView).rerunBy).toBe("Maintainer");
 	});
 
 	test("keeps ai-review findings + summary, drops the raw trace and snapshot", () => {

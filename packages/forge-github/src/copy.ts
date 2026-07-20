@@ -76,6 +76,14 @@ export function commentHeadline(
 		: `**blocked** — @${login}, this can't merge yet.`;
 }
 
+/**
+ * The re-run note (§7 amendment): one quiet line under the headline so a
+ * reader can tell a maintainer deliberately re-evaluated — load-bearing for
+ * the same-verdict case, where the comment is silently edited in place and
+ * nothing else would show that anything happened.
+ */
+export const RERUN_NOTE = "re-evaluated under the repo's current rules.";
+
 function reasonLine(reason: CommentReason): string {
 	return reason.waitHint ? `${reason.text} — ${reason.waitHint}` : reason.text;
 }

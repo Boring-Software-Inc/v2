@@ -21,7 +21,10 @@ export {
 	createBoss,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	RERUN_COOLDOWN_SECONDS,
+	RERUN_QUEUE,
 	RESUME_RUN_QUEUE,
+	type RerunChangeRequestJob,
 	type ResumeRunJob,
 } from "./queue.ts";
 export * from "./schema/index.ts";

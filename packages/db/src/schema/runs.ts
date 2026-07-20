@@ -32,6 +32,12 @@ export const runs = pgTable(
 		verdict: text("verdict"),
 		/** SNAPSHOT of the workflow definition(s) that ran (contracts schema). */
 		workflowSnapshot: jsonb("workflow_snapshot").notNull(),
+		/**
+		 * User id of the admin who manually triggered this run (re-run action).
+		 * Null = webhook-driven. Public run views show the FACT of a manual
+		 * re-run, never the actor (§10).
+		 */
+		triggeredBy: text("triggered_by"),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

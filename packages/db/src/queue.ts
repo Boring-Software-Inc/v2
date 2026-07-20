@@ -15,6 +15,24 @@ export interface ResumeRunJob {
 	decision: "approve" | "deny";
 }
 
+/**
+ * Manual re-run (org-admin action) → worker re-evaluation under the CURRENT
+ * enabled workflow, as a NEW run, delivered through the normal amendment path.
+ * Enqueued with `singletonKey` + `singletonSeconds` — one re-run per change
+ * request per cooldown window; a deduped send returns null and the server fn
+ * surfaces the cooldown.
+ */
+export const RERUN_QUEUE = "rerun-change-request";
+
+export const RERUN_COOLDOWN_SECONDS = 300;
+
+export interface RerunChangeRequestJob {
+	repoFullName: string;
+	number: number;
+	/** The admin who triggered it — lands on runs.triggered_by. */
+	requestedBy: string;
+}
+
 /** Arming → arm-time backfill (§4): replay stored events into real runs. */
 export const BACKFILL_REPO_QUEUE = "backfill-repo";
 
@@ -38,5 +56,6 @@ export async function createBoss(
 	await boss.createQueue(PROCESS_EVENT_QUEUE);
 	await boss.createQueue(RESUME_RUN_QUEUE);
 	await boss.createQueue(BACKFILL_REPO_QUEUE);
+	await boss.createQueue(RERUN_QUEUE);
 	return boss;
 }

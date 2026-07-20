@@ -5,6 +5,7 @@ import {
 	type CommentReason,
 	commentHeadline,
 	howDoIFix,
+	RERUN_NOTE,
 	reasonsBlock,
 	supersededBody,
 	WHAT_IS_TRIPWIRE,
@@ -43,6 +44,8 @@ export interface CommentInput {
 	degraded?: boolean;
 	/** The active comment's verdict — drives the resolution headline (§7). */
 	previousVerdict?: Verdict | null;
+	/** Manual re-run: adds the quiet re-evaluation note under the headline. */
+	rerun?: boolean;
 }
 
 export function renderCommentBody(input: CommentInput): string {
@@ -52,6 +55,9 @@ export function renderCommentBody(input: CommentInput): string {
 		previousVerdict: input.previousVerdict,
 	});
 	const lines: string[] = [headline, ""];
+	if (input.rerun) {
+		lines.push(RERUN_NOTE, "");
+	}
 	if (input.verdict === "block") {
 		lines.push(reasonsBlock(input.reasons), "", button, "");
 		lines.push(howDoIFix(input.reasons), "", WHAT_IS_TRIPWIRE);

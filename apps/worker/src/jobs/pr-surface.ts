@@ -69,6 +69,8 @@ export interface EmitSurfaceInput {
 	reasons: CommentReason[];
 	/** Fail-closed floor fired — the headline names the degradation. */
 	degraded?: boolean;
+	/** Manual re-run — the comment carries the re-evaluation note. */
+	rerun?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
 	pendingActionRows: {
 		id: string;
@@ -124,6 +126,7 @@ export async function emitPrSurface(
 					badgeUrl,
 					degraded: input.degraded,
 					previousVerdict,
+					rerun: input.rerun,
 				}),
 			},
 			idempotencyKey: `comment:${number}:${verdict}`,

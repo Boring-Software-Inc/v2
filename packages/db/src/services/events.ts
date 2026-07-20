@@ -8,7 +8,7 @@ import {
 	normalizedEventSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import type { Db } from "../client.ts";
@@ -120,6 +120,35 @@ export async function quarantineEvent(
 
 export async function getEventById(db: Db, eventId: string) {
 	const rows = await db.select().from(events).where(eq(events.id, eventId));
+	return rows[0] ?? null;
+}
+
+/**
+ * The change request's most recent evaluatable event — what a manual re-run
+ * evaluates. Opened/updated only: a re-run gates the change itself, not a
+ * comment thread; closed carries no head to gate.
+ */
+export async function getLatestChangeRequestEvent(
+	db: Db,
+	repoFullName: string,
+	subjectNumber: number,
+) {
+	const rows = await db
+		.select()
+		.from(events)
+		.where(
+			and(
+				eq(events.repoFullName, repoFullName),
+				eq(events.subjectNumber, subjectNumber),
+				isNotNull(events.normalizedAt),
+				inArray(events.kind, [
+					"change-request.opened",
+					"change-request.updated",
+				]),
+			),
+		)
+		.orderBy(desc(events.id))
+		.limit(1);
 	return rows[0] ?? null;
 }
 
