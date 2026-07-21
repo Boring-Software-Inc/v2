@@ -81,7 +81,9 @@ export function definitionToGraph(definition: WorkflowDefinition): {
 		rows.set(depth, row + 1);
 		return {
 			id: node.id,
-			position: node.position ?? { x: depth * 260, y: row * 110 },
+			// Fallback grid spacing tracks the WIDER field-bearing cards (max-w-64
+			// + inline rows) so unpositioned nodes don't overlap.
+			position: node.position ?? { x: depth * 300, y: row * 150 },
 			data: { node },
 			type: "tripwire" as const,
 		};
