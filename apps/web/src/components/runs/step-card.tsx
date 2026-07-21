@@ -53,7 +53,8 @@ function stepLabel(step: RunStepView): string {
 	return step.nodeId.split(":").at(-1) ?? step.nodeKind;
 }
 
-/** The status badge — the only saturated element in a step; hugs its text. */
+/** The status badge — the only saturated element in a step; min-width keeps
+ * every row's chip in one column regardless of label length. */
 function StepStatus({ status }: { status: string }) {
 	const chip = STATUS_CHIP[status];
 	if (!chip) {
@@ -62,7 +63,7 @@ function StepStatus({ status }: { status: string }) {
 	return (
 		<span
 			className={cn(
-				"shrink-0 rounded-full px-2 py-0.5 font-medium text-xs",
+				"min-w-16 shrink-0 rounded-full px-2 py-0.5 text-center font-medium text-xs",
 				chip.className,
 			)}
 		>
@@ -174,7 +175,7 @@ export function StepCard({
 						</span>
 					) : null}
 					<StepStatus status={step.status} />
-					<span className="shrink-0 text-muted-foreground text-xs">
+					<span className="min-w-[6ch] shrink-0 text-right text-muted-foreground text-xs tabular-nums">
 						{step.durationMs}ms
 					</span>
 				</div>
