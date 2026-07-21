@@ -4,13 +4,21 @@ import { join } from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { SaveQueueProvider } from "#/components/save-queue";
 import type { RuleConfigView } from "#/lib/rules.functions";
 import { RuleCard } from "./rule-card";
 
 const qc = new QueryClient();
+// Empty savedValues: the card reads pending-or-saved and falls back to the
+// view's own fields, so static renders need no per-rule baseline. The nav
+// guard lives on the bar (not rendered here), keeping this router-free.
 function render(node: ReactNode): string {
 	return renderToStaticMarkup(
-		<QueryClientProvider client={qc}>{node}</QueryClientProvider>,
+		<QueryClientProvider client={qc}>
+			<SaveQueueProvider commit={async () => ({ ok: true })} savedValues={{}}>
+				{node}
+			</SaveQueueProvider>
+		</QueryClientProvider>,
 	);
 }
 
@@ -32,7 +40,7 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	...over,
 });
 
-const base = { org: "o", repo: "r", repoId: "r", canEdit: true };
+const base = { org: "o", repo: "r", canEdit: true };
 
 /**
  * §6 per-rule management — workflows compose with standalone rules, so a card

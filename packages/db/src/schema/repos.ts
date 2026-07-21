@@ -88,6 +88,23 @@ export const ruleConfigs = pgTable(
 	(t) => [uniqueIndex("rule_configs_repo_rule_unique").on(t.repoId, t.ruleId)],
 );
 
+export const responseConfigs = pgTable(
+	"response_configs",
+	{
+		id: text("id").primaryKey(),
+		repoId: text("repo_id")
+			.notNull()
+			.references(() => repos.id),
+		/** Validated against contracts `responseConfigSchema` on write; an absent
+		 * row (or a corrupt one) resolves to the defaults at read time. */
+		config: jsonb("config").notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [uniqueIndex("response_configs_repo_unique").on(t.repoId)],
+);
+
 export const workflowDefinitions = pgTable("workflow_definitions", {
 	id: text("id").primaryKey(),
 	repoId: text("repo_id")

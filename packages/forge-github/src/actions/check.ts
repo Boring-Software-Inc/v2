@@ -1,4 +1,4 @@
-import type { CheckState } from "@tripwire/contracts";
+import { CHECK_NAME, type CheckState } from "@tripwire/contracts";
 import type { GithubHttp } from "../client/http.ts";
 
 /**
@@ -7,8 +7,6 @@ import type { GithubHttp } from "../client/http.ts";
  * Re-run of the same SHA UPDATES the existing check (upsert); a new push is a
  * new SHA and gets a fresh check by GitHub semantics.
  */
-
-export const CHECK_NAME = "tripwire";
 
 interface CheckRun {
 	id: number;

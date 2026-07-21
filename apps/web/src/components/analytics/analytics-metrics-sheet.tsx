@@ -32,7 +32,8 @@ export function AnalyticsMetricsSheet({
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	metricCount: number;
+	/** Count badge on the tab; omit to render the tab without one. */
+	metricCount?: number;
 	openLabel?: string;
 	closeLabel?: string;
 	children: ReactNode;
@@ -48,9 +49,11 @@ export function AnalyticsMetricsSheet({
 				<span className="font-semibold text-foreground text-sm tracking-tight">
 					{open ? closeLabel : openLabel}
 				</span>
-				<span className="rounded-full bg-surface-1 px-2 py-0.5 font-medium text-[11px] text-muted-foreground tabular-nums">
-					{metricCount}
-				</span>
+				{typeof metricCount === "number" ? (
+					<span className="rounded-full bg-surface-1 px-2 py-0.5 font-medium text-[11px] text-muted-foreground tabular-nums">
+						{metricCount}
+					</span>
+				) : null}
 				{/* Always flare the tab's base into the bottom — open or collapsed. */}
 				<span
 					aria-hidden

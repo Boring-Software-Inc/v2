@@ -2784,3 +2784,25 @@ cannot mint its own gate's privilege. The only audit trail is shell history
 and the DB value; acceptable for two founders. REVISIT BEFORE THE FIRST
 NON-FOUNDER STAFF GRANT: a grant needs a durable actor+timestamp record by
 then (columns or an events row), and probably a second-founder ack.
+
+## Customize: response config + shared comment renderer (2026-07-20, §7/§12)
+
+`/customize` lands the response leg: per-repo `response_configs` (drizzle
+0013, jsonb validated by contracts `responseConfigSchema`) gating what posts
+per verdict, and the comment render layer MOVED from forge-github to
+`@tripwire/contracts` (comment-render.ts) so the worker and the web preview
+call the SAME `renderVerdictComment` — preview equals production by
+construction. The full-mode golden snapshots moved verbatim (5/5
+byte-identical vs pre-move HEAD, plus a live full≡renderCommentBody equality
+test); full-mode drift is a CI failure, never a new baseline.
+
+**BEHAVIOR CHANGE ON DEPLOY: passing change requests now get the CI check
+only, no comment, by default** (`onSuccess: "ci-check"` — the silent-on-
+success ask). Existing repos keep identical block/review/transition comments;
+only the fresh never-commented pass goes quiet. Carve-out: a verdict
+TRANSITION always writes the comment even under silent, so a stale "blocked"
+comment can never outlive its verdict. one-liner-link mode speaks one
+contributor label per failed rule, no plus-N collapse (collapsing hides which
+rules fired — the confusion the mode exists to kill); the hidden marker is
+appended in EVERY mode, custom included — the §7 upsert lifecycle depends on
+it.

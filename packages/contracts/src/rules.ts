@@ -169,6 +169,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Flags change requests from accounts younger than a threshold you set.",
+		contributorLabel: "your account is newer than this repo allows.",
 	},
 	{
 		ruleId: "min-merged-prs",
@@ -185,6 +186,8 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Requires N merged change requests in other people's repos — proof someone else accepted their work.",
+		contributorLabel:
+			"you need merged change requests in other people's repos first.",
 	},
 	{
 		ruleId: "pr-rate-limit",
@@ -198,6 +201,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Caps how many change requests one person can open in a time window.",
+		contributorLabel: "you opened too many change requests in a short window.",
 	},
 	{
 		ruleId: "max-files-changed",
@@ -209,6 +213,7 @@ export const RULE_CATALOG = [
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags change requests that touch more files than you allow.",
+		contributorLabel: "this change request touches too many files.",
 	},
 	{
 		ruleId: "english-only",
@@ -220,6 +225,7 @@ export const RULE_CATALOG = [
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags titles and comments that aren't mostly latin script.",
+		contributorLabel: "titles and comments must be mostly english.",
 	},
 	{
 		ruleId: "crypto-address",
@@ -232,6 +238,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Catches cryptocurrency addresses in titles, comments, and diffs.",
+		contributorLabel: "this change request contains a cryptocurrency address.",
 	},
 	{
 		ruleId: "honeypot",
@@ -244,6 +251,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Catches change requests that touch paths no legitimate change would.",
+		contributorLabel: "this change request touches protected paths.",
 	},
 	{
 		ruleId: "profile-readme",
@@ -256,6 +264,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Requires a minimum of profile text — throwaway accounts rarely bother.",
+		contributorLabel: "your profile needs a short bio first.",
 	},
 	{
 		ruleId: "ai-review",
@@ -272,8 +281,21 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Reads the change like a reviewer and flags slop. Off until you turn it on — it costs tokens.",
+		contributorLabel: "ai review flagged problems in this change request.",
 	},
-] as const;
+] as const satisfies ReadonlyArray<{
+	ruleId: string;
+	version: number;
+	name: string;
+	blurb: string;
+	configSchema: z.ZodType;
+	defaultConfig: unknown;
+	optIn: boolean;
+	description: string;
+	/** Contributor-facing one-liner for verdict surfaces (§12 copy). */
+	contributorLabel: string;
+	changeNote?: string;
+}>;
 
 export type RuleCatalogEntry = (typeof RULE_CATALOG)[number];
 
@@ -296,6 +318,18 @@ export function ruleIdOf(ref: string): string {
 export function ruleDisplayName(ref: string): string {
 	const id = ruleIdOf(ref);
 	return RULE_CATALOG.find((entry) => entry.ruleId === id)?.name ?? id;
+}
+
+/**
+ * A rule's contributor-facing one-liner (§12) — the line a blocked contributor
+ * reads in non-full comment modes. Resolves by bare id like `ruleDisplayName`;
+ * unknown ref ⇒ null, and the caller falls back to the evidence one-liner.
+ */
+export function ruleContributorLabel(ref: string): string | null {
+	const id = ruleIdOf(ref);
+	return (
+		RULE_CATALOG.find((entry) => entry.ruleId === id)?.contributorLabel ?? null
+	);
 }
 
 /**

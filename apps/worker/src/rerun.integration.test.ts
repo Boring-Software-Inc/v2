@@ -201,8 +201,12 @@ describe("manual re-run (§ re-run feature)", () => {
 		expect(runs.rows[0].verdict).toBe("pass");
 		expect(runs.rows[0].triggered_by).toBeNull();
 		originalRun = runs.rows[0];
+		// Default response config (customize): a first-time pass surfaces as the
+		// check alone — no comment. Only a verdict transition writes one.
 		const passComment = fake.executed.find((e) => e.kind === "comment");
-		expect(passComment?.body).toContain("**passed**");
+		expect(passComment).toBeUndefined();
+		const passCheck = fake.executed.find((e) => e.kind === "set-check");
+		expect(passCheck).toBeDefined();
 	});
 
 	test("re-run under tightened rules ⇒ NEW blocked run, original untouched, amendment delivered", async () => {

@@ -1,14 +1,18 @@
-import type { CheckState, NormalizedEvent, Verdict } from "@tripwire/contracts";
-import type { Db } from "@tripwire/db";
-import { runServices } from "@tripwire/db";
-import type { ForgeAdapter } from "@tripwire/forge";
 import {
+	type CheckState,
 	type CommentReason,
 	checkSummary,
-	PENDING_CHECK_SUMMARY,
-	renderCommentBody,
+	type NormalizedEvent,
+	renderVerdictComment,
 	reviewBody,
-} from "@tripwire/forge-github";
+	type Verdict,
+	wantsCheck,
+	wantsComment,
+} from "@tripwire/contracts";
+import type { Db } from "@tripwire/db";
+import { repoServices, runServices } from "@tripwire/db";
+import type { ForgeAdapter } from "@tripwire/forge";
+import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 
@@ -111,36 +115,60 @@ export async function emitPrSurface(
 			? await runServices.getLatestBlockReviewId(db, repoFullName, number)
 			: null;
 
+	// The repo's response config (customize) decides which surfaces post. A
+	// verdict TRANSITION always writes the comment even when the config says
+	// silent — the active comment shows a verdict that is no longer true, and a
+	// stale "blocked" must never outlive its verdict (§7).
+	const repoRow = await repoServices.getRepoByFullName(db, repoFullName);
+	const responseConfig = await repoServices.getResponseConfig(
+		db,
+		repoRow?.id ?? null,
+	);
+	const transition = previousVerdict !== null && previousVerdict !== verdict;
+	const includeComment = wantsComment(responseConfig, verdict) || transition;
+	const includeCheck = wantsCheck(responseConfig, verdict);
+
 	const surfaceRows = await runServices.recordActions(db, runId, [
-		{
-			kind: "comment",
-			payload: {
-				number,
-				verdict,
-				previousVerdict,
-				body: renderCommentBody({
-					verdict,
-					contributorLogin: event.actor.login,
-					reasons,
-					runUrl,
-					badgeUrl,
-					degraded: input.degraded,
-					previousVerdict,
-					rerun: input.rerun,
-				}),
-			},
-			idempotencyKey: `comment:${number}:${verdict}`,
-		},
-		{
-			kind: "set-check",
-			payload: {
-				sha,
-				conclusion: VERDICT_TO_CONCLUSION[verdict],
-				summary: checkSummary(verdict, reasons, input.degraded),
-				detailsUrl: runUrl,
-			},
-			idempotencyKey: `check:${sha}:${verdict}`,
-		},
+		...(includeComment
+			? [
+					{
+						kind: "comment",
+						payload: {
+							number,
+							verdict,
+							previousVerdict,
+							body: renderVerdictComment(
+								{
+									verdict,
+									contributorLogin: event.actor.login,
+									reasons,
+									runUrl,
+									badgeUrl,
+									degraded: input.degraded,
+									previousVerdict,
+									rerun: input.rerun,
+								},
+								responseConfig.blockComment,
+							),
+						},
+						idempotencyKey: `comment:${number}:${verdict}`,
+					},
+				]
+			: []),
+		...(includeCheck
+			? [
+					{
+						kind: "set-check",
+						payload: {
+							sha,
+							conclusion: VERDICT_TO_CONCLUSION[verdict],
+							summary: checkSummary(verdict, reasons, input.degraded),
+							detailsUrl: runUrl,
+						},
+						idempotencyKey: `check:${sha}:${verdict}`,
+					},
+				]
+			: []),
 		...(reviewToDismiss
 			? [
 					{

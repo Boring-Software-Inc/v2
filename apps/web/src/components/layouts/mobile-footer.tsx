@@ -5,6 +5,7 @@ import {
 	FlowIcon,
 	Queue01Icon,
 	Settings01Icon,
+	SlidersHorizontalIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
@@ -60,6 +61,11 @@ export function MobileFooter({ counts }: MobileFooterProps) {
 							to={`/${org}/${repo}/workflows`}
 							label="Workflows"
 							icon={FlowIcon}
+						/>
+						<NavLink
+							to={`/${org}/${repo}/customize`}
+							label="Customize"
+							icon={SlidersHorizontalIcon}
 						/>
 						<NavLink
 							to={`/${org}/${repo}/analytics`}
