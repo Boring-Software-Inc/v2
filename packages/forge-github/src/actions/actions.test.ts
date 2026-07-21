@@ -1,129 +1,19 @@
 import { describe, expect, test } from "bun:test";
+import {
+	CHECK_NAME,
+	COMMENT_MARKER,
+	renderCommentBody,
+} from "@tripwire/contracts";
 import { GithubHttp } from "../client/http.ts";
 import { supersededBody } from "../copy.ts";
-import { CHECK_NAME, setCheck } from "./check.ts";
-import { COMMENT_MARKER, renderCommentBody, upsertComment } from "./comment.ts";
-
-/** Every hidden `<!-- tripwire:… -->` marker, so tests can check visible copy. */
-const MARKERS = /<!-- tripwire:[^>]*-->/g;
+import { setCheck } from "./check.ts";
+import { upsertComment } from "./comment.ts";
 
 /**
- * §11 snapshot layer: rendered PR comments vs golden files — the presenter
- * physically cannot write an essay. Plus fake-fetch upsert semantics: one
- * comment per thread, one check per SHA, edits never appends.
+ * Fake-fetch upsert semantics: one comment per thread, one check per SHA, edits
+ * never appends. The renderCommentBody snapshot layer moved to
+ * `@tripwire/contracts` (comment-render.test.ts) with the render function.
  */
-
-const BLOCKED_REASONS = [
-	{
-		text: "your account is 2 days old",
-		remedy: "wait" as const,
-		waitHint: "it clears in 5 days",
-	},
-	{
-		text: "it adds 2 crypto addresses in DONATE.md",
-		remedy: "revise" as const,
-	},
-];
-
-describe("renderCommentBody — snapshot golden files", () => {
-	test("blocked (mixed remedies, wait-hint inline)", () => {
-		expect(
-			renderCommentBody({
-				verdict: "block",
-				contributorLogin: "octocat",
-				reasons: BLOCKED_REASONS,
-				runUrl: "https://tripwire.sh/runs/0198abcd",
-				badgeUrl: "https://tripwire.sh/badges/view-run.png",
-			}),
-		).toMatchSnapshot();
-	});
-
-	test("blocked (3+ reasons collapse to plus-N)", () => {
-		expect(
-			renderCommentBody({
-				verdict: "block",
-				contributorLogin: "octocat",
-				reasons: [
-					{ text: "it adds 2 crypto addresses in DONATE.md", remedy: "revise" },
-					{ text: "this change touches 40 files", remedy: "revise" },
-					{ text: "the title isn't in latin script", remedy: "revise" },
-				],
-				runUrl: "https://tripwire.sh/runs/0198abcd",
-				badgeUrl: "https://tripwire.sh/badges/view-run.png",
-			}),
-		).toMatchSnapshot();
-	});
-
-	test("passed", () => {
-		expect(
-			renderCommentBody({
-				verdict: "pass",
-				contributorLogin: "octocat",
-				reasons: [],
-				runUrl: "https://tripwire.sh/runs/0198abcd",
-				badgeUrl: "https://tripwire.sh/badges/view-run.png",
-			}),
-		).toMatchSnapshot();
-	});
-
-	test("sent to review", () => {
-		expect(
-			renderCommentBody({
-				verdict: "needs_review",
-				contributorLogin: "octocat",
-				reasons: [],
-				runUrl: "https://tripwire.sh/runs/0198abcd",
-				badgeUrl: "https://tripwire.sh/badges/view-run.png",
-			}),
-		).toMatchSnapshot();
-	});
-
-	test("re-run: the quiet re-evaluation note rides under the headline", () => {
-		const body = renderCommentBody({
-			verdict: "pass",
-			contributorLogin: "octocat",
-			reasons: [],
-			runUrl: "https://tripwire.sh/runs/0198abcd",
-			badgeUrl: "https://tripwire.sh/badges/view-run.png",
-			rerun: true,
-		});
-		// Same-verdict re-run edits the comment in place — this line is the only
-		// visible evidence a maintainer deliberately re-evaluated.
-		expect(body).toContain("re-evaluated under the repo's current rules.");
-		expect(body).toMatchSnapshot();
-	});
-
-	test("the comment speaks reasons, not counts; button visible; @-mentions", () => {
-		const body = renderCommentBody({
-			verdict: "block",
-			contributorLogin: "octocat",
-			reasons: BLOCKED_REASONS,
-			runUrl: "https://tripwire.sh/runs/x",
-			badgeUrl: "https://tripwire.sh/badges/view-run.png",
-		});
-		const lines = body.trim().split("\n").filter(Boolean);
-		// Verdict line present, @-mentions the contributor, no "tripwire:" prefix
-		// in the visible copy (the hidden marker is the only legit occurrence).
-		expect(lines[0]).toBe("**blocked** \u2014 @octocat, this can't merge yet.");
-		expect(body.replace(MARKERS, "")).not.toContain("tripwire:");
-		// Never counts rules.
-		expect(body).not.toMatch(/\d+ of \d+ rules?/);
-		// The wait-hint rides inline after its reason.
-		expect(body).toContain(
-			"your account is 2 days old \u2014 it clears in 5 days",
-		);
-		// The button is VISIBLE \u2014 not wrapped in any <details>.
-		const buttonLine = lines.find((l) => l.includes("badges/view-run.png"));
-		expect(buttonLine).toContain('href="https://tripwire.sh/runs/x"');
-		expect(buttonLine).not.toContain("<details>");
-		expect(body).not.toContain("for maintainers");
-		// The how-to-fix + explainer collapse into details; one marker, last line.
-		expect(body).toContain("<details><summary>how do i fix this?</summary>");
-		expect(body).toContain("<details><summary>what is tripwire?</summary>");
-		expect((body.match(new RegExp(COMMENT_MARKER)) ?? []).length).toBe(1);
-		expect(lines.at(-1)).toBe(COMMENT_MARKER);
-	});
-});
 
 interface RecordedCall {
 	method: string;

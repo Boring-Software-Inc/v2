@@ -13,6 +13,7 @@
 export * from "./access.ts";
 export * from "./activity.ts";
 export * from "./check.ts";
+export * from "./comment-render.ts";
 export * from "./contributor.ts";
 export * from "./events.ts";
 export * from "./insights.ts";
@@ -20,6 +21,7 @@ export * from "./moderation.ts";
 export * from "./org.ts";
 export * from "./repo.ts";
 export * from "./repo-content.ts";
+export * from "./response.ts";
 export * from "./review.ts";
 export * from "./rules.ts";
 export * from "./runs.ts";

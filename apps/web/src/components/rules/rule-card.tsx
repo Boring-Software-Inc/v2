@@ -1,18 +1,11 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
-import { useState } from "react";
-import { toast } from "sonner";
 import { Sparkline } from "#/components/charts/dither-kit";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import { RawConfigDisclosure } from "#/components/rules-params/raw-config-disclosure";
+import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
 import { Switch } from "#/components/ui/switch";
-import {
-	type RuleConfigView,
-	saveRuleConfig,
-	upgradeRuleConfig,
-} from "#/lib/rules.functions";
-import { rulesQueryKeys } from "#/lib/rules.query";
+import type { RuleConfigView } from "#/lib/rules.functions";
 import { cn } from "#/lib/utils";
 
 /**
@@ -24,11 +17,15 @@ import { cn } from "#/lib/utils";
  * - managed — a node in an enabled workflow: no toggle, values read-only (the
  *   NODE's config, what actually runs), footer "edit in workflow". Held prompt
  *   is suppressed (the workflow node, not the rule_config, drives it).
+ *
+ * Every write goes through the save queue (first live useSaveQueueField
+ * consumer): the toggle, the enable offer, every inline param edit, and the
+ * held re-confirm all queue; the floating bar commits them as one batch. No
+ * direct mutation remains in this card.
  */
 export function RuleCard({
 	org,
 	repo,
-	repoId,
 	rule,
 	canEdit,
 }: {
@@ -36,73 +33,49 @@ export function RuleCard({
 	org: string;
 	/** Repo slug from the URL — for the workflow deep-links. */
 	repo: string;
-	repoId: string;
 	rule: RuleConfigView;
 	/** Caller is an org admin — gates the inline config editors (§9). */
 	canEdit: boolean;
 }) {
-	const queryClient = useQueryClient();
-	const [enabled, setEnabled] = useState(rule.enabled);
+	const { valueFor, setField } = useSaveQueue();
+	// Pending-or-saved; managed rules have no queue keys, so fall back to the
+	// view (the workflow node's state, read-only anyway).
+	const [queuedEnabled, setEnabled] = useSaveQueueField<boolean | undefined>(
+		`${rule.ruleId}:enabled`,
+	);
+	const enabled = queuedEnabled ?? rule.enabled;
+	const [upgradeQueued, setUpgradeQueued] = useSaveQueueField<
+		boolean | undefined
+	>(`${rule.ruleId}:upgrade`);
+
 	const hasTrend = rule.trend.some((n) => n > 0);
 	const standalone = rule.management === "standalone";
 	/** An opt-in rule that's off is an OFFER, not a silently-disabled toggle. */
 	const offering = rule.optIn && !enabled && standalone;
-	const hasParams = (ruleUiSchema(rule.ruleId)?.params.length ?? 0) > 0;
+	const params = ruleUiSchema(rule.ruleId)?.params ?? [];
+	const hasParams = params.length > 0;
 	/** Show the param sentence (not the blurb) — configurable + not an offer. */
 	const showParams = hasParams && !offering;
 
-	const mutation = useMutation({
-		mutationFn: saveRuleConfig,
-		onSettled: () =>
-			queryClient.invalidateQueries({
-				queryKey: rulesQueryKeys.config(org, repoId),
-			}),
-	});
-
-	const upgrade = useMutation({
-		mutationFn: upgradeRuleConfig,
-		onSettled: () =>
-			queryClient.invalidateQueries({
-				queryKey: rulesQueryKeys.config(org, repoId),
-			}),
-		onSuccess: (result) => {
-			toast(
-				result && "error" in result ? result.error : `${rule.name} updated`,
-			);
-		},
-	});
-
-	// One write path (§9): a typed config object straight to the admin-gated
-	// mutation — no freeform JSON parsing. Only reachable in standalone state.
-	const saveConfig = (nextEnabled: boolean, config: unknown) => {
-		mutation.mutate(
-			{
-				data: {
-					org,
-					repoId,
-					ruleId: rule.ruleId,
-					enabled: nextEnabled,
-					config: config as never,
-				},
-			},
-			{
-				onSuccess: (result) => {
-					toast(
-						result && "error" in result ? result.error : `${rule.name} saved`,
-					);
-				},
-			},
-		);
-	};
 	const asObject = (c: unknown): Record<string, unknown> =>
 		typeof c === "object" && c !== null ? (c as Record<string, unknown>) : {};
+
+	// The sentence renders pending-or-saved per param, so queued edits show
+	// in place before they commit.
+	const effectiveConfig: Record<string, unknown> = { ...asObject(rule.config) };
+	for (const param of params) {
+		const pending = valueFor(`${rule.ruleId}:param:${param.key}`);
+		if (pending !== undefined) {
+			effectiveConfig[param.key] = pending;
+		}
+	}
 
 	const body = showParams ? (
 		<ParamSentence
 			canEdit={canEdit && standalone}
-			config={rule.config}
+			config={effectiveConfig}
 			onSaveParam={(key, value) =>
-				saveConfig(enabled, { ...asObject(rule.config), [key]: value })
+				setField(`${rule.ruleId}:param:${key}`, value)
 			}
 			ruleId={rule.ruleId}
 		/>
@@ -156,10 +129,8 @@ export function RuleCard({
 						offering ? (
 							<button
 								className="rounded-md bg-primary px-2.5 py-1 font-medium text-primary-foreground text-xs transition-colors hover:bg-primary/90"
-								onClick={() => {
-									setEnabled(true);
-									saveConfig(true, rule.config);
-								}}
+								disabled={!canEdit}
+								onClick={() => setEnabled(true)}
 								type="button"
 							>
 								enable
@@ -167,10 +138,8 @@ export function RuleCard({
 						) : (
 							<Switch
 								checked={enabled}
-								onCheckedChange={(next) => {
-									setEnabled(next);
-									saveConfig(next, rule.config);
-								}}
+								disabled={!canEdit}
+								onCheckedChange={setEnabled}
 							/>
 						)
 					) : null}
@@ -191,14 +160,13 @@ export function RuleCard({
 							don't carry over. re-confirm to move to the new version.
 						</span>
 						<button
+							aria-pressed={upgradeQueued === true}
 							className="font-medium text-primary hover:underline disabled:opacity-50"
-							disabled={upgrade.isPending}
-							onClick={() =>
-								upgrade.mutate({ data: { org, repoId, ruleId: rule.ruleId } })
-							}
+							disabled={!canEdit}
+							onClick={() => setUpgradeQueued(upgradeQueued !== true)}
 							type="button"
 						>
-							re-confirm
+							{upgradeQueued === true ? "queued. save to apply" : "re-confirm"}
 						</button>
 					</div>
 				) : null}

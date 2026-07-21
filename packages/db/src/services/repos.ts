@@ -1,4 +1,7 @@
 import {
+	DEFAULT_RESPONSE_CONFIG,
+	type ResponseConfig,
+	responseConfigSchema,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
@@ -6,7 +9,12 @@ import { generateId } from "@tripwire/utils";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { organizationInstallations } from "../schema/organizations.ts";
-import { repos, ruleConfigs, workflowDefinitions } from "../schema/repos.ts";
+import {
+	repos,
+	responseConfigs,
+	ruleConfigs,
+	workflowDefinitions,
+} from "../schema/repos.ts";
 
 /** Repo + config persistence (§4): installation sync, config CRUD, workflows. */
 
@@ -307,5 +315,39 @@ export async function upsertRuleConfig(
 				config: input.config,
 				updatedAt: new Date(),
 			},
+		});
+}
+
+/**
+ * The repo's response config (customize). Absent row, unknown repo, or a
+ * config that no longer parses ⇒ the defaults — a repo that never opened
+ * /customize behaves exactly as before the table existed.
+ */
+export async function getResponseConfig(
+	db: Db,
+	repoId: string | null,
+): Promise<ResponseConfig> {
+	if (!repoId) {
+		return DEFAULT_RESPONSE_CONFIG;
+	}
+	const rows = await db
+		.select()
+		.from(responseConfigs)
+		.where(eq(responseConfigs.repoId, repoId));
+	const parsed = responseConfigSchema.safeParse(rows[0]?.config);
+	return parsed.success ? parsed.data : DEFAULT_RESPONSE_CONFIG;
+}
+
+export async function upsertResponseConfig(
+	db: Db,
+	repoId: string,
+	config: ResponseConfig,
+): Promise<void> {
+	await db
+		.insert(responseConfigs)
+		.values({ id: generateId(), repoId, config, updatedAt: new Date() })
+		.onConflictDoUpdate({
+			target: [responseConfigs.repoId],
+			set: { config, updatedAt: new Date() },
 		});
 }

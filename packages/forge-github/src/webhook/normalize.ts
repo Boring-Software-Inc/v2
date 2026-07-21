@@ -1,4 +1,5 @@
 import {
+	COMMENT_MARKER,
 	type EventKind,
 	type NormalizedEvent,
 	normalizedEventSchema,
@@ -6,7 +7,6 @@ import {
 import type { RawForgeEvent } from "@tripwire/forge";
 import { generateId } from "@tripwire/utils";
 import { z } from "zod";
-import { COMMENT_MARKER } from "../actions/comment.ts";
 
 /**
  * Raw GitHub payload → NormalizedEvent (§5.5/§5.6). Domain-internal Zod

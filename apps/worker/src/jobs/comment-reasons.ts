@@ -1,5 +1,5 @@
+import type { CommentReason } from "@tripwire/contracts";
 import { getRule } from "@tripwire/core";
-import type { CommentReason } from "@tripwire/forge-github";
 
 /**
  * The failing rules' reasons for the PR comment (§7/§12). Built in the WORKER —
@@ -47,7 +47,9 @@ export function buildCommentReasons(steps: ReasonStep[]): CommentReason[] {
 			remedy === "wait" && rule?.waitHint && evidence
 				? rule.waitHint(evidence)
 				: null;
-		reasons.push({ text, remedy, waitHint });
+		// ruleId rides along so non-full comment modes can resolve the catalog's
+		// contributorLabel; full mode never reads it.
+		reasons.push({ text, remedy, waitHint, ruleId: env.ruleId });
 	}
 	return reasons;
 }

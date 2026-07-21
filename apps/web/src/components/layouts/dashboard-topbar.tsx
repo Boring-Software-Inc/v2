@@ -8,6 +8,7 @@ import {
 	MoonIcon,
 	Queue01Icon,
 	Settings01Icon,
+	SlidersHorizontalIcon,
 	Sun01Icon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -80,6 +81,11 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 						to={`/${org}/${repo}/workflows`}
 						label="Workflows"
 						icon={FlowIcon}
+					/>
+					<NavLink
+						to={`/${org}/${repo}/customize`}
+						label="Customize"
+						icon={SlidersHorizontalIcon}
 					/>
 					<NavLink
 						to={`/${org}/${repo}/analytics`}
