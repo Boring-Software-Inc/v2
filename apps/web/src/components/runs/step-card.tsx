@@ -50,7 +50,9 @@ function stepLabel(step: RunStepView): string {
 	if (step.ruleRef) {
 		return ruleDisplayName(step.ruleRef);
 	}
-	return step.nodeId.split(":").at(-1) ?? step.nodeKind;
+	// Snapshot-resolved label (action kind / gate mode / "trigger"); fall back
+	// to the node kind, never the raw UUID id.
+	return step.label ?? step.nodeKind;
 }
 
 /** The status badge — the only saturated element in a step; hugs its text. */

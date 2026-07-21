@@ -1,4 +1,4 @@
-import type { Verdict } from "@tripwire/contracts";
+import type { Verdict, WorkflowDefinition } from "@tripwire/contracts";
 import { type Db, repoServices, runServices } from "@tripwire/db";
 import {
 	resolveRunAccess,
@@ -40,6 +40,7 @@ export async function loadRunView(
 	if (access === "denied") {
 		return null;
 	}
+	const nodeLabels = snapshotNodeLabels(result.run.workflowSnapshot);
 	const view: RunView = {
 		id: result.run.id,
 		repoFullName: result.run.repoFullName,
@@ -68,14 +69,84 @@ export async function loadRunView(
 			startedAt: step.startedAt.toISOString(),
 			publicEvidence: step.publicEvidence as JsonValue,
 			summary: step.summary,
+			// Resolve a display label from the snapshot so editor-created nodes
+			// (UUID ids) don't render as bare ids. Carries no secret.
+			label: nodeLabels.get(step.nodeId),
 		})),
 		actions: result.actions.map((action) => ({
 			kind: action.kind,
 			status: action.status,
 			recordedAt: action.recordedAt.toISOString(),
+			delivery: deliveryStatus(action),
 		})),
 	};
 	return access === "public" ? toPublicRunView(view) : toFullRunView(view);
+}
+
+/**
+ * Map each `{workflowId}:{nodeId}` step key to a readable label from the run's
+ * snapshot: an action shows its kind (block/webhook/discord/label), a gate its
+ * mode, a trigger "trigger". Rules resolve from `ruleRef` in the component.
+ * Labels carry no secret, so this runs before the public/full split.
+ */
+function snapshotNodeLabels(snapshot: unknown): Map<string, string> {
+	const labels = new Map<string, string>();
+	if (!Array.isArray(snapshot)) {
+		return labels;
+	}
+	for (const def of snapshot as WorkflowDefinition[]) {
+		for (const node of def.nodes ?? []) {
+			const key = `${def.id}:${node.id}`;
+			if (node.type === "action") {
+				labels.set(key, node.action);
+			} else if (node.type === "gate") {
+				labels.set(key, node.mode);
+			} else if (node.type === "trigger") {
+				labels.set(key, "trigger");
+			}
+		}
+	}
+	return labels;
+}
+
+/**
+ * The honest delivery state for an outbound (webhook/discord) action, derived
+ * from the row WITHOUT the url. `recorded` alone must never read as delivered:
+ * a failed delivery carries `deliveryFailure`, a queued one does not, a sent
+ * one is `executed`. This is the alerting-integrity fix — a maintainer must see
+ * whether the alert actually went out.
+ */
+export type DeliveryState =
+	| { state: "sent" }
+	| { state: "queued" }
+	| { state: "failed"; reason: string };
+
+function deliveryStatus(action: {
+	kind: string;
+	status: string;
+	payload: unknown;
+}): DeliveryState | undefined {
+	if (action.kind !== "webhook" && action.kind !== "discord") {
+		return undefined;
+	}
+	if (action.status === "executed") {
+		return { state: "sent" };
+	}
+	const payload =
+		action.payload && typeof action.payload === "object"
+			? (action.payload as Record<string, unknown>)
+			: {};
+	const failure =
+		typeof payload.deliveryFailure === "string"
+			? payload.deliveryFailure
+			: undefined;
+	// Recorded + a logged failure ⇒ it was attempted and failed (still
+	// retrying, or abandoned if superseded). Recorded + no failure ⇒ not yet
+	// attempted.
+	if (failure) {
+		return { state: "failed", reason: failure };
+	}
+	return { state: "queued" };
 }
 
 /** The re-run admin's display name; falls back to the raw id ("dev", "cli:…"). */
