@@ -6,6 +6,7 @@ import {
 	renderVerdictComment,
 	reviewBody,
 	type Verdict,
+	type WebhookPayload,
 	wantsCheck,
 	wantsComment,
 } from "@tripwire/contracts";
@@ -180,6 +181,35 @@ export async function emitPrSurface(
 			: []),
 	]);
 
+	// Outbound delivery (webhook/discord) is independent of GitHub — build and
+	// attach each row's payload here (we have the run context + appUrl), leave
+	// it `recorded`, and let the deliver-webhook job POST it through the guard.
+	// This runs BEFORE the forge guard so webhooks fire even with no GitHub
+	// credentials.
+	for (const row of input.pendingActionRows) {
+		if (row.kind !== "webhook" && row.kind !== "discord") {
+			continue;
+		}
+		const delivery: WebhookPayload = {
+			version: 1,
+			verdict,
+			org: repoFullName.split("/")[0] ?? repoFullName,
+			repo: repoFullName,
+			changeRequest: {
+				number,
+				title: event.changeRequest.title,
+				author: event.actor.login,
+			},
+			firedRules: reasons.map((reason) => ({
+				ruleId: reason.ruleId ?? "",
+				summary: reason.text,
+			})),
+			runUrl,
+			timestamp: new Date().toISOString(),
+		};
+		await runServices.attachDeliveryPayload(db, row.id, delivery);
+	}
+
 	if (!adapter) {
 		logger.warn(
 			{ runId },
@@ -202,6 +232,11 @@ export async function emitPrSurface(
 	);
 
 	for (const row of [...input.pendingActionRows, ...surfaceRows]) {
+		// Outbound delivery is handled above + by the deliver-webhook job, not
+		// through the forge adapter.
+		if (row.kind === "webhook" || row.kind === "discord") {
+			continue;
+		}
 		// Ownership (§6): only the latest run writes to the shared PR — the comment
 		// AND the review dismissal. A stale run must not post a transition or
 		// dismiss the current run's review.

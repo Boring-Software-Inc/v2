@@ -27,6 +27,9 @@ import { toForgeAction } from "./pr-surface.ts";
 const RETRY_AFTER_MS = 2 * 60_000;
 const GIVE_UP_MS = 60 * 60_000;
 const SURFACE_KINDS = new Set(["comment", "set-check"]);
+/** Outbound delivery rows are driven by the deliver-webhook job, not the
+ * forge sweeper — skip them here. */
+const DELIVERY_KINDS = new Set(["webhook", "discord"]);
 
 export interface SweepDeps {
 	db: Db;
@@ -88,6 +91,9 @@ export async function sweepActions(
 	};
 
 	for (const row of stuck) {
+		if (DELIVERY_KINDS.has(row.kind)) {
+			continue;
+		}
 		if (row.kind === "comment" && row.subjectNumber !== null) {
 			const latest = await runServices.getLatestRunIdForChangeRequest(
 				db,

@@ -68,6 +68,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	armRepoById: "admin",
 	createRepoWorkflow: "admin",
 	saveRepoWorkflow: "admin",
+	testDeliveryConnection: "admin", // makes an outbound request
 	renameRepoWorkflow: "admin",
 	duplicateRepoWorkflow: "admin",
 	deleteRepoWorkflow: "admin",

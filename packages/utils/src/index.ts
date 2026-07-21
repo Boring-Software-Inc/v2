@@ -4,6 +4,16 @@
  * moves here.
  */
 export { getErrorMessage, toError } from "./errors.ts";
+export {
+	type GuardedFetchDeps,
+	type GuardedFetchResult,
+	type GuardedPostOptions,
+	type GuardFailure,
+	guardedPost,
+	isBlockedAddress,
+	isDeliverableUrl,
+	MAX_URL_LENGTH,
+} from "./guarded-fetch.ts";
 export { generateId } from "./id.ts";
 export {
 	generateWorkflowName,
