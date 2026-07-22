@@ -7,7 +7,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Button } from "#/components/ui/button";
 import {
@@ -25,6 +24,7 @@ import {
 } from "#/components/ui/dropdown-menu";
 import { Input } from "#/components/ui/input";
 import { Switch } from "#/components/ui/switch";
+import { toast } from "#/components/ui/toast";
 import { GridSkeleton } from "#/components/workflows/workflows-grid-page-skeleton";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";

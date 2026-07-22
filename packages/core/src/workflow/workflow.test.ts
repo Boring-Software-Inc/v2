@@ -221,7 +221,9 @@ describe("executeWorkflow", () => {
 		expect(step?.status).toBe("skipped");
 	});
 
-	test("disabled rule records `disabled`, conducts as pass, is not evaluated (§6 kill switch)", async () => {
+	test("a rule in a workflow always evaluates — the standalone toggle does not gate it (§6)", async () => {
+		// A placed rule is OWNED by its workflow; the /rules toggle governs only
+		// standalone use (the worker shapes the derived default, not the graph).
 		let evaluated = 0;
 		const result = await executeWorkflow({
 			definition: GATED,
@@ -230,14 +232,12 @@ describe("executeWorkflow", () => {
 				evaluated++;
 				return fakeEvaluator({})(ref);
 			},
-			isRuleDisabled: (ref) => ref === "account-age@1",
 			now: clock,
 		});
-		expect(result.verdict).toBe("pass");
 		const step = result.steps.find((s) => s.nodeId === "r1");
-		expect(step?.status).toBe("disabled");
-		// only r2 was evaluated; the disabled r1 never called the evaluator.
-		expect(evaluated).toBe(1);
+		// r1 evaluated like any other node — never skipped as `disabled`.
+		expect(step?.status).not.toBe("disabled");
+		expect(evaluated).toBeGreaterThan(1);
 	});
 
 	test("non-matching trigger ⇒ nothing runs", async () => {

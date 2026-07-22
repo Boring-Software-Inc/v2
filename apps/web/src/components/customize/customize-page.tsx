@@ -12,7 +12,6 @@ import {
 	wantsComment,
 } from "@tripwire/contracts";
 import { useState } from "react";
-import { toast } from "sonner";
 import { AnalyticsMetricsSheet } from "#/components/analytics/analytics-metrics-sheet";
 import { CheckStateMock } from "#/components/customize/check-state-mock";
 import {
@@ -29,6 +28,7 @@ import {
 	UnsavedChangesBar,
 	useSaveQueue,
 } from "#/components/save-queue";
+import { toast } from "#/components/ui/toast";
 import { useMediaQuery } from "#/hooks/use-media-query";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
 import { saveRepoResponseConfig } from "#/lib/response.functions";

@@ -7,8 +7,8 @@ import {
 } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { toast } from "sonner";
 import { EmptyState } from "#/components/common/empty-state";
+import { toast } from "#/components/ui/toast";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import {
 	decideModeration,

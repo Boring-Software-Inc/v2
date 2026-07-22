@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { Button } from "#/components/ui/button";
+import { toast } from "#/components/ui/toast";
 import { armRepo } from "#/lib/arm.functions";
 import { cn } from "#/lib/utils";
 

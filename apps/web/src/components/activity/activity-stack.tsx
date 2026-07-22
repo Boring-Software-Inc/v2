@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
-import { toast } from "sonner";
 import { VerdictChip } from "#/components/activity/verdict-chip";
 import {
 	Dialog,
@@ -14,6 +13,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "#/components/ui/dialog";
+import { toast } from "#/components/ui/toast";
 import type {
 	ActivityFeedData,
 	ActivityGroup,

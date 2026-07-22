@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { orgSlugSchema } from "@tripwire/contracts";
 import { useState } from "react";
-import { toast } from "sonner";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { Button } from "#/components/ui/button";
 import {
@@ -13,6 +12,7 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
+import { toast } from "#/components/ui/toast";
 import type { OrgWithRole } from "#/lib/org.functions";
 import { deleteOrg, updateOrg } from "#/lib/org.functions";
 import {

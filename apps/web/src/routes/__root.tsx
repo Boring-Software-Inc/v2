@@ -9,7 +9,7 @@ import {
 import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
 import { ThemeProvider } from "next-themes";
 import { lazy, Suspense } from "react";
-import { Toaster } from "#/components/ui/sonner";
+import { Toaster } from "#/components/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { isPublicPath } from "#/lib/run-access";
 import { siteConfig } from "#/lib/site-config";

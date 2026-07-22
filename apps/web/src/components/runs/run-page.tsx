@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
 import { StepCard } from "#/components/runs/step-card";
+import { toast } from "#/components/ui/toast";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import { mergeLiveSteps } from "#/lib/run-live-steps";
+import { runToMarkdown } from "#/lib/run-markdown";
 import type { RunView } from "#/lib/runs.functions";
 import { runQueryOptions } from "#/lib/runs.query";
 import { siteConfig } from "#/lib/site-config";
@@ -123,6 +125,7 @@ function RunBody({ run }: { run: RunView }) {
 							failed
 						</span>
 					) : null}
+					<CopyRunButton run={run} />
 				</div>
 				<p className="mt-1 text-muted-foreground text-sm">
 					{run.repoFullName}
@@ -175,13 +178,83 @@ function RunBody({ run }: { run: RunView }) {
 							<span className="min-w-0 flex-1 truncate font-mono">
 								{action.kind}
 							</span>
-							<span className="text-muted-foreground text-xs">
-								{action.status}
-							</span>
+							{action.delivery ? (
+								<DeliveryBadge delivery={action.delivery} />
+							) : (
+								<span className="text-muted-foreground text-xs">
+									{action.status}
+								</span>
+							)}
 						</div>
 					))}
 				</section>
 			) : null}
 		</div>
+	);
+}
+
+/**
+ * Delivery state for a webhook/discord action — sent / queued / failed, never
+ * the raw `recorded`. A failed delivery must read as failed, not delivered
+ * (alerting integrity). The failure reason is named; the url is never shown.
+ */
+function DeliveryBadge({
+	delivery,
+}: {
+	delivery:
+		| { state: "sent" }
+		| { state: "queued" }
+		| { state: "failed"; reason: string };
+}) {
+	const label =
+		delivery.state === "sent"
+			? "sent"
+			: delivery.state === "queued"
+				? "queued"
+				: `failed: ${delivery.reason}`;
+	return (
+		<span
+			className={cn(
+				"rounded-full px-2 py-0.5 font-medium text-[11px]",
+				delivery.state === "sent" &&
+					"bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+				delivery.state === "queued" && "bg-surface-1 text-muted-foreground",
+				delivery.state === "failed" &&
+					"bg-red-500/10 text-red-600 dark:text-red-400",
+			)}
+		>
+			{label}
+		</span>
+	);
+}
+
+/**
+ * Copy the whole run as markdown. Copied-state feedback: the label flips to
+ * "copied" for ~2s. Serializes from the redacted RunView (never raw rows), so
+ * the clipboard cannot carry a url the view stripped. Native button, so it is
+ * keyboard accessible.
+ */
+function CopyRunButton({ run }: { run: RunView }) {
+	const [copied, setCopied] = useState(false);
+	const onCopy = () => {
+		const md = runToMarkdown(run, formatRelativeTime(run.createdAt));
+		navigator.clipboard?.writeText(md);
+		toast({
+			title: "copied to clipboard",
+			body: "The run has been copied to your clipboard.",
+			status: "success",
+			action: { label: "close", onClick: () => {} },
+		});
+		setCopied(true);
+		setTimeout(() => setCopied(false), 2000);
+	};
+	return (
+		<button
+			className="ml-auto shrink-0 rounded-md bg-surface-1 px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground"
+			onClick={onCopy}
+			type="button"
+		>
+			{copied ? "copied" : "copy markdown"}
+		</button>
 	);
 }

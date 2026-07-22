@@ -2,13 +2,13 @@ import { UserMultipleIcon } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AccessStatus } from "@tripwire/contracts";
 import { useState } from "react";
-import { toast } from "sonner";
 import { AccessStatusDot } from "#/components/admin/access-status-dot";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
 import { EmptyState } from "#/components/common/empty-state";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
+import { toast } from "#/components/ui/toast";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import {
 	reviewUserAccess,

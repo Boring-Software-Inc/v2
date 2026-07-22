@@ -58,8 +58,31 @@ export const workflowActionKindSchema = z.enum([
 	"label",
 	"request-review",
 	"send-to-moderation",
+	"webhook",
+	"discord",
 ]);
 export type WorkflowActionKind = z.infer<typeof workflowActionKindSchema>;
+
+/**
+ * Config for the outbound-delivery actions. The URL declares `.meta({ secret:
+ * true })` so the node face and the panel mask it (display only — at-rest is a
+ * separate, tracked concern, see [[webhook-payload]]). Params on the action
+ * node validate against these on write.
+ */
+export const webhookParamsSchema = z.object({
+	url: z.url().meta({ secret: true }).describe("webhook url"),
+	/** Optional HMAC-SHA256 signing secret — receivers verify the POST came
+	 * from tripwire (X-Webhook-Signature). Masked, set-only, like the url. */
+	signingSecret: z
+		.string()
+		.min(1)
+		.optional()
+		.meta({ secret: true })
+		.describe("signing secret"),
+});
+export const discordParamsSchema = z.object({
+	url: z.url().meta({ secret: true }).describe("discord webhook url"),
+});
 
 export const triggerNodeSchema = z.object({
 	id: z.string(),
@@ -313,5 +336,15 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 		action: "send-to-moderation",
 		name: "send to moderation",
 		description: "Pauses here — a human decides in your moderation queue.",
+	},
+	{
+		action: "webhook",
+		name: "webhook",
+		description: "Posts the verdict as json to a url you set.",
+	},
+	{
+		action: "discord",
+		name: "discord",
+		description: "Posts the verdict to a discord channel you set.",
 	},
 ];

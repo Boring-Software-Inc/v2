@@ -1,10 +1,10 @@
 import { GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { getRouteApi } from "@tanstack/react-router";
-import { toast } from "sonner";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { DevPersonaPanel } from "#/components/dev/persona-switcher";
 import { Button } from "#/components/ui/button";
+import { toast } from "#/components/ui/toast";
 import { authClient } from "#/lib/auth-client";
 import { siteConfig } from "#/lib/site-config";
 

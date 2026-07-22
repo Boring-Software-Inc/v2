@@ -134,11 +134,13 @@ export async function runWorkflows(
 	};
 
 	/**
-	 * §6 toggles are REAL now (live-test surprise #1 — the worker never read
-	 * rule_configs before). Saved workflows run as authored AND compose with the
-	 * derived default over the rules they don't own — a workflow orchestrates
-	 * its own rules, it never disables the rest. `disabledRefs` also kill-switch
-	 * nodes inside a saved workflow — those rules skip as `disabled`.
+	 * §6 rule authority: a rule PLACED in a saved workflow is owned by that
+	 * workflow — it runs because it is wired, and the standalone /rules toggle
+	 * does not gate it. The toggle governs only standalone use: it shapes the
+	 * derived default over the rules NOT in any enabled workflow (owned ids are
+	 * excluded below, and `deriveDefaultWorkflow` drops toggled-off rules from
+	 * the default's nodes). To turn a workflowed rule off, remove it from the
+	 * workflow first.
 	 */
 	const repo = await repoServices.getRepoByFullName(db, event.repo.fullName);
 
@@ -164,11 +166,6 @@ export async function runWorkflows(
 	const ruleConfigs = repo
 		? await repoServices.listRuleConfigs(db, repo.id)
 		: [];
-	const disabledRefs = new Set(
-		ruleConfigs
-			.filter((config) => !config.enabled)
-			.map((config) => `${config.ruleId}@${config.version}`),
-	);
 	const custom = await repoServices.listEnabledWorkflows(
 		db,
 		event.repo.fullName,
@@ -287,7 +284,6 @@ export async function runWorkflows(
 					definition,
 					event,
 					evaluateRuleRef,
-					isRuleDisabled: (ref) => disabledRefs.has(ref),
 					now: () => new Date().toISOString(),
 					// Stream each finished step onto the pre-materialized run so the
 					// run page can list completed checks as the DAG walks.
@@ -325,9 +321,9 @@ export async function runWorkflows(
 	 * Fail-closed floor (amends the step-6 composition): ONE skipped rule
 	 * still conducts as pass — a flaky read must not block a human — but a
 	 * run whose evaluation is mostly guesswork never passes. All-skipped or
-	 * skipped ≥ 50% of rule nodes ⇒ needs_review, routed to moderation.
-	 * Disabled rules (§6 kill switch) are DELIBERATE, not degraded — excluded
-	 * from both sides of the ratio.
+	 * skipped ≥ 50% of rule nodes ⇒ needs_review, routed to moderation. The
+	 * `disabled` status no longer occurs (workflow rules always evaluate); the
+	 * filter stays as a cheap guard for any historical step shape.
 	 */
 	const ruleSteps0 = steps.filter(
 		(step) => step.nodeKind === "rule" && step.status !== "disabled",

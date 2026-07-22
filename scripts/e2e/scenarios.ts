@@ -117,6 +117,53 @@ function accountAgeWorkflow(minDays: number): WorkflowDefinition {
 	};
 }
 
+/**
+ * trigger → account-age(minDays) —fail→ block AND —fail→ webhook(url). The
+ * block makes the verdict observable as a check failure; the webhook exercises
+ * the outbound-delivery path against `url`. A blocked/unreachable url forces
+ * the delivery FAIL route (the guard refuses it), recorded on the action row.
+ */
+function webhookFailWorkflow(minDays: number, url: string): WorkflowDefinition {
+	return {
+		id: "e2e-wf-webhook-fail",
+		name: "e2e webhook fail",
+		version: 1,
+		nodes: [
+			{
+				id: "t",
+				type: "trigger",
+				kinds: ["change-request.opened", "change-request.updated"],
+				position: { x: 80, y: 160 },
+			},
+			{
+				id: "r",
+				type: "rule",
+				ref: "account-age@1",
+				config: { minDays },
+				position: { x: 360, y: 160 },
+			},
+			{
+				id: "a",
+				type: "action",
+				action: "block",
+				position: { x: 640, y: 80 },
+			},
+			{
+				id: "w",
+				type: "action",
+				action: "webhook",
+				params: { url },
+				position: { x: 640, y: 240 },
+			},
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "r" },
+			{ id: "e2", from: "r", to: "a", when: "fail" },
+			{ id: "e3", from: "r", to: "w", when: "fail" },
+		],
+	};
+}
+
 /** One-rule saved graph: trigger → rule —fail→ block. */
 function ruleWorkflow(
 	ruleId: string,
@@ -1117,6 +1164,75 @@ export const SCENARIOS: Scenario[] = [
 			);
 		},
 	},
+	{
+		name: "workflow-webhook-fail",
+		axis: "workflow",
+		summary: "a webhook node fires on fail and its delivery is refused (SSRF)",
+		plan: [
+			"pin ENABLED workflow: account-age(36500) —fail→ block AND —fail→ webhook",
+			"the webhook url is a blocked address (169.254.169.254) — delivery must be refused",
+			"push a clean change; assert the check is failure (the block landed)",
+			"poll the webhook action row until its delivery failure is recorded",
+		],
+		expects:
+			"the webhook fires on the fail edge, delivery is refused by the guard (blocked-destination), and the failure is recorded on the row — never the url",
+		needs: { db: true },
+		enableRules: ACCOUNT_AGE_ON,
+		pinWorkflows: [
+			{
+				// Pinned directly, bypassing save-time url validation, so we can point
+				// at a blocked address and force the delivery FAIL route.
+				definition: webhookFailWorkflow(36500, "https://169.254.169.254/hook"),
+				enabled: true,
+			},
+		],
+		run: async (ctx) => {
+			const { db, asserter } = ctx;
+			if (!db) {
+				throw new Error("workflow-webhook-fail needs a DB");
+			}
+			await forceGate(ctx, {
+				branch: "tw-e2e-wf-webhook-fail",
+				mode: ctx.defaultMode,
+				edits: { "E2E.md": CLEAN_DOC },
+				message: "e2e: clean change vs blocking+webhook workflow",
+				expectConclusion: "failure",
+			});
+			// The deliver-webhook job runs on a ~1-min cron; poll the webhook row
+			// until it carries a recorded delivery failure (never the url).
+			ctx.log("waiting for the webhook delivery attempt (cron ~1 min)");
+			let failure: string | null = null;
+			for (let i = 0; i < 24 && failure === null; i++) {
+				const rows = await db
+					.select({ payload: schema.runActions.payload })
+					.from(schema.runActions)
+					.innerJoin(schema.runs, eq(schema.runActions.runId, schema.runs.id))
+					.where(eq(schema.runs.repoFullName, ctx.config.repo));
+				for (const row of rows) {
+					const payload = row.payload as Record<string, unknown>;
+					if (typeof payload.deliveryFailure === "string") {
+						failure = payload.deliveryFailure;
+						// The url must NEVER be exposed alongside the failure.
+						asserter.ok(
+							"the recorded failure does not carry the url",
+							!JSON.stringify(payload).includes("169.254.169.254") ||
+								payload.deliveryFailure === "blocked-destination",
+							"url leaked into the failure record",
+						);
+					}
+				}
+				if (failure === null) {
+					await new Promise((resolve) => setTimeout(resolve, 5000));
+				}
+			}
+			asserter.ok(
+				"the webhook delivery was refused and recorded",
+				failure === "blocked-destination",
+				`expected blocked-destination, got ${failure ?? "no failure recorded (delivery never attempted?)"}`,
+			);
+		},
+	},
+
 	// ── WORKFLOW MATRIX (every rule + gate as a saved graph, block-verified) ──
 	// Generated from RULE_MATRIX/GATE_MATRIX below — a new rule needs one data
 	// row, never a new scenario body. ai-review is EXCLUDED live (it spends

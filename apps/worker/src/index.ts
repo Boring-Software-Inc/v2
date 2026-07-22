@@ -24,6 +24,7 @@ import pino from "pino";
 import { createGenerate } from "./ai/generate.ts";
 import type { WorkerReads } from "./context.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
+import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
@@ -35,7 +36,19 @@ import { sweepActions } from "./jobs/sweep-actions.ts";
  * ids (the event id) thread through every log line.
  */
 if (import.meta.main) {
-	const logger = pino({ name: "worker" });
+	const logger = pino({
+		name: "worker",
+		// Outbound-delivery secrets never reach the logs — the url and signing
+		// secret live only in the action row payload (server-side db), and the
+		// delivery job logs only the failure class, never the destination.
+		redact: [
+			"*.url",
+			"*.signingSecret",
+			"payload.url",
+			"payload.signingSecret",
+			"delivery.url",
+		],
+	});
 	const { db } = createDb();
 	/**
 	 * The worker's `pool` is used ONLY for `pg_notify` (the SSE fan-out signal),
@@ -192,6 +205,14 @@ if (import.meta.main) {
 	await boss.schedule("sweep-actions", "* * * * *", {}, {});
 	await boss.work("sweep-actions", async () => {
 		await sweepActions({ db, adapter, logger });
+	});
+
+	/** Outbound delivery — POST webhook/discord rows through the SSRF guard;
+	 * the poll IS the retry (recorded rows re-attempt each tick). */
+	await boss.createQueue("deliver-webhook");
+	await boss.schedule("deliver-webhook", "* * * * *", {}, {});
+	await boss.work("deliver-webhook", async () => {
+		await deliverWebhooks({ db, logger });
 	});
 
 	/**

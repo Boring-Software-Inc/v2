@@ -207,8 +207,8 @@ describe("toggles → derived default workflow", () => {
 	});
 });
 
-describe("toggles → saved workflow kill switch", () => {
-	test("saved workflow + disabled rule ⇒ skipped: disabled step recorded", async () => {
+describe("toggles → workflow-owned rule enablement (§6)", () => {
+	test("a rule in a saved workflow evaluates even when its /rules toggle is OFF", async () => {
 		const saved: WorkflowDefinition = {
 			id: "live-test@1",
 			name: "saved",
@@ -223,7 +223,9 @@ describe("toggles → saved workflow kill switch", () => {
 					id: "r1",
 					type: "rule",
 					ref: "account-age@1",
-					config: { minDays: 7 },
+					// minDays 0 ⇒ any account passes; the point is that the node
+					// RUNS despite the toggle being off, not the verdict direction.
+					config: { minDays: 0 },
 				},
 				{ id: "r2", type: "rule", ref: "crypto-address@1", config: {} },
 				{ id: "g", type: "gate", mode: "all-of" },
@@ -238,17 +240,20 @@ describe("toggles → saved workflow kill switch", () => {
 			],
 		};
 		await repoServices.saveWorkflowDefinition(db, repoId, saved);
+		// The standalone toggle is OFF — under the model this does NOT gate the
+		// workflow's copy; the workflow owns it.
 		await repoServices.upsertRuleConfig(db, repoId, {
 			ruleId: "account-age",
 			version: 1,
 			enabled: false,
 			config: { minDays: 7 },
 		});
-		const eventId = await processFresh("saved-disabled-1");
+		const eventId = await processFresh("workflow-owned-1");
 		const steps = await ruleSteps(eventId);
 		const age = steps.find((s) => s.rule_id === "account-age@1");
-		expect(age?.status).toBe("disabled");
-		// disabled conducts as pass; crypto passes ⇒ no block from the kill switch.
+		// It evaluated — the workflow node's config (minDays 0) ran, and it was
+		// never skipped as `disabled` by the toggle.
+		expect(age?.status).toBe("pass");
 		const run = await pool.query(
 			"SELECT verdict FROM runs WHERE event_id = $1",
 			[eventId],

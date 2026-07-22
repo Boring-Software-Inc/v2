@@ -50,10 +50,16 @@ export const getRepoWorkflow = createServerFn({ method: "GET" })
 		);
 		const { workflowServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		return await workflowServices.getWorkflow(getDb().db, {
+		const row = await workflowServices.getWorkflow(getDb().db, {
 			repoId: data.repoId,
 			workflowId: data.workflowId,
 		});
+		if (!row) {
+			return null;
+		}
+		// Never return stored webhook/discord secrets to the client in full.
+		const { redactWorkflowSecrets } = await import("#/lib/workflow-secrets");
+		return { ...row, definition: redactWorkflowSecrets(row.definition) };
 	});
 
 /**
@@ -106,7 +112,14 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 		}) => input,
 	)
 	.handler(
-		async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
+		async ({
+			data,
+			context,
+		}): Promise<{
+			ok: boolean;
+			error?: string;
+			connectionIssues?: { nodeId: string; message: string }[];
+		}> => {
 			await requireOrgRepoById(
 				(context as { org: OrgWithRole }).org.id,
 				data.repoId,
@@ -121,11 +134,83 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 			}
 			const { workflowServices } = await import("@tripwire/db");
 			const { getDb } = await import("#/lib/server/db");
-			return await workflowServices.updateWorkflowDefinition(getDb().db, {
+			const db = getDb().db;
+			// Set-only secrets: a blank webhook/discord field keeps the stored
+			// value; a new value is validated (https + shape) before it persists.
+			const { restoreWorkflowSecrets } = await import("#/lib/workflow-secrets");
+			const existing = await workflowServices.getWorkflow(db, {
 				repoId: data.repoId,
 				workflowId: data.workflowId,
-				definition: parsed.data,
 			});
+			const merged = restoreWorkflowSecrets(
+				parsed.data,
+				existing?.definition ?? null,
+			);
+			if (merged.error) {
+				return { ok: false, error: merged.error };
+			}
+			const result = await workflowServices.updateWorkflowDefinition(db, {
+				repoId: data.repoId,
+				workflowId: data.workflowId,
+				definition: merged.definition,
+			});
+			if (!result.ok) {
+				return result;
+			}
+			// Save is not blocked on delivery reachability — but a newly-set
+			// webhook url the maintainer never tested gets checked here, and a
+			// failure comes back as a node issue (same surface as validation).
+			const { probeDelivery } = await import("#/lib/delivery-probe");
+			const connectionIssues = await Promise.all(
+				merged.changedUrlNodes.map(async ({ nodeId, url, kind }) => {
+					const probe = await probeDelivery(url, kind);
+					return probe.ok
+						? null
+						: {
+								nodeId,
+								message: `webhook connection failed: ${probe.failure}`,
+							};
+				}),
+			);
+			return {
+				ok: true,
+				connectionIssues: connectionIssues.filter(
+					(issue): issue is { nodeId: string; message: string } =>
+						issue !== null,
+				),
+			};
+		},
+	);
+
+/**
+ * The panel's "test connection" — POST a ping to a webhook/discord url through
+ * the SSRF guard and report whether it lands. Admin-gated (it makes an outbound
+ * request). The url is tested, never returned; failures name the class.
+ */
+export const testDeliveryConnection = createServerFn({ method: "POST" })
+	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.inputValidator(
+		(input: {
+			org: string;
+			repoId: string;
+			url: string;
+			kind: "webhook" | "discord";
+		}) => input,
+	)
+	.handler(
+		async ({
+			data,
+			context,
+		}): Promise<{ ok: boolean; status?: number; failure?: string }> => {
+			await requireOrgRepoById(
+				(context as { org: OrgWithRole }).org.id,
+				data.repoId,
+			);
+			const { probeDelivery } = await import("#/lib/delivery-probe");
+			const result = await probeDelivery(data.url, data.kind);
+			return result.ok
+				? { ok: true, status: result.status }
+				: { ok: false, failure: result.failure };
 		},
 	);
 

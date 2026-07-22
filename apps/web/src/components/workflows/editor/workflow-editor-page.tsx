@@ -11,6 +11,7 @@ import {
 	renameRepoWorkflow,
 	saveRepoWorkflow,
 	setRepoWorkflowEnabled,
+	testDeliveryConnection,
 } from "#/lib/workflows.functions";
 import {
 	workflowDetailQueryOptions,
@@ -96,6 +97,9 @@ export function WorkflowEditorPage() {
 					setEnabled.mutateAsync({
 						data: { org, repoId, workflowId, enabled },
 					})
+				}
+				onTestConnection={(url, kind) =>
+					testDeliveryConnection({ data: { org, repoId, url, kind } })
 				}
 				org={org}
 				readOnly={readOnly}

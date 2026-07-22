@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { InvitePageSkeleton } from "#/components/organizations/invite-page-skeleton";
 import { Button } from "#/components/ui/button";
 import { Spinner } from "#/components/ui/spinner";
+import { toast } from "#/components/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { redeemOrgInvite } from "#/lib/org.functions";
 

@@ -138,6 +138,10 @@ export interface EditorSidebarProps {
 	selectedNode: WorkflowNode | null;
 	onAdd: (item: ToolboxItem) => void;
 	onUpdateNode: (next: WorkflowNode) => void;
+	onTestConnection: (
+		url: string,
+		kind: "webhook" | "discord",
+	) => Promise<{ ok: boolean; status?: number; failure?: string }>;
 }
 
 export function EditorSidebar({
@@ -145,6 +149,7 @@ export function EditorSidebar({
 	selectedNode,
 	onAdd,
 	onUpdateNode,
+	onTestConnection,
 }: EditorSidebarProps) {
 	const [tab, setTab] = useState<"toolbox" | "properties">("toolbox");
 	const propertiesDisabled =
@@ -153,7 +158,7 @@ export function EditorSidebar({
 
 	return (
 		<div className="absolute top-3 bottom-3 left-3 z-10 flex w-64 flex-col overflow-hidden rounded-xl border bg-surface-0/95 shadow-md backdrop-blur">
-			<div className="flex shrink-0 gap-1 border-b p-1.5">
+			<div className="flex shrink-0 gap-1 p-1.5 pb-0">
 				<button
 					className={cn(
 						"flex-1 rounded-md px-2 py-1 font-medium text-xs transition-colors",
@@ -213,6 +218,7 @@ export function EditorSidebar({
 					<PropertiesPanel
 						key={selectedNode.id}
 						node={selectedNode}
+						onTestConnection={onTestConnection}
 						onUpdate={onUpdateNode}
 						readOnly={readOnly}
 					/>

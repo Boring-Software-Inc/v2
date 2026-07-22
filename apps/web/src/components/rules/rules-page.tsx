@@ -2,7 +2,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
 import { useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { RuleCard } from "#/components/rules/rule-card";
@@ -13,6 +12,7 @@ import {
 	SaveQueueProvider,
 	UnsavedChangesBar,
 } from "#/components/save-queue";
+import { toast } from "#/components/ui/toast";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
 import {
 	type RuleConfigView,

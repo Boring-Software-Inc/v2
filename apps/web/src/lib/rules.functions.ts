@@ -110,7 +110,11 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				changeNote: held ? ruleChangeNote(ref) : null,
 				name: entry.name,
 				blurb: entry.blurb,
-				enabled: ruleExecutes(ref, row?.enabled),
+				// A managed rule is active because its workflow owns it (§6) — the
+				// standalone toggle does not gate it. Standalone rules read the
+				// toggle (baseline-aware).
+				enabled:
+					mgmt.state === "managed" ? true : ruleExecutes(ref, row?.enabled),
 				config,
 				defaultConfig: entry.defaultConfig as JsonValue,
 				management: mgmt.state,
@@ -135,11 +139,19 @@ export const getRulesHeaderStats = createServerFn({ method: "GET" })
 		const db = getDb().db;
 		const repo = await repoServices.getRepoById(db, data.repoId);
 		const stored = await repoServices.listRuleConfigs(db, data.repoId);
-		const activeRules = RULE_CATALOG.filter((entry) =>
-			ruleExecutes(
-				`${entry.ruleId}@${entry.version}`,
-				stored.find((c) => c.ruleId === entry.ruleId)?.enabled,
-			),
+		// A rule counts as active if a workflow owns it (§6) OR its standalone
+		// toggle runs it. Managed rules are active regardless of the toggle.
+		const enabledWorkflows = repo
+			? await repoServices.listEnabledWorkflows(db, repo.fullName)
+			: [];
+		const activeRules = RULE_CATALOG.filter(
+			(entry) =>
+				resolveRuleManagement(entry.ruleId, enabledWorkflows).state ===
+					"managed" ||
+				ruleExecutes(
+					`${entry.ruleId}@${entry.version}`,
+					stored.find((c) => c.ruleId === entry.ruleId)?.enabled,
+				),
 		).length;
 		const emptyStat: ModStat = { value: 0, delta: 0, series: [] };
 		if (!repo) {

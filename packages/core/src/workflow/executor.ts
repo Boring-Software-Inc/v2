@@ -52,13 +52,6 @@ export interface ExecuteWorkflowOptions {
 	event: NormalizedEvent;
 	/** Injected: evaluates `ref` with `config` over the pre-built RuleContext. */
 	evaluateRuleRef: (ref: string, config: unknown) => Promise<RuleResult>;
-	/**
-	 * Injected kill switch (§6): a rule ref disabled for the repo is NOT
-	 * evaluated — its node records `disabled`, conducts as pass, and is excluded
-	 * from the degradation floor. Only meaningful for saved workflows; the
-	 * derived default omits disabled rules as nodes entirely.
-	 */
-	isRuleDisabled?: (ref: string) => boolean;
 	/** Injected clock for step timings. */
 	now: () => string;
 	/**
@@ -75,20 +68,6 @@ export interface ExecuteWorkflowOptions {
 	 * after each step is recorded; core stays pure — no I/O here.
 	 */
 	onStep?: (step: StepRecord) => void | Promise<void>;
-}
-
-/** The recorded envelope for a rule skipped because it is toggled off (§6). */
-function disabledResult(ref: string, evaluatedAt: string): RuleResult {
-	const [id, version] = ref.split("@");
-	return {
-		ruleId: id ?? ref,
-		version: Number(version ?? 1) || 1,
-		status: "skipped",
-		passed: false,
-		evidence: null,
-		reason: "rule disabled for this repo",
-		evaluatedAt,
-	};
 }
 
 function topoOrder(def: WorkflowDefinition): WorkflowNode[] {
@@ -119,15 +98,7 @@ function topoOrder(def: WorkflowDefinition): WorkflowNode[] {
 export async function executeWorkflow(
 	options: ExecuteWorkflowOptions,
 ): Promise<ExecutionResult> {
-	const {
-		definition,
-		event,
-		evaluateRuleRef,
-		isRuleDisabled,
-		now,
-		resume,
-		onStep,
-	} = options;
+	const { definition, event, evaluateRuleRef, now, resume, onStep } = options;
 	const outcomes = new Map<string, NodeOutcome>(
 		Object.entries(resume?.outcomes ?? {}),
 	);
@@ -233,18 +204,10 @@ export async function executeWorkflow(
 		}
 
 		if (node.type === "rule") {
-			if (isRuleDisabled?.(node.ref)) {
-				outcomes.set(node.id, "pass");
-				conducted.add(node.id);
-				await record(
-					node,
-					"disabled",
-					{ ref: node.ref, config: node.config },
-					disabledResult(node.ref, startedAt),
-					startedAt,
-				);
-				continue;
-			}
+			// A rule placed in a workflow is OWNED by the workflow (§6): it is
+			// active because it is wired, regardless of its standalone /rules
+			// toggle. The toggle governs only standalone use, applied by the
+			// worker as it derives the default over non-workflowed rules.
 			const result = await evaluateRuleRef(node.ref, node.config);
 			const outcome: NodeOutcome =
 				result.status === "skipped" || result.passed ? "pass" : "fail";

@@ -17,6 +17,9 @@ export interface RunStepView {
 	nodeId: string;
 	nodeKind: string;
 	ruleRef: string | null;
+	/** Snapshot-resolved display label for non-rule nodes (action kind, gate
+	 * mode, "trigger") so editor-created UUID nodes don't render as bare ids. */
+	label?: string;
 	status: string;
 	evidence: JsonValue;
 	output: JsonValue;
@@ -49,7 +52,17 @@ export interface RunView {
 	/** The triggering admin's display name — full view only (§10). */
 	rerunBy: string | null;
 	steps: RunStepView[];
-	actions: { kind: string; status: string; recordedAt: string }[];
+	actions: {
+		kind: string;
+		status: string;
+		recordedAt: string;
+		/** Outbound (webhook/discord) delivery state, derived without the url —
+		 * `recorded` alone must never read as delivered. */
+		delivery?:
+			| { state: "sent" }
+			| { state: "queued" }
+			| { state: "failed"; reason: string };
+	}[];
 }
 
 /**

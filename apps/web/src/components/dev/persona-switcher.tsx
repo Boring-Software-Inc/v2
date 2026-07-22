@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "#/components/ui/toast";
 import { PERSONAS, type PersonaId } from "#/lib/dev/personas";
 import { cn } from "#/lib/utils";
 

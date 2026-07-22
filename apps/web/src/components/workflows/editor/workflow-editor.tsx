@@ -30,7 +30,7 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import { useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "#/components/ui/toast";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import {
 	buildNodeFromItem,
@@ -81,9 +81,16 @@ export interface WorkflowEditorProps {
 	repo: string;
 	saving: boolean;
 	toggling: boolean;
-	onSave: (
-		definition: WorkflowDefinition,
-	) => Promise<{ ok: boolean; error?: string }>;
+	onSave: (definition: WorkflowDefinition) => Promise<{
+		ok: boolean;
+		error?: string;
+		connectionIssues?: { nodeId: string; message: string }[];
+	}>;
+	/** Panel "test connection" — probes a delivery url through the guard. */
+	onTestConnection: (
+		url: string,
+		kind: "webhook" | "discord",
+	) => Promise<{ ok: boolean; status?: number; failure?: string }>;
 	onRename: (name: string) => Promise<{ ok: boolean; error?: string }>;
 	onSetEnabled: (
 		enabled: boolean,
@@ -112,8 +119,14 @@ function EditorBody({
 	onSave,
 	onRename,
 	onSetEnabled,
+	onTestConnection,
 }: WorkflowEditorProps) {
 	const initial = useMemo(() => definitionToGraph(definition), [definition]);
+	// Connection-test failures from the last save, keyed by node — merged into
+	// the validation issues so they surface with the same red-dot treatment.
+	const [connectionIssues, setConnectionIssues] = useState<
+		Map<string, string[]>
+	>(new Map());
 	const [nodes, setNodes, onNodesStateChange] = useNodesState(
 		initial.nodes as TripwireFlowNode[],
 	);
@@ -165,8 +178,12 @@ function EditorBody({
 				]);
 			}
 		}
+		// Layer the last save's connection failures on top — same surface.
+		for (const [nodeId, messages] of connectionIssues) {
+			map.set(nodeId, [...(map.get(nodeId) ?? []), ...messages]);
+		}
 		return map;
-	}, [validation.issues]);
+	}, [validation.issues, connectionIssues]);
 
 	const blockers: ValidationIssue[] = validation.structuralError
 		? [{ message: validation.structuralError }]
@@ -302,8 +319,9 @@ function EditorBody({
 			y: activator.clientY + event.delta.y,
 		});
 		insertNode(buildNodeFromItem(item), {
-			x: position.x - 80,
-			y: position.y - 24,
+			// Center-ish for the wider, taller field-bearing cards.
+			x: position.x - 110,
+			y: position.y - 40,
 		});
 	};
 
@@ -313,7 +331,7 @@ function EditorBody({
 			return;
 		}
 		const y =
-			nodes.length > 0 ? Math.max(...nodes.map((n) => n.position.y)) + 110 : 80;
+			nodes.length > 0 ? Math.max(...nodes.map((n) => n.position.y)) + 150 : 80;
 		insertNode(buildNodeFromItem(item), { x: 80, y });
 	};
 
@@ -331,7 +349,15 @@ function EditorBody({
 		const saved = await onSave(result.definition);
 		if (saved.ok) {
 			setDirty(false);
-			toast("workflow saved");
+			const failed = saved.connectionIssues ?? [];
+			setConnectionIssues(
+				new Map(failed.map((issue) => [issue.nodeId, [issue.message]])),
+			);
+			toast(
+				failed.length > 0
+					? "workflow saved. a webhook connection failed — see the node."
+					: "workflow saved",
+			);
 		} else {
 			toast(saved.error ?? "couldn't save");
 		}
@@ -393,6 +419,7 @@ function EditorBody({
 					</NodeIssuesContext.Provider>
 					<EditorSidebar
 						onAdd={addAtFreePosition}
+						onTestConnection={onTestConnection}
 						onUpdateNode={updateNode}
 						readOnly={readOnly}
 						selectedNode={selectedNode}

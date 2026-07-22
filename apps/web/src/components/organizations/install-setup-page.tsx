@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { GithubIcon } from "#/components/icons/github";
 import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
@@ -9,6 +8,7 @@ import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { Button } from "#/components/ui/button";
 import { Skeleton } from "#/components/ui/skeleton";
 import { Spinner } from "#/components/ui/spinner";
+import { toast } from "#/components/ui/toast";
 import {
 	claimInstallation,
 	getInstallPreview,

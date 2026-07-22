@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { GithubIcon } from "#/components/icons/github";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { orgContextQueryOptions } from "#/lib/org.query";
 
 const CommandPalette = lazy(() =>
 	import("#/components/layouts/command-palette").then((m) => ({
@@ -19,6 +21,14 @@ const CommandPalette = lazy(() =>
 export function RepoSwitcher() {
 	const [open, setOpen] = useState(false);
 	const params = useParams({ strict: false });
+	// Seed the avatar off the org's display NAME to match every other surface
+	// (the switcher, settings, admin all seed off name). This shares the cached
+	// org-context query, so it's a cache hit in practice; the slug is the
+	// instant-paint fallback until the name resolves.
+	const { data: activeOrg } = useQuery({
+		...orgContextQueryOptions(params.org ?? ""),
+		enabled: Boolean(params.org),
+	});
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -49,7 +59,11 @@ export function RepoSwitcher() {
 				type="button"
 			>
 				{params.org ? (
-					<OrgAvatar className="shrink-0" name={params.org} size={14} />
+					<OrgAvatar
+						className="shrink-0"
+						name={activeOrg?.name ?? params.org}
+						size={14}
+					/>
 				) : (
 					<GithubIcon className="size-3.5 shrink-0 text-muted-foreground" />
 				)}

@@ -5,7 +5,7 @@ import {
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, desc, eq, isNotNull, lt, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import { runActions, runSteps, runs } from "../schema/runs.ts";
@@ -273,6 +273,94 @@ export async function markActionSuperseded(
 		.update(runActions)
 		.set({ status: "superseded" })
 		.where(eq(runActions.id, actionId));
+}
+
+/**
+ * Store the built delivery payload on an outbound action row. The url +
+ * signing secret already live in the row (from the node params); this adds the
+ * assembled webhook body so the delivery job needs no run re-derivation. The
+ * whole payload stays server-side — the run view serializes only
+ * {kind, status, recordedAt}, never the payload.
+ */
+export async function attachDeliveryPayload(
+	db: Db,
+	actionId: string,
+	delivery: unknown,
+): Promise<void> {
+	const rows = await db
+		.select({ payload: runActions.payload })
+		.from(runActions)
+		.where(eq(runActions.id, actionId));
+	const current = (rows[0]?.payload ?? {}) as Record<string, unknown>;
+	await db
+		.update(runActions)
+		.set({ payload: { ...current, delivery } })
+		.where(eq(runActions.id, actionId));
+}
+
+/**
+ * Record an outbound delivery FAILURE on the row — the class (never the url) +
+ * an attempt counter, so a failed delivery is observable in the run view and
+ * the E2E harness without reading worker logs. The row stays `recorded` (the
+ * poll retries it) until it succeeds or is abandoned.
+ */
+export async function recordDeliveryFailure(
+	db: Db,
+	actionId: string,
+	failure: string,
+): Promise<void> {
+	const rows = await db
+		.select({ payload: runActions.payload })
+		.from(runActions)
+		.where(eq(runActions.id, actionId));
+	const current = (rows[0]?.payload ?? {}) as Record<string, unknown>;
+	const attempts =
+		typeof current.deliveryAttempts === "number" ? current.deliveryAttempts : 0;
+	await db
+		.update(runActions)
+		.set({
+			payload: {
+				...current,
+				deliveryFailure: failure,
+				deliveryAttempts: attempts + 1,
+			},
+		})
+		.where(eq(runActions.id, actionId));
+}
+
+export interface DeliverableAction {
+	id: string;
+	kind: string;
+	payload: Record<string, unknown>;
+	recordedAt: Date;
+}
+
+/**
+ * Outbound-delivery rows (webhook/discord) still `recorded` — the delivery job
+ * picks these up. Unlike the forge sweeper there is no age floor: deliver on
+ * the next tick. `giveUpBefore` abandons rows too old to keep retrying.
+ */
+export async function listDeliverableActions(
+	db: Db,
+): Promise<DeliverableAction[]> {
+	const rows = await db
+		.select({
+			id: runActions.id,
+			kind: runActions.kind,
+			payload: runActions.payload,
+			recordedAt: runActions.recordedAt,
+		})
+		.from(runActions)
+		.where(
+			and(
+				eq(runActions.status, "recorded"),
+				inArray(runActions.kind, ["webhook", "discord"]),
+			),
+		);
+	return rows.map((row) => ({
+		...row,
+		payload: row.payload as Record<string, unknown>,
+	}));
 }
 
 export interface StuckAction {

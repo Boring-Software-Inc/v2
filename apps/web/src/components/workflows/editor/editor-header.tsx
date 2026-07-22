@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ValidationIssue } from "@tripwire/contracts";
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "#/components/ui/toast";
 
 /**
  * Slim editor header — back link, inline-editable name, enabled pill +
