@@ -4,9 +4,11 @@
  * over it (empty) is a plain boolean verb, so verdict and evidence come
  * from one evaluation via resolvedValue.
  *
- * Patterns are LIVE data supplied at evaluation time. A serialized form
- * ({ kind, source, flags }) is a Phase 4 item for stored custom rules; the
- * built-in path never round-trips a RegExp through serialization.
+ * Patterns are LIVE data supplied at evaluation time by trusted code, so
+ * there is no untrusted-regex surface and no ReDoS risk today. IF custom
+ * rules ever let users author their own patterns, that feature brings its
+ * own gate: serialization ({ kind, source, flags }) plus a linear-time
+ * engine (RE2) for the untrusted patterns. Deferred with the feature.
  */
 
 export interface ScanPattern {

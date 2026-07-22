@@ -2946,3 +2946,29 @@ Deferred with reasons: stars given (needs Link-header access GithubHttp does
 not have), contribution calendar (GraphQL plumbing), lifetime fork count
 (low discrimination; velocity replaced it), commit-message metrics (design
 when a rule wants one).
+
+## Pattern serialization + ReDoS protection: deferred with the feature that needs them (2026-07-22)
+
+A serialization pass for scan patterns ({ kind, source, flags } plus caps
+and a star-height heuristic) was built and then REVERTED the same day, on
+purpose. The trace: ReDoS is only a risk when someone untrusted supplies a
+regex. Every pattern in the system today is trusted code (crypto-address's
+in-code PATTERNS; honeypot uses maintainer-configured globs, not regexes).
+The only surface that would create an untrusted regex is user-authored scan
+patterns in custom rules, and that feature does not exist. Protection built
+now guards nothing.
+
+The requirement travels WITH the feature, not with Phase 4 generally:
+- Phase 4 v1 scope: custom rules over the signal + comparison vocabulary,
+  NO user regex authoring. No untrusted-regex surface, no RE2 needed.
+- If user-authored scan patterns ever ship (v2), that feature carries its
+  own hard gate: pattern serialization with rehydration-time validation AND
+  a linear-time engine (RE2) for untrusted patterns. Discovery for that pass
+  is done and recorded here: JSON turns a live RegExp into {}; source+flags
+  round-trips faithfully; matchAll requires the g flag; an evaluation-time
+  timeout is disqualified because JS regex execution is synchronous and
+  uninterruptible, so a killable worker would force the sync resolve path
+  async (the largest blast radius of any option).
+
+crypto-address stays exactly as it is: live in-code patterns, zero ReDoS
+exposure, byte-identical.

@@ -27,7 +27,8 @@ export interface SignalRef {
 		| { readonly kind: "trimmedLength" }
 		| { readonly kind: "nonLatinRatio" }
 		| { readonly kind: "letterCount" }
-		/** Patterns are live data at evaluation time; serializing them is Phase 4. */
+		/** Patterns are live trusted data at evaluation time; a serialized form
+		 * arrives only if user-authored patterns ever ship, with its own gate. */
 		| { readonly kind: "scan"; readonly patterns: readonly ScanPattern[] };
 }
 
