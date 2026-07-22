@@ -4,7 +4,7 @@ import {
 } from "@tripwire/contracts";
 import { atLeast, evaluateSignalRule } from "@tripwire/sdk";
 import { z } from "zod";
-import { builtinRule, readContextSignal, signalOf } from "./context-forge.ts";
+import { readContextSignal, rule, signals } from "./context-forge.ts";
 import { defineRule } from "./define.ts";
 
 /**
@@ -78,13 +78,13 @@ export const minMergedPrsV2 = defineRule({
 		if (!global.ok) {
 			return { status: "skipped", reason: global.reason };
 		}
-		const trustedLocally = builtinRule("trusted locally", {
-			when: signalOf("repoRelation.mergedInRepo"),
+		const trustedLocally = rule("trusted locally", {
+			when: signals.repoRelation.mergedInRepo,
 			comparison: atLeast(config.trustedAfter),
 			severity: "medium",
 		});
-		const provenElsewhere = builtinRule("proven elsewhere", {
-			when: signalOf("contributor.mergedElsewhere"),
+		const provenElsewhere = rule("proven elsewhere", {
+			when: signals.contributor.mergedElsewhere,
 			comparison: atLeast(config.min),
 			severity: "medium",
 		});

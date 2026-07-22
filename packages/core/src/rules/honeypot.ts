@@ -1,7 +1,7 @@
 import { honeypotConfigSchema } from "@tripwire/contracts";
 import { evaluateSignalRule, globMatch, noneMatch } from "@tripwire/sdk";
 import { z } from "zod";
-import { builtinRule, readContextSignal, signalOf } from "./context-forge.ts";
+import { readContextSignal, rule, signals } from "./context-forge.ts";
 import { defineRule } from "./define.ts";
 
 /**
@@ -24,8 +24,8 @@ export const honeypot = defineRule({
 		if (!read.ok) {
 			return { status: "skipped", reason: read.reason };
 		}
-		const requirement = builtinRule("honeypot", {
-			when: signalOf("pr.changedPaths"),
+		const requirement = rule("honeypot", {
+			when: signals.pr.changedPaths,
 			comparison: noneMatch(config.paths),
 			severity: "high",
 		});

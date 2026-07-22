@@ -1,7 +1,6 @@
 import type { RepoScopedEvent } from "@tripwire/contracts";
 import {
 	accountAge,
-	type Comparison,
 	changedPaths,
 	createForgeSignalCtx,
 	defineForge,
@@ -11,13 +10,10 @@ import {
 	profileText,
 	recentChangeRequestTimes,
 	type registry,
-	type Severity,
-	type SignalRef,
-	type SignalRule,
 	SignalUnavailableError,
 	type SignalValue,
 	signalUnavailable,
-	type WindowSpec,
+	Tripwire,
 } from "@tripwire/sdk";
 import type { RuleContext } from "../context.ts";
 
@@ -111,62 +107,9 @@ export async function readContextSignal<Id extends ContextSignalId>(
 }
 
 /**
- * Core-internal typed refs for authoring built-in rules over the registry.
- * External authors go through the forge-bound client surface; core is the
- * engine underneath it, and these constructors keep the same type-flow:
- * the ref's value type constrains the comparison.
+ * Built-in rules author through the SAME client surface an external user
+ * gets: the Tripwire client bound to the context forge. One rule shape, no
+ * core dialect.
  */
-export interface TypedSignalRef<T> {
-	readonly ref: SignalRef;
-	/** Phantom only. Never set at runtime; it carries T invariantly. */
-	readonly "~signalValueType"?: (value: T) => T;
-}
-
-export function signalOf<Id extends ContextSignalId>(
-	id: Id,
-): TypedSignalRef<SignalValue<Registry[Id]>> {
-	return { ref: { id } };
-}
-
-type TimestampsSignalId = {
-	[Id in ContextSignalId]: Registry[Id]["type"] extends { kind: "timestamps" }
-		? Id
-		: never;
-}[ContextSignalId];
-
-type TextSignalId = {
-	[Id in ContextSignalId]: Registry[Id]["type"] extends { kind: "text" }
-		? Id
-		: never;
-}[ContextSignalId];
-
-export function lastCountOf(
-	id: TimestampsSignalId,
-	window: WindowSpec,
-): TypedSignalRef<number> {
-	return { ref: { id, transform: { kind: "lastCount", window } } };
-}
-
-export function trimmedLengthOf(id: TextSignalId): TypedSignalRef<number> {
-	return { ref: { id, transform: { kind: "trimmedLength" } } };
-}
-
-/**
- * Authors one SDK signal rule from a typed ref: same named fields, same
- * comparison constraint, same pure data out as the client's rule().
- */
-export function builtinRule<T>(
-	name: string,
-	def: {
-		when: TypedSignalRef<T>;
-		comparison: NoInfer<Comparison<T>>;
-		severity: Severity;
-	},
-): SignalRule {
-	return {
-		name,
-		signal: def.when.ref,
-		comparison: { kind: def.comparison.kind, args: def.comparison.args },
-		severity: def.severity,
-	};
-}
+export const contextTripwire = new Tripwire({ forge: contextForge });
+export const { rule, signals } = contextTripwire;

@@ -1,7 +1,7 @@
 import { maxFilesChangedConfigSchema } from "@tripwire/contracts";
 import { atMost, evaluateSignalRule } from "@tripwire/sdk";
 import { z } from "zod";
-import { builtinRule, readContextSignal, signalOf } from "./context-forge.ts";
+import { readContextSignal, rule, signals } from "./context-forge.ts";
 import { defineRule } from "./define.ts";
 
 /**
@@ -22,8 +22,8 @@ export const maxFilesChanged = defineRule({
 		if (!read.ok) {
 			return { status: "skipped", reason: read.reason };
 		}
-		const requirement = builtinRule("max files changed", {
-			when: signalOf("pr.filesChanged"),
+		const requirement = rule("max files changed", {
+			when: signals.pr.filesChanged,
 			comparison: atMost(config.max),
 			severity: "low",
 		});

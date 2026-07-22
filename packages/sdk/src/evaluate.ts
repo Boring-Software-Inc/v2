@@ -226,20 +226,23 @@ export function evaluateComparison(
 	}
 }
 
-interface ResolvedValue {
+export interface ResolvedSignalValue {
 	kind: SignalKind;
 	value: unknown;
 }
 
 /**
  * Applies the rule's transform to the raw produced value. Transforms only
- * exist on timestamps signals; the list is validated before it is filtered.
+ * exist on text and timestamps signals; inputs are validated before use.
+ * Exported so evidence can read the SAME resolution the verdict used, never
+ * a hand-rolled copy of the window or trim arithmetic.
  */
-function resolveValue(
+export function resolveSignalValue(
 	ref: SignalRef,
-	raw: unknown,
-	now: string,
-): ResolvedValue {
+	input: { value: unknown; now: string },
+): ResolvedSignalValue {
+	const raw = input.value;
+	const now = input.now;
 	const signal = registry[ref.id];
 	if (!signal) {
 		fail(`unknown signal "${ref.id}"`);
@@ -280,12 +283,15 @@ function resolveValue(
 /**
  * Evaluates one rule against the raw value its signal produced. `now` is the
  * evaluation clock, an input, so windowed rules stay deterministic.
+ * `resolvedValue` is the post-transform value the comparison actually read
+ * (the windowed count, the trimmed length, the raw value when there is no
+ * transform), so evidence never recomputes what the verdict derived.
  */
 export function evaluateSignalRule(
 	rule: SignalRule,
 	input: { value: unknown; now: string },
-): { passed: boolean } {
-	const resolved = resolveValue(rule.signal, input.value, input.now);
+): { passed: boolean; resolvedValue: unknown } {
+	const resolved = resolveSignalValue(rule.signal, input);
 	return {
 		passed: evaluateComparison(
 			resolved.kind,
@@ -293,5 +299,6 @@ export function evaluateSignalRule(
 			rule.comparison,
 			rule.signal.id,
 		),
+		resolvedValue: resolved.value,
 	};
 }

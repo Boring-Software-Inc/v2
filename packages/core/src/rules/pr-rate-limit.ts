@@ -1,11 +1,7 @@
 import { prRateLimitConfigSchema } from "@tripwire/contracts";
-import { atMost, evaluateSignalRule, windowMs } from "@tripwire/sdk";
+import { atMost, evaluateSignalRule, resolveSignalValue } from "@tripwire/sdk";
 import { z } from "zod";
-import {
-	builtinRule,
-	lastCountOf,
-	readContextSignal,
-} from "./context-forge.ts";
+import { readContextSignal, rule, signals } from "./context-forge.ts";
 import { defineRule } from "./define.ts";
 
 /**
@@ -37,9 +33,11 @@ const HISTORY_HOURS = 720;
  * pr-rate-limit@1 — no more than `maxPerWindow` change requests from the
  * contributor within `windowHours`. Evidence includes the interval CoV that
  * flags spray patterns (§6's example evidence). Authored as an SDK signal
- * rule: recentChangeRequestTimes lastCount over the config window, atMost
- * the limit. The window is capped at the signal's declared history; the
- * producer never returns older data, so the count is unchanged.
+ * rule: recentChangeRequestTimes .last(window).count atMost the limit. The
+ * evidence count is the exact value the verdict compared, and the CoV runs
+ * over the evaluator's own window resolution — no hand-rolled cutoff. The
+ * window is capped at the signal's declared history; the producer never
+ * returns older data, so the count is unchanged.
  */
 export const prRateLimit = defineRule({
 	id: "pr-rate-limit",
@@ -60,29 +58,32 @@ export const prRateLimit = defineRule({
 			return { status: "skipped", reason: read.reason };
 		}
 		const cappedHours = Math.min(config.windowHours, HISTORY_HOURS);
-		const window = `${cappedHours}h` as const;
-		const requirement = builtinRule("pr rate limit", {
-			when: lastCountOf("contributor.recentChangeRequestTimes", window),
+		const windowed = signals.contributor.recentChangeRequestTimes.last(
+			`${cappedHours}h`,
+		);
+		const requirement = rule("pr rate limit", {
+			when: windowed.count,
 			comparison: atMost(config.maxPerWindow),
 			severity: "high",
 		});
-		const { passed } = evaluateSignalRule(requirement, {
+		const { passed, resolvedValue } = evaluateSignalRule(requirement, {
 			value: read.value,
 			now: ctx.now,
 		});
-		// Evidence uses the same cutoff arithmetic as the evaluator's window.
-		const cutoff = Date.parse(ctx.now) - windowMs(window);
-		const inWindow = read.value
-			.map((time) => Date.parse(time))
-			.filter((time) => !Number.isNaN(time) && time >= cutoff);
+		// Same resolution the verdict used: the evaluator's window, not a copy.
+		const inWindow = resolveSignalValue(windowed.ref, {
+			value: read.value,
+			now: ctx.now,
+		}).value as readonly string[];
 		return {
 			status: "evaluated",
 			passed,
 			evidence: {
-				count: inWindow.length,
+				// The lastCount transform yields a number by construction.
+				count: resolvedValue as number,
 				maxPerWindow: config.maxPerWindow,
 				windowHours: config.windowHours,
-				intervalCov: intervalCov(inWindow),
+				intervalCov: intervalCov(inWindow.map((time) => Date.parse(time))),
 			},
 		};
 	},

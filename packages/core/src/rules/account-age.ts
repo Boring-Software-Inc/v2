@@ -1,7 +1,7 @@
 import { accountAgeConfigSchema } from "@tripwire/contracts";
 import { atLeast, evaluateSignalRule } from "@tripwire/sdk";
 import { z } from "zod";
-import { builtinRule, readContextSignal, signalOf } from "./context-forge.ts";
+import { readContextSignal, rule, signals } from "./context-forge.ts";
 import { defineRule } from "./define.ts";
 
 /**
@@ -22,8 +22,8 @@ export const accountAge = defineRule({
 		if (!read.ok) {
 			return { status: "skipped", reason: read.reason };
 		}
-		const requirement = builtinRule("account age", {
-			when: signalOf("contributor.accountAge"),
+		const requirement = rule("account age", {
+			when: signals.contributor.accountAge,
 			comparison: atLeast(config.minDays),
 			severity: "medium",
 		});

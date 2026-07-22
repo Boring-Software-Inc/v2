@@ -137,6 +137,12 @@ describe("windowed transforms", () => {
 		);
 	});
 
+	test("resolvedValue is the post-transform value the comparison read", () => {
+		const rule = windowedRule({ kind: "lastCount", window: "24h" }, under(3));
+		const result = evaluateSignalRule(rule, { value: times, now: NOW });
+		expect(result.resolvedValue).toBe(2);
+	});
+
 	test("unparseable timestamps drop out instead of poisoning the count", () => {
 		const rule = windowedRule({ kind: "lastCount", window: "24h" }, equals(1));
 		expect(

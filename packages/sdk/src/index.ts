@@ -31,6 +31,8 @@ export {
 export {
 	evaluateComparison,
 	evaluateSignalRule,
+	type ResolvedSignalValue,
+	resolveSignalValue,
 	SignalEvaluationError,
 } from "./evaluate.ts";
 export {
