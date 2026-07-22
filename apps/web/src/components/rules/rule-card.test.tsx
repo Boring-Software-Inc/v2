@@ -37,6 +37,8 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	optIn: false,
 	matches24h: 0,
 	trend: [],
+	source: "built-in",
+	sentence: null,
 	...over,
 });
 

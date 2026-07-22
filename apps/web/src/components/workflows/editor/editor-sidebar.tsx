@@ -1,4 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
+import { Link } from "@tanstack/react-router";
 import type {
 	EventKind,
 	GateMode,
@@ -133,7 +134,18 @@ export function buildNodeFromItem(item: ToolboxItem): WorkflowNode {
 	}
 }
 
+export interface CustomToolboxRule {
+	ref: string;
+	name: string;
+	description: string;
+}
+
 export interface EditorSidebarProps {
+	/** The repo's custom rules; they join the rules section like built-ins. */
+	customRules: CustomToolboxRule[];
+	/** Route target for authoring a new rule (the rules page builder). */
+	org: string;
+	repo: string;
 	readOnly: boolean;
 	selectedNode: WorkflowNode | null;
 	onAdd: (item: ToolboxItem) => void;
@@ -145,12 +157,33 @@ export interface EditorSidebarProps {
 }
 
 export function EditorSidebar({
+	customRules,
+	org,
+	repo,
 	readOnly,
 	selectedNode,
 	onAdd,
 	onUpdateNode,
 	onTestConnection,
 }: EditorSidebarProps) {
+	const sections = TOOLBOX_SECTIONS.map((section) =>
+		section.kind === "rule"
+			? {
+					...section,
+					items: [
+						...section.items,
+						...customRules.map((rule) => ({
+							id: `rule-${rule.ref}`,
+							kind: "rule" as const,
+							name: rule.name,
+							description: rule.description,
+							ref: rule.ref,
+							defaultConfig: {} as JsonValue,
+						})),
+					],
+				}
+			: section,
+	);
 	const [tab, setTab] = useState<"toolbox" | "properties">("toolbox");
 	const propertiesDisabled =
 		selectedNode === null || !hasEditableParams(selectedNode);
@@ -191,7 +224,7 @@ export function EditorSidebar({
 			<div className="min-h-0 flex-1 overflow-y-auto p-2">
 				{activeTab === "toolbox" ? (
 					<div className="flex flex-col gap-2.5">
-						{TOOLBOX_SECTIONS.map((section) => (
+						{sections.map((section) => (
 							<div
 								className="overflow-hidden rounded-xl border bg-card"
 								key={section.title}
@@ -210,6 +243,15 @@ export function EditorSidebar({
 											onAdd={onAdd}
 										/>
 									))}
+									{section.kind === "rule" ? (
+										<Link
+											className="block px-3 py-2 font-medium text-primary text-xs hover:bg-surface-1"
+											params={{ org, repo }}
+											to="/$org/$repo/rules"
+										>
+											create rule →
+										</Link>
+									) : null}
 								</div>
 							</div>
 						))}

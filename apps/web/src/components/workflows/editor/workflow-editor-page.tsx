@@ -7,6 +7,7 @@ import {
 	PAGE_FRAME,
 } from "#/components/workflows/editor/workflow-editor-page-skeleton";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
+import { ruleConfigsQueryOptions } from "#/lib/rules.query";
 import {
 	renameRepoWorkflow,
 	saveRepoWorkflow,
@@ -35,6 +36,14 @@ export function WorkflowEditorPage() {
 	const { data: workflow, isPending } = useQuery(
 		workflowDetailQueryOptions(org, repoId, workflowId),
 	);
+	const { data: ruleViews } = useQuery(ruleConfigsQueryOptions(org, repoId));
+	const customRules = (ruleViews ?? [])
+		.filter((view) => view.source === "custom")
+		.map((view) => ({
+			ref: `${view.ruleId}@${view.version}`,
+			name: view.name,
+			description: view.sentence ?? view.blurb,
+		}));
 
 	const invalidate = () => {
 		queryClient.invalidateQueries({
@@ -83,6 +92,7 @@ export function WorkflowEditorPage() {
 	} else {
 		body = (
 			<WorkflowEditor
+				customRules={customRules}
 				definition={workflow.definition}
 				enabled={workflow.enabled}
 				key={workflow.id}

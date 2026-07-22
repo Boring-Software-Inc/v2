@@ -9,7 +9,10 @@ import {
 	nodeFieldValues,
 	summarizeFieldValue,
 } from "#/components/workflows/editor/node-fields";
-import { useNodeIssues } from "#/components/workflows/editor/node-issues";
+import {
+	useCustomRuleName,
+	useNodeIssues,
+} from "#/components/workflows/editor/node-issues";
 import { cn } from "#/lib/utils";
 
 /** The one node data shape the canvas renders. */
@@ -30,7 +33,7 @@ export type TripwireFlowNode = Node<{ node: WorkflowNode }, "tripwire">;
  */
 
 /** Catalog display name for the node; falls back to the raw ref/kind. */
-function nodeName(node: WorkflowNode): string {
+function nodeName(node: WorkflowNode, customName: string | null): string {
 	switch (node.type) {
 		case "trigger":
 			// The kinds themselves live in the inline field row now.
@@ -38,7 +41,9 @@ function nodeName(node: WorkflowNode): string {
 		case "rule": {
 			const [ruleId] = node.ref.split("@");
 			return (
-				RULE_CATALOG.find((entry) => entry.ruleId === ruleId)?.name ?? node.ref
+				RULE_CATALOG.find((entry) => entry.ruleId === ruleId)?.name ??
+				customName ??
+				node.ref
 			);
 		}
 		case "gate":
@@ -102,6 +107,7 @@ const PORT_CORNER = { top: "auto", bottom: 8, transform: "none" } as const;
 export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 	const { node } = data;
 	const issues = useNodeIssues(node.id);
+	const customName = useCustomRuleName(node.type === "rule" ? node.ref : "");
 	const detail = nodeDetail(node);
 	const fields = nodeFieldValues(node);
 	const forked = canFail(node) || isModeration(node);
@@ -131,7 +137,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 			) : null}
 			<div className="flex items-baseline gap-1.5">
 				<span className="min-w-0 truncate font-medium text-xs">
-					{nodeName(node)}
+					{nodeName(node, customName)}
 				</span>
 				{node.type === "gate" ? (
 					<span className="shrink-0 text-[10px] text-muted-foreground uppercase tracking-wide">

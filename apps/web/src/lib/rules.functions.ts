@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { ModStat, RuleManagement } from "@tripwire/contracts";
 import {
+	customRuleRecordSchema,
+	customRuleSentence,
 	RULE_CATALOG,
 	resolveEffectiveRuleConfig,
 	resolveRuleManagement,
@@ -52,6 +54,11 @@ export interface RuleConfigView {
 	matches24h: number;
 	/** Hourly fail counts over the last 24h — the card sparkline. */
 	trend: number[];
+	/** Which registration path defined the rule. Presentation and lifecycle
+	 * only (the custom tag, edit-in-builder, delete); never behavior. */
+	source: "built-in" | "custom";
+	/** The read-state sentence for a custom rule; null for built-ins. */
+	sentence: string | null;
 }
 
 export interface RulesHeaderStats {
@@ -84,7 +91,38 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 			? await insightServices.getRulesStats(db, repo.fullName)
 			: { perRule: [] };
 		const byRef = new Map(stats.perRule.map((s) => [s.ref, s]));
-		return RULE_CATALOG.map((entry) => {
+		const customRows = await repoServices.listCustomRules(db, data.repoId);
+		const customViews: RuleConfigView[] = [];
+		for (const rowRaw of customRows) {
+			const parsedRow = customRuleRecordSchema.safeParse(rowRaw);
+			if (!parsedRow.success) {
+				continue;
+			}
+			const record = parsedRow.data;
+			const ref = `${record.id}@1`;
+			const perRule = byRef.get(ref);
+			const mgmt = resolveRuleManagement(record.id, enabledWorkflows);
+			const sentence = customRuleSentence(record.definition);
+			customViews.push({
+				ruleId: record.id,
+				version: 1,
+				held: false,
+				changeNote: null,
+				name: record.name,
+				blurb: sentence,
+				enabled: mgmt.state === "managed" ? true : record.enabled,
+				config: {},
+				defaultConfig: {},
+				management: mgmt.state,
+				workflowId: mgmt.workflowId,
+				optIn: false,
+				matches24h: perRule?.matches24h ?? 0,
+				trend: perRule?.series ?? Array(24).fill(0),
+				source: "custom",
+				sentence,
+			});
+		}
+		const builtIns = RULE_CATALOG.map((entry) => {
 			const row = stored.find((c) => c.ruleId === entry.ruleId);
 			const ref = `${entry.ruleId}@${entry.version}`;
 			const perRule = byRef.get(ref);
@@ -122,8 +160,11 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				optIn: entry.optIn,
 				matches24h: perRule?.matches24h ?? 0,
 				trend: perRule?.series ?? Array(24).fill(0),
+				source: "built-in" as const,
+				sentence: null,
 			};
 		});
+		return [...builtIns, ...customViews];
 	});
 
 export const getRulesHeaderStats = createServerFn({ method: "GET" })

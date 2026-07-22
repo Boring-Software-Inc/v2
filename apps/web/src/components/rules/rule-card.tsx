@@ -28,6 +28,7 @@ export function RuleCard({
 	repo,
 	rule,
 	canEdit,
+	onDelete,
 }: {
 	/** Org slug from the URL. */
 	org: string;
@@ -36,6 +37,8 @@ export function RuleCard({
 	rule: RuleConfigView;
 	/** Caller is an org admin — gates the inline config editors (§9). */
 	canEdit: boolean;
+	/** Custom rules only: remove the rule. Lifecycle, not behavior. */
+	onDelete?: (ruleId: string) => void;
 }) {
 	const { valueFor, setField } = useSaveQueue();
 	// Pending-or-saved; managed rules have no queue keys, so fall back to the
@@ -100,6 +103,11 @@ export function RuleCard({
 				>
 					block
 				</span>
+				{rule.source === "custom" ? (
+					<span className="rounded bg-surface-1 px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-border">
+						custom
+					</span>
+				) : null}
 				{rule.management === "managed" ? (
 					<span className="rounded bg-surface-1 px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-border">
 						in workflow
@@ -191,6 +199,17 @@ export function RuleCard({
 			) : standalone && showParams ? (
 				<div className="flex justify-end px-4 pb-2.5">
 					<RawConfigDisclosure config={rule.config} />
+				</div>
+			) : null}
+			{rule.source === "custom" && canEdit && onDelete ? (
+				<div className="flex justify-end px-4 pb-2.5">
+					<button
+						className="text-muted-foreground text-xs hover:text-red-500"
+						onClick={() => onDelete(rule.ruleId)}
+						type="button"
+					>
+						delete rule
+					</button>
 				</div>
 			) : null}
 		</div>

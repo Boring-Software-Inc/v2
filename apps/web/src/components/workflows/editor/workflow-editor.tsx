@@ -41,7 +41,10 @@ import {
 	type TripwireFlowNode,
 	TripwireNode,
 } from "#/components/workflows/editor/node-card";
-import { NodeIssuesContext } from "#/components/workflows/editor/node-issues";
+import {
+	CustomRuleNamesContext,
+	NodeIssuesContext,
+} from "#/components/workflows/editor/node-issues";
 import { KIND_STYLES } from "#/components/workflows/editor/node-kind-styles";
 import { cn } from "#/lib/utils";
 import {
@@ -73,6 +76,8 @@ function CanvasDropzone({ children }: { children: React.ReactNode }) {
 }
 
 export interface WorkflowEditorProps {
+	/** The repo's custom rules for the palette. */
+	customRules: { ref: string; name: string; description: string }[];
 	definition: WorkflowDefinition;
 	name: string;
 	enabled: boolean;
@@ -108,6 +113,7 @@ export function WorkflowEditor(props: WorkflowEditorProps) {
 }
 
 function EditorBody({
+	customRules,
 	definition,
 	name,
 	enabled,
@@ -168,6 +174,10 @@ function EditorBody({
 		};
 	}, [nodes, edges, meta]);
 
+	const customRuleNames = useMemo(
+		() => new Map(customRules.map((rule) => [rule.ref, rule.name])),
+		[customRules],
+	);
 	const issuesByNode = useMemo(() => {
 		const map = new Map<string, string[]>();
 		for (const issue of validation.issues) {
@@ -396,28 +406,33 @@ function EditorBody({
 				sensors={sensors}
 			>
 				<CanvasDropzone>
-					<NodeIssuesContext.Provider value={issuesByNode}>
-						<ReactFlow
-							deleteKeyCode={readOnly ? null : DELETE_KEYS}
-							edges={edges}
-							edgesReconnectable={!readOnly}
-							elementsSelectable
-							fitView
-							nodes={nodes}
-							nodesConnectable={!readOnly}
-							nodesDraggable={!readOnly}
-							nodeTypes={NODE_TYPES}
-							onConnect={readOnly ? undefined : onConnect}
-							onEdgesChange={onEdgesChange}
-							onNodesChange={onNodesChange}
-							onReconnect={readOnly ? undefined : onReconnect}
-							proOptions={{ hideAttribution: true }}
-						>
-							<Background gap={16} />
-							<Controls position="bottom-right" showInteractive={false} />
-						</ReactFlow>
-					</NodeIssuesContext.Provider>
+					<CustomRuleNamesContext.Provider value={customRuleNames}>
+						<NodeIssuesContext.Provider value={issuesByNode}>
+							<ReactFlow
+								deleteKeyCode={readOnly ? null : DELETE_KEYS}
+								edges={edges}
+								edgesReconnectable={!readOnly}
+								elementsSelectable
+								fitView
+								nodes={nodes}
+								nodesConnectable={!readOnly}
+								nodesDraggable={!readOnly}
+								nodeTypes={NODE_TYPES}
+								onConnect={readOnly ? undefined : onConnect}
+								onEdgesChange={onEdgesChange}
+								onNodesChange={onNodesChange}
+								onReconnect={readOnly ? undefined : onReconnect}
+								proOptions={{ hideAttribution: true }}
+							>
+								<Background gap={16} />
+								<Controls position="bottom-right" showInteractive={false} />
+							</ReactFlow>
+						</NodeIssuesContext.Provider>
+					</CustomRuleNamesContext.Provider>
 					<EditorSidebar
+						customRules={customRules}
+						org={org}
+						repo={repo}
 						onAdd={addAtFreePosition}
 						onTestConnection={onTestConnection}
 						onUpdateNode={updateNode}

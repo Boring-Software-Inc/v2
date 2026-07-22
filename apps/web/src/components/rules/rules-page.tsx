@@ -4,6 +4,10 @@ import { ruleUiSchema } from "@tripwire/contracts";
 import { useMemo, useRef, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import {
+	CustomRuleBuilder,
+	type CustomRuleDraft,
+} from "#/components/rules/custom-rule-builder";
 import { RuleCard } from "#/components/rules/rule-card";
 import { RuleFilters, type RuleSort } from "#/components/rules/rule-filters";
 import { RuleHeaderStats } from "#/components/rules/rule-header-stats";
@@ -12,7 +16,13 @@ import {
 	SaveQueueProvider,
 	UnsavedChangesBar,
 } from "#/components/save-queue";
+import { Button } from "#/components/ui/button";
 import { toast } from "#/components/ui/toast";
+import {
+	deleteCustomRule,
+	saveCustomRule,
+	setCustomRuleEnabled,
+} from "#/lib/custom-rules.functions";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
 import {
 	type RuleConfigView,
@@ -71,6 +81,7 @@ export function RulesPage() {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const isAdmin = orgContext?.role === "admin";
 	const [sort, setSort] = useState<RuleSort>("active");
+	const [builderOpen, setBuilderOpen] = useState(false);
 	const repoId = repo?.id ?? "";
 	const { data: rules } = useQuery(ruleConfigsQueryOptions(org, repoId));
 	const statsQuery = useQuery(rulesStatsQueryOptions(org, repoId));
@@ -137,6 +148,25 @@ export function RulesPage() {
 						continue;
 					}
 				}
+				if (view.source === "custom") {
+					const enabledKey = `${ruleId}:enabled`;
+					if (enabledKey in pending) {
+						const result = await setCustomRuleEnabled({
+							data: {
+								org,
+								repoId,
+								id: ruleId,
+								enabled: pending[enabledKey] as boolean,
+							},
+						});
+						if (result && "error" in result) {
+							fail();
+							continue;
+						}
+					}
+					succeeded += 1;
+					continue;
+				}
 				const paramKeys = keys.filter((k) => k.includes(":param:"));
 				const enabledKey = `${ruleId}:enabled`;
 				if (paramKeys.length > 0 || enabledKey in pending) {
@@ -174,6 +204,41 @@ export function RulesPage() {
 		return { error: message, failedKeys };
 	};
 
+	const removeCustomRule = async (ruleId: string) => {
+		const result = await deleteCustomRule({
+			data: { org, repoId, id: ruleId },
+		});
+		if (result && "error" in result) {
+			toast(result.error);
+			return;
+		}
+		await queryClient.invalidateQueries({
+			queryKey: rulesQueryKeys.config(org, repoId),
+		});
+		toast("rule deleted.");
+	};
+
+	const saveDraft = async (draft: CustomRuleDraft): Promise<string | null> => {
+		const result = await saveCustomRule({
+			data: {
+				org,
+				repoId,
+				id: draft.id,
+				name: draft.name,
+				enabled: true,
+				definition: draft.definition,
+			},
+		});
+		if (result && "error" in result) {
+			return result.error;
+		}
+		await queryClient.invalidateQueries({
+			queryKey: rulesQueryKeys.config(org, repoId),
+		});
+		toast("rule created.");
+		return null;
+	};
+
 	return (
 		<SaveQueueProvider
 			commit={commitBatch}
@@ -182,13 +247,25 @@ export function RulesPage() {
 		>
 			<DashboardLayout counts={{}}>
 				<div className="mx-auto w-full max-w-4xl px-6 py-8">
-					<header className="mb-6">
-						<h1 className="font-semibold text-2xl tracking-tight">Rules</h1>
-						<p className="text-muted-foreground text-sm">
-							boolean requirements every non-exempt contributor must meet on
-							every change request.
-						</p>
+					<header className="mb-6 flex items-start justify-between">
+						<div>
+							<h1 className="font-semibold text-2xl tracking-tight">Rules</h1>
+							<p className="text-muted-foreground text-sm">
+								boolean requirements every non-exempt contributor must meet on
+								every change request.
+							</p>
+						</div>
+						{isAdmin ? (
+							<Button onClick={() => setBuilderOpen(true)} variant="outline">
+								create rule
+							</Button>
+						) : null}
 					</header>
+					<CustomRuleBuilder
+						onClose={() => setBuilderOpen(false)}
+						onSave={saveDraft}
+						open={builderOpen}
+					/>
 
 					{repo && !repo.armed ? (
 						<ArmCallout
@@ -228,6 +305,7 @@ export function RulesPage() {
 								<RuleCard
 									canEdit={isAdmin}
 									key={rule.ruleId}
+									onDelete={removeCustomRule}
 									org={org}
 									repo={repoName}
 									rule={rule}
