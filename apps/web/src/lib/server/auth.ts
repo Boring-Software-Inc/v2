@@ -32,6 +32,9 @@ export function getAuth(): Auth | null {
 		secret,
 		baseUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
 		github: clientId && clientSecret ? { clientId, clientSecret } : null,
+		// Better Auth Infrastructure (dash) — this head mounts /api/auth/* (thus
+		// /dash/*), so the key lives here. Undefined ⇒ dash stays inert.
+		infraApiKey: process.env.BETTER_AUTH_API_KEY,
 		// Compile-time DEV flag: production bundles never enable email/password.
 		devLogin: import.meta.env.DEV,
 	});

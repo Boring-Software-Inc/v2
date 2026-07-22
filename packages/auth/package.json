@@ -17,6 +17,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@better-auth/infra": "^0.3.7",
 		"@databuddy/sdk": "^2.4.20",
 		"@tripwire/contracts": "workspace:*",
 		"@tripwire/db": "workspace:*",

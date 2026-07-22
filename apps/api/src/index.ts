@@ -53,6 +53,10 @@ if (import.meta.main) {
 						secret,
 						baseUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
 						github: null,
+						// This head only verifies sessions (SSE gating) — it doesn't
+						// mount /dash/*. Pass the key anyway so the shared dash()
+						// isn't in missing-key mode if it's set on this service.
+						infraApiKey: process.env.BETTER_AUTH_API_KEY,
 					})
 				: null;
 	} catch (error) {

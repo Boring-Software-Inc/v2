@@ -1,3 +1,4 @@
+import { dash } from "@better-auth/infra";
 import { orgSlugSchema } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { orgServices, schema } from "@tripwire/db";
@@ -22,6 +23,12 @@ export interface CreateAuthInput {
 	secret: string;
 	baseUrl: string;
 	github: { clientId: string; clientSecret: string } | null;
+	/**
+	 * Better Auth Infrastructure API key (BETTER_AUTH_API_KEY). Lets the dash()
+	 * connector reach the infra service; absent (dev / unset) ⇒ dash stays
+	 * inert. Injected by the heads — packages/auth never reads env itself.
+	 */
+	infraApiKey?: string;
 	/**
 	 * DEV ONLY — enable email/password so the dev persona switcher can mint a
 	 * REAL session without the OAuth round-trip (§13). The web head passes
@@ -212,6 +219,13 @@ export function createAuth(input: CreateAuthInput) {
 					},
 				},
 			}),
+			/**
+			 * Better Auth Infrastructure dashboard connector — mounts the /dash/*
+			 * admin + audit endpoints and streams auth events to the infra API.
+			 * Needs BETTER_AUTH_API_KEY to reach the service; inert without it.
+			 * activityTracking stays off, so no schema change.
+			 */
+			dash({ apiKey: input.infraApiKey }),
 		],
 		databaseHooks: {
 			user: {
