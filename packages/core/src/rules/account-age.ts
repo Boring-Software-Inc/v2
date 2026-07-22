@@ -1,12 +1,13 @@
 import { accountAgeConfigSchema } from "@tripwire/contracts";
+import { atLeast, evaluateSignalRule } from "@tripwire/sdk";
 import { z } from "zod";
+import { builtinRule, readContextSignal, signalOf } from "./context-forge.ts";
 import { defineRule } from "./define.ts";
-
-const DAY_MS = 86_400_000;
 
 /**
  * account-age@1 — the contributor's forge account must be at least
- * `minDays` old. Evidence: the actual age vs the requirement.
+ * `minDays` old. Evidence: the actual age vs the requirement. Authored as an
+ * SDK signal rule over contributor.accountAge; the verdict is unchanged.
  */
 export const accountAge = defineRule({
 	id: "account-age",
@@ -16,19 +17,24 @@ export const accountAge = defineRule({
 		accountAgeDays: z.number(),
 		minDays: z.number(),
 	}),
-	evaluate(ctx, config) {
-		if (ctx.contributor === null) {
-			return { status: "skipped", reason: "contributor profile unavailable" };
+	async evaluate(ctx, config) {
+		const read = await readContextSignal("contributor.accountAge", ctx);
+		if (!read.ok) {
+			return { status: "skipped", reason: read.reason };
 		}
-		const created = Date.parse(ctx.contributor.createdAt);
-		if (Number.isNaN(created)) {
-			return { status: "skipped", reason: "contributor createdAt unparseable" };
-		}
-		const accountAgeDays = Math.floor((Date.parse(ctx.now) - created) / DAY_MS);
+		const requirement = builtinRule("account age", {
+			when: signalOf("contributor.accountAge"),
+			comparison: atLeast(config.minDays),
+			severity: "medium",
+		});
+		const { passed } = evaluateSignalRule(requirement, {
+			value: read.value,
+			now: ctx.now,
+		});
 		return {
 			status: "evaluated",
-			passed: accountAgeDays >= config.minDays,
-			evidence: { accountAgeDays, minDays: config.minDays },
+			passed,
+			evidence: { accountAgeDays: read.value, minDays: config.minDays },
 		};
 	},
 	publicEvidence: (e) => ({ accountAgeDays: e.accountAgeDays }),

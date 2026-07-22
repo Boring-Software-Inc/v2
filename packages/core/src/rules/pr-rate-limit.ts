@@ -1,8 +1,12 @@
 import { prRateLimitConfigSchema } from "@tripwire/contracts";
+import { atMost, evaluateSignalRule, windowMs } from "@tripwire/sdk";
 import { z } from "zod";
+import {
+	builtinRule,
+	lastCountOf,
+	readContextSignal,
+} from "./context-forge.ts";
 import { defineRule } from "./define.ts";
-
-const HOUR_MS = 3_600_000;
 
 /**
  * Coefficient of variation of the intervals between timestamps — near-zero
@@ -26,10 +30,16 @@ function intervalCov(timesMs: number[]): number | null {
 	return Math.sqrt(variance) / mean;
 }
 
+/** The recentChangeRequestTimes signal guarantees 30 days (720h) of history. */
+const HISTORY_HOURS = 720;
+
 /**
  * pr-rate-limit@1 — no more than `maxPerWindow` change requests from the
  * contributor within `windowHours`. Evidence includes the interval CoV that
- * flags spray patterns (§6's example evidence).
+ * flags spray patterns (§6's example evidence). Authored as an SDK signal
+ * rule: recentChangeRequestTimes lastCount over the config window, atMost
+ * the limit. The window is capped at the signal's declared history; the
+ * producer never returns older data, so the count is unchanged.
  */
 export const prRateLimit = defineRule({
 	id: "pr-rate-limit",
@@ -41,17 +51,33 @@ export const prRateLimit = defineRule({
 		windowHours: z.number(),
 		intervalCov: z.number().nullable(),
 	}),
-	evaluate(ctx, config) {
-		if (ctx.contributor === null) {
-			return { status: "skipped", reason: "contributor profile unavailable" };
+	async evaluate(ctx, config) {
+		const read = await readContextSignal(
+			"contributor.recentChangeRequestTimes",
+			ctx,
+		);
+		if (!read.ok) {
+			return { status: "skipped", reason: read.reason };
 		}
-		const cutoff = Date.parse(ctx.now) - config.windowHours * HOUR_MS;
-		const inWindow = ctx.contributor.recentChangeRequestTimes
-			.map((t) => Date.parse(t))
-			.filter((t) => !Number.isNaN(t) && t >= cutoff);
+		const cappedHours = Math.min(config.windowHours, HISTORY_HOURS);
+		const window = `${cappedHours}h` as const;
+		const requirement = builtinRule("pr rate limit", {
+			when: lastCountOf("contributor.recentChangeRequestTimes", window),
+			comparison: atMost(config.maxPerWindow),
+			severity: "high",
+		});
+		const { passed } = evaluateSignalRule(requirement, {
+			value: read.value,
+			now: ctx.now,
+		});
+		// Evidence uses the same cutoff arithmetic as the evaluator's window.
+		const cutoff = Date.parse(ctx.now) - windowMs(window);
+		const inWindow = read.value
+			.map((time) => Date.parse(time))
+			.filter((time) => !Number.isNaN(time) && time >= cutoff);
 		return {
 			status: "evaluated",
-			passed: inWindow.length <= config.maxPerWindow,
+			passed,
 			evidence: {
 				count: inWindow.length,
 				maxPerWindow: config.maxPerWindow,

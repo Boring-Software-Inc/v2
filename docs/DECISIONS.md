@@ -2832,3 +2832,42 @@ the §5.8 pre-fetch spends today (the commits call is not needed by any signal
 rule). Degradation semantics preserved per signal: mergedElsewhere fails ->
 unavailable (rule skips), mergedInRepo fails -> 0, recent CRs fail -> [],
 permission fails -> "none", profile readme fails -> bio fallback.
+
+## Signal SDK Phases 2-3: client, evaluator, built-ins converted (2026-07-21)
+
+Phase 2 (the SDK): `Tripwire` client in @tripwire/sdk, generic over its
+forge; `signals.<scope>.<name>` narrowed to the forge's producers via key
+remapping; `rule(name, {when, comparison, severity})` emits pure inert data.
+Bound signals carry a `~forge` phantom pinned to the forge's literal id, so a
+raw registry signal AND a signal bound to a different forge are both compile
+errors in rule(). Comparison vocabulary: under over atLeast atMost equals not
+matches has oneOf noneOf between, plus noneMatch (globs over list signals).
+Windowed signals: `.last(w)` exists only on timestamps signals; a LITERAL
+over-history window is a COMPILE error (tuple-arithmetic on the window spec,
+error surfaces as an object marker naming the declared history); a dynamic
+window falls back to a definition-time throw. `.last(w).count` and text
+`.trimmedLength` yield number signals. The evaluator re-narrows every
+produced value through a discriminated dispatch on the runtime `type.kind`
+before any comparison reads it; comparison arguments are validated the same
+way. No bare casts on that path.
+
+Phase 3 (conversion): account-age@1, min-merged-prs@2, pr-rate-limit@1,
+max-files-changed@1, honeypot@1, profile-readme@1 now author their decision
+as SDK signal rules and evaluate through the SDK evaluator, via the CONTEXT
+FORGE (core/src/rules/context-forge.ts): defineForge with RuleContext as the
+client, producers enforced against the registry, SignalUnavailableError
+mapping to the rules' historical skip reasons byte for byte. Envelopes
+(schemas, evidence shapes, publicEvidence, summarize, remedy, waitHint) are
+verbatim; all pre-existing rule tests pass unchanged; zero golden/snapshot
+regenerations. Boundary edge added: core -> sdk (sdk is pure, so core's
+purity law holds). Left alone: min-merged-prs@1 (frozen by its own
+byte-for-byte law), ai-review@1/@2 (the separate AI surface), english-only@1
+(needs a derived text metric, e.g. nonLatinRatio, plus a letters-count guard)
+and crypto-address@1 (needs a scanning comparison over textMap that emits
+match evidence) — both reported as SDK vocabulary gaps, deliberately not
+bodged. The honeypot glob matcher moved verbatim to sdk/glob.ts; verdict and
+evidence share the one function. pr-rate-limit caps its window at the
+signal's 720h declared history; the producer never returns older data, so
+counts are unchanged. SDK severities on converted built-ins are inert
+metadata today (the workflow layer decides actions); they exist because the
+rule data model requires one.

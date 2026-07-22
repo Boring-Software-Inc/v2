@@ -154,6 +154,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@tripwire/contracts": "workspace:*",
+        "@tripwire/sdk": "workspace:*",
         "@tripwire/utils": "workspace:*",
         "zod": "^4.0.0",
       },

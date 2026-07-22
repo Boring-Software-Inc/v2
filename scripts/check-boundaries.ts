@@ -26,7 +26,7 @@ const ALLOWED: Record<string, readonly string[]> = {
 	contracts: [],
 	utils: ["contracts"],
 	forge: ["contracts"],
-	core: ["contracts", "utils"],
+	core: ["contracts", "utils", "sdk"],
 	sdk: ["contracts"],
 	"forge-github": ["contracts", "utils", "forge", "sdk"],
 	db: ["contracts", "utils"],

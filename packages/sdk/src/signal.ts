@@ -1,3 +1,5 @@
+import type { WindowSpec } from "./window.ts";
+
 /**
  * Signals are the forge-neutral facts rules read. A signal's `type` is a
  * RUNTIME value, not just a TS type param, so the registry stays
@@ -6,46 +8,90 @@
  * registry type -> producer return type -> signal value type -> comparison.
  */
 
-export interface SignalValueType<T> {
-	readonly kind: string;
+export interface SignalValueType<T, K extends string = string> {
+	readonly kind: K;
 	/** Phantom only. Never set at runtime; it carries T invariantly. */
 	readonly "~signalValueType"?: (value: T) => T;
 }
 
+export type SignalKind =
+	| "number"
+	| "text"
+	| "boolean"
+	| "textList"
+	| "timestamps"
+	| "textMap";
+
 /** The SDK's value-type vocabulary. Every registry signal uses one of these. */
 export const t = {
-	number: { kind: "number" } as SignalValueType<number>,
-	text: { kind: "text" } as SignalValueType<string>,
-	boolean: { kind: "boolean" } as SignalValueType<boolean>,
+	number: { kind: "number" } as SignalValueType<number, "number">,
+	text: { kind: "text" } as SignalValueType<string, "text">,
+	boolean: { kind: "boolean" } as SignalValueType<boolean, "boolean">,
 	/** A list of plain strings, e.g. changed file paths. */
-	textList: { kind: "textList" } as SignalValueType<readonly string[]>,
+	textList: { kind: "textList" } as SignalValueType<
+		readonly string[],
+		"textList"
+	>,
 	/** ISO timestamps, newest first. */
-	timestamps: { kind: "timestamps" } as SignalValueType<readonly string[]>,
+	timestamps: { kind: "timestamps" } as SignalValueType<
+		readonly string[],
+		"timestamps"
+	>,
 	/** Text keyed by a location, e.g. diff patch text keyed by file path. */
 	textMap: { kind: "textMap" } as SignalValueType<
-		Readonly<Record<string, string>>
+		Readonly<Record<string, string>>,
+		"textMap"
 	>,
 };
 
 export type SignalScope = "contributor" | "repoRelation" | "pr" | "comment";
 
-export interface Signal<Id extends string, T> {
+export interface Signal<
+	Id extends string,
+	T,
+	K extends string = string,
+	H extends WindowSpec | undefined = undefined,
+> {
 	readonly id: Id;
 	readonly scope: SignalScope;
-	readonly type: SignalValueType<T>;
+	readonly type: SignalValueType<T, K>;
 	readonly describe: string;
+	/**
+	 * How much history the signal's producers guarantee, for windowed signals.
+	 * The signal stays wide; rules narrow with `.last()`. Literal-typed so a
+	 * `.last()` window wider than this is a COMPILE error, never silent
+	 * truncation.
+	 */
+	readonly history?: H;
 }
 
-export type AnySignal = Signal<string, unknown>;
+/** Structural view of a signal, for runtime iteration and registry checks. */
+export interface AnySignal {
+	readonly id: string;
+	readonly scope: SignalScope;
+	readonly type: { readonly kind: string };
+	readonly describe: string;
+	readonly history?: WindowSpec;
+}
 
-export type SignalValue<S> = S extends Signal<string, infer T> ? T : never;
+export type SignalValue<S> = S extends {
+	type: SignalValueType<infer T, string>;
+}
+	? T
+	: never;
 
-export function defineSignal<Id extends string, T>(def: {
+export function defineSignal<
+	Id extends string,
+	T,
+	K extends string,
+	H extends WindowSpec | undefined = undefined,
+>(def: {
 	id: Id;
 	scope: SignalScope;
-	type: SignalValueType<T>;
+	type: SignalValueType<T, K>;
 	describe: string;
-}): Signal<Id, T> {
+	history?: H;
+}): Signal<Id, T, K, H> {
 	return def;
 }
 

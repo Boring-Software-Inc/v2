@@ -172,8 +172,10 @@ export const githubForge = defineForge<GithubHttp>()({
 			return result.total_count;
 		},
 		[recentChangeRequestTimes.id]: async (ctx) => {
+			// SHAPE-CHECK: fetch the signal's full declared history (30 days),
+			// wide on purpose. Rules narrow with .last(); the signal never truncates.
 			const login = ctx.event.actor.login;
-			const since = new Date(Date.parse(ctx.now) - 7 * DAY_MS)
+			const since = new Date(Date.parse(ctx.now) - 30 * DAY_MS)
 				.toISOString()
 				.slice(0, 10);
 			const result = (await ctx

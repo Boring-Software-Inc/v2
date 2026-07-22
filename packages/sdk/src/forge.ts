@@ -37,8 +37,14 @@ export type ProducerMap<Client> = {
 	[Id in keyof SignalRegistry]?: SignalProducer<Client, SignalRegistry[Id]>;
 };
 
-export interface ForgeDefinition<Client, P extends ProducerMap<Client>> {
-	readonly id: string;
+export interface ForgeDefinition<
+	Client,
+	P extends ProducerMap<Client>,
+	FId extends string = string,
+> {
+	/** Literal-typed: the client brands its surface with it, so a signal bound
+	 * to one forge cannot be passed to another forge's rule(). */
+	readonly id: FId;
 	readonly produces: P;
 }
 
@@ -50,10 +56,10 @@ export type AnyForgeDefinition = ForgeDefinition<never, ProducerMap<never>>;
 
 /** Curried so Client is explicit while the producer map stays inferred. */
 export function defineForge<Client>() {
-	return <P extends ProducerMap<Client>>(def: {
-		id: string;
+	return <P extends ProducerMap<Client>, FId extends string>(def: {
+		id: FId;
 		produces: P;
-	}): ForgeDefinition<Client, P> => def;
+	}): ForgeDefinition<Client, P, FId> => def;
 }
 
 /**

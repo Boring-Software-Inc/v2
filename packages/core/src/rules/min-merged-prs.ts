@@ -2,7 +2,9 @@ import {
 	minMergedPrsConfigSchema,
 	minMergedPrsConfigSchemaV2,
 } from "@tripwire/contracts";
+import { atLeast, evaluateSignalRule } from "@tripwire/sdk";
 import { z } from "zod";
+import { builtinRule, readContextSignal, signalOf } from "./context-forge.ts";
 import { defineRule } from "./define.ts";
 
 /**
@@ -52,6 +54,10 @@ export const minMergedPrs = defineRule({
  * kept in evidence either way; it's a free trust signal.
  *
  * Degrades honestly: no contributor read, or no global count, ⇒ SKIP (§6).
+ *
+ * Authored as TWO SDK signal rules OR'd here: the single-signal rule shape
+ * cannot express any-of, so the composition stays in this envelope. That gap
+ * is deliberate and documented; the verdict is unchanged.
  */
 export const minMergedPrsV2 = defineRule({
 	id: "min-merged-prs",
@@ -63,21 +69,36 @@ export const minMergedPrsV2 = defineRule({
 		min: z.number(),
 		trustedAfter: z.number(),
 	}),
-	evaluate(ctx, config) {
-		if (ctx.contributor === null) {
-			return { status: "skipped", reason: "contributor profile unavailable" };
+	async evaluate(ctx, config) {
+		const local = await readContextSignal("repoRelation.mergedInRepo", ctx);
+		if (!local.ok) {
+			return { status: "skipped", reason: local.reason };
 		}
-		const { mergedElsewhere, mergedInRepo } = ctx.contributor;
-		if (mergedElsewhere === null) {
-			return { status: "skipped", reason: "global merge history unavailable" };
+		const global = await readContextSignal("contributor.mergedElsewhere", ctx);
+		if (!global.ok) {
+			return { status: "skipped", reason: global.reason };
 		}
-		const trustedLocally = mergedInRepo >= config.trustedAfter;
+		const trustedLocally = builtinRule("trusted locally", {
+			when: signalOf("repoRelation.mergedInRepo"),
+			comparison: atLeast(config.trustedAfter),
+			severity: "medium",
+		});
+		const provenElsewhere = builtinRule("proven elsewhere", {
+			when: signalOf("contributor.mergedElsewhere"),
+			comparison: atLeast(config.min),
+			severity: "medium",
+		});
+		const passed =
+			evaluateSignalRule(trustedLocally, { value: local.value, now: ctx.now })
+				.passed ||
+			evaluateSignalRule(provenElsewhere, { value: global.value, now: ctx.now })
+				.passed;
 		return {
 			status: "evaluated",
-			passed: trustedLocally || mergedElsewhere >= config.min,
+			passed,
 			evidence: {
-				mergedElsewhere,
-				mergedInRepo,
+				mergedElsewhere: global.value,
+				mergedInRepo: local.value,
 				min: config.min,
 				trustedAfter: config.trustedAfter,
 			},

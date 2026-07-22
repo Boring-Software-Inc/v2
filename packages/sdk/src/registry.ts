@@ -1,4 +1,4 @@
-import { defineSignal, t } from "./signal.ts";
+import { type AnySignal, defineSignal, t } from "./signal.ts";
 
 /**
  * The neutral signal registry: every fact the current signal-based rules
@@ -52,12 +52,15 @@ export const mergedElsewhere = defineSignal({
 		"Merged change requests in repos the contributor does not own. Proof that someone else accepted their work",
 });
 
+// SHAPE-CHECK: the signal stays WIDE (30 days) so a rule's .last() transform
+// reads from enough history. Rules narrow; the signal never truncates.
 export const recentChangeRequestTimes = defineSignal({
 	id: "contributor.recentChangeRequestTimes",
 	scope: "contributor",
 	type: t.timestamps,
+	history: "30d",
 	describe:
-		"Timestamps of the contributor's change requests from the last seven days, newest first",
+		"Timestamps of the contributor's change requests from the last thirty days, newest first",
 });
 
 // --- repoRelation: the contributor's standing in the subject repo ----------
@@ -106,6 +109,7 @@ export const changedPaths = defineSignal({
 	describe: "The paths the change request touches",
 });
 
+// SHAPE-CHECK: forge-neutral when a second forge is added.
 export const patchByPath = defineSignal({
 	id: "pr.patchByPath",
 	scope: "pr",
@@ -139,7 +143,7 @@ export const registry = {
 	[changedPaths.id]: changedPaths,
 	[patchByPath.id]: patchByPath,
 	[commentBody.id]: commentBody,
-};
+} as const satisfies Record<string, AnySignal>;
 
 export type SignalRegistry = typeof registry;
 export type SignalId = keyof SignalRegistry;

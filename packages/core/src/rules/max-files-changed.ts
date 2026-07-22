@@ -1,10 +1,13 @@
 import { maxFilesChangedConfigSchema } from "@tripwire/contracts";
+import { atMost, evaluateSignalRule } from "@tripwire/sdk";
 import { z } from "zod";
+import { builtinRule, readContextSignal, signalOf } from "./context-forge.ts";
 import { defineRule } from "./define.ts";
 
 /**
  * max-files-changed@1 — the change request may touch at most `max` files.
- * The 4000-lines-of-vendored-code PR dies here.
+ * The 4000-lines-of-vendored-code PR dies here. Authored as an SDK signal
+ * rule over pr.filesChanged; the verdict is unchanged.
  */
 export const maxFilesChanged = defineRule({
 	id: "max-files-changed",
@@ -14,14 +17,24 @@ export const maxFilesChanged = defineRule({
 		filesChanged: z.number(),
 		max: z.number(),
 	}),
-	evaluate(ctx, config) {
-		if (ctx.diff === null) {
-			return { status: "skipped", reason: "diff unavailable" };
+	async evaluate(ctx, config) {
+		const read = await readContextSignal("pr.filesChanged", ctx);
+		if (!read.ok) {
+			return { status: "skipped", reason: read.reason };
 		}
+		const requirement = builtinRule("max files changed", {
+			when: signalOf("pr.filesChanged"),
+			comparison: atMost(config.max),
+			severity: "low",
+		});
+		const { passed } = evaluateSignalRule(requirement, {
+			value: read.value,
+			now: ctx.now,
+		});
 		return {
 			status: "evaluated",
-			passed: ctx.diff.length <= config.max,
-			evidence: { filesChanged: ctx.diff.length, max: config.max },
+			passed,
+			evidence: { filesChanged: read.value, max: config.max },
 		};
 	},
 	publicEvidence: (e) => ({ filesChanged: e.filesChanged }),

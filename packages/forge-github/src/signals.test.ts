@@ -54,7 +54,7 @@ function fakeResponses(): Record<string, unknown> {
 			{ total_count: 2 },
 		[`/search/issues?q=${encodeURIComponent("author:mallory is:pr is:merged -user:mallory")}&per_page=1`]:
 			{ total_count: 4 },
-		[`/search/issues?q=${encodeURIComponent("author:mallory is:pr created:>=2026-07-14")}&per_page=100`]:
+		[`/search/issues?q=${encodeURIComponent("author:mallory is:pr created:>=2026-06-21")}&per_page=100`]:
 			{ items: [{ created_at: "2026-07-20T00:00:00.000Z" }] },
 		"/repos/acme/widgets/collaborators/mallory/permission": {
 			permission: "read",
