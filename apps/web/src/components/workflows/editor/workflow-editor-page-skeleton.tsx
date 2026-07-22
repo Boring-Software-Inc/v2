@@ -60,7 +60,7 @@ export function EditorFrameSkeleton() {
 			</header>
 			<div className="relative min-h-0 flex-1">
 				<div className="absolute top-3 bottom-3 left-3 z-10 flex w-64 flex-col overflow-hidden rounded-xl border bg-surface-0/95 shadow-md backdrop-blur">
-					<div className="flex shrink-0 gap-1 border-b p-1.5">
+					<div className="flex shrink-0 gap-1 p-1.5">
 						<Skeleton className="h-6 flex-1" />
 						<Skeleton className="h-6 flex-1" />
 					</div>
