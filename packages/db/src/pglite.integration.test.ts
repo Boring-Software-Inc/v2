@@ -56,4 +56,7 @@ test("prod migrations + services run on PGlite; the seeded story is coherent", a
 	expect(decided).toBe(true);
 	const after = await moderationServices.listPendingItems(db, repo.fullName);
 	expect(after.length).toBe(pending.length - 1);
-});
+	// seedStory + the insight aggregations run ~5s on in-memory PGlite and
+	// flake past bun's 5s default under load; give it the same headroom the
+	// migration beforeAll gets.
+}, 30_000);
