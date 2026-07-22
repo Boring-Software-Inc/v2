@@ -41,6 +41,7 @@
 		"@tripwire/auth": "workspace:*",
 		"@tripwire/contracts": "workspace:*",
 		"@tripwire/db": "workspace:*",
+		"@tripwire/sdk": "workspace:*",
 		"@xyflow/react": "^12.11.2",
 		"better-auth": "^1.6.23",
 		"bippy": "^0.6.0",

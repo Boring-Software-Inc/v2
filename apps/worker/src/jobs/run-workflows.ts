@@ -5,7 +5,13 @@ import type {
 	Verdict,
 	WorkflowDefinition,
 } from "@tripwire/contracts";
-import { resolveEffectiveRuleConfig, ruleIdOf } from "@tripwire/contracts";
+import {
+	type CustomRuleRecord,
+	customRuleRef,
+	customRuleSummary,
+	resolveEffectiveRuleConfig,
+	ruleIdOf,
+} from "@tripwire/contracts";
 import {
 	type AiReviewGenerate,
 	deriveDefaultWorkflow,
@@ -18,7 +24,8 @@ import {
 } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
 import { moderationServices, repoServices, runServices } from "@tripwire/db";
-import type { CommentReason } from "@tripwire/forge-github";
+import type { CommentReason, GithubHttp } from "@tripwire/forge-github";
+import { createForgeSignalCtx } from "@tripwire/sdk";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { buildRuleContext, type WorkerReads } from "../context.ts";
@@ -28,6 +35,11 @@ import {
 } from "../exemption.ts";
 import { readsInjectionRefusedInProd } from "../reads-injection.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
+import {
+	type CustomRuleSource,
+	customRuleSource,
+	evaluateCustomRule,
+} from "./custom-rules.ts";
 
 /**
  * §5.7–5.12: match enabled workflows by trigger → build RuleContext (reads
@@ -83,6 +95,9 @@ export interface RunWorkflowsDeps {
 	db: Db;
 	logger: Logger;
 	reads: WorkerReads | null;
+	/** Pre-authed GitHub client for custom-rule signal producers; null when
+	 * forge reads are disabled (custom rules skip, like built-ins do). */
+	signalHttp?: GithubHttp | null;
 	/** §8 — injected AI effect factory; null without ANTHROPIC_API_KEY. */
 	makeGenerate: ((event: RepoScopedEvent) => AiReviewGenerate) | null;
 	/**
@@ -166,6 +181,10 @@ export async function runWorkflows(
 	const ruleConfigs = repo
 		? await repoServices.listRuleConfigs(db, repo.id)
 		: [];
+	const customRows = repo
+		? await repoServices.listCustomRules(db, repo.id)
+		: [];
+
 	const custom = await repoServices.listEnabledWorkflows(
 		db,
 		event.repo.fullName,
@@ -188,14 +207,24 @@ export async function runWorkflows(
 	// pinned (still-registered) version when it can't. derive keys by rule
 	// id, so a held old version replaces — never doubles — the baseline.
 	const derived = deriveDefaultWorkflow(
-		ruleConfigs.map((config) =>
-			resolveEffectiveRuleConfig({
-				ruleId: config.ruleId,
-				version: config.version,
-				enabled: config.enabled,
-				config: config.config as JsonValue,
-			}),
-		),
+		[
+			...ruleConfigs.map((config) =>
+				resolveEffectiveRuleConfig({
+					ruleId: config.ruleId,
+					version: config.version,
+					enabled: config.enabled,
+					config: config.config as JsonValue,
+				}),
+			),
+			// Custom rules join the toggle set like any non-baseline rule: they
+			// run when enabled, and workflow ownership excludes them like any id.
+			...customRows.map((row) => ({
+				ref: customRuleRef(row.id),
+				enabled: row.enabled,
+				config: {} as JsonValue,
+				held: false,
+			})),
+		],
 		ownedRuleIds,
 	);
 	const derivedHasRules = derived.nodes.some((node) => node.type === "rule");
@@ -271,7 +300,13 @@ export async function runWorkflows(
 	// Hold the merge button only once evaluation is actually about to run.
 	await deps.onBeforeEvaluate?.();
 
-	const evaluateRuleRef = makeEvaluator(ctx, logger);
+	const customSignals: CustomRuleSource = customRuleSource(
+		customRows,
+		deps.signalHttp
+			? createForgeSignalCtx({ forge: deps.signalHttp, event, now })
+			: null,
+	);
+	const evaluateRuleRef = makeEvaluator(ctx, logger, customSignals);
 	const executions: {
 		definition: WorkflowDefinition;
 		result: Awaited<ReturnType<typeof executeWorkflow>>;
@@ -289,12 +324,15 @@ export async function runWorkflows(
 					// run page can list completed checks as the DAG walks.
 					onStep: liveRunId
 						? async (step) => {
-								const projected = withPublicProjection([
-									{
-										...step,
-										nodeId: `${definition.id}:${step.nodeId}`,
-									},
-								]);
+								const projected = withPublicProjection(
+									[
+										{
+											...step,
+											nodeId: `${definition.id}:${step.nodeId}`,
+										},
+									],
+									customSignals.records,
+								);
 								await runServices.recordSteps(db, liveRunId, projected);
 							}
 						: undefined,
@@ -390,7 +428,11 @@ export async function runWorkflows(
 			verdict,
 			triggeredBy: deps.triggeredBy ?? null,
 		});
-		await runServices.recordSteps(db, runId, withPublicProjection(steps));
+		await runServices.recordSteps(
+			db,
+			runId,
+			withPublicProjection(steps, customSignals.records),
+		);
 	}
 
 	for (const execution of executions) {
@@ -440,7 +482,10 @@ export type PersistStep = StepRecord & {
 	summary?: string | null;
 };
 
-export function withPublicProjection(steps: StepRecord[]): PersistStep[] {
+export function withPublicProjection(
+	steps: StepRecord[],
+	customRecords?: Map<string, CustomRuleRecord>,
+): PersistStep[] {
 	return steps.map((step) => {
 		if (step.nodeKind !== "rule" || !step.ruleRef) {
 			return step;
@@ -450,13 +495,51 @@ export function withPublicProjection(steps: StepRecord[]): PersistStep[] {
 			envelope && typeof envelope === "object" && "evidence" in envelope
 				? (envelope as { evidence: unknown }).evidence
 				: null;
+		const stored = customRecords?.get(step.ruleRef);
+		if (stored) {
+			// Custom rules project generically: the observed value is public
+			// (it is the contributor's own footprint); the configured threshold
+			// lives in comparison args and never reaches evidence (§10).
+			const observed =
+				inner && typeof inner === "object" && "observed" in inner
+					? (inner as { observed: unknown }).observed
+					: null;
+			return {
+				...step,
+				publicEvidence: observed === null ? null : { observed },
+				summary:
+					observed === null
+						? null
+						: customRuleSummary(stored.definition, observed),
+			};
+		}
 		const { publicEvidence, summary } = projectRulePublic(step.ruleRef, inner);
 		return { ...step, publicEvidence, summary };
 	});
 }
 
-export function makeEvaluator(ctx: RuleContext, logger: Logger) {
+export function makeEvaluator(
+	ctx: RuleContext,
+	logger: Logger,
+	custom?: CustomRuleSource,
+) {
 	return async (ref: string, config: unknown): Promise<RuleResult> => {
+		const stored = custom?.records.get(ref);
+		if (stored && custom) {
+			try {
+				return await evaluateCustomRule(stored, custom.signalCtx, ctx.now);
+			} catch (error) {
+				logger.error(
+					{ ref, error: getErrorMessage(error) },
+					"custom rule threw — treated as skipped (bug)",
+				);
+				return skippedResult(
+					ref,
+					`rule threw: ${getErrorMessage(error)}`,
+					ctx.now,
+				);
+			}
+		}
 		const rule = getRule(ref);
 		if (!rule) {
 			return skippedResult(ref, `unknown rule ${ref}`, ctx.now);

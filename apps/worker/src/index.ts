@@ -16,6 +16,7 @@ import type { ForgeAdapter } from "@tripwire/forge";
 import {
 	checkAppCredentials,
 	createGithubAdapter,
+	GithubHttp,
 	GithubReads,
 	InstallationTokenCache,
 } from "@tripwire/forge-github";
@@ -67,6 +68,7 @@ if (import.meta.main) {
 	);
 	let reads: WorkerReads | null = null;
 	let adapter: ForgeAdapter | null = null;
+	let signalHttp: GithubHttp | null = null;
 	if (appId && privateKey) {
 		const tokens = new InstallationTokenCache({ appId, privateKey });
 		const tokenFor = async (repoFullName: string) => {
@@ -78,6 +80,7 @@ if (import.meta.main) {
 		};
 		reads = new GithubReads({ tokenFor });
 		adapter = createGithubAdapter({ tokenFor });
+		signalHttp = new GithubHttp({ tokenFor });
 		/**
 		 * Boot health (live-test surprise #3): validate the App credentials with
 		 * one cheap authenticated call so a worker running on stale/broken env is
@@ -134,6 +137,7 @@ if (import.meta.main) {
 					pool: directPool,
 					reads,
 					adapter,
+					signalHttp,
 					makeGenerate,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({ eventId: job.data.eventId }),
@@ -151,6 +155,7 @@ if (import.meta.main) {
 					pool: directPool,
 					reads,
 					adapter,
+					signalHttp,
 					makeGenerate,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({ itemId: job.data.itemId }),
@@ -168,6 +173,7 @@ if (import.meta.main) {
 					pool: directPool,
 					reads,
 					adapter,
+					signalHttp,
 					makeGenerate,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({

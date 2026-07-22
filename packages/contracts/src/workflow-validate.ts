@@ -1,3 +1,4 @@
+import type { z } from "zod";
 import { RULE_CATALOG } from "./rules.ts";
 import {
 	type WorkflowDefinition,
@@ -119,7 +120,19 @@ export function validateWorkflow(input: unknown): ValidationResult {
  * RULE_CATALOG, and those must keep validating structurally forever. Drafts
  * save in any state; only enabling runs THIS.
  */
-export function validateWorkflowForEnable(input: unknown): ValidationResult {
+/** The minimal catalog surface enable-time validation needs, satisfied by
+ * both the static RULE_CATALOG and the runtime resolved catalog. */
+export interface ValidationCatalogEntry {
+	ruleId: string;
+	version: number;
+	name: string;
+	configSchema: z.ZodType;
+}
+
+export function validateWorkflowForEnable(
+	input: unknown,
+	catalog: readonly ValidationCatalogEntry[] = RULE_CATALOG,
+): ValidationResult {
 	const base = validateWorkflow(input);
 	if (!base.valid) {
 		return base;
@@ -156,7 +169,7 @@ export function validateWorkflowForEnable(input: unknown): ValidationResult {
 			continue;
 		}
 		const [ruleId, versionRaw] = node.ref.split("@");
-		const entry = RULE_CATALOG.find(
+		const entry = catalog.find(
 			(r) => r.ruleId === ruleId && r.version === Number(versionRaw),
 		);
 		if (!entry) {

@@ -105,6 +105,28 @@ export const responseConfigs = pgTable(
 	(t) => [uniqueIndex("response_configs_repo_unique").on(t.repoId)],
 );
 
+/**
+ * Custom rules: rules defined in data, per repo. `definition` is the
+ * serialized SDK shape (contracts customRuleDefinitionSchema, validated on
+ * write); a row deserializes directly to what evaluateSignalRule takes.
+ */
+export const customRules = pgTable("custom_rules", {
+	/** "custom-" prefixed, globally unique; refs keep the id@version grammar. */
+	id: text("id").primaryKey(),
+	repoId: text("repo_id")
+		.notNull()
+		.references(() => repos.id),
+	name: text("name").notNull(),
+	enabled: boolean("enabled").notNull().default(true),
+	definition: jsonb("definition").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+	updatedAt: timestamp("updated_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+});
+
 export const workflowDefinitions = pgTable("workflow_definitions", {
 	id: text("id").primaryKey(),
 	repoId: text("repo_id")

@@ -3,6 +3,7 @@ import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
 import { eventServices, orgServices, repoServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
+import type { GithubHttp } from "@tripwire/forge-github";
 import { normalizeWebhook } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Pool } from "pg";
@@ -19,6 +20,8 @@ export interface ProcessEventDeps {
 	reads: WorkerReads | null;
 	/** null ⇒ actions recorded but not executed (no credentials). */
 	adapter: ForgeAdapter | null;
+	/** null ⇒ custom rules skip (no forge credentials). */
+	signalHttp?: GithubHttp | null;
 	/** §8 — null without ANTHROPIC_API_KEY; ai-review skips. */
 	makeGenerate: ((event: RepoScopedEvent) => AiReviewGenerate) | null;
 	/** Base URL for run deep links. */
@@ -134,6 +137,7 @@ export async function processEvent(
 			db,
 			logger,
 			reads: deps.reads,
+			signalHttp: deps.signalHttp ?? null,
 			makeGenerate: deps.makeGenerate,
 			// Pending check only after exemption/match — otherwise an exempt
 			// actor leaves `tripwire` stuck in_progress forever (lifecycle E2E

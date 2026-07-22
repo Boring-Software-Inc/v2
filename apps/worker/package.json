@@ -18,6 +18,7 @@
 		"@tripwire/db": "workspace:*",
 		"@tripwire/forge": "workspace:*",
 		"@tripwire/forge-github": "workspace:*",
+		"@tripwire/sdk": "workspace:*",
 		"@tripwire/utils": "workspace:*",
 		"ai": "^7.0.22",
 		"pg": "^8.22.0",

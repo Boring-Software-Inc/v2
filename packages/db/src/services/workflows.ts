@@ -1,4 +1,6 @@
 import {
+	customRuleRecordSchema,
+	resolveCatalog,
 	type ValidationIssue,
 	validateWorkflowForEnable,
 	type WorkflowDefinition,
@@ -7,7 +9,7 @@ import {
 import { generateId, pickWorkflowName } from "@tripwire/utils";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { repos, workflowDefinitions } from "../schema/repos.ts";
+import { customRules, repos, workflowDefinitions } from "../schema/repos.ts";
 
 /**
  * Workflow CRUD (§workflows grid). The grid keys everything by the ROW id
@@ -277,7 +279,20 @@ export async function setWorkflowEnabled(
 		if (!row) {
 			return { ok: false, issues: [{ message: "workflow not found" }] };
 		}
-		const result = validateWorkflowForEnable(row.definition);
+		// Enable-time refs validate against the RUNTIME catalog: built-ins
+		// plus this repo's custom rules, so a workflow can gate on either.
+		const customRows = await db
+			.select()
+			.from(customRules)
+			.where(eq(customRules.repoId, input.repoId));
+		const parsedCustom = customRows.flatMap((raw) => {
+			const parsed = customRuleRecordSchema.safeParse(raw);
+			return parsed.success ? [parsed.data] : [];
+		});
+		const result = validateWorkflowForEnable(
+			row.definition,
+			resolveCatalog(parsedCustom),
+		);
 		if (!result.valid) {
 			return { ok: false, issues: result.issues };
 		}

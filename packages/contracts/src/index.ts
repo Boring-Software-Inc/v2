@@ -15,6 +15,8 @@ export * from "./activity.ts";
 export * from "./check.ts";
 export * from "./comment-render.ts";
 export * from "./contributor.ts";
+export * from "./custom-rules.ts";
+export * from "./custom-rules-display.ts";
 export * from "./events.ts";
 export * from "./insights.ts";
 export * from "./moderation.ts";

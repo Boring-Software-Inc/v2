@@ -64,5 +64,6 @@ export {
 	signalUnavailable,
 	t,
 } from "./signal.ts";
+export { storedRuleIssue } from "./stored-rule.ts";
 export { nonLatinScan } from "./text-metrics.ts";
 export { type WindowSpec, type WindowWithin, windowMs } from "./window.ts";

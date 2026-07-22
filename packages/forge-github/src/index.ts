@@ -40,5 +40,6 @@ export {
 	PENDING_CHECK_SUMMARY,
 	supersededBody,
 } from "./copy.ts";
+export { type GithubForge, githubForge } from "./signals.ts";
 export { normalizeWebhook } from "./webhook/normalize.ts";
 export { signWebhookBody, verifyWebhookSignature } from "./webhook/verify.ts";

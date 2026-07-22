@@ -10,6 +10,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { organizationInstallations } from "../schema/organizations.ts";
 import {
+	customRules,
 	repos,
 	responseConfigs,
 	ruleConfigs,
@@ -350,4 +351,62 @@ export async function upsertResponseConfig(
 			target: [responseConfigs.repoId],
 			set: { config, updatedAt: new Date() },
 		});
+}
+
+export interface CustomRuleRow {
+	id: string;
+	name: string;
+	enabled: boolean;
+	definition: unknown;
+}
+
+export async function listCustomRules(
+	db: Db,
+	repoId: string,
+): Promise<CustomRuleRow[]> {
+	const rows = await db
+		.select()
+		.from(customRules)
+		.where(eq(customRules.repoId, repoId));
+	return rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		enabled: row.enabled,
+		definition: row.definition,
+	}));
+}
+
+export async function upsertCustomRule(
+	db: Db,
+	repoId: string,
+	rule: { id: string; name: string; enabled: boolean; definition: unknown },
+): Promise<void> {
+	await db
+		.insert(customRules)
+		.values({
+			id: rule.id,
+			repoId,
+			name: rule.name,
+			enabled: rule.enabled,
+			definition: rule.definition,
+		})
+		.onConflictDoUpdate({
+			target: customRules.id,
+			set: {
+				name: rule.name,
+				enabled: rule.enabled,
+				definition: rule.definition,
+				updatedAt: new Date(),
+			},
+		});
+}
+
+export async function deleteCustomRule(
+	db: Db,
+	repoId: string,
+	ruleId: string,
+): Promise<void> {
+	await db
+		.delete(customRules)
+		.where(and(eq(customRules.id, ruleId), eq(customRules.repoId, repoId)));
 }
