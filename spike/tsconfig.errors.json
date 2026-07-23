@@ -1,4 +1,9 @@
 {
 	"extends": "../tsconfig.base.json",
-	"include": ["errors-demo.ts", "fixture.ts", "tripwire.config.github.ts", "tripwire.config.joe.ts"]
+	"include": [
+		"errors-demo.ts",
+		"fixture.ts",
+		"tripwire.config.github.ts",
+		"tripwire.config.joe.ts"
+	]
 }

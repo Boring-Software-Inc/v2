@@ -199,9 +199,8 @@ export const forgeJoe = defineForge<JoeClient>()({
 // forge is assignable to Forge<never, ...> but not to Forge<unknown, ...>.
 export type AnyForge = Forge<never, ProducerMap<never>>;
 
-export type SupportedIds<F> = F extends Forge<infer _C, infer P>
-	? keyof P
-	: never;
+export type SupportedIds<F> =
+	F extends Forge<infer _C, infer P> ? keyof P : never;
 
 export type NarrowedSignals<F> = {
 	[Scope in keyof SignalTree]: {
