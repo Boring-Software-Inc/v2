@@ -1,4 +1,5 @@
 export * from "./auth.ts";
+export * from "./economics.ts";
 export * from "./events.ts";
 export * from "./moderation.ts";
 export * from "./organizations.ts";
