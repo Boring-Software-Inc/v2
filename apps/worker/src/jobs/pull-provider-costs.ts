@@ -71,41 +71,70 @@ function firstFiniteNumber(obj: unknown, keys: string[]): number | null {
  * `total_usage` (USD) and `tokens_total`. Tolerant of the shape: unknown records
  * contribute zero, never throw. `tokens_total` can arrive as a string.
  */
-export function extractOpenRouterDailyCost(json: unknown): {
-	costUsd: number;
-	tokens: number;
-} {
+function analyticsRecords(json: unknown): unknown[] {
 	const outer = (json as { data?: unknown })?.data;
-	const records: unknown[] = Array.isArray(
-		(outer as { data?: unknown[] })?.data,
-	)
+	return Array.isArray((outer as { data?: unknown[] })?.data)
 		? ((outer as { data: unknown[] }).data ?? [])
 		: Array.isArray(outer)
 			? (outer as unknown[])
 			: Array.isArray(json)
 				? (json as unknown[])
 				: [];
+}
+
+function recordTokens(rec: object): number {
+	const tk = (rec as { tokens_total?: unknown; tokens?: unknown }).tokens_total;
+	const n = typeof tk === "string" ? Number(tk) : tk;
+	return typeof n === "number" && Number.isFinite(n) ? n : 0;
+}
+
+export function extractOpenRouterDailyCost(json: unknown): {
+	costUsd: number;
+	tokens: number;
+} {
 	let costUsd = 0;
 	let tokens = 0;
-	for (const rec of records) {
+	for (const rec of analyticsRecords(json)) {
 		if (!rec || typeof rec !== "object") {
 			continue;
 		}
 		costUsd += firstFiniteNumber(rec, ["total_usage", "usage", "cost"]) ?? 0;
-		const tk = (rec as { tokens_total?: unknown; tokens?: unknown })
-			.tokens_total;
-		const n = typeof tk === "string" ? Number(tk) : tk;
-		if (typeof n === "number" && Number.isFinite(n)) {
-			tokens += n;
-		}
+		tokens += recordTokens(rec);
 	}
 	return { costUsd, tokens };
+}
+
+/**
+ * Parse a query grouped by api_key_id into a map of key NAME to spend. The
+ * analytics `api_key_id` dimension carries the human key name (e.g. tripwire-prod),
+ * which is how prod and eval are separated. The keys API `hash` is NOT accepted
+ * as a filter value.
+ */
+export function extractOpenRouterByKey(
+	json: unknown,
+): Map<string, { costUsd: number; tokens: number }> {
+	const byKey = new Map<string, { costUsd: number; tokens: number }>();
+	for (const rec of analyticsRecords(json)) {
+		if (!rec || typeof rec !== "object") {
+			continue;
+		}
+		const name = (rec as { api_key_id?: unknown }).api_key_id;
+		if (typeof name !== "string") {
+			continue;
+		}
+		byKey.set(name, {
+			costUsd: firstFiniteNumber(rec, ["total_usage", "usage", "cost"]) ?? 0,
+			tokens: recordTokens(rec),
+		});
+	}
+	return byKey;
 }
 
 export interface PullConfig {
 	openrouter: {
 		managementKey: string | null;
-		keyHashes: { prod: string | null; eval: string | null };
+		/** api_key_id (the key NAME) to split prod vs eval spend. */
+		keyNames: { prod: string | null; eval: string | null };
 	};
 	railway: { usageUsd: number | null };
 	planetscale: {
@@ -120,9 +149,9 @@ export function pullConfigFromEnv(): PullConfig {
 	return {
 		openrouter: {
 			managementKey: process.env.OPENROUTER_MANAGEMENT_KEY ?? null,
-			keyHashes: {
-				prod: process.env.OPENROUTER_PROD_KEY_HASH ?? null,
-				eval: process.env.OPENROUTER_EVAL_KEY_HASH ?? null,
+			keyNames: {
+				prod: process.env.OPENROUTER_PROD_KEY_NAME ?? null,
+				eval: process.env.OPENROUTER_EVAL_KEY_NAME ?? null,
 			},
 		},
 		railway: { usageUsd: numFromEnv(process.env.RAILWAY_USAGE_USD) },
@@ -149,44 +178,55 @@ async function pullOpenRouter(
 		"content-type": "application/json",
 	};
 	const nextDay = nextUtcDay(day);
-	// POST /api/v1/analytics/query with the day as a half-open time range. A key
-	// hash filter splits prod from eval; without hashes we take the account
-	// aggregate as 'prod-key' (which still includes eval until hashes are set).
-	const bodyFor = (hash: string | null) =>
-		JSON.stringify({
-			metrics: ["total_usage", "tokens_total", "request_count"],
-			...(hash
-				? { filters: [{ field: "api_key_hash", operator: "eq", value: hash }] }
-				: {}),
-			time_range: { start: `${day}T00:00:00Z`, end: `${nextDay}T00:00:00Z` },
-			granularity: "day",
-		});
-	const post = async (hash: string | null) => {
-		const res = await fetchImpl(
-			"https://openrouter.ai/api/v1/analytics/query",
-			{ method: "POST", headers, body: bodyFor(hash) },
-		);
-		if (!res.ok) {
-			throw new Error(`openrouter analytics ${res.status}`);
-		}
-		return res.json();
-	};
-	const targets: { service: string; hash: string | null }[] =
-		cfg.keyHashes.prod || cfg.keyHashes.eval
-			? [
-					{ service: "prod-key", hash: cfg.keyHashes.prod },
-					{ service: "eval-key", hash: cfg.keyHashes.eval },
-				].filter((t) => t.hash)
-			: [{ service: "prod-key", hash: null }];
-	const rows: ProviderCostRow[] = [];
-	for (const target of targets) {
-		const json = await post(target.hash);
+	const split = Boolean(cfg.keyNames.prod || cfg.keyNames.eval);
+	// One POST to /api/v1/analytics/query for the day. When splitting, group by
+	// api_key_id (the key NAME) so prod and eval land in their own rows; otherwise
+	// take the account aggregate as 'prod-key' (which includes eval until the key
+	// names are set).
+	const body = JSON.stringify({
+		metrics: ["total_usage", "tokens_total"],
+		...(split ? { dimensions: ["api_key_id"] } : {}),
+		time_range: { start: `${day}T00:00:00Z`, end: `${nextDay}T00:00:00Z` },
+	});
+	const res = await fetchImpl("https://openrouter.ai/api/v1/analytics/query", {
+		method: "POST",
+		headers,
+		body,
+	});
+	if (!res.ok) {
+		throw new Error(`openrouter analytics ${res.status}`);
+	}
+	const json = await res.json();
+
+	if (!split) {
 		const { costUsd, tokens } = extractOpenRouterDailyCost(json);
+		return [
+			{
+				provider: "openrouter",
+				service: "prod-key",
+				costUsd,
+				usageJson: { tokens, raw: json },
+				estimated: false,
+			},
+		];
+	}
+	// Match prod/eval by key name; a key with no spend that day yields a 0 row so
+	// the page reads $0 rather than going blank.
+	const byKey = extractOpenRouterByKey(json);
+	const rows: ProviderCostRow[] = [];
+	for (const [service, name] of [
+		["prod-key", cfg.keyNames.prod],
+		["eval-key", cfg.keyNames.eval],
+	] as const) {
+		if (!name) {
+			continue;
+		}
+		const agg = byKey.get(name) ?? { costUsd: 0, tokens: 0 };
 		rows.push({
 			provider: "openrouter",
-			service: target.service,
-			costUsd,
-			usageJson: { tokens, raw: json },
+			service,
+			costUsd: agg.costUsd,
+			usageJson: { tokens: agg.tokens, keyName: name },
 			estimated: false,
 		});
 	}

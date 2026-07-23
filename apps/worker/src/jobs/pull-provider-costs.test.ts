@@ -66,7 +66,7 @@ function fakeDb() {
 }
 
 const DISABLED: PullConfig = {
-	openrouter: { managementKey: null, keyHashes: { prod: null, eval: null } },
+	openrouter: { managementKey: null, keyNames: { prod: null, eval: null } },
 	railway: { usageUsd: null },
 	planetscale: { tokenId: null, token: null, org: null },
 };
@@ -96,7 +96,7 @@ describe("pullProviderCosts orchestration", () => {
 			...DISABLED,
 			openrouter: {
 				managementKey: "mk",
-				keyHashes: { prod: null, eval: null },
+				keyNames: { prod: null, eval: null },
 			},
 		};
 		const fetchImpl = mock(() =>
@@ -120,7 +120,7 @@ describe("pullProviderCosts orchestration", () => {
 			...DISABLED,
 			openrouter: {
 				managementKey: "mk",
-				keyHashes: { prod: null, eval: null },
+				keyNames: { prod: null, eval: null },
 			},
 		};
 		const fetchImpl = mock(() =>
@@ -137,6 +137,53 @@ describe("pullProviderCosts orchestration", () => {
 		});
 		expect(result.providers.openrouter).toBe("ok");
 		expect(rows).toHaveLength(2); // openrouter prod-key + planetscale
+	});
+
+	test("splits prod vs eval by key name when configured", async () => {
+		const { db, rows } = fakeDb();
+		const config: PullConfig = {
+			...DISABLED,
+			openrouter: {
+				managementKey: "mk",
+				keyNames: { prod: "tripwire-prod", eval: "tripwire-eval" },
+			},
+		};
+		// One grouped response; the puller picks each key's row by name.
+		const fetchImpl = mock(() =>
+			Promise.resolve(
+				jsonResponse({
+					data: {
+						data: [
+							{
+								api_key_id: "tripwire-prod",
+								total_usage: 0.01,
+								tokens_total: 900,
+							},
+							{
+								api_key_id: "tripwire-eval",
+								total_usage: 3.9,
+								tokens_total: 500000,
+							},
+							{
+								api_key_id: "tripwire",
+								total_usage: 2.99,
+								tokens_total: 400000,
+							},
+						],
+					},
+				}),
+			),
+		);
+		const result = await pullProviderCosts({
+			db,
+			logger: noopLogger,
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+			config,
+			now: new Date("2026-07-22T01:40:00Z"),
+		});
+		expect(result.providers.openrouter).toBe("ok");
+		expect(fetchImpl).toHaveBeenCalledTimes(1); // one grouped query
+		expect(rows).toHaveLength(3); // prod-key + eval-key + planetscale
 	});
 
 	test("writes Railway from the RAILWAY_USAGE_USD override, no network", async () => {
