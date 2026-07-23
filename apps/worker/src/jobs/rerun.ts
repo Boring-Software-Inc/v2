@@ -144,6 +144,7 @@ export async function rerunChangeRequest(
 			logger,
 			reads: deps.reads,
 			makeGenerate: deps.makeGenerate,
+			meterSource: deps.meterSource,
 			triggeredBy: job.requestedBy,
 			claimRunId: claimRunId,
 			onBeforeEvaluate: () => emitPendingCheck(surfaceDeps, event),

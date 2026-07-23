@@ -2,6 +2,7 @@ import type {
 	JsonValue,
 	RepoScopedEvent,
 	RuleResult,
+	UsageSource,
 	Verdict,
 	WorkflowDefinition,
 } from "@tripwire/contracts";
@@ -23,7 +24,12 @@ import {
 	type StepRecord,
 } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
-import { moderationServices, repoServices, runServices } from "@tripwire/db";
+import {
+	economicsServices,
+	moderationServices,
+	repoServices,
+	runServices,
+} from "@tripwire/db";
 import type { CommentReason, GithubHttp } from "@tripwire/forge-github";
 import { createForgeSignalCtx } from "@tripwire/sdk";
 import { getErrorMessage } from "@tripwire/utils";
@@ -33,6 +39,7 @@ import {
 	exemptionFlagRefusedInProd,
 	isExemptionDisabled,
 } from "../exemption.ts";
+import * as metering from "../metering.ts";
 import { readsInjectionRefusedInProd } from "../reads-injection.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
 import {
@@ -120,6 +127,12 @@ export interface RunWorkflowsDeps {
 	 * instead of inserting a new one — the activity card already points here.
 	 */
 	claimRunId?: string;
+	/**
+	 * Derived COGS source. When set, ai-review usage is metered best-effort after
+	 * the run persists (a metering outage never touches the run). Omitted in unit
+	 * tests, which skip metering.
+	 */
+	meterSource?: UsageSource;
 }
 
 export interface RunWorkflowsResult {
@@ -133,7 +146,21 @@ export interface RunWorkflowsResult {
 	degraded: boolean;
 }
 
-export async function runWorkflows(
+/**
+ * Public entry: run the workflows for an event inside a per-run metering counter
+ * scope, so every GitHub and OpenRouter transport call attributes to this run.
+ * The scope is a no-op when metering is off (the transport hooks just find no
+ * store), so unit tests calling this are unaffected.
+ */
+export function runWorkflows(
+	deps: RunWorkflowsDeps,
+	event: RepoScopedEvent,
+	eventId: string,
+): Promise<RunWorkflowsResult> {
+	return metering.runWithCounter(() => runWorkflowsInner(deps, event, eventId));
+}
+
+async function runWorkflowsInner(
 	deps: RunWorkflowsDeps,
 	event: RepoScopedEvent,
 	eventId: string,
@@ -468,6 +495,36 @@ export async function runWorkflows(
 
 	const reasons = buildCommentReasons(steps);
 	logger.info({ runId, verdict, paused, steps: steps.length }, "run persisted");
+
+	// Best-effort metering (economics-surface-contracts.md): record ai-review
+	// usage and the per-run resource counters AFTER the run persists. A failure
+	// here is logged and swallowed — the run outcome is already committed and
+	// must never depend on metering.
+	if (deps.meterSource) {
+		try {
+			await economicsServices.recordRunAiReviewUsage(db, {
+				runId,
+				orgId: repo?.orgId ?? null,
+				source: deps.meterSource,
+			});
+			const counter = metering.getCounter();
+			const activeMs = steps.reduce((sum, step) => sum + step.durationMs, 0);
+			await economicsServices.recordUsageCounters(db, {
+				runId,
+				orgId: repo?.orgId ?? null,
+				githubApiCalls: counter?.githubApiCalls ?? 0,
+				githubBytesIn: counter?.githubBytesIn ?? 0,
+				githubBytesOut: counter?.githubBytesOut ?? 0,
+				openrouterBytesOut: counter?.openrouterBytesOut ?? 0,
+				activeMs,
+			});
+		} catch (error) {
+			logger.warn(
+				{ runId, error: getErrorMessage(error) },
+				"metering failed — run unaffected",
+			);
+		}
+	}
 	return { runId, verdict, paused, actionRows, reasons, degraded };
 }
 

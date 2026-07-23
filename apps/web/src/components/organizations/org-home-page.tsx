@@ -135,8 +135,13 @@ function InstallCta({ org }: { org: string }) {
 			</div>
 			{isAdmin ? (
 				install?.status === "ready" ? (
-					<Button asChild size="sm">
-						<a href={install.url}>install the app on github</a>
+					<Button
+						nativeButton={false}
+						// biome-ignore lint/a11y/useAnchorContent: the button's children render into the anchor
+						render={<a href={install.url} />}
+						size="sm"
+					>
+						install the app on github
 					</Button>
 				) : install?.status === "not-configured" ? (
 					<p className="text-muted-foreground text-xs">

@@ -98,19 +98,17 @@ export function AnalyticsPage() {
 					className="overflow-stable min-h-0 flex-1 overflow-y-auto px-6 py-8 md:px-8 md:py-10"
 				>
 					<div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-						<Button variant="link" size="sm" asChild>
-							<Link
-								to="/$org/$repo/moderation"
-								params={{ org, repo }}
-								className="flex w-fit items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-							>
-								<HugeiconsIcon
-									icon={ArrowLeft01Icon}
-									size={14}
-									strokeWidth={2}
-								/>
-								back to moderation
-							</Link>
+						<Button
+							className="flex w-fit items-center gap-1.5 text-muted-foreground text-xs transition-colors hover:text-foreground"
+							nativeButton={false}
+							render={
+								<Link params={{ org, repo }} to="/$org/$repo/moderation" />
+							}
+							size="sm"
+							variant="link"
+						>
+							<HugeiconsIcon icon={ArrowLeft01Icon} size={14} strokeWidth={2} />
+							back to moderation
 						</Button>
 
 						{loading ? (

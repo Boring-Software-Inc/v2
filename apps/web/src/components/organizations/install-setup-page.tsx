@@ -42,8 +42,13 @@ export function InstallSetupPage() {
 						your installation request needs approval from an admin of that
 						github account. once they approve, you'll get the callback here.
 					</p>
-					<Button asChild size="sm" variant="outline">
-						<Link to="/">back home</Link>
+					<Button
+						nativeButton={false}
+						render={<Link to="/" />}
+						size="sm"
+						variant="outline"
+					>
+						back home
 					</Button>
 				</SetupShell>
 			);
@@ -91,8 +96,13 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 					a moment and refresh — the webhook may still be in flight.
 					already-connected installations live with their org.
 				</p>
-				<Button asChild size="sm" variant="outline">
-					<Link to="/">back home</Link>
+				<Button
+					nativeButton={false}
+					render={<Link to="/" />}
+					size="sm"
+					variant="outline"
+				>
+					back home
 				</Button>
 			</SetupShell>
 		);
@@ -157,10 +167,14 @@ function SetupFlow({
 					this installation is bound to an org. an installation belongs to
 					exactly one org at a time.
 				</p>
-				<Button asChild size="sm">
-					<Link params={{ org: preview.claimedByOrgSlug }} to="/$org/home">
-						open the org
-					</Link>
+				<Button
+					nativeButton={false}
+					render={
+						<Link params={{ org: preview.claimedByOrgSlug }} to="/$org/home" />
+					}
+					size="sm"
+				>
+					open the org
 				</Button>
 			</SetupShell>
 		);

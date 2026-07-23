@@ -120,27 +120,24 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 	const { open: openFeedback } = useFeedback();
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<button
-					type="button"
-					className="flex size-8 items-center justify-center rounded-full"
-					aria-label="Account"
-				>
-					<Avatar className="size-7 border border-border">
-						<AvatarImage
-							src={moderator.image ?? undefined}
-							alt={moderator.name}
-						/>
-						<AvatarFallback className="text-xs">
-							{moderator.name
-								.split(" ")
-								.map((part) => part[0])
-								.join("")
-								.slice(0, 2)
-								.toUpperCase()}
-						</AvatarFallback>
-					</Avatar>
-				</button>
+			<DropdownMenuTrigger
+				aria-label="Account"
+				className="flex size-8 items-center justify-center rounded-full"
+			>
+				<Avatar className="size-7 border border-border">
+					<AvatarImage
+						src={moderator.image ?? undefined}
+						alt={moderator.name}
+					/>
+					<AvatarFallback className="text-xs">
+						{moderator.name
+							.split(" ")
+							.map((part) => part[0])
+							.join("")
+							.slice(0, 2)
+							.toUpperCase()}
+					</AvatarFallback>
+				</Avatar>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
 				<DropdownMenuLabel className="flex flex-col gap-0.5">
@@ -151,15 +148,17 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 				</DropdownMenuLabel>
 				<DropdownMenuSeparator />
 				{org ? (
-					<DropdownMenuItem asChild>
-						{/* `to="."` — the dialog opens over whatever page you're on. */}
-						<Link
-							search={(prev) => ({ ...prev, settings: "members" as const })}
-							to="."
-						>
-							<HugeiconsIcon icon={Settings01Icon} size={14} strokeWidth={2} />
-							Settings
-						</Link>
+					<DropdownMenuItem
+						render={
+							// `to="."` — the dialog opens over whatever page you're on.
+							<Link
+								search={(prev) => ({ ...prev, settings: "members" as const })}
+								to="."
+							/>
+						}
+					>
+						<HugeiconsIcon icon={Settings01Icon} size={14} strokeWidth={2} />
+						Settings
 					</DropdownMenuItem>
 				) : null}
 				<DropdownMenuItem onClick={openFeedback}>
@@ -167,7 +166,7 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 					Send feedback
 				</DropdownMenuItem>
 				<DropdownMenuItem
-					className="text-destructive focus:text-destructive"
+					className="text-destructive data-highlighted:text-destructive"
 					onClick={() =>
 						authClient.signOut({
 							fetchOptions: {

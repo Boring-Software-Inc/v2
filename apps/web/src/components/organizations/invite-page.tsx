@@ -54,10 +54,14 @@ export function InvitePage() {
 					you've been invited to join an org on tripwire. sign in with github,
 					then come back to this link.
 				</p>
-				<Button asChild size="sm">
-					<Link to="/login" search={{ redirect: `/invite/${token}` }}>
-						sign in
-					</Link>
+				<Button
+					nativeButton={false}
+					render={
+						<Link search={{ redirect: `/invite/${token}` }} to="/login" />
+					}
+					size="sm"
+				>
+					sign in
 				</Button>
 			</InviteShell>
 		);
@@ -72,8 +76,13 @@ export function InvitePage() {
 				<p className="text-[13px] text-muted-foreground leading-relaxed">
 					ask whoever sent it for a fresh link.
 				</p>
-				<Button asChild size="sm" variant="outline">
-					<Link to="/">back home</Link>
+				<Button
+					nativeButton={false}
+					render={<Link to="/" />}
+					size="sm"
+					variant="outline"
+				>
+					back home
 				</Button>
 			</InviteShell>
 		);

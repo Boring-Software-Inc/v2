@@ -1,4 +1,4 @@
-import { Slot, Slottable } from "@radix-ui/react-slot";
+import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
@@ -43,20 +43,16 @@ function Button({
 	className,
 	variant,
 	size,
-	asChild = false,
 	iconLeft,
 	iconRight,
 	...props
-}: React.ComponentProps<"button"> &
+}: ButtonPrimitive.Props &
 	VariantProps<typeof buttonVariants> & {
-		asChild?: boolean;
 		iconLeft?: ButtonIcon;
 		iconRight?: ButtonIcon;
 	}) {
-	const Comp = asChild ? Slot : "button";
-
 	return (
-		<Comp
+		<ButtonPrimitive
 			data-slot="button"
 			className={cn(buttonVariants({ variant, size, className }))}
 			{...props}
@@ -71,7 +67,7 @@ function Button({
 					{iconLeft}
 				</span>
 			) : null}
-			<Slottable>{children}</Slottable>
+			{children}
 			{iconRight ? (
 				<span
 					data-slot="button-icon"
@@ -82,7 +78,7 @@ function Button({
 					{iconRight}
 				</span>
 			) : null}
-		</Comp>
+		</ButtonPrimitive>
 	);
 }
 

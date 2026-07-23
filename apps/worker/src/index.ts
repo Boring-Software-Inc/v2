@@ -1,3 +1,4 @@
+import { deriveUsageSource } from "@tripwire/contracts";
 import {
 	BACKFILL_REPO_QUEUE,
 	type BackfillRepoJob,
@@ -26,11 +27,15 @@ import { createGenerate } from "./ai/generate.ts";
 import type { WorkerReads } from "./context.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
+import { economicsDigest } from "./jobs/economics-digest.ts";
+import { economicsRollup } from "./jobs/economics-rollup.ts";
 import { processEvent } from "./jobs/process-event.ts";
+import { pullProviderCosts } from "./jobs/pull-provider-costs.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { rollup } from "./jobs/rollup.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
+import * as metering from "./metering.ts";
 
 /**
  * @tripwire/worker — pg-boss consumers, where I/O meets the pure core. Request
@@ -78,9 +83,13 @@ if (import.meta.main) {
 			}
 			return await tokens.getToken(repo.installationId);
 		};
-		reads = new GithubReads({ tokenFor });
-		adapter = createGithubAdapter({ tokenFor });
-		signalHttp = new GithubHttp({ tokenFor });
+		// Shared options carry the metering hook, so EVERY GitHub call (reads,
+		// adapter actions, ai-review tool loop, custom-rule signal producers)
+		// folds into the active run counter.
+		const httpOptions = { tokenFor, onCall: metering.addGithubCall };
+		reads = new GithubReads(httpOptions);
+		adapter = createGithubAdapter(httpOptions);
+		signalHttp = new GithubHttp(httpOptions);
 		/**
 		 * Boot health (live-test surprise #3): validate the App credentials with
 		 * one cheap authenticated call so a worker running on stale/broken env is
@@ -105,7 +114,18 @@ if (import.meta.main) {
 		);
 	}
 
-	const openrouterKey = process.env.OPENROUTER_API_KEY;
+	// Key split (economics-surface-contracts.md): the worker holds the PROD
+	// inference key. OPENROUTER_API_KEY stays as a back-compat fallback so a
+	// deploy without the new var keeps working. The eval harness uses its own
+	// key; the analytics pull uses a third, read-only management key.
+	const openrouterKey =
+		process.env.OPENROUTER_API_KEY_PROD ?? process.env.OPENROUTER_API_KEY;
+	// Source is derived, never guessed: the prod key under NODE_ENV=production is
+	// 'prod' COGS; the same key locally is 'dev'; underivable is 'dev'.
+	const meterSource = deriveUsageSource({
+		keyKind: openrouterKey ? "prod" : null,
+		isProdEnv: process.env.NODE_ENV === "production",
+	});
 	const defaultModel =
 		process.env.AI_REVIEW_MODEL ?? "anthropic/claude-fable-5";
 	const makeGenerate =
@@ -117,10 +137,11 @@ if (import.meta.main) {
 						reads,
 						readFile: (repo, path, ref) => adapter.readFile(repo, path, ref),
 						event,
+						countBytesOut: metering.addOpenRouterBytesOut,
 					})
 			: null;
 	logger.info(
-		{ aiReview: makeGenerate ? "wired" : "disabled" },
+		{ aiReview: makeGenerate ? "wired" : "disabled", meterSource },
 		"ai-review credential check",
 	);
 	if (!makeGenerate) {
@@ -139,6 +160,7 @@ if (import.meta.main) {
 					adapter,
 					signalHttp,
 					makeGenerate,
+					meterSource,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({ eventId: job.data.eventId }),
 				},
@@ -157,6 +179,7 @@ if (import.meta.main) {
 					adapter,
 					signalHttp,
 					makeGenerate,
+					meterSource,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({ itemId: job.data.itemId }),
 				},
@@ -175,6 +198,7 @@ if (import.meta.main) {
 					adapter,
 					signalHttp,
 					makeGenerate,
+					meterSource,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({
 						rerun: `${job.data.repoFullName}#${job.data.number}`,
@@ -193,6 +217,7 @@ if (import.meta.main) {
 					pool: directPool,
 					reads,
 					makeGenerate,
+					meterSource,
 					logger: logger.child({ repoId: job.data.repoId, backfill: true }),
 				},
 				job.data,
@@ -219,6 +244,30 @@ if (import.meta.main) {
 	await boss.schedule("deliver-webhook", "* * * * *", {}, {});
 	await boss.work("deliver-webhook", async () => {
 		await deliverWebhooks({ db, logger });
+	});
+
+	/** Economics: pull provider invoices into provider_costs_daily. 01:40 UTC,
+	 * ahead of the 02:20 economics rollup. Best-effort per provider. */
+	await boss.createQueue("pull-provider-costs");
+	await boss.schedule("pull-provider-costs", "40 1 * * *", {}, {});
+	await boss.work("pull-provider-costs", async () => {
+		await pullProviderCosts({ db, logger });
+	});
+
+	/** Economics: roll the prior UTC day into economics_daily with drift, credit
+	 * balance, and reconciliation. 02:20 UTC, after the pull. */
+	await boss.createQueue("economics-rollup");
+	await boss.schedule("economics-rollup", "20 2 * * *", {}, {});
+	await boss.work("economics-rollup", async () => {
+		await economicsRollup({ db, logger });
+	});
+
+	/** Economics: post the daily digest + alerts to Discord, plus the monthly
+	 * report on the 1st. 02:30 UTC, after the rollup. */
+	await boss.createQueue("economics-digest");
+	await boss.schedule("economics-digest", "30 2 * * *", {}, {});
+	await boss.work("economics-digest", async () => {
+		await economicsDigest({ db, logger });
 	});
 
 	/**

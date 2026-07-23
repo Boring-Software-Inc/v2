@@ -186,15 +186,17 @@ function CreateSplitButton({
 				new workflow
 			</Button>
 			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						aria-label="start from a template"
-						className="rounded-l-none border-primary-foreground/20 border-l"
-						disabled={disabled}
-						size="sm"
-					>
-						<HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={2} />
-					</Button>
+				<DropdownMenuTrigger
+					disabled={disabled}
+					render={
+						<Button
+							aria-label="start from a template"
+							className="rounded-l-none border-primary-foreground/20 border-l"
+							size="sm"
+						/>
+					}
+				>
+					<HugeiconsIcon icon={ArrowDown01Icon} size={14} strokeWidth={2} />
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
 					<DropdownMenuLabel>templates</DropdownMenuLabel>
@@ -445,15 +447,17 @@ function WorkflowCard({
 						/>
 						{isAdmin ? (
 							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										aria-label={`actions for ${workflow.name}`}
-										className="size-7"
-										size="icon"
-										variant="ghost"
-									>
-										<HugeiconsIcon icon={MoreVerticalIcon} size={16} />
-									</Button>
+								<DropdownMenuTrigger
+									render={
+										<Button
+											aria-label={`actions for ${workflow.name}`}
+											className="size-7"
+											size="icon"
+											variant="ghost"
+										/>
+									}
+								>
+									<HugeiconsIcon icon={MoreVerticalIcon} size={16} />
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
 									<DropdownMenuItem

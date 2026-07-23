@@ -103,4 +103,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	reviewUserAccess: "staff", // writes through promote/rejectUserAccess only
 	adminUpdateOrgMemberRole: "staff", // shares the plugin hook's guard
 	setUserRerunCooldownExempt: "staff",
+	getEconomicsOverview: "staff", // platform-wide cost data
+	getEconomicsSeries: "staff",
+	getCostByOrg: "staff",
 };

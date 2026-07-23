@@ -12,8 +12,14 @@ export function NotFound() {
 					to the queue.
 				</p>
 			</div>
-			<Button asChild variant="outline" size="sm" className="mt-1">
-				<Link to="/">Back to moderation</Link>
+			<Button
+				className="mt-1"
+				nativeButton={false}
+				render={<Link to="/" />}
+				size="sm"
+				variant="outline"
+			>
+				Back to moderation
 			</Button>
 		</div>
 	);

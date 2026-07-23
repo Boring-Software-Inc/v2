@@ -66,6 +66,11 @@ export const aiReviewTraceSchema = z.object({
 	maxSteps: z.number().int().min(0),
 	/** Display steps beyond the cap were dropped. */
 	trimmed: z.boolean(),
+	/**
+	 * Summed OpenRouter cost for the call (all steps), in USD. Null when the
+	 * provider did not report cost. Optional so pre-cost stored runs still parse.
+	 */
+	costUsd: z.number().nullable().optional(),
 	usage: z.object({
 		input: z.number().int().min(0),
 		output: z.number().int().min(0),
@@ -107,6 +112,8 @@ export function boundAiReviewTrace(input: {
 	maxSteps: number;
 	rawSteps: RawTraceStep[];
 	usage: RawUsage | undefined;
+	/** Summed provider cost across steps, USD. Null when unreported. */
+	costUsd?: number | null;
 }): AiReviewTrace {
 	const steps: AiReviewTraceStep[] = [];
 	for (const raw of input.rawSteps) {
@@ -132,6 +139,7 @@ export function boundAiReviewTrace(input: {
 		stepsUsed: input.rawSteps.length,
 		maxSteps: input.maxSteps,
 		trimmed,
+		costUsd: input.costUsd ?? null,
 		usage: {
 			input: usage.inputTokens ?? 0,
 			output: usage.outputTokens ?? 0,

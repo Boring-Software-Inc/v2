@@ -42,6 +42,18 @@ export {
 	seedStory,
 } from "./seed.ts";
 export * as accessServices from "./services/access.ts";
+export type {
+	AiReviewUsageInput,
+	BackfillUsageResult,
+	CostByOrgRow,
+	DailyTotals,
+	EconomicsDayPoint,
+	EconomicsOverview,
+	MonthlySummary,
+	RollupResult,
+	UsageCountersInput,
+} from "./services/economics.ts";
+export * as economicsServices from "./services/economics.ts";
 export * as eventServices from "./services/events.ts";
 export * as insightServices from "./services/insights.ts";
 export * as moderationServices from "./services/moderation.ts";
