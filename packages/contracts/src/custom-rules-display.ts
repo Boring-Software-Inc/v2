@@ -31,6 +31,20 @@ export interface CustomSignalDisplay {
 	unit?: string;
 	/** Timestamps signals author as a windowed count over this history cap. */
 	maxWindowHours?: number;
+	/**
+	 * Names a set of real repo values the builder can offer as suggestions
+	 * (branch names, extensions, logins). Does DOUBLE DUTY: its presence also
+	 * marks the signal as enum-ish, so the verb menu narrows to is / is not /
+	 * is one of instead of substring verbs. A signal can be enum-ish before its
+	 * forge implements the suggester (the combobox falls back to free text), so
+	 * read this as "these values come from a set", not "suggestions are wired".
+	 */
+	suggests?: "branches" | "extensions" | "logins";
+}
+
+/** An enum-ish signal draws from a known set, so it takes is / is not verbs. */
+export function isEnumish(signal: CustomSignalDisplay): boolean {
+	return signal.suggests !== undefined;
 }
 
 export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
@@ -94,6 +108,7 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 		label: "Username",
 		group: "The account",
 		kind: "text",
+		suggests: "logins",
 	},
 	{
 		id: "contributor.profileCompleteness",
@@ -218,18 +233,21 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 		label: "File extensions",
 		group: "This change",
 		kind: "textList",
+		suggests: "extensions",
 	},
 	{
 		id: "pr.targetBranch",
 		label: "Target branch",
 		group: "This change",
 		kind: "text",
+		suggests: "branches",
 	},
 	{
 		id: "pr.sourceBranch",
 		label: "Source branch",
 		group: "This change",
 		kind: "text",
+		suggests: "branches",
 	},
 	{ id: "pr.isDraft", label: "Draft", group: "This change", kind: "boolean" },
 	{
@@ -321,6 +339,7 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 		label: "Commit authors",
 		group: "The commits",
 		kind: "textList",
+		suggests: "logins",
 	},
 	{
 		id: "pr.allCommitsByAuthor",
@@ -391,12 +410,76 @@ export const VERBS_BY_KIND: Record<
 	],
 };
 
-function verbPhrase(
-	kind: string,
-	signalKind: CustomSignalDisplay["kind"],
+/** Enum-ish text signals compare by identity, not substring. */
+const ENUM_TEXT_VERBS: readonly { kind: string; label: string }[] = [
+	{ kind: "equals", label: "is" },
+	{ kind: "noneOf", label: "is not" },
+	{ kind: "oneOf", label: "is one of" },
+];
+
+/**
+ * The verb menu for a specific signal, narrowed by meaning. A branch or a login
+ * (kind text, but drawn from a set) offers is / is not / is one of, not the
+ * substring verbs that make no sense on an identifier. Free-text signals keep
+ * the substring verbs. Presentation only; the evaluator still accepts either.
+ */
+export function verbsForSignal(
+	signal: CustomSignalDisplay,
+): readonly { kind: string; label: string }[] {
+	if (signal.kind === "text" && isEnumish(signal)) {
+		return ENUM_TEXT_VERBS;
+	}
+	return VERBS_BY_KIND[signal.kind];
+}
+
+function verbPhrase(kind: string, signal: CustomSignalDisplay | null): string {
+	const menu = signal ? verbsForSignal(signal) : VERBS_BY_KIND.number;
+	return menu.find((v) => v.kind === kind)?.label ?? kind;
+}
+
+/**
+ * The value field's placeholder: plain words naming what the field wants, so a
+ * blank slot never reads as empty. Keyed off the signal's kind, unit, and
+ * enum-ish source.
+ */
+export function valuePlaceholder(
+	signal: CustomSignalDisplay,
+	verbKind: string,
 ): string {
-	const verb = VERBS_BY_KIND[signalKind].find((v) => v.kind === kind);
-	return verb?.label ?? kind;
+	if (verbKind === "between") {
+		return "low to high";
+	}
+	if (signal.kind === "number" || signal.kind === "timestamps") {
+		if (signal.unit === "%") {
+			return "0 to 100";
+		}
+		if (signal.unit === "days") {
+			return "number of days";
+		}
+		if (signal.unit === "chars") {
+			return "number of characters";
+		}
+		return "a number";
+	}
+	if (signal.suggests === "branches") {
+		return "branch name";
+	}
+	if (signal.suggests === "logins") {
+		return "username";
+	}
+	if (signal.suggests === "extensions") {
+		return "extension, like ts";
+	}
+	if (signal.kind === "textList") {
+		return "add a value";
+	}
+	if (verbKind === "has" || verbKind === "containsAny") {
+		return "a term";
+	}
+	if (verbKind === "oneOf" || verbKind === "noneOf") {
+		return "add a value";
+	}
+	return "exact text";
 }
 
 function formatValue(value: unknown, unit?: string): string {
@@ -447,7 +530,7 @@ export function customRuleSentence(definition: CustomRuleDefinition): string {
 	} else if (comparison.kind === "between") {
 		clause = `is between ${formatValue(comparison.args[0])} and ${formatValue(comparison.args[1], signal?.unit)}`;
 	} else {
-		clause = `${verbPhrase(comparison.kind, signalKind)} ${formatValue(comparison.args[0], signal?.unit)}`;
+		clause = `${verbPhrase(comparison.kind, signal)} ${formatValue(comparison.args[0], signal?.unit)}`;
 	}
 	return `flag when ${label.toLowerCase()}${windowPhrase(definition)} ${clause}, as a ${definition.severity} signal`;
 }

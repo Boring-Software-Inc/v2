@@ -7,8 +7,19 @@ import {
 	CUSTOM_SIGNALS,
 	customRuleSentence,
 	customRuleSummary,
+	customSignalDisplay,
 	VERBS_BY_KIND,
+	valuePlaceholder,
+	verbsForSignal,
 } from "./custom-rules-display.ts";
+
+function display(id: string) {
+	const found = customSignalDisplay(id);
+	if (!found) {
+		throw new Error(`no display for ${id}`);
+	}
+	return found;
+}
 
 const accountAge: CustomRuleDefinition = {
 	when: { id: "contributor.accountAge" },
@@ -24,6 +35,52 @@ const forkRate: CustomRuleDefinition = {
 	comparison: { kind: "atMost", args: [20] },
 	severity: "high",
 };
+
+describe("verb narrowing by meaning", () => {
+	test("enum-ish text signals offer is / is not / is one of, not substring", () => {
+		const verbs = verbsForSignal(display("pr.targetBranch")).map((v) => v.kind);
+		expect(verbs).toEqual(["equals", "noneOf", "oneOf"]);
+		expect(verbs).not.toContain("has");
+		expect(verbs).not.toContain("containsAny");
+	});
+
+	test("free-text signals keep the substring verbs", () => {
+		const verbs = verbsForSignal(display("pr.body")).map((v) => v.kind);
+		expect(verbs).toContain("has");
+		expect(verbs).toContain("containsAny");
+	});
+
+	test("the sentence uses the narrowed label for an enum signal", () => {
+		expect(
+			customRuleSentence({
+				when: { id: "pr.targetBranch" },
+				comparison: { kind: "oneOf", args: [["Next"]] },
+				severity: "medium",
+			}),
+		).toBe("flag when target branch is one of Next, as a medium signal");
+	});
+});
+
+describe("typed value placeholders", () => {
+	test("names what the field wants by kind, unit, and source", () => {
+		expect(valuePlaceholder(display("contributor.accountAge"), "under")).toBe(
+			"number of days",
+		);
+		expect(
+			valuePlaceholder(display("contributor.mergeRatioGlobal"), "under"),
+		).toBe("0 to 100");
+		expect(valuePlaceholder(display("pr.filesChanged"), "between")).toBe(
+			"low to high",
+		);
+		expect(valuePlaceholder(display("pr.targetBranch"), "equals")).toBe(
+			"branch name",
+		);
+		expect(valuePlaceholder(display("contributor.login"), "equals")).toBe(
+			"username",
+		);
+		expect(valuePlaceholder(display("pr.body"), "containsAny")).toBe("a term");
+	});
+});
 
 describe("the maintainer sentence", () => {
 	test("reads as plain language with the configured value", () => {
