@@ -92,6 +92,7 @@ interface ExtractedUsage {
 	promptTokens: number;
 	completionTokens: number;
 	cachedTokens: number | null;
+	costUsd: number | null;
 }
 
 /**
@@ -116,6 +117,7 @@ function extractTraceUsage(evidence: unknown): ExtractedUsage | null {
 		model?: unknown;
 		stepsUsed?: unknown;
 		steps?: unknown;
+		costUsd?: unknown;
 		usage?: {
 			input?: unknown;
 			output?: unknown;
@@ -159,7 +161,68 @@ function extractTraceUsage(evidence: unknown): ExtractedUsage | null {
 				? t.steps.length
 				: 1;
 	const model = typeof t.model === "string" ? t.model : "unknown";
-	return { model, httpRequests, promptTokens, completionTokens, cachedTokens };
+	const costUsd =
+		typeof t.costUsd === "number" && Number.isFinite(t.costUsd)
+			? t.costUsd
+			: null;
+	return {
+		model,
+		httpRequests,
+		promptTokens,
+		completionTokens,
+		cachedTokens,
+		costUsd,
+	};
+}
+
+/**
+ * Meter every ai-review step of a just-persisted run into ai_review_usage. Live
+ * companion to the backfill: reads the same evidence traces, but stamps the
+ * derived `source` and the captured cost, and marks the rows not-backfilled.
+ * Idempotent on run_step_id, so a job retry re-metering the run is a no-op.
+ * Best-effort by contract — the worker calls this inside try/catch.
+ */
+export async function recordRunAiReviewUsage(
+	db: Db,
+	input: { runId: string; orgId: string | null; source: UsageSource },
+): Promise<number> {
+	const steps = await db
+		.select({ id: runSteps.id, evidence: runSteps.evidence })
+		.from(runSteps)
+		.where(
+			and(
+				eq(runSteps.runId, input.runId),
+				like(runSteps.ruleId, "ai-review@%"),
+			),
+		);
+	let inserted = 0;
+	for (const step of steps) {
+		const usage = extractTraceUsage(step.evidence);
+		if (!usage) {
+			continue;
+		}
+		const rows = await db
+			.insert(aiReviewUsage)
+			.values({
+				id: generateId(),
+				runStepId: step.id,
+				runId: input.runId,
+				orgId: input.orgId,
+				model: usage.model,
+				httpRequests: usage.httpRequests,
+				promptTokens: usage.promptTokens,
+				completionTokens: usage.completionTokens,
+				cachedTokens: usage.cachedTokens,
+				costUsd: usage.costUsd === null ? null : usage.costUsd.toFixed(6),
+				source: input.source,
+			})
+			.onConflictDoNothing({ target: aiReviewUsage.runStepId })
+			.returning({ id: aiReviewUsage.id });
+		if (rows.length > 0) {
+			inserted++;
+		}
+	}
+	return inserted;
 }
 
 export interface BackfillUsageResult {

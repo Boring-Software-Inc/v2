@@ -1,3 +1,4 @@
+import { deriveUsageSource } from "@tripwire/contracts";
 import {
 	BACKFILL_REPO_QUEUE,
 	type BackfillRepoJob,
@@ -105,7 +106,18 @@ if (import.meta.main) {
 		);
 	}
 
-	const openrouterKey = process.env.OPENROUTER_API_KEY;
+	// Key split (economics-surface-contracts.md): the worker holds the PROD
+	// inference key. OPENROUTER_API_KEY stays as a back-compat fallback so a
+	// deploy without the new var keeps working. The eval harness uses its own
+	// key; the analytics pull uses a third, read-only management key.
+	const openrouterKey =
+		process.env.OPENROUTER_API_KEY_PROD ?? process.env.OPENROUTER_API_KEY;
+	// Source is derived, never guessed: the prod key under NODE_ENV=production is
+	// 'prod' COGS; the same key locally is 'dev'; underivable is 'dev'.
+	const meterSource = deriveUsageSource({
+		keyKind: openrouterKey ? "prod" : null,
+		isProdEnv: process.env.NODE_ENV === "production",
+	});
 	const defaultModel =
 		process.env.AI_REVIEW_MODEL ?? "anthropic/claude-fable-5";
 	const makeGenerate =
@@ -120,7 +132,7 @@ if (import.meta.main) {
 					})
 			: null;
 	logger.info(
-		{ aiReview: makeGenerate ? "wired" : "disabled" },
+		{ aiReview: makeGenerate ? "wired" : "disabled", meterSource },
 		"ai-review credential check",
 	);
 	if (!makeGenerate) {
@@ -139,6 +151,7 @@ if (import.meta.main) {
 					adapter,
 					signalHttp,
 					makeGenerate,
+					meterSource,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({ eventId: job.data.eventId }),
 				},
@@ -157,6 +170,7 @@ if (import.meta.main) {
 					adapter,
 					signalHttp,
 					makeGenerate,
+					meterSource,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({ itemId: job.data.itemId }),
 				},
@@ -175,6 +189,7 @@ if (import.meta.main) {
 					adapter,
 					signalHttp,
 					makeGenerate,
+					meterSource,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({
 						rerun: `${job.data.repoFullName}#${job.data.number}`,
@@ -193,6 +208,7 @@ if (import.meta.main) {
 					pool: directPool,
 					reads,
 					makeGenerate,
+					meterSource,
 					logger: logger.child({ repoId: job.data.repoId, backfill: true }),
 				},
 				job.data,

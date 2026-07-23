@@ -1,4 +1,4 @@
-import type { RepoScopedEvent } from "@tripwire/contracts";
+import type { RepoScopedEvent, UsageSource } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { BackfillRepoJob, Db } from "@tripwire/db";
 import { eventServices, repoServices } from "@tripwire/db";
@@ -30,6 +30,8 @@ export interface BackfillDeps {
 	reads: WorkerReads | null;
 	makeGenerate: ((event: RepoScopedEvent) => AiReviewGenerate) | null;
 	logger: Logger;
+	/** Derived COGS source, threaded to runWorkflows for best-effort metering. */
+	meterSource?: UsageSource;
 }
 
 const sleep = (ms: number): Promise<void> =>
@@ -73,6 +75,7 @@ export async function backfillRepo(
 					logger: logger.child({ eventId: event.id, backfill: true }),
 					reads,
 					makeGenerate,
+					meterSource: deps.meterSource,
 					surface: false,
 				},
 				event.normalized as RepoScopedEvent,

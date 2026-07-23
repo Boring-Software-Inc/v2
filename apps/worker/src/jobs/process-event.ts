@@ -1,4 +1,8 @@
-import type { InstallationEvent, RepoScopedEvent } from "@tripwire/contracts";
+import type {
+	InstallationEvent,
+	RepoScopedEvent,
+	UsageSource,
+} from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
 import { eventServices, orgServices, repoServices } from "@tripwire/db";
@@ -26,6 +30,8 @@ export interface ProcessEventDeps {
 	makeGenerate: ((event: RepoScopedEvent) => AiReviewGenerate) | null;
 	/** Base URL for run deep links. */
 	appUrl: string;
+	/** Derived COGS source, threaded to runWorkflows for best-effort metering. */
+	meterSource?: UsageSource;
 }
 
 /**
@@ -139,6 +145,7 @@ export async function processEvent(
 			reads: deps.reads,
 			signalHttp: deps.signalHttp ?? null,
 			makeGenerate: deps.makeGenerate,
+			meterSource: deps.meterSource,
 			// Pending check only after exemption/match — otherwise an exempt
 			// actor leaves `tripwire` stuck in_progress forever (lifecycle E2E
 			// hang: waitForVerdict never sees a completed check).

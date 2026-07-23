@@ -2,6 +2,7 @@ import type {
 	JsonValue,
 	RepoScopedEvent,
 	RuleResult,
+	UsageSource,
 	Verdict,
 	WorkflowDefinition,
 } from "@tripwire/contracts";
@@ -23,7 +24,12 @@ import {
 	type StepRecord,
 } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
-import { moderationServices, repoServices, runServices } from "@tripwire/db";
+import {
+	economicsServices,
+	moderationServices,
+	repoServices,
+	runServices,
+} from "@tripwire/db";
 import type { CommentReason, GithubHttp } from "@tripwire/forge-github";
 import { createForgeSignalCtx } from "@tripwire/sdk";
 import { getErrorMessage } from "@tripwire/utils";
@@ -120,6 +126,12 @@ export interface RunWorkflowsDeps {
 	 * instead of inserting a new one — the activity card already points here.
 	 */
 	claimRunId?: string;
+	/**
+	 * Derived COGS source. When set, ai-review usage is metered best-effort after
+	 * the run persists (a metering outage never touches the run). Omitted in unit
+	 * tests, which skip metering.
+	 */
+	meterSource?: UsageSource;
 }
 
 export interface RunWorkflowsResult {
@@ -468,6 +480,24 @@ export async function runWorkflows(
 
 	const reasons = buildCommentReasons(steps);
 	logger.info({ runId, verdict, paused, steps: steps.length }, "run persisted");
+
+	// Best-effort metering (economics-surface-contracts.md): record ai-review
+	// usage AFTER the run persists. A failure here is logged and swallowed — the
+	// run outcome is already committed and must never depend on metering.
+	if (deps.meterSource) {
+		try {
+			await economicsServices.recordRunAiReviewUsage(db, {
+				runId,
+				orgId: repo?.orgId ?? null,
+				source: deps.meterSource,
+			});
+		} catch (error) {
+			logger.warn(
+				{ runId, error: getErrorMessage(error) },
+				"ai-review metering failed — run unaffected",
+			);
+		}
+	}
 	return { runId, verdict, paused, actionRows, reasons, degraded };
 }
 

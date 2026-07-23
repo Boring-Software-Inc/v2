@@ -24,10 +24,13 @@ const MODEL = useProdModel
 	? PROD_MODEL
 	: (process.env.EVAL_MODEL ?? DEFAULT_EVAL_MODEL);
 
-const apiKey = process.env.OPENROUTER_API_KEY;
+// Evals use the EVAL key so their spend attributes to the eval-key service in
+// provider_costs_daily, separate from prod COGS. Falls back to the shared key.
+const apiKey =
+	process.env.OPENROUTER_API_KEY_EVAL ?? process.env.OPENROUTER_API_KEY;
 if (!apiKey) {
 	process.stderr.write(
-		"OPENROUTER_API_KEY is not set. Evals call the live model; set it in .env.\n",
+		"OPENROUTER_API_KEY_EVAL or OPENROUTER_API_KEY is not set. Evals call the live model; set it in .env.\n",
 	);
 	process.exit(2);
 }

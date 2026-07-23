@@ -16,6 +16,7 @@ import {
 	backfillAiReviewUsage,
 	getLastCreditBalance,
 	recordAiReviewUsage,
+	recordRunAiReviewUsage,
 	recordUsageCounters,
 	upsertProviderCost,
 } from "./economics.ts";
@@ -257,6 +258,64 @@ describe("live writers", () => {
 		expect(rows[0]?.costUsd).toBe("0.0200");
 
 		expect(await getLastCreditBalance(db)).toBeNull(); // no rollup rows yet
+	});
+});
+
+describe("recordRunAiReviewUsage (live metering)", () => {
+	test("stamps source + captured cost, is idempotent", async () => {
+		// A fresh run so no backfill row exists for its steps.
+		const eventId = generateId();
+		await db.insert(events).values({
+			id: eventId,
+			deliveryId: `d-${eventId}`,
+			rawKind: "pull_request",
+			raw: {},
+		});
+		const runId = generateId();
+		await db.insert(runs).values({
+			id: runId,
+			eventId,
+			repoFullName: REPO,
+			status: "completed",
+			verdict: "block",
+			workflowSnapshot: [],
+		});
+		await seedStep({
+			runId,
+			ruleId: "ai-review@2",
+			evidence: envelope({
+				model: "x-ai/grok-4.5",
+				stepsUsed: 2,
+				maxSteps: 12,
+				trimmed: false,
+				costUsd: 0.003354,
+				usage: { input: 2047, output: 341, cached: 1041 },
+				steps: [],
+			}),
+		});
+
+		const inserted = await recordRunAiReviewUsage(db, {
+			runId,
+			orgId: ORG,
+			source: "prod",
+		});
+		expect(inserted).toBe(1);
+
+		const rows = await db
+			.select()
+			.from(aiReviewUsage)
+			.where(eq(aiReviewUsage.runId, runId));
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.source).toBe("prod");
+		expect(rows[0]?.backfilled).toBe(false);
+		expect(rows[0]?.costUsd).toBe("0.003354");
+		expect(rows[0]?.httpRequests).toBe(2);
+		expect(rows[0]?.orgId).toBe(ORG);
+
+		// Re-meter (job retry) is a no-op.
+		expect(
+			await recordRunAiReviewUsage(db, { runId, orgId: ORG, source: "prod" }),
+		).toBe(0);
 	});
 });
 
