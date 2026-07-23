@@ -27,6 +27,7 @@ import { createGenerate } from "./ai/generate.ts";
 import type { WorkerReads } from "./context.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
+import { economicsDigest } from "./jobs/economics-digest.ts";
 import { economicsRollup } from "./jobs/economics-rollup.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { pullProviderCosts } from "./jobs/pull-provider-costs.ts";
@@ -259,6 +260,14 @@ if (import.meta.main) {
 	await boss.schedule("economics-rollup", "20 2 * * *", {}, {});
 	await boss.work("economics-rollup", async () => {
 		await economicsRollup({ db, logger });
+	});
+
+	/** Economics: post the daily digest + alerts to Discord, plus the monthly
+	 * report on the 1st. 02:30 UTC, after the rollup. */
+	await boss.createQueue("economics-digest");
+	await boss.schedule("economics-digest", "30 2 * * *", {}, {});
+	await boss.work("economics-digest", async () => {
+		await economicsDigest({ db, logger });
 	});
 
 	/**

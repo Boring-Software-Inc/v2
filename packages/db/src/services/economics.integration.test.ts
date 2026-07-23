@@ -14,7 +14,9 @@ import { repos } from "../schema/repos.ts";
 import { runSteps, runs } from "../schema/runs.ts";
 import {
 	backfillAiReviewUsage,
+	getDailyTotals,
 	getLastCreditBalance,
+	getMonthlySummary,
 	recordAiReviewUsage,
 	recordRunAiReviewUsage,
 	recordUsageCounters,
@@ -451,6 +453,22 @@ describe("rollupEconomicsDay", () => {
 		const t = after.find((r) => r.orgId === null);
 		expect(t?.creditBalanceUsd).toBe("998.50"); // not decremented twice
 		expect(t?.runs).toBe(5);
+	});
+
+	test("getDailyTotals + getMonthlySummary read the rolled day", async () => {
+		const totals = await getDailyTotals(db, DAY);
+		expect(totals?.runs).toBe(5);
+		expect(totals?.aiReviewedRuns).toBe(3);
+		expect(totals?.meteredCostUsd).toBeCloseTo(0.007, 6);
+		expect(totals?.pulledCostUsd).toBeCloseTo(0.0119, 6);
+		expect(totals?.railwayUsageUsd).toBeCloseTo(1.42, 2);
+
+		const summary = await getMonthlySummary(db, "2026-06");
+		expect(summary.runs).toBe(5);
+		expect(summary.aiReviewedRuns).toBe(3);
+		expect(summary.meteredCostUsd).toBeCloseTo(0.007, 6);
+		expect(summary.evalSpendUsd).toBeCloseTo(0.5, 6); // eval-key invoice, out of COGS
+		expect(summary.unattributedRuns).toBe(2);
 	});
 });
 

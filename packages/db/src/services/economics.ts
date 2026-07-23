@@ -4,6 +4,7 @@ import {
 	PLANETSCALE_MONTHLY,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
+import type { AnyColumn } from "drizzle-orm";
 import { and, desc, eq, like, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import {
@@ -294,6 +295,138 @@ export async function backfillAiReviewUsage(
 		}
 	}
 	return result;
+}
+
+export interface DailyTotals {
+	day: string;
+	runs: number;
+	aiReviewedRuns: number;
+	meteredCostUsd: number;
+	unattributedRuns: number;
+	unattributedCostUsd: number;
+	pulledCostUsd: number | null;
+	driftPct: number | null;
+	creditBalanceUsd: number | null;
+	railwayUsageUsd: number | null;
+}
+
+/** The null-org totals + reconciliation row for a day, or null if not rolled. */
+export async function getDailyTotals(
+	db: Db,
+	day: string,
+): Promise<DailyTotals | null> {
+	const [row] = await db
+		.select()
+		.from(economicsDaily)
+		.where(
+			and(eq(economicsDaily.day, day), sql`${economicsDaily.orgId} is null`),
+		)
+		.limit(1);
+	if (!row) {
+		return null;
+	}
+	return {
+		day,
+		runs: row.runs,
+		aiReviewedRuns: row.aiReviewedRuns,
+		meteredCostUsd: num(row.meteredCostUsd),
+		unattributedRuns: num(row.unattributedRuns),
+		unattributedCostUsd: num(row.unattributedCostUsd),
+		pulledCostUsd: row.pulledCostUsd == null ? null : num(row.pulledCostUsd),
+		driftPct: row.driftPct == null ? null : num(row.driftPct),
+		creditBalanceUsd:
+			row.creditBalanceUsd == null ? null : num(row.creditBalanceUsd),
+		railwayUsageUsd:
+			row.railwayUsageUsd == null ? null : num(row.railwayUsageUsd),
+	};
+}
+
+export interface MonthlySummary {
+	month: string;
+	runs: number;
+	aiReviewedRuns: number;
+	meteredCostUsd: number;
+	driftAvgPct: number | null;
+	creditBalanceUsd: number | null;
+	railwayUsageUsd: number | null;
+	unattributedRuns: number;
+	unattributedCostUsd: number;
+	evalSpendUsd: number;
+}
+
+function monthBounds(month: string): { start: string; next: string } {
+	const [y, m] = month.split("-").map(Number);
+	const start = `${month}-01`;
+	const nextMonth = m === 12 ? 1 : (m ?? 1) + 1;
+	const nextYear = m === 12 ? (y ?? 0) + 1 : y;
+	const next = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
+	return { start, next };
+}
+
+/**
+ * Aggregate a calendar month (YYYY-MM) from the daily totals rows plus the eval
+ * spend from the invoice table, for the monthly report. Metered cost is prod
+ * COGS; eval spend is reported separately and never folded in.
+ */
+export async function getMonthlySummary(
+	db: Db,
+	month: string,
+): Promise<MonthlySummary> {
+	const { start, next } = monthBounds(month);
+	const inMonth = (col: AnyColumn) =>
+		and(sql`${col} >= ${start}`, sql`${col} < ${next}`);
+
+	const [totals] = await db
+		.select({
+			runs: sql<number>`coalesce(sum(${economicsDaily.runs}),0)::int`,
+			aiRuns: sql<number>`coalesce(sum(${economicsDaily.aiReviewedRuns}),0)::int`,
+			metered: sql<string>`coalesce(sum(${economicsDaily.meteredCostUsd}),0)`,
+			driftAvg: sql<string | null>`avg(${economicsDaily.driftPct})`,
+			unRuns: sql<number>`coalesce(sum(${economicsDaily.unattributedRuns}),0)::int`,
+			unCost: sql<string>`coalesce(sum(${economicsDaily.unattributedCostUsd}),0)`,
+		})
+		.from(economicsDaily)
+		.where(
+			and(sql`${economicsDaily.orgId} is null`, inMonth(economicsDaily.day)),
+		);
+
+	const [latest] = await db
+		.select({
+			credit: economicsDaily.creditBalanceUsd,
+			railway: economicsDaily.railwayUsageUsd,
+		})
+		.from(economicsDaily)
+		.where(
+			and(sql`${economicsDaily.orgId} is null`, inMonth(economicsDaily.day)),
+		)
+		.orderBy(desc(economicsDaily.day))
+		.limit(1);
+
+	const [evalRow] = await db
+		.select({
+			cost: sql<string>`coalesce(sum(${providerCostsDaily.costUsd}),0)`,
+		})
+		.from(providerCostsDaily)
+		.where(
+			and(
+				eq(providerCostsDaily.provider, "openrouter"),
+				eq(providerCostsDaily.service, "eval-key"),
+				inMonth(providerCostsDaily.day),
+			),
+		);
+
+	return {
+		month,
+		runs: num(totals?.runs),
+		aiReviewedRuns: num(totals?.aiRuns),
+		meteredCostUsd: num(totals?.metered),
+		driftAvgPct: totals?.driftAvg == null ? null : num(totals.driftAvg),
+		creditBalanceUsd: latest?.credit == null ? null : num(latest.credit),
+		railwayUsageUsd: latest?.railway == null ? null : num(latest.railway),
+		unattributedRuns: num(totals?.unRuns),
+		unattributedCostUsd: num(totals?.unCost),
+		evalSpendUsd: num(evalRow?.cost),
+	};
 }
 
 /** Upsert one pulled provider cost row (pull-provider-costs cron). */
