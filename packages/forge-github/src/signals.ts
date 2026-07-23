@@ -1,38 +1,68 @@
 import type { RepoScopedEvent } from "@tripwire/contracts";
 import {
 	accountAge,
+	addedCommentCount,
+	allCommitsByAuthor,
+	allCommitsConventional,
 	allCommitsVerified,
+	body,
 	changedPaths,
 	closedUnmergedInRepo,
+	codeReferenceCount,
 	commentBody,
 	commentedInRepo,
+	commitAuthors,
 	commitCount,
+	commitMessages,
 	company,
+	conventionalCommits,
+	countAddedComments,
+	countCodeReferences,
+	countEmoji,
 	defineForge,
+	distinctExtensions,
+	emojiCount,
+	extractIssueNumbers,
 	type ForgeSignalCtx,
+	fileExtensions,
 	filesChanged,
 	followers,
 	following,
 	hireable,
+	isConventionalSubject,
+	isDraft,
 	isMaintainer,
 	isOrgMember,
+	isPublicProfile,
 	issuesOpenedInRepo,
 	linesAdded,
 	linesChanged,
 	linesDeleted,
+	linkedIssueCount,
 	location,
+	login,
+	maintainerCanModify,
+	maxCommitMessageLength,
 	mergedElsewhere,
 	mergedInRepo,
+	mergeRatioGlobal,
+	mergeRatioInRepo,
+	negativeReactions,
 	patchByPath,
+	profileCompleteness,
 	profileText,
 	prsOpened,
 	publicGists,
 	publicRepos,
 	recentChangeRequestTimes,
 	recentForkTimes,
+	referencedIssueNumbers,
 	signalUnavailable,
+	sourceBranch,
+	targetBranch,
 	textByLocation,
 	title,
+	titleIsConventional,
 	verifiedCommits,
 } from "@tripwire/sdk";
 import type { GithubHttp } from "./client/http.ts";
@@ -72,6 +102,31 @@ interface GithubUser {
 	company: string | null;
 	location: string | null;
 	bio: string | null;
+	name: string | null;
+	blog: string | null;
+	email: string | null;
+	twitter_username: string | null;
+	user_view_type?: string;
+}
+
+/**
+ * The ten profile fields scores for completeness. hireable counts
+ * when set to anything but null; followers and following count when above zero.
+ */
+function profileFieldsPresent(user: GithubUser): number {
+	const present = [
+		!!user.name,
+		!!user.company,
+		!!user.blog,
+		!!user.location,
+		!!user.email,
+		user.hireable !== null,
+		!!user.bio,
+		!!user.twitter_username,
+		user.followers > 0,
+		user.following > 0,
+	];
+	return present.filter(Boolean).length;
 }
 
 function loadUser(ctx: Ctx): Promise<GithubUser> {
@@ -111,8 +166,29 @@ function searchIssues(ctx: Ctx, query: string, perPage: number) {
 	);
 }
 
+/**
+ * A memoized issue-search total, null when the read fails. The key is what
+ * dedupes: passing the same key as another producer's load means both share the
+ * one fetch, which is how the two merge-ratio signals cost zero extra calls.
+ */
+async function loadSearchCount(
+	ctx: Ctx,
+	key: string,
+	query: string,
+): Promise<number | null> {
+	const result = (await ctx
+		.load(key, () => searchIssues(ctx, query, 1))
+		.catch(() => null)) as { total_count: number } | null;
+	return result?.total_count ?? null;
+}
+
+function mergeRatioPercent(merged: number, decided: number): number {
+	return Math.round((merged / decided) * 100);
+}
+
 interface PrFile {
 	filename: string;
+	status?: string;
 	additions: number;
 	deletions: number;
 	patch?: string;
@@ -120,30 +196,93 @@ interface PrFile {
 
 function loadPrFiles(ctx: Ctx): Promise<PrFile[]> {
 	const number = changeRequestNumber(ctx.event);
-	return ctx.load(
-		"pr-files",
-		() =>
-			ctx.forge.get(
-				repoOf(ctx.event),
-				`/repos/${repoOf(ctx.event)}/pulls/${number}/files?per_page=100`,
-			) as Promise<PrFile[]>,
-	);
+	return ctx
+		.load(
+			"pr-files",
+			() =>
+				ctx.forge.get(
+					repoOf(ctx.event),
+					`/repos/${repoOf(ctx.event)}/pulls/${number}/files?per_page=100`,
+				) as Promise<PrFile[]>,
+		)
+		.catch(() =>
+			signalUnavailable("this change request's files are unavailable"),
+		);
 }
 
 interface PrCommit {
-	commit: { verification?: { verified: boolean } };
+	commit: { message?: string; verification?: { verified: boolean } };
+	author: { login: string } | null;
 }
 
 function loadPrCommits(ctx: Ctx): Promise<PrCommit[]> {
 	const number = changeRequestNumber(ctx.event);
-	return ctx.load(
-		"pr-commits",
-		() =>
-			ctx.forge.get(
-				repoOf(ctx.event),
-				`/repos/${repoOf(ctx.event)}/pulls/${number}/commits?per_page=100`,
-			) as Promise<PrCommit[]>,
-	);
+	return ctx
+		.load(
+			"pr-commits",
+			() =>
+				ctx.forge.get(
+					repoOf(ctx.event),
+					`/repos/${repoOf(ctx.event)}/pulls/${number}/commits?per_page=100`,
+				) as Promise<PrCommit[]>,
+		)
+		.catch(() =>
+			signalUnavailable("this change request's commits are unavailable"),
+		);
+}
+
+interface PrDetails {
+	body: string | null;
+	maintainer_can_modify: boolean;
+}
+
+/** The change request object itself, the one call that carries body and flags. */
+function loadPrDetails(ctx: Ctx): Promise<PrDetails> {
+	const number = changeRequestNumber(ctx.event);
+	return ctx
+		.load(
+			"pr-details",
+			() =>
+				ctx.forge.get(
+					repoOf(ctx.event),
+					`/repos/${repoOf(ctx.event)}/pulls/${number}`,
+				) as Promise<PrDetails>,
+		)
+		.catch(() =>
+			signalUnavailable("this change request's details are unavailable"),
+		);
+}
+
+interface IssueReactions {
+	reactions?: { "-1"?: number; confused?: number };
+}
+
+/** The issue view of the change request, for its reaction counts. */
+function loadIssueReactions(ctx: Ctx): Promise<IssueReactions> {
+	const number = changeRequestNumber(ctx.event);
+	return ctx
+		.load(
+			"issue-reactions",
+			() =>
+				ctx.forge.get(
+					repoOf(ctx.event),
+					`/repos/${repoOf(ctx.event)}/issues/${number}`,
+				) as Promise<IssueReactions>,
+		)
+		.catch(() =>
+			signalUnavailable("this change request's reactions are unavailable"),
+		);
+}
+
+function changeRequestOf(event: RepoScopedEvent) {
+	if ("changeRequest" in event) {
+		return event.changeRequest;
+	}
+	signalUnavailable("this event has no change request");
+}
+
+async function prBody(ctx: Ctx): Promise<string> {
+	return (await loadPrDetails(ctx)).body ?? "";
 }
 
 interface UserEvent {
@@ -404,6 +543,105 @@ export const githubForge = defineForge<GithubHttp>()({
 			}
 			return content;
 		},
+		[login.id]: (ctx) => ctx.event.actor.login,
+		[profileCompleteness.id]: async (ctx) =>
+			profileFieldsPresent(await loadUser(ctx)),
+		[isPublicProfile.id]: async (ctx) =>
+			(await loadUser(ctx)).user_view_type === "public",
+		[mergeRatioGlobal.id]: async (ctx) => {
+			const author = `author:${ctx.event.actor.login}`;
+			const merged = await loadSearchCount(
+				ctx,
+				"global-merged",
+				`${author} is:pr is:merged`,
+			);
+			const closed = await loadSearchCount(
+				ctx,
+				"global-closed-unmerged",
+				`${author} is:pr is:closed is:unmerged`,
+			);
+			if (merged === null || closed === null) {
+				signalUnavailable("global merge history unavailable");
+			}
+			const decided = merged + closed;
+			if (decided === 0) {
+				signalUnavailable("no decided change requests anywhere yet");
+			}
+			return mergeRatioPercent(merged, decided);
+		},
+		[mergeRatioInRepo.id]: async (ctx) => {
+			// Same load keys as mergedInRepo and closedUnmergedInRepo, so this
+			// rides their fetches and adds zero API calls.
+			const login = ctx.event.actor.login;
+			const repo = repoOf(ctx.event);
+			const merged = await loadSearchCount(
+				ctx,
+				"merged-in-repo",
+				`repo:${repo} author:${login} is:pr is:merged`,
+			);
+			const closed = await loadSearchCount(
+				ctx,
+				"closed-unmerged-in-repo",
+				`repo:${repo} author:${login} is:pr is:closed is:unmerged`,
+			);
+			if (merged === null || closed === null) {
+				signalUnavailable("in-repo merge history unavailable");
+			}
+			const decided = merged + closed;
+			if (decided === 0) {
+				signalUnavailable("no decided change requests here yet");
+			}
+			return mergeRatioPercent(merged, decided);
+		},
+		[targetBranch.id]: (ctx) => changeRequestOf(ctx.event).baseRef,
+		[sourceBranch.id]: (ctx) => changeRequestOf(ctx.event).headRef,
+		[isDraft.id]: (ctx) => changeRequestOf(ctx.event).draft,
+		[titleIsConventional.id]: (ctx) =>
+			isConventionalSubject(changeRequestOf(ctx.event).title),
+		[body.id]: (ctx) => prBody(ctx),
+		[maintainerCanModify.id]: async (ctx) =>
+			(await loadPrDetails(ctx)).maintainer_can_modify,
+		[negativeReactions.id]: async (ctx) => {
+			const reactions = (await loadIssueReactions(ctx)).reactions;
+			return (reactions?.["-1"] ?? 0) + (reactions?.confused ?? 0);
+		},
+		[emojiCount.id]: async (ctx) =>
+			countEmoji(`${changeRequestOf(ctx.event).title} ${await prBody(ctx)}`),
+		[codeReferenceCount.id]: async (ctx) =>
+			countCodeReferences(await prBody(ctx)),
+		[linkedIssueCount.id]: async (ctx) =>
+			extractIssueNumbers(await prBody(ctx)).length,
+		[referencedIssueNumbers.id]: async (ctx) =>
+			extractIssueNumbers(await prBody(ctx)),
+		[fileExtensions.id]: async (ctx) =>
+			distinctExtensions((await loadPrFiles(ctx)).map((file) => file.filename)),
+		[addedCommentCount.id]: async (ctx) =>
+			countAddedComments(await loadPrFiles(ctx)),
+		[commitMessages.id]: async (ctx) =>
+			(await loadPrCommits(ctx)).map((entry) => entry.commit.message ?? ""),
+		[commitAuthors.id]: async (ctx) =>
+			(await loadPrCommits(ctx)).map(
+				(entry) => entry.author?.login ?? "unknown",
+			),
+		[allCommitsByAuthor.id]: async (ctx) => {
+			const commits = await loadPrCommits(ctx);
+			if (commits.length === 0) {
+				signalUnavailable("this change request has no commits");
+			}
+			const author = ctx.event.actor.login.toLowerCase();
+			return commits.every(
+				(entry) => entry.author?.login?.toLowerCase() === author,
+			);
+		},
+		[conventionalCommits.id]: async (ctx) =>
+			allCommitsConventional(
+				(await loadPrCommits(ctx)).map((entry) => entry.commit.message ?? ""),
+			),
+		[maxCommitMessageLength.id]: async (ctx) =>
+			(await loadPrCommits(ctx)).reduce(
+				(max, entry) => Math.max(max, (entry.commit.message ?? "").length),
+				0,
+			),
 		[commentBody.id]: (ctx) => {
 			if (ctx.event.kind === "comment.created") {
 				return ctx.event.comment.body;

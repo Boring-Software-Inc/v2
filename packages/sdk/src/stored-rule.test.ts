@@ -53,6 +53,35 @@ describe("storedRuleIssue", () => {
 		).toContain("window count");
 	});
 
+	test("containsAny applies to text, anyIn to lists, and neither crosses kinds", () => {
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.body" },
+				comparison: { kind: "containsAny", args: [["strawberry"]] },
+			}),
+		).toBeNull();
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.referencedIssueNumbers" },
+				comparison: { kind: "anyIn", args: [["8154"]] },
+			}),
+		).toBeNull();
+		// containsAny is text-only; a list signal must not accept it.
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.referencedIssueNumbers" },
+				comparison: { kind: "containsAny", args: [["8154"]] },
+			}),
+		).toContain("does not apply");
+		// anyIn is list-only; a text signal must not accept it.
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.body" },
+				comparison: { kind: "anyIn", args: [["x"]] },
+			}),
+		).toContain("does not apply");
+	});
+
 	test("a text transform on a non-text signal is rejected", () => {
 		expect(
 			storedRuleIssue({

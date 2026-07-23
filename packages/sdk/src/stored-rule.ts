@@ -23,9 +23,9 @@ const VERBS_FOR_KIND: Partial<Record<SignalKind, readonly string[]>> = {
 		"noneOf",
 		"not",
 	],
-	text: ["equals", "has", "oneOf", "noneOf", "not"],
+	text: ["equals", "has", "containsAny", "oneOf", "noneOf", "not"],
 	boolean: ["equals", "not"],
-	textList: ["noneMatch", "not"],
+	textList: ["noneMatch", "anyIn", "not"],
 };
 
 interface StoredRuleData {

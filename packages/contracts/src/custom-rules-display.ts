@@ -23,6 +23,8 @@ export interface CustomSignalDisplay {
 		| "Their activity"
 		| "This repo"
 		| "This change"
+		| "The PR description"
+		| "The commits"
 		| "The comment";
 	kind: "number" | "text" | "boolean" | "textList" | "timestamps";
 	/** Unit for observed values, e.g. "days". */
@@ -88,6 +90,24 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 		kind: "boolean",
 	},
 	{
+		id: "contributor.login",
+		label: "Username",
+		group: "The account",
+		kind: "text",
+	},
+	{
+		id: "contributor.profileCompleteness",
+		label: "Profile completeness",
+		group: "The account",
+		kind: "number",
+	},
+	{
+		id: "contributor.isPublicProfile",
+		label: "Public profile",
+		group: "The account",
+		kind: "boolean",
+	},
+	{
 		id: "contributor.prsOpened",
 		label: "PRs opened",
 		group: "Their activity",
@@ -114,10 +134,24 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 		maxWindowHours: 30 * 24,
 	},
 	{
+		id: "contributor.mergeRatioGlobal",
+		label: "Merge rate anywhere",
+		group: "Their activity",
+		kind: "number",
+		unit: "%",
+	},
+	{
 		id: "repoRelation.mergedInRepo",
 		label: "PRs merged here",
 		group: "This repo",
 		kind: "number",
+	},
+	{
+		id: "repoRelation.mergeRatioInRepo",
+		label: "Merge rate here",
+		group: "This repo",
+		kind: "number",
+		unit: "%",
 	},
 	{
 		id: "repoRelation.issuesOpenedInRepo",
@@ -149,7 +183,6 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 		group: "This repo",
 		kind: "boolean",
 	},
-	{ id: "pr.title", label: "PR title", group: "This change", kind: "text" },
 	{
 		id: "pr.filesChanged",
 		label: "Files changed",
@@ -181,22 +214,132 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 		kind: "number",
 	},
 	{
+		id: "pr.fileExtensions",
+		label: "File extensions",
+		group: "This change",
+		kind: "textList",
+	},
+	{
+		id: "pr.targetBranch",
+		label: "Target branch",
+		group: "This change",
+		kind: "text",
+	},
+	{
+		id: "pr.sourceBranch",
+		label: "Source branch",
+		group: "This change",
+		kind: "text",
+	},
+	{ id: "pr.isDraft", label: "Draft", group: "This change", kind: "boolean" },
+	{
+		id: "pr.maintainerCanModify",
+		label: "Maintainers can edit",
+		group: "This change",
+		kind: "boolean",
+	},
+	{
+		id: "pr.addedCommentCount",
+		label: "Added comments",
+		group: "This change",
+		kind: "number",
+	},
+	{
+		id: "pr.negativeReactions",
+		label: "Negative reactions",
+		group: "This change",
+		kind: "number",
+	},
+	{
+		id: "pr.title",
+		label: "PR title",
+		group: "The PR description",
+		kind: "text",
+	},
+	{
+		id: "pr.titleIsConventional",
+		label: "Conventional title",
+		group: "The PR description",
+		kind: "boolean",
+	},
+	{
+		id: "pr.body",
+		label: "PR description",
+		group: "The PR description",
+		kind: "text",
+	},
+	{
+		id: "pr.emojiCount",
+		label: "Emoji count",
+		group: "The PR description",
+		kind: "number",
+	},
+	{
+		id: "pr.codeReferenceCount",
+		label: "Code references",
+		group: "The PR description",
+		kind: "number",
+	},
+	{
+		id: "pr.linkedIssueCount",
+		label: "Linked issues",
+		group: "The PR description",
+		kind: "number",
+	},
+	{
+		id: "pr.referencedIssueNumbers",
+		label: "Referenced issue numbers",
+		group: "The PR description",
+		kind: "textList",
+	},
+	{
 		id: "pr.commitCount",
 		label: "Commit count",
-		group: "This change",
+		group: "The commits",
 		kind: "number",
 	},
 	{
 		id: "pr.verifiedCommits",
 		label: "Verified commits",
-		group: "This change",
+		group: "The commits",
 		kind: "number",
 	},
 	{
 		id: "pr.allCommitsVerified",
 		label: "All commits verified",
-		group: "This change",
+		group: "The commits",
 		kind: "boolean",
+	},
+	{
+		id: "pr.commitMessages",
+		label: "Commit messages",
+		group: "The commits",
+		kind: "textList",
+	},
+	{
+		id: "pr.commitAuthors",
+		label: "Commit authors",
+		group: "The commits",
+		kind: "textList",
+	},
+	{
+		id: "pr.allCommitsByAuthor",
+		label: "All commits by author",
+		group: "The commits",
+		kind: "boolean",
+	},
+	{
+		id: "pr.conventionalCommits",
+		label: "Conventional commits",
+		group: "The commits",
+		kind: "boolean",
+	},
+	{
+		id: "pr.maxCommitMessageLength",
+		label: "Longest commit message",
+		group: "The commits",
+		kind: "number",
+		unit: "chars",
 	},
 	{
 		id: "comment.body",
@@ -226,6 +369,7 @@ export const VERBS_BY_KIND: Record<
 	],
 	text: [
 		{ kind: "has", label: "contains" },
+		{ kind: "containsAny", label: "contains any of" },
 		{ kind: "equals", label: "is exactly" },
 		{ kind: "oneOf", label: "is one of" },
 		{ kind: "noneOf", label: "is none of" },
@@ -234,7 +378,10 @@ export const VERBS_BY_KIND: Record<
 		{ kind: "equals", label: "is present" },
 		{ kind: "not", label: "is missing" },
 	],
-	textList: [{ kind: "noneMatch", label: "touches none of" }],
+	textList: [
+		{ kind: "noneMatch", label: "touches none of" },
+		{ kind: "anyIn", label: "is any of" },
+	],
 	// Timestamps author as .last(window).count, then compare as numbers.
 	timestamps: [
 		{ kind: "atMost", label: "is at most" },

@@ -13,10 +13,12 @@ export {
 	type WindowedTimestampsSignal,
 } from "./client.ts";
 export {
+	anyIn,
 	atLeast,
 	atMost,
 	between,
 	type Comparison,
+	containsAny,
 	empty,
 	equals,
 	has,
@@ -46,6 +48,16 @@ export {
 	type SignalProducer,
 } from "./forge.ts";
 export { globMatch } from "./glob.ts";
+export {
+	allCommitsConventional,
+	countAddedComments,
+	countCodeReferences,
+	countEmoji,
+	type DiffFile,
+	distinctExtensions,
+	extractIssueNumbers,
+	isConventionalSubject,
+} from "./pr-metrics.ts";
 export * from "./registry.ts";
 export {
 	type ScanMatch,

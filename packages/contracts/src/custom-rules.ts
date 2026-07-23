@@ -10,7 +10,9 @@ import { RULE_CATALOG, type RuleCatalogEntry } from "./rules.ts";
  */
 
 /** v1 comparison verbs safe for stored rules. No user regex (matches, scan)
- * until the RE2 gate; noneMatch is plain globs, the honeypot trust level. */
+ * until the RE2 gate; noneMatch is plain globs, the honeypot trust level.
+ * containsAny is plain substring, anyIn is exact-match membership: neither
+ * carries a regex surface. */
 export const CUSTOM_COMPARISON_KINDS = [
 	"under",
 	"over",
@@ -22,7 +24,9 @@ export const CUSTOM_COMPARISON_KINDS = [
 	"oneOf",
 	"noneOf",
 	"has",
+	"containsAny",
 	"noneMatch",
+	"anyIn",
 ] as const;
 
 const windowSchema = z

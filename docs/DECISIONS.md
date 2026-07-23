@@ -3063,3 +3063,41 @@ Known state: the pglite seed-story integration test is failing on this
 machine independent of these changes (verified by stashing the working tree
 and rerunning; it fails identically without the Phase 4.3 diff). It is the
 historically flaky test addressed by "realistic headroom" (4e3440a).
+
+---
+
+## Signal expansion round 2 + two-step picker (2026-07-23)
+
+Reference: `docs/signal-expansion-round-2.md` (discovery + candidate table).
+
+- **23 new signals** added additively to the registry, plus two verbs:
+  `containsAny` (text substring-any, the honeypot/blocked-terms shape) and
+  `anyIn` (textList membership) — one verb closing three needs
+  (blocked issue numbers, blocked commit authors, extension blocklists). Both
+  are plain string ops, no regex, added to the v1 `CUSTOM_COMPARISON_KINDS`
+  safe set. Derivation logic (emoji, code-ref, issue-ref, added-comment
+  counter + the language comment-prefix map) is a pure module,
+  `sdk/pr-metrics.ts`, so it is unit-tested and rewireable as transforms later.
+- **Fetch producers now fail toward skip, forge-wide.** `pr-files`,
+  `pr-commits`, `pr-details`, and `issue-reactions` loaders catch a failed
+  fetch and raise `signalUnavailable` (the skip signal) instead of throwing
+  raw. A GitHub hiccup skips the one rule; it never fails the whole run. This
+  amends the earlier state where `pr-files`/`pr-commits` threw raw — the §6
+  law is "degrade honestly, skip, never guess," and it matters more for a
+  maintainer's custom rule on `pr.body` than for a built-in. Tested per
+  cluster (fetch 404s ⇒ producer surfaces `SignalUnavailableError`).
+- **Search-call budget (watch item).** GitHub's search API is ~30 req/min.
+  `mergeRatioGlobal` adds two search calls, joining the existing search-backed
+  signals (`prsOpened`, `mergedElsewhere`, `recentChangeRequestTimes`, the
+  four in-repo counts). `mergeRatioInRepo` adds zero (rides the existing
+  in-repo merged/closed searches via shared load keys). All are lazy — paid
+  only when a rule uses the signal — and each rides `ctx.load` so a cluster is
+  one fetch per run. No batching needed at current rule volumes, but if a repo
+  stacks many search-backed custom rules the per-run search count is the
+  ceiling to watch first.
+- **Two-step picker.** The flat signal dropdown became area -> signal (seven
+  areas incl. new "The PR description" and "The commits"). Grouping is the
+  presentation `group` field only; ids and stored rules are untouched, so the
+  tree can be reshaped again without a migration. Area selection cascades
+  `signal/window/verb/value` and preserves `severity/name`; changing your mind
+  reopens the area chip rather than restarting the sentence.

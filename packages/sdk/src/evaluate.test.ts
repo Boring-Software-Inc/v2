@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { SignalRule } from "./client.ts";
 import {
+	anyIn,
 	between,
+	containsAny,
 	empty,
 	equals,
 	has,
 	matches,
+	noneMatch,
 	noneOf,
 	not,
 	oneOf,
@@ -75,6 +78,48 @@ describe("text and boolean paths", () => {
 		expect(evaluateComparison("boolean", false, not(equals(true)), "s")).toBe(
 			true,
 		);
+	});
+
+	test("containsAny is substring-any over the list", () => {
+		const banned = containsAny(["strawberry", "Generated with Claude Code"]);
+		expect(
+			evaluateComparison(
+				"text",
+				"made with Generated with Claude Code",
+				banned,
+				"s",
+			),
+		).toBe(true);
+		expect(
+			evaluateComparison("text", "a normal description", banned, "s"),
+		).toBe(false);
+		// Substring, not whole-value: a needle inside a longer string still hits.
+		expect(
+			evaluateComparison("text", "fresh strawberry jam", banned, "s"),
+		).toBe(true);
+	});
+});
+
+describe("textList path", () => {
+	test("anyIn is exact-match membership, the textList analog of oneOf", () => {
+		const blocked = anyIn(["8154", "9001"]);
+		expect(evaluateComparison("textList", ["12", "8154"], blocked, "s")).toBe(
+			true,
+		);
+		expect(evaluateComparison("textList", ["12", "34"], blocked, "s")).toBe(
+			false,
+		);
+		// Membership is exact: a substring match does not count.
+		expect(evaluateComparison("textList", ["81540"], blocked, "s")).toBe(false);
+	});
+
+	test("noneMatch still applies and both compose under not", () => {
+		expect(
+			evaluateComparison("textList", ["src/a.ts"], noneMatch(["docs/**"]), "s"),
+		).toBe(true);
+		expect(
+			evaluateComparison("textList", ["8154"], not(anyIn(["8154"])), "s"),
+		).toBe(false);
 	});
 });
 

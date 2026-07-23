@@ -72,6 +72,11 @@ export function has(needle: string): Comparison<string> {
 	return { kind: "has", args: [needle] };
 }
 
+/** True when the text contains any needle in the list. Plain substring, no regex. */
+export function containsAny(needles: readonly string[]): Comparison<string> {
+	return { kind: "containsAny", args: [needles] };
+}
+
 export function oneOf(values: readonly string[]): Comparison<string>;
 export function oneOf(values: readonly number[]): Comparison<number>;
 export function oneOf(values: readonly string[] | readonly number[]): {
@@ -98,4 +103,14 @@ export function noneOf(values: readonly string[] | readonly number[]): {
 	args: readonly unknown[];
 } {
 	return { kind: "noneOf", args: [values] };
+}
+
+/**
+ * For list signals: true when any entry equals a member of the list. Exact-match
+ * membership, the textList analog of oneOf; non-empty intersection.
+ */
+export function anyIn(
+	values: readonly string[],
+): Comparison<readonly string[]> {
+	return { kind: "anyIn", args: [values] };
 }

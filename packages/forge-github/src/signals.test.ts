@@ -49,6 +49,11 @@ function fakeResponses(): Record<string, unknown> {
 			company: "@acme",
 			location: null,
 			bio: "hi",
+			name: null,
+			blog: null,
+			email: null,
+			twitter_username: null,
+			user_view_type: "public",
 		},
 		"/repos/mallory/mallory/contents/README.md?ref=HEAD": {
 			content: Buffer.from("my profile readme").toString("base64"),
@@ -73,10 +78,27 @@ function fakeResponses(): Record<string, unknown> {
 			{ filename: "docs/b.md", additions: 1, deletions: 0 },
 		],
 		"/repos/acme/widgets/pulls/42/commits?per_page=100": [
-			{ commit: { verification: { verified: true } } },
-			{ commit: { verification: { verified: false } } },
-			{ commit: {} },
+			{
+				commit: { message: "feat: a", verification: { verified: true } },
+				author: { login: "mallory" },
+			},
+			{
+				commit: { message: "fix: b", verification: { verified: false } },
+				author: { login: "mallory" },
+			},
+			{ commit: { message: "tweak things" }, author: null },
 		],
+		"/repos/acme/widgets/pulls/42": {
+			body: "Closes #12 with foo/bar.ts and run() 🚀",
+			maintainer_can_modify: true,
+		},
+		"/repos/acme/widgets/issues/42": {
+			reactions: { "-1": 1, confused: 2 },
+		},
+		[`/search/issues?q=${encodeURIComponent("author:mallory is:pr is:merged")}&per_page=1`]:
+			{ total_count: 10 },
+		[`/search/issues?q=${encodeURIComponent("author:mallory is:pr is:closed is:unmerged")}&per_page=1`]:
+			{ total_count: 30 },
 		[`/search/issues?q=${encodeURIComponent("author:mallory is:pr")}&per_page=1`]:
 			{ total_count: 9 },
 		[`/search/issues?q=${encodeURIComponent("repo:acme/widgets author:mallory is:issue")}&per_page=1`]:
@@ -204,7 +226,7 @@ describe("github forge signals", () => {
 		expect(calls).toHaveLength(0);
 	});
 
-	test("every signal in the expanded registry costs thirteen calls, shared loaders deduped", async () => {
+	test("every signal in the expanded registry costs seventeen calls, shared loaders deduped", async () => {
 		const { ctx, calls } = makeCtx();
 		const ids = Object.keys(githubForge.produces).filter(
 			(id) => id !== "comment.body",
@@ -226,9 +248,112 @@ describe("github forge signals", () => {
 		expect(values["repoRelation.issuesOpenedInRepo"]).toBe(3);
 		expect(values["repoRelation.closedUnmergedInRepo"]).toBe(1);
 		expect(values["repoRelation.commentedInRepo"]).toBe(6);
-		// user, readme, 7 searches, permission, pr-files, pr-commits, events.
-		expect(calls).toHaveLength(13);
-		expect(new Set(calls).size).toBe(13);
+		// The round-2 additions.
+		expect(values["contributor.login"]).toBe("mallory");
+		expect(values["contributor.profileCompleteness"]).toBe(4);
+		expect(values["contributor.isPublicProfile"]).toBe(true);
+		expect(values["contributor.mergeRatioGlobal"]).toBe(25);
+		expect(values["repoRelation.mergeRatioInRepo"]).toBe(67);
+		expect(values["pr.targetBranch"]).toBe("main");
+		expect(values["pr.sourceBranch"]).toBe("feature");
+		expect(values["pr.isDraft"]).toBe(false);
+		expect(values["pr.titleIsConventional"]).toBe(false);
+		expect(values["pr.body"]).toBe("Closes #12 with foo/bar.ts and run() 🚀");
+		expect(values["pr.maintainerCanModify"]).toBe(true);
+		expect(values["pr.negativeReactions"]).toBe(3);
+		expect(values["pr.emojiCount"]).toBe(1);
+		expect(values["pr.codeReferenceCount"]).toBe(2);
+		expect(values["pr.linkedIssueCount"]).toBe(1);
+		expect(values["pr.referencedIssueNumbers"]).toEqual(["12"]);
+		expect(values["pr.fileExtensions"]).toEqual(["ts", "md"]);
+		expect(values["pr.addedCommentCount"]).toBe(0);
+		expect(values["pr.commitMessages"]).toEqual([
+			"feat: a",
+			"fix: b",
+			"tweak things",
+		]);
+		expect(values["pr.commitAuthors"]).toEqual([
+			"mallory",
+			"mallory",
+			"unknown",
+		]);
+		expect(values["pr.allCommitsByAuthor"]).toBe(false);
+		expect(values["pr.conventionalCommits"]).toBe(false);
+		expect(values["pr.maxCommitMessageLength"]).toBe(12);
+		// The original 13, plus pr-details, issue-reactions, and the two global
+		// merge searches. The two in-repo merge-ratio counts ride existing
+		// searches, so they add nothing.
+		expect(calls).toHaveLength(17);
+		expect(new Set(calls).size).toBe(17);
+	});
+
+	test("the pr-details cluster feeds body and maintainer-can-modify in one call", async () => {
+		const { ctx, calls } = makeCtx();
+		const [prBody, canModify, emoji] = await Promise.all([
+			produce("pr.body", ctx),
+			produce("pr.maintainerCanModify", ctx),
+			produce("pr.codeReferenceCount", ctx),
+		]);
+		expect(prBody).toBe("Closes #12 with foo/bar.ts and run() 🚀");
+		expect(canModify).toBe(true);
+		expect(emoji).toBe(2);
+		expect(calls).toEqual(["/repos/acme/widgets/pulls/42"]);
+	});
+
+	test("both merge-ratio signals ride the in-repo searches, adding no calls", async () => {
+		const { ctx, calls } = makeCtx();
+		await Promise.all([
+			produce("repoRelation.mergedInRepo", ctx),
+			produce("repoRelation.closedUnmergedInRepo", ctx),
+			produce("repoRelation.mergeRatioInRepo", ctx),
+		]);
+		// mergeRatioInRepo shares the merged and closed-unmerged search keys.
+		expect(calls).toHaveLength(2);
+		expect(new Set(calls).size).toBe(2);
+	});
+
+	test("commit-derived signals share the one commits fetch", async () => {
+		const { ctx, calls } = makeCtx();
+		await Promise.all([
+			produce("pr.commitMessages", ctx),
+			produce("pr.commitAuthors", ctx),
+			produce("pr.allCommitsByAuthor", ctx),
+			produce("pr.conventionalCommits", ctx),
+			produce("pr.maxCommitMessageLength", ctx),
+		]);
+		expect(calls).toEqual([
+			"/repos/acme/widgets/pulls/42/commits?per_page=100",
+		]);
+	});
+
+	test("a fetch blip on any fetch-backed cluster skips the rule, never fails the run", async () => {
+		// A PR number the fixtures do not answer: every /pulls/999 and /issues/999
+		// read 404s. The producer must surface SignalUnavailableError (the skip
+		// signal), not a raw throw that would fail the whole run.
+		const missingPr = {
+			...prEvent,
+			changeRequest: { ...prEvent.changeRequest, number: 999 },
+		};
+		const { ctx } = makeCtx(missingPr);
+		// pr-files cluster.
+		await expect(produce("pr.filesChanged", ctx)).rejects.toBeInstanceOf(
+			SignalUnavailableError,
+		);
+		// pr-commits cluster.
+		await expect(produce("pr.commitCount", ctx)).rejects.toBeInstanceOf(
+			SignalUnavailableError,
+		);
+		// pr-details cluster (body and everything derived from it).
+		await expect(produce("pr.body", ctx)).rejects.toBeInstanceOf(
+			SignalUnavailableError,
+		);
+		await expect(produce("pr.emojiCount", ctx)).rejects.toBeInstanceOf(
+			SignalUnavailableError,
+		);
+		// issue-reactions cluster.
+		await expect(produce("pr.negativeReactions", ctx)).rejects.toBeInstanceOf(
+			SignalUnavailableError,
+		);
 	});
 
 	test("the weak account signals ride the one user fetch", async () => {

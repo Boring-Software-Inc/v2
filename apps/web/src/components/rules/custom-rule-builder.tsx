@@ -20,8 +20,6 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
 import { Input } from "#/components/ui/input";
@@ -39,6 +37,8 @@ const GROUPS: CustomSignalDisplay["group"][] = [
 	"Their activity",
 	"This repo",
 	"This change",
+	"The PR description",
+	"The commits",
 	"The comment",
 ];
 
@@ -59,6 +59,7 @@ export interface CustomRuleDraft {
 }
 
 interface BuilderState {
+	area: CustomSignalDisplay["group"] | null;
 	signal: CustomSignalDisplay | null;
 	window: string | null;
 	verb: { kind: string; label: string } | null;
@@ -66,6 +67,16 @@ interface BuilderState {
 	severity: (typeof SEVERITIES)[number] | null;
 	name: string;
 }
+
+const EMPTY_STATE: BuilderState = {
+	area: null,
+	signal: null,
+	window: null,
+	verb: null,
+	value: "",
+	severity: null,
+	name: "",
+};
 
 function windowHours(window: string): number {
 	const count = Number.parseInt(window, 10);
@@ -94,11 +105,16 @@ function parseValue(
 			: { kind: "equals", args: [true] };
 	}
 	if (signal.kind === "textList") {
-		const globs = value
+		const entries = value
 			.split(/[\n,]/)
 			.map((entry) => entry.trim())
 			.filter((entry) => entry.length > 0);
-		return globs.length > 0 ? { kind: "noneMatch", args: [globs] } : null;
+		if (entries.length === 0) {
+			return null;
+		}
+		return verb.kind === "anyIn"
+			? { kind: "anyIn", args: [entries] }
+			: { kind: "noneMatch", args: [entries] };
 	}
 	if (signal.kind === "number" || signal.kind === "timestamps") {
 		if (verb.kind === "between") {
@@ -115,7 +131,11 @@ function parseValue(
 				} as CustomRuleDefinition["comparison"])
 			: null;
 	}
-	if (verb.kind === "oneOf" || verb.kind === "noneOf") {
+	if (
+		verb.kind === "oneOf" ||
+		verb.kind === "noneOf" ||
+		verb.kind === "containsAny"
+	) {
 		const entries = value
 			.split(/[\n,]/)
 			.map((entry) => entry.trim())
@@ -173,14 +193,7 @@ export function CustomRuleBuilder({
 	onClose,
 	onSave,
 }: CustomRuleBuilderProps) {
-	const [state, setState] = useState<BuilderState>({
-		signal: null,
-		window: null,
-		verb: null,
-		value: "",
-		severity: null,
-		name: "",
-	});
+	const [state, setState] = useState<BuilderState>(EMPTY_STATE);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -204,14 +217,7 @@ export function CustomRuleBuilder({
 			setError(failure);
 			return;
 		}
-		setState({
-			signal: null,
-			window: null,
-			verb: null,
-			value: "",
-			severity: null,
-			name: "",
-		});
+		setState(EMPTY_STATE);
 		onClose();
 	};
 
@@ -228,37 +234,56 @@ export function CustomRuleBuilder({
 					<div className="flex flex-wrap items-center gap-1.5 text-sm leading-8">
 						<span>Flag when</span>
 						<DropdownMenu>
-							<DropdownMenuTrigger className={chipClass(state.signal !== null)}>
-								{state.signal?.label ?? "pick a signal"}
+							<DropdownMenuTrigger className={chipClass(state.area !== null)}>
+								{state.area ?? "pick an area"}
 							</DropdownMenuTrigger>
-							<DropdownMenuContent className="max-h-80 overflow-y-auto">
-								{GROUPS.map((group, index) => (
-									<div key={group}>
-										{index > 0 ? <DropdownMenuSeparator /> : null}
-										<DropdownMenuLabel className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-											{group}
-										</DropdownMenuLabel>
-										{CUSTOM_SIGNALS.filter((s) => s.group === group).map(
-											(signal) => (
-												<DropdownMenuItem
-													key={signal.id}
-													onClick={() =>
-														set({
-															signal,
-															window: null,
-															verb: null,
-															value: "",
-														})
-													}
-												>
-													{signal.label}
-												</DropdownMenuItem>
-											),
-										)}
-									</div>
+							<DropdownMenuContent>
+								{GROUPS.map((group) => (
+									<DropdownMenuItem
+										key={group}
+										onClick={() =>
+											set({
+												area: group,
+												signal: null,
+												window: null,
+												verb: null,
+												value: "",
+											})
+										}
+									>
+										{group}
+									</DropdownMenuItem>
 								))}
 							</DropdownMenuContent>
 						</DropdownMenu>
+						{state.area ? (
+							<DropdownMenu>
+								<DropdownMenuTrigger
+									className={chipClass(state.signal !== null)}
+								>
+									{state.signal?.label ?? "pick a signal"}
+								</DropdownMenuTrigger>
+								<DropdownMenuContent className="max-h-80 overflow-y-auto">
+									{CUSTOM_SIGNALS.filter((s) => s.group === state.area).map(
+										(signal) => (
+											<DropdownMenuItem
+												key={signal.id}
+												onClick={() =>
+													set({
+														signal,
+														window: null,
+														verb: null,
+														value: "",
+													})
+												}
+											>
+												{signal.label}
+											</DropdownMenuItem>
+										),
+									)}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						) : null}
 						{needsWindow ? (
 							<>
 								<span>in the last</span>
@@ -309,12 +334,15 @@ export function CustomRuleBuilder({
 								onChange={(e) => set({ value: e.target.value })}
 								placeholder={
 									state.signal?.kind === "textList"
-										? "globs, comma separated"
+										? state.verb.kind === "anyIn"
+											? "values, comma separated"
+											: "globs, comma separated"
 										: state.verb.kind === "between"
 											? "min - max"
 											: state.signal?.kind === "text" &&
 													(state.verb.kind === "oneOf" ||
-														state.verb.kind === "noneOf")
+														state.verb.kind === "noneOf" ||
+														state.verb.kind === "containsAny")
 												? "values, comma separated"
 												: "value"
 								}

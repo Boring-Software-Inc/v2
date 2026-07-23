@@ -199,6 +199,10 @@ function compareText(value: string, comparison: SerializedComparison): boolean {
 			return regexArg(comparison).test(value);
 		case "has":
 			return value.includes(textArg(comparison));
+		case "containsAny":
+			return listArg(comparison).some(
+				(needle) => typeof needle === "string" && value.includes(needle),
+			);
 		case "equals":
 			return value === comparison.args[0];
 		case "oneOf":
@@ -257,6 +261,10 @@ function compareTextList(
 			return !value.some((entry) =>
 				globsArg(comparison).some((glob) => globMatch(glob, entry)),
 			);
+		case "anyIn": {
+			const members = listArg(comparison);
+			return value.some((entry) => members.includes(entry));
+		}
 		case "not":
 			return !compareTextList(value, innerComparison(comparison));
 		default:

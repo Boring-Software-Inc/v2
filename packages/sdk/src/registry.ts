@@ -241,6 +241,176 @@ export const textByLocation = defineSignal({
 		"The event's text keyed by where it appears: comment, title, and diff patch paths",
 });
 
+export const login = defineSignal({
+	id: "contributor.login",
+	scope: "contributor",
+	type: t.text,
+	describe: "The contributor's GitHub login",
+});
+
+export const profileCompleteness = defineSignal({
+	id: "contributor.profileCompleteness",
+	scope: "contributor",
+	type: t.number,
+	describe:
+		"How many of ten profile fields the contributor has filled in: name, company, blog, location, email, hireable, bio, twitter, followers, following",
+});
+
+export const isPublicProfile = defineSignal({
+	id: "contributor.isPublicProfile",
+	scope: "contributor",
+	type: t.boolean,
+	describe: "True when the contributor's profile is public",
+});
+
+export const mergeRatioGlobal = defineSignal({
+	id: "contributor.mergeRatioGlobal",
+	scope: "contributor",
+	type: t.number,
+	describe:
+		"Percent of the contributor's decided change requests anywhere that merged, merged over merged plus closed-unmerged",
+});
+
+export const mergeRatioInRepo = defineSignal({
+	id: "repoRelation.mergeRatioInRepo",
+	scope: "repoRelation",
+	type: t.number,
+	describe:
+		"Percent of the contributor's decided change requests here that merged, merged over merged plus closed-unmerged",
+});
+
+// --- pr: more of the change request under evaluation ------------------------
+
+export const targetBranch = defineSignal({
+	id: "pr.targetBranch",
+	scope: "pr",
+	type: t.text,
+	describe: "The branch the change request wants to merge into",
+});
+
+export const sourceBranch = defineSignal({
+	id: "pr.sourceBranch",
+	scope: "pr",
+	type: t.text,
+	describe: "The branch the change request is opened from",
+});
+
+export const isDraft = defineSignal({
+	id: "pr.isDraft",
+	scope: "pr",
+	type: t.boolean,
+	describe: "True when the change request is a draft",
+});
+
+export const titleIsConventional = defineSignal({
+	id: "pr.titleIsConventional",
+	scope: "pr",
+	type: t.boolean,
+	describe:
+		"True when the title follows Conventional Commits, like feat(api): add thing",
+});
+
+export const body = defineSignal({
+	id: "pr.body",
+	scope: "pr",
+	type: t.text,
+	describe: "The change request's description, empty when it has none",
+});
+
+export const maintainerCanModify = defineSignal({
+	id: "pr.maintainerCanModify",
+	scope: "pr",
+	type: t.boolean,
+	describe: "True when maintainers may push to the change request's branch",
+});
+
+export const negativeReactions = defineSignal({
+	id: "pr.negativeReactions",
+	scope: "pr",
+	type: t.number,
+	describe: "Thumbs-down plus confused reactions on the change request",
+});
+
+export const emojiCount = defineSignal({
+	id: "pr.emojiCount",
+	scope: "pr",
+	type: t.number,
+	describe: "Emoji across the change request's title and description",
+});
+
+export const codeReferenceCount = defineSignal({
+	id: "pr.codeReferenceCount",
+	scope: "pr",
+	type: t.number,
+	describe:
+		"Inline code-ish tokens in the description: file paths, method calls, function calls",
+});
+
+export const linkedIssueCount = defineSignal({
+	id: "pr.linkedIssueCount",
+	scope: "pr",
+	type: t.number,
+	describe: "How many issues the description references",
+});
+
+export const referencedIssueNumbers = defineSignal({
+	id: "pr.referencedIssueNumbers",
+	scope: "pr",
+	type: t.textList,
+	describe: "The issue numbers the description references",
+});
+
+export const fileExtensions = defineSignal({
+	id: "pr.fileExtensions",
+	scope: "pr",
+	type: t.textList,
+	describe: "The distinct file extensions the change request touches",
+});
+
+export const addedCommentCount = defineSignal({
+	id: "pr.addedCommentCount",
+	scope: "pr",
+	type: t.number,
+	describe: "How many code-comment lines the change request adds",
+});
+
+export const commitMessages = defineSignal({
+	id: "pr.commitMessages",
+	scope: "pr",
+	type: t.textList,
+	describe: "Every commit message in the change request",
+});
+
+export const commitAuthors = defineSignal({
+	id: "pr.commitAuthors",
+	scope: "pr",
+	type: t.textList,
+	describe:
+		"The login of each commit's author, unknown when the commit has no linked account",
+});
+
+export const allCommitsByAuthor = defineSignal({
+	id: "pr.allCommitsByAuthor",
+	scope: "pr",
+	type: t.boolean,
+	describe:
+		"True when every commit is authored by the contributor who opened the change request",
+});
+
+export const conventionalCommits = defineSignal({
+	id: "pr.conventionalCommits",
+	scope: "pr",
+	type: t.boolean,
+	describe: "True when every commit subject follows Conventional Commits",
+});
+
+export const maxCommitMessageLength = defineSignal({
+	id: "pr.maxCommitMessageLength",
+	scope: "pr",
+	type: t.number,
+	describe: "The length of the longest commit message in the change request",
+});
+
 // --- comment: the comment that triggered the evaluation ---------------------
 
 export const commentBody = defineSignal({
@@ -282,6 +452,29 @@ export const registry = {
 	[verifiedCommits.id]: verifiedCommits,
 	[allCommitsVerified.id]: allCommitsVerified,
 	[textByLocation.id]: textByLocation,
+	[login.id]: login,
+	[profileCompleteness.id]: profileCompleteness,
+	[isPublicProfile.id]: isPublicProfile,
+	[mergeRatioGlobal.id]: mergeRatioGlobal,
+	[mergeRatioInRepo.id]: mergeRatioInRepo,
+	[targetBranch.id]: targetBranch,
+	[sourceBranch.id]: sourceBranch,
+	[isDraft.id]: isDraft,
+	[titleIsConventional.id]: titleIsConventional,
+	[body.id]: body,
+	[maintainerCanModify.id]: maintainerCanModify,
+	[negativeReactions.id]: negativeReactions,
+	[emojiCount.id]: emojiCount,
+	[codeReferenceCount.id]: codeReferenceCount,
+	[linkedIssueCount.id]: linkedIssueCount,
+	[referencedIssueNumbers.id]: referencedIssueNumbers,
+	[fileExtensions.id]: fileExtensions,
+	[addedCommentCount.id]: addedCommentCount,
+	[commitMessages.id]: commitMessages,
+	[commitAuthors.id]: commitAuthors,
+	[allCommitsByAuthor.id]: allCommitsByAuthor,
+	[conventionalCommits.id]: conventionalCommits,
+	[maxCommitMessageLength.id]: maxCommitMessageLength,
 	[commentBody.id]: commentBody,
 } as const satisfies Record<string, AnySignal>;
 
@@ -307,6 +500,10 @@ export const signalTree = {
 		hireable,
 		company,
 		location,
+		login,
+		profileCompleteness,
+		isPublicProfile,
+		mergeRatioGlobal,
 	},
 	repoRelation: {
 		mergedInRepo,
@@ -315,6 +512,7 @@ export const signalTree = {
 		issuesOpenedInRepo,
 		closedUnmergedInRepo,
 		commentedInRepo,
+		mergeRatioInRepo,
 	},
 	pr: {
 		title,
@@ -328,6 +526,24 @@ export const signalTree = {
 		commitCount,
 		verifiedCommits,
 		allCommitsVerified,
+		targetBranch,
+		sourceBranch,
+		isDraft,
+		titleIsConventional,
+		body,
+		maintainerCanModify,
+		negativeReactions,
+		emojiCount,
+		codeReferenceCount,
+		linkedIssueCount,
+		referencedIssueNumbers,
+		fileExtensions,
+		addedCommentCount,
+		commitMessages,
+		commitAuthors,
+		allCommitsByAuthor,
+		conventionalCommits,
+		maxCommitMessageLength,
 	},
 	comment: { body: commentBody },
 };
