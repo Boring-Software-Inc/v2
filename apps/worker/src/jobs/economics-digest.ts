@@ -180,6 +180,15 @@ export interface DigestDeps {
 	postImpl?: PostFn;
 }
 
+function resolveWebhook(deps: DigestDeps): string | null {
+	return (
+		deps.webhookUrl ??
+		process.env.ECONOMICS_WEBHOOK_URL ??
+		process.env.FEEDBACK_WEBHOOK_URL ??
+		null
+	);
+}
+
 async function post(deps: DigestDeps, url: string, content: string) {
 	const fn: PostFn = deps.postImpl ?? ((u, body) => guardedPost(u, body));
 	const result = await fn(url, { content });
@@ -188,13 +197,29 @@ async function post(deps: DigestDeps, url: string, content: string) {
 	}
 }
 
+/**
+ * Post the long-form monthly report for `month` (YYYY-MM) to the economics
+ * channel. Used by the digest cron on the 1st and by the manual trigger's
+ * `report` command. Returns false when no webhook is configured.
+ */
+export async function postMonthlyReport(
+	deps: DigestDeps,
+	month: string,
+): Promise<boolean> {
+	const webhookUrl = resolveWebhook(deps);
+	if (!webhookUrl) {
+		deps.logger.info("no economics webhook configured — report skipped");
+		return false;
+	}
+	const summary = await economicsServices.getMonthlySummary(deps.db, month);
+	await post(deps, webhookUrl, formatMonthlyReport(summary));
+	deps.logger.info({ month }, "monthly economics report posted");
+	return true;
+}
+
 export async function economicsDigest(deps: DigestDeps): Promise<void> {
 	const now = deps.now ?? new Date();
-	const webhookUrl =
-		deps.webhookUrl ??
-		process.env.ECONOMICS_WEBHOOK_URL ??
-		process.env.FEEDBACK_WEBHOOK_URL ??
-		null;
+	const webhookUrl = resolveWebhook(deps);
 	if (!webhookUrl) {
 		deps.logger.info("no economics webhook configured — digest skipped");
 		return;
@@ -212,10 +237,7 @@ export async function economicsDigest(deps: DigestDeps): Promise<void> {
 
 	// On the 1st, the day that just closed is the last of the previous month.
 	if (now.getUTCDate() === 1) {
-		const month = day.slice(0, 7);
-		const summary = await economicsServices.getMonthlySummary(deps.db, month);
-		await post(deps, webhookUrl, formatMonthlyReport(summary));
-		deps.logger.info({ month }, "monthly economics report posted");
+		await postMonthlyReport(deps, day.slice(0, 7));
 	}
 	deps.logger.info(
 		{ day, alerts: lines.length - 1 },

@@ -1,6 +1,6 @@
 import { createDb, economicsServices } from "@tripwire/db";
 import pino from "pino";
-import { economicsDigest } from "./jobs/economics-digest.ts";
+import { economicsDigest, postMonthlyReport } from "./jobs/economics-digest.ts";
 import {
 	previousUtcDay,
 	pullProviderCosts,
@@ -20,6 +20,7 @@ import {
  *   rollup    roll a day into economics_daily (drift, credit, reconciliation)
  *   digest    post the Discord digest + alerts (monthly report if the day is a
  *             month end); needs ECONOMICS_WEBHOOK_URL or FEEDBACK_WEBHOOK_URL
+ *   report    post the long-form monthly report for the target day's month
  *   all       pull, then rollup, then digest for the target day
  *
  * --day defaults to yesterday UTC (the day a 01:40 cron would target).
@@ -27,7 +28,14 @@ import {
  *   local runs: the digest posts to the REAL webhook in .env otherwise.
  */
 
-const COMMANDS = ["backfill", "pull", "rollup", "digest", "all"] as const;
+const COMMANDS = [
+	"backfill",
+	"pull",
+	"rollup",
+	"digest",
+	"report",
+	"all",
+] as const;
 type Command = (typeof COMMANDS)[number];
 
 function parseArgs(argv: string[]): {
@@ -95,6 +103,10 @@ try {
 			now: nowForDay(day),
 			postImpl: dryPost,
 		});
+	}
+	if (cmd === "report") {
+		// The long-form monthly report for the target day's month.
+		await postMonthlyReport({ db, logger, postImpl: dryPost }, day.slice(0, 7));
 	}
 	logger.info({ cmd, day }, "economics trigger done");
 } finally {
