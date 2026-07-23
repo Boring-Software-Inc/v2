@@ -3,6 +3,7 @@ import {
 	getCostByOrg,
 	getEconomicsOverview,
 	getEconomicsSeries,
+	getRailwayBreakdown,
 } from "#/lib/admin-economics.functions";
 
 export const economicsQueryKeys = {
@@ -10,6 +11,7 @@ export const economicsQueryKeys = {
 	overview: () => [...economicsQueryKeys.all, "overview"] as const,
 	series: () => [...economicsQueryKeys.all, "series"] as const,
 	costByOrg: () => [...economicsQueryKeys.all, "cost-by-org"] as const,
+	railway: () => [...economicsQueryKeys.all, "railway"] as const,
 };
 
 export const economicsOverviewQueryOptions = () =>
@@ -30,5 +32,12 @@ export const economicsCostByOrgQueryOptions = () =>
 	queryOptions({
 		queryKey: economicsQueryKeys.costByOrg(),
 		queryFn: ({ signal }) => getCostByOrg({ signal }),
+		staleTime: 60_000,
+	});
+
+export const economicsRailwayQueryOptions = () =>
+	queryOptions({
+		queryKey: economicsQueryKeys.railway(),
+		queryFn: ({ signal }) => getRailwayBreakdown({ signal }),
 		staleTime: 60_000,
 	});

@@ -3,11 +3,17 @@ import type {
 	CostByOrgRow,
 	EconomicsDayPoint,
 	EconomicsOverview,
+	RailwayBreakdown,
 } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import { platformAdminMiddleware } from "#/lib/server/staff-guard";
 
-export type { CostByOrgRow, EconomicsDayPoint, EconomicsOverview };
+export type {
+	CostByOrgRow,
+	EconomicsDayPoint,
+	EconomicsOverview,
+	RailwayBreakdown,
+};
 
 /**
  * Platform staff economics surface (/admin/economics). Every fn is class "staff":
@@ -51,4 +57,12 @@ export const getCostByOrg = createServerFn({ method: "GET" })
 		const { getDb } = await import("#/lib/server/db");
 		const { economicsServices } = await import("@tripwire/db");
 		return economicsServices.getCostByOrg(getDb().db, currentUtcMonth());
+	});
+
+export const getRailwayBreakdown = createServerFn({ method: "GET" })
+	.middleware([accessGuardMiddleware, platformAdminMiddleware])
+	.handler(async (): Promise<RailwayBreakdown | null> => {
+		const { getDb } = await import("#/lib/server/db");
+		const { economicsServices } = await import("@tripwire/db");
+		return economicsServices.getRailwayBreakdown(getDb().db);
 	});

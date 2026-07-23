@@ -764,19 +764,22 @@ export async function rollupEconomicsDay(
 		);
 	const pulledCostUsd = num(pulled?.cost);
 
-	// D. latest Railway usage figure for the day (the floor gauge).
+	// D. Railway usage figure for the day (the floor gauge): sum the per-service
+	// rows, excluding the metadata `rates` row. Null when no Railway rows exist.
 	const [railway] = await db
-		.select({ cost: providerCostsDaily.costUsd })
+		.select({
+			cost: sql<string>`coalesce(sum(${providerCostsDaily.costUsd}),0)`,
+			n: sql<number>`count(*)::int`,
+		})
 		.from(providerCostsDaily)
 		.where(
 			and(
 				eq(providerCostsDaily.day, day),
 				eq(providerCostsDaily.provider, "railway"),
+				ne(providerCostsDaily.service, "rates"),
 			),
-		)
-		.orderBy(desc(providerCostsDaily.pulledAt))
-		.limit(1);
-	const railwayUsageUsd = railway ? num(railway.cost) : null;
+		);
+	const railwayUsageUsd = num(railway?.n) > 0 ? num(railway?.cost) : null;
 
 	// Totals + unattributed.
 	let totalRuns = 0;
@@ -855,5 +858,108 @@ export async function rollupEconomicsDay(
 		pulledCostUsd,
 		driftPct,
 		creditBalanceUsd,
+	};
+}
+
+/**
+ * The most recent Railway subscription prices (from the `rates` metadata row),
+ * for rate-drift detection on the next pull. Null when never pulled.
+ */
+export async function getLastRailwayPrices(
+	db: Db,
+): Promise<Record<string, number> | null> {
+	const [row] = await db
+		.select({ usageJson: providerCostsDaily.usageJson })
+		.from(providerCostsDaily)
+		.where(
+			and(
+				eq(providerCostsDaily.provider, "railway"),
+				eq(providerCostsDaily.service, "rates"),
+			),
+		)
+		.orderBy(desc(providerCostsDaily.day), desc(providerCostsDaily.pulledAt))
+		.limit(1);
+	const prices = (row?.usageJson as { prices?: unknown } | undefined)?.prices;
+	return prices && typeof prices === "object"
+		? (prices as Record<string, number>)
+		: null;
+}
+
+export interface RailwayServiceBreakdown {
+	name: string;
+	costUsd: number;
+	cpuUnits: number;
+	memGbMin: number;
+	egressGb: number;
+}
+
+export interface RailwayBreakdown {
+	day: string;
+	totalUsd: number;
+	lastPulledAt: string;
+	ratesDrift: boolean;
+	ratesVerifiedAt: string | null;
+	services: RailwayServiceBreakdown[];
+}
+
+/**
+ * The latest Railway pull broken out per service, with the raw quantities behind
+ * each dollar figure, the last pull time, and the rate-drift flag. Null when
+ * Railway has never been pulled (the page then shows "could not reach Railway").
+ */
+export async function getRailwayBreakdown(
+	db: Db,
+): Promise<RailwayBreakdown | null> {
+	const [latest] = await db
+		.select({ day: providerCostsDaily.day })
+		.from(providerCostsDaily)
+		.where(eq(providerCostsDaily.provider, "railway"))
+		.orderBy(desc(providerCostsDaily.day))
+		.limit(1);
+	if (!latest) {
+		return null;
+	}
+	const rows = await db
+		.select()
+		.from(providerCostsDaily)
+		.where(
+			and(
+				eq(providerCostsDaily.provider, "railway"),
+				eq(providerCostsDaily.day, latest.day),
+			),
+		);
+	const services: RailwayServiceBreakdown[] = [];
+	let totalUsd = 0;
+	let ratesDrift = false;
+	let ratesVerifiedAt: string | null = null;
+	let lastPulledAt = new Date(0);
+	for (const row of rows) {
+		if (row.pulledAt && row.pulledAt > lastPulledAt) {
+			lastPulledAt = row.pulledAt;
+		}
+		const j = (row.usageJson ?? {}) as Record<string, unknown>;
+		if (row.service === "rates") {
+			ratesDrift = j.ratesDrift === true;
+			ratesVerifiedAt = typeof j.verifiedAt === "string" ? j.verifiedAt : null;
+			continue;
+		}
+		const cost = num(row.costUsd);
+		totalUsd += cost;
+		services.push({
+			name: typeof j.name === "string" ? j.name : row.service,
+			costUsd: cost,
+			cpuUnits: num(j.cpuUnits),
+			memGbMin: num(j.memGbMin),
+			egressGb: num(j.egressGb),
+		});
+	}
+	services.sort((a, b) => b.costUsd - a.costUsd);
+	return {
+		day: latest.day,
+		totalUsd,
+		lastPulledAt: lastPulledAt.toISOString(),
+		ratesDrift,
+		ratesVerifiedAt,
+		services,
 	};
 }

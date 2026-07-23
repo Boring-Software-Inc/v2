@@ -50,6 +50,8 @@ export type {
 	EconomicsDayPoint,
 	EconomicsOverview,
 	MonthlySummary,
+	RailwayBreakdown,
+	RailwayServiceBreakdown,
 	RollupResult,
 	UsageCountersInput,
 } from "./services/economics.ts";

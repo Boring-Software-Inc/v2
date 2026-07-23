@@ -67,7 +67,7 @@ function fakeDb() {
 
 const DISABLED: PullConfig = {
 	openrouter: { managementKey: null, keyNames: { prod: null, eval: null } },
-	railway: { usageUsd: null },
+	railway: { token: null },
 	planetscale: { tokenId: null, token: null, org: null },
 };
 
@@ -186,20 +186,18 @@ describe("pullProviderCosts orchestration", () => {
 		expect(rows).toHaveLength(3); // prod-key + eval-key + planetscale
 	});
 
-	test("writes Railway from the RAILWAY_USAGE_USD override, no network", async () => {
+	test("railway is skipped without a token (Railway pricing tested in railway-cost.test)", async () => {
 		const { db, rows } = fakeDb();
-		const config: PullConfig = { ...DISABLED, railway: { usageUsd: 1.42 } };
-		const fetchImpl = mock(() => Promise.resolve(jsonResponse({})));
 		const result = await pullProviderCosts({
 			db,
 			logger: noopLogger,
-			fetchImpl: fetchImpl as unknown as typeof fetch,
-			config,
+			fetchImpl: (() =>
+				Promise.resolve(jsonResponse({}))) as unknown as typeof fetch,
+			config: DISABLED,
 			now: new Date("2026-07-22T01:40:00Z"),
 		});
-		expect(result.providers.railway).toBe("ok");
-		expect(fetchImpl).not.toHaveBeenCalled(); // override needs no request
-		expect(rows).toHaveLength(2); // railway + planetscale
+		expect(result.providers.railway).toBe("skipped");
+		expect(rows).toHaveLength(1); // planetscale only
 	});
 });
 

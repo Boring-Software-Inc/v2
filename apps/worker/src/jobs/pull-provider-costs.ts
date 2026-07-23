@@ -3,6 +3,8 @@ import type { Db } from "@tripwire/db";
 import { economicsServices } from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
+import { pullRailwayCost } from "./railway-cost.ts";
+import { RAILWAY_RATES_VERIFIED_AT } from "./railway-rates.ts";
 
 /**
  * pull-provider-costs (economics-surface-contracts.md): the daily invoice pull.
@@ -43,12 +45,9 @@ function nextUtcDay(day: string): string {
 	return d.toISOString().slice(0, 10);
 }
 
-function numFromEnv(raw: string | undefined): number | null {
-	if (raw == null || raw === "") {
-		return null;
-	}
-	const n = Number(raw);
-	return Number.isFinite(n) ? n : null;
+/** First day of the UTC month that `day` falls in, as YYYY-MM-DD. */
+function monthStartUtc(day: string): string {
+	return `${day.slice(0, 7)}-01`;
 }
 
 function firstFiniteNumber(obj: unknown, keys: string[]): number | null {
@@ -136,7 +135,7 @@ export interface PullConfig {
 		/** api_key_id (the key NAME) to split prod vs eval spend. */
 		keyNames: { prod: string | null; eval: string | null };
 	};
-	railway: { usageUsd: number | null };
+	railway: { token: string | null };
 	planetscale: {
 		tokenId: string | null;
 		token: string | null;
@@ -154,7 +153,7 @@ export function pullConfigFromEnv(): PullConfig {
 				eval: process.env.OPENROUTER_EVAL_KEY_NAME ?? null,
 			},
 		},
-		railway: { usageUsd: numFromEnv(process.env.RAILWAY_USAGE_USD) },
+		railway: { token: process.env.RAILWAY_API_TOKEN ?? null },
 		planetscale: {
 			tokenId: process.env.PLANETSCALE_SERVICE_TOKEN_ID ?? null,
 			token: process.env.PLANETSCALE_SERVICE_TOKEN ?? null,
@@ -234,24 +233,50 @@ async function pullOpenRouter(
 }
 
 /**
- * Railway billing has no stable public GraphQL query, so the usage figure is
- * operator-provided via RAILWAY_USAGE_USD (the current MTD number from the
- * dashboard), mirroring how PlanetScale is modeled flat. Marked estimated. When
- * the env is unset, Railway is simply skipped.
+ * Pull Railway month-to-date cost from the GraphQL usage API, priced per service
+ * with the verified rates. Writes one row per service (with the raw quantities)
+ * plus a `rates` row carrying the subscription prices and the drift flag. The
+ * usage window is the month through the target day. Needs an account/workspace
+ * token; a project token returns Not Authorized.
  */
-function pullRailway(cfg: PullConfig["railway"]): ProviderCostRow[] {
-	if (cfg.usageUsd == null) {
-		return [];
-	}
-	return [
-		{
-			provider: "railway",
-			service: "main",
-			costUsd: cfg.usageUsd,
-			usageJson: { note: "from RAILWAY_USAGE_USD" },
-			estimated: true,
+async function pullRailway(
+	db: Db,
+	fetchImpl: Fetch,
+	token: string,
+	day: string,
+): Promise<ProviderCostRow[]> {
+	const prevPrices = await economicsServices.getLastRailwayPrices(db);
+	const result = await pullRailwayCost(fetchImpl, {
+		token,
+		start: `${monthStartUtc(day)}T00:00:00Z`,
+		end: `${nextUtcDay(day)}T00:00:00Z`,
+		prevPrices,
+	});
+	const rows: ProviderCostRow[] = result.services.map((s) => ({
+		provider: "railway",
+		service: s.serviceId,
+		costUsd: s.costUsd,
+		usageJson: {
+			name: s.name,
+			cpuUnits: s.cpuUnits,
+			memGbMin: s.memGbMin,
+			egressGb: s.egressGb,
 		},
-	];
+		estimated: true,
+	}));
+	// The rates row is metadata, not a cost line (costUsd 0, excluded from sums).
+	rows.push({
+		provider: "railway",
+		service: "rates",
+		costUsd: 0,
+		usageJson: {
+			prices: result.prices,
+			ratesDrift: result.ratesDrift,
+			verifiedAt: RAILWAY_RATES_VERIFIED_AT,
+		},
+		estimated: false,
+	});
+	return rows;
 }
 
 async function pullPlanetScale(
@@ -339,8 +364,8 @@ export async function pullProviderCosts(deps: PullDeps): Promise<PullResult> {
 	await run("openrouter", Boolean(config.openrouter.managementKey), () =>
 		pullOpenRouter(fetchImpl, config.openrouter, day),
 	);
-	await run("railway", config.railway.usageUsd != null, () =>
-		Promise.resolve(pullRailway(config.railway)),
+	await run("railway", Boolean(config.railway.token), () =>
+		pullRailway(deps.db, fetchImpl, config.railway.token as string, day),
 	);
 	// PlanetScale always writes the interpolated accrual, invoice or not.
 	await run("planetscale", true, () =>

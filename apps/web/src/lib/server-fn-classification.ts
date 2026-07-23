@@ -106,4 +106,5 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getEconomicsOverview: "staff", // platform-wide cost data
 	getEconomicsSeries: "staff",
 	getCostByOrg: "staff",
+	getRailwayBreakdown: "staff",
 };

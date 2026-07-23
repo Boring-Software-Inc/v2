@@ -1,13 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
-import type { CostByOrgRow } from "@tripwire/db";
+import type { CostByOrgRow, RailwayBreakdown } from "@tripwire/db";
 import { DitherChart } from "#/components/charts/dither-chart";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import {
 	economicsCostByOrgQueryOptions,
 	economicsOverviewQueryOptions,
+	economicsRailwayQueryOptions,
 	economicsSeriesQueryOptions,
 } from "#/lib/admin-economics.query";
 import { cn } from "#/lib/utils";
+
+const RAILWAY_FLOOR_USD = 5;
+
+function pulledAgo(iso: string): string {
+	const then = new Date(iso).getTime();
+	if (!Number.isFinite(then)) {
+		return "unknown";
+	}
+	const mins = Math.round((Date.now() - then) / 60000);
+	if (mins < 60) {
+		return `${mins}m ago`;
+	}
+	const hrs = Math.round(mins / 60);
+	return hrs < 48 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+}
 
 const usd = (n: number, dp = 2) => `$${n.toFixed(dp)}`;
 
@@ -22,13 +38,11 @@ export function EconomicsPage() {
 	const overview = useQuery(economicsOverviewQueryOptions());
 	const series = useQuery(economicsSeriesQueryOptions());
 	const costByOrg = useQuery(economicsCostByOrgQueryOptions());
+	const railway = useQuery(economicsRailwayQueryOptions());
 
 	const o = overview.data;
 	const points = series.data ?? [];
 	const overCeiling = o ? o.costPerRunUsd > o.costCeilingUsd : false;
-	const floorPct = o?.railwayUsageUsd
-		? Math.min(1, o.railwayUsageUsd / o.railwayFloorUsd)
-		: 0;
 
 	const cards = [
 		{
@@ -137,34 +151,102 @@ export function EconomicsPage() {
 					</div>
 				</div>
 
-				<div className="mt-3 rounded-xl border bg-card p-4">
-					<div className="flex items-baseline justify-between">
-						<p className="font-medium text-sm">Railway floor</p>
-						<p className="text-muted-foreground text-xs tabular-nums">
-							{o?.railwayUsageUsd == null
-								? "n/a"
-								: `${usd(o.railwayUsageUsd)} / ${usd(o.railwayFloorUsd)}`}
-						</p>
-					</div>
-					<p className="mt-0.5 mb-2 text-muted-foreground text-xs">
-						hosting usage against the $5.00 that the plan includes each month.
-						spend past the floor starts adding to the bill. n/a until
-						RAILWAY_USAGE_USD is set.
-					</p>
-					<div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
-						<div
-							className={cn(
-								"h-full rounded-full",
-								floorPct >= 0.9 ? "bg-danger" : "bg-primary",
-							)}
-							style={{ width: `${Math.round(floorPct * 100)}%` }}
-						/>
-					</div>
-				</div>
+				<RailwaySection
+					data={railway.data ?? null}
+					loading={railway.isLoading}
+				/>
 
 				<CostByOrgTable rows={costByOrg.data ?? []} />
 			</div>
 		</DashboardLayout>
+	);
+}
+
+function RailwaySection({
+	data,
+	loading,
+}: {
+	data: RailwayBreakdown | null;
+	loading: boolean;
+}) {
+	const total = data?.totalUsd ?? 0;
+	const floorPct = Math.min(1, total / RAILWAY_FLOOR_USD);
+	return (
+		<div className="mt-3 rounded-xl border bg-card p-4">
+			<div className="flex items-baseline justify-between">
+				<p className="font-medium text-sm">Railway floor</p>
+				<p className="text-muted-foreground text-xs tabular-nums">
+					{data ? `${usd(total)} / ${usd(RAILWAY_FLOOR_USD)}` : "no data"}
+				</p>
+			</div>
+			<p className="mt-0.5 mb-2 text-muted-foreground text-xs">
+				hosting usage this billing period, pulled from Railway and priced per
+				service. it counts against the $5.00 the plan includes each month. spend
+				past that starts adding to the bill.
+			</p>
+
+			{data?.ratesDrift ? (
+				<p className="mb-2 rounded-lg bg-danger/10 px-3 py-2 text-danger text-xs">
+					Railway pricing changed. re-verify the rates in railway-rates.ts. the
+					dollars below may be wrong until then.
+				</p>
+			) : null}
+
+			<div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+				<div
+					className={cn(
+						"h-full rounded-full",
+						floorPct >= 0.9 ? "bg-danger" : "bg-primary",
+					)}
+					style={{ width: `${Math.round(floorPct * 100)}%` }}
+				/>
+			</div>
+
+			{data === null ? (
+				<p className="mt-3 text-muted-foreground text-xs">
+					{loading
+						? "loading."
+						: "could not reach Railway, or no pull has run yet. set RAILWAY_API_TOKEN to an account token."}
+				</p>
+			) : (
+				<>
+					<table className="mt-3 w-full text-xs">
+						<thead>
+							<tr className="text-muted-foreground">
+								<th className="py-1 text-left font-normal">service</th>
+								<th className="py-1 text-right font-normal">vCPU-min</th>
+								<th className="py-1 text-right font-normal">GB-min</th>
+								<th className="py-1 text-right font-normal">egress GB</th>
+								<th className="py-1 text-right font-normal">cost</th>
+							</tr>
+						</thead>
+						<tbody>
+							{data.services.map((s) => (
+								<tr className="border-surface-2 border-t" key={s.name}>
+									<td className="py-1">{s.name}</td>
+									<td className="py-1 text-right tabular-nums">
+										{s.cpuUnits.toFixed(0)}
+									</td>
+									<td className="py-1 text-right tabular-nums">
+										{s.memGbMin.toFixed(0)}
+									</td>
+									<td className="py-1 text-right tabular-nums">
+										{s.egressGb.toFixed(2)}
+									</td>
+									<td className="py-1 text-right tabular-nums">
+										{usd(s.costUsd, 4)}
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+					<p className="mt-2 text-muted-foreground text-xs">
+						the quantities are the raw usage behind each dollar figure. last
+						pulled {pulledAgo(data.lastPulledAt)}.
+					</p>
+				</>
+			)}
+		</div>
 	);
 }
 
