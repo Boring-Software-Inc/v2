@@ -1,11 +1,13 @@
 import type { UsageSource } from "@tripwire/contracts";
 import {
+	creditRunwayMonths,
 	PLANETSCALE_CREDITS_START,
 	PLANETSCALE_MONTHLY,
+	RAILWAY_FLOOR,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import type { AnyColumn } from "drizzle-orm";
-import { and, desc, eq, like, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, like, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import {
 	aiReviewUsage,
@@ -13,6 +15,7 @@ import {
 	providerCostsDaily,
 	usageCounters,
 } from "../schema/economics.ts";
+import { organization } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
 import { runSteps, runs } from "../schema/runs.ts";
 
@@ -427,6 +430,156 @@ export async function getMonthlySummary(
 		unattributedCostUsd: num(totals?.unCost),
 		evalSpendUsd: num(evalRow?.cost),
 	};
+}
+
+export interface EconomicsOverview {
+	month: string;
+	runs: number;
+	aiReviewedRuns: number;
+	meteredMtdUsd: number;
+	accruedMtdUsd: number;
+	costPerRunUsd: number;
+	costCeilingUsd: number;
+	driftPct: number | null;
+	creditBalanceUsd: number | null;
+	creditRunwayMonths: number | null;
+	railwayUsageUsd: number | null;
+	railwayFloorUsd: number;
+}
+
+/** The four-card summary for the admin page: cost per run, metered vs accrued,
+ * drift, runs, plus the credit and floor gauges. Derived from the month's rows. */
+export async function getEconomicsOverview(
+	db: Db,
+	month: string,
+): Promise<EconomicsOverview> {
+	const s = await getMonthlySummary(db, month);
+	const railway = Math.max(RAILWAY_FLOOR, s.railwayUsageUsd ?? 0);
+	const accrued = railway + PLANETSCALE_MONTHLY + s.meteredCostUsd;
+	return {
+		month,
+		runs: s.runs,
+		aiReviewedRuns: s.aiReviewedRuns,
+		meteredMtdUsd: s.meteredCostUsd,
+		accruedMtdUsd: accrued,
+		costPerRunUsd: s.runs > 0 ? s.meteredCostUsd / s.runs : 0,
+		costCeilingUsd: 0.01,
+		driftPct: s.driftAvgPct,
+		creditBalanceUsd: s.creditBalanceUsd,
+		creditRunwayMonths:
+			s.creditBalanceUsd == null ? null : creditRunwayMonths(s.creditBalanceUsd),
+		railwayUsageUsd: s.railwayUsageUsd,
+		railwayFloorUsd: RAILWAY_FLOOR,
+	};
+}
+
+export interface EconomicsDayPoint {
+	day: string;
+	runs: number;
+	meteredCostUsd: number;
+	pulledCostUsd: number | null;
+	creditBalanceUsd: number | null;
+	railwayUsageUsd: number | null;
+}
+
+/** The trailing daily totals series for the charts (burn-down, OR spend, floor). */
+export async function getEconomicsSeries(
+	db: Db,
+	days: number,
+	now?: Date,
+): Promise<EconomicsDayPoint[]> {
+	const to = now ?? new Date();
+	const from = new Date(to.getTime());
+	from.setUTCDate(from.getUTCDate() - days);
+	const fromDay = from.toISOString().slice(0, 10);
+	const rows = await db
+		.select({
+			day: economicsDaily.day,
+			runs: economicsDaily.runs,
+			metered: economicsDaily.meteredCostUsd,
+			pulled: economicsDaily.pulledCostUsd,
+			credit: economicsDaily.creditBalanceUsd,
+			railway: economicsDaily.railwayUsageUsd,
+		})
+		.from(economicsDaily)
+		.where(
+			and(
+				sql`${economicsDaily.orgId} is null`,
+				gte(economicsDaily.day, fromDay),
+			),
+		)
+		.orderBy(economicsDaily.day);
+	return rows.map((r) => ({
+		day: r.day,
+		runs: r.runs,
+		meteredCostUsd: num(r.metered),
+		pulledCostUsd: r.pulled == null ? null : num(r.pulled),
+		creditBalanceUsd: r.credit == null ? null : num(r.credit),
+		railwayUsageUsd: r.railway == null ? null : num(r.railway),
+	}));
+}
+
+export interface CostByOrgRow {
+	orgId: string | null;
+	orgName: string | null;
+	orgSlug: string | null;
+	runs: number;
+	aiReviewedRuns: number;
+	meteredCostUsd: number;
+}
+
+/** Cost by org for the month, plus an explicit unattributed row. Sorted by cost,
+ * unattributed last, so an org's share and the unclaimed bucket are both visible. */
+export async function getCostByOrg(
+	db: Db,
+	month: string,
+): Promise<CostByOrgRow[]> {
+	const { start, next } = monthBounds(month);
+	const inMonth = and(
+		sql`${economicsDaily.day} >= ${start}`,
+		sql`${economicsDaily.day} < ${next}`,
+	);
+	const orgRows = await db
+		.select({
+			orgId: economicsDaily.orgId,
+			orgName: organization.name,
+			orgSlug: organization.slug,
+			runs: sql<number>`coalesce(sum(${economicsDaily.runs}),0)::int`,
+			aiRuns: sql<number>`coalesce(sum(${economicsDaily.aiReviewedRuns}),0)::int`,
+			metered: sql<string>`coalesce(sum(${economicsDaily.meteredCostUsd}),0)`,
+		})
+		.from(economicsDaily)
+		.leftJoin(organization, eq(organization.id, economicsDaily.orgId))
+		.where(and(sql`${economicsDaily.orgId} is not null`, inMonth))
+		.groupBy(economicsDaily.orgId, organization.name, organization.slug)
+		.orderBy(desc(sql`sum(${economicsDaily.meteredCostUsd})`));
+
+	const [unattr] = await db
+		.select({
+			runs: sql<number>`coalesce(sum(${economicsDaily.unattributedRuns}),0)::int`,
+			metered: sql<string>`coalesce(sum(${economicsDaily.unattributedCostUsd}),0)`,
+		})
+		.from(economicsDaily)
+		.where(and(sql`${economicsDaily.orgId} is null`, inMonth));
+
+	const rows: CostByOrgRow[] = orgRows.map((r) => ({
+		orgId: r.orgId,
+		orgName: r.orgName,
+		orgSlug: r.orgSlug,
+		runs: num(r.runs),
+		aiReviewedRuns: num(r.aiRuns),
+		meteredCostUsd: num(r.metered),
+	}));
+	// The unattributed bucket is always surfaced, even at zero (reading rule 4).
+	rows.push({
+		orgId: null,
+		orgName: null,
+		orgSlug: null,
+		runs: num(unattr?.runs),
+		aiReviewedRuns: 0,
+		meteredCostUsd: num(unattr?.metered),
+	});
+	return rows;
 }
 
 /** Upsert one pulled provider cost row (pull-provider-costs cron). */

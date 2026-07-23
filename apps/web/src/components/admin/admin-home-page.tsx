@@ -54,6 +54,15 @@ export function AdminHomePage() {
 							inspect orgs and members. fix role state without psql.
 						</p>
 					</Link>
+					<Link
+						className="rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-surface-1"
+						to="/admin/economics"
+					>
+						<p className="font-medium text-sm">economics</p>
+						<p className="text-muted-foreground text-xs">
+							unit cost, drift, credit burn-down, and cost by org.
+						</p>
+					</Link>
 				</div>
 			</div>
 		</DashboardLayout>

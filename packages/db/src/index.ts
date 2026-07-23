@@ -45,7 +45,10 @@ export * as accessServices from "./services/access.ts";
 export type {
 	AiReviewUsageInput,
 	BackfillUsageResult,
+	CostByOrgRow,
 	DailyTotals,
+	EconomicsDayPoint,
+	EconomicsOverview,
 	MonthlySummary,
 	RollupResult,
 	UsageCountersInput,
