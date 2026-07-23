@@ -28,6 +28,7 @@ import type { WorkerReads } from "./context.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
 import { processEvent } from "./jobs/process-event.ts";
+import { pullProviderCosts } from "./jobs/pull-provider-costs.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { rollup } from "./jobs/rollup.ts";
@@ -241,6 +242,14 @@ if (import.meta.main) {
 	await boss.schedule("deliver-webhook", "* * * * *", {}, {});
 	await boss.work("deliver-webhook", async () => {
 		await deliverWebhooks({ db, logger });
+	});
+
+	/** Economics: pull provider invoices into provider_costs_daily. 01:40 UTC,
+	 * ahead of the 02:20 economics rollup. Best-effort per provider. */
+	await boss.createQueue("pull-provider-costs");
+	await boss.schedule("pull-provider-costs", "40 1 * * *", {}, {});
+	await boss.work("pull-provider-costs", async () => {
+		await pullProviderCosts({ db, logger });
 	});
 
 	/**
