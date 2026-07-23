@@ -467,7 +467,9 @@ export async function getEconomicsOverview(
 		driftPct: s.driftAvgPct,
 		creditBalanceUsd: s.creditBalanceUsd,
 		creditRunwayMonths:
-			s.creditBalanceUsd == null ? null : creditRunwayMonths(s.creditBalanceUsd),
+			s.creditBalanceUsd == null
+				? null
+				: creditRunwayMonths(s.creditBalanceUsd),
 		railwayUsageUsd: s.railwayUsageUsd,
 		railwayFloorUsd: RAILWAY_FLOOR,
 	};

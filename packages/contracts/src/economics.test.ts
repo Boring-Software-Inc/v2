@@ -11,15 +11,21 @@ import {
  */
 describe("deriveUsageSource", () => {
 	test("prod key under prod env is prod", () => {
-		expect(deriveUsageSource({ keyKind: "prod", isProdEnv: true })).toBe("prod");
+		expect(deriveUsageSource({ keyKind: "prod", isProdEnv: true })).toBe(
+			"prod",
+		);
 	});
 
 	test("prod key off prod env is dev, not prod", () => {
-		expect(deriveUsageSource({ keyKind: "prod", isProdEnv: false })).toBe("dev");
+		expect(deriveUsageSource({ keyKind: "prod", isProdEnv: false })).toBe(
+			"dev",
+		);
 	});
 
 	test("eval key is always eval", () => {
-		expect(deriveUsageSource({ keyKind: "eval", isProdEnv: true })).toBe("eval");
+		expect(deriveUsageSource({ keyKind: "eval", isProdEnv: true })).toBe(
+			"eval",
+		);
 		expect(deriveUsageSource({ keyKind: "eval", isProdEnv: false })).toBe(
 			"eval",
 		);
