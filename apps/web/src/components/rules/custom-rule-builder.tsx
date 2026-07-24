@@ -304,7 +304,7 @@ export function CustomRuleBuilder({
 				</DialogHeader>
 				<div className="px-5 pb-4">
 					<div className="flex flex-wrap items-center gap-1.5 text-sm leading-8">
-						<span>Flag when</span>
+						<span>Require that</span>
 						{state.signal === null ? (
 							<DropdownMenu>
 								<DropdownMenuTrigger className={chipClass(state.area !== null)}>
