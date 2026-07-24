@@ -149,7 +149,7 @@ export async function emitPrSurface(
 									previousVerdict,
 									rerun: input.rerun,
 								},
-								responseConfig.blockComment,
+								responseConfig,
 							),
 						},
 						idempotencyKey: `comment:${number}:${verdict}`,

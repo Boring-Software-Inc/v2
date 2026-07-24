@@ -7,7 +7,6 @@ import {
 	renderVerdictComment,
 } from "./comment-render.ts";
 import {
-	blockCommentConfigSchema,
 	DEFAULT_RESPONSE_CONFIG,
 	responseConfigSchema,
 	wantsCheck,
@@ -161,8 +160,10 @@ const BLOCK_INPUT: CommentInput = {
 };
 
 describe("renderVerdictComment — config-aware modes", () => {
+	// renderVerdictComment resolves the per-outcome override from the full config,
+	// so mode-only cases wrap their blockComment in a default ResponseConfig.
 	const modeConfig = (mode: string, extra: Record<string, unknown> = {}) =>
-		blockCommentConfigSchema.parse({ mode, ...extra });
+		responseConfigSchema.parse({ blockComment: { mode, ...extra } });
 
 	test("full mode is byte-identical to renderCommentBody, every verdict", () => {
 		const full = modeConfig("full");
@@ -259,13 +260,109 @@ describe("renderVerdictComment — config-aware modes", () => {
 	});
 });
 
+describe("renderVerdictComment — per-outcome custom text + details button", () => {
+	const withOverride = (
+		verdict: "pass" | "block" | "needs_review",
+		override: Record<string, unknown>,
+	) =>
+		responseConfigSchema.parse(
+			verdict === "pass"
+				? { onSuccess: "comment", passComment: override }
+				: verdict === "block"
+					? { blockComment: override }
+					: { reviewComment: override },
+		);
+
+	test("custom text REPLACES the whole body — no reason, remedy, or explainer survives", () => {
+		const body = renderVerdictComment(
+			BLOCK_INPUT,
+			withOverride("block", {
+				customText: "this change didn't pass the repo's checks.",
+			}),
+		);
+		expect(body).toContain("this change didn't pass the repo's checks.");
+		// The load-bearing assertion (§customize): a naive summary-only swap would
+		// strand the wait-hint / how-to-fix remedy and leak the very rule the
+		// maintainer set out to hide. NOTHING of the auto copy remains.
+		expect(body).not.toContain("your account is 2 days old");
+		expect(body).not.toContain("it clears in 5 days");
+		expect(body).not.toContain("crypto");
+		expect(body).not.toContain("how do i fix this?");
+		expect(body).not.toContain("what is tripwire?");
+		expect(body).not.toContain("**blocked**");
+		// The run button still rides by default; the marker anchors the upsert (§7).
+		expect(body).toContain('href="https://tripwire.sh/runs/0198abcd"');
+		expect(body.trim().endsWith(COMMENT_MARKER)).toBe(true);
+	});
+
+	test("custom text + button off = the message and nothing else (full opacity)", () => {
+		const body = renderVerdictComment(
+			BLOCK_INPUT,
+			withOverride("block", {
+				customText: "did not pass.",
+				showDetailsButton: false,
+			}),
+		);
+		expect(body).not.toContain("badges/view-run.png");
+		expect(body).not.toContain("your account");
+		expect(body.replace(MARKERS, "").trim()).toBe("did not pass.");
+	});
+
+	test("button off without custom text keeps the reasons, drops only the run link", () => {
+		const body = renderVerdictComment(
+			BLOCK_INPUT,
+			withOverride("block", { showDetailsButton: false }),
+		);
+		// The contributor still sees why; they just don't get the run-page link.
+		expect(body).toContain("your account is 2 days old");
+		expect(body).not.toContain("badges/view-run.png");
+		expect(body).toContain("<details><summary>how do i fix this?</summary>");
+	});
+
+	test("block and review custom text are independent messages", () => {
+		const config = responseConfigSchema.parse({
+			blockComment: { customText: "did not pass checks." },
+			reviewComment: { customText: "a maintainer will look shortly." },
+		});
+		const block = renderVerdictComment(
+			{ ...BLOCK_INPUT, verdict: "block" },
+			config,
+		);
+		const review = renderVerdictComment(
+			{ ...BLOCK_INPUT, verdict: "needs_review", reasons: [] },
+			config,
+		);
+		expect(block).toContain("did not pass checks.");
+		expect(block).not.toContain("a maintainer will look shortly.");
+		expect(review).toContain("a maintainer will look shortly.");
+		expect(review).not.toContain("did not pass checks.");
+	});
+
+	test("pass custom text replaces the passed comment", () => {
+		const body = renderVerdictComment(
+			{ ...BLOCK_INPUT, verdict: "pass", reasons: [] },
+			withOverride("pass", { customText: "all good — merge away." }),
+		);
+		expect(body).toContain("all good — merge away.");
+		expect(body).not.toContain("nothing tripped");
+	});
+});
+
 describe("responseConfig — defaults and surface gates", () => {
 	test("defaults: check-only pass, full comment on block and review", () => {
 		expect(DEFAULT_RESPONSE_CONFIG).toEqual({
 			onSuccess: "ci-check",
+			passComment: { customText: "", showDetailsButton: true },
 			onBlock: "comment",
-			blockComment: { mode: "full", showRuleName: true, template: "" },
+			blockComment: {
+				customText: "",
+				showDetailsButton: true,
+				mode: "full",
+				showRuleName: true,
+				template: "",
+			},
 			moderationQueued: "comment",
+			reviewComment: { customText: "", showDetailsButton: true },
 		});
 		expect(responseConfigSchema.parse({})).toEqual(DEFAULT_RESPONSE_CONFIG);
 	});

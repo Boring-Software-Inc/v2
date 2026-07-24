@@ -1,5 +1,6 @@
 import type {
 	BlockCommentMode,
+	CommentOverride,
 	CommentSurface,
 	ResponseConfig,
 	SuccessSurface,
@@ -11,6 +12,56 @@ import { cn } from "#/lib/utils";
 
 const EYEBROW_CLASS =
 	"font-medium text-[11px] text-muted-foreground uppercase tracking-wide";
+
+/**
+ * The per-outcome comment override (§customize), revealed under an outcome once
+ * it's set to `comment`. Custom text REPLACES the whole comment — a maintainer
+ * hiding a block behind a generic line, with the details button off, gets full
+ * opacity. Block and review carry their own, independent copy.
+ */
+function OutcomeComment({
+	idPrefix,
+	value,
+	canEdit,
+	onDraftText,
+	onCommitText,
+	onToggleButton,
+}: {
+	idPrefix: string;
+	value: CommentOverride;
+	canEdit: boolean;
+	onDraftText: (text: string) => void;
+	onCommitText: () => void;
+	onToggleButton: (checked: boolean) => void;
+}) {
+	return (
+		<div className="mt-2 flex flex-col gap-2">
+			<p className={EYEBROW_CLASS}>custom text</p>
+			<textarea
+				aria-label={`${idPrefix} custom comment text`}
+				className="min-h-16 w-full resize-y rounded-md bg-surface-1 px-3 py-2 text-xs leading-5 placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-60"
+				disabled={!canEdit}
+				onBlur={onCommitText}
+				onChange={(event) => onDraftText(event.target.value)}
+				placeholder="leave blank for the default comment"
+				value={value.customText}
+			/>
+			<p className="text-[11px] text-muted-foreground">
+				replaces the whole comment — the rules and evidence won't show. blank
+				keeps the default.
+			</p>
+			<div className="mt-1 flex items-center justify-between gap-3 text-xs">
+				<label htmlFor={`${idPrefix}-show-details`}>show details button</label>
+				<Switch
+					checked={value.showDetailsButton}
+					disabled={!canEdit}
+					id={`${idPrefix}-show-details`}
+					onCheckedChange={onToggleButton}
+				/>
+			</div>
+		</div>
+	);
+}
 
 const SUCCESS_OPTIONS: { value: SuccessSurface; label: string }[] = [
 	{ value: "silent", label: "silent" },
@@ -98,6 +149,27 @@ export function ResponseConfigForm({
 			...config,
 			blockComment: { ...config.blockComment, ...partial },
 		});
+	// Per-outcome override patchers — commit (onChange) for the toggle, draft
+	// (onDraft, preview-only) for keystrokes; commit follows on blur.
+	const patchPassComment = (partial: Partial<CommentOverride>) =>
+		onChange({ ...config, passComment: { ...config.passComment, ...partial } });
+	const draftPassComment = (partial: Partial<CommentOverride>) =>
+		onDraft({ ...config, passComment: { ...config.passComment, ...partial } });
+	const draftBlockComment = (partial: Partial<CommentOverride>) =>
+		onDraft({
+			...config,
+			blockComment: { ...config.blockComment, ...partial },
+		});
+	const patchReviewComment = (partial: Partial<CommentOverride>) =>
+		onChange({
+			...config,
+			reviewComment: { ...config.reviewComment, ...partial },
+		});
+	const draftReviewComment = (partial: Partial<CommentOverride>) =>
+		onDraft({
+			...config,
+			reviewComment: { ...config.reviewComment, ...partial },
+		});
 
 	const section = (verdict: Verdict) => ({
 		className: "flex flex-col gap-2",
@@ -116,6 +188,18 @@ export function ResponseConfigForm({
 					options={SUCCESS_OPTIONS}
 					value={config.onSuccess}
 				/>
+				{config.onSuccess === "comment" ? (
+					<OutcomeComment
+						canEdit={canEdit}
+						idPrefix="pass"
+						onCommitText={() => onChange(config)}
+						onDraftText={(customText) => draftPassComment({ customText })}
+						onToggleButton={(checked) =>
+							patchPassComment({ showDetailsButton: checked })
+						}
+						value={config.passComment}
+					/>
+				) : null}
 			</div>
 
 			<div {...section("block")}>
@@ -132,7 +216,20 @@ export function ResponseConfigForm({
 				</p>
 				{config.onBlock === "comment" ? (
 					<div className="mt-2 flex flex-col gap-2">
+						<OutcomeComment
+							canEdit={canEdit}
+							idPrefix="block"
+							onCommitText={() => onChange(config)}
+							onDraftText={(customText) => draftBlockComment({ customText })}
+							onToggleButton={(checked) =>
+								patchBlockComment({ showDetailsButton: checked })
+							}
+							value={config.blockComment}
+						/>
 						<p className={EYEBROW_CLASS}>comment shape</p>
+						<p className="text-[11px] text-muted-foreground">
+							the shape below applies only when custom text is blank.
+						</p>
 						<PillGroup
 							disabled={!canEdit}
 							label="block comment shape"
@@ -180,6 +277,18 @@ export function ResponseConfigForm({
 					options={COMMENT_OPTIONS}
 					value={config.moderationQueued}
 				/>
+				{config.moderationQueued === "comment" ? (
+					<OutcomeComment
+						canEdit={canEdit}
+						idPrefix="review"
+						onCommitText={() => onChange(config)}
+						onDraftText={(customText) => draftReviewComment({ customText })}
+						onToggleButton={(checked) =>
+							patchReviewComment({ showDetailsButton: checked })
+						}
+						value={config.reviewComment}
+					/>
+				) : null}
 			</div>
 			{canEdit ? null : (
 				<p className="text-muted-foreground text-xs">
