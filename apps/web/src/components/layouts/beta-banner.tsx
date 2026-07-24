@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useState, useSyncExternalStore } from "react";
 import { useFeedback } from "#/components/feedback";
 import { Button } from "#/components/ui/button";
+import { Dither } from "#/components/ui/dither";
 import { cn } from "#/lib/utils";
 
 const STORAGE_KEY = "tripwire:beta-banner:dismissed";
@@ -51,10 +52,12 @@ export function BetaBanner() {
 			<div className="overflow-hidden">
 				<div
 					className={cn(
-						"relative flex items-center justify-center border-b bg-surface-2 px-10 py-2 transition-opacity duration-200",
+						"relative isolate flex items-center justify-center overflow-hidden border-b bg-surface-2 px-10 py-2 transition-opacity duration-200",
 						closing && "opacity-0",
 					)}
 				>
+					{/* Animated house dither across the banner (see design). */}
+					<Dither className="-z-10 opacity-70" speed={1.22} />
 					<button
 						type="button"
 						onClick={openFeedback}
@@ -63,7 +66,7 @@ export function BetaBanner() {
 						<span>
 							Tripwire is in closed beta — hit a bug or something rough?
 						</span>
-						<span className="inline-flex items-center gap-1 rounded-md bg-foreground/10 px-2 py-0.5 text-xs transition-colors group-hover:bg-foreground/[0.16]">
+						<span className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-2 py-0.5 text-xs ring-1 ring-border transition-colors group-hover:bg-surface-0">
 							<HugeiconsIcon icon={Comment01Icon} size={12} strokeWidth={2} />
 							Send feedback
 						</span>

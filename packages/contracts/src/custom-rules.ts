@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { RULE_CATALOG, type RuleCatalogEntry } from "./rules.ts";
+import type { ValidationCatalogEntry } from "./workflow-validate.ts";
 
 /**
  * Custom rules: rules defined in DATA instead of code. The stored definition
@@ -163,4 +164,27 @@ export function resolveCatalog(
 		}),
 	);
 	return [...builtIns, ...customRules.map(customCatalogEntry)];
+}
+
+/**
+ * Validation-catalog entries for a repo's custom rules from their refs + names
+ * alone. The workflow editor validates an UNSAVED graph before it holds full
+ * `CustomRuleRecord`s, so it can't call `resolveCatalog`; this lets its live
+ * enable-check know custom refs (otherwise they read as "unknown rule" while
+ * the server, which uses the resolved catalog, enables them fine). Custom rules
+ * have no config — the rule IS the config — so the schema is the empty object,
+ * matching `customCatalogEntry`.
+ */
+export function customValidationEntries(
+	rules: readonly { ref: string; name: string }[],
+): ValidationCatalogEntry[] {
+	return rules.map((rule) => {
+		const [ruleId, version] = rule.ref.split("@");
+		return {
+			ruleId: ruleId ?? rule.ref,
+			version: Number(version ?? 1),
+			name: rule.name,
+			configSchema: EMPTY_CONFIG_SCHEMA,
+		};
+	});
 }

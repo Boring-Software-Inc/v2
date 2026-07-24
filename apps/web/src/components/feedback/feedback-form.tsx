@@ -1,8 +1,8 @@
 import { CursorInWindowIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useRef, useState } from "react";
-import { DitherGradient } from "#/components/charts/dither-kit";
 import { Button } from "#/components/ui/button";
+import { Dither } from "#/components/ui/dither";
 import { submitFeedback } from "#/lib/feedback.functions";
 import { cn } from "#/lib/utils";
 import { captureViewport } from "./capture";
@@ -163,11 +163,9 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 					onClick={startSelection}
 					type="button"
 				>
-					<DitherGradient
+					<Dither
 						className="opacity-70 transition-opacity duration-300 group-hover:opacity-100"
-						direction="right"
-						from="blue"
-						opacity={0.35}
+						speed={0.5}
 					/>
 					<HugeiconsIcon
 						className="relative shrink-0 text-foreground"

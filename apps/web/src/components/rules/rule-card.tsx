@@ -4,6 +4,7 @@ import { Sparkline } from "#/components/charts/dither-kit";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import { RawConfigDisclosure } from "#/components/rules-params/raw-config-disclosure";
 import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
+import { Dither } from "#/components/ui/dither";
 import { Switch } from "#/components/ui/switch";
 import type { RuleConfigView } from "#/lib/rules.functions";
 import { cn } from "#/lib/utils";
@@ -89,9 +90,14 @@ export function RuleCard({
 	);
 
 	return (
-		<div className="overflow-hidden rounded-xl border bg-card">
-			{/* HEADER — identity + verdict state + activity + toggle */}
-			<div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 bg-surface-1 px-4 py-2">
+		<div className="flex h-full flex-col overflow-hidden rounded-xl border-[3px] bg-card">
+			{/* HEADER — identity + verdict state + activity + toggle. Same
+			    surface-1 band on every rule; custom rules add the house dither
+			    over it (only here, in this header row), under the content. */}
+			<div className="relative isolate flex flex-wrap items-center gap-x-2.5 gap-y-2 overflow-hidden bg-surface-1 px-4 py-2">
+				{rule.source === "custom" ? (
+					<Dither className="-z-10 opacity-60" speed={1} />
+				) : null}
 				<span className="font-medium text-sm">{rule.name}</span>
 				<span
 					className={cn(
@@ -154,8 +160,9 @@ export function RuleCard({
 				</div>
 			</div>
 
-			{/* BODY — the payload */}
-			<div className="px-4 py-3">
+			{/* BODY — the payload. Grows to fill so cards in a row share height
+			    and the footer pins to the bottom. */}
+			<div className="flex-1 px-4 py-3">
 				{body}
 
 				{rule.held && standalone ? (
