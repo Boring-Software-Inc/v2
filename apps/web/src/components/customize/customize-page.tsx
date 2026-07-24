@@ -64,8 +64,9 @@ const TEMPLATE_PLACEHOLDER = "blocked: {{ruleName}}\n\n{{runUrl}}";
 /**
  * The save-queue key space: one flat, primitive-valued key per writing
  * control, so default equality noop-clears and the bar's count is per
- * control. All SIX writers route through these keys — the three verdict
- * groups, the shape pills, the rule-names switch, the template editor.
+ * control. Every writer routes through these keys — the three verdict groups,
+ * the block shape pills + rule-names switch + template editor, and the
+ * per-outcome custom text + details-button toggle for pass / block / review.
  */
 function flattenConfig(config: ResponseConfig): Record<string, unknown> {
 	return {
@@ -75,6 +76,14 @@ function flattenConfig(config: ResponseConfig): Record<string, unknown> {
 		"blockComment.mode": config.blockComment.mode,
 		"blockComment.showRuleName": config.blockComment.showRuleName,
 		"blockComment.template": config.blockComment.template,
+		// Per-outcome custom text + button toggle (§customize). Independent per
+		// verdict — block and review carry their own message.
+		"passComment.customText": config.passComment.customText,
+		"passComment.showDetailsButton": config.passComment.showDetailsButton,
+		"blockComment.customText": config.blockComment.customText,
+		"blockComment.showDetailsButton": config.blockComment.showDetailsButton,
+		"reviewComment.customText": config.reviewComment.customText,
+		"reviewComment.showDetailsButton": config.reviewComment.showDetailsButton,
 	};
 }
 
@@ -83,10 +92,20 @@ function unflattenConfig(flat: Record<string, unknown>): ResponseConfig {
 		onSuccess: flat.onSuccess,
 		onBlock: flat.onBlock,
 		moderationQueued: flat.moderationQueued,
+		passComment: {
+			customText: flat["passComment.customText"],
+			showDetailsButton: flat["passComment.showDetailsButton"],
+		},
 		blockComment: {
 			mode: flat["blockComment.mode"],
 			showRuleName: flat["blockComment.showRuleName"],
 			template: flat["blockComment.template"],
+			customText: flat["blockComment.customText"],
+			showDetailsButton: flat["blockComment.showDetailsButton"],
+		},
+		reviewComment: {
+			customText: flat["reviewComment.customText"],
+			showDetailsButton: flat["reviewComment.showDetailsButton"],
 		},
 	} as ResponseConfig;
 }
@@ -97,11 +116,18 @@ function previewBody(config: ResponseConfig, verdict: Verdict): string | null {
 	}
 	// An untouched custom template previews the placeholder's result — the
 	// bubble always shows a real end state, never an empty comment.
-	const blockComment =
+	const previewConfig =
 		config.blockComment.mode === "custom" &&
-		config.blockComment.template.trim() === ""
-			? { ...config.blockComment, template: TEMPLATE_PLACEHOLDER }
-			: config.blockComment;
+		config.blockComment.template.trim() === "" &&
+		config.blockComment.customText.trim() === ""
+			? {
+					...config,
+					blockComment: {
+						...config.blockComment,
+						template: TEMPLATE_PLACEHOLDER,
+					},
+				}
+			: config;
 	return renderVerdictComment(
 		{
 			verdict,
@@ -110,7 +136,7 @@ function previewBody(config: ResponseConfig, verdict: Verdict): string | null {
 			runUrl: "https://tripwire.sh/runs/sample",
 			badgeUrl: BADGE_PATH,
 		},
-		blockComment,
+		previewConfig,
 	);
 }
 
