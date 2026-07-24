@@ -59,6 +59,9 @@ export interface RuleConfigView {
 	source: "built-in" | "custom";
 	/** The read-state sentence for a custom rule; null for built-ins. */
 	sentence: string | null;
+	/** A custom rule's severity — how much a failure weighs, shown on the card
+	 * (not in the sentence, which states the requirement); null for built-ins. */
+	severity: "low" | "medium" | "high" | null;
 }
 
 export interface RulesHeaderStats {
@@ -129,6 +132,7 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				trend: perRule?.series ?? Array(24).fill(0),
 				source: "custom",
 				sentence,
+				severity: record.definition.severity,
 			});
 		}
 		const builtIns = RULE_CATALOG.map((entry) => {
@@ -171,6 +175,7 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				trend: perRule?.series ?? Array(24).fill(0),
 				source: "built-in" as const,
 				sentence: null,
+				severity: null,
 			};
 		});
 		return [...builtIns, ...customViews];
