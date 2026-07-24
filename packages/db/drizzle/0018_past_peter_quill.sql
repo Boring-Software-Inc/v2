@@ -1,0 +1,1 @@
+DROP INDEX "run_actions_run_idx";

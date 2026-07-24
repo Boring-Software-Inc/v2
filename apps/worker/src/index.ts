@@ -64,7 +64,7 @@ if (import.meta.main) {
 	 * pooled `db`/`DATABASE_URL`.
 	 */
 	const directPool = createDirectPool();
-	const boss = await createBoss();
+	const boss = await createBoss(undefined, logger);
 
 	const appId = process.env.GITHUB_APP_ID;
 	const privateKey = process.env.GITHUB_APP_PRIVATE_KEY?.replaceAll(
