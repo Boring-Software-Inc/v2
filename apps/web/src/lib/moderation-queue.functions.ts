@@ -1,3 +1,4 @@
+import { notFound } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import type { OrgWithRole } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
@@ -82,7 +83,7 @@ export const decideModeration = createServerFn({ method: "POST" })
 			)
 			.limit(1);
 		if (!owned[0]) {
-			throw new Response("not found", { status: 404 });
+			throw notFound();
 		}
 		// dev:demo has no worker to resume the run — record the decision so the
 		// queue updates; a real head enqueues a resume job in one transaction.
