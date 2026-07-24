@@ -200,3 +200,48 @@ describe("custom rule round trip", () => {
 		expect(calls).toHaveLength(1);
 	});
 });
+
+/**
+ * The inversion guard (prod incident): a custom rule states what is ALLOWED —
+ * `passed` is true when the comparison holds, uniform with built-ins. Author the
+ * ALLOW condition, not the flag condition. "require account age at least 7"
+ * must PASS an old account and FAIL a new one; the "flag when" mental model
+ * shipped every custom rule doing the exact opposite. A rule that should pass,
+ * passes — this class of bug must never be invisible again.
+ */
+describe("pass = the comparison holds (author the ALLOW condition)", () => {
+	const requireAtLeast7 = () =>
+		storedRule({
+			when: { id: "contributor.accountAge" },
+			comparison: { kind: "atLeast", args: [7] },
+			severity: "medium",
+		});
+	const userAgedDays = (days: number) => ({
+		"/users/mallory": {
+			id: 77,
+			created_at: new Date(Date.parse(NOW) - days * 86_400_000).toISOString(),
+			followers: 0,
+			following: 0,
+			public_repos: 0,
+			public_gists: 0,
+			hireable: null,
+			company: null,
+			location: null,
+			bio: null,
+		},
+	});
+
+	test("an account that MEETS the requirement passes", async () => {
+		const { ctx } = makeSignalCtx(userAgedDays(30));
+		const result = await evaluateCustomRule(requireAtLeast7(), ctx, NOW);
+		expect(result.status).toBe("evaluated");
+		expect(result.passed).toBe(true);
+	});
+
+	test("an account that does NOT meet the requirement fails", async () => {
+		const { ctx } = makeSignalCtx(userAgedDays(3));
+		const result = await evaluateCustomRule(requireAtLeast7(), ctx, NOW);
+		expect(result.status).toBe("evaluated");
+		expect(result.passed).toBe(false);
+	});
+});

@@ -114,6 +114,22 @@ export function RuleCard({
 						custom
 					</span>
 				) : null}
+				{/* Severity (how much a failure weighs) — moved out of the sentence,
+				    which now states the requirement only. */}
+				{rule.severity ? (
+					<span
+						className={cn(
+							"rounded px-1.5 py-0.5 text-[10px] ring-1",
+							rule.severity === "high"
+								? "bg-red-500/10 text-red-600 ring-red-500/20 dark:text-red-400"
+								: rule.severity === "medium"
+									? "bg-amber-500/10 text-amber-600 ring-amber-500/20 dark:text-amber-400"
+									: "bg-surface-1 text-muted-foreground ring-border",
+						)}
+					>
+						{rule.severity}
+					</span>
+				) : null}
 				{rule.management === "managed" ? (
 					<span className="rounded bg-surface-1 px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-border">
 						in workflow
