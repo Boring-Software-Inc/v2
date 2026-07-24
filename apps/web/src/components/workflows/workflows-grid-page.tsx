@@ -15,6 +15,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { Dither } from "#/components/ui/dither";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -383,7 +384,7 @@ function WorkflowCard({
 	const deleteConfirmReady = !workflow.enabled || confirmName === workflow.name;
 
 	return (
-		<Card className="relative gap-0 py-0 transition-colors hover:border-ring/40">
+		<div className="relative isolate overflow-hidden rounded-xl border-[3px] bg-card transition-colors hover:border-ring/40">
 			{/* stretched link — the whole card body navigates; controls sit above it */}
 			<Link
 				aria-label={`open ${workflow.name}`}
@@ -391,103 +392,107 @@ function WorkflowCard({
 				params={{ org, repo: repoName, workflowId: workflow.id }}
 				to="/$org/$repo/workflows/$workflowId"
 			/>
-			<div className="flex flex-col gap-3 p-5">
-				<div className="flex items-start justify-between gap-3">
-					{renaming ? (
-						<form
-							className="relative z-10 flex flex-1 items-center gap-2"
-							onSubmit={(e) => {
-								e.preventDefault();
-								const trimmed = renameValue.trim();
-								if (trimmed.length > 0 && !renameMutation.isPending) {
-									renameMutation.mutate(trimmed);
-								}
-							}}
-						>
-							<Input
-								aria-label="workflow name"
-								autoFocus
-								className="h-8"
-								maxLength={120}
-								onChange={(e) => setRenameValue(e.target.value)}
-								value={renameValue}
-							/>
-							<Button
-								disabled={
-									renameValue.trim().length === 0 || renameMutation.isPending
-								}
-								size="xs"
-								type="submit"
-							>
-								save
-							</Button>
-							<Button
-								onClick={() => {
-									setRenaming(false);
-									setRenameValue(workflow.name);
-								}}
-								size="xs"
-								type="button"
-								variant="ghost"
-							>
-								cancel
-							</Button>
-						</form>
-					) : (
-						<p className="min-w-0 truncate font-medium text-sm">
-							{workflow.name}
-						</p>
-					)}
-					<div className="relative z-10 flex shrink-0 items-center gap-1">
-						<Switch
-							aria-label={`${workflow.enabled ? "disable" : "enable"} ${workflow.name}`}
-							checked={workflow.enabled}
-							disabled={!isAdmin || enableMutation.isPending}
-							onCheckedChange={(checked) => enableMutation.mutate(checked)}
+			{/* HEADER — name + toggle/actions; the house dither lives only in this
+			    header row (the -z-10 keeps it under the text and the stretched link). */}
+			<div className="relative flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 px-4 py-2">
+				<Dither className="-z-10 opacity-60" />
+				{renaming ? (
+					<form
+						className="relative z-10 flex flex-1 items-center gap-2"
+						onSubmit={(e) => {
+							e.preventDefault();
+							const trimmed = renameValue.trim();
+							if (trimmed.length > 0 && !renameMutation.isPending) {
+								renameMutation.mutate(trimmed);
+							}
+						}}
+					>
+						<Input
+							aria-label="workflow name"
+							autoFocus
+							className="h-8"
+							maxLength={120}
+							onChange={(e) => setRenameValue(e.target.value)}
+							value={renameValue}
 						/>
-						{isAdmin ? (
-							<DropdownMenu>
-								<DropdownMenuTrigger
-									render={
-										<Button
-											aria-label={`actions for ${workflow.name}`}
-											className="size-7"
-											size="icon"
-											variant="ghost"
-										/>
-									}
+						<Button
+							disabled={
+								renameValue.trim().length === 0 || renameMutation.isPending
+							}
+							size="xs"
+							type="submit"
+						>
+							save
+						</Button>
+						<Button
+							onClick={() => {
+								setRenaming(false);
+								setRenameValue(workflow.name);
+							}}
+							size="xs"
+							type="button"
+							variant="ghost"
+						>
+							cancel
+						</Button>
+					</form>
+				) : (
+					<p className="min-w-0 truncate font-medium text-sm">
+						{workflow.name}
+					</p>
+				)}
+				<div className="relative z-10 flex shrink-0 items-center gap-1">
+					<Switch
+						aria-label={`${workflow.enabled ? "disable" : "enable"} ${workflow.name}`}
+						checked={workflow.enabled}
+						disabled={!isAdmin || enableMutation.isPending}
+						onCheckedChange={(checked) => enableMutation.mutate(checked)}
+					/>
+					{isAdmin ? (
+						<DropdownMenu>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										aria-label={`actions for ${workflow.name}`}
+										className="size-7"
+										size="icon"
+										variant="ghost"
+									/>
+								}
+							>
+								<HugeiconsIcon icon={MoreVerticalIcon} size={16} />
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onClick={() => {
+										setRenameValue(workflow.name);
+										setRenaming(true);
+									}}
 								>
-									<HugeiconsIcon icon={MoreVerticalIcon} size={16} />
-								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
-									<DropdownMenuItem
-										onClick={() => {
-											setRenameValue(workflow.name);
-											setRenaming(true);
-										}}
-									>
-										rename
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										disabled={duplicateMutation.isPending}
-										onClick={() => duplicateMutation.mutate()}
-									>
-										duplicate
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										className="text-destructive focus:text-destructive"
-										onClick={() => {
-											setConfirmName("");
-											setConfirmState("confirm");
-										}}
-									>
-										delete
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
-						) : null}
-					</div>
+									rename
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									disabled={duplicateMutation.isPending}
+									onClick={() => duplicateMutation.mutate()}
+								>
+									duplicate
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									className="text-destructive focus:text-destructive"
+									onClick={() => {
+										setConfirmName("");
+										setConfirmState("confirm");
+									}}
+								>
+									delete
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					) : null}
 				</div>
+			</div>
+			{/* BODY — trigger + timestamp */}
+			<div className="flex flex-col gap-1 px-4 pt-1 pb-3">
 				<p className="truncate text-muted-foreground text-xs">
 					{triggerSummary(workflow.triggerKinds)} · {workflow.nodeCount}{" "}
 					{workflow.nodeCount === 1 ? "node" : "nodes"}
@@ -538,6 +543,6 @@ function WorkflowCard({
 					</div>
 				</div>
 			) : null}
-		</Card>
+		</div>
 	);
 }

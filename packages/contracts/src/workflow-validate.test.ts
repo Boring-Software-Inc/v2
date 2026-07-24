@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { customValidationEntries } from "./custom-rules.ts";
+import { RULE_CATALOG } from "./rules.ts";
 import { DEFAULT_WORKFLOW, type WorkflowDefinition } from "./workflow.ts";
 import {
 	validateWorkflow,
@@ -174,5 +176,31 @@ describe("validateWorkflowForEnable (the two enable-time invariants)", () => {
 		}
 		expect(validateWorkflow(g).valid).toBe(true);
 		expect(validateWorkflowForEnable(g).valid).toBe(false);
+	});
+});
+
+describe("validateWorkflowForEnable — custom rules via the runtime catalog", () => {
+	const customGraph = graph({
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			{ id: "r", type: "rule", ref: "custom-irrelevant-019f93@1", config: {} },
+			{ id: "a", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "r" },
+			{ id: "e2", from: "r", to: "a", when: "fail" },
+		],
+	});
+	const custom = [{ ref: "custom-irrelevant-019f93@1", name: "irrelevant" }];
+
+	test("built-ins alone read a custom ref as 'unknown rule' (the editor bug)", () => {
+		expect(issuesOf(validateWorkflowForEnable(customGraph))).toContain(
+			"unknown rule custom-irrelevant-019f93@1",
+		);
+	});
+
+	test("merging customValidationEntries lets the custom rule enable", () => {
+		const catalog = [...RULE_CATALOG, ...customValidationEntries(custom)];
+		expect(validateWorkflowForEnable(customGraph, catalog).valid).toBe(true);
 	});
 });

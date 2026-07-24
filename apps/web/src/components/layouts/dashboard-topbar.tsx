@@ -199,7 +199,7 @@ function NavLink({
 			to={to}
 			activeOptions={{ exact }}
 			activeProps={{ className: "active" }}
-			className="flex h-8 items-center gap-2 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-0 hover:text-foreground [&.active]:bg-surface-0 [&.active]:text-foreground"
+			className="flex h-7 items-center gap-2 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-0 hover:text-foreground [&.active]:bg-surface-0 [&.active]:text-foreground"
 		>
 			<HugeiconsIcon icon={icon} size={14} strokeWidth={2} />
 			<span>{label}</span>

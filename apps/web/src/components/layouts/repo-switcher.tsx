@@ -54,7 +54,7 @@ export function RepoSwitcher() {
 	return (
 		<>
 			<button
-				className="flex h-8 min-w-0 max-w-[240px] items-center gap-2 rounded-md bg-surface-1 px-2.5 text-[13px] transition-colors hover:bg-surface-2"
+				className="flex h-7 min-w-0 max-w-[240px] items-center gap-2 rounded-md bg-surface-2 px-2.5 text-[13px] transition-colors hover:bg-surface-skeleton dark:bg-surface-1 dark:hover:bg-surface-2"
 				onClick={() => setOpen(true)}
 				type="button"
 			>

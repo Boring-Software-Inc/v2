@@ -2,6 +2,7 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
+import { Dither } from "#/components/ui/dither";
 import { cn } from "#/lib/utils";
 
 const buttonVariants = cva(
@@ -21,7 +22,7 @@ const buttonVariants = cva(
 				link: "text-primary underline-offset-4 hover:underline",
 			},
 			size: {
-				default: "h-9 px-4 py-2",
+				default: "h-8 px-3 py-2",
 				xxs: "h-6 rounded-md gap-1.5 px-2.5",
 				xs: "h-7 rounded-md gap-1.5 px-2.5",
 				sm: "h-8 rounded-md gap-1.5 px-3",
@@ -45,18 +46,30 @@ function Button({
 	size,
 	iconLeft,
 	iconRight,
+	dither,
+	ditherSpeed = 0.5,
 	...props
 }: ButtonPrimitive.Props &
 	VariantProps<typeof buttonVariants> & {
 		iconLeft?: ButtonIcon;
 		iconRight?: ButtonIcon;
+		/** Lay the house dither texture behind the label (see {@link Dither}). */
+		dither?: boolean;
+		/** Speed of the dither texture (see {@link Dither}). */
+		ditherSpeed?: number;
 	}) {
 	return (
 		<ButtonPrimitive
 			data-slot="button"
-			className={cn(buttonVariants({ variant, size, className }))}
+			className={cn(
+				buttonVariants({ variant, size, className }),
+				dither && "relative isolate overflow-hidden",
+			)}
 			{...props}
 		>
+			{dither ? (
+				<Dither speed={ditherSpeed} className="-z-10 opacity-[0.14]" />
+			) : null}
 			{iconLeft ? (
 				<span
 					data-slot="button-icon"

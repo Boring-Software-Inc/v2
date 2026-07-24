@@ -12,11 +12,16 @@ import { RuleCard } from "#/components/rules/rule-card";
 import { RuleFilters, type RuleSort } from "#/components/rules/rule-filters";
 import { RuleHeaderStats } from "#/components/rules/rule-header-stats";
 import {
+	type RuleFilter,
+	RuleSegments,
+} from "#/components/rules/rule-segments";
+import {
 	type SaveQueueCommit,
 	SaveQueueProvider,
 	UnsavedChangesBar,
 } from "#/components/save-queue";
 import { Button } from "#/components/ui/button";
+import { Dither } from "#/components/ui/dither";
 import { toast } from "#/components/ui/toast";
 import {
 	deleteCustomRule,
@@ -81,6 +86,7 @@ export function RulesPage() {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const isAdmin = orgContext?.role === "admin";
 	const [sort, setSort] = useState<RuleSort>("active");
+	const [filter, setFilter] = useState<RuleFilter>("all");
 	const [builderOpen, setBuilderOpen] = useState(false);
 	const repoId = repo?.id ?? "";
 	const { data: rules } = useQuery(ruleConfigsQueryOptions(org, repoId));
@@ -112,10 +118,34 @@ export function RulesPage() {
 		.filter((r) => r.management === "managed")
 		.map((r) => r.name);
 
-	// The list splits by provenance (§9): built-in rules ship with Tripwire,
-	// custom rules are maintainer-authored. Both keep the active `sort` order.
-	const builtInRules = sorted.filter((r) => r.source !== "custom");
-	const customRules = sorted.filter((r) => r.source === "custom");
+	// One grid, sliced by a segmented filter (§9) instead of stacked
+	// built-in/custom sections — so custom/active rules are one click away, not a
+	// scroll past the whole built-in list. Counts drive the segment labels.
+	const counts = useMemo<Record<RuleFilter, number>>(
+		() => ({
+			all: sorted.length,
+			active: sorted.filter((r) => r.enabled).length,
+			workflows: sorted.filter((r) => r.management === "managed").length,
+			custom: sorted.filter((r) => r.source === "custom").length,
+		}),
+		[sorted],
+	);
+	const visible = useMemo(
+		() =>
+			sorted.filter((r) => {
+				if (filter === "active") {
+					return r.enabled;
+				}
+				if (filter === "workflows") {
+					return r.management === "managed";
+				}
+				if (filter === "custom") {
+					return r.source === "custom";
+				}
+				return true;
+			}),
+		[sorted, filter],
+	);
 
 	/**
 	 * One batch, N per-rule writes: group pending keys by rule, run a queued
@@ -261,8 +291,8 @@ export function RulesPage() {
 							</p>
 						</div>
 						{isAdmin ? (
-							<Button onClick={() => setBuilderOpen(true)} variant="outline">
-								create rule
+							<Button dither onClick={() => setBuilderOpen(true)}>
+								New rule
 							</Button>
 						) : null}
 					</header>
@@ -286,46 +316,28 @@ export function RulesPage() {
 
 					<div className="flex flex-col gap-6">
 						{statsQuery.data ? (
-							<div className="flex flex-col gap-2">
-								<RuleHeaderStats
-									animate={fetchedStats.current}
-									stats={statsQuery.data}
-								/>
-								{statsQuery.data.matches24h.value === 0 ? (
-									<p className="text-muted-foreground text-xs">
-										no change requests evaluated in the last 24h — these rules
-										take effect on the next one that opens.
-									</p>
-								) : null}
-							</div>
+							<RuleHeaderStats
+								animate={fetchedStats.current}
+								stats={statsQuery.data}
+							/>
 						) : null}
-						<div className="flex items-center justify-end">
+						<div className="flex flex-wrap items-center justify-between gap-3">
+							<RuleSegments
+								counts={counts}
+								filter={filter}
+								onChange={setFilter}
+							/>
 							<RuleFilters onSortChange={setSort} sort={sort} />
 						</div>
-						<section className="flex flex-col gap-3">
-							<div className="flex flex-col gap-1">
-								<h2 className="font-medium text-sm">built-in rules</h2>
-								{hasEnabledWorkflow ? (
-									<p className="text-muted-foreground text-xs">
-										{workflowBannerCopy(ownedRuleNames)}
-									</p>
-								) : null}
-							</div>
-							{builtInRules.map((rule) => (
-								<RuleCard
-									canEdit={isAdmin}
-									key={rule.ruleId}
-									onDelete={removeCustomRule}
-									org={org}
-									repo={repoName}
-									rule={rule}
-								/>
-							))}
-						</section>
-						<section className="flex flex-col gap-3">
-							<h2 className="font-medium text-sm">custom rules</h2>
-							{customRules.length > 0 ? (
-								customRules.map((rule) => (
+						{hasEnabledWorkflow &&
+						(filter === "all" || filter === "workflows") ? (
+							<p className="-mt-3 text-muted-foreground text-xs">
+								{workflowBannerCopy(ownedRuleNames)}
+							</p>
+						) : null}
+						{visible.length > 0 ? (
+							<div className="grid items-stretch gap-3 sm:grid-cols-2">
+								{visible.map((rule) => (
 									<RuleCard
 										canEdit={isAdmin}
 										key={rule.ruleId}
@@ -334,15 +346,42 @@ export function RulesPage() {
 										repo={repoName}
 										rule={rule}
 									/>
-								))
-							) : (
-								<p className="text-muted-foreground text-xs">
-									{isAdmin
-										? "no custom rules yet. create one to match your repo's own patterns."
-										: "no custom rules yet."}
-								</p>
-							)}
-						</section>
+								))}
+							</div>
+						) : filter === "custom" ? (
+							<div className="overflow-hidden rounded-xl border-[3px] bg-card">
+								<div className="relative isolate flex items-center overflow-hidden bg-surface-1 px-4 py-2">
+									<Dither className="-z-10 opacity-60" speed={0.5} />
+									<span className="font-medium text-sm">
+										no custom rules yet
+									</span>
+								</div>
+								<div className="flex flex-col items-center gap-3 px-4 pt-3 pb-8 text-center">
+									<p className="max-w-xs text-muted-foreground text-xs leading-relaxed">
+										{isAdmin
+											? "custom rules match your repo's own patterns. create one to get started."
+											: "custom rules match your repo's own patterns."}
+									</p>
+									{isAdmin ? (
+										<Button
+											dither
+											ditherSpeed={1}
+											onClick={() => setBuilderOpen(true)}
+										>
+											New custom rule
+										</Button>
+									) : null}
+								</div>
+							</div>
+						) : (
+							<p className="py-8 text-center text-muted-foreground text-sm">
+								{filter === "active"
+									? "no active rules — every rule is off."
+									: filter === "workflows"
+										? "no rules are running inside a workflow."
+										: "no rules yet."}
+							</p>
+						)}
 					</div>
 				</div>
 				<UnsavedChangesBar />

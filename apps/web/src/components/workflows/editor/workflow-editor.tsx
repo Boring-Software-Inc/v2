@@ -13,7 +13,11 @@ import type {
 	WorkflowDefinition,
 	WorkflowNode,
 } from "@tripwire/contracts";
-import { validateWorkflowForEnable } from "@tripwire/contracts";
+import {
+	customValidationEntries,
+	RULE_CATALOG,
+	validateWorkflowForEnable,
+} from "@tripwire/contracts";
 import {
 	addEdge,
 	Background,
@@ -154,6 +158,15 @@ function EditorBody({
 		[definition],
 	);
 
+	// Enable-check against the RUNTIME catalog — built-ins plus this repo's
+	// custom rules — so the editor's live preview matches the server. Without
+	// the custom entries a custom rule reads as "unknown rule" and blocks enable
+	// from the editor, even though the list page (server-validated) enables it.
+	const enableCatalog = useMemo(
+		() => [...RULE_CATALOG, ...customValidationEntries(customRules)],
+		[customRules],
+	);
+
 	// ---- live validation (never save-blocking) ----------------------------
 	const validation = useMemo(() => {
 		if (nodes.length === 0) {
@@ -167,12 +180,12 @@ function EditorBody({
 		if (!result.ok) {
 			return { structuralError: result.error, issues: [] };
 		}
-		const checked = validateWorkflowForEnable(result.definition);
+		const checked = validateWorkflowForEnable(result.definition, enableCatalog);
 		return {
 			structuralError: null,
 			issues: checked.valid ? [] : checked.issues,
 		};
-	}, [nodes, edges, meta]);
+	}, [nodes, edges, meta, enableCatalog]);
 
 	const customRuleNames = useMemo(
 		() => new Map(customRules.map((rule) => [rule.ref, rule.name])),
