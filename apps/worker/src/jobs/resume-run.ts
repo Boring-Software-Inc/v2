@@ -1,6 +1,7 @@
 import type {
 	NormalizedEvent,
 	RepoScopedEvent,
+	Verdict,
 	WorkflowDefinition,
 } from "@tripwire/contracts";
 import { workflowDefinitionSchema } from "@tripwire/contracts";
@@ -12,6 +13,29 @@ import { buildCommentReasons } from "./comment-reasons.ts";
 import { emitPrSurface } from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import { makeEvaluator, withPublicProjection } from "./run-workflows.ts";
+
+/**
+ * The resumed run's outcome is the MAINTAINER's decision, not a function of
+ * which nodes the graph happened to walk (T4 floor, hardened after a prod miss:
+ * a deny edge drawn to a non-block action — discord — resumed to `pass`, a green
+ * check on an explicitly denied change). Deny means blocked, full stop: a deny
+ * edge to a non-block action, or to nowhere, still blocks. Approve resumes to
+ * the graph's own verdict — that IS the correct reading of approve. `floorBlock`
+ * is true when deny is chosen but the graph conducted no block of its own, so the
+ * caller records a synthetic block action + audit step.
+ */
+export function resolveResumeOutcome(
+	decision: "approve" | "deny",
+	graph: { verdict: Verdict; actions: readonly { action: string }[] },
+): { verdict: Verdict; floorBlock: boolean } {
+	if (decision === "deny") {
+		return {
+			verdict: "block",
+			floorBlock: !graph.actions.some((action) => action.action === "block"),
+		};
+	}
+	return { verdict: graph.verdict, floorBlock: false };
+}
 
 /**
  * §6 — a moderation decision resumes the paused run down the corresponding
@@ -84,18 +108,12 @@ export async function resumeRun(
 		resume: { outcomes, nodeId: pausedNode, decision: job.decision },
 	});
 
-	/**
-	 * Deny floor (T4 live finding): deny means no, whether or not the graph
-	 * author drew the consequence. A deny with no deny edge off the moderation
-	 * node would otherwise resume to `pass` — a maintainer's explicit no
-	 * producing a green merge button. Approve-with-no-approve-edge stays
-	 * resume-to-pass (that IS the correct reading of approve).
-	 */
-	const hasDenyEdge = definition.edges.some(
-		(edge) => edge.from === pausedNode && edge.when === "deny",
+	// The verdict is the maintainer's decision, not the graph's traversal —
+	// deny always blocks, and floors in a block action when the graph made none.
+	const { verdict, floorBlock: denyFloored } = resolveResumeOutcome(
+		job.decision,
+		result,
 	);
-	const denyFloored = job.decision === "deny" && !hasDenyEdge;
-	const verdict = denyFloored ? "block" : result.verdict;
 
 	const steps = result.steps.map((step) => ({
 		...step,
@@ -108,14 +126,14 @@ export async function resumeRun(
 			nodeKind: "action",
 			status: "pass",
 			input: { decision: "deny", pausedNodeId: item.nodeId },
-			output: { rule: "deny (no deny edge) → block by default" },
+			output: { rule: "deny → block (graph produced no block action)" },
 			startedAt: at,
 			finishedAt: at,
 			durationMs: 0,
 		});
 		logger.warn(
 			{ runId: item.runId, pausedNodeId: item.nodeId },
-			"deny with no deny edge — verdict floored to block",
+			"deny produced no block action — verdict floored to block",
 		);
 	}
 	await runServices.recordSteps(db, item.runId, withPublicProjection(steps));
@@ -134,7 +152,10 @@ export async function resumeRun(
 			? [
 					{
 						kind: "block",
-						payload: { reason: "denied by maintainer — no deny edge drawn" },
+						payload: {
+							reason:
+								"denied by maintainer — graph drew no block on the deny path",
+						},
 						idempotencyKey: `block:${definition.id}:${pausedNode}:deny-floor`,
 					},
 				]
