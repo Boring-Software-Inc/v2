@@ -40,6 +40,7 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	source: "built-in",
 	sentence: null,
 	severity: null,
+	blockingWorkflows: [],
 	...over,
 });
 

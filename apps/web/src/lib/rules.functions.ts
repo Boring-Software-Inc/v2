@@ -62,6 +62,9 @@ export interface RuleConfigView {
 	/** A custom rule's severity — how much a failure weighs, shown on the card
 	 * (not in the sentence, which states the requirement); null for built-ins. */
 	severity: "low" | "medium" | "high" | null;
+	/** Workflows (enabled OR disabled) that reference a custom rule — deletion is
+	 * refused while non-empty, and the card names them. Empty for built-ins. */
+	blockingWorkflows: { id: string; name: string }[];
 }
 
 export interface RulesHeaderStats {
@@ -104,6 +107,17 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 			: { perRule: [] };
 		const byRef = new Map(stats.perRule.map((s) => [s.ref, s]));
 		const customRows = await repoServices.listCustomRules(db, data.repoId);
+		// Which workflows (enabled OR disabled) reference each custom rule — the
+		// card disables delete and names them, mirroring the server guard.
+		const blockingByRuleId = new Map<string, { id: string; name: string }[]>();
+		await Promise.all(
+			customRows.map(async (row) => {
+				blockingByRuleId.set(
+					row.id,
+					await repoServices.workflowsReferencingRule(db, data.repoId, row.id),
+				);
+			}),
+		);
 		const customViews: RuleConfigView[] = [];
 		for (const rowRaw of customRows) {
 			const parsedRow = customRuleRecordSchema.safeParse(rowRaw);
@@ -133,6 +147,7 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				source: "custom",
 				sentence,
 				severity: record.definition.severity,
+				blockingWorkflows: blockingByRuleId.get(record.id) ?? [],
 			});
 		}
 		const builtIns = RULE_CATALOG.map((entry) => {
@@ -176,6 +191,7 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				source: "built-in" as const,
 				sentence: null,
 				severity: null,
+				blockingWorkflows: [],
 			};
 		});
 		return [...builtIns, ...customViews];
