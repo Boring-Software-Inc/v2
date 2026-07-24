@@ -219,6 +219,36 @@ export async function listEnabledWorkflows(
 }
 
 /**
+ * Enabled workflows as {row id, definition}. The ROW id is the CRUD/editor
+ * route handle; the definition carries a SEPARATE wire `id` (two independent
+ * generateId() calls at create). Callers that link to the editor need the row
+ * id — resolving a rule's owning workflow returns the wire id, so the Rules page
+ * maps wire→row through this to avoid linking at a nonexistent workflow.
+ */
+export async function listEnabledWorkflowRows(
+	db: Db,
+	repoFullName: string,
+): Promise<{ id: string; definition: WorkflowDefinition }[]> {
+	const repo = await getRepoByFullName(db, repoFullName);
+	if (!repo) {
+		return [];
+	}
+	const rows = await db
+		.select()
+		.from(workflowDefinitions)
+		.where(
+			and(
+				eq(workflowDefinitions.repoId, repo.id),
+				eq(workflowDefinitions.enabled, true),
+			),
+		);
+	return rows.map((row) => ({
+		id: row.id,
+		definition: workflowDefinitionSchema.parse(row.definition),
+	}));
+}
+
+/**
  * Does the repo have a saved, enabled workflow? When true, the /rules toggles
  * are a kill switch over that graph (not a derived default) — the UI shows a
  * "managed by your workflow" tag (§6).

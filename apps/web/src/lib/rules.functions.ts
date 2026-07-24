@@ -84,9 +84,18 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 		const stored = await repoServices.listRuleConfigs(db, data.repoId);
 		// Per-rule management derives from ENABLED workflow node refs (§6,
 		// workflow-only), not a repo-level boolean — that was the all-locked bug.
-		const enabledWorkflows = repo
-			? await repoServices.listEnabledWorkflows(db, repo.fullName)
+		// Rows carry the CRUD row id AND the definition (whose wire `id` differs);
+		// resolveRuleManagement returns the wire id, so we map wire→row for the
+		// "edit in workflow" link — it targets the editor route, keyed by row id.
+		const enabledRows = repo
+			? await repoServices.listEnabledWorkflowRows(db, repo.fullName)
 			: [];
+		const enabledWorkflows = enabledRows.map((row) => row.definition);
+		const workflowRowIdByWireId = new Map(
+			enabledRows.map((row) => [row.definition.id, row.id]),
+		);
+		const linkWorkflowId = (wireId: string | null): string | null =>
+			wireId ? (workflowRowIdByWireId.get(wireId) ?? null) : null;
 		const stats = repo
 			? await insightServices.getRulesStats(db, repo.fullName)
 			: { perRule: [] };
@@ -114,7 +123,7 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				config: {},
 				defaultConfig: {},
 				management: mgmt.state,
-				workflowId: mgmt.workflowId,
+				workflowId: linkWorkflowId(mgmt.workflowId),
 				optIn: false,
 				matches24h: perRule?.matches24h ?? 0,
 				trend: perRule?.series ?? Array(24).fill(0),
@@ -156,7 +165,7 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 				config,
 				defaultConfig: entry.defaultConfig as JsonValue,
 				management: mgmt.state,
-				workflowId: mgmt.workflowId,
+				workflowId: linkWorkflowId(mgmt.workflowId),
 				optIn: entry.optIn,
 				matches24h: perRule?.matches24h ?? 0,
 				trend: perRule?.series ?? Array(24).fill(0),

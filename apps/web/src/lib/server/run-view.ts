@@ -26,7 +26,10 @@ export async function loadRunView(
 	const hasSession = session.userId !== null;
 	// The repo row backs both the no-session privacy gate and the full view's
 	// re-run scope (org slug + repo name + the admin check).
-	const repo = await repoServices.getRepoByFullName(db, result.run.repoFullName);
+	const repo = await repoServices.getRepoByFullName(
+		db,
+		result.run.repoFullName,
+	);
 	const repoPrivate =
 		session.authEnabled && !hasSession ? (repo?.private ?? null) : null;
 	const access = resolveRunAccess({
@@ -91,7 +94,7 @@ export async function loadRunView(
 			summary: step.summary,
 			// Resolve a display label from the snapshot so editor-created nodes
 			// (UUID ids) don't render as bare ids. Carries no secret.
-			label: nodeLabels.get(step.nodeId),
+			label: resolveStepLabel(step.nodeId, nodeLabels),
 		})),
 		actions: result.actions.map((action) => ({
 			kind: action.kind,
@@ -101,6 +104,30 @@ export async function loadRunView(
 		})),
 	};
 	return access === "public" ? toPublicRunView(view) : toFullRunView(view);
+}
+
+/** Synthetic step ids the executor emits that aren't snapshot nodes — the
+ * resume floor records a block under this id when the graph drew none. */
+const SYNTHETIC_STEP_LABELS: Record<string, string> = {
+	"run:deny-floor": "block",
+};
+
+/**
+ * The display label for a step. Resumed steps carry a trailing `:resume`
+ * (resume-run.ts re-keys them so their ids stay unique), which the snapshot map
+ * does not — strip it before lookup, then fall back to the synthetic table.
+ * Without this, the resumed moderation node and its downstream actions render as
+ * bare `action`.
+ */
+function resolveStepLabel(
+	nodeId: string,
+	labels: Map<string, string>,
+): string | undefined {
+	return (
+		labels.get(nodeId) ??
+		labels.get(nodeId.replace(/:resume$/, "")) ??
+		SYNTHETIC_STEP_LABELS[nodeId]
+	);
 }
 
 /**

@@ -294,7 +294,7 @@ describe("deny floor — deny with no deny edge never fails open", () => {
 		);
 		expect(floor.rowCount).toBe(1);
 		expect(floor.rows[0].output.rule).toBe(
-			"deny (no deny edge) → block by default",
+			"deny → block (graph produced no block action)",
 		);
 
 		const actions = await pool.query(

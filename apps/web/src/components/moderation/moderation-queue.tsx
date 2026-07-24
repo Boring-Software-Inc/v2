@@ -106,7 +106,10 @@ export function ModerationQueue({
 							onClick={() =>
 								decide.mutate(
 									{ data: { org, repo, itemId: item.id, decision: "approve" } },
-									{ onSuccess: () => toast("approved — run resuming") },
+									{
+										onSuccess: () =>
+											toast("approved — this change can proceed"),
+									},
 								)
 							}
 							type="button"
@@ -119,7 +122,7 @@ export function ModerationQueue({
 							onClick={() =>
 								decide.mutate(
 									{ data: { org, repo, itemId: item.id, decision: "deny" } },
-									{ onSuccess: () => toast("denied — run resuming") },
+									{ onSuccess: () => toast("denied — this change is blocked") },
 								)
 							}
 							type="button"
