@@ -225,15 +225,46 @@ export function RuleCard({
 				</div>
 			) : null}
 			{rule.source === "custom" && canEdit && onDelete ? (
-				<div className="flex justify-end px-4 pb-2.5">
-					<button
-						className="text-muted-foreground text-xs hover:text-red-500"
-						onClick={() => onDelete(rule.ruleId)}
-						type="button"
-					>
-						delete rule
-					</button>
-				</div>
+				rule.blockingWorkflows.length > 0 ? (
+					// Referenced by a workflow (enabled or disabled): delete is refused
+					// server-side; the button stays visible but disabled, naming the
+					// workflows so the reason reads intentional, not broken.
+					<div className="flex flex-col items-end gap-1 px-4 pb-2.5 text-xs">
+						<button
+							className="cursor-not-allowed text-muted-foreground/40"
+							disabled
+							title="remove this rule from its workflows before deleting"
+							type="button"
+						>
+							delete rule
+						</button>
+						<span className="text-muted-foreground">
+							in use by{" "}
+							{rule.blockingWorkflows.map((wf, index) => (
+								<span key={wf.id}>
+									{index > 0 ? ", " : ""}
+									<Link
+										className="font-medium text-primary hover:underline"
+										params={{ org, repo, workflowId: wf.id }}
+										to="/$org/$repo/workflows/$workflowId"
+									>
+										{wf.name}
+									</Link>
+								</span>
+							))}
+						</span>
+					</div>
+				) : (
+					<div className="flex justify-end px-4 pb-2.5">
+						<button
+							className="text-muted-foreground text-xs hover:text-red-500"
+							onClick={() => onDelete(rule.ruleId)}
+							type="button"
+						>
+							delete rule
+						</button>
+					</div>
+				)
 			) : null}
 		</div>
 	);

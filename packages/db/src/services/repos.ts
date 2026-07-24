@@ -1,5 +1,6 @@
 import {
 	DEFAULT_RESPONSE_CONFIG,
+	definitionReferencesRule,
 	type ResponseConfig,
 	responseConfigSchema,
 	type WorkflowDefinition,
@@ -468,12 +469,56 @@ export async function upsertCustomRule(
 		});
 }
 
+/**
+ * Every workflow whose definition references this rule, by row id + name —
+ * ENABLED AND DISABLED both, because a disabled workflow breaks the moment it
+ * is re-enabled. Scans definitions in memory (there is no ref index); cheap at
+ * the handful of workflows a repo has. `resolveRuleManagement` is enabled-only
+ * and deliberately NOT used here.
+ */
+export async function workflowsReferencingRule(
+	db: Db,
+	repoId: string,
+	ruleId: string,
+): Promise<{ id: string; name: string }[]> {
+	const rows = await db
+		.select({
+			id: workflowDefinitions.id,
+			name: workflowDefinitions.name,
+			definition: workflowDefinitions.definition,
+		})
+		.from(workflowDefinitions)
+		.where(eq(workflowDefinitions.repoId, repoId));
+	const referencing: { id: string; name: string }[] = [];
+	for (const row of rows) {
+		const parsed = workflowDefinitionSchema.safeParse(row.definition);
+		if (!parsed.success) {
+			continue;
+		}
+		if (definitionReferencesRule(parsed.data, ruleId)) {
+			referencing.push({ id: row.id, name: row.name });
+		}
+	}
+	return referencing;
+}
+
+/**
+ * Delete a custom rule — REFUSED while any workflow (enabled or disabled)
+ * references it, so a workflow can never point at a rule that no longer exists.
+ * Returns the blocking workflows so the caller names them; the guard lives here,
+ * the lowest shared point, so no delete path can bypass it.
+ */
 export async function deleteCustomRule(
 	db: Db,
 	repoId: string,
 	ruleId: string,
-): Promise<void> {
+): Promise<{ deleted: boolean; blockedBy: { id: string; name: string }[] }> {
+	const blockedBy = await workflowsReferencingRule(db, repoId, ruleId);
+	if (blockedBy.length > 0) {
+		return { deleted: false, blockedBy };
+	}
 	await db
 		.delete(customRules)
 		.where(and(eq(customRules.id, ruleId), eq(customRules.repoId, repoId)));
+	return { deleted: true, blockedBy: [] };
 }

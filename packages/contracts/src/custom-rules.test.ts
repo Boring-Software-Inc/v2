@@ -5,9 +5,11 @@ import {
 	customRuleDefinitionSchema,
 	customRuleRecordSchema,
 	customRuleRef,
+	definitionReferencesRule,
 	resolveCatalog,
 } from "./custom-rules.ts";
 import { RULE_CATALOG } from "./rules.ts";
+import type { WorkflowDefinition } from "./workflow.ts";
 import { validateWorkflowForEnable } from "./workflow-validate.ts";
 
 const forkRate: CustomRuleRecord = {
@@ -142,5 +144,43 @@ describe("enable-time validation over the runtime catalog", () => {
 			workflow(customRuleRef(forkRate.id)),
 		);
 		expect(result.valid).toBe(false);
+	});
+});
+
+describe("definitionReferencesRule (delete guard)", () => {
+	const def = (refs: string[]): WorkflowDefinition => ({
+		id: "w",
+		name: "w",
+		version: 1,
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			...refs.map((ref, i) => ({
+				id: `r${i}`,
+				type: "rule" as const,
+				ref,
+				config: {},
+			})),
+		],
+		edges: [],
+	});
+
+	test("matches a rule node by id, version-agnostic", () => {
+		expect(
+			definitionReferencesRule(
+				def(["custom-spam-019f8c@1"]),
+				"custom-spam-019f8c",
+			),
+		).toBe(true);
+		// version in the ref does not matter — the id does
+		expect(
+			definitionReferencesRule(def(["account-age@2"]), "account-age"),
+		).toBe(true);
+	});
+
+	test("false when the rule is absent", () => {
+		expect(
+			definitionReferencesRule(def(["account-age@1"]), "custom-spam-019f8c"),
+		).toBe(false);
+		expect(definitionReferencesRule(def([]), "account-age")).toBe(false);
 	});
 });
