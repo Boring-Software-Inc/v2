@@ -48,7 +48,9 @@ function ruleFallback(ruleRef: string): string {
  * a non-rule node as its bare kind (never "trigger: trigger"). */
 function stepLabel(step: RunStepView): string {
 	if (step.ruleRef) {
-		return ruleDisplayName(step.ruleRef);
+		// Server-resolved through the merged catalog (custom names included);
+		// fall back for pre-resolution cached views.
+		return step.ruleName ?? ruleDisplayName(step.ruleRef);
 	}
 	// Snapshot-resolved label (action kind / gate mode / "trigger"); fall back
 	// to the node kind, never the raw UUID id.
