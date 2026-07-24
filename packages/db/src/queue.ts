@@ -70,18 +70,39 @@ export interface BackfillRepoJob {
 	repoId: string;
 }
 
+/** Minimal logger surface — satisfied by pino, console, etc. */
+export interface BossErrorLogger {
+	error(obj: unknown, msg?: string): void;
+}
+
 /**
  * One PgBoss per process. `start()` installs the pgboss schema and runs
  * maintenance; `createQueue` is idempotent. The api head only sends (inside
  * the ingest transaction); the worker heads consume.
+ *
+ * A pg-boss `error` event is an EventEmitter 'error' — with no listener Node
+ * rethrows it as `ERR_UNHANDLED_ERROR` and the process dies. That is exactly
+ * how a transient DB condition (e.g. Postgres flipping read-only, code 25006,
+ * when the volume fills) turns a recoverable blip into a crash-loop: pg-boss
+ * maintenance fails → unhandled error → process exit → restart → repeat. We
+ * always attach a handler so the process stays up, retries, and recovers on
+ * its own when the DB returns to read-write.
  */
 export async function createBoss(
 	databaseUrl = process.env.DATABASE_URL,
+	logger?: BossErrorLogger,
 ): Promise<PgBoss> {
 	if (!databaseUrl) {
 		throw new Error("DATABASE_URL is not set");
 	}
 	const boss = new PgBoss({ connectionString: databaseUrl });
+	boss.on("error", (error) => {
+		if (logger) {
+			logger.error({ error }, "pg-boss error (queue maintenance/fetch)");
+		} else {
+			console.error("pg-boss error (queue maintenance/fetch):", error);
+		}
+	});
 	await boss.start();
 	await boss.createQueue(PROCESS_EVENT_QUEUE);
 	await boss.createQueue(RESUME_RUN_QUEUE);

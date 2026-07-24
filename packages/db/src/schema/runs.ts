@@ -113,7 +113,9 @@ export const runActions = pgTable(
 		externalId: text("external_id"),
 	},
 	(t) => [
+		// (run_id, idempotency_key) — its left prefix also serves run_id-only
+		// lookups, so a separate run_actions_run_idx would be redundant and just
+		// slow the record→execute writes on this hot table.
 		uniqueIndex("run_actions_idempotency_unique").on(t.runId, t.idempotencyKey),
-		index("run_actions_run_idx").on(t.runId),
 	],
 );
