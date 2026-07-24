@@ -20,6 +20,10 @@ export interface RunStepView {
 	/** Snapshot-resolved display label for non-rule nodes (action kind, gate
 	 * mode, "trigger") so editor-created UUID nodes don't render as bare ids. */
 	label?: string;
+	/** Resolved rule display name — built-ins via the catalog, custom rules via
+	 * the repo's stored name — so custom refs never render as the bare generated
+	 * ref. Null for non-rule steps. Resolved server-side (one place, no drift). */
+	ruleName?: string | null;
 	status: string;
 	evidence: JsonValue;
 	output: JsonValue;

@@ -1,3 +1,4 @@
+import { ruleDisplayName } from "@tripwire/contracts";
 import type { Verdict, WorkflowDefinition } from "@tripwire/contracts";
 import { type Db, orgServices, repoServices, runServices } from "@tripwire/db";
 import {
@@ -61,6 +62,19 @@ export async function loadRunView(
 		canRerun = admin && result.run.subjectNumber !== null;
 	}
 	const nodeLabels = snapshotNodeLabels(result.run.workflowSnapshot);
+	// Resolve rule display names through the merged catalog: built-ins via
+	// ruleDisplayName, custom refs via the repo's stored names — else a custom
+	// rule renders as its bare generated ref. Same class as the :resume label
+	// fix; resolved once here so the component and the pure markdown serializer
+	// both read `step.ruleName` with no per-surface resolver.
+	const customRows = repo
+		? await repoServices.listCustomRules(db, repo.id)
+		: [];
+	const customNameByRef = new Map<string, string>(
+		customRows.map((row): [string, string] => [`${row.id}@1`, row.name]),
+	);
+	const resolveRuleName = (ref: string | null): string | null =>
+		ref ? (customNameByRef.get(ref) ?? ruleDisplayName(ref)) : null;
 	const view: RunView = {
 		id: result.run.id,
 		repoFullName: result.run.repoFullName,
@@ -95,6 +109,7 @@ export async function loadRunView(
 			// Resolve a display label from the snapshot so editor-created nodes
 			// (UUID ids) don't render as bare ids. Carries no secret.
 			label: resolveStepLabel(step.nodeId, nodeLabels),
+			ruleName: resolveRuleName(step.ruleId),
 		})),
 		actions: result.actions.map((action) => ({
 			kind: action.kind,

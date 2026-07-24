@@ -28,7 +28,8 @@ const STATUS_LABEL: Record<string, string> = {
 
 function stepLabel(step: RunStepView): string {
 	if (step.ruleRef) {
-		return ruleDisplayName(step.ruleRef);
+		// Server-resolved through the merged catalog (custom names included).
+		return step.ruleName ?? ruleDisplayName(step.ruleRef);
 	}
 	return step.label ?? step.nodeKind;
 }

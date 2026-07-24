@@ -1,4 +1,5 @@
-import type { CommentReason } from "@tripwire/contracts";
+import type { CommentReason, CustomRuleRecord } from "@tripwire/contracts";
+import { customRuleSummary } from "@tripwire/contracts";
 import { getRule } from "@tripwire/core";
 
 /**
@@ -26,7 +27,10 @@ function asEnvelope(output: unknown): RuleEnvelope | null {
 	return output && typeof output === "object" ? (output as RuleEnvelope) : null;
 }
 
-export function buildCommentReasons(steps: ReasonStep[]): CommentReason[] {
+export function buildCommentReasons(
+	steps: ReasonStep[],
+	customRecords?: Map<string, CustomRuleRecord>,
+): CommentReason[] {
 	const reasons: CommentReason[] = [];
 	for (const step of steps) {
 		if (step.nodeKind !== "rule" || step.status !== "fail") {
@@ -39,9 +43,21 @@ export function buildCommentReasons(steps: ReasonStep[]): CommentReason[] {
 		const ref = `${env.ruleId}@${env.version}`;
 		const rule = getRule(ref);
 		const evidence = env.evidence;
+		// Custom rules aren't in the code registry: their one-liner comes from
+		// customRuleSummary over the observed value (§10-safe — observed only, no
+		// threshold), same slot a built-in's summarize() fills. The fallback names
+		// the rule, never the bare generated ref.
+		const custom = customRecords?.get(ref);
+		const observed =
+			evidence && typeof evidence === "object" && "observed" in evidence
+				? (evidence as { observed: unknown }).observed
+				: null;
 		const text =
 			(rule?.summarize && evidence ? rule.summarize(evidence) : null) ??
-			`${env.ruleId} failed`;
+			(custom && observed !== null
+				? customRuleSummary(custom.definition, observed)
+				: null) ??
+			`${custom?.name ?? env.ruleId} failed`;
 		const remedy = rule?.remedy ?? "revise";
 		const waitHint =
 			remedy === "wait" && rule?.waitHint && evidence
