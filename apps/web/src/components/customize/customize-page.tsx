@@ -8,6 +8,7 @@ import type {
 import {
 	BADGE_PATH,
 	renderVerdictComment,
+	responseConfigSchema,
 	wantsCheck,
 	wantsComment,
 } from "@tripwire/contracts";
@@ -87,8 +88,11 @@ function flattenConfig(config: ResponseConfig): Record<string, unknown> {
 	};
 }
 
+// Parse (not cast) so a flat map missing any key — a saved row that predates a
+// field, or a key list that drifted from flattenConfig — resolves to the schema
+// default instead of leaking `undefined` into a `.trim()` downstream.
 function unflattenConfig(flat: Record<string, unknown>): ResponseConfig {
-	return {
+	return responseConfigSchema.parse({
 		onSuccess: flat.onSuccess,
 		onBlock: flat.onBlock,
 		moderationQueued: flat.moderationQueued,
@@ -107,7 +111,7 @@ function unflattenConfig(flat: Record<string, unknown>): ResponseConfig {
 			customText: flat["reviewComment.customText"],
 			showDetailsButton: flat["reviewComment.showDetailsButton"],
 		},
-	} as ResponseConfig;
+	});
 }
 
 function previewBody(config: ResponseConfig, verdict: Verdict): string | null {
@@ -213,6 +217,18 @@ function CustomizePageInner({
 				"blockComment.mode": valueFor("blockComment.mode"),
 				"blockComment.showRuleName": valueFor("blockComment.showRuleName"),
 				"blockComment.template": valueFor("blockComment.template"),
+				"passComment.customText": valueFor("passComment.customText"),
+				"passComment.showDetailsButton": valueFor(
+					"passComment.showDetailsButton",
+				),
+				"blockComment.customText": valueFor("blockComment.customText"),
+				"blockComment.showDetailsButton": valueFor(
+					"blockComment.showDetailsButton",
+				),
+				"reviewComment.customText": valueFor("reviewComment.customText"),
+				"reviewComment.showDetailsButton": valueFor(
+					"reviewComment.showDetailsButton",
+				),
 			})
 		: null;
 

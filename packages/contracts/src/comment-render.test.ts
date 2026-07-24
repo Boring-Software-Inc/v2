@@ -367,6 +367,30 @@ describe("responseConfig — defaults and surface gates", () => {
 		expect(responseConfigSchema.parse({})).toEqual(DEFAULT_RESPONSE_CONFIG);
 	});
 
+	test("a legacy row (pre-custom-text) upgrades — new fields default in, never undefined", () => {
+		// A stored response_configs row from before the per-outcome override
+		// existed. Both getResponseConfig and the /customize unflatten re-parse
+		// through this schema; a missing field must resolve to its default, not
+		// leak `undefined` into a downstream `.trim()`.
+		const legacy = {
+			onSuccess: "ci-check",
+			onBlock: "comment",
+			blockComment: { mode: "full", showRuleName: true, template: "" },
+			moderationQueued: "comment",
+		};
+		const parsed = responseConfigSchema.parse(legacy);
+		expect(parsed.passComment).toEqual({
+			customText: "",
+			showDetailsButton: true,
+		});
+		expect(parsed.reviewComment).toEqual({
+			customText: "",
+			showDetailsButton: true,
+		});
+		expect(parsed.blockComment.customText).toBe("");
+		expect(parsed.blockComment.showDetailsButton).toBe(true);
+	});
+
 	test("wantsComment follows the per-verdict setting", () => {
 		expect(wantsComment(DEFAULT_RESPONSE_CONFIG, "pass")).toBe(false);
 		expect(wantsComment(DEFAULT_RESPONSE_CONFIG, "block")).toBe(true);
