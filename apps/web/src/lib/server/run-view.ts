@@ -94,31 +94,81 @@ export async function loadRunView(
 		orgSlug,
 		repoName,
 		canRerun,
-		steps: result.steps.map((step) => ({
-			id: step.id,
-			nodeId: step.nodeId,
-			nodeKind: step.nodeKind,
-			ruleRef: step.ruleId,
-			status: step.status,
-			evidence: step.evidence as JsonValue,
-			output: step.output as JsonValue,
-			durationMs: step.durationMs,
-			startedAt: step.startedAt.toISOString(),
-			publicEvidence: step.publicEvidence as JsonValue,
-			summary: step.summary,
-			// Resolve a display label from the snapshot so editor-created nodes
-			// (UUID ids) don't render as bare ids. Carries no secret.
-			label: resolveStepLabel(step.nodeId, nodeLabels),
-			ruleName: resolveRuleName(step.ruleId),
-		})),
-		actions: result.actions.map((action) => ({
-			kind: action.kind,
-			status: action.status,
-			recordedAt: action.recordedAt.toISOString(),
-			delivery: deliveryStatus(action),
-		})),
+		// RENDER-TIME dedupe of a joined run (§5.11). Persisted rows stay 1:1 with
+		// execution — stats, replay, and delivery all read the raw rows, never this
+		// view — so this only cleans the feed. Nothing is suppressed.
+		steps: collapseTriggerSteps(
+			result.steps.map((step) => ({
+				id: step.id,
+				nodeId: step.nodeId,
+				nodeKind: step.nodeKind,
+				ruleRef: step.ruleId,
+				status: step.status,
+				evidence: step.evidence as JsonValue,
+				output: step.output as JsonValue,
+				durationMs: step.durationMs,
+				startedAt: step.startedAt.toISOString(),
+				publicEvidence: step.publicEvidence as JsonValue,
+				summary: step.summary,
+				// Resolve a display label from the snapshot so editor-created nodes
+				// (UUID ids) don't render as bare ids. Carries no secret.
+				label: resolveStepLabel(step.nodeId, nodeLabels),
+				ruleName: resolveRuleName(step.ruleId),
+			})),
+		),
+		actions: collapseSurfaceActions(
+			result.actions.map((action) => ({
+				kind: action.kind,
+				status: action.status,
+				recordedAt: action.recordedAt.toISOString(),
+				delivery: deliveryStatus(action),
+			})),
+		),
 	};
 	return access === "public" ? toPublicRunView(view) : toFullRunView(view);
+}
+
+/** A joined run (§5.11) repeats its trigger once per def — one event, shown
+ * once. Render-time only: the persisted trigger rows stay, and nothing counts
+ * them (stats read rule steps; replay ignores triggers). */
+export function collapseTriggerSteps(
+	steps: RunView["steps"],
+): RunView["steps"] {
+	let seen = false;
+	return steps.filter((step) => {
+		if (step.nodeKind !== "trigger") {
+			return true;
+		}
+		if (seen) {
+			return false;
+		}
+		seen = true;
+		return true;
+	});
+}
+
+/**
+ * Joined defs each emit the same PR-level action (block, comment, set-check) —
+ * one effect on the change request, shown once. NEVER collapses label / webhook
+ * / discord: their target (a label value, a delivery url) is not on this view
+ * (§10 strips the url), so a distinct label or a second send to another url must
+ * stay its own row. Persisted rows and every delivery are untouched.
+ */
+const COLLAPSIBLE_ACTION_KINDS = new Set(["block", "comment", "set-check"]);
+export function collapseSurfaceActions(
+	actions: RunView["actions"],
+): RunView["actions"] {
+	const seen = new Set<string>();
+	return actions.filter((action) => {
+		if (!COLLAPSIBLE_ACTION_KINDS.has(action.kind)) {
+			return true;
+		}
+		if (seen.has(action.kind)) {
+			return false;
+		}
+		seen.add(action.kind);
+		return true;
+	});
 }
 
 /** Synthetic step ids the executor emits that aren't snapshot nodes — the
