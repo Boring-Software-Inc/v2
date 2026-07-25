@@ -15,12 +15,14 @@ import { previousUtcDay } from "./pull-provider-costs.ts";
 
 /**
  * economics-digest (economics-surface-contracts.md): read the prior day's totals
- * row and post a three-line Discord digest, with any threshold breaches as
- * [ALERT] lines. On the 1st of the month it also posts the monthly report for
- * the month that just closed. Cron 02:30 UTC, after the rollup. All output is
- * best-effort: a missing webhook or a post failure is logged, never thrown.
+ * row and post a short Discord digest written in plain sentences, with any
+ * threshold breaches as [ALERT] lines. On the 1st of the month it also posts the
+ * monthly report for the month that just closed. Cron 02:30 UTC, after the
+ * rollup. All output is best-effort: a missing webhook or a post failure is
+ * logged, never thrown.
  *
- * Copy rules: no em dashes, short declarative lines, sentence case.
+ * Copy rules: no em dashes, short declarative lines, sentence case. State the
+ * numbers plainly and say what they mean; let [ALERT] lines carry the judgment.
  */
 
 const MONTHS = [
@@ -49,6 +51,7 @@ function monthName(month: string): string {
 }
 
 const money = (n: number, dp = 4) => `$${n.toFixed(dp)}`;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export interface AlertThresholds {
 	orDailyCapUsd: number;
@@ -77,25 +80,33 @@ function orSpend(t: DailyTotals): number {
 	return t.pulledCostUsd ?? t.meteredCostUsd;
 }
 
-/** The three-line digest body. Pure so it is unit-tested against fixtures. */
+/**
+ * The daily digest body, in plain sentences. Pure so it is unit-tested against
+ * fixtures. The drift line states the gap without judging it: buildAlerts owns
+ * "is this a problem", so the digest never claims a breaching day is "OK".
+ */
 export function formatDigest(t: DailyTotals): string {
-	const drift = t.driftPct == null ? "n/a" : `${t.driftPct.toFixed(1)}% OK`;
-	const credits =
+	const orLine =
+		t.pulledCostUsd == null || t.driftPct == null
+			? "OpenRouter's cost for the day isn't in yet."
+			: `OpenRouter charged ${money(t.pulledCostUsd)}, so billing ran ${Math.abs(
+					t.driftPct,
+				).toFixed(1)}% ${t.driftPct >= 0 ? "under" : "over"}.`;
+	const creditLine =
 		t.creditBalanceUsd == null
-			? "credits n/a"
-			: `credits ${money(t.creditBalanceUsd, 2)} (${creditRunwayMonths(
+			? "Credit balance isn't in yet."
+			: `Credits ${money(t.creditBalanceUsd, 2)}, about ${creditRunwayMonths(
 					t.creditBalanceUsd,
-				).toFixed(1)}mo)`;
-	const railway =
+				).toFixed(1)} months of runway.`;
+	const railwayLine =
 		t.railwayUsageUsd == null
-			? "Railway n/a"
-			: `Railway ${money(t.railwayUsageUsd, 2)}/${money(RAILWAY_FLOOR, 2)}`;
+			? "Railway usage isn't in yet."
+			: `Railway ${money(t.railwayUsageUsd, 2)} of ${money(RAILWAY_FLOOR, 2)}.`;
 	return [
-		`Tripwire economics · ${shortDate(t.day)}`,
-		`runs ${t.runs} (${t.aiReviewedRuns} AI) · metered ${money(
-			t.meteredCostUsd,
-		)} · drift ${drift}`,
-		`${credits} · ${railway} · OR today ${money(orSpend(t))}`,
+		`Tripwire economics for ${shortDate(t.day)}.`,
+		`${plural(t.runs, "change request")} ran, ${t.aiReviewedRuns} through the AI reviewer.`,
+		`We billed ${money(t.meteredCostUsd)}. ${orLine}`,
+		`${creditLine} ${railwayLine}`,
 	].join("\n");
 }
 
@@ -105,17 +116,19 @@ export function buildAlerts(t: DailyTotals, th: AlertThresholds): string[] {
 	const or = orSpend(t);
 	if (or > th.orDailyCapUsd) {
 		alerts.push(
-			`[ALERT] OR daily spend ${money(or)} exceeds ${money(
+			`[ALERT] OpenRouter spend hit ${money(or)} today, over the ${money(
 				th.orDailyCapUsd,
 				2,
-			)} cap · source=prod · check /admin/economics`,
+			)} cap. Check /admin/economics.`,
 		);
 	}
 	if (t.driftPct != null && Math.abs(t.driftPct) > th.driftAlertPct) {
 		alerts.push(
-			`[ALERT] drift ${t.driftPct.toFixed(1)}% exceeds ${th.driftAlertPct}% · metered ${money(
+			`[ALERT] Billing drifted ${t.driftPct.toFixed(1)}% from actual on ${shortDate(
+				t.day,
+			)}, over the ${th.driftAlertPct}% limit. Billed ${money(
 				t.meteredCostUsd,
-			)} vs pulled ${money(t.pulledCostUsd ?? 0)} (${shortDate(t.day)})`,
+			)} against OpenRouter's ${money(t.pulledCostUsd ?? 0)}. Check the meter or model prices.`,
 		);
 	}
 	if (
@@ -123,10 +136,10 @@ export function buildAlerts(t: DailyTotals, th: AlertThresholds): string[] {
 		t.railwayUsageUsd >= th.railwayFloorWarnUsd
 	) {
 		alerts.push(
-			`[ALERT] Railway usage ${money(t.railwayUsageUsd, 2)} approaching ${money(
+			`[ALERT] Railway usage is ${money(t.railwayUsageUsd, 2)}, close to the ${money(
 				RAILWAY_FLOOR,
 				2,
-			)} floor`,
+			)} floor.`,
 		);
 	}
 	return alerts;
@@ -145,27 +158,31 @@ export function formatMonthlyReport(s: MonthlySummary): string {
 	const runway =
 		s.creditBalanceUsd == null
 			? "n/a"
-			: `${creditRunwayMonths(s.creditBalanceUsd).toFixed(1)}mo`;
+			: `${creditRunwayMonths(s.creditBalanceUsd).toFixed(1)} months`;
+	const driftLine =
+		s.driftAvgPct == null
+			? "Drift from actual wasn't available this month."
+			: `Billing tracked actual within ${drift} on average.`;
 	return [
-		`# Economics: ${monthName(s.month)}`,
+		`# Economics for ${monthName(s.month)}`,
 		"",
-		`Accrued: ${money(accrued, 2)} (Railway ${money(railway, 2)}, PlanetScale ${money(
+		`We ran ${plural(s.runs, "change request")}, ${s.aiReviewedRuns} through the AI reviewer. That is ${money(
+			costPerRun,
+		)} per run, under the ${money(0.01)} ceiling. ${driftLine}`,
+		"",
+		`Accrued cost was ${money(accrued, 2)}: Railway ${money(railway, 2)}, PlanetScale ${money(
 			PLANETSCALE_MONTHLY,
 			2,
-		)}, AI ${money(s.meteredCostUsd, 2)})`,
-		`Cash: ${money(cash, 2)} (AI x ${OR_CREDIT_FEE_MULTIPLIER} fee, credits cover PlanetScale, balance ${balance}, runway ${runway})`,
+		)}, AI ${money(s.meteredCostUsd, 2)}.`,
+		`Cash out was ${money(cash, 2)}: AI at the ${OR_CREDIT_FEE_MULTIPLIER} OpenRouter fee, with credits covering PlanetScale. Credit balance ${balance}, about ${runway} of runway.`,
 		"",
-		`Runs ${s.runs} · AI-reviewed ${s.aiReviewedRuns} · cost/run ${money(
-			costPerRun,
-		)} (ceiling ${money(0.01)}) · drift avg ${drift}`,
-		"",
-		"Flags:",
-		`- unattributed rows: ${s.unattributedRuns} runs (${money(
+		"Worth noting:",
+		`- ${plural(s.unattributedRuns, "run")} (${money(
 			s.unattributedCostUsd,
-		)}), from unclaimed installs`,
-		`- eval-key spend ${money(s.evalSpendUsd, 2)} excluded from COGS`,
+		)}) had no install attributed, likely from unclaimed installs.`,
+		`- ${money(s.evalSpendUsd, 2)} of eval-key spend is excluded from COGS.`,
 		"",
-		"Manual reconcile: compare provider invoices vs provider_costs_daily sums.",
+		"To reconcile by hand, compare the provider invoices against the provider_costs_daily sums.",
 	].join("\n");
 }
 
