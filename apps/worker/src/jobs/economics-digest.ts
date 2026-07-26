@@ -6,6 +6,7 @@ import {
 	PLANETSCALE_MONTHLY,
 	RAILWAY_FLOOR,
 	RAILWAY_FLOOR_WARN_USD,
+	REVIEW_MODEL,
 } from "@tripwire/contracts";
 import type { DailyTotals, Db, MonthlySummary } from "@tripwire/db";
 import { economicsServices } from "@tripwire/db";
@@ -15,14 +16,14 @@ import { previousUtcDay } from "./pull-provider-costs.ts";
 
 /**
  * economics-digest (economics-surface-contracts.md): read the prior day's totals
- * row and post a short Discord digest written in plain sentences, with any
- * threshold breaches as [ALERT] lines. On the 1st of the month it also posts the
- * monthly report for the month that just closed. Cron 02:30 UTC, after the
- * rollup. All output is best-effort: a missing webhook or a post failure is
- * logged, never thrown.
+ * row and post a Discord embed digest, its fields in a grid and its border green
+ * on a calm day, red with an Alerts field on a breach. On the 1st of the month
+ * it also posts the long-form monthly report (plain markdown content). Cron 02:30
+ * UTC, after the rollup. All output is best-effort: a missing webhook or a post
+ * failure is logged, never thrown.
  *
- * Copy rules: no em dashes, short declarative lines, sentence case. State the
- * numbers plainly and say what they mean; let [ALERT] lines carry the judgment.
+ * Copy rules: no em dashes, short declarative field values, sentence case. The
+ * fields state the numbers; the border color and the Alerts field judge them.
  */
 
 const MONTHS = [
@@ -80,34 +81,94 @@ function orSpend(t: DailyTotals): number {
 	return t.pulledCostUsd ?? t.meteredCostUsd;
 }
 
+/** Discord embed shape (the subset we send). Fields render 3-per-row inline. */
+export interface EmbedField {
+	name: string;
+	value: string;
+	inline?: boolean;
+}
+export interface DiscordEmbed {
+	title: string;
+	color: number;
+	fields: EmbedField[];
+	footer?: { text: string };
+	timestamp?: string;
+	thumbnail?: { url: string };
+}
+
+/** Green for a calm day, red when any threshold breached. */
+const COLOR_CALM = 0x57f287;
+const COLOR_ALERT = 0xed4245;
+
+/** The under/over gap versus the pulled figure, or a "not in yet" placeholder. */
+function driftValue(t: DailyTotals): string {
+	if (t.pulledCostUsd == null || t.driftPct == null) {
+		return "not in yet";
+	}
+	const dir = t.driftPct >= 0 ? "under" : "over";
+	return `${money(t.pulledCostUsd)}\n${Math.abs(t.driftPct).toFixed(1)}% ${dir}`;
+}
+
 /**
- * The daily digest body, in plain sentences. Pure so it is unit-tested against
- * fixtures. The drift line states the gap without judging it: buildAlerts owns
- * "is this a problem", so the digest never claims a breaching day is "OK".
+ * The daily digest as a Discord embed. Pure so it is unit-tested against
+ * fixtures. Six inline fields fall into a 2x3 grid (runs, billed, OpenRouter /
+ * credits, Railway, model). Any breach turns the border red and appends an
+ * Alerts field; the fields state the numbers, the color and that field judge.
  */
-export function formatDigest(t: DailyTotals): string {
-	const orLine =
-		t.pulledCostUsd == null || t.driftPct == null
-			? "OpenRouter's cost for the day isn't in yet."
-			: `OpenRouter charged ${money(t.pulledCostUsd)}, so billing ran ${Math.abs(
-					t.driftPct,
-				).toFixed(1)}% ${t.driftPct >= 0 ? "under" : "over"}.`;
-	const creditLine =
-		t.creditBalanceUsd == null
-			? "Credit balance isn't in yet."
-			: `Credits ${money(t.creditBalanceUsd, 2)}, about ${creditRunwayMonths(
-					t.creditBalanceUsd,
-				).toFixed(1)} months of runway.`;
-	const railwayLine =
-		t.railwayUsageUsd == null
-			? "Railway usage isn't in yet."
-			: `Railway ${money(t.railwayUsageUsd, 2)} of ${money(RAILWAY_FLOOR, 2)}.`;
-	return [
-		`Tripwire economics for ${shortDate(t.day)}.`,
-		`${plural(t.runs, "change request")} ran, ${t.aiReviewedRuns} through the AI reviewer.`,
-		`We billed ${money(t.meteredCostUsd)}. ${orLine}`,
-		`${creditLine} ${railwayLine}`,
-	].join("\n");
+export function buildDigestEmbed(
+	t: DailyTotals,
+	th: AlertThresholds,
+): DiscordEmbed {
+	const alerts = buildAlerts(t, th);
+	const fields: EmbedField[] = [
+		{
+			name: "Runs",
+			value: `${t.runs} total\n${t.aiReviewedRuns} AI-reviewed`,
+			inline: true,
+		},
+		{ name: "Billed", value: money(t.meteredCostUsd), inline: true },
+		{ name: "OpenRouter", value: driftValue(t), inline: true },
+		{
+			name: "Credits",
+			value:
+				t.creditBalanceUsd == null
+					? "not in yet"
+					: `${money(t.creditBalanceUsd, 2)}\n~${creditRunwayMonths(
+							t.creditBalanceUsd,
+						).toFixed(1)} months`,
+			inline: true,
+		},
+		{
+			name: "Railway",
+			value:
+				t.railwayUsageUsd == null
+					? "not in yet"
+					: `${money(t.railwayUsageUsd, 2)} of ${money(RAILWAY_FLOOR, 2)}`,
+			inline: true,
+		},
+		{
+			name: "Review model",
+			value: `${REVIEW_MODEL.label}\n${money(
+				REVIEW_MODEL.inputUsdPerMTok,
+				2,
+			)}/M in, ${money(REVIEW_MODEL.outputUsdPerMTok, 2)}/M out`,
+			inline: true,
+		},
+	];
+	if (alerts.length > 0) {
+		fields.push({
+			name: "⚠️ Alerts",
+			value: alerts.map((a) => a.replace("[ALERT] ", "")).join("\n\n"),
+			inline: false,
+		});
+	}
+	return {
+		title: `Tripwire economics for ${shortDate(t.day)}`,
+		color: alerts.length > 0 ? COLOR_ALERT : COLOR_CALM,
+		fields,
+		footer: { text: "daily digest" },
+		timestamp: `${t.day}T02:30:00.000Z`,
+	};
 }
 
 /** Threshold breaches as [ALERT] lines. Empty when nothing is breached. */
@@ -206,9 +267,14 @@ function resolveWebhook(deps: DigestDeps): string | null {
 	);
 }
 
-async function post(deps: DigestDeps, url: string, content: string) {
+export interface DigestPayload {
+	content?: string;
+	embeds?: DiscordEmbed[];
+}
+
+async function post(deps: DigestDeps, url: string, payload: DigestPayload) {
 	const fn: PostFn = deps.postImpl ?? ((u, body) => guardedPost(u, body));
-	const result = await fn(url, { content });
+	const result = await fn(url, payload);
 	if (!result.ok) {
 		deps.logger.warn("economics digest post failed");
 	}
@@ -229,7 +295,7 @@ export async function postMonthlyReport(
 		return false;
 	}
 	const summary = await economicsServices.getMonthlySummary(deps.db, month);
-	await post(deps, webhookUrl, formatMonthlyReport(summary));
+	await post(deps, webhookUrl, { content: formatMonthlyReport(summary) });
 	deps.logger.info({ month }, "monthly economics report posted");
 	return true;
 }
@@ -249,15 +315,15 @@ export async function economicsDigest(deps: DigestDeps): Promise<void> {
 	}
 	const thresholds = deps.thresholds ?? thresholdsFromEnv();
 
-	const lines = [formatDigest(totals), ...buildAlerts(totals, thresholds)];
-	await post(deps, webhookUrl, lines.join("\n"));
+	const embed = buildDigestEmbed(totals, thresholds);
+	await post(deps, webhookUrl, { embeds: [embed] });
 
 	// On the 1st, the day that just closed is the last of the previous month.
 	if (now.getUTCDate() === 1) {
 		await postMonthlyReport(deps, day.slice(0, 7));
 	}
 	deps.logger.info(
-		{ day, alerts: lines.length - 1 },
+		{ day, alerts: buildAlerts(totals, thresholds).length },
 		"economics digest posted",
 	);
 }

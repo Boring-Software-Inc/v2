@@ -3,7 +3,7 @@ import type { DailyTotals, MonthlySummary } from "@tripwire/db";
 import {
 	type AlertThresholds,
 	buildAlerts,
-	formatDigest,
+	buildDigestEmbed,
 	formatMonthlyReport,
 } from "./economics-digest.ts";
 
@@ -26,26 +26,54 @@ const CALM: DailyTotals = {
 	railwayUsageUsd: 1.42,
 };
 
-describe("formatDigest", () => {
-	test("plain sentences, real numbers, no em dashes", () => {
-		const out = formatDigest(CALM);
-		const lines = out.split("\n");
-		expect(lines).toHaveLength(4);
-		expect(lines[0]).toBe("Tripwire economics for Jul 21.");
-		expect(lines[1]).toBe("14 change requests ran, 3 through the AI reviewer.");
-		expect(lines[2]).toBe(
-			"We billed $0.0114. OpenRouter charged $0.0119, so billing ran 4.1% under.",
+describe("buildDigestEmbed", () => {
+	const field = (embed: ReturnType<typeof buildDigestEmbed>, name: string) =>
+		embed.fields.find((f) => f.name === name)?.value;
+
+	test("calm day: green border, the six grid fields, real numbers", () => {
+		const embed = buildDigestEmbed(CALM, TH);
+		expect(embed.color).toBe(0x57f287);
+		expect(embed.title).toBe("Tripwire economics for Jul 21");
+		expect(field(embed, "Runs")).toBe("14 total\n3 AI-reviewed");
+		expect(field(embed, "Billed")).toBe("$0.0114");
+		expect(field(embed, "OpenRouter")).toBe("$0.0119\n4.1% under");
+		expect(field(embed, "Credits")).toBe("$954.55\n~21.2 months");
+		expect(field(embed, "Railway")).toBe("$1.42 of $5.00");
+		// The model rate the user asked to surface, from the REVIEW_MODEL constant.
+		expect(field(embed, "Review model")).toBe(
+			"grok-4.5\n$2.00/M in, $6.00/M out",
 		);
-		expect(lines[3]).toBe(
-			"Credits $954.55, about 21.2 months of runway. Railway $1.42 of $5.00.",
-		);
-		expect(out).not.toContain("—");
+		// No alerts field on a calm day; the six grid fields are inline.
+		expect(embed.fields).toHaveLength(6);
+		expect(embed.fields.every((f) => f.inline)).toBe(true);
 	});
 
 	test("a day billed over actual reads 'over', never a hardcoded OK", () => {
-		const out = formatDigest({ ...CALM, driftPct: -8.2 });
-		expect(out).toContain("so billing ran 8.2% over.");
-		expect(out).not.toContain("OK");
+		const embed = buildDigestEmbed({ ...CALM, driftPct: -8.2 }, TH);
+		expect(field(embed, "OpenRouter")).toBe("$0.0119\n8.2% over");
+		expect(JSON.stringify(embed)).not.toContain("OK");
+	});
+
+	test("a breach turns the border red and appends an Alerts field", () => {
+		const hot: DailyTotals = {
+			...CALM,
+			pulledCostUsd: 1.12,
+			driftPct: 14.8,
+			meteredCostUsd: 0.21,
+		};
+		const embed = buildDigestEmbed(hot, TH);
+		expect(embed.color).toBe(0xed4245);
+		const alerts = field(embed, "⚠️ Alerts");
+		expect(alerts).toContain("Billing drifted 14.8% from actual");
+		expect(alerts).not.toContain("[ALERT]");
+	});
+
+	test("missing pulled cost renders 'not in yet', no crash", () => {
+		const embed = buildDigestEmbed(
+			{ ...CALM, pulledCostUsd: null, driftPct: null },
+			TH,
+		);
+		expect(field(embed, "OpenRouter")).toBe("not in yet");
 	});
 });
 
