@@ -19,7 +19,7 @@ import {
 	guardedPost,
 	guardedPostMultipart,
 	type MultipartFile,
-	renderSparklinePng,
+	renderDitherChart,
 } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { previousUtcDay } from "./pull-provider-costs.ts";
@@ -103,7 +103,8 @@ export interface DiscordEmbed {
 	fields: EmbedField[];
 	footer?: { text: string };
 	timestamp?: string;
-	thumbnail?: { url: string };
+	/** A full-width image below the fields (the spend chart). */
+	image?: { url: string };
 }
 
 /** Green for a calm day, red when any threshold breached. */
@@ -196,12 +197,13 @@ export function buildSpendChart(points: DailyCostPoint[]): Uint8Array | null {
 	if (points.length < 2) {
 		return null;
 	}
-	return renderSparklinePng([
-		{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
+	// Actual paints behind (fuller); billed rides on top, thinned, in the accent.
+	return renderDitherChart([
 		{
 			values: points.map((p) => p.pulledCostUsd ?? p.meteredCostUsd),
 			color: CHART_ACTUAL,
 		},
+		{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
 	]);
 }
 
@@ -361,13 +363,13 @@ export async function economicsDigest(deps: DigestDeps): Promise<void> {
 	const thresholds = deps.thresholds ?? thresholdsFromEnv();
 
 	const embed = buildDigestEmbed(totals, thresholds);
-	// The spend sparkline rides as a thumbnail attachment when there's enough
+	// The spend chart rides as a full-width image attachment when there's enough
 	// history to draw one; without it the embed posts as plain JSON.
 	const chart = buildSpendChart(
 		await economicsServices.getRecentDailyCosts(deps.db, day, CHART_DAYS),
 	);
 	if (chart) {
-		embed.thumbnail = { url: `attachment://${CHART_FILENAME}` };
+		embed.image = { url: `attachment://${CHART_FILENAME}` };
 		const fn: MultipartFn =
 			deps.postMultipartImpl ??
 			((u, payload, files) => guardedPostMultipart(u, payload, files));

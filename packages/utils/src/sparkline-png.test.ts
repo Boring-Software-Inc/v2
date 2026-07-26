@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { encodePng, renderSparklinePng } from "./sparkline-png.ts";
+import {
+	encodePng,
+	renderDitherChart,
+	renderSparklinePng,
+} from "./sparkline-png.ts";
 
 /** A minimal PNG parser: verify signature, then read IHDR width/height and the
  * chunk sequence. Enough to prove the encoder emits a structurally valid PNG a
@@ -68,6 +72,32 @@ describe("renderSparklinePng", () => {
 		).not.toThrow();
 		expect(() =>
 			renderSparklinePng([{ values: [2, 2, 2], color: [0, 0, 0] }]),
+		).not.toThrow();
+	});
+});
+
+describe("renderDitherChart", () => {
+	test("renders overlaid dither areas at the requested size", () => {
+		const png = renderDitherChart(
+			[
+				{ values: [1, 2, 2, 3, 5, 3, 4, 5], color: [88, 101, 242] },
+				{ values: [1, 1, 2, 2, 3, 2, 3, 3], color: [254, 231, 92] },
+			],
+			{ width: 480, height: 160 },
+		);
+		const { width, height, chunks } = readPng(png);
+		expect(width).toBe(480);
+		expect(height).toBe(160);
+		expect(chunks[0]).toBe("IHDR");
+		expect(chunks.at(-1)).toBe("IEND");
+		// A painted dither area compresses larger than a blank canvas would.
+		expect(png.length).toBeGreaterThan(400);
+	});
+
+	test("degenerate inputs never throw", () => {
+		expect(() => renderDitherChart([])).not.toThrow();
+		expect(() =>
+			renderDitherChart([{ values: [2, 2], color: [0, 0, 0] }]),
 		).not.toThrow();
 	});
 });
