@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { DailyTotals, MonthlySummary } from "@tripwire/db";
+import type { DailyCostPoint, DailyTotals, MonthlySummary } from "@tripwire/db";
 import {
 	type AlertThresholds,
 	buildAlerts,
 	buildDigestEmbed,
+	buildSpendChart,
 	formatMonthlyReport,
 } from "./economics-digest.ts";
 
@@ -140,5 +141,34 @@ describe("formatMonthlyReport", () => {
 		const out = formatMonthlyReport(summary);
 		// Cash = Railway 5 + AI 1.87 * 1.055 = 6.97
 		expect(out).toContain("Cash out was $6.97");
+	});
+});
+
+describe("buildSpendChart", () => {
+	const points = (n: number): DailyCostPoint[] =>
+		Array.from({ length: n }, (_, i) => ({
+			day: `2026-07-${String(i + 1).padStart(2, "0")}`,
+			meteredCostUsd: 0.01 + i * 0.001,
+			pulledCostUsd: 0.012 + i * 0.001,
+		}));
+
+	test("under two points draws nothing", () => {
+		expect(buildSpendChart([])).toBeNull();
+		expect(buildSpendChart(points(1))).toBeNull();
+	});
+
+	test("two or more points yield a PNG (signature bytes)", () => {
+		const png = buildSpendChart(points(14));
+		expect(png).not.toBeNull();
+		expect(Array.from((png as Uint8Array).slice(0, 4))).toEqual([
+			137, 80, 78, 71,
+		]);
+	});
+
+	test("a day with no invoice falls back to billed, still renders", () => {
+		const withGap = points(3).map((p, i) =>
+			i === 1 ? { ...p, pulledCostUsd: null } : p,
+		);
+		expect(buildSpendChart(withGap)).not.toBeNull();
 	});
 });
