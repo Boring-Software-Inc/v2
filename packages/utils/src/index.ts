@@ -23,7 +23,9 @@ export {
 } from "./names.ts";
 export { backoffWithJitter } from "./retry.ts";
 export {
+	type DitherChartOptions,
 	encodePng,
+	renderDitherChart,
 	renderSparklinePng,
 	type SparklineOptions,
 	type SparkSeries,
