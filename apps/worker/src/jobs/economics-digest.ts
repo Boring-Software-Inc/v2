@@ -8,9 +8,19 @@ import {
 	RAILWAY_FLOOR_WARN_USD,
 	REVIEW_MODEL,
 } from "@tripwire/contracts";
-import type { DailyTotals, Db, MonthlySummary } from "@tripwire/db";
+import type {
+	DailyCostPoint,
+	DailyTotals,
+	Db,
+	MonthlySummary,
+} from "@tripwire/db";
 import { economicsServices } from "@tripwire/db";
-import { guardedPost } from "@tripwire/utils";
+import {
+	guardedPost,
+	guardedPostMultipart,
+	type MultipartFile,
+	renderSparklinePng,
+} from "@tripwire/utils";
 import type { Logger } from "pino";
 import { previousUtcDay } from "./pull-provider-costs.ts";
 
@@ -171,6 +181,30 @@ export function buildDigestEmbed(
 	};
 }
 
+/** Blurple billed line, yellow actual line — the embed's accent and a warm
+ * contrast, legible on the dark thumbnail. */
+const CHART_BILLED: [number, number, number] = [88, 101, 242];
+const CHART_ACTUAL: [number, number, number] = [254, 231, 92];
+
+/**
+ * The billed-vs-actual spend sparkline for the recent window as PNG bytes, or
+ * null when there aren't two points to draw a line (a fresh install). A day
+ * whose invoice hasn't posted falls back to its billed figure so the actual
+ * line stays continuous rather than dropping to zero.
+ */
+export function buildSpendChart(points: DailyCostPoint[]): Uint8Array | null {
+	if (points.length < 2) {
+		return null;
+	}
+	return renderSparklinePng([
+		{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
+		{
+			values: points.map((p) => p.pulledCostUsd ?? p.meteredCostUsd),
+			color: CHART_ACTUAL,
+		},
+	]);
+}
+
 /** Threshold breaches as [ALERT] lines. Empty when nothing is breached. */
 export function buildAlerts(t: DailyTotals, th: AlertThresholds): string[] {
 	const alerts: string[] = [];
@@ -248,6 +282,11 @@ export function formatMonthlyReport(s: MonthlySummary): string {
 }
 
 type PostFn = (url: string, body: unknown) => Promise<{ ok: boolean }>;
+type MultipartFn = (
+	url: string,
+	payloadJson: unknown,
+	files: MultipartFile[],
+) => Promise<{ ok: boolean }>;
 
 export interface DigestDeps {
 	db: Db;
@@ -256,7 +295,13 @@ export interface DigestDeps {
 	thresholds?: AlertThresholds;
 	now?: Date;
 	postImpl?: PostFn;
+	/** Injected for the dry-run and tests; production uses guardedPostMultipart. */
+	postMultipartImpl?: MultipartFn;
 }
+
+/** How many recent days the spend sparkline spans. */
+const CHART_DAYS = 14;
+const CHART_FILENAME = "econ.png";
 
 function resolveWebhook(deps: DigestDeps): string | null {
 	return (
@@ -316,7 +361,30 @@ export async function economicsDigest(deps: DigestDeps): Promise<void> {
 	const thresholds = deps.thresholds ?? thresholdsFromEnv();
 
 	const embed = buildDigestEmbed(totals, thresholds);
-	await post(deps, webhookUrl, { embeds: [embed] });
+	// The spend sparkline rides as a thumbnail attachment when there's enough
+	// history to draw one; without it the embed posts as plain JSON.
+	const chart = buildSpendChart(
+		await economicsServices.getRecentDailyCosts(deps.db, day, CHART_DAYS),
+	);
+	if (chart) {
+		embed.thumbnail = { url: `attachment://${CHART_FILENAME}` };
+		const fn: MultipartFn =
+			deps.postMultipartImpl ??
+			((u, payload, files) => guardedPostMultipart(u, payload, files));
+		const result = await fn(webhookUrl, { embeds: [embed] }, [
+			{
+				field: "files[0]",
+				filename: CHART_FILENAME,
+				bytes: chart,
+				contentType: "image/png",
+			},
+		]);
+		if (!result.ok) {
+			deps.logger.warn("economics digest post failed");
+		}
+	} else {
+		await post(deps, webhookUrl, { embeds: [embed] });
+	}
 
 	// On the 1st, the day that just closed is the last of the previous month.
 	if (now.getUTCDate() === 1) {

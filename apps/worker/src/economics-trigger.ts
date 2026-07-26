@@ -88,6 +88,27 @@ const dryPost = dryRun
 		}
 	: undefined;
 
+/** In dry-run, print the embed payload and note the attached chart, unposted. */
+const dryPostMultipart = dryRun
+	? (
+			_url: string,
+			payloadJson: unknown,
+			files: { filename: string; bytes: Uint8Array }[],
+		) => {
+			const attached = files
+				.map((f) => `${f.filename} (${f.bytes.length} bytes)`)
+				.join(", ");
+			process.stdout.write(
+				`\n--- digest (dry-run, not posted) ---\n${JSON.stringify(
+					payloadJson,
+					null,
+					2,
+				)}\nattachment: ${attached}\n`,
+			);
+			return Promise.resolve({ ok: true });
+		}
+	: undefined;
+
 try {
 	if (cmd === "backfill") {
 		const result = await economicsServices.backfillAiReviewUsage(db);
@@ -106,6 +127,7 @@ try {
 			logger,
 			now: nowForDay(day),
 			postImpl: dryPost,
+			postMultipartImpl: dryPostMultipart,
 		});
 	}
 	if (cmd === "report") {
