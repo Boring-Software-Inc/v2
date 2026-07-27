@@ -111,12 +111,16 @@ export interface DiscordEmbed {
 const COLOR_CALM = 0x57f287;
 const COLOR_ALERT = 0xed4245;
 
-/** The under/over gap versus the pulled figure, or a "not in yet" placeholder. */
+/**
+ * The actual OpenRouter charge for the day and how far our billing sat from it.
+ * The invoice is pulled by a separate cron (01:40 UTC) and lags, so until it
+ * lands this reads "awaiting invoice" rather than a number.
+ */
 function driftValue(t: DailyTotals): string {
 	if (t.pulledCostUsd == null || t.driftPct == null) {
-		return "not in yet";
+		return "awaiting invoice";
 	}
-	const dir = t.driftPct >= 0 ? "under" : "over";
+	const dir = t.driftPct >= 0 ? "billed under" : "billed over";
 	return `${money(t.pulledCostUsd)}\n${Math.abs(t.driftPct).toFixed(1)}% ${dir}`;
 }
 
@@ -138,7 +142,7 @@ export function buildDigestEmbed(
 			inline: true,
 		},
 		{ name: "Billed", value: money(t.meteredCostUsd), inline: true },
-		{ name: "OpenRouter", value: driftValue(t), inline: true },
+		{ name: "Actual (OpenRouter)", value: driftValue(t), inline: true },
 		{
 			name: "Credits",
 			value:
@@ -177,7 +181,9 @@ export function buildDigestEmbed(
 		title: `Tripwire economics for ${shortDate(t.day)}`,
 		color: alerts.length > 0 ? COLOR_ALERT : COLOR_CALM,
 		fields,
-		footer: { text: "daily digest" },
+		// The chart below has no text labels, so the legend rides in the footer:
+		// 🟣 billed (what we charged) vs 🟡 actual (what OpenRouter charged).
+		footer: { text: "🟣 billed   🟡 actual (OpenRouter)   ·   last 14 days" },
 		timestamp: `${t.day}T02:30:00.000Z`,
 	};
 }
@@ -198,13 +204,18 @@ export function buildSpendChart(points: DailyCostPoint[]): Uint8Array | null {
 		return null;
 	}
 	// Actual paints behind (fuller); billed rides on top, thinned, in the accent.
-	return renderDitherChart([
-		{
-			values: points.map((p) => p.pulledCostUsd ?? p.meteredCostUsd),
-			color: CHART_ACTUAL,
-		},
-		{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
-	]);
+	// cell 2 (was 3) with a wider canvas zooms the dither out a touch — finer
+	// cells, more breathing room around the trend.
+	return renderDitherChart(
+		[
+			{
+				values: points.map((p) => p.pulledCostUsd ?? p.meteredCostUsd),
+				color: CHART_ACTUAL,
+			},
+			{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
+		],
+		{ width: 540, height: 180, cell: 2 },
+	);
 }
 
 /** Threshold breaches as [ALERT] lines. Empty when nothing is breached. */
