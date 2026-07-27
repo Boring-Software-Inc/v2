@@ -100,4 +100,18 @@ describe("renderDitherChart", () => {
 			renderDitherChart([{ values: [2, 2], color: [0, 0, 0] }]),
 		).not.toThrow();
 	});
+
+	test("line mode with a dashed series renders a valid PNG", () => {
+		const png = renderDitherChart(
+			[
+				{ values: [1, 2, 3, 4, 5], color: [88, 101, 242] },
+				{ values: [1, 1, 2, 2, 3], color: [254, 231, 92], dashed: true },
+			],
+			{ width: 540, height: 180, cell: 2, mode: "line" },
+		);
+		const { width, height, chunks } = readPng(png);
+		expect(width).toBe(540);
+		expect(height).toBe(180);
+		expect(chunks.at(-1)).toBe("IEND");
+	});
 });

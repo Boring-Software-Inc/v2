@@ -19,7 +19,7 @@ import {
 	guardedPost,
 	guardedPostMultipart,
 	type MultipartFile,
-	renderSparklinePng,
+	renderDitherChart,
 } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { previousUtcDay } from "./pull-provider-costs.ts";
@@ -183,7 +183,9 @@ export function buildDigestEmbed(
 		fields,
 		// The chart below has no text labels, so the legend rides in the footer:
 		// 🟣 billed (what we charged) vs 🟡 actual (what OpenRouter charged).
-		footer: { text: "🟣 billed   🟡 actual (OpenRouter)   ·   last 14 days" },
+		footer: {
+			text: "🟣 billed   🟡 actual, dashed (OpenRouter)   ·   last 14 days",
+		},
 		timestamp: `${t.day}T02:30:00.000Z`,
 	};
 }
@@ -203,18 +205,20 @@ export function buildSpendChart(points: DailyCostPoint[]): Uint8Array | null {
 	if (points.length < 2) {
 		return null;
 	}
-	// Two LINE series, not filled areas: the dither areas merged into a muddy
-	// overlap where blurple met yellow, so strokes keep billed and actual
-	// visibly separate on the shared scale.
-	return renderSparklinePng(
+	// Dithered LINE mode, not filled areas: the area fills merged into a muddy
+	// overlap where blurple met yellow. Lines keep the dither-kit texture while
+	// staying distinct — billed solid blurple, actual dashed yellow, so they
+	// separate by both color and dash pattern.
+	return renderDitherChart(
 		[
+			{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
 			{
 				values: points.map((p) => p.pulledCostUsd ?? p.meteredCostUsd),
 				color: CHART_ACTUAL,
+				dashed: true,
 			},
-			{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
 		],
-		{ width: 540, height: 180, thickness: 1, padding: 14 },
+		{ width: 540, height: 180, cell: 2, mode: "line" },
 	);
 }
 
