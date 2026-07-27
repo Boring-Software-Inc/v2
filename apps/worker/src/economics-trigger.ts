@@ -76,9 +76,34 @@ const { db, pool } = createDb();
 /** In dry-run, print what the digest would post instead of hitting Discord. */
 const dryPost = dryRun
 	? (_url: string, body: unknown) => {
-			const content = (body as { content?: string }).content ?? "";
+			// Embeds carry no top-level content, so print the whole payload.
 			process.stdout.write(
-				`\n--- digest (dry-run, not posted) ---\n${content}\n`,
+				`\n--- digest (dry-run, not posted) ---\n${JSON.stringify(
+					body,
+					null,
+					2,
+				)}\n`,
+			);
+			return Promise.resolve({ ok: true });
+		}
+	: undefined;
+
+/** In dry-run, print the embed payload and note the attached chart, unposted. */
+const dryPostMultipart = dryRun
+	? (
+			_url: string,
+			payloadJson: unknown,
+			files: { filename: string; bytes: Uint8Array }[],
+		) => {
+			const attached = files
+				.map((f) => `${f.filename} (${f.bytes.length} bytes)`)
+				.join(", ");
+			process.stdout.write(
+				`\n--- digest (dry-run, not posted) ---\n${JSON.stringify(
+					payloadJson,
+					null,
+					2,
+				)}\nattachment: ${attached}\n`,
 			);
 			return Promise.resolve({ ok: true });
 		}
@@ -102,6 +127,7 @@ try {
 			logger,
 			now: nowForDay(day),
 			postImpl: dryPost,
+			postMultipartImpl: dryPostMultipart,
 		});
 	}
 	if (cmd === "report") {

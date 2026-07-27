@@ -6,21 +6,34 @@ import {
 	PLANETSCALE_MONTHLY,
 	RAILWAY_FLOOR,
 	RAILWAY_FLOOR_WARN_USD,
+	REVIEW_MODEL,
 } from "@tripwire/contracts";
-import type { DailyTotals, Db, MonthlySummary } from "@tripwire/db";
+import type {
+	DailyCostPoint,
+	DailyTotals,
+	Db,
+	MonthlySummary,
+} from "@tripwire/db";
 import { economicsServices } from "@tripwire/db";
-import { guardedPost } from "@tripwire/utils";
+import {
+	guardedPost,
+	guardedPostMultipart,
+	type MultipartFile,
+	renderDitherChart,
+} from "@tripwire/utils";
 import type { Logger } from "pino";
 import { previousUtcDay } from "./pull-provider-costs.ts";
 
 /**
  * economics-digest (economics-surface-contracts.md): read the prior day's totals
- * row and post a three-line Discord digest, with any threshold breaches as
- * [ALERT] lines. On the 1st of the month it also posts the monthly report for
- * the month that just closed. Cron 02:30 UTC, after the rollup. All output is
- * best-effort: a missing webhook or a post failure is logged, never thrown.
+ * row and post a Discord embed digest, its fields in a grid and its border green
+ * on a calm day, red with an Alerts field on a breach. On the 1st of the month
+ * it also posts the long-form monthly report (plain markdown content). Cron 02:30
+ * UTC, after the rollup. All output is best-effort: a missing webhook or a post
+ * failure is logged, never thrown.
  *
- * Copy rules: no em dashes, short declarative lines, sentence case.
+ * Copy rules: no em dashes, short declarative field values, sentence case. The
+ * fields state the numbers; the border color and the Alerts field judge them.
  */
 
 const MONTHS = [
@@ -49,6 +62,7 @@ function monthName(month: string): string {
 }
 
 const money = (n: number, dp = 4) => `$${n.toFixed(dp)}`;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export interface AlertThresholds {
 	orDailyCapUsd: number;
@@ -77,26 +91,120 @@ function orSpend(t: DailyTotals): number {
 	return t.pulledCostUsd ?? t.meteredCostUsd;
 }
 
-/** The three-line digest body. Pure so it is unit-tested against fixtures. */
-export function formatDigest(t: DailyTotals): string {
-	const drift = t.driftPct == null ? "n/a" : `${t.driftPct.toFixed(1)}% OK`;
-	const credits =
-		t.creditBalanceUsd == null
-			? "credits n/a"
-			: `credits ${money(t.creditBalanceUsd, 2)} (${creditRunwayMonths(
-					t.creditBalanceUsd,
-				).toFixed(1)}mo)`;
-	const railway =
-		t.railwayUsageUsd == null
-			? "Railway n/a"
-			: `Railway ${money(t.railwayUsageUsd, 2)}/${money(RAILWAY_FLOOR, 2)}`;
-	return [
-		`Tripwire economics · ${shortDate(t.day)}`,
-		`runs ${t.runs} (${t.aiReviewedRuns} AI) · metered ${money(
-			t.meteredCostUsd,
-		)} · drift ${drift}`,
-		`${credits} · ${railway} · OR today ${money(orSpend(t))}`,
-	].join("\n");
+/** Discord embed shape (the subset we send). Fields render 3-per-row inline. */
+export interface EmbedField {
+	name: string;
+	value: string;
+	inline?: boolean;
+}
+export interface DiscordEmbed {
+	title: string;
+	color: number;
+	fields: EmbedField[];
+	footer?: { text: string };
+	timestamp?: string;
+	/** A full-width image below the fields (the spend chart). */
+	image?: { url: string };
+}
+
+/** Green for a calm day, red when any threshold breached. */
+const COLOR_CALM = 0x57f287;
+const COLOR_ALERT = 0xed4245;
+
+/** The under/over gap versus the pulled figure, or a "not in yet" placeholder. */
+function driftValue(t: DailyTotals): string {
+	if (t.pulledCostUsd == null || t.driftPct == null) {
+		return "not in yet";
+	}
+	const dir = t.driftPct >= 0 ? "under" : "over";
+	return `${money(t.pulledCostUsd)}\n${Math.abs(t.driftPct).toFixed(1)}% ${dir}`;
+}
+
+/**
+ * The daily digest as a Discord embed. Pure so it is unit-tested against
+ * fixtures. Six inline fields fall into a 2x3 grid (runs, billed, OpenRouter /
+ * credits, Railway, model). Any breach turns the border red and appends an
+ * Alerts field; the fields state the numbers, the color and that field judge.
+ */
+export function buildDigestEmbed(
+	t: DailyTotals,
+	th: AlertThresholds,
+): DiscordEmbed {
+	const alerts = buildAlerts(t, th);
+	const fields: EmbedField[] = [
+		{
+			name: "Runs",
+			value: `${t.runs} total\n${t.aiReviewedRuns} AI-reviewed`,
+			inline: true,
+		},
+		{ name: "Billed", value: money(t.meteredCostUsd), inline: true },
+		{ name: "OpenRouter", value: driftValue(t), inline: true },
+		{
+			name: "Credits",
+			value:
+				t.creditBalanceUsd == null
+					? "not in yet"
+					: `${money(t.creditBalanceUsd, 2)}\n~${creditRunwayMonths(
+							t.creditBalanceUsd,
+						).toFixed(1)} months`,
+			inline: true,
+		},
+		{
+			name: "Railway",
+			value:
+				t.railwayUsageUsd == null
+					? "not in yet"
+					: `${money(t.railwayUsageUsd, 2)} of ${money(RAILWAY_FLOOR, 2)}`,
+			inline: true,
+		},
+		{
+			name: "Review model",
+			value: `${REVIEW_MODEL.label}\n${money(
+				REVIEW_MODEL.inputUsdPerMTok,
+				2,
+			)}/M in, ${money(REVIEW_MODEL.outputUsdPerMTok, 2)}/M out`,
+			inline: true,
+		},
+	];
+	if (alerts.length > 0) {
+		fields.push({
+			name: "⚠️ Alerts",
+			value: alerts.map((a) => a.replace("[ALERT] ", "")).join("\n\n"),
+			inline: false,
+		});
+	}
+	return {
+		title: `Tripwire economics for ${shortDate(t.day)}`,
+		color: alerts.length > 0 ? COLOR_ALERT : COLOR_CALM,
+		fields,
+		footer: { text: "daily digest" },
+		timestamp: `${t.day}T02:30:00.000Z`,
+	};
+}
+
+/** Blurple billed line, yellow actual line — the embed's accent and a warm
+ * contrast, legible on the dark thumbnail. */
+const CHART_BILLED: [number, number, number] = [88, 101, 242];
+const CHART_ACTUAL: [number, number, number] = [254, 231, 92];
+
+/**
+ * The billed-vs-actual spend sparkline for the recent window as PNG bytes, or
+ * null when there aren't two points to draw a line (a fresh install). A day
+ * whose invoice hasn't posted falls back to its billed figure so the actual
+ * line stays continuous rather than dropping to zero.
+ */
+export function buildSpendChart(points: DailyCostPoint[]): Uint8Array | null {
+	if (points.length < 2) {
+		return null;
+	}
+	// Actual paints behind (fuller); billed rides on top, thinned, in the accent.
+	return renderDitherChart([
+		{
+			values: points.map((p) => p.pulledCostUsd ?? p.meteredCostUsd),
+			color: CHART_ACTUAL,
+		},
+		{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
+	]);
 }
 
 /** Threshold breaches as [ALERT] lines. Empty when nothing is breached. */
@@ -105,17 +213,19 @@ export function buildAlerts(t: DailyTotals, th: AlertThresholds): string[] {
 	const or = orSpend(t);
 	if (or > th.orDailyCapUsd) {
 		alerts.push(
-			`[ALERT] OR daily spend ${money(or)} exceeds ${money(
+			`[ALERT] OpenRouter spend hit ${money(or)} today, over the ${money(
 				th.orDailyCapUsd,
 				2,
-			)} cap · source=prod · check /admin/economics`,
+			)} cap. Check /admin/economics.`,
 		);
 	}
 	if (t.driftPct != null && Math.abs(t.driftPct) > th.driftAlertPct) {
 		alerts.push(
-			`[ALERT] drift ${t.driftPct.toFixed(1)}% exceeds ${th.driftAlertPct}% · metered ${money(
+			`[ALERT] Billing drifted ${t.driftPct.toFixed(1)}% from actual on ${shortDate(
+				t.day,
+			)}, over the ${th.driftAlertPct}% limit. Billed ${money(
 				t.meteredCostUsd,
-			)} vs pulled ${money(t.pulledCostUsd ?? 0)} (${shortDate(t.day)})`,
+			)} against OpenRouter's ${money(t.pulledCostUsd ?? 0)}. Check the meter or model prices.`,
 		);
 	}
 	if (
@@ -123,10 +233,10 @@ export function buildAlerts(t: DailyTotals, th: AlertThresholds): string[] {
 		t.railwayUsageUsd >= th.railwayFloorWarnUsd
 	) {
 		alerts.push(
-			`[ALERT] Railway usage ${money(t.railwayUsageUsd, 2)} approaching ${money(
+			`[ALERT] Railway usage is ${money(t.railwayUsageUsd, 2)}, close to the ${money(
 				RAILWAY_FLOOR,
 				2,
-			)} floor`,
+			)} floor.`,
 		);
 	}
 	return alerts;
@@ -145,31 +255,40 @@ export function formatMonthlyReport(s: MonthlySummary): string {
 	const runway =
 		s.creditBalanceUsd == null
 			? "n/a"
-			: `${creditRunwayMonths(s.creditBalanceUsd).toFixed(1)}mo`;
+			: `${creditRunwayMonths(s.creditBalanceUsd).toFixed(1)} months`;
+	const driftLine =
+		s.driftAvgPct == null
+			? "Drift from actual wasn't available this month."
+			: `Billing tracked actual within ${drift} on average.`;
 	return [
-		`# Economics: ${monthName(s.month)}`,
+		`# Economics for ${monthName(s.month)}`,
 		"",
-		`Accrued: ${money(accrued, 2)} (Railway ${money(railway, 2)}, PlanetScale ${money(
+		`We ran ${plural(s.runs, "change request")}, ${s.aiReviewedRuns} through the AI reviewer. That is ${money(
+			costPerRun,
+		)} per run, under the ${money(0.01)} ceiling. ${driftLine}`,
+		"",
+		`Accrued cost was ${money(accrued, 2)}: Railway ${money(railway, 2)}, PlanetScale ${money(
 			PLANETSCALE_MONTHLY,
 			2,
-		)}, AI ${money(s.meteredCostUsd, 2)})`,
-		`Cash: ${money(cash, 2)} (AI x ${OR_CREDIT_FEE_MULTIPLIER} fee, credits cover PlanetScale, balance ${balance}, runway ${runway})`,
+		)}, AI ${money(s.meteredCostUsd, 2)}.`,
+		`Cash out was ${money(cash, 2)}: AI at the ${OR_CREDIT_FEE_MULTIPLIER} OpenRouter fee, with credits covering PlanetScale. Credit balance ${balance}, about ${runway} of runway.`,
 		"",
-		`Runs ${s.runs} · AI-reviewed ${s.aiReviewedRuns} · cost/run ${money(
-			costPerRun,
-		)} (ceiling ${money(0.01)}) · drift avg ${drift}`,
-		"",
-		"Flags:",
-		`- unattributed rows: ${s.unattributedRuns} runs (${money(
+		"Worth noting:",
+		`- ${plural(s.unattributedRuns, "run")} (${money(
 			s.unattributedCostUsd,
-		)}), from unclaimed installs`,
-		`- eval-key spend ${money(s.evalSpendUsd, 2)} excluded from COGS`,
+		)}) had no install attributed, likely from unclaimed installs.`,
+		`- ${money(s.evalSpendUsd, 2)} of eval-key spend is excluded from COGS.`,
 		"",
-		"Manual reconcile: compare provider invoices vs provider_costs_daily sums.",
+		"To reconcile by hand, compare the provider invoices against the provider_costs_daily sums.",
 	].join("\n");
 }
 
 type PostFn = (url: string, body: unknown) => Promise<{ ok: boolean }>;
+type MultipartFn = (
+	url: string,
+	payloadJson: unknown,
+	files: MultipartFile[],
+) => Promise<{ ok: boolean }>;
 
 export interface DigestDeps {
 	db: Db;
@@ -178,7 +297,13 @@ export interface DigestDeps {
 	thresholds?: AlertThresholds;
 	now?: Date;
 	postImpl?: PostFn;
+	/** Injected for the dry-run and tests; production uses guardedPostMultipart. */
+	postMultipartImpl?: MultipartFn;
 }
+
+/** How many recent days the spend sparkline spans. */
+const CHART_DAYS = 14;
+const CHART_FILENAME = "econ.png";
 
 function resolveWebhook(deps: DigestDeps): string | null {
 	return (
@@ -189,9 +314,14 @@ function resolveWebhook(deps: DigestDeps): string | null {
 	);
 }
 
-async function post(deps: DigestDeps, url: string, content: string) {
+export interface DigestPayload {
+	content?: string;
+	embeds?: DiscordEmbed[];
+}
+
+async function post(deps: DigestDeps, url: string, payload: DigestPayload) {
 	const fn: PostFn = deps.postImpl ?? ((u, body) => guardedPost(u, body));
-	const result = await fn(url, { content });
+	const result = await fn(url, payload);
 	if (!result.ok) {
 		deps.logger.warn("economics digest post failed");
 	}
@@ -212,7 +342,7 @@ export async function postMonthlyReport(
 		return false;
 	}
 	const summary = await economicsServices.getMonthlySummary(deps.db, month);
-	await post(deps, webhookUrl, formatMonthlyReport(summary));
+	await post(deps, webhookUrl, { content: formatMonthlyReport(summary) });
 	deps.logger.info({ month }, "monthly economics report posted");
 	return true;
 }
@@ -232,15 +362,38 @@ export async function economicsDigest(deps: DigestDeps): Promise<void> {
 	}
 	const thresholds = deps.thresholds ?? thresholdsFromEnv();
 
-	const lines = [formatDigest(totals), ...buildAlerts(totals, thresholds)];
-	await post(deps, webhookUrl, lines.join("\n"));
+	const embed = buildDigestEmbed(totals, thresholds);
+	// The spend chart rides as a full-width image attachment when there's enough
+	// history to draw one; without it the embed posts as plain JSON.
+	const chart = buildSpendChart(
+		await economicsServices.getRecentDailyCosts(deps.db, day, CHART_DAYS),
+	);
+	if (chart) {
+		embed.image = { url: `attachment://${CHART_FILENAME}` };
+		const fn: MultipartFn =
+			deps.postMultipartImpl ??
+			((u, payload, files) => guardedPostMultipart(u, payload, files));
+		const result = await fn(webhookUrl, { embeds: [embed] }, [
+			{
+				field: "files[0]",
+				filename: CHART_FILENAME,
+				bytes: chart,
+				contentType: "image/png",
+			},
+		]);
+		if (!result.ok) {
+			deps.logger.warn("economics digest post failed");
+		}
+	} else {
+		await post(deps, webhookUrl, { embeds: [embed] });
+	}
 
 	// On the 1st, the day that just closed is the last of the previous month.
 	if (now.getUTCDate() === 1) {
 		await postMonthlyReport(deps, day.slice(0, 7));
 	}
 	deps.logger.info(
-		{ day, alerts: lines.length - 1 },
+		{ day, alerts: buildAlerts(totals, thresholds).length },
 		"economics digest posted",
 	);
 }
