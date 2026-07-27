@@ -19,7 +19,7 @@ import {
 	guardedPost,
 	guardedPostMultipart,
 	type MultipartFile,
-	renderDitherChart,
+	renderSparklinePng,
 } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { previousUtcDay } from "./pull-provider-costs.ts";
@@ -203,10 +203,10 @@ export function buildSpendChart(points: DailyCostPoint[]): Uint8Array | null {
 	if (points.length < 2) {
 		return null;
 	}
-	// Actual paints behind (fuller); billed rides on top, thinned, in the accent.
-	// cell 2 (was 3) with a wider canvas zooms the dither out a touch — finer
-	// cells, more breathing room around the trend.
-	return renderDitherChart(
+	// Two LINE series, not filled areas: the dither areas merged into a muddy
+	// overlap where blurple met yellow, so strokes keep billed and actual
+	// visibly separate on the shared scale.
+	return renderSparklinePng(
 		[
 			{
 				values: points.map((p) => p.pulledCostUsd ?? p.meteredCostUsd),
@@ -214,7 +214,7 @@ export function buildSpendChart(points: DailyCostPoint[]): Uint8Array | null {
 			},
 			{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
 		],
-		{ width: 540, height: 180, cell: 2 },
+		{ width: 540, height: 180, thickness: 1, padding: 14 },
 	);
 }
 
