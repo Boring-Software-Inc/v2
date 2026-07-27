@@ -344,6 +344,46 @@ export async function getDailyTotals(
 	};
 }
 
+export interface DailyCostPoint {
+	day: string;
+	meteredCostUsd: number;
+	pulledCostUsd: number | null;
+}
+
+/**
+ * The last `days` rolled days up to and including `endDay` (null-org rows),
+ * oldest first — the source for the digest's billed-vs-actual sparkline. Days
+ * that never rolled are simply absent; the caller plots what exists.
+ */
+export async function getRecentDailyCosts(
+	db: Db,
+	endDay: string,
+	days: number,
+): Promise<DailyCostPoint[]> {
+	const rows = await db
+		.select({
+			day: economicsDaily.day,
+			meteredCostUsd: economicsDaily.meteredCostUsd,
+			pulledCostUsd: economicsDaily.pulledCostUsd,
+		})
+		.from(economicsDaily)
+		.where(
+			and(
+				sql`${economicsDaily.orgId} is null`,
+				sql`${economicsDaily.day} <= ${endDay}`,
+			),
+		)
+		.orderBy(sql`${economicsDaily.day} desc`)
+		.limit(days);
+	return rows
+		.map((row) => ({
+			day: row.day,
+			meteredCostUsd: num(row.meteredCostUsd),
+			pulledCostUsd: row.pulledCostUsd == null ? null : num(row.pulledCostUsd),
+		}))
+		.reverse();
+}
+
 export interface MonthlySummary {
 	month: string;
 	runs: number;

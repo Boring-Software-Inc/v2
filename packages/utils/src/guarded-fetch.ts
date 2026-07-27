@@ -185,46 +185,12 @@ export async function guardedPost(
 	body: unknown,
 	opts: GuardedPostOptions = {},
 ): Promise<GuardedFetchResult> {
-	const lookupAll = opts.lookupImpl ?? ((host) => lookup(host, { all: true }));
+	const resolved = await guardedResolve(raw, opts);
+	if (!resolved.ok) {
+		return resolved;
+	}
+	const url = resolved.url;
 	const doFetch = opts.fetchImpl ?? fetch;
-	let url: URL;
-	try {
-		url = new URL(raw);
-	} catch {
-		return { ok: false, failure: "invalid-url" };
-	}
-	if (url.protocol !== "https:") {
-		return { ok: false, failure: "not-https" };
-	}
-
-	// Resolve EVERY address the host maps to and refuse if any is blocked —
-	// resolving only the first would let a multi-record host slip an internal
-	// address past the guard.
-	const host = stripBrackets(url.hostname);
-	let addresses: string[];
-	if (isIP(host)) {
-		addresses = [host];
-	} else {
-		try {
-			// DNS resolution gets its own budget — a host that hangs on lookup
-			// must not stall the delivery job past the request timeout.
-			const resolved = await Promise.race([
-				lookupAll(host),
-				new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error("dns-timeout")), DNS_TIMEOUT_MS),
-				),
-			]);
-			addresses = resolved.map((entry) => entry.address);
-		} catch {
-			return { ok: false, failure: "unresolvable-host" };
-		}
-	}
-	if (addresses.length === 0) {
-		return { ok: false, failure: "unresolvable-host" };
-	}
-	if (addresses.some((address) => isBlockedAddress(address))) {
-		return { ok: false, failure: "blocked-destination" };
-	}
 
 	// Serialize ONCE — this exact string is both signed and sent, so a valid
 	// signature always matches the wire body.
@@ -267,6 +233,119 @@ export async function guardedPost(
 			return { ok: false, failure: "redirected", status: response.status };
 		}
 		// Drain a bounded slice and discard — we never reflect the body.
+		await readCapped(response);
+		if (!response.ok) {
+			return { ok: false, failure: "http-error", status: response.status };
+		}
+		return { ok: true, status: response.status };
+	} catch (error) {
+		if (error instanceof Error && error.name === "TimeoutError") {
+			return { ok: false, failure: "timeout" };
+		}
+		return { ok: false, failure: "network-error" };
+	}
+}
+
+/**
+ * The shared SSRF gate: parse the URL, require https, resolve EVERY address the
+ * host maps to NOW, and refuse if any is blocked. Resolving only the first would
+ * let a multi-record host slip an internal address past the guard; resolving at
+ * delivery time (not save time) closes the DNS-rebinding window. Both
+ * guardedPost and guardedPostMultipart route through this — one guard, no drift.
+ */
+async function guardedResolve(
+	raw: string,
+	opts: GuardedFetchDeps,
+): Promise<{ ok: true; url: URL } | { ok: false; failure: GuardFailure }> {
+	const lookupAll = opts.lookupImpl ?? ((host) => lookup(host, { all: true }));
+	let url: URL;
+	try {
+		url = new URL(raw);
+	} catch {
+		return { ok: false, failure: "invalid-url" };
+	}
+	if (url.protocol !== "https:") {
+		return { ok: false, failure: "not-https" };
+	}
+	const host = stripBrackets(url.hostname);
+	let addresses: string[];
+	if (isIP(host)) {
+		addresses = [host];
+	} else {
+		try {
+			// DNS resolution gets its own budget — a host that hangs on lookup must
+			// not stall the delivery job past the request timeout.
+			const resolved = await Promise.race([
+				lookupAll(host),
+				new Promise<never>((_, reject) =>
+					setTimeout(() => reject(new Error("dns-timeout")), DNS_TIMEOUT_MS),
+				),
+			]);
+			addresses = resolved.map((entry) => entry.address);
+		} catch {
+			return { ok: false, failure: "unresolvable-host" };
+		}
+	}
+	if (addresses.length === 0) {
+		return { ok: false, failure: "unresolvable-host" };
+	}
+	if (addresses.some((address) => isBlockedAddress(address))) {
+		return { ok: false, failure: "blocked-destination" };
+	}
+	return { ok: true, url };
+}
+
+/** A file part for a multipart POST — the Discord webhook attachment shape. */
+export interface MultipartFile {
+	/** The form field name Discord expects: `files[0]`, `files[1]`, ... */
+	field: string;
+	filename: string;
+	bytes: Uint8Array;
+	contentType: string;
+}
+
+/**
+ * POST multipart/form-data through the SAME guard as guardedPost: resolve the
+ * host now, refuse blocked destinations, never follow redirects, bounded time
+ * and size, body discarded. For a JSON `payload_json` plus file parts (the
+ * Discord webhook attachment shape). The payload is NOT HMAC-signed — this path
+ * serves our own trusted webhooks (the economics digest thumbnail), not the
+ * user-controlled delivery guardedPost's signing exists for.
+ */
+export async function guardedPostMultipart(
+	raw: string,
+	payloadJson: unknown,
+	files: MultipartFile[],
+	opts: GuardedFetchDeps = {},
+): Promise<GuardedFetchResult> {
+	const resolved = await guardedResolve(raw, opts);
+	if (!resolved.ok) {
+		return resolved;
+	}
+	const totalBytes = files.reduce((n, f) => n + f.bytes.length, 0);
+	if (totalBytes > MAX_REQUEST_BYTES) {
+		return { ok: false, failure: "body-too-large" };
+	}
+	const doFetch = opts.fetchImpl ?? fetch;
+	const form = new FormData();
+	form.append("payload_json", JSON.stringify(payloadJson));
+	for (const file of files) {
+		form.append(
+			file.field,
+			new Blob([file.bytes], { type: file.contentType }),
+			file.filename,
+		);
+	}
+	try {
+		const response = await doFetch(resolved.url, {
+			method: "POST",
+			body: form,
+			redirect: "manual",
+			signal: AbortSignal.timeout(TIMEOUT_MS),
+		});
+		if (response.status >= 300 && response.status < 400) {
+			return { ok: false, failure: "redirected", status: response.status };
+		}
 		await readCapped(response);
 		if (!response.ok) {
 			return { ok: false, failure: "http-error", status: response.status };
