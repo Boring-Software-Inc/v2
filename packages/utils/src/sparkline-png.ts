@@ -93,6 +93,9 @@ export type Rgb = [number, number, number];
 export interface SparkSeries {
 	values: number[];
 	color: Rgb;
+	/** Line mode only: break the stroke into dashes so two series separate by
+	 * pattern as well as color (dither-kit's `strokeVariant="dashed"`). */
+	dashed?: boolean;
 }
 
 export interface SparklineOptions {
@@ -229,16 +232,24 @@ function resample(src: number[], cols: number): number[] {
 export interface DitherChartOptions extends SparklineOptions {
 	/** Backing-pixel size: bigger = chunkier dither. Defaults to 3. */
 	cell?: number;
+	/**
+	 * "area" (default) fills each column from its value line to the floor.
+	 * "line" fills only a thin dithered glow band hugging the value line — the
+	 * dither-kit LINE look, so overlaid series read as separate strokes instead
+	 * of merging into one filled mass.
+	 */
+	mode?: "area" | "line";
 }
 
 /**
- * Render series as overlaid ordered-dither AREA charts — the dither-kit look,
- * server-side. Each column fills from its value line down to the floor with the
- * Bayer scatter (dense at the floor, dissolving up to a soft value-line border),
- * varying only the color's alpha so it reads on any background. Painted into a
- * low-res backing buffer, then nearest-neighbor upscaled so the cells stay chunky
- * and pixelated. Series paint in order; the last (front) layer is thinned so the
- * one behind shows through. Pure: series in, PNG bytes out.
+ * Render series as overlaid ordered-dither charts — the dither-kit look,
+ * server-side. "area" fills each column from its value line down to the floor;
+ * "line" fills only a thin glow band under the value line so overlaid series
+ * stay visibly distinct. Either way the fill is the Bayer scatter (dense at the
+ * bottom, dissolving up to a soft value-line cap), varying only the color's
+ * alpha so it reads on any background. Painted into a low-res backing buffer,
+ * then nearest-neighbor upscaled so the cells stay chunky and pixelated. Pure:
+ * series in, PNG bytes out.
  */
 export function renderDitherChart(
 	series: SparkSeries[],
@@ -278,27 +289,41 @@ export function renderDitherChart(
 	const innerW = bw - pad * 2;
 	const innerH = bh - pad * 2;
 	const floor = bh - pad;
+	const lineMode = options.mode === "line";
+	// A line's dither hugs the value line: a thin band ~16% of the plot height,
+	// same proportion the web dither-kit uses for its line glow.
+	const glow = Math.max(3, Math.round(innerH * 0.16));
 
 	series.forEach((s, si) => {
 		if (s.values.length === 0) {
 			return;
 		}
 		const cols = resample(s.values, innerW);
-		// Thin the front layer so the one behind reads through its "off" cells.
-		const sparse = si === series.length - 1 && series.length > 1 ? 0.2 : 0;
+		// Area layering thins the front series; line mode keeps every stroke full.
+		const sparse =
+			!lineMode && si === series.length - 1 && series.length > 1 ? 0.2 : 0;
 		for (let cx = 0; cx < innerW; cx++) {
 			const x = pad + cx;
+			// Dashed strokes skip a run of columns periodically (3 on, 3 off).
+			if (s.dashed && Math.floor(cx / 3) % 2 === 1) {
+				continue;
+			}
 			const top = Math.round(
 				pad + innerH - (((cols[cx] as number) - min) / span) * innerH,
 			);
-			const depth = floor - top;
-			for (let y = top; y < floor; y++) {
+			// Line mode fills only the thin glow band; area mode fills to the floor.
+			const bandFloor = lineMode ? Math.min(floor, top + glow) : floor;
+			const depth = bandFloor - top;
+			for (let y = top; y < bandFloor; y++) {
 				const density = depth > 0 ? (y - top) / depth : 1;
-				const lit = density > (BAYER[y & 3]?.[x & 3] as number) + sparse;
-				const k = 0.3 + density * 0.7;
+				// Line glow reads inverted from an area: densest at the value line,
+				// fading down — so the stroke itself is the solid part.
+				const shade = lineMode ? 1 - density : density;
+				const lit = shade > (BAYER[y & 3]?.[x & 3] as number) + sparse;
+				const k = 0.3 + shade * 0.7;
 				blend(x, y, s.color, lit ? k : k * OFF_TIER);
 			}
-			blend(x, top, s.color, BORDER_ALPHA); // soft value-line edge
+			blend(x, top, s.color, BORDER_ALPHA); // bright value-line stroke
 		}
 	});
 
