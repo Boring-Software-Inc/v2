@@ -4,7 +4,7 @@ import { Sparkline } from "#/components/charts/dither-kit";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import { RawConfigDisclosure } from "#/components/rules-params/raw-config-disclosure";
 import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
-import { Dither } from "#/components/ui/dither";
+import { Button } from "#/components/ui/button";
 import { Switch } from "#/components/ui/switch";
 import type { RuleConfigView } from "#/lib/rules.functions";
 import { cn } from "#/lib/utils";
@@ -90,14 +90,10 @@ export function RuleCard({
 	);
 
 	return (
-		<div className="flex h-full flex-col overflow-hidden rounded-xl border-[3px] bg-card">
-			{/* HEADER — identity + verdict state + activity + toggle. Same
-			    surface-1 band on every rule; custom rules add the house dither
-			    over it (only here, in this header row), under the content. */}
-			<div className="relative isolate flex flex-wrap items-center gap-x-2.5 gap-y-2 overflow-hidden bg-surface-1 px-4 py-2">
-				{rule.source === "custom" ? (
-					<Dither className="-z-10 opacity-60" speed={1} />
-				) : null}
+		<div className="flex h-full flex-col gap-2 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-1">
+			{/* HEADER — identity + verdict state + activity + toggle. Sits on the
+			    card shell itself; no dither on rules of any source (§9). */}
+			<div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-3 py-1.5">
 				<span className="font-medium text-sm">{rule.name}</span>
 				<span
 					className={cn(
@@ -157,17 +153,17 @@ export function RuleCard({
 					</div>
 					{standalone ? (
 						offering ? (
-							<button
-								className="rounded-md bg-primary px-2.5 py-1 font-medium text-primary-foreground text-xs transition-colors hover:bg-primary/90"
+							<Button
+								className="h-auto px-2.5 py-1 text-xs"
 								disabled={!canEdit}
 								onClick={() => setEnabled(true)}
-								type="button"
 							>
 								enable
-							</button>
+							</Button>
 						) : (
 							<Switch
 								checked={enabled}
+								className="data-[state=checked]:bg-accent-blue"
 								disabled={!canEdit}
 								onCheckedChange={setEnabled}
 							/>
@@ -176,9 +172,10 @@ export function RuleCard({
 				</div>
 			</div>
 
-			{/* BODY — the payload. Grows to fill so cards in a row share height
-			    and the footer pins to the bottom. */}
-			<div className="flex-1 px-4 py-3">
+			{/* BODY — the payload, in the recessed well the design puts it in.
+			    Grows to fill so cards in a row share height and the subordinate
+			    actions pin to the bottom of the well. */}
+			<div className="flex flex-1 flex-col rounded-sm border border-border bg-surface-1 px-3 py-2">
 				{body}
 
 				{rule.held && standalone ? (
@@ -190,54 +187,54 @@ export function RuleCard({
 							{rule.changeNote ? `${rule.changeNote}. ` : ""}your saved settings
 							don't carry over. re-confirm to move to the new version.
 						</span>
-						<button
+						<Button
 							aria-pressed={upgradeQueued === true}
-							className="font-medium text-primary hover:underline disabled:opacity-50"
+							className="h-auto p-0 font-medium text-foreground text-xs hover:underline"
 							disabled={!canEdit}
 							onClick={() => setUpgradeQueued(upgradeQueued !== true)}
-							type="button"
+							variant="ghost"
 						>
 							{upgradeQueued === true ? "queued. save to apply" : "re-confirm"}
-						</button>
+						</Button>
+					</div>
+				) : null}
+
+				{/* Subordinate actions sit inside the well, per the design */}
+				{rule.management === "managed" ? (
+					<div className="mt-2 flex items-center justify-between">
+						{rule.workflowId ? (
+							<Link
+								className="font-medium text-foreground text-xs hover:underline"
+								params={{ org, repo, workflowId: rule.workflowId }}
+								to="/$org/$repo/workflows/$workflowId"
+							>
+								edit in workflow →
+							</Link>
+						) : (
+							<span />
+						)}
+						{showParams ? <RawConfigDisclosure config={rule.config} /> : null}
+					</div>
+				) : standalone && showParams ? (
+					<div className="mt-2 flex justify-end">
+						<RawConfigDisclosure config={rule.config} />
 					</div>
 				) : null}
 			</div>
-
-			{/* FOOTER — subordinate actions, out of the data column */}
-			{rule.management === "managed" ? (
-				<div className="flex items-center justify-between px-4 pb-2.5">
-					{rule.workflowId ? (
-						<Link
-							className="font-medium text-primary text-xs hover:underline"
-							params={{ org, repo, workflowId: rule.workflowId }}
-							to="/$org/$repo/workflows/$workflowId"
-						>
-							edit in workflow →
-						</Link>
-					) : (
-						<span />
-					)}
-					{showParams ? <RawConfigDisclosure config={rule.config} /> : null}
-				</div>
-			) : standalone && showParams ? (
-				<div className="flex justify-end px-4 pb-2.5">
-					<RawConfigDisclosure config={rule.config} />
-				</div>
-			) : null}
 			{rule.source === "custom" && canEdit && onDelete ? (
 				rule.blockingWorkflows.length > 0 ? (
 					// Referenced by a workflow (enabled or disabled): delete is refused
 					// server-side; the button stays visible but disabled, naming the
 					// workflows so the reason reads intentional, not broken.
-					<div className="flex flex-col items-end gap-1 px-4 pb-2.5 text-xs">
-						<button
-							className="cursor-not-allowed text-muted-foreground/40"
+					<div className="flex flex-col items-end gap-1 px-3 pt-1 pb-1 text-xs">
+						<Button
+							className="h-auto cursor-not-allowed p-0 text-muted-foreground/40 text-xs"
 							disabled
 							title="remove this rule from its workflows before deleting"
-							type="button"
+							variant="ghost"
 						>
 							delete rule
-						</button>
+						</Button>
 						<span className="text-muted-foreground">
 							in use by{" "}
 							{rule.blockingWorkflows.map((wf, index) => (
@@ -255,14 +252,14 @@ export function RuleCard({
 						</span>
 					</div>
 				) : (
-					<div className="flex justify-end px-4 pb-2.5">
-						<button
-							className="text-muted-foreground text-xs hover:text-red-500"
+					<div className="flex justify-end px-3 pt-1 pb-1">
+						<Button
+							className="h-auto p-0 text-muted-foreground text-xs hover:text-red-500"
 							onClick={() => onDelete(rule.ruleId)}
-							type="button"
+							variant="ghost"
 						>
 							delete rule
-						</button>
+						</Button>
 					</div>
 				)
 			) : null}

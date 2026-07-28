@@ -2,7 +2,7 @@ import { GithubIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { getRouteApi } from "@tanstack/react-router";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { DevPersonaPanel } from "#/components/dev/persona-switcher";
+import { DevPersonaDisclosure } from "#/components/dev/persona-disclosure";
 import { Button } from "#/components/ui/button";
 import { Dither } from "#/components/ui/dither";
 import { toast } from "#/components/ui/toast";
@@ -17,7 +17,7 @@ export function LoginPage() {
 	const { redirect } = route.useSearch();
 	return (
 		<div className="flex min-h-dvh flex-col items-center justify-center bg-background p-2">
-			<div className="flex flex-1 items-center justify-center self-stretch overflow-clip rounded-lg bg-surface-0 sm:rounded-xl">
+			<div className="flex flex-1 items-center justify-center self-stretch overflow-clip rounded-lg bg-surface-1 sm:rounded-xl">
 				<div className="relative flex w-[334px] max-w-full shrink-0 flex-col gap-2 overflow-clip rounded-[10px] border border-border bg-surface-2 p-1">
 					<Dither className="opacity-25" />
 
@@ -55,14 +55,7 @@ export function LoginPage() {
 					</Button>
 				</div>
 			</div>
-			{import.meta.env.DEV ? (
-				<div className="mt-8 w-full max-w-sm border-border border-t pt-5">
-					<p className="mb-2.5 text-center text-[11px] text-muted-foreground uppercase tracking-wide">
-						dev personas
-					</p>
-					<DevPersonaPanel variant="grid" />
-				</div>
-			) : null}
+			{import.meta.env.DEV ? <DevPersonaDisclosure /> : null}
 		</div>
 	);
 }
