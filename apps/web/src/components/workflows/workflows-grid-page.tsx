@@ -385,6 +385,10 @@ function WorkflowCard({
 
 	return (
 		<div className="relative isolate flex flex-col gap-2 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-1 transition-colors hover:border-ring/40">
+			{/* The house dither backs the WHOLE card, not just the header, and it
+			    animates. Enabled only — a disabled card reads flat. -z-10 plus the
+			    root's `isolate` keeps it under the content and the stretched link. */}
+			{workflow.enabled ? <Dither className="-z-10" speed={1.22} /> : null}
 			{/* stretched link — the whole card body navigates; controls sit above it */}
 			<Link
 				aria-label={`open ${workflow.name}`}
@@ -392,11 +396,8 @@ function WorkflowCard({
 				params={{ org, repo: repoName, workflowId: workflow.id }}
 				to="/$org/$repo/workflows/$workflowId"
 			/>
-			{/* HEADER — name + toggle/actions; the house dither lives only in this
-			    header row (the -z-10 keeps it under the text and the stretched link)
-			    and only while the workflow is enabled — a disabled card reads flat. */}
+			{/* HEADER — name + toggle/actions */}
 			<div className="relative flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 px-3 py-1.5">
-				{workflow.enabled ? <Dither className="-z-10 opacity-60" /> : null}
 				{renaming ? (
 					<form
 						className="relative z-10 flex flex-1 items-center gap-2"
