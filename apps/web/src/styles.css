@@ -43,7 +43,7 @@
 :root {
 	--card: oklch(1 0 0);
 	--card-foreground: oklch(0.141 0.005 285.823);
-	--popover: oklch(1 0 0);
+	--popover: oklch(0.967 0.001 286.375);
 	--popover-foreground: oklch(0.141 0.005 285.823);
 	--primary: oklch(0.21 0.006 285.885);
 	--primary-foreground: oklch(0.985 0 0);
@@ -90,7 +90,7 @@
 	--foreground: #fafafa;
 	--card: #262626;
 	--card-foreground: #fafafa;
-	--popover: #262626;
+	--popover: #171717;
 	--popover-foreground: #fafafa;
 	--primary: #fafafa;
 	--primary-foreground: #171717;
