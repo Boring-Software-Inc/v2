@@ -37,7 +37,9 @@ describe("buildDigestEmbed", () => {
 		expect(embed.title).toBe("Tripwire economics for Jul 21");
 		expect(field(embed, "Runs")).toBe("14 total\n3 AI-reviewed");
 		expect(field(embed, "Billed")).toBe("$0.0114");
-		expect(field(embed, "OpenRouter")).toBe("$0.0119\n4.1% under");
+		expect(field(embed, "Actual (OpenRouter)")).toBe(
+			"$0.0119\n4.1% billed under",
+		);
 		expect(field(embed, "Credits")).toBe("$954.55\n~21.2 months");
 		expect(field(embed, "Railway")).toBe("$1.42 of $5.00");
 		// The model rate the user asked to surface, from the REVIEW_MODEL constant.
@@ -51,7 +53,9 @@ describe("buildDigestEmbed", () => {
 
 	test("a day billed over actual reads 'over', never a hardcoded OK", () => {
 		const embed = buildDigestEmbed({ ...CALM, driftPct: -8.2 }, TH);
-		expect(field(embed, "OpenRouter")).toBe("$0.0119\n8.2% over");
+		expect(field(embed, "Actual (OpenRouter)")).toBe(
+			"$0.0119\n8.2% billed over",
+		);
 		expect(JSON.stringify(embed)).not.toContain("OK");
 	});
 
@@ -69,12 +73,12 @@ describe("buildDigestEmbed", () => {
 		expect(alerts).not.toContain("[ALERT]");
 	});
 
-	test("missing pulled cost renders 'not in yet', no crash", () => {
+	test("missing pulled cost renders 'awaiting invoice', no crash", () => {
 		const embed = buildDigestEmbed(
 			{ ...CALM, pulledCostUsd: null, driftPct: null },
 			TH,
 		);
-		expect(field(embed, "OpenRouter")).toBe("not in yet");
+		expect(field(embed, "Actual (OpenRouter)")).toBe("awaiting invoice");
 	});
 });
 
