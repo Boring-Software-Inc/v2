@@ -291,7 +291,7 @@ export function RulesPage() {
 							</p>
 						</div>
 						{isAdmin ? (
-							<Button dither onClick={() => setBuilderOpen(true)}>
+							<Button onClick={() => setBuilderOpen(true)}>
 								New rule
 							</Button>
 						) : null}
@@ -330,7 +330,7 @@ export function RulesPage() {
 							<RuleFilters onSortChange={setSort} sort={sort} />
 						</div>
 						{hasEnabledWorkflow &&
-						(filter === "all" || filter === "workflows") ? (
+							(filter === "all" || filter === "workflows") ? (
 							<p className="-mt-3 text-muted-foreground text-xs">
 								{workflowBannerCopy(ownedRuleNames)}
 							</p>
@@ -364,8 +364,6 @@ export function RulesPage() {
 									</p>
 									{isAdmin ? (
 										<Button
-											dither
-											ditherSpeed={1}
 											onClick={() => setBuilderOpen(true)}
 										>
 											New custom rule

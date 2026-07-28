@@ -2,7 +2,6 @@ import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 
-import { Dither } from "#/components/ui/dither";
 import { cn } from "#/lib/utils";
 
 const buttonVariants = cva(
@@ -46,30 +45,20 @@ function Button({
 	size,
 	iconLeft,
 	iconRight,
-	dither,
-	ditherSpeed = 0.5,
 	...props
 }: ButtonPrimitive.Props &
 	VariantProps<typeof buttonVariants> & {
 		iconLeft?: ButtonIcon;
 		iconRight?: ButtonIcon;
-		/** Lay the house dither texture behind the label (see {@link Dither}). */
-		dither?: boolean;
-		/** Speed of the dither texture (see {@link Dither}). */
-		ditherSpeed?: number;
 	}) {
 	return (
 		<ButtonPrimitive
 			data-slot="button"
 			className={cn(
 				buttonVariants({ variant, size, className }),
-				dither && "relative isolate overflow-hidden",
 			)}
 			{...props}
 		>
-			{dither ? (
-				<Dither speed={ditherSpeed} className="-z-10 opacity-[0.14]" />
-			) : null}
 			{iconLeft ? (
 				<span
 					data-slot="button-icon"
