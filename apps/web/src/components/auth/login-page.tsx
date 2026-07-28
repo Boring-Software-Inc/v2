@@ -4,6 +4,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { DevPersonaPanel } from "#/components/dev/persona-switcher";
 import { Button } from "#/components/ui/button";
+import { Dither } from "#/components/ui/dither";
 import { toast } from "#/components/ui/toast";
 import { authClient } from "#/lib/auth-client";
 import { siteConfig } from "#/lib/site-config";
@@ -15,32 +16,44 @@ export function LoginPage() {
 	// signed-out redeemer back to the link instead of dropping them at "/".
 	const { redirect } = route.useSearch();
 	return (
-		<div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">
-			<div className="flex w-full max-w-xs flex-col items-center text-center">
-				<TripwireLogo className="text-foreground" size={36} />
-				<p className="mt-5 text-muted-foreground text-sm">
-					{siteConfig.tagline}
-				</p>
-				<Button
-					className="mt-8 w-full"
-					iconLeft={
-						<HugeiconsIcon icon={GithubIcon} size={16} strokeWidth={2} />
-					}
-					onClick={async () => {
-						const { error } = await authClient.signIn.social({
-							provider: "github",
-							callbackURL: redirect ?? "/",
-						});
-						if (error) {
-							toast(
-								error.message ??
-									"sign-in failed — is the github oauth app configured?",
-							);
+		<div className="flex min-h-dvh flex-col items-center justify-center bg-background p-2">
+			<div className="flex flex-1 items-center justify-center self-stretch overflow-clip rounded-lg bg-surface-0 sm:rounded-xl">
+				<div className="relative flex w-[334px] max-w-full shrink-0 flex-col gap-2 overflow-clip rounded-[10px] border border-border bg-surface-2 p-1">
+					<Dither className="opacity-25" />
+
+					<div className="relative flex items-center justify-between gap-1 px-3 py-1.5">
+						<div className="flex flex-col items-start gap-2">
+							<p className="font-medium text-foreground text-xs leading-4">
+								welcome back
+							</p>
+							<p className="text-left text-muted-foreground text-xs leading-5">
+								{siteConfig.tagline}
+							</p>
+						</div>
+						<TripwireLogo className="shrink-0 text-foreground" size={20} />
+					</div>
+
+					<Button
+						className="relative w-full rounded-sm border border-border bg-surface-1 text-foreground hover:bg-secondary"
+						iconLeft={
+							<HugeiconsIcon icon={GithubIcon} size={16} strokeWidth={2} />
 						}
-					}}
-				>
-					continue with github
-				</Button>
+						onClick={async () => {
+							const { error } = await authClient.signIn.social({
+								provider: "github",
+								callbackURL: redirect ?? "/",
+							});
+							if (error) {
+								toast(
+									error.message ??
+										"sign-in failed — is the github oauth app configured?",
+								);
+							}
+						}}
+					>
+						continue with github
+					</Button>
+				</div>
 			</div>
 			{import.meta.env.DEV ? (
 				<div className="mt-8 w-full max-w-sm border-border border-t pt-5">
