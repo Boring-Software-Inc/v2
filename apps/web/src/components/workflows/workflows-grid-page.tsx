@@ -384,7 +384,7 @@ function WorkflowCard({
 	const deleteConfirmReady = !workflow.enabled || confirmName === workflow.name;
 
 	return (
-		<div className="relative isolate flex flex-col gap-2 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-1 transition-colors hover:border-ring/40">
+		<div className="relative isolate flex flex-col gap-1 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-0.5 transition-colors hover:border-ring/40">
 			{/* The house dither backs the WHOLE card, not just the header, and it
 			    animates. Enabled only — a disabled card reads flat. -z-10 plus the
 			    root's `isolate` keeps it under the content and the stretched link. */}
@@ -494,8 +494,10 @@ function WorkflowCard({
 					) : null}
 				</div>
 			</div>
-			{/* BODY — trigger + timestamp */}
-			<div className="flex flex-col gap-1 px-4 pt-1 pb-3">
+			{/* BODY — trigger + timestamp. FILLED: an opaque surface-1 well that
+			    covers the card-wide dither, so the texture only reads in the header
+			    band and the 2px gutters around this well. */}
+			<div className="relative flex flex-1 flex-col gap-1 rounded-md border border-border bg-surface-1 px-2 py-1">
 				<p className="truncate text-muted-foreground text-xs">
 					{triggerSummary(workflow.triggerKinds)} · {workflow.nodeCount}{" "}
 					{workflow.nodeCount === 1 ? "node" : "nodes"}
