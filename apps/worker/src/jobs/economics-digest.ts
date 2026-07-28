@@ -111,12 +111,16 @@ export interface DiscordEmbed {
 const COLOR_CALM = 0x57f287;
 const COLOR_ALERT = 0xed4245;
 
-/** The under/over gap versus the pulled figure, or a "not in yet" placeholder. */
+/**
+ * The actual OpenRouter charge for the day and how far our billing sat from it.
+ * The invoice is pulled by a separate cron (01:40 UTC) and lags, so until it
+ * lands this reads "awaiting invoice" rather than a number.
+ */
 function driftValue(t: DailyTotals): string {
 	if (t.pulledCostUsd == null || t.driftPct == null) {
-		return "not in yet";
+		return "awaiting invoice";
 	}
-	const dir = t.driftPct >= 0 ? "under" : "over";
+	const dir = t.driftPct >= 0 ? "billed under" : "billed over";
 	return `${money(t.pulledCostUsd)}\n${Math.abs(t.driftPct).toFixed(1)}% ${dir}`;
 }
 
@@ -138,7 +142,7 @@ export function buildDigestEmbed(
 			inline: true,
 		},
 		{ name: "Billed", value: money(t.meteredCostUsd), inline: true },
-		{ name: "OpenRouter", value: driftValue(t), inline: true },
+		{ name: "Actual (OpenRouter)", value: driftValue(t), inline: true },
 		{
 			name: "Credits",
 			value:
@@ -177,7 +181,11 @@ export function buildDigestEmbed(
 		title: `Tripwire economics for ${shortDate(t.day)}`,
 		color: alerts.length > 0 ? COLOR_ALERT : COLOR_CALM,
 		fields,
-		footer: { text: "daily digest" },
+		// The chart below has no text labels, so the legend rides in the footer:
+		// 🟣 billed (what we charged) vs 🟡 actual (what OpenRouter charged).
+		footer: {
+			text: "🟣 billed   🟡 actual, dashed (OpenRouter)   ·   last 14 days",
+		},
 		timestamp: `${t.day}T02:30:00.000Z`,
 	};
 }
@@ -197,14 +205,21 @@ export function buildSpendChart(points: DailyCostPoint[]): Uint8Array | null {
 	if (points.length < 2) {
 		return null;
 	}
-	// Actual paints behind (fuller); billed rides on top, thinned, in the accent.
-	return renderDitherChart([
-		{
-			values: points.map((p) => p.pulledCostUsd ?? p.meteredCostUsd),
-			color: CHART_ACTUAL,
-		},
-		{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
-	]);
+	// Dithered LINE mode, not filled areas: the area fills merged into a muddy
+	// overlap where blurple met yellow. Lines keep the dither-kit texture while
+	// staying distinct — billed solid blurple, actual dashed yellow, so they
+	// separate by both color and dash pattern.
+	return renderDitherChart(
+		[
+			{ values: points.map((p) => p.meteredCostUsd), color: CHART_BILLED },
+			{
+				values: points.map((p) => p.pulledCostUsd ?? p.meteredCostUsd),
+				color: CHART_ACTUAL,
+				dashed: true,
+			},
+		],
+		{ width: 540, height: 180, cell: 2, mode: "line" },
+	);
 }
 
 /** Threshold breaches as [ALERT] lines. Empty when nothing is breached. */
