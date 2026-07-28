@@ -116,7 +116,7 @@ function DashboardShell({ counts, children }: DashboardLayoutProps) {
 					"isolate flex h-dvh flex-col transition-colors duration-300",
 					// Inside a repo the shell is the muted backdrop the page floats on;
 					// on org pages (Home) it matches the card so the topbar blends away.
-					inset ? "bg-muted" : "bg-card",
+					inset ? "bg-background" : "bg-surface-1",
 				)}
 			>
 				<DashboardTopbar user={user ?? null} />
@@ -146,7 +146,7 @@ function DashboardShell({ counts, children }: DashboardLayoutProps) {
 						initial={false}
 						animate={{ borderRadius: inset ? 12 : 0 }}
 						transition={SHEET_SPRING}
-						className="relative flex h-full flex-col overflow-hidden bg-card"
+						className="relative flex h-full flex-col overflow-hidden bg-surface-1"
 					>
 						<BetaBanner />
 						{/* The shell owns page scroll: this container scrolls full-width so
