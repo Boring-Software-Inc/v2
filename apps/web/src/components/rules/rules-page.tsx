@@ -349,7 +349,7 @@ export function RulesPage() {
 						) : filter === "custom" ? (
 							// Empty state keeps its dither (the one rules surface that does),
 							// backing the whole card the way the workflow card does.
-							<div className="relative isolate flex flex-col gap-2 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-1">
+							<div className="relative isolate flex flex-col gap-1 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-0.5">
 								<Dither className="-z-10" speed={0.5} />
 								<div className="relative flex items-center px-3 py-1.5">
 									<span className="font-medium text-sm">
