@@ -384,18 +384,19 @@ function WorkflowCard({
 	const deleteConfirmReady = !workflow.enabled || confirmName === workflow.name;
 
 	return (
-		<div className="relative isolate overflow-hidden rounded-xl border-[3px] bg-card transition-colors hover:border-ring/40">
+		<div className="relative isolate flex flex-col gap-2 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-1 transition-colors hover:border-ring/40">
 			{/* stretched link — the whole card body navigates; controls sit above it */}
 			<Link
 				aria-label={`open ${workflow.name}`}
-				className="absolute inset-0 rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+				className="absolute inset-0 rounded-[10px] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 				params={{ org, repo: repoName, workflowId: workflow.id }}
 				to="/$org/$repo/workflows/$workflowId"
 			/>
 			{/* HEADER — name + toggle/actions; the house dither lives only in this
-			    header row (the -z-10 keeps it under the text and the stretched link). */}
-			<div className="relative flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 px-4 py-2">
-				<Dither className="-z-10 opacity-60" />
+			    header row (the -z-10 keeps it under the text and the stretched link)
+			    and only while the workflow is enabled — a disabled card reads flat. */}
+			<div className="relative flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 px-3 py-1.5">
+				{workflow.enabled ? <Dither className="-z-10 opacity-60" /> : null}
 				{renaming ? (
 					<form
 						className="relative z-10 flex flex-1 items-center gap-2"
@@ -445,6 +446,7 @@ function WorkflowCard({
 					<Switch
 						aria-label={`${workflow.enabled ? "disable" : "enable"} ${workflow.name}`}
 						checked={workflow.enabled}
+						className="data-[state=checked]:bg-accent-blue"
 						disabled={!isAdmin || enableMutation.isPending}
 						onCheckedChange={(checked) => enableMutation.mutate(checked)}
 					/>

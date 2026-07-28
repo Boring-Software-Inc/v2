@@ -9,6 +9,11 @@ import { Switch } from "#/components/ui/switch";
 import type { RuleConfigView } from "#/lib/rules.functions";
 import { cn } from "#/lib/utils";
 
+/** One chip style for every piece of header metadata — same size, same fill,
+ * same ring. Variance here is what made the header read as noise. */
+const CHIP =
+	"flex items-center gap-1 rounded bg-surface-1 px-1.5 py-px text-[10px] text-muted-foreground ring-1 ring-border";
+
 /**
  * One rule as a header/body/footer card (§9), with per-rule management state
  * (§6 — workflows compose with standalone rules, they never disable them):
@@ -91,54 +96,56 @@ export function RuleCard({
 
 	return (
 		<div className="flex h-full flex-col gap-2 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-1">
-			{/* HEADER — identity + verdict state + activity + toggle. Sits on the
-			    card shell itself; no dither on rules of any source (§9). */}
-			<div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-3 py-1.5">
-				<span className="font-medium text-sm">{rule.name}</span>
-				<span
-					className={cn(
-						"text-xs",
-						enabled && standalone
-							? "text-muted-foreground"
-							: "text-muted-foreground/50",
-					)}
-				>
-					block
-				</span>
-				{rule.source === "custom" ? (
-					<span className="rounded bg-surface-1 px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-border">
-						custom
-					</span>
-				) : null}
-				{/* Severity (how much a failure weighs) — moved out of the sentence,
-				    which now states the requirement only. */}
-				{rule.severity ? (
-					<span
-						className={cn(
-							"rounded px-1.5 py-0.5 text-[10px] ring-1",
-							rule.severity === "high"
-								? "bg-red-500/10 text-red-600 ring-red-500/20 dark:text-red-400"
-								: rule.severity === "medium"
-									? "bg-amber-500/10 text-amber-600 ring-amber-500/20 dark:text-amber-400"
-									: "bg-surface-1 text-muted-foreground ring-border",
-						)}
-					>
-						{rule.severity}
-					</span>
-				) : null}
-				{rule.management === "managed" ? (
-					<span className="rounded bg-surface-1 px-1.5 py-0.5 text-[10px] text-muted-foreground ring-1 ring-border">
-						in workflow
-					</span>
-				) : null}
+			{/* HEADER — two lanes that can't collide: an identity column that
+			    truncates, and a fixed rail. Chips get their own row so any number
+			    of them can never displace the stat or the toggle (the old
+			    single wrapping row broke as soon as a card had three chips).
+			    No dither on rules of any source (§9). */}
+			<div className="flex items-start gap-3 px-3 pt-2 pb-1.5">
+				<div className="flex min-w-0 flex-1 flex-col gap-1.5">
+					<span className="truncate font-medium text-sm">{rule.name}</span>
+					<div className="flex flex-wrap items-center gap-1.5">
+						<span
+							className={cn(
+								CHIP,
+								!(enabled && standalone) && "text-muted-foreground/50",
+							)}
+						>
+							block
+						</span>
+						{rule.source === "custom" ? (
+							<span className={CHIP}>custom</span>
+						) : null}
+						{/* Severity (how much a failure weighs) — a dot, not a filled
+						    pill, so it stays scannable without out-shouting the name. */}
+						{rule.severity ? (
+							<span className={CHIP}>
+								<span
+									className={cn(
+										"size-[5px] shrink-0 rounded-full",
+										rule.severity === "high"
+											? "bg-red-500"
+											: rule.severity === "medium"
+												? "bg-amber-500"
+												: "bg-muted-foreground",
+									)}
+								/>
+								{rule.severity}
+							</span>
+						) : null}
+						{rule.management === "managed" ? (
+							<span className={CHIP}>in workflow</span>
+						) : null}
+					</div>
+				</div>
 
-				<div className="ml-auto flex shrink-0 items-center gap-4">
+				<div className="flex shrink-0 items-center gap-3">
 					{hasTrend ? (
 						<div className="hidden h-7 w-20 sm:block">
 							<Sparkline bloom="aura" color="blue" data={rule.trend} />
 						</div>
 					) : null}
-					<div className="w-10 text-right">
+					<div className="flex w-8 flex-col items-end">
 						<p
 							className={cn(
 								"font-medium text-sm tabular-nums leading-none",
@@ -149,7 +156,9 @@ export function RuleCard({
 						>
 							{rule.matches24h}
 						</p>
-						<p className="mt-1 text-[11px] text-muted-foreground">24h</p>
+						<p className="mt-1 text-[10px] text-muted-foreground leading-none">
+							24h
+						</p>
 					</div>
 					{standalone ? (
 						offering ? (
@@ -220,49 +229,52 @@ export function RuleCard({
 						<RawConfigDisclosure config={rule.config} />
 					</div>
 				) : null}
+
+				{/* Delete shares the same action lane rather than floating below the
+				    well, so every card's actions sit on one line. */}
+				{rule.source === "custom" && canEdit && onDelete ? (
+					rule.blockingWorkflows.length > 0 ? (
+						// Referenced by a workflow (enabled or disabled): delete is refused
+						// server-side; the button stays visible but disabled, naming the
+						// workflows so the reason reads intentional, not broken.
+						<div className="mt-2 flex flex-col items-end gap-1 text-xs">
+							<Button
+								className="h-auto cursor-not-allowed p-0 text-[11px] text-muted-foreground/40"
+								disabled
+								title="remove this rule from its workflows before deleting"
+								variant="ghost"
+							>
+								delete
+							</Button>
+							<span className="text-muted-foreground">
+								in use by{" "}
+								{rule.blockingWorkflows.map((wf, index) => (
+									<span key={wf.id}>
+										{index > 0 ? ", " : ""}
+										<Link
+											className="font-medium text-foreground hover:underline"
+											params={{ org, repo, workflowId: wf.id }}
+											to="/$org/$repo/workflows/$workflowId"
+										>
+											{wf.name}
+										</Link>
+									</span>
+								))}
+							</span>
+						</div>
+					) : (
+						<div className="mt-2 flex justify-end">
+							<Button
+								className="h-auto p-0 text-[11px] text-muted-foreground hover:text-red-500"
+								onClick={() => onDelete(rule.ruleId)}
+								variant="ghost"
+							>
+								delete
+							</Button>
+						</div>
+					)
+				) : null}
 			</div>
-			{rule.source === "custom" && canEdit && onDelete ? (
-				rule.blockingWorkflows.length > 0 ? (
-					// Referenced by a workflow (enabled or disabled): delete is refused
-					// server-side; the button stays visible but disabled, naming the
-					// workflows so the reason reads intentional, not broken.
-					<div className="flex flex-col items-end gap-1 px-3 pt-1 pb-1 text-xs">
-						<Button
-							className="h-auto cursor-not-allowed p-0 text-muted-foreground/40 text-xs"
-							disabled
-							title="remove this rule from its workflows before deleting"
-							variant="ghost"
-						>
-							delete rule
-						</Button>
-						<span className="text-muted-foreground">
-							in use by{" "}
-							{rule.blockingWorkflows.map((wf, index) => (
-								<span key={wf.id}>
-									{index > 0 ? ", " : ""}
-									<Link
-										className="font-medium text-primary hover:underline"
-										params={{ org, repo, workflowId: wf.id }}
-										to="/$org/$repo/workflows/$workflowId"
-									>
-										{wf.name}
-									</Link>
-								</span>
-							))}
-						</span>
-					</div>
-				) : (
-					<div className="flex justify-end px-3 pt-1 pb-1">
-						<Button
-							className="h-auto p-0 text-muted-foreground text-xs hover:text-red-500"
-							onClick={() => onDelete(rule.ruleId)}
-							variant="ghost"
-						>
-							delete rule
-						</Button>
-					</div>
-				)
-			) : null}
 		</div>
 	);
 }
