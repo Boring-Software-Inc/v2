@@ -95,7 +95,7 @@ export function RuleCard({
 	);
 
 	return (
-		<div className="flex h-full flex-col gap-2 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-1">
+		<div className="flex h-full flex-col gap-1 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-0.5">
 			{/* HEADER — two lanes that can't collide: an identity column that
 			    truncates, and a fixed rail. Chips get their own row so any number
 			    of them can never displace the stat or the toggle (the old
@@ -184,7 +184,7 @@ export function RuleCard({
 			{/* BODY — the payload, in the recessed well the design puts it in.
 			    Grows to fill so cards in a row share height and the subordinate
 			    actions pin to the bottom of the well. */}
-			<div className="flex flex-1 flex-col rounded-sm border border-border bg-surface-1 px-3 py-2">
+			<div className="flex flex-1 flex-col rounded-md border border-border bg-surface-1 px-2 py-1">
 				{body}
 
 				{rule.held && standalone ? (
