@@ -122,15 +122,15 @@ function previewBody(config: ResponseConfig, verdict: Verdict): string | null {
 	// bubble always shows a real end state, never an empty comment.
 	const previewConfig =
 		config.blockComment.mode === "custom" &&
-			config.blockComment.template.trim() === "" &&
-			config.blockComment.customText.trim() === ""
+		config.blockComment.template.trim() === "" &&
+		config.blockComment.customText.trim() === ""
 			? {
-				...config,
-				blockComment: {
-					...config.blockComment,
-					template: TEMPLATE_PLACEHOLDER,
-				},
-			}
+					...config,
+					blockComment: {
+						...config.blockComment,
+						template: TEMPLATE_PLACEHOLDER,
+					},
+				}
 			: config;
 	return renderVerdictComment(
 		{
@@ -211,25 +211,25 @@ function CustomizePageInner({
 	// both render from it, so queued edits show everywhere before they save.
 	const config = loaded
 		? unflattenConfig({
-			onSuccess: valueFor("onSuccess"),
-			onBlock: valueFor("onBlock"),
-			moderationQueued: valueFor("moderationQueued"),
-			"blockComment.mode": valueFor("blockComment.mode"),
-			"blockComment.showRuleName": valueFor("blockComment.showRuleName"),
-			"blockComment.template": valueFor("blockComment.template"),
-			"passComment.customText": valueFor("passComment.customText"),
-			"passComment.showDetailsButton": valueFor(
-				"passComment.showDetailsButton",
-			),
-			"blockComment.customText": valueFor("blockComment.customText"),
-			"blockComment.showDetailsButton": valueFor(
-				"blockComment.showDetailsButton",
-			),
-			"reviewComment.customText": valueFor("reviewComment.customText"),
-			"reviewComment.showDetailsButton": valueFor(
-				"reviewComment.showDetailsButton",
-			),
-		})
+				onSuccess: valueFor("onSuccess"),
+				onBlock: valueFor("onBlock"),
+				moderationQueued: valueFor("moderationQueued"),
+				"blockComment.mode": valueFor("blockComment.mode"),
+				"blockComment.showRuleName": valueFor("blockComment.showRuleName"),
+				"blockComment.template": valueFor("blockComment.template"),
+				"passComment.customText": valueFor("passComment.customText"),
+				"passComment.showDetailsButton": valueFor(
+					"passComment.showDetailsButton",
+				),
+				"blockComment.customText": valueFor("blockComment.customText"),
+				"blockComment.showDetailsButton": valueFor(
+					"blockComment.showDetailsButton",
+				),
+				"reviewComment.customText": valueFor("reviewComment.customText"),
+				"reviewComment.showDetailsButton": valueFor(
+					"reviewComment.showDetailsButton",
+				),
+			})
 		: null;
 
 	// The form emits whole configs; the adapter fans them into per-key queue
