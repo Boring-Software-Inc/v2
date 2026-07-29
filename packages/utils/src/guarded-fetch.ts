@@ -332,7 +332,7 @@ export async function guardedPostMultipart(
 	for (const file of files) {
 		form.append(
 			file.field,
-			new Blob([file.bytes], { type: file.contentType }),
+			new Blob([file.bytes.slice()], { type: file.contentType }),
 			file.filename,
 		);
 	}
