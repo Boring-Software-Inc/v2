@@ -61,7 +61,7 @@ function DialogContent({
 				{children}
 				{showCloseButton ? (
 					<DialogPrimitive.Close
-						className="absolute top-4 right-4 text-muted-foreground transition-colors hover:text-foreground"
+						className="absolute top-2.5 right-2.5 flex size-7 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
 						data-slot="dialog-close"
 					>
 						<HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
@@ -88,7 +88,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
 		<div
 			data-slot="dialog-footer"
 			className={cn(
-				"flex items-center justify-end gap-2 border-t bg-surface-1 px-5 py-3",
+				"flex items-center justify-end gap-2 border-t bg-surface-2 px-5 py-3",
 				className,
 			)}
 			{...props}
@@ -100,7 +100,10 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
 	return (
 		<DialogPrimitive.Title
 			data-slot="dialog-title"
-			className={cn("font-semibold text-base leading-none", className)}
+			className={cn(
+				"text-balance font-semibold text-base leading-tight",
+				className,
+			)}
 			{...props}
 		/>
 	);

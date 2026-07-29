@@ -1,5 +1,5 @@
-import { ruleDisplayName } from "@tripwire/contracts";
 import type { Verdict, WorkflowDefinition } from "@tripwire/contracts";
+import { ruleDisplayName } from "@tripwire/contracts";
 import { type Db, orgServices, repoServices, runServices } from "@tripwire/db";
 import {
 	resolveRunAccess,

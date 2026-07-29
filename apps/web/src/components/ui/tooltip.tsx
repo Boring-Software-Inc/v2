@@ -47,7 +47,7 @@ function TooltipContent({
 				<TooltipPrimitive.Popup
 					data-slot="tooltip-content"
 					className={cn(
-						"z-50 w-fit rounded-md bg-surface-2 px-2 py-1 text-[11px] text-foreground leading-none",
+						"z-50 w-fit max-w-64 text-pretty rounded-md bg-surface-2 px-2 py-1 text-[11px]/4 text-foreground",
 						className,
 					)}
 					{...popupProps}

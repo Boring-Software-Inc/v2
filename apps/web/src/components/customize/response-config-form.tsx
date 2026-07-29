@@ -39,7 +39,7 @@ function OutcomeComment({
 			<p className={EYEBROW_CLASS}>custom text</p>
 			<textarea
 				aria-label={`${idPrefix} custom comment text`}
-				className="min-h-16 w-full resize-y rounded-md bg-surface-1 px-3 py-2 text-xs leading-5 placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-60"
+				className="min-h-16 w-full resize-y rounded-md bg-surface-1 px-3 py-2 text-xs leading-5 outline-none transition-shadow placeholder:text-muted-foreground/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60"
 				disabled={!canEdit}
 				onBlur={onCommitText}
 				onChange={(event) => onDraftText(event.target.value)}

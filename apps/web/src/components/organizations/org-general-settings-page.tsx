@@ -12,6 +12,7 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
+import { Skeleton } from "#/components/ui/skeleton";
 import { toast } from "#/components/ui/toast";
 import type { OrgWithRole } from "#/lib/org.functions";
 import { deleteOrg, updateOrg } from "#/lib/org.functions";
@@ -247,7 +248,7 @@ function DeleteOrgCard({ org, orgName }: { org: string; orgName: string }) {
 								retained.
 							</p>
 						) : (
-							<div className="h-12 animate-pulse rounded-lg bg-surface-1" />
+							<Skeleton className="h-12 rounded-lg" />
 						)}
 						<label
 							className="flex flex-col gap-1 text-muted-foreground text-xs"
@@ -302,8 +303,8 @@ function DeleteOrgCard({ org, orgName }: { org: string; orgName: string }) {
 export function OrgGeneralSettingsPageSkeleton() {
 	return (
 		<div className="flex flex-col gap-6">
-			<div className="h-64 animate-pulse rounded-xl bg-surface-1" />
-			<div className="h-32 animate-pulse rounded-xl bg-surface-1" />
+			<Skeleton className="h-64 rounded-xl" />
+			<Skeleton className="h-32 rounded-xl" />
 		</div>
 	);
 }

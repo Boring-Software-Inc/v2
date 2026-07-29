@@ -54,8 +54,10 @@ function ComboboxChipRemove({
 		<ComboboxPrimitive.ChipRemove
 			aria-label="Remove"
 			data-slot="combobox-chip-remove"
+			// The visible target stays 16px to keep the chip tight; the
+			// pseudo-element extends the real hit area to 24px.
 			className={cn(
-				"flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground",
+				"relative flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors after:absolute after:-inset-1 after:content-[''] hover:bg-surface-2 hover:text-foreground",
 				className,
 			)}
 			{...props}
@@ -179,7 +181,9 @@ export function ComboboxChipsInput({
 				{values.map((value) => (
 					<ComboboxChip key={value}>
 						{value}
-						<ComboboxChipRemove />
+						{/* Named per chip — a row of identical "Remove" buttons is
+						    unusable when the list is read out. */}
+						<ComboboxChipRemove aria-label={`Remove ${value}`} />
 					</ComboboxChip>
 				))}
 				<ComboboxInput

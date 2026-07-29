@@ -14,9 +14,9 @@ import {
 	customRuleRecordSchema,
 	type NormalizedEvent,
 	type ResolvedCatalogEntry,
-	resolveCatalog,
 	RULE_CATALOG,
 	type RuleResult,
+	resolveCatalog,
 	ruleIdOf,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
@@ -24,22 +24,22 @@ import { executeWorkflow } from "@tripwire/core";
 import { type Db, repoServices } from "@tripwire/db";
 import {
 	GithubHttp,
-	githubForge,
 	GithubReads,
+	githubForge,
 	InstallationTokenCache,
 	normalizeWebhook,
 } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
+import { buildRuleContext } from "../apps/worker/src/context.ts";
+import { customRuleSource } from "../apps/worker/src/jobs/custom-rules.ts";
+import { makeEvaluator } from "../apps/worker/src/jobs/run-workflows.ts";
 // @tripwire/sdk is not linked at the repo root (scripts/ declares no deps and we
 // must not touch bun.lock), so reach it by path — same as the worker internals.
 import {
 	createForgeSignalCtx,
 	SignalUnavailableError,
 } from "../packages/sdk/src/index.ts";
-import { buildRuleContext } from "../apps/worker/src/context.ts";
-import { customRuleSource } from "../apps/worker/src/jobs/custom-rules.ts";
-import { makeEvaluator } from "../apps/worker/src/jobs/run-workflows.ts";
 
 // A silent logger sink — this tool reports through its result, not logs. Proxy
 // so every logger method (and `child`) is a no-op, without a runtime pino dep

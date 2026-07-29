@@ -19,9 +19,8 @@
 		"Geist Variable", "Avenir Next", ui-sans-serif, system-ui, sans-serif;
 	--font-mono:
 		"Geist Mono Variable", "SF Mono", ui-monospace, "Cascadia Code", monospace;
-	--font-pixel: "Silkscreen", "Geist Mono Variable", ui-monospace, monospace;
 	--font-pixel-geist:
-		"Geist Pixel", "Silkscreen", "Geist Mono Variable", ui-monospace, monospace;
+		"Geist Pixel", "Geist Mono Variable", ui-monospace, monospace;
 	--text-sm: 0.875rem;
 	--text-sm--line-height: 1.45;
 	--text-base: 1rem;
@@ -43,7 +42,7 @@
 :root {
 	--card: oklch(1 0 0);
 	--card-foreground: oklch(0.141 0.005 285.823);
-	--popover: oklch(1 0 0);
+	--popover: oklch(0.967 0.001 286.375);
 	--popover-foreground: oklch(0.141 0.005 285.823);
 	--primary: oklch(0.21 0.006 285.885);
 	--primary-foreground: oklch(0.985 0 0);
@@ -53,8 +52,13 @@
 	--muted-foreground: oklch(0.552 0.016 285.938);
 	--accent: oklch(0.967 0.001 286.375);
 	--accent-foreground: oklch(0.21 0.006 285.885);
-	--destructive: oklch(0.577 0.245 27.325);
-	--destructive-foreground: oklch(0.577 0.245 27.325);
+	/* Three roles, three tokens (they are not interchangeable): `destructive` is
+	   text/icon on a neutral surface, `destructive-surface` is the solid fill,
+	   `destructive-foreground` is text ON that fill. Every pair below clears
+	   WCAG AA 4.5:1 against each surface in the ladder. */
+	--destructive: oklch(0.545 0.213 27.5);
+	--destructive-surface: oklch(0.577 0.245 27.325);
+	--destructive-foreground: oklch(0.985 0 0);
 	--border: oklch(0.92 0.004 286.32);
 	--input: oklch(0.92 0.004 286.32);
 	--ring: oklch(0.871 0.006 286.286);
@@ -80,49 +84,62 @@
 	--surface-2: oklch(0.925 0.003 286.375);
 	--surface-skeleton: oklch(0.905 0.003 286.375);
 	--brand: oklch(63.7% 0.167 254deg);
+	/* Brand at full lightness only reaches 3.42:1 on white — too low for the
+	   badge and link text that use it. `brand-text` is the readable variant;
+	   `brand` stays the fill. */
+	--brand-text: oklch(0.52 0.167 254);
 	--brand-dev: oklch(0.75 0.17 85);
 }
 
 .dark {
-	--background: oklch(0.141 0.005 285.823);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0.006 285.885);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.225 0.006 285.885);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.985 0 0);
-	--primary-foreground: oklch(0.21 0.006 285.885);
-	--secondary: oklch(0.274 0.006 286.033);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.16 0.005 285.823);
-	--muted-foreground: oklch(0.705 0.015 286.067);
-	--accent: oklch(0.274 0.006 286.033);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.396 0.141 25.723);
-	--destructive-foreground: oklch(0.637 0.237 25.331);
-	--border: oklch(0.274 0.006 286.033);
-	--input: oklch(0.274 0.006 286.033);
-	--ring: oklch(0.442 0.017 285.786);
+	/* Neutral dark palette — every grey is equal-RGB, no blue or mauve cast.
+	   Mirrors the Paper design tokens (tripwire / rework). */
+	--background: #0d0d0d;
+	--foreground: #fafafa;
+	--card: #262626;
+	--card-foreground: #fafafa;
+	--popover: #171717;
+	--popover-foreground: #fafafa;
+	--primary: #fafafa;
+	--primary-foreground: #171717;
+	--secondary: #252525;
+	--secondary-foreground: #fafafa;
+	--muted: #171717;
+	--muted-foreground: #a1a1a1;
+	--accent: #252525;
+	--accent-foreground: #fafafa;
+	--destructive: oklch(0.68 0.19 25.7);
+	--destructive-surface: oklch(0.396 0.141 25.723);
+	--destructive-foreground: oklch(0.985 0 0);
+	--border: #fafafa1a;
+	--input: #fafafa1a;
+	--ring: #fafafa47;
 	--chart-1: oklch(0.488 0.243 264.376);
 	--chart-2: oklch(0.696 0.17 162.48);
 	--chart-3: oklch(0.769 0.188 70.08);
 	--chart-4: oklch(0.627 0.265 303.9);
 	--chart-5: oklch(0.645 0.246 16.439);
-	--sidebar: oklch(0.21 0.006 285.885);
-	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar: #141414;
+	--sidebar-foreground: #fafafa;
 	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.274 0.006 286.033);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(0.274 0.006 286.033);
-	--sidebar-ring: oklch(0.442 0.017 285.786);
-	--container: #101011;
-	--surface-0: oklch(0.21 0.006 286.033);
-	--surface-1: oklch(0.245 0.006 286.033);
-	--surface-2: oklch(0.28 0.006 286.033);
-	--surface-skeleton: oklch(0.3 0.006 286.033);
+	--sidebar-primary-foreground: #fafafa;
+	--sidebar-accent: #252525;
+	--sidebar-accent-foreground: #fafafa;
+	--sidebar-border: #fafafa1a;
+	--sidebar-ring: #fafafa47;
+	--container: #0d0d0d;
+	/* surface-0 is the inset shell, surface-2 the raised card, surface-1 the
+	   recessed well inside it — darker than its parent by design. */
+	--surface-0: #141414;
+	--surface-1: #171717;
+	--surface-2: #262626;
+	--surface-skeleton: #2e2e2e;
 	--brand: oklch(63.7% 0.167 254deg);
+	/* On dark surfaces the fill value is already readable as text (5.67:1). */
+	--brand-text: oklch(63.7% 0.167 254deg);
 	--brand-dev: oklch(0.8 0.17 85);
+	/* Toggle/switch "on" blue from the rule + workflow card designs. */
+	--accent-blue: #368ced;
 }
 
 @theme inline {
@@ -141,6 +158,7 @@
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
+	--color-destructive-surface: var(--destructive-surface);
 	--color-destructive-foreground: var(--destructive-foreground);
 	--color-border: var(--border);
 	--color-input: var(--input);
@@ -168,7 +186,9 @@
 	--color-surface-2: var(--surface-2);
 	--color-surface-skeleton: var(--surface-skeleton);
 	--color-brand: var(--brand);
+	--color-brand-text: var(--brand-text);
 	--color-brand-dev: var(--brand-dev);
+	--color-accent-blue: var(--accent-blue, #368ced);
 }
 
 @layer base {
@@ -187,6 +207,40 @@
 		letter-spacing: -0.02em;
 		font-weight: 450;
 	}
+}
+
+/* Motion is opt-in. Framer's springs are handled by `MotionConfig
+   reducedMotion="user"` in __root; this covers everything CSS drives —
+   keyframes (the route-progress sweep, skeleton pulse), transitions and
+   smooth scrolling. The spinner is exempt: it is the only signal that a
+   request is still in flight. */
+@media (prefers-reduced-motion: reduce) {
+	*:not(.animate-spin),
+	*:not(.animate-spin)::before,
+	*:not(.animate-spin)::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* iOS Safari zooms the whole page when a focused control's text is under 16px,
+   and the dense 11–14px sizes this design uses trip it on every input. Below the
+   sm breakpoint text-entry controls render at 16px; the designed sizes resume at
+   sm and up, where no zoom happens. Deliberately unlayered so it beats the
+   `text-*` utilities on the elements themselves. */
+@media (width < 40rem) {
+	input:not([type="checkbox"], [type="radio"], [type="range"]),
+	select,
+	textarea {
+		font-size: 16px;
+	}
+}
+
+/* Bottom chrome (the mobile tab bar) clears the iOS home indicator. */
+.pb-safe {
+	padding-bottom: calc(1rem + env(safe-area-inset-bottom));
 }
 
 /* Custom scrollbar — thumb only, no track, overlays content */

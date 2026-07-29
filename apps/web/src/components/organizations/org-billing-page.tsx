@@ -4,6 +4,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { Skeleton } from "#/components/ui/skeleton";
 
 export function OrgBillingPage() {
 	return (
@@ -19,5 +20,5 @@ export function OrgBillingPage() {
 }
 
 export function OrgBillingPageSkeleton() {
-	return <div className="h-24 animate-pulse rounded-xl bg-surface-1" />;
+	return <Skeleton className="h-24 rounded-xl" />;
 }

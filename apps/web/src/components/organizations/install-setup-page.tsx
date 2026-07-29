@@ -35,7 +35,7 @@ export function InstallSetupPage() {
 		if (search.setup_action === "request") {
 			return (
 				<SetupShell>
-					<h1 className="font-semibold text-[17px] text-foreground">
+					<h1 className="font-semibold text-lg text-foreground">
 						waiting on github.
 					</h1>
 					<p className="text-[13px] text-muted-foreground leading-relaxed">
@@ -87,7 +87,7 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	if (claimable.length === 0) {
 		return (
 			<SetupShell>
-				<h1 className="font-semibold text-[17px] text-foreground">
+				<h1 className="font-semibold text-lg text-foreground">
 					nothing to connect yet.
 				</h1>
 				<p className="text-[13px] text-muted-foreground leading-relaxed">
@@ -109,7 +109,7 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	}
 	return (
 		<SetupShell>
-			<h1 className="font-semibold text-[17px] text-foreground">
+			<h1 className="font-semibold text-lg text-foreground">
 				which installation?
 			</h1>
 			<p className="text-[13px] text-muted-foreground leading-relaxed">
@@ -160,7 +160,7 @@ function SetupFlow({
 	if (preview.claimedByOrgSlug) {
 		return (
 			<SetupShell>
-				<h1 className="font-semibold text-[17px] text-foreground">
+				<h1 className="font-semibold text-lg text-foreground">
 					already connected to {preview.claimedByOrgSlug}
 				</h1>
 				<p className="text-[13px] text-muted-foreground leading-relaxed">
@@ -206,7 +206,7 @@ function ConfirmScreen({
 	const claim = useClaimMutation(preview.installationId);
 	return (
 		<SetupShell>
-			<h1 className="font-semibold text-[17px] text-foreground">
+			<h1 className="font-semibold text-lg text-foreground">
 				connect this installation?
 			</h1>
 			<GithubSummary preview={preview} />
@@ -223,7 +223,7 @@ function ConfirmScreen({
 					size="sm"
 					type="button"
 				>
-					{claim.isPending ? "connecting…" : `connect to ${stateOrg.name}`}
+					{`connect to ${stateOrg.name}`}
 				</Button>
 				<button
 					className="text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
@@ -246,7 +246,7 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 
 	return (
 		<SetupShell>
-			<h1 className="font-semibold text-[17px] text-foreground">
+			<h1 className="font-semibold text-lg text-foreground">
 				where should this installation live?
 			</h1>
 			<GithubSummary preview={preview} />

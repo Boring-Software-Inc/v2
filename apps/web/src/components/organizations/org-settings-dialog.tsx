@@ -2,7 +2,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { OrgBillingPage } from "#/components/organizations/org-billing-page";
 import { OrgGeneralSettingsPage } from "#/components/organizations/org-general-settings-page";
@@ -42,6 +42,7 @@ export function OrgSettingsDialog() {
 	});
 	const open = Boolean(org && tab);
 	const isAdmin = orgContext?.role === "admin";
+	const headingId = useId();
 
 	useEffect(() => {
 		if (!open || !org) {
@@ -68,7 +69,12 @@ export function OrgSettingsDialog() {
 	const close = () => setTab(undefined);
 
 	return (
-		<InsetDialog className="h-[92dvh]" onClose={close} open={Boolean(tab)}>
+		<InsetDialog
+			className="h-[92dvh]"
+			labelledBy={headingId}
+			onClose={close}
+			open={Boolean(tab)}
+		>
 			<header className="flex shrink-0 items-start justify-between gap-3 px-5 pt-5 pb-4">
 				<div className="flex items-center gap-3">
 					<OrgAvatar
@@ -77,7 +83,10 @@ export function OrgSettingsDialog() {
 						size={28}
 					/>
 					<div>
-						<h2 className="font-semibold text-base leading-tight">
+						<h2
+							className="font-semibold text-base leading-tight"
+							id={headingId}
+						>
 							{orgContext?.name ?? org}
 						</h2>
 						<p className="text-muted-foreground text-xs">org settings</p>
@@ -93,7 +102,10 @@ export function OrgSettingsDialog() {
 				</button>
 			</header>
 
-			<nav className="flex shrink-0 items-center gap-1 border-b px-5">
+			<nav
+				aria-label="Settings sections"
+				className="flex shrink-0 items-center gap-1 border-b px-5"
+			>
 				{TABS.map((item) => (
 					<button
 						className={cn(

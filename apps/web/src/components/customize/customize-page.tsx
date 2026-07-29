@@ -122,15 +122,15 @@ function previewBody(config: ResponseConfig, verdict: Verdict): string | null {
 	// bubble always shows a real end state, never an empty comment.
 	const previewConfig =
 		config.blockComment.mode === "custom" &&
-		config.blockComment.template.trim() === "" &&
-		config.blockComment.customText.trim() === ""
+			config.blockComment.template.trim() === "" &&
+			config.blockComment.customText.trim() === ""
 			? {
-					...config,
-					blockComment: {
-						...config.blockComment,
-						template: TEMPLATE_PLACEHOLDER,
-					},
-				}
+				...config,
+				blockComment: {
+					...config.blockComment,
+					template: TEMPLATE_PLACEHOLDER,
+				},
+			}
 			: config;
 	return renderVerdictComment(
 		{
@@ -211,25 +211,25 @@ function CustomizePageInner({
 	// both render from it, so queued edits show everywhere before they save.
 	const config = loaded
 		? unflattenConfig({
-				onSuccess: valueFor("onSuccess"),
-				onBlock: valueFor("onBlock"),
-				moderationQueued: valueFor("moderationQueued"),
-				"blockComment.mode": valueFor("blockComment.mode"),
-				"blockComment.showRuleName": valueFor("blockComment.showRuleName"),
-				"blockComment.template": valueFor("blockComment.template"),
-				"passComment.customText": valueFor("passComment.customText"),
-				"passComment.showDetailsButton": valueFor(
-					"passComment.showDetailsButton",
-				),
-				"blockComment.customText": valueFor("blockComment.customText"),
-				"blockComment.showDetailsButton": valueFor(
-					"blockComment.showDetailsButton",
-				),
-				"reviewComment.customText": valueFor("reviewComment.customText"),
-				"reviewComment.showDetailsButton": valueFor(
-					"reviewComment.showDetailsButton",
-				),
-			})
+			onSuccess: valueFor("onSuccess"),
+			onBlock: valueFor("onBlock"),
+			moderationQueued: valueFor("moderationQueued"),
+			"blockComment.mode": valueFor("blockComment.mode"),
+			"blockComment.showRuleName": valueFor("blockComment.showRuleName"),
+			"blockComment.template": valueFor("blockComment.template"),
+			"passComment.customText": valueFor("passComment.customText"),
+			"passComment.showDetailsButton": valueFor(
+				"passComment.showDetailsButton",
+			),
+			"blockComment.customText": valueFor("blockComment.customText"),
+			"blockComment.showDetailsButton": valueFor(
+				"blockComment.showDetailsButton",
+			),
+			"reviewComment.customText": valueFor("reviewComment.customText"),
+			"reviewComment.showDetailsButton": valueFor(
+				"reviewComment.showDetailsButton",
+			),
+		})
 		: null;
 
 	// The form emits whole configs; the adapter fans them into per-key queue
@@ -292,7 +292,7 @@ function CustomizePageInner({
 					{pageHeader}
 					<div className={SPLIT_FRAME}>
 						<section className="flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card md:w-96 md:shrink-0">
-							<header className="shrink-0 bg-surface-1 px-3.5 py-3">
+							<header className="shrink-0 bg-surface-2 px-3.5 py-3">
 								<h2 className="font-medium text-sm">Configuration</h2>
 								<p className="text-muted-foreground text-xs">
 									pick each verdict's surfaces. the preview follows what you
@@ -301,7 +301,7 @@ function CustomizePageInner({
 							</header>
 							<div className="min-h-0 flex-1 overflow-y-auto p-4">{form}</div>
 						</section>
-						<section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card">
+						<section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-surface-1">
 							{previewHeader}
 							<div className="min-h-0 flex-1 overflow-y-auto p-4">
 								{preview}
@@ -321,7 +321,7 @@ function CustomizePageInner({
 						    bands; only the comment scrolls between them. With the
 						    drawer open the preview shrinks, and all three must stay
 						    visible at any height. */}
-						<section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card">
+						<section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-surface-1">
 							{previewHeader}
 							{config ? (
 								<>

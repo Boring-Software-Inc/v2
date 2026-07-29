@@ -20,7 +20,7 @@ export function RuleHeaderStats({
 			<PlainStatCard label="active rules" value={String(stats.activeRules)} />
 			<DitherStatCard
 				animate={animate}
-				className="bg-surface-1"
+				className="bg-surface-2"
 				color="purple"
 				delay={90}
 				delta={stats.matches24h.delta}
@@ -31,7 +31,7 @@ export function RuleHeaderStats({
 			/>
 			<DitherStatCard
 				animate={animate}
-				className="bg-surface-1"
+				className="bg-surface-2"
 				color="orange"
 				delay={180}
 				delta={stats.actioned24h.delta}
@@ -48,13 +48,10 @@ export function RuleHeaderStats({
  * a flat baseline — so it reads as "zero", uniform with the sparkline cards. */
 function PlainStatCard({ label, value }: { label: string; value: string }) {
 	return (
-		<div className="overflow-hidden rounded-xl bg-surface-1 ring-foreground/15">
+		<div className="overflow-hidden rounded-xl bg-surface-2 ring-foreground/15">
 			<div className="flex flex-col gap-1.5 px-3.5 pt-3.5 pb-2.5">
 				<span className="text-muted-foreground text-xs">{label}</span>
 				<span className="font-sans text-2xl text-foreground">{value}</span>
-			</div>
-			<div className="flex h-11 items-center px-3">
-				<div className="h-px w-full bg-foreground/15" />
 			</div>
 		</div>
 	);
