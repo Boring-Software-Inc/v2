@@ -32,7 +32,7 @@ export function AccessPendingScreen({
 				<TripwireLogo className="text-foreground" size={28} />
 
 				<div className="flex flex-col gap-2.5">
-					<h1 className="font-semibold text-[17px] text-foreground">
+					<h1 className="font-semibold text-lg text-foreground">
 						{rejected ? "Not this time" : "You're on the waitlist"}
 					</h1>
 					<p className="text-[13px] text-muted-foreground leading-relaxed">
@@ -51,7 +51,7 @@ export function AccessPendingScreen({
 						disabled={checking}
 						iconLeft={checking ? <Spinner size={14} /> : null}
 					>
-						{checking ? "Checking…" : "Check status"}
+						Check status
 					</Button>
 				) : null}
 
@@ -59,7 +59,7 @@ export function AccessPendingScreen({
 					{image ? (
 						<img
 							alt=""
-							className="size-5 rounded-full"
+							className="size-5 rounded-full outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
 							crossOrigin="anonymous"
 							src={image}
 						/>

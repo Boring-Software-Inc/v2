@@ -9,7 +9,9 @@ function Avatar({ className, ...props }: AvatarPrimitive.Root.Props) {
 		<AvatarPrimitive.Root
 			data-slot="avatar"
 			className={cn(
-				"relative flex size-8 shrink-0 overflow-hidden rounded-full",
+				// A pure black/white hairline, never a tinted neutral — a tinted
+				// outline picks up the surface behind it and reads as dirt on the edge.
+				"relative flex size-8 shrink-0 overflow-hidden rounded-full outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10",
 				className,
 			)}
 			{...props}

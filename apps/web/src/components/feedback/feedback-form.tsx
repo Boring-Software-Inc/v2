@@ -1,10 +1,10 @@
 import { CursorInWindowIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { Button } from "#/components/ui/button";
 import { Dither } from "#/components/ui/dither";
+import { Switch } from "#/components/ui/switch";
 import { submitFeedback } from "#/lib/feedback.functions";
-import { cn } from "#/lib/utils";
 import { captureViewport } from "./capture";
 import { toFeedbackElement, useFeedback } from "./feedback-context";
 
@@ -32,7 +32,13 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 	const [comment, setComment] = useState("");
 	const [prompt, setPrompt] = useState("");
 	const [includeScreenshot, setIncludeScreenshot] = useState(true);
+	/** Set only by a submit attempt — the field never reads invalid while typing. */
+	const [commentInvalid, setCommentInvalid] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const commentId = useId();
+	const commentErrorId = useId();
+	const promptId = useId();
+	const screenshotId = useId();
 
 	const ui = {
 		placeholder:
@@ -54,9 +60,14 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 	}, [status, close]);
 
 	const handleSubmit = useCallback(async () => {
+		// Submit stays enabled so the requirement is discoverable — validate here
+		// and send focus to the field that has to change.
 		if (!comment.trim()) {
+			setCommentInvalid(true);
+			textareaRef.current?.focus();
 			return;
 		}
+		setCommentInvalid(false);
 		setStatus("sending");
 		try {
 			let screenshotDataUrl: string | null = null;
@@ -113,7 +124,7 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 
 	if (status === "success") {
 		return (
-			<div className="flex flex-col items-center gap-2 py-8 text-center">
+			<output className="flex flex-col items-center gap-2 py-8 text-center">
 				<div className="flex size-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
 					✓
 				</div>
@@ -121,7 +132,7 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 				<p className="text-muted-foreground text-xs">
 					Thanks for helping us improve.
 				</p>
-			</div>
+			</output>
 		);
 	}
 
@@ -187,49 +198,61 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 				</button>
 			)}
 
-			<textarea
-				className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-foreground text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring disabled:opacity-50"
-				disabled={status === "sending"}
-				onChange={(e) => setComment(e.target.value)}
-				placeholder={ui.placeholder}
-				ref={textareaRef}
-				required
-				rows={3}
-				value={comment}
-			/>
+			<div className="flex flex-col gap-1.5">
+				<label className="text-muted-foreground text-xs" htmlFor={commentId}>
+					What happened
+				</label>
+				<textarea
+					aria-describedby={commentInvalid ? commentErrorId : undefined}
+					aria-invalid={commentInvalid || undefined}
+					className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-foreground text-sm outline-none transition-[color,border-color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50 aria-invalid:border-destructive"
+					disabled={status === "sending"}
+					id={commentId}
+					onChange={(e) => {
+						setComment(e.target.value);
+						if (commentInvalid) setCommentInvalid(false);
+					}}
+					placeholder={ui.placeholder}
+					ref={textareaRef}
+					rows={3}
+					value={comment}
+				/>
+				{commentInvalid ? (
+					<p className="text-destructive text-xs" id={commentErrorId}>
+						Describe what happened so we can act on it.
+					</p>
+				) : null}
+			</div>
 
-			<textarea
-				className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-foreground text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring disabled:opacity-50"
-				disabled={status === "sending"}
-				onChange={(e) => setPrompt(e.target.value)}
-				placeholder="Suggested fix (optional)"
-				rows={2}
-				value={prompt}
-			/>
+			<div className="flex flex-col gap-1.5">
+				<label className="text-muted-foreground text-xs" htmlFor={promptId}>
+					Suggested fix (optional)
+				</label>
+				<textarea
+					className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-foreground text-sm outline-none transition-[color,border-color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+					disabled={status === "sending"}
+					id={promptId}
+					onChange={(e) => setPrompt(e.target.value)}
+					placeholder="What would you have expected instead?"
+					rows={2}
+					value={prompt}
+				/>
+			</div>
 
 			<div className="flex items-center justify-between pt-1">
-				<label className="group flex cursor-pointer select-none items-center gap-2">
-					<button
-						aria-checked={includeScreenshot}
-						className={cn(
-							"relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
-							includeScreenshot ? "bg-foreground" : "bg-border",
-						)}
-						onClick={() => setIncludeScreenshot((v) => !v)}
-						role="switch"
-						type="button"
+				<div className="flex items-center gap-2">
+					<Switch
+						checked={includeScreenshot}
+						id={screenshotId}
+						onCheckedChange={setIncludeScreenshot}
+					/>
+					<label
+						className="cursor-pointer select-none text-muted-foreground text-xs"
+						htmlFor={screenshotId}
 					>
-						<span
-							className={cn(
-								"inline-block size-3.5 rounded-full bg-background transition-transform",
-								includeScreenshot ? "translate-x-[18px]" : "translate-x-[3px]",
-							)}
-						/>
-					</button>
-					<span className="text-muted-foreground text-xs transition-colors group-hover:text-foreground">
-						Screenshot
-					</span>
-				</label>
+						Attach screenshot
+					</label>
+				</div>
 
 				<div className="flex items-center gap-2">
 					<Button
@@ -241,18 +264,16 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 					>
 						{ui.cancelLabel}
 					</Button>
-					<Button
-						disabled={status === "sending" || !comment.trim()}
-						size="sm"
-						type="submit"
-					>
+					<Button disabled={status === "sending"} size="sm" type="submit">
 						{status === "sending" ? "sending…" : ui.submitLabel}
 					</Button>
 				</div>
 			</div>
 
 			{status === "error" && errorMessage ? (
-				<p className="text-red-500 text-xs">{errorMessage}</p>
+				<p className="text-destructive text-xs" role="alert">
+					{errorMessage}
+				</p>
 			) : null}
 		</form>
 	);

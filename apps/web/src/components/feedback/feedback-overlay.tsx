@@ -193,7 +193,7 @@ export function FeedbackOverlay() {
 
 			{hovered ? (
 				<div
-					className="pointer-events-none fixed rounded-sm border-2 transition-all duration-75 ease-out"
+					className="pointer-events-none fixed rounded-sm border-2 transition-[top,left,width,height] duration-75 ease-out"
 					ref={highlightRef}
 					style={{
 						top: hovered.rect.top,

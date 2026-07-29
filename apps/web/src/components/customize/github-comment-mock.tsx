@@ -114,7 +114,7 @@ export function GithubCommentMock({
 }: GithubCommentMockProps) {
 	if (body === null) {
 		return (
-			<div className="flex flex-col items-center gap-1 rounded-xl bg-surface-1 px-4 py-8 text-center">
+			<div className="flex flex-col items-center gap-1 rounded-xl bg-surface-2 px-4 py-8 text-center">
 				<p className="text-muted-foreground text-xs">no comment posts.</p>
 				{silentNote ? (
 					<p className="text-muted-foreground text-xs">{silentNote}</p>
@@ -125,10 +125,10 @@ export function GithubCommentMock({
 	const blocks = parseBody(body);
 	return (
 		<div className="flex items-start gap-3">
-			<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-1">
+			<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-2">
 				<GithubIcon className="size-4 text-foreground" />
 			</div>
-			<div className="min-w-0 flex-1 overflow-hidden rounded-xl bg-surface-1">
+			<div className="min-w-0 flex-1 overflow-hidden rounded-xl bg-surface-2">
 				<div className="flex items-center gap-2 px-3.5 py-2.5">
 					<span className="font-medium text-xs">tripwire</span>
 					<Badge className="px-1.5 py-0 text-[10px]" variant="outline">

@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
 import { Sparkline } from "#/components/charts/dither-kit";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
-import { RawConfigDisclosure } from "#/components/rules-params/raw-config-disclosure";
 import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
 import { Button } from "#/components/ui/button";
 import { Switch } from "#/components/ui/switch";
@@ -19,7 +18,7 @@ const CHIP =
  * (§6 — workflows compose with standalone rules, they never disable them):
  *
  * - standalone — not owned by any enabled workflow: the normal card. Toggle,
- *   inline editing, view raw. Its own config runs, workflow or not.
+ *   inline editing. Its own config runs, workflow or not.
  * - managed — a node in an enabled workflow: no toggle, values read-only (the
  *   NODE's config, what actually runs), footer "edit in workflow". Held prompt
  *   is suppressed (the workflow node, not the rule_config, drives it).
@@ -171,10 +170,11 @@ export function RuleCard({
 							</Button>
 						) : (
 							<Switch
+								aria-label={`${enabled ? "disable" : "enable"} ${rule.name}`}
 								checked={enabled}
-								className="data-[state=checked]:bg-accent-blue"
 								disabled={!canEdit}
 								onCheckedChange={setEnabled}
+								tone="accent"
 							/>
 						)
 					) : null}
@@ -209,24 +209,15 @@ export function RuleCard({
 				) : null}
 
 				{/* Subordinate actions sit inside the well, per the design */}
-				{rule.management === "managed" ? (
+				{rule.management === "managed" && rule.workflowId ? (
 					<div className="mt-2 flex items-center justify-between">
-						{rule.workflowId ? (
-							<Link
-								className="font-medium text-foreground text-xs hover:underline"
-								params={{ org, repo, workflowId: rule.workflowId }}
-								to="/$org/$repo/workflows/$workflowId"
-							>
-								edit in workflow →
-							</Link>
-						) : (
-							<span />
-						)}
-						{showParams ? <RawConfigDisclosure config={rule.config} /> : null}
-					</div>
-				) : standalone && showParams ? (
-					<div className="mt-2 flex justify-end">
-						<RawConfigDisclosure config={rule.config} />
+						<Link
+							className="font-medium text-foreground text-xs hover:underline"
+							params={{ org, repo, workflowId: rule.workflowId }}
+							to="/$org/$repo/workflows/$workflowId"
+						>
+							edit in workflow →
+						</Link>
 					</div>
 				) : null}
 
@@ -265,7 +256,7 @@ export function RuleCard({
 					) : (
 						<div className="mt-2 flex justify-end">
 							<Button
-								className="h-auto p-0 text-[11px] text-muted-foreground hover:text-red-500"
+								className="h-auto p-0 text-[11px] text-muted-foreground hover:text-destructive"
 								onClick={() => onDelete(rule.ruleId)}
 								variant="ghost"
 							>

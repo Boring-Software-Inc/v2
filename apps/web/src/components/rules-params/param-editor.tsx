@@ -141,7 +141,9 @@ function ScalarEditor({
 			) : param.kind === "number" && param.unit ? (
 				<span className="text-muted-foreground text-xs">{param.unit}</span>
 			) : null}
-			{error ? <span className="text-[11px] text-red-500">{error}</span> : null}
+			{error ? (
+				<span className="text-[11px] text-destructive">{error}</span>
+			) : null}
 		</span>
 	);
 }

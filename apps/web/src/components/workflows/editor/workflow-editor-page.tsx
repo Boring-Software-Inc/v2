@@ -80,7 +80,7 @@ export function WorkflowEditorPage() {
 				<div className="text-center">
 					<p className="text-muted-foreground text-sm">workflow not found.</p>
 					<Link
-						className="mt-2 inline-block text-brand text-xs transition-colors hover:underline"
+						className="mt-2 inline-block text-brand-text text-xs transition-colors hover:underline"
 						params={{ org, repo }}
 						to="/$org/$repo/workflows"
 					>

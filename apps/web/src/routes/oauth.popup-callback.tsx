@@ -174,8 +174,8 @@ function PopupCallbackPage() {
 	if (view.kind === "error") {
 		return (
 			<Shell>
-				<Heading>Something went wrong</Heading>
-				<Body>We couldn't finish your request. Close this and try again.</Body>
+				<Heading>Sign-in didn't finish</Heading>
+				<Body>Close this window and start again from the sign-in page.</Body>
 				<CloseButton />
 			</Shell>
 		);
@@ -232,9 +232,7 @@ function Shell({ children }: { children: ReactNode }) {
 }
 
 function Heading({ children }: { children: ReactNode }) {
-	return (
-		<h1 className="font-semibold text-[17px] text-foreground">{children}</h1>
-	);
+	return <h1 className="font-semibold text-lg text-foreground">{children}</h1>;
 }
 
 function Body({ children }: { children: ReactNode }) {

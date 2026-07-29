@@ -389,10 +389,13 @@ function WorkflowCard({
 			    animates. Enabled only — a disabled card reads flat. -z-10 plus the
 			    root's `isolate` keeps it under the content and the stretched link. */}
 			{workflow.enabled ? <Dither className="-z-10" speed={1.22} /> : null}
-			{/* stretched link — the whole card body navigates; controls sit above it */}
+			{/* Stretched link — the whole card navigates. `z-10` is load-bearing: the
+			    header and body below are positioned and come later in the DOM, so
+			    without it they paint over the link and the card has no clickable
+			    surface at all. Interactive controls sit at z-20, above this. */}
 			<Link
 				aria-label={`open ${workflow.name}`}
-				className="absolute inset-0 rounded-[10px] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+				className="absolute inset-0 z-10 rounded-[10px] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
 				params={{ org, repo: repoName, workflowId: workflow.id }}
 				to="/$org/$repo/workflows/$workflowId"
 			/>
@@ -400,7 +403,7 @@ function WorkflowCard({
 			<div className="relative flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 px-3 py-1.5">
 				{renaming ? (
 					<form
-						className="relative z-10 flex flex-1 items-center gap-2"
+						className="relative z-20 flex flex-1 items-center gap-2"
 						onSubmit={(e) => {
 							e.preventDefault();
 							const trimmed = renameValue.trim();
@@ -443,13 +446,13 @@ function WorkflowCard({
 						{workflow.name}
 					</p>
 				)}
-				<div className="relative z-10 flex shrink-0 items-center gap-1">
+				<div className="relative z-20 flex shrink-0 items-center gap-1">
 					<Switch
 						aria-label={`${workflow.enabled ? "disable" : "enable"} ${workflow.name}`}
 						checked={workflow.enabled}
-						className="data-[state=checked]:bg-accent-blue"
 						disabled={!isAdmin || enableMutation.isPending}
 						onCheckedChange={(checked) => enableMutation.mutate(checked)}
+						tone="accent"
 					/>
 					{isAdmin ? (
 						<DropdownMenu>
@@ -508,7 +511,7 @@ function WorkflowCard({
 			</div>
 
 			{confirmState === "confirm" ? (
-				<div className="relative z-10 flex flex-col gap-2 border-t bg-destructive/5 p-4">
+				<div className="relative z-20 flex flex-col gap-2 border-t bg-destructive/5 p-4">
 					{workflow.enabled ? (
 						<>
 							<p className="text-destructive text-xs">
@@ -536,7 +539,7 @@ function WorkflowCard({
 							size="xs"
 							variant="destructive"
 						>
-							delete
+							delete workflow
 						</Button>
 						<Button
 							onClick={() => setConfirmState("closed")}

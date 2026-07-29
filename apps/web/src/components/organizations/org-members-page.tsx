@@ -12,6 +12,7 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
+import { Skeleton } from "#/components/ui/skeleton";
 import { toast } from "#/components/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { formatRelativeTime } from "#/lib/format-relative-time";
@@ -397,8 +398,8 @@ function InviteLinkRow({
 export function OrgMembersPageSkeleton() {
 	return (
 		<div className="flex flex-col gap-6">
-			<div className="h-64 animate-pulse rounded-xl bg-surface-1" />
-			<div className="h-48 animate-pulse rounded-xl bg-surface-1" />
+			<Skeleton className="h-64 rounded-xl" />
+			<Skeleton className="h-48 rounded-xl" />
 		</div>
 	);
 }

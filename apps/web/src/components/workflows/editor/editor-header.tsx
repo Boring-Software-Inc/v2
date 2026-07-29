@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import type { ValidationIssue, WorkflowDefinition } from "@tripwire/contracts";
 import { useState } from "react";
-import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
 import { toast } from "#/components/ui/toast";
+import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
 import type { CustomRuleDisplay } from "#/lib/workflow-markdown";
 
 /**
@@ -87,7 +87,7 @@ export function EditorHeader({
 			) : (
 				<input
 					aria-label="workflow name"
-					className="min-w-0 max-w-72 flex-1 truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 font-medium text-sm transition-colors hover:border-border focus:border-border focus:outline-none"
+					className="min-w-0 max-w-72 flex-1 truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 font-medium text-sm outline-none transition-[color,border-color,box-shadow] hover:border-border focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 					defaultValue={name}
 					key={name}
 					onBlur={(event) => commitName(event.target.value)}
@@ -103,15 +103,12 @@ export function EditorHeader({
 				/>
 			)}
 			{enabled ? (
-				<span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 font-medium text-[11px] text-brand">
+				<span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 font-medium text-[11px] text-brand-text">
 					enabled
 				</span>
 			) : null}
 			<div className="ml-auto flex shrink-0 items-center gap-2">
-				<CopyWorkflowButton
-					customRules={customRules}
-					definition={definition}
-				/>
+				<CopyWorkflowButton customRules={customRules} definition={definition} />
 				{readOnly ? (
 					<span className="rounded-full bg-surface-2 px-2 py-0.5 font-medium text-[11px] text-muted-foreground">
 						read-only

@@ -69,7 +69,7 @@ export function TemplateEditor({
 			</div>
 			<textarea
 				aria-label="block comment template"
-				className="min-h-20 w-full resize-y rounded-md bg-transparent font-mono text-xs leading-5 placeholder:text-muted-foreground/60 focus:outline-none disabled:opacity-60"
+				className="min-h-20 w-full resize-y rounded-md bg-transparent font-mono text-xs leading-5 outline-none transition-shadow placeholder:text-muted-foreground/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60"
 				disabled={disabled}
 				onBlur={onCommit}
 				onChange={(event) => onDraft(event.target.value)}

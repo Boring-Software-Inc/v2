@@ -43,7 +43,7 @@ export function NavChip({
 				size={15}
 				strokeWidth={1.9}
 			/>
-			<span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] font-medium opacity-0 transition-all duration-200 ease-out group-hover:max-w-[9rem] group-hover:pl-1.5 group-hover:opacity-100 [.active_&]:max-w-[9rem] [.active_&]:pl-1.5 [.active_&]:opacity-100">
+			<span className="max-w-0 overflow-hidden whitespace-nowrap text-[13px] font-medium opacity-0 transition-[max-width,padding-inline-start,opacity] duration-200 ease-out group-hover:max-w-[9rem] group-hover:ps-1.5 group-hover:opacity-100 [.active_&]:max-w-[9rem] [.active_&]:ps-1.5 [.active_&]:opacity-100">
 				{label}
 			</span>
 		</Link>
