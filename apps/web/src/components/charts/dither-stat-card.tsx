@@ -74,9 +74,8 @@ export function DitherStatCard({
 					: "text-red-500";
 
 	// The composable dither chart takes rows + a series config; the sparkline is a
-	// single series keyed "v". An all-zero window has no trend to draw — we show a
-	// flat baseline line instead of copy, so the card stays a chart, not fugly text.
-	const hasData = useMemo(() => series.some((v) => v > 0), [series]);
+	// single series keyed "v". An all-zero window still draws — the area flattens
+	// to the baseline on its own, so the card stays a chart in every state.
 	const chartData = useMemo(() => series.map((v) => ({ v })), [series]);
 	const chartConfig = useMemo<ChartConfig>(() => ({ v: { color } }), [color]);
 
