@@ -6,8 +6,14 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { useMemo, useState } from "react";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import {
+	SaveQueueProvider,
+	UnsavedChangesBar,
+	useSaveQueueField,
+} from "#/components/save-queue";
 import { Button } from "#/components/ui/button";
 import {
 	Card,
@@ -45,6 +51,17 @@ import {
 } from "#/lib/workflows.query";
 
 const route = getRouteApi("/$org/$repo/workflows/");
+
+/** Queue key for a workflow's enabled flag. */
+const enabledKey = (workflowId: string) => `${workflowId}:enabled`;
+
+/**
+ * Quantized easing: opacity lands on seven discrete levels instead of ramping
+ * smoothly, so the texture materialises in bands the way an ordered dither
+ * thresholds a gradient. A plain fade would read as a generic tooltip.
+ * Opacity-only, so it survives `reducedMotion="user"` as a crossfade.
+ */
+const DITHER_RAMP = (t: number) => Math.round(t * 6) / 6;
 
 /** "change-request.opened" → "change request opened" */
 function humanizeTriggerKind(kind: string): string {
@@ -112,55 +129,118 @@ export function WorkflowsGridPage() {
 
 	const hasWorkflows = (workflows?.length ?? 0) > 0;
 
+	// The queue's baseline is the SERVER's enabled flag, so a toggle flipped back
+	// to its saved value clears itself out of the batch.
+	const savedValues = useMemo(
+		() =>
+			Object.fromEntries(
+				(workflows ?? []).map((w) => [enabledKey(w.id), w.enabled]),
+			),
+		[workflows],
+	);
+
+	/**
+	 * One batch, one write per flipped workflow. Enabling runs the strict
+	 * validator server-side and can refuse — that workflow's key stays queued
+	 * (so its toggle keeps the user's intent on screen) while the rest clear.
+	 */
+	const commitEnabled = async (pending: Record<string, unknown>) => {
+		const failedKeys: string[] = [];
+		const refusals: string[] = [];
+		let succeeded = 0;
+
+		for (const [key, value] of Object.entries(pending)) {
+			const workflowId = key.split(":")[0] ?? "";
+			const name =
+				(workflows ?? []).find((w) => w.id === workflowId)?.name ?? "workflow";
+			try {
+				const result = await setRepoWorkflowEnabled({
+					data: { org, repoId, workflowId, enabled: Boolean(value) },
+				});
+				if (!result.ok) {
+					failedKeys.push(key);
+					refusals.push(
+						`${name}: ${result.issues
+							.slice(0, 2)
+							.map((issue) => issue.message)
+							.join("; ")}`,
+					);
+					continue;
+				}
+				succeeded += 1;
+			} catch {
+				failedKeys.push(key);
+				refusals.push(`${name}: couldn't reach the server`);
+			}
+		}
+
+		if (succeeded > 0) {
+			await queryClient.invalidateQueries({
+				queryKey: workflowsQueryKeys.list(org, repoId),
+			});
+		}
+		if (failedKeys.length === 0) {
+			toast.success("changes saved.");
+			return { ok: true as const };
+		}
+		const message = refusals.join(" · ");
+		toast.error(message);
+		return { error: message, failedKeys };
+	};
+
 	return (
-		<DashboardLayout counts={{}}>
-			<div className="px-5 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
-					<header className="flex items-start justify-between gap-4">
-						<div className="flex flex-col gap-1.5">
-							<h1 className="font-semibold text-2xl tracking-tight">
-								Workflows
-							</h1>
-							<p className="text-muted-foreground text-sm">
-								what this repo runs against change requests — triggers, rules,
-								gates, actions.
-							</p>
-						</div>
-						{isAdmin && hasWorkflows ? (
-							<CreateSplitButton
-								disabled={createMutation.isPending}
+		<SaveQueueProvider commit={commitEnabled} savedValues={savedValues}>
+			<DashboardLayout counts={{}}>
+				<div className="px-5 py-6 md:px-8 md:py-10">
+					<div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
+						<header className="flex items-start justify-between gap-4">
+							<div className="flex flex-col gap-1.5">
+								<h1 className="font-semibold text-2xl tracking-tight">
+									Workflows
+								</h1>
+								<p className="text-muted-foreground text-sm">
+									what this repo runs against change requests — triggers, rules,
+									gates, actions.
+								</p>
+							</div>
+							{isAdmin && hasWorkflows ? (
+								<CreateSplitButton
+									disabled={createMutation.isPending}
+									onBlank={createBlank}
+									onTemplate={createFromTemplate}
+								/>
+							) : null}
+						</header>
+
+						{workflows === undefined ? (
+							<GridSkeleton />
+						) : hasWorkflows ? (
+							<div className="grid gap-4 sm:grid-cols-2">
+								{workflows.map((workflow) => (
+									<WorkflowCard
+										isAdmin={isAdmin}
+										key={workflow.id}
+										org={org}
+										repoId={repoId}
+										repoName={repoName}
+										workflow={workflow}
+									/>
+								))}
+							</div>
+						) : (
+							<EmptyState
+								creating={createMutation.isPending}
+								isAdmin={isAdmin}
 								onBlank={createBlank}
 								onTemplate={createFromTemplate}
 							/>
-						) : null}
-					</header>
-
-					{workflows === undefined ? (
-						<GridSkeleton />
-					) : hasWorkflows ? (
-						<div className="grid gap-4 sm:grid-cols-2">
-							{workflows.map((workflow) => (
-								<WorkflowCard
-									isAdmin={isAdmin}
-									key={workflow.id}
-									org={org}
-									repoId={repoId}
-									repoName={repoName}
-									workflow={workflow}
-								/>
-							))}
-						</div>
-					) : (
-						<EmptyState
-							creating={createMutation.isPending}
-							isAdmin={isAdmin}
-							onBlank={createBlank}
-							onTemplate={createFromTemplate}
-						/>
-					)}
+						)}
+					</div>
+					{/* Mounting the bar is what arms the nav guard while dirty. */}
+					<UnsavedChangesBar />
 				</div>
-			</div>
-		</DashboardLayout>
+			</DashboardLayout>
+		</SaveQueueProvider>
 	);
 }
 
@@ -298,42 +378,13 @@ function WorkflowCard({
 		queryClient.invalidateQueries({ queryKey: listKey });
 	};
 
-	const setWorkflowEnabledInCache = (enabled: boolean) => {
-		queryClient.setQueryData<WorkflowListItem[]>(listKey, (prev) =>
-			prev?.map((w) => (w.id === workflow.id ? { ...w, enabled } : w)),
-		);
-	};
-
-	const enableMutation = useMutation({
-		mutationFn: (enabled: boolean) =>
-			setRepoWorkflowEnabled({
-				data: { org, repoId, workflowId: workflow.id, enabled },
-			}),
-		onMutate: async (enabled) => {
-			await queryClient.cancelQueries({ queryKey: listKey });
-			const previous = queryClient.getQueryData<WorkflowListItem[]>(listKey);
-			setWorkflowEnabledInCache(enabled);
-			return { previous };
-		},
-		onSuccess: (result) => {
-			if (!result.ok) {
-				toast(
-					`can't enable: ${result.issues
-						.slice(0, 3)
-						.map((issue) => issue.message)
-						.join("; ")}`,
-				);
-				setWorkflowEnabledInCache(false);
-			}
-		},
-		onError: (_error, _enabled, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(listKey, context.previous);
-			}
-			toast("toggle refused — try again");
-		},
-		onSettled: invalidateList,
-	});
+	// The toggle writes to the batch, never to the server — the page's provider
+	// owns persistence. `queuedEnabled` is pending-or-saved (what the switch
+	// shows); `workflow.enabled` stays the SERVER's answer and is what the
+	// dither reads.
+	const [queuedEnabled, setQueuedEnabled] = useSaveQueueField<boolean>(
+		enabledKey(workflow.id),
+	);
 
 	const renameMutation = useMutation({
 		mutationFn: (name: string) =>
@@ -385,10 +436,27 @@ function WorkflowCard({
 
 	return (
 		<div className="relative isolate flex flex-col gap-1 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-0.5 transition-colors hover:border-ring/40">
-			{/* The house dither backs the WHOLE card, not just the header, and it
-			    animates. Enabled only — a disabled card reads flat. -z-10 plus the
-			    root's `isolate` keeps it under the content and the stretched link. */}
-			{workflow.enabled ? <Dither className="-z-10" speed={1.22} /> : null}
+			{/* The house dither backs the WHOLE card, not just the header. -z-10 plus
+			    the root's `isolate` keeps it under the content and the stretched link.
+			    It is gated on `workflow.enabled` — the SERVER's flag, never the
+			    queued toggle — so texture on the card always means the workflow is
+			    genuinely live. Flipping the switch does nothing here until the batch
+			    saves and the list refetches. `initial={false}` keeps already-enabled
+			    cards from animating on page load. */}
+			<AnimatePresence initial={false}>
+				{workflow.enabled ? (
+					<motion.div
+						animate={{ opacity: 1 }}
+						className="pointer-events-none absolute inset-0 -z-10"
+						exit={{ opacity: 0 }}
+						initial={{ opacity: 0 }}
+						key="dither"
+						transition={{ duration: 0.5, ease: DITHER_RAMP }}
+					>
+						<Dither speed={1.22} />
+					</motion.div>
+				) : null}
+			</AnimatePresence>
 			{/* Stretched link — the whole card navigates. `z-10` is load-bearing: the
 			    header and body below are positioned and come later in the DOM, so
 			    without it they paint over the link and the card has no clickable
@@ -448,10 +516,10 @@ function WorkflowCard({
 				)}
 				<div className="relative z-20 flex shrink-0 items-center gap-1">
 					<Switch
-						aria-label={`${workflow.enabled ? "disable" : "enable"} ${workflow.name}`}
-						checked={workflow.enabled}
-						disabled={!isAdmin || enableMutation.isPending}
-						onCheckedChange={(checked) => enableMutation.mutate(checked)}
+						aria-label={`${queuedEnabled ? "disable" : "enable"} ${workflow.name}`}
+						checked={queuedEnabled}
+						disabled={!isAdmin}
+						onCheckedChange={setQueuedEnabled}
 						tone="accent"
 					/>
 					{isAdmin ? (
