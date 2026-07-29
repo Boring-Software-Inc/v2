@@ -4,12 +4,22 @@ import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 
 import { cn } from "#/lib/utils";
 
-function Switch({ className, ...props }: SwitchPrimitive.Root.Props) {
+/** `accent` paints the checked track: the house blue, or brand for neutral use. */
+type SwitchTone = "brand" | "accent";
+
+function Switch({
+	className,
+	tone = "brand",
+	...props
+}: SwitchPrimitive.Root.Props & { tone?: SwitchTone }) {
 	return (
 		<SwitchPrimitive.Root
 			data-slot="switch"
 			className={cn(
-				"peer inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent shadow-xs outline-none transition-all data-checked:bg-brand data-unchecked:bg-input focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+				"peer inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent shadow-xs outline-none transition-[background-color,box-shadow] data-unchecked:bg-input focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+				tone === "accent"
+					? "data-checked:bg-accent-blue"
+					: "data-checked:bg-brand",
 				className,
 			)}
 			{...props}

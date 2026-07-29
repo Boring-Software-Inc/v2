@@ -42,7 +42,7 @@ const STATUS_ICON: Record<
 		Icon: TriangleAlertIcon,
 		className: "text-amber-600 dark:text-amber-400",
 	},
-	info: { Icon: InfoIcon, className: "text-brand" },
+	info: { Icon: InfoIcon, className: "text-brand-text" },
 };
 
 function ToastCard({ state }: { state: ToastCardState }) {
@@ -74,7 +74,7 @@ function ToastCard({ state }: { state: ToastCardState }) {
 				) : null}
 				<button
 					aria-label="dismiss"
-					className="mt-px shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+					className="-mt-0.5 -mr-1 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
 					onClick={() => sonner.dismiss(state.id)}
 					type="button"
 				>

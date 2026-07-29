@@ -122,23 +122,17 @@ export function DitherStatCard({
 				transition={{ type: "spring", stiffness: 320, damping: 34 }}
 				className="relative h-11"
 			>
-				{hasData ? (
-					<AreaChart
-						data={chartData}
-						config={chartConfig}
-						interactive={false}
-						animate={animate}
-						bloom="aura"
-						margins={{ top: 0, right: 0, bottom: 0, left: 0 }}
-						className="absolute inset-0"
-					>
-						<Area dataKey="v" variant="gradient" />
-					</AreaChart>
-				) : (
-					<div className="absolute inset-0 flex items-center px-3">
-						<div className="h-px w-full bg-foreground/15" />
-					</div>
-				)}
+				<AreaChart
+					data={chartData}
+					config={chartConfig}
+					interactive={false}
+					animate={animate}
+					bloom="aura"
+					margins={{ top: 0, right: 0, bottom: 0, left: 0 }}
+					className="absolute inset-0"
+				>
+					<Area dataKey="v" variant="gradient" />
+				</AreaChart>
 			</motion.div>
 		</div>
 	);

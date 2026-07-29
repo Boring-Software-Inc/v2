@@ -43,6 +43,10 @@ Always include the Median task ID in commit messages and PR titles so tasks get 
 git commit -m "MDN-42 fix: resolve auth token expiry"
 ```
 
+This shape is enforced by commitlint on the `commit-msg` hook (see
+`commitlint.config.ts`). The hook is wired by `bun install`; `--no-verify`
+skips it.
+
 For pull requests, include the task ID in the title:
 
 ```

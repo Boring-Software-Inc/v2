@@ -503,7 +503,9 @@ function IssuesPanel({
 			{open ? (
 				<div className="max-h-56 w-72 overflow-y-auto rounded-lg border bg-card/95 p-1.5 shadow-md backdrop-blur">
 					{structuralError ? (
-						<p className="px-2 py-1 text-red-500 text-xs">{structuralError}</p>
+						<p className="px-2 py-1 text-destructive text-xs">
+							{structuralError}
+						</p>
 					) : null}
 					{issues.map((issue) => (
 						<button

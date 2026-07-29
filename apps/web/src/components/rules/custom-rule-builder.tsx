@@ -503,7 +503,9 @@ export function CustomRuleBuilder({
 							value={state.name}
 						/>
 					) : null}
-					{error ? <p className="mt-2 text-red-500 text-xs">{error}</p> : null}
+					{error ? (
+						<p className="mt-2 text-destructive text-xs">{error}</p>
+					) : null}
 				</div>
 				<DialogFooter>
 					<DialogClose
