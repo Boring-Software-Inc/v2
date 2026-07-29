@@ -199,7 +199,7 @@ function OrgMembersPanel({
 					{m.image ? (
 						<img
 							alt=""
-							className="size-5 shrink-0 rounded-full"
+							className="size-5 shrink-0 rounded-full outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
 							crossOrigin="anonymous"
 							src={m.image}
 						/>

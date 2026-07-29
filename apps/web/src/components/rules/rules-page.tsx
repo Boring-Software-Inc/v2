@@ -291,9 +291,7 @@ export function RulesPage() {
 							</p>
 						</div>
 						{isAdmin ? (
-							<Button dither onClick={() => setBuilderOpen(true)}>
-								New rule
-							</Button>
+							<Button onClick={() => setBuilderOpen(true)}>New rule</Button>
 						) : null}
 					</header>
 					<CustomRuleBuilder
@@ -349,23 +347,24 @@ export function RulesPage() {
 								))}
 							</div>
 						) : filter === "custom" ? (
-							<div className="overflow-hidden rounded-xl border-[3px] bg-card">
-								<div className="relative isolate flex items-center overflow-hidden bg-surface-1 px-4 py-2">
-									<Dither className="-z-10 opacity-60" speed={0.5} />
+							// Empty state keeps its dither (the one rules surface that does),
+							// backing the whole card the way the workflow card does.
+							<div className="relative isolate flex flex-col gap-1 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-0.5">
+								<Dither className="-z-10" speed={0.5} />
+								<div className="relative flex items-center px-3 py-1.5">
 									<span className="font-medium text-sm">
 										no custom rules yet
 									</span>
 								</div>
-								<div className="flex flex-col items-center gap-3 px-4 pt-3 pb-8 text-center">
+								<div className="relative flex flex-col items-center justify-center gap-3 rounded-sm border border-border bg-surface-1 px-3 py-6 text-center">
 									<p className="max-w-xs text-muted-foreground text-xs leading-relaxed">
 										{isAdmin
-											? "custom rules match your repo's own patterns. create one to get started."
+											? "you haven't created any custom rules yet"
 											: "custom rules match your repo's own patterns."}
 									</p>
 									{isAdmin ? (
 										<Button
-											dither
-											ditherSpeed={1}
+											className="h-auto px-3 py-2 text-[10px]"
 											onClick={() => setBuilderOpen(true)}
 										>
 											New custom rule

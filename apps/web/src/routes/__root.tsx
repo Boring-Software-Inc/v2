@@ -7,6 +7,7 @@ import {
 	Scripts,
 } from "@tanstack/react-router";
 import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
+import { MotionConfig } from "motion/react";
 import { ThemeProvider } from "next-themes";
 import { lazy, Suspense } from "react";
 import { Toaster } from "#/components/ui/toast";
@@ -141,7 +142,11 @@ function RootComponent() {
 			enableSystem
 			disableTransitionOnChange
 		>
-			<Outlet />
+			{/* Every `motion` component in the app honours the OS setting: transform
+			    and layout animations become instant, opacity still crossfades. */}
+			<MotionConfig reducedMotion="user">
+				<Outlet />
+			</MotionConfig>
 			<Toaster />
 			{/* Global product analytics — one mount covers every route (pageviews,
 			    interactions, outgoing links, hash changes, web vitals). */}

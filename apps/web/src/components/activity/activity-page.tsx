@@ -106,8 +106,8 @@ export function ActivityPage() {
 
 				{error ? (
 					<EmptyState
-						className="text-red-500"
-						description="something went wrong reading the feed. it'll refresh on its own, or reload the page."
+						className="text-destructive"
+						description="the feed retries on its own — reload the page if it doesn't come back."
 						title="couldn't load activity"
 					/>
 				) : isSuccess && items.length === 0 ? (
