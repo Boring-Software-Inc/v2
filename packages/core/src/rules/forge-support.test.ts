@@ -36,8 +36,19 @@ import {
 
 /** The audit's conclusion, by rule id. Update ONLY alongside a live re-check. */
 const AUDITED_BLOCKS: Record<string, readonly string[]> = {
-	// GitLab exposes `created_at` only to the account itself or an admin.
-	"account-age": ["gitlab"],
+	// GitLab exposes `created_at` only to the account itself or an admin;
+	// open-git exposes no users endpoint at all.
+	"account-age": ["gitlab", "opengit"],
+	// open-git's API is actions-only — no files/diff, no commits, no contents,
+	// no users — so every rule that reads more than the webhook payload is inert
+	// there. Verified against its openapi.json, which has 8 paths and no reads.
+	"min-merged-prs": ["opengit"],
+	"pr-rate-limit": ["opengit"],
+	"profile-readme": ["opengit"],
+	"crypto-address": ["opengit"],
+	honeypot: ["opengit"],
+	"max-files-changed": ["opengit"],
+	"ai-review": ["opengit"],
 };
 
 describe("rule forge support", () => {
@@ -72,17 +83,11 @@ describe("rule forge support", () => {
 		expect(ruleForgeBlockReason("account-age", "github")).toBeNull();
 	});
 
-	test("diff- and text-based rules run on every live forge", () => {
-		// Nothing here touches the contributor profile, so no forge can starve them.
-		for (const ruleId of [
-			"crypto-address",
-			"honeypot",
-			"max-files-changed",
-			"english-only",
-			"profile-readme",
-			"min-merged-prs",
-			"pr-rate-limit",
-		]) {
+	test("payload-only rules run on every live forge", () => {
+		// english-only reads the title/body off the webhook itself, so it needs no
+		// reads and no forge can starve it. Everything else in the catalog depends
+		// on a read surface and is declared per forge above.
+		for (const ruleId of ["english-only"]) {
 			for (const forge of FORGE_CATALOG.filter((f) => f.status === "live")) {
 				expect(
 					ruleSupportsForge(ruleId, forge.id),

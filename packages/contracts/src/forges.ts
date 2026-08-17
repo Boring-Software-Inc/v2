@@ -7,8 +7,11 @@ import { z } from "zod";
  * array; nothing else is a list of forges.
  *
  * `status` is the whole trick:
- * - `live`     — an adapter exists, so it can be signed into, connected, and
- *                stored on a row. These and only these widen `Forge`.
+ * - `live`     — an adapter exists, so tripwire can INGEST events for it and
+ *                store them on a row. These and only these widen `Forge`.
+ *                It does NOT promise reads or a connect flow: open-git is live
+ *                for ingest while its API still has no read endpoints, and the
+ *                connect grid says so on the cell.
  * - `planned`  — announced in the UI, not built. It renders in every forge grid
  *                as an inert cell, and CANNOT reach the database, because
  *                `forgeSchema` never sees it.
@@ -48,9 +51,11 @@ export interface ForgeCatalogEntry {
 
 export const FORGE_CATALOG = [
 	{ id: "github", label: "GitHub", status: "live", signIn: "social" },
-	// Sign-in only: open-git ships OAuth (OIDC discovery + PKCE) but its API has
-	// no read endpoints yet, so there is no adapter and it stays `planned`.
-	{ id: "opengit", label: "OpenGit", status: "planned", signIn: "oauth2" },
+	// Ingest + sign-in, no reads: open-git ships OAuth and signed webhooks, so
+	// deliveries can be verified and stored. Its API exposes no diff, commits,
+	// contents or users, so no rule that needs them can run — see the `forges`
+	// declarations in RULE_CATALOG.
+	{ id: "opengit", label: "OpenGit", status: "live", signIn: "oauth2" },
 	{ id: "gitlab", label: "GitLab", status: "planned" },
 	{ id: "origin", label: "ORIGIN", status: "planned" },
 ] as const satisfies readonly ForgeCatalogEntry[];

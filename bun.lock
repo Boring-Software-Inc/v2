@@ -18,7 +18,6 @@
         "@tripwire/core": "workspace:*",
         "@tripwire/db": "workspace:*",
         "@tripwire/forge-github": "workspace:*",
-        "@tripwire/forge-gitlab": "workspace:*",
         "@tripwire/utils": "workspace:*",
         "@types/bun": "^1.2.0",
         "commander": "^15.0.0",
@@ -39,7 +38,7 @@
         "@tripwire/contracts": "workspace:*",
         "@tripwire/db": "workspace:*",
         "@tripwire/forge-github": "workspace:*",
-        "@tripwire/forge-gitlab": "workspace:*",
+        "@tripwire/forge-opengit": "workspace:*",
         "@tripwire/utils": "workspace:*",
         "hono": "^4.12.29",
         "pg": "^8.22.0",
@@ -119,7 +118,7 @@
         "@tripwire/db": "workspace:*",
         "@tripwire/forge": "workspace:*",
         "@tripwire/forge-github": "workspace:*",
-        "@tripwire/forge-gitlab": "workspace:*",
+        "@tripwire/forge-opengit": "workspace:*",
         "@tripwire/sdk": "workspace:*",
         "@tripwire/utils": "workspace:*",
         "ai": "^7.0.22",
@@ -202,8 +201,8 @@
         "@octokit/webhooks-examples": "^7.6.1",
       },
     },
-    "packages/forge-gitlab": {
-      "name": "@tripwire/forge-gitlab",
+    "packages/forge-opengit": {
+      "name": "@tripwire/forge-opengit",
       "version": "0.0.0",
       "dependencies": {
         "@tripwire/contracts": "workspace:*",
@@ -754,7 +753,7 @@
 
     "@tripwire/forge-github": ["@tripwire/forge-github@workspace:packages/forge-github"],
 
-    "@tripwire/forge-gitlab": ["@tripwire/forge-gitlab@workspace:packages/forge-gitlab"],
+    "@tripwire/forge-opengit": ["@tripwire/forge-opengit@workspace:packages/forge-opengit"],
 
     "@tripwire/sdk": ["@tripwire/sdk@workspace:packages/sdk"],
 
