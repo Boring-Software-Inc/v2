@@ -20,6 +20,7 @@ import {
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
+import { staticForge } from "./forge-runtime.ts";
 import { processEvent } from "./jobs/process-event.ts";
 
 /**
@@ -87,10 +88,9 @@ async function processFresh(deliveryId: string): Promise<string> {
 			db,
 			pool,
 			logger,
-			adapter: null,
+			resolveForge: staticForge({ reads: freshReads }),
 			makeGenerate: null,
 			appUrl: "http://localhost:3000",
-			reads: freshReads,
 		},
 		{ eventId },
 	);

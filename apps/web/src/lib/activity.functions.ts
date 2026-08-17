@@ -131,7 +131,7 @@ export const getRerunPreview = createServerFn({ method: "GET" })
 		const { getDb } = await import("#/lib/server/db");
 		const db = getDb().db;
 		const [workflows, configs] = await Promise.all([
-			repoServices.listEnabledWorkflows(db, repo.fullName),
+			repoServices.listEnabledWorkflows(db, repo.fullName, repo.forge),
 			repoServices.listRuleConfigs(db, repo.id),
 		]);
 		return {
@@ -171,7 +171,7 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 			return { status: "not-armed" };
 		}
 		const [workflows, configs] = await Promise.all([
-			repoServices.listEnabledWorkflows(db, repo.fullName),
+			repoServices.listEnabledWorkflows(db, repo.fullName, repo.forge),
 			repoServices.listRuleConfigs(db, repo.id),
 		]);
 		const names = executableRuleNames(

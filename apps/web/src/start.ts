@@ -24,6 +24,16 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 				signal: request.signal,
 			});
 		}
+		// The GitLab import runs on the api head (it imports forge-gitlab, which web
+		// may not). Proxy it same-origin with the session cookie, like the stream.
+		if (url.pathname === "/api/gitlab/import" && request.method === "POST") {
+			const apiOrigin = process.env.VITE_API_URL ?? "http://localhost:8787";
+			return await fetch(`${apiOrigin}/gitlab/import`, {
+				method: "POST",
+				headers: { cookie: request.headers.get("cookie") ?? "" },
+				signal: request.signal,
+			});
+		}
 		if (!url.pathname.startsWith("/api/auth")) {
 			return await next();
 		}

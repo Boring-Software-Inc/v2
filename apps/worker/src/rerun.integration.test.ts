@@ -16,6 +16,7 @@ import {
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
+import { staticForge } from "./forge-runtime.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 
@@ -131,10 +132,9 @@ function baseDeps(
 		db,
 		pool,
 		logger,
-		adapter,
+		resolveForge: staticForge({ adapter, reads: makeReads(headSha) }),
 		makeGenerate: passGenerate as never,
 		appUrl: "https://tripwire.sh",
-		reads: makeReads(headSha),
 	};
 }
 
@@ -215,6 +215,7 @@ describe("manual re-run (§ re-run feature)", () => {
 		const repo = await repoServices.getRepoByFullName(
 			db,
 			"Codertocat/Hello-World",
+			"github",
 		);
 		if (!repo) {
 			throw new Error("repo missing");
@@ -316,6 +317,7 @@ describe("manual re-run (§ re-run feature)", () => {
 		const repo = await repoServices.getRepoByFullName(
 			db,
 			"Codertocat/Hello-World",
+			"github",
 		);
 		if (!repo) {
 			throw new Error("repo missing");
@@ -389,7 +391,10 @@ describe("manual re-run (§ re-run feature)", () => {
 		await rerunChangeRequest(
 			{
 				...baseDeps(fake.adapter, MOVED_SHA),
-				reads: makeReads(MOVED_SHA, honeypotDiff),
+				resolveForge: staticForge({
+					adapter: fake.adapter,
+					reads: makeReads(MOVED_SHA, honeypotDiff),
+				}),
 			},
 			{
 				repoFullName: "Codertocat/Hello-World",

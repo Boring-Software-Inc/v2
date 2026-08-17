@@ -58,8 +58,14 @@ export function RuleCard({
 
 	const hasTrend = rule.trend.some((n) => n > 0);
 	const standalone = rule.management === "standalone";
+	/**
+	 * The forge cannot feed this rule, so it can never fire here. Treated like a
+	 * hard disable rather than a warning: an editable toggle would let you arm
+	 * something inert and believe the repo was gated.
+	 */
+	const forgeBlocked = rule.forgeBlockReason !== null;
 	/** An opt-in rule that's off is an OFFER, not a silently-disabled toggle. */
-	const offering = rule.optIn && !enabled && standalone;
+	const offering = rule.optIn && !enabled && standalone && !forgeBlocked;
 	const params = ruleUiSchema(rule.ruleId)?.params ?? [];
 	const hasParams = params.length > 0;
 	/** Show the param sentence (not the blurb) — configurable + not an offer. */
@@ -80,7 +86,7 @@ export function RuleCard({
 
 	const body = showParams ? (
 		<ParamSentence
-			canEdit={canEdit && standalone}
+			canEdit={canEdit && standalone && !forgeBlocked}
 			config={effectiveConfig}
 			onSaveParam={(key, value) =>
 				setField(`${rule.ruleId}:param:${key}`, value)
@@ -135,6 +141,14 @@ export function RuleCard({
 						{rule.management === "managed" ? (
 							<span className={CHIP}>in workflow</span>
 						) : null}
+						{rule.forgeBlockReason ? (
+							<span
+								className={CHIP}
+								title="this forge doesn't expose what this rule needs"
+							>
+								{rule.forgeBlockReason}
+							</span>
+						) : null}
 					</div>
 				</div>
 
@@ -170,9 +184,13 @@ export function RuleCard({
 							</Button>
 						) : (
 							<Switch
-								aria-label={`${enabled ? "disable" : "enable"} ${rule.name}`}
-								checked={enabled}
-								disabled={!canEdit}
+								aria-label={
+									forgeBlocked
+										? `${rule.name} — ${rule.forgeBlockReason}`
+										: `${enabled ? "disable" : "enable"} ${rule.name}`
+								}
+								checked={enabled && !forgeBlocked}
+								disabled={!canEdit || forgeBlocked}
 								onCheckedChange={setEnabled}
 								tone="accent"
 							/>

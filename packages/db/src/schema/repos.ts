@@ -1,3 +1,4 @@
+import type { Forge } from "@tripwire/contracts";
 import {
 	boolean,
 	index,
@@ -19,7 +20,7 @@ export const repos = pgTable(
 	"repos",
 	{
 		id: text("id").primaryKey(),
-		forge: text("forge").notNull().default("github"),
+		forge: text("forge").$type<Forge>().notNull().default("github"),
 		/** The forge's repo id, as a string. */
 		externalId: text("external_id").notNull(),
 		owner: text("owner").notNull(),

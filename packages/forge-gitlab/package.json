@@ -1,0 +1,19 @@
+{
+	"name": "@tripwire/forge-gitlab",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"types": "./src/index.ts",
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@tripwire/contracts": "workspace:*",
+		"@tripwire/forge": "workspace:*",
+		"@tripwire/utils": "workspace:*",
+		"zod": "^4.0.0"
+	}
+}

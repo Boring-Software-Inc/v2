@@ -1,7 +1,11 @@
+import { fileURLToPath } from "node:url";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { createDb, type Db } from "./client.ts";
 
-const MIGRATIONS_FOLDER = new URL("../drizzle", import.meta.url).pathname;
+// `fileURLToPath`, not `.pathname` — on Windows the latter yields "/C:/..." with
+// a leading slash, which no fs call accepts, so every integration test failed to
+// find the migrations folder.
+const MIGRATIONS_FOLDER = fileURLToPath(new URL("../drizzle", import.meta.url));
 
 /** Applies generated migrations — shared by the CLI and integration tests. */
 export async function applyMigrations(db: Db): Promise<void> {

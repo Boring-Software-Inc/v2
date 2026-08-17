@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import { normalizedEventSchema } from "@tripwire/contracts";
 import { normalizeWebhook } from "./normalize.ts";
 import { signWebhookBody, verifyWebhookSignature } from "./verify.ts";
@@ -6,7 +7,11 @@ import { signWebhookBody, verifyWebhookSignature } from "./verify.ts";
 const NOW = "2026-07-11T00:00:00.000Z";
 
 async function fixture(name: string): Promise<string> {
-	const path = new URL(`../../fixtures/${name}.json`, import.meta.url).pathname;
+	// `fileURLToPath`, not `.pathname`: on Windows the latter yields "/C:/..."
+	// with a leading slash, which no fs call accepts.
+	const path = fileURLToPath(
+		new URL(`../../fixtures/${name}.json`, import.meta.url),
+	);
 	return await Bun.file(path).text();
 }
 

@@ -27,11 +27,23 @@ export function getAuth(): Auth | null {
 	}
 	const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
 	const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET;
+	const gitlabClientId = process.env.GITLAB_OAUTH_CLIENT_ID;
+	const gitlabClientSecret = process.env.GITLAB_OAUTH_CLIENT_SECRET;
 	instance = createAuth({
 		db: getDb().db,
 		secret,
 		baseUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
 		github: clientId && clientSecret ? { clientId, clientSecret } : null,
+		// `GITLAB_OAUTH_ISSUER` points a self-hosted GitLab at its own URL. Omit
+		// it for gitlab.com (Better Auth defaults to https://gitlab.com).
+		gitlab:
+			gitlabClientId && gitlabClientSecret
+				? {
+						clientId: gitlabClientId,
+						clientSecret: gitlabClientSecret,
+						issuer: process.env.GITLAB_OAUTH_ISSUER,
+					}
+				: null,
 		// Better Auth Infrastructure (dash) — this head mounts /api/auth/* (thus
 		// /dash/*), so the key lives here. Undefined ⇒ dash stays inert.
 		infraApiKey: process.env.BETTER_AUTH_API_KEY,

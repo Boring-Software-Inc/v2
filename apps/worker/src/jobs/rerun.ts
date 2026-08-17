@@ -106,9 +106,13 @@ export async function rerunChangeRequest(
 	 * moved since, the run row and the check must target the CURRENT head, not
 	 * a stale commit invisible on the PR page.
 	 */
-	if (deps.reads && "changeRequest" in event) {
+	// Reads/actions come from THIS event's forge runtime.
+	const runtime = deps.resolveForge(event.forge);
+	const reads = runtime?.reads ?? null;
+	const adapter = runtime?.adapter ?? null;
+	if (reads && "changeRequest" in event) {
 		try {
-			const commits = await deps.reads.getCommits(
+			const commits = await reads.getCommits(
 				event.repo.fullName,
 				event.changeRequest.number,
 			);
@@ -133,7 +137,7 @@ export async function rerunChangeRequest(
 
 	const surfaceDeps = {
 		db,
-		adapter: deps.adapter,
+		adapter,
 		logger,
 		appUrl: deps.appUrl,
 	};
@@ -142,7 +146,7 @@ export async function rerunChangeRequest(
 		{
 			db,
 			logger,
-			reads: deps.reads,
+			reads,
 			makeGenerate: deps.makeGenerate,
 			meterSource: deps.meterSource,
 			triggeredBy: job.requestedBy,

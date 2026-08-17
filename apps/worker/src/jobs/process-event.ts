@@ -1,18 +1,17 @@
 import type {
+	Forge,
 	InstallationEvent,
+	NormalizedEvent,
 	RepoScopedEvent,
 	UsageSource,
 } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
 import { eventServices, orgServices, repoServices } from "@tripwire/db";
-import type { ForgeAdapter } from "@tripwire/forge";
-import type { GithubHttp } from "@tripwire/forge-github";
-import { normalizeWebhook } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { Logger } from "pino";
-import type { WorkerReads } from "../context.ts";
+import { type ForgeRuntime, normalizeFor } from "../forge-runtime.ts";
 import { emitPendingCheck, emitPrSurface } from "./pr-surface.ts";
 import { refreshBranchSuggestions } from "./refresh-suggestions.ts";
 import { runWorkflows } from "./run-workflows.ts";
@@ -21,12 +20,13 @@ export interface ProcessEventDeps {
 	db: Db;
 	pool: Pool;
 	logger: Logger;
-	/** null ⇒ no forge credentials; rules skip on missing context (§6). */
-	reads: WorkerReads | null;
-	/** null ⇒ actions recorded but not executed (no credentials). */
-	adapter: ForgeAdapter | null;
-	/** null ⇒ custom rules skip (no forge credentials). */
-	signalHttp?: GithubHttp | null;
+	/**
+	 * Per-forge runtime selection (§4). null ⇒ that forge has no live runtime
+	 * (e.g. GitHub App creds absent): reads/actions degrade, rules skip on
+	 * missing context, actions record but do not execute — same fail-closed
+	 * shape as before, now chosen by `event.forge`.
+	 */
+	resolveForge: (forge: Forge) => ForgeRuntime | null;
 	/** §8 — null without ANTHROPIC_API_KEY; ai-review skips. */
 	makeGenerate: ((event: RepoScopedEvent) => AiReviewGenerate) | null;
 	/** Base URL for run deep links. */
@@ -56,9 +56,11 @@ export async function processEvent(
 		return;
 	}
 
-	let normalized: ReturnType<typeof normalizeWebhook>;
+	let normalized: NormalizedEvent | null;
 	try {
-		normalized = normalizeWebhook(
+		// Normalization is pure and chosen by the stored forge — always available
+		// even when that forge's reads/actions runtime is offline.
+		normalized = normalizeFor(event.forge)(
 			{
 				deliveryId: event.deliveryId,
 				eventName: event.rawKind,
@@ -95,21 +97,32 @@ export async function processEvent(
 		"event normalized",
 	);
 
+	// Pick this forge's runtime ONCE; every read/action below uses it. A null
+	// runtime degrades exactly like the old missing-credentials path.
+	const runtime = deps.resolveForge(event.forge);
+	const adapter = runtime?.adapter ?? null;
+	const reads = runtime?.reads ?? null;
+	const signalHttp = runtime?.signalHttp ?? null;
+
 	if ("installation" in normalized) {
 		await syncInstallation(db, normalized, logger);
 		// Seed branch suggestions for freshly added repos, so the builder has
 		// them before the first PR arrives.
 		if (
-			deps.signalHttp &&
+			signalHttp &&
 			(normalized.kind === "installation.created" ||
 				normalized.kind === "installation-repositories.added")
 		) {
 			for (const added of normalized.repositories) {
-				const repo = await repoServices.getRepoByFullName(db, added.fullName);
+				const repo = await repoServices.getRepoByFullName(
+					db,
+					added.fullName,
+					normalized.forge,
+				);
 				if (repo) {
 					await refreshBranchSuggestions(
 						db,
-						deps.signalHttp,
+						signalHttp,
 						repo.id,
 						added.fullName,
 					);
@@ -122,7 +135,11 @@ export async function processEvent(
 	/** Lazy repo upsert — covers installs that happened while the tunnel was down. */
 	if (
 		"changeRequest" in normalized &&
-		!(await repoServices.getRepoByFullName(db, normalized.repo.fullName))
+		!(await repoServices.getRepoByFullName(
+			db,
+			normalized.repo.fullName,
+			normalized.forge,
+		))
 	) {
 		await repoServices.syncInstallationRepos(
 			db,
@@ -153,7 +170,7 @@ export async function processEvent(
 
 	const surfaceDeps = {
 		db,
-		adapter: deps.adapter,
+		adapter: adapter,
 		logger,
 		appUrl: deps.appUrl,
 	};
@@ -162,8 +179,8 @@ export async function processEvent(
 		{
 			db,
 			logger,
-			reads: deps.reads,
-			signalHttp: deps.signalHttp ?? null,
+			reads: reads,
+			signalHttp: signalHttp ?? null,
 			makeGenerate: deps.makeGenerate,
 			meterSource: deps.meterSource,
 			// Pending check only after exemption/match — otherwise an exempt
@@ -191,15 +208,16 @@ export async function processEvent(
 
 	// Keep branch suggestions fresh: a change request means a push landed, which
 	// is when branches move. Off the verdict's critical path (already emitted).
-	if (deps.signalHttp && "changeRequest" in normalized) {
+	if (signalHttp && "changeRequest" in normalized) {
 		const repo = await repoServices.getRepoByFullName(
 			db,
 			normalized.repo.fullName,
+			normalized.forge,
 		);
 		if (repo) {
 			await refreshBranchSuggestions(
 				db,
-				deps.signalHttp,
+				signalHttp,
 				repo.id,
 				normalized.repo.fullName,
 			);
@@ -214,7 +232,7 @@ async function syncInstallation(
 ): Promise<void> {
 	const installationId = event.installation.externalId;
 	if (event.kind === "installation.deleted") {
-		await repoServices.removeInstallation(db, installationId);
+		await repoServices.removeInstallation(db, "github", installationId);
 	} else if (event.kind === "installation-repositories.removed") {
 		await repoServices.syncInstallationRepos(
 			db,

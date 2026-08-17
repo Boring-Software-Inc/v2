@@ -1,5 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
+	type Forge,
+	forgeSchema,
 	type OrgRole,
 	orgSlugSchema,
 	slugifyOrgName,
@@ -520,7 +522,7 @@ export async function linkOrgInstallation(
 	input: {
 		orgId: string;
 		installationId: string;
-		forge?: string;
+		forge?: Forge;
 		accountType?: string;
 		accountLogin?: string;
 	},
@@ -576,7 +578,7 @@ export async function recordInstallationAccount(
 	db: Db,
 	input: {
 		installationId: string;
-		forge?: string;
+		forge?: Forge;
 		accountType?: string;
 		accountLogin?: string;
 	},
@@ -605,7 +607,7 @@ export async function recordInstallationAccount(
  */
 export async function moveInstallation(
 	db: Db,
-	input: { installationId: string; toOrgId: string; forge?: string },
+	input: { installationId: string; toOrgId: string; forge?: Forge },
 ): Promise<{ moved: boolean }> {
 	const forge = input.forge ?? "github";
 	return await db.transaction(async (tx) => {
@@ -638,7 +640,7 @@ export async function moveInstallation(
 /** The org that owns an installation — the webhook ingest resolution hop. */
 export async function getInstallationOrg(
 	db: Db,
-	input: { installationId: string; forge?: string },
+	input: { installationId: string; forge?: Forge },
 ): Promise<string | null> {
 	const rows = await db
 		.select({ organizationId: organizationInstallations.organizationId })
@@ -772,6 +774,7 @@ import type { RepoLite, SwitcherRepo } from "./onboarding.ts";
 
 const ORG_REPO_LITE = {
 	id: repos.id,
+	forge: repos.forge,
 	owner: repos.owner,
 	name: repos.name,
 	fullName: repos.fullName,
@@ -821,7 +824,7 @@ export async function listOrgSwitcherRepos(
 	orgId: string,
 ): Promise<SwitcherRepo[]> {
 	const result = await db.execute(sql`
-		SELECT r.id, r.owner, r.name, r.full_name AS "fullName", r.armed,
+		SELECT r.id, r.forge, r.owner, r.name, r.full_name AS "fullName", r.armed,
 		       COALESCE(pend.n, 0)::int AS "pendingModeration",
 		       COALESCE(blk.n, 0)::int AS "blocked24h",
 		       act.last AS "lastActivityAt"
@@ -845,6 +848,12 @@ export async function listOrgSwitcherRepos(
 	`);
 	return (result.rows as Record<string, unknown>[]).map((row) => ({
 		id: String(row.id),
+		// Raw SQL hands back untyped text, so the discriminant is parsed rather
+		// than cast. Strict on purpose: a value outside the enum means the row and
+		// this build disagree about what forges exist, and defaulting it to github
+		// would mislabel someone else's repo — the exact bug the mark is here to
+		// prevent. Fail loud instead.
+		forge: forgeSchema.parse(row.forge),
 		owner: String(row.owner),
 		name: String(row.name),
 		fullName: String(row.fullName),
