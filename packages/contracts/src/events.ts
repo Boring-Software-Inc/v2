@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { forgeSchema } from "./forges.ts";
 import { type RepoRef, repoRefSchema } from "./repo.ts";
 
 /**
@@ -66,8 +67,8 @@ export type PushPayload = z.infer<typeof pushPayloadSchema>;
 const eventBase = {
 	/** UUIDv7, assigned at ingest. */
 	id: z.string(),
-	forge: z.literal("github"),
-	/** The forge's delivery id (X-GitHub-Delivery) — the idempotency key. */
+	forge: forgeSchema,
+	/** The forge's delivery id (X-GitHub-Delivery / X-Gitlab-Webhook-UUID) — the idempotency key. */
 	deliveryId: z.string(),
 	repo: repoRefSchema,
 	/** The forge's repo id, as a string — installation sync + lazy repo upsert. */
@@ -80,7 +81,7 @@ const eventBase = {
 /** Installation events span repos, so they carry a list, not a base repo. */
 const installationBase = {
 	id: z.string(),
-	forge: z.literal("github"),
+	forge: forgeSchema,
 	deliveryId: z.string(),
 	actor: eventActorSchema,
 	occurredAt: z.iso.datetime(),

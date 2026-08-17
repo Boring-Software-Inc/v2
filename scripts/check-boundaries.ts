@@ -34,7 +34,15 @@ const ALLOWED: Record<string, readonly string[]> = {
 	// apps
 	web: ["auth", "contracts", "utils", "db", "ui", "sdk"],
 	api: ["auth", "contracts", "utils", "db", "forge-github"],
-	worker: ["contracts", "utils", "core", "db", "forge", "forge-github", "sdk"],
+	worker: [
+		"contracts",
+		"utils",
+		"core",
+		"db",
+		"forge",
+		"forge-github",
+		"sdk",
+	],
 };
 
 const KNOWN = new Set(Object.keys(ALLOWED));

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import {
 	applyMigrations,
 	createBoss,
@@ -66,10 +67,14 @@ async function deliver(body: string, deliveryId: string, sign = true) {
 }
 
 async function fixtureBody(): Promise<string> {
-	const path = new URL(
-		"../../../packages/forge-github/fixtures/pull_request.opened.json",
-		import.meta.url,
-	).pathname;
+	// `fileURLToPath`, not `.pathname`: on Windows the latter yields "/C:/..."
+	// with a leading slash, which no fs call accepts.
+	const path = fileURLToPath(
+		new URL(
+			"../../../packages/forge-github/fixtures/pull_request.opened.json",
+			import.meta.url,
+		),
+	);
 	return await Bun.file(path).text();
 }
 

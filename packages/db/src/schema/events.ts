@@ -1,3 +1,4 @@
+import type { Forge } from "@tripwire/contracts";
 import {
 	boolean,
 	index,
@@ -19,7 +20,7 @@ export const events = pgTable(
 	"events",
 	{
 		id: text("id").primaryKey(),
-		forge: text("forge").notNull().default("github"),
+		forge: text("forge").$type<Forge>().notNull().default("github"),
 		/** X-GitHub-Delivery. The idempotency key. */
 		deliveryId: text("delivery_id").notNull(),
 		/** The forge's event name (e.g. "pull_request"), before normalization. */

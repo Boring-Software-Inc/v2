@@ -1,3 +1,4 @@
+import type { Forge } from "@tripwire/contracts";
 import type { Db } from "../client.ts";
 
 /**
@@ -10,6 +11,9 @@ import type { Db } from "../client.ts";
 /** §4 repo switcher row — a name plus SIGNAL, so the switcher is triage. */
 export interface SwitcherRepo {
 	id: string;
+	/** Which forge the repo lives on — the switcher and palette render its mark,
+	 * so a gitlab repo must not read as a github one. */
+	forge: Forge;
 	owner: string;
 	name: string;
 	fullName: string;
@@ -21,6 +25,7 @@ export interface SwitcherRepo {
 
 export interface RepoLite {
 	id: string;
+	forge: Forge;
 	owner: string;
 	name: string;
 	fullName: string;
