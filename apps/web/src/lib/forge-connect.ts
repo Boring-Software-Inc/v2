@@ -1,4 +1,4 @@
-import type { Forge } from "@tripwire/contracts";
+import { type ForgeId, forgeSignIn } from "@tripwire/contracts";
 import { authClient } from "#/lib/auth-client";
 
 /**
@@ -7,8 +7,8 @@ import { authClient } from "#/lib/auth-client";
  * the recovery is a button, not a retry.
  */
 export class ForgeReauthRequiredError extends Error {
-	readonly forge: Forge;
-	constructor(forge: Forge, message: string) {
+	readonly forge: ForgeId;
+	constructor(forge: ForgeId, message: string) {
 		super(message);
 		this.name = "ForgeReauthRequiredError";
 		this.forge = forge;
@@ -27,12 +27,16 @@ export class ForgeReauthRequiredError extends Error {
  * Returns to the page you left from, so a reconnect from the connect dialog
  * lands back on it.
  */
-export async function reconnectForge(forge: Forge): Promise<string | null> {
+export async function reconnectForge(forge: ForgeId): Promise<string | null> {
 	markPendingConnect(forge);
-	const { error } = await authClient.linkSocial({
-		provider: forge,
-		callbackURL: `${window.location.pathname}${window.location.search}`,
-	});
+	const callbackURL = `${window.location.pathname}${window.location.search}`;
+	// Mirrors the sign-in dispatch: a first-class provider links through
+	// `linkSocial`, a genericOAuth one through `oauth2.link`. Calling the wrong
+	// one 404s the provider id, so the catalog decides here too.
+	const { error } =
+		forgeSignIn(forge) === "oauth2"
+			? await authClient.oauth2.link({ providerId: forge, callbackURL })
+			: await authClient.linkSocial({ provider: forge, callbackURL });
 	return error?.message ?? (error ? `couldn't reach ${forge}` : null);
 }
 
@@ -44,7 +48,7 @@ export async function reconnectForge(forge: Forge): Promise<string | null> {
  */
 const PENDING_CONNECT_KEY = "tripwire:pending-forge-connect";
 
-export function markPendingConnect(forge: Forge): void {
+export function markPendingConnect(forge: ForgeId): void {
 	sessionStorage.setItem(PENDING_CONNECT_KEY, forge);
 }
 
