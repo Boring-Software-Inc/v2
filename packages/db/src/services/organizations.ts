@@ -8,7 +8,7 @@ import {
 	suffixSlug,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
 import {
@@ -784,12 +784,26 @@ const ORG_REPO_LITE = {
 	backfillDone: repos.backfillDone,
 } as const;
 
-/** Every non-removed repo the org owns. */
+/**
+ * Every non-removed repo the org owns, ON A FORGE THIS BUILD SUPPORTS.
+ *
+ * The `forge` column is `$type<Forge>()` — a compile-time cast, not a runtime
+ * check — so a row written while another forge was live would flow out of here
+ * wearing a type it does not satisfy. Filtering in SQL keeps the cast honest and
+ * matches `listOrgSwitcherRepos`: an unsupported repo has no adapter, no token
+ * and no reads, so there is nothing truthful to show for it.
+ */
 export async function listOrgRepos(db: Db, orgId: string): Promise<RepoLite[]> {
 	return await db
 		.select(ORG_REPO_LITE)
 		.from(repos)
-		.where(and(eq(repos.orgId, orgId), isNull(repos.removedAt)))
+		.where(
+			and(
+				eq(repos.orgId, orgId),
+				isNull(repos.removedAt),
+				inArray(repos.forge, [...forgeSchema.options]),
+			),
+		)
 		.orderBy(repos.fullName);
 }
 
@@ -846,24 +860,33 @@ export async function listOrgSwitcherRepos(
 		WHERE r.removed_at IS NULL AND r.org_id = ${orgId}
 		ORDER BY act.last DESC NULLS LAST, r.full_name
 	`);
-	return (result.rows as Record<string, unknown>[]).map((row) => ({
-		id: String(row.id),
-		// Raw SQL hands back untyped text, so the discriminant is parsed rather
-		// than cast. Strict on purpose: a value outside the enum means the row and
-		// this build disagree about what forges exist, and defaulting it to github
-		// would mislabel someone else's repo — the exact bug the mark is here to
-		// prevent. Fail loud instead.
-		forge: forgeSchema.parse(row.forge),
-		owner: String(row.owner),
-		name: String(row.name),
-		fullName: String(row.fullName),
-		armed: Boolean(row.armed),
-		pendingModeration: Number(row.pendingModeration ?? 0),
-		blocked24h: Number(row.blocked24h ?? 0),
-		lastActivityAt: row.lastActivityAt
-			? new Date(row.lastActivityAt as string).toISOString()
-			: null,
-	}));
+	return (
+		(result.rows as Record<string, unknown>[])
+			// SKIP rows whose forge this build does not support — do not coerce, do
+			// not throw. Raw SQL hands back untyped text, and a database outlives any
+			// one build: rows written while another forge was live (a branch, a
+			// rollback, a half-finished migration) are still sitting there.
+			//
+			// Coercing to github was the original bug — it mislabels someone else's
+			// repo. Throwing was the overcorrection — one unsupported row took down
+			// every org-scoped page. Skipping is the honest third option: without an
+			// adapter there is no token, no reads and no actions for that repo, so
+			// listing it would promise something this build cannot do.
+			.filter((row) => forgeSchema.safeParse(row.forge).success)
+			.map((row) => ({
+				id: String(row.id),
+				forge: forgeSchema.parse(row.forge),
+				owner: String(row.owner),
+				name: String(row.name),
+				fullName: String(row.fullName),
+				armed: Boolean(row.armed),
+				pendingModeration: Number(row.pendingModeration ?? 0),
+				blocked24h: Number(row.blocked24h ?? 0),
+				lastActivityAt: row.lastActivityAt
+					? new Date(row.lastActivityAt as string).toISOString()
+					: null,
+			}))
+	);
 }
 
 export interface OrgInstallState {
