@@ -13,6 +13,7 @@ import { normalizeWebhook } from "@tripwire/forge-github";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
+import { staticForge } from "./forge-runtime.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { runWorkflows } from "./jobs/run-workflows.ts";
 
@@ -93,8 +94,7 @@ describe("processEvent", () => {
 				db,
 				pool,
 				logger,
-				reads: null,
-				adapter: null,
+				resolveForge: staticForge({}),
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
 			},
@@ -133,8 +133,7 @@ describe("processEvent", () => {
 				db,
 				pool,
 				logger,
-				reads: null,
-				adapter: null,
+				resolveForge: staticForge({}),
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
 			},
@@ -161,8 +160,7 @@ describe("processEvent", () => {
 				db,
 				pool,
 				logger,
-				reads: null,
-				adapter: null,
+				resolveForge: staticForge({}),
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
 			},
@@ -196,8 +194,7 @@ describe("processEvent", () => {
 				db,
 				pool,
 				logger,
-				reads: null,
-				adapter: null,
+				resolveForge: staticForge({}),
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
 			},
@@ -247,6 +244,7 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 		const repo = await repoServices.getRepoByFullName(
 			db,
 			"Codertocat/Hello-World",
+			"github",
 		);
 		if (!repo) {
 			throw new Error("fixture repo missing");
@@ -267,8 +265,7 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 					db,
 					pool,
 					logger,
-					reads: freshAccountReads,
-					adapter: null,
+					resolveForge: staticForge({ reads: freshAccountReads }),
 					makeGenerate: null,
 					appUrl: "http://localhost:3000",
 				},
@@ -352,8 +349,7 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 				db,
 				pool,
 				logger,
-				reads: freshAccountReads,
-				adapter: null,
+				resolveForge: staticForge({ reads: freshAccountReads }),
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
 			},
@@ -409,22 +405,24 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 				logger,
 				// Adapter present so a premature pending check would land —
 				// exemption must fire first (DECISIONS: no gate for exempt).
-				adapter: {
-					execute: (action: { kind: string }) => {
-						executed.push(action.kind);
-						return Promise.resolve({ externalId: "x" });
+				resolveForge: staticForge({
+					adapter: {
+						execute: (action: { kind: string }) => {
+							executed.push(action.kind);
+							return Promise.resolve({ externalId: "x" });
+						},
+					} as never,
+					reads: {
+						...freshAccountReads,
+						getContributorProfile: () =>
+							freshAccountReads.getContributorProfile().then((p) => ({
+								...p,
+								isMaintainer: true,
+							})),
 					},
-				} as never,
+				}),
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
-				reads: {
-					...freshAccountReads,
-					getContributorProfile: () =>
-						freshAccountReads.getContributorProfile().then((p) => ({
-							...p,
-							isMaintainer: true,
-						})),
-				},
 			},
 			{ eventId },
 		);
@@ -452,14 +450,15 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 				db,
 				pool,
 				logger,
-				adapter: null,
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
-				reads: {
-					getDiff: failing,
-					getCommits: failing,
-					getContributorProfile: failing,
-				},
+				resolveForge: staticForge({
+					reads: {
+						getDiff: failing,
+						getCommits: failing,
+						getContributorProfile: failing,
+					},
+				}),
 			},
 			{ eventId },
 		);
@@ -503,7 +502,6 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 				db,
 				pool,
 				logger,
-				adapter: null,
 				makeGenerate: () => () =>
 					Promise.resolve({
 						output: {
@@ -515,20 +513,22 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 						trace: {},
 					}),
 				appUrl: "http://localhost:3000",
-				reads: {
-					getDiff: () =>
-						Promise.resolve([
-							{
-								path: "src/app.ts",
-								status: "modified" as const,
-								additions: 1,
-								deletions: 1,
-							},
-						]),
-					getCommits: () => Promise.resolve([]),
-					getContributorProfile: () =>
-						Promise.reject(new Error("profile fetch failed")),
-				},
+				resolveForge: staticForge({
+					reads: {
+						getDiff: () =>
+							Promise.resolve([
+								{
+									path: "src/app.ts",
+									status: "modified" as const,
+									additions: 1,
+									deletions: 1,
+								},
+							]),
+						getCommits: () => Promise.resolve([]),
+						getContributorProfile: () =>
+							Promise.reject(new Error("profile fetch failed")),
+					},
+				}),
 			},
 			{ eventId },
 		);
@@ -592,28 +592,30 @@ describe("PR surface (§5.12–13, §7)", () => {
 			db,
 			pool,
 			logger,
-			adapter: fake.adapter as never,
 			makeGenerate: null,
 			appUrl: "https://tripwire.sh",
-			reads: {
-				getDiff: () => Promise.resolve([]),
-				getCommits: () => Promise.resolve([]),
-				getContributorProfile: () =>
-					Promise.resolve({
-						login: "sockpuppet",
-						externalId: "999",
-						createdAt: new Date(Date.now() - 86_400_000).toISOString(),
-						followers: 0,
-						following: 0,
-						publicRepos: 0,
-						profileText: null,
-						mergedInRepo: 0,
-						mergedElsewhere: 0,
-						recentChangeRequestTimes: [],
-						isOrgMember: false,
-						isMaintainer: false,
-					}),
-			},
+			resolveForge: staticForge({
+				adapter: fake.adapter as never,
+				reads: {
+					getDiff: () => Promise.resolve([]),
+					getCommits: () => Promise.resolve([]),
+					getContributorProfile: () =>
+						Promise.resolve({
+							login: "sockpuppet",
+							externalId: "999",
+							createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+							followers: 0,
+							following: 0,
+							publicRepos: 0,
+							profileText: null,
+							mergedInRepo: 0,
+							mergedElsewhere: 0,
+							recentChangeRequestTimes: [],
+							isOrgMember: false,
+							isMaintainer: false,
+						}),
+				},
+			}),
 		};
 		await processEvent(deps, { eventId });
 
@@ -689,8 +691,7 @@ describe("installation sync (§4 installation sync — live gap fix)", () => {
 				db,
 				pool,
 				logger,
-				reads: null,
-				adapter: null,
+				resolveForge: staticForge({}),
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
 			},
@@ -735,8 +736,7 @@ describe("installation sync (§4 installation sync — live gap fix)", () => {
 				db,
 				pool,
 				logger,
-				reads: null,
-				adapter: null,
+				resolveForge: staticForge({}),
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
 			},
@@ -769,8 +769,7 @@ describe("installation sync (§4 installation sync — live gap fix)", () => {
 				db,
 				pool,
 				logger,
-				reads: null,
-				adapter: null,
+				resolveForge: staticForge({}),
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
 			},

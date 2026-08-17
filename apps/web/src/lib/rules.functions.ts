@@ -7,6 +7,7 @@ import {
 	resolveEffectiveRuleConfig,
 	resolveRuleManagement,
 	ruleChangeNote,
+	ruleForgeBlockReason,
 } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
 import { ruleExecutes } from "#/lib/rule-execution";
@@ -21,6 +22,12 @@ import {
 
 export interface RuleConfigView {
 	ruleId: string;
+	/**
+	 * Plain-language reason this rule cannot run on THIS repo's forge, or null
+	 * when it can. Set ⇒ the card is inert: the forge does not expose what the
+	 * rule needs, so toggling it on would arm something that never fires.
+	 */
+	forgeBlockReason: string | null;
 	/** The catalog's CURRENT version — what a repo runs once advanced. */
 	version: number;
 	/**
@@ -94,7 +101,11 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 		// resolveRuleManagement returns the wire id, so we map wire→row for the
 		// "edit in workflow" link — it targets the editor route, keyed by row id.
 		const enabledRows = repo
-			? await repoServices.listEnabledWorkflowRows(db, repo.fullName)
+			? await repoServices.listEnabledWorkflowRows(
+					db,
+					repo.fullName,
+					repo.forge,
+				)
 			: [];
 		const enabledWorkflows = enabledRows.map((row) => row.definition);
 		const workflowRowIdByWireId = new Map(
@@ -131,6 +142,14 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 			const sentence = customRuleSentence(record.definition);
 			customViews.push({
 				ruleId: record.id,
+				// Not blocked at the CARD level: a custom rule picks its own signals,
+				// so support is per-signal, not per-rule. 24 of the 52 custom signals
+				// are contributor/repoRelation reads, which a forge can absolutely
+				// starve — those skip honestly at evaluation with the signal's own
+				// unavailable reason. Pre-disabling the whole card would be wrong,
+				// since most custom rules use pr.* signals that always resolve.
+				// TODO(per-signal-support): surface unusable signals in the builder.
+				forgeBlockReason: null,
 				version: 1,
 				held: false,
 				changeNote: null,
@@ -171,6 +190,7 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 			) as JsonValue;
 			return {
 				ruleId: entry.ruleId,
+				forgeBlockReason: ruleForgeBlockReason(entry.ruleId, repo.forge),
 				version: entry.version,
 				held,
 				changeNote: held ? ruleChangeNote(ref) : null,
@@ -213,7 +233,7 @@ export const getRulesHeaderStats = createServerFn({ method: "GET" })
 		// A rule counts as active if a workflow owns it (§6) OR its standalone
 		// toggle runs it. Managed rules are active regardless of the toggle.
 		const enabledWorkflows = repo
-			? await repoServices.listEnabledWorkflows(db, repo.fullName)
+			? await repoServices.listEnabledWorkflows(db, repo.fullName, repo.forge)
 			: [];
 		const activeRules = RULE_CATALOG.filter(
 			(entry) =>

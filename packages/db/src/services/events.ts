@@ -19,6 +19,9 @@ export interface InsertRawEventInput {
 	deliveryId: string;
 	rawKind: string;
 	raw: unknown;
+	/** Which forge sent this. Defaults to "github". The worker uses it to pick
+	 *  the adapter. See the `forge` column on the events table. */
+	forge?: "github" | "gitlab";
 }
 
 export interface InsertRawEventResult {
@@ -43,11 +46,17 @@ export async function insertRawEvent(
 		await client.query("BEGIN");
 		const id = generateId();
 		const res = await client.query<{ id: string }>(
-			`INSERT INTO events (id, delivery_id, raw_kind, raw)
-			 VALUES ($1, $2, $3, $4)
+			`INSERT INTO events (id, delivery_id, raw_kind, raw, forge)
+			 VALUES ($1, $2, $3, $4, $5)
 			 ON CONFLICT (delivery_id) DO NOTHING
 			 RETURNING id`,
-			[id, input.deliveryId, input.rawKind, JSON.stringify(input.raw)],
+			[
+				id,
+				input.deliveryId,
+				input.rawKind,
+				JSON.stringify(input.raw),
+				input.forge ?? "github",
+			],
 		);
 		const inserted = res.rowCount === 1;
 		if (inserted) {

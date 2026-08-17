@@ -30,6 +30,9 @@ export async function loadRunView(
 	const repo = await repoServices.getRepoByFullName(
 		db,
 		result.run.repoFullName,
+		// TODO(forge-routing): source the forge from the route once
+		// /$org/$forge/$repo lands (step 3). GitHub-only until then.
+		"github",
 	);
 	const repoPrivate =
 		session.authEnabled && !hasSession ? (repo?.private ?? null) : null;

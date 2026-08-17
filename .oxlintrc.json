@@ -1,0 +1,50 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": [],
+	"categories": {
+		"correctness": "off"
+	},
+	"jsPlugins": ["./scripts/oxlint/anti-slop/index.ts"],
+	"ignorePatterns": [
+		"**/node_modules/**",
+		"**/dist/**",
+		"**/.output/**",
+		"**/.tanstack/**",
+		"**/.turbo/**",
+		"**/.vercel/**",
+		"**/drizzle/**",
+		"**/*.gen.ts",
+		"**/routeTree.gen.ts",
+		".agents/**",
+		".claude/**",
+		"scripts/oxlint/anti-slop/**"
+	],
+	"rules": {
+		"anti-slop/no-chained-type-assertions": "error",
+		"anti-slop/no-conditional-empty-object-spread": "error",
+		"anti-slop/no-known-value-widening": "error",
+		"anti-slop/no-object-parameters": "error",
+		"anti-slop/no-runtime-typeof": "error",
+		"anti-slop/no-shape-in-symbol-names": "off",
+		"anti-slop/no-unknown-parameters": "error",
+		"anti-slop/no-unknown-type-aliases": "error",
+		"anti-slop/no-unsafe-dictionary-type": "error",
+		"anti-slop/no-widen-then-assert": "error"
+	},
+	"overrides": [
+		{
+			"files": [
+				"**/test/**",
+				"**/tests/**",
+				"**/*.test.ts",
+				"**/*.test.tsx",
+				"**/*.spec.ts",
+				"**/*.spec.tsx",
+				"scripts/eval/**"
+			],
+			"rules": {
+				"anti-slop/no-chained-type-assertions": "off"
+			}
+		}
+	]
+}

@@ -4,21 +4,21 @@ import {
 	CheckListIcon,
 	FlowIcon,
 	GitBranchIcon,
+	PlusSignIcon,
 	Queue01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { NavChip } from "#/components/layouts/nav-chip";
 import { HomeListSkeleton } from "#/components/organizations/org-home-page-skeleton";
 import { OrgSubnav } from "#/components/organizations/org-subnav";
 import { Button } from "#/components/ui/button";
-import { Skeleton } from "#/components/ui/skeleton";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
-import { orgInstallUrlQueryOptions } from "#/lib/onboarding.query";
 import { orgContextQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 import { cn } from "#/lib/utils";
 
@@ -111,17 +111,15 @@ function HomeBody({
 }
 
 /**
- * No installation yet. Admins get the install button (with honest states when
- * the app isn't configured); members are told who can fix it (§10 — the
- * install changes what the org gates, so it's an admin act).
+ * No repos yet. ONE call to action — the forge is chosen inside the dialog, not
+ * by picking between an "install the github app" button and a separate gitlab
+ * button joined by an "or". Per-forge availability (admin rights, a missing app
+ * config) is explained on the cell that can't run, not by hiding the door.
  */
 function InstallCta({ org }: { org: string }) {
 	const { data: ctx } = useQuery(orgContextQueryOptions(org));
+	const [connecting, setConnecting] = useState(false);
 	const isAdmin = ctx?.role === "admin";
-	const { data: install, isLoading } = useQuery({
-		...orgInstallUrlQueryOptions(org),
-		enabled: isAdmin,
-	});
 
 	return (
 		<div className="flex flex-col items-start gap-3 rounded-xl bg-card px-5 py-6">
@@ -129,33 +127,24 @@ function InstallCta({ org }: { org: string }) {
 				<h2 className="font-medium text-sm">no repos yet</h2>
 				<p className="text-muted-foreground text-sm">
 					{isAdmin
-						? "install the github app to start gating contributions for this org."
-						: "an admin needs to install the github app."}
+						? "connect the forge your repos live on to start gating contributions."
+						: "an admin needs to connect a forge for this org."}
 				</p>
 			</div>
-			{isAdmin ? (
-				install?.status === "ready" ? (
-					<Button
-						nativeButton={false}
-						// biome-ignore lint/a11y/useAnchorContent: the button's children render into the anchor
-						render={<a href={install.url} />}
-						size="sm"
-					>
-						install the app on github
-					</Button>
-				) : install?.status === "not-configured" ? (
-					<p className="text-muted-foreground text-xs">
-						the github app isn't configured on this deployment — set
-						GITHUB_APP_SLUG.
-					</p>
-				) : install?.status === "no-session" ? (
-					<p className="text-muted-foreground text-xs">
-						sign in to install the app.
-					</p>
-				) : isLoading ? (
-					<Skeleton className="h-8 w-48 rounded-md" />
-				) : null
-			) : null}
+			<Button
+				iconLeft={
+					<HugeiconsIcon icon={PlusSignIcon} size={14} strokeWidth={2} />
+				}
+				onClick={() => setConnecting(true)}
+				size="sm"
+			>
+				connect repos
+			</Button>
+			<ConnectForgeDialog
+				onOpenChange={setConnecting}
+				open={connecting}
+				org={org}
+			/>
 		</div>
 	);
 }

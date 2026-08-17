@@ -1,5 +1,5 @@
 import { dash } from "@better-auth/infra";
-import { orgSlugSchema } from "@tripwire/contracts";
+import { forgeSchema, orgSlugSchema } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { orgServices, schema } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
@@ -63,19 +63,33 @@ export function createAuth(input: CreateAuthInput) {
 		},
 		// Dev persona switcher only — off unless the web head is a dev build.
 		emailAndPassword: { enabled: input.devLogin ?? false },
+		// One maintainer can carry a GitHub AND a GitLab identity, so link social
+		// accounts that share a verified email into ONE user — `forge_identities`
+		// then holds a row per forge (§10). Only forge providers are trusted, and
+		// the enum is the source, so a new forge is trusted with no edit here.
+		// Same-email is required (allowDifferentEmails defaults false), which
+		// blocks linking an unrelated account.
+		account: {
+			accountLinking: {
+				enabled: true,
+				trustedProviders: [...forgeSchema.options],
+			},
+		},
 		advanced: {
 			database: {
 				generateId: () => generateId(),
 			},
 		},
-		socialProviders: input.github
-			? {
-					github: {
-						clientId: input.github.clientId,
-						clientSecret: input.github.clientSecret,
-					},
-				}
-			: {},
+		socialProviders: {
+			...(input.github
+				? {
+						github: {
+							clientId: input.github.clientId,
+							clientSecret: input.github.clientSecret,
+						},
+					}
+				: {}),
+		},
 		user: {
 			// Closed-beta access queue. `input: false` means a client can never set
 			// these through the signup/update payload — only server code (the create
@@ -255,9 +269,17 @@ export function createAuth(input: CreateAuthInput) {
 			},
 			account: {
 				create: {
-					/** §10: mirror the GitHub identity into forge_identities. */
+					/** §10: mirror the forge identity into forge_identities. One row
+					 * per (forge, external id). A provider with no forge (none today)
+					 * is ignored, not guessed. */
 					after: async (account) => {
-						if (account.providerId !== "github") {
+						// Better Auth's provider id IS the forge slug ("github",
+						// "gitlab"), so the forgeSchema enum validates it directly — no
+						// map to maintain. A non-forge provider (e.g. dev credentials)
+						// fails the parse and is skipped, not guessed. Add a forge = add
+						// it to forgeSchema; this hook needs no edit.
+						const forge = forgeSchema.safeParse(account.providerId);
+						if (!forge.success) {
 							return;
 						}
 						const users = await input.db
@@ -270,7 +292,7 @@ export function createAuth(input: CreateAuthInput) {
 							.values({
 								id: generateId(),
 								userId: account.userId,
-								forge: "github",
+								forge: forge.data,
 								externalId: account.accountId,
 								username,
 							})

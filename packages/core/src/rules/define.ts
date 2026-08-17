@@ -1,4 +1,8 @@
-import type { RuleResult } from "@tripwire/contracts";
+import {
+	type RuleResult,
+	ruleForgeBlockReason,
+	ruleSupportsForge,
+} from "@tripwire/contracts";
 import type { z } from "zod";
 import type { RuleContext } from "../context.ts";
 
@@ -89,6 +93,21 @@ export async function evaluateRule(
 	config: unknown,
 ): Promise<RuleResult> {
 	const base = { ruleId: rule.id, version: rule.version, evaluatedAt: ctx.now };
+	// Forge support first — before config, before evaluate. A rule the forge
+	// cannot feed would otherwise skip on whatever happened to be missing
+	// ("contributor createdAt unparseable"), which reads as a parse bug rather
+	// than a capability gap and hides that the rule can NEVER fire here.
+	if (!ruleSupportsForge(rule.id, ctx.event.forge)) {
+		return {
+			...base,
+			status: "skipped",
+			passed: false,
+			evidence: null,
+			reason:
+				ruleForgeBlockReason(rule.id, ctx.event.forge) ??
+				`not usable with ${ctx.event.forge}`,
+		};
+	}
 	const parsedConfig = rule.configSchema.safeParse(config);
 	if (!parsedConfig.success) {
 		return {

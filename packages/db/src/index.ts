@@ -42,6 +42,7 @@ export {
 	seedStory,
 } from "./seed.ts";
 export * as accessServices from "./services/access.ts";
+export * as accountServices from "./services/accounts.ts";
 export type {
 	AiReviewUsageInput,
 	BackfillUsageResult,
