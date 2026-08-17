@@ -9,6 +9,7 @@ import {
 	InstallationTokenCache,
 	normalizeWebhook as normalizeGithub,
 } from "@tripwire/forge-github";
+import { normalizeWebhook as normalizeOpenGit } from "@tripwire/forge-opengit";
 import type { WorkerReads } from "./context.ts";
 
 /**
@@ -16,11 +17,18 @@ import type { WorkerReads } from "./context.ts";
  * from the cred-gated runtime — an event still normalizes and persists even when
  * that forge's reads/actions are offline.
  */
+const NORMALIZERS: Record<
+	Forge,
+	(event: RawForgeEvent, receivedAt: string) => NormalizedEvent | null
+> = {
+	github: normalizeGithub,
+	opengit: normalizeOpenGit,
+};
+
 export function normalizeFor(
-	_forge: Forge,
+	forge: Forge,
 ): (event: RawForgeEvent, receivedAt: string) => NormalizedEvent | null {
-	// One live forge today; the parameter is the seam every adapter plugs into.
-	return normalizeGithub;
+	return NORMALIZERS[forge];
 }
 
 /**

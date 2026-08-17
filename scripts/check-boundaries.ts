@@ -33,7 +33,7 @@ const ALLOWED: Record<string, readonly string[]> = {
 	ui: [],
 	// apps
 	web: ["auth", "contracts", "utils", "db", "ui", "sdk"],
-	api: ["auth", "contracts", "utils", "db", "forge-github"],
+	api: ["auth", "contracts", "utils", "db", "forge-github", "forge-opengit"],
 	worker: [
 		"contracts",
 		"utils",
@@ -41,6 +41,7 @@ const ALLOWED: Record<string, readonly string[]> = {
 		"db",
 		"forge",
 		"forge-github",
+		"forge-opengit",
 		"sdk",
 	],
 };

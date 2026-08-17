@@ -1,3 +1,4 @@
+import type { Forge } from "@tripwire/contracts";
 import {
 	type ActivityFeed,
 	type ActivityFeedItem,
@@ -20,8 +21,10 @@ export interface InsertRawEventInput {
 	rawKind: string;
 	raw: unknown;
 	/** Which forge sent this. Defaults to "github". The worker uses it to pick
-	 *  the adapter. See the `forge` column on the events table. */
-	forge?: "github" | "gitlab";
+	 *  the adapter. See the `forge` column on the events table.
+	 *  Typed from the catalog, never a hand-written union — a literal list here
+	 *  silently rejects a newly live forge at the ingest boundary. */
+	forge?: Forge;
 }
 
 export interface InsertRawEventResult {
