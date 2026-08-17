@@ -9,7 +9,8 @@ import { orgContextQueryOptions } from "#/lib/org.query";
  * missing org) is a 404, never a 403 — org existence is not disclosed.
  */
 export const Route = createFileRoute("/$org")({
-	// The org settings dialog is URL-driven (`?settings=members|settings|billing`)
+	// The org settings dialog is URL-driven (`?settings=<tab>`; the tab list is
+	// owned by `parseOrgSettingsTab`, so adding one needs no edit here)
 	// and can open over any org page, so the param validates at the org root.
 	validateSearch: (search: Record<string, unknown>) => {
 		const settings = parseOrgSettingsTab(search.settings);

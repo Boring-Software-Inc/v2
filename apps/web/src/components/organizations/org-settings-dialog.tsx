@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect, useId } from "react";
+import { ConnectionsPage } from "#/components/forges/connections-page";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { OrgBillingPage } from "#/components/organizations/org-billing-page";
 import { OrgGeneralSettingsPage } from "#/components/organizations/org-general-settings-page";
@@ -19,7 +20,12 @@ import {
 } from "#/lib/org.query";
 import { cn } from "#/lib/utils";
 
-const TABS: OrgSettingsTab[] = ["members", "settings", "billing"];
+const TABS: OrgSettingsTab[] = [
+	"members",
+	"settings",
+	"connections",
+	"billing",
+];
 
 /**
  * Org settings, presented as an inset dialog over whatever page you're on —
@@ -126,6 +132,7 @@ export function OrgSettingsDialog() {
 			<div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
 				{tab === "members" ? <OrgMembersPage org={org} /> : null}
 				{tab === "settings" ? <OrgGeneralSettingsPage org={org} /> : null}
+				{tab === "connections" ? <ConnectionsPage org={org} /> : null}
 				{tab === "billing" ? <OrgBillingPage /> : null}
 			</div>
 		</InsetDialog>

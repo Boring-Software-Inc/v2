@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import type { Forge } from "@tripwire/contracts";
 import { useState } from "react";
+import { ForgeMark } from "#/components/common/forge-marks";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { GithubIcon } from "#/components/icons/github";
 import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { Button } from "#/components/ui/button";
@@ -60,11 +61,12 @@ export function InstallSetupPage() {
 }
 
 /**
- * The id-less callback: GitHub confirmed an install/update but didn't say
- * WHICH installation. The webhook already synced it — offer every unclaimed
- * installation for an explicit pick (still never auto-claimed). Exactly one
- * candidate ⇒ pre-select it into the normal confirm flow, carrying the
- * original signed state so the org confirmation still names both sides.
+ * The claim screen, reached two ways: GitHub's id-less callback (it confirmed an
+ * install but didn't say which), and the GitLab import, which has no callback at
+ * all. Both leave unclaimed rows behind, so this offers every unclaimed
+ * connection REGARDLESS OF FORGE for an explicit pick — never auto-claimed.
+ * Exactly one candidate ⇒ pre-select it into the normal confirm flow, carrying
+ * the original signed state so the org confirmation still names both sides.
  */
 function RecoverInstallation({ state }: { state: string | undefined }) {
 	const { data: claimable } = useQuery({
@@ -91,10 +93,9 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 					nothing to connect yet.
 				</h1>
 				<p className="text-[13px] text-muted-foreground leading-relaxed">
-					github didn't hand back an installation id, and no unclaimed
-					installation has arrived over webhooks. if you just installed, give it
-					a moment and refresh — the webhook may still be in flight.
-					already-connected installations live with their org.
+					no unclaimed repos are waiting. if you just connected a forge, give it
+					a moment and refresh — the sync may still be in flight.
+					already-connected repos live with their org.
 				</p>
 				<Button
 					nativeButton={false}
@@ -113,8 +114,7 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 				which installation?
 			</h1>
 			<p className="text-[13px] text-muted-foreground leading-relaxed">
-				github didn't say which installation it just confirmed — pick the one to
-				connect.
+				pick the connection to bind to an org.
 			</p>
 			<div className="flex w-full flex-col gap-1.5">
 				{claimable.map((c) => (
@@ -124,9 +124,12 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 						onClick={() => setPicked(c.installationId)}
 						type="button"
 					>
-						<GithubIcon className="size-4 shrink-0 text-muted-foreground" />
+						<ForgeMark
+							className="size-4 shrink-0 text-muted-foreground"
+							forge={c.forge}
+						/>
 						<span className="font-medium text-foreground">
-							{c.account ?? "installation"}
+							{c.account ?? "connection"}
 						</span>
 						<span className="text-muted-foreground">
 							{c.repoCount} {c.repoCount === 1 ? "repo" : "repos"}
@@ -203,7 +206,7 @@ function ConfirmScreen({
 	stateOrg: NonNullable<InstallPreview["stateOrg"]>;
 	onChooseDifferent: () => void;
 }) {
-	const claim = useClaimMutation(preview.installationId);
+	const claim = useClaimMutation(preview.installationId, preview.forge);
 	return (
 		<SetupShell>
 			<h1 className="font-semibold text-lg text-foreground">
@@ -241,7 +244,7 @@ function ConfirmScreen({
 /** Claim — no verified state; the caller picks one of their admin orgs. */
 function ClaimScreen({ preview }: { preview: InstallPreview }) {
 	const { data: orgs } = useQuery(myOrgsQueryOptions());
-	const claim = useClaimMutation(preview.installationId);
+	const claim = useClaimMutation(preview.installationId, preview.forge);
 	const adminOrgs = (orgs ?? []).filter((org) => org.role === "admin");
 
 	return (
@@ -291,12 +294,12 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 	);
 }
 
-function useClaimMutation(installationId: string) {
+function useClaimMutation(installationId: string, forge: Forge) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	return useMutation({
 		mutationFn: (org: string) =>
-			claimInstallation({ data: { org, installationId } }),
+			claimInstallation({ data: { org, installationId, forge } }),
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.all }),
 		onSuccess: (result, org) => {
@@ -325,9 +328,12 @@ function GithubSummary({ preview }: { preview: InstallPreview }) {
 	return (
 		<div className="flex flex-col gap-1">
 			<div className="flex items-center gap-2 rounded-md border bg-surface-0 px-3 py-2 text-[13px]">
-				<GithubIcon className="size-4 shrink-0 text-muted-foreground" />
+				<ForgeMark
+					className="size-4 shrink-0 text-muted-foreground"
+					forge={preview.forge}
+				/>
 				<span className="font-medium text-foreground">
-					{preview.account ?? "github installation"}
+					{preview.account ?? `${preview.forge} connection`}
 				</span>
 				<span className="text-muted-foreground">
 					{syncing

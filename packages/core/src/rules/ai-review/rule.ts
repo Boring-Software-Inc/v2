@@ -44,19 +44,30 @@ function renderPrompt(ctx: RuleContext): string | null {
 				return file.patch ? `${header}\n${file.patch}` : header;
 			})
 			.join("\n\n") ?? "(diff unavailable)";
-	return template
-		.replace("{{repoFullName}}", ctx.event.repo.fullName)
-		.replace("{{number}}", String(cr.number))
-		.replace("{{title}}", cr.title)
-		.replace("{{authorLogin}}", ctx.event.actor.login)
-		.replace("{{authorCreatedAt}}", ctx.contributor?.createdAt ?? "unknown")
-		.replace(
-			"{{mergedInRepo}}",
-			String(ctx.contributor?.mergedInRepo ?? "unknown"),
-		)
-		.replace("{{draft}}", String(cr.draft))
-		.replace("{{filesChanged}}", String(ctx.diff?.length ?? "unknown"))
-		.replace("{{diff}}", clipDiff(diff));
+	return (
+		template
+			.replace("{{repoFullName}}", ctx.event.repo.fullName)
+			.replace("{{number}}", String(cr.number))
+			.replace("{{title}}", cr.title)
+			.replace("{{authorLogin}}", ctx.event.actor.login)
+			// "not exposed by this forge", not "unknown". GitLab withholds a
+			// contributor's creation date from everyone but themselves, so on gitlab
+			// this is ALWAYS absent — and a model reading "unknown" tends to treat an
+			// ageless account as a red flag, quietly penalising every gitlab
+			// contributor for a gap in the forge's api rather than anything they did.
+			.replace(
+				"{{authorCreatedAt}}",
+				ctx.contributor?.createdAt ??
+					`not exposed by ${ctx.event.forge} — do not treat as suspicious`,
+			)
+			.replace(
+				"{{mergedInRepo}}",
+				String(ctx.contributor?.mergedInRepo ?? "unknown"),
+			)
+			.replace("{{draft}}", String(cr.draft))
+			.replace("{{filesChanged}}", String(ctx.diff?.length ?? "unknown"))
+			.replace("{{diff}}", clipDiff(diff))
+	);
 }
 
 /** The rule is identical across versions except for its instruction prompt. */

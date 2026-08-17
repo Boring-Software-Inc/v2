@@ -184,7 +184,11 @@ async function runWorkflowsInner(
 	 * the default's nodes). To turn a workflowed rule off, remove it from the
 	 * workflow first.
 	 */
-	const repo = await repoServices.getRepoByFullName(db, event.repo.fullName);
+	const repo = await repoServices.getRepoByFullName(
+		db,
+		event.repo.fullName,
+		event.forge,
+	);
 
 	/**
 	 * §4 arming gate — an unarmed repo is skipped ENTIRELY: no run, no check, no
@@ -215,6 +219,7 @@ async function runWorkflowsInner(
 	const custom = await repoServices.listEnabledWorkflows(
 		db,
 		event.repo.fullName,
+		event.forge,
 	);
 	// Saved workflows orchestrate the rules they CONTAIN — they do not turn the
 	// rest off. Rules outside every enabled workflow keep running standalone via

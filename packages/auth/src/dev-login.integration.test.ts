@@ -41,6 +41,7 @@ test("devLogin enables email/password minting; cookie resolves to the user", asy
 		secret: "test-secret-please-ignore",
 		baseUrl: "http://localhost:3000",
 		github: null,
+		gitlab: null,
 		devLogin: true,
 	});
 
@@ -84,6 +85,7 @@ test("without devLogin (production) email sign-up is refused", async () => {
 		secret: "test-secret-please-ignore",
 		baseUrl: "http://localhost:3000",
 		github: null,
+		gitlab: null,
 		devLogin: false,
 	});
 	const res = await auth.api

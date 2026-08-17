@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -12,7 +13,9 @@ import * as schema from "./schema/index.ts";
  * rejected precisely because it would fork the read path. See DECISIONS.md.
  */
 
-const MIGRATIONS_FOLDER = new URL("../drizzle", import.meta.url).pathname;
+// `fileURLToPath`, not `.pathname`: on Windows the latter yields "/C:/..."
+// with a leading slash, which no fs call accepts.
+const MIGRATIONS_FOLDER = fileURLToPath(new URL("../drizzle", import.meta.url));
 
 export interface PgliteHandle {
 	db: Db;

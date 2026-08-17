@@ -6,7 +6,7 @@
 		"#/*": "./src/*"
 	},
 	"scripts": {
-		"dev": "vite dev --port 3000",
+		"dev": "bun --env-file=../../.env vite dev --port 3000",
 		"build": "vite build",
 		"preview": "vite preview",
 		"start": "node .output/server/index.mjs",

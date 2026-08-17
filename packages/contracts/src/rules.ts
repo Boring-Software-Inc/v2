@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Forge } from "./forges.ts";
 import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
 import { aiReviewConfigSchema } from "./review.ts";
@@ -160,6 +161,14 @@ export const profileReadmeConfigSchema = z.object({
 export const RULE_CATALOG = [
 	{
 		ruleId: "account-age",
+		/**
+		 * GitHub only. GitLab returns a user's `created_at` ONLY to that user or an
+		 * instance admin, so tripwire can never read a contributor's account age
+		 * there — verified live against gitlab.com. Listing the forge here is what
+		 * turns that into an honest "not usable" in the UI and a named skip in the
+		 * engine, instead of a rule that looks armed and silently never fires.
+		 */
+		forges: ["github"],
 		version: 1,
 		name: "account age",
 		blurb: "the contributor's forge account must be at least N days old.",
@@ -295,9 +304,42 @@ export const RULE_CATALOG = [
 	/** Contributor-facing one-liner for verdict surfaces (§12 copy). */
 	contributorLabel: string;
 	changeNote?: string;
+	/**
+	 * Forges this rule can run on. Absent ⇒ all of them. Present ⇒ the rule needs
+	 * something the other forges do not expose, and both the engine and the rules
+	 * page treat it as unusable there rather than quietly inert.
+	 */
+	forges?: readonly Forge[];
 }>;
 
 export type RuleCatalogEntry = (typeof RULE_CATALOG)[number];
+
+/**
+ * Which forges a rule can actually run on. Absent ⇒ every forge — the common
+ * case, so only rules with a real forge-side gap carry the field.
+ *
+ * The declaration lives on the CATALOG (contracts) rather than the rule
+ * definition (core) because both sides need it and the web head may not import
+ * core: the engine reads it to skip with a named reason, the rules page reads it
+ * to disable the card and say why.
+ */
+export function ruleSupportsForge(ruleId: string, forge: Forge): boolean {
+	const entry = RULE_CATALOG.find((rule) => rule.ruleId === ruleId) as
+		| { forges?: readonly string[] }
+		| undefined;
+	return !entry?.forges || entry.forges.includes(forge);
+}
+
+/** Plain-language reason for a disabled rule card. Null when it is usable. */
+export function ruleForgeBlockReason(
+	ruleId: string,
+	forge: Forge,
+): string | null {
+	if (ruleSupportsForge(ruleId, forge)) {
+		return null;
+	}
+	return `not usable with ${forge}`;
+}
 
 /**
  * The ONLY sanctioned splitter for the display layer: bare rule id from a wire

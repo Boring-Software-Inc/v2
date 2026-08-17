@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import pino from "pino";
 import type { ApiDeps, ApiEnv } from "./env.ts";
+import { gitlabImport } from "./routes/gitlab-import.ts";
 import { stream } from "./routes/stream.ts";
 import { webhooks } from "./routes/webhooks.ts";
 
@@ -22,9 +23,20 @@ export function createApi(deps: ApiDeps) {
 		await next();
 	});
 	app.use("/events/*", cors({ origin: deps.webOrigin, allowMethods: ["GET"] }));
+	// The import is a browser POST from the dashboard, so it needs the session
+	// cookie (credentials) and the web origin allow-listed.
+	app.use(
+		"/gitlab/*",
+		cors({
+			origin: deps.webOrigin,
+			allowMethods: ["POST"],
+			credentials: true,
+		}),
+	);
 	app.get("/healthz", (c) => c.json({ ok: true }));
 	app.route("/webhooks", webhooks);
 	app.route("/events", stream);
+	app.route("/gitlab", gitlabImport);
 	return app;
 }
 
@@ -53,6 +65,7 @@ if (import.meta.main) {
 						secret,
 						baseUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
 						github: null,
+						gitlab: null,
 						// This head only verifies sessions (SSE gating) — it doesn't
 						// mount /dash/*. Pass the key anyway so the shared dash()
 						// isn't in missing-key mode if it's set on this service.
