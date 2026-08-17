@@ -1,11 +1,15 @@
 import { dash } from "@better-auth/infra";
-import { forgeSchema, orgSlugSchema } from "@tripwire/contracts";
+import {
+	forgeSchema,
+	orgSlugSchema,
+	SIGN_IN_FORGE_IDS,
+} from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { orgServices, schema } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { admin } from "better-auth/plugins";
+import { admin, genericOAuth } from "better-auth/plugins";
 import { organization } from "better-auth/plugins/organization";
 import { eq } from "drizzle-orm";
 import { applySignupAccessDefaults } from "./access.ts";
@@ -24,6 +28,17 @@ export interface CreateAuthInput {
 	secret: string;
 	baseUrl: string;
 	github: { clientId: string; clientSecret: string } | null;
+	/**
+	 * open-git OAuth, or null when the creds are absent. Goes through the
+	 * genericOAuth plugin rather than a built-in provider: better-auth has no
+	 * open-git provider, but open-git ships OIDC discovery + PKCE, so the generic
+	 * path covers it with no bespoke exchange code.
+	 *
+	 * `origin` points a self-hosted instance at its own URL; omit for
+	 * open-git.com. Sign-in ONLY — there is no adapter, so an open-git identity
+	 * cannot own a repo (see FORGE_CATALOG: `status: planned`, `signIn: oauth2`).
+	 */
+	opengit: { clientId: string; clientSecret: string; origin?: string } | null;
 	/**
 	 * Better Auth Infrastructure API key (BETTER_AUTH_API_KEY). Lets the dash()
 	 * connector reach the infra service; absent (dev / unset) ⇒ dash stays
@@ -72,7 +87,7 @@ export function createAuth(input: CreateAuthInput) {
 		account: {
 			accountLinking: {
 				enabled: true,
-				trustedProviders: [...forgeSchema.options],
+				trustedProviders: [...SIGN_IN_FORGE_IDS],
 			},
 		},
 		advanced: {
@@ -128,6 +143,28 @@ export function createAuth(input: CreateAuthInput) {
 			},
 		},
 		plugins: [
+			...(input.opengit
+				? [
+						genericOAuth({
+							config: [
+								{
+									// The provider id IS the forge id, so account.providerId lines
+									// up with the catalog and the callback path is
+									// /oauth2/callback/opengit.
+									providerId: "opengit",
+									clientId: input.opengit.clientId,
+									clientSecret: input.opengit.clientSecret,
+									// Discovery over hand-written endpoints: open-git serves
+									// /.well-known/openid-configuration, so the URLs stay right
+									// even if they move.
+									discoveryUrl: `${(input.opengit.origin ?? "https://open-git.com").replace(/\/$/, "")}/.well-known/openid-configuration`,
+									scopes: ["openid", "profile", "email"],
+									pkce: true,
+								},
+							],
+						}),
+					]
+				: []),
 			organization({
 				ac: orgAc,
 				roles: orgRoles,

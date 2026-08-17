@@ -65,6 +65,7 @@ beforeAll(async () => {
 		secret: "test-secret-please-ignore",
 		baseUrl: "http://localhost:3000",
 		github: null,
+		opengit: null,
 		devLogin: true,
 	});
 }, 120_000);
