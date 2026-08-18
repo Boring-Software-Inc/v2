@@ -18,6 +18,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getSessionInfo: "public", // feeds the gate, queue screen, unauth
 	getCurrentUser: "public", // caller's OWN identity; no product data
 	getRun: "public", // unlisted-public run page (§10)
+	getWebviewHost: "public", // reads the caller's own user-agent; /login is signed-out
 	/**
 	 * Redemption is how a pending user BECOMES approved (§6) — behind the
 	 * access gate it would deadlock. Session required inside; everything else

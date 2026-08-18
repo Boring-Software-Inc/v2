@@ -18,6 +18,7 @@ const PUBLIC_ALLOWLIST = new Set([
 	"getSessionInfo", // session/status — feeds the gate, queue screen, unauth
 	"getCurrentUser", // caller's OWN identity (name/login/avatar); no product data
 	"getRun", // the unlisted-public run page — readable without a session by design
+	"getWebviewHost", // echoes the caller's own user-agent; /login is signed-out
 	"redeemOrgInvite", // §6: redemption APPROVES pending users — gating it deadlocks
 ]);
 
