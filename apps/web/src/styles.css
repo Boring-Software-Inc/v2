@@ -131,7 +131,7 @@
 	/* surface-0 is the inset shell, surface-2 the raised card, surface-1 the
 	   recessed well inside it — darker than its parent by design. */
 	--surface-0: #141414;
-	--surface-1: #171717;
+	--surface-1: #1F1F21;
 	--surface-2: #262626;
 	--surface-skeleton: #2e2e2e;
 	--brand: oklch(63.7% 0.167 254deg);
