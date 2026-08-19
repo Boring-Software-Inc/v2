@@ -1,23 +1,17 @@
 import {
-	ActivityIcon,
-	Analytics01Icon,
-	CheckListIcon,
 	Comment01Icon,
-	FlowIcon,
 	Logout01Icon,
 	MoonIcon,
-	Queue01Icon,
 	Settings01Icon,
-	SlidersHorizontalIcon,
 	Sun01Icon,
 } from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { useFeedback } from "#/components/feedback";
 import { RepoSwitcher } from "#/components/layouts/repo-switcher";
+import { RepoTabBar } from "#/components/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "#/components/ui/avatar";
 import { Button } from "#/components/ui/button";
 import {
@@ -39,10 +33,10 @@ interface DashboardTopbarProps {
 }
 
 export function DashboardTopbar({ user }: DashboardTopbarProps) {
-	// URL-scoped nav (§8): the org (and repo) in the URL decide the link tree.
+	// URL-scoped nav (§8): the org in the URL decides where the wordmark and the
+	// account menu point.
 	const params = useParams({ strict: false });
 	const org = params.org;
-	const repo = params.repo;
 
 	return (
 		<nav
@@ -61,43 +55,9 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 				</span>
 			</Link>
 
-			{/* The repo page tree lives inline with the logo. Org-level pages (Home)
-			    keep their nav in the page body, so the topbar stays bare there. */}
-			{org && repo ? (
-				<div className="hidden shrink-0 items-center gap-0.5 md:flex">
-					<NavLink
-						to={`/${org}/${repo}/moderation`}
-						label="Moderation"
-						icon={Queue01Icon}
-					/>
-					<NavLink
-						to={`/${org}/${repo}/activity`}
-						label="Activity"
-						icon={ActivityIcon}
-					/>
-					<NavLink
-						to={`/${org}/${repo}/rules`}
-						label="Rules"
-						icon={CheckListIcon}
-					/>
-					<NavLink
-						to={`/${org}/${repo}/workflows`}
-						label="Workflows"
-						icon={FlowIcon}
-					/>
-					<NavLink
-						to={`/${org}/${repo}/customize`}
-						label="Customize"
-						icon={SlidersHorizontalIcon}
-					/>
-					<NavLink
-						to={`/${org}/${repo}/analytics`}
-						label="Analytics"
-						icon={Analytics01Icon}
-						exact={false}
-					/>
-				</div>
-			) : null}
+			{/* The window's own row: the repos you have open. The page tree for the
+			    active one lives inside the page shell (`ShellNav`). */}
+			<RepoTabBar className="hidden md:flex" />
 
 			<div className="ml-auto hidden items-center md:flex">
 				<RepoSwitcher />
@@ -183,30 +143,6 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
-	);
-}
-
-function NavLink({
-	to,
-	label,
-	icon,
-	exact = true,
-}: {
-	to: string;
-	label: string;
-	icon: IconSvgElement;
-	exact?: boolean;
-}) {
-	return (
-		<Link
-			to={to}
-			activeOptions={{ exact }}
-			activeProps={{ className: "active" }}
-			className="flex h-7 items-center gap-2 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-0 hover:text-foreground [&.active]:bg-surface-0 [&.active]:text-foreground"
-		>
-			<HugeiconsIcon icon={icon} size={14} strokeWidth={2} />
-			<span>{label}</span>
-		</Link>
 	);
 }
 

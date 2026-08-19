@@ -8,6 +8,7 @@ import {
 	FeedbackOverlay,
 	FeedbackProvider,
 } from "#/components/feedback";
+import { ShellNav } from "#/components/layouts/shell-nav";
 import { OrgSettingsDialog } from "#/components/organizations/org-settings-dialog";
 import {
 	InsetDialogProvider,
@@ -162,6 +163,9 @@ function DashboardShell({ counts, children }: DashboardLayoutProps) {
 						className="relative flex h-full flex-col overflow-hidden bg-surface-1"
 					>
 						<BetaBanner />
+						{/* The nav for the current scope — inside the sheet on every
+						    breakpoint, since the topbar now belongs to the window. */}
+						<ShellNav counts={counts} />
 						{/* The shell owns page scroll: this container scrolls full-width so
 					    the whole page area (not just a centered column) is a scroll +
 					    hover target. Pages render natural-height content; they must NOT
@@ -229,7 +233,7 @@ function DashboardShell({ counts, children }: DashboardLayoutProps) {
 					</div>
 				</motion.div>
 
-				<MobileFooter counts={counts} />
+				<MobileFooter />
 				<DevPersonaSwitcher />
 			</motion.div>
 			<OrgSettingsDialog />
