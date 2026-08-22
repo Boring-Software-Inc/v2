@@ -56,10 +56,12 @@ export class OpenGit {
 	 * alone is not enough.
 	 */
 	private get pushUrl(): string {
-		const host = this.config.origin.replace(/^https?:\/\//, "");
+		// Keep the origin's own scheme. Forcing https would break a self-hosted
+		// instance on http://localhost, and silently downgrading is worse.
+		const [scheme, host] = this.config.origin.split("://");
 		const user = encodeURIComponent(this.config.username);
 		const token = encodeURIComponent(this.config.token);
-		return `https://${user}:${token}@${host}/${this.config.repo}.git`;
+		return `${scheme}://${user}:${token}@${host}/${this.config.repo}.git`;
 	}
 
 	private async git(...args: string[]): Promise<void> {

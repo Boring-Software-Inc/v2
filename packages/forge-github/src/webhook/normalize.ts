@@ -45,10 +45,14 @@ const pullRequestPayload = z.object({
 	pull_request: ghPullRequest,
 	repository: ghRepository,
 	sender: ghAccount,
+	/** Present on App-delivered deliveries; absent on repo/org webhooks. */
+	installation: z.object({ id: z.number() }).optional(),
 });
 
 const issueCommentPayload = z.object({
 	action: z.string(),
+	/** Present on App-delivered deliveries; absent on repo/org webhooks. */
+	installation: z.object({ id: z.number() }).optional(),
 	issue: z.object({ number: z.number() }),
 	comment: z.object({
 		id: z.number(),
@@ -96,6 +100,8 @@ const installationRepositoriesPayload = z.object({
 });
 
 const pushPayload = z.object({
+	/** Present on App-delivered deliveries; absent on repo/org webhooks. */
+	installation: z.object({ id: z.number() }).optional(),
 	ref: z.string(),
 	after: z.string(),
 	compare: z.string().optional(),
@@ -126,6 +132,7 @@ function base(
 	sender: z.infer<typeof ghAccount>,
 	raw: Pick<RawForgeEvent, "deliveryId">,
 	receivedAt: string,
+	installationId?: string,
 ) {
 	return {
 		id: generateId(),
@@ -137,6 +144,7 @@ function base(
 			fullName: repo.full_name,
 		},
 		repoExternalId: String(repo.id),
+		installationExternalId: installationId,
 		actor: {
 			login: sender.login,
 			externalId: String(sender.id),
@@ -163,7 +171,13 @@ export function normalizeWebhook(
 				? p.pull_request.created_at
 				: p.pull_request.updated_at;
 		return normalizedEventSchema.parse({
-			...base(p.repository, p.sender, event, receivedAt),
+			...base(
+				p.repository,
+				p.sender,
+				event,
+				receivedAt,
+				p.installation ? String(p.installation.id) : undefined,
+			),
 			kind,
 			occurredAt: toUtcIso(occurred, receivedAt),
 			changeRequest: {
@@ -184,7 +198,13 @@ export function normalizeWebhook(
 			return null;
 		}
 		return normalizedEventSchema.parse({
-			...base(p.repository, p.sender, event, receivedAt),
+			...base(
+				p.repository,
+				p.sender,
+				event,
+				receivedAt,
+				p.installation ? String(p.installation.id) : undefined,
+			),
 			kind: "comment.created",
 			occurredAt: toUtcIso(p.comment.created_at, receivedAt),
 			comment: {
@@ -254,7 +274,13 @@ export function normalizeWebhook(
 	if (event.eventName === "push") {
 		const p = pushPayload.parse(payload);
 		return normalizedEventSchema.parse({
-			...base(p.repository, p.sender, event, receivedAt),
+			...base(
+				p.repository,
+				p.sender,
+				event,
+				receivedAt,
+				p.installation ? String(p.installation.id) : undefined,
+			),
 			kind: "push",
 			occurredAt: toUtcIso(p.head_commit?.timestamp, receivedAt),
 			push: {
