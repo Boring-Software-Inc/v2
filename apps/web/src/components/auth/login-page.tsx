@@ -1,6 +1,7 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { ForgeGrid } from "#/components/auth/forge-grid";
 import { LoginFaq } from "#/components/auth/login-faq";
+import { WebviewNotice } from "#/components/auth/webview-notice";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { DevPersonaDisclosure } from "#/components/dev/persona-disclosure";
 import { Dither } from "#/components/ui/dither";
@@ -43,6 +44,8 @@ export function LoginPage() {
 						<ForgeGrid redirect={redirect} />
 						<LoginFaq />
 					</div>
+
+					<WebviewNotice />
 				</div>
 			</div>
 			{import.meta.env.DEV ? <DevPersonaDisclosure /> : null}

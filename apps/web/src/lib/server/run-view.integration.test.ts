@@ -5,6 +5,7 @@ import {
 	createDb,
 	createTestDatabase,
 	type Db,
+	orgServices,
 	repoServices,
 	runServices,
 	type TestDatabase,
@@ -100,6 +101,19 @@ beforeAll(async () => {
 		`INSERT INTO events (id, delivery_id, raw_kind, raw)
 		 VALUES ('evt-run-view-1', 'run-view-1', 'pull_request', '{}')`,
 	);
+	// The re-run scope hangs off the repo's org, so the install has to be
+	// CLAIMED — an unclaimed one syncs its repos with a null org_id and the full
+	// view legitimately carries no scope (§10: never auto-attach on a guess).
+	// `user-1` deliberately gets no membership: the session view must surface the
+	// scope while still refusing the re-run.
+	await pool.query(
+		`INSERT INTO organization (id, name, slug, is_personal)
+		 VALUES ('org-run-view', 'acme', 'acme', false)`,
+	);
+	await orgServices.linkOrgInstallation(db, {
+		orgId: "org-run-view",
+		installationId: "inst-1",
+	});
 	await repoServices.syncInstallationRepos(
 		db,
 		"inst-1",
@@ -120,6 +134,7 @@ beforeAll(async () => {
 			},
 		],
 		[],
+		await orgServices.getInstallationOrg(db, { installationId: "inst-1" }),
 	);
 	publicRunId = await seedRun("acme/pub");
 	privateRunId = await seedRun("acme/priv");
