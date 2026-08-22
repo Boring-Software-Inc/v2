@@ -84,6 +84,18 @@ function repoOf(event: RepoScopedEvent): string {
 	return event.repo.fullName;
 }
 
+/**
+ * These three come off the webhook, and the payload schema marks them optional
+ * because forges other than GitHub do not send them. GitHub always does, so
+ * absence here means a malformed delivery — skip rather than guess (§6).
+ */
+function required<T>(value: T | undefined, what: string): T {
+	if (value === undefined) {
+		signalUnavailable(`this change request has no ${what}`);
+	}
+	return value;
+}
+
 function changeRequestNumber(event: RepoScopedEvent): number {
 	if ("changeRequest" in event) {
 		return event.changeRequest.number;
@@ -593,9 +605,12 @@ export const githubForge = defineForge<GithubHttp>()({
 			}
 			return mergeRatioPercent(merged, decided);
 		},
-		[targetBranch.id]: (ctx) => changeRequestOf(ctx.event).baseRef,
-		[sourceBranch.id]: (ctx) => changeRequestOf(ctx.event).headRef,
-		[isDraft.id]: (ctx) => changeRequestOf(ctx.event).draft,
+		[targetBranch.id]: (ctx) =>
+			required(changeRequestOf(ctx.event).baseRef, "target branch"),
+		[sourceBranch.id]: (ctx) =>
+			required(changeRequestOf(ctx.event).headRef, "source branch"),
+		[isDraft.id]: (ctx) =>
+			required(changeRequestOf(ctx.event).draft, "draft flag"),
 		[titleIsConventional.id]: (ctx) =>
 			isConventionalSubject(changeRequestOf(ctx.event).title),
 		[body.id]: (ctx) => prBody(ctx),

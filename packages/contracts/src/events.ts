@@ -36,9 +36,19 @@ export const changeRequestPayloadSchema = z.object({
 	number: z.number().int(),
 	title: z.string(),
 	headSha: z.string(),
-	baseRef: z.string(),
-	headRef: z.string(),
-	draft: z.boolean(),
+	/**
+	 * Branch refs and the draft flag are OPTIONAL because not every forge puts
+	 * them on the wire. open-git's pull_request payload carries id, number,
+	 * author, title, body and head_sha — no refs, no draft — and its v1 read API
+	 * exposes no way to fill the gap. Absent means "this forge does not say",
+	 * which is a fact; defaulting them to "" / false would be a fabrication, and
+	 * the signals that read them skip honestly instead (§6).
+	 *
+	 * Every field a rule can actually depend on cross-forge stays required.
+	 */
+	baseRef: z.string().optional(),
+	headRef: z.string().optional(),
+	draft: z.boolean().optional(),
 	url: z.string(),
 });
 export type ChangeRequestPayload = z.infer<typeof changeRequestPayloadSchema>;
