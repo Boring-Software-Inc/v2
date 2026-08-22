@@ -65,8 +65,8 @@ const commentPayload = z.object({
 
 /** Deep links point at open-git.com unless a self-hosted origin is supplied.
  * The payload carries no URLs, so the adapter composes them. */
-const OPENGIT_WEB_ORIGIN = (
-	process.env.OPENGIT_ORIGIN ?? "https://open-git.com"
+const OPEN_GIT_WEB_ORIGIN = (
+	process.env.OPEN_GIT_URL ?? "https://open-git.com"
 ).replace(/\/$/, "");
 
 /** open-git sends the action as the segment after the last dot. */
@@ -121,7 +121,7 @@ export function normalizeWebhook(
 		comment: {
 			externalId: payload.comment.id,
 			body: payload.comment.body,
-			url: `${OPENGIT_WEB_ORIGIN}/${fullName}/pulls/${payload.pull_request.number}`,
+			url: `${OPEN_GIT_WEB_ORIGIN}/${fullName}/pulls/${payload.pull_request.number}`,
 			subjectNumber: payload.pull_request.number,
 			// §7 — our own comments carry the run marker; skip them so tripwire
 			// does not moderate itself into a loop.
