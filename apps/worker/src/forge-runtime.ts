@@ -9,7 +9,12 @@ import {
 	InstallationTokenCache,
 	normalizeWebhook as normalizeGithub,
 } from "@tripwire/forge-github";
-import { normalizeWebhook as normalizeOpenGit } from "@tripwire/forge-opengit";
+import {
+	createOpenGitAdapter,
+	normalizeWebhook as normalizeOpenGit,
+	type OpenGitBotCredentials,
+	OpenGitTokenCache,
+} from "@tripwire/forge-opengit";
 import type { WorkerReads } from "./context.ts";
 
 /**
@@ -74,20 +79,65 @@ export interface ResolveForgeInput {
 	onCall: MeterHook;
 	/** GitHub App credentials, or null when the App env is absent. */
 	github: { appId: string; privateKey: string } | null;
+	/** open-git bot credentials, or null when the bot env is absent. */
+	opengit: (OpenGitBotCredentials & { apiBase?: string }) | null;
 }
 
 /**
- * Build the resolver ONCE at boot. GitHub needs App credentials (null ⇒ no
- * GitHub runtime).
+ * Build the resolver ONCE at boot. Each forge needs its own credentials; absent
+ * credentials ⇒ no runtime for that forge, and its events still normalize and
+ * persist (normalization is pure and chosen separately, above).
  */
 export function buildResolveForge(
 	input: ResolveForgeInput,
 ): (forge: Forge) => ForgeRuntime | null {
-	const github = input.github
-		? buildGithubRuntime(input.db, input.github, input.onCall)
-		: null;
-	return (forge: Forge): ForgeRuntime | null =>
-		forge === "github" ? github : null;
+	const runtimes: Record<Forge, ForgeRuntime | null> = {
+		github: input.github
+			? buildGithubRuntime(input.db, input.github, input.onCall)
+			: null,
+		opengit: input.opengit
+			? buildOpenGitRuntime(input.db, input.opengit, input.onCall)
+			: null,
+	};
+	return (forge: Forge): ForgeRuntime | null => runtimes[forge];
+}
+
+/**
+ * open-git resolves with an adapter but NO reads, which is the shape §4
+ * anticipated: actions are real (the `tripwire` check is its whole merge gate)
+ * while its v1 API exposes no diff, commits, contents or users. `reads: null`
+ * makes every read-dependent rule skip on missing context (§6) instead of
+ * evaluating against invented data.
+ *
+ * `signalHttp` is null too — the custom-rule signal producers are GitHub's, and
+ * a custom rule on open-git skips rather than guessing.
+ */
+function buildOpenGitRuntime(
+	db: Db,
+	credentials: OpenGitBotCredentials & { apiBase?: string },
+	onCall: MeterHook,
+): ForgeRuntime {
+	const tokens = new OpenGitTokenCache(credentials, credentials.apiBase);
+	const tokenFor = async (repoFullName: string): Promise<string> => {
+		const repo = await repoServices.getRepoByFullName(
+			db,
+			repoFullName,
+			"opengit",
+		);
+		if (!repo?.installationId) {
+			throw new Error(`no installation for ${repoFullName}`);
+		}
+		return await tokens.getToken(repo.installationId);
+	};
+	return {
+		adapter: createOpenGitAdapter({
+			tokenFor,
+			onCall,
+			apiBase: credentials.apiBase,
+		}),
+		reads: null,
+		signalHttp: null,
+	};
 }
 
 function buildGithubRuntime(
