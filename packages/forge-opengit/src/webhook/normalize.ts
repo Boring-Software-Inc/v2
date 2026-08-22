@@ -139,6 +139,10 @@ export function normalizeWebhook(
 				name: pr.repository.name,
 			},
 			repoExternalId: pr.repository.id,
+			// open-git puts the installation on every pull-request payload. This is
+			// where tripwire learns it — its installation.created carries only repo
+			// uuids, with no owner or name to build a row from.
+			installationExternalId: pr.installation_id,
 			actor: {
 				login: pr.pull_request.author,
 				// Username IS open-git's stable handle — see the comment path below.

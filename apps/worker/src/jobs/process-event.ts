@@ -141,29 +141,39 @@ export async function processEvent(
 			normalized.forge,
 		))
 	) {
-		await repoServices.syncInstallationRepos(
-			db,
-			"",
-			[
-				{
-					externalId:
-						normalized.repoExternalId ?? `unknown:${normalized.repo.fullName}`,
-					owner: normalized.repo.owner,
-					name: normalized.repo.name,
-					fullName: normalized.repo.fullName,
-					/**
-					 * Visibility unknown here (change-request payloads aren't
-					 * threaded through) — fail closed as private so the §10 public
-					 * run page never opens for a repo installation sync hasn't
-					 * confirmed public. The next installation event corrects it.
-					 */
-					private: true,
-				},
-			],
-			[],
-		);
+		/**
+		 * `ensureRepo`, not `syncInstallationRepos`: the latter writes
+		 * `forge: "github"` unconditionally, so an open-git event used to create a
+		 * GitHub row that `getRepoByFullName(…, "opengit")` could never find —
+		 * a new row on every delivery, and no repo the token mint could use.
+		 */
+		await repoServices.ensureRepo(db, {
+			forge: normalized.forge,
+			externalId:
+				normalized.repoExternalId ?? `unknown:${normalized.repo.fullName}`,
+			owner: normalized.repo.owner,
+			name: normalized.repo.name,
+			fullName: normalized.repo.fullName,
+			/**
+			 * Visibility unknown here (change-request payloads aren't
+			 * threaded through) — fail closed as private so the §10 public
+			 * run page never opens for a repo installation sync hasn't
+			 * confirmed public. The next installation event corrects it.
+			 */
+			private: true,
+			/**
+			 * The installation the delivery arrived through. Without it the row
+			 * carries no installation id and the token mint throws, so no action
+			 * ever executes on a lazily-upserted repo.
+			 */
+			installationId: normalized.installationExternalId ?? null,
+		});
 		logger.info(
-			{ repo: normalized.repo.fullName },
+			{
+				repo: normalized.repo.fullName,
+				forge: normalized.forge,
+				installation: normalized.installationExternalId ?? null,
+			},
 			"repo lazily upserted (no installation event seen)",
 		);
 	}

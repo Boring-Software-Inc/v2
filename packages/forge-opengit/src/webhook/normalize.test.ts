@@ -86,6 +86,21 @@ describe("open-git normalization", () => {
 		expect(event?.kind).toBe(kind);
 	});
 
+	test("the installation id rides along so a token can be minted", () => {
+		// This is the ONLY place tripwire learns an open-git installation id.
+		// open-git's installation.created lists repositories as bare uuids, with
+		// no owner or name to build a repo row from.
+		const event = normalizeWebhook(
+			raw("pull_request.opened", {
+				installation_id: "inst-42",
+				repository: REPO,
+				pull_request: AUTHORED_PR,
+			}),
+			"2026-08-16T00:00:00.000Z",
+		);
+		expect(event?.installationExternalId).toBe("inst-42");
+	});
+
 	test("an opened change request carries its author and head sha", () => {
 		const event = normalizeWebhook(
 			raw("pull_request.opened", {

@@ -83,6 +83,17 @@ const eventBase = {
 	repo: repoRefSchema,
 	/** The forge's repo id, as a string — installation sync + lazy repo upsert. */
 	repoExternalId: z.string().optional(),
+	/**
+	 * The app/bot installation this delivery came through, when the forge puts
+	 * it on the event itself. open-git does, on every pull-request payload, and
+	 * it is the ONLY way tripwire learns an open-git installation id: open-git's
+	 * `installation.created` lists repositories as bare uuids, with no owner or
+	 * name to build a repo row from.
+	 *
+	 * Without it the lazy repo upsert writes an empty installation id, the token
+	 * mint throws `no installation for <repo>`, and no check is ever posted.
+	 */
+	installationExternalId: z.string().optional(),
 	actor: eventActorSchema,
 	occurredAt: z.iso.datetime(),
 	receivedAt: z.iso.datetime(),
