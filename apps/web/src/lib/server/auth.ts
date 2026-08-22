@@ -27,22 +27,22 @@ export function getAuth(): Auth | null {
 	}
 	const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
 	const clientSecret = process.env.GITHUB_OAUTH_CLIENT_SECRET;
-	const openGitClientId = process.env.OPENGIT_OAUTH_CLIENT_ID;
-	const openGitClientSecret = process.env.OPENGIT_OAUTH_CLIENT_SECRET;
+	const openGitClientId = process.env.OPEN_GIT_OAUTH_CLIENT_ID;
+	const openGitClientSecret = process.env.OPEN_GIT_OAUTH_CLIENT_SECRET;
 	instance = createAuth({
 		db: getDb().db,
 		secret,
 		baseUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
 		github: clientId && clientSecret ? { clientId, clientSecret } : null,
-		// `OPENGIT_ORIGIN` points a self-hosted open-git at its own URL; omit it
+		// `OPEN_GIT_URL` points a self-hosted open-git at its own URL; omit it
 		// for open-git.com. Discovery hangs off that origin.
 		opengit:
 			openGitClientId && openGitClientSecret
 				? {
 						clientId: openGitClientId,
 						clientSecret: openGitClientSecret,
-						...(process.env.OPENGIT_ORIGIN
-							? { origin: process.env.OPENGIT_ORIGIN }
+						...(process.env.OPEN_GIT_URL
+							? { origin: process.env.OPEN_GIT_URL }
 							: {}),
 					}
 				: null,
