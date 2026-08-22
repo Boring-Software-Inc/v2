@@ -12,11 +12,12 @@ import { Glob } from "bun";
  * Derived verbatim from the arrows:
  *   contracts    ← everything            (imports nothing but zod)
  *   utils        ← everything except contracts
- *   forge        ← forge-github, worker
+ *   forge        ← forge-github, forge-opengit, worker
  *   core         ← worker ONLY
  *   sdk          ← forge-github, worker  (signal registry + defineForge; pure)
  *   db           ← worker, api, web
  *   forge-github ← worker, api
+ *   forge-opengit ← worker, api           (no sdk yet — no signals of its own)
  *   ui           ← web
  * apps import packages; packages never import apps; nothing imports core but worker.
  */
@@ -29,6 +30,7 @@ const ALLOWED: Record<string, readonly string[]> = {
 	core: ["contracts", "utils", "sdk"],
 	sdk: ["contracts"],
 	"forge-github": ["contracts", "utils", "forge", "sdk"],
+	"forge-opengit": ["contracts", "utils", "forge"],
 	db: ["contracts", "utils"],
 	ui: [],
 	// apps
