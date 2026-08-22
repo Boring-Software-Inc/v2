@@ -331,6 +331,13 @@ export class GitHub {
 		return lines;
 	}
 
+	/** Web URLs of every PR this run opened, for a keep-and-inspect teardown. */
+	openedPrUrls(): string[] {
+		return this.openedPrs.map(
+			(pr) => `https://github.com/${this.config.repo}/pull/${pr}`,
+		);
+	}
+
 	/** Close every PR opened this run and delete its branches — idempotent. */
 	async cleanup(): Promise<void> {
 		for (const pr of this.openedPrs) {
