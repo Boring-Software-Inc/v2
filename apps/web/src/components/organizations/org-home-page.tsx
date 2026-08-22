@@ -15,7 +15,6 @@ import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { NavChip } from "#/components/layouts/nav-chip";
 import { HomeListSkeleton } from "#/components/organizations/org-home-page-skeleton";
-import { OrgSubnav } from "#/components/organizations/org-subnav";
 import { Button } from "#/components/ui/button";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
@@ -53,7 +52,7 @@ export function OrgHomePage() {
 		<DashboardLayout counts={{}}>
 			<div className="px-5 py-6 md:px-8 md:py-10">
 				<div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
-					<div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+					<div className="flex flex-col gap-4">
 						<header className="flex flex-col gap-1.5">
 							<h1 className="font-semibold text-2xl tracking-tight">Home</h1>
 							<p className="text-muted-foreground text-sm">
@@ -68,7 +67,6 @@ export function OrgHomePage() {
 								blocked today.
 							</p>
 						</header>
-						<OrgSubnav org={org} />
 					</div>
 
 					{home ? (

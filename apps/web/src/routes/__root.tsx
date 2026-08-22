@@ -10,6 +10,7 @@ import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
 import { MotionConfig } from "motion/react";
 import { ThemeProvider } from "next-themes";
 import { lazy, Suspense } from "react";
+import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
 import { Toaster } from "#/components/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { isPublicPath } from "#/lib/run-access";
@@ -145,7 +146,12 @@ function RootComponent() {
 			{/* Every `motion` component in the app honours the OS setting: transform
 			    and layout animations become instant, opacity still crossfades. */}
 			<MotionConfig reducedMotion="user">
-				<Outlet />
+				{/* Above the Outlet, not inside DashboardLayout: pages own their own
+				    layout wrap, so a provider down there would remount — and re-read
+				    storage — on every navigation. */}
+				<RepoTabsProvider>
+					<Outlet />
+				</RepoTabsProvider>
 			</MotionConfig>
 			<Toaster />
 			{/* Global product analytics — one mount covers every route (pageviews,
