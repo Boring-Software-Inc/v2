@@ -98,7 +98,12 @@ describe("open-git normalization", () => {
 			}),
 			"2026-08-16T00:00:00.000Z",
 		);
-		expect(event?.installationExternalId).toBe("inst-42");
+		// Narrow first: the installation variants of the union carry no repo-scoped
+		// fields at all.
+		if (event?.kind !== "change-request.opened") {
+			throw new Error(`expected change-request.opened, got ${event?.kind}`);
+		}
+		expect(event.installationExternalId).toBe("inst-42");
 	});
 
 	test("an opened change request carries its author and head sha", () => {
