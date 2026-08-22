@@ -63,11 +63,27 @@ if (import.meta.main) {
 		"\\n",
 		"\n",
 	);
-	// One resolver, chosen per event.forge downstream. GitHub needs App creds;
+	const openGitBotId = process.env.OPEN_GIT_BOT_ID;
+	const openGitKey = process.env.OPEN_GIT_BOT_PRIVATE_KEY?.replaceAll(
+		"\\n",
+		"\n",
+	);
+	// One resolver, chosen per event.forge downstream. Each forge needs its own
+	// credentials; absent creds ⇒ that forge's events normalize and persist, but
+	// nothing executes.
 	const resolveForge = buildResolveForge({
 		db,
 		onCall: metering.addGithubCall,
 		github: appId && privateKey ? { appId, privateKey } : null,
+		opengit:
+			openGitBotId && openGitKey
+				? {
+						botId: openGitBotId,
+						privateKey: openGitKey,
+						// Self-hosted open-git only; open-git.com is the default.
+						apiBase: process.env.OPEN_GIT_URL,
+					}
+				: null,
 	});
 	// Backfill (arm-time) and the action sweeper are GitHub-only for now; hand
 	// them the GitHub runtime's reads/adapter. TODO(forge): per-forge sweep.
