@@ -1,5 +1,6 @@
 import {
 	COMMENT_MARKER,
+	type EventKind,
 	type NormalizedEvent,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
@@ -14,29 +15,30 @@ import { z } from "zod";
  *
  * open-git names map cleanly onto the neutral vocabulary:
  *   pull_request.opened      -> change-request.opened
+ *   pull_request.edited      -> change-request.updated
  *   pull_request.synchronize -> change-request.updated
  *   pull_request.closed      -> change-request.closed
  *   pull_request.comment     -> comment.created
  *
- * ── THE ACTOR GAP ───────────────────────────────────────────────────────────
- * `NormalizedEvent` requires an `actor` — tripwire's whole model is "evaluate
- * the contributor" — and open-git's pull_request payload does not carry one.
- * Verified against the sender, not the docs: `emitPullRequestWebhooks` in
- * `lib/pull-requests/create-pull-request.ts` posts `{action, installation_id,
- * pull_request:{id,number,title,head_sha}, repository:{id,name,owner}}`. The
- * author is known at that call site (`actorProfileId` is passed to
- * `queuePullRequestWorkflows` on the line above) but is not included.
+ * `edited` (title/description changed, no new commits) is an UPDATE, not an
+ * open: the head sha is unchanged, so anything keyed on the sha re-runs against
+ * the same code while the title/body gates re-evaluate. It is the one event
+ * that can flip english-only without a push.
  *
- * So pull_request events return NULL rather than a fabricated actor. Inventing
- * one would poison contributor scoring, moderation and the audit trail with a
- * user who never existed — far worse than not ingesting. The delivery is still
- * stored raw at the route, so nothing is lost and the payloads become fixture
- * candidates (§11) for the day the field lands.
+ * ── WHAT OPEN-GIT DOES NOT SEND ─────────────────────────────────────────────
+ * The pull_request payload is `{id, number, author, title, body, head_sha}`.
+ * There are no branch refs and no draft flag, and the v1 read API cannot fill
+ * the gap — it exposes no diff, commits, contents or users. `baseRef`,
+ * `headRef` and `draft` are therefore OMITTED, not defaulted: absent means
+ * "open-git does not say", and the signals that read them skip honestly (§6).
+ * A `""` ref or a `false` draft would be a fabrication in the audit trail.
  *
- * Comment events DO carry `comment.author`, so those normalize for real.
+ * This is also why most of RULE_CATALOG declares `forges: ["github"]` — every
+ * rule that reads a diff, a commit list or a contributor profile is inert here
+ * until open-git ships those reads. The payload-only rules run for real.
  *
- * Installation events carry no actor either and are not ingested here; repo
- * grants arrive through the install flow instead.
+ * Installation events carry no actor and are not ingested here; repo grants
+ * arrive through the install flow instead.
  */
 
 const ogRepository = z.object({
@@ -50,6 +52,20 @@ const ogPullRequest = z.object({
 	number: z.number(),
 	title: z.string().default(""),
 	head_sha: z.string().nullable().optional(),
+	/**
+	 * The opener's username, or null for an imported/system-authored PR. Added
+	 * to every pull-request event by open-git; before it existed these events
+	 * could not be ingested at all, because tripwire evaluates a contributor and
+	 * there was nobody to name.
+	 */
+	author: z.string().nullable().optional(),
+	body: z.string().nullable().optional(),
+});
+
+const pullRequestPayload = z.object({
+	installation_id: z.string().optional(),
+	repository: ogRepository,
+	pull_request: ogPullRequest,
 });
 
 const commentPayload = z.object({
@@ -74,6 +90,13 @@ function actionOf(eventName: string): string {
 	return eventName.slice(eventName.lastIndexOf(".") + 1);
 }
 
+const PR_ACTION_TO_KIND: Record<string, EventKind> = {
+	opened: "change-request.opened",
+	edited: "change-request.updated",
+	synchronize: "change-request.updated",
+	closed: "change-request.closed",
+};
+
 export function normalizeWebhook(
 	event: RawForgeEvent,
 	receivedAt: string,
@@ -83,13 +106,57 @@ export function normalizeWebhook(
 		// installation.* — no actor, and grants come through the install flow.
 		return null;
 	}
-	if (action !== "comment") {
-		// opened / synchronize / closed: no author in the payload. See THE ACTOR
-		// GAP above — null, never a placeholder.
-		return null;
-	}
 
 	const raw: unknown = JSON.parse(event.body);
+
+	if (action !== "comment") {
+		const kind = PR_ACTION_TO_KIND[action];
+		if (!kind) {
+			return null;
+		}
+		const pr = pullRequestPayload.parse(raw);
+		// No author is open-git telling us this PR has no attributable user (an
+		// import, or a system-authored change). Tripwire evaluates a contributor,
+		// so there is nothing to evaluate — skip rather than invent one.
+		if (!pr.pull_request.author) {
+			return null;
+		}
+		// head_sha is what every downstream check is keyed on. open-git marks it
+		// nullable, and a change request we cannot pin to a commit cannot be
+		// gated, so it is not ingested.
+		if (!pr.pull_request.head_sha) {
+			return null;
+		}
+		const prFullName = `${pr.repository.owner}/${pr.repository.name}`;
+		return normalizedEventSchema.parse({
+			id: generateId(),
+			forge: "opengit",
+			deliveryId: event.deliveryId,
+			kind,
+			repo: {
+				fullName: prFullName,
+				owner: pr.repository.owner,
+				name: pr.repository.name,
+			},
+			repoExternalId: pr.repository.id,
+			actor: {
+				login: pr.pull_request.author,
+				// Username IS open-git's stable handle — see the comment path below.
+				externalId: pr.pull_request.author,
+			},
+			// open-git puts no timestamp on the payload, so receipt is the honest
+			// clock. It is monotonic per delivery and never in the future.
+			occurredAt: receivedAt,
+			receivedAt,
+			changeRequest: {
+				number: pr.pull_request.number,
+				title: pr.pull_request.title,
+				headSha: pr.pull_request.head_sha,
+				url: `${OPEN_GIT_WEB_ORIGIN}/${prFullName}/pulls/${pr.pull_request.number}`,
+			},
+		} satisfies Record<string, unknown>);
+	}
+
 	const payload = commentPayload.parse(raw);
 	const fullName = `${payload.repository.owner}/${payload.repository.name}`;
 	// A null author is open-git telling us the comment has no attributable user
