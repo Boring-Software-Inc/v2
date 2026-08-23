@@ -78,7 +78,18 @@ export async function evaluateCustomRule(
 	record: CustomRuleRecord,
 	signalCtx: CustomSignalCtx | null,
 	now: string,
+	/** Named only so a skip can say WHICH forge could not feed the rule. */
+	forge?: string,
 ): Promise<RuleResult> {
+	/**
+	 * GitHub's producers, for every forge. This is safe only because a forge
+	 * without a signal surface resolves `signalCtx` to null and skips below,
+	 * before a producer is ever called.
+	 *
+	 * The day a second forge exposes signals, this must become a per-forge
+	 * lookup. Until then a wrong producer cannot run, because there is no
+	 * context to run it with.
+	 */
 	const producers: Record<string, (ctx: CustomSignalCtx) => unknown> =
 		githubForge.produces;
 	const producer = producers[record.definition.when.id];
@@ -90,7 +101,18 @@ export async function evaluateCustomRule(
 		);
 	}
 	if (!signalCtx) {
-		return skipped(record, "forge reads unavailable", now);
+		/**
+		 * "unavailable" used to be the whole message, and it reads as an outage
+		 * that will clear. On a forge with no signal surface at all it never
+		 * clears, and a maintainer waits for something that is not coming.
+		 */
+		return skipped(
+			record,
+			forge
+				? `custom rules need forge reads, which ${forge} does not expose`
+				: "forge reads unavailable",
+			now,
+		);
 	}
 	try {
 		const value = await producer(signalCtx);

@@ -404,18 +404,32 @@ async function runWorkflowsInner(
 	).length;
 	const degraded = isRunDegraded(ruleSteps0.length, skippedCount, verdict);
 	if (degraded) {
-		verdict = "needs_review";
-		paused = true;
+		/**
+		 * The floor is configurable, and ON by default.
+		 *
+		 * Turning it off lets a partly-evaluated run pass. It does NOT hide what
+		 * happened: the step below is recorded either way, so the run page and
+		 * the audit trail still name every rule that could not evaluate. Turning
+		 * off a safety net must never turn off the evidence.
+		 */
+		const failClosed = (await repoServices.getResponseConfig(db, repo.id))
+			.failClosedFallback;
+		if (failClosed) {
+			verdict = "needs_review";
+			paused = true;
+		}
 		const startedAt = new Date().toISOString();
 		const degradationStep: StepRecord = {
 			nodeId: "run:degradation",
 			nodeKind: "gate",
 			status: "skipped",
-			input: { rule: "fail-closed floor" },
+			input: { rule: "fail-closed floor", enforced: failClosed },
 			output: {
 				degradedReads,
 				skippedRules: skippedCount,
 				ruleNodes: ruleSteps0.length,
+				/** false ⇒ the run passed with a partial evaluation, on purpose. */
+				enforced: failClosed,
 			},
 			startedAt,
 			finishedAt: startedAt,
@@ -430,8 +444,15 @@ async function runWorkflowsInner(
 			);
 		}
 		logger.warn(
-			{ degradedReads, skippedCount, ruleNodes: ruleSteps0.length },
-			"evaluation degraded — fail-closed floor routes run to moderation",
+			{
+				degradedReads,
+				skippedCount,
+				ruleNodes: ruleSteps0.length,
+				enforced: failClosed,
+			},
+			failClosed
+				? "evaluation degraded — fail-closed floor routes run to moderation"
+				: "evaluation degraded — floor is off for this repo, run passes partial",
 		);
 	}
 
@@ -621,7 +642,12 @@ export function makeEvaluator(
 		const stored = custom?.records.get(ref);
 		if (stored && custom) {
 			try {
-				return await evaluateCustomRule(stored, custom.signalCtx, ctx.now);
+				return await evaluateCustomRule(
+					stored,
+					custom.signalCtx,
+					ctx.now,
+					ctx.event.forge,
+				);
 			} catch (error) {
 				logger.error(
 					{ ref, error: getErrorMessage(error) },
