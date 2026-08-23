@@ -363,6 +363,8 @@ describe("responseConfig — defaults and surface gates", () => {
 			},
 			moderationQueued: "comment",
 			reviewComment: { customText: "", showDetailsButton: true },
+			// The safety net is ON unless a maintainer turns it off.
+			failClosedFallback: true,
 		});
 		expect(responseConfigSchema.parse({})).toEqual(DEFAULT_RESPONSE_CONFIG);
 	});
