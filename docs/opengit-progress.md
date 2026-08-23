@@ -22,9 +22,20 @@ these parts are done. they need no change from open-git.
 | read an installation | `GET /api/v1/app/installations/{id}` returns owner and name |
 | block a merge | `POST /api/v1/repos/{owner}/{repo}/commits/{sha}/checks` |
 | comment | `POST /api/v1/repos/{owner}/{repo}/pulls/{number}/comments` |
+| connect a repository | installing the bot is the connection, no manual step |
 
 tripwire posts one check named `tripwire` on each commit. the check is the
 whole merge gate. open-git blocks a merge on checks and reads no reviews.
+
+installing the bot connects every repository it grants.
+
+the installation event names them by uuid only. tripwire reads the installation
+to get the owner and the name. the repositories then appear in the dashboard on
+their own.
+
+the whole path is verified against open-git.com: a signed delivery arrives, the
+event normalizes, one rule evaluates, and a check is written back. a title
+edited with no new commits re-evaluates and flips the same commit's check.
 
 ---
 
