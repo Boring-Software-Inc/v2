@@ -1,4 +1,4 @@
-import type { WorkflowDefinition } from "@tripwire/contracts";
+import type { Forge, WorkflowDefinition } from "@tripwire/contracts";
 import { type Db, repoServices, schema, workflowServices } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
 import { eq } from "drizzle-orm";
@@ -31,10 +31,17 @@ export async function pinWorkflows(
 	db: Db,
 	repoFullName: string,
 	workflows: PinnedWorkflow[],
+	/**
+	 * Required, and not defaulted. `getRepoByFullName` filters on forge, so
+	 * omitting it matched nothing and reported the repo as absent even when the
+	 * row was right there. `scripts/` is outside `bun run typecheck`, so the
+	 * missing argument compiled — name it at every call site.
+	 */
+	forge: Forge = "github",
 ): Promise<WorkflowSnapshot> {
-	const repo = await repoServices.getRepoByFullName(db, repoFullName);
+	const repo = await repoServices.getRepoByFullName(db, repoFullName, forge);
 	if (!repo) {
-		throw new Error(`repo ${repoFullName} is not in the DB`);
+		throw new Error(`repo ${repoFullName} is not in the DB on ${forge}`);
 	}
 	const prior = await db
 		.select({
