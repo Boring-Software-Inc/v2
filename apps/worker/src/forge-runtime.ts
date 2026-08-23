@@ -11,6 +11,7 @@ import {
 } from "@tripwire/forge-github";
 import {
 	createOpenGitAdapter,
+	isRepoPublic,
 	listInstallationRepos,
 	normalizeWebhook as normalizeOpenGit,
 	type OpenGitBotCredentials,
@@ -74,6 +75,11 @@ export interface ForgeRuntime {
 				active: boolean;
 		  }>)
 		| null;
+	/**
+	 * Whether a repo is PUBLIC. null on forges that report visibility on the
+	 * event itself — GitHub does, so it needs no probe.
+	 */
+	isRepoPublic: ((repoFullName: string) => Promise<boolean>) | null;
 }
 
 /**
@@ -86,12 +92,14 @@ export function staticForge(runtime: {
 	reads?: WorkerReads | null;
 	signalHttp?: GithubHttp | null;
 	installationRepos?: ForgeRuntime["installationRepos"];
+	isRepoPublic?: ForgeRuntime["isRepoPublic"];
 }): (forge: Forge) => ForgeRuntime {
 	return () => ({
 		adapter: runtime.adapter ?? null,
 		reads: runtime.reads ?? null,
 		signalHttp: runtime.signalHttp ?? null,
 		installationRepos: runtime.installationRepos ?? null,
+		isRepoPublic: runtime.isRepoPublic ?? null,
 	});
 }
 
@@ -163,6 +171,8 @@ function buildOpenGitRuntime(
 		signalHttp: null,
 		installationRepos: (installationId) =>
 			listInstallationRepos(credentials, installationId, credentials.apiBase),
+		isRepoPublic: (repoFullName) =>
+			isRepoPublic(repoFullName, credentials.apiBase),
 	};
 }
 
@@ -188,7 +198,9 @@ function buildGithubRuntime(
 		adapter: createGithubAdapter(httpOptions),
 		reads: new GithubReads(httpOptions),
 		signalHttp: new GithubHttp(httpOptions),
-		// GitHub's installation webhook already names every repository.
+		// GitHub's installation webhook already names every repository, and
+		// reports each one's visibility.
 		installationRepos: null,
+		isRepoPublic: null,
 	};
 }

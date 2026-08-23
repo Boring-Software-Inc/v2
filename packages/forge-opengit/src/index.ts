@@ -19,6 +19,7 @@ export {
 } from "./client/auth.ts";
 export { OpenGitHttp, type OpenGitHttpOptions } from "./client/http.ts";
 export {
+	isRepoPublic,
 	listInstallationRepos,
 	type OpenGitInstallationRepo,
 } from "./client/installation.ts";

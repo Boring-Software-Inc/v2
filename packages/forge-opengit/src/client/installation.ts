@@ -64,3 +64,48 @@ export async function listInstallationRepos(
 		})),
 	};
 }
+
+/**
+ * Whether a repository is PUBLIC, by asking for its page without credentials.
+ *
+ * open-git stores visibility — `repositories.visibility` is a real column with a
+ * `('public','private')` check — but exposes it nowhere: not on the installation
+ * response, not on the installation webhooks, not on the pull-request payload.
+ * Until it does, this is the only honest read available.
+ *
+ * The inference is safe in ONE direction only, which is why it is written this
+ * way round:
+ *
+ *   200        the page is served to nobody in particular ⇒ public
+ *   anything   private, gone, renamed, or open-git having a bad minute
+ *              ⇒ NOT confirmed public
+ *
+ * A private repository answers 404 unauthenticated, so it can never be read as
+ * public. The opposite mistake, a public repository read as private, only hides
+ * a run page that would otherwise be visible, and it is what tripwire already
+ * did for every open-git repo.
+ *
+ * Sends no credentials on purpose. An installation token would make a private
+ * repository answer 200 and invert the whole inference.
+ */
+export async function isRepoPublic(
+	repoFullName: string,
+	origin = "https://open-git.com",
+	fetchImpl: typeof fetch = fetch,
+): Promise<boolean> {
+	try {
+		const res = await fetchImpl(
+			`${origin.replace(/\/$/, "")}/${repoFullName}`,
+			{
+				method: "GET",
+				// Never follow: a redirect to a sign-in page is a 200 that means the
+				// opposite of what it looks like.
+				redirect: "manual",
+			},
+		);
+		return res.status === 200;
+	} catch {
+		// A network failure is not evidence of anything. Fail closed.
+		return false;
+	}
+}
