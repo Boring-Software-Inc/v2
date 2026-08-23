@@ -167,6 +167,21 @@ export async function processEvent(
 			 * ever executes on a lazily-upserted repo.
 			 */
 			installationId: normalized.installationExternalId ?? null,
+			/**
+			 * If an admin has already CLAIMED this installation, repos arriving
+			 * later belong to that org. Without this the claim bound the
+			 * installation and every repo that showed up afterwards still landed
+			 * unclaimed — invisible to org-scoped queries, and back on the claim
+			 * screen for a decision that was already made.
+			 *
+			 * Still null when nobody has claimed it: unclaimed is the honest state,
+			 * never a guess (§10).
+			 */
+			orgId: normalized.installationExternalId
+				? await orgServices.getInstallationOrg(db, {
+						installationId: normalized.installationExternalId,
+					})
+				: null,
 		});
 		logger.info(
 			{
