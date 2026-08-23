@@ -1,6 +1,6 @@
+import { createHmac } from "node:crypto";
 import { join } from "node:path";
 import { CHECK_NAME, type JsonValue } from "@tripwire/contracts";
-import { signWebhookBody } from "@tripwire/forge-opengit";
 import { $ } from "bun";
 import type { HarnessConfig } from "./config.ts";
 
@@ -51,6 +51,23 @@ export interface OpenGitCheck {
 }
 
 export type FileEdit = Record<string, string | null>;
+
+/**
+ * The X-Hub-Signature-256 header value: HMAC SHA-256 of the RAW body.
+ *
+ * Deliberately NOT imported from @tripwire/forge-opengit. Nothing in the
+ * monorepo root depends on that package, so importing it here would mean adding
+ * a root workspace dependency, and a `workspace:*` in the ROOT package does not
+ * resolve on the bun version the deploy image runs. The build fails before a
+ * line of this file is read.
+ *
+ * Drift is caught end to end rather than by a shared symbol: the api verifies
+ * with the real `verifyWebhookSignature`, so a scheme change makes the injected
+ * delivery 401 and the run fails loudly with "the api refused the delivery".
+ */
+function signDelivery(body: string, secret: string): string {
+	return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
+}
 
 export class OpenGit {
 	private readonly openedPrs: { number: number; url: string }[] = [];
@@ -302,7 +319,7 @@ export class OpenGit {
 				// dedupe works, and made the edit event untestable.
 				"x-open-git-delivery": `injected-${input.event}-${input.headSha.slice(0, 12)}`,
 				"x-open-git-event": input.event,
-				"x-hub-signature-256": signWebhookBody(payload, input.secret),
+				"x-hub-signature-256": signDelivery(payload, input.secret),
 			},
 			body: payload,
 		});
