@@ -110,13 +110,19 @@ export async function syncInstallationRepos(
 	 * them (§10: never auto-attach on a guess).
 	 */
 	orgId: string | null = null,
+	/**
+	 * Defaulted ONLY so existing GitHub callers keep working. It used to be
+	 * hardcoded, so an open-git installation wrote GitHub rows that
+	 * `getRepoByFullName(…, "opengit")` could never find. Pass it explicitly.
+	 */
+	forge: Forge = "github",
 ): Promise<void> {
 	for (const repo of added) {
 		await db
 			.insert(repos)
 			.values({
 				id: generateId(),
-				forge: "github",
+				forge,
 				externalId: repo.externalId,
 				owner: repo.owner,
 				name: repo.name,
@@ -143,7 +149,7 @@ export async function syncInstallationRepos(
 			.update(repos)
 			.set({ removedAt: new Date() })
 			.where(
-				and(eq(repos.forge, "github"), eq(repos.externalId, repo.externalId)),
+				and(eq(repos.forge, forge), eq(repos.externalId, repo.externalId)),
 			);
 	}
 }

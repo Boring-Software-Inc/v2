@@ -18,5 +18,9 @@ export {
 	OpenGitTokenCache,
 } from "./client/auth.ts";
 export { OpenGitHttp, type OpenGitHttpOptions } from "./client/http.ts";
+export {
+	listInstallationRepos,
+	type OpenGitInstallationRepo,
+} from "./client/installation.ts";
 export { normalizeWebhook } from "./webhook/normalize.ts";
 export { signWebhookBody, verifyWebhookSignature } from "./webhook/verify.ts";
