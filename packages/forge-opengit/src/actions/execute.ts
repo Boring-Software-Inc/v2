@@ -16,9 +16,9 @@ import { setCheck } from "./check.ts";
  * block clears. A stale, undismissable review is worse than none; the check
  * already says the same thing and clears itself on the next upsert.
  *
- * Everything else throws. open-git has no labels, no comment upsert (its
- * comments endpoint is create-only — no list, no patch — so honouring "upsert,
- * never append" is impossible), no reviewer requests and no dismissals.
+ * Comments append rather than upsert, and only on a verdict transition — see
+ * the case below. Everything else throws: open-git has no labels, no reviewer
+ * requests and no dismissals.
  * Throwing is deliberate: `block` and `dismiss-review` are best-effort at the
  * caller and settle with a warning, while the rest stay recorded rather than
  * being marked executed. Silently returning success would put an action in the
@@ -39,9 +39,29 @@ export async function executeAction(
 			);
 		}
 		case "comment": {
-			throw new Error(
-				"open-git exposes no comment list or update endpoint, so a comment cannot be upserted (§7)",
-			);
+			/**
+			 * open-git's comment endpoint is CREATE-ONLY — no list, no patch, no
+			 * delete — so §7's "upsert, never append" is impossible here. Refusing
+			 * outright was worse: the check said "blocked" and the thread never
+			 * said why, which is the one place a contributor actually looks.
+			 *
+			 * So it appends, but only on a TRANSITION. `previousVerdict` is the
+			 * verdict the change request already shows, from run history: null is
+			 * the first verdict, and equal means nothing has changed since the last
+			 * comment. Re-pushing the same verdict therefore adds nothing, and a
+			 * long-running blocked change request collects ONE comment rather than
+			 * one per push. A flip gets a new comment explaining the change — the
+			 * old one stays, because open-git offers no way to supersede it.
+			 */
+			if (action.previousVerdict === action.verdict) {
+				return { externalId: null };
+			}
+			const created = (await http.post(
+				action.repoFullName,
+				`/api/v1/repos/${action.repoFullName}/pulls/${action.number}/comments`,
+				{ body: action.body },
+			)) as { id?: string } | null;
+			return { externalId: created?.id ?? null };
 		}
 		case "label": {
 			throw new Error("open-git exposes no label endpoint");
