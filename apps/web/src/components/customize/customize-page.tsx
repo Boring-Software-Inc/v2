@@ -85,6 +85,7 @@ function flattenConfig(config: ResponseConfig): Record<string, unknown> {
 		"blockComment.showDetailsButton": config.blockComment.showDetailsButton,
 		"reviewComment.customText": config.reviewComment.customText,
 		"reviewComment.showDetailsButton": config.reviewComment.showDetailsButton,
+		failClosedFallback: config.failClosedFallback,
 	};
 }
 
@@ -111,6 +112,12 @@ function unflattenConfig(flat: Record<string, unknown>): ResponseConfig {
 			customText: flat["reviewComment.customText"],
 			showDetailsButton: flat["reviewComment.showDetailsButton"],
 		},
+		/**
+		 * Must round-trip. Absent here, the schema default (true) rebuilt the
+		 * config on every save, so editing an unrelated control silently switched
+		 * the safety net back on for a repo that had turned it off.
+		 */
+		failClosedFallback: flat.failClosedFallback,
 	});
 }
 
@@ -229,6 +236,7 @@ function CustomizePageInner({
 				"reviewComment.showDetailsButton": valueFor(
 					"reviewComment.showDetailsButton",
 				),
+				failClosedFallback: valueFor("failClosedFallback"),
 			})
 		: null;
 
