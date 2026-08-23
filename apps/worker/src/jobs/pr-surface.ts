@@ -120,7 +120,11 @@ export async function emitPrSurface(
 	// verdict TRANSITION always writes the comment even when the config says
 	// silent — the active comment shows a verdict that is no longer true, and a
 	// stale "blocked" must never outlive its verdict (§7).
-	const repoRow = await repoServices.getRepoByFullName(db, repoFullName);
+	const repoRow = await repoServices.getRepoByFullName(
+		db,
+		repoFullName,
+		event.forge,
+	);
 	const responseConfig = await repoServices.getResponseConfig(
 		db,
 		repoRow?.id ?? null,

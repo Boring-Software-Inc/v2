@@ -1,5 +1,5 @@
 import type { Verdict, WorkflowDefinition } from "@tripwire/contracts";
-import { ruleDisplayName } from "@tripwire/contracts";
+import { changeRequestUrl, ruleDisplayName } from "@tripwire/contracts";
 import { type Db, orgServices, repoServices, runServices } from "@tripwire/db";
 import {
 	resolveRunAccess,
@@ -27,10 +27,16 @@ export async function loadRunView(
 	const hasSession = session.userId !== null;
 	// The repo row backs both the no-session privacy gate and the full view's
 	// re-run scope (org slug + repo name + the admin check).
-	const repo = await repoServices.getRepoByFullName(
-		db,
-		result.run.repoFullName,
-	);
+	/**
+	 * `runs` stores repo_full_name and no forge, so the forge comes from the repo
+	 * row. This was hardcoded to "github": an open-git run resolved NO repo, so
+	 * it lost its org, its re-run scope, and its custom rule names, and the page
+	 * quietly rendered a lesser version of itself.
+	 */
+	const forge = await repoServices.findRepoForge(db, result.run.repoFullName);
+	const repo = forge
+		? await repoServices.getRepoByFullName(db, result.run.repoFullName, forge)
+		: null;
 	const repoPrivate =
 		session.authEnabled && !hasSession ? (repo?.private ?? null) : null;
 	const access = resolveRunAccess({
@@ -94,6 +100,19 @@ export async function loadRunView(
 		orgSlug,
 		repoName,
 		canRerun,
+		forge,
+		/**
+		 * Built here, not in the component: a self-hosted open-git moves, and the
+		 * origin is environment, which contracts and the browser must not read.
+		 */
+		subjectUrl: forge
+			? changeRequestUrl({
+					forge,
+					repoFullName: result.run.repoFullName,
+					number: result.run.subjectNumber,
+					origin: forge === "opengit" ? process.env.OPEN_GIT_URL : undefined,
+				})
+			: null,
 		// RENDER-TIME dedupe of a joined run (§5.11). Persisted rows stay 1:1 with
 		// execution — stats, replay, and delivery all read the raw rows, never this
 		// view — so this only cleans the feed. Nothing is suppressed.

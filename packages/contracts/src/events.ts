@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { forgeSchema } from "./forges.ts";
 import { type RepoRef, repoRefSchema } from "./repo.ts";
 
 /**
@@ -35,9 +36,19 @@ export const changeRequestPayloadSchema = z.object({
 	number: z.number().int(),
 	title: z.string(),
 	headSha: z.string(),
-	baseRef: z.string(),
-	headRef: z.string(),
-	draft: z.boolean(),
+	/**
+	 * Branch refs and the draft flag are OPTIONAL because not every forge puts
+	 * them on the wire. open-git's pull_request payload carries id, number,
+	 * author, title, body and head_sha — no refs, no draft — and its v1 read API
+	 * exposes no way to fill the gap. Absent means "this forge does not say",
+	 * which is a fact; defaulting them to "" / false would be a fabrication, and
+	 * the signals that read them skip honestly instead (§6).
+	 *
+	 * Every field a rule can actually depend on cross-forge stays required.
+	 */
+	baseRef: z.string().optional(),
+	headRef: z.string().optional(),
+	draft: z.boolean().optional(),
 	url: z.string(),
 });
 export type ChangeRequestPayload = z.infer<typeof changeRequestPayloadSchema>;
@@ -66,12 +77,23 @@ export type PushPayload = z.infer<typeof pushPayloadSchema>;
 const eventBase = {
 	/** UUIDv7, assigned at ingest. */
 	id: z.string(),
-	forge: z.literal("github"),
-	/** The forge's delivery id (X-GitHub-Delivery) — the idempotency key. */
+	forge: forgeSchema,
+	/** The forge's delivery id (X-GitHub-Delivery / X-Gitlab-Webhook-UUID) — the idempotency key. */
 	deliveryId: z.string(),
 	repo: repoRefSchema,
 	/** The forge's repo id, as a string — installation sync + lazy repo upsert. */
 	repoExternalId: z.string().optional(),
+	/**
+	 * The app/bot installation this delivery came through, when the forge puts
+	 * it on the event itself. open-git does, on every pull-request payload, and
+	 * it is the ONLY way tripwire learns an open-git installation id: open-git's
+	 * `installation.created` lists repositories as bare uuids, with no owner or
+	 * name to build a repo row from.
+	 *
+	 * Without it the lazy repo upsert writes an empty installation id, the token
+	 * mint throws `no installation for <repo>`, and no check is ever posted.
+	 */
+	installationExternalId: z.string().optional(),
 	actor: eventActorSchema,
 	occurredAt: z.iso.datetime(),
 	receivedAt: z.iso.datetime(),
@@ -80,7 +102,7 @@ const eventBase = {
 /** Installation events span repos, so they carry a list, not a base repo. */
 const installationBase = {
 	id: z.string(),
-	forge: z.literal("github"),
+	forge: forgeSchema,
 	deliveryId: z.string(),
 	actor: eventActorSchema,
 	occurredAt: z.iso.datetime(),

@@ -1,13 +1,14 @@
 import {
 	DEFAULT_RESPONSE_CONFIG,
 	definitionReferencesRule,
+	type Forge,
 	type ResponseConfig,
 	responseConfigSchema,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { organizationInstallations } from "../schema/organizations.ts";
 import {
@@ -22,32 +23,64 @@ import {
 /** Repo + config persistence (§4): installation sync, config CRUD, workflows. */
 
 export interface EnsureRepoInput {
+	/** Which forge the repo lives on. Defaults to GitHub. */
+	forge?: Forge;
 	externalId: string;
 	owner: string;
 	name: string;
 	fullName: string;
 	private?: boolean;
 	installationId?: string | null;
+	/** The owning org, or null when nobody has claimed it yet (§10). */
+	orgId?: string | null;
 }
 
 export async function ensureRepo(db: Db, input: EnsureRepoInput) {
+	const forge = input.forge ?? "github";
 	const existing = await db
 		.select()
 		.from(repos)
-		.where(and(eq(repos.forge, "github"), eq(repos.fullName, input.fullName)));
-	if (existing[0]) {
-		return existing[0].id;
+		.where(and(eq(repos.forge, forge), eq(repos.fullName, input.fullName)));
+	const row = existing[0];
+	if (row) {
+		// A SOFT-REMOVED row is not "already there" — it is a repo a disconnect
+		// took out of service. Returning early left it invisible forever: the
+		// import reported success, `removed_at` stayed set so nothing listed it,
+		// and `org_id` still pointed at the org that disconnected it, so the claim
+		// screen could not offer it either.
+		//
+		// Re-adding revives it and RELEASES the old org, matching what
+		// `syncInstallationRepos` does for GitHub. Releasing is the point: a
+		// disconnect is an explicit "stop watching through this connection", so a
+		// re-import must not silently resurrect the previous binding — it goes back
+		// on the claim screen for whichever org the user picks now.
+		if (row.removedAt) {
+			await db
+				.update(repos)
+				.set({
+					removedAt: null,
+					externalId: input.externalId,
+					owner: input.owner,
+					name: input.name,
+					private: input.private ?? false,
+					installationId: input.installationId ?? null,
+					orgId: input.orgId ?? null,
+				})
+				.where(eq(repos.id, row.id));
+		}
+		return row.id;
 	}
 	const id = generateId();
 	await db.insert(repos).values({
 		id,
-		forge: "github",
+		forge,
 		externalId: input.externalId,
 		owner: input.owner,
 		name: input.name,
 		fullName: input.fullName,
 		private: input.private ?? false,
 		installationId: input.installationId ?? null,
+		orgId: input.orgId ?? null,
 	});
 	return id;
 }
@@ -77,13 +110,19 @@ export async function syncInstallationRepos(
 	 * them (§10: never auto-attach on a guess).
 	 */
 	orgId: string | null = null,
+	/**
+	 * Defaulted ONLY so existing GitHub callers keep working. It used to be
+	 * hardcoded, so an open-git installation wrote GitHub rows that
+	 * `getRepoByFullName(…, "opengit")` could never find. Pass it explicitly.
+	 */
+	forge: Forge = "github",
 ): Promise<void> {
 	for (const repo of added) {
 		await db
 			.insert(repos)
 			.values({
 				id: generateId(),
-				forge: "github",
+				forge,
 				externalId: repo.externalId,
 				owner: repo.owner,
 				name: repo.name,
@@ -110,7 +149,7 @@ export async function syncInstallationRepos(
 			.update(repos)
 			.set({ removedAt: new Date() })
 			.where(
-				and(eq(repos.forge, "github"), eq(repos.externalId, repo.externalId)),
+				and(eq(repos.forge, forge), eq(repos.externalId, repo.externalId)),
 			);
 	}
 }
@@ -125,22 +164,29 @@ export async function syncInstallationRepos(
  */
 export async function removeInstallation(
 	db: Db,
+	forge: Forge,
 	installationId: string,
-): Promise<void> {
-	await db
+): Promise<{ removedRepos: number }> {
+	const removed = await db
 		.update(repos)
 		.set({ removedAt: new Date() })
 		.where(
-			and(eq(repos.forge, "github"), eq(repos.installationId, installationId)),
-		);
+			and(
+				eq(repos.forge, forge),
+				eq(repos.installationId, installationId),
+				isNull(repos.removedAt),
+			),
+		)
+		.returning({ id: repos.id });
 	await db
 		.delete(organizationInstallations)
 		.where(
 			and(
-				eq(organizationInstallations.forge, "github"),
+				eq(organizationInstallations.forge, forge),
 				eq(organizationInstallations.installationId, installationId),
 			),
 		);
+	return { removedRepos: removed.length };
 }
 
 /** Repos visible to the dashboard — soft-deleted rows excluded. */
@@ -184,13 +230,17 @@ export async function setBackfillProgress(
 		.where(eq(repos.id, repoId));
 }
 
-export async function getRepoByFullName(db: Db, fullName: string) {
+export async function getRepoByFullName(
+	db: Db,
+	fullName: string,
+	forge: Forge,
+) {
 	const rows = await db
 		.select()
 		.from(repos)
 		.where(
 			and(
-				eq(repos.forge, "github"),
+				eq(repos.forge, forge),
 				eq(repos.fullName, fullName),
 				isNull(repos.removedAt),
 			),
@@ -198,12 +248,33 @@ export async function getRepoByFullName(db: Db, fullName: string) {
 	return rows[0] ?? null;
 }
 
+/**
+ * The forge a repo lives on, found by full name alone. `runs` carries
+ * `repo_full_name` but no forge, so a recovery path holding only a run (the
+ * action sweeper) has no other way to pick the right adapter — and picking the
+ * wrong one means authenticating against a forge the repo is not on.
+ *
+ * Returns null when no live row matches, or when the same full name exists on
+ * more than one forge: a guess there would act on the wrong repository.
+ */
+export async function findRepoForge(
+	db: Db,
+	fullName: string,
+): Promise<Forge | null> {
+	const rows = await db
+		.select({ forge: repos.forge })
+		.from(repos)
+		.where(and(eq(repos.fullName, fullName), isNull(repos.removedAt)));
+	return rows.length === 1 ? (rows[0]?.forge ?? null) : null;
+}
+
 /** Enabled workflow definitions for a repo, contracts-validated on read. */
 export async function listEnabledWorkflows(
 	db: Db,
 	repoFullName: string,
+	forge: Forge,
 ): Promise<WorkflowDefinition[]> {
-	const repo = await getRepoByFullName(db, repoFullName);
+	const repo = await getRepoByFullName(db, repoFullName, forge);
 	if (!repo) {
 		return [];
 	}
@@ -229,8 +300,9 @@ export async function listEnabledWorkflows(
 export async function listEnabledWorkflowRows(
 	db: Db,
 	repoFullName: string,
+	forge: Forge,
 ): Promise<{ id: string; definition: WorkflowDefinition }[]> {
-	const repo = await getRepoByFullName(db, repoFullName);
+	const repo = await getRepoByFullName(db, repoFullName, forge);
 	if (!repo) {
 		return [];
 	}
@@ -521,4 +593,29 @@ export async function deleteCustomRule(
 		.delete(customRules)
 		.where(and(eq(customRules.id, ruleId), eq(customRules.repoId, repoId)));
 	return { deleted: true, blockedBy: [] };
+}
+
+/**
+ * How many repos from this installation are still waiting to be bound to an org.
+ * The connect flows use it to decide whether the claim screen has anything to
+ * show — re-importing an already-claimed account should not dead-end the user on
+ * an empty picker.
+ */
+export async function countUnclaimedRepos(
+	db: Db,
+	forge: Forge,
+	installationId: string,
+): Promise<number> {
+	const rows = await db
+		.select({ n: sql<number>`count(*)::int` })
+		.from(repos)
+		.where(
+			and(
+				eq(repos.forge, forge),
+				eq(repos.installationId, installationId),
+				isNull(repos.orgId),
+				isNull(repos.removedAt),
+			),
+		);
+	return rows[0]?.n ?? 0;
 }

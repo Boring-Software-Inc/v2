@@ -18,6 +18,8 @@ function makeRun(over: Partial<RunView> = {}): RunView {
 		rerunBy: null,
 		orgSlug: "acme",
 		repoName: "web",
+		forge: "github",
+		subjectUrl: null,
 		canRerun: true,
 		steps: [],
 		actions: [],

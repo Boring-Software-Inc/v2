@@ -68,6 +68,23 @@ export const responseConfigSchema = z.object({
 	moderationQueued: commentSurfaceSchema.default("comment"),
 	/** Review comment override — independent of the block override. */
 	reviewComment: commentOverrideSchema.prefault({}),
+	/**
+	 * The fail-closed floor. ON by default, and it should stay on.
+	 *
+	 * When a run would PASS but half or more of its rules could not evaluate,
+	 * the verdict becomes needs_review instead. The evaluation was mostly
+	 * guesswork, so a human decides.
+	 *
+	 * Turning it OFF lets such a run pass. It does NOT hide what happened: the
+	 * run still records which rules skipped and why, and the run page still
+	 * says the evaluation was partial. Turning off a safety net must never
+	 * turn off the evidence.
+	 *
+	 * Reasons a maintainer might turn it off: a forge that cannot feed some
+	 * rules at all, or a private repo where a stalled merge costs more than a
+	 * missed check.
+	 */
+	failClosedFallback: z.boolean().default(true),
 });
 export type ResponseConfig = z.infer<typeof responseConfigSchema>;
 

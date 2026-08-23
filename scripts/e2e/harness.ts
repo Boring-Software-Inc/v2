@@ -135,7 +135,7 @@ function makeHooks(
 async function runOne(
 	scenario: Scenario,
 	method: Method,
-	keep: boolean,
+	keep: () => Promise<boolean>,
 	interactive: boolean,
 ): Promise<RunOutcome> {
 	const spinner = interactive && isTty ? p.spinner() : null;
@@ -165,7 +165,7 @@ function exitCode(outcomes: RunOutcome[]): number {
 		: 0;
 }
 
-async function funnel(c: Colors): Promise<void> {
+async function funnel(c: Colors, keepAlways: boolean): Promise<void> {
 	p.intro(c.bgCyan(c.black(" tripwire e2e ")));
 	p.note(describeConfig(config), "target");
 
@@ -260,7 +260,21 @@ async function funnel(c: Colors): Promise<void> {
 		return;
 	}
 
-	const keep = false;
+	/**
+	 * The funnel NEVER closes a PR on its own. It asks, once the result is on
+	 * screen and you have had a chance to open the link. `--keep` skips the
+	 * question and always keeps.
+	 */
+	const keep = async (): Promise<boolean> => {
+		if (keepAlways) {
+			return true;
+		}
+		const close = await p.confirm({
+			message: "close the PR and delete its branch now?",
+			initialValue: false,
+		});
+		return p.isCancel(close) ? true : !close;
+	};
 	const outcome = await runOne(scenario, method, keep, true);
 	renderResult(outcome, c);
 
@@ -268,11 +282,11 @@ async function funnel(c: Colors): Promise<void> {
 		message: "next?",
 		options: [
 			{ value: "again", label: "run another scenario" },
-			{ value: "done", label: "done (cleaned up)" },
+			{ value: "done", label: "done" },
 		],
 	});
 	if (!p.isCancel(next) && next === "again") {
-		await funnel(c);
+		await funnel(c, keepAlways);
 		return;
 	}
 	p.outro(
@@ -325,10 +339,11 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	// Ctrl-C: run the in-flight scenario's teardown (close its PR, restore pinned
-	// config) BEFORE exiting. A stuck poll won't unwind on its own, so we can't
-	// rely on the scenario's finally firing — we run its registered cleanup here.
-	// A second Ctrl-C gives up waiting and exits now.
+	// Ctrl-C: run the in-flight scenario's teardown (restore the pinned config)
+	// BEFORE exiting. A stuck poll won't unwind on its own, so we can't rely on
+	// the scenario's finally firing — we run its registered cleanup here. The
+	// interrupt KEEPS the PR: an interrupt is not an instruction to destroy the
+	// evidence. A second Ctrl-C gives up waiting and exits now.
 	let interrupting = false;
 	process.on("SIGINT", () => {
 		if (interrupting) {
@@ -336,7 +351,7 @@ async function main(): Promise<void> {
 		}
 		interrupting = true;
 		process.stdout.write(
-			"\n interrupted. closing the open PR and restoring config…\n",
+			"\n interrupted. restoring config — the PR stays open…\n",
 		);
 		void runActiveCleanup()
 			.catch(() => undefined)
@@ -352,7 +367,12 @@ async function main(): Promise<void> {
 		const outcomes: RunOutcome[] = [];
 		for (const scenario of chosen) {
 			outcomes.push(
-				await runOne(scenario, "construct", Boolean(opts.keep), false),
+				await runOne(
+					scenario,
+					"construct",
+					() => Promise.resolve(Boolean(opts.keep)),
+					false,
+				),
 			);
 		}
 		if (opts.json) {
@@ -371,7 +391,12 @@ async function main(): Promise<void> {
 		const outcomes: RunOutcome[] = [];
 		for (const scenario of chosen) {
 			outcomes.push(
-				await runOne(scenario, "construct", Boolean(opts.keep), false),
+				await runOne(
+					scenario,
+					"construct",
+					() => Promise.resolve(Boolean(opts.keep)),
+					false,
+				),
 			);
 		}
 		if (opts.json) {
@@ -400,7 +425,7 @@ async function main(): Promise<void> {
 		const outcome = await runOne(
 			scenario,
 			"construct",
-			Boolean(opts.keep),
+			() => Promise.resolve(Boolean(opts.keep)),
 			opts.input,
 		);
 		if (opts.json) {
@@ -424,7 +449,7 @@ async function main(): Promise<void> {
 		process.exit(2);
 	}
 
-	await funnel(c);
+	await funnel(c, Boolean(opts.keep));
 }
 
 await main();

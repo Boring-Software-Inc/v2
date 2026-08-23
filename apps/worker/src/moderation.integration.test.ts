@@ -14,6 +14,7 @@ import {
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
+import { staticForge } from "./forge-runtime.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 
@@ -87,8 +88,7 @@ const deps = () => ({
 	db,
 	pool,
 	logger,
-	reads: freshReads,
-	adapter: null,
+	resolveForge: staticForge({ reads: freshReads }),
 	makeGenerate: null,
 	appUrl: "https://tripwire.sh",
 });
@@ -360,7 +360,10 @@ describe("deny floor — deny with no deny edge never fails open", () => {
 			getCommits: () => Promise.reject(new Error("creds down")),
 			getContributorProfile: () => Promise.reject(new Error("creds down")),
 		};
-		await processEvent({ ...deps(), reads: brokenReads }, { eventId });
+		await processEvent(
+			{ ...deps(), resolveForge: staticForge({ reads: brokenReads }) },
+			{ eventId },
+		);
 
 		const items = await moderationServices.listPendingItems(
 			db,

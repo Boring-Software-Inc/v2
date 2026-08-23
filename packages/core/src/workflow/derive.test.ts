@@ -120,3 +120,46 @@ describe("deriveDefaultWorkflow", () => {
 		expect(result.verdict).toBe("pass");
 	});
 });
+
+describe("forge-aware derivation", () => {
+	/**
+	 * The bug this pins: every baseline rule but english-only is declared
+	 * `forges: ["github"]`, so an open-git gate built without filtering carried
+	 * four rules that could only ever skip — and one skip trips the fail-closed
+	 * floor, so every pull request went to review no matter what the rules said.
+	 */
+	test("a rule the forge cannot run is left out, not added and skipped", () => {
+		const onGithub = deriveDefaultWorkflow([], undefined, "github");
+		const onOpenGit = deriveDefaultWorkflow([], undefined, "opengit");
+		const refs = (wf: ReturnType<typeof deriveDefaultWorkflow>) =>
+			wf.nodes.flatMap((node) => (node.type === "rule" ? [node.ref] : []));
+
+		expect(refs(onGithub).length).toBeGreaterThan(refs(onOpenGit).length);
+		// english-only reads the title off the webhook, so it survives everywhere.
+		expect(refs(onOpenGit).some((ref) => ref.startsWith("english-only@"))).toBe(
+			true,
+		);
+		expect(refs(onOpenGit).some((ref) => ref.startsWith("account-age@"))).toBe(
+			false,
+		);
+	});
+
+	test("omitting the forge filters nothing", () => {
+		const unfiltered = deriveDefaultWorkflow([]);
+		const onGithub = deriveDefaultWorkflow([], undefined, "github");
+		expect(unfiltered.nodes.length).toBe(onGithub.nodes.length);
+	});
+
+	test("an opt-in toggle for an unsupported rule is refused too", () => {
+		const wf = deriveDefaultWorkflow(
+			[{ ref: "crypto-address@1", enabled: true, config: {} }],
+			undefined,
+			"opengit",
+		);
+		expect(
+			wf.nodes.some(
+				(node) => node.type === "rule" && node.ref.startsWith("crypto-address"),
+			),
+		).toBe(false);
+	});
+});

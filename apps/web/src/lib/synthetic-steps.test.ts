@@ -12,9 +12,10 @@ describe("describeSyntheticStep", () => {
 		expect(view?.kind).toBe("deny-floor");
 		expect(view?.title).toBe("denied by maintainer");
 		expect(view?.detail).toContain("no deny edge drawn");
+		expect(view?.detail).toContain("deny never fails open");
 	});
 
-	test("run:degradation surfaces the skipped ratio and degraded reads", () => {
+	test("run:degradation names the count and what it cost", () => {
 		const view = describeSyntheticStep({
 			nodeId: "run:degradation",
 			output: {
@@ -24,9 +25,32 @@ describe("describeSyntheticStep", () => {
 			},
 		});
 		expect(view?.kind).toBe("degradation");
-		expect(view?.title).toBe("evaluation degraded");
-		expect(view?.detail).toContain("2 of 3 rules skipped");
+		expect(view?.title).toBe("some rules couldn't run");
+		expect(view?.detail).toContain("2 of 3 skipped");
 		expect(view?.detail).toContain("getContributorProfile");
+		expect(view?.detail).toContain("sent to review");
+		// The old copy argued with the reader and used our own jargon.
+		expect(view?.detail).not.toContain("guesswork");
+		expect(view?.detail).not.toContain("fail-closed floor");
+	});
+
+	test("one skipped rule reads as one", () => {
+		const view = describeSyntheticStep({
+			nodeId: "run:degradation",
+			output: { skippedRules: 1, ruleNodes: 2 },
+		});
+		expect(view?.title).toBe("a rule couldn't run");
+		expect(view?.detail).toBe("1 of 2 skipped. sent to review.");
+	});
+
+	test("with the fallback off it says the run passed anyway", () => {
+		const view = describeSyntheticStep({
+			nodeId: "run:degradation",
+			output: { skippedRules: 2, ruleNodes: 3, enforced: false },
+		});
+		expect(view?.detail).toContain("passed without them");
+		expect(view?.detail).toContain("set to pass when a rule can't run");
+		expect(view?.detail).not.toContain("sent to review");
 	});
 
 	test("run:degradation stays honest when output is malformed", () => {
@@ -34,7 +58,8 @@ describe("describeSyntheticStep", () => {
 			nodeId: "run:degradation",
 			output: null,
 		});
-		expect(view?.detail).toContain("rule evaluation degraded");
+		// No counts to show, so it says only what happened. Never a stray "skipped."
+		expect(view?.detail).toBe("sent to review.");
 	});
 
 	test("ordinary graph nodes are not synthetic", () => {
@@ -46,4 +71,15 @@ describe("describeSyntheticStep", () => {
 			expect(describeSyntheticStep({ nodeId, output: null })).toBeNull();
 		}
 	});
+});
+
+test("no synthetic copy uses an em dash", () => {
+	for (const nodeId of ["run:deny-floor", "run:degradation"]) {
+		const view = describeSyntheticStep({
+			nodeId,
+			output: { skippedRules: 2, ruleNodes: 3, enforced: false },
+		});
+		expect(view?.title).not.toContain("\u2014");
+		expect(view?.detail).not.toContain("\u2014");
+	}
 });

@@ -19,6 +19,7 @@ export * from "./custom-rules.ts";
 export * from "./custom-rules-display.ts";
 export * from "./economics.ts";
 export * from "./events.ts";
+export * from "./forges.ts";
 export * from "./insights.ts";
 export * from "./moderation.ts";
 export * from "./org.ts";

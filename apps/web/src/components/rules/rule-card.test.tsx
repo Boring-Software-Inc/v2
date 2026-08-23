@@ -24,6 +24,7 @@ function render(node: ReactNode): string {
 
 const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	ruleId: "account-age",
+	forgeBlockReason: null,
 	version: 1,
 	held: false,
 	changeNote: null,
@@ -116,5 +117,47 @@ describe("RuleCard management states", () => {
 		const src = readFileSync(join(import.meta.dir, "rule-card.tsx"), "utf8");
 		expect(src).toContain("edit in workflow →");
 		expect(src).toContain("/$org/$repo/workflows/$workflowId");
+	});
+});
+
+/**
+ * A rule the forge cannot feed must be INERT, not merely annotated. Leaving the
+ * toggle live lets a maintainer arm account-age on a gitlab repo and believe
+ * contributions are age-gated when the rule can never fire.
+ */
+describe("RuleCard forge support", () => {
+	test("forge-blocked: says why in plain language and the toggle is disabled", () => {
+		const html = render(
+			<RuleCard
+				{...base}
+				rule={rule({
+					enabled: false,
+					forgeBlockReason: "not usable with gitlab",
+				})}
+			/>,
+		);
+		expect(html).toContain("not usable with gitlab");
+		expect(html).toContain('role="switch"');
+		expect(html).toContain("disabled");
+	});
+
+	test("forge-blocked: an opt-in rule offers no 'enable' button", () => {
+		const html = render(
+			<RuleCard
+				{...base}
+				rule={rule({
+					enabled: false,
+					optIn: true,
+					forgeBlockReason: "not usable with gitlab",
+				})}
+			/>,
+		);
+		expect(html).not.toContain(">enable<");
+	});
+
+	test("usable rule is untouched — no reason chip, toggle live", () => {
+		const html = render(<RuleCard {...base} rule={rule()} />);
+		expect(html).not.toContain("not usable with");
+		expect(html).toContain('role="switch"');
 	});
 });

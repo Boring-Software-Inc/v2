@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import {
 	type NormalizedEvent,
 	normalizedEventSchema,
@@ -20,7 +21,11 @@ export const FIXTURE_NOW = "2026-07-11T00:00:00.000Z";
 export async function fixtureEvent(
 	name: "change-request.opened.event" | "comment.created.event",
 ): Promise<NormalizedEvent> {
-	const path = new URL(`../../fixtures/${name}.json`, import.meta.url).pathname;
+	// `fileURLToPath`, not `.pathname`: on Windows the latter yields "/C:/..."
+	// with a leading slash, which no fs call accepts.
+	const path = fileURLToPath(
+		new URL(`../../fixtures/${name}.json`, import.meta.url),
+	);
 	return normalizedEventSchema.parse(await Bun.file(path).json());
 }
 

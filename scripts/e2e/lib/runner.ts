@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { Asserter } from "./assert.ts";
 import type { HarnessConfig } from "./config.ts";
 import { GitHub, type PushTarget } from "./github.ts";
-import { setActiveCleanup } from "./interrupt.ts";
+import { setActiveCleanup, type TeardownOptions } from "./interrupt.ts";
 import { pinRules, restoreRules } from "./rule-configs.ts";
 import type {
 	ActorMode,
@@ -43,8 +43,12 @@ export interface RunnerHooks {
 export interface RunnerOptions {
 	config: HarnessConfig;
 	method: Method;
-	/** Leave the PR open + branch intact for inspection. */
-	keep: boolean;
+	/**
+	 * Asked at teardown, after the result is on screen. A function rather than a
+	 * boolean so the interactive funnel can put the question AFTER you have seen
+	 * the pull request; a scripted run just resolves a decision already made.
+	 */
+	keep: () => Promise<boolean>;
 	hooks: RunnerHooks;
 }
 
@@ -204,7 +208,9 @@ export async function runScenario(
 	// (via the interrupt registry) so an interrupted run still closes its PR and
 	// restores the pinned config rather than leaking them on the sacrificial repo.
 	let torn = false;
-	const teardown = async (): Promise<void> => {
+	const teardown = async (
+		teardownOptions: TeardownOptions = { interrupted: false },
+	): Promise<void> => {
 		if (torn) {
 			return;
 		}
@@ -214,7 +220,14 @@ export async function runScenario(
 				hooks.log(`failed to restore rule_configs: ${String(error)}`),
 			);
 		}
-		if (!options.keep) {
+		// An interrupt never closes anything: the artifacts are the evidence, and
+		// a Ctrl-C is not an instruction to destroy them.
+		const keep = teardownOptions.interrupted ? true : await options.keep();
+		if (keep) {
+			for (const url of gh.openedPrUrls()) {
+				hooks.log(`left open for inspection: ${url}`);
+			}
+		} else {
 			await gh.cleanup().catch(() => undefined);
 		}
 		if (startAccount) {
