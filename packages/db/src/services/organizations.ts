@@ -9,6 +9,7 @@ import {
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
+import { z } from "zod";
 import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
 import {
@@ -833,6 +834,26 @@ export async function getOrgRepo(
 }
 
 /** The org switcher list — repos with triage signal, org-scoped. */
+/**
+ * One row of the org repo-switcher query, parsed rather than coerced. Raw sql
+ * returns untyped columns, and String()/Number()/Boolean() turn a wrong column
+ * into a plausible value instead of a failure.
+ */
+const switcherRepoRowSchema = z.object({
+	id: z.string(),
+	forge: forgeSchema,
+	owner: z.string(),
+	name: z.string(),
+	fullName: z.string(),
+	armed: z.boolean(),
+	pendingModeration: z.number(),
+	blocked24h: z.number(),
+	lastActivityAt: z
+		.union([z.string(), z.date()])
+		.nullable()
+		.transform((value) => (value ? new Date(value).toISOString() : null)),
+});
+
 export async function listOrgSwitcherRepos(
 	db: Db,
 	orgId: string,
@@ -860,33 +881,23 @@ export async function listOrgSwitcherRepos(
 		WHERE r.removed_at IS NULL AND r.org_id = ${orgId}
 		ORDER BY act.last DESC NULLS LAST, r.full_name
 	`);
-	return (
-		(result.rows as Record<string, unknown>[])
-			// SKIP rows whose forge this build does not support — do not coerce, do
-			// not throw. Raw SQL hands back untyped text, and a database outlives any
-			// one build: rows written while another forge was live (a branch, a
-			// rollback, a half-finished migration) are still sitting there.
-			//
-			// Coercing to github was the original bug — it mislabels someone else's
-			// repo. Throwing was the overcorrection — one unsupported row took down
-			// every org-scoped page. Skipping is the honest third option: without an
-			// adapter there is no token, no reads and no actions for that repo, so
-			// listing it would promise something this build cannot do.
-			.filter((row) => forgeSchema.safeParse(row.forge).success)
-			.map((row) => ({
-				id: String(row.id),
-				forge: forgeSchema.parse(row.forge),
-				owner: String(row.owner),
-				name: String(row.name),
-				fullName: String(row.fullName),
-				armed: Boolean(row.armed),
-				pendingModeration: Number(row.pendingModeration ?? 0),
-				blocked24h: Number(row.blocked24h ?? 0),
-				lastActivityAt: row.lastActivityAt
-					? new Date(row.lastActivityAt as string).toISOString()
-					: null,
-			}))
-	);
+	// SKIP rows whose forge this build does not support — do not coerce, do not
+	// throw. Raw SQL hands back untyped text, and a database outlives any one
+	// build: rows written while another forge was live (a branch, a rollback, a
+	// half-finished migration) are still sitting there.
+	//
+	// Coercing to github was the original bug — it mislabels someone else's repo.
+	// Throwing was the overcorrection — one unsupported row took down every
+	// org-scoped page. Skipping is the honest third option: without an adapter
+	// there is no token, no reads and no actions for that repo, so listing it
+	// would promise something this build cannot do.
+	//
+	// The parse below is what performs that skip: `forgeSchema` refuses an
+	// unknown forge, the row fails, and it never reaches the page.
+	return result.rows.flatMap((row) => {
+		const parsed = switcherRepoRowSchema.safeParse(row);
+		return parsed.success ? [parsed.data] : [];
+	});
 }
 
 export interface OrgInstallState {

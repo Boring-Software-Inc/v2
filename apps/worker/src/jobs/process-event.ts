@@ -11,6 +11,7 @@ import { eventServices, orgServices, repoServices } from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { Logger } from "pino";
+import { z } from "zod";
 import { type ForgeRuntime, normalizeFor } from "../forge-runtime.ts";
 import { emitPendingCheck, emitPrSurface } from "./pr-surface.ts";
 import { refreshBranchSuggestions } from "./refresh-suggestions.ts";
@@ -324,6 +325,9 @@ async function syncInstallation(
 	);
 }
 
+/** The only field auto-connect needs off a raw installation delivery. */
+const installationDeliverySchema = z.object({ installation_id: z.string() });
+
 /**
  * Auto-connect (§10): installing the bot IS the connection. The delivery names
  * the installation and its repository uuids; the api turns those into owner and
@@ -345,11 +349,11 @@ async function autoConnectInstallation(
 	event: { id: string; forge: Forge; rawKind: string; raw: unknown },
 	logger: Logger,
 ): Promise<void> {
-	const payload = event.raw as { installation_id?: unknown } | null;
-	const installationId =
-		typeof payload?.installation_id === "string"
-			? payload.installation_id
-			: null;
+	// Parsed, not cast. This is a raw delivery from outside, so the one field
+	// that matters gets a contract at the boundary rather than a typeof further
+	// down. A payload without it is not an error, just nothing to connect.
+	const parsed = installationDeliverySchema.safeParse(event.raw);
+	const installationId = parsed.success ? parsed.data.installation_id : null;
 	if (!installationId) {
 		logger.warn(
 			{ eventId: event.id, rawKind: event.rawKind },

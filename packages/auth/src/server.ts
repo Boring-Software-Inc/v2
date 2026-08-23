@@ -55,6 +55,20 @@ export interface CreateAuthInput {
 }
 
 export function createAuth(input: CreateAuthInput) {
+	/**
+	 * An absent provider must be ABSENT, not present and empty, so better-auth
+	 * never advertises a sign-in it cannot complete. A ternary says that without
+	 * an annotation to discard the inferred shape.
+	 */
+	const socialProviders = input.github
+		? {
+				github: {
+					clientId: input.github.clientId,
+					clientSecret: input.github.clientSecret,
+				},
+			}
+		: {};
+
 	return betterAuth({
 		database: drizzleAdapter(input.db, {
 			provider: "pg",
@@ -95,16 +109,7 @@ export function createAuth(input: CreateAuthInput) {
 				generateId: () => generateId(),
 			},
 		},
-		socialProviders: {
-			...(input.github
-				? {
-						github: {
-							clientId: input.github.clientId,
-							clientSecret: input.github.clientSecret,
-						},
-					}
-				: {}),
-		},
+		socialProviders,
 		user: {
 			// Closed-beta access queue. `input: false` means a client can never set
 			// these through the signup/update payload — only server code (the create

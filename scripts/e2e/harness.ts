@@ -135,7 +135,7 @@ function makeHooks(
 async function runOne(
 	scenario: Scenario,
 	method: Method,
-	keep: boolean | (() => Promise<boolean>),
+	keep: () => Promise<boolean>,
 	interactive: boolean,
 ): Promise<RunOutcome> {
 	const spinner = interactive && isTty ? p.spinner() : null;
@@ -367,7 +367,12 @@ async function main(): Promise<void> {
 		const outcomes: RunOutcome[] = [];
 		for (const scenario of chosen) {
 			outcomes.push(
-				await runOne(scenario, "construct", Boolean(opts.keep), false),
+				await runOne(
+					scenario,
+					"construct",
+					() => Promise.resolve(Boolean(opts.keep)),
+					false,
+				),
 			);
 		}
 		if (opts.json) {
@@ -386,7 +391,12 @@ async function main(): Promise<void> {
 		const outcomes: RunOutcome[] = [];
 		for (const scenario of chosen) {
 			outcomes.push(
-				await runOne(scenario, "construct", Boolean(opts.keep), false),
+				await runOne(
+					scenario,
+					"construct",
+					() => Promise.resolve(Boolean(opts.keep)),
+					false,
+				),
 			);
 		}
 		if (opts.json) {
@@ -415,7 +425,7 @@ async function main(): Promise<void> {
 		const outcome = await runOne(
 			scenario,
 			"construct",
-			Boolean(opts.keep),
+			() => Promise.resolve(Boolean(opts.keep)),
 			opts.input,
 		);
 		if (opts.json) {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { EventKind } from "@tripwire/contracts";
+import type { EventKind, JsonValue } from "@tripwire/contracts";
 import { normalizeWebhook } from "./normalize.ts";
 import { signWebhookBody, verifyWebhookSignature } from "./verify.ts";
 
@@ -10,7 +10,7 @@ import { signWebhookBody, verifyWebhookSignature } from "./verify.ts";
  * change. `author` is what makes these events ingestable at all — tripwire
  * evaluates a contributor, and before it there was nobody to name.
  */
-const raw = (eventName: string, body: unknown) => ({
+const raw = (eventName: string, body: JsonValue) => ({
 	deliveryId: "d-1",
 	eventName,
 	body: JSON.stringify(body),

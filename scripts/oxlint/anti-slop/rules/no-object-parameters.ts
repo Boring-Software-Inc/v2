@@ -1,6 +1,5 @@
-import { defineRule } from "@oxlint/plugins";
-
 import type { ESTree, SourceCode } from "@oxlint/plugins";
+import { defineRule } from "@oxlint/plugins";
 
 type Parameter = ESTree.ParamPattern;
 type ParameterOwner =
@@ -12,7 +11,9 @@ type ParameterOwner =
 	| ESTree.TSFunctionType
 	| ESTree.TSMethodSignature;
 
-function parameterAnnotation(parameter: Parameter): ESTree.TSTypeAnnotation | null | undefined {
+function parameterAnnotation(
+	parameter: Parameter,
+): ESTree.TSTypeAnnotation | null | undefined {
 	if (parameter.type === "TSParameterProperty") {
 		return parameterAnnotation(parameter.parameter);
 	}
@@ -47,7 +48,10 @@ export const noObjectParametersRule = defineRule({
 	create(context) {
 		const aliases = new Map<string, ESTree.TSType>();
 
-		const resolvesToObject = (type: ESTree.TSType, visited = new Set<string>()): boolean => {
+		const resolvesToObject = (
+			type: ESTree.TSType,
+			visited = new Set<string>(),
+		): boolean => {
 			if (type.type === "TSObjectKeyword") return true;
 			if (type.type === "TSParenthesizedType")
 				return resolvesToObject(type.typeAnnotation, visited);
@@ -88,10 +92,13 @@ export const noObjectParametersRule = defineRule({
 			Program(node) {
 				for (const statement of node.body) {
 					const declaration =
-						statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
+						statement.type === "ExportNamedDeclaration"
+							? statement.declaration
+							: statement;
 					if (
 						declaration?.type === "TSTypeAliasDeclaration" &&
-						(declaration.typeParameters === null || declaration.typeParameters === undefined)
+						(declaration.typeParameters === null ||
+							declaration.typeParameters === undefined)
 					) {
 						aliases.set(declaration.id.name, declaration.typeAnnotation);
 					}

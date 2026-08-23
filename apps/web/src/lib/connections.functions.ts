@@ -1,6 +1,24 @@
 import { createServerFn } from "@tanstack/react-start";
 import { type Forge, forgeSchema } from "@tripwire/contracts";
+import { z } from "zod";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
+
+/**
+ * One row of the connections query. `accessTokenExpiresAt` accepts a Date or a
+ * string because the driver returns either depending on the column type, and
+ * both mean the same instant.
+ */
+const connectionRowSchema = z.object({
+	forge: forgeSchema,
+	accountId: z.string(),
+	repoCount: z.number(),
+	unclaimedCount: z.number(),
+	accessTokenExpiresAt: z
+		.union([z.string(), z.date()])
+		.nullable()
+		.transform((value) => (value ? new Date(value).toISOString() : null)),
+	canRefresh: z.boolean(),
+});
 
 /** One linked forge account, as the connections pane renders it. */
 export interface ForgeConnection {
@@ -53,22 +71,19 @@ export const listForgeConnections = createServerFn({ method: "GET" })
 			WHERE a.user_id = ${userId}
 			ORDER BY a.provider_id
 		`);
-		return (
-			(result.rows as Record<string, unknown>[])
-				// Non-forge providers (credential rows) share this table — drop anything
-				// the catalog doesn't know rather than rendering a markless row.
-				.filter((row) => forgeSchema.safeParse(row.forge).success)
-				.map((row) => ({
-					forge: forgeSchema.parse(row.forge),
-					accountId: String(row.accountId),
-					repoCount: Number(row.repoCount ?? 0),
-					unclaimedCount: Number(row.unclaimedCount ?? 0),
-					accessTokenExpiresAt: row.accessTokenExpiresAt
-						? new Date(row.accessTokenExpiresAt as string).toISOString()
-						: null,
-					canRefresh: Boolean(row.canRefresh),
-				}))
-		);
+		/**
+		 * PARSED, not cast. Raw sql hands back untyped rows, so the shape is
+		 * established once here rather than coerced field by field with String(),
+		 * Number() and Boolean() that turn a wrong column into a plausible value.
+		 *
+		 * A row that fails is DROPPED, which is also how non-forge providers leave:
+		 * credential rows share this table, and `forgeSchema` refuses them, so they
+		 * never reach the pane as a markless row.
+		 */
+		return result.rows.flatMap((row) => {
+			const parsed = connectionRowSchema.safeParse(row);
+			return parsed.success ? [parsed.data] : [];
+		});
 	});
 
 /**

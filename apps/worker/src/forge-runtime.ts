@@ -23,13 +23,13 @@ import type { WorkerReads } from "./context.ts";
  * from the cred-gated runtime — an event still normalizes and persists even when
  * that forge's reads/actions are offline.
  */
-const NORMALIZERS: Record<
-	Forge,
-	(event: RawForgeEvent, receivedAt: string) => NormalizedEvent | null
-> = {
+const NORMALIZERS = {
 	github: normalizeGithub,
 	opengit: normalizeOpenGit,
-};
+} satisfies Record<
+	Forge,
+	(event: RawForgeEvent, receivedAt: string) => NormalizedEvent | null
+>;
 
 export function normalizeFor(
 	forge: Forge,
@@ -115,14 +115,14 @@ export interface ResolveForgeInput {
 export function buildResolveForge(
 	input: ResolveForgeInput,
 ): (forge: Forge) => ForgeRuntime | null {
-	const runtimes: Record<Forge, ForgeRuntime | null> = {
+	const runtimes = {
 		github: input.github
 			? buildGithubRuntime(input.db, input.github, input.onCall)
 			: null,
 		opengit: input.opengit
 			? buildOpenGitRuntime(input.db, input.opengit, input.onCall)
 			: null,
-	};
+	} satisfies Record<Forge, ForgeRuntime | null>;
 	return (forge: Forge): ForgeRuntime | null => runtimes[forge];
 }
 

@@ -42,7 +42,7 @@ interface ForgeWebhook {
 	secret(depsSecret: string): string;
 }
 
-const WEBHOOKS: Record<Forge, ForgeWebhook> = {
+const WEBHOOKS = {
 	github: {
 		deliveryHeader: "x-github-delivery",
 		eventHeader: "x-github-event",
@@ -61,7 +61,7 @@ const WEBHOOKS: Record<Forge, ForgeWebhook> = {
 		// non-GitHub forge needs a secret here.
 		secret: () => process.env.OPEN_GIT_BOT_WEBHOOK_SECRET ?? "",
 	},
-};
+} satisfies Record<Forge, ForgeWebhook>;
 
 export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 	// Unknown forge ⇒ 404 before the body is touched. No default, no fallthrough.

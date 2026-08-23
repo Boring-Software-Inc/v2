@@ -1,3 +1,4 @@
+import type { JsonValue } from "@tripwire/contracts";
 import { OPEN_GIT_API_BASE } from "./auth.ts";
 
 /**
@@ -28,17 +29,22 @@ export class OpenGitHttp {
 		repoFullName: string,
 		method: "GET" | "POST" | "PATCH" | "PUT",
 		path: string,
-		body?: unknown,
+		body?: JsonValue,
 	): Promise<unknown> {
 		const token = await this.options.tokenFor(repoFullName);
 		const sentBody = body === undefined ? undefined : JSON.stringify(body);
+		// Built as a statement: a content-type on a bodyless GET is a lie, and a
+		// conditional spread hides that decision inside the object literal.
+		const headers = new Headers({
+			authorization: `Bearer ${token}`,
+			accept: "application/json",
+		});
+		if (sentBody !== undefined) {
+			headers.set("content-type", "application/json");
+		}
 		const res = await this.fetchImpl(`${this.apiBase}${path}`, {
 			method,
-			headers: {
-				authorization: `Bearer ${token}`,
-				accept: "application/json",
-				...(body === undefined ? {} : { "content-type": "application/json" }),
-			},
+			headers,
 			body: sentBody,
 		});
 		// One text read serves both the byte count and the parse, so metering adds
@@ -61,7 +67,7 @@ export class OpenGitHttp {
 	get(repo: string, path: string): Promise<unknown> {
 		return this.request(repo, "GET", path);
 	}
-	post(repo: string, path: string, body: unknown): Promise<unknown> {
+	post(repo: string, path: string, body: JsonValue): Promise<unknown> {
 		return this.request(repo, "POST", path, body);
 	}
 }

@@ -97,10 +97,15 @@ export function ConnectForgeGrid({
 		};
 	}
 
-	const STATE: Record<string, () => ForgeCellState> = {
-		github: () => installState("github", githubUrl),
-		opengit: () => installState("open-git", openGitUrl),
-	};
+	/**
+	 * A Map, not a dictionary: a catalog entry with no builder here must MISS,
+	 * which is what makes the cell fall through to an honest "can't connect yet"
+	 * instead of an open index signature quietly returning undefined.
+	 */
+	const STATE = new Map<string, () => ForgeCellState>([
+		["github", () => installState("github", githubUrl)],
+		["opengit", () => installState("open-git", openGitUrl)],
+	]);
 
 	return (
 		<div className={FORGE_GRID}>
@@ -111,7 +116,7 @@ export function ConnectForgeGrid({
 					label={forge.label}
 					state={
 						forge.status === "live"
-							? (STATE[forge.id]?.() ?? {
+							? (STATE.get(forge.id)?.() ?? {
 									kind: "blocked",
 									title: `${forge.label} can't connect yet`,
 									body: "this forge signs in but has no repo import.",
