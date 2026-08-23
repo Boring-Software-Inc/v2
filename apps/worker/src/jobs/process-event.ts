@@ -399,10 +399,29 @@ async function autoConnectInstallation(
 		installationId,
 		forge: event.forge,
 	});
+	/**
+	 * Visibility, asked rather than assumed. This used to hardcode private for
+	 * every open-git repo, which silently disabled the §10 public run page even
+	 * for a repo that is plainly public.
+	 *
+	 * The probe can only ever be wrong in the safe direction: a private repo
+	 * answers 404 unauthenticated, so it cannot be read as public. A missing
+	 * probe, or a failed one, keeps the old fail-closed answer.
+	 *
+	 * Probed together rather than one after another: a large installation would
+	 * otherwise pay one round trip per repo, in series.
+	 */
+	const probe = runtime?.isRepoPublic;
+	const visibility = await Promise.all(
+		repos.map(async (repo) => ({
+			...repo,
+			private: probe ? !(await probe(repo.fullName)) : true,
+		})),
+	);
 	await repoServices.syncInstallationRepos(
 		db,
 		installationId,
-		repos.map((repo) => ({ ...repo, private: true })),
+		visibility,
 		[],
 		orgId,
 		event.forge,
@@ -412,6 +431,7 @@ async function autoConnectInstallation(
 			installationId,
 			forge: event.forge,
 			repos: repos.length,
+			public: visibility.filter((repo) => !repo.private).length,
 			org: orgId,
 			claimed: orgId !== null,
 		},
