@@ -6,10 +6,16 @@ import type {
 } from "@tripwire/contracts";
 import { workflowDefinitionSchema } from "@tripwire/contracts";
 import { executeWorkflow, type NodeOutcome } from "@tripwire/core";
-import { eventServices, moderationServices, runServices } from "@tripwire/db";
+import {
+	eventServices,
+	moderationServices,
+	repoServices,
+	runServices,
+} from "@tripwire/db";
 import { z } from "zod";
 import { buildRuleContext } from "../context.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
+import { customRuleSource } from "./custom-rules.ts";
 import { emitPrSurface } from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import { makeEvaluator, withPublicProjection } from "./run-workflows.ts";
@@ -162,6 +168,7 @@ export async function resumeRun(
 			: []),
 	]);
 
+	const customRecords = await loadCustomRecords(db, normalized.repo.fullName);
 	await emitPrSurface(
 		{
 			db,
@@ -173,7 +180,7 @@ export async function resumeRun(
 			runId: item.runId,
 			verdict,
 			event: normalized,
-			reasons: buildCommentReasons(runData.steps),
+			reasons: buildCommentReasons(runData.steps, customRecords),
 			pendingActionRows: actionRows,
 		},
 	);
@@ -208,6 +215,10 @@ async function resumeDegradedRun(
 					},
 				])
 			: [];
+	const customRecords = await loadCustomRecords(
+		deps.db,
+		runData.run.repoFullName,
+	);
 	await emitPrSurface(
 		{
 			db: deps.db,
@@ -219,12 +230,24 @@ async function resumeDegradedRun(
 			runId,
 			verdict,
 			event: normalized,
-			reasons: buildCommentReasons(runData.steps),
+			reasons: buildCommentReasons(runData.steps, customRecords),
 			pendingActionRows: actionRows,
 		},
 	);
 	await deps.pool.query("SELECT pg_notify('runs', $1)", [runData.run.eventId]);
 	deps.logger.info({ runId, decision, verdict }, "degraded run resumed");
+}
+
+/** The repo's custom rule records, keyed by ref — so a resumed run's comment
+ * resolves custom rule names + evidence the same way the fresh run did. Signal
+ * ctx is null: only the stored name + definition are needed here, not evaluation. */
+async function loadCustomRecords(
+	db: ProcessEventDeps["db"],
+	repoFullName: string,
+) {
+	const repo = await repoServices.getRepoByFullName(db, repoFullName);
+	const rows = repo ? await repoServices.listCustomRules(db, repo.id) : [];
+	return customRuleSource(rows, null).records;
 }
 
 function splitNodeId(nodeId: string): [string, string | null] {

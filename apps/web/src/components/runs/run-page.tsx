@@ -379,9 +379,7 @@ function RerunRunButton({
 						<button
 							className="rounded-md bg-red-500/10 px-3 py-1.5 font-medium text-red-600 text-xs transition-colors hover:bg-red-500/20 dark:text-red-400"
 							disabled={mutation.isPending}
-							onClick={() =>
-								mutation.mutate({ data: { org, repo, number } })
-							}
+							onClick={() => mutation.mutate({ data: { org, repo, number } })}
 							type="button"
 						>
 							{mutation.isPending ? "queueing…" : "confirm re-run"}

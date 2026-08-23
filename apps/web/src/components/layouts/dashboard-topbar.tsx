@@ -45,7 +45,10 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 	const repo = params.repo;
 
 	return (
-		<nav className="flex min-w-0 items-center gap-3 px-3 py-2">
+		<nav
+			aria-label="Primary"
+			className="flex min-w-0 items-center gap-3 px-3 py-2"
+		>
 			{/* The logo goes home — the only route back to the org level from a repo. */}
 			<Link
 				to={org ? "/$org/home" : "/"}
@@ -124,7 +127,7 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 				aria-label="Account"
 				className="flex size-8 items-center justify-center rounded-full"
 			>
-				<Avatar className="size-7 border border-border">
+				<Avatar className="size-7">
 					<AvatarImage
 						src={moderator.image ?? undefined}
 						alt={moderator.name}

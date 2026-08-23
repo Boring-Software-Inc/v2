@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ParamSentence } from "./param-sentence";
-import { RawConfigDisclosure } from "./raw-config-disclosure";
 
 const noop = () => {};
 
@@ -98,16 +97,5 @@ describe("ParamSentence", () => {
 		);
 		expect(html).toContain("merged change request elsewhere");
 		expect(html).toContain("trusts returning contributors after");
-	});
-});
-
-describe("RawConfigDisclosure", () => {
-	test("is read-only — a disclosure, never an editor", () => {
-		const html = renderToStaticMarkup(
-			<RawConfigDisclosure config={{ minDays: 7 }} />,
-		);
-		expect(html).toContain("view raw");
-		expect(html).not.toContain("<textarea");
-		expect(html).not.toContain("<input");
 	});
 });

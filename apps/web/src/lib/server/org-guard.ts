@@ -1,3 +1,4 @@
+import { notFound } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import type { OrgRole } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
@@ -16,10 +17,13 @@ import type { OrgWithRole } from "@tripwire/db";
  * The middleware reads `data.org` (the URL's org slug — every org-scoped fn
  * carries it), resolves membership FRESH from the DB via `assertOrgRole`, and
  * passes the resolved org (with the caller's role) to the handler as
- * `context.org`. No membership ⇒ a 404-shaped error (§8: non-members can't
- * distinguish "no such org" from "not yours"); member-but-not-admin on an
- * admin surface ⇒ 403. The structural boundary test asserts the middleware in
- * each fn's chain MATCHES its row in server-fn-classification.ts.
+ * `context.org`. EVERY denial — no session, no such org, non-member, or
+ * member-but-not-admin — is a `notFound()` (§8: existence is never disclosed,
+ * the same posture as /admin). `notFound()`/`redirect()` are the ONLY throws
+ * here: a raw `Response` can't cross the server-fn RPC boundary (Seroval can't
+ * serialize it), which crashes SSR route loads. The structural boundary test
+ * asserts the middleware in each fn's chain MATCHES its row in
+ * server-fn-classification.ts.
  */
 
 function orgRoleMiddleware(need: OrgRole) {
@@ -27,7 +31,7 @@ function orgRoleMiddleware(need: OrgRole) {
 		async ({ next, data }) => {
 			const orgSlug = (data as { org?: string } | undefined)?.org;
 			if (!orgSlug || typeof orgSlug !== "string") {
-				throw new Response("not found", { status: 404 });
+				throw notFound();
 			}
 			const { getAuth } = await import("#/lib/server/auth");
 			const auth = getAuth();
@@ -51,7 +55,7 @@ function orgRoleMiddleware(need: OrgRole) {
 					.limit(1);
 				const row = rows[0];
 				if (!row) {
-					throw new Response("not found", { status: 404 });
+					throw notFound();
 				}
 				const devOrg: OrgWithRole = { ...row, role: "admin" };
 				return next({ context: { org: devOrg } });
@@ -63,7 +67,7 @@ function orgRoleMiddleware(need: OrgRole) {
 				headers: getStartContext().request.headers,
 			});
 			if (!session) {
-				throw new Response("unauthorized", { status: 401 });
+				throw notFound();
 			}
 			const { assertOrgRole } = await import("@tripwire/auth/org-gate");
 			const result = await assertOrgRole(db, {
@@ -72,9 +76,10 @@ function orgRoleMiddleware(need: OrgRole) {
 				need,
 			});
 			if (!result.ok) {
-				throw new Response(result.denial.message, {
-					status: result.denial.code === "NOT_FOUND" ? 404 : 403,
-				});
+				// Both NOT_FOUND and member-but-not-admin collapse to 404: a member
+				// must not learn an admin surface exists any more than a non-member
+				// learns the org does.
+				throw notFound();
 			}
 			return next({ context: { org: result.org } });
 		},
@@ -113,7 +118,7 @@ export async function requireOrgRepoById(
 		.where(and(eq(schema.repos.id, repoId), eq(schema.repos.orgId, orgId)))
 		.limit(1);
 	if (!rows[0]) {
-		throw new Response("not found", { status: 404 });
+		throw notFound();
 	}
 }
 
@@ -126,7 +131,7 @@ export async function resolveOrgRepo(orgId: string, repoName: string) {
 	const { orgServices } = await import("@tripwire/db");
 	const repo = await orgServices.getOrgRepo(getDb().db, { orgId, repoName });
 	if (!repo) {
-		throw new Response("not found", { status: 404 });
+		throw notFound();
 	}
 	return repo;
 }

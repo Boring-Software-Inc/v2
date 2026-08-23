@@ -13,3 +13,5 @@ coverage/
 .demo/
 .tests/
 .turbo/
+/docs
+/repo_docs

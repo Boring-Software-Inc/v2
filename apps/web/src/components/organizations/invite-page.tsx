@@ -47,7 +47,7 @@ export function InvitePage() {
 	if (!session.user || redeem.data?.status === "unauthenticated") {
 		return (
 			<InviteShell>
-				<h1 className="font-semibold text-[17px] text-foreground">
+				<h1 className="font-semibold text-lg text-foreground">
 					sign in to accept this invite
 				</h1>
 				<p className="text-[13px] text-muted-foreground leading-relaxed">
@@ -70,7 +70,7 @@ export function InvitePage() {
 	if (redeem.data?.status === "invalid") {
 		return (
 			<InviteShell>
-				<h1 className="font-semibold text-[17px] text-foreground">
+				<h1 className="font-semibold text-lg text-foreground">
 					{INVALID_COPY[redeem.data.reason]}
 				</h1>
 				<p className="text-[13px] text-muted-foreground leading-relaxed">
@@ -90,7 +90,7 @@ export function InvitePage() {
 
 	return (
 		<InviteShell>
-			<h1 className="font-semibold text-[17px] text-foreground">
+			<h1 className="font-semibold text-lg text-foreground">
 				you've been invited to join an org.
 			</h1>
 			<p className="text-[13px] text-muted-foreground leading-relaxed">
@@ -103,11 +103,11 @@ export function InvitePage() {
 				size="sm"
 				type="button"
 			>
-				{redeem.isPending ? "joining…" : "join org"}
+				join org
 			</Button>
 			{redeem.isError ? (
 				<p className="text-[12px] text-destructive">
-					something broke — try again.
+					couldn't join the org. try again in a moment.
 				</p>
 			) : null}
 		</InviteShell>

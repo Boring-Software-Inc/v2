@@ -367,13 +367,15 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
 	return (
 		<div className="fixed inset-0 z-50">
-			<button
-				aria-label="close command palette"
+			{/* Presentational — Esc closes, so the backdrop does not need to be a
+			    viewport-sized tab stop ahead of the search field. */}
+			<div
+				aria-hidden="true"
 				className="absolute inset-0 bg-background/60"
 				onClick={onClose}
-				type="button"
 			/>
 			<div
+				aria-label="Command palette"
 				aria-modal="true"
 				className="-translate-x-1/2 absolute top-[12vh] left-1/2 w-full max-w-lg px-4"
 				role="dialog"
@@ -483,7 +485,11 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 									<kbd className="font-mono">esc</kbd> close
 								</span>
 							</span>
-							<span className="tabular-nums">{resultCount} results</span>
+							{/* Announced as the query narrows — the count is the only signal
+						    that typing is doing anything. */}
+							<span aria-live="polite" className="tabular-nums">
+								{resultCount === 1 ? "1 result" : `${resultCount} results`}
+							</span>
 						</div>
 					</CommandPrimitive>
 				)}

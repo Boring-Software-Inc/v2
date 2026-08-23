@@ -116,9 +116,22 @@ function DashboardShell({ counts, children }: DashboardLayoutProps) {
 					"isolate flex h-dvh flex-col transition-colors duration-300",
 					// Inside a repo the shell is the muted backdrop the page floats on;
 					// on org pages (Home) it matches the card so the topbar blends away.
-					inset ? "bg-muted" : "bg-card",
+					inset ? "bg-background" : "bg-surface-1",
 				)}
 			>
+				{/* First focusable element on every dashboard page — the topbar and
+				    repo nav sit ahead of the content on each route, so keyboard
+				    users get one jump past them. */}
+				{/* Parked off-screen and slid in on focus, rather than `sr-only`:
+				    react-grab writes an inline `clip-path` onto elements, which beats
+				    the utility's clipping and leaves the link visible in the corner.
+				    Translation can't be defeated the same way. */}
+				<a
+					href="#main-content"
+					className="-translate-y-20 fixed top-2 left-2 z-50 rounded-md bg-primary px-3 py-2 font-medium text-primary-foreground text-sm transition-transform focus:translate-y-0"
+				>
+					Skip to content
+				</a>
 				<DashboardTopbar user={user ?? null} />
 				<RouteProgress />
 
@@ -146,16 +159,21 @@ function DashboardShell({ counts, children }: DashboardLayoutProps) {
 						initial={false}
 						animate={{ borderRadius: inset ? 12 : 0 }}
 						transition={SHEET_SPRING}
-						className="relative flex h-full flex-col overflow-hidden bg-card"
+						className="relative flex h-full flex-col overflow-hidden bg-surface-1"
 					>
 						<BetaBanner />
 						{/* The shell owns page scroll: this container scrolls full-width so
 					    the whole page area (not just a centered column) is a scroll +
 					    hover target. Pages render natural-height content; they must NOT
 					    add their own `overflow-stable`/`h-full` scroll wrapper. */}
-						<div ref={pageRef} className="overflow-stable min-h-0 flex-1">
+						<main
+							id="main-content"
+							tabIndex={-1}
+							ref={pageRef}
+							className="overflow-stable min-h-0 flex-1 outline-none"
+						>
 							{children}
-						</div>
+						</main>
 
 						{/* Below xl the side panel can't show — surface its content as a
 					    push-up bottom sheet, mirroring the analytics metrics sheet. */}

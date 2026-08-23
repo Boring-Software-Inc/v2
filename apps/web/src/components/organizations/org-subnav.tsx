@@ -11,7 +11,7 @@ import { Link } from "@tanstack/react-router";
  */
 export function OrgSubnav({ org }: { org: string }) {
 	return (
-		<nav className="flex items-center gap-1">
+		<nav aria-label="Organization" className="flex items-center gap-1">
 			<OrgLink
 				to={`/${org}/analytics`}
 				label="Analytics"

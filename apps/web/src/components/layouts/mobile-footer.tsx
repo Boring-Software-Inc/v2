@@ -37,7 +37,7 @@ export function MobileFooter({ counts }: MobileFooterProps) {
 		return null;
 	}
 	return (
-		<nav className="min-w-0 pb-4 md:hidden">
+		<nav aria-label="Sections" className="pb-safe min-w-0 md:hidden">
 			<div className="flex items-center justify-start gap-0.5 overflow-x-auto scroll-smooth px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 				{repo ? (
 					<>

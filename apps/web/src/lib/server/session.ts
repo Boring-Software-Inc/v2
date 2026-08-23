@@ -1,7 +1,11 @@
+import { redirect } from "@tanstack/react-router";
+
 /**
  * Server-side session reads + the §10 gate for mutating and list-shaped
  * server functions. Open-dev posture (no auth env) leaves the gate open;
- * with auth enabled, no session ⇒ 401 — never a silent read.
+ * with auth enabled, no session ⇒ redirect to /login — never a silent read.
+ * The gate throws `redirect()` (not a raw `Response`) so it survives the
+ * server-fn RPC boundary; a thrown `Response` can't be serialized (Seroval).
  */
 
 export interface SessionState {
@@ -23,10 +27,10 @@ export async function readSessionState(): Promise<SessionState> {
 	return { authEnabled: true, userId: session?.user.id ?? null };
 }
 
-/** Pure gate decision — throws the 401 response when a session is required. */
+/** Pure gate decision — redirects to /login when a session is required. */
 export function assertSession(state: SessionState): void {
 	if (state.authEnabled && !state.userId) {
-		throw new Response("unauthorized", { status: 401 });
+		throw redirect({ to: "/login" });
 	}
 }
 

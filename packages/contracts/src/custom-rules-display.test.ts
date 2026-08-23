@@ -57,7 +57,19 @@ describe("verb narrowing by meaning", () => {
 				comparison: { kind: "oneOf", args: [["Next"]] },
 				severity: "medium",
 			}),
-		).toBe("flag when target branch is one of Next, as a medium signal");
+		).toBe("require that target branch is one of Next");
+	});
+
+	test("a negating verb reads naturally under 'require that' (enum → 'is not')", () => {
+		// The double-negation that made these rules accidentally correct now also
+		// reads correctly: passed = target ∉ {staging} = block staging PRs.
+		expect(
+			customRuleSentence({
+				when: { id: "pr.targetBranch" },
+				comparison: { kind: "noneOf", args: [["staging"]] },
+				severity: "high",
+			}),
+		).toBe("require that target branch is not staging");
 	});
 });
 
@@ -85,10 +97,10 @@ describe("typed value placeholders", () => {
 describe("the maintainer sentence", () => {
 	test("reads as plain language with the configured value", () => {
 		expect(customRuleSentence(accountAge)).toBe(
-			"flag when account age is under 7 days, as a medium signal",
+			"require that account age is under 7 days",
 		);
 		expect(customRuleSentence(forkRate)).toBe(
-			"flag when fork rate in the last 24 hours is at most 20, as a high signal",
+			"require that fork rate in the last 24 hours is at most 20",
 		);
 	});
 });

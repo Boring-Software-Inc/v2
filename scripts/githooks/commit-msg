@@ -1,0 +1,6 @@
+#!/bin/sh
+# Enforced by commitlint.config.ts. Wired via `core.hooksPath`, which the root
+# `prepare` script sets on every `bun install` — no husky, no extra dependency.
+#
+# Escape hatch: `git commit --no-verify` skips this.
+exec bunx --bun commitlint --edit "$1"

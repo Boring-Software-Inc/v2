@@ -91,6 +91,7 @@ export function ModerationPage() {
 							<DitherStatCard
 								animate={animateStats}
 								color="orange"
+								className="bg-surface-1"
 								delay={0}
 								delta={statsQuery.data.sentToReview.delta}
 								focused
@@ -108,6 +109,7 @@ export function ModerationPage() {
 								animate={animateStats}
 								chartLayoutId="chart-moderation-blocked"
 								color="red"
+								className="bg-surface-1"
 								delay={90}
 								delta={statsQuery.data.blocked.delta}
 								goodDirection="neutral"
@@ -120,6 +122,7 @@ export function ModerationPage() {
 								animate={animateStats}
 								chartLayoutId="chart-moderation-passed"
 								color="green"
+								className="bg-surface-1"
 								delay={180}
 								delta={statsQuery.data.passed.delta}
 								goodDirection="up"

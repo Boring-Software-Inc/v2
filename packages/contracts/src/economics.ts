@@ -19,6 +19,20 @@ export const RAILWAY_FLOOR = 5.0;
  */
 export const OR_CREDIT_FEE_MULTIPLIER = 1.055;
 
+/**
+ * The AI review model and its OpenRouter list price (x-ai/grok-4.5). Surfaced in
+ * the digest so a reader knows what drives per-review cost. This is the sticker
+ * rate, not the cache-adjusted effective rate; update it when xAI's pricing
+ * moves. Cost math never reads this — metered cost is the provider-reported
+ * figure per call (review.ts) — so a stale number here only misprints a label.
+ */
+export const REVIEW_MODEL = {
+	id: "x-ai/grok-4.5",
+	label: "grok-4.5",
+	inputUsdPerMTok: 2.0,
+	outputUsdPerMTok: 6.0,
+} as const;
+
 /** Default alert thresholds. Each is env-overridable in the worker. */
 export const OR_DAILY_CAP_USD = 1.0;
 export const DRIFT_ALERT_PCT = 10;

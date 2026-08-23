@@ -39,6 +39,8 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	trend: [],
 	source: "built-in",
 	sentence: null,
+	severity: null,
+	blockingWorkflows: [],
 	...over,
 });
 

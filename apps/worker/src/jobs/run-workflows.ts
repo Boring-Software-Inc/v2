@@ -493,7 +493,7 @@ async function runWorkflowsInner(
 		deps.surface === false ? "suppressed" : "recorded",
 	);
 
-	const reasons = buildCommentReasons(steps);
+	const reasons = buildCommentReasons(steps, customSignals.records);
 	logger.info({ runId, verdict, paused, steps: steps.length }, "run persisted");
 
 	// Best-effort metering (economics-surface-contracts.md): record ai-review
@@ -552,7 +552,13 @@ export function withPublicProjection(
 			envelope && typeof envelope === "object" && "evidence" in envelope
 				? (envelope as { evidence: unknown }).evidence
 				: null;
+		const reason =
+			envelope && typeof envelope === "object" && "reason" in envelope
+				? (envelope as { reason?: unknown }).reason
+				: undefined;
 		const stored = customRecords?.get(step.ruleRef);
+		let publicEvidence: unknown;
+		let summary: string | null;
 		if (stored) {
 			// Custom rules project generically: the observed value is public
 			// (it is the contributor's own footprint); the configured threshold
@@ -561,18 +567,43 @@ export function withPublicProjection(
 				inner && typeof inner === "object" && "observed" in inner
 					? (inner as { observed: unknown }).observed
 					: null;
-			return {
-				...step,
-				publicEvidence: observed === null ? null : { observed },
-				summary:
-					observed === null
-						? null
-						: customRuleSummary(stored.definition, observed),
-			};
+			publicEvidence = observed === null ? null : { observed };
+			summary =
+				observed === null
+					? null
+					: customRuleSummary(stored.definition, observed);
+		} else {
+			({ publicEvidence, summary } = projectRulePublic(step.ruleRef, inner));
 		}
-		const { publicEvidence, summary } = projectRulePublic(step.ruleRef, inner);
+		// A skipped step carries no evidence; surface WHY (a skip with no reason
+		// is invisible failure — the class that let custom rules sit inert). The
+		// reason is sanitized so a thrown-rule stack trace or a schema error never
+		// reaches a contributor (§10); the raw reason stays on the gated output.
+		if (
+			summary === null &&
+			step.status === "skipped" &&
+			typeof reason === "string"
+		) {
+			summary = publicSkipReason(reason);
+		}
 		return { ...step, publicEvidence, summary };
 	});
+}
+
+/**
+ * The public one-liner for a skipped rule step. Curated operational reasons
+ * ("the change's diff is unavailable", "contributor profile unavailable") read
+ * fine to a contributor and pass through. Bug-class / internal reasons — a rule
+ * that threw, a schema mismatch, an invalid config, the ai-review muzzle — would
+ * read like a stack trace on a public PR, so they collapse to a generic line
+ * (§10). The verbatim reason is still on the maintainer-only `output` envelope.
+ */
+const INTERNAL_SKIP_REASON =
+	/^rule threw|^unknown rule|failed schema|^invalid config|muzzle/i;
+export function publicSkipReason(reason: string): string {
+	return INTERNAL_SKIP_REASON.test(reason)
+		? "this rule couldn't be evaluated"
+		: reason;
 }
 
 export function makeEvaluator(

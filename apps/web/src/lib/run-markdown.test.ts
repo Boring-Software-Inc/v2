@@ -189,3 +189,25 @@ describe("runToMarkdown", () => {
 		expect(md).not.toMatch(/\bwebhook\.site\b/);
 	});
 });
+
+describe("runToMarkdown — custom rule name resolution", () => {
+	test("a custom rule step renders its server-resolved name, not the bare ref", () => {
+		const md = runToMarkdown(
+			makeRun({
+				steps: [
+					step({
+						ruleRef: "custom-spam-forks-019f8c@1",
+						ruleName: "spam forks",
+						status: "fail",
+						summary: "fork rate in the last 24 hours is 0",
+					}),
+				],
+			}),
+			"just now",
+		);
+		// the label is the name; the ref stays as engine identity on its own line
+		expect(md).toContain("**spam forks**");
+		expect(md).toContain("`custom-spam-forks-019f8c@1`");
+		expect(md).toContain("> fork rate in the last 24 hours is 0");
+	});
+});

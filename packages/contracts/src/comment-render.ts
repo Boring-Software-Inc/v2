@@ -1,4 +1,4 @@
-import type { BlockCommentConfig } from "./response.ts";
+import { commentOverrideFor, type ResponseConfig } from "./response.ts";
 import { ruleContributorLabel, ruleDisplayName } from "./rules.ts";
 import type { Verdict } from "./runs.ts";
 
@@ -204,7 +204,10 @@ function runButton(input: CommentInput): string {
  * its output is snapshot-tested and must never drift (a repo that never opened
  * /customize gets exactly this).
  */
-export function renderCommentBody(input: CommentInput): string {
+export function renderCommentBody(
+	input: CommentInput,
+	showDetailsButton = true,
+): string {
 	const button = runButton(input);
 	const headline = commentHeadline(input.verdict, input.contributorLogin, {
 		degraded: input.degraded,
@@ -214,12 +217,21 @@ export function renderCommentBody(input: CommentInput): string {
 	if (input.rerun) {
 		lines.push(RERUN_NOTE, "");
 	}
+	// showDetailsButton off drops the "View on Tripwire" link (the run page is
+	// the appeal surface, §10) while keeping the reasons + generic collapsibles.
+	// Default true ⇒ byte-identical to the locked baseline.
 	if (input.verdict === "block") {
-		lines.push(reasonsBlock(input.reasons), "", button, "");
+		lines.push(reasonsBlock(input.reasons), "");
+		if (showDetailsButton) {
+			lines.push(button, "");
+		}
 		lines.push(howDoIFix(input.reasons), "", WHAT_IS_TRIPWIRE);
 	} else if (input.verdict === "needs_review") {
-		lines.push(button, "", WHAT_IS_TRIPWIRE);
-	} else {
+		if (showDetailsButton) {
+			lines.push(button, "");
+		}
+		lines.push(WHAT_IS_TRIPWIRE);
+	} else if (showDetailsButton) {
 		lines.push(button);
 	}
 	lines.push(COMMENT_MARKER, "");
@@ -255,10 +267,18 @@ function renderTemplate(input: CommentInput, template: string): string {
 
 /**
  * The config-aware comment renderer — THE shared function: the worker posts
- * what it returns, and the /customize preview shows what it returns. The
- * block-comment mode only reshapes BLOCK comments; pass and sent-to-review
- * always render full (they carry no reasons to trim). Every mode ends with the
- * hidden marker — the upsert lifecycle (§7) depends on it.
+ * what it returns, and the /customize preview shows what it returns. It resolves
+ * the per-outcome override (§customize) itself from the full config, so pass,
+ * block, and sent-to-review each honor their own custom text + button toggle.
+ *
+ * `customText`, when set, REPLACES the ENTIRE body for that verdict — headline,
+ * reasons, remedies, collapsibles, all of it — leaving only the (optional) run
+ * button and the marker. This is the "hide the rules" path: a naive summary-only
+ * swap would strand the how-to-fix / wait-hint remedy and leak the very rule the
+ * maintainer set out to hide. The block-comment MODE only reshapes BLOCK
+ * comments and only when no custom text is set; pass and sent-to-review carry no
+ * reasons to trim. Every path ends with the hidden marker — the upsert lifecycle
+ * (§7) depends on it.
  *
  * one-liner-link speaks ONE line per failed rule — never "plus N other
  * things"; hiding which rules fired is the exact confusion this mode exists to
@@ -267,10 +287,21 @@ function renderTemplate(input: CommentInput, template: string): string {
  */
 export function renderVerdictComment(
 	input: CommentInput,
-	blockComment: BlockCommentConfig,
+	config: ResponseConfig,
 ): string {
+	const override = commentOverrideFor(config, input.verdict);
+	const customText = override.customText.trim();
+	if (customText !== "") {
+		const lines = [customText, ""];
+		if (override.showDetailsButton) {
+			lines.push(runButton(input), "");
+		}
+		lines.push(COMMENT_MARKER, "");
+		return lines.join("\n");
+	}
+	const blockComment = config.blockComment;
 	if (input.verdict !== "block" || blockComment.mode === "full") {
-		return renderCommentBody(input);
+		return renderCommentBody(input, override.showDetailsButton);
 	}
 	if (blockComment.mode === "custom") {
 		const body = renderTemplate(input, blockComment.template).trim();
@@ -292,6 +323,9 @@ export function renderVerdictComment(
 			"",
 		);
 	}
-	lines.push(runButton(input), "", COMMENT_MARKER, "");
+	if (override.showDetailsButton) {
+		lines.push(runButton(input), "");
+	}
+	lines.push(COMMENT_MARKER, "");
 	return lines.join("\n");
 }

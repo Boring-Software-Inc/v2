@@ -168,7 +168,30 @@ export const deleteCustomRule = createServerFn({ method: "POST" })
 			);
 			const { repoServices } = await import("@tripwire/db");
 			const { getDb } = await import("#/lib/server/db");
-			await repoServices.deleteCustomRule(getDb().db, data.repoId, data.id);
+			const result = await repoServices.deleteCustomRule(
+				getDb().db,
+				data.repoId,
+				data.id,
+			);
+			if (!result.deleted) {
+				const names = joinRuleWorkflowNames(
+					result.blockedBy.map((w) => w.name),
+				);
+				return {
+					error: `this rule is active inside ${names}. remove it from those workflows before deleting.`,
+				};
+			}
 			return { ok: true };
 		},
 	);
+
+/** Names the blocking workflows plainly: "a", "a and b", "a, b, and c". */
+function joinRuleWorkflowNames(names: string[]): string {
+	if (names.length <= 1) {
+		return names[0] ?? "a workflow";
+	}
+	if (names.length === 2) {
+		return `${names[0]} and ${names[1]}`;
+	}
+	return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}

@@ -46,6 +46,7 @@ export type {
 	AiReviewUsageInput,
 	BackfillUsageResult,
 	CostByOrgRow,
+	DailyCostPoint,
 	DailyTotals,
 	EconomicsDayPoint,
 	EconomicsOverview,

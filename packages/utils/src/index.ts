@@ -10,9 +10,11 @@ export {
 	type GuardedPostOptions,
 	type GuardFailure,
 	guardedPost,
+	guardedPostMultipart,
 	isBlockedAddress,
 	isDeliverableUrl,
 	MAX_URL_LENGTH,
+	type MultipartFile,
 } from "./guarded-fetch.ts";
 export { generateId } from "./id.ts";
 export {
@@ -20,5 +22,13 @@ export {
 	pickWorkflowName,
 } from "./names.ts";
 export { backoffWithJitter } from "./retry.ts";
+export {
+	type DitherChartOptions,
+	encodePng,
+	renderDitherChart,
+	renderSparklinePng,
+	type SparklineOptions,
+	type SparkSeries,
+} from "./sparkline-png.ts";
 export { truncate } from "./string.ts";
 export { sleep } from "./time.ts";

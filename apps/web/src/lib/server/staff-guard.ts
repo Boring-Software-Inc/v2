@@ -1,3 +1,4 @@
+import { notFound } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 
 /**
@@ -32,12 +33,12 @@ export const platformAdminMiddleware = createMiddleware({
 		headers: getStartContext().request.headers,
 	});
 	if (!session) {
-		throw new Response("not found", { status: 404 });
+		throw notFound();
 	}
 	const { isPlatformAdmin } = await import("@tripwire/auth/staff-gate");
 	const { getDb } = await import("#/lib/server/db");
 	if (!(await isPlatformAdmin(getDb().db, session.user.id))) {
-		throw new Response("not found", { status: 404 });
+		throw notFound();
 	}
 	return next({ context: { staff: { userId: session.user.id } } });
 });
