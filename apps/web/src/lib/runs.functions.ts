@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { Verdict } from "@tripwire/contracts";
+import type { ForgeId, Verdict } from "@tripwire/contracts";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import { orgMemberMiddleware } from "#/lib/server/org-guard";
 
@@ -62,6 +62,15 @@ export interface RunView {
 	 */
 	orgSlug: string | null;
 	repoName: string | null;
+	/** The forge this run's repo lives on; null when the repo row is gone. */
+	forge: ForgeId | null;
+	/**
+	 * The change request on its forge. Null when the run has no change request,
+	 * or when the repo row is gone. Kept on the public view: that view only
+	 * renders for a repo that is not private, so the link reveals nothing the
+	 * viewer could not already open.
+	 */
+	subjectUrl: string | null;
 	/** Whether THIS viewer may re-run: admin, full view, and a CR to target. */
 	canRerun: boolean;
 	steps: RunStepView[];
