@@ -41,8 +41,15 @@ the check is the gate. a failing check means the change cannot merge.
 ### it fails closed
 
 if tripwire cannot read what a rule needs, that rule declines. it does not
-guess, and it never reports a pass for something it did not examine. a change
-tripwire could not judge goes to a human, not through.
+guess, and it never reports a pass for something it did not examine.
+
+a run that would have passed, but where half or more of its rules could not
+evaluate, goes to a human instead. one rule that could not read something does
+not stop anybody; a verdict that was mostly guesswork does.
+
+that floor is a per-repository setting, and it is on by default. turning it off
+lets such a run pass. it does not hide anything: the run still records which
+rules declined and why.
 
 ### every run is auditable
 
