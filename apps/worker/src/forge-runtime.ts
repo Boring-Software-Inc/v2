@@ -11,6 +11,7 @@ import {
 } from "@tripwire/forge-github";
 import {
 	createOpenGitAdapter,
+	listInstallationRepos,
 	normalizeWebhook as normalizeOpenGit,
 	type OpenGitBotCredentials,
 	OpenGitTokenCache,
@@ -52,6 +53,27 @@ export interface ForgeRuntime {
 	 * not (yet) expose it — custom rules skip, they never guess.
 	 */
 	signalHttp: GithubHttp | null;
+	/**
+	 * Resolve which repositories an installation grants, by installation id.
+	 *
+	 * null on forges whose installation WEBHOOK already names them — GitHub
+	 * sends full repo objects, so it needs no lookup. open-git sends bare uuids,
+	 * so the delivery alone cannot build a repo row and the worker must ask.
+	 *
+	 * Authenticated app-wide, not per repo: at this point there is no repo to
+	 * mint an installation token against. Discovering them IS the job.
+	 */
+	installationRepos:
+		| ((installationId: string) => Promise<{
+				repos: {
+					externalId: string;
+					owner: string;
+					name: string;
+					fullName: string;
+				}[];
+				active: boolean;
+		  }>)
+		| null;
 }
 
 /**
@@ -63,11 +85,13 @@ export function staticForge(runtime: {
 	adapter?: ForgeAdapter | null;
 	reads?: WorkerReads | null;
 	signalHttp?: GithubHttp | null;
+	installationRepos?: ForgeRuntime["installationRepos"];
 }): (forge: Forge) => ForgeRuntime {
 	return () => ({
 		adapter: runtime.adapter ?? null,
 		reads: runtime.reads ?? null,
 		signalHttp: runtime.signalHttp ?? null,
+		installationRepos: runtime.installationRepos ?? null,
 	});
 }
 
@@ -137,6 +161,8 @@ function buildOpenGitRuntime(
 		}),
 		reads: null,
 		signalHttp: null,
+		installationRepos: (installationId) =>
+			listInstallationRepos(credentials, installationId, credentials.apiBase),
 	};
 }
 
@@ -162,5 +188,7 @@ function buildGithubRuntime(
 		adapter: createGithubAdapter(httpOptions),
 		reads: new GithubReads(httpOptions),
 		signalHttp: new GithubHttp(httpOptions),
+		// GitHub's installation webhook already names every repository.
+		installationRepos: null,
 	};
 }

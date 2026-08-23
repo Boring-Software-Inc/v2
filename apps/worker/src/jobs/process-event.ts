@@ -80,6 +80,25 @@ export async function processEvent(
 	}
 
 	if (!normalized) {
+		/**
+		 * open-git's installation events cannot become a NormalizedEvent: they
+		 * carry no actor, and they name repositories by bare uuid. Forcing them
+		 * into that shape would mean inventing both.
+		 *
+		 * They are still the moment a repo becomes ours, so they are handled here
+		 * instead — with credentials, which normalization deliberately has none
+		 * of. Installing the bot is what connects the repo; nobody should have to
+		 * add it by hand afterwards.
+		 */
+		if (event.rawKind.startsWith("installation.")) {
+			await autoConnectInstallation(
+				db,
+				deps.resolveForge(event.forge),
+				event,
+				logger,
+			);
+			return;
+		}
 		logger.debug(
 			{ eventId: event.id, rawKind: event.rawKind },
 			"event kind not ingested",
@@ -180,6 +199,7 @@ export async function processEvent(
 			orgId: normalized.installationExternalId
 				? await orgServices.getInstallationOrg(db, {
 						installationId: normalized.installationExternalId,
+						forge: normalized.forge,
 					})
 				: null,
 		});
@@ -301,5 +321,96 @@ async function syncInstallation(
 	logger.info(
 		{ kind: event.kind, installationId, repos: event.repositories.length },
 		"installation synced — no run, no surface",
+	);
+}
+
+/**
+ * Auto-connect (§10): installing the bot IS the connection. The delivery names
+ * the installation and its repository uuids; the api turns those into owner and
+ * name, and the rows land.
+ *
+ * Two things it deliberately does NOT do:
+ *
+ * - It never invents an org. `getInstallationOrg` returns null until someone
+ *   claims the installation, and unclaimed rows stay invisible to org-scoped
+ *   queries rather than attaching to a guess. The repo still appears the moment
+ *   it is claimed, because the row is already there.
+ * - It never guesses visibility. open-git's response has no private flag, so
+ *   rows land PRIVATE — the fail-closed side, since the §10 public run page
+ *   must not open for a repo nobody confirmed is public.
+ */
+async function autoConnectInstallation(
+	db: Db,
+	runtime: ForgeRuntime | null,
+	event: { id: string; forge: Forge; rawKind: string; raw: unknown },
+	logger: Logger,
+): Promise<void> {
+	const payload = event.raw as { installation_id?: unknown } | null;
+	const installationId =
+		typeof payload?.installation_id === "string"
+			? payload.installation_id
+			: null;
+	if (!installationId) {
+		logger.warn(
+			{ eventId: event.id, rawKind: event.rawKind },
+			"installation event with no installation_id — nothing to connect",
+		);
+		return;
+	}
+
+	// Uninstall: soft-delete the grant. No lookup — the installation is gone, so
+	// asking it what it grants would 404.
+	if (event.rawKind === "installation.deleted") {
+		await repoServices.removeInstallation(db, event.forge, installationId);
+		logger.info(
+			{ installationId, forge: event.forge },
+			"installation removed — repos soft-deleted",
+		);
+		return;
+	}
+
+	const lookup = runtime?.installationRepos;
+	if (!lookup) {
+		logger.warn(
+			{ installationId, forge: event.forge },
+			"installation event but this forge cannot resolve its repos — no credentials",
+		);
+		return;
+	}
+
+	const { repos, active } = await lookup(installationId);
+	if (!active) {
+		await repoServices.removeInstallation(db, event.forge, installationId);
+		logger.info(
+			{ installationId },
+			"installation is no longer active — repos soft-deleted",
+		);
+		return;
+	}
+
+	// WITH the forge: getInstallationOrg defaults to github, so omitting it looks
+	// for a GitHub claim, finds none, and lands every repo unclaimed — invisible
+	// in the dash even though the org claimed this installation.
+	const orgId = await orgServices.getInstallationOrg(db, {
+		installationId,
+		forge: event.forge,
+	});
+	await repoServices.syncInstallationRepos(
+		db,
+		installationId,
+		repos.map((repo) => ({ ...repo, private: true })),
+		[],
+		orgId,
+		event.forge,
+	);
+	logger.info(
+		{
+			installationId,
+			forge: event.forge,
+			repos: repos.length,
+			org: orgId,
+			claimed: orgId !== null,
+		},
+		"installation auto-connected",
 	);
 }
