@@ -6,7 +6,6 @@
       "name": "tripwire",
       "dependencies": {
         "@electric-sql/pglite": "^0.2.17",
-        "@tripwire/forge-opengit": "workspace:*",
       },
       "devDependencies": {
         "@biomejs/biome": "2.4.5",
