@@ -4,6 +4,10 @@ how to work in this repository. every command below is real and is in
 `package.json`. ci runs the same checks, so a green machine means a green
 pull request.
 
+contributing with a coding agent is welcome, and most of this repository was
+built that way. the rules are the same, with a few more that matter more for an
+agent — see `agent-guidelines.md`.
+
 ---
 
 ## 1. set up
@@ -38,6 +42,28 @@ bun test                   # unit and integration tests
 ```
 
 `bun run check --write` fixes most format problems for you.
+
+run them before you PUSH, not before you open a pull request. a broken commit
+in the history is harder to remove than a broken branch.
+
+### the strict type suite
+
+```
+bun run lint:slop:changed   # the changed lines only
+bun run lint:slop           # everything
+```
+
+this is a separate, custom rule set. it is strict on purpose.
+
+`any` is banned. so is a cast that only silences the compiler.
+
+these are the same mistake: `as any`, `as unknown as T`, and casting to
+`Record<string, unknown>` to get past an error.
+
+when a type does not fit, it is telling you something true. read it.
+
+if you cannot type something honestly, leave the real type, add a comment
+naming what is unknown, and ask.
 
 ---
 
@@ -179,7 +205,37 @@ report a pass.
 
 ---
 
-## 8. asking for a review
+## 8. a ui change needs proof
+
+a pull request that changes the interface must include a **before** screenshot
+and an **after** screenshot.
+
+record a video instead for anything with more than one step: a flow, an
+animation, an empty state filling up, an error appearing.
+
+a screenshot of the after alone proves nothing, because a reviewer cannot see
+what changed. two images make the change reviewable in seconds.
+
+---
+
+## 9. keep a pull request small
+
+a pull request should do one thing. a very large diff almost always means one
+change grew into several.
+
+split it. each part should stand alone and pass every check alone.
+
+- a refactor is its own pull request. never mix it with a behaviour change.
+- a rename is its own pull request.
+- a new dependency is its own pull request, with a `DECISIONS.md` entry.
+- a bug you found on the way is its own pull request.
+
+if you cannot describe the pull request in one sentence without saying "and",
+it is two pull requests.
+
+---
+
+## 10. asking for a review
 
 open a pull request against `main`. put the task id in the title.
 

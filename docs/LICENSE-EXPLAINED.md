@@ -67,9 +67,10 @@ mit does not. someone can take this code, improve it, sell it, and share
 nothing back. that is allowed on purpose.
 
 the trade is adoption. mit is the lowest barrier there is. a company can use
-this code without a lawyer reading anything. for a tool meant to be adopted
-widely, and to be embedded in other people's build systems, that matters more
-than protecting against a fork.
+this code without a lawyer reading anything.
+
+tripwire is meant to sit inside other people's build systems. wide adoption
+matters more here than protection against a fork.
 
 ---
 
