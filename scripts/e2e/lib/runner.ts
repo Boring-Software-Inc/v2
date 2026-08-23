@@ -44,11 +44,11 @@ export interface RunnerOptions {
 	config: HarnessConfig;
 	method: Method;
 	/**
-	 * Leave the PR open + branch intact for inspection. A FUNCTION is asked at
-	 * teardown time, after the result is on screen — the interactive funnel uses
-	 * that to let you look at the PR before anything closes it.
+	 * Asked at teardown, after the result is on screen. A function rather than a
+	 * boolean so the interactive funnel can put the question AFTER you have seen
+	 * the pull request; a scripted run just resolves a decision already made.
 	 */
-	keep: boolean | (() => Promise<boolean>);
+	keep: () => Promise<boolean>;
 	hooks: RunnerHooks;
 }
 
@@ -222,11 +222,7 @@ export async function runScenario(
 		}
 		// An interrupt never closes anything: the artifacts are the evidence, and
 		// a Ctrl-C is not an instruction to destroy them.
-		const keep = teardownOptions.interrupted
-			? true
-			: typeof options.keep === "function"
-				? await options.keep()
-				: options.keep;
+		const keep = teardownOptions.interrupted ? true : await options.keep();
 		if (keep) {
 			for (const url of gh.openedPrUrls()) {
 				hooks.log(`left open for inspection: ${url}`);

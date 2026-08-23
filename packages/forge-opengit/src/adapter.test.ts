@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
-import { CHECK_NAME } from "@tripwire/contracts";
+import { CHECK_NAME, type JsonValue } from "@tripwire/contracts";
 import type { ForgeAction } from "@tripwire/forge";
 import { createOpenGitAdapter } from "./adapter.ts";
 import { createBotJwt, OpenGitTokenCache } from "./client/auth.ts";
@@ -21,16 +21,16 @@ interface Call {
 }
 
 /** Records every request and replies with `reply`, so tests assert the wire. */
-function recordingFetch(reply: unknown = { id: "check-uuid" }) {
+function recordingFetch(reply: JsonValue = { id: "check-uuid" }) {
 	const calls: Call[] = [];
 	const fetchImpl = ((url: string, init?: RequestInit) => {
 		calls.push({
 			url: String(url),
 			method: init?.method ?? "GET",
 			body: init?.body ? JSON.parse(String(init.body)) : undefined,
-			authorization: String(
-				(init?.headers as Record<string, string>)?.authorization ?? "",
-			),
+			// Read through Headers, which is what fetch is actually handed. Property
+			// access on a Headers instance silently returns undefined.
+			authorization: new Headers(init?.headers).get("authorization") ?? "",
 		});
 		return Promise.resolve(
 			new Response(JSON.stringify(reply), {

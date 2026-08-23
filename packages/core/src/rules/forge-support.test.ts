@@ -34,28 +34,36 @@ import {
  * catalog without anyone re-checking which rules it can actually feed.
  */
 
-/** The audit's conclusion, by rule id. Update ONLY alongside a live re-check. */
-const AUDITED_BLOCKS: Record<string, readonly string[]> = {
-	// GitLab exposes `created_at` only to the account itself or an admin;
-	// open-git exposes no users endpoint at all.
-	"account-age": ["gitlab", "opengit"],
-	// open-git's API is actions-only — no files/diff, no commits, no contents,
-	// no users — so every rule that reads more than the webhook payload is inert
-	// there. Verified against its openapi.json, which has 8 paths and no reads.
-	"min-merged-prs": ["opengit"],
-	"pr-rate-limit": ["opengit"],
-	"profile-readme": ["opengit"],
-	"crypto-address": ["opengit"],
-	honeypot: ["opengit"],
-	"max-files-changed": ["opengit"],
-	"ai-review": ["opengit"],
-};
+/**
+ * The audit's conclusion, by rule id. Update ONLY alongside a live re-check.
+ *
+ * A Map, not a dictionary: most rules have no entry, so a lookup can miss by
+ * design, and a Map says that in its type instead of an open index signature
+ * that would accept any string as a key.
+ */
+const AUDITED_BLOCKS = new Map<string, readonly string[]>(
+	Object.entries({
+		// GitLab exposes `created_at` only to the account itself or an admin;
+		// open-git exposes no users endpoint at all.
+		"account-age": ["gitlab", "opengit"],
+		// open-git's API is actions-only — no files/diff, no commits, no contents,
+		// no users — so every rule that reads more than the webhook payload is inert
+		// there. Verified against its openapi.json, which has 8 paths and no reads.
+		"min-merged-prs": ["opengit"],
+		"pr-rate-limit": ["opengit"],
+		"profile-readme": ["opengit"],
+		"crypto-address": ["opengit"],
+		honeypot: ["opengit"],
+		"max-files-changed": ["opengit"],
+		"ai-review": ["opengit"],
+	}),
+);
 
 describe("rule forge support", () => {
 	test("every rule's declared support matches the audit", () => {
 		for (const entry of RULE_CATALOG) {
 			const declared = (entry as { forges?: readonly string[] }).forges;
-			const blocked = AUDITED_BLOCKS[entry.ruleId];
+			const blocked = AUDITED_BLOCKS.get(entry.ruleId);
 			if (!blocked) {
 				expect(
 					declared,

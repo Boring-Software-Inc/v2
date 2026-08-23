@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { CHECK_NAME } from "@tripwire/contracts";
+import { CHECK_NAME, type JsonValue } from "@tripwire/contracts";
 import { signWebhookBody } from "@tripwire/forge-opengit";
 import { $ } from "bun";
 import type { HarnessConfig } from "./config.ts";
@@ -78,15 +78,20 @@ export class OpenGit {
 	private async api(
 		method: "GET" | "POST",
 		path: string,
-		body?: unknown,
+		body?: JsonValue,
 	): Promise<unknown> {
+		// A statement, not a conditional spread: a content-type on a bodyless GET
+		// is a lie, and the spread buries that choice in the literal.
+		const headers = new Headers({
+			authorization: `Bearer ${this.config.token}`,
+			accept: "application/json",
+		});
+		if (body !== undefined) {
+			headers.set("content-type", "application/json");
+		}
 		const res = await fetch(`${this.config.origin}${path}`, {
 			method,
-			headers: {
-				authorization: `Bearer ${this.config.token}`,
-				accept: "application/json",
-				...(body === undefined ? {} : { "content-type": "application/json" }),
-			},
+			headers,
 			body: body === undefined ? undefined : JSON.stringify(body),
 		});
 		const text = await res.text();

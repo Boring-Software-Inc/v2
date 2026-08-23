@@ -30,12 +30,12 @@ type MarkProps = { className?: string };
  * brand an unmapped forge as whichever one it points at. Adding a catalog entry
  * breaks this line until a mark exists for it, which is the reminder we want.
  */
-const FORGE_MARK: Record<ForgeId, (props: MarkProps) => ReactElement> = {
+const FORGE_MARK = {
 	github: GithubIcon,
 	gitlab: GitlabMark,
 	opengit: OpenGitMark,
 	origin: OriginMark,
-};
+} satisfies Record<ForgeId, (props: MarkProps) => ReactElement>;
 
 /**
  * The mark for a forge. Every surface that names a forge or a repo goes through

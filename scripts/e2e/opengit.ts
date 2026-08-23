@@ -1,6 +1,16 @@
 #!/usr/bin/env bun
-import { RULE_CATALOG, type WorkflowDefinition } from "@tripwire/contracts";
-import { createDb, type Db, repoServices, schema } from "@tripwire/db";
+import {
+	type ResponseConfig,
+	RULE_CATALOG,
+	type WorkflowDefinition,
+} from "@tripwire/contracts";
+import {
+	type CustomRuleRow,
+	createDb,
+	type Db,
+	repoServices,
+	schema,
+} from "@tripwire/db";
 import { Command } from "commander";
 import { eq } from "drizzle-orm";
 import { loadConfig } from "./lib/config.ts";
@@ -469,6 +479,25 @@ async function main(): Promise<void> {
 	 * the prior value back on exit, exactly like the workflow snapshot.
 	 */
 	let priorArmed: { repoId: string; armed: boolean } | null = null;
+	/**
+	 * The fail-closed floor is a per-repo SETTING, and two of these scenarios
+	 * assert on it: blocked-rules-decline expects a degraded run to reach review,
+	 * and english-only-pass expects a clean pass. A repo with the floor turned
+	 * off inverts both, so the suite pinned nothing and reported a code failure
+	 * for a configuration difference. Pinned on for the run, restored after.
+	 */
+	let priorConfig: { repoId: string; config: ResponseConfig } | null = null;
+	/**
+	 * Custom rules join the DERIVED gate, which runs alongside the pinned
+	 * workflow. On open-git they can never evaluate, so one enabled custom rule
+	 * drags every scenario past the fail-closed floor and english-only-pass can
+	 * never reach a clean pass. The suite would then report a code failure for a
+	 * rule the maintainer happens to have switched on.
+	 *
+	 * Disabled for the run, restored after, exactly like the workflows.
+	 */
+	let priorCustomRules: { repoId: string; rules: CustomRuleRow[] } | null =
+		null;
 	const armForRun = async (repo: {
 		id: string;
 		armed: boolean;
@@ -481,6 +510,35 @@ async function main(): Promise<void> {
 		log("  repo armed for this run");
 	};
 
+	const silenceCustomRules = async (repoId: string): Promise<void> => {
+		const rules = await repoServices.listCustomRules(db, repoId);
+		const enabled = rules.filter((rule) => rule.enabled);
+		if (enabled.length === 0) {
+			return;
+		}
+		priorCustomRules = { repoId, rules };
+		for (const rule of enabled) {
+			await repoServices.upsertCustomRule(db, repoId, {
+				...rule,
+				enabled: false,
+			});
+		}
+		log(`  ${enabled.length} custom rule(s) disabled for this run`);
+	};
+
+	const pinFloorOn = async (repoId: string): Promise<void> => {
+		const current = await repoServices.getResponseConfig(db, repoId);
+		if (current.failClosedFallback) {
+			return;
+		}
+		priorConfig = { repoId, config: current };
+		await repoServices.upsertResponseConfig(db, repoId, {
+			...current,
+			failClosedFallback: true,
+		});
+		log("  review fallback pinned on for this run");
+	};
+
 	let registered = await repoServices.getRepoByFullName(
 		db,
 		config.repo,
@@ -490,6 +548,8 @@ async function main(): Promise<void> {
 	if (known?.installationId) {
 		log(`  repo known (installation ${known.installationId})`);
 		await armForRun(known);
+		await pinFloorOn(known.id);
+		await silenceCustomRules(known.id);
 	} else {
 		log("  repo not registered yet — the first pull request will register it");
 	}
@@ -532,6 +592,8 @@ async function main(): Promise<void> {
 		}
 		log(`  repo registered (installation ${repo.installationId})`);
 		await armForRun(repo);
+		await pinFloorOn(repo.id);
+		await silenceCustomRules(repo.id);
 		registered = await repoServices.getRepoByFullName(
 			db,
 			config.repo,
@@ -588,6 +650,18 @@ async function main(): Promise<void> {
 			await repoServices
 				.setRepoArmed(db, priorArmed.repoId, priorArmed.armed)
 				.catch((error) => log(`failed to restore armed: ${String(error)}`));
+		}
+		if (priorConfig) {
+			await repoServices
+				.upsertResponseConfig(db, priorConfig.repoId, priorConfig.config)
+				.catch((error) => log(`failed to restore response config: ${error}`));
+		}
+		if (priorCustomRules) {
+			for (const rule of priorCustomRules.rules) {
+				await repoServices
+					.upsertCustomRule(db, priorCustomRules.repoId, rule)
+					.catch((error) => log(`failed to restore custom rule: ${error}`));
+			}
 		}
 		await pool.end().catch(() => undefined);
 		// The whole point of the run. These stay open.

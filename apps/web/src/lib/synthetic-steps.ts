@@ -1,4 +1,5 @@
-import type { JsonValue, RunStepView } from "#/lib/runs.functions";
+import { z } from "zod";
+import type { RunStepView } from "#/lib/runs.functions";
 
 /**
  * The two synthetic run-level steps the worker records outside the workflow
@@ -14,11 +15,19 @@ export interface SyntheticStepView {
 	detail: string;
 }
 
-function asRecord(value: JsonValue): { [key: string]: JsonValue } | null {
-	return typeof value === "object" && value !== null && !Array.isArray(value)
-		? value
-		: null;
-}
+/**
+ * What the worker records on `run:degradation`. Every field is optional and a
+ * bad shape falls back to empty, so an older stored run, or a newer worker,
+ * renders what it has instead of throwing at a maintainer.
+ */
+const degradationOutputSchema = z
+	.object({
+		skippedRules: z.number().optional(),
+		ruleNodes: z.number().optional(),
+		degradedReads: z.array(z.string()).optional(),
+		enforced: z.boolean().optional(),
+	})
+	.catch({});
 
 export function describeSyntheticStep(
 	step: Pick<RunStepView, "nodeId" | "output">,
@@ -32,10 +41,13 @@ export function describeSyntheticStep(
 		};
 	}
 	if (step.nodeId === "run:degradation") {
-		const output = asRecord(step.output);
-		const skipped = output?.skippedRules;
-		const total = output?.ruleNodes;
-		const one = skipped === 1;
+		/**
+		 * PARSED, not poked at. The worker writes this step, but it arrives here
+		 * as stored json, so the shape is established once at this boundary
+		 * rather than re-checked field by field further down.
+		 */
+		const shape = degradationOutputSchema.parse(step.output);
+		const one = shape.skippedRules === 1;
 		/**
 		 * Say what happened, then what it cost. Nothing else.
 		 *
@@ -46,18 +58,17 @@ export function describeSyntheticStep(
 		 * not run. The reason lives on the rule's own step, which is where a
 		 * reader looks next.
 		 */
-		const reads = output?.degradedReads;
-		// Each part drops out cleanly when it is unknown, so a malformed step
+		// Each part drops out cleanly when a field is absent, so a malformed step
 		// still reads as a sentence instead of "skipped. sent to review."
 		const parts = [
-			typeof skipped === "number" && typeof total === "number"
-				? `${skipped} of ${total} skipped.`
+			shape.skippedRules !== undefined && shape.ruleNodes !== undefined
+				? `${shape.skippedRules} of ${shape.ruleNodes} skipped.`
 				: null,
-			Array.isArray(reads) && reads.length > 0
-				? `couldn't read: ${reads.filter((r) => typeof r === "string").join(", ")}.`
+			shape.degradedReads && shape.degradedReads.length > 0
+				? `couldn't read: ${shape.degradedReads.join(", ")}.`
 				: null,
 			// enforced:false ⇒ the maintainer turned the review fallback off.
-			output?.enforced === false
+			shape.enforced === false
 				? "passed without them. this repo is set to pass when a rule can't run."
 				: "sent to review.",
 		];

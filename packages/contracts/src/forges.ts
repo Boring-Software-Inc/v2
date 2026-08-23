@@ -152,9 +152,9 @@ export function changeRequestUrl(input: {
  * Public host per forge. A self-hosted deployment overrides this by passing an
  * origin; a planned forge still needs an entry so the Record stays exhaustive.
  */
-const DEFAULT_FORGE_ORIGIN: Record<ForgeId, string> = {
+const DEFAULT_FORGE_ORIGIN = {
 	github: "https://github.com",
 	opengit: "https://open-git.com",
 	gitlab: "https://gitlab.com",
 	origin: "https://origin.dev",
-};
+} satisfies Record<ForgeId, string>;

@@ -90,12 +90,16 @@ function actionOf(eventName: string): string {
 	return eventName.slice(eventName.lastIndexOf(".") + 1);
 }
 
-const PR_ACTION_TO_KIND: Record<string, EventKind> = {
-	opened: "change-request.opened",
-	edited: "change-request.updated",
-	synchronize: "change-request.updated",
-	closed: "change-request.closed",
-};
+/**
+ * A Map, not a dictionary: open-git sends actions this does not ingest
+ * (`assigned`, and whatever it adds next), so a lookup misses by design.
+ */
+const PR_ACTION_TO_KIND = new Map<string, EventKind>([
+	["opened", "change-request.opened"],
+	["edited", "change-request.updated"],
+	["synchronize", "change-request.updated"],
+	["closed", "change-request.closed"],
+]);
 
 export function normalizeWebhook(
 	event: RawForgeEvent,
@@ -110,7 +114,7 @@ export function normalizeWebhook(
 	const raw: unknown = JSON.parse(event.body);
 
 	if (action !== "comment") {
-		const kind = PR_ACTION_TO_KIND[action];
+		const kind = PR_ACTION_TO_KIND.get(action);
 		if (!kind) {
 			return null;
 		}
@@ -158,7 +162,7 @@ export function normalizeWebhook(
 				headSha: pr.pull_request.head_sha,
 				url: `${OPEN_GIT_WEB_ORIGIN}/${prFullName}/pulls/${pr.pull_request.number}`,
 			},
-		} satisfies Record<string, unknown>);
+		});
 	}
 
 	const payload = commentPayload.parse(raw);
@@ -198,5 +202,5 @@ export function normalizeWebhook(
 			// does not moderate itself into a loop.
 			byTripwire: payload.comment.body.includes(COMMENT_MARKER),
 		},
-	} satisfies Record<string, unknown>);
+	});
 }

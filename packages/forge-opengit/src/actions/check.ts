@@ -26,12 +26,12 @@ type OpenGitStatus = "queued" | "running" | "success" | "failed" | "canceled";
  * maps to `failed` rather than quietly passing. This is a real behavioural
  * difference from GitHub, where `neutral` does not hold the merge button.
  */
-const CONCLUSION_TO_STATUS: Record<CheckState["conclusion"], OpenGitStatus> = {
+const CONCLUSION_TO_STATUS = {
 	success: "success",
 	failure: "failed",
 	neutral: "failed",
 	pending: "running",
-};
+} satisfies Record<CheckState["conclusion"], OpenGitStatus>;
 
 export async function setCheck(
 	http: OpenGitHttp,

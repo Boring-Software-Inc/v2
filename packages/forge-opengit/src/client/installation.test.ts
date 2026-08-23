@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
+import type { JsonValue } from "@tripwire/contracts";
 import { listInstallationRepos } from "./installation.ts";
 
 const { privateKey } = generateKeyPairSync("rsa", {
@@ -9,7 +10,7 @@ const { privateKey } = generateKeyPairSync("rsa", {
 });
 const CREDS = { botId: "bot-1", privateKey };
 
-function reply(body: unknown, status = 200) {
+function reply(body: JsonValue, status = 200) {
 	const calls: { url: string; authorization: string }[] = [];
 	const fetchImpl = ((url: string, init?: RequestInit) => {
 		calls.push({
