@@ -12,6 +12,7 @@ describe("describeSyntheticStep", () => {
 		expect(view?.kind).toBe("deny-floor");
 		expect(view?.title).toBe("denied by maintainer");
 		expect(view?.detail).toContain("no deny edge drawn");
+		expect(view?.detail).toContain("deny never fails open");
 	});
 
 	test("run:degradation names the count and what it cost", () => {
@@ -47,7 +48,8 @@ describe("describeSyntheticStep", () => {
 			nodeId: "run:degradation",
 			output: { skippedRules: 2, ruleNodes: 3, enforced: false },
 		});
-		expect(view?.detail).toContain("passed anyway");
+		expect(view?.detail).toContain("passed without them");
+		expect(view?.detail).toContain("set to pass when a rule can't run");
 		expect(view?.detail).not.toContain("sent to review");
 	});
 
@@ -69,4 +71,15 @@ describe("describeSyntheticStep", () => {
 			expect(describeSyntheticStep({ nodeId, output: null })).toBeNull();
 		}
 	});
+});
+
+test("no synthetic copy uses an em dash", () => {
+	for (const nodeId of ["run:deny-floor", "run:degradation"]) {
+		const view = describeSyntheticStep({
+			nodeId,
+			output: { skippedRules: 2, ruleNodes: 3, enforced: false },
+		});
+		expect(view?.title).not.toContain("\u2014");
+		expect(view?.detail).not.toContain("\u2014");
+	}
 });

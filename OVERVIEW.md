@@ -100,7 +100,7 @@ read `docs/CONTRIBUTING.md` first. read `docs/agent-guidelines.md` second.
 
 ## local development
 
-### the demo — one command, no docker
+### the demo, one command, no docker
 
 ```
 bun run dev:demo
