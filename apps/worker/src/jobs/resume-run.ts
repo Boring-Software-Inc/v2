@@ -1,4 +1,5 @@
 import type {
+	Forge,
 	NormalizedEvent,
 	RepoScopedEvent,
 	Verdict,
@@ -100,7 +101,7 @@ export async function resumeRun(
 	const now = new Date().toISOString();
 	const { ctx } = await buildRuleContext(
 		normalized,
-		deps.reads,
+		deps.resolveForge(normalized.forge)?.reads ?? null,
 		now,
 		logger,
 		deps.makeGenerate?.(normalized),
@@ -168,11 +169,15 @@ export async function resumeRun(
 			: []),
 	]);
 
-	const customRecords = await loadCustomRecords(db, normalized.repo.fullName);
+	const customRecords = await loadCustomRecords(
+		db,
+		normalized.repo.fullName,
+		normalized.forge,
+	);
 	await emitPrSurface(
 		{
 			db,
-			adapter: deps.adapter,
+			adapter: deps.resolveForge(normalized.forge)?.adapter ?? null,
 			logger,
 			appUrl: deps.appUrl,
 		},
@@ -218,11 +223,12 @@ async function resumeDegradedRun(
 	const customRecords = await loadCustomRecords(
 		deps.db,
 		runData.run.repoFullName,
+		normalized.forge,
 	);
 	await emitPrSurface(
 		{
 			db: deps.db,
-			adapter: deps.adapter,
+			adapter: deps.resolveForge(normalized.forge)?.adapter ?? null,
 			logger: deps.logger,
 			appUrl: deps.appUrl,
 		},
@@ -244,8 +250,9 @@ async function resumeDegradedRun(
 async function loadCustomRecords(
 	db: ProcessEventDeps["db"],
 	repoFullName: string,
+	forge: Forge,
 ) {
-	const repo = await repoServices.getRepoByFullName(db, repoFullName);
+	const repo = await repoServices.getRepoByFullName(db, repoFullName, forge);
 	const rows = repo ? await repoServices.listCustomRules(db, repo.id) : [];
 	return customRuleSource(rows, null).records;
 }

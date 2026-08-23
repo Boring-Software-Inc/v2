@@ -1,8 +1,13 @@
-import type { CheckState, NormalizedEvent, Verdict } from "@tripwire/contracts";
+import type {
+	CheckState,
+	Forge,
+	NormalizedEvent,
+	Verdict,
+} from "@tripwire/contracts";
 
 /**
  * @tripwire/forge — the seam. The `ForgeAdapter` interface + supporting types.
- * NOTHING ELSE, EVER. Implementations are siblings (`forge-github`, later
+ * NOTHING ELSE, EVER. Implementations are siblings (`forge-github`,
  * `forge-gitlab`) that never import each other.
  *
  * Three responsibilities (spec §4): inbound (verify + normalize), reads (build
@@ -106,7 +111,12 @@ export interface ForgeActionResult {
 }
 
 export interface ForgeAdapter {
-	readonly forge: "github";
+	/**
+	 * Which forge this adapter serves. The type comes from ONE source — the
+	 * `forgeSchema` enum in `@tripwire/contracts`. To add a forge, edit that enum.
+	 * You never edit this seam again.
+	 */
+	readonly forge: Forge;
 
 	/** Inbound: constant-time HMAC verification of a webhook delivery. */
 	verifyWebhook(event: RawForgeEvent, secret: string): boolean;
@@ -137,4 +147,4 @@ export interface ForgeAdapter {
 	execute(action: ForgeAction): Promise<ForgeActionResult>;
 }
 
-export type { CheckState, NormalizedEvent, Verdict };
+export type { CheckState, Forge, NormalizedEvent, Verdict };

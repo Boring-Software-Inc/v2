@@ -14,17 +14,11 @@ import {
 	repoServices,
 } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
-import {
-	checkAppCredentials,
-	createGithubAdapter,
-	GithubHttp,
-	GithubReads,
-	InstallationTokenCache,
-} from "@tripwire/forge-github";
+import { checkAppCredentials } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import pino from "pino";
 import { createGenerate } from "./ai/generate.ts";
-import type { WorkerReads } from "./context.ts";
+import { buildResolveForge } from "./forge-runtime.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
 import { economicsDigest } from "./jobs/economics-digest.ts";
@@ -71,25 +65,43 @@ if (import.meta.main) {
 		"\\n",
 		"\n",
 	);
-	let reads: WorkerReads | null = null;
-	let adapter: ForgeAdapter | null = null;
-	let signalHttp: GithubHttp | null = null;
+	const openGitBotId = process.env.OPEN_GIT_BOT_ID;
+	const openGitKey = process.env.OPEN_GIT_BOT_PRIVATE_KEY?.replaceAll(
+		"\\n",
+		"\n",
+	);
+	// One resolver, chosen per event.forge downstream. Each forge needs its own
+	// credentials; absent creds ⇒ that forge's events normalize and persist, but
+	// nothing executes.
+	const resolveForge = buildResolveForge({
+		db,
+		onCall: metering.addGithubCall,
+		github: appId && privateKey ? { appId, privateKey } : null,
+		opengit:
+			openGitBotId && openGitKey
+				? {
+						botId: openGitBotId,
+						privateKey: openGitKey,
+						// Self-hosted open-git only; open-git.com is the default.
+						apiBase: process.env.OPEN_GIT_URL,
+					}
+				: null,
+	});
+	// Backfill (arm-time) is GitHub-only for now; hand it the GitHub reads.
+	const githubReads = resolveForge("github")?.reads ?? null;
+	const githubAdapter = resolveForge("github")?.adapter ?? null;
+	/**
+	 * The sweeper spans forges, so it resolves per repo rather than taking one
+	 * adapter. `runs` has no forge column — only `repo_full_name` — so the forge
+	 * comes from the repo row itself.
+	 */
+	const adapterFor = async (
+		repoFullName: string,
+	): Promise<ForgeAdapter | null> => {
+		const forge = await repoServices.findRepoForge(db, repoFullName);
+		return forge ? (resolveForge(forge)?.adapter ?? null) : null;
+	};
 	if (appId && privateKey) {
-		const tokens = new InstallationTokenCache({ appId, privateKey });
-		const tokenFor = async (repoFullName: string) => {
-			const repo = await repoServices.getRepoByFullName(db, repoFullName);
-			if (!repo?.installationId) {
-				throw new Error(`no installation for ${repoFullName}`);
-			}
-			return await tokens.getToken(repo.installationId);
-		};
-		// Shared options carry the metering hook, so EVERY GitHub call (reads,
-		// adapter actions, ai-review tool loop, custom-rule signal producers)
-		// folds into the active run counter.
-		const httpOptions = { tokenFor, onCall: metering.addGithubCall };
-		reads = new GithubReads(httpOptions);
-		adapter = createGithubAdapter(httpOptions);
-		signalHttp = new GithubHttp(httpOptions);
 		/**
 		 * Boot health (live-test surprise #3): validate the App credentials with
 		 * one cheap authenticated call so a worker running on stale/broken env is
@@ -110,7 +122,7 @@ if (import.meta.main) {
 		}
 	} else {
 		logger.warn(
-			"GITHUB_APP_* env missing — forge reads disabled, rules will skip",
+			"GITHUB_APP_* env missing — github reads disabled, rules will skip",
 		);
 	}
 
@@ -128,18 +140,23 @@ if (import.meta.main) {
 	});
 	const defaultModel =
 		process.env.AI_REVIEW_MODEL ?? "anthropic/claude-fable-5";
-	const makeGenerate =
-		openrouterKey && reads && adapter
-			? (event: Parameters<typeof createGenerate>[0]["event"]) =>
-					createGenerate({
-						apiKey: openrouterKey,
-						defaultModel,
-						reads,
-						readFile: (repo, path, ref) => adapter.readFile(repo, path, ref),
-						event,
-						countBytesOut: metering.addOpenRouterBytesOut,
-					})
-			: null;
+	const makeGenerate = openrouterKey
+		? (event: Parameters<typeof createGenerate>[0]["event"]) => {
+				// ai-review reads through the EVENT's forge runtime; a null runtime
+				// (creds absent) degrades via null reads, same as before.
+				const runtime = resolveForge(event.forge);
+				return createGenerate({
+					apiKey: openrouterKey,
+					defaultModel,
+					reads: runtime?.reads ?? null,
+					readFile: (repo, path, ref) =>
+						runtime?.adapter?.readFile(repo, path, ref) ??
+						Promise.resolve(null),
+					event,
+					countBytesOut: metering.addOpenRouterBytesOut,
+				});
+			}
+		: null;
 	logger.info(
 		{ aiReview: makeGenerate ? "wired" : "disabled", meterSource },
 		"ai-review credential check",
@@ -156,9 +173,7 @@ if (import.meta.main) {
 				{
 					db,
 					pool: directPool,
-					reads,
-					adapter,
-					signalHttp,
+					resolveForge,
 					makeGenerate,
 					meterSource,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
@@ -175,9 +190,7 @@ if (import.meta.main) {
 				{
 					db,
 					pool: directPool,
-					reads,
-					adapter,
-					signalHttp,
+					resolveForge,
 					makeGenerate,
 					meterSource,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
@@ -194,9 +207,7 @@ if (import.meta.main) {
 				{
 					db,
 					pool: directPool,
-					reads,
-					adapter,
-					signalHttp,
+					resolveForge,
 					makeGenerate,
 					meterSource,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
@@ -215,7 +226,7 @@ if (import.meta.main) {
 				{
 					db,
 					pool: directPool,
-					reads,
+					reads: githubReads,
 					makeGenerate,
 					meterSource,
 					logger: logger.child({ repoId: job.data.repoId, backfill: true }),
@@ -235,7 +246,7 @@ if (import.meta.main) {
 	await boss.createQueue("sweep-actions");
 	await boss.schedule("sweep-actions", "* * * * *", {}, {});
 	await boss.work("sweep-actions", async () => {
-		await sweepActions({ db, adapter, logger });
+		await sweepActions({ db, adapterFor, logger });
 	});
 
 	/** Outbound delivery — POST webhook/discord rows through the SSRF guard;
@@ -288,7 +299,7 @@ if (import.meta.main) {
 			if (pathname === "/healthz") {
 				return Response.json({
 					ok: true,
-					github: adapter ? "live" : "disabled",
+					github: githubAdapter ? "live" : "disabled",
 					aiReview: makeGenerate ? "wired" : "disabled",
 				});
 			}

@@ -33,7 +33,12 @@ const DELIVERY_KINDS = new Set(["webhook", "discord"]);
 
 export interface SweepDeps {
 	db: Db;
-	adapter: ForgeAdapter | null;
+	/**
+	 * The adapter for THIS repo's forge, or null when that forge has no runtime.
+	 * A single adapter cannot serve a sweep: the rows span every forge tripwire
+	 * ingests, and `runs` carries no forge to pick one from.
+	 */
+	adapterFor: (repoFullName: string) => Promise<ForgeAdapter | null>;
 	logger: Logger;
 }
 
@@ -58,7 +63,7 @@ export async function sweepActions(
 	deps: SweepDeps,
 	options: SweepOptions = {},
 ): Promise<SweepResult> {
-	const { db, adapter, logger } = deps;
+	const { db, adapterFor, logger } = deps;
 	const now = Date.now();
 	const recordedBefore =
 		options.recordedBefore ?? new Date(now - RETRY_AFTER_MS);
@@ -139,10 +144,18 @@ export async function sweepActions(
 			continue;
 		}
 
+		/**
+		 * Resolved PER ROW, from the repo's own forge. This used to be one adapter
+		 * handed in at boot — always GitHub's — so a sweep of an open-git repo
+		 * authenticated against GitHub, found no installation there, and logged a
+		 * confusing "no installation for <repo>" every minute until the give-up
+		 * window abandoned the row.
+		 */
+		const adapter = await adapterFor(row.repoFullName);
 		if (!adapter) {
 			logger.warn(
-				{ actionId: row.id },
-				"stuck action found but no forge credentials — leaving recorded",
+				{ actionId: row.id, repo: row.repoFullName },
+				"stuck action found but no adapter for its forge — leaving recorded",
 			);
 			continue;
 		}

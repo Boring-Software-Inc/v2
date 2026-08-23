@@ -14,6 +14,7 @@ import {
 import { Input } from "#/components/ui/input";
 import { Skeleton } from "#/components/ui/skeleton";
 import { toast } from "#/components/ui/toast";
+import { authQueryKeys } from "#/lib/auth.query";
 import type { OrgWithRole } from "#/lib/org.functions";
 import { deleteOrg, updateOrg } from "#/lib/org.functions";
 import {
@@ -209,6 +210,7 @@ function DangerZone({
 
 function DeleteOrgCard({ org, orgName }: { org: string; orgName: string }) {
 	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const [confirmName, setConfirmName] = useState("");
 
@@ -219,12 +221,39 @@ function DeleteOrgCard({ org, orgName }: { org: string; orgName: string }) {
 
 	const deleteMutation = useMutation({
 		mutationFn: () => deleteOrg({ data: { org, confirmName } }),
-		onSuccess: (result) => {
-			if (result.ok) {
-				navigate({ to: "/" });
+		onSuccess: async (result) => {
+			if (!result.ok) {
+				toast(result.error ?? "could not delete the org");
 				return;
 			}
-			toast(result.error ?? "could not delete the org");
+			// Pick the destination BEFORE touching the cache, from the org list we
+			// already hold, minus the one just deleted.
+			const remaining = (
+				queryClient.getQueryData<OrgWithRole[]>(orgQueryKeys.mine()) ?? []
+			).filter((entry) => entry.slug !== org);
+			// Personal first: it always exists and can never be deleted, so it is the
+			// one destination guaranteed to resolve no matter how many orgs remain.
+			// Server order is already personal-first, so the fallback agrees.
+			const next = remaining.find((entry) => entry.isPersonal) ?? remaining[0];
+
+			// Drop the dead org's cache and re-read the session BEFORE navigating.
+			// `/` redirects on `session.defaultOrgSlug`, which is served from cache
+			// and still names the deleted org — landing there threw `notFound()` on
+			// `/$org` and tripped the error boundary instead of going home.
+			queryClient.removeQueries({ queryKey: orgQueryKeys.detail(org) });
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: orgQueryKeys.mine() }),
+				queryClient.invalidateQueries({ queryKey: authQueryKeys.session() }),
+			]);
+
+			toast.success(`deleted ${org}`);
+			// Straight to a known-good org rather than via `/`, and without the
+			// `?settings=` param that would reopen this dialog on the new org.
+			if (next) {
+				navigate({ to: "/$org/home", params: { org: next.slug } });
+				return;
+			}
+			navigate({ to: "/" });
 		},
 	});
 

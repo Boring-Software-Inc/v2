@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ForgeId } from "./forges.ts";
 import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
 import { aiReviewConfigSchema } from "./review.ts";
@@ -160,6 +161,15 @@ export const profileReadmeConfigSchema = z.object({
 export const RULE_CATALOG = [
 	{
 		ruleId: "account-age",
+		/**
+		 * GitHub only. GitLab returns a user's `created_at` ONLY to that user or an
+		 * instance admin, and open-git exposes no users endpoint at all, so
+		 * tripwire can never read a contributor's account age on either — the
+		 * gitlab half verified live against gitlab.com. Listing the forge here is what
+		 * turns that into an honest "not usable" in the UI and a named skip in the
+		 * engine, instead of a rule that looks armed and silently never fires.
+		 */
+		forges: ["github"],
 		version: 1,
 		name: "account age",
 		blurb: "the contributor's forge account must be at least N days old.",
@@ -173,6 +183,9 @@ export const RULE_CATALOG = [
 	},
 	{
 		ruleId: "min-merged-prs",
+		/** needs contributor merge history; open-git exposes no users endpoint — see the forge-capability audit in
+		 * `core/src/rules/forge-support.test.ts`. */
+		forges: ["github"],
 		version: 2,
 		name: "merged change requests",
 		blurb:
@@ -191,6 +204,9 @@ export const RULE_CATALOG = [
 	},
 	{
 		ruleId: "pr-rate-limit",
+		/** needs the contributor's recent change requests; open-git exposes no users endpoint — see the forge-capability audit in
+		 * `core/src/rules/forge-support.test.ts`. */
+		forges: ["github"],
 		version: 1,
 		name: "rate limit",
 		blurb:
@@ -205,6 +221,9 @@ export const RULE_CATALOG = [
 	},
 	{
 		ruleId: "max-files-changed",
+		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
+		 * `core/src/rules/forge-support.test.ts`. */
+		forges: ["github"],
 		version: 1,
 		name: "max files changed",
 		blurb: "caps the number of files a change request may touch.",
@@ -229,6 +248,9 @@ export const RULE_CATALOG = [
 	},
 	{
 		ruleId: "crypto-address",
+		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
+		 * `core/src/rules/forge-support.test.ts`. */
+		forges: ["github"],
 		version: 1,
 		name: "crypto address",
 		blurb: "blocks cryptocurrency addresses in titles, comments, and diffs.",
@@ -242,6 +264,9 @@ export const RULE_CATALOG = [
 	},
 	{
 		ruleId: "honeypot",
+		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
+		 * `core/src/rules/forge-support.test.ts`. */
+		forges: ["github"],
 		version: 1,
 		name: "honeypot paths",
 		blurb: "no legitimate change request touches these paths.",
@@ -255,6 +280,9 @@ export const RULE_CATALOG = [
 	},
 	{
 		ruleId: "profile-readme",
+		/** needs the contributor's profile text; open-git exposes no users endpoint — see the forge-capability audit in
+		 * `core/src/rules/forge-support.test.ts`. */
+		forges: ["github"],
 		version: 1,
 		name: "profile readme",
 		blurb: "requires a minimum of profile text — identity investment.",
@@ -268,6 +296,9 @@ export const RULE_CATALOG = [
 	},
 	{
 		ruleId: "ai-review",
+		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
+		 * `core/src/rules/forge-support.test.ts`. */
+		forges: ["github"],
 		// @2 — findings quote code in backticks. @1 stays registered for stored
 		// runs, but a repo enabling ai-review now pins the current version.
 		version: 2,
@@ -295,9 +326,46 @@ export const RULE_CATALOG = [
 	/** Contributor-facing one-liner for verdict surfaces (§12 copy). */
 	contributorLabel: string;
 	changeNote?: string;
+	/**
+	 * Forges this rule can run on. Absent ⇒ all of them. Present ⇒ the rule needs
+	 * something the other forges do not expose, and both the engine and the rules
+	 * page treat it as unusable there rather than quietly inert.
+	 */
+	forges?: readonly ForgeId[];
 }>;
 
 export type RuleCatalogEntry = (typeof RULE_CATALOG)[number];
+
+/**
+ * Which forges a rule can actually run on. Absent ⇒ every forge — the common
+ * case, so only rules with a real forge-side gap carry the field.
+ *
+ * Keyed on `ForgeId`, not `Forge`: a rule can declare a gap against a forge that
+ * is still `planned`, so the knowledge survives whether or not that adapter is
+ * live on this branch.
+ *
+ * The declaration lives on the CATALOG (contracts) rather than the rule
+ * definition (core) because both sides need it and the web head may not import
+ * core: the engine reads it to skip with a named reason, the rules page reads it
+ * to disable the card and say why.
+ */
+export function ruleSupportsForge(ruleId: string, forge: ForgeId): boolean {
+	const entry = RULE_CATALOG.find((rule) => rule.ruleId === ruleId) as
+		| { forges?: readonly string[] }
+		| undefined;
+	return !entry?.forges || entry.forges.includes(forge);
+}
+
+/** Plain-language reason for a disabled rule card. Null when it is usable. */
+export function ruleForgeBlockReason(
+	ruleId: string,
+	forge: ForgeId,
+): string | null {
+	if (ruleSupportsForge(ruleId, forge)) {
+		return null;
+	}
+	return `not usable with ${forge}`;
+}
 
 /**
  * The ONLY sanctioned splitter for the display layer: bare rule id from a wire

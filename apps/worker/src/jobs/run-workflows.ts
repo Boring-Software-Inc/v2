@@ -184,7 +184,11 @@ async function runWorkflowsInner(
 	 * the default's nodes). To turn a workflowed rule off, remove it from the
 	 * workflow first.
 	 */
-	const repo = await repoServices.getRepoByFullName(db, event.repo.fullName);
+	const repo = await repoServices.getRepoByFullName(
+		db,
+		event.repo.fullName,
+		event.forge,
+	);
 
 	/**
 	 * §4 arming gate — an unarmed repo is skipped ENTIRELY: no run, no check, no
@@ -215,6 +219,7 @@ async function runWorkflowsInner(
 	const custom = await repoServices.listEnabledWorkflows(
 		db,
 		event.repo.fullName,
+		event.forge,
 	);
 	// Saved workflows orchestrate the rules they CONTAIN — they do not turn the
 	// rest off. Rules outside every enabled workflow keep running standalone via
@@ -253,6 +258,7 @@ async function runWorkflowsInner(
 			})),
 		],
 		ownedRuleIds,
+		event.forge,
 	);
 	const derivedHasRules = derived.nodes.some((node) => node.type === "rule");
 	const definitions: WorkflowDefinition[] =
@@ -398,18 +404,32 @@ async function runWorkflowsInner(
 	).length;
 	const degraded = isRunDegraded(ruleSteps0.length, skippedCount, verdict);
 	if (degraded) {
-		verdict = "needs_review";
-		paused = true;
+		/**
+		 * The floor is configurable, and ON by default.
+		 *
+		 * Turning it off lets a partly-evaluated run pass. It does NOT hide what
+		 * happened: the step below is recorded either way, so the run page and
+		 * the audit trail still name every rule that could not evaluate. Turning
+		 * off a safety net must never turn off the evidence.
+		 */
+		const failClosed = (await repoServices.getResponseConfig(db, repo.id))
+			.failClosedFallback;
+		if (failClosed) {
+			verdict = "needs_review";
+			paused = true;
+		}
 		const startedAt = new Date().toISOString();
 		const degradationStep: StepRecord = {
 			nodeId: "run:degradation",
 			nodeKind: "gate",
 			status: "skipped",
-			input: { rule: "fail-closed floor" },
+			input: { rule: "fail-closed floor", enforced: failClosed },
 			output: {
 				degradedReads,
 				skippedRules: skippedCount,
 				ruleNodes: ruleSteps0.length,
+				/** false ⇒ the run passed with a partial evaluation, on purpose. */
+				enforced: failClosed,
 			},
 			startedAt,
 			finishedAt: startedAt,
@@ -424,8 +444,15 @@ async function runWorkflowsInner(
 			);
 		}
 		logger.warn(
-			{ degradedReads, skippedCount, ruleNodes: ruleSteps0.length },
-			"evaluation degraded — fail-closed floor routes run to moderation",
+			{
+				degradedReads,
+				skippedCount,
+				ruleNodes: ruleSteps0.length,
+				enforced: failClosed,
+			},
+			failClosed
+				? "evaluation degraded — fail-closed floor routes run to moderation"
+				: "evaluation degraded — floor is off for this repo, run passes partial",
 		);
 	}
 
@@ -615,7 +642,12 @@ export function makeEvaluator(
 		const stored = custom?.records.get(ref);
 		if (stored && custom) {
 			try {
-				return await evaluateCustomRule(stored, custom.signalCtx, ctx.now);
+				return await evaluateCustomRule(
+					stored,
+					custom.signalCtx,
+					ctx.now,
+					ctx.event.forge,
+				);
 			} catch (error) {
 				logger.error(
 					{ ref, error: getErrorMessage(error) },

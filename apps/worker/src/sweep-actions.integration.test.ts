@@ -135,7 +135,7 @@ describe("sweepActions", () => {
 
 		const fake = fakeAdapter();
 		const result = await sweepActions(
-			{ db, adapter: fake.adapter as never, logger },
+			{ db, adapterFor: () => Promise.resolve(fake.adapter as never), logger },
 			{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
 		);
 		expect(result.executed).toBe(2);
@@ -199,7 +199,7 @@ describe("sweepActions", () => {
 
 		const fake = fakeAdapter();
 		const result = await sweepActions(
-			{ db, adapter: fake.adapter as never, logger },
+			{ db, adapterFor: () => Promise.resolve(fake.adapter as never), logger },
 			{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
 		);
 		expect(result.superseded).toBe(2);

@@ -10,10 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the anti-slop gate can diff a PR against its base.
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      # The anti-slop oxlint plugin is TypeScript; oxlint loads it through
+      # Node's ESM loader, which needs >=22.6 + type-stripping. Pin Node 22.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: Install
         run: bun install --frozen-lockfile
@@ -26,6 +35,15 @@ jobs:
 
       - name: Boundary check
         run: bun run check:boundaries
+
+      # Gate NEW code only: anti-slop runs over the lines this PR ADDED, not the
+      # whole tree and not whole touched files. The 471 legacy violations are
+      # burned down separately and never block an unrelated PR.
+      - name: Anti-slop (changed lines)
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          bun run scripts/lint-slop-changed.ts "origin/${{ github.base_ref }}...HEAD"
 
       - name: Tests
         run: bun test

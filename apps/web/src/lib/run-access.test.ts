@@ -175,6 +175,8 @@ const fullView: RunView = {
 	rerunBy: "Maintainer",
 	orgSlug: "acme",
 	repoName: "pub",
+	forge: "github",
+	subjectUrl: null,
 	canRerun: true,
 	steps: [ruleStep, aiReviewStep],
 	actions: [

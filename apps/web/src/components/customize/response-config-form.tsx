@@ -289,6 +289,32 @@ export function ResponseConfigForm({
 						value={config.reviewComment}
 					/>
 				) : null}
+
+				{/*
+				  Lives here because this setting decides whether a run BECOMES a
+				  review, so it belongs beside the rest of the review behaviour.
+				  It is the only control on this page that changes a verdict rather
+				  than how a verdict is announced, which is why it carries a
+				  consequence line rather than a label alone.
+				*/}
+				<div className="mt-3 flex items-start justify-between gap-3 border-border border-t pt-3 text-xs">
+					<label className="flex flex-col gap-1" htmlFor="response-fail-closed">
+						<span>review when a rule can't run</span>
+						<span className="text-[11px] text-muted-foreground">
+							{config.failClosedFallback
+								? "a change that half its rules couldn't check goes to a human."
+								: "off. a change passes even when half its rules couldn't check it."}
+						</span>
+					</label>
+					<Switch
+						checked={config.failClosedFallback}
+						disabled={!canEdit}
+						id="response-fail-closed"
+						onCheckedChange={(checked) =>
+							patch({ failClosedFallback: checked })
+						}
+					/>
+				</div>
 			</div>
 			{canEdit ? null : (
 				<p className="text-muted-foreground text-xs">

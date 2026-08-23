@@ -17,6 +17,7 @@
 		"@tripwire/contracts": "workspace:*",
 		"@tripwire/db": "workspace:*",
 		"@tripwire/forge-github": "workspace:*",
+		"@tripwire/forge-opengit": "workspace:*",
 		"@tripwire/utils": "workspace:*",
 		"hono": "^4.12.29",
 		"pg": "^8.22.0",

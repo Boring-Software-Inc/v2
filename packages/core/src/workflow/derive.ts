@@ -1,7 +1,9 @@
 import {
 	DEFAULT_WORKFLOW,
+	type Forge,
 	type JsonValue,
 	ruleIdOf,
+	ruleSupportsForge,
 	type WorkflowDefinition,
 	type WorkflowEdge,
 	type WorkflowNode,
@@ -67,6 +69,20 @@ export function deriveDefaultWorkflow(
 	 * twice with two configs (the workflow node's config wins for owned rules).
 	 */
 	excludeRuleIds?: ReadonlySet<string>,
+	/**
+	 * The forge this repo lives on. Rules the catalog declares unusable there are
+	 * left OUT of the gate rather than added and skipped.
+	 *
+	 * Skipping is not free: a skipped rule trips the fail-closed floor, so a gate
+	 * carrying even one structurally-inapplicable rule sends EVERY change request
+	 * to review, forever. That is not caution, it is a dead gate — open-git ran
+	 * exactly this way, degrading every pull request while english-only passed
+	 * underneath. A rule that can never run on this forge is not a read that
+	 * might come back; the catalog already settled it.
+	 *
+	 * Absent ⇒ no filtering, which keeps every existing caller unchanged.
+	 */
+	forge?: Forge,
 ): WorkflowDefinition {
 	// Key by rule ID, not full ref (§6 b): a repo has ONE config per rule, and a
 	// toggle whose version differs from the baseline's (a repo HELD on an older
@@ -76,10 +92,13 @@ export function deriveDefaultWorkflow(
 	const baseline = baselineRules();
 	const baselineIds = new Set(baseline.map((r) => ruleIdOf(r.ref)));
 
+	const runsHere = (ref: string): boolean =>
+		!forge || ruleSupportsForge(ruleIdOf(ref), forge);
+
 	const included: BaselineRule[] = [];
 	for (const rule of baseline) {
 		const id = ruleIdOf(rule.ref);
-		if (excludeRuleIds?.has(id)) {
+		if (excludeRuleIds?.has(id) || !runsHere(rule.ref)) {
 			continue;
 		}
 		const toggle = byId.get(id);
@@ -95,7 +114,11 @@ export function deriveDefaultWorkflow(
 		if (excludeRuleIds?.has(ruleIdOf(toggle.ref))) {
 			continue;
 		}
-		if (toggle.enabled && !baselineIds.has(ruleIdOf(toggle.ref))) {
+		if (
+			toggle.enabled &&
+			!baselineIds.has(ruleIdOf(toggle.ref)) &&
+			runsHere(toggle.ref)
+		) {
 			included.push({ ref: toggle.ref, config: toggle.config });
 		}
 	}

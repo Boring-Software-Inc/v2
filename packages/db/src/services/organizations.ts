@@ -1,12 +1,15 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
+	type Forge,
+	forgeSchema,
 	type OrgRole,
 	orgSlugSchema,
 	slugifyOrgName,
 	suffixSlug,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
+import { z } from "zod";
 import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
 import {
@@ -520,7 +523,7 @@ export async function linkOrgInstallation(
 	input: {
 		orgId: string;
 		installationId: string;
-		forge?: string;
+		forge?: Forge;
 		accountType?: string;
 		accountLogin?: string;
 	},
@@ -576,7 +579,7 @@ export async function recordInstallationAccount(
 	db: Db,
 	input: {
 		installationId: string;
-		forge?: string;
+		forge?: Forge;
 		accountType?: string;
 		accountLogin?: string;
 	},
@@ -605,7 +608,7 @@ export async function recordInstallationAccount(
  */
 export async function moveInstallation(
 	db: Db,
-	input: { installationId: string; toOrgId: string; forge?: string },
+	input: { installationId: string; toOrgId: string; forge?: Forge },
 ): Promise<{ moved: boolean }> {
 	const forge = input.forge ?? "github";
 	return await db.transaction(async (tx) => {
@@ -638,7 +641,7 @@ export async function moveInstallation(
 /** The org that owns an installation — the webhook ingest resolution hop. */
 export async function getInstallationOrg(
 	db: Db,
-	input: { installationId: string; forge?: string },
+	input: { installationId: string; forge?: Forge },
 ): Promise<string | null> {
 	const rows = await db
 		.select({ organizationId: organizationInstallations.organizationId })
@@ -772,6 +775,7 @@ import type { RepoLite, SwitcherRepo } from "./onboarding.ts";
 
 const ORG_REPO_LITE = {
 	id: repos.id,
+	forge: repos.forge,
 	owner: repos.owner,
 	name: repos.name,
 	fullName: repos.fullName,
@@ -781,12 +785,26 @@ const ORG_REPO_LITE = {
 	backfillDone: repos.backfillDone,
 } as const;
 
-/** Every non-removed repo the org owns. */
+/**
+ * Every non-removed repo the org owns, ON A FORGE THIS BUILD SUPPORTS.
+ *
+ * The `forge` column is `$type<Forge>()` — a compile-time cast, not a runtime
+ * check — so a row written while another forge was live would flow out of here
+ * wearing a type it does not satisfy. Filtering in SQL keeps the cast honest and
+ * matches `listOrgSwitcherRepos`: an unsupported repo has no adapter, no token
+ * and no reads, so there is nothing truthful to show for it.
+ */
 export async function listOrgRepos(db: Db, orgId: string): Promise<RepoLite[]> {
 	return await db
 		.select(ORG_REPO_LITE)
 		.from(repos)
-		.where(and(eq(repos.orgId, orgId), isNull(repos.removedAt)))
+		.where(
+			and(
+				eq(repos.orgId, orgId),
+				isNull(repos.removedAt),
+				inArray(repos.forge, [...forgeSchema.options]),
+			),
+		)
 		.orderBy(repos.fullName);
 }
 
@@ -816,12 +834,32 @@ export async function getOrgRepo(
 }
 
 /** The org switcher list — repos with triage signal, org-scoped. */
+/**
+ * One row of the org repo-switcher query, parsed rather than coerced. Raw sql
+ * returns untyped columns, and String()/Number()/Boolean() turn a wrong column
+ * into a plausible value instead of a failure.
+ */
+const switcherRepoRowSchema = z.object({
+	id: z.string(),
+	forge: forgeSchema,
+	owner: z.string(),
+	name: z.string(),
+	fullName: z.string(),
+	armed: z.boolean(),
+	pendingModeration: z.number(),
+	blocked24h: z.number(),
+	lastActivityAt: z
+		.union([z.string(), z.date()])
+		.nullable()
+		.transform((value) => (value ? new Date(value).toISOString() : null)),
+});
+
 export async function listOrgSwitcherRepos(
 	db: Db,
 	orgId: string,
 ): Promise<SwitcherRepo[]> {
 	const result = await db.execute(sql`
-		SELECT r.id, r.owner, r.name, r.full_name AS "fullName", r.armed,
+		SELECT r.id, r.forge, r.owner, r.name, r.full_name AS "fullName", r.armed,
 		       COALESCE(pend.n, 0)::int AS "pendingModeration",
 		       COALESCE(blk.n, 0)::int AS "blocked24h",
 		       act.last AS "lastActivityAt"
@@ -843,18 +881,23 @@ export async function listOrgSwitcherRepos(
 		WHERE r.removed_at IS NULL AND r.org_id = ${orgId}
 		ORDER BY act.last DESC NULLS LAST, r.full_name
 	`);
-	return (result.rows as Record<string, unknown>[]).map((row) => ({
-		id: String(row.id),
-		owner: String(row.owner),
-		name: String(row.name),
-		fullName: String(row.fullName),
-		armed: Boolean(row.armed),
-		pendingModeration: Number(row.pendingModeration ?? 0),
-		blocked24h: Number(row.blocked24h ?? 0),
-		lastActivityAt: row.lastActivityAt
-			? new Date(row.lastActivityAt as string).toISOString()
-			: null,
-	}));
+	// SKIP rows whose forge this build does not support — do not coerce, do not
+	// throw. Raw SQL hands back untyped text, and a database outlives any one
+	// build: rows written while another forge was live (a branch, a rollback, a
+	// half-finished migration) are still sitting there.
+	//
+	// Coercing to github was the original bug — it mislabels someone else's repo.
+	// Throwing was the overcorrection — one unsupported row took down every
+	// org-scoped page. Skipping is the honest third option: without an adapter
+	// there is no token, no reads and no actions for that repo, so listing it
+	// would promise something this build cannot do.
+	//
+	// The parse below is what performs that skip: `forgeSchema` refuses an
+	// unknown forge, the row fails, and it never reaches the page.
+	return result.rows.flatMap((row) => {
+		const parsed = switcherRepoRowSchema.safeParse(row);
+		return parsed.success ? [parsed.data] : [];
+	});
 }
 
 export interface OrgInstallState {

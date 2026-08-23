@@ -1,11 +1,15 @@
 import { dash } from "@better-auth/infra";
-import { orgSlugSchema } from "@tripwire/contracts";
+import {
+	forgeSchema,
+	orgSlugSchema,
+	SIGN_IN_FORGE_IDS,
+} from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { orgServices, schema } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { admin } from "better-auth/plugins";
+import { admin, genericOAuth } from "better-auth/plugins";
 import { organization } from "better-auth/plugins/organization";
 import { eq } from "drizzle-orm";
 import { applySignupAccessDefaults } from "./access.ts";
@@ -25,6 +29,17 @@ export interface CreateAuthInput {
 	baseUrl: string;
 	github: { clientId: string; clientSecret: string } | null;
 	/**
+	 * open-git OAuth, or null when the creds are absent. Goes through the
+	 * genericOAuth plugin rather than a built-in provider: better-auth has no
+	 * open-git provider, but open-git ships OIDC discovery + PKCE, so the generic
+	 * path covers it with no bespoke exchange code.
+	 *
+	 * `origin` points a self-hosted instance at its own URL; omit for
+	 * open-git.com. Sign-in ONLY — there is no adapter, so an open-git identity
+	 * cannot own a repo (see FORGE_CATALOG: `status: planned`, `signIn: oauth2`).
+	 */
+	opengit: { clientId: string; clientSecret: string; origin?: string } | null;
+	/**
 	 * Better Auth Infrastructure API key (BETTER_AUTH_API_KEY). Lets the dash()
 	 * connector reach the infra service; absent (dev / unset) ⇒ dash stays
 	 * inert. Injected by the heads — packages/auth never reads env itself.
@@ -40,6 +55,20 @@ export interface CreateAuthInput {
 }
 
 export function createAuth(input: CreateAuthInput) {
+	/**
+	 * An absent provider must be ABSENT, not present and empty, so better-auth
+	 * never advertises a sign-in it cannot complete. A ternary says that without
+	 * an annotation to discard the inferred shape.
+	 */
+	const socialProviders = input.github
+		? {
+				github: {
+					clientId: input.github.clientId,
+					clientSecret: input.github.clientSecret,
+				},
+			}
+		: {};
+
 	return betterAuth({
 		database: drizzleAdapter(input.db, {
 			provider: "pg",
@@ -63,19 +92,24 @@ export function createAuth(input: CreateAuthInput) {
 		},
 		// Dev persona switcher only — off unless the web head is a dev build.
 		emailAndPassword: { enabled: input.devLogin ?? false },
+		// One maintainer can carry a GitHub AND a GitLab identity, so link social
+		// accounts that share a verified email into ONE user — `forge_identities`
+		// then holds a row per forge (§10). Only forge providers are trusted, and
+		// the enum is the source, so a new forge is trusted with no edit here.
+		// Same-email is required (allowDifferentEmails defaults false), which
+		// blocks linking an unrelated account.
+		account: {
+			accountLinking: {
+				enabled: true,
+				trustedProviders: [...SIGN_IN_FORGE_IDS],
+			},
+		},
 		advanced: {
 			database: {
 				generateId: () => generateId(),
 			},
 		},
-		socialProviders: input.github
-			? {
-					github: {
-						clientId: input.github.clientId,
-						clientSecret: input.github.clientSecret,
-					},
-				}
-			: {},
+		socialProviders,
 		user: {
 			// Closed-beta access queue. `input: false` means a client can never set
 			// these through the signup/update payload — only server code (the create
@@ -114,6 +148,28 @@ export function createAuth(input: CreateAuthInput) {
 			},
 		},
 		plugins: [
+			...(input.opengit
+				? [
+						genericOAuth({
+							config: [
+								{
+									// The provider id IS the forge id, so account.providerId lines
+									// up with the catalog and the callback path is
+									// /oauth2/callback/opengit.
+									providerId: "opengit",
+									clientId: input.opengit.clientId,
+									clientSecret: input.opengit.clientSecret,
+									// Discovery over hand-written endpoints: open-git serves
+									// /.well-known/openid-configuration, so the URLs stay right
+									// even if they move.
+									discoveryUrl: `${(input.opengit.origin ?? "https://open-git.com").replace(/\/$/, "")}/.well-known/openid-configuration`,
+									scopes: ["openid", "profile", "email"],
+									pkce: true,
+								},
+							],
+						}),
+					]
+				: []),
 			organization({
 				ac: orgAc,
 				roles: orgRoles,
@@ -255,9 +311,17 @@ export function createAuth(input: CreateAuthInput) {
 			},
 			account: {
 				create: {
-					/** §10: mirror the GitHub identity into forge_identities. */
+					/** §10: mirror the forge identity into forge_identities. One row
+					 * per (forge, external id). A provider with no forge (none today)
+					 * is ignored, not guessed. */
 					after: async (account) => {
-						if (account.providerId !== "github") {
+						// Better Auth's provider id IS the forge slug ("github",
+						// "gitlab"), so the forgeSchema enum validates it directly — no
+						// map to maintain. A non-forge provider (e.g. dev credentials)
+						// fails the parse and is skipped, not guessed. Add a forge = add
+						// it to forgeSchema; this hook needs no edit.
+						const forge = forgeSchema.safeParse(account.providerId);
+						if (!forge.success) {
 							return;
 						}
 						const users = await input.db
@@ -270,7 +334,7 @@ export function createAuth(input: CreateAuthInput) {
 							.values({
 								id: generateId(),
 								userId: account.userId,
-								forge: "github",
+								forge: forge.data,
 								externalId: account.accountId,
 								username,
 							})
