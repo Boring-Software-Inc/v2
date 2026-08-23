@@ -43,19 +43,46 @@ export type InstallUrlState =
 	| { status: "no-session" };
 
 /**
- * The GitHub App install URL FOR THIS ORG — the signed state carries
- * {userId, orgId} so the Setup callback can verify who initiated it and
- * where it should land (§10). Admin: installing changes what the org gates.
+ * The install URL FOR THIS ORG, on the forge asked for. Admin-only: installing
+ * changes what the org gates.
+ *
+ * GitHub round-trips a signed `state` carrying {userId, orgId}, so its Setup
+ * callback can name both sides and confirm. open-git does NOT: its
+ * `installationConnectUrl` appends `installation_id` and nothing else. That is
+ * not a blocker — the same callback already treats a missing state as a CLAIM
+ * and shows the org picker (§10, never auto-attach on a guess) — but it is the
+ * reason the state is only attached for GitHub.
  */
+function installUrlFor(forge: Forge, state: string): InstallUrlState {
+	if (forge === "github") {
+		const slug = process.env.GITHUB_APP_SLUG;
+		return slug
+			? {
+					status: "ready",
+					url: `https://github.com/apps/${slug}/installations/new?state=${encodeURIComponent(state)}`,
+				}
+			: { status: "not-configured" };
+	}
+	const owner = process.env.OPEN_GIT_BOT_OWNER;
+	const slug = process.env.OPEN_GIT_BOT_SLUG;
+	if (!(owner && slug)) {
+		return { status: "not-configured" };
+	}
+	const origin = (process.env.OPEN_GIT_URL ?? "https://open-git.com").replace(
+		/\/$/,
+		"",
+	);
+	return {
+		status: "ready",
+		url: `${origin}/integrations/${owner}/${slug}/install`,
+	};
+}
+
 export const getOrgInstallUrl = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware, orgAdminMiddleware])
-	.inputValidator((input: { org: string }) => input)
-	.handler(async ({ context }): Promise<InstallUrlState> => {
+	.inputValidator((input: { org: string; forge?: Forge }) => input)
+	.handler(async ({ context, data }): Promise<InstallUrlState> => {
 		const org = (context as { org: OrgWithRole }).org;
-		const slug = process.env.GITHUB_APP_SLUG;
-		if (!slug) {
-			return { status: "not-configured" };
-		}
 		const { requireSession } = await import("#/lib/server/session");
 		const userId = await requireSession();
 		if (!userId) {
@@ -63,10 +90,7 @@ export const getOrgInstallUrl = createServerFn({ method: "GET" })
 		}
 		const { signInstallState } = await import("#/lib/server/install-state");
 		const state = signInstallState({ userId, orgId: org.id });
-		return {
-			status: "ready",
-			url: `https://github.com/apps/${slug}/installations/new?state=${encodeURIComponent(state)}`,
-		};
+		return installUrlFor(data.forge ?? "github", state);
 	});
 
 export interface InstallPreview {

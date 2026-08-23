@@ -14,9 +14,14 @@ import { myOrgsQueryOptions } from "#/lib/org.query";
  * verb. One cell per catalog entry: a `live` forge gets a real connect action, a
  * `planned` one is inert and says so.
  *
- * GitHub connects as an App INSTALLATION: org-scoped (the install URL is minted
- * per org and only an admin may grant) and it leaves the app entirely — you pick
- * repos on github.com and webhooks sync them back.
+ * Both live forges connect as an app/bot INSTALLATION: org-scoped (the install
+ * url is minted per org and only an admin may grant) and the flow leaves the app
+ * entirely — you pick repos on the forge, and it sends you back.
+ *
+ * GitHub round-trips a signed state, so its callback can name both sides and ask
+ * you to confirm. open-git returns `installation_id` alone, so the same callback
+ * falls through to the CLAIM screen and asks which org it belongs to. Both end
+ * up bound deliberately; neither auto-attaches on a guess (§10).
  *
  * Where a live forge can't run, the cell is blocked WITH THE REASON rather than
  * hidden — a missing menu item teaches nothing, and "add repos" silently
@@ -37,33 +42,49 @@ export function ConnectForgeGrid({
 	const { data: orgs } = useQuery(myOrgsQueryOptions());
 	const isOrgAdmin =
 		(orgs ?? []).find((entry) => entry.slug === org)?.role === "admin";
-	const { data: installUrl } = useQuery({
-		...orgInstallUrlQueryOptions(org ?? ""),
+	const { data: githubUrl } = useQuery({
+		...orgInstallUrlQueryOptions(org ?? "", "github"),
+		enabled: Boolean(org) && isOrgAdmin,
+	});
+	const { data: openGitUrl } = useQuery({
+		...orgInstallUrlQueryOptions(org ?? "", "opengit"),
 		enabled: Boolean(org) && isOrgAdmin,
 	});
 
-	function githubState(): ForgeCellState {
+	/**
+	 * Both live forges install the same way — an app/bot INSTALLATION, granted
+	 * per org, completed on the forge's own site — so they share one cell
+	 * builder rather than two near-copies that drift. What differs is only the
+	 * url and the copy, and both come in as arguments.
+	 *
+	 * (GitLab, when it lands, does NOT fit here: it is an api import, user-scoped
+	 * and never leaving the app. It needs its own builder, not another argument.)
+	 */
+	function installState(
+		label: string,
+		installUrl: typeof githubUrl,
+	): ForgeCellState {
 		if (!org) {
 			return {
 				kind: "blocked",
 				title: "open an org first",
-				body: "github grants repos to an org — pick one, then connect.",
+				body: `${label} grants repos to an org — pick one, then connect.`,
 			};
 		}
 		if (!isOrgAdmin) {
 			return {
 				kind: "blocked",
 				title: "admins only",
-				body: "ask an org admin to connect github repos.",
+				body: `ask an org admin to connect ${label} repos.`,
 			};
 		}
 		if (installUrl?.status !== "ready") {
 			return {
 				kind: "blocked",
-				title: "github app unavailable",
+				title: `${label} app unavailable`,
 				body:
 					installUrl?.status === "not-configured"
-						? "the github app isn't configured on this deployment."
+						? `the ${label} app isn't configured on this deployment.`
 						: "couldn't mint an install url — try again shortly.",
 			};
 		}
@@ -77,7 +98,8 @@ export function ConnectForgeGrid({
 	}
 
 	const STATE: Record<string, () => ForgeCellState> = {
-		github: githubState,
+		github: () => installState("github", githubUrl),
+		opengit: () => installState("open-git", openGitUrl),
 	};
 
 	return (
