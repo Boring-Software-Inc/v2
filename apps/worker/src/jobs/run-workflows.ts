@@ -258,6 +258,7 @@ async function runWorkflowsInner(
 			})),
 		],
 		ownedRuleIds,
+		event.forge,
 	);
 	const derivedHasRules = derived.nodes.some((node) => node.type === "rule");
 	const definitions: WorkflowDefinition[] =
