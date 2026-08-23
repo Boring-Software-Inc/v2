@@ -76,5 +76,6 @@
 	"dependencies": {
 		"@electric-sql/pglite": "^0.2.17",
 		"@tripwire/forge-opengit": "workspace:*"
-	}
+	},
+	"license": "MIT"
 }
