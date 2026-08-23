@@ -35,19 +35,36 @@ export function describeSyntheticStep(
 		const output = asRecord(step.output);
 		const skipped = output?.skippedRules;
 		const total = output?.ruleNodes;
-		const counts =
-			typeof skipped === "number" && typeof total === "number"
-				? `${skipped} of ${total} rules skipped`
-				: "rule evaluation degraded";
+		const one = skipped === 1;
+		/**
+		 * Say what happened, then what it cost. Nothing else.
+		 *
+		 * The old copy said "evaluation degraded — the fail-closed floor sent this
+		 * run to review instead of passing on guesswork". Three problems: the
+		 * floor is our word and means nothing to a maintainer, "passing on
+		 * guesswork" argues with the reader, and none of it says WHY a rule could
+		 * not run. The reason lives on the rule's own step, which is where a
+		 * reader looks next.
+		 */
 		const reads = output?.degradedReads;
-		const readsSuffix =
+		// Each part drops out cleanly when it is unknown, so a malformed step
+		// still reads as a sentence instead of "skipped. sent to review."
+		const parts = [
+			typeof skipped === "number" && typeof total === "number"
+				? `${skipped} of ${total} skipped.`
+				: null,
 			Array.isArray(reads) && reads.length > 0
-				? ` (degraded reads: ${reads.filter((r) => typeof r === "string").join(", ")})`
-				: "";
+				? `couldn't read: ${reads.filter((r) => typeof r === "string").join(", ")}.`
+				: null,
+			// enforced:false ⇒ the maintainer turned the review fallback off.
+			output?.enforced === false
+				? "passed anyway — the review fallback is off."
+				: "sent to review.",
+		];
 		return {
 			kind: "degradation",
-			title: "evaluation degraded",
-			detail: `${counts}${readsSuffix} — the fail-closed floor sent this run to review instead of passing on guesswork.`,
+			title: one ? "a rule couldn't run" : "some rules couldn't run",
+			detail: parts.filter((part) => part !== null).join(" "),
 		};
 	}
 	return null;
