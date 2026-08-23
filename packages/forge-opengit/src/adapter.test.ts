@@ -166,17 +166,6 @@ describe("actions open-git cannot perform", () => {
 				reviewId: "r1",
 			},
 		],
-		[
-			"comment",
-			{
-				kind: "comment",
-				repoFullName: "acme/api",
-				number: 1,
-				body: "hi",
-				verdict: "pass",
-				previousVerdict: null,
-			},
-		],
 	];
 
 	test.each(
@@ -209,5 +198,50 @@ describe("the absent read surface", () => {
 	test("the adapter still declares its forge", () => {
 		const { fetchImpl } = recordingFetch();
 		expect(adapterWith(fetchImpl).forge).toBe("opengit");
+	});
+});
+
+describe("comments — append on a transition, never on a repeat", () => {
+	const comment = (verdict: string, previousVerdict: string | null) => ({
+		kind: "comment" as const,
+		repoFullName: "acme/api",
+		number: 7,
+		body: "**tripwire** blocked this change",
+		verdict,
+		previousVerdict,
+	});
+
+	test("a first verdict posts, and returns the comment id", async () => {
+		const { calls, fetchImpl } = recordingFetch({ id: "c-1" });
+		const result = await adapterWith(fetchImpl).execute(
+			comment("block", null) as never,
+		);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.method).toBe("POST");
+		expect(calls[0]?.url).toContain("/api/v1/repos/acme/api/pulls/7/comments");
+		expect(calls[0]?.body).toMatchObject({
+			body: "**tripwire** blocked this change",
+		});
+		expect(result.externalId).toBe("c-1");
+	});
+
+	test("a flip posts a new comment", async () => {
+		const { calls, fetchImpl } = recordingFetch({ id: "c-2" });
+		await adapterWith(fetchImpl).execute(comment("pass", "block") as never);
+		expect(calls).toHaveLength(1);
+	});
+
+	/**
+	 * The whole reason this is bounded. open-git cannot edit or delete a comment,
+	 * so re-posting an unchanged verdict on every push would bury the change
+	 * request in identical comments.
+	 */
+	test("an unchanged verdict says nothing at all", async () => {
+		const { calls, fetchImpl } = recordingFetch({ id: "c-3" });
+		const result = await adapterWith(fetchImpl).execute(
+			comment("block", "block") as never,
+		);
+		expect(calls).toHaveLength(0);
+		expect(result.externalId).toBeNull();
 	});
 });
