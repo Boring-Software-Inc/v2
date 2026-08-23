@@ -17,6 +17,7 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/auth/package.json ./packages/auth/
 COPY packages/forge/package.json ./packages/forge/
 COPY packages/forge-github/package.json ./packages/forge-github/
+COPY packages/forge-opengit/package.json ./packages/forge-opengit/
 COPY packages/sdk/package.json ./packages/sdk/
 COPY packages/ui/package.json ./packages/ui/
 COPY apps/api/package.json ./apps/api/
