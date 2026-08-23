@@ -1,6 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { FORGE_BY_ID } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
+import { ForgeMark } from "#/components/common/forge-marks";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
 import { StepCard } from "#/components/runs/step-card";
@@ -141,6 +143,7 @@ function RunBody({ run }: { run: RunView }) {
 						</span>
 					) : null}
 					<div className="ml-auto flex shrink-0 items-center gap-2">
+						<ViewOnForgeButton run={run} />
 						<CopyRunButton run={run} />
 						{run.canRerun && run.orgSlug && run.repoName ? (
 							<RerunRunButton
@@ -250,6 +253,32 @@ function DeliveryBadge({
 		>
 			{label}
 		</span>
+	);
+}
+
+/**
+ * View the change request on its forge. Wears the forge's own mark, so a
+ * maintainer with both forges connected can tell at a glance where a run came
+ * from without reading the label.
+ *
+ * Renders nothing when there is no change request to point at, or when the
+ * repo row is gone. A dead link is worse than no link.
+ */
+function ViewOnForgeButton({ run }: { run: RunView }) {
+	if (!(run.forge && run.subjectUrl)) {
+		return null;
+	}
+	const label = FORGE_BY_ID[run.forge]?.label ?? run.forge;
+	return (
+		<a
+			className="flex shrink-0 items-center gap-1.5 rounded-md bg-surface-1 px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground"
+			href={run.subjectUrl}
+			rel="noreferrer"
+			target="_blank"
+		>
+			<ForgeMark className="size-3.5 shrink-0" forge={run.forge} />
+			view on {label}
+		</a>
 	);
 }
 

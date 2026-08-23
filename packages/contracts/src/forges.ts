@@ -120,3 +120,41 @@ export function forgeSignIn(id: ForgeId): ForgeSignIn | null {
 export const FORGE_BY_ID = Object.fromEntries(
 	FORGE_CATALOG.map((entry) => [entry.id, entry]),
 ) as Record<ForgeId, CatalogEntry>;
+
+/**
+ * The web url of a change request on its forge.
+ *
+ * The path differs per forge (`/pull/` on github, `/pulls/` on open-git), so it
+ * lives here rather than being rebuilt at each call site. `origin` is passed in
+ * because a self-hosted instance moves: contracts reads no environment.
+ *
+ * Returns null when there is no change request to point at.
+ */
+export function changeRequestUrl(input: {
+	forge: ForgeId;
+	repoFullName: string;
+	number: number | null;
+	/** No trailing slash. Defaults to the forge's public host. */
+	origin?: string;
+}): string | null {
+	if (input.number === null) {
+		return null;
+	}
+	const base = (input.origin ?? DEFAULT_FORGE_ORIGIN[input.forge]).replace(
+		/\/$/,
+		"",
+	);
+	const segment = input.forge === "github" ? "pull" : "pulls";
+	return `${base}/${input.repoFullName}/${segment}/${input.number}`;
+}
+
+/**
+ * Public host per forge. A self-hosted deployment overrides this by passing an
+ * origin; a planned forge still needs an entry so the Record stays exhaustive.
+ */
+const DEFAULT_FORGE_ORIGIN: Record<ForgeId, string> = {
+	github: "https://github.com",
+	opengit: "https://open-git.com",
+	gitlab: "https://gitlab.com",
+	origin: "https://origin.dev",
+};
