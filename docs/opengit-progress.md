@@ -4,7 +4,8 @@ what open-git must add before tripwire works there as well as it works on
 github. every item below is a real gap found while running tripwire against
 open-git.com, not a guess.
 
-last checked: 2026-08-23, against `docs/openapi.json` (14 paths).
+last checked: 2026-08-23, against `docs/openapi.json` (14 paths) and a live
+integration on open-git.com.
 
 ---
 
@@ -177,12 +178,24 @@ name. this works, but it is one extra call for data the event could carry.
 
 ### 3.3 visibility of a repository
 
-**change:** add `private` to each repository
+**change:** add `visibility` to each repository, wherever repositories are
+returned: the installation response, the installation events, and the pull
+request payload.
 
-nothing reports whether a repository is public. tripwire stores every
-open-git repository as private. this is the safe direction, because a public
-run page must not open for a repository nobody confirmed is public. it is also
-wrong for every public repository.
+**open-git already stores this.** `repositories.visibility` is a real column
+with a `('public','private')` check. it is simply not sent. this is the
+cheapest item on the list: one field on responses that already exist.
+
+**what tripwire does meanwhile:** it asks for the repository page with no
+credentials. a 200 means public. anything else means not confirmed public.
+
+that works, and it is safe in one direction only, which is why it is written
+that way: a private repository answers 404 to an anonymous request, so it can
+never be read as public.
+
+it is still a guess about a fact open-git knows. it costs one request for each
+repository at install time, and it breaks the day an unauthenticated private
+repository answers 200 for any reason.
 
 ### 3.4 an actor on installation events
 
@@ -219,7 +232,7 @@ a lost id needs a list.
 | close a pull request | test cleanup |
 | refs and draft flag | branch and draft rules |
 | names on installation events | one extra api call for each event |
-| repository visibility | public run pages |
+| repository visibility | public run pages (worked around, badly) |
 | actor on installation events | the audit trail |
 | list installations | recovery |
 
