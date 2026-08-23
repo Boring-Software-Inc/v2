@@ -11,7 +11,9 @@ import {
 	RESUME_RUN_QUEUE,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
+	repoServices,
 } from "@tripwire/db";
+import type { ForgeAdapter } from "@tripwire/forge";
 import { checkAppCredentials } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import pino from "pino";
@@ -85,10 +87,20 @@ if (import.meta.main) {
 					}
 				: null,
 	});
-	// Backfill (arm-time) and the action sweeper are GitHub-only for now; hand
-	// them the GitHub runtime's reads/adapter. TODO(forge): per-forge sweep.
+	// Backfill (arm-time) is GitHub-only for now; hand it the GitHub reads.
 	const githubReads = resolveForge("github")?.reads ?? null;
 	const githubAdapter = resolveForge("github")?.adapter ?? null;
+	/**
+	 * The sweeper spans forges, so it resolves per repo rather than taking one
+	 * adapter. `runs` has no forge column — only `repo_full_name` — so the forge
+	 * comes from the repo row itself.
+	 */
+	const adapterFor = async (
+		repoFullName: string,
+	): Promise<ForgeAdapter | null> => {
+		const forge = await repoServices.findRepoForge(db, repoFullName);
+		return forge ? (resolveForge(forge)?.adapter ?? null) : null;
+	};
 	if (appId && privateKey) {
 		/**
 		 * Boot health (live-test surprise #3): validate the App credentials with
@@ -234,7 +246,7 @@ if (import.meta.main) {
 	await boss.createQueue("sweep-actions");
 	await boss.schedule("sweep-actions", "* * * * *", {}, {});
 	await boss.work("sweep-actions", async () => {
-		await sweepActions({ db, adapter: githubAdapter, logger });
+		await sweepActions({ db, adapterFor, logger });
 	});
 
 	/** Outbound delivery — POST webhook/discord rows through the SSRF guard;

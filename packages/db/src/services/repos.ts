@@ -242,6 +242,26 @@ export async function getRepoByFullName(
 	return rows[0] ?? null;
 }
 
+/**
+ * The forge a repo lives on, found by full name alone. `runs` carries
+ * `repo_full_name` but no forge, so a recovery path holding only a run (the
+ * action sweeper) has no other way to pick the right adapter — and picking the
+ * wrong one means authenticating against a forge the repo is not on.
+ *
+ * Returns null when no live row matches, or when the same full name exists on
+ * more than one forge: a guess there would act on the wrong repository.
+ */
+export async function findRepoForge(
+	db: Db,
+	fullName: string,
+): Promise<Forge | null> {
+	const rows = await db
+		.select({ forge: repos.forge })
+		.from(repos)
+		.where(and(eq(repos.fullName, fullName), isNull(repos.removedAt)));
+	return rows.length === 1 ? (rows[0]?.forge ?? null) : null;
+}
+
 /** Enabled workflow definitions for a repo, contracts-validated on read. */
 export async function listEnabledWorkflows(
 	db: Db,

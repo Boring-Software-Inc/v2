@@ -33,6 +33,14 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	submitFeedback: "authed", // product feedback, not org data
 	getInstallPreview: "authed", // pre-claim: caller may not be an admin yet
 	listClaimableInstallations: "authed", // recovery for id-less setup callbacks
+	/**
+	 * A forge connection belongs to the USER, not an org — it is the caller's own
+	 * oauth link, and the same account can back repos in several orgs. Both carry
+	 * accessGuard alone, which is what `authed` means; org-scoping either one
+	 * would lock a user out of managing a connection they own.
+	 */
+	listForgeConnections: "authed",
+	disconnectForge: "authed",
 
 	// ── member (org-scoped reads + self-scoped org actions) ─────────────
 	getOrgContext: "member",
