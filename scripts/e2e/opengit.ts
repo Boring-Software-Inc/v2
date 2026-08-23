@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
-import type { WorkflowDefinition } from "@tripwire/contracts";
-import { createDb, type Db, repoServices } from "@tripwire/db";
+import { RULE_CATALOG, type WorkflowDefinition } from "@tripwire/contracts";
+import { createDb, type Db, repoServices, schema } from "@tripwire/db";
 import { Command } from "commander";
+import { eq } from "drizzle-orm";
 import { loadConfig } from "./lib/config.ts";
 import { loadOpenGitConfig, OpenGit } from "./lib/opengit.ts";
 import { pinWorkflows, restoreWorkflows } from "./lib/workflow-pin.ts";
@@ -26,6 +27,72 @@ import { pinWorkflows, restoreWorkflows } from "./lib/workflow-pin.ts";
  * three — see the audit in `core/src/rules/forge-support.test.ts`. That is a
  * fact about the forge, not a gap in this harness.
  */
+
+/**
+ * The eight rules open-git cannot feed. Each needs a diff, a commit list or a
+ * contributor profile, and open-git's v1 api exposes none of the three.
+ */
+const BLOCKED_RULES = [
+	"account-age@1",
+	"min-merged-prs@2",
+	"pr-rate-limit@1",
+	"max-files-changed@1",
+	"crypto-address@1",
+	"honeypot@1",
+	"profile-readme@1",
+	"ai-review@2",
+] as const;
+
+/**
+ * Every forge-blocked rule in ONE gate. This is the safety property that
+ * matters: a rule that cannot run must DECLINE, not quietly report a pass. A
+ * silent pass on a spam gate is the worst possible failure, so the run is
+ * expected to degrade rather than succeed, and every rule is expected to
+ * record `skipped` with a reason.
+ *
+ * The derived default gate now filters these out by forge, so the only way to
+ * put them in front of open-git is to ask for them explicitly — which is what
+ * this workflow does.
+ */
+function blockedRulesWorkflow(): WorkflowDefinition {
+	const nodes: WorkflowDefinition["nodes"] = [
+		{
+			id: "t",
+			type: "trigger",
+			kinds: ["change-request.opened", "change-request.updated"],
+			position: { x: 80, y: 160 },
+		},
+		{ id: "gate", type: "gate", mode: "all-of", position: { x: 640, y: 160 } },
+		{ id: "a", type: "action", action: "block", position: { x: 900, y: 160 } },
+	];
+	const edges: WorkflowDefinition["edges"] = [
+		{ id: "e-block", from: "gate", to: "a", when: "fail" },
+	];
+	BLOCKED_RULES.forEach((ref, index) => {
+		const id = `r${index}`;
+		// Each rule's own catalog default. An empty object fails enable-validation
+		// before the graph ever reaches the engine, and this scenario is about
+		// what the ENGINE does with an unsupported rule, not about config shape.
+		const ruleId = ref.split("@")[0];
+		const entry = RULE_CATALOG.find((rule) => rule.ruleId === ruleId);
+		nodes.push({
+			id,
+			type: "rule",
+			ref,
+			config: (entry?.defaultConfig ?? {}) as never,
+			position: { x: 360, y: 80 + index * 60 },
+		});
+		edges.push({ id: `t-${index}`, from: "t", to: id });
+		edges.push({ id: `g-${index}`, from: id, to: "gate" });
+	});
+	return {
+		id: "e2e-og-blocked-rules",
+		name: "e2e opengit blocked rules",
+		version: 1,
+		nodes,
+		edges,
+	};
+}
 
 /** trigger → english-only@1 —fail→ block. */
 function englishOnlyWorkflow(): WorkflowDefinition {
@@ -73,7 +140,23 @@ interface InjectContext {
 interface OpenGitScenario {
 	name: string;
 	summary: string;
+	/** The workflow to pin for this scenario. */
+	workflow: () => WorkflowDefinition;
 	title: string;
+	/**
+	 * Rules this scenario expects to record `skipped`. A rule that cannot run
+	 * must DECLINE — a silent pass on a spam gate is the worst failure there is,
+	 * so this asserts the reason landed in the evidence rather than trusting the
+	 * verdict alone.
+	 */
+	expectSkipped?: readonly string[];
+	/**
+	 * Re-title the change request and re-deliver as `pull_request.edited`, then
+	 * expect the gate to FLIP. open-git added that event for exactly this — a
+	 * title change with no new commits — and it is the only way english-only can
+	 * change its mind without a push. Same head sha, so the check upserts.
+	 */
+	editTo?: { title: string; expect: "success" | "failed" };
 	/** The open-git check status this title must produce. */
 	expect: "success" | "failed";
 }
@@ -82,15 +165,31 @@ const SCENARIOS: OpenGitScenario[] = [
 	{
 		name: "english-only-block",
 		summary: "a non-latin title trips english-only and the check blocks merge",
+		workflow: englishOnlyWorkflow,
 		// Predominantly non-latin, so the measured ratio clears maxNonLatinRatio.
 		title: "修复超时问题 添加重试逻辑",
 		expect: "failed",
+		// Proves change-request.updated: same commit, latin title, gate clears.
+		editTo: { title: "fix the timeout and add retry logic", expect: "success" },
 	},
 	{
 		name: "english-only-pass",
 		summary: "a latin title passes and the check clears the merge gate",
+		workflow: englishOnlyWorkflow,
 		title: "fix the timeout and add retry logic",
 		expect: "success",
+	},
+	{
+		name: "blocked-rules-decline",
+		summary:
+			"every rule open-git cannot feed declines honestly instead of passing",
+		workflow: blockedRulesWorkflow,
+		// A clean latin title, so nothing here can be mistaken for english-only
+		// firing. The only reason this must not pass is that the rules declined.
+		title: "a clean change that only unsupported rules can judge",
+		// Fail-closed: rules skipped, so the gate cannot vouch for the change.
+		expect: "failed",
+		expectSkipped: BLOCKED_RULES,
 	},
 ];
 
@@ -134,6 +233,7 @@ async function runScenario(
 	stamp: string,
 	pin: () => Promise<boolean>,
 	inject: InjectContext | null,
+	db: Db,
 ): Promise<boolean> {
 	/**
 	 * A fresh branch and title EVERY run. This driver never closes a pull
@@ -210,7 +310,82 @@ async function runScenario(
 	if (check.summary) {
 		log(`    ${check.summary}`);
 	}
-	return ok;
+	let editOk = true;
+	if (ok && scenario.editTo && inject) {
+		log(`  re-titling and re-delivering as pull_request.edited…`);
+		const posted = await og.injectDelivery({
+			apiUrl: inject.apiUrl,
+			secret: inject.secret,
+			event: "pull_request.edited",
+			installationId: inject.installationId,
+			repoExternalId: inject.repoExternalId,
+			number: pr.number,
+			author: inject.author,
+			title: scenario.editTo.title,
+			body: "re-titled by the tripwire open-git e2e harness",
+			headSha: sha,
+		});
+		log(`  edit delivery injected -> http ${posted.status}`);
+		const flipped = await og.waitForCheckStatus(
+			sha,
+			scenario.editTo.expect,
+			(message) => log(`  … ${message}`),
+		);
+		editOk = flipped !== null;
+		log(
+			`  ${editOk ? "✓" : "✗"} check ${
+				editOk ? "flipped to" : "never reached"
+			} ${scenario.editTo.expect} on the same commit`,
+		);
+		if (flipped?.summary) {
+			log(`    ${flipped.summary}`);
+		}
+	}
+	if (!scenario.expectSkipped) {
+		return ok && editOk;
+	}
+	return (await verifySkips(db, sha, scenario.expectSkipped)) && ok && editOk;
+}
+
+/**
+ * Reads the run's own step evidence. The check alone cannot tell a skip from a
+ * failure — both land on the same fail-closed status — so this asserts each
+ * rule recorded `skipped` WITH a reason. That is the difference between a rule
+ * declining and a rule silently vouching for a change it never examined.
+ */
+async function verifySkips(
+	db: Db,
+	headSha: string,
+	expected: readonly string[],
+): Promise<boolean> {
+	const steps = await db
+		.select({
+			ruleId: schema.runSteps.ruleId,
+			status: schema.runSteps.status,
+			evidence: schema.runSteps.evidence,
+		})
+		.from(schema.runSteps)
+		.innerJoin(schema.runs, eq(schema.runSteps.runId, schema.runs.id))
+		.where(eq(schema.runs.headSha, headSha));
+
+	let allOk = true;
+	for (const ref of expected) {
+		const ruleId = ref.split("@")[0];
+		const step = steps.find((row) => row.ruleId === ref);
+		const evidence = step?.evidence as { reason?: string } | null;
+		const declined = step?.status === "skipped" && Boolean(evidence?.reason);
+		if (!declined) {
+			allOk = false;
+		}
+		log(
+			`    ${declined ? "✓" : "✗"} ${String(ruleId).padEnd(18)} ${
+				step
+					? `${step.status} — ${evidence?.reason ?? "no reason given"}`
+					: "never ran"
+			}`,
+		);
+	}
+	return allOk;
 }
 
 async function main(): Promise<void> {
@@ -313,20 +488,32 @@ async function main(): Promise<void> {
 	);
 	const known = registered;
 	if (known?.installationId) {
-		snapshot = await pinWorkflows(
-			db,
-			config.repo,
-			[{ definition: englishOnlyWorkflow(), enabled: true }],
-			"opengit",
-		);
-		log(`  workflow pinned up front (installation ${known.installationId})`);
+		log(`  repo known (installation ${known.installationId})`);
 		await armForRun(known);
 	} else {
 		log("  repo not registered yet — the first pull request will register it");
 	}
 
+	/**
+	 * Pins THIS scenario's graph. Each scenario needs a different one, so this
+	 * re-pins per scenario and keeps only the FIRST snapshot — that one holds
+	 * the repo's real rows, and every later snapshot is just a previous pin.
+	 */
+	const pinFor = async (definition: WorkflowDefinition): Promise<boolean> => {
+		const taken = await pinWorkflows(
+			db,
+			config.repo,
+			[{ definition, enabled: true }],
+			"opengit",
+		);
+		if (!snapshot) {
+			snapshot = taken;
+		}
+		return true;
+	};
+
 	const pin = async (): Promise<boolean> => {
-		if (snapshot) {
+		if (registered) {
 			return false;
 		}
 		const repo = await waitForRepoRow(db, config.repo, base.timeoutMs);
@@ -344,12 +531,6 @@ async function main(): Promise<void> {
 			);
 		}
 		log(`  repo registered (installation ${repo.installationId})`);
-		snapshot = await pinWorkflows(
-			db,
-			config.repo,
-			[{ definition: englishOnlyWorkflow(), enabled: true }],
-			"opengit",
-		);
 		await armForRun(repo);
 		registered = await repoServices.getRepoByFullName(
 			db,
@@ -385,7 +566,11 @@ async function main(): Promise<void> {
 	let failures = 0;
 	try {
 		for (const scenario of chosen) {
-			const ok = await runScenario(og, scenario, stamp, pin, injectFor());
+			if (registered) {
+				await pinFor(scenario.workflow());
+				log(`\n  pinned "${scenario.workflow().name}"`);
+			}
+			const ok = await runScenario(og, scenario, stamp, pin, injectFor(), db);
 			if (!ok) {
 				failures++;
 			}

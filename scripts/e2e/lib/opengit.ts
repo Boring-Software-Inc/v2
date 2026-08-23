@@ -291,13 +291,42 @@ export class OpenGit {
 			method: "POST",
 			headers: {
 				"content-type": "application/json",
-				"x-open-git-delivery": `injected-${input.headSha.slice(0, 12)}`,
+				// The delivery id is the IDEMPOTENCY key, so it must differ per
+				// delivery. Keyed on the sha alone, a re-title on the same commit
+				// looked like a replay and was correctly discarded — which proved
+				// dedupe works, and made the edit event untestable.
+				"x-open-git-delivery": `injected-${input.event}-${input.headSha.slice(0, 12)}`,
 				"x-open-git-event": input.event,
 				"x-hub-signature-256": signWebhookBody(payload, input.secret),
 			},
 			body: payload,
 		});
 		return { status: res.status, text: await res.text() };
+	}
+
+	/**
+	 * Poll until the `tripwire` check reaches a SPECIFIC status. Used to prove a
+	 * re-evaluation actually flipped the gate: the check upserts by name on the
+	 * same commit, so "settled" is not enough — the first verdict is already
+	 * settled when the second delivery arrives.
+	 */
+	async waitForCheckStatus(
+		sha: string,
+		want: string,
+		onPoll?: (message: string) => void,
+	): Promise<OpenGitCheck | null> {
+		const deadline = Date.now() + this.config.timeoutMs;
+		while (Date.now() < deadline) {
+			const tripwire = (await this.listChecks(sha)).find(
+				(check) => check.name === CHECK_NAME,
+			);
+			if (tripwire?.status === want) {
+				return tripwire;
+			}
+			onPoll?.(`check is ${tripwire?.status ?? "absent"}, waiting for ${want}`);
+			await Bun.sleep(this.config.pollMs);
+		}
+		return null;
 	}
 
 	/** Every pull request this run opened. All of them are still open. */
