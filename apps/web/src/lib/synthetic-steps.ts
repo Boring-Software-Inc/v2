@@ -2,9 +2,9 @@ import type { JsonValue, RunStepView } from "#/lib/runs.functions";
 
 /**
  * The two synthetic run-level steps the worker records outside the workflow
- * graph (VERIFICATION-QUEUE #11 — they must read distinctly, never like a
- * graph node): `run:deny-floor` (unit 5 — a maintainer deny with no deny edge
- * floors to block) and `run:degradation` (unit 1 — the fail-closed floor
+ * graph (VERIFICATION-QUEUE #11: they must read distinctly, never like a
+ * graph node): `run:deny-floor` (unit 5: a maintainer deny with no deny edge
+ * floors to block) and `run:degradation` (unit 1: the fail-closed floor
  * routes a mostly-skipped run to review).
  */
 
@@ -28,7 +28,7 @@ export function describeSyntheticStep(
 			kind: "deny-floor",
 			title: "denied by maintainer",
 			detail:
-				"no deny edge drawn — the deny floor blocked this change by default. deny never fails open.",
+				"no deny edge drawn. blocked by default, because deny never fails open.",
 		};
 	}
 	if (step.nodeId === "run:degradation") {
@@ -39,7 +39,7 @@ export function describeSyntheticStep(
 		/**
 		 * Say what happened, then what it cost. Nothing else.
 		 *
-		 * The old copy said "evaluation degraded — the fail-closed floor sent this
+		 * The old copy said "evaluation degraded, the fail-closed floor sent this
 		 * run to review instead of passing on guesswork". Three problems: the
 		 * floor is our word and means nothing to a maintainer, "passing on
 		 * guesswork" argues with the reader, and none of it says WHY a rule could
@@ -58,7 +58,7 @@ export function describeSyntheticStep(
 				: null,
 			// enforced:false ⇒ the maintainer turned the review fallback off.
 			output?.enforced === false
-				? "passed anyway — the review fallback is off."
+				? "passed without them. this repo is set to pass when a rule can't run."
 				: "sent to review.",
 		];
 		return {

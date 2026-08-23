@@ -6,7 +6,7 @@ pull request.
 
 contributing with a coding agent is welcome, and most of this repository was
 built that way. the rules are the same, with a few more that matter more for an
-agent — see `agent-guidelines.md`.
+agent. see `agent-guidelines.md`.
 
 ---
 
@@ -35,7 +35,7 @@ bun run dev          # web, api, worker, and a tunnel
 run these four. ci runs the same four, in this order.
 
 ```
-bun run check              # biome — format and lint
+bun run check              # biome: format and lint
 bun run typecheck          # every package
 bun run check:boundaries   # the dependency arrows
 bun test                   # unit and integration tests
@@ -75,7 +75,7 @@ this is the one rule the build enforces for you.
 contracts     ← everything            (imports nothing but zod)
 utils         ← everything except contracts
 forge         ← the adapters, worker  (interface and types only)
-core          ← worker only           (pure — no i/o, no db, no network)
+core          ← worker only           (pure: no i/o, no db, no network)
 db            ← worker, api, web
 auth          ← web, api
 forge-github  ← worker, api

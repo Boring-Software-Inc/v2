@@ -27,7 +27,7 @@ whole merge gate. open-git blocks a merge on checks and reads no reviews.
 
 ---
 
-## 1. reads — the largest gap
+## 1. reads, the largest gap
 
 tripwire has 9 built-in rules. only 1 of them runs on open-git.
 
@@ -44,10 +44,10 @@ line count, and the patch text.
 
 **this unblocks 4 rules:**
 
-- `crypto-address` — finds a wallet address in the change
-- `honeypot` — finds a change to a protected path
-- `max-files-changed` — counts the files
-- `ai-review` — reads the change and reasons about it
+- `crypto-address` finds a wallet address in the change
+- `honeypot` finds a change to a protected path
+- `max-files-changed` counts the files
+- `ai-review` reads the change and reasons about it
 
 a diff route already exists at `/api/repos/{repoId}/pulls/{prId}/diff`. it is
 not usable here. it authenticates with a browser session, it is keyed by an
@@ -62,8 +62,8 @@ public repository count.
 
 **this unblocks 2 rules:**
 
-- `account-age` — refuses an account that is too new
-- `profile-readme` — looks for an empty or spam profile
+- `account-age` refuses an account that is too new
+- `profile-readme` looks for an empty or spam profile
 
 `/api/viewer` exists but returns the caller only. a rule must read the
 contributor, who is a different person.
@@ -78,8 +78,8 @@ the list returns `body`, `head_sha`, `id`, `number`, `state`, `title` and
 
 **this unblocks 2 rules:**
 
-- `min-merged-prs` — counts merged work, to trust a known contributor
-- `pr-rate-limit` — counts recent pull requests, to catch a spray attack
+- `min-merged-prs` counts merged work, to trust a known contributor
+- `pr-rate-limit` counts recent pull requests, to catch a spray attack
 
 `pr-rate-limit` also needs a creation time on each entry.
 

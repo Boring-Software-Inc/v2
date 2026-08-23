@@ -73,7 +73,7 @@ convention without asking anyone to install anything.
 
 ## 3. a suite of code-quality rules
 
-**the idea:** the two above are examples of one larger thing — a set of rules a
+**the idea:** the two above are examples of one larger thing. a set of rules a
 repository can turn on to enforce the standards it already wrote down.
 
 candidates:
