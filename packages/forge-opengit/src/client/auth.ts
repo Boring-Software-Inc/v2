@@ -26,19 +26,24 @@ function b64url(input: string | Buffer): string {
 }
 
 /**
- * Bot JWT. open-git enforces `maxTokenAge: "10m"` against `iat`, so the window
- * is nine minutes rather than GitHub's ten — a minute of clock skew headroom
- * that keeps a slightly-fast worker from minting a token open-git reads as
- * already expired.
+ * Bot JWT. open-git verifies RS256 over the bot's registered public key, `iss`
+ * equal to the bot id, and a `maxTokenAge` of 10 minutes measured from `iat`.
+ *
+ * `iat` is BACKDATED 60 seconds to absorb clock skew, matching the GitHub
+ * adapter. An earlier version of this shortened `exp` instead, which protects
+ * against nothing: if our clock runs ahead of open-git's, the problem is an
+ * `iat` in the future, and a shorter life does not move it back. `exp` then
+ * sits on the far edge of the server's own 10-minute window rather than
+ * inside a self-imposed nine.
  */
 export function createBotJwt(
 	creds: OpenGitBotCredentials,
 	now = Date.now(),
 ): string {
-	const iat = Math.floor(now / 1000);
+	const iat = Math.floor(now / 1000) - 60;
 	const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
 	const payload = b64url(
-		JSON.stringify({ iat, exp: iat + 540, iss: creds.botId }),
+		JSON.stringify({ iat, exp: iat + 600, iss: creds.botId }),
 	);
 	const signature = createSign("RSA-SHA256")
 		.update(`${header}.${payload}`)

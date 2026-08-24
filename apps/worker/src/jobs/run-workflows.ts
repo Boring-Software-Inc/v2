@@ -457,8 +457,25 @@ async function runWorkflowsInner(
 	}
 
 	const headSha = "changeRequest" in event ? event.changeRequest.headSha : null;
+	/**
+	 * A COMMENT names its change request too, in `comment.subjectNumber`. Taking
+	 * it only from a change-request event stored null for every comment-triggered
+	 * run, and this column is load-bearing in three places:
+	 *
+	 *   - the run page's deep link to the change request it judged
+	 *   - `canRerun` (§6 — a re-run needs a subject to target)
+	 *   - `sweep-actions`, which SKIPS actions whose subject is null, so a
+	 *     recorded block or comment was never delivered and the give-up window
+	 *     eventually abandoned it
+	 *
+	 * There is no head sha on a comment: it judges the thread, not a commit.
+	 */
 	const subjectNumber =
-		"changeRequest" in event ? event.changeRequest.number : null;
+		"changeRequest" in event
+			? event.changeRequest.number
+			: "comment" in event
+				? event.comment.subjectNumber
+				: null;
 	const terminalStatus = paused ? "paused" : "completed";
 	let runId: string;
 	if (liveRunId) {
