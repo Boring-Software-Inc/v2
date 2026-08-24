@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { generateKeyPairSync } from "node:crypto";
+import { createVerify, generateKeyPairSync } from "node:crypto";
 import { CHECK_NAME, type JsonValue } from "@tripwire/contracts";
 import type { ForgeAction } from "@tripwire/forge";
 import { createOpenGitAdapter } from "./adapter.ts";
@@ -56,18 +56,59 @@ const CHECK = {
 };
 
 describe("open-git bot jwt", () => {
-	test("issues RS256 with the bot id and an under-10m life", () => {
-		const now = 1_760_000_000_000;
-		const jwt = createBotJwt(CREDS, now);
+	const decode = (part: string) =>
+		JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
+
+	/**
+	 * The SIGNATURE, verified against the public key open-git would hold. An
+	 * earlier version of this test decoded the claims and never checked the
+	 * signature at all, so a broken signer would have passed it: the header said
+	 * RS256 whatever the bytes underneath actually were.
+	 */
+	test("the signature verifies under the bot's public key", () => {
+		const jwt = createBotJwt(CREDS);
+		const [header, payload, signature] = jwt.split(".");
+		const ok = createVerify("RSA-SHA256")
+			.update(`${header}.${payload}`)
+			.verify(publicKey, Buffer.from(String(signature), "base64url"));
+		expect(ok).toBe(true);
+	});
+
+	test("a tampered payload fails verification", () => {
+		const jwt = createBotJwt(CREDS);
+		const [header, , signature] = jwt.split(".");
+		const forged = Buffer.from(
+			JSON.stringify({ iss: "someone-else", iat: 1, exp: 2 }),
+		).toString("base64url");
+		const ok = createVerify("RSA-SHA256")
+			.update(`${header}.${forged}`)
+			.verify(publicKey, Buffer.from(String(signature), "base64url"));
+		expect(ok).toBe(false);
+	});
+
+	test("issues RS256 with the bot id as issuer", () => {
+		const jwt = createBotJwt(CREDS);
 		const [header, payload] = jwt.split(".");
-		const decode = (part: string) =>
-			JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
 		expect(decode(String(header)).alg).toBe("RS256");
-		const claims = decode(String(payload));
-		// open-git verifies `issuer: bot.id` and rejects anything older than 10m.
-		expect(claims.iss).toBe("bot-1");
-		expect(claims.exp - claims.iat).toBeLessThan(600);
-		expect(publicKey).toContain("BEGIN PUBLIC KEY");
+		// open-git finds the verifying key by `iss`.
+		expect(decode(String(payload)).iss).toBe("bot-1");
+	});
+
+	/**
+	 * `iat` must be in the PAST. open-git measures a 10-minute maxTokenAge from
+	 * it, so a clock running ahead of theirs would otherwise mint a token dated
+	 * in the future. Backdating costs a minute of a ten-minute window.
+	 */
+	test("iat is backdated, never in the future", () => {
+		const now = 1_760_000_000_000;
+		const claims = decode(String(createBotJwt(CREDS, now).split(".")[1]));
+		expect(claims.iat).toBe(Math.floor(now / 1000) - 60);
+		expect(claims.iat).toBeLessThan(Math.floor(now / 1000));
+	});
+
+	test("exp sits on the edge of the server's own window, not inside it", () => {
+		const claims = decode(String(createBotJwt(CREDS).split(".")[1]));
+		expect(claims.exp - claims.iat).toBe(600);
 	});
 });
 

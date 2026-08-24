@@ -35,6 +35,7 @@
 		"dev:api": "bun run apps/api/src/index.ts",
 		"dev:worker": "bun run apps/worker/src/index.ts",
 		"replay": "bun run apps/worker/src/jobs/replay.ts",
+		"backfill:subject": "bun run scripts/backfill-run-subject-number.ts",
 		"econ": "bun run apps/worker/src/economics-trigger.ts",
 		"econ:prod": "bun --env-file=.env.production run apps/worker/src/economics-trigger.ts",
 		"test:run": "bun run scripts/e2e/harness.ts --only gate-pass --no-input",
