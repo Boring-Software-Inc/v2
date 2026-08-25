@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createVerify, generateKeyPairSync } from "node:crypto";
-import { CHECK_NAME } from "@tripwire/contracts";
+import { CHECK_NAME, type JsonValue } from "@tripwire/contracts";
 import type { ForgeAdapter } from "@tripwire/forge";
+import { z } from "zod";
 import { createOpenGitAdapter } from "./adapter.ts";
 import { OpenGitTokenCache } from "./client/auth.ts";
 import { signWebhookBody } from "./webhook/verify.ts";
@@ -50,6 +51,10 @@ const calls: ServerCall[] = [];
 let server: ReturnType<typeof Bun.serve>;
 let adapter: ForgeAdapter;
 
+/** The claims open-git reads off a bot JWT. */
+const jwtClaimsSchema = z.object({ iss: z.string(), iat: z.number() });
+const jwtHeaderSchema = z.object({ alg: z.string() });
+
 /** open-git's `verifyBotAppJwt` contract, checked the way it checks it. */
 function appJwtIsValid(token: string, now = Date.now()): boolean {
 	const [header, payload, signature] = token.split(".");
@@ -62,15 +67,23 @@ function appJwtIsValid(token: string, now = Date.now()): boolean {
 	if (!verified) {
 		return false;
 	}
-	const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+	// Parsed once, at the point the bytes stop being bytes. A typeof further
+	// down would narrow the same unparsed blob without establishing anything.
+	const claims = jwtClaimsSchema.safeParse(
+		JSON.parse(Buffer.from(payload, "base64url").toString("utf8")),
+	);
+	const head = jwtHeaderSchema.safeParse(
+		JSON.parse(Buffer.from(header, "base64url").toString("utf8")),
+	);
+	if (!(claims.success && head.success)) {
+		return false;
+	}
 	const seconds = Math.floor(now / 1000);
 	return (
-		JSON.parse(Buffer.from(header, "base64url").toString("utf8")).alg ===
-			"RS256" &&
-		claims.iss === BOT_ID &&
-		typeof claims.iat === "number" &&
-		claims.iat <= seconds &&
-		seconds - claims.iat <= 600
+		head.data.alg === "RS256" &&
+		claims.data.iss === BOT_ID &&
+		claims.data.iat <= seconds &&
+		seconds - claims.data.iat <= 600
 	);
 }
 
@@ -128,7 +141,7 @@ afterAll(() => {
 	server.stop(true);
 });
 
-const delivery = (eventName: string, payload: unknown) => {
+const delivery = (eventName: string, payload: JsonValue) => {
 	const body = JSON.stringify(payload);
 	return {
 		deliveryId: `d-${eventName}`,
