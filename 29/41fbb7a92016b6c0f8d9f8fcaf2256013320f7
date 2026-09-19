@@ -1,0 +1,19 @@
+packages/db/src/services/organizations.ts
+  s_05f084383d1e76::t_c89c0d0a8d70d1 11,787-795,800-806,863-889
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2941fbb7a92016b6c0f8d9f8fcaf2256013320f7",
+  "prompts": {},
+  "sessions": {
+    "s_05f084383d1e76": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_05f084383d1e76",
+        "model": "unknown"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
