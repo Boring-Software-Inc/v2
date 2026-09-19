@@ -1,0 +1,20 @@
+.env.example
+  h_3279d55133f19f 140-143,145
+apps/api/src/routes/webhooks.ts
+  h_3279d55133f19f 2,7-8,10-44
+apps/web/src/lib/server/auth.ts
+  h_3279d55133f19f 30-31,37,44-45
+packages/forge-opengit/src/webhook/normalize.ts
+  h_3279d55133f19f 68-69,124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0863c5c8a63c7757a381c3d2b268554c30782de",
+  "prompts": {},
+  "humans": {
+    "h_3279d55133f19f": {
+      "author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
