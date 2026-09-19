@@ -1,0 +1,239 @@
+.env.example
+  s_4b985e4fb30467::t_bb9cb7565eb25a 34-44
+.github/workflows/ci.yml
+  s_4b985e4fb30467::t_ca77b14e028823 13-15,21-26,39-47
+.gitignore
+  s_4b985e4fb30467::t_d94128df81f51e 18-20
+.oxlintrc.json
+  s_4b985e4fb30467::t_0ffb044a730d76 1-50
+apps/api/package.json
+  s_4b985e4fb30467::t_12c6eaceae6285 20
+apps/api/src/index.ts
+  s_4b985e4fb30467::t_9850b9a252d1bb 11,26-35,39,68
+apps/api/src/routes/gitlab-import.ts
+  s_4b985e4fb30467::t_b853590f09ebcd 1-128
+apps/api/src/routes/webhooks.ts
+  s_4b985e4fb30467::t_09d4c6d584c236 3,8-14,16-95
+apps/api/src/webhooks.integration.test.ts
+  s_4b985e4fb30467::t_b109367c8d14fd 2,70-77
+apps/web/package.json
+  s_4b985e4fb30467::t_321935378159ce 9
+apps/web/scripts/generate-route-tree.ts
+  s_4b985e4fb30467::t_95b10d46624923 1,8-10
+apps/web/src/components/auth/forge-grid.tsx
+  s_4b985e4fb30467::t_c9a0fb7790b3ec 1-62
+apps/web/src/components/auth/login-faq.tsx
+  s_4b985e4fb30467::t_378c027a3e87e8 1-141
+apps/web/src/components/auth/login-page-skeleton.tsx
+  s_4b985e4fb30467::t_31c209a535d8ae 1,4-5,8-40
+apps/web/src/components/auth/login-page.tsx
+  s_4b985e4fb30467::t_467ce3aa86778a 2-4,16-32,34,39,43-45
+apps/web/src/components/common/forge-marks.tsx
+  s_4b985e4fb30467::t_5f5af35df8c82c 1-128
+apps/web/src/components/forges/connect-forge-dialog.tsx
+  s_4b985e4fb30467::t_bba9cd17c6bd41 1-42
+apps/web/src/components/forges/connect-forge-grid.tsx
+  s_4b985e4fb30467::t_7ff465d9fc7c3d 1-214
+apps/web/src/components/forges/connections-page.tsx
+  s_4b985e4fb30467::t_8c8ec2325b99da 1-169
+apps/web/src/components/forges/forge-cell.tsx
+  s_4b985e4fb30467::t_2dcb6cd56d3428 1-72
+apps/web/src/components/layouts/command-palette.tsx
+  s_4b985e4fb30467::t_b0aa8276f22716 17-22,25-26,28-34,53,59-67,73-76,120-129,137-139,206,218,224-234,242-250,252-255,257-260,267-286,298,306,380-400,421,432-436,438-460,467-485,488-560,562-563,565-575,586,624,718,777-812
+apps/web/src/components/organizations/install-setup-page.tsx
+  s_4b985e4fb30467::t_00d7418b46fcf4 3,5,64-69,96-98,117,127-130,132,209,247,297,302,331-334,336
+apps/web/src/components/organizations/org-general-settings-page.tsx
+  s_4b985e4fb30467::t_2a574a44f79936 17,213,224-253,256
+apps/web/src/components/organizations/org-home-page.tsx
+  s_4b985e4fb30467::t_87118e58ececef 7,13-14,114-124,128,137-138,141-154
+apps/web/src/components/organizations/org-settings-dialog.tsx
+  s_4b985e4fb30467::t_48b0a54caea6bd 6,23-28,135
+apps/web/src/components/organizations/org-settings-tab.ts
+  s_4b985e4fb30467::t_1779619d0ddabf 1-8,13
+apps/web/src/components/rules/rule-card.test.tsx
+  s_4b985e4fb30467::t_87cbfa1ae6e92b 27,122-163
+apps/web/src/components/rules/rule-card.tsx
+  s_4b985e4fb30467::t_4986b2f08fc093 61-66,68,89,144-151,187-193
+apps/web/src/lib/activity.functions.ts
+  s_4b985e4fb30467::t_b2ce4674475e2e 134,174
+apps/web/src/lib/connections.functions.ts
+  s_4b985e4fb30467::t_309c13945e963e 1-120
+apps/web/src/lib/connections.query.ts
+  s_4b985e4fb30467::t_6b92ca1a8770b9 1-10
+apps/web/src/lib/forge-connect.ts
+  s_4b985e4fb30467::t_426e26c376cc5f 1-56
+apps/web/src/lib/forge-copy.ts
+  s_4b985e4fb30467::t_24a6baa1dc9ba4 1-15
+apps/web/src/lib/gitlab-connect.ts
+  s_4b985e4fb30467::t_a6a6d61e83f892 1-38
+apps/web/src/lib/onboarding.functions.ts
+  s_4b985e4fb30467::t_e119f26807e108 2,74-76,109,119,121,144,157,172-174,186,195,247-249,269,279
+apps/web/src/lib/rules.functions.ts
+  s_4b985e4fb30467::t_de94c530ab3d1e 10,25-30,104-108,145-152,193,236
+apps/web/src/lib/server/auth.ts
+  s_4b985e4fb30467::t_1fa65f40378572 30-31,37-46
+apps/web/src/lib/server/run-view.ts
+  s_4b985e4fb30467::t_60ec3fa74cc828 33-35
+apps/web/src/routes/$org.tsx
+  s_4b985e4fb30467::t_c2a2b2fd6a8652 12-13
+apps/web/src/start.ts
+  s_4b985e4fb30467::t_1f5ac1a8b45b22 27-36
+apps/worker/package.json
+  s_4b985e4fb30467::t_d10ff50a06ab39 21
+apps/worker/src/forge-runtime.ts
+  s_4b985e4fb30467::t_4455f8ba28c8bd 1-182
+apps/worker/src/index.ts
+  s_4b985e4fb30467::t_15847f832767d2 15,19,66-89,111,129-145,162,179,196,215,235,288
+apps/worker/src/jobs/pr-surface.ts
+  s_4b985e4fb30467::t_f5f9c76f87f70e 123-127
+apps/worker/src/jobs/process-event.ts
+  s_4b985e4fb30467::t_528aaa69afd49c 2,4,14,23-29,59,61-63,100-106,112,117-121,125,138-142,173,182-183,211,215,220,235
+apps/worker/src/jobs/rerun.ts
+  s_4b985e4fb30467::t_917c97319f0d9f 109-113,115,140,149
+apps/worker/src/jobs/resume-run.ts
+  s_4b985e4fb30467::t_92ac31622d2f47 2,104,172-176,180,226,231,253,255
+apps/worker/src/jobs/run-workflows.ts
+  s_4b985e4fb30467::t_0b6a52873a9ca4 187-191,222
+apps/worker/src/moderation.integration.test.ts
+  s_4b985e4fb30467::t_2deb7607b34292 17,91,363-366
+apps/worker/src/process-event.integration.test.ts
+  s_4b985e4fb30467::t_711df119f9132c 16,97,136,163,197,247,268,352,408-421,423,455-461,516-531,597-618,694,739,772
+apps/worker/src/rerun.integration.test.ts
+  s_4b985e4fb30467::t_cf76986a43047a 19,135,218,320,394-397
+apps/worker/src/toggles.integration.test.ts
+  s_4b985e4fb30467::t_2f982dae35794b 23,91
+bun.lock
+  s_4b985e4fb30467::t_99fb94aa683dc6 16,21,26,42,122,205-214,499,501,503,505,507,509,511,513,515,517,519,521,523,525,527,529,531,533,535-537,757-758,1225
+package.json
+  s_4b985e4fb30467::t_5237896d8c33c0 20-21,54,62,67
+packages/auth/src/dev-login.integration.test.ts
+  s_4b985e4fb30467::t_d2b5a4467b4408 44,88
+packages/auth/src/org-invariants.integration.test.ts
+  s_4b985e4fb30467::t_afcafa5ff698fd 68
+packages/auth/src/server.ts
+  s_4b985e4fb30467::t_f924ab9359d29a 2,27-35,75-86,92-114,294-296,298-304,317
+packages/auth/src/staff-gate.integration.test.ts
+  s_4b985e4fb30467::t_c69ab6b3298413 74
+packages/contracts/src/events.ts
+  s_4b985e4fb30467::t_f3b8dbd2144e2b 2,70-71,84
+packages/contracts/src/forges.ts
+  s_4b985e4fb30467::t_a5f43636caf076 1-81
+packages/contracts/src/index.ts
+  s_4b985e4fb30467::t_4881e698265010 22
+packages/contracts/src/rules.ts
+  s_4b985e4fb30467::t_082e749a231fee 2,164-171,307-312,317-343
+packages/core/src/rules/ai-review/rule.ts
+  s_4b985e4fb30467::t_80f2b841034178 47-70
+packages/core/src/rules/define.ts
+  s_4b985e4fb30467::t_aaff139cf53c86 1-5,96-110
+packages/core/src/rules/forge-support.test.ts
+  s_4b985e4fb30467::t_ab05d18414739f 1-100
+packages/core/src/rules/test-context.ts
+  s_4b985e4fb30467::t_a50f3fd54b4c4f 1,24-28
+packages/db/src/index.ts
+  s_4b985e4fb30467::t_9e630381a3df64 45
+packages/db/src/migrate.ts
+  s_4b985e4fb30467::t_49d534ccb14243 1,5-8
+packages/db/src/pglite.ts
+  s_4b985e4fb30467::t_78acc144434b0d 2,16-18
+packages/db/src/schema/events.ts
+  s_4b985e4fb30467::t_10e5a19c987b3d 1,23
+packages/db/src/schema/repos.ts
+  s_4b985e4fb30467::t_25d2d70ca0397a 1,23
+packages/db/src/services/accounts.ts
+  s_4b985e4fb30467::t_c27ae3e57909fa 1-180
+packages/db/src/services/events.ts
+  s_4b985e4fb30467::t_efbaf858430877 22-24,49-50,53-59
+packages/db/src/services/onboarding.ts
+  s_4b985e4fb30467::t_19c6c5503d5c1f 1,14-16,28
+packages/db/src/services/organizations.ts
+  s_4b985e4fb30467::t_c7c71ed927d2e3 3-4,525,581,610,643,777,827,851-856
+packages/db/src/services/repo-revive.integration.test.ts
+  s_4b985e4fb30467::t_1c74d838a19286 1-165
+packages/db/src/services/repos.ts
+  s_4b985e4fb30467::t_e5e4b244cce3e8 4,11,26-27,34-35,39,43-71,76,83,161,163-164,168-174,179,183,227-231,237,249,251,277,279,571-595
+packages/forge-github/src/webhook/webhook.test.ts
+  s_4b985e4fb30467::t_2cb041f5efe048 2,10-14
+packages/forge-gitlab/package.json
+  s_4b985e4fb30467::t_455a85b4817574 1-19
+packages/forge-gitlab/src/actions/execute.ts
+  s_4b985e4fb30467::t_c596cc96831efb 1-175
+packages/forge-gitlab/src/adapter.ts
+  s_4b985e4fb30467::t_8b0c282a4f6abc 1-34
+packages/forge-gitlab/src/client/http.ts
+  s_4b985e4fb30467::t_ac6f7af827b92f 1-80
+packages/forge-gitlab/src/client/reads.test.ts
+  s_4b985e4fb30467::t_7189d1b2d67c46 1-93
+packages/forge-gitlab/src/client/reads.ts
+  s_4b985e4fb30467::t_d845167a17cd4e 1-222
+packages/forge-gitlab/src/copy.ts
+  s_4b985e4fb30467::t_b635c4223f458c 1-15
+packages/forge-gitlab/src/index.ts
+  s_4b985e4fb30467::t_72ee79f00f90c9 1-36
+packages/forge-gitlab/src/oauth.ts
+  s_4b985e4fb30467::t_b878f4c15d0af3 1-113
+packages/forge-gitlab/src/onboarding.test.ts
+  s_4b985e4fb30467::t_ed9fc9cc05b995 1-84
+packages/forge-gitlab/src/onboarding.ts
+  s_4b985e4fb30467::t_af1a1a186e8940 1-112
+packages/forge-gitlab/src/webhook/normalize.ts
+  s_4b985e4fb30467::t_40b3355f029e74 1-206
+packages/forge-gitlab/src/webhook/verify.test.ts
+  s_4b985e4fb30467::t_ebdc2ee52b99c8 1-49
+packages/forge-gitlab/src/webhook/verify.ts
+  s_4b985e4fb30467::t_d5f70176679d35 1-44
+packages/forge-gitlab/tsconfig.json
+  s_4b985e4fb30467::t_49ce6a8799804d 1-4
+packages/forge/src/index.ts
+  s_4b985e4fb30467::t_b098d1cb11a2fe 1-6,10,114-119,150
+scripts/check-boundaries.ts
+  s_4b985e4fb30467::t_d5e772a266e1c0 20,33,38-48
+scripts/lint-slop-changed.ts
+  s_4b985e4fb30467::t_101a8ed0a15bfb 1-95
+scripts/oxlint/anti-slop/index.ts
+  s_4b985e4fb30467::t_f1171607821117 1-31
+scripts/oxlint/anti-slop/package.json
+  s_4b985e4fb30467::t_aa7a8ea25bb8b0 1
+scripts/oxlint/anti-slop/rules/no-chained-type-assertions.ts
+  s_4b985e4fb30467::t_ef0f7d4821ead0 1-77
+scripts/oxlint/anti-slop/rules/no-conditional-empty-object-spread.ts
+  s_4b985e4fb30467::t_bc4e0371b89ef4 1-49
+scripts/oxlint/anti-slop/rules/no-known-value-widening.ts
+  s_4b985e4fb30467::t_aedefdb01d15d1 1-247
+scripts/oxlint/anti-slop/rules/no-object-parameters.ts
+  s_4b985e4fb30467::t_c2a8dc60300e28 1-112
+scripts/oxlint/anti-slop/rules/no-runtime-typeof.ts
+  s_4b985e4fb30467::t_b414c773374eb6 1-25
+scripts/oxlint/anti-slop/rules/no-shape-in-symbol-names.ts
+  s_4b985e4fb30467::t_0c47d080fc580f 1-39
+scripts/oxlint/anti-slop/rules/no-unknown-parameters.ts
+  s_4b985e4fb30467::t_83f5c6b4f3f775 1-83
+scripts/oxlint/anti-slop/rules/no-unknown-type-aliases.ts
+  s_4b985e4fb30467::t_6d0055e4e4e9e2 1-69
+scripts/oxlint/anti-slop/rules/no-unsafe-dictionary-type.ts
+  s_4b985e4fb30467::t_953962e1493e6e 1-94
+scripts/oxlint/anti-slop/rules/no-widen-then-assert.ts
+  s_4b985e4fb30467::t_c55bb8741ec10c 1-363
+scripts/oxlint/anti-slop/shared/dictionary-types.ts
+  s_4b985e4fb30467::t_63f77663483326 1-448
+scripts/qa-forges.ts
+  s_4b985e4fb30467::t_b8be1db9ddb2ab 1-396
+scripts/qa-gitlab-e2e.ts
+  s_4b985e4fb30467::t_5868c5ddd4ea39 1-449
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a8a38445b36cf55f20f7363701147b4bcb61805",
+  "prompts": {},
+  "sessions": {
+    "s_4b985e4fb30467": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_4b985e4fb30467",
+        "model": "unknown"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
