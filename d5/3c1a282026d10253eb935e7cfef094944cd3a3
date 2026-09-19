@@ -1,0 +1,91 @@
+.env.example
+  s_9f12fb9a2731ac::t_c15b5d18ed877d 34-43
+apps/api/package.json
+  s_9f12fb9a2731ac::t_48f96204cf337f 20
+apps/api/src/index.ts
+  s_9f12fb9a2731ac::t_6567280b253451 11,26-35,39,68
+apps/api/src/routes/gitlab-import.ts
+  s_9f12fb9a2731ac::t_5d151439ddba59 1-128
+apps/api/src/routes/webhooks.ts
+  s_9f12fb9a2731ac::t_3a9546318e12d0 3,14,51-95
+apps/web/src/components/forges/connect-forge-grid.tsx
+  s_9f12fb9a2731ac::t_fc3e0ba6b40ed9 1-2,4,10-16,18,24-25,27-31,33,45-46,50-53,59-116,151-184,187
+apps/web/src/components/organizations/org-home-page.tsx
+  s_9f12fb9a2731ac::t_38e5c015826867 113-119
+apps/web/src/lib/gitlab-connect.ts
+  s_9f12fb9a2731ac::t_77acd1a4e1259b 1-38
+apps/web/src/lib/server/auth.ts
+  s_9f12fb9a2731ac::t_f9415f27b31ce8 30-31,37-46
+apps/web/src/start.ts
+  s_9f12fb9a2731ac::t_a55867a63dc298 27-36
+apps/worker/package.json
+  s_9f12fb9a2731ac::t_f4e2aaf5141b79 21
+apps/worker/src/forge-runtime.ts
+  s_9f12fb9a2731ac::t_0799862eda6a3b 2,11-16,25,27,32,73-75,80-81,89-98,125-182
+apps/worker/src/index.ts
+  s_9f12fb9a2731ac::t_d58f33fbab4594 66-67,69-70,75-84
+package.json
+  s_9f12fb9a2731ac::t_d132ff9eb52cde 62
+packages/auth/src/dev-login.integration.test.ts
+  s_9f12fb9a2731ac::t_62234197eb02c5 44,88
+packages/auth/src/org-invariants.integration.test.ts
+  s_9f12fb9a2731ac::t_979dbdb26d2d9e 68
+packages/auth/src/server.ts
+  s_9f12fb9a2731ac::t_00b412fab6096e 27-35,101-113
+packages/auth/src/staff-gate.integration.test.ts
+  s_9f12fb9a2731ac::t_2808ec8ac5b2cd 74
+packages/contracts/src/forges.ts
+  s_9f12fb9a2731ac::t_d646548cbbf7ba 36
+packages/forge-gitlab/package.json
+  s_9f12fb9a2731ac::t_ce82fbd7175f78 1-19
+packages/forge-gitlab/src/actions/execute.ts
+  s_9f12fb9a2731ac::t_4abbe4cd2b387a 1-175
+packages/forge-gitlab/src/adapter.ts
+  s_9f12fb9a2731ac::t_22109c53c02d39 1-34
+packages/forge-gitlab/src/client/http.ts
+  s_9f12fb9a2731ac::t_91af287b176996 1-80
+packages/forge-gitlab/src/client/reads.test.ts
+  s_9f12fb9a2731ac::t_7ace6aaabb61f4 1-93
+packages/forge-gitlab/src/client/reads.ts
+  s_9f12fb9a2731ac::t_d2a74bfbd8c9bb 1-222
+packages/forge-gitlab/src/copy.ts
+  s_9f12fb9a2731ac::t_bc43f1f79e201e 1-15
+packages/forge-gitlab/src/index.ts
+  s_9f12fb9a2731ac::t_68e5076aaccd85 1-36
+packages/forge-gitlab/src/oauth.ts
+  s_9f12fb9a2731ac::t_544a8b0037c4fd 1-113
+packages/forge-gitlab/src/onboarding.test.ts
+  s_9f12fb9a2731ac::t_9771c2e98d9e62 1-84
+packages/forge-gitlab/src/onboarding.ts
+  s_9f12fb9a2731ac::t_ce5ef7b7db267b 1-112
+packages/forge-gitlab/src/webhook/normalize.ts
+  s_9f12fb9a2731ac::t_ded24c17814a85 1-206
+packages/forge-gitlab/src/webhook/verify.test.ts
+  s_9f12fb9a2731ac::t_090844066049b8 1-49
+packages/forge-gitlab/src/webhook/verify.ts
+  s_9f12fb9a2731ac::t_a7771ba4beaf21 1-44
+packages/forge-gitlab/tsconfig.json
+  s_9f12fb9a2731ac::t_1b2a2a17a3adf1 1-4
+scripts/check-boundaries.ts
+  s_9f12fb9a2731ac::t_fe7db4a8a15a97 20,33,38,46
+scripts/qa-forges.ts
+  s_9f12fb9a2731ac::t_3c96d772582f06 1-396
+scripts/qa-gitlab-e2e.ts
+  s_9f12fb9a2731ac::t_69ce7a62f675b1 1-449
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d53c1a282026d10253eb935e7cfef094944cd3a3",
+  "prompts": {},
+  "sessions": {
+    "s_9f12fb9a2731ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_9f12fb9a2731ac",
+        "model": "unknown"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
