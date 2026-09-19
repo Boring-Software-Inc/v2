@@ -1,0 +1,43 @@
+.env.example
+  s_1d2d198e18b715::t_65a0949e3bbaf9 136-143
+apps/api/src/index.ts
+  s_1d2d198e18b715::t_0af065df2dcadd 56
+apps/web/src/components/auth/forge-grid.tsx
+  s_1d2d198e18b715::t_d290a280549755 1,10,14-20,28,32-66
+apps/web/src/components/auth/login-faq.tsx
+  s_1d2d198e18b715::t_9e0e2f63331c96 2,75-78
+apps/web/src/lib/forge-connect.ts
+  s_1d2d198e18b715::t_c6dee346702505 1,10-11,30,32-39,51
+apps/web/src/lib/forge-copy.ts
+  s_1d2d198e18b715::t_258ad52a8cc73b 1-6,21-26
+apps/web/src/lib/server/auth.ts
+  s_1d2d198e18b715::t_caaa9aa374c4c3 30-31,37-48
+packages/auth/src/client.ts
+  s_1d2d198e18b715::t_2cd686e3db8558 1-4,11-14
+packages/auth/src/dev-login.integration.test.ts
+  s_1d2d198e18b715::t_22d3f41582336c 44,88
+packages/auth/src/org-invariants.integration.test.ts
+  s_1d2d198e18b715::t_c1d037240bd235 68
+packages/auth/src/server.ts
+  s_1d2d198e18b715::t_59709e7e81d910 2-6,12,31-41,90,146-167
+packages/auth/src/staff-gate.integration.test.ts
+  s_1d2d198e18b715::t_2c85f3797b4221 74
+packages/contracts/src/forges.ts
+  s_1d2d198e18b715::t_ee8d04aa20821b 26-34,40-46,50-53,96-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f95f0c84646a2f925e87f6e3cddfa18a64e1e01b",
+  "prompts": {},
+  "sessions": {
+    "s_1d2d198e18b715": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_1d2d198e18b715",
+        "model": "unknown"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
