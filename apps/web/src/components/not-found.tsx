@@ -28,12 +28,13 @@ export function NotFoundBody({ signedIn }: { signedIn: boolean }) {
 			<EmptyHeader>
 				<EmptyTitle>Page not found</EmptyTitle>
 				<EmptyDescription>
-					That page does not exist or may have moved. Check the URL.
+					Nothing is at this address. Check the link, or go back to your home
+					page.
 				</EmptyDescription>
 			</EmptyHeader>
 			<EmptyContent>
 				<Button nativeButton={false} render={<Link to="/" />} size="sm">
-					{signedIn ? "Go to dashboard" : "Go to sign in"}
+					{signedIn ? "Go to home" : "Sign in"}
 				</Button>
 			</EmptyContent>
 		</Empty>

@@ -35,7 +35,12 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
 		reader.onloadend = () => resolve(reader.result as string);
-		reader.onerror = () => reject(new Error("failed to read screenshot"));
+		reader.onerror = () =>
+			reject(
+				new Error(
+					"Couldn't attach the screenshot. Turn off Attach screenshot and send again.",
+				),
+			);
 		reader.readAsDataURL(blob);
 	});
 }
@@ -60,7 +65,7 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 
 	const ui = {
 		placeholder:
-			config.ui?.placeholder ?? "What happened? What did you expect?",
+			config.ui?.placeholder ?? "What did you do, and what happened?",
 		submitLabel: config.ui?.submitLabel ?? "Send feedback",
 		cancelLabel: config.ui?.cancelLabel ?? "Cancel",
 	};
@@ -108,7 +113,9 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 				},
 			});
 			if (!result.ok) {
-				throw new Error("Failed to submit feedback");
+				throw new Error(
+					"Couldn't send your feedback. Check your connection and try again.",
+				);
 			}
 			setStatus("success");
 			setErrorMessage(null);
@@ -121,7 +128,7 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 			setErrorMessage(
 				err instanceof Error
 					? err.message
-					: "Something went wrong. Please try again.",
+					: "Couldn't send your feedback. Check your connection and try again.",
 			);
 		}
 	}, [
@@ -146,7 +153,7 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 				<output className="flex flex-col items-center gap-1 py-6 text-center">
 					<Status status="ok">Feedback sent</Status>
 					<span className="type-body-sm text-text-2">
-						Thanks for helping us improve.
+						Thanks for the report.
 					</span>
 				</output>
 			</DialogBody>
@@ -175,7 +182,7 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 								</ItemMedia>
 								<ItemContent>
 									<ItemTitle>
-										{elementContext.componentName || "Unknown"}
+										{elementContext.componentName || "Selected element"}
 									</ItemTitle>
 									{sourceLabel ? (
 										<ItemDescription className="mono">
@@ -204,10 +211,11 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 								variant="secondary"
 							>
 								<Icon icon={Pointer} />
-								Point at a component
+								Point at the problem
 							</Button>
 							<span className="type-caption text-text-2">
-								Attach its source and a screenshot.
+								Click the part of the page you mean. Tripwire attaches it to
+								your report.
 							</span>
 						</div>
 					)}
@@ -233,11 +241,11 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 					</Field>
 
 					<Field>
-						<FieldLabel optional>Suggested fix</FieldLabel>
+						<FieldLabel optional>What you expected</FieldLabel>
 						<Textarea
 							disabled={sending}
 							onValueChange={setPrompt}
-							placeholder="What would you have expected instead?"
+							placeholder="What should have happened instead?"
 							rows={2}
 							value={prompt}
 						/>

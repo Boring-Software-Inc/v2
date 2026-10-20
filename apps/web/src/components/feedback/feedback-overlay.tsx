@@ -185,8 +185,8 @@ export function FeedbackOverlay() {
 		>
 			<div className="-translate-x-1/2 absolute top-4 left-1/2 rounded-pill border border-line bg-paper px-3 py-1.5 type-label text-text-1">
 				{isResolving
-					? "Resolving component"
-					: "Click an element to select it. Esc to cancel."}
+					? "Finding that part of the page"
+					: "Click the part of the page you mean. Press Esc to cancel."}
 			</div>
 
 			{hovered ? (

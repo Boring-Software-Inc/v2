@@ -15,7 +15,7 @@ export function TripwireLogo({
 }) {
 	return (
 		<svg
-			aria-label="tripwire"
+			aria-label="Tripwire"
 			className={className}
 			fill={fill}
 			height={size}

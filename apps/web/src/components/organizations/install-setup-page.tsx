@@ -51,8 +51,8 @@ export function InstallSetupPage() {
 			return (
 				<SetupShell>
 					<SetupHeader
-						body="Your installation request needs approval from an admin of that GitHub account. When they approve it, GitHub sends you back to this page."
-						title="Waiting on GitHub"
+						body="An admin of that GitHub account has to approve your installation request. When they do, GitHub sends you back here to finish."
+						title="Waiting for GitHub approval"
 					/>
 					<BackHome />
 				</SetupShell>
@@ -65,13 +65,25 @@ export function InstallSetupPage() {
 }
 
 function RecoverInstallation({ state }: { state: string | undefined }) {
-	const { data: claimable } = useQuery({
+	const {
+		data: claimable,
+		isError,
+		refetch,
+	} = useQuery({
 		queryKey: ["onboarding", "claimable-installations"],
 		queryFn: ({ signal }) => listClaimableInstallations({ signal }),
 		staleTime: 10_000,
 	});
 	const [picked, setPicked] = useState<string | null>(null);
 
+	if (isError && !claimable) {
+		return (
+			<LoadError
+				onRetry={() => refetch()}
+				title="Couldn't load your installations"
+			/>
+		);
+	}
 	if (!claimable) {
 		return <InstallSetupPageSkeleton />;
 	}
@@ -87,7 +99,7 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 			<SetupShell>
 				<MascotArt mood="install-nothing" />
 				<SetupHeader
-					body="No unclaimed repos are waiting. If you just connected a forge, wait a moment and refresh. Tripwire may still be loading its repos. Repos that are already connected are in their org."
+					body="Tripwire has no new installations to connect. If you installed Tripwire a moment ago, refresh this page in a minute while it loads your repos. Repos you already connected are in their org."
 					title="Nothing to connect yet"
 				/>
 				<BackHome />
@@ -97,8 +109,8 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	return (
 		<SetupShell>
 			<SetupHeader
-				body="Pick the installation to connect. You choose its Tripwire org next."
-				title="Which installation?"
+				body="Choose the installation to connect. You pick its Tripwire org next."
+				title="Choose an installation"
 			/>
 			<Card>
 				<CardContent flush>
@@ -146,7 +158,11 @@ function SetupFlow({
 	installationId: string;
 	state: string | undefined;
 }) {
-	const { data: preview } = useQuery({
+	const {
+		data: preview,
+		isError,
+		refetch,
+	} = useQuery({
 		queryKey: ["onboarding", "install-preview", installationId, state ?? null],
 		queryFn: ({ signal }) =>
 			getInstallPreview({ data: { installationId, state }, signal }),
@@ -154,6 +170,14 @@ function SetupFlow({
 	});
 	const [pickerOpen, setPickerOpen] = useState(false);
 
+	if (isError && !preview) {
+		return (
+			<LoadError
+				onRetry={() => refetch()}
+				title="Couldn't load this installation"
+			/>
+		);
+	}
 	if (!preview) {
 		return <InstallSetupPageSkeleton />;
 	}
@@ -162,7 +186,7 @@ function SetupFlow({
 		return (
 			<SetupShell>
 				<SetupHeader
-					body="This installation is connected to another org. An installation can belong to only one org at a time."
+					body="Another Tripwire org already checks this installation. An installation can belong to one org at a time."
 					title={`Already connected to ${preview.claimedByOrgSlug}`}
 				/>
 				<div>
@@ -175,7 +199,7 @@ function SetupFlow({
 							/>
 						}
 					>
-						Open the org
+						{`Open ${preview.claimedByOrgSlug}`}
 					</Button>
 				</div>
 			</SetupShell>
@@ -253,15 +277,15 @@ function ConfirmScreen({
 }
 
 function ClaimScreen({ preview }: { preview: InstallPreview }) {
-	const { data: orgs } = useQuery(myOrgsQueryOptions());
+	const { data: orgs, isError: orgsError } = useQuery(myOrgsQueryOptions());
 	const claim = useClaimMutation(preview.installationId, preview.forge);
 	const adminOrgs = (orgs ?? []).filter((org) => org.role === "admin");
 
 	return (
 		<SetupShell>
 			<SetupHeader
-				body="Pick the Tripwire org that checks these repos. This list shows only orgs where you are an admin."
-				title="Where should this installation live?"
+				body="Choose the Tripwire org that checks these repos. Only orgs where you are an admin are listed."
+				title="Choose an org for this installation"
 			/>
 			<Card>
 				<CardContent>
@@ -279,12 +303,16 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 					<SkeletonSwap
 						fallback={<OrgRowsSkeleton />}
 						label="Loading your orgs"
-						loading={orgs === undefined}
+						loading={orgs === undefined && !orgsError}
 					>
-						{adminOrgs.length === 0 ? (
+						{orgsError && orgs === undefined ? (
+							<p className="px-3 pb-3 type-body-sm text-fail-text" role="alert">
+								Couldn't load your orgs. Refresh the page to try again.
+							</p>
+						) : adminOrgs.length === 0 ? (
 							<p className="px-3 pb-3 type-body-sm text-text-2">
-								You're not an admin of any org. Connecting an installation is an
-								admin act.
+								You are not an admin of any org. Ask an org admin to connect
+								this installation.
 							</p>
 						) : (
 							<ItemGroup aria-label="Your admin orgs" variant="plain">
@@ -347,10 +375,12 @@ function useClaimMutation(installationId: string, forge: Forge) {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.all }),
 		onSuccess: (result, org) => {
 			if (result.claimed) {
-				toast.success("Connected");
+				toast.success(`Installation connected to ${org}`);
 				navigate({ to: `/${org}/home` });
 			} else {
-				toast.fail("Another org already owns this installation");
+				toast.fail(
+					"Another org connected this installation first. Open that org to manage it.",
+				);
 			}
 		},
 	});
@@ -359,7 +389,10 @@ function useClaimMutation(installationId: string, forge: Forge) {
 function ClaimError({ message }: { message: Error }) {
 	return (
 		<Alert status="fail">
-			<AlertTitle>{message.message || "The claim was refused."}</AlertTitle>
+			<AlertTitle>
+				{message.message ||
+					"Couldn't connect this installation. Try again in a moment."}
+			</AlertTitle>
 		</Alert>
 	);
 }
@@ -447,6 +480,29 @@ function SetupHeader({ title, body }: { title: string; body: string }) {
 			<h1 className="type-title">{title}</h1>
 			<p className="max-w-measure-hint type-body text-text-2">{body}</p>
 		</header>
+	);
+}
+
+function LoadError({ title, onRetry }: { title: string; onRetry: () => void }) {
+	return (
+		<SetupShell>
+			<SetupHeader
+				body="Tripwire could not reach the server. Check your connection and try again."
+				title={title}
+			/>
+			<div className="flex flex-wrap gap-2">
+				<Button onClick={onRetry} type="button">
+					Try again
+				</Button>
+				<Button
+					nativeButton={false}
+					render={<Link to="/" />}
+					variant="secondary"
+				>
+					Back home
+				</Button>
+			</div>
+		</SetupShell>
 	);
 }
 

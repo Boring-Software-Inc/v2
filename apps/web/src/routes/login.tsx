@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LoginPage } from "#/components/auth/login-page";
 import { LoginPageSkeleton } from "#/components/auth/login-page-skeleton";
+import { SIGN_IN_FORGES } from "#/lib/forge-copy";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 import { webviewHostQueryOptions } from "#/lib/webview.query";
 
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/login")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle("Sign in"),
-			description: "Sign in to Tripwire with GitHub.",
+			description: `Sign in to Tripwire with ${SIGN_IN_FORGES}.`,
 			noindex: true,
 		}),
 });

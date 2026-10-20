@@ -27,52 +27,68 @@ export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 	const [signingIn, setSigningIn] = useState<string | null>(null);
 
 	return (
-		<div className={FORGE_GRID}>
-			{FORGE_CATALOG.map((forge) => {
-				const kind = forgeSignIn(forge.id);
-				const state: ForgeCellState = kind
-					? {
-							kind: "ready",
-							pending: signingIn === forge.id,
-							onSelect: async () => {
-								setSigningIn(forge.id);
-								const callbackURL = redirect ?? "/";
-								// `social` is a first-class better-auth provider; `oauth2` is
-								// the genericOAuth plugin. Same button, different endpoint —
-								// the catalog says which, so neither is hardcoded here.
-								const { error } =
-									kind === "social"
-										? await authClient.signIn.social({
-												provider: forge.id,
-												callbackURL,
-											})
-										: await authClient.signIn.oauth2({
-												providerId: forge.id,
-												callbackURL,
-											});
-								if (error) {
-									setSigningIn(null);
-									toast.fail(
-										error.message ??
-											`Couldn't reach ${forge.label}. Try again.`,
-									);
-								}
-							},
-						}
-					: {
-							kind: "blocked",
-							title: `${forge.label} isn't live yet`,
-							body: `You can sign in with ${SIGN_IN_FORGES} today.`,
-						};
-				return (
-					<ForgeCell
-						id={forge.id}
-						key={forge.id}
-						label={forge.label}
-						state={state}
-					/>
-				);
-			})}
+		<div className="flex flex-col gap-2">
+			<div className={FORGE_GRID}>
+				{FORGE_CATALOG.map((forge) => {
+					const kind = forgeSignIn(forge.id);
+					const state: ForgeCellState = kind
+						? {
+								kind: "ready",
+								pending: signingIn === forge.id,
+								onSelect: async () => {
+									setSigningIn(forge.id);
+									const callbackURL = redirect ?? "/";
+									// `social` is a first-class better-auth provider; `oauth2` is
+									// the genericOAuth plugin. Same button, different endpoint —
+									// the catalog says which, so neither is hardcoded here.
+									const { error } =
+										kind === "social"
+											? await authClient.signIn.social({
+													provider: forge.id,
+													callbackURL,
+												})
+											: await authClient.signIn.oauth2({
+													providerId: forge.id,
+													callbackURL,
+												});
+									if (error) {
+										setSigningIn(null);
+										toast.fail(
+											error.message ??
+												`Couldn't reach ${forge.label}. Check your connection and try again.`,
+										);
+									}
+								},
+							}
+						: {
+								kind: "blocked",
+								title: `${forge.label} sign-in is not available yet`,
+								body: `You can sign in with ${SIGN_IN_FORGES} today.`,
+							};
+					return (
+						<ForgeCell
+							id={forge.id}
+							key={forge.id}
+							label={forge.label}
+							state={state}
+						/>
+					);
+				})}
+			</div>
+			{UNAVAILABLE_FORGES ? (
+				<p className="type-caption text-text-2">
+					{`Sign-in with ${UNAVAILABLE_FORGES} is not available yet.`}
+				</p>
+			) : null}
 		</div>
 	);
 }
+
+const UNAVAILABLE_FORGES = new Intl.ListFormat("en", {
+	style: "long",
+	type: "conjunction",
+}).format(
+	FORGE_CATALOG.filter((forge) => !forgeSignIn(forge.id)).map(
+		(forge) => forge.label,
+	),
+);

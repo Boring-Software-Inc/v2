@@ -250,7 +250,8 @@ export const moveInstallationToOrg = createServerFn({ method: "POST" })
 				if (!target.ok) {
 					return {
 						moved: false,
-						error: "You must be an admin of the org you chose.",
+						error:
+							"Only an admin of that org can move an installation into it.",
 					};
 				}
 				// Source must actually own the installation being moved.
@@ -260,7 +261,8 @@ export const moveInstallationToOrg = createServerFn({ method: "POST" })
 				if (ownerOrg !== source.id) {
 					return {
 						moved: false,
-						error: "This installation does not belong to this org.",
+						error:
+							"This installation belongs to a different org. Open that org to move it.",
 					};
 				}
 				return await orgServices.moveInstallation(db, {

@@ -27,16 +27,16 @@ export function WebviewNotice() {
 
 	return (
 		<Alert announce={false} status="warn">
-			<AlertTitle>Sign-in may not work in this browser</AlertTitle>
+			<AlertTitle>Sign-in may not work in this app</AlertTitle>
 			<AlertDescription className="flex flex-col gap-2">
 				<p>
-					Logging in with the above methods may not work in your browser. Copy
-					the link below to continue in a supported browser.
+					This app opened Tripwire in its built-in browser, which can block
+					sign-in. Copy this link and open it in Safari, Chrome or Firefox.
 				</p>
 				<Input
-					aria-label="Login link"
+					aria-label="Sign-in link"
 					mode="copy"
-					noun="login link"
+					noun="sign-in link"
 					size="sm"
 					value={href}
 				/>

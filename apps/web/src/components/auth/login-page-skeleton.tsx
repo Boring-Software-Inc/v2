@@ -22,10 +22,13 @@ export function LoginPageSkeleton() {
 
 				<Card className="w-full">
 					<CardContent>
-						<div className="grid grid-cols-2 gap-2">
-							{CELL_SLOTS.map((slot) => (
-								<Skeleton className="h-(--control) rounded-pill" key={slot} />
-							))}
+						<div className="flex flex-col gap-2">
+							<div className="grid grid-cols-2 gap-2">
+								{CELL_SLOTS.map((slot) => (
+									<Skeleton className="h-(--control) rounded-pill" key={slot} />
+								))}
+							</div>
+							<SkeletonText className="w-48" type="caption" />
 						</div>
 						<Skeleton className="h-(--control) w-44 rounded-pill" />
 					</CardContent>

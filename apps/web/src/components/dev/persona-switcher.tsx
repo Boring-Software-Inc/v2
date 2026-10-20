@@ -45,7 +45,10 @@ function usePersonaActions() {
 				const { error } = (await res.json().catch(() => ({}))) as {
 					error?: string;
 				};
-				toast.fail(error ?? "Dev login failed");
+				toast.fail(
+					error ??
+						"Couldn't sign in as that persona. Check the dev server log.",
+				);
 				setBusy(null);
 				return;
 			}
@@ -53,7 +56,11 @@ function usePersonaActions() {
 			// Full document load so the session cookie + a fresh query cache apply.
 			window.location.assign(landing);
 		} catch (err) {
-			toast.fail(err instanceof Error ? err.message : "Dev login failed");
+			toast.fail(
+				err instanceof Error
+					? err.message
+					: "Couldn't sign in as that persona. Check the dev server log.",
+			);
 			setBusy(null);
 		}
 	}
@@ -64,7 +71,7 @@ function usePersonaActions() {
 			await post("/api/dev/reset");
 			window.location.assign("/");
 		} catch {
-			toast.fail("Reset failed");
+			toast.fail("Couldn't reset dev data. Check the dev server log.");
 			setBusy(null);
 		}
 	}
@@ -79,7 +86,7 @@ function usePersonaActions() {
 			await post("/api/dev/logout");
 			window.location.assign("/login");
 		} catch {
-			toast.fail("Logout failed");
+			toast.fail("Couldn't sign out. Try again.");
 			setBusy(null);
 		}
 	}
@@ -145,7 +152,7 @@ function PersonaList({
 						size="sm"
 						variant="secondary"
 					>
-						Log out to /login
+						Sign out
 					</Button>
 				) : null}
 			</div>

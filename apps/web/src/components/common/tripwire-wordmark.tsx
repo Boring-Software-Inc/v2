@@ -14,7 +14,7 @@ export function TripwireWordmark({
 }) {
 	return (
 		<svg
-			aria-label="tripwire"
+			aria-label="Tripwire"
 			className={className}
 			height={height}
 			role="img"
