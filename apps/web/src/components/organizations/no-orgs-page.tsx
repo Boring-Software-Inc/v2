@@ -73,7 +73,7 @@ export function NoOrgsPage() {
 								<FieldLabel>Name</FieldLabel>
 								<Input
 									autoFocus
-									leading={<OrgAvatar name={name} size="xs" />}
+									leading={<OrgAvatar animate name={name} size="xs" />}
 									onChange={(event) => setName(event.target.value)}
 									placeholder="Acme"
 									value={name}

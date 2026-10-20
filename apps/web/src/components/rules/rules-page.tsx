@@ -3,6 +3,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
+import { ShaderDither } from "#/components/dither/shader-dither";
 import { Add, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -357,7 +358,11 @@ export function RulesPage() {
 										))}
 									</div>
 								) : filter === "custom" ? (
-									<Empty>
+									<Empty className="relative isolate overflow-hidden">
+										<ShaderDither
+											className="-z-10 bottom-auto h-18"
+											priority={1}
+										/>
 										<EmptyHeader>
 											<EmptyTitle>No custom rules yet</EmptyTitle>
 											<EmptyDescription>

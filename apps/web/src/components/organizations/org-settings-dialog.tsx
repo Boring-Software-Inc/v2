@@ -103,7 +103,13 @@ export function OrgSettingsDialog() {
 				>
 					<DialogHeader className="gap-3 group-data-close/dialog:pe-3 sm:group-data-close/dialog:pe-4">
 						<div className="flex items-center gap-3 pe-8">
-							<OrgAvatar name={name} size="lg" />
+							<OrgAvatar
+								animate
+								hue={orgContext?.avatarHue}
+								name={name}
+								replayToken={open ? 1 : 0}
+								size="lg"
+							/>
 							<div className="flex min-w-0 flex-col gap-0.5">
 								<DialogTitle>{name}</DialogTitle>
 								<DialogDescription>Org settings</DialogDescription>

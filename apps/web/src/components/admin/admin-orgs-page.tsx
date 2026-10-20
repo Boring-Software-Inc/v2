@@ -212,7 +212,11 @@ export function AdminOrgsPage() {
 															icon={expanded ? ChevronDown : ChevronRight}
 														/>
 													</Button>
-													<OrgAvatar name={org.name} size="sm" />
+													<OrgAvatar
+														hue={org.avatarHue}
+														name={org.name}
+														size="sm"
+													/>
 													<div className="flex min-w-0 flex-col">
 														<span className="truncate type-label">
 															{org.name}

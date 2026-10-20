@@ -3,6 +3,7 @@ import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { EntityCard } from "#/components/common/entity-card";
 import { CardRouterLink } from "#/components/common/router-links";
+import { ShaderDither } from "#/components/dither/shader-dither";
 import { Add, Icon, MoreVertical } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -322,7 +323,8 @@ function WorkflowsEmpty({
 
 	return (
 		<div className="flex flex-col gap-6">
-			<Empty>
+			<Empty className="relative isolate overflow-hidden">
+				<ShaderDither className="-z-10 bottom-auto h-18" priority={1} />
 				<EmptyHeader>
 					<EmptyTitle>No workflows yet</EmptyTitle>
 					<EmptyDescription>

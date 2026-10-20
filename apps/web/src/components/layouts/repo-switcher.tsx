@@ -66,7 +66,11 @@ export function RepoSwitcher() {
 			>
 				<span className="-ms-1.5 flex size-5 shrink-0 items-center justify-center">
 					{params.org ? (
-						<OrgAvatar name={activeOrg?.name ?? params.org} size="sm" />
+						<OrgAvatar
+							hue={activeOrg?.avatarHue}
+							name={activeOrg?.name ?? params.org}
+							size="sm"
+						/>
 					) : (
 						<Icon icon={GithubMark} />
 					)}

@@ -4,6 +4,7 @@ import { LoginFaq } from "#/components/auth/login-faq";
 import { WebviewNotice } from "#/components/auth/webview-notice";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { DevPersonaDisclosure } from "#/components/dev/persona-disclosure";
+import { ShaderDither } from "#/components/dither/shader-dither";
 import { Card, CardContent } from "#/components/glaze/ui/card";
 
 const route = getRouteApi("/login");
@@ -13,7 +14,8 @@ export function LoginPage() {
 	// signed-out redeemer back to the link instead of dropping them at "/".
 	const { redirect } = route.useSearch();
 	return (
-		<div className="flex min-h-dvh flex-col items-center justify-center bg-page px-4 py-10">
+		<div className="relative isolate flex min-h-dvh flex-col items-center justify-center bg-page px-4 pt-10 pb-40">
+			<ShaderDither className="-z-10 top-auto h-40" mask="bottom" />
 			<div className="flex w-full max-w-sm flex-col gap-6">
 				<div className="flex items-center gap-2">
 					<TripwireWordmark

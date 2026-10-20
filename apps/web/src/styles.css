@@ -195,3 +195,29 @@ body {
 		transition-duration: var(--sheet-fade);
 	}
 }
+
+.glaze [data-shader-mask="edges"] {
+	mask-image: radial-gradient(
+		ellipse at center,
+		var(--ink) 0%,
+		transparent 72%
+	);
+}
+
+.glaze [data-shader-mask="sides"] {
+	mask-image: linear-gradient(
+		to right,
+		var(--ink) 0%,
+		transparent 32%,
+		transparent 68%,
+		var(--ink) 100%
+	);
+}
+
+.glaze [data-shader-mask="bottom"] {
+	mask-image: linear-gradient(to top, var(--ink) 0%, transparent 100%);
+}
+
+.glaze [data-shader-mask="top"] {
+	mask-image: linear-gradient(to bottom, var(--ink) 0%, transparent 100%);
+}
