@@ -4,3 +4,69 @@
 body {
 	margin: 0;
 }
+
+.glaze [data-preview-root] [data-dim] {
+	transition: opacity var(--dur-state) var(--ease-out);
+}
+
+.glaze [data-preview-root][data-highlight] [data-dim] {
+	opacity: var(--stale);
+}
+
+.glaze [data-preview-root] [data-region-active] [data-dim],
+.glaze [data-preview-root] [data-dim][data-region-active] {
+	opacity: 1;
+}
+
+.glaze [data-preview-root] [data-region] {
+	outline: var(--line-width) solid transparent;
+	outline-offset: var(--space-1);
+	transition: outline-color var(--dur-state) var(--ease-out);
+}
+
+.glaze [data-preview-root] [data-region-active] {
+	outline-color: var(--line-focus);
+}
+
+.glaze [data-preview-root] [data-region-flash]::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	background-color: var(--pressed);
+	pointer-events: none;
+	animation: preview-region-flash var(--dur-sweep) var(--ease-out) forwards;
+}
+
+@keyframes preview-region-flash {
+	0%,
+	25% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.glaze [data-preview-root] [data-region-flash]::after {
+		animation: none;
+		opacity: 0;
+	}
+}
+
+.glaze [data-fillet="start"] {
+	mask-image: radial-gradient(
+		circle var(--radius-shell) at top right,
+		transparent calc(var(--radius-shell) - var(--line-width)),
+		var(--ink) var(--radius-shell)
+	);
+}
+
+.glaze [data-fillet="end"] {
+	mask-image: radial-gradient(
+		circle var(--radius-shell) at top left,
+		transparent calc(var(--radius-shell) - var(--line-width)),
+		var(--ink) var(--radius-shell)
+	);
+}

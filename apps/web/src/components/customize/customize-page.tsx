@@ -10,6 +10,7 @@ import {
 import { CustomizeBodySkeleton } from "#/components/customize/customize-page-skeleton";
 import { CustomizePreview } from "#/components/customize/customize-preview";
 import { DraftStoreProvider } from "#/components/customize/draft-store";
+import { PreviewLinkProvider } from "#/components/customize/preview-link";
 import { SaveState } from "#/components/customize/save-state";
 import { VerdictSettings } from "#/components/customize/verdict-settings";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
@@ -84,13 +85,15 @@ export function CustomizePage() {
 	return (
 		<SaveQueueProvider commit={commitBatch} savedValues={savedValues}>
 			<DraftStoreProvider>
-				<CustomizeView
-					canEdit={isAdmin}
-					loaded={Boolean(savedConfig)}
-					onDiscarded={() => setSaveError(null)}
-					saveError={saveError}
-					savedValues={savedValues}
-				/>
+				<PreviewLinkProvider>
+					<CustomizeView
+						canEdit={isAdmin}
+						loaded={Boolean(savedConfig)}
+						onDiscarded={() => setSaveError(null)}
+						saveError={saveError}
+						savedValues={savedValues}
+					/>
+				</PreviewLinkProvider>
 			</DraftStoreProvider>
 		</SaveQueueProvider>
 	);
@@ -144,7 +147,7 @@ function CustomizeView({
 	return (
 		<DashboardLayout counts={{}}>
 			<div className="px-4 py-6 md:px-8 md:py-8">
-				<div className="flex w-full flex-col gap-6">
+				<div className="mx-auto flex w-full max-w-312 flex-col gap-6">
 					<header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
 						<div className="flex min-w-0 flex-col gap-1">
 							<h1 className="type-title">Customize</h1>
@@ -179,8 +182,8 @@ function CustomizeView({
 								</TabsList>
 								{VERDICTS.map((v) => (
 									<TabsContent key={v.value} value={v.value}>
-										<div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5 lg:gap-8">
-											<div className="lg:col-span-2">
+										<div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+											<div className="lg:w-md lg:shrink-0">
 												<VerdictSettings
 													canEdit={canEdit}
 													config={config}
@@ -193,7 +196,7 @@ function CustomizeView({
 													verdict={v.value}
 												/>
 											</div>
-											<div className="lg:sticky lg:top-6 lg:col-span-3">
+											<div className="min-w-0 lg:sticky lg:top-6 lg:flex-1">
 												<CustomizePreview
 													config={config}
 													messageChosen={messageChosen[v.value]}

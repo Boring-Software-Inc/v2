@@ -21,7 +21,10 @@ export function CheckStateMock({
 }: CheckStateMockProps) {
 	if (!posted) {
 		return (
-			<div className="flex items-center gap-2 rounded-panel border border-line-faint bg-paper px-3 py-2">
+			<div
+				className="flex items-center gap-2 rounded-panel border border-line-faint bg-paper px-3 py-2"
+				data-dim=""
+			>
 				<span className="shrink-0 type-label-sm">{CHECK_NAME}</span>
 				<span className="min-w-0 truncate type-body-sm text-text-2">
 					No check posts on a pass.
@@ -31,7 +34,10 @@ export function CheckStateMock({
 	}
 	const state = CHECK_STATE[verdict];
 	return (
-		<div className="flex items-center gap-2 rounded-panel border border-line-faint bg-paper px-3 py-2">
+		<div
+			className="flex items-center gap-2 rounded-panel border border-line-faint bg-paper px-3 py-2"
+			data-dim=""
+		>
 			<span className="shrink-0 type-label-sm">{CHECK_NAME}</span>
 			<span className="min-w-0 flex-1 truncate type-body-sm text-text-2">
 				{checkSummary(verdict, reasons)}

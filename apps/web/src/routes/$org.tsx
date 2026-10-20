@@ -1,5 +1,5 @@
 import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
-import { OrgNotFound } from "#/components/organizations/org-not-found";
+import { NotFound } from "#/components/not-found";
 import { parseOrgSettingsTab } from "#/components/organizations/org-settings-tab";
 import { orgContextQueryOptions } from "#/lib/org.query";
 
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/$org")({
 			throw notFound();
 		}
 	},
-	notFoundComponent: OrgNotFound,
+	notFoundComponent: NotFound,
 	// Pages own their DashboardLayout wrap (repo convention) — the layout
 	// route only resolves scope.
 	component: () => <Outlet />,

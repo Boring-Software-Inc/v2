@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AnalyticsChart } from "#/components/analytics/analytics-chart";
 import { AnalyticsEvents } from "#/components/analytics/analytics-events";
 import { AnalyticsBodySkeleton } from "#/components/analytics/analytics-page-skeleton";
-import { ArrowLeft, Icon, TrendDown, TrendUp } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { Icon, TrendDown, TrendUp } from "#/components/glaze/icon";
 import {
 	Empty,
 	EmptyDescription,
@@ -70,20 +69,7 @@ export function AnalyticsPage() {
 		<DashboardLayout counts={{}}>
 			<div className="px-4 py-6 md:px-8 md:py-10">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<div className="flex flex-col items-start gap-3">
-						<Button
-							nativeButton={false}
-							render={
-								<Link params={{ org, repo }} to="/$org/$repo/moderation" />
-							}
-							size="sm"
-							variant="ghost"
-						>
-							<Icon icon={ArrowLeft} />
-							Back to moderation
-						</Button>
-						<h1 className="type-title">Analytics</h1>
-					</div>
+					<h1 className="type-title">Analytics</h1>
 
 					<SkeletonSwap
 						fallback={<AnalyticsBodySkeleton />}
