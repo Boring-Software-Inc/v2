@@ -16,6 +16,7 @@ import {
 	type InstallPreview,
 	listClaimableInstallations,
 } from "#/lib/onboarding.functions";
+import { onboardingQueryKeys } from "#/lib/onboarding.query";
 import { myOrgsQueryOptions, orgQueryKeys } from "#/lib/org.query";
 
 const route = getRouteApi("/onboarding/setup");
@@ -41,7 +42,8 @@ export function InstallSetupPage() {
 					</h1>
 					<p className="text-[13px] text-muted-foreground leading-relaxed">
 						your installation request needs approval from an admin of that
-						github account. once they approve, you'll get the callback here.
+						github account. once they approve, it shows up on your home page to
+						connect.
 					</p>
 					<Button
 						nativeButton={false}
@@ -301,7 +303,12 @@ function useClaimMutation(installationId: string, forge: Forge) {
 		mutationFn: (org: string) =>
 			claimInstallation({ data: { org, installationId, forge } }),
 		onSettled: () =>
-			queryClient.invalidateQueries({ queryKey: orgQueryKeys.all }),
+			Promise.all([
+				queryClient.invalidateQueries({ queryKey: orgQueryKeys.all }),
+				queryClient.invalidateQueries({
+					queryKey: onboardingQueryKeys.approvedRequests(),
+				}),
+			]),
 		onSuccess: (result, org) => {
 			if (result.claimed) {
 				toast.success("connected");
