@@ -11,6 +11,11 @@ import {
 	readDraftKey,
 } from "#/components/customize/customize-model";
 import { MessageEditor } from "#/components/customize/message-editor";
+import {
+	PreviewLinked,
+	type PreviewSetting,
+	usePreviewLink,
+} from "#/components/customize/preview-link";
 import { Checkbox } from "#/components/glaze/ui/checkbox";
 import {
 	Field,
@@ -45,8 +50,8 @@ const BLOCK_CHOICES: {
 	},
 	{
 		value: "message",
-		label: "Own message",
-		description: "Your text, with the run's details filled in.",
+		label: "Write your own",
+		description: "Post your text instead of the default comment.",
 	},
 ];
 
@@ -62,8 +67,8 @@ const OUTCOME_CHOICES: {
 	},
 	{
 		value: "message",
-		label: "Own message",
-		description: "Your text replaces the comment.",
+		label: "Write your own",
+		description: "Post your text instead of the default comment.",
 	},
 ];
 
@@ -96,6 +101,7 @@ export function VerdictSettings({
 	const override = overrideKey(verdict);
 	const draftKey = messageDraftKey(config, verdict);
 	const usesTemplate = draftKey === "blockComment.template";
+	const link = usePreviewLink();
 
 	const setComment = (on: boolean) => {
 		if (verdict === "pass") {
@@ -109,6 +115,7 @@ export function VerdictSettings({
 		if (next === choice) {
 			return;
 		}
+		link.flash("content");
 		if (verdict === "block") {
 			setField("blockComment.mode", next === "message" ? "custom" : next);
 			if (next !== "message") {
@@ -147,35 +154,40 @@ export function VerdictSettings({
 					disabled={disabled}
 					label="Post a comment"
 					onChange={setComment}
+					setting="post-comment"
 				/>
 				{commenting ? (
 					<>
-						<RadioGroup
-							aria-label="Comment content"
-							disabled={disabled}
-							onValueChange={(value) => setChoice(value as ContentChoice)}
-							value={choice}
-						>
-							{(verdict === "block" ? BLOCK_CHOICES : OUTCOME_CHOICES).map(
-								(option) => (
-									<RadioGroupOption
-										description={option.description}
-										key={option.value}
-										label={option.label}
-										value={option.value}
-									/>
-								),
-							)}
-						</RadioGroup>
-						{choice === "message" ? (
-							<MessageEditor
+						<PreviewLinked setting="content">
+							<RadioGroup
+								aria-label="Comment content"
 								disabled={disabled}
-								draftKey={draftKey}
-								initial={readDraftKey(config, draftKey)}
-								key={`${draftKey}-${editorEpoch}`}
-								onCommit={commitDraft}
-								withVariables={usesTemplate}
-							/>
+								onValueChange={(value) => setChoice(value as ContentChoice)}
+								value={choice}
+							>
+								{(verdict === "block" ? BLOCK_CHOICES : OUTCOME_CHOICES).map(
+									(option) => (
+										<RadioGroupOption
+											description={option.description}
+											key={option.value}
+											label={option.label}
+											value={option.value}
+										/>
+									),
+								)}
+							</RadioGroup>
+						</PreviewLinked>
+						{choice === "message" ? (
+							<PreviewLinked setting="message">
+								<MessageEditor
+									disabled={disabled}
+									draftKey={draftKey}
+									initial={readDraftKey(config, draftKey)}
+									key={`${draftKey}-${editorEpoch}`}
+									onCommit={commitDraft}
+									withVariables={usesTemplate}
+								/>
+							</PreviewLinked>
 						) : null}
 						{verdict === "block" && choice === "one-liner-link" ? (
 							<Toggle
@@ -184,6 +196,7 @@ export function VerdictSettings({
 								disabled={disabled}
 								label="Show rule names"
 								onChange={(on) => setField("blockComment.showRuleName", on)}
+								setting="rule-names"
 							/>
 						) : null}
 						{usesTemplate && choice === "message" ? null : (
@@ -193,6 +206,7 @@ export function VerdictSettings({
 								disabled={disabled}
 								label="Show the details button"
 								onChange={(on) => setField(`${override}.showDetailsButton`, on)}
+								setting="details-button"
 							/>
 						)}
 					</>
@@ -215,6 +229,7 @@ export function VerdictSettings({
 						disabled={disabled || config.onSuccess === "comment"}
 						label="Post a check run"
 						onChange={(on) => setField("onSuccess", on ? "ci-check" : "silent")}
+						setting="check-run"
 					/>
 				) : (
 					<Toggle
@@ -227,6 +242,7 @@ export function VerdictSettings({
 						disabled
 						label="Post a check run"
 						onChange={() => undefined}
+						setting="check-run"
 					/>
 				)}
 			</Section>
@@ -263,24 +279,32 @@ function Toggle({
 	description,
 	checked,
 	disabled,
+	setting,
 	onChange,
 }: {
 	label: string;
 	description: string;
 	checked: boolean;
 	disabled: boolean;
+	setting: PreviewSetting;
 	onChange: (checked: boolean) => void;
 }) {
+	const link = usePreviewLink();
 	return (
-		<Field disabled={disabled} orientation="horizontal">
-			<Checkbox
-				checked={checked}
-				onCheckedChange={(next) => onChange(next === true)}
-			/>
-			<FieldContent>
-				<FieldLabel>{label}</FieldLabel>
-				<FieldDescription>{description}</FieldDescription>
-			</FieldContent>
-		</Field>
+		<PreviewLinked setting={setting}>
+			<Field disabled={disabled} orientation="horizontal">
+				<Checkbox
+					checked={checked}
+					onCheckedChange={(next) => {
+						onChange(next === true);
+						link.flash(setting);
+					}}
+				/>
+				<FieldContent>
+					<FieldLabel>{label}</FieldLabel>
+					<FieldDescription>{description}</FieldDescription>
+				</FieldContent>
+			</Field>
+		</PreviewLinked>
 	);
 }

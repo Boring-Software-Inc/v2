@@ -10,6 +10,7 @@ import {
 import { CustomizeBodySkeleton } from "#/components/customize/customize-page-skeleton";
 import { CustomizePreview } from "#/components/customize/customize-preview";
 import { DraftStoreProvider } from "#/components/customize/draft-store";
+import { PreviewLinkProvider } from "#/components/customize/preview-link";
 import { SaveState } from "#/components/customize/save-state";
 import { VerdictSettings } from "#/components/customize/verdict-settings";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
@@ -84,13 +85,15 @@ export function CustomizePage() {
 	return (
 		<SaveQueueProvider commit={commitBatch} savedValues={savedValues}>
 			<DraftStoreProvider>
-				<CustomizeView
-					canEdit={isAdmin}
-					loaded={Boolean(savedConfig)}
-					onDiscarded={() => setSaveError(null)}
-					saveError={saveError}
-					savedValues={savedValues}
-				/>
+				<PreviewLinkProvider>
+					<CustomizeView
+						canEdit={isAdmin}
+						loaded={Boolean(savedConfig)}
+						onDiscarded={() => setSaveError(null)}
+						saveError={saveError}
+						savedValues={savedValues}
+					/>
+				</PreviewLinkProvider>
 			</DraftStoreProvider>
 		</SaveQueueProvider>
 	);

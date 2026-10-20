@@ -109,7 +109,10 @@ export function GithubCommentMock({
 }: GithubCommentMockProps) {
 	if (body === null) {
 		return (
-			<div className="rounded-panel border border-line-faint bg-paper">
+			<div
+				className="rounded-panel border border-line-faint bg-paper"
+				data-dim=""
+			>
 				<Empty size="sm" variant="plain">
 					<EmptyHeader>
 						<EmptyTitle>No comment posts</EmptyTitle>
@@ -124,41 +127,55 @@ export function GithubCommentMock({
 	const blocks = parseBody(body);
 	return (
 		<div className="flex items-start gap-3">
-			<Avatar decorative size="lg" type="source">
+			<Avatar data-dim="" decorative size="lg" type="source">
 				<AvatarFallback>
 					<GithubIcon className="size-(--icon)" />
 				</AvatarFallback>
 			</Avatar>
 			<div className="min-w-0 flex-1 overflow-hidden rounded-panel border border-line-faint bg-paper">
-				<div className="flex items-center gap-2 border-line-faint border-b px-3 py-2">
+				<div
+					className="flex items-center gap-2 border-line-faint border-b px-3 py-2"
+					data-dim=""
+				>
 					<span className="type-label-sm">tripwire</span>
 					<Badge size="sm" variant="outline">
 						bot
 					</Badge>
 					<span className="type-caption text-text-2">commented just now</span>
 				</div>
-				<div className="flex flex-col gap-3 px-3 py-3">
+				<div
+					className="relative flex flex-col gap-3 rounded-tag px-3 py-3"
+					data-region="comment-body"
+				>
 					{blocks.map((block, i) => {
 						if (block.kind === "paragraph") {
 							return (
 								// biome-ignore lint/suspicious/noArrayIndexKey: static parse
-								<Paragraphs key={i} text={block.text} />
+								<div data-dim="" key={i}>
+									<Paragraphs text={block.text} />
+								</div>
 							);
 						}
 						if (block.kind === "button") {
 							return (
-								<img
-									alt={block.alt}
-									className="w-46"
+								<div
+									className="relative w-fit rounded-tag"
+									data-dim=""
+									data-region="details-button"
 									// biome-ignore lint/suspicious/noArrayIndexKey: static parse
 									key={i}
-									src={block.src}
-								/>
+								>
+									<img alt={block.alt} className="w-46" src={block.src} />
+								</div>
 							);
 						}
 						return (
-							// biome-ignore lint/suspicious/noArrayIndexKey: static parse
-							<details className="type-body-sm" key={i}>
+							<details
+								className="type-body-sm"
+								data-dim=""
+								// biome-ignore lint/suspicious/noArrayIndexKey: static parse
+								key={i}
+							>
 								<summary className="cursor-pointer text-text-2">
 									{block.summary}
 								</summary>
