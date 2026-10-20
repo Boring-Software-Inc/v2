@@ -261,3 +261,7 @@ body {
 		--row: 44px;
 	}
 }
+
+.glaze .react-flow__edges svg {
+	max-width: none;
+}
