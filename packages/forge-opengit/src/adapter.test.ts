@@ -233,7 +233,7 @@ describe("the absent read surface", () => {
 		const { fetchImpl } = recordingFetch();
 		const adapter = adapterWith(fetchImpl);
 		const call = adapter[method as "getDiff"] as () => Promise<unknown>;
-		expect(() => call()).toThrow(/exposes no/);
+		expect(() => call()).toThrow(/does not provide/);
 	});
 
 	test("the adapter still declares its forge", () => {

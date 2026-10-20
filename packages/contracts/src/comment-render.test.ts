@@ -28,7 +28,7 @@ const BLOCKED_REASONS = [
 	{
 		text: "Your account is 2 days old.",
 		remedy: "wait" as const,
-		waitHint: "You can merge in 5 days.",
+		waitHint: "This clears in 5 days.",
 	},
 	{
 		text: "It adds 2 crypto wallet addresses to DONATE.md.",
@@ -131,7 +131,7 @@ describe("renderCommentBody — snapshot golden files", () => {
 		expect(body).not.toMatch(/\d+ of \d+ rules?/);
 		// The wait-hint rides inline after its reason.
 		expect(body).toContain(
-			"- Your account is 2 days old. You can merge in 5 days.",
+			"- Your account is 2 days old. This clears in 5 days.",
 		);
 		// The button is VISIBLE — not wrapped in any <details>.
 		const buttonLine = lines.find((l) => l.includes("badges/view-run.png"));
@@ -153,7 +153,7 @@ const BLOCK_INPUT: CommentInput = {
 		{
 			text: "Your account is 2 days old.",
 			remedy: "wait",
-			waitHint: "You can merge in 5 days.",
+			waitHint: "This clears in 5 days.",
 			ruleId: "account-age",
 		},
 		{
@@ -253,7 +253,7 @@ describe("renderVerdictComment — config-aware modes", () => {
 		);
 		expect(body).toBe(
 			[
-				"held: Your account is newer than this repository allows.",
+				"held: your account is newer than this repository allows.",
 				"",
 				'<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>',
 				"",
@@ -261,6 +261,25 @@ describe("renderVerdictComment — config-aware modes", () => {
 				"",
 			].join("\n"),
 		);
+	});
+
+	test("custom: {{ruleName}} keeps the inserted text's casing", () => {
+		const labelled = renderVerdictComment(
+			BLOCK_INPUT,
+			modeConfig("custom", { template: "held because {{ruleName}}" }),
+		);
+		expect(labelled).toContain(
+			"held because your account is newer than this repository allows.",
+		);
+		const raw = renderVerdictComment(
+			{
+				...BLOCK_INPUT,
+				reasons: [{ text: "fork rate is 12", remedy: "revise" }],
+			},
+			modeConfig("custom", { template: "held: {{ruleName}}" }),
+		);
+		expect(raw).toContain("held: fork rate is 12");
+		expect(raw).not.toContain("Fork rate");
 	});
 
 	test("custom: {{runUrl}} renders the run BUTTON, never a bare url", () => {
@@ -299,7 +318,7 @@ describe("renderVerdictComment — per-outcome custom text + details button", ()
 		// strand the wait-hint / how-to-fix remedy and leak the very rule the
 		// maintainer set out to hide. NOTHING of the auto copy remains.
 		expect(body).not.toContain("Your account is 2 days old.");
-		expect(body).not.toContain("You can merge in 5 days.");
+		expect(body).not.toContain("This clears in 5 days.");
 		expect(body).not.toContain("crypto");
 		expect(body).not.toContain("How do I fix this?");
 		expect(body).not.toContain("What is Tripwire?");

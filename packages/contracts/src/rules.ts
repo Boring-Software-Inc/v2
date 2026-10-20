@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ForgeId } from "./forges.ts";
+import { FORGE_BY_ID, type ForgeId } from "./forges.ts";
 import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
 import { aiReviewConfigSchema } from "./review.ts";
@@ -179,7 +179,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Flags change requests from accounts younger than a threshold you set.",
-		contributorLabel: "Your account is newer than this repository allows.",
+		contributorLabel: "your account is newer than this repository allows.",
 	},
 	{
 		ruleId: "min-merged-prs",
@@ -200,7 +200,7 @@ export const RULE_CATALOG = [
 		description:
 			"Requires N merged change requests in other people's repos, as proof that someone else accepted their work.",
 		contributorLabel:
-			"You need merged change requests in other people's repositories first.",
+			"you need merged change requests in other people's repositories first.",
 	},
 	{
 		ruleId: "pr-rate-limit",
@@ -217,7 +217,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Caps how many change requests one person can open in a time window.",
-		contributorLabel: "You opened too many change requests in a short time.",
+		contributorLabel: "you opened too many change requests in a short time.",
 	},
 	{
 		ruleId: "max-files-changed",
@@ -232,7 +232,7 @@ export const RULE_CATALOG = [
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags change requests that touch more files than you allow.",
-		contributorLabel: "This change request changes too many files.",
+		contributorLabel: "this change request changes too many files.",
 	},
 	{
 		ruleId: "english-only",
@@ -244,7 +244,7 @@ export const RULE_CATALOG = [
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags titles and comments that aren't mostly latin script.",
-		contributorLabel: "Titles and comments must be written mostly in English.",
+		contributorLabel: "titles and comments must be written mostly in English.",
 	},
 	{
 		ruleId: "crypto-address",
@@ -261,7 +261,7 @@ export const RULE_CATALOG = [
 		description:
 			"Catches cryptocurrency addresses in titles, comments, and diffs.",
 		contributorLabel:
-			"This change request contains a cryptocurrency wallet address.",
+			"this change request contains a cryptocurrency wallet address.",
 	},
 	{
 		ruleId: "honeypot",
@@ -277,7 +277,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Catches change requests that touch paths no legitimate change would.",
-		contributorLabel: "This change request changes protected files.",
+		contributorLabel: "this change request changes protected files.",
 	},
 	{
 		ruleId: "profile-readme",
@@ -294,7 +294,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Requires a minimum of profile text. Throwaway accounts rarely add one.",
-		contributorLabel: "Your profile needs a short bio.",
+		contributorLabel: "your profile needs a short bio.",
 	},
 	{
 		ruleId: "ai-review",
@@ -314,7 +314,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Reads the change like a reviewer and flags slop. Off until you turn it on, because it costs tokens.",
-		contributorLabel: "An AI review found problems in this change request.",
+		contributorLabel: "an AI review found problems in this change request.",
 	},
 ] as const satisfies ReadonlyArray<{
 	ruleId: string;
@@ -366,7 +366,7 @@ export function ruleForgeBlockReason(
 	if (ruleSupportsForge(ruleId, forge)) {
 		return null;
 	}
-	return `not usable with ${forge}`;
+	return `This rule cannot run on ${FORGE_BY_ID[forge]?.label ?? forge}.`;
 }
 
 /**

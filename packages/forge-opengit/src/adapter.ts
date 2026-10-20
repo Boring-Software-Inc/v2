@@ -35,7 +35,7 @@ import { verifyWebhookSignature } from "./webhook/verify.ts";
 
 function noReadSurface(what: string): never {
 	throw new Error(
-		`open-git exposes no ${what} endpoint — this read is unavailable, not empty`,
+		`open-git does not provide ${what} data, so Tripwire cannot read it.`,
 	);
 }
 

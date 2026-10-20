@@ -91,7 +91,7 @@ function repoOf(event: RepoScopedEvent): string {
  */
 function required<T>(value: T | undefined, what: string): T {
 	if (value === undefined) {
-		signalUnavailable(`this change request has no ${what}`);
+		signalUnavailable(`This change request has no ${what}.`);
 	}
 	return value;
 }
@@ -100,7 +100,7 @@ function changeRequestNumber(event: RepoScopedEvent): number {
 	if ("changeRequest" in event) {
 		return event.changeRequest.number;
 	}
-	signalUnavailable("this event has no change request");
+	signalUnavailable("This event has no change request.");
 }
 
 interface GithubUser {
@@ -218,7 +218,9 @@ function loadPrFiles(ctx: Ctx): Promise<PrFile[]> {
 				) as Promise<PrFile[]>,
 		)
 		.catch(() =>
-			signalUnavailable("this change request's files are unavailable"),
+			signalUnavailable(
+				"Tripwire could not read the files in this change request.",
+			),
 		);
 }
 
@@ -239,7 +241,9 @@ function loadPrCommits(ctx: Ctx): Promise<PrCommit[]> {
 				) as Promise<PrCommit[]>,
 		)
 		.catch(() =>
-			signalUnavailable("this change request's commits are unavailable"),
+			signalUnavailable(
+				"Tripwire could not read the commits in this change request.",
+			),
 		);
 }
 
@@ -261,7 +265,9 @@ function loadPrDetails(ctx: Ctx): Promise<PrDetails> {
 				) as Promise<PrDetails>,
 		)
 		.catch(() =>
-			signalUnavailable("this change request's details are unavailable"),
+			signalUnavailable(
+				"Tripwire could not read the details of this change request.",
+			),
 		);
 }
 
@@ -282,7 +288,9 @@ function loadIssueReactions(ctx: Ctx): Promise<IssueReactions> {
 				) as Promise<IssueReactions>,
 		)
 		.catch(() =>
-			signalUnavailable("this change request's reactions are unavailable"),
+			signalUnavailable(
+				"Tripwire could not read the reactions on this change request.",
+			),
 		);
 }
 
@@ -290,7 +298,7 @@ function changeRequestOf(event: RepoScopedEvent) {
 	if ("changeRequest" in event) {
 		return event.changeRequest;
 	}
-	signalUnavailable("this event has no change request");
+	signalUnavailable("This event has no change request.");
 }
 
 async function prBody(ctx: Ctx): Promise<string> {
@@ -362,7 +370,9 @@ export const githubForge = defineForge<GithubHttp>()({
 			const user = await loadUser(ctx);
 			const created = Date.parse(user.created_at);
 			if (Number.isNaN(created)) {
-				signalUnavailable("contributor createdAt unparseable");
+				signalUnavailable(
+					"Tripwire could not read when the contributor's account was created.",
+				);
 			}
 			return Math.floor((Date.parse(ctx.now) - created) / DAY_MS);
 		},
@@ -379,13 +389,15 @@ export const githubForge = defineForge<GithubHttp>()({
 				.load("prs-opened", () => searchIssues(ctx, `author:${login} is:pr`, 1))
 				.catch(() => null)) as { total_count: number } | null;
 			if (result === null) {
-				signalUnavailable("change request history unavailable");
+				signalUnavailable(
+					"Tripwire could not read the contributor's change request history.",
+				);
 			}
 			return result.total_count;
 		},
 		[recentForkTimes.id]: async (ctx) => {
 			const events = await loadUserEvents(ctx).catch(() =>
-				signalUnavailable("fork history unavailable"),
+				signalUnavailable("Tripwire could not read the contributor's forks."),
 			);
 			const cutoff = Date.parse(ctx.now) - EVENTS_HISTORY_MS;
 			return events
@@ -417,7 +429,9 @@ export const githubForge = defineForge<GithubHttp>()({
 				)
 				.catch(() => null)) as { total_count: number } | null;
 			if (result === null) {
-				signalUnavailable("global merge history unavailable");
+				signalUnavailable(
+					"Tripwire could not read the contributor's merge history in other repositories.",
+				);
 			}
 			return result.total_count;
 		},
@@ -462,7 +476,9 @@ export const githubForge = defineForge<GithubHttp>()({
 				)
 				.catch(() => null)) as { total_count: number } | null;
 			if (result === null) {
-				signalUnavailable("issue history unavailable");
+				signalUnavailable(
+					"Tripwire could not read the contributor's issue history.",
+				);
 			}
 			return result.total_count;
 		},
@@ -478,7 +494,9 @@ export const githubForge = defineForge<GithubHttp>()({
 				)
 				.catch(() => null)) as { total_count: number } | null;
 			if (result === null) {
-				signalUnavailable("closed change request history unavailable");
+				signalUnavailable(
+					"Tripwire could not read the contributor's closed change requests.",
+				);
 			}
 			return result.total_count;
 		},
@@ -490,7 +508,9 @@ export const githubForge = defineForge<GithubHttp>()({
 				)
 				.catch(() => null)) as { total_count: number } | null;
 			if (result === null) {
-				signalUnavailable("comment history unavailable");
+				signalUnavailable(
+					"Tripwire could not read the contributor's comment history.",
+				);
 			}
 			return result.total_count;
 		},
@@ -500,7 +520,7 @@ export const githubForge = defineForge<GithubHttp>()({
 			if ("changeRequest" in ctx.event) {
 				return ctx.event.changeRequest.title;
 			}
-			signalUnavailable("this event has no change request");
+			signalUnavailable("This event has no change request.");
 		},
 		[filesChanged.id]: async (ctx) => (await loadPrFiles(ctx)).length,
 		[changedPaths.id]: async (ctx) =>
@@ -522,7 +542,7 @@ export const githubForge = defineForge<GithubHttp>()({
 		[allCommitsVerified.id]: async (ctx) => {
 			const commits = await loadPrCommits(ctx);
 			if (commits.length === 0) {
-				signalUnavailable("this change request has no commits");
+				signalUnavailable("This change request has no commits.");
 			}
 			return commits.every(
 				(entry) => entry.commit.verification?.verified === true,
@@ -573,11 +593,15 @@ export const githubForge = defineForge<GithubHttp>()({
 				`${author} is:pr is:closed is:unmerged`,
 			);
 			if (merged === null || closed === null) {
-				signalUnavailable("global merge history unavailable");
+				signalUnavailable(
+					"Tripwire could not read the contributor's merge history in other repositories.",
+				);
 			}
 			const decided = merged + closed;
 			if (decided === 0) {
-				signalUnavailable("no decided change requests anywhere yet");
+				signalUnavailable(
+					"The contributor has no merged or closed change requests yet.",
+				);
 			}
 			return mergeRatioPercent(merged, decided);
 		},
@@ -597,11 +621,15 @@ export const githubForge = defineForge<GithubHttp>()({
 				`repo:${repo} author:${login} is:pr is:closed is:unmerged`,
 			);
 			if (merged === null || closed === null) {
-				signalUnavailable("in-repo merge history unavailable");
+				signalUnavailable(
+					"Tripwire could not read the contributor's merge history in this repository.",
+				);
 			}
 			const decided = merged + closed;
 			if (decided === 0) {
-				signalUnavailable("no decided change requests here yet");
+				signalUnavailable(
+					"The contributor has no merged or closed change requests in this repository yet.",
+				);
 			}
 			return mergeRatioPercent(merged, decided);
 		},
@@ -641,7 +669,7 @@ export const githubForge = defineForge<GithubHttp>()({
 		[allCommitsByAuthor.id]: async (ctx) => {
 			const commits = await loadPrCommits(ctx);
 			if (commits.length === 0) {
-				signalUnavailable("this change request has no commits");
+				signalUnavailable("This change request has no commits.");
 			}
 			const author = ctx.event.actor.login.toLowerCase();
 			return commits.every(
@@ -661,7 +689,7 @@ export const githubForge = defineForge<GithubHttp>()({
 			if (ctx.event.kind === "comment.created") {
 				return ctx.event.comment.body;
 			}
-			signalUnavailable("this event has no comment");
+			signalUnavailable("This event has no comment.");
 		},
 	},
 	suggest: {

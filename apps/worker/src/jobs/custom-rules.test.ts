@@ -134,7 +134,7 @@ describe("custom rule round trip", () => {
 		const { ctx } = makeSignalCtx({});
 		const result = await evaluateCustomRule(record, ctx, NOW);
 		expect(result.status).toBe("skipped");
-		expect(result.reason).toBe("this event has no comment");
+		expect(result.reason).toBe("This event has no comment.");
 	});
 
 	test("no signal ctx (forge reads off) skips like a built-in on a missing read", async () => {
@@ -145,7 +145,7 @@ describe("custom rule round trip", () => {
 		});
 		const result = await evaluateCustomRule(record, null, NOW);
 		expect(result.status).toBe("skipped");
-		expect(result.reason).toBe("forge reads unavailable");
+		expect(result.reason).toBe("Tripwire could not read data from the forge.");
 	});
 
 	test("a malformed stored row never loads into the source", () => {

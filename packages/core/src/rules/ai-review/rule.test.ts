@@ -76,7 +76,7 @@ describe("ai-review@1", () => {
 	test("no injected generate ⇒ skipped, never a throw", async () => {
 		const result = await evaluateRule(aiReview, await fixtureContext(), CONFIG);
 		expect(result.status).toBe("skipped");
-		expect(result.reason).toContain("generate unavailable");
+		expect(result.reason).toContain("AI review is not set up");
 	});
 
 	test("essay output (schema violation) ⇒ skipped — the muzzle holds", async () => {

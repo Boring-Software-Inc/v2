@@ -105,7 +105,7 @@ export async function evaluateRule(
 			evidence: null,
 			reason:
 				ruleForgeBlockReason(rule.id, ctx.event.forge) ??
-				`not usable with ${ctx.event.forge}`,
+				`This rule cannot run on ${ctx.event.forge}.`,
 		};
 	}
 	const parsedConfig = rule.configSchema.safeParse(config);

@@ -35,18 +35,18 @@ const BLOCK_CHOICES: {
 }[] = [
 	{
 		value: "full",
-		label: "Full",
-		description: "Each failed rule with its reason and how to fix it.",
+		label: "All details",
+		description: "Each rule that blocked it, why, and how to fix it.",
 	},
 	{
 		value: "one-liner-link",
 		label: "One line per rule",
-		description: "A short line for each failed rule.",
+		description: "One short line for each rule that blocked it.",
 	},
 	{
 		value: "link-only",
 		label: "Link only",
-		description: "The verdict and a link to the run.",
+		description: "Says it's blocked and links to the details.",
 	},
 	{
 		value: "message",

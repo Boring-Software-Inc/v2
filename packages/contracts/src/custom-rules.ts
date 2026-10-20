@@ -148,7 +148,7 @@ export function customCatalogEntry(
 		defaultConfig: {},
 		optIn: true,
 		contributorLabel:
-			"This change request does not meet one of this repository's rules.",
+			"this change request does not meet one of this repository's rules.",
 		source: "custom",
 		custom: record.definition,
 	};

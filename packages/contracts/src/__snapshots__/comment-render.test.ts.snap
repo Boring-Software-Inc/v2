@@ -2,7 +2,7 @@
 
 exports[`renderCommentBody — snapshot golden files blocked (mixed remedies, wait-hint inline) 1`] = `
 "@octocat, Tripwire blocked this from merging. Reasons:
-- Your account is 2 days old. You can merge in 5 days.
+- Your account is 2 days old. This clears in 5 days.
 - It adds 2 crypto wallet addresses to DONATE.md.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>

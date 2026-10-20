@@ -35,7 +35,7 @@ export function supersededBody(originalBody: string): string {
 
 /** The message stamped on a dismissed request-changes review (§7). */
 export const DISMISS_REVIEW_MESSAGE =
-	"Tripwire no longer blocks this pull request, so it removed its request for changes.";
+	"Tripwire no longer blocks this change request, so it removed its request for changes.";
 
 /** The `pending` check emitted while evaluation is in flight (§5.6b). */
 export const PENDING_CHECK_SUMMARY =

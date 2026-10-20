@@ -35,7 +35,7 @@ export async function executeAction(
 		case "block":
 		case "dismiss-review": {
 			throw new Error(
-				`open-git gates on checks alone — ${action.kind} is not executed; the tripwire check is the gate`,
+				`open-git does not support the ${action.kind} action. The Tripwire check blocks the merge instead.`,
 			);
 		}
 		case "comment": {
@@ -64,10 +64,10 @@ export async function executeAction(
 			return { externalId: created?.id ?? null };
 		}
 		case "label": {
-			throw new Error("open-git exposes no label endpoint");
+			throw new Error("open-git does not support labels.");
 		}
 		case "request-review": {
-			throw new Error("open-git exposes no reviewer-request endpoint");
+			throw new Error("open-git does not support review requests.");
 		}
 		default: {
 			action satisfies never;

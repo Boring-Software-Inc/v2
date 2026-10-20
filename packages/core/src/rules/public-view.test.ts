@@ -107,7 +107,7 @@ describe("§10 public partition", () => {
 		const { rule } = listRules().find((r) => r.rule.id === "account-age") ?? {};
 		expect(rule?.remedy).toBe("wait");
 		expect(rule?.waitHint?.({ accountAgeDays: 2, minDays: 7 })).toBe(
-			"You can merge in 5 days.",
+			"This clears in 5 days.",
 		);
 		// A contributor already over the bar has nothing to wait for.
 		expect(rule?.waitHint?.({ accountAgeDays: 30, minDays: 7 })).toBeNull();

@@ -21,7 +21,7 @@ export const SAMPLE_REASONS: CommentReason[] = [
 	{
 		text: "Your account is 2 days old.",
 		remedy: "wait",
-		waitHint: "You can merge in 5 days.",
+		waitHint: "This clears in 5 days.",
 		ruleId: "account-age",
 	},
 	{

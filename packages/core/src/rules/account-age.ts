@@ -45,7 +45,7 @@ export const accountAge = defineRule({
 	waitHint: (e) => {
 		const remaining = e.minDays - e.accountAgeDays;
 		return remaining > 0
-			? `You can merge in ${remaining} ${remaining === 1 ? "day" : "days"}.`
+			? `This clears in ${remaining} ${remaining === 1 ? "day" : "days"}.`
 			: null;
 	},
 });

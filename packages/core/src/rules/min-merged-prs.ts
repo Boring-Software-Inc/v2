@@ -23,7 +23,10 @@ export const minMergedPrs = defineRule({
 	}),
 	evaluate(ctx, config) {
 		if (ctx.contributor === null) {
-			return { status: "skipped", reason: "contributor profile unavailable" };
+			return {
+				status: "skipped",
+				reason: "Tripwire could not read the contributor's profile.",
+			};
 		}
 		return {
 			status: "evaluated",
@@ -119,7 +122,7 @@ export const minMergedPrsV2 = defineRule({
 	waitHint: (e) => {
 		const remaining = e.min - e.mergedElsewhere;
 		return remaining > 0
-			? `You can merge after ${remaining} more of your change requests ${remaining === 1 ? "is" : "are"} merged in other people's repositories.`
+			? `This clears after ${remaining} more of your change requests ${remaining === 1 ? "is" : "are"} merged in other people's repositories.`
 			: null;
 	},
 });

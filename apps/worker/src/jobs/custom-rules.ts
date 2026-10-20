@@ -96,7 +96,7 @@ export async function evaluateCustomRule(
 	if (!producer) {
 		return skipped(
 			record,
-			`signal ${record.definition.when.id} is not available on this forge`,
+			`This rule needs ${record.definition.when.id}, which this forge does not provide.`,
 			now,
 		);
 	}
@@ -109,8 +109,8 @@ export async function evaluateCustomRule(
 		return skipped(
 			record,
 			forge
-				? `custom rules need forge reads, which ${forge} does not expose`
-				: "forge reads unavailable",
+				? `Custom rules need data that ${forge} does not provide.`
+				: "Tripwire could not read data from the forge.",
 			now,
 		);
 	}
