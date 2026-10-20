@@ -23,7 +23,7 @@ export interface CustomSignalDisplay {
 		| "Their activity"
 		| "This repo"
 		| "This change"
-		| "The PR description"
+		| "The change request description"
 		| "The commits"
 		| "The comment";
 	kind: "number" | "text" | "boolean" | "textList" | "timestamps";
@@ -124,13 +124,13 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 	},
 	{
 		id: "contributor.prsOpened",
-		label: "PRs opened",
+		label: "Change requests opened",
 		group: "Their activity",
 		kind: "number",
 	},
 	{
 		id: "contributor.mergedElsewhere",
-		label: "PRs merged elsewhere",
+		label: "Change requests merged elsewhere",
 		group: "Their activity",
 		kind: "number",
 	},
@@ -143,7 +143,7 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 	},
 	{
 		id: "contributor.recentChangeRequestTimes",
-		label: "PR rate",
+		label: "Change request rate",
 		group: "Their activity",
 		kind: "timestamps",
 		maxWindowHours: 30 * 24,
@@ -157,7 +157,7 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 	},
 	{
 		id: "repoRelation.mergedInRepo",
-		label: "PRs merged here",
+		label: "Change requests merged here",
 		group: "This repo",
 		kind: "number",
 	},
@@ -182,7 +182,7 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 	},
 	{
 		id: "repoRelation.closedUnmergedInRepo",
-		label: "PRs closed unmerged here",
+		label: "Change requests closed unmerged here",
 		group: "This repo",
 		kind: "number",
 	},
@@ -270,44 +270,44 @@ export const CUSTOM_SIGNALS: readonly CustomSignalDisplay[] = [
 	},
 	{
 		id: "pr.title",
-		label: "PR title",
-		group: "The PR description",
+		label: "Title",
+		group: "The change request description",
 		kind: "text",
 	},
 	{
 		id: "pr.titleIsConventional",
 		label: "Conventional title",
-		group: "The PR description",
+		group: "The change request description",
 		kind: "boolean",
 	},
 	{
 		id: "pr.body",
-		label: "PR description",
-		group: "The PR description",
+		label: "Description",
+		group: "The change request description",
 		kind: "text",
 	},
 	{
 		id: "pr.emojiCount",
 		label: "Emoji count",
-		group: "The PR description",
+		group: "The change request description",
 		kind: "number",
 	},
 	{
 		id: "pr.codeReferenceCount",
 		label: "Code references",
-		group: "The PR description",
+		group: "The change request description",
 		kind: "number",
 	},
 	{
 		id: "pr.linkedIssueCount",
 		label: "Linked issues",
-		group: "The PR description",
+		group: "The change request description",
 		kind: "number",
 	},
 	{
 		id: "pr.referencedIssueNumbers",
 		label: "Referenced issue numbers",
-		group: "The PR description",
+		group: "The change request description",
 		kind: "textList",
 	},
 	{

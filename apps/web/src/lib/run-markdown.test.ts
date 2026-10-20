@@ -62,7 +62,7 @@ describe("runToMarkdown", () => {
 			"just now",
 		);
 		expect(md).toContain("### Steps");
-		expect(md).toContain("**account age** · failed · 4ms");
+		expect(md).toContain("**Account age** · failed · 4ms");
 		expect(md).toContain("`account-age@1`");
 		expect(md).toContain("> your account is 1260 days old");
 	});

@@ -171,7 +171,7 @@ export const RULE_CATALOG = [
 		 */
 		forges: ["github"],
 		version: 1,
-		name: "account age",
+		name: "Account age",
 		blurb: "the contributor's forge account must be at least N days old.",
 		configSchema: accountAgeConfigSchema,
 		defaultConfig: { minDays: 7 },
@@ -187,7 +187,7 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 2,
-		name: "merged change requests",
+		name: "Merged change requests",
 		blurb:
 			"requires N merged change requests in OTHER people's repos, as proof that someone else accepted their work.",
 		configSchema: minMergedPrsConfigSchemaV2,
@@ -208,7 +208,7 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 1,
-		name: "rate limit",
+		name: "Rate limit",
 		blurb:
 			"caps change requests per window; spray patterns surface in evidence.",
 		configSchema: prRateLimitConfigSchema,
@@ -225,7 +225,7 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 1,
-		name: "max files changed",
+		name: "Max files changed",
 		blurb: "caps the number of files a change request may touch.",
 		configSchema: maxFilesChangedConfigSchema,
 		defaultConfig: { max: 200 },
@@ -237,7 +237,7 @@ export const RULE_CATALOG = [
 	{
 		ruleId: "english-only",
 		version: 1,
-		name: "english only",
+		name: "English only",
 		blurb: "title/comment must be predominantly latin-script.",
 		configSchema: englishOnlyConfigSchema,
 		defaultConfig: { maxNonLatinRatio: 0.5 },
@@ -252,7 +252,7 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 1,
-		name: "crypto address",
+		name: "Crypto address",
 		blurb: "blocks cryptocurrency addresses in titles, comments, and diffs.",
 		configSchema: cryptoAddressConfigSchema,
 		defaultConfig: {},
@@ -269,7 +269,7 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 1,
-		name: "honeypot paths",
+		name: "Honeypot paths",
 		blurb: "no legitimate change request touches these paths.",
 		configSchema: honeypotConfigSchema,
 		defaultConfig: { paths: [".github/workflows/**"] },
@@ -285,7 +285,7 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 1,
-		name: "profile readme",
+		name: "Profile README",
 		blurb:
 			"requires a minimum of profile text, which shows identity investment.",
 		configSchema: profileReadmeConfigSchema,
@@ -304,7 +304,7 @@ export const RULE_CATALOG = [
 		// @2 — findings quote code in backticks. @1 stays registered for stored
 		// runs, but a repo enabling ai-review now pins the current version.
 		version: 2,
-		name: "ai review",
+		name: "AI review",
 		blurb: "off until you turn it on, because ai review costs tokens.",
 		configSchema: aiReviewConfigSchema,
 		defaultConfig: { maxSteps: 12 },

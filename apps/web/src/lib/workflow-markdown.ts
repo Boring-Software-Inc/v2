@@ -138,6 +138,19 @@ function actionParams(node: ActionNode): string[] {
 	return [];
 }
 
+function midSentenceName(
+	node: WorkflowNode,
+	customRules: readonly CustomRuleDisplay[],
+): string {
+	const name = nodeName(node, customRules);
+	const custom =
+		node.type === "rule" && customRules.some((r) => r.ref === node.ref);
+	if (custom || !/^[A-Z][a-z]/.test(name)) {
+		return name;
+	}
+	return name.charAt(0).toLowerCase() + name.slice(1);
+}
+
 /** How a node is reached: its incoming edges as `when <source> fails`, or `on
  * trigger` for a trigger source. Deduped; joined with `or` for fan-in. */
 function firingCondition(
@@ -153,7 +166,7 @@ function firingCondition(
 			if (source && source.type === "trigger") {
 				return "on trigger";
 			}
-			const name = source ? nodeName(source, customRules) : edge.from;
+			const name = source ? midSentenceName(source, customRules) : edge.from;
 			return `when ${name} ${WHEN_VERB[edge.when ?? "pass"]}`;
 		});
 	if (parts.length === 0) {

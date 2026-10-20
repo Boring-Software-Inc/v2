@@ -49,7 +49,7 @@ const GROUPS: CustomSignalDisplay["group"][] = [
 	"Their activity",
 	"This repo",
 	"This change",
-	"The PR description",
+	"The change request description",
 	"The commits",
 	"The comment",
 ];

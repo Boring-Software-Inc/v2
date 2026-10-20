@@ -227,55 +227,55 @@ export interface TriggerCatalogEntry {
 export const TRIGGER_CATALOG: TriggerCatalogEntry[] = [
 	{
 		kind: "change-request.opened",
-		name: "change request opened",
+		name: "Change request opened",
 		description: "Runs when someone opens a change request.",
 		toolbox: true,
 	},
 	{
 		kind: "change-request.updated",
-		name: "change request updated",
+		name: "Change request updated",
 		description: "Runs when a change request gets new commits or edits.",
 		toolbox: true,
 	},
 	{
 		kind: "change-request.closed",
-		name: "change request closed",
+		name: "Change request closed",
 		description: "Runs when a change request is closed.",
 		toolbox: true,
 	},
 	{
 		kind: "comment.created",
-		name: "comment created",
+		name: "Comment created",
 		description: "Runs when someone comments on a change request or issue.",
 		toolbox: true,
 	},
 	{
 		kind: "push",
-		name: "push",
+		name: "Push",
 		description: "Runs when commits are pushed to the repo.",
 		toolbox: true,
 	},
 	{
 		kind: "installation.created",
-		name: "installation created",
+		name: "Installation created",
 		description: "Internal event. Installations sync outside workflows.",
 		toolbox: false,
 	},
 	{
 		kind: "installation.deleted",
-		name: "installation deleted",
+		name: "Installation deleted",
 		description: "Internal event. Installations sync outside workflows.",
 		toolbox: false,
 	},
 	{
 		kind: "installation-repositories.added",
-		name: "repos added",
+		name: "Repos added",
 		description: "Internal event. Installations sync outside workflows.",
 		toolbox: false,
 	},
 	{
 		kind: "installation-repositories.removed",
-		name: "repos removed",
+		name: "Repos removed",
 		description: "Internal event. Installations sync outside workflows.",
 		toolbox: false,
 	},
@@ -290,17 +290,17 @@ export interface GateCatalogEntry {
 export const GATE_CATALOG: GateCatalogEntry[] = [
 	{
 		mode: "all-of",
-		name: "all of",
+		name: "All of",
 		description: "Passes only when every connected check passes.",
 	},
 	{
 		mode: "any-of",
-		name: "any of",
+		name: "Any of",
 		description: "Passes when at least one connected check passes.",
 	},
 	{
 		mode: "not",
-		name: "not",
+		name: "Not",
 		description: "Flips its input: pass becomes fail, and fail becomes pass.",
 	},
 ];
@@ -314,37 +314,37 @@ export interface ActionCatalogEntry {
 export const ACTION_CATALOG: ActionCatalogEntry[] = [
 	{
 		action: "block",
-		name: "block",
+		name: "Block",
 		description: "Blocks the change request with a request-changes review.",
 	},
 	{
 		action: "comment",
-		name: "comment",
+		name: "Comment",
 		description: "Posts the run's verdict as a comment on the thread.",
 	},
 	{
 		action: "label",
-		name: "label",
+		name: "Label",
 		description: "Adds labels you choose to the change request.",
 	},
 	{
 		action: "request-review",
-		name: "request review",
+		name: "Request review",
 		description: "Asks maintainers for a human review.",
 	},
 	{
 		action: "send-to-moderation",
-		name: "send to moderation",
+		name: "Send to moderation",
 		description: "Pauses here so a person can decide in your moderation queue.",
 	},
 	{
 		action: "webhook",
-		name: "webhook",
-		description: "Posts the verdict as json to a url you set.",
+		name: "Webhook",
+		description: "Posts the verdict as JSON to a URL you set.",
 	},
 	{
 		action: "discord",
-		name: "discord",
-		description: "Posts the verdict to a discord channel you set.",
+		name: "Discord",
+		description: "Posts the verdict to a Discord channel you set.",
 	},
 ];
