@@ -179,7 +179,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Flags change requests from accounts younger than a threshold you set.",
-		contributorLabel: "your account is newer than this repo allows.",
+		contributorLabel: "Your account is newer than this repository allows.",
 	},
 	{
 		ruleId: "min-merged-prs",
@@ -189,7 +189,7 @@ export const RULE_CATALOG = [
 		version: 2,
 		name: "merged change requests",
 		blurb:
-			"requires N merged change requests in OTHER people's repos — proof someone else accepted their work.",
+			"requires N merged change requests in OTHER people's repos, as proof that someone else accepted their work.",
 		configSchema: minMergedPrsConfigSchemaV2,
 		defaultConfig: { min: 1, trustedAfter: 1 },
 		optIn: false,
@@ -198,9 +198,9 @@ export const RULE_CATALOG = [
 		changeNote: "counts merges globally, not per-repo",
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
-			"Requires N merged change requests in other people's repos — proof someone else accepted their work.",
+			"Requires N merged change requests in other people's repos, as proof that someone else accepted their work.",
 		contributorLabel:
-			"you need merged change requests in other people's repos first.",
+			"You need merged change requests in other people's repositories first.",
 	},
 	{
 		ruleId: "pr-rate-limit",
@@ -217,7 +217,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Caps how many change requests one person can open in a time window.",
-		contributorLabel: "you opened too many change requests in a short window.",
+		contributorLabel: "You opened too many change requests in a short time.",
 	},
 	{
 		ruleId: "max-files-changed",
@@ -232,7 +232,7 @@ export const RULE_CATALOG = [
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags change requests that touch more files than you allow.",
-		contributorLabel: "this change request touches too many files.",
+		contributorLabel: "This change request changes too many files.",
 	},
 	{
 		ruleId: "english-only",
@@ -244,7 +244,7 @@ export const RULE_CATALOG = [
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags titles and comments that aren't mostly latin script.",
-		contributorLabel: "titles and comments must be mostly english.",
+		contributorLabel: "Titles and comments must be written mostly in English.",
 	},
 	{
 		ruleId: "crypto-address",
@@ -260,7 +260,8 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Catches cryptocurrency addresses in titles, comments, and diffs.",
-		contributorLabel: "this change request contains a cryptocurrency address.",
+		contributorLabel:
+			"This change request contains a cryptocurrency wallet address.",
 	},
 	{
 		ruleId: "honeypot",
@@ -276,7 +277,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Catches change requests that touch paths no legitimate change would.",
-		contributorLabel: "this change request touches protected paths.",
+		contributorLabel: "This change request changes protected files.",
 	},
 	{
 		ruleId: "profile-readme",
@@ -285,14 +286,15 @@ export const RULE_CATALOG = [
 		forges: ["github"],
 		version: 1,
 		name: "profile readme",
-		blurb: "requires a minimum of profile text — identity investment.",
+		blurb:
+			"requires a minimum of profile text, which shows identity investment.",
 		configSchema: profileReadmeConfigSchema,
 		defaultConfig: { minLength: 32 },
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
-			"Requires a minimum of profile text — throwaway accounts rarely bother.",
-		contributorLabel: "your profile needs a short bio first.",
+			"Requires a minimum of profile text. Throwaway accounts rarely add one.",
+		contributorLabel: "Your profile needs a short bio.",
 	},
 	{
 		ruleId: "ai-review",
@@ -303,7 +305,7 @@ export const RULE_CATALOG = [
 		// runs, but a repo enabling ai-review now pins the current version.
 		version: 2,
 		name: "ai review",
-		blurb: "off until you turn it on — ai review costs tokens.",
+		blurb: "off until you turn it on, because ai review costs tokens.",
 		configSchema: aiReviewConfigSchema,
 		defaultConfig: { maxSteps: 12 },
 		optIn: true,
@@ -311,8 +313,8 @@ export const RULE_CATALOG = [
 		changeNote: "findings must quote code",
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
-			"Reads the change like a reviewer and flags slop. Off until you turn it on — it costs tokens.",
-		contributorLabel: "ai review flagged problems in this change request.",
+			"Reads the change like a reviewer and flags slop. Off until you turn it on, because it costs tokens.",
+		contributorLabel: "An AI review found problems in this change request.",
 	},
 ] as const satisfies ReadonlyArray<{
 	ruleId: string;
@@ -580,7 +582,7 @@ export const RULE_PARAMS = {
 	"crypto-address": { sentences: [], params: [] },
 	honeypot: {
 		sentences: [
-			"blocks any change request that touches {paths} — paths no legitimate change should need",
+			"blocks any change request that touches {paths}, which no legitimate change should need",
 		],
 		params: [
 			{

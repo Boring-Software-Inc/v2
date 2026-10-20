@@ -56,6 +56,8 @@ describe("buildCommentReasons — custom rules", () => {
 			},
 		]);
 		// no record + no observed ⇒ the bare-id fallback, but only as a last resort
-		expect(reasons[0]?.text).toBe("custom-mystery failed");
+		expect(reasons[0]?.text).toBe(
+			'It does not meet the rule "custom-mystery".',
+		);
 	});
 });

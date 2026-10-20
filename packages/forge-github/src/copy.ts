@@ -22,15 +22,21 @@ export function supersededBody(originalBody: string): string {
 	).trim();
 	const struck = kept
 		.split("\n")
-		.map((line) => (line.trim() ? `~~${line}~~` : line))
+		.map((line) =>
+			line.startsWith("- ")
+				? `- ~~${line.slice(2)}~~`
+				: line.trim()
+					? `~~${line}~~`
+					: line,
+		)
 		.join("\n");
-	return `${struck}\n\nsuperseded — see the newer check below.`;
+	return `${struck}\n\nThis result is out of date. See the newer comment below.`;
 }
 
 /** The message stamped on a dismissed request-changes review (§7). */
 export const DISMISS_REVIEW_MESSAGE =
-	"cleared — this change now passes tripwire's checks.";
+	"Tripwire no longer blocks this pull request, so it removed its request for changes.";
 
 /** The `pending` check emitted while evaluation is in flight (§5.6b). */
 export const PENDING_CHECK_SUMMARY =
-	"tripwire is evaluating this change request.";
+	"Tripwire is checking this change request.";

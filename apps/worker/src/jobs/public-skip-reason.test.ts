@@ -21,7 +21,7 @@ describe("publicSkipReason", () => {
 	});
 
 	test("bug-class / internal reasons collapse to a generic line", () => {
-		const generic = "this rule couldn't be evaluated";
+		const generic = "Tripwire could not check this rule.";
 		expect(
 			publicSkipReason("rule threw: Cannot read properties of undefined"),
 		).toBe(generic);

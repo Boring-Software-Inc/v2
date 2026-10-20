@@ -646,7 +646,7 @@ const INTERNAL_SKIP_REASON =
 	/^rule threw|^unknown rule|failed schema|^invalid config|muzzle/i;
 export function publicSkipReason(reason: string): string {
 	return INTERNAL_SKIP_REASON.test(reason)
-		? "this rule couldn't be evaluated"
+		? "Tripwire could not check this rule."
 		: reason;
 }
 

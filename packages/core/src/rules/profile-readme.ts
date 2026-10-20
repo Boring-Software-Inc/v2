@@ -52,8 +52,8 @@ export const profileReadme = defineRule({
 	}),
 	summarize: (e) =>
 		e.hasProfileText
-			? "your github profile readme is too short"
-			: "your github profile has no readme",
+			? "Your GitHub profile README is too short."
+			: "Your GitHub profile has no README.",
 	// Fixable off-change — add a profile readme/bio (not this PR, but the person's).
 	remedy: "revise",
 });

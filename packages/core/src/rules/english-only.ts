@@ -78,7 +78,7 @@ export const englishOnly = defineRule({
 		lettersExamined: e.lettersExamined,
 		sample: e.sample,
 	}),
-	summarize: () => "the title isn't in latin script",
+	summarize: () => "Most of the title is not written in the Latin alphabet.",
 	// Fixable in the change itself — rewrite the title/body in latin script.
 	remedy: "revise",
 });
