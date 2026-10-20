@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { EntityCard } from "#/components/common/entity-card";
 import { CardRouterLink } from "#/components/common/router-links";
@@ -32,6 +32,7 @@ import {
 } from "#/components/glaze/ui/dropdown-menu";
 import {
 	Empty,
+	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -247,6 +248,8 @@ export function WorkflowsGridPage() {
 								</ul>
 							) : (
 								<WorkflowsEmpty
+									org={org}
+									repoName={repoName}
 									creating={createMutation.isPending}
 									isAdmin={isAdmin}
 									onBlank={createBlank}
@@ -300,11 +303,15 @@ function CreateSplitButton({
 }
 
 function WorkflowsEmpty({
+	org,
+	repoName,
 	isAdmin,
 	creating,
 	onBlank,
 	onTemplate,
 }: {
+	org: string;
+	repoName: string;
 	isAdmin: boolean;
 	creating: boolean;
 	onBlank: () => void;
@@ -312,19 +319,31 @@ function WorkflowsEmpty({
 }) {
 	if (!isAdmin) {
 		return (
-			<Empty>
+			<Empty art={<EmptyArt />}>
 				<EmptyHeader>
 					<EmptyTitle>No workflows yet</EmptyTitle>
 					<EmptyDescription>An admin can create one.</EmptyDescription>
 				</EmptyHeader>
+				<EmptyContent>
+					<Button
+						nativeButton={false}
+						render={
+							<Link params={{ org, repo: repoName }} to="/$org/$repo/rules" />
+						}
+						size="sm"
+						variant="secondary"
+					>
+						Review rules
+					</Button>
+				</EmptyContent>
 			</Empty>
 		);
 	}
 
 	return (
 		<div className="flex flex-col gap-6">
-			<Empty className="relative isolate overflow-hidden">
-				<ShaderDither className="-z-10 bottom-auto h-18" priority={1} />
+			<Empty art={<EmptyArt />} className="relative isolate overflow-hidden">
+				<ShaderDither className="-z-10 bottom-auto h-30" priority={1} />
 				<EmptyHeader>
 					<EmptyTitle>No workflows yet</EmptyTitle>
 					<EmptyDescription>

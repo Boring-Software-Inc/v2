@@ -221,3 +221,8 @@ body {
 .glaze [data-shader-mask="top"] {
 	mask-image: linear-gradient(to bottom, var(--ink) 0%, transparent 100%);
 }
+
+.glaze [data-chart-rest] [data-slot="chart-frame-body"] {
+	opacity: var(--stale);
+	pointer-events: none;
+}

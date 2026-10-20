@@ -1,5 +1,9 @@
+import { Link } from "@tanstack/react-router";
+import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
+	EmptyArt,
+	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
@@ -8,11 +12,29 @@ import { SkeletonText } from "#/components/glaze/ui/skeleton";
 
 export function OrgBillingPage() {
 	return (
-		<Empty variant="plain">
+		<Empty art={<EmptyArt />} variant="plain">
 			<EmptyHeader>
 				<EmptyTitle>Nothing to configure yet</EmptyTitle>
 				<EmptyDescription>Billing lands with Autumn.</EmptyDescription>
 			</EmptyHeader>
+			<EmptyContent>
+				<Button
+					nativeButton={false}
+					render={
+						<Link
+							search={(prev: Record<string, unknown>) => ({
+								...prev,
+								settings: "members" as const,
+							})}
+							to="."
+						/>
+					}
+					size="sm"
+					variant="secondary"
+				>
+					View members
+				</Button>
+			</EmptyContent>
 		</Empty>
 	);
 }

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import type { OrgRole } from "@tripwire/contracts";
 import { useId, useState } from "react";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
@@ -189,6 +190,29 @@ export function AdminOrgsPage() {
 										kind === "all" && !debouncedSearch ? "empty" : "no-results"
 									}
 									title="No orgs match this filter"
+									action={
+										kind === "all" && !debouncedSearch ? (
+											<Button
+												nativeButton={false}
+												render={<Link to="/admin/users" />}
+												size="sm"
+												variant="secondary"
+											>
+												View users
+											</Button>
+										) : (
+											<Button
+												onClick={() => {
+													setKind("all");
+													setSearch("");
+												}}
+												size="sm"
+												variant="secondary"
+											>
+												Clear filter
+											</Button>
+										)
+									}
 								/>
 							) : (
 								orgs.flatMap((org) => {

@@ -4,12 +4,15 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
+	EmptyArt,
+	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
@@ -66,7 +69,7 @@ export function ModerationQueue({
 		<div className="flex flex-col gap-2">
 			{title}
 			{items && items.length === 0 ? (
-				<Empty>
+				<Empty art={<EmptyArt />}>
 					<EmptyHeader>
 						<EmptyTitle>Nothing awaiting moderation</EmptyTitle>
 						<EmptyDescription>
@@ -74,6 +77,16 @@ export function ModerationQueue({
 							Approve or deny and the run resumes.
 						</EmptyDescription>
 					</EmptyHeader>
+					<EmptyContent>
+						<Button
+							nativeButton={false}
+							render={<Link params={{ org, repo }} to="/$org/$repo/activity" />}
+							size="sm"
+							variant="secondary"
+						>
+							View activity
+						</Button>
+					</EmptyContent>
 				</Empty>
 			) : (
 				<ItemGroup aria-label="Awaiting moderation">

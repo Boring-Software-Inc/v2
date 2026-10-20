@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { EntityCard } from "#/components/common/entity-card";
 import { CardRouterLink } from "#/components/common/router-links";
@@ -17,6 +17,7 @@ import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
+	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -94,11 +95,27 @@ function HomeBody({
 	}
 	if (ranked.length === 0) {
 		return (
-			<Empty>
+			<Empty art={<EmptyArt />}>
 				<EmptyHeader>
 					<EmptyTitle>Syncing repos</EmptyTitle>
 					<EmptyDescription>This takes a moment.</EmptyDescription>
 				</EmptyHeader>
+				<EmptyContent>
+					<Button
+						nativeButton={false}
+						render={
+							<Link
+								params={{ org }}
+								search={{ settings: "connections" }}
+								to="/$org/home"
+							/>
+						}
+						size="sm"
+						variant="secondary"
+					>
+						Manage connections
+					</Button>
+				</EmptyContent>
 			</Empty>
 		);
 	}
@@ -119,7 +136,7 @@ function InstallCta({ org }: { org: string }) {
 	const isAdmin = ctx?.role === "admin";
 
 	return (
-		<Empty>
+		<Empty art={<EmptyArt />}>
 			<EmptyHeader>
 				<EmptyTitle>No repos yet</EmptyTitle>
 				<EmptyDescription>

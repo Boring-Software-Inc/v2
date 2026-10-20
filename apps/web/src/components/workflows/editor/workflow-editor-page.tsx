@@ -4,6 +4,7 @@ import { ArrowLeft, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
+	EmptyArt,
 	EmptyContent,
 	EmptyHeader,
 	EmptyTitle,
@@ -85,7 +86,7 @@ export function WorkflowEditorPage() {
 	if (!(loading || workflow)) {
 		body = (
 			<div className="grid flex-1 place-items-center p-4">
-				<Empty reason="no-results">
+				<Empty art={<EmptyArt />} reason="no-results">
 					<EmptyHeader>
 						<EmptyTitle>Workflow not found</EmptyTitle>
 					</EmptyHeader>

@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
+import {
+	ChartAtRest,
+	hourlyZeroRows,
+} from "#/components/analytics/chart-at-rest";
+import { Button } from "#/components/glaze/ui/button";
 import { Chart } from "#/components/glaze/ui/chart";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
@@ -34,7 +39,7 @@ export function OrgAnalyticsPage() {
 						label="Loading analytics"
 						loading={!summary}
 					>
-						{summary ? <OrgAnalyticsBody summary={summary} /> : null}
+						{summary ? <OrgAnalyticsBody org={org} summary={summary} /> : null}
 					</SkeletonSwap>
 				</div>
 			</div>
@@ -51,7 +56,19 @@ function Count({ value }: { value: number }) {
 	return <span className="text-text-1 tabular-nums">{value}</span>;
 }
 
-function OrgAnalyticsBody({ summary }: { summary: OrgAnalyticsSummary }) {
+const eventsConfig = {
+	hour: { label: "Hour" },
+	events: { label: "Events" },
+	blocked: { label: "Blocked", status: "fail" as const },
+};
+
+function OrgAnalyticsBody({
+	org,
+	summary,
+}: {
+	org: string;
+	summary: OrgAnalyticsSummary;
+}) {
 	const length = Math.max(
 		summary.eventsSeries.length,
 		summary.blockedSeries.length,
@@ -62,6 +79,8 @@ function OrgAnalyticsBody({ summary }: { summary: OrgAnalyticsSummary }) {
 		blocked: summary.blockedSeries[i] ?? null,
 	}));
 
+	const atRest = data.every((row) => !row.events && !row.blocked);
+
 	return (
 		<div className="flex flex-col gap-6">
 			<p className="type-body text-text-2">
@@ -70,19 +89,41 @@ function OrgAnalyticsBody({ summary }: { summary: OrgAnalyticsSummary }) {
 				events and <Count value={summary.blocked24h} /> blocked.{" "}
 				<Count value={summary.pendingModeration} /> awaiting review.
 			</p>
-			<Chart
-				config={{
-					hour: { label: "Hour" },
-					events: { label: "Events" },
-					blocked: { label: "Blocked", status: "fail" },
-				}}
-				data={data}
-				empty="No events in the last 24 hours."
-				label="Events and blocked, last 24 hours"
-				type="line"
-				unit="count"
-				xKey="hour"
-			/>
+			{atRest ? (
+				<ChartAtRest
+					action={
+						<Button
+							nativeButton={false}
+							render={<Link params={{ org }} to="/$org/home" />}
+							size="sm"
+							variant="ghost"
+						>
+							View repos
+						</Button>
+					}
+					config={eventsConfig}
+					data={
+						data.length > 0
+							? data
+							: hourlyZeroRows("hour", ["events", "blocked"])
+					}
+					label="Events and blocked, last 24 hours"
+					message="No events in the last 24 hours."
+					type="line"
+					unit="count"
+					xKey="hour"
+				/>
+			) : (
+				<Chart
+					config={eventsConfig}
+					data={data}
+					empty="No events in the last 24 hours."
+					label="Events and blocked, last 24 hours"
+					type="line"
+					unit="count"
+					xKey="hour"
+				/>
+			)}
 		</div>
 	);
 }

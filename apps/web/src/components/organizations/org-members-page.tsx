@@ -6,6 +6,8 @@ import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
+	EmptyArt,
+	EmptyContent,
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
@@ -369,7 +371,12 @@ function InviteLinksSection({ org }: { org: string }) {
 				label="Loading invite links"
 				loading={!invites}
 			>
-				<InviteLinkList invites={invites ?? []} org={org} />
+				<InviteLinkList
+					creating={createMutation.isPending}
+					invites={invites ?? []}
+					onCreate={inputsValid ? () => createMutation.mutate() : undefined}
+					org={org}
+				/>
 			</SkeletonSwap>
 		</section>
 	);
@@ -391,16 +398,32 @@ function FreshInviteLink({ token }: { token: string }) {
 function InviteLinkList({
 	org,
 	invites,
+	creating,
+	onCreate,
 }: {
 	org: string;
 	invites: InviteLinkView[];
+	creating: boolean;
+	onCreate?: () => void;
 }) {
 	if (invites.length === 0) {
 		return (
-			<Empty size="sm" variant="plain">
+			<Empty art={<EmptyArt size="compact" />} size="sm" variant="plain">
 				<EmptyHeader>
 					<EmptyTitle>No invite links yet</EmptyTitle>
 				</EmptyHeader>
+				<EmptyContent>
+					<Button
+						disabled={!onCreate}
+						onClick={onCreate}
+						pending={creating}
+						pendingLabel="Creating"
+						size="sm"
+						variant="secondary"
+					>
+						Create link
+					</Button>
+				</EmptyContent>
 			</Empty>
 		);
 	}

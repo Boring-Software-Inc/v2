@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
@@ -8,6 +8,7 @@ import { Add, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
+	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -358,9 +359,12 @@ export function RulesPage() {
 										))}
 									</div>
 								) : filter === "custom" ? (
-									<Empty className="relative isolate overflow-hidden">
+									<Empty
+										art={<EmptyArt />}
+										className="relative isolate overflow-hidden"
+									>
 										<ShaderDither
-											className="-z-10 bottom-auto h-18"
+											className="-z-10 bottom-auto h-30"
 											priority={1}
 										/>
 										<EmptyHeader>
@@ -381,10 +385,20 @@ export function RulesPage() {
 													New custom rule
 												</Button>
 											</EmptyContent>
-										) : null}
+										) : (
+											<EmptyContent>
+												<Button
+													onClick={() => setFilter("all")}
+													size="sm"
+													variant="secondary"
+												>
+													View all rules
+												</Button>
+											</EmptyContent>
+										)}
 									</Empty>
 								) : (
-									<Empty>
+									<Empty art={<EmptyArt />}>
 										<EmptyHeader>
 											<EmptyTitle>
 												{filter === "active"
@@ -397,6 +411,53 @@ export function RulesPage() {
 												<EmptyDescription>Every rule is off.</EmptyDescription>
 											) : null}
 										</EmptyHeader>
+										<EmptyContent>
+											{filter === "active" ? (
+												<Button
+													onClick={() => setFilter("all")}
+													size="sm"
+													variant="secondary"
+												>
+													Turn on a rule
+												</Button>
+											) : filter === "workflows" ? (
+												<Button
+													nativeButton={false}
+													render={
+														<Link
+															params={{ org, repo: repoName }}
+															to="/$org/$repo/workflows"
+														/>
+													}
+													size="sm"
+													variant="secondary"
+												>
+													View workflows
+												</Button>
+											) : isAdmin ? (
+												<Button
+													onClick={() => setBuilderOpen(true)}
+													size="sm"
+													variant="secondary"
+												>
+													New custom rule
+												</Button>
+											) : (
+												<Button
+													nativeButton={false}
+													render={
+														<Link
+															params={{ org, repo: repoName }}
+															to="/$org/$repo/activity"
+														/>
+													}
+													size="sm"
+													variant="secondary"
+												>
+													View activity
+												</Button>
+											)}
+										</EmptyContent>
 									</Empty>
 								)}
 							</SkeletonSwap>

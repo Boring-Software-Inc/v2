@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ActivityListSkeleton } from "#/components/activity/activity-page-skeleton";
 import { ActivityRow } from "#/components/activity/activity-row";
@@ -10,6 +10,7 @@ import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
+	EmptyArt,
 	EmptyCode,
 	EmptyContent,
 	EmptyDescription,
@@ -149,7 +150,7 @@ export function ActivityPage() {
 					</div>
 
 					{error ? (
-						<Empty reason="error">
+						<Empty art={<EmptyArt />} reason="error">
 							<EmptyHeader>
 								<EmptyTitle>Couldn't load activity</EmptyTitle>
 								<EmptyDescription>
@@ -157,6 +158,15 @@ export function ActivityPage() {
 									come back.
 								</EmptyDescription>
 							</EmptyHeader>
+							<EmptyContent>
+								<Button
+									onClick={() => window.location.reload()}
+									size="sm"
+									variant="secondary"
+								>
+									Reload page
+								</Button>
+							</EmptyContent>
 						</Empty>
 					) : (
 						<SkeletonSwap
@@ -166,7 +176,7 @@ export function ActivityPage() {
 						>
 							{isSuccess && segments.length === 0 ? (
 								filter === "all" ? (
-									<Empty>
+									<Empty art={<EmptyArt />}>
 										<EmptyHeader>
 											<EmptyTitle>No activity yet</EmptyTitle>
 											<EmptyDescription>
@@ -174,9 +184,24 @@ export function ActivityPage() {
 												request opens, its timeline and verdict show up here.
 											</EmptyDescription>
 										</EmptyHeader>
+										<EmptyContent>
+											<Button
+												nativeButton={false}
+												render={
+													<Link
+														params={{ org, repo: repoName }}
+														to="/$org/$repo/rules"
+													/>
+												}
+												size="sm"
+												variant="secondary"
+											>
+												Review rules
+											</Button>
+										</EmptyContent>
 									</Empty>
 								) : (
-									<Empty reason="no-results">
+									<Empty art={<EmptyArt />} reason="no-results">
 										<EmptyHeader>
 											<EmptyTitle>
 												Nothing matches{" "}
