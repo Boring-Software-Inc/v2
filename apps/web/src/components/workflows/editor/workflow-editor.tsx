@@ -73,6 +73,7 @@ import {
 	definitionToGraph,
 	type EditorEdge,
 	type EditorNode,
+	edgeWhenFields,
 	graphToDefinition,
 	handleWhen,
 } from "#/lib/workflow-editor";
@@ -330,7 +331,7 @@ function EditorBody({
 					{
 						...connection,
 						id: crypto.randomUUID(),
-						...(when ? { label: when } : {}),
+						...edgeWhenFields(when),
 					},
 					current,
 				),
@@ -345,7 +346,9 @@ function EditorBody({
 			const when = handleWhen(connection.sourceHandle);
 			setEdges((current) =>
 				reconnectEdge(oldEdge, connection, current).map((edge) =>
-					edge.id === oldEdge.id ? { ...edge, label: when } : edge,
+					edge.id === oldEdge.id
+						? { ...edge, label: undefined, ...edgeWhenFields(when) }
+						: edge,
 				),
 			);
 			setDirty(true);
