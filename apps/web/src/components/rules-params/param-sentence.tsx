@@ -1,4 +1,8 @@
-import { type RuleParam, ruleUiSchema } from "@tripwire/contracts";
+import {
+	formatParamValue,
+	type RuleParam,
+	ruleUiSchema,
+} from "@tripwire/contracts";
 import { Fragment, type ReactNode, useState } from "react";
 import { Button } from "#/components/glaze/ui/button";
 import { ParamEditor } from "./param-editor";
@@ -11,6 +15,16 @@ import { ParamValue } from "./param-value";
  * in any sentence (e.g. ai-review's advanced `model`) never render here. Returns
  * null for a param-less rule, so the card shows no config region at all.
  */
+function spokenValue(param: RuleParam, value: unknown): string {
+	if (param.kind === "string-list") {
+		const items = Array.isArray(value)
+			? (value as string[])
+			: [...param.default];
+		return items.length > 0 ? items.join(", ") : "empty";
+	}
+	return formatParamValue(param, value);
+}
+
 export function ParamSentence({
 	ruleId,
 	config,
@@ -51,6 +65,7 @@ export function ParamSentence({
 		}
 		return (
 			<Button
+				aria-label={`Change ${param.label}, now ${spokenValue(param, cfg[param.key])}`}
 				onClick={() => setEditing(param.key)}
 				size="sm"
 				variant="secondary"

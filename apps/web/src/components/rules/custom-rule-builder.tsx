@@ -29,7 +29,11 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/glaze/ui/dropdown-menu";
-import { Field, FieldLabel } from "#/components/glaze/ui/field";
+import {
+	Field,
+	FieldDescription,
+	FieldLabel,
+} from "#/components/glaze/ui/field";
 import { Input } from "#/components/glaze/ui/input";
 import { repoSuggestionsQueryOptions } from "#/lib/rules.query";
 
@@ -235,6 +239,30 @@ function percentRangeIssue(
 		: null;
 }
 
+export function nextStep(state: BuilderState): string | null {
+	if (!state.signal) {
+		return "Pick what to check.";
+	}
+	if (state.signal.kind === "timestamps" && !state.window) {
+		return "Pick a time window.";
+	}
+	if (!state.verb) {
+		return "Pick a comparison.";
+	}
+	if (!parseValue(state)) {
+		return isListVerb(state.verb.kind)
+			? "Add at least one value."
+			: (valueIssue(state) ?? "Enter a value.");
+	}
+	if (!state.severity) {
+		return "Pick a severity.";
+	}
+	if (state.name.trim().length === 0) {
+		return "Name the rule to save it.";
+	}
+	return null;
+}
+
 export interface CustomRuleBuilderProps {
 	open: boolean;
 	onClose: () => void;
@@ -289,7 +317,8 @@ export function CustomRuleBuilder({
 				<DialogHeader>
 					<DialogTitle>Create rule</DialogTitle>
 					<DialogDescription>
-						Complete the sentence. It becomes the rule.
+						Fill in each blank from left to right. The finished sentence is the
+						rule Tripwire runs.
 					</DialogDescription>
 				</DialogHeader>
 				<DialogBody className="flex flex-col gap-3">
@@ -324,7 +353,7 @@ export function CustomRuleBuilder({
 						{state.area ? (
 							<DropdownMenu>
 								<DropdownMenuTrigger render={BLANK}>
-									{state.signal?.label ?? "Pick a signal"}
+									{state.signal?.label ?? "Pick what to check"}
 									<Icon icon={ChevronDown} />
 								</DropdownMenuTrigger>
 								<DropdownMenuContent size="sm">
@@ -496,7 +525,7 @@ export function CustomRuleBuilder({
 						</p>
 					) : null}
 					{valueMessage ? (
-						<output className="type-body-sm text-warn-text">
+						<output className="type-body-sm text-fail-text">
 							{valueMessage}
 						</output>
 					) : null}
@@ -504,14 +533,22 @@ export function CustomRuleBuilder({
 						<Field>
 							<FieldLabel>Rule name</FieldLabel>
 							<Input
+								maxLength={80}
 								onChange={(e) => set({ name: e.target.value })}
-								placeholder="Name this rule"
 								value={state.name}
 							/>
+							<FieldDescription>
+								Shown on the rule card and in Activity. Up to 80 characters.
+							</FieldDescription>
 						</Field>
 					) : null}
 				</DialogBody>
 				<DialogFooter>
+					{!draft && !valueMessage ? (
+						<p className="me-auto type-caption text-text-2">
+							{nextStep(state)}
+						</p>
+					) : null}
 					<DialogClose>Cancel</DialogClose>
 					<DialogAction disabled={!draft} onAction={save} pendingLabel="Saving">
 						Save rule

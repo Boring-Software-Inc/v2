@@ -32,12 +32,12 @@ describe("coerceParamInput", () => {
 
 	test("below min rejected", () => {
 		const r = coerceParamInput(numParam({ min: 1 }), "0");
-		expect(r).toEqual({ ok: false, error: "The minimum is 1." });
+		expect(r).toEqual({ ok: false, error: "Enter 1 or more." });
 	});
 
 	test("above max rejected", () => {
 		const r = coerceParamInput(numParam({ min: 1, max: 15 }), "20");
-		expect(r).toEqual({ ok: false, error: "The maximum is 15." });
+		expect(r).toEqual({ ok: false, error: "Enter 15 or less." });
 	});
 
 	test("percent input divides by 100 and ranges in percent terms", () => {
@@ -52,7 +52,7 @@ describe("coerceParamInput", () => {
 				numParam({ int: false, min: 0, max: 1, percent: true }),
 				"150",
 			),
-		).toEqual({ ok: false, error: "The maximum is 100%." });
+		).toEqual({ ok: false, error: "Enter 100% or less." });
 	});
 
 	test("empty / non-numeric rejected", () => {

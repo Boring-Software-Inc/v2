@@ -32,7 +32,7 @@ export function CheckStateMock({
 					{CHECK_NAME}
 				</span>
 				<span className="min-w-0 truncate type-body-sm text-text-2">
-					No check posts on a pass.
+					Tripwire posts no check run on a pass.
 				</span>
 			</div>
 		);

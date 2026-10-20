@@ -30,22 +30,23 @@ export function RuleHeaderStats({ stats }: { stats: RulesHeaderStats }) {
 				<span className="text-text-1 tabular-nums">
 					{stats.matches24h.value}
 				</span>{" "}
-				matches in the last 24 hours{deltaWords(stats.matches24h.delta)}, and{" "}
+				{stats.matches24h.value === 1 ? "match" : "matches"} in the last 24
+				hours{deltaWords(stats.matches24h.delta)}. Tripwire took action{" "}
 				<span className="text-text-1 tabular-nums">
 					{stats.actioned24h.value}
 				</span>{" "}
-				actioned.
+				{stats.actioned24h.value === 1 ? "time" : "times"}.
 			</p>
 			<Chart
 				config={{
 					hour: { label: "Hour" },
 					matches: { label: "Matches" },
-					actioned: { label: "Actioned" },
+					actioned: { label: "Actions taken" },
 				}}
 				data={rows}
 				empty="No matches in the last 24 hours"
 				height={120}
-				label="Matches and actioned, last 24 hours"
+				label="Matches and actions taken, last 24 hours"
 				type="line"
 				unit="count"
 				xKey="hour"
