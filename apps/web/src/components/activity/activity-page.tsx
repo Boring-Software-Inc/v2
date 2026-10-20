@@ -41,7 +41,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 	{ key: "block", label: "Blocked" },
 	{ key: "needs_review", label: "Sent to review" },
 	{ key: "pass", label: "Passed" },
-	{ key: "no-run", label: "No run" },
+	{ key: "no-run", label: "Not checked" },
 ];
 
 function isFilter(value: unknown): value is Filter {
@@ -113,7 +113,8 @@ export function ActivityPage() {
 						<div className="flex flex-col gap-1">
 							<h1 className="type-title">Activity</h1>
 							<p className="type-body text-text-2">
-								Every change request and the verdicts it triggered, live.
+								Change requests, comments and pushes on this repo, with the
+								verdict Tripwire gave each one. The list updates live.
 							</p>
 						</div>
 						<LiveIndicator live={isSuccess} />
@@ -133,6 +134,7 @@ export function ActivityPage() {
 					<div className="-mx-4 overflow-x-auto px-4">
 						<SegmentedControl
 							aria-label="Filter by verdict"
+							className="w-max"
 							onValueChange={(value) => {
 								if (isFilter(value)) {
 									setFilter(value);
@@ -152,10 +154,10 @@ export function ActivityPage() {
 					{error ? (
 						<Empty art={<MascotArt mood="activity-error" />} reason="error">
 							<EmptyHeader>
-								<EmptyTitle>Couldn't load activity</EmptyTitle>
+								<EmptyTitle>Tripwire could not load activity</EmptyTitle>
 								<EmptyDescription>
-									Tripwire keeps trying to load it. Reload the page if it does
-									not come back.
+									Tripwire keeps trying in the background. If the list does not
+									come back, reload the page.
 								</EmptyDescription>
 							</EmptyHeader>
 							<EmptyContent>
@@ -180,8 +182,9 @@ export function ActivityPage() {
 										<EmptyHeader>
 											<EmptyTitle>No activity yet</EmptyTitle>
 											<EmptyDescription>
-												Tripwire is watching this repo. When a change request
-												opens, its timeline and verdict show up here.
+												{unarmed
+													? "Tripwire is off for this repo. Turn it on to check new change requests and show them here."
+													: "Tripwire is watching this repo. When a change request opens, its timeline and verdict show up here."}
 											</EmptyDescription>
 										</EmptyHeader>
 										<EmptyContent>
@@ -213,7 +216,7 @@ export function ActivityPage() {
 												</EmptyCode>
 											</EmptyTitle>
 											<EmptyDescription>
-												No change request matches this filter yet.
+												No activity on this repo matches this filter.
 											</EmptyDescription>
 										</EmptyHeader>
 										<EmptyContent>
@@ -222,7 +225,7 @@ export function ActivityPage() {
 												size="sm"
 												variant="secondary"
 											>
-												Clear filter
+												Show all activity
 											</Button>
 										</EmptyContent>
 									</Empty>

@@ -10,8 +10,8 @@ describe("describeSyntheticStep", () => {
 			output: { rule: "deny (no deny edge) → block by default" },
 		});
 		expect(view?.kind).toBe("deny-floor");
-		expect(view?.title).toBe("Denied by a maintainer");
-		expect(view?.detail).toContain("no path for a denial");
+		expect(view?.title).toBe("Blocked by a maintainer");
+		expect(view?.detail).toContain("no step for that choice");
 		expect(view?.detail).toContain("blocked the change request");
 	});
 
@@ -26,7 +26,7 @@ describe("describeSyntheticStep", () => {
 		});
 		expect(view?.kind).toBe("degradation");
 		expect(view?.title).toBe("Some rules could not run");
-		expect(view?.detail).toContain("2 of 3 skipped");
+		expect(view?.detail).toContain("2 of 3 rules skipped");
 		expect(view?.detail).toContain("getContributorProfile");
 		expect(view?.detail).toContain("Sent to review");
 		// The old copy argued with the reader and used our own jargon.
@@ -40,7 +40,7 @@ describe("describeSyntheticStep", () => {
 			output: { skippedRules: 1, ruleNodes: 2 },
 		});
 		expect(view?.title).toBe("A rule could not run");
-		expect(view?.detail).toBe("1 of 2 skipped. Sent to review.");
+		expect(view?.detail).toBe("1 of 2 rules skipped. Sent to review.");
 	});
 
 	test("with the fallback off it says the run passed anyway", () => {

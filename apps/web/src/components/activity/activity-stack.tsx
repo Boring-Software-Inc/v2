@@ -143,7 +143,7 @@ function StackStatus({ group }: { group: ActivityGroup }) {
 	const evaluating = group.currentRunId != null && group.currentVerdict == null;
 	return evaluating ? (
 		<Status size="sm" status="running">
-			Re-evaluating
+			Checking again
 		</Status>
 	) : (
 		<VerdictChip verdict={group.currentVerdict} />
@@ -158,11 +158,11 @@ function EntryRow({ entry }: { entry: ActivityItem }) {
 	const reevaluating = run?.status === "queued" || run?.status === "running";
 	const text = (
 		<>
-			{ours ? "tripwire" : event.actor.login}{" "}
+			{ours ? "Tripwire" : event.actor.login}{" "}
 			<span className="text-text-2">
 				{entryLabel(event)}
 				{reevaluating
-					? " · re-evaluating"
+					? " · checking again"
 					: run?.reason
 						? ` · ${run.reason}`
 						: ""}
@@ -192,7 +192,7 @@ function EntryRow({ entry }: { entry: ActivityItem }) {
 				<VerdictChip verdict={run.verdict} />
 			) : pending ? (
 				<Status size="sm" status="running">
-					Evaluating
+					Checking
 				</Status>
 			) : null}
 			<ItemMeta className="w-14 text-end">

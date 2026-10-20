@@ -68,9 +68,15 @@ export function EditorHeader({
 		if (trimmed === "" || trimmed === name) {
 			return;
 		}
-		const result = await onRename(trimmed);
+		const result = await onRename(trimmed).catch(() => ({
+			ok: false,
+			error:
+				"Tripwire could not reach the server, so the name did not change. Try again.",
+		}));
 		if (!result.ok) {
-			toast.fail(result.error ?? "Couldn't rename");
+			toast.fail(
+				result.error ?? "Tripwire could not rename the workflow. Try again.",
+			);
 		}
 	};
 
@@ -118,7 +124,7 @@ export function EditorHeader({
 					size="sm"
 				/>
 			)}
-			{enabled ? <Badge>Enabled</Badge> : null}
+			{enabled ? <Badge>On</Badge> : null}
 			<div className="ms-auto flex shrink-0 items-center gap-2">
 				<CopyWorkflowButton customRules={customRules} definition={definition} />
 				{readOnly ? (
@@ -139,11 +145,11 @@ export function EditorHeader({
 									/>
 								}
 							>
-								{enabled ? "Disable" : "Enable"}
+								{enabled ? "Turn off workflow" : "Turn on workflow"}
 							</PopoverTrigger>
 							<PopoverContent align="end">
 								<PopoverHeader>
-									<PopoverTitle>Fix these before you enable</PopoverTitle>
+									<PopoverTitle>Fix these to turn the workflow on</PopoverTitle>
 								</PopoverHeader>
 								<ul className="flex flex-col gap-1">
 									{blockers.map((issue) => (
@@ -162,14 +168,20 @@ export function EditorHeader({
 								</ul>
 							</PopoverContent>
 						</Popover>
+						{zeroNodes ? (
+							<span className="type-caption text-text-2" id="save-hint">
+								Add a step to save
+							</span>
+						) : null}
 						<Button
+							aria-describedby={zeroNodes ? "save-hint" : undefined}
 							disabled={!dirty || zeroNodes}
 							onClick={onSave}
 							pending={saving}
 							pendingLabel="Saving"
 							size="sm"
 						>
-							Save
+							Save workflow
 						</Button>
 					</>
 				)}

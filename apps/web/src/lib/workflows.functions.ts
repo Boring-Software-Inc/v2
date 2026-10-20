@@ -129,7 +129,7 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 				const issue = parsed.error.issues[0];
 				return {
 					ok: false,
-					error: `${issue?.path.join(".")}: ${issue?.message}`,
+					error: `Tripwire could not save this workflow. Check ${issue?.path.join(".") || "the workflow"}: ${issue?.message}`,
 				};
 			}
 			const { workflowServices } = await import("@tripwire/db");

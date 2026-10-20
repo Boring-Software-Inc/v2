@@ -73,7 +73,8 @@ export function RunPage() {
 					<EmptyHeader>
 						<EmptyTitle>Run not found</EmptyTitle>
 						<EmptyDescription>
-							It may have been removed, or the link is wrong.
+							The link may be wrong, or the run is in an org you are not a
+							member of.
 						</EmptyDescription>
 					</EmptyHeader>
 					<EmptyContent>
@@ -136,16 +137,18 @@ function RunStatusLine({
 				<Status status={verdict.status}>{verdict.label}</Status>
 			) : null}
 			{run.status === "paused" ? (
-				<Status status="waiting">Awaiting moderation</Status>
+				<Status status="waiting">Waiting for a maintainer</Status>
 			) : null}
 			{evaluating ? (
 				<Status live status="running">
 					{plannedRules > 0
-						? `Evaluating ${finishedRules} of ${plannedRules}`
-						: "Evaluating"}
+						? `Checking ${finishedRules} of ${plannedRules} rules`
+						: "Checking"}
 				</Status>
 			) : null}
-			{run.status === "failed" ? <Status status="fail">Failed</Status> : null}
+			{run.status === "failed" ? (
+				<Status status="fail">Did not finish</Status>
+			) : null}
 		</div>
 	);
 }
@@ -214,8 +217,8 @@ function RunBody({ run }: { run: RunView }) {
 								{evaluating
 									? "Starting the check."
 									: run.status === "failed"
-										? "This re-run did not finish. Try again."
-										: "No steps recorded."}
+										? "This run did not finish. Re-run rules to try again."
+										: "Tripwire recorded no steps for this run."}
 							</p>
 						) : (
 							liveSteps.map((step) => (
@@ -243,13 +246,13 @@ function RunBody({ run }: { run: RunView }) {
 									key={`${action.kind}-${action.recordedAt}`}
 								>
 									<span className="min-w-0 flex-1 truncate type-label">
-										{action.kind.charAt(0).toUpperCase() + action.kind.slice(1)}
+										{actionName(action.kind)}
 									</span>
 									{action.delivery ? (
 										<DeliveryStatus delivery={action.delivery} />
 									) : (
 										<span className="type-caption text-text-2">
-											{action.status}
+											{ACTION_STATUS[action.status] ?? action.status}
 										</span>
 									)}
 								</div>
@@ -260,6 +263,18 @@ function RunBody({ run }: { run: RunView }) {
 			</div>
 		</div>
 	);
+}
+
+const ACTION_STATUS: Record<string, string> = {
+	executed: "Done",
+	skipped: "Skipped",
+	failed: "Did not finish",
+	pending: "Waiting",
+};
+
+function actionName(kind: string): string {
+	const words = kind.replace(/-/g, " ");
+	return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 function DeliveryStatus({
@@ -278,14 +293,20 @@ function DeliveryStatus({
 		);
 	}
 	if (delivery.state === "queued") {
-		return <Status size="sm" status="queued" />;
+		return (
+			<Status size="sm" status="queued">
+				Queued
+			</Status>
+		);
 	}
 	return (
 		<span className="flex min-w-0 items-center gap-2">
 			<span className="min-w-0 truncate type-caption text-text-2">
 				{delivery.reason}
 			</span>
-			<Status className="shrink-0" size="sm" status="fail" />
+			<Status className="shrink-0" size="sm" status="fail">
+				Not sent
+			</Status>
 		</span>
 	);
 }
@@ -341,11 +362,11 @@ function RerunRunButton({
 			} else if (result.status === "cooldown") {
 				setOpen(false);
 				toast(
-					`Re-run available again in about ${Math.max(1, Math.ceil(result.retryInSeconds / 60))} min`,
+					`You can re-run this again in about ${Math.max(1, Math.ceil(result.retryInSeconds / 60))} min`,
 				);
 			} else if (result.status === "no-workflow") {
 				setUnavailable(
-					"No enabled rules, so there is nothing to evaluate. Enable a rule or workflow first.",
+					"This repo has no rules or workflows turned on, so there is nothing to check. Turn one on first.",
 				);
 			} else if (result.status === "no-event") {
 				setUnavailable(
@@ -356,7 +377,7 @@ function RerunRunButton({
 			}
 		},
 		onError: () => {
-			toast.fail("Could not start the re-run. Try again.");
+			toast.fail("Tripwire could not start the re-run. Try again.");
 		},
 	});
 
@@ -398,7 +419,7 @@ function RerunRunButton({
 							pending={mutation.isPending}
 							pendingLabel="Queueing"
 						>
-							Confirm re-run
+							Re-run rules
 						</DialogAction>
 					)}
 				</DialogFooter>

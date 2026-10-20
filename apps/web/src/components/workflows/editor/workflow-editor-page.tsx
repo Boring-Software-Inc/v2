@@ -5,6 +5,7 @@ import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
 	EmptyContent,
+	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
@@ -92,6 +93,9 @@ export function WorkflowEditorPage() {
 				>
 					<EmptyHeader>
 						<EmptyTitle>Workflow not found</EmptyTitle>
+						<EmptyDescription>
+							Someone may have deleted it, or the link is out of date.
+						</EmptyDescription>
 					</EmptyHeader>
 					<EmptyContent>
 						<Button

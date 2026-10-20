@@ -174,7 +174,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 				{
 					field: {
 						key: "kinds",
-						label: "triggers on",
+						label: "Triggers on",
 						secret: false,
 						kind: "string-list",
 					},
@@ -193,7 +193,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					{
 						field: {
 							key: "labels",
-							label: "labels",
+							label: "Labels",
 							secret: false,
 							kind: "string-list",
 						},
@@ -205,7 +205,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 				const params = node.params ?? {};
 				const rows: NodeFieldValue[] = [
 					{
-						field: { key: "url", label: "url", secret: true, kind: "string" },
+						field: { key: "url", label: "URL", secret: true, kind: "string" },
 						value: typeof params.url === "string" ? params.url : undefined,
 					},
 				];
@@ -213,7 +213,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					rows.push({
 						field: {
 							key: "signingSecret",
-							label: "signing",
+							label: "Signing secret",
 							secret: true,
 							kind: "string",
 						},

@@ -35,9 +35,9 @@ export function describeSyntheticStep(
 	if (step.nodeId === "run:deny-floor") {
 		return {
 			kind: "deny-floor",
-			title: "Denied by a maintainer",
+			title: "Blocked by a maintainer",
 			detail:
-				"The workflow has no path for a denial, so Tripwire blocked the change request.",
+				"A maintainer chose block in the moderation queue. The workflow has no step for that choice, so Tripwire blocked the change request.",
 		};
 	}
 	if (step.nodeId === "run:degradation") {
@@ -62,7 +62,7 @@ export function describeSyntheticStep(
 		// still reads as a sentence instead of "skipped. sent to review."
 		const parts = [
 			shape.skippedRules !== undefined && shape.ruleNodes !== undefined
-				? `${shape.skippedRules} of ${shape.ruleNodes} skipped.`
+				? `${shape.skippedRules} of ${shape.ruleNodes} rules skipped.`
 				: null,
 			shape.degradedReads && shape.degradedReads.length > 0
 				? `Could not read: ${shape.degradedReads.join(", ")}.`
