@@ -10,7 +10,7 @@ export const Route = createFileRoute("/$org/home")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle(params.org),
-			description: "repos this org protects, with status.",
+			description: "The repos this org protects and their status.",
 			noindex: true,
 		}),
 });

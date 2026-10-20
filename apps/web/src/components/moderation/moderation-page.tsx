@@ -77,7 +77,8 @@ export function ModerationPage() {
 					<header className="flex flex-col gap-1">
 						<h1 className="type-title">Moderation</h1>
 						<p className="type-body text-text-2">
-							Triage flagged change requests and comments for this repo.
+							Decide on change requests and comments that Tripwire sent to
+							review.
 							{stats ? (
 								<>
 									{" "}

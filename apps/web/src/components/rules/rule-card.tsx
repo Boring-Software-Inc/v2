@@ -197,7 +197,7 @@ export function RuleCard({
 						<Badge variant="warn">Update held</Badge>
 						<span className="type-body-sm text-text-2">
 							{rule.changeNote ? `${rule.changeNote}. ` : ""}Your saved settings
-							do not carry over. Re-confirm to move to the new version.
+							do not carry over. Confirm again to move to the new version.
 						</span>
 						<Button
 							aria-pressed={upgradeQueued === true}

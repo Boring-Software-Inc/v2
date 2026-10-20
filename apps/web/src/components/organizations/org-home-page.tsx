@@ -226,5 +226,5 @@ function attentionLine(repo: SwitcherRepo): string {
 	if (repo.blocked24h > 0) {
 		return "Blocking change requests today";
 	}
-	return "Watching, nothing waiting";
+	return "Nothing needs your decision";
 }

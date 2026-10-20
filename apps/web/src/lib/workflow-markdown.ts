@@ -203,7 +203,7 @@ export function workflowToMarkdown(
 		for (const node of rules) {
 			const sentence = ruleSentence(node, customRules);
 			lines.push(
-				`- **${nodeName(node, customRules)}** \`${node.ref}\`${sentence ? ` — ${sentence}` : ""}`,
+				`- **${nodeName(node, customRules)}** \`${node.ref}\`${sentence ? `: ${sentence}` : ""}`,
 			);
 		}
 	}
@@ -214,7 +214,7 @@ export function workflowToMarkdown(
 		for (const node of gates) {
 			const entry = GATE_CATALOG.find((e) => e.mode === node.mode);
 			lines.push(
-				`- **${entry?.name ?? node.mode}**${entry ? ` — ${entry.description}` : ""}`,
+				`- **${entry?.name ?? node.mode}**${entry ? `: ${entry.description}` : ""}`,
 			);
 			const inputs = gateInputs(node.id, definition, byId, customRules);
 			if (inputs.length > 0) {
@@ -230,7 +230,7 @@ export function workflowToMarkdown(
 			const when = firingCondition(node.id, definition, byId, customRules);
 			const suffix = [when, ...actionParams(node)].filter(Boolean).join(" · ");
 			lines.push(
-				`- **${nodeName(node, customRules)}**${suffix ? ` — ${suffix}` : ""}`,
+				`- **${nodeName(node, customRules)}**${suffix ? `: ${suffix}` : ""}`,
 			);
 		}
 	}

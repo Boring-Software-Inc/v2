@@ -87,7 +87,7 @@ export const saveCustomRule = createServerFn({ method: "POST" })
 			);
 			const name = data.name.trim();
 			if (name.length === 0 || name.length > 80) {
-				return { error: "the rule needs a name under 80 characters" };
+				return { error: "Give the rule a name under 80 characters." };
 			}
 			const parsed = customRuleDefinitionSchema.safeParse(data.definition);
 			if (!parsed.success) {
@@ -107,7 +107,7 @@ export const saveCustomRule = createServerFn({ method: "POST" })
 				// Edits keep the id: refs in saved workflows stay valid.
 				const existing = await repoServices.listCustomRules(db, data.repoId);
 				if (!existing.some((row) => row.id === data.id)) {
-					return { error: "rule not found" };
+					return { error: "Rule not found." };
 				}
 			}
 			const id =
@@ -120,7 +120,7 @@ export const saveCustomRule = createServerFn({ method: "POST" })
 			};
 			const recordCheck = customRuleRecordSchema.safeParse(record);
 			if (!recordCheck.success) {
-				return { error: "invalid rule" };
+				return { error: "This rule is not valid." };
 			}
 			await repoServices.upsertCustomRule(db, data.repoId, record);
 			return { ok: true, id };
@@ -145,7 +145,7 @@ export const setCustomRuleEnabled = createServerFn({ method: "POST" })
 			const rows = await repoServices.listCustomRules(db, data.repoId);
 			const row = rows.find((entry) => entry.id === data.id);
 			if (!row) {
-				return { error: "rule not found" };
+				return { error: "Rule not found." };
 			}
 			await repoServices.upsertCustomRule(db, data.repoId, {
 				id: row.id,
@@ -178,7 +178,7 @@ export const deleteCustomRule = createServerFn({ method: "POST" })
 					result.blockedBy.map((w) => w.name),
 				);
 				return {
-					error: `this rule is active inside ${names}. remove it from those workflows before deleting.`,
+					error: `This rule is used in ${names}. Remove it from those workflows before you delete it.`,
 				};
 			}
 			return { ok: true };

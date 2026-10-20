@@ -86,13 +86,31 @@ function renderBackticks(text: string): ReactNode {
 	});
 }
 
+function Paragraph({ text }: { text: string }) {
+	const lines = text.split("\n");
+	const lead = lines.filter((line) => !line.startsWith("- ")).join(" ");
+	const items = lines
+		.filter((line) => line.startsWith("- "))
+		.map((line) => line.slice(2));
+	return (
+		<>
+			{lead ? <p className="type-body-sm">{renderInline(lead)}</p> : null}
+			{items.length > 0 ? (
+				<ul className="flex list-disc flex-col gap-1 ps-5 type-body-sm">
+					{items.map((item) => (
+						<li key={item}>{renderInline(item)}</li>
+					))}
+				</ul>
+			) : null}
+		</>
+	);
+}
+
 function Paragraphs({ text }: { text: string }) {
 	return (
 		<>
 			{text.split(/\n{2,}/).map((paragraph) => (
-				<p className="type-body-sm" key={paragraph}>
-					{renderInline(paragraph)}
-				</p>
+				<Paragraph key={paragraph} text={paragraph} />
 			))}
 		</>
 	);

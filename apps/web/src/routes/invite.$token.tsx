@@ -10,7 +10,7 @@ export const Route = createFileRoute("/invite/$token")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle("Join an org"),
-			description: "redeem a tripwire invite link.",
+			description: "Accept an invite to a Tripwire org.",
 			noindex: true,
 		}),
 });

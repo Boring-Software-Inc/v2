@@ -56,7 +56,7 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 				title: r.actorLogin ? `passed ${r.actorLogin}` : "passed a change",
 				detail: subject(r.repoFullName, r.subjectNumber),
 				at: r.createdAt.toISOString(),
-				impact: { label: "good to merge", tone: "down" },
+				impact: { label: "passed", tone: "down" },
 			}));
 		}
 

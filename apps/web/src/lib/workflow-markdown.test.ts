@@ -48,7 +48,7 @@ describe("workflowToMarkdown — header + built-in rules", () => {
 	test("fills each built-in rule's sentence with THIS node's config", () => {
 		// number + unit, percent, and string-list, resolved via formatParamValue.
 		expect(md).toContain(
-			"- **account age** `account-age@1` — blocks accounts younger than 7 days",
+			"- **account age** `account-age@1`: blocks accounts younger than 7 days",
 		);
 		expect(md).toContain("more than 200 files");
 		expect(md).toContain(
@@ -61,13 +61,13 @@ describe("workflowToMarkdown — header + built-in rules", () => {
 
 	test("a param-less rule renders name + ref only, no sentence", () => {
 		expect(md).toContain("- **crypto address** `crypto-address@1`");
-		expect(md).not.toContain("crypto address** `crypto-address@1` —");
+		expect(md).not.toContain("crypto address** `crypto-address@1`:");
 	});
 
 	test("the gate names its meaning and its inputs", () => {
 		expect(md).toContain("### Gates");
 		expect(md).toContain(
-			"- **all of** — Passes only when every connected check passes.",
+			"- **all of**: Passes only when every connected check passes.",
 		);
 		expect(md).toContain(
 			"inputs: account age, crypto address, honeypot paths, max files changed, english only",
@@ -76,7 +76,7 @@ describe("workflowToMarkdown — header + built-in rules", () => {
 
 	test("the action states its firing condition", () => {
 		expect(md).toContain("### Actions");
-		expect(md).toContain("- **block** — when all of fails");
+		expect(md).toContain("- **block**: when all of fails");
 	});
 });
 
@@ -126,9 +126,9 @@ describe("workflowToMarkdown — secret safety (the leak fixture)", () => {
 	});
 
 	test("but the FACT that a destination is set is reported", () => {
-		expect(md).toContain("- **webhook** — when all of fails · url set");
+		expect(md).toContain("- **webhook**: when all of fails · url set");
 		expect(md).toContain("signing secret set");
-		expect(md).toContain("- **discord** — when all of fails · url set");
+		expect(md).toContain("- **discord**: when all of fails · url set");
 	});
 
 	test("a redacted definition (urlSet marker, blank url) also reads as set", () => {
@@ -202,8 +202,8 @@ describe("workflowToMarkdown — shape variants", () => {
 			],
 		});
 		const md = workflowToMarkdown(branching);
-		expect(md).toContain("- **block** — when all of fails");
-		expect(md).toContain("- **comment** — when all of passes");
+		expect(md).toContain("- **block**: when all of fails");
+		expect(md).toContain("- **comment**: when all of passes");
 	});
 
 	test("a custom rule node resolves name + sentence through the catalog", () => {
@@ -227,7 +227,7 @@ describe("workflowToMarkdown — shape variants", () => {
 			},
 		]);
 		expect(md).toContain(
-			"- **fork spam** `custom-forks@1` — flag when fork rate in the last 24 hours is over 10, as a high signal",
+			"- **fork spam** `custom-forks@1`: flag when fork rate in the last 24 hours is over 10, as a high signal",
 		);
 	});
 

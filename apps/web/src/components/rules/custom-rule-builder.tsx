@@ -210,7 +210,7 @@ export function valueIssue(state: BuilderState): string | null {
 			const min = Number(value.trim());
 			const max = Number(high.trim());
 			if (!(Number.isFinite(min) && Number.isFinite(max))) {
-				return "enter a low and a high number";
+				return "Enter a low and a high number.";
 			}
 			return percentRangeIssue(signal, min) ?? percentRangeIssue(signal, max);
 		}
@@ -219,7 +219,7 @@ export function valueIssue(state: BuilderState): string | null {
 		}
 		const parsed = Number(value.trim());
 		if (!Number.isFinite(parsed)) {
-			return "enter a number";
+			return "Enter a number.";
 		}
 		return percentRangeIssue(signal, parsed);
 	}
@@ -231,7 +231,7 @@ function percentRangeIssue(
 	n: number,
 ): string | null {
 	return signal.unit === "%" && (n < 0 || n > 100)
-		? "enter a percentage from 0 to 100"
+		? "Enter a percentage from 0 to 100."
 		: null;
 }
 

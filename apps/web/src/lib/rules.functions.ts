@@ -281,7 +281,7 @@ export const saveRuleConfig = createServerFn({ method: "POST" })
 			);
 			const entry = RULE_CATALOG.find((r) => r.ruleId === data.ruleId);
 			if (!entry) {
-				return { error: `unknown rule ${data.ruleId}` };
+				return { error: `Unknown rule: ${data.ruleId}` };
 			}
 			const parsed = entry.configSchema.safeParse(data.config);
 			if (!parsed.success) {
@@ -319,7 +319,7 @@ export const upgradeRuleConfig = createServerFn({ method: "POST" })
 			);
 			const entry = RULE_CATALOG.find((r) => r.ruleId === data.ruleId);
 			if (!entry) {
-				return { error: `unknown rule ${data.ruleId}` };
+				return { error: `Unknown rule: ${data.ruleId}` };
 			}
 			const { repoServices } = await import("@tripwire/db");
 			const { getDb } = await import("#/lib/server/db");

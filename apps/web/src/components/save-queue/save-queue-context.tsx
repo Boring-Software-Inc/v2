@@ -204,7 +204,7 @@ export function SaveQueueNavGuard() {
 	useBlocker({
 		disabled: !isDirty,
 		shouldBlockFn: () =>
-			!window.confirm("you have unsaved changes. leave anyway?"),
+			!window.confirm("You have unsaved changes. Leave anyway?"),
 		enableBeforeUnload: () => isDirty,
 	});
 	return null;

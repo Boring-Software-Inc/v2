@@ -14,5 +14,5 @@ export const siteConfig: SiteConfig = {
 	githubRepositoryUrl: "https://github.com/Boring-Software-Inc/tripwire",
 	defaultTitle: "tripwire | the open source firewall for git",
 	defaultDescription:
-		"tripwire is a contribution gatekeeper for git forges. it evaluates contributors and change requests against composable rules, blocks slop before it lands, and keeps every verdict auditable.",
+		"Tripwire is a contribution gatekeeper for git forges. It checks contributors and change requests against rules you set, blocks slop before it merges, and keeps a record of every verdict.",
 };

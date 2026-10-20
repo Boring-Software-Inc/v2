@@ -170,7 +170,7 @@ export function CommandPalette({
 		onSettled: invalidate,
 		onSuccess: (result) => {
 			if (result.armed) {
-				toast.success("Armed. Backfilling its history.");
+				toast.success("Armed. Tripwire is loading its past change requests.");
 			}
 		},
 	});
@@ -178,7 +178,10 @@ export function CommandPalette({
 		mutationFn: (input: { org: string; repo: string }) =>
 			disarmRepo({ data: input }),
 		onSettled: invalidate,
-		onSuccess: () => toast.success("Disarmed. Events still ingest, gate off."),
+		onSuccess: () =>
+			toast.success(
+				"Disarmed. Tripwire still records events but no longer checks change requests.",
+			),
 	});
 	function go(path: string) {
 		navigate({ to: path });

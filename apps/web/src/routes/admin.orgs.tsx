@@ -10,7 +10,7 @@ export const Route = createFileRoute("/admin/orgs")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle("Admin · orgs"),
-			description: "organization inspection.",
+			description: "Every org on the platform.",
 			noindex: true,
 		}),
 });

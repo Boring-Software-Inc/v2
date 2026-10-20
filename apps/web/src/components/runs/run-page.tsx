@@ -196,9 +196,9 @@ function RunBody({ run }: { run: RunView }) {
 						{liveSteps.length === 0 ? (
 							<p className="px-3 py-4 type-body-sm text-text-2">
 								{evaluating
-									? "Starting evaluation."
+									? "Starting the check."
 									: run.status === "failed"
-										? "This re-run never evaluated. Try again."
+										? "This re-run did not finish. Try again."
 										: "No steps recorded."}
 							</p>
 						) : (
@@ -333,22 +333,22 @@ function RerunRunButton({
 				);
 			} else if (result.status === "no-event") {
 				setUnavailable(
-					"No evaluatable event for this change request. Open or update it first.",
+					"Tripwire has nothing to check for this change request yet. Open or update it first.",
 				);
 			} else {
 				setUnavailable("This repo isn't armed. Arm it first.");
 			}
 		},
 		onError: () => {
-			toast.fail("Re-run failed to queue. Try again.");
+			toast.fail("Could not start the re-run. Try again.");
 		},
 	});
 
 	const rulesCopy =
 		unavailable ??
 		(preview.data
-			? `${sentence(rerunRulesLine(preview.data.ruleNames))}. This may cost AI review usage. The PR's review comment and check will be updated.`
-			: "This runs your current rules again and may cost AI review usage. The PR's review comment and check will be updated.");
+			? `${sentence(rerunRulesLine(preview.data.ruleNames))}. This may cost AI review usage. Tripwire will update its comment and check on the change request.`
+			: "This runs your current rules again and may cost AI review usage. Tripwire will update its comment and check on the change request.");
 
 	return (
 		<Dialog

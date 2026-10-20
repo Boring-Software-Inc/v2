@@ -29,7 +29,7 @@ export const Route = createFileRoute("/onboarding/setup")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle("Connect installation"),
-			description: "confirm where this GitHub installation lands.",
+			description: "Choose the org for this GitHub installation.",
 			noindex: true,
 		}),
 });

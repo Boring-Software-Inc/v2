@@ -70,8 +70,8 @@ export function ModerationQueue({
 					<EmptyHeader>
 						<EmptyTitle>Nothing awaiting moderation</EmptyTitle>
 						<EmptyDescription>
-							Blocked changes that need a maintainer's decision land here.
-							Approve or deny and the run resumes.
+							Change requests that Tripwire sent to review show up here. Approve
+							or deny each one to finish its check.
 						</EmptyDescription>
 					</EmptyHeader>
 				</Empty>
@@ -97,7 +97,7 @@ export function ModerationQueue({
 											) : null}
 										</ItemRouterLink>
 										{item.nodeId === "run:degraded" ? (
-											<Badge variant="warn">Evaluation degraded</Badge>
+											<Badge variant="warn">Check incomplete</Badge>
 										) : null}
 									</ItemTitle>
 									<ItemDescription className="truncate">
@@ -120,7 +120,9 @@ export function ModerationQueue({
 												},
 												{
 													onSuccess: () =>
-														toast("Denied. This change is blocked."),
+														toast(
+															"Denied. Tripwire blocked this change request.",
+														),
 												},
 											)
 										}
@@ -144,7 +146,9 @@ export function ModerationQueue({
 												},
 												{
 													onSuccess: () =>
-														toast.success("Approved. This change can proceed."),
+														toast.success(
+															"Approved. Tripwire passed this change request.",
+														),
 												},
 											)
 										}
