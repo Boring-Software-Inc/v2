@@ -226,3 +226,27 @@ body {
 	opacity: var(--stale);
 	pointer-events: none;
 }
+
+.glaze [data-slot="avatar-eyes"] [data-pupil] {
+	transform: translate(
+		calc(var(--gaze-x, 0) * 1px),
+		calc(var(--gaze-y, 0) * 1px)
+	);
+	transition: transform var(--dur-overlay) var(--ease-out);
+}
+
+.glaze [data-slot="avatar-eyes"] [data-eye] {
+	transform-box: fill-box;
+	transform-origin: center;
+	transition: transform var(--dur-press) var(--ease-out);
+}
+
+.glaze [data-slot="avatar-eyes"][data-blink] [data-eye] {
+	transform: scaleY(0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.glaze [data-slot="avatar-eyes"] [data-pupil] {
+		transform: none;
+	}
+}

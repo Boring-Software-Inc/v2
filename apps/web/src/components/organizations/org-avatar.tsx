@@ -10,6 +10,7 @@ export function OrgAvatar({
 	size = "sm",
 	animate = false,
 	replayToken,
+	eyes = false,
 	decorative = true,
 	className,
 }: {
@@ -18,6 +19,7 @@ export function OrgAvatar({
 	size?: OrgAvatarSize;
 	animate?: boolean;
 	replayToken?: number;
+	eyes?: boolean;
 	decorative?: boolean;
 	className?: string;
 }) {
@@ -25,6 +27,7 @@ export function OrgAvatar({
 	return (
 		<DitherAvatar
 			animate={animate}
+			eyes={eyes}
 			className={cn(
 				size === "xl"
 					? cn(

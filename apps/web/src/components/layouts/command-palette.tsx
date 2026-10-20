@@ -202,7 +202,7 @@ export function CommandPalette({
 					org.isPersonal ? "personal" : "team",
 					org.slug === currentOrg ? "current active" : "",
 				],
-				icon: <OrgAvatar hue={org.avatarHue} name={org.name} size="xs" />,
+				icon: <OrgAvatar eyes hue={org.avatarHue} name={org.name} size="xs" />,
 				onSelect: () => go(`/${org.slug}/home`),
 				hint: (
 					<>

@@ -67,6 +67,7 @@ export function RepoSwitcher() {
 				<span className="-ms-1.5 flex size-5 shrink-0 items-center justify-center">
 					{params.org ? (
 						<OrgAvatar
+							eyes
 							hue={activeOrg?.avatarHue}
 							name={activeOrg?.name ?? params.org}
 							size="sm"
