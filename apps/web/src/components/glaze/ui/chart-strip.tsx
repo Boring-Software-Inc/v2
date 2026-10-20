@@ -4,7 +4,7 @@ import {useRef, useState} from 'react';
 import {cva, type VariantProps} from 'class-variance-authority';
 import {CHART_EMPTY, EMPTY_VALUE} from '#/lib/glaze/data.ts';
 import {cn} from '#/lib/glaze/utils.ts';
-import {ChartDataTable, ChartTooltip, ChartTooltipContent, ChartTooltipRow, useElementWidth, useRovingPoints, type ChartStatus} from '#/components/glaze/ui/chart-parts.tsx';
+import {chartHitSlop, ChartDataTable, ChartTooltip, ChartTooltipContent, ChartTooltipRow, useElementWidth, useRovingPoints, type ChartStatus} from '#/components/glaze/ui/chart-parts.tsx';
 import {StatusMark} from '#/components/glaze/ui/status.tsx';
 
 // The two charts that are a strip rather than a plot: the sparkline beside a number and the status bar of buckets.
@@ -124,7 +124,7 @@ function Sparkline({data, label, status, variant = 'line', area, end = variant =
       return <span aria-hidden data-slot="sparkline-end" className="pointer-events-none absolute size-1.5 -translate-x-1/2 -translate-y-1/2 bg-current rtl:translate-x-1/2" style={{insetInlineStart: pct(x(i), viewW), top: pct(y(v), VIEW_H)}}/>;
     })()}
     {interactive && n > 0 && <>
-      <span role="group" aria-label={label} aria-roledescription="chart" className="absolute inset-0 flex" onPointerLeave={hide}>
+      <span role="group" aria-label={label} aria-roledescription="chart" className="absolute inset-0 isolate flex" onPointerLeave={hide}>
         {data.map((v, i) => <button
           key={i}
           ref={roving.ref(i)}
@@ -135,7 +135,7 @@ function Sparkline({data, label, status, variant = 'line', area, end = variant =
           onFocus={() => { roving.setCurrent(i); show(i); }}
           onBlur={event => { if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node)) hide(); }}
           onKeyDown={event => { if (event.key === 'Escape') hide(); else roving.onKeyDown(event, i); }}
-          className="h-full min-w-0 flex-1 rounded-tag focus-visible:focus-ring-inset"
+          className={cn('h-full min-w-0 flex-1 rounded-tag focus-visible:focus-ring-inset', chartHitSlop)}
         />)}
       </span>
       <ChartTooltip anchor={active !== null ? anchor : null}>
@@ -227,7 +227,7 @@ function StatusBar({data, label, unit = ['run', 'runs'], range, onBucketClick, s
       role="group"
       aria-label={label}
       aria-roledescription="status bar"
-      className={cn(statusBarVariants({size}), data.length > 60 ? 'gap-px' : 'gap-0.5')}
+      className={cn(statusBarVariants({size}), 'isolate', data.length > 60 ? 'gap-px' : 'gap-0.5')}
       onPointerLeave={() => { if (!ref.current?.contains(document.activeElement)) hide(); }}
     >
       {data.map((b, i) => {
@@ -250,6 +250,7 @@ function StatusBar({data, label, unit = ['run', 'runs'], range, onBucketClick, s
           style={w ? {width: w, flex: 'none'} : undefined}
           className={cn(
             'h-full min-w-px flex-1 rounded-pill transition-opacity duration-(--dur-state) focus-sm',
+            chartHitSlop,
             cellTone[tone],
             tone === 'quiet' ? 'forced-colors:bg-[Canvas] forced-colors:outline-1 forced-colors:-outline-offset-1' : 'forced-colors:bg-[CanvasText]',
             active !== null && active !== i && 'opacity-(--stale)',

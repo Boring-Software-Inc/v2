@@ -358,7 +358,10 @@ function ChartLegend({series, values, toggle = true, layout = 'row', className, 
   </ul>;
 }
 
+const chartHitSlop = 'relative pointer-coarse:after:absolute pointer-coarse:after:-z-1 pointer-coarse:after:top-1/2 pointer-coarse:after:left-1/2 pointer-coarse:after:h-full pointer-coarse:after:min-h-11 pointer-coarse:after:w-full pointer-coarse:after:min-w-11 pointer-coarse:after:-translate-1/2';
+
 export {
+  chartHitSlop,
   ChartContainer, WithChart, useChart, useOptionalChart, useElementWidth, useElementDirection, useRovingPoints,
   seriesTone, seriesClass, ChartSwatch,
   ChartTooltip, ChartTooltipContent, ChartTooltipRow,

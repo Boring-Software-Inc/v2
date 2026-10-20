@@ -4,7 +4,7 @@ import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {CHART_EMPTY, EMPTY_VALUE, cssNumber} from '#/lib/glaze/data.ts';
 import {cn} from '#/lib/glaze/utils.ts';
 import {
-  ChartDataTable, ChartSwatch, ChartTooltip, ChartTooltipContent, ChartTooltipRow, WithChart,
+  chartHitSlop, ChartDataTable, ChartSwatch, ChartTooltip, ChartTooltipContent, ChartTooltipRow, WithChart,
   seriesClass, seriesTone, useChart, useElementDirection, useElementWidth, useRovingPoints, type ChartConfig,
 } from '#/components/glaze/ui/chart-parts.tsx';
 import {formatCompact, linearPath, monotonePath, niceScale, numberAt, stepPath, type ChartRow, type Curve, type Point} from '#/components/glaze/ui/chart-scale.ts';
@@ -169,7 +169,7 @@ function ChartPlot({data, xKey, series, config, mode, extent, height, label, xFo
         role="group"
         aria-label={label}
         aria-roledescription="chart"
-        className="absolute flex"
+        className="absolute isolate flex"
         // value-ok: the hit areas cover the plot, whose edges are measured, so they can only live inline.
         style={{left: mode === 'band' || n === 1 ? plot.left : plot.left - band / 2, top: plot.top, width: mode === 'band' || n === 1 ? plotWidth : plotWidth + band, height: plot.bottom - plot.top}}
         onPointerLeave={() => { if (!ref.current?.contains(document.activeElement)) hide(); }}
@@ -184,7 +184,7 @@ function ChartPlot({data, xKey, series, config, mode, extent, height, label, xFo
           onFocus={() => { roving.setCurrent(i); show(i); }}
           onBlur={event => { if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node)) hide(); }}
           onKeyDown={event => { if (event.key === 'Escape') hide(); else roving.onKeyDown(event, i); }}
-          className="h-full min-w-0 flex-1 cursor-crosshair rounded-tag focus-visible:focus-ring-inset"
+          className={cn('h-full min-w-0 flex-1 cursor-crosshair rounded-tag focus-visible:focus-ring-inset', chartHitSlop)}
         />)}
       </div>
       <ChartTooltip anchor={active !== null ? anchor : null}>

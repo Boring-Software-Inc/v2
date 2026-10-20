@@ -37,6 +37,7 @@ function Switch({className, size = 'default', pending, readOnly, 'aria-invalid':
       'transition-[background-color,border-color] duration-(--dur-state) ease-out',
       // The hit area grows past the track, so a 20px switch still takes a 28px target.
       'after:absolute after:-inset-x-1 after:-inset-y-1',
+      'pointer-coarse:data-[size=default]:after:-inset-x-1.5 pointer-coarse:data-[size=default]:after:-inset-y-3.5 pointer-coarse:data-[size=sm]:after:-inset-x-2.5 pointer-coarse:data-[size=sm]:after:-inset-y-4',
       'data-[size=default]:h-5 data-[size=default]:w-9 data-[size=sm]:h-4 data-[size=sm]:w-7',
       'data-checked:glaze-sm',
       'hover:not-data-disabled:not-data-checked:bg-line-control',
