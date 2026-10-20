@@ -32,7 +32,7 @@ export function DashboardLayout({ counts, children }: DashboardLayoutProps) {
 			<div className="isolate flex h-dvh flex-col bg-page">
 				<a
 					href="#main-content"
-					className="-translate-y-full fixed start-2 top-0 z-(--z-overlay) rounded-pill bg-paper px-3 py-1.5 type-label text-text-1 ring-1 ring-ink focus:top-2 focus:translate-y-0"
+					className="-top-10 fixed start-2 z-(--z-overlay) rounded-pill bg-paper px-3 py-1.5 type-label text-text-1 ring-1 ring-ink focus:top-2"
 				>
 					Skip to content
 				</a>

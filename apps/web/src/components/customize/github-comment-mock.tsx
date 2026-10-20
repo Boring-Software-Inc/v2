@@ -75,7 +75,6 @@ function renderBackticks(text: string): ReactNode {
 		if (part.length > 2 && part.startsWith("`") && part.endsWith("`")) {
 			return (
 				<code
-					className="mono rounded-tag bg-field px-1"
 					// biome-ignore lint/suspicious/noArrayIndexKey: static parse of a string
 					key={i}
 				>
@@ -110,14 +109,16 @@ export function GithubCommentMock({
 }: GithubCommentMockProps) {
 	if (body === null) {
 		return (
-			<Empty size="sm" variant="plain">
-				<EmptyHeader>
-					<EmptyTitle>No comment posts</EmptyTitle>
-					{silentNote ? (
-						<EmptyDescription>{silentNote}</EmptyDescription>
-					) : null}
-				</EmptyHeader>
-			</Empty>
+			<div className="rounded-panel border border-line-faint bg-paper">
+				<Empty size="sm" variant="plain">
+					<EmptyHeader>
+						<EmptyTitle>No comment posts</EmptyTitle>
+						{silentNote ? (
+							<EmptyDescription>{silentNote}</EmptyDescription>
+						) : null}
+					</EmptyHeader>
+				</Empty>
+			</div>
 		);
 	}
 	const blocks = parseBody(body);
