@@ -5,14 +5,26 @@ import { Avatar } from "#/components/glaze/ui/avatar";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
+	Dialog,
+	DialogAction,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/glaze/ui/dialog";
+import {
 	Empty,
 	EmptyContent,
+	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
 import {
 	Field,
 	FieldDescription,
+	FieldError,
 	FieldLabel,
 } from "#/components/glaze/ui/field";
 import { Input } from "#/components/glaze/ui/input";
@@ -71,6 +83,45 @@ function isOrgRole(value: string | null): value is OrgRole {
 	return value === "admin" || value === "member";
 }
 
+function ConfirmDialog({
+	open,
+	onOpenChange,
+	title,
+	description,
+	actionLabel,
+	pendingLabel,
+	onConfirm,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	title: string;
+	description: string;
+	actionLabel: string;
+	pendingLabel: string;
+	onConfirm: () => Promise<unknown>;
+}) {
+	return (
+		<Dialog onOpenChange={onOpenChange} open={open} role="alertdialog">
+			<DialogContent size="sm">
+				<DialogHeader>
+					<DialogTitle>{title}</DialogTitle>
+					<DialogDescription>{description}</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<DialogClose>Cancel</DialogClose>
+					<DialogAction
+						onAction={onConfirm}
+						pendingLabel={pendingLabel}
+						variant="destructive"
+					>
+						{actionLabel}
+					</DialogAction>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 export function OrgMembersPage({ org }: { org: string }) {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const { data: members } = useQuery(orgMembersQueryOptions(org));
@@ -93,7 +144,7 @@ export function OrgMembersPage({ org }: { org: string }) {
 						</h3>
 						<p className="type-body-sm text-text-2">
 							{isAdmin
-								? "Who's in this org and what they can touch."
+								? "Who's in this org. Admins can change settings and members."
 								: "Who's in this org. Only admins can change roles."}
 						</p>
 					</div>
@@ -137,13 +188,20 @@ function MemberRow({
 	const queryClient = useQueryClient();
 	const isSelf = callerUserId !== null && member.userId === callerUserId;
 
+	const [confirmRemove, setConfirmRemove] = useState(false);
+
 	const roleMutation = useMutation({
 		mutationFn: (role: OrgRole) =>
 			updateOrgMemberRole({ data: { org, memberId: member.memberId, role } }),
-		onSuccess: (result) => {
+		onSuccess: (result, role) => {
 			if (!result.ok) {
-				toast.fail(result.error ?? "Role change refused");
+				toast.fail(
+					result.error ??
+						`Tripwire couldn't change the role for ${member.name}. Try again.`,
+				);
+				return;
 			}
+			toast.success(`${member.name} is now ${ROLE_LABEL[role].toLowerCase()}`);
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.members(org) });
@@ -151,12 +209,19 @@ function MemberRow({
 	});
 
 	const removeMutation = useMutation({
-		mutationFn: () =>
-			removeOrgMember({ data: { org, memberId: member.memberId } }),
-		onSuccess: (result) => {
+		mutationFn: async () => {
+			const result = await removeOrgMember({
+				data: { org, memberId: member.memberId },
+			});
 			if (!result.ok) {
-				toast.fail(result.error ?? "Removal refused");
+				throw new Error(
+					result.error ?? `Tripwire couldn't remove ${member.name}. Try again.`,
+				);
 			}
+			return result;
+		},
+		onSuccess: () => {
+			toast.success(`Removed ${member.name} from the org`);
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.members(org) });
@@ -177,10 +242,10 @@ function MemberRow({
 					{member.email} · joined {formatRelativeTime(member.joinedAt)}
 				</ItemDescription>
 			</ItemContent>
-			{isAdmin ? (
+			{isAdmin && !isSelf ? (
 				<ItemActions className="gap-2 @max-sm/item:ms-10 @max-sm/item:me-0 @max-sm/item:basis-full">
 					<Select
-						disabled={isSelf || roleMutation.isPending}
+						disabled={roleMutation.isPending}
 						items={ROLE_ITEMS}
 						onValueChange={(value) => {
 							if (isOrgRole(value)) {
@@ -206,18 +271,21 @@ function MemberRow({
 					</Select>
 					<Button
 						aria-label={`Remove ${member.name}`}
-						disabled={isSelf}
-						pending={removeMutation.isPending}
-						pendingLabel="Removing"
-						onClick={() => removeMutation.mutate()}
+						onClick={() => setConfirmRemove(true)}
 						size="sm"
-						title={
-							isSelf ? "You can't remove yourself. Leave instead." : undefined
-						}
 						variant="secondary"
 					>
 						Remove
 					</Button>
+					<ConfirmDialog
+						actionLabel="Remove member"
+						description={`${member.name} loses access to this org and its repos. You can invite them again later.`}
+						onConfirm={() => removeMutation.mutateAsync()}
+						onOpenChange={setConfirmRemove}
+						open={confirmRemove}
+						pendingLabel="Removing"
+						title={`Remove ${member.name}?`}
+					/>
 				</ItemActions>
 			) : (
 				<ItemActions>
@@ -230,15 +298,20 @@ function MemberRow({
 
 function LeaveOrgButton({ org }: { org: string }) {
 	const queryClient = useQueryClient();
+	const [open, setOpen] = useState(false);
 	const leaveMutation = useMutation({
-		mutationFn: () => leaveOrg({ data: { org } }),
-		onSuccess: (result) => {
-			if (result.ok) {
-				// hard navigation — the org scope this page lives under is gone.
-				window.location.assign("/");
-				return;
+		mutationFn: async () => {
+			const result = await leaveOrg({ data: { org } });
+			if (!result.ok) {
+				throw new Error(
+					result.error ??
+						"You're the last admin. Make another member an admin, then leave.",
+				);
 			}
-			toast.fail(result.error ?? "You're the last admin here");
+			return result;
+		},
+		onSuccess: () => {
+			window.location.assign("/");
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.members(org) });
@@ -247,15 +320,20 @@ function LeaveOrgButton({ org }: { org: string }) {
 	});
 
 	return (
-		<Button
-			onClick={() => leaveMutation.mutate()}
-			pending={leaveMutation.isPending}
-			pendingLabel="Leaving"
-			size="sm"
-			variant="secondary"
-		>
-			Leave org
-		</Button>
+		<>
+			<Button onClick={() => setOpen(true)} size="sm" variant="secondary">
+				Leave org
+			</Button>
+			<ConfirmDialog
+				actionLabel="Leave org"
+				description="You lose access to this org and its repos. An admin has to invite you to come back."
+				onConfirm={() => leaveMutation.mutateAsync()}
+				onOpenChange={setOpen}
+				open={open}
+				pendingLabel="Leaving"
+				title="Leave this org?"
+			/>
+		</>
 	);
 }
 
@@ -275,7 +353,10 @@ function InviteLinksSection({ org }: { org: string }) {
 			if (result.token) {
 				setCreatedToken(result.token);
 			} else {
-				toast.fail(result.error ?? "Could not create invite");
+				toast.fail(
+					result.error ??
+						"Tripwire couldn't create the invite link. Try again.",
+				);
 			}
 		},
 		onSettled: () => {
@@ -283,11 +364,9 @@ function InviteLinksSection({ org }: { org: string }) {
 		},
 	});
 
-	const inputsValid =
-		maxUses >= 1 &&
-		maxUses <= 1000 &&
-		expiresInDays >= 1 &&
-		expiresInDays <= 90;
+	const maxUsesValid = maxUses >= 1 && maxUses <= 1000;
+	const expiryValid = expiresInDays >= 1 && expiresInDays <= 90;
+	const inputsValid = maxUsesValid && expiryValid;
 
 	return (
 		<section
@@ -335,16 +414,17 @@ function InviteLinksSection({ org }: { org: string }) {
 						</SelectContent>
 					</Select>
 				</Field>
-				<Field className="w-32">
-					<FieldLabel>Max uses</FieldLabel>
+				<Field className="w-32" invalid={!maxUsesValid}>
+					<FieldLabel>Use limit</FieldLabel>
 					<NumberInput
 						max={1000}
 						min={1}
 						onValueChange={(value) => setMaxUses(value ?? 0)}
 						value={maxUses}
 					/>
+					{maxUsesValid ? null : <FieldError>Enter 1 to 1000.</FieldError>}
 				</Field>
-				<Field className="w-32">
+				<Field className="w-32" invalid={!expiryValid}>
 					<FieldLabel>Expires in</FieldLabel>
 					<NumberInput
 						max={90}
@@ -353,6 +433,7 @@ function InviteLinksSection({ org }: { org: string }) {
 						unit="days"
 						value={expiresInDays}
 					/>
+					{expiryValid ? null : <FieldError>Enter 1 to 90 days.</FieldError>}
 				</Field>
 				<Button
 					disabled={!inputsValid}
@@ -415,6 +496,9 @@ function InviteLinkList({
 			>
 				<EmptyHeader>
 					<EmptyTitle>No invite links yet</EmptyTitle>
+					<EmptyDescription>
+						Create a link to add people to this org.
+					</EmptyDescription>
 				</EmptyHeader>
 				<EmptyContent>
 					<Button
@@ -425,7 +509,7 @@ function InviteLinkList({
 						size="sm"
 						variant="secondary"
 					>
-						Create link
+						Create invite link
 					</Button>
 				</EmptyContent>
 			</Empty>
@@ -448,8 +532,23 @@ function InviteLinkRow({
 	invite: InviteLinkView;
 }) {
 	const queryClient = useQueryClient();
+	const [confirmRevoke, setConfirmRevoke] = useState(false);
+	const roleName = ROLE_LABEL[invite.role].toLowerCase();
 	const revokeMutation = useMutation({
-		mutationFn: () => revokeOrgInvite({ data: { org, inviteId: invite.id } }),
+		mutationFn: async () => {
+			const result = await revokeOrgInvite({
+				data: { org, inviteId: invite.id },
+			});
+			if (!result.revoked) {
+				throw new Error(
+					"Tripwire couldn't revoke the link. Reload the page and try again.",
+				);
+			}
+			return result;
+		},
+		onSuccess: () => {
+			toast.success("Invite link revoked");
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.invites(org) });
 		},
@@ -471,22 +570,32 @@ function InviteLinkRow({
 					</span>{" "}
 					uses · {expired ? "expired" : "expires"}{" "}
 					{expiresAt.toLocaleDateString()}
+					{revoked ? " · revoked" : null}
 				</ItemDescription>
 			</ItemContent>
 			<ItemActions>
 				{revoked ? (
 					<Badge>Revoked</Badge>
 				) : (
-					<Button
-						aria-label={`Revoke ${invite.role} invite`}
-						onClick={() => revokeMutation.mutate()}
-						pending={revokeMutation.isPending}
-						pendingLabel="Revoking"
-						size="sm"
-						variant="secondary"
-					>
-						Revoke
-					</Button>
+					<>
+						<Button
+							aria-label={`Revoke ${roleName} invite link`}
+							onClick={() => setConfirmRevoke(true)}
+							size="sm"
+							variant="secondary"
+						>
+							Revoke
+						</Button>
+						<ConfirmDialog
+							actionLabel="Revoke link"
+							description="Nobody can join with this link after you revoke it. People who already joined stay in the org."
+							onConfirm={() => revokeMutation.mutateAsync()}
+							onOpenChange={setConfirmRevoke}
+							open={confirmRevoke}
+							pendingLabel="Revoking"
+							title={`Revoke this ${roleName} invite link?`}
+						/>
+					</>
 				)}
 			</ItemActions>
 		</Item>

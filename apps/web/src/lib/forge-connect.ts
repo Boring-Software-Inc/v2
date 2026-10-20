@@ -1,4 +1,4 @@
-import { type ForgeId, forgeSignIn } from "@tripwire/contracts";
+import { FORGE_BY_ID, type ForgeId, forgeSignIn } from "@tripwire/contracts";
 import { authClient } from "#/lib/auth-client";
 
 /**
@@ -37,7 +37,12 @@ export async function reconnectForge(forge: ForgeId): Promise<string | null> {
 		forgeSignIn(forge) === "oauth2"
 			? await authClient.oauth2.link({ providerId: forge, callbackURL })
 			: await authClient.linkSocial({ provider: forge, callbackURL });
-	return error?.message ?? (error ? `couldn't reach ${forge}` : null);
+	return (
+		error?.message ??
+		(error
+			? `Tripwire couldn't reach ${FORGE_BY_ID[forge]?.label ?? forge}. Try again in a minute.`
+			: null)
+	);
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { ForgeId } from "@tripwire/contracts";
+import { useId } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { Button } from "#/components/glaze/ui/button";
 import { toast } from "#/components/glaze/ui/toast";
@@ -27,27 +28,60 @@ export function ForgeCell({
 	id,
 	label,
 	state,
+	showReason = false,
 }: {
 	id: ForgeId;
 	label: string;
 	state: ForgeCellState;
+	showReason?: boolean;
 }) {
+	const reasonId = useId();
 	if (state.kind === "blocked") {
+		if (showReason) {
+			return (
+				<div className="flex min-w-0 flex-col gap-1">
+					<Button
+						aria-describedby={reasonId}
+						aria-disabled="true"
+						className="w-full"
+						onClick={() => {
+							toast(state.title, {
+								description: state.body,
+								id: `forge-blocked:${id}`,
+							});
+						}}
+						variant="secondary"
+					>
+						<ForgeMark forge={id} />
+						{label}
+					</Button>
+					<p className="type-caption text-text-2" id={reasonId}>
+						{state.title}
+					</p>
+				</div>
+			);
+		}
 		return (
-			<Button
-				aria-disabled="true"
-				className="w-full"
-				onClick={() => {
-					toast(state.title, {
-						description: state.body,
-						id: `forge-blocked:${id}`,
-					});
-				}}
-				variant="secondary"
-			>
-				<ForgeMark forge={id} />
-				{label}
-			</Button>
+			<>
+				<Button
+					aria-describedby={reasonId}
+					aria-disabled="true"
+					className="w-full"
+					onClick={() => {
+						toast(state.title, {
+							description: state.body,
+							id: `forge-blocked:${id}`,
+						});
+					}}
+					variant="secondary"
+				>
+					<ForgeMark forge={id} />
+					{label}
+				</Button>
+				<span className="sr-only" id={reasonId}>
+					{state.title}. {state.body}
+				</span>
+			</>
 		);
 	}
 	return (

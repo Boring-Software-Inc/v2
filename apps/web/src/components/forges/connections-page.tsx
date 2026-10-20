@@ -70,14 +70,9 @@ function ConnectionRow({ connection }: { connection: ForgeConnection }) {
 			toast.success(
 				result.removedRepos === 0
 					? `${label} disconnected`
-					: `${label} disconnected. ${result.removedRepos} ${result.removedRepos === 1 ? "repo" : "repos"} no longer watched.`,
+					: `${label} disconnected. Tripwire stopped watching ${result.removedRepos} ${result.removedRepos === 1 ? "repo" : "repos"}.`,
 			);
 			void queryClient.invalidateQueries();
-		},
-		onError: (error) => {
-			toast.fail(
-				error instanceof Error ? error.message : `Couldn't disconnect ${label}`,
-			);
 		},
 	});
 
@@ -95,9 +90,9 @@ function ConnectionRow({ connection }: { connection: ForgeConnection }) {
 						? "No repos"
 						: `${connection.repoCount} ${connection.repoCount === 1 ? "repo" : "repos"}`}
 					{connection.unclaimedCount > 0
-						? ` · ${connection.unclaimedCount} unclaimed`
+						? ` · ${connection.unclaimedCount} not in an org yet`
 						: ""}
-					{needsReauth ? " · session expired" : ""}
+					{needsReauth ? " · access expired, reconnect to keep watching" : ""}
 				</ItemDescription>
 			</ItemContent>
 			<ItemActions>
@@ -113,7 +108,7 @@ function ConnectionRow({ connection }: { connection: ForgeConnection }) {
 						size="sm"
 						variant="secondary"
 					>
-						Reconnect
+						Reconnect {label}
 					</Button>
 				) : null}
 				<Button
@@ -130,17 +125,18 @@ function ConnectionRow({ connection }: { connection: ForgeConnection }) {
 					<DialogHeader>
 						<DialogTitle>Disconnect {label}?</DialogTitle>
 						<DialogDescription>
-							Tripwire stops watching every repo that arrived through it.
+							Tripwire stops watching every repo that came in through {label}.
+							You can connect it again later.
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
 						<DialogClose>Cancel</DialogClose>
 						<DialogAction
-							onAction={() => disconnect.mutateAsync().catch(() => undefined)}
+							onAction={() => disconnect.mutateAsync()}
 							pendingLabel="Disconnecting"
 							variant="destructive"
 						>
-							Disconnect
+							Disconnect {label}
 						</DialogAction>
 					</DialogFooter>
 				</DialogContent>
@@ -189,8 +185,8 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 						Connections
 					</h3>
 					<p className="type-body-sm text-text-2">
-						The forges this account is linked to. Disconnecting stops Tripwire
-						watching everything that arrived through it.
+						The forges your account is linked to, and the repos each one brings
+						in.
 					</p>
 				</div>
 				<Button
@@ -199,7 +195,7 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 					variant="secondary"
 				>
 					<Icon icon={Add} />
-					Connect
+					Connect repos
 				</Button>
 			</div>
 
@@ -226,7 +222,7 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 						<EmptyHeader>
 							<EmptyTitle>No forges connected yet</EmptyTitle>
 							<EmptyDescription>
-								Connect a forge to bring its repos in.
+								Connect a forge so Tripwire can watch its repos.
 							</EmptyDescription>
 						</EmptyHeader>
 						<EmptyContent>
@@ -235,7 +231,7 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 								size="sm"
 								variant="secondary"
 							>
-								Connect forge
+								Connect repos
 							</Button>
 						</EmptyContent>
 					</Empty>

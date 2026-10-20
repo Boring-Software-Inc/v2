@@ -45,7 +45,7 @@ const STATUS_FILTERS: Array<{ key: StatusFilter; label: string }> = [
 	{ key: "all", label: "All" },
 	{ key: "pending", label: "Pending" },
 	{ key: "approved", label: "Approved" },
-	{ key: "rejected", label: "Rejected" },
+	{ key: "rejected", label: "Declined" },
 ];
 
 const COLUMN_COUNT = 8;
@@ -64,7 +64,9 @@ export function AdminUsersPage() {
 		search: debouncedSearch || undefined,
 		offset,
 	};
-	const { data, isLoading } = useQuery(adminUsersQueryOptions(filter));
+	const { data, isLoading, error, refetch } = useQuery(
+		adminUsersQueryOptions(filter),
+	);
 
 	const review = useMutation({
 		mutationFn: reviewUserAccess,
@@ -85,10 +87,19 @@ export function AdminUsersPage() {
 				onSuccess: (result) => {
 					setSelected([]);
 					setConfirmRejectId(null);
-					toast(
-						decision === "approve"
-							? `Approved ${result.changed} of ${result.total}`
-							: `Rejected ${result.changed} of ${result.total}`,
+					const verb = decision === "approve" ? "Approved" : "Declined";
+					const noun = result.total === 1 ? "user" : "users";
+					toast.success(
+						result.changed === result.total
+							? `${verb} ${result.total} ${noun}`
+							: `${verb} ${result.changed} of ${result.total} ${noun}. The rest already had that status.`,
+					);
+				},
+				onError: (error) => {
+					toast.fail(
+						error instanceof Error
+							? error.message
+							: "Tripwire couldn't save the access decision. Try again.",
 					);
 				},
 			},
@@ -127,7 +138,7 @@ export function AdminUsersPage() {
 						{selected.length} selected
 					</span>
 					<Button onClick={() => setSelected([])} size="sm" variant="secondary">
-						Clear
+						Clear selection
 					</Button>
 					<Button
 						onClick={() => decide(selected, "approve")}
@@ -194,9 +205,9 @@ export function AdminUsersPage() {
 						<h1 className="type-title">Users</h1>
 						<p className="max-w-measure type-body text-text-2">
 							Review beta access requests. Approving a user gives the same
-							access as accepting an invite. <code>RERUN_COOLDOWN_SECONDS</code>{" "}
-							sets the re-run cooldown for every user. You can turn the cooldown
-							off for one user below.
+							access as accepting an invite. The re-run cooldown comes from{" "}
+							<code>RERUN_COOLDOWN_SECONDS</code> and applies to every user. Use
+							the Skip cooldown switch to turn it off for one user.
 						</p>
 					</header>
 
@@ -227,7 +238,7 @@ export function AdminUsersPage() {
 									<TableHead>Personal org</TableHead>
 									<TableHead numeric>Orgs</TableHead>
 									<TableHead>Joined</TableHead>
-									<TableHead>No cooldown</TableHead>
+									<TableHead>Skip cooldown</TableHead>
 									<TableHead>
 										<span className="sr-only">Actions</span>
 									</TableHead>
@@ -247,17 +258,41 @@ export function AdminUsersPage() {
 											{},
 										]}
 									/>
+								) : error ? (
+									<TableEmpty
+										action={
+											<Button
+												onClick={() => void refetch()}
+												size="sm"
+												variant="secondary"
+											>
+												Load users again
+											</Button>
+										}
+										colSpan={COLUMN_COUNT}
+										description={error.message}
+										reason="error"
+										title="Tripwire couldn't load users"
+									/>
 								) : users.length === 0 ? (
 									<TableEmpty
 										art={<MascotArt mood="admin-table-empty" size="compact" />}
 										colSpan={COLUMN_COUNT}
-										description="New signups land as pending."
+										description={
+											status === "all" && !debouncedSearch
+												? "New signups show up here as pending."
+												: "Try another status or search."
+										}
 										reason={
 											status === "all" && !debouncedSearch
 												? "empty"
 												: "no-results"
 										}
-										title="No users match this filter"
+										title={
+											status === "all" && !debouncedSearch
+												? "No users yet"
+												: "No users match this filter"
+										}
 										action={
 											status === "all" && !debouncedSearch ? (
 												<Button
@@ -273,11 +308,12 @@ export function AdminUsersPage() {
 													onClick={() => {
 														setStatus("all");
 														setSearch("");
+														setOffset(0);
 													}}
 													size="sm"
 													variant="secondary"
 												>
-													Clear filter
+													Clear filters
 												</Button>
 											)
 										}
@@ -330,7 +366,7 @@ export function AdminUsersPage() {
 											</TableCell>
 											<TableCell>
 												<Switch
-													aria-label={`Exempt ${u.name} from re-run cooldown`}
+													aria-label={`Skip re-run cooldown for ${u.name}`}
 													checked={u.rerunCooldownExempt}
 													onCheckedChange={(exempt) =>
 														flagRerun.mutate(
@@ -338,12 +374,17 @@ export function AdminUsersPage() {
 															{
 																onSuccess: (result) => {
 																	if (result.changed) {
-																		toast(
+																		toast.success(
 																			exempt
-																				? "Re-run cooldown exempt"
-																				: "Re-run cooldown restored",
+																				? `${u.name} can re-run without the cooldown`
+																				: `${u.name} has the re-run cooldown again`,
 																		);
 																	}
+																},
+																onError: () => {
+																	toast.fail(
+																		`Tripwire couldn't change the cooldown for ${u.name}. Try again.`,
+																	);
 																},
 															},
 														)
@@ -370,21 +411,32 @@ export function AdminUsersPage() {
 													{u.accessStatus !== "rejected" ? (
 														confirmRejectId === u.id ? (
 															<Button
+																aria-label={`Confirm decline for ${u.name}`}
+																onBlur={() => setConfirmRejectId(null)}
 																onClick={() => decide([u.id], "reject")}
+																onKeyDown={(event) => {
+																	if (event.key === "Escape") {
+																		setConfirmRejectId(null);
+																	}
+																}}
 																pending={review.isPending}
+																ref={(node: HTMLButtonElement | null) =>
+																	node?.focus()
+																}
 																size="sm"
 																variant="destructive"
 															>
-																Confirm reject
+																Confirm decline
 															</Button>
 														) : (
 															<Button
+																aria-label={`Decline ${u.name}`}
 																disabled={review.isPending}
 																onClick={() => setConfirmRejectId(u.id)}
 																size="sm"
 																variant="secondary"
 															>
-																Reject
+																Decline
 															</Button>
 														)
 													) : null}

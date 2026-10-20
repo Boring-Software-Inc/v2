@@ -76,7 +76,7 @@ export function AdminOrgsPage() {
 	const debouncedSearch = useDebouncedValue(search, 250);
 	const panelIdBase = useId();
 
-	const { data, isLoading } = useQuery(
+	const { data, isLoading, error, refetch } = useQuery(
 		adminOrgsQueryOptions({
 			kind: kind === "all" ? undefined : kind,
 			search: debouncedSearch || undefined,
@@ -159,8 +159,8 @@ export function AdminOrgsPage() {
 					<header className="flex flex-col gap-1">
 						<h1 className="type-title">Orgs</h1>
 						<p className="type-body text-text-2">
-							Every org on the platform. Expand a row to see members and fix
-							roles.
+							Every org on this Tripwire server. Open a row to see its members
+							and change their roles.
 						</p>
 					</header>
 
@@ -184,14 +184,39 @@ export function AdminOrgsPage() {
 								<TableLoading
 									columns={[{}, {}, { numeric: true }, { numeric: true }, {}]}
 								/>
+							) : error ? (
+								<TableEmpty
+									action={
+										<Button
+											onClick={() => void refetch()}
+											size="sm"
+											variant="secondary"
+										>
+											Load orgs again
+										</Button>
+									}
+									colSpan={COLUMN_COUNT}
+									description={error.message}
+									reason="error"
+									title="Tripwire couldn't load orgs"
+								/>
 							) : orgs.length === 0 ? (
 								<TableEmpty
 									art={<MascotArt mood="admin-table-empty" size="compact" />}
 									colSpan={COLUMN_COUNT}
+									description={
+										kind === "all" && !debouncedSearch
+											? "Orgs show up here when people sign up or create one."
+											: "Try another kind or search."
+									}
 									reason={
 										kind === "all" && !debouncedSearch ? "empty" : "no-results"
 									}
-									title="No orgs match this filter"
+									title={
+										kind === "all" && !debouncedSearch
+											? "No orgs yet"
+											: "No orgs match this filter"
+									}
 									action={
 										kind === "all" && !debouncedSearch ? (
 											<Button
@@ -207,11 +232,12 @@ export function AdminOrgsPage() {
 												onClick={() => {
 													setKind("all");
 													setSearch("");
+													setOffset(0);
 												}}
 												size="sm"
 												variant="secondary"
 											>
-												Clear filter
+												Clear filters
 											</Button>
 										)
 									}
@@ -358,10 +384,15 @@ function OrgMembersPanel({
 										},
 										{
 											onSuccess: (result) => {
-												toast(
-													result.ok
-														? "Role saved"
-														: (result.error ?? "Role change refused"),
+												if (result.ok) {
+													toast.success(
+														`${m.name} is now ${value === "admin" ? "admin" : "member"}`,
+													);
+													return;
+												}
+												toast.fail(
+													result.error ??
+														`Tripwire couldn't change the role for ${m.name}. Try again.`,
 												);
 											},
 										},
