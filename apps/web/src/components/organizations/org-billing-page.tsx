@@ -14,8 +14,11 @@ export function OrgBillingPage() {
 	return (
 		<Empty art={<MascotArt mood="billing-empty" />} variant="plain">
 			<EmptyHeader>
-				<EmptyTitle>Nothing to configure yet</EmptyTitle>
-				<EmptyDescription>Billing is not available yet.</EmptyDescription>
+				<EmptyTitle>No billing yet</EmptyTitle>
+				<EmptyDescription>
+					Tripwire has no plans or invoices to set up yet. Billing settings will
+					appear here when they exist.
+				</EmptyDescription>
 			</EmptyHeader>
 			<EmptyContent>
 				<Button

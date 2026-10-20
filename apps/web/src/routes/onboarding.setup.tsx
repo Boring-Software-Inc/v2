@@ -29,7 +29,7 @@ export const Route = createFileRoute("/onboarding/setup")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle("Connect installation"),
-			description: "Choose the org for this GitHub installation.",
+			description: "Choose the Tripwire org that checks this installation.",
 			noindex: true,
 		}),
 });

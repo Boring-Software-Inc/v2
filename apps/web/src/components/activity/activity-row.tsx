@@ -17,15 +17,15 @@ import type { ActivityItem } from "#/lib/activity.functions";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 
 const KIND_LABEL: Record<EventKind, string> = {
-	"change-request.opened": "change request opened",
-	"change-request.updated": "change request updated",
-	"change-request.closed": "change request closed",
-	"comment.created": "comment",
-	push: "push",
-	"installation.created": "installed the app",
-	"installation.deleted": "uninstalled the app",
-	"installation-repositories.added": "granted repos",
-	"installation-repositories.removed": "revoked repos",
+	"change-request.opened": "opened",
+	"change-request.updated": "updated",
+	"change-request.closed": "closed",
+	"comment.created": "commented on",
+	push: "pushed to",
+	"installation.created": "installed Tripwire on",
+	"installation.deleted": "uninstalled Tripwire from",
+	"installation-repositories.added": "gave Tripwire access to",
+	"installation-repositories.removed": "took Tripwire access from",
 };
 
 function eventUrl(event: NormalizedEvent): string | null {
@@ -55,16 +55,14 @@ function subjectLine(event: NormalizedEvent): string {
 }
 
 function noRunReason(event: NormalizedEvent): string {
-	if (event.kind === "push") {
-		return "Push";
+	if (
+		event.kind === "push" ||
+		event.kind === "comment.created" ||
+		event.kind.startsWith("installation")
+	) {
+		return "Not checked";
 	}
-	if (event.kind === "comment.created") {
-		return "Comment";
-	}
-	if (event.kind.startsWith("installation")) {
-		return "Installation";
-	}
-	return "Maintainer, exempt";
+	return "Maintainer, not checked";
 }
 
 export function ActivityRow({
@@ -147,7 +145,7 @@ function RowStatus({
 			</Status>
 		) : (
 			<Status size="sm" status="running">
-				Evaluating
+				Checking
 			</Status>
 		);
 	}

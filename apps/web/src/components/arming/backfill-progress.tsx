@@ -31,7 +31,8 @@ export function BackfillProgress({
 	return (
 		<Progress className={className} max={total} value={done}>
 			<ProgressLabel>
-				Backfilling change requests. You can check back here later.
+				Importing past change requests. This keeps running if you leave the
+				page.
 			</ProgressLabel>
 			<ProgressValue>{() => `${done} of ${total}`}</ProgressValue>
 		</Progress>

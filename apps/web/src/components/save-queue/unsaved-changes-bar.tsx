@@ -1,5 +1,6 @@
 import { Button } from "#/components/glaze/ui/button";
 import {
+	DiscardChangesButton,
 	SaveQueueNavGuard,
 	useSaveQueue,
 } from "#/components/save-queue/save-queue-context";
@@ -21,16 +22,9 @@ export function UnsavedChangesBar() {
 						className="overlay pointer-events-auto flex items-center gap-2 rounded-pill py-1 ps-4 pe-1"
 					>
 						<span className="type-label-sm">
-							You have {count} unsaved change{count === 1 ? "" : "s"}
+							{count} unsaved {count === 1 ? "change" : "changes"}
 						</span>
-						<Button
-							disabled={isCommitting}
-							onClick={discard}
-							size="sm"
-							variant="secondary"
-						>
-							Discard
-						</Button>
+						<DiscardChangesButton disabled={isCommitting} onDiscard={discard} />
 						<Button
 							onClick={commit}
 							pending={isCommitting}

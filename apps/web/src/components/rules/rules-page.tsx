@@ -11,6 +11,7 @@ import {
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
+	EmptyRetry,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
@@ -100,7 +101,8 @@ export function RulesPage() {
 	const [filter, setFilter] = useState<RuleFilter>("all");
 	const [builderOpen, setBuilderOpen] = useState(false);
 	const repoId = repo?.id ?? "";
-	const { data: rules } = useQuery(ruleConfigsQueryOptions(org, repoId));
+	const rulesQuery = useQuery(ruleConfigsQueryOptions(org, repoId));
+	const rules = rulesQuery.data;
 	const statsQuery = useQuery(rulesStatsQueryOptions(org, repoId));
 	const queryClient = useQueryClient();
 
@@ -237,10 +239,10 @@ export function RulesPage() {
 			});
 		}
 		if (failedKeys.length === 0) {
-			toast.success("Changes saved");
+			toast.success("Rule changes saved");
 			return { ok: true };
 		}
-		const message = `${failedNames.join(" and ")} did not save. Save again to retry.`;
+		const message = `${failedNames.join(" and ")} did not save. Select Save changes to try again.`;
 		toast.fail(message);
 		return { error: message, failedKeys };
 	};
@@ -250,8 +252,7 @@ export function RulesPage() {
 			data: { org, repoId, id: ruleId },
 		});
 		if (result && "error" in result) {
-			toast.fail(result.error);
-			return;
+			throw new Error(result.error);
 		}
 		await queryClient.invalidateQueries({
 			queryKey: rulesQueryKeys.config(org, repoId),
@@ -296,11 +297,16 @@ export function RulesPage() {
 									Requirements that every contributor outside your org must meet
 									on every change request.
 								</p>
+								{orgContext && !isAdmin ? (
+									<p className="type-body-sm text-text-2">
+										Only org admins can change rules.
+									</p>
+								) : null}
 							</div>
 							{isAdmin ? (
 								<Button onClick={() => setBuilderOpen(true)}>
 									<Icon icon={Add} />
-									New rule
+									Create rule
 								</Button>
 							) : null}
 						</header>
@@ -343,9 +349,28 @@ export function RulesPage() {
 							<SkeletonSwap
 								fallback={<RuleGridSkeleton />}
 								label="Loading rules"
-								loading={!rules}
+								loading={!rules && !rulesQuery.isError}
 							>
-								{visible.length > 0 ? (
+								{rulesQuery.isError && !rules ? (
+									<Empty reason="error">
+										<EmptyHeader>
+											<EmptyTitle>Rules did not load</EmptyTitle>
+											<EmptyDescription>
+												Tripwire could not load this repo's rules. Check your
+												connection, then load them again.
+											</EmptyDescription>
+										</EmptyHeader>
+										<EmptyContent>
+											<EmptyRetry
+												onRetry={() =>
+													rulesQuery.refetch({ throwOnError: true })
+												}
+											>
+												Load rules again
+											</EmptyRetry>
+										</EmptyContent>
+									</Empty>
+								) : visible.length > 0 ? (
 									<div className="grid items-stretch gap-3 sm:grid-cols-2">
 										{visible.map((rule) => (
 											<RuleCard
@@ -371,8 +396,8 @@ export function RulesPage() {
 											<EmptyTitle>No custom rules yet</EmptyTitle>
 											<EmptyDescription>
 												{isAdmin
-													? "You have not created any custom rules yet."
-													: "Custom rules match your repo's own patterns."}
+													? "A custom rule checks contributors and their changes against conditions you pick."
+													: "Custom rules check for patterns specific to this repo. An org admin creates them."}
 											</EmptyDescription>
 										</EmptyHeader>
 										{isAdmin ? (
@@ -382,7 +407,7 @@ export function RulesPage() {
 													size="sm"
 													variant="secondary"
 												>
-													New custom rule
+													Create rule
 												</Button>
 											</EmptyContent>
 										) : (
@@ -392,7 +417,7 @@ export function RulesPage() {
 													size="sm"
 													variant="secondary"
 												>
-													View all rules
+													Show all rules
 												</Button>
 											</EmptyContent>
 										)}
@@ -419,9 +444,15 @@ export function RulesPage() {
 														? "No rules run inside a workflow"
 														: "No rules yet"}
 											</EmptyTitle>
-											{filter === "active" ? (
-												<EmptyDescription>Every rule is off.</EmptyDescription>
-											) : null}
+											<EmptyDescription>
+												{filter === "active"
+													? "Every rule is off. Turn a rule on from the full list."
+													: filter === "workflows"
+														? "Every rule runs on its own. Add a rule to a workflow to run it there."
+														: isAdmin
+															? "This repo has no rules. Create one to start checking change requests."
+															: "This repo has no rules. An org admin can create them."}
+											</EmptyDescription>
 										</EmptyHeader>
 										<EmptyContent>
 											{filter === "active" ? (
@@ -430,7 +461,7 @@ export function RulesPage() {
 													size="sm"
 													variant="secondary"
 												>
-													Turn on a rule
+													Show all rules
 												</Button>
 											) : filter === "workflows" ? (
 												<Button
@@ -452,7 +483,7 @@ export function RulesPage() {
 													size="sm"
 													variant="secondary"
 												>
-													New custom rule
+													Create rule
 												</Button>
 											) : (
 												<Button

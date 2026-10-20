@@ -59,6 +59,10 @@ export function ModerationQueue({
 	const { data: items } = useQuery(moderationQueueOptions(org, repo));
 	const decide = useMutation({
 		mutationFn: decideModeration,
+		onError: () =>
+			toast.fail("Tripwire could not save your decision", {
+				description: "The change request is still waiting. Try again.",
+			}),
 		onSettled: () =>
 			queryClient.invalidateQueries({
 				queryKey: moderationQueueKeys.list(org, repo),
@@ -73,8 +77,8 @@ export function ModerationQueue({
 					<EmptyHeader>
 						<EmptyTitle>Nothing awaiting moderation</EmptyTitle>
 						<EmptyDescription>
-							Change requests that Tripwire sent to review show up here. Approve
-							or deny each one to finish its check.
+							Change requests that Tripwire sent to review show up here. Pass or
+							block each one to finish its check.
 						</EmptyDescription>
 					</EmptyHeader>
 					<EmptyContent>
@@ -100,7 +104,7 @@ export function ModerationQueue({
 											params={{ runId: item.runId }}
 											to="/runs/$runId"
 										>
-											{item.actorLogin ?? "unknown"}
+											{item.actorLogin ?? "Unknown contributor"}
 											{item.subjectNumber ? (
 												<>
 													{" "}
@@ -119,7 +123,7 @@ export function ModerationQueue({
 								</ItemContent>
 								<ItemActions>
 									<Button
-										aria-label={`Deny ${subject}`}
+										aria-label={`Block ${subject}`}
 										disabled={decide.isPending}
 										onClick={() =>
 											decide.mutate(
@@ -134,7 +138,7 @@ export function ModerationQueue({
 												{
 													onSuccess: () =>
 														toast(
-															"Denied. Tripwire blocked this change request.",
+															`Blocked ${subject}. Tripwire marked its check as blocked.`,
 														),
 												},
 											)
@@ -142,10 +146,10 @@ export function ModerationQueue({
 										size="sm"
 										variant="ghost"
 									>
-										Deny
+										Block
 									</Button>
 									<Button
-										aria-label={`Approve ${subject}`}
+										aria-label={`Pass ${subject}`}
 										disabled={decide.isPending}
 										onClick={() =>
 											decide.mutate(
@@ -160,7 +164,7 @@ export function ModerationQueue({
 												{
 													onSuccess: () =>
 														toast.success(
-															"Approved. Tripwire passed this change request.",
+															`Passed ${subject}. Tripwire marked its check as passed.`,
 														),
 												},
 											)
@@ -168,7 +172,7 @@ export function ModerationQueue({
 										size="sm"
 										variant="secondary"
 									>
-										Approve
+										Pass
 									</Button>
 								</ItemActions>
 							</Item>

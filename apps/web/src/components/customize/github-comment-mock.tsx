@@ -174,7 +174,7 @@ export function GithubCommentMock({
 			>
 				<Empty size="sm" variant="plain">
 					<EmptyHeader>
-						<EmptyTitle>No comment posts</EmptyTitle>
+						<EmptyTitle>Tripwire posts no comment</EmptyTitle>
 						{silentNote ? (
 							<EmptyDescription>{silentNote}</EmptyDescription>
 						) : null}

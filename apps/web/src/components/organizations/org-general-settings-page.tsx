@@ -128,8 +128,11 @@ function RenameSection({
 	const slugError =
 		slug === orgContext.slug || slugResult.success
 			? null
-			: (slugResult.error?.issues[0]?.message ?? "Invalid slug");
+			: (slugResult.error?.issues[0]?.message ??
+				"Use lowercase letters, numbers and hyphens, 3 to 32 characters.");
 
+	const nameError =
+		name.trim().length === 0 ? "Enter a name for the org." : null;
 	const dirty = name !== orgContext.name || slug !== orgContext.slug;
 
 	const saveMutation = useMutation({
@@ -175,7 +178,7 @@ function RenameSection({
 				className="flex max-w-md flex-col gap-4"
 				onSubmit={(e) => {
 					e.preventDefault();
-					if (dirty && !slugError && name.trim().length > 0) {
+					if (dirty && !slugError && !nameError) {
 						saveMutation.mutate();
 					}
 				}}
@@ -187,13 +190,14 @@ function RenameSection({
 						name={name}
 						size="xl"
 					/>
-					<Field className="min-w-0 flex-1">
+					<Field className="min-w-0 flex-1" invalid={nameError !== null}>
 						<FieldLabel>Name</FieldLabel>
 						<Input
 							onChange={(e) => setName(e.target.value)}
 							placeholder="Acme"
 							value={name}
 						/>
+						{nameError ? <FieldError>{nameError}</FieldError> : null}
 					</Field>
 				</div>
 				<Field invalid={slugError !== null}>
@@ -208,13 +212,15 @@ function RenameSection({
 						<FieldError>{slugError}</FieldError>
 					) : (
 						<FieldDescription>
-							Lowercase letters, numbers and hyphens, 3 to 32 characters.
+							Lowercase letters, numbers and hyphens, 3 to 32 characters. The
+							slug is part of every link to this org, so old links stop working
+							when you change it.
 						</FieldDescription>
 					)}
 				</Field>
 				<div>
 					<Button
-						disabled={!dirty || slugError !== null || name.trim().length === 0}
+						disabled={!dirty || slugError !== null || nameError !== null}
 						pending={saveMutation.isPending}
 						pendingLabel="Saving"
 						type="submit"
@@ -238,7 +244,7 @@ function DangerZone({
 		return (
 			<section aria-labelledby="org-delete-heading">
 				<SectionHeading
-					description="Personal orgs can't be deleted."
+					description="This is your personal org. Tripwire keeps it, so it can't be deleted."
 					id="org-delete-heading"
 					title="Delete org"
 				/>
@@ -259,12 +265,16 @@ function DeleteOrgSection({ org, orgName }: { org: string; orgName: string }) {
 	});
 
 	const deleteMutation = useMutation({
-		mutationFn: () => deleteOrg({ data: { org, confirmName: orgName } }),
-		onSuccess: async (result) => {
+		mutationFn: async () => {
+			const result = await deleteOrg({ data: { org, confirmName: orgName } });
 			if (!result.ok) {
-				toast.fail(result.error ?? "Could not delete the org");
-				return;
+				throw new Error(
+					result.error ?? "Tripwire couldn't delete the org. Try again.",
+				);
 			}
+			return result;
+		},
+		onSuccess: async () => {
 			// Pick the destination BEFORE touching the cache, from the org list we
 			// already hold, minus the one just deleted.
 			const remaining = (
@@ -285,7 +295,7 @@ function DeleteOrgSection({ org, orgName }: { org: string; orgName: string }) {
 				queryClient.invalidateQueries({ queryKey: authQueryKeys.session() }),
 			]);
 
-			toast.success(`Deleted ${org}`);
+			toast.success(`Deleted ${orgName}`);
 			// Straight to a known-good org rather than via `/`, and without the
 			// `?settings=` param that would reopen this dialog on the new org.
 			if (next) {
@@ -302,7 +312,7 @@ function DeleteOrgSection({ org, orgName }: { org: string; orgName: string }) {
 			className="flex flex-col items-start gap-3"
 		>
 			<SectionHeading
-				description="Deleting this org is permanent. This is real deletion, not a hide."
+				description="Deletes the org with its members, invite links, rules and workflows. This can't be undone."
 				id="org-delete-heading"
 				title="Delete org"
 			/>
@@ -319,7 +329,7 @@ function DeleteOrgSection({ org, orgName }: { org: string; orgName: string }) {
 					<DialogHeader>
 						<DialogTitle>Delete {orgName}?</DialogTitle>
 						<DialogDescription>
-							This can't be undone. Event history is retained.
+							This can't be undone. Tripwire keeps the event history.
 						</DialogDescription>
 					</DialogHeader>
 					<DialogBody>
@@ -331,9 +341,9 @@ function DeleteOrgSection({ org, orgName }: { org: string; orgName: string }) {
 							{cascade ? (
 								<p className="text-text-2">
 									This deletes {cascade.members} members, {cascade.inviteLinks}{" "}
-									invite links, {cascade.installations} installations,{" "}
-									{cascade.repos} repos (soft-removed), {cascade.ruleConfigs}{" "}
-									rule configs and {cascade.workflows} workflows.
+									invite links, {cascade.installations} forge connections,{" "}
+									{cascade.ruleConfigs} rule settings and {cascade.workflows}{" "}
+									workflows. Tripwire stops watching its {cascade.repos} repos.
 								</p>
 							) : null}
 						</SkeletonSwap>
@@ -346,7 +356,7 @@ function DeleteOrgSection({ org, orgName }: { org: string; orgName: string }) {
 							pendingLabel="Deleting"
 							variant="destructive"
 						>
-							Delete this org
+							Delete org
 						</DialogAction>
 					</DialogFooter>
 				</DialogContent>

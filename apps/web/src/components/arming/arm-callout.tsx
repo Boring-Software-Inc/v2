@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	Alert,
 	AlertAction,
@@ -15,6 +15,7 @@ import {
 } from "#/components/glaze/ui/card";
 import { toast } from "#/components/glaze/ui/toast";
 import { armRepo } from "#/lib/arm.functions";
+import { orgContextQueryOptions } from "#/lib/org.query";
 
 interface ArmCalloutProps {
 	org: string;
@@ -34,9 +35,16 @@ function useArm(org: string, repo: string, repoFullName: string) {
 		onSuccess: (result) => {
 			if (result.armed) {
 				toast.success(`Tripwire is on for ${repoFullName}`);
+				return;
 			}
+			toast.fail(
+				`Tripwire did not turn on for ${repoFullName}. Reload the page and try again.`,
+			);
 		},
-		onError: () => toast.fail("Could not turn on Tripwire. Try again."),
+		onError: () =>
+			toast.fail(
+				`Tripwire did not turn on for ${repoFullName}. Check your connection and try again.`,
+			),
 	});
 }
 
@@ -48,6 +56,8 @@ export function ArmCallout({
 	className,
 }: ArmCalloutProps) {
 	const arm = useArm(org, repo, repoFullName);
+	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
+	const canArm = orgContext?.role === "admin";
 
 	if (variant === "hero") {
 		return (
@@ -61,18 +71,21 @@ export function ArmCallout({
 						posts no checks or comments and blocks nothing. Turn it on to check
 						each change request against your rules and block the ones that break
 						them.
+						{orgContext && !canArm ? " An org admin can turn it on." : null}
 					</CardDescription>
 				</CardHeader>
-				<CardFooter>
-					<Button
-						onClick={() => arm.mutate()}
-						pending={arm.isPending}
-						pendingLabel="Turning on"
-						size="sm"
-					>
-						Turn on Tripwire
-					</Button>
-				</CardFooter>
+				{canArm ? (
+					<CardFooter>
+						<Button
+							onClick={() => arm.mutate()}
+							pending={arm.isPending}
+							pendingLabel="Turning on"
+							size="sm"
+						>
+							Turn on Tripwire
+						</Button>
+					</CardFooter>
+				) : null}
 			</Card>
 		);
 	}
@@ -81,19 +94,23 @@ export function ArmCallout({
 		<Alert announce={false} className={className} status="warn">
 			<AlertTitle>Tripwire is off</AlertTitle>
 			<AlertDescription>
-				Tripwire ignores every change request here until you turn it on.
+				{canArm || !orgContext
+					? "Tripwire ignores every change request here until you turn it on."
+					: "Tripwire ignores every change request here until an org admin turns it on."}
 			</AlertDescription>
-			<AlertAction>
-				<Button
-					onClick={() => arm.mutate()}
-					pending={arm.isPending}
-					pendingLabel="Turning on"
-					size="sm"
-					variant="secondary"
-				>
-					Turn on Tripwire
-				</Button>
-			</AlertAction>
+			{canArm ? (
+				<AlertAction>
+					<Button
+						onClick={() => arm.mutate()}
+						pending={arm.isPending}
+						pendingLabel="Turning on"
+						size="sm"
+						variant="secondary"
+					>
+						Turn on Tripwire
+					</Button>
+				</AlertAction>
+			) : null}
 		</Alert>
 	);
 }

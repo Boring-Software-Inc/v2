@@ -68,24 +68,24 @@ export function ConnectForgeGrid({
 			return {
 				kind: "blocked",
 				title: "Open an org first",
-				body: `${label} grants repos to an org. Pick one, then connect.`,
+				body: `${label} connects repos to an org. Open the org you want, then connect.`,
 			};
 		}
 		if (!isOrgAdmin) {
 			return {
 				kind: "blocked",
-				title: "Admins only",
-				body: `Ask an org admin to connect ${label} repos.`,
+				title: "Only org admins can connect repos",
+				body: `Ask an admin of this org to connect ${label} repos.`,
 			};
 		}
 		if (installUrl?.status !== "ready") {
 			return {
 				kind: "blocked",
-				title: `${label} app unavailable`,
+				title: `${label} can't connect right now`,
 				body:
 					installUrl?.status === "not-configured"
-						? `The ${label} app isn't configured on this deployment.`
-						: "Could not create an install link. Try again soon.",
+						? `The ${label} app isn't set up on this Tripwire server. Ask whoever runs it to add the app.`
+						: `Tripwire couldn't create the ${label} install link. Try again in a minute.`,
 			};
 		}
 		return {
@@ -114,16 +114,17 @@ export function ConnectForgeGrid({
 					id={forge.id}
 					key={forge.id}
 					label={forge.label}
+					showReason
 					state={
 						forge.status === "live"
 							? (STATE.get(forge.id)?.() ?? {
 									kind: "blocked",
 									title: `${forge.label} can't connect yet`,
-									body: "This forge signs in but has no repo import.",
+									body: `You can sign in with ${forge.label}, but Tripwire can't watch its repos yet.`,
 								})
 							: {
 									kind: "blocked",
-									title: `${forge.label} isn't live yet`,
+									title: `${forge.label} isn't available yet`,
 									body: `Tripwire watches ${LIVE_FORGES} today.`,
 								}
 					}

@@ -153,7 +153,11 @@ function RuleFields({
 	}
 	const fields = fieldsForSchema(entry.configSchema) ?? [];
 	if (fields.length === 0) {
-		return <p className="type-body-sm text-text-2">No options.</p>;
+		return (
+			<p className="type-body-sm text-text-2">
+				This rule has no settings to change.
+			</p>
+		);
 	}
 	const config = (
 		typeof node.config === "object" && node.config !== null ? node.config : {}
@@ -347,7 +351,11 @@ function ActionFields({
 		);
 	}
 	if (node.action !== "label") {
-		return <p className="type-body-sm text-text-2">No options.</p>;
+		return (
+			<p className="type-body-sm text-text-2">
+				This rule has no settings to change.
+			</p>
+		);
 	}
 	const labels = Array.isArray(node.params?.labels)
 		? node.params.labels.filter((v) => typeof v === "string")
@@ -440,6 +448,11 @@ function DeliveryFields({
 			setTestResult(
 				await onTestConnection(url, node.action as "webhook" | "discord"),
 			);
+		} catch {
+			setTestResult({
+				ok: false,
+				failure: "Tripwire could not run the test. Try again.",
+			});
 		} finally {
 			setTesting(false);
 		}
@@ -457,7 +470,11 @@ function DeliveryFields({
 						setParam("url", event.target.value);
 						setTestResult(null);
 					}}
-					placeholder={urlSet ? "Set. Leave blank to keep" : "https://..."}
+					placeholder={
+						urlSet
+							? "Saved. Leave blank to keep it"
+							: "https://example.com/hook"
+					}
 					type="url"
 					value={url}
 				/>
@@ -468,8 +485,8 @@ function DeliveryFields({
 			{node.action === "webhook" && looksLikeDiscordUrl(url) ? (
 				<Alert announce={false} status="warn">
 					<AlertDescription>
-						This looks like a Discord URL. Use a Discord node instead. A webhook
-						node sends raw JSON that Discord rejects.
+						This looks like a Discord URL. Use a Discord step instead. A webhook
+						step sends raw JSON, and Discord does not accept it.
 					</AlertDescription>
 				</Alert>
 			) : null}
@@ -487,8 +504,8 @@ function DeliveryFields({
 				{testResult ? (
 					<Status size="sm" status={testResult.ok ? "ok" : "fail"}>
 						{testResult.ok
-							? "Reached"
-							: `Failed: ${testResult.failure ?? "unknown"}`}
+							? "Reached the address"
+							: `Could not reach it: ${testResult.failure ?? "no reason given"}`}
 					</Status>
 				) : null}
 			</div>
@@ -500,7 +517,9 @@ function DeliveryFields({
 						disabled={readOnly}
 						mode="password"
 						onChange={(event) => setParam("signingSecret", event.target.value)}
-						placeholder={secretSet ? "Set. Leave blank to keep" : undefined}
+						placeholder={
+							secretSet ? "Saved. Leave blank to keep it" : undefined
+						}
 						value={
 							typeof params.signingSecret === "string"
 								? params.signingSecret

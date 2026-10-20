@@ -15,7 +15,7 @@ export const Route = createFileRoute("/mascot")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle("Mascot"),
-			description: "mascot simulator for design work.",
+			description: "Mascot simulator for design work.",
 			noindex: true,
 		}),
 });

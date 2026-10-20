@@ -28,10 +28,10 @@ export function coerceParamInput(param: RuleParam, raw: string): Coerced {
 		}
 		const show = (n: number) => (param.percent ? `${Math.round(n * 100)}%` : n);
 		if (param.min !== undefined && value < param.min) {
-			return { ok: false, error: `The minimum is ${show(param.min)}.` };
+			return { ok: false, error: `Enter ${show(param.min)} or more.` };
 		}
 		if (param.max !== undefined && value > param.max) {
-			return { ok: false, error: `The maximum is ${show(param.max)}.` };
+			return { ok: false, error: `Enter ${show(param.max)} or less.` };
 		}
 		return { ok: true, value };
 	}

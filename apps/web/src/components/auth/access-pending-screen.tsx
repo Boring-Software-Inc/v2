@@ -33,12 +33,14 @@ export function AccessPendingScreen({
 
 				<div className="flex flex-col gap-2">
 					<h1 className="type-title">
-						{rejected ? "Not this time" : "You're on the waitlist"}
+						{rejected
+							? "Your access request was declined"
+							: "You're on the waitlist"}
 					</h1>
 					<p className="type-body text-text-2">
 						{rejected
-							? "Your access request wasn't approved. Thanks for your interest in Tripwire. Feel free to check back as we open up more broadly."
-							: "You applied with GitHub, so you're in line for the closed beta. We review requests manually and will email you the moment you're approved."}
+							? "Tripwire is in a closed beta with limited places. We are letting more people in over time, so check back later."
+							: "Your request to join the closed beta is in. We review each request by hand and email you when you are approved."}
 					</p>
 				</div>
 
@@ -46,7 +48,7 @@ export function AccessPendingScreen({
 					<Button
 						onClick={onCheck}
 						pending={checking}
-						pendingLabel="Checking"
+						pendingLabel="Checking status"
 						size="sm"
 						type="button"
 						variant="secondary"

@@ -10,12 +10,12 @@ const SECTIONS = [
 		to: "/admin/users",
 		title: "Users",
 		description:
-			"Review beta access. Approve or reject, one at a time or in bulk.",
+			"Review beta access. Approve or decline, one at a time or in bulk.",
 	},
 	{
 		to: "/admin/orgs",
 		title: "Orgs",
-		description: "Look at orgs and members, and fix member roles.",
+		description: "See every org and its members, and change member roles.",
 	},
 	{
 		to: "/admin/economics",

@@ -29,8 +29,8 @@ export function OrgAnalyticsPage() {
 					<header className="flex flex-col gap-1">
 						<h1 className="type-title">Analytics</h1>
 						<p className="type-body text-text-2">
-							Totals across this org's repos. Per-repo analytics live on each
-							repo's page.
+							Totals across this org's repos. Each repo also has its own
+							Analytics page.
 						</p>
 					</header>
 
@@ -85,10 +85,10 @@ function OrgAnalyticsBody({
 		<div className="flex flex-col gap-6">
 			<p className="type-body text-text-2">
 				<Count value={summary.armedRepos} /> of <Count value={summary.repos} />{" "}
-				repos have Tripwire on. In the last 24 hours,{" "}
-				<Count value={summary.events24h} /> events and{" "}
-				<Count value={summary.blocked24h} /> blocked.{" "}
-				<Count value={summary.pendingModeration} /> awaiting review.
+				repos have Tripwire on. In the last 24 hours Tripwire recorded{" "}
+				<Count value={summary.events24h} /> events and blocked{" "}
+				<Count value={summary.blocked24h} />. Waiting for review:{" "}
+				<Count value={summary.pendingModeration} />.
 			</p>
 			{atRest ? (
 				<ChartAtRest
@@ -108,7 +108,7 @@ function OrgAnalyticsBody({
 							? data
 							: hourlyZeroRows("hour", ["events", "blocked"])
 					}
-					label="Events and blocked, last 24 hours"
+					label="Events and blocks per hour, last 24 hours"
 					message="No events in the last 24 hours."
 					type="line"
 					unit="count"
@@ -119,7 +119,7 @@ function OrgAnalyticsBody({
 					config={eventsConfig}
 					data={data}
 					empty="No events in the last 24 hours."
-					label="Events and blocked, last 24 hours"
+					label="Events and blocks per hour, last 24 hours"
 					type="line"
 					unit="count"
 					xKey="hour"

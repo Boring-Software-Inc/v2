@@ -46,7 +46,7 @@ const BLOCK_CHOICES: {
 	{
 		value: "link-only",
 		label: "Link only",
-		description: "Says it's blocked and links to the details.",
+		description: "Says it is blocked and links to the details.",
 	},
 	{
 		value: "message",
@@ -140,7 +140,7 @@ export function VerdictSettings({
 	return (
 		<div className="flex flex-col gap-6">
 			<Section
-				description="What Tripwire writes on the pull request."
+				description="What Tripwire writes on the change request."
 				id={`comment-${verdict}`}
 				title="Comment"
 			>
@@ -214,7 +214,7 @@ export function VerdictSettings({
 			</Section>
 
 			<Section
-				description="The status in the pull request's merge box."
+				description="The status Tripwire reports next to the merge button."
 				id={`check-${verdict}`}
 				title="Check run"
 			>
@@ -223,8 +223,8 @@ export function VerdictSettings({
 						checked={config.onSuccess !== "silent"}
 						description={
 							config.onSuccess === "comment"
-								? "Always posts while a comment does."
-								: "Marks the pull request as passing."
+								? "Stays on while Post a comment is on."
+								: "Marks the change request as passed."
 						}
 						disabled={disabled || config.onSuccess === "comment"}
 						label="Post a check run"
@@ -236,8 +236,8 @@ export function VerdictSettings({
 						checked
 						description={
 							verdict === "block"
-								? "Always posts. The check is what blocks the merge."
-								: "Always posts. It holds the merge until a person decides."
+								? "Always on. The check run is what blocks the merge."
+								: "Always on. It holds the merge until a person decides."
 						}
 						disabled
 						label="Post a check run"

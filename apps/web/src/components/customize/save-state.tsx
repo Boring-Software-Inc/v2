@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Button } from "#/components/glaze/ui/button";
 import { Status } from "#/components/glaze/ui/status";
-import { SaveQueueNavGuard, useSaveQueue } from "#/components/save-queue";
+import {
+	DiscardChangesButton,
+	SaveQueueNavGuard,
+	useSaveQueue,
+} from "#/components/save-queue";
 
 const WAIT_SHOW_MS = 150;
 
@@ -41,9 +45,12 @@ export function SaveState({ canEdit, error, onDiscard }: SaveStateProps) {
 		);
 	} else if (error && !isCommitting) {
 		status = (
-			<Status size="sm" status="fail">
-				Not saved
-			</Status>
+			<span className="flex flex-col items-end gap-0.5">
+				<Status size="sm" status="fail">
+					Not saved
+				</Status>
+				<span className="type-caption text-fail-text">{error}</span>
+			</span>
 		);
 	} else if (isDirty) {
 		status = (
@@ -59,21 +66,14 @@ export function SaveState({ canEdit, error, onDiscard }: SaveStateProps) {
 			<output>{status}</output>
 			{canEdit && isDirty ? (
 				<>
-					<Button
-						disabled={isCommitting}
-						onClick={onDiscard}
-						size="sm"
-						variant="secondary"
-					>
-						Discard
-					</Button>
+					<DiscardChangesButton disabled={isCommitting} onDiscard={onDiscard} />
 					<Button
 						onClick={commit}
 						pending={saving}
 						pendingLabel="Saving"
 						size="sm"
 					>
-						{error ? "Try again" : "Save changes"}
+						{error ? "Save again" : "Save changes"}
 					</Button>
 				</>
 			) : null}

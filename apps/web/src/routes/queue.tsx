@@ -12,7 +12,7 @@ export const Route = createFileRoute("/queue")({
 	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle("Access queue"),
+			title: formatPageTitle("Waitlist"),
 			description: "Your Tripwire access request status.",
 			noindex: true,
 		}),
@@ -48,7 +48,9 @@ function QueuePage() {
 			if (fresh?.user?.accessStatus === "approved") {
 				router.navigate({ to: "/" });
 			} else {
-				toast("Still on the waitlist. We'll email you the moment you're in.");
+				toast(
+					"You are still on the waitlist. We email you when you are approved.",
+				);
 			}
 		} finally {
 			setChecking(false);

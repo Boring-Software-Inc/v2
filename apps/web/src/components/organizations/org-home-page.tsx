@@ -27,6 +27,7 @@ import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { NavChip } from "#/components/layouts/nav-chip";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { HomeListSkeleton } from "#/components/organizations/org-home-page-skeleton";
+import { LIVE_FORGES } from "#/lib/forge-copy";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
 import { orgContextQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
@@ -59,13 +60,15 @@ export function OrgHomePage() {
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
 					<header className="flex flex-col gap-1">
 						<h1 className="type-title">Home</h1>
-						<p className="type-body text-text-2">
-							Across this org's repos,{" "}
-							<span className="text-text-1 tabular-nums">{awaiting}</span>{" "}
-							awaiting your decision and{" "}
-							<span className="text-text-1 tabular-nums">{blocked}</span>{" "}
-							blocked today.
-						</p>
+						{home && ranked.length > 0 ? (
+							<p className="type-body text-text-2">
+								Across this org's repos,{" "}
+								<span className="text-text-1 tabular-nums">{awaiting}</span> to
+								review and{" "}
+								<span className="text-text-1 tabular-nums">{blocked}</span>{" "}
+								blocked in the last 24 hours.
+							</p>
+						) : null}
 					</header>
 
 					<SkeletonSwap
@@ -97,8 +100,11 @@ function HomeBody({
 		return (
 			<Empty art={<MascotArt mood="repos-syncing" />}>
 				<EmptyHeader>
-					<EmptyTitle>Syncing repos</EmptyTitle>
-					<EmptyDescription>This takes a moment.</EmptyDescription>
+					<EmptyTitle>No repos to show yet</EmptyTitle>
+					<EmptyDescription>
+						Repos appear here a few seconds after you connect them. If none show
+						up, check which repos the connection can see.
+					</EmptyDescription>
 				</EmptyHeader>
 				<EmptyContent>
 					<Button
@@ -141,16 +147,18 @@ function InstallCta({ org }: { org: string }) {
 				<EmptyTitle>No repos yet</EmptyTitle>
 				<EmptyDescription>
 					{isAdmin
-						? "Connect the forge your repos live on to start gating contributions."
-						: "An admin needs to connect a forge for this org."}
+						? `Connect ${LIVE_FORGES} and choose the repos Tripwire checks.`
+						: "Ask an admin of this org to connect repos."}
 				</EmptyDescription>
 			</EmptyHeader>
-			<EmptyContent>
-				<Button onClick={() => setConnecting(true)} size="sm">
-					<Icon icon={Add} />
-					Connect repos
-				</Button>
-			</EmptyContent>
+			{isAdmin ? (
+				<EmptyContent>
+					<Button onClick={() => setConnecting(true)} size="sm">
+						<Icon icon={Add} />
+						Connect repos
+					</Button>
+				</EmptyContent>
+			) : null}
 			<ConnectForgeDialog
 				onOpenChange={setConnecting}
 				open={connecting}
@@ -168,7 +176,7 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 					repo.pendingModeration > 0 || repo.blocked24h > 0 ? (
 						<>
 							{repo.pendingModeration > 0 ? (
-								<Badge>{repo.pendingModeration} awaiting</Badge>
+								<Badge>{repo.pendingModeration} to review</Badge>
 							) : null}
 							{repo.blocked24h > 0 ? (
 								<Badge variant="fail">{repo.blocked24h} blocked</Badge>
@@ -176,12 +184,14 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 						</>
 					) : null
 				) : (
-					<Badge variant="outline">Off</Badge>
+					<Badge variant="outline">Tripwire off</Badge>
 				)
 			}
 			description={
 				<>
-					{repo.armed ? attentionLine(repo) : "Tripwire is off"}
+					{repo.armed
+						? attentionLine(repo)
+						: "Open the repo to turn Tripwire on"}
 					{repo.lastActivityAt
 						? ` · ${formatRelativeTime(repo.lastActivityAt)}`
 						: null}
@@ -200,7 +210,7 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 				>
 					<NavChip
 						icon={Moderation}
-						label="Queue"
+						label="Moderation"
 						to={`/${org}/${repo.name}/moderation`}
 					/>
 					<NavChip
@@ -231,10 +241,10 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 
 function attentionLine(repo: SwitcherRepo): string {
 	if (repo.pendingModeration > 0) {
-		return "Needs your decision";
+		return "Has items to review";
 	}
 	if (repo.blocked24h > 0) {
 		return "Blocking change requests today";
 	}
-	return "Nothing needs your decision";
+	return "Nothing to review";
 }

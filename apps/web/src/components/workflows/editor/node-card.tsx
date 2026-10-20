@@ -38,7 +38,7 @@ function nodeName(node: WorkflowNode, customName: string | null): string {
 	switch (node.type) {
 		case "trigger":
 			// The kinds themselves live in the inline field row now.
-			return "event trigger";
+			return "Trigger";
 		case "rule": {
 			const [ruleId] = node.ref.split("@");
 			return (
@@ -137,7 +137,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 					className={cn(PORT_CLASS, "!-left-2")}
 					position={Position.Left}
 					style={PORT_TOP}
-					title="in"
+					title="Input"
 					type="target"
 				/>
 			) : null}
@@ -175,7 +175,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 						className={cn(PORT_CLASS, PORT_POSITIVE, "!-right-2")}
 						position={Position.Right}
 						style={PORT_TOP}
-						title="pass"
+						title="Next step when it passes"
 						type="source"
 					/>
 					<Handle
@@ -183,7 +183,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 						id="fail"
 						position={Position.Right}
 						style={PORT_CORNER}
-						title="fail"
+						title="Next step when it does not pass"
 						type="source"
 					/>
 				</>
@@ -194,7 +194,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 						id="approve"
 						position={Position.Right}
 						style={PORT_TOP}
-						title="approve"
+						title="Next step when a maintainer passes it"
 						type="source"
 					/>
 					<Handle
@@ -202,7 +202,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 						id="deny"
 						position={Position.Right}
 						style={PORT_CORNER}
-						title="deny"
+						title="Next step when a maintainer blocks it"
 						type="source"
 					/>
 				</>
@@ -211,7 +211,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 					className={cn(PORT_CLASS, "!-right-2")}
 					position={Position.Right}
 					style={PORT_TOP}
-					title="out"
+					title="Next step"
 					type="source"
 				/>
 			)}

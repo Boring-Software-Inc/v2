@@ -117,7 +117,7 @@ export function AnalyticsPage() {
 										size="sm"
 										variant="ghost"
 									>
-										Review rules
+										Open rules
 									</Button>
 								}
 								config={{
@@ -128,7 +128,7 @@ export function AnalyticsPage() {
 								}}
 								data={hourlyZeroRows("hour", ["value"])}
 								label="No analytics yet"
-								message="Once change requests are evaluated on this repo, their outcomes and trends show up here."
+								message="Charts appear here after Tripwire checks its first change request on this repo."
 								type="line"
 								unit="count"
 								xKey="hour"
@@ -186,8 +186,7 @@ function Delta({
 			)}
 		>
 			<Icon icon={up ? TrendUp : TrendDown} size={12} />
-			<span className="sr-only">{up ? "Up" : "Down"}</span>
-			{Math.abs(delta)}
+			{`${Math.abs(delta)} ${up ? "more" : "fewer"} than the 24 hours before`}
 		</span>
 	);
 }

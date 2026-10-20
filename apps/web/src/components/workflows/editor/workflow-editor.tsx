@@ -8,6 +8,7 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
+import { useBlocker } from "@tanstack/react-router";
 import type {
 	ValidationIssue,
 	WorkflowDefinition,
@@ -35,6 +36,16 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { Icon, Pointer } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
+import {
+	Dialog,
+	DialogAction,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/glaze/ui/dialog";
 import {
 	Item,
 	ItemActions,
@@ -70,6 +81,19 @@ import "@xyflow/react/dist/style.css";
 const NODE_TYPES = { tripwire: TripwireNode };
 const DELETE_KEYS = ["Backspace", "Delete"];
 const CANVAS_DROP_ID = "workflow-canvas";
+function fitViewOptions() {
+	const wide =
+		typeof window !== "undefined" &&
+		window.matchMedia("(min-width: 768px)").matches;
+	return {
+		padding: {
+			left: wide ? "288px" : "48px",
+			right: "48px",
+			top: wide ? "48px" : "64px",
+			bottom: "48px",
+		},
+	} as const;
+}
 
 const CANVAS_TOKENS = {
 	"--xy-background-color": "var(--page)",
@@ -173,6 +197,40 @@ function EditorBody({
 	const [dirty, setDirty] = useState(false);
 	const [dragged, setDragged] = useState<ToolboxItem | null>(null);
 	const { screenToFlowPosition } = useReactFlow();
+	const leave = useBlocker({
+		shouldBlockFn: () => dirty && !readOnly,
+		enableBeforeUnload: () => dirty && !readOnly,
+		withResolver: true,
+	});
+
+	const onBeforeDelete = async ({
+		nodes: deletedNodes,
+		edges: deletedEdges,
+	}: {
+		nodes: TripwireFlowNode[];
+		edges: Edge[];
+	}) => {
+		const before = { nodes, edges };
+		const stepCount = deletedNodes.length;
+		const title =
+			stepCount > 0
+				? stepCount === 1
+					? "Step deleted"
+					: `${stepCount} steps deleted`
+				: deletedEdges.length === 1
+					? "Connection deleted"
+					: `${deletedEdges.length} connections deleted`;
+		toast(title, {
+			action: {
+				label: "Undo",
+				onClick: () => {
+					setNodes(before.nodes);
+					setEdges(before.edges);
+				},
+			},
+		});
+		return true;
+	};
 
 	// meta rides the LOADED definition; a rename lands on refetch, and the next
 	// save picks it up — the definition stays the single artifact.
@@ -396,7 +454,12 @@ function EditorBody({
 			toast.fail(result.error);
 			return;
 		}
-		const saved = await onSave(result.definition);
+		const saved = await onSave(result.definition).catch(() => ({
+			ok: false as const,
+			error:
+				"Tripwire could not reach the server, so the workflow is not saved. Try again.",
+			connectionIssues: undefined,
+		}));
 		if (saved.ok) {
 			setDirty(false);
 			const failed = saved.connectionIssues ?? [];
@@ -405,20 +468,30 @@ function EditorBody({
 			);
 			if (failed.length > 0) {
 				toast.warn(
-					"Workflow saved. A webhook connection failed, see the node.",
+					"Workflow saved, but Tripwire could not reach a delivery address. Open the marked step to fix it.",
 				);
 			} else {
 				toast.success("Workflow saved");
 			}
 		} else {
-			toast.fail(saved.error ?? "Couldn't save");
+			toast.fail(
+				saved.error ?? "Tripwire could not save the workflow. Try again.",
+			);
 		}
 	};
 
 	const handleSetEnabled = async (next: boolean) => {
-		const result = await onSetEnabled(next);
+		const result = await onSetEnabled(next).catch(() => null);
+		if (result === null) {
+			toast.fail(
+				"Tripwire could not reach the server, so the workflow did not change. Try again.",
+			);
+			return;
+		}
 		if (result.ok) {
-			toast.success(result.enabled ? "Workflow enabled" : "Workflow disabled");
+			toast.success(
+				result.enabled ? "Workflow turned on" : "Workflow turned off",
+			);
 		} else {
 			// server is authoritative — surface its issues verbatim.
 			toast.fail(result.issues.map((issue) => issue.message).join("; "));
@@ -454,10 +527,12 @@ function EditorBody({
 						<NodeIssuesContext.Provider value={issuesByNode}>
 							<ReactFlow
 								deleteKeyCode={readOnly ? null : DELETE_KEYS}
+								onBeforeDelete={readOnly ? undefined : onBeforeDelete}
 								edges={edges}
 								edgesReconnectable={!readOnly}
 								elementsSelectable
 								fitView
+								fitViewOptions={fitViewOptions()}
 								nodes={nodes}
 								nodesConnectable={!readOnly}
 								nodesDraggable={!readOnly}
@@ -495,7 +570,7 @@ function EditorBody({
 					{nodes.length === 0 ? (
 						<div className="pointer-events-none absolute inset-0 grid place-items-center">
 							<p className="type-body-sm text-text-2">
-								Drag a block from the toolbox
+								Drag a step from the toolbox, or press its add button
 							</p>
 						</div>
 					) : null}
@@ -508,6 +583,38 @@ function EditorBody({
 					) : null}
 				</DragOverlay>
 			</DndContext>
+			<Dialog
+				onOpenChange={(open) => {
+					if (!open && leave.status === "blocked") {
+						leave.reset();
+					}
+				}}
+				open={leave.status === "blocked"}
+				role="alertdialog"
+			>
+				<DialogContent size="sm">
+					<DialogHeader>
+						<DialogTitle>Leave without saving?</DialogTitle>
+						<DialogDescription>
+							Your changes to this workflow are not saved. If you leave now,
+							they are lost.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<DialogClose>Keep editing</DialogClose>
+						<DialogAction
+							onAction={() => {
+								if (leave.status === "blocked") {
+									leave.proceed();
+								}
+							}}
+							variant="destructive"
+						>
+							Leave without saving
+						</DialogAction>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }
@@ -550,7 +657,7 @@ function IssuesPanel({
 								{issue.nodeId ? (
 									<ItemActions>
 										<Button
-											aria-label="Select the node with this issue"
+											aria-label="Select the step with this issue"
 											onClick={() => issue.nodeId && onSelect(issue.nodeId)}
 											size="icon-sm"
 											variant="ghost"

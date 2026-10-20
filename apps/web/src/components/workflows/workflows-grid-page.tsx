@@ -124,10 +124,12 @@ export function WorkflowsGridPage() {
 				});
 				return;
 			}
-			toast.fail(result.error ?? "Could not create workflow");
+			toast.fail(
+				result.error ?? "Tripwire could not create the workflow. Try again.",
+			);
 		},
 		onError: () => {
-			toast.fail("Could not create workflow");
+			toast.fail("Tripwire could not create the workflow. Try again.");
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({
@@ -187,7 +189,9 @@ export function WorkflowsGridPage() {
 				succeeded += 1;
 			} catch {
 				failedKeys.push(key);
-				refusals.push(`${name}: couldn't reach the server`);
+				refusals.push(
+					`${name}: Tripwire could not reach the server. Try again.`,
+				);
 			}
 		}
 
@@ -197,7 +201,7 @@ export function WorkflowsGridPage() {
 			});
 		}
 		if (failedKeys.length === 0) {
-			toast.success("Changes saved");
+			toast.success("Workflow changes saved");
 			return { ok: true as const };
 		}
 		const message = refusals.join(" · ");
@@ -284,7 +288,7 @@ function CreateSplitButton({
 				variant="secondary"
 			>
 				<Icon icon={Add} />
-				New workflow
+				Create workflow
 			</Button>
 			<ButtonGroupMenu
 				label="Start from a template"
@@ -322,7 +326,9 @@ function WorkflowsEmpty({
 			<Empty art={<MascotArt mood="workflows-empty" />}>
 				<EmptyHeader>
 					<EmptyTitle>No workflows yet</EmptyTitle>
-					<EmptyDescription>An admin can create one.</EmptyDescription>
+					<EmptyDescription>
+						Only org admins can create workflows. Ask an admin to add one.
+					</EmptyDescription>
 				</EmptyHeader>
 				<EmptyContent>
 					<Button
@@ -361,7 +367,7 @@ function WorkflowsEmpty({
 						size="sm"
 					>
 						<Icon icon={Add} />
-						Create a workflow
+						Create workflow
 					</Button>
 				</EmptyContent>
 			</Empty>
@@ -444,11 +450,16 @@ function WorkflowRow({
 			duplicateRepoWorkflow({ data: { org, repoId, workflowId: workflow.id } }),
 		onSuccess: (result) => {
 			if (!result.workflow) {
-				toast.fail(result.error ?? "Duplicate refused");
+				toast.fail(
+					result.error ??
+						"Tripwire could not duplicate the workflow. Try again.",
+				);
+				return;
 			}
+			toast.success(`Duplicated ${workflow.name}`);
 		},
 		onError: () => {
-			toast.fail("Duplicate refused");
+			toast.fail("Tripwire could not duplicate the workflow. Try again.");
 		},
 		onSettled: invalidateList,
 	});
@@ -466,14 +477,16 @@ function WorkflowRow({
 		}
 		const result = await renameMutation.mutateAsync(trimmed);
 		if (!result.ok) {
-			throw new Error(result.error ?? "Rename refused");
+			throw new Error(
+				result.error ?? "Tripwire could not rename the workflow. Try again.",
+			);
 		}
 	};
 
 	const submitDelete = async () => {
 		const result = await deleteMutation.mutateAsync();
 		if (!result.deleted) {
-			throw new Error("Delete refused");
+			throw new Error("Tripwire could not delete the workflow. Try again.");
 		}
 	};
 
@@ -483,14 +496,19 @@ function WorkflowRow({
 				description={
 					<>
 						{triggerSummary(workflow.triggerKinds)} · {workflow.nodeCount}{" "}
-						{workflow.nodeCount === 1 ? "node" : "nodes"}
+						{workflow.nodeCount === 1 ? "step" : "steps"}
 					</>
 				}
-				footerMeta={<>Updated {formatRelativeTime(workflow.updatedAt)}</>}
+				footerMeta={
+					<>
+						Updated {formatRelativeTime(workflow.updatedAt)}
+						{isAdmin ? null : " · Only admins can change workflows"}
+					</>
+				}
 				status={
 					<>
 						<Switch
-							aria-label={`Enable ${workflow.name}`}
+							aria-label={`Run ${workflow.name} on change requests`}
 							checked={queuedEnabled}
 							disabled={!isAdmin}
 							onCheckedChange={setQueuedEnabled}
@@ -586,8 +604,8 @@ function WorkflowRow({
 						<DialogTitle>Delete {workflow.name}?</DialogTitle>
 						<DialogDescription>
 							{workflow.enabled
-								? "This workflow is live. It runs against change requests right now."
-								: "Drafts are gone for good."}
+								? "This workflow is on and checks change requests right now. Deleting it stops those checks, and you cannot undo it."
+								: "This draft is deleted for good. You cannot undo it."}
 						</DialogDescription>
 					</DialogHeader>
 					{workflow.enabled ? (

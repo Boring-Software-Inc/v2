@@ -29,11 +29,12 @@ export function InvitePage() {
 		mutationFn: () => redeemOrgInvite({ data: { token } }),
 		onSuccess: (result) => {
 			if (result.status === "joined") {
-				toast.success("You're in");
+				toast.success("Joined the org");
 				navigate({ to: `/${result.orgSlug}/home` });
 				return;
 			}
 			if (result.status === "already-member") {
+				toast("You are already a member of this org");
 				navigate({ to: `/${result.orgSlug}/home` });
 			}
 		},
@@ -48,7 +49,7 @@ export function InvitePage() {
 		return (
 			<InviteShell>
 				<InviteCopy
-					body="You've been invited to join an org on Tripwire. Sign in with GitHub, then come back to this link."
+					body="You have an invite to join an org on Tripwire. Sign in and Tripwire brings you back to this invite."
 					title="Sign in to accept this invite"
 				/>
 				<Button
@@ -67,7 +68,7 @@ export function InvitePage() {
 		return (
 			<InviteShell>
 				<InviteCopy
-					body="Ask whoever sent it for a fresh link."
+					body="Ask the person who sent it for a new invite link."
 					title={INVALID_COPY[redeem.data.reason]}
 				/>
 				<Button
@@ -84,8 +85,8 @@ export function InvitePage() {
 	return (
 		<InviteShell>
 			<InviteCopy
-				body="Accepting adds you as a member. Nothing happens until you do."
-				title="You've been invited to join an org"
+				body="Joining adds you to the org as a member. Nothing changes until you choose Join org."
+				title="You have an invite to join an org"
 			/>
 			<Button
 				disabled={redeem.isSuccess}
@@ -98,7 +99,9 @@ export function InvitePage() {
 			</Button>
 			{redeem.isError ? (
 				<Alert className="text-start" status="fail">
-					<AlertTitle>Couldn't join the org. Try again in a moment.</AlertTitle>
+					<AlertTitle>
+						Couldn't join the org. Check your connection and try again.
+					</AlertTitle>
 				</Alert>
 			) : null}
 		</InviteShell>
@@ -109,8 +112,8 @@ const INVALID_COPY: Record<
 	"not-found" | "revoked" | "expired" | "exhausted",
 	string
 > = {
-	"not-found": "This invite doesn't exist",
-	revoked: "This invite was revoked",
+	"not-found": "This invite link does not work",
+	revoked: "An admin withdrew this invite",
 	expired: "This invite has expired",
 	exhausted: "This invite has no uses left",
 };

@@ -24,7 +24,7 @@ export const accessGuardMiddleware = createMiddleware({
 		headers: getStartContext().request.headers,
 	});
 	if (!session) {
-		throw new Error("session required");
+		throw new Error("Your session ended. Sign in again to continue.");
 	}
 	const { assertApproved } = await import("@tripwire/auth/access-gate");
 	const { getDb } = await import("#/lib/server/db");

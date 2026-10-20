@@ -34,7 +34,7 @@ import {
 
 const TABS: { value: OrgSettingsTab; label: string }[] = [
 	{ value: "members", label: "Members" },
-	{ value: "settings", label: "Settings" },
+	{ value: "settings", label: "General" },
 	{ value: "connections", label: "Connections" },
 	{ value: "billing", label: "Billing" },
 ];

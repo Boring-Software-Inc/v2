@@ -42,7 +42,11 @@ export const saveRepoResponseConfig = createServerFn({ method: "POST" })
 			);
 			const parsed = responseConfigSchema.safeParse(data.config);
 			if (!parsed.success) {
-				return { error: parsed.error.issues[0]?.message ?? "invalid config" };
+				return {
+					error:
+						parsed.error.issues[0]?.message ??
+						"These settings are not valid. Check the values and save again.",
+				};
 			}
 			const { repoServices } = await import("@tripwire/db");
 			const { getDb } = await import("#/lib/server/db");

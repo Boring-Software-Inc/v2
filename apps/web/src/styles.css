@@ -252,3 +252,12 @@ body {
 		transform: none;
 	}
 }
+
+@media (pointer: coarse) {
+	html .glaze {
+		--control-sm: 44px;
+		--control: 44px;
+		--control-lg: 44px;
+		--row: 44px;
+	}
+}

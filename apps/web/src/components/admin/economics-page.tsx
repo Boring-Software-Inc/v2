@@ -87,7 +87,9 @@ export function EconomicsPage() {
 		day: p.day,
 		spend: p.pulledCostUsd ?? p.meteredCostUsd,
 	}));
-	const seriesError = series.error ? "Could not load the daily numbers." : null;
+	const seriesError = series.error
+		? "Tripwire couldn't load the daily numbers. Reload the page to try again."
+		: null;
 
 	return (
 		<DashboardLayout counts={{}}>
@@ -401,7 +403,8 @@ function CostByOrgTable({
 						<TableEmpty
 							art={<MascotArt mood="admin-table-empty" size="compact" />}
 							colSpan={4}
-							title="No daily totals yet"
+							description="Orgs appear here after their first run this month."
+							title="No AI spend this month yet"
 							action={
 								<Button
 									nativeButton={false}

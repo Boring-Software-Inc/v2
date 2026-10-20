@@ -32,7 +32,8 @@ export function NoOrgsPage() {
 	const slugCheck = orgSlugSchema.safeParse(slug);
 	const slugError =
 		slug.length > 0 && !slugCheck.success
-			? (slugCheck.error?.issues[0]?.message ?? "Invalid slug")
+			? (slugCheck.error?.issues[0]?.message ??
+				"Use lowercase letters, numbers and hyphens.")
 			: null;
 
 	const create = useMutation({
@@ -46,6 +47,7 @@ export function NoOrgsPage() {
 	const serverError =
 		create.data && "error" in create.data ? create.data.error : null;
 
+	const [nameMissing, setNameMissing] = useState(false);
 	const canSubmit = name.trim().length > 0 && slugCheck.success;
 
 	return (
@@ -56,12 +58,16 @@ export function NoOrgsPage() {
 						Create your first org
 					</h1>
 					<p className="type-body text-text-2">
-						Everything in Tripwire lives inside an org.
+						An org holds your repos, rules and members.
 					</p>
 				</div>
 				<form
 					onSubmit={(event) => {
 						event.preventDefault();
+						if (name.trim().length === 0) {
+							setNameMissing(true);
+							return;
+						}
 						if (canSubmit && !create.isPending) {
 							create.mutate();
 						}
@@ -69,15 +75,21 @@ export function NoOrgsPage() {
 				>
 					<Card aria-labelledby={headingId} role="group">
 						<CardContent className="gap-4">
-							<Field>
+							<Field invalid={nameMissing}>
 								<FieldLabel>Name</FieldLabel>
 								<Input
 									autoFocus
 									leading={<OrgAvatar animate name={name} size="xs" />}
-									onChange={(event) => setName(event.target.value)}
+									onChange={(event) => {
+										setName(event.target.value);
+										if (nameMissing) setNameMissing(false);
+									}}
 									placeholder="Acme"
 									value={name}
 								/>
+								{nameMissing ? (
+									<FieldError>Enter a name for your org.</FieldError>
+								) : null}
 							</Field>
 							<Field invalid={slugError !== null}>
 								<FieldLabel>Slug</FieldLabel>
@@ -105,7 +117,7 @@ export function NoOrgsPage() {
 								</CardMeta>
 							) : null}
 							<Button
-								disabled={!canSubmit}
+								disabled={slugError !== null}
 								pending={create.isPending}
 								pendingLabel="Creating"
 								size="sm"

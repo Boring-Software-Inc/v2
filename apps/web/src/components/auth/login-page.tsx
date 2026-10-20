@@ -20,7 +20,7 @@ export function LoginPage() {
 				<div className="flex flex-col items-center gap-1 text-center">
 					<h1 className="type-title text-balance">Sign in to Tripwire</h1>
 					<p className="type-body text-pretty text-text-2">
-						Use the account that hosts your repositories.
+						Use the forge account that hosts your repos.
 					</p>
 				</div>
 

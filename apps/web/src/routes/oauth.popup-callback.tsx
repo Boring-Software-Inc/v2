@@ -27,7 +27,7 @@ export const Route = createFileRoute("/oauth/popup-callback")({
 	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle("Finishing up"),
+			title: formatPageTitle("Finishing sign-in"),
 			description: "Completing your Tripwire waitlist request.",
 			noindex: true,
 		}),
@@ -184,13 +184,15 @@ function PopupCallbackPage() {
 	if (view.kind === "approved") {
 		return (
 			<Shell>
-				<Heading>You're in</Heading>
-				<Body>Your account already has access.</Body>
+				<Heading>You have access</Heading>
+				<Body>
+					Your account is approved. Open Tripwire to set up your repos.
+				</Body>
 				<div className="flex flex-wrap items-center justify-center gap-2">
 					<Button variant="secondary" onClick={() => window.close()}>
 						Close window
 					</Button>
-					<Button onClick={launchApp}>Launch app</Button>
+					<Button onClick={launchApp}>Open Tripwire</Button>
 				</div>
 			</Shell>
 		);

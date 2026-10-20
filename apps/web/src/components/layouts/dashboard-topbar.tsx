@@ -43,6 +43,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 			className="flex h-12 min-w-0 shrink-0 items-center gap-3 px-3"
 		>
 			<Link
+				aria-label={org ? "Tripwire, go to org home" : "Tripwire, go to home"}
 				to={org ? "/$org/home" : "/"}
 				params={org ? { org } : {}}
 				className="flex h-(--control) shrink-0 items-center gap-2 rounded-pill px-2 text-text-1 hover:bg-hover"
@@ -53,11 +54,11 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 
 			<RepoTabBar className="hidden md:flex" />
 
-			<div className="ms-auto hidden items-center md:flex">
+			<div className="ms-auto flex min-w-0 items-center">
 				<RepoSwitcher />
 			</div>
 
-			<div className="ms-auto flex shrink-0 items-center gap-1 md:ms-0">
+			<div className="flex shrink-0 items-center gap-1">
 				<ThemeToggle />
 				<UserMenu org={org} user={user} />
 			</div>
@@ -120,7 +121,7 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 						}
 					>
 						<Icon icon={Settings} />
-						Open settings
+						Open org settings
 					</DropdownMenuLinkItem>
 				) : null}
 				<DropdownMenuItem onClick={openFeedback}>
@@ -139,7 +140,7 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 					}
 				>
 					<Icon icon={SignOut} />
-					Log out
+					Sign out
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>

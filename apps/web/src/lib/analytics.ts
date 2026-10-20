@@ -24,7 +24,7 @@ export function moderationMetrics(stats: ModStats): AnalyticsMetric[] {
 		},
 		{
 			key: "blocked",
-			label: "Blocked · 24h",
+			label: "Blocked",
 			series: stats.blocked.series,
 			delta: stats.blocked.delta,
 			// up = the gate working OR more attacks — genuinely ambiguous.
@@ -32,7 +32,7 @@ export function moderationMetrics(stats: ModStats): AnalyticsMetric[] {
 		},
 		{
 			key: "passed",
-			label: "Passed · 24h",
+			label: "Passed",
 			series: stats.passed.series,
 			delta: stats.passed.delta,
 			goodDirection: "up",

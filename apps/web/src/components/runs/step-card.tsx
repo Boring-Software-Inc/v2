@@ -6,9 +6,9 @@ import { describeSyntheticStep } from "#/lib/synthetic-steps";
 
 const STEP_STATUS: Record<string, { status: StatusValue; label: string }> = {
 	pass: { status: "ok", label: "Passed" },
-	fail: { status: "fail", label: "Failed" },
+	fail: { status: "fail", label: "Did not pass" },
 	skipped: { status: "idle", label: "Skipped" },
-	paused: { status: "waiting", label: "Review" },
+	paused: { status: "waiting", label: "Sent to review" },
 	pending: { status: "queued", label: "Queued" },
 };
 
@@ -25,7 +25,7 @@ function stepLabel(step: RunStepView): string {
 	if (step.ruleRef) {
 		return step.ruleName ?? ruleDisplayName(step.ruleRef);
 	}
-	return step.label ?? step.nodeKind;
+	return sentence(step.label ?? step.nodeKind);
 }
 
 function StepStatus({ status }: { status: string }) {
@@ -70,7 +70,7 @@ export function StepCard({
 						size="sm"
 						status={synthetic.kind === "deny-floor" ? "fail" : "warn"}
 					>
-						{synthetic.kind === "deny-floor" ? "Blocked" : "Degraded"}
+						{synthetic.kind === "deny-floor" ? "Blocked" : "Incomplete"}
 					</Status>
 				</div>
 				<p className="mt-1 type-body-sm text-text-2">
@@ -90,7 +90,7 @@ export function StepCard({
 			<div className="flex min-w-0 items-center gap-2">
 				<span className="shrink-0 truncate type-label">{label}</span>
 				<span className="min-w-0 flex-1 truncate type-body-sm text-text-2">
-					{failed ? "" : line}
+					{failed || !line ? "" : sentence(line)}
 				</span>
 				{maintainer && step.ruleRef ? (
 					<span className="hidden shrink-0 type-code-sm text-text-2 sm:inline">
@@ -104,7 +104,9 @@ export function StepCard({
 			</div>
 			{failed ? (
 				<>
-					{line ? <p className="mt-2 type-body text-text-1">{line}</p> : null}
+					{line ? (
+						<p className="mt-2 type-body text-text-1">{sentence(line)}</p>
+					) : null}
 					{step.nodeKind === "rule" ? (
 						<RuleEvidence
 							maintainer={maintainer}

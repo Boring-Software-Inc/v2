@@ -14,7 +14,7 @@ import {
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { useState } from "react";
-import { Add, Icon } from "#/components/glaze/icon";
+import { Add, Close, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Item,
@@ -200,86 +200,125 @@ export function EditorSidebar({
 			: section,
 	);
 	const [tab, setTab] = useState<"toolbox" | "properties">("toolbox");
-	const propertiesDisabled =
-		selectedNode === null || !hasEditableParams(selectedNode);
-	const activeTab = propertiesDisabled ? "toolbox" : tab;
+	const editable = selectedNode !== null && hasEditableParams(selectedNode);
+	const [shown, setShown] = useState<"auto" | "open" | "closed">("auto");
+	const addAndReveal = (item: ToolboxItem) => {
+		onAdd(item);
+		if (!window.matchMedia("(min-width: 768px)").matches) {
+			setShown("auto");
+		}
+	};
 
 	return (
-		<div className="shell absolute start-3 top-3 bottom-3 z-(--z-raised) flex w-64 flex-col gap-(--shell-inset)">
-			<Tabs
-				className="min-h-0 flex-1 gap-(--shell-inset)"
-				onValueChange={(value) => setTab(value as "toolbox" | "properties")}
-				value={activeTab}
+		<>
+			<Button
+				className={cn(
+					"absolute start-3 top-3 z-(--z-raised)",
+					shown === "auto" && "md:hidden",
+					shown === "open" && "hidden",
+				)}
+				onClick={() => setShown("open")}
+				size="sm"
+				variant="secondary"
 			>
-				<div className="px-1 pt-1">
-					<TabsList aria-label="Editor sidebar" size="sm">
-						<TabsTrigger value="toolbox">Toolbox</TabsTrigger>
-						<TabsTrigger disabled={propertiesDisabled} value="properties">
-							Properties
-						</TabsTrigger>
-					</TabsList>
-				</div>
-				<TabsContent
-					className="panel min-h-0 overflow-y-auto p-2"
-					value="toolbox"
+				{readOnly ? null : <Icon icon={Add} />}
+				{readOnly ? "Show toolbox" : "Add steps"}
+			</Button>
+			<div
+				className={cn(
+					"shell absolute start-3 top-3 bottom-3 z-(--z-raised) w-64 flex-col gap-(--shell-inset)",
+					shown === "auto" && "hidden md:flex",
+					shown === "open" && "flex",
+					shown === "closed" && "hidden",
+				)}
+			>
+				<Tabs
+					className="min-h-0 flex-1 gap-(--shell-inset)"
+					onValueChange={(value) => setTab(value as "toolbox" | "properties")}
+					value={tab}
 				>
-					<div className="flex flex-col gap-3">
-						{sections.map((section) => (
-							<section
-								aria-labelledby={`toolbox-${section.kind}`}
-								className="flex flex-col gap-1"
-								key={section.title}
-							>
-								<h3
-									className="px-1 type-label-sm text-text-2"
-									id={`toolbox-${section.kind}`}
-								>
-									{section.title}
-								</h3>
-								<ItemGroup aria-label={section.title} variant="plain">
-									{section.items.map((item) => (
-										<ToolboxRow
-											disabled={readOnly}
-											item={item}
-											key={item.id}
-											onAdd={onAdd}
-										/>
-									))}
-								</ItemGroup>
-								{section.kind === "rule" ? (
-									<Button
-										className="self-start"
-										nativeButton={false}
-										render={
-											<Link params={{ org, repo }} to="/$org/$repo/rules" />
-										}
-										size="sm"
-										variant="ghost"
-									>
-										<Icon icon={Add} />
-										Create rule
-									</Button>
-								) : null}
-							</section>
-						))}
+					<div className="flex items-center justify-between gap-2 px-1 pt-1">
+						<TabsList aria-label="Editor sidebar" size="sm">
+							<TabsTrigger value="toolbox">Toolbox</TabsTrigger>
+							<TabsTrigger value="properties">Properties</TabsTrigger>
+						</TabsList>
+						<Button
+							aria-label="Hide toolbox"
+							onClick={() => setShown("closed")}
+							size="icon-sm"
+							variant="ghost"
+						>
+							<Icon icon={Close} />
+						</Button>
 					</div>
-				</TabsContent>
-				<TabsContent
-					className="panel min-h-0 overflow-y-auto p-3"
-					value="properties"
-				>
-					{selectedNode ? (
-						<PropertiesPanel
-							key={selectedNode.id}
-							node={selectedNode}
-							onTestConnection={onTestConnection}
-							onUpdate={onUpdateNode}
-							readOnly={readOnly}
-						/>
-					) : null}
-				</TabsContent>
-			</Tabs>
-		</div>
+					<TabsContent
+						className="panel min-h-0 overflow-y-auto p-2"
+						value="toolbox"
+					>
+						<div className="flex flex-col gap-3">
+							{sections.map((section) => (
+								<section
+									aria-labelledby={`toolbox-${section.kind}`}
+									className="flex flex-col gap-1"
+									key={section.title}
+								>
+									<h3
+										className="px-1 type-label-sm text-text-2"
+										id={`toolbox-${section.kind}`}
+									>
+										{section.title}
+									</h3>
+									<ItemGroup aria-label={section.title} variant="plain">
+										{section.items.map((item) => (
+											<ToolboxRow
+												disabled={readOnly}
+												item={item}
+												key={item.id}
+												onAdd={addAndReveal}
+											/>
+										))}
+									</ItemGroup>
+									{section.kind === "rule" ? (
+										<Button
+											className="self-start"
+											nativeButton={false}
+											render={
+												<Link params={{ org, repo }} to="/$org/$repo/rules" />
+											}
+											size="sm"
+											variant="ghost"
+										>
+											<Icon icon={Add} />
+											Create rule
+										</Button>
+									) : null}
+								</section>
+							))}
+						</div>
+					</TabsContent>
+					<TabsContent
+						className="panel min-h-0 overflow-y-auto p-3"
+						value="properties"
+					>
+						{selectedNode && editable ? (
+							<PropertiesPanel
+								key={selectedNode.id}
+								node={selectedNode}
+								onTestConnection={onTestConnection}
+								onUpdate={onUpdateNode}
+								readOnly={readOnly}
+							/>
+						) : (
+							<p className="type-body-sm text-text-2">
+								{selectedNode
+									? "This step has no settings to change."
+									: "Select one step on the canvas to see its settings."}
+							</p>
+						)}
+					</TabsContent>
+				</Tabs>
+			</div>
+		</>
 	);
 }
 

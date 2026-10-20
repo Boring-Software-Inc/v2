@@ -4,7 +4,7 @@ import { Status, type StatusValue } from "#/components/glaze/ui/status";
 const STATUS: Record<AccessStatus, { status: StatusValue; label: string }> = {
 	pending: { status: "waiting", label: "Pending" },
 	approved: { status: "idle", label: "Approved" },
-	rejected: { status: "fail", label: "Rejected" },
+	rejected: { status: "fail", label: "Declined" },
 };
 
 export function AccessStatusMark({ status }: { status: AccessStatus }) {

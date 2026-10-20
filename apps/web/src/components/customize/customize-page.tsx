@@ -60,7 +60,9 @@ export function CustomizePage() {
 
 	const commitBatch: SaveQueueCommit = async (pending) => {
 		if (!savedConfig) {
-			return { error: "Settings have not loaded yet." };
+			return {
+				error: "Settings are still loading. Wait a moment and save again.",
+			};
 		}
 		const next = unflattenConfig({ ...savedValues, ...pending });
 		try {
@@ -72,8 +74,12 @@ export function CustomizePage() {
 				return { error: result.error };
 			}
 		} catch {
-			setSaveError("Could not save.");
-			return { error: "Could not save." };
+			setSaveError(
+				"Changes did not save. Check your connection and save again.",
+			);
+			return {
+				error: "Changes did not save. Check your connection and save again.",
+			};
 		}
 		setSaveError(null);
 		await queryClient.invalidateQueries({
@@ -152,7 +158,7 @@ function CustomizeView({
 						<div className="flex min-w-0 flex-col gap-1">
 							<h1 className="type-title">Customize</h1>
 							<p className="type-body text-text-2">
-								What Tripwire posts on a pull request for each verdict.
+								What Tripwire posts on a change request for each verdict.
 							</p>
 						</div>
 						<SaveState

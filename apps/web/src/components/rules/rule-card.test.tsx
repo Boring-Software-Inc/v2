@@ -78,11 +78,11 @@ describe("RuleCard management states", () => {
 		const heldStandalone = render(
 			<RuleCard {...base} rule={rule({ held: true })} />,
 		);
-		expect(heldStandalone).toContain("Update held");
+		expect(heldStandalone).toContain("New version waiting");
 		const heldManaged = render(
 			<RuleCard {...base} rule={rule({ held: true, management: "managed" })} />,
 		);
-		expect(heldManaged).not.toContain("Update held");
+		expect(heldManaged).not.toContain("New version waiting");
 	});
 
 	test("the 24h count reddens only when blocks actually fired", () => {

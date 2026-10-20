@@ -45,7 +45,10 @@ export const CustomizePreview = memo(function CustomizePreview({
 			ref={link.attach}
 		>
 			<Surface label="Comment" region="comment">
-				<GithubCommentMock body={body} />
+				<GithubCommentMock
+					body={body}
+					silentNote="Turn on Post a comment to preview one here."
+				/>
 			</Surface>
 			<Surface label="Check run" region="check">
 				<CheckStateMock

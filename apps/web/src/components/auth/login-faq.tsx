@@ -11,13 +11,13 @@ const FAQ = [
 		id: "what-is-a-forge",
 		question: "What is a forge?",
 		answer:
-			"The host your code lives on: GitHub, GitLab, or anything self-hosted. Tripwire sits in front of whichever you use.",
+			"The service that hosts your code, such as GitHub or GitLab. Tripwire checks change requests on the forge you connect.",
 	},
 	{
 		id: "why-multiple",
-		question: "Why are there multiple options?",
+		question: "Does it matter which one I pick?",
 		answer:
-			"You sign in with whichever forge hosts your code. The checks are identical everywhere. The account just tells Tripwire where to watch.",
+			"Pick the forge that hosts your code. Tripwire runs the same checks on every forge. Your account tells Tripwire which repos to watch.",
 	},
 	{
 		id: "which-supported",
@@ -25,7 +25,7 @@ const FAQ = [
 		// Two different sets, and conflating them would be a lie: you can sign in
 		// with a forge before tripwire can watch its repos. Both generated from
 		// the catalog, so an adapter shipping can't leave this calling it "next".
-		answer: `Tripwire watches ${LIVE_FORGES} today. You can sign in with ${SIGN_IN_FORGES}; the rest are coming.`,
+		answer: `Tripwire watches ${LIVE_FORGES} today. You can sign in with ${SIGN_IN_FORGES}; the others are not available for sign-in yet.`,
 	},
 ];
 

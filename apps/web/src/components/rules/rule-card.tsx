@@ -1,10 +1,21 @@
 import { Link } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
+import { useState } from "react";
 import { EntityCard } from "#/components/common/entity-card";
 import { ArrowRight, Icon } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import { Sparkline } from "#/components/glaze/ui/chart";
+import {
+	Dialog,
+	DialogAction,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/glaze/ui/dialog";
 import { Switch } from "#/components/glaze/ui/switch";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
@@ -47,8 +58,9 @@ export function RuleCard({
 	/** Caller is an org admin — gates the inline config editors (§9). */
 	canEdit: boolean;
 	/** Custom rules only: remove the rule. Lifecycle, not behavior. */
-	onDelete?: (ruleId: string) => void;
+	onDelete?: (ruleId: string) => Promise<void>;
 }) {
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const { valueFor, setField } = useSaveQueue();
 	// Pending-or-saved; managed rules have no queue keys, so fall back to the
 	// view (the workflow node's state, read-only anyway).
@@ -111,7 +123,7 @@ export function RuleCard({
 			badges={
 				<>
 					<Badge variant={enabled && standalone ? "neutral" : "outline"}>
-						Block
+						Blocks
 					</Badge>
 					{rule.source === "custom" ? (
 						<Badge variant="outline">Custom</Badge>
@@ -154,20 +166,47 @@ export function RuleCard({
 							</Button>
 						) : null}
 						{deletable ? (
-							<Button
-								disabled={Boolean(deleteBlocked)}
-								focusableWhenDisabled={Boolean(deleteBlocked)}
-								onClick={() => onDelete?.(rule.ruleId)}
-								size="sm"
-								title={
-									deleteBlocked
-										? "Remove this rule from its workflows before deleting"
-										: undefined
-								}
-								variant="secondary"
-							>
-								Delete rule
-							</Button>
+							<>
+								<Button
+									disabled={Boolean(deleteBlocked)}
+									focusableWhenDisabled={Boolean(deleteBlocked)}
+									onClick={() => setConfirmingDelete(true)}
+									size="sm"
+									title={
+										deleteBlocked
+											? "Remove this rule from its workflows before you delete it"
+											: undefined
+									}
+									variant="secondary"
+								>
+									Delete rule
+								</Button>
+								<Dialog
+									onOpenChange={setConfirmingDelete}
+									open={confirmingDelete}
+									role="alertdialog"
+								>
+									<DialogContent size="sm">
+										<DialogHeader>
+											<DialogTitle>Delete {rule.name}?</DialogTitle>
+											<DialogDescription>
+												Tripwire stops checking change requests against this
+												rule. Its past matches stay in Activity.
+											</DialogDescription>
+										</DialogHeader>
+										<DialogFooter>
+											<DialogClose>Keep rule</DialogClose>
+											<DialogAction
+												onAction={() => onDelete?.(rule.ruleId)}
+												pendingLabel="Deleting"
+												variant="destructive"
+											>
+												Delete rule
+											</DialogAction>
+										</DialogFooter>
+									</DialogContent>
+								</Dialog>
+							</>
 						) : null}
 					</>
 				) : undefined
@@ -209,8 +248,14 @@ export function RuleCard({
 							)}
 						>
 							{rule.matches24h}
+							<span className="sr-only">
+								{rule.matches24h === 1 ? " match" : " matches"} in the last 24
+								hours
+							</span>
 						</span>
-						<span className="type-caption text-text-2">24h</span>
+						<span aria-hidden className="type-caption text-text-2">
+							24h
+						</span>
 					</span>
 					{standalone ? (
 						offering ? (
@@ -243,10 +288,11 @@ export function RuleCard({
 
 			{rule.held && standalone ? (
 				<div className="flex flex-wrap items-center gap-2">
-					<Badge variant="warn">Update held</Badge>
+					<Badge variant="warn">New version waiting</Badge>
 					<span className="type-body-sm text-text-2">
 						{rule.changeNote ? `${rule.changeNote}. ` : ""}Your saved settings
-						do not carry over. Confirm again to move to the new version.
+						do not carry over to it, so this rule keeps running the old version
+						until you move it.
 					</span>
 					<Button
 						aria-pressed={upgradeQueued === true}
@@ -255,7 +301,9 @@ export function RuleCard({
 						size="sm"
 						variant="secondary"
 					>
-						{upgradeQueued === true ? "Queued, save to apply" : "Confirm again"}
+						{upgradeQueued === true
+							? "Moves when you save"
+							: "Move to new version"}
 					</Button>
 				</div>
 			) : null}
