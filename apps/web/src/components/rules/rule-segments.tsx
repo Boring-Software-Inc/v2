@@ -1,4 +1,7 @@
-import { cn } from "#/lib/utils";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/components/glaze/ui/segmented-control";
 
 /** Which slice of the rule list is shown. Derived entirely from existing
  * `RuleConfigView` fields (no taxonomy): `active` = enabled, `workflows` =
@@ -6,11 +9,14 @@ import { cn } from "#/lib/utils";
 export type RuleFilter = "all" | "active" | "workflows" | "custom";
 
 const SEGMENTS: { key: RuleFilter; label: string }[] = [
-	{ key: "all", label: "all" },
-	{ key: "active", label: "active" },
-	{ key: "workflows", label: "in workflows" },
-	{ key: "custom", label: "custom" },
+	{ key: "all", label: "All" },
+	{ key: "active", label: "Active" },
+	{ key: "workflows", label: "In workflows" },
+	{ key: "custom", label: "Custom" },
 ];
+
+const isRuleFilter = (value: string): value is RuleFilter =>
+	SEGMENTS.some((seg) => seg.key === value);
 
 /**
  * Segmented filter for the rules grid — jumps straight to active/custom/managed
@@ -31,34 +37,25 @@ export function RuleSegments({
 		(seg) => seg.key !== "workflows" || counts.workflows > 0,
 	);
 	return (
-		<div className="inline-flex items-center gap-0.5 rounded-lg bg-surface-1 p-0.5 text-xs">
-			{shown.map((seg) => {
-				const active = filter === seg.key;
-				return (
-					<button
-						aria-pressed={active}
-						className={cn(
-							"flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors",
-							active
-								? "bg-background text-foreground shadow-xs"
-								: "text-muted-foreground hover:text-foreground",
-						)}
-						key={seg.key}
-						onClick={() => onChange(seg.key)}
-						type="button"
-					>
-						{seg.label}
-						<span
-							className={cn(
-								"tabular-nums",
-								active ? "text-muted-foreground" : "text-muted-foreground/60",
-							)}
-						>
-							{counts[seg.key]}
-						</span>
-					</button>
-				);
-			})}
-		</div>
+		<SegmentedControl
+			aria-label="Show rules"
+			onValueChange={(value) => {
+				if (isRuleFilter(value)) {
+					onChange(value);
+				}
+			}}
+			size="sm"
+			value={filter}
+		>
+			{shown.map((seg) => (
+				<SegmentedControlItem
+					count={counts[seg.key]}
+					key={seg.key}
+					value={seg.key}
+				>
+					{seg.label}
+				</SegmentedControlItem>
+			))}
+		</SegmentedControl>
 	);
 }

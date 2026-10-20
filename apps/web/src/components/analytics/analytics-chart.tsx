@@ -1,78 +1,59 @@
 "use client";
 
-import { motion } from "motion/react";
-import { useMemo, useRef } from "react";
-import type { DitherColor } from "#/components/charts/dither-chart";
-import {
-	Area,
-	AreaChart,
-	type ChartConfig,
-	Tooltip,
-} from "#/components/charts/dither-kit";
+import type { MouseEvent, ReactNode } from "react";
+import { Chart } from "#/components/glaze/ui/chart";
+import { hoursAgo } from "#/lib/analytics";
 
-/**
- * Full-bleed interactive dither chart. The engine owns the scrub hover + the
- * gliding tooltip; this wrapper only commits a point on click (`onCommit`) and
- * supplies the shared-element `layoutId` so the spark morphs in from a card.
- */
+function hourLabel(index: number, length: number): string {
+	const ago = hoursAgo(index, length);
+	return ago === 0 ? "Now" : `${ago}h ago`;
+}
+
+function pointIndex(event: MouseEvent<HTMLDivElement>): number | null {
+	const target = event.target;
+	if (!(target instanceof HTMLElement)) return null;
+	const point = target.closest("button");
+	const group = point?.parentElement;
+	if (!point || group?.getAttribute("role") !== "group") return null;
+	return Array.prototype.indexOf.call(group.children, point);
+}
+
 export function AnalyticsChart({
 	series,
-	color,
-	committedIndex,
 	suffix,
 	label,
+	description,
 	onCommit,
-	layoutId,
 }: {
 	series: number[];
-	color: DitherColor;
-	committedIndex: number | null;
 	suffix?: string;
-	/** Series label shown in the tooltip. */
-	label?: string;
+	label: string;
+	description?: ReactNode;
 	onCommit: (index: number) => void;
-	/** Shared-element id — matches a home stat card so the spark morphs in. */
-	layoutId?: string;
 }) {
-	const ref = useRef<HTMLDivElement>(null);
-
-	const data = useMemo(() => series.map((value) => ({ value })), [series]);
-	const config = useMemo<ChartConfig>(
-		() => ({ value: { label: label ?? "", color } }),
-		[label, color],
-	);
-
-	const indexFromX = (clientX: number) => {
-		const el = ref.current;
-		if (!el) return 0;
-		const rect = el.getBoundingClientRect();
-		const t = (clientX - rect.left) / rect.width;
-		return Math.max(
-			0,
-			Math.min(series.length - 1, Math.round(t * (series.length - 1))),
-		);
-	};
+	const data = series.map((value, i) => ({
+		hour: hourLabel(i, series.length),
+		value,
+	}));
 
 	return (
-		<motion.div
-			ref={ref}
-			layoutId={layoutId}
-			transition={{ type: "spring", stiffness: 320, damping: 34 }}
-			className="relative h-full w-full cursor-crosshair overflow-hidden"
-			onPointerDown={(e) => onCommit(indexFromX(e.clientX))}
+		<div
+			onClickCapture={(event) => {
+				const index = pointIndex(event);
+				if (index !== null && index >= 0) onCommit(index);
+			}}
 		>
-			<AreaChart
+			<Chart
+				area
+				config={{ hour: { label: "Hour" }, value: { label } }}
 				data={data}
-				config={config}
-				markerIndex={committedIndex}
-				bloom="aura"
-				// Vertical headroom so the bloom glow isn't clipped by the container.
-				margins={{ top: 28, right: 0, bottom: 18, left: 0 }}
-				className="absolute inset-0"
-			>
-				<Area dataKey="value" variant="gradient" />
-				<Tooltip valueFormatter={(value) => `${value}${suffix ?? ""}`} />
-			</AreaChart>
-		</motion.div>
+				description={description}
+				label={`${label}, last 24 hours`}
+				type="line"
+				unit="count"
+				valueFormat={suffix ? (v) => `${v}${suffix}` : undefined}
+				xKey="hour"
+			/>
+		</div>
 	);
 }

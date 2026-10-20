@@ -1,33 +1,46 @@
-import {
-	ActivityIcon,
-	Analytics01Icon,
-	CheckListIcon,
-	FlowIcon,
-	GitBranchIcon,
-	PlusSignIcon,
-	Queue01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { ItemRouterLink } from "#/components/common/router-links";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
+import {
+	Activity,
+	Add,
+	Analytics,
+	Branch,
+	Icon,
+	Moderation,
+	Rules,
+	Workflow,
+} from "#/components/glaze/icon";
+import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
+import {
+	Item,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemMeta,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
+import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { NavChip } from "#/components/layouts/nav-chip";
 import { HomeListSkeleton } from "#/components/organizations/org-home-page-skeleton";
-import { Button } from "#/components/ui/button";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
 import { orgContextQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
-import { cn } from "#/lib/utils";
 
 const route = getRouteApi("/$org/home");
 
-/**
- * §8 — /:org/home is the org's cross-repo front door: every repo the org
- * protects, ranked by what needs attention. Clicking a repo navigates INTO it
- * (/:org/:repo) — the URL is the scope, nothing is mutated server-side.
- */
 export function OrgHomePage() {
 	const { org } = route.useParams();
 	const { data: home, error } = useQuery(orgHomeQueryOptions(org));
@@ -50,30 +63,26 @@ export function OrgHomePage() {
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-5 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
-					<div className="flex flex-col gap-4">
-						<header className="flex flex-col gap-1.5">
-							<h1 className="font-semibold text-2xl tracking-tight">Home</h1>
-							<p className="text-muted-foreground text-sm">
-								across this org's repos —{" "}
-								<span className="font-medium text-foreground tabular-nums">
-									{awaiting}
-								</span>{" "}
-								awaiting your decision,{" "}
-								<span className="font-medium text-foreground tabular-nums">
-									{blocked}
-								</span>{" "}
-								blocked today.
-							</p>
-						</header>
-					</div>
+			<div className="px-4 py-6 md:px-8 md:py-10">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+					<header className="flex flex-col gap-1">
+						<h1 className="type-title">Home</h1>
+						<p className="type-body text-text-2">
+							Across this org's repos,{" "}
+							<span className="text-text-1 tabular-nums">{awaiting}</span>{" "}
+							awaiting your decision and{" "}
+							<span className="text-text-1 tabular-nums">{blocked}</span>{" "}
+							blocked today.
+						</p>
+					</header>
 
-					{home ? (
-						<HomeBody home={home} org={org} ranked={ranked} />
-					) : (
-						<HomeListSkeleton />
-					)}
+					<SkeletonSwap
+						fallback={<HomeListSkeleton />}
+						label="Loading repos"
+						loading={!home}
+					>
+						{home ? <HomeBody home={home} org={org} ranked={ranked} /> : null}
+					</SkeletonSwap>
 				</div>
 			</div>
 		</DashboardLayout>
@@ -94,161 +103,128 @@ function HomeBody({
 	}
 	if (ranked.length === 0) {
 		return (
-			<div className="rounded-xl bg-card px-5 py-8 text-center text-muted-foreground text-sm">
-				syncing repos — this takes a moment.
-			</div>
+			<Empty>
+				<EmptyHeader>
+					<EmptyTitle>Syncing repos</EmptyTitle>
+					<EmptyDescription>This takes a moment.</EmptyDescription>
+				</EmptyHeader>
+			</Empty>
 		);
 	}
 	return (
-		<div className="flex flex-col gap-1">
+		<ItemGroup aria-label="Repos">
 			{ranked.map((repo) => (
 				<RepoRow key={repo.id} org={org} repo={repo} />
 			))}
-		</div>
+		</ItemGroup>
 	);
 }
 
-/**
- * No repos yet. ONE call to action — the forge is chosen inside the dialog, not
- * by picking between an "install the github app" button and a separate gitlab
- * button joined by an "or". Per-forge availability (admin rights, a missing app
- * config) is explained on the cell that can't run, not by hiding the door.
- */
 function InstallCta({ org }: { org: string }) {
 	const { data: ctx } = useQuery(orgContextQueryOptions(org));
 	const [connecting, setConnecting] = useState(false);
 	const isAdmin = ctx?.role === "admin";
 
 	return (
-		<div className="flex flex-col items-start gap-3 rounded-xl bg-card px-5 py-6">
-			<div className="flex flex-col gap-1">
-				<h2 className="font-medium text-sm">no repos yet</h2>
-				<p className="text-muted-foreground text-sm">
+		<Empty>
+			<EmptyHeader>
+				<EmptyTitle>No repos yet</EmptyTitle>
+				<EmptyDescription>
 					{isAdmin
-						? "connect the forge your repos live on to start gating contributions."
-						: "an admin needs to connect a forge for this org."}
-				</p>
-			</div>
-			<Button
-				iconLeft={
-					<HugeiconsIcon icon={PlusSignIcon} size={14} strokeWidth={2} />
-				}
-				onClick={() => setConnecting(true)}
-				size="sm"
-			>
-				connect repos
-			</Button>
+						? "Connect the forge your repos live on to start gating contributions."
+						: "An admin needs to connect a forge for this org."}
+				</EmptyDescription>
+			</EmptyHeader>
+			<EmptyContent>
+				<Button onClick={() => setConnecting(true)} size="sm">
+					<Icon icon={Add} />
+					Connect repos
+				</Button>
+			</EmptyContent>
 			<ConnectForgeDialog
 				onOpenChange={setConnecting}
 				open={connecting}
 				org={org}
 			/>
-		</div>
+		</Empty>
 	);
 }
 
 function RepoRow({ org, repo }: { org: string; repo: SwitcherRepo }) {
-	// The whole card links into the repo (its default page). Armed repos also get
-	// direct feature shortcuts (§8) reachable straight from org home. Nested <a>
-	// is invalid, so the card-wide link is a stretched `::after` overlay and the
-	// feature toolbar / chips sit above it (relative z-10) to stay clickable.
 	return (
-		<div className="relative rounded-lg px-3 py-3">
-			<div className="flex items-center gap-3">
-				<HugeiconsIcon
-					className="shrink-0 text-muted-foreground"
-					icon={GitBranchIcon}
-					size={16}
-					strokeWidth={1.8}
-				/>
-				<Link
-					className="min-w-0 flex-1 text-left after:absolute after:inset-0 after:rounded-lg"
-					params={{ org, repo: repo.name }}
-					to="/$org/$repo"
-				>
-					<div className="truncate font-medium text-sm">{repo.fullName}</div>
-					<div className="text-muted-foreground text-xs">
-						{repo.armed ? attentionLine(repo) : "available — not armed"}
-						{repo.lastActivityAt
-							? ` · ${formatRelativeTime(repo.lastActivityAt)}`
-							: null}
-					</div>
-				</Link>
+		<Item className="flex-wrap py-2">
+			<ItemMedia variant="icon">
+				<Icon icon={Branch} />
+			</ItemMedia>
+			<ItemContent>
+				<ItemTitle>
+					<ItemRouterLink params={{ org, repo: repo.name }} to="/$org/$repo">
+						{repo.fullName}
+					</ItemRouterLink>
+				</ItemTitle>
+				<ItemDescription>
+					{repo.armed ? attentionLine(repo) : "Available, not armed"}
+					{repo.lastActivityAt
+						? ` · ${formatRelativeTime(repo.lastActivityAt)}`
+						: null}
+				</ItemDescription>
+			</ItemContent>
+			<ItemMeta className="flex items-center gap-1.5">
 				{repo.armed ? (
-					<div className="relative z-10 flex shrink-0 items-center gap-2">
+					<>
 						{repo.pendingModeration > 0 ? (
-							<Chip tone="amber">{repo.pendingModeration} awaiting</Chip>
+							<Badge>{repo.pendingModeration} awaiting</Badge>
 						) : null}
 						{repo.blocked24h > 0 ? (
-							<Chip tone="red">{repo.blocked24h} blocked</Chip>
+							<Badge variant="fail">{repo.blocked24h} blocked</Badge>
 						) : null}
-					</div>
+					</>
 				) : (
-					<span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-muted-foreground text-xs">
-						not armed
-					</span>
+					<Badge variant="outline">Not armed</Badge>
 				)}
-			</div>
+			</ItemMeta>
 			{repo.armed ? (
-				<div className="relative z-10 mt-2.5 flex flex-wrap gap-1.5 pl-7">
+				<nav
+					aria-label={`Shortcuts for ${repo.fullName}`}
+					className="relative z-(--z-raised) flex basis-full flex-wrap gap-1.5 ps-9"
+				>
 					<NavChip
+						icon={Moderation}
+						label="Queue"
 						to={`/${org}/${repo.name}/moderation`}
-						label="queue"
-						icon={Queue01Icon}
 					/>
 					<NavChip
+						icon={Rules}
+						label="Rules"
 						to={`/${org}/${repo.name}/rules`}
-						label="rules"
-						icon={CheckListIcon}
 					/>
 					<NavChip
+						icon={Workflow}
+						label="Workflows"
 						to={`/${org}/${repo.name}/workflows`}
-						label="workflows"
-						icon={FlowIcon}
 					/>
 					<NavChip
+						icon={Activity}
+						label="Activity"
 						to={`/${org}/${repo.name}/activity`}
-						label="activity"
-						icon={ActivityIcon}
 					/>
 					<NavChip
+						icon={Analytics}
+						label="Analytics"
 						to={`/${org}/${repo.name}/analytics`}
-						label="analytics"
-						icon={Analytics01Icon}
 					/>
-				</div>
+				</nav>
 			) : null}
-		</div>
+		</Item>
 	);
 }
 
 function attentionLine(repo: SwitcherRepo): string {
 	if (repo.pendingModeration > 0) {
-		return "needs your decision";
+		return "Needs your decision";
 	}
 	if (repo.blocked24h > 0) {
-		return "blocking change requests today";
+		return "Blocking change requests today";
 	}
-	return "watching — nothing waiting";
-}
-
-function Chip({
-	children,
-	tone,
-}: {
-	children: React.ReactNode;
-	tone: "amber" | "red";
-}) {
-	return (
-		<span
-			className={cn(
-				"shrink-0 rounded-full px-2 py-0.5 font-medium text-xs",
-				tone === "red"
-					? "bg-red-500/10 text-red-600 dark:text-red-400"
-					: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-			)}
-		>
-			{children}
-		</span>
-	);
+	return "Watching, nothing waiting";
 }

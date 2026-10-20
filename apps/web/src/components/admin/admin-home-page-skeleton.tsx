@@ -1,27 +1,36 @@
+import {
+	Item,
+	ItemContent,
+	ItemGroup,
+	ItemMedia,
+} from "#/components/glaze/ui/item";
+import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Skeleton } from "#/components/ui/skeleton";
 
-const STAT_SLOTS = ["pending", "approved", "orgs", "repos"];
+const ROW_SLOTS = ["users", "orgs", "economics"] as const;
 
 export function AdminHomePageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="mx-auto w-full max-w-4xl px-6 py-8">
-				<header className="mb-6 flex flex-col gap-1.5">
-					<Skeleton className="h-6 w-24" />
-					<Skeleton className="h-4 w-64 max-w-full" />
-				</header>
-				<div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-					{STAT_SLOTS.map((key) => (
-						<div className="rounded-xl border bg-card px-4 py-3" key={key}>
-							<Skeleton className="mb-1.5 h-3 w-20" />
-							<Skeleton className="h-6 w-10" />
-						</div>
-					))}
-				</div>
-				<div className="mt-6 flex flex-col gap-3">
-					<Skeleton className="h-16 w-full rounded-xl" />
-					<Skeleton className="h-16 w-full rounded-xl" />
+			<div className="px-4 py-6 md:px-8 md:py-10">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+					<header className="flex flex-col gap-1">
+						<SkeletonText className="w-24" type="heading" />
+						<SkeletonText className="w-96 max-w-full" type="body" />
+					</header>
+					<ItemGroup aria-hidden>
+						{ROW_SLOTS.map((slot) => (
+							<Item key={slot}>
+								<ItemMedia variant="icon">
+									<Skeleton className="size-(--icon)" />
+								</ItemMedia>
+								<ItemContent>
+									<SkeletonText className="w-24" type="label" />
+									<SkeletonText className="w-72 max-w-full" type="body-sm" />
+								</ItemContent>
+							</Item>
+						))}
+					</ItemGroup>
 				</div>
 			</div>
 		</DashboardLayout>

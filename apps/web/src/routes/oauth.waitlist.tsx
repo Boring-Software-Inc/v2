@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Spinner } from "#/components/ui/spinner";
+import { Status } from "#/components/glaze/ui/status";
 import { authClient } from "#/lib/auth-client";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
@@ -60,11 +60,9 @@ function WaitlistEntryPage() {
 	}, [opener, mode]);
 
 	return (
-		<div className="flex min-h-dvh w-full flex-col items-center justify-center gap-6 bg-background">
-			<TripwireLogo className="text-foreground" size={32} />
-			<div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-				<Spinner size={16} /> Connecting to GitHub…
-			</div>
+		<div className="flex min-h-dvh w-full flex-col items-center justify-center gap-6 bg-page px-4">
+			<TripwireLogo className="text-text-1" size={32} />
+			<Status status="running">Connecting to GitHub</Status>
 		</div>
 	);
 }

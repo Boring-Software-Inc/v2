@@ -1,0 +1,329 @@
+/* Glaze tokens. The one file to retune.
+
+   Glaze is compact and black and white, for AI products. Its one signature is glass on the things you press.
+
+   Rules
+   - Ink is the brand. Ink is #050505, a neutral near-black, and nothing shows it solid: text is ink at 80%, a soft dark grey, and every grey
+     is ink at an alpha (80, 60, 45, 32, 15, 10, 6, 3), so a grey always sits between the text and the page it is on. There is no brand accent.
+   - Colour means status only: green for done, amber for a warning, coral for a failure and a destructive action.
+     Focus is ink, never coral, so a focused field never reads as an error.
+   - Glass goes only on what a person presses: the primary button family and icon buttons. Everything else is flat.
+     The glass recipe is the Glass group below: ink, coral and green are the primary button's three keys. A value
+     chosen inside a small control (a ticked checkbox or radio, the switch on, the slider, the segmented thumb, a
+     picked day, a progress fill) takes small glaze, the Small glaze group, drawn for 12 to 20px. Only the primary
+     family is glass. The secondary button is the plain card surface: paper, a text-1 label
+     and the panel's hairline (the Flat group), so the one glass pill in a group is always the lead.
+   - No shadows. Depth is a layer drawn inside a shape: the glass's sheen, dark centre and rim, the shell around a panel.
+     An overlay lifts with a 1px ink ring on a page a step darker than paper. --shadow-none is the only shadow token.
+   - Text a person reads takes --text-1 or --text-2 (5.5:1 on paper, the floor). --text-3 is ink at 45%, 3.3:1,
+     for placeholders and icons beside a label, never for a sentence or a value.
+   - Mono inside sans text is set at --mono-scale of the surrounding size, on the same baseline, in the parent's line
+     height. Glaze Sans and Glaze Mono share an x-height of 0.51em and a cap height of 0.715em, but a mono lowercase
+     letter is 0.600em wide against the sans's 0.478em average, 26% wider, so at the same size mono reads a size
+     bigger. At 0.8 its letters are 0.480em, level with the sans. Geist, the first fallback, is 0.528em, so there
+     mono at 0.8 runs 9% narrower than the sans: small, never big. The 0.8 is for mono in or beside a line of sans only.
+     Code on its own in a block (code block, JSON view, log viewer) has no sans to match and is read line by line, so it
+     takes --type-code-block, 12px on a 20px line.
+
+   Format, read by the docs
+   - One declaration per line: --name: value; followed by a comment of the form job | used by.
+   - A line that starts with == opens a token group. Keep both formats when you retune.
+
+   Scope: the tokens live on .glaze and [data-system="glaze"], not :root, so an app's own --space-* and --font-*
+   stay as they are.
+
+   Fonts: Glaze Sans and Glaze Mono are declared on design.how's own Glaze pages only and are not bundled with the
+   theme. An installed Glaze renders the next name in each stack: Geist and Geist Mono (SIL OFL) if the app loads
+   them, else the platform UI sans and monospace. With a licence of your own, declare @font-face rules named
+   "Glaze Sans" (400 and 500 for every word, 600 for strong) and "Glaze Mono" (400 and 500, 600 for emphasis) and the stacks pick them up. */
+
+[data-system="glaze"], .glaze {
+  /* == Surfaces == */
+  --page: #fbfbfa; /* the page, a half step darker than paper: a paper overlay still lifts off it and the grey shell reads as the card | app background, docs preview */
+  --paper: #ffffff; /* paper: the panel inside a card, a field, an overlay | panel, input, menu, popover, dialog */
+  --shell: #f1f1f0; /* the light grey shell a card's panel sits in, and the footer row on it | card shell, card footer */
+  --field: #efefef; /* the one grey field: a well for output, a track | tool call well, switch track, progress track */
+  --code-surface: var(--paper); /* where a block of code sits: paper, with the panel's hairline when it stands alone, so small dark mono reads on the lightest surface | code block, JSON view, log viewer */
+  --hover: rgb(5 5 5 / 0.06); /* ink at 6%: a row or a plain button under the pointer | menu item, row, ghost button */
+  --hover-row: rgb(5 5 5 / 0.035); /* ink at 3.5%: a list row under the pointer, lighter than the selected row's --pressed | item, table row, data grid row */
+  --pressed: rgb(5 5 5 / 0.10); /* ink at 10%: a plain button held, a selected row | ghost button active, selected row */
+  --scrim: rgb(5 5 5 / 0.24); /* the dim behind a dialog: ink at 24% | dialog, sheet */
+
+  /* == Ink == */
+  --ink: #050505; /* solid ink, a neutral near-black: every text and line is this at an alpha | chart mark, tooltip */
+  --ink-80: rgb(5 5 5 / 0.80); /* ink at 80%, 11.9:1 on paper: the text colour | text-1, focus ring */
+  --ink-60: rgb(5 5 5 / 0.60); /* ink at 60%, 5.5:1 on paper | text-2 */
+  --ink-45: rgb(5 5 5 / 0.45); /* ink at 45%, 3.3:1 on paper: a mark or a control edge, not text | text-3, line-strong */
+  --ink-32: rgb(5 5 5 / 0.32); /* ink at 32%: a focused field's line, about a third | line-focus, text-disabled */
+  --ink-15: rgb(5 5 5 / 0.15); /* ink at 15%: a field's resting line | line-control */
+  --ink-10: rgb(5 5 5 / 0.10); /* ink at 10%: an overlay's ring | line */
+  --ink-06: rgb(5 5 5 / 0.06); /* ink at 6%: the shell's and the panel's edge, a row rule | line-faint */
+  --ink-03: rgb(5 5 5 / 0.03); /* ink at 3%: the faintest wash | striped row, quiet hover on grey */
+
+  /* == Text == */
+  --text-1: rgb(5 5 5 / 0.80); /* primary text, ink at 80%, 11.9:1 on paper | headings, body, labels, values */
+  --text-2: rgb(5 5 5 / 0.60); /* secondary text, 5.5:1 on paper and 5.3:1 on the page, the floor for reading | descriptions, hints, meta */
+  --text-3: rgb(5 5 5 / 0.45); /* placeholders and icons beside a label, 3.3:1; never a sentence | placeholder, leading icon */
+  --text-disabled: rgb(5 5 5 / 0.32); /* a disabled label; no contrast claim | disabled control */
+  --text-inverse: #ffffff; /* text on solid ink | tooltip, ink glass label */
+
+  /* == Lines == */
+  --line-faint: rgb(5 5 5 / 0.06); /* the shell's and the panel's edge, the rule between rows | card, panel, row rule */
+  --line: rgb(5 5 5 / 0.10); /* an overlay's 1px ring and a divider that must read | menu, popover, dialog, separator */
+  --line-control: rgb(5 5 5 / 0.15); /* a field's hairline at rest | input, select, textarea */
+  --line-focus: rgb(5 5 5 / 0.32); /* a field's hairline with the cursor in it: darker, never black | input, select, textarea, prompt input */
+  --line-strong: rgb(5 5 5 / 0.45); /* the edge of an empty control, 3.3:1 on paper (WCAG 1.4.11) | checkbox, radio, switch off */
+  --focus: rgb(5 5 5 / 0.80); /* the focus ring: ink at the text's 80%, so focus never reads as an error | every focusable */
+
+  /* == Status: green, amber and coral, each a mark, a word and a tint == */
+  --ok: #2c9a59; /* done: a status mark | status mark, progress done */
+  --ok-text: #1a7640; /* the done word, 5.7:1 on paper, 5.0:1 on its tint | status word, success message */
+  --ok-tint: #e6f4ea; /* the done ground | success badge, success alert */
+  --warn: #d98a0b; /* a warning mark | status mark */
+  --warn-text: #8a5a00; /* the warning word, 5.9:1 on paper, 5.2:1 on its tint | status word, warning message */
+  --warn-tint: #fbf0d9; /* the warning ground | warning badge, warning alert */
+  --fail: #e35e49; /* coral: a failure mark and the coral glass's top | status mark, invalid field line, destructive button */
+  --fail-text: #b23c29; /* the failure word, 5.9:1 on paper, 5.0:1 on its tint | error message, status word */
+  --fail-tint: #fbe9e5; /* the failure ground | error badge, error alert */
+
+  /* == Glass: the press recipe, a glossy glaze over the reference's overlay stack; ink, coral and green are the primary's keys == */
+  --glass-ink-base: rgb(0 0 0 / 0.66); /* ink glass, the body: black at 66% over what is behind it, a grey on white (the reference's 56%, darkened so the label holds over the catch-light) | primary button, icon button */
+  --glass-ink-text: rgb(255 255 255 / 0.90); /* the label on ink glass, white at 90%: 6.3:1 on the body over paper; at least 5.6:1 for nine in ten glyph pixels with the catch-light and centre drawn | primary button */
+  --glass-ink-ring: rgb(0 0 0 / 0.56); /* ink glass, the 0.75px ring outside the edge | primary button */
+  --glass-coral-base: rgb(150 34 18 / 0.88); /* coral glass, the body at the ink's translucent depth | destructive button */
+  --glass-coral-text: rgb(255 255 255 / 0.90); /* the label on coral glass, 5.6:1 on the body over paper | destructive button */
+  --glass-coral-ring: rgb(110 24 12 / 0.56); /* coral glass, its 0.75px ring | destructive button */
+  --glass-green-base: rgb(6 86 40 / 0.88); /* green glass, the body at the ink's translucent depth | confirm button */
+  --glass-green-text: rgb(255 255 255 / 0.90); /* the label on green glass, 5.6:1 on the body over paper | confirm button */
+  --glass-green-ring: rgb(4 64 28 / 0.56); /* green glass, its 0.75px ring | confirm button */
+  --glass-sheen: 0.12; /* the sheen, white to clear from top to bottom, at this opacity; 0.16 under the pointer, 0 held | glass */
+  --glass-sheen-hover: 0.16; /* the sheen under the pointer | glass hover */
+  --glass-core: 0.32; /* the dark centre, a radial of black under the label | glass */
+  --glass-core-held: 0.44; /* the dark centre while held | glass active */
+  --glass-rim: 0.24; /* the 1px rim, white and grey bands masked to the edge, at this opacity | glass */
+  --glass-glaze: 0.06; /* the glaze: the upper half lit white at this opacity with a hard break at the middle | glass */
+  --glass-gloss: 0.28; /* the catch-light, the bright pill across the top half, at this opacity | glass */
+  --glass-blur: 6px; /* the backdrop blur under the translucent body | glass, flat */
+  --gloss-inset: 0.28; /* how far the catch-light stops short of each end, as a share of the control's height | glass, flat */
+  --gloss-top: 1.5px; /* the gap between the edge and the catch-light; optical, off the 4px grid on purpose | glass, flat */
+  --gloss-height: 44%; /* how much of the body the catch-light covers | glass, flat */
+
+  /* == Flat: the secondary button, the plain card surface: paper, the panel's hairline, a text-1 label; never glass == */
+  --flat-bg: var(--paper); /* the secondary's body: the panel's paper, opaque | secondary button, button group text */
+  --flat-ring: var(--line-faint); /* its 1px ring: the panel's hairline | secondary button */
+  --flat-text: var(--text-1); /* its label | secondary button */
+  --flat-hover: #f8f8f8; /* the surface a flat row takes under the pointer: paper under ink at 3% | select trigger hover */
+
+  /* == Switch: off is a grey track with a light knob; on, the track is small glaze and the knob stays light == */
+  --switch-off: rgb(5 5 5 / 0.10); /* the off track, ink at 10% | switch */
+  --switch-knob: #ffffff; /* the knob while off, paper | switch */
+  --switch-mark: rgb(5 5 5 / 0.60); /* the pending arc on the off knob, which is light in both themes | switch pending */
+
+  /* == Small glaze: the press recipe drawn for 12 to 20px, a short gradient from a lifted grey to ink with a soft middle, a 1px top highlight and a faint rim; no catch-light == */
+  --glaze-sm-top: #6b6b6b; /* the lifted grey at the top (the start, run sideways), 4.8:1 under the white glyph | checkbox, radio, switch on, slider, segmented thumb, progress fill */
+  --glaze-sm-mid: #3d3d3d; /* the soft middle, at half way, 9.5:1 under the white glyph | glaze-sm */
+  --glaze-sm-bottom: #232323; /* the ink grey at the bottom (the end, run sideways) | glaze-sm */
+  --glaze-sm-highlight: rgb(255 255 255 / 0.30); /* the crisp 1px inner line along the top edge | glaze-sm */
+  --glaze-sm-rim: rgb(0 0 0 / 0.55); /* the faint 0.5px rim outside the edge | glaze-sm */
+  --glaze-sm-text: rgb(255 255 255 / 0.92); /* the tick, dash and dot on it: 6.7:1 or better where a glyph sits | checkbox, radio, segmented thumb label */
+
+  /* == Elevation == */
+  --shadow-none: none; /* the only shadow Glaze has: nothing casts one, overlays included | every element */
+
+  /* == Type == */
+  --font-sans: "Glaze Sans", "Geist", "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; /* every word | all text */
+  --font-mono: "Glaze Mono", "Geist Mono", "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace; /* code, IDs, keys and paths | code, kbd, IDs */
+  --mono-scale: 0.8; /* mono at this share of the sans it sits in or beside, so it never looks bigger; never a block of code | mono, type-code roles */
+  --weight-normal: 400; /* running text | body, caption */
+  --weight-medium: 500; /* labels, controls and headings: the same cut as text in Glaze Sans, a step up in a fallback | label, button, heading */
+  --weight-semibold: 600; /* small strong emphasis inside prose, never a title | strong */
+  --type-title: 500 28px/1.2 var(--font-sans); /* the page title */
+  --type-heading: 500 20px/1.3 var(--font-sans); /* a section or dialog title | section, dialog title */
+  --type-heading-sm: 500 16px/1.35 var(--font-sans); /* a subsection or card title at its largest | subsection, empty state title */
+  --type-body: 400 14px/1.5 var(--font-sans); /* paragraphs, 1.5 | message, description */
+  --type-body-sm: 400 13px/1.5 var(--font-sans); /* dense paragraphs and descriptions | card description, field hint */
+  --type-label: 500 13px/1.35 var(--font-sans); /* controls and labels, 1.35 | button, input, menu item, card title */
+  --type-label-sm: 500 12px/1.35 var(--font-sans); /* a small control, a tag, a column head | small button, badge, table head */
+  --type-label-lg: 500 14px/1.35 var(--font-sans); /* a large control | large button */
+  --type-caption: 400 12px/1.35 var(--font-sans); /* meta beside a value | timestamp, count, card footer meta */
+  --type-code: 400 calc(14px * var(--mono-scale))/1.5 var(--font-mono); /* standalone mono beside body text: 11.2px | shell prompt, a code line in a sentence's place */
+  --type-code-sm: 400 calc(13px * var(--mono-scale))/1.5 var(--font-mono); /* standalone mono beside body-sm or a label: 10.4px | table IDs, key tails */
+  --type-code-xs: 400 calc(12px * var(--mono-scale))/1.35 var(--font-mono); /* standalone mono beside a caption: 9.6px | footer meta, row IDs */
+  --type-code-block: 400 12px/20px var(--font-mono); /* a block of code read line by line, with no sans beside it to match: 12px on a 20px line | code block, JSON view, log viewer */
+  --tracking-heading: -0.025em; /* titles and headings | title, heading, heading-sm */
+  --tracking-body: 0em; /* body and captions: the display cut sets tight on its own, so text takes no tracking | body, caption */
+  --tracking-label: 0.02em; /* labels and controls, opened a touch as in the reference button | label, button, menu item */
+
+  /* == Space == */
+  --space-0-5: 2px; /* an optical nudge | icon offset */
+  --space-1: 4px; /* the grid's step: icon to label in a tag | tag, badge */
+  --space-1-5: 6px; /* icon to label inside a control | button, chip */
+  --space-2: 8px; /* between controls in a row | footer actions, toolbar */
+  --space-3: 12px; /* a panel's padding, a field's text inset | panel, input, menu */
+  --space-4: 16px; /* between groups in a form | form, section gap */
+  --space-5: 20px; /* a dialog's padding | dialog */
+  --space-6: 24px; /* between sections | page section */
+  --space-8: 32px; /* between page regions | page */
+  --space-10: 40px; /* a page's top padding | page */
+  --shell-inset: 3px; /* the gap between a card's shell and its panel: the 14px shell less the 11px panel | card, panel */
+  --shell-foot-inset: 6px; /* the gap between the shell's edge and a footer action: the panel's 3px read as cramped beside a pill | card footer, dialog footer */
+
+  /* == Size == */
+  --control-sm: 26px; /* a small control | button sm, chip, footer action */
+  --control: 32px; /* the default control | button, input, select, segmented control */
+  --control-lg: 36px; /* a large control | button lg, prompt input field */
+  --row: 36px; /* one row of a list, menu or table | table row, item, menu item */
+  --icon-sm: 12px; /* an icon in a small control or a tag | button sm, badge */
+  --icon: 14px; /* an icon in a control | button, input, menu item */
+  --icon-lg: 16px; /* an icon in a large control or on its own | button lg */
+
+  /* == Radius == */
+  --radius-pill: 999px; /* every one-line control | button, input, select, segmented control, chip, badge */
+  --radius-shell: 14px; /* a card's grey shell | card */
+  --radius-panel: 11px; /* the white panel inside the shell, 3px in, so the corners stay concentric | card panel */
+  --radius-overlay: 10px; /* a box that holds lines of text: overlays and text areas | menu, popover, dialog, textarea, code block */
+  --radius-row-focus: calc(var(--radius-panel) - var(--line-width)); /* a focused row's corners: the panel's inner edge, so its ring follows the panel's corner | item, data grid row */
+  --radius-tag: 6px; /* a box inside a row or an overlay | menu item, tag in a row, kbd */
+
+  /* == Lines == */
+  --line-width: 1px; /* every line: rings, edges, rules | glass ring, field, shell, overlay */
+  --focus-width: 2px; /* the focus ring | every focusable */
+  --focus-offset: 2px; /* the gap between a control and its ring | every focusable */
+  --focus-width-sm: 1.5px; /* the ring on a control under 20px, so it does not outweigh the control | checkbox, radio, switch */
+  --focus-offset-sm: 1px; /* the gap on a control under 20px | checkbox, radio, switch */
+
+  /* == Motion: short, ease-out, no springs; things arrive from where they came from == */
+  --dur-press: 120ms; /* a press on a flat control: the scale | secondary button, ghost */
+  --dur-glass-press: 50ms; /* glass going down: the scale and the layers | glass active */
+  --dur-glass-release: 200ms; /* glass coming back up | glass */
+  --dur-state: 160ms; /* a state change: hover, a field's line, a check | every control */
+  --dur-overlay: 200ms; /* an overlay in; it leaves on --dur-state | menu, popover, dialog, tooltip */
+  --overlay-shift: 4px; /* how far an anchored overlay travels in from its trigger, and back out | menu, popover, select, tooltip */
+  --scale-overlay: 0.97; /* the scale a modal overlay settles from and leaves to | dialog */
+  --dur-spin: 800ms; /* one turn of the pending arc, a loop | button pending, spinner */
+  --dur-slide: 200ms; /* a selection mark sliding to its new place: the segmented thumb, the pill tab | segmented control, tabs */
+  --dur-sweep: 1400ms; /* one pass of the indeterminate segment along a progress track, the other loop | progress indeterminate */
+  --wait-show: 150ms; /* how long a load waits before its skeleton or dim shows, so a fast answer never flashes | skeleton swap */
+  --wait-hold: 400ms; /* how long a skeleton stays once it shows, so it never blinks | skeleton swap */
+  --stale: 0.6; /* the opacity of content that is reloading behind a busy mark | skeleton swap */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1); /* the house curve: arrives fast, settles | every transition */
+  --ease-in: cubic-bezier(0.4, 0, 1, 1); /* an element leaving | overlay exit */
+  --scale-press-flat: 0.99; /* the scale a held secondary settles at, barely moving | secondary button */
+  --scale-press: 0.97; /* the scale a held flat control settles at | secondary button, ghost */
+  --scale-press-glass: 0.99; /* the scale held glass settles at, a slight give | glass */
+
+  /* == Layers == */
+  --z-raised: 10; /* a part lifted over its siblings inside a component | sticky header, focused segment */
+  --z-sticky: 20; /* a bar that sticks to the page | sticky toolbar, bulk action bar */
+  --z-overlay: 50; /* every portalled layer; the last opened sits on top by DOM order | dialog, popover, menu, tooltip, toast */
+
+  /* == Layout == */
+  --overlay-sm: 400px; /* a small dialog | alert dialog */
+  --overlay: 480px; /* the default dialog and sheet width | dialog, sheet */
+  --overlay-lg: 640px; /* a wide dialog: a preview, the command palette | dialog lg, command palette */
+  --popover: 288px; /* a popover's width | popover */
+  --toast: 360px; /* a toast's width on a wide screen; full width less the gutter on a phone | toast */
+  --menu-min: 192px; /* the narrowest a menu opens | dropdown menu, select */
+  --menu-row: 32px; /* one row of a menu or a command list, a step under --row | menu item, command item */
+  --menu-row-sm: 28px; /* one row of a small menu, opened from a small control | menu item sm */
+  --popup-max: 320px; /* the tallest a list popup grows before it scrolls | select, combobox, menu */
+  --tooltip-max: 256px; /* a tooltip's line length before it wraps | tooltip */
+  --label-col: 160px; /* the widest a label column grows before its labels wrap | data list, horizontal field */
+  --progress-bar-sm: 4px; /* a small progress bar or meter, in a row or a card footer | progress sm */
+  --progress-bar: 6px; /* the thickness of a progress bar or a meter | progress */
+  --progress-bar-lg: 8px; /* a large progress bar, the one task on a screen | progress lg */
+  --progress-sweep: 32%; /* the length of the segment that slides along an indeterminate bar | progress indeterminate */
+  --measure: 68ch; /* a paragraph's longest line | prose, message */
+  --measure-hint: 60ch; /* a description or hint's longest line | field hint, card description */
+
+  /* == Scrollbar: one thin bar for every scrolling region, a thumb and no track == */
+  --scrollbar-thumb: rgb(5 5 5 / 0.20); /* the thumb, ink at 20%: there when you look for it, quiet while you read | command list, menu, select list, sheet, table, code block */
+  --scrollbar-size: 10px; /* the bar's gutter: a 6px thumb with --scrollbar-gap of clear on each side | every scrolling region */
+  --scrollbar-gap: 2px; /* the clear around the thumb, so it floats off the panel's edge | every scrolling region */
+}
+
+/* The dark theme redefines the colour roles. Ink and paper swap: near-white ink on a near-black page. Ink glass turns
+   to light glass with a dark label, and paper glass to dark glass with a light one, as the approved button sheet does.
+   Coral and green glass turn light with an ink label. Light glass keeps the sheen and the rim but drops the dark
+   centre, which would sit as a smudge under a dark label. The flat secondary is the dark panel: --paper, a light label and
+   the panel's hairline in light ink. The surfaces keep light mode's order, read as ink added: the page darkest, the shell a step
+   up, the panel (paper) a step above the shell, the grey field a step above that, so a card's panel and a raised
+   overlay are the lightest things on screen. The scrim is pure black at 64%, because a near-black page barely
+   changes under the fixed dark at 56%; what it dims is the panels and the text. */
+[data-system="glaze"][data-theme="dark"], .glaze[data-theme="dark"], [data-theme="dark"] [data-system="glaze"], [data-theme="dark"] .glaze {
+  --page: #0c0c0c;
+  --paper: #1f1f1f;
+  --shell: #161616;
+  --field: #2a2a2a;
+  --hover: rgb(244 244 243 / 0.06);
+  --hover-row: rgb(244 244 243 / 0.04);
+  --pressed: rgb(244 244 243 / 0.10);
+  --scrim: rgb(0 0 0 / 0.64);
+
+  --ink: #f4f4f3;
+  --ink-80: #f4f4f3;
+  --ink-60: rgb(244 244 243 / 0.60);
+  --ink-45: rgb(244 244 243 / 0.45);
+  --ink-32: rgb(244 244 243 / 0.34);
+  --ink-15: rgb(244 244 243 / 0.15);
+  --ink-10: rgb(244 244 243 / 0.10);
+  --ink-06: rgb(244 244 243 / 0.06);
+  --ink-03: rgb(244 244 243 / 0.03);
+
+  --text-1: #f4f4f3;
+  --text-2: rgb(244 244 243 / 0.60);
+  --text-3: rgb(244 244 243 / 0.45);
+  --text-disabled: rgb(244 244 243 / 0.34);
+  --text-inverse: #050505;
+
+  --line-faint: rgb(244 244 243 / 0.06);
+  --line: rgb(244 244 243 / 0.10);
+  --line-control: rgb(244 244 243 / 0.15);
+  --line-focus: rgb(244 244 243 / 0.34);
+  --line-strong: rgb(244 244 243 / 0.45);
+  --focus: #f4f4f3;
+
+  --ok: #3fbf75;
+  --ok-text: #6fd69a;
+  --ok-tint: #13261a;
+  --warn: #f0a531;
+  --warn-text: #f5c065;
+  --warn-tint: #2a2010;
+  --fail: #ec6f5a;
+  --fail-text: #f2917f;
+  --fail-tint: #2c1714;
+
+  --glass-ink-base: rgb(255 255 255 / 0.62);
+  --glass-ink-text: rgb(5 5 5 / 0.90);
+  --glass-ink-ring: rgb(255 255 255 / 0.24);
+  --glass-coral-base: rgb(245 140 120 / 0.86);
+  --glass-coral-text: rgb(5 5 5 / 0.90);
+  --glass-coral-ring: rgb(245 140 120 / 0.40);
+  --glass-green-base: rgb(110 215 150 / 0.86);
+  --glass-green-text: rgb(5 5 5 / 0.90);
+  --glass-green-ring: rgb(110 215 150 / 0.40);
+  --glass-sheen: 0.16;
+  --glass-sheen-hover: 0.24;
+  --glass-core: 0;
+  --glass-core-held: 0.06;
+  --glass-rim: 0.4;
+  --glass-glaze: 0.14;
+  --glass-gloss: 0.6;
+  --flat-hover: #262626;
+  --switch-off: rgb(244 244 243 / 0.15);
+  --switch-knob: #e8e8e7;
+  --switch-mark: rgb(5 5 5 / 0.60);
+  --glaze-sm-top: #fbfbfa;
+  --glaze-sm-mid: #dcdcdb;
+  --glaze-sm-bottom: #bdbdbc;
+  --glaze-sm-highlight: rgb(255 255 255 / 0.90);
+  --glaze-sm-rim: rgb(255 255 255 / 0.22);
+  --glaze-sm-text: rgb(5 5 5 / 0.88);
+
+  --scrollbar-thumb: rgb(244 244 243 / 0.20);
+}
+
+/* Reduced motion: no press scale, no fades. The pending arc stays as a still mark (styles.css stops it). */
+@media (prefers-reduced-motion: reduce) {
+  [data-system="glaze"], .glaze { --dur-press: 0ms; --dur-state: 0ms; --dur-overlay: 0ms; --scale-press: 1; --scale-press-flat: 1; --scale-press-glass: 1; --dur-glass-press: 0ms; --dur-glass-release: 0ms; --dur-slide: 0ms; }
+}

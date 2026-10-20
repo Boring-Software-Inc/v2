@@ -5,7 +5,7 @@ import {
 	ForgeCell,
 	type ForgeCellState,
 } from "#/components/forges/forge-cell";
-import { toast } from "#/components/ui/toast";
+import { toast } from "#/components/glaze/ui/toast";
 import { authClient } from "#/lib/auth-client";
 import { SIGN_IN_FORGES } from "#/lib/forge-copy";
 
@@ -52,9 +52,9 @@ export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 											});
 								if (error) {
 									setSigningIn(null);
-									toast.error(
+									toast.fail(
 										error.message ??
-											`couldn't reach ${forge.label} — try again`,
+											`Couldn't reach ${forge.label}. Try again.`,
 									);
 								}
 							},
@@ -62,7 +62,7 @@ export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 					: {
 							kind: "blocked",
 							title: `${forge.label} isn't live yet`,
-							body: `you can sign in with ${SIGN_IN_FORGES} today.`,
+							body: `You can sign in with ${SIGN_IN_FORGES} today.`,
 						};
 				return (
 					<ForgeCell

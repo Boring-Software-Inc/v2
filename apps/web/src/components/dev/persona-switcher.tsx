@@ -1,7 +1,23 @@
 import { useState } from "react";
-import { toast } from "#/components/ui/toast";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
+import {
+	Popover,
+	PopoverContent,
+	PopoverHeader,
+	PopoverTitle,
+	PopoverTrigger,
+} from "#/components/glaze/ui/popover";
+import { toast } from "#/components/glaze/ui/toast";
 import { PERSONAS, type PersonaId } from "#/lib/dev/personas";
-import { cn } from "#/lib/utils";
+import { cn } from "#/lib/glaze/utils";
 
 /**
  * DEV persona switcher (§13) — a floating dev-only control (and an inline panel
@@ -29,7 +45,7 @@ function usePersonaActions() {
 				const { error } = (await res.json().catch(() => ({}))) as {
 					error?: string;
 				};
-				toast(error ?? "dev login failed");
+				toast.fail(error ?? "Dev login failed");
 				setBusy(null);
 				return;
 			}
@@ -37,7 +53,7 @@ function usePersonaActions() {
 			// Full document load so the session cookie + a fresh query cache apply.
 			window.location.assign(landing);
 		} catch (err) {
-			toast(err instanceof Error ? err.message : "dev login failed");
+			toast.fail(err instanceof Error ? err.message : "Dev login failed");
 			setBusy(null);
 		}
 	}
@@ -48,7 +64,7 @@ function usePersonaActions() {
 			await post("/api/dev/reset");
 			window.location.assign("/");
 		} catch {
-			toast("reset failed");
+			toast.fail("Reset failed");
 			setBusy(null);
 		}
 	}
@@ -63,7 +79,7 @@ function usePersonaActions() {
 			await post("/api/dev/logout");
 			window.location.assign("/login");
 		} catch {
-			toast("logout failed");
+			toast.fail("Logout failed");
 			setBusy(null);
 		}
 	}
@@ -71,131 +87,90 @@ function usePersonaActions() {
 	return { busy, pick, reset, logout };
 }
 
-type PanelVariant = "list" | "grid";
-
 /** The persona list — shared by the floating switcher and the /login panel. */
-export function DevPersonaPanel({
-	className,
-	variant = "list",
-}: {
-	className?: string;
-	variant?: PanelVariant;
-}) {
+export function DevPersonaPanel({ className }: { className?: string }) {
 	if (!import.meta.env.DEV) {
 		return null;
 	}
-	return <PersonaList className={className} variant={variant} />;
+	return <PersonaList className={className} />;
 }
 
 function PersonaList({
 	className,
-	variant = "list",
 	showLogout = false,
 }: {
 	className?: string;
-	variant?: PanelVariant;
 	showLogout?: boolean;
 }) {
 	const { busy, pick, reset, logout } = usePersonaActions();
-	const grid = variant === "grid";
 	return (
-		<div
-			className={cn(
-				grid
-					? "grid grid-cols-2 gap-1.5 text-left"
-					: "flex flex-col gap-1 text-left",
-				className,
-			)}
-		>
-			{PERSONAS.map((persona) => (
-				<button
-					key={persona.id}
-					type="button"
-					disabled={busy !== null}
-					onClick={() => pick(persona.id)}
-					className={cn(
-						"flex flex-col gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors",
-						"hover:bg-surface-1 disabled:opacity-50",
-						grid && "h-full border border-border/60",
-						busy === persona.id && "bg-surface-1",
-					)}
+		<div className={cn("flex flex-col gap-2", className)}>
+			<ItemGroup aria-label="Dev personas" variant="plain">
+				{PERSONAS.map((persona) => (
+					<Item key={persona.id}>
+						<ItemContent>
+							<ItemTitle>{persona.label}</ItemTitle>
+							<ItemDescription>{persona.description}</ItemDescription>
+						</ItemContent>
+						<ItemActions>
+							<Button
+								aria-label={`Sign in as ${persona.label}`}
+								disabled={busy !== null && busy !== persona.id}
+								onClick={() => pick(persona.id)}
+								pending={busy === persona.id}
+								size="sm"
+								variant="secondary"
+							>
+								Sign in
+							</Button>
+						</ItemActions>
+					</Item>
+				))}
+			</ItemGroup>
+			<div className="flex flex-wrap gap-1.5">
+				<Button
+					disabled={busy !== null && busy !== "reset"}
+					onClick={() => reset()}
+					pending={busy === "reset"}
+					size="sm"
+					variant="secondary"
 				>
-					<span className="font-medium text-foreground text-xs">
-						{persona.label}
-					</span>
-					<span
-						className={cn(
-							"text-[11px] text-muted-foreground",
-							grid && "line-clamp-2",
-						)}
+					Reset dev data
+				</Button>
+				{showLogout ? (
+					<Button
+						disabled={busy !== null && busy !== "logout"}
+						onClick={() => logout()}
+						pending={busy === "logout"}
+						size="sm"
+						variant="secondary"
 					>
-						{persona.description}
-					</span>
-				</button>
-			))}
-			<button
-				type="button"
-				disabled={busy !== null}
-				onClick={() => reset()}
-				className={cn(
-					"rounded-md px-2.5 py-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-surface-1 hover:text-foreground disabled:opacity-50",
-					grid ? "col-span-2 text-center" : "mt-1",
-				)}
-			>
-				reset dev data
-			</button>
-			{showLogout ? (
-				<button
-					type="button"
-					disabled={busy !== null}
-					onClick={() => logout()}
-					className={cn(
-						"rounded-md px-2.5 py-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-surface-1 hover:text-foreground disabled:opacity-50",
-						grid ? "col-span-2 text-center" : "",
-					)}
-				>
-					{busy === "logout" ? "logging out…" : "log out → /login"}
-				</button>
-			) : null}
+						Log out to /login
+					</Button>
+				) : null}
+			</div>
 		</div>
 	);
 }
 
 /** Floating switcher — mounts in the dashboard shell across the app. */
 export function DevPersonaSwitcher() {
-	const [open, setOpen] = useState(false);
 	if (!import.meta.env.DEV) {
 		return null;
 	}
 	return (
-		<div className="fixed bottom-3 left-3 z-50 print:hidden">
-			{open ? (
-				<div className="mb-2 w-64 overflow-hidden rounded-xl border border-border bg-popover p-1.5 shadow-lg">
-					<div className="flex items-center justify-between px-2 py-1">
-						<span className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-							dev personas
-						</span>
-						<button
-							type="button"
-							onClick={() => setOpen(false)}
-							className="text-muted-foreground text-xs hover:text-foreground"
-						>
-							close
-						</button>
-					</div>
+		<div className="fixed bottom-3 left-3 z-(--z-overlay) print:hidden">
+			<Popover>
+				<PopoverTrigger render={<Button size="sm" variant="secondary" />}>
+					Dev
+				</PopoverTrigger>
+				<PopoverContent align="start" className="w-80" side="top">
+					<PopoverHeader>
+						<PopoverTitle>Dev personas</PopoverTitle>
+					</PopoverHeader>
 					<PersonaList showLogout />
-				</div>
-			) : null}
-			<button
-				type="button"
-				onClick={() => setOpen((v) => !v)}
-				className={cn(
-					"rounded-full border border-border bg-popover px-3 py-1.5 font-mono text-[11px] text-muted-foreground shadow-sm transition-colors",
-					"hover:text-foreground",
-				)}
-			>
-				dev
-			</button>
+				</PopoverContent>
+			</Popover>
 		</div>
 	);
 }

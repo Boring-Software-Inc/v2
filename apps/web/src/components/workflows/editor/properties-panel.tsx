@@ -10,12 +10,27 @@ import {
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { useState } from "react";
+import { Alert, AlertDescription } from "#/components/glaze/ui/alert";
+import { Button } from "#/components/glaze/ui/button";
+import { Checkbox } from "#/components/glaze/ui/checkbox";
+import {
+	Field,
+	FieldDescription,
+	FieldLabel,
+	FieldLegend,
+	FieldSet,
+	Label,
+} from "#/components/glaze/ui/field";
+import { Input } from "#/components/glaze/ui/input";
+import { NumberInput } from "#/components/glaze/ui/number-input";
+import { Select } from "#/components/glaze/ui/select";
+import { Status } from "#/components/glaze/ui/status";
+import { Textarea } from "#/components/glaze/ui/textarea";
 import {
 	type FieldSpec,
 	fieldsForSchema,
 	ruleCatalogEntryForRef,
 } from "#/components/workflows/editor/node-fields";
-import { cn } from "#/lib/utils";
 
 /**
  * Schema-driven properties for the selected node — rule editors are DERIVED
@@ -44,10 +59,6 @@ export function hasEditableParams(node: WorkflowNode): boolean {
 			return false;
 	}
 }
-
-const INPUT_CLASS =
-	"w-full rounded-md border bg-background px-2 py-1 text-xs disabled:opacity-50";
-const LABEL_CLASS = "mb-1 block text-[11px] text-muted-foreground";
 
 export interface PropertiesPanelProps {
 	node: WorkflowNode;
@@ -104,26 +115,21 @@ function TriggerFields({
 		onUpdate({ ...node, kinds });
 	};
 	return (
-		<div className="flex flex-col gap-1.5">
-			<p className="text-[11px] text-muted-foreground">
-				runs on these events (pick at least one)
-			</p>
+		<FieldSet className="gap-2" disabled={readOnly}>
+			<FieldLegend variant="label">
+				Runs on these events (pick at least one)
+			</FieldLegend>
 			{TRIGGER_CATALOG.filter((entry) => entry.toolbox).map((entry) => (
-				<label
-					className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-0.5 text-xs hover:bg-surface-1"
-					key={entry.kind}
-				>
-					<input
+				<Label className="flex items-center gap-2" key={entry.kind}>
+					<Checkbox
 						checked={node.kinds.includes(entry.kind)}
-						className="accent-brand"
 						disabled={readOnly}
-						onChange={(event) => toggle(entry.kind, event.target.checked)}
-						type="checkbox"
+						onCheckedChange={(checked) => toggle(entry.kind, checked)}
 					/>
 					{entry.name}
-				</label>
+				</Label>
 			))}
-		</div>
+		</FieldSet>
 	);
 }
 
@@ -139,15 +145,15 @@ function RuleFields({
 	const entry = ruleCatalogEntryForRef(node.ref);
 	if (!entry) {
 		return (
-			<p className="text-muted-foreground text-xs">
-				unknown rule <span className="font-mono">{node.ref}</span> — not in the
+			<p className="type-body-sm text-text-2">
+				Unknown rule <span className="mono">{node.ref}</span>. It is not in the
 				catalog.
 			</p>
 		);
 	}
 	const fields = fieldsForSchema(entry.configSchema) ?? [];
 	if (fields.length === 0) {
-		return <p className="text-muted-foreground text-xs">no options.</p>;
+		return <p className="type-body-sm text-text-2">No options.</p>;
 	}
 	const config = (
 		typeof node.config === "object" && node.config !== null ? node.config : {}
@@ -157,7 +163,7 @@ function RuleFields({
 	};
 	return (
 		<div className="flex flex-col gap-3">
-			<p className="text-[11px] text-muted-foreground">{entry.blurb}</p>
+			<p className="type-body-sm text-text-2">{entry.blurb}</p>
 			{fields.map((field) => (
 				<ConfigField
 					field={field}
@@ -185,76 +191,56 @@ function ConfigField({
 	switch (field.kind) {
 		case "number":
 			return (
-				<div>
-					<label className={LABEL_CLASS} htmlFor={`field-${field.key}`}>
-						{field.label}
-					</label>
-					<input
-						className={INPUT_CLASS}
+				<Field>
+					<FieldLabel>{field.label}</FieldLabel>
+					<NumberInput
 						disabled={readOnly}
-						id={`field-${field.key}`}
 						max={field.max}
 						min={field.min}
-						onChange={(event) => {
-							const next = event.target.valueAsNumber;
-							onChange(Number.isNaN(next) ? 0 : next);
-						}}
-						step={field.int ? 1 : "any"}
-						type="number"
-						value={typeof value === "number" ? value : ""}
+						onValueChange={(next) => onChange(next ?? 0)}
+						value={typeof value === "number" ? value : null}
 					/>
-				</div>
+				</Field>
 			);
 		case "boolean":
 			return (
-				<label className="flex cursor-pointer items-center gap-2 text-xs">
-					<input
+				<Label className="flex items-center gap-2">
+					<Checkbox
 						checked={value === true}
-						className="accent-brand"
 						disabled={readOnly}
-						onChange={(event) => onChange(event.target.checked)}
-						type="checkbox"
+						onCheckedChange={(checked) => onChange(checked)}
 					/>
 					{field.label}
-				</label>
+				</Label>
 			);
 		case "enum":
 			return (
-				<div>
-					<label className={LABEL_CLASS} htmlFor={`field-${field.key}`}>
-						{field.label}
-					</label>
-					<select
-						className={INPUT_CLASS}
+				<Field>
+					<FieldLabel>{field.label}</FieldLabel>
+					<Select
 						disabled={readOnly}
-						id={`field-${field.key}`}
-						onChange={(event) => onChange(event.target.value)}
+						items={field.options.map((option) => ({
+							value: option,
+							label: option,
+						}))}
+						native
+						onValueChange={(next) => onChange(next ?? "")}
 						value={typeof value === "string" ? value : ""}
-					>
-						{field.options.map((option) => (
-							<option key={option} value={option}>
-								{option}
-							</option>
-						))}
-					</select>
-				</div>
+					/>
+				</Field>
 			);
 		case "string-list":
 			return (
-				<div>
-					<label className={LABEL_CLASS} htmlFor={`field-${field.key}`}>
-						{field.label} (one per line)
-					</label>
+				<Field>
+					<FieldLabel>{field.label} (one per line)</FieldLabel>
 					{/* uncontrolled: normalizing on change would eat typed newlines */}
-					<textarea
-						className={INPUT_CLASS}
+					<Textarea
 						defaultValue={
 							Array.isArray(value)
 								? value.filter((v) => typeof v === "string").join("\n")
 								: ""
 						}
 						disabled={readOnly}
-						id={`field-${field.key}`}
 						onChange={(event) =>
 							onChange(
 								event.target.value
@@ -265,36 +251,28 @@ function ConfigField({
 						}
 						rows={3}
 					/>
-				</div>
+				</Field>
 			);
 		case "string":
 			return (
-				<div>
-					<label className={LABEL_CLASS} htmlFor={`field-${field.key}`}>
-						{field.label}
-					</label>
-					<input
-						className={INPUT_CLASS}
+				<Field>
+					<FieldLabel>{field.label}</FieldLabel>
+					<Input
+						autoComplete="off"
 						disabled={readOnly}
-						id={`field-${field.key}`}
 						onChange={(event) => onChange(event.target.value)}
-						type="text"
 						value={typeof value === "string" ? value : ""}
 					/>
-				</div>
+				</Field>
 			);
 		case "json":
 			// Fallback for shapes introspection can't name — raw JSON per field.
 			return (
-				<div>
-					<label className={LABEL_CLASS} htmlFor={`field-${field.key}`}>
-						{field.label} (json)
-					</label>
-					<textarea
-						className={`${INPUT_CLASS} font-mono`}
+				<Field>
+					<FieldLabel>{field.label} (JSON)</FieldLabel>
+					<Textarea
 						defaultValue={JSON.stringify(value ?? null, null, 2)}
 						disabled={readOnly}
-						id={`field-${field.key}`}
 						onBlur={(event) => {
 							try {
 								onChange(JSON.parse(event.target.value) as JsonValue);
@@ -304,7 +282,7 @@ function ConfigField({
 						}}
 						rows={3}
 					/>
-				</div>
+				</Field>
 			);
 		default:
 			return null;
@@ -321,29 +299,26 @@ function GateFields({
 	onUpdate: (next: WorkflowNode) => void;
 }) {
 	return (
-		<div>
-			<label className={LABEL_CLASS} htmlFor="gate-mode">
-				mode
-			</label>
-			<select
-				className={INPUT_CLASS}
+		<Field>
+			<FieldLabel>Mode</FieldLabel>
+			<Select
 				disabled={readOnly}
-				id="gate-mode"
-				onChange={(event) =>
-					onUpdate({ ...node, mode: event.target.value as GateMode })
-				}
+				items={GATE_CATALOG.map((entry) => ({
+					value: entry.mode,
+					label: entry.name,
+				}))}
+				native
+				onValueChange={(next) => {
+					if (next) {
+						onUpdate({ ...node, mode: next as GateMode });
+					}
+				}}
 				value={node.mode}
-			>
-				{GATE_CATALOG.map((entry) => (
-					<option key={entry.mode} value={entry.mode}>
-						{entry.name}
-					</option>
-				))}
-			</select>
-			<p className="mt-1.5 text-[11px] text-muted-foreground">
+			/>
+			<FieldDescription>
 				{GATE_CATALOG.find((entry) => entry.mode === node.mode)?.description}
-			</p>
-		</div>
+			</FieldDescription>
+		</Field>
 	);
 }
 
@@ -372,22 +347,18 @@ function ActionFields({
 		);
 	}
 	if (node.action !== "label") {
-		return <p className="text-muted-foreground text-xs">no options.</p>;
+		return <p className="type-body-sm text-text-2">No options.</p>;
 	}
 	const labels = Array.isArray(node.params?.labels)
 		? node.params.labels.filter((v) => typeof v === "string")
 		: [];
 	return (
-		<div>
-			<label className={LABEL_CLASS} htmlFor="action-labels">
-				labels (comma or newline separated)
-			</label>
+		<Field>
+			<FieldLabel>Labels (comma or newline separated)</FieldLabel>
 			{/* uncontrolled: normalizing on change would eat typed newlines */}
-			<textarea
-				className={INPUT_CLASS}
+			<Textarea
 				defaultValue={labels.join("\n")}
 				disabled={readOnly}
-				id="action-labels"
 				onChange={(event) =>
 					onUpdate({
 						...node,
@@ -402,10 +373,10 @@ function ActionFields({
 				}
 				rows={3}
 			/>
-			<p className="mt-1.5 text-[11px] text-muted-foreground">
+			<FieldDescription>
 				{ACTION_CATALOG.find((entry) => entry.action === "label")?.description}
-			</p>
-		</div>
+			</FieldDescription>
+		</Field>
 	);
 }
 
@@ -475,80 +446,73 @@ function DeliveryFields({
 	};
 	return (
 		<div className="flex flex-col gap-3">
-			<div>
-				<label className={LABEL_CLASS} htmlFor="delivery-url">
-					{node.action === "discord" ? "discord webhook url" : "webhook url"}
-				</label>
-				<input
-					className={INPUT_CLASS}
+			<Field>
+				<FieldLabel>
+					{node.action === "discord" ? "Discord webhook URL" : "Webhook URL"}
+				</FieldLabel>
+				<Input
+					autoComplete="off"
 					disabled={readOnly}
-					id="delivery-url"
 					onChange={(event) => {
 						setParam("url", event.target.value);
 						setTestResult(null);
 					}}
-					placeholder={urlSet ? "set — leave blank to keep" : "https://..."}
+					placeholder={urlSet ? "Set. Leave blank to keep" : "https://..."}
 					type="url"
 					value={url}
 				/>
-				<p className="mt-1 text-[11px] text-muted-foreground">
-					https only. private and internal addresses are refused.
-				</p>
-				{node.action === "webhook" && looksLikeDiscordUrl(url) ? (
-					<p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-						this looks like a discord url. use a discord node instead — a
-						webhook node sends raw json that discord rejects.
-					</p>
+				<FieldDescription>
+					HTTPS only. Private and internal addresses are refused.
+				</FieldDescription>
+			</Field>
+			{node.action === "webhook" && looksLikeDiscordUrl(url) ? (
+				<Alert announce={false} status="warn">
+					<AlertDescription>
+						This looks like a Discord URL. Use a Discord node instead. A webhook
+						node sends raw JSON that Discord rejects.
+					</AlertDescription>
+				</Alert>
+			) : null}
+			<div className="flex flex-wrap items-center gap-2">
+				<Button
+					disabled={readOnly || url === ""}
+					onClick={runTest}
+					pending={testing}
+					pendingLabel="Testing"
+					size="sm"
+					variant="secondary"
+				>
+					Test connection
+				</Button>
+				{testResult ? (
+					<Status size="sm" status={testResult.ok ? "ok" : "fail"}>
+						{testResult.ok
+							? "Reached"
+							: `Failed: ${testResult.failure ?? "unknown"}`}
+					</Status>
 				) : null}
-				<div className="mt-1.5 flex items-center gap-2">
-					<button
-						className="rounded-md bg-surface-1 px-2 py-1 font-medium text-[11px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-						disabled={readOnly || testing || url === ""}
-						onClick={runTest}
-						type="button"
-					>
-						{testing ? "testing…" : "test connection"}
-					</button>
-					{testResult ? (
-						<span
-							className={cn(
-								"text-[11px]",
-								testResult.ok
-									? "text-emerald-600 dark:text-emerald-400"
-									: "text-red-600 dark:text-red-400",
-							)}
-						>
-							{testResult.ok
-								? "reached"
-								: `failed: ${testResult.failure ?? "unknown"}`}
-						</span>
-					) : null}
-				</div>
 			</div>
 			{node.action === "webhook" ? (
-				<div>
-					<label className={LABEL_CLASS} htmlFor="delivery-secret">
-						signing secret (optional)
-					</label>
-					<input
-						className={INPUT_CLASS}
+				<Field>
+					<FieldLabel optional>Signing secret</FieldLabel>
+					<Input
+						autoComplete="off"
 						disabled={readOnly}
-						id="delivery-secret"
+						mode="password"
 						onChange={(event) => setParam("signingSecret", event.target.value)}
-						placeholder={secretSet ? "set — leave blank to keep" : "optional"}
-						type="password"
+						placeholder={secretSet ? "Set. Leave blank to keep" : undefined}
 						value={
 							typeof params.signingSecret === "string"
 								? params.signingSecret
 								: ""
 						}
 					/>
-					<p className="mt-1 text-[11px] text-muted-foreground">
-						signs each post so your receiver can verify it came from tripwire.
-					</p>
-				</div>
+					<FieldDescription>
+						Signs each post so your receiver can verify it came from Tripwire.
+					</FieldDescription>
+				</Field>
 			) : null}
-			<p className="text-[11px] text-muted-foreground">
+			<p className="type-body-sm text-text-2">
 				{
 					ACTION_CATALOG.find((entry) => entry.action === node.action)
 						?.description

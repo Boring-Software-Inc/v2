@@ -10,12 +10,13 @@ import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
 import { MotionConfig } from "motion/react";
 import { ThemeProvider } from "next-themes";
 import { lazy, Suspense } from "react";
+import glazeCss from "#/components/glaze/styles.css?url";
+import { Toaster } from "#/components/glaze/ui/toast";
 import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
-import { Toaster } from "#/components/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
+import { GlazePortalProvider } from "#/lib/glaze/portal";
 import { isPublicPath } from "#/lib/run-access";
 import { siteConfig } from "#/lib/site-config";
-
 import appCss from "../styles.css?url";
 
 const Databuddy = lazy(() =>
@@ -106,6 +107,7 @@ export const Route = createRootRouteWithContext<{
 		],
 		links: [
 			{ rel: "stylesheet", href: appCss },
+			{ rel: "stylesheet", href: glazeCss },
 			// Global favicon so every page (signed-out login included) shows the mark,
 			// not the browser's generic globe. SVG favicon, modern browsers only.
 			// White mark in prod; the green variant marks a dev tab at a glance
@@ -127,8 +129,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			<head>
 				<HeadContent />
 			</head>
-			<body className="min-h-screen bg-background font-sans antialiased">
-				{children}
+			<body className="glaze min-h-dvh">
+				<GlazePortalProvider>{children}</GlazePortalProvider>
 				<Scripts />
 			</body>
 		</html>
@@ -138,7 +140,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 function RootComponent() {
 	return (
 		<ThemeProvider
-			attribute="class"
+			attribute={["class", "data-theme"]}
 			defaultTheme="system"
 			enableSystem
 			disableTransitionOnChange

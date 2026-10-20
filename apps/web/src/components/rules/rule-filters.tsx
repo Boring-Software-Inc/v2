@@ -1,4 +1,17 @@
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/glaze/ui/select";
+
 export type RuleSort = "active" | "az";
+
+const SORTS: { value: RuleSort; label: string }[] = [
+	{ value: "active", label: "Most active" },
+	{ value: "az", label: "A to Z" },
+];
 
 /**
  * Rules-page sort. FP-rate sort is omitted while the stat is empty (§6 loop),
@@ -13,16 +26,26 @@ export function RuleFilters({
 	onSortChange: (sort: RuleSort) => void;
 }) {
 	return (
-		<label className="flex items-center gap-2 text-muted-foreground text-xs">
-			sort
-			<select
-				className="rounded-md border bg-card px-2 py-1 text-foreground text-xs"
-				onChange={(e) => onSortChange(e.target.value as RuleSort)}
-				value={sort}
-			>
-				<option value="active">most active</option>
-				<option value="az">A–Z</option>
-			</select>
-		</label>
+		<Select
+			items={SORTS}
+			onValueChange={(value) => {
+				const next = SORTS.find((s) => s.value === value);
+				if (next) {
+					onSortChange(next.value);
+				}
+			}}
+			value={sort}
+		>
+			<SelectTrigger aria-label="Sort rules" className="w-36" size="sm">
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent size="sm">
+				{SORTS.map((s) => (
+					<SelectItem key={s.value} value={s.value}>
+						{s.label}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
 	);
 }

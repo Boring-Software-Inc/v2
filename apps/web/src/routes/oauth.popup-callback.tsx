@@ -4,8 +4,8 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Button } from "#/components/ui/button";
-import { Spinner } from "#/components/ui/spinner";
+import { Button } from "#/components/glaze/ui/button";
+import { Status } from "#/components/glaze/ui/status";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
@@ -166,7 +166,7 @@ function PopupCallbackPage() {
 	if (view.kind === "working") {
 		return (
 			<Shell>
-				<Spinner size={16} className="text-muted-foreground" />
+				<Status status="running">Finishing sign-in</Status>
 			</Shell>
 		);
 	}
@@ -186,17 +186,11 @@ function PopupCallbackPage() {
 			<Shell>
 				<Heading>You're in</Heading>
 				<Body>Your account already has access.</Body>
-				<div className="flex flex-col items-center gap-2.5">
-					<Button variant="default" size="sm" onClick={launchApp}>
-						Launch app
-					</Button>
-					<button
-						type="button"
-						onClick={() => window.close()}
-						className="text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-					>
+				<div className="flex flex-wrap items-center justify-center gap-2">
+					<Button variant="secondary" onClick={() => window.close()}>
 						Close window
-					</button>
+					</Button>
+					<Button onClick={launchApp}>Launch app</Button>
 				</div>
 			</Shell>
 		);
@@ -207,16 +201,10 @@ function PopupCallbackPage() {
 			<Heading>You're on the waitlist</Heading>
 			<Body>
 				Tripwire is in closed beta. We'll email{" "}
-				{view.email ? (
-					<span className="text-foreground">{view.email}</span>
-				) : (
-					"you"
-				)}{" "}
+				{view.email ? <span className="text-text-1">{view.email}</span> : "you"}{" "}
 				when you're approved.
 			</Body>
-			<p className="text-[13px] text-muted-foreground">
-				You can close this window.
-			</p>
+			<p className="type-body text-text-2">You can close this window.</p>
 			<CloseButton />
 		</Shell>
 	);
@@ -224,28 +212,24 @@ function PopupCallbackPage() {
 
 function Shell({ children }: { children: ReactNode }) {
 	return (
-		<div className="flex min-h-dvh w-full flex-col items-center justify-center gap-5 bg-background px-8 text-center">
-			<TripwireLogo className="text-foreground" size={30} />
+		<div className="flex min-h-dvh w-full flex-col items-center justify-center gap-5 bg-page px-4 text-center">
+			<TripwireLogo className="text-text-1" size={30} />
 			{children}
 		</div>
 	);
 }
 
 function Heading({ children }: { children: ReactNode }) {
-	return <h1 className="font-semibold text-lg text-foreground">{children}</h1>;
+	return <h1 className="type-title">{children}</h1>;
 }
 
 function Body({ children }: { children: ReactNode }) {
-	return (
-		<p className="max-w-[340px] text-[13px] text-muted-foreground leading-relaxed">
-			{children}
-		</p>
-	);
+	return <p className="max-w-sm type-body text-text-2">{children}</p>;
 }
 
 function CloseButton() {
 	return (
-		<Button variant="outline" size="sm" onClick={() => window.close()}>
+		<Button variant="secondary" onClick={() => window.close()}>
 			Close window
 		</Button>
 	);

@@ -1,69 +1,63 @@
-import {
-	Comment01Icon,
-	Logout01Icon,
-	MoonIcon,
-	Settings01Icon,
-	Sun01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { useFeedback } from "#/components/feedback";
-import { RepoSwitcher } from "#/components/layouts/repo-switcher";
-import { RepoTabBar } from "#/components/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "#/components/ui/avatar";
-import { Button } from "#/components/ui/button";
+import {
+	Comment,
+	Dark,
+	Icon,
+	Light,
+	Settings,
+	SignOut,
+} from "#/components/glaze/icon";
+import { Avatar } from "#/components/glaze/ui/avatar";
+import { Button } from "#/components/glaze/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
+	DropdownMenuLinkItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "#/components/ui/dropdown-menu";
+} from "#/components/glaze/ui/dropdown-menu";
+import { RepoSwitcher } from "#/components/layouts/repo-switcher";
+import { RepoTabBar } from "#/components/tabs";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { authClient } from "#/lib/auth-client";
 import { siteConfig } from "#/lib/site-config";
 
 interface DashboardTopbarProps {
-	/** The signed-in maintainer; null in open-dev or signed out (§10). */
 	user: CurrentUser | null;
 }
 
 export function DashboardTopbar({ user }: DashboardTopbarProps) {
-	// URL-scoped nav (§8): the org in the URL decides where the wordmark and the
-	// account menu point.
 	const params = useParams({ strict: false });
 	const org = params.org;
 
 	return (
 		<nav
 			aria-label="Primary"
-			className="flex min-w-0 items-center gap-3 px-3 py-2"
+			className="flex h-12 min-w-0 shrink-0 items-center gap-3 px-3"
 		>
-			{/* The logo goes home — the only route back to the org level from a repo. */}
 			<Link
 				to={org ? "/$org/home" : "/"}
 				params={org ? { org } : {}}
-				className="flex shrink-0 items-center gap-2 rounded-md pr-1 pl-1 transition-colors hover:bg-surface-0"
+				className="flex h-(--control) shrink-0 items-center gap-2 rounded-pill px-2 text-text-1 hover:bg-hover"
 			>
-				<TripwireWordmark className="text-foreground" height={15} width={24} />
-				<span className="text-sm font-medium tracking-tight">
-					{siteConfig.name}
-				</span>
+				<TripwireWordmark height={15} width={24} />
+				<span className="type-label">{siteConfig.name}</span>
 			</Link>
 
-			{/* The window's own row: the repos you have open. The page tree for the
-			    active one lives inside the page shell (`ShellNav`). */}
 			<RepoTabBar className="hidden md:flex" />
 
-			<div className="ml-auto hidden items-center md:flex">
+			<div className="ms-auto hidden items-center md:flex">
 				<RepoSwitcher />
 			</div>
 
-			<div className="ml-auto flex shrink-0 items-center gap-1 md:ml-0">
+			<div className="ms-auto flex shrink-0 items-center gap-1 md:ms-0">
 				<ThemeToggle />
 				<UserMenu org={org} user={user} />
 			</div>
@@ -71,7 +65,6 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 	);
 }
 
-/** Placeholder identity for open-dev / signed-out — never a fabricated name. */
 const PLACEHOLDER_USER: CurrentUser = {
 	name: "local session",
 	login: "dev",
@@ -84,52 +77,52 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
-				aria-label="Account"
-				className="flex size-8 items-center justify-center rounded-full"
-			>
-				<Avatar className="size-7">
-					<AvatarImage
-						src={moderator.image ?? undefined}
-						alt={moderator.name}
+				render={
+					<Button
+						aria-label={`Account menu for ${moderator.name}`}
+						size="icon"
+						variant="ghost"
 					/>
-					<AvatarFallback className="text-xs">
-						{moderator.name
-							.split(" ")
-							.map((part) => part[0])
-							.join("")
-							.slice(0, 2)
-							.toUpperCase()}
-					</AvatarFallback>
-				</Avatar>
+				}
+			>
+				<Avatar
+					decorative
+					name={moderator.name}
+					src={moderator.image || undefined}
+				/>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
-				<DropdownMenuLabel className="flex flex-col gap-0.5">
-					<span className="font-medium">{moderator.name}</span>
-					<span className="text-xs text-muted-foreground">
-						@{moderator.login}
-					</span>
-				</DropdownMenuLabel>
+				<DropdownMenuGroup>
+					<DropdownMenuLabel>
+						<span className="block type-label text-text-1">
+							{moderator.name}
+						</span>
+						<span className="block type-caption text-text-2">
+							@{moderator.login}
+						</span>
+					</DropdownMenuLabel>
+				</DropdownMenuGroup>
 				<DropdownMenuSeparator />
 				{org ? (
-					<DropdownMenuItem
+					<DropdownMenuLinkItem
 						render={
-							// `to="."` — the dialog opens over whatever page you're on.
 							<Link
 								search={(prev) => ({ ...prev, settings: "members" as const })}
 								to="."
 							/>
 						}
 					>
-						<HugeiconsIcon icon={Settings01Icon} size={14} strokeWidth={2} />
-						Settings
-					</DropdownMenuItem>
+						<Icon icon={Settings} />
+						Open settings
+					</DropdownMenuLinkItem>
 				) : null}
 				<DropdownMenuItem onClick={openFeedback}>
-					<HugeiconsIcon icon={Comment01Icon} size={14} strokeWidth={2} />
+					<Icon icon={Comment} />
 					Send feedback
 				</DropdownMenuItem>
+				<DropdownMenuSeparator />
 				<DropdownMenuItem
-					className="text-destructive data-highlighted:text-destructive"
+					variant="destructive"
 					onClick={() =>
 						authClient.signOut({
 							fetchOptions: {
@@ -138,7 +131,7 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 						})
 					}
 				>
-					<HugeiconsIcon icon={Logout01Icon} size={14} strokeWidth={2} />
+					<Icon icon={SignOut} />
 					Log out
 				</DropdownMenuItem>
 			</DropdownMenuContent>
@@ -149,22 +142,16 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 function ThemeToggle() {
 	const { resolvedTheme, setTheme } = useTheme();
 	const hasMounted = useHasMounted();
-	const isDark = resolvedTheme === "dark";
+	const isDark = hasMounted && resolvedTheme === "dark";
 
 	return (
 		<Button
 			variant="ghost"
 			size="icon"
-			aria-label="Toggle theme"
-			className="size-8 text-muted-foreground hover:bg-surface-1"
+			aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
 			onClick={() => setTheme(isDark ? "light" : "dark")}
-			iconLeft={
-				hasMounted && isDark ? (
-					<HugeiconsIcon icon={Sun01Icon} size={16} strokeWidth={2} />
-				) : (
-					<HugeiconsIcon icon={MoonIcon} size={16} strokeWidth={2} />
-				)
-			}
-		/>
+		>
+			<Icon icon={isDark ? Light : Dark} />
+		</Button>
 	);
 }

@@ -57,7 +57,7 @@ describe("RuleCard management states", () => {
 	test("standalone: toggle present, no management tag", () => {
 		const html = render(<RuleCard {...base} rule={rule()} />);
 		expect(html).toContain('role="switch"');
-		expect(html).not.toContain("in workflow");
+		expect(html).not.toContain("In workflow");
 		expect(html).not.toContain(">off<");
 	});
 
@@ -68,7 +68,7 @@ describe("RuleCard management states", () => {
 				rule={rule({ management: "managed", config: { minDays: 14 } })}
 			/>,
 		);
-		expect(html).toContain("in workflow");
+		expect(html).toContain("In workflow");
 		expect(html).not.toContain('role="switch"');
 		// what actually runs is the workflow node's 14 days, not the card's old 7
 		expect(html).toContain("14 days");
@@ -78,20 +78,20 @@ describe("RuleCard management states", () => {
 		const heldStandalone = render(
 			<RuleCard {...base} rule={rule({ held: true })} />,
 		);
-		expect(heldStandalone).toContain("update held");
+		expect(heldStandalone).toContain("Update held");
 		const heldManaged = render(
 			<RuleCard {...base} rule={rule({ held: true, management: "managed" })} />,
 		);
-		expect(heldManaged).not.toContain("update held");
+		expect(heldManaged).not.toContain("Update held");
 	});
 
 	test("the 24h count reddens only when blocks actually fired", () => {
 		expect(
 			render(<RuleCard {...base} rule={rule({ matches24h: 3 })} />),
-		).toContain("text-red-600");
+		).toContain("text-fail-text");
 		expect(
 			render(<RuleCard {...base} rule={rule({ matches24h: 0 })} />),
-		).not.toContain("text-red-600");
+		).not.toContain("text-fail-text");
 	});
 
 	test("an opt-in-off standalone rule keeps a DISTINCT enable offer", () => {
@@ -109,13 +109,13 @@ describe("RuleCard management states", () => {
 				})}
 			/>,
 		);
-		expect(html).toContain("enable");
+		expect(html).toContain("Enable rule");
 		expect(html).toContain("costs tokens");
 	});
 
 	test("workflow deep-links and labels are wired (source-locked, router-free)", () => {
 		const src = readFileSync(join(import.meta.dir, "rule-card.tsx"), "utf8");
-		expect(src).toContain("edit in workflow →");
+		expect(src).toContain("Edit in workflow");
 		expect(src).toContain("/$org/$repo/workflows/$workflowId");
 	});
 });
@@ -152,7 +152,7 @@ describe("RuleCard forge support", () => {
 				})}
 			/>,
 		);
-		expect(html).not.toContain(">enable<");
+		expect(html).not.toContain("Enable rule");
 	});
 
 	test("usable rule is untouched — no reason chip, toggle live", () => {

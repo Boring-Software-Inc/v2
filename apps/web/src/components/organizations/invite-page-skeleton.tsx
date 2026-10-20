@@ -1,17 +1,19 @@
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Skeleton } from "#/components/ui/skeleton";
+import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 
 export function InvitePageSkeleton() {
 	return (
-		<div className="flex min-h-dvh w-full items-center justify-center bg-background px-6">
-			<div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
-				<TripwireLogo className="text-foreground" size={28} />
-				<div className="flex flex-col items-center gap-2.5">
-					<Skeleton className="h-5 w-56" />
-					<Skeleton className="h-4 w-72" />
-					<Skeleton className="h-4 w-60" />
-					<Skeleton className="h-8 w-24" />
+		<div className="flex min-h-dvh w-full items-center justify-center bg-page px-4 py-10">
+			<div
+				aria-hidden
+				className="flex w-full max-w-sm flex-col items-center gap-6 text-center"
+			>
+				<TripwireLogo className="text-text-1" size={28} />
+				<div className="flex w-full flex-col items-center gap-2">
+					<SkeletonText className="w-64" type="heading" />
+					<SkeletonText className="w-72" lines={2} type="body" />
 				</div>
+				<Skeleton className="h-(--control) w-24 rounded-pill" />
 			</div>
 		</div>
 	);

@@ -67,15 +67,15 @@ export function ConnectForgeGrid({
 		if (!org) {
 			return {
 				kind: "blocked",
-				title: "open an org first",
-				body: `${label} grants repos to an org — pick one, then connect.`,
+				title: "Open an org first",
+				body: `${label} grants repos to an org. Pick one, then connect.`,
 			};
 		}
 		if (!isOrgAdmin) {
 			return {
 				kind: "blocked",
-				title: "admins only",
-				body: `ask an org admin to connect ${label} repos.`,
+				title: "Admins only",
+				body: `Ask an org admin to connect ${label} repos.`,
 			};
 		}
 		if (installUrl?.status !== "ready") {
@@ -84,8 +84,8 @@ export function ConnectForgeGrid({
 				title: `${label} app unavailable`,
 				body:
 					installUrl?.status === "not-configured"
-						? `the ${label} app isn't configured on this deployment.`
-						: "couldn't mint an install url — try again shortly.",
+						? `The ${label} app isn't configured on this deployment.`
+						: "Couldn't mint an install URL. Try again shortly.",
 			};
 		}
 		return {
@@ -103,8 +103,8 @@ export function ConnectForgeGrid({
 	 * instead of an open index signature quietly returning undefined.
 	 */
 	const STATE = new Map<string, () => ForgeCellState>([
-		["github", () => installState("github", githubUrl)],
-		["opengit", () => installState("open-git", openGitUrl)],
+		["github", () => installState("GitHub", githubUrl)],
+		["opengit", () => installState("OpenGit", openGitUrl)],
 	]);
 
 	return (
@@ -119,12 +119,12 @@ export function ConnectForgeGrid({
 							? (STATE.get(forge.id)?.() ?? {
 									kind: "blocked",
 									title: `${forge.label} can't connect yet`,
-									body: "this forge signs in but has no repo import.",
+									body: "This forge signs in but has no repo import.",
 								})
 							: {
 									kind: "blocked",
 									title: `${forge.label} isn't live yet`,
-									body: `tripwire watches ${LIVE_FORGES} today.`,
+									body: `Tripwire watches ${LIVE_FORGES} today.`,
 								}
 					}
 				/>

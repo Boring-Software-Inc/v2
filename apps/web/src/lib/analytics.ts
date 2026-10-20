@@ -1,11 +1,10 @@
-import type { DitherColor } from "#/components/charts/dither-chart";
-import type { GoodDirection } from "#/components/charts/dither-stat-card";
 import type { ModStats } from "#/lib/moderation.types";
+
+export type GoodDirection = "up" | "down" | "neutral";
 
 export type AnalyticsMetric = {
 	key: string;
 	label: string;
-	color: DitherColor;
 	series: number[];
 	delta: number;
 	goodDirection: GoodDirection;
@@ -17,8 +16,7 @@ export function moderationMetrics(stats: ModStats): AnalyticsMetric[] {
 	return [
 		{
 			key: "review",
-			label: "sent to review",
-			color: "orange",
+			label: "Sent to review",
 			series: stats.sentToReview.series,
 			delta: stats.sentToReview.delta,
 			// more awaiting your decision is work piling up.
@@ -27,7 +25,6 @@ export function moderationMetrics(stats: ModStats): AnalyticsMetric[] {
 		{
 			key: "blocked",
 			label: "Blocked · 24h",
-			color: "red",
 			series: stats.blocked.series,
 			delta: stats.blocked.delta,
 			// up = the gate working OR more attacks — genuinely ambiguous.
@@ -36,7 +33,6 @@ export function moderationMetrics(stats: ModStats): AnalyticsMetric[] {
 		{
 			key: "passed",
 			label: "Passed · 24h",
-			color: "green",
 			series: stats.passed.series,
 			delta: stats.passed.delta,
 			goodDirection: "up",

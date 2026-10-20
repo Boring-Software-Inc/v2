@@ -4,12 +4,27 @@ import type { Forge } from "@tripwire/contracts";
 import { useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
+import { ArrowRight, Icon } from "#/components/glaze/icon";
+import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
+import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
+import {
+	Skeleton,
+	SkeletonSwap,
+	SkeletonText,
+} from "#/components/glaze/ui/skeleton";
+import { toast } from "#/components/glaze/ui/toast";
 import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { Button } from "#/components/ui/button";
-import { Skeleton } from "#/components/ui/skeleton";
-import { Spinner } from "#/components/ui/spinner";
-import { toast } from "#/components/ui/toast";
 import {
 	claimInstallation,
 	getInstallPreview,
@@ -36,21 +51,11 @@ export function InstallSetupPage() {
 		if (search.setup_action === "request") {
 			return (
 				<SetupShell>
-					<h1 className="font-semibold text-lg text-foreground">
-						waiting on github.
-					</h1>
-					<p className="text-[13px] text-muted-foreground leading-relaxed">
-						your installation request needs approval from an admin of that
-						github account. once they approve, you'll get the callback here.
-					</p>
-					<Button
-						nativeButton={false}
-						render={<Link to="/" />}
-						size="sm"
-						variant="outline"
-					>
-						back home
-					</Button>
+					<SetupCopy
+						body="Your installation request needs approval from an admin of that GitHub account. Once they approve, you'll get the callback here."
+						title="Waiting on GitHub"
+					/>
+					<BackHome />
 				</SetupShell>
 			);
 		}
@@ -89,54 +94,50 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	if (claimable.length === 0) {
 		return (
 			<SetupShell>
-				<h1 className="font-semibold text-lg text-foreground">
-					nothing to connect yet.
-				</h1>
-				<p className="text-[13px] text-muted-foreground leading-relaxed">
-					no unclaimed repos are waiting. if you just connected a forge, give it
-					a moment and refresh — the sync may still be in flight.
-					already-connected repos live with their org.
-				</p>
-				<Button
-					nativeButton={false}
-					render={<Link to="/" />}
-					size="sm"
-					variant="outline"
-				>
-					back home
-				</Button>
+				<SetupCopy
+					body="No unclaimed repos are waiting. If you just connected a forge, give it a moment and refresh, since the sync may still be in flight. Already-connected repos live with their org."
+					title="Nothing to connect yet"
+				/>
+				<BackHome />
 			</SetupShell>
 		);
 	}
 	return (
 		<SetupShell>
-			<h1 className="font-semibold text-lg text-foreground">
-				which installation?
-			</h1>
-			<p className="text-[13px] text-muted-foreground leading-relaxed">
-				pick the connection to bind to an org.
-			</p>
-			<div className="flex w-full flex-col gap-1.5">
-				{claimable.map((c) => (
-					<button
-						className="flex items-center gap-2 rounded-md border bg-surface-0 px-3 py-2 text-left text-[13px] transition-colors hover:bg-surface-1"
-						key={c.installationId}
-						onClick={() => setPicked(c.installationId)}
-						type="button"
-					>
-						<ForgeMark
-							className="size-4 shrink-0 text-muted-foreground"
-							forge={c.forge}
-						/>
-						<span className="font-medium text-foreground">
-							{c.account ?? "connection"}
-						</span>
-						<span className="text-muted-foreground">
-							{c.repoCount} {c.repoCount === 1 ? "repo" : "repos"}
-						</span>
-					</button>
-				))}
-			</div>
+			<SetupCopy
+				body="Pick the connection to bind to an org."
+				title="Which installation?"
+			/>
+			<ItemGroup aria-label="Unclaimed connections" className="text-start">
+				{claimable.map((c) => {
+					const account = c.account ?? "Connection";
+					return (
+						<Item key={c.installationId}>
+							<ItemMedia variant="icon">
+								<ForgeMark className="size-(--icon)" forge={c.forge} />
+							</ItemMedia>
+							<ItemContent>
+								<ItemTitle>
+									<span>{account}</span>
+								</ItemTitle>
+								<ItemDescription>
+									{c.repoCount} {c.repoCount === 1 ? "repo" : "repos"}
+								</ItemDescription>
+							</ItemContent>
+							<ItemActions>
+								<Button
+									aria-label={`Choose ${account}`}
+									onClick={() => setPicked(c.installationId)}
+									size="sm"
+									variant="secondary"
+								>
+									Choose
+								</Button>
+							</ItemActions>
+						</Item>
+					);
+				})}
+			</ItemGroup>
 		</SetupShell>
 	);
 }
@@ -163,21 +164,17 @@ function SetupFlow({
 	if (preview.claimedByOrgSlug) {
 		return (
 			<SetupShell>
-				<h1 className="font-semibold text-lg text-foreground">
-					already connected to {preview.claimedByOrgSlug}
-				</h1>
-				<p className="text-[13px] text-muted-foreground leading-relaxed">
-					this installation is bound to an org. an installation belongs to
-					exactly one org at a time.
-				</p>
+				<SetupCopy
+					body="This installation is bound to an org. An installation belongs to exactly one org at a time."
+					title={`Already connected to ${preview.claimedByOrgSlug}`}
+				/>
 				<Button
 					nativeButton={false}
 					render={
 						<Link params={{ org: preview.claimedByOrgSlug }} to="/$org/home" />
 					}
-					size="sm"
 				>
-					open the org
+					Open the org
 				</Button>
 			</SetupShell>
 		);
@@ -209,32 +206,26 @@ function ConfirmScreen({
 	const claim = useClaimMutation(preview.installationId, preview.forge);
 	return (
 		<SetupShell>
-			<h1 className="font-semibold text-lg text-foreground">
-				connect this installation?
-			</h1>
-			<GithubSummary preview={preview} />
-			<div className="flex items-center gap-2 text-[13px]">
-				<span className="text-muted-foreground">→ tripwire</span>
-				<OrgAvatar name={stateOrg.name} size={16} />
-				<span className="font-medium text-foreground">{stateOrg.name}</span>
-			</div>
-			<div className="flex flex-col items-center gap-2">
-				<Button
-					disabled={claim.isPending}
-					iconLeft={claim.isPending ? <Spinner size={14} /> : null}
-					onClick={() => claim.mutate(stateOrg.slug)}
-					size="sm"
-					type="button"
-				>
-					{`connect to ${stateOrg.name}`}
+			<h1 className="type-title">Connect this installation?</h1>
+			<InstallSummary preview={preview} />
+			<p className="flex items-center gap-2 type-body text-text-2">
+				<Icon icon={ArrowRight} />
+				<span>Tripwire</span>
+				<OrgAvatar name={stateOrg.name} size="sm" />
+				<span className="type-label text-text-1">{stateOrg.name}</span>
+			</p>
+			<div className="flex flex-wrap items-center justify-center gap-2">
+				<Button onClick={onChooseDifferent} type="button" variant="secondary">
+					Choose a different org
 				</Button>
-				<button
-					className="text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-					onClick={onChooseDifferent}
+				<Button
+					onClick={() => claim.mutate(stateOrg.slug)}
+					pending={claim.isPending}
+					pendingLabel="Connecting"
 					type="button"
 				>
-					choose a different org
-				</button>
+					{`Connect to ${stateOrg.name}`}
+				</Button>
 			</div>
 			{claim.error ? <ClaimError message={claim.error} /> : null}
 		</SetupShell>
@@ -249,46 +240,49 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 
 	return (
 		<SetupShell>
-			<h1 className="font-semibold text-lg text-foreground">
-				where should this installation live?
-			</h1>
-			<GithubSummary preview={preview} />
-			{orgs === undefined ? (
-				<div className="flex w-full flex-col gap-1.5">
-					<Skeleton className="h-9 w-full" />
-					<Skeleton className="h-9 w-full" />
-				</div>
-			) : adminOrgs.length === 0 ? (
-				<p className="text-[13px] text-muted-foreground leading-relaxed">
-					you're not an admin of any org — connecting an installation is an
-					admin act.
-				</p>
-			) : (
-				<div className="flex w-full flex-col gap-1">
-					{adminOrgs.map((org) => (
-						<button
-							className="flex items-center gap-2.5 rounded-md border px-3 py-2 text-left text-[13px] transition-colors hover:bg-surface-1 disabled:opacity-60"
-							disabled={claim.isPending}
-							key={org.id}
-							onClick={() => claim.mutate(org.slug)}
-							type="button"
-						>
-							<OrgAvatar hue={org.avatarHue} name={org.name} size={18} />
-							<span className="min-w-0 flex-1 truncate font-medium">
-								{org.name}
-							</span>
-							{org.isPersonal ? (
-								<span className="text-[11px] text-muted-foreground">
-									personal
-								</span>
-							) : null}
-							{claim.isPending && claim.variables === org.slug ? (
-								<Spinner size={13} />
-							) : null}
-						</button>
-					))}
-				</div>
-			)}
+			<h1 className="type-title">Where should this installation live?</h1>
+			<InstallSummary preview={preview} />
+			<SkeletonSwap
+				fallback={<OrgRowsSkeleton />}
+				label="Loading your orgs"
+				loading={orgs === undefined}
+			>
+				{adminOrgs.length === 0 ? (
+					<p className="type-body text-text-2">
+						You're not an admin of any org. Connecting an installation is an
+						admin act.
+					</p>
+				) : (
+					<ItemGroup aria-label="Your admin orgs" className="text-start">
+						{adminOrgs.map((org) => (
+							<Item key={org.id}>
+								<ItemMedia>
+									<OrgAvatar name={org.name} size="default" />
+								</ItemMedia>
+								<ItemContent>
+									<ItemTitle>
+										<span>{org.name}</span>
+										{org.isPersonal ? <Badge size="sm">Personal</Badge> : null}
+									</ItemTitle>
+								</ItemContent>
+								<ItemActions>
+									<Button
+										aria-label={`Connect to ${org.name}`}
+										disabled={claim.isPending && claim.variables !== org.slug}
+										onClick={() => claim.mutate(org.slug)}
+										pending={claim.isPending && claim.variables === org.slug}
+										pendingLabel="Connecting"
+										size="sm"
+										variant="secondary"
+									>
+										Connect
+									</Button>
+								</ItemActions>
+							</Item>
+						))}
+					</ItemGroup>
+				)}
+			</SkeletonSwap>
 			{claim.error ? <ClaimError message={claim.error} /> : null}
 		</SetupShell>
 	);
@@ -304,10 +298,10 @@ function useClaimMutation(installationId: string, forge: Forge) {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.all }),
 		onSuccess: (result, org) => {
 			if (result.claimed) {
-				toast.success("connected");
+				toast.success("Connected");
 				navigate({ to: `/${org}/home` });
 			} else {
-				toast.error("another org already owns this installation");
+				toast.fail("Another org already owns this installation");
 			}
 		},
 	});
@@ -315,46 +309,76 @@ function useClaimMutation(installationId: string, forge: Forge) {
 
 function ClaimError({ message }: { message: Error }) {
 	return (
-		<p className="text-[12px] text-destructive">
-			{message.message || "the claim was refused."}
-		</p>
+		<Alert className="text-start" status="fail">
+			<AlertTitle>{message.message || "The claim was refused."}</AlertTitle>
+		</Alert>
 	);
 }
 
-function GithubSummary({ preview }: { preview: InstallPreview }) {
+function InstallSummary({ preview }: { preview: InstallPreview }) {
 	// The preview derives from webhook-synced repos — right after an install
 	// the webhook may not have landed yet. Say so instead of "0 repos".
 	const syncing = preview.account === null && preview.repoCount === 0;
 	return (
-		<div className="flex flex-col gap-1">
-			<div className="flex items-center gap-2 rounded-md border bg-surface-0 px-3 py-2 text-[13px]">
-				<ForgeMark
-					className="size-4 shrink-0 text-muted-foreground"
-					forge={preview.forge}
-				/>
-				<span className="font-medium text-foreground">
-					{preview.account ?? `${preview.forge} connection`}
-				</span>
-				<span className="text-muted-foreground">
-					{syncing
-						? "syncing…"
-						: `${preview.repoCount} ${preview.repoCount === 1 ? "repo" : "repos"}`}
-				</span>
-			</div>
-			{syncing ? (
-				<p className="text-[11px] text-muted-foreground">
-					still syncing from github — the repos land in a moment either way.
-				</p>
-			) : null}
+		<ItemGroup aria-label="Installation" className="text-start">
+			<Item>
+				<ItemMedia variant="icon">
+					<ForgeMark className="size-(--icon)" forge={preview.forge} />
+				</ItemMedia>
+				<ItemContent>
+					<ItemTitle>
+						<span>{preview.account ?? `${preview.forge} connection`}</span>
+					</ItemTitle>
+					<ItemDescription>
+						{syncing
+							? "Still syncing from GitHub. The repos land in a moment either way."
+							: `${preview.repoCount} ${preview.repoCount === 1 ? "repo" : "repos"}`}
+					</ItemDescription>
+				</ItemContent>
+			</Item>
+		</ItemGroup>
+	);
+}
+
+function OrgRowsSkeleton() {
+	return (
+		<ItemGroup aria-hidden className="text-start">
+			{["a", "b"].map((slot) => (
+				<Item key={slot}>
+					<ItemMedia>
+						<Skeleton className="size-6 rounded-pill" />
+					</ItemMedia>
+					<ItemContent>
+						<SkeletonText className="w-32" type="label" />
+					</ItemContent>
+				</Item>
+			))}
+		</ItemGroup>
+	);
+}
+
+function SetupCopy({ title, body }: { title: string; body: string }) {
+	return (
+		<div className="flex flex-col items-center gap-2">
+			<h1 className="type-title">{title}</h1>
+			<p className="type-body text-text-2">{body}</p>
 		</div>
+	);
+}
+
+function BackHome() {
+	return (
+		<Button nativeButton={false} render={<Link to="/" />} variant="secondary">
+			Back home
+		</Button>
 	);
 }
 
 function SetupShell({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="flex min-h-dvh w-full items-center justify-center bg-background px-6">
+		<div className="flex min-h-dvh w-full items-center justify-center bg-page px-4 py-10">
 			<div className="flex w-full max-w-sm flex-col items-center gap-5 text-center">
-				<TripwireLogo className="text-foreground" size={28} />
+				<TripwireLogo className="text-text-1" size={28} />
 				{children}
 			</div>
 		</div>

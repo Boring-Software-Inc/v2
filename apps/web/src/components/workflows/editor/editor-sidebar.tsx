@@ -14,12 +14,27 @@ import {
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { useState } from "react";
-import { KIND_STYLES } from "#/components/workflows/editor/node-kind-styles";
+import { Add, Icon } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "#/components/glaze/ui/tabs";
 import {
 	hasEditableParams,
 	PropertiesPanel,
 } from "#/components/workflows/editor/properties-panel";
-import { cn } from "#/lib/utils";
+import { cn } from "#/lib/glaze/utils";
 
 /**
  * The floating left sidebar — toolbox (catalog-driven palette, dnd-kit drag
@@ -66,7 +81,7 @@ export const TOOLBOX_SECTIONS: {
 	items: ToolboxItem[];
 }[] = [
 	{
-		title: "triggers",
+		title: "Triggers",
 		kind: "trigger",
 		items: TRIGGER_CATALOG.filter((entry) => entry.toolbox).map((entry) => ({
 			id: `trigger-${entry.kind}`,
@@ -77,7 +92,7 @@ export const TOOLBOX_SECTIONS: {
 		})),
 	},
 	{
-		title: "rules",
+		title: "Rules",
 		kind: "rule",
 		items: RULE_CATALOG.map((entry) => ({
 			id: `rule-${entry.ruleId}@${entry.version}`,
@@ -89,7 +104,7 @@ export const TOOLBOX_SECTIONS: {
 		})),
 	},
 	{
-		title: "gates",
+		title: "Gates",
 		kind: "gate",
 		items: GATE_CATALOG.map((entry) => ({
 			id: `gate-${entry.mode}`,
@@ -100,7 +115,7 @@ export const TOOLBOX_SECTIONS: {
 		})),
 	},
 	{
-		title: "actions",
+		title: "Actions",
 		kind: "action",
 		items: ACTION_CATALOG.map((entry) => ({
 			id: `action-${entry.action}`,
@@ -190,51 +205,38 @@ export function EditorSidebar({
 	const activeTab = propertiesDisabled ? "toolbox" : tab;
 
 	return (
-		<div className="absolute top-3 bottom-3 left-3 z-10 flex w-64 flex-col overflow-hidden rounded-xl border bg-surface-0/95 shadow-md backdrop-blur">
-			<div className="flex shrink-0 gap-1 p-1.5 pb-0">
-				<button
-					className={cn(
-						"flex-1 rounded-md px-2 py-1 font-medium text-xs transition-colors",
-						activeTab === "toolbox"
-							? "bg-surface-1 text-foreground"
-							: "text-muted-foreground hover:bg-surface-1",
-					)}
-					onClick={() => setTab("toolbox")}
-					type="button"
+		<div className="shell absolute start-3 top-3 bottom-3 z-(--z-raised) flex w-64 flex-col gap-(--shell-inset)">
+			<Tabs
+				className="min-h-0 flex-1 gap-(--shell-inset)"
+				onValueChange={(value) => setTab(value as "toolbox" | "properties")}
+				value={activeTab}
+			>
+				<div className="px-1 pt-1">
+					<TabsList aria-label="Editor sidebar" size="sm">
+						<TabsTrigger value="toolbox">Toolbox</TabsTrigger>
+						<TabsTrigger disabled={propertiesDisabled} value="properties">
+							Properties
+						</TabsTrigger>
+					</TabsList>
+				</div>
+				<TabsContent
+					className="panel min-h-0 overflow-y-auto p-2"
+					value="toolbox"
 				>
-					toolbox
-				</button>
-				<button
-					className={cn(
-						"flex-1 rounded-md px-2 py-1 font-medium text-xs transition-colors",
-						activeTab === "properties"
-							? "bg-surface-1 text-foreground"
-							: "text-muted-foreground",
-						propertiesDisabled
-							? "cursor-not-allowed opacity-40"
-							: "hover:bg-surface-1",
-					)}
-					disabled={propertiesDisabled}
-					onClick={() => setTab("properties")}
-					type="button"
-				>
-					properties
-				</button>
-			</div>
-			<div className="min-h-0 flex-1 overflow-y-auto p-2">
-				{activeTab === "toolbox" ? (
-					<div className="flex flex-col gap-2.5">
+					<div className="flex flex-col gap-3">
 						{sections.map((section) => (
-							<div
-								className="overflow-hidden rounded-xl border bg-card"
+							<section
+								aria-labelledby={`toolbox-${section.kind}`}
+								className="flex flex-col gap-1"
 								key={section.title}
 							>
-								<div className="bg-surface-1 px-3 py-2">
-									<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-										{section.title}
-									</p>
-								</div>
-								<div className="divide-y divide-border/60">
+								<h3
+									className="px-1 type-label-sm text-text-2"
+									id={`toolbox-${section.kind}`}
+								>
+									{section.title}
+								</h3>
+								<ItemGroup aria-label={section.title} variant="plain">
 									{section.items.map((item) => (
 										<ToolboxRow
 											disabled={readOnly}
@@ -243,29 +245,40 @@ export function EditorSidebar({
 											onAdd={onAdd}
 										/>
 									))}
-									{section.kind === "rule" ? (
-										<Link
-											className="block px-3 py-2 font-medium text-primary text-xs hover:bg-surface-1"
-											params={{ org, repo }}
-											to="/$org/$repo/rules"
-										>
-											create rule →
-										</Link>
-									) : null}
-								</div>
-							</div>
+								</ItemGroup>
+								{section.kind === "rule" ? (
+									<Button
+										className="self-start"
+										nativeButton={false}
+										render={
+											<Link params={{ org, repo }} to="/$org/$repo/rules" />
+										}
+										size="sm"
+										variant="ghost"
+									>
+										<Icon icon={Add} />
+										Create rule
+									</Button>
+								) : null}
+							</section>
 						))}
 					</div>
-				) : selectedNode ? (
-					<PropertiesPanel
-						key={selectedNode.id}
-						node={selectedNode}
-						onTestConnection={onTestConnection}
-						onUpdate={onUpdateNode}
-						readOnly={readOnly}
-					/>
-				) : null}
-			</div>
+				</TabsContent>
+				<TabsContent
+					className="panel min-h-0 overflow-y-auto p-3"
+					value="properties"
+				>
+					{selectedNode ? (
+						<PropertiesPanel
+							key={selectedNode.id}
+							node={selectedNode}
+							onTestConnection={onTestConnection}
+							onUpdate={onUpdateNode}
+							readOnly={readOnly}
+						/>
+					) : null}
+				</TabsContent>
+			</Tabs>
 		</div>
 	);
 }
@@ -279,35 +292,36 @@ function ToolboxRow({
 	disabled: boolean;
 	onAdd: (item: ToolboxItem) => void;
 }) {
-	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+	const { listeners, setNodeRef, isDragging } = useDraggable({
 		id: item.id,
 		data: item,
 		disabled,
 	});
-	const style = KIND_STYLES[item.kind];
 	return (
-		<button
-			className={cn(
-				"w-full border-l-2 border-l-transparent px-3 py-2 text-left transition-colors",
-				disabled
-					? "cursor-not-allowed opacity-50"
-					: cn("cursor-grab hover:bg-surface-1", style.hoverAccent),
-				isDragging && "opacity-40",
-			)}
+		<Item
+			className={cn(!disabled && "cursor-grab", isDragging && "opacity-40")}
 			disabled={disabled}
-			onClick={() => onAdd(item)}
 			ref={setNodeRef}
-			type="button"
+			size="sm"
 			{...listeners}
-			{...attributes}
 		>
-			<span className="flex items-center gap-1.5 text-xs">
-				<span className={cn("size-1.5 shrink-0 rounded-full", style.dot)} />
-				{item.name}
-			</span>
-			<span className="mt-0.5 block text-[11px] text-muted-foreground leading-4">
-				{item.description}
-			</span>
-		</button>
+			<ItemContent>
+				<ItemTitle>
+					<span>{item.name}</span>
+				</ItemTitle>
+				<ItemDescription>{item.description}</ItemDescription>
+			</ItemContent>
+			<ItemActions>
+				<Button
+					aria-label={`Add ${item.name}`}
+					disabled={disabled}
+					onClick={() => onAdd(item)}
+					size="icon-sm"
+					variant="ghost"
+				>
+					<Icon icon={Add} />
+				</Button>
+			</ItemActions>
+		</Item>
 	);
 }

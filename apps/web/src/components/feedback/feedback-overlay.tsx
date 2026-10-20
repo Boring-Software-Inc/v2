@@ -1,5 +1,5 @@
 import { getDisplayName, getFiberFromHostInstance, traverseFiber } from "bippy";
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { freeze, getElementContext, unfreeze } from "react-grab/primitives";
 import { captureViewport } from "./capture";
@@ -18,8 +18,6 @@ type HoveredInfo = {
 	componentName: string | null;
 	tagName: string;
 } | null;
-
-const ACCENT = "#34a6ff";
 
 function getComponentName(element: Element): string | null {
 	const fiber = getFiberFromHostInstance(element);
@@ -180,41 +178,38 @@ export function FeedbackOverlay() {
 
 	return createPortal(
 		<div
-			className="fixed inset-0 z-[9998] cursor-crosshair bg-black/10"
+			className="fixed inset-0 z-(--z-overlay) cursor-crosshair bg-hover"
 			data-feedback-ignore
 			data-screenshot-ignore
 			id="feedback-overlay-layer"
 		>
-			<div className="-translate-x-1/2 absolute top-4 left-1/2 rounded-full border bg-popover px-4 py-2 font-medium text-foreground text-sm shadow-lg">
+			<div className="-translate-x-1/2 absolute top-4 left-1/2 rounded-pill border border-line bg-paper px-3 py-1.5 type-label text-text-1">
 				{isResolving
-					? "Resolving component…"
-					: "Click an element to select it · Esc to cancel"}
+					? "Resolving component"
+					: "Click an element to select it. Esc to cancel."}
 			</div>
 
 			{hovered ? (
 				<div
-					className="pointer-events-none fixed rounded-sm border-2 transition-[top,left,width,height] duration-75 ease-out"
+					className="pointer-events-none fixed top-(--pick-top) left-(--pick-left) h-(--pick-height) w-(--pick-width) rounded-tag border border-ink bg-hover transition-[top,left,width,height] duration-(--dur-press) ease-out"
 					ref={highlightRef}
-					style={{
-						top: hovered.rect.top,
-						left: hovered.rect.left,
-						width: hovered.rect.width,
-						height: hovered.rect.height,
-						borderColor: ACCENT,
-						backgroundColor: "rgba(52, 166, 255, 0.1)",
-					}}
+					style={
+						{
+							"--pick-top": `${hovered.rect.top}px`,
+							"--pick-left": `${hovered.rect.left}px`,
+							"--pick-width": `${hovered.rect.width}px`,
+							"--pick-height": `${hovered.rect.height}px`,
+						} as CSSProperties
+					}
 				>
-					<div
-						className="absolute -top-6 left-0 flex items-center gap-1 whitespace-nowrap rounded-sm px-2 py-0.5 text-white text-xs"
-						style={{ backgroundColor: ACCENT }}
-					>
+					<div className="absolute bottom-full left-0 mb-1 flex items-center gap-1 whitespace-nowrap rounded-tag bg-ink px-1.5 py-0.5 type-label-sm text-text-inverse">
 						{hovered.componentName ? (
 							<>
-								<span className="font-medium">{hovered.componentName}</span>
-								<span className="font-mono opacity-60">{hovered.tagName}</span>
+								<span>{hovered.componentName}</span>
+								<span className="mono">{hovered.tagName}</span>
 							</>
 						) : (
-							<span className="font-mono">{hovered.tagName}</span>
+							<span className="mono">{hovered.tagName}</span>
 						)}
 					</div>
 				</div>

@@ -1,12 +1,24 @@
 import { Link } from "@tanstack/react-router";
 import type { ValidationIssue, WorkflowDefinition } from "@tripwire/contracts";
 import { useState } from "react";
-import { toast } from "#/components/ui/toast";
+import { ArrowLeft, Icon } from "#/components/glaze/icon";
+import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
+import { Input } from "#/components/glaze/ui/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverHeader,
+	PopoverTitle,
+	PopoverTrigger,
+} from "#/components/glaze/ui/popover";
+import { StatusMark } from "#/components/glaze/ui/status";
+import { toast } from "#/components/glaze/ui/toast";
 import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
 import type { CustomRuleDisplay } from "#/lib/workflow-markdown";
 
 /**
- * Slim editor header — back link, inline-editable name, enabled pill +
+ * Slim editor header — back link, inline-editable name, enabled badge +
  * enable/disable, save. Enabling with live issues never hits the server:
  * the button opens the why-not list instead.
  */
@@ -49,6 +61,7 @@ export function EditorHeader({
 	onSetEnabled,
 }: EditorHeaderProps) {
 	const [whyOpen, setWhyOpen] = useState(false);
+	const blocked = !enabled && blockers.length > 0;
 
 	const commitName = async (next: string) => {
 		const trimmed = next.trim();
@@ -57,7 +70,7 @@ export function EditorHeader({
 		}
 		const result = await onRename(trimmed);
 		if (!result.ok) {
-			toast(result.error ?? "couldn't rename");
+			toast.fail(result.error ?? "Couldn't rename");
 		}
 	};
 
@@ -67,27 +80,29 @@ export function EditorHeader({
 			return;
 		}
 		if (blockers.length > 0) {
-			setWhyOpen((value) => !value);
 			return;
 		}
 		onSetEnabled(true);
 	};
 
 	return (
-		<header className="flex shrink-0 items-center gap-3 border-b px-4 py-2">
-			<Link
-				className="shrink-0 text-muted-foreground text-xs transition-colors hover:text-foreground"
-				params={{ org, repo }}
-				to="/$org/$repo/workflows"
+		<header className="flex shrink-0 flex-wrap items-center gap-2 border-line-faint border-b px-3 py-2">
+			<Button
+				nativeButton={false}
+				render={<Link params={{ org, repo }} to="/$org/$repo/workflows" />}
+				size="sm"
+				variant="ghost"
 			>
-				← workflows
-			</Link>
+				<Icon icon={ArrowLeft} />
+				Workflows
+			</Button>
 			{readOnly ? (
-				<span className="truncate font-medium text-sm">{name}</span>
+				<span className="min-w-0 truncate type-label">{name}</span>
 			) : (
-				<input
-					aria-label="workflow name"
-					className="min-w-0 max-w-72 flex-1 truncate rounded-md border border-transparent bg-transparent px-1.5 py-0.5 font-medium text-sm outline-none transition-[color,border-color,box-shadow] hover:border-border focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+				<Input
+					aria-label="Workflow name"
+					autoComplete="off"
+					className="w-auto min-w-0 max-w-72 flex-1"
 					defaultValue={name}
 					key={name}
 					onBlur={(event) => commitName(event.target.value)}
@@ -100,66 +115,62 @@ export function EditorHeader({
 							event.currentTarget.blur();
 						}
 					}}
+					size="sm"
 				/>
 			)}
-			{enabled ? (
-				<span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 font-medium text-[11px] text-brand-text">
-					enabled
-				</span>
-			) : null}
-			<div className="ml-auto flex shrink-0 items-center gap-2">
+			{enabled ? <Badge>Enabled</Badge> : null}
+			<div className="ms-auto flex shrink-0 items-center gap-2">
 				<CopyWorkflowButton customRules={customRules} definition={definition} />
 				{readOnly ? (
-					<span className="rounded-full bg-surface-2 px-2 py-0.5 font-medium text-[11px] text-muted-foreground">
-						read-only
-					</span>
+					<Badge variant="outline">Read only</Badge>
 				) : (
 					<>
-						<div className="relative">
-							<button
-								className="rounded-md border bg-card px-2.5 py-1 text-xs transition-colors hover:bg-surface-1 disabled:opacity-50"
-								disabled={toggling}
-								onClick={handleToggle}
-								type="button"
-							>
-								{toggling ? "…" : enabled ? "disable" : "enable"}
-							</button>
-							{whyOpen && !enabled && blockers.length > 0 ? (
-								<>
-									<button
-										aria-label="close"
-										className="fixed inset-0 z-20 cursor-default"
-										onClick={() => setWhyOpen(false)}
-										type="button"
-									/>
-									<div className="absolute top-full right-0 z-30 mt-1 w-72 rounded-lg border bg-popover p-2 shadow-md">
-										<p className="mb-1 px-1 font-medium text-[11px] text-muted-foreground">
-											can't enable yet — fix these first
-										</p>
-										<ul className="flex flex-col gap-0.5">
-											{blockers.map((issue) => (
-												<li
-													className="flex items-start gap-1.5 px-1 py-0.5 text-xs"
-													key={`${issue.nodeId ?? issue.edgeId ?? ""}-${issue.message}`}
-												>
-													<span className="mt-1.5 block size-1.5 shrink-0 rounded-full bg-red-500" />
-													{issue.message}
-												</li>
-											))}
-										</ul>
-									</div>
-								</>
-							) : null}
-						</div>
-						<button
-							className="rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground text-xs transition-colors hover:bg-primary/90 disabled:opacity-50"
-							disabled={saving || !dirty || zeroNodes}
-							onClick={onSave}
-							title={zeroNodes ? "add a node first" : undefined}
-							type="button"
+						<Popover
+							onOpenChange={(next) => setWhyOpen(next && blocked)}
+							open={whyOpen && blocked}
 						>
-							{saving ? "saving…" : "save"}
-						</button>
+							<PopoverTrigger
+								render={
+									<Button
+										onClick={handleToggle}
+										pending={toggling}
+										size="sm"
+										variant="secondary"
+									/>
+								}
+							>
+								{enabled ? "Disable" : "Enable"}
+							</PopoverTrigger>
+							<PopoverContent align="end">
+								<PopoverHeader>
+									<PopoverTitle>Fix these before you enable</PopoverTitle>
+								</PopoverHeader>
+								<ul className="flex flex-col gap-1">
+									{blockers.map((issue) => (
+										<li
+											className="flex items-start gap-1.5 type-body-sm"
+											key={`${issue.nodeId ?? issue.edgeId ?? ""}-${issue.message}`}
+										>
+											<StatusMark
+												className="mt-0.5"
+												label="Issue"
+												status="fail"
+											/>
+											{issue.message}
+										</li>
+									))}
+								</ul>
+							</PopoverContent>
+						</Popover>
+						<Button
+							disabled={!dirty || zeroNodes}
+							onClick={onSave}
+							pending={saving}
+							pendingLabel="Saving"
+							size="sm"
+						>
+							Save
+						</Button>
 					</>
 				)}
 			</div>

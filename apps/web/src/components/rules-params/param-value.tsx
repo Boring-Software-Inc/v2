@@ -20,7 +20,7 @@ export function ParamValue({
 			<span className="inline-flex flex-wrap gap-1 align-middle">
 				{items.map((item) => (
 					<code
-						className="rounded bg-surface-1 px-1 py-0.5 font-mono text-[11px] text-foreground"
+						className="mono rounded-tag bg-field px-1 text-text-1"
 						key={item}
 					>
 						{item}
@@ -30,7 +30,7 @@ export function ParamValue({
 		);
 	}
 	return (
-		<span className="font-semibold text-foreground">
+		<span className="font-medium text-text-1">
 			{formatParamValue(param, value)}
 		</span>
 	);

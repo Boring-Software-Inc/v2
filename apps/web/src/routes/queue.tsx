@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AccessPendingScreen } from "#/components/auth/access-pending-screen";
-import { Spinner } from "#/components/ui/spinner";
-import { toast } from "#/components/ui/toast";
+import { Status } from "#/components/glaze/ui/status";
+import { toast } from "#/components/glaze/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
@@ -48,7 +48,7 @@ function QueuePage() {
 			if (fresh?.user?.accessStatus === "approved") {
 				router.navigate({ to: "/" });
 			} else {
-				toast("Still on the waitlist — we'll email you the moment you're in.");
+				toast("Still on the waitlist. We'll email you the moment you're in.");
 			}
 		} finally {
 			setChecking(false);
@@ -57,8 +57,8 @@ function QueuePage() {
 
 	if (isLoading || !data?.user) {
 		return (
-			<div className="flex min-h-dvh w-full items-center justify-center bg-background">
-				<Spinner className="text-muted-foreground" size={20} />
+			<div className="flex min-h-dvh w-full items-center justify-center bg-page">
+				<Status status="running">Checking access</Status>
 			</div>
 		);
 	}

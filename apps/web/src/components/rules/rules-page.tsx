@@ -1,8 +1,19 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
+import { Add, Icon } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
+import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
+import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import {
 	CustomRuleBuilder,
@@ -15,14 +26,12 @@ import {
 	type RuleFilter,
 	RuleSegments,
 } from "#/components/rules/rule-segments";
+import { RuleGridSkeleton } from "#/components/rules/rules-page-skeleton";
 import {
 	type SaveQueueCommit,
 	SaveQueueProvider,
 	UnsavedChangesBar,
 } from "#/components/save-queue";
-import { Button } from "#/components/ui/button";
-import { Dither } from "#/components/ui/dither";
-import { toast } from "#/components/ui/toast";
 import {
 	deleteCustomRule,
 	saveCustomRule,
@@ -92,11 +101,6 @@ export function RulesPage() {
 	const { data: rules } = useQuery(ruleConfigsQueryOptions(org, repoId));
 	const statsQuery = useQuery(rulesStatsQueryOptions(org, repoId));
 	const queryClient = useQueryClient();
-
-	const fetchedStats = useRef(false);
-	if (statsQuery.isLoading) {
-		fetchedStats.current = true;
-	}
 
 	const sorted = useMemo(() => {
 		if (!rules) {
@@ -231,11 +235,11 @@ export function RulesPage() {
 			});
 		}
 		if (failedKeys.length === 0) {
-			toast("changes saved.");
+			toast.success("Changes saved");
 			return { ok: true };
 		}
-		const message = `${failedNames.join(" and ")} did not save. save again to retry.`;
-		toast(message);
+		const message = `${failedNames.join(" and ")} did not save. Save again to retry.`;
+		toast.fail(message);
 		return { error: message, failedKeys };
 	};
 
@@ -244,13 +248,13 @@ export function RulesPage() {
 			data: { org, repoId, id: ruleId },
 		});
 		if (result && "error" in result) {
-			toast(result.error);
+			toast.fail(result.error);
 			return;
 		}
 		await queryClient.invalidateQueries({
 			queryKey: rulesQueryKeys.config(org, repoId),
 		});
-		toast("rule deleted.");
+		toast.success("Rule deleted");
 	};
 
 	const saveDraft = async (draft: CustomRuleDraft): Promise<string | null> => {
@@ -270,7 +274,7 @@ export function RulesPage() {
 		await queryClient.invalidateQueries({
 			queryKey: rulesQueryKeys.config(org, repoId),
 		});
-		toast("rule created.");
+		toast.success("Rule created");
 		return null;
 	};
 
@@ -281,106 +285,117 @@ export function RulesPage() {
 			savedValues={useMemo(() => ruleSavedValues(rules), [rules])}
 		>
 			<DashboardLayout counts={{}}>
-				<div className="mx-auto w-full max-w-4xl px-6 py-8">
-					<header className="mb-6 flex items-start justify-between">
-						<div>
-							<h1 className="font-semibold text-2xl tracking-tight">Rules</h1>
-							<p className="text-muted-foreground text-sm">
-								boolean requirements every non-exempt contributor must meet on
-								every change request.
-							</p>
-						</div>
-						{isAdmin ? (
-							<Button onClick={() => setBuilderOpen(true)}>New rule</Button>
-						) : null}
-					</header>
-					<CustomRuleBuilder
-						onClose={() => setBuilderOpen(false)}
-						onSave={saveDraft}
-						open={builderOpen}
-						org={org}
-						repoId={repoId}
-					/>
-
-					{repo && !repo.armed ? (
-						<ArmCallout
-							className="mb-6"
+				<div className="px-4 py-6 md:px-8 md:py-10">
+					<div className="mx-auto flex w-full max-w-224 flex-col gap-6">
+						<header className="flex items-start justify-between gap-4">
+							<div className="flex flex-col gap-1">
+								<h1 className="type-title">Rules</h1>
+								<p className="type-body text-text-2">
+									Boolean requirements every non-exempt contributor must meet on
+									every change request.
+								</p>
+							</div>
+							{isAdmin ? (
+								<Button onClick={() => setBuilderOpen(true)}>
+									<Icon icon={Add} />
+									New rule
+								</Button>
+							) : null}
+						</header>
+						<CustomRuleBuilder
+							onClose={() => setBuilderOpen(false)}
+							onSave={saveDraft}
+							open={builderOpen}
 							org={org}
-							repo={repoName}
-							repoFullName={repo.fullName}
-							variant="banner"
+							repoId={repoId}
 						/>
-					) : null}
 
-					<div className="flex flex-col gap-6">
+						{repo && !repo.armed ? (
+							<ArmCallout
+								org={org}
+								repo={repoName}
+								repoFullName={repo.fullName}
+								variant="banner"
+							/>
+						) : null}
+
 						{statsQuery.data ? (
-							<RuleHeaderStats
-								animate={fetchedStats.current}
-								stats={statsQuery.data}
-							/>
+							<RuleHeaderStats stats={statsQuery.data} />
 						) : null}
-						<div className="flex flex-wrap items-center justify-between gap-3">
-							<RuleSegments
-								counts={counts}
-								filter={filter}
-								onChange={setFilter}
-							/>
-							<RuleFilters onSortChange={setSort} sort={sort} />
+
+						<div className="flex flex-col gap-3">
+							<div className="flex flex-wrap items-center justify-between gap-3">
+								<RuleSegments
+									counts={counts}
+									filter={filter}
+									onChange={setFilter}
+								/>
+								<RuleFilters onSortChange={setSort} sort={sort} />
+							</div>
+							{hasEnabledWorkflow &&
+							(filter === "all" || filter === "workflows") ? (
+								<p className="type-body-sm text-text-2">
+									{workflowBannerCopy(ownedRuleNames)}
+								</p>
+							) : null}
+							<SkeletonSwap
+								fallback={<RuleGridSkeleton />}
+								label="Loading rules"
+								loading={!rules}
+							>
+								{visible.length > 0 ? (
+									<div className="grid items-stretch gap-3 sm:grid-cols-2">
+										{visible.map((rule) => (
+											<RuleCard
+												canEdit={isAdmin}
+												key={rule.ruleId}
+												onDelete={removeCustomRule}
+												org={org}
+												repo={repoName}
+												rule={rule}
+											/>
+										))}
+									</div>
+								) : filter === "custom" ? (
+									<Empty>
+										<EmptyHeader>
+											<EmptyTitle>No custom rules yet</EmptyTitle>
+											<EmptyDescription>
+												{isAdmin
+													? "You have not created any custom rules yet."
+													: "Custom rules match your repo's own patterns."}
+											</EmptyDescription>
+										</EmptyHeader>
+										{isAdmin ? (
+											<EmptyContent>
+												<Button
+													onClick={() => setBuilderOpen(true)}
+													size="sm"
+													variant="secondary"
+												>
+													New custom rule
+												</Button>
+											</EmptyContent>
+										) : null}
+									</Empty>
+								) : (
+									<Empty>
+										<EmptyHeader>
+											<EmptyTitle>
+												{filter === "active"
+													? "No active rules"
+													: filter === "workflows"
+														? "No rules run inside a workflow"
+														: "No rules yet"}
+											</EmptyTitle>
+											{filter === "active" ? (
+												<EmptyDescription>Every rule is off.</EmptyDescription>
+											) : null}
+										</EmptyHeader>
+									</Empty>
+								)}
+							</SkeletonSwap>
 						</div>
-						{hasEnabledWorkflow &&
-						(filter === "all" || filter === "workflows") ? (
-							<p className="-mt-3 text-muted-foreground text-xs">
-								{workflowBannerCopy(ownedRuleNames)}
-							</p>
-						) : null}
-						{visible.length > 0 ? (
-							<div className="grid items-stretch gap-3 sm:grid-cols-2">
-								{visible.map((rule) => (
-									<RuleCard
-										canEdit={isAdmin}
-										key={rule.ruleId}
-										onDelete={removeCustomRule}
-										org={org}
-										repo={repoName}
-										rule={rule}
-									/>
-								))}
-							</div>
-						) : filter === "custom" ? (
-							// Empty state keeps its dither (the one rules surface that does),
-							// backing the whole card the way the workflow card does.
-							<div className="relative isolate flex flex-col gap-1 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-0.5">
-								<Dither className="-z-10" speed={0.5} />
-								<div className="relative flex items-center px-3 py-1.5">
-									<span className="font-medium text-sm">
-										no custom rules yet
-									</span>
-								</div>
-								<div className="relative flex flex-col items-center justify-center gap-3 rounded-sm border border-border bg-surface-1 px-3 py-6 text-center">
-									<p className="max-w-xs text-muted-foreground text-xs leading-relaxed">
-										{isAdmin
-											? "you haven't created any custom rules yet"
-											: "custom rules match your repo's own patterns."}
-									</p>
-									{isAdmin ? (
-										<Button
-											className="h-auto px-3 py-2 text-[10px]"
-											onClick={() => setBuilderOpen(true)}
-										>
-											New custom rule
-										</Button>
-									) : null}
-								</div>
-							</div>
-						) : (
-							<p className="py-8 text-center text-muted-foreground text-sm">
-								{filter === "active"
-									? "no active rules — every rule is off."
-									: filter === "workflows"
-										? "no rules are running inside a workflow."
-										: "no rules yet."}
-							</p>
-						)}
 					</div>
 				</div>
 				<UnsavedChangesBar />

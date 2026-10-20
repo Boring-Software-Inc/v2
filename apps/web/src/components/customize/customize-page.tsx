@@ -13,7 +13,6 @@ import {
 	wantsComment,
 } from "@tripwire/contracts";
 import { useState } from "react";
-import { AnalyticsMetricsSheet } from "#/components/analytics/analytics-metrics-sheet";
 import { CheckStateMock } from "#/components/customize/check-state-mock";
 import {
 	PAGE_FRAME,
@@ -22,6 +21,12 @@ import {
 import { GithubCommentMock } from "#/components/customize/github-comment-mock";
 import { ResponseConfigForm } from "#/components/customize/response-config-form";
 import { VerdictToggle } from "#/components/customize/verdict-toggle";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/glaze/ui/collapsible";
+import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import {
 	type SaveQueueCommit,
@@ -29,7 +34,6 @@ import {
 	UnsavedChangesBar,
 	useSaveQueue,
 } from "#/components/save-queue";
-import { toast } from "#/components/ui/toast";
 import { useMediaQuery } from "#/hooks/use-media-query";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
 import { saveRepoResponseConfig } from "#/lib/response.functions";
@@ -176,14 +180,14 @@ export function CustomizePage() {
 				data: { org, repoId, config: next },
 			});
 			if (result && "error" in result) {
-				toast(result.error);
+				toast.fail(result.error);
 				return { error: result.error };
 			}
 		} catch {
-			toast("could not save changes. try again.");
+			toast.fail("Could not save changes. Try again.");
 			return { error: "save failed" };
 		}
-		toast("changes saved.");
+		toast.success("Changes saved.");
 		await queryClient.invalidateQueries({
 			queryKey: responseQueryKeys.config(org, repoId),
 		});
@@ -276,19 +280,19 @@ function CustomizePageInner({
 	) : null;
 
 	const previewHeader = (
-		<header className="shrink-0 bg-surface-1 px-3.5 py-3">
-			<h2 className="font-medium text-sm">Preview</h2>
-			<p className="text-muted-foreground text-xs">
-				the pull request as this verdict leaves it.
+		<header className="shrink-0 border-line-faint border-b p-3">
+			<h2 className="type-label">Preview</h2>
+			<p className="type-body-sm text-text-2">
+				The pull request as this verdict leaves it.
 			</p>
 		</header>
 	);
 
 	const pageHeader = (
 		<header className="flex shrink-0 flex-col gap-1">
-			<h1 className="font-semibold text-2xl tracking-tight">Customize</h1>
-			<p className="text-muted-foreground text-sm">
-				what tripwire says and does when a verdict lands.
+			<h1 className="type-title">Customize</h1>
+			<p className="type-body text-text-2">
+				What Tripwire says and does when a verdict lands.
 			</p>
 		</header>
 	);
@@ -299,68 +303,68 @@ function CustomizePageInner({
 				<div className={PAGE_FRAME}>
 					{pageHeader}
 					<div className={SPLIT_FRAME}>
-						<section className="flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card md:w-96 md:shrink-0">
-							<header className="shrink-0 bg-surface-2 px-3.5 py-3">
-								<h2 className="font-medium text-sm">Configuration</h2>
-								<p className="text-muted-foreground text-xs">
-									pick each verdict's surfaces. the preview follows what you
-									touch.
-								</p>
-							</header>
-							<div className="min-h-0 flex-1 overflow-y-auto p-4">{form}</div>
+						<section
+							aria-labelledby="customize-configuration"
+							className="shell flex min-h-0 flex-col md:w-96 md:shrink-0"
+						>
+							<div className="panel flex min-h-0 flex-1 flex-col">
+								<header className="shrink-0 border-line-faint border-b p-3">
+									<h2 className="type-label" id="customize-configuration">
+										Configuration
+									</h2>
+									<p className="type-body-sm text-text-2">
+										Pick each verdict's surfaces. The preview follows what you
+										touch.
+									</p>
+								</header>
+								<div className="min-h-0 flex-1 overflow-y-auto p-3">{form}</div>
+							</div>
 						</section>
-						<section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-surface-1">
-							{previewHeader}
-							<div className="min-h-0 flex-1 overflow-y-auto p-4">
-								{preview}
+						<section className="shell flex min-h-0 flex-1 flex-col">
+							<div className="panel flex min-h-0 flex-1 flex-col">
+								{previewHeader}
+								<div className="min-h-0 flex-1 overflow-y-auto p-3">
+									{preview}
+								</div>
 							</div>
 						</section>
 					</div>
 				</div>
 			) : (
-				/* The analytics-sheet anatomy: a full-height page root, padded
-				   content above, and the sheet as a DIRECT sibling at the bottom —
-				   full-bleed, flush with the shell's bottom edge, in-flow so
-				   opening pushes the content up instead of covering it. */
-				<div className="relative flex h-full flex-col">
-					<div className="flex min-h-0 flex-1 flex-col gap-4 px-5 pt-6 pb-3">
+				<div className="flex h-full flex-col">
+					<div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pt-6 pb-3">
 						{pageHeader}
-						{/* The switcher (top) and check row (bottom) pin as fixed
-						    bands; only the comment scrolls between them. With the
-						    drawer open the preview shrinks, and all three must stay
-						    visible at any height. */}
-						<section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-surface-1">
-							{previewHeader}
-							{config ? (
-								<>
-									<div className="shrink-0 px-4 pt-4">
-										<VerdictToggle onChange={setVerdict} value={verdict} />
-									</div>
-									<div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-										<GithubCommentMock body={body} />
-									</div>
-									<div className="shrink-0 px-4 pb-4">
-										<CheckStateMock
-											posted={checkPosted}
-											reasons={verdict === "block" ? SAMPLE_REASONS : []}
-											verdict={verdict}
-										/>
-									</div>
-								</>
-							) : null}
+						<section className="shell flex min-h-0 flex-1 flex-col">
+							<div className="panel flex min-h-0 flex-1 flex-col">
+								{previewHeader}
+								{config ? (
+									<>
+										<div className="shrink-0 px-3 pt-3">
+											<VerdictToggle onChange={setVerdict} value={verdict} />
+										</div>
+										<div className="min-h-0 flex-1 overflow-y-auto p-3">
+											<GithubCommentMock body={body} />
+										</div>
+										<div className="shrink-0 px-3 pb-3">
+											<CheckStateMock
+												posted={checkPosted}
+												reasons={verdict === "block" ? SAMPLE_REASONS : []}
+												verdict={verdict}
+											/>
+										</div>
+									</>
+								) : null}
+							</div>
 						</section>
 					</div>
-					<AnalyticsMetricsSheet
-						closeLabel="Close Configuration"
-						onOpenChange={setSheetOpen}
-						open={sheetOpen}
-						openLabel="show configuration"
-					>
-						{/* The cap IS the composition: the drawer never takes more than
-						    55dvh, so the switcher, comment top, and check row stay live
-						    above it while editing. Tune the class, never remove it. */}
-						<div className="max-h-[55dvh] overflow-y-auto p-5">{form}</div>
-					</AnalyticsMetricsSheet>
+					<div className="shrink-0 border-line-faint border-t bg-page px-4 py-2">
+						<Collapsible onOpenChange={setSheetOpen} open={sheetOpen}>
+							<CollapsibleTrigger>Configuration</CollapsibleTrigger>
+							<CollapsibleContent>
+								<div className="max-h-[55dvh] overflow-y-auto py-3">{form}</div>
+							</CollapsibleContent>
+						</Collapsible>
+					</div>
 				</div>
 			)}
 			<UnsavedChangesBar />

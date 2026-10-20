@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { GithubIcon } from "#/components/icons/github";
+import { GithubMark, Icon } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import { Kbd } from "#/components/glaze/ui/kbd";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { orgContextQueryOptions } from "#/lib/org.query";
 
@@ -53,25 +55,20 @@ export function RepoSwitcher() {
 
 	return (
 		<>
-			<button
-				className="flex h-7 min-w-0 max-w-[240px] items-center gap-2 rounded-md bg-surface-2 px-2.5 text-[13px] transition-colors hover:bg-surface-skeleton dark:bg-surface-1 dark:hover:bg-surface-2"
+			<Button
+				className="min-w-0 max-w-60"
 				onClick={() => setOpen(true)}
-				type="button"
+				size="sm"
+				variant="secondary"
 			>
 				{params.org ? (
-					<OrgAvatar
-						className="shrink-0"
-						name={activeOrg?.name ?? params.org}
-						size={14}
-					/>
+					<OrgAvatar name={activeOrg?.name ?? params.org} size="xs" />
 				) : (
-					<GithubIcon className="size-3.5 shrink-0 text-muted-foreground" />
+					<Icon icon={GithubMark} />
 				)}
-				<span className="min-w-0 truncate font-medium">{label}</span>
-				<kbd className="ml-auto hidden shrink-0 rounded bg-background px-1 font-mono text-[10px] text-muted-foreground sm:block">
-					⌘K
-				</kbd>
-			</button>
+				<span className="min-w-0 truncate">{label}</span>
+				<Kbd className="hidden shrink-0 sm:inline-flex" keys="mod+k" />
+			</Button>
 			{open ? (
 				<Suspense fallback={null}>
 					<CommandPalette onClose={() => setOpen(false)} />

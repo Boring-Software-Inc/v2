@@ -1,37 +1,24 @@
-import { DitherAvatar } from "#/components/charts/dither-kit";
+import { Avatar } from "#/components/glaze/ui/avatar";
 
-/**
- * §7 org identity — the generative dither avatar, DERIVED from the org's
- * name at render (deterministic: same name ⇒ same avatar, ~1.5T combinations).
- * Nothing is stored except the optional hue override on the org row. Feed it
- * a controlled input's live value and it regenerates as the user types — the
- * /dither-kit landing behavior; `replayToken` can force the materialize
- * entrance to replay on demand.
- */
+type OrgAvatarSize = "xs" | "sm" | "default" | "lg";
+
 export function OrgAvatar({
 	name,
-	hue,
-	size = 20,
-	animate = false,
-	replayToken,
+	size = "sm",
+	decorative = true,
 	className,
 }: {
 	name: string;
-	/** Optional stored override (organization.avatarHue). */
-	hue?: number | null;
-	size?: number;
-	animate?: boolean;
-	replayToken?: number;
+	size?: OrgAvatarSize;
+	decorative?: boolean;
 	className?: string;
 }) {
 	return (
-		<DitherAvatar
-			name={name || "tripwire"}
-			hue={hue ?? undefined}
-			size={size}
-			animate={animate}
-			replayToken={replayToken}
+		<Avatar
 			className={className}
+			decorative={decorative}
+			name={name || "tripwire"}
+			size={size}
 		/>
 	);
 }

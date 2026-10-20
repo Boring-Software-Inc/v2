@@ -8,26 +8,30 @@ import {
 	verbsForSignal,
 } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
-import { Button } from "#/components/ui/button";
-import { ComboboxChipsInput } from "#/components/ui/combobox";
+import { ArrowLeft, ChevronDown, Icon } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import { ComboboxField } from "#/components/glaze/ui/combobox";
 import {
 	Dialog,
+	DialogAction,
+	DialogBody,
 	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/ui/dialog";
+} from "#/components/glaze/ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "#/components/ui/dropdown-menu";
-import { Input } from "#/components/ui/input";
+} from "#/components/glaze/ui/dropdown-menu";
+import { Field, FieldLabel } from "#/components/glaze/ui/field";
+import { Input } from "#/components/glaze/ui/input";
 import { repoSuggestionsQueryOptions } from "#/lib/rules.query";
-import { cn } from "#/lib/utils";
 
 /**
  * The rule builder: a sentence with blanks, not a form. The rule reads as
@@ -113,14 +117,7 @@ function windowHours(window: string): number {
 	return window.endsWith("d") ? count * 24 : count;
 }
 
-function chipClass(filled: boolean): string {
-	return cn(
-		"rounded px-1.5 py-0.5 text-sm ring-1 transition-colors",
-		filled
-			? "bg-surface-1 ring-border hover:ring-primary/50"
-			: "bg-surface-1 text-muted-foreground ring-border border-dashed hover:ring-primary/50",
-	);
-}
+const BLANK = <Button size="sm" variant="secondary" />;
 
 function parseValue(
 	state: BuilderState,
@@ -254,8 +251,6 @@ export function CustomRuleBuilder({
 	repoId,
 }: CustomRuleBuilderProps) {
 	const [state, setState] = useState<BuilderState>(EMPTY_STATE);
-	const [saving, setSaving] = useState(false);
-	const [error, setError] = useState<string | null>(null);
 
 	const draft = useMemo(() => draftFromState(state), [state]);
 	const needsWindow = state.signal?.kind === "timestamps";
@@ -281,36 +276,32 @@ export function CustomRuleBuilder({
 		if (!draft) {
 			return;
 		}
-		setSaving(true);
-		setError(null);
 		const failure = await onSave(draft);
-		setSaving(false);
 		if (failure) {
-			setError(failure);
-			return;
+			throw new Error(failure);
 		}
 		setState(EMPTY_STATE);
-		onClose();
 	};
 
 	return (
 		<Dialog onOpenChange={(next) => !next && onClose()} open={open}>
-			<DialogContent className="max-w-lg">
+			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>create rule</DialogTitle>
+					<DialogTitle>Create rule</DialogTitle>
 					<DialogDescription>
-						complete the sentence. it becomes the rule.
+						Complete the sentence. It becomes the rule.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="px-5 pb-4">
-					<div className="flex flex-wrap items-center gap-1.5 text-sm leading-8">
+				<DialogBody className="flex flex-col gap-3">
+					<div className="flex flex-wrap items-center gap-1.5 type-body text-text-1">
 						<span>Require that</span>
 						{state.signal === null ? (
 							<DropdownMenu>
-								<DropdownMenuTrigger className={chipClass(state.area !== null)}>
-									{state.area ?? "pick an area"}
+								<DropdownMenuTrigger render={BLANK}>
+									{state.area ?? "Pick an area"}
+									<Icon icon={ChevronDown} />
 								</DropdownMenuTrigger>
-								<DropdownMenuContent>
+								<DropdownMenuContent size="sm">
 									{GROUPS.map((group) => (
 										<DropdownMenuItem
 											key={group}
@@ -332,14 +323,12 @@ export function CustomRuleBuilder({
 						) : null}
 						{state.area ? (
 							<DropdownMenu>
-								<DropdownMenuTrigger
-									className={chipClass(state.signal !== null)}
-								>
-									{state.signal?.label ?? "pick a signal"}
+								<DropdownMenuTrigger render={BLANK}>
+									{state.signal?.label ?? "Pick a signal"}
+									<Icon icon={ChevronDown} />
 								</DropdownMenuTrigger>
-								<DropdownMenuContent className="max-h-80 overflow-y-auto">
+								<DropdownMenuContent size="sm">
 									<DropdownMenuItem
-										className="text-muted-foreground"
 										onClick={() =>
 											set({
 												area: null,
@@ -350,8 +339,10 @@ export function CustomRuleBuilder({
 											})
 										}
 									>
-										← areas
+										<Icon icon={ArrowLeft} />
+										Back to areas
 									</DropdownMenuItem>
+									<DropdownMenuSeparator />
 									{CUSTOM_SIGNALS.filter((s) => s.group === state.area).map(
 										(signal) => (
 											<DropdownMenuItem
@@ -376,13 +367,12 @@ export function CustomRuleBuilder({
 							<>
 								<span>in the last</span>
 								<DropdownMenu>
-									<DropdownMenuTrigger
-										className={chipClass(state.window !== null)}
-									>
+									<DropdownMenuTrigger render={BLANK}>
 										{WINDOWS.find((w) => w.window === state.window)?.label ??
-											"pick a window"}
+											"Pick a window"}
+										<Icon icon={ChevronDown} />
 									</DropdownMenuTrigger>
-									<DropdownMenuContent>
+									<DropdownMenuContent size="sm">
 										{WINDOWS.filter(
 											(w) =>
 												!state.signal?.maxWindowHours ||
@@ -401,10 +391,11 @@ export function CustomRuleBuilder({
 						) : null}
 						{state.signal && (!needsWindow || state.window) ? (
 							<DropdownMenu>
-								<DropdownMenuTrigger className={chipClass(state.verb !== null)}>
-									{state.verb?.label ?? "pick a comparison"}
+								<DropdownMenuTrigger render={BLANK}>
+									{state.verb?.label ?? "Pick a comparison"}
+									<Icon icon={ChevronDown} />
 								</DropdownMenuTrigger>
-								<DropdownMenuContent>
+								<DropdownMenuContent size="sm">
 									{verbs.map((verb) => (
 										<DropdownMenuItem
 											key={verb.kind + verb.label}
@@ -418,44 +409,59 @@ export function CustomRuleBuilder({
 						) : null}
 						{state.verb && needsValue && state.signal ? (
 							isListVerb(state.verb.kind) ? (
-								<ComboboxChipsInput
-									onValuesChange={(next) => set({ values: next })}
+								<ComboboxField
+									aria-label="Values"
+									className="w-full"
+									creatable
+									items={suggestions ?? []}
+									multiple
+									onValueChange={(next) =>
+										set({ values: Array.isArray(next) ? next : [] })
+									}
 									placeholder={valuePlaceholder(state.signal, state.verb.kind)}
-									suggestions={suggestions}
-									values={state.values}
+									value={state.values}
 								/>
 							) : state.verb.kind === "between" ? (
 								<>
 									<Input
-										className="h-7 w-20 text-sm"
+										aria-invalid={valueMessage !== null}
+										aria-label="Low"
+										className="w-20"
 										inputMode="numeric"
 										max={isPercentSignal ? 100 : undefined}
 										min={isPercentSignal ? 0 : undefined}
 										onChange={(e) => set({ value: e.target.value })}
-										placeholder="low"
+										placeholder="Low"
+										size="sm"
 										type="number"
 										value={state.value}
 									/>
 									<span>and</span>
 									<Input
-										className="h-7 w-20 text-sm"
+										aria-invalid={valueMessage !== null}
+										aria-label="High"
+										className="w-20"
 										inputMode="numeric"
 										max={isPercentSignal ? 100 : undefined}
 										min={isPercentSignal ? 0 : undefined}
 										onChange={(e) => set({ high: e.target.value })}
-										placeholder="high"
+										placeholder="High"
+										size="sm"
 										type="number"
 										value={state.high}
 									/>
 								</>
 							) : (
 								<Input
-									className="h-7 w-36 text-sm"
+									aria-invalid={valueMessage !== null}
+									aria-label="Value"
+									className="w-36"
 									inputMode={numericInput ? "numeric" : undefined}
 									max={percentInput ? 100 : undefined}
 									min={percentInput ? 0 : undefined}
 									onChange={(e) => set({ value: e.target.value })}
 									placeholder={valuePlaceholder(state.signal, state.verb.kind)}
+									size="sm"
 									type={numericInput ? "number" : "text"}
 									value={state.value}
 								/>
@@ -465,12 +471,11 @@ export function CustomRuleBuilder({
 							<>
 								<span>, as a</span>
 								<DropdownMenu>
-									<DropdownMenuTrigger
-										className={chipClass(state.severity !== null)}
-									>
-										{state.severity ?? "pick a severity"}
+									<DropdownMenuTrigger render={BLANK}>
+										{state.severity ?? "Pick a severity"}
+										<Icon icon={ChevronDown} />
 									</DropdownMenuTrigger>
-									<DropdownMenuContent>
+									<DropdownMenuContent size="sm">
 										{SEVERITIES.map((severity) => (
 											<DropdownMenuItem
 												key={severity}
@@ -486,37 +491,31 @@ export function CustomRuleBuilder({
 						) : null}
 					</div>
 					{draft ? (
-						<p className="text-muted-foreground text-xs">
+						<p className="type-body-sm text-text-2">
 							{customRuleSentence(draft.definition)}
 						</p>
 					) : null}
 					{valueMessage ? (
-						<p className="text-amber-600 text-xs dark:text-amber-500">
+						<output className="type-body-sm text-warn-text">
 							{valueMessage}
-						</p>
+						</output>
 					) : null}
 					{state.severity ? (
-						<Input
-							className="mt-2"
-							onChange={(e) => set({ name: e.target.value })}
-							placeholder="name this rule"
-							value={state.name}
-						/>
+						<Field>
+							<FieldLabel>Rule name</FieldLabel>
+							<Input
+								onChange={(e) => set({ name: e.target.value })}
+								placeholder="Name this rule"
+								value={state.name}
+							/>
+						</Field>
 					) : null}
-					{error ? (
-						<p className="mt-2 text-destructive text-xs">{error}</p>
-					) : null}
-				</div>
+				</DialogBody>
 				<DialogFooter>
-					<DialogClose
-						className="text-muted-foreground text-xs transition-colors hover:text-foreground"
-						type="button"
-					>
-						cancel
-					</DialogClose>
-					<Button disabled={!draft || saving} onClick={save} size="sm">
-						{saving ? "saving…" : "save rule"}
-					</Button>
+					<DialogClose>Cancel</DialogClose>
+					<DialogAction disabled={!draft} onAction={save} pendingLabel="Saving">
+						Save rule
+					</DialogAction>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

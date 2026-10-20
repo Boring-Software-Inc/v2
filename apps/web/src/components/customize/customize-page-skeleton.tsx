@@ -1,5 +1,5 @@
+import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Skeleton } from "#/components/ui/skeleton";
 
 export const PAGE_FRAME =
 	"flex h-[calc(100dvh-8rem)] w-full flex-col gap-4 px-6 py-6";
@@ -8,32 +8,39 @@ export const SPLIT_FRAME = "flex min-h-0 flex-1 flex-col gap-3 md:flex-row";
 
 function HeaderSkeleton() {
 	return (
-		<header className="flex shrink-0 flex-col gap-1.5">
-			<Skeleton className="h-7 w-32" />
-			<Skeleton className="h-4 w-72" />
+		<header className="flex shrink-0 flex-col gap-1">
+			<SkeletonText className="w-32" type="heading" />
+			<SkeletonText className="w-72 max-w-full" type="body" />
 		</header>
 	);
 }
 
 function PanelHeaderSkeleton() {
 	return (
-		<div className="flex shrink-0 flex-col gap-1.5 bg-surface-1 px-3.5 py-3">
-			<Skeleton className="h-4 w-24" />
-			<Skeleton className="h-3 w-48" />
+		<div className="flex shrink-0 flex-col border-line-faint border-b p-3">
+			<SkeletonText className="w-24" type="label" />
+			<SkeletonText className="w-48" type="body-sm" />
 		</div>
 	);
 }
 
 function PreviewBodySkeleton() {
 	return (
-		<div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
-			<div className="flex gap-1.5">
-				<Skeleton className="h-6 w-[72px] rounded-full" />
-				<Skeleton className="h-6 w-[72px] rounded-full" />
-				<Skeleton className="h-6 w-[72px] rounded-full" />
-			</div>
-			<Skeleton className="min-h-0 w-full flex-1 rounded-xl" />
-			<Skeleton className="h-9 w-full shrink-0 rounded-xl" />
+		<div className="flex min-h-0 flex-1 flex-col gap-4 p-3">
+			<Skeleton className="h-(--control-sm) w-56 rounded-pill" />
+			<Skeleton className="min-h-0 w-full flex-1 rounded-panel" />
+			<Skeleton className="h-(--control-lg) w-full shrink-0 rounded-panel" />
+		</div>
+	);
+}
+
+function FormBodySkeleton() {
+	return (
+		<div className="flex flex-col gap-3 p-3">
+			<SkeletonText className="w-20" type="label" />
+			<Skeleton className="h-(--control-sm) w-full rounded-pill" />
+			<SkeletonText className="mt-3 w-20" type="label" />
+			<Skeleton className="h-(--control-sm) w-full rounded-pill" />
 		</div>
 	);
 }
@@ -41,43 +48,35 @@ function PreviewBodySkeleton() {
 export function CustomizePageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			{/* Desktop: the two-panel frame. */}
-			<div className={`${PAGE_FRAME} hidden md:flex`}>
+			<div aria-hidden className={`${PAGE_FRAME} hidden md:flex`}>
 				<HeaderSkeleton />
 				<div className={SPLIT_FRAME}>
-					<section className="flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card md:w-96 md:shrink-0">
-						<PanelHeaderSkeleton />
-						<div className="flex flex-col gap-3 p-4">
-							<Skeleton className="h-3 w-20" />
-							<div className="flex gap-1.5">
-								<Skeleton className="h-6 w-14 rounded-full" />
-								<Skeleton className="h-6 w-20 rounded-full" />
-								<Skeleton className="h-6 w-20 rounded-full" />
-							</div>
-							<Skeleton className="mt-2 h-3 w-20" />
-							<div className="flex gap-1.5">
-								<Skeleton className="h-6 w-20 rounded-full" />
-								<Skeleton className="h-6 w-14 rounded-full" />
-							</div>
+					<section className="shell flex min-h-0 flex-col md:w-96 md:shrink-0">
+						<div className="panel flex min-h-0 flex-1 flex-col">
+							<PanelHeaderSkeleton />
+							<FormBodySkeleton />
 						</div>
 					</section>
-					<section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card">
-						<PanelHeaderSkeleton />
-						<PreviewBodySkeleton />
+					<section className="shell flex min-h-0 flex-1 flex-col">
+						<div className="panel flex min-h-0 flex-1 flex-col">
+							<PanelHeaderSkeleton />
+							<PreviewBodySkeleton />
+						</div>
 					</section>
 				</div>
 			</div>
-			{/* Mobile: full-height preview, drawer tab flush at the shell bottom. */}
-			<div className="relative flex h-full flex-col md:hidden">
-				<div className="flex min-h-0 flex-1 flex-col gap-4 px-5 pt-6 pb-3">
+			<div aria-hidden className="flex h-full flex-col md:hidden">
+				<div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pt-6 pb-3">
 					<HeaderSkeleton />
-					<section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card">
-						<PanelHeaderSkeleton />
-						<PreviewBodySkeleton />
+					<section className="shell flex min-h-0 flex-1 flex-col">
+						<div className="panel flex min-h-0 flex-1 flex-col">
+							<PanelHeaderSkeleton />
+							<PreviewBodySkeleton />
+						</div>
 					</section>
 				</div>
-				<div className="flex shrink-0 justify-center">
-					<div className="h-8 w-44 rounded-t-xl bg-muted" />
+				<div className="shrink-0 border-line-faint border-t px-4 py-2">
+					<Skeleton className="h-(--control) w-36 rounded-pill" />
 				</div>
 			</div>
 		</DashboardLayout>

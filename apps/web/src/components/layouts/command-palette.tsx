@@ -1,17 +1,3 @@
-import {
-	ActivityIcon,
-	Analytics01Icon,
-	CheckListIcon,
-	FlowIcon,
-	Home01Icon,
-	Logout01Icon,
-	PlusSignIcon,
-	Queue01Icon,
-	Search01Icon,
-	Settings01Icon,
-} from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import type { Forge } from "@tripwire/contracts";
@@ -20,19 +6,58 @@ import {
 	orgSlugSchema,
 	slugifyOrgName,
 } from "@tripwire/contracts";
-import { Command as CommandPrimitive } from "cmdk";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+import {
+	Activity,
+	Add,
+	Analytics,
+	Connection,
+	type GlazeIcon,
+	Home,
+	Icon,
+	Moderation,
+	Rules,
+	Search,
+	Settings,
+	SignOut,
+	Workflow,
+} from "#/components/glaze/icon";
+import { Badge } from "#/components/glaze/ui/badge";
+import {
+	Command,
+	CommandDialog,
+	CommandEmpty,
+	CommandFooter,
+	CommandGroup,
+	CommandHint,
+	CommandInput,
+	CommandItem,
+	CommandLabel,
+	CommandList,
+	CommandLoading,
+} from "#/components/glaze/ui/command";
 import {
 	Dialog,
+	DialogAction,
+	DialogBody,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
+	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/ui/dialog";
-import { toast } from "#/components/ui/toast";
+} from "#/components/glaze/ui/dialog";
+import {
+	Field,
+	FieldDescription,
+	FieldError,
+	FieldLabel,
+} from "#/components/glaze/ui/field";
+import { Input } from "#/components/glaze/ui/input";
+import { toast } from "#/components/glaze/ui/toast";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { armRepo, disarmRepo } from "#/lib/arm.functions";
 import { authClient } from "#/lib/auth-client";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
@@ -43,14 +68,12 @@ import {
 	orgQueryKeys,
 } from "#/lib/org.query";
 import { getLatestRunId } from "#/lib/runs.functions";
-import { cn } from "#/lib/utils";
 
 interface PaletteItem {
 	id: string;
 	label: string;
 	/** Alternate names so nothing needs to be typed verbatim. */
 	searchTags: string[];
-	/** A rendered icon node — a hugeicon, an org avatar, or a forge mark. */
 	icon: ReactNode;
 	hint?: React.ReactNode;
 	onSelect: () => void;
@@ -65,15 +88,14 @@ interface RepoGroup {
 	items: PaletteItem[];
 }
 
-/** A hugeicon at the palette row's standard size. */
-function hugeicon(icon: IconSvgElement): ReactNode {
-	return <HugeiconsIcon icon={icon} size={15} strokeWidth={1.9} />;
+function glyph(icon: GlazeIcon): ReactNode {
+	return <Icon icon={icon} />;
 }
 
 /** The repo's FORGE mark at the palette row's standard size (repo rows +
  * actions) — never a blanket octocat, or a gitlab repo reads as a github one. */
 function repoIcon(forge: Forge): ReactNode {
-	return <ForgeMark className="size-[15px]" forge={forge} />;
+	return <ForgeMark className="size-(--icon) shrink-0" forge={forge} />;
 }
 
 export function CommandPalette({ onClose }: { onClose: () => void }) {
@@ -100,8 +122,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 	})();
 
 	// Mounted only while open ⇒ these fetch on open, not on app mount.
-	const { data: orgs } = useQuery(myOrgsQueryOptions());
-	const { data: orgHome } = useQuery({
+	const { data: orgs, isPending: orgsPending } = useQuery(myOrgsQueryOptions());
+	const { data: orgHome, isLoading: orgHomeLoading } = useQuery({
 		...orgHomeQueryOptions(currentOrg ?? ""),
 		enabled: currentOrg !== undefined,
 	});
@@ -122,27 +144,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 	// the list with your query intact.
 	const [connectOpen, setConnectOpen] = useState(false);
 	const [createOrgOpen, setCreateOrgOpen] = useState(false);
-	const overlayOpen = connectOpen || createOrgOpen;
-	// Read by the window-level Escape handler, which must not re-register on
-	// every toggle just to see the current value (§9: stable callback deps → refs).
-	const overlayOpenRef = useRef(false);
-	overlayOpenRef.current = overlayOpen;
 	const [query, setQuery] = useState("");
 	const deferred = useDebouncedValue(query, 200);
 	const inputRef = useRef<HTMLInputElement>(null);
-
-	useEffect(() => {
-		inputRef.current?.focus();
-		const onKey = (event: KeyboardEvent) => {
-			// A layered dialog owns Escape while it is up, or one press would close
-			// both it and the palette underneath.
-			if (event.key === "Escape" && !overlayOpenRef.current) {
-				onClose();
-			}
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, [onClose]);
 
 	const invalidate = () => queryClient.invalidateQueries();
 
@@ -152,7 +156,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 		onSettled: invalidate,
 		onSuccess: (result) => {
 			if (result.armed) {
-				toast.success("armed — backfilling its history");
+				toast.success("Armed. Backfilling its history.");
 			}
 		},
 	});
@@ -160,7 +164,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 		mutationFn: (input: { org: string; repo: string }) =>
 			disarmRepo({ data: input }),
 		onSettled: invalidate,
-		onSuccess: () => toast.success("disarmed — events still ingest, gate off"),
+		onSuccess: () => toast.success("Disarmed. Events still ingest, gate off."),
 	});
 	function go(path: string) {
 		navigate({ to: path });
@@ -184,15 +188,15 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 					org.isPersonal ? "personal" : "team",
 					org.slug === currentOrg ? "current active" : "",
 				],
-				icon: <OrgAvatar hue={org.avatarHue} name={org.name} size={15} />,
+				icon: <OrgAvatar name={org.name} size="xs" />,
 				onSelect: () => go(`/${org.slug}/home`),
 				hint: (
 					<>
 						{org.isPersonal ? (
-							<span className="text-muted-foreground text-xs">personal</span>
+							<span className="type-caption text-text-2">Personal</span>
 						) : null}
 						{org.slug === currentOrg ? (
-							<span className="text-muted-foreground text-xs">current</span>
+							<span className="type-caption text-text-2">Current</span>
 						) : null}
 					</>
 				),
@@ -200,9 +204,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 		}
 		items.push({
 			id: "org:new",
-			label: "new org",
+			label: "New org",
 			searchTags: ["new", "create", "org", "organization", "team"],
-			icon: hugeicon(PlusSignIcon),
+			icon: glyph(Add),
 			onSelect: () => setCreateOrgOpen(true),
 		});
 		return items.filter((item) => matches(item, terms));
@@ -269,7 +273,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 	// as two features when they are one intent.
 	actionItems.push({
 		id: "repos:connect",
-		label: "connect repos",
+		label: "Connect repos",
 		searchTags: [
 			"connect",
 			"add",
@@ -281,7 +285,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 			"grant",
 			...FORGE_CATALOG.map((forge) => forge.id),
 		],
-		icon: hugeicon(PlusSignIcon),
+		icon: glyph(Add),
 		onSelect: () => setConnectOpen(true),
 	});
 	const scopedRepo =
@@ -293,7 +297,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 			scopedRepo.armed
 				? {
 						id: "action:disarm",
-						label: `disarm ${scopedRepo.fullName}`,
+						label: `Disarm ${scopedRepo.fullName}`,
 						searchTags: ["disarm", "off", "stop", "gate", "repo", currentRepo],
 						icon: repoIcon(scopedRepo.forge),
 						onSelect: () =>
@@ -301,7 +305,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 					}
 				: {
 						id: "action:arm",
-						label: `arm ${scopedRepo.fullName}`,
+						label: `Arm ${scopedRepo.fullName}`,
 						searchTags: ["arm", "on", "enable", "gate", "repo", currentRepo],
 						icon: repoIcon(scopedRepo.forge),
 						onSelect: () => arm.mutate({ org: currentOrg, repo: currentRepo }),
@@ -311,17 +315,17 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 	if (latestRunId) {
 		actionItems.push({
 			id: "action:latest-run",
-			label: "open latest run",
+			label: "Open latest run",
 			searchTags: ["run", "latest", "verdict", "result", "jump"],
-			icon: hugeicon(ActivityIcon),
+			icon: glyph(Activity),
 			onSelect: () => go(`/runs/${latestRunId}`),
 		});
 	}
 	actionItems.push({
 		id: "action:sign-out",
-		label: "sign out",
+		label: "Sign out",
 		searchTags: ["sign out", "log out", "logout", "leave"],
-		icon: hugeicon(Logout01Icon),
+		icon: glyph(SignOut),
 		onSelect: () =>
 			authClient.signOut({
 				fetchOptions: { onSuccess: () => window.location.assign("/login") },
@@ -333,53 +337,53 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 	if (currentOrg) {
 		navItems.push({
 			id: "nav:home",
-			label: "home",
+			label: "Home",
 			searchTags: ["home", "overview", "dashboard", "repos"],
-			icon: hugeicon(Home01Icon),
+			icon: glyph(Home),
 			onSelect: () => go(`/${currentOrg}/home`),
 		});
 		if (currentRepo) {
 			navItems.push(
 				{
 					id: "nav:moderation",
-					label: "moderation",
+					label: "Moderation",
 					searchTags: ["moderation", "queue", "review", "pending", "triage"],
-					icon: hugeicon(Queue01Icon),
+					icon: glyph(Moderation),
 					onSelect: () => go(`/${currentOrg}/${currentRepo}/moderation`),
 				},
 				{
 					id: "nav:activity",
-					label: "activity",
+					label: "Activity",
 					searchTags: ["activity", "events", "runs", "feed", "stream"],
-					icon: hugeicon(ActivityIcon),
+					icon: glyph(Activity),
 					onSelect: () => go(`/${currentOrg}/${currentRepo}/activity`),
 				},
 				{
 					id: "nav:rules",
-					label: "rules",
+					label: "Rules",
 					searchTags: ["rules", "gate", "block", "checks", "gatekeeper"],
-					icon: hugeicon(CheckListIcon),
+					icon: glyph(Rules),
 					onSelect: () => go(`/${currentOrg}/${currentRepo}/rules`),
 				},
 				{
 					id: "nav:workflows",
-					label: "workflows",
+					label: "Workflows",
 					searchTags: ["workflows", "automation", "pipeline", "dag"],
-					icon: hugeicon(FlowIcon),
+					icon: glyph(Workflow),
 					onSelect: () => go(`/${currentOrg}/${currentRepo}/workflows`),
 				},
 				{
 					id: "nav:analytics",
-					label: "analytics",
+					label: "Analytics",
 					searchTags: ["analytics", "stats", "charts", "trends"],
-					icon: hugeicon(Analytics01Icon),
+					icon: glyph(Analytics),
 					onSelect: () => go(`/${currentOrg}/${currentRepo}/analytics`),
 				},
 			);
 		}
 		navItems.push({
 			id: "nav:connections",
-			label: "connections",
+			label: "Connections",
 			searchTags: [
 				"connections",
 				"forge",
@@ -389,7 +393,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 				"remove",
 				...FORGE_CATALOG.map((forge) => forge.id),
 			],
-			icon: hugeicon(Settings01Icon),
+			icon: glyph(Connection),
 			onSelect: () => {
 				navigate({
 					to: ".",
@@ -400,9 +404,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 		});
 		navItems.push({
 			id: "nav:settings",
-			label: "settings",
+			label: "Settings",
 			searchTags: ["settings", "members", "invites", "org", "admin"],
-			icon: hugeicon(Settings01Icon),
+			icon: glyph(Settings),
 			onSelect: () => {
 				// Opens the settings dialog over whatever page is showing.
 				navigate({
@@ -416,6 +420,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
 	const visibleActions = actionItems.filter((item) => matches(item, terms));
 	const visibleNav = navItems.filter((item) => matches(item, terms));
+	const loading = orgsPending || orgHomeLoading;
 	const resultCount =
 		orgItems.length +
 		repoGroups.reduce((sum, group) => sum + group.items.length, 0) +
@@ -423,32 +428,106 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 		visibleNav.length;
 
 	return (
-		<div className="fixed inset-0 z-50">
-			{/* Presentational — Esc closes, so the backdrop does not need to be a
-			    viewport-sized tab stop ahead of the search field. */}
-			<div
-				aria-hidden="true"
-				className="absolute inset-0 bg-background/60"
-				onClick={() => {
-					if (!overlayOpen) {
-						onClose();
-					}
-				}}
-			/>
+		<CommandDialog
+			onOpenChange={(open) => {
+				if (!open) {
+					onClose();
+				}
+			}}
+			open
+			title="Search orgs, repos, actions and pages"
+		>
+			<Command label="Command palette" loop shouldFilter={false}>
+				<CommandInput
+					data-autofocus
+					onValueChange={setQuery}
+					placeholder="Search orgs, repos, actions and pages"
+					ref={inputRef}
+					value={query}
+				/>
+
+				<CommandList>
+					<CommandEmpty />
+					{loading ? (
+						<CommandLoading>Loading orgs and repos</CommandLoading>
+					) : null}
+
+					{!loading && orgItems.length > 0 ? (
+						<CommandGroup heading="Orgs">
+							{orgItems.map((item) => (
+								<PaletteRow item={item} key={item.id} />
+							))}
+						</CommandGroup>
+					) : null}
+
+					{(loading ? [] : repoGroups).map((group) => (
+						<CommandGroup
+							heading={
+								<span className="flex items-center gap-1.5">
+									<ForgeMark
+										className="size-(--icon-sm) shrink-0"
+										forge={group.forge}
+									/>
+									{group.owner}
+								</span>
+							}
+							key={group.key}
+						>
+							{group.items.map((item) => (
+								<PaletteRow item={item} key={item.id} />
+							))}
+						</CommandGroup>
+					))}
+
+					{!loading && hiddenRepoCount > 0 ? (
+						<CommandGroup>
+							<CommandItem
+								onSelect={() => inputRef.current?.focus()}
+								value="repos:more"
+							>
+								<Icon icon={Search} />
+								<CommandLabel className="text-text-2">
+									{`${hiddenRepoCount} more. Type to search.`}
+								</CommandLabel>
+							</CommandItem>
+						</CommandGroup>
+					) : null}
+
+					{!loading && visibleActions.length > 0 ? (
+						<CommandGroup heading="Actions">
+							{visibleActions.map((item) => (
+								<PaletteRow item={item} key={item.id} />
+							))}
+						</CommandGroup>
+					) : null}
+
+					{!loading && visibleNav.length > 0 ? (
+						<CommandGroup heading="Navigation">
+							{visibleNav.map((item) => (
+								<PaletteRow item={item} key={item.id} />
+							))}
+						</CommandGroup>
+					) : null}
+				</CommandList>
+			</Command>
+			<CommandFooter>
+				<CommandHint keys={["↑", "↓"]}>Navigate</CommandHint>
+				<CommandHint keys={["↵"]}>Select</CommandHint>
+				<CommandHint keys={["esc"]}>Close</CommandHint>
+				<span className="ms-auto tabular-nums">
+					{resultCount === 1 ? "1 result" : `${resultCount} results`}
+				</span>
+			</CommandFooter>
 			<ConnectForgeDialog
 				onOpenChange={setConnectOpen}
 				open={connectOpen}
 				org={currentOrg ?? null}
 			/>
 			<Dialog onOpenChange={setCreateOrgOpen} open={createOrgOpen}>
-				<DialogContent className="max-w-md p-0">
-					<DialogHeader className="px-4 pt-4 pb-1">
-						<DialogTitle className="font-medium text-[13px] leading-4">
-							new org
-						</DialogTitle>
-						<DialogDescription className="leading-5">
-							you can rename it later.
-						</DialogDescription>
+				<DialogContent size="sm">
+					<DialogHeader>
+						<DialogTitle>New org</DialogTitle>
+						<DialogDescription>You can rename it later.</DialogDescription>
 					</DialogHeader>
 					<CreateOrgForm
 						onCreated={(slug) => {
@@ -458,141 +537,16 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 					/>
 				</DialogContent>
 			</Dialog>
-			<div
-				aria-label="Command palette"
-				aria-modal="true"
-				className="-translate-x-1/2 absolute top-[12vh] left-1/2 w-full max-w-lg px-4"
-				role="dialog"
-			>
-				<CommandPrimitive
-					className="overflow-hidden rounded-xl border bg-popover shadow-lg [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide"
-					label="Command palette"
-					loop
-					shouldFilter={false}
-				>
-					<div className="flex items-center gap-2 border-b px-3">
-						<HugeiconsIcon
-							className="shrink-0 text-muted-foreground"
-							icon={Search01Icon}
-							size={16}
-							strokeWidth={2}
-						/>
-						<CommandPrimitive.Input
-							className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-							onValueChange={setQuery}
-							placeholder="search orgs, repos, actions, pages…"
-							ref={inputRef}
-							value={query}
-						/>
-					</div>
-
-					<CommandPrimitive.List className="max-h-[50vh] overflow-y-auto py-1">
-						<CommandPrimitive.Empty className="px-4 py-6 text-center text-muted-foreground text-sm">
-							nothing matches.
-						</CommandPrimitive.Empty>
-
-						{orgItems.length > 0 ? (
-							<CommandPrimitive.Group heading="Orgs">
-								{orgItems.map((item) => (
-									<PaletteRow item={item} key={item.id} />
-								))}
-							</CommandPrimitive.Group>
-						) : null}
-
-						{repoGroups.map((group) => (
-							<CommandPrimitive.Group
-								heading={
-									<span className="flex items-center gap-1.5">
-										<ForgeMark
-											className="size-3 shrink-0 opacity-70"
-											forge={group.forge}
-										/>
-										{group.owner}
-									</span>
-								}
-								key={group.key}
-							>
-								{group.items.map((item) => (
-									<PaletteRow item={item} key={item.id} />
-								))}
-							</CommandPrimitive.Group>
-						))}
-
-						{hiddenRepoCount > 0 ? (
-							<CommandPrimitive.Group>
-								<CommandPrimitive.Item
-									className="flex cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-muted-foreground text-xs data-[selected=true]:bg-surface-1"
-									onSelect={() => inputRef.current?.focus()}
-									value="repos:more"
-								>
-									<span className="flex size-[15px] shrink-0 items-center justify-center">
-										<HugeiconsIcon
-											icon={Search01Icon}
-											size={13}
-											strokeWidth={1.9}
-										/>
-									</span>
-									{hiddenRepoCount} more — type to search
-								</CommandPrimitive.Item>
-							</CommandPrimitive.Group>
-						) : null}
-
-						{visibleActions.length > 0 ? (
-							<CommandPrimitive.Group heading="Actions">
-								{visibleActions.map((item) => (
-									<PaletteRow item={item} key={item.id} />
-								))}
-							</CommandPrimitive.Group>
-						) : null}
-
-						{visibleNav.length > 0 ? (
-							<CommandPrimitive.Group heading="Navigation">
-								{visibleNav.map((item) => (
-									<PaletteRow item={item} key={item.id} />
-								))}
-							</CommandPrimitive.Group>
-						) : null}
-					</CommandPrimitive.List>
-
-					<div className="flex items-center justify-between border-t px-3 py-2 text-muted-foreground text-[11px]">
-						<span className="flex items-center gap-3">
-							<span>
-								<kbd className="font-mono">↑↓</kbd> navigate
-							</span>
-							<span>
-								<kbd className="font-mono">↵</kbd> select
-							</span>
-							<span>
-								<kbd className="font-mono">esc</kbd> close
-							</span>
-						</span>
-						{/* Announced as the query narrows — the count is the only signal
-						    that typing is doing anything. */}
-						<span aria-live="polite" className="tabular-nums">
-							{resultCount === 1 ? "1 result" : `${resultCount} results`}
-						</span>
-					</div>
-				</CommandPrimitive>
-			</div>
-		</div>
+		</CommandDialog>
 	);
 }
 
-/**
- * Inline org creation — the name drives a LIVE avatar preview (§7) and an
- * auto-derived slug the user can take over; orgSlugSchema holds the line on
- * both sides of the wire.
- */
 function CreateOrgForm({ onCreated }: { onCreated: (slug: string) => void }) {
 	const queryClient = useQueryClient();
+	const formId = useId();
 	const [name, setName] = useState("");
 	const [slugOverride, setSlugOverride] = useState<string | null>(null);
 	const [serverError, setServerError] = useState<string | null>(null);
-	const nameRef = useRef<HTMLInputElement>(null);
-
-	useEffect(() => {
-		nameRef.current?.focus();
-	}, []);
 
 	const slug = slugOverride ?? (name ? slugifyOrgName(name) : "");
 	const slugCheck = slug ? orgSlugSchema.safeParse(slug) : null;
@@ -620,82 +574,86 @@ function CreateOrgForm({ onCreated }: { onCreated: (slug: string) => void }) {
 		!create.isPending;
 
 	return (
-		<form
-			className="flex flex-col gap-3 px-4 pt-2 pb-4"
-			onSubmit={(event) => {
-				event.preventDefault();
-				if (canSubmit) {
-					setServerError(null);
-					create.mutate();
-				}
-			}}
-		>
-			<div className="flex items-center gap-3">
-				<OrgAvatar animate name={name} size={36} />
-				<input
-					className="h-9 w-full rounded-md border bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
-					onChange={(event) => setName(event.target.value)}
-					placeholder="org name"
-					ref={nameRef}
-					value={name}
-				/>
-			</div>
-
-			<div className="flex flex-col gap-1">
-				<label
-					className="text-[11px] text-muted-foreground uppercase tracking-wide"
-					htmlFor="new-org-slug"
+		<>
+			<DialogBody>
+				<form
+					className="flex flex-col gap-4"
+					id={formId}
+					noValidate
+					onSubmit={(event) => {
+						event.preventDefault();
+						if (canSubmit) {
+							setServerError(null);
+							create.mutate();
+						}
+					}}
 				>
-					slug
-				</label>
-				<input
-					className="h-9 w-full rounded-md border bg-transparent px-2.5 font-mono text-[13px] outline-none placeholder:text-muted-foreground focus:border-foreground/30"
-					id="new-org-slug"
-					onChange={(event) =>
-						setSlugOverride(event.target.value.toLowerCase())
-					}
-					placeholder="org-slug"
-					value={slug}
-				/>
-				{slugError ? (
-					<span className="text-[12px] text-destructive">{slugError}</span>
-				) : (
-					<span className="text-[12px] text-muted-foreground">
-						{slug ? `/${slug}/home` : "lives in the url"}
-					</span>
-				)}
-			</div>
+					<div className="flex items-end gap-3">
+						<OrgAvatar className="mb-1" name={name} size="lg" />
+						<Field className="flex-1">
+							<FieldLabel>Org name</FieldLabel>
+							<Input
+								autoComplete="off"
+								data-autofocus
+								onValueChange={setName}
+								placeholder="Acme"
+								value={name}
+							/>
+						</Field>
+					</div>
 
-			{serverError ? (
-				<span className="text-[12px] text-destructive">{serverError}</span>
-			) : null}
+					<Field invalid={slugError !== null}>
+						<FieldLabel>Slug</FieldLabel>
+						<Input
+							autoComplete="off"
+							mono
+							onValueChange={(value) => setSlugOverride(value.toLowerCase())}
+							placeholder="acme"
+							value={slug}
+						/>
+						{slugError ? (
+							<FieldError>{slugError}</FieldError>
+						) : (
+							<FieldDescription>
+								{slug ? `/${slug}/home` : "Lives in the URL."}
+							</FieldDescription>
+						)}
+					</Field>
 
-			<button
-				className="h-9 rounded-md bg-foreground font-medium text-[13px] text-background transition-opacity hover:opacity-90 disabled:opacity-50"
-				disabled={!canSubmit}
-				type="submit"
-			>
-				{create.isPending ? "creating…" : "create org"}
-			</button>
-		</form>
+					{serverError ? (
+						<p className="type-body-sm text-fail-text" role="alert">
+							{serverError}
+						</p>
+					) : null}
+				</form>
+			</DialogBody>
+			<DialogFooter>
+				<DialogClose>Cancel</DialogClose>
+				<DialogAction
+					close={false}
+					disabled={!canSubmit}
+					form={formId}
+					pending={create.isPending}
+					type="submit"
+				>
+					Create org
+				</DialogAction>
+			</DialogFooter>
+		</>
 	);
 }
 
 function PaletteRow({ item }: { item: PaletteItem }) {
 	return (
-		<CommandPrimitive.Item
-			className="flex cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-sm data-[selected=true]:bg-surface-1"
-			onSelect={item.onSelect}
-			value={item.id}
-		>
-			<span className="flex size-[15px] shrink-0 items-center justify-center text-muted-foreground">
-				{item.icon}
-			</span>
-			<span className="min-w-0 flex-1 truncate">{item.label}</span>
+		<CommandItem onSelect={item.onSelect} value={item.id}>
+			{item.icon}
+			<CommandLabel className="flex-1">{item.label}</CommandLabel>
 			{item.hint ? (
-				<span className="flex shrink-0 items-center gap-1.5">{item.hint}</span>
+				<span className="ms-auto flex shrink-0 items-center gap-1.5">
+					{item.hint}
+				</span>
 			) : null}
-		</CommandPrimitive.Item>
+		</CommandItem>
 	);
 }
 
@@ -719,46 +677,25 @@ function repoItem(
 		onSelect,
 		hint: (
 			<>
-				<span
-					className={cn(
-						"size-1.5 rounded-full",
-						repo.armed ? "bg-emerald-500" : "bg-muted-foreground/30",
-					)}
-					title={repo.armed ? "armed" : "not armed"}
-				/>
+				{repo.armed ? null : (
+					<Badge size="sm" variant="outline">
+						Not armed
+					</Badge>
+				)}
 				{repo.pendingModeration > 0 ? (
-					<RowChip>{repo.pendingModeration} pending</RowChip>
+					<Badge size="sm">{repo.pendingModeration} pending</Badge>
 				) : null}
 				{repo.blocked24h > 0 ? (
-					<RowChip tone="red">{repo.blocked24h} blocked</RowChip>
+					<Badge size="sm" variant="fail">
+						{repo.blocked24h} blocked
+					</Badge>
 				) : null}
 				{isCurrent ? (
-					<span className="text-muted-foreground text-xs">current</span>
+					<span className="type-caption text-text-2">Current</span>
 				) : null}
 			</>
 		),
 	};
-}
-
-function RowChip({
-	children,
-	tone,
-}: {
-	children: React.ReactNode;
-	tone?: "red";
-}) {
-	return (
-		<span
-			className={cn(
-				"shrink-0 rounded-full px-1.5 py-0.5 text-[11px]",
-				tone === "red"
-					? "bg-red-500/10 text-red-600 dark:text-red-400"
-					: "bg-surface-2 text-muted-foreground",
-			)}
-		>
-			{children}
-		</span>
-	);
 }
 
 /** Multi-word AND: every term must appear in the item's searchable string. */

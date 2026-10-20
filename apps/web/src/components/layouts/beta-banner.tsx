@@ -1,10 +1,7 @@
-import { Cancel01Icon, Comment01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { useFeedback } from "#/components/feedback";
-import { Button } from "#/components/ui/button";
-import { Dither } from "#/components/ui/dither";
-import { cn } from "#/lib/utils";
+import { Close, Comment, Icon } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
 
 const STORAGE_KEY = "tripwire:beta-banner:dismissed";
 const EVENT_NAME = "tripwire:beta-banner-dismissed";
@@ -33,54 +30,28 @@ export function BetaBanner() {
 		getSnapshot,
 		getServerSnapshot,
 	);
-	const [closing, setClosing] = useState(false);
 	const { open: openFeedback } = useFeedback();
 
 	if (dismissed) return null;
 
 	return (
-		<div
-			className={cn(
-				"grid shrink-0 transition-[grid-template-rows] duration-[360ms]",
-				closing ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
-			)}
-			style={{ transitionTimingFunction: "cubic-bezier(0.19, 1, 0.22, 1)" }}
-			onTransitionEnd={(e) => {
-				if (e.target === e.currentTarget) dismiss();
-			}}
-		>
-			<div className="overflow-hidden">
-				<div
-					className={cn(
-						"relative isolate flex items-center justify-center overflow-hidden border-b bg-surface-2 px-10 py-2 transition-opacity duration-200",
-						closing && "opacity-0",
-					)}
-				>
-					{/* Animated house dither across the banner (see design). */}
-					<Dither className="-z-10 opacity-70" speed={1.22} />
-					<button
-						type="button"
-						onClick={openFeedback}
-						className="group flex flex-1 items-center justify-center gap-2 text-[13px] font-medium leading-tight text-foreground"
-					>
-						<span>
-							Tripwire is in closed beta — hit a bug or something rough?
-						</span>
-						<span className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-2 py-0.5 text-xs ring-1 ring-border transition-colors group-hover:bg-surface-0">
-							<HugeiconsIcon icon={Comment01Icon} size={12} strokeWidth={2} />
-							Send feedback
-						</span>
-					</button>
-					<Button
-						variant="ghost"
-						aria-label="Dismiss beta banner"
-						className="absolute right-2 h-6 w-6 p-0 text-muted-foreground hover:bg-transparent hover:opacity-70"
-						onClick={() => setClosing(true)}
-					>
-						<HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
-					</Button>
-				</div>
-			</div>
+		<div className="relative flex shrink-0 items-center justify-center gap-3 border-line-faint border-b bg-shell px-10 py-1.5">
+			<p className="type-body-sm text-text-1">
+				Tripwire is in closed beta. Hit a bug or something rough?
+			</p>
+			<Button onClick={openFeedback} size="sm" variant="secondary">
+				<Icon icon={Comment} size={12} />
+				Send feedback
+			</Button>
+			<Button
+				aria-label="Dismiss beta banner"
+				className="absolute end-2"
+				onClick={dismiss}
+				size="icon-sm"
+				variant="ghost"
+			>
+				<Icon icon={Close} size={12} />
+			</Button>
 		</div>
 	);
 }

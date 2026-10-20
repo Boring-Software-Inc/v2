@@ -1,14 +1,35 @@
-import { CursorInWindowIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useId, useRef, useState } from "react";
-import { Button } from "#/components/ui/button";
-import { Dither } from "#/components/ui/dither";
-import { Switch } from "#/components/ui/switch";
+import { Icon, Pointer } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	DialogAction,
+	DialogBody,
+	DialogClose,
+	DialogFooter,
+} from "#/components/glaze/ui/dialog";
+import {
+	Field,
+	FieldContent,
+	FieldError,
+	FieldLabel,
+} from "#/components/glaze/ui/field";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
+import { Status } from "#/components/glaze/ui/status";
+import { Switch } from "#/components/glaze/ui/switch";
+import { Textarea } from "#/components/glaze/ui/textarea";
 import { submitFeedback } from "#/lib/feedback.functions";
 import { captureViewport } from "./capture";
 import { toFeedbackElement, useFeedback } from "./feedback-context";
 
-type Status = "idle" | "sending" | "success" | "error";
+type SendStatus = "idle" | "sending" | "success" | "error";
 
 function blobToDataUrl(blob: Blob): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -27,7 +48,7 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 		startSelection,
 		config,
 	} = useFeedback();
-	const [status, setStatus] = useState<Status>("idle");
+	const [status, setStatus] = useState<SendStatus>("idle");
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [comment, setComment] = useState("");
 	const [prompt, setPrompt] = useState("");
@@ -35,10 +56,7 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 	/** Set only by a submit attempt — the field never reads invalid while typing. */
 	const [commentInvalid, setCommentInvalid] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
-	const commentId = useId();
-	const commentErrorId = useId();
-	const promptId = useId();
-	const screenshotId = useId();
+	const formId = useId();
 
 	const ui = {
 		placeholder:
@@ -124,157 +142,137 @@ export function FeedbackForm({ onSuccess }: { onSuccess?: () => void }) {
 
 	if (status === "success") {
 		return (
-			<output className="flex flex-col items-center gap-2 py-8 text-center">
-				<div className="flex size-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
-					✓
-				</div>
-				<p className="font-medium text-foreground text-sm">Feedback sent</p>
-				<p className="text-muted-foreground text-xs">
-					Thanks for helping us improve.
-				</p>
-			</output>
+			<DialogBody>
+				<output className="flex flex-col items-center gap-1 py-6 text-center">
+					<Status status="ok">Feedback sent</Status>
+					<span className="type-body-sm text-text-2">
+						Thanks for helping us improve.
+					</span>
+				</output>
+			</DialogBody>
 		);
 	}
 
+	const sending = status === "sending";
+
 	return (
-		<form
-			className="flex flex-col gap-3"
-			onSubmit={(e) => {
-				e.preventDefault();
-				void handleSubmit();
-			}}
-		>
-			{elementContext ? (
-				<div className="flex items-center gap-2 rounded-md border bg-surface-1 px-2.5 py-2 text-xs">
-					<HugeiconsIcon
-						className="shrink-0 text-emerald-500"
-						icon={CursorInWindowIcon}
-						size={14}
-						strokeWidth={2}
-					/>
-					<span className="truncate font-medium text-foreground">
-						{elementContext.componentName || "Unknown"}
-					</span>
-					{sourceLabel ? (
-						<span className="truncate font-mono text-muted-foreground">
-							{sourceLabel}
-						</span>
-					) : null}
-					<button
-						className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
-						onClick={startSelection}
-						type="button"
-					>
-						reselect
-					</button>
-				</div>
-			) : (
-				<button
-					className="group relative flex items-center gap-2.5 overflow-hidden rounded-lg border border-dashed px-3 py-2 text-left transition-colors hover:border-solid"
-					onClick={startSelection}
-					type="button"
-				>
-					<Dither
-						className="opacity-70 transition-opacity duration-300 group-hover:opacity-100"
-						speed={0.5}
-					/>
-					<HugeiconsIcon
-						className="relative shrink-0 text-foreground"
-						icon={CursorInWindowIcon}
-						size={17}
-						strokeWidth={2}
-					/>
-					<span className="relative flex min-w-0 flex-1 flex-col">
-						<span className="font-medium text-foreground text-sm">
-							Point at a component
-						</span>
-						<span className="text-muted-foreground text-xs">
-							attach its source + a screenshot
-						</span>
-					</span>
-					<span className="relative shrink-0 text-muted-foreground text-sm transition-colors group-hover:text-foreground">
-						→
-					</span>
-				</button>
-			)}
-
-			<div className="flex flex-col gap-1.5">
-				<label className="text-muted-foreground text-xs" htmlFor={commentId}>
-					What happened
-				</label>
-				<textarea
-					aria-describedby={commentInvalid ? commentErrorId : undefined}
-					aria-invalid={commentInvalid || undefined}
-					className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-foreground text-sm outline-none transition-[color,border-color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50 aria-invalid:border-destructive"
-					disabled={status === "sending"}
-					id={commentId}
-					onChange={(e) => {
-						setComment(e.target.value);
-						if (commentInvalid) setCommentInvalid(false);
+		<>
+			<DialogBody>
+				<form
+					className="flex flex-col gap-4"
+					id={formId}
+					noValidate
+					onSubmit={(e) => {
+						e.preventDefault();
+						void handleSubmit();
 					}}
-					placeholder={ui.placeholder}
-					ref={textareaRef}
-					rows={3}
-					value={comment}
-				/>
-				{commentInvalid ? (
-					<p className="text-destructive text-xs" id={commentErrorId}>
-						Describe what happened so we can act on it.
-					</p>
-				) : null}
-			</div>
+				>
+					{elementContext ? (
+						<ItemGroup aria-label="Selected component">
+							<Item>
+								<ItemMedia variant="icon">
+									<Icon icon={Pointer} />
+								</ItemMedia>
+								<ItemContent>
+									<ItemTitle>
+										{elementContext.componentName || "Unknown"}
+									</ItemTitle>
+									{sourceLabel ? (
+										<ItemDescription className="mono">
+											{sourceLabel}
+										</ItemDescription>
+									) : null}
+								</ItemContent>
+								<ItemActions>
+									<Button
+										onClick={startSelection}
+										size="sm"
+										type="button"
+										variant="secondary"
+									>
+										Reselect
+									</Button>
+								</ItemActions>
+							</Item>
+						</ItemGroup>
+					) : (
+						<div className="flex flex-col items-start gap-1">
+							<Button
+								onClick={startSelection}
+								size="sm"
+								type="button"
+								variant="secondary"
+							>
+								<Icon icon={Pointer} />
+								Point at a component
+							</Button>
+							<span className="type-caption text-text-2">
+								Attach its source and a screenshot.
+							</span>
+						</div>
+					)}
 
-			<div className="flex flex-col gap-1.5">
-				<label className="text-muted-foreground text-xs" htmlFor={promptId}>
-					Suggested fix (optional)
-				</label>
-				<textarea
-					className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 text-foreground text-sm outline-none transition-[color,border-color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
-					disabled={status === "sending"}
-					id={promptId}
-					onChange={(e) => setPrompt(e.target.value)}
-					placeholder="What would you have expected instead?"
-					rows={2}
-					value={prompt}
-				/>
-			</div>
+					<Field invalid={commentInvalid}>
+						<FieldLabel>What happened</FieldLabel>
+						<Textarea
+							disabled={sending}
+							onValueChange={(value) => {
+								setComment(value);
+								if (commentInvalid) setCommentInvalid(false);
+							}}
+							placeholder={ui.placeholder}
+							ref={textareaRef}
+							rows={3}
+							value={comment}
+						/>
+						{commentInvalid ? (
+							<FieldError>
+								Describe what happened so we can act on it.
+							</FieldError>
+						) : null}
+					</Field>
 
-			<div className="flex items-center justify-between pt-1">
-				<div className="flex items-center gap-2">
-					<Switch
-						checked={includeScreenshot}
-						id={screenshotId}
-						onCheckedChange={setIncludeScreenshot}
-					/>
-					<label
-						className="cursor-pointer select-none text-muted-foreground text-xs"
-						htmlFor={screenshotId}
-					>
-						Attach screenshot
-					</label>
-				</div>
+					<Field>
+						<FieldLabel optional>Suggested fix</FieldLabel>
+						<Textarea
+							disabled={sending}
+							onValueChange={setPrompt}
+							placeholder="What would you have expected instead?"
+							rows={2}
+							value={prompt}
+						/>
+					</Field>
 
-				<div className="flex items-center gap-2">
-					<Button
-						disabled={status === "sending"}
-						onClick={handleClose}
-						size="sm"
-						type="button"
-						variant="ghost"
-					>
-						{ui.cancelLabel}
-					</Button>
-					<Button disabled={status === "sending"} size="sm" type="submit">
-						{status === "sending" ? "sending…" : ui.submitLabel}
-					</Button>
-				</div>
-			</div>
+					<Field orientation="horizontal">
+						<FieldContent>
+							<FieldLabel>Attach screenshot</FieldLabel>
+						</FieldContent>
+						<Switch
+							checked={includeScreenshot}
+							onCheckedChange={setIncludeScreenshot}
+						/>
+					</Field>
 
-			{status === "error" && errorMessage ? (
-				<p className="text-destructive text-xs" role="alert">
-					{errorMessage}
-				</p>
-			) : null}
-		</form>
+					{status === "error" && errorMessage ? (
+						<p className="type-body-sm text-fail-text" role="alert">
+							{errorMessage}
+						</p>
+					) : null}
+				</form>
+			</DialogBody>
+			<DialogFooter defaultAction="none">
+				<DialogClose disabled={sending} onClick={handleClose}>
+					{ui.cancelLabel}
+				</DialogClose>
+				<DialogAction
+					close={false}
+					form={formId}
+					pending={sending}
+					type="submit"
+				>
+					{ui.submitLabel}
+				</DialogAction>
+			</DialogFooter>
+		</>
 	);
 }

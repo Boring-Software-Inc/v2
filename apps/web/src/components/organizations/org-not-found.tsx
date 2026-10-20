@@ -1,4 +1,12 @@
 import { Link } from "@tanstack/react-router";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
 
 /**
  * §8 — a non-member sees a 404, never a 403. This screen carries NO hint
@@ -7,15 +15,23 @@ import { Link } from "@tanstack/react-router";
  */
 export function OrgNotFound() {
 	return (
-		<div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background px-6 text-center">
-			<h1 className="font-semibold text-2xl tracking-tight">not found</h1>
-			<p className="text-muted-foreground text-sm">this page doesn't exist.</p>
-			<Link
-				className="text-sm underline underline-offset-4 transition-colors hover:text-foreground"
-				to="/"
-			>
-				go home
-			</Link>
-		</div>
+		<main className="flex min-h-dvh items-center justify-center bg-page px-4 py-10">
+			<Empty className="max-w-sm" reason="no-results">
+				<EmptyHeader>
+					<EmptyTitle>Not found</EmptyTitle>
+					<EmptyDescription>This page doesn't exist.</EmptyDescription>
+				</EmptyHeader>
+				<EmptyContent>
+					<Button
+						nativeButton={false}
+						render={<Link to="/" />}
+						size="sm"
+						variant="secondary"
+					>
+						Go home
+					</Button>
+				</EmptyContent>
+			</Empty>
+		</main>
 	);
 }

@@ -6,28 +6,32 @@ import type {
 	SuccessSurface,
 	Verdict,
 } from "@tripwire/contracts";
+import type { ReactNode } from "react";
 import { TemplateEditor } from "#/components/customize/template-editor";
-import { Switch } from "#/components/ui/switch";
-import { cn } from "#/lib/utils";
+import {
+	Field,
+	FieldContent,
+	FieldDescription,
+	FieldLabel,
+} from "#/components/glaze/ui/field";
+import {
+	RadioGroup,
+	RadioGroupOption,
+} from "#/components/glaze/ui/radio-group";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/components/glaze/ui/segmented-control";
+import { Switch } from "#/components/glaze/ui/switch";
+import { Textarea } from "#/components/glaze/ui/textarea";
 
-const EYEBROW_CLASS =
-	"font-medium text-[11px] text-muted-foreground uppercase tracking-wide";
-
-/**
- * The per-outcome comment override (§customize), revealed under an outcome once
- * it's set to `comment`. Custom text REPLACES the whole comment — a maintainer
- * hiding a block behind a generic line, with the details button off, gets full
- * opacity. Block and review carry their own, independent copy.
- */
 function OutcomeComment({
-	idPrefix,
 	value,
 	canEdit,
 	onDraftText,
 	onCommitText,
 	onToggleButton,
 }: {
-	idPrefix: string;
 	value: CommentOverride;
 	canEdit: boolean;
 	onDraftText: (text: string) => void;
@@ -35,54 +39,55 @@ function OutcomeComment({
 	onToggleButton: (checked: boolean) => void;
 }) {
 	return (
-		<div className="mt-2 flex flex-col gap-2">
-			<p className={EYEBROW_CLASS}>custom text</p>
-			<textarea
-				aria-label={`${idPrefix} custom comment text`}
-				className="min-h-16 w-full resize-y rounded-md bg-surface-1 px-3 py-2 text-xs leading-5 outline-none transition-shadow placeholder:text-muted-foreground/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60"
-				disabled={!canEdit}
-				onBlur={onCommitText}
-				onChange={(event) => onDraftText(event.target.value)}
-				placeholder="leave blank for the default comment"
-				value={value.customText}
-			/>
-			<p className="text-[11px] text-muted-foreground">
-				replaces the whole comment — the rules and evidence won't show. blank
-				keeps the default.
-			</p>
-			<div className="mt-1 flex items-center justify-between gap-3 text-xs">
-				<label htmlFor={`${idPrefix}-show-details`}>show details button</label>
+		<div className="flex flex-col gap-3">
+			<Field disabled={!canEdit}>
+				<FieldLabel>Custom text</FieldLabel>
+				<Textarea
+					autoGrow
+					maxRows={8}
+					minRows={2}
+					onBlur={onCommitText}
+					onChange={(event) => onDraftText(event.target.value)}
+					placeholder="Leave blank for the default comment"
+					value={value.customText}
+				/>
+				<FieldDescription>
+					Replaces the whole comment, so the rules and evidence won't show.
+					Blank keeps the default.
+				</FieldDescription>
+			</Field>
+			<Field orientation="horizontal">
+				<FieldLabel>Show details button</FieldLabel>
 				<Switch
 					checked={value.showDetailsButton}
 					disabled={!canEdit}
-					id={`${idPrefix}-show-details`}
 					onCheckedChange={onToggleButton}
+					size="sm"
 				/>
-			</div>
+			</Field>
 		</div>
 	);
 }
 
 const SUCCESS_OPTIONS: { value: SuccessSurface; label: string }[] = [
-	{ value: "silent", label: "silent" },
-	{ value: "ci-check", label: "check only" },
-	{ value: "comment", label: "comment" },
+	{ value: "silent", label: "Silent" },
+	{ value: "ci-check", label: "Check only" },
+	{ value: "comment", label: "Comment" },
 ];
 
 const COMMENT_OPTIONS: { value: CommentSurface; label: string }[] = [
-	{ value: "comment", label: "comment" },
-	{ value: "silent", label: "silent" },
+	{ value: "comment", label: "Comment" },
+	{ value: "silent", label: "Silent" },
 ];
 
 const MODE_OPTIONS: { value: BlockCommentMode; label: string }[] = [
-	{ value: "full", label: "full" },
-	{ value: "one-liner-link", label: "one line per rule" },
-	{ value: "link-only", label: "link only" },
-	{ value: "custom", label: "custom" },
+	{ value: "full", label: "Full" },
+	{ value: "one-liner-link", label: "One line per rule" },
+	{ value: "link-only", label: "Link only" },
+	{ value: "custom", label: "Custom" },
 ];
 
-/** The activity feed's filter pills, made a controlled group. */
-function PillGroup<T extends string>({
+function Choice<T extends string>({
 	options,
 	value,
 	onChange,
@@ -96,26 +101,49 @@ function PillGroup<T extends string>({
 	label: string;
 }) {
 	return (
-		<fieldset aria-label={label} className="flex flex-wrap gap-1.5">
+		<SegmentedControl
+			aria-label={label}
+			className="w-full"
+			disabled={disabled}
+			fill
+			onValueChange={(next) => onChange(next as T)}
+			size="sm"
+			value={value}
+		>
 			{options.map((option) => (
-				<button
-					aria-pressed={value === option.value}
-					className={cn(
-						"rounded-full px-2.5 py-1 font-medium text-xs transition-colors",
-						value === option.value
-							? "bg-foreground text-background"
-							: "bg-surface-1 text-muted-foreground hover:text-foreground",
-						disabled && "pointer-events-none opacity-60",
-					)}
-					disabled={disabled}
-					key={option.value}
-					onClick={() => onChange(option.value)}
-					type="button"
-				>
+				<SegmentedControlItem key={option.value} value={option.value}>
 					{option.label}
-				</button>
+				</SegmentedControlItem>
 			))}
-		</fieldset>
+		</SegmentedControl>
+	);
+}
+
+function Section({
+	title,
+	titleId,
+	verdict,
+	onInteract,
+	children,
+}: {
+	title: string;
+	titleId: string;
+	verdict: Verdict;
+	onInteract: (verdict: Verdict) => void;
+	children: ReactNode;
+}) {
+	return (
+		<section
+			aria-labelledby={titleId}
+			className="flex flex-col gap-3"
+			onClickCapture={() => onInteract(verdict)}
+			onFocusCapture={() => onInteract(verdict)}
+		>
+			<h3 className="type-label" id={titleId}>
+				{title}
+			</h3>
+			{children}
+		</section>
 	);
 }
 
@@ -123,13 +151,9 @@ const TEMPLATE_PLACEHOLDER = "blocked: {{ruleName}}\n\n{{runUrl}}";
 
 export interface ResponseConfigFormProps {
 	config: ResponseConfig;
-	/** Admin-only edits — members see the config read-only. */
 	canEdit: boolean;
-	/** Commits (the save mutation). */
 	onChange: (config: ResponseConfig) => void;
-	/** Draft only — template keystrokes; commit follows on blur. */
 	onDraft: (config: ResponseConfig) => void;
-	/** Touching a verdict's controls focuses the preview on that verdict. */
 	onInteract: (verdict: Verdict) => void;
 }
 
@@ -149,8 +173,6 @@ export function ResponseConfigForm({
 			...config,
 			blockComment: { ...config.blockComment, ...partial },
 		});
-	// Per-outcome override patchers — commit (onChange) for the toggle, draft
-	// (onDraft, preview-only) for keystrokes; commit follows on blur.
 	const patchPassComment = (partial: Partial<CommentOverride>) =>
 		onChange({ ...config, passComment: { ...config.passComment, ...partial } });
 	const draftPassComment = (partial: Partial<CommentOverride>) =>
@@ -171,19 +193,17 @@ export function ResponseConfigForm({
 			reviewComment: { ...config.reviewComment, ...partial },
 		});
 
-	const section = (verdict: Verdict) => ({
-		className: "flex flex-col gap-2",
-		onClickCapture: () => onInteract(verdict),
-		onFocusCapture: () => onInteract(verdict),
-	});
-
 	return (
 		<div className="flex flex-col gap-6">
-			<div {...section("pass")}>
-				<p className={EYEBROW_CLASS}>on a pass</p>
-				<PillGroup
+			<Section
+				onInteract={onInteract}
+				title="On a pass"
+				titleId="response-on-pass"
+				verdict="pass"
+			>
+				<Choice
 					disabled={!canEdit}
-					label="on a pass"
+					label="On a pass"
 					onChange={(onSuccess) => patch({ onSuccess })}
 					options={SUCCESS_OPTIONS}
 					value={config.onSuccess}
@@ -191,7 +211,6 @@ export function ResponseConfigForm({
 				{config.onSuccess === "comment" ? (
 					<OutcomeComment
 						canEdit={canEdit}
-						idPrefix="pass"
 						onCommitText={() => onChange(config)}
 						onDraftText={(customText) => draftPassComment({ customText })}
 						onToggleButton={(checked) =>
@@ -200,25 +219,28 @@ export function ResponseConfigForm({
 						value={config.passComment}
 					/>
 				) : null}
-			</div>
+			</Section>
 
-			<div {...section("block")}>
-				<p className={EYEBROW_CLASS}>on a block</p>
-				<PillGroup
+			<Section
+				onInteract={onInteract}
+				title="On a block"
+				titleId="response-on-block"
+				verdict="block"
+			>
+				<Choice
 					disabled={!canEdit}
-					label="on a block"
+					label="On a block"
 					onChange={(onBlock) => patch({ onBlock })}
 					options={COMMENT_OPTIONS}
 					value={config.onBlock}
 				/>
-				<p className="text-muted-foreground text-xs">
-					the check always blocks the merge. this only controls the comment.
+				<p className="type-body-sm text-text-2">
+					The check always blocks the merge. This only controls the comment.
 				</p>
 				{config.onBlock === "comment" ? (
-					<div className="mt-2 flex flex-col gap-2">
+					<div className="flex flex-col gap-3">
 						<OutcomeComment
 							canEdit={canEdit}
-							idPrefix="block"
 							onCommitText={() => onChange(config)}
 							onDraftText={(customText) => draftBlockComment({ customText })}
 							onToggleButton={(checked) =>
@@ -226,29 +248,42 @@ export function ResponseConfigForm({
 							}
 							value={config.blockComment}
 						/>
-						<p className={EYEBROW_CLASS}>comment shape</p>
-						<p className="text-[11px] text-muted-foreground">
-							the shape below applies only when custom text is blank.
-						</p>
-						<PillGroup
+						<div className="flex flex-col gap-1">
+							<h4 className="type-label" id="response-comment-shape">
+								Comment shape
+							</h4>
+							<p className="type-body-sm text-text-2">
+								Applies only when custom text is blank.
+							</p>
+						</div>
+						<RadioGroup
+							aria-labelledby="response-comment-shape"
 							disabled={!canEdit}
-							label="block comment shape"
-							onChange={(mode) => patchBlockComment({ mode })}
-							options={MODE_OPTIONS}
+							onValueChange={(mode) =>
+								patchBlockComment({ mode: mode as BlockCommentMode })
+							}
 							value={config.blockComment.mode}
-						/>
+						>
+							{MODE_OPTIONS.map((option) => (
+								<RadioGroupOption
+									key={option.value}
+									label={option.label}
+									value={option.value}
+								/>
+							))}
+						</RadioGroup>
 						{config.blockComment.mode === "one-liner-link" ? (
-							<div className="mt-1 flex items-center justify-between gap-3 text-xs">
-								<label htmlFor="response-show-rule-name">show rule names</label>
+							<Field orientation="horizontal">
+								<FieldLabel>Show rule names</FieldLabel>
 								<Switch
 									checked={config.blockComment.showRuleName}
 									disabled={!canEdit}
-									id="response-show-rule-name"
 									onCheckedChange={(checked) =>
 										patchBlockComment({ showRuleName: checked })
 									}
+									size="sm"
 								/>
-							</div>
+							</Field>
 						) : null}
 						{config.blockComment.mode === "custom" ? (
 							<TemplateEditor
@@ -266,13 +301,17 @@ export function ResponseConfigForm({
 						) : null}
 					</div>
 				) : null}
-			</div>
+			</Section>
 
-			<div {...section("needs_review")}>
-				<p className={EYEBROW_CLASS}>sent to review</p>
-				<PillGroup
+			<Section
+				onInteract={onInteract}
+				title="Sent to review"
+				titleId="response-on-review"
+				verdict="needs_review"
+			>
+				<Choice
 					disabled={!canEdit}
-					label="sent to review"
+					label="Sent to review"
 					onChange={(moderationQueued) => patch({ moderationQueued })}
 					options={COMMENT_OPTIONS}
 					value={config.moderationQueued}
@@ -280,7 +319,6 @@ export function ResponseConfigForm({
 				{config.moderationQueued === "comment" ? (
 					<OutcomeComment
 						canEdit={canEdit}
-						idPrefix="review"
 						onCommitText={() => onChange(config)}
 						onDraftText={(customText) => draftReviewComment({ customText })}
 						onToggleButton={(checked) =>
@@ -290,35 +328,31 @@ export function ResponseConfigForm({
 					/>
 				) : null}
 
-				{/*
-				  Lives here because this setting decides whether a run BECOMES a
-				  review, so it belongs beside the rest of the review behaviour.
-				  It is the only control on this page that changes a verdict rather
-				  than how a verdict is announced, which is why it carries a
-				  consequence line rather than a label alone.
-				*/}
-				<div className="mt-3 flex items-start justify-between gap-3 border-border border-t pt-3 text-xs">
-					<label className="flex flex-col gap-1" htmlFor="response-fail-closed">
-						<span>review when a rule can't run</span>
-						<span className="text-[11px] text-muted-foreground">
+				<Field
+					className="border-line-faint border-t pt-3"
+					orientation="horizontal"
+				>
+					<FieldContent>
+						<FieldLabel>Review when a rule can't run</FieldLabel>
+						<FieldDescription>
 							{config.failClosedFallback
-								? "a change that half its rules couldn't check goes to a human."
-								: "off. a change passes even when half its rules couldn't check it."}
-						</span>
-					</label>
+								? "A change that half its rules couldn't check goes to a human."
+								: "Off. A change passes even when half its rules couldn't check it."}
+						</FieldDescription>
+					</FieldContent>
 					<Switch
 						checked={config.failClosedFallback}
 						disabled={!canEdit}
-						id="response-fail-closed"
 						onCheckedChange={(checked) =>
 							patch({ failClosedFallback: checked })
 						}
+						size="sm"
 					/>
-				</div>
-			</div>
+				</Field>
+			</Section>
 			{canEdit ? null : (
-				<p className="text-muted-foreground text-xs">
-					only org admins can change these settings.
+				<p className="type-body-sm text-text-2">
+					Only org admins can change these settings.
 				</p>
 			)}
 		</div>

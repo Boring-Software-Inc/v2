@@ -1,24 +1,27 @@
 import {
-	Card,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "#/components/ui/card";
-import { Skeleton } from "#/components/ui/skeleton";
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
+import { SkeletonText } from "#/components/glaze/ui/skeleton";
 
 export function OrgBillingPage() {
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>billing</CardTitle>
-				<CardDescription>
-					billing lands with autumn — nothing to configure yet.
-				</CardDescription>
-			</CardHeader>
-		</Card>
+		<Empty variant="plain">
+			<EmptyHeader>
+				<EmptyTitle>Nothing to configure yet</EmptyTitle>
+				<EmptyDescription>Billing lands with Autumn.</EmptyDescription>
+			</EmptyHeader>
+		</Empty>
 	);
 }
 
 export function OrgBillingPageSkeleton() {
-	return <Skeleton className="h-24 rounded-xl" />;
+	return (
+		<div aria-hidden className="flex flex-col items-center gap-1">
+			<SkeletonText className="w-40" type="label" />
+			<SkeletonText className="w-48" type="body-sm" />
+		</div>
+	);
 }

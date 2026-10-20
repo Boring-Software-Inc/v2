@@ -1,19 +1,43 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OrgRole } from "@tripwire/contracts";
 import { useState } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "#/components/ui/avatar";
-import { Badge } from "#/components/ui/badge";
-import { Button } from "#/components/ui/button";
+import { Avatar } from "#/components/glaze/ui/avatar";
+import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "#/components/ui/card";
-import { Input } from "#/components/ui/input";
-import { Skeleton } from "#/components/ui/skeleton";
-import { toast } from "#/components/ui/toast";
+	Empty,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
+import {
+	Field,
+	FieldDescription,
+	FieldLabel,
+} from "#/components/glaze/ui/field";
+import { Input } from "#/components/glaze/ui/input";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
+import { NumberInput } from "#/components/glaze/ui/number-input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/glaze/ui/select";
+import {
+	Skeleton,
+	SkeletonSwap,
+	SkeletonText,
+} from "#/components/glaze/ui/skeleton";
+import { toast } from "#/components/glaze/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { InviteLinkView, OrgMemberView } from "#/lib/org.functions";
@@ -31,8 +55,19 @@ import {
 	orgQueryKeys,
 } from "#/lib/org.query";
 
-const ROLE_SELECT_CLASS =
-	"h-7 rounded-md border bg-card px-2 text-foreground text-xs disabled:cursor-not-allowed disabled:opacity-50";
+const ROLE_ITEMS = [
+	{ value: "member", label: "Member" },
+	{ value: "admin", label: "Admin" },
+];
+
+const ROLE_LABEL: Record<OrgRole, string> = {
+	admin: "Admin",
+	member: "Member",
+};
+
+function isOrgRole(value: string | null): value is OrgRole {
+	return value === "admin" || value === "member";
+}
 
 export function OrgMembersPage({ org }: { org: string }) {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
@@ -44,21 +79,30 @@ export function OrgMembersPage({ org }: { org: string }) {
 	const callerUserId = session?.user?.id ?? null;
 
 	return (
-		<div className="flex flex-col gap-6">
-			<Card>
-				<CardHeader className="flex-row items-start justify-between">
-					<div className="flex flex-col gap-1.5">
-						<CardTitle>members</CardTitle>
-						<CardDescription>
+		<div className="flex flex-col gap-8">
+			<section
+				aria-labelledby="org-members-heading"
+				className="flex flex-col gap-3"
+			>
+				<div className="flex items-start justify-between gap-3">
+					<div className="flex min-w-0 flex-col gap-0.5">
+						<h3 className="type-heading-sm" id="org-members-heading">
+							Members
+						</h3>
+						<p className="type-body-sm text-text-2">
 							{isAdmin
-								? "who's in this org and what they can touch."
-								: "who's in this org. only admins can change roles."}
-						</CardDescription>
+								? "Who's in this org and what they can touch."
+								: "Who's in this org. Only admins can change roles."}
+						</p>
 					</div>
-					{!isPersonal && <LeaveOrgButton org={org} />}
-				</CardHeader>
-				<CardContent>
-					<ul className="flex flex-col divide-y">
+					{isPersonal ? null : <LeaveOrgButton org={org} />}
+				</div>
+				<SkeletonSwap
+					fallback={<MemberRowsSkeleton />}
+					label="Loading members"
+					loading={!members}
+				>
+					<ItemGroup variant="plain" aria-label="Members">
 						{(members ?? []).map((member) => (
 							<MemberRow
 								callerUserId={callerUserId}
@@ -68,9 +112,9 @@ export function OrgMembersPage({ org }: { org: string }) {
 								org={org}
 							/>
 						))}
-					</ul>
-				</CardContent>
-			</Card>
+					</ItemGroup>
+				</SkeletonSwap>
+			</section>
 
 			{isAdmin && !isPersonal ? <InviteLinksSection org={org} /> : null}
 		</div>
@@ -96,7 +140,7 @@ function MemberRow({
 			updateOrgMemberRole({ data: { org, memberId: member.memberId, role } }),
 		onSuccess: (result) => {
 			if (!result.ok) {
-				toast(result.error ?? "role change refused");
+				toast.fail(result.error ?? "Role change refused");
 			}
 		},
 		onSettled: () => {
@@ -109,7 +153,7 @@ function MemberRow({
 			removeOrgMember({ data: { org, memberId: member.memberId } }),
 		onSuccess: (result) => {
 			if (!result.ok) {
-				toast(result.error ?? "removal refused");
+				toast.fail(result.error ?? "Removal refused");
 			}
 		},
 		onSettled: () => {
@@ -118,52 +162,67 @@ function MemberRow({
 	});
 
 	return (
-		<li className="flex items-center gap-3 py-3">
-			<Avatar>
-				{member.image ? (
-					<AvatarImage alt={member.name} src={member.image} />
-				) : null}
-				<AvatarFallback className="text-xs">
-					{member.name.slice(0, 2).toLowerCase()}
-				</AvatarFallback>
-			</Avatar>
-			<div className="flex min-w-0 flex-1 flex-col gap-1">
-				<p className="flex items-center gap-2 truncate font-medium text-sm">
-					{member.name}
-					{isSelf ? <Badge variant="secondary">you</Badge> : null}
-				</p>
-				<p className="truncate text-muted-foreground text-xs">
+		<Item className="flex-wrap">
+			<ItemMedia>
+				<Avatar decorative name={member.name} src={member.image ?? undefined} />
+			</ItemMedia>
+			<ItemContent>
+				<ItemTitle>
+					<span>{member.name}</span>
+					{isSelf ? <Badge size="sm">You</Badge> : null}
+				</ItemTitle>
+				<ItemDescription className="truncate">
 					{member.email} · joined {formatRelativeTime(member.joinedAt)}
-				</p>
-			</div>
+				</ItemDescription>
+			</ItemContent>
 			{isAdmin ? (
-				<div className="flex shrink-0 items-center gap-2">
-					<select
-						aria-label={`role for ${member.name}`}
-						className={ROLE_SELECT_CLASS}
+				<ItemActions className="gap-2 @max-sm/item:ms-9 @max-sm/item:me-0 @max-sm/item:basis-full">
+					<Select
 						disabled={isSelf || roleMutation.isPending}
-						onChange={(e) => roleMutation.mutate(e.target.value as OrgRole)}
+						items={ROLE_ITEMS}
+						onValueChange={(value) => {
+							if (isOrgRole(value)) {
+								roleMutation.mutate(value);
+							}
+						}}
 						value={member.role}
 					>
-						<option value="admin">admin</option>
-						<option value="member">member</option>
-					</select>
+						<SelectTrigger
+							aria-label={`Role for ${member.name}`}
+							className="w-24"
+							size="sm"
+						>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent size="sm">
+							{ROLE_ITEMS.map((item) => (
+								<SelectItem key={item.value} value={item.value}>
+									{item.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					<Button
-						disabled={isSelf || removeMutation.isPending}
+						aria-label={`Remove ${member.name}`}
+						disabled={isSelf}
+						pending={removeMutation.isPending}
+						pendingLabel="Removing"
 						onClick={() => removeMutation.mutate()}
-						size="xs"
+						size="sm"
 						title={
-							isSelf ? "you can't remove yourself — leave instead" : undefined
+							isSelf ? "You can't remove yourself. Leave instead." : undefined
 						}
-						variant="outline"
+						variant="secondary"
 					>
-						remove
+						Remove
 					</Button>
-				</div>
+				</ItemActions>
 			) : (
-				<Badge variant="outline">{member.role}</Badge>
+				<ItemActions>
+					<Badge variant="outline">{ROLE_LABEL[member.role]}</Badge>
+				</ItemActions>
 			)}
-		</li>
+		</Item>
 	);
 }
 
@@ -177,7 +236,7 @@ function LeaveOrgButton({ org }: { org: string }) {
 				window.location.assign("/");
 				return;
 			}
-			toast(result.error ?? "you're the last admin here");
+			toast.fail(result.error ?? "You're the last admin here");
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.members(org) });
@@ -187,17 +246,16 @@ function LeaveOrgButton({ org }: { org: string }) {
 
 	return (
 		<Button
-			disabled={leaveMutation.isPending}
 			onClick={() => leaveMutation.mutate()}
-			size="xs"
-			variant="outline"
+			pending={leaveMutation.isPending}
+			pendingLabel="Leaving"
+			size="sm"
+			variant="secondary"
 		>
-			leave org
+			Leave org
 		</Button>
 	);
 }
-
-// ── invite links ─────────────────────────────────────────────────────────
 
 function InviteLinksSection({ org }: { org: string }) {
 	const queryClient = useQueryClient();
@@ -215,7 +273,7 @@ function InviteLinksSection({ org }: { org: string }) {
 			if (result.token) {
 				setCreatedToken(result.token);
 			} else {
-				toast(result.error ?? "could not create invite");
+				toast.fail(result.error ?? "Could not create invite");
 			}
 		},
 		onSettled: () => {
@@ -230,103 +288,103 @@ function InviteLinksSection({ org }: { org: string }) {
 		expiresInDays <= 90;
 
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>invite links</CardTitle>
-				<CardDescription>
-					mint a link, send it to whoever you trust. each link caps its uses and
-					expires on its own.
-				</CardDescription>
-			</CardHeader>
-			<CardContent className="flex flex-col gap-4">
-				<form
-					className="flex flex-wrap items-end gap-3"
-					onSubmit={(e) => {
-						e.preventDefault();
-						if (inputsValid) {
-							createMutation.mutate();
-						}
-					}}
+		<section
+			aria-labelledby="org-invites-heading"
+			className="flex flex-col gap-3"
+		>
+			<div className="flex flex-col gap-0.5">
+				<h3 className="type-heading-sm" id="org-invites-heading">
+					Invite links
+				</h3>
+				<p className="type-body-sm text-text-2">
+					Mint a link and send it to whoever you trust. Each link caps its uses
+					and expires on its own.
+				</p>
+			</div>
+			<form
+				className="flex flex-wrap items-end gap-3"
+				onSubmit={(e) => {
+					e.preventDefault();
+					if (inputsValid) {
+						createMutation.mutate();
+					}
+				}}
+			>
+				<Field className="w-32">
+					<FieldLabel>Role</FieldLabel>
+					<Select
+						items={ROLE_ITEMS}
+						onValueChange={(value) => {
+							if (isOrgRole(value)) {
+								setRole(value);
+							}
+						}}
+						value={role}
+					>
+						<SelectTrigger>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{ROLE_ITEMS.map((item) => (
+								<SelectItem key={item.value} value={item.value}>
+									{item.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</Field>
+				<Field className="w-32">
+					<FieldLabel>Max uses</FieldLabel>
+					<NumberInput
+						max={1000}
+						min={1}
+						onValueChange={(value) => setMaxUses(value ?? 0)}
+						value={maxUses}
+					/>
+				</Field>
+				<Field className="w-32">
+					<FieldLabel>Expires in</FieldLabel>
+					<NumberInput
+						max={90}
+						min={1}
+						onValueChange={(value) => setExpiresInDays(value ?? 0)}
+						unit="days"
+						value={expiresInDays}
+					/>
+				</Field>
+				<Button
+					disabled={!inputsValid}
+					pending={createMutation.isPending}
+					pendingLabel="Creating"
+					type="submit"
 				>
-					<label className="flex flex-col gap-1 text-muted-foreground text-xs">
-						role
-						<select
-							className="h-9 rounded-md border bg-card px-2 text-foreground text-sm"
-							onChange={(e) => setRole(e.target.value as OrgRole)}
-							value={role}
-						>
-							<option value="member">member</option>
-							<option value="admin">admin</option>
-						</select>
-					</label>
-					<label
-						className="flex flex-col gap-1 text-muted-foreground text-xs"
-						htmlFor="invite-max-uses"
-					>
-						max uses
-						<Input
-							className="w-24"
-							id="invite-max-uses"
-							max={1000}
-							min={1}
-							onChange={(e) => setMaxUses(Number(e.target.value))}
-							type="number"
-							value={maxUses}
-						/>
-					</label>
-					<label
-						className="flex flex-col gap-1 text-muted-foreground text-xs"
-						htmlFor="invite-expires-days"
-					>
-						expires in days
-						<Input
-							className="w-24"
-							id="invite-expires-days"
-							max={90}
-							min={1}
-							onChange={(e) => setExpiresInDays(Number(e.target.value))}
-							type="number"
-							value={expiresInDays}
-						/>
-					</label>
-					<Button
-						disabled={!inputsValid || createMutation.isPending}
-						size="sm"
-						type="submit"
-					>
-						create invite link
-					</Button>
-				</form>
+					Create invite link
+				</Button>
+			</form>
 
-				{createdToken ? <FreshInviteLink token={createdToken} /> : null}
+			{createdToken ? <FreshInviteLink token={createdToken} /> : null}
 
+			<SkeletonSwap
+				fallback={<InviteRowsSkeleton />}
+				label="Loading invite links"
+				loading={!invites}
+			>
 				<InviteLinkList invites={invites ?? []} org={org} />
-			</CardContent>
-		</Card>
+			</SkeletonSwap>
+		</section>
 	);
 }
 
 function FreshInviteLink({ token }: { token: string }) {
 	const url = `${window.location.origin}/invite/${token}`;
 	return (
-		<div className="flex flex-col gap-2 rounded-lg border border-dashed bg-card p-3">
-			<div className="flex items-center gap-2">
-				<Input className="font-mono text-xs" readOnly value={url} />
-				<Button
-					onClick={() => {
-						navigator.clipboard.writeText(url);
-						toast("invite link copied");
-					}}
-					size="sm"
-					variant="secondary"
-				>
-					copy
-				</Button>
-			</div>
-			<p className="text-muted-foreground text-xs">
-				this link is shown once — copy it now. only its hash is stored.
-			</p>
-		</div>
+		<Field>
+			<FieldLabel>New invite link</FieldLabel>
+			<Input mode="copy" noun="invite link" value={url} />
+			<FieldDescription>
+				This link is shown once, so copy it now. Only its hash is stored.
+			</FieldDescription>
+		</Field>
 	);
 }
 
@@ -339,17 +397,19 @@ function InviteLinkList({
 }) {
 	if (invites.length === 0) {
 		return (
-			<p className="rounded-lg border border-dashed px-4 py-3 text-center text-muted-foreground text-xs">
-				no invite links yet.
-			</p>
+			<Empty size="sm" variant="plain">
+				<EmptyHeader>
+					<EmptyTitle>No invite links yet</EmptyTitle>
+				</EmptyHeader>
+			</Empty>
 		);
 	}
 	return (
-		<ul className="flex flex-col divide-y">
+		<ItemGroup variant="plain" aria-label="Invite links">
 			{invites.map((invite) => (
 				<InviteLinkRow invite={invite} key={invite.id} org={org} />
 			))}
-		</ul>
+		</ItemGroup>
 	);
 }
 
@@ -373,33 +433,84 @@ function InviteLinkRow({
 	const expired = expiresAt.getTime() < Date.now();
 
 	return (
-		<li className="flex items-center gap-3 py-3">
-			<Badge variant="outline">{invite.role}</Badge>
-			<div className="min-w-0 flex-1 text-muted-foreground text-xs">
-				{invite.uses}/{invite.maxUses} uses · {expired ? "expired" : "expires"}{" "}
-				{expiresAt.toLocaleDateString()}
-			</div>
-			{revoked ? (
-				<Badge variant="secondary">revoked</Badge>
-			) : (
-				<Button
-					disabled={revokeMutation.isPending}
-					onClick={() => revokeMutation.mutate()}
-					size="xs"
-					variant="outline"
-				>
-					revoke
-				</Button>
-			)}
-		</li>
+		<Item>
+			<ItemContent>
+				<ItemTitle>
+					<span>{ROLE_LABEL[invite.role]} invite</span>
+				</ItemTitle>
+				<ItemDescription>
+					<span className="tabular-nums">
+						{invite.uses}/{invite.maxUses}
+					</span>{" "}
+					uses · {expired ? "expired" : "expires"}{" "}
+					{expiresAt.toLocaleDateString()}
+				</ItemDescription>
+			</ItemContent>
+			<ItemActions>
+				{revoked ? (
+					<Badge>Revoked</Badge>
+				) : (
+					<Button
+						aria-label={`Revoke ${invite.role} invite`}
+						onClick={() => revokeMutation.mutate()}
+						pending={revokeMutation.isPending}
+						pendingLabel="Revoking"
+						size="sm"
+						variant="secondary"
+					>
+						Revoke
+					</Button>
+				)}
+			</ItemActions>
+		</Item>
+	);
+}
+
+const ROW_SLOTS = ["a", "b", "c"] as const;
+
+function MemberRowsSkeleton() {
+	return (
+		<ItemGroup variant="plain" aria-hidden>
+			{ROW_SLOTS.map((slot) => (
+				<Item key={slot}>
+					<ItemMedia>
+						<Skeleton className="size-6 rounded-pill" />
+					</ItemMedia>
+					<ItemContent>
+						<SkeletonText className="w-32" type="label" />
+						<SkeletonText className="w-56" type="body-sm" />
+					</ItemContent>
+				</Item>
+			))}
+		</ItemGroup>
+	);
+}
+
+function InviteRowsSkeleton() {
+	return (
+		<ItemGroup variant="plain" aria-hidden>
+			{ROW_SLOTS.slice(0, 2).map((slot) => (
+				<Item key={slot}>
+					<ItemContent>
+						<SkeletonText className="w-28" type="label" />
+						<SkeletonText className="w-44" type="body-sm" />
+					</ItemContent>
+				</Item>
+			))}
+		</ItemGroup>
 	);
 }
 
 export function OrgMembersPageSkeleton() {
 	return (
-		<div className="flex flex-col gap-6">
-			<Skeleton className="h-64 rounded-xl" />
-			<Skeleton className="h-48 rounded-xl" />
+		<div className="flex flex-col gap-8">
+			<div className="flex flex-col gap-3">
+				<div className="flex flex-col gap-0.5">
+					<SkeletonText className="w-24" type="heading-sm" />
+					<SkeletonText className="w-64" type="body-sm" />
+				</div>
+				<MemberRowsSkeleton />
+			</div>
 		</div>
 	);
 }

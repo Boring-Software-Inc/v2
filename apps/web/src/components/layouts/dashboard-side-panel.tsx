@@ -1,5 +1,3 @@
-import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
 	createContext,
 	type ReactNode,
@@ -7,9 +5,8 @@ import {
 	useContext,
 	useState,
 } from "react";
-
-// w-80 (320px) + pl-2 (8px)
-export const SIDE_PANEL_WIDTH = 328;
+import { ChevronLeft, ChevronRight, Icon } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
 
 type SidePanelState = {
 	content: ReactNode | null;
@@ -66,18 +63,14 @@ export function SidePanelToggle() {
 	if (!content) return null;
 
 	return (
-		<button
-			type="button"
-			onClick={toggle}
+		<Button
 			aria-label={collapsed ? "Show details" : "Hide details"}
-			className="absolute right-0 top-1/2 hidden -translate-y-1/2 items-center justify-center rounded-l-md border border-r-0 bg-surface-1 py-2.5 pl-0.5 pr-1 text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground md:flex"
+			className="absolute end-1 top-1/2 hidden -translate-y-1/2 md:inline-flex"
+			onClick={toggle}
+			size="icon-sm"
+			variant="ghost"
 		>
-			<HugeiconsIcon
-				icon={ArrowRight01Icon}
-				size={12}
-				strokeWidth={2}
-				className={collapsed ? "rotate-180" : ""}
-			/>
-		</button>
+			<Icon icon={collapsed ? ChevronLeft : ChevronRight} size={12} />
+		</Button>
 	);
 }

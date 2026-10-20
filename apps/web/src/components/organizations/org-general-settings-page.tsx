@@ -2,18 +2,33 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { orgSlugSchema } from "@tripwire/contracts";
 import { useState } from "react";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { Button } from "#/components/ui/button";
+import { Button } from "#/components/glaze/ui/button";
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "#/components/ui/card";
-import { Input } from "#/components/ui/input";
-import { Skeleton } from "#/components/ui/skeleton";
-import { toast } from "#/components/ui/toast";
+	Dialog,
+	DialogAction,
+	DialogBody,
+	DialogClose,
+	DialogConfirmField,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/glaze/ui/dialog";
+import {
+	Field,
+	FieldDescription,
+	FieldError,
+	FieldLabel,
+} from "#/components/glaze/ui/field";
+import { Input } from "#/components/glaze/ui/input";
+import {
+	Skeleton,
+	SkeletonSwap,
+	SkeletonText,
+} from "#/components/glaze/ui/skeleton";
+import { toast } from "#/components/glaze/ui/toast";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { authQueryKeys } from "#/lib/auth.query";
 import type { OrgWithRole } from "#/lib/org.functions";
 import { deleteOrg, updateOrg } from "#/lib/org.functions";
@@ -26,44 +41,74 @@ import {
 export function OrgGeneralSettingsPage({ org }: { org: string }) {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 
-	if (!orgContext) {
-		return <OrgGeneralSettingsPageSkeleton />;
-	}
-
-	const isAdmin = orgContext.role === "admin";
-
 	return (
-		<div className="flex flex-col gap-6">
-			{isAdmin ? (
-				<RenameCard key={orgContext.id} org={org} orgContext={orgContext} />
-			) : (
-				<Card>
-					<CardHeader>
-						<CardTitle>general</CardTitle>
-						<CardDescription>only admins can rename this org.</CardDescription>
-					</CardHeader>
-					<CardContent className="flex flex-col items-start gap-2">
-						<OrgAvatar
-							hue={orgContext.avatarHue}
-							name={orgContext.name}
-							size={40}
-						/>
-						<div>
-							<p className="font-medium text-sm">{orgContext.name}</p>
-							<p className="text-muted-foreground text-xs">
-								/{orgContext.slug}
-							</p>
-						</div>
-					</CardContent>
-				</Card>
-			)}
+		<SkeletonSwap
+			fallback={<OrgGeneralSettingsPageSkeleton />}
+			label="Loading org settings"
+			loading={!orgContext}
+		>
+			{orgContext ? (
+				<div className="flex flex-col gap-8">
+					{orgContext.role === "admin" ? (
+						<>
+							<RenameSection
+								key={orgContext.id}
+								org={org}
+								orgContext={orgContext}
+							/>
+							<DangerZone org={org} orgContext={orgContext} />
+						</>
+					) : (
+						<ReadOnlySection orgContext={orgContext} />
+					)}
+				</div>
+			) : null}
+		</SkeletonSwap>
+	);
+}
 
-			{isAdmin ? <DangerZone org={org} orgContext={orgContext} /> : null}
+function SectionHeading({
+	id,
+	title,
+	description,
+}: {
+	id: string;
+	title: string;
+	description: string;
+}) {
+	return (
+		<div className="flex flex-col gap-0.5">
+			<h3 className="type-heading-sm" id={id}>
+				{title}
+			</h3>
+			<p className="type-body-sm text-text-2">{description}</p>
 		</div>
 	);
 }
 
-function RenameCard({
+function ReadOnlySection({ orgContext }: { orgContext: OrgWithRole }) {
+	return (
+		<section
+			aria-labelledby="org-general-heading"
+			className="flex flex-col gap-3"
+		>
+			<SectionHeading
+				description="Only admins can rename this org."
+				id="org-general-heading"
+				title="General"
+			/>
+			<div className="flex items-center gap-3">
+				<OrgAvatar name={orgContext.name} size="lg" />
+				<div className="flex min-w-0 flex-col">
+					<p className="type-label">{orgContext.name}</p>
+					<p className="type-code-sm text-text-2">/{orgContext.slug}</p>
+				</div>
+			</div>
+		</section>
+	);
+}
+
+function RenameSection({
 	org,
 	orgContext,
 }: {
@@ -79,7 +124,7 @@ function RenameCard({
 	const slugError =
 		slug === orgContext.slug || slugResult.success
 			? null
-			: (slugResult.error?.issues[0]?.message ?? "invalid slug");
+			: (slugResult.error?.issues[0]?.message ?? "Invalid slug");
 
 	const dirty = name !== orgContext.name || slug !== orgContext.slug;
 
@@ -94,10 +139,10 @@ function RenameCard({
 			}),
 		onSuccess: (result) => {
 			if ("error" in result) {
-				toast(result.error);
+				toast.fail(result.error);
 				return;
 			}
-			toast("org saved");
+			toast.success("Org saved");
 			if (result.slug !== org) {
 				navigate({
 					to: "/$org/home",
@@ -113,78 +158,61 @@ function RenameCard({
 	});
 
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>general</CardTitle>
-				<CardDescription>
-					the avatar is derived from the name — watch it shift as you type.
-				</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form
-					className="flex flex-col gap-4"
-					onSubmit={(e) => {
-						e.preventDefault();
-						if (dirty && !slugError && name.trim().length > 0) {
-							saveMutation.mutate();
-						}
-					}}
-				>
-					<div className="flex items-end gap-4">
-						<OrgAvatar
-							animate
-							hue={name === orgContext.name ? orgContext.avatarHue : undefined}
-							name={name}
-							size={48}
-						/>
-						<label
-							className="flex flex-1 flex-col gap-1 text-muted-foreground text-xs"
-							htmlFor="org-name"
-						>
-							name
-							<Input
-								id="org-name"
-								onChange={(e) => setName(e.target.value)}
-								placeholder="org name"
-								value={name}
-							/>
-						</label>
-					</div>
-					<label
-						className="flex flex-col gap-1 text-muted-foreground text-xs"
-						htmlFor="org-slug"
+		<section
+			aria-labelledby="org-general-heading"
+			className="flex flex-col gap-3"
+		>
+			<SectionHeading
+				description="The avatar's initials come from the name."
+				id="org-general-heading"
+				title="General"
+			/>
+			<form
+				className="flex max-w-md flex-col gap-4"
+				onSubmit={(e) => {
+					e.preventDefault();
+					if (dirty && !slugError && name.trim().length > 0) {
+						saveMutation.mutate();
+					}
+				}}
+			>
+				<Field>
+					<FieldLabel>Name</FieldLabel>
+					<Input
+						leading={<OrgAvatar name={name} size="xs" />}
+						onChange={(e) => setName(e.target.value)}
+						placeholder="Acme"
+						value={name}
+					/>
+				</Field>
+				<Field invalid={slugError !== null}>
+					<FieldLabel>Slug</FieldLabel>
+					<Input
+						mono
+						onChange={(e) => setSlug(e.target.value)}
+						placeholder="acme"
+						value={slug}
+					/>
+					{slugError ? (
+						<FieldError>{slugError}</FieldError>
+					) : (
+						<FieldDescription>
+							Lowercase letters, numbers and hyphens, 3 to 32 characters.
+						</FieldDescription>
+					)}
+				</Field>
+				<div>
+					<Button
+						disabled={!dirty || slugError !== null || name.trim().length === 0}
+						pending={saveMutation.isPending}
+						pendingLabel="Saving"
+						type="submit"
 					>
-						slug
-						<Input
-							aria-invalid={slugError !== null}
-							id="org-slug"
-							onChange={(e) => setSlug(e.target.value)}
-							placeholder="org-slug"
-							value={slug}
-						/>
-						{slugError ? (
-							<span className="text-destructive">{slugError}</span>
-						) : (
-							<span>lowercase letters, numbers, hyphens — 3 to 32 chars.</span>
-						)}
-					</label>
-					<div>
-						<Button
-							disabled={
-								!dirty ||
-								slugError !== null ||
-								name.trim().length === 0 ||
-								saveMutation.isPending
-							}
-							size="sm"
-							type="submit"
-						>
-							save changes
-						</Button>
-					</div>
-				</form>
-			</CardContent>
-		</Card>
+						Save changes
+					</Button>
+				</div>
+			</form>
+		</section>
 	);
 }
 
@@ -197,22 +225,22 @@ function DangerZone({
 }) {
 	if (orgContext.isPersonal) {
 		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>danger zone</CardTitle>
-					<CardDescription>personal orgs can't be deleted.</CardDescription>
-				</CardHeader>
-			</Card>
+			<section aria-labelledby="org-delete-heading">
+				<SectionHeading
+					description="Personal orgs can't be deleted."
+					id="org-delete-heading"
+					title="Delete org"
+				/>
+			</section>
 		);
 	}
-	return <DeleteOrgCard org={org} orgName={orgContext.name} />;
+	return <DeleteOrgSection org={org} orgName={orgContext.name} />;
 }
 
-function DeleteOrgCard({ org, orgName }: { org: string; orgName: string }) {
+function DeleteOrgSection({ org, orgName }: { org: string; orgName: string }) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
-	const [confirmName, setConfirmName] = useState("");
 
 	const { data: cascade } = useQuery({
 		...orgCascadeQueryOptions(org),
@@ -220,10 +248,10 @@ function DeleteOrgCard({ org, orgName }: { org: string; orgName: string }) {
 	});
 
 	const deleteMutation = useMutation({
-		mutationFn: () => deleteOrg({ data: { org, confirmName } }),
+		mutationFn: () => deleteOrg({ data: { org, confirmName: orgName } }),
 		onSuccess: async (result) => {
 			if (!result.ok) {
-				toast(result.error ?? "could not delete the org");
+				toast.fail(result.error ?? "Could not delete the org");
 				return;
 			}
 			// Pick the destination BEFORE touching the cache, from the org list we
@@ -246,7 +274,7 @@ function DeleteOrgCard({ org, orgName }: { org: string; orgName: string }) {
 				queryClient.invalidateQueries({ queryKey: authQueryKeys.session() }),
 			]);
 
-			toast.success(`deleted ${org}`);
+			toast.success(`Deleted ${org}`);
 			// Straight to a known-good org rather than via `/`, and without the
 			// `?settings=` param that would reopen this dialog on the new org.
 			if (next) {
@@ -258,82 +286,83 @@ function DeleteOrgCard({ org, orgName }: { org: string; orgName: string }) {
 	});
 
 	return (
-		<Card className="border-destructive/40">
-			<CardHeader>
-				<CardTitle>danger zone</CardTitle>
-				<CardDescription>
-					deleting this org is permanent — this is real deletion, not a hide.
-				</CardDescription>
-			</CardHeader>
-			<CardContent className="flex flex-col gap-4">
-				{open ? (
-					<>
-						{cascade ? (
-							<p className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
-								this deletes {cascade.members} members, {cascade.inviteLinks}{" "}
-								invite links, {cascade.installations} installations,{" "}
-								{cascade.repos} repos (soft-removed), {cascade.ruleConfigs} rule
-								configs, {cascade.workflows} workflows — event history is
-								retained.
-							</p>
-						) : (
-							<Skeleton className="h-12 rounded-lg" />
-						)}
-						<label
-							className="flex flex-col gap-1 text-muted-foreground text-xs"
-							htmlFor="org-delete-confirm"
+		<section
+			aria-labelledby="org-delete-heading"
+			className="flex flex-col items-start gap-3"
+		>
+			<SectionHeading
+				description="Deleting this org is permanent. This is real deletion, not a hide."
+				id="org-delete-heading"
+				title="Delete org"
+			/>
+			<Button onClick={() => setOpen(true)} size="sm" variant="secondary">
+				Delete org
+			</Button>
+			<Dialog
+				confirmText={orgName}
+				onOpenChange={setOpen}
+				open={open}
+				role="alertdialog"
+			>
+				<DialogContent size="sm">
+					<DialogHeader>
+						<DialogTitle>Delete {orgName}?</DialogTitle>
+						<DialogDescription>
+							This can't be undone. Event history is retained.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogBody>
+						<SkeletonSwap
+							fallback={<SkeletonText lines={2} type="body-sm" />}
+							label="Loading what this deletes"
+							loading={!cascade}
 						>
-							type <span className="font-mono text-foreground">{orgName}</span>{" "}
-							to confirm
-							<Input
-								id="org-delete-confirm"
-								onChange={(e) => setConfirmName(e.target.value)}
-								placeholder={orgName}
-								value={confirmName}
-							/>
-						</label>
-						<div className="flex items-center gap-2">
-							<Button
-								disabled={confirmName !== orgName || deleteMutation.isPending}
-								onClick={() => deleteMutation.mutate()}
-								size="sm"
-								variant="destructive"
-							>
-								delete this org
-							</Button>
-							<Button
-								onClick={() => {
-									setOpen(false);
-									setConfirmName("");
-								}}
-								size="sm"
-								variant="ghost"
-							>
-								cancel
-							</Button>
-						</div>
-					</>
-				) : (
-					<div>
-						<Button
-							onClick={() => setOpen(true)}
-							size="sm"
+							{cascade ? (
+								<p className="text-text-2">
+									This deletes {cascade.members} members, {cascade.inviteLinks}{" "}
+									invite links, {cascade.installations} installations,{" "}
+									{cascade.repos} repos (soft-removed), {cascade.ruleConfigs}{" "}
+									rule configs and {cascade.workflows} workflows.
+								</p>
+							) : null}
+						</SkeletonSwap>
+						<DialogConfirmField />
+					</DialogBody>
+					<DialogFooter>
+						<DialogClose>Cancel</DialogClose>
+						<DialogAction
+							onAction={() => deleteMutation.mutateAsync()}
+							pendingLabel="Deleting"
 							variant="destructive"
 						>
-							delete org
-						</Button>
-					</div>
-				)}
-			</CardContent>
-		</Card>
+							Delete this org
+						</DialogAction>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</section>
 	);
 }
 
 export function OrgGeneralSettingsPageSkeleton() {
 	return (
-		<div className="flex flex-col gap-6">
-			<Skeleton className="h-64 rounded-xl" />
-			<Skeleton className="h-32 rounded-xl" />
+		<div aria-hidden className="flex flex-col gap-8">
+			<div className="flex flex-col gap-3">
+				<div className="flex flex-col gap-0.5">
+					<SkeletonText className="w-20" type="heading-sm" />
+					<SkeletonText className="w-60" type="body-sm" />
+				</div>
+				<div className="flex max-w-md flex-col gap-4">
+					<div className="flex flex-col gap-1.5">
+						<SkeletonText className="w-12" type="label" />
+						<Skeleton className="h-(--control) w-full rounded-pill" />
+					</div>
+					<div className="flex flex-col gap-1.5">
+						<SkeletonText className="w-10" type="label" />
+						<Skeleton className="h-(--control) w-full rounded-pill" />
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }

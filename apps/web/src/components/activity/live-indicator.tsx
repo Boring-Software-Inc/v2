@@ -1,15 +1,13 @@
-import { cn } from "#/lib/utils";
+import { Status } from "#/components/glaze/ui/status";
 
 export function LiveIndicator({ live }: { live: boolean }) {
-	return (
-		<span className="flex items-center gap-1.5 text-muted-foreground text-xs">
-			<span
-				className={cn(
-					"size-1.5 rounded-full",
-					live ? "bg-emerald-500" : "bg-muted-foreground/40",
-				)}
-			/>
-			{live ? "live" : "connecting"}
-		</span>
+	return live ? (
+		<Status className="shrink-0" size="sm" status="ok">
+			Live
+		</Status>
+	) : (
+		<Status className="shrink-0" size="sm" status="running">
+			Connecting
+		</Status>
 	);
 }

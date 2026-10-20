@@ -14,6 +14,10 @@
 			"!**/.vercel",
 			"!**/drizzle",
 			"!.agents",
+			"!.claude/skills",
+			"!**/src/components/glaze",
+			"!**/src/lib/glaze",
+			"!**/glaze.eslint.config.mjs",
 			"!skills-lock.json"
 		]
 	}

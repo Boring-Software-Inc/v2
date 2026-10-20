@@ -1,0 +1,535 @@
+/* Glaze's Tailwind entry. Import it once, in the root layout, as its own stylesheet, and put the glaze class on the
+   element that holds Glaze UI (usually body).
+
+   Scoping, so none of this reaches the rest of your app:
+   - No preflight. base.css applies inside .glaze and [data-system="glaze"] only.
+   - The theme is `inline reference`: utilities compile to var(--glaze-token) and nothing is written to :root, so your
+     own --color-*, --space-* and --font-* tokens stay as they are.
+   - Utilities come only from the folders the @source lines name (source(none)). Installed in a project, those are
+     Glaze's folders and the project's app, pages, src and components, so a Glaze class in your own code works, and
+     the utilities are nested under :where(.glaze, [data-system="glaze"]), so none reaches markup outside it.
+   - base.css comes before the utilities, so a utility beats a base rule of the same specificity.
+   - Utilities are unlayered on purpose. Unlayered rules beat every layer, so layered utilities would lose to an
+     app's unlayered global `a` and `button` rules.
+
+   Recipes, below the theme. Each is the one way Glaze draws that thing, so a component reads it instead of
+   restating it:
+   - glass, with glass-ink, glass-coral, glass-green or glass-paper: the press recipe. Only on what a person presses.
+     Ink, coral and green are the primary button's keys; paper is for a thumb.
+   - glaze-sm, with glaze-sm-x along a bar: small glaze, the press recipe drawn for 12 to 20px (a ticked box, a
+     chosen radio, the switch on, the slider, the segmented thumb, a progress fill).
+   - flat: the secondary button, the plain card surface: paper, a text-1 label and the panel's hairline, no glass.
+   - shell, panel and shell-foot: the card, a grey shell with a white panel 3px in and an optional footer row.
+   - field: the hairline pill a one-line text control sits in.
+   - overlay: a menu, popover or dialog surface: paper with a 1px ink ring, no shadow.
+   - well: the grey field, for output beside text (a tool call's input, an inline result).
+   - code-surface: where a block of code sits, paper with the panel's hairline.
+   - rule-row: the hairline between rows.
+   - focus-ring and focus-ring-inset: the ink ring, where it has to sit somewhere base.css does not put it;
+     focus-ring-row: the thin ring inside a row in a rounded panel, never clipped.
+   - mono: mono in running text, at --mono-scale of the text around it. */
+
+@import "./tokens.css";
+@import "./base.css";
+:where(.glaze, [data-system="glaze"]) {
+  @tailwind utilities source(none);
+}
+
+/* The folders to scan, but not the lint: it names every class Glaze has and many it bans, and none of it is markup. */
+@source "../../app";
+@source "../../pages";
+@source "../../src";
+@source "../../components";
+@source "../../routes";
+@source "../../hooks";
+@source "../../lib/glaze";
+@source not "../../lib/glaze/lint";
+
+/* dark: matches inside the dark theme. Components never use it (tokens flip instead); it is here for one-off cases
+   in your own markup, and the lint flags it there too. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* A docs page or a test can show a state by setting data-force-hover, data-force-focus, data-force-focus-visible or
+   data-force-active on a component's root. These variants answer to the attribute as well as the real
+   pseudo-class, so a forced state is the component's own style, never a copy that drifts. Hover keeps Tailwind's
+   guard: it only fires on devices that can hover. */
+@custom-variant hover { @media (hover: hover) { &:hover { @slot; } } &[data-force-hover] { @slot; } }
+@custom-variant focus { &:focus { @slot; } &[data-force-focus] { @slot; } }
+@custom-variant focus-visible { &:focus-visible { @slot; } &[data-force-focus-visible] { @slot; } }
+@custom-variant active { &:active { @slot; } &[data-force-active] { @slot; } }
+
+/* The same goes for reduced motion: data-force-reduced-motion on a wrapper. motion-reduce: answers to it as well as
+   the media query, and motion-safe: stands down under it. */
+@custom-variant motion-reduce { @media (prefers-reduced-motion: reduce) { @slot; } &:where([data-force-reduced-motion], [data-force-reduced-motion] *) { @slot; } }
+@custom-variant motion-safe { @media (prefers-reduced-motion: no-preference) { &:not(:where([data-force-reduced-motion], [data-force-reduced-motion] *)) { @slot; } } }
+
+/* The same durations tokens.css zeroes under the media query, for a forced wrapper. */
+.glaze [data-force-reduced-motion], [data-system="glaze"] [data-force-reduced-motion] { --dur-press: 0ms; --dur-state: 0ms; --dur-overlay: 0ms; --scale-press: 1; --scale-press-flat: 1; --scale-press-glass: 1; --dur-glass-press: 0ms; --dur-glass-release: 0ms; --dur-slide: 0ms; }
+
+@theme inline reference {
+  --*: initial;
+
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  /* Container widths for max-w-* and @container variants, at Tailwind's values, since --*: initial removed them. */
+  --container-2xs: 18rem;
+  --container-xs: 20rem;
+  --container-sm: 24rem;
+  --container-md: 28rem;
+  --container-lg: 32rem;
+  --container-xl: 36rem;
+  --container-2xl: 42rem;
+  --container-3xl: 48rem;
+  --container-overlay-sm: var(--overlay-sm);
+  --container-overlay: var(--overlay);
+  --container-popover: var(--popover);
+  --container-measure: var(--measure);
+  --container-measure-hint: var(--measure-hint);
+
+  /* 4px base: p-1 is 4px, p-3 is 12px. */
+  --spacing: var(--space-1);
+
+  /* The semantic names generic components expect, pointed at Glaze's roles. */
+  --color-background: var(--page);
+  --color-foreground: var(--text-1);
+  --color-card: var(--shell);
+  --color-card-foreground: var(--text-1);
+  --color-popover: var(--paper);
+  --color-popover-foreground: var(--text-1);
+  --color-primary: var(--ink);
+  --color-primary-foreground: var(--text-inverse);
+  --color-muted: var(--field);
+  --color-muted-foreground: var(--text-2);
+  --color-accent: var(--hover);
+  --color-accent-foreground: var(--text-1);
+  --color-destructive: var(--fail);
+  --color-border: var(--line-faint);
+  --color-input: var(--line-control);
+  --color-ring: var(--focus);
+
+  /* Glaze's own roles. */
+  --color-page: var(--page);
+  --color-paper: var(--paper);
+  --color-shell: var(--shell);
+  --color-field: var(--field);
+  --color-code-surface: var(--code-surface);
+  --color-hover: var(--hover);
+  --color-hover-row: var(--hover-row);
+  --color-pressed: var(--pressed);
+  --color-scrim: var(--scrim);
+  --color-ink: var(--ink);
+  --color-text-1: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-disabled: var(--text-disabled);
+  --color-text-inverse: var(--text-inverse);
+  --color-line-faint: var(--line-faint);
+  --color-line: var(--line);
+  --color-line-control: var(--line-control);
+  --color-line-focus: var(--line-focus);
+  --color-line-strong: var(--line-strong);
+  --color-focus: var(--focus);
+  --color-ok: var(--ok);
+  --color-ok-text: var(--ok-text);
+  --color-ok-tint: var(--ok-tint);
+  --color-warn: var(--warn);
+  --color-warn-text: var(--warn-text);
+  --color-warn-tint: var(--warn-tint);
+  --color-fail: var(--fail);
+  --color-fail-text: var(--fail-text);
+  --color-fail-tint: var(--fail-tint);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --font-weight-normal: var(--weight-normal);
+  --font-weight-medium: var(--weight-medium);
+  --font-weight-semibold: var(--weight-semibold);
+
+  --tracking-heading: var(--tracking-heading);
+  --tracking-body: var(--tracking-body);
+  --tracking-label: var(--tracking-label);
+  --tracking-normal: 0em;
+
+  --radius-pill: var(--radius-pill);
+  --radius-shell: var(--radius-shell);
+  --radius-panel: var(--radius-panel);
+  --radius-overlay: var(--radius-overlay);
+  --radius-tag: var(--radius-tag);
+
+  /* No shadows. Every stock shadow name draws nothing, so a shadow reached for out of habit adds no lift, and the
+     lint (no-shadow) says so. Depth is drawn inside a shape: the glass recipe and the shell. */
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow-md: 0 0 #0000;
+  --shadow-lg: 0 0 #0000;
+  --shadow-xl: 0 0 #0000;
+  --shadow-2xl: 0 0 #0000;
+  --drop-shadow-sm: 0 0 #0000;
+  --drop-shadow-md: 0 0 #0000;
+  --drop-shadow-lg: 0 0 #0000;
+
+  --ease-out: var(--ease-out);
+  --ease-in: var(--ease-in);
+
+  --animate-spin: glaze-spin var(--dur-spin) linear infinite;
+  --animate-sweep: glaze-sweep var(--dur-sweep) linear infinite;
+}
+
+/* One utility per type role. Headings track at --tracking-heading, labels at --tracking-label, text at --tracking-body; code at 0. */
+@utility type-title { font: var(--type-title); letter-spacing: var(--tracking-heading); }
+@utility type-heading { font: var(--type-heading); letter-spacing: var(--tracking-heading); }
+@utility type-heading-sm { font: var(--type-heading-sm); letter-spacing: var(--tracking-heading); }
+@utility type-body { font: var(--type-body); letter-spacing: var(--tracking-body); }
+@utility type-body-sm { font: var(--type-body-sm); letter-spacing: var(--tracking-body); }
+@utility type-label { font: var(--type-label); letter-spacing: var(--tracking-label); }
+@utility type-label-sm { font: var(--type-label-sm); letter-spacing: var(--tracking-label); }
+@utility type-label-lg { font: var(--type-label-lg); letter-spacing: var(--tracking-label); }
+@utility type-caption { font: var(--type-caption); letter-spacing: var(--tracking-body); font-variant-numeric: tabular-nums; }
+@utility type-code { font: var(--type-code); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+@utility type-code-sm { font: var(--type-code-sm); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+@utility type-code-xs { font: var(--type-code-xs); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+/* type-code-block: a block of code, JSON or log lines. Not scaled: --mono-scale is for mono beside sans. */
+@utility type-code-block { font: var(--type-code-block); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+/* data: tabular figures in the sans, for durations, counts and amounts. */
+@utility data { font-variant-numeric: tabular-nums; }
+
+/* mono: mono inside a line of sans, at --mono-scale of the size around it (13px text takes 10.4px mono). It keeps the
+   parent's line height and baseline and adds no padding, so the line never grows. */
+@utility mono { font-family: var(--font-mono); font-size: calc(1em * var(--mono-scale)); letter-spacing: 0; }
+
+/* Focus. base.css rings every :focus-visible element; these are the same ring for where it has to sit elsewhere.
+   focus-ring: on a box that shows the focus of a bare control inside it. focus-ring-inset: inside the element's own
+   edge, where a container would clip an offset ring (rows, menu items). */
+@utility focus-ring { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
+@utility focus-ring-inset { outline: var(--focus-width) solid var(--focus); outline-offset: calc(var(--focus-width) * -1); }
+/* focus-ring-row: the ring on a row in a rounded panel that clips (an item, a data grid row). The panel's overflow
+   would cut a square inset ring at its corners, so the ring is the thin focus-sm width, drawn wholly inside the row a
+   --focus-offset-sm gap in, and the row takes the panel's inner radius while focused, so on the first and last row
+   the ring's corners follow the panel's and on the rows between it reads as a rounded box. A table row cannot round,
+   so on a <tr> the ring is drawn on its cells' edges instead, the end cells rounding the corners. */
+@utility focus-ring-row {
+  outline: var(--focus-width-sm) solid var(--focus);
+  outline-offset: calc((var(--focus-width-sm) + var(--focus-offset-sm)) * -1);
+  border-radius: var(--radius-row-focus);
+  &:is(tr) { outline: none; }
+  &:is(tr) > * { box-shadow: inset 0 var(--focus-width-sm) var(--focus), inset 0 calc(var(--focus-width-sm) * -1) var(--focus); }
+  &:is(tr) > :first-child {
+    box-shadow: inset var(--focus-width-sm) 0 var(--focus), inset 0 var(--focus-width-sm) var(--focus), inset 0 calc(var(--focus-width-sm) * -1) var(--focus);
+    border-start-start-radius: var(--radius-row-focus); border-end-start-radius: var(--radius-row-focus);
+  }
+  &:is(tr) > :last-child {
+    box-shadow: inset calc(var(--focus-width-sm) * -1) 0 var(--focus), inset 0 var(--focus-width-sm) var(--focus), inset 0 calc(var(--focus-width-sm) * -1) var(--focus);
+    border-start-end-radius: var(--radius-row-focus); border-end-end-radius: var(--radius-row-focus);
+  }
+}
+
+/* glass: the press recipe, from the Glass tokens: a glossy glaze laid over the reference button's overlay stack, all
+   inside the pill. From the bottom up:
+   - the body, a translucent key (ink is black at 66%, a grey on white) with a --glass-blur backdrop blur;
+   - the glaze: the upper half lit white at --glass-glaze with a hard break at the middle;
+   - the sheen, white to clear down the body (--glass-sheen, more on hover, gone held);
+   - the dark centre, a radial of black under the label (--glass-core, deeper held);
+   - the reference's inset highlight stack (a glow rising from the bottom, a glow from the top, a top inner edge and a
+     crisp top hairline) and a 0.75px ring outside the edge, all as box-shadow; no drop shadow;
+   - the rim on ::before, a 1px white and grey banded gradient masked to the edge (--glass-rim);
+   - the catch-light on ::after, a bright pill across the top half (--glass-gloss).
+   The label is the key's text, with the label tracking. Held gives to --scale-press-glass in --dur-glass-press and
+   comes back in --dur-glass-release. Disabled loses it all: a flat grey pill. A pending button (aria-busy) keeps it.
+   Pick the key with glass-ink, glass-coral or glass-green (the primary button's three keys, one family) or
+   glass-paper (the light key, for a thumb). The secondary button is never glass: it is flat, the plain card surface.
+   Put glass only on things a person presses: the lint's glass-on-pressables rule holds it there. */
+@utility glass {
+  --gl-sheen: var(--glass-sheen);
+  --gl-sheen-hover: var(--glass-sheen-hover);
+  --gl-core: var(--glass-core);
+  --gl-core-held: var(--glass-core-held);
+  --gl-rim: var(--glass-rim);
+  --gl-rim-a: #ffffff; /* value-ok: the reference rim's fixed white band */
+  --gl-rim-b: #999999; /* value-ok: the reference rim's fixed grey band */
+  --gl-glaze-hi: var(--glass-glaze);
+  --gl-gloss: var(--glass-gloss);
+  --gl-base: var(--glass-base, var(--glass-ink-base));
+  --gl-text: var(--glass-text, var(--glass-ink-text));
+  --gl-ring: var(--glass-ring, var(--glass-ink-ring));
+  --gl-ring-w: 0.75px;
+  --gl-sheen-now: var(--gl-sheen);
+  --gl-core-now: var(--gl-core);
+  --gl-glint-now: var(--gl-glint, 0);
+  --gl-tint-now: var(--gl-tint, 0);
+  position: relative;
+  isolation: isolate;
+  color: var(--gl-text);
+  background-color: var(--gl-base);
+  background-image:
+    linear-gradient(99deg, transparent 27.7%, rgb(255 255 255 / var(--gl-glint-now, 0)) 60.19%, transparent 86.06%),
+    radial-gradient(65.62% 65.62% at 50% 50%, rgb(0 0 0 / var(--gl-core-now)), transparent),
+    linear-gradient(rgb(255 255 255 / var(--gl-sheen-now)), transparent),
+    linear-gradient(rgb(255 255 255 / var(--gl-glaze-hi, 0)) 0%, rgb(255 255 255 / calc(var(--gl-glaze-hi, 0) * 0.4)) 50%, rgb(0 0 0 / var(--gl-glaze-lo, 0)) 50%, rgb(0 0 0 / var(--gl-glaze-lo, 0)) 100%),
+    linear-gradient(rgb(0 0 0 / var(--gl-tint-now, 0)), rgb(0 0 0 / var(--gl-tint-now, 0)));
+  /* value-ok: the reference button's inset highlight stack, fixed whites inside the edge, and the ring outside it; no
+     drop shadow, which Glaze does not have */
+  box-shadow: inset 0 -12px 16px 0 rgb(255 255 255 / 0.06), inset 0 4px 16px 0 rgb(255 255 255 / 0.16),
+    inset 0 0.75px 0.25px 0 rgb(255 255 255 / 0.12), inset 0 0.25px 0.25px 0 rgb(255 255 255 / 0.32),
+    0 0 0 var(--gl-ring-w) var(--gl-ring);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-tap-highlight-color: transparent;
+  transition-property: scale, color, opacity;
+  transition-duration: var(--dur-glass-release);
+  transition-timing-function: var(--ease-out);
+  /* The rim: a 1px banded gradient, masked so only the ring between the border box and the padding box shows. */
+  &::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    inset: 0;
+    padding: var(--line-width);
+    border-radius: inherit;
+    background-image: linear-gradient(var(--gl-rim-a) 0%, var(--gl-rim-b) 55%, var(--gl-rim-a) 80%, var(--gl-rim-b) 95%);
+    opacity: var(--gl-rim);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  }
+  /* The catch-light: a bright pill across the top half, stopping --gloss-inset of the height short of each end. */
+  &::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    inset-inline: calc(var(--glass-h, var(--control)) * var(--gloss-inset));
+    top: var(--gloss-top);
+    height: var(--gloss-height);
+    border-radius: var(--radius-pill);
+    background-image: linear-gradient(rgb(255 255 255 / var(--gl-gloss)), transparent);
+    transition-property: opacity;
+    transition-duration: var(--dur-glass-release);
+  }
+  @media (hover: hover) { &:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { --gl-sheen-now: var(--gl-sheen-hover); --gl-tint-now: var(--gl-tint-hover, 0); } }
+  &[data-force-hover]:not(:disabled, [data-disabled]) { --gl-sheen-now: var(--gl-sheen-hover); --gl-tint-now: var(--gl-tint-hover, 0); }
+  &:is(:active, [data-force-active]):not(:disabled, [data-disabled]) {
+    --gl-sheen-now: 0; --gl-core-now: var(--gl-core-held); --gl-glint-now: 0; --gl-tint-now: var(--gl-tint-held, 0);
+    scale: var(--scale-press-glass); transition-duration: var(--dur-glass-press);
+  }
+  &:is(:active, [data-force-active]):not(:disabled, [data-disabled])::after { opacity: 0.6; transition-duration: var(--dur-glass-press); }
+  &:is(:disabled, [data-disabled], [aria-disabled="true"]):not([aria-busy="true"]) {
+    background-image: none; background-color: var(--field); box-shadow: 0 0 0 var(--line-width) var(--line-faint); color: var(--text-disabled);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  &:is(:disabled, [data-disabled], [aria-disabled="true"]):not([aria-busy="true"])::before { display: none; }
+  &:is(:disabled, [data-disabled], [aria-disabled="true"]):not([aria-busy="true"])::after { display: none; }
+  /* Forced colors repaint with system colours: the layers go, and a border takes ButtonText. */
+  @media (forced-colors: active) {
+    background-image: none; box-shadow: none; border: var(--line-width) solid ButtonText;
+    &::before, &::after { display: none; }
+  }
+}
+/* glaze-sm: small glaze, the press recipe drawn for 12 to 20px rather than the button's glass scaled down. A short
+   gradient from a lifted grey (--glaze-sm-top) through a soft middle (--glaze-sm-mid, at half way, no hard break) to
+   the ink grey (--glaze-sm-bottom), a crisp 1px highlight inside the top edge and a faint 0.5px rim outside it. No
+   catch-light, no sheen, no dark centre, no blur: at 16px each of those is a smudge under the tick. Opaque, so the
+   white glyph's contrast does not depend on what is behind it. Held, the highlight goes, as if pressed in. Dark turns
+   it light with an ink glyph, as the primary button flips. glaze-sm-x runs the same gradient along a bar, from the
+   start edge (lifted) to the end (ink), for the slider's range and a progress fill. Used on: the ticked checkbox,
+   the chosen radio, the switch's on track, the slider's range and thumb, the segmented thumb, the progress fill. */
+@utility glaze-sm {
+  color: var(--glaze-sm-text);
+  background-color: var(--glaze-sm-mid);
+  background-image: linear-gradient(var(--gz-dir, 180deg),var(--glaze-sm-top), var(--glaze-sm-mid) 50%, var(--glaze-sm-bottom));
+  box-shadow: inset 0 var(--line-width) 0 var(--glaze-sm-highlight), 0 0 0 0.5px var(--glaze-sm-rim); /* value-ok: the faint rim is half a hairline, so it closes the edge without outlining a 16px box */
+  -webkit-tap-highlight-color: transparent;
+  &:is(:active, [data-force-active]):not(:disabled, [data-disabled], [data-readonly]) { box-shadow: 0 0 0 0.5px var(--glaze-sm-rim); } /* value-ok: the rim alone, held */
+  &:is(:disabled, [data-disabled], [aria-disabled="true"]) {
+    background-image: none; background-color: var(--field); box-shadow: 0 0 0 var(--line-width) var(--line-faint); color: var(--text-disabled);
+  }
+  @media (forced-colors: active) { background-image: none; box-shadow: none; }
+}
+@utility glaze-sm-x {
+  --gz-dir: 90deg;
+  &:dir(rtl) { --gz-dir: 270deg; }
+}
+
+/* focus-sm: the focus ring on a control under 20px, thinner and closer, so it does not outweigh a 16px box. */
+@utility focus-sm { --focus-width: var(--focus-width-sm); --focus-offset: var(--focus-offset-sm); }
+
+@utility glass-ink {
+  --glass-base: var(--glass-ink-base);
+  --glass-text: var(--glass-ink-text);
+  --glass-ring: var(--glass-ink-ring);
+}
+@utility glass-coral {
+  --glass-base: var(--glass-coral-base);
+  --glass-text: var(--glass-coral-text);
+  --glass-ring: var(--glass-coral-ring);
+}
+@utility glass-green {
+  --glass-base: var(--glass-green-base);
+  --glass-text: var(--glass-green-text);
+  --glass-ring: var(--glass-green-ring);
+}
+/* glass-paper: the light key of glass for a thumb: the paper body, the text-1 label and the panel's hairline. */
+@utility glass-paper {
+  --glass-base: var(--flat-bg);
+  --glass-text: var(--flat-text);
+  --glass-ring: var(--flat-ring);
+}
+
+/* flat: the secondary button, the plain card surface. Only the primary family is glass, so the secondary beside it is
+   the panel exactly: --paper with the panel's 1px --line-faint ring and a text-1 label. No sheen, no inset highlight,
+   no glint, no gradient, no translucency, no blur. Hover lays the --hover wash, held the --pressed wash and settles to
+   --scale-press-flat. Disabled is the flat grey pill disabled glass drops to. Dark is the dark panel and its hairline. */
+@utility flat {
+  color: var(--flat-text);
+  background-color: var(--flat-bg);
+  box-shadow: 0 0 0 var(--line-width) var(--flat-ring);
+  -webkit-tap-highlight-color: transparent;
+  transition-property: background-image, scale, color;
+  transition-duration: var(--dur-press);
+  transition-timing-function: var(--ease-out);
+  @media (hover: hover) { &:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background-image: linear-gradient(var(--hover), var(--hover)); } }
+  &[data-force-hover]:not(:disabled, [data-disabled]) { background-image: linear-gradient(var(--hover), var(--hover)); }
+  &:is(:active, [data-force-active]):not(:disabled, [data-disabled]) {
+    background-image: linear-gradient(var(--pressed), var(--pressed));
+    scale: var(--scale-press-flat);
+  }
+  &:is(:disabled, [data-disabled], [aria-disabled="true"]):not([aria-busy="true"]) {
+    background-color: var(--field); box-shadow: 0 0 0 var(--line-width) var(--line-faint); color: var(--text-disabled);
+  }
+  @media (forced-colors: active) { box-shadow: none; border: var(--line-width) solid ButtonText; }
+}
+
+/* shell, panel and shell-foot: the card. The shell is the light grey frame, 1px --line-faint, --radius-shell, with
+   --shell-inset of padding; the panel is the white working surface inside it at --radius-panel, so the corners stay
+   concentric. shell-foot is the optional footer row on the shell, under the panel: meta at the start, aligned with
+   the panel's 12px text inset, and small actions at the end, sitting --shell-foot-inset from the shell's edges. The
+   padding inside the panel is the component's. */
+@utility shell {
+  display: grid;
+  min-width: 0;
+  background-color: var(--shell);
+  border: var(--line-width) solid var(--line-faint);
+  border-radius: var(--radius-shell);
+  padding: var(--shell-inset);
+}
+@utility panel {
+  min-width: 0;
+  /* Content run to the edge (a table's header, a hovered row) follows the panel's corners instead of squaring them.
+     clip, not hidden, so the panel never becomes a scroll container and a sticky header still sticks. */
+  overflow: clip;
+  background-color: var(--paper);
+  border: var(--line-width) solid var(--line-faint);
+  border-radius: var(--radius-panel);
+}
+@utility shell-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: calc(var(--control-sm) + 2 * var(--shell-foot-inset) - var(--shell-inset));
+  /* The shell's own 3px plus this padding puts the actions --shell-foot-inset from the panel and the shell's edges. */
+  padding-block: var(--shell-foot-inset) calc(var(--shell-foot-inset) - var(--shell-inset));
+  padding-inline: calc(var(--space-3) + var(--line-width)) calc(var(--shell-foot-inset) - var(--shell-inset));
+  font: var(--type-caption);
+  letter-spacing: var(--tracking-body);
+  color: var(--text-2);
+  /* The footer is one row: meta that runs out of room ends in an ellipsis, and the actions keep their size. */
+  :where(& > :not(button, [data-slot="button"])) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* field: the hairline pill around one line of text. Paper, a 1px --line-control edge, --radius-pill, 12px of inset.
+   It works on the input itself or on a box holding an input and its icons (mark that input data-control so base.css
+   leaves its ring off). Focus never draws the ink ring here: the hairline darkens to --line-focus, ink at about a
+   third. Invalid turns the line coral; disabled sits on the grey field. Height is --field-h, the default control
+   unless a size sets it. */
+@utility field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  height: var(--field-h, var(--control));
+  padding-inline: var(--space-3);
+  background-color: var(--paper);
+  border: var(--line-width) solid var(--line-control);
+  border-radius: var(--radius-pill);
+  color: var(--text-1);
+  font: var(--type-body-sm);
+  letter-spacing: var(--tracking-body);
+  transition-property: border-color, background-color, color;
+  transition-duration: var(--dur-state);
+  transition-timing-function: var(--ease-out);
+  &::placeholder, & ::placeholder { color: var(--text-3); }
+  /* The text centres on its caps, like a button's label, with no lift. A 1px lift (to centre lowercase) snapped to
+     1.5px high wherever the field sat on a fractional pixel, and read as raised beside buttons and chips. */
+  &:is(:focus-visible, [data-force-focus-visible]) { outline: none; }
+  &:is(:focus-within, [data-force-focus], [data-force-focus-visible]) { border-color: var(--line-focus); }
+  &:is([aria-invalid="true"], :has([aria-invalid="true"])) { border-color: var(--fail); }
+  &:is(:disabled, [data-disabled], :has(:disabled)) { background-color: var(--field); color: var(--text-disabled); }
+}
+/* A bare control inside a field box draws no ring of its own: the box's line shows its focus. */
+.glaze :where([data-control]):is(:focus-visible, [data-force-focus-visible]) { outline: none; }
+
+/* overlay: a menu, popover or dialog surface. Paper, a 1px --line ring, --radius-overlay. No shadow: it lifts off the
+   page because the page is a step darker than paper and the ring closes its edge. */
+@utility overlay {
+  background-color: var(--paper);
+  border: var(--line-width) solid var(--line);
+  border-radius: var(--radius-overlay);
+  color: var(--text-1);
+}
+
+/* well: the grey field, for output and read-only values beside text. Padding and corner are the caller's. */
+@utility well { background-color: var(--field); }
+
+/* code-surface: a block of code, JSON or logs on its own. Paper with the panel's hairline: the grey field read dark
+   under 12px mono. Inside a panel that already draws the edge, use bg-code-surface alone. Corner is the caller's. */
+@utility code-surface { background-color: var(--code-surface); border: var(--line-width) solid var(--line-faint); }
+
+/* How every overlay comes and goes: in on --dur-overlay with --ease-out, out on --dur-state with --ease-in, fading
+   as it moves. An anchored overlay (Base UI marks its data-side) travels --overlay-shift in from its trigger and back
+   out the same way, so it reads as coming from the control that opened it. A modal one (no side) settles from
+   --scale-overlay. Nothing grows from zero or overshoots. Reduced motion zeroes the durations, so it cuts. */
+@utility overlay-motion {
+  transition-property: opacity, translate, scale;
+  transition-duration: var(--dur-overlay);
+  transition-timing-function: var(--ease-out);
+  &:is([data-starting-style], [data-ending-style]) { opacity: 0; }
+  &[data-ending-style] { transition-duration: var(--dur-state); transition-timing-function: var(--ease-in); }
+  &:is([data-side="bottom"]):is([data-starting-style], [data-ending-style]) { translate: 0 calc(var(--overlay-shift) * -1); }
+  &:is([data-side="top"]):is([data-starting-style], [data-ending-style]) { translate: 0 var(--overlay-shift); }
+  &:is([data-side="right"], [data-side="inline-end"]):is([data-starting-style], [data-ending-style]) { translate: calc(var(--overlay-shift) * -1) 0; }
+  &:is([data-side="left"], [data-side="inline-start"]):is([data-starting-style], [data-ending-style]) { translate: var(--overlay-shift) 0; }
+  &:is([data-side="inline-end"]):dir(rtl):is([data-starting-style], [data-ending-style]) { translate: var(--overlay-shift) 0; }
+  &:is([data-side="inline-start"]):dir(rtl):is([data-starting-style], [data-ending-style]) { translate: calc(var(--overlay-shift) * -1) 0; }
+  &:not([data-side]):is([data-starting-style], [data-ending-style]) { scale: var(--scale-overlay); }
+}
+
+/* A tick or a dash draws in from its start edge: a clip wipes across it over --dur-state. It goes at once, so an
+   unticked box never lingers. Base UI marks a mounting indicator data-starting-style. */
+@utility tick-draw {
+  clip-path: inset(0);
+  transition: clip-path var(--dur-state) var(--ease-out);
+  &[data-starting-style] { clip-path: inset(0 100% 0 0); }
+  &:dir(rtl)[data-starting-style] { clip-path: inset(0 0 0 100%); }
+  &[data-ending-style] { transition-duration: 0ms; }
+}
+
+/* rule-row: the hairline under a row; the last row drops it. */
+@utility rule-row {
+  border-block-end: var(--line-width) solid var(--line-faint);
+  &:last-child { border-block-end-width: 0; }
+}
+
+/* The pending arc turns once per --dur-spin (animate-spin). */
+@keyframes glaze-spin { to { transform: rotate(1turn); } }
+
+/* An indeterminate progress segment enters at the start edge and leaves at the end once per --dur-sweep
+   (animate-sweep), the other loop. Reduced motion stops it as a still half fill. */
+@keyframes glaze-sweep { from { inset-inline-start: calc(var(--progress-sweep) * -1); } to { inset-inline-start: 100%; } }

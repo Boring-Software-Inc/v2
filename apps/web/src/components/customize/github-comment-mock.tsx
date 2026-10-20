@@ -1,15 +1,14 @@
 import { COMMENT_MARKER } from "@tripwire/contracts";
 import type { ReactNode } from "react";
+import { Avatar, AvatarFallback } from "#/components/glaze/ui/avatar";
+import { Badge } from "#/components/glaze/ui/badge";
+import {
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
 import { GithubIcon } from "#/components/icons/github";
-import { Badge } from "#/components/ui/badge";
-
-/**
- * A mock GitHub change-request comment, honest to what the renderer emits: the
- * comment bodies use a tiny markdown/HTML subset (bold, paragraphs,
- * details/summary, one linked button image, backtick chips), so this renders
- * exactly that subset — no markdown library. Tripwire tokens, not GitHub's
- * greys: the mock sits inside the app's chrome, it doesn't cosplay the site.
- */
 
 type BodyBlock =
 	| { kind: "paragraph"; text: string }
@@ -58,7 +57,6 @@ function parseBody(body: string): BodyBlock[] {
 	return blocks;
 }
 
-/** Bold + backtick chips — the only inline constructs the renderer emits. */
 function renderInline(text: string): ReactNode {
 	return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
 		if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
@@ -77,7 +75,7 @@ function renderBackticks(text: string): ReactNode {
 		if (part.length > 2 && part.startsWith("`") && part.endsWith("`")) {
 			return (
 				<code
-					className="rounded bg-surface-2 px-1 py-px font-mono text-[11.5px]"
+					className="mono rounded-tag bg-field px-1"
 					// biome-ignore lint/suspicious/noArrayIndexKey: static parse of a string
 					key={i}
 				>
@@ -93,7 +91,7 @@ function Paragraphs({ text }: { text: string }) {
 	return (
 		<>
 			{text.split(/\n{2,}/).map((paragraph) => (
-				<p className="text-[13px] leading-5" key={paragraph}>
+				<p className="type-body-sm" key={paragraph}>
 					{renderInline(paragraph)}
 				</p>
 			))}
@@ -102,9 +100,7 @@ function Paragraphs({ text }: { text: string }) {
 }
 
 export interface GithubCommentMockProps {
-	/** The rendered comment body; null when the config posts no comment. */
 	body: string | null;
-	/** Shown in the empty state: what still surfaces without a comment. */
 	silentNote?: string;
 }
 
@@ -114,31 +110,33 @@ export function GithubCommentMock({
 }: GithubCommentMockProps) {
 	if (body === null) {
 		return (
-			<div className="flex flex-col items-center gap-1 rounded-xl bg-surface-2 px-4 py-8 text-center">
-				<p className="text-muted-foreground text-xs">no comment posts.</p>
-				{silentNote ? (
-					<p className="text-muted-foreground text-xs">{silentNote}</p>
-				) : null}
-			</div>
+			<Empty size="sm" variant="plain">
+				<EmptyHeader>
+					<EmptyTitle>No comment posts</EmptyTitle>
+					{silentNote ? (
+						<EmptyDescription>{silentNote}</EmptyDescription>
+					) : null}
+				</EmptyHeader>
+			</Empty>
 		);
 	}
 	const blocks = parseBody(body);
 	return (
 		<div className="flex items-start gap-3">
-			<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-2">
-				<GithubIcon className="size-4 text-foreground" />
-			</div>
-			<div className="min-w-0 flex-1 overflow-hidden rounded-xl bg-surface-2">
-				<div className="flex items-center gap-2 px-3.5 py-2.5">
-					<span className="font-medium text-xs">tripwire</span>
-					<Badge className="px-1.5 py-0 text-[10px]" variant="outline">
+			<Avatar decorative size="lg" type="source">
+				<AvatarFallback>
+					<GithubIcon className="size-(--icon)" />
+				</AvatarFallback>
+			</Avatar>
+			<div className="min-w-0 flex-1 overflow-hidden rounded-panel border border-line-faint bg-paper">
+				<div className="flex items-center gap-2 border-line-faint border-b px-3 py-2">
+					<span className="type-label-sm">tripwire</span>
+					<Badge size="sm" variant="outline">
 						bot
 					</Badge>
-					<span className="text-[11px] text-muted-foreground">
-						commented just now
-					</span>
+					<span className="type-caption text-text-2">commented just now</span>
 				</div>
-				<div className="flex flex-col gap-3 px-3.5 pt-0.5 pb-3.5">
+				<div className="flex flex-col gap-3 px-3 py-3">
 					{blocks.map((block, i) => {
 						if (block.kind === "paragraph") {
 							return (
@@ -150,7 +148,7 @@ export function GithubCommentMock({
 							return (
 								<img
 									alt={block.alt}
-									className="w-[185px]"
+									className="w-46"
 									// biome-ignore lint/suspicious/noArrayIndexKey: static parse
 									key={i}
 									src={block.src}
@@ -159,8 +157,8 @@ export function GithubCommentMock({
 						}
 						return (
 							// biome-ignore lint/suspicious/noArrayIndexKey: static parse
-							<details className="text-[13px] leading-5" key={i}>
-								<summary className="cursor-pointer text-muted-foreground">
+							<details className="type-body-sm" key={i}>
+								<summary className="cursor-pointer text-text-2">
 									{block.summary}
 								</summary>
 								<div className="mt-2 flex flex-col gap-2">

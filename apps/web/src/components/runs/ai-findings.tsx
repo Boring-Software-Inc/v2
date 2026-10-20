@@ -1,50 +1,35 @@
-import { ArrowDown01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import type {
 	AiReviewOutput,
 	Finding,
 	FindingSeverity,
 } from "@tripwire/contracts";
-import { useState } from "react";
+import { External, Icon } from "#/components/glaze/icon";
+import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/glaze/ui/collapsible";
 import {
 	blobUrl,
 	FileIcon,
-	FileLink,
 	FilePath,
 	renderBackticks,
 } from "#/components/runs/evidence-parts";
-import { cn } from "#/lib/utils";
-
-/**
- * §8 ai-review findings — file containers with severity-tinted finding cards.
- * Findings render on the run page (and the public view), never in the PR
- * comment, never the raw trace. A finding is always a negative observation: it
- * carries a severity, not a pass/fail.
- */
 
 const SEVERITY: Record<
 	FindingSeverity,
-	{ word: string; wordClass: string; tint: string; order: number }
+	{
+		word: string;
+		label: string;
+		variant: "fail" | "warn" | "neutral";
+		order: number;
+	}
 > = {
-	critical: {
-		word: "critical",
-		wordClass: "text-red-600 dark:text-red-400",
-		// surface-1 + ~7% destructive, so no two severities share a surface.
-		tint: "color-mix(in srgb, var(--surface-1) 93%, var(--destructive) 7%)",
-		order: 0,
-	},
-	warn: {
-		word: "warning",
-		wordClass: "text-amber-600 dark:text-amber-400",
-		tint: "color-mix(in srgb, var(--surface-1) 94%, #f59e0b 6%)",
-		order: 1,
-	},
-	info: {
-		word: "note",
-		wordClass: "text-muted-foreground",
-		tint: "var(--surface-1)",
-		order: 2,
-	},
+	critical: { word: "critical", label: "Critical", variant: "fail", order: 0 },
+	warn: { word: "warning", label: "Warning", variant: "warn", order: 1 },
+	info: { word: "note", label: "Note", variant: "neutral", order: 2 },
 };
 
 const COLLAPSE_AT = 3;
@@ -58,7 +43,17 @@ function severityCounts(findings: Finding[]): string {
 		.join(" · ");
 }
 
-function FindingCard({
+function worstStatus(findings: Finding[]): "fail" | "warn" | undefined {
+	if (findings.some((f) => f.severity === "critical")) {
+		return "fail";
+	}
+	if (findings.some((f) => f.severity === "warn")) {
+		return "warn";
+	}
+	return undefined;
+}
+
+function FindingRow({
 	finding,
 	repo,
 	sha,
@@ -70,32 +65,39 @@ function FindingCard({
 	const sev = SEVERITY[finding.severity];
 	const url = blobUrl(repo, sha, finding.file, finding.line);
 	const inner = (
-		<div className="rounded-md px-3 py-2" style={{ backgroundColor: sev.tint }}>
+		<>
 			<div className="flex items-center gap-2">
-				<span className={cn("font-medium text-[11px]/4", sev.wordClass)}>
-					{sev.word}
-				</span>
+				<Badge size="sm" variant={sev.variant}>
+					{sev.label}
+				</Badge>
 				{finding.line ? (
-					<span className="text-[11px]/4 text-muted-foreground">
-						line {finding.line}
-					</span>
+					<span className="type-caption text-text-2">Line {finding.line}</span>
 				) : null}
 			</div>
-			<p className="mt-1 text-[13px]/5 text-foreground">
+			<p className="mt-1 type-body-sm text-text-1">
 				{renderBackticks(finding.note)}
 			</p>
-		</div>
+		</>
 	);
-	return url ? (
-		<a className="block" href={url} rel="noreferrer" target="_blank">
-			{inner}
-		</a>
-	) : (
-		inner
+	return (
+		<li className="rule-row">
+			{url ? (
+				<a
+					className="block rounded-tag px-2 py-2 hover:bg-hover-row"
+					href={url}
+					rel="noreferrer"
+					target="_blank"
+				>
+					{inner}
+				</a>
+			) : (
+				<div className="px-2 py-2">{inner}</div>
+			)}
+		</li>
 	);
 }
 
-function FileContainer({
+function FileFindings({
 	file,
 	findings,
 	repo,
@@ -106,39 +108,41 @@ function FileContainer({
 	repo: string;
 	sha: string | null;
 }) {
-	const collapsible = findings.length >= COLLAPSE_AT;
-	const [open, setOpen] = useState(!collapsible);
 	const fileUrl = blobUrl(repo, sha, file);
-
 	return (
-		<div className="rounded-xl bg-surface-1 p-1">
-			<div className="flex items-center gap-2 px-2 py-2">
-				{collapsible ? (
-					<button
-						aria-label={open ? "collapse" : "expand"}
-						className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-						onClick={() => setOpen((v) => !v)}
-						type="button"
+		<Collapsible
+			className="flex flex-col gap-1"
+			defaultOpen={findings.length < COLLAPSE_AT}
+		>
+			<div className="flex min-w-0 items-center gap-1">
+				<CollapsibleTrigger
+					size="sm"
+					summary={severityCounts(findings)}
+					summaryStatus={worstStatus(findings)}
+				>
+					<span className="flex min-w-0 items-center gap-1.5">
+						<FileIcon />
+						<FilePath file={file} />
+					</span>
+				</CollapsibleTrigger>
+				{fileUrl ? (
+					<Button
+						nativeButton={false}
+						aria-label={`Open ${file} on GitHub`}
+						render={(props) => (
+							<a {...props} href={fileUrl} rel="noreferrer" target="_blank" />
+						)}
+						size="icon-sm"
+						variant="ghost"
 					>
-						<HugeiconsIcon
-							icon={open ? ArrowDown01Icon : ArrowRight01Icon}
-							size={14}
-							strokeWidth={2}
-						/>
-					</button>
+						<Icon icon={External} size={12} />
+					</Button>
 				) : null}
-				<FileLink url={fileUrl}>
-					<FileIcon />
-					<FilePath file={file} />
-				</FileLink>
-				<span className="shrink-0 text-[11px]/4 text-muted-foreground">
-					{severityCounts(findings)}
-				</span>
 			</div>
-			{open ? (
-				<div className="flex flex-col gap-1 px-1 pb-1">
+			<CollapsibleContent>
+				<ul className="flex flex-col ps-6">
 					{findings.map((finding, i) => (
-						<FindingCard
+						<FindingRow
 							finding={finding}
 							// biome-ignore lint/suspicious/noArrayIndexKey: findings have no id; index is stable within a file
 							key={i}
@@ -146,9 +150,9 @@ function FileContainer({
 							sha={sha}
 						/>
 					))}
-				</div>
-			) : null}
-		</div>
+				</ul>
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }
 
@@ -164,7 +168,6 @@ export function AiFindings({
 	if (output.findings.length === 0) {
 		return null;
 	}
-	// Group by file, first-seen order.
 	const byFile = new Map<string, Finding[]>();
 	for (const finding of output.findings) {
 		const bucket = byFile.get(finding.file);
@@ -177,7 +180,7 @@ export function AiFindings({
 	return (
 		<div className="mt-3 flex flex-col gap-2">
 			{[...byFile.entries()].map(([file, findings]) => (
-				<FileContainer
+				<FileFindings
 					file={file}
 					findings={findings}
 					key={file}

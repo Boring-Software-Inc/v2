@@ -1,5 +1,6 @@
 import { type RuleParam, ruleUiSchema } from "@tripwire/contracts";
 import { Fragment, type ReactNode, useState } from "react";
+import { Button } from "#/components/glaze/ui/button";
 import { ParamEditor } from "./param-editor";
 import { ParamValue } from "./param-value";
 
@@ -49,23 +50,20 @@ export function ParamSentence({
 			return <ParamValue param={param} value={cfg[param.key]} />;
 		}
 		return (
-			<button
-				className="rounded px-0.5 underline decoration-dotted underline-offset-2 hover:bg-surface-1"
+			<Button
 				onClick={() => setEditing(param.key)}
-				type="button"
+				size="sm"
+				variant="secondary"
 			>
 				<ParamValue param={param} value={cfg[param.key]} />
-			</button>
+			</Button>
 		);
 	};
 
 	return (
 		<div className="flex flex-col gap-1">
 			{ui.sentences.map((sentence) => (
-				<p
-					className="text-muted-foreground text-xs leading-relaxed"
-					key={sentence}
-				>
+				<p className="type-body-sm text-text-2" key={sentence}>
 					{sentence.split(/(\{\w+\})/).map((part, i) => {
 						const match = /^\{(\w+)\}$/.exec(part);
 						const param = match ? byKey.get(match[1] as string) : undefined;

@@ -1,26 +1,30 @@
-import { Skeleton } from "#/components/ui/skeleton";
+import { Card, CardContent, CardFooter } from "#/components/glaze/ui/card";
+import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 
 export function NoOrgsPageSkeleton() {
 	return (
-		<div className="flex min-h-dvh items-center justify-center bg-background px-6">
-			<div className="flex w-full max-w-sm flex-col gap-5 rounded-xl bg-card px-6 py-6">
-				<div className="flex items-center gap-3">
-					<Skeleton className="size-10" />
-					<div className="flex flex-col gap-1.5">
-						<Skeleton className="h-5 w-44" />
-						<Skeleton className="h-4 w-56" />
-					</div>
+		<div className="flex min-h-dvh items-center justify-center bg-page px-4 py-10">
+			<div aria-hidden className="flex w-full max-w-sm flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<SkeletonText className="w-52" type="heading" />
+					<SkeletonText className="w-64" type="body" />
 				</div>
-				<div className="flex flex-col gap-1.5">
-					<Skeleton className="h-4 w-12" />
-					<Skeleton className="h-9 w-full" />
-				</div>
-				<div className="flex flex-col gap-1.5">
-					<Skeleton className="h-4 w-10" />
-					<Skeleton className="h-9 w-full" />
-					<Skeleton className="h-3 w-32" />
-				</div>
-				<Skeleton className="h-8 w-full" />
+				<Card>
+					<CardContent className="gap-4">
+						<div className="flex flex-col gap-1.5">
+							<SkeletonText className="w-12" type="label" />
+							<Skeleton className="h-(--control) w-full rounded-pill" />
+						</div>
+						<div className="flex flex-col gap-1.5">
+							<SkeletonText className="w-10" type="label" />
+							<Skeleton className="h-(--control) w-full rounded-pill" />
+							<SkeletonText className="w-32" type="body-sm" />
+						</div>
+					</CardContent>
+					<CardFooter>
+						<Skeleton className="h-(--control-sm) w-24 rounded-pill" />
+					</CardFooter>
+				</Card>
 			</div>
 		</div>
 	);
