@@ -1,11 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { GithubMark, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { Kbd } from "#/components/glaze/ui/kbd";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { orgContextQueryOptions } from "#/lib/org.query";
+import { useActiveScope } from "#/hooks/use-active-scope";
 
 const CommandPalette = lazy(() =>
 	import("#/components/layouts/command-palette").then((m) => ({
@@ -26,15 +24,7 @@ export function RepoSwitcher() {
 	if (open && !loaded) {
 		setLoaded(true);
 	}
-	const params = useParams({ strict: false });
-	// Seed the avatar off the org's display NAME to match every other surface
-	// (the switcher, settings, admin all seed off name). This shares the cached
-	// org-context query, so it's a cache hit in practice; the slug is the
-	// instant-paint fallback until the name resolves.
-	const { data: activeOrg } = useQuery({
-		...orgContextQueryOptions(params.org ?? ""),
-		enabled: Boolean(params.org),
-	});
+	const { org: activeOrg, repo: activeRepo } = useActiveScope();
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -53,9 +43,11 @@ export function RepoSwitcher() {
 		return () => window.removeEventListener("keydown", onKey);
 	}, [open]);
 
-	const label = params.repo
-		? `${params.org}/${params.repo}`
-		: (params.org ?? "switch org");
+	const label = activeOrg
+		? activeRepo
+			? `${activeOrg.slug}/${activeRepo}`
+			: activeOrg.slug
+		: "switch org";
 
 	return (
 		<>
@@ -65,11 +57,11 @@ export function RepoSwitcher() {
 				variant="secondary"
 			>
 				<span className="-ms-1.5 flex size-5 shrink-0 items-center justify-center">
-					{params.org ? (
+					{activeOrg ? (
 						<OrgAvatar
 							eyes
-							hue={activeOrg?.avatarHue}
-							name={activeOrg?.name ?? params.org}
+							hue={activeOrg.avatarHue}
+							name={activeOrg.name}
 							size="sm"
 						/>
 					) : (
