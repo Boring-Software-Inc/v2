@@ -47,10 +47,7 @@ export function AnalyticsPageSkeleton() {
 		<DashboardLayout counts={{}}>
 			<div className="px-4 py-6 md:px-8 md:py-10">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<div className="flex flex-col items-start gap-3">
-						<Skeleton className="h-(--control-sm) w-36 rounded-pill" />
-						<SkeletonText className="w-32" type="heading" />
-					</div>
+					<SkeletonText className="w-32" type="heading" />
 					<AnalyticsBodySkeleton />
 				</div>
 			</div>
