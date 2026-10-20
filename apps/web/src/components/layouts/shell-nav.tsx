@@ -105,6 +105,7 @@ function NavLink({
 		<Link
 			activeOptions={activeOptions ?? { exact }}
 			activeProps={{ "aria-current": "page" }}
+			data-density="tab"
 			search={search}
 			className="flex h-(--control-sm) shrink-0 items-center gap-1.5 rounded-pill px-3 type-label text-text-2 hover:bg-hover hover:text-text-1 aria-[current=page]:bg-pressed aria-[current=page]:text-text-1"
 			to={to}

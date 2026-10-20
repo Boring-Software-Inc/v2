@@ -111,3 +111,44 @@ body {
 	background-color: var(--pressed);
 	opacity: 1;
 }
+
+.glaze {
+	--density-row: calc(var(--row) + var(--space-2));
+	--density-head: var(--row);
+	--density-cell-x: var(--space-4);
+	--density-tab: var(--control-lg);
+	--density-tab-x: var(--space-4);
+	--density-segment-x: var(--space-3);
+}
+
+.glaze [data-slot="table-cell"] {
+	height: var(--density-row);
+	padding-block: var(--space-2);
+	padding-inline: var(--density-cell-x);
+}
+
+.glaze [data-slot="table-head"] {
+	height: var(--density-head);
+	padding-inline: var(--density-cell-x);
+}
+
+.glaze [data-slot="tabs-trigger"],
+.glaze [data-density="tab"] {
+	height: var(--density-tab);
+	padding-inline: var(--density-tab-x);
+}
+
+.glaze [data-slot="segmented-control"] {
+	height: calc(var(--density-tab) + var(--space-1));
+}
+
+.glaze
+	[data-slot="segmented-control"]
+	> :not([data-slot="segmented-control-thumb"]) {
+	padding-inline: var(--density-segment-x);
+}
+
+.glaze [data-slot="tabs-list"] {
+	max-width: 100%;
+	overflow-x: auto;
+}
