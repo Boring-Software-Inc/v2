@@ -98,6 +98,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 export interface CurrentUser {
 	name: string;
 	login: string;
+	email: string | null;
 	image: string | null;
 }
 
@@ -126,6 +127,7 @@ export const getCurrentUser = createServerFn({ method: "GET" }).handler(
 		return {
 			name: session.user.name,
 			login: rows[0]?.username ?? session.user.name,
+			email: session.user.email ?? null,
 			image: session.user.image ?? null,
 		};
 	},

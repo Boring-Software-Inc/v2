@@ -60,18 +60,21 @@ export function RepoSwitcher() {
 	return (
 		<>
 			<Button
-				className="min-w-0 max-w-60"
+				className="min-w-0 max-w-64"
 				onClick={() => setOpen(true)}
-				size="sm"
 				variant="secondary"
 			>
-				{params.org ? (
-					<OrgAvatar name={activeOrg?.name ?? params.org} size="xs" />
-				) : (
-					<Icon icon={GithubMark} />
-				)}
+				<span className="-ms-1.5 flex size-5 shrink-0 items-center justify-center">
+					{params.org ? (
+						<OrgAvatar name={activeOrg?.name ?? params.org} size="sm" />
+					) : (
+						<Icon icon={GithubMark} />
+					)}
+				</span>
 				<span className="min-w-0 truncate">{label}</span>
-				<Kbd className="hidden shrink-0 sm:inline-flex" keys="mod+k" />
+				<span className="-me-1.5 hidden h-5 shrink-0 items-center rounded-pill bg-field px-2 sm:inline-flex [&_[data-slot=kbd]]:h-auto [&_[data-slot=kbd]]:min-w-0 [&_[data-slot=kbd]]:border-0 [&_[data-slot=kbd]]:bg-transparent [&_[data-slot=kbd]]:p-0 [&_[data-slot=kbd-group]]:gap-0.5">
+					<Kbd keys="mod+k" />
+				</span>
 			</Button>
 			{loaded ? (
 				<Suspense fallback={null}>
