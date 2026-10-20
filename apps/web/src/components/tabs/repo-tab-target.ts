@@ -1,30 +1,20 @@
 import { useRouterState } from "@tanstack/react-router";
 import { useMemo } from "react";
 import {
+	type RepoMatchStatus,
 	type RepoTab,
+	repoMatchStatus,
 	repoTabForLocation,
 } from "#/components/tabs/repo-tabs-state";
 
 const SEPARATOR = " ";
 
-/**
- * The repo the current URL is inside, derived from the MATCHED route tree
- * rather than the pathname. `/$org/$repo` is the only route id that carries a
- * repo, so `/acme/settings`, `/acme/home` and `/admin/orgs` can never be
- * mistaken for one — a pathname regex would open a tab for all three.
- *
- * Every page under a repo (`/rules`, `/workflows/$workflowId`, …) matches the
- * same `/$org/$repo` layout route, so moving around inside a repo collapses
- * onto one tab instead of spawning one per page.
- */
-export function useRepoTabTarget(): RepoTab | null {
-	// The repo and the pathname MUST come out of one selector, and are only
-	// trusted when they agree (see `repoTabForLocation`) — read apart, or read
-	// mid-commit, they describe two different pages.
-	//
-	// Selected as a string, not an object: `useRouterState` compares the
-	// selection by reference, so a fresh object every router tick would
-	// re-render on every router tick.
+export interface RepoTabRoute {
+	tab: RepoTab | null;
+	status: RepoMatchStatus;
+}
+
+export function useRepoTabRoute(): RepoTabRoute {
 	const key = useRouterState({
 		select: (state) => {
 			const match = state.matches.find(
@@ -36,16 +26,24 @@ export function useRepoTabTarget(): RepoTab | null {
 			if (!params?.org || !params.repo) {
 				return "";
 			}
-			return `${params.org}/${params.repo}${SEPARATOR}${state.location.pathname}`;
+			return `${params.org}/${params.repo}${SEPARATOR}${state.location.pathname}${SEPARATOR}${repoMatchStatus(match?.status)}`;
 		},
 	});
 
 	return useMemo(() => {
-		const [id, path] = key.split(SEPARATOR);
+		const [id, path, status] = key.split(SEPARATOR);
 		if (!id || !path) {
-			return null;
+			return { tab: null, status: "pending" };
 		}
 		const [org, repo] = id.split("/");
-		return repoTabForLocation(org, repo, path);
+		return {
+			tab: repoTabForLocation(org, repo, path),
+			status: (status as RepoMatchStatus) ?? "pending",
+		};
 	}, [key]);
+}
+
+export function useRepoTabTarget(): RepoTab | null {
+	const { tab, status } = useRepoTabRoute();
+	return status === "ok" ? tab : null;
 }

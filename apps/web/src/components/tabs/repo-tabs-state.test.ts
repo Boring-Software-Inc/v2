@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
 	parseStoredRepoTabs,
 	type RepoTab,
+	repoMatchStatus,
 	repoTabForLocation,
+	repoTabSyncAction,
 	repoTabsReducer,
 	resolveRepoTabPath,
 } from "#/components/tabs/repo-tabs-state";
@@ -161,5 +163,40 @@ describe("repo tabs — stored state", () => {
 	test("junk in storage yields an empty strip rather than throwing", () => {
 		expect(parseStoredRepoTabs("{{")).toEqual([]);
 		expect(parseStoredRepoTabs('{"tabs":[]}')).toEqual([]);
+	});
+});
+
+describe("repoTabSyncAction", () => {
+	const real = tab("acme", "tripwire", "/acme/tripwire/rules");
+	const fake = tab("acme", "nope", "/acme/nope/activity");
+
+	test("a repo that resolves opens its tab", () => {
+		expect(repoTabSyncAction(real, "ok")).toEqual({ type: "open", tab: real });
+	});
+
+	test("a repo that 404s never opens a tab", () => {
+		const action = repoTabSyncAction(fake, "missing");
+		expect(action).toEqual({ type: "close", id: "acme/nope" });
+		const tabs = action ? repoTabsReducer([], action) : [];
+		expect(tabs).toEqual([]);
+	});
+
+	test("a stored tab whose repo now 404s is dropped", () => {
+		const action = repoTabSyncAction(fake, "missing");
+		const tabs = action ? repoTabsReducer([real, fake], action) : [];
+		expect(tabs).toEqual([real]);
+	});
+
+	test("a match still loading changes nothing", () => {
+		expect(repoTabSyncAction(fake, "pending")).toBeNull();
+		expect(repoTabSyncAction(null, "ok")).toBeNull();
+	});
+
+	test("router statuses map onto open, drop and wait", () => {
+		expect(repoMatchStatus("success")).toBe("ok");
+		expect(repoMatchStatus("notFound")).toBe("missing");
+		expect(repoMatchStatus("error")).toBe("missing");
+		expect(repoMatchStatus("pending")).toBe("pending");
+		expect(repoMatchStatus(undefined)).toBe("pending");
 	});
 });

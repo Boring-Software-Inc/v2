@@ -9,12 +9,13 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useRepoTabTarget } from "#/components/tabs/repo-tab-target";
+import { useRepoTabRoute } from "#/components/tabs/repo-tab-target";
 import {
 	parseStoredRepoTabs,
 	REPO_TABS_STORAGE_KEY,
 	type RepoTab,
 	type RepoTabsAction,
+	repoTabSyncAction,
 	repoTabsReducer,
 } from "#/components/tabs/repo-tabs-state";
 
@@ -91,14 +92,17 @@ function RepoTabsRouteSync({
 	hydrated: boolean;
 	dispatch: (action: RepoTabsAction) => void;
 }) {
-	const target = useRepoTabTarget();
+	const { tab, status } = useRepoTabRoute();
 
 	useEffect(() => {
-		if (!hydrated || !target) {
+		if (!hydrated) {
 			return;
 		}
-		dispatch({ type: "open", tab: target });
-	}, [dispatch, hydrated, target]);
+		const action = repoTabSyncAction(tab, status);
+		if (action) {
+			dispatch(action);
+		}
+	}, [dispatch, hydrated, tab, status]);
 
 	return null;
 }
