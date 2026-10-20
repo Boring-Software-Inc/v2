@@ -43,15 +43,34 @@ const emptyVariants = cva('group/empty flex w-full min-w-0 flex-col items-center
 type EmptyProps = React.ComponentProps<'div'> & VariantProps<typeof emptyVariants> & {
   /** Why there is nothing. error sets role="alert" and the failure word colour on the title. */
   reason?: EmptyReason;
+  art?: React.ReactNode;
 };
 
-function Empty({className, reason = 'empty', variant = 'panel', size = 'default', role, ...props}: EmptyProps) {
+function Empty({className, reason = 'empty', variant = 'panel', size = 'default', role, art, children, ...props}: EmptyProps) {
   return <div
     data-slot="empty"
     data-reason={reason}
     data-size={size}
+    data-art={art ? '' : undefined}
     role={role ?? (reason === 'error' ? 'alert' : undefined)}
     className={cn(emptyVariants({variant, size}), className)}
+    {...props}
+  >
+    {art}
+    {children}
+  </div>;
+}
+
+type EmptyArtSize = 'default' | 'compact';
+
+const emptyArtSize: Record<EmptyArtSize, string> = {default: 'size-24', compact: 'size-16'};
+
+function EmptyArt({className, size = 'default', ...props}: Omit<React.ComponentProps<'div'>, 'aria-hidden'> & {size?: EmptyArtSize}) {
+  return <div
+    data-slot="empty-art"
+    data-size={size}
+    aria-hidden
+    className={cn('relative shrink-0', emptyArtSize[size], className)}
     {...props}
   />;
 }
@@ -75,7 +94,7 @@ function EmptyTitle({className, icon, children, ...props}: EmptyTitleProps) {
 }
 
 function EmptyIcon({icon}: {icon?: GlazeIcon}) {
-  return <span data-slot="empty-icon" className="flex shrink-0 text-text-3 group-data-[reason=error]/empty:text-fail-text">
+  return <span data-slot="empty-icon" className="flex shrink-0 text-text-3 group-data-art/empty:hidden group-data-[reason=error]/empty:text-fail-text">
     <EmptyReasonGlyph icon={icon}/>
   </span>;
 }
@@ -157,4 +176,4 @@ function EmptyRetry({onRetry, children = 'Retry', variant = 'secondary', size = 
   </span>;
 }
 
-export {Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyCode, EmptyRetry, emptyVariants, type EmptyProps, type EmptyReason, type EmptyRetryProps};
+export {Empty, EmptyArt, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyCode, EmptyRetry, emptyVariants, type EmptyProps, type EmptyReason, type EmptyRetryProps, type EmptyArtSize};

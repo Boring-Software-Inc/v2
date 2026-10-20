@@ -17,6 +17,8 @@ import {
 } from "#/components/glaze/ui/dialog";
 import {
 	Empty,
+	EmptyArt,
+	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
@@ -216,13 +218,22 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 						))}
 					</ItemGroup>
 				) : (
-					<Empty size="sm" variant="plain">
+					<Empty art={<EmptyArt size="compact" />} size="sm" variant="plain">
 						<EmptyHeader>
 							<EmptyTitle>No forges connected yet</EmptyTitle>
 							<EmptyDescription>
 								Connect a forge to bring its repos in.
 							</EmptyDescription>
 						</EmptyHeader>
+						<EmptyContent>
+							<Button
+								onClick={() => setConnecting(true)}
+								size="sm"
+								variant="secondary"
+							>
+								Connect forge
+							</Button>
+						</EmptyContent>
 					</Empty>
 				)}
 			</SkeletonSwap>

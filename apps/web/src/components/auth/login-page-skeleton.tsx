@@ -1,4 +1,4 @@
-import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
+import { BrandLockup } from "#/components/auth/brand-lockup";
 import { Card, CardContent } from "#/components/glaze/ui/card";
 import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 
@@ -8,23 +8,19 @@ const CELL_SLOTS = ["a", "b", "c", "d"] as const;
  * disclosure row — so nothing reflows when the real buttons land. */
 export function LoginPageSkeleton() {
 	return (
-		<div className="flex min-h-dvh flex-col items-center justify-center bg-page px-4 py-10">
-			<div aria-hidden className="flex w-full max-w-sm flex-col gap-6">
-				<div className="flex items-center gap-2">
-					<TripwireWordmark
-						className="shrink-0 text-text-1"
-						height={20}
-						width={32}
-					/>
-					<span className="type-heading">Tripwire</span>
-				</div>
+		<div className="flex min-h-dvh flex-col items-center justify-center bg-page px-4 pt-10 pb-40">
+			<div
+				aria-hidden
+				className="flex w-full max-w-sm flex-col items-center gap-6"
+			>
+				<BrandLockup />
 
-				<div className="flex flex-col gap-1">
-					<SkeletonText className="w-40" type="heading" />
+				<div className="flex flex-col items-center gap-1">
+					<SkeletonText className="w-56" type="heading" />
 					<SkeletonText className="w-64" type="body" />
 				</div>
 
-				<Card>
+				<Card className="w-full">
 					<CardContent>
 						<div className="grid grid-cols-2 gap-2">
 							{CELL_SLOTS.map((slot) => (

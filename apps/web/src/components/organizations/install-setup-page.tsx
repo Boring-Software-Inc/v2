@@ -289,7 +289,11 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 								{adminOrgs.map((org) => (
 									<Item key={org.id}>
 										<ItemMedia>
-											<OrgAvatar name={org.name} size="sm" />
+											<OrgAvatar
+												hue={org.avatarHue}
+												name={org.name}
+												size="sm"
+											/>
 										</ItemMedia>
 										<ItemContent>
 											<ItemTitle>

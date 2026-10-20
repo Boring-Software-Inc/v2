@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import type { CostByOrgRow, RailwayBreakdown } from "@tripwire/db";
 import {
 	Alert,
@@ -6,6 +7,7 @@ import {
 	AlertTitle,
 } from "#/components/glaze/ui/alert";
 import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
 import { Chart } from "#/components/glaze/ui/chart";
 import {
 	DataList,
@@ -311,9 +313,32 @@ function RailwaySection({
 							description="Tripwire could not reach Railway, or it has not loaded data yet. Check that RAILWAY_API_TOKEN is set to an account token."
 							reason="error"
 							title="No Railway data yet"
+							action={
+								<Button
+									nativeButton={false}
+									render={<Link to="/admin/orgs" />}
+									size="sm"
+									variant="secondary"
+								>
+									View orgs
+								</Button>
+							}
 						/>
 					) : data.services.length === 0 ? (
-						<TableEmpty colSpan={5} title="No services billed yet" />
+						<TableEmpty
+							colSpan={5}
+							title="No services billed yet"
+							action={
+								<Button
+									nativeButton={false}
+									render={<Link to="/admin/orgs" />}
+									size="sm"
+									variant="secondary"
+								>
+									View orgs
+								</Button>
+							}
+						/>
 					) : (
 						data.services.map((s) => (
 							<TableRow key={s.name}>
@@ -370,7 +395,20 @@ function CostByOrgTable({
 							rows={3}
 						/>
 					) : rows.length === 0 ? (
-						<TableEmpty colSpan={4} title="No daily totals yet" />
+						<TableEmpty
+							colSpan={4}
+							title="No daily totals yet"
+							action={
+								<Button
+									nativeButton={false}
+									render={<Link to="/admin/orgs" />}
+									size="sm"
+									variant="secondary"
+								>
+									View orgs
+								</Button>
+							}
+						/>
 					) : (
 						rows.map((row) => {
 							const unattributed = row.orgId === null;

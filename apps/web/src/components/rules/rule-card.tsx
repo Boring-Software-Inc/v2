@@ -1,18 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
+import { EntityCard } from "#/components/common/entity-card";
 import { ArrowRight, Icon } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
-import {
-	Card,
-	CardAction,
-	CardContent,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardMeta,
-	CardTitle,
-} from "#/components/glaze/ui/card";
 import { Sparkline } from "#/components/glaze/ui/chart";
 import { Switch } from "#/components/glaze/ui/switch";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
@@ -116,10 +107,9 @@ export function RuleCard({
 	const deleteBlocked = deletable && rule.blockingWorkflows.length > 0;
 
 	return (
-		<Card className="flex h-full flex-col [&>[data-slot=card-panel]]:flex-1">
-			<CardHeader>
-				<CardTitle className="truncate">{rule.name}</CardTitle>
-				<CardDescription className="flex flex-wrap items-center gap-1">
+		<EntityCard
+			badges={
+				<>
 					<Badge variant={enabled && standalone ? "neutral" : "outline"}>
 						Block
 					</Badge>
@@ -142,8 +132,67 @@ export function RuleCard({
 							{rule.forgeBlockReason}
 						</Badge>
 					) : null}
-				</CardDescription>
-				<CardAction className="gap-3">
+				</>
+			}
+			footerActions={
+				workflowLink || deletable ? (
+					<>
+						{workflowLink ? (
+							<Button
+								nativeButton={false}
+								render={
+									<Link
+										params={{ org, repo, workflowId: workflowLink }}
+										to="/$org/$repo/workflows/$workflowId"
+									/>
+								}
+								size="sm"
+								variant="secondary"
+							>
+								Edit in workflow
+								<Icon icon={ArrowRight} />
+							</Button>
+						) : null}
+						{deletable ? (
+							<Button
+								disabled={Boolean(deleteBlocked)}
+								focusableWhenDisabled={Boolean(deleteBlocked)}
+								onClick={() => onDelete?.(rule.ruleId)}
+								size="sm"
+								title={
+									deleteBlocked
+										? "Remove this rule from its workflows before deleting"
+										: undefined
+								}
+								variant="secondary"
+							>
+								Delete rule
+							</Button>
+						) : null}
+					</>
+				) : undefined
+			}
+			footerMeta={
+				deleteBlocked ? (
+					<>
+						In use by{" "}
+						{rule.blockingWorkflows.map((wf, index) => (
+							<span key={wf.id}>
+								{index > 0 ? ", " : ""}
+								<Link
+									className="relative text-text-1 hover:underline"
+									params={{ org, repo, workflowId: wf.id }}
+									to="/$org/$repo/workflows/$workflowId"
+								>
+									{wf.name}
+								</Link>
+							</span>
+						))}
+					</>
+				) : undefined
+			}
+			status={
+				<>
 					{hasTrend ? (
 						<Sparkline
 							className="hidden w-16 sm:inline-block"
@@ -186,85 +235,30 @@ export function RuleCard({
 							/>
 						)
 					) : null}
-				</CardAction>
-			</CardHeader>
+				</>
+			}
+			title={rule.name}
+		>
+			{body}
 
-			<CardContent className="flex-1">
-				{body}
-
-				{rule.held && standalone ? (
-					<div className="flex flex-wrap items-center gap-2">
-						<Badge variant="warn">Update held</Badge>
-						<span className="type-body-sm text-text-2">
-							{rule.changeNote ? `${rule.changeNote}. ` : ""}Your saved settings
-							do not carry over. Confirm again to move to the new version.
-						</span>
-						<Button
-							aria-pressed={upgradeQueued === true}
-							disabled={!canEdit}
-							onClick={() => setUpgradeQueued(upgradeQueued !== true)}
-							size="sm"
-							variant="secondary"
-						>
-							{upgradeQueued === true ? "Queued, save to apply" : "Re-confirm"}
-						</Button>
-					</div>
-				) : null}
-			</CardContent>
-
-			{workflowLink || deletable ? (
-				<CardFooter>
-					{deleteBlocked ? (
-						<CardMeta>
-							In use by{" "}
-							{rule.blockingWorkflows.map((wf, index) => (
-								<span key={wf.id}>
-									{index > 0 ? ", " : ""}
-									<Link
-										className="relative text-text-1 hover:underline"
-										params={{ org, repo, workflowId: wf.id }}
-										to="/$org/$repo/workflows/$workflowId"
-									>
-										{wf.name}
-									</Link>
-								</span>
-							))}
-						</CardMeta>
-					) : null}
-					{workflowLink ? (
-						<Button
-							nativeButton={false}
-							render={
-								<Link
-									params={{ org, repo, workflowId: workflowLink }}
-									to="/$org/$repo/workflows/$workflowId"
-								/>
-							}
-							size="sm"
-							variant="secondary"
-						>
-							Edit in workflow
-							<Icon icon={ArrowRight} />
-						</Button>
-					) : null}
-					{deletable ? (
-						<Button
-							disabled={Boolean(deleteBlocked)}
-							focusableWhenDisabled={Boolean(deleteBlocked)}
-							onClick={() => onDelete?.(rule.ruleId)}
-							size="sm"
-							title={
-								deleteBlocked
-									? "Remove this rule from its workflows before deleting"
-									: undefined
-							}
-							variant="secondary"
-						>
-							Delete rule
-						</Button>
-					) : null}
-				</CardFooter>
+			{rule.held && standalone ? (
+				<div className="flex flex-wrap items-center gap-2">
+					<Badge variant="warn">Update held</Badge>
+					<span className="type-body-sm text-text-2">
+						{rule.changeNote ? `${rule.changeNote}. ` : ""}Your saved settings
+						do not carry over. Confirm again to move to the new version.
+					</span>
+					<Button
+						aria-pressed={upgradeQueued === true}
+						disabled={!canEdit}
+						onClick={() => setUpgradeQueued(upgradeQueued !== true)}
+						size="sm"
+						variant="secondary"
+					>
+						{upgradeQueued === true ? "Queued, save to apply" : "Confirm again"}
+					</Button>
+				</div>
 			) : null}
-		</Card>
+		</EntityCard>
 	);
 }

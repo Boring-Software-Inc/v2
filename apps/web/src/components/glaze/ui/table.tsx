@@ -6,7 +6,7 @@ import {useScrollTabStop} from '#/lib/glaze/data.ts';
 import {cn} from '#/lib/glaze/utils.ts';
 import {Button, type ButtonProps} from '#/components/glaze/ui/button.tsx';
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger} from '#/components/glaze/ui/dropdown-menu.tsx';
-import {Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle, type EmptyReason} from '#/components/glaze/ui/empty-state.tsx';
+import {Empty, EmptyArt, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle, type EmptyReason} from '#/components/glaze/ui/empty-state.tsx';
 import {Skeleton} from '#/components/glaze/ui/skeleton.tsx';
 
 // Glaze's table: records that share the same fields, in the card. The table sits in the grey shell with the white
@@ -238,13 +238,14 @@ type TableEmptyProps = Omit<React.ComponentProps<'td'>, 'title'> & {
   description?: React.ReactNode;
   /** The one way out: clear the filter, start a run. */
   action?: React.ReactNode;
+  art?: React.ReactNode;
 };
 
 /** The body's one row when it has no records: a plain, small Empty centred across the columns. */
-function TableEmpty({colSpan, reason = 'empty', title, description, action, className, ...props}: TableEmptyProps) {
+function TableEmpty({colSpan, reason = 'empty', title, description, action, art = <EmptyArt size="compact"/>, className, ...props}: TableEmptyProps) {
   return <tr data-slot="table-empty">
     <td colSpan={colSpan} className={cn('p-0 whitespace-normal', className)} {...props}>
-      <Empty variant="plain" size="sm" reason={reason}>
+      <Empty variant="plain" size="sm" reason={reason} art={art}>
         <EmptyHeader>
           <EmptyTitle>{title}</EmptyTitle>
           {description != null && <EmptyDescription>{description}</EmptyDescription>}

@@ -207,7 +207,7 @@ export function CommandPalette({
 					org.isPersonal ? "personal" : "team",
 					org.slug === currentOrg ? "current active" : "",
 				],
-				icon: <OrgAvatar name={org.name} size="xs" />,
+				icon: <OrgAvatar eyes hue={org.avatarHue} name={org.name} size="xs" />,
 				onSelect: () => go(`/${org.slug}/home`),
 				hint: (
 					<>
@@ -624,7 +624,7 @@ function CreateOrgForm({ onCreated }: { onCreated: (slug: string) => void }) {
 					}}
 				>
 					<div className="flex items-end gap-3">
-						<OrgAvatar className="mb-1" name={name} size="lg" />
+						<OrgAvatar animate className="mb-1" name={name} size="lg" />
 						<Field className="flex-1">
 							<FieldLabel>Org name</FieldLabel>
 							<Input

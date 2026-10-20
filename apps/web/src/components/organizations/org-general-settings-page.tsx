@@ -98,7 +98,11 @@ function ReadOnlySection({ orgContext }: { orgContext: OrgWithRole }) {
 				title="General"
 			/>
 			<div className="flex items-center gap-3">
-				<OrgAvatar name={orgContext.name} size="lg" />
+				<OrgAvatar
+					hue={orgContext.avatarHue}
+					name={orgContext.name}
+					size="xl"
+				/>
 				<div className="flex min-w-0 flex-col">
 					<p className="type-label">{orgContext.name}</p>
 					<p className="type-code-sm text-text-2">/{orgContext.slug}</p>
@@ -163,7 +167,7 @@ function RenameSection({
 			className="flex flex-col gap-3"
 		>
 			<SectionHeading
-				description="The avatar's initials come from the name."
+				description="Tripwire draws the avatar from the name."
 				id="org-general-heading"
 				title="General"
 			/>
@@ -176,15 +180,22 @@ function RenameSection({
 					}
 				}}
 			>
-				<Field>
-					<FieldLabel>Name</FieldLabel>
-					<Input
-						leading={<OrgAvatar name={name} size="xs" />}
-						onChange={(e) => setName(e.target.value)}
-						placeholder="Acme"
-						value={name}
+				<div className="flex items-end gap-3">
+					<OrgAvatar
+						animate
+						hue={name === orgContext.name ? orgContext.avatarHue : undefined}
+						name={name}
+						size="xl"
 					/>
-				</Field>
+					<Field className="min-w-0 flex-1">
+						<FieldLabel>Name</FieldLabel>
+						<Input
+							onChange={(e) => setName(e.target.value)}
+							placeholder="Acme"
+							value={name}
+						/>
+					</Field>
+				</div>
 				<Field invalid={slugError !== null}>
 					<FieldLabel>Slug</FieldLabel>
 					<Input

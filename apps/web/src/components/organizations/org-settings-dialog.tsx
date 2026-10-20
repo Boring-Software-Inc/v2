@@ -4,8 +4,6 @@ import { useEffect } from "react";
 import { ConnectionsPage } from "#/components/forges/connections-page";
 import {
 	Dialog,
-	DialogBody,
-	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
@@ -16,6 +14,10 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "#/components/glaze/ui/tabs";
+import {
+	InsetSheetBody,
+	InsetSheetContent,
+} from "#/components/layouts/inset-sheet";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { OrgBillingPage } from "#/components/organizations/org-billing-page";
 import { OrgGeneralSettingsPage } from "#/components/organizations/org-general-settings-page";
@@ -93,21 +95,30 @@ export function OrgSettingsDialog() {
 			}}
 			open={open}
 		>
-			<DialogContent className="h-full" size="lg">
+			<InsetSheetContent>
 				<Tabs
 					className="flex min-h-0 flex-1 flex-col gap-0"
 					onValueChange={(value) => setTab(parseOrgSettingsTab(value))}
 					value={tab ?? "members"}
 				>
-					<DialogHeader className="gap-3">
-						<div className="flex items-center gap-3">
-							<OrgAvatar name={name} size="lg" />
+					<DialogHeader className="gap-3 group-data-close/dialog:pe-3 sm:group-data-close/dialog:pe-4">
+						<div className="flex items-center gap-3 pe-8">
+							<OrgAvatar
+								animate
+								hue={orgContext?.avatarHue}
+								name={name}
+								replayToken={open ? 1 : 0}
+								size="lg"
+							/>
 							<div className="flex min-w-0 flex-col gap-0.5">
 								<DialogTitle>{name}</DialogTitle>
 								<DialogDescription>Org settings</DialogDescription>
 							</div>
 						</div>
-						<TabsList aria-label="Org settings">
+						<TabsList
+							aria-label="Org settings"
+							className="[--density-tab-x:var(--space-2)] sm:[--density-tab-x:var(--space-4)]"
+						>
 							{TABS.map((item) => (
 								<TabsTrigger key={item.value} value={item.value}>
 									{item.label}
@@ -115,7 +126,7 @@ export function OrgSettingsDialog() {
 							))}
 						</TabsList>
 					</DialogHeader>
-					<DialogBody>
+					<InsetSheetBody>
 						<TabsContent value="members">
 							<OrgMembersPage org={org} />
 						</TabsContent>
@@ -128,9 +139,9 @@ export function OrgSettingsDialog() {
 						<TabsContent value="billing">
 							<OrgBillingPage />
 						</TabsContent>
-					</DialogBody>
+					</InsetSheetBody>
 				</Tabs>
-			</DialogContent>
+			</InsetSheetContent>
 		</Dialog>
 	);
 }

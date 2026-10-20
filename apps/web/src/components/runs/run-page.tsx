@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { FORGE_BY_ID } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { verdictStatus } from "#/components/activity/verdict-chip";
@@ -26,6 +26,8 @@ import {
 } from "#/components/glaze/ui/dialog";
 import {
 	Empty,
+	EmptyArt,
+	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
@@ -63,13 +65,23 @@ export function RunPage() {
 	if (!run) {
 		return (
 			<div className="flex min-h-dvh items-center justify-center bg-page px-4">
-				<Empty reason="no-results">
+				<Empty art={<EmptyArt />} className="max-w-sm" reason="no-results">
 					<EmptyHeader>
 						<EmptyTitle>Run not found</EmptyTitle>
 						<EmptyDescription>
 							It may have been removed, or the link is wrong.
 						</EmptyDescription>
 					</EmptyHeader>
+					<EmptyContent>
+						<Button
+							nativeButton={false}
+							render={<Link to="/" />}
+							size="sm"
+							variant="secondary"
+						>
+							Go to dashboard
+						</Button>
+					</EmptyContent>
 				</Empty>
 			</div>
 		);

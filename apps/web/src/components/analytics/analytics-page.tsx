@@ -1,16 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AnalyticsChart } from "#/components/analytics/analytics-chart";
 import { AnalyticsEvents } from "#/components/analytics/analytics-events";
 import { AnalyticsBodySkeleton } from "#/components/analytics/analytics-page-skeleton";
-import { Icon, TrendDown, TrendUp } from "#/components/glaze/icon";
 import {
-	Empty,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
+	ChartAtRest,
+	hourlyZeroRows,
+} from "#/components/analytics/chart-at-rest";
+import { Icon, TrendDown, TrendUp } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
@@ -108,15 +107,32 @@ export function AnalyticsPage() {
 								<AnalyticsEvents events={events} focusedId={focusedEventId} />
 							</div>
 						) : (
-							<Empty>
-								<EmptyHeader>
-									<EmptyTitle>No analytics yet</EmptyTitle>
-									<EmptyDescription>
-										Once change requests are evaluated on this repo, their
-										outcomes and trends show up here.
-									</EmptyDescription>
-								</EmptyHeader>
-							</Empty>
+							<ChartAtRest
+								action={
+									<Button
+										nativeButton={false}
+										render={
+											<Link params={{ org, repo }} to="/$org/$repo/rules" />
+										}
+										size="sm"
+										variant="ghost"
+									>
+										Review rules
+									</Button>
+								}
+								config={{
+									hour: { label: "Hour" },
+									value: {
+										label: sentenceCase(focusedMetric?.label ?? "activity"),
+									},
+								}}
+								data={hourlyZeroRows("hour", ["value"])}
+								label="No analytics yet"
+								message="Once change requests are evaluated on this repo, their outcomes and trends show up here."
+								type="line"
+								unit="count"
+								xKey="hour"
+							/>
 						)}
 					</SkeletonSwap>
 				</div>

@@ -1,10 +1,4 @@
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemGroup,
-	ItemMedia,
-} from "#/components/glaze/ui/item";
+import { EntityCardSkeleton } from "#/components/common/entity-card-skeleton";
 import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 
@@ -12,23 +6,11 @@ const ROW_SLOTS = ["a", "b", "c", "d"] as const;
 
 export function GridSkeleton() {
 	return (
-		<ItemGroup aria-hidden>
+		<div aria-hidden className="flex flex-col gap-3">
 			{ROW_SLOTS.map((slot) => (
-				<Item key={slot}>
-					<ItemMedia variant="icon">
-						<Skeleton className="size-(--icon)" />
-					</ItemMedia>
-					<ItemContent>
-						<SkeletonText className="w-40" type="label" />
-						<SkeletonText className="w-56" type="body-sm" />
-					</ItemContent>
-					<ItemActions>
-						<Skeleton className="h-4 w-7 rounded-pill" />
-						<Skeleton className="size-(--control-sm)" />
-					</ItemActions>
-				</Item>
+				<EntityCardSkeleton key={slot} />
 			))}
-		</ItemGroup>
+		</div>
 	);
 }
 

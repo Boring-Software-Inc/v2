@@ -4,6 +4,7 @@ import { lazy, Suspense } from "react";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
+	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -19,7 +20,7 @@ const NotFoundInShell = lazy(() =>
 
 export function NotFoundBody({ signedIn }: { signedIn: boolean }) {
 	return (
-		<Empty className="max-w-sm" reason="no-results">
+		<Empty art={<EmptyArt />} className="max-w-sm" reason="no-results">
 			<EmptyHeader>
 				<EmptyTitle>Page not found</EmptyTitle>
 				<EmptyDescription>

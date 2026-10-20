@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
+import { ChartAtRest } from "#/components/analytics/chart-at-rest";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { Button } from "#/components/glaze/ui/button";
@@ -20,6 +21,12 @@ const routeApi = getRouteApi("/$org/$repo/moderation");
 function hourLabel(hoursAgo: number): string {
 	return hoursAgo === 0 ? "This hour" : `${hoursAgo}h ago`;
 }
+
+const verdictConfig = {
+	hour: { label: "Hour" },
+	passed: { label: "Passed" },
+	blocked: { label: "Blocked", status: "fail" as const },
+};
 
 function verdictRows(stats: ModStats) {
 	return stats.passed.series.map((passed, i) => ({
@@ -67,6 +74,8 @@ export function ModerationPage() {
 	}
 
 	const stats = statsQuery.data;
+	const rows = stats ? verdictRows(stats) : [];
+	const atRest = rows.every((row) => row.passed === 0 && row.blocked === 0);
 	const items = queueQuery.data ?? [];
 	const counts = { queue: queueQuery.data?.length };
 
@@ -119,37 +128,61 @@ export function ModerationPage() {
 						) : null}
 					</SkeletonSwap>
 
-					<Chart
-						actions={
-							<Button
-								nativeButton={false}
-								render={
-									<Link
-										params={{ org, repo: repoName }}
-										search={{ metric: "blocked" }}
-										to="/$org/$repo/analytics"
-									/>
-								}
-								size="sm"
-								variant="ghost"
-							>
-								Open analytics
-							</Button>
-						}
-						config={{
-							hour: { label: "Hour" },
-							passed: { label: "Passed" },
-							blocked: { label: "Blocked", status: "fail" },
-						}}
-						data={stats ? verdictRows(stats) : []}
-						empty="No verdicts in the last 24 hours"
-						label="Verdicts by hour, last 24 hours"
-						loading={!stats}
-						stacked
-						type="bar"
-						unit="count"
-						xKey="hour"
-					/>
+					{rows.length > 0 && atRest ? (
+						<ChartAtRest
+							action={
+								<Button
+									nativeButton={false}
+									render={
+										<Link
+											params={{ org, repo: repoName }}
+											to="/$org/$repo/rules"
+										/>
+									}
+									size="sm"
+									variant="ghost"
+								>
+									Review rules
+								</Button>
+							}
+							config={verdictConfig}
+							data={rows}
+							label="Verdicts by hour, last 24 hours"
+							message="No verdicts in the last 24 hours"
+							stacked
+							type="bar"
+							unit="count"
+							xKey="hour"
+						/>
+					) : (
+						<Chart
+							actions={
+								<Button
+									nativeButton={false}
+									render={
+										<Link
+											params={{ org, repo: repoName }}
+											search={{ metric: "blocked" }}
+											to="/$org/$repo/analytics"
+										/>
+									}
+									size="sm"
+									variant="ghost"
+								>
+									Open analytics
+								</Button>
+							}
+							config={verdictConfig}
+							data={rows}
+							empty="No verdicts in the last 24 hours"
+							label="Verdicts by hour, last 24 hours"
+							loading={!stats}
+							stacked
+							type="bar"
+							unit="count"
+							xKey="hour"
+						/>
+					)}
 				</div>
 			</div>
 		</DashboardLayout>

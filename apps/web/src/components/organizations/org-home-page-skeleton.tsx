@@ -1,29 +1,16 @@
-import {
-	Item,
-	ItemContent,
-	ItemGroup,
-	ItemMedia,
-} from "#/components/glaze/ui/item";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+import { EntityCardSkeleton } from "#/components/common/entity-card-skeleton";
+import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 
 const ROW_SLOTS = ["a", "b", "c", "d", "e"] as const;
 
 export function HomeListSkeleton() {
 	return (
-		<ItemGroup aria-hidden>
+		<div aria-hidden className="flex flex-col gap-3">
 			{ROW_SLOTS.map((slot) => (
-				<Item key={slot} className="py-2">
-					<ItemMedia variant="icon">
-						<Skeleton className="size-(--icon)" />
-					</ItemMedia>
-					<ItemContent>
-						<SkeletonText type="label" />
-						<SkeletonText type="body-sm" />
-					</ItemContent>
-				</Item>
+				<EntityCardSkeleton body key={slot} />
 			))}
-		</ItemGroup>
+		</div>
 	);
 }
 

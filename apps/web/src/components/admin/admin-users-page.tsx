@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import type { AccessStatus } from "@tripwire/contracts";
 import { useState } from "react";
 import { AccessStatusMark } from "#/components/admin/access-status-dot";
@@ -255,6 +256,29 @@ export function AdminUsersPage() {
 												: "no-results"
 										}
 										title="No users match this filter"
+										action={
+											status === "all" && !debouncedSearch ? (
+												<Button
+													nativeButton={false}
+													render={<Link to="/admin/orgs" />}
+													size="sm"
+													variant="secondary"
+												>
+													View orgs
+												</Button>
+											) : (
+												<Button
+													onClick={() => {
+														setStatus("all");
+														setSearch("");
+													}}
+													size="sm"
+													variant="secondary"
+												>
+													Clear filter
+												</Button>
+											)
+										}
 									/>
 								) : (
 									users.map((u) => (

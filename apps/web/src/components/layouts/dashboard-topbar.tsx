@@ -68,11 +68,13 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 const PLACEHOLDER_USER: CurrentUser = {
 	name: "local session",
 	login: "dev",
+	email: null,
 	image: "",
 };
 
 function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 	const moderator = user ?? PLACEHOLDER_USER;
+	const identity = accountIdentity(moderator);
 	const { open: openFeedback } = useFeedback();
 	return (
 		<DropdownMenu>
@@ -91,15 +93,20 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 					src={moderator.image || undefined}
 				/>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
+			<DropdownMenuContent
+				align="end"
+				className="min-w-(--menu-min) max-w-popover"
+			>
 				<DropdownMenuGroup>
-					<DropdownMenuLabel>
-						<span className="block type-label text-text-1">
+					<DropdownMenuLabel className="flex-col items-start justify-center gap-0.5 py-1.5">
+						<span className="max-w-full truncate type-label text-text-1">
 							{moderator.name}
 						</span>
-						<span className="block type-caption text-text-2">
-							@{moderator.login}
-						</span>
+						{identity ? (
+							<span className="max-w-full truncate type-caption text-text-2">
+								{identity}
+							</span>
+						) : null}
 					</DropdownMenuLabel>
 				</DropdownMenuGroup>
 				<DropdownMenuSeparator />
@@ -137,6 +144,16 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
+}
+
+function accountIdentity(user: CurrentUser): string | null {
+	if (user.email) {
+		return user.email;
+	}
+	if (user.login && user.login !== user.name) {
+		return `@${user.login}`;
+	}
+	return null;
 }
 
 function ThemeToggle() {

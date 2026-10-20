@@ -1,3 +1,4 @@
+import { Link, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	type GlazeIcon,
@@ -9,8 +10,11 @@ import {
 	Warning,
 } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
+	EmptyArt,
+	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
@@ -58,6 +62,7 @@ export function AnalyticsEvents({
 	events: AnalyticsEvent[];
 	focusedId?: string | null;
 }) {
+	const { org, repo } = useParams({ strict: false });
 	const [order, setOrder] = useState<string[]>(() =>
 		withFocusedOnTop(
 			events.map((e) => e.id),
@@ -103,13 +108,27 @@ export function AnalyticsEvents({
 			</div>
 
 			{ordered.length === 0 ? (
-				<Empty size="sm">
+				<Empty art={<EmptyArt size="compact" />} size="sm">
 					<EmptyHeader>
 						<EmptyTitle>No activity yet</EmptyTitle>
 						<EmptyDescription>
 							It fills in as Tripwire runs on this metric.
 						</EmptyDescription>
 					</EmptyHeader>
+					{org && repo ? (
+						<EmptyContent>
+							<Button
+								nativeButton={false}
+								render={
+									<Link params={{ org, repo }} to="/$org/$repo/activity" />
+								}
+								size="sm"
+								variant="secondary"
+							>
+								View activity
+							</Button>
+						</EmptyContent>
+					) : null}
 				</Empty>
 			) : (
 				<ItemGroup aria-label="Activity">

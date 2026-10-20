@@ -2,18 +2,10 @@ import { Link } from "@tanstack/react-router";
 import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
 import { VerdictChip } from "#/components/activity/verdict-chip";
+import { EntityCard } from "#/components/common/entity-card";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardMeta,
-	CardTitle,
-} from "#/components/glaze/ui/card";
 import {
 	Item,
 	ItemContent,
@@ -70,25 +62,11 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 	const hidden = entries.length - VISIBLE;
 
 	return (
-		<Card>
-			<StackHeader group={group} />
-			<CardContent flush>
-				<ItemGroup
-					aria-label={`Timeline of #${group.subjectNumber}`}
-					variant="plain"
-				>
-					{visible.map((entry) => (
-						<EntryRow entry={entry} key={entry.event.id} />
-					))}
-				</ItemGroup>
-			</CardContent>
-			{canTruncate ? (
-				<CardFooter>
-					<CardMeta>
-						{showAll
-							? `${entries.length} events`
-							: `${VISIBLE} of ${entries.length} events`}
-					</CardMeta>
+		<EntityCard
+			description={<StackDescription group={group} />}
+			flush
+			footerActions={
+				canTruncate ? (
 					<Button
 						onClick={() => setShowAll((v) => !v)}
 						size="sm"
@@ -96,57 +74,79 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 					>
 						{showAll ? "Show fewer events" : `Show ${hidden} more events`}
 					</Button>
-				</CardFooter>
-			) : null}
-		</Card>
+				) : undefined
+			}
+			footerMeta={
+				canTruncate
+					? showAll
+						? `${entries.length} events`
+						: `${VISIBLE} of ${entries.length} events`
+					: undefined
+			}
+			status={<StackStatus group={group} />}
+			title={<StackTitle group={group} />}
+		>
+			<ItemGroup
+				aria-label={`Timeline of #${group.subjectNumber}`}
+				variant="plain"
+			>
+				{visible.map((entry) => (
+					<EntryRow entry={entry} key={entry.event.id} />
+				))}
+			</ItemGroup>
+		</EntityCard>
 	);
 }
 
-function StackHeader({ group }: { group: ActivityGroup }) {
-	const evaluating = group.currentRunId != null && group.currentVerdict == null;
+function StackTitle({ group }: { group: ActivityGroup }) {
 	const title = (
 		<>
 			#{group.subjectNumber} {group.title}
 		</>
 	);
+	if (group.currentRunId) {
+		return (
+			<Link
+				className="hover:underline"
+				params={{ runId: group.currentRunId }}
+				to="/runs/$runId"
+			>
+				{title}
+			</Link>
+		);
+	}
+	if (group.url) {
+		return (
+			<a
+				className="hover:underline"
+				href={group.url}
+				rel="noreferrer"
+				target="_blank"
+			>
+				{title}
+			</a>
+		);
+	}
+	return title;
+}
+
+function StackDescription({ group }: { group: ActivityGroup }) {
 	return (
-		<CardHeader>
-			<CardTitle>
-				{group.currentRunId ? (
-					<Link
-						className="hover:underline"
-						params={{ runId: group.currentRunId }}
-						to="/runs/$runId"
-					>
-						{title}
-					</Link>
-				) : group.url ? (
-					<a
-						className="hover:underline"
-						href={group.url}
-						rel="noreferrer"
-						target="_blank"
-					>
-						{title}
-					</a>
-				) : (
-					title
-				)}
-			</CardTitle>
-			<CardDescription className="truncate">
-				{group.actor.login} · {group.repoFullName} ·{" "}
-				{formatRelativeTime(group.latestActivityAt)}
-			</CardDescription>
-			<div className="col-start-2 row-span-2 row-start-1 flex items-center">
-				{evaluating ? (
-					<Status size="sm" status="running">
-						Re-evaluating
-					</Status>
-				) : (
-					<VerdictChip verdict={group.currentVerdict} />
-				)}
-			</div>
-		</CardHeader>
+		<span className="block truncate">
+			{group.actor.login} · {group.repoFullName} ·{" "}
+			{formatRelativeTime(group.latestActivityAt)}
+		</span>
+	);
+}
+
+function StackStatus({ group }: { group: ActivityGroup }) {
+	const evaluating = group.currentRunId != null && group.currentVerdict == null;
+	return evaluating ? (
+		<Status size="sm" status="running">
+			Re-evaluating
+		</Status>
+	) : (
+		<VerdictChip verdict={group.currentVerdict} />
 	);
 }
 
