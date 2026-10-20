@@ -39,7 +39,8 @@ export function BetaBanner() {
 		<div className="relative isolate flex shrink-0 items-center justify-center gap-3 overflow-hidden border-line-faint border-b bg-shell px-10 py-1">
 			<ShaderDither className="-z-10 max-md:hidden" mask="sides" tone="soft" />
 			<p className="type-body-sm text-text-1">
-				Tripwire is in closed beta. Hit a bug or something rough?
+				Tripwire is in closed beta.
+				<span className="max-md:hidden"> Found a bug or something rough?</span>
 			</p>
 			<Button onClick={openFeedback} size="sm" variant="secondary">
 				<Icon icon={Comment} size={12} />

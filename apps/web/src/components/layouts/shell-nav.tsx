@@ -1,4 +1,5 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useLocation, useParams } from "@tanstack/react-router";
+import { type RefObject, useEffect, useRef } from "react";
 import {
 	Activity,
 	Analytics,
@@ -20,6 +21,8 @@ export function ShellNav({ counts }: ShellNavProps) {
 	const params = useParams({ strict: false });
 	const org = params.org;
 	const repo = params.repo;
+	const navRef = useRef<HTMLElement>(null);
+	useActiveLinkInView(navRef);
 
 	if (!org) {
 		return null;
@@ -29,6 +32,7 @@ export function ShellNav({ counts }: ShellNavProps) {
 		return (
 			<nav
 				aria-label="Org"
+				ref={navRef}
 				className="flex min-w-0 shrink-0 items-center gap-1 overflow-x-auto px-3 py-2"
 			>
 				<NavLink icon={Home} label="Home" to={`/${org}/home`} />
@@ -52,6 +56,7 @@ export function ShellNav({ counts }: ShellNavProps) {
 	return (
 		<nav
 			aria-label="Repo"
+			ref={navRef}
 			className="flex min-w-0 shrink-0 items-center gap-1 overflow-x-auto px-3 py-2"
 		>
 			<NavLink
@@ -84,6 +89,15 @@ export function ShellNav({ counts }: ShellNavProps) {
 			/>
 		</nav>
 	);
+}
+
+function useActiveLinkInView(navRef: RefObject<HTMLElement | null>) {
+	const pathname = useLocation({ select: (location) => location.pathname });
+	useEffect(() => {
+		if (!pathname) return;
+		const active = navRef.current?.querySelector('[aria-current="page"]');
+		active?.scrollIntoView({ block: "nearest", inline: "nearest" });
+	}, [navRef, pathname]);
 }
 
 function NavLink({

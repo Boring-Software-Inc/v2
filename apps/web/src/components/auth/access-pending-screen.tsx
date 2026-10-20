@@ -34,7 +34,7 @@ export function AccessPendingScreen({
 				<div className="flex flex-col gap-2">
 					<h1 className="type-title">
 						{rejected
-							? "Your access request was not approved"
+							? "Your access request was declined"
 							: "You're on the waitlist"}
 					</h1>
 					<p className="type-body text-text-2">

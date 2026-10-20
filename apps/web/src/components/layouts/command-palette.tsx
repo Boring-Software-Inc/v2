@@ -178,7 +178,9 @@ export function CommandPalette({
 			}
 		},
 		onError: () =>
-			toast.fail("Could not turn on Tripwire for this repo. Try again."),
+			toast.fail(
+				"Tripwire did not turn on for this repo. Check your connection and try again.",
+			),
 	});
 	const disarm = useMutation({
 		mutationFn: (input: { org: string; repo: string }) =>
