@@ -28,7 +28,7 @@ export function NotFoundBody({ signedIn }: { signedIn: boolean }) {
 			</EmptyHeader>
 			<EmptyContent>
 				<Button nativeButton={false} render={<Link to="/" />} size="sm">
-					{signedIn ? "Go to your home" : "Go to sign in"}
+					{signedIn ? "Go to dashboard" : "Go to sign in"}
 				</Button>
 			</EmptyContent>
 		</Empty>
