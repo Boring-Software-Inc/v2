@@ -24,6 +24,7 @@ import { RouteProgress } from "./route-progress";
 
 interface DashboardLayoutProps {
 	counts: { queue?: number };
+	nav?: boolean;
 	children: ReactNode;
 }
 
@@ -39,7 +40,11 @@ function prefersReducedMotion(): boolean {
 	return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function DashboardShell({ counts, children }: DashboardLayoutProps) {
+function DashboardShell({
+	counts,
+	nav = true,
+	children,
+}: DashboardLayoutProps) {
 	const { data: user } = useQuery(currentUserQueryOptions());
 	const { content, collapsed } = useSidePanel();
 	const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -109,7 +114,7 @@ function DashboardShell({ counts, children }: DashboardLayoutProps) {
 						)}
 					>
 						<BetaBanner />
-						<ShellNav counts={counts} />
+						{nav ? <ShellNav counts={counts} /> : null}
 						<main
 							id="main-content"
 							ref={pageRef}
