@@ -154,13 +154,13 @@ body {
 }
 
 .glaze {
-	--sheet-rise: calc(var(--dur-overlay) * 1.6);
 	--sheet-fade: 160ms;
 }
 
 .glaze [data-slot="dialog-content"][data-side="sheet"] {
 	transition-property: translate, opacity;
-	transition-duration: var(--sheet-rise);
+	transition-duration: var(--sheet-rise, var(--dur-overlay));
+	transition-timing-function: var(--sheet-spring, var(--ease-out));
 }
 
 .glaze
@@ -174,12 +174,14 @@ body {
 
 .glaze [data-slot="dialog-content"][data-side="sheet"][data-ending-style] {
 	transition-duration: var(--dur-overlay);
+	transition-timing-function: var(--ease-in);
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.glaze [data-slot="dialog-content"][data-side="sheet"] {
 		transition-property: opacity;
 		transition-duration: var(--sheet-fade);
+		transition-timing-function: var(--ease-out);
 	}
 
 	.glaze
