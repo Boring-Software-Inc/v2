@@ -152,3 +152,46 @@ body {
 	max-width: 100%;
 	overflow-x: auto;
 }
+
+.glaze {
+	--sheet-rise: calc(var(--dur-overlay) * 1.6);
+	--sheet-fade: 160ms;
+}
+
+.glaze [data-slot="dialog-content"][data-side="sheet"] {
+	transition-property: translate, opacity;
+	transition-duration: var(--sheet-rise);
+}
+
+.glaze
+	[data-slot="dialog-content"][data-side="sheet"]:is(
+		[data-starting-style],
+		[data-ending-style]
+	) {
+	opacity: 1;
+	translate: -50% 100%;
+}
+
+.glaze [data-slot="dialog-content"][data-side="sheet"][data-ending-style] {
+	transition-duration: var(--dur-overlay);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.glaze [data-slot="dialog-content"][data-side="sheet"] {
+		transition-property: opacity;
+		transition-duration: var(--sheet-fade);
+	}
+
+	.glaze
+		[data-slot="dialog-content"][data-side="sheet"]:is(
+			[data-starting-style],
+			[data-ending-style]
+		) {
+		opacity: 0;
+		translate: -50% 0;
+	}
+
+	.glaze [data-slot="dialog-content"][data-side="sheet"][data-ending-style] {
+		transition-duration: var(--sheet-fade);
+	}
+}
