@@ -77,8 +77,8 @@ export function ModerationQueue({
 					<EmptyHeader>
 						<EmptyTitle>Nothing awaiting moderation</EmptyTitle>
 						<EmptyDescription>
-							Change requests that Tripwire sent to review show up here. Pass or
-							block each one to finish its check.
+							Change requests that Tripwire sent to review show up here. Approve
+							or block each one to finish its check.
 						</EmptyDescription>
 					</EmptyHeader>
 					<EmptyContent>
@@ -149,7 +149,7 @@ export function ModerationQueue({
 										Block
 									</Button>
 									<Button
-										aria-label={`Pass ${subject}`}
+										aria-label={`Approve ${subject}`}
 										disabled={decide.isPending}
 										onClick={() =>
 											decide.mutate(
@@ -164,7 +164,7 @@ export function ModerationQueue({
 												{
 													onSuccess: () =>
 														toast.success(
-															`Passed ${subject}. Tripwire marked its check as passed.`,
+															`Approved ${subject}. Tripwire marked its check as passed.`,
 														),
 												},
 											)
@@ -172,7 +172,7 @@ export function ModerationQueue({
 										size="sm"
 										variant="secondary"
 									>
-										Pass
+										Approve
 									</Button>
 								</ItemActions>
 							</Item>

@@ -194,7 +194,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 						id="approve"
 						position={Position.Right}
 						style={PORT_TOP}
-						title="Next step when a maintainer passes it"
+						title="Next step when a maintainer approves it"
 						type="source"
 					/>
 					<Handle

@@ -45,8 +45,8 @@ type ActionNode = Extract<WorkflowNode, { type: "action" }>;
 const WHEN_VERB: Record<EdgeWhen, string> = {
 	pass: "passes",
 	fail: "fails",
-	approve: "is approved",
-	deny: "is denied",
+	approve: "is approved by a maintainer",
+	deny: "is blocked by a maintainer",
 };
 
 const isTrigger = (n: WorkflowNode): n is TriggerNode => n.type === "trigger";

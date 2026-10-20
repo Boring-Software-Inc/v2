@@ -21,6 +21,32 @@ function ruleFallback(ruleRef: string): string {
 	return cat?.blurb ?? ruleDisplayName(ruleRef);
 }
 
+const MAINTAINER_DECISION = {
+	approve: {
+		title: "Approved by a maintainer",
+		status: "ok",
+		label: "Approved",
+	},
+	deny: { title: "Blocked by a maintainer", status: "fail", label: "Blocked" },
+} as const;
+
+function maintainerDecision(
+	step: RunStepView,
+): (typeof MAINTAINER_DECISION)[keyof typeof MAINTAINER_DECISION] | null {
+	const out = step.output;
+	if (
+		out === null ||
+		typeof out !== "object" ||
+		Array.isArray(out) ||
+		out.action !== "send-to-moderation"
+	) {
+		return null;
+	}
+	return out.decision === "approve" || out.decision === "deny"
+		? MAINTAINER_DECISION[out.decision]
+		: null;
+}
+
 function stepLabel(step: RunStepView): string {
 	if (step.ruleRef) {
 		return step.ruleName ?? ruleDisplayName(step.ruleRef);
@@ -76,6 +102,25 @@ export function StepCard({
 				<p className="mt-1 type-body-sm text-text-2">
 					{sentence(synthetic.detail)}
 				</p>
+			</div>
+		);
+	}
+
+	const decision = maintainerDecision(step);
+	if (decision) {
+		return (
+			<div className="rule-row min-h-(--row) px-3 py-2">
+				<div className="flex min-w-0 items-center gap-2">
+					<span className="min-w-0 flex-1 truncate type-label">
+						{decision.title}
+					</span>
+					<Status className="shrink-0" size="sm" status={decision.status}>
+						{decision.label}
+					</Status>
+					<span className="min-w-12 shrink-0 text-end type-caption text-text-2 tabular-nums">
+						{step.durationMs}ms
+					</span>
+				</div>
 			</div>
 		);
 	}
