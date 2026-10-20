@@ -336,7 +336,7 @@ function RerunRunButton({
 					"Tripwire has nothing to check for this change request yet. Open or update it first.",
 				);
 			} else {
-				setUnavailable("This repo isn't armed. Arm it first.");
+				setUnavailable("Tripwire is off for this repo. Turn it on first.");
 			}
 		},
 		onError: () => {

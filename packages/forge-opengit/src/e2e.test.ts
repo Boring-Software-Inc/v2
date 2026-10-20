@@ -319,6 +319,6 @@ describe("what open-git cannot do, refused rather than faked", () => {
 		"getContributorProfile",
 	])("%s throws rather than reporting an empty read", (method) => {
 		const call = adapter[method as "getDiff"] as () => Promise<unknown>;
-		expect(() => call()).toThrow(/does not provide/);
+		expect(() => call()).toThrow(/does not give Tripwire access/);
 	});
 });

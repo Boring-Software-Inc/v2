@@ -66,8 +66,9 @@ function OrgAnalyticsBody({ summary }: { summary: OrgAnalyticsSummary }) {
 		<div className="flex flex-col gap-6">
 			<p className="type-body text-text-2">
 				<Count value={summary.armedRepos} /> of <Count value={summary.repos} />{" "}
-				repos armed. In the last 24 hours, <Count value={summary.events24h} />{" "}
-				events and <Count value={summary.blocked24h} /> blocked.{" "}
+				repos have Tripwire on. In the last 24 hours,{" "}
+				<Count value={summary.events24h} /> events and{" "}
+				<Count value={summary.blocked24h} /> blocked.{" "}
 				<Count value={summary.pendingModeration} /> awaiting review.
 			</p>
 			<Chart

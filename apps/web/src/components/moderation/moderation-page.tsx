@@ -44,7 +44,7 @@ export function ModerationPage() {
 						<header className="flex flex-col gap-1">
 							<h1 className="type-title">Moderation</h1>
 							<p className="type-body text-text-2">
-								The queue fills in the moment you arm this repo.
+								The queue fills in when you turn on Tripwire for this repo.
 							</p>
 						</header>
 						<ArmCallout

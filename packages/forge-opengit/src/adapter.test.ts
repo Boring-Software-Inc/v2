@@ -233,7 +233,7 @@ describe("the absent read surface", () => {
 		const { fetchImpl } = recordingFetch();
 		const adapter = adapterWith(fetchImpl);
 		const call = adapter[method as "getDiff"] as () => Promise<unknown>;
-		expect(() => call()).toThrow(/does not provide/);
+		expect(() => call()).toThrow(/does not give Tripwire access/);
 	});
 
 	test("the adapter still declares its forge", () => {

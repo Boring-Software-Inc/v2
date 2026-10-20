@@ -170,7 +170,9 @@ export function CommandPalette({
 		onSettled: invalidate,
 		onSuccess: (result) => {
 			if (result.armed) {
-				toast.success("Armed. Tripwire is loading its past change requests.");
+				toast.success(
+					"Tripwire is on for this repo. It is loading past change requests.",
+				);
 			}
 		},
 	});
@@ -180,7 +182,7 @@ export function CommandPalette({
 		onSettled: invalidate,
 		onSuccess: () =>
 			toast.success(
-				"Disarmed. Tripwire still records events but no longer checks change requests.",
+				"Tripwire is off for this repo. It still records events but no longer checks change requests.",
 			),
 	});
 	function go(path: string) {
@@ -314,16 +316,32 @@ export function CommandPalette({
 			scopedRepo.armed
 				? {
 						id: "action:disarm",
-						label: `Disarm ${scopedRepo.fullName}`,
-						searchTags: ["disarm", "off", "stop", "gate", "repo", currentRepo],
+						label: `Turn off Tripwire for ${scopedRepo.fullName}`,
+						searchTags: [
+							"turn off",
+							"disarm",
+							"off",
+							"stop",
+							"gate",
+							"repo",
+							currentRepo,
+						],
 						icon: repoIcon(scopedRepo.forge),
 						onSelect: () =>
 							disarm.mutate({ org: currentOrg, repo: currentRepo }),
 					}
 				: {
 						id: "action:arm",
-						label: `Arm ${scopedRepo.fullName}`,
-						searchTags: ["arm", "on", "enable", "gate", "repo", currentRepo],
+						label: `Turn on Tripwire for ${scopedRepo.fullName}`,
+						searchTags: [
+							"turn on",
+							"arm",
+							"on",
+							"enable",
+							"gate",
+							"repo",
+							currentRepo,
+						],
 						icon: repoIcon(scopedRepo.forge),
 						onSelect: () => arm.mutate({ org: currentOrg, repo: currentRepo }),
 					},
@@ -687,7 +705,7 @@ function repoItem(
 			repo.owner,
 			repo.name,
 			repo.fullName,
-			repo.armed ? "armed" : "unarmed not armed",
+			repo.armed ? "on armed" : "off unarmed not armed",
 			isCurrent ? "current active" : "",
 		],
 		icon: repoIcon(repo.forge),
@@ -696,7 +714,7 @@ function repoItem(
 			<>
 				{repo.armed ? null : (
 					<Badge size="sm" variant="outline">
-						Not armed
+						Off
 					</Badge>
 				)}
 				{repo.pendingModeration > 0 ? (

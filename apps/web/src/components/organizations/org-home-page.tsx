@@ -163,7 +163,7 @@ function RepoRow({ org, repo }: { org: string; repo: SwitcherRepo }) {
 					</ItemRouterLink>
 				</ItemTitle>
 				<ItemDescription>
-					{repo.armed ? attentionLine(repo) : "Available, not armed"}
+					{repo.armed ? attentionLine(repo) : "Tripwire is off"}
 					{repo.lastActivityAt
 						? ` · ${formatRelativeTime(repo.lastActivityAt)}`
 						: null}
@@ -212,7 +212,7 @@ function RepoRow({ org, repo }: { org: string; repo: SwitcherRepo }) {
 						) : null}
 					</>
 				) : (
-					<Badge variant="outline">Not armed</Badge>
+					<Badge variant="outline">Off</Badge>
 				)}
 			</ItemMeta>
 		</Item>

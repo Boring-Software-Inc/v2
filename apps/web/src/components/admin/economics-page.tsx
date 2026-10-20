@@ -84,7 +84,7 @@ export function EconomicsPage() {
 		day: p.day,
 		spend: p.pulledCostUsd ?? p.meteredCostUsd,
 	}));
-	const seriesError = series.error ? "Could not load the daily series." : null;
+	const seriesError = series.error ? "Could not load the daily numbers." : null;
 
 	return (
 		<DashboardLayout counts={{}}>
@@ -93,8 +93,9 @@ export function EconomicsPage() {
 					<header className="flex flex-col gap-1">
 						<h1 className="type-title">Economics</h1>
 						<p className="max-w-measure type-body text-text-2">
-							What the platform costs to run and where the money goes. Numbers
-							roll up once a day, so today reads low until tonight.
+							What Tripwire costs to run, and where the money goes. The totals
+							update once a day, so today's numbers stay low until the nightly
+							update.
 						</p>
 					</header>
 
@@ -125,16 +126,16 @@ export function EconomicsPage() {
 												{usd(o.meteredMtdUsd, 2)}
 											</span>
 											<span className="type-caption text-text-2">
-												Model spend recorded so far. Part of the{" "}
-												{usd(o.accruedMtdUsd, 2)} total once fixed hosting is
-												added.
+												AI model spend recorded so far this month. With fixed
+												hosting costs added, the total is{" "}
+												{usd(o.accruedMtdUsd, 2)}.
 											</span>
 										</span>
 									) : null}
 								</DataListValue>
 							</DataListItem>
 							<DataListItem>
-								<DataListLabel>Drift</DataListLabel>
+								<DataListLabel>Difference from invoice</DataListLabel>
 								<DataListValue>
 									<span className="flex flex-col">
 										<span className="tabular-nums">
@@ -143,8 +144,8 @@ export function EconomicsPage() {
 												: `${o.driftPct.toFixed(1)}%`}
 										</span>
 										<span className="type-caption text-text-2">
-											Gap between what we recorded and the provider invoice.
-											Under 10% is healthy.
+											How far the recorded cost is from the provider's invoice.
+											Under 10% is normal.
 										</span>
 									</span>
 								</DataListValue>
@@ -156,7 +157,7 @@ export function EconomicsPage() {
 										<span className="flex flex-col">
 											<span className="tabular-nums">{o.runs}</span>
 											<span className="type-caption text-text-2">
-												Gate runs on change requests. {o.aiReviewedRuns} of them
+												Checks of change requests. {o.aiReviewedRuns} of them
 												used AI review.
 											</span>
 										</span>
@@ -176,18 +177,18 @@ export function EconomicsPage() {
 							data={creditRows}
 							description={
 								o?.creditBalanceUsd == null
-									? "PlanetScale credit left, day by day. It falls as the database bill accrues."
-									: `PlanetScale credit left, day by day. ${usd(o.creditBalanceUsd)} left, ${
-											o.creditRunwayMonths?.toFixed(1) ?? "unknown"
-										} months of runway at the current rate.`
+									? "PlanetScale database credit left on each day. It goes down as the database bill grows."
+									: `PlanetScale database credit left on each day. ${usd(o.creditBalanceUsd)} is left. At the current rate, that lasts ${
+											o.creditRunwayMonths?.toFixed(1) ?? "an unknown number of"
+										} months.`
 							}
-							empty="No rolled-up days yet"
+							empty="No daily totals yet"
 							error={seriesError}
 							height={140}
-							label="Credit burn-down, by day"
+							label="Database credit left, by day"
 							loading={series.isLoading}
 							onRetry={() => series.refetch()}
-							title="Credit burn-down"
+							title="Database credit left"
 							type="line"
 							valueFormat={(v) => usd(v)}
 							xFormat={dayLabel}
@@ -196,14 +197,14 @@ export function EconomicsPage() {
 						<Chart
 							config={{ day: { label: "Day" }, spend: { label: "Spend" } }}
 							data={spendRows}
-							description="AI model cost per day, from the provider invoice. A day above the $1.00 cap raises an alert in the digest."
-							empty="No rolled-up days yet"
+							description="AI model cost per day, from the OpenRouter invoice. If a day costs more than $1.00, the daily report shows an alert."
+							empty="No daily totals yet"
 							error={seriesError}
 							height={140}
-							label="OpenRouter daily spend, by day"
+							label="AI spend per day, from OpenRouter"
 							loading={series.isLoading}
 							onRetry={() => series.refetch()}
-							title="OpenRouter daily spend"
+							title="AI spend per day"
 							type="bar"
 							valueFormat={(v) => usd(v)}
 							xFormat={dayLabel}
@@ -238,12 +239,12 @@ function RailwaySection({
 		<section aria-labelledby="railway-floor" className="flex flex-col gap-3">
 			<div className="flex flex-col gap-1">
 				<h2 className="type-heading-sm" id="railway-floor">
-					Railway floor
+					Hosting on Railway
 				</h2>
 				<p className="max-w-measure type-body-sm text-text-2">
-					Hosting usage this billing period, pulled from Railway and priced per
-					service. It counts against the $5.00 the plan includes each month.
-					Spend past that starts adding to the bill.
+					Hosting cost for each service in this billing period, from Railway.
+					The Railway plan includes $5.00 of usage each month. Usage above that
+					is added to the bill.
 				</p>
 			</div>
 
@@ -251,8 +252,8 @@ function RailwaySection({
 				<Alert status="warn">
 					<AlertTitle>Railway pricing changed</AlertTitle>
 					<AlertDescription>
-						Re-verify the rates in railway-rates.ts. The dollars below may be
-						wrong until then.
+						Check the rates in railway-rates.ts again. Until you do, the dollar
+						amounts below may be wrong.
 					</AlertDescription>
 				</Alert>
 			) : null}
@@ -277,8 +278,8 @@ function RailwaySection({
 				footer={
 					data ? (
 						<span>
-							The quantities are the raw usage behind each dollar figure. Last
-							pulled {pulledAgo(data.lastPulledAt)}.
+							Each column shows the usage that the cost comes from. Last updated{" "}
+							{pulledAgo(data.lastPulledAt)}.
 						</span>
 					) : undefined
 				}
@@ -286,9 +287,9 @@ function RailwaySection({
 				<TableHeader>
 					<TableRow>
 						<TableHead>Service</TableHead>
-						<TableHead numeric>vCPU-min</TableHead>
-						<TableHead numeric>GB-min</TableHead>
-						<TableHead numeric>Egress GB</TableHead>
+						<TableHead numeric>CPU minutes</TableHead>
+						<TableHead numeric>Memory GB-minutes</TableHead>
+						<TableHead numeric>Outbound data GB</TableHead>
 						<TableHead numeric>Cost</TableHead>
 					</TableRow>
 				</TableHeader>
@@ -307,9 +308,9 @@ function RailwaySection({
 					) : data === null ? (
 						<TableEmpty
 							colSpan={5}
-							description="Set RAILWAY_API_TOKEN to an account token."
+							description="Tripwire could not reach Railway, or it has not loaded data yet. Check that RAILWAY_API_TOKEN is set to an account token."
 							reason="error"
-							title="Could not reach Railway, or no pull has run yet"
+							title="No Railway data yet"
 						/>
 					) : data.services.length === 0 ? (
 						<TableEmpty colSpan={5} title="No services billed yet" />
@@ -344,8 +345,8 @@ function CostByOrgTable({
 					Cost by org
 				</h2>
 				<p className="max-w-measure type-body-sm text-text-2">
-					AI model spend split by organization this month. The unattributed row
-					is usage from installs no org has claimed yet.
+					AI model spend for each org this month. "No org" is usage from
+					installations that no org has claimed yet.
 				</p>
 			</div>
 			<Table aria-busy={loading || undefined} aria-label="Cost by org">
@@ -353,8 +354,8 @@ function CostByOrgTable({
 					<TableRow>
 						<TableHead>Org</TableHead>
 						<TableHead numeric>Runs</TableHead>
-						<TableHead numeric>AI</TableHead>
-						<TableHead numeric>Metered</TableHead>
+						<TableHead numeric>AI reviews</TableHead>
+						<TableHead numeric>AI cost</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -369,7 +370,7 @@ function CostByOrgTable({
 							rows={3}
 						/>
 					) : rows.length === 0 ? (
-						<TableEmpty colSpan={4} title="No rolled-up days yet" />
+						<TableEmpty colSpan={4} title="No daily totals yet" />
 					) : (
 						rows.map((row) => {
 							const unattributed = row.orgId === null;
@@ -378,9 +379,7 @@ function CostByOrgTable({
 									<TableCell
 										className={unattributed ? "text-text-2" : undefined}
 									>
-										{unattributed
-											? "Unattributed"
-											: (row.orgName ?? row.orgSlug)}
+										{unattributed ? "No org" : (row.orgName ?? row.orgSlug)}
 									</TableCell>
 									<TableCell numeric>{row.runs}</TableCell>
 									<TableCell numeric>{row.aiReviewedRuns}</TableCell>
