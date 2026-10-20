@@ -33,6 +33,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	submitFeedback: "authed", // product feedback, not org data
 	getInstallPreview: "authed", // pre-claim: caller may not be an admin yet
 	listClaimableInstallations: "authed", // recovery for id-less setup callbacks
+	listApprovedInstallRequests: "authed",
 	/**
 	 * A forge connection belongs to the USER, not an org — it is the caller's own
 	 * oauth link, and the same account can back repos in several orgs. Both carry
