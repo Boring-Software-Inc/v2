@@ -119,3 +119,31 @@ export function repoTabForLocation(
 	}
 	return { id: `${org}/${repo}`, org, repo, path: pathname };
 }
+
+export type RepoMatchStatus = "ok" | "missing" | "pending";
+
+export function repoMatchStatus(status: string | undefined): RepoMatchStatus {
+	if (status === "success") {
+		return "ok";
+	}
+	if (status === "notFound" || status === "error") {
+		return "missing";
+	}
+	return "pending";
+}
+
+export function repoTabSyncAction(
+	target: RepoTab | null,
+	status: RepoMatchStatus,
+): RepoTabsAction | null {
+	if (!target) {
+		return null;
+	}
+	if (status === "missing") {
+		return { type: "close", id: target.id };
+	}
+	if (status === "ok") {
+		return { type: "open", tab: target };
+	}
+	return null;
+}
