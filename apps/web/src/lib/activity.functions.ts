@@ -105,7 +105,7 @@ function executableRuleNames(
  */
 export function rerunRulesLine(ruleNames: string[]): string {
 	if (ruleNames.length === 0) {
-		return "no rules will evaluate — enable a rule or workflow first.";
+		return "no rules will run. Turn on a rule or workflow first";
 	}
 	if (ruleNames.length <= 3) {
 		if (ruleNames.length === 1) {

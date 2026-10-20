@@ -33,10 +33,10 @@ function useArm(org: string, repo: string, repoFullName: string) {
 		},
 		onSuccess: (result) => {
 			if (result.armed) {
-				toast.success(`Tripwire is now watching ${repoFullName}`);
+				toast.success(`Tripwire is on for ${repoFullName}`);
 			}
 		},
-		onError: () => toast.fail("Couldn't arm the repo. Try again."),
+		onError: () => toast.fail("Could not turn on Tripwire. Try again."),
 	});
 }
 
@@ -54,22 +54,23 @@ export function ArmCallout({
 			<Card className={className}>
 				<CardHeader>
 					<CardTitle className="type-heading">
-						Tripwire isn't guarding <span className="mono">{repoFullName}</span>
+						Tripwire is off for <span className="mono">{repoFullName}</span>
 					</CardTitle>
 					<CardDescription>
-						Unarmed, it ignores every change request here: no checks, no
-						comments, no blocks. Arm it to start checking each one against your
-						rules and blocking the ones that break them.
+						While it is off, Tripwire ignores every change request here. It
+						posts no checks or comments and blocks nothing. Turn it on to check
+						each change request against your rules and block the ones that break
+						them.
 					</CardDescription>
 				</CardHeader>
 				<CardFooter>
 					<Button
 						onClick={() => arm.mutate()}
 						pending={arm.isPending}
-						pendingLabel="Arming"
+						pendingLabel="Turning on"
 						size="sm"
 					>
-						Arm this repo
+						Turn on Tripwire
 					</Button>
 				</CardFooter>
 			</Card>
@@ -78,19 +79,19 @@ export function ArmCallout({
 
 	return (
 		<Alert announce={false} className={className} status="warn">
-			<AlertTitle>Not armed</AlertTitle>
+			<AlertTitle>Tripwire is off</AlertTitle>
 			<AlertDescription>
-				Tripwire ignores every change request here until you arm it.
+				Tripwire ignores every change request here until you turn it on.
 			</AlertDescription>
 			<AlertAction>
 				<Button
 					onClick={() => arm.mutate()}
 					pending={arm.isPending}
-					pendingLabel="Arming"
+					pendingLabel="Turning on"
 					size="sm"
 					variant="secondary"
 				>
-					Arm repo
+					Turn on Tripwire
 				</Button>
 			</AlertAction>
 		</Alert>

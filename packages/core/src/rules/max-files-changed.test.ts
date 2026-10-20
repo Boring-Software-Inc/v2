@@ -28,6 +28,6 @@ describe("max-files-changed@1", () => {
 			{ max: 10 },
 		);
 		expect(result.status).toBe("skipped");
-		expect(result.reason).toContain("diff");
+		expect(result.reason).toContain("could not read the files");
 	});
 });

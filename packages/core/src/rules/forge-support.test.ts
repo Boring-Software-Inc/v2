@@ -86,7 +86,7 @@ describe("rule forge support", () => {
 		expect(ruleSupportsForge("account-age", "gitlab")).toBe(false);
 		// Plain language, no jargon — this string reaches the rules page verbatim.
 		expect(ruleForgeBlockReason("account-age", "gitlab")).toBe(
-			"not usable with gitlab",
+			"This rule cannot run on GitLab.",
 		);
 		expect(ruleForgeBlockReason("account-age", "github")).toBeNull();
 	});

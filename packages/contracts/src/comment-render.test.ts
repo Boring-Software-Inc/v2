@@ -26,12 +26,12 @@ const MARKERS = /<!-- tripwire:[^>]*-->/g;
 
 const BLOCKED_REASONS = [
 	{
-		text: "your account is 2 days old",
+		text: "Your account is 2 days old.",
 		remedy: "wait" as const,
-		waitHint: "it clears in 5 days",
+		waitHint: "This clears in 5 days.",
 	},
 	{
-		text: "it adds 2 crypto addresses in DONATE.md",
+		text: "It adds 2 crypto wallet addresses to DONATE.md.",
 		remedy: "revise" as const,
 	},
 ];
@@ -55,9 +55,15 @@ describe("renderCommentBody — snapshot golden files", () => {
 				verdict: "block",
 				contributorLogin: "octocat",
 				reasons: [
-					{ text: "it adds 2 crypto addresses in DONATE.md", remedy: "revise" },
-					{ text: "this change touches 40 files", remedy: "revise" },
-					{ text: "the title isn't in latin script", remedy: "revise" },
+					{
+						text: "It adds 2 crypto wallet addresses to DONATE.md.",
+						remedy: "revise",
+					},
+					{ text: "It changes 40 files.", remedy: "revise" },
+					{
+						text: "Most of the title is not written in the Latin alphabet.",
+						remedy: "revise",
+					},
 				],
 				runUrl: "https://tripwire.sh/runs/0198abcd",
 				badgeUrl: "https://tripwire.sh/badges/view-run.png",
@@ -100,7 +106,9 @@ describe("renderCommentBody — snapshot golden files", () => {
 		});
 		// Same-verdict re-run edits the comment in place — this line is the only
 		// visible evidence a maintainer deliberately re-evaluated.
-		expect(body).toContain("re-evaluated under the repo's current rules.");
+		expect(body).toContain(
+			"Tripwire checked this again with the repository's current rules.",
+		);
 		expect(body).toMatchSnapshot();
 	});
 
@@ -115,20 +123,24 @@ describe("renderCommentBody — snapshot golden files", () => {
 		const lines = body.trim().split("\n").filter(Boolean);
 		// Verdict line present, @-mentions the contributor, no "tripwire:" prefix
 		// in the visible copy (the hidden marker is the only legit occurrence).
-		expect(lines[0]).toBe("**blocked** — @octocat, this can't merge yet.");
+		expect(lines[0]).toBe(
+			"@octocat, Tripwire blocked this from merging. Reasons:",
+		);
 		expect(body.replace(MARKERS, "")).not.toContain("tripwire:");
 		// Never counts rules.
 		expect(body).not.toMatch(/\d+ of \d+ rules?/);
 		// The wait-hint rides inline after its reason.
-		expect(body).toContain("your account is 2 days old — it clears in 5 days");
+		expect(body).toContain(
+			"- Your account is 2 days old. This clears in 5 days.",
+		);
 		// The button is VISIBLE — not wrapped in any <details>.
 		const buttonLine = lines.find((l) => l.includes("badges/view-run.png"));
 		expect(buttonLine).toContain('href="https://tripwire.sh/runs/x"');
 		expect(buttonLine).not.toContain("<details>");
 		expect(body).not.toContain("for maintainers");
 		// The how-to-fix + explainer collapse into details; one marker, last line.
-		expect(body).toContain("<details><summary>how do i fix this?</summary>");
-		expect(body).toContain("<details><summary>what is tripwire?</summary>");
+		expect(body).toContain("<details><summary>How do I fix this?</summary>");
+		expect(body).toContain("<details><summary>What is Tripwire?</summary>");
 		expect((body.match(new RegExp(COMMENT_MARKER)) ?? []).length).toBe(1);
 		expect(lines.at(-1)).toBe(COMMENT_MARKER);
 	});
@@ -139,18 +151,18 @@ const BLOCK_INPUT: CommentInput = {
 	contributorLogin: "octocat",
 	reasons: [
 		{
-			text: "your account is 2 days old",
+			text: "Your account is 2 days old.",
 			remedy: "wait",
-			waitHint: "it clears in 5 days",
+			waitHint: "This clears in 5 days.",
 			ruleId: "account-age",
 		},
 		{
-			text: "it adds 2 crypto addresses in DONATE.md",
+			text: "It adds 2 crypto wallet addresses to DONATE.md.",
 			remedy: "revise",
 			ruleId: "crypto-address",
 		},
 		{
-			text: "this change touches 40 files",
+			text: "It changes 40 files.",
 			remedy: "revise",
 			ruleId: "max-files-changed",
 		},
@@ -195,18 +207,18 @@ describe("renderVerdictComment — config-aware modes", () => {
 		);
 		// Every failed rule speaks — catalog contributor labels, name-prefixed.
 		expect(body).toContain(
-			"account age: your account is newer than this repo allows.",
+			"- Account age: Your account is newer than this repository allows.",
 		);
 		expect(body).toContain(
-			"crypto address: this change request contains a cryptocurrency address.",
+			"- Crypto address: This change request contains a cryptocurrency wallet address.",
 		);
 		expect(body).toContain(
-			"max files changed: this change request touches too many files.",
+			"- Max files changed: This change request changes too many files.",
 		);
-		expect(body).not.toContain("other things");
+		expect(body).not.toContain("more reasons");
 		// Brief mode: no collapsibles, but headline + button + marker stay.
 		expect(body).not.toContain("<details>");
-		expect(body).toContain("**blocked**");
+		expect(body).toContain("Tripwire blocked this from merging.");
 		expect(body).toContain('href="https://tripwire.sh/runs/0198abcd"');
 		expect(body).toContain(COMMENT_MARKER);
 		expect(body).toMatchSnapshot();
@@ -217,14 +229,16 @@ describe("renderVerdictComment — config-aware modes", () => {
 			BLOCK_INPUT,
 			modeConfig("one-liner-link", { showRuleName: false }),
 		);
-		expect(body).toContain("your account is newer than this repo allows.");
-		expect(body).not.toContain("account age:");
+		expect(body).toContain(
+			"- Your account is newer than this repository allows.",
+		);
+		expect(body).not.toContain("Account age:");
 	});
 
 	test("link-only: verdict line and button, no reasons", () => {
 		const body = renderVerdictComment(BLOCK_INPUT, modeConfig("link-only"));
-		expect(body).toContain("**blocked**");
-		expect(body).not.toContain("account");
+		expect(body).toContain("Tripwire blocked this from merging.");
+		expect(body).not.toContain("Your account");
 		expect(body).toContain('href="https://tripwire.sh/runs/0198abcd"');
 		expect(body).toContain(COMMENT_MARKER);
 		expect(body).toMatchSnapshot();
@@ -239,7 +253,7 @@ describe("renderVerdictComment — config-aware modes", () => {
 		);
 		expect(body).toBe(
 			[
-				"held: your account is newer than this repo allows.",
+				"held: your account is newer than this repository allows.",
 				"",
 				'<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>',
 				"",
@@ -247,6 +261,25 @@ describe("renderVerdictComment — config-aware modes", () => {
 				"",
 			].join("\n"),
 		);
+	});
+
+	test("custom: {{ruleName}} keeps the inserted text's casing", () => {
+		const labelled = renderVerdictComment(
+			BLOCK_INPUT,
+			modeConfig("custom", { template: "held because {{ruleName}}" }),
+		);
+		expect(labelled).toContain(
+			"held because your account is newer than this repository allows.",
+		);
+		const raw = renderVerdictComment(
+			{
+				...BLOCK_INPUT,
+				reasons: [{ text: "fork rate is 12", remedy: "revise" }],
+			},
+			modeConfig("custom", { template: "held: {{ruleName}}" }),
+		);
+		expect(raw).toContain("held: fork rate is 12");
+		expect(raw).not.toContain("Fork rate");
 	});
 
 	test("custom: {{runUrl}} renders the run BUTTON, never a bare url", () => {
@@ -284,12 +317,12 @@ describe("renderVerdictComment — per-outcome custom text + details button", ()
 		// The load-bearing assertion (§customize): a naive summary-only swap would
 		// strand the wait-hint / how-to-fix remedy and leak the very rule the
 		// maintainer set out to hide. NOTHING of the auto copy remains.
-		expect(body).not.toContain("your account is 2 days old");
-		expect(body).not.toContain("it clears in 5 days");
+		expect(body).not.toContain("Your account is 2 days old.");
+		expect(body).not.toContain("This clears in 5 days.");
 		expect(body).not.toContain("crypto");
-		expect(body).not.toContain("how do i fix this?");
-		expect(body).not.toContain("what is tripwire?");
-		expect(body).not.toContain("**blocked**");
+		expect(body).not.toContain("How do I fix this?");
+		expect(body).not.toContain("What is Tripwire?");
+		expect(body).not.toContain("Tripwire blocked this");
 		// The run button still rides by default; the marker anchors the upsert (§7).
 		expect(body).toContain('href="https://tripwire.sh/runs/0198abcd"');
 		expect(body.trim().endsWith(COMMENT_MARKER)).toBe(true);
@@ -314,9 +347,9 @@ describe("renderVerdictComment — per-outcome custom text + details button", ()
 			withOverride("block", { showDetailsButton: false }),
 		);
 		// The contributor still sees why; they just don't get the run-page link.
-		expect(body).toContain("your account is 2 days old");
+		expect(body).toContain("Your account is 2 days old.");
 		expect(body).not.toContain("badges/view-run.png");
-		expect(body).toContain("<details><summary>how do i fix this?</summary>");
+		expect(body).toContain("<details><summary>How do I fix this?</summary>");
 	});
 
 	test("block and review custom text are independent messages", () => {
@@ -344,7 +377,7 @@ describe("renderVerdictComment — per-outcome custom text + details button", ()
 			withOverride("pass", { customText: "all good — merge away." }),
 		);
 		expect(body).toContain("all good — merge away.");
-		expect(body).not.toContain("nothing tripped");
+		expect(body).not.toContain("passed Tripwire's checks");
 	});
 });
 
@@ -423,14 +456,16 @@ describe("responseConfig — defaults and surface gates", () => {
 describe("checkSummary — the check line the preview mirrors", () => {
 	test("per verdict, degraded review named", () => {
 		expect(checkSummary("block", BLOCK_INPUT.reasons)).toBe(
-			"blocked — your account is 2 days old",
+			"Blocked. Your account is 2 days old.",
 		);
-		expect(checkSummary("pass", [])).toBe("passed — nothing tripped");
+		expect(checkSummary("pass", [])).toBe(
+			"Passed. Tripwire found no problems.",
+		);
 		expect(checkSummary("needs_review", [])).toBe(
-			"sent to review — a maintainer needs to look at this",
+			"Sent to review. A maintainer must look at this change request before it can merge.",
 		);
 		expect(checkSummary("needs_review", [], true)).toBe(
-			"sent to review — couldn't finish checking this change",
+			"Sent to review. Tripwire could not finish checking this change request, so a maintainer will decide.",
 		);
 	});
 });

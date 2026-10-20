@@ -1,5 +1,6 @@
 type SiteConfig = {
 	name: string;
+	wordmark: string;
 	tagline: string;
 	themeColor: string;
 	githubRepositoryUrl: string;
@@ -8,11 +9,12 @@ type SiteConfig = {
 };
 
 export const siteConfig: SiteConfig = {
-	name: "tripwire",
+	name: "Tripwire",
+	wordmark: "tripwire",
 	tagline: "The firewall for your OSS projects",
 	themeColor: "#fbfbfa",
 	githubRepositoryUrl: "https://github.com/Boring-Software-Inc/tripwire",
-	defaultTitle: "tripwire | the open source firewall for git",
+	defaultTitle: "Tripwire | Open source firewall for git",
 	defaultDescription:
-		"tripwire is a contribution gatekeeper for git forges. it evaluates contributors and change requests against composable rules, blocks slop before it lands, and keeps every verdict auditable.",
+		"Tripwire is a contribution gatekeeper for git forges. It checks contributors and change requests against rules you set, blocks slop before it merges, and keeps a record of every verdict.",
 };

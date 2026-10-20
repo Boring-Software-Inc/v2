@@ -89,7 +89,7 @@ export const prRateLimit = defineRule({
 	},
 	publicEvidence: (e) => ({ count: e.count, intervalCov: e.intervalCov }),
 	summarize: (e) =>
-		`you've opened ${e.count} change ${e.count === 1 ? "request" : "requests"} today`,
+		`You opened ${e.count} change ${e.count === 1 ? "request" : "requests"} in a short time.`,
 	// A window property — clears as the rate falls back under the limit over time.
 	// No waitHint: the evidence carries no per-request timestamps, so the window
 	// remainder isn't derivable without leaking the configured windowHours.

@@ -69,7 +69,7 @@ describe("workflow secrets — set-only masking", () => {
 	test("a non-https url is rejected at save", () => {
 		const incoming = def({ url: "http://insecure.example/x" });
 		const { error } = restoreWorkflowSecrets(incoming, null);
-		expect(error).toContain("https");
+		expect(error).toContain("HTTPS");
 	});
 
 	test("a private-address url is rejected at save", () => {

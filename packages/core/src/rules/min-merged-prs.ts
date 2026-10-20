@@ -23,7 +23,10 @@ export const minMergedPrs = defineRule({
 	}),
 	evaluate(ctx, config) {
 		if (ctx.contributor === null) {
-			return { status: "skipped", reason: "contributor profile unavailable" };
+			return {
+				status: "skipped",
+				reason: "Tripwire could not read the contributor's profile.",
+			};
 		}
 		return {
 			status: "evaluated",
@@ -34,8 +37,8 @@ export const minMergedPrs = defineRule({
 	publicEvidence: (e) => ({ mergedInRepo: e.mergedInRepo }),
 	summarize: (e) =>
 		e.mergedInRepo === 0
-			? "you have no merged changes in this repo yet"
-			: `you have ${e.mergedInRepo} merged ${e.mergedInRepo === 1 ? "change" : "changes"} in this repo`,
+			? "You have no merged change requests in this repository yet."
+			: `You have ${e.mergedInRepo} merged ${e.mergedInRepo === 1 ? "change request" : "change requests"} in this repository.`,
 	// Clears by landing merged changes in the repo — activity, not this commit.
 	remedy: "wait",
 });
@@ -111,15 +114,15 @@ export const minMergedPrsV2 = defineRule({
 	}),
 	summarize: (e) =>
 		e.mergedElsewhere === 0
-			? "you have no merged changes in other repos yet"
-			: `you have ${e.mergedElsewhere} merged ${e.mergedElsewhere === 1 ? "change" : "changes"} in other repos`,
+			? "You have no merged change requests in other people's repositories yet."
+			: `You have ${e.mergedElsewhere} merged ${e.mergedElsewhere === 1 ? "change request" : "change requests"} in other people's repositories.`,
 	// Now honestly clearable — contribute (and get merged) elsewhere.
 	remedy: "wait",
 	// Derived remainder only — how many MORE, never the configured threshold.
 	waitHint: (e) => {
 		const remaining = e.min - e.mergedElsewhere;
 		return remaining > 0
-			? `it clears after ${remaining} more accepted ${remaining === 1 ? "merge" : "merges"} elsewhere`
+			? `This clears after ${remaining} more of your change requests ${remaining === 1 ? "is" : "are"} merged in other people's repositories.`
 			: null;
 	},
 });

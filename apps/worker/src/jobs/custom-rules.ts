@@ -2,6 +2,7 @@ import {
 	type CustomRuleRecord,
 	customRuleRecordSchema,
 	customRuleRef,
+	customSignalDisplay,
 	type RuleResult,
 } from "@tripwire/contracts";
 import { type GithubHttp, githubForge } from "@tripwire/forge-github";
@@ -94,9 +95,12 @@ export async function evaluateCustomRule(
 		githubForge.produces;
 	const producer = producers[record.definition.when.id];
 	if (!producer) {
+		const label = customSignalDisplay(record.definition.when.id)?.label;
 		return skipped(
 			record,
-			`signal ${record.definition.when.id} is not available on this forge`,
+			label
+				? `This rule uses "${label}", which this forge does not provide.`
+				: "This rule uses data that this forge does not provide.",
 			now,
 		);
 	}
@@ -109,8 +113,8 @@ export async function evaluateCustomRule(
 		return skipped(
 			record,
 			forge
-				? `custom rules need forge reads, which ${forge} does not expose`
-				: "forge reads unavailable",
+				? `Custom rules need data that ${forge} does not provide.`
+				: "Tripwire could not read data from the forge.",
 			now,
 		);
 	}

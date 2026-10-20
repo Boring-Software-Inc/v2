@@ -1,57 +1,55 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`renderCommentBody — snapshot golden files blocked (mixed remedies, wait-hint inline) 1`] = `
-"**blocked** — @octocat, this can't merge yet.
-
-your account is 2 days old — it clears in 5 days
-
-it adds 2 crypto addresses in DONATE.md
+"@octocat, Tripwire blocked this from merging. Reasons:
+- Your account is 2 days old. This clears in 5 days.
+- It adds 2 crypto wallet addresses to DONATE.md.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
-<details><summary>how do i fix this?</summary>
+<details><summary>How do I fix this?</summary>
 
-fix what you can and push again — this comment updates itself. the rest won't clear by pushing.
+Fix what you can, then push a new commit. Tripwire checks this again after every push. Some of these problems will not go away with a new commit.
 
-if you think this should go through anyway, say so in a comment here and a maintainer will decide.
+If you think this should merge anyway, say so in a comment here. A maintainer will decide.
 </details>
 
-<details><summary>what is tripwire?</summary>
+<details><summary>What is Tripwire?</summary>
 
-a firewall for open-source repos. the maintainers here set rules that every change has to clear before it can merge — account age, rate limits, hidden links, that kind of thing. org members are exempt.
+Tripwire checks contributions to this repository. The maintainers set rules that every change must pass before it can merge, such as rules about account age, how often you open change requests, and hidden links. Members of the organization skip these checks.
 
-nothing is hidden: the run page shows every rule this change hit, the evidence, and the verdict.
+The Tripwire page for this check shows every rule it applied, what it found, and the result.
 </details>
 <!-- tripwire:run -->
 "
 `;
 
 exports[`renderCommentBody — snapshot golden files blocked (3+ reasons collapse to plus-N) 1`] = `
-"**blocked** — @octocat, this can't merge yet.
-
-it adds 2 crypto addresses in DONATE.md, plus 2 other things.
+"@octocat, Tripwire blocked this from merging. Reasons:
+- It adds 2 crypto wallet addresses to DONATE.md.
+- 2 more reasons. See all of them on Tripwire.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
-<details><summary>how do i fix this?</summary>
+<details><summary>How do I fix this?</summary>
 
-fix those and push again — this comment updates itself. no need to reopen the pull request or ping anyone.
+Fix the problems listed above, then push a new commit. Tripwire checks this again after every push. You do not need to reopen anything or contact anyone.
 
-if you think this is wrong, say so in a comment here and a maintainer will decide.
+If you think this result is wrong, say so in a comment here. A maintainer will decide.
 </details>
 
-<details><summary>what is tripwire?</summary>
+<details><summary>What is Tripwire?</summary>
 
-a firewall for open-source repos. the maintainers here set rules that every change has to clear before it can merge — account age, rate limits, hidden links, that kind of thing. org members are exempt.
+Tripwire checks contributions to this repository. The maintainers set rules that every change must pass before it can merge, such as rules about account age, how often you open change requests, and hidden links. Members of the organization skip these checks.
 
-nothing is hidden: the run page shows every rule this change hit, the evidence, and the verdict.
+The Tripwire page for this check shows every rule it applied, what it found, and the result.
 </details>
 <!-- tripwire:run -->
 "
 `;
 
 exports[`renderCommentBody — snapshot golden files passed 1`] = `
-"**passed** — nothing tripped. good to merge.
+"This passed Tripwire's checks. Tripwire will not block it from merging.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 <!-- tripwire:run -->
@@ -59,24 +57,24 @@ exports[`renderCommentBody — snapshot golden files passed 1`] = `
 `;
 
 exports[`renderCommentBody — snapshot golden files sent to review 1`] = `
-"**sent to review** — @octocat, a maintainer needs to look at this before it can merge.
+"@octocat, Tripwire sent this to review. A maintainer must look at it before it can merge.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
-<details><summary>what is tripwire?</summary>
+<details><summary>What is Tripwire?</summary>
 
-a firewall for open-source repos. the maintainers here set rules that every change has to clear before it can merge — account age, rate limits, hidden links, that kind of thing. org members are exempt.
+Tripwire checks contributions to this repository. The maintainers set rules that every change must pass before it can merge, such as rules about account age, how often you open change requests, and hidden links. Members of the organization skip these checks.
 
-nothing is hidden: the run page shows every rule this change hit, the evidence, and the verdict.
+The Tripwire page for this check shows every rule it applied, what it found, and the result.
 </details>
 <!-- tripwire:run -->
 "
 `;
 
 exports[`renderCommentBody — snapshot golden files re-run: the quiet re-evaluation note rides under the headline 1`] = `
-"**passed** — nothing tripped. good to merge.
+"This passed Tripwire's checks. Tripwire will not block it from merging.
 
-re-evaluated under the repo's current rules.
+Tripwire checked this again with the repository's current rules.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 <!-- tripwire:run -->
@@ -84,13 +82,10 @@ re-evaluated under the repo's current rules.
 `;
 
 exports[`renderVerdictComment — config-aware modes one-liner-link: one contributor label per failed rule, never plus-N 1`] = `
-"**blocked** — @octocat, this can't merge yet.
-
-account age: your account is newer than this repo allows.
-
-crypto address: this change request contains a cryptocurrency address.
-
-max files changed: this change request touches too many files.
+"@octocat, Tripwire blocked this from merging. Reasons:
+- Account age: Your account is newer than this repository allows.
+- Crypto address: This change request contains a cryptocurrency wallet address.
+- Max files changed: This change request changes too many files.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
@@ -99,7 +94,7 @@ max files changed: this change request touches too many files.
 `;
 
 exports[`renderVerdictComment — config-aware modes link-only: verdict line and button, no reasons 1`] = `
-"**blocked** — @octocat, this can't merge yet.
+"@octocat, Tripwire blocked this from merging.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 

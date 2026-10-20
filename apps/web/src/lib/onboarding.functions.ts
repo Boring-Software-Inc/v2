@@ -248,21 +248,27 @@ export const moveInstallationToOrg = createServerFn({ method: "POST" })
 					need: "admin",
 				});
 				if (!target.ok) {
-					return { moved: false, error: "you need admin on the target org" };
+					return {
+						moved: false,
+						error: "You must be an admin of the org you chose.",
+					};
 				}
 				// Source must actually own the installation being moved.
 				const ownerOrg = await orgServices.getInstallationOrg(db, {
 					installationId: data.installationId,
 				});
 				if (ownerOrg !== source.id) {
-					return { moved: false, error: "installation is not in this org" };
+					return {
+						moved: false,
+						error: "This installation does not belong to this org.",
+					};
 				}
 				return await orgServices.moveInstallation(db, {
 					installationId: data.installationId,
 					toOrgId: target.org.id,
 				});
 			}
-			return { moved: false, error: "sign in required" };
+			return { moved: false, error: "Sign in to continue." };
 		},
 	);
 

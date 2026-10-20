@@ -57,7 +57,7 @@ export function buildCommentReasons(
 			(custom && observed !== null
 				? customRuleSummary(custom.definition, observed)
 				: null) ??
-			`${custom?.name ?? env.ruleId} failed`;
+			`It does not meet the rule "${custom?.name ?? env.ruleId}".`;
 		const remedy = rule?.remedy ?? "revise";
 		const waitHint =
 			remedy === "wait" && rule?.waitHint && evidence

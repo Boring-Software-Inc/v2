@@ -10,7 +10,7 @@ export const Route = createFileRoute("/admin/economics")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle("Economics"),
-			description: "platform unit economics and cost.",
+			description: "What the platform costs to run.",
 			noindex: true,
 		}),
 });

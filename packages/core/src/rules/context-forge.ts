@@ -34,14 +34,16 @@ type Registry = typeof registry;
 
 function requireContributor(ctx: RuleContext) {
 	if (ctx.contributor === null) {
-		signalUnavailable("contributor profile unavailable");
+		signalUnavailable("Tripwire could not read the contributor's profile.");
 	}
 	return ctx.contributor;
 }
 
 function requireDiff(ctx: RuleContext) {
 	if (ctx.diff === null) {
-		signalUnavailable("diff unavailable");
+		signalUnavailable(
+			"Tripwire could not read the files in this change request.",
+		);
 	}
 	return ctx.diff;
 }
@@ -53,7 +55,9 @@ export const contextForge = defineForge<RuleContext>()({
 			const contributor = requireContributor(ctx.forge);
 			const created = Date.parse(contributor.createdAt);
 			if (Number.isNaN(created)) {
-				signalUnavailable("contributor createdAt unparseable");
+				signalUnavailable(
+					"Tripwire could not read when the contributor's account was created.",
+				);
 			}
 			return Math.floor((Date.parse(ctx.now) - created) / DAY_MS);
 		},
@@ -61,7 +65,9 @@ export const contextForge = defineForge<RuleContext>()({
 		[mergedElsewhere.id]: (ctx) => {
 			const merged = requireContributor(ctx.forge).mergedElsewhere;
 			if (merged === null) {
-				signalUnavailable("global merge history unavailable");
+				signalUnavailable(
+					"Tripwire could not read the contributor's merge history in other repositories.",
+				);
 			}
 			return merged;
 		},
@@ -72,13 +78,13 @@ export const contextForge = defineForge<RuleContext>()({
 			if ("changeRequest" in ctx.forge.event) {
 				return ctx.forge.event.changeRequest.title;
 			}
-			signalUnavailable("this event has no change request");
+			signalUnavailable("This event has no change request.");
 		},
 		[commentBody.id]: (ctx) => {
 			if (ctx.forge.event.kind === "comment.created") {
 				return ctx.forge.event.comment.body;
 			}
-			signalUnavailable("this event has no comment");
+			signalUnavailable("This event has no comment.");
 		},
 		[textByLocation.id]: (ctx) => {
 			// Insertion order IS the scan order: comment, title, then patch paths.

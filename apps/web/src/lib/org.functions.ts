@@ -66,7 +66,7 @@ export const createOrg = createServerFn({ method: "POST" })
 		const { getAuth } = await import("#/lib/server/auth");
 		const auth = getAuth();
 		if (!auth) {
-			return { error: "auth is disabled in open-dev" };
+			return { error: "Sign-in is turned off in open-dev mode." };
 		}
 		const { getStartContext } = await import("@tanstack/start-storage-context");
 		try {
@@ -83,7 +83,7 @@ export const createOrg = createServerFn({ method: "POST" })
 			return { slug: org?.slug ?? data.slug };
 		} catch (err) {
 			return {
-				error: err instanceof Error ? err.message : "could not create the org",
+				error: err instanceof Error ? err.message : "Could not create the org.",
 			};
 		}
 	});
@@ -108,7 +108,7 @@ export const updateOrg = createServerFn({ method: "POST" })
 			const { getAuth } = await import("#/lib/server/auth");
 			const auth = getAuth();
 			if (!auth) {
-				return { error: "auth is disabled in open-dev" };
+				return { error: "Sign-in is turned off in open-dev mode." };
 			}
 			const { getStartContext } = await import(
 				"@tanstack/start-storage-context"
@@ -131,7 +131,7 @@ export const updateOrg = createServerFn({ method: "POST" })
 			} catch (err) {
 				return {
 					error:
-						err instanceof Error ? err.message : "could not update the org",
+						err instanceof Error ? err.message : "Could not update the org.",
 				};
 			}
 		},
@@ -159,10 +159,10 @@ export const deleteOrg = createServerFn({ method: "POST" })
 		async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
 			const org = (context as { org: OrgWithRole }).org;
 			if (org.isPersonal) {
-				return { ok: false, error: "personal orgs cannot be deleted" };
+				return { ok: false, error: "You cannot delete a personal org." };
 			}
 			if (data.confirmName !== org.name) {
-				return { ok: false, error: "type the org name exactly to confirm" };
+				return { ok: false, error: "Type the org name exactly to confirm." };
 			}
 			const { getDb } = await import("#/lib/server/db");
 			const { orgServices } = await import("@tripwire/db");
@@ -228,7 +228,7 @@ export const updateOrgMemberRole = createServerFn({ method: "POST" })
 			const { getAuth } = await import("#/lib/server/auth");
 			const auth = getAuth();
 			if (!auth) {
-				return { ok: false, error: "auth is disabled in open-dev" };
+				return { ok: false, error: "Sign-in is turned off in open-dev mode." };
 			}
 			const { getStartContext } = await import(
 				"@tanstack/start-storage-context"
@@ -273,13 +273,13 @@ export const removeOrgMember = createServerFn({ method: "POST" })
 				// §5: no self-kick. Leaving is a deliberate separate action.
 				return {
 					ok: false,
-					error: "you can't remove yourself — leave instead",
+					error: "You cannot remove yourself. Leave the org instead.",
 				};
 			}
 			const { getAuth } = await import("#/lib/server/auth");
 			const auth = getAuth();
 			if (!auth) {
-				return { ok: false, error: "auth is disabled in open-dev" };
+				return { ok: false, error: "Sign-in is turned off in open-dev mode." };
 			}
 			const { getStartContext } = await import(
 				"@tanstack/start-storage-context"
@@ -306,12 +306,12 @@ export const leaveOrg = createServerFn({ method: "POST" })
 	.handler(async ({ context }): Promise<{ ok: boolean; error?: string }> => {
 		const org = (context as { org: OrgWithRole }).org;
 		if (org.isPersonal) {
-			return { ok: false, error: "you can't leave your personal org" };
+			return { ok: false, error: "You cannot leave your personal org." };
 		}
 		const { getAuth } = await import("#/lib/server/auth");
 		const auth = getAuth();
 		if (!auth) {
-			return { ok: false, error: "auth is disabled in open-dev" };
+			return { ok: false, error: "Sign-in is turned off in open-dev mode." };
 		}
 		const { getStartContext } = await import("@tanstack/start-storage-context");
 		try {
@@ -324,7 +324,9 @@ export const leaveOrg = createServerFn({ method: "POST" })
 			return {
 				ok: false,
 				error:
-					err instanceof Error ? err.message : "you're the last admin here",
+					err instanceof Error
+						? err.message
+						: "You are the last admin of this org.",
 			};
 		}
 	});
@@ -340,7 +342,7 @@ export const createOrgInvite = createServerFn({ method: "POST" })
 			const { requireSession } = await import("#/lib/server/session");
 			const userId = await requireSession();
 			if (!userId) {
-				return { error: "sign in to create invites" };
+				return { error: "Sign in to create invites." };
 			}
 			const { getDb } = await import("#/lib/server/db");
 			const { orgServices } = await import("@tripwire/db");

@@ -85,12 +85,15 @@ function defineAiReview(version: number, instructions: string) {
 			if (!ctx.generate) {
 				return {
 					status: "skipped",
-					reason: "generate unavailable (no AI credentials)",
+					reason: "AI review is not set up on this deployment.",
 				};
 			}
 			const prompt = renderPrompt(ctx);
 			if (prompt === null) {
-				return { status: "skipped", reason: "not a change-request event" };
+				return {
+					status: "skipped",
+					reason: "This event is not a change request.",
+				};
 			}
 			const response = await ctx.generate({
 				model: config.model,

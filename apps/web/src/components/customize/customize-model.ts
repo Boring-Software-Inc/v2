@@ -19,13 +19,13 @@ export const VERDICTS: { value: Verdict; label: string }[] = [
 
 export const SAMPLE_REASONS: CommentReason[] = [
 	{
-		text: "your account is 2 days old",
+		text: "Your account is 2 days old.",
 		remedy: "wait",
-		waitHint: "it clears in 5 days",
+		waitHint: "This clears in 5 days.",
 		ruleId: "account-age",
 	},
 	{
-		text: "it adds 2 crypto addresses in DONATE.md",
+		text: "It adds 2 crypto wallet addresses to DONATE.md.",
 		remedy: "revise",
 		ruleId: "crypto-address",
 	},

@@ -36,24 +36,26 @@ describe("webhookPayloadSchema — the public v1 contract", () => {
 describe("formatDiscordMessage — own formatter, verdict-colored", () => {
 	test("blocked: content + embed with reasons and run link", () => {
 		const msg = formatDiscordMessage(PAYLOAD);
-		expect(msg.content).toBe("acme/web #42 blocked.");
+		expect(msg.content).toBe("Tripwire blocked acme/web #42.");
 		expect(msg.embeds[0]?.url).toBe("https://tripwire.sh/runs/abc");
 		expect(msg.embeds[0]?.color).toBe(0xef4444);
 		expect(msg.embeds[0]?.description).toContain("your account is 2 days old");
 	});
-	test("passed: green, nothing tripped", () => {
+	test("passed: green, no rule blocked it", () => {
 		const msg = formatDiscordMessage({
 			...PAYLOAD,
 			verdict: "pass",
 			firedRules: [],
 		});
-		expect(msg.content).toBe("acme/web #42 passed.");
+		expect(msg.content).toBe("acme/web #42 passed Tripwire's checks.");
 		expect(msg.embeds[0]?.color).toBe(0x22c55e);
-		expect(msg.embeds[0]?.description).toBe("nothing tripped.");
+		expect(msg.embeds[0]?.description).toBe(
+			"No rule blocked this change request.",
+		);
 	});
 	test("sent to review: amber", () => {
 		const msg = formatDiscordMessage({ ...PAYLOAD, verdict: "needs_review" });
-		expect(msg.content).toContain("sent to review");
+		expect(msg.content).toBe("Tripwire sent acme/web #42 to review.");
 		expect(msg.embeds[0]?.color).toBe(0xf59e0b);
 	});
 });

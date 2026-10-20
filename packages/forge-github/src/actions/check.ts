@@ -35,7 +35,8 @@ export async function setCheck(
 		...(conclusion ? { conclusion } : {}),
 		details_url: state.detailsUrl,
 		output: {
-			title: state.summary.split("—")[0]?.trim() ?? CHECK_NAME,
+			title:
+				state.summary.split(". ")[0]?.replace(/\.$/, "").trim() || CHECK_NAME,
 			summary: state.summary,
 		},
 	};

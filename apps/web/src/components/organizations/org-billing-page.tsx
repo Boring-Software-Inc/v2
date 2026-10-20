@@ -15,7 +15,7 @@ export function OrgBillingPage() {
 		<Empty art={<MascotArt mood="billing-empty" />} variant="plain">
 			<EmptyHeader>
 				<EmptyTitle>Nothing to configure yet</EmptyTitle>
-				<EmptyDescription>Billing lands with Autumn.</EmptyDescription>
+				<EmptyDescription>Billing is not available yet.</EmptyDescription>
 			</EmptyHeader>
 			<EmptyContent>
 				<Button

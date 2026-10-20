@@ -30,7 +30,7 @@ export const englishOnly = defineRule({
 					? ("pr.title" as const)
 					: null;
 		if (source === null) {
-			return { status: "skipped", reason: "no text to examine" };
+			return { status: "skipped", reason: "There is no text to check." };
 		}
 		const read = await readContextSignal(source, ctx);
 		if (!read.ok) {
@@ -38,7 +38,7 @@ export const englishOnly = defineRule({
 		}
 		const text = read.value;
 		if (text.trim() === "") {
-			return { status: "skipped", reason: "no text to examine" };
+			return { status: "skipped", reason: "There is no text to check." };
 		}
 		const when =
 			source === "comment.body" ? signals.comment.body : signals.pr.title;
@@ -48,7 +48,7 @@ export const englishOnly = defineRule({
 			now: ctx.now,
 		}).value as number;
 		if (letters < 4) {
-			return { status: "skipped", reason: "not enough letters to judge" };
+			return { status: "skipped", reason: "The text is too short to check." };
 		}
 		const requirement = rule("english only", {
 			when: when.nonLatinRatio,
@@ -78,7 +78,7 @@ export const englishOnly = defineRule({
 		lettersExamined: e.lettersExamined,
 		sample: e.sample,
 	}),
-	summarize: () => "the title isn't in latin script",
+	summarize: () => "Most of the title is not written in the Latin alphabet.",
 	// Fixable in the change itself — rewrite the title/body in latin script.
 	remedy: "revise",
 });

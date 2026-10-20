@@ -193,10 +193,10 @@ export function AdminUsersPage() {
 					<header className="flex flex-col gap-1">
 						<h1 className="type-title">Users</h1>
 						<p className="max-w-measure type-body text-text-2">
-							Beta access review. Approve writes through the same promotion path
-							invite redemption uses. The re-run cooldown duration is env-global
-							(<code>RERUN_COOLDOWN_SECONDS</code>); the per-account exempt flag
-							is toggled below.
+							Review beta access requests. Approving a user gives the same
+							access as accepting an invite. <code>RERUN_COOLDOWN_SECONDS</code>{" "}
+							sets the re-run cooldown for every user. You can turn the cooldown
+							off for one user below.
 						</p>
 					</header>
 

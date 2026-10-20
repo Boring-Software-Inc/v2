@@ -15,12 +15,13 @@ const SECTIONS = [
 	{
 		to: "/admin/orgs",
 		title: "Orgs",
-		description: "Inspect orgs and members. Fix role state without psql.",
+		description: "Look at orgs and members, and fix member roles.",
 	},
 	{
 		to: "/admin/economics",
 		title: "Economics",
-		description: "Unit cost, drift, credit burn-down and cost by org.",
+		description:
+			"Cost per run, drift from invoices, remaining credit, and cost by org.",
 	},
 ] as const;
 

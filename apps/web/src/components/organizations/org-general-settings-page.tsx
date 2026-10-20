@@ -167,7 +167,7 @@ function RenameSection({
 			className="flex flex-col gap-3"
 		>
 			<SectionHeading
-				description="The avatar's initials come from the name."
+				description="Tripwire draws the avatar from the name."
 				id="org-general-heading"
 				title="General"
 			/>

@@ -176,12 +176,12 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 						</>
 					) : null
 				) : (
-					<Badge variant="outline">Not armed</Badge>
+					<Badge variant="outline">Off</Badge>
 				)
 			}
 			description={
 				<>
-					{repo.armed ? attentionLine(repo) : "Available, not armed"}
+					{repo.armed ? attentionLine(repo) : "Tripwire is off"}
 					{repo.lastActivityAt
 						? ` · ${formatRelativeTime(repo.lastActivityAt)}`
 						: null}
@@ -236,5 +236,5 @@ function attentionLine(repo: SwitcherRepo): string {
 	if (repo.blocked24h > 0) {
 		return "Blocking change requests today";
 	}
-	return "Watching, nothing waiting";
+	return "Nothing needs your decision";
 }

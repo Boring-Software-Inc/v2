@@ -10,7 +10,7 @@ export const Route = createFileRoute("/runs/$runId")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle(`Run ${params.runId.slice(0, 8)}`),
-			description: "auditable run — every rule, every step, the evidence.",
+			description: "Every rule, step, and piece of evidence for this run.",
 			noindex: true,
 		}),
 });

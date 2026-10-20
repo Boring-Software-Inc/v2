@@ -60,7 +60,7 @@ export function CustomizePage() {
 
 	const commitBatch: SaveQueueCommit = async (pending) => {
 		if (!savedConfig) {
-			return { error: "not loaded yet" };
+			return { error: "Settings have not loaded yet." };
 		}
 		const next = unflattenConfig({ ...savedValues, ...pending });
 		try {
@@ -72,8 +72,8 @@ export function CustomizePage() {
 				return { error: result.error };
 			}
 		} catch {
-			setSaveError("save failed");
-			return { error: "save failed" };
+			setSaveError("Could not save.");
+			return { error: "Could not save." };
 		}
 		setSaveError(null);
 		await queryClient.invalidateQueries({

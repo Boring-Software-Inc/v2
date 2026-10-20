@@ -107,7 +107,7 @@ describe("§10 public partition", () => {
 		const { rule } = listRules().find((r) => r.rule.id === "account-age") ?? {};
 		expect(rule?.remedy).toBe("wait");
 		expect(rule?.waitHint?.({ accountAgeDays: 2, minDays: 7 })).toBe(
-			"it clears in 5 days",
+			"This clears in 5 days.",
 		);
 		// A contributor already over the bar has nothing to wait for.
 		expect(rule?.waitHint?.({ accountAgeDays: 30, minDays: 7 })).toBeNull();
@@ -130,13 +130,15 @@ describe("§10 public partition", () => {
 			SAMPLE_EVIDENCE["account-age"],
 		);
 		expect(age.publicEvidence).toEqual({ accountAgeDays: 2038 });
-		expect(age.summary).toBe("your account is 2038 days old");
+		expect(age.summary).toBe("Your account is 2038 days old.");
 
 		const crypto = projectRulePublic(
 			"crypto-address@1",
 			SAMPLE_EVIDENCE["crypto-address"],
 		);
-		expect(crypto.summary).toBe("it adds 1 crypto address in DONATE.md");
+		expect(crypto.summary).toBe(
+			"It adds 1 crypto wallet address to DONATE.md.",
+		);
 	});
 
 	test("skipped evidence (null) projects to nothing — safe by default", () => {

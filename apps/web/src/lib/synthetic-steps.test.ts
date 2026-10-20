@@ -10,9 +10,9 @@ describe("describeSyntheticStep", () => {
 			output: { rule: "deny (no deny edge) → block by default" },
 		});
 		expect(view?.kind).toBe("deny-floor");
-		expect(view?.title).toBe("denied by maintainer");
-		expect(view?.detail).toContain("no deny edge drawn");
-		expect(view?.detail).toContain("deny never fails open");
+		expect(view?.title).toBe("Denied by a maintainer");
+		expect(view?.detail).toContain("no path for a denial");
+		expect(view?.detail).toContain("blocked the change request");
 	});
 
 	test("run:degradation names the count and what it cost", () => {
@@ -25,10 +25,10 @@ describe("describeSyntheticStep", () => {
 			},
 		});
 		expect(view?.kind).toBe("degradation");
-		expect(view?.title).toBe("some rules couldn't run");
+		expect(view?.title).toBe("Some rules could not run");
 		expect(view?.detail).toContain("2 of 3 skipped");
 		expect(view?.detail).toContain("getContributorProfile");
-		expect(view?.detail).toContain("sent to review");
+		expect(view?.detail).toContain("Sent to review");
 		// The old copy argued with the reader and used our own jargon.
 		expect(view?.detail).not.toContain("guesswork");
 		expect(view?.detail).not.toContain("fail-closed floor");
@@ -39,8 +39,8 @@ describe("describeSyntheticStep", () => {
 			nodeId: "run:degradation",
 			output: { skippedRules: 1, ruleNodes: 2 },
 		});
-		expect(view?.title).toBe("a rule couldn't run");
-		expect(view?.detail).toBe("1 of 2 skipped. sent to review.");
+		expect(view?.title).toBe("A rule could not run");
+		expect(view?.detail).toBe("1 of 2 skipped. Sent to review.");
 	});
 
 	test("with the fallback off it says the run passed anyway", () => {
@@ -48,8 +48,10 @@ describe("describeSyntheticStep", () => {
 			nodeId: "run:degradation",
 			output: { skippedRules: 2, ruleNodes: 3, enforced: false },
 		});
-		expect(view?.detail).toContain("passed without them");
-		expect(view?.detail).toContain("set to pass when a rule can't run");
+		expect(view?.detail).toContain("Passed without them");
+		expect(view?.detail).toContain(
+			"passes change requests when a rule cannot run",
+		);
 		expect(view?.detail).not.toContain("sent to review");
 	});
 
@@ -59,7 +61,7 @@ describe("describeSyntheticStep", () => {
 			output: null,
 		});
 		// No counts to show, so it says only what happened. Never a stray "skipped."
-		expect(view?.detail).toBe("sent to review.");
+		expect(view?.detail).toBe("Sent to review.");
 	});
 
 	test("ordinary graph nodes are not synthetic", () => {

@@ -143,7 +143,10 @@ export async function handleDevRequest(request: Request): Promise<Response> {
 	const auth = getAuth();
 	if (!auth) {
 		return json(
-			{ error: "auth disabled — set BETTER_AUTH_SECRET to use the switcher" },
+			{
+				error:
+					"Sign-in is turned off. Set BETTER_AUTH_SECRET to use the persona switcher.",
+			},
 			503,
 		);
 	}

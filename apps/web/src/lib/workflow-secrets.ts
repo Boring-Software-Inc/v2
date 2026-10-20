@@ -97,7 +97,8 @@ export function restoreWorkflowSecrets(
 				}
 			} else if (typeof incomingValue === "string") {
 				if (key === "url" && !isDeliverableUrl(incomingValue)) {
-					error = "webhook url must be https and not a private address";
+					error =
+						"The webhook URL must use HTTPS and must not be a private address.";
 				} else if (key === "url") {
 					changedUrlNodes.push({
 						nodeId: node.id,
@@ -106,7 +107,7 @@ export function restoreWorkflowSecrets(
 					});
 				}
 				if (key === "signingSecret" && incomingValue.length > 512) {
-					error = "signing secret is too long";
+					error = "The signing secret is too long.";
 				}
 			}
 		}

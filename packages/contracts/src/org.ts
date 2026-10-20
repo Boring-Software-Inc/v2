@@ -72,7 +72,7 @@ export const orgSlugSchema = z
 	.max(32, "slug must be at most 32 characters")
 	.regex(
 		SLUG_PATTERN,
-		"lowercase letters, numbers, and hyphens only — no leading or trailing hyphen",
+		"lowercase letters, numbers, and hyphens only, with no leading or trailing hyphen",
 	)
 	.refine((slug) => !RESERVED_ORG_SLUGS.has(slug), {
 		message: "this name is reserved",

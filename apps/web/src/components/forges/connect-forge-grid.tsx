@@ -85,7 +85,7 @@ export function ConnectForgeGrid({
 				body:
 					installUrl?.status === "not-configured"
 						? `The ${label} app isn't configured on this deployment.`
-						: "Couldn't mint an install URL. Try again shortly.",
+						: "Could not create an install link. Try again soon.",
 			};
 		}
 		return {

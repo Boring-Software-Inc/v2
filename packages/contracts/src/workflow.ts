@@ -258,25 +258,25 @@ export const TRIGGER_CATALOG: TriggerCatalogEntry[] = [
 	{
 		kind: "installation.created",
 		name: "installation created",
-		description: "Plumbing event — installations sync outside workflows.",
+		description: "Internal event. Installations sync outside workflows.",
 		toolbox: false,
 	},
 	{
 		kind: "installation.deleted",
 		name: "installation deleted",
-		description: "Plumbing event — installations sync outside workflows.",
+		description: "Internal event. Installations sync outside workflows.",
 		toolbox: false,
 	},
 	{
 		kind: "installation-repositories.added",
 		name: "repos added",
-		description: "Plumbing event — installations sync outside workflows.",
+		description: "Internal event. Installations sync outside workflows.",
 		toolbox: false,
 	},
 	{
 		kind: "installation-repositories.removed",
 		name: "repos removed",
-		description: "Plumbing event — installations sync outside workflows.",
+		description: "Internal event. Installations sync outside workflows.",
 		toolbox: false,
 	},
 ];
@@ -301,7 +301,7 @@ export const GATE_CATALOG: GateCatalogEntry[] = [
 	{
 		mode: "not",
 		name: "not",
-		description: "Flips its input — pass becomes fail, fail becomes pass.",
+		description: "Flips its input: pass becomes fail, and fail becomes pass.",
 	},
 ];
 
@@ -335,7 +335,7 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 	{
 		action: "send-to-moderation",
 		name: "send to moderation",
-		description: "Pauses here — a human decides in your moderation queue.",
+		description: "Pauses here so a person can decide in your moderation queue.",
 	},
 	{
 		action: "webhook",

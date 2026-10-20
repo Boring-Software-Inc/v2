@@ -38,13 +38,14 @@ export const accountAge = defineRule({
 		};
 	},
 	publicEvidence: (e) => ({ accountAgeDays: e.accountAgeDays }),
-	summarize: (e) => `your account is ${e.accountAgeDays} days old`,
+	summarize: (e) =>
+		`Your account is ${e.accountAgeDays} ${e.accountAgeDays === 1 ? "day" : "days"} old.`,
 	remedy: "wait",
 	// Derived remainder only — the age needed never appears, just how much is left.
 	waitHint: (e) => {
 		const remaining = e.minDays - e.accountAgeDays;
 		return remaining > 0
-			? `it clears in ${remaining} ${remaining === 1 ? "day" : "days"}`
+			? `This clears in ${remaining} ${remaining === 1 ? "day" : "days"}.`
 			: null;
 	},
 });

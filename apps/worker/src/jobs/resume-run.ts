@@ -160,8 +160,7 @@ export async function resumeRun(
 					{
 						kind: "block",
 						payload: {
-							reason:
-								"denied by maintainer — graph drew no block on the deny path",
+							reason: "A maintainer reviewed this and blocked it from merging.",
 						},
 						idempotencyKey: `block:${definition.id}:${pausedNode}:deny-floor`,
 					},
@@ -215,7 +214,10 @@ async function resumeDegradedRun(
 			? await runServices.recordActions(deps.db, runId, [
 					{
 						kind: "block",
-						payload: { reason: "degraded evaluation denied by maintainer" },
+						payload: {
+							reason:
+								"Tripwire could not finish checking this. A maintainer reviewed it and blocked it from merging.",
+						},
 						idempotencyKey: "block:degraded:deny",
 					},
 				])

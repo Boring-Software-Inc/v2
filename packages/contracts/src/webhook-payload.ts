@@ -40,11 +40,16 @@ export const webhookPayloadSchema = z.object({
 });
 export type WebhookPayload = z.infer<typeof webhookPayloadSchema>;
 
-const VERDICT_WORD: Record<WebhookPayload["verdict"], string> = {
-	pass: "passed",
-	block: "blocked",
-	needs_review: "sent to review",
-};
+function discordHeadline(payload: WebhookPayload): string {
+	const subject = `${payload.repo} #${payload.changeRequest.number}`;
+	if (payload.verdict === "pass") {
+		return `${subject} passed Tripwire's checks.`;
+	}
+	if (payload.verdict === "block") {
+		return `Tripwire blocked ${subject}.`;
+	}
+	return `Tripwire sent ${subject} to review.`;
+}
 
 /**
  * The Discord message shape (`content` + one embed). Its OWN pure formatter —
@@ -61,7 +66,6 @@ export function formatDiscordMessage(payload: WebhookPayload): {
 		color: number;
 	}[];
 } {
-	const word = VERDICT_WORD[payload.verdict];
 	const color =
 		payload.verdict === "pass"
 			? 0x22c55e
@@ -71,9 +75,9 @@ export function formatDiscordMessage(payload: WebhookPayload): {
 	const reasons =
 		payload.firedRules.length > 0
 			? payload.firedRules.map((rule) => `- ${rule.summary}`).join("\n")
-			: "nothing tripped.";
+			: "No rule blocked this change request.";
 	return {
-		content: `${payload.repo} #${payload.changeRequest.number} ${word}.`,
+		content: discordHeadline(payload),
 		embeds: [
 			{
 				title: `#${payload.changeRequest.number} ${payload.changeRequest.title}`,

@@ -48,7 +48,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 				className="flex h-(--control) shrink-0 items-center gap-2 rounded-pill px-2 text-text-1 hover:bg-hover"
 			>
 				<TripwireWordmark height={15} width={24} />
-				<span className="type-label">{siteConfig.name}</span>
+				<span className="type-label">{siteConfig.wordmark}</span>
 			</Link>
 
 			<RepoTabBar className="hidden md:flex" />

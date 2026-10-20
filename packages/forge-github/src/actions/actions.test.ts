@@ -52,7 +52,7 @@ const COMMON = {
 };
 const BLOCK_COMMENT = renderCommentBody({
 	verdict: "block",
-	reasons: [{ text: "your account is 2 days old", remedy: "wait" }],
+	reasons: [{ text: "Your account is 2 days old.", remedy: "wait" }],
 	...COMMON,
 });
 const PASS_COMMENT = renderCommentBody({
@@ -141,7 +141,9 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 		const patch = calls.find((c) => c.method === "PATCH");
 		expect(patch?.path).toBe("/repos/a/b/issues/comments/9");
 		const patchedBody = (patch?.body as { body: string }).body;
-		expect(patchedBody).toContain("superseded — see the newer check below.");
+		expect(patchedBody).toContain(
+			"This result is out of date. See the newer comment below.",
+		);
 		expect(patchedBody).not.toContain(COMMENT_MARKER);
 		// a genuinely new comment is posted, chronologically last.
 		expect(calls.find((c) => c.method === "POST")?.path).toBe(
@@ -183,7 +185,7 @@ describe("setCheck", () => {
 	const state = {
 		sha: "a".repeat(40),
 		conclusion: "failure" as const,
-		summary: "blocked — your account is 2 days old",
+		summary: "Blocked. Your account is 2 days old.",
 		detailsUrl: "https://tripwire.sh/runs/x",
 	};
 
@@ -201,6 +203,7 @@ describe("setCheck", () => {
 			status: "completed",
 			conclusion: "failure",
 			details_url: state.detailsUrl,
+			output: { title: "Blocked", summary: state.summary },
 		});
 	});
 
@@ -239,14 +242,14 @@ describe("executeAction — block files a request-changes review", () => {
 			kind: "block",
 			repoFullName: "a/b",
 			number: 7,
-			reason: "blocked — your account is 2 days old.",
+			reason: "Tripwire blocked this from merging. Your account is 2 days old.",
 		});
 		expect(result.externalId).toBe("91");
 		const post = calls.find((c) => c.method === "POST");
 		expect(post?.path).toBe("/repos/a/b/pulls/7/reviews");
 		expect(post?.body).toMatchObject({ event: "REQUEST_CHANGES" });
 		expect(String((post?.body as { body: string }).body)).toContain(
-			"blocked — your account is 2 days old.",
+			"Tripwire blocked this from merging. Your account is 2 days old.",
 		);
 	});
 });

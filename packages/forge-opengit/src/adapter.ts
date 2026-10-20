@@ -34,9 +34,7 @@ import { verifyWebhookSignature } from "./webhook/verify.ts";
  */
 
 function noReadSurface(what: string): never {
-	throw new Error(
-		`open-git exposes no ${what} endpoint — this read is unavailable, not empty`,
-	);
+	throw new Error(`OpenGit does not give Tripwire access to ${what}.`);
 }
 
 export function createOpenGitAdapter(
@@ -52,16 +50,16 @@ export function createOpenGitAdapter(
 			return normalizeWebhook(event, receivedAt);
 		},
 		getDiff(): Promise<DiffFile[]> {
-			return noReadSurface("diff");
+			return noReadSurface("the changed files");
 		},
 		getCommits(): Promise<ForgeCommit[]> {
-			return noReadSurface("commits");
+			return noReadSurface("the commits");
 		},
 		readFile(): Promise<string | null> {
-			return noReadSurface("contents");
+			return noReadSurface("file contents");
 		},
 		getContributorProfile(): Promise<ContributorProfile> {
-			return noReadSurface("users");
+			return noReadSurface("contributor profiles");
 		},
 		execute(action: ForgeAction): Promise<ForgeActionResult> {
 			return executeAction(http, action);

@@ -10,7 +10,7 @@ export const Route = createFileRoute("/admin/users")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle("Admin · users"),
-			description: "beta access review.",
+			description: "Review beta access requests.",
 			noindex: true,
 		}),
 });

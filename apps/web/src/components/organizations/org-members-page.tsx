@@ -299,8 +299,8 @@ function InviteLinksSection({ org }: { org: string }) {
 					Invite links
 				</h3>
 				<p className="type-body-sm text-text-2">
-					Mint a link and send it to whoever you trust. Each link caps its uses
-					and expires on its own.
+					Create a link and send it to people you trust. Each link has a use
+					limit and an expiry date.
 				</p>
 			</div>
 			<form
@@ -389,7 +389,7 @@ function FreshInviteLink({ token }: { token: string }) {
 			<FieldLabel>New invite link</FieldLabel>
 			<Input mode="copy" noun="invite link" value={url} />
 			<FieldDescription>
-				This link is shown once, so copy it now. Only its hash is stored.
+				Copy this link now. Tripwire shows it only once.
 			</FieldDescription>
 		</Field>
 	);

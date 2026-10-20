@@ -51,7 +51,7 @@ export function InstallSetupPage() {
 			return (
 				<SetupShell>
 					<SetupHeader
-						body="Your installation request needs approval from an admin of that GitHub account. Once they approve, you'll get the callback here."
+						body="Your installation request needs approval from an admin of that GitHub account. When they approve it, GitHub sends you back to this page."
 						title="Waiting on GitHub"
 					/>
 					<BackHome />
@@ -87,7 +87,7 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 			<SetupShell>
 				<MascotArt mood="install-nothing" />
 				<SetupHeader
-					body="No unclaimed repos are waiting. If you just connected a forge, give it a moment and refresh, since the sync may still be in flight. Already-connected repos live with their org."
+					body="No unclaimed repos are waiting. If you just connected a forge, wait a moment and refresh. Tripwire may still be loading its repos. Repos that are already connected are in their org."
 					title="Nothing to connect yet"
 				/>
 				<BackHome />
@@ -162,7 +162,7 @@ function SetupFlow({
 		return (
 			<SetupShell>
 				<SetupHeader
-					body="This installation is bound to an org. An installation belongs to exactly one org at a time."
+					body="This installation is connected to another org. An installation can belong to only one org at a time."
 					title={`Already connected to ${preview.claimedByOrgSlug}`}
 				/>
 				<div>
@@ -209,7 +209,7 @@ function ConfirmScreen({
 	return (
 		<SetupShell>
 			<SetupHeader
-				body={`Tripwire starts gating change requests on ${source}'s repos for the ${stateOrg.name} org.`}
+				body={`Tripwire will start checking change requests on ${source}'s repos for the ${stateOrg.name} org.`}
 				title="Connect this installation?"
 			/>
 			<Card>
@@ -260,7 +260,7 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 	return (
 		<SetupShell>
 			<SetupHeader
-				body="Pick the Tripwire org that gates these repos. Only orgs you admin are listed."
+				body="Pick the Tripwire org that checks these repos. This list shows only orgs where you are an admin."
 				title="Where should this installation live?"
 			/>
 			<Card>

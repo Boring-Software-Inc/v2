@@ -120,7 +120,7 @@ export function ActivityRow({
 			</ItemContent>
 			<RowStatus
 				pending={pending}
-				reason={unarmed && !hasRun ? "Not armed" : noRunReason(event)}
+				reason={unarmed && !hasRun ? "Tripwire is off" : noRunReason(event)}
 				run={run}
 			/>
 			<ItemMeta className="w-14 text-end">

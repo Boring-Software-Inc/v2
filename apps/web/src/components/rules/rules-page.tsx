@@ -293,8 +293,8 @@ export function RulesPage() {
 							<div className="flex flex-col gap-1">
 								<h1 className="type-title">Rules</h1>
 								<p className="type-body text-text-2">
-									Boolean requirements every non-exempt contributor must meet on
-									every change request.
+									Requirements that every contributor outside your org must meet
+									on every change request.
 								</p>
 							</div>
 							{isAdmin ? (

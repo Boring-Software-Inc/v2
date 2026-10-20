@@ -12,7 +12,7 @@ export const Route = createFileRoute("/$org/$repo/analytics")({
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle(`${params.repo} · analytics`),
-			description: "repo stats and metrics.",
+			description: "Verdicts and trends for this repo.",
 			noindex: true,
 		}),
 });

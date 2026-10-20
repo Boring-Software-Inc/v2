@@ -154,8 +154,8 @@ export function ActivityPage() {
 							<EmptyHeader>
 								<EmptyTitle>Couldn't load activity</EmptyTitle>
 								<EmptyDescription>
-									The feed retries on its own. Reload the page if it doesn't
-									come back.
+									Tripwire keeps trying to load it. Reload the page if it does
+									not come back.
 								</EmptyDescription>
 							</EmptyHeader>
 							<EmptyContent>
@@ -180,8 +180,8 @@ export function ActivityPage() {
 										<EmptyHeader>
 											<EmptyTitle>No activity yet</EmptyTitle>
 											<EmptyDescription>
-												This repo is linked and listening. The moment a change
-												request opens, its timeline and verdict show up here.
+												Tripwire is watching this repo. When a change request
+												opens, its timeline and verdict show up here.
 											</EmptyDescription>
 										</EmptyHeader>
 										<EmptyContent>

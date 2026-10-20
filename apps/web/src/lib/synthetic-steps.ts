@@ -35,9 +35,9 @@ export function describeSyntheticStep(
 	if (step.nodeId === "run:deny-floor") {
 		return {
 			kind: "deny-floor",
-			title: "denied by maintainer",
+			title: "Denied by a maintainer",
 			detail:
-				"no deny edge drawn. blocked by default, because deny never fails open.",
+				"The workflow has no path for a denial, so Tripwire blocked the change request.",
 		};
 	}
 	if (step.nodeId === "run:degradation") {
@@ -65,16 +65,16 @@ export function describeSyntheticStep(
 				? `${shape.skippedRules} of ${shape.ruleNodes} skipped.`
 				: null,
 			shape.degradedReads && shape.degradedReads.length > 0
-				? `couldn't read: ${shape.degradedReads.join(", ")}.`
+				? `Could not read: ${shape.degradedReads.join(", ")}.`
 				: null,
 			// enforced:false ⇒ the maintainer turned the review fallback off.
 			shape.enforced === false
-				? "passed without them. this repo is set to pass when a rule can't run."
-				: "sent to review.",
+				? "Passed without them. This repo passes change requests when a rule cannot run."
+				: "Sent to review.",
 		];
 		return {
 			kind: "degradation",
-			title: one ? "a rule couldn't run" : "some rules couldn't run",
+			title: one ? "A rule could not run" : "Some rules could not run",
 			detail: parts.filter((part) => part !== null).join(" "),
 		};
 	}
