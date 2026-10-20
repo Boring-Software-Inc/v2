@@ -3,8 +3,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	type GlazeIcon,
 	Icon,
+	NoAccess,
 	Package,
-	Sparkle,
+	Rules,
+	Success,
 	TrendDown,
 	TrendUp,
 	Warning,
@@ -39,10 +41,10 @@ import { cn } from "#/lib/glaze/utils";
 const KIND_ICON: Record<EventKind, GlazeIcon> = {
 	spike: TrendUp,
 	drop: TrendDown,
-	rule: Sparkle,
-	ban: Sparkle,
+	rule: Rules,
+	ban: NoAccess,
 	deploy: Package,
-	resolve: Sparkle,
+	resolve: Success,
 	report: Warning,
 };
 
@@ -102,7 +104,7 @@ export function AnalyticsEvents({
 		>
 			<div className="flex items-center gap-2">
 				<h2 className="type-heading-sm" id="analytics-activity">
-					Activity
+					Recent events
 				</h2>
 				<Badge count={events.length} />
 			</div>
@@ -113,9 +115,10 @@ export function AnalyticsEvents({
 					size="sm"
 				>
 					<EmptyHeader>
-						<EmptyTitle>No activity yet</EmptyTitle>
+						<EmptyTitle>No events for this metric</EmptyTitle>
 						<EmptyDescription>
-							It fills in as Tripwire runs on this metric.
+							Events appear here when Tripwire checks change requests on this
+							repo.
 						</EmptyDescription>
 					</EmptyHeader>
 					{org && repo ? (
@@ -128,13 +131,13 @@ export function AnalyticsEvents({
 								size="sm"
 								variant="secondary"
 							>
-								View activity
+								Open activity
 							</Button>
 						</EmptyContent>
 					) : null}
 				</Empty>
 			) : (
-				<ItemGroup aria-label="Activity">
+				<ItemGroup aria-label="Recent events">
 					{ordered.map((event) => (
 						<EventRow
 							event={event}

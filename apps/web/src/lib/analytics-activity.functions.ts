@@ -35,12 +35,14 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 			return runs.map((r) => ({
 				id: r.runId,
 				kind: "ban",
-				title: r.actorLogin ? `blocked ${r.actorLogin}` : "blocked a change",
+				title: r.actorLogin
+					? `Blocked a change request from ${r.actorLogin}`
+					: "Blocked a change request",
 				detail: subject(r.repoFullName, r.subjectNumber),
 				at: r.createdAt.toISOString(),
 				impact: {
-					label: `${r.failedCount} of ${r.ruleCount} tripped`,
-					tone: "up",
+					label: `${r.failedCount} of ${r.ruleCount} rules tripped`,
+					tone: "neutral",
 				},
 			}));
 		}
@@ -53,10 +55,11 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 			return runs.map((r) => ({
 				id: r.runId,
 				kind: "resolve",
-				title: r.actorLogin ? `passed ${r.actorLogin}` : "passed a change",
+				title: r.actorLogin
+					? `Passed a change request from ${r.actorLogin}`
+					: "Passed a change request",
 				detail: subject(r.repoFullName, r.subjectNumber),
 				at: r.createdAt.toISOString(),
-				impact: { label: "passed", tone: "down" },
 			}));
 		}
 
@@ -68,9 +71,11 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 		return runs.map((r) => ({
 			id: r.runId,
 			kind: "report",
-			title: r.actorLogin ? `${r.actorLogin} sent to review` : "sent to review",
+			title: r.actorLogin
+				? `Sent a change request from ${r.actorLogin} to review`
+				: "Sent a change request to review",
 			detail: subject(r.repoFullName, r.subjectNumber),
 			at: r.createdAt.toISOString(),
-			impact: { label: "awaiting review", tone: "neutral" },
+			impact: { label: "Waiting for review", tone: "neutral" },
 		}));
 	});

@@ -77,11 +77,11 @@ function RepoTabItem({
 				<span className="min-w-0 max-w-48 truncate">{tab.id}</span>
 			</Link>
 			<Button
-				aria-label={`Close ${tab.id}`}
+				aria-label={`Close ${tab.id} tab`}
 				className={cn(
 					active
 						? "opacity-100"
-						: "opacity-0 focus-visible:opacity-100 group-hover/tab:opacity-100",
+						: "opacity-0 focus-visible:opacity-100 group-hover/tab:opacity-100 pointer-coarse:opacity-100",
 				)}
 				onClick={onClose}
 				size="icon-sm"

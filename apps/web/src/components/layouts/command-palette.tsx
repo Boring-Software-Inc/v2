@@ -14,6 +14,7 @@ import {
 	Add,
 	Analytics,
 	Connection,
+	Customize,
 	type GlazeIcon,
 	Home,
 	Icon,
@@ -176,6 +177,8 @@ export function CommandPalette({
 				);
 			}
 		},
+		onError: () =>
+			toast.fail("Could not turn on Tripwire for this repo. Try again."),
 	});
 	const disarm = useMutation({
 		mutationFn: (input: { org: string; repo: string }) =>
@@ -185,6 +188,8 @@ export function CommandPalette({
 			toast.success(
 				"Tripwire is off for this repo. It still records events but no longer checks change requests.",
 			),
+		onError: () =>
+			toast.fail("Could not turn off Tripwire for this repo. Try again."),
 	});
 	function go(path: string) {
 		navigate({ to: path });
@@ -224,7 +229,7 @@ export function CommandPalette({
 		}
 		items.push({
 			id: "org:new",
-			label: "New org",
+			label: "Create org",
 			searchTags: ["new", "create", "org", "organization", "team"],
 			icon: glyph(Add),
 			onSelect: () => setCreateOrgOpen(true),
@@ -378,6 +383,13 @@ export function CommandPalette({
 			icon: glyph(Home),
 			onSelect: () => go(`/${currentOrg}/home`),
 		});
+		navItems.push({
+			id: "nav:org-analytics",
+			label: currentRepo ? "Org analytics" : "Analytics",
+			searchTags: ["analytics", "org", "totals", "stats", "charts"],
+			icon: glyph(Analytics),
+			onSelect: () => go(`/${currentOrg}/analytics`),
+		});
 		if (currentRepo) {
 			navItems.push(
 				{
@@ -407,6 +419,13 @@ export function CommandPalette({
 					searchTags: ["workflows", "automation", "pipeline", "dag"],
 					icon: glyph(Workflow),
 					onSelect: () => go(`/${currentOrg}/${currentRepo}/workflows`),
+				},
+				{
+					id: "nav:customize",
+					label: "Customize",
+					searchTags: ["customize", "comment", "message", "check", "verdict"],
+					icon: glyph(Customize),
+					onSelect: () => go(`/${currentOrg}/${currentRepo}/customize`),
 				},
 				{
 					id: "nav:analytics",
@@ -523,7 +542,7 @@ export function CommandPalette({
 							>
 								<Icon icon={Search} />
 								<CommandLabel className="text-text-2">
-									{`${hiddenRepoCount} more. Type to search.`}
+									{`${hiddenRepoCount} more repos. Type a name to find one.`}
 								</CommandLabel>
 							</CommandItem>
 						</CommandGroup>
@@ -538,7 +557,7 @@ export function CommandPalette({
 					) : null}
 
 					{!loading && visibleNav.length > 0 ? (
-						<CommandGroup heading="Navigation">
+						<CommandGroup heading="Pages">
 							{visibleNav.map((item) => (
 								<PaletteRow item={item} key={item.id} />
 							))}
@@ -547,8 +566,8 @@ export function CommandPalette({
 				</CommandList>
 			</Command>
 			<CommandFooter>
-				<CommandHint keys={["↑", "↓"]}>Navigate</CommandHint>
-				<CommandHint keys={["↵"]}>Select</CommandHint>
+				<CommandHint keys={["↑", "↓"]}>Move</CommandHint>
+				<CommandHint keys={["↵"]}>Open</CommandHint>
 				<CommandHint keys={["esc"]}>Close</CommandHint>
 				<span className="ms-auto tabular-nums">
 					{resultCount === 1 ? "1 result" : `${resultCount} results`}
@@ -562,8 +581,10 @@ export function CommandPalette({
 			<Dialog onOpenChange={setCreateOrgOpen} open={createOrgOpen}>
 				<DialogContent size="sm">
 					<DialogHeader>
-						<DialogTitle>New org</DialogTitle>
-						<DialogDescription>You can rename it later.</DialogDescription>
+						<DialogTitle>Create an org</DialogTitle>
+						<DialogDescription>
+							Name it after your team. You can rename it later.
+						</DialogDescription>
 					</DialogHeader>
 					<CreateOrgForm
 						onCreated={(slug) => {
@@ -588,7 +609,8 @@ function CreateOrgForm({ onCreated }: { onCreated: (slug: string) => void }) {
 	const slugCheck = slug ? orgSlugSchema.safeParse(slug) : null;
 	const slugError =
 		slugCheck && !slugCheck.success
-			? (slugCheck.error.issues[0]?.message ?? "invalid slug")
+			? (slugCheck.error.issues[0]?.message ??
+				"Use lowercase letters, numbers and hyphens.")
 			: null;
 
 	const create = useMutation({
@@ -651,7 +673,9 @@ function CreateOrgForm({ onCreated }: { onCreated: (slug: string) => void }) {
 							<FieldError>{slugError}</FieldError>
 						) : (
 							<FieldDescription>
-								{slug ? `/${slug}/home` : "Lives in the URL."}
+								{slug
+									? `Your org's address: /${slug}/home`
+									: "Used in your org's web address."}
 							</FieldDescription>
 						)}
 					</Field>
@@ -715,11 +739,11 @@ function repoItem(
 			<>
 				{repo.armed ? null : (
 					<Badge size="sm" variant="outline">
-						Off
+						Tripwire off
 					</Badge>
 				)}
 				{repo.pendingModeration > 0 ? (
-					<Badge size="sm">{repo.pendingModeration} pending</Badge>
+					<Badge size="sm">{repo.pendingModeration} to review</Badge>
 				) : null}
 				{repo.blocked24h > 0 ? (
 					<Badge size="sm" variant="fail">

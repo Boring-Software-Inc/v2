@@ -47,12 +47,15 @@ export function RepoSwitcher() {
 		? activeRepo
 			? `${activeOrg.slug}/${activeRepo}`
 			: activeOrg.slug
-		: "switch org";
+		: "Switch org";
 
 	return (
 		<>
 			<Button
-				className="min-w-0 max-w-64"
+				aria-label={
+					activeOrg ? `${label}: switch org or repo` : "Switch org or repo"
+				}
+				className="min-w-0 max-w-full shrink md:max-w-64"
 				onClick={() => setOpen(true)}
 				variant="secondary"
 			>

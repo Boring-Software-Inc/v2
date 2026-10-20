@@ -4,6 +4,7 @@ import {
 	Analytics,
 	Customize,
 	type GlazeIcon,
+	Home,
 	Icon,
 	Moderation,
 	Rules,
@@ -27,9 +28,10 @@ export function ShellNav({ counts }: ShellNavProps) {
 	if (!repo) {
 		return (
 			<nav
-				aria-label="Organization"
+				aria-label="Org"
 				className="flex min-w-0 shrink-0 items-center gap-1 overflow-x-auto px-3 py-2"
 			>
+				<NavLink icon={Home} label="Home" to={`/${org}/home`} />
 				<NavLink
 					exact={false}
 					icon={Analytics}
@@ -49,7 +51,7 @@ export function ShellNav({ counts }: ShellNavProps) {
 
 	return (
 		<nav
-			aria-label="Repository"
+			aria-label="Repo"
 			className="flex min-w-0 shrink-0 items-center gap-1 overflow-x-auto px-3 py-2"
 		>
 			<NavLink
@@ -113,7 +115,10 @@ function NavLink({
 			<Icon icon={icon} />
 			<span>{label}</span>
 			{typeof value === "number" ? (
-				<span className="text-text-2 tabular-nums">{value}</span>
+				<span className="text-text-2 tabular-nums">
+					{value}
+					<span className="sr-only"> to review</span>
+				</span>
 			) : null}
 		</Link>
 	);

@@ -66,7 +66,10 @@ export const createOrg = createServerFn({ method: "POST" })
 		const { getAuth } = await import("#/lib/server/auth");
 		const auth = getAuth();
 		if (!auth) {
-			return { error: "Sign-in is turned off in open-dev mode." };
+			return {
+				error:
+					"Sign-in is off in open-dev mode, so this action is not available.",
+			};
 		}
 		const { getStartContext } = await import("@tanstack/start-storage-context");
 		try {
@@ -83,7 +86,10 @@ export const createOrg = createServerFn({ method: "POST" })
 			return { slug: org?.slug ?? data.slug };
 		} catch (err) {
 			return {
-				error: err instanceof Error ? err.message : "Could not create the org.",
+				error:
+					err instanceof Error
+						? err.message
+						: "Could not create the org. Try again.",
 			};
 		}
 	});
@@ -108,7 +114,10 @@ export const updateOrg = createServerFn({ method: "POST" })
 			const { getAuth } = await import("#/lib/server/auth");
 			const auth = getAuth();
 			if (!auth) {
-				return { error: "Sign-in is turned off in open-dev mode." };
+				return {
+					error:
+						"Sign-in is off in open-dev mode, so this action is not available.",
+				};
 			}
 			const { getStartContext } = await import(
 				"@tanstack/start-storage-context"
@@ -131,7 +140,9 @@ export const updateOrg = createServerFn({ method: "POST" })
 			} catch (err) {
 				return {
 					error:
-						err instanceof Error ? err.message : "Could not update the org.",
+						err instanceof Error
+							? err.message
+							: "Could not save the org. Try again.",
 				};
 			}
 		},
@@ -228,7 +239,11 @@ export const updateOrgMemberRole = createServerFn({ method: "POST" })
 			const { getAuth } = await import("#/lib/server/auth");
 			const auth = getAuth();
 			if (!auth) {
-				return { ok: false, error: "Sign-in is turned off in open-dev mode." };
+				return {
+					ok: false,
+					error:
+						"Sign-in is off in open-dev mode, so this action is not available.",
+				};
 			}
 			const { getStartContext } = await import(
 				"@tanstack/start-storage-context"
@@ -246,7 +261,10 @@ export const updateOrgMemberRole = createServerFn({ method: "POST" })
 			} catch (err) {
 				return {
 					ok: false,
-					error: err instanceof Error ? err.message : "role change refused",
+					error:
+						err instanceof Error
+							? err.message
+							: "Could not change this member's role. Try again.",
 				};
 			}
 		},
@@ -279,7 +297,11 @@ export const removeOrgMember = createServerFn({ method: "POST" })
 			const { getAuth } = await import("#/lib/server/auth");
 			const auth = getAuth();
 			if (!auth) {
-				return { ok: false, error: "Sign-in is turned off in open-dev mode." };
+				return {
+					ok: false,
+					error:
+						"Sign-in is off in open-dev mode, so this action is not available.",
+				};
 			}
 			const { getStartContext } = await import(
 				"@tanstack/start-storage-context"
@@ -293,7 +315,10 @@ export const removeOrgMember = createServerFn({ method: "POST" })
 			} catch (err) {
 				return {
 					ok: false,
-					error: err instanceof Error ? err.message : "removal refused",
+					error:
+						err instanceof Error
+							? err.message
+							: "Could not remove this member. Try again.",
 				};
 			}
 		},
@@ -311,7 +336,11 @@ export const leaveOrg = createServerFn({ method: "POST" })
 		const { getAuth } = await import("#/lib/server/auth");
 		const auth = getAuth();
 		if (!auth) {
-			return { ok: false, error: "Sign-in is turned off in open-dev mode." };
+			return {
+				ok: false,
+				error:
+					"Sign-in is off in open-dev mode, so this action is not available.",
+			};
 		}
 		const { getStartContext } = await import("@tanstack/start-storage-context");
 		try {
@@ -326,7 +355,7 @@ export const leaveOrg = createServerFn({ method: "POST" })
 				error:
 					err instanceof Error
 						? err.message
-						: "You are the last admin of this org.",
+						: "Could not leave the org. If you are its last admin, make another member an admin first.",
 			};
 		}
 	});
@@ -357,7 +386,10 @@ export const createOrgInvite = createServerFn({ method: "POST" })
 				return { token };
 			} catch (err) {
 				return {
-					error: err instanceof Error ? err.message : "could not create invite",
+					error:
+						err instanceof Error
+							? err.message
+							: "Could not create the invite link. Try again.",
 				};
 			}
 		},
