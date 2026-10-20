@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import type { Forge } from "@tripwire/contracts";
 import {
 	FORGE_CATALOG,
@@ -58,6 +58,7 @@ import {
 import { Input } from "#/components/glaze/ui/input";
 import { toast } from "#/components/glaze/ui/toast";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { useActiveScope } from "#/hooks/use-active-scope";
 import { armRepo, disarmRepo } from "#/lib/arm.functions";
 import { authClient } from "#/lib/auth-client";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
@@ -108,9 +109,9 @@ export function CommandPalette({
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
-	const params = useParams({ strict: false });
-	const currentOrg = params.org;
-	const currentRepo = params.repo;
+	const scope = useActiveScope();
+	const currentOrg = scope.org?.slug;
+	const currentRepo = scope.repo ?? undefined;
 
 	// Swapping repos keeps the feature page: /org/a/workflows → /org/b/workflows.
 	// Only the FIRST segment after the repo carries over — deeper ids (a workflow,

@@ -1,4 +1,4 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { useFeedback } from "#/components/feedback";
@@ -24,6 +24,7 @@ import {
 } from "#/components/glaze/ui/dropdown-menu";
 import { RepoSwitcher } from "#/components/layouts/repo-switcher";
 import { RepoTabBar } from "#/components/tabs";
+import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { authClient } from "#/lib/auth-client";
@@ -34,8 +35,7 @@ interface DashboardTopbarProps {
 }
 
 export function DashboardTopbar({ user }: DashboardTopbarProps) {
-	const params = useParams({ strict: false });
-	const org = params.org;
+	const org = useActiveScope().org?.slug;
 
 	return (
 		<nav

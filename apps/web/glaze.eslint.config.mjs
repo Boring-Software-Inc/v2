@@ -43,4 +43,5 @@ export default [
     rules: glaze.configs.app.rules,
   },
   {files: ['**/components/glaze/{ui,ai}/**', '**/components/glaze/icon.tsx', '**/lib/glaze/**'], rules: glaze.configs.source.rules},
+  {files: ['**/components/mascot/**'], rules: {'glaze/no-native-control': 'off'}},
 ];
