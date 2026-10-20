@@ -12,6 +12,8 @@ export const MASCOT_STATES = [
 	"angry",
 	"surprised",
 	"sploot",
+	"annoyed",
+	"furious",
 ] as const;
 
 export type MascotState = (typeof MASCOT_STATES)[number];
@@ -30,6 +32,8 @@ export const MASCOT_EVENTS = [
 	"SURPRISE",
 	"CHEER",
 	"SPLOOT",
+	"ANNOY",
+	"TANTRUM",
 	"TIMEOUT",
 ] as const;
 
@@ -48,15 +52,25 @@ const ACTIONS: Edges = {
 	SPLOOT: "sploot",
 };
 
+const ESCALATE: Edges = { ANNOY: "annoyed", TANTRUM: "furious" };
+
 export const TRANSITIONS: Record<MascotState, Edges> = {
-	idle: { ...ACTIONS, BLINK: "blink", LOOK: "look" },
-	blink: { ...ACTIONS, LOOK: "look", TIMEOUT: "idle" },
-	look: { ...ACTIONS, BLINK: "blink", LOOK_AWAY: "idle" },
+	idle: { ...ACTIONS, ...ESCALATE, BLINK: "blink", LOOK: "look" },
+	blink: { ...ACTIONS, ...ESCALATE, LOOK: "look", TIMEOUT: "idle" },
+	look: { ...ACTIONS, ...ESCALATE, BLINK: "blink", LOOK_AWAY: "idle" },
 	hop: { TIMEOUT: "idle" },
-	poked: { POKE: "poked", HOP: "hop", TIMEOUT: "idle" },
-	happy: { ...ACTIONS, TIMEOUT: "idle" },
-	sleepy: { WAKE: "idle", POKE: "surprised", SURPRISE: "surprised" },
+	poked: { ...ESCALATE, POKE: "poked", HOP: "hop", TIMEOUT: "idle" },
+	annoyed: { ...ESCALATE, POKE: "poked", HOP: "hop", TIMEOUT: "idle" },
+	furious: { TIMEOUT: "idle" },
+	happy: { ...ACTIONS, ...ESCALATE, TIMEOUT: "idle" },
+	sleepy: {
+		...ESCALATE,
+		WAKE: "idle",
+		POKE: "surprised",
+		SURPRISE: "surprised",
+	},
 	talking: {
+		...ESCALATE,
 		STOP_TALK: "idle",
 		POKE: "poked",
 		HOP: "hop",
@@ -66,13 +80,20 @@ export const TRANSITIONS: Record<MascotState, Edges> = {
 		SLEEP: "sleepy",
 	},
 	angry: {
+		...ESCALATE,
 		POKE: "angry",
 		CHEER: "happy",
 		SURPRISE: "surprised",
 		HOP: "hop",
 		TIMEOUT: "idle",
 	},
-	surprised: { POKE: "poked", HOP: "hop", CHEER: "happy", TIMEOUT: "idle" },
+	surprised: {
+		...ESCALATE,
+		POKE: "poked",
+		HOP: "hop",
+		CHEER: "happy",
+		TIMEOUT: "idle",
+	},
 	sploot: { TIMEOUT: "idle" },
 };
 
@@ -101,11 +122,46 @@ export const RESTING_STATES: ReadonlySet<MascotState> = new Set([
 	"look",
 ]);
 
+export const POKE_WINDOW_MS = 3000;
+export const ANNOYED_AT = 3;
+export const ANGRY_EYES_AT = 4;
+export const MAD_AT = 5;
+
+export function recentPokes(times: readonly number[], now: number): number[] {
+	return times.filter((t) => now - t <= POKE_WINDOW_MS);
+}
+
+export function pokeEvent(count: number): MascotEvent {
+	if (count >= MAD_AT) {
+		return "TANTRUM";
+	}
+	if (count >= ANNOYED_AT) {
+		return "ANNOY";
+	}
+	return "POKE";
+}
+
+export function resolvePoke(
+	state: MascotState,
+	count: number,
+): MascotEvent | null {
+	const escalated = pokeEvent(count);
+	if (transition(state, escalated)) {
+		return escalated;
+	}
+	return transition(state, "POKE") ? "POKE" : null;
+}
+
 export function expressionFor(
 	state: MascotState,
 	resting: Expression,
+	pokes = 0,
 ): Expression {
 	switch (state) {
+		case "annoyed":
+			return pokes >= ANGRY_EYES_AT ? "angry" : "annoyed";
+		case "furious":
+			return "angry";
 		case "happy":
 			return "happy";
 		case "sleepy":
@@ -115,8 +171,9 @@ export function expressionFor(
 		case "angry":
 			return "angry";
 		case "surprised":
-		case "poked":
 			return "surprised";
+		case "poked":
+			return "poked";
 		default:
 			return resting;
 	}

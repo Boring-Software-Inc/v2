@@ -13,7 +13,6 @@ import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -28,6 +27,7 @@ import {
 	ItemMeta,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import type {
 	AnalyticsEvent,
 	EventImpact,
@@ -108,7 +108,10 @@ export function AnalyticsEvents({
 			</div>
 
 			{ordered.length === 0 ? (
-				<Empty art={<EmptyArt size="compact" />} size="sm">
+				<Empty
+					art={<MascotArt mood="analytics-events-empty" size="compact" />}
+					size="sm"
+				>
 					<EmptyHeader>
 						<EmptyTitle>No activity yet</EmptyTitle>
 						<EmptyDescription>

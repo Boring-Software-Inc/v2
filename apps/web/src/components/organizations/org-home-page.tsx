@@ -17,7 +17,6 @@ import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -26,6 +25,7 @@ import {
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { NavChip } from "#/components/layouts/nav-chip";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { HomeListSkeleton } from "#/components/organizations/org-home-page-skeleton";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
@@ -95,7 +95,7 @@ function HomeBody({
 	}
 	if (ranked.length === 0) {
 		return (
-			<Empty art={<EmptyArt />}>
+			<Empty art={<MascotArt mood="repos-syncing" />}>
 				<EmptyHeader>
 					<EmptyTitle>Syncing repos</EmptyTitle>
 					<EmptyDescription>This takes a moment.</EmptyDescription>
@@ -136,7 +136,7 @@ function InstallCta({ org }: { org: string }) {
 	const isAdmin = ctx?.role === "admin";
 
 	return (
-		<Empty art={<EmptyArt />}>
+		<Empty art={<MascotArt mood="repos-empty" />}>
 			<EmptyHeader>
 				<EmptyTitle>No repos yet</EmptyTitle>
 				<EmptyDescription>

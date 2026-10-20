@@ -17,7 +17,6 @@ import {
 } from "#/components/glaze/ui/dialog";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -38,6 +37,7 @@ import {
 	SkeletonText,
 } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	disconnectForge,
 	type ForgeConnection,
@@ -218,7 +218,11 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 						))}
 					</ItemGroup>
 				) : (
-					<Empty art={<EmptyArt size="compact" />} size="sm" variant="plain">
+					<Empty
+						art={<MascotArt mood="forges-empty" size="compact" />}
+						size="sm"
+						variant="plain"
+					>
 						<EmptyHeader>
 							<EmptyTitle>No forges connected yet</EmptyTitle>
 							<EmptyDescription>

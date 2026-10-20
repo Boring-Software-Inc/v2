@@ -4,12 +4,12 @@ import { lazy, Suspense } from "react";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 
 const NotFoundInShell = lazy(() =>
@@ -20,7 +20,11 @@ const NotFoundInShell = lazy(() =>
 
 export function NotFoundBody({ signedIn }: { signedIn: boolean }) {
 	return (
-		<Empty art={<EmptyArt />} className="max-w-sm" reason="no-results">
+		<Empty
+			art={<MascotArt mood="not-found" />}
+			className="max-w-sm"
+			reason="no-results"
+		>
 			<EmptyHeader>
 				<EmptyTitle>Page not found</EmptyTitle>
 				<EmptyDescription>

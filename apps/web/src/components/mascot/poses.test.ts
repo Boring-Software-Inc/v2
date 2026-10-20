@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+	BODY_W,
+	CELL,
+	EXPRESSIONS,
+	eyeShapes,
 	REST_WARP,
 	restOutline,
 	warpPoint,
@@ -41,6 +45,27 @@ describe("mascot poses", () => {
 			const [nx, ny] = warpPoint(REST_WARP, x, y);
 			expect(nx).toBeCloseTo(x, 9);
 			expect(ny).toBeCloseTo(y, 9);
+		}
+	});
+});
+
+describe("pixel eyes", () => {
+	test("every eye sits on the 16-cell grid at rest", () => {
+		for (const expr of EXPRESSIONS) {
+			for (const eye of eyeShapes(expr)) {
+				for (const [x, y] of eye.outline) {
+					expect(x % CELL).toBe(0);
+					expect(y % CELL).toBe(0);
+				}
+			}
+		}
+	});
+
+	test("the eyes balance around the body centre", () => {
+		for (const expr of EXPRESSIONS) {
+			const eyes = eyeShapes(expr);
+			const mean = eyes.reduce((sum, e) => sum + e.cx, 0) / eyes.length;
+			expect(mean).toBe(BODY_W / 2);
 		}
 	});
 });

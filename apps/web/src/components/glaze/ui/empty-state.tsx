@@ -15,8 +15,8 @@ import {cn} from '#/lib/glaze/utils.ts';
 //
 // Everything is centred in a compact column: the reason's glyph on top, 40px light and bare in text-3
 // (32 at size sm, coral for error), then the title in the label role, one line of description in text-2, and at most
-// one action. Never an illustration, a tinted tile or a second glyph. Standalone (variant="panel") it is the card's
-// white panel; inside a card, a list, a table or a menu use variant="plain", which shares that surface.
+// one action. Never an illustration, a tinted tile or a second glyph. Standalone (variant="panel") it sits on the
+// shell's grey step with no border; inside a card, a list, a table or a menu use variant="plain", which shares that surface.
 //
 // The considered detail is Retry. EmptyRetry runs the caller's promise, keeps its box while it runs, and when the
 // retry fails again says so in place: "Retry 2 failed at 14:03:12". Retrying a dead endpoint never looks like the
@@ -29,7 +29,7 @@ const reasonGlyph: Record<EmptyReason, GlazeIcon> = {empty: EmptyGlyph, 'no-resu
 const emptyVariants = cva('group/empty flex w-full min-w-0 flex-col items-center gap-3 text-center text-text-1', {
   variants: {
     variant: {
-      panel: 'panel forced-colors:border-[CanvasText]',
+      panel: 'min-w-0 overflow-clip rounded-shell bg-shell forced-colors:border forced-colors:border-[CanvasText]',
       plain: '',
     },
     size: {
@@ -63,14 +63,18 @@ function Empty({className, reason = 'empty', variant = 'panel', size = 'default'
 
 type EmptyArtSize = 'default' | 'compact';
 
-const emptyArtSize: Record<EmptyArtSize, string> = {default: 'size-24', compact: 'size-16'};
+const emptyArtSize: Record<EmptyArtSize, string> = {default: 'size-20 mt-6 mb-3', compact: 'size-16 mt-4 mb-2'};
+
+function emptyArtClass(size: EmptyArtSize = 'default') {
+  return cn('relative shrink-0', emptyArtSize[size]);
+}
 
 function EmptyArt({className, size = 'default', ...props}: Omit<React.ComponentProps<'div'>, 'aria-hidden'> & {size?: EmptyArtSize}) {
   return <div
     data-slot="empty-art"
     data-size={size}
     aria-hidden
-    className={cn('relative shrink-0', emptyArtSize[size], className)}
+    className={cn(emptyArtClass(size), className)}
     {...props}
   />;
 }
@@ -176,4 +180,4 @@ function EmptyRetry({onRetry, children = 'Retry', variant = 'secondary', size = 
   </span>;
 }
 
-export {Empty, EmptyArt, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyCode, EmptyRetry, emptyVariants, type EmptyProps, type EmptyReason, type EmptyRetryProps, type EmptyArtSize};
+export {Empty, EmptyArt, emptyArtClass, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyCode, EmptyRetry, emptyVariants, type EmptyProps, type EmptyReason, type EmptyRetryProps, type EmptyArtSize};

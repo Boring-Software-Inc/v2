@@ -27,6 +27,7 @@ import {
 } from "#/components/glaze/ui/table";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import {
 	reviewUserAccess,
@@ -248,6 +249,7 @@ export function AdminUsersPage() {
 									/>
 								) : users.length === 0 ? (
 									<TableEmpty
+										art={<MascotArt mood="admin-table-empty" size="compact" />}
 										colSpan={COLUMN_COUNT}
 										description="New signups land as pending."
 										reason={

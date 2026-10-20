@@ -29,6 +29,7 @@ import {
 	SkeletonText,
 } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import {
@@ -84,6 +85,7 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	if (claimable.length === 0) {
 		return (
 			<SetupShell>
+				<MascotArt mood="install-nothing" />
 				<SetupHeader
 					body="No unclaimed repos are waiting. If you just connected a forge, give it a moment and refresh, since the sync may still be in flight. Already-connected repos live with their org."
 					title="Nothing to connect yet"

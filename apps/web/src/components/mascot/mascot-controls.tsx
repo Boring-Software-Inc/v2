@@ -23,6 +23,7 @@ export type MascotControlsProps = {
 	settings: MascotSettings;
 	onSettings: (update: (prev: MascotSettings) => MascotSettings) => void;
 	onSend: (event: MascotEvent) => void;
+	onMad: () => void;
 	sage: boolean;
 	onSage: (on: boolean) => void;
 	debug: boolean;
@@ -49,6 +50,8 @@ const EXPRESSION_LABELS: Record<Expression, string> = {
 	sleepy: "Sleepy",
 	talking: "Talking",
 	surprised: "Surprised",
+	annoyed: "Annoyed",
+	poked: "Poked",
 };
 
 const percent = { style: "percent" } as const;
@@ -129,6 +132,7 @@ export function MascotControls({
 	settings,
 	onSettings,
 	onSend,
+	onMad,
 	sage,
 	onSage,
 	debug,
@@ -161,6 +165,9 @@ export function MascotControls({
 								{label}
 							</Button>
 						))}
+						<Button onClick={onMad} size="sm" variant="secondary">
+							Make it mad
+						</Button>
 					</div>
 					<p className="type-caption text-text-2">
 						Sploot is a prototype: a drip falls from the hem and puddles.

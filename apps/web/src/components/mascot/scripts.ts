@@ -90,6 +90,20 @@ export const SCRIPTS: Record<MascotState, Script> = {
 		timeoutMs: 1200,
 		float: 0.3,
 	},
+	annoyed: {
+		steps: [
+			step("poke", 110, "snappy"),
+			step("stiff", 380, "snappy"),
+			hold("rest", "soft"),
+		],
+		timeoutMs: 900,
+		float: 0.2,
+	},
+	furious: {
+		steps: [step("stiff", 2700, "snappy"), hold("rest", "soft")],
+		timeoutMs: 3000,
+		float: 0,
+	},
 	sploot: {
 		steps: [
 			step("anticipation", 160, "soft"),

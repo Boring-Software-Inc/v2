@@ -6,7 +6,6 @@ import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyHeader,
 	EmptyTitle,
@@ -40,6 +39,7 @@ import {
 	SkeletonText,
 } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { InviteLinkView, OrgMemberView } from "#/lib/org.functions";
@@ -408,7 +408,11 @@ function InviteLinkList({
 }) {
 	if (invites.length === 0) {
 		return (
-			<Empty art={<EmptyArt size="compact" />} size="sm" variant="plain">
+			<Empty
+				art={<MascotArt mood="invites-empty" size="compact" />}
+				size="sm"
+				variant="plain"
+			>
 				<EmptyHeader>
 					<EmptyTitle>No invite links yet</EmptyTitle>
 				</EmptyHeader>

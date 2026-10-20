@@ -8,7 +8,6 @@ import { Add, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -17,6 +16,7 @@ import {
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	CustomRuleBuilder,
 	type CustomRuleDraft,
@@ -360,7 +360,7 @@ export function RulesPage() {
 									</div>
 								) : filter === "custom" ? (
 									<Empty
-										art={<EmptyArt />}
+										art={<MascotArt mood="rules-custom-empty" />}
 										className="relative isolate overflow-hidden"
 									>
 										<ShaderDither
@@ -398,7 +398,19 @@ export function RulesPage() {
 										)}
 									</Empty>
 								) : (
-									<Empty art={<EmptyArt />}>
+									<Empty
+										art={
+											<MascotArt
+												mood={
+													filter === "active"
+														? "rules-active-empty"
+														: filter === "workflows"
+															? "rules-workflows-empty"
+															: "rules-empty"
+												}
+											/>
+										}
+									>
 										<EmptyHeader>
 											<EmptyTitle>
 												{filter === "active"

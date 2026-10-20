@@ -32,7 +32,6 @@ import {
 } from "#/components/glaze/ui/dropdown-menu";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -52,6 +51,7 @@ import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { Switch } from "#/components/glaze/ui/switch";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	SaveQueueProvider,
 	UnsavedChangesBar,
@@ -319,7 +319,7 @@ function WorkflowsEmpty({
 }) {
 	if (!isAdmin) {
 		return (
-			<Empty art={<EmptyArt />}>
+			<Empty art={<MascotArt mood="workflows-empty" />}>
 				<EmptyHeader>
 					<EmptyTitle>No workflows yet</EmptyTitle>
 					<EmptyDescription>An admin can create one.</EmptyDescription>
@@ -342,7 +342,10 @@ function WorkflowsEmpty({
 
 	return (
 		<div className="flex flex-col gap-6">
-			<Empty art={<EmptyArt />} className="relative isolate overflow-hidden">
+			<Empty
+				art={<MascotArt mood="workflows-empty" />}
+				className="relative isolate overflow-hidden"
+			>
 				<ShaderDither className="-z-10 bottom-auto h-30" priority={1} />
 				<EmptyHeader>
 					<EmptyTitle>No workflows yet</EmptyTitle>

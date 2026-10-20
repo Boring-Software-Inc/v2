@@ -2,17 +2,17 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
 import { SkeletonText } from "#/components/glaze/ui/skeleton";
+import { MascotArt } from "#/components/mascot/mascot-art";
 
 export function OrgBillingPage() {
 	return (
-		<Empty art={<EmptyArt />} variant="plain">
+		<Empty art={<MascotArt mood="billing-empty" />} variant="plain">
 			<EmptyHeader>
 				<EmptyTitle>Nothing to configure yet</EmptyTitle>
 				<EmptyDescription>Billing lands with Autumn.</EmptyDescription>

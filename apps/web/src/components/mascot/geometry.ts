@@ -8,6 +8,8 @@ export const EXPRESSIONS = [
 	"sleepy",
 	"talking",
 	"surprised",
+	"annoyed",
+	"poked",
 ] as const;
 
 export type Expression = (typeof EXPRESSIONS)[number];
@@ -126,95 +128,209 @@ export function densify(pts: Shape, step = 1.5): Point[] {
 	return out;
 }
 
-export const FACE_CX = BODY_W / 2;
-export const FACE_CY = BODY_H * 0.36;
-export const FACE_SCALE = 1.18;
+type EyeArt = {
+	rows: readonly string[];
+	x: number;
+	y: number;
+	mirror: boolean;
+	cheek: number;
+};
 
-function relativeTo(pts: Shape, cx: number, cy: number): Point[] {
-	return pts.map(([x, y]) => [x - cx, y - cy] as const);
+const NEUTRAL_EYE: EyeArt = {
+	rows: [".###", "####", "####", "####", "####", "###."],
+	x: 3,
+	y: 4,
+	mirror: false,
+	cheek: 0.3,
+};
+
+export const PIXEL_EYES: Record<Expression, EyeArt> = {
+	neutral: NEUTRAL_EYE,
+	talking: NEUTRAL_EYE,
+	angry: {
+		rows: ["#...", "##..", "###.", "####", ".##."],
+		x: 3,
+		y: 5,
+		mirror: true,
+		cheek: 0,
+	},
+	happy: {
+		rows: [".##.", "####"],
+		x: 3,
+		y: 6,
+		mirror: true,
+		cheek: 0.45,
+	},
+	sleepy: {
+		rows: ["##..", "..##"],
+		x: 3,
+		y: 7,
+		mirror: false,
+		cheek: 0,
+	},
+	surprised: {
+		rows: [".##.", "####", "####", "####", "####", "####", ".##."],
+		x: 3,
+		y: 3,
+		mirror: false,
+		cheek: 0,
+	},
+	poked: {
+		rows: [".#.", "###", "###", "###", ".#."],
+		x: 4,
+		y: 5,
+		mirror: false,
+		cheek: 0,
+	},
+	annoyed: {
+		rows: ["####", ".###"],
+		x: 3,
+		y: 6,
+		mirror: true,
+		cheek: 0,
+	},
+};
+
+export function cellsOf(
+	rows: readonly string[],
+	mirror = false,
+): [number, number][] {
+	const width = Math.max(...rows.map((r) => r.length));
+	const out: [number, number][] = [];
+	rows.forEach((row, y) => {
+		for (let x = 0; x < row.length; x++) {
+			if (row[x] === "#") {
+				out.push([mirror ? width - 1 - x : x, y]);
+			}
+		}
+	});
+	return out;
 }
 
-export function eyeShapes(expr: Expression): Shape[] {
-	const cx = FACE_CX;
-	const cy = FACE_CY;
-	const s = FACE_SCALE;
-	const g = 13.5 * s;
-	const tilt = expr === "neutral" || expr === "talking" ? -6 : -8;
-	if (expr === "surprised") {
-		const gs = 14 * s;
-		return [
-			roundedRect(cx - gs, cy, 17 * s, 24 * s, 8.5 * s, 0),
-			roundedRect(cx + gs, cy, 17 * s, 24 * s, 8.5 * s, 0),
-		];
+export function traceCells(
+	cells: readonly (readonly [number, number])[],
+	size: number,
+	ox = 0,
+	oy = 0,
+): Point[][] {
+	const filled = new Set(cells.map(([x, y]) => `${x},${y}`));
+	const has = (x: number, y: number) => filled.has(`${x},${y}`);
+	const next = new Map<string, [number, number][]>();
+	const add = (a: [number, number], b: [number, number]) => {
+		const key = `${a[0]},${a[1]}`;
+		const list = next.get(key) ?? [];
+		list.push(b);
+		next.set(key, list);
+	};
+	for (const [x, y] of cells) {
+		if (!has(x, y - 1)) add([x, y], [x + 1, y]);
+		if (!has(x + 1, y)) add([x + 1, y], [x + 1, y + 1]);
+		if (!has(x, y + 1)) add([x + 1, y + 1], [x, y + 1]);
+		if (!has(x - 1, y)) add([x, y + 1], [x, y]);
 	}
-	if (expr === "neutral" || expr === "talking") {
-		return [
-			roundedRect(cx - g, cy, 15.5 * s, 28 * s, 7.75 * s, tilt),
-			roundedRect(cx + g, cy, 15.5 * s, 28 * s, 7.75 * s, tilt),
-		];
+	const loops: Point[][] = [];
+	for (const [startKey, list] of next) {
+		while (list.length) {
+			const loop: [number, number][] = [];
+			let [cx, cy] = startKey.split(",").map(Number) as [number, number];
+			let guard = 0;
+			do {
+				loop.push([cx, cy]);
+				const outs = next.get(`${cx},${cy}`);
+				const step = outs?.shift();
+				if (!step) {
+					break;
+				}
+				[cx, cy] = step;
+			} while (`${cx},${cy}` !== startKey && ++guard < 10_000);
+			const corners = loop.filter((p, i) => {
+				const a = loop[(i + loop.length - 1) % loop.length] as [number, number];
+				const b = loop[(i + 1) % loop.length] as [number, number];
+				return (b[0] - p[0]) * (p[1] - a[1]) !== (b[1] - p[1]) * (p[0] - a[0]);
+			});
+			loops.push(
+				corners.map(([x, y]) => [ox + x * size, oy + y * size] as const),
+			);
+		}
 	}
-	if (expr === "angry") {
-		return [-1, 1].map((side) => {
-			const ex = cx + side * g;
-			const topOut: Point = [ex + side * 8 * s, cy - 8 * s];
-			const topIn: Point = [ex - side * 8 * s, cy + 1 * s];
-			const [left, right] = side === 1 ? [topIn, topOut] : [topOut, topIn];
-			const pts = [
-				left,
-				right,
-				...arcPoints(ex, cy + 3 * s, 8 * s, 0, Math.PI, 12),
-			];
-			return rotatePoints(relativeTo(pts, cx, cy), tilt * 0.4, cx, cy);
-		});
-	}
-	if (expr === "happy") {
-		return [-1, 1].map((side) => {
-			const ex = cx + side * g;
-			const pts = arcPoints(ex, cy + 5 * s, 9 * s, Math.PI, 2 * Math.PI, 16);
-			return rotatePoints(relativeTo(pts, cx, cy), tilt * 0.4, cx, cy);
-		});
-	}
-	return [-1, 1].map((side) =>
-		roundedRect(cx + side * (g - 1), cy + 4 * s, 15 * s, 3.6 * s, 1.8 * s, -14),
+	return loops;
+}
+
+export type EyeShape = {
+	outline: Shape;
+	cx: number;
+	cy: number;
+	w: number;
+	h: number;
+	cheek: number;
+};
+
+export function eyeShapes(expr: Expression): EyeShape[] {
+	const art = PIXEL_EYES[expr];
+	const width = Math.max(...art.rows.map((r) => r.length));
+	return [
+		{ x: art.x, mirror: false },
+		{ x: 16 - art.x - width, mirror: art.mirror },
+	].flatMap(({ x, mirror }) =>
+		traceCells(cellsOf(art.rows, mirror), CELL, x * CELL, art.y * CELL).map(
+			(outline) => {
+				const xs = outline.map((p) => p[0]);
+				const ys = outline.map((p) => p[1]);
+				const w = Math.max(...xs) - Math.min(...xs);
+				const h = Math.max(...ys) - Math.min(...ys);
+				return {
+					outline,
+					cx: Math.min(...xs) + w / 2,
+					cy: Math.min(...ys) + h / 2,
+					w,
+					h,
+					cheek: art.cheek,
+				};
+			},
+		),
 	);
 }
 
-export type Cheek = {
-	ex: number;
-	ecy: number;
-	ew: number;
-	eh: number;
-	amount: number;
-};
+export const LENS = {
+	open: {
+		rows: [
+			"....##....",
+			".########.",
+			"##########",
+			"##########",
+			".########.",
+			"....##....",
+		],
+		x: 3,
+		y: 4,
+	},
+	closed: { rows: ["...####...", ".########."], x: 3, y: 6 },
+	pupil: { x: 7, y: 6, w: 2, h: 2, reachX: 2, reachY: 1 },
+} as const;
 
-export function cheekFor(expr: Expression, side: -1 | 1): Cheek | null {
-	const s = FACE_SCALE;
-	const g = 13.5 * s;
-	if (expr === "happy") {
-		return {
-			ex: FACE_CX + side * g,
-			ecy: FACE_CY + 5 * s,
-			ew: 18 * s,
-			eh: 10 * s,
-			amount: 4.5 * s,
-		};
-	}
-	if (expr === "neutral" || expr === "talking") {
-		return {
-			ex: FACE_CX + side * g,
-			ecy: FACE_CY,
-			ew: 15.5 * s,
-			eh: 28 * s,
-			amount: 9 * s,
-		};
-	}
-	return null;
+function lensLoops(art: { rows: readonly string[]; x: number; y: number }) {
+	return traceCells(cellsOf(art.rows), CELL, art.x * CELL, art.y * CELL);
 }
 
-export function cheekClamp(y: number, x: number, cheek: Cheek, k: number) {
-	const base = cheek.ecy + cheek.eh * 0.5;
-	const t = (x - cheek.ex) / (cheek.ew * 0.75);
-	const yc = base - cheek.amount * k * (1 - Math.min(1, t * t));
+export const LENS_OPEN: Shape[] = lensLoops(LENS.open);
+export const LENS_CLOSED: Shape[] = lensLoops(LENS.closed);
+
+export function pupilShape(dx: number, dy: number): Shape {
+	const { x, y, w, h } = LENS.pupil;
+	const left = (x + dx) * CELL;
+	const top = (y + dy) * CELL;
+	return [
+		[left, top],
+		[left + w * CELL, top],
+		[left + w * CELL, top + h * CELL],
+		[left, top + h * CELL],
+	];
+}
+
+export function cheekClamp(y: number, x: number, eye: EyeShape, k: number) {
+	const base = eye.cy + eye.h * 0.5;
+	const t = (x - eye.cx) / (eye.w * 0.75);
+	const yc = base - eye.h * eye.cheek * k * (1 - Math.min(1, t * t));
 	return Math.min(y, yc);
 }
 
@@ -325,3 +441,72 @@ export const PROP_RECT = {
 	y: BODY_Y + BODY_H - 12,
 	size: 12,
 };
+
+const CLOUD_FRAMES = [
+	[
+		"...##...##..",
+		"..####.####.",
+		".##########.",
+		"############",
+		".##########.",
+	],
+	[
+		"..###...##..",
+		".#####.####.",
+		"############",
+		"############",
+		"..########..",
+	],
+	[
+		"...##..###..",
+		"..####.####.",
+		".###########",
+		"############",
+		".#########..",
+	],
+	[
+		"..##...###..",
+		".####.#####.",
+		"###########.",
+		"############",
+		"..#########.",
+	],
+] as const;
+
+const SWIRL: readonly (readonly [number, number])[][] = [
+	[
+		[5, 2],
+		[6, 2],
+	],
+	[
+		[6, 2],
+		[6, 3],
+	],
+	[
+		[5, 3],
+		[6, 3],
+	],
+	[
+		[5, 2],
+		[5, 3],
+	],
+];
+
+export const CLOUD = { cell: 4, x: 36, y: -16, cx: 60, cy: -6 };
+
+export const CLOUD_PATHS = CLOUD_FRAMES.map((frame, i) => {
+	const swirl = new Set((SWIRL[i] ?? []).map(([x, y]) => `${x},${y}`));
+	const cells = cellsOf(frame).filter(([x, y]) => !swirl.has(`${x},${y}`));
+	return traceCells(cells, CLOUD.cell, CLOUD.x, CLOUD.y)
+		.map((loop) => pathOf(loop))
+		.join("");
+});
+
+export const BOLT_PATH = traceCells(
+	cellsOf(["..##", ".##.", "####", ".##.", "##.."]),
+	2.5,
+	80,
+	3,
+)
+	.map((loop) => pathOf(loop))
+	.join("");

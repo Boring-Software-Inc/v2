@@ -51,6 +51,12 @@ export function MascotMachineCard({ snapshot, debug }: MascotMachineCardProps) {
 							<DataListValue mono>{snapshot.expression}</DataListValue>
 						</DataListItem>
 						<DataListItem>
+							<DataListLabel>Pokes in window</DataListLabel>
+							<DataListValue data-testid="mascot-pokes">
+								{snapshot.pokes}
+							</DataListValue>
+						</DataListItem>
+						<DataListItem>
 							<DataListLabel>Last event</DataListLabel>
 							<DataListValue>
 								{snapshot.lastEvent ? (

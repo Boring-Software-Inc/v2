@@ -42,6 +42,7 @@ import {
 } from "#/components/glaze/ui/table";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { adminUpdateOrgMemberRole } from "#/lib/admin.functions";
@@ -185,6 +186,7 @@ export function AdminOrgsPage() {
 								/>
 							) : orgs.length === 0 ? (
 								<TableEmpty
+									art={<MascotArt mood="admin-table-empty" size="compact" />}
 									colSpan={COLUMN_COUNT}
 									reason={
 										kind === "all" && !debouncedSearch ? "empty" : "no-results"

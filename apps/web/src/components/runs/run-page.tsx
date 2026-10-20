@@ -26,7 +26,6 @@ import {
 } from "#/components/glaze/ui/dialog";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -35,6 +34,7 @@ import {
 import { Status } from "#/components/glaze/ui/status";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
 import { StepCard } from "#/components/runs/step-card";
 import {
@@ -65,7 +65,11 @@ export function RunPage() {
 	if (!run) {
 		return (
 			<div className="flex min-h-dvh items-center justify-center bg-page px-4">
-				<Empty art={<EmptyArt />} className="max-w-sm" reason="no-results">
+				<Empty
+					art={<MascotArt mood="run-not-found" />}
+					className="max-w-sm"
+					reason="no-results"
+				>
 					<EmptyHeader>
 						<EmptyTitle>Run not found</EmptyTitle>
 						<EmptyDescription>

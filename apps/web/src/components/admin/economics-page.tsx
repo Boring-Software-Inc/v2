@@ -32,6 +32,7 @@ import {
 	TableRow,
 } from "#/components/glaze/ui/table";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	economicsCostByOrgQueryOptions,
 	economicsOverviewQueryOptions,
@@ -308,6 +309,7 @@ function RailwaySection({
 						/>
 					) : data === null ? (
 						<TableEmpty
+							art={<MascotArt mood="admin-table-empty" size="compact" />}
 							colSpan={5}
 							description="Set RAILWAY_API_TOKEN to an account token."
 							reason="error"
@@ -325,6 +327,7 @@ function RailwaySection({
 						/>
 					) : data.services.length === 0 ? (
 						<TableEmpty
+							art={<MascotArt mood="admin-table-empty" size="compact" />}
 							colSpan={5}
 							title="No services billed yet"
 							action={
@@ -395,6 +398,7 @@ function CostByOrgTable({
 						/>
 					) : rows.length === 0 ? (
 						<TableEmpty
+							art={<MascotArt mood="admin-table-empty" size="compact" />}
 							colSpan={4}
 							title="No rolled-up days yet"
 							action={

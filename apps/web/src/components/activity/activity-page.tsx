@@ -10,7 +10,6 @@ import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
-	EmptyArt,
 	EmptyCode,
 	EmptyContent,
 	EmptyDescription,
@@ -24,6 +23,7 @@ import {
 } from "#/components/glaze/ui/segmented-control";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import type {
 	ActivityFeedItem,
 	ActivityGroup,
@@ -150,7 +150,7 @@ export function ActivityPage() {
 					</div>
 
 					{error ? (
-						<Empty art={<EmptyArt />} reason="error">
+						<Empty art={<MascotArt mood="activity-error" />} reason="error">
 							<EmptyHeader>
 								<EmptyTitle>Couldn't load activity</EmptyTitle>
 								<EmptyDescription>
@@ -176,7 +176,7 @@ export function ActivityPage() {
 						>
 							{isSuccess && segments.length === 0 ? (
 								filter === "all" ? (
-									<Empty art={<EmptyArt />}>
+									<Empty art={<MascotArt mood="activity-empty" />}>
 										<EmptyHeader>
 											<EmptyTitle>No activity yet</EmptyTitle>
 											<EmptyDescription>
@@ -201,7 +201,10 @@ export function ActivityPage() {
 										</EmptyContent>
 									</Empty>
 								) : (
-									<Empty art={<EmptyArt />} reason="no-results">
+									<Empty
+										art={<MascotArt mood="activity-no-matches" />}
+										reason="no-results"
+									>
 										<EmptyHeader>
 											<EmptyTitle>
 												Nothing matches{" "}

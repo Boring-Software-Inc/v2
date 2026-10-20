@@ -1,10 +1,10 @@
 import { type CSSProperties, useEffect, useRef } from "react";
 import type { MascotEngine } from "#/components/mascot/engine";
-import { REST_PATH } from "#/components/mascot/engine";
 import {
+	BOLT_PATH,
 	BUBBLE_TAIL_PATH,
 	bubblePath,
-	type Expression,
+	CLOUD_PATHS,
 	PROP_RECT,
 	SAGE,
 	VIEW_BOX,
@@ -15,8 +15,9 @@ import { cn } from "#/lib/glaze/utils";
 export type MascotFigureProps = {
 	engine: MascotEngine;
 	size: number;
-	sage: boolean;
-	resting: Expression;
+	sage?: boolean;
+	tone?: "ink" | "muted";
+	path: string;
 	className?: string;
 };
 
@@ -25,8 +26,9 @@ const SAGE_VAR = { "--mascot-sage": SAGE } as CSSProperties;
 export function MascotFigure({
 	engine,
 	size,
-	sage,
-	resting,
+	sage = false,
+	tone = "ink",
+	path,
 	className,
 }: MascotFigureProps) {
 	const body = useRef<SVGPathElement>(null);
@@ -35,6 +37,9 @@ export function MascotFigure({
 	const bubbleBody = useRef<SVGPathElement>(null);
 	const prop = useRef<SVGRectElement>(null);
 	const drip = useRef<SVGEllipseElement>(null);
+	const cloud = useRef<SVGGElement>(null);
+	const cloudBody = useRef<SVGPathElement>(null);
+	const bolt = useRef<SVGPathElement>(null);
 
 	useEffect(() => {
 		if (
@@ -43,7 +48,10 @@ export function MascotFigure({
 			!bubble.current ||
 			!bubbleBody.current ||
 			!prop.current ||
-			!drip.current
+			!drip.current ||
+			!cloud.current ||
+			!cloudBody.current ||
+			!bolt.current
 		) {
 			return;
 		}
@@ -54,6 +62,9 @@ export function MascotFigure({
 			bubbleBody: bubbleBody.current,
 			prop: prop.current,
 			drip: drip.current,
+			cloud: cloud.current,
+			cloudBody: cloudBody.current,
+			bolt: bolt.current,
 		});
 	}, [engine]);
 
@@ -63,6 +74,7 @@ export function MascotFigure({
 			className={cn(
 				"block shrink-0 overflow-visible",
 				sage ? "text-(--mascot-sage)" : "text-ink",
+				tone === "muted" && "opacity-45",
 				className,
 			)}
 			height={size}
@@ -70,12 +82,7 @@ export function MascotFigure({
 			viewBox={VIEW_BOX}
 			width={size}
 		>
-			<path
-				d={REST_PATH[resting]}
-				fill="currentColor"
-				fillRule="evenodd"
-				ref={body}
-			/>
+			<path d={path} fill="currentColor" fillRule="evenodd" ref={body} />
 			<g ref={zz} visibility="hidden">
 				<path d={ZZ_PATH} fill="currentColor" />
 			</g>
@@ -97,6 +104,20 @@ export function MascotFigure({
 				x={PROP_RECT.x}
 				y={PROP_RECT.y}
 			/>
+			<g ref={cloud} visibility="hidden">
+				<path
+					d={CLOUD_PATHS[0]}
+					fill="currentColor"
+					fillRule="evenodd"
+					ref={cloudBody}
+				/>
+				<path
+					d={BOLT_PATH}
+					fill="currentColor"
+					ref={bolt}
+					visibility="hidden"
+				/>
+			</g>
 			<ellipse
 				cx={0}
 				cy={0}

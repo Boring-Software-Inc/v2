@@ -4,13 +4,13 @@ import { ArrowLeft, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { WorkflowEditor } from "#/components/workflows/editor/workflow-editor";
 import {
 	EditorFrameSkeleton,
@@ -86,7 +86,10 @@ export function WorkflowEditorPage() {
 	if (!(loading || workflow)) {
 		body = (
 			<div className="grid flex-1 place-items-center p-4">
-				<Empty art={<EmptyArt />} reason="no-results">
+				<Empty
+					art={<MascotArt mood="workflow-not-found" />}
+					reason="no-results"
+				>
 					<EmptyHeader>
 						<EmptyTitle>Workflow not found</EmptyTitle>
 					</EmptyHeader>

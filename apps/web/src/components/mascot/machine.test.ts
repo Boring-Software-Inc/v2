@@ -2,10 +2,15 @@ import { describe, expect, test } from "bun:test";
 import {
 	allowedEvents,
 	expressionFor,
+	MAD_AT,
 	MASCOT_EVENTS,
 	MASCOT_STATES,
 	type MascotEvent,
 	type MascotState,
+	POKE_WINDOW_MS,
+	pokeEvent,
+	recentPokes,
+	resolvePoke,
 	TRANSITIONS,
 	transition,
 } from "#/components/mascot/machine";
@@ -89,14 +94,68 @@ describe("mascot transition", () => {
 	});
 
 	test("allowed events match the table", () => {
-		expect(allowedEvents("sleepy")).toEqual(["POKE", "WAKE", "SURPRISE"]);
+		expect(allowedEvents("sleepy")).toEqual([
+			"POKE",
+			"WAKE",
+			"SURPRISE",
+			"ANNOY",
+			"TANTRUM",
+		]);
 		expect(allowedEvents("hop")).toEqual(["TIMEOUT"]);
 	});
 
 	test("states pick their face over the resting one", () => {
 		expect(expressionFor("idle", "happy")).toBe("happy");
 		expect(expressionFor("sleepy", "neutral")).toBe("sleepy");
-		expect(expressionFor("poked", "neutral")).toBe("surprised");
+		expect(expressionFor("poked", "neutral")).toBe("poked");
 		expect(expressionFor("talking", "angry")).toBe("talking");
+	});
+});
+
+describe("poke escalation", () => {
+	test("counts escalate poke, annoy, tantrum", () => {
+		expect([1, 2, 3, 4, 5, 6].map(pokeEvent)).toEqual([
+			"POKE",
+			"POKE",
+			"ANNOY",
+			"ANNOY",
+			"TANTRUM",
+			"TANTRUM",
+		]);
+	});
+
+	test("five quick pokes walk idle to furious", () => {
+		let state: MascotState = "idle";
+		for (let count = 1; count <= MAD_AT; count++) {
+			const event = resolvePoke(state, count);
+			expect(event).not.toBeNull();
+			state = transition(state, event as MascotEvent) as MascotState;
+		}
+		expect(state).toBe("furious");
+	});
+
+	test("the window decays old pokes", () => {
+		const times = [0, 500, 1000, 2900];
+		expect(recentPokes(times, 3200)).toEqual([500, 1000, 2900]);
+		expect(recentPokes(times, 2900 + POKE_WINDOW_MS + 1)).toEqual([]);
+	});
+
+	test("furious ignores pokes and cools down on timeout", () => {
+		expect(resolvePoke("furious", 1)).toBeNull();
+		expect(resolvePoke("furious", MAD_AT)).toBeNull();
+		expect(transition("furious", "TIMEOUT")).toBe("idle");
+		expect(SCRIPTS.furious.timeoutMs).toBeGreaterThanOrEqual(2000);
+		expect(SCRIPTS.furious.timeoutMs).toBeLessThanOrEqual(3500);
+	});
+
+	test("states that ignore pokes ignore escalation too", () => {
+		expect(resolvePoke("hop", MAD_AT)).toBeNull();
+		expect(resolvePoke("sploot", 3)).toBeNull();
+	});
+
+	test("annoyed eyes narrow, then turn angry, and furious is angry", () => {
+		expect(expressionFor("annoyed", "neutral", 3)).toBe("annoyed");
+		expect(expressionFor("annoyed", "neutral", 4)).toBe("angry");
+		expect(expressionFor("furious", "happy")).toBe("angry");
 	});
 });

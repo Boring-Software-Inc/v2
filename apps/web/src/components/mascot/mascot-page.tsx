@@ -15,21 +15,16 @@ import {
 	DEFAULT_SETTINGS,
 	MascotEngine,
 	type MascotSettings,
+	REST_PATH,
 } from "#/components/mascot/engine";
 import { MascotControls } from "#/components/mascot/mascot-controls";
 import { MascotFigure } from "#/components/mascot/mascot-figure";
 import { MascotMachineCard } from "#/components/mascot/mascot-machine-card";
+import { useReducedMotion } from "#/components/mascot/use-reduced-motion";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 
 const REACH = 260;
-const PREVIEW_SIZES = [96, 32, 24] as const;
-const REDUCED_QUERY = "(prefers-reduced-motion: reduce)";
-
-function subscribeReduced(listener: () => void) {
-	const query = window.matchMedia(REDUCED_QUERY);
-	query.addEventListener("change", listener);
-	return () => query.removeEventListener("change", listener);
-}
+const PREVIEW_SIZES = [80, 64, 32, 24] as const;
 
 function isTypingTarget(target: EventTarget | null) {
 	if (!(target instanceof HTMLElement)) {
@@ -56,11 +51,7 @@ export function MascotPage() {
 		engine.getSnapshot,
 		engine.getSnapshot,
 	);
-	const systemReduced = useSyncExternalStore(
-		subscribeReduced,
-		() => window.matchMedia(REDUCED_QUERY).matches,
-		() => false,
-	);
+	const systemReduced = useReducedMotion();
 	const { resolvedTheme, setTheme } = useTheme();
 	const hasMounted = useHasMounted();
 	const isDark = hasMounted && resolvedTheme === "dark";
@@ -137,7 +128,7 @@ export function MascotPage() {
 									aria-label="Poke the mascot"
 									className="flex min-h-96 w-full cursor-pointer items-center justify-center rounded-panel focus-visible:focus-ring"
 									data-mascot-stage=""
-									onClick={() => engine.send("POKE")}
+									onClick={() => engine.poke()}
 									onKeyUp={onStageKeyUp}
 									onPointerLeave={() => engine.setPointer(null)}
 									onPointerMove={onStageMove}
@@ -145,7 +136,7 @@ export function MascotPage() {
 								>
 									<MascotFigure
 										engine={engine}
-										resting={settings.resting}
+										path={REST_PATH[settings.resting]}
 										sage={sage}
 										size={240}
 									/>
@@ -158,7 +149,7 @@ export function MascotPage() {
 										>
 											<MascotFigure
 												engine={engine}
-												resting={settings.resting}
+												path={REST_PATH[settings.resting]}
 												sage={sage}
 												size={size}
 											/>
@@ -177,7 +168,14 @@ export function MascotPage() {
 						debug={debug}
 						onDebug={setDebug}
 						onSage={setSage}
-						onSend={(event) => engine.send(event)}
+						onMad={() => {
+							for (let i = 0; i < 5; i++) {
+								window.setTimeout(() => engine.poke(), i * 260);
+							}
+						}}
+						onSend={(event) =>
+							event === "POKE" ? engine.poke() : engine.send(event)
+						}
 						onSettings={setSettings}
 						sage={sage}
 						settings={settings}

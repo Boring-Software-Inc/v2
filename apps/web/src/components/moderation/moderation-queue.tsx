@@ -11,7 +11,6 @@ import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
-	EmptyArt,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
@@ -26,6 +25,7 @@ import {
 	ItemTitle,
 } from "#/components/glaze/ui/item";
 import { toast } from "#/components/glaze/ui/toast";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import {
 	decideModeration,
@@ -69,7 +69,7 @@ export function ModerationQueue({
 		<div className="flex flex-col gap-2">
 			{title}
 			{items && items.length === 0 ? (
-				<Empty art={<EmptyArt />}>
+				<Empty art={<MascotArt mood="moderation-queue-empty" />}>
 					<EmptyHeader>
 						<EmptyTitle>Nothing awaiting moderation</EmptyTitle>
 						<EmptyDescription>
