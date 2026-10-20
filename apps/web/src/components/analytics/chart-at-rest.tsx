@@ -1,6 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
 import { Chart } from "#/components/glaze/ui/chart";
-import { MascotArt } from "#/components/mascot/mascot-art";
 
 type CartesianChartProps = Extract<
 	ComponentProps<typeof Chart>,
@@ -34,18 +33,13 @@ export function hourlyZeroRows(xKey: string, keys: string[], length = 24) {
 
 export function ChartAtRest({ message, action, ...props }: ChartAtRestProps) {
 	return (
-		<div className="relative" data-chart-rest="">
+		<div data-chart-rest="">
 			<Chart
 				{...props}
 				actions={action}
 				description={message}
 				legend={false}
 				valueFormat={restTick}
-			/>
-			<MascotArt
-				className="absolute end-6 bottom-12"
-				mood="chart-at-rest"
-				size="compact"
 			/>
 		</div>
 	);

@@ -32,7 +32,6 @@ export const MASCOT_MOODS = {
 	"rules-workflows-empty": { face: "neutral", wander: true },
 	"rules-active-empty": { face: "sleepy", sleeps: true },
 	"workflows-empty": { face: "happy", ambient: OCCASIONAL_HOP },
-	"chart-at-rest": { face: "neutral", gazeRest: { x: -0.9, y: 0.5 }, far: 240 },
 	"invites-empty": { face: "happy" },
 	"forges-empty": { face: "neutral" },
 	"repos-empty": { face: "neutral", wander: true },

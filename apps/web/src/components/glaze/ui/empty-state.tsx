@@ -33,8 +33,8 @@ const emptyVariants = cva('group/empty flex w-full min-w-0 flex-col items-center
       plain: '',
     },
     size: {
-      default: 'px-4 py-6',
-      sm: 'gap-2 px-3 py-4',
+      default: 'px-4 pt-6 pb-10',
+      sm: 'gap-2 px-3 pt-4 pb-6',
     },
   },
   defaultVariants: {variant: 'panel', size: 'default'},
@@ -63,7 +63,7 @@ function Empty({className, reason = 'empty', variant = 'panel', size = 'default'
 
 type EmptyArtSize = 'default' | 'compact';
 
-const emptyArtSize: Record<EmptyArtSize, string> = {default: 'size-20 mt-6 mb-3', compact: 'size-16 mt-4 mb-2'};
+const emptyArtSize: Record<EmptyArtSize, string> = {default: 'size-16 mt-5 mb-2', compact: 'size-12 mt-4 mb-1'};
 
 function emptyArtClass(size: EmptyArtSize = 'default') {
   return cn('relative shrink-0', emptyArtSize[size]);
@@ -81,7 +81,7 @@ function EmptyArt({className, size = 'default', ...props}: Omit<React.ComponentP
 
 /** The title and description, held to a hint's measure. */
 function EmptyHeader({className, ...props}: React.ComponentProps<'div'>) {
-  return <div data-slot="empty-header" className={cn('flex max-w-(--measure-hint) min-w-0 flex-col items-center gap-1', className)} {...props}/>;
+  return <div data-slot="empty-header" className={cn('flex max-w-80 min-w-0 flex-col items-center gap-1 group-data-[size=sm]/empty:max-w-64', className)} {...props}/>;
 }
 
 type EmptyTitleProps = React.ComponentProps<'h3'> & {
