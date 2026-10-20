@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { NavChip } from "#/components/layouts/nav-chip";
+import { ApprovedInstallBanner } from "#/components/organizations/approved-install-banner";
 import { HomeListSkeleton } from "#/components/organizations/org-home-page-skeleton";
 import { Button } from "#/components/ui/button";
 import { formatRelativeTime } from "#/lib/format-relative-time";
@@ -68,6 +69,8 @@ export function OrgHomePage() {
 							</p>
 						</header>
 					</div>
+
+					<ApprovedInstallBanner />
 
 					{home ? (
 						<HomeBody home={home} org={org} ranked={ranked} />

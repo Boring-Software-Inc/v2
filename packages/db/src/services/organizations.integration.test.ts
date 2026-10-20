@@ -9,7 +9,8 @@ import {
 	type Db,
 	type TestDatabase,
 } from "../index.ts";
-import { user } from "../schema/auth.ts";
+import { account, user } from "../schema/auth.ts";
+import { events } from "../schema/events.ts";
 import {
 	member,
 	organization,
@@ -27,6 +28,7 @@ import {
 	getInstallationOrg,
 	getOrgForUser,
 	linkOrgInstallation,
+	listApprovedInstallRequests,
 	listInviteLinks,
 	listUserOrgs,
 	moveInstallation,
@@ -435,6 +437,68 @@ describe("installations (§2/§3) — webhook org-resolution", () => {
 			.from(repos)
 			.where(eq(repos.fullName, "acme/api"));
 		expect(repoRows[0]?.orgId).toBe(target);
+	});
+});
+
+describe("approved install requests — the requester's way back", () => {
+	async function seedApproval(installationId: string, requesterId: number) {
+		await db.insert(events).values({
+			id: generateId(),
+			forge: "github",
+			deliveryId: generateId(),
+			rawKind: "installation",
+			kind: "installation.created",
+			raw: {
+				action: "created",
+				installation: {
+					id: Number(installationId),
+					account: { login: "corp" },
+				},
+				requester: { id: requesterId, login: "asker" },
+			},
+		});
+		await syncInstallationRepos(
+			db,
+			installationId,
+			[
+				{
+					externalId: `r-${installationId}`,
+					owner: "corp",
+					name: `app-${installationId}`,
+					fullName: `corp/app-${installationId}`,
+					private: true,
+				},
+			],
+			[],
+			null,
+		);
+	}
+
+	test("the requester sees the approved, unclaimed install; others do not", async () => {
+		await seedUser("asker");
+		await seedUser("bystander");
+		await db.insert(account).values({
+			id: generateId(),
+			userId: "asker",
+			providerId: "github",
+			accountId: "9001",
+		});
+		await seedApproval("7001", 9001);
+
+		expect(await listApprovedInstallRequests(db, { userId: "asker" })).toEqual([
+			{ installationId: "7001", account: "corp", repoCount: 1 },
+		]);
+		expect(
+			await listApprovedInstallRequests(db, { userId: "bystander" }),
+		).toEqual([]);
+	});
+
+	test("claiming the install clears it", async () => {
+		const orgId = await seedTeamOrg("asker-team", "asker");
+		await linkOrgInstallation(db, { orgId, installationId: "7001" });
+		expect(await listApprovedInstallRequests(db, { userId: "asker" })).toEqual(
+			[],
+		);
 	});
 });
 
