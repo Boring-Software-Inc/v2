@@ -152,7 +152,7 @@ function InstallCta({ org }: { org: string }) {
 
 function RepoRow({ org, repo }: { org: string; repo: SwitcherRepo }) {
 	return (
-		<Item className="flex-wrap py-2">
+		<Item className="items-start py-2">
 			<ItemMedia variant="icon">
 				<Icon icon={Branch} />
 			</ItemMedia>
@@ -168,8 +168,40 @@ function RepoRow({ org, repo }: { org: string; repo: SwitcherRepo }) {
 						? ` · ${formatRelativeTime(repo.lastActivityAt)}`
 						: null}
 				</ItemDescription>
+				{repo.armed ? (
+					<nav
+						aria-label={`Shortcuts for ${repo.fullName}`}
+						className="relative z-(--z-raised) mt-2 flex flex-wrap gap-2"
+					>
+						<NavChip
+							icon={Moderation}
+							label="Queue"
+							to={`/${org}/${repo.name}/moderation`}
+						/>
+						<NavChip
+							icon={Rules}
+							label="Rules"
+							to={`/${org}/${repo.name}/rules`}
+						/>
+						<NavChip
+							icon={Workflow}
+							label="Workflows"
+							to={`/${org}/${repo.name}/workflows`}
+						/>
+						<NavChip
+							icon={Activity}
+							label="Activity"
+							to={`/${org}/${repo.name}/activity`}
+						/>
+						<NavChip
+							icon={Analytics}
+							label="Analytics"
+							to={`/${org}/${repo.name}/analytics`}
+						/>
+					</nav>
+				) : null}
 			</ItemContent>
-			<ItemMeta className="flex items-center gap-1.5">
+			<ItemMeta className="flex items-center gap-1">
 				{repo.armed ? (
 					<>
 						{repo.pendingModeration > 0 ? (
@@ -183,38 +215,6 @@ function RepoRow({ org, repo }: { org: string; repo: SwitcherRepo }) {
 					<Badge variant="outline">Not armed</Badge>
 				)}
 			</ItemMeta>
-			{repo.armed ? (
-				<nav
-					aria-label={`Shortcuts for ${repo.fullName}`}
-					className="relative z-(--z-raised) flex basis-full flex-wrap gap-1.5 ps-9"
-				>
-					<NavChip
-						icon={Moderation}
-						label="Queue"
-						to={`/${org}/${repo.name}/moderation`}
-					/>
-					<NavChip
-						icon={Rules}
-						label="Rules"
-						to={`/${org}/${repo.name}/rules`}
-					/>
-					<NavChip
-						icon={Workflow}
-						label="Workflows"
-						to={`/${org}/${repo.name}/workflows`}
-					/>
-					<NavChip
-						icon={Activity}
-						label="Activity"
-						to={`/${org}/${repo.name}/activity`}
-					/>
-					<NavChip
-						icon={Analytics}
-						label="Analytics"
-						to={`/${org}/${repo.name}/analytics`}
-					/>
-				</nav>
-			) : null}
 		</Item>
 	);
 }

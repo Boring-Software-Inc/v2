@@ -20,7 +20,7 @@ function RunSkeletonBody() {
 				<header className="flex flex-col gap-2">
 					<div className="flex items-center justify-between gap-3">
 						<SkeletonText className="w-16" type="heading" />
-						<div className="flex gap-1.5">
+						<div className="flex gap-2">
 							<Skeleton className="h-(--control-sm) w-20 rounded-pill" />
 							<Skeleton className="h-(--control-sm) w-24 rounded-pill" />
 						</div>
@@ -35,7 +35,7 @@ function RunSkeletonBody() {
 					<CardContent flush>
 						{STEP_SLOTS.map((slot) => (
 							<div
-								className="rule-row flex items-center gap-3 px-3 py-2.5"
+								className="rule-row flex items-center min-h-(--row) gap-3 px-3 py-2"
 								key={slot.key}
 							>
 								<span className="flex min-w-0 flex-1 items-center">

@@ -100,9 +100,13 @@ const PORT_CLASS = "!-z-10 !h-4 !w-5 !min-w-0 !rounded-tag !border-0";
 const PORT_POSITIVE = "!bg-ok";
 const PORT_NEGATIVE = "!bg-fail";
 /** Header-height tabs (in / out / pass / approve). */
-const PORT_TOP = { top: 12, transform: "none" } as const;
+const PORT_TOP = { top: "var(--space-3)", transform: "none" } as const;
 /** The negative-outcome tab, hugging the bottom-right corner. */
-const PORT_CORNER = { top: "auto", bottom: 8, transform: "none" } as const;
+const PORT_CORNER = {
+	top: "auto",
+	bottom: "var(--space-2)",
+	transform: "none",
+} as const;
 
 export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 	const { node } = data;
@@ -115,7 +119,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 		<div
 			className={cn(
 				"relative min-w-44 max-w-64 rounded-panel border border-line-faint bg-paper px-3 py-2 text-text-1 transition-colors duration-(--dur-state)",
-				forked && "min-h-16 pb-2.5",
+				forked && "min-h-16 pb-3",
 				selected && "border-ink",
 				issues.length > 0 && !selected && "border-fail",
 			)}
@@ -137,7 +141,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 					type="target"
 				/>
 			) : null}
-			<div className="flex items-baseline gap-1.5">
+			<div className="flex items-baseline gap-1">
 				<span className="min-w-0 truncate type-label">
 					{nodeName(node, customName)}
 				</span>
@@ -149,7 +153,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				<div className="truncate type-code-xs text-text-2">{detail}</div>
 			) : null}
 			{fields.length > 0 ? (
-				<div className="mt-1.5 flex flex-col gap-1 border-line-faint border-t pt-1.5">
+				<div className="mt-2 flex flex-col gap-1 border-line-faint border-t pt-2">
 					{fields.map(({ field, value }) => (
 						<div
 							className="flex items-baseline justify-between gap-2 type-caption"

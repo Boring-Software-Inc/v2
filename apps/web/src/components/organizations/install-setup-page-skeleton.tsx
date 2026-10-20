@@ -1,19 +1,26 @@
 import { TripwireLogo } from "#/components/common/tripwire-logo";
+import { Card, CardContent } from "#/components/glaze/ui/card";
 import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 
 export function InstallSetupPageSkeleton() {
 	return (
-		<div className="flex min-h-dvh w-full items-center justify-center bg-page px-4 py-10">
-			<div
-				aria-hidden
-				className="flex w-full max-w-sm flex-col items-center gap-5 text-center"
-			>
+		<div className="flex min-h-dvh w-full justify-center bg-page px-4 py-10 md:items-center">
+			<div aria-hidden className="flex w-full max-w-md flex-col gap-6">
 				<TripwireLogo className="text-text-1" size={28} />
-				<div className="flex w-full flex-col items-center gap-2">
-					<SkeletonText className="w-56" type="heading" />
-					<SkeletonText className="w-72" lines={2} type="body" />
+				<div className="flex flex-col gap-2">
+					<SkeletonText className="w-64" type="heading" />
+					<SkeletonText lines={2} type="body" />
 				</div>
-				<Skeleton className="h-(--control) w-32 rounded-pill" />
+				<Card>
+					<CardContent className="flex flex-col gap-3">
+						<SkeletonText className="w-48" type="label" />
+						<SkeletonText className="w-40" type="label" />
+					</CardContent>
+				</Card>
+				<div className="flex justify-end gap-2">
+					<Skeleton className="h-(--control) w-40 rounded-pill" />
+					<Skeleton className="h-(--control) w-32 rounded-pill" />
+				</div>
 			</div>
 		</div>
 	);

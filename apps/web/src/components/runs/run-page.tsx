@@ -147,7 +147,7 @@ function RunBody({ run }: { run: RunView }) {
 				<header className="flex flex-col gap-2">
 					<div className="flex flex-wrap items-center justify-between gap-3">
 						<h1 className="type-title">Run</h1>
-						<div className="flex flex-wrap items-center gap-1.5">
+						<div className="flex flex-wrap items-center gap-2">
 							<ViewOnForgeButton run={run} />
 							<CopyButton
 								label="run as markdown"
@@ -223,11 +223,11 @@ function RunBody({ run }: { run: RunView }) {
 						<CardContent flush>
 							{run.actions.map((action) => (
 								<div
-									className="rule-row flex min-w-0 items-center gap-3 px-3 py-2.5"
+									className="rule-row flex min-w-0 items-center min-h-(--row) gap-3 px-3 py-2"
 									key={`${action.kind}-${action.recordedAt}`}
 								>
-									<span className="min-w-0 flex-1 truncate type-code-sm">
-										{action.kind}
+									<span className="min-w-0 flex-1 truncate type-label">
+										{action.kind.charAt(0).toUpperCase() + action.kind.slice(1)}
 									</span>
 									{action.delivery ? (
 										<DeliveryStatus delivery={action.delivery} />

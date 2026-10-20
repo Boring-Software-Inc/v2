@@ -120,7 +120,7 @@ function FileFindings({
 					summary={severityCounts(findings)}
 					summaryStatus={worstStatus(findings)}
 				>
-					<span className="flex min-w-0 items-center gap-1.5">
+					<span className="flex min-w-0 items-center gap-1">
 						<FileIcon />
 						<FilePath file={file} />
 					</span>

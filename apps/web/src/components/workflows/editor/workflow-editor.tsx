@@ -20,7 +20,6 @@ import {
 } from "@tripwire/contracts";
 import {
 	addEdge,
-	Background,
 	type Connection,
 	Controls,
 	type Edge,
@@ -74,7 +73,6 @@ const CANVAS_DROP_ID = "workflow-canvas";
 
 const CANVAS_TOKENS = {
 	"--xy-background-color": "var(--page)",
-	"--xy-background-pattern-dots-color": "var(--ink-10)",
 	"--xy-edge-stroke": "var(--ink-45)",
 	"--xy-edge-stroke-selected": "var(--ink)",
 	"--xy-connectionline-stroke": "var(--ink-45)",
@@ -84,7 +82,7 @@ const CANVAS_TOKENS = {
 	"--xy-handle-border-color": "var(--paper)",
 	"--xy-node-color": "var(--text-1)",
 	"--xy-selection-background-color": "var(--ink-06)",
-	"--xy-selection-border": "1px dotted var(--ink-45)",
+	"--xy-selection-border": "var(--line-width) dashed var(--line-strong)",
 	"--xy-controls-box-shadow": "var(--shadow-none)",
 	"--xy-controls-button-background-color": "var(--paper)",
 	"--xy-controls-button-background-color-hover": "var(--hover)",
@@ -471,9 +469,8 @@ function EditorBody({
 								proOptions={{ hideAttribution: true }}
 								style={CANVAS_TOKENS}
 							>
-								<Background gap={16} />
 								<Controls
-									className="overflow-hidden rounded-panel border border-line-faint"
+									className="overflow-hidden rounded-overlay border border-line"
 									position="bottom-right"
 									showInteractive={false}
 								/>
@@ -505,7 +502,7 @@ function EditorBody({
 				</CanvasDropzone>
 				<DragOverlay dropAnimation={null}>
 					{dragged ? (
-						<div className="overlay rounded-panel px-2 py-1.5 type-label-sm">
+						<div className="overlay rounded-panel px-2 py-1 type-label-sm">
 							{dragged.name}
 						</div>
 					) : null}

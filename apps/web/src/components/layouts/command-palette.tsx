@@ -98,7 +98,13 @@ function repoIcon(forge: Forge): ReactNode {
 	return <ForgeMark className="size-(--icon) shrink-0" forge={forge} />;
 }
 
-export function CommandPalette({ onClose }: { onClose: () => void }) {
+export function CommandPalette({
+	open,
+	onClose,
+}: {
+	open: boolean;
+	onClose: () => void;
+}) {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -121,11 +127,13 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 		return segment ? `/${segment}` : "";
 	})();
 
-	// Mounted only while open ⇒ these fetch on open, not on app mount.
-	const { data: orgs, isPending: orgsPending } = useQuery(myOrgsQueryOptions());
+	const { data: orgs, isPending: orgsPending } = useQuery({
+		...myOrgsQueryOptions(),
+		enabled: open,
+	});
 	const { data: orgHome, isLoading: orgHomeLoading } = useQuery({
 		...orgHomeQueryOptions(currentOrg ?? ""),
-		enabled: currentOrg !== undefined,
+		enabled: open && currentOrg !== undefined,
 	});
 	const repoScope =
 		currentOrg && currentRepo ? { org: currentOrg, repo: currentRepo } : null;
@@ -135,7 +143,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 			repoScope
 				? getLatestRunId({ data: repoScope, signal })
 				: Promise.resolve(null),
-		enabled: repoScope !== null,
+		enabled: open && repoScope !== null,
 		staleTime: 15_000,
 	});
 
@@ -145,6 +153,12 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 	const [connectOpen, setConnectOpen] = useState(false);
 	const [createOrgOpen, setCreateOrgOpen] = useState(false);
 	const [query, setQuery] = useState("");
+	const close = () => {
+		setQuery("");
+		setConnectOpen(false);
+		setCreateOrgOpen(false);
+		onClose();
+	};
 	const deferred = useDebouncedValue(query, 200);
 	const inputRef = useRef<HTMLInputElement>(null);
 
@@ -168,7 +182,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 	});
 	function go(path: string) {
 		navigate({ to: path });
-		onClose();
+		close();
 	}
 
 	const terms = tokenize(deferred);
@@ -399,7 +413,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 					to: ".",
 					search: (prev) => ({ ...prev, settings: "connections" as const }),
 				});
-				onClose();
+				close();
 			},
 		});
 		navItems.push({
@@ -413,7 +427,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 					to: ".",
 					search: (prev) => ({ ...prev, settings: "members" as const }),
 				});
-				onClose();
+				close();
 			},
 		});
 	}
@@ -429,12 +443,12 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
 	return (
 		<CommandDialog
-			onOpenChange={(open) => {
-				if (!open) {
-					onClose();
+			onOpenChange={(next) => {
+				if (!next) {
+					close();
 				}
 			}}
-			open
+			open={open}
 			title="Search orgs, repos, actions and pages"
 		>
 			<Command label="Command palette" loop shouldFilter={false}>
@@ -463,7 +477,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 					{(loading ? [] : repoGroups).map((group) => (
 						<CommandGroup
 							heading={
-								<span className="flex items-center gap-1.5">
+								<span className="flex items-center gap-1">
 									<ForgeMark
 										className="size-(--icon-sm) shrink-0"
 										forge={group.forge}
@@ -649,7 +663,7 @@ function PaletteRow({ item }: { item: PaletteItem }) {
 			{item.icon}
 			<CommandLabel className="flex-1">{item.label}</CommandLabel>
 			{item.hint ? (
-				<span className="ms-auto flex shrink-0 items-center gap-1.5">
+				<span className="ms-auto flex shrink-0 items-center gap-2">
 					{item.hint}
 				</span>
 			) : null}

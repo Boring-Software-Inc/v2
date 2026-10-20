@@ -127,7 +127,7 @@ function PersonaList({
 					</Item>
 				))}
 			</ItemGroup>
-			<div className="flex flex-wrap gap-1.5">
+			<div className="flex flex-wrap gap-2">
 				<Button
 					disabled={busy !== null && busy !== "reset"}
 					onClick={() => reset()}

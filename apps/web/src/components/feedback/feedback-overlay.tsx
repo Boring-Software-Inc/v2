@@ -191,7 +191,7 @@ export function FeedbackOverlay() {
 
 			{hovered ? (
 				<div
-					className="pointer-events-none fixed top-(--pick-top) left-(--pick-left) h-(--pick-height) w-(--pick-width) rounded-tag border border-ink bg-hover transition-[top,left,width,height] duration-(--dur-press) ease-out"
+					className="pointer-events-none fixed top-(--pick-top) left-(--pick-left) h-(--pick-height) w-(--pick-width) rounded-tag border border-ink bg-hover"
 					ref={highlightRef}
 					style={
 						{

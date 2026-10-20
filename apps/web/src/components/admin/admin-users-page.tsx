@@ -163,7 +163,7 @@ export function AdminUsersPage() {
 					total={total}
 				/>
 			)}
-			<div className="flex gap-1.5">
+			<div className="flex gap-2">
 				<Button
 					disabled={offset === 0}
 					onClick={() => setOffset(Math.max(0, offset - ADMIN_PAGE_SIZE))}
@@ -275,7 +275,7 @@ export function AdminUsersPage() {
 														src={u.image ?? undefined}
 													/>
 													<div className="flex min-w-0 flex-col">
-														<span className="flex items-center gap-1.5 truncate type-label">
+														<span className="flex items-center gap-1 truncate type-label">
 															{u.name}
 															{u.isPlatformAdmin ? (
 																<Badge size="sm" variant="outline">
@@ -330,7 +330,7 @@ export function AdminUsersPage() {
 												/>
 											</TableCell>
 											<TableCell>
-												<div className="flex items-center justify-end gap-1.5">
+												<div className="flex items-center justify-end gap-2">
 													{u.accessStatus !== "approved" ? (
 														<Button
 															disabled={review.isPending}

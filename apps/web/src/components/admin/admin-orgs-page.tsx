@@ -129,7 +129,7 @@ export function AdminOrgsPage() {
 					total={total}
 				/>
 			)}
-			<div className="flex gap-1.5">
+			<div className="flex gap-2">
 				<Button
 					disabled={offset === 0}
 					onClick={() => setOffset(Math.max(0, offset - ADMIN_PAGE_SIZE))}
@@ -237,7 +237,7 @@ export function AdminOrgsPage() {
 										rows.push(
 											<TableRow key={`${org.id}-members`}>
 												<TableCell
-													className="whitespace-normal py-1 ps-12"
+													className="whitespace-normal py-1 ps-10"
 													colSpan={COLUMN_COUNT}
 													id={panelId}
 												>

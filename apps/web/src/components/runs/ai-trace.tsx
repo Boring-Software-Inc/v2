@@ -7,7 +7,7 @@ import {
 
 export function AiTraceDisclosure({ trace }: { trace: AiReviewTrace }) {
 	return (
-		<Collapsible className="mt-2 flex flex-col gap-1.5">
+		<Collapsible className="mt-2 flex flex-col gap-2">
 			<CollapsibleTrigger
 				size="sm"
 				summary={`${trace.stepsUsed} of ${trace.maxSteps} steps`}
@@ -23,10 +23,10 @@ export function AiTraceDisclosure({ trace }: { trace: AiReviewTrace }) {
 						<span>in {trace.usage.input}</span>
 						<span>out {trace.usage.output}</span>
 						<span>cached {trace.usage.cached ?? "n/a"}</span>
-						<span className="mono text-text-3">{trace.model}</span>
+						<span className="mono text-text-2">{trace.model}</span>
 					</div>
 					{trace.trimmed ? (
-						<p className="type-caption text-text-3">
+						<p className="type-caption text-text-2">
 							Trace trimmed to the first {trace.steps.length} steps.
 						</p>
 					) : null}

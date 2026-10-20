@@ -148,7 +148,7 @@ export function EditorHeader({
 								<ul className="flex flex-col gap-1">
 									{blockers.map((issue) => (
 										<li
-											className="flex items-start gap-1.5 type-body-sm"
+											className="flex items-start gap-1 type-body-sm"
 											key={`${issue.nodeId ?? issue.edgeId ?? ""}-${issue.message}`}
 										>
 											<StatusMark

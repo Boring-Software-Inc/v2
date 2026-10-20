@@ -1,5 +1,4 @@
 const MASK_SELECTOR = '[data-privacy="masked"]';
-const ACCENT = "#34a6ff";
 
 interface CaptureHighlight {
 	rect: DOMRect;
@@ -49,38 +48,19 @@ export async function captureViewport(
 
 function appendHighlight({ rect, label }: CaptureHighlight): () => void {
 	const box = document.createElement("div");
-	Object.assign(box.style, {
-		position: "fixed",
-		top: `${rect.top}px`,
-		left: `${rect.left}px`,
-		width: `${rect.width}px`,
-		height: `${rect.height}px`,
-		border: `2px solid ${ACCENT}`,
-		backgroundColor: "rgba(52, 166, 255, 0.08)",
-		borderRadius: "3px",
-		zIndex: "999999",
-		pointerEvents: "none",
-	});
+	box.className =
+		"pointer-events-none fixed top-(--pick-top) left-(--pick-left) z-(--z-overlay) h-(--pick-height) w-(--pick-width) rounded-tag border border-ink bg-hover";
+	box.style.setProperty("--pick-top", `${rect.top}px`);
+	box.style.setProperty("--pick-left", `${rect.left}px`);
+	box.style.setProperty("--pick-width", `${rect.width}px`);
+	box.style.setProperty("--pick-height", `${rect.height}px`);
 	const tag = document.createElement("div");
-	Object.assign(tag.style, {
-		position: "fixed",
-		top: `${Math.max(rect.top - 24, 4)}px`,
-		left: `${rect.left}px`,
-		backgroundColor: ACCENT,
-		color: "#ffffff",
-		fontSize: "11px",
-		fontFamily: "ui-monospace, monospace",
-		fontWeight: "500",
-		padding: "2px 6px",
-		borderRadius: "3px",
-		zIndex: "999999",
-		pointerEvents: "none",
-		whiteSpace: "nowrap",
-	});
+	tag.className =
+		"absolute bottom-full start-0 mb-1 whitespace-nowrap rounded-tag bg-ink px-1.5 py-0.5 type-code-xs text-text-inverse";
 	tag.textContent = label;
-	document.body.append(box, tag);
+	box.append(tag);
+	document.body.append(box);
 	return () => {
 		box.remove();
-		tag.remove();
 	};
 }

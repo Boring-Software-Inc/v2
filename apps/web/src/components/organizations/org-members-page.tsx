@@ -176,7 +176,7 @@ function MemberRow({
 				</ItemDescription>
 			</ItemContent>
 			{isAdmin ? (
-				<ItemActions className="gap-2 @max-sm/item:ms-9 @max-sm/item:me-0 @max-sm/item:basis-full">
+				<ItemActions className="gap-2 @max-sm/item:ms-10 @max-sm/item:me-0 @max-sm/item:basis-full">
 					<Select
 						disabled={isSelf || roleMutation.isPending}
 						items={ROLE_ITEMS}

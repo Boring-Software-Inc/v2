@@ -22,7 +22,7 @@ export function renderBackticks(text: string): ReactNode {
 		if (part.length > 2 && part.startsWith("`") && part.endsWith("`")) {
 			return (
 				<code
-					className="mono rounded-tag bg-field px-1"
+					className="text-text-1"
 					// biome-ignore lint/suspicious/noArrayIndexKey: static split, stable order
 					key={i}
 				>
@@ -46,7 +46,7 @@ export function FilePath({ file }: { file: string }) {
 	const base = cut >= 0 ? file.slice(cut + 1) : file;
 	return (
 		<span className="mono truncate">
-			<span className="text-text-3">{dir}</span>
+			<span className="text-text-2">{dir}</span>
 			<span className="text-text-1">{base}</span>
 		</span>
 	);
@@ -131,7 +131,7 @@ export function RawDisclosure({ evidence }: { evidence: JsonValue }) {
 		return null;
 	}
 	return (
-		<Collapsible className="mt-2 flex flex-col gap-1.5">
+		<Collapsible className="mt-2 flex flex-col gap-2">
 			<CollapsibleTrigger size="sm">Raw evidence</CollapsibleTrigger>
 			<CollapsibleContent>
 				<JsonView data={evidence} label="Raw evidence" />

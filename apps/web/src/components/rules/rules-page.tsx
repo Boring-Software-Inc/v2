@@ -286,7 +286,7 @@ export function RulesPage() {
 		>
 			<DashboardLayout counts={{}}>
 				<div className="px-4 py-6 md:px-8 md:py-10">
-					<div className="mx-auto flex w-full max-w-224 flex-col gap-6">
+					<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
 						<header className="flex items-start justify-between gap-4">
 							<div className="flex flex-col gap-1">
 								<h1 className="type-title">Rules</h1>

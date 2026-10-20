@@ -35,7 +35,7 @@ export function BetaBanner() {
 	if (dismissed) return null;
 
 	return (
-		<div className="relative flex shrink-0 items-center justify-center gap-3 border-line-faint border-b bg-shell px-10 py-1.5">
+		<div className="relative flex shrink-0 items-center justify-center gap-3 border-line-faint border-b bg-shell px-10 py-1">
 			<p className="type-body-sm text-text-1">
 				Tripwire is in closed beta. Hit a bug or something rough?
 			</p>

@@ -15,8 +15,9 @@ import { buildSeo, formatPageTitle } from "#/lib/seo";
 export const Route = createFileRoute("/onboarding/setup")({
 	validateSearch: (search: Record<string, unknown>) => ({
 		installation_id:
-			typeof search.installation_id === "string"
-				? search.installation_id
+			typeof search.installation_id === "string" ||
+			typeof search.installation_id === "number"
+				? String(search.installation_id)
 				: undefined,
 		setup_action:
 			typeof search.setup_action === "string" ? search.setup_action : undefined,

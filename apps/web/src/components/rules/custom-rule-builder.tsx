@@ -293,7 +293,7 @@ export function CustomRuleBuilder({
 					</DialogDescription>
 				</DialogHeader>
 				<DialogBody className="flex flex-col gap-3">
-					<div className="flex flex-wrap items-center gap-1.5 type-body text-text-1">
+					<div className="flex flex-wrap items-center gap-2 type-body text-text-1">
 						<span>Require that</span>
 						{state.signal === null ? (
 							<DropdownMenu>

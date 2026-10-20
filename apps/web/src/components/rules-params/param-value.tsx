@@ -19,10 +19,7 @@ export function ParamValue({
 		return (
 			<span className="inline-flex flex-wrap gap-1 align-middle">
 				{items.map((item) => (
-					<code
-						className="mono rounded-tag bg-field px-1 text-text-1"
-						key={item}
-					>
+					<code className="text-text-1" key={item}>
 						{item}
 					</code>
 				))}

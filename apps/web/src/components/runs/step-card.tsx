@@ -57,12 +57,12 @@ export function StepCard({
 
 	if (synthetic) {
 		return (
-			<div className="rule-row px-3 py-2.5">
+			<div className="rule-row min-h-(--row) px-3 py-2">
 				<div className="flex min-w-0 items-center gap-2">
 					<span className="min-w-0 flex-1 truncate type-label">
 						{sentence(synthetic.title)}
 					</span>
-					<span className="hidden shrink-0 type-code-sm text-text-3 sm:inline">
+					<span className="hidden shrink-0 type-code-sm text-text-2 sm:inline">
 						{step.nodeId}
 					</span>
 					<Status
@@ -86,14 +86,14 @@ export function StepCard({
 	const failed = step.status === "fail";
 
 	return (
-		<div className="rule-row px-3 py-2.5">
+		<div className="rule-row min-h-(--row) px-3 py-2">
 			<div className="flex min-w-0 items-center gap-2">
 				<span className="shrink-0 truncate type-label">{label}</span>
 				<span className="min-w-0 flex-1 truncate type-body-sm text-text-2">
 					{failed ? "" : line}
 				</span>
 				{maintainer && step.ruleRef ? (
-					<span className="hidden shrink-0 type-code-sm text-text-3 sm:inline">
+					<span className="hidden shrink-0 type-code-sm text-text-2 sm:inline">
 						{step.ruleRef}
 					</span>
 				) : null}

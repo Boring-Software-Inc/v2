@@ -22,6 +22,10 @@ const CommandPalette = lazy(() =>
  */
 export function RepoSwitcher() {
 	const [open, setOpen] = useState(false);
+	const [loaded, setLoaded] = useState(false);
+	if (open && !loaded) {
+		setLoaded(true);
+	}
 	const params = useParams({ strict: false });
 	// Seed the avatar off the org's display NAME to match every other surface
 	// (the switcher, settings, admin all seed off name). This shares the cached
@@ -69,9 +73,9 @@ export function RepoSwitcher() {
 				<span className="min-w-0 truncate">{label}</span>
 				<Kbd className="hidden shrink-0 sm:inline-flex" keys="mod+k" />
 			</Button>
-			{open ? (
+			{loaded ? (
 				<Suspense fallback={null}>
-					<CommandPalette onClose={() => setOpen(false)} />
+					<CommandPalette onClose={() => setOpen(false)} open={open} />
 				</Suspense>
 			) : null}
 		</>
