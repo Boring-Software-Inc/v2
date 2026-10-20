@@ -70,3 +70,44 @@ body {
 		var(--ink) var(--radius-shell)
 	);
 }
+
+.glaze [data-entity-card] [data-slot="card-panel"] {
+	position: relative;
+	isolation: isolate;
+}
+
+.glaze
+	[data-entity-card]:has([data-slot="card-link"])
+	[data-slot="card-content"]
+	:is(a, button, [role="button"]) {
+	position: relative;
+	z-index: var(--z-raised);
+}
+
+.glaze [data-entity-card] [data-slot="card-panel"]::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	z-index: -1;
+	background-color: var(--hover-row);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity var(--dur-state) var(--ease-out);
+}
+
+@media (hover: hover) {
+	.glaze
+		[data-entity-card]:has([data-slot="card-link"]:hover)
+		[data-slot="card-panel"]::after {
+		opacity: 1;
+	}
+}
+
+.glaze
+	[data-entity-card]:has([data-slot="card-link"]:active)
+	[data-slot="card-panel"]::after,
+.glaze [data-entity-card][data-selected] [data-slot="card-panel"]::after {
+	background-color: var(--pressed);
+	opacity: 1;
+}

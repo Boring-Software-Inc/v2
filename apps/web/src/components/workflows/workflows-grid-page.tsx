@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ItemRouterLink } from "#/components/common/router-links";
-import { Add, Icon, MoreVertical, Workflow } from "#/components/glaze/icon";
+import { EntityCard } from "#/components/common/entity-card";
+import { CardRouterLink } from "#/components/common/router-links";
+import { Add, Icon, MoreVertical } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	ButtonGroup,
@@ -43,8 +44,6 @@ import {
 	ItemContent,
 	ItemDescription,
 	ItemGroup,
-	ItemMedia,
-	ItemMeta,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
@@ -232,18 +231,19 @@ export function WorkflowsGridPage() {
 							loading={workflows === undefined}
 						>
 							{workflows === undefined ? null : hasWorkflows ? (
-								<ItemGroup aria-label="Workflows">
+								<ul aria-label="Workflows" className="flex flex-col gap-3">
 									{workflows.map((workflow) => (
-										<WorkflowRow
-											isAdmin={isAdmin}
-											key={workflow.id}
-											org={org}
-											repoId={repoId}
-											repoName={repoName}
-											workflow={workflow}
-										/>
+										<li key={workflow.id}>
+											<WorkflowRow
+												isAdmin={isAdmin}
+												org={org}
+												repoId={repoId}
+												repoName={repoName}
+												workflow={workflow}
+											/>
+										</li>
 									))}
-								</ItemGroup>
+								</ul>
 							) : (
 								<WorkflowsEmpty
 									creating={createMutation.isPending}
@@ -454,72 +454,73 @@ function WorkflowRow({
 	};
 
 	return (
-		<Item>
-			<ItemMedia variant="icon">
-				<Icon icon={Workflow} />
-			</ItemMedia>
-			<ItemContent>
-				<ItemTitle>
-					<ItemRouterLink
+		<>
+			<EntityCard
+				description={
+					<>
+						{triggerSummary(workflow.triggerKinds)} · {workflow.nodeCount}{" "}
+						{workflow.nodeCount === 1 ? "node" : "nodes"}
+					</>
+				}
+				footerMeta={<>Updated {formatRelativeTime(workflow.updatedAt)}</>}
+				status={
+					<>
+						<Switch
+							aria-label={`Enable ${workflow.name}`}
+							checked={queuedEnabled}
+							disabled={!isAdmin}
+							onCheckedChange={setQueuedEnabled}
+							size="sm"
+						/>
+						{isAdmin ? (
+							<DropdownMenu>
+								<DropdownMenuTrigger
+									render={
+										<Button
+											aria-label={`Actions for ${workflow.name}`}
+											size="icon-sm"
+											variant="ghost"
+										/>
+									}
+								>
+									<Icon icon={MoreVertical} />
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" size="sm">
+									<DropdownMenuItem
+										onClick={() => {
+											setRenameValue(workflow.name);
+											setRenaming(true);
+										}}
+									>
+										Rename workflow
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										disabled={duplicateMutation.isPending}
+										onClick={() => duplicateMutation.mutate()}
+									>
+										Duplicate workflow
+									</DropdownMenuItem>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										onClick={() => setDeleting(true)}
+										variant="destructive"
+									>
+										Delete workflow
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						) : null}
+					</>
+				}
+				title={
+					<CardRouterLink
 						params={{ org, repo: repoName, workflowId: workflow.id }}
 						to="/$org/$repo/workflows/$workflowId"
 					>
 						{workflow.name}
-					</ItemRouterLink>
-				</ItemTitle>
-				<ItemDescription>
-					{triggerSummary(workflow.triggerKinds)} · {workflow.nodeCount}{" "}
-					{workflow.nodeCount === 1 ? "node" : "nodes"}
-				</ItemDescription>
-			</ItemContent>
-			<ItemMeta>Updated {formatRelativeTime(workflow.updatedAt)}</ItemMeta>
-			<ItemActions>
-				<Switch
-					aria-label={`Enable ${workflow.name}`}
-					checked={queuedEnabled}
-					disabled={!isAdmin}
-					onCheckedChange={setQueuedEnabled}
-					size="sm"
-				/>
-				{isAdmin ? (
-					<DropdownMenu>
-						<DropdownMenuTrigger
-							render={
-								<Button
-									aria-label={`Actions for ${workflow.name}`}
-									size="icon-sm"
-									variant="ghost"
-								/>
-							}
-						>
-							<Icon icon={MoreVertical} />
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" size="sm">
-							<DropdownMenuItem
-								onClick={() => {
-									setRenameValue(workflow.name);
-									setRenaming(true);
-								}}
-							>
-								Rename workflow
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								disabled={duplicateMutation.isPending}
-								onClick={() => duplicateMutation.mutate()}
-							>
-								Duplicate workflow
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								onClick={() => setDeleting(true)}
-								variant="destructive"
-							>
-								Delete workflow
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				) : null}
-			</ItemActions>
+					</CardRouterLink>
+				}
+			/>
 
 			<Dialog onOpenChange={setRenaming} open={renaming}>
 				<DialogContent size="sm">
@@ -582,6 +583,6 @@ function WorkflowRow({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</Item>
+		</>
 	);
 }

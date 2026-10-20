@@ -1,14 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { ItemRouterLink } from "#/components/common/router-links";
-import { Billing, Icon, Members, Organization } from "#/components/glaze/icon";
-import {
-	Item,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemMedia,
-	ItemTitle,
-} from "#/components/glaze/ui/item";
+import { EntityCard } from "#/components/common/entity-card";
+import { CardRouterLink } from "#/components/common/router-links";
 import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { adminOverviewQueryOptions } from "#/lib/admin.query";
@@ -16,20 +8,17 @@ import { adminOverviewQueryOptions } from "#/lib/admin.query";
 const SECTIONS = [
 	{
 		to: "/admin/users",
-		icon: Members,
 		title: "Users",
 		description:
 			"Review beta access. Approve or reject, one at a time or in bulk.",
 	},
 	{
 		to: "/admin/orgs",
-		icon: Organization,
 		title: "Orgs",
 		description: "Inspect orgs and members. Fix role state without psql.",
 	},
 	{
 		to: "/admin/economics",
-		icon: Billing,
 		title: "Economics",
 		description: "Unit cost, drift, credit burn-down and cost by org.",
 	},
@@ -65,23 +54,20 @@ export function AdminHomePage() {
 						)}
 					</header>
 
-					<ItemGroup aria-label="Admin sections">
+					<ul aria-label="Admin sections" className="flex flex-col gap-3">
 						{SECTIONS.map((section) => (
-							<Item key={section.to}>
-								<ItemMedia variant="icon">
-									<Icon icon={section.icon} />
-								</ItemMedia>
-								<ItemContent>
-									<ItemTitle>
-										<ItemRouterLink to={section.to}>
+							<li key={section.to}>
+								<EntityCard
+									description={section.description}
+									title={
+										<CardRouterLink to={section.to}>
 											{section.title}
-										</ItemRouterLink>
-									</ItemTitle>
-									<ItemDescription>{section.description}</ItemDescription>
-								</ItemContent>
-							</Item>
+										</CardRouterLink>
+									}
+								/>
+							</li>
 						))}
-					</ItemGroup>
+					</ul>
 				</div>
 			</div>
 		</DashboardLayout>

@@ -1,10 +1,5 @@
-import {
-	Item,
-	ItemContent,
-	ItemGroup,
-	ItemMedia,
-} from "#/components/glaze/ui/item";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+import { EntityCardSkeleton } from "#/components/common/entity-card-skeleton";
+import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 
 const ROW_SLOTS = ["users", "orgs", "economics"] as const;
@@ -18,19 +13,11 @@ export function AdminHomePageSkeleton() {
 						<SkeletonText className="w-24" type="heading" />
 						<SkeletonText className="w-96 max-w-full" type="body" />
 					</header>
-					<ItemGroup aria-hidden>
+					<div aria-hidden className="flex flex-col gap-3">
 						{ROW_SLOTS.map((slot) => (
-							<Item key={slot}>
-								<ItemMedia variant="icon">
-									<Skeleton className="size-(--icon)" />
-								</ItemMedia>
-								<ItemContent>
-									<SkeletonText className="w-24" type="label" />
-									<SkeletonText className="w-72 max-w-full" type="body-sm" />
-								</ItemContent>
-							</Item>
+							<EntityCardSkeleton key={slot} />
 						))}
-					</ItemGroup>
+					</div>
 				</div>
 			</div>
 		</DashboardLayout>

@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ItemRouterLink } from "#/components/common/router-links";
+import { EntityCard } from "#/components/common/entity-card";
+import { CardRouterLink } from "#/components/common/router-links";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import {
 	Activity,
 	Add,
 	Analytics,
-	Branch,
 	Icon,
 	Moderation,
 	Rules,
@@ -22,15 +22,6 @@ import {
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
-import {
-	Item,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemMedia,
-	ItemMeta,
-	ItemTitle,
-} from "#/components/glaze/ui/item";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { NavChip } from "#/components/layouts/nav-chip";
@@ -112,11 +103,13 @@ function HomeBody({
 		);
 	}
 	return (
-		<ItemGroup aria-label="Repos">
+		<ul aria-label="Repos" className="flex flex-col gap-3">
 			{ranked.map((repo) => (
-				<RepoRow key={repo.id} org={org} repo={repo} />
+				<li key={repo.id}>
+					<RepoCard org={org} repo={repo} />
+				</li>
 			))}
-		</ItemGroup>
+		</ul>
 	);
 }
 
@@ -150,72 +143,72 @@ function InstallCta({ org }: { org: string }) {
 	);
 }
 
-function RepoRow({ org, repo }: { org: string; repo: SwitcherRepo }) {
+function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 	return (
-		<Item className="items-start py-2">
-			<ItemMedia variant="icon">
-				<Icon icon={Branch} />
-			</ItemMedia>
-			<ItemContent>
-				<ItemTitle>
-					<ItemRouterLink params={{ org, repo: repo.name }} to="/$org/$repo">
-						{repo.fullName}
-					</ItemRouterLink>
-				</ItemTitle>
-				<ItemDescription>
+		<EntityCard
+			badges={
+				repo.armed ? (
+					repo.pendingModeration > 0 || repo.blocked24h > 0 ? (
+						<>
+							{repo.pendingModeration > 0 ? (
+								<Badge>{repo.pendingModeration} awaiting</Badge>
+							) : null}
+							{repo.blocked24h > 0 ? (
+								<Badge variant="fail">{repo.blocked24h} blocked</Badge>
+							) : null}
+						</>
+					) : null
+				) : (
+					<Badge variant="outline">Not armed</Badge>
+				)
+			}
+			description={
+				<>
 					{repo.armed ? attentionLine(repo) : "Available, not armed"}
 					{repo.lastActivityAt
 						? ` · ${formatRelativeTime(repo.lastActivityAt)}`
 						: null}
-				</ItemDescription>
-				{repo.armed ? (
-					<nav
-						aria-label={`Shortcuts for ${repo.fullName}`}
-						className="relative z-(--z-raised) mt-2 flex flex-wrap gap-2"
-					>
-						<NavChip
-							icon={Moderation}
-							label="Queue"
-							to={`/${org}/${repo.name}/moderation`}
-						/>
-						<NavChip
-							icon={Rules}
-							label="Rules"
-							to={`/${org}/${repo.name}/rules`}
-						/>
-						<NavChip
-							icon={Workflow}
-							label="Workflows"
-							to={`/${org}/${repo.name}/workflows`}
-						/>
-						<NavChip
-							icon={Activity}
-							label="Activity"
-							to={`/${org}/${repo.name}/activity`}
-						/>
-						<NavChip
-							icon={Analytics}
-							label="Analytics"
-							to={`/${org}/${repo.name}/analytics`}
-						/>
-					</nav>
-				) : null}
-			</ItemContent>
-			<ItemMeta className="flex items-center gap-1">
-				{repo.armed ? (
-					<>
-						{repo.pendingModeration > 0 ? (
-							<Badge>{repo.pendingModeration} awaiting</Badge>
-						) : null}
-						{repo.blocked24h > 0 ? (
-							<Badge variant="fail">{repo.blocked24h} blocked</Badge>
-						) : null}
-					</>
-				) : (
-					<Badge variant="outline">Not armed</Badge>
-				)}
-			</ItemMeta>
-		</Item>
+				</>
+			}
+			title={
+				<CardRouterLink params={{ org, repo: repo.name }} to="/$org/$repo">
+					{repo.fullName}
+				</CardRouterLink>
+			}
+		>
+			{repo.armed ? (
+				<nav
+					aria-label={`Shortcuts for ${repo.fullName}`}
+					className="flex flex-wrap gap-2"
+				>
+					<NavChip
+						icon={Moderation}
+						label="Queue"
+						to={`/${org}/${repo.name}/moderation`}
+					/>
+					<NavChip
+						icon={Rules}
+						label="Rules"
+						to={`/${org}/${repo.name}/rules`}
+					/>
+					<NavChip
+						icon={Workflow}
+						label="Workflows"
+						to={`/${org}/${repo.name}/workflows`}
+					/>
+					<NavChip
+						icon={Activity}
+						label="Activity"
+						to={`/${org}/${repo.name}/activity`}
+					/>
+					<NavChip
+						icon={Analytics}
+						label="Analytics"
+						to={`/${org}/${repo.name}/analytics`}
+					/>
+				</nav>
+			) : null}
+		</EntityCard>
 	);
 }
 
