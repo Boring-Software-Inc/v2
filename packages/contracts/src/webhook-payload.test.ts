@@ -53,6 +53,12 @@ describe("formatDiscordMessage — own formatter, verdict-colored", () => {
 			"No rule blocked this change request.",
 		);
 	});
+	test("blocked with every rule redacted points at the run page", () => {
+		const msg = formatDiscordMessage({ ...PAYLOAD, firedRules: [] });
+		expect(msg.embeds[0]?.description).toBe(
+			"Details are on the Tripwire run page.",
+		);
+	});
 	test("sent to review: amber", () => {
 		const msg = formatDiscordMessage({ ...PAYLOAD, verdict: "needs_review" });
 		expect(msg.content).toBe("Tripwire sent acme/web #42 to review.");

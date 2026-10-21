@@ -3,6 +3,8 @@ import {
 	type CommentReason,
 	checkSummary,
 	type NormalizedEvent,
+	redactCommentReasons,
+	redactionLevelFor,
 	renderVerdictComment,
 	reviewBody,
 	type Verdict,
@@ -11,7 +13,7 @@ import {
 	wantsComment,
 } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
-import { repoServices, runServices } from "@tripwire/db";
+import { repoServices, responseServices, runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
@@ -99,7 +101,6 @@ export async function emitPrSurface(
 	const runUrl = `${deps.appUrl}/runs/${runId}`;
 	const badgeUrl = `${deps.appUrl}/badges/view-run.png`;
 	const { reasons } = input;
-	const review = reviewBody(reasons);
 
 	// The verdict the PR already shows — drives the resolution copy AND whether a
 	// stale request-changes review must be dismissed (§7).
@@ -129,6 +130,11 @@ export async function emitPrSurface(
 		db,
 		repoRow?.id ?? null,
 	);
+	const policy = await responseServices.getRedactionPolicy(
+		db,
+		repoRow?.id ?? null,
+	);
+	const review = reviewBody(reasons, redactionLevelFor(policy, "review"));
 	const transition = previousVerdict !== null && previousVerdict !== verdict;
 	const includeComment = wantsComment(responseConfig, verdict) || transition;
 	const includeCheck = wantsCheck(responseConfig, verdict);
@@ -154,6 +160,7 @@ export async function emitPrSurface(
 									rerun: input.rerun,
 								},
 								responseConfig,
+								policy,
 							),
 						},
 						idempotencyKey: `comment:${number}:${verdict}`,
@@ -167,7 +174,12 @@ export async function emitPrSurface(
 						payload: {
 							sha,
 							conclusion: VERDICT_TO_CONCLUSION[verdict],
-							summary: checkSummary(verdict, reasons, input.degraded),
+							summary: checkSummary(
+								verdict,
+								reasons,
+								input.degraded,
+								redactionLevelFor(policy, "check"),
+							),
 							detailsUrl: runUrl,
 						},
 						idempotencyKey: `check:${sha}:${verdict}`,
@@ -204,10 +216,7 @@ export async function emitPrSurface(
 				title: event.changeRequest.title,
 				author: event.actor.login,
 			},
-			firedRules: reasons.map((reason) => ({
-				ruleId: reason.ruleId ?? "",
-				summary: reason.text,
-			})),
+			firedRules: firedRulesFor(reasons, redactionLevelFor(policy, "webhook")),
 			runUrl,
 			timestamp: new Date().toISOString(),
 		};
@@ -277,6 +286,26 @@ export async function emitPrSurface(
 			);
 		}
 	}
+}
+
+export function firedRulesFor(
+	reasons: CommentReason[],
+	level: number,
+): WebhookPayload["firedRules"] {
+	const redacted = redactCommentReasons(reasons, level);
+	if (redacted.kind === "reasons") {
+		return redacted.reasons.map((reason) => ({
+			ruleId: reason.ruleId ?? "",
+			summary: reason.text,
+		}));
+	}
+	if (redacted.kind === "names") {
+		return reasons.map((reason, index) => ({
+			ruleId: reason.ruleId ?? "",
+			summary: redacted.names[index] ?? "",
+		}));
+	}
+	return [];
 }
 
 export function toForgeAction(

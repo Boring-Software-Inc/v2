@@ -7,8 +7,10 @@ import {
 	createDirectPool,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	REFRESH_SURFACES_QUEUE,
 	RERUN_QUEUE,
 	RESUME_RUN_QUEUE,
+	type RefreshSurfacesJob,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	repoServices,
@@ -25,6 +27,7 @@ import { economicsDigest } from "./jobs/economics-digest.ts";
 import { economicsRollup } from "./jobs/economics-rollup.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { pullProviderCosts } from "./jobs/pull-provider-costs.ts";
+import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { rollup } from "./jobs/rollup.ts";
@@ -236,6 +239,21 @@ if (import.meta.main) {
 		}
 	});
 
+	await boss.work<RefreshSurfacesJob>(REFRESH_SURFACES_QUEUE, async (jobs) => {
+		for (const job of jobs) {
+			await refreshRepoSurfaces(
+				{
+					db,
+					resolveForge,
+					appUrl: process.env.APP_URL ?? "http://localhost:3000",
+					logger: logger.child({ refresh: job.data.repoId }),
+				},
+				job.data,
+				job.id,
+			);
+		}
+	});
+
 	await boss.createQueue("rollup");
 	await boss.schedule("rollup", "10 2 * * *", {}, {});
 	await boss.work("rollup", async () => {
@@ -315,10 +333,11 @@ if (import.meta.main) {
 				RESUME_RUN_QUEUE,
 				RERUN_QUEUE,
 				BACKFILL_REPO_QUEUE,
+				REFRESH_SURFACES_QUEUE,
 				"rollup",
 				"sweep-actions",
 			],
 		},
-		"worker consuming process-event + resume-run + rerun-change-request + backfill + rollup + sweep-actions",
+		"worker consuming process-event + resume-run + rerun-change-request + backfill + refresh-response-surfaces + rollup + sweep-actions",
 	);
 }

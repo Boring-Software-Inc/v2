@@ -70,6 +70,12 @@ export interface BackfillRepoJob {
 	repoId: string;
 }
 
+export const REFRESH_SURFACES_QUEUE = "refresh-response-surfaces";
+
+export interface RefreshSurfacesJob {
+	repoId: string;
+}
+
 /** Minimal logger surface — satisfied by pino, console, etc. */
 export interface BossErrorLogger {
 	error(obj: unknown, msg?: string): void;
@@ -108,5 +114,6 @@ export async function createBoss(
 	await boss.createQueue(RESUME_RUN_QUEUE);
 	await boss.createQueue(BACKFILL_REPO_QUEUE);
 	await boss.createQueue(RERUN_QUEUE);
+	await boss.createQueue(REFRESH_SURFACES_QUEUE);
 	return boss;
 }

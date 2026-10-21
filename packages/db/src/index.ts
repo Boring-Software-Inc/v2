@@ -23,9 +23,11 @@ export {
 	getRerunCooldownSeconds,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	REFRESH_SURFACES_QUEUE,
 	RERUN_COOLDOWN_SECONDS,
 	RERUN_QUEUE,
 	RESUME_RUN_QUEUE,
+	type RefreshSurfacesJob,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
 } from "./queue.ts";
