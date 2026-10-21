@@ -665,10 +665,6 @@ export class MascotEngine {
 					view.bubbleBody.setAttribute("d", bubblePath(dots));
 				}
 			}
-			this.setVisible(
-				view.prop,
-				expression === "angry" && this.state !== "annoyed",
-			);
 			this.setVisible(view.cloud, cloudOn);
 			if (cloudOn) {
 				view.cloud.setAttribute("transform", cloudTransform);

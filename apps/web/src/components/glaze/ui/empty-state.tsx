@@ -11,7 +11,7 @@ import {cn} from '#/lib/glaze/utils.ts';
 //   empty      nothing here yet; the first action creates it
 //   no-results a search or filter matched nothing; the action clears it
 //   no-access  the person cannot see this; the action asks for access
-//   error      it failed to load; role="alert", the title in the failure word colour, the request ID, and Retry
+//   error      it failed to load; role="alert", the title in the failure word colour (ink when art carries the mood), the request ID, and Retry
 //
 // Everything is centred in a compact column: the reason's glyph on top, 40px light and bare in text-3
 // (32 at size sm, coral for error), then the title in the label role, one line of description in text-2, and at most
@@ -91,7 +91,7 @@ type EmptyTitleProps = React.ComponentProps<'h3'> & {
 
 /** What is missing, as a sentence: "No runs yet", "No runs match timeout". The reason's glyph sits over it. */
 function EmptyTitle({className, icon, children, ...props}: EmptyTitleProps) {
-  return <h3 data-slot="empty-title" className={cn('flex min-w-0 flex-col items-center gap-3 type-label text-text-1 group-data-[reason=error]/empty:text-fail-text group-data-[size=sm]/empty:gap-2', className)} {...props}>
+  return <h3 data-slot="empty-title" className={cn('flex min-w-0 flex-col items-center gap-3 type-label text-text-1 [[data-slot=empty][data-reason=error]:not([data-art])_&]:text-fail-text group-data-[size=sm]/empty:gap-2', className)} {...props}>
     {icon !== false && <EmptyIcon icon={icon}/>}
     <span className="min-w-0 text-pretty">{children}</span>
   </h3>;
