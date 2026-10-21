@@ -20,9 +20,9 @@ const VERDICT_LABEL: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
 	pass: "passed",
-	fail: "failed",
+	fail: "did not pass",
 	skipped: "skipped",
-	paused: "review",
+	paused: "sent to review",
 	pending: "queued",
 };
 
