@@ -83,6 +83,8 @@ export type {
 export * as orgServices from "./services/organizations.ts";
 export * as presenceServices from "./services/presence.ts";
 export * as repoServices from "./services/repos.ts";
+export type { RedactionUsage } from "./services/responses.ts";
+export * as responseServices from "./services/responses.ts";
 export * as runServices from "./services/runs.ts";
 export type {
 	StaffInstallationList,
