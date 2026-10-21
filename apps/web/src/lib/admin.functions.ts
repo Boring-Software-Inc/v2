@@ -1,15 +1,24 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { AccessStatus, OrgRole } from "@tripwire/contracts";
 import type {
+	StaffInstallationList,
 	StaffOrgList,
 	StaffOrgMemberRow,
 	StaffOverview,
+	StaffRepoList,
 	StaffUserList,
 } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import { platformAdminMiddleware } from "#/lib/server/staff-guard";
 
-export type { StaffOrgList, StaffOrgMemberRow, StaffOverview, StaffUserList };
+export type {
+	StaffInstallationList,
+	StaffOrgList,
+	StaffOrgMemberRow,
+	StaffOverview,
+	StaffRepoList,
+	StaffUserList,
+};
 
 /**
  * Platform staff surface (/admin). Every fn is class "staff": accessGuard +
@@ -41,6 +50,7 @@ export const listAdminUsers = createServerFn({ method: "GET" })
 		(input: {
 			status?: AccessStatus;
 			search?: string;
+			online?: boolean;
 			limit?: number;
 			offset?: number;
 		}) => input,
@@ -65,6 +75,31 @@ export const listAdminOrgs = createServerFn({ method: "GET" })
 		const { getDb } = await import("#/lib/server/db");
 		const { staffServices } = await import("@tripwire/db");
 		return staffServices.listOrgsForStaff(getDb().db, data);
+	});
+
+export const listAdminRepos = createServerFn({ method: "GET" })
+	.middleware([accessGuardMiddleware, platformAdminMiddleware])
+	.inputValidator(
+		(input: {
+			status?: "protected" | "unprotected";
+			search?: string;
+			limit?: number;
+			offset?: number;
+		}) => input,
+	)
+	.handler(async ({ data }): Promise<StaffRepoList> => {
+		const { getDb } = await import("#/lib/server/db");
+		const { staffServices } = await import("@tripwire/db");
+		return staffServices.listReposForStaff(getDb().db, data);
+	});
+
+export const listAdminInstallations = createServerFn({ method: "GET" })
+	.middleware([accessGuardMiddleware, platformAdminMiddleware])
+	.inputValidator((input: { limit?: number; offset?: number }) => input)
+	.handler(async ({ data }): Promise<StaffInstallationList> => {
+		const { getDb } = await import("#/lib/server/db");
+		const { staffServices } = await import("@tripwire/db");
+		return staffServices.listInstallationsForStaff(getDb().db, data);
 	});
 
 export const listAdminOrgMembers = createServerFn({ method: "GET" })

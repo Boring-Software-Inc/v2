@@ -24,6 +24,7 @@ export function AdminUsersPageSkeleton() {
 						toolbar={
 							<>
 								<Skeleton className="h-(--control-sm) w-64 rounded-pill" />
+								<Skeleton className="h-(--control-sm) w-24 rounded-pill" />
 								<Skeleton className="ms-auto h-(--control-sm) w-56 rounded-pill" />
 							</>
 						}
@@ -36,6 +37,7 @@ export function AdminUsersPageSkeleton() {
 								<TableHead>Personal org</TableHead>
 								<TableHead numeric>Orgs</TableHead>
 								<TableHead>Joined</TableHead>
+								<TableHead>Last seen</TableHead>
 								<TableHead>No cooldown</TableHead>
 								<TableHead />
 							</TableRow>
@@ -48,6 +50,7 @@ export function AdminUsersPageSkeleton() {
 									{},
 									{},
 									{ numeric: true },
+									{},
 									{},
 									{},
 									{},

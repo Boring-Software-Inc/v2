@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
 import { EntityCard } from "#/components/common/entity-card";
 import { CardRouterLink } from "#/components/common/router-links";
 import { SkeletonText } from "#/components/glaze/ui/skeleton";
@@ -16,6 +17,16 @@ const SECTIONS = [
 		to: "/admin/orgs",
 		title: "Orgs",
 		description: "See every org and its members, and change member roles.",
+	},
+	{
+		to: "/admin/repos",
+		title: "Repos",
+		description: "Every connected repo, its org, and whether Tripwire is on.",
+	},
+	{
+		to: "/admin/installations",
+		title: "Installations",
+		description: "Every account the app is installed on, and who claimed it.",
 	},
 	{
 		to: "/admin/economics",
@@ -40,20 +51,14 @@ export function AdminHomePage() {
 									{data.pendingUsers}
 								</span>{" "}
 								{data.pendingUsers === 1 ? "user is" : "users are"} waiting for
-								access.{" "}
-								<span className="text-text-1 tabular-nums">
-									{data.approvedUsers}
-								</span>{" "}
-								approved, across{" "}
-								<span className="text-text-1 tabular-nums">{data.orgs}</span>{" "}
-								orgs and{" "}
-								<span className="text-text-1 tabular-nums">{data.repos}</span>{" "}
-								repos.
+								access.
 							</p>
 						) : (
-							<SkeletonText className="w-96 max-w-full" type="body" />
+							<SkeletonText className="w-64 max-w-full" type="body" />
 						)}
 					</header>
+
+					<AdminOverviewStats overview={data} />
 
 					<ul aria-label="Admin sections" className="flex flex-col gap-3">
 						{SECTIONS.map((section) => (

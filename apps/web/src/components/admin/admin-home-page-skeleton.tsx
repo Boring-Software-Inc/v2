@@ -1,8 +1,15 @@
+import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
 import { EntityCardSkeleton } from "#/components/common/entity-card-skeleton";
 import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 
-const ROW_SLOTS = ["users", "orgs", "economics"] as const;
+const ROW_SLOTS = [
+	"users",
+	"orgs",
+	"repos",
+	"installations",
+	"economics",
+] as const;
 
 export function AdminHomePageSkeleton() {
 	return (
@@ -11,8 +18,9 @@ export function AdminHomePageSkeleton() {
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
 					<header className="flex flex-col gap-1">
 						<SkeletonText className="w-24" type="heading" />
-						<SkeletonText className="w-96 max-w-full" type="body" />
+						<SkeletonText className="w-64 max-w-full" type="body" />
 					</header>
+					<AdminOverviewStats overview={undefined} />
 					<div aria-hidden className="flex flex-col gap-3">
 						{ROW_SLOTS.map((slot) => (
 							<EntityCardSkeleton key={slot} />

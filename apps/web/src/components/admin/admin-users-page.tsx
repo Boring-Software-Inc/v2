@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import type { AccessStatus } from "@tripwire/contracts";
 import { useState } from "react";
 import { AccessStatusMark } from "#/components/admin/access-status-dot";
@@ -8,8 +8,10 @@ import { Avatar } from "#/components/glaze/ui/avatar";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import { Checkbox, CheckboxGroup } from "#/components/glaze/ui/checkbox";
+import { Chip } from "#/components/glaze/ui/chip";
 import { Input } from "#/components/glaze/ui/input";
 import { PaginationInfo } from "#/components/glaze/ui/pagination";
+import { RelativeTime } from "#/components/glaze/ui/relative-time";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
@@ -48,10 +50,12 @@ const STATUS_FILTERS: Array<{ key: StatusFilter; label: string }> = [
 	{ key: "rejected", label: "Declined" },
 ];
 
-const COLUMN_COUNT = 8;
+const COLUMN_COUNT = 9;
 
 export function AdminUsersPage() {
 	const queryClient = useQueryClient();
+	const { online } = useSearch({ from: "/admin/users" });
+	const navigate = useNavigate({ from: "/admin/users" });
 	const [status, setStatus] = useState<StatusFilter>("all");
 	const [search, setSearch] = useState("");
 	const [offset, setOffset] = useState(0);
@@ -62,8 +66,11 @@ export function AdminUsersPage() {
 	const filter = {
 		status: status === "all" ? undefined : status,
 		search: debouncedSearch || undefined,
+		online,
 		offset,
 	};
+	const filtered =
+		status !== "all" || debouncedSearch !== "" || online === true;
 	const { data, isLoading, error, refetch } = useQuery(
 		adminUsersQueryOptions(filter),
 	);
@@ -131,6 +138,16 @@ export function AdminUsersPage() {
 					</SegmentedControlItem>
 				))}
 			</SegmentedControl>
+			<Chip
+				onPressedChange={(pressed) => {
+					setOffset(0);
+					setSelected([]);
+					void navigate({ search: pressed ? { online: true } : {} });
+				}}
+				pressed={online === true}
+			>
+				Online now
+			</Chip>
 			{selected.length > 0 ? (
 				<div className="flex items-center gap-2">
 					<span className="type-caption text-text-2 tabular-nums">
@@ -237,6 +254,7 @@ export function AdminUsersPage() {
 									<TableHead>Personal org</TableHead>
 									<TableHead numeric>Orgs</TableHead>
 									<TableHead>Joined</TableHead>
+									<TableHead>Last seen</TableHead>
 									<TableHead>Skip cooldown</TableHead>
 									<TableHead>
 										<span className="sr-only">Actions</span>
@@ -252,6 +270,7 @@ export function AdminUsersPage() {
 											{},
 											{},
 											{ numeric: true },
+											{},
 											{},
 											{},
 											{},
@@ -278,22 +297,16 @@ export function AdminUsersPage() {
 										art={<MascotArt mood="admin-table-empty" size="compact" />}
 										colSpan={COLUMN_COUNT}
 										description={
-											status === "all" && !debouncedSearch
-												? "New signups show up here as pending."
-												: "Try another status or search."
+											filtered
+												? "Try another status or search."
+												: "New signups show up here as pending."
 										}
-										reason={
-											status === "all" && !debouncedSearch
-												? "empty"
-												: "no-results"
-										}
+										reason={filtered ? "no-results" : "empty"}
 										title={
-											status === "all" && !debouncedSearch
-												? "No users yet"
-												: "No users match this filter"
+											filtered ? "No users match this filter" : "No users yet"
 										}
 										action={
-											status === "all" && !debouncedSearch ? (
+											!filtered ? (
 												<Button
 													nativeButton={false}
 													render={<Link to="/admin/orgs" />}
@@ -308,6 +321,7 @@ export function AdminUsersPage() {
 														setStatus("all");
 														setSearch("");
 														setOffset(0);
+														void navigate({ search: {} });
 													}}
 													size="sm"
 													variant="secondary"
@@ -362,6 +376,13 @@ export function AdminUsersPage() {
 											<TableCell numeric>{u.membershipCount}</TableCell>
 											<TableCell className="text-text-2">
 												{formatAdminDate(u.createdAt)}
+											</TableCell>
+											<TableCell className="text-text-2">
+												{u.lastSeenAt ? (
+													<RelativeTime date={u.lastSeenAt} />
+												) : (
+													"Unknown"
+												)}
 											</TableCell>
 											<TableCell>
 												<Switch

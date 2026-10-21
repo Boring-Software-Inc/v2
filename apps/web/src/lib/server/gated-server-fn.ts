@@ -28,6 +28,10 @@ export const accessGuardMiddleware = createMiddleware({
 	}
 	const { assertApproved } = await import("@tripwire/auth/access-gate");
 	const { getDb } = await import("#/lib/server/db");
+	const { presenceServices } = await import("@tripwire/db");
+	presenceServices.touchLastSeen(getDb().db, session.user.id).catch((error) => {
+		console.error("[presence] last seen write failed:", error);
+	});
 	const denial = await assertApproved(
 		getDb().db,
 		session.user.id,

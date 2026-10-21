@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AdminUsersPage } from "#/components/admin/admin-users-page";
 import { AdminUsersPageSkeleton } from "#/components/admin/admin-users-page-skeleton";
+import { adminUsersSearchSchema } from "#/lib/admin-search";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/admin/users")({
+	validateSearch: adminUsersSearchSchema,
 	component: AdminUsersPage,
 	pendingComponent: AdminUsersPageSkeleton,
 	head: ({ match }) =>
