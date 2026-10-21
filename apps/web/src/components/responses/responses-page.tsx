@@ -1,44 +1,55 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import type { Verdict } from "@tripwire/contracts";
+import type { RedactionPolicy, Verdict } from "@tripwire/contracts";
+import { OPEN_REDACTION, resolveRedaction } from "@tripwire/contracts";
 import { useCallback, useId, useMemo, useRef, useState } from "react";
-import {
-	flattenConfig,
-	unflattenConfig,
-	VERDICTS,
-} from "#/components/customize/customize-model";
-import {
-	PreviewSkeleton,
-	SettingsSkeleton,
-} from "#/components/customize/customize-page-skeleton";
-import { CustomizePreview } from "#/components/customize/customize-preview";
-import { DraftStoreProvider } from "#/components/customize/draft-store";
-import { PreviewLinkProvider } from "#/components/customize/preview-link";
-import {
-	PreviewPane,
-	type SheetState,
-} from "#/components/customize/preview-pane";
-import { SaveState } from "#/components/customize/save-state";
-import { VerdictSettings } from "#/components/customize/verdict-settings";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
 } from "#/components/glaze/ui/segmented-control";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { DraftStoreProvider } from "#/components/responses/draft-store";
+import { PreviewLinkProvider } from "#/components/responses/preview-link";
+import {
+	PreviewPane,
+	type SheetState,
+} from "#/components/responses/preview-pane";
+import { RedactionSettings } from "#/components/responses/redaction-settings";
+import {
+	flattenConfig,
+	unflattenConfig,
+	VERDICTS,
+} from "#/components/responses/responses-model";
+import {
+	PreviewSkeleton,
+	SettingsSkeleton,
+} from "#/components/responses/responses-page-skeleton";
+import { ResponsesPreview } from "#/components/responses/responses-preview";
+import { SaveState } from "#/components/responses/save-state";
+import { VerdictSettings } from "#/components/responses/verdict-settings";
 import {
 	type SaveQueueCommit,
 	SaveQueueProvider,
 	useSaveQueue,
 } from "#/components/save-queue";
-import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
+import { useOrgPermission } from "#/hooks/use-org-permission";
+import { orgRepoQueryOptions } from "#/lib/org.query";
 import { saveRepoResponseConfig } from "#/lib/response.functions";
 import {
+	orgResponseDefaultsQueryOptions,
 	responseConfigQueryOptions,
 	responseQueryKeys,
 } from "#/lib/response.query";
 
-const routeApi = getRouteApi("/$org/$repo/customize");
+const routeApi = getRouteApi("/$org/$repo/responses");
+
+type ResponseScope = Verdict | "redaction";
+
+const SCOPES: { value: ResponseScope; label: string }[] = [
+	{ value: "redaction", label: "Redaction" },
+	...VERDICTS,
+];
 
 const NO_MESSAGE_CHOSEN = {
 	pass: false,
@@ -46,15 +57,15 @@ const NO_MESSAGE_CHOSEN = {
 	needs_review: false,
 } satisfies Record<Verdict, boolean>;
 
-export function CustomizePage() {
+export function ResponsesPage() {
 	const { org, repo: repoName } = routeApi.useParams();
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
-	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
-	const isAdmin = orgContext?.role === "admin";
+	const canEdit = useOrgPermission(org, "repoResponse:update");
 	const repoId = repo?.id ?? "";
 	const { data: savedConfig } = useQuery(
 		responseConfigQueryOptions(org, repoId),
 	);
+	const { data: orgDefaults } = useQuery(orgResponseDefaultsQueryOptions(org));
 	const queryClient = useQueryClient();
 	const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -97,9 +108,10 @@ export function CustomizePage() {
 		<SaveQueueProvider commit={commitBatch} savedValues={savedValues}>
 			<DraftStoreProvider>
 				<PreviewLinkProvider>
-					<CustomizeView
-						canEdit={isAdmin}
-						loaded={Boolean(savedConfig)}
+					<ResponsesView
+						canEdit={canEdit}
+						loaded={Boolean(savedConfig && orgDefaults)}
+						orgPolicy={orgDefaults?.defaults.redaction ?? OPEN_REDACTION}
 						onDiscarded={() => setSaveError(null)}
 						saveError={saveError}
 						savedValues={savedValues}
@@ -110,21 +122,24 @@ export function CustomizePage() {
 	);
 }
 
-function CustomizeView({
+function ResponsesView({
 	canEdit,
 	loaded,
+	orgPolicy,
 	saveError,
 	savedValues,
 	onDiscarded,
 }: {
 	canEdit: boolean;
 	loaded: boolean;
+	orgPolicy: RedactionPolicy;
 	saveError: string | null;
 	savedValues: Parameters<SaveQueueCommit>[0];
 	onDiscarded: () => void;
 }) {
 	const { pending, setField, discard } = useSaveQueue();
-	const [verdict, setVerdict] = useState<Verdict>("block");
+	const [scope, setScope] = useState<ResponseScope>("block");
+	const verdict: Verdict = scope === "redaction" ? "block" : scope;
 	const [sheet, setSheet] = useState<SheetState>("closed");
 	const settingsId = useId();
 	const [messageChosen, setMessageChosen] = useState(NO_MESSAGE_CHOSEN);
@@ -134,6 +149,10 @@ function CustomizeView({
 	const config = useMemo(
 		() => (loaded ? unflattenConfig({ ...savedValues, ...pending }) : null),
 		[loaded, savedValues, pending],
+	);
+	const policy = useMemo(
+		() => (config ? resolveRedaction(config.redaction, orgPolicy) : null),
+		[config, orgPolicy],
 	);
 
 	const onMessageChosen = useCallback((v: Verdict, chosen: boolean) => {
@@ -160,28 +179,28 @@ function CustomizeView({
 	return (
 		<DashboardLayout counts={{}}>
 			<div
-				className="group/customize relative flex h-full min-h-0 flex-col lg:grid lg:grid-cols-[--spacing(120)_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] xl:grid-cols-[--spacing(150)_minmax(0,1fr)] min-[96rem]:grid-cols-[--spacing(160)_minmax(0,1fr)]"
-				data-customize=""
+				className="group/responses relative flex h-full min-h-0 flex-col lg:grid lg:grid-cols-[--spacing(120)_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] xl:grid-cols-[--spacing(150)_minmax(0,1fr)] min-[96rem]:grid-cols-[--spacing(160)_minmax(0,1fr)]"
+				data-responses=""
 				data-sheet={sheet}
 			>
-				<div className="flex min-h-0 flex-1 scroll-pt-32 scroll-pb-17 flex-col overflow-y-auto group-data-[sheet=half]/customize:scroll-pb-[50%] lg:contents">
+				<div className="flex min-h-0 flex-1 scroll-pt-32 scroll-pb-17 flex-col overflow-y-auto group-data-[sheet=half]/responses:scroll-pb-[50%] lg:contents">
 					<header className="sticky top-0 z-(--z-sticky) flex flex-wrap items-center gap-x-10 gap-y-3 bg-paper px-4 pt-4 pb-3 md:px-6 lg:static lg:col-span-2 lg:min-h-18 lg:flex-nowrap lg:px-8 lg:py-3">
 						<div className="flex min-w-0 flex-1 flex-col gap-0.5 lg:flex-none">
-							<h1 className="type-title lg:type-heading">Customize</h1>
+							<h1 className="type-title lg:type-heading">Responses</h1>
 							<p className="type-body-sm text-text-2 max-lg:hidden">
 								What Tripwire posts on a change request for each verdict.
 							</p>
 						</div>
-						<div className="order-last flex w-full items-center gap-3 lg:order-none lg:w-auto lg:flex-1">
+						<div className="order-last flex w-full items-center gap-3 max-lg:overflow-x-auto lg:order-none lg:w-auto lg:flex-1">
 							<SegmentedControl
-								aria-label="Verdict"
-								className="max-lg:flex max-lg:w-full max-lg:*:flex-auto"
-								onValueChange={(value) => setVerdict(value as Verdict)}
-								value={verdict}
+								aria-label="Settings"
+								className="max-lg:*:shrink-0"
+								onValueChange={(value) => setScope(value as ResponseScope)}
+								value={scope}
 							>
-								{VERDICTS.map((v) => (
-									<SegmentedControlItem key={v.value} value={v.value}>
-										{v.label}
+								{SCOPES.map((option) => (
+									<SegmentedControlItem key={option.value} value={option.value}>
+										{option.label}
 									</SegmentedControlItem>
 								))}
 							</SegmentedControl>
@@ -208,7 +227,17 @@ function CustomizeView({
 								label="Loading response settings"
 								loading={!config}
 							>
-								{config ? (
+								{config && policy && scope === "redaction" ? (
+									<div className="max-w-140">
+										<RedactionSettings
+											canEdit={canEdit}
+											config={config}
+											effective={policy}
+											orgPolicy={orgPolicy}
+											setField={setField}
+										/>
+									</div>
+								) : config ? (
 									<div className="max-w-140">
 										<VerdictSettings
 											canEdit={canEdit}
@@ -229,14 +258,16 @@ function CustomizeView({
 					</section>
 					<div
 						aria-hidden
-						className="h-17 shrink-0 group-data-[sheet=half]/customize:h-1/2 lg:hidden"
+						className="h-17 shrink-0 group-data-[sheet=half]/responses:h-1/2 lg:hidden"
 					/>
 				</div>
 				<PreviewPane onSheetChange={setSheet} sheet={sheet}>
-					{config ? (
-						<CustomizePreview
+					{config && policy ? (
+						<ResponsesPreview
 							config={config}
 							messageChosen={messageChosen[verdict]}
+							policy={policy}
+							showRunPage={scope === "redaction"}
 							verdict={verdict}
 						/>
 					) : (

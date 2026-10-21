@@ -387,11 +387,19 @@ export function CommandPalette({
 					onSelect: () => go(`/${currentOrg}/${currentRepo}/workflows`),
 				},
 				{
-					id: "nav:customize",
-					label: "Customize",
-					searchTags: ["customize", "comment", "message", "check", "verdict"],
+					id: "nav:responses",
+					label: "Responses",
+					searchTags: [
+						"responses",
+						"customize",
+						"redaction",
+						"comment",
+						"message",
+						"check",
+						"verdict",
+					],
 					icon: glyph(Customize),
-					onSelect: () => go(`/${currentOrg}/${currentRepo}/customize`),
+					onSelect: () => go(`/${currentOrg}/${currentRepo}/responses`),
 				},
 				{
 					id: "nav:analytics",

@@ -1,7 +1,7 @@
 import type { CommentReason, Verdict } from "@tripwire/contracts";
 import { CHECK_NAME, checkSummary } from "@tripwire/contracts";
-import { PreviewObject } from "#/components/customize/preview-object";
 import { StatusMark, type StatusValue } from "#/components/glaze/ui/status";
+import { PreviewObject } from "#/components/responses/preview-object";
 
 const CHECK_STATE: Record<
 	Verdict,
@@ -16,12 +16,14 @@ export interface CheckStateMockProps {
 	verdict: Verdict;
 	reasons: CommentReason[];
 	posted: boolean;
+	level: number;
 }
 
 export function CheckStateMock({
 	verdict,
 	reasons,
 	posted,
+	level,
 }: CheckStateMockProps) {
 	const state = posted ? CHECK_STATE[verdict] : null;
 	return (
@@ -38,7 +40,7 @@ export function CheckStateMock({
 					</span>
 					<span className="min-w-0 flex-1 truncate type-body-sm text-text-2">
 						{state
-							? checkSummary(verdict, reasons)
+							? checkSummary(verdict, reasons, false, level)
 							: "Tripwire posts no check run on a pass."}
 					</span>
 					{state ? (

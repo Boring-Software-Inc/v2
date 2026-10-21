@@ -1,8 +1,14 @@
-export type OrgSettingsTab = "members" | "settings" | "connections" | "billing";
+export type OrgSettingsTab =
+	| "members"
+	| "settings"
+	| "redaction"
+	| "connections"
+	| "billing";
 
 const TAB_VALUES: OrgSettingsTab[] = [
 	"members",
 	"settings",
+	"redaction",
 	"connections",
 	"billing",
 ];

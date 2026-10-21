@@ -10,7 +10,8 @@ export type PreviewRegion =
 	| "comment"
 	| "comment-body"
 	| "details-button"
-	| "check";
+	| "check"
+	| "run-page";
 
 export const SETTING_REGION = {
 	"post-comment": "comment",
@@ -18,6 +19,13 @@ export const SETTING_REGION = {
 	message: "comment-body",
 	"details-button": "details-button",
 	"check-run": "check",
+	redaction: "comment-body",
+	"surface-run-page": "run-page",
+	"surface-check": "check",
+	"surface-comment": "comment-body",
+	"surface-review": "comment-body",
+	"surface-webhook": "comment",
+	"help-sections": "comment-body",
 } as const satisfies Record<string, PreviewRegion>;
 
 export type PreviewSetting = keyof typeof SETTING_REGION;

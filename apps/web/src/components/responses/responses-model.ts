@@ -1,6 +1,7 @@
 import type {
 	BlockCommentMode,
 	CommentReason,
+	RedactionPolicy,
 	ResponseConfig,
 	Verdict,
 } from "@tripwire/contracts";
@@ -10,6 +11,11 @@ import {
 	responseConfigSchema,
 	wantsComment,
 } from "@tripwire/contracts";
+import { z } from "zod";
+import {
+	decodeSurfaces,
+	encodeSurfaces,
+} from "#/components/responses/redaction-model";
 import type { SaveQueueCommit } from "#/components/save-queue";
 
 export const VERDICTS: { value: Verdict; label: string }[] = [
@@ -35,6 +41,8 @@ export const SAMPLE_REASONS: CommentReason[] = [
 const TEMPLATE_PLACEHOLDER = "blocked: {{ruleName}}\n\n{{runUrl}}";
 const MESSAGE_PLACEHOLDER = "Your message goes here.";
 
+const ENCODED_SURFACES = z.string();
+
 export type ContentChoice = Exclude<BlockCommentMode, "custom"> | "message";
 
 export type DraftKey =
@@ -57,6 +65,10 @@ export function flattenConfig(config: ResponseConfig) {
 		"reviewComment.customText": config.reviewComment.customText,
 		"reviewComment.showDetailsButton": config.reviewComment.showDetailsButton,
 		failClosedFallback: config.failClosedFallback,
+		"redaction.inherit": config.redaction.inherit,
+		"redaction.level": config.redaction.level,
+		"redaction.surfaces": encodeSurfaces(config.redaction.surfaces),
+		"redaction.showHelp": config.redaction.showHelp,
 	};
 }
 
@@ -82,6 +94,14 @@ export function unflattenConfig(
 			showDetailsButton: flat["reviewComment.showDetailsButton"],
 		},
 		failClosedFallback: flat.failClosedFallback,
+		redaction: {
+			inherit: flat["redaction.inherit"],
+			level: flat["redaction.level"],
+			surfaces: decodeSurfaces(
+				ENCODED_SURFACES.catch("").parse(flat["redaction.surfaces"]),
+			),
+			showHelp: flat["redaction.showHelp"],
+		},
 	});
 }
 
@@ -189,6 +209,7 @@ export function previewBody(
 	config: ResponseConfig,
 	verdict: Verdict,
 	messageChosen: boolean,
+	policy: RedactionPolicy,
 ): string | null {
 	if (!wantsComment(config, verdict)) {
 		return null;
@@ -224,5 +245,6 @@ export function previewBody(
 			badgeUrl: BADGE_PATH,
 		},
 		previewConfig,
+		policy,
 	);
 }

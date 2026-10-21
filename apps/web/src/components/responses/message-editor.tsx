@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import type { DraftKey } from "#/components/customize/customize-model";
-import { useDraftStore } from "#/components/customize/draft-store";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Field,
@@ -8,6 +6,8 @@ import {
 	FieldLabel,
 } from "#/components/glaze/ui/field";
 import { Textarea } from "#/components/glaze/ui/textarea";
+import { useDraftStore } from "#/components/responses/draft-store";
+import type { DraftKey } from "#/components/responses/responses-model";
 
 const COMMIT_DELAY_MS = 400;
 
