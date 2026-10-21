@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ArrowRight, Blocked, Icon, More } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
@@ -27,7 +27,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/glaze/ui/dropdown-menu";
 import { Panel } from "#/components/glaze/ui/panel";
-import { Switch } from "#/components/glaze/ui/switch";
 import {
 	RULE_CARD_CLASS,
 	RULE_FOOTER_CLASS,
@@ -60,7 +59,11 @@ export function RuleCard({
 	onDelete?: (ruleId: string) => Promise<void>;
 }) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const { valueFor, setField } = useSaveQueue();
+	const { valueFor, setField, pending } = useSaveQueue();
+	const queuedId = useId();
+	const queued = Object.keys(pending).some((key) =>
+		key.startsWith(`${rule.ruleId}:`),
+	);
 	const [queuedEnabled, setEnabled] = useSaveQueueField<boolean | undefined>(
 		`${rule.ruleId}:enabled`,
 	);
@@ -93,22 +96,18 @@ export function RuleCard({
 	const deletable = rule.source === "custom" && canEdit && onDelete;
 	const deleteBlocked = deletable && rule.blockingWorkflows.length > 0;
 
+	const verb = off ? "Enable rule" : "Disable rule";
 	const control = standalone ? (
-		offering ? (
-			<Button disabled={!canEdit} onClick={() => setEnabled(true)} size="sm">
-				Enable rule
-			</Button>
-		) : (
-			<Switch
-				aria-label={
-					forgeBlocked ? `${rule.name}, ${rule.forgeBlockReason}` : rule.name
-				}
-				checked={enabled && !forgeBlocked}
-				disabled={!canEdit || forgeBlocked}
-				onCheckedChange={setEnabled}
-				size="sm"
-			/>
-		)
+		<Button
+			aria-describedby={queuedId}
+			aria-label={`${verb} ${rule.name}`}
+			disabled={!canEdit || forgeBlocked}
+			onClick={() => setEnabled(!enabled)}
+			size="sm"
+			variant="secondary"
+		>
+			{verb}
+		</Button>
 	) : workflowLink ? (
 		<Button
 			nativeButton={false}
@@ -158,7 +157,14 @@ export function RuleCard({
 	);
 
 	return (
-		<Card className={RULE_CARD_CLASS} data-off={off ? "" : undefined}>
+		<Card
+			className={RULE_CARD_CLASS}
+			data-off={off ? "" : undefined}
+			data-queued={queued ? "" : undefined}
+		>
+			<span aria-live="polite" className="sr-only" id={queuedId}>
+				{queued ? "Change queued. Save to apply it." : ""}
+			</span>
 			<Panel className={RULE_PANEL_CLASS}>
 				<div className={RULE_HEADER_CLASS}>
 					<h2
