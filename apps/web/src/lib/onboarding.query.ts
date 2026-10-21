@@ -1,6 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { Forge } from "@tripwire/contracts";
-import { getOrgInstallUrl } from "#/lib/onboarding.functions";
+import {
+	getOrgInstallUrl,
+	listApprovedInstallRequests,
+} from "#/lib/onboarding.functions";
 
 /**
  * Install-flow query keys (§9). Org-scoped like #/lib/org.query — the slug
@@ -12,6 +15,8 @@ export const onboardingQueryKeys = {
 	// and sharing a key would serve one forge's install url for the other.
 	installUrl: (org: string, forge: Forge) =>
 		[...onboardingQueryKeys.all, "install-url", org, forge] as const,
+	approvedRequests: () =>
+		[...onboardingQueryKeys.all, "approved-requests"] as const,
 };
 
 /** ADMIN-only server fn — gate with `enabled` on the caller's role. */
@@ -23,4 +28,11 @@ export const orgInstallUrlQueryOptions = (
 		queryKey: onboardingQueryKeys.installUrl(org, forge),
 		queryFn: ({ signal }) => getOrgInstallUrl({ data: { org, forge }, signal }),
 		staleTime: 5 * 60_000,
+	});
+
+export const approvedInstallRequestsQueryOptions = () =>
+	queryOptions({
+		queryKey: onboardingQueryKeys.approvedRequests(),
+		queryFn: ({ signal }) => listApprovedInstallRequests({ signal }),
+		staleTime: 30_000,
 	});

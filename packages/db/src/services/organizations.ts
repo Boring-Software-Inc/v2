@@ -656,6 +656,45 @@ export async function getInstallationOrg(
 	return rows[0]?.organizationId ?? null;
 }
 
+const approvedInstallRequestSchema = z.object({
+	installationId: z.string(),
+	account: z.string(),
+	repoCount: z.number(),
+});
+
+export type ApprovedInstallRequest = z.infer<
+	typeof approvedInstallRequestSchema
+>;
+
+export async function listApprovedInstallRequests(
+	db: Db,
+	input: { userId: string },
+): Promise<ApprovedInstallRequest[]> {
+	const result = await db.execute(sql`
+		SELECT e.raw->'installation'->>'id' AS "installationId",
+		       e.raw->'installation'->'account'->>'login' AS account,
+		       count(DISTINCT r.id)::int AS "repoCount"
+		FROM events e
+		JOIN account a
+		  ON a.provider_id = 'github'
+		 AND a.user_id = ${input.userId}
+		 AND a.account_id = e.raw->'requester'->>'id'
+		JOIN repos r
+		  ON r.forge = 'github'
+		 AND r.installation_id = e.raw->'installation'->>'id'
+		 AND r.removed_at IS NULL
+		LEFT JOIN organization_installations oi
+		  ON oi.forge = 'github'
+		 AND oi.installation_id = e.raw->'installation'->>'id'
+		WHERE e.forge = 'github'
+		  AND e.kind = 'installation.created'
+		  AND oi.id IS NULL
+		GROUP BY 1, 2
+		ORDER BY max(e.received_at) DESC
+	`);
+	return z.array(approvedInstallRequestSchema).parse(result.rows);
+}
+
 // ── deletion (§5) ───────────────────────────────────────────────────────
 
 export interface OrgCascade {

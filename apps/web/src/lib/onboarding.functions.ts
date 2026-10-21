@@ -1,13 +1,17 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { Forge } from "@tripwire/contracts";
-import type { OrgWithRole, SwitcherRepo } from "@tripwire/db";
+import type {
+	ApprovedInstallRequest,
+	OrgWithRole,
+	SwitcherRepo,
+} from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
 	orgAdminMiddleware,
 	orgMemberMiddleware,
 } from "#/lib/server/org-guard";
 
-export type { SwitcherRepo };
+export type { ApprovedInstallRequest, SwitcherRepo };
 
 /**
  * Install targeting + org home (§10, org-model). The old user-onboarding
@@ -312,4 +316,19 @@ export const listClaimableInstallations = createServerFn({ method: "GET" })
 			ORDER BY min(r.installed_at) DESC
 		`);
 		return result.rows as unknown as ClaimableInstallation[];
+	});
+
+export const listApprovedInstallRequests = createServerFn({ method: "GET" })
+	.middleware([accessGuardMiddleware])
+	.handler(async (): Promise<ApprovedInstallRequest[]> => {
+		const { requireSession } = await import("#/lib/server/session");
+		const userId = await requireSession();
+		if (!userId) {
+			return [];
+		}
+		const { getDb } = await import("#/lib/server/db");
+		const { orgServices } = await import("@tripwire/db");
+		return await orgServices.listApprovedInstallRequests(getDb().db, {
+			userId,
+		});
 	});

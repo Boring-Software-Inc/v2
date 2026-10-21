@@ -26,6 +26,7 @@ import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { NavChip } from "#/components/layouts/nav-chip";
 import { MascotArt } from "#/components/mascot/mascot-art";
+import { ApprovedInstallBanner } from "#/components/organizations/approved-install-banner";
 import { HomeListSkeleton } from "#/components/organizations/org-home-page-skeleton";
 import { LIVE_FORGES } from "#/lib/forge-copy";
 import { formatRelativeTime } from "#/lib/format-relative-time";
@@ -70,6 +71,8 @@ export function OrgHomePage() {
 							</p>
 						) : null}
 					</header>
+
+					<ApprovedInstallBanner />
 
 					<SkeletonSwap
 						fallback={<HomeListSkeleton />}
