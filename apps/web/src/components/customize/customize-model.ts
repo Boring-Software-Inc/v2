@@ -49,7 +49,6 @@ export function flattenConfig(config: ResponseConfig) {
 		onBlock: config.onBlock,
 		moderationQueued: config.moderationQueued,
 		"blockComment.mode": config.blockComment.mode,
-		"blockComment.showRuleName": config.blockComment.showRuleName,
 		"blockComment.template": config.blockComment.template,
 		"passComment.customText": config.passComment.customText,
 		"passComment.showDetailsButton": config.passComment.showDetailsButton,
@@ -74,7 +73,6 @@ export function unflattenConfig(
 		},
 		blockComment: {
 			mode: flat["blockComment.mode"],
-			showRuleName: flat["blockComment.showRuleName"],
 			template: flat["blockComment.template"],
 			customText: flat["blockComment.customText"],
 			showDetailsButton: flat["blockComment.showDetailsButton"],

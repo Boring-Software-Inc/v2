@@ -15,7 +15,6 @@ export type PreviewRegion =
 export const SETTING_REGION = {
 	"post-comment": "comment",
 	content: "comment-body",
-	"rule-names": "comment-body",
 	message: "comment-body",
 	"details-button": "details-button",
 	"check-run": "check",

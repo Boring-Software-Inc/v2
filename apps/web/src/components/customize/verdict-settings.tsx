@@ -43,11 +43,6 @@ const BLOCK_CHOICES: {
 		description: "One short line for each rule that blocked it.",
 	},
 	{
-		value: "link-only",
-		label: "Link only",
-		description: "Says it is blocked and links to the details.",
-	},
-	{
 		value: "message",
 		label: "Write your own",
 		description: "Post your text instead of the default comment.",
@@ -190,17 +185,6 @@ export function VerdictSettings({
 									/>
 								</div>
 							</PreviewLinked>
-						) : null}
-						{verdict === "block" && choice === "one-liner-link" ? (
-							<Toggle
-								checked={config.blockComment.showRuleName}
-								description="Starts each line with the rule's name."
-								disabled={disabled}
-								label="Show rule names"
-								nested
-								onChange={(on) => setField("blockComment.showRuleName", on)}
-								setting="rule-names"
-							/>
 						) : null}
 						{usesTemplate && choice === "message" ? null : (
 							<Toggle
