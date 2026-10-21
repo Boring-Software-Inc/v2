@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { useFeedback } from "#/components/feedback";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
@@ -11,31 +11,19 @@ import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { MascotArt } from "#/components/mascot/mascot-art";
 
 export function OrgBillingPage() {
+	const { open: openFeedback } = useFeedback();
 	return (
 		<Empty art={<MascotArt mood="billing-empty" />} variant="plain">
 			<EmptyHeader>
 				<EmptyTitle>No billing yet</EmptyTitle>
 				<EmptyDescription>
-					Tripwire has no plans or invoices to set up yet. Billing settings will
-					appear here when they exist.
+					Tripwire has no plans or invoices yet. Billing settings will appear
+					here when they exist.
 				</EmptyDescription>
 			</EmptyHeader>
 			<EmptyContent>
-				<Button
-					nativeButton={false}
-					render={
-						<Link
-							search={(prev: Record<string, unknown>) => ({
-								...prev,
-								settings: "members" as const,
-							})}
-							to="."
-						/>
-					}
-					size="sm"
-					variant="secondary"
-				>
-					View members
+				<Button onClick={openFeedback} size="sm" variant="secondary">
+					Send feedback on billing
 				</Button>
 			</EmptyContent>
 		</Empty>
