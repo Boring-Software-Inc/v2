@@ -38,7 +38,7 @@ function useFieldDisabled() {
 
 const labelClasses = [
   'inline-flex w-fit max-w-full min-w-0 items-center gap-1.5 type-label text-text-1 select-none [overflow-wrap:anywhere]',
-  '[&_svg]:size-(--icon) [&_svg]:shrink-0 [&_svg]:text-text-3',
+  '[&>svg]:size-(--icon) [&>svg]:shrink-0 [&>svg]:text-text-3',
   'group-data-disabled/field:cursor-not-allowed group-data-disabled/field:text-text-disabled',
 ].join(' ');
 
