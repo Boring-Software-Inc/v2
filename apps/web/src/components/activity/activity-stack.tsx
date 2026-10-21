@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
-import { VerdictChip } from "#/components/activity/verdict-chip";
+import { VerdictChip, verdictStatus } from "#/components/activity/verdict-chip";
 import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
@@ -15,7 +15,12 @@ import {
 	ItemMeta,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
-import { Status } from "#/components/glaze/ui/status";
+import {
+	Status,
+	StatusMark,
+	type StatusValue,
+	statusVariants,
+} from "#/components/glaze/ui/status";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 
@@ -187,16 +192,32 @@ function EntryRow({ entry }: { entry: ActivityItem }) {
 					{ours ? <Badge size="sm">Bot</Badge> : null}
 				</ItemTitle>
 			</ItemContent>
-			{run?.verdict ? (
-				<VerdictChip verdict={run.verdict} />
-			) : pending ? (
-				<Status size="sm" status="running">
-					Checking
-				</Status>
-			) : null}
+			<EntryOutcome
+				outcome={
+					verdictStatus(run?.verdict) ??
+					(pending ? { status: "running", label: "Checking" } : undefined)
+				}
+			/>
 			<ItemMeta className="w-14 text-end">
 				{formatRelativeTime(event.occurredAt)}
 			</ItemMeta>
 		</Item>
+	);
+}
+
+function EntryOutcome({
+	outcome,
+}: {
+	outcome: { status: StatusValue; label: string } | undefined;
+}) {
+	return (
+		<span
+			className={statusVariants({ size: "sm", status: outcome?.status })}
+			title={outcome?.label}
+		>
+			{outcome ? (
+				<StatusMark label={outcome.label} status={outcome.status} />
+			) : null}
+		</span>
 	);
 }

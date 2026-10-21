@@ -17,6 +17,9 @@ export interface ModerationQueueItem {
 	subjectNumber: number | null;
 	actorLogin: string | null;
 	createdAt: string;
+	eventKind: string | null;
+	title: string | null;
+	reason: string | null;
 }
 
 export const listModerationQueue = createServerFn({ method: "GET" })
@@ -39,6 +42,9 @@ export const listModerationQueue = createServerFn({ method: "GET" })
 			subjectNumber: item.subjectNumber,
 			actorLogin: item.actorLogin,
 			createdAt: item.createdAt.toISOString(),
+			eventKind: item.eventKind,
+			title: item.title,
+			reason: item.reason,
 		}));
 	});
 

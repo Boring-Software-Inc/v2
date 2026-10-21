@@ -1,12 +1,11 @@
 import { generateId } from "@tripwire/utils";
-import { and, desc, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
+import { z } from "zod";
 import type { Db } from "../client.ts";
 import { RESUME_RUN_QUEUE } from "../queue.ts";
-import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
-import { runs } from "../schema/runs.ts";
 
 /**
  * Moderation queue = a paused run (§6), not a separate system. A decision
@@ -27,39 +26,40 @@ export async function createModerationItem(
 	return id;
 }
 
+const pendingRow = z.object({
+	id: z.string(),
+	runId: z.string(),
+	nodeId: z.string(),
+	createdAt: z.coerce.date(),
+	repoFullName: z.string(),
+	subjectNumber: z.number().nullable(),
+	actorLogin: z.string().nullable(),
+	eventKind: z.string().nullable(),
+	title: z.string().nullable(),
+	reason: z.string().nullable(),
+});
+
 /** The moderation queue, SCOPED to the user's active repo (§10). */
 export async function listPendingItems(db: Db, repoFullName: string) {
-	const rows = await db
-		.select({
-			id: moderationItems.id,
-			runId: moderationItems.runId,
-			nodeId: moderationItems.nodeId,
-			createdAt: moderationItems.createdAt,
-			repoFullName: runs.repoFullName,
-			subjectNumber: runs.subjectNumber,
-			eventId: runs.eventId,
-		})
-		.from(moderationItems)
-		.innerJoin(runs, eq(moderationItems.runId, runs.id))
-		.where(
-			and(
-				eq(moderationItems.status, "pending"),
-				eq(runs.repoFullName, repoFullName),
-			),
-		)
-		.orderBy(desc(moderationItems.id));
-	const withActors = [];
-	for (const row of rows) {
-		const eventRows = await db
-			.select({ actorLogin: events.actorLogin })
-			.from(events)
-			.where(eq(events.id, row.eventId));
-		withActors.push({
-			...row,
-			actorLogin: eventRows[0]?.actorLogin ?? null,
-		});
-	}
-	return withActors;
+	const result = await db.execute(sql`
+		SELECT m.id, m.run_id AS "runId", m.node_id AS "nodeId",
+		       m.created_at AS "createdAt", r.repo_full_name AS "repoFullName",
+		       r.subject_number AS "subjectNumber", e.actor_login AS "actorLogin",
+		       e.kind AS "eventKind",
+		       e.normalized->'changeRequest'->>'title' AS title,
+		       fr.summary AS reason
+		FROM moderation_items m
+		JOIN runs r ON r.id = m.run_id
+		LEFT JOIN events e ON e.id = r.event_id
+		LEFT JOIN LATERAL (
+			SELECT s.summary FROM run_steps s
+			WHERE s.run_id = r.id AND s.node_kind = 'rule' AND s.status = 'fail'
+			ORDER BY s.started_at ASC LIMIT 1
+		) fr ON true
+		WHERE m.status = 'pending' AND r.repo_full_name = ${repoFullName}
+		ORDER BY m.id DESC
+	`);
+	return z.array(pendingRow).parse(result.rows);
 }
 
 /**

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { verdictStatus } from "#/components/activity/verdict-chip";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
-import { Icon, Retry } from "#/components/glaze/icon";
+import { GithubMark, Icon, Retry } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Card,
@@ -135,7 +135,7 @@ function RunStatusLine({
 	const verdict = verdictStatus(run.verdict);
 
 	return (
-		<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+		<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
 			{verdict ? (
 				<Status status={verdict.status}>{verdict.label}</Status>
 			) : null}
@@ -172,16 +172,16 @@ function RunBody({ run }: { run: RunView }) {
 							{run.subjectNumber ? `Run on #${run.subjectNumber}` : "Run"}
 						</h1>
 						<div className="flex flex-wrap items-center gap-2">
-							<ViewOnForgeButton run={run} />
 							<CopyButton
-								label="run as markdown"
-								showLabel
-								size="sm"
+								label="run as Markdown"
+								size="icon"
+								title="Copy run as Markdown"
 								value={() =>
 									runToMarkdown(run, formatRelativeTime(run.createdAt))
 								}
-								variant="secondary"
+								variant="ghost"
 							/>
+							<ViewOnForgeButton run={run} />
 							{run.canRerun && run.orgSlug && run.repoName ? (
 								<RerunRunButton
 									number={run.subjectNumber}
@@ -192,22 +192,23 @@ function RunBody({ run }: { run: RunView }) {
 							) : null}
 						</div>
 					</div>
-					<RunStatusLine
-						plannedRules={liveSteps.filter((s) => s.nodeKind === "rule").length}
-						run={run}
-					/>
-					<MetaRow className="type-body-sm text-text-2">
-						<span>{run.repoFullName}</span>
-						<span>{formatRelativeTime(run.createdAt)}</span>
-						{run.headSha ? (
-							<span className="mono">{run.headSha.slice(0, 7)}</span>
-						) : null}
-						{run.rerun ? (
-							<span>
-								Manual re-run{run.rerunBy ? ` by ${run.rerunBy}` : ""}
-							</span>
-						) : null}
-					</MetaRow>
+					<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+						<RunStatusLine
+							plannedRules={
+								liveSteps.filter((s) => s.nodeKind === "rule").length
+							}
+							run={run}
+						/>
+						<MetaRow className="type-body-sm text-text-2">
+							<span>{run.repoFullName}</span>
+							<span>{formatRelativeTime(run.createdAt)}</span>
+							{run.rerun ? (
+								<span>
+									Manual re-run{run.rerunBy ? ` by ${run.rerunBy}` : ""}
+								</span>
+							) : null}
+						</MetaRow>
+					</div>
 				</header>
 
 				<Card>
@@ -343,10 +344,13 @@ function ViewOnForgeButton({ run }: { run: RunView }) {
 			render={(props) => (
 				<a {...props} href={href} rel="noreferrer" target="_blank" />
 			)}
-			size="sm"
 			variant="secondary"
 		>
-			<ForgeMark className="size-(--icon-sm) shrink-0" forge={run.forge} />
+			{run.forge === "github" ? (
+				<Icon icon={GithubMark} />
+			) : (
+				<ForgeMark forge={run.forge} />
+			)}
 			View on {label}
 		</Button>
 	);
@@ -417,7 +421,7 @@ function RerunRunButton({
 			}}
 			open={open}
 		>
-			<DialogTrigger render={<Button size="sm" variant="secondary" />}>
+			<DialogTrigger render={<Button variant="secondary" />}>
 				<Icon icon={Retry} />
 				Re-run rules
 			</DialogTrigger>

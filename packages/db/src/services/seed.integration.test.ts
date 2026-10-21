@@ -62,6 +62,7 @@ test("seedStory + seedPublicRun produce contract-valid, renderable data", async 
 	const pending = await moderationServices.listPendingItems(db, repo.fullName);
 	expect(pending.length).toBe(stats.sentToReview.value);
 	expect(pending.length).toBeGreaterThan(0);
+	expect(pending.every((item) => item.title && item.actorLogin)).toBe(true);
 
 	// Idempotent: seedStory skips an already-populated repo (no dup-key crash).
 	const before = await runCount(db, repo.fullName);

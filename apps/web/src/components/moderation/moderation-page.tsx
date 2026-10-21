@@ -86,22 +86,8 @@ export function ModerationPage() {
 					<header className="flex flex-col gap-1">
 						<h1 className="type-title">Moderation</h1>
 						<p className="type-body text-text-2">
-							Decide on change requests and comments that Tripwire sent to
-							review.
-							{stats ? (
-								<>
-									{" "}
-									In the last 24 hours,{" "}
-									<span className="text-text-1 tabular-nums">
-										{stats.blocked.value}
-									</span>{" "}
-									blocked and{" "}
-									<span className="text-text-1 tabular-nums">
-										{stats.passed.value}
-									</span>{" "}
-									passed.
-								</>
-							) : null}
+							A rule held these for a person. Approve to let one through, or
+							block it.
 						</p>
 					</header>
 
@@ -117,12 +103,12 @@ export function ModerationPage() {
 								org={org}
 								repo={repoName}
 								title={
-									<h2 className="type-heading-sm">
-										Pending{" "}
+									<>
+										Sent to review{" "}
 										<span className="text-text-2 tabular-nums">
 											{items.length}
 										</span>
-									</h2>
+									</>
 								}
 							/>
 						) : null}
