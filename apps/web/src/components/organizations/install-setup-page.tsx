@@ -110,7 +110,6 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 			/>
 			<Card>
 				<CardContent flush>
-					<ListHead>Installation</ListHead>
 					<ItemGroup aria-label="Unclaimed installations" variant="plain">
 						{claimable.map((c) => {
 							const account = c.account ?? `${forgeLabel(c.forge)} connection`;
@@ -289,7 +288,6 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 					</ItemGroup>
 				</CardContent>
 				<CardContent flush>
-					<ListHead>Tripwire org</ListHead>
 					<SkeletonSwap
 						fallback={<OrgRowsSkeleton />}
 						label="Loading your orgs"
@@ -336,7 +334,7 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 												pending={
 													claim.isPending && claim.variables === org.slug
 												}
-												pendingLabel="Connecting"
+												pendingLabel=""
 												size="sm"
 											>
 												Connect
@@ -430,14 +428,6 @@ function SourceRow({ preview }: { preview: InstallPreview }) {
 				</ItemDescription>
 			</ItemContent>
 		</Item>
-	);
-}
-
-function ListHead({ children }: { children: ReactNode }) {
-	return (
-		<p className="border-line-faint border-b px-3 py-2 type-label-sm text-text-2">
-			{children}
-		</p>
 	);
 }
 
