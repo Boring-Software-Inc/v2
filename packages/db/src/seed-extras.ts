@@ -1,22 +1,32 @@
 import {
 	type CustomRuleRecord,
 	customRuleRecordSchema,
+	GATE_CATALOG,
 	orgSlugSchema,
 	RULE_CATALOG,
 	responseConfigSchema,
+	TRIGGER_CATALOG,
+	type WorkflowDefinition,
+	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "./client.ts";
-import { account } from "./schema/auth.ts";
+import { account, user } from "./schema/auth.ts";
 import { events } from "./schema/events.ts";
 import { member, organization } from "./schema/organizations.ts";
-import { DEMO_TEAM_SLUG, ensureDemoRepo, seedStory } from "./seed.ts";
+import {
+	DEMO_EMAIL_DOMAIN,
+	DEMO_TEAM_SLUG,
+	ensureDemoRepo,
+	seedStory,
+} from "./seed.ts";
 import * as economicsServices from "./services/economics.ts";
 import * as insightServices from "./services/insights.ts";
 import * as orgServices from "./services/organizations.ts";
 import * as repoServices from "./services/repos.ts";
+import * as workflowServices from "./services/workflows.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -85,6 +95,12 @@ function latestRuleVersions() {
 }
 
 export async function seedRepoExtras(db: Db, repoId: string): Promise<void> {
+	const seeded = await db.execute(
+		sql`SELECT 1 FROM response_configs WHERE repo_id = ${repoId} LIMIT 1`,
+	);
+	if (seeded.rows.length > 0) {
+		return;
+	}
 	for (const entry of latestRuleVersions()) {
 		await repoServices.upsertRuleConfig(db, repoId, {
 			ruleId: entry.ruleId,
@@ -161,6 +177,7 @@ export async function seedTeamOrg(
 			installationId: TEAM.installationId,
 		});
 		await seedStory(db, repo, input.now, { days: 90 });
+		await seedRepoExtras(db, repo.id);
 	}
 	await orgServices.linkOrgInstallation(db, {
 		orgId: org.id,
@@ -221,6 +238,12 @@ export async function seedEconomics(
 	db: Db,
 	input: { orgId: string; repoFullName: string; now: Date; days: number },
 ): Promise<void> {
+	const seeded = await db.execute(
+		sql`SELECT 1 FROM usage_counters WHERE org_id = ${input.orgId} LIMIT 1`,
+	);
+	if (seeded.rows.length > 0) {
+		return;
+	}
 	const since = new Date(input.now.getTime() - input.days * DAY);
 	const result = await db.execute(sql`
 		SELECT r.id,
@@ -296,4 +319,197 @@ export async function seedRollups(
 	for (const day of daysBack(input.now, input.days)) {
 		await insightServices.computeDailyRollups(db, day);
 	}
+}
+
+const CHANGE_REQUEST_KINDS = [
+	"change-request.opened",
+	"change-request.updated",
+];
+
+function catalogWorkflow(
+	name: string,
+	kinds: string[],
+	middle: object[],
+	edges: object[],
+): WorkflowDefinition {
+	return workflowDefinitionSchema.parse({
+		id: generateId(),
+		name,
+		version: 1,
+		nodes: [
+			{ id: "t", type: "trigger", kinds, position: { x: 80, y: 160 } },
+			...middle,
+			{
+				id: "block",
+				type: "action",
+				action: "block",
+				position: { x: 640, y: 160 },
+			},
+		],
+		edges,
+	});
+}
+
+function cryptoBlocks(name: string, kinds: string[]): WorkflowDefinition {
+	return catalogWorkflow(
+		name,
+		kinds,
+		[
+			{
+				id: "r",
+				type: "rule",
+				ref: "crypto-address@1",
+				config: {},
+				position: { x: 360, y: 160 },
+			},
+		],
+		[
+			{ id: "e1", from: "t", to: "r" },
+			{ id: "e2", from: "r", to: "block", when: "fail" },
+		],
+	);
+}
+
+function workflowCatalog(): WorkflowDefinition[] {
+	const rules = RULE_CATALOG.map((rule) =>
+		catalogWorkflow(
+			`rule: ${rule.name}`,
+			CHANGE_REQUEST_KINDS,
+			[
+				{
+					id: "r",
+					type: "rule",
+					ref: `${rule.ruleId}@${rule.version}`,
+					config: structuredClone(rule.defaultConfig),
+					position: { x: 360, y: 160 },
+				},
+			],
+			[
+				{ id: "e1", from: "t", to: "r" },
+				{ id: "e2", from: "r", to: "block", when: "fail" },
+			],
+		),
+	);
+	const gates = GATE_CATALOG.map((gate) => {
+		const two = gate.mode !== "not";
+		const second = two
+			? [
+					{
+						id: "r2",
+						type: "rule",
+						ref: "account-age@1",
+						config: { minDays: 7 },
+						position: { x: 340, y: 240 },
+					},
+				]
+			: [];
+		const secondEdges = two
+			? [
+					{ id: "e2", from: "t", to: "r2" },
+					{ id: "e3", from: "r2", to: "g" },
+				]
+			: [];
+		return catalogWorkflow(
+			`gate: ${gate.name}`,
+			CHANGE_REQUEST_KINDS,
+			[
+				{
+					id: "r1",
+					type: "rule",
+					ref: "crypto-address@1",
+					config: {},
+					position: { x: 340, y: two ? 90 : 160 },
+				},
+				...second,
+				{
+					id: "g",
+					type: "gate",
+					mode: gate.mode,
+					position: { x: 500, y: 160 },
+				},
+			],
+			[
+				{ id: "e1", from: "t", to: "r1" },
+				...secondEdges,
+				{ id: "e4", from: "r1", to: "g" },
+				{ id: "e5", from: "g", to: "block", when: "fail" },
+			],
+		);
+	});
+	const triggers = TRIGGER_CATALOG.filter((entry) => entry.toolbox).map(
+		(entry) => cryptoBlocks(`trigger: ${entry.name}`, [entry.kind]),
+	);
+	return [...rules, ...gates, ...triggers];
+}
+
+export async function seedWorkflowCatalog(
+	db: Db,
+	repoId: string,
+): Promise<{ created: number; total: number }> {
+	const definitions = workflowCatalog();
+	const existing = new Set(
+		(await workflowServices.listWorkflows(db, repoId)).map(
+			(workflow) => workflow.name,
+		),
+	);
+	let created = 0;
+	for (const definition of definitions) {
+		if (existing.has(definition.name)) {
+			continue;
+		}
+		await workflowServices.createWorkflow(db, {
+			repoId,
+			name: definition.name,
+			definition,
+		});
+		created++;
+	}
+	return { created, total: definitions.length };
+}
+
+const TEAMMATES = [
+	{ id: "demo-teammate-sam", name: "Sam Okafor" },
+	{ id: "demo-teammate-rin", name: "Rin Takeda" },
+];
+
+export async function ensureDemoTeammates(db: Db): Promise<string[]> {
+	for (const teammate of TEAMMATES) {
+		await db
+			.insert(user)
+			.values({
+				id: teammate.id,
+				name: teammate.name,
+				email: `${teammate.id}@${DEMO_EMAIL_DOMAIN}`,
+			})
+			.onConflictDoNothing();
+	}
+	return TEAMMATES.map((teammate) => teammate.id);
+}
+
+export async function seedActivePersonaExtras(
+	db: Db,
+	input: {
+		userId: string;
+		orgId: string;
+		repo: { id: string; fullName: string };
+		now: Date;
+	},
+): Promise<void> {
+	await seedRepoExtras(db, input.repo.id);
+	await seedWorkflowCatalog(db, input.repo.id);
+	await seedTeamOrg(db, {
+		adminUserId: input.userId,
+		memberUserIds: await ensureDemoTeammates(db),
+		now: input.now,
+	});
+	await seedApprovedInstallRequest(db, {
+		userId: input.userId,
+		now: input.now,
+	});
+	await seedEconomics(db, {
+		orgId: input.orgId,
+		repoFullName: input.repo.fullName,
+		now: input.now,
+		days: 30,
+	});
 }

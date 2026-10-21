@@ -42,11 +42,14 @@ export {
 	seedStory,
 } from "./seed.ts";
 export {
+	ensureDemoTeammates,
+	seedActivePersonaExtras,
 	seedApprovedInstallRequest,
 	seedEconomics,
 	seedRepoExtras,
 	seedRollups,
 	seedTeamOrg,
+	seedWorkflowCatalog,
 } from "./seed-extras.ts";
 export * as accessServices from "./services/access.ts";
 export * as accountServices from "./services/accounts.ts";

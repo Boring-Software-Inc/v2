@@ -13,12 +13,15 @@ import { user } from "../schema/auth.ts";
 import { member, organization } from "../schema/organizations.ts";
 import { DEMO_EMAIL_DOMAIN, ensureDemoRepo, resetDemoData } from "../seed.ts";
 import {
+	seedActivePersonaExtras,
 	seedApprovedInstallRequest,
 	seedRepoExtras,
 	seedTeamOrg,
+	seedWorkflowCatalog,
 } from "../seed-extras.ts";
 import * as orgServices from "./organizations.ts";
 import * as repoServices from "./repos.ts";
+import * as workflowServices from "./workflows.ts";
 
 const countRow = z.object({ n: z.coerce.number() });
 
@@ -121,4 +124,57 @@ test("the approved install request shows up once for its requester", async () =>
 	});
 	expect(approved).toHaveLength(1);
 	expect(approved[0]?.repoCount).toBe(2);
+});
+
+test("repo extras leave an edited repo alone", async () => {
+	await resetDemoData(db);
+	const repo = await ensureDemoRepo(db, "extras-edited");
+	await seedRepoExtras(db, repo.id);
+	const [first] = await repoServices.listCustomRules(db, repo.id);
+	if (!first) {
+		throw new Error("no custom rule seeded");
+	}
+	await repoServices.upsertCustomRule(db, repo.id, {
+		...first,
+		enabled: false,
+	});
+	await seedRepoExtras(db, repo.id);
+
+	const rules = await repoServices.listCustomRules(db, repo.id);
+	expect(rules.find((rule) => rule.id === first.id)?.enabled).toBe(false);
+});
+
+test("the workflow catalog seeds once", async () => {
+	await resetDemoData(db);
+	const repo = await ensureDemoRepo(db, "extras-workflows");
+	const first = await seedWorkflowCatalog(db, repo.id);
+	const second = await seedWorkflowCatalog(db, repo.id);
+
+	expect(first.created).toBe(first.total);
+	expect(second.created).toBe(0);
+	expect(await workflowServices.listWorkflows(db, repo.id)).toHaveLength(
+		first.total,
+	);
+});
+
+test("the active persona gets every extra in one call", async () => {
+	await resetDemoData(db);
+	const admin = await demoUser("seed-active");
+	const org = await orgServices.ensurePersonalOrg(db, {
+		userId: admin,
+		name: admin,
+	});
+	const repo = await ensureDemoRepo(db, "extras-active");
+	const input = { userId: admin, orgId: org.id, repo, now: new Date() };
+	await seedActivePersonaExtras(db, input);
+	await seedActivePersonaExtras(db, input);
+
+	expect(await repoServices.getResponseConfig(db, repo.id)).not.toBeNull();
+	expect(
+		(await workflowServices.listWorkflows(db, repo.id)).length,
+	).toBeGreaterThan(0);
+	expect(await orgServices.listUserOrgs(db, admin)).toHaveLength(2);
+	expect(
+		await orgServices.listApprovedInstallRequests(db, { userId: admin }),
+	).toHaveLength(1);
 });

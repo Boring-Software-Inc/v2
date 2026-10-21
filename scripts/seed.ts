@@ -1,22 +1,14 @@
-import { spawnSync } from "node:child_process";
 import {
 	createDb,
 	DEMO_EMAIL_DOMAIN,
-	DEMO_OWNER,
 	orgServices,
-	repos,
-	seedApprovedInstallRequest,
-	seedEconomics,
-	seedRepoExtras,
 	seedRollups,
-	seedTeamOrg,
 	user,
 } from "@tripwire/db";
-import { and, eq, isNull, like } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 const BASE_URL = process.env.SEED_BASE_URL ?? "http://localhost:3000";
 const PERSONAS = ["active", "one-repo", "many-repos", "empty", "fresh"];
-const ACTIVE_REPO = `${DEMO_OWNER}/active-webapp`;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 const databaseUrl = process.env.DATABASE_URL ?? "";
@@ -66,48 +58,6 @@ try {
 	if (!activeOrg) {
 		throw new Error("the active persona has no org");
 	}
-
-	const workflows = spawnSync(
-		"bun",
-		["run", "scripts/seed-workflows.ts", ACTIVE_REPO],
-		{ stdio: "inherit" },
-	);
-	if (workflows.status !== 0) {
-		throw new Error("seeding workflows failed");
-	}
-
-	const team = await seedTeamOrg(db, {
-		adminUserId: activeUserId,
-		memberUserIds: [await userIdFor("one-repo"), await userIdFor("many-repos")],
-		now,
-	});
-	console.log(
-		`team org ${team.slug}: 3 members, an invite link and 2 repos with history`,
-	);
-
-	const demoRepos = await db
-		.select({ id: repos.id, fullName: repos.fullName })
-		.from(repos)
-		.where(
-			and(like(repos.fullName, `${DEMO_OWNER}/%`), isNull(repos.removedAt)),
-		);
-	for (const repo of demoRepos) {
-		await seedRepoExtras(db, repo.id);
-	}
-	console.log(
-		`rule settings, custom rules, comment settings and branches: ${demoRepos.length} repos`,
-	);
-
-	await seedApprovedInstallRequest(db, { userId: activeUserId, now });
-	console.log("an approved install request waiting to connect");
-
-	await seedEconomics(db, {
-		orgId: activeOrg.id,
-		repoFullName: ACTIVE_REPO,
-		now,
-		days: 30,
-	});
-	console.log("usage, ai review cost and provider cost: 30 days");
 
 	await seedRollups(db, { now, days: 365 });
 	console.log("daily rollups: 365 days");
