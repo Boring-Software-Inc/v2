@@ -17,10 +17,10 @@ export function LoginPage() {
 			<div className="flex w-full max-w-sm flex-col items-center gap-6">
 				<BrandLockup />
 
-				<div className="flex flex-col items-center gap-1 text-center">
-					<h1 className="type-title text-balance">Sign in to Tripwire</h1>
-					<p className="type-body text-pretty text-text-2">
-						Use the forge account that hosts your repos.
+				<div className="flex flex-col items-center gap-1.5 text-center">
+					<h1 className="type-heading text-balance">Sign in</h1>
+					<p className="type-body-sm text-pretty text-text-2">
+						Continue with the account that hosts your repos.
 					</p>
 				</div>
 

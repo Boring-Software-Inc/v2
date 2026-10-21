@@ -79,14 +79,12 @@
   --ok: #2c9a59; /* done: a status mark | status mark, progress done */
   --ok-text: #1a7640; /* the done word, 5.7:1 on paper, 5.0:1 on its tint | status word, success message */
   --ok-tint: #e6f4ea; /* the done ground | success badge, success alert */
-  --ok-line: rgb(44 154 89 / 0.24); /* the done ground's 1px ring | approve button */
   --warn: #d98a0b; /* a warning mark | status mark */
   --warn-text: #8a5a00; /* the warning word, 5.9:1 on paper, 5.2:1 on its tint | status word, warning message */
   --warn-tint: #fbf0d9; /* the warning ground | warning badge, warning alert */
   --fail: #e35e49; /* coral: a failure mark and the coral glass's top | status mark, invalid field line, destructive button */
   --fail-text: #b23c29; /* the failure word, 5.9:1 on paper, 5.0:1 on its tint | error message, status word */
   --fail-tint: #fbe9e5; /* the failure ground | error badge, error alert */
-  --fail-line: rgb(227 94 73 / 0.24); /* the failure ground's 1px ring | reject button */
 
   /* == Glass: the press recipe, a glossy glaze over the reference's overlay stack; ink, coral and green are the primary's keys == */
   --glass-ink-base: rgb(0 0 0 / 0.66); /* ink glass, the body: black at 66% over what is behind it, a grey on white (the reference's 56%, darkened so the label holds over the catch-light) | primary button, icon button */
@@ -288,14 +286,12 @@
   --ok: #3fbf75;
   --ok-text: #6fd69a;
   --ok-tint: #13261a;
-  --ok-line: rgb(63 191 117 / 0.28);
   --warn: #f0a531;
   --warn-text: #f5c065;
   --warn-tint: #2a2010;
   --fail: #ec6f5a;
   --fail-text: #f2917f;
   --fail-tint: #2c1714;
-  --fail-line: rgb(236 111 90 / 0.28);
 
   --glass-ink-base: rgb(255 255 255 / 0.62);
   --glass-ink-text: rgb(5 5 5 / 0.90);

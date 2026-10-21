@@ -14,6 +14,7 @@ import {
 	ChangeRequest,
 	Check,
 	Comment,
+	type GlazeIcon,
 	Icon,
 } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
@@ -147,65 +148,88 @@ export function ModerationQueue({
 								</ItemDescription>
 							</ItemContent>
 							<ItemActions className="me-0 gap-2">
-								<Button
-									aria-label={`Reject ${subject}`}
+								<DecideButton
+									decision="deny"
 									disabled={decide.isPending}
-									onClick={() =>
+									onDecide={(decision) =>
 										decide.mutate(
-											{
-												data: {
-													org,
-													repo,
-													itemId: item.id,
-													decision: "deny",
-												},
-											},
-											{
-												onSuccess: () =>
-													toast(
-														`Blocked ${subject}. Tripwire marked its check as blocked.`,
-													),
-											},
+											{ data: { org, repo, itemId: item.id, decision } },
+											{ onSuccess: () => DECISION[decision].toast(subject) },
 										)
 									}
-									size="sm"
-									variant="destructive-wash"
-								>
-									<Icon icon={Blocked} />
-									Reject
-								</Button>
-								<Button
-									aria-label={`Approve ${subject}`}
+									subject={subject}
+								/>
+								<DecideButton
+									decision="approve"
 									disabled={decide.isPending}
-									onClick={() =>
+									onDecide={(decision) =>
 										decide.mutate(
-											{
-												data: {
-													org,
-													repo,
-													itemId: item.id,
-													decision: "approve",
-												},
-											},
-											{
-												onSuccess: () =>
-													toast.success(
-														`Approved ${subject}. Tripwire marked its check as passed.`,
-													),
-											},
+											{ data: { org, repo, itemId: item.id, decision } },
+											{ onSuccess: () => DECISION[decision].toast(subject) },
 										)
 									}
-									size="sm"
-									variant="confirm-wash"
-								>
-									<Icon icon={Check} />
-									Approve
-								</Button>
+									subject={subject}
+								/>
 							</ItemActions>
 						</Item>
 					);
 				})}
 			</ItemGroup>
 		</EntityCard>
+	);
+}
+
+type Decision = "approve" | "deny";
+
+const DECISION = {
+	deny: {
+		label: "Reject",
+		icon: Blocked,
+		tone: "text-fail",
+		toast: (subject: string) =>
+			toast(`Blocked ${subject}. Tripwire marked its check as blocked.`),
+	},
+	approve: {
+		label: "Approve",
+		icon: Check,
+		tone: "text-ok",
+		toast: (subject: string) =>
+			toast.success(
+				`Approved ${subject}. Tripwire marked its check as passed.`,
+			),
+	},
+} as const satisfies Record<
+	Decision,
+	{
+		label: string;
+		icon: GlazeIcon;
+		tone: string;
+		toast: (subject: string) => void;
+	}
+>;
+
+function DecideButton({
+	decision,
+	subject,
+	disabled,
+	onDecide,
+}: {
+	decision: Decision;
+	subject: string;
+	disabled: boolean;
+	onDecide: (decision: Decision) => void;
+}) {
+	const { label, icon, tone } = DECISION[decision];
+	return (
+		<Button
+			aria-label={`${label} ${subject}`}
+			disabled={disabled}
+			onClick={() => onDecide(decision)}
+			size="sm"
+			variant="secondary"
+		>
+			<Icon className={tone} icon={icon} />
+			{label}
+		</Button>
 	);
 }
