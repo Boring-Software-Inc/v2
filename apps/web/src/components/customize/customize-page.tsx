@@ -1,25 +1,30 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import type { Verdict } from "@tripwire/contracts";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
 import {
 	flattenConfig,
 	unflattenConfig,
 	VERDICTS,
 } from "#/components/customize/customize-model";
-import { CustomizeBodySkeleton } from "#/components/customize/customize-page-skeleton";
+import {
+	PreviewSkeleton,
+	SettingsSkeleton,
+} from "#/components/customize/customize-page-skeleton";
 import { CustomizePreview } from "#/components/customize/customize-preview";
 import { DraftStoreProvider } from "#/components/customize/draft-store";
 import { PreviewLinkProvider } from "#/components/customize/preview-link";
-import { MobileSaveBar, SaveState } from "#/components/customize/save-state";
-import { VerdictSettings } from "#/components/customize/verdict-settings";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import {
-	Tabs,
-	TabsContent,
-	TabsList,
-	TabsTrigger,
-} from "#/components/glaze/ui/tabs";
+	PreviewPane,
+	type SheetState,
+} from "#/components/customize/preview-pane";
+import { SaveState } from "#/components/customize/save-state";
+import { VerdictSettings } from "#/components/customize/verdict-settings";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/components/glaze/ui/segmented-control";
+import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import {
 	type SaveQueueCommit,
@@ -120,6 +125,9 @@ function CustomizeView({
 }) {
 	const { pending, setField, discard } = useSaveQueue();
 	const [verdict, setVerdict] = useState<Verdict>("block");
+	const [sheet, setSheet] = useState<SheetState>("closed");
+	const verdictLabelId = useId();
+	const settingsId = useId();
 	const [messageChosen, setMessageChosen] = useState(NO_MESSAGE_CHOSEN);
 	const [editorEpoch, setEditorEpoch] = useState(0);
 	const remembered = useRef<Partial<Record<Verdict, string>>>({});
@@ -152,14 +160,38 @@ function CustomizeView({
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-8">
-				<div className="mx-auto flex w-full max-w-312 flex-col gap-6">
-					<header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-						<div className="flex min-w-0 flex-col gap-1">
-							<h1 className="type-title">Customize</h1>
-							<p className="type-body text-text-2">
+			<div
+				className="group/customize relative flex h-full min-h-0 flex-col lg:grid lg:grid-cols-[--spacing(120)_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] xl:grid-cols-[--spacing(150)_minmax(0,1fr)] min-[96rem]:grid-cols-[--spacing(160)_minmax(0,1fr)]"
+				data-customize=""
+				data-sheet={sheet}
+			>
+				<div className="flex min-h-0 flex-1 scroll-pt-32 scroll-pb-15 flex-col overflow-y-auto group-data-[sheet=half]/customize:scroll-pb-[50%] lg:contents">
+					<header className="sticky top-0 z-(--z-sticky) flex flex-wrap items-center gap-x-10 gap-y-3 bg-paper px-4 pt-4 pb-3 md:px-6 lg:static lg:col-span-2 lg:min-h-18 lg:flex-nowrap lg:px-8 lg:py-3">
+						<div className="flex min-w-0 flex-1 flex-col gap-0.5 lg:flex-none">
+							<h1 className="type-title lg:type-heading">Customize</h1>
+							<p className="type-body-sm text-text-2 max-lg:hidden">
 								What Tripwire posts on a change request for each verdict.
 							</p>
+						</div>
+						<div className="order-last flex w-full items-center gap-3 lg:order-none lg:w-auto lg:flex-1">
+							<span
+								className="type-body-sm text-text-2 max-lg:hidden"
+								id={verdictLabelId}
+							>
+								Verdict
+							</span>
+							<SegmentedControl
+								aria-labelledby={verdictLabelId}
+								className="max-lg:flex max-lg:w-full max-lg:*:flex-auto"
+								onValueChange={(value) => setVerdict(value as Verdict)}
+								value={verdict}
+							>
+								{VERDICTS.map((v) => (
+									<SegmentedControlItem key={v.value} value={v.value}>
+										{v.label}
+									</SegmentedControlItem>
+								))}
+							</SegmentedControl>
 						</div>
 						<SaveState
 							canEdit={canEdit}
@@ -167,60 +199,57 @@ function CustomizeView({
 							onDiscard={onDiscard}
 						/>
 					</header>
-
-					<SkeletonSwap
-						fallback={<CustomizeBodySkeleton />}
-						label="Loading response settings"
-						loading={!config}
+					<section
+						aria-labelledby={settingsId}
+						className="flex flex-col lg:col-start-1 lg:row-start-2 lg:min-h-0"
 					>
-						{config ? (
-							<Tabs
-								className="flex flex-col gap-6"
-								onValueChange={(value) => setVerdict(value as Verdict)}
-								value={verdict}
+						<h2
+							className="flex h-12 shrink-0 items-center px-6 type-label-lg text-text-1 max-lg:sr-only"
+							id={settingsId}
+						>
+							Settings
+						</h2>
+						<div className="px-1 pb-6 md:px-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-5">
+							<SkeletonSwap
+								fallback={<SettingsSkeleton />}
+								label="Loading response settings"
+								loading={!config}
 							>
-								<TabsList activateOnFocus aria-label="Verdict">
-									{VERDICTS.map((v) => (
-										<TabsTrigger key={v.value} value={v.value}>
-											{v.label}
-										</TabsTrigger>
-									))}
-								</TabsList>
-								{VERDICTS.map((v) => (
-									<TabsContent key={v.value} value={v.value}>
-										<div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
-											<div className="lg:w-md lg:shrink-0">
-												<VerdictSettings
-													canEdit={canEdit}
-													config={config}
-													editorEpoch={editorEpoch}
-													messageChosen={messageChosen[v.value]}
-													onMessageChosen={onMessageChosen}
-													recallMessage={recallMessage}
-													rememberMessage={rememberMessage}
-													setField={setField}
-													verdict={v.value}
-												/>
-											</div>
-											<div className="min-w-0 lg:sticky lg:top-6 lg:flex-1">
-												<CustomizePreview
-													config={config}
-													messageChosen={messageChosen[v.value]}
-													verdict={v.value}
-												/>
-											</div>
-										</div>
-									</TabsContent>
-								))}
-							</Tabs>
-						) : null}
-					</SkeletonSwap>
-					<MobileSaveBar
-						canEdit={canEdit}
-						error={saveError}
-						onDiscard={onDiscard}
+								{config ? (
+									<div className="max-w-140">
+										<VerdictSettings
+											canEdit={canEdit}
+											config={config}
+											editorEpoch={editorEpoch}
+											key={verdict}
+											messageChosen={messageChosen[verdict]}
+											onMessageChosen={onMessageChosen}
+											recallMessage={recallMessage}
+											rememberMessage={rememberMessage}
+											setField={setField}
+											verdict={verdict}
+										/>
+									</div>
+								) : null}
+							</SkeletonSwap>
+						</div>
+					</section>
+					<div
+						aria-hidden
+						className="h-15 shrink-0 group-data-[sheet=half]/customize:h-1/2 lg:hidden"
 					/>
 				</div>
+				<PreviewPane onSheetChange={setSheet} sheet={sheet}>
+					{config ? (
+						<CustomizePreview
+							config={config}
+							messageChosen={messageChosen[verdict]}
+							verdict={verdict}
+						/>
+					) : (
+						<PreviewSkeleton />
+					)}
+				</PreviewPane>
 			</div>
 		</DashboardLayout>
 	);

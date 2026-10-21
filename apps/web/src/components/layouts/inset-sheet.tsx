@@ -35,7 +35,7 @@ function springMotion() {
 	} as CSSProperties;
 }
 
-const SPRING_STYLE = springMotion();
+export const SPRING_STYLE = springMotion();
 
 export function InsetSheetContent({
 	className,

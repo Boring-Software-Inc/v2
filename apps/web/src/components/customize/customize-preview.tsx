@@ -1,6 +1,6 @@
 import type { ResponseConfig, Verdict } from "@tripwire/contracts";
 import { wantsCheck } from "@tripwire/contracts";
-import { memo, type ReactNode, useLayoutEffect, useMemo } from "react";
+import { memo, useLayoutEffect, useMemo } from "react";
 import { CheckStateMock } from "#/components/customize/check-state-mock";
 import {
 	previewBody,
@@ -9,10 +9,7 @@ import {
 } from "#/components/customize/customize-model";
 import { useDrafts } from "#/components/customize/draft-store";
 import { GithubCommentMock } from "#/components/customize/github-comment-mock";
-import {
-	type PreviewRegion,
-	usePreviewLink,
-} from "#/components/customize/preview-link";
+import { usePreviewLink } from "#/components/customize/preview-link";
 
 export interface CustomizePreviewProps {
 	config: ResponseConfig;
@@ -40,42 +37,23 @@ export const CustomizePreview = memo(function CustomizePreview({
 	return (
 		<section
 			aria-label="Preview"
-			className="flex flex-col gap-4 rounded-shell bg-shell p-3 md:p-4"
+			className="flex flex-col gap-6"
 			data-preview-root=""
 			ref={link.attach}
 		>
-			<Surface label="Comment" region="comment">
+			<div className="relative rounded-shell" data-region="comment">
 				<GithubCommentMock
 					body={body}
 					silentNote="Turn on Post a comment to preview one here."
 				/>
-			</Surface>
-			<Surface label="Check run" region="check">
+			</div>
+			<div className="relative rounded-shell sm:ms-13" data-region="check">
 				<CheckStateMock
 					posted={checkPosted}
 					reasons={verdict === "block" ? SAMPLE_REASONS : []}
 					verdict={verdict}
 				/>
-			</Surface>
+			</div>
 		</section>
 	);
 });
-
-function Surface({
-	label,
-	region,
-	children,
-}: {
-	label: string;
-	region: PreviewRegion;
-	children: ReactNode;
-}) {
-	return (
-		<div className="flex flex-col gap-2">
-			<h3 className="type-label-sm text-text-2">{label}</h3>
-			<div className="relative rounded-panel" data-region={region}>
-				{children}
-			</div>
-		</div>
-	);
-}

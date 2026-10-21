@@ -33,15 +33,11 @@ function SaveStatus({
 	error,
 	isDirty,
 	isCommitting,
-	count,
-	align = "end",
 }: {
 	canEdit: boolean;
 	error: string | null;
 	isDirty: boolean;
 	isCommitting: boolean;
-	count: number;
-	align?: "start" | "end";
 }) {
 	if (!canEdit) {
 		return (
@@ -52,13 +48,7 @@ function SaveStatus({
 	}
 	if (error && !isCommitting) {
 		return (
-			<span
-				className={
-					align === "end"
-						? "flex flex-col items-end gap-0.5"
-						: "flex flex-col items-start gap-0.5"
-				}
-			>
+			<span className="flex flex-col items-end gap-0.5 text-end">
 				<Status size="sm" status="fail">
 					Not saved
 				</Status>
@@ -68,8 +58,8 @@ function SaveStatus({
 	}
 	if (isDirty) {
 		return (
-			<span className="type-caption text-text-2 tabular-nums">
-				{count} unsaved {count === 1 ? "change" : "changes"}
+			<span className="type-body-sm text-text-2 max-lg:sr-only">
+				Unsaved changes
 			</span>
 		);
 	}
@@ -80,67 +70,38 @@ function SaveStatus({
 	);
 }
 
-function SaveActions({
-	error,
-	onDiscard,
-}: {
-	error: string | null;
-	onDiscard: () => void;
-}) {
-	const { isCommitting, commit } = useSaveQueue();
+export function SaveState({ canEdit, error, onDiscard }: SaveStateProps) {
+	const { isDirty, isCommitting, commit } = useSaveQueue();
 	const saving = useShownAfter(isCommitting, WAIT_SHOW_MS);
 	return (
-		<>
-			<DiscardChangesButton disabled={isCommitting} onDiscard={onDiscard} />
-			<Button onClick={commit} pending={saving} pendingLabel="Saving" size="sm">
-				{error ? "Save again" : "Save changes"}
-			</Button>
-		</>
-	);
-}
-
-export function SaveState({ canEdit, error, onDiscard }: SaveStateProps) {
-	const { isDirty, count, isCommitting } = useSaveQueue();
-	return (
-		<div className="flex min-h-(--control-sm) items-center justify-end gap-2">
+		<div className="flex min-h-(--control-sm) flex-wrap items-center justify-end gap-x-2 gap-y-1">
 			<SaveQueueNavGuard />
 			<output>
 				<SaveStatus
 					canEdit={canEdit}
-					count={count}
 					error={error}
 					isCommitting={isCommitting}
 					isDirty={isDirty}
 				/>
 			</output>
 			{canEdit && isDirty ? (
-				<SaveActions error={error} onDiscard={onDiscard} />
+				<>
+					<DiscardChangesButton
+						touch
+						disabled={isCommitting}
+						onDiscard={onDiscard}
+					/>
+					<Button
+						data-touch=""
+						onClick={commit}
+						pending={saving}
+						pendingLabel="Saving"
+						size="sm"
+					>
+						{error ? "Save again" : "Save"}
+					</Button>
+				</>
 			) : null}
 		</div>
-	);
-}
-
-export function MobileSaveBar({ canEdit, error, onDiscard }: SaveStateProps) {
-	const { isDirty, count, isCommitting } = useSaveQueue();
-	if (!(canEdit && isDirty)) {
-		return null;
-	}
-	return (
-		<section
-			aria-label="Unsaved changes"
-			className="sticky bottom-0 z-(--z-sticky) -mx-4 flex min-h-(--row) items-center gap-2 border-line-faint border-t bg-paper px-4 py-2 pb-[max(var(--space-2),env(safe-area-inset-bottom))] md:hidden"
-		>
-			<div className="me-auto min-w-0">
-				<SaveStatus
-					align="start"
-					canEdit={canEdit}
-					count={count}
-					error={error}
-					isCommitting={isCommitting}
-					isDirty={isDirty}
-				/>
-			</div>
-			<SaveActions error={error} onDiscard={onDiscard} />
-		</section>
 	);
 }

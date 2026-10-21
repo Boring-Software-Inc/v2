@@ -55,6 +55,17 @@ body {
 	}
 }
 
+@media (width < 64rem) {
+	.glaze [data-customize] [data-slot="segmented-control"] {
+		height: calc(var(--space-10) + var(--space-1));
+	}
+
+	.glaze [data-customize] [data-touch] {
+		min-width: calc(var(--space-10) + var(--space-1));
+		min-height: calc(var(--space-10) + var(--space-1));
+	}
+}
+
 .glaze [data-fillet="start"] {
 	mask-image: radial-gradient(
 		circle var(--radius-shell) at top right,

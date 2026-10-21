@@ -1,5 +1,5 @@
 import type { ResponseConfig, Verdict } from "@tripwire/contracts";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import {
 	type ContentChoice,
 	commentKey,
@@ -18,15 +18,13 @@ import {
 } from "#/components/customize/preview-link";
 import { Checkbox } from "#/components/glaze/ui/checkbox";
 import {
-	Field,
-	FieldContent,
-	FieldDescription,
-	FieldLabel,
-} from "#/components/glaze/ui/field";
-import {
 	RadioGroup,
 	RadioGroupOption,
 } from "#/components/glaze/ui/radio-group";
+import { cn } from "#/lib/glaze/utils";
+
+const ROW = "rounded-panel px-3 py-2";
+const NESTED = "ps-10";
 
 const BLOCK_CHOICES: {
 	value: ContentChoice;
@@ -138,7 +136,7 @@ export function VerdictSettings({
 	};
 
 	return (
-		<div className="flex flex-col gap-6">
+		<div className="flex flex-col gap-7">
 			<Section
 				description="What Tripwire writes on the change request."
 				id={`comment-${verdict}`}
@@ -158,35 +156,38 @@ export function VerdictSettings({
 				/>
 				{commenting ? (
 					<>
-						<PreviewLinked setting="content">
-							<RadioGroup
-								aria-label="Comment content"
-								disabled={disabled}
-								onValueChange={(value) => setChoice(value as ContentChoice)}
-								value={choice}
-							>
-								{(verdict === "block" ? BLOCK_CHOICES : OUTCOME_CHOICES).map(
-									(option) => (
+						<RadioGroup
+							aria-label="Comment content"
+							className="gap-0.5"
+							disabled={disabled}
+							onValueChange={(value) => setChoice(value as ContentChoice)}
+							value={choice}
+						>
+							{(verdict === "block" ? BLOCK_CHOICES : OUTCOME_CHOICES).map(
+								(option) => (
+									<PreviewLinked key={option.value} setting="content">
 										<RadioGroupOption
+											className={cn(ROW, NESTED, disabled && "cursor-default")}
 											description={option.description}
-											key={option.value}
 											label={option.label}
 											value={option.value}
 										/>
-									),
-								)}
-							</RadioGroup>
-						</PreviewLinked>
+									</PreviewLinked>
+								),
+							)}
+						</RadioGroup>
 						{choice === "message" ? (
 							<PreviewLinked setting="message">
-								<MessageEditor
-									disabled={disabled}
-									draftKey={draftKey}
-									initial={readDraftKey(config, draftKey)}
-									key={`${draftKey}-${editorEpoch}`}
-									onCommit={commitDraft}
-									withVariables={usesTemplate}
-								/>
+								<div className="py-2 ps-10 pe-3">
+									<MessageEditor
+										disabled={disabled}
+										draftKey={draftKey}
+										initial={readDraftKey(config, draftKey)}
+										key={`${draftKey}-${editorEpoch}`}
+										onCommit={commitDraft}
+										withVariables={usesTemplate}
+									/>
+								</div>
 							</PreviewLinked>
 						) : null}
 						{verdict === "block" && choice === "one-liner-link" ? (
@@ -195,6 +196,7 @@ export function VerdictSettings({
 								description="Starts each line with the rule's name."
 								disabled={disabled}
 								label="Show rule names"
+								nested
 								onChange={(on) => setField("blockComment.showRuleName", on)}
 								setting="rule-names"
 							/>
@@ -205,6 +207,7 @@ export function VerdictSettings({
 								description="Links to the run on Tripwire, with the details folded under it."
 								disabled={disabled}
 								label="Show the details button"
+								nested
 								onChange={(on) => setField(`${override}.showDetailsButton`, on)}
 								setting="details-button"
 							/>
@@ -262,14 +265,14 @@ function Section({
 	children: ReactNode;
 }) {
 	return (
-		<section aria-labelledby={id} className="flex flex-col gap-3">
-			<header className="flex flex-col gap-0.5">
+		<section aria-labelledby={id} className="flex flex-col gap-2">
+			<header className="flex flex-col gap-0.5 px-3">
 				<h2 className="type-heading-sm" id={id}>
 					{title}
 				</h2>
 				<p className="type-body-sm text-text-2">{description}</p>
 			</header>
-			{children}
+			<div className="flex flex-col gap-0.5">{children}</div>
 		</section>
 	);
 }
@@ -280,6 +283,7 @@ function Toggle({
 	checked,
 	disabled,
 	setting,
+	nested = false,
 	onChange,
 }: {
 	label: string;
@@ -287,24 +291,54 @@ function Toggle({
 	checked: boolean;
 	disabled: boolean;
 	setting: PreviewSetting;
+	nested?: boolean;
 	onChange: (checked: boolean) => void;
 }) {
 	const link = usePreviewLink();
+	const id = useId();
 	return (
 		<PreviewLinked setting={setting}>
-			<Field disabled={disabled} orientation="horizontal">
+			<label
+				htmlFor={id}
+				className={cn(
+					"flex items-start gap-3",
+					ROW,
+					nested && NESTED,
+					disabled ? "cursor-default" : "cursor-pointer",
+				)}
+			>
 				<Checkbox
+					aria-describedby={`${id}-d`}
+					aria-labelledby={`${id}-l`}
+					id={id}
 					checked={checked}
+					disabled={disabled}
 					onCheckedChange={(next) => {
 						onChange(next === true);
 						link.flash(setting);
 					}}
 				/>
-				<FieldContent>
-					<FieldLabel>{label}</FieldLabel>
-					<FieldDescription>{description}</FieldDescription>
-				</FieldContent>
-			</Field>
+				<span className="flex min-w-0 flex-col gap-0.5">
+					<span
+						className={cn(
+							"type-label",
+							disabled ? "text-text-disabled" : "text-text-1",
+						)}
+						id={`${id}-l`}
+					>
+						{label}
+					</span>
+					<span
+						className={cn(
+							"type-body-sm",
+							disabled ? "text-text-disabled" : "text-text-2",
+						)}
+						id={`${id}-d`}
+					>
+						{description}
+					</span>
+				</span>
+			</label>
 		</PreviewLinked>
 	);
 }

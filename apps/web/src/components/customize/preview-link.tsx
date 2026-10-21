@@ -33,8 +33,8 @@ const FLASH = "data-region-flash";
 
 export interface PreviewLink {
 	attach: (root: HTMLElement) => () => void;
-	hover: (setting: PreviewSetting | null) => void;
-	focus: (setting: PreviewSetting | null) => void;
+	focus: (setting: PreviewSetting | null, el: HTMLElement) => void;
+	release: (el: HTMLElement) => void;
 	flash: (setting: PreviewSetting) => void;
 	refresh: () => void;
 }
@@ -55,8 +55,7 @@ function regionsIn(root: HTMLElement, region: PreviewRegion): HTMLElement[] {
 
 function createPreviewLink(): PreviewLink {
 	let root: HTMLElement | null = null;
-	let hovered: PreviewSetting | null = null;
-	let focused: PreviewSetting | null = null;
+	let focused: { setting: PreviewSetting; el: HTMLElement } | null = null;
 
 	const apply = () => {
 		if (!root) {
@@ -65,13 +64,9 @@ function createPreviewLink(): PreviewLink {
 		for (const el of root.querySelectorAll(`[${ACTIVE}]`)) {
 			el.removeAttribute(ACTIVE);
 		}
-		const setting = hovered ?? focused;
-		if (!setting) {
-			root.removeAttribute("data-highlight");
-			return;
-		}
-		const targets = regionsIn(root, SETTING_REGION[setting]);
-		if (targets.length === 0) {
+		const setting = focused?.setting;
+		const targets = setting ? regionsIn(root, SETTING_REGION[setting]) : [];
+		if (!setting || targets.length === 0) {
 			root.removeAttribute("data-highlight");
 			return;
 		}
@@ -91,13 +86,19 @@ function createPreviewLink(): PreviewLink {
 				}
 			};
 		},
-		hover: (setting) => {
-			hovered = setting;
+		focus: (setting, el) => {
+			if (setting) {
+				focused = { setting, el };
+			} else if (focused?.el === el) {
+				focused = null;
+			}
 			apply();
 		},
-		focus: (setting) => {
-			focused = setting;
-			apply();
+		release: (el) => {
+			if (focused?.el === el) {
+				focused = null;
+				apply();
+			}
 		},
 		refresh: apply,
 		flash: (setting) => {
@@ -146,25 +147,21 @@ export function PreviewLinked({
 			if (!el) {
 				return;
 			}
-			const enter = () => link.hover(setting);
-			const leave = () => link.hover(null);
-			const focusIn = () => link.focus(setting);
+			const focusIn = (event: FocusEvent) => {
+				const target = event.target as HTMLElement | null;
+				link.focus(target?.matches(":focus-visible") ? setting : null, el);
+			};
 			const focusOut = (event: FocusEvent) => {
 				if (!el.contains(event.relatedTarget as Node | null)) {
-					link.focus(null);
+					link.focus(null, el);
 				}
 			};
-			el.addEventListener("pointerenter", enter);
-			el.addEventListener("pointerleave", leave);
 			el.addEventListener("focusin", focusIn);
 			el.addEventListener("focusout", focusOut);
 			return () => {
-				el.removeEventListener("pointerenter", enter);
-				el.removeEventListener("pointerleave", leave);
 				el.removeEventListener("focusin", focusIn);
 				el.removeEventListener("focusout", focusOut);
-				link.hover(null);
-				link.focus(null);
+				link.release(el);
 			};
 		},
 		[link, setting],

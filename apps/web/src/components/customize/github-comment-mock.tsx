@@ -1,6 +1,7 @@
 import { COMMENT_MARKER } from "@tripwire/contracts";
 import type { ReactNode } from "react";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
+import { PreviewObject } from "#/components/customize/preview-object";
 import { Badge } from "#/components/glaze/ui/badge";
 import {
 	Empty,
@@ -168,18 +169,17 @@ export function GithubCommentMock({
 }: GithubCommentMockProps) {
 	if (body === null) {
 		return (
-			<div
-				className="rounded-panel border border-line-faint bg-paper"
-				data-dim=""
-			>
-				<Empty size="sm" variant="plain">
-					<EmptyHeader>
-						<EmptyTitle>Tripwire posts no comment</EmptyTitle>
-						{silentNote ? (
-							<EmptyDescription>{silentNote}</EmptyDescription>
-						) : null}
-					</EmptyHeader>
-				</Empty>
+			<div className="sm:ms-13" data-dim="">
+				<PreviewObject>
+					<Empty size="sm" variant="plain">
+						<EmptyHeader>
+							<EmptyTitle>Tripwire posts no comment</EmptyTitle>
+							{silentNote ? (
+								<EmptyDescription>{silentNote}</EmptyDescription>
+							) : null}
+						</EmptyHeader>
+					</Empty>
+				</PreviewObject>
 			</div>
 		);
 	}
@@ -188,28 +188,34 @@ export function GithubCommentMock({
 		<div className="flex items-start gap-3">
 			<span
 				aria-hidden
-				className="hidden size-10 shrink-0 items-center justify-center rounded-tag border border-line-faint bg-paper text-text-1 sm:flex"
+				className="hidden size-10 shrink-0 items-center justify-center rounded-tag bg-paper text-text-1 sm:flex forced-colors:border forced-colors:border-[CanvasText]"
 				data-dim=""
 			>
 				<TripwireLogo size={22} />
 			</span>
-			<article className="min-w-0 flex-1 overflow-hidden rounded-tag border border-line bg-paper">
-				<header
-					className="flex flex-wrap items-center gap-x-1.5 gap-y-1 border-line border-b bg-shell px-4 py-2"
-					data-dim=""
-				>
-					<span className="type-label font-semibold text-text-1">tripwire</span>
-					<Badge size="sm" variant="outline">
-						bot
-					</Badge>
-					<span className="type-body-sm text-text-2">commented just now</span>
-				</header>
-				<div
-					className="relative flex flex-col gap-4 px-4 py-4 type-body text-text-1"
-					data-region="comment-body"
-				>
-					<Markdown blocks={blocks} />
-				</div>
+			<article className="min-w-0 flex-1">
+				<PreviewObject stacked>
+					<header
+						className="flex flex-wrap items-center gap-x-1.5 gap-y-1 bg-shell px-4 py-2"
+						data-dim=""
+					>
+						<span className="type-label font-semibold text-text-1">
+							tripwire
+						</span>
+						<Badge size="sm" variant="outline">
+							bot
+						</Badge>
+						<span className="type-body-sm text-text-2">commented just now</span>
+					</header>
+					<div className="p-2">
+						<div
+							className="relative flex flex-col gap-4 rounded-tag px-2 py-2 type-body text-text-1"
+							data-region="comment-body"
+						>
+							<Markdown blocks={blocks} />
+						</div>
+					</div>
+				</PreviewObject>
 			</article>
 		</div>
 	);
