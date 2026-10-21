@@ -1,13 +1,14 @@
-import {
-	Card,
-	CardAction,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "#/components/glaze/ui/card";
+import { Card, CardFooter } from "#/components/glaze/ui/card";
+import { Panel } from "#/components/glaze/ui/panel";
 import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import {
+	RULE_CARD_CLASS,
+	RULE_FOOTER_CLASS,
+	RULE_HEADER_CLASS,
+	RULE_PANEL_CLASS,
+} from "#/components/rules/rule-card-frame";
+import { cn } from "#/lib/glaze/utils";
 
 const RULE_SLOTS = [
 	{ key: "a", name: "w-32" },
@@ -22,23 +23,21 @@ export function RuleGridSkeleton() {
 	return (
 		<div aria-hidden className="grid items-stretch gap-3 sm:grid-cols-2">
 			{RULE_SLOTS.map((slot) => (
-				<Card key={slot.key}>
-					<CardHeader>
-						<CardTitle>
-							<SkeletonText className={slot.name} type="label" />
-						</CardTitle>
-						<CardDescription className="flex gap-1">
-							<Skeleton className="h-5 w-12" />
-							<Skeleton className="h-5 w-20" />
-						</CardDescription>
-						<CardAction className="gap-3">
-							<SkeletonText className="w-6" type="label" />
-							<Skeleton className="h-4 w-7 rounded-pill" />
-						</CardAction>
-					</CardHeader>
-					<CardContent>
+				<Card className={RULE_CARD_CLASS} key={slot.key}>
+					<Panel className={RULE_PANEL_CLASS}>
+						<div className={RULE_HEADER_CLASS}>
+							<SkeletonText
+								className={cn(slot.name, "type-label-lg")}
+								type="label"
+							/>
+							<Skeleton className="ms-auto h-4 w-7 shrink-0 rounded-pill" />
+						</div>
 						<SkeletonText lines={2} type="body-sm" />
-					</CardContent>
+					</Panel>
+					<CardFooter className={RULE_FOOTER_CLASS}>
+						<SkeletonText className="w-14" type="label-sm" />
+						<SkeletonText className="w-28" type="caption" />
+					</CardFooter>
 				</Card>
 			))}
 		</div>

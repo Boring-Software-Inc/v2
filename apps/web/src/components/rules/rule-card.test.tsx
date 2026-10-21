@@ -85,13 +85,19 @@ describe("RuleCard management states", () => {
 		expect(heldManaged).not.toContain("New version waiting");
 	});
 
-	test("the 24h count reddens only when blocks actually fired", () => {
+	test("the footer states the effect and the last 24 hours of activity", () => {
+		const fired = render(<RuleCard {...base} rule={rule({ matches24h: 3 })} />);
+		expect(fired).toContain("Blocks");
+		expect(fired).toContain("matches, last 24 h");
 		expect(
-			render(<RuleCard {...base} rule={rule({ matches24h: 3 })} />),
-		).toContain("text-fail-text");
+			render(<RuleCard {...base} rule={rule({ matches24h: 1 })} />),
+		).toContain("match, last 24 h");
 		expect(
 			render(<RuleCard {...base} rule={rule({ matches24h: 0 })} />),
-		).not.toContain("text-fail-text");
+		).toContain("No matches, last 24 h");
+		expect(
+			render(<RuleCard {...base} rule={rule({ enabled: false })} />),
+		).toContain(">Off<");
 	});
 
 	test("an opt-in-off standalone rule keeps a DISTINCT enable offer", () => {

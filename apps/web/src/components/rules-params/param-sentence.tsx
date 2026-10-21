@@ -1,15 +1,16 @@
+import { Button as InlineTrigger } from "@base-ui/react/button";
 import {
 	formatParamValue,
 	type RuleParam,
 	ruleUiSchema,
 } from "@tripwire/contracts";
 import { Fragment, type ReactNode, useState } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { cn } from "#/lib/glaze/utils";
 import { ParamEditor } from "./param-editor";
 import { ParamValue } from "./param-value";
 
 /**
- * A rule's config as human sentences (§9) — one line per template, each value
+ * A rule's config as human sentences (§9) — the templates read as one paragraph, each value
  * rendered inline via `ParamValue`. When `canEdit`, a value is a button that
  * swaps to `ParamEditor` in place; otherwise it's static text. Params not named
  * in any sentence (e.g. ai-review's advanced `model`) never render here. Returns
@@ -30,11 +31,13 @@ export function ParamSentence({
 	config,
 	canEdit,
 	onSaveParam,
+	className,
 }: {
 	ruleId: string;
 	config: unknown;
 	canEdit: boolean;
 	onSaveParam: (key: string, value: unknown) => void;
+	className?: string;
 }) {
 	const ui = ruleUiSchema(ruleId);
 	const [editing, setEditing] = useState<string | null>(null);
@@ -64,21 +67,27 @@ export function ParamSentence({
 			return <ParamValue param={param} value={cfg[param.key]} />;
 		}
 		return (
-			<Button
+			<InlineTrigger
 				aria-label={`Change ${param.label}, now ${spokenValue(param, cfg[param.key])}`}
+				className="cursor-pointer rounded-tag text-text-1 underline decoration-text-3 decoration-dotted underline-offset-3 transition-[text-decoration-color] duration-(--dur-state) ease-out focus-sm hover:decoration-text-1"
 				onClick={() => setEditing(param.key)}
-				size="sm"
-				variant="secondary"
 			>
 				<ParamValue param={param} value={cfg[param.key]} />
-			</Button>
+			</InlineTrigger>
 		);
 	};
 
 	return (
-		<div className="flex flex-col gap-1">
-			{ui.sentences.map((sentence) => (
-				<p className="type-body-sm text-text-2" key={sentence}>
+		<div
+			className={cn(
+				"type-body-sm text-text-2",
+				className,
+				editing && "line-clamp-none",
+			)}
+		>
+			{ui.sentences.map((sentence, index) => (
+				<Fragment key={sentence}>
+					{index > 0 ? "; " : null}
 					{sentence.split(/(\{\w+\})/).map((part, i) => {
 						const match = /^\{(\w+)\}$/.exec(part);
 						const param = match ? byKey.get(match[1] as string) : undefined;
@@ -87,7 +96,7 @@ export function ParamSentence({
 							<Fragment key={i}>{param ? renderValue(param) : part}</Fragment>
 						);
 					})}
-				</p>
+				</Fragment>
 			))}
 		</div>
 	);

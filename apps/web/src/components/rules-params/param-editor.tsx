@@ -114,6 +114,7 @@ function ScalarEditor({
 			<Input
 				aria-invalid={error !== null}
 				aria-label={param.label}
+				autoFocus
 				className={param.kind === "number" ? "w-28" : "w-40"}
 				max={
 					param.kind === "number" && param.max !== undefined

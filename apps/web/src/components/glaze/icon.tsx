@@ -13,7 +13,7 @@ import {
   BellIcon, BuildingsIcon, ChartBarIcon, ChatCircleIcon, ChatsCircleIcon, CommandIcon, CreditCardIcon, CursorIcon,
   DotsThreeVerticalIcon, EnvelopeIcon, FlowArrowIcon, FolderIcon, GitBranchIcon, GitForkIcon, GithubLogoIcon,
   GitlabLogoIcon, GitPullRequestIcon, HashIcon, HouseIcon, LightningIcon, ListChecksIcon, MonitorIcon, PackageIcon,
-  PlugIcon, PulseIcon, QuestionIcon, QueueIcon, ShieldCheckIcon, SignOutIcon, SlidersHorizontalIcon, TreeStructureIcon,
+  PlugIcon, ProhibitIcon, PulseIcon, QuestionIcon, QueueIcon, ShieldCheckIcon, SignOutIcon, SlidersHorizontalIcon, TreeStructureIcon,
   TrendDownIcon, TrendUpIcon, UserPlusIcon, UsersIcon,
 } from '@phosphor-icons/react/ssr';
 import {cn} from '#/lib/glaze/utils.ts';
@@ -107,6 +107,7 @@ export const Wrap = ArrowUDownLeftIcon;
 export const Activity = PulseIcon;
 export const Analytics = ChartBarIcon;
 export const Billing = CreditCardIcon;
+export const Blocked = ProhibitIcon;
 export const Branch = GitBranchIcon;
 export const ChangeRequest = GitPullRequestIcon;
 export const CommandKey = CommandIcon;
