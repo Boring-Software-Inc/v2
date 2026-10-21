@@ -1,7 +1,6 @@
 import {
 	Card,
 	CardContent,
-	CardFooter,
 	CardHeader,
 	CardTitle,
 } from "#/components/glaze/ui/card";
@@ -44,9 +43,6 @@ export function QueueSkeleton() {
 					))}
 				</ItemGroup>
 			</CardContent>
-			<CardFooter>
-				<SkeletonText className="w-56" type="caption" />
-			</CardFooter>
 		</Card>
 	);
 }

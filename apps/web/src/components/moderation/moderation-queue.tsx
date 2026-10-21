@@ -105,11 +105,7 @@ export function ModerationQueue({
 	}
 
 	return (
-		<EntityCard
-			flush
-			footerMeta="Approve passes the check. Reject blocks the change request."
-			title={title}
-		>
+		<EntityCard flush title={title}>
 			<ItemGroup aria-label="Sent to review" variant="plain">
 				{items?.map((item) => {
 					const number = item.subjectNumber ? `#${item.subjectNumber}` : null;
