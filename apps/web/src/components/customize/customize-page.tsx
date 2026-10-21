@@ -11,7 +11,7 @@ import { CustomizeBodySkeleton } from "#/components/customize/customize-page-ske
 import { CustomizePreview } from "#/components/customize/customize-preview";
 import { DraftStoreProvider } from "#/components/customize/draft-store";
 import { PreviewLinkProvider } from "#/components/customize/preview-link";
-import { SaveState } from "#/components/customize/save-state";
+import { MobileSaveBar, SaveState } from "#/components/customize/save-state";
 import { VerdictSettings } from "#/components/customize/verdict-settings";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import {
@@ -215,6 +215,11 @@ function CustomizeView({
 							</Tabs>
 						) : null}
 					</SkeletonSwap>
+					<MobileSaveBar
+						canEdit={canEdit}
+						error={saveError}
+						onDiscard={onDiscard}
+					/>
 				</div>
 			</div>
 		</DashboardLayout>
