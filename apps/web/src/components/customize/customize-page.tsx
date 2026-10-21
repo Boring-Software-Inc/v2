@@ -164,7 +164,7 @@ function CustomizeView({
 				data-customize=""
 				data-sheet={sheet}
 			>
-				<div className="flex min-h-0 flex-1 scroll-pt-32 scroll-pb-15 flex-col overflow-y-auto group-data-[sheet=half]/customize:scroll-pb-[50%] lg:contents">
+				<div className="flex min-h-0 flex-1 scroll-pt-32 scroll-pb-17 flex-col overflow-y-auto group-data-[sheet=half]/customize:scroll-pb-[50%] lg:contents">
 					<header className="sticky top-0 z-(--z-sticky) flex flex-wrap items-center gap-x-10 gap-y-3 bg-paper px-4 pt-4 pb-3 md:px-6 lg:static lg:col-span-2 lg:min-h-18 lg:flex-nowrap lg:px-8 lg:py-3">
 						<div className="flex min-w-0 flex-1 flex-col gap-0.5 lg:flex-none">
 							<h1 className="type-title lg:type-heading">Customize</h1>
@@ -229,7 +229,7 @@ function CustomizeView({
 					</section>
 					<div
 						aria-hidden
-						className="h-15 shrink-0 group-data-[sheet=half]/customize:h-1/2 lg:hidden"
+						className="h-17 shrink-0 group-data-[sheet=half]/customize:h-1/2 lg:hidden"
 					/>
 				</div>
 				<PreviewPane onSheetChange={setSheet} sheet={sheet}>
