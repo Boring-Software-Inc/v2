@@ -75,8 +75,8 @@ export function fixedSteps(carry: number, dt: number, out: number[]): number {
 
 export type Bone = { active: boolean; x: number; height: number };
 
-export const BONE_WIDTH = 17.5;
-export const BONE_HEIGHTS = [20, 25, 30, 35] as const;
+export const BONE_WIDTH = 32.5;
+export const BONE_HEIGHTS = [15, 32.5] as const;
 export const CLUSTER_GAP = 4;
 export const PLAYER_SIZE = 44;
 
@@ -98,7 +98,7 @@ export function nextGap(speed: number, random: () => number): number {
 }
 
 function pickHeight(random: () => number): number {
-	return BONE_HEIGHTS[Math.floor(random() * BONE_HEIGHTS.length)] ?? 20;
+	return BONE_HEIGHTS[Math.floor(random() * BONE_HEIGHTS.length)] ?? 15;
 }
 
 function claim(pool: Bone[], x: number, height: number): boolean {

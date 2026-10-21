@@ -45,8 +45,15 @@ export const EYE_X = 12.5 * CELL + SHIFT;
 
 export const BONE_CELL = 2.5;
 
-const KNOB_ROWS = [".##.##.", "#######", "#######", ".#####."];
-const SHAFT_ROW = "..###..";
+const BONE_ROWS = [
+	".##.......##.",
+	"####.....####",
+	".###########.",
+	".###########.",
+	"####.....####",
+	".##.......##.",
+];
+const BONE_GAP = ".............";
 
 export type Run = { row: number; start: number; length: number };
 
@@ -72,14 +79,13 @@ function runsOf(rows: readonly string[]): Run[] {
 export const BONE_RUNS: Record<number, { rows: number; runs: Run[] }> =
 	Object.fromEntries(
 		BONE_HEIGHTS.map((height) => {
-			const shaft = Math.max(
+			const stack = Math.max(
 				1,
-				Math.round(height / BONE_CELL) - KNOB_ROWS.length,
+				Math.round((height / BONE_CELL + 1) / (BONE_ROWS.length + 1)),
 			);
-			const rows = [
-				...KNOB_ROWS,
-				...Array.from({ length: shaft }, () => SHAFT_ROW),
-			];
+			const rows = Array.from({ length: stack }, (_, i) =>
+				i === 0 ? BONE_ROWS : [BONE_GAP, ...BONE_ROWS],
+			).flat();
 			return [height, { rows: rows.length, runs: runsOf(rows) }];
 		}),
 	);
