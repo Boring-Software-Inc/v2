@@ -1,60 +1,114 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { ResponseConfig } from "@tripwire/contracts";
-import { responseConfigSchema } from "@tripwire/contracts";
-import type { OrgWithRole } from "@tripwire/db";
+import type {
+	OrgResponseDefaults,
+	RedactionPolicy,
+	ResponseConfig,
+} from "@tripwire/contracts";
+import {
+	orgResponseDefaultsSchema,
+	responseConfigSchema,
+} from "@tripwire/contracts";
+import type { RedactionUsage } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
-	orgAdminMiddleware,
+	type OrgContext,
 	orgMemberMiddleware,
+	orgPermissionMiddleware,
 	requireOrgRepoById,
 } from "#/lib/server/org-guard";
 
-/**
- * Per-repo response config (customize). Read resolves absent/corrupt rows to
- * the defaults in the db service; write validates against
- * `responseConfigSchema` before persisting — the jsonb column only ever holds
- * already-parsed data (the rule-config precedent).
- */
+export interface OrgResponseDefaultsView {
+	defaults: OrgResponseDefaults;
+	usage: RedactionUsage;
+}
+
+type SaveResult = { ok: true } | { error: string };
+
+const INVALID_SETTINGS =
+	"These settings are not valid. Check the values and save again.";
+
+function samePolicy(a: RedactionPolicy, b: RedactionPolicy): boolean {
+	return JSON.stringify(a) === JSON.stringify(b);
+}
 
 export const getRepoResponseConfig = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware, orgMemberMiddleware])
 	.inputValidator((input: { org: string; repoId: string }) => input)
 	.handler(async ({ data, context }): Promise<ResponseConfig> => {
-		await requireOrgRepoById(
-			(context as { org: OrgWithRole }).org.id,
-			data.repoId,
-		);
+		await requireOrgRepoById((context as OrgContext).org.id, data.repoId);
 		const { repoServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
 		return repoServices.getResponseConfig(getDb().db, data.repoId);
 	});
 
 export const saveRepoResponseConfig = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("repoResponse:update"),
+	])
 	.inputValidator(
 		(input: { org: string; repoId: string; config: unknown }) => input,
 	)
-	.handler(
-		async ({ data, context }): Promise<{ ok: true } | { error: string }> => {
-			await requireOrgRepoById(
-				(context as { org: OrgWithRole }).org.id,
-				data.repoId,
+	.handler(async ({ data, context }): Promise<SaveResult> => {
+		await requireOrgRepoById((context as OrgContext).org.id, data.repoId);
+		const parsed = responseConfigSchema.safeParse(data.config);
+		if (!parsed.success) {
+			return { error: parsed.error.issues[0]?.message ?? INVALID_SETTINGS };
+		}
+		const { repoServices, responseServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		const db = getDb().db;
+		const before = await responseServices.getRedactionPolicy(db, data.repoId);
+		await repoServices.upsertResponseConfig(db, data.repoId, parsed.data);
+		const after = await responseServices.getRedactionPolicy(db, data.repoId);
+		if (!samePolicy(before, after)) {
+			const { enqueueSurfaceRefresh } = await import(
+				"#/lib/server/refresh-surfaces"
 			);
-			const parsed = responseConfigSchema.safeParse(data.config);
-			if (!parsed.success) {
-				return {
-					error:
-						parsed.error.issues[0]?.message ??
-						"These settings are not valid. Check the values and save again.",
-				};
-			}
-			const { repoServices } = await import("@tripwire/db");
-			const { getDb } = await import("#/lib/server/db");
-			await repoServices.upsertResponseConfig(
-				getDb().db,
-				data.repoId,
-				parsed.data,
+			await enqueueSurfaceRefresh([data.repoId]);
+		}
+		return { ok: true };
+	});
+
+export const getOrgResponseDefaults = createServerFn({ method: "GET" })
+	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.inputValidator((input: { org: string }) => input)
+	.handler(async ({ context }): Promise<OrgResponseDefaultsView> => {
+		const orgId = (context as OrgContext).org.id;
+		const { responseServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		const db = getDb().db;
+		const [defaults, usage] = await Promise.all([
+			responseServices.getOrgResponseDefaults(db, orgId),
+			responseServices.getOrgRedactionUsage(db, orgId),
+		]);
+		return { defaults, usage };
+	});
+
+export const saveOrgResponseDefaults = createServerFn({ method: "POST" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("orgResponseDefaults:update"),
+	])
+	.inputValidator((input: { org: string; defaults: unknown }) => input)
+	.handler(async ({ data, context }): Promise<SaveResult> => {
+		const orgId = (context as OrgContext).org.id;
+		const parsed = orgResponseDefaultsSchema.safeParse(data.defaults);
+		if (!parsed.success) {
+			return { error: parsed.error.issues[0]?.message ?? INVALID_SETTINGS };
+		}
+		const { responseServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		const db = getDb().db;
+		const before = await responseServices.getOrgResponseDefaults(db, orgId);
+		await responseServices.upsertOrgResponseDefaults(db, orgId, parsed.data);
+		if (!samePolicy(before.redaction, parsed.data.redaction)) {
+			const { enqueueSurfaceRefresh } = await import(
+				"#/lib/server/refresh-surfaces"
 			);
-			return { ok: true };
-		},
-	);
+			await enqueueSurfaceRefresh(
+				await responseServices.listInheritingRepoIds(db, orgId),
+			);
+		}
+		return { ok: true };
+	});

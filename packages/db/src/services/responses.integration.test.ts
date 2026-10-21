@@ -19,6 +19,7 @@ import {
 	getOrgRedactionUsage,
 	getOrgResponseDefaults,
 	getRedactionPolicy,
+	listInheritingRepoIds,
 	upsertOrgResponseDefaults,
 } from "./responses.ts";
 
@@ -117,5 +118,10 @@ describe("getOrgRedactionUsage", () => {
 		await seedRepo("outsider", otherOrgId);
 		const usage = await getOrgRedactionUsage(db, orgId);
 		expect(usage).toEqual({ inheriting: 1, overriding: 1 });
+	});
+
+	test("lists the inheriting repos for a refresh", async () => {
+		const ids = await listInheritingRepoIds(db, orgId);
+		expect(ids).toHaveLength(1);
 	});
 });

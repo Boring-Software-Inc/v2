@@ -71,21 +71,34 @@ export async function getRedactionPolicy(
 	return resolveRedaction(config.redaction, defaults.redaction);
 }
 
+async function listOrgRepoRedaction(db: Db, orgId: string) {
+	const rows = await db
+		.select({ repoId: repos.id, config: responseConfigs.config })
+		.from(repos)
+		.leftJoin(responseConfigs, eq(responseConfigs.repoId, repos.id))
+		.where(and(eq(repos.orgId, orgId), isNull(repos.removedAt)));
+	return rows.map((row) => {
+		const parsed = responseConfigSchema.safeParse(row.config ?? {});
+		return {
+			repoId: row.repoId,
+			inherits: !parsed.success || parsed.data.redaction.inherit,
+		};
+	});
+}
+
 export async function getOrgRedactionUsage(
 	db: Db,
 	orgId: string,
 ): Promise<RedactionUsage> {
-	const rows = await db
-		.select({ config: responseConfigs.config })
-		.from(repos)
-		.leftJoin(responseConfigs, eq(responseConfigs.repoId, repos.id))
-		.where(and(eq(repos.orgId, orgId), isNull(repos.removedAt)));
-	let overriding = 0;
-	for (const row of rows) {
-		const parsed = responseConfigSchema.safeParse(row.config ?? {});
-		if (parsed.success && !parsed.data.redaction.inherit) {
-			overriding += 1;
-		}
-	}
-	return { inheriting: rows.length - overriding, overriding };
+	const rows = await listOrgRepoRedaction(db, orgId);
+	const inheriting = rows.filter((row) => row.inherits).length;
+	return { inheriting, overriding: rows.length - inheriting };
+}
+
+export async function listInheritingRepoIds(
+	db: Db,
+	orgId: string,
+): Promise<string[]> {
+	const rows = await listOrgRepoRedaction(db, orgId);
+	return rows.filter((row) => row.inherits).map((row) => row.repoId);
 }

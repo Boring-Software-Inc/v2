@@ -1,11 +1,16 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getRepoResponseConfig } from "#/lib/response.functions";
+import {
+	getOrgResponseDefaults,
+	getRepoResponseConfig,
+} from "#/lib/response.functions";
 
 export const responseQueryKeys = {
 	all: ["response"] as const,
 	configs: () => [...responseQueryKeys.all, "config"] as const,
 	config: (org: string, repoId: string) =>
 		[...responseQueryKeys.configs(), org, repoId] as const,
+	orgDefaults: (org: string) =>
+		[...responseQueryKeys.all, "org-defaults", org] as const,
 };
 
 export const responseConfigQueryOptions = (org: string, repoId: string) =>
@@ -15,4 +20,11 @@ export const responseConfigQueryOptions = (org: string, repoId: string) =>
 			getRepoResponseConfig({ data: { org, repoId }, signal }),
 		staleTime: 15_000,
 		enabled: repoId !== "",
+	});
+
+export const orgResponseDefaultsQueryOptions = (org: string) =>
+	queryOptions({
+		queryKey: responseQueryKeys.orgDefaults(org),
+		queryFn: ({ signal }) => getOrgResponseDefaults({ data: { org }, signal }),
+		staleTime: 30_000,
 	});

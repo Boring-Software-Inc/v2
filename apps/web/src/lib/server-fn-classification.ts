@@ -10,8 +10,17 @@
  *   admin  — accessGuard + orgAdminMiddleware (org-scoped mutation).
  *   staff  — accessGuard + platformAdminMiddleware (/admin portal; platform
  *            role on the user row, NOT org membership; denial is always 404).
+ *   permission:<id> — accessGuard + orgPermissionMiddleware("<id>").
  */
-export type ServerFnClass = "public" | "authed" | "member" | "admin" | "staff";
+import type { OrgPermission } from "@tripwire/auth/org-access";
+
+export type ServerFnClass =
+	| "public"
+	| "authed"
+	| "member"
+	| "admin"
+	| "staff"
+	| `permission:${OrgPermission}`;
 
 export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	// ── public (deliberately reachable without the beta gate) ───────────
@@ -62,6 +71,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getRepoWorkflow: "member",
 	listModerationQueue: "member",
 	getRepoResponseConfig: "member",
+	getOrgResponseDefaults: "member",
 
 	// ── admin (org mutations) ────────────────────────────────────────────
 	saveCustomRule: "admin",
@@ -89,7 +99,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	deleteRepoWorkflow: "admin",
 	setRepoWorkflowEnabled: "admin",
 	saveRuleConfig: "admin",
-	saveRepoResponseConfig: "admin", // customize — what tripwire says on a verdict
+	saveRepoResponseConfig: "permission:repoResponse:update",
+	saveOrgResponseDefaults: "permission:orgResponseDefaults:update",
 	upgradeRuleConfig: "admin", // §6 (b) — re-pin a rule to the current version
 	/**
 	 * Approving a paused run releases code through the gate — a trust-level

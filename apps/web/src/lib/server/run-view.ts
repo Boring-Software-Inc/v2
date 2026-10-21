@@ -1,6 +1,16 @@
 import type { Verdict, WorkflowDefinition } from "@tripwire/contracts";
-import { changeRequestUrl, ruleDisplayName } from "@tripwire/contracts";
-import { type Db, orgServices, repoServices, runServices } from "@tripwire/db";
+import {
+	changeRequestUrl,
+	redactionLevelFor,
+	ruleDisplayName,
+} from "@tripwire/contracts";
+import {
+	type Db,
+	orgServices,
+	repoServices,
+	responseServices,
+	runServices,
+} from "@tripwire/db";
 import {
 	resolveRunAccess,
 	toFullRunView,
@@ -24,7 +34,6 @@ export async function loadRunView(
 	if (!result) {
 		return null;
 	}
-	const hasSession = session.userId !== null;
 	// The repo row backs both the no-session privacy gate and the full view's
 	// re-run scope (org slug + repo name + the admin check).
 	/**
@@ -37,12 +46,17 @@ export async function loadRunView(
 	const repo = forge
 		? await repoServices.getRepoByFullName(db, result.run.repoFullName, forge)
 		: null;
-	const repoPrivate =
-		session.authEnabled && !hasSession ? (repo?.private ?? null) : null;
+	const memberRole =
+		session.userId && repo?.orgId
+			? await orgServices.getMemberRole(db, {
+					orgId: repo.orgId,
+					userId: session.userId,
+				})
+			: null;
 	const access = resolveRunAccess({
 		authEnabled: session.authEnabled,
-		hasSession,
-		repoPrivate,
+		isOrgMember: memberRole !== null,
+		repoPrivate: repo?.private ?? null,
 	});
 	if (access === "denied") {
 		return null;
@@ -57,14 +71,7 @@ export async function loadRunView(
 	if (access === "full" && repo?.orgId) {
 		orgSlug = await orgSlugById(db, repo.orgId);
 		repoName = repo.name;
-		const admin = !session.authEnabled
-			? true
-			: session.userId
-				? (await orgServices.getMemberRole(db, {
-						orgId: repo.orgId,
-						userId: session.userId,
-					})) === "admin"
-				: false;
+		const admin = !session.authEnabled || memberRole === "admin";
 		canRerun = admin && result.run.subjectNumber !== null;
 	}
 	const nodeLabels = snapshotNodeLabels(result.run.workflowSnapshot);
@@ -100,6 +107,7 @@ export async function loadRunView(
 		orgSlug,
 		repoName,
 		canRerun,
+		stepsHidden: false,
 		forge,
 		/**
 		 * Built here, not in the component: a self-hosted open-git moves, and the
@@ -144,7 +152,14 @@ export async function loadRunView(
 			})),
 		),
 	};
-	return access === "public" ? toPublicRunView(view) : toFullRunView(view);
+	if (access === "full") {
+		return toFullRunView(view);
+	}
+	const policy = await responseServices.getRedactionPolicy(
+		db,
+		repo?.id ?? null,
+	);
+	return toPublicRunView(view, redactionLevelFor(policy, "run-page"));
 }
 
 /** A joined run (§5.11) repeats its trigger once per def — one event, shown
