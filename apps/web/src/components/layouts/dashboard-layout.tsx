@@ -1,5 +1,7 @@
+import { useFlag, useFlags } from "@databuddy/sdk/react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
+import { FLAGS } from "@tripwire/auth/databuddy";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { DevPersonaSwitcher } from "#/components/dev/persona-switcher";
 import {
@@ -12,7 +14,7 @@ import { OrgSettingsDialog } from "#/components/organizations/org-settings-dialo
 import { useMediaQuery } from "#/hooks/use-media-query";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 import { cn } from "#/lib/glaze/utils";
-import { BetaBanner } from "./beta-banner";
+import { DashboardRail } from "./dashboard-rail";
 import {
 	SidePanelProvider,
 	SidePanelToggle,
@@ -46,9 +48,21 @@ function DashboardShell({
 	children,
 }: DashboardLayoutProps) {
 	const { data: user } = useQuery(currentUserQueryOptions());
+	const sidebar = useFlag(FLAGS.showSidebar);
+	const { updateUser } = useFlags();
+	const flaggedUser = useRef<string | null>(null);
+	useEffect(() => {
+		const login = user?.login;
+		if (!login || flaggedUser.current === login) {
+			return;
+		}
+		flaggedUser.current = login;
+		updateUser({ email: user.email ?? undefined, properties: { login } });
+	}, [updateUser, user?.email, user?.login]);
 	const { content, collapsed } = useSidePanel();
 	const isDesktop = useMediaQuery("(min-width: 768px)");
 	const showPanel = isDesktop && Boolean(content) && !collapsed;
+	const rail = isDesktop && !sidebar.loading && sidebar.on;
 	const params = useParams({ strict: false });
 	const inset = Boolean(params.repo);
 
@@ -93,63 +107,69 @@ function DashboardShell({
 				>
 					Skip to content
 				</a>
-				<DashboardTopbar user={user ?? null} />
+				{rail ? null : (
+					<>
+						<DashboardTopbar user={user ?? null} />
+						{nav ? <ShellNav counts={counts} /> : null}
+					</>
+				)}
 				<RouteProgress />
 
-				<div
-					className={cn(
-						"grid min-h-0 flex-1 transition-[padding] duration-(--dur-overlay) ease-out",
-						inset ? "px-2 pb-2" : "px-0 pb-0",
-						showPanel
-							? "grid-cols-[minmax(0,1fr)_--spacing(82)]"
-							: "grid-cols-[minmax(0,1fr)]",
-					)}
-				>
+				<div className={cn("flex min-h-0 flex-1", rail && "py-2 pe-2")}>
+					{rail ? <DashboardRail counts={counts} user={user ?? null} /> : null}
 					<div
 						className={cn(
-							"relative flex min-h-0 flex-col overflow-hidden bg-paper transition-[border-radius] duration-(--dur-overlay) ease-out",
-							inset
-								? "rounded-shell border border-line-faint"
-								: "rounded-none border-0",
+							"grid min-h-0 flex-1 transition-[padding] duration-(--dur-overlay) ease-out",
+							rail ? "p-0" : inset ? "px-2 pt-2 pb-2" : "px-0 pb-0",
+							showPanel
+								? "grid-cols-[minmax(0,1fr)_--spacing(82)]"
+								: "grid-cols-[minmax(0,1fr)]",
 						)}
 					>
-						<BetaBanner />
-						{nav ? <ShellNav counts={counts} /> : null}
-						<main
-							id="main-content"
-							ref={pageRef}
-							tabIndex={-1}
-							className="min-h-0 flex-1 overflow-y-auto"
+						<div
+							className={cn(
+								"relative flex min-h-0 flex-col overflow-hidden bg-paper transition-[border-radius] duration-(--dur-overlay) ease-out",
+								inset || rail
+									? "rounded-shell border border-line-faint"
+									: "rounded-none border-0",
+							)}
 						>
-							{children}
-						</main>
+							<main
+								id="main-content"
+								ref={pageRef}
+								tabIndex={-1}
+								className="min-h-0 flex-1 overflow-y-auto"
+							>
+								{children}
+							</main>
 
-						{isDesktop || !content ? null : (
-							<div className="relative shrink-0 bg-shell">
-								<span
-									aria-hidden
-									className="pointer-events-none absolute start-0 top-0 size-(--radius-shell) -translate-y-full bg-shell"
-									data-fillet="start"
-								/>
-								<span
-									aria-hidden
-									className="pointer-events-none absolute end-0 top-0 size-(--radius-shell) -translate-y-full bg-shell"
-									data-fillet="end"
-								/>
-								<div className="max-h-[86dvh] min-h-[58dvh] overflow-y-auto">
-									{content}
+							{isDesktop || !content ? null : (
+								<div className="relative shrink-0 bg-shell">
+									<span
+										aria-hidden
+										className="pointer-events-none absolute start-0 top-0 size-(--radius-shell) -translate-y-full bg-shell"
+										data-fillet="start"
+									/>
+									<span
+										aria-hidden
+										className="pointer-events-none absolute end-0 top-0 size-(--radius-shell) -translate-y-full bg-shell"
+										data-fillet="end"
+									/>
+									<div className="max-h-[86dvh] min-h-[58dvh] overflow-y-auto">
+										{content}
+									</div>
 								</div>
-							</div>
-						)}
+							)}
 
-						<SidePanelToggle />
+							<SidePanelToggle />
+						</div>
+
+						{showPanel ? (
+							<aside className="hidden min-h-0 overflow-y-auto ps-2 md:block">
+								{content}
+							</aside>
+						) : null}
 					</div>
-
-					{showPanel ? (
-						<aside className="hidden min-h-0 overflow-y-auto ps-2 md:block">
-							{content}
-						</aside>
-					) : null}
 				</div>
 
 				<MobileFooter />

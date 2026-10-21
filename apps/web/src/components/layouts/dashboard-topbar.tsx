@@ -23,12 +23,10 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/glaze/ui/dropdown-menu";
 import { RepoSwitcher } from "#/components/layouts/repo-switcher";
-import { RepoTabBar } from "#/components/tabs";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { authClient } from "#/lib/auth-client";
-import { siteConfig } from "#/lib/site-config";
 
 interface DashboardTopbarProps {
 	user: CurrentUser | null;
@@ -38,34 +36,47 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 	const org = useActiveScope().org?.slug;
 
 	return (
-		<>
-			<nav
-				aria-label="Primary"
-				className="flex h-12 min-w-0 shrink-0 items-center gap-3 px-3"
-			>
-				<Link
-					aria-label={org ? "Tripwire, go to org home" : "Tripwire, go to home"}
-					to={org ? "/$org/home" : "/"}
-					params={org ? { org } : {}}
-					className="flex h-(--control) shrink-0 items-center gap-2 rounded-pill px-2 text-text-1 hover:bg-hover"
-				>
-					<TripwireWordmark height={15} width={24} />
-					<span className="type-label">{siteConfig.wordmark}</span>
-				</Link>
+		<nav
+			aria-label="Primary"
+			className="flex h-12 min-w-0 shrink-0 items-center gap-1 px-3"
+		>
+			<Brand org={org} />
+			<span aria-hidden className="text-text-3">
+				/
+			</span>
+			<RepoSwitcher />
+			<div className="ms-auto flex shrink-0 items-center gap-2">
+				<BetaTag />
+				<UserMenu org={org} user={user} />
+			</div>
+		</nav>
+	);
+}
 
-				<RepoTabBar className="hidden xl:flex" />
+export function Brand({ org }: { org: string | undefined }) {
+	return (
+		<Link
+			aria-label={org ? "Tripwire, go to org home" : "Tripwire, go to home"}
+			className="flex h-(--control) shrink-0 items-center rounded-pill px-2 text-text-1 hover:bg-hover"
+			params={org ? { org } : {}}
+			to={org ? "/$org/home" : "/"}
+		>
+			<TripwireWordmark height={15} width={24} />
+		</Link>
+	);
+}
 
-				<div className="ms-auto flex min-w-0 items-center">
-					<RepoSwitcher />
-				</div>
-
-				<div className="flex shrink-0 items-center gap-1">
-					<ThemeToggle />
-					<UserMenu org={org} user={user} />
-				</div>
-			</nav>
-			<RepoTabBar className="hidden shrink-0 px-3 pb-2 md:flex xl:hidden" />
-		</>
+export function BetaTag() {
+	const { open: openFeedback } = useFeedback();
+	return (
+		<Button
+			aria-label="Tripwire is in beta. Send feedback"
+			onClick={openFeedback}
+			size="sm"
+			variant="secondary"
+		>
+			Beta
+		</Button>
 	);
 }
 
@@ -76,17 +87,29 @@ const PLACEHOLDER_USER: CurrentUser = {
 	image: "",
 };
 
-function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
+export function UserMenu({
+	org,
+	user,
+	showName = false,
+}: {
+	org?: string;
+	user: CurrentUser | null;
+	showName?: boolean;
+}) {
 	const moderator = user ?? PLACEHOLDER_USER;
 	const identity = accountIdentity(moderator);
 	const { open: openFeedback } = useFeedback();
+	const { resolvedTheme, setTheme } = useTheme();
+	const hasMounted = useHasMounted();
+	const isDark = hasMounted && resolvedTheme === "dark";
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
 				render={
 					<Button
 						aria-label={`Account menu for ${moderator.name}`}
-						size="icon"
+						className={showName ? "w-full min-w-0 justify-start" : undefined}
+						size={showName ? "default" : "icon"}
 						variant="ghost"
 					/>
 				}
@@ -96,6 +119,9 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 					name={moderator.name}
 					src={moderator.image || undefined}
 				/>
+				{showName ? (
+					<span className="min-w-0 truncate">{moderator.name}</span>
+				) : null}
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="end"
@@ -131,6 +157,10 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 					<Icon icon={Comment} />
 					Send feedback
 				</DropdownMenuItem>
+				<DropdownMenuItem onClick={() => setTheme(isDark ? "light" : "dark")}>
+					<Icon icon={isDark ? Light : Dark} />
+					{isDark ? "Light theme" : "Dark theme"}
+				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
 					variant="destructive"
@@ -158,21 +188,4 @@ function accountIdentity(user: CurrentUser): string | null {
 		return `@${user.login}`;
 	}
 	return null;
-}
-
-function ThemeToggle() {
-	const { resolvedTheme, setTheme } = useTheme();
-	const hasMounted = useHasMounted();
-	const isDark = hasMounted && resolvedTheme === "dark";
-
-	return (
-		<Button
-			variant="ghost"
-			size="icon"
-			aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
-			onClick={() => setTheme(isDark ? "light" : "dark")}
-		>
-			<Icon icon={isDark ? Light : Dark} />
-		</Button>
-	);
 }

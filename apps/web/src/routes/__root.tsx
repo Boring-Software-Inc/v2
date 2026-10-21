@@ -1,3 +1,4 @@
+import { FlagsProvider } from "@databuddy/sdk/react";
 import type { QueryClient } from "@tanstack/react-query";
 import {
 	createRootRouteWithContext,
@@ -147,9 +148,11 @@ function RootComponent() {
 			{/* Above the Outlet, not inside DashboardLayout: pages own their own
 				    layout wrap, so a provider down there would remount — and re-read
 				    storage — on every navigation. */}
-			<RepoTabsProvider>
-				<Outlet />
-			</RepoTabsProvider>
+			<FlagsProvider clientId={DATABUDDY_CLIENT_ID}>
+				<RepoTabsProvider>
+					<Outlet />
+				</RepoTabsProvider>
+			</FlagsProvider>
 			<Toaster />
 			{/* Global product analytics — one mount covers every route (pageviews,
 			    interactions, outgoing links, hash changes, web vitals). */}

@@ -10,4 +10,5 @@ export const DATABUDDY_CLIENT_ID = "09661145-7249-45d9-a9e3-f1a93e9c7266";
 export const FLAGS = {
 	/** Closed-beta access gate. On → pending/rejected users are blocked. */
 	accessGate: "access-gate",
+	showSidebar: "show-sidebar",
 } as const;

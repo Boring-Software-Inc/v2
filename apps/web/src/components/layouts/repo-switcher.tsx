@@ -1,9 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { GithubMark, Icon } from "#/components/glaze/icon";
+import { ChevronSort, GithubMark, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
-import { Kbd } from "#/components/glaze/ui/kbd";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { useActiveScope } from "#/hooks/use-active-scope";
+import { cn } from "#/lib/glaze/utils";
 
 const CommandPalette = lazy(() =>
 	import("#/components/layouts/command-palette").then((m) => ({
@@ -18,7 +18,11 @@ const CommandPalette = lazy(() =>
  * fuzzy-searchable. Scope is the URL (§8) — every jump is a navigation, never
  * a server-side scope mutation.
  */
-export function RepoSwitcher() {
+export function RepoSwitcher({
+	appearance = "path",
+}: {
+	appearance?: "path" | "rail";
+}) {
 	const [open, setOpen] = useState(false);
 	const [loaded, setLoaded] = useState(false);
 	if (open && !loaded) {
@@ -49,32 +53,49 @@ export function RepoSwitcher() {
 			: activeOrg.slug
 		: "Switch org";
 
+	const avatar = activeOrg ? (
+		<OrgAvatar eyes hue={activeOrg.avatarHue} name={activeOrg.name} size="sm" />
+	) : (
+		<Icon icon={GithubMark} />
+	);
+
 	return (
 		<>
 			<Button
 				aria-label={
 					activeOrg ? `${label}: switch org or repo` : "Switch org or repo"
 				}
-				className="min-w-0 max-w-full shrink md:max-w-64"
+				className={
+					appearance === "rail"
+						? "w-full min-w-0 justify-start"
+						: "min-w-0 max-w-full shrink"
+				}
 				onClick={() => setOpen(true)}
-				variant="secondary"
+				variant={appearance === "rail" ? "secondary" : "ghost"}
 			>
-				<span className="-ms-1.5 flex size-5 shrink-0 items-center justify-center">
-					{activeOrg ? (
-						<OrgAvatar
-							eyes
-							hue={activeOrg.avatarHue}
-							name={activeOrg.name}
-							size="sm"
-						/>
-					) : (
-						<Icon icon={GithubMark} />
+				<span className="-ms-1 flex size-5 shrink-0 items-center justify-center">
+					{avatar}
+				</span>
+				{appearance === "path" && activeOrg && activeRepo ? (
+					<>
+						<span className="min-w-0 truncate text-text-2">
+							{activeOrg.slug}
+						</span>
+						<span aria-hidden className="text-text-3">
+							/
+						</span>
+					</>
+				) : null}
+				<span className="min-w-0 truncate">
+					{activeRepo ?? activeOrg?.slug ?? "Switch org"}
+				</span>
+				<Icon
+					className={cn(
+						"shrink-0 text-text-3",
+						appearance === "rail" && "ms-auto",
 					)}
-				</span>
-				<span className="min-w-0 truncate">{label}</span>
-				<span className="-me-1.5 hidden h-5 shrink-0 items-center rounded-pill bg-field px-2 sm:inline-flex [&_[data-slot=kbd]]:h-auto [&_[data-slot=kbd]]:min-w-0 [&_[data-slot=kbd]]:border-0 [&_[data-slot=kbd]]:bg-transparent [&_[data-slot=kbd]]:p-0 [&_[data-slot=kbd-group]]:gap-0.5">
-					<Kbd keys="mod+k" />
-				</span>
+					icon={ChevronSort}
+				/>
 			</Button>
 			{loaded ? (
 				<Suspense fallback={null}>
