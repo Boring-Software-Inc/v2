@@ -174,7 +174,7 @@ type InitialFocus = DialogPrimitive.Popup.Props['initialFocus'];
 
 /**
  * Wires a popup to its footer's default action. Enter outside a control presses the declared button; opening
- * focuses `[data-autofocus]`, else the dismiss button (dismiss) or the first field, else the primary button
+ * focuses `[data-autofocus]` (on a finger only `[data-autofocus="always"]`), else the dismiss button (dismiss) or the first field, else the primary button
  * (primary). Tab cycles inside the popup.
  */
 function useDefaultAction<E extends HTMLElement>({ref, onKeyDown, initialFocus}: {
@@ -210,7 +210,7 @@ function useDefaultAction<E extends HTMLElement>({ref, onKeyDown, initialFocus}:
     if (!popup) return true;
     // A finger: a focused text field raises the keyboard before anyone asked for it, so the panel takes focus and
     // the person taps the field.
-    if (coarsePointer()) return popup;
+    if (coarsePointer()) return popup.querySelector<HTMLElement>('[data-autofocus="always"]') ?? popup;
     const auto = popup.querySelector<HTMLElement>('[data-autofocus]');
     if (auto) return auto;
     const footer = footerOf(popup);

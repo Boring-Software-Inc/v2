@@ -280,6 +280,7 @@ function CommandInput({className, value, onValueChange, placeholder = 'Search co
     <input
       data-slot="command-input"
       data-control=""
+      data-autofocus="always"
       role="combobox"
       aria-expanded
       aria-controls={listId}

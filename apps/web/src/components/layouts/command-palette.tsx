@@ -496,7 +496,6 @@ export function CommandPalette({
 		>
 			<Command label="Command palette" loop shouldFilter={false}>
 				<CommandInput
-					data-autofocus
 					onValueChange={setQuery}
 					placeholder="Search orgs, repos, actions and pages"
 					ref={inputRef}
@@ -569,8 +568,8 @@ export function CommandPalette({
 			</Command>
 			<CommandFooter>
 				<CommandHint keys={["↑", "↓"]}>Move</CommandHint>
-				<CommandHint keys={["↵"]}>Open</CommandHint>
-				<CommandHint keys={["esc"]}>Close</CommandHint>
+				<CommandHint keys={["Enter"]}>Open</CommandHint>
+				<CommandHint keys={["Esc"]}>Close</CommandHint>
 				<span className="ms-auto tabular-nums">
 					{resultCount === 1 ? "1 result" : `${resultCount} results`}
 				</span>
