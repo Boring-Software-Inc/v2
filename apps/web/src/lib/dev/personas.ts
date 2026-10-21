@@ -29,37 +29,38 @@ export const PERSONAS: Persona[] = [
 	{
 		id: "fresh",
 		label: "fresh maintainer",
-		description: "signed in, no installation — the org home's install CTA.",
+		description:
+			"Signed in with no installation. Shows the install prompt on the org home.",
 		landing: "/",
 	},
 	{
 		id: "one-repo",
 		label: "one repo",
-		description: "one granted repo — the org home with a single row.",
+		description: "One granted repo. Shows the org home with a single row.",
 		landing: "/",
 	},
 	{
 		id: "many-repos",
 		label: "many repos",
-		description: "several granted repos — the org home as a list.",
+		description: "Several granted repos. Shows the org home as a list.",
 		landing: "/",
 	},
 	{
 		id: "empty",
 		label: "empty dashboard",
-		description: "installed, zero events — every empty state at once.",
+		description: "Installed with no events. Shows every empty state at once.",
 		landing: "/",
 	},
 	{
 		id: "active",
 		label: "active dashboard",
-		description: "a pending review + recent runs — the product with a story.",
+		description: "A pending review and recent runs. Shows the product in use.",
 		landing: "/",
 	},
 	{
 		id: "anonymous",
 		label: "anonymous",
-		description: "signs out and opens a public run as a stranger.",
+		description: "Signs out and opens a public run as a stranger.",
 		landing: "/",
 	},
 ];

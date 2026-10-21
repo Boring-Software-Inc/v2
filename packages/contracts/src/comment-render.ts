@@ -67,21 +67,21 @@ export function commentHeadline(
 
 	if (verdict === "pass") {
 		return transition
-			? `**passed** — @${login}, that's cleared. good to merge.`
-			: "**passed** — nothing tripped. good to merge.";
+			? `@${login}, this now passes Tripwire's checks. Tripwire will not block it from merging.`
+			: "This passed Tripwire's checks. Tripwire will not block it from merging.";
 	}
 	if (verdict === "needs_review") {
 		if (degraded) {
-			return "**sent to review** — couldn't finish checking this change, so a maintainer will decide.";
+			return "Tripwire sent this to review because it could not finish checking it. A maintainer will decide if it can merge.";
 		}
 		return transition && previousVerdict === "block"
-			? `**sent to review** — @${login}, that's cleared the rules. a maintainer takes it from here.`
-			: `**sent to review** — @${login}, a maintainer needs to look at this before it can merge.`;
+			? `@${login}, Tripwire no longer blocks this. It sent this to review, so a maintainer must look at it before it can merge.`
+			: `@${login}, Tripwire sent this to review. A maintainer must look at it before it can merge.`;
 	}
 	// block
 	return transition
-		? `**blocked** — @${login}, the last push brought something back.`
-		: `**blocked** — @${login}, this can't merge yet.`;
+		? `@${login}, Tripwire now blocks this from merging.`
+		: `@${login}, Tripwire blocked this from merging.`;
 }
 
 /**
@@ -90,10 +90,23 @@ export function commentHeadline(
  * the same-verdict case, where the comment is silently edited in place and
  * nothing else would show that anything happened.
  */
-export const RERUN_NOTE = "re-evaluated under the repo's current rules.";
+export const RERUN_NOTE =
+	"Tripwire checked this again with the repository's current rules.";
+
+function capitalize(text: string): string {
+	const trimmed = text.trim();
+	return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+function asSentence(text: string): string {
+	const capitalized = capitalize(text);
+	return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
+}
 
 function reasonLine(reason: CommentReason): string {
-	return reason.waitHint ? `${reason.text} — ${reason.waitHint}` : reason.text;
+	return reason.waitHint
+		? `${asSentence(reason.text)} ${asSentence(reason.waitHint)}`
+		: asSentence(reason.text);
 }
 
 /**
@@ -102,20 +115,24 @@ function reasonLine(reason: CommentReason): string {
  */
 export function reasonsBlock(reasons: CommentReason[]): string {
 	if (reasons.length === 0) {
-		return "this change can't merge yet.";
+		return "";
 	}
 	if (reasons.length <= 2) {
 		return reasons.map(reasonLine).join("\n\n");
 	}
-	return `${reasonLine(reasons[0] as CommentReason)}, plus ${reasons.length - 1} other things.`;
+	return `${reasonLine(reasons[0] as CommentReason)}\n\n${reasons.length - 1} more reasons. See all of them on Tripwire.`;
+}
+
+function headlineWithReasons(headline: string, reasonList: string): string {
+	return reasonList === "" ? headline : `${headline}\n\n${reasonList}`;
 }
 
 const FIX_REVISE =
-	"fix those and push again — this comment updates itself. no need to reopen the pull request or ping anyone.\n\nif you think this is wrong, say so in a comment here and a maintainer will decide.";
+	"Fix the problems listed above, then push a new commit. Tripwire checks this again after every push. You do not need to reopen anything or contact anyone.\n\nIf you think this result is wrong, say so in a comment here. A maintainer will decide.";
 const FIX_NONE =
-	"this isn't something a new commit will clear.\n\nif you think this should go through anyway, say so in a comment here and a maintainer will decide.";
+	"A new commit will not fix this.\n\nIf you think this should merge anyway, say so in a comment here. A maintainer will decide.";
 const FIX_MIXED =
-	"fix what you can and push again — this comment updates itself. the rest won't clear by pushing.\n\nif you think this should go through anyway, say so in a comment here and a maintainer will decide.";
+	"Fix what you can, then push a new commit. Tripwire checks this again after every push. Some of these problems will not go away with a new commit.\n\nIf you think this should merge anyway, say so in a comment here. A maintainer will decide.";
 
 /**
  * The "how do i fix this?" body, chosen by the failing rules' remedies: all
@@ -126,12 +143,12 @@ export function howDoIFix(reasons: CommentReason[]): string {
 	const anyRevise = reasons.some((r) => r.remedy === "revise");
 	const anyNonRevise = reasons.some((r) => r.remedy !== "revise");
 	const body = anyRevise ? (anyNonRevise ? FIX_MIXED : FIX_REVISE) : FIX_NONE;
-	return `<details><summary>how do i fix this?</summary>\n\n${body}\n</details>`;
+	return `<details><summary>How do I fix this?</summary>\n\n${body}\n</details>`;
 }
 
 /** The shared explainer — appended to blocked and sent-to-review comments. */
 export const WHAT_IS_TRIPWIRE =
-	"<details><summary>what is tripwire?</summary>\n\na firewall for open-source repos. the maintainers here set rules that every change has to clear before it can merge — account age, rate limits, hidden links, that kind of thing. org members are exempt.\n\nnothing is hidden: the run page shows every rule this change hit, the evidence, and the verdict.\n</details>";
+	"<details><summary>What is Tripwire?</summary>\n\nTripwire checks contributions to this repository. The maintainers set rules that every change must pass before it can merge, such as rules about account age, how often you open change requests, and hidden links. Members of the organization skip these checks.\n\nThe Tripwire page for this check shows every rule it applied, what it found, and the result.\n</details>";
 
 /** Alt text on the "View on Tripwire" button image. */
 export const BUTTON_ALT = "View on Tripwire";
@@ -143,8 +160,8 @@ export const CHECK_NAME = "tripwire";
 export function reviewBody(reasons: CommentReason[]): string {
 	const first = reasons[0]?.text;
 	return first
-		? `blocked — ${first}.`
-		: "blocked — this change can't merge yet.";
+		? `Tripwire blocked this from merging. ${asSentence(first)}`
+		: "Tripwire blocked this from merging.";
 }
 
 /** The check run summary — mirrors the verdict, no "tripwire:" prefix. Moved
@@ -156,14 +173,17 @@ export function checkSummary(
 	degraded = false,
 ): string {
 	if (verdict === "block") {
-		return reviewBody(reasons).replace(/\.$/, "");
+		const first = reasons[0]?.text;
+		return first
+			? `Blocked. ${asSentence(first)}`
+			: "Blocked. This change request cannot merge yet.";
 	}
 	if (verdict === "needs_review") {
 		return degraded
-			? "sent to review — couldn't finish checking this change"
-			: "sent to review — a maintainer needs to look at this";
+			? "Sent to review. Tripwire could not finish checking this change request, so a maintainer will decide."
+			: "Sent to review. A maintainer must look at this change request before it can merge.";
 	}
-	return "passed — nothing tripped";
+	return "Passed. Tripwire found no problems.";
 }
 
 /** Stable identifier in EVERY live tripwire comment (also drives `byTripwire`). */
@@ -213,7 +233,9 @@ export function renderCommentBody(
 		degraded: input.degraded,
 		previousVerdict: input.previousVerdict,
 	});
-	const lines: string[] = [headline, ""];
+	const reasonList =
+		input.verdict === "block" ? reasonsBlock(input.reasons) : "";
+	const lines: string[] = [headlineWithReasons(headline, reasonList), ""];
 	if (input.rerun) {
 		lines.push(RERUN_NOTE, "");
 	}
@@ -221,7 +243,6 @@ export function renderCommentBody(
 	// the appeal surface, §10) while keeping the reasons + generic collapsibles.
 	// Default true ⇒ byte-identical to the locked baseline.
 	if (input.verdict === "block") {
-		lines.push(reasonsBlock(input.reasons), "");
 		if (showDetailsButton) {
 			lines.push(button, "");
 		}
@@ -244,8 +265,8 @@ function oneLinerLine(reason: CommentReason, showRuleName: boolean): string {
 		(reason.ruleId ? ruleContributorLabel(reason.ruleId) : null) ??
 		reasonLine(reason);
 	return showRuleName && reason.ruleId
-		? `${ruleDisplayName(reason.ruleId)}: ${label}`
-		: label;
+		? `${capitalize(ruleDisplayName(reason.ruleId))}: ${asSentence(label)}`
+		: asSentence(label);
 }
 
 /**
@@ -311,17 +332,15 @@ export function renderVerdictComment(
 		degraded: input.degraded,
 		previousVerdict: input.previousVerdict,
 	});
-	const lines: string[] = [headline, ""];
+	const reasonList =
+		blockComment.mode === "one-liner-link"
+			? input.reasons
+					.map((reason) => oneLinerLine(reason, blockComment.showRuleName))
+					.join("\n\n")
+			: "";
+	const lines: string[] = [headlineWithReasons(headline, reasonList), ""];
 	if (input.rerun) {
 		lines.push(RERUN_NOTE, "");
-	}
-	if (blockComment.mode === "one-liner-link" && input.reasons.length > 0) {
-		lines.push(
-			input.reasons
-				.map((reason) => oneLinerLine(reason, blockComment.showRuleName))
-				.join("\n\n"),
-			"",
-		);
 	}
 	if (override.showDetailsButton) {
 		lines.push(runButton(input), "");

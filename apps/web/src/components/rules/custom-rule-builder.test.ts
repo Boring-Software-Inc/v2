@@ -45,7 +45,7 @@ describe("valueIssue", () => {
 	test("text in a number field is named", () => {
 		expect(
 			valueIssue(state("contributor.accountAge", "under", { value: "abc" })),
-		).toBe("enter a number");
+		).toBe("Enter a number.");
 	});
 
 	test("a valid number passes", () => {
@@ -59,7 +59,7 @@ describe("valueIssue", () => {
 			valueIssue(
 				state("contributor.mergeRatioGlobal", "under", { value: "150" }),
 			),
-		).toBe("enter a percentage from 0 to 100");
+		).toBe("Enter a percentage from 0 to 100.");
 		expect(
 			valueIssue(
 				state("contributor.mergeRatioGlobal", "under", { value: "30" }),
@@ -75,7 +75,7 @@ describe("valueIssue", () => {
 			valueIssue(
 				state("contributor.accountAge", "between", { value: "2", high: "abc" }),
 			),
-		).toBe("enter a low and a high number");
+		).toBe("Enter a low and a high number.");
 		expect(
 			valueIssue(
 				state("contributor.accountAge", "between", { value: "2", high: "10" }),

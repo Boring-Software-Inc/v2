@@ -7,5 +7,7 @@ import { RepoTabBar } from "#/components/tabs";
  * desktop, where the same strip lives in the topbar.
  */
 export function MobileFooter() {
-	return <RepoTabBar className="pb-safe shrink-0 px-3 py-2 md:hidden" />;
+	return (
+		<RepoTabBar className="shrink-0 px-3 pt-2 pb-[max(var(--space-2),env(safe-area-inset-bottom))] md:hidden" />
+	);
 }

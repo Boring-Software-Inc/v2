@@ -73,6 +73,24 @@
       "skillPath": "skills/better-writing/SKILL.md",
       "computedHash": "ea8e80fe5c72ff3b8c04956dc6c92fa86723f83c9d90674db9edba1cc621d344"
     },
+    "build-design-system": {
+      "source": "arla6ka/design.how",
+      "sourceType": "github",
+      "skillPath": "skills/build-design-system/SKILL.md",
+      "computedHash": "68fe389da353c02a64094841f4658387883db7f2a280956e308489e479cffeaf"
+    },
+    "component-docs": {
+      "source": "arla6ka/design.how",
+      "sourceType": "github",
+      "skillPath": "skills/component-docs/SKILL.md",
+      "computedHash": "0cc156185f7acb88350cb02583cdad358ddd7a592c6df69fafce2a2ad146f99d"
+    },
+    "design-system-boss": {
+      "source": "arla6ka/design.how",
+      "sourceType": "github",
+      "skillPath": "skills/design-system-boss/SKILL.md",
+      "computedHash": "6e11bbaedb2ff96ff95fba3c420a6c378ee74610ee6270f5de55c659b5d93a5c"
+    },
     "hono": {
       "source": "yusukebe/hono-skill",
       "sourceType": "github",
@@ -103,6 +121,12 @@
       "skillPath": "hono-typescript/SKILL.md",
       "computedHash": "3a6f5fecba6736272630126d3d84c75c737228af925258cd1298c7b24c98e97a"
     },
+    "migrate-design-system": {
+      "source": "arla6ka/design.how",
+      "sourceType": "github",
+      "skillPath": "skills/migrate-design-system/SKILL.md",
+      "computedHash": "b912ff72a22a49993d4a37cbb5cb6c8b07348682d7d7409dc2fc0cdce5053895"
+    },
     "organization-best-practices": {
       "source": "better-auth/skills",
       "sourceType": "github",
@@ -127,11 +151,23 @@
       "skillPath": "skills/tanstack-start/SKILL.md",
       "computedHash": "8b073187405a10f9997158f9139a9664cc801595d2fe63d542a0bac9bf2152f5"
     },
+    "token-mapping": {
+      "source": "arla6ka/design.how",
+      "sourceType": "github",
+      "skillPath": "skills/token-mapping/SKILL.md",
+      "computedHash": "9d6f299ea41b2b8c68d743af398935527fe9256f943d5640993dcab95fa47ace"
+    },
     "two-factor-authentication-best-practices": {
       "source": "better-auth/skills",
       "sourceType": "github",
       "skillPath": "better-auth/twoFactor/SKILL.md",
       "computedHash": "a6f720042e5a090909e0d519a6a50a7eb8179553cd5315f0bbad852a6d20dac8"
+    },
+    "ui-review": {
+      "source": "arla6ka/design.how",
+      "sourceType": "github",
+      "skillPath": "skills/ui-review/SKILL.md",
+      "computedHash": "d693f31476d9f94a683e5e07bdcaa51117b2aeb02f1d9895b8248313f3bcfdf7"
     },
     "zod": {
       "source": "pproenca/dot-skills",

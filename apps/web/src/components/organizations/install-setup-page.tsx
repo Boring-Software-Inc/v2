@@ -1,15 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import type { Forge } from "@tripwire/contracts";
-import { useState } from "react";
+import { FORGE_CATALOG, type Forge } from "@tripwire/contracts";
+import { type ReactNode, useState } from "react";
+import { BrandLockup } from "#/components/auth/brand-lockup";
 import { ForgeMark } from "#/components/common/forge-marks";
-import { TripwireLogo } from "#/components/common/tripwire-logo";
+import { MetaRow } from "#/components/common/meta-row";
+import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
+import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
+import { Card, CardContent } from "#/components/glaze/ui/card";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
+import {
+	Skeleton,
+	SkeletonSwap,
+	SkeletonText,
+} from "#/components/glaze/ui/skeleton";
+import { toast } from "#/components/glaze/ui/toast";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
-import { Button } from "#/components/ui/button";
-import { Skeleton } from "#/components/ui/skeleton";
-import { Spinner } from "#/components/ui/spinner";
-import { toast } from "#/components/ui/toast";
 import {
 	claimInstallation,
 	getInstallPreview,
@@ -21,38 +38,19 @@ import { myOrgsQueryOptions, orgQueryKeys } from "#/lib/org.query";
 
 const route = getRouteApi("/onboarding/setup");
 
-/**
- * /onboarding/setup (§10) — the GitHub App Setup callback. NOTHING is claimed
- * automatically: a verified state renders a confirmation naming BOTH sides;
- * a missing/invalid state renders the claim screen with an admin-org picker.
- */
 export function InstallSetupPage() {
 	const search = route.useSearch();
 	const installationId = search.installation_id;
 
-	// GitHub sometimes bounces back WITHOUT installation_id — notably when the
-	// App is already installed on the chosen account (nothing new to install)
-	// and for pending installation requests. Recover instead of dead-ending.
 	if (!installationId) {
 		if (search.setup_action === "request") {
 			return (
 				<SetupShell>
-					<h1 className="font-semibold text-lg text-foreground">
-						waiting on github.
-					</h1>
-					<p className="text-[13px] text-muted-foreground leading-relaxed">
-						your installation request needs approval from an admin of that
-						github account. once they approve, it shows up on your home page to
-						connect.
-					</p>
-					<Button
-						nativeButton={false}
-						render={<Link to="/" />}
-						size="sm"
-						variant="outline"
-					>
-						back home
-					</Button>
+					<SetupHeader
+						body="An admin of that GitHub account has to approve your installation request. When they do, it shows up on your home page, ready to connect."
+						title="Waiting for GitHub approval"
+					/>
+					<BackHome />
 				</SetupShell>
 			);
 		}
@@ -62,22 +60,26 @@ export function InstallSetupPage() {
 	return <SetupFlow installationId={installationId} state={search.state} />;
 }
 
-/**
- * The claim screen, reached two ways: GitHub's id-less callback (it confirmed an
- * install but didn't say which), and the GitLab import, which has no callback at
- * all. Both leave unclaimed rows behind, so this offers every unclaimed
- * connection REGARDLESS OF FORGE for an explicit pick — never auto-claimed.
- * Exactly one candidate ⇒ pre-select it into the normal confirm flow, carrying
- * the original signed state so the org confirmation still names both sides.
- */
 function RecoverInstallation({ state }: { state: string | undefined }) {
-	const { data: claimable } = useQuery({
+	const {
+		data: claimable,
+		isError,
+		refetch,
+	} = useQuery({
 		queryKey: ["onboarding", "claimable-installations"],
 		queryFn: ({ signal }) => listClaimableInstallations({ signal }),
 		staleTime: 10_000,
 	});
 	const [picked, setPicked] = useState<string | null>(null);
 
+	if (isError && !claimable) {
+		return (
+			<LoadError
+				onRetry={() => refetch()}
+				title="Couldn't load your installations"
+			/>
+		);
+	}
 	if (!claimable) {
 		return <InstallSetupPageSkeleton />;
 	}
@@ -91,54 +93,58 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	if (claimable.length === 0) {
 		return (
 			<SetupShell>
-				<h1 className="font-semibold text-lg text-foreground">
-					nothing to connect yet.
-				</h1>
-				<p className="text-[13px] text-muted-foreground leading-relaxed">
-					no unclaimed repos are waiting. if you just connected a forge, give it
-					a moment and refresh — the sync may still be in flight.
-					already-connected repos live with their org.
-				</p>
-				<Button
-					nativeButton={false}
-					render={<Link to="/" />}
-					size="sm"
-					variant="outline"
-				>
-					back home
-				</Button>
+				<MascotArt mood="install-nothing" />
+				<SetupHeader
+					body="Tripwire has no new installations to connect. If you installed Tripwire a moment ago, refresh this page in a minute while it loads your repos. Repos you already connected are in their org."
+					title="Nothing to connect yet"
+				/>
+				<BackHome />
 			</SetupShell>
 		);
 	}
 	return (
 		<SetupShell>
-			<h1 className="font-semibold text-lg text-foreground">
-				which installation?
-			</h1>
-			<p className="text-[13px] text-muted-foreground leading-relaxed">
-				pick the connection to bind to an org.
-			</p>
-			<div className="flex w-full flex-col gap-1.5">
-				{claimable.map((c) => (
-					<button
-						className="flex items-center gap-2 rounded-md border bg-surface-0 px-3 py-2 text-left text-[13px] transition-colors hover:bg-surface-1"
-						key={c.installationId}
-						onClick={() => setPicked(c.installationId)}
-						type="button"
-					>
-						<ForgeMark
-							className="size-4 shrink-0 text-muted-foreground"
-							forge={c.forge}
-						/>
-						<span className="font-medium text-foreground">
-							{c.account ?? "connection"}
-						</span>
-						<span className="text-muted-foreground">
-							{c.repoCount} {c.repoCount === 1 ? "repo" : "repos"}
-						</span>
-					</button>
-				))}
-			</div>
+			<SetupHeader
+				body="Choose the installation to connect. You pick its Tripwire org next."
+				title="Choose an installation"
+			/>
+			<Card>
+				<CardContent flush>
+					<ItemGroup aria-label="Unclaimed installations" variant="plain">
+						{claimable.map((c) => {
+							const account = c.account ?? `${forgeLabel(c.forge)} connection`;
+							return (
+								<Item key={c.installationId}>
+									<ItemMedia variant="icon">
+										<ForgeMark className="size-(--icon)" forge={c.forge} />
+									</ItemMedia>
+									<ItemContent>
+										<ItemTitle>
+											<span>{account}</span>
+										</ItemTitle>
+										<ItemDescription>
+											<MetaRow>
+												<span>{forgeLabel(c.forge)}</span>
+												<span>{repoCountLabel(c.repoCount)}</span>
+											</MetaRow>
+										</ItemDescription>
+									</ItemContent>
+									<ItemActions className="me-0">
+										<Button
+											aria-label={`Choose ${account}`}
+											onClick={() => setPicked(c.installationId)}
+											size="sm"
+											variant="secondary"
+										>
+											Choose
+										</Button>
+									</ItemActions>
+								</Item>
+							);
+						})}
+					</ItemGroup>
+				</CardContent>
+			</Card>
 		</SetupShell>
 	);
 }
@@ -150,7 +156,11 @@ function SetupFlow({
 	installationId: string;
 	state: string | undefined;
 }) {
-	const { data: preview } = useQuery({
+	const {
+		data: preview,
+		isError,
+		refetch,
+	} = useQuery({
 		queryKey: ["onboarding", "install-preview", installationId, state ?? null],
 		queryFn: ({ signal }) =>
 			getInstallPreview({ data: { installationId, state }, signal }),
@@ -158,6 +168,14 @@ function SetupFlow({
 	});
 	const [pickerOpen, setPickerOpen] = useState(false);
 
+	if (isError && !preview) {
+		return (
+			<LoadError
+				onRetry={() => refetch()}
+				title="Couldn't load this installation"
+			/>
+		);
+	}
 	if (!preview) {
 		return <InstallSetupPageSkeleton />;
 	}
@@ -165,22 +183,23 @@ function SetupFlow({
 	if (preview.claimedByOrgSlug) {
 		return (
 			<SetupShell>
-				<h1 className="font-semibold text-lg text-foreground">
-					already connected to {preview.claimedByOrgSlug}
-				</h1>
-				<p className="text-[13px] text-muted-foreground leading-relaxed">
-					this installation is bound to an org. an installation belongs to
-					exactly one org at a time.
-				</p>
-				<Button
-					nativeButton={false}
-					render={
-						<Link params={{ org: preview.claimedByOrgSlug }} to="/$org/home" />
-					}
-					size="sm"
-				>
-					open the org
-				</Button>
+				<SetupHeader
+					body="Another Tripwire org already checks this installation. An installation can belong to one org at a time."
+					title={`Already connected to ${preview.claimedByOrgSlug}`}
+				/>
+				<div className="flex justify-center">
+					<Button
+						nativeButton={false}
+						render={
+							<Link
+								params={{ org: preview.claimedByOrgSlug }}
+								to="/$org/home"
+							/>
+						}
+					>
+						{`Open ${preview.claimedByOrgSlug}`}
+					</Button>
+				</div>
 			</SetupShell>
 		);
 	}
@@ -198,7 +217,6 @@ function SetupFlow({
 	return <ClaimScreen preview={preview} />;
 }
 
-/** Confirmation — the signed state verified, so both sides can be named. */
 function ConfirmScreen({
 	preview,
 	stateOrg,
@@ -209,88 +227,126 @@ function ConfirmScreen({
 	onChooseDifferent: () => void;
 }) {
 	const claim = useClaimMutation(preview.installationId, preview.forge);
+	const source = sourceName(preview);
 	return (
 		<SetupShell>
-			<h1 className="font-semibold text-lg text-foreground">
-				connect this installation?
-			</h1>
-			<GithubSummary preview={preview} />
-			<div className="flex items-center gap-2 text-[13px]">
-				<span className="text-muted-foreground">→ tripwire</span>
-				<OrgAvatar name={stateOrg.name} size={16} />
-				<span className="font-medium text-foreground">{stateOrg.name}</span>
-			</div>
-			<div className="flex flex-col items-center gap-2">
-				<Button
-					disabled={claim.isPending}
-					iconLeft={claim.isPending ? <Spinner size={14} /> : null}
-					onClick={() => claim.mutate(stateOrg.slug)}
-					size="sm"
-					type="button"
-				>
-					{`connect to ${stateOrg.name}`}
+			<SetupHeader
+				body={`Tripwire will start checking change requests on ${source}'s repos for the ${stateOrg.name} org.`}
+				title="Connect this installation?"
+			/>
+			<Card>
+				<CardContent flush>
+					<ItemGroup aria-label="Connection" variant="plain">
+						<SourceRow preview={preview} />
+						<Item>
+							<ItemMedia>
+								<OrgAvatar name={stateOrg.name} size="sm" />
+							</ItemMedia>
+							<ItemContent>
+								<ItemTitle>
+									<span>{stateOrg.name}</span>
+								</ItemTitle>
+								<ItemDescription>Tripwire org</ItemDescription>
+							</ItemContent>
+						</Item>
+					</ItemGroup>
+				</CardContent>
+			</Card>
+			<div className="flex flex-wrap items-center justify-end gap-2">
+				<Button onClick={onChooseDifferent} type="button" variant="secondary">
+					Choose a different org
 				</Button>
-				<button
-					className="text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-					onClick={onChooseDifferent}
+				<Button
+					onClick={() => claim.mutate(stateOrg.slug)}
+					pending={claim.isPending}
+					pendingLabel="Connecting"
 					type="button"
 				>
-					choose a different org
-				</button>
+					{`Connect to ${stateOrg.name}`}
+				</Button>
 			</div>
 			{claim.error ? <ClaimError message={claim.error} /> : null}
 		</SetupShell>
 	);
 }
 
-/** Claim — no verified state; the caller picks one of their admin orgs. */
 function ClaimScreen({ preview }: { preview: InstallPreview }) {
-	const { data: orgs } = useQuery(myOrgsQueryOptions());
+	const { data: orgs, isError: orgsError } = useQuery(myOrgsQueryOptions());
 	const claim = useClaimMutation(preview.installationId, preview.forge);
 	const adminOrgs = (orgs ?? []).filter((org) => org.role === "admin");
 
 	return (
 		<SetupShell>
-			<h1 className="font-semibold text-lg text-foreground">
-				where should this installation live?
-			</h1>
-			<GithubSummary preview={preview} />
-			{orgs === undefined ? (
-				<div className="flex w-full flex-col gap-1.5">
-					<Skeleton className="h-9 w-full" />
-					<Skeleton className="h-9 w-full" />
-				</div>
-			) : adminOrgs.length === 0 ? (
-				<p className="text-[13px] text-muted-foreground leading-relaxed">
-					you're not an admin of any org — connecting an installation is an
-					admin act.
-				</p>
-			) : (
-				<div className="flex w-full flex-col gap-1">
-					{adminOrgs.map((org) => (
-						<button
-							className="flex items-center gap-2.5 rounded-md border px-3 py-2 text-left text-[13px] transition-colors hover:bg-surface-1 disabled:opacity-60"
-							disabled={claim.isPending}
-							key={org.id}
-							onClick={() => claim.mutate(org.slug)}
-							type="button"
-						>
-							<OrgAvatar hue={org.avatarHue} name={org.name} size={18} />
-							<span className="min-w-0 flex-1 truncate font-medium">
-								{org.name}
-							</span>
-							{org.isPersonal ? (
-								<span className="text-[11px] text-muted-foreground">
-									personal
-								</span>
-							) : null}
-							{claim.isPending && claim.variables === org.slug ? (
-								<Spinner size={13} />
-							) : null}
-						</button>
-					))}
-				</div>
-			)}
+			<SetupHeader
+				body="Choose the Tripwire org that checks these repos. Only orgs where you are an admin are listed."
+				title="Choose an org for this installation"
+			/>
+			<Card>
+				<CardContent flush>
+					<ItemGroup aria-label="Installation" variant="plain">
+						<SourceRow preview={preview} />
+					</ItemGroup>
+				</CardContent>
+				<CardContent flush>
+					<SkeletonSwap
+						fallback={<OrgRowsSkeleton />}
+						label="Loading your orgs"
+						loading={orgs === undefined && !orgsError}
+					>
+						{orgsError && orgs === undefined ? (
+							<p className="px-3 pb-3 type-body-sm text-fail-text" role="alert">
+								Couldn't load your orgs. Refresh the page to try again.
+							</p>
+						) : adminOrgs.length === 0 ? (
+							<p className="px-3 pb-3 type-body-sm text-text-2">
+								You are not an admin of any org. Ask an org admin to connect
+								this installation.
+							</p>
+						) : (
+							<ItemGroup aria-label="Your admin orgs" variant="plain">
+								{adminOrgs.map((org) => (
+									<Item key={org.id}>
+										<ItemMedia>
+											<OrgAvatar
+												hue={org.avatarHue}
+												name={org.name}
+												size="sm"
+											/>
+										</ItemMedia>
+										<ItemContent>
+											<ItemTitle>
+												<span>{org.name}</span>
+												{org.isPersonal ? (
+													<Badge size="sm">Personal</Badge>
+												) : null}
+											</ItemTitle>
+											{orgSlugDetail(org) ? (
+												<ItemDescription>{orgSlugDetail(org)}</ItemDescription>
+											) : null}
+										</ItemContent>
+										<ItemActions className="me-0">
+											<Button
+												aria-label={`Connect to ${org.name}`}
+												disabled={
+													claim.isPending && claim.variables !== org.slug
+												}
+												onClick={() => claim.mutate(org.slug)}
+												pending={
+													claim.isPending && claim.variables === org.slug
+												}
+												pendingLabel=""
+												size="sm"
+											>
+												Connect
+											</Button>
+										</ItemActions>
+									</Item>
+								))}
+							</ItemGroup>
+						)}
+					</SkeletonSwap>
+				</CardContent>
+			</Card>
 			{claim.error ? <ClaimError message={claim.error} /> : null}
 		</SetupShell>
 	);
@@ -311,10 +367,12 @@ function useClaimMutation(installationId: string, forge: Forge) {
 			]),
 		onSuccess: (result, org) => {
 			if (result.claimed) {
-				toast.success("connected");
+				toast.success(`Installation connected to ${org}`);
 				navigate({ to: `/${org}/home` });
 			} else {
-				toast.error("another org already owns this installation");
+				toast.fail(
+					"Another org connected this installation first. Open that org to manage it.",
+				);
 			}
 		},
 	});
@@ -322,46 +380,125 @@ function useClaimMutation(installationId: string, forge: Forge) {
 
 function ClaimError({ message }: { message: Error }) {
 	return (
-		<p className="text-[12px] text-destructive">
-			{message.message || "the claim was refused."}
-		</p>
+		<Alert status="fail">
+			<AlertTitle>
+				{message.message ||
+					"Couldn't connect this installation. Try again in a moment."}
+			</AlertTitle>
+		</Alert>
 	);
 }
 
-function GithubSummary({ preview }: { preview: InstallPreview }) {
-	// The preview derives from webhook-synced repos — right after an install
-	// the webhook may not have landed yet. Say so instead of "0 repos".
+function forgeLabel(forge: Forge): string {
+	return FORGE_CATALOG.find((entry) => entry.id === forge)?.label ?? forge;
+}
+
+function orgSlugDetail(org: { name: string; slug: string }): ReactNode {
+	if (org.slug === org.name.toLowerCase().replaceAll(" ", "-")) {
+		return null;
+	}
+	return <span className="mono">{org.slug}</span>;
+}
+
+function repoCountLabel(count: number): string {
+	return `${count} ${count === 1 ? "repo" : "repos"}`;
+}
+
+function sourceName(preview: InstallPreview): string {
+	return preview.account ?? `this ${forgeLabel(preview.forge)} connection`;
+}
+
+function SourceRow({ preview }: { preview: InstallPreview }) {
 	const syncing = preview.account === null && preview.repoCount === 0;
 	return (
-		<div className="flex flex-col gap-1">
-			<div className="flex items-center gap-2 rounded-md border bg-surface-0 px-3 py-2 text-[13px]">
-				<ForgeMark
-					className="size-4 shrink-0 text-muted-foreground"
-					forge={preview.forge}
-				/>
-				<span className="font-medium text-foreground">
-					{preview.account ?? `${preview.forge} connection`}
-				</span>
-				<span className="text-muted-foreground">
+		<Item>
+			<ItemMedia>
+				<ForgeMark className="size-5" forge={preview.forge} />
+			</ItemMedia>
+			<ItemContent>
+				<ItemTitle>
+					<span>
+						{preview.account ?? `${forgeLabel(preview.forge)} connection`}
+					</span>
+				</ItemTitle>
+				<ItemDescription>
 					{syncing
-						? "syncing…"
-						: `${preview.repoCount} ${preview.repoCount === 1 ? "repo" : "repos"}`}
-				</span>
+						? `${forgeLabel(preview.forge)}, repos still syncing`
+						: forgeLabel(preview.forge)}
+				</ItemDescription>
+			</ItemContent>
+		</Item>
+	);
+}
+
+function OrgRowsSkeleton() {
+	return (
+		<ItemGroup aria-hidden variant="plain">
+			{["a", "b"].map((slot) => (
+				<Item key={slot}>
+					<ItemMedia>
+						<Skeleton className="size-5 rounded-pill" />
+					</ItemMedia>
+					<ItemContent>
+						<SkeletonText className="w-32" type="label" />
+					</ItemContent>
+				</Item>
+			))}
+		</ItemGroup>
+	);
+}
+
+function SetupHeader({ title, body }: { title: string; body: string }) {
+	return (
+		<header className="flex flex-col items-center gap-2 text-center">
+			<h1 className="type-title text-balance">{title}</h1>
+			<p className="max-w-measure-hint type-body text-pretty text-text-2">
+				{body}
+			</p>
+		</header>
+	);
+}
+
+function LoadError({ title, onRetry }: { title: string; onRetry: () => void }) {
+	return (
+		<SetupShell>
+			<SetupHeader
+				body="Tripwire could not reach the server. Check your connection and try again."
+				title={title}
+			/>
+			<div className="flex flex-wrap justify-center gap-2">
+				<Button onClick={onRetry} type="button">
+					Try again
+				</Button>
+				<Button
+					nativeButton={false}
+					render={<Link to="/" />}
+					variant="secondary"
+				>
+					Back home
+				</Button>
 			</div>
-			{syncing ? (
-				<p className="text-[11px] text-muted-foreground">
-					still syncing from github — the repos land in a moment either way.
-				</p>
-			) : null}
+		</SetupShell>
+	);
+}
+
+function BackHome() {
+	return (
+		<div className="flex justify-center">
+			<Button nativeButton={false} render={<Link to="/" />} variant="secondary">
+				Back home
+			</Button>
 		</div>
 	);
 }
 
-function SetupShell({ children }: { children: React.ReactNode }) {
+function SetupShell({ children }: { children: ReactNode }) {
 	return (
-		<div className="flex min-h-dvh w-full items-center justify-center bg-background px-6">
-			<div className="flex w-full max-w-sm flex-col items-center gap-5 text-center">
-				<TripwireLogo className="text-foreground" size={28} />
+		<div className="flex min-h-dvh w-full justify-center bg-page px-4 py-10 md:items-center">
+			<div className="flex w-full max-w-md flex-col gap-6">
+				<div className="flex justify-center">
+					<BrandLockup />
+				</div>
 				{children}
 			</div>
 		</div>

@@ -1,6 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
+import { ArrowLeft, Icon } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
+import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { WorkflowEditor } from "#/components/workflows/editor/workflow-editor";
 import {
 	EditorFrameSkeleton,
@@ -71,25 +82,38 @@ export function WorkflowEditorPage() {
 	// a member shouldn't have.
 	const readOnly = orgCtx?.role !== "admin";
 
-	let body: React.ReactNode;
-	if (repoId === "" || isPending) {
-		body = <EditorFrameSkeleton />;
-	} else if (!workflow) {
+	const loading = repoId === "" || isPending;
+	let body: React.ReactNode = null;
+	if (!(loading || workflow)) {
 		body = (
-			<div className="grid flex-1 place-items-center">
-				<div className="text-center">
-					<p className="text-muted-foreground text-sm">workflow not found.</p>
-					<Link
-						className="mt-2 inline-block text-brand-text text-xs transition-colors hover:underline"
-						params={{ org, repo }}
-						to="/$org/$repo/workflows"
-					>
-						← back to workflows
-					</Link>
-				</div>
+			<div className="grid flex-1 place-items-center p-4">
+				<Empty
+					art={<MascotArt mood="workflow-not-found" />}
+					reason="no-results"
+				>
+					<EmptyHeader>
+						<EmptyTitle>Workflow not found</EmptyTitle>
+						<EmptyDescription>
+							Someone may have deleted it, or the link is out of date.
+						</EmptyDescription>
+					</EmptyHeader>
+					<EmptyContent>
+						<Button
+							nativeButton={false}
+							render={
+								<Link params={{ org, repo }} to="/$org/$repo/workflows" />
+							}
+							size="sm"
+							variant="secondary"
+						>
+							<Icon icon={ArrowLeft} />
+							Back to workflows
+						</Button>
+					</EmptyContent>
+				</Empty>
 			</div>
 		);
-	} else {
+	} else if (!loading && workflow) {
 		body = (
 			<WorkflowEditor
 				customRules={customRules}
@@ -122,7 +146,16 @@ export function WorkflowEditorPage() {
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className={PAGE_FRAME}>{body}</div>
+			<div className={PAGE_FRAME}>
+				<SkeletonSwap
+					className="flex min-h-0 flex-1 flex-col"
+					fallback={<EditorFrameSkeleton />}
+					label="Loading workflow"
+					loading={loading}
+				>
+					{body}
+				</SkeletonSwap>
+			</div>
 		</DashboardLayout>
 	);
 }

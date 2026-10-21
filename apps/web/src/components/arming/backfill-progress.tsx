@@ -1,20 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+	Progress,
+	ProgressLabel,
+	ProgressValue,
+} from "#/components/glaze/ui/progress";
 import { orgRepoQueryOptions } from "#/lib/org.query";
-import { cn } from "#/lib/utils";
 
-/**
- * §4 — while an arm-time backfill replays stored change requests into runs, the
- * count climbs live and the dashboard fills in behind it. Polls only while a
- * backfill is in flight (non-null total); renders nothing otherwise.
- */
 export function BackfillProgress({
 	org,
 	repo: repoName,
 	className,
 }: {
-	/** Org slug from the URL. */
 	org: string;
-	/** Repo NAME from the URL. */
 	repo: string;
 	className?: string;
 }) {
@@ -30,19 +27,14 @@ export function BackfillProgress({
 		return null;
 	}
 	const done = repo.backfillDone ?? 0;
+	const total = repo.backfillTotal;
 	return (
-		<div
-			className={cn(
-				"flex items-center gap-3 rounded-lg bg-surface-1 px-4 py-3",
-				className,
-			)}
-		>
-			<div className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-			<p className="text-sm">
-				backfilling <span className="tabular-nums">{done}</span> of{" "}
-				<span className="tabular-nums">{repo.backfillTotal}</span> change
-				requests, you can check back here later
-			</p>
-		</div>
+		<Progress className={className} max={total} value={done}>
+			<ProgressLabel>
+				Importing past change requests. This keeps running if you leave the
+				page.
+			</ProgressLabel>
+			<ProgressValue>{() => `${done} of ${total}`}</ProgressValue>
+		</Progress>
 	);
 }

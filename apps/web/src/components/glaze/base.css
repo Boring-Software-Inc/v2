@@ -1,0 +1,70 @@
+/* Scoped base for Glaze. Replaces Tailwind preflight inside .glaze only; imported before the utilities. */
+
+[data-system="glaze"], .glaze {
+  background: var(--page);
+  color: var(--text-1);
+  font: var(--type-body);
+  letter-spacing: var(--tracking-body);
+  text-wrap: pretty;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+}
+/* The same four dark selectors as tokens.css, so native controls and scrollbars turn dark with the tokens. */
+[data-system="glaze"][data-theme="dark"], .glaze[data-theme="dark"], [data-theme="dark"] [data-system="glaze"], [data-theme="dark"] .glaze { color-scheme: dark; }
+/* The reset sits in the base layer, beside Tailwind's own preflight, so a project's layered utilities (mx-auto,
+   px-4) beat it, and Glaze's unlayered ones still do. What must win over a page's own rules stays out of the layer:
+   the selection colour, the focus ring and the phone zoom guard. */
+@layer base {
+  .glaze :where(*, ::before, ::after), [data-system="glaze"] :where(*, ::before, ::after) { box-sizing: border-box; border: 0 solid var(--line-faint); margin: 0; padding: 0; }
+  .glaze :where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, pre) { margin: 0; font: inherit; }
+  .glaze :where(ul, ol) { list-style: none; }
+  .glaze :where(a) { color: inherit; text-decoration: inherit; }
+  .glaze :where(button, input, select, textarea) { font: inherit; letter-spacing: inherit; color: inherit; background: transparent; }
+  .glaze :where(button, [role="button"]) { cursor: pointer; }
+  .glaze :where(button:disabled, [aria-disabled="true"]) { cursor: not-allowed; }
+  .glaze :where(img, video, canvas, svg) { display: block; max-width: 100%; }
+  .glaze :where(table) { border-collapse: collapse; }
+  /* Mono in running text: Glaze Mono's lowercase is 26% wider than Glaze Sans's at one size, so it takes --mono-scale of the text
+     around it and keeps that text's line height and baseline. A code block sets its own role (type-code). */
+  .glaze :where(code, kbd, samp) { font-family: var(--font-mono); font-size: calc(1em * var(--mono-scale)); letter-spacing: 0; }
+  .glaze :where(pre) { font-family: var(--font-mono); }
+  .glaze :where(td, th, time, data, output) { font-variant-numeric: tabular-nums; }
+  /* Every interactive element declares its transition, so no control cuts while its neighbour tweens. */
+  .glaze :where(a, button, summary, input, select, textarea, label, [role="button"], [role="tab"], [role="menuitem"], [role="option"], [role="switch"], [role="checkbox"], [role="radio"]) {
+    transition-property: color, background-color, border-color, opacity;
+    transition-duration: var(--dur-state);
+    transition-timing-function: var(--ease-out);
+  }
+  /* The ring's colour is set at rest, so a control that transitions its colours never fades the ring in from black. */
+  .glaze :where(*, ::before, ::after), [data-system="glaze"] :where(*, ::before, ::after) { outline-color: var(--focus); }
+}
+.glaze ::selection { background: var(--ink-15); color: var(--text-1); }
+/* Focus is a 2px ink outline, 2px out, on every focusable. Two classes of specificity beat a site-wide a:focus-visible.
+   A field (the field recipe in styles.css) draws its own focus: its hairline darkens to --line-focus instead. */
+.glaze :where(*):is(:focus-visible, [data-force-focus-visible]) { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
+/* One thin scrollbar for every scrolling region inside Glaze, portalled overlays included: the command list, menus,
+   select and combobox lists, sheets, tables, code blocks. A 6px pill thumb in --scrollbar-thumb, --scrollbar-gap of
+   clear around it (a transparent border, the background clipped inside it), no track, no arrows. Browsers with the
+   ::-webkit-scrollbar parts draw it from them, and ignore them on any element with scrollbar-width or
+   scrollbar-color, so the standard pair goes only to browsers without the parts, where thin is their own ~8px.
+   scrollbar-color inherits, so Glaze sets it back to auto against a host page's own; that sits in the base layer, so
+   a part that hides its bar ([scrollbar-width:none]) still does. Never put [scrollbar-width:thin] on a part: it
+   swaps this bar for the platform's. */
+@supports selector(::-webkit-scrollbar) {
+  @layer base { .glaze, .glaze *, [data-system="glaze"], [data-system="glaze"] * { scrollbar-color: auto; } }
+}
+.glaze ::-webkit-scrollbar, .glaze::-webkit-scrollbar, [data-system="glaze"] ::-webkit-scrollbar { width: var(--scrollbar-size); height: var(--scrollbar-size); background: transparent; }
+.glaze ::-webkit-scrollbar-thumb, .glaze::-webkit-scrollbar-thumb, [data-system="glaze"] ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); background-clip: padding-box; border: var(--scrollbar-gap) solid transparent; border-radius: var(--radius-pill); }
+.glaze ::-webkit-scrollbar-track, .glaze ::-webkit-scrollbar-corner, [data-system="glaze"] ::-webkit-scrollbar-track, [data-system="glaze"] ::-webkit-scrollbar-corner { background: transparent; }
+.glaze ::-webkit-scrollbar-button, [data-system="glaze"] ::-webkit-scrollbar-button { display: none; }
+@supports not selector(::-webkit-scrollbar) {
+  .glaze, .glaze *, [data-system="glaze"], [data-system="glaze"] * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+}
+
+/* A phone browser zooms the page when a field under 16px takes focus. On a coarse pointer every text field is at least 16px. */
+@media (pointer: coarse) {
+  .glaze input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="file"]),
+  .glaze textarea,
+  .glaze select { font-size: max(16px, 1em); }
+}

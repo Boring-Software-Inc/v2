@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ForgeId } from "./forges.ts";
+import { FORGE_BY_ID, type ForgeId } from "./forges.ts";
 import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
 import { aiReviewConfigSchema } from "./review.ts";
@@ -171,7 +171,7 @@ export const RULE_CATALOG = [
 		 */
 		forges: ["github"],
 		version: 1,
-		name: "account age",
+		name: "Account age",
 		blurb: "the contributor's forge account must be at least N days old.",
 		configSchema: accountAgeConfigSchema,
 		defaultConfig: { minDays: 7 },
@@ -179,7 +179,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Flags change requests from accounts younger than a threshold you set.",
-		contributorLabel: "your account is newer than this repo allows.",
+		contributorLabel: "your account is newer than this repository allows.",
 	},
 	{
 		ruleId: "min-merged-prs",
@@ -187,9 +187,9 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 2,
-		name: "merged change requests",
+		name: "Merged change requests",
 		blurb:
-			"requires N merged change requests in OTHER people's repos — proof someone else accepted their work.",
+			"requires N merged change requests in OTHER people's repos, as proof that someone else accepted their work.",
 		configSchema: minMergedPrsConfigSchemaV2,
 		defaultConfig: { min: 1, trustedAfter: 1 },
 		optIn: false,
@@ -198,9 +198,9 @@ export const RULE_CATALOG = [
 		changeNote: "counts merges globally, not per-repo",
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
-			"Requires N merged change requests in other people's repos — proof someone else accepted their work.",
+			"Requires N merged change requests in other people's repos, as proof that someone else accepted their work.",
 		contributorLabel:
-			"you need merged change requests in other people's repos first.",
+			"you need merged change requests in other people's repositories first.",
 	},
 	{
 		ruleId: "pr-rate-limit",
@@ -208,7 +208,7 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 1,
-		name: "rate limit",
+		name: "Rate limit",
 		blurb:
 			"caps change requests per window; spray patterns surface in evidence.",
 		configSchema: prRateLimitConfigSchema,
@@ -217,7 +217,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Caps how many change requests one person can open in a time window.",
-		contributorLabel: "you opened too many change requests in a short window.",
+		contributorLabel: "you opened too many change requests in a short time.",
 	},
 	{
 		ruleId: "max-files-changed",
@@ -225,26 +225,26 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 1,
-		name: "max files changed",
+		name: "Max files changed",
 		blurb: "caps the number of files a change request may touch.",
 		configSchema: maxFilesChangedConfigSchema,
 		defaultConfig: { max: 200 },
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags change requests that touch more files than you allow.",
-		contributorLabel: "this change request touches too many files.",
+		contributorLabel: "this change request changes too many files.",
 	},
 	{
 		ruleId: "english-only",
 		version: 1,
-		name: "english only",
+		name: "English only",
 		blurb: "title/comment must be predominantly latin-script.",
 		configSchema: englishOnlyConfigSchema,
 		defaultConfig: { maxNonLatinRatio: 0.5 },
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags titles and comments that aren't mostly latin script.",
-		contributorLabel: "titles and comments must be mostly english.",
+		contributorLabel: "titles and comments must be written mostly in English.",
 	},
 	{
 		ruleId: "crypto-address",
@@ -252,7 +252,7 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 1,
-		name: "crypto address",
+		name: "Crypto address",
 		blurb: "blocks cryptocurrency addresses in titles, comments, and diffs.",
 		configSchema: cryptoAddressConfigSchema,
 		defaultConfig: {},
@@ -260,7 +260,8 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Catches cryptocurrency addresses in titles, comments, and diffs.",
-		contributorLabel: "this change request contains a cryptocurrency address.",
+		contributorLabel:
+			"this change request contains a cryptocurrency wallet address.",
 	},
 	{
 		ruleId: "honeypot",
@@ -268,7 +269,7 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 1,
-		name: "honeypot paths",
+		name: "Honeypot paths",
 		blurb: "no legitimate change request touches these paths.",
 		configSchema: honeypotConfigSchema,
 		defaultConfig: { paths: [".github/workflows/**"] },
@@ -276,7 +277,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Catches change requests that touch paths no legitimate change would.",
-		contributorLabel: "this change request touches protected paths.",
+		contributorLabel: "this change request changes protected files.",
 	},
 	{
 		ruleId: "profile-readme",
@@ -284,15 +285,16 @@ export const RULE_CATALOG = [
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github"],
 		version: 1,
-		name: "profile readme",
-		blurb: "requires a minimum of profile text — identity investment.",
+		name: "Profile README",
+		blurb:
+			"requires a minimum of profile text, which shows identity investment.",
 		configSchema: profileReadmeConfigSchema,
 		defaultConfig: { minLength: 32 },
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
-			"Requires a minimum of profile text — throwaway accounts rarely bother.",
-		contributorLabel: "your profile needs a short bio first.",
+			"Requires a minimum of profile text. Throwaway accounts rarely add one.",
+		contributorLabel: "your profile needs a short bio.",
 	},
 	{
 		ruleId: "ai-review",
@@ -302,8 +304,8 @@ export const RULE_CATALOG = [
 		// @2 — findings quote code in backticks. @1 stays registered for stored
 		// runs, but a repo enabling ai-review now pins the current version.
 		version: 2,
-		name: "ai review",
-		blurb: "off until you turn it on — ai review costs tokens.",
+		name: "AI review",
+		blurb: "off until you turn it on, because ai review costs tokens.",
 		configSchema: aiReviewConfigSchema,
 		defaultConfig: { maxSteps: 12 },
 		optIn: true,
@@ -311,8 +313,8 @@ export const RULE_CATALOG = [
 		changeNote: "findings must quote code",
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
-			"Reads the change like a reviewer and flags slop. Off until you turn it on — it costs tokens.",
-		contributorLabel: "ai review flagged problems in this change request.",
+			"Reads the change like a reviewer and flags slop. Off until you turn it on, because it costs tokens.",
+		contributorLabel: "an AI review found problems in this change request.",
 	},
 ] as const satisfies ReadonlyArray<{
 	ruleId: string;
@@ -364,7 +366,7 @@ export function ruleForgeBlockReason(
 	if (ruleSupportsForge(ruleId, forge)) {
 		return null;
 	}
-	return `not usable with ${forge}`;
+	return `This rule cannot run on ${FORGE_BY_ID[forge]?.label ?? forge}.`;
 }
 
 /**
@@ -580,7 +582,7 @@ export const RULE_PARAMS = {
 	"crypto-address": { sentences: [], params: [] },
 	honeypot: {
 		sentences: [
-			"blocks any change request that touches {paths} — paths no legitimate change should need",
+			"blocks any change request that touches {paths}, which no legitimate change should need",
 		],
 		params: [
 			{

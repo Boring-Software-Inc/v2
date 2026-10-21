@@ -1,32 +1,52 @@
-import { ActivityIcon } from "@hugeicons/core-free-icons";
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { ActivityListSkeleton } from "#/components/activity/activity-page-skeleton";
 import { ActivityRow } from "#/components/activity/activity-row";
 import { ActivityStack } from "#/components/activity/activity-stack";
-import { LiveIndicator } from "#/components/activity/live-indicator";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
-import { EmptyState } from "#/components/common/empty-state";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Empty,
+	EmptyCode,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
+import { ItemGroup } from "#/components/glaze/ui/item";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/components/glaze/ui/segmented-control";
+import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import type { ActivityFeedItem } from "#/lib/activity.functions";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import type {
+	ActivityFeedItem,
+	ActivityGroup,
+	ActivityItem,
+} from "#/lib/activity.functions";
 import { activityQueryOptions, useActivityStream } from "#/lib/activity.query";
 import { orgRepoQueryOptions } from "#/lib/org.query";
-import { cn } from "#/lib/utils";
 
 const routeApi = getRouteApi("/$org/$repo/activity");
 
 type Filter = "all" | "block" | "needs_review" | "pass" | "no-run";
 
 const FILTERS: { key: Filter; label: string }[] = [
-	{ key: "all", label: "all" },
-	{ key: "block", label: "blocked" },
-	{ key: "needs_review", label: "sent to review" },
-	{ key: "pass", label: "passed" },
-	{ key: "no-run", label: "no run" },
+	{ key: "all", label: "All" },
+	{ key: "block", label: "Blocked" },
+	{ key: "needs_review", label: "Sent to review" },
+	{ key: "pass", label: "Passed" },
+	{ key: "no-run", label: "Not checked" },
 ];
 
-/** Filter GROUPS by their current verdict; standalone events only match all/no-run. */
+function isFilter(value: string): value is Filter {
+	return FILTERS.some((f) => f.key === value);
+}
+
 function matches(item: ActivityFeedItem, filter: Filter): boolean {
 	if (filter === "all") {
 		return true;
@@ -39,10 +59,33 @@ function matches(item: ActivityFeedItem, filter: Filter): boolean {
 	return filter === "no-run" && item.entry.run === null && !item.entry.pending;
 }
 
-function itemKey(item: ActivityFeedItem): string {
-	return item.type === "group"
-		? `${item.group.repoFullName}#${item.group.subjectNumber}`
-		: item.entry.event.id;
+type Segment =
+	| { type: "group"; key: string; group: ActivityGroup }
+	| { type: "rows"; key: string; entries: ActivityItem[] };
+
+function segmentsOf(items: ActivityFeedItem[]): Segment[] {
+	const out: Segment[] = [];
+	for (const item of items) {
+		if (item.type === "group") {
+			out.push({
+				type: "group",
+				key: `${item.group.repoFullName}#${item.group.subjectNumber}`,
+				group: item.group,
+			});
+			continue;
+		}
+		const last = out.at(-1);
+		if (last?.type === "rows") {
+			last.entries.push(item.entry);
+		} else {
+			out.push({
+				type: "rows",
+				key: item.entry.event.id,
+				entries: [item.entry],
+			});
+		}
+	}
+	return out;
 }
 
 export function ActivityPage() {
@@ -55,90 +98,155 @@ export function ActivityPage() {
 	const [filter, setFilter] = useState<Filter>("all");
 	const unarmed = Boolean(repo && !repo.armed);
 
-	// Filter over the cached feed — instant, and live rows still land in cache.
-	const items = useMemo(
-		() => (data?.items ?? []).filter((item) => matches(item, filter)),
+	const segments = useMemo(
+		() =>
+			segmentsOf((data?.items ?? []).filter((item) => matches(item, filter))),
 		[data?.items, filter],
 	);
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="mx-auto w-full max-w-3xl px-6 py-8">
-				<header className="mb-4 flex items-center justify-between">
-					<div>
-						<h1 className="font-semibold text-2xl tracking-tight">Activity</h1>
-						<p className="text-muted-foreground text-sm">
-							every change request and the verdicts it triggered, live.
+			<div className="px-4 py-6 md:px-8 md:py-10">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+					<header className="flex flex-col gap-1">
+						<h1 className="type-title">Activity</h1>
+						<p className="type-body text-text-2">
+							Change requests, comments and pushes on this repo, with the
+							verdict Tripwire gave each one. The list updates live.
 						</p>
-					</div>
-					<LiveIndicator live={isSuccess} />
-				</header>
+					</header>
 
-				{unarmed && repo ? (
-					<ArmCallout
-						className="mb-4"
-						org={org}
-						repo={repoName}
-						repoFullName={repo.fullName}
-						variant="banner"
-					/>
-				) : (
-					<BackfillProgress className="mb-4" org={org} repo={repoName} />
-				)}
-
-				<div className="mb-4 flex flex-wrap gap-1.5">
-					{FILTERS.map((f) => (
-						<button
-							className={cn(
-								"rounded-full px-2.5 py-1 font-medium text-xs transition-colors",
-								filter === f.key
-									? "bg-foreground text-background"
-									: "bg-surface-1 text-muted-foreground hover:text-foreground",
-							)}
-							key={f.key}
-							onClick={() => setFilter(f.key)}
-							type="button"
-						>
-							{f.label}
-						</button>
-					))}
-				</div>
-
-				{error ? (
-					<EmptyState
-						className="text-destructive"
-						description="the feed retries on its own — reload the page if it doesn't come back."
-						title="couldn't load activity"
-					/>
-				) : isSuccess && items.length === 0 ? (
-					filter === "all" ? (
-						<EmptyState
-							description="this repo is linked and listening. the moment a change request opens, its timeline and verdict show up here — live."
-							icon={ActivityIcon}
-							title="no activity yet"
+					{unarmed && repo ? (
+						<ArmCallout
+							org={org}
+							repo={repoName}
+							repoFullName={repo.fullName}
+							variant="banner"
 						/>
 					) : (
-						<EmptyState
-							description="no change request matches this filter yet. clear it to see everything."
-							icon={ActivityIcon}
-							title="nothing matches this filter"
-						/>
-					)
-				) : (
-					<div className="flex flex-col gap-3">
-						{items.map((item) =>
-							item.type === "group" ? (
-								<ActivityStack group={item.group} key={itemKey(item)} />
-							) : (
-								<ActivityRow
-									item={item.entry}
-									key={itemKey(item)}
-									unarmed={unarmed}
-								/>
-							),
-						)}
+						<BackfillProgress org={org} repo={repoName} />
+					)}
+
+					<div className="-mx-4 overflow-x-auto px-4">
+						<SegmentedControl
+							aria-label="Filter by verdict"
+							className="w-max"
+							onValueChange={(value) => {
+								if (isFilter(value)) {
+									setFilter(value);
+								}
+							}}
+							value={filter}
+						>
+							{FILTERS.map((f) => (
+								<SegmentedControlItem key={f.key} value={f.key}>
+									{f.label}
+								</SegmentedControlItem>
+							))}
+						</SegmentedControl>
 					</div>
-				)}
+
+					{error ? (
+						<Empty art={<MascotArt mood="activity-error" />} reason="error">
+							<EmptyHeader>
+								<EmptyTitle>Tripwire could not load activity</EmptyTitle>
+								<EmptyDescription>
+									Tripwire keeps trying in the background. If the list does not
+									come back, reload the page.
+								</EmptyDescription>
+							</EmptyHeader>
+							<EmptyContent>
+								<Button
+									onClick={() => window.location.reload()}
+									size="sm"
+									variant="secondary"
+								>
+									Reload page
+								</Button>
+							</EmptyContent>
+						</Empty>
+					) : (
+						<SkeletonSwap
+							fallback={<ActivityListSkeleton />}
+							label="Loading activity"
+							loading={!isSuccess}
+						>
+							{isSuccess && segments.length === 0 ? (
+								filter === "all" ? (
+									<Empty art={<MascotArt mood="activity-empty" />}>
+										<EmptyHeader>
+											<EmptyTitle>No activity yet</EmptyTitle>
+											<EmptyDescription>
+												{unarmed
+													? "Tripwire is off for this repo. Turn it on to check new change requests and show them here."
+													: "Tripwire is watching this repo. When a change request opens, its timeline and verdict show up here."}
+											</EmptyDescription>
+										</EmptyHeader>
+										<EmptyContent>
+											<Button
+												nativeButton={false}
+												render={
+													<Link
+														params={{ org, repo: repoName }}
+														to="/$org/$repo/rules"
+													/>
+												}
+												size="sm"
+												variant="secondary"
+											>
+												Review rules
+											</Button>
+										</EmptyContent>
+									</Empty>
+								) : (
+									<Empty
+										art={<MascotArt mood="activity-no-matches" />}
+										reason="no-results"
+									>
+										<EmptyHeader>
+											<EmptyTitle>
+												Nothing matches{" "}
+												<EmptyCode>
+													{FILTERS.find((f) => f.key === filter)?.label}
+												</EmptyCode>
+											</EmptyTitle>
+											<EmptyDescription>
+												No activity on this repo matches this filter.
+											</EmptyDescription>
+										</EmptyHeader>
+										<EmptyContent>
+											<Button
+												onClick={() => setFilter("all")}
+												size="sm"
+												variant="secondary"
+											>
+												Show all activity
+											</Button>
+										</EmptyContent>
+									</Empty>
+								)
+							) : (
+								<div className="flex flex-col gap-3">
+									{segments.map((segment) =>
+										segment.type === "group" ? (
+											<ActivityStack group={segment.group} key={segment.key} />
+										) : (
+											<ItemGroup aria-label="Events" key={segment.key}>
+												{segment.entries.map((entry) => (
+													<ActivityRow
+														item={entry}
+														key={entry.event.id}
+														unarmed={unarmed}
+													/>
+												))}
+											</ItemGroup>
+										),
+									)}
+								</div>
+							)}
+						</SkeletonSwap>
+					)}
+				</div>
 			</div>
 		</DashboardLayout>
 	);

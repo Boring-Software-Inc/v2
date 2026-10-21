@@ -5,7 +5,9 @@ import {
 	orgServices,
 	resetDemoData,
 	schema,
+	seedActivePersonaExtras,
 	seedPublicRun,
+	seedRepoExtras,
 	seedStory,
 } from "@tripwire/db";
 import { eq } from "drizzle-orm";
@@ -96,6 +98,7 @@ async function setupPersona(
 			installationId: "demo-inst-one",
 		});
 		await seedStory(db, repo, now);
+		await seedRepoExtras(db, repo.id);
 		await link("demo-inst-one");
 		return;
 	}
@@ -112,6 +115,7 @@ async function setupPersona(
 				installationId: "demo-inst-many",
 			});
 			await seedStory(db, repo, now, { days: 120 });
+			await seedRepoExtras(db, repo.id);
 		}
 		await link("demo-inst-many");
 		return;
@@ -129,6 +133,12 @@ async function setupPersona(
 		});
 		await seedStory(db, repo, now);
 		await link("demo-inst-active");
+		await seedActivePersonaExtras(db, {
+			userId,
+			orgId: personalOrg.id,
+			repo,
+			now,
+		});
 	}
 }
 
@@ -143,7 +153,10 @@ export async function handleDevRequest(request: Request): Promise<Response> {
 	const auth = getAuth();
 	if (!auth) {
 		return json(
-			{ error: "auth disabled — set BETTER_AUTH_SECRET to use the switcher" },
+			{
+				error:
+					"Sign-in is turned off. Set BETTER_AUTH_SECRET to use the persona switcher.",
+			},
 			503,
 		);
 	}

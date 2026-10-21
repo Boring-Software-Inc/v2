@@ -24,10 +24,14 @@ export const accessGuardMiddleware = createMiddleware({
 		headers: getStartContext().request.headers,
 	});
 	if (!session) {
-		throw new Error("session required");
+		throw new Error("Your session ended. Sign in again to continue.");
 	}
 	const { assertApproved } = await import("@tripwire/auth/access-gate");
 	const { getDb } = await import("#/lib/server/db");
+	const { presenceServices } = await import("@tripwire/db");
+	presenceServices.touchLastSeen(getDb().db, session.user.id).catch((error) => {
+		console.error("[presence] last seen write failed:", error);
+	});
 	const denial = await assertApproved(
 		getDb().db,
 		session.user.id,

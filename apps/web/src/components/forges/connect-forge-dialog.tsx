@@ -1,11 +1,12 @@
 import { ConnectForgeGrid } from "#/components/forges/connect-forge-grid";
 import {
 	Dialog,
+	DialogBody,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/ui/dialog";
+} from "#/components/glaze/ui/dialog";
 
 /**
  * The single "connect repos" surface. One entry point, one grid, the forge
@@ -24,18 +25,16 @@ export function ConnectForgeDialog({
 }) {
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="max-w-[334px] p-0">
-				<DialogHeader className="px-3 py-2.5">
-					<DialogTitle className="font-medium text-xs leading-4">
-						connect repos
-					</DialogTitle>
-					<DialogDescription className="leading-5">
-						pick the forge your repos live on.
+			<DialogContent size="sm">
+				<DialogHeader>
+					<DialogTitle>Connect repos</DialogTitle>
+					<DialogDescription>
+						Pick the forge your repos live on.
 					</DialogDescription>
 				</DialogHeader>
-				<div className="p-0.5 pt-0">
+				<DialogBody>
 					<ConnectForgeGrid onDone={() => onOpenChange(false)} org={org} />
-				</div>
+				</DialogBody>
 			</DialogContent>
 		</Dialog>
 	);

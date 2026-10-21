@@ -110,6 +110,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getAdminOverview: "staff",
 	listAdminUsers: "staff",
 	listAdminOrgs: "staff",
+	listAdminRepos: "staff",
+	listAdminInstallations: "staff",
 	listAdminOrgMembers: "staff",
 	reviewUserAccess: "staff", // writes through promote/rejectUserAccess only
 	adminUpdateOrgMemberRole: "staff", // shares the plugin hook's guard

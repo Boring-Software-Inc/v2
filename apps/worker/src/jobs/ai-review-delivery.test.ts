@@ -12,7 +12,7 @@ import { VERDICT_TO_CONCLUSION } from "./pr-surface.ts";
  * pins where ai-review output appears and that the surfaces agree.
  */
 
-const AI_SUMMARY = "hardcoded credential exfiltration to an external host";
+const AI_SUMMARY = "Hardcoded credential exfiltration to an external host.";
 
 function aiStep(status: "fail" | "skipped", output?: AiReviewOutput) {
 	return {
@@ -87,7 +87,7 @@ describe("ai-review delivery — where the output lands and surfaces agree", () 
 
 	test("needs_review produces the moderation surface, not a silent pass", () => {
 		const summary = checkSummary("needs_review", []);
-		expect(summary).toContain("sent to review");
+		expect(summary).toContain("Sent to review");
 		expect(VERDICT_TO_CONCLUSION.needs_review).not.toBe("success");
 	});
 });

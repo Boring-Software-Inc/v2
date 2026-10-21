@@ -10,8 +10,8 @@ export const Route = createFileRoute("/$org/$repo/workflows/$workflowId")({
 	head: ({ params, match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} · workflow editor`),
-			description: "edit this workflow's graph.",
+			title: formatPageTitle(`${params.repo} | Workflow editor`),
+			description: "Edit this workflow.",
 			noindex: true,
 		}),
 });

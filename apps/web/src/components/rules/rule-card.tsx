@@ -1,33 +1,50 @@
 import { Link } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
-import { Sparkline } from "#/components/charts/dither-kit";
+import { useId, useState } from "react";
+import { ArrowRight, Blocked, Icon, More } from "#/components/glaze/icon";
+import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
+import { Card, CardFooter } from "#/components/glaze/ui/card";
+import { Sparkline } from "#/components/glaze/ui/chart";
+import {
+	Dialog,
+	DialogAction,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/glaze/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuLinkItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/glaze/ui/dropdown-menu";
+import { Panel } from "#/components/glaze/ui/panel";
+import {
+	RULE_CARD_CLASS,
+	RULE_FOOTER_CLASS,
+	RULE_HEADER_CLASS,
+	RULE_PANEL_CLASS,
+	RULE_SENTENCE_CLASS,
+} from "#/components/rules/rule-card-frame";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
-import { Button } from "#/components/ui/button";
-import { Switch } from "#/components/ui/switch";
+import { cn } from "#/lib/glaze/utils";
 import type { RuleConfigView } from "#/lib/rules.functions";
-import { cn } from "#/lib/utils";
 
-/** One chip style for every piece of header metadata — same size, same fill,
- * same ring. Variance here is what made the header read as noise. */
-const CHIP =
-	"flex items-center gap-1 rounded bg-surface-1 px-1.5 py-px text-[10px] text-muted-foreground ring-1 ring-border";
+const SEVERITY_LABEL = {
+	low: "Low severity",
+	medium: "Medium severity",
+	high: "High severity",
+} satisfies Record<string, string>;
 
-/**
- * One rule as a header/body/footer card (§9), with per-rule management state
- * (§6 — workflows compose with standalone rules, they never disable them):
- *
- * - standalone — not owned by any enabled workflow: the normal card. Toggle,
- *   inline editing. Its own config runs, workflow or not.
- * - managed — a node in an enabled workflow: no toggle, values read-only (the
- *   NODE's config, what actually runs), footer "edit in workflow". Held prompt
- *   is suppressed (the workflow node, not the rule_config, drives it).
- *
- * Every write goes through the save queue (first live useSaveQueueField
- * consumer): the toggle, the enable offer, every inline param edit, and the
- * held re-confirm all queue; the floating bar commits them as one batch. No
- * direct mutation remains in this card.
- */
 export function RuleCard({
 	org,
 	repo,
@@ -35,19 +52,18 @@ export function RuleCard({
 	canEdit,
 	onDelete,
 }: {
-	/** Org slug from the URL. */
 	org: string;
-	/** Repo slug from the URL — for the workflow deep-links. */
 	repo: string;
 	rule: RuleConfigView;
-	/** Caller is an org admin — gates the inline config editors (§9). */
 	canEdit: boolean;
-	/** Custom rules only: remove the rule. Lifecycle, not behavior. */
-	onDelete?: (ruleId: string) => void;
+	onDelete?: (ruleId: string) => Promise<void>;
 }) {
-	const { valueFor, setField } = useSaveQueue();
-	// Pending-or-saved; managed rules have no queue keys, so fall back to the
-	// view (the workflow node's state, read-only anyway).
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const { valueFor, setField, pending } = useSaveQueue();
+	const queuedId = useId();
+	const queued = Object.keys(pending).some((key) =>
+		key.startsWith(`${rule.ruleId}:`),
+	);
 	const [queuedEnabled, setEnabled] = useSaveQueueField<boolean | undefined>(
 		`${rule.ruleId}:enabled`,
 	);
@@ -58,24 +74,15 @@ export function RuleCard({
 
 	const hasTrend = rule.trend.some((n) => n > 0);
 	const standalone = rule.management === "standalone";
-	/**
-	 * The forge cannot feed this rule, so it can never fire here. Treated like a
-	 * hard disable rather than a warning: an editable toggle would let you arm
-	 * something inert and believe the repo was gated.
-	 */
 	const forgeBlocked = rule.forgeBlockReason !== null;
-	/** An opt-in rule that's off is an OFFER, not a silently-disabled toggle. */
 	const offering = rule.optIn && !enabled && standalone && !forgeBlocked;
+	const off = standalone && (!enabled || forgeBlocked);
 	const params = ruleUiSchema(rule.ruleId)?.params ?? [];
-	const hasParams = params.length > 0;
-	/** Show the param sentence (not the blurb) — configurable + not an offer. */
-	const showParams = hasParams && !offering;
+	const showParams = params.length > 0 && !offering;
 
 	const asObject = (c: unknown): Record<string, unknown> =>
 		typeof c === "object" && c !== null ? (c as Record<string, unknown>) : {};
 
-	// The sentence renders pending-or-saved per param, so queued edits show
-	// in place before they commit.
 	const effectiveConfig: Record<string, unknown> = { ...asObject(rule.config) };
 	for (const param of params) {
 		const pending = valueFor(`${rule.ruleId}:param:${param.key}`);
@@ -84,206 +91,234 @@ export function RuleCard({
 		}
 	}
 
-	const body = showParams ? (
-		<ParamSentence
-			canEdit={canEdit && standalone && !forgeBlocked}
-			config={effectiveConfig}
-			onSaveParam={(key, value) =>
-				setField(`${rule.ruleId}:param:${key}`, value)
+	const workflowLink =
+		rule.management === "managed" && rule.workflowId ? rule.workflowId : null;
+	const deletable = rule.source === "custom" && canEdit && onDelete;
+	const deleteBlocked = deletable && rule.blockingWorkflows.length > 0;
+
+	const verb = off ? "Enable rule" : "Disable rule";
+	const control = standalone ? (
+		<Button
+			aria-describedby={queuedId}
+			aria-label={`${verb} ${rule.name}`}
+			disabled={!canEdit || forgeBlocked}
+			onClick={() => setEnabled(!enabled)}
+			size="sm"
+			variant="secondary"
+		>
+			{verb}
+		</Button>
+	) : workflowLink ? (
+		<Button
+			nativeButton={false}
+			render={
+				<Link
+					params={{ org, repo, workflowId: workflowLink }}
+					to="/$org/$repo/workflows/$workflowId"
+				/>
 			}
-			ruleId={rule.ruleId}
-		/>
+			size="sm"
+			variant="secondary"
+		>
+			Edit in workflow
+			<Icon icon={ArrowRight} />
+		</Button>
+	) : null;
+
+	const activity = forgeBlocked ? (
+		<Badge
+			title="This forge does not expose what this rule needs"
+			variant="warn"
+		>
+			{rule.forgeBlockReason}
+		</Badge>
+	) : off ? (
+		<span>Off</span>
+	) : rule.matches24h > 0 ? (
+		<span className="flex items-center gap-2">
+			{hasTrend ? (
+				<Sparkline
+					className="w-16 text-text-3"
+					data={rule.trend}
+					end={false}
+					label={`${rule.name} matches per hour, last 24 hours`}
+					size="sm"
+				/>
+			) : null}
+			<span className="flex items-baseline gap-1">
+				<span className="type-label text-text-1 tabular-nums">
+					{rule.matches24h}
+				</span>
+				<span>{rule.matches24h === 1 ? "match" : "matches"}, last 24 h</span>
+			</span>
+		</span>
 	) : (
-		<p className="text-muted-foreground text-xs leading-relaxed">
-			{rule.blurb}
-		</p>
+		<span>No matches, last 24 h</span>
 	);
 
 	return (
-		<div className="flex h-full flex-col gap-1 overflow-hidden rounded-[10px] border border-border bg-surface-2 p-0.5">
-			{/* HEADER — two lanes that can't collide: an identity column that
-			    truncates, and a fixed rail. Chips get their own row so any number
-			    of them can never displace the stat or the toggle (the old
-			    single wrapping row broke as soon as a card had three chips).
-			    No dither on rules of any source (§9). */}
-			<div className="flex items-start gap-3 px-3 pt-2 pb-1.5">
-				<div className="flex min-w-0 flex-1 flex-col gap-1.5">
-					<span className="truncate font-medium text-sm">{rule.name}</span>
-					<div className="flex flex-wrap items-center gap-1.5">
-						<span
-							className={cn(
-								CHIP,
-								!(enabled && standalone) && "text-muted-foreground/50",
-							)}
-						>
-							block
-						</span>
-						{rule.source === "custom" ? (
-							<span className={CHIP}>custom</span>
+		<Card
+			className={RULE_CARD_CLASS}
+			data-off={off ? "" : undefined}
+			data-queued={queued ? "" : undefined}
+		>
+			<span aria-live="polite" className="sr-only" id={queuedId}>
+				{queued ? "Change queued. Save to apply it." : ""}
+			</span>
+			<Panel className={RULE_PANEL_CLASS}>
+				<div className={RULE_HEADER_CLASS}>
+					<h2
+						className={cn(
+							"min-w-0 truncate type-label-lg",
+							off ? "text-text-2" : "text-text-1",
+						)}
+						title={rule.name}
+					>
+						{rule.name}
+					</h2>
+					{rule.source === "custom" ? (
+						<Badge className="shrink-0" variant="outline">
+							Custom
+						</Badge>
+					) : null}
+					{rule.management === "managed" ? (
+						<Badge className="shrink-0" variant="outline">
+							In workflow
+						</Badge>
+					) : null}
+					<span className="ms-auto flex shrink-0 items-center gap-1">
+						{deletable ? (
+							<DropdownMenu>
+								<DropdownMenuTrigger
+									render={
+										<Button
+											aria-label={`Actions for ${rule.name}`}
+											size="icon-sm"
+											variant="ghost"
+										/>
+									}
+								>
+									<Icon icon={More} />
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" size="sm">
+									{deleteBlocked ? (
+										<>
+											<DropdownMenuGroup>
+												<DropdownMenuLabel>In use by</DropdownMenuLabel>
+												{rule.blockingWorkflows.map((wf) => (
+													<DropdownMenuLinkItem
+														key={wf.id}
+														render={
+															<Link
+																params={{ org, repo, workflowId: wf.id }}
+																to="/$org/$repo/workflows/$workflowId"
+															/>
+														}
+													>
+														{wf.name}
+													</DropdownMenuLinkItem>
+												))}
+											</DropdownMenuGroup>
+											<DropdownMenuSeparator />
+										</>
+									) : null}
+									<DropdownMenuItem
+										disabled={Boolean(deleteBlocked)}
+										onClick={() => setConfirmingDelete(true)}
+										title={
+											deleteBlocked
+												? "Remove this rule from its workflows before you delete it"
+												: undefined
+										}
+										variant="destructive"
+									>
+										Delete rule
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						) : null}
-						{/* Severity (how much a failure weighs) — a dot, not a filled
-						    pill, so it stays scannable without out-shouting the name. */}
-						{rule.severity ? (
-							<span className={CHIP}>
-								<span
-									className={cn(
-										"size-[5px] shrink-0 rounded-full",
-										rule.severity === "high"
-											? "bg-red-500"
-											: rule.severity === "medium"
-												? "bg-amber-500"
-												: "bg-muted-foreground",
-									)}
-								/>
-								{rule.severity}
-							</span>
-						) : null}
-						{rule.management === "managed" ? (
-							<span className={CHIP}>in workflow</span>
-						) : null}
-						{rule.forgeBlockReason ? (
-							<span
-								className={CHIP}
-								title="this forge doesn't expose what this rule needs"
-							>
-								{rule.forgeBlockReason}
-							</span>
-						) : null}
-					</div>
+						{control}
+					</span>
 				</div>
 
-				<div className="flex shrink-0 items-center gap-3">
-					{hasTrend ? (
-						<div className="hidden h-7 w-20 sm:block">
-							<Sparkline bloom="aura" color="blue" data={rule.trend} />
-						</div>
-					) : null}
-					<div className="flex w-8 flex-col items-end">
-						<p
-							className={cn(
-								"font-medium text-sm tabular-nums leading-none",
-								rule.matches24h > 0
-									? "text-red-600 dark:text-red-400"
-									: "text-foreground",
-							)}
-						>
-							{rule.matches24h}
-						</p>
-						<p className="mt-1 text-[10px] text-muted-foreground leading-none">
-							24h
-						</p>
-					</div>
-					{standalone ? (
-						offering ? (
-							<Button
-								className="h-auto px-2.5 py-1 text-xs"
-								disabled={!canEdit}
-								onClick={() => setEnabled(true)}
-							>
-								enable
-							</Button>
-						) : (
-							<Switch
-								aria-label={
-									forgeBlocked
-										? `${rule.name} — ${rule.forgeBlockReason}`
-										: `${enabled ? "disable" : "enable"} ${rule.name}`
-								}
-								checked={enabled && !forgeBlocked}
-								disabled={!canEdit || forgeBlocked}
-								onCheckedChange={setEnabled}
-								tone="accent"
-							/>
-						)
-					) : null}
-				</div>
-			</div>
-
-			{/* BODY — the payload, in the recessed well the design puts it in.
-			    Grows to fill so cards in a row share height and the subordinate
-			    actions pin to the bottom of the well. */}
-			<div className="flex flex-1 flex-col rounded-md border border-border bg-surface-1 px-2 py-1">
-				{body}
+				{showParams ? (
+					<ParamSentence
+						canEdit={canEdit && standalone && !forgeBlocked}
+						className={RULE_SENTENCE_CLASS}
+						config={effectiveConfig}
+						onSaveParam={(key, value) =>
+							setField(`${rule.ruleId}:param:${key}`, value)
+						}
+						ruleId={rule.ruleId}
+					/>
+				) : (
+					<p className={RULE_SENTENCE_CLASS} title={rule.blurb}>
+						{rule.blurb}
+					</p>
+				)}
 
 				{rule.held && standalone ? (
-					<div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-						<span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-600 dark:text-amber-400">
-							update held
-						</span>
-						<span className="text-muted-foreground">
-							{rule.changeNote ? `${rule.changeNote}. ` : ""}your saved settings
-							don't carry over. re-confirm to move to the new version.
+					<div className="flex flex-wrap items-center gap-2 pt-1.5">
+						<Badge variant="warn">New version waiting</Badge>
+						<span className="type-body-sm text-text-2">
+							{rule.changeNote ? `${rule.changeNote}. ` : ""}Your saved settings
+							do not carry over to it, so this rule keeps running the old
+							version until you move it.
 						</span>
 						<Button
 							aria-pressed={upgradeQueued === true}
-							className="h-auto p-0 font-medium text-foreground text-xs hover:underline"
 							disabled={!canEdit}
 							onClick={() => setUpgradeQueued(upgradeQueued !== true)}
-							variant="ghost"
+							size="sm"
+							variant="secondary"
 						>
-							{upgradeQueued === true ? "queued. save to apply" : "re-confirm"}
+							{upgradeQueued === true
+								? "Moves when you save"
+								: "Move to new version"}
 						</Button>
 					</div>
 				) : null}
-
-				{/* Subordinate actions sit inside the well, per the design */}
-				{rule.management === "managed" && rule.workflowId ? (
-					<div className="mt-2 flex items-center justify-between">
-						<Link
-							className="font-medium text-foreground text-xs hover:underline"
-							params={{ org, repo, workflowId: rule.workflowId }}
-							to="/$org/$repo/workflows/$workflowId"
+			</Panel>
+			<CardFooter className={RULE_FOOTER_CLASS}>
+				<span className="flex items-center gap-1.5">
+					<Icon
+						className={off ? "text-text-3" : "text-text-2"}
+						icon={Blocked}
+					/>
+					<span className="type-label-sm">Blocks</span>
+					{rule.severity ? (
+						<span className="ms-1">
+							{SEVERITY_LABEL[rule.severity] ?? rule.severity}
+						</span>
+					) : null}
+				</span>
+				{activity}
+			</CardFooter>
+			<Dialog
+				onOpenChange={setConfirmingDelete}
+				open={Boolean(deletable) && confirmingDelete}
+				role="alertdialog"
+			>
+				<DialogContent size="sm">
+					<DialogHeader>
+						<DialogTitle>Delete {rule.name}?</DialogTitle>
+						<DialogDescription>
+							Tripwire stops checking change requests against this rule. Its
+							past matches stay in Activity.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<DialogClose>Keep rule</DialogClose>
+						<DialogAction
+							onAction={() => onDelete?.(rule.ruleId)}
+							pendingLabel="Deleting"
+							variant="destructive"
 						>
-							edit in workflow →
-						</Link>
-					</div>
-				) : null}
-
-				{/* Delete shares the same action lane rather than floating below the
-				    well, so every card's actions sit on one line. */}
-				{rule.source === "custom" && canEdit && onDelete ? (
-					rule.blockingWorkflows.length > 0 ? (
-						// Referenced by a workflow (enabled or disabled): delete is refused
-						// server-side; the button stays visible but disabled, naming the
-						// workflows so the reason reads intentional, not broken.
-						<div className="mt-2 flex flex-col items-end gap-1 text-xs">
-							<Button
-								className="h-auto cursor-not-allowed p-0 text-[11px] text-muted-foreground/40"
-								disabled
-								title="remove this rule from its workflows before deleting"
-								variant="ghost"
-							>
-								delete
-							</Button>
-							<span className="text-muted-foreground">
-								in use by{" "}
-								{rule.blockingWorkflows.map((wf, index) => (
-									<span key={wf.id}>
-										{index > 0 ? ", " : ""}
-										<Link
-											className="font-medium text-foreground hover:underline"
-											params={{ org, repo, workflowId: wf.id }}
-											to="/$org/$repo/workflows/$workflowId"
-										>
-											{wf.name}
-										</Link>
-									</span>
-								))}
-							</span>
-						</div>
-					) : (
-						<div className="mt-2 flex justify-end">
-							<Button
-								className="h-auto p-0 text-[11px] text-muted-foreground hover:text-destructive"
-								onClick={() => onDelete(rule.ruleId)}
-								variant="ghost"
-							>
-								delete
-							</Button>
-						</div>
-					)
-				) : null}
-			</div>
-		</div>
+							Delete rule
+						</DialogAction>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</Card>
 	);
 }

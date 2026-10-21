@@ -281,11 +281,17 @@ export const saveRuleConfig = createServerFn({ method: "POST" })
 			);
 			const entry = RULE_CATALOG.find((r) => r.ruleId === data.ruleId);
 			if (!entry) {
-				return { error: `unknown rule ${data.ruleId}` };
+				return {
+					error: `Tripwire does not know the rule ${data.ruleId}. Reload the page and try again.`,
+				};
 			}
 			const parsed = entry.configSchema.safeParse(data.config);
 			if (!parsed.success) {
-				return { error: parsed.error.issues[0]?.message ?? "invalid config" };
+				return {
+					error:
+						parsed.error.issues[0]?.message ??
+						"These settings are not valid. Check the values and save again.",
+				};
 			}
 			const { repoServices } = await import("@tripwire/db");
 			const { getDb } = await import("#/lib/server/db");
@@ -319,7 +325,9 @@ export const upgradeRuleConfig = createServerFn({ method: "POST" })
 			);
 			const entry = RULE_CATALOG.find((r) => r.ruleId === data.ruleId);
 			if (!entry) {
-				return { error: `unknown rule ${data.ruleId}` };
+				return {
+					error: `Tripwire does not know the rule ${data.ruleId}. Reload the page and try again.`,
+				};
 			}
 			const { repoServices } = await import("@tripwire/db");
 			const { getDb } = await import("#/lib/server/db");

@@ -9,8 +9,8 @@ export const Route = createFileRoute("/$org/$repo/activity")({
 	head: ({ params, match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} · activity`),
-			description: "the repo's event feed.",
+			title: formatPageTitle(`${params.repo} | Activity`),
+			description: "Every change request in this repo and its verdict.",
 			noindex: true,
 		}),
 });

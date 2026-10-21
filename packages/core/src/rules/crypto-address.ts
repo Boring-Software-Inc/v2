@@ -66,11 +66,21 @@ export const cryptoAddress = defineRule({
 	publicEvidence: (e) => ({ matches: e.matches }),
 	summarize: (e) => {
 		if (e.matches.length === 0) {
-			return "no crypto addresses found";
+			return "No crypto wallet addresses found.";
 		}
-		const locations = [...new Set(e.matches.map((m) => m.location))];
-		const where = locations.length > 0 ? ` in ${locations.join(", ")}` : "";
-		return `it adds ${e.matches.length} crypto ${e.matches.length === 1 ? "address" : "addresses"}${where}`;
+		const locations = [...new Set(e.matches.map((m) => m.location))].map(
+			(location) =>
+				location === "title" || location === "comment"
+					? `the ${location}`
+					: location,
+		);
+		const where =
+			locations.length === 0
+				? ""
+				: locations.length === 1
+					? ` to ${locations[0]}`
+					: ` to ${locations.slice(0, -1).join(", ")} and ${locations.at(-1)}`;
+		return `It adds ${e.matches.length} crypto wallet ${e.matches.length === 1 ? "address" : "addresses"}${where}.`;
 	},
 	// Fixable in the change itself — remove the address(es).
 	remedy: "revise",

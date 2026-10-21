@@ -1,26 +1,58 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Button } from "#/components/ui/button";
+import { lazy, Suspense } from "react";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { sessionInfoQueryOptions } from "#/lib/auth.query";
+
+const NotFoundInShell = lazy(() =>
+	import("#/components/not-found-shell").then((m) => ({
+		default: m.NotFoundInShell,
+	})),
+);
+
+export function NotFoundBody({ signedIn }: { signedIn: boolean }) {
+	return (
+		<Empty
+			art={<MascotArt mood="not-found" />}
+			className="max-w-sm"
+			reason="no-results"
+		>
+			<EmptyHeader>
+				<EmptyTitle>Page not found</EmptyTitle>
+				<EmptyDescription>
+					Nothing is at this address. Check the link, or go back to your home
+					page.
+				</EmptyDescription>
+			</EmptyHeader>
+			<EmptyContent>
+				<Button nativeButton={false} render={<Link to="/" />} size="sm">
+					{signedIn ? "Go to home" : "Sign in"}
+				</Button>
+			</EmptyContent>
+		</Empty>
+	);
+}
 
 export function NotFound() {
+	const { data: session } = useQuery(sessionInfoQueryOptions());
+	if (session?.user) {
+		return (
+			<Suspense fallback={null}>
+				<NotFoundInShell />
+			</Suspense>
+		);
+	}
 	return (
-		<div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background px-6 text-center">
-			<p className="font-semibold text-5xl tracking-tight tabular-nums">404</p>
-			<div className="flex flex-col gap-1.5">
-				<h1 className="font-semibold text-xl tracking-tight">Page not found</h1>
-				<p className="max-w-sm text-muted-foreground text-sm">
-					That page doesn’t exist or may have moved. Check the URL, or head back
-					to the queue.
-				</p>
-			</div>
-			<Button
-				className="mt-1"
-				nativeButton={false}
-				render={<Link to="/" />}
-				size="sm"
-				variant="outline"
-			>
-				Back to moderation
-			</Button>
-		</div>
+		<main className="flex min-h-dvh items-center justify-center bg-page px-4 py-10">
+			<NotFoundBody signedIn={false} />
+		</main>
 	);
 }

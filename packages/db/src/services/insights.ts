@@ -1,6 +1,6 @@
 import type { ModStat, ModStats } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
@@ -190,7 +190,13 @@ export interface RunActivityRow {
 /** Recent runs (optionally filtered by verdict) — the activity behind a metric. */
 export async function listRecentRuns(
 	db: Db,
-	opts: { verdicts?: string[]; limit?: number; repoFullName?: string } = {},
+	opts: {
+		verdicts?: string[];
+		limit?: number;
+		repoFullName?: string;
+		since?: Date;
+		until?: Date;
+	} = {},
 ): Promise<RunActivityRow[]> {
 	const limit = opts.limit ?? 20;
 	const rows = await db
@@ -211,6 +217,8 @@ export async function listRecentRuns(
 				opts.repoFullName
 					? eq(runs.repoFullName, opts.repoFullName)
 					: undefined,
+				opts.since ? gte(runs.createdAt, opts.since) : undefined,
+				opts.until ? lt(runs.createdAt, opts.until) : undefined,
 			),
 		)
 		.orderBy(desc(runs.createdAt))

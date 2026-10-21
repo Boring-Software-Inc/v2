@@ -45,8 +45,8 @@ export const honeypot = defineRule({
 		e.touched.length === 0
 			? null
 			: e.touched.length === 1
-				? "it touches a protected workflow file"
-				: `it touches ${e.touched.length} protected paths`,
+				? "It changes a protected file."
+				: `It changes ${e.touched.length} protected files.`,
 	// Fixable in the change itself — don't touch the protected paths.
 	remedy: "revise",
 });

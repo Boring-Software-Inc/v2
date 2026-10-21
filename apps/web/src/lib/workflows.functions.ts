@@ -129,7 +129,7 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 				const issue = parsed.error.issues[0];
 				return {
 					ok: false,
-					error: `${issue?.path.join(".")}: ${issue?.message}`,
+					error: `Tripwire could not save this workflow. Check ${issue?.path.join(".") || "the workflow"}: ${issue?.message}`,
 				};
 			}
 			const { workflowServices } = await import("@tripwire/db");
@@ -168,7 +168,7 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 						? null
 						: {
 								nodeId,
-								message: `webhook connection failed: ${probe.failure}`,
+								message: `Webhook connection failed: ${probe.failure}`,
 							};
 				}),
 			);
@@ -261,7 +261,7 @@ export const duplicateRepoWorkflow = createServerFn({ method: "POST" })
 				repoId: data.repoId,
 				workflowId: data.workflowId,
 			});
-			return workflow ? { workflow } : { error: "workflow not found" };
+			return workflow ? { workflow } : { error: "Workflow not found." };
 		},
 	);
 

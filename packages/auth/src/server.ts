@@ -271,7 +271,7 @@ export function createAuth(input: CreateAuthInput) {
 					 * HTTP endpoints stay dead. */
 					beforeCreateInvitation: async () => {
 						throw new Error(
-							"email invitations are disabled — use invite links",
+							"Email invitations are turned off. Use an invite link instead.",
 						);
 					},
 				},
@@ -369,7 +369,7 @@ export function resolveAuthPosture(input: {
 	}
 	if (input.nodeEnv === "production") {
 		throw new Error(
-			"BETTER_AUTH_SECRET is not set — refusing to serve in production (auth gate would stand open)",
+			"BETTER_AUTH_SECRET is not set. Tripwire will not start in production without it, because sign-in would be left open.",
 		);
 	}
 	return "open-dev";

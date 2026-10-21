@@ -1,13 +1,23 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { FORGE_BY_ID } from "@tripwire/contracts";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { FORGE_BY_ID, workflowActionKindSchema } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
+import { verdictStatus } from "#/components/activity/verdict-chip";
 import { ForgeMark } from "#/components/common/forge-marks";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
-import { StepCard } from "#/components/runs/step-card";
+import { MetaRow } from "#/components/common/meta-row";
+import { GithubMark, Icon, Retry } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "#/components/glaze/ui/card";
+import { CopyButton } from "#/components/glaze/ui/copy-button";
 import {
 	Dialog,
+	DialogAction,
+	DialogBody,
 	DialogClose,
 	DialogContent,
 	DialogDescription,
@@ -15,8 +25,21 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
-} from "#/components/ui/dialog";
-import { toast } from "#/components/ui/toast";
+} from "#/components/glaze/ui/dialog";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
+import { Status, type StatusValue } from "#/components/glaze/ui/status";
+import { toast } from "#/components/glaze/ui/toast";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
+import { StepCard } from "#/components/runs/step-card";
+import { actionIcon, KIND_ICON } from "#/components/workflows/editor/step-meta";
 import {
 	getRerunPreview,
 	rerunChangeRequest,
@@ -28,21 +51,12 @@ import { runToMarkdown } from "#/lib/run-markdown";
 import type { RunView } from "#/lib/runs.functions";
 import { runQueryOptions } from "#/lib/runs.query";
 import { siteConfig } from "#/lib/site-config";
-import { cn } from "#/lib/utils";
 
 const route = getRouteApi("/runs/$runId");
 
-const VERDICT_STYLE: Record<string, string> = {
-	pass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-	block: "bg-red-500/10 text-red-600 dark:text-red-400",
-	needs_review: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-};
-
-const VERDICT_LABEL: Record<string, string> = {
-	pass: "passed",
-	block: "blocked",
-	needs_review: "sent to review",
-};
+function sentence(text: string): string {
+	return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 export function RunPage() {
 	const { runId } = route.useParams();
@@ -53,33 +67,50 @@ export function RunPage() {
 	}
 	if (!run) {
 		return (
-			<div className="flex min-h-dvh items-center justify-center bg-background px-6 text-center text-muted-foreground text-sm">
-				run not found.
+			<div className="flex min-h-dvh items-center justify-center bg-page px-4">
+				<Empty
+					art={<MascotArt mood="run-not-found" />}
+					className="max-w-sm"
+					reason="no-results"
+				>
+					<EmptyHeader>
+						<EmptyTitle>Run not found</EmptyTitle>
+						<EmptyDescription>
+							The link may be wrong, or the run is in an org you are not a
+							member of.
+						</EmptyDescription>
+					</EmptyHeader>
+					<EmptyContent>
+						<Button
+							nativeButton={false}
+							render={<Link to="/" />}
+							size="sm"
+							variant="secondary"
+						>
+							Go to dashboard
+						</Button>
+					</EmptyContent>
+				</Empty>
 			</div>
 		);
 	}
 
-	/**
-	 * §10 — the public (no-session) view renders without dashboard chrome and
-	 * carries the "powered by tripwire" footer; every public run is a demo to
-	 * exactly the audience that installs Tripwire.
-	 */
 	if (run.access === "public") {
 		return (
-			<div className="flex min-h-dvh flex-col bg-background">
+			<div className="flex min-h-dvh flex-col bg-page text-text-1">
 				<div className="flex-1">
 					<RunBody run={run} />
 				</div>
-				<footer className="border-t px-6 py-4 text-center text-muted-foreground text-xs">
+				<footer className="border-line-faint border-t px-4 py-4 text-center type-caption text-text-2">
 					<a
-						className="font-medium transition-colors hover:text-foreground"
+						className="text-text-1 hover:underline"
 						href={siteConfig.githubRepositoryUrl}
 						rel="noreferrer"
 						target="_blank"
 					>
-						powered by tripwire
-					</a>{" "}
-					— {siteConfig.tagline}
+						Powered by Tripwire
+					</a>
+					. {siteConfig.tagline}
 				</footer>
 			</div>
 		);
@@ -92,11 +123,35 @@ export function RunPage() {
 	);
 }
 
-/** The stack-style section header — surface-1 fill, matching the activity feed. */
-function SectionHeader({ children }: { children: React.ReactNode }) {
+function RunStatusLine({
+	run,
+	plannedRules,
+}: {
+	run: RunView;
+	plannedRules: number;
+}) {
+	const evaluating = run.status === "queued" || run.status === "running";
+	const finishedRules = run.steps.filter((s) => s.nodeKind === "rule").length;
+	const verdict = verdictStatus(run.verdict);
+
 	return (
-		<div className="bg-surface-1 px-4 py-2.5 font-medium text-muted-foreground text-xs uppercase tracking-wide">
-			{children}
+		<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+			{verdict ? (
+				<Status status={verdict.status}>{verdict.label}</Status>
+			) : null}
+			{run.status === "paused" ? (
+				<span className="type-label text-text-2">Waiting for a maintainer</span>
+			) : null}
+			{evaluating ? (
+				<Status live status="running">
+					{plannedRules > 0
+						? `Checking ${finishedRules} of ${plannedRules} rules`
+						: "Checking"}
+				</Status>
+			) : null}
+			{run.status === "failed" ? (
+				<Status status="fail">Did not finish</Status>
+			) : null}
 		</div>
 	);
 }
@@ -107,126 +162,143 @@ function RunBody({ run }: { run: RunView }) {
 		[run.status, run.snapshot, run.steps],
 	);
 	const evaluating = run.status === "queued" || run.status === "running";
-	const finishedRules = run.steps.filter((s) => s.nodeKind === "rule").length;
-	const plannedRules = liveSteps.filter((s) => s.nodeKind === "rule").length;
 
 	return (
-		<div className="mx-auto w-full max-w-3xl px-6 py-8">
-			<header className="mb-6">
-				<div className="flex items-center gap-3">
-					<h1 className="font-semibold text-2xl tracking-tight">Run</h1>
-					{run.verdict ? (
-						<span
-							className={cn(
-								"rounded-full px-2.5 py-0.5 font-medium text-xs",
-								VERDICT_STYLE[run.verdict],
-							)}
-						>
-							{VERDICT_LABEL[run.verdict]}
-						</span>
-					) : null}
-					{run.status === "paused" ? (
-						<span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 font-medium text-amber-600 text-xs dark:text-amber-400">
-							awaiting moderation
-						</span>
-					) : null}
-					{evaluating ? (
-						<span className="rounded-full bg-muted px-2.5 py-0.5 font-medium text-muted-foreground text-xs">
-							{plannedRules > 0
-								? `evaluating · ${finishedRules} of ${plannedRules}`
-								: "evaluating"}
-						</span>
-					) : null}
-					{run.status === "failed" ? (
-						<span className="rounded-full bg-red-500/10 px-2.5 py-0.5 font-medium text-red-600 text-xs dark:text-red-400">
-							failed
-						</span>
-					) : null}
-					<div className="ml-auto flex shrink-0 items-center gap-2">
-						<ViewOnForgeButton run={run} />
-						<CopyRunButton run={run} />
-						{run.canRerun && run.orgSlug && run.repoName ? (
-							<RerunRunButton
-								number={run.subjectNumber}
-								org={run.orgSlug}
-								repo={run.repoName}
-								subtitle={`#${run.subjectNumber} · ${run.repoFullName}`}
+		<div className="px-4 py-6 md:px-8 md:py-10">
+			<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+				<header className="flex flex-col gap-2">
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<h1 className="type-title">
+							{run.subjectNumber ? `Run on #${run.subjectNumber}` : "Run"}
+						</h1>
+						<div className="flex flex-wrap items-center gap-2">
+							<CopyButton
+								label="run as Markdown"
+								size="icon"
+								title="Copy run as Markdown"
+								value={() =>
+									runToMarkdown(run, formatRelativeTime(run.createdAt))
+								}
+								variant="ghost"
 							/>
-						) : null}
-					</div>
-				</div>
-				<p className="mt-1 text-muted-foreground text-sm">
-					{run.repoFullName}
-					{run.subjectNumber ? ` #${run.subjectNumber}` : ""} ·{" "}
-					{formatRelativeTime(run.createdAt)}
-					{run.headSha ? (
-						<span className="font-mono"> · {run.headSha.slice(0, 7)}</span>
-					) : null}
-					{/* §10: the fact of a manual re-run is public; the actor only
-					    shows on the full view. */}
-					{run.rerun
-						? ` · manual re-run${run.rerunBy ? ` by ${run.rerunBy}` : ""}`
-						: ""}
-				</p>
-			</header>
-
-			<section className="overflow-hidden rounded-xl border bg-card">
-				<SectionHeader>steps</SectionHeader>
-				{liveSteps.length === 0 ? (
-					<p className="px-4 py-6 text-muted-foreground text-sm">
-						{evaluating
-							? "starting evaluation…"
-							: run.status === "failed"
-								? "this re-run never evaluated — try again."
-								: "no steps recorded."}
-					</p>
-				) : (
-					liveSteps.map((step, i) => (
-						<StepCard
-							isFirst={i === 0}
-							isLast={i === liveSteps.length - 1}
-							key={step.id}
-							maintainer={run.access !== "public"}
-							repo={run.repoFullName}
-							sha={run.headSha}
-							step={step}
-						/>
-					))
-				)}
-			</section>
-
-			{run.actions.length > 0 ? (
-				<section className="mt-4 overflow-hidden rounded-xl border bg-card">
-					<SectionHeader>actions</SectionHeader>
-					{run.actions.map((action) => (
-						<div
-							className="flex items-center gap-3 px-4 py-3 text-sm"
-							key={`${action.kind}-${action.recordedAt}`}
-						>
-							<span className="min-w-0 flex-1 truncate font-mono">
-								{action.kind}
-							</span>
-							{action.delivery ? (
-								<DeliveryBadge delivery={action.delivery} />
-							) : (
-								<span className="text-muted-foreground text-xs">
-									{action.status}
-								</span>
-							)}
+							<ViewOnForgeButton run={run} />
+							{run.canRerun && run.orgSlug && run.repoName ? (
+								<RerunRunButton
+									number={run.subjectNumber}
+									org={run.orgSlug}
+									repo={run.repoName}
+									subtitle={`#${run.subjectNumber} in ${run.repoFullName}`}
+								/>
+							) : null}
 						</div>
-					))}
-				</section>
-			) : null}
+					</div>
+					<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+						<RunStatusLine
+							plannedRules={
+								liveSteps.filter((s) => s.nodeKind === "rule").length
+							}
+							run={run}
+						/>
+						<MetaRow className="type-body-sm text-text-2">
+							<span>{run.repoFullName}</span>
+							<span>{formatRelativeTime(run.createdAt)}</span>
+							{run.rerun ? (
+								<span>
+									Manual re-run{run.rerunBy ? ` by ${run.rerunBy}` : ""}
+								</span>
+							) : null}
+						</MetaRow>
+					</div>
+				</header>
+
+				<Card>
+					<CardHeader>
+						<CardTitle>Steps</CardTitle>
+					</CardHeader>
+					<CardContent flush>
+						{liveSteps.length === 0 ? (
+							<p className="px-3 py-4 type-body-sm text-text-2">
+								{evaluating
+									? "Starting the check."
+									: run.status === "failed"
+										? "This run did not finish. Re-run rules to try again."
+										: "Tripwire recorded no steps for this run."}
+							</p>
+						) : (
+							liveSteps.map((step) => (
+								<StepCard
+									key={step.id}
+									maintainer={run.access !== "public"}
+									repo={run.repoFullName}
+									sha={run.headSha}
+									step={step}
+								/>
+							))
+						)}
+					</CardContent>
+				</Card>
+
+				{run.actions.length > 0 ? (
+					<Card>
+						<CardHeader>
+							<CardTitle>Actions</CardTitle>
+						</CardHeader>
+						<CardContent flush>
+							{run.actions.map((action) => (
+								<div
+									className="rule-row flex min-w-0 items-center min-h-(--row) gap-2.5 px-3 py-2"
+									key={`${action.kind}-${action.recordedAt}`}
+								>
+									<Icon
+										className="text-text-2"
+										icon={actionGlyph(action.kind)}
+									/>
+									<span className="min-w-0 flex-1 truncate type-label">
+										{actionName(action.kind)}
+									</span>
+									{action.delivery ? (
+										<DeliveryStatus delivery={action.delivery} />
+									) : (
+										<ActionStatus status={action.status} />
+									)}
+								</div>
+							))}
+						</CardContent>
+					</Card>
+				) : null}
+			</div>
 		</div>
 	);
 }
 
-/**
- * Delivery state for a webhook/discord action — sent / queued / failed, never
- * the raw `recorded`. A failed delivery must read as failed, not delivered
- * (alerting integrity). The failure reason is named; the url is never shown.
- */
-function DeliveryBadge({
+type ActionStatusMap = Record<string, { status: StatusValue; label: string }>;
+const ACTION_STATUS: ActionStatusMap = {
+	executed: { status: "ok", label: "Done" },
+	skipped: { status: "idle", label: "Skipped" },
+	failed: { status: "fail", label: "Did not finish" },
+	pending: { status: "queued", label: "Waiting" },
+};
+
+function ActionStatus({ status }: { status: string }) {
+	const known = ACTION_STATUS[status];
+	return (
+		<Status size="sm" status={known?.status ?? "idle"}>
+			{known?.label ?? sentence(status)}
+		</Status>
+	);
+}
+
+function actionGlyph(kind: string) {
+	const parsed = workflowActionKindSchema.safeParse(kind);
+	return parsed.success ? actionIcon(parsed.data) : KIND_ICON.action;
+}
+
+function actionName(kind: string): string {
+	const words = kind.replace(/-/g, " ");
+	return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function DeliveryStatus({
 	delivery,
 }: {
 	delivery:
@@ -234,92 +306,56 @@ function DeliveryBadge({
 		| { state: "queued" }
 		| { state: "failed"; reason: string };
 }) {
-	const label =
-		delivery.state === "sent"
-			? "sent"
-			: delivery.state === "queued"
-				? "queued"
-				: `failed: ${delivery.reason}`;
+	if (delivery.state === "sent") {
+		return (
+			<Status size="sm" status="ok">
+				Sent
+			</Status>
+		);
+	}
+	if (delivery.state === "queued") {
+		return (
+			<Status size="sm" status="queued">
+				Queued
+			</Status>
+		);
+	}
 	return (
-		<span
-			className={cn(
-				"rounded-full px-2 py-0.5 font-medium text-[11px]",
-				delivery.state === "sent" &&
-					"bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-				delivery.state === "queued" && "bg-surface-1 text-muted-foreground",
-				delivery.state === "failed" &&
-					"bg-red-500/10 text-red-600 dark:text-red-400",
-			)}
-		>
-			{label}
+		<span className="flex min-w-0 items-center gap-2">
+			<span className="min-w-0 truncate type-caption text-text-2">
+				{delivery.reason}
+			</span>
+			<Status className="shrink-0" size="sm" status="fail">
+				Not sent
+			</Status>
 		</span>
 	);
 }
 
-/**
- * View the change request on its forge. Wears the forge's own mark, so a
- * maintainer with both forges connected can tell at a glance where a run came
- * from without reading the label.
- *
- * Renders nothing when there is no change request to point at, or when the
- * repo row is gone. A dead link is worse than no link.
- */
 function ViewOnForgeButton({ run }: { run: RunView }) {
 	if (!(run.forge && run.subjectUrl)) {
 		return null;
 	}
 	const label = FORGE_BY_ID[run.forge]?.label ?? run.forge;
+	const href = run.subjectUrl;
 	return (
-		<a
-			className="flex shrink-0 items-center gap-1.5 rounded-md bg-surface-1 px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground"
-			href={run.subjectUrl}
-			rel="noreferrer"
-			target="_blank"
+		<Button
+			nativeButton={false}
+			render={(props) => (
+				<a {...props} href={href} rel="noreferrer" target="_blank" />
+			)}
+			variant="secondary"
 		>
-			<ForgeMark className="size-3.5 shrink-0" forge={run.forge} />
-			view on {label}
-		</a>
+			{run.forge === "github" ? (
+				<Icon icon={GithubMark} />
+			) : (
+				<ForgeMark forge={run.forge} />
+			)}
+			View on {label}
+		</Button>
 	);
 }
 
-/**
- * Copy the whole run as markdown. Copied-state feedback: the label flips to
- * "copied" for ~2s. Serializes from the redacted RunView (never raw rows), so
- * the clipboard cannot carry a url the view stripped. Native button, so it is
- * keyboard accessible.
- */
-function CopyRunButton({ run }: { run: RunView }) {
-	const [copied, setCopied] = useState(false);
-	const onCopy = () => {
-		const md = runToMarkdown(run, formatRelativeTime(run.createdAt));
-		navigator.clipboard?.writeText(md);
-		toast({
-			title: "copied to clipboard",
-			body: "The run has been copied to your clipboard.",
-			status: "success",
-			action: { label: "close", onClick: () => {} },
-		});
-		setCopied(true);
-		setTimeout(() => setCopied(false), 2000);
-	};
-	return (
-		<button
-			className="shrink-0 rounded-md bg-surface-1 px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground"
-			onClick={onCopy}
-			type="button"
-		>
-			{copied ? "copied" : "copy markdown"}
-		</button>
-	);
-}
-
-/**
- * Admin re-run of the change request, moved here from the activity feed (§6):
- * the trigger sits beside "copy markdown" and wears the same quiet toolbar
- * style, while the confirm keeps the destructive register — it spends real
- * evaluation and updates the PR's review comment and check. On queue it routes
- * to the freshly materialized run so the maintainer watches it evaluate live.
- */
 function RerunRunButton({
 	org,
 	repo,
@@ -345,35 +381,35 @@ function RerunRunButton({
 		onSuccess: (result) => {
 			if (result.status === "queued") {
 				setOpen(false);
-				toast("re-run queued — opening the new run");
+				toast("Re-run queued. Opening the new run.");
 				void navigate({ params: { runId: result.runId }, to: "/runs/$runId" });
 			} else if (result.status === "cooldown") {
 				setOpen(false);
 				toast(
-					`re-run available again in ~${Math.max(1, Math.ceil(result.retryInSeconds / 60))} min`,
+					`You can re-run this again in about ${Math.max(1, Math.ceil(result.retryInSeconds / 60))} min`,
 				);
 			} else if (result.status === "no-workflow") {
 				setUnavailable(
-					"no enabled rules — nothing to evaluate. enable a rule or workflow first.",
+					"This repo has no rules or workflows turned on, so there is nothing to check. Turn one on first.",
 				);
 			} else if (result.status === "no-event") {
 				setUnavailable(
-					"no evaluatable event for this change request — open or update it first.",
+					"Tripwire has nothing to check for this change request yet. Open or update it first.",
 				);
 			} else {
-				setUnavailable("this repo isn't armed — arm it first.");
+				setUnavailable("Tripwire is off for this repo. Turn it on first.");
 			}
 		},
 		onError: () => {
-			toast("re-run failed to queue — try again");
+			toast.fail("Tripwire could not start the re-run. Try again.");
 		},
 	});
 
 	const rulesCopy =
 		unavailable ??
 		(preview.data
-			? `${rerunRulesLine(preview.data.ruleNames)}. this may cost ai review usage. the pr's review comment and check will be updated.`
-			: "this runs your current rules again and may cost ai review usage. the pr's review comment and check will be updated.");
+			? `${sentence(rerunRulesLine(preview.data.ruleNames))}. This may cost AI review usage. Tripwire will update its comment and check on the change request.`
+			: "This runs your current rules again and may cost AI review usage. Tripwire will update its comment and check on the change request.");
 
 	return (
 		<Dialog
@@ -385,34 +421,31 @@ function RerunRunButton({
 			}}
 			open={open}
 		>
-			<DialogTrigger
-				className="shrink-0 rounded-md bg-surface-1 px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground"
-				type="button"
-			>
-				re-run rules
+			<DialogTrigger render={<Button variant="secondary" />}>
+				<Icon icon={Retry} />
+				Re-run rules
 			</DialogTrigger>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>re-run rules?</DialogTitle>
+					<DialogTitle>
+						{number != null ? `Re-run rules on #${number}?` : "Re-run rules?"}
+					</DialogTitle>
 					<DialogDescription className="truncate">{subtitle}</DialogDescription>
 				</DialogHeader>
-				<p className="px-5 pb-4 text-muted-foreground text-sm">{rulesCopy}</p>
+				<DialogBody>
+					<p className="type-body-sm text-text-2">{rulesCopy}</p>
+				</DialogBody>
 				<DialogFooter>
-					<DialogClose
-						className="text-muted-foreground text-xs transition-colors hover:text-foreground"
-						type="button"
-					>
-						cancel
-					</DialogClose>
+					<DialogClose>Cancel</DialogClose>
 					{unavailable || number == null ? null : (
-						<button
-							className="rounded-md bg-red-500/10 px-3 py-1.5 font-medium text-red-600 text-xs transition-colors hover:bg-red-500/20 dark:text-red-400"
-							disabled={mutation.isPending}
+						<DialogAction
+							close={false}
 							onClick={() => mutation.mutate({ data: { org, repo, number } })}
-							type="button"
+							pending={mutation.isPending}
+							pendingLabel="Queueing"
 						>
-							{mutation.isPending ? "queueing…" : "confirm re-run"}
-						</button>
+							Re-run rules
+						</DialogAction>
 					)}
 				</DialogFooter>
 			</DialogContent>

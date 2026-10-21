@@ -27,8 +27,8 @@ export const Route = createFileRoute("/")({
 	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle("Home"),
-			description: "the contribution gatekeeper.",
+			title: formatPageTitle("Create your first org"),
+			description: "The contribution gatekeeper for your repos.",
 			noindex: true,
 		}),
 });

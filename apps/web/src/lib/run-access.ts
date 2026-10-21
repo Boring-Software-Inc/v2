@@ -39,7 +39,12 @@ const PUBLIC_RUN_PATH = /^\/runs\/[^/]+\/?$/;
  * crawlable index of verdicts must not exist (§10).
  */
 export function isPublicPath(pathname: string): boolean {
-	return pathname === "/login" || PUBLIC_RUN_PATH.test(pathname);
+	return (
+		pathname === "/login" ||
+		PUBLIC_RUN_PATH.test(pathname) ||
+		(import.meta.env.DEV === true &&
+			(pathname === "/mascot" || pathname === "/game"))
+	);
 }
 
 function isJsonRecord(value: JsonValue): value is { [key: string]: JsonValue } {

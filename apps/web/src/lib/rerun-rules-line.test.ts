@@ -4,7 +4,7 @@ import { rerunRulesLine } from "#/lib/activity.functions";
 describe("rerunRulesLine", () => {
 	test("empty set names the gap", () => {
 		expect(rerunRulesLine([])).toBe(
-			"no rules will evaluate — enable a rule or workflow first.",
+			"no rules will run. Turn on a rule or workflow first",
 		);
 	});
 

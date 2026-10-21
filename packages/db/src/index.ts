@@ -41,6 +41,16 @@ export {
 	seedRun,
 	seedStory,
 } from "./seed.ts";
+export {
+	ensureDemoTeammates,
+	seedActivePersonaExtras,
+	seedApprovedInstallRequest,
+	seedEconomics,
+	seedRepoExtras,
+	seedRollups,
+	seedTeamOrg,
+	seedWorkflowCatalog,
+} from "./seed-extras.ts";
 export * as accessServices from "./services/access.ts";
 export * as accountServices from "./services/accounts.ts";
 export type {
@@ -71,13 +81,18 @@ export type {
 	RedeemResult,
 } from "./services/organizations.ts";
 export * as orgServices from "./services/organizations.ts";
+export * as presenceServices from "./services/presence.ts";
 export * as repoServices from "./services/repos.ts";
 export * as runServices from "./services/runs.ts";
 export type {
+	StaffInstallationList,
+	StaffInstallationRow,
 	StaffOrgList,
 	StaffOrgMemberRow,
 	StaffOrgRow,
 	StaffOverview,
+	StaffRepoList,
+	StaffRepoRow,
 	StaffUserList,
 	StaffUserRow,
 } from "./services/staff.ts";

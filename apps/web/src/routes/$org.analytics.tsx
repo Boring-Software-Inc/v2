@@ -9,8 +9,8 @@ export const Route = createFileRoute("/$org/analytics")({
 	head: ({ params, match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.org} · analytics`),
-			description: "org-level totals across repos.",
+			title: formatPageTitle(`${params.org} | Analytics`),
+			description: "Totals across all repos in this org.",
 			noindex: true,
 		}),
 });

@@ -47,6 +47,9 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 
 const base = { org: "o", repo: "r", canEdit: true };
 
+const ENABLE_DISABLED =
+	/<button(?=[^>]*\sdisabled="")(?=[^>]*aria-label="Enable rule account age")[^>]*>/;
+
 /**
  * §6 per-rule management — workflows compose with standalone rules, so a card
  * is either standalone (its own toggle runs) or managed (a workflow node).
@@ -56,8 +59,10 @@ const base = { org: "o", repo: "r", canEdit: true };
 describe("RuleCard management states", () => {
 	test("standalone: toggle present, no management tag", () => {
 		const html = render(<RuleCard {...base} rule={rule()} />);
-		expect(html).toContain('role="switch"');
-		expect(html).not.toContain("in workflow");
+		expect(html).toContain('aria-label="Disable rule account age"');
+		expect(html).toContain(">Disable rule<");
+		expect(html).not.toContain('role="switch"');
+		expect(html).not.toContain("In workflow");
 		expect(html).not.toContain(">off<");
 	});
 
@@ -68,8 +73,9 @@ describe("RuleCard management states", () => {
 				rule={rule({ management: "managed", config: { minDays: 14 } })}
 			/>,
 		);
-		expect(html).toContain("in workflow");
-		expect(html).not.toContain('role="switch"');
+		expect(html).toContain("In workflow");
+		expect(html).not.toContain("Disable rule");
+		expect(html).not.toContain("Enable rule");
 		// what actually runs is the workflow node's 14 days, not the card's old 7
 		expect(html).toContain("14 days");
 	});
@@ -78,20 +84,26 @@ describe("RuleCard management states", () => {
 		const heldStandalone = render(
 			<RuleCard {...base} rule={rule({ held: true })} />,
 		);
-		expect(heldStandalone).toContain("update held");
+		expect(heldStandalone).toContain("New version waiting");
 		const heldManaged = render(
 			<RuleCard {...base} rule={rule({ held: true, management: "managed" })} />,
 		);
-		expect(heldManaged).not.toContain("update held");
+		expect(heldManaged).not.toContain("New version waiting");
 	});
 
-	test("the 24h count reddens only when blocks actually fired", () => {
+	test("the footer states the effect and the last 24 hours of activity", () => {
+		const fired = render(<RuleCard {...base} rule={rule({ matches24h: 3 })} />);
+		expect(fired).toContain("Blocks");
+		expect(fired).toContain("matches, last 24 h");
 		expect(
-			render(<RuleCard {...base} rule={rule({ matches24h: 3 })} />),
-		).toContain("text-red-600");
+			render(<RuleCard {...base} rule={rule({ matches24h: 1 })} />),
+		).toContain("match, last 24 h");
 		expect(
 			render(<RuleCard {...base} rule={rule({ matches24h: 0 })} />),
-		).not.toContain("text-red-600");
+		).toContain("No matches, last 24 h");
+		expect(
+			render(<RuleCard {...base} rule={rule({ enabled: false })} />),
+		).toContain(">Off<");
 	});
 
 	test("an opt-in-off standalone rule keeps a DISTINCT enable offer", () => {
@@ -109,13 +121,13 @@ describe("RuleCard management states", () => {
 				})}
 			/>,
 		);
-		expect(html).toContain("enable");
+		expect(html).toContain("Enable rule");
 		expect(html).toContain("costs tokens");
 	});
 
 	test("workflow deep-links and labels are wired (source-locked, router-free)", () => {
 		const src = readFileSync(join(import.meta.dir, "rule-card.tsx"), "utf8");
-		expect(src).toContain("edit in workflow →");
+		expect(src).toContain("Edit in workflow");
 		expect(src).toContain("/$org/$repo/workflows/$workflowId");
 	});
 });
@@ -137,11 +149,10 @@ describe("RuleCard forge support", () => {
 			/>,
 		);
 		expect(html).toContain("not usable with gitlab");
-		expect(html).toContain('role="switch"');
-		expect(html).toContain("disabled");
+		expect(html).toMatch(ENABLE_DISABLED);
 	});
 
-	test("forge-blocked: an opt-in rule offers no 'enable' button", () => {
+	test("forge-blocked: an opt-in rule's enable button is disabled", () => {
 		const html = render(
 			<RuleCard
 				{...base}
@@ -152,12 +163,13 @@ describe("RuleCard forge support", () => {
 				})}
 			/>,
 		);
-		expect(html).not.toContain(">enable<");
+		expect(html).toMatch(ENABLE_DISABLED);
 	});
 
 	test("usable rule is untouched — no reason chip, toggle live", () => {
 		const html = render(<RuleCard {...base} rule={rule()} />);
 		expect(html).not.toContain("not usable with");
-		expect(html).toContain('role="switch"');
+		expect(html).toContain(">Disable rule<");
+		expect(html).not.toMatch(/<button[^>]*\sdisabled=""/);
 	});
 });

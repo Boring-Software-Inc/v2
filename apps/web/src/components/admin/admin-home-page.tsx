@@ -1,68 +1,79 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
+import { EntityCard } from "#/components/common/entity-card";
+import { CardRouterLink } from "#/components/common/router-links";
+import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { adminOverviewQueryOptions } from "#/lib/admin.query";
 
-/** /admin — counts and links. A tool, not a dashboard. */
+const SECTIONS = [
+	{
+		to: "/admin/users",
+		title: "Users",
+		description:
+			"Review beta access. Approve or decline, one at a time or in bulk.",
+	},
+	{
+		to: "/admin/orgs",
+		title: "Orgs",
+		description: "See every org and its members, and change member roles.",
+	},
+	{
+		to: "/admin/repos",
+		title: "Repos",
+		description: "Every connected repo, its org, and whether Tripwire is on.",
+	},
+	{
+		to: "/admin/installations",
+		title: "Installations",
+		description: "Every account the app is installed on, and who claimed it.",
+	},
+	{
+		to: "/admin/economics",
+		title: "Economics",
+		description:
+			"Cost per run, drift from invoices, remaining credit, and cost by org.",
+	},
+] as const;
+
 export function AdminHomePage() {
 	const { data } = useQuery(adminOverviewQueryOptions());
 
-	const stats = [
-		{ key: "pending", label: "pending users", value: data?.pendingUsers },
-		{ key: "approved", label: "approved users", value: data?.approvedUsers },
-		{ key: "orgs", label: "orgs", value: data?.orgs },
-		{ key: "repos", label: "repos", value: data?.repos },
-	];
-
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="mx-auto w-full max-w-4xl px-6 py-8">
-				<header className="mb-6">
-					<h1 className="font-semibold text-2xl tracking-tight">Admin</h1>
-					<p className="text-muted-foreground text-sm">
-						platform administration. staff only.
-					</p>
-				</header>
-
-				<div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-					{stats.map((stat) => (
-						<div className="rounded-xl border bg-card px-4 py-3" key={stat.key}>
-							<p className="text-muted-foreground text-xs">{stat.label}</p>
-							<p className="font-semibold text-2xl tabular-nums tracking-tight">
-								{stat.value ?? "–"}
+			<div className="px-4 py-6 md:px-8 md:py-10">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+					<header className="flex flex-col gap-1">
+						<h1 className="type-title">Admin</h1>
+						{data ? (
+							<p className="type-body text-text-2">
+								<span className="text-text-1 tabular-nums">
+									{data.pendingUsers}
+								</span>{" "}
+								{data.pendingUsers === 1 ? "user is" : "users are"} waiting for
+								access.
 							</p>
-						</div>
-					))}
-				</div>
+						) : (
+							<SkeletonText className="w-64 max-w-full" type="body" />
+						)}
+					</header>
 
-				<div className="mt-6 flex flex-col gap-3">
-					<Link
-						className="rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-surface-1"
-						to="/admin/users"
-					>
-						<p className="font-medium text-sm">users</p>
-						<p className="text-muted-foreground text-xs">
-							review beta access. approve or reject, single or in bulk.
-						</p>
-					</Link>
-					<Link
-						className="rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-surface-1"
-						to="/admin/orgs"
-					>
-						<p className="font-medium text-sm">orgs</p>
-						<p className="text-muted-foreground text-xs">
-							inspect orgs and members. fix role state without psql.
-						</p>
-					</Link>
-					<Link
-						className="rounded-xl border bg-card px-4 py-3 transition-colors hover:bg-surface-1"
-						to="/admin/economics"
-					>
-						<p className="font-medium text-sm">economics</p>
-						<p className="text-muted-foreground text-xs">
-							unit cost, drift, credit burn-down, and cost by org.
-						</p>
-					</Link>
+					<AdminOverviewStats overview={data} />
+
+					<ul aria-label="Admin sections" className="flex flex-col gap-3">
+						{SECTIONS.map((section) => (
+							<li key={section.to}>
+								<EntityCard
+									description={section.description}
+									title={
+										<CardRouterLink to={section.to}>
+											{section.title}
+										</CardRouterLink>
+									}
+								/>
+							</li>
+						))}
+					</ul>
 				</div>
 			</div>
 		</DashboardLayout>

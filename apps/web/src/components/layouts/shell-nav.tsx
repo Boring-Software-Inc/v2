@@ -1,35 +1,42 @@
+import { Link, useLocation, useParams } from "@tanstack/react-router";
+import { type RefObject, useEffect, useRef } from "react";
 import {
-	ActivityIcon,
-	Analytics01Icon,
-	CheckListIcon,
-	FlowIcon,
-	Queue01Icon,
-	Settings01Icon,
-	SlidersHorizontalIcon,
-} from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Link, useParams } from "@tanstack/react-router";
+	Activity,
+	Analytics,
+	Customize,
+	type GlazeIcon,
+	Home,
+	Icon,
+	Moderation,
+	Rules,
+	Settings,
+	Workflow,
+} from "#/components/glaze/icon";
+import { cn } from "#/lib/glaze/utils";
+
+type NavVariant = "tabs" | "rail";
 
 interface ShellNavProps {
 	counts: { queue?: number };
+	variant?: NavVariant;
 }
 
-/**
- * The nav for whatever scope the URL is in. It lives inside the page shell
- * rather than the topbar because the topbar now belongs to the window (tabs,
- * switcher, account) while this belongs to the page under it.
- *
- * Inside a repo it's the repo's page tree; at org scope it's the cross-repo
- * links. Keeping both in the same slot means org pages carry their nav on every
- * breakpoint — mobile included, where the footer is the tab strip.
- */
-export function ShellNav({ counts }: ShellNavProps) {
-	// URL-scoped exactly like the topbar (§8): the org and repo in the URL
-	// decide the tree.
+const NAV_CLASS = {
+	tabs: "flex h-10 min-w-0 shrink-0 items-stretch gap-5 overflow-x-auto border-line-faint border-b px-4 [scrollbar-width:none]",
+	rail: "flex min-w-0 flex-col gap-px",
+} satisfies Record<NavVariant, string>;
+
+const LINK_CLASS = {
+	tabs: "-mb-px flex shrink-0 items-center gap-1.5 border-transparent border-b-2 pt-0.5 type-label text-text-2 transition-colors duration-(--dur-state) ease-out hover:text-text-1 aria-[current=page]:border-ink aria-[current=page]:text-text-1",
+	rail: "flex h-(--control) items-center gap-2 rounded-tag px-2 type-label text-text-2 hover:bg-hover hover:text-text-1 aria-[current=page]:bg-pressed aria-[current=page]:text-text-1",
+} satisfies Record<NavVariant, string>;
+
+export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 	const params = useParams({ strict: false });
 	const org = params.org;
 	const repo = params.repo;
+	const navRef = useRef<HTMLElement>(null);
+	useActiveLinkInView(navRef);
 
 	if (!org) {
 		return null;
@@ -37,68 +44,83 @@ export function ShellNav({ counts }: ShellNavProps) {
 
 	if (!repo) {
 		return (
-			<nav
-				aria-label="Organization"
-				className="flex min-w-0 shrink-0 items-center gap-0.5 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-			>
+			<nav aria-label="Org" ref={navRef} className={NAV_CLASS[variant]}>
+				<NavLink
+					icon={Home}
+					label="Home"
+					to={`/${org}/home`}
+					variant={variant}
+				/>
 				<NavLink
 					exact={false}
-					icon={Analytics01Icon}
+					icon={Analytics}
 					label="Analytics"
 					to={`/${org}/analytics`}
+					variant={variant}
 				/>
-				{/* Settings is the inset dialog (`?settings=`), not a page — it opens
-				    over whatever org page you're on. */}
 				<NavLink
 					activeOptions={{ exact: true, includeSearch: true }}
-					icon={Settings01Icon}
+					icon={Settings}
 					label="Settings"
 					search={{ settings: "members" }}
 					to="."
+					variant={variant}
 				/>
 			</nav>
 		);
 	}
 
 	return (
-		<nav
-			aria-label="Repository"
-			className="flex min-w-0 shrink-0 items-center gap-0.5 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-		>
+		<nav aria-label="Repo" ref={navRef} className={NAV_CLASS[variant]}>
 			<NavLink
-				icon={Queue01Icon}
+				variant={variant}
+				icon={Moderation}
 				label="Moderation"
 				to={`/${org}/${repo}/moderation`}
 				value={counts.queue}
 			/>
 			<NavLink
-				icon={ActivityIcon}
+				variant={variant}
+				icon={Activity}
 				label="Activity"
 				to={`/${org}/${repo}/activity`}
 			/>
 			<NavLink
-				icon={CheckListIcon}
+				icon={Rules}
 				label="Rules"
 				to={`/${org}/${repo}/rules`}
+				variant={variant}
 			/>
 			<NavLink
-				icon={FlowIcon}
+				variant={variant}
+				icon={Workflow}
 				label="Workflows"
 				to={`/${org}/${repo}/workflows`}
 			/>
 			<NavLink
-				icon={SlidersHorizontalIcon}
+				variant={variant}
+				icon={Customize}
 				label="Customize"
 				to={`/${org}/${repo}/customize`}
 			/>
 			<NavLink
+				variant={variant}
 				exact={false}
-				icon={Analytics01Icon}
+				icon={Analytics}
 				label="Analytics"
 				to={`/${org}/${repo}/analytics`}
 			/>
 		</nav>
 	);
+}
+
+function useActiveLinkInView(navRef: RefObject<HTMLElement | null>) {
+	const pathname = useLocation({ select: (location) => location.pathname });
+	useEffect(() => {
+		if (!pathname) return;
+		const active = navRef.current?.querySelector('[aria-current="page"]');
+		active?.scrollIntoView({ block: "nearest", inline: "nearest" });
+	}, [navRef, pathname]);
 }
 
 function NavLink({
@@ -109,29 +131,37 @@ function NavLink({
 	search,
 	exact = true,
 	activeOptions,
+	variant,
 }: {
 	to: string;
 	label: string;
-	icon: IconSvgElement;
+	icon: GlazeIcon;
 	value?: number;
 	search?: Record<string, string>;
 	exact?: boolean;
 	activeOptions?: { exact: boolean; includeSearch?: boolean };
+	variant: NavVariant;
 }) {
 	return (
 		<Link
-			// Search-carrying links (the settings dialog) only read active while
-			// their search matches, not whenever the path does.
 			activeOptions={activeOptions ?? { exact }}
-			activeProps={{ className: "active" }}
+			activeProps={{ "aria-current": "page" }}
 			search={search}
-			className="flex h-7 shrink-0 items-center gap-2 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-surface-0 hover:text-foreground [&.active]:bg-surface-0 [&.active]:text-foreground"
+			className={LINK_CLASS[variant]}
 			to={to}
 		>
-			<HugeiconsIcon icon={icon} size={14} strokeWidth={2} />
+			{variant === "rail" ? <Icon icon={icon} /> : null}
 			<span>{label}</span>
 			{typeof value === "number" ? (
-				<span className="tabular-nums text-muted-foreground">{value}</span>
+				<span
+					className={cn(
+						"text-text-3 tabular-nums",
+						variant === "rail" && "ms-auto",
+					)}
+				>
+					{value}
+					<span className="sr-only"> to review</span>
+				</span>
 			) : null}
 		</Link>
 	);

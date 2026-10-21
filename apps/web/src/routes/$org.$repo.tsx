@@ -1,5 +1,5 @@
 import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
-import { OrgNotFound } from "#/components/organizations/org-not-found";
+import { NotFound } from "#/components/not-found";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 
 /** /:org/:repo — resolve the repo segment within the org, 404 otherwise. */
@@ -14,6 +14,6 @@ export const Route = createFileRoute("/$org/$repo")({
 			throw notFound();
 		}
 	},
-	notFoundComponent: OrgNotFound,
+	notFoundComponent: NotFound,
 	component: () => <Outlet />,
 });

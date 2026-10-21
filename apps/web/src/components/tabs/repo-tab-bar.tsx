@@ -1,26 +1,22 @@
-import { Cancel01Icon, Folder01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { Close, Folder, Icon } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
 import { useRepoTabTarget } from "#/components/tabs/repo-tab-target";
 import { useRepoTabs } from "#/components/tabs/repo-tabs-provider";
 import type { RepoTab } from "#/components/tabs/repo-tabs-state";
-import { cn } from "#/lib/utils";
+import { cn } from "#/lib/glaze/utils";
 
-/**
- * The strip of repos you've opened. Rendered in the topbar on desktop and in
- * the mobile footer, so the app nav can live inside the page shell on both.
- *
- * It's a recents list, not a scope control: every tab is a URL, so clicking one
- * is an ordinary navigation and the URL still owns the org (§8). Tabs cross
- * orgs freely — each carries its own.
- */
-export function RepoTabBar({ className }: { className?: string }) {
+export function RepoTabBar({
+	className,
+	orientation = "row",
+}: {
+	className?: string;
+	orientation?: "row" | "column";
+}) {
 	const { hydrated, tabs, closeTab } = useRepoTabs();
 	const target = useRepoTabTarget();
 	const navigate = useNavigate();
 
-	// Nothing to show before hydration — rendering an empty strip first would
-	// pop a row of tabs in one frame later.
 	if (!hydrated || tabs.length === 0) {
 		return null;
 	}
@@ -30,8 +26,6 @@ export function RepoTabBar({ className }: { className?: string }) {
 		if (tab.id !== target?.id) {
 			return;
 		}
-		// Closing the page you're on has to move you: the neighbour on the right,
-		// falling back to the left, and to org home when that was the last tab.
 		const index = tabs.findIndex((candidate) => candidate.id === tab.id);
 		const neighbour = tabs[index + 1] ?? tabs[index - 1];
 		navigate(
@@ -45,7 +39,9 @@ export function RepoTabBar({ className }: { className?: string }) {
 		<nav
 			aria-label="Open repos"
 			className={cn(
-				"flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+				orientation === "row"
+					? "flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]"
+					: "flex min-w-0 flex-col gap-px",
 				className,
 			)}
 		>
@@ -54,6 +50,7 @@ export function RepoTabBar({ className }: { className?: string }) {
 					active={tab.id === target?.id}
 					key={tab.id}
 					onClose={() => handleClose(tab)}
+					orientation={orientation}
 					tab={tab}
 				/>
 			))}
@@ -65,50 +62,51 @@ function RepoTabItem({
 	tab,
 	active,
 	onClose,
+	orientation,
 }: {
 	tab: RepoTab;
 	active: boolean;
 	onClose: () => void;
+	orientation: "row" | "column";
 }) {
+	const column = orientation === "column";
 	return (
 		<div
 			className={cn(
-				"group/tab flex h-7 shrink-0 items-center rounded-lg text-[13px] transition-colors",
+				"group/tab flex shrink-0 items-center gap-0.5 pe-0.5 type-label",
+				column ? "h-(--control) rounded-tag" : "h-(--control-sm) rounded-pill",
 				active
-					? "bg-surface-0 text-foreground"
-					: "text-muted-foreground hover:bg-surface-0 hover:text-foreground",
+					? "bg-pressed text-text-1"
+					: "text-text-2 hover:bg-hover hover:text-text-1",
 			)}
 		>
 			<Link
-				className="flex h-full min-w-0 items-center gap-2 ps-3 pe-1.5"
+				aria-current={active ? "page" : undefined}
+				className={cn(
+					"flex h-full min-w-0 items-center gap-1.5",
+					column ? "flex-1 rounded-tag ps-2" : "rounded-pill ps-3",
+				)}
 				title={tab.id}
 				to={tab.path}
 			>
-				<HugeiconsIcon
-					className="shrink-0"
-					icon={Folder01Icon}
-					size={14}
-					strokeWidth={2}
-				/>
-				<span className="min-w-0 max-w-[12rem] truncate font-medium">
-					{tab.id}
+				<Icon icon={Folder} />
+				<span className="min-w-0 max-w-48 truncate">
+					{column ? tab.id.split("/").at(-1) : tab.id}
 				</span>
 			</Link>
-			{/* Held open on the active tab so the page you're on can always be
-			    dismissed without hunting for a hover target. */}
-			<button
-				aria-label={`Close ${tab.id}`}
+			<Button
+				aria-label={`Close ${tab.id} tab`}
 				className={cn(
-					"me-1.5 flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground transition-opacity hover:bg-surface-2 hover:text-foreground",
 					active
 						? "opacity-100"
-						: "opacity-0 focus-visible:opacity-100 group-hover/tab:opacity-100",
+						: "opacity-0 focus-visible:opacity-100 group-hover/tab:opacity-100 pointer-coarse:opacity-100",
 				)}
 				onClick={onClose}
-				type="button"
+				size="icon-sm"
+				variant="ghost"
 			>
-				<HugeiconsIcon icon={Cancel01Icon} size={12} strokeWidth={2.4} />
-			</button>
+				<Icon icon={Close} size={12} />
+			</Button>
 		</div>
 	);
 }

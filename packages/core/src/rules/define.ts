@@ -1,4 +1,5 @@
 import {
+	FORGE_BY_ID,
 	type RuleResult,
 	ruleForgeBlockReason,
 	ruleSupportsForge,
@@ -105,7 +106,7 @@ export async function evaluateRule(
 			evidence: null,
 			reason:
 				ruleForgeBlockReason(rule.id, ctx.event.forge) ??
-				`not usable with ${ctx.event.forge}`,
+				`This rule cannot run on ${FORGE_BY_ID[ctx.event.forge]?.label ?? ctx.event.forge}.`,
 		};
 	}
 	const parsedConfig = rule.configSchema.safeParse(config);

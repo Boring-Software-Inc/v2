@@ -1,37 +1,47 @@
-import { DitherAvatar } from "#/components/charts/dither-kit";
+import { DitherAvatar } from "#/components/dither/dither-avatar";
+import { avatarVariants } from "#/components/glaze/ui/avatar";
+import { cn } from "#/lib/glaze/utils";
 
-/**
- * §7 org identity — the generative dither avatar, DERIVED from the org's
- * name at render (deterministic: same name ⇒ same avatar, ~1.5T combinations).
- * Nothing is stored except the optional hue override on the org row. Feed it
- * a controlled input's live value and it regenerates as the user types — the
- * /dither-kit landing behavior; `replayToken` can force the materialize
- * entrance to replay on demand.
- */
+type OrgAvatarSize = "xs" | "sm" | "default" | "lg" | "xl";
+
 export function OrgAvatar({
 	name,
 	hue,
-	size = 20,
+	size = "sm",
 	animate = false,
 	replayToken,
+	eyes = false,
+	decorative = true,
 	className,
 }: {
 	name: string;
-	/** Optional stored override (organization.avatarHue). */
 	hue?: number | null;
-	size?: number;
+	size?: OrgAvatarSize;
 	animate?: boolean;
 	replayToken?: number;
+	eyes?: boolean;
+	decorative?: boolean;
 	className?: string;
 }) {
+	const seed = name || "tripwire";
 	return (
 		<DitherAvatar
-			name={name || "tripwire"}
-			hue={hue ?? undefined}
-			size={size}
 			animate={animate}
+			eyes={eyes}
+			className={cn(
+				size === "xl"
+					? cn(
+							avatarVariants({ size: "lg", type: "source" }),
+							"size-12 rounded-panel",
+						)
+					: avatarVariants({ size, type: "source" }),
+				"overflow-hidden bg-field",
+				className,
+			)}
+			hue={hue ?? undefined}
+			label={decorative ? undefined : `${seed} avatar`}
+			name={seed}
 			replayToken={replayToken}
-			className={className}
 		/>
 	);
 }

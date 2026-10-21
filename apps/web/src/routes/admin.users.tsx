@@ -1,16 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AdminUsersPage } from "#/components/admin/admin-users-page";
 import { AdminUsersPageSkeleton } from "#/components/admin/admin-users-page-skeleton";
+import { adminUsersSearchSchema } from "#/lib/admin-search";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/admin/users")({
+	validateSearch: adminUsersSearchSchema,
 	component: AdminUsersPage,
 	pendingComponent: AdminUsersPageSkeleton,
 	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle("Admin · users"),
-			description: "beta access review.",
+			title: formatPageTitle("Admin | Users"),
+			description: "Review beta access requests.",
 			noindex: true,
 		}),
 });

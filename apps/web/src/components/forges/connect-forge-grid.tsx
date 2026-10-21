@@ -67,25 +67,25 @@ export function ConnectForgeGrid({
 		if (!org) {
 			return {
 				kind: "blocked",
-				title: "open an org first",
-				body: `${label} grants repos to an org — pick one, then connect.`,
+				title: "Open an org first",
+				body: `${label} connects repos to an org. Open the org you want, then connect.`,
 			};
 		}
 		if (!isOrgAdmin) {
 			return {
 				kind: "blocked",
-				title: "admins only",
-				body: `ask an org admin to connect ${label} repos.`,
+				title: "Only org admins can connect repos",
+				body: `Ask an admin of this org to connect ${label} repos.`,
 			};
 		}
 		if (installUrl?.status !== "ready") {
 			return {
 				kind: "blocked",
-				title: `${label} app unavailable`,
+				title: `${label} can't connect right now`,
 				body:
 					installUrl?.status === "not-configured"
-						? `the ${label} app isn't configured on this deployment.`
-						: "couldn't mint an install url — try again shortly.",
+						? `The ${label} app isn't set up on this Tripwire server. Ask whoever runs it to add the app.`
+						: `Tripwire couldn't create the ${label} install link. Try again in a minute.`,
 			};
 		}
 		return {
@@ -103,8 +103,8 @@ export function ConnectForgeGrid({
 	 * instead of an open index signature quietly returning undefined.
 	 */
 	const STATE = new Map<string, () => ForgeCellState>([
-		["github", () => installState("github", githubUrl)],
-		["opengit", () => installState("open-git", openGitUrl)],
+		["github", () => installState("GitHub", githubUrl)],
+		["opengit", () => installState("OpenGit", openGitUrl)],
 	]);
 
 	return (
@@ -114,17 +114,18 @@ export function ConnectForgeGrid({
 					id={forge.id}
 					key={forge.id}
 					label={forge.label}
+					showReason
 					state={
 						forge.status === "live"
 							? (STATE.get(forge.id)?.() ?? {
 									kind: "blocked",
 									title: `${forge.label} can't connect yet`,
-									body: "this forge signs in but has no repo import.",
+									body: `You can sign in with ${forge.label}, but Tripwire can't watch its repos yet.`,
 								})
 							: {
 									kind: "blocked",
-									title: `${forge.label} isn't live yet`,
-									body: `tripwire watches ${LIVE_FORGES} today.`,
+									title: `${forge.label} isn't available yet`,
+									body: `Tripwire watches ${LIVE_FORGES} today.`,
 								}
 					}
 				/>

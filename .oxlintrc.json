@@ -17,7 +17,11 @@
 		"**/routeTree.gen.ts",
 		".agents/**",
 		".claude/**",
-		"scripts/oxlint/anti-slop/**"
+		"scripts/oxlint/anti-slop/**",
+		"**/components/glaze/ui/**",
+		"**/components/glaze/ai/**",
+		"**/components/glaze/icon.tsx",
+		"**/lib/glaze/**"
 	],
 	"rules": {
 		"anti-slop/no-chained-type-assertions": "error",

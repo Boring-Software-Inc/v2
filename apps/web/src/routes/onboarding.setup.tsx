@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { InstallSetupPage } from "#/components/organizations/install-setup-page";
 import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
@@ -12,23 +13,25 @@ import { buildSeo, formatPageTitle } from "#/lib/seo";
  * Tripwire org Y") with a change option; a missing/invalid state renders the
  * CLAIM screen with an org picker. Never auto-attach on a guess.
  */
+const setupSearch = z.object({
+	installation_id: z
+		.union([z.string(), z.number()])
+		.transform(String)
+		.optional()
+		.catch(undefined),
+	setup_action: z.string().optional().catch(undefined),
+	state: z.string().optional().catch(undefined),
+});
+
 export const Route = createFileRoute("/onboarding/setup")({
-	validateSearch: (search: Record<string, unknown>) => ({
-		installation_id:
-			typeof search.installation_id === "string"
-				? search.installation_id
-				: undefined,
-		setup_action:
-			typeof search.setup_action === "string" ? search.setup_action : undefined,
-		state: typeof search.state === "string" ? search.state : undefined,
-	}),
+	validateSearch: (search) => setupSearch.parse(search),
 	component: InstallSetupPage,
 	pendingComponent: InstallSetupPageSkeleton,
 	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
 			title: formatPageTitle("Connect installation"),
-			description: "confirm where this GitHub installation lands.",
+			description: "Choose the Tripwire org that checks this installation.",
 			noindex: true,
 		}),
 });

@@ -2,11 +2,43 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FORGE_BY_ID } from "@tripwire/contracts";
 import { useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
+import { MetaRow } from "#/components/common/meta-row";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
-import { Button } from "#/components/ui/button";
-import { Skeleton } from "#/components/ui/skeleton";
-import { Spinner } from "#/components/ui/spinner";
-import { toast } from "#/components/ui/toast";
+import { Add, Icon } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Dialog,
+	DialogAction,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/glaze/ui/dialog";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemMedia,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
+import {
+	Skeleton,
+	SkeletonSwap,
+	SkeletonText,
+} from "#/components/glaze/ui/skeleton";
+import { toast } from "#/components/glaze/ui/toast";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	disconnectForge,
 	type ForgeConnection,
@@ -39,79 +71,104 @@ function ConnectionRow({ connection }: { connection: ForgeConnection }) {
 			toast.success(
 				result.removedRepos === 0
 					? `${label} disconnected`
-					: `${label} disconnected — ${result.removedRepos} ${result.removedRepos === 1 ? "repo" : "repos"} no longer watched`,
+					: `${label} disconnected. Tripwire stopped watching ${result.removedRepos} ${result.removedRepos === 1 ? "repo" : "repos"}.`,
 			);
-			setConfirming(false);
 			void queryClient.invalidateQueries();
-		},
-		onError: (error) => {
-			setConfirming(false);
-			toast.error(
-				error instanceof Error ? error.message : `couldn't disconnect ${label}`,
-			);
 		},
 	});
 
 	return (
-		<div className="flex items-center gap-3 rounded-lg bg-surface-0 px-3 py-2.5">
-			<ForgeMark
-				className="size-4 shrink-0 text-muted-foreground"
-				forge={connection.forge}
-			/>
-			<div className="flex min-w-0 flex-1 flex-col">
-				<span className="truncate font-medium text-[13px] text-foreground">
-					{label}
-				</span>
-				<span className="text-[12px] text-muted-foreground leading-5">
-					{connection.repoCount === 0
-						? "no repos"
-						: `${connection.repoCount} ${connection.repoCount === 1 ? "repo" : "repos"}`}
-					{connection.unclaimedCount > 0
-						? ` · ${connection.unclaimedCount} unclaimed`
-						: ""}
-					{needsReauth ? " · session expired" : ""}
-				</span>
-			</div>
-			{needsReauth ? (
+		<Item>
+			<ItemMedia variant="icon">
+				<ForgeMark className="size-(--icon)" forge={connection.forge} />
+			</ItemMedia>
+			<ItemContent>
+				<ItemTitle>
+					<span>{label}</span>
+				</ItemTitle>
+				<ItemDescription>
+					<MetaRow>
+						<span>
+							{connection.repoCount === 0
+								? "No repos"
+								: `${connection.repoCount} ${connection.repoCount === 1 ? "repo" : "repos"}`}
+						</span>
+						{connection.unclaimedCount > 0 ? (
+							<span>{connection.unclaimedCount} not in an org yet</span>
+						) : null}
+						{needsReauth ? (
+							<span>Access expired, reconnect to keep watching</span>
+						) : null}
+					</MetaRow>
+				</ItemDescription>
+			</ItemContent>
+			<ItemActions>
+				{needsReauth ? (
+					<Button
+						onClick={() => {
+							void reconnectForge(connection.forge).then((message) => {
+								if (message) {
+									toast.fail(message);
+								}
+							});
+						}}
+						size="sm"
+						variant="secondary"
+					>
+						Reconnect {label}
+					</Button>
+				) : null}
 				<Button
-					onClick={() => {
-						void reconnectForge(connection.forge).then((message) => {
-							if (message) {
-								toast.error(message);
-							}
-						});
-					}}
-					size="xs"
-					variant="outline"
+					aria-label={`Disconnect ${label}`}
+					onClick={() => setConfirming(true)}
+					size="sm"
+					variant="ghost"
 				>
-					reconnect
+					Disconnect
 				</Button>
-			) : null}
-			{confirming ? (
-				<div className="flex shrink-0 items-center gap-1">
-					<Button
-						disabled={disconnect.isPending}
-						iconLeft={disconnect.isPending ? <Spinner size={12} /> : undefined}
-						onClick={() => disconnect.mutate()}
-						size="xs"
-						variant="destructive"
-					>
-						disconnect
-					</Button>
-					<Button
-						onClick={() => setConfirming(false)}
-						size="xs"
-						variant="ghost"
-					>
-						cancel
-					</Button>
-				</div>
-			) : (
-				<Button onClick={() => setConfirming(true)} size="xs" variant="ghost">
-					disconnect
-				</Button>
-			)}
-		</div>
+			</ItemActions>
+			<Dialog onOpenChange={setConfirming} open={confirming} role="alertdialog">
+				<DialogContent size="sm">
+					<DialogHeader>
+						<DialogTitle>Disconnect {label}?</DialogTitle>
+						<DialogDescription>
+							Tripwire stops watching every repo that came in through {label}.
+							You can connect it again later.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<DialogClose>Cancel</DialogClose>
+						<DialogAction
+							onAction={() => disconnect.mutateAsync()}
+							pendingLabel="Disconnecting"
+							variant="destructive"
+						>
+							Disconnect {label}
+						</DialogAction>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</Item>
+	);
+}
+
+const ROW_SLOTS = ["a", "b"] as const;
+
+function ConnectionRowsSkeleton() {
+	return (
+		<ItemGroup variant="plain" aria-hidden>
+			{ROW_SLOTS.map((slot) => (
+				<Item key={slot}>
+					<ItemMedia variant="icon">
+						<Skeleton className="size-(--icon)" />
+					</ItemMedia>
+					<ItemContent>
+						<SkeletonText className="w-20" type="label" />
+						<SkeletonText className="w-32" type="body-sm" />
+					</ItemContent>
+				</Item>
+			))}
+		</ItemGroup>
 	);
 }
 
@@ -125,45 +182,74 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 	const { data: connections, isLoading } = useQuery(connectionsQueryOptions());
 
 	return (
-		<div className="flex flex-col gap-4">
+		<section
+			aria-labelledby="connections-heading"
+			className="flex flex-col gap-3"
+		>
 			<div className="flex items-start justify-between gap-3">
-				<div className="flex flex-col gap-1">
-					<h3 className="font-medium text-sm">connections</h3>
-					<p className="text-[13px] text-muted-foreground">
-						the forges this account is linked to. disconnecting stops tripwire
-						watching everything that arrived through it.
+				<div className="flex min-w-0 flex-col gap-0.5">
+					<h3 className="type-heading-sm" id="connections-heading">
+						Connections
+					</h3>
+					<p className="type-body-sm text-text-2">
+						The forges your account is linked to, and the repos each one brings
+						in.
 					</p>
 				</div>
-				<Button onClick={() => setConnecting(true)} size="sm" variant="outline">
-					connect
+				<Button
+					onClick={() => setConnecting(true)}
+					size="sm"
+					variant="secondary"
+				>
+					<Icon icon={Add} />
+					Connect repos
 				</Button>
 			</div>
 
-			{isLoading ? (
-				<div className="flex flex-col gap-1.5">
-					<Skeleton className="h-14 rounded-lg" />
-					<Skeleton className="h-14 rounded-lg" />
-				</div>
-			) : connections?.length ? (
-				<div className="flex flex-col gap-1.5">
-					{connections.map((connection) => (
-						<ConnectionRow
-							connection={connection}
-							key={`${connection.forge}:${connection.accountId}`}
-						/>
-					))}
-				</div>
-			) : (
-				<p className="rounded-lg bg-surface-0 px-3 py-6 text-center text-[13px] text-muted-foreground">
-					no forges connected yet.
-				</p>
-			)}
+			<SkeletonSwap
+				fallback={<ConnectionRowsSkeleton />}
+				label="Loading connections"
+				loading={isLoading}
+			>
+				{connections?.length ? (
+					<ItemGroup variant="plain" aria-label="Connections">
+						{connections.map((connection) => (
+							<ConnectionRow
+								connection={connection}
+								key={`${connection.forge}:${connection.accountId}`}
+							/>
+						))}
+					</ItemGroup>
+				) : (
+					<Empty
+						art={<MascotArt mood="forges-empty" size="compact" />}
+						size="sm"
+						variant="plain"
+					>
+						<EmptyHeader>
+							<EmptyTitle>No forges connected yet</EmptyTitle>
+							<EmptyDescription>
+								Connect a forge so Tripwire can watch its repos.
+							</EmptyDescription>
+						</EmptyHeader>
+						<EmptyContent>
+							<Button
+								onClick={() => setConnecting(true)}
+								size="sm"
+								variant="secondary"
+							>
+								Connect repos
+							</Button>
+						</EmptyContent>
+					</Empty>
+				)}
+			</SkeletonSwap>
 
 			<ConnectForgeDialog
 				onOpenChange={setConnecting}
 				open={connecting}
 				org={org}
 			/>
-		</div>
+		</section>
 	);
 }

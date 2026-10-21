@@ -1,21 +1,17 @@
 import type { AccessStatus } from "@tripwire/contracts";
-import { cn } from "#/lib/utils";
+import { Status, type StatusValue } from "#/components/glaze/ui/status";
 
-/**
- * accessStatus as the severity idiom — a dot marker plus a sans word, never a
- * filled pill. Pending carries the one earned hue on the users table.
- */
-const DOT: Record<AccessStatus, string> = {
-	pending: "bg-amber-500",
-	approved: "bg-muted-foreground/60",
-	rejected: "bg-red-500",
-};
+const STATUS = {
+	pending: { status: "waiting", label: "Pending" },
+	approved: { status: "idle", label: "Approved" },
+	rejected: { status: "fail", label: "Declined" },
+} satisfies Record<AccessStatus, { status: StatusValue; label: string }>;
 
-export function AccessStatusDot({ status }: { status: AccessStatus }) {
+export function AccessStatusMark({ status }: { status: AccessStatus }) {
+	const { status: value, label } = STATUS[status];
 	return (
-		<span className="inline-flex items-center gap-1.5 text-muted-foreground text-xs">
-			<span className={cn("size-1.5 rounded-full", DOT[status])} />
-			{status}
-		</span>
+		<Status size="sm" status={value}>
+			{label}
+		</Status>
 	);
 }

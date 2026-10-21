@@ -27,7 +27,7 @@ const DEMO_POOL = new Proxy(
 	{
 		get() {
 			throw new Error(
-				"no pg pool in demo mode — the web head runs alone (no worker/queue)",
+				"No Postgres pool in demo mode. The web app runs alone, with no worker or queue.",
 			);
 		},
 	},

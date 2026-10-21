@@ -5,6 +5,7 @@
  * mounts the provider without the bar has NO nav protection while dirty.
  */
 export {
+	DiscardChangesButton,
 	type SaveQueueCommit,
 	type SaveQueueCommitResult,
 	SaveQueueNavGuard,

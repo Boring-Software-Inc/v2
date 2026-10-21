@@ -1,7 +1,7 @@
 import type { AccessStatus } from "@tripwire/contracts";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Button } from "#/components/ui/button";
-import { Spinner } from "#/components/ui/spinner";
+import { Avatar } from "#/components/glaze/ui/avatar";
+import { Button } from "#/components/glaze/ui/button";
 import { authClient } from "#/lib/auth-client";
 
 /**
@@ -27,52 +27,56 @@ export function AccessPendingScreen({
 	const rejected = status === "rejected";
 
 	return (
-		<div className="flex min-h-dvh w-full items-center justify-center bg-background px-6">
-			<div className="flex w-full max-w-sm flex-col items-center gap-7 text-center">
-				<TripwireLogo className="text-foreground" size={28} />
+		<div className="flex min-h-dvh w-full items-center justify-center bg-page px-4 py-10">
+			<div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
+				<TripwireLogo className="text-text-1" size={28} />
 
-				<div className="flex flex-col gap-2.5">
-					<h1 className="font-semibold text-lg text-foreground">
-						{rejected ? "Not this time" : "You're on the waitlist"}
-					</h1>
-					<p className="text-[13px] text-muted-foreground leading-relaxed">
+				<div className="flex flex-col gap-2">
+					<h1 className="type-title">
 						{rejected
-							? "Your access request wasn't approved. Thanks for your interest in Tripwire — feel free to check back as we open up more broadly."
-							: "You applied with GitHub — you're in line for the closed beta. We review requests manually and will email you the moment you're approved."}
+							? "Your access request was declined"
+							: "You're on the waitlist"}
+					</h1>
+					<p className="type-body text-text-2">
+						{rejected
+							? "Tripwire is in a closed beta with limited places. We are letting more people in over time, so check back later."
+							: "Your request to join the closed beta is in. We review each request by hand and email you when you are approved."}
 					</p>
 				</div>
 
 				{onCheck && !rejected ? (
 					<Button
-						type="button"
-						variant="outline"
-						size="sm"
 						onClick={onCheck}
-						disabled={checking}
-						iconLeft={checking ? <Spinner size={14} /> : null}
+						pending={checking}
+						pendingLabel="Checking status"
+						size="sm"
+						type="button"
+						variant="secondary"
 					>
 						Check status
 					</Button>
 				) : null}
 
-				<div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-					{image ? (
-						<img
-							alt=""
-							className="size-5 rounded-full outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
-							crossOrigin="anonymous"
-							src={image}
-						/>
+				<div className="flex items-center gap-2 type-body-sm text-text-2">
+					{email ? (
+						<>
+							<Avatar
+								decorative
+								name={email}
+								size="sm"
+								src={image ?? undefined}
+							/>
+							<span className="min-w-0 truncate">{email}</span>
+						</>
 					) : null}
-					{email ? <span>{email}</span> : null}
-					<span className="text-muted-foreground/60">·</span>
-					<button
-						type="button"
+					<Button
 						onClick={() => authClient.signOut()}
-						className="underline-offset-2 hover:text-foreground hover:underline"
+						size="sm"
+						type="button"
+						variant="ghost"
 					>
 						Sign out
-					</button>
+					</Button>
 				</div>
 			</div>
 		</div>

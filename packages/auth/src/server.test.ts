@@ -23,6 +23,6 @@ describe("resolveAuthPosture — fail-closed in production", () => {
 	test("no secret in production ⇒ REFUSES to serve", () => {
 		expect(() =>
 			resolveAuthPosture({ secret: undefined, nodeEnv: "production" }),
-		).toThrow("refusing to serve");
+		).toThrow("will not start in production");
 	});
 });

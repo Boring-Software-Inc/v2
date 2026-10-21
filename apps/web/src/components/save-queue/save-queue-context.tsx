@@ -5,8 +5,20 @@ import {
 	useCallback,
 	useContext,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Dialog,
+	DialogAction,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/glaze/ui/dialog";
 
 /**
  * The batched save queue: pending changes collect here instead of hitting the
@@ -196,18 +208,92 @@ export function useSaveQueue(): SaveQueueValue {
  * Navigation-away protection while dirty: in-app navigations confirm, hard
  * reloads/closes get the browser prompt. Rendered by the unsaved-changes bar
  * (every adopting page mounts it), NOT by the provider — the provider stays
- * router-free so components under it render in router-less tests. Native
- * confirm for now; upgradeable to the Dialog primitive without an API change.
+ * router-free so components under it render in router-less tests.
  */
 export function SaveQueueNavGuard() {
-	const { isDirty } = useSaveQueue();
-	useBlocker({
+	const { isDirty, count } = useSaveQueue();
+	const leaving = useRef(false);
+	const blocker = useBlocker({
 		disabled: !isDirty,
-		shouldBlockFn: () =>
-			!window.confirm("you have unsaved changes. leave anyway?"),
+		shouldBlockFn: () => true,
 		enableBeforeUnload: () => isDirty,
+		withResolver: true,
 	});
-	return null;
+	return (
+		<Dialog
+			onOpenChange={(next) => {
+				if (!next && !leaving.current) {
+					blocker.reset?.();
+				}
+				leaving.current = false;
+			}}
+			open={blocker.status === "blocked"}
+			role="alertdialog"
+		>
+			<DialogContent size="sm">
+				<DialogHeader>
+					<DialogTitle>Leave without saving?</DialogTitle>
+					<DialogDescription>
+						You have {count} unsaved {count === 1 ? "change" : "changes"}. If
+						you leave this page, {count === 1 ? "it is" : "they are"} lost.
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<DialogClose>Stay on page</DialogClose>
+					<DialogAction
+						onAction={() => {
+							leaving.current = true;
+							blocker.proceed?.();
+						}}
+						variant="destructive"
+					>
+						Leave without saving
+					</DialogAction>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+export function DiscardChangesButton({
+	onDiscard,
+	disabled,
+}: {
+	onDiscard: () => void;
+	disabled?: boolean;
+}) {
+	const { count } = useSaveQueue();
+	const [open, setOpen] = useState(false);
+	return (
+		<>
+			<Button
+				disabled={disabled}
+				onClick={() => setOpen(true)}
+				size="sm"
+				variant="secondary"
+			>
+				Discard
+			</Button>
+			<Dialog onOpenChange={setOpen} open={open} role="alertdialog">
+				<DialogContent size="sm">
+					<DialogHeader>
+						<DialogTitle>
+							Discard {count} unsaved {count === 1 ? "change" : "changes"}?
+						</DialogTitle>
+						<DialogDescription>
+							Every setting goes back to its last saved value.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<DialogClose>Keep editing</DialogClose>
+						<DialogAction onAction={onDiscard} variant="destructive">
+							Discard changes
+						</DialogAction>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		</>
+	);
 }
 
 /** The uniform control binding: read pending-or-saved, write to the queue. */

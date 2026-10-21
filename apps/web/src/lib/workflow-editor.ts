@@ -1,4 +1,5 @@
 import type {
+	EdgeWhen,
 	WorkflowDefinition,
 	WorkflowEdge,
 	WorkflowNode,
@@ -29,6 +30,25 @@ export interface EditorEdge {
 	 */
 	sourceHandle?: string | null;
 	label?: string;
+	data?: { when?: EdgeWhen };
+}
+
+const EDGE_LABELS = {
+	pass: "Passes",
+	fail: "Doesn't pass",
+	approve: "Approved",
+	deny: "Blocked",
+} satisfies Record<EdgeWhen, string>;
+
+export function edgeLabel(when: EdgeWhen | undefined): string | undefined {
+	return when ? EDGE_LABELS[when] : undefined;
+}
+
+export function edgeWhenFields(when: EdgeWhen | undefined): {
+	label?: string;
+	data: { when?: EdgeWhen };
+} {
+	return when ? { label: EDGE_LABELS[when], data: { when } } : { data: {} };
 }
 
 const HANDLE_WHENS = new Set(["fail", "approve", "deny"]);
@@ -94,7 +114,7 @@ export function definitionToGraph(definition: WorkflowDefinition): {
 		target: edge.to,
 		sourceHandle:
 			edge.when && HANDLE_WHENS.has(edge.when) ? edge.when : undefined,
-		label: edge.when,
+		...edgeWhenFields(edge.when),
 	}));
 	return { nodes, edges };
 }
@@ -123,7 +143,7 @@ export function graphToDefinition(
 			from: edge.source,
 			to: edge.target,
 			...(() => {
-				const when = handleWhen(edge.sourceHandle) ?? edge.label;
+				const when = handleWhen(edge.sourceHandle) ?? edge.data?.when;
 				return when ? { when } : {};
 			})(),
 		})),
@@ -133,7 +153,7 @@ export function graphToDefinition(
 		const issue = parsed.error.issues[0];
 		return {
 			ok: false,
-			error: `${issue?.path.join(".")}: ${issue?.message}`,
+			error: `Tripwire could not save this workflow. Check ${issue?.path.join(".") || "the workflow"}: ${issue?.message}`,
 		};
 	}
 	return { ok: true, definition: parsed.data };

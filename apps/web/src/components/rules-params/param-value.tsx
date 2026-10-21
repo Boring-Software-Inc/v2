@@ -1,4 +1,5 @@
 import { formatParamValue, type RuleParam } from "@tripwire/contracts";
+import { Fragment } from "react";
 
 /**
  * A param's value as it reads in a sentence (§9): a bold scalar (value + unit /
@@ -17,20 +18,18 @@ export function ParamValue({
 			? (value as string[])
 			: [...param.default];
 		return (
-			<span className="inline-flex flex-wrap gap-1 align-middle">
-				{items.map((item) => (
-					<code
-						className="rounded bg-surface-1 px-1 py-0.5 font-mono text-[11px] text-foreground"
-						key={item}
-					>
-						{item}
-					</code>
+			<span className="font-medium text-text-1">
+				{items.map((item, index) => (
+					<Fragment key={item}>
+						{index > 0 ? ", " : null}
+						<code>{item}</code>
+					</Fragment>
 				))}
 			</span>
 		);
 	}
 	return (
-		<span className="font-semibold text-foreground">
+		<span className="font-medium text-text-1">
 			{formatParamValue(param, value)}
 		</span>
 	);

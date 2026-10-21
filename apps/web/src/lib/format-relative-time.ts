@@ -1,6 +1,6 @@
 export function formatRelativeTime(dateStr: string, now?: number): string {
 	const dateMs = new Date(dateStr).getTime();
-	if (Number.isNaN(dateMs)) return "—";
+	if (Number.isNaN(dateMs)) return "unknown";
 	const seconds = Math.floor(((now ?? Date.now()) - dateMs) / 1000);
 	if (seconds < 60) return "just now";
 	const minutes = Math.floor(seconds / 60);

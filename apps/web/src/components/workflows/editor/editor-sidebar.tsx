@@ -14,18 +14,42 @@ import {
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { useState } from "react";
-import { KIND_STYLES } from "#/components/workflows/editor/node-kind-styles";
+import { Add, ArrowLeft, Close, Icon } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleGroup,
+	CollapsibleTrigger,
+} from "#/components/glaze/ui/collapsible";
+import { Input } from "#/components/glaze/ui/input";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemMedia,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
 import {
 	hasEditableParams,
 	PropertiesPanel,
 } from "#/components/workflows/editor/properties-panel";
-import { cn } from "#/lib/utils";
+import {
+	actionIcon,
+	gateIcon,
+	KIND_ICON,
+	KIND_LABEL,
+	ruleIcon,
+	stepIcon,
+	stepName,
+	triggerIcon,
+} from "#/components/workflows/editor/step-meta";
+import { cn } from "#/lib/glaze/utils";
 
 /**
- * The floating left sidebar — toolbox (catalog-driven palette, dnd-kit drag
- * sources + click-to-add) and properties (schema-driven editors for the
- * selected node). Properties is disabled without a selection or when the
- * selection has nothing to edit.
+ * The floating left sidebar. With nothing selected it is the toolbox
+ * (catalog-driven palette, dnd-kit drag sources + click-to-add); with one step
+ * selected it is that step's properties (schema-driven editors).
  */
 
 export type ToolboxItem =
@@ -66,7 +90,7 @@ export const TOOLBOX_SECTIONS: {
 	items: ToolboxItem[];
 }[] = [
 	{
-		title: "triggers",
+		title: "Triggers",
 		kind: "trigger",
 		items: TRIGGER_CATALOG.filter((entry) => entry.toolbox).map((entry) => ({
 			id: `trigger-${entry.kind}`,
@@ -77,7 +101,7 @@ export const TOOLBOX_SECTIONS: {
 		})),
 	},
 	{
-		title: "rules",
+		title: "Rules",
 		kind: "rule",
 		items: RULE_CATALOG.map((entry) => ({
 			id: `rule-${entry.ruleId}@${entry.version}`,
@@ -89,7 +113,7 @@ export const TOOLBOX_SECTIONS: {
 		})),
 	},
 	{
-		title: "gates",
+		title: "Gates",
 		kind: "gate",
 		items: GATE_CATALOG.map((entry) => ({
 			id: `gate-${entry.mode}`,
@@ -100,7 +124,7 @@ export const TOOLBOX_SECTIONS: {
 		})),
 	},
 	{
-		title: "actions",
+		title: "Actions",
 		kind: "action",
 		items: ACTION_CATALOG.map((entry) => ({
 			id: `action-${entry.action}`,
@@ -149,6 +173,7 @@ export interface EditorSidebarProps {
 	readOnly: boolean;
 	selectedNode: WorkflowNode | null;
 	onAdd: (item: ToolboxItem) => void;
+	onClearSelection: () => void;
 	onUpdateNode: (next: WorkflowNode) => void;
 	onTestConnection: (
 		url: string,
@@ -163,6 +188,7 @@ export function EditorSidebar({
 	readOnly,
 	selectedNode,
 	onAdd,
+	onClearSelection,
 	onUpdateNode,
 	onTestConnection,
 }: EditorSidebarProps) {
@@ -184,90 +210,194 @@ export function EditorSidebar({
 				}
 			: section,
 	);
-	const [tab, setTab] = useState<"toolbox" | "properties">("toolbox");
-	const propertiesDisabled =
-		selectedNode === null || !hasEditableParams(selectedNode);
-	const activeTab = propertiesDisabled ? "toolbox" : tab;
+	const [shown, setShown] = useState<"auto" | "open" | "closed">("auto");
+	const addAndReveal = (item: ToolboxItem) => {
+		onAdd(item);
+		if (!window.matchMedia("(min-width: 768px)").matches) {
+			setShown("auto");
+		}
+	};
+	const customName =
+		selectedNode?.type === "rule"
+			? (customRules.find((rule) => rule.ref === selectedNode.ref)?.name ??
+				null)
+			: null;
 
 	return (
-		<div className="absolute top-3 bottom-3 left-3 z-10 flex w-64 flex-col overflow-hidden rounded-xl border bg-surface-0/95 shadow-md backdrop-blur">
-			<div className="flex shrink-0 gap-1 p-1.5 pb-0">
-				<button
-					className={cn(
-						"flex-1 rounded-md px-2 py-1 font-medium text-xs transition-colors",
-						activeTab === "toolbox"
-							? "bg-surface-1 text-foreground"
-							: "text-muted-foreground hover:bg-surface-1",
+		<>
+			<Button
+				className={cn(
+					"absolute start-3 top-3 z-(--z-raised)",
+					shown === "auto" && "md:hidden",
+					shown === "open" && "hidden",
+				)}
+				onClick={() => setShown("open")}
+				size="sm"
+				variant="secondary"
+			>
+				{readOnly ? null : <Icon icon={Add} />}
+				{readOnly ? "Show toolbox" : "Add steps"}
+			</Button>
+			<div
+				className={cn(
+					"shell absolute start-3 top-3 bottom-3 z-(--z-raised) w-68 flex-col",
+					shown === "auto" && "hidden md:flex",
+					shown === "open" && "flex",
+					shown === "closed" && "hidden",
+				)}
+			>
+				<div className="panel flex min-h-0 flex-1 flex-col overflow-hidden">
+					{selectedNode ? (
+						<StepProperties
+							customName={customName}
+							key={selectedNode.id}
+							node={selectedNode}
+							onBack={onClearSelection}
+							onTestConnection={onTestConnection}
+							onUpdate={onUpdateNode}
+							readOnly={readOnly}
+						/>
+					) : (
+						<Toolbox
+							onAdd={addAndReveal}
+							onHide={() => setShown("closed")}
+							org={org}
+							readOnly={readOnly}
+							repo={repo}
+							sections={sections}
+						/>
 					)}
-					onClick={() => setTab("toolbox")}
-					type="button"
-				>
-					toolbox
-				</button>
-				<button
-					className={cn(
-						"flex-1 rounded-md px-2 py-1 font-medium text-xs transition-colors",
-						activeTab === "properties"
-							? "bg-surface-1 text-foreground"
-							: "text-muted-foreground",
-						propertiesDisabled
-							? "cursor-not-allowed opacity-40"
-							: "hover:bg-surface-1",
-					)}
-					disabled={propertiesDisabled}
-					onClick={() => setTab("properties")}
-					type="button"
-				>
-					properties
-				</button>
+				</div>
 			</div>
-			<div className="min-h-0 flex-1 overflow-y-auto p-2">
-				{activeTab === "toolbox" ? (
-					<div className="flex flex-col gap-2.5">
-						{sections.map((section) => (
-							<div
-								className="overflow-hidden rounded-xl border bg-card"
-								key={section.title}
-							>
-								<div className="bg-surface-1 px-3 py-2">
-									<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-										{section.title}
-									</p>
-								</div>
-								<div className="divide-y divide-border/60">
-									{section.items.map((item) => (
-										<ToolboxRow
-											disabled={readOnly}
-											item={item}
-											key={item.id}
-											onAdd={onAdd}
-										/>
-									))}
-									{section.kind === "rule" ? (
-										<Link
-											className="block px-3 py-2 font-medium text-primary text-xs hover:bg-surface-1"
-											params={{ org, repo }}
-											to="/$org/$repo/rules"
-										>
-											create rule →
-										</Link>
-									) : null}
-								</div>
-							</div>
-						))}
-					</div>
-				) : selectedNode ? (
-					<PropertiesPanel
-						key={selectedNode.id}
-						node={selectedNode}
-						onTestConnection={onTestConnection}
-						onUpdate={onUpdateNode}
-						readOnly={readOnly}
-					/>
-				) : null}
-			</div>
-		</div>
+		</>
 	);
+}
+
+type ToolboxSection = (typeof TOOLBOX_SECTIONS)[number];
+
+const OPEN_BY_DEFAULT: ToolboxItem["kind"][] = ["trigger", "rule"];
+
+function matches(item: ToolboxItem, needle: string): boolean {
+	return `${item.name} ${item.description}`.toLowerCase().includes(needle);
+}
+
+function Toolbox({
+	sections,
+	readOnly,
+	org,
+	repo,
+	onAdd,
+	onHide,
+}: {
+	sections: ToolboxSection[];
+	readOnly: boolean;
+	org: string;
+	repo: string;
+	onAdd: (item: ToolboxItem) => void;
+	onHide: () => void;
+}) {
+	const [query, setQuery] = useState("");
+	const [open, setOpen] = useState<string[]>(OPEN_BY_DEFAULT);
+	const needle = query.trim().toLowerCase();
+	const searching = needle !== "";
+	const visible = searching
+		? sections
+				.map((section) => ({
+					...section,
+					items: section.items.filter((item) => matches(item, needle)),
+				}))
+				.filter((section) => section.items.length > 0)
+		: sections;
+
+	return (
+		<>
+			<div className="flex shrink-0 items-center gap-1 border-line-faint border-b p-2">
+				<Input
+					aria-label="Search steps"
+					className="min-w-0 flex-1"
+					mode="search"
+					onValueChange={setQuery}
+					placeholder="Search steps"
+					size="sm"
+					value={query}
+				/>
+				<Button
+					aria-label="Hide toolbox"
+					onClick={onHide}
+					size="icon-sm"
+					variant="ghost"
+				>
+					<Icon icon={Close} />
+				</Button>
+			</div>
+			<div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+				{visible.length === 0 ? (
+					<p className="px-1 py-3 type-body-sm text-text-2">
+						No steps match “{query.trim()}”.
+					</p>
+				) : (
+					<CollapsibleGroup
+						multiple
+						onValueChange={(next) => setOpen(next as string[])}
+						value={searching ? visible.map((section) => section.kind) : open}
+						variant="plain"
+					>
+						{visible.map((section) => (
+							<Collapsible key={section.kind} value={section.kind}>
+								<CollapsibleTrigger summary={String(section.items.length)}>
+									<span className="inline-flex items-center gap-2">
+										<Icon icon={KIND_ICON[section.kind]} />
+										{section.title}
+									</span>
+								</CollapsibleTrigger>
+								<CollapsibleContent className="max-w-none pe-0 pb-2 group-data-[variant=plain]/collapsible-group:ps-2">
+									<div className="flex flex-col">
+										{section.items.map((item) => (
+											<ToolboxRow
+												disabled={readOnly}
+												item={item}
+												key={item.id}
+												onAdd={onAdd}
+											/>
+										))}
+									</div>
+									{section.kind === "rule" && !searching ? (
+										<Button
+											className="ms-0.5 mt-1"
+											nativeButton={false}
+											render={
+												<Link params={{ org, repo }} to="/$org/$repo/rules" />
+											}
+											size="sm"
+											variant="ghost"
+										>
+											<Icon icon={Add} />
+											Create rule
+										</Button>
+									) : null}
+								</CollapsibleContent>
+							</Collapsible>
+						))}
+					</CollapsibleGroup>
+				)}
+			</div>
+		</>
+	);
+}
+
+function toolboxItemIcon(item: ToolboxItem) {
+	switch (item.kind) {
+		case "trigger":
+			return triggerIcon(item.eventKind);
+		case "rule":
+			return ruleIcon(item.ref);
+		case "gate":
+			return gateIcon(item.mode);
+		case "action":
+			return actionIcon(item.action);
+		default:
+			return KIND_ICON.rule;
+	}
 }
 
 function ToolboxRow({
@@ -279,35 +409,96 @@ function ToolboxRow({
 	disabled: boolean;
 	onAdd: (item: ToolboxItem) => void;
 }) {
-	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+	const { listeners, setNodeRef, isDragging } = useDraggable({
 		id: item.id,
 		data: item,
 		disabled,
 	});
-	const style = KIND_STYLES[item.kind];
 	return (
-		<button
-			className={cn(
-				"w-full border-l-2 border-l-transparent px-3 py-2 text-left transition-colors",
-				disabled
-					? "cursor-not-allowed opacity-50"
-					: cn("cursor-grab hover:bg-surface-1", style.hoverAccent),
-				isDragging && "opacity-40",
-			)}
+		<Item
+			className={cn(!disabled && "cursor-grab", isDragging && "opacity-40")}
 			disabled={disabled}
-			onClick={() => onAdd(item)}
+			onClick={disabled ? undefined : () => onAdd(item)}
 			ref={setNodeRef}
-			type="button"
+			size="sm"
+			title={item.description}
 			{...listeners}
-			{...attributes}
 		>
-			<span className="flex items-center gap-1.5 text-xs">
-				<span className={cn("size-1.5 shrink-0 rounded-full", style.dot)} />
-				{item.name}
-			</span>
-			<span className="mt-0.5 block text-[11px] text-muted-foreground leading-4">
-				{item.description}
-			</span>
-		</button>
+			<ItemMedia>
+				<Icon className="text-text-2" icon={toolboxItemIcon(item)} />
+			</ItemMedia>
+			<ItemContent>
+				<ItemTitle>
+					<span className="truncate">{item.name}</span>
+				</ItemTitle>
+			</ItemContent>
+			<ItemActions className="static -me-3">
+				<Button
+					aria-label={`Add ${item.name}`}
+					className="static after:absolute after:inset-0 after:content-['']"
+					data-slot="item-link"
+					disabled={disabled}
+					size="icon-sm"
+					variant="ghost"
+				>
+					<Icon
+						className="opacity-0 transition-opacity duration-(--dur-state) group-hover/item:opacity-100 group-has-[[data-slot=item-link]:focus-visible]/item:opacity-100 pointer-coarse:opacity-100"
+						icon={Add}
+					/>
+				</Button>
+			</ItemActions>
+		</Item>
+	);
+}
+
+function StepProperties({
+	node,
+	customName,
+	readOnly,
+	onBack,
+	onUpdate,
+	onTestConnection,
+}: {
+	node: WorkflowNode;
+	customName: string | null;
+	readOnly: boolean;
+	onBack: () => void;
+	onUpdate: (next: WorkflowNode) => void;
+	onTestConnection: EditorSidebarProps["onTestConnection"];
+}) {
+	const name = stepName(node, customName);
+	const kind = KIND_LABEL[node.type];
+	return (
+		<>
+			<div className="flex shrink-0 items-center gap-2 border-line-faint border-b py-2 ps-2 pe-3">
+				<Button
+					aria-label="Back to the toolbox"
+					onClick={onBack}
+					size="icon-sm"
+					variant="ghost"
+				>
+					<Icon icon={ArrowLeft} />
+				</Button>
+				<Icon className="text-text-2" icon={stepIcon(node)} />
+				<h2 className="min-w-0 flex-1 truncate type-label">{name}</h2>
+				{kind === name ? null : (
+					<span className="shrink-0 type-caption text-text-2">{kind}</span>
+				)}
+			</div>
+			<div className="min-h-0 flex-1 overflow-y-auto p-3">
+				{hasEditableParams(node) ? (
+					<PropertiesPanel
+						node={node}
+						onTestConnection={onTestConnection}
+						onUpdate={onUpdate}
+						readOnly={readOnly}
+					/>
+				) : (
+					<p className="type-body-sm text-text-2">
+						This step has no settings to change.
+					</p>
+				)}
+			</div>
+		</>
 	);
 }

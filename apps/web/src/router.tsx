@@ -1,5 +1,6 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
+import { RouteError } from "#/components/common/route-error";
 import { NotFound } from "#/components/not-found";
 import {
 	AppQueryClientProvider,
@@ -18,6 +19,7 @@ export function getRouter() {
 		defaultPreload: "intent",
 		defaultPreloadStaleTime: 0,
 		defaultNotFoundComponent: NotFound,
+		defaultErrorComponent: RouteError,
 		Wrap: ({ children }) => (
 			<AppQueryClientProvider queryClient={queryClient}>
 				{children}

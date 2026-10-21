@@ -1,9 +1,10 @@
 import type { RuleParam } from "@tripwire/contracts";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Checkbox } from "#/components/glaze/ui/checkbox";
+import { Chip, ChipGroup } from "#/components/glaze/ui/chip";
+import { Input } from "#/components/glaze/ui/input";
+import { NativeSelect } from "#/components/glaze/ui/select";
 import { coerceParamInput } from "./coerce";
-
-const INPUT =
-	"rounded border bg-background px-1.5 py-0.5 text-xs outline-none focus:ring-1 focus:ring-ring";
 
 /**
  * Schema-driven inline editor for ONE param (§9). Number/string/enum edit in
@@ -28,30 +29,30 @@ export function ParamEditor({
 	}
 	if (param.kind === "boolean") {
 		return (
-			<input
+			<Checkbox
 				aria-label={param.label}
 				checked={value === true}
-				className="accent-brand align-middle"
-				onChange={(e) => onSave(e.target.checked)}
-				type="checkbox"
+				className="align-middle"
+				onCheckedChange={(checked) => onSave(checked)}
 			/>
 		);
 	}
 	if (param.kind === "enum") {
 		return (
-			<select
+			<NativeSelect
 				aria-label={param.label}
-				className={INPUT}
+				className="inline-block w-auto align-middle"
 				defaultValue={typeof value === "string" ? value : param.default}
 				onBlur={onCancel}
 				onChange={(e) => onSave(e.target.value)}
+				size="sm"
 			>
 				{param.options.map((opt) => (
 					<option key={opt} value={opt}>
 						{opt}
 					</option>
 				))}
-			</select>
+			</NativeSelect>
 		);
 	}
 	return (
@@ -101,23 +102,32 @@ function ScalarEditor({
 		}
 	};
 
+	const suffix =
+		param.kind === "number" && param.percent
+			? "%"
+			: param.kind === "number" && param.unit
+				? param.unit
+				: undefined;
+
 	return (
-		<span className="inline-flex items-center gap-1 align-middle">
-			<input
+		<span className="inline-flex flex-wrap items-center gap-1 align-middle">
+			<Input
+				aria-invalid={error !== null}
 				aria-label={param.label}
-				className={`w-16 ${INPUT}`}
-				min={
-					param.kind === "number" && param.min !== undefined
-						? param.percent
-							? param.min * 100
-							: param.min
-						: undefined
-				}
+				autoFocus
+				className={param.kind === "number" ? "w-28" : "w-40"}
 				max={
 					param.kind === "number" && param.max !== undefined
 						? param.percent
 							? param.max * 100
 							: param.max
+						: undefined
+				}
+				min={
+					param.kind === "number" && param.min !== undefined
+						? param.percent
+							? param.min * 100
+							: param.min
 						: undefined
 				}
 				onBlur={commit}
@@ -132,17 +142,16 @@ function ScalarEditor({
 						onCancel();
 					}
 				}}
+				size="sm"
 				step={param.kind === "number" && param.int ? 1 : "any"}
+				trailing={suffix}
 				type={param.kind === "number" ? "number" : "text"}
 				value={raw}
 			/>
-			{param.kind === "number" && param.percent ? (
-				<span className="text-muted-foreground text-xs">%</span>
-			) : param.kind === "number" && param.unit ? (
-				<span className="text-muted-foreground text-xs">{param.unit}</span>
-			) : null}
 			{error ? (
-				<span className="text-[11px] text-destructive">{error}</span>
+				<span className="type-caption text-fail-text" role="alert">
+					{error}
+				</span>
 			) : null}
 		</span>
 	);
@@ -159,6 +168,7 @@ function StringListEditor({
 }) {
 	const items = Array.isArray(value) ? (value as string[]) : [...param.default];
 	const [draft, setDraft] = useState("");
+	const inputRef = useRef<HTMLInputElement>(null);
 	const remove = (item: string) => onSave(items.filter((i) => i !== item));
 	const add = () => {
 		const next = draft.trim();
@@ -169,25 +179,22 @@ function StringListEditor({
 	};
 	return (
 		<span className="inline-flex flex-wrap items-center gap-1 align-middle">
-			{items.map((item) => (
-				<code
-					className="inline-flex items-center gap-1 rounded bg-surface-1 px-1 py-0.5 font-mono text-[11px]"
-					key={item}
-				>
-					{item}
-					<button
-						aria-label={`remove ${item}`}
-						className="text-muted-foreground hover:text-destructive"
-						onClick={() => remove(item)}
-						type="button"
+			<ChipGroup aria-label={param.label}>
+				{items.map((item) => (
+					<Chip
+						focusAfterEmpty={inputRef}
+						key={item}
+						onRemove={() => remove(item)}
+						removeLabel={`Remove ${item}`}
 					>
-						×
-					</button>
-				</code>
-			))}
-			<input
-				aria-label={`add ${param.label}`}
-				className={`w-28 ${INPUT} font-mono`}
+						{item}
+					</Chip>
+				))}
+			</ChipGroup>
+			<Input
+				aria-label={`Add ${param.label}`}
+				className="w-40"
+				mono
 				onBlur={add}
 				onChange={(e) => setDraft(e.target.value)}
 				onKeyDown={(e) => {
@@ -196,7 +203,9 @@ function StringListEditor({
 						add();
 					}
 				}}
-				placeholder="add path…"
+				placeholder="Add path"
+				ref={inputRef}
+				size="sm"
 				value={draft}
 			/>
 		</span>

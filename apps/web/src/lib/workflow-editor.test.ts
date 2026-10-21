@@ -140,7 +140,7 @@ describe("outcome handles ↔ when (T4 editor fix)", () => {
 		}
 	});
 
-	test("the handle wins over a stale label", () => {
+	test("the handle wins over a stale stored when", () => {
 		const result = graphToDefinition(
 			{ id: "w", name: "w", version: 1 },
 			T4_NODES,
@@ -151,7 +151,8 @@ describe("outcome handles ↔ when (T4 editor fix)", () => {
 					source: "age",
 					target: "mod",
 					sourceHandle: "fail",
-					label: "pass",
+					label: "Passes",
+					data: { when: "pass" },
 				},
 			],
 		);
@@ -203,5 +204,57 @@ describe("outcome handles ↔ when (T4 editor fix)", () => {
 				stripPositions(definition),
 			);
 		}
+	});
+
+	test("a saved workflow round-trips load then save to identical json", () => {
+		const saved: WorkflowDefinition = {
+			id: "w",
+			name: "w",
+			version: 3,
+			nodes: T4_NODES.map((n, i) => ({
+				...n.data.node,
+				position: { x: 10 * i, y: 20 * i },
+			})),
+			edges: [
+				{ id: "e1", from: "trigger", to: "age", when: "pass" },
+				{ id: "e2", from: "age", to: "mod", when: "fail" },
+				{ id: "e3", from: "mod", to: "block", when: "deny" },
+				{ id: "e4", from: "mod", to: "trigger", when: "approve" },
+				{ id: "e5", from: "age", to: "block" },
+			],
+		};
+		const graph = definitionToGraph(saved);
+		const result = graphToDefinition(
+			{ id: saved.id, name: saved.name, version: saved.version },
+			graph.nodes,
+			graph.edges,
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(JSON.stringify(result.definition)).toBe(JSON.stringify(saved));
+		}
+	});
+
+	test("edge labels are plain words, never the stored branch id", () => {
+		const graph = definitionToGraph({
+			id: "w",
+			name: "w",
+			version: 1,
+			nodes: T4_NODES.map((n) => n.data.node),
+			edges: [
+				{ id: "e1", from: "trigger", to: "age" },
+				{ id: "e2", from: "age", to: "mod", when: "fail" },
+				{ id: "e3", from: "mod", to: "block", when: "deny" },
+				{ id: "e4", from: "mod", to: "age", when: "approve" },
+				{ id: "e5", from: "age", to: "block", when: "pass" },
+			],
+		});
+		expect(graph.edges.map((edge) => edge.label)).toEqual([
+			undefined,
+			"Doesn't pass",
+			"Blocked",
+			"Approved",
+			"Passes",
+		]);
 	});
 });

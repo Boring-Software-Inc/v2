@@ -1,23 +1,31 @@
 import { Link } from "@tanstack/react-router";
 import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
-import { VerdictChip } from "#/components/activity/verdict-chip";
+import { VerdictChip, verdictStatus } from "#/components/activity/verdict-chip";
+import { EntityCard } from "#/components/common/entity-card";
+import { MetaRow } from "#/components/common/meta-row";
+import { ItemRouterLink } from "#/components/common/router-links";
+import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Item,
+	ItemContent,
+	ItemGroup,
+	ItemLink,
+	ItemMeta,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
+import {
+	Status,
+	StatusMark,
+	type StatusValue,
+	statusVariants,
+} from "#/components/glaze/ui/status";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
 import { formatRelativeTime } from "#/lib/format-relative-time";
-import { cn } from "#/lib/utils";
-
-/**
- * A change request as a STACK of cards (§9). One bordered, rounded container:
- * the HEADER carries the surface fill (surface-1); the rows sit on the darker
- * base (card) with NO dividers between them. A long stack shows its FIRST 10
- * entries, then a bottom progressive blur with a "show more (N)" pill that
- * reveals the rest inline (no pagination); expanded, a "show less" collapses it.
- * The verdict chip is a FIXED-WIDTH column so chips line up row to row.
- */
 
 const VISIBLE = 10;
 
-/** The event's own GitHub deep link (§9): PR, comment, or push compare. */
 function entryUrl(event: NormalizedEvent): string | null {
 	if ("changeRequest" in event) {
 		return event.changeRequest.url;
@@ -35,7 +43,6 @@ function isTripwireComment(event: NormalizedEvent): boolean {
 	return event.kind === "comment.created" && event.comment.byTripwire === true;
 }
 
-/** Constitution copy: "commented on #1", never "comment #3". */
 function entryLabel(event: NormalizedEvent): string {
 	switch (event.kind) {
 		case "change-request.opened":
@@ -53,231 +60,164 @@ function entryLabel(event: NormalizedEvent): string {
 	}
 }
 
-function LinkWrap({
-	runId,
-	url,
-	className,
-	children,
-}: {
-	runId: string | null;
-	url: string | null;
-	className: string;
-	children: React.ReactNode;
-}) {
-	if (runId) {
-		return (
-			<Link className={className} params={{ runId }} to="/runs/$runId">
-				{children}
-			</Link>
-		);
-	}
-	if (url) {
-		return (
-			<a className={className} href={url} rel="noreferrer" target="_blank">
-				{children}
-			</a>
-		);
-	}
-	return <div className={className}>{children}</div>;
-}
-
 export function ActivityStack({ group }: { group: ActivityGroup }) {
 	const [showAll, setShowAll] = useState(false);
 	const entries = group.timeline;
 	const canTruncate = entries.length > VISIBLE;
-	const truncated = canTruncate && !showAll;
+	const visible = canTruncate && !showAll ? entries.slice(0, VISIBLE) : entries;
+	const hidden = entries.length - VISIBLE;
 
 	return (
-		<div className="overflow-hidden rounded-xl border bg-card">
-			<StackHeader group={group} />
-			{truncated ? (
-				<TruncatedBody entries={entries} onShowMore={() => setShowAll(true)} />
-			) : (
-				<>
-					{entries.map((entry) => (
-						<EntryCard entry={entry} key={entry.event.id} />
-					))}
-					{canTruncate ? (
-						<div className="flex justify-center py-3">
-							<RevealPill onClick={() => setShowAll(false)}>
-								show less
-							</RevealPill>
-						</div>
-					) : null}
-				</>
-			)}
-		</div>
-	);
-}
-
-/** The floating reveal control — same pill for "show more (N)" and "show less". */
-function RevealPill({
-	onClick,
-	children,
-}: {
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			className="pointer-events-auto rounded-full border bg-primary px-3 py-1 font-medium text-background text-xs shadow-sm transition-transform hover:scale-98 hover:bg-primary/90"
-			onClick={onClick}
-			type="button"
+		<EntityCard
+			description={<StackDescription group={group} />}
+			flush
+			footerActions={
+				canTruncate ? (
+					<Button
+						onClick={() => setShowAll((v) => !v)}
+						size="sm"
+						variant="secondary"
+					>
+						{showAll ? "Show fewer events" : `Show ${hidden} more events`}
+					</Button>
+				) : undefined
+			}
+			footerMeta={
+				canTruncate
+					? showAll
+						? `${entries.length} events`
+						: `${VISIBLE} of ${entries.length} events`
+					: undefined
+			}
+			status={<StackStatus group={group} />}
+			title={<StackTitle group={group} />}
 		>
-			{children}
-		</button>
+			<ItemGroup
+				aria-label={`Timeline of #${group.subjectNumber}`}
+				variant="plain"
+			>
+				{visible.map((entry) => (
+					<EntryRow entry={entry} key={entry.event.id} />
+				))}
+			</ItemGroup>
+		</EntityCard>
 	);
 }
 
-/** The top card: the change request's identity + its CURRENT verdict. Carries
- * the surface fill; the rows below sit on the darker base with no dividers. */
-function StackHeader({ group }: { group: ActivityGroup }) {
-	const evaluating = group.currentRunId != null && group.currentVerdict == null;
-	return (
-		<div className="bg-surface-1">
-			<div className="flex items-center gap-3 px-3.5 py-3">
-				<LinkWrap
-					className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 transition-colors hover:bg-surface-2"
-					runId={group.currentRunId}
-					url={group.url}
-				>
-					<div className="min-w-0 flex-1">
-						<div className="truncate text-sm">
-							<span className="font-medium">#{group.subjectNumber}</span>{" "}
-							<span className="truncate">{group.title}</span>
-						</div>
-						<div className="truncate text-muted-foreground text-xs">
-							{group.actor.login} · {group.repoFullName}
-							{evaluating ? " · re-evaluating" : ""}
-						</div>
-					</div>
-					<span className="w-14 shrink-0 text-right text-muted-foreground text-xs">
-						{formatRelativeTime(group.latestActivityAt)}
-					</span>
-					<VerdictSlot pending={evaluating} verdict={group.currentVerdict} />
-				</LinkWrap>
-			</div>
-		</div>
+function StackTitle({ group }: { group: ActivityGroup }) {
+	const title = (
+		<>
+			#{group.subjectNumber} {group.title}
+		</>
 	);
-}
-
-function TruncatedBody({
-	entries,
-	onShowMore,
-}: {
-	entries: ActivityItem[];
-	onShowMore: () => void;
-}) {
-	const visible = entries.slice(0, VISIBLE);
-	const hidden = entries.length - visible.length;
-
-	return (
-		<div className="relative">
-			{visible.map((entry) => (
-				<EntryCard entry={entry} key={entry.event.id} />
-			))}
-			{/* Fog the tail of the visible rows with the shared .fluted-glass class
-			    ("fog sensitive log content until revealed") — masked to fade in from
-			    the top. The overlay CAPTURES pointer events, so the fogged rows
-			    behind it don't hover or click; only the pill does. Reveal expands the
-			    rest inline (no pagination). */}
-			<div className="absolute inset-x-0 bottom-0 h-[121px]">
-				<div
-					aria-hidden
-					className="fluted-glass absolute inset-0"
-					style={{
-						maskImage: "linear-gradient(to bottom, transparent, black 66%)",
-						WebkitMaskImage:
-							"linear-gradient(to bottom, transparent, black 66%)",
-					}}
-				/>
-				<div className="absolute inset-0 flex items-end justify-center pb-6">
-					<RevealPill onClick={onShowMore}>show more ({hidden})</RevealPill>
-				</div>
-			</div>
-		</div>
-	);
-}
-
-/**
- * The fixed-width verdict column: a chip when there's a verdict, a pulse while
- * evaluating, else an empty reserve — so the time column never sways whether or
- * not a row carries a verdict (the chips line up, no stagger).
- */
-function VerdictSlot({
-	verdict,
-	pending = false,
-}: {
-	verdict: string | null;
-	pending?: boolean;
-}) {
-	if (verdict) {
-		return <VerdictChip verdict={verdict} />;
+	if (group.currentRunId) {
+		return (
+			<Link
+				className="hover:underline"
+				params={{ runId: group.currentRunId }}
+				to="/runs/$runId"
+			>
+				{title}
+			</Link>
+		);
 	}
+	if (group.url) {
+		return (
+			<a
+				className="hover:underline"
+				href={group.url}
+				rel="noreferrer"
+				target="_blank"
+			>
+				{title}
+			</a>
+		);
+	}
+	return title;
+}
+
+function StackDescription({ group }: { group: ActivityGroup }) {
 	return (
-		<span className="flex w-[60px] shrink-0 items-center justify-center">
-			{pending ? (
-				<span className="size-1.5 animate-pulse rounded-full bg-muted-foreground/60" />
-			) : null}
-		</span>
+		<MetaRow>
+			<span>{group.actor.login}</span>
+			<span>{group.repoFullName}</span>
+			<span>{formatRelativeTime(group.latestActivityAt)}</span>
+		</MetaRow>
 	);
 }
 
-function EntryCard({ entry }: { entry: ActivityItem }) {
+function StackStatus({ group }: { group: ActivityGroup }) {
+	const evaluating = group.currentRunId != null && group.currentVerdict == null;
+	return evaluating ? (
+		<Status size="sm" status="running">
+			Checking again
+		</Status>
+	) : (
+		<VerdictChip verdict={group.currentVerdict} />
+	);
+}
+
+function EntryRow({ entry }: { entry: ActivityItem }) {
 	const { event, run, pending } = entry;
 	const ours = isTripwireComment(event);
-	// A decision (a run) stands full; context (no run: exempt, push, comment)
-	// dims so it never competes with the verdicts (§9).
-	const dim = !run && !pending;
-	const inner = (
-		<div
-			className={cn(
-				"flex items-center gap-3 px-3.5 py-2.5",
-				dim && "opacity-55",
-			)}
-		>
-			<span
-				className={cn(
-					"block size-1.5 shrink-0 rounded-full",
-					run?.verdict === "block"
-						? "bg-red-500"
-						: run?.verdict === "pass"
-							? "bg-emerald-500"
-							: run?.verdict === "needs_review"
-								? "bg-amber-500"
-								: "bg-muted-foreground/40",
-				)}
-			/>
-			<span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-muted-foreground text-xs">
-				<span className="text-foreground">
-					{ours ? "tripwire" : event.actor.login}
-				</span>
-				{ours ? (
-					<span className="rounded-sm bg-surface-1 px-1 py-px font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
-						bot
-					</span>
-				) : null}
-				<span className="truncate">{entryLabel(event)}</span>
-				{run?.status === "queued" || run?.status === "running" ? (
-					<span className="truncate"> · re-evaluating</span>
-				) : run?.reason ? (
-					<span className="truncate"> · {run.reason}</span>
-				) : null}
+	const runId = run?.runId ?? null;
+	const url = entryUrl(event);
+	const reevaluating = run?.status === "queued" || run?.status === "running";
+	const note = reevaluating ? "Checking again" : (run?.reason ?? null);
+	const text = (
+		<MetaRow>
+			<span>
+				{ours ? "Tripwire" : event.actor.login}{" "}
+				<span className="text-text-2">{entryLabel(event)}</span>
 			</span>
-			<VerdictSlot pending={pending} verdict={run?.verdict ?? null} />
-			<span className="w-12 shrink-0 text-right text-muted-foreground text-xs">
-				{formatRelativeTime(event.occurredAt)}
-			</span>
-		</div>
+			{note ? <span className="text-text-2">{note}</span> : null}
+		</MetaRow>
 	);
 
 	return (
-		<LinkWrap
-			className="block transition-colors hover:bg-surface-1"
-			runId={run?.runId ?? null}
-			url={entryUrl(event)}
+		<Item size="sm">
+			<ItemContent>
+				<ItemTitle>
+					{runId ? (
+						<ItemRouterLink params={{ runId }} to="/runs/$runId">
+							{text}
+						</ItemRouterLink>
+					) : url ? (
+						<ItemLink href={url} rel="noreferrer" target="_blank">
+							{text}
+						</ItemLink>
+					) : (
+						<span>{text}</span>
+					)}
+					{ours ? <Badge size="sm">Bot</Badge> : null}
+				</ItemTitle>
+			</ItemContent>
+			<EntryOutcome
+				outcome={
+					verdictStatus(run?.verdict) ??
+					(pending ? { status: "running", label: "Checking" } : undefined)
+				}
+			/>
+			<ItemMeta className="w-14 text-end">
+				{formatRelativeTime(event.occurredAt)}
+			</ItemMeta>
+		</Item>
+	);
+}
+
+function EntryOutcome({
+	outcome,
+}: {
+	outcome: { status: StatusValue; label: string } | undefined;
+}) {
+	return (
+		<span
+			className={statusVariants({ size: "sm", status: outcome?.status })}
+			title={outcome?.label}
 		>
-			{inner}
-		</LinkWrap>
+			{outcome ? (
+				<StatusMark label={outcome.label} status={outcome.status} />
+			) : null}
+		</span>
 	);
 }

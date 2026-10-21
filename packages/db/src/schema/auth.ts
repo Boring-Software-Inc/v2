@@ -60,6 +60,7 @@ export const user = pgTable(
 		banned: boolean("banned").notNull().default(false),
 		banReason: text("ban_reason"),
 		banExpires: timestamp("ban_expires", { withTimezone: true }),
+		lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
@@ -67,7 +68,10 @@ export const user = pgTable(
 			.notNull()
 			.defaultNow(),
 	},
-	(t) => [index("user_access_status_idx").on(t.accessStatus)],
+	(t) => [
+		index("user_access_status_idx").on(t.accessStatus),
+		index("user_last_seen_at_idx").on(t.lastSeenAt),
+	],
 );
 
 export const session = pgTable("session", {

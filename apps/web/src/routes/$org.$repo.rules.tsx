@@ -9,8 +9,8 @@ export const Route = createFileRoute("/$org/$repo/rules")({
 	head: ({ params, match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} · rules`),
-			description: "rule configuration.",
+			title: formatPageTitle(`${params.repo} | Rules`),
+			description: "The rules this repo checks.",
 			noindex: true,
 		}),
 });

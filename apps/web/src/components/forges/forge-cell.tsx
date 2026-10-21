@@ -1,16 +1,10 @@
 import type { ForgeId } from "@tripwire/contracts";
+import { useId } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
-import { Button } from "#/components/ui/button";
-import { Spinner } from "#/components/ui/spinner";
-import { toast } from "#/components/ui/toast";
+import { Button } from "#/components/glaze/ui/button";
+import { toast } from "#/components/glaze/ui/toast";
 
-/** 162px cells + a 4px gutter inside the 328px card body — the 2×2 from Paper.
- * `grid-cols-2` derives both from the container width instead of hard-coding
- * them, so the same grid drops into the login card and the connect dialog. */
-export const FORGE_GRID = "relative grid grid-cols-2 gap-1";
-
-const FORGE_BUTTON =
-	"relative h-9 w-full gap-1.5 rounded-sm border border-border bg-surface-1 px-3 text-foreground text-sm";
+export const FORGE_GRID = "grid grid-cols-2 gap-2";
 
 /**
  * Two shapes, not four. Every reason a forge can't be used right now — no
@@ -34,38 +28,70 @@ export function ForgeCell({
 	id,
 	label,
 	state,
+	showReason = false,
 }: {
 	id: ForgeId;
 	label: string;
 	state: ForgeCellState;
+	showReason?: boolean;
 }) {
+	const reasonId = useId();
 	if (state.kind === "blocked") {
+		if (showReason) {
+			return (
+				<div className="flex min-w-0 flex-col gap-1">
+					<Button
+						aria-describedby={reasonId}
+						aria-disabled="true"
+						className="w-full"
+						onClick={() => {
+							toast(state.title, {
+								description: state.body,
+								id: `forge-blocked:${id}`,
+							});
+						}}
+						variant="secondary"
+					>
+						<ForgeMark forge={id} />
+						{label}
+					</Button>
+					<p className="type-caption text-text-2" id={reasonId}>
+						{state.title}
+					</p>
+				</div>
+			);
+		}
 		return (
-			<Button
-				aria-disabled="true"
-				className={`${FORGE_BUTTON} cursor-not-allowed opacity-50 hover:bg-surface-1 active:scale-100`}
-				iconLeft={<ForgeMark forge={id} />}
-				onClick={() => {
-					toast.info({
-						title: state.title,
-						body: state.body,
-						dedupeKey: `forge-blocked:${id}`,
-					});
-				}}
-			>
-				{label}
-			</Button>
+			<>
+				<Button
+					aria-describedby={reasonId}
+					aria-disabled="true"
+					className="w-full"
+					onClick={() => {
+						toast(state.title, {
+							description: state.body,
+							id: `forge-blocked:${id}`,
+						});
+					}}
+					variant="secondary"
+				>
+					<ForgeMark forge={id} />
+					{label}
+				</Button>
+				<span className="sr-only" id={reasonId}>
+					{state.title}. {state.body}
+				</span>
+			</>
 		);
 	}
 	return (
 		<Button
-			className={`${FORGE_BUTTON} hover:bg-secondary`}
-			disabled={state.pending}
-			iconLeft={
-				state.pending ? <Spinner size={16} /> : <ForgeMark forge={id} />
-			}
+			className="w-full"
 			onClick={state.onSelect}
+			pending={state.pending ?? false}
+			variant="secondary"
 		>
+			<ForgeMark forge={id} />
 			{label}
 		</Button>
 	);

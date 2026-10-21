@@ -86,7 +86,7 @@ describe("runtime catalog", () => {
 		// Built-ins keep their identity through the merge.
 		const builtIn = catalog.find((e) => e.ruleId === "account-age");
 		expect(builtIn?.source).toBe("built-in");
-		expect(builtIn?.name).toBe("account age");
+		expect(builtIn?.name).toBe("Account age");
 	});
 
 	test("every consumer field a built-in entry carries exists on a custom entry", () => {

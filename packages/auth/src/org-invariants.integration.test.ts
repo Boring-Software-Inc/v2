@@ -127,7 +127,7 @@ describe("team orgs through the plugin", () => {
 				},
 				headers: new Headers({ cookie }),
 			}),
-		).rejects.toThrow(/invite links/);
+		).rejects.toThrow(/Use an invite link instead/);
 	});
 });
 

@@ -29,15 +29,41 @@ const degradationOutputSchema = z
 	})
 	.catch({});
 
+type ReadNameMap = Record<string, string>;
+const READ_NAMES: ReadNameMap = {
+	diff: "the changed files",
+	getDiff: "the changed files",
+	commits: "the commits",
+	getCommits: "the commits",
+	contributor: "the contributor's profile",
+	getContributorProfile: "the contributor's profile",
+};
+
+const UNKNOWN_READ = "some details of the change request";
+
+function joinPhrases(phrases: readonly string[]): string {
+	if (phrases.length <= 1) {
+		return phrases[0] ?? "";
+	}
+	return `${phrases.slice(0, -1).join(", ")} and ${phrases.at(-1)}`;
+}
+
+export function describeDegradedReads(reads: readonly string[]): string {
+	const phrases = [
+		...new Set(reads.map((read) => READ_NAMES[read] ?? UNKNOWN_READ)),
+	];
+	return `Tripwire could not read ${joinPhrases(phrases)}.`;
+}
+
 export function describeSyntheticStep(
 	step: Pick<RunStepView, "nodeId" | "output">,
 ): SyntheticStepView | null {
 	if (step.nodeId === "run:deny-floor") {
 		return {
 			kind: "deny-floor",
-			title: "denied by maintainer",
+			title: "Blocked by a maintainer",
 			detail:
-				"no deny edge drawn. blocked by default, because deny never fails open.",
+				"A maintainer chose block in the moderation queue. The workflow has no step for that choice, so Tripwire blocked the change request.",
 		};
 	}
 	if (step.nodeId === "run:degradation") {
@@ -62,19 +88,19 @@ export function describeSyntheticStep(
 		// still reads as a sentence instead of "skipped. sent to review."
 		const parts = [
 			shape.skippedRules !== undefined && shape.ruleNodes !== undefined
-				? `${shape.skippedRules} of ${shape.ruleNodes} skipped.`
+				? `${shape.skippedRules} of ${shape.ruleNodes} rules skipped.`
 				: null,
 			shape.degradedReads && shape.degradedReads.length > 0
-				? `couldn't read: ${shape.degradedReads.join(", ")}.`
+				? describeDegradedReads(shape.degradedReads)
 				: null,
 			// enforced:false ⇒ the maintainer turned the review fallback off.
 			shape.enforced === false
-				? "passed without them. this repo is set to pass when a rule can't run."
-				: "sent to review.",
+				? "Passed without them. This repo passes change requests when a rule cannot run."
+				: "Sent to review.",
 		];
 		return {
 			kind: "degradation",
-			title: one ? "a rule couldn't run" : "some rules couldn't run",
+			title: one ? "A rule could not run" : "Some rules could not run",
 			detail: parts.filter((part) => part !== null).join(" "),
 		};
 	}

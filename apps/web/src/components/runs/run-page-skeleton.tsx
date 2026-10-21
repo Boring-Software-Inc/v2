@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader } from "#/components/glaze/ui/card";
+import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Skeleton } from "#/components/ui/skeleton";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 
 const STEP_SLOTS = [
@@ -14,28 +15,38 @@ const STEP_SLOTS = [
 
 function RunSkeletonBody() {
 	return (
-		<div className="mx-auto w-full max-w-3xl px-6 py-8">
-			<header className="mb-6">
-				<div className="flex items-center gap-3">
-					<Skeleton className="h-6 w-16" />
-					<Skeleton className="h-5 w-16 rounded-full" />
-				</div>
-				<Skeleton className="mt-2 h-4 w-64" />
-			</header>
-			<section className="overflow-hidden rounded-xl border bg-card">
-				<div className="bg-surface-1 px-4 py-2.5">
-					<Skeleton className="h-3 w-10" />
-				</div>
-				{STEP_SLOTS.map((slot) => (
-					<div className="flex items-center gap-3 px-4 py-3" key={slot.key}>
-						<Skeleton className="size-2 shrink-0 rounded-full" />
-						<span className="flex min-w-0 flex-1 items-center">
-							<Skeleton className={`h-4 ${slot.line}`} />
-						</span>
-						<Skeleton className="h-5 w-14 shrink-0 rounded-full" />
+		<div aria-hidden className="px-4 py-6 md:px-8 md:py-10">
+			<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+				<header className="flex flex-col gap-2">
+					<div className="flex items-center justify-between gap-3">
+						<SkeletonText className="w-16" type="heading" />
+						<div className="flex gap-2">
+							<Skeleton className="h-(--control-sm) w-20 rounded-pill" />
+							<Skeleton className="h-(--control-sm) w-24 rounded-pill" />
+						</div>
 					</div>
-				))}
-			</section>
+					<SkeletonText className="w-20" type="label" />
+					<SkeletonText className="w-64" type="body-sm" />
+				</header>
+				<Card>
+					<CardHeader>
+						<SkeletonText className="w-12" type="label" />
+					</CardHeader>
+					<CardContent flush>
+						{STEP_SLOTS.map((slot) => (
+							<div
+								className="rule-row flex items-center min-h-(--row) gap-3 px-3 py-2"
+								key={slot.key}
+							>
+								<span className="flex min-w-0 flex-1 items-center">
+									<SkeletonText className={slot.line} type="label" />
+								</span>
+								<SkeletonText className="w-14 shrink-0" type="label-sm" />
+							</div>
+						))}
+					</CardContent>
+				</Card>
+			</div>
 		</div>
 	);
 }
@@ -50,7 +61,7 @@ export function RunPageSkeleton() {
 		);
 	}
 	return (
-		<div className="min-h-dvh bg-background">
+		<div className="min-h-dvh bg-page">
 			<RunSkeletonBody />
 		</div>
 	);

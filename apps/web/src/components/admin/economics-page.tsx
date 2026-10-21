@@ -1,14 +1,44 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import type { CostByOrgRow, RailwayBreakdown } from "@tripwire/db";
-import { DitherChart } from "#/components/charts/dither-chart";
+import {
+	Alert,
+	AlertDescription,
+	AlertTitle,
+} from "#/components/glaze/ui/alert";
+import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
+import { Chart } from "#/components/glaze/ui/chart";
+import {
+	DataList,
+	DataListItem,
+	DataListLabel,
+	DataListValue,
+} from "#/components/glaze/ui/data-list";
+import {
+	Progress,
+	ProgressLabel,
+	ProgressValue,
+} from "#/components/glaze/ui/progress";
+import { SkeletonText } from "#/components/glaze/ui/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableEmpty,
+	TableHead,
+	TableHeader,
+	TableLoading,
+	TableRow,
+} from "#/components/glaze/ui/table";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	economicsCostByOrgQueryOptions,
 	economicsOverviewQueryOptions,
 	economicsRailwayQueryOptions,
 	economicsSeriesQueryOptions,
 } from "#/lib/admin-economics.query";
-import { cn } from "#/lib/utils";
 
 const RAILWAY_FLOOR_USD = 5;
 
@@ -27,13 +57,18 @@ function pulledAgo(iso: string): string {
 
 const usd = (n: number, dp = 2) => `$${n.toFixed(dp)}`;
 
-/** A number[] safe for DitherChart: never empty, nulls dropped. */
-function seriesOf(values: (number | null)[]): number[] {
-	const nums = values.filter((v): v is number => v != null);
-	return nums.length > 0 ? nums : [0];
+function dayLabel(value: string): string {
+	const date = new Date(`${value}T00:00:00Z`);
+	if (Number.isNaN(date.getTime())) {
+		return value;
+	}
+	return date.toLocaleDateString("en-US", {
+		month: "short",
+		day: "numeric",
+		timeZone: "UTC",
+	});
 }
 
-/** /admin/economics — platform unit economics. Staff only. */
 export function EconomicsPage() {
 	const overview = useQuery(economicsOverviewQueryOptions());
 	const series = useQuery(economicsSeriesQueryOptions());
@@ -44,119 +79,154 @@ export function EconomicsPage() {
 	const points = series.data ?? [];
 	const overCeiling = o ? o.costPerRunUsd > o.costCeilingUsd : false;
 
-	const cards = [
-		{
-			key: "cost-per-run",
-			label: "cost per AI-reviewed run",
-			value: o ? usd(o.costPerRunUsd, 4) : "–",
-			sub: o
-				? `average model spend per reviewed change request. target under ${usd(o.costCeilingUsd, 4)}.`
-				: "",
-			tone: overCeiling ? "text-danger" : undefined,
-		},
-		{
-			key: "metered",
-			label: "AI spend this month",
-			value: o ? usd(o.meteredMtdUsd, 2) : "–",
-			sub: o
-				? `model spend recorded so far. part of the ${usd(o.accruedMtdUsd, 2)} total once fixed hosting is added.`
-				: "",
-		},
-		{
-			key: "drift",
-			label: "drift",
-			value: o?.driftPct == null ? "n/a" : `${o.driftPct.toFixed(1)}%`,
-			sub: "gap between what we recorded and the provider invoice. under 10% is healthy.",
-		},
-		{
-			key: "runs",
-			label: "runs this month",
-			value: o ? String(o.runs) : "–",
-			sub: o
-				? `gate runs on change requests. ${o.aiReviewedRuns} of them used AI review.`
-				: "",
-		},
-	];
+	const creditRows = points.map((p) => ({
+		day: p.day,
+		credit: p.creditBalanceUsd,
+	}));
+	const spendRows = points.map((p) => ({
+		day: p.day,
+		spend: p.pulledCostUsd ?? p.meteredCostUsd,
+	}));
+	const seriesError = series.error
+		? "Tripwire couldn't load the daily numbers. Reload the page to try again."
+		: null;
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="mx-auto w-full max-w-4xl px-6 py-8">
-				<header className="mb-6">
-					<h1 className="font-semibold text-2xl tracking-tight">Economics</h1>
-					<p className="text-muted-foreground text-sm">
-						what the platform costs to run and where the money goes. staff only.
-						numbers roll up once a day, so today reads low until tonight.
-					</p>
-				</header>
-
-				<div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-					{cards.map((card) => (
-						<div className="rounded-xl border bg-card px-4 py-3" key={card.key}>
-							<p className="text-muted-foreground text-xs">{card.label}</p>
-							<p
-								className={cn(
-									"font-semibold text-2xl tabular-nums tracking-tight",
-									card.tone,
-								)}
-							>
-								{card.value}
-							</p>
-							{card.sub ? (
-								<p className="text-muted-foreground text-xs">{card.sub}</p>
-							) : null}
-						</div>
-					))}
-				</div>
-
-				<div className="mt-6 grid gap-3 md:grid-cols-2">
-					<div className="rounded-xl border bg-card p-4">
-						<div className="flex items-baseline justify-between">
-							<p className="font-medium text-sm">credit burn-down</p>
-							<p className="text-muted-foreground text-xs tabular-nums">
-								{o?.creditBalanceUsd == null
-									? "n/a"
-									: `${usd(o.creditBalanceUsd)} · ${
-											o.creditRunwayMonths?.toFixed(1) ?? "?"
-										}mo`}
-							</p>
-						</div>
-						<p className="mt-0.5 mb-2 text-muted-foreground text-xs">
-							PlanetScale credit left, day by day. it falls as the database bill
-							accrues. the label is dollars remaining and months of runway at
-							the current rate.
+			<div className="px-4 py-6 md:px-8 md:py-10">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+					<header className="flex flex-col gap-1">
+						<h1 className="type-title">Economics</h1>
+						<p className="max-w-measure type-body text-text-2">
+							What Tripwire costs to run, and where the money goes. The totals
+							update once a day, so today's numbers stay low until the nightly
+							update.
 						</p>
-						<DitherChart
-							className="h-24 w-full"
-							color="purple"
-							data={seriesOf(points.map((p) => p.creditBalanceUsd))}
+					</header>
+
+					<section aria-label="This month" className="flex flex-col gap-4">
+						{o ? (
+							<p className="type-heading-sm">
+								An AI-reviewed run costs{" "}
+								<span className="tabular-nums">{usd(o.costPerRunUsd, 4)}</span>{" "}
+								on average, against a target under{" "}
+								<span className="tabular-nums">{usd(o.costCeilingUsd, 4)}</span>
+								.{" "}
+								{overCeiling ? (
+									<Badge className="align-middle" variant="fail">
+										Over target
+									</Badge>
+								) : null}
+							</p>
+						) : (
+							<SkeletonText className="w-96 max-w-full" type="heading-sm" />
+						)}
+						<DataList variant="panel">
+							<DataListItem>
+								<DataListLabel>AI spend this month</DataListLabel>
+								<DataListValue>
+									{o ? (
+										<span className="flex flex-col">
+											<span className="tabular-nums">
+												{usd(o.meteredMtdUsd, 2)}
+											</span>
+											<span className="type-caption text-text-2">
+												AI model spend recorded so far this month. With fixed
+												hosting costs added, the total is{" "}
+												{usd(o.accruedMtdUsd, 2)}.
+											</span>
+										</span>
+									) : null}
+								</DataListValue>
+							</DataListItem>
+							<DataListItem>
+								<DataListLabel>Difference from invoice</DataListLabel>
+								<DataListValue>
+									<span className="flex flex-col">
+										<span className="tabular-nums">
+											{o?.driftPct == null
+												? "None"
+												: `${o.driftPct.toFixed(1)}%`}
+										</span>
+										<span className="type-caption text-text-2">
+											How far the recorded cost is from the provider's invoice.
+											Under 10% is normal.
+										</span>
+									</span>
+								</DataListValue>
+							</DataListItem>
+							<DataListItem>
+								<DataListLabel>Runs this month</DataListLabel>
+								<DataListValue>
+									{o ? (
+										<span className="flex flex-col">
+											<span className="tabular-nums">{o.runs}</span>
+											<span className="type-caption text-text-2">
+												Checks of change requests. {o.aiReviewedRuns} of them
+												used AI review.
+											</span>
+										</span>
+									) : null}
+								</DataListValue>
+							</DataListItem>
+						</DataList>
+					</section>
+
+					<div className="grid gap-4 md:grid-cols-2">
+						<Chart
+							area
+							config={{
+								day: { label: "Day" },
+								credit: { label: "Credit left" },
+							}}
+							data={creditRows}
+							description={
+								o?.creditBalanceUsd == null
+									? "PlanetScale database credit left on each day. It goes down as the database bill grows."
+									: `PlanetScale database credit left on each day. ${usd(o.creditBalanceUsd)} is left. At the current rate, that lasts ${
+											o.creditRunwayMonths?.toFixed(1) ?? "an unknown number of"
+										} months.`
+							}
+							empty="No daily totals yet"
+							error={seriesError}
+							height={140}
+							label="Database credit left, by day"
+							loading={series.isLoading}
+							onRetry={() => series.refetch()}
+							title="Database credit left"
+							type="line"
+							valueFormat={(v) => usd(v)}
+							xFormat={(value) => dayLabel(String(value))}
+							xKey="day"
+						/>
+						<Chart
+							config={{ day: { label: "Day" }, spend: { label: "Spend" } }}
+							data={spendRows}
+							description="AI model cost per day, from the OpenRouter invoice. If a day costs more than $1.00, the daily report shows an alert."
+							empty="No daily totals yet"
+							error={seriesError}
+							height={140}
+							label="AI spend per day, from OpenRouter"
+							loading={series.isLoading}
+							onRetry={() => series.refetch()}
+							title="AI spend per day"
+							type="bar"
+							valueFormat={(v) => usd(v)}
+							xFormat={(value) => dayLabel(String(value))}
+							xKey="day"
 						/>
 					</div>
 
-					<div className="rounded-xl border bg-card p-4">
-						<div className="flex items-baseline justify-between">
-							<p className="font-medium text-sm">OpenRouter daily spend</p>
-							<p className="text-muted-foreground text-xs">vs $1.00 cap</p>
-						</div>
-						<p className="mt-0.5 mb-2 text-muted-foreground text-xs">
-							AI model cost per day, from the provider invoice. a day above the
-							$1.00 cap raises an alert in the digest.
-						</p>
-						<DitherChart
-							className="h-24 w-full"
-							color="orange"
-							data={seriesOf(
-								points.map((p) => p.pulledCostUsd ?? p.meteredCostUsd),
-							)}
-						/>
-					</div>
+					<RailwaySection
+						data={railway.data ?? null}
+						loading={railway.isLoading}
+					/>
+
+					<CostByOrgTable
+						loading={costByOrg.isLoading}
+						rows={costByOrg.data ?? []}
+					/>
 				</div>
-
-				<RailwaySection
-					data={railway.data ?? null}
-					loading={railway.isLoading}
-				/>
-
-				<CostByOrgTable rows={costByOrg.data ?? []} />
 			</div>
 		</DashboardLayout>
 	);
@@ -170,146 +240,201 @@ function RailwaySection({
 	loading: boolean;
 }) {
 	const total = data?.totalUsd ?? 0;
-	const floorPct = Math.min(1, total / RAILWAY_FLOOR_USD);
 	return (
-		<div className="mt-3 rounded-xl border bg-card p-4">
-			<div className="flex items-baseline justify-between">
-				<p className="font-medium text-sm">Railway floor</p>
-				<p className="text-muted-foreground text-xs tabular-nums">
-					{data ? `${usd(total)} / ${usd(RAILWAY_FLOOR_USD)}` : "no data"}
+		<section aria-labelledby="railway-floor" className="flex flex-col gap-3">
+			<div className="flex flex-col gap-1">
+				<h2 className="type-heading-sm" id="railway-floor">
+					Hosting on Railway
+				</h2>
+				<p className="max-w-measure type-body-sm text-text-2">
+					Hosting cost for each service in this billing period, from Railway.
+					The Railway plan includes $5.00 of usage each month. Usage above that
+					is added to the bill.
 				</p>
 			</div>
-			<p className="mt-0.5 mb-2 text-muted-foreground text-xs">
-				hosting usage this billing period, pulled from Railway and priced per
-				service. it counts against the $5.00 the plan includes each month. spend
-				past that starts adding to the bill.
-			</p>
 
 			{data?.ratesDrift ? (
-				<p className="mb-2 rounded-lg bg-danger/10 px-3 py-2 text-danger text-xs">
-					Railway pricing changed. re-verify the rates in railway-rates.ts. the
-					dollars below may be wrong until then.
-				</p>
+				<Alert status="warn">
+					<AlertTitle>Railway pricing changed</AlertTitle>
+					<AlertDescription>
+						Check the rates in railway-rates.ts again. Until you do, the dollar
+						amounts below may be wrong.
+					</AlertDescription>
+				</Alert>
 			) : null}
 
-			<div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
-				<div
-					className={cn(
-						"h-full rounded-full",
-						floorPct >= 0.9 ? "bg-danger" : "bg-primary",
-					)}
-					style={{ width: `${Math.round(floorPct * 100)}%` }}
-				/>
-			</div>
+			{data ? (
+				<Progress
+					max={RAILWAY_FLOOR_USD}
+					mode="meter"
+					value={Math.min(total, RAILWAY_FLOOR_USD)}
+					warnAt={0.9}
+				>
+					<ProgressLabel>Included usage</ProgressLabel>
+					<ProgressValue>
+						{() => `${usd(total)} of ${usd(RAILWAY_FLOOR_USD)}`}
+					</ProgressValue>
+				</Progress>
+			) : null}
 
-			{data === null ? (
-				<p className="mt-3 text-muted-foreground text-xs">
-					{loading
-						? "loading."
-						: "could not reach Railway, or no pull has run yet. set RAILWAY_API_TOKEN to an account token."}
-				</p>
-			) : (
-				<>
-					<table className="mt-3 w-full text-xs">
-						<thead>
-							<tr className="text-muted-foreground">
-								<th className="py-1 text-left font-normal">service</th>
-								<th className="py-1 text-right font-normal">vCPU-min</th>
-								<th className="py-1 text-right font-normal">GB-min</th>
-								<th className="py-1 text-right font-normal">egress GB</th>
-								<th className="py-1 text-right font-normal">cost</th>
-							</tr>
-						</thead>
-						<tbody>
-							{data.services.map((s) => (
-								<tr className="border-surface-2 border-t" key={s.name}>
-									<td className="py-1">{s.name}</td>
-									<td className="py-1 text-right tabular-nums">
-										{s.cpuUnits.toFixed(0)}
-									</td>
-									<td className="py-1 text-right tabular-nums">
-										{s.memGbMin.toFixed(0)}
-									</td>
-									<td className="py-1 text-right tabular-nums">
-										{s.egressGb.toFixed(2)}
-									</td>
-									<td className="py-1 text-right tabular-nums">
-										{usd(s.costUsd, 4)}
-									</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-					<p className="mt-2 text-muted-foreground text-xs">
-						the quantities are the raw usage behind each dollar figure. last
-						pulled {pulledAgo(data.lastPulledAt)}.
-					</p>
-				</>
-			)}
-		</div>
+			<Table
+				aria-busy={loading || undefined}
+				aria-label="Railway usage by service"
+				footer={
+					data ? (
+						<span>
+							Each column shows the usage that the cost comes from. Last updated{" "}
+							{pulledAgo(data.lastPulledAt)}.
+						</span>
+					) : undefined
+				}
+			>
+				<TableHeader>
+					<TableRow>
+						<TableHead>Service</TableHead>
+						<TableHead numeric>CPU minutes</TableHead>
+						<TableHead numeric>Memory GB-minutes</TableHead>
+						<TableHead numeric>Outbound data GB</TableHead>
+						<TableHead numeric>Cost</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{loading ? (
+						<TableLoading
+							columns={[
+								{},
+								{ numeric: true },
+								{ numeric: true },
+								{ numeric: true },
+								{ numeric: true },
+							]}
+							rows={3}
+						/>
+					) : data === null ? (
+						<TableEmpty
+							art={<MascotArt mood="admin-table-empty" size="compact" />}
+							colSpan={5}
+							description="Tripwire could not reach Railway, or it has not loaded data yet. Check that RAILWAY_API_TOKEN is set to an account token."
+							reason="error"
+							title="No Railway data yet"
+							action={
+								<Button
+									nativeButton={false}
+									render={<Link to="/admin/orgs" />}
+									size="sm"
+									variant="secondary"
+								>
+									View orgs
+								</Button>
+							}
+						/>
+					) : data.services.length === 0 ? (
+						<TableEmpty
+							art={<MascotArt mood="admin-table-empty" size="compact" />}
+							colSpan={5}
+							title="No services billed yet"
+							action={
+								<Button
+									nativeButton={false}
+									render={<Link to="/admin/orgs" />}
+									size="sm"
+									variant="secondary"
+								>
+									View orgs
+								</Button>
+							}
+						/>
+					) : (
+						data.services.map((s) => (
+							<TableRow key={s.name}>
+								<TableCell mono>{s.name}</TableCell>
+								<TableCell numeric>{s.cpuUnits.toFixed(0)}</TableCell>
+								<TableCell numeric>{s.memGbMin.toFixed(0)}</TableCell>
+								<TableCell numeric>{s.egressGb.toFixed(2)}</TableCell>
+								<TableCell numeric>{usd(s.costUsd, 4)}</TableCell>
+							</TableRow>
+						))
+					)}
+				</TableBody>
+			</Table>
+		</section>
 	);
 }
 
-function CostByOrgTable({ rows }: { rows: CostByOrgRow[] }) {
+function CostByOrgTable({
+	rows,
+	loading,
+}: {
+	rows: CostByOrgRow[];
+	loading: boolean;
+}) {
 	return (
-		<div className="mt-6 rounded-xl border bg-card">
-			<div className="border-b px-4 py-3">
-				<p className="font-medium text-sm">cost by org</p>
-				<p className="text-muted-foreground text-xs">
-					AI model spend split by organization this month. the unattributed row
-					is usage from installs no org has claimed yet.
+		<section aria-labelledby="cost-by-org" className="flex flex-col gap-3">
+			<div className="flex flex-col gap-1">
+				<h2 className="type-heading-sm" id="cost-by-org">
+					Cost by org
+				</h2>
+				<p className="max-w-measure type-body-sm text-text-2">
+					AI model spend for each org this month. "No org" is usage from
+					installations that no org has claimed yet.
 				</p>
 			</div>
-			<table className="w-full text-sm">
-				<thead>
-					<tr className="border-b text-muted-foreground text-xs">
-						<th className="px-4 py-2 text-left font-normal">org</th>
-						<th className="px-4 py-2 text-right font-normal">runs</th>
-						<th className="px-4 py-2 text-right font-normal">AI</th>
-						<th className="px-4 py-2 text-right font-normal">metered</th>
-					</tr>
-				</thead>
-				<tbody>
-					{rows.length === 0 ? (
-						<tr>
-							<td
-								className="px-4 py-6 text-center text-muted-foreground text-xs"
-								colSpan={4}
-							>
-								no rolled-up days yet.
-							</td>
-						</tr>
+			<Table aria-busy={loading || undefined} aria-label="Cost by org">
+				<TableHeader>
+					<TableRow>
+						<TableHead>Org</TableHead>
+						<TableHead numeric>Runs</TableHead>
+						<TableHead numeric>AI reviews</TableHead>
+						<TableHead numeric>AI cost</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{loading ? (
+						<TableLoading
+							columns={[
+								{},
+								{ numeric: true },
+								{ numeric: true },
+								{ numeric: true },
+							]}
+							rows={3}
+						/>
+					) : rows.length === 0 ? (
+						<TableEmpty
+							art={<MascotArt mood="admin-table-empty" size="compact" />}
+							colSpan={4}
+							description="Orgs appear here after their first run this month."
+							title="No AI spend this month yet"
+							action={
+								<Button
+									nativeButton={false}
+									render={<Link to="/admin/orgs" />}
+									size="sm"
+									variant="secondary"
+								>
+									View orgs
+								</Button>
+							}
+						/>
 					) : (
 						rows.map((row) => {
 							const unattributed = row.orgId === null;
 							return (
-								<tr
-									className={cn(
-										"border-b last:border-0",
-										unattributed && "text-muted-foreground",
-									)}
-									key={row.orgId ?? "~unattributed"}
-								>
-									<td className="px-4 py-2">
-										{unattributed
-											? "unattributed"
-											: (row.orgName ?? row.orgSlug)}
-									</td>
-									<td className="px-4 py-2 text-right tabular-nums">
-										{row.runs}
-									</td>
-									<td className="px-4 py-2 text-right tabular-nums">
-										{row.aiReviewedRuns}
-									</td>
-									<td className="px-4 py-2 text-right tabular-nums">
-										{usd(row.meteredCostUsd, 4)}
-									</td>
-								</tr>
+								<TableRow key={row.orgId ?? "~unattributed"}>
+									<TableCell
+										className={unattributed ? "text-text-2" : undefined}
+									>
+										{unattributed ? "No org" : (row.orgName ?? row.orgSlug)}
+									</TableCell>
+									<TableCell numeric>{row.runs}</TableCell>
+									<TableCell numeric>{row.aiReviewedRuns}</TableCell>
+									<TableCell numeric>{usd(row.meteredCostUsd, 4)}</TableCell>
+								</TableRow>
 							);
 						})
 					)}
-				</tbody>
-			</table>
-		</div>
+				</TableBody>
+			</Table>
+		</section>
 	);
 }

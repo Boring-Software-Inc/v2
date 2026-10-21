@@ -106,12 +106,14 @@ export const disconnectForge = createServerFn({ method: "POST" })
 		const { requireSession } = await import("#/lib/server/session");
 		const userId = await requireSession();
 		if (!userId) {
-			throw new Error("session required");
+			throw new Error("Your session ended. Sign in again to continue.");
 		}
 		const { getAuth } = await import("#/lib/server/auth");
 		const auth = getAuth();
 		if (!auth) {
-			throw new Error("auth disabled");
+			throw new Error(
+				"Sign-in is turned off on this server, so there is nothing to disconnect.",
+			);
 		}
 		const { getStartContext } = await import("@tanstack/start-storage-context");
 		await auth.api.unlinkAccount({

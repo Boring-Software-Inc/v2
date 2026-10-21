@@ -1,135 +1,163 @@
-import {
-	Comment01Icon,
-	Logout01Icon,
-	MoonIcon,
-	Settings01Icon,
-	Sun01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { useFeedback } from "#/components/feedback";
-import { RepoSwitcher } from "#/components/layouts/repo-switcher";
-import { RepoTabBar } from "#/components/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "#/components/ui/avatar";
-import { Button } from "#/components/ui/button";
+import { Comment, Dark, Icon, Light, SignOut } from "#/components/glaze/icon";
+import { Avatar } from "#/components/glaze/ui/avatar";
+import { Button } from "#/components/glaze/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "#/components/ui/dropdown-menu";
+} from "#/components/glaze/ui/dropdown-menu";
+import { CommandPaletteButton } from "#/components/layouts/command-palette-launcher";
+import {
+	OrgSwitcher,
+	RepoSwitcher,
+} from "#/components/layouts/scope-switchers";
+import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { authClient } from "#/lib/auth-client";
-import { siteConfig } from "#/lib/site-config";
 
 interface DashboardTopbarProps {
-	/** The signed-in maintainer; null in open-dev or signed out (§10). */
 	user: CurrentUser | null;
 }
 
 export function DashboardTopbar({ user }: DashboardTopbarProps) {
-	// URL-scoped nav (§8): the org in the URL decides where the wordmark and the
-	// account menu point.
-	const params = useParams({ strict: false });
-	const org = params.org;
+	const org = useActiveScope().org?.slug;
 
 	return (
 		<nav
 			aria-label="Primary"
-			className="flex min-w-0 items-center gap-3 px-3 py-2"
+			className="flex h-12 min-w-0 shrink-0 items-center gap-1 px-3"
 		>
-			{/* The logo goes home — the only route back to the org level from a repo. */}
-			<Link
-				to={org ? "/$org/home" : "/"}
-				params={org ? { org } : {}}
-				className="flex shrink-0 items-center gap-2 rounded-md pr-1 pl-1 transition-colors hover:bg-surface-0"
-			>
-				<TripwireWordmark className="text-foreground" height={15} width={24} />
-				<span className="text-sm font-medium tracking-tight">
-					{siteConfig.name}
-				</span>
-			</Link>
-
-			{/* The window's own row: the repos you have open. The page tree for the
-			    active one lives inside the page shell (`ShellNav`). */}
-			<RepoTabBar className="hidden md:flex" />
-
-			<div className="ml-auto hidden items-center md:flex">
-				<RepoSwitcher />
-			</div>
-
-			<div className="ml-auto flex shrink-0 items-center gap-1 md:ml-0">
-				<ThemeToggle />
-				<UserMenu org={org} user={user} />
+			<Brand org={org} />
+			<Slash />
+			<OrgSwitcher />
+			{org ? (
+				<>
+					<Slash />
+					<RepoSwitcher />
+				</>
+			) : null}
+			<div className="ms-auto flex shrink-0 items-center gap-2">
+				<CommandPaletteButton />
+				<BetaTag />
+				<UserMenu user={user} />
 			</div>
 		</nav>
 	);
 }
 
-/** Placeholder identity for open-dev / signed-out — never a fabricated name. */
+function Slash() {
+	return (
+		<span aria-hidden className="type-body text-text-3">
+			/
+		</span>
+	);
+}
+
+export function Brand({ org }: { org: string | undefined }) {
+	return (
+		<Link
+			aria-label={org ? "Tripwire, go to org home" : "Tripwire, go to home"}
+			className="flex h-(--control) shrink-0 items-center rounded-pill px-2 text-text-1 hover:bg-hover"
+			params={org ? { org } : {}}
+			to={org ? "/$org/home" : "/"}
+		>
+			<TripwireWordmark height={15} width={24} />
+		</Link>
+	);
+}
+
+export function BetaTag() {
+	const { open: openFeedback } = useFeedback();
+	return (
+		<Button
+			aria-label="Tripwire is in beta. Send feedback"
+			onClick={openFeedback}
+			size="sm"
+			variant="secondary"
+		>
+			Beta
+		</Button>
+	);
+}
+
 const PLACEHOLDER_USER: CurrentUser = {
 	name: "local session",
 	login: "dev",
+	email: null,
 	image: "",
 };
 
-function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
+export function UserMenu({
+	user,
+	showName = false,
+}: {
+	user: CurrentUser | null;
+	showName?: boolean;
+}) {
 	const moderator = user ?? PLACEHOLDER_USER;
+	const identity = accountIdentity(moderator);
 	const { open: openFeedback } = useFeedback();
+	const { resolvedTheme, setTheme } = useTheme();
+	const hasMounted = useHasMounted();
+	const isDark = hasMounted && resolvedTheme === "dark";
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
-				aria-label="Account"
-				className="flex size-8 items-center justify-center rounded-full"
-			>
-				<Avatar className="size-7">
-					<AvatarImage
-						src={moderator.image ?? undefined}
-						alt={moderator.name}
+				render={
+					<Button
+						aria-label={`Account menu for ${moderator.name}`}
+						className={showName ? "w-full min-w-0 justify-start" : undefined}
+						size={showName ? "default" : "icon"}
+						variant="ghost"
 					/>
-					<AvatarFallback className="text-xs">
-						{moderator.name
-							.split(" ")
-							.map((part) => part[0])
-							.join("")
-							.slice(0, 2)
-							.toUpperCase()}
-					</AvatarFallback>
-				</Avatar>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
-				<DropdownMenuLabel className="flex flex-col gap-0.5">
-					<span className="font-medium">{moderator.name}</span>
-					<span className="text-xs text-muted-foreground">
-						@{moderator.login}
-					</span>
-				</DropdownMenuLabel>
-				<DropdownMenuSeparator />
-				{org ? (
-					<DropdownMenuItem
-						render={
-							// `to="."` — the dialog opens over whatever page you're on.
-							<Link
-								search={(prev) => ({ ...prev, settings: "members" as const })}
-								to="."
-							/>
-						}
-					>
-						<HugeiconsIcon icon={Settings01Icon} size={14} strokeWidth={2} />
-						Settings
-					</DropdownMenuItem>
+				}
+			>
+				<Avatar
+					decorative
+					name={moderator.name}
+					src={moderator.image || undefined}
+				/>
+				{showName ? (
+					<span className="min-w-0 truncate">{moderator.name}</span>
 				) : null}
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				align="end"
+				className="min-w-(--menu-min) max-w-popover"
+			>
+				<DropdownMenuGroup>
+					<DropdownMenuLabel className="flex-col items-start justify-center gap-0.5 py-1.5">
+						<span className="max-w-full truncate type-label text-text-1">
+							{moderator.name}
+						</span>
+						{identity ? (
+							<span className="max-w-full truncate type-caption text-text-2">
+								{identity}
+							</span>
+						) : null}
+					</DropdownMenuLabel>
+				</DropdownMenuGroup>
+				<DropdownMenuSeparator />
 				<DropdownMenuItem onClick={openFeedback}>
-					<HugeiconsIcon icon={Comment01Icon} size={14} strokeWidth={2} />
+					<Icon icon={Comment} />
 					Send feedback
 				</DropdownMenuItem>
+				<DropdownMenuItem onClick={() => setTheme(isDark ? "light" : "dark")}>
+					<Icon icon={isDark ? Light : Dark} />
+					{isDark ? "Light theme" : "Dark theme"}
+				</DropdownMenuItem>
+				<DropdownMenuSeparator />
 				<DropdownMenuItem
-					className="text-destructive data-highlighted:text-destructive"
+					variant="destructive"
 					onClick={() =>
 						authClient.signOut({
 							fetchOptions: {
@@ -138,33 +166,20 @@ function UserMenu({ org, user }: { org?: string; user: CurrentUser | null }) {
 						})
 					}
 				>
-					<HugeiconsIcon icon={Logout01Icon} size={14} strokeWidth={2} />
-					Log out
+					<Icon icon={SignOut} />
+					Sign out
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
 
-function ThemeToggle() {
-	const { resolvedTheme, setTheme } = useTheme();
-	const hasMounted = useHasMounted();
-	const isDark = resolvedTheme === "dark";
-
-	return (
-		<Button
-			variant="ghost"
-			size="icon"
-			aria-label="Toggle theme"
-			className="size-8 text-muted-foreground hover:bg-surface-1"
-			onClick={() => setTheme(isDark ? "light" : "dark")}
-			iconLeft={
-				hasMounted && isDark ? (
-					<HugeiconsIcon icon={Sun01Icon} size={16} strokeWidth={2} />
-				) : (
-					<HugeiconsIcon icon={MoonIcon} size={16} strokeWidth={2} />
-				)
-			}
-		/>
-	);
+function accountIdentity(user: CurrentUser): string | null {
+	if (user.email) {
+		return user.email;
+	}
+	if (user.login && user.login !== user.name) {
+		return `@${user.login}`;
+	}
+	return null;
 }

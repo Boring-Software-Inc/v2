@@ -22,8 +22,8 @@ describe("ruleDisplayName — single source of truth", () => {
 	});
 
 	test("frozen versions map to the current name (names are version-stable)", () => {
-		expect(ruleDisplayName("min-merged-prs@1")).toBe("merged change requests");
-		expect(ruleDisplayName("ai-review@1")).toBe("ai review");
+		expect(ruleDisplayName("min-merged-prs@1")).toBe("Merged change requests");
+		expect(ruleDisplayName("ai-review@1")).toBe("AI review");
 	});
 
 	test("unknown ref falls back to its bare id, never blank", () => {

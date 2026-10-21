@@ -1,18 +1,18 @@
 import { COMMENT_MARKER } from "@tripwire/contracts";
 import type { ReactNode } from "react";
-import { GithubIcon } from "#/components/icons/github";
-import { Badge } from "#/components/ui/badge";
-
-/**
- * A mock GitHub change-request comment, honest to what the renderer emits: the
- * comment bodies use a tiny markdown/HTML subset (bold, paragraphs,
- * details/summary, one linked button image, backtick chips), so this renders
- * exactly that subset — no markdown library. Tripwire tokens, not GitHub's
- * greys: the mock sits inside the app's chrome, it doesn't cosplay the site.
- */
+import { TripwireLogo } from "#/components/common/tripwire-logo";
+import { PreviewObject } from "#/components/customize/preview-object";
+import { Badge } from "#/components/glaze/ui/badge";
+import {
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/components/glaze/ui/empty-state";
 
 type BodyBlock =
 	| { kind: "paragraph"; text: string }
+	| { kind: "list"; items: string[] }
 	| { kind: "details"; summary: string; body: string }
 	| { kind: "button"; href: string; src: string; alt: string };
 
@@ -20,6 +20,27 @@ const DETAILS_RE =
 	/<details><summary>(.*?)<\/summary>\n\n([\s\S]*?)\n<\/details>/;
 const BUTTON_RE =
 	/<a href="([^"]*)"><img src="([^"]*)"[^>]*alt="([^"]*)" \/><\/a>/;
+const LIST_ITEM_RE = /^\s*[-*]\s+/;
+
+function textBlocks(text: string): BodyBlock[] {
+	const blocks: BodyBlock[] = [];
+	for (const chunk of text.split(/\n{2,}/)) {
+		const trimmed = chunk.trim();
+		if (!trimmed) {
+			continue;
+		}
+		const lines = trimmed.split("\n");
+		if (lines.every((line) => LIST_ITEM_RE.test(line))) {
+			blocks.push({
+				kind: "list",
+				items: lines.map((line) => line.replace(LIST_ITEM_RE, "")),
+			});
+		} else {
+			blocks.push({ kind: "paragraph", text: trimmed });
+		}
+	}
+	return blocks;
+}
 
 function parseBody(body: string): BodyBlock[] {
 	const blocks: BodyBlock[] = [];
@@ -30,12 +51,7 @@ function parseBody(body: string): BodyBlock[] {
 		const next = [details, button]
 			.filter((m): m is RegExpExecArray => m !== null)
 			.sort((a, b) => a.index - b.index)[0];
-		const plain = next ? rest.slice(0, next.index) : rest;
-		for (const paragraph of plain.split(/\n{2,}/)) {
-			if (paragraph.trim()) {
-				blocks.push({ kind: "paragraph", text: paragraph.trim() });
-			}
-		}
+		blocks.push(...textBlocks(next ? rest.slice(0, next.index) : rest));
 		if (!next) {
 			break;
 		}
@@ -58,53 +74,92 @@ function parseBody(body: string): BodyBlock[] {
 	return blocks;
 }
 
-/** Bold + backtick chips — the only inline constructs the renderer emits. */
-function renderInline(text: string): ReactNode {
-	return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
+const INLINE_RE = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|@[A-Za-z0-9-]+)/g;
+
+function renderInline(text: string): ReactNode[] {
+	return text.split(INLINE_RE).map((part, i) => {
+		const key = `${i}-${part}`;
 		if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
 			return (
-				// biome-ignore lint/suspicious/noArrayIndexKey: static parse of a string
-				<strong key={i}>{renderBackticks(part.slice(2, -2))}</strong>
+				<strong className="font-semibold" key={key}>
+					{renderInline(part.slice(2, -2))}
+				</strong>
 			);
 		}
-		// biome-ignore lint/suspicious/noArrayIndexKey: static parse of a string
-		return <span key={i}>{renderBackticks(part)}</span>;
-	});
-}
-
-function renderBackticks(text: string): ReactNode {
-	return text.split(/(`[^`]+`)/g).map((part, i) => {
-		if (part.length > 2 && part.startsWith("`") && part.endsWith("`")) {
+		if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+			return <code key={key}>{part.slice(1, -1)}</code>;
+		}
+		const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
+		if (link) {
 			return (
-				<code
-					className="rounded bg-surface-2 px-1 py-px font-mono text-[11.5px]"
-					// biome-ignore lint/suspicious/noArrayIndexKey: static parse of a string
-					key={i}
-				>
-					{part.slice(1, -1)}
-				</code>
+				<span className="underline underline-offset-2" key={key}>
+					{link[1]}
+				</span>
+			);
+		}
+		if (/^@[A-Za-z0-9-]+$/.test(part)) {
+			return (
+				<span className="font-semibold" key={key}>
+					{part}
+				</span>
 			);
 		}
 		return part;
 	});
 }
 
-function Paragraphs({ text }: { text: string }) {
+function Markdown({ blocks }: { blocks: BodyBlock[] }) {
 	return (
 		<>
-			{text.split(/\n{2,}/).map((paragraph) => (
-				<p className="text-[13px] leading-5" key={paragraph}>
-					{renderInline(paragraph)}
-				</p>
-			))}
+			{blocks.map((block, i) => {
+				const key = `${block.kind}-${i}`;
+				if (block.kind === "paragraph") {
+					return (
+						<p className="whitespace-pre-line" data-dim="" key={key}>
+							{renderInline(block.text)}
+						</p>
+					);
+				}
+				if (block.kind === "list") {
+					return (
+						<ul
+							className="flex list-disc flex-col gap-1 ps-6"
+							data-dim=""
+							key={key}
+						>
+							{block.items.map((item) => (
+								<li key={item}>{renderInline(item)}</li>
+							))}
+						</ul>
+					);
+				}
+				if (block.kind === "button") {
+					return (
+						<div
+							className="relative w-fit rounded-tag"
+							data-dim=""
+							data-region="details-button"
+							key={key}
+						>
+							<img alt={block.alt} className="w-46" src={block.src} />
+						</div>
+					);
+				}
+				return (
+					<details data-dim="" key={key}>
+						<summary className="cursor-pointer">{block.summary}</summary>
+						<div className="mt-3 flex flex-col gap-4">
+							<Markdown blocks={textBlocks(block.body)} />
+						</div>
+					</details>
+				);
+			})}
 		</>
 	);
 }
 
 export interface GithubCommentMockProps {
-	/** The rendered comment body; null when the config posts no comment. */
 	body: string | null;
-	/** Shown in the empty state: what still surfaces without a comment. */
 	silentNote?: string;
 }
 
@@ -114,63 +169,54 @@ export function GithubCommentMock({
 }: GithubCommentMockProps) {
 	if (body === null) {
 		return (
-			<div className="flex flex-col items-center gap-1 rounded-xl bg-surface-2 px-4 py-8 text-center">
-				<p className="text-muted-foreground text-xs">no comment posts.</p>
-				{silentNote ? (
-					<p className="text-muted-foreground text-xs">{silentNote}</p>
-				) : null}
+			<div className="sm:ms-13" data-dim="">
+				<PreviewObject>
+					<Empty size="sm" variant="plain">
+						<EmptyHeader>
+							<EmptyTitle>Tripwire posts no comment</EmptyTitle>
+							{silentNote ? (
+								<EmptyDescription>{silentNote}</EmptyDescription>
+							) : null}
+						</EmptyHeader>
+					</Empty>
+				</PreviewObject>
 			</div>
 		);
 	}
 	const blocks = parseBody(body);
 	return (
 		<div className="flex items-start gap-3">
-			<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-2">
-				<GithubIcon className="size-4 text-foreground" />
-			</div>
-			<div className="min-w-0 flex-1 overflow-hidden rounded-xl bg-surface-2">
-				<div className="flex items-center gap-2 px-3.5 py-2.5">
-					<span className="font-medium text-xs">tripwire</span>
-					<Badge className="px-1.5 py-0 text-[10px]" variant="outline">
-						bot
-					</Badge>
-					<span className="text-[11px] text-muted-foreground">
-						commented just now
-					</span>
-				</div>
-				<div className="flex flex-col gap-3 px-3.5 pt-0.5 pb-3.5">
-					{blocks.map((block, i) => {
-						if (block.kind === "paragraph") {
-							return (
-								// biome-ignore lint/suspicious/noArrayIndexKey: static parse
-								<Paragraphs key={i} text={block.text} />
-							);
-						}
-						if (block.kind === "button") {
-							return (
-								<img
-									alt={block.alt}
-									className="w-[185px]"
-									// biome-ignore lint/suspicious/noArrayIndexKey: static parse
-									key={i}
-									src={block.src}
-								/>
-							);
-						}
-						return (
-							// biome-ignore lint/suspicious/noArrayIndexKey: static parse
-							<details className="text-[13px] leading-5" key={i}>
-								<summary className="cursor-pointer text-muted-foreground">
-									{block.summary}
-								</summary>
-								<div className="mt-2 flex flex-col gap-2">
-									<Paragraphs text={block.body} />
-								</div>
-							</details>
-						);
-					})}
-				</div>
-			</div>
+			<span
+				aria-hidden
+				className="hidden size-10 shrink-0 items-center justify-center rounded-tag bg-paper text-text-1 sm:flex forced-colors:border forced-colors:border-[CanvasText]"
+				data-dim=""
+			>
+				<TripwireLogo size={22} />
+			</span>
+			<article className="min-w-0 flex-1">
+				<PreviewObject stacked>
+					<header
+						className="flex flex-wrap items-center gap-x-1.5 gap-y-1 bg-shell px-4 py-2"
+						data-dim=""
+					>
+						<span className="type-label font-semibold text-text-1">
+							tripwire
+						</span>
+						<Badge size="sm" variant="outline">
+							bot
+						</Badge>
+						<span className="type-body-sm text-text-2">commented just now</span>
+					</header>
+					<div className="p-2">
+						<div
+							className="relative flex flex-col gap-4 rounded-tag px-2 py-2 type-body text-text-1"
+							data-region="comment-body"
+						>
+							<Markdown blocks={blocks} />
+						</div>
+					</div>
+				</PreviewObject>
+			</article>
 		</div>
 	);
 }

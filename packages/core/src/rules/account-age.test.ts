@@ -35,7 +35,7 @@ describe("account-age@1", () => {
 		const result = await evaluateRule(accountAge, ctx, { minDays: 30 });
 		expect(result.status).toBe("skipped");
 		expect(result.passed).toBe(false);
-		expect(result.reason).toContain("unavailable");
+		expect(result.reason).toContain("could not read");
 	});
 
 	test("invalid config skips instead of throwing", async () => {

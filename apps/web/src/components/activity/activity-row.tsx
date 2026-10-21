@@ -1,38 +1,34 @@
-import {
-	GitPullRequestIcon,
-	MessageMultiple01Icon,
-	Upload04Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Link } from "@tanstack/react-router";
 import type { EventKind, NormalizedEvent } from "@tripwire/contracts";
+import { verdictStatus } from "#/components/activity/verdict-chip";
+import { MetaRow } from "#/components/common/meta-row";
+import { ItemRouterLink } from "#/components/common/router-links";
+import { Avatar } from "#/components/glaze/ui/avatar";
+import { Badge } from "#/components/glaze/ui/badge";
+import {
+	Item,
+	ItemContent,
+	ItemDescription,
+	ItemLink,
+	ItemMedia,
+	ItemMeta,
+	ItemTitle,
+} from "#/components/glaze/ui/item";
+import { Status } from "#/components/glaze/ui/status";
 import type { ActivityItem } from "#/lib/activity.functions";
 import { formatRelativeTime } from "#/lib/format-relative-time";
-import { cn } from "#/lib/utils";
 
 const KIND_LABEL: Record<EventKind, string> = {
-	"change-request.opened": "change request opened",
-	"change-request.updated": "change request updated",
-	"change-request.closed": "change request closed",
-	"comment.created": "comment",
-	push: "push",
-	"installation.created": "installed the app",
-	"installation.deleted": "uninstalled the app",
-	"installation-repositories.added": "granted repos",
-	"installation-repositories.removed": "revoked repos",
+	"change-request.opened": "opened",
+	"change-request.updated": "updated",
+	"change-request.closed": "closed",
+	"comment.created": "commented on",
+	push: "pushed to",
+	"installation.created": "installed Tripwire on",
+	"installation.deleted": "uninstalled Tripwire from",
+	"installation-repositories.added": "gave Tripwire access to",
+	"installation-repositories.removed": "took Tripwire access from",
 };
 
-function kindIcon(kind: EventKind) {
-	if (kind === "comment.created") {
-		return MessageMultiple01Icon;
-	}
-	if (kind === "push") {
-		return Upload04Icon;
-	}
-	return GitPullRequestIcon;
-}
-
-/** The event's own GitHub deep link — the fallback target when no run (§9). */
 function eventUrl(event: NormalizedEvent): string | null {
 	if ("changeRequest" in event) {
 		return event.changeRequest.url;
@@ -59,33 +55,15 @@ function subjectLine(event: NormalizedEvent): string {
 	return `#${event.changeRequest.number} ${event.changeRequest.title}`;
 }
 
-const VERDICT: Record<string, { label: string; className: string }> = {
-	block: {
-		label: "blocked",
-		className: "bg-red-500/10 text-red-600 dark:text-red-400",
-	},
-	pass: {
-		label: "passed",
-		className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-	},
-	needs_review: {
-		label: "review",
-		className: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-	},
-};
-
-/** Why nothing ran, derived from the event kind (§6 gate targets). */
 function noRunReason(event: NormalizedEvent): string {
-	if (event.kind === "push") {
-		return "push";
+	if (
+		event.kind === "push" ||
+		event.kind === "comment.created" ||
+		event.kind.startsWith("installation")
+	) {
+		return "Not checked";
 	}
-	if (event.kind === "comment.created") {
-		return "comment";
-	}
-	if (event.kind.startsWith("installation")) {
-		return "installation";
-	}
-	return "maintainer — exempt";
+	return "Maintainer, not checked";
 }
 
 export function ActivityRow({
@@ -93,78 +71,71 @@ export function ActivityRow({
 	unarmed,
 }: {
 	item: ActivityItem;
-	/** §4 — the repo is scoped but not armed; no-run events read "not armed". */
 	unarmed?: boolean;
 }) {
 	const { event, run, pending } = item;
 	const hasRun = run !== null;
+	const url = eventUrl(event);
 
-	const inner = (
-		<div
-			className={cn(
-				"flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors",
-				hasRun ? "hover:bg-surface-1" : "opacity-60",
-			)}
-		>
-			<HugeiconsIcon
-				icon={kindIcon(event.kind)}
-				size={16}
-				strokeWidth={1.8}
-				className="shrink-0 text-muted-foreground"
-			/>
-			<img
-				alt={event.actor.login}
-				className="size-5 shrink-0 rounded-full outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
-				crossOrigin="anonymous"
-				src={
-					event.actor.avatarUrl ?? `https://github.com/${event.actor.login}.png`
-				}
-			/>
-			<div className="min-w-0 flex-1">
-				<div className="truncate text-sm">
-					<span className="font-medium">{event.actor.login}</span>{" "}
-					<span className="text-muted-foreground">
-						{KIND_LABEL[event.kind]}
-					</span>{" "}
-					<span className="truncate">{subjectLine(event)}</span>
-				</div>
-				<div className="truncate text-muted-foreground text-xs">
-					{"repo" in event ? event.repo.fullName : event.installation.account}
-					{hasRun && run.reason ? ` · ${run.reason}` : ""}
-				</div>
-			</div>
-
-			<Status
-				pending={pending}
-				reason={unarmed && !hasRun ? "not armed" : noRunReason(event)}
-				run={run}
-			/>
-
-			<span className="w-14 shrink-0 text-right text-muted-foreground text-xs">
-				{formatRelativeTime(event.occurredAt)}
-			</span>
-		</div>
+	const text = (
+		<>
+			{event.actor.login}{" "}
+			<span className="text-text-2">{KIND_LABEL[event.kind]}</span>{" "}
+			{subjectLine(event)}
+		</>
 	);
 
-	if (hasRun) {
-		return (
-			<Link params={{ runId: run.runId }} to="/runs/$runId">
-				{inner}
-			</Link>
-		);
-	}
-	const url = eventUrl(event);
-	if (url) {
-		return (
-			<a href={url} rel="noreferrer" target="_blank">
-				{inner}
-			</a>
-		);
-	}
-	return inner;
+	return (
+		<Item>
+			<ItemMedia>
+				<Avatar
+					decorative
+					name={event.actor.login}
+					size="xs"
+					src={
+						event.actor.avatarUrl ??
+						`https://github.com/${event.actor.login}.png`
+					}
+				/>
+			</ItemMedia>
+			<ItemContent>
+				<ItemTitle>
+					{hasRun ? (
+						<ItemRouterLink params={{ runId: run.runId }} to="/runs/$runId">
+							{text}
+						</ItemRouterLink>
+					) : url ? (
+						<ItemLink href={url} rel="noreferrer" target="_blank">
+							{text}
+						</ItemLink>
+					) : (
+						<span>{text}</span>
+					)}
+				</ItemTitle>
+				<ItemDescription>
+					<MetaRow>
+						<span>
+							{"repo" in event
+								? event.repo.fullName
+								: event.installation.account}
+						</span>
+						{hasRun && run.reason ? <span>{run.reason}</span> : null}
+					</MetaRow>
+				</ItemDescription>
+			</ItemContent>
+			<RowStatus
+				pending={pending}
+				reason={unarmed && !hasRun ? "Tripwire is off" : noRunReason(event)}
+				run={run}
+			/>
+			<ItemMeta className="w-14 text-end">
+				{formatRelativeTime(event.occurredAt)}
+			</ItemMeta>
+		</Item>
+	);
 }
 
-function Status({
+function RowStatus({
 	run,
 	pending,
 	reason,
@@ -173,33 +144,17 @@ function Status({
 	pending?: boolean;
 	reason: string;
 }) {
-	if (run) {
-		const verdict = run.verdict ? VERDICT[run.verdict] : undefined;
+	if (run || pending) {
+		const verdict = verdictStatus(run?.verdict);
 		return verdict ? (
-			<span
-				className={cn(
-					"shrink-0 rounded-full px-2 py-0.5 font-medium text-xs",
-					verdict.className,
-				)}
-			>
+			<Status size="sm" status={verdict.status}>
 				{verdict.label}
-			</span>
+			</Status>
 		) : (
-			<span className="shrink-0 text-muted-foreground text-xs">
-				evaluating…
-			</span>
+			<Status size="sm" status="running">
+				Checking
+			</Status>
 		);
 	}
-	if (pending) {
-		return (
-			<span className="shrink-0 animate-pulse text-muted-foreground text-xs">
-				evaluating…
-			</span>
-		);
-	}
-	return (
-		<span className="shrink-0 rounded-full bg-surface-1 px-2 py-0.5 text-muted-foreground text-xs">
-			{reason}
-		</span>
-	);
+	return <Badge variant="outline">{reason}</Badge>;
 }

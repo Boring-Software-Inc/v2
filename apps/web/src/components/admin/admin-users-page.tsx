@@ -1,14 +1,35 @@
-import { UserMultipleIcon } from "@hugeicons/core-free-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import type { AccessStatus } from "@tripwire/contracts";
 import { useState } from "react";
-import { AccessStatusDot } from "#/components/admin/access-status-dot";
+import { AccessStatusMark } from "#/components/admin/access-status-dot";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
-import { EmptyState } from "#/components/common/empty-state";
+import { Avatar } from "#/components/glaze/ui/avatar";
+import { Badge } from "#/components/glaze/ui/badge";
+import { Button } from "#/components/glaze/ui/button";
+import { Checkbox, CheckboxGroup } from "#/components/glaze/ui/checkbox";
+import { Chip } from "#/components/glaze/ui/chip";
+import { Input } from "#/components/glaze/ui/input";
+import { PaginationInfo } from "#/components/glaze/ui/pagination";
+import { RelativeTime } from "#/components/glaze/ui/relative-time";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/components/glaze/ui/segmented-control";
+import { Switch } from "#/components/glaze/ui/switch";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableEmpty,
+	TableHead,
+	TableHeader,
+	TableLoading,
+	TableRow,
+} from "#/components/glaze/ui/table";
+import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { Button } from "#/components/ui/button";
-import { Input } from "#/components/ui/input";
-import { toast } from "#/components/ui/toast";
+import { MascotArt } from "#/components/mascot/mascot-art";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import {
 	reviewUserAccess,
@@ -19,35 +40,40 @@ import {
 	adminQueryKeys,
 	adminUsersQueryOptions,
 } from "#/lib/admin.query";
-import { cn } from "#/lib/utils";
 
-const STATUS_FILTERS: Array<{ key: AccessStatus | "all"; label: string }> = [
-	{ key: "all", label: "all" },
-	{ key: "pending", label: "pending" },
-	{ key: "approved", label: "approved" },
-	{ key: "rejected", label: "rejected" },
+type StatusFilter = AccessStatus | "all";
+
+const STATUS_FILTERS: Array<{ key: StatusFilter; label: string }> = [
+	{ key: "all", label: "All" },
+	{ key: "pending", label: "Pending" },
+	{ key: "approved", label: "Approved" },
+	{ key: "rejected", label: "Declined" },
 ];
 
-/**
- * /admin/users — beta access review. Approve and reject both write through
- * the access.ts paths (the same promotion invite redemption uses); reject is
- * a two-step confirm because it is the harsher direction.
- */
+const COLUMN_COUNT = 9;
+
 export function AdminUsersPage() {
 	const queryClient = useQueryClient();
-	const [status, setStatus] = useState<AccessStatus | "all">("all");
+	const { online } = useSearch({ from: "/admin/users" });
+	const navigate = useNavigate({ from: "/admin/users" });
+	const [status, setStatus] = useState<StatusFilter>("all");
 	const [search, setSearch] = useState("");
 	const [offset, setOffset] = useState(0);
-	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const [selected, setSelected] = useState<string[]>([]);
 	const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null);
 	const debouncedSearch = useDebouncedValue(search, 250);
 
 	const filter = {
 		status: status === "all" ? undefined : status,
 		search: debouncedSearch || undefined,
+		online,
 		offset,
 	};
-	const { data } = useQuery(adminUsersQueryOptions(filter));
+	const filtered =
+		status !== "all" || debouncedSearch !== "" || online === true;
+	const { data, isLoading, error, refetch } = useQuery(
+		adminUsersQueryOptions(filter),
+	);
 
 	const review = useMutation({
 		mutationFn: reviewUserAccess,
@@ -66,12 +92,21 @@ export function AdminUsersPage() {
 			{ data: { userIds, decision } },
 			{
 				onSuccess: (result) => {
-					setSelected(new Set());
+					setSelected([]);
 					setConfirmRejectId(null);
-					toast(
-						decision === "approve"
-							? `approved ${result.changed} of ${result.total}`
-							: `rejected ${result.changed} of ${result.total}`,
+					const verb = decision === "approve" ? "Approved" : "Declined";
+					const noun = result.total === 1 ? "user" : "users";
+					toast.success(
+						result.changed === result.total
+							? `${verb} ${result.total} ${noun}`
+							: `${verb} ${result.changed} of ${result.total} ${noun}. The rest already had that status.`,
+					);
+				},
+				onError: (error) => {
+					toast.fail(
+						error instanceof Error
+							? error.message
+							: "Tripwire couldn't save the access decision. Try again.",
 					);
 				},
 			},
@@ -80,279 +115,359 @@ export function AdminUsersPage() {
 
 	const users = data?.users ?? [];
 	const total = data?.total ?? 0;
-	const pendingOnPage = users.filter((u) => u.accessStatus === "pending");
-	const allPendingSelected =
-		pendingOnPage.length > 0 && pendingOnPage.every((u) => selected.has(u.id));
+	const pendingIds = users
+		.filter((u) => u.accessStatus === "pending")
+		.map((u) => u.id);
 
-	const toggleAllPending = () => {
-		setSelected(
-			allPendingSelected ? new Set() : new Set(pendingOnPage.map((u) => u.id)),
-		);
-	};
-
-	const toggleOne = (id: string) => {
-		setSelected((prev) => {
-			const next = new Set(prev);
-			if (next.has(id)) {
-				next.delete(id);
-			} else {
-				next.add(id);
-			}
-			return next;
-		});
-	};
-
-	const setFilter = (next: AccessStatus | "all") => {
-		setStatus(next);
+	const setFilter = (next: string) => {
+		setStatus(next as StatusFilter);
 		setOffset(0);
-		setSelected(new Set());
+		setSelected([]);
 	};
+
+	const toolbar = (
+		<>
+			<SegmentedControl
+				aria-label="Access status"
+				onValueChange={(value) => setFilter(String(value))}
+				value={status}
+			>
+				{STATUS_FILTERS.map((f) => (
+					<SegmentedControlItem key={f.key} value={f.key}>
+						{f.label}
+					</SegmentedControlItem>
+				))}
+			</SegmentedControl>
+			<Chip
+				onPressedChange={(pressed) => {
+					setOffset(0);
+					setSelected([]);
+					void navigate({ search: pressed ? { online: true } : {} });
+				}}
+				pressed={online === true}
+			>
+				Online now
+			</Chip>
+			{selected.length > 0 ? (
+				<div className="flex items-center gap-2">
+					<span className="type-caption text-text-2 tabular-nums">
+						{selected.length} selected
+					</span>
+					<Button onClick={() => setSelected([])} size="sm" variant="secondary">
+						Clear selection
+					</Button>
+					<Button
+						onClick={() => decide(selected, "approve")}
+						pending={review.isPending}
+						size="sm"
+					>
+						Approve selected
+					</Button>
+				</div>
+			) : null}
+			<Input
+				aria-label="Search users"
+				className="ms-auto w-full sm:w-56"
+				mode="search"
+				onValueChange={(value) => {
+					setSearch(value);
+					setOffset(0);
+				}}
+				placeholder="Login or email"
+				size="sm"
+				value={search}
+			/>
+		</>
+	);
+
+	const footer = (
+		<>
+			{total === 0 ? (
+				<span>0 users</span>
+			) : (
+				<PaginationInfo
+					from={offset + 1}
+					noun="users"
+					to={Math.min(offset + ADMIN_PAGE_SIZE, total)}
+					total={total}
+				/>
+			)}
+			<div className="flex gap-2">
+				<Button
+					disabled={offset === 0}
+					onClick={() => setOffset(Math.max(0, offset - ADMIN_PAGE_SIZE))}
+					size="sm"
+					variant="secondary"
+				>
+					Previous
+				</Button>
+				<Button
+					disabled={offset + ADMIN_PAGE_SIZE >= total}
+					onClick={() => setOffset(offset + ADMIN_PAGE_SIZE)}
+					size="sm"
+					variant="secondary"
+				>
+					Next
+				</Button>
+			</div>
+		</>
+	);
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="mx-auto w-full max-w-5xl px-6 py-8">
-				<header className="mb-6">
-					<h1 className="font-semibold text-2xl tracking-tight">Users</h1>
-					<p className="text-muted-foreground text-sm">
-						beta access review. approve writes through the same promotion path
-						invite redemption uses. re-run cooldown duration is env-global (
-						<code className="text-xs">RERUN_COOLDOWN_SECONDS</code>); the
-						per-account exempt flag is toggled below.
-					</p>
-				</header>
+			<div className="px-4 py-6 md:px-8 md:py-10">
+				<div className="mx-auto flex w-full max-w-312 flex-col gap-6">
+					<header className="flex flex-col gap-1">
+						<h1 className="type-title">Users</h1>
+						<p className="max-w-measure type-body text-text-2">
+							Review beta access requests. Approving a user gives the same
+							access as accepting an invite. The re-run cooldown comes from{" "}
+							<code>RERUN_COOLDOWN_SECONDS</code> and applies to every user. Use
+							the Skip cooldown switch to turn it off for one user.
+						</p>
+					</header>
 
-				<div className="mb-4 flex flex-wrap items-center gap-2">
-					{STATUS_FILTERS.map((f) => (
-						<button
-							className={cn(
-								"rounded-full px-3 py-1 text-xs transition-colors",
-								status === f.key
-									? "bg-foreground text-background"
-									: "bg-surface-1 text-muted-foreground hover:text-foreground",
-							)}
-							key={f.key}
-							onClick={() => setFilter(f.key)}
-							type="button"
+					<CheckboxGroup
+						allValues={pendingIds}
+						className="block"
+						onValueChange={setSelected}
+						value={selected}
+					>
+						<Table
+							aria-busy={isLoading || undefined}
+							aria-label="Users"
+							footer={footer}
+							toolbar={toolbar}
 						>
-							{f.label}
-						</button>
-					))}
-					<Input
-						className="ml-auto h-8 max-w-56"
-						onChange={(e) => {
-							setSearch(e.target.value);
-							setOffset(0);
-						}}
-						placeholder="search login or email"
-						value={search}
-					/>
-				</div>
-
-				{selected.size > 0 ? (
-					<div className="mb-3 flex items-center gap-3 rounded-lg border bg-surface-1 px-4 py-2">
-						<span className="text-muted-foreground text-xs">
-							{selected.size} selected
-						</span>
-						<Button
-							disabled={review.isPending}
-							onClick={() => decide([...selected], "approve")}
-							size="xs"
-							variant="secondary"
-						>
-							approve selected
-						</Button>
-						<Button
-							onClick={() => setSelected(new Set())}
-							size="xs"
-							variant="ghost"
-						>
-							clear
-						</Button>
-					</div>
-				) : null}
-
-				{users.length === 0 ? (
-					<EmptyState
-						description="no users match this filter. new signups land as pending."
-						icon={UserMultipleIcon}
-						title="nobody here"
-					/>
-				) : (
-					<div className="overflow-hidden rounded-xl border bg-card">
-						<div className="flex items-center gap-3 bg-surface-1 px-4 py-2 text-muted-foreground text-xs">
-							<input
-								aria-label="select all pending on this page"
-								checked={allPendingSelected}
-								className="accent-foreground"
-								disabled={pendingOnPage.length === 0}
-								onChange={toggleAllPending}
-								type="checkbox"
-							/>
-							<span className="min-w-0 flex-1">user</span>
-							<span className="w-20 shrink-0">status</span>
-							<span className="hidden w-24 shrink-0 sm:block">
-								personal org
-							</span>
-							<span className="hidden w-12 shrink-0 text-right sm:block">
-								orgs
-							</span>
-							<span className="hidden w-24 shrink-0 md:block">joined</span>
-							<span className="hidden w-28 shrink-0 lg:block">flags</span>
-							<span className="w-36 shrink-0" />
-						</div>
-						{users.map((u) => (
-							<div
-								className="flex items-center gap-3 border-t px-4 py-2.5 transition-colors hover:bg-surface-1"
-								key={u.id}
-							>
-								<input
-									aria-label={`select ${u.name}`}
-									checked={selected.has(u.id)}
-									className="accent-foreground"
-									disabled={u.accessStatus !== "pending"}
-									onChange={() => toggleOne(u.id)}
-									type="checkbox"
-								/>
-								<div className="flex min-w-0 flex-1 items-center gap-2.5">
-									{u.image ? (
-										<img
-											alt=""
-											className="size-5 shrink-0 rounded-full outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10"
-											crossOrigin="anonymous"
-											src={u.image}
+							<TableHeader>
+								<TableRow>
+									<TableHead>
+										<Checkbox
+											aria-label="Select all pending on this page"
+											checked={pendingIds.length === 0 ? false : undefined}
+											disabled={pendingIds.length === 0}
+											parent={pendingIds.length > 0}
 										/>
-									) : (
-										<span className="size-5 shrink-0 rounded-full bg-surface-2" />
-									)}
-									<div className="min-w-0">
-										<p className="truncate font-medium text-sm">
-											{u.name}
-											{u.isPlatformAdmin ? (
-												<span className="ml-1.5 text-muted-foreground text-xs">
-													staff
-												</span>
-											) : null}
-										</p>
-										<p className="truncate text-muted-foreground text-xs">
-											{u.email}
-										</p>
-									</div>
-								</div>
-								<span className="w-20 shrink-0">
-									<AccessStatusDot status={u.accessStatus} />
-								</span>
-								<span className="hidden w-24 shrink-0 truncate text-muted-foreground text-xs sm:block">
-									{u.personalOrgSlug ?? "–"}
-								</span>
-								<span className="hidden w-12 shrink-0 text-right text-muted-foreground text-xs tabular-nums sm:block">
-									{u.membershipCount}
-								</span>
-								<span className="hidden w-24 shrink-0 text-muted-foreground text-xs md:block">
-									{formatAdminDate(u.createdAt)}
-								</span>
-								<span className="hidden w-28 shrink-0 lg:block">
-									<button
-										aria-pressed={u.rerunCooldownExempt}
-										className={cn(
-											"rounded-md px-2 py-1 font-medium text-xs transition-colors",
-											u.rerunCooldownExempt
-												? "bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:text-amber-400"
-												: "bg-surface-2 text-muted-foreground hover:text-foreground",
-										)}
-										disabled={flagRerun.isPending}
-										onClick={() =>
-											flagRerun.mutate(
-												{
-													data: {
-														userId: u.id,
-														exempt: !u.rerunCooldownExempt,
-													},
-												},
-												{
-													onSuccess: (result) => {
-														if (result.changed) {
-															toast(
-																u.rerunCooldownExempt
-																	? "re-run cooldown restored"
-																	: "re-run cooldown exempt",
-															);
-														}
-													},
-												},
+									</TableHead>
+									<TableHead>User</TableHead>
+									<TableHead>Status</TableHead>
+									<TableHead>Personal org</TableHead>
+									<TableHead numeric>Orgs</TableHead>
+									<TableHead>Joined</TableHead>
+									<TableHead>Last seen</TableHead>
+									<TableHead>Skip cooldown</TableHead>
+									<TableHead>
+										<span className="sr-only">Actions</span>
+									</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{isLoading ? (
+									<TableLoading
+										columns={[
+											{ checkbox: true },
+											{},
+											{},
+											{},
+											{ numeric: true },
+											{},
+											{},
+											{},
+											{},
+										]}
+									/>
+								) : error ? (
+									<TableEmpty
+										action={
+											<Button
+												onClick={() => void refetch()}
+												size="sm"
+												variant="secondary"
+											>
+												Load users again
+											</Button>
+										}
+										colSpan={COLUMN_COUNT}
+										description={error.message}
+										reason="error"
+										title="Tripwire couldn't load users"
+									/>
+								) : users.length === 0 ? (
+									<TableEmpty
+										art={<MascotArt mood="admin-table-empty" size="compact" />}
+										colSpan={COLUMN_COUNT}
+										description={
+											filtered
+												? "Try another status or search."
+												: "New signups show up here as pending."
+										}
+										reason={filtered ? "no-results" : "empty"}
+										title={
+											filtered ? "No users match this filter" : "No users yet"
+										}
+										action={
+											!filtered ? (
+												<Button
+													nativeButton={false}
+													render={<Link to="/admin/orgs" />}
+													size="sm"
+													variant="secondary"
+												>
+													View orgs
+												</Button>
+											) : (
+												<Button
+													onClick={() => {
+														setStatus("all");
+														setSearch("");
+														setOffset(0);
+														void navigate({ search: {} });
+													}}
+													size="sm"
+													variant="secondary"
+												>
+													Clear filters
+												</Button>
 											)
 										}
-										title={
-											u.rerunCooldownExempt
-												? "exempt from re-run cooldown — click to restore"
-												: "subject to re-run cooldown — click to exempt"
-										}
-										type="button"
-									>
-										{u.rerunCooldownExempt ? "no cooldown" : "cooldown"}
-									</button>
-								</span>
-								<span className="flex w-36 shrink-0 items-center justify-end gap-1.5">
-									{u.accessStatus !== "approved" ? (
-										<button
-											className="rounded-md bg-emerald-500/10 px-2.5 py-1 font-medium text-emerald-600 text-xs transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
-											disabled={review.isPending}
-											onClick={() => decide([u.id], "approve")}
-											type="button"
-										>
-											approve
-										</button>
-									) : null}
-									{u.accessStatus !== "rejected" ? (
-										confirmRejectId === u.id ? (
-											<button
-												className="rounded-md bg-red-500/20 px-2.5 py-1 font-medium text-red-600 text-xs transition-colors hover:bg-red-500/30 dark:text-red-400"
-												disabled={review.isPending}
-												onClick={() => decide([u.id], "reject")}
-												type="button"
+									/>
+								) : (
+									users.map((u) => (
+										<TableRow key={u.id} selected={selected.includes(u.id)}>
+											<TableCell>
+												<Checkbox
+													aria-label={`Select ${u.name}`}
+													disabled={u.accessStatus !== "pending"}
+													value={u.id}
+												/>
+											</TableCell>
+											<TableCell>
+												<div className="flex min-w-0 items-center gap-2">
+													<Avatar
+														decorative
+														name={u.name}
+														size="sm"
+														src={u.image ?? undefined}
+													/>
+													<div className="flex min-w-0 flex-col">
+														<span className="flex items-center gap-1 truncate type-label">
+															{u.name}
+															{u.isPlatformAdmin ? (
+																<Badge size="sm" variant="outline">
+																	Staff
+																</Badge>
+															) : null}
+														</span>
+														<span className="truncate type-caption text-text-2">
+															{u.email}
+														</span>
+													</div>
+												</div>
+											</TableCell>
+											<TableCell>
+												<AccessStatusMark status={u.accessStatus} />
+											</TableCell>
+											<TableCell
+												className="text-text-2"
+												mono={u.personalOrgSlug !== null}
 											>
-												confirm reject
-											</button>
-										) : (
-											<button
-												className="rounded-md bg-red-500/10 px-2.5 py-1 font-medium text-red-600 text-xs transition-colors hover:bg-red-500/20 dark:text-red-400"
-												disabled={review.isPending}
-												onClick={() => setConfirmRejectId(u.id)}
-												type="button"
-											>
-												reject
-											</button>
-										)
-									) : null}
-								</span>
-							</div>
-						))}
-					</div>
-				)}
-
-				<div className="mt-4 flex items-center justify-between text-muted-foreground text-xs">
-					<span>
-						{total === 0
-							? "0 users"
-							: `${offset + 1}–${Math.min(offset + ADMIN_PAGE_SIZE, total)} of ${total}`}
-					</span>
-					<div className="flex gap-1.5">
-						<Button
-							disabled={offset === 0}
-							onClick={() => setOffset(Math.max(0, offset - ADMIN_PAGE_SIZE))}
-							size="xs"
-							variant="outline"
-						>
-							prev
-						</Button>
-						<Button
-							disabled={offset + ADMIN_PAGE_SIZE >= total}
-							onClick={() => setOffset(offset + ADMIN_PAGE_SIZE)}
-							size="xs"
-							variant="outline"
-						>
-							next
-						</Button>
-					</div>
+												{u.personalOrgSlug ?? "None"}
+											</TableCell>
+											<TableCell numeric>{u.membershipCount}</TableCell>
+											<TableCell className="text-text-2">
+												{formatAdminDate(u.createdAt)}
+											</TableCell>
+											<TableCell className="text-text-2">
+												{u.lastSeenAt ? (
+													<RelativeTime date={u.lastSeenAt} />
+												) : (
+													"Unknown"
+												)}
+											</TableCell>
+											<TableCell>
+												<Switch
+													aria-label={`Skip re-run cooldown for ${u.name}`}
+													checked={u.rerunCooldownExempt}
+													onCheckedChange={(exempt) =>
+														flagRerun.mutate(
+															{ data: { userId: u.id, exempt } },
+															{
+																onSuccess: (result) => {
+																	if (result.changed) {
+																		toast.success(
+																			exempt
+																				? `${u.name} can re-run without the cooldown`
+																				: `${u.name} has the re-run cooldown again`,
+																		);
+																	}
+																},
+																onError: () => {
+																	toast.fail(
+																		`Tripwire couldn't change the cooldown for ${u.name}. Try again.`,
+																	);
+																},
+															},
+														)
+													}
+													pending={
+														flagRerun.isPending &&
+														flagRerun.variables?.data.userId === u.id
+													}
+													size="sm"
+												/>
+											</TableCell>
+											<TableCell>
+												<div className="flex items-center justify-end gap-2">
+													{u.accessStatus !== "approved" ? (
+														<Button
+															disabled={review.isPending}
+															onClick={() => decide([u.id], "approve")}
+															size="sm"
+															variant="secondary"
+														>
+															Approve
+														</Button>
+													) : null}
+													{u.accessStatus !== "rejected" ? (
+														confirmRejectId === u.id ? (
+															<Button
+																aria-label={`Confirm decline for ${u.name}`}
+																onBlur={() => setConfirmRejectId(null)}
+																onClick={() => decide([u.id], "reject")}
+																onKeyDown={(event) => {
+																	if (event.key === "Escape") {
+																		setConfirmRejectId(null);
+																	}
+																}}
+																pending={review.isPending}
+																ref={(node: HTMLButtonElement | null) =>
+																	node?.focus()
+																}
+																size="sm"
+																variant="destructive"
+															>
+																Confirm decline
+															</Button>
+														) : (
+															<Button
+																aria-label={`Decline ${u.name}`}
+																disabled={review.isPending}
+																onClick={() => setConfirmRejectId(u.id)}
+																size="sm"
+																variant="secondary"
+															>
+																Decline
+															</Button>
+														)
+													) : null}
+												</div>
+											</TableCell>
+										</TableRow>
+									))
+								)}
+							</TableBody>
+						</Table>
+					</CheckboxGroup>
 				</div>
 			</div>
 		</DashboardLayout>

@@ -8,6 +8,7 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
+import { useBlocker } from "@tanstack/react-router";
 import type {
 	ValidationIssue,
 	WorkflowDefinition,
@@ -20,7 +21,6 @@ import {
 } from "@tripwire/contracts";
 import {
 	addEdge,
-	Background,
 	type Connection,
 	Controls,
 	type Edge,
@@ -34,7 +34,27 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import { useCallback, useMemo, useState } from "react";
-import { toast } from "#/components/ui/toast";
+import { Icon, Pointer } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import {
+	Dialog,
+	DialogAction,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/glaze/ui/dialog";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemGroup,
+	ItemMedia,
+} from "#/components/glaze/ui/item";
+import { Status, StatusMark } from "#/components/glaze/ui/status";
+import { toast } from "#/components/glaze/ui/toast";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import {
 	buildNodeFromItem,
@@ -49,12 +69,11 @@ import {
 	CustomRuleNamesContext,
 	NodeIssuesContext,
 } from "#/components/workflows/editor/node-issues";
-import { KIND_STYLES } from "#/components/workflows/editor/node-kind-styles";
-import { cn } from "#/lib/utils";
 import {
 	definitionToGraph,
 	type EditorEdge,
 	type EditorNode,
+	edgeWhenFields,
 	graphToDefinition,
 	handleWhen,
 } from "#/lib/workflow-editor";
@@ -63,6 +82,37 @@ import "@xyflow/react/dist/style.css";
 const NODE_TYPES = { tripwire: TripwireNode };
 const DELETE_KEYS = ["Backspace", "Delete"];
 const CANVAS_DROP_ID = "workflow-canvas";
+function fitViewOptions() {
+	const wide = globalThis.matchMedia?.("(min-width: 768px)").matches ?? false;
+	return {
+		padding: {
+			left: wide ? "288px" : "48px",
+			right: "48px",
+			top: wide ? "48px" : "64px",
+			bottom: "48px",
+		},
+	} as const;
+}
+
+const CANVAS_TOKENS = {
+	"--xy-background-color": "var(--page)",
+	"--xy-edge-stroke": "var(--ink-45)",
+	"--xy-edge-stroke-selected": "var(--ink)",
+	"--xy-connectionline-stroke": "var(--ink-45)",
+	"--xy-edge-label-background-color": "var(--paper)",
+	"--xy-edge-label-color": "var(--text-2)",
+	"--xy-handle-background-color": "var(--ink-32)",
+	"--xy-handle-border-color": "var(--paper)",
+	"--xy-node-color": "var(--text-1)",
+	"--xy-selection-background-color": "var(--ink-06)",
+	"--xy-selection-border": "var(--line-width) dashed var(--line-strong)",
+	"--xy-controls-box-shadow": "var(--shadow-none)",
+	"--xy-controls-button-background-color": "var(--paper)",
+	"--xy-controls-button-background-color-hover": "var(--hover)",
+	"--xy-controls-button-color": "var(--text-1)",
+	"--xy-controls-button-color-hover": "var(--text-1)",
+	"--xy-controls-button-border-color": "var(--line-faint)",
+} as React.CSSProperties;
 
 /**
  * The droppable MUST be a child of <DndContext> — a useDroppable call in the
@@ -146,6 +196,40 @@ function EditorBody({
 	const [dirty, setDirty] = useState(false);
 	const [dragged, setDragged] = useState<ToolboxItem | null>(null);
 	const { screenToFlowPosition } = useReactFlow();
+	const leave = useBlocker({
+		shouldBlockFn: () => dirty && !readOnly,
+		enableBeforeUnload: () => dirty && !readOnly,
+		withResolver: true,
+	});
+
+	const onBeforeDelete = async ({
+		nodes: deletedNodes,
+		edges: deletedEdges,
+	}: {
+		nodes: TripwireFlowNode[];
+		edges: Edge[];
+	}) => {
+		const before = { nodes, edges };
+		const stepCount = deletedNodes.length;
+		const title =
+			stepCount > 0
+				? stepCount === 1
+					? "Step deleted"
+					: `${stepCount} steps deleted`
+				: deletedEdges.length === 1
+					? "Connection deleted"
+					: `${deletedEdges.length} connections deleted`;
+		toast(title, {
+			action: {
+				label: "Undo",
+				onClick: () => {
+					setNodes(before.nodes);
+					setEdges(before.edges);
+				},
+			},
+		});
+		return true;
+	};
 
 	// meta rides the LOADED definition; a rename lands on refetch, and the next
 	// save picks it up — the definition stays the single artifact.
@@ -245,7 +329,7 @@ function EditorBody({
 					{
 						...connection,
 						id: crypto.randomUUID(),
-						...(when ? { label: when } : {}),
+						...edgeWhenFields(when),
 					},
 					current,
 				),
@@ -260,7 +344,9 @@ function EditorBody({
 			const when = handleWhen(connection.sourceHandle);
 			setEdges((current) =>
 				reconnectEdge(oldEdge, connection, current).map((edge) =>
-					edge.id === oldEdge.id ? { ...edge, label: when } : edge,
+					edge.id === oldEdge.id
+						? { ...edge, label: undefined, ...edgeWhenFields(when) }
+						: edge,
 				),
 			);
 			setDirty(true);
@@ -305,6 +391,10 @@ function EditorBody({
 		},
 		[setNodes],
 	);
+
+	const clearSelection = useCallback(() => {
+		setNodes((current) => current.map((n) => ({ ...n, selected: false })));
+	}, [setNodes]);
 
 	const selectedFlowNodes = nodes.filter((n) => n.selected);
 	const selectedNode =
@@ -366,33 +456,50 @@ function EditorBody({
 			edges as unknown as EditorEdge[],
 		);
 		if (!result.ok) {
-			toast(result.error);
+			toast.fail(result.error);
 			return;
 		}
-		const saved = await onSave(result.definition);
+		const saved = await onSave(result.definition).catch(() => ({
+			ok: false as const,
+			error:
+				"Tripwire could not reach the server, so the workflow is not saved. Try again.",
+			connectionIssues: undefined,
+		}));
 		if (saved.ok) {
 			setDirty(false);
 			const failed = saved.connectionIssues ?? [];
 			setConnectionIssues(
 				new Map(failed.map((issue) => [issue.nodeId, [issue.message]])),
 			);
-			toast(
-				failed.length > 0
-					? "workflow saved. a webhook connection failed — see the node."
-					: "workflow saved",
-			);
+			if (failed.length > 0) {
+				toast.warn(
+					"Workflow saved, but Tripwire could not reach a delivery address. Open the marked step to fix it.",
+				);
+			} else {
+				toast.success("Workflow saved");
+			}
 		} else {
-			toast(saved.error ?? "couldn't save");
+			toast.fail(
+				saved.error ?? "Tripwire could not save the workflow. Try again.",
+			);
 		}
 	};
 
 	const handleSetEnabled = async (next: boolean) => {
-		const result = await onSetEnabled(next);
+		const result = await onSetEnabled(next).catch(() => null);
+		if (result === null) {
+			toast.fail(
+				"Tripwire could not reach the server, so the workflow did not change. Try again.",
+			);
+			return;
+		}
 		if (result.ok) {
-			toast(result.enabled ? "workflow enabled" : "workflow disabled");
+			toast.success(
+				result.enabled ? "Workflow turned on" : "Workflow turned off",
+			);
 		} else {
 			// server is authoritative — surface its issues verbatim.
-			toast(result.issues.map((issue) => issue.message).join("; "));
+			toast.fail(result.issues.map((issue) => issue.message).join("; "));
 		}
 	};
 
@@ -425,10 +532,12 @@ function EditorBody({
 						<NodeIssuesContext.Provider value={issuesByNode}>
 							<ReactFlow
 								deleteKeyCode={readOnly ? null : DELETE_KEYS}
+								onBeforeDelete={readOnly ? undefined : onBeforeDelete}
 								edges={edges}
 								edgesReconnectable={!readOnly}
 								elementsSelectable
 								fitView
+								fitViewOptions={fitViewOptions()}
 								nodes={nodes}
 								nodesConnectable={!readOnly}
 								nodesDraggable={!readOnly}
@@ -438,9 +547,13 @@ function EditorBody({
 								onNodesChange={onNodesChange}
 								onReconnect={readOnly ? undefined : onReconnect}
 								proOptions={{ hideAttribution: true }}
+								style={CANVAS_TOKENS}
 							>
-								<Background gap={16} />
-								<Controls position="bottom-right" showInteractive={false} />
+								<Controls
+									className="!m-3 overflow-hidden rounded-overlay border border-line"
+									position="bottom-right"
+									showInteractive={false}
+								/>
 							</ReactFlow>
 						</NodeIssuesContext.Provider>
 					</CustomRuleNamesContext.Provider>
@@ -449,6 +562,7 @@ function EditorBody({
 						org={org}
 						repo={repo}
 						onAdd={addAtFreePosition}
+						onClearSelection={clearSelection}
 						onTestConnection={onTestConnection}
 						onUpdateNode={updateNode}
 						readOnly={readOnly}
@@ -461,25 +575,52 @@ function EditorBody({
 					/>
 					{nodes.length === 0 ? (
 						<div className="pointer-events-none absolute inset-0 grid place-items-center">
-							<p className="text-muted-foreground text-xs">
-								drag a block from the toolbox
+							<p className="type-body-sm text-text-2">
+								Drag a step from the toolbox, or press its add button
 							</p>
 						</div>
 					) : null}
 				</CanvasDropzone>
 				<DragOverlay dropAnimation={null}>
 					{dragged ? (
-						<div
-							className={cn(
-								"rounded-md border border-l-2 bg-card px-2 py-1.5 text-xs shadow-md",
-								KIND_STYLES[dragged.kind].accent,
-							)}
-						>
+						<div className="overlay rounded-panel px-2 py-1 type-label-sm">
 							{dragged.name}
 						</div>
 					) : null}
 				</DragOverlay>
 			</DndContext>
+			<Dialog
+				onOpenChange={(open) => {
+					if (!open && leave.status === "blocked") {
+						leave.reset();
+					}
+				}}
+				open={leave.status === "blocked"}
+				role="alertdialog"
+			>
+				<DialogContent size="sm">
+					<DialogHeader>
+						<DialogTitle>Leave without saving?</DialogTitle>
+						<DialogDescription>
+							Your changes to this workflow are not saved. If you leave now,
+							they are lost.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<DialogClose>Keep editing</DialogClose>
+						<DialogAction
+							onAction={() => {
+								if (leave.status === "blocked") {
+									leave.proceed();
+								}
+							}}
+							variant="destructive"
+						>
+							Leave without saving
+						</DialogAction>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }
@@ -499,35 +640,52 @@ function IssuesPanel({
 		return null;
 	}
 	return (
-		<div className="absolute bottom-4 left-3 z-10 flex flex-col items-start gap-2">
+		<div className="absolute end-3 top-3 z-(--z-raised) flex flex-col items-end gap-2">
+			<Button
+				aria-expanded={open}
+				onClick={() => setOpen((value) => !value)}
+				size="sm"
+				variant="secondary"
+			>
+				<StatusMark className="self-center" status="fail" />
+				{count === 1 ? "1 issue" : `${count} issues`}
+			</Button>
 			{open ? (
-				<div className="max-h-56 w-72 overflow-y-auto rounded-lg border bg-card/95 p-1.5 shadow-md backdrop-blur">
+				<div className="overlay max-h-56 w-72 max-w-full overflow-y-auto py-1">
 					{structuralError ? (
-						<p className="px-2 py-1 text-destructive text-xs">
-							{structuralError}
-						</p>
+						<div className="px-2 py-1">
+							<Status status="fail">{structuralError}</Status>
+						</div>
 					) : null}
-					{issues.map((issue) => (
-						<button
-							className="flex w-full items-start gap-1.5 rounded-md px-2 py-1 text-left text-xs transition-colors hover:bg-surface-1"
-							key={`${issue.nodeId ?? issue.edgeId ?? "graph"}-${issue.message}`}
-							onClick={() => issue.nodeId && onSelect(issue.nodeId)}
-							type="button"
-						>
-							<span className="mt-1.5 block size-1.5 shrink-0 rounded-full bg-red-500" />
-							{issue.message}
-						</button>
-					))}
+					<ItemGroup aria-label="Issues" variant="plain">
+						{issues.map((issue) => (
+							<Item
+								key={`${issue.nodeId ?? issue.edgeId ?? "graph"}-${issue.message}`}
+								size="sm"
+							>
+								<ItemMedia>
+									<StatusMark label="Issue" status="fail" />
+								</ItemMedia>
+								<ItemContent>
+									<p className="type-body-sm">{issue.message}</p>
+								</ItemContent>
+								{issue.nodeId ? (
+									<ItemActions>
+										<Button
+											aria-label="Select the step with this issue"
+											onClick={() => issue.nodeId && onSelect(issue.nodeId)}
+											size="icon-sm"
+											variant="ghost"
+										>
+											<Icon icon={Pointer} />
+										</Button>
+									</ItemActions>
+								) : null}
+							</Item>
+						))}
+					</ItemGroup>
 				</div>
 			) : null}
-			<button
-				className="rounded-full border bg-card px-2.5 py-1 text-xs shadow-sm transition-colors hover:bg-surface-1"
-				onClick={() => setOpen((value) => !value)}
-				type="button"
-			>
-				<span className="mr-1.5 inline-block size-1.5 rounded-full bg-red-500 align-middle" />
-				{count === 1 ? "1 issue" : `${count} issues`}
-			</button>
 		</div>
 	);
 }

@@ -45,8 +45,8 @@ type ActionNode = Extract<WorkflowNode, { type: "action" }>;
 const WHEN_VERB: Record<EdgeWhen, string> = {
 	pass: "passes",
 	fail: "fails",
-	approve: "is approved",
-	deny: "is denied",
+	approve: "is approved by a maintainer",
+	deny: "is blocked by a maintainer",
 };
 
 const isTrigger = (n: WorkflowNode): n is TriggerNode => n.type === "trigger";
@@ -138,6 +138,19 @@ function actionParams(node: ActionNode): string[] {
 	return [];
 }
 
+function midSentenceName(
+	node: WorkflowNode,
+	customRules: readonly CustomRuleDisplay[],
+): string {
+	const name = nodeName(node, customRules);
+	const custom =
+		node.type === "rule" && customRules.some((r) => r.ref === node.ref);
+	if (custom || !/^[A-Z][a-z]/.test(name)) {
+		return name;
+	}
+	return name.charAt(0).toLowerCase() + name.slice(1);
+}
+
 /** How a node is reached: its incoming edges as `when <source> fails`, or `on
  * trigger` for a trigger source. Deduped; joined with `or` for fan-in. */
 function firingCondition(
@@ -153,7 +166,7 @@ function firingCondition(
 			if (source && source.type === "trigger") {
 				return "on trigger";
 			}
-			const name = source ? nodeName(source, customRules) : edge.from;
+			const name = source ? midSentenceName(source, customRules) : edge.from;
 			return `when ${name} ${WHEN_VERB[edge.when ?? "pass"]}`;
 		});
 	if (parts.length === 0) {
@@ -184,8 +197,8 @@ export function workflowToMarkdown(
 	const byId = new Map(definition.nodes.map((node) => [node.id, node]));
 	const nodeCount = definition.nodes.length;
 	const lines: string[] = [
-		`# Workflow · ${definition.name}`,
-		`\`${definition.id}\` · v${definition.version} · ${nodeCount} ${nodeCount === 1 ? "node" : "nodes"}`,
+		`# Workflow: ${definition.name}`,
+		`\`${definition.id}\`, v${definition.version}, ${nodeCount} ${nodeCount === 1 ? "node" : "nodes"}`,
 	];
 
 	const triggers = definition.nodes.filter(isTrigger);
@@ -203,7 +216,7 @@ export function workflowToMarkdown(
 		for (const node of rules) {
 			const sentence = ruleSentence(node, customRules);
 			lines.push(
-				`- **${nodeName(node, customRules)}** \`${node.ref}\`${sentence ? ` — ${sentence}` : ""}`,
+				`- **${nodeName(node, customRules)}** \`${node.ref}\`${sentence ? `: ${sentence}` : ""}`,
 			);
 		}
 	}
@@ -214,7 +227,7 @@ export function workflowToMarkdown(
 		for (const node of gates) {
 			const entry = GATE_CATALOG.find((e) => e.mode === node.mode);
 			lines.push(
-				`- **${entry?.name ?? node.mode}**${entry ? ` — ${entry.description}` : ""}`,
+				`- **${entry?.name ?? node.mode}**${entry ? `: ${entry.description}` : ""}`,
 			);
 			const inputs = gateInputs(node.id, definition, byId, customRules);
 			if (inputs.length > 0) {
@@ -228,9 +241,9 @@ export function workflowToMarkdown(
 		lines.push("", "### Actions");
 		for (const node of actions) {
 			const when = firingCondition(node.id, definition, byId, customRules);
-			const suffix = [when, ...actionParams(node)].filter(Boolean).join(" · ");
+			const suffix = [when, ...actionParams(node)].filter(Boolean).join(", ");
 			lines.push(
-				`- **${nodeName(node, customRules)}**${suffix ? ` — ${suffix}` : ""}`,
+				`- **${nodeName(node, customRules)}**${suffix ? `: ${suffix}` : ""}`,
 			);
 		}
 	}

@@ -1,36 +1,36 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import type {
-	CommentReason,
-	ResponseConfig,
-	Verdict,
-} from "@tripwire/contracts";
+import type { Verdict } from "@tripwire/contracts";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
 import {
-	BADGE_PATH,
-	renderVerdictComment,
-	responseConfigSchema,
-	wantsCheck,
-	wantsComment,
-} from "@tripwire/contracts";
-import { useState } from "react";
-import { AnalyticsMetricsSheet } from "#/components/analytics/analytics-metrics-sheet";
-import { CheckStateMock } from "#/components/customize/check-state-mock";
+	flattenConfig,
+	unflattenConfig,
+	VERDICTS,
+} from "#/components/customize/customize-model";
 import {
-	PAGE_FRAME,
-	SPLIT_FRAME,
+	PreviewSkeleton,
+	SettingsSkeleton,
 } from "#/components/customize/customize-page-skeleton";
-import { GithubCommentMock } from "#/components/customize/github-comment-mock";
-import { ResponseConfigForm } from "#/components/customize/response-config-form";
-import { VerdictToggle } from "#/components/customize/verdict-toggle";
+import { CustomizePreview } from "#/components/customize/customize-preview";
+import { DraftStoreProvider } from "#/components/customize/draft-store";
+import { PreviewLinkProvider } from "#/components/customize/preview-link";
+import {
+	PreviewPane,
+	type SheetState,
+} from "#/components/customize/preview-pane";
+import { SaveState } from "#/components/customize/save-state";
+import { VerdictSettings } from "#/components/customize/verdict-settings";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/components/glaze/ui/segmented-control";
+import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import {
 	type SaveQueueCommit,
 	SaveQueueProvider,
-	UnsavedChangesBar,
 	useSaveQueue,
 } from "#/components/save-queue";
-import { toast } from "#/components/ui/toast";
-import { useMediaQuery } from "#/hooks/use-media-query";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
 import { saveRepoResponseConfig } from "#/lib/response.functions";
 import {
@@ -40,116 +40,11 @@ import {
 
 const routeApi = getRouteApi("/$org/$repo/customize");
 
-/**
- * Sample reasons for the preview — real rule outputs (the snapshot corpus's
- * wording), with rule ids so non-full modes resolve the catalog labels. The
- * preview calls the SAME `renderVerdictComment` and `checkSummary` the worker
- * posts with — preview equals production.
- */
-const SAMPLE_REASONS: CommentReason[] = [
-	{
-		text: "your account is 2 days old",
-		remedy: "wait",
-		waitHint: "it clears in 5 days",
-		ruleId: "account-age",
-	},
-	{
-		text: "it adds 2 crypto addresses in DONATE.md",
-		remedy: "revise",
-		ruleId: "crypto-address",
-	},
-];
-
-const TEMPLATE_PLACEHOLDER = "blocked: {{ruleName}}\n\n{{runUrl}}";
-
-/**
- * The save-queue key space: one flat, primitive-valued key per writing
- * control, so default equality noop-clears and the bar's count is per
- * control. Every writer routes through these keys — the three verdict groups,
- * the block shape pills + rule-names switch + template editor, and the
- * per-outcome custom text + details-button toggle for pass / block / review.
- */
-function flattenConfig(config: ResponseConfig): Record<string, unknown> {
-	return {
-		onSuccess: config.onSuccess,
-		onBlock: config.onBlock,
-		moderationQueued: config.moderationQueued,
-		"blockComment.mode": config.blockComment.mode,
-		"blockComment.showRuleName": config.blockComment.showRuleName,
-		"blockComment.template": config.blockComment.template,
-		// Per-outcome custom text + button toggle (§customize). Independent per
-		// verdict — block and review carry their own message.
-		"passComment.customText": config.passComment.customText,
-		"passComment.showDetailsButton": config.passComment.showDetailsButton,
-		"blockComment.customText": config.blockComment.customText,
-		"blockComment.showDetailsButton": config.blockComment.showDetailsButton,
-		"reviewComment.customText": config.reviewComment.customText,
-		"reviewComment.showDetailsButton": config.reviewComment.showDetailsButton,
-		failClosedFallback: config.failClosedFallback,
-	};
-}
-
-// Parse (not cast) so a flat map missing any key — a saved row that predates a
-// field, or a key list that drifted from flattenConfig — resolves to the schema
-// default instead of leaking `undefined` into a `.trim()` downstream.
-function unflattenConfig(flat: Record<string, unknown>): ResponseConfig {
-	return responseConfigSchema.parse({
-		onSuccess: flat.onSuccess,
-		onBlock: flat.onBlock,
-		moderationQueued: flat.moderationQueued,
-		passComment: {
-			customText: flat["passComment.customText"],
-			showDetailsButton: flat["passComment.showDetailsButton"],
-		},
-		blockComment: {
-			mode: flat["blockComment.mode"],
-			showRuleName: flat["blockComment.showRuleName"],
-			template: flat["blockComment.template"],
-			customText: flat["blockComment.customText"],
-			showDetailsButton: flat["blockComment.showDetailsButton"],
-		},
-		reviewComment: {
-			customText: flat["reviewComment.customText"],
-			showDetailsButton: flat["reviewComment.showDetailsButton"],
-		},
-		/**
-		 * Must round-trip. Absent here, the schema default (true) rebuilt the
-		 * config on every save, so editing an unrelated control silently switched
-		 * the safety net back on for a repo that had turned it off.
-		 */
-		failClosedFallback: flat.failClosedFallback,
-	});
-}
-
-function previewBody(config: ResponseConfig, verdict: Verdict): string | null {
-	if (!wantsComment(config, verdict)) {
-		return null;
-	}
-	// An untouched custom template previews the placeholder's result — the
-	// bubble always shows a real end state, never an empty comment.
-	const previewConfig =
-		config.blockComment.mode === "custom" &&
-		config.blockComment.template.trim() === "" &&
-		config.blockComment.customText.trim() === ""
-			? {
-					...config,
-					blockComment: {
-						...config.blockComment,
-						template: TEMPLATE_PLACEHOLDER,
-					},
-				}
-			: config;
-	return renderVerdictComment(
-		{
-			verdict,
-			contributorLogin: "contributor",
-			reasons: verdict === "block" ? SAMPLE_REASONS : [],
-			runUrl: "https://tripwire.sh/runs/sample",
-			badgeUrl: BADGE_PATH,
-		},
-		previewConfig,
-	);
-}
+const NO_MESSAGE_CHOSEN = {
+	pass: false,
+	block: false,
+	needs_review: false,
+} satisfies Record<Verdict, boolean>;
 
 export function CustomizePage() {
 	const { org, repo: repoName } = routeApi.useParams();
@@ -161,29 +56,37 @@ export function CustomizePage() {
 		responseConfigQueryOptions(org, repoId),
 	);
 	const queryClient = useQueryClient();
+	const [saveError, setSaveError] = useState<string | null>(null);
 
-	// The ONE persisted action: overlay the batch on the saved config, one
-	// server call, one toast. Invalidation happens on SUCCESS ONLY — a failed
-	// commit keeps the queue, and the pending overlay keeps the user's edits
-	// on screen instead of snapping back to saved.
+	const savedValues = useMemo(
+		() => (savedConfig ? flattenConfig(savedConfig) : {}),
+		[savedConfig],
+	);
+
 	const commitBatch: SaveQueueCommit = async (pending) => {
 		if (!savedConfig) {
-			return { error: "not loaded yet" };
+			return {
+				error: "Settings are still loading. Wait a moment and save again.",
+			};
 		}
-		const next = unflattenConfig({ ...flattenConfig(savedConfig), ...pending });
+		const next = unflattenConfig({ ...savedValues, ...pending });
 		try {
 			const result = await saveRepoResponseConfig({
 				data: { org, repoId, config: next },
 			});
 			if (result && "error" in result) {
-				toast(result.error);
+				setSaveError(result.error);
 				return { error: result.error };
 			}
 		} catch {
-			toast("could not save changes. try again.");
-			return { error: "save failed" };
+			setSaveError(
+				"Changes did not save. Check your connection and save again.",
+			);
+			return {
+				error: "Changes did not save. Check your connection and save again.",
+			};
 		}
-		toast("changes saved.");
+		setSaveError(null);
 		await queryClient.invalidateQueries({
 			queryKey: responseQueryKeys.config(org, repoId),
 		});
@@ -191,179 +94,156 @@ export function CustomizePage() {
 	};
 
 	return (
-		<SaveQueueProvider
-			commit={commitBatch}
-			savedValues={savedConfig ? flattenConfig(savedConfig) : {}}
-		>
-			<CustomizePageInner isAdmin={isAdmin} loaded={Boolean(savedConfig)} />
+		<SaveQueueProvider commit={commitBatch} savedValues={savedValues}>
+			<DraftStoreProvider>
+				<PreviewLinkProvider>
+					<CustomizeView
+						canEdit={isAdmin}
+						loaded={Boolean(savedConfig)}
+						onDiscarded={() => setSaveError(null)}
+						saveError={saveError}
+						savedValues={savedValues}
+					/>
+				</PreviewLinkProvider>
+			</DraftStoreProvider>
 		</SaveQueueProvider>
 	);
 }
 
-function CustomizePageInner({
-	isAdmin,
+function CustomizeView({
+	canEdit,
 	loaded,
+	saveError,
+	savedValues,
+	onDiscarded,
 }: {
-	isAdmin: boolean;
+	canEdit: boolean;
 	loaded: boolean;
+	saveError: string | null;
+	savedValues: Parameters<SaveQueueCommit>[0];
+	onDiscarded: () => void;
 }) {
-	const { valueFor, setField } = useSaveQueue();
-	// The previewed verdict: set directly by the switcher, and followed by
-	// whichever verdict's controls are being touched (the selection link).
+	const { pending, setField, discard } = useSaveQueue();
 	const [verdict, setVerdict] = useState<Verdict>("block");
-	const isDesktop = useMediaQuery("(min-width: 768px)");
-	const [sheetOpen, setSheetOpen] = useState(false);
+	const [sheet, setSheet] = useState<SheetState>("closed");
+	const settingsId = useId();
+	const [messageChosen, setMessageChosen] = useState(NO_MESSAGE_CHOSEN);
+	const [editorEpoch, setEditorEpoch] = useState(0);
+	const remembered = useRef<Partial<Record<Verdict, string>>>({});
 
-	// Effective config = saved + pending overlay. Controls and the preview
-	// both render from it, so queued edits show everywhere before they save.
-	const config = loaded
-		? unflattenConfig({
-				onSuccess: valueFor("onSuccess"),
-				onBlock: valueFor("onBlock"),
-				moderationQueued: valueFor("moderationQueued"),
-				"blockComment.mode": valueFor("blockComment.mode"),
-				"blockComment.showRuleName": valueFor("blockComment.showRuleName"),
-				"blockComment.template": valueFor("blockComment.template"),
-				"passComment.customText": valueFor("passComment.customText"),
-				"passComment.showDetailsButton": valueFor(
-					"passComment.showDetailsButton",
-				),
-				"blockComment.customText": valueFor("blockComment.customText"),
-				"blockComment.showDetailsButton": valueFor(
-					"blockComment.showDetailsButton",
-				),
-				"reviewComment.customText": valueFor("reviewComment.customText"),
-				"reviewComment.showDetailsButton": valueFor(
-					"reviewComment.showDetailsButton",
-				),
-				failClosedFallback: valueFor("failClosedFallback"),
-			})
-		: null;
+	const config = useMemo(
+		() => (loaded ? unflattenConfig({ ...savedValues, ...pending }) : null),
+		[loaded, savedValues, pending],
+	);
 
-	// The form emits whole configs; the adapter fans them into per-key queue
-	// writes. setField noop-clears, so re-toggling back to saved empties the
-	// bar. Both form channels land here — nothing on this page writes to the
-	// server while the provider is mounted.
-	const onConfigChange = (next: ResponseConfig) => {
-		for (const [key, value] of Object.entries(flattenConfig(next))) {
-			setField(key, value);
+	const onMessageChosen = useCallback((v: Verdict, chosen: boolean) => {
+		setMessageChosen((prev) =>
+			prev[v] === chosen ? prev : { ...prev, [v]: chosen },
+		);
+	}, []);
+	const rememberMessage = useCallback((v: Verdict, text: string) => {
+		if (text.trim() !== "") {
+			remembered.current[v] = text;
 		}
+	}, []);
+	const recallMessage = useCallback(
+		(v: Verdict) => remembered.current[v] ?? "",
+		[],
+	);
+	const onDiscard = () => {
+		discard();
+		setMessageChosen(NO_MESSAGE_CHOSEN);
+		setEditorEpoch((n) => n + 1);
+		onDiscarded();
 	};
-
-	const body = config ? previewBody(config, verdict) : null;
-	const checkPosted = config ? wantsCheck(config, verdict) : true;
-
-	const form = config ? (
-		<ResponseConfigForm
-			canEdit={isAdmin}
-			config={config}
-			onChange={onConfigChange}
-			onDraft={onConfigChange}
-			onInteract={setVerdict}
-		/>
-	) : null;
-
-	const preview = config ? (
-		<div className="flex flex-col gap-4">
-			<VerdictToggle onChange={setVerdict} value={verdict} />
-			<GithubCommentMock body={body} />
-			<CheckStateMock
-				posted={checkPosted}
-				reasons={verdict === "block" ? SAMPLE_REASONS : []}
-				verdict={verdict}
-			/>
-		</div>
-	) : null;
-
-	const previewHeader = (
-		<header className="shrink-0 bg-surface-1 px-3.5 py-3">
-			<h2 className="font-medium text-sm">Preview</h2>
-			<p className="text-muted-foreground text-xs">
-				the pull request as this verdict leaves it.
-			</p>
-		</header>
-	);
-
-	const pageHeader = (
-		<header className="flex shrink-0 flex-col gap-1">
-			<h1 className="font-semibold text-2xl tracking-tight">Customize</h1>
-			<p className="text-muted-foreground text-sm">
-				what tripwire says and does when a verdict lands.
-			</p>
-		</header>
-	);
 
 	return (
 		<DashboardLayout counts={{}}>
-			{isDesktop ? (
-				<div className={PAGE_FRAME}>
-					{pageHeader}
-					<div className={SPLIT_FRAME}>
-						<section className="flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card md:w-96 md:shrink-0">
-							<header className="shrink-0 bg-surface-2 px-3.5 py-3">
-								<h2 className="font-medium text-sm">Configuration</h2>
-								<p className="text-muted-foreground text-xs">
-									pick each verdict's surfaces. the preview follows what you
-									touch.
-								</p>
-							</header>
-							<div className="min-h-0 flex-1 overflow-y-auto p-4">{form}</div>
-						</section>
-						<section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-surface-1">
-							{previewHeader}
-							<div className="min-h-0 flex-1 overflow-y-auto p-4">
-								{preview}
-							</div>
-						</section>
-					</div>
-				</div>
-			) : (
-				/* The analytics-sheet anatomy: a full-height page root, padded
-				   content above, and the sheet as a DIRECT sibling at the bottom —
-				   full-bleed, flush with the shell's bottom edge, in-flow so
-				   opening pushes the content up instead of covering it. */
-				<div className="relative flex h-full flex-col">
-					<div className="flex min-h-0 flex-1 flex-col gap-4 px-5 pt-6 pb-3">
-						{pageHeader}
-						{/* The switcher (top) and check row (bottom) pin as fixed
-						    bands; only the comment scrolls between them. With the
-						    drawer open the preview shrinks, and all three must stay
-						    visible at any height. */}
-						<section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-surface-1">
-							{previewHeader}
-							{config ? (
-								<>
-									<div className="shrink-0 px-4 pt-4">
-										<VerdictToggle onChange={setVerdict} value={verdict} />
-									</div>
-									<div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-										<GithubCommentMock body={body} />
-									</div>
-									<div className="shrink-0 px-4 pb-4">
-										<CheckStateMock
-											posted={checkPosted}
-											reasons={verdict === "block" ? SAMPLE_REASONS : []}
+			<div
+				className="group/customize relative flex h-full min-h-0 flex-col lg:grid lg:grid-cols-[--spacing(120)_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] xl:grid-cols-[--spacing(150)_minmax(0,1fr)] min-[96rem]:grid-cols-[--spacing(160)_minmax(0,1fr)]"
+				data-customize=""
+				data-sheet={sheet}
+			>
+				<div className="flex min-h-0 flex-1 scroll-pt-32 scroll-pb-17 flex-col overflow-y-auto group-data-[sheet=half]/customize:scroll-pb-[50%] lg:contents">
+					<header className="sticky top-0 z-(--z-sticky) flex flex-wrap items-center gap-x-10 gap-y-3 bg-paper px-4 pt-4 pb-3 md:px-6 lg:static lg:col-span-2 lg:min-h-18 lg:flex-nowrap lg:px-8 lg:py-3">
+						<div className="flex min-w-0 flex-1 flex-col gap-0.5 lg:flex-none">
+							<h1 className="type-title lg:type-heading">Customize</h1>
+							<p className="type-body-sm text-text-2 max-lg:hidden">
+								What Tripwire posts on a change request for each verdict.
+							</p>
+						</div>
+						<div className="order-last flex w-full items-center gap-3 lg:order-none lg:w-auto lg:flex-1">
+							<SegmentedControl
+								aria-label="Verdict"
+								className="max-lg:flex max-lg:w-full max-lg:*:flex-auto"
+								onValueChange={(value) => setVerdict(value as Verdict)}
+								value={verdict}
+							>
+								{VERDICTS.map((v) => (
+									<SegmentedControlItem key={v.value} value={v.value}>
+										{v.label}
+									</SegmentedControlItem>
+								))}
+							</SegmentedControl>
+						</div>
+						<SaveState
+							canEdit={canEdit}
+							error={saveError}
+							onDiscard={onDiscard}
+						/>
+					</header>
+					<section
+						aria-labelledby={settingsId}
+						className="flex flex-col lg:col-start-1 lg:row-start-2 lg:min-h-0"
+					>
+						<h2
+							className="flex h-12 shrink-0 items-center px-6 type-label-lg text-text-1 max-lg:sr-only"
+							id={settingsId}
+						>
+							Settings
+						</h2>
+						<div className="px-1 pb-6 md:px-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-5">
+							<SkeletonSwap
+								fallback={<SettingsSkeleton />}
+								label="Loading response settings"
+								loading={!config}
+							>
+								{config ? (
+									<div className="max-w-140">
+										<VerdictSettings
+											canEdit={canEdit}
+											config={config}
+											editorEpoch={editorEpoch}
+											key={verdict}
+											messageChosen={messageChosen[verdict]}
+											onMessageChosen={onMessageChosen}
+											recallMessage={recallMessage}
+											rememberMessage={rememberMessage}
+											setField={setField}
 											verdict={verdict}
 										/>
 									</div>
-								</>
-							) : null}
-						</section>
-					</div>
-					<AnalyticsMetricsSheet
-						closeLabel="Close Configuration"
-						onOpenChange={setSheetOpen}
-						open={sheetOpen}
-						openLabel="show configuration"
-					>
-						{/* The cap IS the composition: the drawer never takes more than
-						    55dvh, so the switcher, comment top, and check row stay live
-						    above it while editing. Tune the class, never remove it. */}
-						<div className="max-h-[55dvh] overflow-y-auto p-5">{form}</div>
-					</AnalyticsMetricsSheet>
+								) : null}
+							</SkeletonSwap>
+						</div>
+					</section>
+					<div
+						aria-hidden
+						className="h-17 shrink-0 group-data-[sheet=half]/customize:h-1/2 lg:hidden"
+					/>
 				</div>
-			)}
-			<UnsavedChangesBar />
+				<PreviewPane onSheetChange={setSheet} sheet={sheet}>
+					{config ? (
+						<CustomizePreview
+							config={config}
+							messageChosen={messageChosen[verdict]}
+							verdict={verdict}
+						/>
+					) : (
+						<PreviewSkeleton />
+					)}
+				</PreviewPane>
+			</div>
 		</DashboardLayout>
 	);
 }

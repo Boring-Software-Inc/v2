@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
+import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
+import { Button } from "#/components/glaze/ui/button";
+import { toast } from "#/components/glaze/ui/toast";
 import { InvitePageSkeleton } from "#/components/organizations/invite-page-skeleton";
-import { Button } from "#/components/ui/button";
-import { Spinner } from "#/components/ui/spinner";
-import { toast } from "#/components/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { redeemOrgInvite } from "#/lib/org.functions";
 
@@ -29,11 +29,12 @@ export function InvitePage() {
 		mutationFn: () => redeemOrgInvite({ data: { token } }),
 		onSuccess: (result) => {
 			if (result.status === "joined") {
-				toast.success("you're in");
+				toast.success("Joined the org");
 				navigate({ to: `/${result.orgSlug}/home` });
 				return;
 			}
 			if (result.status === "already-member") {
+				toast("You are already a member of this org");
 				navigate({ to: `/${result.orgSlug}/home` });
 			}
 		},
@@ -47,21 +48,17 @@ export function InvitePage() {
 	if (!session.user || redeem.data?.status === "unauthenticated") {
 		return (
 			<InviteShell>
-				<h1 className="font-semibold text-lg text-foreground">
-					sign in to accept this invite
-				</h1>
-				<p className="text-[13px] text-muted-foreground leading-relaxed">
-					you've been invited to join an org on tripwire. sign in with github,
-					then come back to this link.
-				</p>
+				<InviteCopy
+					body="You have an invite to join an org on Tripwire. Sign in and Tripwire brings you back to this invite."
+					title="Sign in to accept this invite"
+				/>
 				<Button
 					nativeButton={false}
 					render={
 						<Link search={{ redirect: `/invite/${token}` }} to="/login" />
 					}
-					size="sm"
 				>
-					sign in
+					Sign in
 				</Button>
 			</InviteShell>
 		);
@@ -70,19 +67,16 @@ export function InvitePage() {
 	if (redeem.data?.status === "invalid") {
 		return (
 			<InviteShell>
-				<h1 className="font-semibold text-lg text-foreground">
-					{INVALID_COPY[redeem.data.reason]}
-				</h1>
-				<p className="text-[13px] text-muted-foreground leading-relaxed">
-					ask whoever sent it for a fresh link.
-				</p>
+				<InviteCopy
+					body="Ask the person who sent it for a new invite link."
+					title={INVALID_COPY[redeem.data.reason]}
+				/>
 				<Button
 					nativeButton={false}
 					render={<Link to="/" />}
-					size="sm"
-					variant="outline"
+					variant="secondary"
 				>
-					back home
+					Back home
 				</Button>
 			</InviteShell>
 		);
@@ -90,25 +84,25 @@ export function InvitePage() {
 
 	return (
 		<InviteShell>
-			<h1 className="font-semibold text-lg text-foreground">
-				you've been invited to join an org.
-			</h1>
-			<p className="text-[13px] text-muted-foreground leading-relaxed">
-				accepting adds you as a member. nothing happens until you do.
-			</p>
+			<InviteCopy
+				body="Joining adds you to the org as a member. Nothing changes until you choose Join org."
+				title="You have an invite to join an org"
+			/>
 			<Button
-				disabled={redeem.isPending || redeem.isSuccess}
-				iconLeft={redeem.isPending ? <Spinner size={14} /> : null}
+				disabled={redeem.isSuccess}
 				onClick={() => redeem.mutate()}
-				size="sm"
+				pending={redeem.isPending}
+				pendingLabel="Joining"
 				type="button"
 			>
-				join org
+				Join org
 			</Button>
 			{redeem.isError ? (
-				<p className="text-[12px] text-destructive">
-					couldn't join the org. try again in a moment.
-				</p>
+				<Alert className="text-start" status="fail">
+					<AlertTitle>
+						Couldn't join the org. Check your connection and try again.
+					</AlertTitle>
+				</Alert>
 			) : null}
 		</InviteShell>
 	);
@@ -118,18 +112,27 @@ const INVALID_COPY: Record<
 	"not-found" | "revoked" | "expired" | "exhausted",
 	string
 > = {
-	"not-found": "this invite doesn't exist.",
-	revoked: "this invite was revoked.",
-	expired: "this invite has expired.",
-	exhausted: "this invite has no uses left.",
+	"not-found": "This invite link does not work",
+	revoked: "An admin withdrew this invite",
+	expired: "This invite has expired",
+	exhausted: "This invite has no uses left",
 };
+
+function InviteCopy({ title, body }: { title: string; body: string }) {
+	return (
+		<div className="flex flex-col items-center gap-2">
+			<h1 className="type-title">{title}</h1>
+			<p className="type-body text-text-2">{body}</p>
+		</div>
+	);
+}
 
 function InviteShell({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="flex min-h-dvh w-full items-center justify-center bg-background px-6">
+		<div className="flex min-h-dvh w-full items-center justify-center bg-page px-4 py-10">
 			<div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
-				<TripwireLogo className="text-foreground" size={28} />
-				<div className="flex flex-col items-center gap-2.5">{children}</div>
+				<TripwireLogo className="text-text-1" size={28} />
+				{children}
 			</div>
 		</div>
 	);

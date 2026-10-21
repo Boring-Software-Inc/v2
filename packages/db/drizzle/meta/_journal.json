@@ -134,6 +134,13 @@
       "when": 1784870640644,
       "tag": "0018_past_peter_quill",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792570672262,
+      "tag": "0019_talented_nova",
+      "breakpoints": true
     }
   ]
 }
