@@ -7,17 +7,23 @@ import {
 	valuePlaceholder,
 	verbsForSignal,
 } from "@tripwire/contracts";
-import { useMemo, useState } from "react";
-import { ArrowLeft, ChevronDown, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { type ReactNode, useMemo, useState } from "react";
+import { Check, Icon } from "#/components/glaze/icon";
 import { ComboboxField } from "#/components/glaze/ui/combobox";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "#/components/glaze/ui/command";
 import {
 	Dialog,
 	DialogAction,
 	DialogBody,
 	DialogClose,
 	DialogContent,
-	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -26,22 +32,23 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/glaze/ui/dropdown-menu";
-import {
-	Field,
-	FieldDescription,
-	FieldLabel,
-} from "#/components/glaze/ui/field";
+import { Field, FieldLabel } from "#/components/glaze/ui/field";
 import { Input } from "#/components/glaze/ui/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/glaze/ui/popover";
+import { cn } from "#/lib/glaze/utils";
 import { repoSuggestionsQueryOptions } from "#/lib/rules.query";
 
 /**
  * The rule builder: a sentence with blanks, not a form. The rule reads as
  * plain language and is authored by completing it left to right; each blank
- * reveals the next. This is the rule card's read-state sentence made
- * editable, so the chip styling derives from the card's param chips.
+ * reveals the next. Each blank is an underlined word that opens its picker,
+ * so the sentence wraps like text and never strands a word.
  */
 
 const GROUPS: CustomSignalDisplay["group"][] = [
@@ -120,8 +127,6 @@ function windowHours(window: string): number {
 	const count = Number.parseInt(window, 10);
 	return window.endsWith("d") ? count * 24 : count;
 }
-
-const BLANK = <Button size="sm" variant="secondary" />;
 
 function parseValue(
 	state: BuilderState,
@@ -311,97 +316,43 @@ export function CustomRuleBuilder({
 		setState(EMPTY_STATE);
 	};
 
+	const sentenceDraft = draftFromState({ ...state, name: state.name || "-" });
+	const namePlaceholder = sentenceDraft
+		? customRuleSentence(sentenceDraft.definition)
+		: undefined;
+	const verbLabel = state.verb?.label;
+	const windowLabel = WINDOWS.find((w) => w.window === state.window)?.label;
+	const listValue = state.values.join(", ");
+
 	return (
 		<Dialog onOpenChange={(next) => !next && onClose()} open={open}>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Create rule</DialogTitle>
-					<DialogDescription>
-						Fill in each blank from left to right. The finished sentence is the
-						rule Tripwire runs.
-					</DialogDescription>
 				</DialogHeader>
-				<DialogBody className="flex flex-col gap-3">
-					<div className="flex flex-wrap items-center gap-2 type-body text-text-1">
+				<DialogBody className="flex flex-col gap-4">
+					<div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-2 type-body text-text-2">
 						<span>Require that</span>
-						{state.signal === null ? (
-							<DropdownMenu>
-								<DropdownMenuTrigger render={BLANK}>
-									{state.area ?? "Pick an area"}
-									<Icon icon={ChevronDown} />
-								</DropdownMenuTrigger>
-								<DropdownMenuContent size="sm">
-									{GROUPS.map((group) => (
-										<DropdownMenuItem
-											key={group}
-											onClick={() =>
-												set({
-													area: group,
-													signal: null,
-													window: null,
-													verb: null,
-													...VALUE_RESET,
-												})
-											}
-										>
-											{group}
-										</DropdownMenuItem>
-									))}
-								</DropdownMenuContent>
-							</DropdownMenu>
-						) : null}
-						{state.area ? (
-							<DropdownMenu>
-								<DropdownMenuTrigger render={BLANK}>
-									{state.signal?.label ?? "Pick what to check"}
-									<Icon icon={ChevronDown} />
-								</DropdownMenuTrigger>
-								<DropdownMenuContent size="sm">
-									<DropdownMenuItem
-										onClick={() =>
-											set({
-												area: null,
-												signal: null,
-												window: null,
-												verb: null,
-												...VALUE_RESET,
-											})
-										}
-									>
-										<Icon icon={ArrowLeft} />
-										Back to areas
-									</DropdownMenuItem>
-									<DropdownMenuSeparator />
-									{CUSTOM_SIGNALS.filter((s) => s.group === state.area).map(
-										(signal) => (
-											<DropdownMenuItem
-												key={signal.id}
-												onClick={() =>
-													set({
-														signal,
-														window: null,
-														verb: null,
-														...VALUE_RESET,
-													})
-												}
-											>
-												{signal.label}
-											</DropdownMenuItem>
-										),
-									)}
-								</DropdownMenuContent>
-							</DropdownMenu>
-						) : null}
+						<SignalWord
+							onPick={(signal) =>
+								set({
+									area: signal.group,
+									signal,
+									window: null,
+									verb: null,
+									...VALUE_RESET,
+								})
+							}
+							signal={state.signal}
+						/>
 						{needsWindow ? (
 							<>
 								<span>in the last</span>
 								<DropdownMenu>
-									<DropdownMenuTrigger render={BLANK}>
-										{WINDOWS.find((w) => w.window === state.window)?.label ??
-											"Pick a window"}
-										<Icon icon={ChevronDown} />
+									<DropdownMenuTrigger className={wordClass(!windowLabel)}>
+										{windowLabel ?? "time window"}
 									</DropdownMenuTrigger>
-									<DropdownMenuContent size="sm">
+									<DropdownMenuContent align="start" size="sm">
 										{WINDOWS.filter(
 											(w) =>
 												!state.signal?.maxWindowHours ||
@@ -420,11 +371,10 @@ export function CustomRuleBuilder({
 						) : null}
 						{state.signal && (!needsWindow || state.window) ? (
 							<DropdownMenu>
-								<DropdownMenuTrigger render={BLANK}>
-									{state.verb?.label ?? "Pick a comparison"}
-									<Icon icon={ChevronDown} />
+								<DropdownMenuTrigger className={wordClass(!verbLabel)}>
+									{verbLabel ?? "comparison"}
 								</DropdownMenuTrigger>
-								<DropdownMenuContent size="sm">
+								<DropdownMenuContent align="start" size="sm">
 									{verbs.map((verb) => (
 										<DropdownMenuItem
 											key={verb.kind + verb.label}
@@ -438,73 +388,90 @@ export function CustomRuleBuilder({
 						) : null}
 						{state.verb && needsValue && state.signal ? (
 							isListVerb(state.verb.kind) ? (
-								<ComboboxField
-									aria-label="Values"
-									className="w-full"
-									creatable
-									items={suggestions ?? []}
-									multiple
-									onValueChange={(next) =>
-										set({ values: Array.isArray(next) ? next : [] })
-									}
-									placeholder={valuePlaceholder(state.signal, state.verb.kind)}
-									value={state.values}
-								/>
+								<ValueWord empty={!listValue} label={listValue || "values"}>
+									<ComboboxField
+										aria-label="Values"
+										className="w-full"
+										creatable
+										items={suggestions ?? []}
+										multiple
+										onValueChange={(next) =>
+											set({ values: Array.isArray(next) ? next : [] })
+										}
+										placeholder={valuePlaceholder(
+											state.signal,
+											state.verb.kind,
+										)}
+										value={state.values}
+									/>
+								</ValueWord>
 							) : state.verb.kind === "between" ? (
 								<>
-									<Input
-										aria-invalid={valueMessage !== null}
-										aria-label="Low"
-										className="w-20"
-										inputMode="numeric"
-										max={isPercentSignal ? 100 : undefined}
-										min={isPercentSignal ? 0 : undefined}
-										onChange={(e) => set({ value: e.target.value })}
-										placeholder="Low"
-										size="sm"
-										type="number"
-										value={state.value}
-									/>
+									<ValueWord empty={!state.value} label={state.value || "low"}>
+										<Input
+											aria-invalid={valueMessage !== null}
+											aria-label="Low"
+											autoFocus
+											inputMode="numeric"
+											max={isPercentSignal ? 100 : undefined}
+											min={isPercentSignal ? 0 : undefined}
+											onChange={(e) => set({ value: e.target.value })}
+											placeholder="Low"
+											type="number"
+											value={state.value}
+										/>
+									</ValueWord>
 									<span>and</span>
-									<Input
-										aria-invalid={valueMessage !== null}
-										aria-label="High"
-										className="w-20"
-										inputMode="numeric"
-										max={isPercentSignal ? 100 : undefined}
-										min={isPercentSignal ? 0 : undefined}
-										onChange={(e) => set({ high: e.target.value })}
-										placeholder="High"
-										size="sm"
-										type="number"
-										value={state.high}
-									/>
+									<ValueWord empty={!state.high} label={state.high || "high"}>
+										<Input
+											aria-invalid={valueMessage !== null}
+											aria-label="High"
+											autoFocus
+											inputMode="numeric"
+											max={isPercentSignal ? 100 : undefined}
+											min={isPercentSignal ? 0 : undefined}
+											onChange={(e) => set({ high: e.target.value })}
+											placeholder="High"
+											type="number"
+											value={state.high}
+										/>
+									</ValueWord>
 								</>
 							) : (
-								<Input
-									aria-invalid={valueMessage !== null}
-									aria-label="Value"
-									className="w-36"
-									inputMode={numericInput ? "numeric" : undefined}
-									max={percentInput ? 100 : undefined}
-									min={percentInput ? 0 : undefined}
-									onChange={(e) => set({ value: e.target.value })}
-									placeholder={valuePlaceholder(state.signal, state.verb.kind)}
-									size="sm"
-									type={numericInput ? "number" : "text"}
-									value={state.value}
-								/>
+								<ValueWord
+									empty={!state.value}
+									label={
+										state.value
+											? `${state.value}${isPercentSignal ? "%" : ""}`
+											: "value"
+									}
+								>
+									<Input
+										aria-invalid={valueMessage !== null}
+										aria-label="Value"
+										autoFocus
+										inputMode={numericInput ? "numeric" : undefined}
+										max={percentInput ? 100 : undefined}
+										min={percentInput ? 0 : undefined}
+										onChange={(e) => set({ value: e.target.value })}
+										placeholder={valuePlaceholder(
+											state.signal,
+											state.verb.kind,
+										)}
+										type={numericInput ? "number" : "text"}
+										value={state.value}
+									/>
+								</ValueWord>
 							)
 						) : null}
 						{state.verb ? (
 							<>
-								<span>, as a</span>
+								<span>as a</span>
 								<DropdownMenu>
-									<DropdownMenuTrigger render={BLANK}>
-										{state.severity ?? "Pick a severity"}
-										<Icon icon={ChevronDown} />
+									<DropdownMenuTrigger className={wordClass(!state.severity)}>
+										{state.severity ?? "severity"}
 									</DropdownMenuTrigger>
-									<DropdownMenuContent size="sm">
+									<DropdownMenuContent align="start" size="sm">
 										{SEVERITIES.map((severity) => (
 											<DropdownMenuItem
 												key={severity}
@@ -519,11 +486,6 @@ export function CustomRuleBuilder({
 							</>
 						) : null}
 					</div>
-					{draft ? (
-						<p className="type-body-sm text-text-2">
-							{customRuleSentence(draft.definition)}
-						</p>
-					) : null}
 					{valueMessage ? (
 						<output className="type-body-sm text-fail-text">
 							{valueMessage}
@@ -535,11 +497,9 @@ export function CustomRuleBuilder({
 							<Input
 								maxLength={80}
 								onChange={(e) => set({ name: e.target.value })}
+								placeholder={namePlaceholder}
 								value={state.name}
 							/>
-							<FieldDescription>
-								Shown on the rule card and in Activity. Up to 80 characters.
-							</FieldDescription>
 						</Field>
 					) : null}
 				</DialogBody>
@@ -556,5 +516,83 @@ export function CustomRuleBuilder({
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+function wordClass(empty: boolean): string {
+	return cn(
+		"-mx-1 rounded-tag px-1 type-body font-medium underline decoration-dotted decoration-line-strong underline-offset-4 transition-colors duration-(--dur-state) ease-out hover:bg-hover data-popup-open:bg-hover data-popup-open:no-underline",
+		empty ? "bg-hover text-text-3 no-underline" : "text-text-1",
+	);
+}
+
+function SignalWord({
+	signal,
+	onPick,
+}: {
+	signal: CustomSignalDisplay | null;
+	onPick: (signal: CustomSignalDisplay) => void;
+}) {
+	const [open, setOpen] = useState(false);
+	return (
+		<Popover onOpenChange={setOpen} open={open}>
+			<PopoverTrigger className={wordClass(!signal)}>
+				{signal ? signal.label.toLowerCase() : "what to check"}
+			</PopoverTrigger>
+			<PopoverContent align="start" className="p-0">
+				<Command label="What to check" loop>
+					<CommandInput autoFocus placeholder="Search" />
+					<CommandList>
+						<CommandEmpty />
+						{GROUPS.map((group) => (
+							<CommandGroup heading={group} key={group}>
+								{CUSTOM_SIGNALS.filter((s) => s.group === group).map((s) => (
+									<CommandItem
+										key={s.id}
+										onSelect={() => {
+											onPick(s);
+											setOpen(false);
+										}}
+										value={s.label}
+									>
+										{s.label}
+										{s.id === signal?.id ? (
+											<Icon className="ms-auto" icon={Check} />
+										) : null}
+									</CommandItem>
+								))}
+							</CommandGroup>
+						))}
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
+function ValueWord({
+	label,
+	empty,
+	children,
+}: {
+	label: string;
+	empty: boolean;
+	children: ReactNode;
+}) {
+	const [open, setOpen] = useState(false);
+	return (
+		<Popover onOpenChange={setOpen} open={open}>
+			<PopoverTrigger className={wordClass(empty)}>{label}</PopoverTrigger>
+			<PopoverContent align="start">
+				<form
+					onSubmit={(event) => {
+						event.preventDefault();
+						setOpen(false);
+					}}
+				>
+					{children}
+				</form>
+			</PopoverContent>
+		</Popover>
 	);
 }
