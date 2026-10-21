@@ -100,7 +100,7 @@ function ChartFrame({title, description, actions, footer, height = 200, loading,
     {(actions || table || live) && <div data-slot="chart-frame-actions" className="-my-0.5 flex shrink-0 items-center gap-2">
       {live && <Status status="running" size="sm">Live</Status>}
       {actions}
-      {table && <SegmentedControl size="sm" aria-label="View" value={view} onValueChange={next => setView(next as 'chart' | 'table')}>
+      {table && <SegmentedControl aria-label="View" value={view} onValueChange={next => setView(next as 'chart' | 'table')}>
         <SegmentedControlItem value="chart" aria-label="Chart"><Icon icon={ChartLine}/></SegmentedControlItem>
         <SegmentedControlItem value="table" aria-label="Table"><Icon icon={TableView}/></SegmentedControlItem>
       </SegmentedControl>}

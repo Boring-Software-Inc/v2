@@ -136,7 +136,6 @@ export function ActivityPage() {
 									setFilter(value);
 								}
 							}}
-							size="sm"
 							value={filter}
 						>
 							{FILTERS.map((f) => (

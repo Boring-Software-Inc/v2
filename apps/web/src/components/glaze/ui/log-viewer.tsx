@@ -196,7 +196,7 @@ function LogViewer({lines, follow = true, streaming = false, toolbar = false, he
     </div>}
     {toolbar && <div data-slot="log-viewer-toolbar" className="flex min-w-0 shrink-0 flex-wrap items-center gap-1.5 border-b border-line-faint p-1.5">
       <Input mode="search" size="sm" aria-label={`Filter ${label}`} placeholder="Filter lines" value={query} onValueChange={setQuery} clearLabel="Clear filter" className="min-w-40 flex-1 border-line-faint"/>
-      <SegmentedControl multiple size="sm" aria-label="Levels" value={shown} onValueChange={setShown}>
+      <SegmentedControl multiple aria-label="Levels" value={shown} onValueChange={setShown}>
         {levels.map(level => <SegmentedControlItem key={level} value={level} count={counts[level]}>{level}</SegmentedControlItem>)}
       </SegmentedControl>
       <Button variant="secondary" size="icon-sm" aria-label="Wrap lines" aria-pressed={wrap} onClick={() => setWrap(w => !w)} className="text-text-2 aria-pressed:text-text-1"><Icon icon={Wrap} weight={wrap ? 'fill' : 'regular'}/></Button>

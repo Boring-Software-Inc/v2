@@ -44,7 +44,6 @@ export function RuleSegments({
 					onChange(value);
 				}
 			}}
-			size="sm"
 			value={filter}
 		>
 			{shown.map((seg) => (

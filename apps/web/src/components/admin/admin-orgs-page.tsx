@@ -95,7 +95,6 @@ export function AdminOrgsPage() {
 					setKind(value as OrgKind);
 					setOffset(0);
 				}}
-				size="sm"
 				value={kind}
 			>
 				{KIND_FILTERS.map((f) => (

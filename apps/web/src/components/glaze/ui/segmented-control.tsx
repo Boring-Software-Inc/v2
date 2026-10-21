@@ -11,7 +11,7 @@ import {cn, controlHeight} from '#/lib/glaze/utils.ts';
 // Glaze's segmented control: two to five views of the same thing, on a paper pill track with the panel's hairline
 // (--line-faint) and 2px of room inside it, the card's own surface, so it is never a darker grey on the grey it often sits on. The selected segment sits on the thumb, small glaze (glaze-sm), the press recipe drawn for small parts, so
 // the chosen view reads as the pressed key it is. The others are plain text-2 labels that turn text-1 under the
-// pointer. 32px tall by default, 26 small, 36 large, like Button.
+// pointer. One size everywhere, 32px tall, so no page drifts from another.
 //
 // single has one thumb, a span under the segments that slides to the chosen one: it moves (translate) and takes the
 // new segment's width in --dur-slide on the house ease-out, while the labels crossfade between text-2 and the glaze's
@@ -28,26 +28,19 @@ import {cn, controlHeight} from '#/lib/glaze/utils.ts';
 //
 // A label too long for its segment ends in an ellipsis and gets its full text as a title.
 
-const segmentedVariants = cva('inline-flex w-fit max-w-full items-stretch gap-0.5 rounded-pill border border-line-faint bg-paper p-0.5 forced-colors:border-[CanvasText]', {
+// The track takes its items' type role, so the height's 1lh is the label's line and not the page's.
+const segmentedVariants = cva(`inline-flex w-fit max-w-full items-stretch gap-0.5 rounded-pill border border-line-faint bg-paper p-0.5 forced-colors:border-[CanvasText] ${controlHeight.default} type-label`, {
   variants: {
-    size: {
-      // The track takes its items' type role, so the height's 1lh is the label's line and not the page's: without it
-      // a small track grew to 29px beside 26px fields and buttons.
-      sm: `${controlHeight.sm} type-label-sm`,
-      default: `${controlHeight.default} type-label`,
-      lg: `${controlHeight.lg} type-label-lg`,
-    },
     fill: {
       true: 'flex w-full *:flex-1',
       false: '',
     },
   },
-  defaultVariants: {size: 'default', fill: false},
+  defaultVariants: {fill: false},
 });
 
-type Size = 'sm' | 'default' | 'lg';
-type Mode = {size: Size; countMax?: number; multiple: boolean; sliding?: boolean};
-const ModeContext = createContext<Mode>({size: 'default', multiple: false});
+type Mode = {countMax?: number; multiple: boolean; sliding?: boolean};
+const ModeContext = createContext<Mode>({multiple: false});
 
 /**
  * The sliding thumb: measures the chosen segment and writes its place and width to --seg-x and --seg-w on the track.
@@ -114,18 +107,18 @@ type MultipleProps = Common & Omit<ToggleGroupPrimitive.Props, 'value' | 'defaul
 type SegmentedControlProps = SingleProps | MultipleProps;
 
 function SegmentedControl(props: SegmentedControlProps) {
-  const {className, size = 'default', fill = false, children} = props;
-  const classes = cn(segmentedVariants({size, fill}), className);
+  const {className, fill = false, children} = props;
+  const classes = cn(segmentedVariants({fill}), className);
   const {track, thumb, ready} = useThumb();
-  const ctx: Mode = {size: size ?? 'default', countMax: props.countMax, multiple: !!props.multiple, sliding: ready};
+  const ctx: Mode = {countMax: props.countMax, multiple: !!props.multiple, sliding: ready};
   if (props.multiple) {
-    const {multiple: _m, onValueChange, size: _s, fill: _f, className: _c, children: _ch, countMax: _cm, ...rest} = props;
-    return <ToggleGroupPrimitive data-slot="segmented-control" data-size={size} data-multiple="" multiple onValueChange={value => onValueChange?.(value as string[])} className={classes} {...rest}>
+    const {multiple: _m, onValueChange, fill: _f, className: _c, children: _ch, countMax: _cm, ...rest} = props;
+    return <ToggleGroupPrimitive data-slot="segmented-control" data-multiple="" multiple onValueChange={value => onValueChange?.(value as string[])} className={classes} {...rest}>
       <ModeContext.Provider value={ctx}>{children}</ModeContext.Provider>
     </ToggleGroupPrimitive>;
   }
-  const {multiple: _m, onValueChange, size: _s, fill: _f, className: _c, children: _ch, countMax: _cm, ...rest} = props;
-  return <RadioGroupPrimitive ref={track} data-slot="segmented-control" data-size={size} onValueChange={value => onValueChange?.(value as string)} className={cn('relative', classes)} {...rest}>
+  const {multiple: _m, onValueChange, fill: _f, className: _c, children: _ch, countMax: _cm, ...rest} = props;
+  return <RadioGroupPrimitive ref={track} data-slot="segmented-control" onValueChange={value => onValueChange?.(value as string)} className={cn('relative', classes)} {...rest}>
     <span
       ref={thumb}
       aria-hidden
@@ -160,18 +153,14 @@ const itemBase = [
   '[&_svg]:pointer-events-none [&_svg]:shrink-0',
   'data-disabled:cursor-not-allowed',
 ].join(' ');
-const itemSize: Record<Size, string> = {
-  sm: 'px-2.5 type-label-sm [&_svg]:size-(--icon-sm)',
-  default: 'px-3 type-label [&_svg]:size-(--icon)',
-  lg: 'px-3.5 type-label-lg [&_svg]:size-(--icon-lg)',
-};
+const itemSize = 'px-3 type-label [&_svg]:size-(--icon)';
 // The chosen segment: on its own small glaze (multiple, or before the sliding thumb has measured), or over the thumb.
 const on = 'glaze-sm forced-colors:[forced-color-adjust:none] forced-colors:bg-[Highlight] forced-colors:text-[HighlightText]';
 const onThumb = 'text-(--glaze-sm-text) data-disabled:text-text-disabled forced-colors:[forced-color-adjust:none] forced-colors:bg-[Highlight] forced-colors:text-[HighlightText]';
 const off = 'text-text-2 hover:not-data-disabled:text-text-1 active:not-data-disabled:bg-hover data-disabled:text-text-disabled forced-colors:data-disabled:text-[GrayText]';
 
 function SegmentedControlItem({className, children, count, countMax: itemMax, ...props}: SegmentedControlItemProps) {
-  const {size, countMax: groupMax, multiple, sliding} = useContext(ModeContext);
+  const {countMax: groupMax, multiple, sliding} = useContext(ModeContext);
   const countId = useId();
   // Without countMax, the slot keeps the widest count it has shown, so it never shrinks back and jitters.
   const seen = useRef(0);
@@ -186,8 +175,8 @@ function SegmentedControlItem({className, children, count, countMax: itemMax, ..
     </span>}
   </>;
   const shared = {'data-slot': 'segmented-control-item', title, 'aria-describedby': count !== undefined ? countId : undefined};
-  if (multiple) return <TogglePrimitive {...shared} {...props} className={state => cn(itemBase, itemSize[size], state.pressed ? on : off, className)}>{content}</TogglePrimitive>;
-  return <RadioPrimitive.Root {...shared} {...props} className={state => cn(itemBase, itemSize[size], state.checked ? (sliding ? onThumb : on) : off, className)}>{content}</RadioPrimitive.Root>;
+  if (multiple) return <TogglePrimitive {...shared} {...props} className={state => cn(itemBase, itemSize, state.pressed ? on : off, className)}>{content}</TogglePrimitive>;
+  return <RadioPrimitive.Root {...shared} {...props} className={state => cn(itemBase, itemSize, state.checked ? (sliding ? onThumb : on) : off, className)}>{content}</RadioPrimitive.Root>;
 }
 
 export {SegmentedControl, SegmentedControlItem, segmentedVariants, type SegmentedControlProps, type SegmentedControlItemProps};

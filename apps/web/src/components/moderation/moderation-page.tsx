@@ -24,7 +24,7 @@ function hourLabel(hoursAgo: number): string {
 
 const verdictConfig = {
 	hour: { label: "Hour" },
-	passed: { label: "Passed" },
+	passed: { label: "Passed", status: "ok" as const },
 	blocked: { label: "Blocked", status: "fail" as const },
 };
 

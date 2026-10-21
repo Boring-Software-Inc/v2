@@ -1,6 +1,5 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MetaRow } from "#/components/common/meta-row";
 import {
 	type GlazeIcon,
 	Icon,
@@ -160,28 +159,20 @@ function EventRow({
 	focused: boolean;
 }) {
 	return (
-		<Item
-			aria-current={focused || undefined}
-			className="py-2"
-			selected={focused}
-		>
+		<Item aria-current={focused || undefined} selected={focused}>
 			<ItemMedia variant="icon">
 				<Icon icon={KIND_ICON[event.kind]} />
 			</ItemMedia>
 			<ItemContent>
-				<ItemTitle>{event.title}</ItemTitle>
-				<ItemDescription>
-					<MetaRow>
-						<span>{event.detail}</span>
-						<span>{formatRelativeTime(event.at)}</span>
-					</MetaRow>
-				</ItemDescription>
+				<ItemTitle>
+					<span>{event.title}</span>
+				</ItemTitle>
+				<ItemDescription className="truncate">{event.detail}</ItemDescription>
 			</ItemContent>
-			{event.impact ? (
-				<ItemMeta>
-					<ImpactChip impact={event.impact} />
-				</ItemMeta>
-			) : null}
+			{event.impact ? <ImpactChip impact={event.impact} /> : null}
+			<ItemMeta className="w-14 text-end">
+				{formatRelativeTime(event.at)}
+			</ItemMeta>
 		</Item>
 	);
 }

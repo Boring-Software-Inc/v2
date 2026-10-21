@@ -35,7 +35,7 @@ export function PreviewPane({
 	return (
 		<section
 			aria-labelledby={titleId}
-			className="absolute inset-x-0 bottom-0 z-(--z-sticky) flex h-15 flex-col overflow-hidden rounded-t-shell bg-shell transition-[height] duration-(--sheet-rise) ease-(--sheet-spring) max-lg:group-data-[sheet=full]/customize:h-[calc(100%-var(--space-4))] max-lg:group-data-[sheet=half]/customize:h-1/2 motion-reduce:transition-none forced-colors:border-t forced-colors:border-[CanvasText] lg:static lg:col-start-2 lg:row-start-2 lg:h-auto lg:rounded-none lg:transition-none"
+			className="absolute inset-x-0 bottom-0 z-(--z-sticky) flex h-15 flex-col overflow-hidden rounded-t-shell bg-shell transition-[height] duration-(--sheet-rise) ease-(--sheet-spring) max-lg:group-data-[sheet=full]/customize:h-[calc(100%-var(--space-4))] max-lg:group-data-[sheet=half]/customize:h-1/2 motion-reduce:transition-none forced-colors:border-t forced-colors:border-[CanvasText] lg:static lg:col-start-2 lg:row-start-2 lg:me-3 lg:mb-3 lg:h-auto lg:rounded-shell lg:border lg:border-line-faint lg:transition-none"
 			onKeyDown={(event) => {
 				if (event.key === "Escape" && sheet !== "closed") {
 					event.stopPropagation();

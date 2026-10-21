@@ -123,7 +123,6 @@ export function AdminUsersPage() {
 			<SegmentedControl
 				aria-label="Access status"
 				onValueChange={(value) => setFilter(String(value))}
-				size="sm"
 				value={status}
 			>
 				{STATUS_FILTERS.map((f) => (

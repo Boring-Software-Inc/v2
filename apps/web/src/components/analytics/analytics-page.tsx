@@ -80,7 +80,6 @@ export function AnalyticsPage() {
 								<SegmentedControl
 									aria-label="Metric"
 									onValueChange={setFocused}
-									size="sm"
 									value={focusedMetric.key}
 								>
 									{metrics.map((m) => (
