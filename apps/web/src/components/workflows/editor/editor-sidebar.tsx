@@ -418,6 +418,7 @@ function ToolboxRow({
 		<Item
 			className={cn(!disabled && "cursor-grab", isDragging && "opacity-40")}
 			disabled={disabled}
+			onClick={disabled ? undefined : () => onAdd(item)}
 			ref={setNodeRef}
 			size="sm"
 			title={item.description}
@@ -437,7 +438,6 @@ function ToolboxRow({
 					className="static after:absolute after:inset-0 after:content-['']"
 					data-slot="item-link"
 					disabled={disabled}
-					onClick={() => onAdd(item)}
 					size="icon-sm"
 					variant="ghost"
 				>
