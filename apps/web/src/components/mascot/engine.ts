@@ -40,12 +40,8 @@ import {
 	soften,
 	V7_POSES,
 } from "#/components/mascot/poses";
-import {
-	SCRIPTS,
-	SPRINGS,
-	type Spring,
-	stepAt,
-} from "#/components/mascot/scripts";
+import { SCRIPTS, SPRINGS, stepAt } from "#/components/mascot/scripts";
+import { type Channel, channel, stepSpring } from "#/components/mascot/spring";
 import { trackMascot } from "#/components/mascot/ticker";
 
 export type Gaze = { x: number; y: number };
@@ -98,7 +94,14 @@ export type MascotSnapshot = {
 	count: number;
 };
 
+export type MascotDriver = {
+	frame: (dt: number) => void;
+	path: (front: (pose: Pose) => string) => string;
+	transform: () => string;
+};
+
 export type MascotView = {
+	root: SVGGElement;
 	body: SVGPathElement;
 	zz: SVGGElement;
 	bubble: SVGGElement;
@@ -130,16 +133,6 @@ const GAZE_X = CELL * 1.2;
 const GAZE_Y = CELL * 1.2;
 const DRIP_TOOTH_X = 63;
 const SWAP_S = 0.07;
-
-type Channel = { value: number; velocity: number };
-
-const channel = (value: number): Channel => ({ value, velocity: 0 });
-
-function stepSpring(c: Channel, target: number, s: Spring, dt: number) {
-	const force = -s.stiffness * (c.value - target) - s.damping * c.velocity;
-	c.velocity += force * dt;
-	c.value += c.velocity * dt;
-}
 
 function fmt(n: number) {
 	return n.toFixed(2);
@@ -250,6 +243,15 @@ export class MascotEngine {
 	private views = new Set<MascotView>();
 	private listeners = new Set<() => void>();
 	private untrack: (() => void) | null = null;
+	private driver: MascotDriver | null = null;
+	private frontPath = (pose: Pose) =>
+		buildMascotPath(pose, this.shown, {
+			gx: 0,
+			gy: 0,
+			blink: 0,
+			pop: 1,
+		});
+	private trackedEl: Element | null = null;
 	private ambientIn: number[] = [];
 	private release: { event: MascotEvent; at: number } | null = null;
 	private wanderIn = 1;
@@ -332,6 +334,7 @@ export class MascotEngine {
 
 	start(el?: Element, far?: number) {
 		this.stop();
+		this.trackedEl = el ?? null;
 		this.untrack = trackMascot(this, el, far);
 	}
 
@@ -414,7 +417,28 @@ export class MascotEngine {
 		}
 	}
 
+	setDriver(driver: MascotDriver | null) {
+		this.driver = driver;
+		if (!driver) {
+			for (const view of this.views) {
+				view.root.removeAttribute("transform");
+			}
+			this.render();
+		}
+	}
+
+	get element(): Element | null {
+		return this.trackedEl;
+	}
+
 	tick(realDt: number) {
+		if (this.driver) {
+			this.driver.frame(realDt);
+			if (this.driver) {
+				this.renderDriven(this.driver);
+			}
+			return;
+		}
 		const s = this.settings;
 		const dt = realDt * s.speed;
 		this.clock += dt;
@@ -612,6 +636,21 @@ export class MascotEngine {
 		}
 		this.visible.set(el, on);
 		el.setAttribute("visibility", on ? "visible" : "hidden");
+	}
+
+	private renderDriven(driver: MascotDriver) {
+		const d = driver.path(this.frontPath);
+		const transform = driver.transform();
+		for (const view of this.views) {
+			view.body.setAttribute("d", d);
+			view.root.setAttribute("transform", transform);
+			this.setVisible(view.zz, false);
+			this.setVisible(view.bubble, false);
+			this.setVisible(view.prop, false);
+			this.setVisible(view.drip, false);
+			this.setVisible(view.cloud, false);
+			this.setVisible(view.bolt, false);
+		}
 	}
 
 	private render() {

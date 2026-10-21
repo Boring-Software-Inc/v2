@@ -346,7 +346,12 @@ export type Warp = {
 	droop: number;
 };
 
-export function warpPoint(p: Warp, x: number, y: number): Point {
+export function warpPointInto(
+	p: Warp,
+	x: number,
+	y: number,
+	out: number[],
+): void {
 	const cx = BODY_W / 2;
 	const v = y / BODY_H;
 	const u = (x - cx) / (BODY_W / 2);
@@ -365,7 +370,15 @@ export function warpPoint(p: Warp, x: number, y: number): Point {
 		nx = cx + dx * Math.cos(a) - dy * Math.sin(a);
 		ny = BODY_H + dx * Math.sin(a) + dy * Math.cos(a);
 	}
-	return [nx, ny];
+	out[0] = nx;
+	out[1] = ny;
+}
+
+const WARPED = [0, 0];
+
+export function warpPoint(p: Warp, x: number, y: number): Point {
+	warpPointInto(p, x, y, WARPED);
+	return [WARPED[0] as number, WARPED[1] as number];
 }
 
 export const REST_WARP: Warp = {

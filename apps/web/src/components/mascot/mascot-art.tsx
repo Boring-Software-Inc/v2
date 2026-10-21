@@ -15,6 +15,7 @@ import {
 	type MascotMood,
 	type MascotMoodKey,
 } from "#/components/mascot/moods";
+import { registerRunnerHost } from "#/components/mascot/runner/trigger";
 import { useReducedMotion } from "#/components/mascot/use-reduced-motion";
 import { cn } from "#/lib/glaze/utils";
 
@@ -68,6 +69,13 @@ export function MascotArt({
 		engine.start(button.current, config.far);
 		return () => engine.stop();
 	}, [engine, config.far]);
+
+	useEffect(() => {
+		if (!button.current || size !== "default") {
+			return;
+		}
+		return registerRunnerHost({ engine, art: button.current });
+	}, [engine, size]);
 
 	return (
 		<button

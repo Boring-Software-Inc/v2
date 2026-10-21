@@ -42,7 +42,8 @@ export function isPublicPath(pathname: string): boolean {
 	return (
 		pathname === "/login" ||
 		PUBLIC_RUN_PATH.test(pathname) ||
-		(import.meta.env.DEV === true && pathname === "/mascot")
+		(import.meta.env.DEV === true &&
+			(pathname === "/mascot" || pathname === "/game"))
 	);
 }
 

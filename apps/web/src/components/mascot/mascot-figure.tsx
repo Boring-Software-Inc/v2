@@ -31,6 +31,7 @@ export function MascotFigure({
 	path,
 	className,
 }: MascotFigureProps) {
+	const root = useRef<SVGGElement>(null);
 	const body = useRef<SVGPathElement>(null);
 	const zz = useRef<SVGGElement>(null);
 	const bubble = useRef<SVGGElement>(null);
@@ -43,6 +44,7 @@ export function MascotFigure({
 
 	useEffect(() => {
 		if (
+			!root.current ||
 			!body.current ||
 			!zz.current ||
 			!bubble.current ||
@@ -56,6 +58,7 @@ export function MascotFigure({
 			return;
 		}
 		return engine.attach({
+			root: root.current,
 			body: body.current,
 			zz: zz.current,
 			bubble: bubble.current,
@@ -82,51 +85,53 @@ export function MascotFigure({
 			viewBox={VIEW_BOX}
 			width={size}
 		>
-			<path d={path} fill="currentColor" fillRule="evenodd" ref={body} />
-			<g ref={zz} visibility="hidden">
-				<path d={ZZ_PATH} fill="currentColor" />
-			</g>
-			<g ref={bubble} visibility="hidden">
-				<path
-					d={bubblePath(3)}
+			<g ref={root}>
+				<path d={path} fill="currentColor" fillRule="evenodd" ref={body} />
+				<g ref={zz} visibility="hidden">
+					<path d={ZZ_PATH} fill="currentColor" />
+				</g>
+				<g ref={bubble} visibility="hidden">
+					<path
+						d={bubblePath(3)}
+						fill="currentColor"
+						fillRule="evenodd"
+						ref={bubbleBody}
+					/>
+					<path d={BUBBLE_TAIL_PATH} fill="currentColor" />
+				</g>
+				<rect
 					fill="currentColor"
-					fillRule="evenodd"
-					ref={bubbleBody}
+					height={PROP_RECT.size}
+					ref={prop}
+					visibility="hidden"
+					width={PROP_RECT.size}
+					x={PROP_RECT.x}
+					y={PROP_RECT.y}
 				/>
-				<path d={BUBBLE_TAIL_PATH} fill="currentColor" />
-			</g>
-			<rect
-				fill="currentColor"
-				height={PROP_RECT.size}
-				ref={prop}
-				visibility="hidden"
-				width={PROP_RECT.size}
-				x={PROP_RECT.x}
-				y={PROP_RECT.y}
-			/>
-			<g ref={cloud} visibility="hidden">
-				<path
-					d={CLOUD_PATHS[0]}
+				<g ref={cloud} visibility="hidden">
+					<path
+						d={CLOUD_PATHS[0]}
+						fill="currentColor"
+						fillRule="evenodd"
+						ref={cloudBody}
+					/>
+					<path
+						d={BOLT_PATH}
+						fill="currentColor"
+						ref={bolt}
+						visibility="hidden"
+					/>
+				</g>
+				<ellipse
+					cx={0}
+					cy={0}
 					fill="currentColor"
-					fillRule="evenodd"
-					ref={cloudBody}
-				/>
-				<path
-					d={BOLT_PATH}
-					fill="currentColor"
-					ref={bolt}
+					ref={drip}
+					rx={0}
+					ry={0}
 					visibility="hidden"
 				/>
 			</g>
-			<ellipse
-				cx={0}
-				cy={0}
-				fill="currentColor"
-				ref={drip}
-				rx={0}
-				ry={0}
-				visibility="hidden"
-			/>
 		</svg>
 	);
 }
