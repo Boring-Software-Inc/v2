@@ -40,6 +40,7 @@ export const MASCOT_MOODS = {
 	"admin-table-empty": { face: "neutral" },
 	"install-nothing": { face: "surprised", wander: true },
 	"not-found": { face: "surprised", ambient: NOW_AND_THEN_TALK },
+	"route-error": { face: "angry", restPose: "stiff" },
 	"run-not-found": { face: "surprised", ambient: NOW_AND_THEN_TALK },
 	"workflow-not-found": { face: "surprised", ambient: NOW_AND_THEN_TALK },
 } as const satisfies Record<string, MascotMood>;
