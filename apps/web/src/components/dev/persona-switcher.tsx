@@ -166,7 +166,7 @@ export function DevPersonaSwitcher() {
 		return null;
 	}
 	return (
-		<div className="fixed bottom-3 left-3 z-(--z-overlay) print:hidden">
+		<div className="fixed bottom-3 left-3 z-(--z-overlay) max-md:top-1/2 max-md:bottom-auto max-md:-translate-y-1/2 print:hidden">
 			<Popover>
 				<PopoverTrigger render={<Button size="sm" variant="secondary" />}>
 					Dev
