@@ -38,31 +38,34 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 	const org = useActiveScope().org?.slug;
 
 	return (
-		<nav
-			aria-label="Primary"
-			className="flex h-12 min-w-0 shrink-0 items-center gap-3 px-3"
-		>
-			<Link
-				aria-label={org ? "Tripwire, go to org home" : "Tripwire, go to home"}
-				to={org ? "/$org/home" : "/"}
-				params={org ? { org } : {}}
-				className="flex h-(--control) shrink-0 items-center gap-2 rounded-pill px-2 text-text-1 hover:bg-hover"
+		<>
+			<nav
+				aria-label="Primary"
+				className="flex h-12 min-w-0 shrink-0 items-center gap-3 px-3"
 			>
-				<TripwireWordmark height={15} width={24} />
-				<span className="type-label">{siteConfig.wordmark}</span>
-			</Link>
+				<Link
+					aria-label={org ? "Tripwire, go to org home" : "Tripwire, go to home"}
+					to={org ? "/$org/home" : "/"}
+					params={org ? { org } : {}}
+					className="flex h-(--control) shrink-0 items-center gap-2 rounded-pill px-2 text-text-1 hover:bg-hover"
+				>
+					<TripwireWordmark height={15} width={24} />
+					<span className="type-label">{siteConfig.wordmark}</span>
+				</Link>
 
-			<RepoTabBar className="hidden md:flex" />
+				<RepoTabBar className="hidden xl:flex" />
 
-			<div className="ms-auto flex min-w-0 items-center">
-				<RepoSwitcher />
-			</div>
+				<div className="ms-auto flex min-w-0 items-center">
+					<RepoSwitcher />
+				</div>
 
-			<div className="flex shrink-0 items-center gap-1">
-				<ThemeToggle />
-				<UserMenu org={org} user={user} />
-			</div>
-		</nav>
+				<div className="flex shrink-0 items-center gap-1">
+					<ThemeToggle />
+					<UserMenu org={org} user={user} />
+				</div>
+			</nav>
+			<RepoTabBar className="hidden shrink-0 px-3 pb-2 md:flex xl:hidden" />
+		</>
 	);
 }
 

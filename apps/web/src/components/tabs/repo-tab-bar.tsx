@@ -33,7 +33,7 @@ export function RepoTabBar({ className }: { className?: string }) {
 		<nav
 			aria-label="Open repos"
 			className={cn(
-				"flex min-w-0 items-center gap-1 overflow-x-auto",
+				"flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]",
 				className,
 			)}
 		>
