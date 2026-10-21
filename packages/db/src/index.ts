@@ -41,6 +41,13 @@ export {
 	seedRun,
 	seedStory,
 } from "./seed.ts";
+export {
+	seedApprovedInstallRequest,
+	seedEconomics,
+	seedRepoExtras,
+	seedRollups,
+	seedTeamOrg,
+} from "./seed-extras.ts";
 export * as accessServices from "./services/access.ts";
 export * as accountServices from "./services/accounts.ts";
 export type {

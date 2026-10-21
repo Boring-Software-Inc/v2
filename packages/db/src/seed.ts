@@ -33,6 +33,7 @@ import * as runServices from "./services/runs.ts";
 export const DEMO_OWNER = "tripwire-demo";
 /** Seeded users carry this email domain, so reset finds them (auth owns them). */
 export const DEMO_EMAIL_DOMAIN = "tripwire.demo";
+export const DEMO_TEAM_SLUG = "demo-team";
 
 const HOUR = 60 * 60 * 1000;
 
@@ -1201,6 +1202,12 @@ export async function resetDemoData(db: Db): Promise<void> {
 	await db.execute(
 		sql`DELETE FROM moderation_items WHERE run_id IN (${demoRuns})`,
 	);
+	await db.execute(
+		sql`DELETE FROM ai_review_usage WHERE run_id IN (${demoRuns})`,
+	);
+	await db.execute(
+		sql`DELETE FROM usage_counters WHERE run_id IN (${demoRuns})`,
+	);
 	await db.execute(sql`DELETE FROM run_actions WHERE run_id IN (${demoRuns})`);
 	await db.execute(sql`DELETE FROM run_steps WHERE run_id IN (${demoRuns})`);
 	await db.execute(
@@ -1214,6 +1221,18 @@ export async function resetDemoData(db: Db): Promise<void> {
 	);
 	await db.execute(
 		sql`DELETE FROM workflow_definitions WHERE repo_id IN (${demoRepos})`,
+	);
+	await db.execute(
+		sql`DELETE FROM response_configs WHERE repo_id IN (${demoRepos})`,
+	);
+	await db.execute(
+		sql`DELETE FROM custom_rules WHERE repo_id IN (${demoRepos})`,
+	);
+	await db.execute(
+		sql`DELETE FROM repo_suggestions WHERE repo_id IN (${demoRepos})`,
+	);
+	await db.execute(
+		sql`DELETE FROM organization WHERE slug = ${DEMO_TEAM_SLUG}`,
 	);
 	await db.execute(sql`DELETE FROM events WHERE id LIKE ${"demo-evt-%"}`);
 	// Auth cascades sessions/accounts/forge_identities/memberships.

@@ -146,7 +146,7 @@ const definitions: WorkflowDefinition[] = [
 ];
 
 const { db, pool } = createDb();
-const repo = await repoServices.getRepoByFullName(db, repoFullName);
+const repo = await repoServices.getRepoByFullName(db, repoFullName, "github");
 if (!repo) {
 	console.error(`repo ${repoFullName} is not in the DB`);
 	await pool.end();
