@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FORGE_BY_ID } from "@tripwire/contracts";
 import { useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
+import { MetaRow } from "#/components/common/meta-row";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import { Add, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
@@ -86,13 +87,19 @@ function ConnectionRow({ connection }: { connection: ForgeConnection }) {
 					<span>{label}</span>
 				</ItemTitle>
 				<ItemDescription>
-					{connection.repoCount === 0
-						? "No repos"
-						: `${connection.repoCount} ${connection.repoCount === 1 ? "repo" : "repos"}`}
-					{connection.unclaimedCount > 0
-						? ` · ${connection.unclaimedCount} not in an org yet`
-						: ""}
-					{needsReauth ? " · access expired, reconnect to keep watching" : ""}
+					<MetaRow>
+						<span>
+							{connection.repoCount === 0
+								? "No repos"
+								: `${connection.repoCount} ${connection.repoCount === 1 ? "repo" : "repos"}`}
+						</span>
+						{connection.unclaimedCount > 0 ? (
+							<span>{connection.unclaimedCount} not in an org yet</span>
+						) : null}
+						{needsReauth ? (
+							<span>Access expired, reconnect to keep watching</span>
+						) : null}
+					</MetaRow>
 				</ItemDescription>
 			</ItemContent>
 			<ItemActions>

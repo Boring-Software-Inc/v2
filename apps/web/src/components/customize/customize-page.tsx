@@ -126,7 +126,6 @@ function CustomizeView({
 	const { pending, setField, discard } = useSaveQueue();
 	const [verdict, setVerdict] = useState<Verdict>("block");
 	const [sheet, setSheet] = useState<SheetState>("closed");
-	const verdictLabelId = useId();
 	const settingsId = useId();
 	const [messageChosen, setMessageChosen] = useState(NO_MESSAGE_CHOSEN);
 	const [editorEpoch, setEditorEpoch] = useState(0);
@@ -174,14 +173,8 @@ function CustomizeView({
 							</p>
 						</div>
 						<div className="order-last flex w-full items-center gap-3 lg:order-none lg:w-auto lg:flex-1">
-							<span
-								className="type-body-sm text-text-2 max-lg:hidden"
-								id={verdictLabelId}
-							>
-								Verdict
-							</span>
 							<SegmentedControl
-								aria-labelledby={verdictLabelId}
+								aria-label="Verdict"
 								className="max-lg:flex max-lg:w-full max-lg:*:flex-auto"
 								onValueChange={(value) => setVerdict(value as Verdict)}
 								value={verdict}

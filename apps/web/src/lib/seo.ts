@@ -18,7 +18,7 @@ export function formatPageTitle(title?: string): string {
 	if (!title) {
 		return siteConfig.defaultTitle;
 	}
-	return `${title} · ${siteConfig.name}`;
+	return `${title} | ${siteConfig.name}`;
 }
 
 export function summarizeText(text: string, max = 160): string {

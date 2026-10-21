@@ -3,6 +3,7 @@ import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
 import { VerdictChip } from "#/components/activity/verdict-chip";
 import { EntityCard } from "#/components/common/entity-card";
+import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
@@ -132,10 +133,11 @@ function StackTitle({ group }: { group: ActivityGroup }) {
 
 function StackDescription({ group }: { group: ActivityGroup }) {
 	return (
-		<span className="block truncate">
-			{group.actor.login} · {group.repoFullName} ·{" "}
-			{formatRelativeTime(group.latestActivityAt)}
-		</span>
+		<MetaRow>
+			<span>{group.actor.login}</span>
+			<span>{group.repoFullName}</span>
+			<span>{formatRelativeTime(group.latestActivityAt)}</span>
+		</MetaRow>
 	);
 }
 
@@ -156,18 +158,15 @@ function EntryRow({ entry }: { entry: ActivityItem }) {
 	const runId = run?.runId ?? null;
 	const url = entryUrl(event);
 	const reevaluating = run?.status === "queued" || run?.status === "running";
+	const note = reevaluating ? "Checking again" : (run?.reason ?? null);
 	const text = (
-		<>
-			{ours ? "Tripwire" : event.actor.login}{" "}
-			<span className="text-text-2">
-				{entryLabel(event)}
-				{reevaluating
-					? " · checking again"
-					: run?.reason
-						? ` · ${run.reason}`
-						: ""}
+		<MetaRow>
+			<span>
+				{ours ? "Tripwire" : event.actor.login}{" "}
+				<span className="text-text-2">{entryLabel(event)}</span>
 			</span>
-		</>
+			{note ? <span className="text-text-2">{note}</span> : null}
+		</MetaRow>
 	);
 
 	return (

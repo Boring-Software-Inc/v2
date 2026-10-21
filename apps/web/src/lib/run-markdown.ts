@@ -62,7 +62,7 @@ export function runToMarkdown(run: RunView, relativeTime: string): string {
 	const verdict = run.verdict
 		? (VERDICT_LABEL[run.verdict] ?? run.verdict)
 		: run.status;
-	const lines: string[] = [`# Run · ${verdict}`];
+	const lines: string[] = [`# Run: ${verdict}`];
 
 	// Header meta: repo, optional #pr, relative time, optional short sha.
 	const meta = [`\`${run.repoFullName}\``];
@@ -73,13 +73,13 @@ export function runToMarkdown(run: RunView, relativeTime: string): string {
 	if (run.headSha) {
 		meta.push(`\`${run.headSha.slice(0, 7)}\``);
 	}
-	lines.push(meta.join(" · "));
+	lines.push(meta.join(", "));
 
 	if (run.steps.length > 0) {
 		lines.push("", "### Steps");
 		for (const step of run.steps) {
 			lines.push(
-				`**${stepLabel(step)}** · ${statusLabel(step.status)} · ${step.durationMs}ms`,
+				`**${stepLabel(step)}**: ${statusLabel(step.status)}, ${step.durationMs}ms`,
 			);
 			if (step.ruleRef) {
 				lines.push(`\`${step.ruleRef}\``);
@@ -98,7 +98,7 @@ export function runToMarkdown(run: RunView, relativeTime: string): string {
 		// of a group get a number (never one bare + one numbered), so two
 		// blocks read (1) and (2). Run order is inherent; this only disambiguates.
 		const rendered = run.actions.map(
-			(action) => `**${action.kind}** · ${actionStatus(action)}`,
+			(action) => `**${action.kind}**: ${actionStatus(action)}`,
 		);
 		const counts = new Map<string, number>();
 		for (const line of rendered) {

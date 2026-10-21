@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { EntityCard } from "#/components/common/entity-card";
+import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
 import { ShaderDither } from "#/components/dither/shader-dither";
 import { Add, Icon, MoreVertical } from "#/components/glaze/icon";
@@ -204,7 +205,7 @@ export function WorkflowsGridPage() {
 			toast.success("Workflow changes saved");
 			return { ok: true as const };
 		}
-		const message = refusals.join(" · ");
+		const message = refusals.join(" ");
 		toast.fail(message);
 		return { error: message, failedKeys };
 	};
@@ -494,16 +495,18 @@ function WorkflowRow({
 		<>
 			<EntityCard
 				description={
-					<>
-						{triggerSummary(workflow.triggerKinds)} · {workflow.nodeCount}{" "}
-						{workflow.nodeCount === 1 ? "step" : "steps"}
-					</>
+					<MetaRow>
+						<span>{triggerSummary(workflow.triggerKinds)}</span>
+						<span>
+							{workflow.nodeCount} {workflow.nodeCount === 1 ? "step" : "steps"}
+						</span>
+					</MetaRow>
 				}
 				footerMeta={
-					<>
-						Updated {formatRelativeTime(workflow.updatedAt)}
-						{isAdmin ? null : " · Only admins can change workflows"}
-					</>
+					<MetaRow>
+						<span>Updated {formatRelativeTime(workflow.updatedAt)}</span>
+						{isAdmin ? null : <span>Only admins can change workflows</span>}
+					</MetaRow>
 				}
 				status={
 					<>

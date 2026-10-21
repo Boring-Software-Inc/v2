@@ -1,5 +1,6 @@
 import type { EventKind, NormalizedEvent } from "@tripwire/contracts";
 import { verdictStatus } from "#/components/activity/verdict-chip";
+import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { Avatar } from "#/components/glaze/ui/avatar";
 import { Badge } from "#/components/glaze/ui/badge";
@@ -111,9 +112,15 @@ export function ActivityRow({
 						<span>{text}</span>
 					)}
 				</ItemTitle>
-				<ItemDescription className="truncate">
-					{"repo" in event ? event.repo.fullName : event.installation.account}
-					{hasRun && run.reason ? ` · ${run.reason}` : ""}
+				<ItemDescription>
+					<MetaRow>
+						<span>
+							{"repo" in event
+								? event.repo.fullName
+								: event.installation.account}
+						</span>
+						{hasRun && run.reason ? <span>{run.reason}</span> : null}
+					</MetaRow>
 				</ItemDescription>
 			</ItemContent>
 			<RowStatus

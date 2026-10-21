@@ -1,5 +1,6 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MetaRow } from "#/components/common/meta-row";
 import {
 	type GlazeIcon,
 	Icon,
@@ -170,7 +171,10 @@ function EventRow({
 			<ItemContent>
 				<ItemTitle>{event.title}</ItemTitle>
 				<ItemDescription>
-					{event.detail} · {formatRelativeTime(event.at)}
+					<MetaRow>
+						<span>{event.detail}</span>
+						<span>{formatRelativeTime(event.at)}</span>
+					</MetaRow>
 				</ItemDescription>
 			</ItemContent>
 			{event.impact ? (

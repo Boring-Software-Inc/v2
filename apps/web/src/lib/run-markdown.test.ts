@@ -43,8 +43,8 @@ const step = (over: Partial<RunView["steps"][number]> = {}) => ({
 describe("runToMarkdown", () => {
 	test("header: verdict, repo, pr, relative time, short sha", () => {
 		const md = runToMarkdown(makeRun(), "just now");
-		expect(md).toContain("# Run · blocked");
-		expect(md).toContain("`acme/web` #83 · just now · `8de51ef`");
+		expect(md).toContain("# Run: blocked");
+		expect(md).toContain("`acme/web` #83, just now, `8de51ef`");
 	});
 
 	test("a rule step renders label, status, duration, ref, and quoted evidence", () => {
@@ -62,7 +62,7 @@ describe("runToMarkdown", () => {
 			"just now",
 		);
 		expect(md).toContain("### Steps");
-		expect(md).toContain("**Account age** · did not pass · 4ms");
+		expect(md).toContain("**Account age**: did not pass, 4ms");
 		expect(md).toContain("`account-age@1`");
 		expect(md).toContain("> your account is 1260 days old");
 	});
@@ -72,7 +72,7 @@ describe("runToMarkdown", () => {
 			makeRun({ steps: [step({ nodeKind: "action", label: "webhook" })] }),
 			"just now",
 		);
-		expect(md).toContain("**webhook** · passed · 0ms");
+		expect(md).toContain("**webhook**: passed, 0ms");
 		expect(md).not.toContain("`null`");
 	});
 
@@ -119,7 +119,7 @@ describe("runToMarkdown", () => {
 			}),
 			"just now",
 		);
-		expect(md).toContain("**webhook** · failed: http-error");
+		expect(md).toContain("**webhook**: failed: http-error");
 		expect(md).not.toContain("delivered");
 		expect(md).not.toContain("recorded");
 	});
@@ -144,8 +144,8 @@ describe("runToMarkdown", () => {
 			}),
 			"just now",
 		);
-		expect(md).toContain("**webhook** · sent");
-		expect(md).toContain("**discord** · queued");
+		expect(md).toContain("**webhook**: sent");
+		expect(md).toContain("**discord**: queued");
 	});
 
 	test("duplicate action lines are ordinaled — BOTH members, not one bare", () => {
@@ -159,12 +159,12 @@ describe("runToMarkdown", () => {
 			}),
 			"just now",
 		);
-		expect(md).toContain("**block** · executed (1)");
-		expect(md).toContain("**block** · executed (2)");
+		expect(md).toContain("**block**: executed (1)");
+		expect(md).toContain("**block**: executed (2)");
 		// the lone comment is NOT numbered
-		expect(md).toContain("**comment** · executed\n");
+		expect(md).toContain("**comment**: executed\n");
 		// never a bare block line next to a numbered one
-		expect(md).not.toMatch(/\*\*block\*\* · executed\n/);
+		expect(md).not.toMatch(/\*\*block\*\*: executed\n/);
 	});
 
 	test("no url or secret ever appears — even with a webhook action present", () => {

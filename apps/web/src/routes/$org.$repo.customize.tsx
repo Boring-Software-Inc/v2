@@ -9,7 +9,7 @@ export const Route = createFileRoute("/$org/$repo/customize")({
 	head: ({ params, match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} · Customize`),
+			title: formatPageTitle(`${params.repo} | Customize`),
 			description: "What Tripwire posts on each change request.",
 			noindex: true,
 		}),

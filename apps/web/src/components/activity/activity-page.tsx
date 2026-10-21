@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { ActivityListSkeleton } from "#/components/activity/activity-page-skeleton";
 import { ActivityRow } from "#/components/activity/activity-row";
 import { ActivityStack } from "#/components/activity/activity-stack";
-import { LiveIndicator } from "#/components/activity/live-indicator";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { Button } from "#/components/glaze/ui/button";
@@ -109,15 +108,12 @@ export function ActivityPage() {
 		<DashboardLayout counts={{}}>
 			<div className="px-4 py-6 md:px-8 md:py-10">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<header className="flex items-start justify-between gap-4">
-						<div className="flex flex-col gap-1">
-							<h1 className="type-title">Activity</h1>
-							<p className="type-body text-text-2">
-								Change requests, comments and pushes on this repo, with the
-								verdict Tripwire gave each one. The list updates live.
-							</p>
-						</div>
-						<LiveIndicator live={isSuccess} />
+					<header className="flex flex-col gap-1">
+						<h1 className="type-title">Activity</h1>
+						<p className="type-body text-text-2">
+							Change requests, comments and pushes on this repo, with the
+							verdict Tripwire gave each one. The list updates live.
+						</p>
 					</header>
 
 					{unarmed && repo ? (

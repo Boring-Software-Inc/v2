@@ -36,8 +36,8 @@ describe("workflowToMarkdown — header + built-in rules", () => {
 	const md = workflowToMarkdown(DEFAULT_WORKFLOW);
 
 	test("titles the workflow and states its id, version, node count", () => {
-		expect(md).toContain("# Workflow · default gate");
-		expect(md).toContain("`default@1` · v1 · 8 nodes");
+		expect(md).toContain("# Workflow: default gate");
+		expect(md).toContain("`default@1`, v1, 8 nodes");
 	});
 
 	test("names the trigger's resolved event kinds", () => {
@@ -126,9 +126,9 @@ describe("workflowToMarkdown — secret safety (the leak fixture)", () => {
 	});
 
 	test("but the FACT that a destination is set is reported", () => {
-		expect(md).toContain("- **Webhook**: when all of fails · url set");
+		expect(md).toContain("- **Webhook**: when all of fails, url set");
 		expect(md).toContain("signing secret set");
-		expect(md).toContain("- **Discord**: when all of fails · url set");
+		expect(md).toContain("- **Discord**: when all of fails, url set");
 	});
 
 	test("a redacted definition (urlSet marker, blank url) also reads as set", () => {

@@ -12,7 +12,7 @@ import {cn} from '#/lib/glaze/utils.ts';
 // take no glyph and the word goes to text-2.
 //
 // Colour means status and nothing else, so only the three outcomes take it: ok green, warn amber, fail coral, glyph
-// and word in the one colour, each word 5.7:1 or better on paper. Running and waiting are ink.
+// and word in the one colour, each word 5.7:1 or better on paper. Running is ink; waiting takes the warn word colour, since it stops on a person.
 //
 // The glyph is 12px (--icon-sm) in a cell one line tall, centred on the first line of the word, so it sits on the
 // word's cap height and a word that wraps keeps it on its first line.
@@ -54,7 +54,7 @@ const statusVariants = cva('inline-flex max-w-full min-w-0 items-baseline gap-1 
       ok: 'text-ok-text',
       warn: 'text-warn-text',
       fail: 'text-fail-text',
-      waiting: 'text-text-1',
+      waiting: 'text-warn-text',
     },
   },
   defaultVariants: {size: 'default', status: 'idle'},

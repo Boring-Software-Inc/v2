@@ -40,7 +40,7 @@ function severityCounts(findings: Finding[]): string {
 		.map((s) => ({ s, n: findings.filter((f) => f.severity === s).length }))
 		.filter((x) => x.n > 0)
 		.map((x) => `${x.n} ${SEVERITY[x.s].word}`)
-		.join(" · ");
+		.join(", ");
 }
 
 function worstStatus(findings: Finding[]): "fail" | "warn" | undefined {

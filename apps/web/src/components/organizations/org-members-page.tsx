@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OrgRole } from "@tripwire/contracts";
 import { useState } from "react";
+import { MetaRow } from "#/components/common/meta-row";
 import { Avatar } from "#/components/glaze/ui/avatar";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
@@ -238,8 +239,11 @@ function MemberRow({
 					<span>{member.name}</span>
 					{isSelf ? <Badge size="sm">You</Badge> : null}
 				</ItemTitle>
-				<ItemDescription className="truncate">
-					{member.email} · joined {formatRelativeTime(member.joinedAt)}
+				<ItemDescription>
+					<MetaRow>
+						<span>{member.email}</span>
+						<span>Joined {formatRelativeTime(member.joinedAt)}</span>
+					</MetaRow>
 				</ItemDescription>
 			</ItemContent>
 			{isAdmin && !isSelf ? (
@@ -565,12 +569,18 @@ function InviteLinkRow({
 					<span>{ROLE_LABEL[invite.role]} invite</span>
 				</ItemTitle>
 				<ItemDescription>
-					<span className="tabular-nums">
-						{invite.uses}/{invite.maxUses}
-					</span>{" "}
-					uses · {expired ? "expired" : "expires"}{" "}
-					{expiresAt.toLocaleDateString()}
-					{revoked ? " · revoked" : null}
+					<MetaRow>
+						<span>
+							<span className="tabular-nums">
+								{invite.uses}/{invite.maxUses}
+							</span>{" "}
+							uses
+						</span>
+						<span>
+							{expired ? "Expired" : "Expires"} {expiresAt.toLocaleDateString()}
+						</span>
+						{revoked ? <span>Revoked</span> : null}
+					</MetaRow>
 				</ItemDescription>
 			</ItemContent>
 			<ItemActions>

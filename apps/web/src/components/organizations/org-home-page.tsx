@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { EntityCard } from "#/components/common/entity-card";
+import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import {
@@ -198,14 +199,16 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 				)
 			}
 			description={
-				<>
-					{repo.armed
-						? attentionLine(repo)
-						: "Open the repo to turn Tripwire on"}
-					{repo.lastActivityAt
-						? ` · ${formatRelativeTime(repo.lastActivityAt)}`
-						: null}
-				</>
+				<MetaRow>
+					<span>
+						{repo.armed
+							? attentionLine(repo)
+							: "Open the repo to turn Tripwire on"}
+					</span>
+					{repo.lastActivityAt ? (
+						<span>{formatRelativeTime(repo.lastActivityAt)}</span>
+					) : null}
+				</MetaRow>
 			}
 			footerActions={
 				repo.armed ? (

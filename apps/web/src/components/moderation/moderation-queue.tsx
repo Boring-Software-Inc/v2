@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
@@ -117,8 +118,11 @@ export function ModerationQueue({
 											<Badge variant="warn">Check incomplete</Badge>
 										) : null}
 									</ItemTitle>
-									<ItemDescription className="truncate">
-										{formatRelativeTime(item.createdAt)} · {item.repoFullName}
+									<ItemDescription>
+										<MetaRow>
+											<span>{formatRelativeTime(item.createdAt)}</span>
+											<span>{item.repoFullName}</span>
+										</MetaRow>
 									</ItemDescription>
 								</ItemContent>
 								<ItemActions>

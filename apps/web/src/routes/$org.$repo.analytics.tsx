@@ -11,7 +11,7 @@ export const Route = createFileRoute("/$org/$repo/analytics")({
 	head: ({ params, match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} · Analytics`),
+			title: formatPageTitle(`${params.repo} | Analytics`),
 			description: "Verdicts and trends for this repo.",
 			noindex: true,
 		}),

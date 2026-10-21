@@ -1,9 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { FORGE_BY_ID } from "@tripwire/contracts";
+import { FORGE_BY_ID, workflowActionKindSchema } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { verdictStatus } from "#/components/activity/verdict-chip";
 import { ForgeMark } from "#/components/common/forge-marks";
+import { MetaRow } from "#/components/common/meta-row";
+import { Icon, Retry } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Card,
@@ -31,12 +33,13 @@ import {
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
-import { Status } from "#/components/glaze/ui/status";
+import { Status, type StatusValue } from "#/components/glaze/ui/status";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
 import { StepCard } from "#/components/runs/step-card";
+import { actionIcon, KIND_ICON } from "#/components/workflows/editor/step-meta";
 import {
 	getRerunPreview,
 	rerunChangeRequest,
@@ -137,7 +140,7 @@ function RunStatusLine({
 				<Status status={verdict.status}>{verdict.label}</Status>
 			) : null}
 			{run.status === "paused" ? (
-				<Status status="waiting">Waiting for a maintainer</Status>
+				<span className="type-label text-text-2">Waiting for a maintainer</span>
 			) : null}
 			{evaluating ? (
 				<Status live status="running">
@@ -165,7 +168,9 @@ function RunBody({ run }: { run: RunView }) {
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
 				<header className="flex flex-col gap-2">
 					<div className="flex flex-wrap items-center justify-between gap-3">
-						<h1 className="type-title">Run</h1>
+						<h1 className="type-title">
+							{run.subjectNumber ? `Run on #${run.subjectNumber}` : "Run"}
+						</h1>
 						<div className="flex flex-wrap items-center gap-2">
 							<ViewOnForgeButton run={run} />
 							<CopyButton
@@ -182,7 +187,7 @@ function RunBody({ run }: { run: RunView }) {
 									number={run.subjectNumber}
 									org={run.orgSlug}
 									repo={run.repoName}
-									subtitle={`#${run.subjectNumber} · ${run.repoFullName}`}
+									subtitle={`#${run.subjectNumber} in ${run.repoFullName}`}
 								/>
 							) : null}
 						</div>
@@ -191,20 +196,18 @@ function RunBody({ run }: { run: RunView }) {
 						plannedRules={liveSteps.filter((s) => s.nodeKind === "rule").length}
 						run={run}
 					/>
-					<p className="type-body-sm text-text-2">
-						{run.repoFullName}
-						{run.subjectNumber ? ` #${run.subjectNumber}` : ""} ·{" "}
-						{formatRelativeTime(run.createdAt)}
+					<MetaRow className="type-body-sm text-text-2">
+						<span>{run.repoFullName}</span>
+						<span>{formatRelativeTime(run.createdAt)}</span>
 						{run.headSha ? (
-							<>
-								{" · "}
-								<span className="mono">{run.headSha.slice(0, 7)}</span>
-							</>
+							<span className="mono">{run.headSha.slice(0, 7)}</span>
 						) : null}
-						{run.rerun
-							? ` · manual re-run${run.rerunBy ? ` by ${run.rerunBy}` : ""}`
-							: ""}
-					</p>
+						{run.rerun ? (
+							<span>
+								Manual re-run{run.rerunBy ? ` by ${run.rerunBy}` : ""}
+							</span>
+						) : null}
+					</MetaRow>
 				</header>
 
 				<Card>
@@ -242,18 +245,20 @@ function RunBody({ run }: { run: RunView }) {
 						<CardContent flush>
 							{run.actions.map((action) => (
 								<div
-									className="rule-row flex min-w-0 items-center min-h-(--row) gap-3 px-3 py-2"
+									className="rule-row flex min-w-0 items-center min-h-(--row) gap-2.5 px-3 py-2"
 									key={`${action.kind}-${action.recordedAt}`}
 								>
+									<Icon
+										className="text-text-2"
+										icon={actionGlyph(action.kind)}
+									/>
 									<span className="min-w-0 flex-1 truncate type-label">
 										{actionName(action.kind)}
 									</span>
 									{action.delivery ? (
 										<DeliveryStatus delivery={action.delivery} />
 									) : (
-										<span className="type-caption text-text-2">
-											{ACTION_STATUS[action.status] ?? action.status}
-										</span>
+										<ActionStatus status={action.status} />
 									)}
 								</div>
 							))}
@@ -265,13 +270,27 @@ function RunBody({ run }: { run: RunView }) {
 	);
 }
 
-type ActionStatusMap = Record<string, string>;
+type ActionStatusMap = Record<string, { status: StatusValue; label: string }>;
 const ACTION_STATUS: ActionStatusMap = {
-	executed: "Done",
-	skipped: "Skipped",
-	failed: "Did not finish",
-	pending: "Waiting",
+	executed: { status: "ok", label: "Done" },
+	skipped: { status: "idle", label: "Skipped" },
+	failed: { status: "fail", label: "Did not finish" },
+	pending: { status: "queued", label: "Waiting" },
 };
+
+function ActionStatus({ status }: { status: string }) {
+	const known = ACTION_STATUS[status];
+	return (
+		<Status size="sm" status={known?.status ?? "idle"}>
+			{known?.label ?? sentence(status)}
+		</Status>
+	);
+}
+
+function actionGlyph(kind: string) {
+	const parsed = workflowActionKindSchema.safeParse(kind);
+	return parsed.success ? actionIcon(parsed.data) : KIND_ICON.action;
+}
 
 function actionName(kind: string): string {
 	const words = kind.replace(/-/g, " ");
@@ -399,6 +418,7 @@ function RerunRunButton({
 			open={open}
 		>
 			<DialogTrigger render={<Button size="sm" variant="secondary" />}>
+				<Icon icon={Retry} />
 				Re-run rules
 			</DialogTrigger>
 			<DialogContent>

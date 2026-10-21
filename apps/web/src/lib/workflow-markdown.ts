@@ -197,8 +197,8 @@ export function workflowToMarkdown(
 	const byId = new Map(definition.nodes.map((node) => [node.id, node]));
 	const nodeCount = definition.nodes.length;
 	const lines: string[] = [
-		`# Workflow · ${definition.name}`,
-		`\`${definition.id}\` · v${definition.version} · ${nodeCount} ${nodeCount === 1 ? "node" : "nodes"}`,
+		`# Workflow: ${definition.name}`,
+		`\`${definition.id}\`, v${definition.version}, ${nodeCount} ${nodeCount === 1 ? "node" : "nodes"}`,
 	];
 
 	const triggers = definition.nodes.filter(isTrigger);
@@ -241,7 +241,7 @@ export function workflowToMarkdown(
 		lines.push("", "### Actions");
 		for (const node of actions) {
 			const when = firingCondition(node.id, definition, byId, customRules);
-			const suffix = [when, ...actionParams(node)].filter(Boolean).join(" · ");
+			const suffix = [when, ...actionParams(node)].filter(Boolean).join(", ");
 			lines.push(
 				`- **${nodeName(node, customRules)}**${suffix ? `: ${suffix}` : ""}`,
 			);

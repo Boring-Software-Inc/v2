@@ -11,7 +11,7 @@ export const Route = createFileRoute("/$org/$repo/workflows/")({
 	head: ({ params, match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} · Workflows`),
+			title: formatPageTitle(`${params.repo} | Workflows`),
 			description: "The workflows this repo runs.",
 			noindex: true,
 		}),

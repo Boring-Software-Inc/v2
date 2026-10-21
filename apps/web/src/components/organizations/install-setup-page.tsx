@@ -3,6 +3,7 @@ import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { FORGE_CATALOG, type Forge } from "@tripwire/contracts";
 import { type ReactNode, useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
+import { MetaRow } from "#/components/common/meta-row";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
 import { Badge } from "#/components/glaze/ui/badge";
@@ -129,7 +130,10 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 											<span>{account}</span>
 										</ItemTitle>
 										<ItemDescription>
-											{forgeLabel(c.forge)} · {repoCountLabel(c.repoCount)}
+											<MetaRow>
+												<span>{forgeLabel(c.forge)}</span>
+												<span>{repoCountLabel(c.repoCount)}</span>
+											</MetaRow>
 										</ItemDescription>
 									</ItemContent>
 									<ItemActions>
