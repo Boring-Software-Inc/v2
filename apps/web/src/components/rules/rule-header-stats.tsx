@@ -1,55 +1,40 @@
-import { Chart } from "#/components/glaze/ui/chart";
+import { useParams } from "@tanstack/react-router";
+import { StatCard } from "#/components/common/stat-card";
 import type { RulesHeaderStats } from "#/lib/rules.functions";
-
-function hourLabel(hoursAgo: number): string {
-	return hoursAgo === 0 ? "This hour" : `${hoursAgo}h ago`;
-}
 
 function deltaWords(delta: number): string {
 	if (delta === 0) {
-		return "";
+		return "Same as the day before";
 	}
-	return `, ${delta > 0 ? "up" : "down"} ${Math.abs(delta)} on the day before`;
+	return `${delta > 0 ? "Up" : "Down"} ${Math.abs(delta)} on the day before`;
 }
 
-export function RuleHeaderStats({ stats }: { stats: RulesHeaderStats }) {
-	const matches = stats.matches24h.series;
-	const actioned = stats.actioned24h.series;
-	const length = Math.max(matches.length, actioned.length);
-	const rows = Array.from({ length }, (_, i) => ({
-		hour: hourLabel(length - 1 - i),
-		matches: matches[i] ?? null,
-		actioned: actioned[i] ?? null,
-	}));
+export function RuleHeaderStats({
+	stats,
+}: {
+	stats: RulesHeaderStats | undefined;
+}) {
+	const { org, repo } = useParams({ strict: false });
+	const link = org && repo ? { org, repo } : undefined;
 
 	return (
-		<section aria-label="Rule activity" className="flex flex-col gap-3">
-			<p className="type-body text-text-2">
-				<span className="text-text-1 tabular-nums">{stats.activeRules}</span>{" "}
-				{stats.activeRules === 1 ? "rule" : "rules"} active.{" "}
-				<span className="text-text-1 tabular-nums">
-					{stats.matches24h.value}
-				</span>{" "}
-				{stats.matches24h.value === 1 ? "match" : "matches"} in the last 24
-				hours{deltaWords(stats.matches24h.delta)}. Tripwire took action{" "}
-				<span className="text-text-1 tabular-nums">
-					{stats.actioned24h.value}
-				</span>{" "}
-				{stats.actioned24h.value === 1 ? "time" : "times"}.
-			</p>
-			<Chart
-				config={{
-					hour: { label: "Hour" },
-					matches: { label: "Matches" },
-					actioned: { label: "Actions taken" },
-				}}
-				data={rows}
-				empty="No matches in the last 24 hours"
-				height={120}
-				label="Matches and actions taken, last 24 hours"
-				type="line"
-				unit="count"
-				xKey="hour"
+		<section
+			aria-label="Rule activity"
+			className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+		>
+			<StatCard label="Active rules" value={stats?.activeRules} />
+			<StatCard
+				detail={stats ? deltaWords(stats.matches24h.delta) : undefined}
+				label="Matches, last 24 hours"
+				link={link}
+				series={stats?.matches24h.series}
+				value={stats?.matches24h.value}
+			/>
+			<StatCard
+				label="Actions taken, last 24 hours"
+				link={link ? { ...link, metric: "blocked" } : undefined}
+				series={stats?.actioned24h.series}
+				value={stats?.actioned24h.value}
 			/>
 		</section>
 	);

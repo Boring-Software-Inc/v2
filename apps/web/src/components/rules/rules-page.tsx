@@ -327,9 +327,7 @@ export function RulesPage() {
 							/>
 						) : null}
 
-						{statsQuery.data ? (
-							<RuleHeaderStats stats={statsQuery.data} />
-						) : null}
+						<RuleHeaderStats stats={statsQuery.data} />
 
 						<div className="flex flex-col gap-3">
 							<div className="flex flex-wrap items-center justify-between gap-3">
