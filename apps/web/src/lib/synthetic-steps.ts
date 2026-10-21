@@ -29,6 +29,31 @@ const degradationOutputSchema = z
 	})
 	.catch({});
 
+const READ_NAMES: Record<string, string> = {
+	diff: "the changed files",
+	getDiff: "the changed files",
+	commits: "the commits",
+	getCommits: "the commits",
+	contributor: "the contributor's profile",
+	getContributorProfile: "the contributor's profile",
+};
+
+const UNKNOWN_READ = "some details of the change request";
+
+function joinPhrases(phrases: readonly string[]): string {
+	if (phrases.length <= 1) {
+		return phrases[0] ?? "";
+	}
+	return `${phrases.slice(0, -1).join(", ")} and ${phrases.at(-1)}`;
+}
+
+export function describeDegradedReads(reads: readonly string[]): string {
+	const phrases = [
+		...new Set(reads.map((read) => READ_NAMES[read] ?? UNKNOWN_READ)),
+	];
+	return `Tripwire could not read ${joinPhrases(phrases)}.`;
+}
+
 export function describeSyntheticStep(
 	step: Pick<RunStepView, "nodeId" | "output">,
 ): SyntheticStepView | null {
@@ -65,7 +90,7 @@ export function describeSyntheticStep(
 				? `${shape.skippedRules} of ${shape.ruleNodes} rules skipped.`
 				: null,
 			shape.degradedReads && shape.degradedReads.length > 0
-				? `Could not read: ${shape.degradedReads.join(", ")}.`
+				? describeDegradedReads(shape.degradedReads)
 				: null,
 			// enforced:false ⇒ the maintainer turned the review fallback off.
 			shape.enforced === false

@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { describeSyntheticStep } from "#/lib/synthetic-steps";
+import {
+	describeDegradedReads,
+	describeSyntheticStep,
+} from "#/lib/synthetic-steps";
 
 /** VERIFICATION-QUEUE #11 — synthetic steps must read distinctly. */
 
@@ -27,7 +30,10 @@ describe("describeSyntheticStep", () => {
 		expect(view?.kind).toBe("degradation");
 		expect(view?.title).toBe("Some rules could not run");
 		expect(view?.detail).toContain("2 of 3 rules skipped");
-		expect(view?.detail).toContain("getContributorProfile");
+		expect(view?.detail).toContain(
+			"Tripwire could not read the contributor's profile.",
+		);
+		expect(view?.detail).not.toContain("getContributorProfile");
 		expect(view?.detail).toContain("Sent to review");
 		// The old copy argued with the reader and used our own jargon.
 		expect(view?.detail).not.toContain("guesswork");
@@ -84,4 +90,29 @@ test("no synthetic copy uses an em dash", () => {
 		expect(view?.title).not.toContain("\u2014");
 		expect(view?.detail).not.toContain("\u2014");
 	}
+});
+
+describe("describeDegradedReads", () => {
+	test("every read the worker reports has a plain name", () => {
+		expect(describeDegradedReads(["diff"])).toBe(
+			"Tripwire could not read the changed files.",
+		);
+		expect(describeDegradedReads(["commits"])).toBe(
+			"Tripwire could not read the commits.",
+		);
+		expect(describeDegradedReads(["contributor"])).toBe(
+			"Tripwire could not read the contributor's profile.",
+		);
+		expect(describeDegradedReads(["diff", "commits", "contributor"])).toBe(
+			"Tripwire could not read the changed files, the commits and the contributor's profile.",
+		);
+	});
+
+	test("an unknown read falls back to plain words, never the raw id", () => {
+		const text = describeDegradedReads(["getMysteryThing", "otherThing"]);
+		expect(text).toBe(
+			"Tripwire could not read some details of the change request.",
+		);
+		expect(text).not.toContain("getMysteryThing");
+	});
 });
