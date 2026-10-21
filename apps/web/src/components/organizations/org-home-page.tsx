@@ -24,7 +24,6 @@ import {
 } from "#/components/glaze/ui/empty-state";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { NavChip } from "#/components/layouts/nav-chip";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { ApprovedInstallBanner } from "#/components/organizations/approved-install-banner";
 import { HomeListSkeleton } from "#/components/organizations/org-home-page-skeleton";
@@ -171,6 +170,14 @@ function InstallCta({ org }: { org: string }) {
 	);
 }
 
+const SHORTCUTS = [
+	{ to: "/$org/$repo/moderation", label: "Moderation", icon: Moderation },
+	{ to: "/$org/$repo/rules", label: "Rules", icon: Rules },
+	{ to: "/$org/$repo/workflows", label: "Workflows", icon: Workflow },
+	{ to: "/$org/$repo/activity", label: "Activity", icon: Activity },
+	{ to: "/$org/$repo/analytics", label: "Analytics", icon: Analytics },
+] as const;
+
 function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 	return (
 		<EntityCard
@@ -200,45 +207,35 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 						: null}
 				</>
 			}
+			footerActions={
+				repo.armed ? (
+					<nav
+						aria-label={`Shortcuts for ${repo.fullName}`}
+						className="flex min-w-0 flex-1 flex-wrap gap-1.5"
+					>
+						{SHORTCUTS.map((shortcut) => (
+							<Button
+								key={shortcut.to}
+								nativeButton={false}
+								render={
+									<Link params={{ org, repo: repo.name }} to={shortcut.to} />
+								}
+								size="sm"
+								variant="secondary"
+							>
+								<Icon icon={shortcut.icon} />
+								{shortcut.label}
+							</Button>
+						))}
+					</nav>
+				) : undefined
+			}
 			title={
 				<CardRouterLink params={{ org, repo: repo.name }} to="/$org/$repo">
 					{repo.fullName}
 				</CardRouterLink>
 			}
-		>
-			{repo.armed ? (
-				<nav
-					aria-label={`Shortcuts for ${repo.fullName}`}
-					className="flex flex-wrap gap-2"
-				>
-					<NavChip
-						icon={Moderation}
-						label="Moderation"
-						to={`/${org}/${repo.name}/moderation`}
-					/>
-					<NavChip
-						icon={Rules}
-						label="Rules"
-						to={`/${org}/${repo.name}/rules`}
-					/>
-					<NavChip
-						icon={Workflow}
-						label="Workflows"
-						to={`/${org}/${repo.name}/workflows`}
-					/>
-					<NavChip
-						icon={Activity}
-						label="Activity"
-						to={`/${org}/${repo.name}/activity`}
-					/>
-					<NavChip
-						icon={Analytics}
-						label="Analytics"
-						to={`/${org}/${repo.name}/analytics`}
-					/>
-				</nav>
-			) : null}
-		</EntityCard>
+		/>
 	);
 }
 

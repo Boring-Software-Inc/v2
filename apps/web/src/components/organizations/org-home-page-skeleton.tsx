@@ -8,7 +8,7 @@ export function HomeListSkeleton() {
 	return (
 		<div aria-hidden className="flex flex-col gap-3">
 			{ROW_SLOTS.map((slot) => (
-				<EntityCardSkeleton body key={slot} />
+				<EntityCardSkeleton chin key={slot} />
 			))}
 		</div>
 	);
