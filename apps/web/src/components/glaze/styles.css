@@ -384,18 +384,18 @@
 
 /* flat: the secondary button, the plain card surface. Only the primary family is glass, so the secondary beside it is
    the panel exactly: --paper with the panel's 1px --line-faint ring and a text-1 label. No sheen, no inset highlight,
-   no glint, no gradient, no translucency, no blur. Hover lays the --hover wash, held the --pressed wash and settles to
+   no glint, no gradient, no translucency, no blur. Hover darkens the ring to --line-control, so it never reads as a row wash; held lays the --pressed wash and settles to
    --scale-press-flat. Disabled is the flat grey pill disabled glass drops to. Dark is the dark panel and its hairline. */
 @utility flat {
   color: var(--flat-text);
   background-color: var(--flat-bg);
   box-shadow: 0 0 0 var(--line-width) var(--flat-ring);
   -webkit-tap-highlight-color: transparent;
-  transition-property: background-image, scale, color;
+  transition-property: background-image, box-shadow, scale, color;
   transition-duration: var(--dur-press);
   transition-timing-function: var(--ease-out);
-  @media (hover: hover) { &:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { background-image: linear-gradient(var(--hover), var(--hover)); } }
-  &[data-force-hover]:not(:disabled, [data-disabled]) { background-image: linear-gradient(var(--hover), var(--hover)); }
+  @media (hover: hover) { &:hover:not(:disabled, [data-disabled], [aria-busy="true"]) { box-shadow: 0 0 0 var(--line-width) var(--line-control); } }
+  &[data-force-hover]:not(:disabled, [data-disabled]) { box-shadow: 0 0 0 var(--line-width) var(--line-control); }
   &:is(:active, [data-force-active]):not(:disabled, [data-disabled]) {
     background-image: linear-gradient(var(--pressed), var(--pressed));
     scale: var(--scale-press-flat);
