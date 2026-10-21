@@ -83,7 +83,6 @@ export function PreviewPane({
 						aria-controls={bodyId}
 						aria-expanded={sheet !== "closed"}
 						className="min-w-0 flex-1 justify-start"
-						data-touch=""
 						onClick={() => {
 							if (swipe.current?.moved) {
 								swipe.current = null;
@@ -102,9 +101,8 @@ export function PreviewPane({
 					{sheet === "full" ? null : (
 						<Button
 							aria-label="Expand preview"
-							data-touch=""
 							onClick={() => onSheetChange(stepped(sheet, 1))}
-							size="icon"
+							size="icon-lg"
 							variant="ghost"
 						>
 							<Icon icon={ChevronUp} />
@@ -113,9 +111,8 @@ export function PreviewPane({
 					{sheet === "closed" ? null : (
 						<Button
 							aria-label="Collapse preview"
-							data-touch=""
 							onClick={() => onSheetChange(stepped(sheet, -1))}
-							size="icon"
+							size="icon-lg"
 							variant="ghost"
 						>
 							<Icon icon={ChevronDown} />

@@ -55,17 +55,6 @@ body {
 	}
 }
 
-@media (width < 64rem) {
-	.glaze [data-customize] [data-slot="segmented-control"] {
-		height: calc(var(--space-10) + var(--space-1));
-	}
-
-	.glaze [data-customize] [data-touch] {
-		min-width: calc(var(--space-10) + var(--space-1));
-		min-height: calc(var(--space-10) + var(--space-1));
-	}
-}
-
 .glaze [data-fillet="start"] {
 	mask-image: radial-gradient(
 		circle var(--radius-shell) at top right,
@@ -129,7 +118,6 @@ body {
 	--density-cell-x: var(--space-4);
 	--density-tab: var(--control-lg);
 	--density-tab-x: var(--space-4);
-	--density-segment-x: var(--space-3);
 }
 
 .glaze [data-slot="table-cell"] {
@@ -147,16 +135,6 @@ body {
 .glaze [data-density="tab"] {
 	height: var(--density-tab);
 	padding-inline: var(--density-tab-x);
-}
-
-.glaze [data-slot="segmented-control"] {
-	height: calc(var(--density-tab) + var(--space-1));
-}
-
-.glaze
-	[data-slot="segmented-control"]
-	> :not([data-slot="segmented-control-thumb"]) {
-	padding-inline: var(--density-segment-x);
 }
 
 .glaze [data-slot="tabs-list"] {

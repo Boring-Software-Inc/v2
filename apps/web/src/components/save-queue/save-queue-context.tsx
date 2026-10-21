@@ -258,18 +258,15 @@ export function SaveQueueNavGuard() {
 export function DiscardChangesButton({
 	onDiscard,
 	disabled,
-	touch = false,
 }: {
 	onDiscard: () => void;
 	disabled?: boolean;
-	touch?: boolean;
 }) {
 	const { count } = useSaveQueue();
 	const [open, setOpen] = useState(false);
 	return (
 		<>
 			<Button
-				data-touch={touch ? "" : undefined}
 				disabled={disabled}
 				onClick={() => setOpen(true)}
 				size="sm"

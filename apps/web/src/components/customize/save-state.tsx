@@ -86,13 +86,8 @@ export function SaveState({ canEdit, error, onDiscard }: SaveStateProps) {
 			</output>
 			{canEdit && isDirty ? (
 				<>
-					<DiscardChangesButton
-						touch
-						disabled={isCommitting}
-						onDiscard={onDiscard}
-					/>
+					<DiscardChangesButton disabled={isCommitting} onDiscard={onDiscard} />
 					<Button
-						data-touch=""
 						onClick={commit}
 						pending={saving}
 						pendingLabel="Saving"
