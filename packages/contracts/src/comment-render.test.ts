@@ -123,15 +123,17 @@ describe("renderCommentBody — snapshot golden files", () => {
 		const lines = body.trim().split("\n").filter(Boolean);
 		// Verdict line present, @-mentions the contributor, no "tripwire:" prefix
 		// in the visible copy (the hidden marker is the only legit occurrence).
-		expect(lines[0]).toBe(
-			"@octocat, Tripwire blocked this from merging. Reasons:",
+		expect(lines[0]).toBe("@octocat, Tripwire blocked this from merging.");
+		expect(body).not.toMatch(/^- /m);
+		expect(body).toContain(
+			"merging.\n\nYour account is 2 days old. This clears in 5 days.\n\n",
 		);
 		expect(body.replace(MARKERS, "")).not.toContain("tripwire:");
 		// Never counts rules.
 		expect(body).not.toMatch(/\d+ of \d+ rules?/);
 		// The wait-hint rides inline after its reason.
 		expect(body).toContain(
-			"- Your account is 2 days old. This clears in 5 days.",
+			"Your account is 2 days old. This clears in 5 days.",
 		);
 		// The button is VISIBLE — not wrapped in any <details>.
 		const buttonLine = lines.find((l) => l.includes("badges/view-run.png"));
@@ -207,13 +209,13 @@ describe("renderVerdictComment — config-aware modes", () => {
 		);
 		// Every failed rule speaks — catalog contributor labels, name-prefixed.
 		expect(body).toContain(
-			"- Account age: Your account is newer than this repository allows.",
+			"Account age: Your account is newer than this repository allows.",
 		);
 		expect(body).toContain(
-			"- Crypto address: This change request contains a cryptocurrency wallet address.",
+			"Crypto address: This change request contains a cryptocurrency wallet address.",
 		);
 		expect(body).toContain(
-			"- Max files changed: This change request changes too many files.",
+			"Max files changed: This change request changes too many files.",
 		);
 		expect(body).not.toContain("more reasons");
 		// Brief mode: no collapsibles, but headline + button + marker stay.
@@ -230,8 +232,9 @@ describe("renderVerdictComment — config-aware modes", () => {
 			modeConfig("one-liner-link", { showRuleName: false }),
 		);
 		expect(body).toContain(
-			"- Your account is newer than this repository allows.",
+			"merging.\n\nYour account is newer than this repository allows.\n\n",
 		);
+		expect(body).not.toMatch(/^- /m);
 		expect(body).not.toContain("Account age:");
 	});
 

@@ -1,9 +1,11 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`renderCommentBody — snapshot golden files blocked (mixed remedies, wait-hint inline) 1`] = `
-"@octocat, Tripwire blocked this from merging. Reasons:
-- Your account is 2 days old. This clears in 5 days.
-- It adds 2 crypto wallet addresses to DONATE.md.
+"@octocat, Tripwire blocked this from merging.
+
+Your account is 2 days old. This clears in 5 days.
+
+It adds 2 crypto wallet addresses to DONATE.md.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
@@ -25,9 +27,11 @@ The Tripwire page for this check shows every rule it applied, what it found, and
 `;
 
 exports[`renderCommentBody — snapshot golden files blocked (3+ reasons collapse to plus-N) 1`] = `
-"@octocat, Tripwire blocked this from merging. Reasons:
-- It adds 2 crypto wallet addresses to DONATE.md.
-- 2 more reasons. See all of them on Tripwire.
+"@octocat, Tripwire blocked this from merging.
+
+It adds 2 crypto wallet addresses to DONATE.md.
+
+2 more reasons. See all of them on Tripwire.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
@@ -82,10 +86,13 @@ Tripwire checked this again with the repository's current rules.
 `;
 
 exports[`renderVerdictComment — config-aware modes one-liner-link: one contributor label per failed rule, never plus-N 1`] = `
-"@octocat, Tripwire blocked this from merging. Reasons:
-- Account age: Your account is newer than this repository allows.
-- Crypto address: This change request contains a cryptocurrency wallet address.
-- Max files changed: This change request changes too many files.
+"@octocat, Tripwire blocked this from merging.
+
+Account age: Your account is newer than this repository allows.
+
+Crypto address: This change request contains a cryptocurrency wallet address.
+
+Max files changed: This change request changes too many files.
 
 <a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 

@@ -109,8 +109,6 @@ function reasonLine(reason: CommentReason): string {
 		: asSentence(reason.text);
 }
 
-const REASONS_LEAD = "Reasons:";
-
 /**
  * The reasons block: max 2 inline, each with its wait-hint appended; 3+ collapse
  * to the leading reason plus a count of the rest (never "X of Y rules").
@@ -120,15 +118,13 @@ export function reasonsBlock(reasons: CommentReason[]): string {
 		return "";
 	}
 	if (reasons.length <= 2) {
-		return reasons.map((reason) => `- ${reasonLine(reason)}`).join("\n");
+		return reasons.map(reasonLine).join("\n\n");
 	}
-	return `- ${reasonLine(reasons[0] as CommentReason)}\n- ${reasons.length - 1} more reasons. See all of them on Tripwire.`;
+	return `${reasonLine(reasons[0] as CommentReason)}\n\n${reasons.length - 1} more reasons. See all of them on Tripwire.`;
 }
 
 function headlineWithReasons(headline: string, reasonList: string): string {
-	return reasonList === ""
-		? headline
-		: `${headline} ${REASONS_LEAD}\n${reasonList}`;
+	return reasonList === "" ? headline : `${headline}\n\n${reasonList}`;
 }
 
 const FIX_REVISE =
@@ -269,8 +265,8 @@ function oneLinerLine(reason: CommentReason, showRuleName: boolean): string {
 		(reason.ruleId ? ruleContributorLabel(reason.ruleId) : null) ??
 		reasonLine(reason);
 	return showRuleName && reason.ruleId
-		? `- ${capitalize(ruleDisplayName(reason.ruleId))}: ${asSentence(label)}`
-		: `- ${asSentence(label)}`;
+		? `${capitalize(ruleDisplayName(reason.ruleId))}: ${asSentence(label)}`
+		: asSentence(label);
 }
 
 /**
@@ -340,7 +336,7 @@ export function renderVerdictComment(
 		blockComment.mode === "one-liner-link"
 			? input.reasons
 					.map((reason) => oneLinerLine(reason, blockComment.showRuleName))
-					.join("\n")
+					.join("\n\n")
 			: "";
 	const lines: string[] = [headlineWithReasons(headline, reasonList), ""];
 	if (input.rerun) {
