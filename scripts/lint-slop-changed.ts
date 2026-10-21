@@ -13,10 +13,17 @@ import { spawnSync } from "node:child_process";
 
 const range = process.argv[2] ?? "origin/main...HEAD";
 
+const MAX_BUFFER = 256 * 1024 * 1024;
+
 function git(args: string[]): string {
-	const result = spawnSync("git", args, { encoding: "utf8" });
-	if (result.status !== 0) {
-		throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
+	const result = spawnSync("git", args, {
+		encoding: "utf8",
+		maxBuffer: MAX_BUFFER,
+	});
+	if (result.error || result.status !== 0) {
+		throw new Error(
+			`git ${args.join(" ")} failed: ${result.error?.message ?? result.stderr}`,
+		);
 	}
 	return result.stdout;
 }
@@ -56,8 +63,13 @@ if (files.length === 0) {
 const oxlint = spawnSync("bunx", ["oxlint", ...files], {
 	encoding: "utf8",
 	shell: true,
+	maxBuffer: MAX_BUFFER,
 	env: { ...process.env, NODE_OPTIONS: "--experimental-strip-types" },
 });
+if (oxlint.error) {
+	console.error(`oxlint did not run: ${oxlint.error.message}`);
+	process.exit(1);
+}
 const output = `${oxlint.stdout ?? ""}\n${oxlint.stderr ?? ""}`;
 
 // A broken plugin/config must fail loudly — never pass by finding no matches.
