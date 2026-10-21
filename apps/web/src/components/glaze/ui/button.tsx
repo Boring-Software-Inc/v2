@@ -40,7 +40,7 @@ const buttonVariants = cva(
         // Plain: no glass. A wash under the pointer and while held, the same press scale as the glass.
         ghost: [
           'bg-transparent text-text-1 transition-[background-color,color,scale] duration-(--dur-press) ease-out',
-          'hover:not-data-disabled:bg-hover active:not-data-disabled:bg-pressed active:not-data-disabled:scale-(--scale-press)',
+          'hover:not-data-disabled:bg-hover active:not-data-disabled:bg-pressed active:not-data-disabled:scale-(--scale-press) data-popup-open:bg-pressed',
           'data-disabled:not-aria-busy:text-text-disabled',
           'forced-colors:border forced-colors:border-solid forced-colors:border-[ButtonText]',
         ],

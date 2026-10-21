@@ -1,9 +1,8 @@
 import { ShellNav } from "#/components/layouts/shell-nav";
-import { RepoTabBar, useRepoTabs } from "#/components/tabs";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { BetaTag, Brand, UserMenu } from "./dashboard-topbar";
-import { RepoSwitcher } from "./repo-switcher";
+import { OrgSwitcher, RepoSwitcher } from "./scope-switchers";
 
 export function DashboardRail({
 	user,
@@ -13,7 +12,6 @@ export function DashboardRail({
 	counts: { queue?: number };
 }) {
 	const org = useActiveScope().org?.slug;
-	const { hydrated, tabs } = useRepoTabs();
 	return (
 		<nav
 			aria-label="Primary"
@@ -23,18 +21,13 @@ export function DashboardRail({
 				<Brand org={org} />
 				<BetaTag />
 			</div>
-			<RepoSwitcher appearance="rail" />
+			<div className="flex flex-col gap-1">
+				<OrgSwitcher appearance="rail" />
+				<RepoSwitcher appearance="rail" />
+			</div>
 			<ShellNav counts={counts} variant="rail" />
-			{hydrated && tabs.length > 0 ? (
-				<section aria-labelledby="open-repos" className="flex flex-col gap-1">
-					<h2 className="px-2 type-label-sm text-text-3" id="open-repos">
-						Open repos
-					</h2>
-					<RepoTabBar orientation="column" />
-				</section>
-			) : null}
 			<div className="mt-auto">
-				<UserMenu org={org} showName user={user} />
+				<UserMenu showName user={user} />
 			</div>
 		</nav>
 	);

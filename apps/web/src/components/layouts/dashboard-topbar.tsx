@@ -2,14 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { useFeedback } from "#/components/feedback";
-import {
-	Comment,
-	Dark,
-	Icon,
-	Light,
-	Settings,
-	SignOut,
-} from "#/components/glaze/icon";
+import { Comment, Dark, Icon, Light, SignOut } from "#/components/glaze/icon";
 import { Avatar } from "#/components/glaze/ui/avatar";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -18,11 +11,13 @@ import {
 	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
-	DropdownMenuLinkItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/glaze/ui/dropdown-menu";
-import { RepoSwitcher } from "#/components/layouts/repo-switcher";
+import {
+	OrgSwitcher,
+	RepoSwitcher,
+} from "#/components/layouts/scope-switchers";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import type { CurrentUser } from "#/lib/auth.functions";
@@ -41,15 +36,27 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 			className="flex h-12 min-w-0 shrink-0 items-center gap-1 px-3"
 		>
 			<Brand org={org} />
-			<span aria-hidden className="text-text-3">
-				/
-			</span>
-			<RepoSwitcher />
+			<Slash />
+			<OrgSwitcher />
+			{org ? (
+				<>
+					<Slash />
+					<RepoSwitcher />
+				</>
+			) : null}
 			<div className="ms-auto flex shrink-0 items-center gap-2">
 				<BetaTag />
-				<UserMenu org={org} user={user} />
+				<UserMenu user={user} />
 			</div>
 		</nav>
+	);
+}
+
+function Slash() {
+	return (
+		<span aria-hidden className="type-body text-text-3">
+			/
+		</span>
 	);
 }
 
@@ -88,11 +95,9 @@ const PLACEHOLDER_USER: CurrentUser = {
 };
 
 export function UserMenu({
-	org,
 	user,
 	showName = false,
 }: {
-	org?: string;
 	user: CurrentUser | null;
 	showName?: boolean;
 }) {
@@ -140,19 +145,6 @@ export function UserMenu({
 					</DropdownMenuLabel>
 				</DropdownMenuGroup>
 				<DropdownMenuSeparator />
-				{org ? (
-					<DropdownMenuLinkItem
-						render={
-							<Link
-								search={(prev) => ({ ...prev, settings: "members" as const })}
-								to="."
-							/>
-						}
-					>
-						<Icon icon={Settings} />
-						Open org settings
-					</DropdownMenuLinkItem>
-				) : null}
 				<DropdownMenuItem onClick={openFeedback}>
 					<Icon icon={Comment} />
 					Send feedback

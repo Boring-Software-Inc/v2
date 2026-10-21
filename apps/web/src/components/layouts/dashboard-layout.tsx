@@ -14,6 +14,7 @@ import { OrgSettingsDialog } from "#/components/organizations/org-settings-dialo
 import { useMediaQuery } from "#/hooks/use-media-query";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 import { cn } from "#/lib/glaze/utils";
+import { CommandPaletteLauncher } from "./command-palette-launcher";
 import { DashboardRail } from "./dashboard-rail";
 import {
 	SidePanelProvider,
@@ -173,6 +174,7 @@ function DashboardShell({
 				</div>
 
 				<MobileFooter />
+				<CommandPaletteLauncher />
 				<DevPersonaSwitcher />
 			</div>
 			<OrgSettingsDialog />
