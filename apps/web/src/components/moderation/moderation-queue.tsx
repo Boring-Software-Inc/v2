@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
+import { ScrollList } from "#/components/common/scroll-list";
 import {
 	Blocked,
 	ChangeRequest,
@@ -106,71 +107,74 @@ export function ModerationQueue({
 
 	return (
 		<EntityCard flush title={title}>
-			<ItemGroup aria-label="Sent to review" variant="plain">
-				{items?.map((item) => {
-					const number = item.subjectNumber ? `#${item.subjectNumber}` : null;
-					const subject = number
-						? `${number} in ${item.repoFullName}`
-						: item.repoFullName;
-					const comment = item.eventKind === "comment.created";
-					return (
-						<Item key={item.id}>
-							<ItemMedia variant="icon">
-								<Icon icon={comment ? Comment : ChangeRequest} />
-							</ItemMedia>
-							<ItemContent>
-								<ItemTitle>
-									<ItemRouterLink
-										params={{ runId: item.runId }}
-										to="/runs/$runId"
-									>
+			<ScrollList label="Sent to review">
+				<ItemGroup aria-label="Sent to review" variant="plain">
+					{items?.map((item) => {
+						const number = item.subjectNumber ? `#${item.subjectNumber}` : null;
+						const subject = number
+							? `${number} in ${item.repoFullName}`
+							: item.repoFullName;
+						const comment = item.eventKind === "comment.created";
+						return (
+							<Item key={item.id}>
+								<ItemMedia variant="icon">
+									<Icon icon={comment ? Comment : ChangeRequest} />
+								</ItemMedia>
+								<ItemContent>
+									<ItemTitle>
+										<ItemRouterLink
+											params={{ runId: item.runId }}
+											to="/runs/$runId"
+										>
+											<MetaRow>
+												{number ? <span>{number}</span> : null}
+												<span>
+													{item.title ??
+														(comment ? "Comment" : "Change request")}
+												</span>
+											</MetaRow>
+										</ItemRouterLink>
+										{item.nodeId === "run:degraded" ? (
+											<Badge variant="warn">Check incomplete</Badge>
+										) : null}
+									</ItemTitle>
+									<ItemDescription>
 										<MetaRow>
-											{number ? <span>{number}</span> : null}
-											<span>
-												{item.title ?? (comment ? "Comment" : "Change request")}
-											</span>
+											<span>{item.actorLogin ?? "Unknown contributor"}</span>
+											<span>{formatRelativeTime(item.createdAt)}</span>
+											{item.reason ? <span>{item.reason}</span> : null}
 										</MetaRow>
-									</ItemRouterLink>
-									{item.nodeId === "run:degraded" ? (
-										<Badge variant="warn">Check incomplete</Badge>
-									) : null}
-								</ItemTitle>
-								<ItemDescription>
-									<MetaRow>
-										<span>{item.actorLogin ?? "Unknown contributor"}</span>
-										<span>{formatRelativeTime(item.createdAt)}</span>
-										{item.reason ? <span>{item.reason}</span> : null}
-									</MetaRow>
-								</ItemDescription>
-							</ItemContent>
-							<ItemActions className="me-0 gap-2">
-								<DecideButton
-									decision="deny"
-									disabled={decide.isPending}
-									onDecide={(decision) =>
-										decide.mutate(
-											{ data: { org, repo, itemId: item.id, decision } },
-											{ onSuccess: () => DECISION[decision].toast(subject) },
-										)
-									}
-									subject={subject}
-								/>
-								<DecideButton
-									decision="approve"
-									disabled={decide.isPending}
-									onDecide={(decision) =>
-										decide.mutate(
-											{ data: { org, repo, itemId: item.id, decision } },
-											{ onSuccess: () => DECISION[decision].toast(subject) },
-										)
-									}
-									subject={subject}
-								/>
-							</ItemActions>
-						</Item>
-					);
-				})}
-			</ItemGroup>
+									</ItemDescription>
+								</ItemContent>
+								<ItemActions className="me-0 gap-2">
+									<DecideButton
+										decision="deny"
+										disabled={decide.isPending}
+										onDecide={(decision) =>
+											decide.mutate(
+												{ data: { org, repo, itemId: item.id, decision } },
+												{ onSuccess: () => DECISION[decision].toast(subject) },
+											)
+										}
+										subject={subject}
+									/>
+									<DecideButton
+										decision="approve"
+										disabled={decide.isPending}
+										onDecide={(decision) =>
+											decide.mutate(
+												{ data: { org, repo, itemId: item.id, decision } },
+												{ onSuccess: () => DECISION[decision].toast(subject) },
+											)
+										}
+										subject={subject}
+									/>
+								</ItemActions>
+							</Item>
+						);
+					})}
+				</ItemGroup>
+			</ScrollList>
 		</EntityCard>
 	);
 }

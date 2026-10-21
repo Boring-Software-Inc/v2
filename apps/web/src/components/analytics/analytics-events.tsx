@@ -1,8 +1,15 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+	AnalyticsEventFilters,
+	EVENT_FIELDS,
+	type EventFilters,
+	matchEvent,
+} from "#/components/analytics/analytics-event-filters";
 import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
+import { ScrollList } from "#/components/common/scroll-list";
 import {
 	type GlazeIcon,
 	Icon,
@@ -22,6 +29,7 @@ import {
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
+import { useFilteredRows } from "#/components/glaze/ui/filter-bar";
 import {
 	Item,
 	ItemContent,
@@ -102,6 +110,14 @@ export function AnalyticsEvents({
 	const ordered = order
 		.map((id) => byId.get(id))
 		.filter((e): e is AnalyticsEvent => Boolean(e));
+	const [search, setSearch] = useState("");
+	const [filters, setFilters] = useState<EventFilters>({});
+	const { rows, counts } = useFilteredRows(ordered, {
+		search,
+		match: matchEvent,
+		fields: EVENT_FIELDS,
+		filters,
+	});
 
 	if (ordered.length === 0) {
 		return (
@@ -142,15 +158,34 @@ export function AnalyticsEvents({
 				</>
 			}
 		>
-			<ItemGroup aria-label="Recent events" variant="plain">
-				{ordered.map((event) => (
-					<EventRow
-						event={event}
-						focused={event.id === focusedId}
-						key={event.id}
-					/>
-				))}
-			</ItemGroup>
+			<div className="border-line-faint border-b p-3">
+				<AnalyticsEventFilters
+					counts={counts}
+					events={ordered}
+					filters={filters}
+					onFiltersChange={setFilters}
+					onSearchChange={setSearch}
+					search={search}
+					shown={rows.length}
+				/>
+			</div>
+			<ScrollList label="Recent events">
+				{rows.length === 0 ? (
+					<p className="px-3 py-4 type-body-sm text-text-2">
+						No events match these filters.
+					</p>
+				) : (
+					<ItemGroup aria-label="Recent events" variant="plain">
+						{rows.map((event) => (
+							<EventRow
+								event={event}
+								focused={event.id === focusedId}
+								key={event.id}
+							/>
+						))}
+					</ItemGroup>
+				)}
+			</ScrollList>
 		</EntityCard>
 	);
 }

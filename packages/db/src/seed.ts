@@ -831,7 +831,7 @@ export async function seedStory(
 	const weekdayBase = [2, 7, 8, 8, 7, 6, 2];
 	let pr = 1;
 	let pending = 0;
-	const MAX_PENDING = 7;
+	const MAX_PENDING = 24;
 
 	const ruleStepRow = (
 		runId: string,
@@ -961,7 +961,7 @@ export async function seedStory(
 
 			// Decide the pending queue: only recent reviews stay pending, capped.
 			const stayPending =
-				verdict === "needs_review" && d <= 4 && pending < MAX_PENDING;
+				verdict === "needs_review" && d <= 10 && pending < MAX_PENDING;
 			if (stayPending) {
 				pending++;
 			}

@@ -331,7 +331,7 @@ export function CustomRuleBuilder({
 					<DialogTitle>Create rule</DialogTitle>
 				</DialogHeader>
 				<DialogBody className="flex flex-col gap-4">
-					<div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-2 type-body text-text-2">
+					<div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-2 type-body text-text-1">
 						<span>Require that</span>
 						<SignalWord
 							onPick={(signal) =>
@@ -504,11 +504,6 @@ export function CustomRuleBuilder({
 					) : null}
 				</DialogBody>
 				<DialogFooter>
-					{!draft && !valueMessage ? (
-						<p className="me-auto type-caption text-text-2">
-							{nextStep(state)}
-						</p>
-					) : null}
 					<DialogClose>Cancel</DialogClose>
 					<DialogAction disabled={!draft} onAction={save} pendingLabel="Saving">
 						Save rule
@@ -518,6 +513,8 @@ export function CustomRuleBuilder({
 		</Dialog>
 	);
 }
+
+const DOWN = { side: "none", align: "shift" } as const;
 
 function wordClass(empty: boolean): string {
 	return cn(
@@ -539,7 +536,12 @@ function SignalWord({
 			<PopoverTrigger className={wordClass(!signal)}>
 				{signal ? signal.label.toLowerCase() : "what to check"}
 			</PopoverTrigger>
-			<PopoverContent align="start" className="p-0">
+			<PopoverContent
+				align="start"
+				className="p-0"
+				collisionAvoidance={DOWN}
+				side="bottom"
+			>
 				<Command label="What to check" loop>
 					<CommandInput autoFocus placeholder="Search" />
 					<CommandList>
@@ -583,7 +585,7 @@ function ValueWord({
 	return (
 		<Popover onOpenChange={setOpen} open={open}>
 			<PopoverTrigger className={wordClass(empty)}>{label}</PopoverTrigger>
-			<PopoverContent align="start">
+			<PopoverContent align="start" collisionAvoidance={DOWN} side="bottom">
 				<form
 					onSubmit={(event) => {
 						event.preventDefault();
