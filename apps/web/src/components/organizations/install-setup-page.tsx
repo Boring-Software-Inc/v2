@@ -2,19 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { FORGE_CATALOG, type Forge } from "@tripwire/contracts";
 import { type ReactNode, useState } from "react";
+import { BrandLockup } from "#/components/auth/brand-lockup";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
-import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import { Card, CardContent } from "#/components/glaze/ui/card";
-import {
-	DataList,
-	DataListItem,
-	DataListLabel,
-	DataListValue,
-} from "#/components/glaze/ui/data-list";
 import {
 	Item,
 	ItemActions,
@@ -136,7 +130,7 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 											</MetaRow>
 										</ItemDescription>
 									</ItemContent>
-									<ItemActions>
+									<ItemActions className="me-0">
 										<Button
 											aria-label={`Choose ${account}`}
 											onClick={() => setPicked(c.installationId)}
@@ -194,7 +188,7 @@ function SetupFlow({
 					body="Another Tripwire org already checks this installation. An installation can belong to one org at a time."
 					title={`Already connected to ${preview.claimedByOrgSlug}`}
 				/>
-				<div>
+				<div className="flex justify-center">
 					<Button
 						nativeButton={false}
 						render={
@@ -242,25 +236,21 @@ function ConfirmScreen({
 				title="Connect this installation?"
 			/>
 			<Card>
-				<CardContent>
-					<DataList aria-label="Connection">
-						<DataListItem>
-							<DataListLabel>{forgeLabel(preview.forge)} account</DataListLabel>
-							<DataListValue>
-								<SourceSide preview={preview} />
-							</DataListValue>
-						</DataListItem>
-						<DataListItem>
-							<DataListLabel>Tripwire org</DataListLabel>
-							<DataListValue>
-								<Side
-									detail={orgSlugDetail(stateOrg)}
-									media={<OrgAvatar name={stateOrg.name} size="sm" />}
-									name={stateOrg.name}
-								/>
-							</DataListValue>
-						</DataListItem>
-					</DataList>
+				<CardContent flush>
+					<ItemGroup aria-label="Connection" variant="plain">
+						<SourceRow preview={preview} />
+						<Item>
+							<ItemMedia>
+								<OrgAvatar name={stateOrg.name} size="sm" />
+							</ItemMedia>
+							<ItemContent>
+								<ItemTitle>
+									<span>{stateOrg.name}</span>
+								</ItemTitle>
+								<ItemDescription>Tripwire org</ItemDescription>
+							</ItemContent>
+						</Item>
+					</ItemGroup>
 				</CardContent>
 			</Card>
 			<div className="flex flex-wrap items-center justify-end gap-2">
@@ -293,15 +283,10 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 				title="Choose an org for this installation"
 			/>
 			<Card>
-				<CardContent>
-					<DataList aria-label="Installation">
-						<DataListItem>
-							<DataListLabel>{forgeLabel(preview.forge)} account</DataListLabel>
-							<DataListValue>
-								<SourceSide preview={preview} />
-							</DataListValue>
-						</DataListItem>
-					</DataList>
+				<CardContent flush>
+					<ItemGroup aria-label="Installation" variant="plain">
+						<SourceRow preview={preview} />
+					</ItemGroup>
 				</CardContent>
 				<CardContent flush>
 					<ListHead>Tripwire org</ListHead>
@@ -341,7 +326,7 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 												<ItemDescription>{orgSlugDetail(org)}</ItemDescription>
 											) : null}
 										</ItemContent>
-										<ItemActions>
+										<ItemActions className="me-0">
 											<Button
 												aria-label={`Connect to ${org.name}`}
 												disabled={
@@ -353,7 +338,6 @@ function ClaimScreen({ preview }: { preview: InstallPreview }) {
 												}
 												pendingLabel="Connecting"
 												size="sm"
-												variant="secondary"
 											>
 												Connect
 											</Button>
@@ -426,36 +410,26 @@ function sourceName(preview: InstallPreview): string {
 	return preview.account ?? `this ${forgeLabel(preview.forge)} connection`;
 }
 
-function SourceSide({ preview }: { preview: InstallPreview }) {
+function SourceRow({ preview }: { preview: InstallPreview }) {
 	const syncing = preview.account === null && preview.repoCount === 0;
 	return (
-		<Side
-			detail={
-				syncing ? "Repos still syncing" : repoCountLabel(preview.repoCount)
-			}
-			media={<ForgeMark className="size-(--icon)" forge={preview.forge} />}
-			name={preview.account ?? `${forgeLabel(preview.forge)} connection`}
-		/>
-	);
-}
-
-function Side({
-	media,
-	name,
-	detail,
-}: {
-	media: ReactNode;
-	name: string;
-	detail: ReactNode;
-}) {
-	return (
-		<span className="flex min-w-0 items-center gap-2">
-			<span className="flex size-5 shrink-0 items-center justify-center text-text-1">
-				{media}
-			</span>
-			<span className="truncate type-label text-text-1">{name}</span>
-			<span className="shrink-0 type-caption text-text-2">{detail}</span>
-		</span>
+		<Item>
+			<ItemMedia>
+				<ForgeMark className="size-5" forge={preview.forge} />
+			</ItemMedia>
+			<ItemContent>
+				<ItemTitle>
+					<span>
+						{preview.account ?? `${forgeLabel(preview.forge)} connection`}
+					</span>
+				</ItemTitle>
+				<ItemDescription>
+					{syncing
+						? `${forgeLabel(preview.forge)}, repos still syncing`
+						: forgeLabel(preview.forge)}
+				</ItemDescription>
+			</ItemContent>
+		</Item>
 	);
 }
 
@@ -486,9 +460,11 @@ function OrgRowsSkeleton() {
 
 function SetupHeader({ title, body }: { title: string; body: string }) {
 	return (
-		<header className="flex flex-col gap-2">
-			<h1 className="type-title">{title}</h1>
-			<p className="max-w-measure-hint type-body text-text-2">{body}</p>
+		<header className="flex flex-col items-center gap-2 text-center">
+			<h1 className="type-title text-balance">{title}</h1>
+			<p className="max-w-measure-hint type-body text-pretty text-text-2">
+				{body}
+			</p>
 		</header>
 	);
 }
@@ -500,7 +476,7 @@ function LoadError({ title, onRetry }: { title: string; onRetry: () => void }) {
 				body="Tripwire could not reach the server. Check your connection and try again."
 				title={title}
 			/>
-			<div className="flex flex-wrap gap-2">
+			<div className="flex flex-wrap justify-center gap-2">
 				<Button onClick={onRetry} type="button">
 					Try again
 				</Button>
@@ -518,7 +494,7 @@ function LoadError({ title, onRetry }: { title: string; onRetry: () => void }) {
 
 function BackHome() {
 	return (
-		<div>
+		<div className="flex justify-center">
 			<Button nativeButton={false} render={<Link to="/" />} variant="secondary">
 				Back home
 			</Button>
@@ -530,7 +506,9 @@ function SetupShell({ children }: { children: ReactNode }) {
 	return (
 		<div className="flex min-h-dvh w-full justify-center bg-page px-4 py-10 md:items-center">
 			<div className="flex w-full max-w-md flex-col gap-6">
-				<TripwireLogo className="text-text-1" size={28} />
+				<div className="flex justify-center">
+					<BrandLockup />
+				</div>
 				{children}
 			</div>
 		</div>

@@ -406,6 +406,18 @@
   @media (forced-colors: active) { box-shadow: none; border: var(--line-width) solid ButtonText; }
 }
 
+@utility wash-ok {
+  --flat-bg: var(--ok-tint);
+  --flat-ring: var(--ok-line);
+  --flat-text: var(--ok-text);
+}
+
+@utility wash-fail {
+  --flat-bg: var(--fail-tint);
+  --flat-ring: var(--fail-line);
+  --flat-text: var(--fail-text);
+}
+
 /* shell, panel and shell-foot: the card. The shell is the light grey frame, 1px --line-faint, --radius-shell, with
    --shell-inset of padding; the panel is the white working surface inside it at --radius-panel, so the corners stay
    concentric. shell-foot is the optional footer row on the shell, under the panel: meta at the start, aligned with

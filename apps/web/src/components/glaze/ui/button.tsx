@@ -37,6 +37,8 @@ const buttonVariants = cva(
         destructive: 'glass glass-coral',
         confirm: 'glass glass-green',
         secondary: 'flat',
+        'confirm-wash': 'flat wash-ok',
+        'destructive-wash': 'flat wash-fail',
         // Plain: no glass. A wash under the pointer and while held, the same press scale as the glass.
         ghost: [
           'bg-transparent text-text-1 transition-[background-color,color,scale] duration-(--dur-press) ease-out',

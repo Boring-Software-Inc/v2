@@ -106,7 +106,7 @@ export function ModerationQueue({
 	return (
 		<EntityCard
 			flush
-			footerMeta="Approve passes the check. Block fails it."
+			footerMeta="Approve passes the check. Reject blocks the change request."
 			title={title}
 		>
 			<ItemGroup aria-label="Sent to review" variant="plain">
@@ -148,7 +148,7 @@ export function ModerationQueue({
 							</ItemContent>
 							<ItemActions className="me-0 gap-2">
 								<Button
-									aria-label={`Block ${subject}`}
+									aria-label={`Reject ${subject}`}
 									disabled={decide.isPending}
 									onClick={() =>
 										decide.mutate(
@@ -169,10 +169,10 @@ export function ModerationQueue({
 										)
 									}
 									size="sm"
-									variant="ghost"
+									variant="destructive-wash"
 								>
 									<Icon icon={Blocked} />
-									Block
+									Reject
 								</Button>
 								<Button
 									aria-label={`Approve ${subject}`}
@@ -196,7 +196,7 @@ export function ModerationQueue({
 										)
 									}
 									size="sm"
-									variant="secondary"
+									variant="confirm-wash"
 								>
 									<Icon icon={Check} />
 									Approve

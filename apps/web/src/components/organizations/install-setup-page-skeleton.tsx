@@ -1,4 +1,4 @@
-import { TripwireLogo } from "#/components/common/tripwire-logo";
+import { BrandLockup } from "#/components/auth/brand-lockup";
 import { Card, CardContent } from "#/components/glaze/ui/card";
 import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 
@@ -6,10 +6,12 @@ export function InstallSetupPageSkeleton() {
 	return (
 		<div className="flex min-h-dvh w-full justify-center bg-page px-4 py-10 md:items-center">
 			<div aria-hidden className="flex w-full max-w-md flex-col gap-6">
-				<TripwireLogo className="text-text-1" size={28} />
-				<div className="flex flex-col gap-2">
+				<div className="flex justify-center">
+					<BrandLockup />
+				</div>
+				<div className="flex flex-col items-center gap-2">
 					<SkeletonText className="w-64" type="heading" />
-					<SkeletonText lines={2} type="body" />
+					<SkeletonText className="w-80" type="body" />
 				</div>
 				<Card>
 					<CardContent className="flex flex-col gap-3">
