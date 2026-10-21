@@ -1,6 +1,7 @@
 import { ShellNav } from "#/components/layouts/shell-nav";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import type { CurrentUser } from "#/lib/auth.functions";
+import { CommandPaletteButton } from "./command-palette-launcher";
 import { BetaTag, Brand, UserMenu } from "./dashboard-topbar";
 import { OrgSwitcher, RepoSwitcher } from "./scope-switchers";
 
@@ -25,6 +26,7 @@ export function DashboardRail({
 				<OrgSwitcher appearance="rail" />
 				<RepoSwitcher appearance="rail" />
 			</div>
+			<CommandPaletteButton wide />
 			<ShellNav counts={counts} variant="rail" />
 			<div className="mt-auto">
 				<UserMenu showName user={user} />

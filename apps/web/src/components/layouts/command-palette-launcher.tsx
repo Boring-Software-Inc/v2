@@ -1,4 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { Icon, Search } from "#/components/glaze/icon";
+import { Button } from "#/components/glaze/ui/button";
+import { Kbd } from "#/components/glaze/ui/kbd";
 
 const CommandPalette = lazy(() =>
 	import("#/components/layouts/command-palette").then((m) => ({
@@ -13,6 +16,16 @@ const CommandPalette = lazy(() =>
  * fuzzy-searchable. Scope is the URL (§8) — every jump is a navigation, never
  * a server-side scope mutation.
  */
+const OPEN_EVENT = "tripwire:open-command-palette";
+
+export function openCommandPalette(): void {
+	window.dispatchEvent(new Event(OPEN_EVENT));
+}
+
+function pageOwnsSlash(): boolean {
+	return document.querySelector('[aria-keyshortcuts="/"]') !== null;
+}
+
 export function CommandPaletteLauncher() {
 	const [open, setOpen] = useState(false);
 	const [loaded, setLoaded] = useState(false);
@@ -27,13 +40,24 @@ export function CommandPaletteLauncher() {
 				setOpen((value) => !value);
 				return;
 			}
-			if (event.key === "/" && !open && !isTypingTarget(event.target)) {
+			if (
+				event.key === "/" &&
+				!open &&
+				!event.defaultPrevented &&
+				!isTypingTarget(event.target) &&
+				!pageOwnsSlash()
+			) {
 				event.preventDefault();
 				setOpen(true);
 			}
 		};
+		const onOpen = () => setOpen(true);
 		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
+		window.addEventListener(OPEN_EVENT, onOpen);
+		return () => {
+			window.removeEventListener("keydown", onKey);
+			window.removeEventListener(OPEN_EVENT, onOpen);
+		};
 	}, [open]);
 
 	return loaded ? (
@@ -54,5 +78,21 @@ function isTypingTarget(target: EventTarget | null): boolean {
 		tag === "TEXTAREA" ||
 		tag === "SELECT" ||
 		target.isContentEditable
+	);
+}
+
+export function CommandPaletteButton({ wide = false }: { wide?: boolean }) {
+	return (
+		<Button
+			aria-keyshortcuts="Meta+K Control+K"
+			className={wide ? "w-full justify-start" : undefined}
+			onClick={openCommandPalette}
+			size="sm"
+			variant="ghost"
+		>
+			<Icon icon={Search} />
+			Search
+			<Kbd className={wide ? "ms-auto" : undefined} keys="mod+k" />
+		</Button>
 	);
 }

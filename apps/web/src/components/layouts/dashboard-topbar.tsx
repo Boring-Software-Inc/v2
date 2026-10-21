@@ -14,6 +14,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/glaze/ui/dropdown-menu";
+import { CommandPaletteButton } from "#/components/layouts/command-palette-launcher";
 import {
 	OrgSwitcher,
 	RepoSwitcher,
@@ -45,6 +46,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 				</>
 			) : null}
 			<div className="ms-auto flex shrink-0 items-center gap-2">
+				<CommandPaletteButton />
 				<BetaTag />
 				<UserMenu user={user} />
 			</div>

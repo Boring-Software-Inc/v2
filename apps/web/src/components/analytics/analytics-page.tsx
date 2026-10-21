@@ -23,6 +23,7 @@ import {
 } from "#/lib/analytics";
 import { analyticsActivityQueryOptions } from "#/lib/analytics-activity.query";
 import { closestEventId } from "#/lib/analytics-events";
+import type { DateRange } from "#/lib/date-range";
 import { cn } from "#/lib/glaze/utils";
 import { moderationStatsQueryOptions } from "#/lib/moderation.query";
 
@@ -50,14 +51,22 @@ export function AnalyticsPage() {
 		[metrics, focused],
 	);
 
+	const [range, setRange] = useState<DateRange | null>(null);
 	const activity = useQuery(
-		analyticsActivityQueryOptions(org, repo, focusedMetric?.key ?? "pending"),
+		analyticsActivityQueryOptions(
+			org,
+			repo,
+			focusedMetric?.key ?? "pending",
+			range,
+		),
 	);
 	const events = activity.data ?? [];
 
 	const loading = moderationStats.isLoading;
 	const hasData =
-		metrics.some((m) => m.series.some((v) => v > 0)) || events.length > 0;
+		metrics.some((m) => m.series.some((v) => v > 0)) ||
+		events.length > 0 ||
+		range !== null;
 
 	const len = focusedMetric?.series.length ?? 0;
 	const committedAt = committedIndex ?? Math.max(0, len - 1);
@@ -103,7 +112,12 @@ export function AnalyticsPage() {
 									suffix={focusedMetric.suffix}
 								/>
 
-								<AnalyticsEvents events={events} focusedId={focusedEventId} />
+								<AnalyticsEvents
+									events={events}
+									focusedId={focusedEventId}
+									onRangeChange={setRange}
+									range={range}
+								/>
 							</div>
 						) : (
 							<ChartAtRest

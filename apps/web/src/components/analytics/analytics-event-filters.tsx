@@ -1,3 +1,4 @@
+import { DateRangeFilter } from "#/components/common/date-range-filter";
 import {
 	type FacetField,
 	FilterBar,
@@ -7,26 +8,17 @@ import {
 	FilterBarSelect,
 } from "#/components/glaze/ui/filter-bar";
 import type { AnalyticsEvent } from "#/lib/analytics-events";
-
-const DAY = 24 * 60 * 60 * 1000;
-
-const AGES = [
-	{ value: "day", label: "Last 24 hours" },
-	{ value: "week", label: "Last 7 days" },
-	{ value: "older", label: "Older" },
-];
-
-function ageOf(event: AnalyticsEvent): string {
-	const age = Date.now() - new Date(event.at).getTime();
-	if (age < DAY) {
-		return "day";
-	}
-	return age < 7 * DAY ? "week" : "older";
-}
+import type { DateRange } from "#/lib/date-range";
 
 export const EVENT_FIELDS: FacetField<AnalyticsEvent>[] = [
 	{ id: "contributor", value: (event) => event.title },
-	{ id: "age", value: ageOf },
+];
+
+export type EventSort = "newest" | "oldest";
+
+const SORTS: { value: EventSort; label: string }[] = [
+	{ value: "newest", label: "Newest" },
+	{ value: "oldest", label: "Oldest" },
 ];
 
 export function matchEvent(event: AnalyticsEvent, query: string): boolean {
@@ -46,6 +38,10 @@ export function AnalyticsEventFilters({
 	onFiltersChange,
 	counts,
 	shown,
+	range,
+	onRangeChange,
+	sort,
+	onSortChange,
 }: {
 	events: AnalyticsEvent[];
 	search: string;
@@ -54,6 +50,10 @@ export function AnalyticsEventFilters({
 	onFiltersChange: (filters: EventFilters) => void;
 	counts: Record<string, Record<string, number>>;
 	shown: number;
+	range: DateRange | null;
+	onRangeChange: (range: DateRange | null) => void;
+	sort: EventSort;
+	onSortChange: (sort: EventSort) => void;
 }) {
 	const contributors = [...new Set(events.map((event) => event.title))].sort();
 	const active =
@@ -81,15 +81,17 @@ export function AnalyticsEventFilters({
 				}))}
 				value={filters.contributor ?? []}
 			/>
+			<DateRangeFilter onValueChange={onRangeChange} value={range} />
 			<FilterBarSelect
-				label="When"
-				multiple
-				onValueChange={(value) => set("age", value)}
-				options={AGES.map((age) => ({
-					...age,
-					count: counts.age?.[age.value] ?? 0,
-				}))}
-				value={filters.age ?? []}
+				label="Sort"
+				onValueChange={(value) => {
+					const next = SORTS.find((option) => option.value === value);
+					if (next) {
+						onSortChange(next.value);
+					}
+				}}
+				options={SORTS}
+				value={sort}
 			/>
 			{active ? (
 				<>
@@ -98,6 +100,7 @@ export function AnalyticsEventFilters({
 						onClick={() => {
 							onSearchChange("");
 							onFiltersChange({});
+							onRangeChange(null);
 						}}
 					/>
 				</>

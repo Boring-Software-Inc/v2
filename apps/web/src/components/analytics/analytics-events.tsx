@@ -4,6 +4,7 @@ import {
 	AnalyticsEventFilters,
 	EVENT_FIELDS,
 	type EventFilters,
+	type EventSort,
 	matchEvent,
 } from "#/components/analytics/analytics-event-filters";
 import { EntityCard } from "#/components/common/entity-card";
@@ -49,6 +50,7 @@ import type {
 	EventImpact,
 	EventKind,
 } from "#/lib/analytics-events";
+import type { DateRange } from "#/lib/date-range";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import { cn } from "#/lib/glaze/utils";
 
@@ -74,9 +76,13 @@ function withFocusedOnTop(ids: string[], focusedId?: string | null): string[] {
 export function AnalyticsEvents({
 	events,
 	focusedId,
+	range,
+	onRangeChange,
 }: {
 	events: AnalyticsEvent[];
 	focusedId?: string | null;
+	range: DateRange | null;
+	onRangeChange: (range: DateRange | null) => void;
 }) {
 	const { org, repo } = useParams({ strict: false });
 	const [order, setOrder] = useState<string[]>(() =>
@@ -112,14 +118,19 @@ export function AnalyticsEvents({
 		.filter((e): e is AnalyticsEvent => Boolean(e));
 	const [search, setSearch] = useState("");
 	const [filters, setFilters] = useState<EventFilters>({});
-	const { rows, counts } = useFilteredRows(ordered, {
+	const [sort, setSort] = useState<EventSort>("newest");
+	const { rows: matched, counts } = useFilteredRows(ordered, {
 		search,
 		match: matchEvent,
 		fields: EVENT_FIELDS,
 		filters,
 	});
+	const rows =
+		sort === "oldest"
+			? [...matched].sort((a, b) => a.at.localeCompare(b.at))
+			: matched;
 
-	if (ordered.length === 0) {
+	if (ordered.length === 0 && range === null) {
 		return (
 			<Empty
 				art={<MascotArt mood="analytics-events-empty" size="compact" />}
@@ -164,9 +175,13 @@ export function AnalyticsEvents({
 					events={ordered}
 					filters={filters}
 					onFiltersChange={setFilters}
+					onRangeChange={onRangeChange}
 					onSearchChange={setSearch}
+					onSortChange={setSort}
+					range={range}
 					search={search}
 					shown={rows.length}
+					sort={sort}
 				/>
 			</div>
 			<ScrollList label="Recent events">
