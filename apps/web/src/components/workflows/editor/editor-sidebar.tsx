@@ -14,33 +14,42 @@ import {
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { useState } from "react";
-import { Add, Close, Icon } from "#/components/glaze/icon";
+import { Add, ArrowLeft, Close, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleGroup,
+	CollapsibleTrigger,
+} from "#/components/glaze/ui/collapsible";
+import { Input } from "#/components/glaze/ui/input";
 import {
 	Item,
 	ItemActions,
 	ItemContent,
-	ItemDescription,
-	ItemGroup,
+	ItemMedia,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
-import {
-	Tabs,
-	TabsContent,
-	TabsList,
-	TabsTrigger,
-} from "#/components/glaze/ui/tabs";
 import {
 	hasEditableParams,
 	PropertiesPanel,
 } from "#/components/workflows/editor/properties-panel";
+import {
+	actionIcon,
+	gateIcon,
+	KIND_ICON,
+	KIND_LABEL,
+	ruleIcon,
+	stepIcon,
+	stepName,
+	triggerIcon,
+} from "#/components/workflows/editor/step-meta";
 import { cn } from "#/lib/glaze/utils";
 
 /**
- * The floating left sidebar — toolbox (catalog-driven palette, dnd-kit drag
- * sources + click-to-add) and properties (schema-driven editors for the
- * selected node). Properties is disabled without a selection or when the
- * selection has nothing to edit.
+ * The floating left sidebar. With nothing selected it is the toolbox
+ * (catalog-driven palette, dnd-kit drag sources + click-to-add); with one step
+ * selected it is that step's properties (schema-driven editors).
  */
 
 export type ToolboxItem =
@@ -164,6 +173,7 @@ export interface EditorSidebarProps {
 	readOnly: boolean;
 	selectedNode: WorkflowNode | null;
 	onAdd: (item: ToolboxItem) => void;
+	onClearSelection: () => void;
 	onUpdateNode: (next: WorkflowNode) => void;
 	onTestConnection: (
 		url: string,
@@ -178,6 +188,7 @@ export function EditorSidebar({
 	readOnly,
 	selectedNode,
 	onAdd,
+	onClearSelection,
 	onUpdateNode,
 	onTestConnection,
 }: EditorSidebarProps) {
@@ -199,8 +210,6 @@ export function EditorSidebar({
 				}
 			: section,
 	);
-	const [tab, setTab] = useState<"toolbox" | "properties">("toolbox");
-	const editable = selectedNode !== null && hasEditableParams(selectedNode);
 	const [shown, setShown] = useState<"auto" | "open" | "closed">("auto");
 	const addAndReveal = (item: ToolboxItem) => {
 		onAdd(item);
@@ -208,6 +217,11 @@ export function EditorSidebar({
 			setShown("auto");
 		}
 	};
+	const customName =
+		selectedNode?.type === "rule"
+			? (customRules.find((rule) => rule.ref === selectedNode.ref)?.name ??
+				null)
+			: null;
 
 	return (
 		<>
@@ -226,61 +240,130 @@ export function EditorSidebar({
 			</Button>
 			<div
 				className={cn(
-					"shell absolute start-3 top-3 bottom-3 z-(--z-raised) w-64 flex-col gap-(--shell-inset)",
+					"shell absolute start-3 top-3 bottom-3 z-(--z-raised) w-68 flex-col",
 					shown === "auto" && "hidden md:flex",
 					shown === "open" && "flex",
 					shown === "closed" && "hidden",
 				)}
 			>
-				<Tabs
-					className="min-h-0 flex-1 gap-(--shell-inset)"
-					onValueChange={(value) => setTab(value as "toolbox" | "properties")}
-					value={tab}
+				<div className="panel flex min-h-0 flex-1 flex-col overflow-hidden">
+					{selectedNode ? (
+						<StepProperties
+							customName={customName}
+							key={selectedNode.id}
+							node={selectedNode}
+							onBack={onClearSelection}
+							onTestConnection={onTestConnection}
+							onUpdate={onUpdateNode}
+							readOnly={readOnly}
+						/>
+					) : (
+						<Toolbox
+							onAdd={addAndReveal}
+							onHide={() => setShown("closed")}
+							org={org}
+							readOnly={readOnly}
+							repo={repo}
+							sections={sections}
+						/>
+					)}
+				</div>
+			</div>
+		</>
+	);
+}
+
+type ToolboxSection = (typeof TOOLBOX_SECTIONS)[number];
+
+const OPEN_BY_DEFAULT: ToolboxItem["kind"][] = ["trigger", "rule"];
+
+function matches(item: ToolboxItem, needle: string): boolean {
+	return `${item.name} ${item.description}`.toLowerCase().includes(needle);
+}
+
+function Toolbox({
+	sections,
+	readOnly,
+	org,
+	repo,
+	onAdd,
+	onHide,
+}: {
+	sections: ToolboxSection[];
+	readOnly: boolean;
+	org: string;
+	repo: string;
+	onAdd: (item: ToolboxItem) => void;
+	onHide: () => void;
+}) {
+	const [query, setQuery] = useState("");
+	const [open, setOpen] = useState<string[]>(OPEN_BY_DEFAULT);
+	const needle = query.trim().toLowerCase();
+	const searching = needle !== "";
+	const visible = searching
+		? sections
+				.map((section) => ({
+					...section,
+					items: section.items.filter((item) => matches(item, needle)),
+				}))
+				.filter((section) => section.items.length > 0)
+		: sections;
+
+	return (
+		<>
+			<div className="flex shrink-0 items-center gap-1 border-line-faint border-b p-2">
+				<Input
+					aria-label="Search steps"
+					className="min-w-0 flex-1"
+					mode="search"
+					onValueChange={setQuery}
+					placeholder="Search steps"
+					size="sm"
+					value={query}
+				/>
+				<Button
+					aria-label="Hide toolbox"
+					onClick={onHide}
+					size="icon-sm"
+					variant="ghost"
 				>
-					<div className="flex items-center justify-between gap-2 px-1 pt-1">
-						<TabsList aria-label="Editor sidebar" size="sm">
-							<TabsTrigger value="toolbox">Toolbox</TabsTrigger>
-							<TabsTrigger value="properties">Properties</TabsTrigger>
-						</TabsList>
-						<Button
-							aria-label="Hide toolbox"
-							onClick={() => setShown("closed")}
-							size="icon-sm"
-							variant="ghost"
-						>
-							<Icon icon={Close} />
-						</Button>
-					</div>
-					<TabsContent
-						className="panel min-h-0 overflow-y-auto p-2"
-						value="toolbox"
+					<Icon icon={Close} />
+				</Button>
+			</div>
+			<div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+				{visible.length === 0 ? (
+					<p className="px-1 py-3 type-body-sm text-text-2">
+						No steps match “{query.trim()}”.
+					</p>
+				) : (
+					<CollapsibleGroup
+						multiple
+						onValueChange={(next) => setOpen(next as string[])}
+						value={searching ? visible.map((section) => section.kind) : open}
+						variant="plain"
 					>
-						<div className="flex flex-col gap-3">
-							{sections.map((section) => (
-								<section
-									aria-labelledby={`toolbox-${section.kind}`}
-									className="flex flex-col gap-1"
-									key={section.title}
-								>
-									<h3
-										className="px-1 type-label-sm text-text-2"
-										id={`toolbox-${section.kind}`}
-									>
+						{visible.map((section) => (
+							<Collapsible key={section.kind} value={section.kind}>
+								<CollapsibleTrigger summary={String(section.items.length)}>
+									<span className="inline-flex items-center gap-2">
+										<Icon icon={KIND_ICON[section.kind]} />
 										{section.title}
-									</h3>
-									<ItemGroup aria-label={section.title} variant="plain">
+									</span>
+								</CollapsibleTrigger>
+								<CollapsibleContent className="max-w-none pe-0 pb-2 group-data-[variant=plain]/collapsible-group:ps-2">
+									<div className="flex flex-col">
 										{section.items.map((item) => (
 											<ToolboxRow
 												disabled={readOnly}
 												item={item}
 												key={item.id}
-												onAdd={addAndReveal}
+												onAdd={onAdd}
 											/>
 										))}
-									</ItemGroup>
-									{section.kind === "rule" ? (
+									</div>
+									{section.kind === "rule" && !searching ? (
 										<Button
-											className="self-start"
+											className="ms-0.5 mt-1"
 											nativeButton={false}
 											render={
 												<Link params={{ org, repo }} to="/$org/$repo/rules" />
@@ -292,34 +375,29 @@ export function EditorSidebar({
 											Create rule
 										</Button>
 									) : null}
-								</section>
-							))}
-						</div>
-					</TabsContent>
-					<TabsContent
-						className="panel min-h-0 overflow-y-auto p-3"
-						value="properties"
-					>
-						{selectedNode && editable ? (
-							<PropertiesPanel
-								key={selectedNode.id}
-								node={selectedNode}
-								onTestConnection={onTestConnection}
-								onUpdate={onUpdateNode}
-								readOnly={readOnly}
-							/>
-						) : (
-							<p className="type-body-sm text-text-2">
-								{selectedNode
-									? "This step has no settings to change."
-									: "Select one step on the canvas to see its settings."}
-							</p>
-						)}
-					</TabsContent>
-				</Tabs>
+								</CollapsibleContent>
+							</Collapsible>
+						))}
+					</CollapsibleGroup>
+				)}
 			</div>
 		</>
 	);
+}
+
+function toolboxItemIcon(item: ToolboxItem) {
+	switch (item.kind) {
+		case "trigger":
+			return triggerIcon(item.eventKind);
+		case "rule":
+			return ruleIcon(item.ref);
+		case "gate":
+			return gateIcon(item.mode);
+		case "action":
+			return actionIcon(item.action);
+		default:
+			return KIND_ICON.rule;
+	}
 }
 
 function ToolboxRow({
@@ -342,25 +420,85 @@ function ToolboxRow({
 			disabled={disabled}
 			ref={setNodeRef}
 			size="sm"
+			title={item.description}
 			{...listeners}
 		>
+			<ItemMedia>
+				<Icon className="text-text-2" icon={toolboxItemIcon(item)} />
+			</ItemMedia>
 			<ItemContent>
 				<ItemTitle>
-					<span>{item.name}</span>
+					<span className="truncate">{item.name}</span>
 				</ItemTitle>
-				<ItemDescription>{item.description}</ItemDescription>
 			</ItemContent>
-			<ItemActions>
+			<ItemActions className="static -me-3">
 				<Button
 					aria-label={`Add ${item.name}`}
+					className="static after:absolute after:inset-0 after:content-['']"
+					data-slot="item-link"
 					disabled={disabled}
 					onClick={() => onAdd(item)}
 					size="icon-sm"
 					variant="ghost"
 				>
-					<Icon icon={Add} />
+					<Icon
+						className="opacity-0 transition-opacity duration-(--dur-state) group-hover/item:opacity-100 group-has-[[data-slot=item-link]:focus-visible]/item:opacity-100 pointer-coarse:opacity-100"
+						icon={Add}
+					/>
 				</Button>
 			</ItemActions>
 		</Item>
+	);
+}
+
+function StepProperties({
+	node,
+	customName,
+	readOnly,
+	onBack,
+	onUpdate,
+	onTestConnection,
+}: {
+	node: WorkflowNode;
+	customName: string | null;
+	readOnly: boolean;
+	onBack: () => void;
+	onUpdate: (next: WorkflowNode) => void;
+	onTestConnection: EditorSidebarProps["onTestConnection"];
+}) {
+	const name = stepName(node, customName);
+	const kind = KIND_LABEL[node.type];
+	return (
+		<>
+			<div className="flex shrink-0 items-center gap-2 border-line-faint border-b py-2 ps-2 pe-3">
+				<Button
+					aria-label="Back to the toolbox"
+					onClick={onBack}
+					size="icon-sm"
+					variant="ghost"
+				>
+					<Icon icon={ArrowLeft} />
+				</Button>
+				<Icon className="text-text-2" icon={stepIcon(node)} />
+				<h2 className="min-w-0 flex-1 truncate type-label">{name}</h2>
+				{kind === name ? null : (
+					<span className="shrink-0 type-caption text-text-2">{kind}</span>
+				)}
+			</div>
+			<div className="min-h-0 flex-1 overflow-y-auto p-3">
+				{hasEditableParams(node) ? (
+					<PropertiesPanel
+						node={node}
+						onTestConnection={onTestConnection}
+						onUpdate={onUpdate}
+						readOnly={readOnly}
+					/>
+				) : (
+					<p className="type-body-sm text-text-2">
+						This step has no settings to change.
+					</p>
+				)}
+			</div>
+		</>
 	);
 }

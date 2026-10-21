@@ -14,7 +14,8 @@ import {
   DotsThreeVerticalIcon, EnvelopeIcon, FlowArrowIcon, FolderIcon, GitBranchIcon, GitForkIcon, GithubLogoIcon,
   GitlabLogoIcon, GitPullRequestIcon, HashIcon, HouseIcon, LightningIcon, ListChecksIcon, MonitorIcon, PackageIcon,
   PlugIcon, ProhibitIcon, PulseIcon, QuestionIcon, QueueIcon, ShieldCheckIcon, SignOutIcon, SlidersHorizontalIcon, TreeStructureIcon,
-  TrendDownIcon, TrendUpIcon, UserPlusIcon, UsersIcon,
+  TrendDownIcon, TrendUpIcon, UserPlusIcon, UsersIcon, ArchiveIcon, ArrowsMergeIcon, ChecksIcon, DiscordLogoIcon, FilesIcon,
+  GaugeIcon, GitCommitIcon, GitMergeIcon, MinusCircleIcon, TagIcon, TranslateIcon, WalletIcon, WebhooksLogoIcon,
 } from '@phosphor-icons/react/ssr';
 import {cn} from '#/lib/glaze/utils.ts';
 
@@ -140,6 +141,20 @@ export const Tree = TreeStructureIcon;
 export const TrendDown = TrendDownIcon;
 export const TrendUp = TrendUpIcon;
 export const Workflow = FlowArrowIcon;
+export const Archive = ArchiveIcon;
+export const Checks = ChecksIcon;
+export const Commit = GitCommitIcon;
+export const Converge = ArrowsMergeIcon;
+export const DiscordMark = DiscordLogoIcon;
+export const Files = FilesIcon;
+export const Gauge = GaugeIcon;
+export const Inbox = TrayIcon;
+export const Merge = GitMergeIcon;
+export const Negate = MinusCircleIcon;
+export const Tag = TagIcon;
+export const Translate = TranslateIcon;
+export const Wallet = WalletIcon;
+export const Webhook = WebhooksLogoIcon;
 
 export type GlazeIcon = PhosphorIcon;
 

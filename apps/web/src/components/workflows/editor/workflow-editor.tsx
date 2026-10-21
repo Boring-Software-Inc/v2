@@ -394,6 +394,10 @@ function EditorBody({
 		[setNodes],
 	);
 
+	const clearSelection = useCallback(() => {
+		setNodes((current) => current.map((n) => ({ ...n, selected: false })));
+	}, [setNodes]);
+
 	const selectedFlowNodes = nodes.filter((n) => n.selected);
 	const selectedNode =
 		selectedFlowNodes.length === 1
@@ -548,7 +552,7 @@ function EditorBody({
 								style={CANVAS_TOKENS}
 							>
 								<Controls
-									className="overflow-hidden rounded-overlay border border-line"
+									className="!m-3 overflow-hidden rounded-overlay border border-line"
 									position="bottom-right"
 									showInteractive={false}
 								/>
@@ -560,6 +564,7 @@ function EditorBody({
 						org={org}
 						repo={repo}
 						onAdd={addAtFreePosition}
+						onClearSelection={clearSelection}
 						onTestConnection={onTestConnection}
 						onUpdateNode={updateNode}
 						readOnly={readOnly}
@@ -637,7 +642,16 @@ function IssuesPanel({
 		return null;
 	}
 	return (
-		<div className="absolute end-14 bottom-4 z-(--z-raised) flex flex-col items-end gap-2">
+		<div className="absolute end-3 top-3 z-(--z-raised) flex flex-col items-end gap-2">
+			<Button
+				aria-expanded={open}
+				onClick={() => setOpen((value) => !value)}
+				size="sm"
+				variant="secondary"
+			>
+				<StatusMark className="self-center" status="fail" />
+				{count === 1 ? "1 issue" : `${count} issues`}
+			</Button>
 			{open ? (
 				<div className="overlay max-h-56 w-72 max-w-full overflow-y-auto py-1">
 					{structuralError ? (
@@ -674,15 +688,6 @@ function IssuesPanel({
 					</ItemGroup>
 				</div>
 			) : null}
-			<Button
-				aria-expanded={open}
-				onClick={() => setOpen((value) => !value)}
-				size="sm"
-				variant="secondary"
-			>
-				<StatusMark status="fail" />
-				{count === 1 ? "1 issue" : `${count} issues`}
-			</Button>
 		</div>
 	);
 }

@@ -1,9 +1,4 @@
 import type { WorkflowNode } from "@tripwire/contracts";
-import {
-	ACTION_CATALOG,
-	GATE_CATALOG,
-	RULE_CATALOG,
-} from "@tripwire/contracts";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { StatusMark } from "#/components/glaze/ui/status";
 import {
@@ -14,6 +9,7 @@ import {
 	useCustomRuleName,
 	useNodeIssues,
 } from "#/components/workflows/editor/node-issues";
+import { stepName } from "#/components/workflows/editor/step-meta";
 import { cn } from "#/lib/glaze/utils";
 
 /** The one node data shape the canvas renders. */
@@ -32,35 +28,6 @@ export type TripwireFlowNode = Node<{ node: WorkflowNode }, "tripwire">;
  * `handleWhen` maps "fail" / "approve" / "deny" handle ids to edge `when`s —
  * the port blocks are appearance only, every id and type is unchanged.
  */
-
-/** Catalog display name for the node; falls back to the raw ref/kind. */
-function nodeName(node: WorkflowNode, customName: string | null): string {
-	switch (node.type) {
-		case "trigger":
-			// The kinds themselves live in the inline field row now.
-			return "Trigger";
-		case "rule": {
-			const [ruleId] = node.ref.split("@");
-			return (
-				RULE_CATALOG.find((entry) => entry.ruleId === ruleId)?.name ??
-				customName ??
-				node.ref
-			);
-		}
-		case "gate":
-			return (
-				GATE_CATALOG.find((entry) => entry.mode === node.mode)?.name ??
-				node.mode
-			);
-		case "action":
-			return (
-				ACTION_CATALOG.find((entry) => entry.action === node.action)?.name ??
-				node.action
-			);
-		default:
-			return "";
-	}
-}
 
 /** The mono detail line — the ref/config essence under the name. */
 function nodeDetail(node: WorkflowNode): string | null {
@@ -118,7 +85,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 	return (
 		<div
 			className={cn(
-				"relative min-w-44 max-w-64 rounded-panel border border-line-faint bg-paper px-3 py-2 text-text-1 transition-colors duration-(--dur-state)",
+				"relative w-56 rounded-panel border border-line-faint bg-paper px-3 py-2 text-text-1 transition-colors duration-(--dur-state)",
 				forked && "min-h-16 pb-3",
 				selected && "border-ink",
 				issues.length > 0 && !selected && "border-fail",
@@ -143,14 +110,14 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 			) : null}
 			<div className="flex items-baseline gap-1">
 				<span className="min-w-0 truncate type-label">
-					{nodeName(node, customName)}
+					{stepName(node, customName)}
 				</span>
 				{node.type === "gate" ? (
 					<span className="shrink-0 type-caption text-text-2">Gate</span>
 				) : null}
 			</div>
 			{detail ? (
-				<div className="truncate type-code-xs text-text-2">{detail}</div>
+				<div className="truncate type-code-xs text-text-3">{detail}</div>
 			) : null}
 			{fields.length > 0 ? (
 				<div className="mt-2 flex flex-col gap-1 border-line-faint border-t pt-2">

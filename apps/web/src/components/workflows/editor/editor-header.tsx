@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ValidationIssue, WorkflowDefinition } from "@tripwire/contracts";
 import { useState } from "react";
-import { ArrowLeft, Icon } from "#/components/glaze/icon";
+import { ArrowLeft, Edit, Icon } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import { Input } from "#/components/glaze/ui/input";
@@ -61,6 +61,7 @@ export function EditorHeader({
 	onSetEnabled,
 }: EditorHeaderProps) {
 	const [whyOpen, setWhyOpen] = useState(false);
+	const [renaming, setRenaming] = useState(false);
 	const blocked = !enabled && blockers.length > 0;
 
 	const commitName = async (next: string) => {
@@ -95,7 +96,13 @@ export function EditorHeader({
 		<header className="flex shrink-0 flex-wrap items-center gap-2 border-line-faint border-b px-3 py-2">
 			<Button
 				nativeButton={false}
-				render={<Link params={{ org, repo }} to="/$org/$repo/workflows" />}
+				render={
+					<Link
+						activeOptions={{ exact: true }}
+						params={{ org, repo }}
+						to="/$org/$repo/workflows"
+					/>
+				}
 				size="sm"
 				variant="ghost"
 			>
@@ -104,14 +111,19 @@ export function EditorHeader({
 			</Button>
 			{readOnly ? (
 				<span className="min-w-0 truncate type-label">{name}</span>
-			) : (
+			) : renaming ? (
 				<Input
 					aria-label="Workflow name"
 					autoComplete="off"
-					className="w-auto min-w-0 max-w-72 flex-1"
+					autoFocus
+					className="w-56 min-w-0"
 					defaultValue={name}
 					key={name}
-					onBlur={(event) => commitName(event.target.value)}
+					onBlur={(event) => {
+						setRenaming(false);
+						commitName(event.target.value);
+					}}
+					onFocus={(event) => event.currentTarget.select()}
 					onKeyDown={(event) => {
 						if (event.key === "Enter") {
 							event.currentTarget.blur();
@@ -123,6 +135,17 @@ export function EditorHeader({
 					}}
 					size="sm"
 				/>
+			) : (
+				<Button
+					aria-label={`Rename ${name}`}
+					className="min-w-0 max-w-56 justify-start"
+					onClick={() => setRenaming(true)}
+					size="sm"
+					variant="ghost"
+				>
+					<span className="min-w-0 truncate type-label">{name}</span>
+					<Icon className="text-text-3" icon={Edit} />
+				</Button>
 			)}
 			{enabled ? <Badge>On</Badge> : null}
 			<div className="ms-auto flex shrink-0 items-center gap-2">

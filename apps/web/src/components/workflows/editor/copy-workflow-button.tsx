@@ -22,10 +22,8 @@ export function CopyWorkflowButton({
 		<CopyButton
 			className="shrink-0"
 			label="workflow as Markdown"
-			showLabel
-			size="sm"
+			size="icon-sm"
 			value={() => workflowToMarkdown(definition, customRules)}
-			variant="secondary"
 		/>
 	);
 }
