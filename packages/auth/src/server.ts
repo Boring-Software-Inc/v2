@@ -271,7 +271,7 @@ export function createAuth(input: CreateAuthInput) {
 					 * HTTP endpoints stay dead. */
 					beforeCreateInvitation: async () => {
 						throw new Error(
-							"email invitations are disabled — use invite links",
+							"Email invitations are turned off. Use an invite link instead.",
 						);
 					},
 				},
