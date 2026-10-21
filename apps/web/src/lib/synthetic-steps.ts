@@ -29,7 +29,8 @@ const degradationOutputSchema = z
 	})
 	.catch({});
 
-const READ_NAMES: Record<string, string> = {
+type ReadNameMap = Record<string, string>;
+const READ_NAMES: ReadNameMap = {
 	diff: "the changed files",
 	getDiff: "the changed files",
 	commits: "the commits",

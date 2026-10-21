@@ -44,7 +44,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 	{ key: "no-run", label: "Not checked" },
 ];
 
-function isFilter(value: unknown): value is Filter {
+function isFilter(value: string): value is Filter {
 	return FILTERS.some((f) => f.key === value);
 }
 

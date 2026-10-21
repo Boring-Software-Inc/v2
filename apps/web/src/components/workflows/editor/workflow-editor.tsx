@@ -83,9 +83,7 @@ const NODE_TYPES = { tripwire: TripwireNode };
 const DELETE_KEYS = ["Backspace", "Delete"];
 const CANVAS_DROP_ID = "workflow-canvas";
 function fitViewOptions() {
-	const wide =
-		typeof window !== "undefined" &&
-		window.matchMedia("(min-width: 768px)").matches;
+	const wide = globalThis.matchMedia?.("(min-width: 768px)").matches ?? false;
 	return {
 		padding: {
 			left: wide ? "288px" : "48px",

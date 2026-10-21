@@ -1,6 +1,7 @@
 import { Status, type StatusValue } from "#/components/glaze/ui/status";
 
-const VERDICT: Record<string, { status: StatusValue; label: string }> = {
+type VerdictChipMap = Record<string, { status: StatusValue; label: string }>;
+const VERDICT: VerdictChipMap = {
 	block: { status: "fail", label: "Blocked" },
 	pass: { status: "ok", label: "Passed" },
 	needs_review: { status: "waiting", label: "Sent to review" },

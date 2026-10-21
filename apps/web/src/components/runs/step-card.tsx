@@ -1,10 +1,12 @@
 import { RULE_CATALOG, ruleDisplayName, ruleIdOf } from "@tripwire/contracts";
+import { z } from "zod";
 import { Status, type StatusValue } from "#/components/glaze/ui/status";
 import { RuleEvidence } from "#/components/runs/rule-evidence";
 import type { RunStepView } from "#/lib/runs.functions";
 import { describeSyntheticStep } from "#/lib/synthetic-steps";
 
-const STEP_STATUS: Record<string, { status: StatusValue; label: string }> = {
+type StepStatusMap = Record<string, { status: StatusValue; label: string }>;
+const STEP_STATUS: StepStatusMap = {
 	pass: { status: "ok", label: "Passed" },
 	fail: { status: "fail", label: "Did not pass" },
 	skipped: { status: "idle", label: "Skipped" },
@@ -30,21 +32,16 @@ const MAINTAINER_DECISION = {
 	deny: { title: "Blocked by a maintainer", status: "fail", label: "Blocked" },
 } as const;
 
+const moderationOutput = z.object({
+	action: z.literal("send-to-moderation"),
+	decision: z.enum(["approve", "deny"]),
+});
+
 function maintainerDecision(
 	step: RunStepView,
 ): (typeof MAINTAINER_DECISION)[keyof typeof MAINTAINER_DECISION] | null {
-	const out = step.output;
-	if (
-		out === null ||
-		typeof out !== "object" ||
-		Array.isArray(out) ||
-		out.action !== "send-to-moderation"
-	) {
-		return null;
-	}
-	return out.decision === "approve" || out.decision === "deny"
-		? MAINTAINER_DECISION[out.decision]
-		: null;
+	const parsed = moderationOutput.safeParse(step.output);
+	return parsed.success ? MAINTAINER_DECISION[parsed.data.decision] : null;
 }
 
 function stepLabel(step: RunStepView): string {

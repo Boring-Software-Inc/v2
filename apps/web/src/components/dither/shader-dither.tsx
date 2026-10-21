@@ -24,10 +24,10 @@ const ShaderDitherCanvas = lazy(
 type ShaderTone = "faint" | "soft";
 type ShaderMask = "edges" | "sides" | "bottom" | "top";
 
-const TONE_TOKEN: Record<ShaderTone, string> = {
+const TONE_TOKEN = {
 	faint: "--ink-10",
 	soft: "--ink-15",
-};
+} satisfies Record<ShaderTone, string>;
 
 export interface ShaderDitherProps {
 	shape?: ShaderShape;

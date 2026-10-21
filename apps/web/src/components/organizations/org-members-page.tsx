@@ -74,10 +74,10 @@ const ROLE_ITEMS = [
 	{ value: "admin", label: "Admin" },
 ];
 
-const ROLE_LABEL: Record<OrgRole, string> = {
+const ROLE_LABEL = {
 	admin: "Admin",
 	member: "Member",
-};
+} satisfies Record<OrgRole, string>;
 
 function isOrgRole(value: string | null): value is OrgRole {
 	return value === "admin" || value === "member";

@@ -40,11 +40,11 @@ import {
 
 const routeApi = getRouteApi("/$org/$repo/customize");
 
-const NO_MESSAGE_CHOSEN: Record<Verdict, boolean> = {
+const NO_MESSAGE_CHOSEN = {
 	pass: false,
 	block: false,
 	needs_review: false,
-};
+} satisfies Record<Verdict, boolean>;
 
 export function CustomizePage() {
 	const { org, repo: repoName } = routeApi.useParams();
@@ -120,7 +120,7 @@ function CustomizeView({
 	canEdit: boolean;
 	loaded: boolean;
 	saveError: string | null;
-	savedValues: Record<string, unknown>;
+	savedValues: Parameters<SaveQueueCommit>[0];
 	onDiscarded: () => void;
 }) {
 	const { pending, setField, discard } = useSaveQueue();

@@ -33,12 +33,12 @@ export interface EditorEdge {
 	data?: { when?: EdgeWhen };
 }
 
-const EDGE_LABELS: Record<EdgeWhen, string> = {
+const EDGE_LABELS = {
 	pass: "Passes",
 	fail: "Doesn't pass",
 	approve: "Approved",
 	deny: "Blocked",
-};
+} satisfies Record<EdgeWhen, string>;
 
 export function edgeLabel(when: EdgeWhen | undefined): string | undefined {
 	return when ? EDGE_LABELS[when] : undefined;

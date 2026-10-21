@@ -10,12 +10,12 @@ const spring = (stiffness: number, ratio: number): Spring => ({
 	damping: 2 * ratio * Math.sqrt(stiffness),
 });
 
-export const SPRINGS: Record<SpringName, Spring> = {
+export const SPRINGS = {
 	soft: spring(170, 0.92),
 	snappy: spring(420, 0.82),
 	bouncy: spring(300, 0.42),
 	lazy: spring(26, 1),
-};
+} satisfies Record<SpringName, Spring>;
 
 export type Step = { pose: PoseName; ms: number; spring: SpringName };
 
@@ -39,7 +39,8 @@ const step = (pose: PoseName, ms: number, s: SpringName): Step => ({
 	spring: s,
 });
 
-export const SCRIPTS: Record<MascotState, Script> = {
+type ScriptMap = Record<MascotState, Script>;
+export const SCRIPTS: ScriptMap = {
 	idle: { steps: [hold("rest")], float: 1 },
 	blink: { steps: [hold("rest")], float: 1, timeoutMs: 160 },
 	look: { steps: [hold("rest")], float: 1 },

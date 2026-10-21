@@ -10,6 +10,7 @@ import {
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { useState } from "react";
+import { z } from "zod";
 import { Alert, AlertDescription } from "#/components/glaze/ui/alert";
 import { Button } from "#/components/glaze/ui/button";
 import { Checkbox } from "#/components/glaze/ui/checkbox";
@@ -31,6 +32,9 @@ import {
 	fieldsForSchema,
 	ruleCatalogEntryForRef,
 } from "#/components/workflows/editor/node-fields";
+
+const numberOrNull = z.number().nullable().catch(null);
+const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
 
 /**
  * Schema-driven properties for the selected node — rule editors are DERIVED
@@ -202,7 +206,7 @@ function ConfigField({
 						max={field.max}
 						min={field.min}
 						onValueChange={(next) => onChange(next ?? 0)}
-						value={typeof value === "number" ? value : null}
+						value={numberOrNull.parse(value ?? null)}
 					/>
 				</Field>
 			);
@@ -357,9 +361,9 @@ function ActionFields({
 			</p>
 		);
 	}
-	const labels = Array.isArray(node.params?.labels)
-		? node.params.labels.filter((v) => typeof v === "string")
-		: [];
+	const labels = labelList
+		.parse(node.params?.labels)
+		.filter((label) => label !== undefined);
 	return (
 		<Field>
 			<FieldLabel>Labels (comma or newline separated)</FieldLabel>

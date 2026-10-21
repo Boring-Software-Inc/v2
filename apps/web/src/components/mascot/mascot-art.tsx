@@ -24,7 +24,10 @@ export type MascotArtProps = {
 	className?: string;
 };
 
-const PIXELS: Record<EmptyArtSize, number> = { default: 64, compact: 48 };
+const PIXELS = { default: 64, compact: 48 } satisfies Record<
+	EmptyArtSize,
+	number
+>;
 
 function settingsFor(mood: MascotMood, reduced: boolean): MascotSettings {
 	return {

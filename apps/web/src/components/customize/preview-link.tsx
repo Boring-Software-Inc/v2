@@ -23,7 +23,8 @@ export const SETTING_REGION = {
 
 export type PreviewSetting = keyof typeof SETTING_REGION;
 
-const FALLBACK: Partial<Record<PreviewRegion, PreviewRegion>> = {
+type RegionFallbackMap = Partial<Record<PreviewRegion, PreviewRegion>>;
+const FALLBACK: RegionFallbackMap = {
 	"details-button": "comment-body",
 	"comment-body": "comment",
 };

@@ -43,7 +43,7 @@ const EVENT_BUTTONS: { event: MascotEvent; label: string }[] = [
 	{ event: "SPLOOT", label: "Sploot" },
 ];
 
-const EXPRESSION_LABELS: Record<Expression, string> = {
+const EXPRESSION_LABELS = {
 	neutral: "Neutral",
 	happy: "Happy",
 	angry: "Angry",
@@ -52,13 +52,13 @@ const EXPRESSION_LABELS: Record<Expression, string> = {
 	surprised: "Surprised",
 	annoyed: "Annoyed",
 	poked: "Poked",
-};
+} satisfies Record<Expression, string>;
 
 const percent = { style: "percent" } as const;
 const times = { maximumFractionDigits: 2, minimumFractionDigits: 2 } as const;
 
 function first(value: number | readonly number[]) {
-	return typeof value === "number" ? value : (value[0] ?? 0);
+	return Array.isArray(value) ? (value[0] ?? 0) : value;
 }
 
 function SliderField({

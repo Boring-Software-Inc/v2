@@ -39,11 +39,11 @@ import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
 import { cn } from "#/lib/glaze/utils";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
-const SEVERITY_LABEL: Record<string, string> = {
+const SEVERITY_LABEL = {
 	low: "Low severity",
 	medium: "Medium severity",
 	high: "High severity",
-};
+} satisfies Record<string, string>;
 
 export function RuleCard({
 	org,

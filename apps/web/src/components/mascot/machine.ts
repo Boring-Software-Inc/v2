@@ -54,7 +54,8 @@ const ACTIONS: Edges = {
 
 const ESCALATE: Edges = { ANNOY: "annoyed", TANTRUM: "furious" };
 
-export const TRANSITIONS: Record<MascotState, Edges> = {
+type TransitionMap = Record<MascotState, Edges>;
+export const TRANSITIONS: TransitionMap = {
 	idle: { ...ACTIONS, ...ESCALATE, BLINK: "blink", LOOK: "look" },
 	blink: { ...ACTIONS, ...ESCALATE, LOOK: "look", TIMEOUT: "idle" },
 	look: { ...ACTIONS, ...ESCALATE, BLINK: "blink", LOOK_AWAY: "idle" },

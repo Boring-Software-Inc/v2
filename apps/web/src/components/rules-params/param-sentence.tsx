@@ -16,7 +16,10 @@ import { ParamValue } from "./param-value";
  * in any sentence (e.g. ai-review's advanced `model`) never render here. Returns
  * null for a param-less rule, so the card shows no config region at all.
  */
-function spokenValue(param: RuleParam, value: unknown): string {
+function spokenValue(
+	param: RuleParam,
+	value: Parameters<typeof formatParamValue>[1],
+): string {
 	if (param.kind === "string-list") {
 		const items = Array.isArray(value)
 			? (value as string[])

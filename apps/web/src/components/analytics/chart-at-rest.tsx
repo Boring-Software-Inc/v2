@@ -21,7 +21,8 @@ function restTick(value: number) {
 export function hourlyZeroRows(xKey: string, keys: string[], length = 24) {
 	return Array.from({ length }, (_, i) => {
 		const ago = length - 1 - i;
-		const row: Record<string, string | number> = {
+		type ChartRow = Record<string, string | number>;
+		const row: ChartRow = {
 			[xKey]: ago === 0 ? "Now" : `${ago}h ago`,
 		};
 		for (const key of keys) {

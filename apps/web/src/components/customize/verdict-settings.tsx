@@ -21,6 +21,7 @@ import {
 	RadioGroup,
 	RadioGroupOption,
 } from "#/components/glaze/ui/radio-group";
+import type { useSaveQueue } from "#/components/save-queue";
 import { cn } from "#/lib/glaze/utils";
 
 const ROW = "rounded-panel px-3 py-2";
@@ -77,7 +78,7 @@ export interface VerdictSettingsProps {
 	messageChosen: boolean;
 	editorEpoch: number;
 	onMessageChosen: (verdict: Verdict, chosen: boolean) => void;
-	setField: (key: string, value: unknown) => void;
+	setField: ReturnType<typeof useSaveQueue>["setField"];
 	rememberMessage: (verdict: Verdict, text: string) => void;
 	recallMessage: (verdict: Verdict) => string;
 }

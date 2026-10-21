@@ -57,10 +57,10 @@ function pulledAgo(iso: string): string {
 
 const usd = (n: number, dp = 2) => `$${n.toFixed(dp)}`;
 
-function dayLabel(value: unknown): string {
-	const date = new Date(`${String(value)}T00:00:00Z`);
+function dayLabel(value: string): string {
+	const date = new Date(`${value}T00:00:00Z`);
 	if (Number.isNaN(date.getTime())) {
-		return String(value);
+		return value;
 	}
 	return date.toLocaleDateString("en-US", {
 		month: "short",
@@ -196,7 +196,7 @@ export function EconomicsPage() {
 							title="Database credit left"
 							type="line"
 							valueFormat={(v) => usd(v)}
-							xFormat={dayLabel}
+							xFormat={(value) => dayLabel(String(value))}
 							xKey="day"
 						/>
 						<Chart
@@ -212,7 +212,7 @@ export function EconomicsPage() {
 							title="AI spend per day"
 							type="bar"
 							valueFormat={(v) => usd(v)}
-							xFormat={dayLabel}
+							xFormat={(value) => dayLabel(String(value))}
 							xKey="day"
 						/>
 					</div>

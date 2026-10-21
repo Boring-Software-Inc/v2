@@ -10,6 +10,7 @@ import {
 	responseConfigSchema,
 	wantsComment,
 } from "@tripwire/contracts";
+import type { SaveQueueCommit } from "#/components/save-queue";
 
 export const VERDICTS: { value: Verdict; label: string }[] = [
 	{ value: "pass", label: "Passed" },
@@ -42,7 +43,7 @@ export type DraftKey =
 	| "blockComment.template"
 	| "reviewComment.customText";
 
-export function flattenConfig(config: ResponseConfig): Record<string, unknown> {
+export function flattenConfig(config: ResponseConfig) {
 	return {
 		onSuccess: config.onSuccess,
 		onBlock: config.onBlock,
@@ -60,7 +61,9 @@ export function flattenConfig(config: ResponseConfig): Record<string, unknown> {
 	};
 }
 
-export function unflattenConfig(flat: Record<string, unknown>): ResponseConfig {
+export function unflattenConfig(
+	flat: Parameters<SaveQueueCommit>[0],
+): ResponseConfig {
 	return responseConfigSchema.parse({
 		onSuccess: flat.onSuccess,
 		onBlock: flat.onBlock,

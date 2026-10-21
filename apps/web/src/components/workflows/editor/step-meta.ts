@@ -43,21 +43,22 @@ import {
 
 export type StepKind = WorkflowNode["type"];
 
-export const KIND_ICON: Record<StepKind, GlazeIcon> = {
+export const KIND_ICON = {
 	trigger: Lightning,
 	rule: Protected,
 	gate: Tree,
 	action: Play,
-};
+} satisfies Record<StepKind, GlazeIcon>;
 
-export const KIND_LABEL: Record<StepKind, string> = {
+export const KIND_LABEL = {
 	trigger: "Trigger",
 	rule: "Rule",
 	gate: "Gate",
 	action: "Action",
-};
+} satisfies Record<StepKind, string>;
 
-const TRIGGER_ICON: Partial<Record<EventKind, GlazeIcon>> = {
+type TriggerIconMap = Partial<Record<EventKind, GlazeIcon>>;
+const TRIGGER_ICON: TriggerIconMap = {
 	"change-request.opened": ChangeRequest,
 	"change-request.updated": Commit,
 	"change-request.closed": Archive,
@@ -65,7 +66,8 @@ const TRIGGER_ICON: Partial<Record<EventKind, GlazeIcon>> = {
 	push: Branch,
 };
 
-const RULE_ICON: Record<string, GlazeIcon> = {
+type RuleIconMap = Record<string, GlazeIcon>;
+const RULE_ICON: RuleIconMap = {
 	"account-age": Waiting,
 	"min-merged-prs": Merge,
 	"pr-rate-limit": Gauge,
@@ -77,13 +79,13 @@ const RULE_ICON: Record<string, GlazeIcon> = {
 	"ai-review": Model,
 };
 
-const GATE_ICON: Record<GateMode, GlazeIcon> = {
+const GATE_ICON = {
 	"all-of": Checks,
 	"any-of": Converge,
 	not: Negate,
-};
+} satisfies Record<GateMode, GlazeIcon>;
 
-const ACTION_ICON: Record<WorkflowActionKind, GlazeIcon> = {
+const ACTION_ICON = {
 	block: Blocked,
 	comment: Comment,
 	label: Tag,
@@ -91,7 +93,7 @@ const ACTION_ICON: Record<WorkflowActionKind, GlazeIcon> = {
 	"send-to-moderation": Inbox,
 	webhook: Webhook,
 	discord: DiscordMark,
-};
+} satisfies Record<WorkflowActionKind, GlazeIcon>;
 
 export function triggerIcon(kind: EventKind): GlazeIcon {
 	return TRIGGER_ICON[kind] ?? Lightning;

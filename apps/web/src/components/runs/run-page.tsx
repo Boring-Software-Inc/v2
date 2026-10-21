@@ -265,7 +265,8 @@ function RunBody({ run }: { run: RunView }) {
 	);
 }
 
-const ACTION_STATUS: Record<string, string> = {
+type ActionStatusMap = Record<string, string>;
+const ACTION_STATUS: ActionStatusMap = {
 	executed: "Done",
 	skipped: "Skipped",
 	failed: "Did not finish",

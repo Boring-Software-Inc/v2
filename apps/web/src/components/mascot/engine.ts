@@ -114,12 +114,12 @@ type Eye = EyeShape & { pts: Shape };
 
 const BODY_POINTS: Shape = densify(restOutline());
 
-const EYES = Object.fromEntries(
+const EYES = new Map<Expression, Eye[]>(
 	EXPRESSIONS.map((expr) => [
 		expr,
 		eyeShapes(expr).map((eye) => ({ ...eye, pts: densify(eye.outline, 1) })),
 	]),
-) as unknown as Record<Expression, Eye[]>;
+);
 
 const LENS_OPEN_POINTS = LENS_OPEN.map((loop) => densify(loop, 1));
 const LENS_CLOSED_POINTS = LENS_CLOSED.map((loop) => densify(loop, 1));
@@ -193,7 +193,7 @@ export function buildMascotPath(
 	const gx = Math.round(eyes.gx / CELL) * CELL;
 	const gy = Math.round(eyes.gy / CELL) * CELL;
 	const squash = Math.max(0.08, 1 - 0.92 * eyes.blink);
-	for (const eye of EYES[expression]) {
+	for (const eye of EYES.get(expression) ?? []) {
 		const ecx = eye.cx + gx;
 		const ecy = eye.cy + gy;
 		const shifted = { ...eye, cx: ecx, cy: ecy };

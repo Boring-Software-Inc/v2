@@ -38,7 +38,7 @@ import type {
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import { cn } from "#/lib/glaze/utils";
 
-const KIND_ICON: Record<EventKind, GlazeIcon> = {
+const KIND_ICON = {
 	spike: TrendUp,
 	drop: TrendDown,
 	rule: Rules,
@@ -46,7 +46,7 @@ const KIND_ICON: Record<EventKind, GlazeIcon> = {
 	deploy: Package,
 	resolve: Success,
 	report: Warning,
-};
+} satisfies Record<EventKind, GlazeIcon>;
 
 function withFocusedOnTop(ids: string[], focusedId?: string | null): string[] {
 	if (!focusedId) return ids;

@@ -144,7 +144,7 @@ const NEUTRAL_EYE: EyeArt = {
 	cheek: 0.3,
 };
 
-export const PIXEL_EYES: Record<Expression, EyeArt> = {
+export const PIXEL_EYES = {
 	neutral: NEUTRAL_EYE,
 	talking: NEUTRAL_EYE,
 	angry: {
@@ -189,7 +189,7 @@ export const PIXEL_EYES: Record<Expression, EyeArt> = {
 		mirror: true,
 		cheek: 0,
 	},
-};
+} satisfies Record<Expression, EyeArt>;
 
 export function cellsOf(
 	rows: readonly string[],
