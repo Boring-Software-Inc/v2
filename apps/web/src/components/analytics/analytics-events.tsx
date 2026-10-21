@@ -1,5 +1,8 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { EntityCard } from "#/components/common/entity-card";
+import { MetaRow } from "#/components/common/meta-row";
+import { ItemRouterLink } from "#/components/common/router-links";
 import {
 	type GlazeIcon,
 	Icon,
@@ -11,7 +14,6 @@ import {
 	TrendUp,
 	Warning,
 } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
@@ -23,12 +25,16 @@ import {
 import {
 	Item,
 	ItemContent,
-	ItemDescription,
 	ItemGroup,
 	ItemMedia,
 	ItemMeta,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
+import {
+	StatusMark,
+	type StatusValue,
+	statusVariants,
+} from "#/components/glaze/ui/status";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import type {
 	AnalyticsEvent,
@@ -97,59 +103,66 @@ export function AnalyticsEvents({
 		.map((id) => byId.get(id))
 		.filter((e): e is AnalyticsEvent => Boolean(e));
 
-	return (
-		<section
-			aria-labelledby="analytics-activity"
-			className="flex flex-col gap-2"
-		>
-			<div className="flex items-center gap-2">
-				<h2 className="type-heading-sm" id="analytics-activity">
-					Recent events
-				</h2>
-				<Badge count={events.length} />
-			</div>
+	if (ordered.length === 0) {
+		return (
+			<Empty
+				art={<MascotArt mood="analytics-events-empty" size="compact" />}
+				size="sm"
+			>
+				<EmptyHeader>
+					<EmptyTitle>No events for this metric</EmptyTitle>
+					<EmptyDescription>
+						Events appear here when Tripwire checks change requests on this
+						repo.
+					</EmptyDescription>
+				</EmptyHeader>
+				{org && repo ? (
+					<EmptyContent>
+						<Button
+							nativeButton={false}
+							render={<Link params={{ org, repo }} to="/$org/$repo/activity" />}
+							size="sm"
+							variant="secondary"
+						>
+							Open activity
+						</Button>
+					</EmptyContent>
+				) : null}
+			</Empty>
+		);
+	}
 
-			{ordered.length === 0 ? (
-				<Empty
-					art={<MascotArt mood="analytics-events-empty" size="compact" />}
-					size="sm"
-				>
-					<EmptyHeader>
-						<EmptyTitle>No events for this metric</EmptyTitle>
-						<EmptyDescription>
-							Events appear here when Tripwire checks change requests on this
-							repo.
-						</EmptyDescription>
-					</EmptyHeader>
-					{org && repo ? (
-						<EmptyContent>
-							<Button
-								nativeButton={false}
-								render={
-									<Link params={{ org, repo }} to="/$org/$repo/activity" />
-								}
-								size="sm"
-								variant="secondary"
-							>
-								Open activity
-							</Button>
-						</EmptyContent>
-					) : null}
-				</Empty>
-			) : (
-				<ItemGroup aria-label="Recent events">
-					{ordered.map((event) => (
-						<EventRow
-							event={event}
-							focused={event.id === focusedId}
-							key={event.id}
-						/>
-					))}
-				</ItemGroup>
-			)}
-		</section>
+	return (
+		<EntityCard
+			flush
+			title={
+				<>
+					Recent events{" "}
+					<span className="text-text-2 tabular-nums">{events.length}</span>
+				</>
+			}
+		>
+			<ItemGroup aria-label="Recent events" variant="plain">
+				{ordered.map((event) => (
+					<EventRow
+						event={event}
+						focused={event.id === focusedId}
+						key={event.id}
+					/>
+				))}
+			</ItemGroup>
+		</EntityCard>
 	);
 }
+
+type KindOutcomeMap = Partial<
+	Record<EventKind, { status: StatusValue; label: string }>
+>;
+const KIND_OUTCOME: KindOutcomeMap = {
+	ban: { status: "fail", label: "Blocked" },
+	resolve: { status: "ok", label: "Passed" },
+	report: { status: "waiting", label: "Sent to review" },
+};
 
 function EventRow({
 	event,
@@ -158,16 +171,37 @@ function EventRow({
 	event: AnalyticsEvent;
 	focused: boolean;
 }) {
+	const outcome = KIND_OUTCOME[event.kind];
+	const text = (
+		<MetaRow>
+			<span>{event.detail}</span>
+			<span className="text-text-2">{event.title}</span>
+		</MetaRow>
+	);
 	return (
-		<Item aria-current={focused || undefined} selected={focused}>
+		<Item aria-current={focused || undefined} selected={focused} size="sm">
 			<ItemMedia variant="icon">
-				<Icon icon={KIND_ICON[event.kind]} />
+				{outcome ? (
+					<span
+						className={statusVariants({ size: "sm", status: outcome.status })}
+						title={outcome.label}
+					>
+						<StatusMark label={outcome.label} status={outcome.status} />
+					</span>
+				) : (
+					<Icon icon={KIND_ICON[event.kind]} />
+				)}
 			</ItemMedia>
 			<ItemContent>
 				<ItemTitle>
-					<span>{event.title}</span>
+					{outcome ? (
+						<ItemRouterLink params={{ runId: event.id }} to="/runs/$runId">
+							{text}
+						</ItemRouterLink>
+					) : (
+						text
+					)}
 				</ItemTitle>
-				<ItemDescription className="truncate">{event.detail}</ItemDescription>
 			</ItemContent>
 			{event.impact ? <ImpactChip impact={event.impact} /> : null}
 			<ItemMeta className="w-14 text-end">

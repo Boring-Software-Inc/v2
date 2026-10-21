@@ -11,8 +11,12 @@ import { orgMemberMiddleware, resolveOrgRepo } from "#/lib/server/org-guard";
  * the chart series come from), so chart and activity tell one story.
  */
 
-function subject(repoFullName: string, subjectNumber: number | null): string {
-	return subjectNumber ? `${repoFullName} #${subjectNumber}` : repoFullName;
+function subject(subjectNumber: number | null): string {
+	return subjectNumber ? `#${subjectNumber}` : "Change request";
+}
+
+function actor(actorLogin: string | null): string {
+	return actorLogin ?? "Unknown contributor";
 }
 
 export const getAnalyticsActivity = createServerFn({ method: "GET" })
@@ -35,13 +39,11 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 			return runs.map((r) => ({
 				id: r.runId,
 				kind: "ban",
-				title: r.actorLogin
-					? `Blocked a change request from ${r.actorLogin}`
-					: "Blocked a change request",
-				detail: subject(r.repoFullName, r.subjectNumber),
+				title: actor(r.actorLogin),
+				detail: subject(r.subjectNumber),
 				at: r.createdAt.toISOString(),
 				impact: {
-					label: `${r.failedCount} of ${r.ruleCount} rules tripped`,
+					label: `${r.failedCount} of ${r.ruleCount} ${r.ruleCount === 1 ? "rule" : "rules"} tripped`,
 					tone: "neutral",
 				},
 			}));
@@ -55,10 +57,8 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 			return runs.map((r) => ({
 				id: r.runId,
 				kind: "resolve",
-				title: r.actorLogin
-					? `Passed a change request from ${r.actorLogin}`
-					: "Passed a change request",
-				detail: subject(r.repoFullName, r.subjectNumber),
+				title: actor(r.actorLogin),
+				detail: subject(r.subjectNumber),
 				at: r.createdAt.toISOString(),
 			}));
 		}
@@ -71,11 +71,8 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 		return runs.map((r) => ({
 			id: r.runId,
 			kind: "report",
-			title: r.actorLogin
-				? `Sent a change request from ${r.actorLogin} to review`
-				: "Sent a change request to review",
-			detail: subject(r.repoFullName, r.subjectNumber),
+			title: actor(r.actorLogin),
+			detail: subject(r.subjectNumber),
 			at: r.createdAt.toISOString(),
-			impact: { label: "Waiting for review", tone: "neutral" },
 		}));
 	});
