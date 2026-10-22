@@ -29,6 +29,7 @@ import { getErrorMessage } from "@tripwire/utils";
 import type { WorkHandler } from "pg-boss";
 import pino from "pino";
 import { createGenerate } from "./ai/generate.ts";
+import { captureJobFailures } from "./capture-job-failures.ts";
 import { resolveDeploymentId, startFence } from "./fence.ts";
 import { buildResolveForge } from "./forge-runtime.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
@@ -200,7 +201,7 @@ if (import.meta.main) {
 		if (working.has(name)) {
 			return;
 		}
-		await boss.work<T>(name, handler);
+		await boss.work<T>(name, captureJobFailures(name, handler));
 		working.add(name);
 	};
 

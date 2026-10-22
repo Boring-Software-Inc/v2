@@ -7,9 +7,10 @@
 	},
 	"scripts": {
 		"dev": "bun --env-file=../../.env vite dev --port 3000",
-		"build": "vite build",
+		"build": "vite build && bun run build:instrument",
+		"build:instrument": "bun build instrument.server.mjs --production --target=node --outfile=.output/server/instrument.server.mjs && bun build node_modules/@sentry/server-runtime-injection/build/esm/hook.js --production --target=node --outfile=.output/server/hook.js",
 		"preview": "vite preview",
-		"start": "node .output/server/index.mjs",
+		"start": "node --import ./.output/server/instrument.server.mjs .output/server/index.mjs",
 		"routes:gen": "bun run scripts/generate-route-tree.ts",
 		"typecheck": "bun run routes:gen && tsc --noEmit",
 		"check:game-chunk": "vite build && bun run scripts/check-game-chunk.ts"
@@ -24,6 +25,8 @@
 		"@phosphor-icons/react": "^2.1.10",
 		"@renoun/screenshot": "^0.3.3",
 		"@resvg/resvg-js": "^2.6.2",
+		"@sentry/node": "^11.8.0",
+		"@sentry/tanstackstart-react": "^11.8.0",
 		"@tailwindcss/vite": "^4.3.3",
 		"@tanstack/react-query": "~5.97.0",
 		"@tanstack/react-router": "~1.168.13",
@@ -54,6 +57,8 @@
 		"zod": "^4.0.0"
 	},
 	"devDependencies": {
+		"@sentry/server-runtime-injection": "^11.8.0",
+		"@sentry/vite-plugin": "^11.8.0",
 		"@tanstack/router-generator": "1.166.42",
 		"@tanstack/router-plugin": "~1.167.12",
 		"@types/node": "^22.10.2",

@@ -33,6 +33,24 @@ export function getRouter() {
 		wrapQueryClient: false,
 	});
 
+	if (!import.meta.env.SSR && import.meta.env.VITE_SENTRY_DSN) {
+		void import("@sentry/tanstackstart-react").then((Sentry) => {
+			Sentry.init({
+				dsn: import.meta.env.VITE_SENTRY_DSN,
+				environment: import.meta.env.MODE,
+				dataCollection: {
+					userInfo: false,
+					cookies: false,
+					httpHeaders: false,
+					httpBodies: [],
+					urlQueryParams: false,
+				},
+				integrations: [Sentry.tanstackRouterBrowserTracingIntegration(router)],
+				tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+			});
+		});
+	}
+
 	return router;
 }
 

@@ -3,11 +3,11 @@
 # Build context is the MONOREPO ROOT: `docker build -f apps/web/Dockerfile .`
 #
 # Build-time vs runtime env. This bites hard:
-#   VITE_SITE_URL and VITE_WAITLIST_OPENER_ORIGINS are inlined at build
+#   VITE_SITE_URL, VITE_WAITLIST_OPENER_ORIGINS and VITE_SENTRY_DSN are inlined at build
 #   (import.meta.env). Unkey Compute does not pass --build-arg. It mounts the
 #   environment as a secret file; the build RUN sources that file.
 #   https://www.unkey.com/docs/compute/build/build-secrets
-#   Set both names on the web app's Unkey environment. ARG defaults are
+#   Set them on the web app's Unkey environment. ARG defaults are
 #   localhost so `docker build` with no secret still runs, and so a missing
 #   Unkey variable cannot ship a production URL by accident. Railway can still
 #   pass the same names as --build-arg. They are not ENV: ENV would keep the
@@ -21,6 +21,7 @@ WORKDIR /app
 ARG UNKEY_SECRETS_ID
 ARG VITE_SITE_URL=http://localhost:3000
 ARG VITE_WAITLIST_OPENER_ORIGINS=http://localhost:3001
+ARG VITE_SENTRY_DSN=
 # Build runs under Bun, but the SSR RUNTIME is Node. Force nitro's node-server
 # preset so the bundle uses node http, not Bun.serve (the portability lesson).
 ENV NITRO_PRESET=node-server
@@ -62,4 +63,4 @@ ENV NODE_ENV=production
 COPY --from=build /app/apps/web/.output ./.output
 # nitro honors PORT (Railway injects it); 3000 is the local default.
 EXPOSE 3000
-CMD ["node", ".output/server/index.mjs"]
+CMD ["node", "--import", "./.output/server/instrument.server.mjs", ".output/server/index.mjs"]

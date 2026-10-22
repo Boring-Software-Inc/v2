@@ -1,3 +1,4 @@
+import { captureMessage, type SeverityLevel } from "@sentry/bun";
 import type { Logger } from "pino";
 
 export type InstallFailureState =
@@ -16,7 +17,30 @@ export interface InstallFailure {
 
 export type ReportInstallFailure = (failure: InstallFailure) => void;
 
-export function installFailureReporter(logger: Logger): ReportInstallFailure {
+const INSTALL_FAILURE_LEVEL = {
+	"not-for-tripwire": "warning",
+	"token-expired": "warning",
+	unreadable: "error",
+	unverifiable: "error",
+	"recovery-failed": "error",
+} satisfies Record<InstallFailureState, SeverityLevel>;
+
+export function installFailureEvent(failure: InstallFailure) {
+	return {
+		level: INSTALL_FAILURE_LEVEL[failure.state],
+		tags: {
+			installation_id: failure.installationId,
+			state: failure.state,
+		},
+		user: failure.userId === null ? undefined : { id: failure.userId },
+		extra: { error: failure.error },
+	};
+}
+
+export function installFailureReporter(
+	logger: Logger,
+	capture: typeof captureMessage = captureMessage,
+): ReportInstallFailure {
 	return (failure) => {
 		logger.error(
 			{
@@ -28,6 +52,10 @@ export function installFailureReporter(logger: Logger): ReportInstallFailure {
 				error: failure.error,
 			},
 			"install flow failure",
+		);
+		capture(
+			`install flow failure: ${failure.state}`,
+			installFailureEvent(failure),
 		);
 	};
 }

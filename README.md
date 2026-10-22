@@ -60,6 +60,18 @@ describe. Set these on the **web** app's environment (production and preview):
 | `VITE_SITE_URL` | `https://app.tripwire.sh` |
 | `VITE_WAITLIST_OPENER_ORIGINS` | `https://tripwire.sh,https://www.tripwire.sh` |
 
+Optional, same file:
+
+| variable | value |
+| --- | --- |
+| `VITE_SENTRY_DSN` | the tripwire-web browser DSN. Absent or empty turns the browser SDK off. |
+| `SENTRY_AUTH_TOKEN` | a Sentry token that can upload source maps. Absent skips the upload. |
+| `SENTRY_ORG` | defaults to `boring-software-inc` |
+| `SENTRY_PROJECT` | defaults to `tripwire-web` |
+
+The token is read only inside the build `RUN`. It is not an `ARG` or `ENV`, and
+the uploaded `.map` files are deleted before the image is assembled.
+
 The landing site redirects apex to www, so the allowlist needs both origins.
 The api and worker images do not inline these. A local `docker build` with no
 secret uses `http://localhost:3000` and `http://localhost:3001`. `bun run dev`
@@ -72,6 +84,22 @@ docker build -f apps/web/Dockerfile \
   --secret id=env,src=.env \
   .
 ```
+
+## sentry
+
+Each service reads `SENTRY_DSN` at runtime. Set it on the Unkey app it belongs
+to. Absent or empty turns the SDK off.
+
+| Unkey app | build time (secret file) | runtime |
+| --- | --- | --- |
+| web | `VITE_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | `SENTRY_DSN` |
+| api | none | `SENTRY_DSN` |
+| worker | none | `SENTRY_DSN` |
+
+Release is `UNKEY_GIT_COMMIT_SHA` and environment is `UNKEY_ENVIRONMENT_SLUG`,
+both injected by Unkey. Outside Unkey, environment falls back to `NODE_ENV`.
+The api and worker run TypeScript on Bun without a bundle, so they need no
+source maps.
 
 ## checks
 
