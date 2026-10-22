@@ -62,6 +62,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getRepoWorkflow: "member",
 	listModerationQueue: "member",
 	getRepoResponseConfig: "member",
+	listRepoReviewers: "member",
 
 	// ── admin (org mutations) ────────────────────────────────────────────
 	saveCustomRule: "admin",
@@ -88,6 +89,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	duplicateRepoWorkflow: "admin",
 	deleteRepoWorkflow: "admin",
 	setRepoWorkflowEnabled: "admin",
+	refreshRepoReviewers: "admin",
 	saveRuleConfig: "admin",
 	saveRepoResponseConfig: "admin", // customize — what tripwire says on a verdict
 	upgradeRuleConfig: "admin", // §6 (b) — re-pin a rule to the current version

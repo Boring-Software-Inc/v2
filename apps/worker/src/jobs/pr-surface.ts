@@ -361,7 +361,9 @@ export function toForgeAction(
 				kind: "request-review" as const,
 				repoFullName,
 				number,
-				reviewers: targets.success ? targets.data.reviewers : [],
+				reviewers: targets.success
+					? targets.data.reviewers.map((reviewer) => reviewer.login)
+					: [],
 				teamReviewers: targets.success ? targets.data.teamReviewers : [],
 			};
 		}

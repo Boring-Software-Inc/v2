@@ -98,9 +98,43 @@ export const githubTeamSlugSchema = z
 		error: (issue) => `${String(issue.input)} is not a team slug`,
 	});
 
+export const reviewerRefSchema = z.object({
+	id: z.number().int().positive().optional(),
+	login: githubLoginSchema,
+});
+export type ReviewerRef = z.infer<typeof reviewerRefSchema>;
+
+export const repoReviewerSchema = z.object({
+	id: z.number().int().positive(),
+	login: githubLoginSchema,
+	avatarUrl: z.string(),
+	permission: z.string().min(1),
+});
+export type RepoReviewer = z.infer<typeof repoReviewerSchema>;
+
+export const storedReviewerSchema = z.preprocess(
+	(value) => (z.string().safeParse(value).success ? { login: value } : value),
+	reviewerRefSchema,
+);
+
+export function reviewerJson(reviewers: readonly ReviewerRef[]): JsonValue[] {
+	return reviewers.map(
+		(reviewer): JsonValue =>
+			reviewer.id === undefined
+				? { login: reviewer.login }
+				: { id: reviewer.id, login: reviewer.login },
+	);
+}
+
+export function sameReviewer(a: ReviewerRef, b: ReviewerRef): boolean {
+	return a.id !== undefined && b.id !== undefined
+		? a.id === b.id
+		: a.login.toLowerCase() === b.login.toLowerCase();
+}
+
 export const requestReviewTargetsSchema = z.object({
 	reviewers: z
-		.array(githubLoginSchema)
+		.array(storedReviewerSchema)
 		.max(MAX_REVIEW_TARGETS, `ask at most ${MAX_REVIEW_TARGETS} people`)
 		.default([]),
 	teamReviewers: z
@@ -370,7 +404,7 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 	{
 		action: "request-review",
 		name: "Request GitHub review",
-		description: "Asks the people and teams you choose to review on GitHub.",
+		description: "Asks the people you choose to review on GitHub.",
 	},
 	{
 		action: "send-to-moderation",

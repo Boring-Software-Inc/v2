@@ -1,5 +1,6 @@
 import type { Forge } from "@tripwire/contracts";
 import {
+	bigint,
 	boolean,
 	index,
 	integer,
@@ -128,6 +129,26 @@ export const repoSuggestions = pgTable(
 	},
 	(t) => [
 		uniqueIndex("repo_suggestions_repo_kind_unique").on(t.repoId, t.kind),
+	],
+);
+
+export const repoReviewers = pgTable(
+	"repo_reviewers",
+	{
+		id: text("id").primaryKey(),
+		repoId: text("repo_id")
+			.notNull()
+			.references(() => repos.id, { onDelete: "cascade" }),
+		githubUserId: bigint("github_user_id", { mode: "number" }).notNull(),
+		login: text("login").notNull(),
+		avatarUrl: text("avatar_url").notNull(),
+		permission: text("permission").notNull(),
+		syncedAt: timestamp("synced_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [
+		uniqueIndex("repo_reviewers_repo_user_unique").on(t.repoId, t.githubUserId),
 	],
 );
 

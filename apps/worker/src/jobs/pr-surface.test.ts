@@ -26,6 +26,23 @@ describe("toForgeAction — request-review", () => {
 		});
 	});
 
+	test("sends the logins of typed reviewers to GitHub", () => {
+		expect(
+			toForgeAction(
+				{
+					kind: "request-review",
+					payload: {
+						nodeId: "w:review",
+						reviewers: [{ id: 583231, login: "octocat" }, "hubot"],
+					},
+				},
+				"a/b",
+				7,
+				"stamp",
+			),
+		).toMatchObject({ reviewers: ["octocat", "hubot"], teamReviewers: [] });
+	});
+
 	test("a row recorded before targets existed maps to empty lists", () => {
 		expect(
 			toForgeAction(

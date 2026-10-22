@@ -28,6 +28,9 @@ export {
 	RESUME_RUN_QUEUE,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
+	SYNC_REPO_REVIEWERS_QUEUE,
+	type SyncRepoReviewersJob,
+	syncRepoReviewersOptions,
 } from "./queue.ts";
 export * from "./schema/index.ts";
 export {
@@ -83,6 +86,8 @@ export type {
 export * as orgServices from "./services/organizations.ts";
 export * as presenceServices from "./services/presence.ts";
 export * as repoServices from "./services/repos.ts";
+export type { RepoReviewerList } from "./services/reviewers.ts";
+export * as reviewerServices from "./services/reviewers.ts";
 export * as runServices from "./services/runs.ts";
 export type {
 	StaffInstallationList,

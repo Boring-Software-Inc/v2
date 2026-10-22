@@ -4,7 +4,11 @@ import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
 	type NodePosition,
+	type ReviewerRef,
 	requestReviewParamsSchema,
+	requestReviewTargetsSchema,
+	reviewerJson,
+	sameReviewer,
 	type WorkflowDefinition,
 	type WorkflowEdge,
 	type WorkflowNode,
@@ -47,6 +51,7 @@ export const LINT_RULES = {
 	"rule-config": { severity: "error", stage: "enable" },
 	"removed-step": { severity: "error", stage: "enable" },
 	"review-targets": { severity: "error", stage: "enable" },
+	"stale-reviewer": { severity: "warning", stage: "enable" },
 	"dead-end": { severity: "warning", stage: "enable" },
 } as const satisfies Record<
 	string,
@@ -62,6 +67,7 @@ export type LintEdit =
 	| { type: "delete-node"; nodeId: string }
 	| { type: "connect"; from: string; to: string }
 	| { type: "keep-one-input"; nodeId: string; edgeId: string }
+	| { type: "remove-reviewer"; nodeId: string; reviewer: ReviewerRef }
 	| { type: "add-trigger" };
 
 export type LintIntent =
@@ -90,6 +96,7 @@ export interface ConnectionHint {
 export interface LintOptions {
 	catalog?: readonly ValidationCatalogEntry[];
 	stage?: LintStage;
+	reviewers?: readonly ReviewerRef[];
 }
 
 type Finding = Omit<LintResult, "rule" | "severity">;
@@ -103,6 +110,7 @@ interface LintContext {
 	outgoing: Map<string, WorkflowEdge[]>;
 	name: (node: WorkflowNode) => string;
 	catalog: readonly ValidationCatalogEntry[];
+	reviewers?: readonly ReviewerRef[];
 }
 
 const removeEdge = (edgeId: string): LintFix => ({
@@ -565,6 +573,34 @@ function checkReviewTargets(ctx: LintContext): Finding[] {
 	});
 }
 
+function checkStaleReviewers(ctx: LintContext): Finding[] {
+	const synced = ctx.reviewers;
+	if (!synced) {
+		return [];
+	}
+	return ctx.def.nodes.flatMap((node) => {
+		if (node.type !== "action" || node.action !== "request-review") {
+			return [];
+		}
+		const parsed = requestReviewTargetsSchema.safeParse(node.params ?? {});
+		if (!parsed.success) {
+			return [];
+		}
+		return parsed.data.reviewers
+			.filter((chosen) => !synced.some((known) => sameReviewer(known, chosen)))
+			.map((reviewer) => ({
+				nodeId: node.id,
+				message: `${ctx.name(node)}: ${reviewer.login} can no longer review this repo`,
+				fixes: [
+					{
+						label: "Remove",
+						edit: { type: "remove-reviewer", nodeId: node.id, reviewer },
+					},
+				],
+			}));
+	});
+}
+
 function checkDeadEnds(ctx: LintContext): Finding[] {
 	return ctx.def.nodes.flatMap((node) => {
 		const [port] = outputPorts(node);
@@ -612,6 +648,7 @@ const CHECKS: { rule: CheckedRule; check: (ctx: LintContext) => Finding[] }[] =
 		{ rule: "rule-config", check: checkRuleConfigs },
 		{ rule: "removed-step", check: checkRemovedSteps },
 		{ rule: "review-targets", check: checkReviewTargets },
+		{ rule: "stale-reviewer", check: checkStaleReviewers },
 		{ rule: "dead-end", check: checkDeadEnds },
 	];
 
@@ -631,6 +668,7 @@ function lintParsed(
 	def: WorkflowDefinition,
 	catalog: readonly ValidationCatalogEntry[],
 	stage: LintStage,
+	reviewers?: readonly ReviewerRef[],
 ): LintResult[] {
 	const ctx: LintContext = {
 		def,
@@ -639,6 +677,7 @@ function lintParsed(
 		outgoing: group(def.edges, "from"),
 		name: (node) => stepDisplayName(node, catalog),
 		catalog,
+		reviewers,
 	};
 	return CHECKS.flatMap(({ rule, check }) =>
 		stage === "structure" && LINT_RULES[rule].stage !== "structure"
@@ -692,7 +731,9 @@ export function lintWorkflowReport(
 	if (parsed.success) {
 		return {
 			definition: parsed.data,
-			results: sorted(lintParsed(parsed.data, catalog, stage)),
+			results: sorted(
+				lintParsed(parsed.data, catalog, stage, options.reviewers),
+			),
 		};
 	}
 	const raw = rawGraphSchema.safeParse(definition);
@@ -731,7 +772,7 @@ export function lintWorkflowReport(
 		definition: null,
 		results: sorted([
 			...silentResults,
-			...lintParsed(patched.data, catalog, stage),
+			...lintParsed(patched.data, catalog, stage, options.reviewers),
 		]),
 	};
 }
@@ -891,6 +932,32 @@ export function applyLintEdit(
 				edges: def.edges.filter(
 					(edge) => edge.to !== edit.nodeId || edge.id === edit.edgeId,
 				),
+			};
+		case "remove-reviewer":
+			return {
+				...def,
+				nodes: def.nodes.map((node) => {
+					if (node.id !== edit.nodeId || node.type !== "action") {
+						return node;
+					}
+					const parsed = requestReviewTargetsSchema.safeParse(
+						node.params ?? {},
+					);
+					if (!parsed.success) {
+						return node;
+					}
+					return {
+						...node,
+						params: {
+							...node.params,
+							reviewers: reviewerJson(
+								parsed.data.reviewers.filter(
+									(reviewer) => !sameReviewer(reviewer, edit.reviewer),
+								),
+							),
+						},
+					};
+				}),
 			};
 		case "add-trigger": {
 			const placed = def.nodes.flatMap((node) =>

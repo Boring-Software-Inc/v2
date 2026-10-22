@@ -12,7 +12,7 @@ function summary(params: Parameters<typeof reviewNode>[0]) {
 }
 
 function reviewNode(params?: {
-	reviewers?: string[];
+	reviewers?: (string | { id: number; login: string })[];
 	teamReviewers?: string[];
 }) {
 	return {
@@ -26,8 +26,11 @@ function reviewNode(params?: {
 describe("nodeFieldValues — request-review", () => {
 	test("shows the people and teams it asks", () => {
 		expect(
-			summary({ reviewers: ["octocat", "hubot"], teamReviewers: ["core"] }),
-		).toEqual(["People: octocat +1", "Teams: core"]);
+			summary({
+				reviewers: [{ id: 1, login: "octocat" }, "hubot"],
+				teamReviewers: ["core"],
+			}),
+		).toEqual(["Reviewers: octocat +1", "Teams: core"]);
 	});
 
 	test("an action with no targets says so", () => {

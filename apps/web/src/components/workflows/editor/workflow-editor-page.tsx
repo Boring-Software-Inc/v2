@@ -138,6 +138,7 @@ export function WorkflowEditorPage() {
 				org={org}
 				readOnly={readOnly}
 				repo={repo}
+				repoId={repoId}
 				saving={save.isPending}
 				toggling={setEnabled.isPending}
 			/>

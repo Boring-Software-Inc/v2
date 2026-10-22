@@ -4,9 +4,12 @@ import {
 	MAX_REVIEW_TARGETS,
 	requestReviewParamsSchema,
 	requestReviewTargetsSchema,
+	reviewerJson,
+	sameReviewer,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "./workflow.ts";
+import { applyLintEdit, lintWorkflow } from "./workflow-lint.ts";
 import {
 	validateWorkflow,
 	validateWorkflowForEnable,
@@ -46,16 +49,57 @@ describe("requestReviewParamsSchema", () => {
 		).toBe(true);
 		expect(
 			requestReviewParamsSchema.parse({
-				reviewers: ["a-b", "C3"],
+				reviewers: [{ id: 1, login: "a-b" }, "C3"],
 				teamReviewers: ["infra_ops"],
 			}),
-		).toEqual({ reviewers: ["a-b", "C3"], teamReviewers: ["infra_ops"] });
+		).toEqual({
+			reviewers: [{ id: 1, login: "a-b" }, { login: "C3" }],
+			teamReviewers: ["infra_ops"],
+		});
 	});
 
 	test("defaults missing lists to empty and drops unknown keys", () => {
 		expect(
 			requestReviewTargetsSchema.parse({ nodeId: "w:a", reviewers: ["x"] }),
-		).toEqual({ reviewers: ["x"], teamReviewers: [] });
+		).toEqual({ reviewers: [{ login: "x" }], teamReviewers: [] });
+	});
+
+	test("reads stored logins as reviewers without an id", () => {
+		expect(
+			requestReviewTargetsSchema.parse({ reviewers: ["octocat"] }).reviewers,
+		).toEqual([{ login: "octocat" }]);
+		expect(
+			reviewerJson(
+				requestReviewTargetsSchema.parse({
+					reviewers: ["octocat", { id: 2, login: "hubot" }],
+				}).reviewers,
+			),
+		).toEqual([{ login: "octocat" }, { id: 2, login: "hubot" }]);
+	});
+
+	test("rejects a reviewer with a bad id or login", () => {
+		expect(
+			requestReviewParamsSchema.safeParse({
+				reviewers: [{ id: -1, login: "octocat" }],
+			}).success,
+		).toBe(false);
+		expect(
+			requestReviewParamsSchema.safeParse({
+				reviewers: [{ id: 1, login: "bad name" }],
+			}).error?.issues[0]?.message,
+		).toBe("bad name is not a GitHub username");
+	});
+
+	test("matches reviewers by id when both have one, else by login", () => {
+		expect(
+			sameReviewer({ id: 1, login: "old" }, { id: 1, login: "renamed" }),
+		).toBe(true);
+		expect(sameReviewer({ id: 1, login: "a" }, { id: 2, login: "a" })).toBe(
+			false,
+		);
+		expect(
+			sameReviewer({ login: "OctoCat" }, { id: 3, login: "octocat" }),
+		).toBe(true);
 	});
 
 	test("requires at least one target", () => {
@@ -147,5 +191,62 @@ describe("request-review in workflow validation", () => {
 				withReviewParams({ reviewers: ["octocat"], teamReviewers: ["core"] }),
 			).valid,
 		).toBe(true);
+	});
+});
+
+describe("stale-reviewer", () => {
+	const synced = [{ id: 1, login: "octocat" }];
+
+	test("is silent until the repo has a synced set", () => {
+		const def = withReviewParams({ reviewers: [{ id: 9, login: "gone" }] });
+		expect(
+			lintWorkflow(def).filter((result) => result.rule === "stale-reviewer"),
+		).toEqual([]);
+	});
+
+	test("warns on a chosen reviewer missing from the synced set, with a Remove fix", () => {
+		const gone = { id: 9, login: "gone" };
+		const def = withReviewParams({
+			reviewers: [{ id: 1, login: "octocat" }, gone, "legacy"],
+		});
+		const stale = lintWorkflow(def, { reviewers: synced }).filter(
+			(result) => result.rule === "stale-reviewer",
+		);
+		expect(stale.map((result) => result.message)).toEqual([
+			"Request GitHub review: gone can no longer review this repo",
+			"Request GitHub review: legacy can no longer review this repo",
+		]);
+		expect(stale[0]).toMatchObject({
+			severity: "warning",
+			nodeId: "a",
+			fixes: [
+				{
+					label: "Remove",
+					edit: { type: "remove-reviewer", nodeId: "a", reviewer: gone },
+				},
+			],
+		});
+	});
+
+	test("a stale reviewer never blocks enable", () => {
+		expect(
+			validateWorkflowForEnable(
+				withReviewParams({ reviewers: [{ id: 9, login: "gone" }] }),
+			).valid,
+		).toBe(true);
+	});
+
+	test("Remove drops only that reviewer", () => {
+		const def = withReviewParams({
+			reviewers: [{ id: 1, login: "octocat" }, "legacy"],
+		});
+		const next = applyLintEdit(def, {
+			type: "remove-reviewer",
+			nodeId: "a",
+			reviewer: { login: "Legacy" },
+		});
+		expect(next.nodes.find((node) => node.id === "a")).toMatchObject({
+			params: { reviewers: [{ id: 1, login: "octocat" }] },
+		});
 	});
 });

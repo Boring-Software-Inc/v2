@@ -70,6 +70,12 @@ test("repo extras are complete and a second run adds nothing", async () => {
 			sql`SELECT count(*) AS n FROM repo_suggestions WHERE repo_id = ${repo.id}`,
 		),
 	).toBe(1);
+	expect(
+		await count(
+			db,
+			sql`SELECT count(*) AS n FROM repo_reviewers WHERE repo_id = ${repo.id}`,
+		),
+	).toBe(5);
 });
 
 test("custom rules stay on their own repo", async () => {

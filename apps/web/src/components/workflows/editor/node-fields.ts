@@ -2,11 +2,15 @@ import type { JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
 	RULE_CATALOG,
 	ruleUiSchema,
+	storedReviewerSchema,
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { z } from "zod";
 
 const targetList = z.array(z.string()).catch([]);
+const reviewerList = z
+	.array(storedReviewerSchema.optional().catch(undefined))
+	.catch([]);
 
 /**
  * THE schema-to-fields source: one zod walk feeding BOTH the properties
@@ -204,23 +208,22 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 				];
 			}
 			if (node.action === "request-review") {
-				const targets = {
-					reviewers: targetList.parse(node.params?.reviewers),
-					teamReviewers: targetList.parse(node.params?.teamReviewers),
-				};
-				const rows: NodeFieldValue[] = [];
-				if (targets.reviewers.length > 0) {
-					rows.push({
+				const people = reviewerList
+					.parse(node.params?.reviewers)
+					.flatMap((reviewer) => (reviewer ? [reviewer.login] : []));
+				const teams = targetList.parse(node.params?.teamReviewers);
+				const rows: NodeFieldValue[] = [
+					{
 						field: {
 							key: "reviewers",
-							label: "People",
+							label: "Reviewers",
 							secret: false,
-							kind: "string-list",
+							kind: people.length > 0 ? "string-list" : "string",
 						},
-						value: targets.reviewers,
-					});
-				}
-				if (targets.teamReviewers.length > 0) {
+						value: people.length > 0 ? people : undefined,
+					},
+				];
+				if (teams.length > 0) {
 					rows.push({
 						field: {
 							key: "teamReviewers",
@@ -228,22 +231,10 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 							secret: false,
 							kind: "string-list",
 						},
-						value: targets.teamReviewers,
+						value: teams,
 					});
 				}
-				return rows.length > 0
-					? rows
-					: [
-							{
-								field: {
-									key: "reviewers",
-									label: "Reviewers",
-									secret: false,
-									kind: "string",
-								},
-								value: undefined,
-							},
-						];
+				return rows;
 			}
 			if (node.action === "webhook" || node.action === "discord") {
 				const params = node.params ?? {};

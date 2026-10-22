@@ -8,6 +8,7 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
+import { useQuery } from "@tanstack/react-query";
 import { useBlocker } from "@tanstack/react-router";
 import type {
 	EdgeWhen,
@@ -89,6 +90,7 @@ import {
 	problemCount,
 } from "#/components/workflows/editor/node-issues";
 import { ProblemsButton } from "#/components/workflows/editor/problems-list";
+import { ReviewerScopeContext } from "#/components/workflows/editor/reviewer-picker";
 import {
 	DragPlanContext,
 	DropHint,
@@ -97,6 +99,7 @@ import {
 	TypedEdge,
 	type TypedFlowEdge,
 } from "#/components/workflows/editor/typed-connections";
+import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
 import {
 	definitionToGraph,
 	edgeWhenFields,
@@ -228,6 +231,7 @@ export interface WorkflowEditorProps {
 	readOnly: boolean;
 	org: string;
 	repo: string;
+	repoId: string;
 	saving: boolean;
 	toggling: boolean;
 	onSave: (definition: WorkflowDefinition) => Promise<{
@@ -244,7 +248,8 @@ export interface WorkflowEditorProps {
 	onSetEnabled: (
 		enabled: boolean,
 	) => Promise<
-		{ ok: true; enabled: boolean } | { ok: false; issues: ValidationIssue[] }
+		| { ok: true; enabled: boolean; warnings?: ValidationIssue[] }
+		| { ok: false; issues: ValidationIssue[] }
 	>;
 }
 
@@ -264,6 +269,7 @@ function EditorBody({
 	readOnly,
 	org,
 	repo,
+	repoId,
 	saving,
 	toggling,
 	onSave,
@@ -354,14 +360,23 @@ function EditorBody({
 		[enableCatalog],
 	);
 
+	const { data: reviewerData } = useQuery(
+		repoReviewersQueryOptions(org, repoId),
+	);
+	const syncedReviewers = reviewerData?.syncedAt
+		? reviewerData.reviewers
+		: undefined;
+	const reviewerScope = useMemo(() => ({ org, repoId }), [org, repoId]);
+
 	const lintResults = useMemo(
 		() =>
 			nodes.length === 0
 				? []
 				: lintWorkflow(graphToCandidate(meta, nodes, edges), {
 						catalog: enableCatalog,
+						reviewers: syncedReviewers,
 					}),
-		[nodes, edges, meta, enableCatalog],
+		[nodes, edges, meta, enableCatalog, syncedReviewers],
 	);
 
 	const customRuleNames = useMemo(
@@ -907,6 +922,9 @@ function EditorBody({
 			return;
 		}
 		if (result.ok) {
+			if (result.warnings?.length) {
+				setServerIssues({ against: lintResults, issues: result.warnings });
+			}
 			toast.success(
 				result.enabled ? "Workflow turned on" : "Workflow turned off",
 			);
@@ -953,79 +971,81 @@ function EditorBody({
 				sensors={sensors}
 			>
 				<CanvasDropzone>
-					<CustomRuleNamesContext.Provider value={customRuleNames}>
-						<ProblemsContext.Provider value={problemsApi}>
-							<EditFieldContext.Provider value={editField}>
-								<DragPlanContext.Provider value={plan}>
-									<ReactFlow
-										connectionLineComponent={TypedConnectionLine}
-										data-drag-tone={
-											plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
-										}
-										deleteKeyCode={readOnly ? null : DELETE_KEYS}
-										onBeforeDelete={readOnly ? undefined : onBeforeDelete}
-										edges={flowEdges}
-										edgeTypes={EDGE_TYPES}
-										edgesReconnectable={!readOnly}
-										elementsSelectable
-										fitView
-										fitViewOptions={fitViewOptions()}
-										isValidConnection={isValidConnection}
-										nodes={nodes}
-										nodesConnectable={!readOnly}
-										nodesDraggable={!readOnly}
-										nodeTypes={NODE_TYPES}
-										onConnect={readOnly ? undefined : onConnect}
-										onConnectEnd={onConnectEnd}
-										onConnectStart={cancelPending}
-										onNodeClick={cancelPending}
-										onPaneClick={cancelPending}
-										onReconnectEnd={() => {
-											reconnecting.current = false;
-										}}
-										onReconnectStart={() => {
-											reconnecting.current = true;
-										}}
-										onEdgesChange={onEdgesChange}
-										onNodesChange={onNodesChange}
-										onReconnect={readOnly ? undefined : onReconnect}
-										proOptions={{ hideAttribution: true }}
-										style={CANVAS_TOKENS}
-									>
-										<Controls
-											className="!m-3 overflow-hidden rounded-overlay border border-line"
-											position="bottom-right"
-											showInteractive={false}
-										/>
-										<DropHint />
-										{pending ? <PendingConnection {...pending} /> : null}
-									</ReactFlow>
-								</DragPlanContext.Provider>
-							</EditFieldContext.Provider>
-						</ProblemsContext.Provider>
-					</CustomRuleNamesContext.Provider>
-					<EditorSidebar
-						connect={toolboxConnect}
-						customRules={customRules}
-						onCancelConnect={cancelPending}
-						fieldFocus={fieldFocus}
-						onFieldFocused={() => setFieldFocus(null)}
-						org={org}
-						repo={repo}
-						onAdd={addAtFreePosition}
-						onClearSelection={clearSelection}
-						onTestConnection={onTestConnection}
-						onUpdateNode={updateNode}
-						readOnly={readOnly}
-						selectedNode={selectedNode}
-					/>
-					<ProblemsButton
-						onFix={fixProblem}
-						onOpenChange={setProblemsOpen}
-						onReveal={revealProblem}
-						open={problemsOpen}
-						problems={problems}
-					/>
+					<ReviewerScopeContext.Provider value={reviewerScope}>
+						<CustomRuleNamesContext.Provider value={customRuleNames}>
+							<ProblemsContext.Provider value={problemsApi}>
+								<EditFieldContext.Provider value={editField}>
+									<DragPlanContext.Provider value={plan}>
+										<ReactFlow
+											connectionLineComponent={TypedConnectionLine}
+											data-drag-tone={
+												plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
+											}
+											deleteKeyCode={readOnly ? null : DELETE_KEYS}
+											onBeforeDelete={readOnly ? undefined : onBeforeDelete}
+											edges={flowEdges}
+											edgeTypes={EDGE_TYPES}
+											edgesReconnectable={!readOnly}
+											elementsSelectable
+											fitView
+											fitViewOptions={fitViewOptions()}
+											isValidConnection={isValidConnection}
+											nodes={nodes}
+											nodesConnectable={!readOnly}
+											nodesDraggable={!readOnly}
+											nodeTypes={NODE_TYPES}
+											onConnect={readOnly ? undefined : onConnect}
+											onConnectEnd={onConnectEnd}
+											onConnectStart={cancelPending}
+											onNodeClick={cancelPending}
+											onPaneClick={cancelPending}
+											onReconnectEnd={() => {
+												reconnecting.current = false;
+											}}
+											onReconnectStart={() => {
+												reconnecting.current = true;
+											}}
+											onEdgesChange={onEdgesChange}
+											onNodesChange={onNodesChange}
+											onReconnect={readOnly ? undefined : onReconnect}
+											proOptions={{ hideAttribution: true }}
+											style={CANVAS_TOKENS}
+										>
+											<Controls
+												className="!m-3 overflow-hidden rounded-overlay border border-line"
+												position="bottom-right"
+												showInteractive={false}
+											/>
+											<DropHint />
+											{pending ? <PendingConnection {...pending} /> : null}
+										</ReactFlow>
+									</DragPlanContext.Provider>
+								</EditFieldContext.Provider>
+							</ProblemsContext.Provider>
+						</CustomRuleNamesContext.Provider>
+						<EditorSidebar
+							connect={toolboxConnect}
+							customRules={customRules}
+							onCancelConnect={cancelPending}
+							fieldFocus={fieldFocus}
+							onFieldFocused={() => setFieldFocus(null)}
+							org={org}
+							repo={repo}
+							onAdd={addAtFreePosition}
+							onClearSelection={clearSelection}
+							onTestConnection={onTestConnection}
+							onUpdateNode={updateNode}
+							readOnly={readOnly}
+							selectedNode={selectedNode}
+						/>
+						<ProblemsButton
+							onFix={fixProblem}
+							onOpenChange={setProblemsOpen}
+							onReveal={revealProblem}
+							open={problemsOpen}
+							problems={problems}
+						/>
+					</ReviewerScopeContext.Provider>
 					{nodes.length === 0 ? (
 						<div className="pointer-events-none absolute inset-0 grid place-items-center">
 							<p className="type-body-sm text-text-2">

@@ -255,7 +255,7 @@ describe("workflowToMarkdown — request-review names who is asked", () => {
 						type: "action",
 						action: "request-review",
 						params: {
-							reviewers: ["octocat", "hubot"],
+							reviewers: ["octocat", { id: 2, login: "hubot" }],
 							teamReviewers: ["core"],
 						},
 					},
