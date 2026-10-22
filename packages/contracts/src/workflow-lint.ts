@@ -5,12 +5,16 @@ import {
 	GATE_CATALOG,
 	isRemovedAction,
 	isScheduleTrigger,
+	labelParamsSchema,
+	missingScheduleSteps,
 	type NodePosition,
+	postCommentParamsSchema,
 	type RemovedActionKind,
 	type ReviewerRef,
 	requestReviewParamsSchema,
 	requestReviewTargetsSchema,
 	reviewerJson,
+	type ScheduleStep,
 	sameReviewer,
 	type WorkflowDefinition,
 	type WorkflowEdge,
@@ -51,6 +55,7 @@ export const LINT_RULES = {
 	cycle: { severity: "error", stage: "structure" },
 	"no-action": { severity: "error", stage: "enable" },
 	"schedule-config": { severity: "error", stage: "enable" },
+	"action-params": { severity: "error", stage: "enable" },
 	"schedule-mixed": { severity: "error", stage: "enable" },
 	"schedule-needs-change-request": { severity: "error", stage: "enable" },
 	"unknown-rule": { severity: "error", stage: "enable" },
@@ -471,27 +476,73 @@ function checkNoAction(ctx: LintContext): Finding[] {
 		: [{ message: "No action runs after a trigger. Connect one.", fixes: [] }];
 }
 
+const SCHEDULE_STEP_WORDS = {
+	every: "how often it runs",
+	subjects: "what it looks at",
+	state: "a status",
+	inactiveFor: "how long without activity",
+} as const satisfies Record<ScheduleStep, string>;
+
 function checkScheduleConfig(ctx: LintContext): Finding[] {
-	return ctx.def.nodes.flatMap((node) =>
-		node.type === "trigger" && isScheduleTrigger(node) && !node.schedule
-			? [
+	return ctx.def.nodes.flatMap((node) => {
+		if (node.type !== "trigger" || !isScheduleTrigger(node)) {
+			return [];
+		}
+		const missing = missingScheduleSteps(node.schedule);
+		if (missing.length === 0) {
+			return [];
+		}
+		const [first] = missing;
+		return [
+			{
+				nodeId: node.id,
+				message: `${ctx.name(node)} needs ${sentenceList(missing.map((step) => SCHEDULE_STEP_WORDS[step]))}`,
+				fixes: [
 					{
-						nodeId: node.id,
-						message: `${ctx.name(node)} has no schedule`,
-						fixes: [
-							{
-								label: "Set schedule",
-								intent: {
-									type: "focus-field",
-									nodeId: node.id,
-									field: "schedule",
-								},
-							},
-						],
+						label: "Set schedule",
+						intent: {
+							type: "focus-field",
+							nodeId: node.id,
+							field: first ?? "schedule",
+						},
 					},
-				]
-			: [],
-	);
+				],
+			},
+		];
+	});
+}
+
+const ACTION_PARAM_SCHEMAS = {
+	"remove-label": { schema: labelParamsSchema, field: "labels" },
+	"post-comment": { schema: postCommentParamsSchema, field: "message" },
+} as const;
+
+function checkActionParams(ctx: LintContext): Finding[] {
+	return ctx.def.nodes.flatMap((node) => {
+		if (node.type !== "action") {
+			return [];
+		}
+		const spec =
+			node.action === "remove-label" || node.action === "post-comment"
+				? ACTION_PARAM_SCHEMAS[node.action]
+				: null;
+		const parsed = spec?.schema.safeParse(node.params ?? {});
+		if (!(spec && parsed) || parsed.success) {
+			return [];
+		}
+		return [
+			{
+				nodeId: node.id,
+				message: `${ctx.name(node)}: ${parsed.error.issues[0]?.message ?? "missing settings"}`,
+				fixes: [
+					{
+						label: "Edit setting",
+						intent: { type: "focus-field", nodeId: node.id, field: spec.field },
+					},
+				],
+			},
+		];
+	});
 }
 
 function checkScheduleMixed(ctx: LintContext): Finding[] {
@@ -731,6 +782,7 @@ const CHECKS: { rule: CheckedRule; check: (ctx: LintContext) => Finding[] }[] =
 		{ rule: "cycle", check: checkCycles },
 		{ rule: "no-action", check: checkNoAction },
 		{ rule: "schedule-config", check: checkScheduleConfig },
+		{ rule: "action-params", check: checkActionParams },
 		{ rule: "schedule-mixed", check: checkScheduleMixed },
 		{
 			rule: "schedule-needs-change-request",

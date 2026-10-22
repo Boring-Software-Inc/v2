@@ -66,6 +66,8 @@ export const workflowActionKindSchema = z.enum([
 	"discord",
 	"lock",
 	"close",
+	"remove-label",
+	"post-comment",
 ]);
 export type WorkflowActionKind = z.infer<typeof workflowActionKindSchema>;
 
@@ -125,6 +127,13 @@ export const repoReviewerSchema = z.object({
 });
 export type RepoReviewer = z.infer<typeof repoReviewerSchema>;
 
+export const repoLabelSchema = z.object({
+	name: z.string().min(1),
+	color: z.string().regex(/^[0-9a-fA-F]{6}$/),
+	description: z.string().nullable(),
+});
+export type RepoLabel = z.infer<typeof repoLabelSchema>;
+
 export const storedReviewerSchema = z.preprocess(
 	(value) => (z.string().safeParse(value).success ? { login: value } : value),
 	reviewerRefSchema,
@@ -175,6 +184,25 @@ export const requestReviewParamsSchema = requestReviewTargetsSchema.superRefine(
 	},
 );
 
+export const labelParamsSchema = z.object({
+	labels: z.array(z.string().trim().min(1)).min(1, "choose at least one label"),
+});
+export type LabelParams = z.infer<typeof labelParamsSchema>;
+
+export const MAX_COMMENT_MESSAGE = 5000;
+
+export const postCommentParamsSchema = z.object({
+	message: z
+		.string()
+		.trim()
+		.min(1, "write a message")
+		.max(
+			MAX_COMMENT_MESSAGE,
+			`keep it under ${MAX_COMMENT_MESSAGE} characters`,
+		),
+});
+export type PostCommentParams = z.infer<typeof postCommentParamsSchema>;
+
 export const lockReasonSchema = z.enum([
 	"resolved",
 	"off-topic",
@@ -188,22 +216,54 @@ export const lockParamsSchema = z.object({
 });
 export type LockParams = z.infer<typeof lockParamsSchema>;
 
-export const scheduleEverySchema = z.enum(["1h", "6h", "12h", "24h"]);
+export const DURATION_UNIT_MS = {
+	hours: 60 * 60_000,
+	days: 24 * 60 * 60_000,
+	weeks: 7 * 24 * 60 * 60_000,
+	months: 30 * 24 * 60 * 60_000,
+} as const;
+export type DurationUnit = keyof typeof DURATION_UNIT_MS;
+
+export function durationMs(duration: {
+	n: number;
+	unit: DurationUnit;
+}): number {
+	return duration.n * DURATION_UNIT_MS[duration.unit];
+}
+
+export const MAX_SCHEDULE_EVERY_MS = 52 * DURATION_UNIT_MS.weeks;
+export const MAX_INACTIVE_FOR_MS = 3650 * DURATION_UNIT_MS.days;
+
+export const everyUnitSchema = z.enum(["hours", "days", "weeks"]);
+export type EveryUnit = z.infer<typeof everyUnitSchema>;
+export const inactiveUnitSchema = z.enum(["hours", "days", "weeks", "months"]);
+export type InactiveUnit = z.infer<typeof inactiveUnitSchema>;
+
+export const scheduleEverySchema = z
+	.object({ n: z.number().int().min(1), unit: everyUnitSchema })
+	.refine((every) => durationMs(every) <= MAX_SCHEDULE_EVERY_MS, {
+		message: "runs at least once a year",
+	});
 export type ScheduleEvery = z.infer<typeof scheduleEverySchema>;
 
-export const SCHEDULE_EVERY_MS = {
-	"1h": 60 * 60_000,
-	"6h": 6 * 60 * 60_000,
-	"12h": 12 * 60 * 60_000,
-	"24h": 24 * 60 * 60_000,
-} as const satisfies Record<ScheduleEvery, number>;
+export const inactiveForSchema = z
+	.object({ n: z.number().int().min(1), unit: inactiveUnitSchema })
+	.refine((inactive) => durationMs(inactive) <= MAX_INACTIVE_FOR_MS, {
+		message: "10 years at most",
+	});
+export type InactiveFor = z.infer<typeof inactiveForSchema>;
+
+export const scheduleStateSchema = z.enum(["open", "closed", "any"]);
+export type ScheduleState = z.infer<typeof scheduleStateSchema>;
+
+const labelListSchema = z.array(z.string().min(1));
 
 export const scheduleMatchConfigSchema = z.object({
 	subjects: z.array(threadSubjectSchema).min(1),
-	state: z.enum(["open", "closed", "any"]),
-	inactiveDays: z.number().int().min(1).max(3650).optional(),
-	labels: z.array(z.string().min(1)).optional(),
-	excludeLabels: z.array(z.string().min(1)).optional(),
+	state: scheduleStateSchema,
+	inactiveFor: inactiveForSchema,
+	labels: labelListSchema.optional(),
+	excludeLabels: labelListSchema.optional(),
 	skipLocked: z.boolean().default(true),
 });
 export type ScheduleMatchConfig = z.infer<typeof scheduleMatchConfigSchema>;
@@ -214,21 +274,60 @@ export const triggerScheduleSchema = z.object({
 });
 export type TriggerSchedule = z.infer<typeof triggerScheduleSchema>;
 
-export const DEFAULT_TRIGGER_SCHEDULE: TriggerSchedule = {
-	every: "12h",
-	match: {
-		subjects: ["issue", "change-request"],
-		state: "open",
-		inactiveDays: 15,
-		skipLocked: true,
-	},
+export const scheduleDraftSchema = z.object({
+	every: scheduleEverySchema.optional(),
+	match: z
+		.object({
+			subjects: z.array(threadSubjectSchema).optional(),
+			state: scheduleStateSchema.optional(),
+			inactiveFor: inactiveForSchema.optional(),
+			labels: labelListSchema.optional(),
+			excludeLabels: labelListSchema.optional(),
+			skipLocked: z.boolean().optional(),
+		})
+		.default({}),
+});
+export type ScheduleDraft = z.infer<typeof scheduleDraftSchema>;
+
+export const NEW_SCHEDULE_DRAFT: ScheduleDraft = {
+	match: { skipLocked: true },
 };
+
+export const SCHEDULE_STEPS = [
+	"every",
+	"subjects",
+	"state",
+	"inactiveFor",
+] as const;
+export type ScheduleStep = (typeof SCHEDULE_STEPS)[number];
+
+export function missingScheduleSteps(
+	draft: ScheduleDraft | undefined,
+): ScheduleStep[] {
+	return SCHEDULE_STEPS.filter((step) => {
+		if (!draft) {
+			return true;
+		}
+		if (step === "every") {
+			return draft.every === undefined;
+		}
+		const value = draft.match[step];
+		return Array.isArray(value) ? value.length === 0 : value === undefined;
+	});
+}
+
+export function completeSchedule(
+	draft: ScheduleDraft | undefined,
+): TriggerSchedule | null {
+	const parsed = triggerScheduleSchema.safeParse(draft);
+	return parsed.success ? parsed.data : null;
+}
 
 export const triggerNodeSchema = z.object({
 	id: z.string(),
 	type: z.literal("trigger"),
 	kinds: z.array(eventKindSchema).min(1),
-	schedule: triggerScheduleSchema.optional(),
+	schedule: scheduleDraftSchema.optional(),
 	position: nodePositionSchema.optional(),
 });
 
@@ -505,5 +604,16 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 		action: "close",
 		name: "Close",
 		description: "Closes the issue or change request.",
+	},
+	{
+		action: "remove-label",
+		name: "Remove label",
+		description: "Removes labels you choose, if they are there.",
+	},
+	{
+		action: "post-comment",
+		name: "Comment",
+		description:
+			"Posts a comment you write. It is separate from the verdict comment.",
 	},
 ];
