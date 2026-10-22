@@ -65,7 +65,14 @@ async function signUp(db: Db, auth: Auth, user: DevUserPlan): Promise<DevUser> {
 		userId: row.id,
 		reviewedBy: row.id,
 	});
-	return { id: row.id, session };
+	const approved = await auth.api.signInEmail({
+		body: { email: user.email, password: DEV_PASSWORD },
+		asResponse: true,
+	});
+	if (!approved.ok) {
+		throw new Error(`could not sign in ${user.email} (${approved.status})`);
+	}
+	return { id: row.id, session: approved };
 }
 
 async function targetOrg(
