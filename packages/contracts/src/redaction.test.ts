@@ -237,6 +237,19 @@ describe("redacted GitHub surfaces", () => {
 		expect(bare).not.toContain("<details>");
 	});
 
+	test("help hints at the problem type only while rule names show", () => {
+		const neutral = howDoIFix(REASONS, 6);
+		expect(render(policy(5))).toContain(howDoIFix(REASONS, 5));
+		expect(howDoIFix(REASONS, 5)).toContain("Some problems will not clear");
+		for (const level of [6, 7, 8]) {
+			expect(render(policy(level))).toContain(neutral);
+		}
+		expect(neutral).toContain("Push a new commit to run the checks again.");
+		expect(neutral).not.toContain("will not clear");
+		expect(neutral).not.toContain("fixes the problems");
+		expect(howDoIFix(REASONS.slice(2), 8)).toBe(neutral);
+	});
+
 	test("the comment surface can be left open", () => {
 		expect(render(policy(8, { surfaces: ["check"] }))).toBe(
 			render(OPEN_REDACTION),

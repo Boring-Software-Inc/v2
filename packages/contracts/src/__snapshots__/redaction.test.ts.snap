@@ -164,9 +164,9 @@ exports[`every redaction level: what lands on the change request level 6 1`] = `
 
 <details><summary>How do I fix this?</summary>
 
-Fix what you can and push. Some problems will not clear with a new commit.
+Push a new commit to run the checks again.
 
-If you think it should merge anyway, say so in a comment. A maintainer will decide.
+If you think this is wrong, say so in a comment. A maintainer will decide.
 </details>"
 ,
 }
@@ -185,9 +185,9 @@ exports[`every redaction level: what lands on the change request level 7 1`] = `
 
 <details><summary>How do I fix this?</summary>
 
-Fix what you can and push. Some problems will not clear with a new commit.
+Push a new commit to run the checks again.
 
-If you think it should merge anyway, say so in a comment. A maintainer will decide.
+If you think this is wrong, say so in a comment. A maintainer will decide.
 </details>"
 ,
 }
@@ -204,9 +204,9 @@ exports[`every redaction level: what lands on the change request level 8 1`] = `
 
 <details><summary>How do I fix this?</summary>
 
-Fix what you can and push. Some problems will not clear with a new commit.
+Push a new commit to run the checks again.
 
-If you think it should merge anyway, say so in a comment. A maintainer will decide.
+If you think this is wrong, say so in a comment. A maintainer will decide.
 </details>"
 ,
 }

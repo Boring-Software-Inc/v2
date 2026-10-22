@@ -160,11 +160,19 @@ const APPEAL_ANYWAY =
 const FIX_REVISE = `Push a commit that fixes the problems. Tripwire checks every push.\n\n${APPEAL_WRONG}`;
 const FIX_NONE = `A new commit will not fix this.\n\n${APPEAL_ANYWAY}`;
 const FIX_MIXED = `Fix what you can and push. Some problems will not clear with a new commit.\n\n${APPEAL_ANYWAY}`;
+const FIX_HIDDEN = `Push a new commit to run the checks again.\n\n${APPEAL_WRONG}`;
 
-export function howDoIFix(reasons: CommentReason[]): string {
+function fixBody(reasons: CommentReason[], level: number): string {
+	if (redactionHides(level, "rule-names")) {
+		return FIX_HIDDEN;
+	}
 	const anyRevise = reasons.some((r) => r.remedy === "revise");
 	const anyNonRevise = reasons.some((r) => r.remedy !== "revise");
-	const body = anyRevise ? (anyNonRevise ? FIX_MIXED : FIX_REVISE) : FIX_NONE;
+	return anyRevise ? (anyNonRevise ? FIX_MIXED : FIX_REVISE) : FIX_NONE;
+}
+
+export function howDoIFix(reasons: CommentReason[], level = 0): string {
+	const body = fixBody(reasons, level);
 	return `<details><summary>How do I fix this?</summary>\n\n${body}\n</details>`;
 }
 
@@ -327,7 +335,7 @@ function renderBody(
 		: "";
 	const help =
 		block && policy.showHelp && (!oneLiner || surface === "review")
-			? howDoIFix(input.reasons)
+			? howDoIFix(input.reasons, level)
 			: null;
 	return joinParagraphs([
 		headline,

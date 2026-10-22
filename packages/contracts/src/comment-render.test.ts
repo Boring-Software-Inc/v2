@@ -329,9 +329,8 @@ describe("how many items land on the change request", () => {
 		expect(sentences(p.review)).toEqual([
 			"@octocat, Tripwire blocked this change request.",
 			"How do I fix this?",
-			"Fix what you can and push.",
-			"Some problems will not clear with a new commit.",
-			"If you think it should merge anyway, say so in a comment.",
+			"Push a new commit to run the checks again.",
+			"If you think this is wrong, say so in a comment.",
 			"A maintainer will decide.",
 		]);
 		expect(p.review).toContain(BADGE);
