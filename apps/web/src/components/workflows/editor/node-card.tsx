@@ -23,8 +23,13 @@ import {
 import {
 	useCustomRuleName,
 	useEditField,
-	useNodeIssues,
+	useNodeProblems,
+	useProblems,
 } from "#/components/workflows/editor/node-issues";
+import {
+	ProblemPeek,
+	severityStatus,
+} from "#/components/workflows/editor/problems-list";
 import { stepName } from "#/components/workflows/editor/step-meta";
 import {
 	useDragPlan,
@@ -44,7 +49,7 @@ export type TripwireFlowNode = Node<{ node: WorkflowNode }, "tripwire">;
  * Body is the catalog name plus, for value-accepting nodes, inline field rows
  * summarizing the config the properties panel edits (same schema walk,
  * node-fields.ts; a row click opens the panel on that field). Selected = strong
- * line; invalid = fail mark with the issue list as its title. Handle ids are LOAD-BEARING:
+ * line; invalid = fail mark that previews its problems on hover. Handle ids are LOAD-BEARING:
  * `handleWhen` maps "fail" / "approve" / "deny" handle ids to edge `when`s —
  * the port blocks are appearance only, every id and type is unchanged.
  */
@@ -123,7 +128,9 @@ function dropState(
 
 export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 	const { node } = data;
-	const issues = useNodeIssues(node.id);
+	const problems = useNodeProblems(node.id);
+	const { onFix } = useProblems();
+	const status = problems.length > 0 ? severityStatus(problems) : null;
 	const editField = useEditField();
 	const customName = useCustomRuleName(node.type === "rule" ? node.ref : "");
 	const detail = nodeDetail(node);
@@ -146,16 +153,21 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				"relative w-56 rounded-panel border border-line-faint bg-paper px-3 py-2 text-text-1 transition-colors duration-(--dur-state)",
 				cornerPort && "min-h-16",
 				selected && "border-ink",
-				issues.length > 0 && !selected && "border-fail",
+				status === "fail" && !selected && "border-fail",
+				status === "warn" && !selected && "border-warn",
 			)}
 		>
-			{issues.length > 0 ? (
-				<span
+			{status ? (
+				<ProblemPeek
 					className="absolute -top-2 -right-2 flex rounded-pill bg-paper"
-					title={issues.join("\n")}
+					onFix={onFix}
+					problems={problems}
 				>
-					<StatusMark label={issues.join(". ")} status="fail" />
-				</span>
+					<StatusMark
+						label={problems.map((problem) => problem.message).join(". ")}
+						status={status}
+					/>
+				</ProblemPeek>
 			) : null}
 			{input ? (
 				<Handle

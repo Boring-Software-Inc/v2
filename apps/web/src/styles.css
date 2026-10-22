@@ -399,6 +399,19 @@ body {
 	stroke-dasharray: var(--space-1) var(--space-1);
 }
 
+.glaze .react-flow__edge-path[data-edge-problem="fail"] {
+	--edge-color: var(--fail);
+	stroke-dasharray: var(--space-2) var(--space-1);
+}
+
+.glaze .react-flow__edge-path[data-edge-problem="warn"] {
+	--edge-color: var(--warn);
+}
+
+.glaze .react-flow__edgelabel-renderer {
+	z-index: var(--z-raised);
+}
+
 .glaze .react-flow__edge.selected .react-flow__edge-path[data-edge-tone] {
 	stroke-width: calc(var(--focus-width) + var(--line-width));
 }

@@ -181,6 +181,20 @@ export interface CustomToolboxRule {
 export interface ToolboxConnect {
 	port: WorkflowPort;
 	pending: boolean;
+	insert?: boolean;
+}
+
+function connectRefusal(
+	connect: ToolboxConnect | null,
+	kind: ToolboxItem["kind"],
+): string | null {
+	if (!connect) {
+		return null;
+	}
+	if (connect.insert && kind !== "rule") {
+		return "Only a rule fits here";
+	}
+	return acceptReason(kind, connect.port);
 }
 
 export interface EditorSidebarProps {
@@ -356,7 +370,9 @@ function Toolbox({
 				<div className="flex shrink-0 items-center gap-2 border-line-faint border-b py-1 ps-3 pe-2">
 					<PortGlyph look={{ ...outputLook(connect.port), io: "out" }} />
 					<span className="min-w-0 flex-1 truncate type-label">
-						Connect from {WORKFLOW_PORT_LABELS[connect.port]}
+						{connect.insert
+							? "Insert a rule"
+							: `Connect from ${WORKFLOW_PORT_LABELS[connect.port]}`}
 					</span>
 					{connect.pending ? (
 						<Button
@@ -417,9 +433,7 @@ function Toolbox({
 											<ToolboxRow
 												disabled={readOnly}
 												item={item}
-												refusal={
-													connect ? acceptReason(item.kind, connect.port) : null
-												}
+												refusal={connectRefusal(connect, item.kind)}
 												picking={connect?.pending ?? false}
 												key={item.id}
 												onAdd={onAdd}

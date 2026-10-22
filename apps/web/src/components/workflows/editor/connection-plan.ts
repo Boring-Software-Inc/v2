@@ -1,4 +1,5 @@
 import type {
+	ConnectionHint,
 	WorkflowNode,
 	WorkflowNodeType,
 	WorkflowPort,
@@ -8,14 +9,21 @@ import type {
 import {
 	acceptedPortKinds,
 	acceptedPorts,
-	acceptReason,
 	edgePort,
 	outputPorts,
+	portHint,
+	stepDisplayName,
 	WORKFLOW_PORT_KIND,
 	WORKFLOW_PORT_KIND_LABELS,
 	WORKFLOW_PORT_LABELS,
 	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
+import {
+	getBezierPath,
+	getStraightPath,
+	Position,
+	type XYPosition,
+} from "@xyflow/react";
 import { handleWhen } from "#/lib/workflow-editor";
 
 export type PortShape = WorkflowPortKind | "any";
@@ -25,8 +33,13 @@ export interface PortLook {
 	tone: WorkflowPortTone;
 }
 
-export const SELF_REASON = "A step cannot connect to itself";
-export const NO_OUTPUTS_REASON = "This step has no outputs";
+export function selfHint(name: string): ConnectionHint {
+	return { rule: "cycle", message: `${name} cannot connect to itself` };
+}
+
+export function noOutputsHint(name: string): ConnectionHint {
+	return { rule: "no-outputs", message: `${name} has no outputs` };
+}
 
 export function portHandleId(port: WorkflowPort): string | null {
 	return port === "event" || port === "pass" ? null : port;
@@ -95,13 +108,13 @@ export interface DragOrigin {
 
 export interface HandleVerdict {
 	handleId: string | null;
-	reason: string | null;
+	reason: ConnectionHint | null;
 }
 
 export interface NodeVerdict {
 	origin: boolean;
 	handles: HandleVerdict[];
-	reason: string | null;
+	reason: ConnectionHint | null;
 }
 
 export interface DragPlan {
@@ -110,7 +123,10 @@ export interface DragPlan {
 	verdicts: ReadonlyMap<string, NodeVerdict>;
 }
 
-function nodeVerdict(handles: HandleVerdict[], empty: string): NodeVerdict {
+function nodeVerdict(
+	handles: HandleVerdict[],
+	empty: ConnectionHint | null,
+): NodeVerdict {
 	const open = handles.some((handle) => handle.reason === null);
 	return {
 		origin: false,
@@ -122,6 +138,7 @@ function nodeVerdict(handles: HandleVerdict[], empty: string): NodeVerdict {
 export function planDrag(
 	origin: DragOrigin,
 	nodes: readonly WorkflowNode[],
+	name: (node: WorkflowNode) => string = (node) => stepDisplayName(node),
 ): DragPlan | null {
 	const from = nodes.find((node) => node.id === origin.nodeId);
 	if (!from) {
@@ -132,35 +149,37 @@ export function planDrag(
 		const port = handlePort(from, origin.handleId);
 		for (const node of nodes) {
 			if (node.id === from.id) {
+				const self = selfHint(name(node));
 				verdicts.set(node.id, {
 					origin: true,
-					handles: [{ handleId: null, reason: SELF_REASON }],
-					reason: SELF_REASON,
+					handles: [{ handleId: null, reason: self }],
+					reason: self,
 				});
 				continue;
 			}
-			const reason = acceptReason(node.type, port);
-			verdicts.set(node.id, nodeVerdict([{ handleId: null, reason }], ""));
+			const reason = portHint(node, port, name(node));
+			verdicts.set(node.id, nodeVerdict([{ handleId: null, reason }], null));
 		}
 		return { direction: "out", port, verdicts };
 	}
 	for (const node of nodes) {
 		if (node.id === from.id) {
+			const self = selfHint(name(node));
 			verdicts.set(node.id, {
 				origin: true,
 				handles: outputPorts(node).map((port) => ({
 					handleId: portHandleId(port),
-					reason: SELF_REASON,
+					reason: self,
 				})),
-				reason: SELF_REASON,
+				reason: self,
 			});
 			continue;
 		}
 		const handles = outputPorts(node).map((port) => ({
 			handleId: portHandleId(port),
-			reason: acceptReason(from.type, port),
+			reason: portHint(from, port, name(from)),
 		}));
-		verdicts.set(node.id, nodeVerdict(handles, NO_OUTPUTS_REASON));
+		verdicts.set(node.id, nodeVerdict(handles, noOutputsHint(name(node))));
 	}
 	return { direction: "in", port: null, verdicts };
 }
@@ -168,7 +187,7 @@ export function planDrag(
 export function handleReason(
 	verdict: NodeVerdict | undefined,
 	handleId: string | null | undefined,
-): string | null {
+): ConnectionHint | null {
 	if (!verdict) {
 		return null;
 	}
@@ -176,4 +195,42 @@ export function handleReason(
 		(entry) => entry.handleId === (handleId ?? null),
 	);
 	return handle ? handle.reason : verdict.reason;
+}
+
+const STRAIGHT_BAND = 24;
+const PREVIEW_LEAD = 32;
+
+export function previewSides(
+	from: XYPosition,
+	to: XYPosition,
+): { sourcePosition: Position; targetPosition: Position } | null {
+	if (to.x >= from.x) {
+		return { sourcePosition: Position.Right, targetPosition: Position.Left };
+	}
+	if (Math.abs(to.y - from.y) < STRAIGHT_BAND) {
+		return null;
+	}
+	return {
+		sourcePosition: Position.Right,
+		targetPosition: to.y > from.y ? Position.Top : Position.Bottom,
+	};
+}
+
+export function previewPath(from: XYPosition, to: XYPosition): string {
+	const sides = previewSides(from, to);
+	const ends = {
+		sourceX: from.x,
+		sourceY: from.y,
+		targetX: to.x,
+		targetY: to.y,
+	};
+	if (!sides) {
+		return getStraightPath(ends)[0];
+	}
+	if (sides.targetPosition === Position.Left) {
+		return getBezierPath({ ...ends, ...sides })[0];
+	}
+	const lead = Math.min(PREVIEW_LEAD, from.x - to.x);
+	const bend = to.y - (to.y - from.y) / 2;
+	return `M${from.x},${from.y} C${from.x + lead},${from.y} ${to.x},${bend} ${to.x},${to.y}`;
 }

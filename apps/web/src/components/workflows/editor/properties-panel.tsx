@@ -123,7 +123,7 @@ function TriggerFields({
 		onUpdate({ ...node, kinds });
 	};
 	return (
-		<FieldSet className="gap-2" disabled={readOnly}>
+		<FieldSet className="gap-2" data-field="kinds" disabled={readOnly}>
 			<FieldLegend variant="label">
 				Runs on these events (pick at least one)
 			</FieldLegend>
@@ -448,7 +448,7 @@ function ReviewTargetFields({
 						?.description
 				}
 			</p>
-			<Field invalid={reviewerErrors.length > 0}>
+			<Field data-field="reviewers" invalid={reviewerErrors.length > 0}>
 				<FieldLabel>People (GitHub usernames, one per line)</FieldLabel>
 				<Textarea
 					defaultValue={reviewers.join("\n")}
@@ -460,7 +460,7 @@ function ReviewTargetFields({
 				/>
 				<FieldError errors={reviewerErrors} />
 			</Field>
-			<Field invalid={teamErrors.length > 0}>
+			<Field data-field="teamReviewers" invalid={teamErrors.length > 0}>
 				<FieldLabel>Teams (team slugs, one per line)</FieldLabel>
 				<Textarea
 					defaultValue={teamReviewers.join("\n")}

@@ -10,6 +10,10 @@ import {
 } from "@dnd-kit/core";
 import { useBlocker } from "@tanstack/react-router";
 import type {
+	EdgeWhen,
+	LintFix,
+	LintIntent,
+	LintResult,
 	ValidationIssue,
 	WorkflowDefinition,
 	WorkflowNode,
@@ -17,11 +21,15 @@ import type {
 } from "@tripwire/contracts";
 import {
 	acceptReason,
+	applyLintEdit,
 	connectionIssue,
 	customValidationEntries,
 	edgePort,
+	insertStep,
+	lintWorkflow,
+	openPosition,
 	RULE_CATALOG,
-	validateWorkflowForEnable,
+	stepDisplayName,
 	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
 import {
@@ -44,8 +52,6 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Icon, Pointer } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
 import {
 	Dialog,
 	DialogAction,
@@ -56,19 +62,12 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/glaze/ui/dialog";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemGroup,
-	ItemMedia,
-} from "#/components/glaze/ui/item";
-import { Status, StatusMark } from "#/components/glaze/ui/status";
 import { toast } from "#/components/glaze/ui/toast";
 import {
 	type DragOrigin,
 	handlePort,
 	planDrag,
+	portHandleId,
 } from "#/components/workflows/editor/connection-plan";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import {
@@ -83,8 +82,13 @@ import {
 import {
 	CustomRuleNamesContext,
 	EditFieldContext,
-	NodeIssuesContext,
+	groupProblems,
+	type Problem,
+	type ProblemsApi,
+	ProblemsContext,
+	problemCount,
 } from "#/components/workflows/editor/node-issues";
+import { ProblemsButton } from "#/components/workflows/editor/problems-list";
 import {
 	DragPlanContext,
 	DropHint,
@@ -95,9 +99,8 @@ import {
 } from "#/components/workflows/editor/typed-connections";
 import {
 	definitionToGraph,
-	type EditorEdge,
-	type EditorNode,
 	edgeWhenFields,
+	graphToCandidate,
 	graphToDefinition,
 	handleWhen,
 } from "#/lib/workflow-editor";
@@ -106,12 +109,48 @@ import "@xyflow/react/dist/style.css";
 const NODE_TYPES = { tripwire: TripwireNode };
 const EDGE_TYPES = { typed: TypedEdge };
 const INPUT_HANDLE_OFFSET = { x: 0, y: 17 };
+const NEXT_STEP_GAP = 96;
+const CARD_WIDTH = 224;
+
+type FlowEdge = Edge<{ when?: EdgeWhen; port?: WorkflowPort }>;
 
 export interface PendingConnect {
 	nodeId: string;
 	handleId: string | null;
 	port: WorkflowPort;
 	at: { x: number; y: number };
+	insert?: { edgeId: string };
+}
+
+function handlePoint(position: { x: number; y: number }) {
+	return {
+		x: position.x + INPUT_HANDLE_OFFSET.x,
+		y: position.y + INPUT_HANDLE_OFFSET.y,
+	};
+}
+
+function lintProblem(result: LintResult): Problem {
+	return {
+		key: `${result.rule}:${result.nodeId ?? ""}:${result.edgeId ?? ""}:${result.message}`,
+		rule: result.rule,
+		severity: result.severity,
+		message: result.message,
+		nodeId: result.nodeId,
+		edgeId: result.edgeId,
+		fixes: result.fixes,
+	};
+}
+
+function serverProblem(issue: ValidationIssue): Problem {
+	return {
+		key: `server:${issue.rule ?? ""}:${issue.nodeId ?? ""}:${issue.edgeId ?? ""}:${issue.message}`,
+		rule: issue.rule ?? null,
+		severity: issue.severity ?? "error",
+		message: issue.message,
+		nodeId: issue.nodeId,
+		edgeId: issue.edgeId,
+		fixes: issue.fixes ?? [],
+	};
 }
 
 function selectOrigin(
@@ -241,13 +280,18 @@ function EditorBody({
 	const [nodes, setNodes, onNodesStateChange] = useNodesState(
 		initial.nodes as TripwireFlowNode[],
 	);
-	const [edges, setEdges, onEdgesStateChange] = useEdgesState(
-		initial.edges as Edge[],
+	const [edges, setEdges, onEdgesStateChange] = useEdgesState<FlowEdge>(
+		initial.edges,
 	);
 	const [dirty, setDirty] = useState(false);
 	const [dragged, setDragged] = useState<ToolboxItem | null>(null);
-	const { getIntersectingNodes, screenToFlowPosition } =
-		useReactFlow<TripwireFlowNode>();
+	const { fitView, getIntersectingNodes, getZoom, screenToFlowPosition } =
+		useReactFlow<TripwireFlowNode, FlowEdge>();
+	const [problemsOpen, setProblemsOpen] = useState(false);
+	const [serverIssues, setServerIssues] = useState<{
+		against: readonly LintResult[];
+		issues: ValidationIssue[];
+	} | null>(null);
 	const [pending, setPending] = useState<PendingConnect | null>(null);
 	const reconnecting = useRef(false);
 	const leave = useBlocker({
@@ -261,7 +305,7 @@ function EditorBody({
 		edges: deletedEdges,
 	}: {
 		nodes: TripwireFlowNode[];
-		edges: Edge[];
+		edges: FlowEdge[];
 	}) => {
 		const before = { nodes, edges };
 		const stepCount = deletedNodes.length;
@@ -305,50 +349,59 @@ function EditorBody({
 		[customRules],
 	);
 
-	// ---- live validation (never save-blocking) ----------------------------
-	const validation = useMemo(() => {
-		if (nodes.length === 0) {
-			return { structuralError: null as string | null, issues: [] };
-		}
-		const result = graphToDefinition(
-			meta,
-			nodes as unknown as EditorNode[],
-			edges as unknown as EditorEdge[],
-		);
-		if (!result.ok) {
-			return { structuralError: result.error, issues: [] };
-		}
-		const checked = validateWorkflowForEnable(result.definition, enableCatalog);
-		return {
-			structuralError: null,
-			issues: checked.valid ? [] : checked.issues,
-		};
-	}, [nodes, edges, meta, enableCatalog]);
+	const stepName = useCallback(
+		(node: WorkflowNode) => stepDisplayName(node, enableCatalog),
+		[enableCatalog],
+	);
+
+	const lintResults = useMemo(
+		() =>
+			nodes.length === 0
+				? []
+				: lintWorkflow(graphToCandidate(meta, nodes, edges), {
+						catalog: enableCatalog,
+					}),
+		[nodes, edges, meta, enableCatalog],
+	);
 
 	const customRuleNames = useMemo(
 		() => new Map(customRules.map((rule) => [rule.ref, rule.name])),
 		[customRules],
 	);
-	const issuesByNode = useMemo(() => {
-		const map = new Map<string, string[]>();
-		for (const issue of validation.issues) {
-			if (issue.nodeId) {
-				map.set(issue.nodeId, [
-					...(map.get(issue.nodeId) ?? []),
-					issue.message,
-				]);
-			}
-		}
-		// Layer the last save's connection failures on top — same surface.
-		for (const [nodeId, messages] of connectionIssues) {
-			map.set(nodeId, [...(map.get(nodeId) ?? []), ...messages]);
-		}
-		return map;
-	}, [validation.issues, connectionIssues]);
 
-	const blockers: ValidationIssue[] = validation.structuralError
-		? [{ message: validation.structuralError }]
-		: validation.issues;
+	const problems = useMemo(() => {
+		const local = lintResults.map(lintProblem);
+		const delivery = [...connectionIssues].flatMap(([nodeId, messages]) =>
+			messages.map(
+				(message): Problem => ({
+					key: `delivery:${nodeId}:${message}`,
+					rule: "delivery",
+					severity: "warning",
+					message,
+					nodeId,
+					fixes: [
+						{
+							label: "Edit URL",
+							intent: { type: "focus-field", nodeId, field: "url" },
+						},
+					],
+				}),
+			),
+		);
+		const known = new Set(local.map((problem) => problem.message));
+		const server =
+			serverIssues?.against === lintResults
+				? serverIssues.issues
+						.filter((issue) => !known.has(issue.message))
+						.map(serverProblem)
+				: [];
+		return [...local, ...server, ...delivery].sort(
+			(a, b) =>
+				Number(a.severity === "warning") - Number(b.severity === "warning"),
+		);
+	}, [lintResults, connectionIssues, serverIssues]);
+
+	const blockers = problems.filter((problem) => problem.severity === "error");
 
 	// ---- graph mutations ---------------------------------------------------
 	const onNodesChange = useCallback(
@@ -366,7 +419,7 @@ function EditorBody({
 	);
 
 	const onEdgesChange = useCallback(
-		(changes: EdgeChange<Edge>[]) => {
+		(changes: EdgeChange<FlowEdge>[]) => {
 			onEdgesStateChange(changes);
 			if (changes.some((change) => change.type !== "select")) {
 				setDirty(true);
@@ -394,7 +447,7 @@ function EditorBody({
 	);
 
 	const onReconnect = useCallback(
-		(oldEdge: Edge, connection: Connection) => {
+		(oldEdge: FlowEdge, connection: Connection) => {
 			const when = handleWhen(connection.sourceHandle);
 			setEdges((current) =>
 				reconnectEdge(oldEdge, connection, current).map((edge) =>
@@ -446,6 +499,10 @@ function EditorBody({
 		[setNodes],
 	);
 
+	const clearSelection = useCallback(() => {
+		setNodes((current) => current.map((n) => ({ ...n, selected: false })));
+	}, [setNodes]);
+
 	const [fieldFocus, setFieldFocus] = useState<{
 		nodeId: string;
 		key: string;
@@ -480,8 +537,8 @@ function EditorBody({
 	const origin = useConnection(selectOrigin);
 	const workflowNodes = useMemo(() => nodes.map((n) => n.data.node), [nodes]);
 	const plan = useMemo(
-		() => (origin ? planDrag(origin, workflowNodes) : null),
-		[origin, workflowNodes],
+		() => (origin ? planDrag(origin, workflowNodes, stepName) : null),
+		[origin, workflowNodes, stepName],
 	);
 
 	const flowEdges = useMemo(() => {
@@ -564,6 +621,23 @@ function EditorBody({
 		return () => window.removeEventListener("keydown", onKey);
 	}, [pending]);
 
+	const currentDefinition = () => graphToCandidate(meta, nodes, edges);
+
+	const applyDefinition = (next: WorkflowDefinition, select?: string) => {
+		const graph = definitionToGraph(next);
+		const previous = new Map(nodes.map((node) => [node.id, node]));
+		setNodes(
+			graph.nodes.map((node): TripwireFlowNode => {
+				const before = previous.get(node.id);
+				return before
+					? { ...before, data: node.data, position: node.position }
+					: { ...node, selected: node.id === select };
+			}),
+		);
+		setEdges(graph.edges);
+		setDirty(true);
+	};
+
 	const connectPending = (item: ToolboxItem) => {
 		if (!pending) {
 			return;
@@ -573,10 +647,25 @@ function EditorBody({
 		if (!sourceExists || acceptReason(node.type, pending.port) !== null) {
 			return;
 		}
-		insertNode(node, {
+		const position = {
 			x: pending.at.x - INPUT_HANDLE_OFFSET.x,
 			y: pending.at.y - INPUT_HANDLE_OFFSET.y,
-		});
+		};
+		if (pending.insert) {
+			if (node.type !== "rule") {
+				return;
+			}
+			applyDefinition(
+				insertStep(currentDefinition(), pending.insert.edgeId, {
+					...node,
+					position,
+				}),
+				node.id,
+			);
+			setPending(null);
+			return;
+		}
+		insertNode(node, position);
 		onConnect({
 			source: pending.nodeId,
 			sourceHandle: pending.handleId,
@@ -586,15 +675,132 @@ function EditorBody({
 		setPending(null);
 	};
 
+	const revealIds = (ids: string[]) => {
+		const zoom = getZoom();
+		fitView({
+			...fitViewOptions(),
+			nodes: ids.map((id) => ({ id })),
+			duration: 200,
+			minZoom: zoom,
+			maxZoom: zoom,
+		});
+	};
+
+	const revealProblem = (problem: Problem) => {
+		const edge = problem.edgeId
+			? edges.find((entry) => entry.id === problem.edgeId)
+			: undefined;
+		if (edge) {
+			setNodes((current) => current.map((n) => ({ ...n, selected: false })));
+			setEdges((current) =>
+				current.map((entry) => ({ ...entry, selected: entry.id === edge.id })),
+			);
+			revealIds([edge.source, edge.target]);
+			return;
+		}
+		if (problem.nodeId) {
+			selectNode(problem.nodeId);
+			revealIds([problem.nodeId]);
+		}
+	};
+
+	const runIntent = (intent: LintIntent) => {
+		setProblemsOpen(false);
+		if (intent.type === "focus-field") {
+			editField(intent.nodeId, intent.field);
+			revealIds([intent.nodeId]);
+			return;
+		}
+		if (intent.type === "insert-step") {
+			const edge = edges.find((entry) => entry.id === intent.edgeId);
+			const source = nodes.find((node) => node.id === edge?.source);
+			const target = nodes.find((node) => node.id === edge?.target);
+			if (!(edge && source && target)) {
+				return;
+			}
+			clearSelection();
+			setPending({
+				nodeId: source.id,
+				handleId: edge.sourceHandle ?? null,
+				port: handlePort(source.data.node, edge.sourceHandle),
+				at: handlePoint(
+					openPosition(currentDefinition(), {
+						x: Math.round((source.position.x + target.position.x) / 2),
+						y: Math.round((source.position.y + target.position.y) / 2),
+					}),
+				),
+				insert: { edgeId: edge.id },
+			});
+			return;
+		}
+		const node = nodes.find((entry) => entry.id === intent.nodeId);
+		if (!node) {
+			return;
+		}
+		clearSelection();
+		setPending({
+			nodeId: node.id,
+			handleId: portHandleId(intent.port),
+			port: intent.port,
+			at: handlePoint(
+				openPosition(currentDefinition(), {
+					x:
+						node.position.x +
+						(node.measured?.width ?? CARD_WIDTH) +
+						NEXT_STEP_GAP,
+					y: node.position.y,
+				}),
+			),
+		});
+	};
+
+	const fixProblem = (_problem: Problem, fix: LintFix) => {
+		if ("intent" in fix) {
+			runIntent(fix.intent);
+			return;
+		}
+		const before = { nodes, edges };
+		applyDefinition(applyLintEdit(currentDefinition(), fix.edit));
+		const removal =
+			fix.edit.type === "delete-node"
+				? "Step deleted"
+				: fix.edit.type === "remove-edge" || fix.edit.type === "keep-one-input"
+					? "Connection deleted"
+					: null;
+		if (removal) {
+			toast(removal, {
+				action: {
+					label: "Undo",
+					onClick: () => {
+						setNodes(before.nodes);
+						setEdges(before.edges);
+					},
+				},
+			});
+		}
+	};
+
+	const problemHandlers = useRef({ fix: fixProblem, reveal: revealProblem });
+	problemHandlers.current = { fix: fixProblem, reveal: revealProblem };
+	const problemsApi = useMemo<ProblemsApi>(
+		() => ({
+			byNode: groupProblems(problems, "nodeId"),
+			byEdge: groupProblems(problems, "edgeId"),
+			onFix: (problem, fix) => problemHandlers.current.fix(problem, fix),
+			onReveal: (problem) => problemHandlers.current.reveal(problem),
+		}),
+		[problems],
+	);
+
 	const toolboxConnect = pending
-		? { port: pending.port, pending: true }
+		? {
+				port: pending.port,
+				pending: true,
+				insert: pending.insert !== undefined,
+			}
 		: plan?.direction === "out" && plan.port
 			? { port: plan.port, pending: false }
 			: null;
-
-	const clearSelection = useCallback(() => {
-		setNodes((current) => current.map((n) => ({ ...n, selected: false })));
-	}, [setNodes]);
 
 	const selectedFlowNodes = nodes.filter((n) => n.selected);
 	const selectedNode =
@@ -654,11 +860,7 @@ function EditorBody({
 
 	// ---- save ---------------------------------------------------------------
 	const handleSave = async () => {
-		const result = graphToDefinition(
-			meta,
-			nodes as unknown as EditorNode[],
-			edges as unknown as EditorEdge[],
-		);
+		const result = graphToDefinition(meta, nodes, edges);
 		if (!result.ok) {
 			toast.fail(result.error);
 			return;
@@ -709,8 +911,19 @@ function EditorBody({
 				result.enabled ? "Workflow turned on" : "Workflow turned off",
 			);
 		} else {
-			// server is authoritative — surface its issues verbatim.
-			toast.fail(result.issues.map((issue) => issue.message).join("; "));
+			setServerIssues({ against: lintResults, issues: result.issues });
+			const errors = result.issues.filter(
+				(issue) => (issue.severity ?? "error") === "error",
+			);
+			toast.fail(
+				`${problemCount(errors.map(serverProblem))} ${errors.length === 1 ? "keeps" : "keep"} the workflow off`,
+				{
+					action: {
+						label: "Show problems",
+						onClick: () => setProblemsOpen(true),
+					},
+				},
+			);
 		}
 	};
 
@@ -726,6 +939,7 @@ function EditorBody({
 				onRename={onRename}
 				onSave={handleSave}
 				onSetEnabled={handleSetEnabled}
+				onShowProblems={() => setProblemsOpen(true)}
 				org={org}
 				readOnly={readOnly}
 				repo={repo}
@@ -740,7 +954,7 @@ function EditorBody({
 			>
 				<CanvasDropzone>
 					<CustomRuleNamesContext.Provider value={customRuleNames}>
-						<NodeIssuesContext.Provider value={issuesByNode}>
+						<ProblemsContext.Provider value={problemsApi}>
 							<EditFieldContext.Provider value={editField}>
 								<DragPlanContext.Provider value={plan}>
 									<ReactFlow
@@ -788,7 +1002,7 @@ function EditorBody({
 									</ReactFlow>
 								</DragPlanContext.Provider>
 							</EditFieldContext.Provider>
-						</NodeIssuesContext.Provider>
+						</ProblemsContext.Provider>
 					</CustomRuleNamesContext.Provider>
 					<EditorSidebar
 						connect={toolboxConnect}
@@ -805,10 +1019,12 @@ function EditorBody({
 						readOnly={readOnly}
 						selectedNode={selectedNode}
 					/>
-					<IssuesPanel
-						issues={validation.issues}
-						onSelect={selectNode}
-						structuralError={validation.structuralError}
+					<ProblemsButton
+						onFix={fixProblem}
+						onOpenChange={setProblemsOpen}
+						onReveal={revealProblem}
+						open={problemsOpen}
+						problems={problems}
 					/>
 					{nodes.length === 0 ? (
 						<div className="pointer-events-none absolute inset-0 grid place-items-center">
@@ -858,74 +1074,6 @@ function EditorBody({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-		</div>
-	);
-}
-
-function IssuesPanel({
-	structuralError,
-	issues,
-	onSelect,
-}: {
-	structuralError: string | null;
-	issues: ValidationIssue[];
-	onSelect: (nodeId: string) => void;
-}) {
-	const [open, setOpen] = useState(false);
-	const count = issues.length + (structuralError ? 1 : 0);
-	if (count === 0) {
-		return null;
-	}
-	return (
-		<div className="absolute end-3 top-3 z-(--z-raised) flex flex-col items-end gap-2">
-			<div className="rounded-pill bg-fail-tint">
-				<Button
-					aria-expanded={open}
-					onClick={() => setOpen((value) => !value)}
-					size="sm"
-					variant="ghost"
-				>
-					<Status size="sm" status="fail">
-						{count === 1 ? "1 issue" : `${count} issues`}
-					</Status>
-				</Button>
-			</div>
-			{open ? (
-				<div className="overlay max-h-56 w-72 max-w-full overflow-y-auto py-1">
-					{structuralError ? (
-						<div className="px-2 py-1">
-							<Status status="fail">{structuralError}</Status>
-						</div>
-					) : null}
-					<ItemGroup aria-label="Issues" variant="plain">
-						{issues.map((issue) => (
-							<Item
-								key={`${issue.nodeId ?? issue.edgeId ?? "graph"}-${issue.message}`}
-								size="sm"
-							>
-								<ItemMedia>
-									<StatusMark label="Issue" status="fail" />
-								</ItemMedia>
-								<ItemContent>
-									<p className="type-body-sm">{issue.message}</p>
-								</ItemContent>
-								{issue.nodeId ? (
-									<ItemActions>
-										<Button
-											aria-label="Select the step with this issue"
-											onClick={() => issue.nodeId && onSelect(issue.nodeId)}
-											size="icon-sm"
-											variant="ghost"
-										>
-											<Icon icon={Pointer} />
-										</Button>
-									</ItemActions>
-								) : null}
-							</Item>
-						))}
-					</ItemGroup>
-				</div>
-			) : null}
 		</div>
 	);
 }

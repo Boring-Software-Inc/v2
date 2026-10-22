@@ -1,27 +1,43 @@
-import type { WorkflowPort } from "@tripwire/contracts";
+import type {
+	ConnectionHint,
+	EdgeWhen,
+	WorkflowPort,
+} from "@tripwire/contracts";
 import { WORKFLOW_PORT_KIND, WORKFLOW_PORT_TONE } from "@tripwire/contracts";
 import {
 	BaseEdge,
 	type ConnectionLineComponentProps,
 	type Edge,
+	EdgeLabelRenderer,
 	type EdgeProps,
 	getBezierPath,
-	Position,
 	useConnection,
 	useInternalNode,
 	useReactFlow,
+	useViewport,
 	ViewportPortal,
 } from "@xyflow/react";
 import { createContext, useContext } from "react";
-import { TooltipChip } from "#/components/glaze/ui/tooltip";
+import { StatusMark } from "#/components/glaze/ui/status";
+import { tooltipPopupClass } from "#/components/glaze/ui/tooltip";
 import {
 	type DragPlan,
 	handlePort,
 	handleReason,
 	type NodeVerdict,
 	type PortLook,
+	previewPath,
 } from "#/components/workflows/editor/connection-plan";
 import type { TripwireFlowNode } from "#/components/workflows/editor/node-card";
+import {
+	useEdgeProblems,
+	useProblems,
+} from "#/components/workflows/editor/node-issues";
+import {
+	ProblemPeek,
+	severityStatus,
+} from "#/components/workflows/editor/problems-list";
+import { cn } from "#/lib/glaze/utils";
 
 export const DragPlanContext = createContext<DragPlan | null>(null);
 
@@ -45,9 +61,13 @@ export function PortGlyph({ look }: { look: PortLook & { io: "in" | "out" } }) {
 	);
 }
 
-export type TypedFlowEdge = Edge<{ port: WorkflowPort }, "typed">;
+export type TypedFlowEdge = Edge<
+	{ port?: WorkflowPort; when?: EdgeWhen },
+	"typed"
+>;
 
 export function TypedEdge({
+	id,
 	sourceX,
 	sourceY,
 	sourcePosition,
@@ -67,22 +87,53 @@ export function TypedEdge({
 		targetPosition,
 	});
 	const port = data?.port ?? "pass";
+	const problems = useEdgeProblems(id);
+	const { onFix } = useProblems();
+	const status = problems.length > 0 ? severityStatus(problems) : null;
+	const place = {
+		transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+	};
 	return (
-		<BaseEdge
-			data-edge-kind={WORKFLOW_PORT_KIND[port]}
-			data-edge-tone={WORKFLOW_PORT_TONE[port]}
-			interactionWidth={interactionWidth}
-			label={label}
-			labelX={labelX}
-			labelY={labelY}
-			path={path}
-		/>
+		<>
+			<BaseEdge
+				data-edge-kind={WORKFLOW_PORT_KIND[port]}
+				data-edge-problem={status ?? undefined}
+				data-edge-tone={WORKFLOW_PORT_TONE[port]}
+				interactionWidth={interactionWidth}
+				path={path}
+			/>
+			{label || status ? (
+				<EdgeLabelRenderer>
+					<div
+						className={cn(
+							"absolute flex items-center gap-1 rounded-tag border bg-paper px-1 type-caption",
+							status === "fail"
+								? "border-fail text-fail-text"
+								: "border-line-faint text-text-2",
+							status && "nodrag nopan pointer-events-auto",
+						)}
+						data-edge-label=""
+						style={place}
+					>
+						{status ? (
+							<ProblemPeek className="flex" onFix={onFix} problems={problems}>
+								<StatusMark
+									label={problems.map((problem) => problem.message).join(". ")}
+									status={status}
+								/>
+							</ProblemPeek>
+						) : null}
+						{label}
+					</div>
+				</EdgeLabelRenderer>
+			) : null}
+		</>
 	);
 }
 
 interface DropTarget {
 	status: "valid" | "invalid" | null;
-	reason: string | null;
+	reason: ConnectionHint | null;
 	port: WorkflowPort | null;
 	at: { x: number; y: number };
 }
@@ -125,16 +176,19 @@ export function TypedConnectionLine({
 	toX,
 	toY,
 	toPosition,
+	toHandle,
 }: ConnectionLineComponentProps<TripwireFlowNode>) {
 	const target = useDropTarget();
-	const [path] = getBezierPath({
-		sourceX: fromX,
-		sourceY: fromY,
-		sourcePosition: fromPosition,
-		targetX: toX,
-		targetY: toY,
-		targetPosition: toPosition,
-	});
+	const path = toHandle
+		? getBezierPath({
+				sourceX: fromX,
+				sourceY: fromY,
+				sourcePosition: fromPosition,
+				targetX: toX,
+				targetY: toY,
+				targetPosition: toPosition,
+			})[0]
+		: previewPath({ x: fromX, y: fromY }, { x: toX, y: toY });
 	const port = target?.port ?? null;
 	return (
 		<path
@@ -150,22 +204,26 @@ export function TypedConnectionLine({
 
 export function DropHint() {
 	const target = useDropTarget();
+	const viewport = useViewport();
 	if (!target?.reason) {
 		return null;
 	}
 	const position = {
-		transform: `translate(${target.at.x}px, ${target.at.y}px)`,
+		transform: `translate(${target.at.x * viewport.zoom + viewport.x}px, ${target.at.y * viewport.zoom + viewport.y}px)`,
 	};
 	return (
-		<ViewportPortal>
-			<div
-				className="pointer-events-none absolute"
-				data-drop-hint=""
-				style={position}
-			>
-				<TooltipChip>{target.reason}</TooltipChip>
+		<div
+			className="pointer-events-none absolute start-0 top-0"
+			data-drop-hint=""
+			style={position}
+		>
+			<div className={tooltipPopupClass}>
+				<span className="shrink-0 whitespace-nowrap type-code-xs">
+					{target.reason.rule}
+				</span>
+				<span className="min-w-0">{target.reason.message}</span>
 			</div>
-		</ViewportPortal>
+		</div>
 	);
 }
 
@@ -185,19 +243,16 @@ export function PendingConnection({
 		(entry) => (entry.id ?? null) === handleId,
 	);
 	const marker = { transform: `translate(${at.x}px, ${at.y}px)` };
-	const [path] =
+	const path =
 		node && handle
-			? getBezierPath({
-					sourceX:
-						node.internals.positionAbsolute.x + handle.x + handle.width / 2,
-					sourceY:
-						node.internals.positionAbsolute.y + handle.y + handle.height / 2,
-					sourcePosition: Position.Right,
-					targetX: at.x,
-					targetY: at.y,
-					targetPosition: Position.Left,
-				})
-			: [null];
+			? previewPath(
+					{
+						x: node.internals.positionAbsolute.x + handle.x + handle.width / 2,
+						y: node.internals.positionAbsolute.y + handle.y + handle.height / 2,
+					},
+					at,
+				)
+			: null;
 	return (
 		<ViewportPortal>
 			{path ? (

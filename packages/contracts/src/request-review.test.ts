@@ -118,8 +118,16 @@ describe("request-review in workflow validation", () => {
 		const result = validateWorkflowForEnable(withReviewParams(undefined));
 		expect(result.valid).toBe(false);
 		expect(result.valid ? [] : result.issues).toContainEqual({
+			rule: "review-targets",
+			severity: "error",
 			nodeId: "a",
-			message: "Request GitHub review: add at least one person or team to ask",
+			message: "Request GitHub review asks no one",
+			fixes: [
+				{
+					label: "Add reviewers",
+					intent: { type: "focus-field", nodeId: "a", field: "reviewers" },
+				},
+			],
 		});
 	});
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { RULE_CATALOG, type RuleCatalogEntry, ruleIdOf } from "./rules.ts";
 import type { WorkflowDefinition } from "./workflow.ts";
-import type { ValidationCatalogEntry } from "./workflow-validate.ts";
+import type { ValidationCatalogEntry } from "./workflow-lint.ts";
 
 /** Whether a workflow definition contains a rule node for this rule id
  * (version-agnostic). The delete guard scans every workflow, enabled or
