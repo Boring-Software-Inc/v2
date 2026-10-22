@@ -8,7 +8,7 @@ import type { Db } from "./client.ts";
 import { events } from "./schema/events.ts";
 import { workflowDefinitions } from "./schema/repos.ts";
 import { ensureDemoRepo } from "./seed.ts";
-import { seedWorkflowCatalog } from "./seed-extras.ts";
+import { ensureDemoGithubAccount, seedWorkflowCatalog } from "./seed-extras.ts";
 import * as workflowServices from "./services/workflows.ts";
 
 export type DemoWorkflowMode = "none" | "off" | "live" | "issues";
@@ -152,9 +152,13 @@ export async function seedUnclaimedInstall(
 		installationId: string;
 		account: string;
 		repoNames: string[];
+		installerUserId: string | null;
 		now: Date;
 	},
 ): Promise<void> {
+	const senderId = input.installerUserId
+		? await ensureDemoGithubAccount(db, input.installerUserId)
+		: null;
 	for (const name of input.repoNames) {
 		await ensureDemoRepo(db, name, { installationId: input.installationId });
 	}
@@ -171,6 +175,7 @@ export async function seedUnclaimedInstall(
 					id: input.installationId,
 					account: { login: input.account },
 				},
+				sender: senderId ? { id: senderId } : null,
 			},
 			receivedAt: new Date(input.now.getTime() - 60 * 1000),
 			kind: "installation.created",

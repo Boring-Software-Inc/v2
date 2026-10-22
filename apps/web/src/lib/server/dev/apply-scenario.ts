@@ -183,7 +183,11 @@ export async function applyScenario(input: {
 				})
 			: [];
 	if (plan.unclaimed) {
-		await seedUnclaimedInstall(db, { ...plan.unclaimed, now });
+		await seedUnclaimedInstall(db, {
+			...plan.unclaimed,
+			installerUserId: user?.id ?? null,
+			now,
+		});
 	}
 	if (plan.approvedRequest && user) {
 		await seedApprovedInstallRequest(db, { userId: user.id, now });

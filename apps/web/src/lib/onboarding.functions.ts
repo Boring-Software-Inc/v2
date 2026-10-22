@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import type { Forge } from "@tripwire/contracts";
 import type {
 	ApprovedInstallRequest,
+	ClaimableInstallation,
+	InstallPreview,
 	OrgWithRole,
 	SwitcherRepo,
 } from "@tripwire/db";
@@ -11,7 +13,12 @@ import {
 	orgMemberMiddleware,
 } from "#/lib/server/org-guard";
 
-export type { ApprovedInstallRequest, SwitcherRepo };
+export type {
+	ApprovedInstallRequest,
+	ClaimableInstallation,
+	InstallPreview,
+	SwitcherRepo,
+};
 
 /**
  * Install targeting + org home (§10, org-model). The old user-onboarding
@@ -97,28 +104,14 @@ export const getOrgInstallUrl = createServerFn({ method: "GET" })
 		return installUrlFor(data.forge ?? "github", state);
 	});
 
-export interface InstallPreview {
-	installationId: string;
-	/** The forge the unclaimed repos live on (from the synced rows). */
-	forge: Forge;
-	/** Forge account the install/import is on, inferred from synced repos. */
-	account: string | null;
-	repoCount: number;
-	/** The org the signed state targets — null when state is absent/forged
-	 * or was initiated by a different user (§10: then it's a CLAIM, not a
-	 * confirmation). */
-	stateOrg: { id: string; slug: string; name: string } | null;
-	/** Whether this installation is already claimed (and by which slug when
-	 * the caller can see it). */
-	claimedByOrgSlug: string | null;
-}
-
 /**
  * What the setup-callback screen shows before anything is claimed: the
  * GitHub side (account + repo count, from repos the webhook already synced)
  * and the Tripwire side (the state's target org, when the state verifies AND
- * belongs to the signed-in caller). Session-gated only — the caller may not
- * be an admin of anything yet; claiming is a separate admin-gated act.
+ * belongs to the signed-in caller). Reveals nothing about an installation the
+ * caller did not install or request, and names the owning org only to its
+ * members. The caller may not be an admin of anything yet; claiming is a
+ * separate admin-gated act.
  */
 export const getInstallPreview = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware])
@@ -127,73 +120,22 @@ export const getInstallPreview = createServerFn({ method: "GET" })
 		const { requireSession } = await import("#/lib/server/session");
 		const userId = await requireSession();
 		const { getDb } = await import("#/lib/server/db");
-		const { orgServices, schema } = await import("@tripwire/db");
-		const { and, eq, isNull, sql } = await import("drizzle-orm");
-		const db = getDb().db;
-
-		const repoRows = await db
-			.select({
-				owner: schema.repos.owner,
-				forge: schema.repos.forge,
-				n: sql<number>`count(*)::int`,
-			})
-			.from(schema.repos)
-			.where(
-				and(
-					eq(schema.repos.installationId, data.installationId),
-					isNull(schema.repos.removedAt),
-				),
-			)
-			.groupBy(schema.repos.owner, schema.repos.forge);
-		const account = repoRows[0]?.owner ?? null;
-		const forge: Forge = repoRows[0]?.forge ?? "github";
-		const repoCount = repoRows.reduce((sum, r) => sum + r.n, 0);
-
-		let stateOrg: InstallPreview["stateOrg"] = null;
-		if (data.state && userId) {
-			const { verifyInstallState } = await import("#/lib/server/install-state");
-			const bound = verifyInstallState(data.state);
-			if (bound && bound.userId === userId) {
-				const orgRows = await db
-					.select({
-						id: schema.organization.id,
-						slug: schema.organization.slug,
-						name: schema.organization.name,
-					})
-					.from(schema.organization)
-					.where(eq(schema.organization.id, bound.orgId))
-					.limit(1);
-				stateOrg = orgRows[0] ?? null;
-			}
-		}
-
-		const ownerOrgId = await orgServices.getInstallationOrg(db, {
+		const { orgServices } = await import("@tripwire/db");
+		const { verifyInstallState } = await import("#/lib/server/install-state");
+		const bound = data.state ? verifyInstallState(data.state) : null;
+		return await orgServices.previewInstallation(getDb().db, {
+			userId,
 			installationId: data.installationId,
-			forge,
+			stateOrgId: bound && bound.userId === userId ? bound.orgId : null,
 		});
-		let claimedByOrgSlug: string | null = null;
-		if (ownerOrgId) {
-			const rows = await db
-				.select({ slug: schema.organization.slug })
-				.from(schema.organization)
-				.where(eq(schema.organization.id, ownerOrgId))
-				.limit(1);
-			claimedByOrgSlug = rows[0]?.slug ?? null;
-		}
-		return {
-			installationId: data.installationId,
-			forge,
-			account,
-			repoCount,
-			stateOrg,
-			claimedByOrgSlug,
-		};
 	});
 
 /**
  * Bind an installation to THIS org — the confirmation screen's confirm and
- * the claim screen's pick both land here. Admin-gated; idempotent; a second
- * org cannot steal a claim ((forge, installationId) unique).
+ * the claim screen's pick both land here. Admin-gated AND ownership-gated:
+ * the caller must have installed or requested the installation (the signed
+ * state is not proof of that). Idempotent; a second org cannot steal a claim
+ * ((forge, installationId) unique).
  */
 export const claimInstallation = createServerFn({ method: "POST" })
 	.middleware([accessGuardMiddleware, orgAdminMiddleware])
@@ -202,10 +144,24 @@ export const claimInstallation = createServerFn({ method: "POST" })
 	)
 	.handler(async ({ data, context }): Promise<{ claimed: boolean }> => {
 		const org = (context as { org: OrgWithRole }).org;
+		const { requireSession } = await import("#/lib/server/session");
+		const userId = await requireSession();
 		const { getDb } = await import("#/lib/server/db");
 		const { orgServices, schema } = await import("@tripwire/db");
 		const { and, eq, isNull } = await import("drizzle-orm");
 		const db = getDb().db;
+		const owned = userId
+			? await orgServices.userCanClaimInstallation(db, {
+					userId,
+					forge: data.forge,
+					installationId: data.installationId,
+				})
+			: false;
+		if (!owned) {
+			throw new Error(
+				"Only the account that installed Tripwire, or requested the install, can connect it.",
+			);
+		}
 		const owner = await db
 			.select({ owner: schema.repos.owner })
 			.from(schema.repos)
@@ -278,44 +234,26 @@ export const moveInstallationToOrg = createServerFn({ method: "POST" })
 		},
 	);
 
-export interface ClaimableInstallation {
-	installationId: string;
-	/** Which forge the unclaimed repos live on — drives "connect {forge}" copy
-	 * and is passed back on claim so the org binding hits the right rows. */
-	forge: Forge;
-	account: string | null;
-	repoCount: number;
-}
-
 /**
- * Unclaimed installations the webhook has already synced (repos with NULL
- * org_id). Recovery path for GitHub's id-less Setup callbacks: when the App
- * is ALREADY installed on the chosen account, GitHub bounces back with
+ * Unclaimed installations the signed-in user installed or requested.
+ * Recovery path for GitHub's id-less Setup callbacks: when the App is ALREADY
+ * installed on the chosen account, GitHub bounces back with
  * `setup_action=install` and a state but NO installation_id — the id must be
- * recovered from what the webhook delivered. Session-gated only; claiming
- * remains a separate admin-gated act.
+ * recovered from what the webhook delivered.
  */
 export const listClaimableInstallations = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware])
 	.handler(async (): Promise<ClaimableInstallation[]> => {
+		const { requireSession } = await import("#/lib/server/session");
+		const userId = await requireSession();
+		if (!userId) {
+			return [];
+		}
 		const { getDb } = await import("#/lib/server/db");
-		const { sql } = await import("drizzle-orm");
-		const result = await getDb().db.execute(sql`
-			SELECT r.installation_id AS "installationId",
-			       r.forge AS forge,
-			       min(r.owner) AS account,
-			       count(*)::int AS "repoCount"
-			FROM repos r
-			LEFT JOIN organization_installations oi
-			  ON oi.installation_id = r.installation_id AND oi.forge = r.forge
-			WHERE r.installation_id IS NOT NULL
-			  AND r.installation_id <> ''
-			  AND r.removed_at IS NULL
-			  AND oi.id IS NULL
-			GROUP BY r.installation_id, r.forge
-			ORDER BY min(r.installed_at) DESC
-		`);
-		return result.rows as unknown as ClaimableInstallation[];
+		const { orgServices } = await import("@tripwire/db");
+		return await orgServices.listClaimableInstallations(getDb().db, {
+			userId,
+		});
 	});
 
 export const listApprovedInstallRequests = createServerFn({ method: "GET" })

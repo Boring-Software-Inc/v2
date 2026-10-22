@@ -165,6 +165,11 @@ function SetupFlow({
 		queryFn: ({ signal }) =>
 			getInstallPreview({ data: { installationId, state }, signal }),
 		staleTime: 30_000,
+		refetchInterval: (query) =>
+			query.state.data?.claimable === false &&
+			query.state.data.claimedByOrgSlug === null
+				? 5000
+				: false,
 	});
 	const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -200,6 +205,18 @@ function SetupFlow({
 						{`Open ${preview.claimedByOrgSlug}`}
 					</Button>
 				</div>
+			</SetupShell>
+		);
+	}
+
+	if (!preview.claimable) {
+		return (
+			<SetupShell>
+				<SetupHeader
+					body={`Only the account that installed Tripwire, or requested the install, can connect it. If you installed it a moment ago, this page updates when ${forgeLabel(preview.forge)} confirms it.`}
+					title="Can't connect this installation"
+				/>
+				<BackHome />
 			</SetupShell>
 		);
 	}
