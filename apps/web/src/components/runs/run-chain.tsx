@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { CSSProperties } from "react";
+import { useState } from "react";
 import {
 	ArrowUpRight,
 	Comment,
@@ -21,6 +21,7 @@ import {
 	BranchRow,
 	PassedGroup,
 } from "#/components/runs/branch-card";
+import { BranchConnector } from "#/components/runs/branch-connector";
 import {
 	ChainMark,
 	ChainNode,
@@ -182,37 +183,6 @@ function StackedBranches({
 	);
 }
 
-const COLUMN_CENTERS = [
-	"calc(40px + (100% - 56px) / 4)",
-	"calc(56px + 3 * (100% - 56px) / 4)",
-];
-
-function Fork({ merge = false }: { merge?: boolean }) {
-	return (
-		<div aria-hidden className="relative hidden h-6 md:block">
-			{COLUMN_CENTERS.map((center) => (
-				<span
-					className="contents"
-					key={center}
-					style={{ "--fork-x": center } as CSSProperties}
-				>
-					{merge ? (
-						<>
-							<span className="absolute start-[calc(var(--fork-x)-8px)] top-0 h-2.5 w-2 rounded-ee-tag border-e border-b border-line" />
-							<span className="absolute start-3 top-2 bottom-0 w-[calc(var(--fork-x)-20px)] rounded-ss-tag border-s border-t border-line" />
-						</>
-					) : (
-						<>
-							<span className="absolute start-3 top-0 h-3.5 w-[calc(var(--fork-x)-20px)] rounded-es-tag border-s border-b border-line" />
-							<span className="absolute start-[calc(var(--fork-x)-8px)] top-3 bottom-0 w-2 rounded-se-tag border-e border-t border-line" />
-						</>
-					)}
-				</span>
-			))}
-		</div>
-	);
-}
-
 function SideBySide({
 	branches,
 	context,
@@ -222,27 +192,31 @@ function SideBySide({
 	context: BranchContext;
 	showOutcome: boolean;
 }) {
+	const [grid, setGrid] = useState<HTMLDivElement | null>(null);
 	return (
 		<li className="relative">
 			<span
 				aria-hidden
-				className="absolute inset-y-0 start-3 w-px bg-line md:hidden"
-			/>
-			<Fork />
-			<div className="grid gap-4 ps-10 pb-8 md:grid-cols-2 md:pb-0">
+				className="absolute inset-y-0 start-0 flex w-6 justify-center md:hidden"
+			>
+				<span className="w-px bg-line" />
+			</span>
+			<BranchConnector grid={grid} />
+			<div
+				className="relative grid gap-4 ps-10 pb-8 md:grid-cols-2 md:py-6"
+				ref={setGrid}
+			>
 				{branches.map((branch) => (
-					<div className="flex min-w-0 flex-col items-center" key={branch.id}>
+					<div className="min-w-0" key={branch.id}>
 						<BranchItem
 							branch={branch}
 							className="w-full"
 							context={context}
 							showOutcome={showOutcome}
 						/>
-						<span aria-hidden className="hidden w-px grow bg-line md:block" />
 					</div>
 				))}
 			</div>
-			<Fork merge />
 		</li>
 	);
 }
