@@ -1,3 +1,5 @@
+import { captureException } from "@sentry/node";
+import { isNotFound, isRedirect } from "@tanstack/react-router";
 import { createMiddleware, createStart } from "@tanstack/react-start";
 import { parseRunOgPath } from "#/lib/run-og";
 
@@ -77,6 +79,30 @@ const securityHeadersMiddleware = createMiddleware({ type: "request" }).server(
 	},
 );
 
+const sentryRequestMiddleware = createMiddleware({ type: "request" }).server(
+	async ({ next }) => {
+		try {
+			return await next();
+		} catch (error) {
+			captureException(error);
+			throw error;
+		}
+	},
+);
+
+const sentryFunctionMiddleware = createMiddleware({ type: "function" }).server(
+	async ({ next }) => {
+		try {
+			return await next();
+		} catch (error) {
+			if (!isRedirect(error) && !isNotFound(error)) {
+				captureException(error);
+			}
+			throw error;
+		}
+	},
+);
+
 const devLatencyMiddleware = createMiddleware({ type: "function" }).server(
 	async ({ next }) => {
 		if (import.meta.env.DEV) {
@@ -94,6 +120,12 @@ const devLatencyMiddleware = createMiddleware({ type: "function" }).server(
 );
 
 export const startInstance = createStart(() => ({
-	requestMiddleware: [securityHeadersMiddleware, authRequestMiddleware],
-	functionMiddleware: import.meta.env.DEV ? [devLatencyMiddleware] : [],
+	requestMiddleware: [
+		sentryRequestMiddleware,
+		securityHeadersMiddleware,
+		authRequestMiddleware,
+	],
+	functionMiddleware: import.meta.env.DEV
+		? [sentryFunctionMiddleware, devLatencyMiddleware]
+		: [sentryFunctionMiddleware],
 }));

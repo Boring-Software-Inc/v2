@@ -8,11 +8,12 @@
 	},
 	"types": "./src/index.ts",
 	"scripts": {
-		"dev": "bun --env-file=../../.env --watch src/index.ts",
+		"dev": "bun --env-file=../../.env --preload ./instrument.ts --watch src/index.ts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@openrouter/ai-sdk-provider": "^3.0.0",
+		"@sentry/bun": "^11.8.0",
 		"@tripwire/contracts": "workspace:*",
 		"@tripwire/core": "workspace:*",
 		"@tripwire/db": "workspace:*",

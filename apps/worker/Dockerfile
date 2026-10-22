@@ -38,4 +38,4 @@ COPY packages ./packages
 COPY apps/worker ./apps/worker
 # Liveness /healthz. Railway injects PORT; WORKER_HEALTH_PORT is the local default.
 EXPOSE 8181
-CMD ["bun", "run", "apps/worker/src/index.ts"]
+CMD ["bun", "--preload", "./apps/worker/instrument.ts", "apps/worker/src/index.ts"]

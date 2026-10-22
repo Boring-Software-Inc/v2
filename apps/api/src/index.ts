@@ -1,3 +1,4 @@
+import { captureException } from "@sentry/bun";
 import {
 	type Auth,
 	createAuth,
@@ -6,6 +7,7 @@ import {
 import { createBoss, createDb, createDirectPool } from "@tripwire/db";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { HTTPException } from "hono/http-exception";
 import pino from "pino";
 import type { ApiDeps, ApiEnv } from "./env.ts";
 import { stream } from "./routes/stream.ts";
@@ -20,6 +22,14 @@ export function createApi(deps: ApiDeps) {
 	app.use("*", async (c, next) => {
 		c.set("deps", deps);
 		await next();
+	});
+	app.onError((error, c) => {
+		if (error instanceof HTTPException) {
+			return error.getResponse();
+		}
+		deps.logger.error({ err: error }, "unhandled api error");
+		captureException(error);
+		return c.text("Internal Server Error", 500);
 	});
 	app.use("/events/*", cors({ origin: deps.webOrigin, allowMethods: ["GET"] }));
 	app.get("/healthz", (c) => c.json({ ok: true }));

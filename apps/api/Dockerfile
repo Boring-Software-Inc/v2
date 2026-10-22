@@ -38,4 +38,4 @@ COPY packages ./packages
 COPY apps/api ./apps/api
 # API_PORT default; Railway injects PORT and the entrypoint honors it (see env).
 EXPOSE 8787
-CMD ["bun", "run", "apps/api/src/index.ts"]
+CMD ["bun", "--preload", "./apps/api/instrument.ts", "apps/api/src/index.ts"]
