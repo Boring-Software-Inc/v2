@@ -45,6 +45,7 @@ export {
 	type UserInstallationAccess,
 	type UserInstallationRepo,
 } from "./client/installations.ts";
+export { listRepoLabels } from "./client/labels.ts";
 export { GithubReads, type GithubReadsOptions } from "./client/reads.ts";
 export { listRepoReviewers } from "./client/reviewers.ts";
 export { listThreads } from "./client/threads.ts";

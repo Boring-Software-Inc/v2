@@ -129,7 +129,20 @@ export type ForgeAction =
 			number: number;
 			reason?: LockReason;
 	  }
-	| { kind: "close"; repoFullName: string; number: number };
+	| { kind: "close"; repoFullName: string; number: number }
+	| {
+			kind: "remove-label";
+			repoFullName: string;
+			number: number;
+			labels: string[];
+	  }
+	| {
+			kind: "post-comment";
+			repoFullName: string;
+			number: number;
+			body: string;
+			marker: string;
+	  };
 
 export interface ThreadListQuery {
 	subjects: readonly ThreadSubject[];

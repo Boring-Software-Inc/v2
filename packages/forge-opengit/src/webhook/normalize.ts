@@ -1,6 +1,6 @@
 import {
-	COMMENT_MARKER,
 	type EventKind,
+	isTripwireComment,
 	type NormalizedEvent,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
@@ -200,7 +200,7 @@ export function normalizeWebhook(
 			subjectNumber: payload.pull_request.number,
 			// §7 — our own comments carry the run marker; skip them so tripwire
 			// does not moderate itself into a loop.
-			byTripwire: payload.comment.body.includes(COMMENT_MARKER),
+			byTripwire: isTripwireComment(payload.comment.body),
 		},
 	});
 }
