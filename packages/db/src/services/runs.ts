@@ -457,8 +457,11 @@ export async function listRunActions(
 /**
  * The latest run gating a change request (§6 comment ownership): runs are
  * per-event/SHA but the PR comment is per-PR, so only the latest run may own
- * the comment. Latest by creation time (UUIDv7 id breaks ties).
+ * the comment. Latest by creation time (UUIDv7 id breaks ties). Scheduled
+ * runs never own the PR surface, so they are left out here and below.
  */
+const notScheduled = sql`${events.kind} IS DISTINCT FROM 'schedule.matched'`;
+
 export async function getLatestRunIdForChangeRequest(
 	db: Db,
 	repoFullName: string,
@@ -467,10 +470,12 @@ export async function getLatestRunIdForChangeRequest(
 	const rows = await db
 		.select({ id: runs.id })
 		.from(runs)
+		.leftJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
 				eq(runs.repoFullName, repoFullName),
 				eq(runs.subjectNumber, subjectNumber),
+				notScheduled,
 			),
 		)
 		.orderBy(desc(runs.createdAt), desc(runs.id))
@@ -520,12 +525,14 @@ export async function getPreviousVerdict(
 	const rows = await db
 		.select({ verdict: runs.verdict })
 		.from(runs)
+		.leftJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
 				eq(runs.repoFullName, repoFullName),
 				eq(runs.subjectNumber, subjectNumber),
 				ne(runs.id, currentRunId),
 				isNotNull(runs.verdict),
+				notScheduled,
 			),
 		)
 		.orderBy(desc(runs.createdAt), desc(runs.id))
