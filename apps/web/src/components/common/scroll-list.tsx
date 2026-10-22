@@ -13,10 +13,7 @@ export function ScrollList({
 	return (
 		<section
 			aria-label={label}
-			className={cn(
-				"max-h-112 min-h-0 overflow-y-auto overscroll-contain",
-				className,
-			)}
+			className={cn("max-h-112 min-h-0 overflow-y-auto", className)}
 		>
 			{children}
 		</section>
