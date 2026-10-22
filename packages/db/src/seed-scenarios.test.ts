@@ -22,10 +22,10 @@ describe("demo scenario workflows", () => {
 	test("the broken workflow fails on its wiring", () => {
 		const messages = issueMessages(brokenWorkflowDefinition());
 		expect(messages).toContainEqual(
-			expect.stringContaining("Gates take results, not events"),
+			expect.stringContaining("takes rule results, not events"),
 		);
 		expect(messages).toContainEqual(
-			expect.stringContaining("Gates take only the Passes result"),
+			expect.stringContaining("takes only Passes"),
 		);
 	});
 
@@ -41,7 +41,7 @@ describe("demo scenario workflows", () => {
 		};
 		expect(validateWorkflow(rewired).valid).toBe(true);
 		expect(issueMessages(rewired)).toContainEqual(
-			expect.stringContaining("add at least one person or team"),
+			expect.stringContaining("asks no one"),
 		);
 	});
 });
