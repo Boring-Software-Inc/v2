@@ -7,11 +7,11 @@ import type {
 import { executeWorkflow } from "./executor.ts";
 
 const SCHEDULE = {
-	every: "12h" as const,
+	every: { n: 12, unit: "hours" as const },
 	match: {
 		subjects: ["issue" as const, "change-request" as const],
 		state: "any" as const,
-		inactiveDays: 15,
+		inactiveFor: { n: 15, unit: "days" as const },
 		skipLocked: true,
 	},
 };
@@ -31,7 +31,7 @@ const LOCKER: WorkflowDefinition = {
 			id: "weekly",
 			type: "trigger",
 			kinds: ["schedule.matched"],
-			schedule: { ...SCHEDULE, every: "24h" },
+			schedule: { ...SCHEDULE, every: { n: 1, unit: "weeks" } },
 		},
 		{
 			id: "lock",
