@@ -22,7 +22,7 @@ import {
 
 const DATA_DIR = join(process.cwd(), ".demo", "pgdata");
 // A fixed dev secret flips auth to "enabled" so the gates (onboarding, the
-// public-run stranger view) actually function and the persona switcher works.
+// public-run stranger view) actually function and the scenario switcher works.
 // ≥32 chars to satisfy better-auth's entropy check; local-only, never a real key.
 const DEV_SECRET = "tripwire-dev-demo-secret-not-for-production-use";
 
@@ -31,14 +31,14 @@ async function seed(): Promise<void> {
 	await applyPgliteMigrations(client);
 	await resetDemoData(db);
 	const now = new Date();
-	// The active dashboard story — the same repo the "active" persona uses, so
+	// The active dashboard story — the same repo the "active" preset uses, so
 	// auto-login lands straight on a populated dashboard.
 	const repo = await ensureDemoRepo(db, "active-webapp", {
 		installationId: "demo-inst-active",
 		private: false,
 	});
 	await seedStory(db, repo, now);
-	// A public repo + run so the "anonymous" persona (and any /runs/:id link)
+	// A public repo + run so the "anonymous" preset (and any /runs/:id link)
 	// shows the stranger's public view.
 	const pub = await ensureDemoRepo(db, "public-oss", { private: false });
 	await seedPublicRun(db, pub, now);

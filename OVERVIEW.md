@@ -120,10 +120,10 @@ migrations as production.
 it seeds a realistic story across all three verdicts and drops you on a full
 dashboard. re-running resets to the same clean state.
 
-a dev build also has a persona switcher, at the bottom left. it jumps between
-real product states: a fresh maintainer, one repo, many repos, an empty
-dashboard, and the anonymous stranger view. it is excluded from production
-builds at compile time.
+a dev build also has a scenario switcher, at the bottom left. it resets the
+demo data and seeds one product state: who you are, the install, the repos,
+the workflows and the page to open. it is excluded from production builds at
+compile time.
 
 ### the full stack
 

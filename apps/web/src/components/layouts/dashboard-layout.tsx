@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { FLAGS } from "@tripwire/auth/databuddy";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
-import { DevPersonaSwitcher } from "#/components/dev/persona-switcher";
+import { DevScenarioSwitcher } from "#/components/dev/dev-scenario-switcher";
 import {
 	FeedbackDialog,
 	FeedbackOverlay,
@@ -175,7 +175,7 @@ function DashboardShell({
 
 				<MobileFooter />
 				<CommandPaletteLauncher />
-				<DevPersonaSwitcher />
+				<DevScenarioSwitcher />
 			</div>
 			<OrgSettingsDialog />
 			<FeedbackOverlay />

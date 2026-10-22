@@ -36,6 +36,7 @@ export * from "./schema/index.ts";
 export {
 	DEMO_EMAIL_DOMAIN,
 	DEMO_OWNER,
+	DEMO_TEAM_SLUG,
 	ensureDemoRepo,
 	resetDemoData,
 	resetRepoData,
@@ -46,6 +47,7 @@ export {
 } from "./seed.ts";
 export {
 	ensureDemoTeammates,
+	ensureTeamOrg,
 	seedActivePersonaExtras,
 	seedApprovedInstallRequest,
 	seedEconomics,
@@ -54,6 +56,15 @@ export {
 	seedTeamOrg,
 	seedWorkflowCatalog,
 } from "./seed-extras.ts";
+export {
+	BROKEN_WORKFLOW_NAME,
+	brokenWorkflowDefinition,
+	type DemoWorkflowMode,
+	LIVE_WORKFLOW_NAME,
+	liveWorkflowDefinition,
+	seedDemoWorkflows,
+	seedUnclaimedInstall,
+} from "./seed-scenarios.ts";
 export * as accessServices from "./services/access.ts";
 export * as accountServices from "./services/accounts.ts";
 export type {

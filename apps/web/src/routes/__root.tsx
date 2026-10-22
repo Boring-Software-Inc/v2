@@ -49,10 +49,10 @@ export const Route = createRootRouteWithContext<{
 		if (session.authEnabled && !session.user) {
 			// No session anywhere ⇒ the login screen, in dev exactly as in prod.
 			// The §13 auto-login trampoline that used to silently mint
-			// DEFAULT_PERSONA on any gated route (and the /dev/auto-login
+			// DEFAULT_PRESET_ID on any gated route (and the /dev/auto-login
 			// carve-out that fed it) is gone: signed-out means /login, never a
-			// surprise persona. Dev personas stay opt-in — the panel on /login
-			// and the floating switcher POST /api/dev/login directly.
+			// surprise scenario. Dev scenarios stay opt-in — the panel on /login
+			// and the floating switcher POST /api/dev/scenario directly.
 			// Carry the destination so OAuth returns here, not the default page —
 			// "View on Tripwire" links and every shared deep link depend on it
 			// (login validates it as a same-site path and feeds it to callbackURL).

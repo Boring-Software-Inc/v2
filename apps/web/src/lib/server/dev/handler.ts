@@ -1,31 +1,25 @@
+import type { Auth } from "@tripwire/auth/server";
+import { type Db, orgServices, resetDemoData } from "@tripwire/db";
+import { z } from "zod";
 import {
-	type Db,
-	DEMO_EMAIL_DOMAIN,
-	ensureDemoRepo,
-	orgServices,
-	resetDemoData,
-	schema,
-	seedActivePersonaExtras,
-	seedPublicRun,
-	seedRepoExtras,
-	seedStory,
-} from "@tripwire/db";
-import { eq } from "drizzle-orm";
-import { getPersona, type PersonaId } from "#/lib/dev/personas";
+	DEV_LATENCY_COOKIE,
+	type DevScenario,
+	devLatencyMs,
+	devScenarioSchema,
+	getPreset,
+	normalizeScenario,
+} from "#/lib/dev/scenarios";
+import { applyScenario } from "./apply-scenario.ts";
 import { assertDevLoginAllowed } from "./guard.ts";
 
-/**
- * DEV persona endpoint (§13) — mounted at `/api/dev/*` by start.ts ONLY in a
- * dev build (`import.meta.env.DEV`), and refused for any non-loopback host. It
- * mints a REAL better-auth session (via email/password, bypassing OAuth — never
- * session verification) and auto-creates each persona's fixtures on demand
- * (spatie's create-missing-users, adapted to Tripwire's product states).
- */
+const scenarioBodySchema = z.object({
+	scenario: devScenarioSchema,
+	latency: z.number().int().min(0).optional(),
+});
 
-/** A fixed, well-known dev password — these accounts only exist locally. */
-const DEV_PASSWORD = "tripwire-dev-persona";
+const loginBodySchema = z.object({ persona: z.string() });
 
-function json(body: unknown, status = 200): Response {
+function json<T extends object>(body: T, status = 200): Response {
 	return new Response(JSON.stringify(body), {
 		status,
 		headers: { "content-type": "application/json" },
@@ -38,111 +32,77 @@ function copySetCookies(from: Response, to: Response): void {
 	}
 }
 
-type Auth = NonNullable<ReturnType<typeof import("#/lib/server/auth").getAuth>>;
+function latencyCookie(latency: number): string {
+	const ms = devLatencyMs(String(latency));
+	return ms > 0
+		? `${DEV_LATENCY_COOKIE}=${ms}; Path=/; SameSite=Lax`
+		: `${DEV_LATENCY_COOKIE}=; Path=/; SameSite=Lax; Max-Age=0`;
+}
 
-/**
- * Ensure the persona's user exists and return a Response carrying its session
- * cookie. Tries sign-in first; falls back to sign-up (create-missing-users).
- */
-async function mintSession(
-	auth: Auth,
-	email: string,
-	name: string,
-): Promise<Response> {
-	// With `asResponse`, a missing user is a non-ok 401 (not a throw), so check
-	// `ok` before falling back to sign-up — the returning path (user exists)
-	// short-circuits here.
+async function signOut(auth: Auth, request: Request): Promise<Response | null> {
+	return await auth.api
+		.signOut({ headers: request.headers, asResponse: true })
+		.catch(() => null);
+}
+
+async function readBody(request: Request): Promise<object | null> {
+	return await request.json().catch(() => null);
+}
+
+async function runScenario(input: {
+	db: Db;
+	auth: Auth;
+	request: Request;
+	scenario: DevScenario;
+	latency: number | undefined;
+}): Promise<Response> {
+	const scenario = normalizeScenario(input.scenario);
+	const signedOut =
+		scenario.account === "anonymous"
+			? await signOut(input.auth, input.request)
+			: null;
 	try {
-		const signIn = await auth.api.signInEmail({
-			body: { email, password: DEV_PASSWORD },
-			asResponse: true,
+		const applied = await applyScenario({
+			db: input.db,
+			auth: input.auth,
+			scenario,
+			now: new Date(),
 		});
-		if (signIn.ok) {
-			return signIn;
+		const res = json({ landing: applied.landing });
+		for (const source of [signedOut, applied.session]) {
+			if (source) {
+				copySetCookies(source, res);
+			}
 		}
-	} catch {
-		// fall through to sign-up
-	}
-	return await auth.api.signUpEmail({
-		body: { email, password: DEV_PASSWORD, name },
-		asResponse: true,
-	});
-}
-
-async function setupPersona(
-	db: Db,
-	persona: PersonaId,
-	userId: string,
-	name: string,
-	now: Date,
-): Promise<void> {
-	// Every persona owns a personal org (§org-model) — `/` redirects there.
-	const personalOrg = await orgServices.ensurePersonalOrg(db, {
-		userId,
-		name,
-	});
-	// Repos are created FIRST so the claim's org_id backfill catches them all;
-	// repos are reached by URL now — no active-repo pick.
-	const link = (installationId: string) =>
-		orgServices.linkOrgInstallation(db, {
-			orgId: personalOrg.id,
-			installationId,
-		});
-
-	if (persona === "fresh") {
-		return; // no installation — the org home shows the install CTA
-	}
-	if (persona === "one-repo") {
-		// A year-old repo — the org home is populated on land.
-		const repo = await ensureDemoRepo(db, "solo-webapp", {
-			installationId: "demo-inst-one",
-		});
-		await seedStory(db, repo, now);
-		await seedRepoExtras(db, repo.id);
-		await link("demo-inst-one");
-		return;
-	}
-	if (persona === "many-repos") {
-		// Several granted repos, each with real (if lighter) history, so opening
-		// any one lands on a populated dashboard.
-		for (const repoName of [
-			"many-api",
-			"many-web",
-			"many-docs",
-			"many-infra",
-		]) {
-			const repo = await ensureDemoRepo(db, repoName, {
-				installationId: "demo-inst-many",
-			});
-			await seedStory(db, repo, now, { days: 120 });
-			await seedRepoExtras(db, repo.id);
+		if (input.latency !== undefined) {
+			res.headers.append("set-cookie", latencyCookie(input.latency));
 		}
-		await link("demo-inst-many");
-		return;
-	}
-	if (persona === "empty") {
-		await ensureDemoRepo(db, "empty-repo", {
-			installationId: "demo-inst-empty",
-		});
-		await link("demo-inst-empty");
-		return;
-	}
-	if (persona === "active") {
-		const repo = await ensureDemoRepo(db, "active-webapp", {
-			installationId: "demo-inst-active",
-		});
-		await seedStory(db, repo, now);
-		await link("demo-inst-active");
-		await seedActivePersonaExtras(db, {
-			userId,
-			orgId: personalOrg.id,
-			repo,
-			now,
-		});
+		return res;
+	} catch (error) {
+		const message =
+			error instanceof Error ? error.message : "could not apply scenario";
+		return json({ error: message }, 500);
 	}
 }
 
-/** Handle a `/api/dev/*` request. Assumes the caller already confirmed DEV. */
+async function whoami(db: Db, auth: Auth, request: Request): Promise<Response> {
+	const session = await auth.api.getSession({ headers: request.headers });
+	if (!session) {
+		return json({ signedIn: false });
+	}
+	const orgs = await orgServices.listUserOrgs(db, session.user.id);
+	return json({
+		signedIn: true,
+		email: session.user.email,
+		name: session.user.name,
+		orgs: orgs.map((org) => ({
+			slug: org.slug,
+			name: org.name,
+			role: org.role,
+		})),
+	});
+}
+
 export async function handleDevRequest(request: Request): Promise<Response> {
 	assertDevLoginAllowed({
 		isDev: import.meta.env.DEV,
@@ -155,82 +115,69 @@ export async function handleDevRequest(request: Request): Promise<Response> {
 		return json(
 			{
 				error:
-					"Sign-in is turned off. Set BETTER_AUTH_SECRET to use the persona switcher.",
+					"Sign-in is turned off. Set BETTER_AUTH_SECRET to use dev scenarios.",
 			},
 			503,
 		);
 	}
 	const { getDb } = await import("#/lib/server/db");
 	const { db } = getDb();
-	const url = new URL(request.url);
-	const now = new Date();
+	const { pathname } = new URL(request.url);
 
-	if (url.pathname === "/api/dev/reset") {
-		await resetDemoData(db);
-		const out = await auth.api.signOut({
-			headers: request.headers,
-			asResponse: true,
-		});
+	if (pathname === "/api/dev/whoami") {
+		return await whoami(db, auth, request);
+	}
+	if (request.method !== "POST") {
+		return json({ error: "not found" }, 404);
+	}
+
+	if (pathname === "/api/dev/reset" || pathname === "/api/dev/logout") {
+		const out = await signOut(auth, request);
+		if (pathname === "/api/dev/reset") {
+			await resetDemoData(db);
+		}
 		const res = json({ ok: true });
-		copySetCookies(out, res);
+		if (out) {
+			copySetCookies(out, res);
+		}
 		return res;
 	}
 
-	if (url.pathname === "/api/dev/logout") {
-		const out = await auth.api.signOut({
-			headers: request.headers,
-			asResponse: true,
+	if (pathname === "/api/dev/scenario") {
+		const body = scenarioBodySchema.safeParse(await readBody(request));
+		if (!body.success) {
+			return json(
+				{ error: body.error.issues[0]?.message ?? "invalid scenario" },
+				400,
+			);
+		}
+		return await runScenario({
+			db,
+			auth,
+			request,
+			scenario: body.data.scenario,
+			latency: body.data.latency,
 		});
-		const res = json({ ok: true });
-		copySetCookies(out, res);
-		return res;
 	}
 
-	if (url.pathname === "/api/dev/login") {
-		const body = (await request.json().catch(() => ({}))) as {
-			persona?: string;
-		};
-		const persona = getPersona(body.persona ?? "");
-		if (!persona) {
-			return json({ error: `unknown persona: ${body.persona}` }, 400);
+	if (pathname === "/api/dev/login") {
+		const body = loginBodySchema.safeParse(await readBody(request));
+		const preset = body.success ? getPreset(body.data.persona) : undefined;
+		if (!preset) {
+			return json(
+				{
+					error: `unknown persona: ${body.success ? body.data.persona : "missing"}`,
+				},
+				400,
+			);
 		}
-
-		// Persona 6 — the stranger: sign OUT and open a seeded public run.
-		if (persona.id === "anonymous") {
-			const pub = await ensureDemoRepo(db, "public-oss", { private: false });
-			const runId = await seedPublicRun(db, pub, now);
-			const out = await auth.api
-				.signOut({ headers: request.headers, asResponse: true })
-				.catch(() => null);
-			const res = json({ landing: `/runs/${runId}` });
-			if (out) {
-				copySetCookies(out, res);
-			}
-			return res;
-		}
-
-		const email = `${persona.id}@${DEMO_EMAIL_DOMAIN}`;
-		const authRes = await mintSession(auth, email, persona.label);
-		const rows = await db
-			.select({ id: schema.user.id })
-			.from(schema.user)
-			.where(eq(schema.user.email, email));
-		const userId = rows[0]?.id;
-		if (!userId) {
-			return json({ error: "failed to establish dev session" }, 500);
-		}
-		// Dev personas are approved: the live Databuddy access-gate flag can be
-		// ON, and a pending persona would land on /queue instead of the product.
-		// This endpoint only exists in dev builds on loopback (guard.ts).
-		const { accessServices } = await import("@tripwire/db");
-		await accessServices.promoteUserAccess(db, {
-			userId,
-			reviewedBy: userId,
+		return await runScenario({
+			db,
+			auth,
+			request,
+			scenario: preset.scenario,
+			latency: preset.latency,
 		});
-		await setupPersona(db, persona.id, userId, persona.label, now);
-		const res = json({ landing: persona.landing });
-		copySetCookies(authRes, res);
-		return res;
 	}
 
 	return json({ error: "not found" }, 404);
