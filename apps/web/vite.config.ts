@@ -13,11 +13,15 @@ export default defineConfig({
 		tanstackStart(),
 		nitro({
 			compressPublicAssets: { gzip: true, brotli: true },
+			rollupConfig: { external: [/^@resvg\/resvg-js-/] },
 			routeRules: {
 				"/assets/**": {
 					headers: {
 						"cache-control": "public, max-age=31536000, immutable",
 					},
+				},
+				"/og.png": {
+					headers: { "cache-control": "public, max-age=86400" },
 				},
 				"/fonts/**": {
 					headers: {

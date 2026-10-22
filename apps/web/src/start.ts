@@ -1,4 +1,5 @@
 import { createMiddleware, createStart } from "@tanstack/react-start";
+import { parseRunOgPath } from "#/lib/run-og";
 
 /**
  * Better Auth is mounted HERE, as global request middleware — /api/auth is
@@ -16,6 +17,13 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 		if (import.meta.env.DEV && url.pathname.startsWith("/api/dev/")) {
 			const { handleDevRequest } = await import("#/lib/server/dev/handler");
 			return await handleDevRequest(request);
+		}
+		const runOg = parseRunOgPath(url.pathname);
+		if (runOg && (request.method === "GET" || request.method === "HEAD")) {
+			const { handleRunOgRequest } = await import(
+				"#/lib/server/og/run-og-handler"
+			);
+			return await handleRunOgRequest(runOg.runId, runOg.hash);
 		}
 		if (url.pathname === "/api/events/stream") {
 			const apiOrigin = process.env.VITE_API_URL ?? "http://localhost:8787";
