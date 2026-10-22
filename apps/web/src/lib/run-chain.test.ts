@@ -186,6 +186,68 @@ describe("buildRunChain, a blocked run with two workflows", () => {
 	});
 });
 
+describe("outcome offset", () => {
+	test("a run waiting for review reads from when the review opened", () => {
+		const chain = buildRunChain(
+			view({
+				status: "paused",
+				verdict: "needs_review",
+				completedAt: null,
+				reviews: [
+					{
+						workflowId: "wf-solar",
+						state: "open",
+						degraded: false,
+						openedAt: "2026-10-21T14:24:07.000Z",
+						decidedAt: null,
+						decidedBy: null,
+					},
+				],
+			}),
+		);
+		expect(chain.outcome.title).toBe("Waiting for human review");
+		expect(chain.outcome.offsetMs).toBe(22 * 60_000);
+	});
+
+	test("a run that did not finish reads from its last step", () => {
+		const chain = buildRunChain(
+			view({
+				status: "failed",
+				verdict: null,
+				completedAt: null,
+				reviews: [],
+				steps: [
+					rule(
+						"default@1:spam",
+						"spam-forks@1",
+						"pass",
+						null,
+						"2026-10-21T14:02:08.000Z",
+					),
+				],
+			}),
+		);
+		expect(chain.outcome.title).toBe("Did not finish");
+		expect(chain.outcome.offsetMs).toBe(1001);
+	});
+
+	test("a waiting run keeps its offset when redaction hides the steps", () => {
+		for (const level of [0, 6, 7, 8]) {
+			const chain = buildRunChain(
+				toPublicRunView(
+					view({
+						status: "paused",
+						verdict: "needs_review",
+						completedAt: null,
+					}),
+					level,
+				),
+			);
+			expect(chain.outcome.offsetMs).toBe(0);
+		}
+	});
+});
+
 describe("branch grouping", () => {
 	const passing = (id: string, name: string): RunWorkflowView => ({
 		id,
@@ -479,6 +541,7 @@ describe("redaction", () => {
 		const chain = buildRunChain(toPublicRunView(view(), 7));
 		expect(chain.checks?.title).toBe("2 rules did not pass");
 		expect(chain.checks?.body).toEqual({ kind: "none" });
+		expect(chain.outcome.openReview).toEqual({ name: null });
 	});
 
 	test("level 8 goes straight from the event to the outcome", () => {

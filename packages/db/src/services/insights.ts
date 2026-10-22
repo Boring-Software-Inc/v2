@@ -13,34 +13,45 @@ import { runSteps, runs } from "../schema/runs.ts";
  */
 
 export async function computeDailyRollups(db: Db, day: string): Promise<void> {
+	await computeRollupsBetween(db, day, day);
+}
+
+export async function computeRollupsBetween(
+	db: Db,
+	fromDay: string,
+	toDay: string,
+): Promise<void> {
 	await db.execute(sql`
 		INSERT INTO rollups_daily (id, repo_id, day, events, runs, passed, blocked, sent_to_review)
 		SELECT
-			${generateId()} || substr(md5(r.id), 1, 8),
+			${generateId()} || substr(md5(r.id || d.day::text), 1, 16),
 			r.id,
-			${day}::date,
+			d.day,
 			COALESCE(e.n, 0),
 			COALESCE(x.n, 0),
 			COALESCE(x.passed, 0),
 			COALESCE(x.blocked, 0),
 			COALESCE(x.review, 0)
 		FROM repos r
+		CROSS JOIN (
+			SELECT generate_series(${fromDay}::date, ${toDay}::date, interval '1 day')::date AS day
+		) d
 		LEFT JOIN (
-			SELECT repo_full_name, count(*)::int AS n
+			SELECT repo_full_name, received_at::date AS day, count(*)::int AS n
 			FROM events
-			WHERE received_at::date = ${day}::date
-			GROUP BY repo_full_name
-		) e ON e.repo_full_name = r.full_name
+			WHERE received_at::date BETWEEN ${fromDay}::date AND ${toDay}::date
+			GROUP BY repo_full_name, received_at::date
+		) e ON e.repo_full_name = r.full_name AND e.day = d.day
 		LEFT JOIN (
-			SELECT repo_full_name,
+			SELECT repo_full_name, created_at::date AS day,
 				count(*)::int AS n,
 				count(*) FILTER (WHERE verdict = 'pass')::int AS passed,
 				count(*) FILTER (WHERE verdict = 'block')::int AS blocked,
 				count(*) FILTER (WHERE verdict = 'needs_review')::int AS review
 			FROM runs
-			WHERE created_at::date = ${day}::date
-			GROUP BY repo_full_name
-		) x ON x.repo_full_name = r.full_name
+			WHERE created_at::date BETWEEN ${fromDay}::date AND ${toDay}::date
+			GROUP BY repo_full_name, created_at::date
+		) x ON x.repo_full_name = r.full_name AND x.day = d.day
 		ON CONFLICT (repo_id, day) DO UPDATE SET
 			events = EXCLUDED.events,
 			runs = EXCLUDED.runs,

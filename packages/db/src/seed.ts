@@ -7,7 +7,8 @@ import {
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { sql } from "drizzle-orm";
+import { getTableColumns, getTableName, sql } from "drizzle-orm";
+import type { PgTable } from "drizzle-orm/pg-core";
 import type { Db } from "./client.ts";
 import { events } from "./schema/events.ts";
 import { moderationItems } from "./schema/moderation.ts";
@@ -766,16 +767,51 @@ function mulberry32(seed: number): () => number {
 	};
 }
 
-async function bulkInsert<T>(
+async function bulkInsert(
 	db: Db,
-	table: Parameters<Db["insert"]>[0],
-	rows: T[],
+	table: PgTable,
+	rows: readonly object[],
 ): Promise<void> {
-	for (let i = 0; i < rows.length; i += 400) {
-		const chunk = rows.slice(i, i + 400);
-		if (chunk.length > 0) {
-			// biome-ignore lint/suspicious/noExplicitAny: heterogeneous insert tables
-			await db.insert(table).values(chunk as any);
+	const columns = getTableColumns(table);
+	const groups = new Map<string, object[]>();
+	for (const row of rows) {
+		const keys = Object.keys(row).sort().join(",");
+		const group = groups.get(keys);
+		if (group) {
+			group.push(row);
+		} else {
+			groups.set(keys, [row]);
+		}
+	}
+	const tableName = sql.identifier(getTableName(table));
+	for (const [keys, group] of groups) {
+		const names = keys.split(",").map((key) => {
+			const column = columns[key];
+			if (!column) {
+				throw new Error(`${getTableName(table)} has no column ${key}`);
+			}
+			return column.name;
+		});
+		const columnList = sql.join(
+			names.map((name) => sql.identifier(name)),
+			sql`, `,
+		);
+		for (let i = 0; i < group.length; i += 2000) {
+			const payload = group
+				.slice(i, i + 2000)
+				.map((row) =>
+					Object.fromEntries(
+						Object.entries(row).map(([key, value]) => [
+							columns[key]?.name ?? key,
+							value,
+						]),
+					),
+				);
+			await db.execute(sql`
+				INSERT INTO ${tableName} (${columnList})
+				SELECT ${columnList}
+				FROM jsonb_populate_recordset(null::${tableName}, ${JSON.stringify(payload)}::jsonb)
+			`);
 		}
 	}
 }
@@ -1135,12 +1171,11 @@ export async function seedStory(
 	}
 
 	// Daily rollups across the whole window — analytics history.
-	for (let d = 0; d < days; d++) {
-		await insightServices.computeDailyRollups(
-			db,
-			isoDay(new Date(startOfToday.getTime() - d * DAY)),
-		);
-	}
+	await insightServices.computeRollupsBetween(
+		db,
+		isoDay(new Date(startOfToday.getTime() - (days - 1) * DAY)),
+		isoDay(startOfToday),
+	);
 }
 
 /** A single public (non-private) run a stranger can read — persona 6. */

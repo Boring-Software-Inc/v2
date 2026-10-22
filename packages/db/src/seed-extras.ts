@@ -342,8 +342,11 @@ export async function seedRollups(
 	db: Db,
 	input: { now: Date; days: number },
 ): Promise<void> {
-	for (const day of daysBack(input.now, input.days)) {
-		await insightServices.computeDailyRollups(db, day);
+	const days = daysBack(input.now, input.days);
+	const newest = days[0];
+	const oldest = days.at(-1);
+	if (newest && oldest) {
+		await insightServices.computeRollupsBetween(db, oldest, newest);
 	}
 }
 

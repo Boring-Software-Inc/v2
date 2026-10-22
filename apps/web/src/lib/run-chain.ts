@@ -538,8 +538,31 @@ function workflowNameById(run: RunView, id: string | null): string | null {
 	return run.workflows.find((workflow) => workflow.id === id)?.name ?? null;
 }
 
+function latest(times: readonly string[]): string | null {
+	return times.reduce<string | null>(
+		(last, at) =>
+			last === null || Date.parse(at) > Date.parse(last) ? at : last,
+		null,
+	);
+}
+
+function outcomeReachedAt(run: RunView): string | null {
+	if (run.completedAt) {
+		return run.completedAt;
+	}
+	const opened = latest(run.reviews.map((review) => review.openedAt));
+	if (opened) {
+		return opened;
+	}
+	return latest(
+		run.steps.map((step) =>
+			new Date(Date.parse(step.startedAt) + step.durationMs).toISOString(),
+		),
+	);
+}
+
 function verdictOutcome(run: RunView): ChainOutcome {
-	const offsetMs = offsetBetween(run.createdAt, run.completedAt);
+	const offsetMs = offsetBetween(run.createdAt, outcomeReachedAt(run));
 	const base = {
 		at: null,
 		offsetMs,
