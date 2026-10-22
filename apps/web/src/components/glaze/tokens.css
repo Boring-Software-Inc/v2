@@ -203,6 +203,7 @@
   --dur-spin: 800ms; /* one turn of the pending arc, a loop | button pending, spinner */
   --dur-slide: 200ms; /* a selection mark sliding to its new place: the segmented thumb, the pill tab | segmented control, tabs */
   --dur-step: 300ms;
+  --step-thumb-fill: #ffffff;
   --dur-sweep: 1400ms; /* one pass of the indeterminate segment along a progress track, the other loop | progress indeterminate */
   --wait-show: 150ms; /* how long a load waits before its skeleton or dim shows, so a fast answer never flashes | skeleton swap */
   --wait-hold: 400ms; /* how long a skeleton stays once it shows, so it never blinks | skeleton swap */

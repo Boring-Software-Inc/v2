@@ -136,8 +136,9 @@ function StepSlider({
           <SliderPrimitive.Indicator
             data-slot="step-slider-range"
             className={cn(
-              'glaze-sm glaze-sm-x relative box-content h-full overflow-hidden rounded-pill pe-[calc(var(--step-thumb)/2)] select-none',
-              'transition-[width] duration-(--dur-step) ease-(--ease-step)',
+              'glaze-sm glaze-sm-x relative h-full overflow-hidden rounded-s-pill rounded-e-none select-none',
+              'transition-[width,opacity] duration-(--dur-step) ease-(--ease-step)',
+              index === 0 && 'opacity-0',
               'data-disabled:bg-text-disabled! data-disabled:bg-none!',
             )}
           >
@@ -179,11 +180,9 @@ function StepSlider({
             <span
               aria-hidden
               className={cn(
-                'glass glass-paper relative block size-full rounded-pill',
+                'relative block size-full rounded-pill bg-(--step-thumb-fill)',
                 'transition-[scale] duration-(--dur-state) ease-out group-data-dragging/thumb:scale-[0.94]',
-                'before:absolute before:-inset-1.5 before:rounded-pill before:transition-[background-color] before:duration-(--dur-state) before:ease-out',
-                'group-hover/thumb:not-group-data-disabled/thumb:before:bg-hover group-data-dragging/thumb:before:bg-pressed',
-                'group-has-focus-visible/thumb:focus-ring',
+                'group-has-focus-visible/thumb:focus-ring group-data-disabled/thumb:bg-text-disabled',
               )}
             />
           </SliderPrimitive.Thumb>
