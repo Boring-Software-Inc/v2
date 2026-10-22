@@ -87,7 +87,7 @@ function OrgAnalyticsBody({
 				<Count value={summary.armedRepos} /> of <Count value={summary.repos} />{" "}
 				repos have Tripwire on. In the last 24 hours Tripwire recorded{" "}
 				<Count value={summary.events24h} /> events and blocked{" "}
-				<Count value={summary.blocked24h} />. Waiting for review:{" "}
+				<Count value={summary.blocked24h} />. Waiting for human review:{" "}
 				<Count value={summary.pendingModeration} />.
 			</p>
 			{atRest ? (

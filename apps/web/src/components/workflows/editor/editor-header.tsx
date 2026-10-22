@@ -1,26 +1,19 @@
 import { Link } from "@tanstack/react-router";
-import type { ValidationIssue, WorkflowDefinition } from "@tripwire/contracts";
+import type { WorkflowDefinition } from "@tripwire/contracts";
 import { useState } from "react";
 import { ArrowLeft, Edit, Icon } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import { Input } from "#/components/glaze/ui/input";
-import {
-	Popover,
-	PopoverContent,
-	PopoverHeader,
-	PopoverTitle,
-	PopoverTrigger,
-} from "#/components/glaze/ui/popover";
-import { StatusMark } from "#/components/glaze/ui/status";
 import { toast } from "#/components/glaze/ui/toast";
 import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
+import type { Problem } from "#/components/workflows/editor/node-issues";
 import type { CustomRuleDisplay } from "#/lib/workflow-markdown";
 
 /**
  * Slim editor header — back link, inline-editable name, enabled badge +
- * enable/disable, save. Enabling with live issues never hits the server:
- * the button opens the why-not list instead.
+ * enable/disable, save. Enabling with live errors never hits the server:
+ * the button opens the Problems list instead.
  */
 
 export interface EditorHeaderProps {
@@ -37,8 +30,9 @@ export interface EditorHeaderProps {
 	saving: boolean;
 	toggling: boolean;
 	zeroNodes: boolean;
-	blockers: ValidationIssue[];
+	blockers: readonly Problem[];
 	onSave: () => void;
+	onShowProblems: () => void;
 	onRename: (name: string) => Promise<{ ok: boolean; error?: string }>;
 	onSetEnabled: (enabled: boolean) => void;
 }
@@ -59,10 +53,9 @@ export function EditorHeader({
 	onSave,
 	onRename,
 	onSetEnabled,
+	onShowProblems,
 }: EditorHeaderProps) {
-	const [whyOpen, setWhyOpen] = useState(false);
 	const [renaming, setRenaming] = useState(false);
-	const blocked = !enabled && blockers.length > 0;
 
 	const commitName = async (next: string) => {
 		const trimmed = next.trim();
@@ -87,6 +80,7 @@ export function EditorHeader({
 			return;
 		}
 		if (blockers.length > 0) {
+			onShowProblems();
 			return;
 		}
 		onSetEnabled(true);
@@ -154,43 +148,14 @@ export function EditorHeader({
 					<Badge variant="outline">Read only</Badge>
 				) : (
 					<>
-						<Popover
-							onOpenChange={(next) => setWhyOpen(next && blocked)}
-							open={whyOpen && blocked}
+						<Button
+							onClick={handleToggle}
+							pending={toggling}
+							size="sm"
+							variant="secondary"
 						>
-							<PopoverTrigger
-								render={
-									<Button
-										onClick={handleToggle}
-										pending={toggling}
-										size="sm"
-										variant="secondary"
-									/>
-								}
-							>
-								{enabled ? "Turn off workflow" : "Turn on workflow"}
-							</PopoverTrigger>
-							<PopoverContent align="end">
-								<PopoverHeader>
-									<PopoverTitle>Fix these to turn the workflow on</PopoverTitle>
-								</PopoverHeader>
-								<ul className="flex flex-col gap-1">
-									{blockers.map((issue) => (
-										<li
-											className="flex items-start gap-1 type-body-sm"
-											key={`${issue.nodeId ?? issue.edgeId ?? ""}-${issue.message}`}
-										>
-											<StatusMark
-												className="mt-0.5"
-												label="Issue"
-												status="fail"
-											/>
-											{issue.message}
-										</li>
-									))}
-								</ul>
-							</PopoverContent>
-						</Popover>
+							{enabled ? "Turn off workflow" : "Turn on workflow"}
+						</Button>
 						{zeroNodes ? (
 							<span className="type-caption text-text-2" id="save-hint">
 								Add a step to save

@@ -294,7 +294,7 @@ function ToastItem({toast: t, waiting, nodeRef}: {toast: ToastObject; waiting: b
     {/* The action and the X are 26px; the text sits 4px down, so its first line centres on them. */}
     {t.actionProps && <ToastPrimitive.Action data-slot="toast-action" className={buttonVariants({variant: 'secondary', size: 'sm', className: 'self-start [grid-area:action] @max-[20rem]/toast:ms-6 @max-[20rem]/toast:justify-self-start'})}/>}
     <ToastPrimitive.Close data-slot="toast-close" aria-label="Dismiss" className={buttonVariants({variant: 'ghost', size: 'icon-sm', className: 'self-start text-text-2 [grid-area:close] hover:text-text-1'})}>
-      <Icon icon={CloseIcon} size={12}/>
+      <Icon icon={CloseIcon}/>
     </ToastPrimitive.Close>
     {!waiting && <ToastTimer key={`${t.id}-${ms}-${String(t.title)}`} ms={ms}/>}
   </ToastPrimitive.Root>;

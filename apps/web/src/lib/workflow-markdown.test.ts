@@ -192,7 +192,7 @@ describe("workflowToMarkdown — shape variants", () => {
 				{ id: "r", type: "rule", ref: "account-age@1", config: { minDays: 7 } },
 				{ id: "g", type: "gate", mode: "all-of" },
 				{ id: "block", type: "action", action: "block" },
-				{ id: "ok", type: "action", action: "comment" },
+				{ id: "ok", type: "action", action: "label" },
 			],
 			edges: [
 				{ id: "e1", from: "t", to: "r" },
@@ -203,7 +203,7 @@ describe("workflowToMarkdown — shape variants", () => {
 		});
 		const md = workflowToMarkdown(branching);
 		expect(md).toContain("- **Block**: when all of fails");
-		expect(md).toContain("- **Comment**: when all of passes");
+		expect(md).toContain("- **Label**: when all of passes");
 	});
 
 	test("a custom rule node resolves name + sentence through the catalog", () => {
@@ -241,5 +241,29 @@ describe("workflowToMarkdown — shape variants", () => {
 		});
 		const md = workflowToMarkdown(wf);
 		expect(md).toContain("- **custom-mystery** `custom-mystery@1`");
+	});
+});
+
+describe("workflowToMarkdown — request-review names who is asked", () => {
+	test("lists the people and teams on the action", () => {
+		const md = workflowToMarkdown(
+			makeWorkflow({
+				nodes: [
+					{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+					{
+						id: "a",
+						type: "action",
+						action: "request-review",
+						params: {
+							reviewers: ["octocat", { id: 2, login: "hubot" }],
+							teamReviewers: ["core"],
+						},
+					},
+				],
+				edges: [{ id: "e1", from: "t", to: "a" }],
+			}),
+		);
+		expect(md).toContain("people: octocat, hubot");
+		expect(md).toContain("teams: core");
 	});
 });

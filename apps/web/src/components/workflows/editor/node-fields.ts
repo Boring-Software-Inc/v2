@@ -2,9 +2,15 @@ import type { JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
 	RULE_CATALOG,
 	ruleUiSchema,
+	storedReviewerSchema,
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { z } from "zod";
+
+const targetList = z.array(z.string()).catch([]);
+const reviewerList = z
+	.array(storedReviewerSchema.optional().catch(undefined))
+	.catch([]);
 
 /**
  * THE schema-to-fields source: one zod walk feeding BOTH the properties
@@ -200,6 +206,35 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 						value: labels,
 					},
 				];
+			}
+			if (node.action === "request-review") {
+				const people = reviewerList
+					.parse(node.params?.reviewers)
+					.flatMap((reviewer) => (reviewer ? [reviewer.login] : []));
+				const teams = targetList.parse(node.params?.teamReviewers);
+				const rows: NodeFieldValue[] = [
+					{
+						field: {
+							key: "reviewers",
+							label: "Reviewers",
+							secret: false,
+							kind: people.length > 0 ? "string-list" : "string",
+						},
+						value: people.length > 0 ? people : undefined,
+					},
+				];
+				if (teams.length > 0) {
+					rows.push({
+						field: {
+							key: "teamReviewers",
+							label: "Teams",
+							secret: false,
+							kind: "string-list",
+						},
+						value: teams,
+					});
+				}
+				return rows;
 			}
 			if (node.action === "webhook" || node.action === "discord") {
 				const params = node.params ?? {};

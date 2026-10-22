@@ -63,7 +63,7 @@ export function describeSyntheticStep(
 			kind: "deny-floor",
 			title: "Blocked by a maintainer",
 			detail:
-				"A maintainer chose block in the moderation queue. The workflow has no step for that choice, so Tripwire blocked the change request.",
+				"A maintainer chose block in human review. The workflow has no step for that choice, so Tripwire blocked the change request.",
 		};
 	}
 	if (step.nodeId === "run:degradation") {
@@ -85,7 +85,7 @@ export function describeSyntheticStep(
 		 * reader looks next.
 		 */
 		// Each part drops out cleanly when a field is absent, so a malformed step
-		// still reads as a sentence instead of "skipped. sent to review."
+		// still reads as a sentence instead of "skipped. needs human review."
 		const parts = [
 			shape.skippedRules !== undefined && shape.ruleNodes !== undefined
 				? `${shape.skippedRules} of ${shape.ruleNodes} rules skipped.`
@@ -96,7 +96,7 @@ export function describeSyntheticStep(
 			// enforced:false ⇒ the maintainer turned the review fallback off.
 			shape.enforced === false
 				? "Passed without them. This repo passes change requests when a rule cannot run."
-				: "Sent to review.",
+				: "Needs human review.",
 		];
 		return {
 			kind: "degradation",

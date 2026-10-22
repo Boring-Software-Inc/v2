@@ -3,6 +3,7 @@ import { getRouteApi, Link } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
+import { Collection } from "#/components/collection/collection";
 import { ShaderDither } from "#/components/dither/shader-dither";
 import { Add, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
@@ -11,10 +12,8 @@ import {
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
-	EmptyRetry,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
@@ -23,18 +22,15 @@ import {
 	type CustomRuleDraft,
 } from "#/components/rules/custom-rule-builder";
 import { RuleCard } from "#/components/rules/rule-card";
-import { RuleFilters, type RuleSort } from "#/components/rules/rule-filters";
 import { RuleHeaderStats } from "#/components/rules/rule-header-stats";
-import {
-	type RuleFilter,
-	RuleSegments,
-} from "#/components/rules/rule-segments";
+import { RULES_COLLECTION } from "#/components/rules/rules-collection";
 import { RuleGridSkeleton } from "#/components/rules/rules-page-skeleton";
 import {
 	type SaveQueueCommit,
 	SaveQueueProvider,
 	UnsavedChangesBar,
 } from "#/components/save-queue";
+import { useCollection } from "#/hooks/use-collection";
 import {
 	deleteCustomRule,
 	saveCustomRule,
@@ -97,8 +93,6 @@ export function RulesPage() {
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const isAdmin = orgContext?.role === "admin";
-	const [sort, setSort] = useState<RuleSort>("active");
-	const [filter, setFilter] = useState<RuleFilter>("all");
 	const [builderOpen, setBuilderOpen] = useState(false);
 	const repoId = repo?.id ?? "";
 	const rulesQuery = useQuery(ruleConfigsQueryOptions(org, repoId));
@@ -106,54 +100,12 @@ export function RulesPage() {
 	const statsQuery = useQuery(rulesStatsQueryOptions(org, repoId));
 	const queryClient = useQueryClient();
 
-	const sorted = useMemo(() => {
-		if (!rules) {
-			return [];
-		}
-		const copy = [...rules];
-		copy.sort((a, b) =>
-			sort === "az"
-				? a.name.localeCompare(b.name)
-				: b.matches24h - a.matches24h || a.name.localeCompare(b.name),
-		);
-		return copy;
-	}, [rules, sort]);
-
-	// Management is per-rule (§6 — workflows compose with standalone rules). The
-	// banner explains the split; per-card affordances act.
-	const hasEnabledWorkflow = sorted.some((r) => r.management === "managed");
-	const ownedRuleNames = sorted
+	const collection = useCollection(RULES_COLLECTION, rules);
+	const show = collection.state.filters.show?.[0];
+	const managedNames = (rules ?? [])
 		.filter((r) => r.management === "managed")
 		.map((r) => r.name);
-
-	// One grid, sliced by a segmented filter (§9) instead of stacked
-	// built-in/custom sections — so custom/active rules are one click away, not a
-	// scroll past the whole built-in list. Counts drive the segment labels.
-	const counts = useMemo<Record<RuleFilter, number>>(
-		() => ({
-			all: sorted.length,
-			active: sorted.filter((r) => r.enabled).length,
-			workflows: sorted.filter((r) => r.management === "managed").length,
-			custom: sorted.filter((r) => r.source === "custom").length,
-		}),
-		[sorted],
-	);
-	const visible = useMemo(
-		() =>
-			sorted.filter((r) => {
-				if (filter === "active") {
-					return r.enabled;
-				}
-				if (filter === "workflows") {
-					return r.management === "managed";
-				}
-				if (filter === "custom") {
-					return r.source === "custom";
-				}
-				return true;
-			}),
-		[sorted, filter],
-	);
+	const hasCustom = (rules ?? []).some((r) => r.source === "custom");
 
 	/**
 	 * One batch, N per-rule writes: group pending keys by rule, run a queued
@@ -329,59 +281,48 @@ export function RulesPage() {
 
 						<RuleHeaderStats stats={statsQuery.data} />
 
-						<div className="flex flex-col gap-3">
-							<div className="flex flex-wrap items-center justify-between gap-3">
-								<RuleSegments
-									counts={counts}
-									filter={filter}
-									onChange={setFilter}
-								/>
-								<RuleFilters onSortChange={setSort} sort={sort} />
-							</div>
-							{hasEnabledWorkflow &&
-							(filter === "all" || filter === "workflows") ? (
-								<p className="type-body-sm text-text-2">
-									{workflowBannerCopy(ownedRuleNames)}
-								</p>
-							) : null}
-							<SkeletonSwap
-								fallback={<RuleGridSkeleton />}
-								label="Loading rules"
-								loading={!rules && !rulesQuery.isError}
-							>
-								{rulesQuery.isError && !rules ? (
-									<Empty reason="error">
-										<EmptyHeader>
-											<EmptyTitle>Rules did not load</EmptyTitle>
-											<EmptyDescription>
-												Tripwire could not load this repo's rules. Check your
-												connection, then load them again.
-											</EmptyDescription>
-										</EmptyHeader>
-										<EmptyContent>
-											<EmptyRetry
-												onRetry={() =>
-													rulesQuery.refetch({ throwOnError: true })
-												}
+						<Collection
+							collection={collection}
+							empty={
+								<Empty art={<MascotArt mood="rules-empty" />}>
+									<EmptyHeader>
+										<EmptyTitle>No rules yet</EmptyTitle>
+										<EmptyDescription>
+											{isAdmin
+												? "This repo has no rules. Create one to start checking change requests."
+												: "This repo has no rules. An org admin can create them."}
+										</EmptyDescription>
+									</EmptyHeader>
+									<EmptyContent>
+										{isAdmin ? (
+											<Button
+												onClick={() => setBuilderOpen(true)}
+												size="sm"
+												variant="secondary"
 											>
-												Load rules again
-											</EmptyRetry>
-										</EmptyContent>
-									</Empty>
-								) : visible.length > 0 ? (
-									<div className="grid items-stretch gap-3 sm:grid-cols-2">
-										{visible.map((rule) => (
-											<RuleCard
-												canEdit={isAdmin}
-												key={rule.ruleId}
-												onDelete={removeCustomRule}
-												org={org}
-												repo={repoName}
-												rule={rule}
-											/>
-										))}
-									</div>
-								) : filter === "custom" ? (
+												Create rule
+											</Button>
+										) : (
+											<Button
+												nativeButton={false}
+												render={
+													<Link
+														params={{ org, repo: repoName }}
+														to="/$org/$repo/activity"
+													/>
+												}
+												size="sm"
+												variant="secondary"
+											>
+												View activity
+											</Button>
+										)}
+									</EmptyContent>
+								</Empty>
+							}
+							error={rulesQuery.isError}
+							noResults={
+								show === "custom" && !hasCustom && !collection.state.q ? (
 									<Empty
 										art={<MascotArt mood="rules-custom-empty" />}
 										className="relative isolate overflow-hidden"
@@ -398,84 +339,8 @@ export function RulesPage() {
 													: "Custom rules check for patterns specific to this repo. An org admin creates them."}
 											</EmptyDescription>
 										</EmptyHeader>
-										{isAdmin ? (
-											<EmptyContent>
-												<Button
-													onClick={() => setBuilderOpen(true)}
-													size="sm"
-													variant="secondary"
-												>
-													Create rule
-												</Button>
-											</EmptyContent>
-										) : (
-											<EmptyContent>
-												<Button
-													onClick={() => setFilter("all")}
-													size="sm"
-													variant="secondary"
-												>
-													Show all rules
-												</Button>
-											</EmptyContent>
-										)}
-									</Empty>
-								) : (
-									<Empty
-										art={
-											<MascotArt
-												mood={
-													filter === "active"
-														? "rules-active-empty"
-														: filter === "workflows"
-															? "rules-workflows-empty"
-															: "rules-empty"
-												}
-											/>
-										}
-									>
-										<EmptyHeader>
-											<EmptyTitle>
-												{filter === "active"
-													? "No active rules"
-													: filter === "workflows"
-														? "No rules run inside a workflow"
-														: "No rules yet"}
-											</EmptyTitle>
-											<EmptyDescription>
-												{filter === "active"
-													? "Every rule is off. Turn a rule on from the full list."
-													: filter === "workflows"
-														? "Every rule runs on its own. Add a rule to a workflow to run it there."
-														: isAdmin
-															? "This repo has no rules. Create one to start checking change requests."
-															: "This repo has no rules. An org admin can create them."}
-											</EmptyDescription>
-										</EmptyHeader>
 										<EmptyContent>
-											{filter === "active" ? (
-												<Button
-													onClick={() => setFilter("all")}
-													size="sm"
-													variant="secondary"
-												>
-													Show all rules
-												</Button>
-											) : filter === "workflows" ? (
-												<Button
-													nativeButton={false}
-													render={
-														<Link
-															params={{ org, repo: repoName }}
-															to="/$org/$repo/workflows"
-														/>
-													}
-													size="sm"
-													variant="secondary"
-												>
-													View workflows
-												</Button>
-											) : isAdmin ? (
+											{isAdmin ? (
 												<Button
 													onClick={() => setBuilderOpen(true)}
 													size="sm"
@@ -485,24 +350,45 @@ export function RulesPage() {
 												</Button>
 											) : (
 												<Button
-													nativeButton={false}
-													render={
-														<Link
-															params={{ org, repo: repoName }}
-															to="/$org/$repo/activity"
-														/>
-													}
+													onClick={collection.clear}
 													size="sm"
 													variant="secondary"
 												>
-													View activity
+													Show all rules
 												</Button>
 											)}
 										</EmptyContent>
 									</Empty>
-								)}
-							</SkeletonSwap>
-						</div>
+								) : undefined
+							}
+							onRetry={async () => {
+								await rulesQuery.refetch({ throwOnError: true });
+							}}
+							skeleton={<RuleGridSkeleton />}
+						>
+							{(visible) => (
+								<>
+									{managedNames.length > 0 &&
+									(show === undefined || show === "workflows") ? (
+										<p className="type-body-sm text-text-2">
+											{workflowBannerCopy(managedNames)}
+										</p>
+									) : null}
+									<div className="grid items-stretch gap-3 sm:grid-cols-2">
+										{visible.map((rule) => (
+											<RuleCard
+												canEdit={isAdmin}
+												key={rule.ruleId}
+												onDelete={removeCustomRule}
+												org={org}
+												repo={repoName}
+												rule={rule}
+											/>
+										))}
+									</div>
+								</>
+							)}
+						</Collection>
 					</div>
 				</div>
 				<UnsavedChangesBar />

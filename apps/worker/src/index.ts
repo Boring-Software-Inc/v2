@@ -7,11 +7,16 @@ import {
 	createDirectPool,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	REFRESH_SURFACES_QUEUE,
 	RERUN_QUEUE,
 	RESUME_RUN_QUEUE,
+	type RefreshSurfacesJob,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	repoServices,
+	SYNC_REPO_REVIEWERS_QUEUE,
+	type SyncRepoReviewersJob,
+	syncRepoReviewersOptions,
 } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { checkAppCredentials } from "@tripwire/forge-github";
@@ -25,10 +30,12 @@ import { economicsDigest } from "./jobs/economics-digest.ts";
 import { economicsRollup } from "./jobs/economics-rollup.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { pullProviderCosts } from "./jobs/pull-provider-costs.ts";
+import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { rollup } from "./jobs/rollup.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
+import { syncRepoReviewers } from "./jobs/sync-repo-reviewers.ts";
 import * as metering from "./metering.ts";
 
 /**
@@ -167,6 +174,14 @@ if (import.meta.main) {
 		);
 	}
 
+	const enqueueReviewerSync = async (repoId: string): Promise<void> => {
+		await boss.send(
+			SYNC_REPO_REVIEWERS_QUEUE,
+			{ repoId },
+			syncRepoReviewersOptions(repoId),
+		);
+	};
+
 	await boss.work<ProcessEventJob>(PROCESS_EVENT_QUEUE, async (jobs) => {
 		for (const job of jobs) {
 			await processEvent(
@@ -178,6 +193,7 @@ if (import.meta.main) {
 					meterSource,
 					appUrl: process.env.APP_URL ?? "http://localhost:3000",
 					logger: logger.child({ eventId: job.data.eventId }),
+					enqueueReviewerSync,
 				},
 				job.data,
 			);
@@ -232,6 +248,37 @@ if (import.meta.main) {
 					logger: logger.child({ repoId: job.data.repoId, backfill: true }),
 				},
 				job.data,
+			);
+		}
+	});
+
+	await boss.work<SyncRepoReviewersJob>(
+		SYNC_REPO_REVIEWERS_QUEUE,
+		async (jobs) => {
+			for (const job of jobs) {
+				await syncRepoReviewers(
+					{
+						db,
+						http: resolveForge("github")?.signalHttp ?? null,
+						logger: logger.child({ repoId: job.data.repoId }),
+					},
+					job.data,
+				);
+			}
+		},
+	);
+
+	await boss.work<RefreshSurfacesJob>(REFRESH_SURFACES_QUEUE, async (jobs) => {
+		for (const job of jobs) {
+			await refreshRepoSurfaces(
+				{
+					db,
+					resolveForge,
+					appUrl: process.env.APP_URL ?? "http://localhost:3000",
+					logger: logger.child({ refresh: job.data.repoId }),
+				},
+				job.data,
+				job.id,
 			);
 		}
 	});
@@ -315,10 +362,12 @@ if (import.meta.main) {
 				RESUME_RUN_QUEUE,
 				RERUN_QUEUE,
 				BACKFILL_REPO_QUEUE,
+				SYNC_REPO_REVIEWERS_QUEUE,
+				REFRESH_SURFACES_QUEUE,
 				"rollup",
 				"sweep-actions",
 			],
 		},
-		"worker consuming process-event + resume-run + rerun-change-request + backfill + rollup + sweep-actions",
+		"worker consuming process-event + resume-run + rerun-change-request + backfill + refresh-response-surfaces + rollup + sweep-actions",
 	);
 }

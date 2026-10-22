@@ -92,7 +92,7 @@ function CopyButton({value, label, showLabel = false, timeout = 1600, onCopy, fo
 
   const s = size ?? (showLabel ? 'sm' : 'icon-sm');
   const glyph = state === 'copied' ? Check : state === 'failed' ? Warning : Copy;
-  const iconSize = s === 'sm' || s === 'icon-sm' ? 12 : s === 'lg' || s === 'icon-lg' ? 16 : 14;
+  const iconSize = s === 'sm' ? 12 : s === 'lg' || s === 'icon-lg' ? 16 : 14;
 
   return <>
     <Button

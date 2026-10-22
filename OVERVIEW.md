@@ -32,11 +32,11 @@ three verdicts:
 
 | verdict | what happens |
 | --- | --- |
-| pass | the check goes green. nobody is interrupted. |
-| block | the check fails. the merge button is dead. |
-| review | a human is asked to decide. |
+| passed | the check goes green. nobody is interrupted. |
+| blocked | Fails the Tripwire check and requests changes. The change request stays open. |
+| human review | the check stays pending until a maintainer approves or blocks it. |
 
-the check is the gate. a failing check means the change cannot merge.
+the check is the gate when branch protection requires the tripwire check.
 
 ### it fails closed
 
@@ -120,10 +120,10 @@ migrations as production.
 it seeds a realistic story across all three verdicts and drops you on a full
 dashboard. re-running resets to the same clean state.
 
-a dev build also has a persona switcher, at the bottom left. it jumps between
-real product states: a fresh maintainer, one repo, many repos, an empty
-dashboard, and the anonymous stranger view. it is excluded from production
-builds at compile time.
+a dev build also has a scenario switcher, at the bottom left. it resets the
+demo data and seeds one product state: who you are, the install, the repos,
+the workflows and the page to open. it is excluded from production builds at
+compile time.
 
 ### the full stack
 

@@ -34,6 +34,7 @@ export interface ProcessEventDeps {
 	appUrl: string;
 	/** Derived COGS source, threaded to runWorkflows for best-effort metering. */
 	meterSource?: UsageSource;
+	enqueueReviewerSync?: (repoId: string) => Promise<void>;
 }
 
 /**
@@ -129,9 +130,8 @@ export async function processEvent(
 		// Seed branch suggestions for freshly added repos, so the builder has
 		// them before the first PR arrives.
 		if (
-			signalHttp &&
-			(normalized.kind === "installation.created" ||
-				normalized.kind === "installation-repositories.added")
+			normalized.kind === "installation.created" ||
+			normalized.kind === "installation-repositories.added"
 		) {
 			for (const added of normalized.repositories) {
 				const repo = await repoServices.getRepoByFullName(
@@ -139,7 +139,10 @@ export async function processEvent(
 					added.fullName,
 					normalized.forge,
 				);
-				if (repo) {
+				if (!repo) {
+					continue;
+				}
+				if (signalHttp) {
 					await refreshBranchSuggestions(
 						db,
 						signalHttp,
@@ -147,6 +150,7 @@ export async function processEvent(
 						added.fullName,
 					);
 				}
+				await enqueueReviewerSync(deps, repo.id);
 			}
 		}
 		return;
@@ -167,7 +171,7 @@ export async function processEvent(
 		 * GitHub row that `getRepoByFullName(…, "opengit")` could never find —
 		 * a new row on every delivery, and no repo the token mint could use.
 		 */
-		await repoServices.ensureRepo(db, {
+		const upsertedId = await repoServices.ensureRepo(db, {
 			forge: normalized.forge,
 			externalId:
 				normalized.repoExternalId ?? `unknown:${normalized.repo.fullName}`,
@@ -212,6 +216,7 @@ export async function processEvent(
 			},
 			"repo lazily upserted (no installation event seen)",
 		);
+		await enqueueReviewerSync(deps, upsertedId);
 	}
 
 	const surfaceDeps = {
@@ -221,6 +226,7 @@ export async function processEvent(
 		appUrl: deps.appUrl,
 	};
 
+	let pendingCheckPosted = false;
 	const result = await runWorkflows(
 		{
 			db,
@@ -232,7 +238,9 @@ export async function processEvent(
 			// Pending check only after exemption/match — otherwise an exempt
 			// actor leaves `tripwire` stuck in_progress forever (lifecycle E2E
 			// hang: waitForVerdict never sees a completed check).
-			onBeforeEvaluate: () => emitPendingCheck(surfaceDeps, normalized),
+			onBeforeEvaluate: async () => {
+				pendingCheckPosted = await emitPendingCheck(surfaceDeps, normalized);
+			},
 		},
 		normalized,
 		event.id,
@@ -245,6 +253,7 @@ export async function processEvent(
 			reasons: result.reasons,
 			degraded: result.degraded,
 			pendingActionRows: result.actionRows,
+			pendingCheckPosted,
 		});
 	}
 	// §9 live activity feed: announce the RESOLVED state (run terminal/paused,
@@ -268,6 +277,20 @@ export async function processEvent(
 				normalized.repo.fullName,
 			);
 		}
+	}
+}
+
+async function enqueueReviewerSync(
+	deps: ProcessEventDeps,
+	repoId: string,
+): Promise<void> {
+	try {
+		await deps.enqueueReviewerSync?.(repoId);
+	} catch (error) {
+		deps.logger.warn(
+			{ repoId, error: getErrorMessage(error) },
+			"reviewer sync not queued",
+		);
 	}
 }
 

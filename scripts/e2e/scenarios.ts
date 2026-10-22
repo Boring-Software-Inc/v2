@@ -38,7 +38,7 @@ async function forceGate(
 		mode: ActorMode;
 		edits: Record<string, string | null>;
 		message: string;
-		expectConclusion: "success" | "failure" | "neutral" | null;
+		expectConclusion: "success" | "failure" | "in_progress" | null;
 		/** Override the PR title (english-only forcing needs a non-latin one). */
 		title?: string;
 	},
@@ -72,7 +72,11 @@ async function forceGate(
 	}
 
 	const check = await gh.waitForVerdict(pr, sha, ctx.log);
-	asserter.equals("check conclusion", opts.expectConclusion, check.conclusion);
+	asserter.equals(
+		"check conclusion",
+		opts.expectConclusion,
+		check.conclusion ?? check.status,
+	);
 }
 
 // ── WORKFLOW axis helpers ────────────────────────────────────────────────
@@ -416,10 +420,10 @@ export const SCENARIOS: Scenario[] = [
 		plan: [
 			"REQUIRES the worker started with TRIPWIRE_FAIL_READS=all",
 			"push a clean change; the guarded reads throw → rules skip",
-			"assert the check is neutral (needs review, the floor)",
+			"assert the check stays in progress (human review, the floor)",
 		],
 		expects:
-			"≥50% rules skip on failed reads ⇒ verdict floors to needs_review (neutral check)",
+			"≥50% rules skip on failed reads ⇒ verdict floors to needs_review (check stays in progress)",
 		needs: { db: true },
 		enableRules: CRYPTO_ONLY,
 		run: (ctx) =>
@@ -428,20 +432,21 @@ export const SCENARIOS: Scenario[] = [
 				mode: ctx.defaultMode,
 				edits: { "E2E.md": CLEAN_DOC },
 				message: "e2e: clean change under forced read failure",
-				expectConclusion: "neutral",
+				expectConclusion: "in_progress",
 			}),
 	},
 	{
 		name: "gate-needs-review",
 		axis: "gate",
 		outcome: "needs-review",
-		summary: "a moderation-routed workflow parks the PR for a human",
+		summary: "a human review workflow parks the PR for a maintainer",
 		plan: [
-			"REQUIRES a send-to-moderation workflow enabled on the repo",
-			"push a change that routes to moderation",
-			"assert the check is neutral and the comment reads as pending review",
+			"REQUIRES a human review workflow enabled on the repo",
+			"push a change that routes to human review",
+			"assert the check stays in progress and the comment asks for human review",
 		],
-		expects: "the check is neutral and the PR is parked for a human decision",
+		expects:
+			"the check stays in progress and the PR is parked for a human decision",
 		needs: { db: true },
 		enableRules: CRYPTO_ONLY,
 		run: async (ctx) => {
@@ -450,10 +455,10 @@ export const SCENARIOS: Scenario[] = [
 				mode: ctx.defaultMode,
 				edits: { "E2E.md": CLEAN_DOC },
 				message: "e2e: route to moderation",
-				expectConclusion: "neutral",
+				expectConclusion: "in_progress",
 			});
 			ctx.log(
-				"note: neutral requires a moderation-routing workflow; without one this passes — see README",
+				"note: in progress requires a human review workflow; without one this passes, see README",
 			);
 		},
 	},
@@ -1159,7 +1164,9 @@ export const SCENARIOS: Scenario[] = [
 			const check = await gh.waitForVerdict(pr, sha, ctx.log);
 			asserter.ok(
 				`a verdict landed (${check.conclusion})`,
-				["success", "failure", "neutral"].includes(check.conclusion ?? ""),
+				["success", "failure", "in_progress"].includes(
+					check.conclusion ?? check.status,
+				),
 				`unexpected conclusion ${check.conclusion}`,
 			);
 		},

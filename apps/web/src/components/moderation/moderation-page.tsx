@@ -3,15 +3,18 @@ import { getRouteApi, Link } from "@tanstack/react-router";
 import { ChartAtRest } from "#/components/analytics/chart-at-rest";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
+import { Collection } from "#/components/collection/collection";
 import { Button } from "#/components/glaze/ui/button";
 import { Chart } from "#/components/glaze/ui/chart";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MODERATION_COLLECTION } from "#/components/moderation/moderation-collection";
 import { QueueSkeleton } from "#/components/moderation/moderation-page-skeleton";
 import {
 	ModerationQueue,
+	ModerationQueueEmpty,
 	moderationQueueOptions,
 } from "#/components/moderation/moderation-queue";
+import { useCollection } from "#/hooks/use-collection";
 import { moderationStatsQueryOptions } from "#/lib/moderation.query";
 import type { ModStats } from "#/lib/moderation.types";
 import { orgRepoQueryOptions } from "#/lib/org.query";
@@ -40,6 +43,10 @@ export function ModerationPage() {
 	const { org, repo: repoName } = routeApi.useParams();
 	const repoQuery = useQuery(orgRepoQueryOptions(org, repoName));
 	const queueQuery = useQuery(moderationQueueOptions(org, repoName));
+	const collection = useCollection(
+		MODERATION_COLLECTION,
+		queueQuery.data?.items,
+	);
 	const statsQuery = useQuery(moderationStatsQueryOptions(org, repoName));
 
 	const repo = repoQuery.data;
@@ -49,7 +56,7 @@ export function ModerationPage() {
 				<div className="px-4 py-6 md:px-8 md:py-10">
 					<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
 						<header className="flex flex-col gap-1">
-							<h1 className="type-title">Moderation</h1>
+							<h1 className="type-title">Human review</h1>
 							<p className="type-body text-text-2">
 								The queue fills in when you turn on Tripwire for this repo.
 							</p>
@@ -66,9 +73,6 @@ export function ModerationPage() {
 		);
 	}
 
-	if (queueQuery.error) {
-		throw queueQuery.error;
-	}
 	if (statsQuery.error) {
 		throw statsQuery.error;
 	}
@@ -76,43 +80,56 @@ export function ModerationPage() {
 	const stats = statsQuery.data;
 	const rows = stats ? verdictRows(stats) : [];
 	const atRest = rows.every((row) => row.passed === 0 && row.blocked === 0);
-	const items = queueQuery.data ?? [];
-	const counts = { queue: queueQuery.data?.length };
+	const queue = queueQuery.data;
+	const counts = { queue: queue?.items.length };
 
 	return (
 		<DashboardLayout counts={counts}>
 			<div className="px-4 py-6 md:px-8 md:py-10">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
 					<header className="flex flex-col gap-1">
-						<h1 className="type-title">Moderation</h1>
+						<h1 className="type-title">Human review</h1>
 						<p className="type-body text-text-2">
-							A rule held these for a person. Approve to let one through, or
-							block it.
+							Approve to continue the workflow, or block.
 						</p>
 					</header>
 
 					<BackfillProgress org={org} repo={repoName} />
 
-					<SkeletonSwap
-						fallback={<QueueSkeleton />}
-						label="Loading the moderation queue"
-						loading={!queueQuery.data}
+					<Collection
+						collection={collection}
+						empty={<ModerationQueueEmpty org={org} repo={repoName} />}
+						error={queueQuery.isError}
+						onRetry={async () => {
+							await queueQuery.refetch({ throwOnError: true });
+						}}
+						skeleton={<QueueSkeleton />}
 					>
-						{queueQuery.data ? (
-							<ModerationQueue
-								org={org}
-								repo={repoName}
-								title={
-									<>
-										Sent to review{" "}
-										<span className="text-text-2 tabular-nums">
-											{items.length}
-										</span>
-									</>
-								}
-							/>
-						) : null}
-					</SkeletonSwap>
+						{(rows) => (
+							<>
+								<ModerationQueue
+									items={rows}
+									org={org}
+									repo={repoName}
+									title={
+										<>
+											Waiting{" "}
+											<span className="text-text-2 tabular-nums">
+												{queue?.truncated
+													? `${queue.limit}+`
+													: queue?.items.length}
+											</span>
+										</>
+									}
+								/>
+								{queue?.truncated ? (
+									<p className="type-body-sm text-text-2">
+										Showing the newest {queue.limit}.
+									</p>
+								) : null}
+							</>
+						)}
+					</Collection>
 
 					{rows.length > 0 && atRest ? (
 						<ChartAtRest

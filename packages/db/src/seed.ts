@@ -1234,6 +1234,18 @@ export async function resetDemoData(db: Db): Promise<void> {
 	await db.execute(
 		sql`DELETE FROM organization WHERE slug = ${DEMO_TEAM_SLUG}`,
 	);
+	await db.execute(sql`
+		DELETE FROM organization
+		WHERE is_personal
+		  AND id IN (
+		    SELECT m.organization_id FROM member m
+		    JOIN "user" u ON u.id = m.user_id
+		    WHERE u.email LIKE ${`%@${DEMO_EMAIL_DOMAIN}`}
+		  )
+	`);
+	await db.execute(
+		sql`DELETE FROM organization_installations WHERE installation_id LIKE ${"demo-inst-%"}`,
+	);
 	await db.execute(sql`DELETE FROM events WHERE id LIKE ${"demo-evt-%"}`);
 	// Auth cascades sessions/accounts/forge_identities/memberships.
 	await db.execute(

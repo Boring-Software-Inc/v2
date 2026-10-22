@@ -239,7 +239,13 @@ export class GitHub {
 
 	private async completedCheck(sha: string): Promise<CheckRun | null> {
 		const runs = await this.checkRunsOn(sha);
-		return runs.find((r) => r.status === "completed") ?? null;
+		return (
+			runs.find(
+				(r) =>
+					r.status === "completed" ||
+					r.output?.title === "Waiting for human review",
+			) ?? null
+		);
 	}
 
 	/** Wait for GitHub's head to equal `sha` and a COMPLETED tripwire check on it. */

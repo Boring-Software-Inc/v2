@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { redactionPolicySchema, repoRedactionSchema } from "./redaction.ts";
 import type { Verdict } from "./runs.ts";
 
 /**
@@ -22,13 +23,11 @@ export type CommentSurface = z.infer<typeof commentSurfaceSchema>;
  * The block comment's shape:
  * - `full` — the complete comment: reasons, button, collapsibles.
  * - `one-liner-link` — one rule one-liner per failed rule, then the run button.
- * - `link-only` — the verdict line and the run button.
  * - `custom` — the maintainer's template; vars `{{ruleName}}` `{{runUrl}}`.
  */
 export const blockCommentModeSchema = z.enum([
 	"full",
 	"one-liner-link",
-	"link-only",
 	"custom",
 ]);
 export type BlockCommentMode = z.infer<typeof blockCommentModeSchema>;
@@ -51,8 +50,6 @@ export type CommentOverride = z.infer<typeof commentOverrideSchema>;
 
 export const blockCommentConfigSchema = commentOverrideSchema.extend({
 	mode: blockCommentModeSchema.default("full"),
-	/** one-liner-link mode: prefix each line with the rule's display name. */
-	showRuleName: z.boolean().default(true),
 	/** custom mode only. `{{ruleName}}` resolves to the rule's contributor label. */
 	template: z.string().max(4000).default(""),
 });
@@ -64,7 +61,7 @@ export const responseConfigSchema = z.object({
 	passComment: commentOverrideSchema.prefault({}),
 	onBlock: commentSurfaceSchema.default("comment"),
 	blockComment: blockCommentConfigSchema.prefault({}),
-	/** The needs_review verdict — "sent to review" in every user-facing surface. */
+	/** The needs_review verdict: "human review" in every user-facing surface. */
 	moderationQueued: commentSurfaceSchema.default("comment"),
 	/** Review comment override — independent of the block override. */
 	reviewComment: commentOverrideSchema.prefault({}),
@@ -85,8 +82,17 @@ export const responseConfigSchema = z.object({
 	 * missed check.
 	 */
 	failClosedFallback: z.boolean().default(true),
+	redaction: repoRedactionSchema.prefault({}),
 });
 export type ResponseConfig = z.infer<typeof responseConfigSchema>;
+
+export const orgResponseDefaultsSchema = z.object({
+	redaction: redactionPolicySchema.prefault({}),
+});
+export type OrgResponseDefaults = z.infer<typeof orgResponseDefaultsSchema>;
+
+export const DEFAULT_ORG_RESPONSE_DEFAULTS: OrgResponseDefaults =
+	orgResponseDefaultsSchema.parse({});
 
 /** The per-outcome comment override that applies to this verdict. Block and
  * review are independent — a maintainer can hide the block behind a generic
@@ -126,9 +132,9 @@ export function wantsComment(
 }
 
 /**
- * Whether the CHECK posts for this verdict. Block and sent-to-review always
- * check — the check IS the merge gate. Only a silent-on-success repo skips the
- * pass check.
+ * Whether the CHECK posts for this verdict. Block and human review always
+ * check. Only a silent-on-success repo skips the pass check, and it skips the
+ * pending check too, so a silent pass leaves nothing on the change request.
  */
 export function wantsCheck(config: ResponseConfig, verdict: Verdict): boolean {
 	return verdict !== "pass" || config.onSuccess !== "silent";

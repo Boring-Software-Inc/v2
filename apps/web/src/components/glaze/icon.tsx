@@ -15,7 +15,7 @@ import {
   GitlabLogoIcon, GitPullRequestIcon, HashIcon, HouseIcon, LightningIcon, ListChecksIcon, MonitorIcon, PackageIcon,
   PlugIcon, ProhibitIcon, PulseIcon, QuestionIcon, QueueIcon, ShieldCheckIcon, SignOutIcon, SlidersHorizontalIcon, TreeStructureIcon,
   TrendDownIcon, TrendUpIcon, UserPlusIcon, UsersIcon, ArchiveIcon, ArrowsMergeIcon, ChecksIcon, DiscordLogoIcon, FilesIcon,
-  GaugeIcon, GitCommitIcon, GitMergeIcon, MinusCircleIcon, TagIcon, TranslateIcon, WalletIcon, WebhooksLogoIcon,
+  CornersOutIcon, GaugeIcon, GitCommitIcon, GitMergeIcon, MinusCircleIcon, TagIcon, TranslateIcon, WalletIcon, WebhooksLogoIcon,
 } from '@phosphor-icons/react/ssr';
 import {cn} from '#/lib/glaze/utils.ts';
 
@@ -147,6 +147,7 @@ export const Commit = GitCommitIcon;
 export const Converge = ArrowsMergeIcon;
 export const DiscordMark = DiscordLogoIcon;
 export const Files = FilesIcon;
+export const FitView = CornersOutIcon;
 export const Gauge = GaugeIcon;
 export const Inbox = TrayIcon;
 export const Merge = GitMergeIcon;
@@ -164,18 +165,22 @@ export type IconWeight = 'light' | 'regular' | 'bold' | 'fill';
 type IconProps = Omit<PhosphorProps, 'size' | 'weight' | 'color' | 'alt' | 'mirrored'> & {
   /** The icon, imported from this file. */
   icon: GlazeIcon;
-  /** px. 12 in a small control or a tag, 14 in a control (the default), 16 in a large one, 20 and 24 on their own, 32 and 40 only for an empty state's glyph. */
+  /** px. 12 beside a label in a small control or a tag, 14 in a control (the default) and in any icon-only one, 16 in a large one, 20 and 24 on their own, 32 and 40 only for an empty state's glyph. */
   size?: 12 | 14 | 16 | 20 | 24 | 32 | 40;
-  /** Regular by default. Light in dense rows and tables, bold rarely, fill only for the selected state of an icon toggle. */
+  /** Regular by default, bold for More and MoreVertical, whose dots vanish at regular. Light in dense rows and tables, fill only for the selected state of an icon toggle. */
   weight?: IconWeight;
   /** Accessible name. Without one the icon is decorative and hidden from assistive tech. */
   label?: string;
 };
 
-export function Icon({icon: Glyph, size = 14, weight = 'regular', label, className, ...props}: IconProps) {
+const boldByDefault = new Set<GlazeIcon>([DotsThreeIcon, DotsThreeVerticalIcon]);
+
+export function Icon({icon: Glyph, size = 14, weight, label, className, ...props}: IconProps) {
+  const dots = boldByDefault.has(Glyph);
   return <Glyph
     size={size}
-    weight={weight}
+    weight={weight ?? (dots ? 'bold' : 'regular')}
+    data-glyph={dots ? 'more' : undefined}
     focusable="false"
     aria-hidden={label ? undefined : true}
     aria-label={label}

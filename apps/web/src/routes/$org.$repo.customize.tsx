@@ -1,16 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { CustomizePage } from "#/components/customize/customize-page";
-import { CustomizePageSkeleton } from "#/components/customize/customize-page-skeleton";
-import { buildSeo, formatPageTitle } from "#/lib/seo";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/$org/$repo/customize")({
-	component: CustomizePage,
-	pendingComponent: CustomizePageSkeleton,
-	head: ({ params, match }) =>
-		buildSeo({
-			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Customize`),
-			description: "What Tripwire posts on each change request.",
-			noindex: true,
-		}),
+	beforeLoad: ({ params }) => {
+		throw redirect({ to: "/$org/$repo/responses", params, replace: true });
+	},
 });

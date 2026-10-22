@@ -98,7 +98,7 @@ function InputLeading({className, ...props}: ComponentProps<'span'>) {
   const size = useContext(SizeContext);
   return <span
     data-slot="input-leading"
-    className={cn(slotClass, slotSize[size], 'has-[>[data-slot=input-action]:first-child]:-ms-[calc(var(--space-3)-var(--shell-inset))]', className)}
+    className={cn(slotClass, slotSize[size], 'has-[>[data-slot=input-action]:first-child]:-ms-[calc(var(--input-px,var(--space-3))-var(--shell-inset))]', className)}
     {...props}
   />;
 }
@@ -108,7 +108,7 @@ function InputTrailing({className, ...props}: ComponentProps<'span'>) {
   const size = useContext(SizeContext);
   return <span
     data-slot="input-trailing"
-    className={cn(slotClass, slotSize[size], 'has-[>[data-slot=input-action]:last-child]:-me-[calc(var(--space-3)-var(--shell-inset))]', className)}
+    className={cn(slotClass, slotSize[size], 'has-[>[data-slot=input-action]:last-child]:-me-[calc(var(--input-px,var(--space-3))-var(--shell-inset))]', className)}
     {...props}
   />;
 }
@@ -150,8 +150,8 @@ function InputAction({className, size = 'icon', variant = 'ghost', ...props}: In
     size={size === 'icon' ? 'icon-sm' : 'sm'}
     className={mergeClass([
       'h-(--action-h)',
-      size === 'icon' ? 'w-(--action-h)' : 'px-2.5',
-      box === 'lg' ? 'type-label [&_svg]:size-(--icon)' : 'type-label-sm [&_svg]:size-(--icon-sm)',
+      size === 'icon' ? 'w-(--action-h) [&_svg]:size-(--icon)' : cn('px-2.5', box === 'lg' ? '[&_svg]:size-(--icon)' : '[&_svg]:size-(--icon-sm)'),
+      box === 'lg' ? 'type-label' : 'type-label-sm',
     ], className)}
     {...props}
   />;
@@ -377,7 +377,7 @@ function CopyMode({mode: _mode, size = 'default', leading, trailing: _trailing, 
         forceState={forceCopyState}
         disabled={disabled || !value}
         size="icon-sm"
-        className={cn('size-(--action-h)', size === 'lg' ? '[&_svg]:size-(--icon)' : '[&_svg]:size-(--icon-sm)')}
+        className="size-(--action-h) [&_svg]:size-(--icon)"
       />
     </InputTrailing>
   </InputRoot>;

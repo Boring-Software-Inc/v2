@@ -3,7 +3,10 @@ import {
 	type CommentReason,
 	checkSummary,
 	type NormalizedEvent,
+	redactCommentReasons,
+	redactionLevelFor,
 	renderVerdictComment,
+	requestReviewTargetsSchema,
 	reviewBody,
 	type Verdict,
 	type WebhookPayload,
@@ -11,7 +14,7 @@ import {
 	wantsComment,
 } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
-import { repoServices, runServices } from "@tripwire/db";
+import { repoServices, responseServices, runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
@@ -28,7 +31,7 @@ export const VERDICT_TO_CONCLUSION: Record<Verdict, CheckState["conclusion"]> =
 	{
 		pass: "success",
 		block: "failure",
-		needs_review: "neutral",
+		needs_review: "pending",
 	};
 
 export interface PrSurfaceDeps {
@@ -43,9 +46,21 @@ export interface PrSurfaceDeps {
 export async function emitPendingCheck(
 	deps: PrSurfaceDeps,
 	event: NormalizedEvent,
-): Promise<void> {
+): Promise<boolean> {
 	if (!deps.adapter || !("changeRequest" in event)) {
-		return;
+		return false;
+	}
+	const repoRow = await repoServices.getRepoByFullName(
+		deps.db,
+		event.repo.fullName,
+		event.forge,
+	);
+	const responseConfig = await repoServices.getResponseConfig(
+		deps.db,
+		repoRow?.id ?? null,
+	);
+	if (responseConfig.onSuccess === "silent") {
+		return false;
 	}
 	try {
 		await deps.adapter.execute({
@@ -58,11 +73,13 @@ export async function emitPendingCheck(
 				detailsUrl: deps.appUrl,
 			},
 		});
+		return true;
 	} catch (error) {
 		deps.logger.warn(
 			{ error: getErrorMessage(error) },
 			"pending check emission failed",
 		);
+		return false;
 	}
 }
 
@@ -76,6 +93,7 @@ export interface EmitSurfaceInput {
 	degraded?: boolean;
 	/** Manual re-run — the comment carries the re-evaluation note. */
 	rerun?: boolean;
+	pendingCheckPosted?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
 	pendingActionRows: {
 		id: string;
@@ -99,7 +117,6 @@ export async function emitPrSurface(
 	const runUrl = `${deps.appUrl}/runs/${runId}`;
 	const badgeUrl = `${deps.appUrl}/badges/view-run.png`;
 	const { reasons } = input;
-	const review = reviewBody(reasons);
 
 	// The verdict the PR already shows — drives the resolution copy AND whether a
 	// stale request-changes review must be dismissed (§7).
@@ -129,9 +146,15 @@ export async function emitPrSurface(
 		db,
 		repoRow?.id ?? null,
 	);
+	const policy = await responseServices.getRedactionPolicy(
+		db,
+		repoRow?.id ?? null,
+	);
+	const review = reviewBody(reasons, redactionLevelFor(policy, "review"));
 	const transition = previousVerdict !== null && previousVerdict !== verdict;
 	const includeComment = wantsComment(responseConfig, verdict) || transition;
-	const includeCheck = wantsCheck(responseConfig, verdict);
+	const includeCheck =
+		wantsCheck(responseConfig, verdict) || input.pendingCheckPosted === true;
 
 	const surfaceRows = await runServices.recordActions(db, runId, [
 		...(includeComment
@@ -154,6 +177,7 @@ export async function emitPrSurface(
 									rerun: input.rerun,
 								},
 								responseConfig,
+								policy,
 							),
 						},
 						idempotencyKey: `comment:${number}:${verdict}`,
@@ -167,7 +191,12 @@ export async function emitPrSurface(
 						payload: {
 							sha,
 							conclusion: VERDICT_TO_CONCLUSION[verdict],
-							summary: checkSummary(verdict, reasons, input.degraded),
+							summary: checkSummary(
+								verdict,
+								reasons,
+								input.degraded,
+								redactionLevelFor(policy, "check"),
+							),
 							detailsUrl: runUrl,
 						},
 						idempotencyKey: `check:${sha}:${verdict}`,
@@ -204,10 +233,7 @@ export async function emitPrSurface(
 				title: event.changeRequest.title,
 				author: event.actor.login,
 			},
-			firedRules: reasons.map((reason) => ({
-				ruleId: reason.ruleId ?? "",
-				summary: reason.text,
-			})),
+			firedRules: firedRulesFor(reasons, redactionLevelFor(policy, "webhook")),
 			runUrl,
 			timestamp: new Date().toISOString(),
 		};
@@ -234,6 +260,11 @@ export async function emitPrSurface(
 		repoFullName,
 		number,
 	);
+	const latestRun =
+		latestRunId && latestRunId !== runId
+			? await runServices.getRunById(db, latestRunId)
+			: null;
+	const checkOwnedByNewerRun = latestRun?.headSha === sha;
 
 	for (const row of [...input.pendingActionRows, ...surfaceRows]) {
 		// Outbound delivery is handled above + by the deliver-webhook job, not
@@ -256,14 +287,26 @@ export async function emitPrSurface(
 			);
 			continue;
 		}
+		if (row.kind === "set-check" && checkOwnedByNewerRun) {
+			await runServices.markActionSuperseded(db, row.id);
+			logger.info(
+				{ runId, latestRunId, sha },
+				"check superseded, a newer run owns this head",
+			);
+			continue;
+		}
 		const forgeAction = toForgeAction(row, repoFullName, number, review);
 		try {
 			const result = await adapter.execute(forgeAction);
 			await runServices.markActionExecuted(db, row.id, result.externalId);
 		} catch (error) {
 			// Best-effort actions: the check is the real gate, and a review dismiss
-			// is a nicety — a failure warns and settles the row, never kills the run.
-			if (row.kind === "block" || row.kind === "dismiss-review") {
+			// or review request is a nicety — a failure warns and settles the row.
+			if (
+				row.kind === "block" ||
+				row.kind === "dismiss-review" ||
+				row.kind === "request-review"
+			) {
 				logger.warn(
 					{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
 					"best-effort forge action failed — check remains the gate",
@@ -277,6 +320,26 @@ export async function emitPrSurface(
 			);
 		}
 	}
+}
+
+export function firedRulesFor(
+	reasons: CommentReason[],
+	level: number,
+): WebhookPayload["firedRules"] {
+	const redacted = redactCommentReasons(reasons, level);
+	if (redacted.kind === "reasons") {
+		return redacted.reasons.map((reason) => ({
+			ruleId: reason.ruleId ?? "",
+			summary: reason.text,
+		}));
+	}
+	if (redacted.kind === "names") {
+		return reasons.map((reason, index) => ({
+			ruleId: reason.ruleId ?? "",
+			summary: redacted.names[index] ?? "",
+		}));
+	}
+	return [];
 }
 
 export function toForgeAction(
@@ -321,8 +384,18 @@ export function toForgeAction(
 				number,
 				labels: (row.payload.labels as string[]) ?? [],
 			};
-		case "request-review":
-			return { kind: "request-review" as const, repoFullName, number };
+		case "request-review": {
+			const targets = requestReviewTargetsSchema.safeParse(row.payload);
+			return {
+				kind: "request-review" as const,
+				repoFullName,
+				number,
+				reviewers: targets.success
+					? targets.data.reviewers.map((reviewer) => reviewer.login)
+					: [],
+				teamReviewers: targets.success ? targets.data.teamReviewers : [],
+			};
+		}
 		default:
 			return {
 				kind: "block" as const,

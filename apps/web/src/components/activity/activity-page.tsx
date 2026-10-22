@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ActivityListSkeleton } from "#/components/activity/activity-page-skeleton";
 import { ActivityRow } from "#/components/activity/activity-row";
 import { ActivityStack } from "#/components/activity/activity-stack";
@@ -30,22 +30,20 @@ import type {
 } from "#/lib/activity.functions";
 import { activityQueryOptions, useActivityStream } from "#/lib/activity.query";
 import { orgRepoQueryOptions } from "#/lib/org.query";
+import { pickValue } from "#/lib/pick-value";
+import { ACTIVITY_VERDICTS, type ActivityVerdict } from "#/lib/repo-search";
 
 const routeApi = getRouteApi("/$org/$repo/activity");
 
-type Filter = "all" | "block" | "needs_review" | "pass" | "no-run";
+type Filter = ActivityVerdict;
 
 const FILTERS: { key: Filter; label: string }[] = [
 	{ key: "all", label: "All" },
 	{ key: "block", label: "Blocked" },
-	{ key: "needs_review", label: "Sent to review" },
+	{ key: "needs_review", label: "Human review" },
 	{ key: "pass", label: "Passed" },
 	{ key: "no-run", label: "Not checked" },
 ];
-
-function isFilter(value: string): value is Filter {
-	return FILTERS.some((f) => f.key === value);
-}
 
 function matches(item: ActivityFeedItem, filter: Filter): boolean {
 	if (filter === "all") {
@@ -95,7 +93,14 @@ export function ActivityPage() {
 	);
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
 	useActivityStream(org, repoName, repo?.fullName);
-	const [filter, setFilter] = useState<Filter>("all");
+	const { verdict: filter } = routeApi.useSearch();
+	const navigate = routeApi.useNavigate();
+	const setFilter = (verdict: Filter) =>
+		void navigate({
+			search: (prev) => ({ ...prev, verdict }),
+			replace: true,
+			resetScroll: false,
+		});
 	const unarmed = Boolean(repo && !repo.armed);
 
 	const segments = useMemo(
@@ -132,8 +137,9 @@ export function ActivityPage() {
 							aria-label="Filter by verdict"
 							className="w-max"
 							onValueChange={(value) => {
-								if (isFilter(value)) {
-									setFilter(value);
+								const next = pickValue(ACTIVITY_VERDICTS, value);
+								if (next) {
+									setFilter(next);
 								}
 							}}
 							value={filter}

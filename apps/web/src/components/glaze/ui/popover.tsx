@@ -136,7 +136,7 @@ function PopoverContent({className, align = 'center', alignOffset = 0, side = 'b
           aria-label={pinned ? 'Close preview' : 'Close'}
           // 26px in the 12px padding, its centre on the title's first line.
           render={<Button variant="ghost" size="icon-sm" className="absolute end-2 top-2"/>}
-        ><Icon icon={CloseIcon} size={12}/></PopoverPrimitive.Close>}
+        ><Icon icon={CloseIcon}/></PopoverPrimitive.Close>}
       </PopoverPrimitive.Popup>
     </PopoverPrimitive.Positioner>
   </PopoverPrimitive.Portal>;

@@ -75,7 +75,7 @@ describe("ai-review delivery — where the output lands and surfaces agree", () 
 	test("check conclusion matches the verdict (comment and check can't disagree)", () => {
 		expect(VERDICT_TO_CONCLUSION.block).toBe("failure");
 		expect(VERDICT_TO_CONCLUSION.pass).toBe("success");
-		expect(VERDICT_TO_CONCLUSION.needs_review).toBe("neutral");
+		expect(VERDICT_TO_CONCLUSION.needs_review).toBe("pending");
 	});
 
 	test("a SKIPPED ai-review claims no review happened", () => {
@@ -87,7 +87,7 @@ describe("ai-review delivery — where the output lands and surfaces agree", () 
 
 	test("needs_review produces the moderation surface, not a silent pass", () => {
 		const summary = checkSummary("needs_review", []);
-		expect(summary).toContain("Sent to review");
+		expect(summary).toBe("Waiting for human review.");
 		expect(VERDICT_TO_CONCLUSION.needs_review).not.toBe("success");
 	});
 });

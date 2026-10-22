@@ -1,3 +1,8 @@
+import {
+	redactEvidence,
+	redactionHides,
+	redactSummary,
+} from "@tripwire/contracts";
 import type { JsonValue, RunStepView, RunView } from "#/lib/runs.functions";
 
 /**
@@ -12,7 +17,7 @@ export type RunAccess = "full" | "public" | "denied";
 export interface RunAccessInput {
 	/** false in open-dev posture (resolveAuthPosture) — the gate stands open. */
 	authEnabled: boolean;
-	hasSession: boolean;
+	isOrgMember: boolean;
 	/**
 	 * Repo visibility from installation sync; null when the repo row is
 	 * missing or unresolved — treated as private (fail closed).
@@ -22,10 +27,10 @@ export interface RunAccessInput {
 
 export function resolveRunAccess({
 	authEnabled,
-	hasSession,
+	isOrgMember,
 	repoPrivate,
 }: RunAccessInput): RunAccess {
-	if (!authEnabled || hasSession) {
+	if (!authEnabled || isOrgMember) {
 		return "full";
 	}
 	return repoPrivate === false ? "public" : "denied";
@@ -60,23 +65,44 @@ function isJsonRecord(value: JsonValue): value is { [key: string]: JsonValue } {
  * step keeps its pass/fail but shows no evidence detail. Non-rule steps carry
  * no thresholds and pass through (projection fields dropped).
  */
-function toPublicStep(step: RunStepView): RunStepView {
+function toPublicStep(step: RunStepView, level: number): RunStepView {
 	const { publicEvidence, ...rest } = step;
 	if (!step.ruleRef) {
 		const { summary: _summary, ...bare } = rest;
 		return bare;
 	}
 	const envelope = step.evidence;
-	const publicInner = publicEvidence ?? null;
+	const publicInner = redactEvidence(
+		step.ruleRef,
+		publicEvidence ?? null,
+		level,
+	);
 	const sanitized: JsonValue = isJsonRecord(envelope)
 		? { ...envelope, evidence: publicInner }
 		: publicInner;
-	return {
-		...rest,
-		evidence: sanitized,
-		output: sanitized,
-		summary: step.summary ?? null,
-	};
+	const summary = redactSummary(step.ruleRef, step.summary ?? null, level);
+	if (redactionHides(level, "rule-names")) {
+		return {
+			...rest,
+			ruleRef: null,
+			ruleName: null,
+			label: "rule",
+			evidence: null,
+			output: null,
+			summary: null,
+		};
+	}
+	return { ...rest, evidence: sanitized, output: sanitized, summary };
+}
+
+function visibleToPublic(step: RunStepView, level: number): boolean {
+	if (step.nodeKind !== "rule") {
+		return !redactionHides(level, "rule-names");
+	}
+	if (redactionHides(level, "failed-count")) {
+		return false;
+	}
+	return !redactionHides(level, "passed-count") || step.status === "fail";
 }
 
 /**
@@ -84,7 +110,7 @@ function toPublicStep(step: RunStepView): RunStepView {
  * evidence + ai-review findings + a plain-English outcome per rule — no
  * configured thresholds, no ai-review trace, no workflow snapshot (§10).
  */
-export function toPublicRunView(view: RunView): RunView {
+export function toPublicRunView(view: RunView, level = 0): RunView {
 	return {
 		...view,
 		access: "public",
@@ -95,7 +121,10 @@ export function toPublicRunView(view: RunView): RunView {
 		orgSlug: null,
 		repoName: null,
 		canRerun: false,
-		steps: view.steps.map(toPublicStep),
+		stepsHidden: redactionHides(level, "failed-count"),
+		steps: view.steps
+			.filter((step) => visibleToPublic(step, level))
+			.map((step) => toPublicStep(step, level)),
 	};
 }
 
@@ -108,6 +137,7 @@ export function toPublicRunView(view: RunView): RunView {
 export function toFullRunView(view: RunView): RunView {
 	return {
 		...view,
+		stepsHidden: false,
 		steps: view.steps.map(({ publicEvidence: _pe, ...step }) => step),
 	};
 }

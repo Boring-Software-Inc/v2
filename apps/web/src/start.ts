@@ -69,6 +69,23 @@ const securityHeadersMiddleware = createMiddleware({ type: "request" }).server(
 	},
 );
 
+const devLatencyMiddleware = createMiddleware({ type: "function" }).server(
+	async ({ next }) => {
+		if (import.meta.env.DEV) {
+			const { getCookie } = await import("@tanstack/react-start/server");
+			const { DEV_LATENCY_COOKIE, devLatencyMs } = await import(
+				"#/lib/dev/scenarios"
+			);
+			const delay = devLatencyMs(getCookie(DEV_LATENCY_COOKIE));
+			if (delay > 0) {
+				await new Promise((resolve) => setTimeout(resolve, delay));
+			}
+		}
+		return await next();
+	},
+);
+
 export const startInstance = createStart(() => ({
 	requestMiddleware: [securityHeadersMiddleware, authRequestMiddleware],
+	functionMiddleware: import.meta.env.DEV ? [devLatencyMiddleware] : [],
 }));

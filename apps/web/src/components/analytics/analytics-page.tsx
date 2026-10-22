@@ -26,6 +26,8 @@ import { closestEventId } from "#/lib/analytics-events";
 import type { DateRange } from "#/lib/date-range";
 import { cn } from "#/lib/glaze/utils";
 import { moderationStatsQueryOptions } from "#/lib/moderation.query";
+import { pickValue } from "#/lib/pick-value";
+import { ANALYTICS_METRICS } from "#/lib/repo-search";
 
 const routeApi = getRouteApi("/$org/$repo/analytics");
 
@@ -42,8 +44,18 @@ export function AnalyticsPage() {
 		[moderationStats.data],
 	);
 
-	const { metric: metricParam } = routeApi.useSearch();
-	const [focused, setFocused] = useState(metricParam ?? "review");
+	const { metric: focused } = routeApi.useSearch();
+	const navigate = routeApi.useNavigate();
+	const setFocused = (value: string) => {
+		const metric = pickValue(ANALYTICS_METRICS, value);
+		if (metric) {
+			void navigate({
+				search: (prev) => ({ ...prev, metric }),
+				replace: true,
+				resetScroll: false,
+			});
+		}
+	};
 	const [committedIndex, setCommittedIndex] = useState<number | null>(null);
 
 	const focusedMetric = useMemo(

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { FORGE_BY_ID, type ForgeId } from "./forges.ts";
 import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
+import type { RedactionItem } from "./redaction.ts";
 import { aiReviewConfigSchema } from "./review.ts";
 import type { JsonValue, WorkflowDefinition } from "./workflow.ts";
 
@@ -245,6 +246,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags titles and comments that aren't mostly latin script.",
 		contributorLabel: "titles and comments must be written mostly in English.",
+		evidenceRedaction: { "matched-values": ["sample"] },
 	},
 	{
 		ruleId: "crypto-address",
@@ -262,6 +264,11 @@ export const RULE_CATALOG = [
 			"Catches cryptocurrency addresses in titles, comments, and diffs.",
 		contributorLabel:
 			"this change request contains a cryptocurrency wallet address.",
+		summaryReveals: ["file-paths"],
+		evidenceRedaction: {
+			"matched-values": ["matches.*.value"],
+			"file-paths": ["matches.*.location"],
+		},
 	},
 	{
 		ruleId: "honeypot",
@@ -278,6 +285,7 @@ export const RULE_CATALOG = [
 		description:
 			"Catches change requests that touch paths no legitimate change would.",
 		contributorLabel: "this change request changes protected files.",
+		evidenceRedaction: { "file-paths": ["touched"] },
 	},
 	{
 		ruleId: "profile-readme",
@@ -315,6 +323,11 @@ export const RULE_CATALOG = [
 		description:
 			"Reads the change like a reviewer and flags slop. Off until you turn it on, because it costs tokens.",
 		contributorLabel: "an AI review found problems in this change request.",
+		summaryReveals: ["ai-summary"],
+		evidenceRedaction: {
+			"matched-values": ["output.findings.*.note"],
+			"file-paths": ["output.findings.*.file", "output.findings.*.line"],
+		},
 	},
 ] as const satisfies ReadonlyArray<{
 	ruleId: string;
@@ -327,6 +340,8 @@ export const RULE_CATALOG = [
 	description: string;
 	/** Contributor-facing one-liner for verdict surfaces (§12 copy). */
 	contributorLabel: string;
+	summaryReveals?: readonly RedactionItem[];
+	evidenceRedaction?: Partial<Record<RedactionItem, readonly string[]>>;
 	changeNote?: string;
 	/**
 	 * Forges this rule can run on. Absent ⇒ all of them. Present ⇒ the rule needs

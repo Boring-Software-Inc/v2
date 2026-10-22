@@ -20,11 +20,9 @@ interface OpenGitCheckRun {
 type OpenGitStatus = "queued" | "running" | "success" | "failed" | "canceled";
 
 /**
- * `needs_review` arrives here as `neutral`, and open-git has no non-blocking
- * non-success status. Blocking is the fail-closed direction and matches what
- * the verdict means — park the change request until a human decides — so it
- * maps to `failed` rather than quietly passing. This is a real behavioural
- * difference from GitHub, where `neutral` does not hold the merge button.
+ * `needs_review` arrives here as `pending`, so it stays `running` until a
+ * maintainer decides. `neutral` has no non-blocking open-git status, so it
+ * maps to `failed`, the fail-closed direction.
  */
 const CONCLUSION_TO_STATUS = {
 	success: "success",

@@ -75,7 +75,7 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 			<NavLink
 				variant={variant}
 				icon={Moderation}
-				label="Moderation"
+				label="Human review"
 				to={`/${org}/${repo}/moderation`}
 				value={counts.queue}
 			/>
@@ -100,8 +100,8 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 			<NavLink
 				variant={variant}
 				icon={Customize}
-				label="Customize"
-				to={`/${org}/${repo}/customize`}
+				label="Responses"
+				to={`/${org}/${repo}/responses`}
 			/>
 			<NavLink
 				variant={variant}

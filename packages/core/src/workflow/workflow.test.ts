@@ -321,7 +321,7 @@ describe("validateWorkflow", () => {
 		const result = validateWorkflow(cyclic);
 		expect(result.valid).toBe(false);
 		if (!result.valid) {
-			expect(result.issues.some((i) => i.message.includes("cycle"))).toBe(true);
+			expect(result.issues.some((i) => i.rule === "cycle")).toBe(true);
 		}
 	});
 

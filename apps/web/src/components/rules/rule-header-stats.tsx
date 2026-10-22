@@ -8,6 +8,7 @@ import {
 } from "#/components/glaze/ui/card";
 import { Sparkline } from "#/components/glaze/ui/chart";
 import { SkeletonText } from "#/components/glaze/ui/skeleton";
+import type { AnalyticsMetricKey } from "#/lib/repo-search";
 import type { RulesHeaderStats } from "#/lib/rules.functions";
 
 export function RuleHeaderStats({
@@ -49,7 +50,7 @@ function StatCell({
 	label: string;
 	value: number | undefined;
 	series: number[] | undefined;
-	metric?: string;
+	metric?: AnalyticsMetricKey;
 }) {
 	const { org, repo } = useParams({ strict: false });
 	return (

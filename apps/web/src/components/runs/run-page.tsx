@@ -1,6 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { FORGE_BY_ID, workflowActionKindSchema } from "@tripwire/contracts";
+import {
+	ACTION_CATALOG,
+	FORGE_BY_ID,
+	workflowActionKindSchema,
+} from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { verdictStatus } from "#/components/activity/verdict-chip";
 import { ForgeMark } from "#/components/common/forge-marks";
@@ -211,32 +215,34 @@ function RunBody({ run }: { run: RunView }) {
 					</div>
 				</header>
 
-				<Card>
-					<CardHeader>
-						<CardTitle>Steps</CardTitle>
-					</CardHeader>
-					<CardContent flush>
-						{liveSteps.length === 0 ? (
-							<p className="px-3 py-4 type-body-sm text-text-2">
-								{evaluating
-									? "Starting the check."
-									: run.status === "failed"
-										? "This run did not finish. Re-run rules to try again."
-										: "Tripwire recorded no steps for this run."}
-							</p>
-						) : (
-							liveSteps.map((step) => (
-								<StepCard
-									key={step.id}
-									maintainer={run.access !== "public"}
-									repo={run.repoFullName}
-									sha={run.headSha}
-									step={step}
-								/>
-							))
-						)}
-					</CardContent>
-				</Card>
+				{run.stepsHidden ? null : (
+					<Card>
+						<CardHeader>
+							<CardTitle>Steps</CardTitle>
+						</CardHeader>
+						<CardContent flush>
+							{liveSteps.length === 0 ? (
+								<p className="px-3 py-4 type-body-sm text-text-2">
+									{evaluating
+										? "Starting the check."
+										: run.status === "failed"
+											? "This run did not finish. Re-run rules to try again."
+											: "Tripwire recorded no steps for this run."}
+								</p>
+							) : (
+								liveSteps.map((step) => (
+									<StepCard
+										key={step.id}
+										maintainer={run.access !== "public"}
+										repo={run.repoFullName}
+										sha={run.headSha}
+										step={step}
+									/>
+								))
+							)}
+						</CardContent>
+					</Card>
+				)}
 
 				{run.actions.length > 0 ? (
 					<Card>
@@ -294,6 +300,10 @@ function actionGlyph(kind: string) {
 }
 
 function actionName(kind: string): string {
+	const entry = ACTION_CATALOG.find((candidate) => candidate.action === kind);
+	if (entry) {
+		return entry.name;
+	}
 	const words = kind.replace(/-/g, " ");
 	return words.charAt(0).toUpperCase() + words.slice(1);
 }

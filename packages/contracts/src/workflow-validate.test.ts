@@ -7,12 +7,6 @@ import {
 	validateWorkflowForEnable,
 } from "./workflow-validate.ts";
 
-/**
- * One test per failure class (§editor rebuild). The base validator moved here
- * from core UNCHANGED (core's suite still exercises it through the re-export);
- * these pin every invariant at its new home plus the two enable-time ones.
- */
-
 function graph(over: Partial<WorkflowDefinition>): WorkflowDefinition {
 	return {
 		id: "w",
@@ -35,6 +29,10 @@ function issuesOf(result: ReturnType<typeof validateWorkflow>): string[] {
 	return result.valid ? [] : result.issues.map((i) => i.message);
 }
 
+function rulesOf(result: ReturnType<typeof validateWorkflow>): string[] {
+	return result.valid ? [] : result.issues.map((i) => i.rule);
+}
+
 describe("validateWorkflow (base — every failure class)", () => {
 	test("valid graph and DEFAULT_WORKFLOW pass", () => {
 		expect(validateWorkflow(graph({})).valid).toBe(true);
@@ -49,40 +47,32 @@ describe("validateWorkflow (base — every failure class)", () => {
 		const g = graph({});
 		g.nodes.push({ id: "t", type: "gate", mode: "all-of" });
 		g.edges.push({ id: "e3", from: "r", to: "t" });
-		expect(issuesOf(validateWorkflow(g))).toContain("duplicate node id");
+		expect(rulesOf(validateWorkflow(g))).toContain("duplicate-id");
 	});
 
 	test("duplicate edge id", () => {
 		const g = graph({});
 		g.edges.push({ id: "e1", from: "t", to: "a" });
-		expect(issuesOf(validateWorkflow(g))).toContain("duplicate edge id");
+		expect(rulesOf(validateWorkflow(g))).toContain("duplicate-id");
 	});
 
 	test("edge references a missing node", () => {
 		const g = graph({});
 		g.edges.push({ id: "e3", from: "ghost", to: "a" });
-		expect(
-			issuesOf(validateWorkflow(g)).some((m) => m.includes("unknown source")),
-		).toBe(true);
+		expect(rulesOf(validateWorkflow(g))).toContain("missing-step");
 	});
 
 	test("no trigger", () => {
 		const g = graph({});
 		g.nodes = g.nodes.filter((n) => n.type !== "trigger");
 		g.edges = g.edges.filter((e) => e.from !== "t");
-		expect(
-			issuesOf(validateWorkflow(g)).some((m) =>
-				m.includes("at least one trigger"),
-			),
-		).toBe(true);
+		expect(rulesOf(validateWorkflow(g))).toContain("no-trigger");
 	});
 
 	test("trigger with inputs", () => {
 		const g = graph({});
 		g.edges.push({ id: "e3", from: "r", to: "t" });
-		expect(issuesOf(validateWorkflow(g))).toContain(
-			"trigger cannot have inputs",
-		);
+		expect(rulesOf(validateWorkflow(g))).toContain("trigger-input");
 	});
 
 	test("`not` gate arity", () => {
@@ -92,34 +82,73 @@ describe("validateWorkflow (base — every failure class)", () => {
 			{ id: "e3", from: "t", to: "g" },
 			{ id: "e4", from: "r", to: "g" },
 		);
-		expect(issuesOf(validateWorkflow(g))).toContain(
-			"`not` gate takes exactly one input",
-		);
+		expect(rulesOf(validateWorkflow(g))).toContain("not-input");
 	});
 
 	test("unreachable node", () => {
 		const g = graph({});
 		g.nodes.push({ id: "orphan", type: "gate", mode: "all-of" });
-		expect(issuesOf(validateWorkflow(g))).toContain("unreachable node");
+		expect(rulesOf(validateWorkflow(g))).toContain("orphan-step");
 	});
 
 	test("approve/deny edges only leave send-to-moderation", () => {
 		const g = graph({});
 		g.edges[1] = { id: "e2", from: "r", to: "a", when: "approve" };
-		expect(
-			issuesOf(validateWorkflow(g)).some((m) =>
-				m.includes("send-to-moderation"),
-			),
-		).toBe(true);
+		expect(rulesOf(validateWorkflow(g))).toContain("wrong-output");
 	});
 
 	test("non-moderation actions cannot have outputs", () => {
 		const g = graph({});
 		g.nodes.push({ id: "g", type: "gate", mode: "all-of" });
 		g.edges.push({ id: "e3", from: "a", to: "g" });
-		expect(
-			issuesOf(validateWorkflow(g)).some((m) => m.includes("may have outputs")),
-		).toBe(true);
+		expect(rulesOf(validateWorkflow(g))).toContain("no-outputs");
+	});
+
+	test("trigger straight into a gate breaks the connection matrix", () => {
+		const g = graph({});
+		g.nodes.push({ id: "g", type: "gate", mode: "all-of" });
+		g.edges.push({ id: "e3", from: "t", to: "g" });
+		const result = validateWorkflow(g);
+		expect(result.valid).toBe(false);
+		expect(result.valid ? [] : result.issues).toContainEqual({
+			rule: "gate-input",
+			severity: "error",
+			edgeId: "e3",
+			nodeId: "g",
+			message: "All of takes rule results, not events from Trigger",
+			fixes: [
+				{
+					label: "Insert a rule",
+					intent: { type: "insert-step", edgeId: "e3" },
+				},
+				{
+					label: "Remove connection",
+					edit: { type: "remove-edge", edgeId: "e3" },
+				},
+			],
+		});
+	});
+
+	test("a gate fed from a doesn't-pass output breaks the connection matrix", () => {
+		const g = graph({});
+		g.nodes.push({ id: "g", type: "gate", mode: "any-of" });
+		g.edges.push({ id: "e3", from: "r", to: "g", when: "fail" });
+		expect(issuesOf(validateWorkflow(g))).toContain(
+			"Any of takes only Passes, not Doesn't pass from Account age",
+		);
+	});
+
+	test("branching paths and several triggers stay valid", () => {
+		const g = graph({});
+		g.nodes.push(
+			{ id: "t2", type: "trigger", kinds: ["comment.created"] },
+			{ id: "c", type: "action", action: "comment" },
+		);
+		g.edges.push(
+			{ id: "e3", from: "r", to: "c" },
+			{ id: "e4", from: "t2", to: "c" },
+		);
+		expect(validateWorkflow(g).valid).toBe(true);
 	});
 
 	test("cycle detection", () => {
@@ -129,9 +158,7 @@ describe("validateWorkflow (base — every failure class)", () => {
 			{ id: "e3", from: "r", to: "g" },
 			{ id: "e4", from: "g", to: "r" },
 		);
-		expect(issuesOf(validateWorkflow(g))).toContain(
-			"workflow contains a cycle",
-		);
+		expect(rulesOf(validateWorkflow(g))).toContain("cycle");
 	});
 });
 
@@ -148,9 +175,7 @@ describe("validateWorkflowForEnable (the two enable-time invariants)", () => {
 		g.nodes = g.nodes.filter((n) => n.id !== "a");
 		g.edges = g.edges.filter((e) => e.to !== "a");
 		const result = validateWorkflowForEnable(g);
-		expect(
-			issuesOf(result).some((m) => m.includes("no action is reachable")),
-		).toBe(true);
+		expect(rulesOf(result)).toContain("no-action");
 	});
 
 	test("unknown rule ref refuses at enable (frozen snapshots still pass BASE)", () => {
@@ -161,11 +186,7 @@ describe("validateWorkflowForEnable (the two enable-time invariants)", () => {
 			rule.config = {};
 		}
 		expect(validateWorkflow(g).valid).toBe(true); // base: structural only
-		expect(
-			issuesOf(validateWorkflowForEnable(g)).some((m) =>
-				m.includes("unknown rule"),
-			),
-		).toBe(true);
+		expect(rulesOf(validateWorkflowForEnable(g))).toContain("unknown-rule");
 	});
 
 	test("rule config must parse against its catalog schema", () => {
@@ -195,12 +216,36 @@ describe("validateWorkflowForEnable — custom rules via the runtime catalog", (
 
 	test("built-ins alone read a custom ref as 'unknown rule' (the editor bug)", () => {
 		expect(issuesOf(validateWorkflowForEnable(customGraph))).toContain(
-			"unknown rule custom-irrelevant-019f93@1",
+			"custom-irrelevant-019f93@1 is not a rule this repo has",
 		);
 	});
 
 	test("merging customValidationEntries lets the custom rule enable", () => {
 		const catalog = [...RULE_CATALOG, ...customValidationEntries(custom)];
 		expect(validateWorkflowForEnable(customGraph, catalog).valid).toBe(true);
+	});
+});
+
+describe("the removed comment step", () => {
+	const withComment = graph({
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			{ id: "r", type: "rule", ref: "account-age@1", config: { minDays: 7 } },
+			{ id: "c", type: "action", action: "comment" },
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "r" },
+			{ id: "e2", from: "r", to: "c" },
+		],
+	});
+
+	test("a stored workflow with one still parses", () => {
+		expect(validateWorkflow(withComment).valid).toBe(true);
+	});
+
+	test("it cannot be enabled until the step is deleted", () => {
+		expect(rulesOf(validateWorkflowForEnable(withComment))).toEqual([
+			"removed-step",
+		]);
 	});
 });

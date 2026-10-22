@@ -628,7 +628,7 @@ describe("PR surface (§5.12–13, §7)", () => {
 		);
 		expect(finalCheck).toBeDefined();
 		const comment = fake.executed.find((e) => e.kind === "comment");
-		expect(comment?.detail).toContain("blocks this from merging");
+		expect(comment?.detail).toContain("Tripwire now blocks this.");
 		// The comment speaks reasons, never a rule count.
 		expect(comment?.detail).not.toMatch(/\d+ of \d+ rules?/);
 
@@ -686,6 +686,7 @@ describe("installation sync (§4 installation sync — live gap fix)", () => {
 		if (!eventId) {
 			throw new Error("insert failed");
 		}
+		const queued: string[] = [];
 		await processEvent(
 			{
 				db,
@@ -694,13 +695,17 @@ describe("installation sync (§4 installation sync — live gap fix)", () => {
 				resolveForge: staticForge({}),
 				makeGenerate: null,
 				appUrl: "http://localhost:3000",
+				enqueueReviewerSync: async (repoId) => {
+					queued.push(repoId);
+				},
 			},
 			{ eventId },
 		);
 		const rows = await pool.query(
-			"SELECT external_id, installation_id, removed_at FROM repos WHERE full_name = 'Boring-Software-Inc/scratch'",
+			"SELECT id, external_id, installation_id, removed_at FROM repos WHERE full_name = 'Boring-Software-Inc/scratch'",
 		);
 		expect(rows.rowCount).toBe(1);
+		expect(queued).toContain(rows.rows[0].id);
 		expect(rows.rows[0].external_id).toBe("1297742259");
 		expect(rows.rows[0].installation_id).toBe("145946161");
 		expect(rows.rows[0].removed_at).toBeNull();

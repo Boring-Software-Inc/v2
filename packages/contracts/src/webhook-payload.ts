@@ -48,7 +48,7 @@ function discordHeadline(payload: WebhookPayload): string {
 	if (payload.verdict === "block") {
 		return `Tripwire blocked ${subject}.`;
 	}
-	return `Tripwire sent ${subject} to review.`;
+	return `${subject} needs human review.`;
 }
 
 /**
@@ -75,7 +75,9 @@ export function formatDiscordMessage(payload: WebhookPayload): {
 	const reasons =
 		payload.firedRules.length > 0
 			? payload.firedRules.map((rule) => `- ${rule.summary}`).join("\n")
-			: "No rule blocked this change request.";
+			: payload.verdict === "block"
+				? "Details are on the Tripwire run page."
+				: "No rule blocked this change request.";
 	return {
 		content: discordHeadline(payload),
 		embeds: [

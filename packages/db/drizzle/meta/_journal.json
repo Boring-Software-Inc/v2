@@ -141,6 +141,20 @@
       "when": 1792570672262,
       "tag": "0019_talented_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792633118380,
+      "tag": "0020_worthless_callisto",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792635667183,
+      "tag": "0021_sleepy_domino",
+      "breakpoints": true
     }
   ]
 }

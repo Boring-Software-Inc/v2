@@ -53,9 +53,15 @@ describe("formatDiscordMessage — own formatter, verdict-colored", () => {
 			"No rule blocked this change request.",
 		);
 	});
-	test("sent to review: amber", () => {
+	test("blocked with every rule redacted points at the run page", () => {
+		const msg = formatDiscordMessage({ ...PAYLOAD, firedRules: [] });
+		expect(msg.embeds[0]?.description).toBe(
+			"Details are on the Tripwire run page.",
+		);
+	});
+	test("human review: amber", () => {
 		const msg = formatDiscordMessage({ ...PAYLOAD, verdict: "needs_review" });
-		expect(msg.content).toBe("Tripwire sent acme/web #42 to review.");
+		expect(msg.content).toBe("acme/web #42 needs human review.");
 		expect(msg.embeds[0]?.color).toBe(0xf59e0b);
 	});
 });

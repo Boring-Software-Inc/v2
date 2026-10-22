@@ -26,6 +26,7 @@ import * as economicsServices from "./services/economics.ts";
 import * as insightServices from "./services/insights.ts";
 import * as orgServices from "./services/organizations.ts";
 import * as repoServices from "./services/repos.ts";
+import * as reviewerServices from "./services/reviewers.ts";
 import * as workflowServices from "./services/workflows.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -66,6 +67,14 @@ const CUSTOM_RULES: CustomRuleRecord[] = [
 ];
 
 const BRANCHES = ["main", "develop", "release/2026-10", "docs"];
+
+const REVIEWERS = [
+	{ id: 91_000_001, login: "sam-okafor", permission: "admin" },
+	{ id: 91_000_002, login: "rin-takeda", permission: "maintain" },
+	{ id: 91_000_003, login: "lena-vogt", permission: "write" },
+	{ id: 91_000_004, login: "theo-marsh", permission: "write" },
+	{ id: 91_000_005, login: "priya-raman", permission: "write" },
+].map((reviewer) => ({ ...reviewer, avatarUrl: "" }));
 
 const PENDING_INSTALL = {
 	installationId: "demo-inst-pending",
@@ -123,11 +132,12 @@ export async function seedRepoExtras(db: Db, repoId: string): Promise<void> {
 		db,
 		repoId,
 		responseConfigSchema.parse({
-			blockComment: { mode: "one-liner-link", showRuleName: true },
+			blockComment: { mode: "one-liner-link" },
 			reviewComment: { showDetailsButton: true },
 		}),
 	);
 	await repoServices.upsertRepoSuggestions(db, repoId, "branches", BRANCHES);
+	await reviewerServices.replaceRepoReviewers(db, repoId, REVIEWERS);
 }
 
 const TEAM = {
@@ -137,9 +147,9 @@ const TEAM = {
 	repos: ["team-api", "team-web"],
 };
 
-export async function seedTeamOrg(
+export async function ensureTeamOrg(
 	db: Db,
-	input: { adminUserId: string; memberUserIds: string[]; now: Date },
+	input: { adminUserId: string; memberUserIds: string[] },
 ): Promise<{ id: string; slug: string }> {
 	const slug = orgSlugSchema.parse(TEAM.slug);
 	const [found] = await db
@@ -172,6 +182,14 @@ export async function seedTeamOrg(
 			expiresInDays: 7,
 		});
 	}
+	return org;
+}
+
+export async function seedTeamOrg(
+	db: Db,
+	input: { adminUserId: string; memberUserIds: string[]; now: Date },
+): Promise<{ id: string; slug: string }> {
+	const org = await ensureTeamOrg(db, input);
 	for (const name of TEAM.repos) {
 		const repo = await ensureDemoRepo(db, name, {
 			installationId: TEAM.installationId,

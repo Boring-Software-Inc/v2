@@ -142,6 +142,7 @@ export async function rerunChangeRequest(
 		appUrl: deps.appUrl,
 	};
 
+	let pendingCheckPosted = false;
 	const result = await runWorkflows(
 		{
 			db,
@@ -151,7 +152,9 @@ export async function rerunChangeRequest(
 			meterSource: deps.meterSource,
 			triggeredBy: job.requestedBy,
 			claimRunId: claimRunId,
-			onBeforeEvaluate: () => emitPendingCheck(surfaceDeps, event),
+			onBeforeEvaluate: async () => {
+				pendingCheckPosted = await emitPendingCheck(surfaceDeps, event);
+			},
 		},
 		event,
 		row.id,
@@ -165,6 +168,7 @@ export async function rerunChangeRequest(
 			degraded: result.degraded,
 			rerun: true,
 			pendingActionRows: result.actionRows,
+			pendingCheckPosted,
 		});
 	} else if (claimRunId && !result.runId) {
 		// Evaluation path returned none without failing the claim (e.g. early

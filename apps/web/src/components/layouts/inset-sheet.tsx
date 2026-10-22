@@ -46,7 +46,7 @@ export function InsetSheetContent({
 		<DialogContent
 			data-side="sheet"
 			className={mergeClass(
-				"top-auto -bottom-(--radius-shell) h-[calc(100dvh-var(--space-10)+var(--radius-shell))] max-h-none w-[calc(100%-var(--space-2)*2)] max-w-none translate-y-0 rounded-b-none sm:w-[85vw]",
+				"top-auto -bottom-(--radius-shell) h-auto min-h-[min(34rem,calc(100dvh-var(--space-10)+var(--radius-shell)))] max-h-[calc(100dvh-var(--space-10)+var(--radius-shell))] w-[calc(100%-var(--space-2)*2)] max-w-none translate-y-0 rounded-b-none sm:w-[85vw] sm:max-w-3xl",
 				className,
 			)}
 			size="lg"

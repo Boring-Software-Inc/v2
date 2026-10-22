@@ -242,14 +242,14 @@ describe("executeAction — block files a request-changes review", () => {
 			kind: "block",
 			repoFullName: "a/b",
 			number: 7,
-			reason: "Tripwire blocked this from merging. Your account is 2 days old.",
+			reason: "Tripwire blocked this. Your account is 2 days old.",
 		});
 		expect(result.externalId).toBe("91");
 		const post = calls.find((c) => c.method === "POST");
 		expect(post?.path).toBe("/repos/a/b/pulls/7/reviews");
 		expect(post?.body).toMatchObject({ event: "REQUEST_CHANGES" });
 		expect(String((post?.body as { body: string }).body)).toContain(
-			"Tripwire blocked this from merging. Your account is 2 days old.",
+			"Tripwire blocked this. Your account is 2 days old.",
 		);
 	});
 });
@@ -270,5 +270,67 @@ describe("executeAction — dismiss-review clears a stale request-changes", () =
 		const put = calls.find((c) => c.method === "PUT");
 		expect(put?.path).toBe("/repos/a/b/pulls/7/reviews/91/dismissals");
 		expect(put?.body).toMatchObject({ event: "DISMISS" });
+	});
+});
+
+describe("executeAction — request-review asks named people and teams", () => {
+	test("POSTs reviewers and team_reviewers to requested_reviewers", async () => {
+		const { http, calls } = fakeHttp({
+			"POST /repos/a/b/pulls/7/requested_reviewers": { number: 7 },
+		});
+		const { executeAction } = await import("./execute.ts");
+		const result = await executeAction(http, {
+			kind: "request-review",
+			repoFullName: "a/b",
+			number: 7,
+			reviewers: ["octocat", "hubot"],
+			teamReviewers: ["core"],
+		});
+		expect(result.externalId).toBeNull();
+		expect(calls).toEqual([
+			{
+				method: "POST",
+				path: "/repos/a/b/pulls/7/requested_reviewers",
+				body: { reviewers: ["octocat", "hubot"], team_reviewers: ["core"] },
+			},
+		]);
+	});
+
+	test("refuses an action with no targets and reaches no endpoint", async () => {
+		const { http, calls } = fakeHttp({});
+		const { executeAction } = await import("./execute.ts");
+		await expect(
+			executeAction(http, {
+				kind: "request-review",
+				repoFullName: "a/b",
+				number: 7,
+				reviewers: [],
+				teamReviewers: [],
+			}),
+		).rejects.toThrow(/no people or teams/);
+		expect(calls).toHaveLength(0);
+	});
+
+	test("a GitHub refusal surfaces as an error carrying the status", async () => {
+		const http = new GithubHttp({
+			tokenFor: () => Promise.resolve("test-token"),
+			apiBase: "https://fake.api",
+			fetchImpl: ((_url: string | URL | Request, _init?: RequestInit) =>
+				Promise.resolve(
+					new Response(JSON.stringify({ message: "Validation Failed" }), {
+						status: 422,
+					}),
+				)) as typeof fetch,
+		});
+		const { executeAction } = await import("./execute.ts");
+		await expect(
+			executeAction(http, {
+				kind: "request-review",
+				repoFullName: "a/b",
+				number: 7,
+				reviewers: ["not-a-collaborator"],
+				teamReviewers: [],
+			}),
+		).rejects.toThrow(/requested_reviewers failed: 422/);
 	});
 });

@@ -61,6 +61,10 @@ const VERDICT_RANK: Record<Verdict, number> = {
 	block: 2,
 };
 
+export function postsSomething(action: { action: string }): boolean {
+	return action.action !== "comment";
+}
+
 export function worstVerdict(verdicts: Verdict[]): Verdict {
 	return verdicts.reduce<Verdict>(
 		(worst, v) => (VERDICT_RANK[v] > VERDICT_RANK[worst] ? v : worst),
@@ -525,7 +529,7 @@ async function runWorkflowsInner(
 		db,
 		runId,
 		executions.flatMap((execution) =>
-			execution.result.actions.map((action) => ({
+			execution.result.actions.filter(postsSomething).map((action) => ({
 				kind: action.action,
 				payload: {
 					...action.params,

@@ -1,7 +1,12 @@
-import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	notFound,
+	Outlet,
+	stripSearchParams,
+} from "@tanstack/react-router";
 import { NotFound } from "#/components/not-found";
-import { parseOrgSettingsTab } from "#/components/organizations/org-settings-tab";
 import { orgContextQueryOptions } from "#/lib/org.query";
+import { ORG_SEARCH_DEFAULTS, orgSearchSchema } from "#/lib/org-search";
 
 /**
  * §8 — the URL is the source of truth for org scope. This layout resolves
@@ -9,13 +14,8 @@ import { orgContextQueryOptions } from "#/lib/org.query";
  * missing org) is a 404, never a 403 — org existence is not disclosed.
  */
 export const Route = createFileRoute("/$org")({
-	// The org settings dialog is URL-driven (`?settings=<tab>`; the tab list is
-	// owned by `parseOrgSettingsTab`, so adding one needs no edit here)
-	// and can open over any org page, so the param validates at the org root.
-	validateSearch: (search: Record<string, unknown>) => {
-		const settings = parseOrgSettingsTab(search.settings);
-		return settings ? { settings } : {};
-	},
+	validateSearch: orgSearchSchema,
+	search: { middlewares: [stripSearchParams(ORG_SEARCH_DEFAULTS)] },
 	beforeLoad: async ({ params, context }) => {
 		try {
 			const org = await context.queryClient.ensureQueryData(

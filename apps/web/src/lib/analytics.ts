@@ -16,7 +16,7 @@ export function moderationMetrics(stats: ModStats): AnalyticsMetric[] {
 	return [
 		{
 			key: "review",
-			label: "Sent to review",
+			label: "Human review",
 			series: stats.sentToReview.series,
 			delta: stats.sentToReview.delta,
 			// more awaiting your decision is work piling up.

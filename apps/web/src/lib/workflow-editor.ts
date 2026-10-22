@@ -123,12 +123,26 @@ export type GraphToDefinitionResult =
 	| { ok: true; definition: WorkflowDefinition }
 	| { ok: false; error: string };
 
-export function graphToDefinition(
+export interface GraphNodeLike {
+	id: string;
+	position: { x: number; y: number };
+	data: { node: WorkflowNode };
+}
+
+export interface GraphEdgeLike {
+	id: string;
+	source: string;
+	target: string;
+	sourceHandle?: string | null;
+	data?: { when?: EdgeWhen };
+}
+
+export function graphToCandidate(
 	meta: { id: string; name: string; version: number },
-	nodes: EditorNode[],
-	edges: EditorEdge[],
-): GraphToDefinitionResult {
-	const candidate = {
+	nodes: readonly GraphNodeLike[],
+	edges: readonly GraphEdgeLike[],
+): WorkflowDefinition {
+	return {
 		id: meta.id,
 		name: meta.name,
 		version: meta.version,
@@ -148,6 +162,14 @@ export function graphToDefinition(
 			})(),
 		})),
 	};
+}
+
+export function graphToDefinition(
+	meta: { id: string; name: string; version: number },
+	nodes: readonly GraphNodeLike[],
+	edges: readonly GraphEdgeLike[],
+): GraphToDefinitionResult {
+	const candidate = graphToCandidate(meta, nodes, edges);
 	const parsed = workflowDefinitionSchema.safeParse(candidate);
 	if (!parsed.success) {
 		const issue = parsed.error.issues[0];

@@ -1,15 +1,40 @@
-import type { WorkflowNode } from "@tripwire/contracts";
+import type { WorkflowNode, WorkflowPort } from "@tripwire/contracts";
+import {
+	acceptedPortKinds,
+	outputPorts,
+	WORKFLOW_PORT_KIND_LABELS,
+	WORKFLOW_PORT_LABELS,
+	WORKFLOW_PORT_TONE,
+} from "@tripwire/contracts";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
+import { Button } from "#/components/glaze/ui/button";
 import { StatusMark } from "#/components/glaze/ui/status";
+import {
+	handleReason,
+	inputLook,
+	type NodeVerdict,
+	outputLook,
+	portHandleId,
+} from "#/components/workflows/editor/connection-plan";
 import {
 	nodeFieldValues,
 	summarizeFieldValue,
 } from "#/components/workflows/editor/node-fields";
 import {
 	useCustomRuleName,
-	useNodeIssues,
+	useEditField,
+	useNodeProblems,
+	useProblems,
 } from "#/components/workflows/editor/node-issues";
+import {
+	ProblemPeek,
+	severityStatus,
+} from "#/components/workflows/editor/problems-list";
 import { stepName } from "#/components/workflows/editor/step-meta";
+import {
+	useDragPlan,
+	useNodeVerdict,
+} from "#/components/workflows/editor/typed-connections";
 import { cn } from "#/lib/glaze/utils";
 
 /** The one node data shape the canvas renders. */
@@ -23,8 +48,8 @@ export type TripwireFlowNode = Node<{ node: WorkflowNode }, "tripwire">;
  * a plain text kind label; with no body, the word is their only type signal.
  * Body is the catalog name plus, for value-accepting nodes, inline field rows
  * summarizing the config the properties panel edits (same schema walk,
- * node-fields.ts — display only, editing stays in the panel). Selected = strong
- * line; invalid = fail mark with the issue list as its title. Handle ids are LOAD-BEARING:
+ * node-fields.ts; a row click opens the panel on that field). Selected = strong
+ * line; invalid = fail mark that previews its problems on hover. Handle ids are LOAD-BEARING:
  * `handleWhen` maps "fail" / "approve" / "deny" handle ids to edge `when`s —
  * the port blocks are appearance only, every id and type is unchanged.
  */
@@ -43,68 +68,119 @@ function nodeDetail(node: WorkflowNode): string | null {
 	}
 }
 
-/** Rule and gate outcomes fork — those nodes expose a second, fail handle. */
-function canFail(node: WorkflowNode): boolean {
-	return node.type === "rule" || node.type === "gate";
+type DropState = "open" | "closed" | undefined;
+
+function OutputPort({
+	port,
+	corner,
+	drop,
+}: {
+	port: WorkflowPort;
+	corner: boolean;
+	drop: DropState;
+}) {
+	const look = outputLook(port);
+	return (
+		<Handle
+			data-drop={drop}
+			data-port-io="out"
+			data-port-shape={look.shape}
+			data-port-slot={corner ? "corner" : "top"}
+			data-port-tone={look.tone}
+			id={portHandleId(port) ?? undefined}
+			position={Position.Right}
+			title={WORKFLOW_PORT_LABELS[port]}
+			type="source"
+		/>
+	);
 }
 
-/** Moderation decisions fork — approve/deny handles (validate.ts restricts these edges to moderation nodes). */
-function isModeration(node: WorkflowNode): boolean {
-	return node.type === "action" && node.action === "send-to-moderation";
+function PortCaption({ port }: { port: WorkflowPort }) {
+	const tone = WORKFLOW_PORT_TONE[port];
+	return (
+		<span
+			className={cn(
+				"shrink-0 type-caption",
+				tone === "ok" && "text-ok-text",
+				tone === "fail" && "text-fail-text",
+				tone === "neutral" && "text-text-3",
+			)}
+		>
+			{WORKFLOW_PORT_LABELS[port]}
+		</span>
+	);
 }
 
-/**
- * Ports carry meaning by POSITION and COLOR only — no text. Tabs that come
- * OUT of the node: mostly tucked UNDER the card edge (negative z paints them
- * behind the card's fill), a sliver protruding. in sits top-left and the
- * positive out (out/pass/approve) top-right, flanking the header; the
- * negative outcome (fail/deny) holds the bottom-right corner in the fail
- * colour, the one hue that separates it from the pass path. Fixed offsets, not height
- * percentages, so tall field-bearing nodes keep every tab in place. Handle
- * ids/types unchanged — edges keyed on `when` stay valid.
- */
-const PORT_CLASS = "!-z-10 !h-4 !w-5 !min-w-0 !rounded-tag !border-0";
-const PORT_POSITIVE = "!bg-ok";
-const PORT_NEGATIVE = "!bg-fail";
-/** Header-height tabs (in / out / pass / approve). */
-const PORT_TOP = { top: "var(--space-3)", transform: "none" } as const;
-/** The negative-outcome tab, hugging the bottom-right corner. */
-const PORT_CORNER = {
-	top: "auto",
-	bottom: "var(--space-2)",
-	transform: "none",
-} as const;
+function dropState(
+	verdict: NodeVerdict | null,
+	handleId: string | null,
+	io: "in" | "out",
+	direction: "in" | "out" | undefined,
+): DropState {
+	if (!verdict || verdict.origin || direction === undefined) {
+		return undefined;
+	}
+	if ((direction === "out") !== (io === "in")) {
+		return undefined;
+	}
+	return handleReason(verdict, handleId) === null ? "open" : "closed";
+}
 
 export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 	const { node } = data;
-	const issues = useNodeIssues(node.id);
+	const problems = useNodeProblems(node.id);
+	const { onFix } = useProblems();
+	const status = problems.length > 0 ? severityStatus(problems) : null;
+	const editField = useEditField();
 	const customName = useCustomRuleName(node.type === "rule" ? node.ref : "");
 	const detail = nodeDetail(node);
 	const fields = nodeFieldValues(node);
-	const forked = canFail(node) || isModeration(node);
+	const [topPort, cornerPort] = outputPorts(node);
+	const input = inputLook(node.type);
+	const verdict = useNodeVerdict(node.id);
+	const direction = useDragPlan()?.direction;
+	const nodeDrop = verdict
+		? verdict.origin
+			? "origin"
+			: verdict.reason
+				? "closed"
+				: "open"
+		: undefined;
 	return (
 		<div
+			data-drop-node={nodeDrop}
 			className={cn(
 				"relative w-56 rounded-panel border border-line-faint bg-paper px-3 py-2 text-text-1 transition-colors duration-(--dur-state)",
-				forked && "min-h-16 pb-3",
+				cornerPort && "min-h-16",
 				selected && "border-ink",
-				issues.length > 0 && !selected && "border-fail",
+				status === "fail" && !selected && "border-fail",
+				status === "warn" && !selected && "border-warn",
 			)}
 		>
-			{issues.length > 0 ? (
-				<span
+			{status ? (
+				<ProblemPeek
 					className="absolute -top-2 -right-2 flex rounded-pill bg-paper"
-					title={issues.join("\n")}
+					onFix={onFix}
+					problems={problems}
 				>
-					<StatusMark label={issues.join(". ")} status="fail" />
-				</span>
+					<StatusMark
+						label={problems.map((problem) => problem.message).join(". ")}
+						status={status}
+					/>
+				</ProblemPeek>
 			) : null}
-			{node.type !== "trigger" ? (
+			{input ? (
 				<Handle
-					className={cn(PORT_CLASS, "!-left-2")}
+					data-drop={dropState(verdict, null, "in", direction)}
+					data-port-io="in"
+					data-port-shape={input.shape}
+					data-port-slot="top"
+					data-port-tone={input.tone}
+					isConnectableStart={false}
 					position={Position.Left}
-					style={PORT_TOP}
-					title="Input"
+					title={acceptedPortKinds(node.type)
+						.map((kind) => WORKFLOW_PORT_KIND_LABELS[kind])
+						.join(", ")}
 					type="target"
 				/>
 			) : null}
@@ -115,73 +191,56 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				{node.type === "gate" ? (
 					<span className="shrink-0 type-caption text-text-2">Gate</span>
 				) : null}
+				{topPort ? (
+					<span className="ms-auto flex">
+						<PortCaption port={topPort} />
+					</span>
+				) : null}
 			</div>
 			{detail ? (
 				<div className="truncate type-code-xs text-text-3">{detail}</div>
 			) : null}
 			{fields.length > 0 ? (
-				<div className="mt-2 flex flex-col gap-1 border-line-faint border-t pt-2">
+				<div className="mt-2 flex flex-col border-line-faint border-t pt-1">
 					{fields.map(({ field, value }) => (
-						<div
-							className="flex items-baseline justify-between gap-2 type-caption"
-							key={field.key}
-						>
-							<span className="min-w-0 truncate text-text-2">
-								{field.label}
-							</span>
-							<span className="max-w-1/2 shrink-0 truncate text-end">
-								{summarizeFieldValue(field, value)}
-							</span>
+						<div className="-mx-2.5" key={field.key}>
+							<Button
+								aria-label={`Edit ${field.label}`}
+								className="w-full justify-between"
+								onClick={() => editField(node.id, field.key)}
+								size="sm"
+								variant="ghost"
+							>
+								<span className="min-w-0 truncate text-text-2">
+									{field.label}
+								</span>
+								<span className="max-w-1/2 shrink-0 truncate">
+									{summarizeFieldValue(field, value)}
+								</span>
+							</Button>
 						</div>
 					))}
 				</div>
 			) : null}
-			{canFail(node) ? (
-				<>
-					<Handle
-						className={cn(PORT_CLASS, PORT_POSITIVE, "!-right-2")}
-						position={Position.Right}
-						style={PORT_TOP}
-						title="Next step when it passes"
-						type="source"
-					/>
-					<Handle
-						className={cn(PORT_CLASS, PORT_NEGATIVE, "!-right-2")}
-						id="fail"
-						position={Position.Right}
-						style={PORT_CORNER}
-						title="Next step when it does not pass"
-						type="source"
-					/>
-				</>
-			) : isModeration(node) ? (
-				<>
-					<Handle
-						className={cn(PORT_CLASS, PORT_POSITIVE, "!-right-2")}
-						id="approve"
-						position={Position.Right}
-						style={PORT_TOP}
-						title="Next step when a maintainer approves it"
-						type="source"
-					/>
-					<Handle
-						className={cn(PORT_CLASS, PORT_NEGATIVE, "!-right-2")}
-						id="deny"
-						position={Position.Right}
-						style={PORT_CORNER}
-						title="Next step when a maintainer blocks it"
-						type="source"
-					/>
-				</>
-			) : node.type === "action" ? null : (
-				<Handle
-					className={cn(PORT_CLASS, "!-right-2")}
-					position={Position.Right}
-					style={PORT_TOP}
-					title="Next step"
-					type="source"
+			{cornerPort ? (
+				<div className="mt-1 flex justify-end">
+					<PortCaption port={cornerPort} />
+				</div>
+			) : null}
+			{topPort ? (
+				<OutputPort
+					corner={false}
+					drop={dropState(verdict, portHandleId(topPort), "out", direction)}
+					port={topPort}
 				/>
-			)}
+			) : null}
+			{cornerPort ? (
+				<OutputPort
+					corner
+					drop={dropState(verdict, portHandleId(cornerPort), "out", direction)}
+					port={cornerPort}
+				/>
+			) : null}
 		</div>
 	);
 }

@@ -1,5 +1,6 @@
 import {
 	customRuleRecordSchema,
+	lintWorkflow,
 	resolveCatalog,
 	type ValidationIssue,
 	validateWorkflowForEnable,
@@ -10,6 +11,7 @@ import { generateId, pickWorkflowName } from "@tripwire/utils";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { customRules, repos, workflowDefinitions } from "../schema/repos.ts";
+import { listRepoReviewers } from "./reviewers.ts";
 
 /**
  * Workflow CRUD (§workflows grid). The grid keys everything by the ROW id
@@ -262,7 +264,7 @@ export async function deleteWorkflow(
 }
 
 export type SetEnabledResult =
-	| { ok: true; enabled: boolean }
+	| { ok: true; enabled: boolean; warnings?: ValidationIssue[] }
 	| { ok: false; issues: ValidationIssue[] };
 
 /**
@@ -274,6 +276,7 @@ export async function setWorkflowEnabled(
 	db: Db,
 	input: { repoId: string; workflowId: string; enabled: boolean },
 ): Promise<SetEnabledResult> {
+	let warnings: ValidationIssue[] = [];
 	if (input.enabled) {
 		const row = await getWorkflow(db, input);
 		if (!row) {
@@ -289,13 +292,18 @@ export async function setWorkflowEnabled(
 			const parsed = customRuleRecordSchema.safeParse(raw);
 			return parsed.success ? [parsed.data] : [];
 		});
-		const result = validateWorkflowForEnable(
-			row.definition,
-			resolveCatalog(parsedCustom),
-		);
+		const catalog = resolveCatalog(parsedCustom);
+		const result = validateWorkflowForEnable(row.definition, catalog);
 		if (!result.valid) {
 			return { ok: false, issues: result.issues };
 		}
+		const synced = await listRepoReviewers(db, input.repoId);
+		warnings = synced.syncedAt
+			? lintWorkflow(row.definition, {
+					catalog,
+					reviewers: synced.reviewers,
+				}).filter((issue) => issue.rule === "stale-reviewer")
+			: [];
 	}
 	const rows = await db
 		.update(workflowDefinitions)
@@ -310,7 +318,9 @@ export async function setWorkflowEnabled(
 	if (rows.length === 0) {
 		return { ok: false, issues: [{ message: "workflow not found" }] };
 	}
-	return { ok: true, enabled: input.enabled };
+	return warnings.length > 0
+		? { ok: true, enabled: input.enabled, warnings }
+		: { ok: true, enabled: input.enabled };
 }
 
 /** Repo row id from full name — the worker-side hop kept here for tests. */

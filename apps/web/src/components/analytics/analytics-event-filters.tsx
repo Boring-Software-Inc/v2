@@ -58,6 +58,7 @@ export function AnalyticsEventFilters({
 	const contributors = [...new Set(events.map((event) => event.title))].sort();
 	const active =
 		search.trim().length > 0 ||
+		range !== null ||
 		Object.values(filters).some((v) => v.length > 0);
 	const set = (id: string, value: string[]) =>
 		onFiltersChange({ ...filters, [id]: value });
@@ -83,6 +84,7 @@ export function AnalyticsEventFilters({
 			/>
 			<DateRangeFilter onValueChange={onRangeChange} value={range} />
 			<FilterBarSelect
+				defaultValue="newest"
 				label="Sort"
 				onValueChange={(value) => {
 					const next = SORTS.find((option) => option.value === value);

@@ -150,9 +150,8 @@ describe("open-git check — the whole merge gate", () => {
 		["success", "success"],
 		["failure", "failed"],
 		["pending", "running"],
-		// open-git's gate is binary and has no advisory state, so needs_review
-		// HOLDS the merge rather than passing — the fail-closed direction, and a
-		// deliberate divergence from GitHub's non-blocking neutral.
+		// open-git's gate is binary and has no advisory state, so neutral
+		// HOLDS the merge rather than passing, the fail-closed direction.
 		["neutral", "failed"],
 	] as const)("%s maps to open-git status %s", async (conclusion, status) => {
 		const { calls, fetchImpl } = recordingFetch();
@@ -196,7 +195,13 @@ describe("actions open-git cannot perform", () => {
 		],
 		[
 			"request-review",
-			{ kind: "request-review", repoFullName: "acme/api", number: 1 },
+			{
+				kind: "request-review",
+				repoFullName: "acme/api",
+				number: 1,
+				reviewers: ["octocat"],
+				teamReviewers: [],
+			},
 		],
 		[
 			"dismiss-review",

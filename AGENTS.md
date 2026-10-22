@@ -9,7 +9,7 @@
 Tripwire is a **contribution gatekeeper for git forges**. It ingests forge
 webhooks, evaluates contributors and change requests against composable **rules**
 orchestrated by **workflows**, produces auditable **runs**, and acts on the forge
-(block, label, comment, request review, send to moderation). Core speaks only
+(block, label, request GitHub review, human review). Core speaks only
 git's universal layer plus an abstract signal vocabulary; platform packages
 translate their social layer into it. MVP is GitHub, balls to the wall — the
 seams for agnosticism exist from day 1, the second adapter does not.

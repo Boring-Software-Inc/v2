@@ -22,19 +22,19 @@ import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { OrgBillingPage } from "#/components/organizations/org-billing-page";
 import { OrgGeneralSettingsPage } from "#/components/organizations/org-general-settings-page";
 import { OrgMembersPage } from "#/components/organizations/org-members-page";
-import {
-	type OrgSettingsTab,
-	parseOrgSettingsTab,
-} from "#/components/organizations/org-settings-tab";
+import { OrgRedactionPage } from "#/components/organizations/org-redaction-page";
 import {
 	orgContextQueryOptions,
 	orgInvitesQueryOptions,
 	orgMembersQueryOptions,
 } from "#/lib/org.query";
+import { ORG_SETTINGS_TABS, type OrgSettingsTab } from "#/lib/org-search";
+import { pickValue } from "#/lib/pick-value";
 
 const TABS: { value: OrgSettingsTab; label: string }[] = [
 	{ value: "members", label: "Members" },
 	{ value: "settings", label: "General" },
+	{ value: "redaction", label: "Redaction" },
 	{ value: "connections", label: "Connections" },
 	{ value: "billing", label: "Billing" },
 ];
@@ -48,10 +48,9 @@ const TABS: { value: OrgSettingsTab; label: string }[] = [
  */
 export function OrgSettingsDialog() {
 	const params = useParams({ strict: false });
-	const search = useSearch({ strict: false }) as { settings?: unknown };
+	const { settings: tab } = useSearch({ strict: false });
 	const navigate = useNavigate();
 	const org = params.org;
-	const tab = parseOrgSettingsTab(search.settings);
 
 	const queryClient = useQueryClient();
 	const { data: orgContext } = useQuery({
@@ -81,7 +80,10 @@ export function OrgSettingsDialog() {
 			search: (prev: Record<string, unknown>) => ({
 				...prev,
 				settings: next,
+				invites: next ? prev.invites : undefined,
 			}),
+			replace: Boolean(tab && next),
+			resetScroll: false,
 		});
 
 	const name = orgContext?.name ?? org;
@@ -98,7 +100,9 @@ export function OrgSettingsDialog() {
 			<InsetSheetContent>
 				<Tabs
 					className="flex min-h-0 flex-1 flex-col gap-0"
-					onValueChange={(value) => setTab(parseOrgSettingsTab(value))}
+					onValueChange={(value) =>
+						setTab(pickValue(ORG_SETTINGS_TABS, String(value)))
+					}
 					value={tab ?? "members"}
 				>
 					<DialogHeader className="gap-3 group-data-close/dialog:pe-3 sm:group-data-close/dialog:pe-4">
@@ -132,6 +136,9 @@ export function OrgSettingsDialog() {
 						</TabsContent>
 						<TabsContent value="settings">
 							<OrgGeneralSettingsPage org={org} />
+						</TabsContent>
+						<TabsContent value="redaction">
+							<OrgRedactionPage org={org} />
 						</TabsContent>
 						<TabsContent value="connections">
 							<ConnectionsPage org={org} />

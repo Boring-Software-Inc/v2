@@ -132,9 +132,7 @@ describe("enable gating", () => {
 		});
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
-			expect(
-				result.issues.some((i) => /no action is reachable/.test(i.message)),
-			).toBe(true);
+			expect(result.issues.some((i) => i.rule === "no-action")).toBe(true);
 		}
 	});
 

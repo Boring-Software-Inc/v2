@@ -1,7 +1,7 @@
 # tripwire
 
-a firewall for your repo — a contribution gatekeeper that blocks, passes, or
-sends change requests to review before they reach a maintainer.
+a firewall for your repo: a contribution gatekeeper that blocks or passes
+change requests, or holds them for human review, before they reach a maintainer.
 
 ## local development
 
@@ -14,14 +14,15 @@ bun run dev:demo
 A fully seeded, presentable app at http://localhost:3000 — the **web head only**
 (no worker, no api, no queue). The database is embedded PGlite (in-process
 Postgres, WASM) at `.demo/`, running the same schema and migrations as prod. It
-seeds a realistic story (change requests across blocked / passed / sent-to-review,
-an ai-review block with findings, a pending moderation item) and drops you on a
+seeds a realistic story (change requests across blocked / passed / human review,
+an ai-review block with findings, a pending human review item) and drops you on a
 populated dashboard. Re-running resets to the same clean story.
 
-In a dev build a **persona switcher** (bottom-left, and on `/login`) jumps between
-the product's real states — fresh maintainer, one repo, many repos, empty
-dashboard, active dashboard, and anonymous (the public-run stranger view). It is
-dev-only (compile-time excluded from production, refused for non-local hosts).
+In a dev build a **scenario switcher** (bottom-left, and on `/login`) resets the
+demo data and seeds one product state: account (owner, member, outsider, signed
+out), install, repos, workflows and the page to open, plus named presets and a
+server-function delay. It is dev-only (compile-time excluded from production,
+refused for non-local hosts).
 
 ### the full stack (docker + worker + api)
 

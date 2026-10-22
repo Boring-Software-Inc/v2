@@ -227,12 +227,15 @@ function ConfirmScreen({
 	onChooseDifferent: () => void;
 }) {
 	const claim = useClaimMutation(preview.installationId, preview.forge);
-	const source = sourceName(preview);
+	const forge = forgeLabel(preview.forge);
+	const source = preview.account
+		? `the ${preview.account} ${forge} account`
+		: `this ${forge} install`;
 	return (
 		<SetupShell>
 			<SetupHeader
-				body={`Tripwire will start checking change requests on ${source}'s repos for the ${stateOrg.name} org.`}
-				title="Connect this installation?"
+				body={`Repos from ${source} go to the ${stateOrg.name} Tripwire org.`}
+				title={`Connect ${forge} to ${stateOrg.name}?`}
 			/>
 			<Card>
 				<CardContent flush>
@@ -404,10 +407,6 @@ function repoCountLabel(count: number): string {
 	return `${count} ${count === 1 ? "repo" : "repos"}`;
 }
 
-function sourceName(preview: InstallPreview): string {
-	return preview.account ?? `this ${forgeLabel(preview.forge)} connection`;
-}
-
 function SourceRow({ preview }: { preview: InstallPreview }) {
 	const syncing = preview.account === null && preview.repoCount === 0;
 	return (
@@ -418,13 +417,13 @@ function SourceRow({ preview }: { preview: InstallPreview }) {
 			<ItemContent>
 				<ItemTitle>
 					<span>
-						{preview.account ?? `${forgeLabel(preview.forge)} connection`}
+						{preview.account ?? `${forgeLabel(preview.forge)} install`}
 					</span>
 				</ItemTitle>
 				<ItemDescription>
 					{syncing
-						? `${forgeLabel(preview.forge)}, repos still syncing`
-						: forgeLabel(preview.forge)}
+						? "Repos sync in the background. You can connect now."
+						: `${forgeLabel(preview.forge)} account`}
 				</ItemDescription>
 			</ItemContent>
 		</Item>

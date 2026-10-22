@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { OrgWithPermissions } from "@tripwire/auth/org-gate";
 import type { CreateInviteInput, OrgRole } from "@tripwire/contracts";
 import type {
 	InviteLinkView,
@@ -8,11 +9,18 @@ import type {
 } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
+	type OrgContext,
 	orgAdminMiddleware,
 	orgMemberMiddleware,
 } from "#/lib/server/org-guard";
 
-export type { InviteLinkView, OrgCascade, OrgWithRole, RedeemResult };
+export type {
+	InviteLinkView,
+	OrgCascade,
+	OrgWithPermissions,
+	OrgWithRole,
+	RedeemResult,
+};
 
 /**
  * Org surface (§org-model). Membership/role mutations go through the Better
@@ -27,8 +35,8 @@ export type { InviteLinkView, OrgCascade, OrgWithRole, RedeemResult };
 export const getOrgContext = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware, orgMemberMiddleware])
 	.inputValidator((input: { org: string }) => input)
-	.handler(async ({ context }): Promise<OrgWithRole> => {
-		return (context as { org: OrgWithRole }).org;
+	.handler(async ({ context }): Promise<OrgWithPermissions> => {
+		return (context as OrgContext).org;
 	});
 
 /** Every org the caller belongs to — the switcher. Personal first. */

@@ -32,6 +32,7 @@ import {
 	fieldsForSchema,
 	ruleCatalogEntryForRef,
 } from "#/components/workflows/editor/node-fields";
+import { ReviewerPicker } from "#/components/workflows/editor/reviewer-picker";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
@@ -56,6 +57,7 @@ export function hasEditableParams(node: WorkflowNode): boolean {
 		case "action":
 			return (
 				node.action === "label" ||
+				node.action === "request-review" ||
 				node.action === "webhook" ||
 				node.action === "discord"
 			);
@@ -119,7 +121,7 @@ function TriggerFields({
 		onUpdate({ ...node, kinds });
 	};
 	return (
-		<FieldSet className="gap-2" disabled={readOnly}>
+		<FieldSet className="gap-2" data-field="kinds" disabled={readOnly}>
 			<FieldLegend variant="label">
 				Runs on these events (pick at least one)
 			</FieldLegend>
@@ -173,13 +175,14 @@ function RuleFields({
 		<div className="flex flex-col gap-3">
 			<p className="type-body-sm text-text-2">{entry.blurb}</p>
 			{fields.map((field) => (
-				<ConfigField
-					field={field}
-					key={field.key}
-					onChange={(value) => setField(field.key, value)}
-					readOnly={readOnly}
-					value={config[field.key]}
-				/>
+				<div data-field={field.key} key={field.key}>
+					<ConfigField
+						field={field}
+						onChange={(value) => setField(field.key, value)}
+						readOnly={readOnly}
+						value={config[field.key]}
+					/>
+				</div>
 			))}
 		</div>
 	);
@@ -352,6 +355,11 @@ function ActionFields({
 				onUpdate={onUpdate}
 				readOnly={readOnly}
 			/>
+		);
+	}
+	if (node.action === "request-review") {
+		return (
+			<ReviewerPicker node={node} onUpdate={onUpdate} readOnly={readOnly} />
 		);
 	}
 	if (node.action !== "label") {

@@ -6,6 +6,7 @@ import {
 } from "@tripwire/contracts";
 import {
 	definitionToGraph,
+	type EditorEdge,
 	type EditorNode,
 	graphToDefinition,
 } from "./workflow-editor.ts";
@@ -141,20 +142,21 @@ describe("outcome handles ↔ when (T4 editor fix)", () => {
 	});
 
 	test("the handle wins over a stale stored when", () => {
+		const edges: EditorEdge[] = [
+			{ id: "e1", source: "trigger", target: "age" },
+			{
+				id: "e2",
+				source: "age",
+				target: "mod",
+				sourceHandle: "fail",
+				label: "Passes",
+				data: { when: "pass" },
+			},
+		];
 		const result = graphToDefinition(
 			{ id: "w", name: "w", version: 1 },
 			T4_NODES,
-			[
-				{ id: "e1", source: "trigger", target: "age" },
-				{
-					id: "e2",
-					source: "age",
-					target: "mod",
-					sourceHandle: "fail",
-					label: "Passes",
-					data: { when: "pass" },
-				},
-			],
+			edges,
 		);
 		expect(result.ok).toBe(true);
 		if (result.ok) {
