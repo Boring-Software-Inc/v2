@@ -163,7 +163,7 @@ function AlertClose({className, label = 'Dismiss', onClick, ...props}: Omit<Reac
     className={cn('ms-2 -me-1.5 -mt-1 self-start [grid-area:close]', className)}
     {...props}
   >
-    <Icon icon={Close} size={12}/>
+    <Icon icon={Close}/>
   </Button>;
 }
 

@@ -312,7 +312,7 @@ function TableRowActionsMenu({label, children, align = 'end'}: {label: string; c
   const setOpen = React.useContext(RowActionsContext);
   return <DropdownMenu onOpenChange={open => setOpen?.(open)}>
     <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm"/>} aria-label={label} data-slot="table-row-actions-trigger" className="data-popup-open:bg-pressed">
-      <Icon icon={More} size={12}/>
+      <Icon icon={More}/>
     </DropdownMenuTrigger>
     <DropdownMenuContent size="sm" align={align}>{children}</DropdownMenuContent>
   </DropdownMenu>;

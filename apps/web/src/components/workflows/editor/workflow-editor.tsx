@@ -37,7 +37,6 @@ import {
 	addEdge,
 	type Connection,
 	type ConnectionState,
-	Controls,
 	type Edge,
 	type EdgeChange,
 	type FinalConnectionState,
@@ -64,6 +63,7 @@ import {
 	DialogTitle,
 } from "#/components/glaze/ui/dialog";
 import { toast } from "#/components/glaze/ui/toast";
+import { CanvasZoom } from "#/components/workflows/editor/canvas-zoom";
 import {
 	type DragOrigin,
 	handlePort,
@@ -199,12 +199,6 @@ const CANVAS_TOKENS = {
 	"--xy-node-color": "var(--text-1)",
 	"--xy-selection-background-color": "var(--ink-06)",
 	"--xy-selection-border": "var(--line-width) dashed var(--line-strong)",
-	"--xy-controls-box-shadow": "var(--shadow-none)",
-	"--xy-controls-button-background-color": "var(--paper)",
-	"--xy-controls-button-background-color-hover": "var(--hover)",
-	"--xy-controls-button-color": "var(--text-1)",
-	"--xy-controls-button-color-hover": "var(--text-1)",
-	"--xy-controls-button-border-color": "var(--line-faint)",
 } as React.CSSProperties;
 
 /**
@@ -1011,11 +1005,7 @@ function EditorBody({
 											proOptions={{ hideAttribution: true }}
 											style={CANVAS_TOKENS}
 										>
-											<Controls
-												className="!m-3 overflow-hidden rounded-overlay border border-line"
-												position="bottom-right"
-												showInteractive={false}
-											/>
+											<CanvasZoom />
 											<DropHint />
 											{pending ? <PendingConnection {...pending} /> : null}
 										</ReactFlow>

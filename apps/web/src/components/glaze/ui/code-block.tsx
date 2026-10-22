@@ -187,7 +187,7 @@ function CopyCodeButton({text, label = 'Copy code', onCopy, className}: CopyCode
   };
   return <>
     <Button data-slot="code-copy" variant="ghost" size="icon-sm" aria-label={label} onClick={copy} className={className}>
-      <Icon icon={state === 'copied' ? Check : Copy} size={12}/>
+      <Icon icon={state === 'copied' ? Check : Copy}/>
     </Button>
     <span role="status" className="sr-only">{state === 'copied' ? 'Copied' : state === 'failed' ? 'Copy failed' : ''}</span>
   </>;
@@ -271,7 +271,7 @@ function FileBlock({code, language = 'text', filename, header = true, lineNumber
       <span className={cn('min-w-0 flex-1 truncate', filename ? 'type-code-block text-text-1' : 'type-caption text-text-2')}>{name}</span>
       {filename && language !== 'text' && <span className="hidden type-caption text-text-2 sm:block">{languageLabels[language]}</span>}
       <Button data-slot="code-block-wrap" variant="ghost" size="icon-sm" aria-label="Wrap lines" aria-pressed={wrap} onClick={() => setWrap(w => !w)} className="text-text-2 aria-pressed:text-text-1">
-        <Icon icon={Wrap} size={12} weight={wrap ? 'fill' : 'regular'}/>
+        <Icon icon={Wrap} weight={wrap ? 'fill' : 'regular'}/>
       </Button>
       <CopyCodeButton text={source} label={copyLabel} onCopy={onCopy}/>
     </figcaption>}
@@ -341,7 +341,7 @@ function CommandBlock({code, prompt = '$', secret, maxLines, copyLabel = 'Copy c
     </div>
     <span className="flex shrink-0 items-center gap-0.5">
       {secret && <Button data-slot="code-block-reveal" variant="ghost" size="icon-sm" aria-label={revealed ? 'Hide secret' : 'Show secret'} aria-pressed={revealed} onClick={() => setRevealed(r => !r)}>
-        <Icon icon={revealed ? Hide : Show} size={12}/>
+        <Icon icon={revealed ? Hide : Show}/>
       </Button>}
       <CopyCodeButton text={copyText} label={copyLabel} onCopy={onCopy}/>
     </span>

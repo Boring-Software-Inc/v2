@@ -105,7 +105,7 @@ function RepoTabItem({
 				size="icon-sm"
 				variant="ghost"
 			>
-				<Icon icon={Close} size={12} />
+				<Icon icon={Close} />
 			</Button>
 		</div>
 	);

@@ -29,6 +29,7 @@ const buttonVariants = cva(
     'group/button relative inline-flex max-w-full shrink-0 items-center justify-center gap-1.5 rounded-pill whitespace-nowrap select-none',
     'disabled:cursor-not-allowed data-disabled:cursor-not-allowed aria-busy:cursor-progress',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0',
+    '[&_svg[data-glyph=more]]:size-(--icon-lg)',
   ],
   {
     variants: {
@@ -49,7 +50,7 @@ const buttonVariants = cva(
         sm: `${controlHeight.sm} px-2.5 type-label-sm [&_svg]:size-(--icon-sm)`,
         default: `${controlHeight.default} px-3 type-label [&_svg]:size-(--icon)`,
         lg: `${controlHeight.lg} px-3.5 type-label-lg [&_svg]:size-(--icon-lg)`,
-        'icon-sm': 'size-(--control-sm) px-0 [&_svg]:size-(--icon-sm)',
+        'icon-sm': 'size-(--control-sm) px-0 [&_svg]:size-(--icon)',
         icon: 'size-(--control) px-0 [&_svg]:size-(--icon)',
         'icon-lg': 'size-(--control-lg) px-0 [&_svg]:size-(--icon-lg)',
       },

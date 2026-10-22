@@ -82,17 +82,44 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function CommandPaletteButton({ wide = false }: { wide?: boolean }) {
+	if (wide) {
+		return (
+			<Button
+				aria-keyshortcuts="Meta+K Control+K"
+				className="w-full justify-start"
+				onClick={openCommandPalette}
+				size="sm"
+				variant="ghost"
+			>
+				<Icon icon={Search} />
+				Search
+				<Kbd className="ms-auto" keys="mod+k" />
+			</Button>
+		);
+	}
 	return (
-		<Button
-			aria-keyshortcuts="Meta+K Control+K"
-			className={wide ? "w-full justify-start" : undefined}
-			onClick={openCommandPalette}
-			size="sm"
-			variant="ghost"
-		>
-			<Icon icon={Search} />
-			Search
-			<Kbd className={wide ? "ms-auto" : undefined} keys="mod+k" />
-		</Button>
+		<>
+			<Button
+				aria-keyshortcuts="Meta+K Control+K"
+				className="max-sm:hidden"
+				onClick={openCommandPalette}
+				size="sm"
+				variant="ghost"
+			>
+				<Icon icon={Search} />
+				Search
+				<Kbd keys="mod+k" />
+			</Button>
+			<Button
+				aria-keyshortcuts="Meta+K Control+K"
+				aria-label="Search"
+				className="sm:hidden"
+				onClick={openCommandPalette}
+				size="icon-sm"
+				variant="ghost"
+			>
+				<Icon icon={Search} />
+			</Button>
+		</>
 	);
 }
