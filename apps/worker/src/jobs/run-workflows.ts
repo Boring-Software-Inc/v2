@@ -414,6 +414,7 @@ async function runWorkflowsInner(
 		(step) => step.status === "skipped",
 	).length;
 	const degraded = isRunDegraded(ruleSteps0.length, skippedCount, verdict);
+	const heldBack = degraded && scheduled !== null;
 	if (degraded) {
 		/**
 		 * The floor is configurable, and ON by default.
@@ -423,8 +424,9 @@ async function runWorkflowsInner(
 		 * the audit trail still name every rule that could not evaluate. Turning
 		 * off a safety net must never turn off the evidence.
 		 */
-		const failClosed = (await repoServices.getResponseConfig(db, repo.id))
-			.failClosedFallback;
+		const failClosed =
+			!heldBack &&
+			(await repoServices.getResponseConfig(db, repo.id)).failClosedFallback;
 		if (failClosed) {
 			verdict = "needs_review";
 			paused = true;
@@ -441,6 +443,7 @@ async function runWorkflowsInner(
 				ruleNodes: ruleSteps0.length,
 				/** false ⇒ the run passed with a partial evaluation, on purpose. */
 				enforced: failClosed,
+				...(heldBack ? { tookNoAction: true } : {}),
 			},
 			startedAt,
 			finishedAt: startedAt,
@@ -461,9 +464,11 @@ async function runWorkflowsInner(
 				ruleNodes: ruleSteps0.length,
 				enforced: failClosed,
 			},
-			failClosed
-				? "evaluation degraded — fail-closed floor routes run to moderation"
-				: "evaluation degraded — floor is off for this repo, run passes partial",
+			heldBack
+				? "evaluation degraded — scheduled run takes no action"
+				: failClosed
+					? "evaluation degraded — fail-closed floor routes run to moderation"
+					: "evaluation degraded — floor is off for this repo, run passes partial",
 		);
 	}
 
@@ -528,7 +533,7 @@ async function runWorkflowsInner(
 			});
 		}
 	}
-	if (degraded) {
+	if (degraded && !heldBack) {
 		await moderationServices.createModerationItem(db, {
 			runId,
 			nodeId: "run:degraded",
@@ -539,14 +544,16 @@ async function runWorkflowsInner(
 		db,
 		runId,
 		executions.flatMap((execution) =>
-			execution.result.actions.filter(postsSomething).map((action) => ({
-				kind: action.action,
-				payload: {
-					...action.params,
-					nodeId: `${execution.definition.id}:${action.nodeId}`,
-				},
-				idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
-			})),
+			(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
+				(action) => ({
+					kind: action.action,
+					payload: {
+						...action.params,
+						nodeId: `${execution.definition.id}:${action.nodeId}`,
+					},
+					idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
+				}),
+			),
 		),
 		deps.surface === false ? "suppressed" : "recorded",
 	);

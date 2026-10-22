@@ -476,4 +476,79 @@ describe("schedule tick", () => {
 		);
 		expect(state?.lastError).toContain("rate limited");
 	});
+
+	test("a scheduled run whose rules mostly skip takes no action and asks no one", async () => {
+		const staleRepo = "Codertocat/Stale";
+		const staleId = await repoServices.ensureRepo(db, {
+			externalId: "186853004",
+			owner: "Codertocat",
+			name: "Stale",
+			fullName: staleRepo,
+			installationId: "2311213",
+		});
+		await repoServices.setRepoArmed(db, staleId, true);
+		await enableWorkflow(staleId, {
+			id: "wf-needs-diff",
+			name: "Lock big inactive threads",
+			version: 1,
+			nodes: [
+				{
+					...SCHEDULED.nodes[0],
+					id: "nightly",
+				} as WorkflowDefinition["nodes"][number],
+				{
+					id: "files",
+					type: "rule",
+					ref: "max-files-changed@1",
+					config: { max: 200 },
+				},
+				{
+					id: "lock",
+					type: "action",
+					action: "lock",
+					params: { reason: "resolved" },
+				},
+			],
+			edges: [
+				{ id: "e1", from: "nightly", to: "files" },
+				{ id: "e2", from: "files", to: "lock" },
+			],
+		});
+		const at = new Date(T0.getTime() + 61 * HOUR);
+		const result = await tick(at);
+		expect(result.schedules).toBe(1);
+		executed.length = 0;
+		await processPending();
+
+		const runs = await pool.query(
+			"SELECT id, status, verdict FROM runs WHERE repo_full_name = $1",
+			[staleRepo],
+		);
+		expect(runs.rows).toHaveLength(2);
+		for (const run of runs.rows) {
+			expect(run.status).toBe("completed");
+			const actions = await pool.query(
+				"SELECT kind FROM run_actions WHERE run_id = $1",
+				[run.id],
+			);
+			expect(actions.rows).toEqual([]);
+			const items = await pool.query(
+				"SELECT id FROM moderation_items WHERE run_id = $1",
+				[run.id],
+			);
+			expect(items.rows).toEqual([]);
+			const step = await pool.query(
+				"SELECT output FROM run_steps WHERE run_id = $1 AND node_id = 'run:degradation'",
+				[run.id],
+			);
+			expect(step.rows[0]?.output).toMatchObject({
+				skippedRules: 1,
+				ruleNodes: 1,
+				tookNoAction: true,
+			});
+		}
+		expect(
+			executed.filter((action) => action.repoFullName === staleRepo),
+		).toEqual([]);
+	});
 });

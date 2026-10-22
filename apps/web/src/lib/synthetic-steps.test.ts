@@ -61,6 +61,21 @@ describe("describeSyntheticStep", () => {
 		expect(view?.detail).not.toContain("human review");
 	});
 
+	test("a scheduled run that could not check its thread took no action", () => {
+		const view = describeSyntheticStep({
+			nodeId: "run:degradation",
+			output: {
+				skippedRules: 2,
+				ruleNodes: 2,
+				enforced: false,
+				tookNoAction: true,
+			},
+		});
+		expect(view?.detail).toBe(
+			"2 of 2 rules skipped. Tripwire could not check this thread, so it took no action.",
+		);
+	});
+
 	test("run:degradation stays honest when output is malformed", () => {
 		const view = describeSyntheticStep({
 			nodeId: "run:degradation",
