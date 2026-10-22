@@ -22,10 +22,10 @@ describe("demo scenario workflows", () => {
 	test("the broken workflow fails on its wiring", () => {
 		const messages = issueMessages(brokenWorkflowDefinition());
 		expect(messages).toContainEqual(
-			expect.stringContaining("not trigger events"),
+			expect.stringContaining("Gates take results, not events"),
 		);
 		expect(messages).toContainEqual(
-			expect.stringContaining("Connect it from the passes output"),
+			expect.stringContaining("Gates take only the Passes result"),
 		);
 	});
 
