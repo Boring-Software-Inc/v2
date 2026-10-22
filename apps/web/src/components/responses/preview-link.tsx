@@ -37,13 +37,11 @@ const FALLBACK: RegionFallbackMap = {
 };
 
 const ACTIVE = "data-region-active";
-const FLASH = "data-region-flash";
 
 export interface PreviewLink {
 	attach: (root: HTMLElement) => () => void;
 	focus: (setting: PreviewSetting | null, el: HTMLElement) => void;
 	release: (el: HTMLElement) => void;
-	flash: (setting: PreviewSetting) => void;
 	refresh: () => void;
 }
 
@@ -109,21 +107,6 @@ function createPreviewLink(): PreviewLink {
 			}
 		},
 		refresh: apply,
-		flash: (setting) => {
-			requestAnimationFrame(() => {
-				if (!root) {
-					return;
-				}
-				for (const el of regionsIn(root, SETTING_REGION[setting])) {
-					el.removeAttribute(FLASH);
-					void el.offsetWidth;
-					el.setAttribute(FLASH, "");
-					el.addEventListener("animationend", () => el.removeAttribute(FLASH), {
-						once: true,
-					});
-				}
-			});
-		},
 	};
 }
 

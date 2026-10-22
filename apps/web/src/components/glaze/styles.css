@@ -180,7 +180,6 @@
 
   --animate-spin: glaze-spin var(--dur-spin) linear infinite;
   --animate-sweep: glaze-sweep var(--dur-sweep) linear infinite;
-  --animate-step-sweep: glaze-step-sweep var(--dur-step-sweep) var(--ease-out) 1 both;
 }
 
 /* One utility per type role. Headings track at --tracking-heading, labels at --tracking-label, text at --tracking-body; code at 0. */
@@ -529,9 +528,12 @@
 }
 
 @utility step-sweep {
-  opacity: 1;
-  mask-image: linear-gradient(90deg, transparent, #000, transparent);
-  animation: var(--animate-step-sweep);
+  background-image: radial-gradient(circle, var(--glaze-sm-highlight) 0.9px, transparent 1.4px);
+  background-size: 6px 6px;
+  mask-image: linear-gradient(90deg, transparent, #000 50%, transparent);
+  mask-size: 30% 100%;
+  mask-position: -60% 0;
+  mask-repeat: no-repeat;
 }
 
 /* rule-row: the hairline under a row; the last row drops it. */
@@ -542,8 +544,6 @@
 
 /* The pending arc turns once per --dur-spin (animate-spin). */
 @keyframes glaze-spin { to { transform: rotate(1turn); } }
-
-@keyframes glaze-step-sweep { from { transform: translateX(-100%); opacity: 1; } to { transform: translateX(260%); opacity: 0; } }
 
 /* An indeterminate progress segment enters at the start edge and leaves at the end once per --dur-sweep
    (animate-sweep), the other loop. Reduced motion stops it as a still half fill. */

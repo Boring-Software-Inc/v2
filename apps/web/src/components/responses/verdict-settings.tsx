@@ -4,10 +4,7 @@ import {
 	RadioGroupOption,
 } from "#/components/glaze/ui/radio-group";
 import { MessageEditor } from "#/components/responses/message-editor";
-import {
-	PreviewLinked,
-	usePreviewLink,
-} from "#/components/responses/preview-link";
+import { PreviewLinked } from "#/components/responses/preview-link";
 import {
 	type ContentChoice,
 	commentKey,
@@ -95,7 +92,6 @@ export function VerdictSettings({
 	const override = overrideKey(verdict);
 	const draftKey = messageDraftKey(config, verdict);
 	const usesTemplate = draftKey === "blockComment.template";
-	const link = usePreviewLink();
 
 	const setComment = (on: boolean) => {
 		if (verdict === "pass") {
@@ -109,7 +105,6 @@ export function VerdictSettings({
 		if (next === choice) {
 			return;
 		}
-		link.flash("content");
 		if (verdict === "block") {
 			setField("blockComment.mode", next === "message" ? "custom" : next);
 			if (next !== "message") {
