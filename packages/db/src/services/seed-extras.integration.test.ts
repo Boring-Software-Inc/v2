@@ -10,7 +10,12 @@ import {
 	type TestDatabase,
 } from "../index.ts";
 import { user } from "../schema/auth.ts";
-import { member, organization } from "../schema/organizations.ts";
+import {
+	member,
+	organization,
+	organizationInstallations,
+} from "../schema/organizations.ts";
+import { workflowDefinitions } from "../schema/repos.ts";
 import { DEMO_EMAIL_DOMAIN, ensureDemoRepo, resetDemoData } from "../seed.ts";
 import {
 	seedActivePersonaExtras,
@@ -19,6 +24,12 @@ import {
 	seedTeamOrg,
 	seedWorkflowCatalog,
 } from "../seed-extras.ts";
+import {
+	BROKEN_WORKFLOW_NAME,
+	LIVE_WORKFLOW_NAME,
+	seedDemoWorkflows,
+	seedUnclaimedInstall,
+} from "../seed-scenarios.ts";
 import * as orgServices from "./organizations.ts";
 import * as repoServices from "./repos.ts";
 import * as workflowServices from "./workflows.ts";
@@ -183,4 +194,127 @@ test("the active persona gets every extra in one call", async () => {
 	expect(
 		await orgServices.listApprovedInstallRequests(db, { userId: admin }),
 	).toHaveLength(1);
+});
+
+test("demo workflow modes leave the repo in the asked state", async () => {
+	await resetDemoData(db);
+	const repo = await ensureDemoRepo(db, "scenario-workflows");
+	const other = await ensureDemoRepo(db, "scenario-workflows-other");
+	const repoIds = [repo.id, other.id];
+
+	expect(await seedDemoWorkflows(db, { repoIds, mode: "none" })).toBeNull();
+	expect(await workflowServices.listWorkflows(db, repo.id)).toHaveLength(0);
+
+	const offId = await seedDemoWorkflows(db, { repoIds, mode: "off" });
+	const off = await workflowServices.listWorkflows(db, repo.id);
+	expect(off.length).toBeGreaterThan(0);
+	expect(off.some((workflow) => workflow.enabled)).toBe(false);
+	expect(off[0]?.id).toBe(offId ?? "");
+
+	const liveId = await seedDemoWorkflows(db, { repoIds, mode: "live" });
+	const live = await workflowServices.listWorkflows(db, repo.id);
+	expect(live.length).toBe(off.length + 1);
+	expect(live.filter((workflow) => workflow.enabled).map((w) => w.id)).toEqual([
+		liveId ?? "",
+	]);
+	expect(live.find((workflow) => workflow.id === liveId)?.name).toBe(
+		LIVE_WORKFLOW_NAME,
+	);
+
+	const brokenId = await seedDemoWorkflows(db, { repoIds, mode: "issues" });
+	const broken = await workflowServices.getWorkflow(db, {
+		repoId: repo.id,
+		workflowId: brokenId ?? "",
+	});
+	expect(broken?.name).toBe(BROKEN_WORKFLOW_NAME);
+	expect(broken?.enabled).toBe(true);
+	expect(
+		await workflowServices.setWorkflowEnabled(db, {
+			repoId: repo.id,
+			workflowId: brokenId ?? "",
+			enabled: true,
+		}),
+	).toMatchObject({ ok: false });
+
+	await seedDemoWorkflows(db, { repoIds, mode: "none" });
+	expect(
+		await db
+			.select()
+			.from(workflowDefinitions)
+			.where(eq(workflowDefinitions.repoId, repo.id)),
+	).toHaveLength(0);
+});
+
+test("an unclaimed install is claimable and syncing has no repos yet", async () => {
+	await resetDemoData(db);
+	const now = new Date();
+	await seedUnclaimedInstall(db, {
+		installationId: "demo-inst-scenario-confirm",
+		account: "tripwire-demo",
+		repoNames: ["scenario-confirm-a", "scenario-confirm-b"],
+		now,
+	});
+	await seedUnclaimedInstall(db, {
+		installationId: "demo-inst-scenario-syncing",
+		account: "tripwire-demo",
+		repoNames: [],
+		now,
+	});
+
+	const unclaimed = await db.execute(sql`
+		SELECT installation_id AS "installationId", count(*)::int AS n
+		FROM repos
+		WHERE installation_id LIKE 'demo-inst-scenario-%' AND org_id IS NULL
+		GROUP BY installation_id
+	`);
+	expect(unclaimed.rows).toEqual([
+		{ installationId: "demo-inst-scenario-confirm", n: 2 },
+	]);
+	expect(
+		await count(
+			db,
+			sql`SELECT count(*) AS n FROM events WHERE id LIKE 'demo-evt-install-demo-inst-scenario-%'`,
+		),
+	).toBe(2);
+	expect(
+		await orgServices.getInstallationOrg(db, {
+			installationId: "demo-inst-scenario-confirm",
+		}),
+	).toBeNull();
+});
+
+test("reset drops demo personal orgs and demo installation claims", async () => {
+	await resetDemoData(db);
+	const owner = await demoUser("seed-reset-owner");
+	const personal = await orgServices.ensurePersonalOrg(db, {
+		userId: owner,
+		name: "Reset owner",
+	});
+	await ensureDemoRepo(db, "reset-repo", { installationId: "demo-inst-reset" });
+	await orgServices.linkOrgInstallation(db, {
+		orgId: personal.id,
+		installationId: "demo-inst-reset",
+	});
+
+	await resetDemoData(db);
+
+	expect(
+		await db
+			.select()
+			.from(organization)
+			.where(eq(organization.id, personal.id)),
+	).toHaveLength(0);
+	expect(
+		await db
+			.select()
+			.from(organizationInstallations)
+			.where(eq(organizationInstallations.installationId, "demo-inst-reset")),
+	).toHaveLength(0);
+
+	const again = await demoUser("seed-reset-owner");
+	const fresh = await orgServices.ensurePersonalOrg(db, {
+		userId: again,
+		name: "Reset owner",
+	});
+	expect(fresh.slug).toBe(personal.slug);
 });

@@ -18,10 +18,11 @@ seeds a realistic story (change requests across blocked / passed / human review,
 an ai-review block with findings, a pending human review item) and drops you on a
 populated dashboard. Re-running resets to the same clean story.
 
-In a dev build a **persona switcher** (bottom-left, and on `/login`) jumps between
-the product's real states — fresh maintainer, one repo, many repos, empty
-dashboard, active dashboard, and anonymous (the public-run stranger view). It is
-dev-only (compile-time excluded from production, refused for non-local hosts).
+In a dev build a **scenario switcher** (bottom-left, and on `/login`) resets the
+demo data and seeds one product state: account (owner, member, outsider, signed
+out), install, repos, workflows and the page to open, plus named presets and a
+server-function delay. It is dev-only (compile-time excluded from production,
+refused for non-local hosts).
 
 ### the full stack (docker + worker + api)
 

@@ -3,7 +3,7 @@ import { BrandLockup } from "#/components/auth/brand-lockup";
 import { ForgeGrid } from "#/components/auth/forge-grid";
 import { LoginFaq } from "#/components/auth/login-faq";
 import { WebviewNotice } from "#/components/auth/webview-notice";
-import { DevPersonaDisclosure } from "#/components/dev/persona-disclosure";
+import { DevScenarioDisclosure } from "#/components/dev/dev-scenario-disclosure";
 import { ShaderDither } from "#/components/dither/shader-dither";
 import { Card, CardContent } from "#/components/glaze/ui/card";
 
@@ -32,7 +32,7 @@ export function LoginPage() {
 				</Card>
 
 				<WebviewNotice />
-				{import.meta.env.DEV ? <DevPersonaDisclosure /> : null}
+				{import.meta.env.DEV ? <DevScenarioDisclosure /> : null}
 			</div>
 		</div>
 	);

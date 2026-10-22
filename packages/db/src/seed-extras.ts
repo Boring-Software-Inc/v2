@@ -147,9 +147,9 @@ const TEAM = {
 	repos: ["team-api", "team-web"],
 };
 
-export async function seedTeamOrg(
+export async function ensureTeamOrg(
 	db: Db,
-	input: { adminUserId: string; memberUserIds: string[]; now: Date },
+	input: { adminUserId: string; memberUserIds: string[] },
 ): Promise<{ id: string; slug: string }> {
 	const slug = orgSlugSchema.parse(TEAM.slug);
 	const [found] = await db
@@ -182,6 +182,14 @@ export async function seedTeamOrg(
 			expiresInDays: 7,
 		});
 	}
+	return org;
+}
+
+export async function seedTeamOrg(
+	db: Db,
+	input: { adminUserId: string; memberUserIds: string[]; now: Date },
+): Promise<{ id: string; slug: string }> {
+	const org = await ensureTeamOrg(db, input);
 	for (const name of TEAM.repos) {
 		const repo = await ensureDemoRepo(db, name, {
 			installationId: TEAM.installationId,
