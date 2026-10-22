@@ -333,3 +333,39 @@ export function encodeCollectionState<Row>(
 	}
 	return search;
 }
+
+export function readCollectionParams(
+	search: CollectionSearch,
+	params: Record<string, string> | undefined,
+): CollectionSearch {
+	if (!params) {
+		return search;
+	}
+	return Object.fromEntries(
+		Object.entries(params).map(([key, name]) => [key, search[name]]),
+	);
+}
+
+export function writeCollectionParams(
+	encoded: CollectionSearch,
+	params: Record<string, string> | undefined,
+): CollectionSearch {
+	if (!params) {
+		return encoded;
+	}
+	return Object.fromEntries(
+		Object.entries(params).map(([key, name]) => [name, encoded[key]]),
+	);
+}
+
+export function mergeCollectionParams(
+	state: CollectionState,
+	urlState: CollectionState,
+	params: Record<string, string>,
+): CollectionState {
+	const filters = { ...state.filters };
+	for (const key of Object.keys(params)) {
+		delete filters[key];
+	}
+	return { ...state, filters: { ...filters, ...urlState.filters } };
+}

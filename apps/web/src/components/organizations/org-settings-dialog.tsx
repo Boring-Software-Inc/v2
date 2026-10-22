@@ -24,14 +24,12 @@ import { OrgGeneralSettingsPage } from "#/components/organizations/org-general-s
 import { OrgMembersPage } from "#/components/organizations/org-members-page";
 import { OrgRedactionPage } from "#/components/organizations/org-redaction-page";
 import {
-	type OrgSettingsTab,
-	parseOrgSettingsTab,
-} from "#/components/organizations/org-settings-tab";
-import {
 	orgContextQueryOptions,
 	orgInvitesQueryOptions,
 	orgMembersQueryOptions,
 } from "#/lib/org.query";
+import { ORG_SETTINGS_TABS, type OrgSettingsTab } from "#/lib/org-search";
+import { pickValue } from "#/lib/pick-value";
 
 const TABS: { value: OrgSettingsTab; label: string }[] = [
 	{ value: "members", label: "Members" },
@@ -50,10 +48,9 @@ const TABS: { value: OrgSettingsTab; label: string }[] = [
  */
 export function OrgSettingsDialog() {
 	const params = useParams({ strict: false });
-	const search = useSearch({ strict: false }) as { settings?: unknown };
+	const { settings: tab } = useSearch({ strict: false });
 	const navigate = useNavigate();
 	const org = params.org;
-	const tab = parseOrgSettingsTab(search.settings);
 
 	const queryClient = useQueryClient();
 	const { data: orgContext } = useQuery({
@@ -83,7 +80,10 @@ export function OrgSettingsDialog() {
 			search: (prev: Record<string, unknown>) => ({
 				...prev,
 				settings: next,
+				invites: next ? prev.invites : undefined,
 			}),
+			replace: Boolean(tab && next),
+			resetScroll: false,
 		});
 
 	const name = orgContext?.name ?? org;
@@ -100,7 +100,9 @@ export function OrgSettingsDialog() {
 			<InsetSheetContent>
 				<Tabs
 					className="flex min-h-0 flex-1 flex-col gap-0"
-					onValueChange={(value) => setTab(parseOrgSettingsTab(value))}
+					onValueChange={(value) =>
+						setTab(pickValue(ORG_SETTINGS_TABS, String(value)))
+					}
 					value={tab ?? "members"}
 				>
 					<DialogHeader className="gap-3 group-data-close/dialog:pe-3 sm:group-data-close/dialog:pe-4">

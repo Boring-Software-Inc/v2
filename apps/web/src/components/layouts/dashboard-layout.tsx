@@ -136,6 +136,7 @@ function DashboardShell({
 							)}
 						>
 							<main
+								data-scroll-restoration-id="main-content"
 								id="main-content"
 								ref={pageRef}
 								tabIndex={-1}

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { getRouteApi, Link } from "@tanstack/react-router";
 import type { OrgRole } from "@tripwire/contracts";
 import { useId, useState } from "react";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
@@ -52,14 +52,16 @@ import {
 	adminOrgsQueryOptions,
 	adminQueryKeys,
 } from "#/lib/admin.query";
+import { ADMIN_ORG_KINDS } from "#/lib/admin-search";
+import { pickValue } from "#/lib/pick-value";
+
+const routeApi = getRouteApi("/admin/orgs");
 
 const KIND_FILTERS = [
 	{ key: "all", label: "All" },
 	{ key: "team", label: "Team" },
 	{ key: "personal", label: "Personal" },
 ] as const;
-
-type OrgKind = (typeof KIND_FILTERS)[number]["key"];
 
 const ROLE_ITEMS = [
 	{ value: "admin", label: "Admin" },
@@ -69,7 +71,8 @@ const ROLE_ITEMS = [
 const COLUMN_COUNT = 5;
 
 export function AdminOrgsPage() {
-	const [kind, setKind] = useState<OrgKind>("all");
+	const { kind } = routeApi.useSearch();
+	const navigate = routeApi.useNavigate();
 	const [search, setSearch] = useState("");
 	const [offset, setOffset] = useState(0);
 	const [expandedOrgId, setExpandedOrgId] = useState<string | null>(null);
@@ -93,8 +96,16 @@ export function AdminOrgsPage() {
 				size="sm"
 				aria-label="Org kind"
 				onValueChange={(value) => {
-					setKind(value as OrgKind);
+					const next = pickValue(ADMIN_ORG_KINDS, value);
+					if (!next) {
+						return;
+					}
 					setOffset(0);
+					void navigate({
+						search: (prev) => ({ ...prev, kind: next }),
+						replace: true,
+						resetScroll: false,
+					});
 				}}
 				value={kind}
 			>
@@ -228,9 +239,13 @@ export function AdminOrgsPage() {
 										) : (
 											<Button
 												onClick={() => {
-													setKind("all");
 													setSearch("");
 													setOffset(0);
+													void navigate({
+														search: (prev) => ({ ...prev, kind: "all" }),
+														replace: true,
+														resetScroll: false,
+													});
 												}}
 												size="sm"
 												variant="secondary"

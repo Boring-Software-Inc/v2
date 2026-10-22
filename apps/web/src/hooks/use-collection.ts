@@ -9,6 +9,9 @@ import {
 	decodeCollectionState,
 	EMPTY_COLLECTION_STATE,
 	encodeCollectionState,
+	mergeCollectionParams,
+	readCollectionParams,
+	writeCollectionParams,
 } from "#/lib/collection";
 
 export interface CollectionController<Row> extends CollectionResult<Row> {
@@ -26,16 +29,21 @@ const WRITTEN_MEMORY = 32;
 export function useCollection<Row>(
 	definition: CollectionDefinition<Row>,
 	rows: readonly Row[] | undefined,
-	{ store = "url" }: { store?: "url" | "local" } = {},
+	{
+		store = "url",
+		params,
+	}: { store?: "url" | "local"; params?: Record<string, string> } = {},
 ): CollectionController<Row> {
 	const navigate = useNavigate();
 	const search = useSearch({ strict: false }) as CollectionSearch;
 	const fromUrl = store === "url";
 
 	const urlState = fromUrl
-		? decodeCollectionState(definition, search)
+		? decodeCollectionState(definition, readCollectionParams(search, params))
 		: EMPTY_COLLECTION_STATE;
-	const urlKey = JSON.stringify(encodeCollectionState(definition, urlState));
+	const urlKey = JSON.stringify(
+		writeCollectionParams(encodeCollectionState(definition, urlState), params),
+	);
 
 	const [state, setLocalState] = useState<CollectionState>(urlState);
 	const [seen, setSeen] = useState(urlKey);
@@ -47,7 +55,9 @@ export function useCollection<Row>(
 			setWritten([urlKey]);
 		}
 		if (!written.includes(urlKey)) {
-			setLocalState(urlState);
+			setLocalState(
+				params ? mergeCollectionParams(state, urlState, params) : urlState,
+			);
 		}
 	}
 
@@ -56,7 +66,10 @@ export function useCollection<Row>(
 		if (!fromUrl) {
 			return;
 		}
-		const encoded = encodeCollectionState(definition, next);
+		const encoded = writeCollectionParams(
+			encodeCollectionState(definition, next),
+			params,
+		);
 		setWritten((keys) => [
 			...keys.slice(-WRITTEN_MEMORY),
 			JSON.stringify(encoded),

@@ -26,8 +26,9 @@ import { MascotArt } from "#/components/mascot/mascot-art";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { ADMIN_PAGE_SIZE, adminReposQueryOptions } from "#/lib/admin.query";
 import { ADMIN_REPO_STATUSES, type AdminReposSearch } from "#/lib/admin-search";
+import { pickValue } from "#/lib/pick-value";
 
-type StatusFilter = NonNullable<AdminReposSearch["status"]> | "all";
+type StatusFilter = AdminReposSearch["status"];
 
 const STATUS_FILTERS = [
 	{ key: "all", label: "All" },
@@ -46,7 +47,7 @@ export function AdminReposPage() {
 
 	const { data, isLoading, error, refetch } = useQuery(
 		adminReposQueryOptions({
-			status,
+			status: status === "all" ? undefined : status,
 			search: debouncedSearch || undefined,
 			offset,
 		}),
@@ -54,12 +55,19 @@ export function AdminReposPage() {
 
 	const repos = data?.repos ?? [];
 	const total = data?.total ?? 0;
-	const filtered = status !== undefined || debouncedSearch !== "";
+	const filtered = status !== "all" || debouncedSearch !== "";
 
-	const setStatus = (next: string) => {
-		const parsed = ADMIN_REPO_STATUSES.find((value) => value === next);
+	const setStatus = (value: string) => {
+		const next = pickValue(ADMIN_REPO_STATUSES, value);
+		if (!next) {
+			return;
+		}
 		setOffset(0);
-		void navigate({ search: parsed ? { status: parsed } : {} });
+		void navigate({
+			search: (prev) => ({ ...prev, status: next }),
+			replace: true,
+			resetScroll: false,
+		});
 	};
 
 	const toolbar = (
@@ -67,8 +75,8 @@ export function AdminReposPage() {
 			<SegmentedControl
 				size="sm"
 				aria-label="Protection"
-				onValueChange={(value) => setStatus(String(value))}
-				value={status ?? "all"}
+				onValueChange={setStatus}
+				value={status}
 			>
 				{STATUS_FILTERS.map((f) => (
 					<SegmentedControlItem key={f.key} value={f.key}>

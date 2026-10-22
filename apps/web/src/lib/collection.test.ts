@@ -9,6 +9,9 @@ import {
 	encodeCollectionState,
 	isFiltered,
 	matchesSearch,
+	mergeCollectionParams,
+	readCollectionParams,
+	writeCollectionParams,
 } from "./collection";
 
 interface Pet {
@@ -313,5 +316,60 @@ describe("URL state", () => {
 			other: "kept out",
 		});
 		expect(parsed).toEqual({ status: "adopted" });
+	});
+});
+
+describe("collection params", () => {
+	const params = { status: "pets" };
+
+	test("reads only the renamed keys", () => {
+		expect(
+			readCollectionParams(
+				{ pets: "adopted", status: "waiting", q: "x" },
+				params,
+			),
+		).toEqual({ status: "adopted" });
+	});
+
+	test("writes only the renamed keys", () => {
+		const encoded = encodeCollectionState(PETS_COLLECTION, {
+			q: "miso",
+			sort: undefined,
+			filters: { status: ["waiting"], kind: ["cat"] },
+		});
+		expect(writeCollectionParams(encoded, params)).toEqual({ pets: "waiting" });
+	});
+
+	test("round trips a renamed filter", () => {
+		const state: CollectionState = {
+			q: "",
+			sort: undefined,
+			filters: { status: ["adopted"] },
+		};
+		const written = writeCollectionParams(
+			encodeCollectionState(PETS_COLLECTION, state),
+			params,
+		);
+		const read = decodeCollectionState(
+			PETS_COLLECTION,
+			readCollectionParams(written, params),
+		);
+		expect(read.filters).toEqual({ status: ["adopted"] });
+	});
+
+	test("merging keeps local state and resets a cleared URL key", () => {
+		const local: CollectionState = {
+			q: "miso",
+			sort: undefined,
+			filters: { status: ["adopted"], kind: ["cat"] },
+		};
+		expect(
+			mergeCollectionParams(local, EMPTY_COLLECTION_STATE, params),
+		).toEqual({ q: "miso", sort: undefined, filters: { kind: ["cat"] } });
+	});
+
+	test("without params the search passes through", () => {
+		expect(readCollectionParams({ q: "x" }, undefined)).toEqual({ q: "x" });
+		expect(writeCollectionParams({ q: "x" }, undefined)).toEqual({ q: "x" });
 	});
 });

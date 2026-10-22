@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import type { AccessStatus } from "@tripwire/contracts";
 import { useState } from "react";
 import { AccessStatusMark } from "#/components/admin/access-status-dot";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
@@ -40,8 +39,10 @@ import {
 	adminQueryKeys,
 	adminUsersQueryOptions,
 } from "#/lib/admin.query";
+import { ADMIN_USER_STATUSES, type AdminUsersSearch } from "#/lib/admin-search";
+import { pickValue } from "#/lib/pick-value";
 
-type StatusFilter = AccessStatus | "all";
+type StatusFilter = AdminUsersSearch["status"];
 
 const STATUS_FILTERS: Array<{ key: StatusFilter; label: string }> = [
 	{ key: "all", label: "All" },
@@ -54,9 +55,8 @@ const COLUMN_COUNT = 9;
 
 export function AdminUsersPage() {
 	const queryClient = useQueryClient();
-	const { online } = useSearch({ from: "/admin/users" });
+	const { online, status } = useSearch({ from: "/admin/users" });
 	const navigate = useNavigate({ from: "/admin/users" });
-	const [status, setStatus] = useState<StatusFilter>("all");
 	const [search, setSearch] = useState("");
 	const [offset, setOffset] = useState(0);
 	const [selected, setSelected] = useState<string[]>([]);
@@ -119,10 +119,18 @@ export function AdminUsersPage() {
 		.filter((u) => u.accessStatus === "pending")
 		.map((u) => u.id);
 
-	const setFilter = (next: string) => {
-		setStatus(next as StatusFilter);
+	const setFilter = (value: string) => {
+		const next = pickValue(ADMIN_USER_STATUSES, value);
+		if (!next) {
+			return;
+		}
 		setOffset(0);
 		setSelected([]);
+		void navigate({
+			search: (prev) => ({ ...prev, status: next }),
+			replace: true,
+			resetScroll: false,
+		});
 	};
 
 	const toolbar = (
@@ -130,7 +138,7 @@ export function AdminUsersPage() {
 			<SegmentedControl
 				size="sm"
 				aria-label="Access status"
-				onValueChange={(value) => setFilter(String(value))}
+				onValueChange={setFilter}
 				value={status}
 			>
 				{STATUS_FILTERS.map((f) => (
@@ -143,7 +151,11 @@ export function AdminUsersPage() {
 				onPressedChange={(pressed) => {
 					setOffset(0);
 					setSelected([]);
-					void navigate({ search: pressed ? { online: true } : {} });
+					void navigate({
+						search: (prev) => ({ ...prev, online: pressed ? true : undefined }),
+						replace: true,
+						resetScroll: false,
+					});
 				}}
 				pressed={online === true}
 			>
@@ -317,10 +329,13 @@ export function AdminUsersPage() {
 											) : (
 												<Button
 													onClick={() => {
-														setStatus("all");
 														setSearch("");
 														setOffset(0);
-														void navigate({ search: {} });
+														void navigate({
+															search: {},
+															replace: true,
+															resetScroll: false,
+														});
 													}}
 													size="sm"
 													variant="secondary"

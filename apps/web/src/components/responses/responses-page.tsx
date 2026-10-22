@@ -35,6 +35,8 @@ import {
 } from "#/components/save-queue";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
+import { pickValue } from "#/lib/pick-value";
+import { RESPONSE_SCOPES, type ResponseScope } from "#/lib/repo-search";
 import { saveRepoResponseConfig } from "#/lib/response.functions";
 import {
 	orgResponseDefaultsQueryOptions,
@@ -43,8 +45,6 @@ import {
 } from "#/lib/response.query";
 
 const routeApi = getRouteApi("/$org/$repo/responses");
-
-type ResponseScope = Verdict | "redaction";
 
 const SCOPES: { value: ResponseScope; label: string }[] = [
 	{ value: "redaction", label: "Redaction" },
@@ -138,7 +138,18 @@ function ResponsesView({
 	onDiscarded: () => void;
 }) {
 	const { pending, setField, discard } = useSaveQueue();
-	const [scope, setScope] = useState<ResponseScope>("block");
+	const { scope } = routeApi.useSearch();
+	const navigate = routeApi.useNavigate();
+	const setScope = (value: string) => {
+		const next = pickValue(RESPONSE_SCOPES, value);
+		if (next) {
+			void navigate({
+				search: (prev) => ({ ...prev, scope: next }),
+				replace: true,
+				resetScroll: false,
+			});
+		}
+	};
 	const verdict: Verdict = scope === "redaction" ? "block" : scope;
 	const [sheet, setSheet] = useState<SheetState>("closed");
 	const settingsId = useId();
@@ -195,7 +206,7 @@ function ResponsesView({
 							<SegmentedControl
 								aria-label="Settings"
 								className="max-lg:*:shrink-0"
-								onValueChange={(value) => setScope(value as ResponseScope)}
+								onValueChange={setScope}
 								value={scope}
 							>
 								{SCOPES.map((option) => (

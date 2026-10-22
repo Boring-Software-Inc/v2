@@ -357,7 +357,7 @@ function InviteLinksSection({ org }: { org: string }) {
 	const queryClient = useQueryClient();
 	const invitesQuery = useQuery(orgInvitesQueryOptions(org));
 	const invites = useCollection(INVITES_COLLECTION, invitesQuery.data, {
-		store: "local",
+		params: { status: "invites" },
 	});
 
 	const [role, setRole] = useState<OrgRole>("member");
