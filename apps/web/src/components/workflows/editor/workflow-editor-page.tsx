@@ -132,8 +132,8 @@ export function WorkflowEditorPage() {
 						data: { org, repoId, workflowId, enabled },
 					})
 				}
-				onTestConnection={(url, kind) =>
-					testDeliveryConnection({ data: { org, repoId, url, kind } })
+				onTestConnection={(url) =>
+					testDeliveryConnection({ data: { org, repoId, url } })
 				}
 				org={org}
 				readOnly={readOnly}

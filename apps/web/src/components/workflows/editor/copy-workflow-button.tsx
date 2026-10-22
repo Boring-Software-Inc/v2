@@ -8,8 +8,8 @@ import {
 /**
  * Copy the whole workflow as markdown. Serializes from the loaded
  * (secret-redacted) definition, and the serializer never emits a url or
- * signing secret by construction, so the clipboard cannot carry a webhook or
- * discord destination. The button confirms the copy in place.
+ * signing secret by construction, so the clipboard cannot carry a webhook
+ * destination. The button confirms the copy in place.
  */
 export function CopyWorkflowButton({
 	definition,

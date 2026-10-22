@@ -787,3 +787,118 @@ describe("installation sync (§4 installation sync — live gap fix)", () => {
 		expect(rows.rows[0].external_id).toMatch(/^\d+$/);
 	});
 });
+
+describe("a live workflow with a removed Discord step", () => {
+	test("runs its other steps and records no Discord delivery", async () => {
+		const repoId = await repoServices.ensureRepo(db, {
+			externalId: "186853002",
+			owner: "Codertocat",
+			name: "Hello-World",
+			fullName: "Codertocat/Hello-World",
+		});
+		const wasEnabled = await pool.query(
+			"UPDATE workflow_definitions SET enabled = false WHERE repo_id = $1 AND enabled RETURNING id",
+			[repoId],
+		);
+		const definitionId = await repoServices.saveWorkflowDefinition(db, repoId, {
+			id: "legacy-discord@1",
+			name: "legacy discord",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				{
+					id: "age",
+					type: "rule",
+					ref: "account-age@1",
+					config: { minDays: 7 },
+				},
+				{ id: "block", type: "action", action: "block" },
+				{
+					id: "ping",
+					type: "action",
+					action: "discord",
+					params: { url: "https://discord.com/api/webhooks/1/abc" },
+				},
+			],
+			edges: [
+				{ id: "e1", from: "t", to: "age" },
+				{ id: "e2", from: "age", to: "block", when: "fail" },
+				{ id: "e3", from: "age", to: "ping", when: "fail" },
+			],
+		});
+		await pool.query(
+			"UPDATE workflow_definitions SET enabled = true WHERE id = $1",
+			[definitionId],
+		);
+
+		const raw = await fixtureRaw();
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "legacy-discord-1",
+			rawKind: "pull_request",
+			raw,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		const executed: string[] = [];
+		await processEvent(
+			{
+				db,
+				pool,
+				logger,
+				makeGenerate: null,
+				appUrl: "https://tripwire.sh",
+				resolveForge: staticForge({
+					adapter: {
+						execute: (action: { kind: string }) => {
+							executed.push(action.kind);
+							return Promise.resolve({ externalId: null });
+						},
+					} as never,
+					reads: {
+						getDiff: () => Promise.resolve([]),
+						getCommits: () => Promise.resolve([]),
+						getContributorProfile: () =>
+							Promise.resolve({
+								login: "sockpuppet",
+								externalId: "999",
+								createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+								followers: 0,
+								following: 0,
+								publicRepos: 0,
+								profileText: null,
+								mergedInRepo: 0,
+								mergedElsewhere: 0,
+								recentChangeRequestTimes: [],
+								isOrgMember: false,
+								isMaintainer: false,
+							}),
+					},
+				}),
+			},
+			{ eventId },
+		);
+
+		const run = await pool.query(
+			"SELECT id, status, verdict FROM runs WHERE event_id = $1",
+			[eventId],
+		);
+		expect(run.rows[0].status).toBe("completed");
+		expect(run.rows[0].verdict).toBe("block");
+		const actions = await pool.query(
+			"SELECT kind, status FROM run_actions WHERE run_id = $1 ORDER BY kind",
+			[run.rows[0].id],
+		);
+		expect(actions.rows.map((r) => [r.kind, r.status])).toEqual([
+			["block", "executed"],
+			["comment", "executed"],
+			["set-check", "executed"],
+		]);
+		expect(executed).not.toContain("discord");
+
+		await pool.query(
+			"UPDATE workflow_definitions SET enabled = (id = ANY($2::text[])) WHERE repo_id = $1",
+			[repoId, wasEnabled.rows.map((r) => r.id)],
+		);
+	});
+});

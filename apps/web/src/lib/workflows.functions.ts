@@ -57,7 +57,7 @@ export const getRepoWorkflow = createServerFn({ method: "GET" })
 		if (!row) {
 			return null;
 		}
-		// Never return stored webhook/discord secrets to the client in full.
+		// Never return stored delivery secrets to the client in full.
 		const { redactWorkflowSecrets } = await import("#/lib/workflow-secrets");
 		return { ...row, definition: redactWorkflowSecrets(row.definition) };
 	});
@@ -135,7 +135,7 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 			const { workflowServices } = await import("@tripwire/db");
 			const { getDb } = await import("#/lib/server/db");
 			const db = getDb().db;
-			// Set-only secrets: a blank webhook/discord field keeps the stored
+			// Set-only secrets: a blank webhook field keeps the stored
 			// value; a new value is validated (https + shape) before it persists.
 			const { restoreWorkflowSecrets } = await import("#/lib/workflow-secrets");
 			const existing = await workflowServices.getWorkflow(db, {
@@ -162,8 +162,8 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 			// failure comes back as a node issue (same surface as validation).
 			const { probeDelivery } = await import("#/lib/delivery-probe");
 			const connectionIssues = await Promise.all(
-				merged.changedUrlNodes.map(async ({ nodeId, url, kind }) => {
-					const probe = await probeDelivery(url, kind);
+				merged.changedUrlNodes.map(async ({ nodeId, url }) => {
+					const probe = await probeDelivery(url);
 					return probe.ok
 						? null
 						: {
@@ -183,19 +183,14 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 	);
 
 /**
- * The panel's "test connection" — POST a ping to a webhook/discord url through
+ * The panel's "test connection" — POST a ping to a webhook url through
  * the SSRF guard and report whether it lands. Admin-gated (it makes an outbound
  * request). The url is tested, never returned; failures name the class.
  */
 export const testDeliveryConnection = createServerFn({ method: "POST" })
 	.middleware([accessGuardMiddleware, orgAdminMiddleware])
 	.inputValidator(
-		(input: {
-			org: string;
-			repoId: string;
-			url: string;
-			kind: "webhook" | "discord";
-		}) => input,
+		(input: { org: string; repoId: string; url: string }) => input,
 	)
 	.handler(
 		async ({
@@ -207,7 +202,7 @@ export const testDeliveryConnection = createServerFn({ method: "POST" })
 				data.repoId,
 			);
 			const { probeDelivery } = await import("#/lib/delivery-probe");
-			const result = await probeDelivery(data.url, data.kind);
+			const result = await probeDelivery(data.url);
 			return result.ok
 				? { ok: true, status: result.status }
 				: { ok: false, failure: result.failure };

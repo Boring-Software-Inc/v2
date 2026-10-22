@@ -4,17 +4,17 @@ import { resolveResumeOutcome } from "./resume-run.ts";
 /**
  * The moderation verdict is the maintainer's decision, NOT a function of which
  * nodes the graph walked. Regression for the prod miss (scratch #83): the
- * send-to-moderation node's deny edge was drawn to a `discord` action with no
+ * send-to-moderation node's deny edge was drawn to a non-block action with no
  * block anywhere, so a denied change resumed to `pass` — a green check on an
  * explicitly denied PR. Deny must block regardless of where the edge points.
  */
 
 describe("resolveResumeOutcome", () => {
 	test("deny with a deny edge to a NON-block action still blocks (the prod bug)", () => {
-		// graph walked send-to-moderation → discord, produced verdict `pass`.
+		// graph walked send-to-moderation → label, produced verdict `pass`.
 		const out = resolveResumeOutcome("deny", {
 			verdict: "pass",
-			actions: [{ action: "discord" }],
+			actions: [{ action: "label" }],
 		});
 		expect(out.verdict).toBe("block");
 		// the graph produced no block of its own ⇒ floor one in.
@@ -39,7 +39,7 @@ describe("resolveResumeOutcome", () => {
 	test("approve resumes to the graph's verdict — pass stays pass", () => {
 		const out = resolveResumeOutcome("approve", {
 			verdict: "pass",
-			actions: [{ action: "discord" }],
+			actions: [{ action: "label" }],
 		});
 		expect(out.verdict).toBe("pass");
 		expect(out.floorBlock).toBe(false);

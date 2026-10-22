@@ -24,12 +24,12 @@ const reviewerList = z
  * string out — no fetch, no renderer. Mirrors `run-markdown.ts` (model in,
  * markdown out, sections omitted when empty).
  *
- * SECRET SAFETY BY CONSTRUCTION. Webhook/discord nodes render only WHETHER a
+ * SECRET SAFETY BY CONSTRUCTION. Webhook nodes render only WHETHER a
  * url / signing secret is set, never the value. The definition the editor holds
  * is already secret-redacted server-side (`workflow-secrets.ts`), but this
  * serializer would not leak even an un-redacted one: the secret value is never
- * read into the output. The test proves this against a fixture that HAS real
- * webhook and discord urls.
+ * read into the output. The test proves this against a fixture that HAS a real
+ * webhook url and a stored url on a removed step.
  *
  * A workflow is a DAG; markdown is linear. Branching stays legible without an
  * edge dump because every action states its own firing condition
@@ -145,9 +145,9 @@ function actionParams(node: ActionNode): string[] {
 			...(teams.length > 0 ? [`teams: ${teams.join(", ")}`] : []),
 		];
 	}
-	if (node.action === "webhook" || node.action === "discord") {
+	if (node.action === "webhook") {
 		const rows = [secretSet(params, "url") ? "url set" : "url not set"];
-		if (node.action === "webhook" && secretSet(params, "signingSecret")) {
+		if (secretSet(params, "signingSecret")) {
 			rows.push("signing secret set");
 		}
 		return rows;

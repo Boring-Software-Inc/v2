@@ -10,6 +10,7 @@ import {
 	type CustomRuleRecord,
 	customRuleRef,
 	customRuleSummary,
+	isRemovedAction,
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
 } from "@tripwire/contracts";
@@ -62,7 +63,7 @@ const VERDICT_RANK: Record<Verdict, number> = {
 };
 
 export function postsSomething(action: { action: string }): boolean {
-	return action.action !== "comment";
+	return !isRemovedAction(action.action);
 }
 
 export function worstVerdict(verdicts: Verdict[]): Verdict {

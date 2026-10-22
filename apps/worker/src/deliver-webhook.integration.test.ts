@@ -217,27 +217,30 @@ describe("webhook delivery — routes through the guard (real DB)", () => {
 		expect(keys[1]).toBe(actionId);
 	});
 
-	test("discord delivery carries NO idempotency/signature headers", async () => {
+	test("a leftover discord row is retired without a send", async () => {
 		const actionId = await seedDeliveryRow({
 			url: "https://discord.example/webhooks/1/abc",
 			kind: "discord",
 		});
-		let captured: Record<string, string> = {};
-		await deliverWebhooks({
+		let sends = 0;
+		const result = await deliverWebhooks({
 			db,
 			logger,
 			guardDeps: {
 				lookupImpl: async () => [{ address: "8.8.8.8" }],
-				fetchImpl: (async (_url: URL, init: RequestInit) => {
-					captured = init.headers as Record<string, string>;
+				fetchImpl: (async () => {
+					sends++;
 					return new Response(null, { status: 200 });
 				}) as unknown as typeof fetch,
 			},
 		});
-		expect(await actionStatus(actionId)).toBe("executed");
-		expect(captured["x-delivery-id"]).toBeUndefined();
-		expect(captured["x-webhook-signature"]).toBeUndefined();
-		// The body is the Discord message shape, not the raw payload.
-		expect(captured["content-type"]).toBe("application/json");
+		expect(sends).toBe(0);
+		expect(result).toEqual({ delivered: 0, failed: 0, abandoned: 1 });
+		expect(await actionStatus(actionId)).toBe("superseded");
+		const failure = await pool.query(
+			"SELECT payload->>'deliveryFailure' AS failure FROM run_actions WHERE id = $1",
+			[actionId],
+		);
+		expect(failure.rows[0]?.failure).toBe("step removed");
 	});
 });
