@@ -6,6 +6,8 @@ import {Button as ButtonPrimitive} from '@base-ui/react/button';
 import {useDomDirection} from '#/lib/glaze/direction.ts';
 import {Button, type ButtonProps} from '#/components/glaze/ui/button.tsx';
 import {Icon, Failed, Close as CloseIcon} from '#/components/glaze/icon.tsx';
+import {ActionRegionContext, SlowNotice} from '#/components/glaze/ui/slow-notice.tsx';
+import {useWaitRegion} from '#/lib/glaze/waiting.ts';
 import {cn, mergeClass, mergeRefs} from '#/lib/glaze/utils.ts';
 import {useGlazeModal, useGlazePortal} from '#/lib/glaze/portal.ts';
 import {createPortal} from 'react-dom';
@@ -357,7 +359,8 @@ function SheetFooter({className, defaultAction, meta, children, ...props}: React
   /** Caption text at the start of the row; it truncates. */
   meta?: React.ReactNode;
 }) {
-  const {error} = useSheet();
+  const {error, pending} = useSheet();
+  const actions = useWaitRegion();
   const slot = React.useContext(FootSlotContext);
   const row = <>
     {error && <div data-slot="sheet-error" role="alert" data-status="fail" className="mt-(--shell-inset) flex items-start gap-2 rounded-panel bg-fail-tint px-3 py-2 type-body-sm text-fail-text">
@@ -371,7 +374,8 @@ function SheetFooter({className, defaultAction, meta, children, ...props}: React
       {...props}
     >
       {meta && <span data-slot="sheet-footer-meta" className="me-auto">{meta}</span>}
-      {children}
+      <SlowNotice active={pending || actions.waiting} className="me-auto"/>
+      <ActionRegionContext.Provider value={actions.store}>{children}</ActionRegionContext.Provider>
     </div>
   </>;
   // Inside SheetContent the row goes on the shell under the panel, as in Dialog.

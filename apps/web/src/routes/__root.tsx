@@ -6,13 +6,11 @@ import {
 	Outlet,
 	redirect,
 	Scripts,
-	useRouterState,
 } from "@tanstack/react-router";
 import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
 import { ThemeProvider } from "next-themes";
 import { lazy, Suspense } from "react";
 import glazeCss from "#/components/glaze/styles.css?url";
-import { SlowNoticeHost, Waiting } from "#/components/glaze/ui/slow-notice";
 import { Toaster } from "#/components/glaze/ui/toast";
 import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
@@ -140,9 +138,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-	const navigating = useRouterState({
-		select: (state) => state.status === "pending",
-	});
 	return (
 		<ThemeProvider
 			attribute={["class", "data-theme"]}
@@ -159,8 +154,6 @@ function RootComponent() {
 				</RepoTabsProvider>
 			</FlagsProvider>
 			<Toaster />
-			<Waiting active={navigating} />
-			<SlowNoticeHost />
 			{/* Global product analytics — one mount covers every route (pageviews,
 			    interactions, outgoing links, hash changes, web vitals). */}
 			<Suspense fallback={null}>

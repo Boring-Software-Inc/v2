@@ -5,7 +5,7 @@ import {cva, type VariantProps} from 'class-variance-authority';
 import {useEffect, useMemo, useRef, type ReactNode, type Ref} from 'react';
 import {Icon, Pending} from '#/components/glaze/icon.tsx';
 import {cn, controlHeight, mergeClass, mergeRefs} from '#/lib/glaze/utils.ts';
-import {useWaiting} from '#/lib/glaze/waiting.ts';
+import {SlowNotice, useActionMark} from '#/components/glaze/ui/slow-notice.tsx';
 
 // Glaze's button on Base UI's Button. 32px tall by default, 26 small, 36 large, a 13/500 label.
 //
@@ -114,7 +114,7 @@ function Button({className, variant, size, pending, pendingLabel, disabled, focu
   const iconOnly = s.startsWith('icon');
   const canPend = pending !== undefined;
   const named = useNameCheck();
-  useWaiting(pending === true);
+  const ownedByRow = useActionMark(pending === true);
   const mergedRef = useMemo(() => mergeRefs(ref as Ref<HTMLElement> | undefined, named), [ref, named]);
 
   // A text label never wraps; a label too long for its container ends in an ellipsis and stays the accessible name.
@@ -128,7 +128,7 @@ function Button({className, variant, size, pending, pendingLabel, disabled, focu
       </span>
     : label;
 
-  return <ButtonPrimitive
+  return <><ButtonPrimitive
     data-slot="button"
     data-variant={v}
     data-size={s}
@@ -138,7 +138,7 @@ function Button({className, variant, size, pending, pendingLabel, disabled, focu
     aria-busy={pending || undefined}
     className={mergeClass(buttonVariants({variant: v, size: s}), className)}
     {...props}
-  >{content}</ButtonPrimitive>;
+  >{content}</ButtonPrimitive>{canPend && !ownedByRow && <SlowNotice active={pending === true}/>}</>;
 }
 
 export {Button, buttonVariants, type ButtonProps};

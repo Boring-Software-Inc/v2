@@ -35,12 +35,14 @@ export function createWaitStore() {
   };
 }
 
-const waits = createWaitStore();
+export type WaitStore = ReturnType<typeof createWaitStore>;
 
-export function useWaiting(active: boolean) {
-  useEffect(() => (active ? waits.mark() : undefined), [active]);
+export function useWaitRegion() {
+  const [store] = useState(createWaitStore);
+  const waiting = useSyncExternalStore(store.subscribe, store.waiting, () => false);
+  return {store, waiting};
 }
 
-export function useAnyWaiting() {
-  return useSyncExternalStore(waits.subscribe, waits.waiting, () => false);
+export function useMarkWaiting(store: WaitStore | null, active: boolean) {
+  useEffect(() => (store && active ? store.mark() : undefined), [store, active]);
 }

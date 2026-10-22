@@ -1,15 +1,15 @@
 import { Icon, Pending } from "#/components/glaze/icon";
-import { Waiting } from "#/components/glaze/ui/slow-notice";
+import { SlowNotice } from "#/components/glaze/ui/slow-notice";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 
 export function HomeLoading() {
 	return (
-		<div aria-hidden className="flex justify-center py-10 text-text-2">
+		<div className="flex flex-col items-center py-10">
 			<Icon
-				className="animate-spin motion-reduce:animate-none"
+				className="animate-spin text-text-2 motion-reduce:animate-none"
 				icon={Pending}
 			/>
-			<Waiting active />
+			<SlowNotice active insetClassName="pt-2 text-center" />
 		</div>
 	);
 }
