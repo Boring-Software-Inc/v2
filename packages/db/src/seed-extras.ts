@@ -206,20 +206,28 @@ export async function seedTeamOrg(
 	return org;
 }
 
+export async function ensureDemoGithubAccount(
+	db: Db,
+	userId: string,
+): Promise<string> {
+	const accountId = `demo-gh-${userId}`;
+	await db
+		.insert(account)
+		.values({
+			id: `demo-acct-gh-${userId}`,
+			userId,
+			accountId,
+			providerId: "github",
+		})
+		.onConflictDoNothing();
+	return accountId;
+}
+
 export async function seedApprovedInstallRequest(
 	db: Db,
 	input: { userId: string; now: Date },
 ): Promise<void> {
-	const requesterId = `demo-gh-${input.userId}`;
-	await db
-		.insert(account)
-		.values({
-			id: `demo-acct-gh-${input.userId}`,
-			userId: input.userId,
-			accountId: requesterId,
-			providerId: "github",
-		})
-		.onConflictDoNothing();
+	const requesterId = await ensureDemoGithubAccount(db, input.userId);
 	for (const name of PENDING_INSTALL.repos) {
 		await ensureDemoRepo(db, name, {
 			installationId: PENDING_INSTALL.installationId,

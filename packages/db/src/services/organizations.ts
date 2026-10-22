@@ -8,7 +8,7 @@ import {
 	suffixSlug,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, type SQL, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
@@ -693,6 +693,178 @@ export async function listApprovedInstallRequests(
 		ORDER BY max(e.received_at) DESC
 	`);
 	return z.array(approvedInstallRequestSchema).parse(result.rows);
+}
+
+function installationOwnedBy(
+	userId: string,
+	forge: SQL,
+	installationId: SQL,
+): SQL {
+	return sql`(
+		(${forge} = 'github' AND EXISTS (
+			SELECT 1
+			FROM events e
+			JOIN account a
+			  ON a.provider_id = 'github'
+			 AND a.user_id = ${userId}
+			 AND a.account_id IN (
+			       e.raw->'sender'->>'id',
+			       e.raw->'requester'->>'id',
+			       e.raw->'installation'->'account'->>'id'
+			     )
+			WHERE e.forge = 'github'
+			  AND e.kind = 'installation.created'
+			  AND e.raw->'installation'->>'id' = ${installationId}
+		))
+		OR (${forge} <> 'github' AND EXISTS (
+			SELECT 1
+			FROM account a
+			WHERE a.provider_id = ${forge}
+			  AND a.user_id = ${userId}
+			  AND a.account_id = ${installationId}
+		))
+	)`;
+}
+
+export async function userCanClaimInstallation(
+	db: Db,
+	input: { userId: string; forge: Forge; installationId: string },
+): Promise<boolean> {
+	const result = await db.execute(sql`
+		SELECT 1 AS owned
+		WHERE ${installationOwnedBy(
+			input.userId,
+			sql`${input.forge}`,
+			sql`${input.installationId}`,
+		)}
+	`);
+	return result.rows.length > 0;
+}
+
+const claimableInstallationSchema = z.object({
+	installationId: z.string(),
+	forge: forgeSchema,
+	account: z.string().nullable(),
+	repoCount: z.number(),
+});
+
+export type ClaimableInstallation = z.infer<typeof claimableInstallationSchema>;
+
+export async function listClaimableInstallations(
+	db: Db,
+	input: { userId: string },
+): Promise<ClaimableInstallation[]> {
+	const result = await db.execute(sql`
+		SELECT r.installation_id AS "installationId",
+		       r.forge AS forge,
+		       min(r.owner) AS account,
+		       count(*)::int AS "repoCount"
+		FROM repos r
+		LEFT JOIN organization_installations oi
+		  ON oi.installation_id = r.installation_id AND oi.forge = r.forge
+		WHERE r.installation_id IS NOT NULL
+		  AND r.installation_id <> ''
+		  AND r.removed_at IS NULL
+		  AND oi.id IS NULL
+		  AND ${installationOwnedBy(input.userId, sql`r.forge`, sql`r.installation_id`)}
+		GROUP BY r.installation_id, r.forge
+		ORDER BY min(r.installed_at) DESC
+	`);
+	return z.array(claimableInstallationSchema).parse(result.rows);
+}
+
+export interface InstallPreview {
+	installationId: string;
+	forge: Forge;
+	claimable: boolean;
+	account: string | null;
+	repoCount: number;
+	stateOrg: { id: string; slug: string; name: string } | null;
+	claimedByOrgSlug: string | null;
+}
+
+async function orgRef(
+	db: Db,
+	orgId: string,
+): Promise<{ id: string; slug: string; name: string } | null> {
+	const rows = await db
+		.select({
+			id: organization.id,
+			slug: organization.slug,
+			name: organization.name,
+		})
+		.from(organization)
+		.where(eq(organization.id, orgId))
+		.limit(1);
+	return rows[0] ?? null;
+}
+
+export async function previewInstallation(
+	db: Db,
+	input: {
+		userId: string | null;
+		installationId: string;
+		stateOrgId: string | null;
+	},
+): Promise<InstallPreview> {
+	const repoRows = await db
+		.select({
+			owner: repos.owner,
+			forge: repos.forge,
+			n: sql<number>`count(*)::int`,
+		})
+		.from(repos)
+		.where(
+			and(
+				eq(repos.installationId, input.installationId),
+				isNull(repos.removedAt),
+			),
+		)
+		.groupBy(repos.owner, repos.forge);
+	const forge = repoRows[0]?.forge ?? "github";
+	const sealed: InstallPreview = {
+		installationId: input.installationId,
+		forge,
+		claimable: false,
+		account: null,
+		repoCount: 0,
+		stateOrg: null,
+		claimedByOrgSlug: null,
+	};
+	const userId = input.userId;
+	if (!userId) {
+		return sealed;
+	}
+	const seen: InstallPreview = {
+		...sealed,
+		account: repoRows[0]?.owner ?? null,
+		repoCount: repoRows.reduce((sum, row) => sum + row.n, 0),
+	};
+	const ownerOrgId = await getInstallationOrg(db, {
+		installationId: input.installationId,
+		forge,
+	});
+	if (ownerOrgId) {
+		const role = await getMemberRole(db, { orgId: ownerOrgId, userId });
+		if (!role) {
+			return sealed;
+		}
+		const owner = await orgRef(db, ownerOrgId);
+		return { ...seen, claimedByOrgSlug: owner?.slug ?? null };
+	}
+	const claimable = await userCanClaimInstallation(db, {
+		userId,
+		forge,
+		installationId: input.installationId,
+	});
+	if (!claimable) {
+		return sealed;
+	}
+	return {
+		...seen,
+		claimable,
+		stateOrg: input.stateOrgId ? await orgRef(db, input.stateOrgId) : null,
+	};
 }
 
 // ── deletion (§5) ───────────────────────────────────────────────────────

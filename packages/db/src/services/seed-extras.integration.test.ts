@@ -252,12 +252,14 @@ test("an unclaimed install is claimable and syncing has no repos yet", async () 
 		installationId: "demo-inst-scenario-confirm",
 		account: "tripwire-demo",
 		repoNames: ["scenario-confirm-a", "scenario-confirm-b"],
+		installerUserId: null,
 		now,
 	});
 	await seedUnclaimedInstall(db, {
 		installationId: "demo-inst-scenario-syncing",
 		account: "tripwire-demo",
 		repoNames: [],
+		installerUserId: null,
 		now,
 	});
 

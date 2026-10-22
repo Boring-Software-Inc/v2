@@ -27,14 +27,18 @@ import {
 	enumerateOrgCascade,
 	getInstallationOrg,
 	getOrgForUser,
+	type InstallPreview,
 	linkOrgInstallation,
 	listApprovedInstallRequests,
+	listClaimableInstallations,
 	listInviteLinks,
 	listUserOrgs,
 	moveInstallation,
 	pickOrgSlug,
+	previewInstallation,
 	redeemInviteLink,
 	revokeInviteLink,
+	userCanClaimInstallation,
 } from "./organizations.ts";
 import { syncInstallationRepos } from "./repos.ts";
 
@@ -499,6 +503,318 @@ describe("approved install requests — the requester's way back", () => {
 		expect(await listApprovedInstallRequests(db, { userId: "asker" })).toEqual(
 			[],
 		);
+	});
+});
+
+describe("claim ownership — only the installer, requester or account owner", () => {
+	async function seedGithubUser(id: string, githubId: string): Promise<void> {
+		await seedUser(id);
+		await db.insert(account).values({
+			id: generateId(),
+			userId: id,
+			providerId: "github",
+			accountId: githubId,
+		});
+	}
+
+	async function seedInstall(input: {
+		installationId: string;
+		accountId: number;
+		accountLogin: string;
+		senderId: number;
+		requesterId: number | null;
+	}): Promise<void> {
+		await db.insert(events).values({
+			id: generateId(),
+			forge: "github",
+			deliveryId: generateId(),
+			rawKind: "installation",
+			kind: "installation.created",
+			raw: {
+				action: "created",
+				installation: {
+					id: Number(input.installationId),
+					account: { id: input.accountId, login: input.accountLogin },
+				},
+				sender: { id: input.senderId },
+				requester: input.requesterId ? { id: input.requesterId } : null,
+			},
+		});
+		await syncInstallationRepos(
+			db,
+			input.installationId,
+			[
+				{
+					externalId: `own-${input.installationId}`,
+					owner: input.accountLogin,
+					name: `private-${input.installationId}`,
+					fullName: `${input.accountLogin}/private-${input.installationId}`,
+					private: true,
+				},
+			],
+			[],
+			null,
+		);
+	}
+
+	const sealed = (installationId: string): InstallPreview => ({
+		installationId,
+		forge: "github",
+		claimable: false,
+		account: null,
+		repoCount: 0,
+		stateOrg: null,
+		claimedByOrgSlug: null,
+	});
+
+	let kolfOrg = "";
+
+	beforeAll(async () => {
+		await seedGithubUser("kolfadser1", "5001");
+		await seedGithubUser("salt", "5002");
+		await seedInstall({
+			installationId: "8001",
+			accountId: 6001,
+			accountLogin: "kolf-corp",
+			senderId: 5001,
+			requesterId: null,
+		});
+	});
+
+	test("another user cannot list, preview or claim the installation (SALT case)", async () => {
+		expect(await listClaimableInstallations(db, { userId: "salt" })).toEqual(
+			[],
+		);
+		expect(
+			await previewInstallation(db, {
+				userId: "salt",
+				installationId: "8001",
+				stateOrgId: null,
+			}),
+		).toEqual(sealed("8001"));
+		expect(
+			await userCanClaimInstallation(db, {
+				userId: "salt",
+				forge: "github",
+				installationId: "8001",
+			}),
+		).toBe(false);
+	});
+
+	test("a valid state for the attacker's own org does not unlock the victim's installation", async () => {
+		const saltOrg = await seedTeamOrg("salt-team", "salt");
+		expect(
+			await previewInstallation(db, {
+				userId: "salt",
+				installationId: "8001",
+				stateOrgId: saltOrg,
+			}),
+		).toEqual(sealed("8001"));
+	});
+
+	test("anonymous callers get a sealed preview", async () => {
+		expect(
+			await previewInstallation(db, {
+				userId: null,
+				installationId: "8001",
+				stateOrgId: null,
+			}),
+		).toEqual(sealed("8001"));
+	});
+
+	test("the installer lists, previews and may claim their installation", async () => {
+		kolfOrg = await seedTeamOrg("kolf-team", "kolfadser1");
+		expect(
+			await listClaimableInstallations(db, { userId: "kolfadser1" }),
+		).toEqual([
+			{
+				installationId: "8001",
+				forge: "github",
+				account: "kolf-corp",
+				repoCount: 1,
+			},
+		]);
+		expect(
+			await previewInstallation(db, {
+				userId: "kolfadser1",
+				installationId: "8001",
+				stateOrgId: kolfOrg,
+			}),
+		).toEqual({
+			installationId: "8001",
+			forge: "github",
+			claimable: true,
+			account: "kolf-corp",
+			repoCount: 1,
+			stateOrg: { id: kolfOrg, slug: "kolf-team", name: "kolf-team" },
+			claimedByOrgSlug: null,
+		});
+		expect(
+			await userCanClaimInstallation(db, {
+				userId: "kolfadser1",
+				forge: "github",
+				installationId: "8001",
+			}),
+		).toBe(true);
+	});
+
+	test("once claimed, only members of the owning org learn which org has it", async () => {
+		await linkOrgInstallation(db, { orgId: kolfOrg, installationId: "8001" });
+		expect(
+			await previewInstallation(db, {
+				userId: "kolfadser1",
+				installationId: "8001",
+				stateOrgId: null,
+			}),
+		).toMatchObject({ claimable: false, claimedByOrgSlug: "kolf-team" });
+		expect(
+			await previewInstallation(db, {
+				userId: "salt",
+				installationId: "8001",
+				stateOrgId: null,
+			}),
+		).toEqual(sealed("8001"));
+		expect(
+			await listClaimableInstallations(db, { userId: "kolfadser1" }),
+		).toEqual([]);
+	});
+
+	test("the requester of an approved install request may claim it", async () => {
+		await seedGithubUser("org-admin", "5003");
+		await seedGithubUser("requester", "5004");
+		await seedInstall({
+			installationId: "8002",
+			accountId: 6002,
+			accountLogin: "big-corp",
+			senderId: 5003,
+			requesterId: 5004,
+		});
+		for (const userId of ["org-admin", "requester"]) {
+			expect(
+				await userCanClaimInstallation(db, {
+					userId,
+					forge: "github",
+					installationId: "8002",
+				}),
+			).toBe(true);
+		}
+		expect(
+			await listClaimableInstallations(db, { userId: "requester" }),
+		).toEqual([
+			{
+				installationId: "8002",
+				forge: "github",
+				account: "big-corp",
+				repoCount: 1,
+			},
+		]);
+		expect(
+			await userCanClaimInstallation(db, {
+				userId: "salt",
+				forge: "github",
+				installationId: "8002",
+			}),
+		).toBe(false);
+	});
+
+	test("the account owner of a personal install may claim it", async () => {
+		await seedGithubUser("solo", "5005");
+		await seedInstall({
+			installationId: "8003",
+			accountId: 5005,
+			accountLogin: "solo",
+			senderId: 5999,
+			requesterId: null,
+		});
+		expect(
+			await userCanClaimInstallation(db, {
+				userId: "solo",
+				forge: "github",
+				installationId: "8003",
+			}),
+		).toBe(true);
+	});
+
+	test("an installation with no stored installation webhook is claimable by nobody", async () => {
+		await syncInstallationRepos(
+			db,
+			"8004",
+			[
+				{
+					externalId: "own-8004",
+					owner: "kolf-corp",
+					name: "no-webhook",
+					fullName: "kolf-corp/no-webhook",
+					private: true,
+				},
+			],
+			[],
+			null,
+		);
+		expect(
+			await userCanClaimInstallation(db, {
+				userId: "kolfadser1",
+				forge: "github",
+				installationId: "8004",
+			}),
+		).toBe(false);
+	});
+
+	test("an OAuth forge connection is claimable by the user whose account it is", async () => {
+		await seedUser("og-user");
+		await db.insert(account).values({
+			id: generateId(),
+			userId: "og-user",
+			providerId: "opengit",
+			accountId: "og-acct-1",
+		});
+		await syncInstallationRepos(
+			db,
+			"og-acct-1",
+			[
+				{
+					externalId: "og-r-1",
+					owner: "og-user",
+					name: "tool",
+					fullName: "og-user/tool",
+					private: true,
+				},
+			],
+			[],
+			null,
+			"opengit",
+		);
+		expect(await listClaimableInstallations(db, { userId: "og-user" })).toEqual(
+			[
+				{
+					installationId: "og-acct-1",
+					forge: "opengit",
+					account: "og-user",
+					repoCount: 1,
+				},
+			],
+		);
+		expect(
+			await previewInstallation(db, {
+				userId: "og-user",
+				installationId: "og-acct-1",
+				stateOrgId: null,
+			}),
+		).toMatchObject({ forge: "opengit", claimable: true, repoCount: 1 });
+		expect(
+			await userCanClaimInstallation(db, {
+				userId: "salt",
+				forge: "opengit",
+				installationId: "og-acct-1",
+			}),
+		).toBe(false);
+		expect(
+			await userCanClaimInstallation(db, {
+				userId: "og-user",
+				forge: "github",
+				installationId: "og-acct-1",
+			}),
+		).toBe(false);
 	});
 });
 

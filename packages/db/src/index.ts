@@ -90,6 +90,8 @@ export * as moderationServices from "./services/moderation.ts";
 export type { RepoLite, SwitcherRepo } from "./services/onboarding.ts";
 export type {
 	ApprovedInstallRequest,
+	ClaimableInstallation,
+	InstallPreview,
 	InviteLinkView,
 	OrgCascade,
 	OrgSummary,
