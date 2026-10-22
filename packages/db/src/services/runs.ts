@@ -453,6 +453,34 @@ export async function getLatestRunIdForChangeRequest(
 	return rows[0]?.id ?? null;
 }
 
+export async function listRunsForChangeRequest(
+	db: Db,
+	repoFullName: string,
+	subjectNumber: number,
+) {
+	return await db
+		.select({
+			id: runs.id,
+			eventId: runs.eventId,
+			status: runs.status,
+			verdict: runs.verdict,
+			headSha: runs.headSha,
+			triggeredBy: runs.triggeredBy,
+			createdAt: runs.createdAt,
+			eventKind: events.kind,
+			actorLogin: events.actorLogin,
+		})
+		.from(runs)
+		.leftJoin(events, eq(events.id, runs.eventId))
+		.where(
+			and(
+				eq(runs.repoFullName, repoFullName),
+				eq(runs.subjectNumber, subjectNumber),
+			),
+		)
+		.orderBy(runs.createdAt, runs.id);
+}
+
 /**
  * The verdict the PR currently shows (the active tripwire comment's verdict):
  * the most recent OTHER completed run for this change request. null ⇒ first-time

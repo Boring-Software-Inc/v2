@@ -185,8 +185,40 @@ const fullView: RunView = {
 			kind: "block",
 			status: "executed",
 			recordedAt: "2026-07-11T00:00:01.000Z",
+			url: null,
+		},
+		{
+			kind: "discord",
+			status: "executed",
+			recordedAt: "2026-07-11T00:00:01.000Z",
+			url: null,
+			delivery: { state: "sent" },
 		},
 	],
+	redactionLevel: 0,
+	event: {
+		kind: "change-request.opened",
+		actor: "someone",
+		title: "add a wallet",
+		headSha: "abc1234def",
+		at: "2026-07-11T00:00:00.000Z",
+	},
+	workflows: [
+		{ id: "default@1", name: "Rules", outcome: "block" },
+		{ id: "wf-crypto", name: "crypto-guard", outcome: "review" },
+	],
+	reviews: [
+		{
+			workflowId: "wf-crypto",
+			state: "approved",
+			degraded: false,
+			openedAt: "2026-07-11T00:00:01.000Z",
+			decidedAt: "2026-07-11T00:10:00.000Z",
+			decidedBy: "caleb",
+		},
+	],
+	previousRun: null,
+	nextRun: null,
 };
 
 describe("toPublicRunView", () => {
@@ -380,8 +412,42 @@ describe("toPublicRunView redaction", () => {
 		}
 	});
 
+	test("stop 6 drops workflow names and the step node ids that carry them", () => {
+		const atFive = toPublicRunView(view, 5);
+		expect(atFive.workflows).toEqual(fullView.workflows);
+		expect(atFive.reviews[0]?.workflowId).toBe("wf-crypto");
+		const atSix = toPublicRunView(view, 6);
+		expect(atSix.workflows).toEqual([]);
+		expect(atSix.reviews[0]?.workflowId).toBeNull();
+		expect(atSix.steps.map((s) => s.nodeId)).toEqual(["step-0", "step-1"]);
+		expect(JSON.stringify(atSix)).not.toContain("crypto-guard");
+	});
+
+	test("the public view never names the maintainer who decided", () => {
+		expect(toPublicRunView(view, 0).reviews[0]?.decidedBy).toBeNull();
+		expect(toFullRunView(view).reviews[0]?.decidedBy).toBe("caleb");
+	});
+
+	test("the public view carries its redaction level", () => {
+		expect(toPublicRunView(view, 5).redactionLevel).toBe(5);
+		expect(toFullRunView({ ...view, redactionLevel: 5 }).redactionLevel).toBe(
+			0,
+		);
+	});
+
+	test("discord and webhook sends stay with members", () => {
+		const kinds = toPublicRunView(view, 0).actions.map((a) => a.kind);
+		expect(kinds).toEqual(["block"]);
+		expect(toFullRunView(view).actions.map((a) => a.kind)).toEqual([
+			"block",
+			"discord",
+		]);
+	});
+
 	test("the actions list hides from stop 6 for the public", () => {
-		expect(toPublicRunView(view, 5).actions).toEqual(fullView.actions);
+		expect(toPublicRunView(view, 5).actions).toEqual(
+			fullView.actions.filter((a) => a.kind === "block"),
+		);
 		expect(toPublicRunView(view, 6).actions).toEqual([]);
 		expect(toPublicRunView(view, 8).actions).toEqual([]);
 	});

@@ -228,3 +228,78 @@ describe("loadRunView — §10 access model", () => {
 		).toBeNull();
 	});
 });
+
+describe("loadRunView, the chain of events", () => {
+	let firstRunId: string;
+	let secondRunId: string;
+
+	beforeAll(async () => {
+		await pool.query(
+			`INSERT INTO events (id, delivery_id, raw_kind, raw, kind, actor_login, subject_number, head_sha, normalized)
+			 VALUES ('evt-chain-1', 'chain-1', 'pull_request', '{}', 'change-request.opened', 'contrib', 8, 'aaa1111', '{"occurredAt":"2026-07-11T00:00:00.000Z","changeRequest":{"title":"Add a wallet"}}'),
+			        ('evt-chain-2', 'chain-2', 'pull_request', '{}', 'change-request.updated', 'contrib', 8, 'bbb2222', '{}')`,
+		);
+		firstRunId = await runServices.createRun(db, {
+			eventId: "evt-chain-1",
+			repoFullName: "acme/pub",
+			subjectNumber: 8,
+			headSha: "aaa1111",
+			snapshot: [DEFAULT_WORKFLOW],
+			status: "completed",
+			verdict: "pass",
+		});
+		secondRunId = await runServices.createRun(db, {
+			eventId: "evt-chain-2",
+			repoFullName: "acme/pub",
+			subjectNumber: 8,
+			headSha: "bbb2222",
+			snapshot: [DEFAULT_WORKFLOW],
+			status: "completed",
+			verdict: "block",
+		});
+		await pool.query(
+			`UPDATE runs SET created_at = created_at + interval '1 minute' WHERE id = $1`,
+			[secondRunId],
+		);
+		const [check] = await runServices.recordActions(db, firstRunId, [
+			{ kind: "set-check", payload: {}, idempotencyKey: "check:aaa1111" },
+		]);
+		if (check) {
+			await runServices.markActionExecuted(db, check.id, "9001");
+		}
+		await pool.query(
+			`INSERT INTO moderation_items (id, run_id, node_id, status, decided_at, decided_by)
+			 VALUES ('mod-chain-1', $1, 'default@1:mod', 'approved', now(), 'user-1')`,
+			[firstRunId],
+		);
+	});
+
+	test("the event, the newer run and the check link come from the data", async () => {
+		const view = await loadRunView(db, firstRunId, SESSION);
+		expect(view?.event?.kind).toBe("change-request.opened");
+		expect(view?.event?.actor).toBe("contrib");
+		expect(view?.event?.title).toBe("Add a wallet");
+		expect(view?.nextRun?.id).toBe(secondRunId);
+		expect(view?.previousRun).toBeNull();
+		expect(view?.actions[0]?.url).toBe("https://github.com/acme/pub/runs/9001");
+		expect(view?.workflows).toEqual([
+			{ id: "default@1", name: "Rules", outcome: "pass" },
+		]);
+	});
+
+	test("a later run links back to the run it replaces", async () => {
+		const view = await loadRunView(db, secondRunId, NO_SESSION);
+		expect(view?.previousRun?.id).toBe(firstRunId);
+		expect(view?.nextRun).toBeNull();
+	});
+
+	test("members see who decided a review, the public sees only the decision", async () => {
+		const member = await loadRunView(db, firstRunId, SESSION);
+		expect(member?.reviews[0]?.state).toBe("approved");
+		expect(member?.reviews[0]?.workflowId).toBe("default@1");
+		expect(member?.reviews[0]?.decidedBy).toBe("member");
+		const stranger = await loadRunView(db, firstRunId, NO_SESSION);
+		expect(stranger?.reviews[0]?.state).toBe("approved");
+		expect(stranger?.reviews[0]?.decidedBy).toBeNull();
+	});
+});

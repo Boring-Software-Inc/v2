@@ -1,16 +1,10 @@
-import { AnimatePresence, motion } from "motion/react";
 import { memo, useMemo } from "react";
-import { verdictStatus } from "#/components/activity/verdict-chip";
 import { AnimatedHeight } from "#/components/common/animated-height";
-import { Status } from "#/components/glaze/ui/status";
-import {
-	BLUR_SWAP,
-	keyedByContent,
-} from "#/components/responses/preview-motion";
 import { PreviewObject } from "#/components/responses/preview-object";
 import { SAMPLE_RUN } from "#/components/responses/sample-run";
-import { StepCard } from "#/components/runs/step-card";
+import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
 import { toPublicRunView } from "#/lib/run-access";
+import { buildRunChain } from "#/lib/run-chain";
 
 export const RunPageMock = memo(function RunPageMock({
 	level,
@@ -18,8 +12,7 @@ export const RunPageMock = memo(function RunPageMock({
 	level: number;
 }) {
 	const view = useMemo(() => toPublicRunView(SAMPLE_RUN, level), [level]);
-	const verdict = verdictStatus(view.verdict);
-	const steps = keyedByContent(view.steps, (step) => JSON.stringify(step));
+	const chain = useMemo(() => buildRunChain(view), [view]);
 	return (
 		<PreviewObject>
 			<div className="flex flex-col">
@@ -27,33 +20,20 @@ export const RunPageMock = memo(function RunPageMock({
 					<span className="min-w-0 flex-1 truncate type-label">
 						{view.repoFullName} #{view.subjectNumber}
 					</span>
-					{verdict ? (
-						<Status status={verdict.status}>{verdict.label}</Status>
-					) : null}
+					<RunStatusMark outcome={chain.outcome} />
 				</div>
 				<AnimatedHeight>
-					<AnimatePresence initial={false}>
-						{view.stepsHidden ? null : (
-							<motion.div
-								className="border-line-faint border-t"
-								key="steps"
-								{...BLUR_SWAP}
-							>
-								<AnimatePresence initial={false} mode="popLayout">
-									{steps.map(({ item: step, key }) => (
-										<motion.div key={key} layout="position" {...BLUR_SWAP}>
-											<StepCard
-												maintainer={false}
-												repo={view.repoFullName}
-												sha={view.headSha}
-												step={step}
-											/>
-										</motion.div>
-									))}
-								</AnimatePresence>
-							</motion.div>
-						)}
-					</AnimatePresence>
+					<div className="border-line-faint border-t px-4 pt-4 pb-4">
+						<RunChainView
+							chain={chain}
+							context={{
+								level: view.redactionLevel,
+								maintainer: false,
+								repo: view.repoFullName,
+								sha: view.headSha,
+							}}
+						/>
+					</div>
 				</AnimatedHeight>
 			</div>
 		</PreviewObject>

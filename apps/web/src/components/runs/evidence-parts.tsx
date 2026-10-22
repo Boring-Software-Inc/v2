@@ -1,21 +1,5 @@
 import type { ReactNode } from "react";
 import { DocumentBlank, Icon } from "#/components/glaze/icon";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import {
-	Item,
-	ItemContent,
-	ItemGroup,
-	ItemLink,
-	ItemMedia,
-	ItemMeta,
-	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { JsonView } from "#/components/glaze/ui/json-view";
-import type { JsonValue } from "#/lib/runs.functions";
 
 export function renderBackticks(text: string): ReactNode {
 	return text.split(/(`[^`]+`)/g).map((part, i) => {
@@ -45,7 +29,7 @@ export function FilePath({ file }: { file: string }) {
 	const dir = cut >= 0 ? file.slice(0, cut + 1) : "";
 	const base = cut >= 0 ? file.slice(cut + 1) : file;
 	return (
-		<span className="mono truncate">
+		<span className="mono [overflow-wrap:anywhere]">
 			<span className="text-text-2">{dir}</span>
 			<span className="text-text-1">{base}</span>
 		</span>
@@ -74,33 +58,34 @@ export function FileRows({
 	files: string[];
 }) {
 	return (
-		<ItemGroup
+		<ul
 			aria-label="Protected files touched"
-			className="mt-3"
-			variant="plain"
+			className="flex flex-col rounded-panel well"
 		>
 			{files.map((file) => {
 				const url = blobUrl(repo, sha, file);
 				return (
-					<Item key={file} size="sm">
-						<ItemMedia>
-							<FileIcon />
-						</ItemMedia>
-						<ItemContent>
-							<ItemTitle>
-								{url ? (
-									<ItemLink href={url} rel="noreferrer" target="_blank">
-										<FilePath file={file} />
-									</ItemLink>
-								) : (
-									<FilePath file={file} />
-								)}
-							</ItemTitle>
-						</ItemContent>
-					</Item>
+					<li
+						className="rule-row flex min-w-0 items-center gap-1.5 px-3 py-2 type-code-sm"
+						key={file}
+					>
+						<FileIcon />
+						{url ? (
+							<a
+								className="min-w-0 hover:underline"
+								href={url}
+								rel="noreferrer"
+								target="_blank"
+							>
+								<FilePath file={file} />
+							</a>
+						) : (
+							<FilePath file={file} />
+						)}
+					</li>
 				);
 			})}
-		</ItemGroup>
+		</ul>
 	);
 }
 
@@ -110,32 +95,24 @@ export function CryptoMatches({
 	matches: { value: string; location: string }[];
 }) {
 	return (
-		<ItemGroup aria-label="Matched addresses" className="mt-3" variant="plain">
+		<ul
+			aria-label="Matched addresses"
+			className="flex flex-col rounded-panel well"
+		>
 			{matches.map((match, i) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: matches have no id; order is stable
-				<Item key={i} size="sm">
-					<ItemContent>
-						<ItemTitle>
-							<span className="type-code-sm">{match.value}</span>
-						</ItemTitle>
-					</ItemContent>
-					<ItemMeta>in {match.location}</ItemMeta>
-				</Item>
+				<li
+					className="rule-row flex flex-col gap-1 px-3 py-2"
+					// biome-ignore lint/suspicious/noArrayIndexKey: matches have no id; order is fixed
+					key={i}
+				>
+					<span className="type-code-sm text-text-1 [overflow-wrap:anywhere]">
+						{match.value}
+					</span>
+					<span className="type-caption text-text-2">
+						in <span className="mono">{match.location}</span>
+					</span>
+				</li>
 			))}
-		</ItemGroup>
-	);
-}
-
-export function RawDisclosure({ evidence }: { evidence: JsonValue }) {
-	if (evidence === null || evidence === undefined) {
-		return null;
-	}
-	return (
-		<Collapsible className="mt-2 flex flex-col gap-2">
-			<CollapsibleTrigger size="sm">Raw evidence</CollapsibleTrigger>
-			<CollapsibleContent>
-				<JsonView data={evidence} label="Raw evidence" />
-			</CollapsibleContent>
-		</Collapsible>
+		</ul>
 	);
 }

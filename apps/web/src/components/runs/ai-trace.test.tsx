@@ -30,9 +30,10 @@ describe("ai-review trace on the run page", () => {
 		const html = renderToStaticMarkup(
 			<RuleEvidence maintainer repo="o/r" sha={null} step={aiStep(base)} />,
 		);
-		expect(html).toContain("Reasoning trace");
-		expect(html).toContain("steps 1/12");
-		expect(html).toContain("in 1200");
+		expect(html).toContain("Trace");
+		expect(html).toContain("1 of 12 steps");
+		expect(html).toContain("1,200 tokens in");
+		expect(html).toContain("anthropic/claude-haiku-4.5");
 		expect(html).toContain("checking the diff for credential exfil");
 	});
 
@@ -45,7 +46,8 @@ describe("ai-review trace on the run page", () => {
 				step={aiStep(base)}
 			/>,
 		);
-		expect(html).not.toContain("Reasoning trace");
+		expect(html).not.toContain("tokens in");
+		expect(html).not.toContain("checking the diff");
 	});
 
 	test("attacker-influenced excerpt is escaped, not rendered as markup", () => {

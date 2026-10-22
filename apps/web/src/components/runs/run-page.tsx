@@ -1,22 +1,11 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import {
-	ACTION_CATALOG,
-	FORGE_BY_ID,
-	workflowActionKindSchema,
-} from "@tripwire/contracts";
+import { FORGE_BY_ID } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
-import { verdictStatus } from "#/components/activity/verdict-chip";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { GithubMark, Icon, Retry } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "#/components/glaze/ui/card";
 import { CopyButton } from "#/components/glaze/ui/copy-button";
 import {
 	Dialog,
@@ -37,19 +26,18 @@ import {
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
-import { Status, type StatusValue } from "#/components/glaze/ui/status";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
+import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
-import { StepCard } from "#/components/runs/step-card";
-import { actionIcon, KIND_ICON } from "#/components/workflows/editor/step-meta";
 import {
 	getRerunPreview,
 	rerunChangeRequest,
 	rerunRulesLine,
 } from "#/lib/activity.functions";
 import { formatRelativeTime } from "#/lib/format-relative-time";
+import { buildRunChain } from "#/lib/run-chain";
 import { mergeLiveSteps } from "#/lib/run-live-steps";
 import { runToMarkdown } from "#/lib/run-markdown";
 import type { RunView } from "#/lib/runs.functions";
@@ -127,49 +115,16 @@ export function RunPage() {
 	);
 }
 
-function RunStatusLine({
-	run,
-	plannedRules,
-}: {
-	run: RunView;
-	plannedRules: number;
-}) {
-	const evaluating = run.status === "queued" || run.status === "running";
-	const finishedRules = run.steps.filter((s) => s.nodeKind === "rule").length;
-	const verdict = verdictStatus(run.verdict);
-
-	return (
-		<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-			{verdict ? (
-				<Status status={verdict.status}>{verdict.label}</Status>
-			) : null}
-			{run.status === "paused" ? (
-				<span className="type-label text-text-2">Waiting for a maintainer</span>
-			) : null}
-			{evaluating ? (
-				<Status live status="running">
-					{plannedRules > 0
-						? `Checking ${finishedRules} of ${plannedRules} rules`
-						: "Checking"}
-				</Status>
-			) : null}
-			{run.status === "failed" ? (
-				<Status status="fail">Did not finish</Status>
-			) : null}
-		</div>
-	);
-}
-
 function RunBody({ run }: { run: RunView }) {
-	const liveSteps = useMemo(
-		() => mergeLiveSteps(run.status, run.snapshot, run.steps),
-		[run.status, run.snapshot, run.steps],
+	const chain = useMemo(
+		() =>
+			buildRunChain(run, mergeLiveSteps(run.status, run.snapshot, run.steps)),
+		[run],
 	);
-	const evaluating = run.status === "queued" || run.status === "running";
 
 	return (
 		<div className="px-4 py-6 md:px-8 md:py-10">
-			<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+			<div className="mx-auto flex w-full max-w-220 flex-col gap-10">
 				<header className="flex flex-col gap-2">
 					<div className="flex flex-wrap items-center justify-between gap-3">
 						<h1 className="type-title">
@@ -196,149 +151,23 @@ function RunBody({ run }: { run: RunView }) {
 							) : null}
 						</div>
 					</div>
-					<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-						<RunStatusLine
-							plannedRules={
-								liveSteps.filter((s) => s.nodeKind === "rule").length
-							}
-							run={run}
-						/>
-						<MetaRow className="type-body-sm text-text-2">
-							<span>{run.repoFullName}</span>
-							<span>{formatRelativeTime(run.createdAt)}</span>
-							{run.rerun ? (
-								<span>
-									Manual re-run{run.rerunBy ? ` by ${run.rerunBy}` : ""}
-								</span>
-							) : null}
-						</MetaRow>
-					</div>
+					<MetaRow className="type-body-sm text-text-2">
+						<RunStatusMark outcome={chain.outcome} />
+						<span>{run.repoFullName}</span>
+						<span>{formatRelativeTime(run.createdAt)}</span>
+					</MetaRow>
 				</header>
-
-				{run.stepsHidden ? null : (
-					<Card>
-						<CardHeader>
-							<CardTitle>Steps</CardTitle>
-						</CardHeader>
-						<CardContent flush>
-							{liveSteps.length === 0 ? (
-								<p className="px-3 py-4 type-body-sm text-text-2">
-									{evaluating
-										? "Starting the check."
-										: run.status === "failed"
-											? "This run did not finish. Re-run rules to try again."
-											: "Tripwire recorded no steps for this run."}
-								</p>
-							) : (
-								liveSteps.map((step) => (
-									<StepCard
-										key={step.id}
-										maintainer={run.access !== "public"}
-										repo={run.repoFullName}
-										sha={run.headSha}
-										step={step}
-									/>
-								))
-							)}
-						</CardContent>
-					</Card>
-				)}
-
-				{run.actions.length > 0 ? (
-					<Card>
-						<CardHeader>
-							<CardTitle>Actions</CardTitle>
-						</CardHeader>
-						<CardContent flush>
-							{run.actions.map((action) => (
-								<div
-									className="rule-row flex min-w-0 items-center min-h-(--row) gap-2.5 px-3 py-2"
-									key={`${action.kind}-${action.recordedAt}`}
-								>
-									<Icon
-										className="text-text-2"
-										icon={actionGlyph(action.kind)}
-									/>
-									<span className="min-w-0 flex-1 truncate type-label">
-										{actionName(action.kind)}
-									</span>
-									{action.delivery ? (
-										<DeliveryStatus delivery={action.delivery} />
-									) : (
-										<ActionStatus status={action.status} />
-									)}
-								</div>
-							))}
-						</CardContent>
-					</Card>
-				) : null}
+				<RunChainView
+					chain={chain}
+					context={{
+						level: run.redactionLevel,
+						maintainer: run.access !== "public",
+						repo: run.repoFullName,
+						sha: run.headSha,
+					}}
+				/>
 			</div>
 		</div>
-	);
-}
-
-type ActionStatusMap = Record<string, { status: StatusValue; label: string }>;
-const ACTION_STATUS: ActionStatusMap = {
-	executed: { status: "ok", label: "Done" },
-	skipped: { status: "idle", label: "Skipped" },
-	failed: { status: "fail", label: "Did not finish" },
-	pending: { status: "queued", label: "Waiting" },
-};
-
-function ActionStatus({ status }: { status: string }) {
-	const known = ACTION_STATUS[status];
-	return (
-		<Status size="sm" status={known?.status ?? "idle"}>
-			{known?.label ?? sentence(status)}
-		</Status>
-	);
-}
-
-function actionGlyph(kind: string) {
-	const parsed = workflowActionKindSchema.safeParse(kind);
-	return parsed.success ? actionIcon(parsed.data) : KIND_ICON.action;
-}
-
-function actionName(kind: string): string {
-	const entry = ACTION_CATALOG.find((candidate) => candidate.action === kind);
-	if (entry) {
-		return entry.name;
-	}
-	const words = kind.replace(/-/g, " ");
-	return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-function DeliveryStatus({
-	delivery,
-}: {
-	delivery:
-		| { state: "sent" }
-		| { state: "queued" }
-		| { state: "failed"; reason: string };
-}) {
-	if (delivery.state === "sent") {
-		return (
-			<Status size="sm" status="ok">
-				Sent
-			</Status>
-		);
-	}
-	if (delivery.state === "queued") {
-		return (
-			<Status size="sm" status="queued">
-				Queued
-			</Status>
-		);
-	}
-	return (
-		<span className="flex min-w-0 items-center gap-2">
-			<span className="min-w-0 truncate type-caption text-text-2">
-				{delivery.reason}
-			</span>
-			<Status className="shrink-0" size="sm" status="fail">
-				Not sent
-			</Status>
-		</span>
 	);
 }
 

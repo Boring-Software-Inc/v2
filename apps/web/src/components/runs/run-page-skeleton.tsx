@@ -1,51 +1,48 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader } from "#/components/glaze/ui/card";
 import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 
-const STEP_SLOTS = [
-	{ key: "a", line: "w-40" },
-	{ key: "b", line: "w-56" },
-	{ key: "c", line: "w-32" },
-	{ key: "d", line: "w-48" },
-	{ key: "e", line: "w-36" },
-	{ key: "f", line: "w-52" },
+const NODE_SLOTS = [
+	{ key: "event", title: "w-48", detail: "w-32" },
+	{ key: "checks", title: "w-40", detail: null },
+	{ key: "outcome", title: "w-36", detail: "w-64" },
 ];
 
 function RunSkeletonBody() {
 	return (
 		<div aria-hidden className="px-4 py-6 md:px-8 md:py-10">
-			<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+			<div className="mx-auto flex w-full max-w-220 flex-col gap-10">
 				<header className="flex flex-col gap-2">
 					<div className="flex items-center justify-between gap-3">
-						<SkeletonText className="w-16" type="heading" />
+						<SkeletonText className="w-40" type="heading" />
 						<div className="flex gap-2">
 							<Skeleton className="h-(--control-sm) w-20 rounded-pill" />
 							<Skeleton className="h-(--control-sm) w-24 rounded-pill" />
 						</div>
 					</div>
-					<SkeletonText className="w-20" type="label" />
 					<SkeletonText className="w-64" type="body-sm" />
 				</header>
-				<Card>
-					<CardHeader>
-						<SkeletonText className="w-12" type="label" />
-					</CardHeader>
-					<CardContent flush>
-						{STEP_SLOTS.map((slot) => (
-							<div
-								className="rule-row flex items-center min-h-(--row) gap-3 px-3 py-2"
-								key={slot.key}
-							>
-								<span className="flex min-w-0 flex-1 items-center">
-									<SkeletonText className={slot.line} type="label" />
-								</span>
-								<SkeletonText className="w-14 shrink-0" type="label-sm" />
+				<ol className="flex flex-col">
+					{NODE_SLOTS.map((slot, index) => (
+						<li className="flex gap-4" key={slot.key}>
+							<div className="flex w-6 shrink-0 flex-col items-center">
+								<Skeleton className="size-6 rounded-pill" />
+								{index < NODE_SLOTS.length - 1 ? (
+									<span className="w-px grow bg-line" />
+								) : null}
 							</div>
-						))}
-					</CardContent>
-				</Card>
+							<div className="flex min-w-0 flex-1 flex-col gap-2 pb-8">
+								<SkeletonText className={slot.title} type="label" />
+								{slot.detail ? (
+									<SkeletonText className={slot.detail} type="body-sm" />
+								) : (
+									<Skeleton className="h-32 w-full max-w-140 rounded-shell" />
+								)}
+							</div>
+						</li>
+					))}
+				</ol>
 			</div>
 		</div>
 	);

@@ -7,6 +7,8 @@ import {
 } from "@tripwire/contracts";
 import {
 	type Db,
+	eventServices,
+	moderationServices,
 	orgServices,
 	repoServices,
 	responseServices,
@@ -17,7 +19,9 @@ import {
 	toFullRunView,
 	toPublicRunView,
 } from "#/lib/run-access";
-import type { JsonValue, RunView } from "#/lib/runs.functions";
+import { actionUrl, runLink, toEventView } from "#/lib/run-links";
+import { parseSnapshot, workflowOutcomes } from "#/lib/run-workflows";
+import type { JsonValue, RunReviewView, RunView } from "#/lib/runs.functions";
 import type { SessionState } from "#/lib/server/session";
 
 /**
@@ -89,6 +93,45 @@ export async function loadRunView(
 	);
 	const resolveRuleName = (ref: string | null): string | null =>
 		ref ? (customNameByRef.get(ref) ?? ruleDisplayName(ref)) : null;
+	const snapshot = parseSnapshot(result.run.workflowSnapshot as JsonValue);
+	const eventRow = await eventServices.getEventById(db, result.run.eventId);
+	const siblings =
+		result.run.subjectNumber === null
+			? []
+			: await runServices.listRunsForChangeRequest(
+					db,
+					result.run.repoFullName,
+					result.run.subjectNumber,
+				);
+	const position = siblings.findIndex((row) => row.id === result.run.id);
+	const previous = position > 0 ? siblings[position - 1] : undefined;
+	const latest = siblings.at(-1);
+	const moderation = await moderationServices.listModerationItemsForRun(
+		db,
+		result.run.id,
+	);
+	const reviews: RunReviewView[] = [];
+	for (const item of moderation) {
+		reviews.push({
+			workflowId: item.nodeId.startsWith("run:")
+				? null
+				: (snapshot.find((def) => item.nodeId.startsWith(`${def.id}:`))?.id ??
+					null),
+			state:
+				item.status === "approved"
+					? "approved"
+					: item.status === "denied"
+						? "denied"
+						: "open",
+			degraded: item.nodeId === "run:degraded",
+			openedAt: item.createdAt.toISOString(),
+			decidedAt: item.decidedAt?.toISOString() ?? null,
+			decidedBy:
+				item.decidedBy && access === "full"
+					? await resolveTriggeredByName(db, item.decidedBy)
+					: null,
+		});
+	}
 	const view: RunView = {
 		id: result.run.id,
 		repoFullName: result.run.repoFullName,
@@ -149,9 +192,36 @@ export async function loadRunView(
 				kind: action.kind,
 				status: action.status,
 				recordedAt: action.recordedAt.toISOString(),
+				url: actionUrl({
+					forge,
+					repoFullName: result.run.repoFullName,
+					number: result.run.subjectNumber,
+					kind: action.kind,
+					externalId: action.externalId,
+				}),
 				delivery: deliveryStatus(action),
 			})),
 		),
+		redactionLevel: 0,
+		event: eventRow
+			? toEventView({
+					...eventRow,
+					normalized: eventRow.normalized as JsonValue,
+				})
+			: {
+					kind: null,
+					actor: null,
+					title: null,
+					headSha: result.run.headSha,
+					at: result.run.createdAt.toISOString(),
+				},
+		workflows: workflowOutcomes(snapshot, result.steps, result.run.status),
+		reviews,
+		previousRun: previous ? runLink(previous) : null,
+		nextRun:
+			latest && position >= 0 && latest.id !== result.run.id
+				? runLink(latest)
+				: null,
 	};
 	if (access === "full") {
 		return toFullRunView(view);
