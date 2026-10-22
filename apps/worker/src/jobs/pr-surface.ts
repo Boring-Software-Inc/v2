@@ -3,12 +3,15 @@ import {
 	type CommentReason,
 	checkSummary,
 	forgePostsReviews,
+	lockParamsSchema,
 	type NormalizedEvent,
 	planSurfaces,
 	REVIEW_POINTER,
 	redactCommentReasons,
 	redactionLevelFor,
 	requestReviewTargetsSchema,
+	type ScheduledEvent,
+	type ScheduledThread,
 	type SurfacePlan,
 	type Verdict,
 	type WebhookPayload,
@@ -109,6 +112,10 @@ export async function emitPrSurface(
 ): Promise<void> {
 	const { db, adapter, logger } = deps;
 	const { event, runId, verdict } = input;
+	if (event.kind === "schedule.matched") {
+		await emitScheduledActions(deps, { ...input, event });
+		return;
+	}
 	if (!("changeRequest" in event)) {
 		return;
 	}
@@ -327,6 +334,81 @@ export async function emitPrSurface(
 	}
 }
 
+const SCHEDULED_SKIPS: Record<string, (thread: ScheduledThread) => boolean> = {
+	block: () => true,
+	"request-review": (thread) => thread.kind !== "change-request",
+};
+
+async function emitScheduledActions(
+	deps: PrSurfaceDeps,
+	input: EmitSurfaceInput & { event: ScheduledEvent },
+): Promise<void> {
+	const { db, adapter, logger } = deps;
+	const { event, runId, verdict } = input;
+	const repoFullName = event.repo.fullName;
+	const { thread } = event;
+	const runUrl = `${deps.appUrl}/runs/${runId}`;
+	const policy = await responseServices.getRedactionPolicy(
+		db,
+		(await repoServices.getRepoByFullName(db, repoFullName, event.forge))?.id ??
+			null,
+	);
+	for (const row of input.pendingActionRows) {
+		if (row.kind !== "webhook") {
+			continue;
+		}
+		const delivery: WebhookPayload = {
+			version: 1,
+			verdict,
+			org: repoFullName.split("/")[0] ?? repoFullName,
+			repo: repoFullName,
+			changeRequest: {
+				number: thread.number,
+				title: thread.title,
+				author: thread.author,
+			},
+			firedRules: firedRulesFor(
+				input.reasons,
+				redactionLevelFor(policy, "webhook"),
+			),
+			runUrl,
+			timestamp: new Date().toISOString(),
+		};
+		await runServices.attachDeliveryPayload(db, row.id, delivery);
+	}
+	if (!adapter) {
+		logger.warn(
+			{ runId },
+			"no forge credentials — scheduled actions recorded, not executed",
+		);
+		return;
+	}
+	for (const row of input.pendingActionRows) {
+		if (row.kind === "webhook") {
+			continue;
+		}
+		if (SCHEDULED_SKIPS[row.kind]?.(thread)) {
+			await runServices.markActionSuperseded(db, row.id);
+			logger.info(
+				{ runId, kind: row.kind, thread: thread.number },
+				"scheduled action does not apply to this thread",
+			);
+			continue;
+		}
+		try {
+			const result = await adapter.execute(
+				toForgeAction(row, repoFullName, thread.number, REVIEW_POINTER.block),
+			);
+			await runServices.markActionExecuted(db, row.id, result.externalId);
+		} catch (error) {
+			logger.error(
+				{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
+				"scheduled action failed — row stays recorded for retry",
+			);
+		}
+	}
+}
+
 interface CommentPayload {
 	number: number;
 	verdict: Verdict;
@@ -447,6 +529,15 @@ export function toForgeAction(
 				number,
 				labels: (row.payload.labels as string[]) ?? [],
 			};
+		case "lock": {
+			const params = lockParamsSchema.safeParse(row.payload);
+			const reason = params.success ? params.data.reason : undefined;
+			return reason
+				? { kind: "lock" as const, repoFullName, number, reason }
+				: { kind: "lock" as const, repoFullName, number };
+		}
+		case "close":
+			return { kind: "close" as const, repoFullName, number };
 		case "request-review": {
 			const targets = requestReviewTargetsSchema.safeParse(row.payload);
 			return {

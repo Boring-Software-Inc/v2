@@ -47,6 +47,11 @@ import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { rollup } from "./jobs/rollup.ts";
+import {
+	SCHEDULE_TICK_CRON,
+	SCHEDULE_TICK_QUEUE,
+	scheduleTick,
+} from "./jobs/schedule-tick.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
 import { syncRepoReviewers } from "./jobs/sync-repo-reviewers.ts";
 import * as metering from "./metering.ts";
@@ -70,7 +75,7 @@ if (import.meta.main) {
 			"delivery.url",
 		],
 	});
-	const { db } = createDb();
+	const { db, pool } = createDb();
 	/**
 	 * The worker's `pool` is used ONLY for `pg_notify` (the SSE fan-out signal),
 	 * so it goes through the direct/session endpoint — a NOTIFY delivered to the
@@ -354,6 +359,18 @@ if (import.meta.main) {
 			await sweepActions({ db, adapterFor, logger });
 		});
 
+		await boss.createQueue(SCHEDULE_TICK_QUEUE);
+		await boss.schedule(SCHEDULE_TICK_QUEUE, SCHEDULE_TICK_CRON, {}, {});
+		await work(SCHEDULE_TICK_QUEUE, async () => {
+			await scheduleTick({
+				db,
+				pool,
+				boss,
+				resolveForge,
+				logger: logger.child({ job: SCHEDULE_TICK_QUEUE }),
+			});
+		});
+
 		/** Outbound delivery — POST webhook rows through the SSRF guard;
 		 * the poll IS the retry (recorded rows re-attempt each tick). */
 		await boss.createQueue("deliver-webhook");
@@ -444,6 +461,7 @@ if (import.meta.main) {
 				"rollup",
 				AUDIT_INSTALLATION_CLAIMS_QUEUE,
 				"sweep-actions",
+				SCHEDULE_TICK_QUEUE,
 				"deliver-webhook",
 				"pull-provider-costs",
 				"economics-rollup",

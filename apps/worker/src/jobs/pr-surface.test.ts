@@ -175,3 +175,31 @@ describe("commentRows: one row per comment plan", () => {
 		).toMatchObject({ kind: "block", reason: "stored" });
 	});
 });
+
+describe("toForgeAction: lock and close never become a block", () => {
+	test("lock carries its reason", () => {
+		expect(
+			toForgeAction(
+				{ kind: "lock", payload: { reason: "spam", nodeId: "w:l" } },
+				"a/b",
+				7,
+				"Blocked. See the comment.",
+				"91",
+			),
+		).toEqual({ kind: "lock", repoFullName: "a/b", number: 7, reason: "spam" });
+	});
+
+	test("lock with no or a bad reason locks without one", () => {
+		for (const payload of [{ nodeId: "w:l" }, { reason: "boring" }]) {
+			expect(
+				toForgeAction({ kind: "lock", payload }, "a/b", 7, "x", "91"),
+			).toEqual({ kind: "lock", repoFullName: "a/b", number: 7 });
+		}
+	});
+
+	test("close", () => {
+		expect(
+			toForgeAction({ kind: "close", payload: {} }, "a/b", 7, "x", "91"),
+		).toEqual({ kind: "close", repoFullName: "a/b", number: 7 });
+	});
+});

@@ -1,9 +1,10 @@
-import type {
-	Forge,
-	InstallationEvent,
-	NormalizedEvent,
-	RepoScopedEvent,
-	UsageSource,
+import {
+	type Forge,
+	type InstallationEvent,
+	type NormalizedEvent,
+	normalizedEventSchema,
+	type RepoScopedEvent,
+	type UsageSource,
 } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
@@ -64,15 +65,18 @@ export async function processEvent(
 	try {
 		// Normalization is pure and chosen by the stored forge — always available
 		// even when that forge's reads/actions runtime is offline.
-		normalized = normalizeFor(event.forge)(
-			{
-				deliveryId: event.deliveryId,
-				eventName: event.rawKind,
-				body: JSON.stringify(event.raw),
-				signature: null,
-			},
-			event.receivedAt.toISOString(),
-		);
+		normalized =
+			event.rawKind === "schedule.matched"
+				? normalizedEventSchema.parse(event.raw)
+				: normalizeFor(event.forge)(
+						{
+							deliveryId: event.deliveryId,
+							eventName: event.rawKind,
+							body: JSON.stringify(event.raw),
+							signature: null,
+						},
+						event.receivedAt.toISOString(),
+					);
 	} catch (error) {
 		const reason = getErrorMessage(error);
 		await eventServices.quarantineEvent(db, event.id, reason);

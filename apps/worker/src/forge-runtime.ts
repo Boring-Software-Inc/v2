@@ -1,12 +1,18 @@
 import type { Forge, NormalizedEvent } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { repoServices } from "@tripwire/db";
-import type { ForgeAdapter, RawForgeEvent } from "@tripwire/forge";
+import type {
+	ForgeAdapter,
+	RawForgeEvent,
+	ThreadListQuery,
+	ThreadListResult,
+} from "@tripwire/forge";
 import {
 	createGithubAdapter,
 	GithubHttp,
 	GithubReads,
 	InstallationTokenCache,
+	listThreads,
 	normalizeWebhook as normalizeGithub,
 } from "@tripwire/forge-github";
 import {
@@ -80,6 +86,12 @@ export interface ForgeRuntime {
 	 * event itself — GitHub does, so it needs no probe.
 	 */
 	isRepoPublic: ((repoFullName: string) => Promise<boolean>) | null;
+	listThreads:
+		| ((
+				repoFullName: string,
+				query: ThreadListQuery,
+		  ) => Promise<ThreadListResult>)
+		| null;
 }
 
 /**
@@ -93,6 +105,7 @@ export function staticForge(runtime: {
 	signalHttp?: GithubHttp | null;
 	installationRepos?: ForgeRuntime["installationRepos"];
 	isRepoPublic?: ForgeRuntime["isRepoPublic"];
+	listThreads?: ForgeRuntime["listThreads"];
 }): (forge: Forge) => ForgeRuntime {
 	return () => ({
 		adapter: runtime.adapter ?? null,
@@ -100,6 +113,7 @@ export function staticForge(runtime: {
 		signalHttp: runtime.signalHttp ?? null,
 		installationRepos: runtime.installationRepos ?? null,
 		isRepoPublic: runtime.isRepoPublic ?? null,
+		listThreads: runtime.listThreads ?? null,
 	});
 }
 
@@ -173,6 +187,7 @@ function buildOpenGitRuntime(
 			listInstallationRepos(credentials, installationId, credentials.apiBase),
 		isRepoPublic: (repoFullName) =>
 			isRepoPublic(repoFullName, credentials.apiBase),
+		listThreads: null,
 	};
 }
 
@@ -194,10 +209,13 @@ function buildGithubRuntime(
 		return await tokens.getToken(repo.installationId);
 	};
 	const httpOptions = { tokenFor, onCall };
+	const http = new GithubHttp(httpOptions);
 	return {
 		adapter: createGithubAdapter(httpOptions),
 		reads: new GithubReads(httpOptions),
-		signalHttp: new GithubHttp(httpOptions),
+		signalHttp: http,
+		listThreads: (repoFullName, query) =>
+			listThreads(http, repoFullName, query),
 		// GitHub's installation webhook already names every repository, and
 		// reports each one's visibility.
 		installationRepos: null,

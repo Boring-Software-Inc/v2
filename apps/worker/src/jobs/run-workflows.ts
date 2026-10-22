@@ -266,8 +266,10 @@ async function runWorkflowsInner(
 		event.forge,
 	);
 	const derivedHasRules = derived.nodes.some((node) => node.type === "rule");
-	const definitions: WorkflowDefinition[] =
-		custom.length > 0
+	const scheduled = event.kind === "schedule.matched" ? event : null;
+	const definitions: WorkflowDefinition[] = scheduled
+		? custom.filter((def) => def.id === scheduled.schedule.workflowId)
+		: custom.length > 0
 			? derivedHasRules
 				? [...custom, derived]
 				: custom
@@ -302,9 +304,12 @@ async function runWorkflowsInner(
 	}
 
 	const now = new Date().toISOString();
+	const needsReads =
+		!scheduled ||
+		matching.some((def) => def.nodes.some((node) => node.type === "rule"));
 	const { ctx, degradedReads } = await buildRuleContext(
 		event,
-		deps.reads,
+		needsReads ? deps.reads : null,
 		now,
 		logger,
 		deps.makeGenerate?.(event),
@@ -322,6 +327,7 @@ async function runWorkflowsInner(
 	}
 	const exemptionDisabled = isExemptionDisabled();
 	if (
+		!scheduled &&
 		!exemptionDisabled &&
 		(ctx.contributor?.isMaintainer || ctx.contributor?.isOrgMember)
 	) {
@@ -480,7 +486,9 @@ async function runWorkflowsInner(
 			? event.changeRequest.number
 			: "comment" in event
 				? event.comment.subjectNumber
-				: null;
+				: scheduled
+					? scheduled.thread.number
+					: null;
 	const terminalStatus = paused ? "paused" : "completed";
 	let runId: string;
 	if (liveRunId) {
@@ -498,6 +506,7 @@ async function runWorkflowsInner(
 			eventId,
 			repoFullName: event.repo.fullName,
 			subjectNumber,
+			subjectKind: scheduled ? scheduled.thread.kind : null,
 			headSha,
 			snapshot: matching,
 			status: terminalStatus,
