@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 import { FORGE_CATALOG } from "@tripwire/contracts";
 import {
 	FORGE_GRID,
@@ -6,6 +6,7 @@ import {
 	type ForgeCellState,
 } from "#/components/forges/forge-cell";
 import { LIVE_FORGES } from "#/lib/forge-copy";
+import type { InstallUrlState } from "#/lib/onboarding.functions";
 import { orgInstallUrlQueryOptions } from "#/lib/onboarding.query";
 import { myOrgsQueryOptions } from "#/lib/org.query";
 
@@ -39,14 +40,14 @@ export function ConnectForgeGrid({
 	org: string | null;
 	onDone?: () => void;
 }) {
-	const { data: orgs } = useQuery(myOrgsQueryOptions());
+	const { data: orgs, isPending: orgsPending } = useQuery(myOrgsQueryOptions());
 	const isOrgAdmin =
 		(orgs ?? []).find((entry) => entry.slug === org)?.role === "admin";
-	const { data: githubUrl } = useQuery({
+	const github = useQuery({
 		...orgInstallUrlQueryOptions(org ?? "", "github"),
 		enabled: Boolean(org) && isOrgAdmin,
 	});
-	const { data: openGitUrl } = useQuery({
+	const openGit = useQuery({
 		...orgInstallUrlQueryOptions(org ?? "", "opengit"),
 		enabled: Boolean(org) && isOrgAdmin,
 	});
@@ -62,7 +63,7 @@ export function ConnectForgeGrid({
 	 */
 	function installState(
 		label: string,
-		installUrl: typeof githubUrl,
+		install: UseQueryResult<InstallUrlState>,
 	): ForgeCellState {
 		if (!org) {
 			return {
@@ -71,6 +72,9 @@ export function ConnectForgeGrid({
 				body: `${label} connects repos to an org. Open the org you want, then connect.`,
 			};
 		}
+		if (orgsPending) {
+			return { kind: "loading" };
+		}
 		if (!isOrgAdmin) {
 			return {
 				kind: "blocked",
@@ -78,6 +82,10 @@ export function ConnectForgeGrid({
 				body: `Ask an admin of this org to connect ${label} repos.`,
 			};
 		}
+		if (install.isPending) {
+			return { kind: "loading" };
+		}
+		const installUrl = install.data;
 		if (installUrl?.status !== "ready") {
 			return {
 				kind: "blocked",
@@ -103,8 +111,8 @@ export function ConnectForgeGrid({
 	 * instead of an open index signature quietly returning undefined.
 	 */
 	const STATE = new Map<string, () => ForgeCellState>([
-		["github", () => installState("GitHub", githubUrl)],
-		["opengit", () => installState("OpenGit", openGitUrl)],
+		["github", () => installState("GitHub", github)],
+		["opengit", () => installState("OpenGit", openGit)],
 	]);
 
 	return (

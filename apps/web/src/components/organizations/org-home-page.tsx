@@ -27,7 +27,7 @@ import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { ApprovedInstallBanner } from "#/components/organizations/approved-install-banner";
-import { HomeListSkeleton } from "#/components/organizations/org-home-page-skeleton";
+import { HomeLoading } from "#/components/organizations/org-home-page-skeleton";
 import { LIVE_FORGES } from "#/lib/forge-copy";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
@@ -75,7 +75,8 @@ export function OrgHomePage() {
 					<ApprovedInstallBanner />
 
 					<SkeletonSwap
-						fallback={<HomeListSkeleton />}
+						delay={400}
+						fallback={<HomeLoading />}
 						label="Loading repos"
 						loading={!home}
 					>
@@ -156,7 +157,11 @@ function InstallCta({ org }: { org: string }) {
 			</EmptyHeader>
 			{isAdmin ? (
 				<EmptyContent>
-					<Button onClick={() => setConnecting(true)} size="sm">
+					<Button
+						onClick={() => setConnecting(true)}
+						size="sm"
+						variant="secondary"
+					>
 						<Icon icon={Add} />
 						Connect repos
 					</Button>
