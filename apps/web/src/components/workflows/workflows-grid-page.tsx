@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { Collection } from "#/components/collection/collection";
 import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
@@ -49,7 +50,6 @@ import {
 	ItemGroup,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { Status } from "#/components/glaze/ui/status";
 import { Switch } from "#/components/glaze/ui/switch";
 import { toast } from "#/components/glaze/ui/toast";
@@ -60,7 +60,12 @@ import {
 	UnsavedChangesBar,
 	useSaveQueueField,
 } from "#/components/save-queue";
+import {
+	humanizeTriggerKind,
+	WORKFLOWS_COLLECTION,
+} from "#/components/workflows/workflows-collection";
 import { GridSkeleton } from "#/components/workflows/workflows-grid-page-skeleton";
+import { useCollection } from "#/hooks/use-collection";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
 import type { WorkflowTemplate } from "#/lib/workflow-templates";
@@ -83,11 +88,6 @@ const route = getRouteApi("/$org/$repo/workflows/");
 /** Queue key for a workflow's enabled flag. */
 const enabledKey = (workflowId: string) => `${workflowId}:enabled`;
 
-/** "change-request.opened" → "change request opened" */
-function humanizeTriggerKind(kind: string): string {
-	return kind.replace(/[.-]/g, " ");
-}
-
 /**
  * The workflows list (§grid): every workflow this repo runs, one row each.
  * Members see it read-only (cosmetic; the server enforces). Templates are
@@ -101,7 +101,9 @@ export function WorkflowsGridPage() {
 
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
 	const repoId = repo?.id ?? "";
-	const { data: workflows } = useQuery(workflowsListQueryOptions(org, repoId));
+	const workflowsQuery = useQuery(workflowsListQueryOptions(org, repoId));
+	const workflows = workflowsQuery.data;
+	const collection = useCollection(WORKFLOWS_COLLECTION, workflows);
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const isAdmin = orgContext?.role === "admin";
 
@@ -227,14 +229,27 @@ export function WorkflowsGridPage() {
 							) : null}
 						</header>
 
-						<SkeletonSwap
-							fallback={<GridSkeleton />}
-							label="Loading workflows"
-							loading={workflows === undefined}
+						<Collection
+							collection={collection}
+							empty={
+								<WorkflowsEmpty
+									creating={createMutation.isPending}
+									isAdmin={isAdmin}
+									onBlank={createBlank}
+									onTemplate={createFromTemplate}
+									org={org}
+									repoName={repoName}
+								/>
+							}
+							error={workflowsQuery.isError}
+							onRetry={async () => {
+								await workflowsQuery.refetch({ throwOnError: true });
+							}}
+							skeleton={<GridSkeleton />}
 						>
-							{workflows === undefined ? null : hasWorkflows ? (
+							{(rows) => (
 								<ul aria-label="Workflows" className="flex flex-col gap-3">
-									{workflows.map((workflow) => (
+									{rows.map((workflow) => (
 										<li key={workflow.id}>
 											<WorkflowRow
 												isAdmin={isAdmin}
@@ -246,17 +261,8 @@ export function WorkflowsGridPage() {
 										</li>
 									))}
 								</ul>
-							) : (
-								<WorkflowsEmpty
-									org={org}
-									repoName={repoName}
-									creating={createMutation.isPending}
-									isAdmin={isAdmin}
-									onBlank={createBlank}
-									onTemplate={createFromTemplate}
-								/>
 							)}
-						</SkeletonSwap>
+						</Collection>
 					</div>
 					<UnsavedChangesBar />
 				</div>

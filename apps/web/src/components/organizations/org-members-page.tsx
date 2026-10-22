@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OrgRole } from "@tripwire/contracts";
 import { useState } from "react";
+import { Collection } from "#/components/collection/collection";
 import { MetaRow } from "#/components/common/meta-row";
 import { Avatar } from "#/components/glaze/ui/avatar";
 import { Badge } from "#/components/glaze/ui/badge";
@@ -46,13 +47,14 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/glaze/ui/select";
-import {
-	Skeleton,
-	SkeletonSwap,
-	SkeletonText,
-} from "#/components/glaze/ui/skeleton";
+import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
 import { MascotArt } from "#/components/mascot/mascot-art";
+import {
+	INVITES_COLLECTION,
+	MEMBERS_COLLECTION,
+} from "#/components/organizations/org-members-collection";
+import { useCollection } from "#/hooks/use-collection";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { InviteLinkView, OrgMemberView } from "#/lib/org.functions";
@@ -125,7 +127,10 @@ function ConfirmDialog({
 
 export function OrgMembersPage({ org }: { org: string }) {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
-	const { data: members } = useQuery(orgMembersQueryOptions(org));
+	const membersQuery = useQuery(orgMembersQueryOptions(org));
+	const members = useCollection(MEMBERS_COLLECTION, membersQuery.data, {
+		store: "local",
+	});
 	const { data: session } = useQuery(sessionInfoQueryOptions());
 
 	const isAdmin = orgContext?.role === "admin";
@@ -151,23 +156,30 @@ export function OrgMembersPage({ org }: { org: string }) {
 					</div>
 					{isPersonal ? null : <LeaveOrgButton org={org} />}
 				</div>
-				<SkeletonSwap
-					fallback={<MemberRowsSkeleton />}
-					label="Loading members"
-					loading={!members}
+				<Collection
+					collection={members}
+					empty={null}
+					error={membersQuery.isError}
+					onRetry={async () => {
+						await membersQuery.refetch({ throwOnError: true });
+					}}
+					skeleton={<MemberRowsSkeleton />}
+					variant="plain"
 				>
-					<ItemGroup variant="plain" aria-label="Members">
-						{(members ?? []).map((member) => (
-							<MemberRow
-								callerUserId={callerUserId}
-								isAdmin={isAdmin}
-								key={member.memberId}
-								member={member}
-								org={org}
-							/>
-						))}
-					</ItemGroup>
-				</SkeletonSwap>
+					{(rows) => (
+						<ItemGroup variant="plain" aria-label="Members">
+							{rows.map((member) => (
+								<MemberRow
+									callerUserId={callerUserId}
+									isAdmin={isAdmin}
+									key={member.memberId}
+									member={member}
+									org={org}
+								/>
+							))}
+						</ItemGroup>
+					)}
+				</Collection>
 			</section>
 
 			{isAdmin && !isPersonal ? <InviteLinksSection org={org} /> : null}
@@ -343,7 +355,10 @@ function LeaveOrgButton({ org }: { org: string }) {
 
 function InviteLinksSection({ org }: { org: string }) {
 	const queryClient = useQueryClient();
-	const { data: invites } = useQuery(orgInvitesQueryOptions(org));
+	const invitesQuery = useQuery(orgInvitesQueryOptions(org));
+	const invites = useCollection(INVITES_COLLECTION, invitesQuery.data, {
+		store: "local",
+	});
 
 	const [role, setRole] = useState<OrgRole>("member");
 	const [maxUses, setMaxUses] = useState(1);
@@ -451,18 +466,38 @@ function InviteLinksSection({ org }: { org: string }) {
 
 			{createdToken ? <FreshInviteLink token={createdToken} /> : null}
 
-			<SkeletonSwap
-				fallback={<InviteRowsSkeleton />}
-				label="Loading invite links"
-				loading={!invites}
+			<Collection
+				collection={invites}
+				empty={
+					<InviteLinksEmpty
+						creating={createMutation.isPending}
+						onCreate={inputsValid ? () => createMutation.mutate() : undefined}
+					/>
+				}
+				error={invitesQuery.isError}
+				noResults={
+					invites.filtered ? undefined : (
+						<Empty reason="no-results" size="sm" variant="plain">
+							<EmptyHeader>
+								<EmptyTitle>No active invite links</EmptyTitle>
+							</EmptyHeader>
+						</Empty>
+					)
+				}
+				onRetry={async () => {
+					await invitesQuery.refetch({ throwOnError: true });
+				}}
+				skeleton={<InviteRowsSkeleton />}
+				variant="plain"
 			>
-				<InviteLinkList
-					creating={createMutation.isPending}
-					invites={invites ?? []}
-					onCreate={inputsValid ? () => createMutation.mutate() : undefined}
-					org={org}
-				/>
-			</SkeletonSwap>
+				{(rows) => (
+					<ItemGroup variant="plain" aria-label="Invite links">
+						{rows.map((invite) => (
+							<InviteLinkRow invite={invite} key={invite.id} org={org} />
+						))}
+					</ItemGroup>
+				)}
+			</Collection>
 		</section>
 	);
 }
@@ -480,51 +515,38 @@ function FreshInviteLink({ token }: { token: string }) {
 	);
 }
 
-function InviteLinkList({
-	org,
-	invites,
+function InviteLinksEmpty({
 	creating,
 	onCreate,
 }: {
-	org: string;
-	invites: InviteLinkView[];
 	creating: boolean;
 	onCreate?: () => void;
 }) {
-	if (invites.length === 0) {
-		return (
-			<Empty
-				art={<MascotArt mood="invites-empty" size="compact" />}
-				size="sm"
-				variant="plain"
-			>
-				<EmptyHeader>
-					<EmptyTitle>No invite links yet</EmptyTitle>
-					<EmptyDescription>
-						Create a link to add people to this org.
-					</EmptyDescription>
-				</EmptyHeader>
-				<EmptyContent>
-					<Button
-						disabled={!onCreate}
-						onClick={onCreate}
-						pending={creating}
-						pendingLabel="Creating"
-						size="sm"
-						variant="secondary"
-					>
-						Create invite link
-					</Button>
-				</EmptyContent>
-			</Empty>
-		);
-	}
 	return (
-		<ItemGroup variant="plain" aria-label="Invite links">
-			{invites.map((invite) => (
-				<InviteLinkRow invite={invite} key={invite.id} org={org} />
-			))}
-		</ItemGroup>
+		<Empty
+			art={<MascotArt mood="invites-empty" size="compact" />}
+			size="sm"
+			variant="plain"
+		>
+			<EmptyHeader>
+				<EmptyTitle>No invite links yet</EmptyTitle>
+				<EmptyDescription>
+					Create a link to add people to this org.
+				</EmptyDescription>
+			</EmptyHeader>
+			<EmptyContent>
+				<Button
+					disabled={!onCreate}
+					onClick={onCreate}
+					pending={creating}
+					pendingLabel="Creating"
+					size="sm"
+					variant="secondary"
+				>
+					Create invite link
+				</Button>
+			</EmptyContent>
+		</Empty>
 	);
 }
 
