@@ -125,6 +125,7 @@ export function toPublicRunView(view: RunView, level = 0): RunView {
 		steps: view.steps
 			.filter((step) => visibleToPublic(step, level))
 			.map((step) => toPublicStep(step, level)),
+		actions: redactionHides(level, "rule-names") ? [] : view.actions,
 	};
 }
 

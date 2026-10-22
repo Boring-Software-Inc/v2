@@ -3,8 +3,12 @@ import {
 	COMMENT_MARKER,
 	type CommentInput,
 	checkSummary,
+	REASON_LIMIT,
+	REVIEW_BODY,
+	REVIEW_BODY_NO_COMMENT,
 	renderCommentBody,
 	renderVerdictComment,
+	reviewBody,
 } from "./comment-render.ts";
 import {
 	DEFAULT_RESPONSE_CONFIG,
@@ -15,14 +19,6 @@ import {
 
 /** Every hidden `<!-- tripwire:… -->` marker, so tests can check visible copy. */
 const MARKERS = /<!-- tripwire:[^>]*-->/g;
-
-/**
- * §11 snapshot layer: rendered PR comments vs golden files — the presenter
- * physically cannot write an essay. MOVED here from forge-github's
- * actions.test.ts with the render layer (customize build step); the golden
- * files moved VERBATIM. Full mode is the locked baseline: if these snapshots
- * ever need regenerating, that is a regression, not a new baseline.
- */
 
 const BLOCKED_REASONS = [
 	{
@@ -44,12 +40,11 @@ describe("renderCommentBody — snapshot golden files", () => {
 				contributorLogin: "octocat",
 				reasons: BLOCKED_REASONS,
 				runUrl: "https://tripwire.sh/runs/0198abcd",
-				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
 		).toMatchSnapshot();
 	});
 
-	test("blocked (3+ reasons collapse to plus-N)", () => {
+	test("blocked (3 reasons, all listed)", () => {
 		expect(
 			renderCommentBody({
 				verdict: "block",
@@ -66,7 +61,6 @@ describe("renderCommentBody — snapshot golden files", () => {
 					},
 				],
 				runUrl: "https://tripwire.sh/runs/0198abcd",
-				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
 		).toMatchSnapshot();
 	});
@@ -78,7 +72,6 @@ describe("renderCommentBody — snapshot golden files", () => {
 				contributorLogin: "octocat",
 				reasons: [],
 				runUrl: "https://tripwire.sh/runs/0198abcd",
-				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
 		).toMatchSnapshot();
 	});
@@ -90,7 +83,6 @@ describe("renderCommentBody — snapshot golden files", () => {
 				contributorLogin: "octocat",
 				reasons: [],
 				runUrl: "https://tripwire.sh/runs/0198abcd",
-				badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			}),
 		).toMatchSnapshot();
 	});
@@ -101,32 +93,27 @@ describe("renderCommentBody — snapshot golden files", () => {
 			contributorLogin: "octocat",
 			reasons: [],
 			runUrl: "https://tripwire.sh/runs/0198abcd",
-			badgeUrl: "https://tripwire.sh/badges/view-run.png",
 			rerun: true,
 		});
 		// Same-verdict re-run edits the comment in place — this line is the only
 		// visible evidence a maintainer deliberately re-evaluated.
-		expect(body).toContain(
-			"Tripwire checked this again with the repository's current rules.",
-		);
+		expect(body).toContain("Checked again with the current rules.");
 		expect(body).toMatchSnapshot();
 	});
 
-	test("the comment speaks reasons, not counts; button visible; @-mentions", () => {
+	test("the comment speaks reasons, not counts; link visible; @-mentions", () => {
 		const body = renderCommentBody({
 			verdict: "block",
 			contributorLogin: "octocat",
 			reasons: BLOCKED_REASONS,
 			runUrl: "https://tripwire.sh/runs/x",
-			badgeUrl: "https://tripwire.sh/badges/view-run.png",
 		});
 		const lines = body.trim().split("\n").filter(Boolean);
 		// Verdict line present, @-mentions the contributor, no "tripwire:" prefix
 		// in the visible copy (the hidden marker is the only legit occurrence).
 		expect(lines[0]).toBe("@octocat, Tripwire blocked this.");
-		expect(body).not.toMatch(/^- /m);
 		expect(body).toContain(
-			"this.\n\nYour account is 2 days old. This clears in 5 days.\n\n",
+			"this.\n\n- Your account is 2 days old. This clears in 5 days.\n- It adds",
 		);
 		expect(body.replace(MARKERS, "")).not.toContain("tripwire:");
 		// Never counts rules.
@@ -135,14 +122,13 @@ describe("renderCommentBody — snapshot golden files", () => {
 		expect(body).toContain(
 			"Your account is 2 days old. This clears in 5 days.",
 		);
-		// The button is VISIBLE — not wrapped in any <details>.
-		const buttonLine = lines.find((l) => l.includes("badges/view-run.png"));
-		expect(buttonLine).toContain('href="https://tripwire.sh/runs/x"');
-		expect(buttonLine).not.toContain("<details>");
-		expect(body).not.toContain("for maintainers");
-		// The how-to-fix + explainer collapse into details; one marker, last line.
+		expect(lines).toContain(
+			'<a href="https://tripwire.sh/runs/x">View on Tripwire</a>',
+		);
+		expect(body).not.toContain("<img");
 		expect(body).toContain("<details><summary>How do I fix this?</summary>");
-		expect(body).toContain("<details><summary>What is Tripwire?</summary>");
+		expect(body).not.toContain("What is Tripwire?");
+		expect(body).not.toContain("more reasons");
 		expect((body.match(new RegExp(COMMENT_MARKER)) ?? []).length).toBe(1);
 		expect(lines.at(-1)).toBe(COMMENT_MARKER);
 	});
@@ -170,7 +156,6 @@ const BLOCK_INPUT: CommentInput = {
 		},
 	],
 	runUrl: "https://tripwire.sh/runs/0198abcd",
-	badgeUrl: "https://tripwire.sh/badges/view-run.png",
 };
 
 describe("renderVerdictComment — config-aware modes", () => {
@@ -202,14 +187,14 @@ describe("renderVerdictComment — config-aware modes", () => {
 		);
 	});
 
-	test("one-liner-link: one contributor label per failed rule, never plus-N", () => {
+	test("one-liner-link: one contributor label per failed rule, as a list", () => {
 		const body = renderVerdictComment(
 			BLOCK_INPUT,
 			modeConfig("one-liner-link"),
 		);
 		// Every failed rule speaks — catalog contributor labels, name-prefixed.
 		expect(body).toContain(
-			"Account age: Your account is newer than this repository allows.",
+			"- Account age: Your account is newer than this repository allows.",
 		);
 		expect(body).toContain(
 			"Crypto address: This change request contains a cryptocurrency wallet address.",
@@ -237,7 +222,7 @@ describe("renderVerdictComment — config-aware modes", () => {
 			[
 				"held: your account is newer than this repository allows.",
 				"",
-				'<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>',
+				'<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>',
 				"",
 				COMMENT_MARKER,
 				"",
@@ -264,13 +249,13 @@ describe("renderVerdictComment — config-aware modes", () => {
 		expect(raw).not.toContain("Fork rate");
 	});
 
-	test("custom: {{runUrl}} renders the run BUTTON, never a bare url", () => {
+	test("custom: {{runUrl}} renders the run link, never a bare url", () => {
 		const body = renderVerdictComment(
 			BLOCK_INPUT,
 			modeConfig("custom", { template: "see {{runUrl}} for the evidence." }),
 		);
 		expect(body).toContain('href="https://tripwire.sh/runs/0198abcd"');
-		expect(body).toContain('alt="View on Tripwire"');
+		expect(body).toContain(">View on Tripwire</a>");
 		expect(body).not.toContain("see https://tripwire.sh");
 	});
 });
@@ -318,7 +303,7 @@ describe("renderVerdictComment — per-outcome custom text + details button", ()
 				showDetailsButton: false,
 			}),
 		);
-		expect(body).not.toContain("badges/view-run.png");
+		expect(body).not.toContain("<a href");
 		expect(body).not.toContain("your account");
 		expect(body.replace(MARKERS, "").trim()).toBe("did not pass.");
 	});
@@ -330,7 +315,7 @@ describe("renderVerdictComment — per-outcome custom text + details button", ()
 		);
 		// The contributor still sees why; they just don't get the run-page link.
 		expect(body).toContain("Your account is 2 days old.");
-		expect(body).not.toContain("badges/view-run.png");
+		expect(body).not.toContain("<a href");
 		expect(body).toContain("<details><summary>How do I fix this?</summary>");
 	});
 
@@ -445,12 +430,96 @@ describe("checkSummary — the check line the preview mirrors", () => {
 		expect(checkSummary("block", BLOCK_INPUT.reasons)).toBe(
 			"Blocked. Your account is 2 days old.",
 		);
-		expect(checkSummary("pass", [])).toBe(
-			"Passed. Tripwire found no problems.",
-		);
+		expect(checkSummary("pass", [])).toBe("Passed.");
 		expect(checkSummary("needs_review", [])).toBe("Waiting for human review.");
 		expect(checkSummary("needs_review", [], true)).toBe(
-			"Waiting for human review. Tripwire could not finish checking this change request.",
+			"Waiting for human review. Tripwire could not finish checking.",
 		);
+	});
+});
+
+const MANY_REASONS = Array.from({ length: 7 }, (_, index) => ({
+	text: `Problem ${index + 1}.`,
+	remedy: "revise" as const,
+}));
+
+describe("footprint: one comment, one review, nothing repeated", () => {
+	const input = (extra: Partial<CommentInput> = {}): CommentInput => ({
+		...BLOCK_INPUT,
+		...extra,
+	});
+
+	test("one reason renders as a plain line, not a list", () => {
+		const body = renderCommentBody(
+			input({ reasons: [{ text: "It changes 40 files.", remedy: "revise" }] }),
+		);
+		expect(body).toContain("this.\n\nIt changes 40 files.\n\n<a href");
+		expect(body).not.toMatch(/^- /m);
+	});
+
+	test("more reasons than the limit fold into the run link", () => {
+		const body = renderCommentBody(input({ reasons: MANY_REASONS }));
+		expect(body.match(/^- /gm)?.length).toBe(REASON_LIMIT);
+		expect(body).not.toContain("Problem 6.");
+		expect(body).toContain(
+			'<a href="https://tripwire.sh/runs/0198abcd">View all 7 reasons on Tripwire</a>',
+		);
+		expect(body).toMatchSnapshot();
+	});
+
+	test("with the link off, every reason stays in the comment", () => {
+		const body = renderCommentBody(input({ reasons: MANY_REASONS }), false);
+		expect(body.match(/^- /gm)?.length).toBe(7);
+		expect(body).not.toContain("<a href");
+	});
+
+	test("the comment never repeats the review or the check", () => {
+		const body = renderCommentBody(input());
+		expect(body).not.toContain(REVIEW_BODY);
+		expect(body).not.toContain("Blocked.");
+	});
+
+	test("the review is one line that points at the comment or the check", () => {
+		expect(reviewBody(true)).toBe("Blocked. See the comment.");
+		expect(reviewBody(false)).toBe("Blocked. See the tripwire check.");
+		expect(REVIEW_BODY_NO_COMMENT).not.toContain("\n");
+	});
+
+	test("human review: headline and link only", () => {
+		expect(
+			renderCommentBody(input({ verdict: "needs_review", reasons: [] })),
+		).toBe(
+			[
+				"@octocat, this needs human review. A maintainer will approve or block it.",
+				"",
+				'<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>',
+				"",
+				COMMENT_MARKER,
+				"",
+			].join("\n"),
+		);
+	});
+
+	test("transitions keep their own headline and drop the help on a pass", () => {
+		const cleared = renderCommentBody(
+			input({ verdict: "pass", reasons: [], previousVerdict: "block" }),
+		);
+		expect(cleared).toMatchSnapshot();
+		expect(cleared).not.toContain("<details>");
+		const toReview = renderCommentBody(
+			input({
+				verdict: "needs_review",
+				reasons: [],
+				previousVerdict: "block",
+			}),
+		);
+		expect(toReview).toMatchSnapshot();
+		const toBlock = renderCommentBody(input({ previousVerdict: "pass" }));
+		expect(toBlock.split("\n")[0]).toBe("@octocat, Tripwire now blocks this.");
+		expect(toBlock).toMatchSnapshot();
+		const degraded = renderCommentBody(
+			input({ verdict: "needs_review", reasons: [], degraded: true }),
+		);
+		expect(degraded).toMatchSnapshot();
 	});
 });

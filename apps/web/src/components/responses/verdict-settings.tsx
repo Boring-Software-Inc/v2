@@ -188,9 +188,8 @@ export function VerdictSettings({
 						{usesTemplate && choice === "message" ? null : (
 							<SettingToggle
 								checked={config[override].showDetailsButton}
-								description="Links to the run on Tripwire, with the details folded under it."
 								disabled={disabled}
-								label="Show the details button"
+								label="Link to the run on Tripwire"
 								nested
 								onChange={(on) => setField(`${override}.showDetailsButton`, on)}
 								setting="details-button"

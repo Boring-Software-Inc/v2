@@ -10,6 +10,7 @@ import {
 import { events } from "../schema/events.ts";
 import {
 	createRun,
+	getActiveBlockReviewId,
 	getLatestBlockReviewId,
 	getPreviousVerdict,
 	markActionExecuted,
@@ -82,4 +83,32 @@ test("getPreviousVerdict + getLatestBlockReviewId drive the transition & dismiss
 
 	// A different change request shares nothing.
 	expect(await getLatestBlockReviewId(db, "acme/other", 1)).toBeNull();
+});
+
+test("getActiveBlockReviewId: live until dismissed", async () => {
+	const blockRun = await seedRun("evt-active-block", "block");
+	const [block] = await recordActions(db, blockRun, [
+		{ kind: "block", payload: {}, idempotencyKey: "block:active" },
+	]);
+	if (!block) {
+		throw new Error("expected a recorded block action");
+	}
+	await markActionExecuted(db, block.id, "95");
+	expect(await getActiveBlockReviewId(db, REPO, 1)).toBe("95");
+
+	const passRun = await seedRun("evt-active-pass", "pass");
+	const [dismiss] = await recordActions(db, passRun, [
+		{
+			kind: "dismiss-review",
+			payload: { number: 1, reviewId: "95" },
+			idempotencyKey: "dismiss-review:95",
+		},
+	]);
+	if (!dismiss) {
+		throw new Error("expected a recorded dismissal");
+	}
+	expect(await getActiveBlockReviewId(db, REPO, 1)).toBe("95");
+	await markActionExecuted(db, dismiss.id, "95");
+	expect(await getActiveBlockReviewId(db, REPO, 1)).toBeNull();
+	expect(await getActiveBlockReviewId(db, "acme/other", 1)).toBeNull();
 });

@@ -380,6 +380,16 @@ describe("toPublicRunView redaction", () => {
 		}
 	});
 
+	test("the actions list hides from stop 6 for the public", () => {
+		expect(toPublicRunView(view, 5).actions).toEqual(fullView.actions);
+		expect(toPublicRunView(view, 6).actions).toEqual([]);
+		expect(toPublicRunView(view, 8).actions).toEqual([]);
+	});
+
+	test("members keep the actions list at every stop", () => {
+		expect(toFullRunView(view).actions).toEqual(fullView.actions);
+	});
+
 	test("stop 7 keeps only failed rules, stop 8 hides every step", () => {
 		expect(toPublicRunView(view, 7).steps.map((s) => s.id)).toEqual([
 			failed.id,

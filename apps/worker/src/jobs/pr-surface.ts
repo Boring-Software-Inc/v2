@@ -115,7 +115,6 @@ export async function emitPrSurface(
 	const number = event.changeRequest.number;
 	const sha = event.changeRequest.headSha;
 	const runUrl = `${deps.appUrl}/runs/${runId}`;
-	const badgeUrl = `${deps.appUrl}/badges/view-run.png`;
 	const { reasons } = input;
 
 	// The verdict the PR already shows — drives the resolution copy AND whether a
@@ -150,9 +149,14 @@ export async function emitPrSurface(
 		db,
 		repoRow?.id ?? null,
 	);
-	const review = reviewBody(reasons, redactionLevelFor(policy, "review"));
 	const transition = previousVerdict !== null && previousVerdict !== verdict;
 	const includeComment = wantsComment(responseConfig, verdict) || transition;
+	const review = reviewBody(includeComment);
+	let activeReviewId = input.pendingActionRows.some(
+		(row) => row.kind === "block",
+	)
+		? await runServices.getActiveBlockReviewId(db, repoFullName, number)
+		: null;
 	const includeCheck =
 		wantsCheck(responseConfig, verdict) || input.pendingCheckPosted === true;
 
@@ -171,7 +175,6 @@ export async function emitPrSurface(
 									contributorLogin: event.actor.login,
 									reasons,
 									runUrl,
-									badgeUrl,
 									degraded: input.degraded,
 									previousVerdict,
 									rerun: input.rerun,
@@ -295,10 +298,19 @@ export async function emitPrSurface(
 			);
 			continue;
 		}
-		const forgeAction = toForgeAction(row, repoFullName, number, review);
+		const forgeAction = toForgeAction(
+			row,
+			repoFullName,
+			number,
+			review,
+			activeReviewId,
+		);
 		try {
 			const result = await adapter.execute(forgeAction);
 			await runServices.markActionExecuted(db, row.id, result.externalId);
+			if (row.kind === "block" && result.externalId) {
+				activeReviewId = result.externalId;
+			}
 		} catch (error) {
 			// Best-effort actions: the check is the real gate, and a review dismiss
 			// or review request is a nicety — a failure warns and settles the row.
@@ -347,6 +359,7 @@ export function toForgeAction(
 	repoFullName: string,
 	number: number,
 	reviewText: string,
+	activeReviewId: string | null = null,
 ) {
 	switch (row.kind) {
 		case "comment":
@@ -396,14 +409,17 @@ export function toForgeAction(
 				teamReviewers: targets.success ? targets.data.teamReviewers : [],
 			};
 		}
-		default:
-			return {
-				kind: "block" as const,
-				repoFullName,
-				number,
-				// A workflow-authored block may carry its own message; else the
-				// computed review stamp.
-				reason: (row.payload.reason as string | undefined) ?? reviewText,
-			};
+		default: {
+			const reason = (row.payload.reason as string | undefined) ?? reviewText;
+			return activeReviewId
+				? {
+						kind: "update-review" as const,
+						repoFullName,
+						number,
+						reviewId: activeReviewId,
+						reason,
+					}
+				: { kind: "block" as const, repoFullName, number, reason };
+		}
 	}
 }

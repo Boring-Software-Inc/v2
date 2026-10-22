@@ -507,6 +507,36 @@ export async function getLatestBlockReviewId(
 	return rows[0]?.externalId ?? null;
 }
 
+export async function getActiveBlockReviewId(
+	db: Db,
+	repoFullName: string,
+	subjectNumber: number,
+): Promise<string | null> {
+	const reviewId = await getLatestBlockReviewId(
+		db,
+		repoFullName,
+		subjectNumber,
+	);
+	if (reviewId === null) {
+		return null;
+	}
+	const dismissed = await db
+		.select({ id: runActions.id })
+		.from(runActions)
+		.innerJoin(runs, eq(runActions.runId, runs.id))
+		.where(
+			and(
+				eq(runs.repoFullName, repoFullName),
+				eq(runs.subjectNumber, subjectNumber),
+				eq(runActions.kind, "dismiss-review"),
+				eq(runActions.status, "executed"),
+				eq(runActions.externalId, reviewId),
+			),
+		)
+		.limit(1);
+	return dismissed.length > 0 ? null : reviewId;
+}
+
 export async function completeRun(
 	db: Db,
 	runId: string,

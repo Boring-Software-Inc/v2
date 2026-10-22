@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { DEFAULT_WORKFLOW } from "@tripwire/contracts";
+import { DEFAULT_WORKFLOW, RERUN_NOTE } from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -270,9 +270,7 @@ describe("manual re-run (§ re-run feature)", () => {
 		// (covered by actions.test.ts) — here we assert the rendered body.
 		const comment = fake.executed.find((e) => e.kind === "comment");
 		expect(comment?.body).toContain("Tripwire now blocks this.");
-		expect(comment?.body).toContain(
-			"Tripwire checked this again with the repository's current rules.",
-		);
+		expect(comment?.body).toContain(RERUN_NOTE);
 	});
 
 	test("check delivery failure is recorded, never fatal — the run completes", async () => {

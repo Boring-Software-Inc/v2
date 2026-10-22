@@ -93,7 +93,7 @@ export function RedactionControls({
 			</Collapsible>
 			<SettingToggle
 				checked={policy.showHelp}
-				description="How do I fix this? and What is Tripwire?"
+				description="How do I fix this?"
 				disabled={disabled}
 				label="Show help in comments"
 				onChange={onShowHelp}

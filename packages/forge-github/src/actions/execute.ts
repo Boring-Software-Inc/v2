@@ -18,12 +18,15 @@ export async function executeAction(
 ): Promise<ForgeActionResult> {
 	switch (action.kind) {
 		case "block": {
-			const review = (await http.post(
+			return await requestChanges(
+				http,
 				action.repoFullName,
-				`/repos/${action.repoFullName}/pulls/${action.number}/reviews`,
-				{ event: "REQUEST_CHANGES", body: action.reason },
-			)) as { id?: number };
-			return { externalId: review.id ? String(review.id) : null };
+				action.number,
+				action.reason,
+			);
+		}
+		case "update-review": {
+			return await updateReview(http, action);
 		}
 		case "label": {
 			await http.post(
@@ -78,4 +81,51 @@ export async function executeAction(
 			return { externalId: null };
 		}
 	}
+}
+
+interface PullReview {
+	id?: number;
+	state?: string;
+	body?: string;
+}
+
+async function requestChanges(
+	http: GithubHttp,
+	repoFullName: string,
+	number: number,
+	body: string,
+): Promise<ForgeActionResult> {
+	const review = (await http.post(
+		repoFullName,
+		`/repos/${repoFullName}/pulls/${number}/reviews`,
+		{ event: "REQUEST_CHANGES", body },
+	)) as PullReview;
+	return { externalId: review.id ? String(review.id) : null };
+}
+
+async function updateReview(
+	http: GithubHttp,
+	action: Extract<ForgeAction, { kind: "update-review" }>,
+): Promise<ForgeActionResult> {
+	const path = `/repos/${action.repoFullName}/pulls/${action.number}/reviews/${action.reviewId}`;
+	const current = (await http
+		.get(action.repoFullName, path)
+		.catch((error: Error) => {
+			if (error.message.includes(" failed: 404 ")) {
+				return null;
+			}
+			throw error;
+		})) as PullReview | null;
+	if (current?.state !== "CHANGES_REQUESTED") {
+		return await requestChanges(
+			http,
+			action.repoFullName,
+			action.number,
+			action.reason,
+		);
+	}
+	if (current.body !== action.reason) {
+		await http.put(action.repoFullName, path, { body: action.reason });
+	}
+	return { externalId: action.reviewId };
 }

@@ -53,8 +53,7 @@ export async function refreshRepoSurfaces(
 		),
 	]);
 	const customRecords = customRuleSource(customRows, null).records;
-	const review = (reasons: Parameters<typeof reviewBody>[0]) =>
-		reviewBody(reasons, redactionLevelFor(policy, "review"));
+	const review = reviewBody(wantsComment(config, "block"));
 
 	for (const target of open) {
 		const runData = await runServices.getRunWithSteps(db, target.runId);
@@ -85,7 +84,6 @@ export async function refreshRepoSurfaces(
 										contributorLogin: event.data.actor.login,
 										reasons,
 										runUrl,
-										badgeUrl: `${deps.appUrl}/badges/view-run.png`,
 									},
 									config,
 									policy,
@@ -118,12 +116,7 @@ export async function refreshRepoSurfaces(
 		for (const row of rows) {
 			try {
 				const result = await adapter.execute(
-					toForgeAction(
-						row,
-						repo.fullName,
-						target.subjectNumber,
-						review(reasons),
-					),
+					toForgeAction(row, repo.fullName, target.subjectNumber, review),
 				);
 				await runServices.markActionExecuted(db, row.id, result.externalId);
 			} catch (error) {
