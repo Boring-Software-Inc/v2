@@ -105,7 +105,7 @@ files from it.** It contains the scope creep that killed v1.
 GitLab / any second forge adapter · SDK publishing · public OpenAPI surface ·
 `apps/mcp` implementation · ML layer · org-level features · billing ·
 email/password auth · deep observability beyond pino · deployment automation ·
-content classifiers (profanity / harassment / NSFW) · `lock-thread` escalation ·
+content classifiers (profanity / harassment / NSFW) ·
 PR-description content matching · discussions / wiki / commit-message scanning ·
 community report buttons · auto-delete (permanent) · cross-repo content bans ·
 signal nodes in the workflow editor (trigger/rule/gate/action nodes already exist
