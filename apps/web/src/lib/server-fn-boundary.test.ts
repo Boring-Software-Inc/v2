@@ -40,7 +40,7 @@ interface ServerFn {
 
 const PERMISSION_CALL = /orgPermissionMiddleware\(\s*"([\w-]+:[\w-]+)"\s*\)/;
 const METHOD = /createServerFn\(\s*\{\s*method:\s*"(\w+)"/;
-const MEMBER_MUTATION_ALLOWLIST = new Set(["leaveOrg"]);
+const MEMBER_MUTATION_ALLOWLIST = new Set(["leaveOrg", "rememberActiveOrg"]);
 
 function discoverServerFns(): ServerFn[] {
 	const found: ServerFn[] = [];

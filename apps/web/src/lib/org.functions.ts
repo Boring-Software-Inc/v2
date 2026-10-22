@@ -39,6 +39,31 @@ export const getOrgContext = createServerFn({ method: "GET" })
 		return (context as OrgContext).org;
 	});
 
+export const rememberActiveOrg = createServerFn({ method: "POST" })
+	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.inputValidator((input: { org: string }) => input)
+	.handler(async ({ context }): Promise<void> => {
+		const { getAuth } = await import("#/lib/server/auth");
+		const auth = getAuth();
+		if (!auth) {
+			return;
+		}
+		const { getStartContext } = await import("@tanstack/start-storage-context");
+		const current = await auth.api.getSession({
+			headers: getStartContext().request.headers,
+		});
+		if (!current) {
+			return;
+		}
+		const { getDb } = await import("#/lib/server/db");
+		const { schema } = await import("@tripwire/db");
+		const { eq } = await import("drizzle-orm");
+		await getDb()
+			.db.update(schema.session)
+			.set({ activeOrganizationId: (context as OrgContext).org.id })
+			.where(eq(schema.session.id, current.session.id));
+	});
+
 /** Every org the caller belongs to — the switcher. Personal first. */
 export const listMyOrgs = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware])

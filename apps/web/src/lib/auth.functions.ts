@@ -49,7 +49,11 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 				gateEnabled: false,
 			};
 		}
-		const { orgServices, user: userTable } = await import("@tripwire/db");
+		const {
+			orgServices,
+			session: sessionTable,
+			user: userTable,
+		} = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
 		const { eq } = await import("drizzle-orm");
 		const { isAccessGateEnabled } = await import("@tripwire/auth/access-gate");
@@ -67,9 +71,12 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 		// `/` redirect target: the session's last-visited org while membership
 		// still holds, else the personal org (every user has one).
 		const orgs = await orgServices.listUserOrgs(db, session.user.id);
-		const lastVisited = (
-			session.session as { activeOrganizationId?: string | null }
-		).activeOrganizationId;
+		const sessionRows = await db
+			.select({ activeOrganizationId: sessionTable.activeOrganizationId })
+			.from(sessionTable)
+			.where(eq(sessionTable.id, session.session.id))
+			.limit(1);
+		const lastVisited = sessionRows[0]?.activeOrganizationId ?? null;
 		const defaultOrgSlug =
 			orgs.find((o) => o.id === lastVisited)?.slug ??
 			orgs.find((o) => o.isPersonal)?.slug ??
