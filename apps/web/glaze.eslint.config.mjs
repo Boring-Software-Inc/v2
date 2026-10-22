@@ -33,7 +33,7 @@ const glaze = (await import(pathToFileURL(plugin).href)).default;
 const {LINT_IGNORES} = await import(pathToFileURL(join(dirname(plugin), 'value-rules.mjs')).href);
 
 export default [
-  {ignores: [...LINT_IGNORES, '**/lib/glaze/lint/**']},
+  {ignores: [...LINT_IGNORES, '**/lib/glaze/lint/**', '**/lib/server/og/**']},
   {
     files: ['**/*.{js,jsx,ts,tsx}'],
     languageOptions: {parser: tsParser, parserOptions: {ecmaFeatures: {jsx: true}}},

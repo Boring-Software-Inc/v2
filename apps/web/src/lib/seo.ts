@@ -1,3 +1,4 @@
+import { APP_OG_IMAGE, type OgImage } from "#/lib/run-og";
 import { siteConfig } from "#/lib/site-config";
 
 /**
@@ -36,6 +37,7 @@ interface BuildSeoInput {
 	type?: "website" | "article" | "profile";
 	/** Private/dashboard routes: noindex. */
 	noindex?: boolean;
+	image?: OgImage;
 }
 
 export function buildSeo({
@@ -44,13 +46,14 @@ export function buildSeo({
 	description,
 	type = "website",
 	noindex = false,
+	image = APP_OG_IMAGE,
 }: BuildSeoInput) {
 	const pageTitle = title ?? siteConfig.defaultTitle;
 	const pageDescription = summarizeText(
 		description ?? siteConfig.defaultDescription,
 	);
 	const url = toAbsoluteUrl(path);
-	const ogImage = toAbsoluteUrl("/og.png");
+	const ogImage = toAbsoluteUrl(image.path);
 	return {
 		meta: [
 			{ title: pageTitle },
@@ -61,6 +64,9 @@ export function buildSeo({
 			{ property: "og:url", content: url },
 			{ property: "og:site_name", content: siteConfig.name },
 			{ property: "og:image", content: ogImage },
+			{ property: "og:image:type", content: "image/png" },
+			{ property: "og:image:width", content: String(image.width) },
+			{ property: "og:image:height", content: String(image.height) },
 			{ name: "twitter:card", content: "summary_large_image" },
 			{ name: "twitter:image", content: ogImage },
 			...(noindex ? PRIVATE_ROUTE_HEADERS : []),
