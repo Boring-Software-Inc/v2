@@ -96,8 +96,7 @@ export function commentHeadline(
  * the same-verdict case, where the comment is silently edited in place and
  * nothing else would show that anything happened.
  */
-export const RERUN_NOTE =
-	"Tripwire checked this again with the repository's current rules.";
+export const RERUN_NOTE = "Checked again with the current rules.";
 
 function capitalize(text: string): string {
 	const trimmed = text.trim();
@@ -115,36 +114,33 @@ function reasonLine(reason: CommentReason): string {
 		: asSentence(reason.text);
 }
 
-/**
- * The reasons block: max 2 inline, each with its wait-hint appended; 3+ collapse
- * to the leading reason plus a count of the rest (never "X of Y rules").
- */
-export function reasonsBlock(reasons: CommentReason[]): string {
-	if (reasons.length === 0) {
-		return "";
+export const REASON_LIMIT = 5;
+
+export function reasonsBlock(
+	reasons: CommentReason[],
+	limit = REASON_LIMIT,
+): string {
+	if (reasons.length <= 1) {
+		return reasons[0] ? reasonLine(reasons[0]) : "";
 	}
-	if (reasons.length <= 2) {
-		return reasons.map(reasonLine).join("\n\n");
-	}
-	return `${reasonLine(reasons[0] as CommentReason)}\n\n${reasons.length - 1} more reasons. See all of them on Tripwire.`;
+	return reasons
+		.slice(0, limit)
+		.map((reason) => `- ${reasonLine(reason)}`)
+		.join("\n");
 }
 
 function headlineWithReasons(headline: string, reasonList: string): string {
 	return reasonList === "" ? headline : `${headline}\n\n${reasonList}`;
 }
 
-const FIX_REVISE =
-	"Fix the problems listed above, then push a new commit. Tripwire checks this again after every push. You do not need to reopen anything or contact anyone.\n\nIf you think this result is wrong, say so in a comment here. A maintainer will decide.";
-const FIX_NONE =
-	"A new commit will not fix this.\n\nIf you think this should merge anyway, say so in a comment here. A maintainer will decide.";
-const FIX_MIXED =
-	"Fix what you can, then push a new commit. Tripwire checks this again after every push. Some of these problems will not go away with a new commit.\n\nIf you think this should merge anyway, say so in a comment here. A maintainer will decide.";
+const APPEAL_WRONG =
+	"If this is wrong, say so in a comment. A maintainer will decide.";
+const APPEAL_ANYWAY =
+	"If it should merge anyway, say so in a comment. A maintainer will decide.";
+const FIX_REVISE = `Fix the problems and push. Tripwire checks every push.\n\n${APPEAL_WRONG}`;
+const FIX_NONE = `A new commit will not fix this.\n\n${APPEAL_ANYWAY}`;
+const FIX_MIXED = `Fix what you can and push. Some problems will not clear with a new commit.\n\n${APPEAL_ANYWAY}`;
 
-/**
- * The "how do i fix this?" body, chosen by the failing rules' remedies: all
- * revisable ⇒ push again; nothing revisable ⇒ no commit clears it; mixed ⇒ fix
- * what you can. The appeal sentence rides along whenever anything is non-revise.
- */
 export function howDoIFix(reasons: CommentReason[]): string {
 	const anyRevise = reasons.some((r) => r.remedy === "revise");
 	const anyNonRevise = reasons.some((r) => r.remedy !== "revise");
@@ -152,20 +148,15 @@ export function howDoIFix(reasons: CommentReason[]): string {
 	return `<details><summary>How do I fix this?</summary>\n\n${body}\n</details>`;
 }
 
-/** The shared explainer, appended to blocked and human review comments. */
-export const WHAT_IS_TRIPWIRE =
-	"<details><summary>What is Tripwire?</summary>\n\nTripwire checks contributions to this repository. The maintainers set the rules, such as rules about account age, how often you open change requests, and hidden links. People with write access to this repository skip these checks.\n\nThe Tripwire page for this check shows every rule it applied, what it found, and the result.\n</details>";
+export const RUN_LINK_TEXT = "View on Tripwire";
 
-/** Alt text on the "View on Tripwire" button image. */
-export const BUTTON_ALT = "View on Tripwire";
-
-/** The check run's name on the change request — the gate's identity. */
 export const CHECK_NAME = "tripwire";
 
-/** The CHANGES_REQUESTED review stamp — one line, no link, no button. */
-export function reviewBody(reasons: CommentReason[], level = 0): string {
-	const detail = leadDetail(redactCommentReasons(reasons, level));
-	return detail ? `Tripwire blocked this. ${detail}` : "Tripwire blocked this.";
+export const REVIEW_BODY = "Blocked. See the comment.";
+export const REVIEW_BODY_NO_COMMENT = "Blocked. See the tripwire check.";
+
+export function reviewBody(commentPosted: boolean): string {
+	return commentPosted ? REVIEW_BODY : REVIEW_BODY_NO_COMMENT;
 }
 
 function listNames(names: string[]): string {
@@ -182,7 +173,7 @@ export function redactedReasonLine(
 		return `It did not meet these rules: ${listNames(redacted.names)}.`;
 	}
 	if (redacted.kind === "count") {
-		return `${redacted.count} ${redacted.count === 1 ? "rule" : "rules"} blocked it.`;
+		return `It did not meet ${redacted.count} ${redacted.count === 1 ? "rule" : "rules"}.`;
 	}
 	return "";
 }
@@ -195,9 +186,6 @@ function leadDetail(redacted: RedactedReasons): string | null {
 	return redactedReasonLine(redacted) || null;
 }
 
-/** The check run summary — mirrors the verdict, no "tripwire:" prefix. Moved
- * here with the render layer so the /customize preview shows the REAL check
- * line, not a paraphrase. */
 export function checkSummary(
 	verdict: Verdict,
 	reasons: CommentReason[],
@@ -210,50 +198,28 @@ export function checkSummary(
 	}
 	if (verdict === "needs_review") {
 		return degraded
-			? "Waiting for human review. Tripwire could not finish checking this change request."
+			? "Waiting for human review. Tripwire could not finish checking."
 			: "Waiting for human review.";
 	}
-	return "Passed. Tripwire found no problems.";
+	return "Passed.";
 }
 
-/** Stable identifier in EVERY live tripwire comment (also drives `byTripwire`). */
 export const COMMENT_MARKER = "<!-- tripwire:run -->";
-export const BADGE_PATH = "/badges/view-run.png";
-/** The button's intrinsic 1x design width — the 3x asset renders crisp. */
-const BADGE_WIDTH = 185;
 
 export interface CommentInput {
 	verdict: Verdict;
-	/** The contributor, @-mentioned on blocked + human review. */
 	contributorLogin: string;
-	/** The failing rules' reasons (block only); empty for pass / needs_review. */
 	reasons: CommentReason[];
 	runUrl: string;
-	/** Absolute URL to the button PNG (`${appUrl}${BADGE_PATH}`). */
-	badgeUrl: string;
-	/** Fail-closed floor fired — the headline names the degradation. */
 	degraded?: boolean;
-	/** The active comment's verdict — drives the resolution headline (§7). */
 	previousVerdict?: Verdict | null;
-	/** Manual re-run: adds the quiet re-evaluation note under the headline. */
 	rerun?: boolean;
 }
 
-function runButton(input: CommentInput): string {
-	return `<a href="${input.runUrl}"><img src="${input.badgeUrl}" width="${BADGE_WIDTH}" alt="${BUTTON_ALT}" /></a>`;
+function runLink(runUrl: string, text = RUN_LINK_TEXT): string {
+	return `<a href="${runUrl}">${text}</a>`;
 }
 
-/**
- * THE comment (§7), full form: the verdict line, the failing rules'
- * plain-English reasons, the "View on Tripwire" run button (VISIBLE — the run
- * page is the contributor's appeal surface, §10), and collapsible "how do i fix
- * this?" / "what is tripwire?" blocks. The hidden marker makes subsequent
- * events EDIT the comment (upsert) — tripwire never litters a thread.
- *
- * This is `blockComment.mode: "full"` — the default, and the locked baseline:
- * its output is snapshot-tested and must never drift (a repo that never opened
- * /customize gets exactly this).
- */
 function reasonSection(
 	redacted: RedactedReasons,
 	line: (reasons: CommentReason[]) => string,
@@ -263,56 +229,51 @@ function reasonSection(
 		: redactedReasonLine(redacted);
 }
 
+function cappedReasonTotal(redacted: RedactedReasons, limit: number): number {
+	return redacted.kind === "reasons" && redacted.reasons.length > limit
+		? redacted.reasons.length
+		: 0;
+}
+
 export function renderCommentBody(
 	input: CommentInput,
-	showDetailsButton = true,
+	showRunLink = true,
 	policy: RedactionPolicy = OPEN_REDACTION,
 ): string {
-	const button = runButton(input);
 	const headline = commentHeadline(input.verdict, input.contributorLogin, {
 		degraded: input.degraded,
 		previousVerdict: input.previousVerdict,
 	});
-	const showHelp = policy.showHelp;
-	const reasonList =
-		input.verdict === "block"
-			? reasonSection(
-					redactCommentReasons(
-						input.reasons,
-						redactionLevelFor(policy, "comment"),
-					),
-					reasonsBlock,
-				)
-			: "";
+	const block = input.verdict === "block";
+	const redacted = redactCommentReasons(
+		block ? input.reasons : [],
+		redactionLevelFor(policy, "comment"),
+	);
+	const limit = showRunLink ? REASON_LIMIT : Number.POSITIVE_INFINITY;
+	const reasonList = block
+		? reasonSection(redacted, (reasons) => reasonsBlock(reasons, limit))
+		: "";
 	const lines: string[] = [headlineWithReasons(headline, reasonList), ""];
 	if (input.rerun) {
 		lines.push(RERUN_NOTE, "");
 	}
-	// showDetailsButton off drops the "View on Tripwire" link (the run page is
-	// the appeal surface, §10) while keeping the reasons + generic collapsibles.
-	// Default true ⇒ byte-identical to the locked baseline.
-	if (input.verdict === "block") {
-		if (showDetailsButton) {
-			lines.push(button, "");
-		}
-		if (showHelp) {
-			lines.push(howDoIFix(input.reasons), "", WHAT_IS_TRIPWIRE);
-		}
-	} else if (input.verdict === "needs_review") {
-		if (showDetailsButton) {
-			lines.push(button, "");
-		}
-		if (showHelp) {
-			lines.push(WHAT_IS_TRIPWIRE);
-		}
-	} else if (showDetailsButton) {
-		lines.push(button);
+	if (showRunLink) {
+		const total = cappedReasonTotal(redacted, limit);
+		lines.push(
+			runLink(
+				input.runUrl,
+				total > 0 ? `View all ${total} reasons on Tripwire` : RUN_LINK_TEXT,
+			),
+			"",
+		);
+	}
+	if (block && policy.showHelp) {
+		lines.push(howDoIFix(input.reasons));
 	}
 	lines.push(COMMENT_MARKER, "");
 	return lines.join("\n");
 }
 
-/** One-liner-link line: the rule's name and its contributor label. */
 function oneLinerLine(reason: CommentReason): string {
 	const label =
 		(reason.ruleId ? ruleContributorLabel(reason.ruleId) : null) ??
@@ -322,12 +283,12 @@ function oneLinerLine(reason: CommentReason): string {
 		: asSentence(label);
 }
 
-/**
- * custom-mode template substitution: `{{ruleName}}` is the failing rule's
- * contributor label; `{{runUrl}}` renders the "View on Tripwire" BUTTON (the
- * linked badge image), not a bare URL — the run page is the appeal surface
- * (§10) and the button is how every other mode presents it.
- */
+function oneLinerList(reasons: CommentReason[]): string {
+	return reasons.length === 1
+		? oneLinerLine(reasons[0] as CommentReason)
+		: reasons.map((reason) => `- ${oneLinerLine(reason)}`).join("\n");
+}
+
 function renderTemplate(
 	input: CommentInput,
 	template: string,
@@ -345,29 +306,9 @@ function renderTemplate(
 					"");
 	return template
 		.replaceAll("{{ruleName}}", ruleName)
-		.replaceAll("{{runUrl}}", runButton(input));
+		.replaceAll("{{runUrl}}", runLink(input.runUrl));
 }
 
-/**
- * The config-aware comment renderer — THE shared function: the worker posts
- * what it returns, and the /customize preview shows what it returns. It resolves
- * the per-outcome override (§customize) itself from the full config, so pass,
- * block, and human review each honor their own custom text + button toggle.
- *
- * `customText`, when set, REPLACES the ENTIRE body for that verdict — headline,
- * reasons, remedies, collapsibles, all of it — leaving only the (optional) run
- * button and the marker. This is the "hide the rules" path: a naive summary-only
- * swap would strand the how-to-fix / wait-hint remedy and leak the very rule the
- * maintainer set out to hide. The block-comment MODE only reshapes BLOCK
- * comments and only when no custom text is set; pass and human review carry no
- * reasons to trim. Every path ends with the hidden marker — the upsert lifecycle
- * (§7) depends on it.
- *
- * one-liner-link speaks ONE line per failed rule — never "plus N other
- * things"; hiding which rules fired is the exact confusion this mode exists to
- * avoid. custom renders the maintainer's template verbatim after var
- * substitution: no headline, no button — the template IS the body.
- */
 export function renderVerdictComment(
 	input: CommentInput,
 	config: ResponseConfig,
@@ -378,7 +319,7 @@ export function renderVerdictComment(
 	if (customText !== "") {
 		const lines = [customText, ""];
 		if (override.showDetailsButton) {
-			lines.push(runButton(input), "");
+			lines.push(runLink(input.runUrl), "");
 		}
 		lines.push(COMMENT_MARKER, "");
 		return lines.join("\n");
@@ -398,14 +339,14 @@ export function renderVerdictComment(
 	});
 	const reasonList = reasonSection(
 		redactCommentReasons(input.reasons, level),
-		(reasons) => reasons.map(oneLinerLine).join("\n\n"),
+		oneLinerList,
 	);
 	const lines: string[] = [headlineWithReasons(headline, reasonList), ""];
 	if (input.rerun) {
 		lines.push(RERUN_NOTE, "");
 	}
 	if (override.showDetailsButton) {
-		lines.push(runButton(input), "");
+		lines.push(runLink(input.runUrl), "");
 	}
 	lines.push(COMMENT_MARKER, "");
 	return lines.join("\n");

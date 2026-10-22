@@ -20,12 +20,11 @@ type BodyBlock =
 	| { kind: "paragraph"; text: string }
 	| { kind: "list"; items: string[] }
 	| { kind: "details"; summary: string; body: string }
-	| { kind: "button"; href: string; src: string; alt: string };
+	| { kind: "link"; href: string; text: string };
 
 const DETAILS_RE =
 	/<details><summary>(.*?)<\/summary>\n\n([\s\S]*?)\n<\/details>/;
-const BUTTON_RE =
-	/<a href="([^"]*)"><img src="([^"]*)"[^>]*alt="([^"]*)" \/><\/a>/;
+const LINK_RE = /<a href="([^"]*)">([^<]*)<\/a>/;
 const LIST_ITEM_RE = /^\s*[-*]\s+/;
 
 function textBlocks(text: string): BodyBlock[] {
@@ -53,8 +52,8 @@ function parseBody(body: string): BodyBlock[] {
 	let rest = body.replaceAll(COMMENT_MARKER, "").trim();
 	while (rest.length > 0) {
 		const details = DETAILS_RE.exec(rest);
-		const button = BUTTON_RE.exec(rest);
-		const next = [details, button]
+		const link = LINK_RE.exec(rest);
+		const next = [details, link]
 			.filter((m): m is RegExpExecArray => m !== null)
 			.sort((a, b) => a.index - b.index)[0];
 		blocks.push(...textBlocks(next ? rest.slice(0, next.index) : rest));
@@ -67,12 +66,11 @@ function parseBody(body: string): BodyBlock[] {
 				summary: details[1] ?? "",
 				body: details[2] ?? "",
 			});
-		} else if (button) {
+		} else if (link) {
 			blocks.push({
-				kind: "button",
-				href: button[1] ?? "",
-				src: button[2] ?? "",
-				alt: button[3] ?? "",
+				kind: "link",
+				href: link[1] ?? "",
+				text: link[2] ?? "",
 			});
 		}
 		rest = rest.slice(next.index + next[0].length).trim();
@@ -121,8 +119,8 @@ function blockKey(block: BodyBlock): string {
 	if (block.kind === "list") {
 		return `ul:${block.items.join("\n")}`;
 	}
-	if (block.kind === "button") {
-		return `button:${block.src}`;
+	if (block.kind === "link") {
+		return `link:${block.text}`;
 	}
 	return `details:${block.summary}\n${block.body}`;
 }
@@ -159,17 +157,17 @@ function Markdown({ blocks }: { blocks: BodyBlock[] }) {
 						</motion.ul>
 					);
 				}
-				if (block.kind === "button") {
+				if (block.kind === "link") {
 					return (
-						<motion.div
-							className="relative w-fit rounded-tag"
+						<motion.p
+							className="relative w-fit rounded-tag underline underline-offset-2"
 							data-dim=""
 							data-region="details-button"
 							key={key}
 							{...BLOCK_MOTION}
 						>
-							<img alt={block.alt} className="w-46" src={block.src} />
-						</motion.div>
+							{block.text}
+						</motion.p>
 					);
 				}
 				return (

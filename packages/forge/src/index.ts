@@ -74,6 +74,13 @@ export interface ContributorProfile {
 
 export type ForgeAction =
 	| { kind: "block"; repoFullName: string; number: number; reason: string }
+	| {
+			kind: "update-review";
+			repoFullName: string;
+			number: number;
+			reviewId: string;
+			reason: string;
+	  }
 	| { kind: "label"; repoFullName: string; number: number; labels: string[] }
 	| {
 			kind: "comment";

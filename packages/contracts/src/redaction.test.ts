@@ -2,9 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
 	type CommentInput,
 	checkSummary,
+	howDoIFix,
+	REVIEW_BODY,
 	renderVerdictComment,
 	reviewBody,
-	WHAT_IS_TRIPWIRE,
 } from "./comment-render.ts";
 import {
 	redactCommentReasons,
@@ -48,7 +49,6 @@ const INPUT: CommentInput = {
 	contributorLogin: "g-r-i-m",
 	reasons: REASONS,
 	runUrl: "https://tripwire.sh/runs/0198abcd",
-	badgeUrl: "https://tripwire.sh/badges/view-run.png",
 };
 
 function policy(level: number, extra: Partial<RedactionPolicy> = {}) {
@@ -224,15 +224,15 @@ describe("redacted GitHub surfaces", () => {
 	});
 
 	test("stop 6 counts, stop 8 only states the verdict", () => {
-		expect(render(policy(6))).toContain("3 rules blocked it.");
+		expect(render(policy(6))).toContain("It did not meet 3 rules.");
 		expect(render(policy(6))).not.toContain("Crypto address");
 		const verdictOnly = render(policy(8));
 		expect(verdictOnly).toContain("Tripwire blocked this.");
-		expect(verdictOnly).not.toContain("rules blocked it");
+		expect(verdictOnly).not.toContain("did not meet");
 	});
 
 	test("help sections follow their own switch", () => {
-		expect(render(policy(0))).toContain(WHAT_IS_TRIPWIRE);
+		expect(render(policy(0))).toContain(howDoIFix(REASONS));
 		const bare = render(policy(0, { showHelp: false }));
 		expect(bare).not.toContain("<details>");
 	});
@@ -243,18 +243,38 @@ describe("redacted GitHub surfaces", () => {
 		);
 	});
 
-	test("check summary and review body redact by level", () => {
+	test("check summary redacts by level; the review carries no detail", () => {
 		expect(checkSummary("block", REASONS, false, 0)).toContain("DONATE.md");
 		expect(checkSummary("block", REASONS, false, 2)).toBe(
 			"Blocked. This change request contains a cryptocurrency wallet address.",
 		);
 		expect(checkSummary("block", REASONS, false, 6)).toBe(
-			"Blocked. 3 rules blocked it.",
+			"Blocked. It did not meet 3 rules.",
 		);
 		expect(checkSummary("block", REASONS, false, 8)).toBe("Blocked.");
-		expect(reviewBody(REASONS, 5)).toBe(
-			"Tripwire blocked this. It did not meet these rules: Crypto address, AI review and Account age.",
-		);
-		expect(reviewBody(REASONS, 8)).toBe("Tripwire blocked this.");
+		expect(reviewBody(true)).toBe(REVIEW_BODY);
 	});
+});
+
+describe("every redaction level renders one compact comment", () => {
+	for (let level = 0; level <= REDACTION_MAX_LEVEL; level++) {
+		test(`level ${level}`, () => {
+			const body = renderVerdictComment(
+				INPUT,
+				DEFAULT_RESPONSE_CONFIG,
+				policy(level),
+			);
+			expect(body.split("\n")[0]).toBe("@g-r-i-m, Tripwire blocked this.");
+			expect(body).toContain('<a href="https://tripwire.sh/runs/0198abcd">');
+			expect(body).not.toContain("What is Tripwire?");
+			if (level >= 5) {
+				expect(body).not.toContain("DONATE.md");
+				expect(body).not.toMatch(/^- /m);
+			}
+			if (level >= 6) {
+				expect(body).not.toContain("Crypto address");
+			}
+			expect(body).toMatchSnapshot();
+		});
+	}
 });

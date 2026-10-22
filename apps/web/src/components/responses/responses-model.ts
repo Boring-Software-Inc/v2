@@ -6,7 +6,6 @@ import type {
 	Verdict,
 } from "@tripwire/contracts";
 import {
-	BADGE_PATH,
 	renderVerdictComment,
 	responseConfigSchema,
 	wantsComment,
@@ -242,7 +241,6 @@ export function previewBody(
 			contributorLogin: "contributor",
 			reasons: verdict === "block" ? SAMPLE_REASONS : [],
 			runUrl: "https://tripwire.sh/runs/sample",
-			badgeUrl: BADGE_PATH,
 		},
 		previewConfig,
 		policy,

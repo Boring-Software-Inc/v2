@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	CHECK_NAME,
 	COMMENT_MARKER,
+	REVIEW_BODY,
 	renderCommentBody,
 } from "@tripwire/contracts";
 import { GithubHttp } from "../client/http.ts";
@@ -48,7 +49,6 @@ function fakeHttp(responses: Record<string, unknown>) {
 const COMMON = {
 	contributorLogin: "octocat",
 	runUrl: "https://tripwire.sh/runs/x",
-	badgeUrl: "https://tripwire.sh/badges/view-run.png",
 };
 const BLOCK_COMMENT = renderCommentBody({
 	verdict: "block",
@@ -179,6 +179,27 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 	test("superseded body — struck, marker-less, points forward", () => {
 		expect(supersededBody(BLOCK_COMMENT)).toMatchSnapshot();
 	});
+
+	test("superseded list: every reason struck, the run link dropped", () => {
+		const body = renderCommentBody({
+			verdict: "block",
+			reasons: [
+				{ text: "Your account is 2 days old.", remedy: "wait" },
+				{ text: "It changes 40 files.", remedy: "revise" },
+			],
+			...COMMON,
+		});
+		expect(supersededBody(body)).toBe(
+			[
+				"~~@octocat, Tripwire blocked this.~~",
+				"",
+				"- ~~Your account is 2 days old.~~",
+				"- ~~It changes 40 files.~~",
+				"",
+				"This result is out of date. See the newer comment below.",
+			].join("\n"),
+		);
+	});
 });
 
 describe("setCheck", () => {
@@ -233,7 +254,7 @@ describe("setCheck", () => {
 });
 
 describe("executeAction — block files a request-changes review", () => {
-	test("posts REQUEST_CHANGES with the constitution one-liner", async () => {
+	test("posts REQUEST_CHANGES with the one-line review body", async () => {
 		const { http, calls } = fakeHttp({
 			"POST /repos/a/b/pulls/7/reviews": { id: 91 },
 		});
@@ -242,15 +263,106 @@ describe("executeAction — block files a request-changes review", () => {
 			kind: "block",
 			repoFullName: "a/b",
 			number: 7,
-			reason: "Tripwire blocked this. Your account is 2 days old.",
+			reason: REVIEW_BODY,
 		});
 		expect(result.externalId).toBe("91");
 		const post = calls.find((c) => c.method === "POST");
 		expect(post?.path).toBe("/repos/a/b/pulls/7/reviews");
-		expect(post?.body).toMatchObject({ event: "REQUEST_CHANGES" });
-		expect(String((post?.body as { body: string }).body)).toContain(
-			"Tripwire blocked this. Your account is 2 days old.",
-		);
+		expect(post?.body).toEqual({
+			event: "REQUEST_CHANGES",
+			body: REVIEW_BODY,
+		});
+	});
+});
+
+describe("executeAction: update-review edits the live review, never stacks", () => {
+	const update = {
+		kind: "update-review" as const,
+		repoFullName: "a/b",
+		number: 7,
+		reviewId: "91",
+		reason: REVIEW_BODY,
+	};
+
+	test("edits the body of a live request-changes review in place", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/pulls/7/reviews/91": {
+				id: 91,
+				state: "CHANGES_REQUESTED",
+				body: "Tripwire blocked this. Your account is 2 days old.",
+			},
+			"PUT /repos/a/b/pulls/7/reviews/91": { id: 91 },
+		});
+		const { executeAction } = await import("./execute.ts");
+		const result = await executeAction(http, update);
+		expect(result.externalId).toBe("91");
+		expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+			"GET /repos/a/b/pulls/7/reviews/91",
+			"PUT /repos/a/b/pulls/7/reviews/91",
+		]);
+		expect(calls[1]?.body).toEqual({ body: REVIEW_BODY });
+	});
+
+	test("an unchanged body makes no write at all", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/pulls/7/reviews/91": {
+				id: 91,
+				state: "CHANGES_REQUESTED",
+				body: REVIEW_BODY,
+			},
+		});
+		const { executeAction } = await import("./execute.ts");
+		const result = await executeAction(http, update);
+		expect(result.externalId).toBe("91");
+		expect(calls.map((c) => c.method)).toEqual(["GET"]);
+	});
+
+	test("a review dismissed on GitHub gets a fresh one", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/pulls/7/reviews/91": { id: 91, state: "DISMISSED" },
+			"POST /repos/a/b/pulls/7/reviews": { id: 92 },
+		});
+		const { executeAction } = await import("./execute.ts");
+		const result = await executeAction(http, update);
+		expect(result.externalId).toBe("92");
+		expect(calls.find((c) => c.method === "POST")?.body).toEqual({
+			event: "REQUEST_CHANGES",
+			body: REVIEW_BODY,
+		});
+		expect(calls.some((c) => c.method === "PUT")).toBe(false);
+	});
+
+	function statusHttp(status: number) {
+		const calls: string[] = [];
+		const http = new GithubHttp({
+			tokenFor: () => Promise.resolve("test-token"),
+			apiBase: "https://fake.api",
+			fetchImpl: ((_url: string | URL | Request, init?: RequestInit) => {
+				const method = init?.method ?? "GET";
+				calls.push(method);
+				return Promise.resolve(
+					method === "GET"
+						? new Response(JSON.stringify({ message: "x" }), { status })
+						: new Response(JSON.stringify({ id: 93 }), { status: 200 }),
+				);
+			}) as typeof fetch,
+		});
+		return { http, calls };
+	}
+
+	test("a deleted review gets a fresh one", async () => {
+		const { http, calls } = statusHttp(404);
+		const { executeAction } = await import("./execute.ts");
+		const result = await executeAction(http, update);
+		expect(result.externalId).toBe("93");
+		expect(calls).toEqual(["GET", "POST"]);
+	});
+
+	test("any other read failure throws instead of stacking a second review", async () => {
+		const { http, calls } = statusHttp(502);
+		const { executeAction } = await import("./execute.ts");
+		await expect(executeAction(http, update)).rejects.toThrow(/502/);
+		expect(calls).toEqual(["GET"]);
 	});
 });
 

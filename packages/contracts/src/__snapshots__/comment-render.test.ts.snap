@@ -3,50 +3,35 @@
 exports[`renderCommentBody — snapshot golden files blocked (mixed remedies, wait-hint inline) 1`] = `
 "@octocat, Tripwire blocked this.
 
-Your account is 2 days old. This clears in 5 days.
+- Your account is 2 days old. This clears in 5 days.
+- It adds 2 crypto wallet addresses to DONATE.md.
 
-It adds 2 crypto wallet addresses to DONATE.md.
-
-<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
 
 <details><summary>How do I fix this?</summary>
 
-Fix what you can, then push a new commit. Tripwire checks this again after every push. Some of these problems will not go away with a new commit.
+Fix what you can and push. Some problems will not clear with a new commit.
 
-If you think this should merge anyway, say so in a comment here. A maintainer will decide.
-</details>
-
-<details><summary>What is Tripwire?</summary>
-
-Tripwire checks contributions to this repository. The maintainers set the rules, such as rules about account age, how often you open change requests, and hidden links. People with write access to this repository skip these checks.
-
-The Tripwire page for this check shows every rule it applied, what it found, and the result.
+If it should merge anyway, say so in a comment. A maintainer will decide.
 </details>
 <!-- tripwire:run -->
 "
 `;
 
-exports[`renderCommentBody — snapshot golden files blocked (3+ reasons collapse to plus-N) 1`] = `
+exports[`renderCommentBody — snapshot golden files blocked (3 reasons, all listed) 1`] = `
 "@octocat, Tripwire blocked this.
 
-It adds 2 crypto wallet addresses to DONATE.md.
+- It adds 2 crypto wallet addresses to DONATE.md.
+- It changes 40 files.
+- Most of the title is not written in the Latin alphabet.
 
-2 more reasons. See all of them on Tripwire.
-
-<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
 
 <details><summary>How do I fix this?</summary>
 
-Fix the problems listed above, then push a new commit. Tripwire checks this again after every push. You do not need to reopen anything or contact anyone.
+Fix the problems and push. Tripwire checks every push.
 
-If you think this result is wrong, say so in a comment here. A maintainer will decide.
-</details>
-
-<details><summary>What is Tripwire?</summary>
-
-Tripwire checks contributions to this repository. The maintainers set the rules, such as rules about account age, how often you open change requests, and hidden links. People with write access to this repository skip these checks.
-
-The Tripwire page for this check shows every rule it applied, what it found, and the result.
+If this is wrong, say so in a comment. A maintainer will decide.
 </details>
 <!-- tripwire:run -->
 "
@@ -55,7 +40,8 @@ The Tripwire page for this check shows every rule it applied, what it found, and
 exports[`renderCommentBody — snapshot golden files passed 1`] = `
 "This passed Tripwire's checks.
 
-<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+
 <!-- tripwire:run -->
 "
 `;
@@ -63,14 +49,8 @@ exports[`renderCommentBody — snapshot golden files passed 1`] = `
 exports[`renderCommentBody — snapshot golden files human review 1`] = `
 "@octocat, this needs human review. A maintainer will approve or block it.
 
-<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
 
-<details><summary>What is Tripwire?</summary>
-
-Tripwire checks contributions to this repository. The maintainers set the rules, such as rules about account age, how often you open change requests, and hidden links. People with write access to this repository skip these checks.
-
-The Tripwire page for this check shows every rule it applied, what it found, and the result.
-</details>
 <!-- tripwire:run -->
 "
 `;
@@ -78,23 +58,89 @@ The Tripwire page for this check shows every rule it applied, what it found, and
 exports[`renderCommentBody — snapshot golden files re-run: the quiet re-evaluation note rides under the headline 1`] = `
 "This passed Tripwire's checks.
 
-Tripwire checked this again with the repository's current rules.
+Checked again with the current rules.
 
-<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+
 <!-- tripwire:run -->
 "
 `;
 
-exports[`renderVerdictComment — config-aware modes one-liner-link: one contributor label per failed rule, never plus-N 1`] = `
+exports[`renderVerdictComment — config-aware modes one-liner-link: one contributor label per failed rule, as a list 1`] = `
 "@octocat, Tripwire blocked this.
 
-Account age: Your account is newer than this repository allows.
+- Account age: Your account is newer than this repository allows.
+- Crypto address: This change request contains a cryptocurrency wallet address.
+- Max files changed: This change request changes too many files.
 
-Crypto address: This change request contains a cryptocurrency wallet address.
+<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
 
-Max files changed: This change request changes too many files.
+<!-- tripwire:run -->
+"
+`;
 
-<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+exports[`footprint: one comment, one review, nothing repeated more reasons than the limit fold into the run link 1`] = `
+"@octocat, Tripwire blocked this.
+
+- Problem 1.
+- Problem 2.
+- Problem 3.
+- Problem 4.
+- Problem 5.
+
+<a href="https://tripwire.sh/runs/0198abcd">View all 7 reasons on Tripwire</a>
+
+<details><summary>How do I fix this?</summary>
+
+Fix the problems and push. Tripwire checks every push.
+
+If this is wrong, say so in a comment. A maintainer will decide.
+</details>
+<!-- tripwire:run -->
+"
+`;
+
+exports[`footprint: one comment, one review, nothing repeated transitions keep their own headline and drop the help on a pass 1`] = `
+"@octocat, this now passes Tripwire's checks.
+
+<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+
+<!-- tripwire:run -->
+"
+`;
+
+exports[`footprint: one comment, one review, nothing repeated transitions keep their own headline and drop the help on a pass 2`] = `
+"@octocat, Tripwire no longer blocks this, but it needs human review. A maintainer will approve or block it.
+
+<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+
+<!-- tripwire:run -->
+"
+`;
+
+exports[`footprint: one comment, one review, nothing repeated transitions keep their own headline and drop the help on a pass 3`] = `
+"@octocat, Tripwire now blocks this.
+
+- Your account is 2 days old. This clears in 5 days.
+- It adds 2 crypto wallet addresses to DONATE.md.
+- It changes 40 files.
+
+<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+
+<details><summary>How do I fix this?</summary>
+
+Fix what you can and push. Some problems will not clear with a new commit.
+
+If it should merge anyway, say so in a comment. A maintainer will decide.
+</details>
+<!-- tripwire:run -->
+"
+`;
+
+exports[`footprint: one comment, one review, nothing repeated transitions keep their own headline and drop the help on a pass 4`] = `
+"Tripwire could not finish checking this, so it needs human review. A maintainer will approve or block it.
+
+<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
 
 <!-- tripwire:run -->
 "

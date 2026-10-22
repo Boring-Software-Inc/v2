@@ -6,7 +6,6 @@
 // The comment render layer moved to @tripwire/contracts (customize build step);
 // re-exported here so existing worker imports keep resolving.
 export {
-	BUTTON_ALT,
 	CHECK_NAME,
 	COMMENT_MARKER,
 	type CommentInput,
@@ -15,13 +14,14 @@ export {
 	commentHeadline,
 	type HeadlineOptions,
 	howDoIFix,
+	REVIEW_BODY,
 	type Remedy,
+	RUN_LINK_TEXT,
 	reasonsBlock,
 	renderCommentBody,
 	renderVerdictComment,
 	reviewBody,
 	VERDICT_WORD,
-	WHAT_IS_TRIPWIRE,
 } from "@tripwire/contracts";
 export { setCheck } from "./actions/check.ts";
 export { upsertComment } from "./actions/comment.ts";

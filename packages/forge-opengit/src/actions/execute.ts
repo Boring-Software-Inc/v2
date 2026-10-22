@@ -33,6 +33,7 @@ export async function executeAction(
 			return await setCheck(http, action.repoFullName, action.check);
 		}
 		case "block":
+		case "update-review":
 		case "dismiss-review": {
 			throw new Error(
 				`open-git does not support the ${action.kind} action. The Tripwire check blocks the merge instead.`,

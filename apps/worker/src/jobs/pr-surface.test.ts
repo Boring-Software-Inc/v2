@@ -65,3 +65,55 @@ describe("toForgeAction — request-review", () => {
 		).toMatchObject({ reviewers: [], teamReviewers: [] });
 	});
 });
+
+describe("toForgeAction: block posts once, then edits", () => {
+	const row = { kind: "block", payload: { nodeId: "w:block" } };
+
+	test("no live review: a new request-changes review", () => {
+		expect(toForgeAction(row, "a/b", 7, "Blocked. See the comment.")).toEqual({
+			kind: "block",
+			repoFullName: "a/b",
+			number: 7,
+			reason: "Blocked. See the comment.",
+		});
+	});
+
+	test("a live review: edit it instead of posting a second one", () => {
+		expect(
+			toForgeAction(row, "a/b", 7, "Blocked. See the comment.", "91"),
+		).toEqual({
+			kind: "update-review",
+			repoFullName: "a/b",
+			number: 7,
+			reviewId: "91",
+			reason: "Blocked. See the comment.",
+		});
+	});
+
+	test("a workflow-authored reason wins over the default body", () => {
+		expect(
+			toForgeAction(
+				{ kind: "block", payload: { reason: "A maintainer blocked it." } },
+				"a/b",
+				7,
+				"Blocked. See the comment.",
+				"91",
+			),
+		).toMatchObject({
+			kind: "update-review",
+			reason: "A maintainer blocked it.",
+		});
+	});
+
+	test("other kinds ignore the live review", () => {
+		expect(
+			toForgeAction(
+				{ kind: "dismiss-review", payload: { number: 7, reviewId: "91" } },
+				"a/b",
+				7,
+				"stamp",
+				"91",
+			),
+		).toMatchObject({ kind: "dismiss-review", reviewId: "91" });
+	});
+});

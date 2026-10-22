@@ -60,7 +60,6 @@ const body = (
 		contributorLogin: "stranger",
 		reasons,
 		runUrl: "https://tripwire.sh/runs/1",
-		badgeUrl: "https://tripwire.sh/badges/view-run.png",
 		previousVerdict: null,
 	});
 
