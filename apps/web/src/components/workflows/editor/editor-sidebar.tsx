@@ -6,14 +6,18 @@ import type {
 	JsonValue,
 	WorkflowActionKind,
 	WorkflowNode,
+	WorkflowPort,
 } from "@tripwire/contracts";
 import {
 	ACTION_CATALOG,
+	acceptReason,
 	GATE_CATALOG,
+	outputPorts,
 	RULE_CATALOG,
 	TRIGGER_CATALOG,
+	WORKFLOW_PORT_LABELS,
 } from "@tripwire/contracts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Add, ArrowLeft, Close, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -31,6 +35,15 @@ import {
 	ItemTitle,
 } from "#/components/glaze/ui/item";
 import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/glaze/ui/tooltip";
+import {
+	inputSummary,
+	outputLook,
+} from "#/components/workflows/editor/connection-plan";
+import {
 	hasEditableParams,
 	PropertiesPanel,
 } from "#/components/workflows/editor/properties-panel";
@@ -44,6 +57,7 @@ import {
 	stepName,
 	triggerIcon,
 } from "#/components/workflows/editor/step-meta";
+import { PortGlyph } from "#/components/workflows/editor/typed-connections";
 import { cn } from "#/lib/glaze/utils";
 
 /**
@@ -164,7 +178,14 @@ export interface CustomToolboxRule {
 	description: string;
 }
 
+export interface ToolboxConnect {
+	port: WorkflowPort;
+	pending: boolean;
+}
+
 export interface EditorSidebarProps {
+	connect: ToolboxConnect | null;
+	onCancelConnect: () => void;
 	/** The repo's custom rules; they join the rules section like built-ins. */
 	customRules: CustomToolboxRule[];
 	/** Route target for authoring a new rule (the rules page builder). */
@@ -184,6 +205,8 @@ export interface EditorSidebarProps {
 }
 
 export function EditorSidebar({
+	connect,
+	onCancelConnect,
 	customRules,
 	org,
 	repo,
@@ -226,7 +249,8 @@ export function EditorSidebar({
 			? (customRules.find((rule) => rule.ref === selectedNode.ref)?.name ??
 				null)
 			: null;
-	const visibility = selectedNode ? "open" : shown;
+	const visibility = selectedNode || connect?.pending ? "open" : shown;
+	const propertiesNode = connect ? null : selectedNode;
 
 	return (
 		<>
@@ -244,6 +268,7 @@ export function EditorSidebar({
 				{readOnly ? "Show toolbox" : "Add steps"}
 			</Button>
 			<div
+				data-toolbox=""
 				className={cn(
 					"shell absolute start-3 top-3 bottom-3 z-(--z-raised) w-68 flex-col",
 					visibility === "auto" && "hidden md:flex",
@@ -252,14 +277,14 @@ export function EditorSidebar({
 				)}
 			>
 				<div className="panel flex min-h-0 flex-1 flex-col overflow-hidden">
-					{selectedNode ? (
+					{propertiesNode ? (
 						<StepProperties
 							customName={customName}
 							focusKey={
-								fieldFocus?.nodeId === selectedNode.id ? fieldFocus.key : null
+								fieldFocus?.nodeId === propertiesNode.id ? fieldFocus.key : null
 							}
-							key={selectedNode.id}
-							node={selectedNode}
+							key={propertiesNode.id}
+							node={propertiesNode}
 							onBack={onClearSelection}
 							onFocused={onFieldFocused}
 							onTestConnection={onTestConnection}
@@ -268,7 +293,9 @@ export function EditorSidebar({
 						/>
 					) : (
 						<Toolbox
+							connect={connect}
 							onAdd={addAndReveal}
+							onCancelConnect={onCancelConnect}
 							onHide={() => setShown("closed")}
 							org={org}
 							readOnly={readOnly}
@@ -292,13 +319,17 @@ function matches(item: ToolboxItem, needle: string): boolean {
 
 function Toolbox({
 	sections,
+	connect,
 	readOnly,
 	org,
 	repo,
 	onAdd,
+	onCancelConnect,
 	onHide,
 }: {
 	sections: ToolboxSection[];
+	connect: ToolboxConnect | null;
+	onCancelConnect: () => void;
 	readOnly: boolean;
 	org: string;
 	repo: string;
@@ -318,8 +349,27 @@ function Toolbox({
 				.filter((section) => section.items.length > 0)
 		: sections;
 
+	const allOpen = searching || connect !== null;
 	return (
 		<>
+			{connect ? (
+				<div className="flex shrink-0 items-center gap-2 border-line-faint border-b py-1 ps-3 pe-2">
+					<PortGlyph look={{ ...outputLook(connect.port), io: "out" }} />
+					<span className="min-w-0 flex-1 truncate type-label">
+						Connect from {WORKFLOW_PORT_LABELS[connect.port]}
+					</span>
+					{connect.pending ? (
+						<Button
+							aria-label="Cancel connection"
+							onClick={onCancelConnect}
+							size="icon-sm"
+							variant="ghost"
+						>
+							<Icon icon={Close} />
+						</Button>
+					) : null}
+				</div>
+			) : null}
 			<div className="flex shrink-0 items-center gap-1 border-line-faint border-b p-2">
 				<Input
 					aria-label="Search steps"
@@ -330,14 +380,16 @@ function Toolbox({
 					size="sm"
 					value={query}
 				/>
-				<Button
-					aria-label="Hide toolbox"
-					onClick={onHide}
-					size="icon-sm"
-					variant="ghost"
-				>
-					<Icon icon={Close} />
-				</Button>
+				{connect?.pending ? null : (
+					<Button
+						aria-label="Hide toolbox"
+						onClick={onHide}
+						size="icon-sm"
+						variant="ghost"
+					>
+						<Icon icon={Close} />
+					</Button>
+				)}
 			</div>
 			<div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
 				{visible.length === 0 ? (
@@ -348,7 +400,7 @@ function Toolbox({
 					<CollapsibleGroup
 						multiple
 						onValueChange={(next) => setOpen(next as string[])}
-						value={searching ? visible.map((section) => section.kind) : open}
+						value={allOpen ? visible.map((section) => section.kind) : open}
 						variant="plain"
 					>
 						{visible.map((section) => (
@@ -365,12 +417,16 @@ function Toolbox({
 											<ToolboxRow
 												disabled={readOnly}
 												item={item}
+												refusal={
+													connect ? acceptReason(item.kind, connect.port) : null
+												}
+												picking={connect?.pending ?? false}
 												key={item.id}
 												onAdd={onAdd}
 											/>
 										))}
 									</div>
-									{section.kind === "rule" && !searching ? (
+									{section.kind === "rule" && !allOpen ? (
 										<Button
 											className="ms-0.5 mt-1"
 											nativeButton={false}
@@ -412,29 +468,62 @@ function toolboxItemIcon(item: ToolboxItem) {
 function ToolboxRow({
 	item,
 	disabled,
+	refusal,
+	picking,
 	onAdd,
 }: {
 	item: ToolboxItem;
 	disabled: boolean;
+	refusal: string | null;
+	picking: boolean;
 	onAdd: (item: ToolboxItem) => void;
 }) {
+	const reasonId = useId();
+	const refused = refusal !== null;
 	const { listeners, setNodeRef, isDragging } = useDraggable({
 		id: item.id,
 		data: item,
-		disabled,
+		disabled: disabled || refused || picking,
 	});
+	const addButton = (
+		<Button
+			aria-describedby={refused ? reasonId : undefined}
+			aria-disabled={refused || undefined}
+			aria-label={`Add ${item.name}`}
+			className="static after:absolute after:inset-0 after:content-['']"
+			data-slot="item-link"
+			disabled={disabled}
+			size="icon-sm"
+			variant="ghost"
+		>
+			<Icon
+				className={cn(
+					"opacity-0 transition-opacity duration-(--dur-state) pointer-coarse:opacity-100",
+					!refused &&
+						"group-hover/item:opacity-100 group-has-[[data-slot=item-link]:focus-visible]/item:opacity-100",
+				)}
+				icon={Add}
+			/>
+		</Button>
+	);
 	return (
 		<Item
-			className={cn(!disabled && "cursor-grab", isDragging && "opacity-40")}
-			disabled={disabled}
-			onClick={disabled ? undefined : () => onAdd(item)}
+			className={cn(
+				!(disabled || refused || picking) && "cursor-grab",
+				isDragging && "opacity-40",
+			)}
+			disabled={disabled || refused}
+			onClick={disabled || refused ? undefined : () => onAdd(item)}
 			ref={setNodeRef}
 			size="sm"
-			title={item.description}
+			title={refused ? undefined : item.description}
 			{...listeners}
 		>
 			<ItemMedia>
-				<Icon className="text-text-2" icon={toolboxItemIcon(item)} />
+				<Icon
+					className={refused ? "text-text-disabled" : "text-text-2"}
+					icon={toolboxItemIcon(item)}
+				/>
 			</ItemMedia>
 			<ItemContent>
 				<ItemTitle>
@@ -442,21 +531,59 @@ function ToolboxRow({
 				</ItemTitle>
 			</ItemContent>
 			<ItemActions className="static -me-3">
-				<Button
-					aria-label={`Add ${item.name}`}
-					className="static after:absolute after:inset-0 after:content-['']"
-					data-slot="item-link"
-					disabled={disabled}
-					size="icon-sm"
-					variant="ghost"
-				>
-					<Icon
-						className="opacity-0 transition-opacity duration-(--dur-state) group-hover/item:opacity-100 group-has-[[data-slot=item-link]:focus-visible]/item:opacity-100 pointer-coarse:opacity-100"
-						icon={Add}
-					/>
-				</Button>
+				{refused ? (
+					<Tooltip>
+						<TooltipTrigger render={addButton} />
+						<TooltipContent side="right">{refusal}</TooltipContent>
+					</Tooltip>
+				) : (
+					addButton
+				)}
+				{refused ? (
+					<span className="sr-only" id={reasonId}>
+						{refusal}
+					</span>
+				) : null}
 			</ItemActions>
 		</Item>
+	);
+}
+
+function PortSummary({ node }: { node: WorkflowNode }) {
+	const inputs = inputSummary(node.type);
+	const outputs = outputPorts(node);
+	if (inputs.length === 0 && outputs.length === 0) {
+		return null;
+	}
+	return (
+		<dl className="flex shrink-0 flex-col gap-1 border-line-faint border-b px-3 py-2 type-caption">
+			{inputs.length > 0 ? (
+				<div className="flex items-center gap-2">
+					<dt className="w-6 text-text-3">In</dt>
+					<dd className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 text-text-2">
+						{inputs.map(({ look, label }) => (
+							<span className="inline-flex items-center gap-1.5" key={label}>
+								<PortGlyph look={{ ...look, io: "in" }} />
+								{label}
+							</span>
+						))}
+					</dd>
+				</div>
+			) : null}
+			{outputs.length > 0 ? (
+				<div className="flex items-center gap-2">
+					<dt className="w-6 text-text-3">Out</dt>
+					<dd className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 text-text-2">
+						{outputs.map((port) => (
+							<span className="inline-flex items-center gap-1.5" key={port}>
+								<PortGlyph look={{ ...outputLook(port), io: "out" }} />
+								{WORKFLOW_PORT_LABELS[port]}
+							</span>
+						))}
+					</dd>
+				</div>
+			) : null}
+		</dl>
 	);
 }
 
@@ -522,6 +649,7 @@ function StepProperties({
 					<span className="shrink-0 type-caption text-text-2">{kind}</span>
 				)}
 			</div>
+			<PortSummary node={node} />
 			<div
 				className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3"
 				ref={bodyRef}

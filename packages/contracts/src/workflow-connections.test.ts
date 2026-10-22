@@ -1,10 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import type { EdgeWhen, WorkflowNode } from "./workflow.ts";
 import {
+	acceptedPortKinds,
+	acceptReason,
+	canAccept,
 	connectionIssue,
 	edgePort,
 	outputPorts,
 	WORKFLOW_CONNECTIONS,
+	WORKFLOW_PORT_KIND,
+	WORKFLOW_PORT_TONE,
+	type WorkflowPort,
 } from "./workflow-connections.ts";
 
 const trigger: WorkflowNode = {
@@ -59,8 +65,7 @@ describe("connection matrix", () => {
 		expect(allowed(trigger, gate)).toBe(false);
 		expect(connectionIssue(trigger, gate, undefined)).toEqual({
 			on: "target",
-			message:
-				"a gate combines rule results, not trigger events. Connect the trigger to a rule first",
+			message: "Gates take results, not events",
 		});
 	});
 
@@ -88,16 +93,78 @@ describe("connection matrix", () => {
 
 	test("nothing enters a trigger and final actions have no outputs", () => {
 		expect(connectionIssue(rule, trigger, undefined)?.message).toBe(
-			"trigger cannot have inputs",
+			"Triggers take no inputs",
 		);
 		expect(connectionIssue(block, rule, undefined)).toEqual({
 			on: "source",
-			message: "only send-to-moderation actions may have outputs",
+			message: "only Human review steps have outputs",
 		});
 	});
 
 	test("ports a node does not have are refused", () => {
 		expect(allowed(trigger, rule, "fail")).toBe(false);
 		expect(allowed(rule, block, "approve")).toBe(false);
+	});
+});
+
+describe("port kinds", () => {
+	test("each port belongs to one kind and one tone", () => {
+		expect(WORKFLOW_PORT_KIND).toEqual({
+			event: "event",
+			pass: "result",
+			fail: "result",
+			approve: "decision",
+			deny: "decision",
+		});
+		expect(WORKFLOW_PORT_TONE.event).toBe("neutral");
+		expect(WORKFLOW_PORT_TONE.pass).toBe("ok");
+		expect(WORKFLOW_PORT_TONE.approve).toBe("ok");
+		expect(WORKFLOW_PORT_TONE.fail).toBe("fail");
+		expect(WORKFLOW_PORT_TONE.deny).toBe("fail");
+	});
+
+	test("accepted kinds per node type", () => {
+		expect(acceptedPortKinds("trigger")).toEqual([]);
+		expect(acceptedPortKinds("gate")).toEqual(["result"]);
+		expect(acceptedPortKinds("rule")).toEqual(["event", "result", "decision"]);
+		expect(acceptedPortKinds("action")).toEqual([
+			"event",
+			"result",
+			"decision",
+		]);
+	});
+});
+
+describe("accept reasons", () => {
+	const every: WorkflowPort[] = ["event", "pass", "fail", "approve", "deny"];
+
+	test("a reason exists exactly when the port is refused", () => {
+		for (const type of ["trigger", "rule", "gate", "action"] as const) {
+			for (const port of every) {
+				expect(acceptReason(type, port) === null).toBe(canAccept(type, port));
+			}
+		}
+	});
+
+	test("reasons are terse and name what the step takes", () => {
+		expect(acceptReason("gate", "event")).toBe(
+			"Gates take results, not events",
+		);
+		expect(acceptReason("gate", "fail")).toBe(
+			"Gates take only the Passes result",
+		);
+		expect(acceptReason("gate", "approve")).toBe(
+			"Gates take results, not decisions",
+		);
+		expect(acceptReason("trigger", "pass")).toBe("Triggers take no inputs");
+	});
+
+	test("validation reports the same reason the editor shows", () => {
+		expect(connectionIssue(rule, gate, "fail")?.message).toBe(
+			acceptReason("gate", "fail") ?? "",
+		);
+		expect(connectionIssue(moderation, gate, "deny")?.message).toBe(
+			acceptReason("gate", "deny") ?? "",
+		);
 	});
 });

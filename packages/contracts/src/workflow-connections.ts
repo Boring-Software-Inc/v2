@@ -27,12 +27,83 @@ export const WORKFLOW_CONNECTIONS = {
 	action: { accepts: EVERY_PORT },
 } satisfies Record<WorkflowNodeType, { accepts: readonly WorkflowPort[] }>;
 
-export const WORKFLOW_INPUT_LABELS = {
-	trigger: null,
-	rule: "Event or step result",
-	gate: "Rule or gate results",
-	action: "Event or step result",
-} satisfies Record<WorkflowNodeType, string | null>;
+export type WorkflowPortKind = "event" | "result" | "decision";
+
+export const WORKFLOW_PORT_KIND = {
+	event: "event",
+	pass: "result",
+	fail: "result",
+	approve: "decision",
+	deny: "decision",
+} satisfies Record<WorkflowPort, WorkflowPortKind>;
+
+export const WORKFLOW_PORT_KIND_LABELS = {
+	event: "Events",
+	result: "Results",
+	decision: "Decisions",
+} satisfies Record<WorkflowPortKind, string>;
+
+export type WorkflowPortTone = "neutral" | "ok" | "fail";
+
+export const WORKFLOW_PORT_TONE = {
+	event: "neutral",
+	pass: "ok",
+	fail: "fail",
+	approve: "ok",
+	deny: "fail",
+} satisfies Record<WorkflowPort, WorkflowPortTone>;
+
+const NODE_PLURALS = {
+	trigger: "Triggers",
+	rule: "Rules",
+	gate: "Gates",
+	action: "Actions",
+} satisfies Record<WorkflowNodeType, string>;
+
+export function acceptedPorts(
+	target: WorkflowNodeType,
+): readonly WorkflowPort[] {
+	return WORKFLOW_CONNECTIONS[target].accepts;
+}
+
+export function acceptedPortKinds(
+	target: WorkflowNodeType,
+): readonly WorkflowPortKind[] {
+	return [...new Set(acceptedPorts(target).map((p) => WORKFLOW_PORT_KIND[p]))];
+}
+
+export function canAccept(
+	target: WorkflowNodeType,
+	port: WorkflowPort,
+): boolean {
+	return acceptedPorts(target).includes(port);
+}
+
+export function acceptReason(
+	target: WorkflowNodeType,
+	port: WorkflowPort,
+): string | null {
+	if (canAccept(target, port)) {
+		return null;
+	}
+	const plural = NODE_PLURALS[target];
+	const kinds = acceptedPortKinds(target);
+	if (kinds.length === 0) {
+		return `${plural} take no inputs`;
+	}
+	const kind = WORKFLOW_PORT_KIND[port];
+	if (!kinds.includes(kind)) {
+		const taken = kinds
+			.map((k) => WORKFLOW_PORT_KIND_LABELS[k].toLowerCase())
+			.join(" or ");
+		return `${plural} take ${taken}, not ${WORKFLOW_PORT_KIND_LABELS[kind].toLowerCase()}`;
+	}
+	const labels = acceptedPorts(target)
+		.filter((p) => WORKFLOW_PORT_KIND[p] === kind)
+		.map((p) => WORKFLOW_PORT_LABELS[p])
+		.join(" or ");
+	return `${plural} take only the ${labels} result`;
+}
 
 export function outputPorts(node: WorkflowNode): readonly WorkflowPort[] {
 	switch (node.type) {
@@ -68,14 +139,11 @@ export function connectionIssue(
 	target: WorkflowNode,
 	when: EdgeWhen | undefined,
 ): ConnectionIssue | null {
-	if (target.type === "trigger") {
-		return { on: "target", message: "trigger cannot have inputs" };
-	}
 	const outputs = outputPorts(source);
 	if (outputs.length === 0) {
 		return {
 			on: "source",
-			message: "only send-to-moderation actions may have outputs",
+			message: "only Human review steps have outputs",
 		};
 	}
 	const port = edgePort(source, when);
@@ -84,31 +152,10 @@ export function connectionIssue(
 			on: "source",
 			message:
 				port === "approve" || port === "deny"
-					? "approve/deny edges may only leave send-to-moderation"
-					: `${source.type === "action" ? "send-to-moderation" : source.type} has no ${WORKFLOW_PORT_LABELS[port].toLowerCase()} output`,
+					? "Approved and Blocked edges may only leave Human review"
+					: `${source.type === "action" ? "Human review" : source.type} has no ${WORKFLOW_PORT_LABELS[port].toLowerCase()} output`,
 		};
 	}
-	const accepted: readonly WorkflowPort[] =
-		WORKFLOW_CONNECTIONS[target.type].accepts;
-	if (accepted.includes(port)) {
-		return null;
-	}
-	if (port === "event") {
-		return {
-			on: "target",
-			message:
-				"a gate combines rule results, not trigger events. Connect the trigger to a rule first",
-		};
-	}
-	if (port === "fail") {
-		return {
-			on: "target",
-			message:
-				"a gate reads each input's own result. Connect it from the passes output",
-		};
-	}
-	return {
-		on: "target",
-		message: "a gate combines rule results, not moderation decisions",
-	};
+	const reason = acceptReason(target.type, port);
+	return reason ? { on: "target", message: reason } : null;
 }

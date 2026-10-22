@@ -254,3 +254,207 @@ body {
 .glaze .react-flow__edges svg {
 	max-width: none;
 }
+
+.glaze [data-port-shape] {
+	--port-color: var(--ink-60);
+	--port-size: var(--space-3);
+	--port-turn: 0deg;
+	--port-radius: var(--radius-pill);
+}
+
+.glaze [data-port-tone="ok"] {
+	--port-color: var(--ok);
+}
+
+.glaze [data-port-tone="fail"] {
+	--port-color: var(--fail);
+}
+
+.glaze [data-port-shape="result"] {
+	--port-radius: var(--space-0-5);
+}
+
+.glaze [data-port-shape="decision"] {
+	--port-radius: var(--space-0-5);
+	--port-turn: 45deg;
+	--port-size: calc(var(--space-3) - var(--space-0-5));
+}
+
+.glaze .react-flow__handle[data-port-shape] {
+	display: grid;
+	place-items: center;
+	width: var(--space-6);
+	height: var(--space-6);
+	min-width: 0;
+	min-height: 0;
+	top: var(--space-1);
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	transform: none;
+}
+
+.glaze .react-flow__handle[data-port-io="in"] {
+	left: calc(var(--space-3) * -1);
+	right: auto;
+}
+
+.glaze .react-flow__handle[data-port-io="out"] {
+	right: calc(var(--space-3) * -1);
+	left: auto;
+}
+
+.glaze .react-flow__handle[data-port-slot="corner"] {
+	top: auto;
+	bottom: var(--space-1);
+}
+
+.glaze .react-flow__handle[data-port-shape]::after,
+.glaze [data-port-glyph] {
+	content: "";
+	box-sizing: border-box;
+	display: inline-block;
+	flex-shrink: 0;
+	width: var(--port-size);
+	height: var(--port-size);
+	border: var(--focus-width-sm) solid var(--port-color);
+	border-radius: var(--port-radius);
+	background-color: var(--port-color);
+	rotate: var(--port-turn);
+	pointer-events: none;
+	transition-property: width, height, background-color, border-color, outline-color;
+	transition-duration: var(--dur-state);
+	transition-timing-function: var(--ease-out);
+	outline: var(--line-width) solid transparent;
+	outline-offset: var(--focus-offset);
+}
+
+.glaze .react-flow__handle[data-port-io="in"]::after,
+.glaze [data-port-glyph][data-port-io="in"] {
+	background-color: var(--paper);
+}
+
+.glaze [data-drag-tone] {
+	--drag-color: var(--ink-60);
+}
+
+.glaze [data-drag-tone="ok"] {
+	--drag-color: var(--ok);
+}
+
+.glaze [data-drag-tone="fail"] {
+	--drag-color: var(--fail);
+}
+
+.glaze .react-flow__handle[data-drop="open"] {
+	--port-size: calc(var(--space-3) + var(--space-0-5));
+}
+
+.glaze .react-flow__handle[data-drop="open"]::after {
+	border-color: var(--drag-color, var(--port-color));
+	background-color: var(--drag-color, var(--port-color));
+	outline-color: var(--drag-color, var(--port-color));
+}
+
+.glaze .react-flow__handle[data-drop="open"].connectingto::after {
+	--port-size: var(--space-4);
+}
+
+.glaze .react-flow__handle[data-drop="closed"]::after {
+	border-style: dashed;
+	border-color: var(--line-strong);
+	background-color: var(--paper);
+}
+
+.glaze [data-drop-node] {
+	transition-property: opacity, border-color;
+	transition-duration: var(--dur-state);
+	transition-timing-function: var(--ease-out);
+}
+
+.glaze [data-drop-node="closed"] {
+	opacity: var(--stale);
+}
+
+.glaze [data-drop-node="open"] {
+	border-color: var(--line-strong);
+}
+
+.glaze .react-flow__edge-path[data-edge-tone] {
+	--edge-color: var(--ink-32);
+	stroke: var(--edge-color);
+	stroke-width: var(--focus-width-sm);
+	transition: stroke-width var(--dur-state) var(--ease-out);
+}
+
+.glaze .react-flow__edge-path[data-edge-tone="ok"] {
+	--edge-color: var(--ok);
+}
+
+.glaze .react-flow__edge-path[data-edge-tone="fail"] {
+	--edge-color: var(--fail);
+}
+
+.glaze .react-flow__edge-path[data-edge-kind="event"] {
+	stroke-dasharray: var(--space-1) var(--space-1);
+}
+
+.glaze .react-flow__edge.selected .react-flow__edge-path[data-edge-tone] {
+	stroke-width: calc(var(--focus-width) + var(--line-width));
+}
+
+.glaze .react-flow__connection-path[data-line-tone] {
+	--line-color: var(--ink-45);
+	stroke: var(--line-color);
+	stroke-width: var(--focus-width);
+	transition: stroke var(--dur-state) var(--ease-out);
+}
+
+.glaze .react-flow__connection-path[data-line-tone="ok"] {
+	--line-color: var(--ok);
+}
+
+.glaze .react-flow__connection-path[data-line-tone="fail"] {
+	--line-color: var(--fail);
+}
+
+.glaze .react-flow__connection-path[data-line-kind="event"] {
+	stroke-dasharray: var(--space-1) var(--space-1);
+}
+
+.glaze .react-flow__connection-path[data-line-status="invalid"] {
+	--line-color: var(--fail);
+	stroke-dasharray: none;
+}
+
+.glaze [data-pending-port] > * {
+	translate: -50% -50%;
+}
+
+.glaze [data-drop-hint] {
+	z-index: var(--z-raised);
+}
+
+.glaze [data-drop-hint] > * {
+	translate: calc(var(--space-3) * -1) calc(-100% - var(--space-4));
+	animation: drop-hint-in var(--dur-state) var(--ease-out);
+}
+
+@keyframes drop-hint-in {
+	from {
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.glaze .react-flow__handle[data-port-shape]::after,
+	.glaze [data-drop-node],
+	.glaze .react-flow__edge-path[data-edge-tone],
+	.glaze .react-flow__connection-path[data-line-tone] {
+		transition-duration: 0s;
+	}
+
+	.glaze [data-drop-hint] > * {
+		animation: none;
+	}
+}

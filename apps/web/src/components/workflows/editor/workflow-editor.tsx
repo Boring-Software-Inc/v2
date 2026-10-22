@@ -13,29 +13,37 @@ import type {
 	ValidationIssue,
 	WorkflowDefinition,
 	WorkflowNode,
+	WorkflowPort,
 } from "@tripwire/contracts";
 import {
+	acceptReason,
 	connectionIssue,
 	customValidationEntries,
+	edgePort,
 	RULE_CATALOG,
 	validateWorkflowForEnable,
+	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
 import {
 	addEdge,
 	type Connection,
+	type ConnectionState,
 	Controls,
 	type Edge,
 	type EdgeChange,
+	type FinalConnectionState,
+	type InternalNode,
 	type IsValidConnection,
 	type NodeChange,
 	ReactFlow,
 	ReactFlowProvider,
 	reconnectEdge,
+	useConnection,
 	useEdgesState,
 	useNodesState,
 	useReactFlow,
 } from "@xyflow/react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon, Pointer } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -57,6 +65,11 @@ import {
 } from "#/components/glaze/ui/item";
 import { Status, StatusMark } from "#/components/glaze/ui/status";
 import { toast } from "#/components/glaze/ui/toast";
+import {
+	type DragOrigin,
+	handlePort,
+	planDrag,
+} from "#/components/workflows/editor/connection-plan";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import {
 	buildNodeFromItem,
@@ -73,6 +86,14 @@ import {
 	NodeIssuesContext,
 } from "#/components/workflows/editor/node-issues";
 import {
+	DragPlanContext,
+	DropHint,
+	PendingConnection,
+	TypedConnectionLine,
+	TypedEdge,
+	type TypedFlowEdge,
+} from "#/components/workflows/editor/typed-connections";
+import {
 	definitionToGraph,
 	type EditorEdge,
 	type EditorNode,
@@ -83,6 +104,33 @@ import {
 import "@xyflow/react/dist/style.css";
 
 const NODE_TYPES = { tripwire: TripwireNode };
+const EDGE_TYPES = { typed: TypedEdge };
+const INPUT_HANDLE_OFFSET = { x: 0, y: 17 };
+
+export interface PendingConnect {
+	nodeId: string;
+	handleId: string | null;
+	port: WorkflowPort;
+	at: { x: number; y: number };
+}
+
+function selectOrigin(
+	connection: ConnectionState<InternalNode<TripwireFlowNode>>,
+): DragOrigin | null {
+	if (!connection.inProgress) {
+		return null;
+	}
+	return {
+		nodeId: connection.fromNode.id,
+		handleId: connection.fromHandle.id ?? null,
+		handleType: connection.fromHandle.type,
+	};
+}
+
+function eventPoint(event: MouseEvent | TouchEvent) {
+	const point = "changedTouches" in event ? event.changedTouches[0] : event;
+	return { x: point?.clientX ?? 0, y: point?.clientY ?? 0 };
+}
 const DELETE_KEYS = ["Backspace", "Delete"];
 const CANVAS_DROP_ID = "workflow-canvas";
 function fitViewOptions() {
@@ -198,7 +246,10 @@ function EditorBody({
 	);
 	const [dirty, setDirty] = useState(false);
 	const [dragged, setDragged] = useState<ToolboxItem | null>(null);
-	const { screenToFlowPosition } = useReactFlow();
+	const { getIntersectingNodes, screenToFlowPosition } =
+		useReactFlow<TripwireFlowNode>();
+	const [pending, setPending] = useState<PendingConnect | null>(null);
+	const reconnecting = useRef(false);
 	const leave = useBlocker({
 		shouldBlockFn: () => dirty && !readOnly,
 		enableBeforeUnload: () => dirty && !readOnly,
@@ -426,6 +477,121 @@ function EditorBody({
 		[nodes],
 	);
 
+	const origin = useConnection(selectOrigin);
+	const workflowNodes = useMemo(() => nodes.map((n) => n.data.node), [nodes]);
+	const plan = useMemo(
+		() => (origin ? planDrag(origin, workflowNodes) : null),
+		[origin, workflowNodes],
+	);
+
+	const flowEdges = useMemo(() => {
+		const byId = new Map(workflowNodes.map((node) => [node.id, node]));
+		return edges.map((edge): TypedFlowEdge => {
+			const source = byId.get(edge.source);
+			return {
+				...edge,
+				type: "typed",
+				data: {
+					...edge.data,
+					port: source
+						? edgePort(source, handleWhen(edge.sourceHandle))
+						: "pass",
+				},
+			};
+		});
+	}, [edges, workflowNodes]);
+
+	const onConnectEnd = useCallback(
+		(event: MouseEvent | TouchEvent, state: FinalConnectionState) => {
+			const { fromHandle } = state;
+			const fromNode = nodes.find((n) => n.id === state.fromNode?.id);
+			if (
+				reconnecting.current ||
+				readOnly ||
+				state.isValid ||
+				state.toHandle ||
+				!(fromHandle && fromNode) ||
+				fromHandle.type !== "source"
+			) {
+				return;
+			}
+			const point = eventPoint(event);
+			const at = screenToFlowPosition(point);
+			const port = handlePort(fromNode.data.node, fromHandle.id);
+			const overToolbox =
+				document
+					.elementFromPoint(point.x, point.y)
+					?.closest("[data-toolbox]") != null;
+			const hit = overToolbox
+				? undefined
+				: getIntersectingNodes({ ...at, width: 1, height: 1 }).at(-1);
+			if (hit) {
+				if (
+					hit.id !== fromNode.id &&
+					acceptReason(hit.data.node.type, port) === null
+				) {
+					onConnect({
+						source: fromNode.id,
+						sourceHandle: fromHandle.id ?? null,
+						target: hit.id,
+						targetHandle: null,
+					});
+				}
+				return;
+			}
+			setPending({
+				nodeId: fromNode.id,
+				handleId: fromHandle.id ?? null,
+				port,
+				at,
+			});
+		},
+		[getIntersectingNodes, nodes, onConnect, readOnly, screenToFlowPosition],
+	);
+
+	const cancelPending = useCallback(() => setPending(null), []);
+
+	useEffect(() => {
+		if (!pending) {
+			return;
+		}
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				setPending(null);
+			}
+		};
+		window.addEventListener("keydown", onKey);
+		return () => window.removeEventListener("keydown", onKey);
+	}, [pending]);
+
+	const connectPending = (item: ToolboxItem) => {
+		if (!pending) {
+			return;
+		}
+		const node = buildNodeFromItem(item);
+		const sourceExists = nodes.some((n) => n.id === pending.nodeId);
+		if (!sourceExists || acceptReason(node.type, pending.port) !== null) {
+			return;
+		}
+		insertNode(node, {
+			x: pending.at.x - INPUT_HANDLE_OFFSET.x,
+			y: pending.at.y - INPUT_HANDLE_OFFSET.y,
+		});
+		onConnect({
+			source: pending.nodeId,
+			sourceHandle: pending.handleId,
+			target: node.id,
+			targetHandle: null,
+		});
+		setPending(null);
+	};
+
+	const toolboxConnect = pending
+		? { port: pending.port, pending: true }
+		: plan?.direction === "out" && plan.port
+			? { port: plan.port, pending: false }
+			: null;
+
 	const clearSelection = useCallback(() => {
 		setNodes((current) => current.map((n) => ({ ...n, selected: false })));
 	}, [setNodes]);
@@ -475,6 +641,10 @@ function EditorBody({
 	/** click-to-add fallback: below the current graph, never on top of it. */
 	const addAtFreePosition = (item: ToolboxItem) => {
 		if (readOnly) {
+			return;
+		}
+		if (pending) {
+			connectPending(item);
 			return;
 		}
 		const y =
@@ -572,37 +742,58 @@ function EditorBody({
 					<CustomRuleNamesContext.Provider value={customRuleNames}>
 						<NodeIssuesContext.Provider value={issuesByNode}>
 							<EditFieldContext.Provider value={editField}>
-								<ReactFlow
-									deleteKeyCode={readOnly ? null : DELETE_KEYS}
-									onBeforeDelete={readOnly ? undefined : onBeforeDelete}
-									edges={edges}
-									edgesReconnectable={!readOnly}
-									elementsSelectable
-									fitView
-									fitViewOptions={fitViewOptions()}
-									isValidConnection={isValidConnection}
-									nodes={nodes}
-									nodesConnectable={!readOnly}
-									nodesDraggable={!readOnly}
-									nodeTypes={NODE_TYPES}
-									onConnect={readOnly ? undefined : onConnect}
-									onEdgesChange={onEdgesChange}
-									onNodesChange={onNodesChange}
-									onReconnect={readOnly ? undefined : onReconnect}
-									proOptions={{ hideAttribution: true }}
-									style={CANVAS_TOKENS}
-								>
-									<Controls
-										className="!m-3 overflow-hidden rounded-overlay border border-line"
-										position="bottom-right"
-										showInteractive={false}
-									/>
-								</ReactFlow>
+								<DragPlanContext.Provider value={plan}>
+									<ReactFlow
+										connectionLineComponent={TypedConnectionLine}
+										data-drag-tone={
+											plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
+										}
+										deleteKeyCode={readOnly ? null : DELETE_KEYS}
+										onBeforeDelete={readOnly ? undefined : onBeforeDelete}
+										edges={flowEdges}
+										edgeTypes={EDGE_TYPES}
+										edgesReconnectable={!readOnly}
+										elementsSelectable
+										fitView
+										fitViewOptions={fitViewOptions()}
+										isValidConnection={isValidConnection}
+										nodes={nodes}
+										nodesConnectable={!readOnly}
+										nodesDraggable={!readOnly}
+										nodeTypes={NODE_TYPES}
+										onConnect={readOnly ? undefined : onConnect}
+										onConnectEnd={onConnectEnd}
+										onConnectStart={cancelPending}
+										onNodeClick={cancelPending}
+										onPaneClick={cancelPending}
+										onReconnectEnd={() => {
+											reconnecting.current = false;
+										}}
+										onReconnectStart={() => {
+											reconnecting.current = true;
+										}}
+										onEdgesChange={onEdgesChange}
+										onNodesChange={onNodesChange}
+										onReconnect={readOnly ? undefined : onReconnect}
+										proOptions={{ hideAttribution: true }}
+										style={CANVAS_TOKENS}
+									>
+										<Controls
+											className="!m-3 overflow-hidden rounded-overlay border border-line"
+											position="bottom-right"
+											showInteractive={false}
+										/>
+										<DropHint />
+										{pending ? <PendingConnection {...pending} /> : null}
+									</ReactFlow>
+								</DragPlanContext.Provider>
 							</EditFieldContext.Provider>
 						</NodeIssuesContext.Provider>
 					</CustomRuleNamesContext.Provider>
 					<EditorSidebar
+						connect={toolboxConnect}
 						customRules={customRules}
+						onCancelConnect={cancelPending}
 						fieldFocus={fieldFocus}
 						onFieldFocused={() => setFieldFocus(null)}
 						org={org}
