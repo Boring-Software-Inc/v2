@@ -1,20 +1,22 @@
 import type { EventKind, NormalizedEvent } from "@tripwire/contracts";
 import { verdictStatus } from "#/components/activity/verdict-chip";
+import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { Avatar } from "#/components/glaze/ui/avatar";
 import { Badge } from "#/components/glaze/ui/badge";
 import {
 	Item,
+	ItemActions,
 	ItemContent,
 	ItemDescription,
-	ItemLink,
 	ItemMedia,
 	ItemMeta,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
 import { Status } from "#/components/glaze/ui/status";
 import type { ActivityItem } from "#/lib/activity.functions";
+import { eventForgeLink } from "#/lib/activity-links";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 
 const KIND_LABEL: Record<EventKind, string> = {
@@ -28,19 +30,6 @@ const KIND_LABEL: Record<EventKind, string> = {
 	"installation-repositories.added": "gave Tripwire access to",
 	"installation-repositories.removed": "took Tripwire access from",
 };
-
-function eventUrl(event: NormalizedEvent): string | null {
-	if ("changeRequest" in event) {
-		return event.changeRequest.url;
-	}
-	if (event.kind === "comment.created") {
-		return event.comment.url;
-	}
-	if (event.kind === "push") {
-		return event.push.url ?? null;
-	}
-	return null;
-}
 
 function subjectLine(event: NormalizedEvent): string {
 	if ("installation" in event) {
@@ -75,7 +64,7 @@ export function ActivityRow({
 }) {
 	const { event, run, pending } = item;
 	const hasRun = run !== null;
-	const url = eventUrl(event);
+	const forgeLink = eventForgeLink(event);
 
 	const text = (
 		<>
@@ -104,10 +93,6 @@ export function ActivityRow({
 						<ItemRouterLink params={{ runId: run.runId }} to="/runs/$runId">
 							{text}
 						</ItemRouterLink>
-					) : url ? (
-						<ItemLink href={url} rel="noreferrer" target="_blank">
-							{text}
-						</ItemLink>
 					) : (
 						<span>{text}</span>
 					)}
@@ -131,6 +116,11 @@ export function ActivityRow({
 			<ItemMeta className="w-14 text-end">
 				{formatRelativeTime(event.occurredAt)}
 			</ItemMeta>
+			<ItemActions className="w-14 justify-end">
+				{forgeLink ? (
+					<ForgeLinkButton forge={event.forge} link={forgeLink} />
+				) : null}
+			</ItemActions>
 		</Item>
 	);
 }

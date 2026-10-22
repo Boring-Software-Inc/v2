@@ -54,6 +54,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 
 	// ── member (org-scoped reads + self-scoped org actions) ─────────────
 	getOrgContext: "member",
+	rememberActiveOrg: "member",
 	getOrgRepoContext: "member",
 	getOrgAnalyticsSummary: "member",
 	getOrgHomeState: "member",

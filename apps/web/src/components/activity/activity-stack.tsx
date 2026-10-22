@@ -3,15 +3,16 @@ import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
 import { VerdictChip, verdictStatus } from "#/components/activity/verdict-chip";
 import { EntityCard } from "#/components/common/entity-card";
+import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Item,
+	ItemActions,
 	ItemContent,
 	ItemGroup,
-	ItemLink,
 	ItemMeta,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
@@ -22,22 +23,10 @@ import {
 	statusVariants,
 } from "#/components/glaze/ui/status";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
+import { changeRequestForgeLink, eventForgeLink } from "#/lib/activity-links";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 
 const VISIBLE = 10;
-
-function entryUrl(event: NormalizedEvent): string | null {
-	if ("changeRequest" in event) {
-		return event.changeRequest.url;
-	}
-	if (event.kind === "comment.created") {
-		return event.comment.url;
-	}
-	if (event.kind === "push") {
-		return event.push.url ?? null;
-	}
-	return null;
-}
 
 function isTripwireComment(event: NormalizedEvent): boolean {
 	return event.kind === "comment.created" && event.comment.byTripwire === true;
@@ -97,7 +86,7 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 				variant="plain"
 			>
 				{visible.map((entry) => (
-					<EntryRow entry={entry} key={entry.event.id} />
+					<EntryRow entry={entry} groupUrl={group.url} key={entry.event.id} />
 				))}
 			</ItemGroup>
 		</EntityCard>
@@ -121,18 +110,6 @@ function StackTitle({ group }: { group: ActivityGroup }) {
 			</Link>
 		);
 	}
-	if (group.url) {
-		return (
-			<a
-				className="hover:underline"
-				href={group.url}
-				rel="noreferrer"
-				target="_blank"
-			>
-				{title}
-			</a>
-		);
-	}
 	return title;
 }
 
@@ -148,20 +125,38 @@ function StackDescription({ group }: { group: ActivityGroup }) {
 
 function StackStatus({ group }: { group: ActivityGroup }) {
 	const evaluating = group.currentRunId != null && group.currentVerdict == null;
-	return evaluating ? (
-		<Status size="sm" status="running">
-			Checking again
-		</Status>
-	) : (
-		<VerdictChip verdict={group.currentVerdict} />
+	const forge = group.timeline[0]?.event.forge;
+	const forgeLink = forge
+		? changeRequestForgeLink(forge, group.subjectNumber, group.url)
+		: null;
+	return (
+		<>
+			{evaluating ? (
+				<Status size="sm" status="running">
+					Checking again
+				</Status>
+			) : (
+				<VerdictChip verdict={group.currentVerdict} />
+			)}
+			{forge && forgeLink ? (
+				<ForgeLinkButton forge={forge} link={forgeLink} />
+			) : null}
+		</>
 	);
 }
 
-function EntryRow({ entry }: { entry: ActivityItem }) {
+function EntryRow({
+	entry,
+	groupUrl,
+}: {
+	entry: ActivityItem;
+	groupUrl: string | null;
+}) {
 	const { event, run, pending } = entry;
 	const ours = isTripwireComment(event);
 	const runId = run?.runId ?? null;
-	const url = entryUrl(event);
+	const eventLink = runId ? null : eventForgeLink(event);
+	const forgeLink = eventLink?.href === groupUrl ? null : eventLink;
 	const reevaluating = run?.status === "queued" || run?.status === "running";
 	const note = reevaluating ? "Checking again" : (run?.reason ?? null);
 	const text = (
@@ -182,10 +177,6 @@ function EntryRow({ entry }: { entry: ActivityItem }) {
 						<ItemRouterLink params={{ runId }} to="/runs/$runId">
 							{text}
 						</ItemRouterLink>
-					) : url ? (
-						<ItemLink href={url} rel="noreferrer" target="_blank">
-							{text}
-						</ItemLink>
 					) : (
 						<span>{text}</span>
 					)}
@@ -201,6 +192,11 @@ function EntryRow({ entry }: { entry: ActivityItem }) {
 			<ItemMeta className="w-14 text-end">
 				{formatRelativeTime(event.occurredAt)}
 			</ItemMeta>
+			<ItemActions className="w-14 justify-end">
+				{forgeLink ? (
+					<ForgeLinkButton forge={event.forge} link={forgeLink} />
+				) : null}
+			</ItemActions>
 		</Item>
 	);
 }
