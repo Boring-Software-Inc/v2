@@ -241,10 +241,10 @@ function BlockButton({
 			</DialogTrigger>
 			<DialogContent size="sm">
 				<DialogHeader>
-					<DialogTitle>Block {name}?</DialogTitle>
+					<DialogTitle>Block {name}</DialogTitle>
 					<DialogDescription>
-						Tripwire fails its check and requests changes on GitHub. The change
-						request stays open.
+						Tripwire will fail its check and request changes on GitHub. The
+						change request stays open. Block it?
 					</DialogDescription>
 				</DialogHeader>
 				<DialogFooter>
