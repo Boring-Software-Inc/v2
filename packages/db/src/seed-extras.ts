@@ -465,9 +465,9 @@ function workflowCatalog(): WorkflowDefinition[] {
 			],
 		);
 	});
-	const triggers = TRIGGER_CATALOG.filter((entry) => entry.toolbox).map(
-		(entry) => cryptoBlocks(`trigger: ${entry.name}`, [entry.kind]),
-	);
+	const triggers = TRIGGER_CATALOG.filter(
+		(entry) => entry.toolbox && entry.kind !== "schedule.matched",
+	).map((entry) => cryptoBlocks(`trigger: ${entry.name}`, [entry.kind]));
 	return [...rules, ...gates, ...triggers];
 }
 

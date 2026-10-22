@@ -34,6 +34,7 @@ export interface CreateRunInput {
 	eventId: string;
 	repoFullName: string;
 	subjectNumber: number | null;
+	subjectKind?: "issue" | "change-request" | null;
 	headSha: string | null;
 	/** Every workflow definition that fired, joined into ONE run (§5.11). */
 	snapshot: WorkflowDefinition[];
@@ -57,6 +58,7 @@ export async function createRun(db: Db, input: CreateRunInput) {
 		eventId: input.eventId,
 		repoFullName: input.repoFullName,
 		subjectNumber: input.subjectNumber,
+		subjectKind: input.subjectKind ?? null,
 		headSha: input.headSha,
 		status: input.status,
 		verdict: input.verdict,

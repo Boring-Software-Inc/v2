@@ -96,7 +96,9 @@ export async function markEventNormalized(
 			? valid.changeRequest.number
 			: "comment" in valid
 				? valid.comment.subjectNumber
-				: null;
+				: "thread" in valid
+					? valid.thread.number
+					: null;
 	const headSha =
 		"changeRequest" in valid
 			? valid.changeRequest.headSha

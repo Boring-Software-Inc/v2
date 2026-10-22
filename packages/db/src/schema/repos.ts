@@ -6,6 +6,7 @@ import {
 	integer,
 	jsonb,
 	pgTable,
+	primaryKey,
 	text,
 	timestamp,
 	uniqueIndex,
@@ -190,3 +191,16 @@ export const workflowDefinitions = pgTable("workflow_definitions", {
 		.notNull()
 		.defaultNow(),
 });
+
+export const workflowScheduleState = pgTable(
+	"workflow_schedule_state",
+	{
+		workflowId: text("workflow_id")
+			.notNull()
+			.references(() => workflowDefinitions.id, { onDelete: "cascade" }),
+		nodeId: text("node_id").notNull(),
+		lastTickAt: timestamp("last_tick_at", { withTimezone: true }).notNull(),
+		lastError: text("last_error"),
+	},
+	(t) => [primaryKey({ columns: [t.workflowId, t.nodeId] })],
+);

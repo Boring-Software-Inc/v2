@@ -116,6 +116,8 @@ export * as responseServices from "./services/responses.ts";
 export type { RepoReviewerList } from "./services/reviewers.ts";
 export * as reviewerServices from "./services/reviewers.ts";
 export * as runServices from "./services/runs.ts";
+export type { DueSchedule } from "./services/schedules.ts";
+export * as scheduleServices from "./services/schedules.ts";
 export type {
 	StaffInstallationList,
 	StaffInstallationRow,
