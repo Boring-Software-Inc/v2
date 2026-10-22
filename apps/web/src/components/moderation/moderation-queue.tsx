@@ -1,7 +1,6 @@
 import {
 	queryOptions,
 	useMutation,
-	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -48,10 +47,12 @@ import {
 } from "#/components/glaze/ui/item";
 import { toast } from "#/components/glaze/ui/toast";
 import { MascotArt } from "#/components/mascot/mascot-art";
+import { isCommentItem } from "#/components/moderation/moderation-collection";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import {
 	decideModeration,
 	listModerationQueue,
+	type ModerationQueueItem,
 } from "#/lib/moderation-queue.functions";
 
 export const moderationQueueKeys = {
@@ -68,17 +69,48 @@ export const moderationQueueOptions = (org: string, repo: string) =>
 		staleTime: 5_000,
 	});
 
+export function ModerationQueueEmpty({
+	org,
+	repo,
+}: {
+	org: string;
+	repo: string;
+}) {
+	return (
+		<Empty art={<MascotArt mood="moderation-queue-empty" />}>
+			<EmptyHeader>
+				<EmptyTitle>Nothing to decide</EmptyTitle>
+				<EmptyDescription>
+					Change requests that need human review wait here for you to approve or
+					block.
+				</EmptyDescription>
+			</EmptyHeader>
+			<EmptyContent>
+				<Button
+					nativeButton={false}
+					render={<Link params={{ org, repo }} to="/$org/$repo/activity" />}
+					size="sm"
+					variant="secondary"
+				>
+					View activity
+				</Button>
+			</EmptyContent>
+		</Empty>
+	);
+}
+
 export function ModerationQueue({
 	org,
 	repo,
+	items,
 	title,
 }: {
 	org: string;
 	repo: string;
+	items: ModerationQueueItem[];
 	title: ReactNode;
 }) {
 	const queryClient = useQueryClient();
-	const { data: items } = useQuery(moderationQueueOptions(org, repo));
 	const decide = useMutation({
 		mutationFn: decideModeration,
 		onError: () =>
@@ -91,41 +123,17 @@ export function ModerationQueue({
 			}),
 	});
 
-	if (items && items.length === 0) {
-		return (
-			<Empty art={<MascotArt mood="moderation-queue-empty" />}>
-				<EmptyHeader>
-					<EmptyTitle>Nothing to decide</EmptyTitle>
-					<EmptyDescription>
-						Change requests that need human review wait here for you to approve
-						or block.
-					</EmptyDescription>
-				</EmptyHeader>
-				<EmptyContent>
-					<Button
-						nativeButton={false}
-						render={<Link params={{ org, repo }} to="/$org/$repo/activity" />}
-						size="sm"
-						variant="secondary"
-					>
-						View activity
-					</Button>
-				</EmptyContent>
-			</Empty>
-		);
-	}
-
 	return (
 		<EntityCard flush title={title}>
 			<ScrollList label="Human review">
 				<ItemGroup aria-label="Human review" variant="plain">
-					{items?.map((item) => {
+					{items.map((item) => {
 						const number = item.subjectNumber ? `#${item.subjectNumber}` : null;
 						const subject = number
 							? `${number} in ${item.repoFullName}`
 							: item.repoFullName;
 						const name = number ?? "this change request";
-						const comment = item.eventKind === "comment.created";
+						const comment = isCommentItem(item);
 						return (
 							<Item key={item.id}>
 								<ItemMedia variant="icon">
