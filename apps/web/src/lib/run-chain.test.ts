@@ -90,7 +90,7 @@ function view(overrides: Partial<RunView> = {}): RunView {
 			},
 			{ kind: "block", status: "executed", recordedAt: AT, url: null },
 			{
-				kind: "discord",
+				kind: "webhook",
 				status: "executed",
 				recordedAt: AT,
 				url: null,
@@ -173,7 +173,7 @@ describe("buildRunChain, a blocked run with two workflows", () => {
 			["Failed the tripwire check", "https://github.com/acme/scratch/runs/9"],
 			["Requested changes", null],
 			["Commented", "https://github.com/acme/scratch/pull/91#issuecomment-5"],
-			["Sent to Discord", null],
+			["Sent to a webhook", null],
 		]);
 	});
 });
@@ -457,6 +457,6 @@ describe("redaction", () => {
 
 	test("members see every chip at any level", () => {
 		const labels = outcomeChips(toFullRunView(view())).map((c) => c.label);
-		expect(labels).toContain("Sent to Discord");
+		expect(labels).toContain("Sent to a webhook");
 	});
 });

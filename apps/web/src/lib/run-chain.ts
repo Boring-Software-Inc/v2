@@ -447,13 +447,10 @@ export function outcomeChips(run: RunView): ChainChip[] {
 	);
 	for (const action of ordered) {
 		const key = `${action.kind}-${action.recordedAt}`;
-		if (action.kind === "discord" || action.kind === "webhook") {
+		if (action.kind === "webhook") {
 			chips.push({
 				key,
-				label: deliveryLabel(
-					action.kind === "discord" ? "Discord" : "a webhook",
-					action,
-				),
+				label: deliveryLabel("a webhook", action),
 				glyph: "send",
 				tone: "neutral",
 				href: null,
