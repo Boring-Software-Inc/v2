@@ -4,6 +4,7 @@ import {Toggle as TogglePrimitive} from '@base-ui/react/toggle';
 import {cva} from 'class-variance-authority';
 import type {ComponentProps, KeyboardEvent, MouseEvent, ReactNode, RefObject} from 'react';
 import {Icon, Close} from '#/components/glaze/icon.tsx';
+import {toolbarControlClass, toolbarControlShape, toolbarControlSurface} from '#/lib/glaze/control.ts';
 import {cn} from '#/lib/glaze/utils.ts';
 
 // Glaze's chip: the small pill a person acts on. Two jobs share one look and one size, 26px (--control-sm), so a chip
@@ -19,26 +20,17 @@ import {cn} from '#/lib/glaze/utils.ts';
 // ChipGroup is a row 4px apart that wraps; it is also the scope removal moves focus within.
 
 const chipVariants = cva([
-  'group/chip relative inline-flex h-(--control-sm) focus-sm max-w-full min-w-0 shrink-0 items-center gap-1 rounded-pill border whitespace-nowrap select-none',
-  'type-label-sm transition-[background-color,border-color,color,scale] duration-(--dur-state) ease-out',
-  '[&_svg]:pointer-events-none [&_svg]:size-(--icon-sm) [&_svg]:shrink-0 [&_svg]:text-text-3',
-  'forced-colors:border-[ButtonText]',
+  'group/chip relative focus-sm', toolbarControlShape,
+  'transition-[background-color,border-color,color,scale] duration-(--dur-state) ease-out',
 ]);
 
-const toggleClasses = [
-  'cursor-pointer px-2.5 [-webkit-tap-highlight-color:transparent]',
-  'border-line-control bg-paper text-text-1',
-  'hover:not-data-disabled:border-line-focus active:not-data-disabled:scale-(--scale-press) active:duration-(--dur-press)',
-  'data-pressed:border-line-focus data-pressed:bg-pressed data-pressed:[&_svg]:text-text-1',
-  'data-disabled:cursor-not-allowed data-disabled:border-line-faint data-disabled:text-text-disabled',
-  'forced-colors:data-pressed:border-2',
-].join(' ');
+const toggleClasses = toolbarControlClass;
 
-const valueClasses = [
-  'ps-2.5 pe-(--shell-inset) border-line-control bg-paper text-text-1',
+const valueClasses = cn(
+  toolbarControlSurface, 'ps-2.5 pe-(--shell-inset)',
   'data-invalid:border-fail',
   'data-disabled:border-line-faint data-disabled:text-text-disabled',
-].join(' ');
+);
 
 /** The remove button 3px inside a value chip's end. Exported for the combobox's chips, which are this chip on Base UI's parts. */
 const chipRemoveClasses = cn(

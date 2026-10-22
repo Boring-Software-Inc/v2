@@ -4,7 +4,7 @@ import { useState } from "react";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { Button } from "#/components/glaze/ui/button";
-import { Input } from "#/components/glaze/ui/input";
+import { FilterBarSearch } from "#/components/glaze/ui/filter-bar";
 import { PaginationInfo } from "#/components/glaze/ui/pagination";
 import {
 	SegmentedControl,
@@ -65,6 +65,7 @@ export function AdminReposPage() {
 	const toolbar = (
 		<>
 			<SegmentedControl
+				size="sm"
 				aria-label="Protection"
 				onValueChange={(value) => setStatus(String(value))}
 				value={status ?? "all"}
@@ -75,16 +76,14 @@ export function AdminReposPage() {
 					</SegmentedControlItem>
 				))}
 			</SegmentedControl>
-			<Input
+			<FilterBarSearch
 				aria-label="Search repos"
-				className="ms-auto w-full sm:w-56"
-				mode="search"
+				className="ms-auto w-full sm:w-56 sm:flex-none"
 				onValueChange={(value) => {
 					setSearch(value);
 					setOffset(0);
 				}}
 				placeholder="Owner or name"
-				size="sm"
 				value={search}
 			/>
 		</>

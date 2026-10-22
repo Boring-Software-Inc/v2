@@ -1,10 +1,11 @@
 'use client';
 
 import * as React from 'react';
+import {Button as ButtonPrimitive} from '@base-ui/react/button';
 import {Icon, Add, ChevronDown} from '#/components/glaze/icon.tsx';
-import {cn} from '#/lib/glaze/utils.ts';
-import {Button} from '#/components/glaze/ui/button.tsx';
-import {Chip, ChipGroup, chipToggleClasses, chipVariants, type ChipProps} from '#/components/glaze/ui/chip.tsx';
+import {toolbarControlClass, toolbarFieldClass, toolbarFieldControlClass} from '#/lib/glaze/control.ts';
+import {cn, mergeClass} from '#/lib/glaze/utils.ts';
+import {Chip, ChipGroup, type ChipProps} from '#/components/glaze/ui/chip.tsx';
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuRadioGroup,
   DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -45,7 +46,7 @@ function FilterBar({className, ...props}: React.ComponentProps<'div'>) {
 
 // ---------- Search ----------
 
-type FilterBarSearchProps = Omit<SearchModeProps, 'mode' | 'value' | 'defaultValue' | 'onValueChange' | 'shortcut' | 'shortcutOwner'> & {
+type FilterBarSearchProps = Omit<SearchModeProps, 'mode' | 'size' | 'value' | 'defaultValue' | 'onValueChange' | 'shortcut' | 'shortcutOwner'> & {
   value: string;
   onValueChange: (value: string) => void;
   /** The key that focuses the search from anywhere outside a field, dialog or menu. null turns it off. */
@@ -53,15 +54,16 @@ type FilterBarSearchProps = Omit<SearchModeProps, 'mode' | 'value' | 'defaultVal
 };
 
 /** The bar's search: Input's search mode at 26px, named by its placeholder, filling the row's spare width; its own row when the bar is narrow. */
-function FilterBarSearch({shortcut = '/', placeholder = 'Search', size = 'sm', className, 'aria-label': ariaLabel, ...props}: FilterBarSearchProps) {
+function FilterBarSearch({shortcut = '/', placeholder = 'Search', className, controlClassName, 'aria-label': ariaLabel, ...props}: FilterBarSearchProps) {
   return <Input
     mode="search"
-    size={size}
+    size="sm"
     shortcut={shortcut ?? undefined}
     placeholder={placeholder}
     aria-label={ariaLabel ?? placeholder}
     aria-keyshortcuts={shortcut ?? undefined}
-    className={cn('w-auto min-w-32 flex-1 basis-40 @max-md:basis-full', className)}
+    className={cn(toolbarFieldClass, 'w-auto min-w-32 flex-1 basis-40 @max-md:basis-full', className)}
+    controlClassName={cn(toolbarFieldControlClass, controlClassName)}
     {...props}
   />;
 }
@@ -108,11 +110,22 @@ function FilterToggle(props: Extract<ChipProps, {onRemove?: undefined}>) {
   return <Chip data-filter-toggle="" {...props}/>;
 }
 
-/** Clears everything. Render it only while something is set; it hands focus to the search when it goes. */
-function FilterBarClear({className, children = 'Clear all', onClick, ...props}: Omit<React.ComponentProps<typeof Button>, 'variant' | 'size'>) {
-  return <Button
-    variant="ghost"
-    size="sm"
+type FilterBarButtonProps = ButtonPrimitive.Props & {
+  active?: boolean;
+};
+
+function FilterBarButton({active, className, ...props}: FilterBarButtonProps) {
+  return <ButtonPrimitive
+    data-slot="filter-bar-button"
+    data-active={active || undefined}
+    className={mergeClass(toolbarControlClass, className)}
+    {...props}
+  />;
+}
+
+/** Clears everything. Render it only while something differs from its default; it hands focus to the search when it goes. */
+function FilterBarClear({className, children = 'Clear all', onClick, ...props}: Omit<FilterBarButtonProps, 'active'>) {
+  return <FilterBarButton
     data-slot="filter-bar-clear"
     onClick={event => {
       const bar = (event.currentTarget as HTMLElement).closest('[data-slot=filter-bar]');
@@ -122,9 +135,9 @@ function FilterBarClear({className, children = 'Clear all', onClick, ...props}: 
         bar?.querySelector<HTMLElement>('[data-mode=search] [data-control], [data-slot=filter-bar-select]')?.focus();
       });
     }}
-    className={cn('px-2 text-text-2', className)}
+    className={className}
     {...props}
-  >{children}</Button>;
+  >{children}</FilterBarButton>;
 }
 
 /**
@@ -173,8 +186,18 @@ type FilterBarSelectBase = {
   /** Opens with the menu open, for a still picture. */
   defaultOpen?: boolean;
 };
-type FilterBarSelectSingle = FilterBarSelectBase & {multiple?: false; value?: string | null; defaultValue?: string | null; onValueChange?: (value: string | null) => void};
-type FilterBarSelectMultiple = FilterBarSelectBase & {multiple: true; value?: string[]; defaultValue?: string[]; onValueChange?: (value: string[]) => void};
+type FilterBarSelectSingle = FilterBarSelectBase & {
+  multiple?: false;
+  value?: string | null;
+  defaultValue?: string | null;
+  onValueChange?: (value: string | null) => void;
+};
+type FilterBarSelectMultiple = FilterBarSelectBase & {
+  multiple: true;
+  value?: string[];
+  defaultValue?: string[];
+  onValueChange?: (value: string[]) => void;
+};
 type FilterBarSelectProps = FilterBarSelectSingle | FilterBarSelectMultiple;
 
 const ALL = '__all__';
@@ -188,10 +211,9 @@ function useControllable<T>(value: T | undefined, defaultValue: T, onChange?: (v
   return [current, set] as const;
 }
 
-/** The chip a filter menu opens from: the toggle chip's look, pressed while the filter is set, with a caret. */
+/** The chip a filter menu opens from: the toolbar control's look, pressed while its value differs from its default, with a caret. */
 const chipTriggerClass = cn(
-  chipVariants(), chipToggleClasses, 'pe-2',
-  'data-active:border-line-focus data-active:bg-pressed data-active:[&_svg]:text-text-1 data-popup-open:border-line-focus',
+  toolbarControlClass, 'pe-2',
   '[&_[data-slot=chip-caret]]:transition-transform [&_[data-slot=chip-caret]]:duration-(--dur-state) data-popup-open:[&_[data-slot=chip-caret]]:rotate-180',
 );
 
@@ -213,10 +235,11 @@ function FilterBarSelect(props: FilterBarSelectProps) {
   const [many, setMany] = useControllable<string[]>(props.multiple ? props.value : undefined, props.multiple ? props.defaultValue ?? [] : [], props.multiple ? props.onValueChange : undefined);
 
   const chosen = props.multiple ? many : single ? [single] : [];
-  const active = chosen.length > 0;
+  const fallback = props.multiple ? props.defaultValue ?? [] : props.defaultValue ? [props.defaultValue] : [];
+  const active = chosen.length !== fallback.length || chosen.some(v => !fallback.includes(v));
   const first = options.find(o => o.value === chosen[0]);
-  const summary = !active || !showValue ? null : chosen.length > 1 ? null : first ? optionText(first) : null;
-  const accessibleName = `${label}: ${!active ? allLabel : options.filter(o => chosen.includes(o.value)).map(optionText).join(', ')}`;
+  const summary = chosen.length === 0 || !showValue ? null : chosen.length > 1 ? null : first ? optionText(first) : null;
+  const accessibleName = `${label}: ${chosen.length === 0 ? allLabel : options.filter(o => chosen.includes(o.value)).map(optionText).join(', ')}`;
 
   const sink = props.sinkEmpty ?? options.some(o => o.count !== undefined);
   const live = sink ? options.filter(o => o.count !== 0 || chosen.includes(o.value)) : options;
@@ -250,7 +273,7 @@ function FilterBarSelect(props: FilterBarSelectProps) {
       data-active={active || undefined}
       className={cn(chipTriggerClass, className)}
     >
-      <span className="min-w-0 truncate">{summary != null ? <><span className={cn(active && 'text-text-2')}>{label}:</span> {summary}</> : label}</span>
+      <span className="min-w-0 truncate">{summary != null ? <><span className="text-text-2">{label}:</span> {summary}</> : label}</span>
       {showValue && props.multiple && chosen.length > 1 && <span className="data text-text-2">{chosen.length}</span>}
       <Icon icon={ChevronDown} data-slot="chip-caret"/>
     </DropdownMenuTrigger>
@@ -371,6 +394,6 @@ function useFilteredRows<T>(rows: readonly T[], {search = '', match, fields, fil
 }
 
 export {
-  FilterBar, FilterBarSearch, FilterBarChips, FilterChip, FilterToggle, FilterBarSelect, FilterBarAdd, FilterBarClear, FilterBarCount, useFilteredRows,
-  type FilterBarSearchProps, type FilterBarAddProps, type FilterBarSelectProps, type FilterChipProps, type FilterOption, type FacetField,
+  FilterBar, FilterBarSearch, FilterBarChips, FilterChip, FilterToggle, FilterBarSelect, FilterBarAdd, FilterBarButton, FilterBarClear, FilterBarCount, useFilteredRows,
+  type FilterBarSearchProps, type FilterBarButtonProps, type FilterBarAddProps, type FilterBarSelectProps, type FilterChipProps, type FilterOption, type FacetField,
 };

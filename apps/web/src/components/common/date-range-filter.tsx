@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Calendar, Check, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { Field, FieldLabel } from "#/components/glaze/ui/field";
+import { FilterBarButton } from "#/components/glaze/ui/filter-bar";
 import { Input } from "#/components/glaze/ui/input";
 import {
 	Popover,
@@ -55,7 +56,10 @@ export function DateRangeFilter({
 		>
 			<PopoverTrigger
 				render={
-					<Button aria-label={`Date: ${label}`} size="sm" variant="secondary" />
+					<FilterBarButton
+						active={value !== null}
+						aria-label={`Date: ${label}`}
+					/>
 				}
 			>
 				<Icon icon={Calendar} />
