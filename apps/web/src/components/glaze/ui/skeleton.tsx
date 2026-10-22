@@ -2,6 +2,7 @@
 
 import {useEffect, useRef, useState, type CSSProperties, type ReactNode} from 'react';
 import {cn} from '#/lib/glaze/utils.ts';
+import {useWaiting} from '#/lib/glaze/waiting.ts';
 
 // Holds the shape of content while it loads, so nothing moves when the content lands.
 // - Skeleton is a box. Give it the size of the real thing (size-6 rounded-pill for an avatar, h-(--control) w-24).
@@ -18,6 +19,7 @@ import {cn} from '#/lib/glaze/utils.ts';
 // 150ms): a skeleton stands in for missing content, never for content being refreshed.
 
 function Skeleton({className, ...props}: React.ComponentProps<'div'>) {
+  useWaiting(true);
   return <div
     data-slot="skeleton"
     aria-hidden
@@ -110,6 +112,7 @@ function SkeletonSwap({loading, fallback, children, delay: delayProp, minDuratio
   useEffect(() => { if (phase === 'done' && !loading) setHasContent(true); }, [phase, loading]);
 
   const reloading = loading && hasContent;
+  useWaiting(reloading);
   const [dim, setDim] = useState(false);
   useEffect(() => {
     if (!reloading) { setDim(false); return; }

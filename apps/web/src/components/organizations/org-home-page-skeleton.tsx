@@ -1,4 +1,5 @@
 import { Icon, Pending } from "#/components/glaze/icon";
+import { Waiting } from "#/components/glaze/ui/slow-notice";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 
 export function HomeLoading() {
@@ -8,6 +9,7 @@ export function HomeLoading() {
 				className="animate-spin motion-reduce:animate-none"
 				icon={Pending}
 			/>
+			<Waiting active />
 		</div>
 	);
 }
