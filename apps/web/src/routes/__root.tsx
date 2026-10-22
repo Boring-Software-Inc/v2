@@ -11,6 +11,7 @@ import {
 import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
 import { ThemeProvider } from "next-themes";
 import { lazy, Suspense } from "react";
+import { AnalyticsIdentity } from "#/components/common/analytics-identity";
 import glazeCss from "#/components/glaze/styles.css?url";
 import { useSlowWait } from "#/components/glaze/ui/slow-notice";
 import { Toaster } from "#/components/glaze/ui/toast";
@@ -169,6 +170,7 @@ function RootComponent() {
 					trackWebVitals
 				/>
 			</Suspense>
+			<AnalyticsIdentity />
 		</ThemeProvider>
 	);
 }
