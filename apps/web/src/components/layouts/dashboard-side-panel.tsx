@@ -69,7 +69,7 @@ export function SidePanelToggle() {
 			size="icon-sm"
 			variant="ghost"
 		>
-			<Icon icon={collapsed ? ChevronLeft : ChevronRight} size={12} />
+			<Icon icon={collapsed ? ChevronLeft : ChevronRight} />
 		</Button>
 	);
 }

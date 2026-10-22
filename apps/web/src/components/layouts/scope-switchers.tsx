@@ -43,7 +43,7 @@ import { myOrgsQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 type Appearance = "bar" | "rail";
 
 const TRIGGER = {
-	bar: "min-w-0 max-w-64 shrink",
+	bar: "min-w-0 max-w-64 shrink max-sm:min-w-fit",
 	rail: "w-full min-w-0 justify-start",
 } satisfies Record<Appearance, string>;
 
@@ -72,7 +72,14 @@ export function OrgSwitcher({
 					{org ? (
 						<OrgAvatar eyes hue={org.avatarHue} name={org.name} size="sm" />
 					) : null}
-					<span className="min-w-0 truncate">{org?.name ?? "Pick an org"}</span>
+					<span
+						className={cn(
+							"min-w-0 truncate",
+							appearance === "bar" && "max-sm:hidden",
+						)}
+					>
+						{org?.name ?? "Pick an org"}
+					</span>
 					<Icon
 						className={cn(
 							"shrink-0 text-text-3",
@@ -175,7 +182,13 @@ export function RepoSwitcher({
 					{current ? (
 						<ForgeMark className="shrink-0" forge={current.forge} />
 					) : null}
-					<span className={cn("min-w-0 truncate", !repo && "text-text-2")}>
+					<span
+						className={cn(
+							"min-w-0 truncate",
+							!repo && "text-text-2",
+							appearance === "bar" && "max-sm:hidden",
+						)}
+					>
 						{repo ?? "Pick a repo"}
 					</span>
 					<Icon

@@ -232,12 +232,12 @@ function JsonView({data, defaultExpandDepth = 2, toolbar = true, copy = true, la
           className="min-w-0 flex-1 bg-transparent type-label-sm [&::-webkit-search-cancel-button]:hidden"
         />
         {q && <span aria-live="polite" className="shrink-0 type-caption text-text-2">{matches.length ? `${Math.min(current, matches.length - 1) + 1} of ${matches.length}` : 'No matches'}</span>}
-        {query && <button type="button" aria-label="Clear search" onClick={() => { setQuery(''); searchRef.current?.focus(); }} className="-me-1 flex size-5 shrink-0 items-center justify-center rounded-pill text-text-2 hover:bg-hover hover:text-text-1"><Icon icon={Close} size={12}/></button>}
+        {query && <button type="button" aria-label="Clear search" onClick={() => { setQuery(''); searchRef.current?.focus(); }} className="-me-1 flex size-5 shrink-0 items-center justify-center rounded-pill text-text-2 hover:bg-hover hover:text-text-1"><Icon icon={Close}/></button>}
       </label>}
       {!toolbar && <span className="min-w-0 flex-1 ps-2 type-caption text-text-2">{label}</span>}
       {toolbar && <>
-        <Button variant="ghost" size="icon-sm" aria-label="Open all" disabled={!!q} onClick={() => setOpen(new Set(rows.filter(isBranch).map(r => r.path)))}><Icon icon={ExpandAll} size={12}/></Button>
-        <Button variant="ghost" size="icon-sm" aria-label="Close all" disabled={!!q} onClick={() => setOpen(new Set())}><Icon icon={CollapseAll} size={12}/></Button>
+        <Button variant="ghost" size="icon-sm" aria-label="Open all" disabled={!!q} onClick={() => setOpen(new Set(rows.filter(isBranch).map(r => r.path)))}><Icon icon={ExpandAll}/></Button>
+        <Button variant="ghost" size="icon-sm" aria-label="Close all" disabled={!!q} onClick={() => setOpen(new Set())}><Icon icon={CollapseAll}/></Button>
       </>}
       {copy && <CopyCodeButton text={text} label="Copy JSON"/>}
     </div>}
