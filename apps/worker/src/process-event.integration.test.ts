@@ -628,7 +628,7 @@ describe("PR surface (§5.12–13, §7)", () => {
 		);
 		expect(finalCheck).toBeDefined();
 		const comment = fake.executed.find((e) => e.kind === "comment");
-		expect(comment?.detail).toContain("blocks this from merging");
+		expect(comment?.detail).toContain("Tripwire now blocks this.");
 		// The comment speaks reasons, never a rule count.
 		expect(comment?.detail).not.toMatch(/\d+ of \d+ rules?/);
 

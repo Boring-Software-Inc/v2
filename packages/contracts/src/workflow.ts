@@ -358,14 +358,9 @@ export interface ActionCatalogEntry {
 export const ACTION_CATALOG: ActionCatalogEntry[] = [
 	{
 		action: "block",
-		name: "Block merge",
+		name: "Block",
 		description:
-			"Fails the Tripwire check and submits a request-changes review. It does not close the change request.",
-	},
-	{
-		action: "comment",
-		name: "Comment",
-		description: "Posts the run's verdict as a comment on the thread.",
+			"Fails the Tripwire check and requests changes. The change request stays open.",
 	},
 	{
 		action: "label",
@@ -374,14 +369,13 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 	},
 	{
 		action: "request-review",
-		name: "Request review",
-		description:
-			"Asks the people and teams you choose to review the change request.",
+		name: "Request GitHub review",
+		description: "Asks the people and teams you choose to review on GitHub.",
 	},
 	{
 		action: "send-to-moderation",
-		name: "Send to moderation",
-		description: "Pauses here so a person can decide in your moderation queue.",
+		name: "Human review",
+		description: "Waits for a maintainer to approve or block it in Tripwire.",
 	},
 	{
 		action: "webhook",

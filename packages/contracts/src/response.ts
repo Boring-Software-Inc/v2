@@ -64,7 +64,7 @@ export const responseConfigSchema = z.object({
 	passComment: commentOverrideSchema.prefault({}),
 	onBlock: commentSurfaceSchema.default("comment"),
 	blockComment: blockCommentConfigSchema.prefault({}),
-	/** The needs_review verdict — "sent to review" in every user-facing surface. */
+	/** The needs_review verdict: "human review" in every user-facing surface. */
 	moderationQueued: commentSurfaceSchema.default("comment"),
 	/** Review comment override — independent of the block override. */
 	reviewComment: commentOverrideSchema.prefault({}),
@@ -126,9 +126,9 @@ export function wantsComment(
 }
 
 /**
- * Whether the CHECK posts for this verdict. Block and sent-to-review always
- * check — the check IS the merge gate. Only a silent-on-success repo skips the
- * pass check.
+ * Whether the CHECK posts for this verdict. Block and human review always
+ * check. Only a silent-on-success repo skips the pass check, and it skips the
+ * pending check too, so a silent pass leaves nothing on the change request.
  */
 export function wantsCheck(config: ResponseConfig, verdict: Verdict): boolean {
 	return verdict !== "pass" || config.onSuccess !== "silent";

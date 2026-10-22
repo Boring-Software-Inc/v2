@@ -9,7 +9,7 @@ import { toForgeAction } from "./pr-surface.ts";
 /**
  * §5.12 surface sweeper (live-test surprise #3): actions are recorded FIRST and
  * executed after, so a forge-credentials outage leaves surface rows stuck at
- * `recorded` — the neutral check never reaches GitHub and the stale comment
+ * `recorded`, so the check never reaches GitHub and the stale comment
  * stands. This job re-attempts stuck rows once credentials recover
  * (idempotency keys make retries safe), with two staleness guards so it never
  * regresses the PR surface:

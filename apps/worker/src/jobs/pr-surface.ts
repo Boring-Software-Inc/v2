@@ -29,7 +29,7 @@ export const VERDICT_TO_CONCLUSION: Record<Verdict, CheckState["conclusion"]> =
 	{
 		pass: "success",
 		block: "failure",
-		needs_review: "neutral",
+		needs_review: "pending",
 	};
 
 export interface PrSurfaceDeps {
@@ -44,9 +44,21 @@ export interface PrSurfaceDeps {
 export async function emitPendingCheck(
 	deps: PrSurfaceDeps,
 	event: NormalizedEvent,
-): Promise<void> {
+): Promise<boolean> {
 	if (!deps.adapter || !("changeRequest" in event)) {
-		return;
+		return false;
+	}
+	const repoRow = await repoServices.getRepoByFullName(
+		deps.db,
+		event.repo.fullName,
+		event.forge,
+	);
+	const responseConfig = await repoServices.getResponseConfig(
+		deps.db,
+		repoRow?.id ?? null,
+	);
+	if (responseConfig.onSuccess === "silent") {
+		return false;
 	}
 	try {
 		await deps.adapter.execute({
@@ -59,11 +71,13 @@ export async function emitPendingCheck(
 				detailsUrl: deps.appUrl,
 			},
 		});
+		return true;
 	} catch (error) {
 		deps.logger.warn(
 			{ error: getErrorMessage(error) },
 			"pending check emission failed",
 		);
+		return false;
 	}
 }
 
@@ -77,6 +91,7 @@ export interface EmitSurfaceInput {
 	degraded?: boolean;
 	/** Manual re-run — the comment carries the re-evaluation note. */
 	rerun?: boolean;
+	pendingCheckPosted?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
 	pendingActionRows: {
 		id: string;
@@ -132,7 +147,8 @@ export async function emitPrSurface(
 	);
 	const transition = previousVerdict !== null && previousVerdict !== verdict;
 	const includeComment = wantsComment(responseConfig, verdict) || transition;
-	const includeCheck = wantsCheck(responseConfig, verdict);
+	const includeCheck =
+		wantsCheck(responseConfig, verdict) || input.pendingCheckPosted === true;
 
 	const surfaceRows = await runServices.recordActions(db, runId, [
 		...(includeComment
@@ -235,6 +251,11 @@ export async function emitPrSurface(
 		repoFullName,
 		number,
 	);
+	const latestRun =
+		latestRunId && latestRunId !== runId
+			? await runServices.getRunById(db, latestRunId)
+			: null;
+	const checkOwnedByNewerRun = latestRun?.headSha === sha;
 
 	for (const row of [...input.pendingActionRows, ...surfaceRows]) {
 		// Outbound delivery is handled above + by the deliver-webhook job, not
@@ -254,6 +275,14 @@ export async function emitPrSurface(
 			logger.info(
 				{ runId, latestRunId, number, kind: row.kind },
 				"action superseded — not the latest run for this change request",
+			);
+			continue;
+		}
+		if (row.kind === "set-check" && checkOwnedByNewerRun) {
+			await runServices.markActionSuperseded(db, row.id);
+			logger.info(
+				{ runId, latestRunId, sha },
+				"check superseded, a newer run owns this head",
 			);
 			continue;
 		}

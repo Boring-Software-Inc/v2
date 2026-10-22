@@ -10,7 +10,7 @@ const STEP_STATUS: StepStatusMap = {
 	pass: { status: "ok", label: "Passed" },
 	fail: { status: "fail", label: "Did not pass" },
 	skipped: { status: "idle", label: "Skipped" },
-	paused: { status: "waiting", label: "Sent to review" },
+	paused: { status: "waiting", label: "Human review" },
 	pending: { status: "queued", label: "Queued" },
 };
 

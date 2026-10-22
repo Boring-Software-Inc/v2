@@ -15,11 +15,21 @@ import {
 	ChangeRequest,
 	Check,
 	Comment,
-	type GlazeIcon,
 	Icon,
 } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
+import {
+	Dialog,
+	DialogAction,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "#/components/glaze/ui/dialog";
 import {
 	Empty,
 	EmptyContent,
@@ -87,8 +97,8 @@ export function ModerationQueue({
 				<EmptyHeader>
 					<EmptyTitle>Nothing to decide</EmptyTitle>
 					<EmptyDescription>
-						When a rule sends a change request to review, it waits here for you
-						to approve or block it.
+						Change requests that need human review wait here for you to approve
+						or block.
 					</EmptyDescription>
 				</EmptyHeader>
 				<EmptyContent>
@@ -107,13 +117,14 @@ export function ModerationQueue({
 
 	return (
 		<EntityCard flush title={title}>
-			<ScrollList label="Sent to review">
-				<ItemGroup aria-label="Sent to review" variant="plain">
+			<ScrollList label="Human review">
+				<ItemGroup aria-label="Human review" variant="plain">
 					{items?.map((item) => {
 						const number = item.subjectNumber ? `#${item.subjectNumber}` : null;
 						const subject = number
 							? `${number} in ${item.repoFullName}`
 							: item.repoFullName;
+						const name = number ?? "this change request";
 						const comment = item.eventKind === "comment.created";
 						return (
 							<Item key={item.id}>
@@ -147,28 +158,51 @@ export function ModerationQueue({
 									</ItemDescription>
 								</ItemContent>
 								<ItemActions className="me-0 gap-2">
-									<DecideButton
-										decision="deny"
+									<BlockButton
 										disabled={decide.isPending}
-										onDecide={(decision) =>
-											decide.mutate(
-												{ data: { org, repo, itemId: item.id, decision } },
-												{ onSuccess: () => DECISION[decision].toast(subject) },
+										name={name}
+										onBlock={() =>
+											decide.mutateAsync(
+												{
+													data: {
+														org,
+														repo,
+														itemId: item.id,
+														decision: "deny",
+													},
+												},
+												{ onSuccess: () => toast(`Blocked ${name}.`) },
 											)
 										}
 										subject={subject}
 									/>
-									<DecideButton
-										decision="approve"
+									<Button
+										aria-label={`Approve ${subject}`}
 										disabled={decide.isPending}
-										onDecide={(decision) =>
+										onClick={() =>
 											decide.mutate(
-												{ data: { org, repo, itemId: item.id, decision } },
-												{ onSuccess: () => DECISION[decision].toast(subject) },
+												{
+													data: {
+														org,
+														repo,
+														itemId: item.id,
+														decision: "approve",
+													},
+												},
+												{
+													onSuccess: () =>
+														toast.success(
+															`Approved ${name}. Tripwire continues the workflow.`,
+														),
+												},
 											)
 										}
-										subject={subject}
-									/>
+										size="sm"
+										variant="secondary"
+									>
+										<Icon className="text-ok" icon={Check} />
+										Approve
+									</Button>
 								</ItemActions>
 							</Item>
 						);
@@ -179,57 +213,51 @@ export function ModerationQueue({
 	);
 }
 
-type Decision = "approve" | "deny";
-
-const DECISION = {
-	deny: {
-		label: "Reject",
-		icon: Blocked,
-		tone: "text-fail",
-		toast: (subject: string) =>
-			toast(`Blocked ${subject}. Tripwire marked its check as blocked.`),
-	},
-	approve: {
-		label: "Approve",
-		icon: Check,
-		tone: "text-ok",
-		toast: (subject: string) =>
-			toast.success(
-				`Approved ${subject}. Tripwire marked its check as passed.`,
-			),
-	},
-} as const satisfies Record<
-	Decision,
-	{
-		label: string;
-		icon: GlazeIcon;
-		tone: string;
-		toast: (subject: string) => void;
-	}
->;
-
-function DecideButton({
-	decision,
+function BlockButton({
+	name,
 	subject,
 	disabled,
-	onDecide,
+	onBlock,
 }: {
-	decision: Decision;
+	name: string;
 	subject: string;
 	disabled: boolean;
-	onDecide: (decision: Decision) => void;
+	onBlock: () => Promise<{ ok: boolean }>;
 }) {
-	const { label, icon, tone } = DECISION[decision];
 	return (
-		<Button
-			aria-label={`${label} ${subject}`}
-			disabled={disabled}
-			onClick={() => onDecide(decision)}
-			size="sm"
-			variant="secondary"
-		>
-			<Icon className={tone} icon={icon} />
-			{label}
-		</Button>
+		<Dialog role="alertdialog">
+			<DialogTrigger
+				render={
+					<Button
+						aria-label={`Block ${subject}`}
+						disabled={disabled}
+						size="sm"
+						variant="secondary"
+					/>
+				}
+			>
+				<Icon className="text-fail" icon={Blocked} />
+				Block
+			</DialogTrigger>
+			<DialogContent size="sm">
+				<DialogHeader>
+					<DialogTitle>Block {name}?</DialogTitle>
+					<DialogDescription>
+						Tripwire fails its check and requests changes on GitHub. The change
+						request stays open.
+					</DialogDescription>
+				</DialogHeader>
+				<DialogFooter>
+					<DialogClose>Cancel</DialogClose>
+					<DialogAction
+						onAction={onBlock}
+						pendingLabel="Blocking"
+						variant="destructive"
+					>
+						Block
+					</DialogAction>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 }

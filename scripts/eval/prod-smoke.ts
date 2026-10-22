@@ -95,7 +95,7 @@ async function main(): Promise<void> {
 			await gh(["api", `repos/${REPO}/issues/${prNumber}/comments`]),
 		) as { body: string; user: { type: string } }[];
 		const bot = comments.find((c) =>
-			/blocked|passed|sent to review/i.test(c.body),
+			/blocked|passed|human review/i.test(c.body),
 		);
 		if (tripwire?.conclusion && bot) {
 			checkConclusion = tripwire.conclusion;

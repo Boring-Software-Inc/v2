@@ -34,7 +34,7 @@ describe("describeSyntheticStep", () => {
 			"Tripwire could not read the contributor's profile.",
 		);
 		expect(view?.detail).not.toContain("getContributorProfile");
-		expect(view?.detail).toContain("Sent to review");
+		expect(view?.detail).toContain("Needs human review");
 		// The old copy argued with the reader and used our own jargon.
 		expect(view?.detail).not.toContain("guesswork");
 		expect(view?.detail).not.toContain("fail-closed floor");
@@ -46,7 +46,7 @@ describe("describeSyntheticStep", () => {
 			output: { skippedRules: 1, ruleNodes: 2 },
 		});
 		expect(view?.title).toBe("A rule could not run");
-		expect(view?.detail).toBe("1 of 2 rules skipped. Sent to review.");
+		expect(view?.detail).toBe("1 of 2 rules skipped. Needs human review.");
 	});
 
 	test("with the fallback off it says the run passed anyway", () => {
@@ -58,7 +58,7 @@ describe("describeSyntheticStep", () => {
 		expect(view?.detail).toContain(
 			"passes change requests when a rule cannot run",
 		);
-		expect(view?.detail).not.toContain("sent to review");
+		expect(view?.detail).not.toContain("human review");
 	});
 
 	test("run:degradation stays honest when output is malformed", () => {
@@ -67,7 +67,7 @@ describe("describeSyntheticStep", () => {
 			output: null,
 		});
 		// No counts to show, so it says only what happened. Never a stray "skipped."
-		expect(view?.detail).toBe("Sent to review.");
+		expect(view?.detail).toBe("Needs human review.");
 	});
 
 	test("ordinary graph nodes are not synthetic", () => {

@@ -242,14 +242,14 @@ describe("executeAction — block files a request-changes review", () => {
 			kind: "block",
 			repoFullName: "a/b",
 			number: 7,
-			reason: "Tripwire blocked this from merging. Your account is 2 days old.",
+			reason: "Tripwire blocked this. Your account is 2 days old.",
 		});
 		expect(result.externalId).toBe("91");
 		const post = calls.find((c) => c.method === "POST");
 		expect(post?.path).toBe("/repos/a/b/pulls/7/reviews");
 		expect(post?.body).toMatchObject({ event: "REQUEST_CHANGES" });
 		expect(String((post?.body as { body: string }).body)).toContain(
-			"Tripwire blocked this from merging. Your account is 2 days old.",
+			"Tripwire blocked this. Your account is 2 days old.",
 		);
 	});
 });

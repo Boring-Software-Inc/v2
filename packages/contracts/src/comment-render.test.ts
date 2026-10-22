@@ -83,7 +83,7 @@ describe("renderCommentBody — snapshot golden files", () => {
 		).toMatchSnapshot();
 	});
 
-	test("sent to review", () => {
+	test("human review", () => {
 		expect(
 			renderCommentBody({
 				verdict: "needs_review",
@@ -123,10 +123,10 @@ describe("renderCommentBody — snapshot golden files", () => {
 		const lines = body.trim().split("\n").filter(Boolean);
 		// Verdict line present, @-mentions the contributor, no "tripwire:" prefix
 		// in the visible copy (the hidden marker is the only legit occurrence).
-		expect(lines[0]).toBe("@octocat, Tripwire blocked this from merging.");
+		expect(lines[0]).toBe("@octocat, Tripwire blocked this.");
 		expect(body).not.toMatch(/^- /m);
 		expect(body).toContain(
-			"merging.\n\nYour account is 2 days old. This clears in 5 days.\n\n",
+			"this.\n\nYour account is 2 days old. This clears in 5 days.\n\n",
 		);
 		expect(body.replace(MARKERS, "")).not.toContain("tripwire:");
 		// Never counts rules.
@@ -220,7 +220,7 @@ describe("renderVerdictComment — config-aware modes", () => {
 		expect(body).not.toContain("more reasons");
 		// Brief mode: no collapsibles, but headline + button + marker stay.
 		expect(body).not.toContain("<details>");
-		expect(body).toContain("Tripwire blocked this from merging.");
+		expect(body).toContain("Tripwire blocked this.");
 		expect(body).toContain('href="https://tripwire.sh/runs/0198abcd"');
 		expect(body).toContain(COMMENT_MARKER);
 		expect(body).toMatchSnapshot();
@@ -232,7 +232,7 @@ describe("renderVerdictComment — config-aware modes", () => {
 			modeConfig("one-liner-link", { showRuleName: false }),
 		);
 		expect(body).toContain(
-			"merging.\n\nYour account is newer than this repository allows.\n\n",
+			"this.\n\nYour account is newer than this repository allows.\n\n",
 		);
 		expect(body).not.toMatch(/^- /m);
 		expect(body).not.toContain("Account age:");
@@ -240,7 +240,7 @@ describe("renderVerdictComment — config-aware modes", () => {
 
 	test("link-only: verdict line and button, no reasons", () => {
 		const body = renderVerdictComment(BLOCK_INPUT, modeConfig("link-only"));
-		expect(body).toContain("Tripwire blocked this from merging.");
+		expect(body).toContain("Tripwire blocked this.");
 		expect(body).not.toContain("Your account");
 		expect(body).toContain('href="https://tripwire.sh/runs/0198abcd"');
 		expect(body).toContain(COMMENT_MARKER);
@@ -443,7 +443,7 @@ describe("responseConfig — defaults and surface gates", () => {
 		expect(wantsComment(quiet, "needs_review")).toBe(false);
 	});
 
-	test("the check never drops for block or sent-to-review", () => {
+	test("the check never drops for block or human review", () => {
 		const silent = responseConfigSchema.parse({
 			onSuccess: "silent",
 			onBlock: "silent",
@@ -464,11 +464,9 @@ describe("checkSummary — the check line the preview mirrors", () => {
 		expect(checkSummary("pass", [])).toBe(
 			"Passed. Tripwire found no problems.",
 		);
-		expect(checkSummary("needs_review", [])).toBe(
-			"Sent to review. A maintainer must look at this change request before it can merge.",
-		);
+		expect(checkSummary("needs_review", [])).toBe("Waiting for human review.");
 		expect(checkSummary("needs_review", [], true)).toBe(
-			"Sent to review. Tripwire could not finish checking this change request, so a maintainer will decide.",
+			"Waiting for human review. Tripwire could not finish checking this change request.",
 		);
 	});
 });

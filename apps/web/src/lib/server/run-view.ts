@@ -1,5 +1,9 @@
 import type { Verdict, WorkflowDefinition } from "@tripwire/contracts";
-import { changeRequestUrl, ruleDisplayName } from "@tripwire/contracts";
+import {
+	ACTION_CATALOG,
+	changeRequestUrl,
+	ruleDisplayName,
+} from "@tripwire/contracts";
 import { type Db, orgServices, repoServices, runServices } from "@tripwire/db";
 import {
 	resolveRunAccess,
@@ -229,7 +233,11 @@ function snapshotNodeLabels(snapshot: unknown): Map<string, string> {
 		for (const node of def.nodes ?? []) {
 			const key = `${def.id}:${node.id}`;
 			if (node.type === "action") {
-				labels.set(key, node.action);
+				labels.set(
+					key,
+					ACTION_CATALOG.find((entry) => entry.action === node.action)?.name ??
+						node.action,
+				);
 			} else if (node.type === "gate") {
 				labels.set(key, node.mode);
 			} else if (node.type === "trigger") {

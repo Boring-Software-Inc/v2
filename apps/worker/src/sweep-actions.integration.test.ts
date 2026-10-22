@@ -287,6 +287,6 @@ describe("comment ownership (§6 — decide older run after newer)", () => {
 		// exactly one comment reached the forge — B's block, never A's pass.
 		const comments = fake.executed.filter((e) => e.kind === "comment");
 		expect(comments).toHaveLength(1);
-		expect(comments[0]?.detail).toContain("blocks this from merging");
+		expect(comments[0]?.detail).toContain("Tripwire now blocks this.");
 	});
 });

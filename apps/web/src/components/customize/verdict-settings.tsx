@@ -238,11 +238,7 @@ export function VerdictSettings({
 				) : (
 					<Toggle
 						checked
-						description={
-							verdict === "block"
-								? "Always on. The check run is what blocks the merge."
-								: "Always on. It holds the merge until a person decides."
-						}
+						description="Always on. Holds the merge when branch protection requires the tripwire check."
 						disabled
 						label="Post a check run"
 						onChange={() => undefined}

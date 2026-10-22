@@ -19,7 +19,11 @@ import { buildCommentReasons } from "./comment-reasons.ts";
 import { customRuleSource } from "./custom-rules.ts";
 import { emitPrSurface } from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
-import { makeEvaluator, withPublicProjection } from "./run-workflows.ts";
+import {
+	makeEvaluator,
+	postsSomething,
+	withPublicProjection,
+} from "./run-workflows.ts";
 
 /**
  * The resumed run's outcome is the MAINTAINER's decision, not a function of
@@ -147,7 +151,7 @@ export async function resumeRun(
 	await runServices.completeRun(db, item.runId, verdict);
 
 	const actionRows = await runServices.recordActions(db, item.runId, [
-		...result.actions.map((action) => ({
+		...result.actions.filter(postsSomething).map((action) => ({
 			kind: action.action,
 			payload: {
 				...action.params,
@@ -160,7 +164,7 @@ export async function resumeRun(
 					{
 						kind: "block",
 						payload: {
-							reason: "A maintainer reviewed this and blocked it from merging.",
+							reason: "A maintainer reviewed this and blocked it.",
 						},
 						idempotencyKey: `block:${definition.id}:${pausedNode}:deny-floor`,
 					},
@@ -186,6 +190,7 @@ export async function resumeRun(
 			event: normalized,
 			reasons: buildCommentReasons(runData.steps, customRecords),
 			pendingActionRows: actionRows,
+			pendingCheckPosted: true,
 		},
 	);
 	// §9 live activity feed: the resumed run's verdict changed — announce it.
@@ -216,7 +221,7 @@ async function resumeDegradedRun(
 						kind: "block",
 						payload: {
 							reason:
-								"Tripwire could not finish checking this. A maintainer reviewed it and blocked it from merging.",
+								"Tripwire could not finish checking this. A maintainer reviewed it and blocked it.",
 						},
 						idempotencyKey: "block:degraded:deny",
 					},
@@ -240,6 +245,7 @@ async function resumeDegradedRun(
 			event: normalized,
 			reasons: buildCommentReasons(runData.steps, customRecords),
 			pendingActionRows: actionRows,
+			pendingCheckPosted: true,
 		},
 	);
 	await deps.pool.query("SELECT pg_notify('runs', $1)", [runData.run.eventId]);

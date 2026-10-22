@@ -360,7 +360,7 @@ export function CommandPalette({
 			navItems.push(
 				{
 					id: "nav:moderation",
-					label: "Moderation",
+					label: "Human review",
 					searchTags: ["moderation", "queue", "review", "pending", "triage"],
 					icon: glyph(Moderation),
 					onSelect: () => go(`/${currentOrg}/${currentRepo}/moderation`),

@@ -4,7 +4,7 @@ type VerdictChipMap = Record<string, { status: StatusValue; label: string }>;
 const VERDICT: VerdictChipMap = {
 	block: { status: "fail", label: "Blocked" },
 	pass: { status: "ok", label: "Passed" },
-	needs_review: { status: "waiting", label: "Sent to review" },
+	needs_review: { status: "waiting", label: "Human review" },
 };
 
 export function verdictStatus(

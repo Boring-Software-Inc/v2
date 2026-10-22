@@ -177,7 +177,7 @@ function InstallCta({ org }: { org: string }) {
 }
 
 const SHORTCUTS = [
-	{ to: "/$org/$repo/moderation", label: "Moderation", icon: Moderation },
+	{ to: "/$org/$repo/moderation", label: "Human review", icon: Moderation },
 	{ to: "/$org/$repo/rules", label: "Rules", icon: Rules },
 	{ to: "/$org/$repo/workflows", label: "Workflows", icon: Workflow },
 	{ to: "/$org/$repo/activity", label: "Activity", icon: Activity },

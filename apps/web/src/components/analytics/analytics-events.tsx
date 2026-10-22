@@ -211,7 +211,7 @@ type KindOutcomeMap = Partial<
 const KIND_OUTCOME: KindOutcomeMap = {
 	ban: { status: "fail", label: "Blocked" },
 	resolve: { status: "ok", label: "Passed" },
-	report: { status: "waiting", label: "Sent to review" },
+	report: { status: "waiting", label: "Human review" },
 };
 
 function EventRow({

@@ -9,8 +9,8 @@ export const Route = createFileRoute("/$org/$repo/moderation")({
 	head: ({ params, match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | Moderation`),
-			description: "Change requests and comments waiting for a decision.",
+			title: formatPageTitle(`${params.repo} | Human review`),
+			description: "Change requests and comments waiting for human review.",
 			noindex: true,
 		}),
 });

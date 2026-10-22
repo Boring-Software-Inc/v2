@@ -49,7 +49,7 @@ export function ModerationPage() {
 				<div className="px-4 py-6 md:px-8 md:py-10">
 					<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
 						<header className="flex flex-col gap-1">
-							<h1 className="type-title">Moderation</h1>
+							<h1 className="type-title">Human review</h1>
 							<p className="type-body text-text-2">
 								The queue fills in when you turn on Tripwire for this repo.
 							</p>
@@ -84,10 +84,9 @@ export function ModerationPage() {
 			<div className="px-4 py-6 md:px-8 md:py-10">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
 					<header className="flex flex-col gap-1">
-						<h1 className="type-title">Moderation</h1>
+						<h1 className="type-title">Human review</h1>
 						<p className="type-body text-text-2">
-							A rule held these for a person. Approve to let one through, or
-							block it.
+							Approve to continue the workflow, or block.
 						</p>
 					</header>
 
@@ -95,7 +94,7 @@ export function ModerationPage() {
 
 					<SkeletonSwap
 						fallback={<QueueSkeleton />}
-						label="Loading the moderation queue"
+						label="Loading human review"
 						loading={!queueQuery.data}
 					>
 						{queueQuery.data ? (
@@ -104,7 +103,7 @@ export function ModerationPage() {
 								repo={repoName}
 								title={
 									<>
-										Sent to review{" "}
+										Waiting{" "}
 										<span className="text-text-2 tabular-nums">
 											{items.length}
 										</span>

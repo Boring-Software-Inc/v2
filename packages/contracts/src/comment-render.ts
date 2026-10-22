@@ -5,7 +5,7 @@ import type { Verdict } from "./runs.ts";
 /**
  * The PR comment's pure render layer — every user-facing string the bot writes
  * to GitHub, and the one function that assembles them. Governed by
- * `.claude/rules/constitution.md` (blocked/passed/sent to review; never
+ * `.claude/rules/constitution.md` (blocked/passed/human review; never
  * rejected/denied/failed; terse, lowercase-friendly, zero exclamation marks).
  *
  * Moved here from `@tripwire/forge-github` (customize build step): the worker
@@ -24,7 +24,7 @@ import type { Verdict } from "./runs.ts";
 export const VERDICT_WORD: Record<Verdict, string> = {
 	pass: "passed",
 	block: "blocked",
-	needs_review: "sent to review",
+	needs_review: "human review",
 };
 
 /** What a contributor can do about a blocking rule — mirrors core's rule field. */
@@ -67,21 +67,21 @@ export function commentHeadline(
 
 	if (verdict === "pass") {
 		return transition
-			? `@${login}, this now passes Tripwire's checks. Tripwire will not block it from merging.`
-			: "This passed Tripwire's checks. Tripwire will not block it from merging.";
+			? `@${login}, this now passes Tripwire's checks.`
+			: "This passed Tripwire's checks.";
 	}
 	if (verdict === "needs_review") {
 		if (degraded) {
-			return "Tripwire sent this to review because it could not finish checking it. A maintainer will decide if it can merge.";
+			return "Tripwire could not finish checking this, so it needs human review. A maintainer will approve or block it.";
 		}
 		return transition && previousVerdict === "block"
-			? `@${login}, Tripwire no longer blocks this. It sent this to review, so a maintainer must look at it before it can merge.`
-			: `@${login}, Tripwire sent this to review. A maintainer must look at it before it can merge.`;
+			? `@${login}, Tripwire no longer blocks this, but it needs human review. A maintainer will approve or block it.`
+			: `@${login}, this needs human review. A maintainer will approve or block it.`;
 	}
 	// block
 	return transition
-		? `@${login}, Tripwire now blocks this from merging.`
-		: `@${login}, Tripwire blocked this from merging.`;
+		? `@${login}, Tripwire now blocks this.`
+		: `@${login}, Tripwire blocked this.`;
 }
 
 /**
@@ -146,9 +146,9 @@ export function howDoIFix(reasons: CommentReason[]): string {
 	return `<details><summary>How do I fix this?</summary>\n\n${body}\n</details>`;
 }
 
-/** The shared explainer — appended to blocked and sent-to-review comments. */
+/** The shared explainer, appended to blocked and human review comments. */
 export const WHAT_IS_TRIPWIRE =
-	"<details><summary>What is Tripwire?</summary>\n\nTripwire checks contributions to this repository. The maintainers set rules that every change must pass before it can merge, such as rules about account age, how often you open change requests, and hidden links. Members of the organization skip these checks.\n\nThe Tripwire page for this check shows every rule it applied, what it found, and the result.\n</details>";
+	"<details><summary>What is Tripwire?</summary>\n\nTripwire checks contributions to this repository. The maintainers set the rules, such as rules about account age, how often you open change requests, and hidden links. People with write access to this repository skip these checks.\n\nThe Tripwire page for this check shows every rule it applied, what it found, and the result.\n</details>";
 
 /** Alt text on the "View on Tripwire" button image. */
 export const BUTTON_ALT = "View on Tripwire";
@@ -160,8 +160,8 @@ export const CHECK_NAME = "tripwire";
 export function reviewBody(reasons: CommentReason[]): string {
 	const first = reasons[0]?.text;
 	return first
-		? `Tripwire blocked this from merging. ${asSentence(first)}`
-		: "Tripwire blocked this from merging.";
+		? `Tripwire blocked this. ${asSentence(first)}`
+		: "Tripwire blocked this.";
 }
 
 /** The check run summary — mirrors the verdict, no "tripwire:" prefix. Moved
@@ -174,14 +174,12 @@ export function checkSummary(
 ): string {
 	if (verdict === "block") {
 		const first = reasons[0]?.text;
-		return first
-			? `Blocked. ${asSentence(first)}`
-			: "Blocked. This change request cannot merge yet.";
+		return first ? `Blocked. ${asSentence(first)}` : "Blocked.";
 	}
 	if (verdict === "needs_review") {
 		return degraded
-			? "Sent to review. Tripwire could not finish checking this change request, so a maintainer will decide."
-			: "Sent to review. A maintainer must look at this change request before it can merge.";
+			? "Waiting for human review. Tripwire could not finish checking this change request."
+			: "Waiting for human review.";
 	}
 	return "Passed. Tripwire found no problems.";
 }
@@ -194,7 +192,7 @@ const BADGE_WIDTH = 185;
 
 export interface CommentInput {
 	verdict: Verdict;
-	/** The contributor, @-mentioned on blocked + sent-to-review. */
+	/** The contributor, @-mentioned on blocked + human review. */
 	contributorLogin: string;
 	/** The failing rules' reasons (block only); empty for pass / needs_review. */
 	reasons: CommentReason[];
@@ -290,14 +288,14 @@ function renderTemplate(input: CommentInput, template: string): string {
  * The config-aware comment renderer — THE shared function: the worker posts
  * what it returns, and the /customize preview shows what it returns. It resolves
  * the per-outcome override (§customize) itself from the full config, so pass,
- * block, and sent-to-review each honor their own custom text + button toggle.
+ * block, and human review each honor their own custom text + button toggle.
  *
  * `customText`, when set, REPLACES the ENTIRE body for that verdict — headline,
  * reasons, remedies, collapsibles, all of it — leaving only the (optional) run
  * button and the marker. This is the "hide the rules" path: a naive summary-only
  * swap would strand the how-to-fix / wait-hint remedy and leak the very rule the
  * maintainer set out to hide. The block-comment MODE only reshapes BLOCK
- * comments and only when no custom text is set; pass and sent-to-review carry no
+ * comments and only when no custom text is set; pass and human review carry no
  * reasons to trim. Every path ends with the hidden marker — the upsert lifecycle
  * (§7) depends on it.
  *

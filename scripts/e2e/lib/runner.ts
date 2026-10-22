@@ -23,8 +23,8 @@ export type SkipReason = string;
 export const OUTCOME_TO_CONCLUSION: Record<Outcome, string> = {
 	pass: "success",
 	block: "failure",
-	"needs-review": "neutral",
-	degraded: "neutral",
+	"needs-review": "in_progress",
+	degraded: "in_progress",
 };
 
 export interface RunOutcome {
@@ -76,7 +76,7 @@ async function assertExisting(
 	asserter.equals(
 		"existing check conclusion",
 		OUTCOME_TO_CONCLUSION[outcome],
-		check.conclusion,
+		check.conclusion ?? check.status,
 	);
 }
 

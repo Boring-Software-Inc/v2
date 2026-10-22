@@ -15,14 +15,14 @@ import type { RunStepView, RunView } from "#/lib/runs.functions";
 const VERDICT_LABEL: Record<string, string> = {
 	pass: "passed",
 	block: "blocked",
-	needs_review: "sent to review",
+	needs_review: "human review",
 };
 
 const STATUS_LABEL: Record<string, string> = {
 	pass: "passed",
 	fail: "did not pass",
 	skipped: "skipped",
-	paused: "sent to review",
+	paused: "human review",
 	pending: "queued",
 };
 

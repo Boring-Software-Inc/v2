@@ -221,6 +221,7 @@ export async function processEvent(
 		appUrl: deps.appUrl,
 	};
 
+	let pendingCheckPosted = false;
 	const result = await runWorkflows(
 		{
 			db,
@@ -232,7 +233,9 @@ export async function processEvent(
 			// Pending check only after exemption/match — otherwise an exempt
 			// actor leaves `tripwire` stuck in_progress forever (lifecycle E2E
 			// hang: waitForVerdict never sees a completed check).
-			onBeforeEvaluate: () => emitPendingCheck(surfaceDeps, normalized),
+			onBeforeEvaluate: async () => {
+				pendingCheckPosted = await emitPendingCheck(surfaceDeps, normalized);
+			},
 		},
 		normalized,
 		event.id,
@@ -245,6 +248,7 @@ export async function processEvent(
 			reasons: result.reasons,
 			degraded: result.degraded,
 			pendingActionRows: result.actionRows,
+			pendingCheckPosted,
 		});
 	}
 	// §9 live activity feed: announce the RESOLVED state (run terminal/paused,

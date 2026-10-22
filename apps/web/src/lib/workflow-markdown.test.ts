@@ -76,7 +76,7 @@ describe("workflowToMarkdown — header + built-in rules", () => {
 
 	test("the action states its firing condition", () => {
 		expect(md).toContain("### Actions");
-		expect(md).toContain("- **Block merge**: when all of fails");
+		expect(md).toContain("- **Block**: when all of fails");
 	});
 });
 
@@ -192,7 +192,7 @@ describe("workflowToMarkdown — shape variants", () => {
 				{ id: "r", type: "rule", ref: "account-age@1", config: { minDays: 7 } },
 				{ id: "g", type: "gate", mode: "all-of" },
 				{ id: "block", type: "action", action: "block" },
-				{ id: "ok", type: "action", action: "comment" },
+				{ id: "ok", type: "action", action: "label" },
 			],
 			edges: [
 				{ id: "e1", from: "t", to: "r" },
@@ -202,8 +202,8 @@ describe("workflowToMarkdown — shape variants", () => {
 			],
 		});
 		const md = workflowToMarkdown(branching);
-		expect(md).toContain("- **Block merge**: when all of fails");
-		expect(md).toContain("- **Comment**: when all of passes");
+		expect(md).toContain("- **Block**: when all of fails");
+		expect(md).toContain("- **Label**: when all of passes");
 	});
 
 	test("a custom rule node resolves name + sentence through the catalog", () => {

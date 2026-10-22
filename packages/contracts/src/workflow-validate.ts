@@ -179,6 +179,13 @@ export function validateWorkflowForEnable(
 	}
 
 	for (const node of def.nodes) {
+		if (node.type === "action" && node.action === "comment") {
+			issues.push({
+				nodeId: node.id,
+				message:
+					"Comment: this step was removed. Delete it. Customize sets the verdict comment.",
+			});
+		}
 		if (node.type !== "action" || node.action !== "request-review") {
 			continue;
 		}
@@ -186,7 +193,7 @@ export function validateWorkflowForEnable(
 		if (!parsed.success) {
 			issues.push({
 				nodeId: node.id,
-				message: `Request review: ${parsed.error.issues[0]?.message ?? "invalid reviewers"}`,
+				message: `Request GitHub review: ${parsed.error.issues[0]?.message ?? "invalid reviewers"}`,
 			});
 		}
 	}

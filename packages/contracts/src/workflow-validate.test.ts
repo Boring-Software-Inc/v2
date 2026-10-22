@@ -80,9 +80,7 @@ describe("validateWorkflow (base — every failure class)", () => {
 	test("trigger with inputs", () => {
 		const g = graph({});
 		g.edges.push({ id: "e3", from: "r", to: "t" });
-		expect(issuesOf(validateWorkflow(g))).toContain(
-			"trigger cannot have inputs",
-		);
+		expect(issuesOf(validateWorkflow(g))).toContain("Triggers take no inputs");
 	});
 
 	test("`not` gate arity", () => {
@@ -107,9 +105,7 @@ describe("validateWorkflow (base — every failure class)", () => {
 		const g = graph({});
 		g.edges[1] = { id: "e2", from: "r", to: "a", when: "approve" };
 		expect(
-			issuesOf(validateWorkflow(g)).some((m) =>
-				m.includes("send-to-moderation"),
-			),
+			issuesOf(validateWorkflow(g)).some((m) => m.includes("Human review")),
 		).toBe(true);
 	});
 
@@ -118,7 +114,7 @@ describe("validateWorkflow (base — every failure class)", () => {
 		g.nodes.push({ id: "g", type: "gate", mode: "all-of" });
 		g.edges.push({ id: "e3", from: "a", to: "g" });
 		expect(
-			issuesOf(validateWorkflow(g)).some((m) => m.includes("may have outputs")),
+			issuesOf(validateWorkflow(g)).some((m) => m.includes("have outputs")),
 		).toBe(true);
 	});
 
@@ -131,8 +127,7 @@ describe("validateWorkflow (base — every failure class)", () => {
 		expect(result.valid ? [] : result.issues).toContainEqual({
 			edgeId: "e3",
 			nodeId: "g",
-			message:
-				"a gate combines rule results, not trigger events. Connect the trigger to a rule first",
+			message: "Gates take results, not events",
 		});
 	});
 
@@ -142,7 +137,7 @@ describe("validateWorkflow (base — every failure class)", () => {
 		g.edges.push({ id: "e3", from: "r", to: "g", when: "fail" });
 		expect(
 			issuesOf(validateWorkflow(g)).some((m) =>
-				m.includes("Connect it from the passes output"),
+				m.includes("only the Passes result"),
 			),
 		).toBe(true);
 	});
@@ -240,5 +235,29 @@ describe("validateWorkflowForEnable — custom rules via the runtime catalog", (
 	test("merging customValidationEntries lets the custom rule enable", () => {
 		const catalog = [...RULE_CATALOG, ...customValidationEntries(custom)];
 		expect(validateWorkflowForEnable(customGraph, catalog).valid).toBe(true);
+	});
+});
+
+describe("the removed comment step", () => {
+	const withComment = graph({
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			{ id: "r", type: "rule", ref: "account-age@1", config: { minDays: 7 } },
+			{ id: "c", type: "action", action: "comment" },
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "r" },
+			{ id: "e2", from: "r", to: "c" },
+		],
+	});
+
+	test("a stored workflow with one still parses", () => {
+		expect(validateWorkflow(withComment).valid).toBe(true);
+	});
+
+	test("it cannot be enabled until the step is deleted", () => {
+		expect(issuesOf(validateWorkflowForEnable(withComment))).toContain(
+			"Comment: this step was removed. Delete it. Customize sets the verdict comment.",
+		);
 	});
 });

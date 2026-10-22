@@ -14,7 +14,10 @@ don't rewrite.
 | Concept | Use | Never |
 |---|---|---|
 | The product | "contribution gatekeeper", "firewall for your repo" | "AI code review tool", "bot", "linter" |
-| The verdict | "blocked", "passed", "sent to review" | "rejected", "denied", "failed" (people fail; PRs get blocked) |
+| The verdict | "blocked", "passed", "human review" | "rejected", "denied", "failed", "sent to review" (people fail; PRs get blocked) |
+| Blocked, defined | "Fails the Tripwire check and requests changes. The change request stays open." | "blocks the merge", "closes" (only branch protection holds a merge) |
+| The human review decision | "Approve", "Block" | "Reject", "Deny" |
+| Asking GitHub reviewers | "Request GitHub review" | "Request review" (collides with human review) |
 | The subject | "contributor", "change request" | "user" (users are maintainers), "PR" in agnostic contexts |
 | AI-generated junk | "slop" | euphemisms |
 | Comment/issue checks | "rules" (they're rules with a content target) | "automod", "filters", "AI moderation" |

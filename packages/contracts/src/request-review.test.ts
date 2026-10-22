@@ -119,7 +119,7 @@ describe("request-review in workflow validation", () => {
 		expect(result.valid).toBe(false);
 		expect(result.valid ? [] : result.issues).toContainEqual({
 			nodeId: "a",
-			message: "Request review: add at least one person or team to ask",
+			message: "Request GitHub review: add at least one person or team to ask",
 		});
 	});
 
@@ -130,7 +130,7 @@ describe("request-review in workflow validation", () => {
 					withReviewParams({ reviewers: ["bad name"] }),
 				),
 			),
-		).toContain("Request review: bad name is not a GitHub username");
+		).toContain("Request GitHub review: bad name is not a GitHub username");
 	});
 
 	test("a node with targets enables", () => {

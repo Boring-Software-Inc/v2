@@ -9,7 +9,7 @@ const CHECK_STATE: Record<
 > = {
 	pass: { word: "Passing", status: "ok", tone: "text-ok-text" },
 	block: { word: "Failing", status: "fail", tone: "text-fail-text" },
-	needs_review: { word: "Neutral", status: "warn", tone: "text-warn-text" },
+	needs_review: { word: "In progress", status: "warn", tone: "text-warn-text" },
 };
 
 export interface CheckStateMockProps {

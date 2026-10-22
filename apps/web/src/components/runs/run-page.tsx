@@ -1,6 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { FORGE_BY_ID, workflowActionKindSchema } from "@tripwire/contracts";
+import {
+	ACTION_CATALOG,
+	FORGE_BY_ID,
+	workflowActionKindSchema,
+} from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { verdictStatus } from "#/components/activity/verdict-chip";
 import { ForgeMark } from "#/components/common/forge-marks";
@@ -294,6 +298,10 @@ function actionGlyph(kind: string) {
 }
 
 function actionName(kind: string): string {
+	const entry = ACTION_CATALOG.find((candidate) => candidate.action === kind);
+	if (entry) {
+		return entry.name;
+	}
 	const words = kind.replace(/-/g, " ");
 	return words.charAt(0).toUpperCase() + words.slice(1);
 }

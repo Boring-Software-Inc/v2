@@ -15,7 +15,7 @@ import type { SaveQueueCommit } from "#/components/save-queue";
 export const VERDICTS: { value: Verdict; label: string }[] = [
 	{ value: "pass", label: "Passed" },
 	{ value: "block", label: "Blocked" },
-	{ value: "needs_review", label: "Sent to review" },
+	{ value: "needs_review", label: "Human review" },
 ];
 
 export const SAMPLE_REASONS: CommentReason[] = [

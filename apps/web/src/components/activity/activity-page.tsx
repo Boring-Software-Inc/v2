@@ -38,7 +38,7 @@ type Filter = "all" | "block" | "needs_review" | "pass" | "no-run";
 const FILTERS: { key: Filter; label: string }[] = [
 	{ key: "all", label: "All" },
 	{ key: "block", label: "Blocked" },
-	{ key: "needs_review", label: "Sent to review" },
+	{ key: "needs_review", label: "Human review" },
 	{ key: "pass", label: "Passed" },
 	{ key: "no-run", label: "Not checked" },
 ];

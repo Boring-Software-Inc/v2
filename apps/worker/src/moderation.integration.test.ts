@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { WorkflowDefinition } from "@tripwire/contracts";
+import {
+	DEFAULT_RESPONSE_CONFIG,
+	type WorkflowDefinition,
+} from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -227,7 +230,10 @@ const T4_GRAPH: WorkflowDefinition = {
 	],
 };
 
-async function pauseT4Run(deliveryId: string) {
+async function pauseT4Run(
+	deliveryId: string,
+	resolveForge = deps().resolveForge,
+) {
 	const raw = await Bun.file(
 		new URL(
 			"../../../packages/forge-github/fixtures/pull_request.opened.json",
@@ -242,7 +248,7 @@ async function pauseT4Run(deliveryId: string) {
 	if (!eventId) {
 		throw new Error("insert failed");
 	}
-	await processEvent(deps(), { eventId });
+	await processEvent({ ...deps(), resolveForge }, { eventId });
 	const items = await moderationServices.listPendingItems(
 		db,
 		"Codertocat/Hello-World",
@@ -386,5 +392,178 @@ describe("deny floor — deny with no deny edge never fails open", () => {
 		);
 		expect(run.rows[0].status).toBe("completed");
 		expect(run.rows[0].verdict).toBe("block");
+	});
+});
+
+describe("the tripwire check while a person decides", () => {
+	function recordingForge() {
+		const checks: { conclusion: string; summary: string }[] = [];
+		const comments: string[] = [];
+		const adapter = {
+			execute: (action: {
+				kind: string;
+				body?: string;
+				check?: { conclusion: string; summary: string };
+			}) => {
+				if (action.kind === "set-check" && action.check) {
+					checks.push({
+						conclusion: action.check.conclusion,
+						summary: action.check.summary,
+					});
+				}
+				if (action.kind === "comment") {
+					comments.push(action.body ?? "");
+				}
+				return Promise.resolve({ externalId: null });
+			},
+		};
+		return {
+			checks,
+			comments,
+			resolveForge: staticForge({
+				adapter: adapter as never,
+				reads: freshReads,
+			}),
+		};
+	}
+
+	async function helloWorld() {
+		return repoServices.ensureRepo(db, {
+			externalId: "186853002",
+			owner: "Codertocat",
+			name: "Hello-World",
+			fullName: "Codertocat/Hello-World",
+		});
+	}
+
+	test("human review keeps the check pending until approve completes it", async () => {
+		const forge = recordingForge();
+		const item = await pauseT4Run("check-pending-1", forge.resolveForge);
+		expect(forge.checks.at(-1)).toEqual({
+			conclusion: "pending",
+			summary: "Waiting for human review.",
+		});
+
+		await moderationServices.decideModerationItem(pool, boss, {
+			itemId: item.id,
+			decision: "approve",
+			decidedBy: null,
+		});
+		await resumeRun(
+			{ ...deps(), resolveForge: forge.resolveForge },
+			{ itemId: item.id, decision: "approve" },
+		);
+		expect(forge.checks.at(-1)?.conclusion).toBe("success");
+	});
+
+	test("a decision on an older run leaves the newer run's check alone", async () => {
+		const older = await pauseT4Run("check-owner-1");
+		const forge = recordingForge();
+		const newer = await pauseT4Run("check-owner-2", forge.resolveForge);
+		expect(newer.runId).not.toBe(older.runId);
+
+		await moderationServices.decideModerationItem(pool, boss, {
+			itemId: older.id,
+			decision: "approve",
+			decidedBy: null,
+		});
+		await resumeRun(
+			{ ...deps(), resolveForge: forge.resolveForge },
+			{ itemId: older.id, decision: "approve" },
+		);
+		expect(forge.checks.at(-1)?.conclusion).toBe("pending");
+		const check = await pool.query(
+			"SELECT status FROM run_actions WHERE run_id = $1 AND kind = 'set-check' AND idempotency_key LIKE '%:pass'",
+			[older.runId],
+		);
+		expect(check.rows[0]?.status).toBe("superseded");
+	});
+
+	test("a silent repo posts no evaluating check, but completes the human review check", async () => {
+		const repoId = await helloWorld();
+		await repoServices.upsertResponseConfig(db, repoId, {
+			...DEFAULT_RESPONSE_CONFIG,
+			onSuccess: "silent",
+		});
+		const forge = recordingForge();
+		const item = await pauseT4Run("check-silent-1", forge.resolveForge);
+		expect(forge.checks).toEqual([
+			{ conclusion: "pending", summary: "Waiting for human review." },
+		]);
+
+		await moderationServices.decideModerationItem(pool, boss, {
+			itemId: item.id,
+			decision: "approve",
+			decidedBy: null,
+		});
+		await resumeRun(
+			{ ...deps(), resolveForge: forge.resolveForge },
+			{ itemId: item.id, decision: "approve" },
+		);
+		expect(forge.checks.at(-1)?.conclusion).toBe("success");
+	});
+
+	test("a silent pass leaves nothing on the change request, even with an old comment step", async () => {
+		const repoId = await helloWorld();
+		await repoServices.upsertResponseConfig(db, repoId, {
+			...DEFAULT_RESPONSE_CONFIG,
+			onSuccess: "silent",
+		});
+		await pool.query(
+			"UPDATE workflow_definitions SET enabled = false WHERE repo_id = $1",
+			[repoId],
+		);
+		await repoServices.saveWorkflowDefinition(db, repoId, {
+			id: "lenient@1",
+			name: "lenient",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				{
+					id: "age",
+					type: "rule",
+					ref: "account-age@1",
+					config: { minDays: 0 },
+				},
+				{ id: "block", type: "action", action: "block" },
+				{ id: "say", type: "action", action: "comment" },
+			],
+			edges: [
+				{ id: "e1", from: "t", to: "age" },
+				{ id: "e2", from: "age", to: "block", when: "fail" },
+				{ id: "e3", from: "age", to: "say" },
+			],
+		});
+		const raw = await Bun.file(
+			new URL(
+				"../../../packages/forge-github/fixtures/pull_request.opened.json",
+				import.meta.url,
+			).pathname,
+		).json();
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "check-silent-pass",
+			rawKind: "pull_request",
+			raw,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		const forge = recordingForge();
+		await processEvent(
+			{ ...deps(), resolveForge: forge.resolveForge },
+			{ eventId },
+		);
+		const run = await pool.query(
+			"SELECT verdict FROM runs WHERE event_id = $1",
+			[eventId],
+		);
+		expect(run.rows[0].verdict).toBe("pass");
+		expect(forge.checks).toEqual([]);
+		expect(forge.comments).toEqual([]);
+		const stored = await pool.query(
+			"SELECT 1 FROM run_actions a JOIN runs r ON r.id = a.run_id WHERE r.event_id = $1 AND a.kind = 'comment'",
+			[eventId],
+		);
+		expect(stored.rowCount).toBe(0);
 	});
 });

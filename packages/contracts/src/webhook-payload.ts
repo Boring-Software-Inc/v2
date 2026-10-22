@@ -48,7 +48,7 @@ function discordHeadline(payload: WebhookPayload): string {
 	if (payload.verdict === "block") {
 		return `Tripwire blocked ${subject}.`;
 	}
-	return `Tripwire sent ${subject} to review.`;
+	return `${subject} needs human review.`;
 }
 
 /**

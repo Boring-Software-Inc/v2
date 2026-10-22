@@ -1,7 +1,7 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
 exports[`upsertComment — verdict-aware lifecycle (§7) superseded body — struck, marker-less, points forward 1`] = `
-"~~@octocat, Tripwire blocked this from merging.~~
+"~~@octocat, Tripwire blocked this.~~
 
 ~~Your account is 2 days old.~~
 
