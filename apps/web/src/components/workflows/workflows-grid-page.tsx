@@ -68,6 +68,7 @@ import { GridSkeleton } from "#/components/workflows/workflows-grid-page-skeleto
 import { useCollection } from "#/hooks/use-collection";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
+import { trackEvent } from "#/lib/track";
 import type { WorkflowTemplate } from "#/lib/workflow-templates";
 import { WORKFLOW_TEMPLATES } from "#/lib/workflow-templates";
 import type { WorkflowListItem } from "#/lib/workflows.functions";
@@ -114,8 +115,9 @@ export function WorkflowsGridPage() {
 				name: string;
 			},
 		) => createRepoWorkflow({ data: { org, repoId, definition } }),
-		onSuccess: (result) => {
+		onSuccess: (result, definition) => {
 			if (result.workflow) {
+				trackEvent("workflow_created", { from_template: Boolean(definition) });
 				navigate({
 					to: "/$org/$repo/workflows/$workflowId",
 					params: { org, repo: repoName, workflowId: result.workflow.id },
@@ -185,6 +187,7 @@ export function WorkflowsGridPage() {
 					continue;
 				}
 				succeeded += 1;
+				trackEvent("workflow_enabled", { enabled: Boolean(value) });
 			} catch {
 				failedKeys.push(key);
 				refusals.push(

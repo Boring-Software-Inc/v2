@@ -41,6 +41,7 @@ import {
 } from "#/lib/admin.query";
 import { ADMIN_USER_STATUSES, type AdminUsersSearch } from "#/lib/admin-search";
 import { pickValue } from "#/lib/pick-value";
+import { trackEvent } from "#/lib/track";
 
 type StatusFilter = AdminUsersSearch["status"];
 
@@ -92,6 +93,9 @@ export function AdminUsersPage() {
 			{ data: { userIds, decision } },
 			{
 				onSuccess: (result) => {
+					if (decision === "approve" && result.changed > 0) {
+						trackEvent("beta_approved", { count: result.changed });
+					}
 					setSelected([]);
 					setConfirmRejectId(null);
 					const verb = decision === "approve" ? "Approved" : "Declined";

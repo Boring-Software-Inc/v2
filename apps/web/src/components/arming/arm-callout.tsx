@@ -16,6 +16,7 @@ import {
 import { toast } from "#/components/glaze/ui/toast";
 import { armRepo } from "#/lib/arm.functions";
 import { orgContextQueryOptions } from "#/lib/org.query";
+import { trackEvent } from "#/lib/track";
 
 interface ArmCalloutProps {
 	org: string;
@@ -34,6 +35,7 @@ function useArm(org: string, repo: string, repoFullName: string) {
 		},
 		onSuccess: (result) => {
 			if (result.armed) {
+				trackEvent("repo_activated", {});
 				toast.success(`Tripwire is on for ${repoFullName}`);
 				return;
 			}

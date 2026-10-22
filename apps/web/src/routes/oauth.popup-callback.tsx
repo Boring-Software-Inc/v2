@@ -8,6 +8,7 @@ import { Button } from "#/components/glaze/ui/button";
 import { Status } from "#/components/glaze/ui/status";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
+import { type TrackingSearch, trackingSearch } from "#/lib/track";
 
 /**
  * Post-auth closer page for the waitlist popup. Notifies the opener via
@@ -19,10 +20,11 @@ export const Route = createFileRoute("/oauth/popup-callback")({
 	component: PopupCallbackPage,
 	validateSearch: (
 		search: Record<string, unknown>,
-	): { opener?: string; error?: string; mode?: string } => ({
+	): { opener?: string; error?: string; mode?: string } & TrackingSearch => ({
 		opener: typeof search.opener === "string" ? search.opener : undefined,
 		error: typeof search.error === "string" ? search.error : undefined,
 		mode: typeof search.mode === "string" ? search.mode : undefined,
+		...trackingSearch(search),
 	}),
 	head: ({ match }) =>
 		buildSeo({

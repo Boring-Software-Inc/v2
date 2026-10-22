@@ -54,6 +54,7 @@ import {
 	listModerationQueue,
 	type ModerationQueueItem,
 } from "#/lib/moderation-queue.functions";
+import { trackEvent } from "#/lib/track";
 
 export const moderationQueueKeys = {
 	all: ["moderation-queue"] as const,
@@ -113,6 +114,8 @@ export function ModerationQueue({
 	const queryClient = useQueryClient();
 	const decide = useMutation({
 		mutationFn: decideModeration,
+		onSuccess: (_result, variables) =>
+			trackEvent("moderation_decided", { decision: variables.data.decision }),
 		onError: () =>
 			toast.fail("Tripwire could not save your decision", {
 				description: "The change request is still waiting. Try again.",

@@ -9,6 +9,7 @@ import { LIVE_FORGES } from "#/lib/forge-copy";
 import type { InstallUrlState } from "#/lib/onboarding.functions";
 import { orgInstallUrlQueryOptions } from "#/lib/onboarding.query";
 import { myOrgsQueryOptions } from "#/lib/org.query";
+import { trackEvent } from "#/lib/track";
 
 /**
  * "connect repos" — the same 2×2 catalog grid as sign-in, with connect as the
@@ -100,6 +101,9 @@ export function ConnectForgeGrid({
 			kind: "ready",
 			onSelect: () => {
 				onDone?.();
+				trackEvent("github_app_install_started", {
+					forge: label.toLowerCase(),
+				});
 				window.location.assign(installUrl.url);
 			},
 		};

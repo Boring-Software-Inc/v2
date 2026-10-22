@@ -38,6 +38,7 @@ import {
 } from "#/lib/onboarding.functions";
 import { onboardingQueryKeys } from "#/lib/onboarding.query";
 import { myOrgsQueryOptions, orgQueryKeys } from "#/lib/org.query";
+import { trackEvent } from "#/lib/track";
 
 const route = getRouteApi("/onboarding/setup");
 
@@ -544,6 +545,7 @@ function useClaimMutation(installationId: string, forge: Forge) {
 			]),
 		onSuccess: (result, org) => {
 			if (result.claimed) {
+				trackEvent("installation_claimed", { forge });
 				toast.success(`Installation connected to ${org}`);
 				navigate({ to: `/${org}/home` });
 			} else {
