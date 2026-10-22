@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { changeRequestUrl } from "./forges.ts";
+import {
+	changeRequestUrl,
+	forgeConnectable,
+	forgeSignIn,
+	LIVE_FORGE_LABELS,
+	SIGN_IN_FORGE_IDS,
+} from "./forges.ts";
 
 describe("changeRequestUrl", () => {
 	test("github uses /pull/ and open-git uses /pulls/", () => {
@@ -38,5 +44,15 @@ describe("changeRequestUrl", () => {
 				number: null,
 			}),
 		).toBeNull();
+	});
+});
+
+describe("paused forges", () => {
+	test("open-git stays ingestible but cannot be connected or signed into", () => {
+		expect(forgeConnectable("github")).toBe(true);
+		expect(forgeConnectable("opengit")).toBe(false);
+		expect(forgeSignIn("opengit")).toBeNull();
+		expect(SIGN_IN_FORGE_IDS).toEqual(["github"]);
+		expect(LIVE_FORGE_LABELS).toEqual(["GitHub"]);
 	});
 });
