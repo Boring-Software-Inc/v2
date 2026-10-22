@@ -39,6 +39,7 @@ import {
 } from "#/components/workflows/editor/node-fields";
 import { ReviewerPicker } from "#/components/workflows/editor/reviewer-picker";
 import { SCHEDULE_EVERY_LABEL } from "#/lib/schedule-summary";
+import { toggleTriggerKind } from "#/lib/trigger-kinds";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
@@ -121,28 +122,7 @@ function TriggerFields({
 	onUpdate: (next: WorkflowNode) => void;
 }) {
 	const toggle = (kind: EventKind, checked: boolean) => {
-		if (kind === "schedule.matched") {
-			if (checked) {
-				onUpdate({
-					...node,
-					kinds: [kind],
-					schedule: node.schedule ?? structuredClone(DEFAULT_TRIGGER_SCHEDULE),
-				});
-				return;
-			}
-			const { schedule: _, ...rest } = node;
-			onUpdate({ ...rest, kinds: node.kinds.filter((k) => k !== kind) });
-			return;
-		}
-		if (checked) {
-			const { schedule: _, ...rest } = node;
-			onUpdate({
-				...rest,
-				kinds: [...node.kinds.filter((k) => k !== "schedule.matched"), kind],
-			});
-			return;
-		}
-		onUpdate({ ...node, kinds: node.kinds.filter((k) => k !== kind) });
+		onUpdate(toggleTriggerKind(node, kind, checked));
 	};
 	return (
 		<div className="flex flex-col gap-4">
