@@ -47,6 +47,7 @@ import {
 	rulesQueryKeys,
 	rulesStatsQueryOptions,
 } from "#/lib/rules.query";
+import { trackEvent } from "#/lib/track";
 import { workflowBannerCopy } from "#/lib/workflow-banner-copy";
 
 const routeApi = getRouteApi("/$org/$repo/rules");
@@ -185,6 +186,14 @@ export function RulesPage() {
 				fail();
 			}
 		}
+		for (const [key, value] of Object.entries(pending)) {
+			if (key.endsWith(":enabled") && !failedKeys.includes(key)) {
+				trackEvent("rule_toggled", {
+					rule: key.slice(0, -":enabled".length),
+					enabled: Boolean(value),
+				});
+			}
+		}
 		if (succeeded > 0) {
 			await queryClient.invalidateQueries({
 				queryKey: rulesQueryKeys.config(org, repoId),
@@ -229,6 +238,7 @@ export function RulesPage() {
 		await queryClient.invalidateQueries({
 			queryKey: rulesQueryKeys.config(org, repoId),
 		});
+		trackEvent("custom_rule_created", {});
 		toast.success("Rule created");
 		return null;
 	};

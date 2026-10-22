@@ -4,6 +4,7 @@ import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { Status } from "#/components/glaze/ui/status";
 import { authClient } from "#/lib/auth-client";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
+import { type TrackingSearch, trackingSearch } from "#/lib/track";
 
 /**
  * Popup entry point for the cross-deployment "Join waitlist with GitHub" flow.
@@ -15,9 +16,10 @@ export const Route = createFileRoute("/oauth/waitlist")({
 	component: WaitlistEntryPage,
 	validateSearch: (
 		search: Record<string, unknown>,
-	): { opener?: string; mode?: string } => ({
+	): { opener?: string; mode?: string } & TrackingSearch => ({
 		opener: typeof search.opener === "string" ? search.opener : undefined,
 		mode: typeof search.mode === "string" ? search.mode : undefined,
+		...trackingSearch(search),
 	}),
 	head: ({ match }) =>
 		buildSeo({
@@ -31,9 +33,12 @@ export const Route = createFileRoute("/oauth/waitlist")({
 function callbackPath(
 	opener: string | undefined,
 	mode: string | undefined,
+	tracking: TrackingSearch,
 	error?: string,
 ): string {
 	const params = new URLSearchParams();
+	if (tracking.anonId) params.set("anonId", tracking.anonId);
+	if (tracking.sessionId) params.set("sessionId", tracking.sessionId);
 	if (opener) params.set("opener", opener);
 	// Thread the popup marker through OAuth so the closer knows it's a popup even
 	// if window.opener is later severed (COOP). See the closer's inPopup logic.
@@ -44,7 +49,7 @@ function callbackPath(
 }
 
 function WaitlistEntryPage() {
-	const { opener, mode } = Route.useSearch();
+	const { opener, mode, anonId, sessionId } = Route.useSearch();
 	const started = useRef(false);
 
 	useEffect(() => {
@@ -54,10 +59,15 @@ function WaitlistEntryPage() {
 		// server-side; the callback below notifies the opener.
 		void authClient.signIn.social({
 			provider: "github",
-			callbackURL: callbackPath(opener, mode),
-			errorCallbackURL: callbackPath(opener, mode, "oauth_failed"),
+			callbackURL: callbackPath(opener, mode, { anonId, sessionId }),
+			errorCallbackURL: callbackPath(
+				opener,
+				mode,
+				{ anonId, sessionId },
+				"oauth_failed",
+			),
 		});
-	}, [opener, mode]);
+	}, [opener, mode, anonId, sessionId]);
 
 	return (
 		<div className="flex min-h-dvh w-full flex-col items-center justify-center gap-6 bg-page px-4">
