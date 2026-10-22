@@ -248,11 +248,12 @@ function ResponsesView({
 											setField={setField}
 										/>
 									</div>
-								) : config ? (
+								) : config && policy ? (
 									<div className="max-w-140">
 										<VerdictSettings
 											canEdit={canEdit}
 											config={config}
+											policy={policy}
 											editorEpoch={editorEpoch}
 											key={verdict}
 											messageChosen={messageChosen[verdict]}

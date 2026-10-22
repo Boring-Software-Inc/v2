@@ -47,10 +47,17 @@ export interface ForgeCatalogEntry {
 	 * it must not widen `Forge` or reach a row. Absent ⇒ no sign-in button.
 	 */
 	readonly signIn?: ForgeSignIn;
+	readonly reviews?: boolean;
 }
 
 export const FORGE_CATALOG = [
-	{ id: "github", label: "GitHub", status: "live", signIn: "social" },
+	{
+		id: "github",
+		label: "GitHub",
+		status: "live",
+		signIn: "social",
+		reviews: true,
+	},
 	// Ingest + sign-in, no reads: open-git ships OAuth and signed webhooks, so
 	// deliveries can be verified and stored. Its API exposes no diff, commits,
 	// contents or users, so no rule that needs them can run — see the `forges`
@@ -114,6 +121,11 @@ export const SIGN_IN_FORGE_IDS: readonly ForgeId[] = FORGE_CATALOG.filter(
 export function forgeSignIn(id: ForgeId): ForgeSignIn | null {
 	const entry = FORGE_BY_ID[id];
 	return entry && "signIn" in entry ? entry.signIn : null;
+}
+
+export function forgePostsReviews(id: ForgeId): boolean {
+	const entry = FORGE_BY_ID[id];
+	return entry !== undefined && "reviews" in entry && entry.reviews;
 }
 
 /** Catalog lookup by id, for surfaces that hold an id and need its label. */

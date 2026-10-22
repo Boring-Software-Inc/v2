@@ -552,14 +552,14 @@ export function customRuleSummary(
 	if (!signal) {
 		return null;
 	}
-	const label = signal.label.toLowerCase();
+	const label = signal.label;
 	if (signal.kind === "boolean") {
-		return `${label}: ${observed === true ? "yes" : "no"}`;
+		return `${label}: ${observed === true ? "yes" : "no"}.`;
 	}
 	if (signal.kind === "textList") {
 		return Array.isArray(observed)
-			? `this change touches ${observed.length} ${observed.length === 1 ? "path" : "paths"}`
+			? `It changes ${observed.length} ${observed.length === 1 ? "path" : "paths"}.`
 			: null;
 	}
-	return `${label}${windowPhrase(definition)} is ${formatValue(observed, signal.unit)}`;
+	return `${label}${windowPhrase(definition)} is ${formatValue(observed, signal.unit)}.`;
 }

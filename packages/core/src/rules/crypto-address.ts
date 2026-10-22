@@ -84,4 +84,6 @@ export const cryptoAddress = defineRule({
 	},
 	// Fixable in the change itself — remove the address(es).
 	remedy: "revise",
+	fixHint: (e) =>
+		e.matches.length === 1 ? "Remove the address." : "Remove the addresses.",
 });

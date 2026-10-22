@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { toForgeAction } from "./pr-surface.ts";
+import { commentRows, toForgeAction } from "./pr-surface.ts";
 
 describe("toForgeAction — request-review", () => {
 	test("carries the recorded people and teams onto the forge action", () => {
@@ -115,5 +115,63 @@ describe("toForgeAction: block posts once, then edits", () => {
 				"91",
 			),
 		).toMatchObject({ kind: "dismiss-review", reviewId: "91" });
+	});
+});
+
+describe("commentRows: one row per comment plan", () => {
+	const plan = (comment: "upsert" | "if-present" | "delete" | "none") => ({
+		comment,
+		commentBody: comment === "delete" || comment === "none" ? null : "body",
+		review: null,
+	});
+
+	test("delete records a delete-comment row", () => {
+		expect(commentRows(plan("delete"), 7, "block", null)).toEqual([
+			{
+				kind: "delete-comment",
+				payload: { number: 7 },
+				idempotencyKey: "delete-comment:7",
+			},
+		]);
+	});
+
+	test("if-present marks the comment so it never posts fresh", () => {
+		const [row] = commentRows(plan("if-present"), 7, "pass", "block");
+		expect(row?.payload).toMatchObject({ onlyIfPresent: true });
+		expect(
+			toForgeAction(row ?? { kind: "", payload: {} }, "a/b", 7, "x"),
+		).toMatchObject({
+			kind: "comment",
+			onlyIfPresent: true,
+			previousVerdict: "block",
+		});
+	});
+
+	test("upsert posts as before, none posts nothing", () => {
+		const [row] = commentRows(plan("upsert"), 7, "block", null);
+		expect(row?.payload).not.toHaveProperty("onlyIfPresent");
+		expect(commentRows(plan("none"), 7, "pass", null)).toEqual([]);
+	});
+
+	test("delete-comment maps to the forge action", () => {
+		expect(
+			toForgeAction(
+				{ kind: "delete-comment", payload: { number: 7 } },
+				"a/b",
+				7,
+				"x",
+			),
+		).toEqual({ kind: "delete-comment", repoFullName: "a/b", number: 7 });
+	});
+
+	test("a block row carries its own review body", () => {
+		expect(
+			toForgeAction(
+				{ kind: "block", payload: { nodeId: "w:block", reason: "stored" } },
+				"a/b",
+				7,
+				"fallback",
+			),
+		).toMatchObject({ kind: "block", reason: "stored" });
 	});
 });

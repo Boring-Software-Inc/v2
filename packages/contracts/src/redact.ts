@@ -34,6 +34,15 @@ export function summaryRevealsHidden(ref: string, level: number): boolean {
 	);
 }
 
+export const UNNAMED_RULE = "Unnamed rule";
+
+export function reasonName(reason: CommentReason): string {
+	const name =
+		reason.ruleName?.trim() ||
+		(reason.ruleId ? ruleDisplayName(reason.ruleId) : "");
+	return name === "" ? UNNAMED_RULE : name;
+}
+
 function capitalize(text: string): string {
 	const trimmed = text.trim();
 	return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
@@ -70,9 +79,7 @@ export function redactCommentReasons(
 	if (redactionHides(level, "reasons")) {
 		return {
 			kind: "names",
-			names: reasons.map((reason) =>
-				reason.ruleId ? ruleDisplayName(reason.ruleId) : "A rule",
-			),
+			names: reasons.map(reasonName),
 		};
 	}
 	return {
@@ -82,7 +89,7 @@ export function redactCommentReasons(
 				return reason;
 			}
 			const label = ruleContributorLabel(reason.ruleId);
-			return label ? { ...reason, text: label } : reason;
+			return label ? { ...reason, text: label, hint: null } : reason;
 		}),
 	};
 }

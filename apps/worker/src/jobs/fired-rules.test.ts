@@ -28,7 +28,7 @@ describe("firedRulesFor", () => {
 
 	test("file paths hidden: the leaking summary becomes the rule label", () => {
 		expect(firedRulesFor(REASONS, 2)[0]?.summary).toBe(
-			"this change request contains a cryptocurrency wallet address.",
+			"this change request adds crypto wallet addresses. Remove them.",
 		);
 	});
 
@@ -36,6 +36,27 @@ describe("firedRulesFor", () => {
 		expect(firedRulesFor(REASONS, 5)).toEqual([
 			{ ruleId: "crypto-address", summary: "Crypto address" },
 			{ ruleId: "account-age", summary: "Account age" },
+		]);
+	});
+
+	test("reasons hidden: a custom rule shows its name, never its ref", () => {
+		expect(
+			firedRulesFor(
+				[
+					{
+						text: "Target branch is main.",
+						remedy: "revise",
+						ruleId: "custom-doesnt-go-to-main-019fa6",
+						ruleName: "Doesn't go to main",
+					},
+				],
+				5,
+			),
+		).toEqual([
+			{
+				ruleId: "custom-doesnt-go-to-main-019fa6",
+				summary: "Doesn't go to main",
+			},
 		]);
 	});
 

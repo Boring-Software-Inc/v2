@@ -67,8 +67,8 @@ describe("ai-review delivery — where the output lands and surfaces agree", () 
 	test("a blocking ai-review summary reaches the comment AND the check summary", () => {
 		const reasons = buildCommentReasons([aiStep("fail", blockOutput)]);
 		expect(reasons[0]?.text).toBe(AI_SUMMARY); // output.summary → reason
-		expect(body("block", reasons)).toContain(AI_SUMMARY); // comment body
-		expect(checkSummary("block", reasons)).toContain(AI_SUMMARY); // check summary
+		expect(body("block", reasons)).toContain(`**AI review:** ${AI_SUMMARY}`);
+		expect(checkSummary("block", reasons)).toBe("Blocked by AI review.");
 	});
 
 	test("check conclusion matches the verdict (comment and check can't disagree)", () => {

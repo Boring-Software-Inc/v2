@@ -3,9 +3,9 @@ import {
 	type CommentInput,
 	checkSummary,
 	howDoIFix,
-	REVIEW_BODY,
+	planSurfaces,
+	REVIEW_POINTER,
 	renderVerdictComment,
-	reviewBody,
 } from "./comment-render.ts";
 import {
 	redactCommentReasons,
@@ -39,7 +39,7 @@ const REASONS = [
 	{
 		text: "Your account is 2 days old.",
 		remedy: "wait" as const,
-		waitHint: "This clears in 5 days.",
+		hint: "This clears in 5 days.",
 		ruleId: "account-age",
 	},
 ];
@@ -120,7 +120,7 @@ describe("redactSummary", () => {
 			"x in DONATE.md",
 		);
 		expect(redactSummary("crypto-address@1", "x in DONATE.md", 2)).toBe(
-			"This change request contains a cryptocurrency wallet address.",
+			"This change request adds crypto wallet addresses. Remove them.",
 		);
 	});
 
@@ -129,7 +129,7 @@ describe("redactSummary", () => {
 			"spam surface",
 		);
 		expect(redactSummary("ai-review@2", "spam surface", 4)).toBe(
-			"An AI review found problems in this change request.",
+			"This change request has problems a reviewer would flag.",
 		);
 	});
 
@@ -145,8 +145,8 @@ describe("redactCommentReasons", () => {
 		expect(redacted.kind).toBe("reasons");
 		if (redacted.kind === "reasons") {
 			expect(redacted.reasons.map((r) => r.text)).toEqual([
-				"this change request contains a cryptocurrency wallet address.",
-				"an AI review found problems in this change request.",
+				"this change request adds crypto wallet addresses. Remove them.",
+				"this change request has problems a reviewer would flag.",
 				"Your account is 2 days old.",
 			]);
 		}
@@ -217,18 +217,18 @@ describe("redacted GitHub surfaces", () => {
 	test("stop 5 names the rules without reasons", () => {
 		const body = render(policy(5));
 		expect(body).toContain(
-			"It did not meet these rules: Crypto address, AI review and Account age.",
+			"3 rules did not pass: Crypto address, AI review and Account age.",
 		);
 		expect(body).not.toContain("DONATE.md");
 		expect(body).not.toContain("spam surface");
 	});
 
 	test("stop 6 counts, stop 8 only states the verdict", () => {
-		expect(render(policy(6))).toContain("It did not meet 3 rules.");
+		expect(render(policy(6))).toContain("3 rules did not pass.");
 		expect(render(policy(6))).not.toContain("Crypto address");
 		const verdictOnly = render(policy(8));
-		expect(verdictOnly).toContain("Tripwire blocked this.");
-		expect(verdictOnly).not.toContain("did not meet");
+		expect(verdictOnly).toContain("Tripwire blocked this change request.");
+		expect(verdictOnly).not.toContain("did not pass");
 	});
 
 	test("help sections follow their own switch", () => {
@@ -243,38 +243,53 @@ describe("redacted GitHub surfaces", () => {
 		);
 	});
 
-	test("check summary redacts by level; the review carries no detail", () => {
-		expect(checkSummary("block", REASONS, false, 0)).toContain("DONATE.md");
-		expect(checkSummary("block", REASONS, false, 2)).toBe(
-			"Blocked. This change request contains a cryptocurrency wallet address.",
+	test("check summary names the rules, then counts them, then only blocks", () => {
+		expect(checkSummary("block", REASONS, false, 0)).toBe(
+			"Blocked by Crypto address, AI review and Account age.",
+		);
+		expect(checkSummary("block", REASONS, false, 5)).toBe(
+			"Blocked by Crypto address, AI review and Account age.",
 		);
 		expect(checkSummary("block", REASONS, false, 6)).toBe(
-			"Blocked. It did not meet 3 rules.",
+			"Blocked by 3 rules.",
 		);
 		expect(checkSummary("block", REASONS, false, 8)).toBe("Blocked.");
-		expect(reviewBody(true)).toBe(REVIEW_BODY);
 	});
 });
 
-describe("every redaction level renders one compact comment", () => {
+const BADGE =
+	'<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>';
+
+describe("every redaction level: what lands on the change request", () => {
 	for (let level = 0; level <= REDACTION_MAX_LEVEL; level++) {
 		test(`level ${level}`, () => {
-			const body = renderVerdictComment(
-				INPUT,
-				DEFAULT_RESPONSE_CONFIG,
-				policy(level),
-			);
-			expect(body.split("\n")[0]).toBe("@g-r-i-m, Tripwire blocked this.");
-			expect(body).toContain('<a href="https://tripwire.sh/runs/0198abcd">');
-			expect(body).not.toContain("What is Tripwire?");
-			if (level >= 5) {
-				expect(body).not.toContain("DONATE.md");
-				expect(body).not.toMatch(/^- /m);
+			const plan = planSurfaces(INPUT, DEFAULT_RESPONSE_CONFIG, policy(level), {
+				reviewPosted: true,
+			});
+			if (level <= 4) {
+				expect(plan.comment).toBe("upsert");
+				expect(plan.review).toBe(REVIEW_POINTER.block);
+				expect(plan.commentBody).toContain(BADGE);
+				expect(plan.commentBody?.split("\n")[0]).toBe(
+					"@g-r-i-m, Tripwire blocked this change request.",
+				);
+			} else {
+				expect(plan.comment).toBe("delete");
+				expect(plan.commentBody).toBeNull();
+				expect(plan.review).toContain(BADGE);
+				expect(plan.review).toContain("How do I fix this?");
+				expect(plan.review).not.toContain("See the comment");
+				expect(plan.review).not.toContain("DONATE.md");
+				expect(plan.review).not.toMatch(/^- /m);
 			}
 			if (level >= 6) {
-				expect(body).not.toContain("Crypto address");
+				expect(plan.review).not.toContain("Crypto address");
 			}
-			expect(body).toMatchSnapshot();
+			expect({
+				comment: plan.commentBody,
+				review: plan.review,
+				check: checkSummary("block", REASONS, false, level),
+			}).toMatchSnapshot();
 		});
 	}
 });

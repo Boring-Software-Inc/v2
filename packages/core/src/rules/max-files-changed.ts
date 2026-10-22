@@ -42,4 +42,5 @@ export const maxFilesChanged = defineRule({
 		`It changes ${e.filesChanged} ${e.filesChanged === 1 ? "file" : "files"}.`,
 	// Fixable in the change itself — split it or drop files.
 	remedy: "revise",
+	fixHint: () => "Split it into smaller change requests.",
 });

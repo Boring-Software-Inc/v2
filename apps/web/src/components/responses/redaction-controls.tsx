@@ -95,7 +95,7 @@ export function RedactionControls({
 				checked={policy.showHelp}
 				description="How do I fix this?"
 				disabled={disabled}
-				label="Show help in comments"
+				label="Show how to fix it"
 				onChange={onShowHelp}
 				setting="help-sections"
 			/>

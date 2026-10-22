@@ -114,9 +114,9 @@ export const DEFAULT_RESPONSE_CONFIG: ResponseConfig =
 	responseConfigSchema.parse({});
 
 /**
- * Whether a COMMENT surfaces for this verdict under the config. The worker adds
- * one override on top: a verdict TRANSITION always writes the comment, so a
- * stale "blocked" comment can never outlive its verdict (§7).
+ * Whether a COMMENT surfaces for this verdict under the config. `planSurfaces`
+ * adds two rules on top: a verdict TRANSITION updates a comment that is already
+ * there (§7), and a block whose review can say it all posts no comment.
  */
 export function wantsComment(
 	config: ResponseConfig,

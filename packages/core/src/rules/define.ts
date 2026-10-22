@@ -58,6 +58,7 @@ export interface RuleDefinition<
 	 * threshold (enforced by the leak-invariant test).
 	 */
 	waitHint?: (evidence: z.infer<TEvidence>) => string | null;
+	fixHint?: (evidence: z.infer<TEvidence>) => string | null;
 }
 
 const RULE_ID = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;

@@ -351,7 +351,7 @@ function checksNode(
 	const offsetMs = first ? offsetBetween(run.createdAt, first) : null;
 	if (redactionHides(level, "passed-count")) {
 		return {
-			title: failed > 0 ? "Checks did not pass" : "Checks passed",
+			title: failed > 0 ? "Rules did not pass" : "Rules passed",
 			tone: failed > 0 ? "fail" : "ok",
 			glyph: failed > 0 ? "fail" : "pass",
 			offsetMs,
@@ -363,7 +363,7 @@ function checksNode(
 		: buildBranches(run.workflows, steps, collapseAll);
 	if (pending > 0) {
 		return {
-			title: `${total - pending} of ${total} checks done`,
+			title: `${total - pending} of ${total} rules checked`,
 			tone: "neutral",
 			glyph: "running",
 			offsetMs,
@@ -372,7 +372,7 @@ function checksNode(
 	}
 	if (failed > 0) {
 		return {
-			title: `${failed} of ${total} checks did not pass`,
+			title: `${failed} of ${total} rules did not pass`,
 			tone: "fail",
 			glyph: "fail",
 			offsetMs,
@@ -381,7 +381,7 @@ function checksNode(
 	}
 	if (skipped > 0) {
 		return {
-			title: `${skipped} of ${total} checks skipped`,
+			title: `${skipped} of ${total} rules skipped`,
 			tone: "neutral",
 			glyph: "skipped",
 			offsetMs,
@@ -389,7 +389,7 @@ function checksNode(
 		};
 	}
 	return {
-		title: `${total} of ${total} checks passed`,
+		title: `${total} of ${total} rules passed`,
 		tone: "ok",
 		glyph: "pass",
 		offsetMs,
@@ -398,7 +398,10 @@ function checksNode(
 }
 
 function joinNames(names: readonly string[]): string {
-	return names.join(", ");
+	if (names.length <= 1) {
+		return names[0] ?? "";
+	}
+	return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
 function checkChip(run: RunView, action: RunActionView): ChainChip {
@@ -410,7 +413,7 @@ function checkChip(run: RunView, action: RunActionView): ChainChip {
 	if (run.verdict === "block") {
 		return {
 			...base,
-			label: "Failed the tripwire check",
+			label: "Check blocked",
 			glyph: "fail",
 			tone: "fail",
 		};
@@ -418,7 +421,7 @@ function checkChip(run: RunView, action: RunActionView): ChainChip {
 	if (run.verdict === "pass") {
 		return {
 			...base,
-			label: "Passed the tripwire check",
+			label: "Check passed",
 			glyph: "pass",
 			tone: "ok",
 		};
@@ -438,9 +441,29 @@ function deliveryLabel(target: string, action: RunActionView): string {
 
 const CHIP_ORDER = ["set-check", "block", "comment"];
 
+const ONE_CHIP_KINDS = new Set([
+	"set-check",
+	"block",
+	"comment",
+	"dismiss-review",
+]);
+
+function latestPerKind(actions: readonly RunActionView[]): RunActionView[] {
+	return actions.filter(
+		(action, index) =>
+			!ONE_CHIP_KINDS.has(action.kind) ||
+			action.status !== "executed" ||
+			!actions
+				.slice(index + 1)
+				.some(
+					(later) => later.kind === action.kind && later.status === "executed",
+				),
+	);
+}
+
 export function outcomeChips(run: RunView): ChainChip[] {
 	const chips: ChainChip[] = [];
-	const ordered = [...run.actions].sort(
+	const ordered = latestPerKind(run.actions).sort(
 		(a, b) =>
 			(CHIP_ORDER.indexOf(a.kind) + 1 || 99) -
 			(CHIP_ORDER.indexOf(b.kind) + 1 || 99),
@@ -481,6 +504,16 @@ export function outcomeChips(run: RunView): ChainChip[] {
 				href: action.url,
 				internal: false,
 			});
+		} else if (action.kind === "dismiss-review") {
+			chips.push({
+				key,
+				label: "Dismissed its review",
+				glyph: "review",
+				tone: "neutral",
+				href: action.url,
+				internal: false,
+			});
+		} else if (action.kind === "delete-comment") {
 		} else if (action.kind !== "send-to-moderation") {
 			chips.push({
 				key,
@@ -568,11 +601,11 @@ function verdictOutcome(run: RunView): ChainOutcome {
 		const degraded = run.reviews.some((review) => review.degraded);
 		return {
 			...base,
-			title: degraded ? "Sent to human review" : "Waiting for human review",
+			title: "Waiting for human review",
 			short: "Waiting for human review",
 			tone: "neutral",
 			glyph: "waiting",
-			detail: degraded ? "Tripwire could not finish every check." : null,
+			detail: degraded ? "Tripwire could not check every rule." : null,
 		};
 	}
 	return {
@@ -593,7 +626,7 @@ function decisionSteps(run: RunView): ChainStep[] {
 		return [
 			{
 				key: `hold-${index}`,
-				title: "Sent to human review",
+				title: "Human review",
 				tone: "neutral",
 				glyph: "waiting",
 				at: null,
@@ -625,7 +658,7 @@ function nextRunWord(next: RunLinkView): string {
 		return "Newer run blocked";
 	}
 	if (next.verdict === "needs_review") {
-		return "Newer run is waiting for review";
+		return "Newer run is waiting for human review";
 	}
 	return "Newer run";
 }
@@ -751,7 +784,7 @@ export function branchOutcomeLabel(
 		return { tone: "fail", glyph: "fail", label: "Blocked" };
 	}
 	if (branch.outcome === "review") {
-		return { tone: "neutral", glyph: "waiting", label: "Sent to human review" };
+		return { tone: "neutral", glyph: "waiting", label: "Human review" };
 	}
 	if (branch.outcome === "pass") {
 		return { tone: "ok", glyph: "pass", label: "Passed" };
@@ -761,6 +794,12 @@ export function branchOutcomeLabel(
 
 const skipReasonSchema = z.object({ reason: z.string() });
 
+function asSentence(text: string): string {
+	const trimmed = text.trim();
+	const capitalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+	return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
+}
+
 export interface RuleReason {
 	text: string;
 	quiet: boolean;
@@ -769,7 +808,7 @@ export interface RuleReason {
 export function ruleReason(rule: ChainRule, level: number): RuleReason | null {
 	const step = rule.step;
 	if (step.summary) {
-		return { text: step.summary, quiet: false };
+		return { text: asSentence(step.summary), quiet: false };
 	}
 	const skip = skipReasonSchema.safeParse(step.evidence);
 	if (rule.mark === "skipped" && skip.success) {

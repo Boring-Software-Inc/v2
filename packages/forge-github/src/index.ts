@@ -14,13 +14,12 @@ export {
 	commentHeadline,
 	type HeadlineOptions,
 	howDoIFix,
-	REVIEW_BODY,
+	REVIEW_POINTER,
 	type Remedy,
 	RUN_LINK_TEXT,
 	reasonsBlock,
 	renderCommentBody,
 	renderVerdictComment,
-	reviewBody,
 	VERDICT_WORD,
 } from "@tripwire/contracts";
 export { setCheck } from "./actions/check.ts";

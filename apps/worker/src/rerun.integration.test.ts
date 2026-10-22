@@ -269,7 +269,7 @@ describe("manual re-run (§ re-run feature)", () => {
 		// pass→block transition + supersession mechanics live in upsertComment
 		// (covered by actions.test.ts) — here we assert the rendered body.
 		const comment = fake.executed.find((e) => e.kind === "comment");
-		expect(comment?.body).toContain("Tripwire now blocks this.");
+		expect(comment?.body).toContain("Tripwire now blocks this change request.");
 		expect(comment?.body).toContain(RERUN_NOTE);
 	});
 

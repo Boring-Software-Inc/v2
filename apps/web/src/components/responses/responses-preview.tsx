@@ -15,7 +15,7 @@ import {
 	PREVIEW_TRANSITION,
 } from "#/components/responses/preview-motion";
 import {
-	previewBody,
+	previewPlan,
 	SAMPLE_REASONS,
 	withDrafts,
 } from "#/components/responses/responses-model";
@@ -41,10 +41,11 @@ export const ResponsesPreview = memo(function ResponsesPreview({
 }: ResponsesPreviewProps) {
 	const drafts = useDrafts();
 	const effective = useMemo(() => withDrafts(config, drafts), [config, drafts]);
-	const body = useMemo(
-		() => previewBody(effective, verdict, messageChosen, policy),
+	const plan = useMemo(
+		() => previewPlan(effective, verdict, messageChosen, policy),
 		[effective, verdict, messageChosen, policy],
 	);
+	const comment = plan.comment === "upsert" ? plan.commentBody : null;
 	const checkPosted = wantsCheck(effective, verdict);
 	const checkLevel = redactionLevelFor(policy, "check");
 	const runPageLevel = redactionLevelFor(policy, "run-page");
@@ -65,12 +66,25 @@ export const ResponsesPreview = memo(function ResponsesPreview({
 				data-preview-root=""
 				ref={link.attach}
 			>
-				<div className="relative rounded-shell" data-region="comment">
-					<GithubCommentMock
-						body={body}
-						silentNote="Turn on Post a comment to preview one here."
-					/>
-				</div>
+				<AnimatePresence initial={false}>
+					{plan.review ? (
+						<motion.div
+							className="relative rounded-shell"
+							key="review"
+							{...BLUR_SWAP}
+						>
+							<GithubCommentMock action="review" body={plan.review} />
+						</motion.div>
+					) : null}
+				</AnimatePresence>
+				{comment !== null || plan.review === null ? (
+					<div className="relative rounded-shell" data-region="comment">
+						<GithubCommentMock
+							body={comment}
+							silentNote="Turn on Post a comment to preview one here."
+						/>
+					</div>
+				) : null}
 				<div className="relative rounded-shell sm:ms-13" data-region="check">
 					<CheckStateMock
 						level={checkLevel}

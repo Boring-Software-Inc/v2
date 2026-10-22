@@ -29,10 +29,10 @@ export const REDACTION_ITEM_LABELS = {
 	"file-paths": "File paths",
 	"ai-trace": "AI trace",
 	"ai-summary": "AI summary",
-	reasons: "Why each rule failed",
-	"rule-names": "Which rules ran",
-	"passed-count": "Passed count",
-	"failed-count": "Failed count",
+	reasons: "Why each rule did not pass",
+	"rule-names": "Rule names",
+	"passed-count": "How many rules passed",
+	"failed-count": "How many rules did not pass",
 } as const satisfies Record<RedactionItem, string>;
 
 export const REDACTION_SURFACE_LABELS = {

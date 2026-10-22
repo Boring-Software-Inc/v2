@@ -2,16 +2,17 @@ import {
 	type CheckState,
 	type CommentReason,
 	checkSummary,
+	forgePostsReviews,
 	type NormalizedEvent,
+	planSurfaces,
+	REVIEW_POINTER,
 	redactCommentReasons,
 	redactionLevelFor,
-	renderVerdictComment,
 	requestReviewTargetsSchema,
-	reviewBody,
+	type SurfacePlan,
 	type Verdict,
 	type WebhookPayload,
 	wantsCheck,
-	wantsComment,
 } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { repoServices, responseServices, runServices } from "@tripwire/db";
@@ -133,9 +134,8 @@ export async function emitPrSurface(
 			: null;
 
 	// The repo's response config (customize) decides which surfaces post. A
-	// verdict TRANSITION always writes the comment even when the config says
-	// silent — the active comment shows a verdict that is no longer true, and a
-	// stale "blocked" must never outlive its verdict (§7).
+	// verdict TRANSITION updates a comment that is already there even when the
+	// config says silent, so a stale "blocked" never outlives its verdict (§7).
 	const repoRow = await repoServices.getRepoByFullName(
 		db,
 		repoFullName,
@@ -149,44 +149,37 @@ export async function emitPrSurface(
 		db,
 		repoRow?.id ?? null,
 	);
-	const transition = previousVerdict !== null && previousVerdict !== verdict;
-	const includeComment = wantsComment(responseConfig, verdict) || transition;
-	const review = reviewBody(includeComment);
-	let activeReviewId = input.pendingActionRows.some(
+	const blockRows = input.pendingActionRows.filter(
 		(row) => row.kind === "block",
-	)
-		? await runServices.getActiveBlockReviewId(db, repoFullName, number)
-		: null;
+	);
+	const plan = planSurfaces(
+		{
+			verdict,
+			contributorLogin: event.actor.login,
+			reasons,
+			runUrl,
+			degraded: input.degraded,
+			previousVerdict,
+			rerun: input.rerun,
+		},
+		responseConfig,
+		policy,
+		{ reviewPosted: blockRows.length > 0 && forgePostsReviews(event.forge) },
+	);
+	const review = plan.review ?? REVIEW_POINTER.block;
+	for (const row of blockRows) {
+		row.payload = { ...row.payload, reason: review };
+		await runServices.stampReviewBody(db, row.id, review);
+	}
+	let activeReviewId =
+		blockRows.length > 0
+			? await runServices.getActiveBlockReviewId(db, repoFullName, number)
+			: null;
 	const includeCheck =
 		wantsCheck(responseConfig, verdict) || input.pendingCheckPosted === true;
 
 	const surfaceRows = await runServices.recordActions(db, runId, [
-		...(includeComment
-			? [
-					{
-						kind: "comment",
-						payload: {
-							number,
-							verdict,
-							previousVerdict,
-							body: renderVerdictComment(
-								{
-									verdict,
-									contributorLogin: event.actor.login,
-									reasons,
-									runUrl,
-									degraded: input.degraded,
-									previousVerdict,
-									rerun: input.rerun,
-								},
-								responseConfig,
-								policy,
-							),
-						},
-						idempotencyKey: `comment:${number}:${verdict}`,
-					},
-				]
-			: []),
+		...commentRows(plan, number, verdict, previousVerdict),
 		...(includeCheck
 			? [
 					{
@@ -279,7 +272,7 @@ export async function emitPrSurface(
 		// AND the review dismissal. A stale run must not post a transition or
 		// dismiss the current run's review.
 		if (
-			(row.kind === "comment" || row.kind === "dismiss-review") &&
+			PER_CHANGE_REQUEST_KINDS.has(row.kind) &&
 			latestRunId &&
 			latestRunId !== runId
 		) {
@@ -334,6 +327,56 @@ export async function emitPrSurface(
 	}
 }
 
+interface CommentPayload {
+	number: number;
+	verdict: Verdict;
+	previousVerdict: Verdict | null;
+	body: string;
+	onlyIfPresent?: boolean;
+}
+
+const PER_CHANGE_REQUEST_KINDS = new Set([
+	"comment",
+	"delete-comment",
+	"dismiss-review",
+]);
+
+export function commentRows(
+	plan: SurfacePlan,
+	number: number,
+	verdict: Verdict,
+	previousVerdict: Verdict | null,
+): runServices.RecordActionInput[] {
+	if (plan.comment === "delete") {
+		return [
+			{
+				kind: "delete-comment",
+				payload: { number },
+				idempotencyKey: `delete-comment:${number}`,
+			},
+		];
+	}
+	if (plan.comment === "none" || plan.commentBody === null) {
+		return [];
+	}
+	const payload: CommentPayload = {
+		number,
+		verdict,
+		previousVerdict,
+		body: plan.commentBody,
+	};
+	if (plan.comment === "if-present") {
+		payload.onlyIfPresent = true;
+	}
+	return [
+		{
+			kind: "comment",
+			payload: { ...payload },
+			idempotencyKey: `comment:${number}:${verdict}`,
+		},
+	];
+}
+
 export function firedRulesFor(
 	reasons: CommentReason[],
 	level: number,
@@ -371,6 +414,13 @@ export function toForgeAction(
 				verdict: row.payload.verdict as Verdict,
 				previousVerdict:
 					(row.payload.previousVerdict as Verdict | null | undefined) ?? null,
+				onlyIfPresent: row.payload.onlyIfPresent === true,
+			};
+		case "delete-comment":
+			return {
+				kind: "delete-comment" as const,
+				repoFullName,
+				number: (row.payload.number as number) ?? number,
 			};
 		case "dismiss-review":
 			return {

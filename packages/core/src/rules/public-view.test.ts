@@ -103,6 +103,66 @@ describe("§10 public partition", () => {
 		}
 	});
 
+	test("LEAK INVARIANT: a fixHint never names a configured-threshold field", () => {
+		for (const { rule } of listRules()) {
+			if (!rule.fixHint) {
+				continue;
+			}
+			const hint = rule.fixHint(SAMPLE_EVIDENCE[rule.id]) ?? "";
+			expect(hint).not.toBe("");
+			for (const key of configKeys(rule.configSchema)) {
+				expect(hint).not.toContain(key);
+			}
+		}
+	});
+
+	test("rate limit hints only when the contributor is over the limit", () => {
+		const { rule } =
+			listRules().find((r) => r.rule.id === "pr-rate-limit") ?? {};
+		const over = {
+			count: 12,
+			maxPerWindow: 5,
+			windowHours: 24,
+			intervalCov: null,
+		};
+		const under = { ...over, count: 2 };
+		expect(rule?.summarize?.(over)).toBe(
+			"You opened 12 change requests in a short time.",
+		);
+		expect(rule?.waitHint?.(over)).toBe("Wait before you open another.");
+		expect(rule?.summarize?.(under)).toBe(
+			"You opened 2 change requests recently.",
+		);
+		expect(rule?.waitHint?.(under)).toBeNull();
+	});
+
+	test("min-merged-prs waitHint says what to do, never the threshold", () => {
+		const { rule } =
+			listRules().find(
+				(r) => r.rule.id === "min-merged-prs" && r.rule.version === 2,
+			) ?? {};
+		expect(
+			rule?.waitHint?.({
+				mergedElsewhere: 0,
+				min: 1,
+				mergedInRepo: 0,
+				trustedAfter: 1,
+			}),
+		).toBe(
+			"To clear this, get 1 more change request merged in someone else's repository.",
+		);
+		expect(
+			rule?.waitHint?.({
+				mergedElsewhere: 0,
+				min: 3,
+				mergedInRepo: 0,
+				trustedAfter: 1,
+			}),
+		).toBe(
+			"To clear this, get 3 more change requests merged in other people's repositories.",
+		);
+	});
+
 	test("account-age waitHint derives a threshold-free remainder", () => {
 		const { rule } = listRules().find((r) => r.rule.id === "account-age") ?? {};
 		expect(rule?.remedy).toBe("wait");
