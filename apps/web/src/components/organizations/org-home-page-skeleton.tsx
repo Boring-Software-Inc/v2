@@ -1,7 +1,9 @@
 import { Icon, Pending } from "#/components/glaze/icon";
+import { useSlowWait } from "#/components/glaze/ui/slow-notice";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 
 export function HomeLoading() {
+	useSlowWait(true);
 	return (
 		<div aria-hidden className="flex justify-center py-10 text-text-2">
 			<Icon
