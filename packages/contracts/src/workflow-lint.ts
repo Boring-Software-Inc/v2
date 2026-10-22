@@ -3,7 +3,9 @@ import { RULE_CATALOG } from "./rules.ts";
 import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
+	isRemovedAction,
 	type NodePosition,
+	type RemovedActionKind,
 	type ReviewerRef,
 	requestReviewParamsSchema,
 	requestReviewTargetsSchema,
@@ -526,13 +528,18 @@ function checkRuleConfigs(ctx: LintContext): Finding[] {
 	});
 }
 
+const REMOVED_STEP_REASONS = {
+	comment: "Customize sets the verdict comment now",
+	discord: "delete it to turn this workflow on",
+} as const satisfies Record<RemovedActionKind, string>;
+
 function checkRemovedSteps(ctx: LintContext): Finding[] {
 	return ctx.def.nodes.flatMap((node) =>
-		node.type === "action" && node.action === "comment"
+		node.type === "action" && isRemovedAction(node.action)
 			? [
 					{
 						nodeId: node.id,
-						message: `${ctx.name(node)} was removed; Customize sets the verdict comment now`,
+						message: `${ctx.name(node)} was removed; ${REMOVED_STEP_REASONS[node.action]}`,
 						fixes: [deleteStep(node.id)],
 					},
 				]

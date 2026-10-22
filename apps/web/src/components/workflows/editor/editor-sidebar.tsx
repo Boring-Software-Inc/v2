@@ -214,7 +214,6 @@ export interface EditorSidebarProps {
 	onUpdateNode: (next: WorkflowNode) => void;
 	onTestConnection: (
 		url: string,
-		kind: "webhook" | "discord",
 	) => Promise<{ ok: boolean; status?: number; failure?: string }>;
 }
 

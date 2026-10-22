@@ -40,7 +40,7 @@ export const REDACTION_SURFACE_LABELS = {
 	check: "Check run",
 	comment: "Comment",
 	review: "GitHub review",
-	webhook: "Discord and webhooks",
+	webhook: "Webhooks",
 } as const satisfies Record<RedactionSurface, string>;
 
 export function stopName(level: number): string {

@@ -308,7 +308,7 @@ if (import.meta.main) {
 			await sweepActions({ db, adapterFor, logger });
 		});
 
-		/** Outbound delivery — POST webhook/discord rows through the SSRF guard;
+		/** Outbound delivery — POST webhook rows through the SSRF guard;
 		 * the poll IS the retry (recorded rows re-attempt each tick). */
 		await boss.createQueue("deliver-webhook");
 		await boss.schedule("deliver-webhook", "* * * * *", {}, {});

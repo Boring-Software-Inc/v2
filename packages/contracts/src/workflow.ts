@@ -63,6 +63,16 @@ export const workflowActionKindSchema = z.enum([
 ]);
 export type WorkflowActionKind = z.infer<typeof workflowActionKindSchema>;
 
+export const REMOVED_ACTION_KINDS = [
+	"comment",
+	"discord",
+] as const satisfies readonly WorkflowActionKind[];
+export type RemovedActionKind = (typeof REMOVED_ACTION_KINDS)[number];
+
+export function isRemovedAction(kind: string): kind is RemovedActionKind {
+	return (REMOVED_ACTION_KINDS as readonly string[]).includes(kind);
+}
+
 /**
  * Config for the outbound-delivery actions. The URL declares `.meta({ secret:
  * true })` so the node face and the panel mask it (display only — at-rest is a
@@ -79,9 +89,6 @@ export const webhookParamsSchema = z.object({
 		.optional()
 		.meta({ secret: true })
 		.describe("signing secret"),
-});
-export const discordParamsSchema = z.object({
-	url: z.url().meta({ secret: true }).describe("discord webhook url"),
 });
 
 export const MAX_REVIEW_TARGETS = 15;
@@ -415,10 +422,5 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 		action: "webhook",
 		name: "Webhook",
 		description: "Posts the verdict as JSON to a URL you set.",
-	},
-	{
-		action: "discord",
-		name: "Discord",
-		description: "Posts the verdict to a Discord channel you set.",
 	},
 ];

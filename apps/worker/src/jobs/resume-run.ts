@@ -28,7 +28,7 @@ import {
 /**
  * The resumed run's outcome is the MAINTAINER's decision, not a function of
  * which nodes the graph happened to walk (T4 floor, hardened after a prod miss:
- * a deny edge drawn to a non-block action — discord — resumed to `pass`, a green
+ * a deny edge drawn to a non-block action resumed to `pass`, a green
  * check on an explicitly denied change). Deny means blocked, full stop: a deny
  * edge to a non-block action, or to nowhere, still blocks. Approve resumes to
  * the graph's own verdict — that IS the correct reading of approve. `floorBlock`

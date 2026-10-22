@@ -77,4 +77,29 @@ describe("workflow secrets — set-only masking", () => {
 		const { error } = restoreWorkflowSecrets(incoming, null);
 		expect(error).toBeDefined();
 	});
+
+	test("a removed Discord step keeps its stored url masked", () => {
+		const stored: WorkflowDefinition = {
+			id: "wf1",
+			name: "wf",
+			version: 1,
+			nodes: [
+				{
+					id: "d",
+					type: "action",
+					action: "discord",
+					params: { url: "https://discord.com/api/webhooks/1/TOKEN" },
+				},
+			],
+			edges: [],
+		};
+		const redacted = redactWorkflowSecrets(stored);
+		expect(JSON.stringify(redacted)).not.toContain("TOKEN");
+		const { definition, changedUrlNodes } = restoreWorkflowSecrets(
+			redacted,
+			stored,
+		);
+		expect(definition).toEqual(stored);
+		expect(changedUrlNodes).toEqual([]);
+	});
 });
