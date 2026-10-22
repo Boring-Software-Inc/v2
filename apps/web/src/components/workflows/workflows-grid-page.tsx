@@ -28,6 +28,7 @@ import {
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
@@ -300,12 +301,14 @@ function CreateSplitButton({
 				pending={creating}
 				size="sm"
 			>
-				<DropdownMenuLabel>Templates</DropdownMenuLabel>
-				{WORKFLOW_TEMPLATES.map((tpl) => (
-					<DropdownMenuItem key={tpl.id} onClick={() => onTemplate(tpl)}>
-						Start from {tpl.name}
-					</DropdownMenuItem>
-				))}
+				<DropdownMenuGroup>
+					<DropdownMenuLabel>Templates</DropdownMenuLabel>
+					{WORKFLOW_TEMPLATES.map((tpl) => (
+						<DropdownMenuItem key={tpl.id} onClick={() => onTemplate(tpl)}>
+							Start from {tpl.name}
+						</DropdownMenuItem>
+					))}
+				</DropdownMenuGroup>
 			</ButtonGroupMenu>
 		</ButtonGroup>
 	);
