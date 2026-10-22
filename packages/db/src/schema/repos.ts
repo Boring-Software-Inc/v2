@@ -153,6 +153,23 @@ export const repoReviewers = pgTable(
 	],
 );
 
+export const repoLabels = pgTable(
+	"repo_labels",
+	{
+		id: text("id").primaryKey(),
+		repoId: text("repo_id")
+			.notNull()
+			.references(() => repos.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		color: text("color").notNull(),
+		description: text("description"),
+		syncedAt: timestamp("synced_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [uniqueIndex("repo_labels_repo_name_unique").on(t.repoId, t.name)],
+);
+
 /**
  * Custom rules: rules defined in data, per repo. `definition` is the
  * serialized SDK shape (contracts customRuleDefinitionSchema, validated on

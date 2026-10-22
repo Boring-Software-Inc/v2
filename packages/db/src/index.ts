@@ -33,8 +33,11 @@ export {
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	recoverInstallationOptions,
+	SYNC_REPO_LABELS_QUEUE,
 	SYNC_REPO_REVIEWERS_QUEUE,
+	type SyncRepoLabelsJob,
 	type SyncRepoReviewersJob,
+	syncRepoLabelsOptions,
 	syncRepoReviewersOptions,
 } from "./queue.ts";
 export * from "./schema/index.ts";
@@ -96,6 +99,8 @@ export type {
 	InstallAccessKey,
 } from "./services/installation-access.ts";
 export * as installationAccessServices from "./services/installation-access.ts";
+export type { RepoLabelList } from "./services/labels.ts";
+export * as labelServices from "./services/labels.ts";
 export * as moderationServices from "./services/moderation.ts";
 export type { RepoLite, SwitcherRepo } from "./services/onboarding.ts";
 export type {

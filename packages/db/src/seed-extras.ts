@@ -24,6 +24,7 @@ import {
 } from "./seed.ts";
 import * as economicsServices from "./services/economics.ts";
 import * as insightServices from "./services/insights.ts";
+import * as labelServices from "./services/labels.ts";
 import * as orgServices from "./services/organizations.ts";
 import * as repoServices from "./services/repos.ts";
 import * as reviewerServices from "./services/reviewers.ts";
@@ -138,7 +139,22 @@ export async function seedRepoExtras(db: Db, repoId: string): Promise<void> {
 	);
 	await repoServices.upsertRepoSuggestions(db, repoId, "branches", BRANCHES);
 	await reviewerServices.replaceRepoReviewers(db, repoId, REVIEWERS);
+	await labelServices.replaceRepoLabels(db, repoId, LABELS);
 }
+
+const LABELS = [
+	{ name: "bug", color: "d73a4a", description: "Something isn't working" },
+	{ name: "documentation", color: "0075ca", description: null },
+	{
+		name: "enhancement",
+		color: "a2eeef",
+		description: "New feature or request",
+	},
+	{ name: "good first issue", color: "7057ff", description: null },
+	{ name: "needs triage", color: "fbca04", description: null },
+	{ name: "no-auto-close", color: "ededed", description: null },
+	{ name: "stale", color: "cfd3d7", description: null },
+];
 
 const TEAM = {
 	slug: DEMO_TEAM_SLUG,

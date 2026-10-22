@@ -1,7 +1,8 @@
 import {
+	completeSchedule,
+	durationMs,
 	type Forge,
 	isScheduleTrigger,
-	SCHEDULE_EVERY_MS,
 	type TriggerSchedule,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
@@ -35,7 +36,7 @@ export function isScheduleDue(
 ): boolean {
 	return (
 		lastTickAt === null ||
-		now.getTime() - lastTickAt.getTime() >= SCHEDULE_EVERY_MS[every]
+		now.getTime() - lastTickAt.getTime() >= durationMs(every)
 	);
 }
 
@@ -80,17 +81,18 @@ export async function listDueSchedules(
 			return [];
 		}
 		return parsed.data.nodes.flatMap((node) => {
-			if (
-				node.type !== "trigger" ||
-				!isScheduleTrigger(node) ||
-				!node.schedule ||
-				node.kinds.length > 1
-			) {
+			const schedule =
+				node.type === "trigger" &&
+				isScheduleTrigger(node) &&
+				node.kinds.length === 1
+					? completeSchedule(node.schedule)
+					: null;
+			if (!schedule) {
 				return [];
 			}
 			const lastTickAt =
 				lastTick.get(`${row.workflowRowId}:${node.id}`) ?? null;
-			if (!isScheduleDue(node.schedule.every, lastTickAt, now)) {
+			if (!isScheduleDue(schedule.every, lastTickAt, now)) {
 				return [];
 			}
 			return [
@@ -98,7 +100,7 @@ export async function listDueSchedules(
 					workflowRowId: row.workflowRowId,
 					workflowId: parsed.data.id,
 					nodeId: node.id,
-					schedule: node.schedule,
+					schedule,
 					repoId: row.repoId,
 					repoFullName: row.repoFullName,
 					repoOwner: row.repoOwner,
