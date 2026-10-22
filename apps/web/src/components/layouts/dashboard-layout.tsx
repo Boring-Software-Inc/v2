@@ -1,6 +1,6 @@
 import { useFlag, useFlags } from "@databuddy/sdk/react";
 import { useQuery } from "@tanstack/react-query";
-import { useParams, useRouterState } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { FLAGS } from "@tripwire/auth/databuddy";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { DevScenarioSwitcher } from "#/components/dev/dev-scenario-switcher";
@@ -9,7 +9,6 @@ import {
 	FeedbackOverlay,
 	FeedbackProvider,
 } from "#/components/feedback";
-import { SlowRegion } from "#/components/glaze/ui/slow-notice";
 import { ShellNav } from "#/components/layouts/shell-nav";
 import { OrgSettingsDialog } from "#/components/organizations/org-settings-dialog";
 import { useMediaQuery } from "#/hooks/use-media-query";
@@ -50,7 +49,6 @@ function DashboardShell({
 	children,
 }: DashboardLayoutProps) {
 	const { data: user } = useQuery(currentUserQueryOptions());
-	const navigating = useRouterState({ select: (state) => state.isLoading });
 	const sidebar = useFlag(FLAGS.showSidebar);
 	const { updateUser } = useFlags();
 	const flaggedUser = useRef<string | null>(null);
@@ -144,7 +142,7 @@ function DashboardShell({
 								tabIndex={-1}
 								className="min-h-0 flex-1 overflow-y-auto"
 							>
-								<SlowRegion active={navigating}>{children}</SlowRegion>
+								{children}
 							</main>
 
 							{isDesktop || !content ? null : (

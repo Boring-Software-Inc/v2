@@ -1,16 +1,15 @@
 import { Icon, Pending } from "#/components/glaze/icon";
-import { SlowText, useSlowRegion } from "#/components/glaze/ui/slow-notice";
+import { useSlowWait } from "#/components/glaze/ui/slow-notice";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 
 export function HomeLoading() {
-	const inside = useSlowRegion(true);
+	useSlowWait(true);
 	return (
-		<div className="flex flex-col items-center py-10">
+		<div aria-hidden className="flex justify-center py-10 text-text-2">
 			<Icon
-				className="animate-spin text-text-2 motion-reduce:animate-none"
+				className="animate-spin motion-reduce:animate-none"
 				icon={Pending}
 			/>
-			<SlowText className="pt-2 text-center" show={inside} />
 		</div>
 	);
 }

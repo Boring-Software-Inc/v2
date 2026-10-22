@@ -1,6 +1,6 @@
 'use client';
 
-import {useEffect, useState, useSyncExternalStore} from 'react';
+import {useEffect, useState} from 'react';
 
 export const SLOW_AFTER_MS = 5000;
 
@@ -33,16 +33,4 @@ export function createWaitStore() {
       return () => { listeners.delete(listener); };
     },
   };
-}
-
-export type WaitStore = ReturnType<typeof createWaitStore>;
-
-export function useWaitRegion() {
-  const [store] = useState(createWaitStore);
-  const waiting = useSyncExternalStore(store.subscribe, store.waiting, () => false);
-  return {store, waiting};
-}
-
-export function useMarkWaiting(store: WaitStore | null, active: boolean) {
-  useEffect(() => (store && active ? store.mark() : undefined), [store, active]);
 }

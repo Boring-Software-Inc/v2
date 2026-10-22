@@ -2,7 +2,7 @@
 
 import {useEffect, useRef, useState, type CSSProperties, type ReactNode} from 'react';
 import {cn} from '#/lib/glaze/utils.ts';
-import {LoadRegionContext, SlowText, useLoadingMark, useSlowBehindContent, useSlowRegion} from '#/components/glaze/ui/slow-notice.tsx';
+import {useSlowWait} from '#/components/glaze/ui/slow-notice.tsx';
 
 // Holds the shape of content while it loads, so nothing moves when the content lands.
 // - Skeleton is a box. Give it the size of the real thing (size-6 rounded-pill for an avatar, h-(--control) w-24).
@@ -19,7 +19,7 @@ import {LoadRegionContext, SlowText, useLoadingMark, useSlowBehindContent, useSl
 // 150ms): a skeleton stands in for missing content, never for content being refreshed.
 
 function Skeleton({className, ...props}: React.ComponentProps<'div'>) {
-  useLoadingMark();
+  useSlowWait(true);
   return <div
     data-slot="skeleton"
     aria-hidden
@@ -119,9 +119,8 @@ function SkeletonSwap({loading, fallback, children, delay: delayProp, minDuratio
     return () => clearTimeout(t);
   }, [reloading, delayProp]);
   const holding = !reloading && phase !== 'done';
-  const inside = useSlowRegion(holding);
-  useSlowBehindContent(reloading);
-  return <LoadRegionContext.Provider value={null}><div
+  useSlowWait(reloading);
+  return <div
     ref={root}
     data-slot="skeleton-swap"
     data-phase={reloading ? 'stale' : phase}
@@ -130,9 +129,9 @@ function SkeletonSwap({loading, fallback, children, delay: delayProp, minDuratio
     className={cn('transition-opacity duration-(--dur-state) ease-out data-stale:opacity-(--stale)', className)}
   >
     {holding
-      ? <><div className={cn('relative', phase === 'hidden' && 'invisible')}>{fallback}<SlowText show={inside} className="absolute inset-0 z-(--z-raised) grid place-items-center p-4 text-center"/></div><span className="sr-only" role="status">{phase === 'shown' ? label : ''}</span></>
+      ? <><div className={cn(phase === 'hidden' && 'invisible')}>{fallback}</div><span className="sr-only" role="status">{phase === 'shown' ? label : ''}</span></>
       : children}
-  </div></LoadRegionContext.Provider>;
+  </div>;
 }
 
 export {Skeleton, SkeletonText, SkeletonSwap, type SkeletonTextProps, type SkeletonSwapProps, type TextRole};

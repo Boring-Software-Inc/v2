@@ -6,7 +6,8 @@ import {useEffect, useMemo, useRef, useState, type ReactNode, type Ref} from 're
 import {motion, useReducedMotion} from 'motion/react';
 import {Icon, Pending} from '#/components/glaze/icon.tsx';
 import {cn, controlHeight, mergeClass, mergeRefs} from '#/lib/glaze/utils.ts';
-import {SLOW_NOTICE, SlowTooltip, StillLabel, useSlowButton} from '#/components/glaze/ui/slow-notice.tsx';
+import {SLOW_NOTICE, StillLabel} from '#/components/glaze/ui/slow-notice.tsx';
+import {useSlowAfter} from '#/lib/glaze/waiting.ts';
 
 // Glaze's button on Base UI's Button. 32px tall by default, 26 small, 36 large, a 13/500 label.
 //
@@ -140,8 +141,7 @@ function Button({className, variant, size, pending, pendingLabel, disabled, focu
   const iconOnly = s.startsWith('icon');
   const canPend = pending !== undefined;
   const named = useNameCheck();
-  const slow = useSlowButton(pending === true);
-  const still = slow === 'label';
+  const still = useSlowAfter(pending === true);
   const mergedRef = useMemo(() => mergeRefs(ref as Ref<HTMLElement> | undefined, named), [ref, named]);
 
   // A text label never wraps; a label too long for its container ends in an ellipsis and stays the accessible name.
@@ -155,7 +155,7 @@ function Button({className, variant, size, pending, pendingLabel, disabled, focu
       </span></FitWidth>
     : label;
 
-  return <><ButtonPrimitive
+  return <ButtonPrimitive
     data-slot="button"
     data-variant={v}
     data-size={s}
@@ -166,7 +166,7 @@ function Button({className, variant, size, pending, pendingLabel, disabled, focu
     title={still ? SLOW_NOTICE : undefined}
     className={mergeClass(buttonVariants({variant: v, size: s}), className)}
     {...props}
-  >{content}</ButtonPrimitive>{canPend && <SlowTooltip open={slow === 'tooltip'} anchor={named}/>}</>;
+  >{content}</ButtonPrimitive>;
 }
 
 export {Button, buttonVariants, type ButtonProps};

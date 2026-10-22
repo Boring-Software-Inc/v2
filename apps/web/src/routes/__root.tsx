@@ -6,11 +6,13 @@ import {
 	Outlet,
 	redirect,
 	Scripts,
+	useRouterState,
 } from "@tanstack/react-router";
 import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
 import { ThemeProvider } from "next-themes";
 import { lazy, Suspense } from "react";
 import glazeCss from "#/components/glaze/styles.css?url";
+import { useSlowWait } from "#/components/glaze/ui/slow-notice";
 import { Toaster } from "#/components/glaze/ui/toast";
 import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
@@ -138,6 +140,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+	useSlowWait(useRouterState({ select: (state) => state.isLoading }));
 	return (
 		<ThemeProvider
 			attribute={["class", "data-theme"]}
