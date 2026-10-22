@@ -16,6 +16,7 @@ const memberView: RunView = {
 	id: "run-1",
 	repoFullName: "acme/pub",
 	subjectNumber: 91,
+	subjectKind: "change-request",
 	headSha: "abc1234",
 	status: "completed",
 	verdict: "block",

@@ -47,4 +47,38 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 			],
 		},
 	},
+	{
+		id: "lock-inactive-threads",
+		name: "Lock inactive threads",
+		description:
+			"Every 12 hours, locks closed issues and change requests inactive for 15 days.",
+		definition: {
+			version: 1,
+			nodes: [
+				{
+					id: "trigger",
+					type: "trigger",
+					kinds: ["schedule.matched"],
+					schedule: {
+						every: "12h",
+						match: {
+							subjects: ["issue", "change-request"],
+							state: "closed",
+							inactiveDays: 15,
+							skipLocked: true,
+						},
+					},
+					position: { x: 80, y: 160 },
+				},
+				{
+					id: "lock",
+					type: "action",
+					action: "lock",
+					params: { reason: "resolved" },
+					position: { x: 360, y: 160 },
+				},
+			],
+			edges: [{ id: "e1", from: "trigger", to: "lock" }],
+		},
+	},
 ];

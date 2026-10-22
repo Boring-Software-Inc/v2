@@ -23,6 +23,9 @@ function eventForgeSubject(event: NormalizedEvent): string | null {
 	if (event.kind === "push") {
 		return `the push to ${event.push.ref.replace("refs/heads/", "")}`;
 	}
+	if (event.kind === "schedule.matched") {
+		return `#${event.thread.number}`;
+	}
 	return null;
 }
 
@@ -35,6 +38,9 @@ function eventForgeUrl(event: NormalizedEvent): string | null {
 	}
 	if (event.kind === "push") {
 		return event.push.url ?? null;
+	}
+	if (event.kind === "schedule.matched") {
+		return event.thread.url;
 	}
 	return null;
 }

@@ -8,10 +8,12 @@ import {
 	ruleUiSchema,
 	storedReviewerSchema,
 	TRIGGER_CATALOG,
+	type TriggerSchedule,
 	type WorkflowDefinition,
 	type WorkflowNode,
 } from "@tripwire/contracts";
 import { z } from "zod";
+import { scheduleSummary } from "#/lib/schedule-summary";
 
 const stringList = z.array(z.string()).catch([]);
 const reviewerList = z
@@ -145,6 +147,11 @@ function actionParams(node: ActionNode): string[] {
 			...(teams.length > 0 ? [`teams: ${teams.join(", ")}`] : []),
 		];
 	}
+	if (node.action === "lock") {
+		return typeof params.reason === "string"
+			? [`reason: ${params.reason}`]
+			: [];
+	}
 	if (node.action === "webhook") {
 		const rows = [secretSet(params, "url") ? "url set" : "url not set"];
 		if (secretSet(params, "signingSecret")) {
@@ -207,6 +214,24 @@ function gateInputs(
 		});
 }
 
+function scheduleLine(schedule: TriggerSchedule): string {
+	const parts = [
+		scheduleSummary(schedule),
+		`applies to: ${schedule.match.subjects.join(", ")}`,
+		`state: ${schedule.match.state}`,
+	];
+	if (schedule.match.labels?.length) {
+		parts.push(`with labels: ${schedule.match.labels.join(", ")}`);
+	}
+	if (schedule.match.excludeLabels?.length) {
+		parts.push(`without labels: ${schedule.match.excludeLabels.join(", ")}`);
+	}
+	if (schedule.match.skipLocked) {
+		parts.push("skips locked threads");
+	}
+	return parts.join("; ");
+}
+
 export function workflowToMarkdown(
 	definition: WorkflowDefinition,
 	customRules: readonly CustomRuleDisplay[] = [],
@@ -225,6 +250,11 @@ export function workflowToMarkdown(
 			(kind) => TRIGGER_CATALOG.find((e) => e.kind === kind)?.name ?? kind,
 		);
 		lines.push("", "### Trigger", names.join(", "));
+		for (const trigger of triggers) {
+			if (trigger.schedule) {
+				lines.push(scheduleLine(trigger.schedule));
+			}
+		}
 	}
 
 	const rules = definition.nodes.filter(isRule);

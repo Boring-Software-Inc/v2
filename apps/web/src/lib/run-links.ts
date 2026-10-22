@@ -2,6 +2,8 @@ import {
 	type EventKind,
 	eventKindSchema,
 	type ForgeId,
+	type ThreadSubject,
+	threadSubjectSchema,
 	type Verdict,
 	verdictSchema,
 } from "@tripwire/contracts";
@@ -54,6 +56,13 @@ const normalizedShape = z
 	.object({
 		occurredAt: z.string().optional(),
 		changeRequest: z.object({ title: z.string() }).optional(),
+		thread: z
+			.object({
+				title: z.string(),
+				kind: threadSubjectSchema,
+				url: z.string(),
+			})
+			.optional(),
 	})
 	.catch({});
 
@@ -68,10 +77,25 @@ export function toEventView(row: {
 	return {
 		kind: eventKind(row.kind),
 		actor: row.actorLogin,
-		title: normalized.changeRequest?.title ?? null,
+		title: normalized.changeRequest?.title ?? normalized.thread?.title ?? null,
 		headSha: row.headSha,
 		at: normalized.occurredAt ?? row.receivedAt.toISOString(),
 	};
+}
+
+export function threadSubjectOf(
+	stored: string | null,
+	normalized: JsonValue | null,
+): ThreadSubject {
+	const parsed = threadSubjectSchema.safeParse(stored);
+	if (parsed.success) {
+		return parsed.data;
+	}
+	return normalizedShape.parse(normalized).thread?.kind ?? "change-request";
+}
+
+export function threadUrlOf(normalized: JsonValue | null): string | null {
+	return normalizedShape.parse(normalized).thread?.url ?? null;
 }
 
 export function runLink(row: {

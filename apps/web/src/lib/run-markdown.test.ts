@@ -7,6 +7,7 @@ function makeRun(over: Partial<RunView> = {}): RunView {
 		id: "run-1",
 		repoFullName: "acme/web",
 		subjectNumber: 83,
+		subjectKind: "change-request",
 		headSha: "8de51ef9f624c5d35fe48b55f6cc5486eecf5672",
 		status: "completed",
 		verdict: "block",

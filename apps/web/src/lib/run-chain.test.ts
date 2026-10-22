@@ -62,6 +62,7 @@ function view(overrides: Partial<RunView> = {}): RunView {
 		id: "run-1",
 		repoFullName: "acme/scratch",
 		subjectNumber: 91,
+		subjectKind: "change-request",
 		headSha: "3f9a2c1aa",
 		status: "completed",
 		verdict: "block",
@@ -136,6 +137,26 @@ describe("formatOffset", () => {
 		expect(formatOffset(2700)).toBe("+2.7s");
 		expect(formatOffset(30_000)).toBe("+30s");
 		expect(formatOffset(22 * 60_000)).toBe("+22m");
+	});
+});
+
+describe("buildRunChain, a scheduled run", () => {
+	test("reads as matched by schedule with a clock", () => {
+		const chain = buildRunChain(
+			view({
+				subjectKind: "issue",
+				event: {
+					kind: "schedule.matched",
+					actor: "octocat",
+					title: "Crash on start",
+					headSha: null,
+					at: AT,
+				},
+			}),
+		);
+		expect(chain.event.title).toBe("Matched by schedule");
+		expect(chain.event.glyph).toBe("scheduled");
+		expect(chain.event.detail).toBe("Crash on start");
 	});
 });
 

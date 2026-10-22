@@ -7,6 +7,7 @@ import type {
 import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
+	isScheduleTrigger,
 	RULE_CATALOG,
 } from "@tripwire/contracts";
 import {
@@ -21,18 +22,21 @@ import {
 	Converge,
 	Conversation,
 	DiscordMark,
+	FailedMark,
 	Files,
 	Gauge,
 	type GlazeIcon,
 	Inbox,
 	Invite,
 	Lightning,
+	Locked,
 	Merge,
 	Model,
 	Negate,
 	Play,
 	Protected,
 	Tag,
+	Time,
 	Translate,
 	Tree,
 	UserAvatar,
@@ -64,6 +68,7 @@ const TRIGGER_ICON: TriggerIconMap = {
 	"change-request.closed": Archive,
 	"comment.created": Conversation,
 	push: Branch,
+	"schedule.matched": Time,
 };
 
 type RuleIconMap = Record<string, GlazeIcon>;
@@ -93,6 +98,8 @@ const ACTION_ICON = {
 	"send-to-moderation": Inbox,
 	webhook: Webhook,
 	discord: DiscordMark,
+	lock: Locked,
+	close: FailedMark,
 } satisfies Record<WorkflowActionKind, GlazeIcon>;
 
 export function triggerIcon(kind: EventKind): GlazeIcon {
@@ -115,7 +122,7 @@ export function actionIcon(action: WorkflowActionKind): GlazeIcon {
 export function stepIcon(node: WorkflowNode): GlazeIcon {
 	switch (node.type) {
 		case "trigger":
-			return KIND_ICON.trigger;
+			return isScheduleTrigger(node) ? Time : KIND_ICON.trigger;
 		case "rule":
 			return ruleIcon(node.ref);
 		case "gate":

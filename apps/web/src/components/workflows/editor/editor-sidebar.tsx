@@ -11,6 +11,7 @@ import type {
 import {
 	ACTION_CATALOG,
 	acceptReason,
+	DEFAULT_TRIGGER_SCHEDULE,
 	GATE_CATALOG,
 	outputPorts,
 	RULE_CATALOG,
@@ -155,7 +156,14 @@ export function buildNodeFromItem(item: ToolboxItem): WorkflowNode {
 	const id = crypto.randomUUID();
 	switch (item.kind) {
 		case "trigger":
-			return { id, type: "trigger", kinds: [item.eventKind] };
+			return item.eventKind === "schedule.matched"
+				? {
+						id,
+						type: "trigger",
+						kinds: [item.eventKind],
+						schedule: structuredClone(DEFAULT_TRIGGER_SCHEDULE),
+					}
+				: { id, type: "trigger", kinds: [item.eventKind] };
 		case "rule":
 			return {
 				id,

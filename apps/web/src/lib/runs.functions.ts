@@ -1,5 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { EventKind, ForgeId, Verdict } from "@tripwire/contracts";
+import type {
+	EventKind,
+	ForgeId,
+	ThreadSubject,
+	Verdict,
+} from "@tripwire/contracts";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import { orgMemberMiddleware } from "#/lib/server/org-guard";
 
@@ -89,6 +94,7 @@ export interface RunView {
 	id: string;
 	repoFullName: string;
 	subjectNumber: number | null;
+	subjectKind: ThreadSubject;
 	headSha: string | null;
 	status: string;
 	verdict: Verdict | null;

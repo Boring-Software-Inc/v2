@@ -34,6 +34,7 @@ export const SAMPLE_RUN: RunView = {
 	id: "sample",
 	repoFullName: "acme/widgets",
 	subjectNumber: 88,
+	subjectKind: "change-request",
 	headSha: "8de51ef9f624c5d35fe48b55f6cc5486eecf5672",
 	status: "completed",
 	verdict: "block",

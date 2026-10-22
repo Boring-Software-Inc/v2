@@ -6,6 +6,7 @@ import {
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { z } from "zod";
+import { SCHEDULE_EVERY_LABEL } from "#/lib/schedule-summary";
 
 const targetList = z.array(z.string()).catch([]);
 const reviewerList = z
@@ -176,17 +177,43 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 				(kind) =>
 					TRIGGER_CATALOG.find((entry) => entry.kind === kind)?.name ?? kind,
 			);
-			return [
+			const kindsRow: NodeFieldValue = {
+				field: {
+					key: "kinds",
+					label: "Triggers on",
+					secret: false,
+					kind: "string-list",
+				},
+				value: names,
+			};
+			if (!node.schedule) {
+				return [kindsRow];
+			}
+			const days = node.schedule.match.inactiveDays;
+			const rows: NodeFieldValue[] = [
+				kindsRow,
 				{
 					field: {
-						key: "kinds",
-						label: "Triggers on",
+						key: "schedule",
+						label: "Runs",
 						secret: false,
-						kind: "string-list",
+						kind: "string",
 					},
-					value: names,
+					value: SCHEDULE_EVERY_LABEL[node.schedule.every],
 				},
 			];
+			if (days !== undefined) {
+				rows.push({
+					field: {
+						key: "inactiveDays",
+						label: "Inactive for",
+						secret: false,
+						kind: "string",
+					},
+					value: `${days} ${days === 1 ? "day" : "days"}`,
+				});
+			}
+			return rows;
 		}
 		case "action": {
 			if (node.action === "label") {
@@ -235,6 +262,20 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					});
 				}
 				return rows;
+			}
+			if (node.action === "lock") {
+				const reason = node.params?.reason;
+				return [
+					{
+						field: {
+							key: "reason",
+							label: "Reason",
+							secret: false,
+							kind: "string",
+						},
+						value: typeof reason === "string" ? reason : "none",
+					},
+				];
 			}
 			if (node.action === "webhook") {
 				const params = node.params ?? {};

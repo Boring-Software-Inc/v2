@@ -2,11 +2,17 @@ import type {
 	EventKind,
 	GateMode,
 	JsonValue,
+	ScheduleEvery,
+	ThreadSubject,
+	TriggerSchedule,
 	WorkflowNode,
 } from "@tripwire/contracts";
 import {
 	ACTION_CATALOG,
+	DEFAULT_TRIGGER_SCHEDULE,
 	GATE_CATALOG,
+	isScheduleTrigger,
+	lockParamsSchema,
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { useState } from "react";
@@ -32,6 +38,7 @@ import {
 	ruleCatalogEntryForRef,
 } from "#/components/workflows/editor/node-fields";
 import { ReviewerPicker } from "#/components/workflows/editor/reviewer-picker";
+import { SCHEDULE_EVERY_LABEL } from "#/lib/schedule-summary";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
@@ -58,7 +65,8 @@ export function hasEditableParams(node: WorkflowNode): boolean {
 			return (
 				node.action === "label" ||
 				node.action === "request-review" ||
-				node.action === "webhook"
+				node.action === "webhook" ||
+				node.action === "lock"
 			);
 		default:
 			return false;
@@ -113,27 +121,241 @@ function TriggerFields({
 	onUpdate: (next: WorkflowNode) => void;
 }) {
 	const toggle = (kind: EventKind, checked: boolean) => {
-		const kinds = checked
-			? [...node.kinds, kind]
-			: node.kinds.filter((k) => k !== kind);
-		onUpdate({ ...node, kinds });
+		if (kind === "schedule.matched") {
+			if (checked) {
+				onUpdate({
+					...node,
+					kinds: [kind],
+					schedule: node.schedule ?? structuredClone(DEFAULT_TRIGGER_SCHEDULE),
+				});
+				return;
+			}
+			const { schedule: _, ...rest } = node;
+			onUpdate({ ...rest, kinds: node.kinds.filter((k) => k !== kind) });
+			return;
+		}
+		if (checked) {
+			const { schedule: _, ...rest } = node;
+			onUpdate({
+				...rest,
+				kinds: [...node.kinds.filter((k) => k !== "schedule.matched"), kind],
+			});
+			return;
+		}
+		onUpdate({ ...node, kinds: node.kinds.filter((k) => k !== kind) });
 	};
 	return (
-		<FieldSet className="gap-2" data-field="kinds" disabled={readOnly}>
-			<FieldLegend variant="label">
-				Runs on these events (pick at least one)
-			</FieldLegend>
-			{TRIGGER_CATALOG.filter((entry) => entry.toolbox).map((entry) => (
-				<Label className="flex items-center gap-2" key={entry.kind}>
-					<Checkbox
-						checked={node.kinds.includes(entry.kind)}
-						disabled={readOnly}
-						onCheckedChange={(checked) => toggle(entry.kind, checked)}
-					/>
-					{entry.name}
-				</Label>
-			))}
-		</FieldSet>
+		<div className="flex flex-col gap-4">
+			<FieldSet className="gap-2" data-field="kinds" disabled={readOnly}>
+				<FieldLegend variant="label">
+					Runs on these events (pick at least one)
+				</FieldLegend>
+				{TRIGGER_CATALOG.filter((entry) => entry.toolbox).map((entry) => (
+					<Label className="flex items-center gap-2" key={entry.kind}>
+						<Checkbox
+							checked={node.kinds.includes(entry.kind)}
+							disabled={readOnly}
+							onCheckedChange={(checked) => toggle(entry.kind, checked)}
+						/>
+						{entry.name}
+					</Label>
+				))}
+			</FieldSet>
+			{isScheduleTrigger(node) ? (
+				<ScheduleFields
+					node={node}
+					onUpdate={onUpdate}
+					readOnly={readOnly}
+					schedule={node.schedule ?? DEFAULT_TRIGGER_SCHEDULE}
+				/>
+			) : null}
+		</div>
+	);
+}
+
+const EVERY_OPTIONS = Object.entries(SCHEDULE_EVERY_LABEL).map(
+	([value, label]) => ({ value, label }),
+);
+
+const SUBJECT_OPTIONS: { value: ThreadSubject; label: string }[] = [
+	{ value: "issue", label: "Issues" },
+	{ value: "change-request", label: "Change requests" },
+];
+
+const STATE_OPTIONS: {
+	value: TriggerSchedule["match"]["state"];
+	label: string;
+}[] = [
+	{ value: "open", label: "Open" },
+	{ value: "closed", label: "Closed" },
+	{ value: "any", label: "Any" },
+];
+
+function splitLabels(text: string): string[] {
+	return text
+		.split(/[\n,]/)
+		.map((part) => part.trim())
+		.filter((part) => part.length > 0);
+}
+
+function ScheduleFields({
+	node,
+	schedule,
+	readOnly,
+	onUpdate,
+}: {
+	node: Extract<WorkflowNode, { type: "trigger" }>;
+	schedule: TriggerSchedule;
+	readOnly: boolean;
+	onUpdate: (next: WorkflowNode) => void;
+}) {
+	const setSchedule = (next: TriggerSchedule) =>
+		onUpdate({ ...node, schedule: next });
+	const setMatch = (patch: Partial<TriggerSchedule["match"]>) =>
+		setSchedule({ ...schedule, match: { ...schedule.match, ...patch } });
+	const toggleSubject = (subject: ThreadSubject, checked: boolean) => {
+		const subjects = checked
+			? [...schedule.match.subjects.filter((s) => s !== subject), subject]
+			: schedule.match.subjects.filter((s) => s !== subject);
+		setMatch({ subjects });
+	};
+	const listOrUndefined = (text: string) => {
+		const labels = splitLabels(text);
+		return labels.length > 0 ? labels : undefined;
+	};
+	return (
+		<div className="flex flex-col gap-3" data-field="schedule">
+			<Field>
+				<FieldLabel>Runs</FieldLabel>
+				<Select
+					disabled={readOnly}
+					items={EVERY_OPTIONS}
+					native
+					onValueChange={(next) => {
+						if (next) {
+							setSchedule({ ...schedule, every: next as ScheduleEvery });
+						}
+					}}
+					value={schedule.every}
+				/>
+			</Field>
+			<FieldSet className="gap-2" disabled={readOnly}>
+				<FieldLegend variant="label">Applies to</FieldLegend>
+				{SUBJECT_OPTIONS.map((option) => (
+					<Label className="flex items-center gap-2" key={option.value}>
+						<Checkbox
+							checked={schedule.match.subjects.includes(option.value)}
+							disabled={readOnly}
+							onCheckedChange={(checked) =>
+								toggleSubject(option.value, checked)
+							}
+						/>
+						{option.label}
+					</Label>
+				))}
+			</FieldSet>
+			<Field>
+				<FieldLabel>State</FieldLabel>
+				<Select
+					disabled={readOnly}
+					items={STATE_OPTIONS}
+					native
+					onValueChange={(next) => {
+						if (next) {
+							setMatch({
+								state: next as TriggerSchedule["match"]["state"],
+							});
+						}
+					}}
+					value={schedule.match.state}
+				/>
+			</Field>
+			<Field>
+				<FieldLabel optional>Inactive for</FieldLabel>
+				<NumberInput
+					disabled={readOnly}
+					unit="days"
+					max={3650}
+					min={1}
+					onValueChange={(next) =>
+						setMatch({ inactiveDays: next === null ? undefined : next })
+					}
+					value={schedule.match.inactiveDays ?? null}
+				/>
+			</Field>
+			<Field>
+				<FieldLabel optional>With labels</FieldLabel>
+				<Textarea
+					defaultValue={(schedule.match.labels ?? []).join("\n")}
+					disabled={readOnly}
+					onChange={(event) =>
+						setMatch({ labels: listOrUndefined(event.target.value) })
+					}
+					rows={2}
+				/>
+			</Field>
+			<Field>
+				<FieldLabel optional>Without labels</FieldLabel>
+				<Textarea
+					defaultValue={(schedule.match.excludeLabels ?? []).join("\n")}
+					disabled={readOnly}
+					onChange={(event) =>
+						setMatch({ excludeLabels: listOrUndefined(event.target.value) })
+					}
+					rows={2}
+				/>
+			</Field>
+			<Label className="flex items-center gap-2">
+				<Checkbox
+					checked={schedule.match.skipLocked}
+					disabled={readOnly}
+					onCheckedChange={(checked) => setMatch({ skipLocked: checked })}
+				/>
+				Skip locked threads
+			</Label>
+		</div>
+	);
+}
+
+const LOCK_REASON_OPTIONS: { value: string; label: string }[] = [
+	{ value: "", label: "None" },
+	{ value: "resolved", label: "Resolved" },
+	{ value: "off-topic", label: "Off-topic" },
+	{ value: "too heated", label: "Too heated" },
+	{ value: "spam", label: "Spam" },
+];
+
+function LockFields({
+	node,
+	readOnly,
+	onUpdate,
+}: {
+	node: Extract<WorkflowNode, { type: "action" }>;
+	readOnly: boolean;
+	onUpdate: (next: WorkflowNode) => void;
+}) {
+	const parsed = lockParamsSchema.safeParse(node.params ?? {});
+	const reason = parsed.success ? (parsed.data.reason ?? "") : "";
+	return (
+		<Field data-field="reason">
+			<FieldLabel>Reason</FieldLabel>
+			<Select
+				disabled={readOnly}
+				items={LOCK_REASON_OPTIONS}
+				native
+				onValueChange={(next) => {
+					const { reason: _, ...rest } = node.params ?? {};
+					onUpdate({
+						...node,
+						params: next ? { ...rest, reason: next } : rest,
+					});
+				}}
+				value={reason}
+			/>
+			<FieldDescription>
+				{ACTION_CATALOG.find((entry) => entry.action === "lock")?.description}
+			</FieldDescription>
+		</Field>
 	);
 }
 
@@ -358,6 +580,9 @@ function ActionFields({
 		return (
 			<ReviewerPicker node={node} onUpdate={onUpdate} readOnly={readOnly} />
 		);
+	}
+	if (node.action === "lock") {
+		return <LockFields node={node} onUpdate={onUpdate} readOnly={readOnly} />;
 	}
 	if (node.action !== "label") {
 		return (
