@@ -5,7 +5,17 @@ import {
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, desc, eq, gt, inArray, isNotNull, lt, ne } from "drizzle-orm";
+import {
+	and,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNotNull,
+	lt,
+	ne,
+	sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
@@ -296,6 +306,19 @@ export async function attachDeliveryPayload(
 	await db
 		.update(runActions)
 		.set({ payload: { ...current, delivery } })
+		.where(eq(runActions.id, actionId));
+}
+
+export async function stampReviewBody(
+	db: Db,
+	actionId: string,
+	reason: string,
+): Promise<void> {
+	await db
+		.update(runActions)
+		.set({
+			payload: sql`${runActions.payload} || jsonb_build_object('reason', ${reason}::text)`,
+		})
 		.where(eq(runActions.id, actionId));
 }
 

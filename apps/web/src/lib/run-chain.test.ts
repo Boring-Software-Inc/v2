@@ -140,7 +140,7 @@ describe("buildRunChain, a blocked run with two workflows", () => {
 	});
 
 	test("the checks node counts across every workflow", () => {
-		expect(chain.checks?.title).toBe("2 of 4 checks did not pass");
+		expect(chain.checks?.title).toBe("2 of 4 rules did not pass");
 		expect(chain.checks?.tone).toBe("fail");
 		expect(chain.checks?.offsetMs).toBe(0);
 	});
@@ -170,7 +170,7 @@ describe("buildRunChain, a blocked run with two workflows", () => {
 
 	test("chips say what tripwire did, check first, and link where they can", () => {
 		expect(chain.outcome.chips.map((chip) => [chip.label, chip.href])).toEqual([
-			["Failed the tripwire check", "https://github.com/acme/scratch/runs/9"],
+			["Check blocked", "https://github.com/acme/scratch/runs/9"],
 			["Requested changes", null],
 			["Commented", "https://github.com/acme/scratch/pull/91#issuecomment-5"],
 			["Sent to a webhook", null],
@@ -258,7 +258,7 @@ describe("branch grouping", () => {
 		const branch = body.branches[0];
 		expect(branch?.form).toBe("row");
 		expect(branch ? branchSummary(branch).text : "").toBe(
-			"AI review, Account age did not pass",
+			"AI review and Account age did not pass",
 		);
 	});
 });
@@ -283,7 +283,7 @@ describe("human review decisions", () => {
 	test("the hold and the decision are their own nodes, then the outcome", () => {
 		const chain = buildRunChain(decided);
 		expect(chain.steps.map((step) => [step.title, step.tone])).toEqual([
-			["Sent to human review", "neutral"],
+			["Human review", "neutral"],
 			["Approved by caleb", "ok"],
 		]);
 		expect(chain.steps[1]?.offsetMs).toBe(22 * 60_000);
@@ -347,8 +347,8 @@ describe("human review decisions", () => {
 				],
 			}),
 		);
-		expect(chain.outcome.title).toBe("Sent to human review");
-		expect(chain.outcome.detail).toBe("Tripwire could not finish every check.");
+		expect(chain.outcome.title).toBe("Waiting for human review");
+		expect(chain.outcome.detail).toBe("Tripwire could not check every rule.");
 	});
 });
 
@@ -432,7 +432,7 @@ describe("redaction", () => {
 
 	test("level 6 is one node with the marks in run order, no names, no chips", () => {
 		const chain = buildRunChain(toPublicRunView(view(), 6));
-		expect(chain.checks?.title).toBe("2 of 4 checks did not pass");
+		expect(chain.checks?.title).toBe("2 of 4 rules did not pass");
 		expect(chain.checks?.body).toEqual({
 			kind: "marks",
 			marks: ["pass", "fail", "pass", "fail"],
@@ -444,7 +444,7 @@ describe("redaction", () => {
 
 	test("level 7 drops the counts", () => {
 		const chain = buildRunChain(toPublicRunView(view(), 7));
-		expect(chain.checks?.title).toBe("Checks did not pass");
+		expect(chain.checks?.title).toBe("Rules did not pass");
 		expect(chain.checks?.body).toEqual({ kind: "none" });
 	});
 

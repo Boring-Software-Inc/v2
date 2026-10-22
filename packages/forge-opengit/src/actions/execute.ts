@@ -64,6 +64,9 @@ export async function executeAction(
 			)) as { id?: string } | null;
 			return { externalId: created?.id ?? null };
 		}
+		case "delete-comment": {
+			throw new Error("open-git does not support deleting comments.");
+		}
 		case "label": {
 			throw new Error("open-git does not support labels.");
 		}

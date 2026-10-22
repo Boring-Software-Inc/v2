@@ -97,7 +97,9 @@ export type ForgeAction =
 			 * and post a NEW one. null ⇒ first-time verdict.
 			 */
 			previousVerdict: Verdict | null;
+			onlyIfPresent?: boolean;
 	  }
+	| { kind: "delete-comment"; repoFullName: string; number: number }
 	| {
 			kind: "request-review";
 			repoFullName: string;

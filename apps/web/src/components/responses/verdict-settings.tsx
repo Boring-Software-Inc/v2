@@ -1,4 +1,9 @@
-import type { ResponseConfig, Verdict } from "@tripwire/contracts";
+import type {
+	RedactionPolicy,
+	ResponseConfig,
+	Verdict,
+} from "@tripwire/contracts";
+import { blockCommentAddsDetail } from "@tripwire/contracts";
 import {
 	RadioGroup,
 	RadioGroupOption,
@@ -66,6 +71,7 @@ const OUTCOME_CHOICES: {
 export interface VerdictSettingsProps {
 	verdict: Verdict;
 	config: ResponseConfig;
+	policy: RedactionPolicy;
 	canEdit: boolean;
 	messageChosen: boolean;
 	editorEpoch: number;
@@ -78,6 +84,7 @@ export interface VerdictSettingsProps {
 export function VerdictSettings({
 	verdict,
 	config,
+	policy,
 	canEdit,
 	messageChosen,
 	editorEpoch,
@@ -138,7 +145,11 @@ export function VerdictSettings({
 					description={
 						verdict === "pass"
 							? "Off by default. A pass usually needs no reply."
-							: "Tells the contributor what happened."
+							: verdict === "block" &&
+									commenting &&
+									!blockCommentAddsDetail(config, policy)
+								? "At this redaction level, Tripwire posts only the review."
+								: "Tells the contributor what happened."
 					}
 					disabled={disabled}
 					label="Post a comment"

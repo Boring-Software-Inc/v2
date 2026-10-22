@@ -1,162 +1,213 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`every redaction level renders one compact comment level 0 1`] = `
-"@g-r-i-m, Tripwire blocked this.
+exports[`every redaction level: what lands on the change request level 0 1`] = `
+{
+  "check": "Blocked by Crypto address, AI review and Account age.",
+  "comment": 
+"@g-r-i-m, Tripwire blocked this change request.
 
-- It adds 2 crypto wallet addresses to the title and DONATE.md.
-- Spam surface: crypto airdrop address in a test file.
-- Your account is 2 days old. This clears in 5 days.
+- **Crypto address:** It adds 2 crypto wallet addresses to the title and DONATE.md.
+- **AI review:** Spam surface: crypto airdrop address in a test file.
+- **Account age:** Your account is 2 days old. This clears in 5 days.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <details><summary>How do I fix this?</summary>
 
 Fix what you can and push. Some problems will not clear with a new commit.
 
-If it should merge anyway, say so in a comment. A maintainer will decide.
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
 </details>
+
 <!-- tripwire:run -->
 "
+,
+  "review": "Blocked. See the comment.",
+}
 `;
 
-exports[`every redaction level renders one compact comment level 1 1`] = `
-"@g-r-i-m, Tripwire blocked this.
+exports[`every redaction level: what lands on the change request level 1 1`] = `
+{
+  "check": "Blocked by Crypto address, AI review and Account age.",
+  "comment": 
+"@g-r-i-m, Tripwire blocked this change request.
 
-- It adds 2 crypto wallet addresses to the title and DONATE.md.
-- Spam surface: crypto airdrop address in a test file.
-- Your account is 2 days old. This clears in 5 days.
+- **Crypto address:** It adds 2 crypto wallet addresses to the title and DONATE.md.
+- **AI review:** Spam surface: crypto airdrop address in a test file.
+- **Account age:** Your account is 2 days old. This clears in 5 days.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <details><summary>How do I fix this?</summary>
 
 Fix what you can and push. Some problems will not clear with a new commit.
 
-If it should merge anyway, say so in a comment. A maintainer will decide.
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
 </details>
+
 <!-- tripwire:run -->
 "
+,
+  "review": "Blocked. See the comment.",
+}
 `;
 
-exports[`every redaction level renders one compact comment level 2 1`] = `
-"@g-r-i-m, Tripwire blocked this.
+exports[`every redaction level: what lands on the change request level 2 1`] = `
+{
+  "check": "Blocked by Crypto address, AI review and Account age.",
+  "comment": 
+"@g-r-i-m, Tripwire blocked this change request.
 
-- This change request contains a cryptocurrency wallet address.
-- Spam surface: crypto airdrop address in a test file.
-- Your account is 2 days old. This clears in 5 days.
+- **Crypto address:** This change request adds crypto wallet addresses. Remove them.
+- **AI review:** Spam surface: crypto airdrop address in a test file.
+- **Account age:** Your account is 2 days old. This clears in 5 days.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <details><summary>How do I fix this?</summary>
 
 Fix what you can and push. Some problems will not clear with a new commit.
 
-If it should merge anyway, say so in a comment. A maintainer will decide.
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
 </details>
+
 <!-- tripwire:run -->
 "
+,
+  "review": "Blocked. See the comment.",
+}
 `;
 
-exports[`every redaction level renders one compact comment level 3 1`] = `
-"@g-r-i-m, Tripwire blocked this.
+exports[`every redaction level: what lands on the change request level 3 1`] = `
+{
+  "check": "Blocked by Crypto address, AI review and Account age.",
+  "comment": 
+"@g-r-i-m, Tripwire blocked this change request.
 
-- This change request contains a cryptocurrency wallet address.
-- Spam surface: crypto airdrop address in a test file.
-- Your account is 2 days old. This clears in 5 days.
+- **Crypto address:** This change request adds crypto wallet addresses. Remove them.
+- **AI review:** Spam surface: crypto airdrop address in a test file.
+- **Account age:** Your account is 2 days old. This clears in 5 days.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <details><summary>How do I fix this?</summary>
 
 Fix what you can and push. Some problems will not clear with a new commit.
 
-If it should merge anyway, say so in a comment. A maintainer will decide.
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
 </details>
+
 <!-- tripwire:run -->
 "
+,
+  "review": "Blocked. See the comment.",
+}
 `;
 
-exports[`every redaction level renders one compact comment level 4 1`] = `
-"@g-r-i-m, Tripwire blocked this.
+exports[`every redaction level: what lands on the change request level 4 1`] = `
+{
+  "check": "Blocked by Crypto address, AI review and Account age.",
+  "comment": 
+"@g-r-i-m, Tripwire blocked this change request.
 
-- This change request contains a cryptocurrency wallet address.
-- An AI review found problems in this change request.
-- Your account is 2 days old. This clears in 5 days.
+- **Crypto address:** This change request adds crypto wallet addresses. Remove them.
+- **AI review:** This change request has problems a reviewer would flag.
+- **Account age:** Your account is 2 days old. This clears in 5 days.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <details><summary>How do I fix this?</summary>
 
 Fix what you can and push. Some problems will not clear with a new commit.
 
-If it should merge anyway, say so in a comment. A maintainer will decide.
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
 </details>
+
 <!-- tripwire:run -->
 "
+,
+  "review": "Blocked. See the comment.",
+}
 `;
 
-exports[`every redaction level renders one compact comment level 5 1`] = `
-"@g-r-i-m, Tripwire blocked this.
+exports[`every redaction level: what lands on the change request level 5 1`] = `
+{
+  "check": "Blocked by Crypto address, AI review and Account age.",
+  "comment": null,
+  "review": 
+"@g-r-i-m, Tripwire blocked this change request.
 
-It did not meet these rules: Crypto address, AI review and Account age.
+3 rules did not pass: Crypto address, AI review and Account age.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <details><summary>How do I fix this?</summary>
 
 Fix what you can and push. Some problems will not clear with a new commit.
 
-If it should merge anyway, say so in a comment. A maintainer will decide.
-</details>
-<!-- tripwire:run -->
-"
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
+</details>"
+,
+}
 `;
 
-exports[`every redaction level renders one compact comment level 6 1`] = `
-"@g-r-i-m, Tripwire blocked this.
+exports[`every redaction level: what lands on the change request level 6 1`] = `
+{
+  "check": "Blocked by 3 rules.",
+  "comment": null,
+  "review": 
+"@g-r-i-m, Tripwire blocked this change request.
 
-It did not meet 3 rules.
+3 rules did not pass.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <details><summary>How do I fix this?</summary>
 
 Fix what you can and push. Some problems will not clear with a new commit.
 
-If it should merge anyway, say so in a comment. A maintainer will decide.
-</details>
-<!-- tripwire:run -->
-"
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
+</details>"
+,
+}
 `;
 
-exports[`every redaction level renders one compact comment level 7 1`] = `
-"@g-r-i-m, Tripwire blocked this.
+exports[`every redaction level: what lands on the change request level 7 1`] = `
+{
+  "check": "Blocked by 3 rules.",
+  "comment": null,
+  "review": 
+"@g-r-i-m, Tripwire blocked this change request.
 
-It did not meet 3 rules.
+3 rules did not pass.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <details><summary>How do I fix this?</summary>
 
 Fix what you can and push. Some problems will not clear with a new commit.
 
-If it should merge anyway, say so in a comment. A maintainer will decide.
-</details>
-<!-- tripwire:run -->
-"
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
+</details>"
+,
+}
 `;
 
-exports[`every redaction level renders one compact comment level 8 1`] = `
-"@g-r-i-m, Tripwire blocked this.
+exports[`every redaction level: what lands on the change request level 8 1`] = `
+{
+  "check": "Blocked.",
+  "comment": null,
+  "review": 
+"@g-r-i-m, Tripwire blocked this change request.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <details><summary>How do I fix this?</summary>
 
 Fix what you can and push. Some problems will not clear with a new commit.
 
-If it should merge anyway, say so in a comment. A maintainer will decide.
-</details>
-<!-- tripwire:run -->
-"
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
+</details>"
+,
+}
 `;

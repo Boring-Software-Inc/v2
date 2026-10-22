@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	CHECK_NAME,
 	COMMENT_MARKER,
-	REVIEW_BODY,
+	REVIEW_POINTER,
 	renderCommentBody,
 } from "@tripwire/contracts";
 import { GithubHttp } from "../client/http.ts";
@@ -52,7 +52,13 @@ const COMMON = {
 };
 const BLOCK_COMMENT = renderCommentBody({
 	verdict: "block",
-	reasons: [{ text: "Your account is 2 days old.", remedy: "wait" }],
+	reasons: [
+		{
+			text: "Your account is 2 days old.",
+			remedy: "wait",
+			ruleName: "Account age",
+		},
+	],
 	...COMMON,
 });
 const PASS_COMMENT = renderCommentBody({
@@ -176,6 +182,45 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 		expect(calls.filter((c) => c.method === "POST")).toHaveLength(1);
 	});
 
+	test("only-if-present skips a change request with no Tripwire comment", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/issues/7/comments": [{ id: 1, body: "unrelated" }],
+		});
+		const result = await upsertComment(
+			http,
+			"a/b",
+			7,
+			PASS_COMMENT,
+			"pass",
+			"block",
+			true,
+		);
+		expect(result).toEqual({
+			externalId: null,
+			created: false,
+			supersededId: null,
+		});
+		expect(calls.map((c) => c.method)).toEqual(["GET"]);
+	});
+
+	test("only-if-present still updates a comment that is there", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/issues/7/comments": [{ id: 5, body: BLOCK_COMMENT }],
+			"POST /repos/a/b/issues/7/comments": { id: 61 },
+		});
+		const result = await upsertComment(
+			http,
+			"a/b",
+			7,
+			PASS_COMMENT,
+			"pass",
+			"block",
+			true,
+		);
+		expect(result.externalId).toBe("61");
+		expect(calls.map((c) => c.method)).toEqual(["GET", "PATCH", "POST"]);
+	});
+
 	test("superseded body — struck, marker-less, points forward", () => {
 		expect(supersededBody(BLOCK_COMMENT)).toMatchSnapshot();
 	});
@@ -184,17 +229,25 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 		const body = renderCommentBody({
 			verdict: "block",
 			reasons: [
-				{ text: "Your account is 2 days old.", remedy: "wait" },
-				{ text: "It changes 40 files.", remedy: "revise" },
+				{
+					text: "Your account is 2 days old.",
+					remedy: "wait",
+					ruleName: "Account age",
+				},
+				{
+					text: "It changes 40 files.",
+					remedy: "revise",
+					ruleName: "Max files changed",
+				},
 			],
 			...COMMON,
 		});
 		expect(supersededBody(body)).toBe(
 			[
-				"~~@octocat, Tripwire blocked this.~~",
+				"~~@octocat, Tripwire blocked this change request.~~",
 				"",
-				"- ~~Your account is 2 days old.~~",
-				"- ~~It changes 40 files.~~",
+				"- ~~**Account age:** Your account is 2 days old.~~",
+				"- ~~**Max files changed:** It changes 40 files.~~",
 				"",
 				"This result is out of date. See the newer comment below.",
 			].join("\n"),
@@ -263,14 +316,14 @@ describe("executeAction — block files a request-changes review", () => {
 			kind: "block",
 			repoFullName: "a/b",
 			number: 7,
-			reason: REVIEW_BODY,
+			reason: REVIEW_POINTER.block,
 		});
 		expect(result.externalId).toBe("91");
 		const post = calls.find((c) => c.method === "POST");
 		expect(post?.path).toBe("/repos/a/b/pulls/7/reviews");
 		expect(post?.body).toEqual({
 			event: "REQUEST_CHANGES",
-			body: REVIEW_BODY,
+			body: REVIEW_POINTER.block,
 		});
 	});
 });
@@ -281,7 +334,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		repoFullName: "a/b",
 		number: 7,
 		reviewId: "91",
-		reason: REVIEW_BODY,
+		reason: REVIEW_POINTER.block,
 	};
 
 	test("edits the body of a live request-changes review in place", async () => {
@@ -300,7 +353,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 			"GET /repos/a/b/pulls/7/reviews/91",
 			"PUT /repos/a/b/pulls/7/reviews/91",
 		]);
-		expect(calls[1]?.body).toEqual({ body: REVIEW_BODY });
+		expect(calls[1]?.body).toEqual({ body: REVIEW_POINTER.block });
 	});
 
 	test("an unchanged body makes no write at all", async () => {
@@ -308,7 +361,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 			"GET /repos/a/b/pulls/7/reviews/91": {
 				id: 91,
 				state: "CHANGES_REQUESTED",
-				body: REVIEW_BODY,
+				body: REVIEW_POINTER.block,
 			},
 		});
 		const { executeAction } = await import("./execute.ts");
@@ -327,7 +380,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		expect(result.externalId).toBe("92");
 		expect(calls.find((c) => c.method === "POST")?.body).toEqual({
 			event: "REQUEST_CHANGES",
-			body: REVIEW_BODY,
+			body: REVIEW_POINTER.block,
 		});
 		expect(calls.some((c) => c.method === "PUT")).toBe(false);
 	});
@@ -382,6 +435,65 @@ describe("executeAction — dismiss-review clears a stale request-changes", () =
 		const put = calls.find((c) => c.method === "PUT");
 		expect(put?.path).toBe("/repos/a/b/pulls/7/reviews/91/dismissals");
 		expect(put?.body).toMatchObject({ event: "DISMISS" });
+	});
+});
+
+describe("executeAction: delete-comment removes the active comment", () => {
+	test("deletes the comment that carries the marker", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/issues/7/comments": [
+				{ id: 4, body: BLOCK_COMMENT },
+				{ id: 5, body: "unrelated" },
+			],
+			"DELETE /repos/a/b/issues/comments/4": {},
+		});
+		const { executeAction } = await import("./execute.ts");
+		const result = await executeAction(http, {
+			kind: "delete-comment",
+			repoFullName: "a/b",
+			number: 7,
+		});
+		expect(result.externalId).toBe("4");
+		expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+			"GET /repos/a/b/issues/7/comments?per_page=100",
+			"DELETE /repos/a/b/issues/comments/4",
+		]);
+	});
+
+	test("no Tripwire comment: nothing to delete", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/issues/7/comments": [{ id: 5, body: "unrelated" }],
+		});
+		const { executeAction } = await import("./execute.ts");
+		const result = await executeAction(http, {
+			kind: "delete-comment",
+			repoFullName: "a/b",
+			number: 7,
+		});
+		expect(result.externalId).toBeNull();
+		expect(calls.map((c) => c.method)).toEqual(["GET"]);
+	});
+
+	test("a comment deleted in the meantime is not an error", async () => {
+		const http = new GithubHttp({
+			tokenFor: () => Promise.resolve("t"),
+			apiBase: "https://fake.api",
+			fetchImpl: ((_url: string | URL | Request, init?: RequestInit) =>
+				Promise.resolve(
+					init?.method === "DELETE"
+						? new Response("Not Found", { status: 404 })
+						: new Response(JSON.stringify([{ id: 4, body: BLOCK_COMMENT }]), {
+								status: 200,
+							}),
+				)) as typeof fetch,
+		});
+		const { executeAction } = await import("./execute.ts");
+		const result = await executeAction(http, {
+			kind: "delete-comment",
+			repoFullName: "a/b",
+			number: 7,
+		});
+		expect(result.externalId).toBeNull();
 	});
 });
 

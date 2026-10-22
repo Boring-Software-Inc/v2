@@ -233,7 +233,7 @@ describe("workflowToMarkdown — shape variants", () => {
 		);
 	});
 
-	test("an unknown custom ref falls back to its bare id, no sentence", () => {
+	test("an unknown custom ref reads as a custom rule, ref kept in code", () => {
 		const wf = makeWorkflow({
 			nodes: [
 				{ id: "c", type: "rule", ref: "custom-mystery@1", config: {} },
@@ -242,7 +242,7 @@ describe("workflowToMarkdown — shape variants", () => {
 			edges: [{ id: "e1", from: "c", to: "g" }],
 		});
 		const md = workflowToMarkdown(wf);
-		expect(md).toContain("- **custom-mystery** `custom-mystery@1`");
+		expect(md).toContain("- **Custom rule** `custom-mystery@1`");
 	});
 });
 

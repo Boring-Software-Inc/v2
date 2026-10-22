@@ -2,7 +2,7 @@ import type { ForgeAction, ForgeActionResult } from "@tripwire/forge";
 import type { GithubHttp } from "../client/http.ts";
 import { DISMISS_REVIEW_MESSAGE } from "../copy.ts";
 import { setCheck } from "./check.ts";
-import { upsertComment } from "./comment.ts";
+import { deleteActiveComment, upsertComment } from "./comment.ts";
 
 /**
  * Executes a ForgeAction idempotently (§4). `block` files a request-changes
@@ -44,8 +44,18 @@ export async function executeAction(
 				action.body,
 				action.verdict,
 				action.previousVerdict,
+				action.onlyIfPresent ?? false,
 			);
 			return { externalId: result.externalId };
+		}
+		case "delete-comment": {
+			return {
+				externalId: await deleteActiveComment(
+					http,
+					action.repoFullName,
+					action.number,
+				),
+			};
 		}
 		case "dismiss-review": {
 			// The block clears ⇒ drop the stale request-changes review so it stops

@@ -16,7 +16,7 @@ const VARS: { token: string; label: string }[] = [
 		token: "{{ruleName}}",
 		label: "Insert the blocking rule's one-line summary",
 	},
-	{ token: "{{runUrl}}", label: "Insert the link to the run on Tripwire" },
+	{ token: "{{runUrl}}", label: "Insert the View on Tripwire button" },
 ];
 
 export interface MessageEditorProps {

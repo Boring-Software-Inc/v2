@@ -1,11 +1,11 @@
 import {
 	checkSummary,
+	forgePostsReviews,
 	normalizedEventSchema,
+	planSurfaces,
+	REVIEW_POINTER,
 	redactionLevelFor,
-	renderVerdictComment,
-	reviewBody,
 	wantsCheck,
-	wantsComment,
 } from "@tripwire/contracts";
 import type { RefreshSurfacesJob } from "@tripwire/db";
 import {
@@ -17,7 +17,11 @@ import {
 import { getErrorMessage } from "@tripwire/utils";
 import { buildCommentReasons } from "./comment-reasons.ts";
 import { customRuleSource } from "./custom-rules.ts";
-import { toForgeAction, VERDICT_TO_CONCLUSION } from "./pr-surface.ts";
+import {
+	commentRows,
+	toForgeAction,
+	VERDICT_TO_CONCLUSION,
+} from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 
 const REFRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -53,7 +57,7 @@ export async function refreshRepoSurfaces(
 		),
 	]);
 	const customRecords = customRuleSource(customRows, null).records;
-	const review = reviewBody(wantsComment(config, "block"));
+	const reviews = forgePostsReviews(repo.forge);
 
 	for (const target of open) {
 		const runData = await runServices.getRunWithSteps(db, target.runId);
@@ -69,27 +73,39 @@ export async function refreshRepoSurfaces(
 		const reasons = buildCommentReasons(runData.steps, customRecords);
 		const runUrl = `${deps.appUrl}/runs/${target.runId}`;
 		const sha = target.headSha ?? event.data.changeRequest.headSha;
+		const activeReviewId = reviews
+			? await runServices.getActiveBlockReviewId(
+					db,
+					repo.fullName,
+					target.subjectNumber,
+				)
+			: null;
+		const plan = planSurfaces(
+			{
+				verdict: "block",
+				contributorLogin: event.data.actor.login,
+				reasons,
+				runUrl,
+				previousVerdict: "block",
+			},
+			config,
+			policy,
+			{ reviewPosted: activeReviewId !== null },
+		);
+		const review = plan.review ?? REVIEW_POINTER.block;
 		const rows = await runServices.recordActions(db, target.runId, [
-			...(wantsComment(config, "block")
+			...commentRows(plan, target.subjectNumber, "block", "block").map(
+				(row) => ({
+					...row,
+					idempotencyKey: `refresh:${jobId}:${row.idempotencyKey}`,
+				}),
+			),
+			...(activeReviewId
 				? [
 						{
-							kind: "comment",
-							payload: {
-								number: target.subjectNumber,
-								verdict: "block",
-								previousVerdict: "block",
-								body: renderVerdictComment(
-									{
-										verdict: "block",
-										contributorLogin: event.data.actor.login,
-										reasons,
-										runUrl,
-									},
-									config,
-									policy,
-								),
-							},
-							idempotencyKey: `refresh:${jobId}:comment:${target.subjectNumber}`,
+							kind: "block",
+							payload: { reason: review },
+							idempotencyKey: `refresh:${jobId}:review:${target.subjectNumber}`,
 						},
 					]
 				: []),
@@ -116,7 +132,13 @@ export async function refreshRepoSurfaces(
 		for (const row of rows) {
 			try {
 				const result = await adapter.execute(
-					toForgeAction(row, repo.fullName, target.subjectNumber, review),
+					toForgeAction(
+						row,
+						repo.fullName,
+						target.subjectNumber,
+						review,
+						activeReviewId,
+					),
 				);
 				await runServices.markActionExecuted(db, row.id, result.externalId);
 			} catch (error) {

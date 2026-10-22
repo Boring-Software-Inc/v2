@@ -24,10 +24,11 @@ interface IssueComment {
  * - NOT a transition (same/first verdict) ⇒ edit the active comment in place;
  *   if it's gone (a human deleted it), post a fresh one. Ten broken pushes are
  *   one comment, ten edits, zero thread noise.
+ * - `onlyIfPresent` ⇒ touch the thread only when an active comment exists.
  * - a TRANSITION ⇒ post a NEW comment after the contributor's commit, and
  *   supersede the old one IF it's still there. If the old comment was deleted or
  *   edited away, there is nothing to supersede — post the resolution anyway
- *   (run history knows it's a transition), never silently a "first verdict".
+ *   (run history knows it's a transition), unless `onlyIfPresent` is set.
  */
 export async function upsertComment(
 	http: GithubHttp,
@@ -36,19 +37,16 @@ export async function upsertComment(
 	body: string,
 	verdict: Verdict,
 	previousVerdict: Verdict | null,
+	onlyIfPresent = false,
 ): Promise<{
-	externalId: string;
+	externalId: string | null;
 	created: boolean;
 	supersededId: string | null;
 }> {
-	const comments = (await http.get(
-		repoFullName,
-		`/repos/${repoFullName}/issues/${number}/comments?per_page=100`,
-	)) as IssueComment[];
-	// The active comment is the LAST one still carrying the marker.
-	const active = [...comments]
-		.reverse()
-		.find((c) => c.body?.includes(COMMENT_MARKER));
+	const active = await findActiveComment(http, repoFullName, number);
+	if (!active && onlyIfPresent) {
+		return { externalId: null, created: false, supersededId: null };
+	}
 
 	const post = async (
 		supersededId: string | null,
@@ -95,4 +93,39 @@ export async function upsertComment(
 		return await post(String(active.id));
 	}
 	return await post(null);
+}
+
+async function findActiveComment(
+	http: GithubHttp,
+	repoFullName: string,
+	number: number,
+): Promise<IssueComment | undefined> {
+	const comments = (await http.get(
+		repoFullName,
+		`/repos/${repoFullName}/issues/${number}/comments?per_page=100`,
+	)) as IssueComment[];
+	return [...comments].reverse().find((c) => c.body?.includes(COMMENT_MARKER));
+}
+
+export async function deleteActiveComment(
+	http: GithubHttp,
+	repoFullName: string,
+	number: number,
+): Promise<string | null> {
+	const active = await findActiveComment(http, repoFullName, number);
+	if (!active) {
+		return null;
+	}
+	try {
+		await http.delete(
+			repoFullName,
+			`/repos/${repoFullName}/issues/comments/${active.id}`,
+		);
+	} catch (error) {
+		if (error instanceof Error && error.message.includes(" failed: 404 ")) {
+			return null;
+		}
+		throw error;
+	}
+	return String(active.id);
 }

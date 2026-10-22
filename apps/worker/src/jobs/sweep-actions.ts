@@ -1,4 +1,4 @@
-import { REVIEW_BODY } from "@tripwire/contracts";
+import { REVIEW_POINTER } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
@@ -26,7 +26,7 @@ import { toForgeAction } from "./pr-surface.ts";
 
 const RETRY_AFTER_MS = 2 * 60_000;
 const GIVE_UP_MS = 60 * 60_000;
-const SURFACE_KINDS = new Set(["comment", "set-check"]);
+const SURFACE_KINDS = new Set(["comment", "delete-comment", "set-check"]);
 /** Outbound delivery rows are driven by the deliver-webhook job, not the
  * forge sweeper — skip them here. */
 const DELIVERY_KINDS = new Set(["webhook", "discord"]);
@@ -99,7 +99,10 @@ export async function sweepActions(
 		if (DELIVERY_KINDS.has(row.kind)) {
 			continue;
 		}
-		if (row.kind === "comment" && row.subjectNumber !== null) {
+		if (
+			(row.kind === "comment" || row.kind === "delete-comment") &&
+			row.subjectNumber !== null
+		) {
 			const latest = await runServices.getLatestRunIdForChangeRequest(
 				db,
 				row.repoFullName,
@@ -168,7 +171,7 @@ export async function sweepActions(
 				{ kind: row.kind, payload: row.payload },
 				row.repoFullName,
 				row.subjectNumber,
-				REVIEW_BODY,
+				REVIEW_POINTER.block,
 				row.kind === "block"
 					? await runServices.getActiveBlockReviewId(
 							db,

@@ -398,7 +398,7 @@ describe("toPublicRunView redaction", () => {
 		expect(aiInner(3)).toBeNull();
 		const step = toPublicRunView(view, 4).steps.find((s) => s.id === failed.id);
 		expect(step?.summary).toBe(
-			"An AI review found problems in this change request.",
+			"This change request has problems a reviewer would flag.",
 		);
 	});
 

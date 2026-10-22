@@ -3,10 +3,11 @@ import type {
 	CommentReason,
 	RedactionPolicy,
 	ResponseConfig,
+	SurfacePlan,
 	Verdict,
 } from "@tripwire/contracts";
 import {
-	renderVerdictComment,
+	planSurfaces,
 	responseConfigSchema,
 	wantsComment,
 } from "@tripwire/contracts";
@@ -27,13 +28,16 @@ export const SAMPLE_REASONS: CommentReason[] = [
 	{
 		text: "Your account is 2 days old.",
 		remedy: "wait",
-		waitHint: "This clears in 5 days.",
+		hint: "This clears in 5 days.",
 		ruleId: "account-age",
+		ruleName: "Account age",
 	},
 	{
 		text: "It adds 2 crypto wallet addresses to DONATE.md.",
 		remedy: "revise",
+		hint: "Remove the addresses.",
 		ruleId: "crypto-address",
+		ruleName: "Crypto address",
 	},
 ];
 
@@ -204,15 +208,12 @@ export function withDrafts(
 	};
 }
 
-export function previewBody(
+export function previewPlan(
 	config: ResponseConfig,
 	verdict: Verdict,
 	messageChosen: boolean,
 	policy: RedactionPolicy,
-): string | null {
-	if (!wantsComment(config, verdict)) {
-		return null;
-	}
+): SurfacePlan {
 	let previewConfig = config;
 	if (
 		verdict === "block" &&
@@ -235,7 +236,7 @@ export function previewBody(
 			[key]: { ...config[key], customText: MESSAGE_PLACEHOLDER },
 		};
 	}
-	return renderVerdictComment(
+	return planSurfaces(
 		{
 			verdict,
 			contributorLogin: "contributor",
@@ -244,5 +245,6 @@ export function previewBody(
 		},
 		previewConfig,
 		policy,
+		{ reviewPosted: verdict === "block" },
 	);
 }

@@ -25,7 +25,7 @@ export class GithubHttp {
 
 	async request(
 		repoFullName: string,
-		method: "GET" | "POST" | "PATCH" | "PUT",
+		method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
 		path: string,
 		body?: unknown,
 	): Promise<unknown> {
@@ -69,5 +69,8 @@ export class GithubHttp {
 	}
 	put(repo: string, path: string, body: unknown): Promise<unknown> {
 		return this.request(repo, "PUT", path, body);
+	}
+	delete(repo: string, path: string): Promise<unknown> {
+		return this.request(repo, "DELETE", path);
 	}
 }

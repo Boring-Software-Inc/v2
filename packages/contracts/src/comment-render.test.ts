@@ -1,228 +1,580 @@
 import { describe, expect, test } from "bun:test";
+import type { z } from "zod";
 import {
 	COMMENT_MARKER,
 	type CommentInput,
+	type CommentReason,
 	checkSummary,
+	planSurfaces,
 	REASON_LIMIT,
-	REVIEW_BODY,
-	REVIEW_BODY_NO_COMMENT,
+	REVIEW_POINTER,
 	renderCommentBody,
+	renderSoleReview,
 	renderVerdictComment,
-	reviewBody,
+	type SurfacePlan,
 } from "./comment-render.ts";
 import {
+	REDACTION_MAX_LEVEL,
+	type RedactionPolicy,
+	redactionPolicySchema,
+} from "./redaction.ts";
+import {
+	type BlockCommentMode,
 	DEFAULT_RESPONSE_CONFIG,
+	type ResponseConfig,
 	responseConfigSchema,
 	wantsCheck,
 	wantsComment,
 } from "./response.ts";
+import type { Verdict } from "./runs.ts";
 
-/** Every hidden `<!-- tripwire:… -->` marker, so tests can check visible copy. */
+type ResponseConfigInput = z.input<typeof responseConfigSchema>;
+type OverrideInput = NonNullable<ResponseConfigInput["passComment"]>;
+
 const MARKERS = /<!-- tripwire:[^>]*-->/g;
+const RUN_URL = "https://tripwire.sh/runs/0198abcd";
+const BADGE = `<a href="${RUN_URL}"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>`;
 
-const BLOCKED_REASONS = [
-	{
-		text: "Your account is 2 days old.",
-		remedy: "wait" as const,
-		waitHint: "This clears in 5 days.",
-	},
-	{
-		text: "It adds 2 crypto wallet addresses to DONATE.md.",
-		remedy: "revise" as const,
-	},
-];
+const AGE: CommentReason = {
+	text: "Your account is 2 days old.",
+	remedy: "wait",
+	hint: "This clears in 5 days.",
+	ruleId: "account-age",
+	ruleName: "Account age",
+};
+const CRYPTO: CommentReason = {
+	text: "It adds 2 crypto wallet addresses to DONATE.md.",
+	remedy: "revise",
+	hint: "Remove the addresses.",
+	ruleId: "crypto-address",
+	ruleName: "Crypto address",
+};
+const AI: CommentReason = {
+	text: "crypto donation addresses are spam surface with no maintainer value",
+	remedy: "revise",
+	ruleId: "ai-review",
+	ruleName: "AI review",
+};
+const CUSTOM: CommentReason = {
+	text: "Target branch is main.",
+	remedy: "revise",
+	ruleId: "custom-doesnt-go-to-main-019fa6",
+	ruleName: "Doesn't go to main",
+};
+const FILES: CommentReason = {
+	text: "It changes 40 files.",
+	remedy: "revise",
+	hint: "Split it into smaller change requests.",
+	ruleId: "max-files-changed",
+	ruleName: "Max files changed",
+};
+const RATE: CommentReason = {
+	text: "You opened 12 change requests in a short time.",
+	remedy: "wait",
+	hint: "Wait before you open another.",
+	ruleId: "pr-rate-limit",
+	ruleName: "Rate limit",
+};
+const HONEYPOT: CommentReason = {
+	text: "It changes a protected file.",
+	remedy: "revise",
+	hint: "Undo your change to that file.",
+	ruleId: "honeypot",
+	ruleName: "Honeypot paths",
+};
 
-describe("renderCommentBody — snapshot golden files", () => {
-	test("blocked (mixed remedies, wait-hint inline)", () => {
-		expect(
-			renderCommentBody({
-				verdict: "block",
-				contributorLogin: "octocat",
-				reasons: BLOCKED_REASONS,
-				runUrl: "https://tripwire.sh/runs/0198abcd",
-			}),
-		).toMatchSnapshot();
-	});
+const MAIN = [AGE, CRYPTO, AI, CUSTOM];
+const MANY = [AGE, CRYPTO, AI, CUSTOM, FILES, RATE, HONEYPOT];
 
-	test("blocked (3 reasons, all listed)", () => {
-		expect(
-			renderCommentBody({
-				verdict: "block",
-				contributorLogin: "octocat",
-				reasons: [
-					{
-						text: "It adds 2 crypto wallet addresses to DONATE.md.",
-						remedy: "revise",
-					},
-					{ text: "It changes 40 files.", remedy: "revise" },
-					{
-						text: "Most of the title is not written in the Latin alphabet.",
-						remedy: "revise",
-					},
-				],
-				runUrl: "https://tripwire.sh/runs/0198abcd",
-			}),
-		).toMatchSnapshot();
-	});
+function input(extra: Partial<CommentInput> = {}): CommentInput {
+	return {
+		verdict: "block",
+		contributorLogin: "octocat",
+		reasons: MAIN,
+		runUrl: RUN_URL,
+		...extra,
+	};
+}
 
-	test("passed", () => {
-		expect(
-			renderCommentBody({
-				verdict: "pass",
-				contributorLogin: "octocat",
-				reasons: [],
-				runUrl: "https://tripwire.sh/runs/0198abcd",
-			}),
-		).toMatchSnapshot();
-	});
+function policy(level: number, extra: Partial<RedactionPolicy> = {}) {
+	return redactionPolicySchema.parse({ level, ...extra });
+}
 
-	test("human review", () => {
-		expect(
-			renderCommentBody({
-				verdict: "needs_review",
-				contributorLogin: "octocat",
-				reasons: [],
-				runUrl: "https://tripwire.sh/runs/0198abcd",
-			}),
-		).toMatchSnapshot();
-	});
+function config(extra: ResponseConfigInput = {}): ResponseConfig {
+	return responseConfigSchema.parse(extra);
+}
 
-	test("re-run: the quiet re-evaluation note rides under the headline", () => {
-		const body = renderCommentBody({
-			verdict: "pass",
-			contributorLogin: "octocat",
-			reasons: [],
-			runUrl: "https://tripwire.sh/runs/0198abcd",
-			rerun: true,
-		});
-		// Same-verdict re-run edits the comment in place — this line is the only
-		// visible evidence a maintainer deliberately re-evaluated.
-		expect(body).toContain("Checked again with the current rules.");
+function plan(
+	extra: Partial<CommentInput> = {},
+	level = 0,
+	cfg: ResponseConfig = DEFAULT_RESPONSE_CONFIG,
+	reviewPosted = true,
+	pol: RedactionPolicy = policy(level),
+): SurfacePlan {
+	return planSurfaces(input(extra), cfg, pol, { reviewPosted });
+}
+
+function sentences(text: string | null): string[] {
+	if (!text) {
+		return [];
+	}
+	return text
+		.replace(MARKERS, "")
+		.replace(/<[^>]+>/g, "\n")
+		.split(/(?<=[.?!])\s+|\n+/)
+		.map((part) => part.replace(/^- /, "").trim())
+		.filter((part) => part.length > 0);
+}
+
+function itemsOnThePr(p: SurfacePlan): string[] {
+	return [
+		...(p.comment === "upsert" ? [p.commentBody ?? ""] : []),
+		...(p.review ? [p.review] : []),
+	];
+}
+
+function expectNoRepeats(p: SurfacePlan, check: string) {
+	const [first, second] = itemsOnThePr(p);
+	const shared = sentences(first ?? null).filter((sentence) =>
+		sentences(second ?? null).includes(sentence),
+	);
+	expect(shared).toEqual([]);
+	const review = sentences(p.review);
+	expect(
+		review.filter((sentence) => sentences(check).includes(sentence)),
+	).toEqual([]);
+}
+
+describe("the block comment, levels 0 to 4", () => {
+	test("every reason names its rule", () => {
+		const body = renderVerdictComment(input(), DEFAULT_RESPONSE_CONFIG);
+		expect(body).toContain(
+			"- **Account age:** Your account is 2 days old. This clears in 5 days.",
+		);
+		expect(body).toContain(
+			"- **Crypto address:** It adds 2 crypto wallet addresses to DONATE.md. Remove the addresses.",
+		);
+		expect(body).toContain(
+			"- **AI review:** Crypto donation addresses are spam surface with no maintainer value.",
+		);
+		expect(body).toContain("- **Doesn't go to main:** Target branch is main.");
+		expect(body).not.toContain("custom-doesnt-go-to-main-019fa6");
 		expect(body).toMatchSnapshot();
 	});
 
-	test("the comment speaks reasons, not counts; link visible; @-mentions", () => {
-		const body = renderCommentBody({
-			verdict: "block",
-			contributorLogin: "octocat",
-			reasons: BLOCKED_REASONS,
-			runUrl: "https://tripwire.sh/runs/x",
-		});
-		const lines = body.trim().split("\n").filter(Boolean);
-		// Verdict line present, @-mentions the contributor, no "tripwire:" prefix
-		// in the visible copy (the hidden marker is the only legit occurrence).
-		expect(lines[0]).toBe("@octocat, Tripwire blocked this.");
+	test("the run link is the badge button, with the link text as its alt", () => {
+		const body = renderVerdictComment(input(), DEFAULT_RESPONSE_CONFIG);
+		expect(body).toContain(BADGE);
+		expect(body.match(/<a /g)?.length).toBe(1);
+	});
+
+	test("one reason renders as a line, not a list", () => {
+		const body = renderVerdictComment(
+			input({ reasons: [FILES] }),
+			DEFAULT_RESPONSE_CONFIG,
+		);
 		expect(body).toContain(
-			"this.\n\n- Your account is 2 days old. This clears in 5 days.\n- It adds",
+			"this change request.\n\n**Max files changed:** It changes 40 files. Split it into smaller change requests.\n\n<a href",
 		);
-		expect(body.replace(MARKERS, "")).not.toContain("tripwire:");
-		// Never counts rules.
-		expect(body).not.toMatch(/\d+ of \d+ rules?/);
-		// The wait-hint rides inline after its reason.
+		expect(body).not.toMatch(/^- /m);
+		expect(body).toMatchSnapshot();
+	});
+
+	test("more reasons than the cap end with how many are left", () => {
+		const body = renderVerdictComment(
+			input({ reasons: MANY }),
+			DEFAULT_RESPONSE_CONFIG,
+		);
+		expect(body.match(/^- \*\*/gm)?.length).toBe(REASON_LIMIT);
+		expect(body).toContain("- And 2 more.");
+		expect(body).not.toContain("Rate limit");
+		expect(body).toMatchSnapshot();
+	});
+
+	test("with the link off, every reason stays in the comment", () => {
+		const body = renderCommentBody(input({ reasons: MANY }), false);
+		expect(body.match(/^- \*\*/gm)?.length).toBe(MANY.length);
+		expect(body).not.toContain("And 2 more");
+		expect(body).not.toContain("<a href");
+	});
+
+	test("only the AI review failed", () => {
+		const body = renderVerdictComment(
+			input({ reasons: [AI] }),
+			DEFAULT_RESPONSE_CONFIG,
+		);
 		expect(body).toContain(
-			"Your account is 2 days old. This clears in 5 days.",
+			"**AI review:** Crypto donation addresses are spam surface with no maintainer value.",
 		);
-		expect(lines).toContain(
-			'<a href="https://tripwire.sh/runs/x">View on Tripwire</a>',
+		expect(body).toMatchSnapshot();
+	});
+
+	test("only a custom rule failed", () => {
+		const body = renderVerdictComment(
+			input({ reasons: [CUSTOM] }),
+			DEFAULT_RESPONSE_CONFIG,
 		);
-		expect(body).not.toContain("<img");
-		expect(body).toContain("<details><summary>How do I fix this?</summary>");
-		expect(body).not.toContain("What is Tripwire?");
-		expect(body).not.toContain("more reasons");
-		expect((body.match(new RegExp(COMMENT_MARKER)) ?? []).length).toBe(1);
-		expect(lines.at(-1)).toBe(COMMENT_MARKER);
+		expect(body).toContain("**Doesn't go to main:** Target branch is main.");
+		expect(body).toMatchSnapshot();
+	});
+
+	test("a custom rule with no stored name never prints its ref", () => {
+		const body = renderVerdictComment(
+			input({
+				reasons: [{ ...CUSTOM, ruleName: undefined }],
+			}),
+			DEFAULT_RESPONSE_CONFIG,
+			policy(5),
+		);
+		expect(body).toContain("This rule did not pass: Custom rule.");
+		expect(body).not.toContain("custom-doesnt-go-to-main");
+	});
+
+	test("a reason with no rule at all still reads as a line", () => {
+		const body = renderVerdictComment(
+			input({
+				reasons: [{ text: "It does not meet this rule.", remedy: "revise" }],
+			}),
+			DEFAULT_RESPONSE_CONFIG,
+		);
+		expect(body).toContain("**Unnamed rule:** It does not meet this rule.");
+	});
+
+	test("very long names and reasons stay on one line each and escape markdown", () => {
+		const long: CommentReason = {
+			text: `${"A very long reason ".repeat(10).trim()}.`,
+			remedy: "revise",
+			ruleId: "custom-long-019f",
+			ruleName: `${"Long*name_".repeat(8)}`.slice(0, 80),
+		};
+		const body = renderVerdictComment(
+			input({ reasons: [long, FILES] }),
+			DEFAULT_RESPONSE_CONFIG,
+		);
+		const line = body.split("\n").find((l) => l.startsWith("- **Long"));
+		expect(line).toContain("Long\\*name\\_");
+		expect(line?.endsWith("A very long reason.")).toBe(true);
+		const named = renderSoleReview(
+			input({ reasons: [long, FILES] }),
+			DEFAULT_RESPONSE_CONFIG,
+			policy(5),
+		);
+		expect(named).toContain("2 rules did not pass: Long\\*name\\_");
+	});
+
+	test("one line per rule uses the contributor label, or the reason when there is none", () => {
+		const body = renderVerdictComment(
+			input({ reasons: [AGE, CUSTOM] }),
+			config({ blockComment: { mode: "one-liner-link" } }),
+		);
+		expect(body).toContain(
+			"- **Account age:** Your account is too new for this repository.",
+		);
+		expect(body).toContain("- **Doesn't go to main:** Target branch is main.");
+		expect(body).not.toContain("<details>");
+		expect(body).toMatchSnapshot();
+	});
+
+	test("help off drops the help, nothing else", () => {
+		const body = renderVerdictComment(
+			input(),
+			DEFAULT_RESPONSE_CONFIG,
+			policy(0, { showHelp: false }),
+		);
+		expect(body).not.toContain("How do I fix this?");
+		expect(body).toContain(BADGE);
 	});
 });
 
-const BLOCK_INPUT: CommentInput = {
-	verdict: "block",
-	contributorLogin: "octocat",
-	reasons: [
-		{
-			text: "Your account is 2 days old.",
-			remedy: "wait",
-			waitHint: "This clears in 5 days.",
-			ruleId: "account-age",
-		},
-		{
-			text: "It adds 2 crypto wallet addresses to DONATE.md.",
-			remedy: "revise",
-			ruleId: "crypto-address",
-		},
-		{
-			text: "It changes 40 files.",
-			remedy: "revise",
-			ruleId: "max-files-changed",
-		},
-	],
-	runUrl: "https://tripwire.sh/runs/0198abcd",
-};
+describe("how many items land on the change request", () => {
+	test("levels 0 to 4: a comment with the reasons and a one-line review", () => {
+		for (const level of [0, 1, 2, 3, 4]) {
+			const p = plan({}, level);
+			expect(p.comment).toBe("upsert");
+			expect(p.review).toBe("Blocked. See the comment.");
+		}
+	});
 
-describe("renderVerdictComment — config-aware modes", () => {
-	// renderVerdictComment resolves the per-outcome override from the full config,
-	// so mode-only cases wrap their blockComment in a default ResponseConfig.
-	const modeConfig = (mode: string, extra: Record<string, unknown> = {}) =>
-		responseConfigSchema.parse({ blockComment: { mode, ...extra } });
+	test("level 5: one review with the rule names and the button, no comment", () => {
+		const p = plan({}, 5);
+		expect(p.comment).toBe("delete");
+		expect(p.review).toContain(
+			"4 rules did not pass: Account age, Crypto address, AI review and Doesn't go to main.",
+		);
+		expect(p.review).toContain(BADGE);
+		expect(p.review).toContain("How do I fix this?");
+		expect(p.review).not.toContain(COMMENT_MARKER);
+		expect(p.review).toMatchSnapshot();
+	});
+
+	test("level 5 caps the names at five", () => {
+		const p = plan({ reasons: MANY }, 5);
+		expect(p.review).toContain(
+			"7 rules did not pass: Account age, Crypto address, AI review, Doesn't go to main, Max files changed and 2 more.",
+		);
+	});
+
+	test("levels 6 and 7: one review with the count", () => {
+		for (const level of [6, 7]) {
+			const p = plan({}, level);
+			expect(p.comment).toBe("delete");
+			expect(p.review).toContain("4 rules did not pass.");
+			expect(p.review).not.toContain("Account age");
+		}
+	});
+
+	test("level 8: one review with the verdict and the button", () => {
+		const p = plan({}, 8);
+		expect(p.comment).toBe("delete");
+		expect(sentences(p.review)).toEqual([
+			"@octocat, Tripwire blocked this change request.",
+			"How do I fix this?",
+			"Fix what you can and push.",
+			"Some problems will not clear with a new commit.",
+			"If you think it should merge anyway, say so in a comment.",
+			"A maintainer will decide.",
+		]);
+		expect(p.review).toContain(BADGE);
+	});
+
+	test("help off keeps the review to the verdict and the button", () => {
+		const p = plan(
+			{},
+			8,
+			DEFAULT_RESPONSE_CONFIG,
+			true,
+			policy(8, { showHelp: false }),
+		);
+		expect(p.review).toBe(
+			`@octocat, Tripwire blocked this change request.\n\n${BADGE}`,
+		);
+	});
+
+	test("comment off: the review never says to see the comment", () => {
+		const off = config({ onBlock: "silent" });
+		for (let level = 0; level <= REDACTION_MAX_LEVEL; level++) {
+			const p = plan({}, level, off);
+			expect(p.comment).toBe("delete");
+			expect(p.review).not.toContain("See the comment");
+			expect(p.review).toContain("Tripwire blocked this change request.");
+		}
+		expect(plan({}, 0, off).review).toMatchSnapshot();
+	});
+
+	test("custom text or a template still posts a comment at high levels", () => {
+		const text = config({ blockComment: { customText: "Not this time." } });
+		expect(plan({}, 8, text).comment).toBe("upsert");
+		expect(plan({}, 8, text).review).toBe(REVIEW_POINTER.block);
+		const template = config({
+			blockComment: { mode: "custom", template: "Held: {{ruleName}}" },
+		});
+		expect(plan({}, 6, template).comment).toBe("upsert");
+	});
+
+	test("no review (open-git, or no block action): the comment carries it all", () => {
+		const p = plan({}, 6, DEFAULT_RESPONSE_CONFIG, false);
+		expect(p.comment).toBe("upsert");
+		expect(p.review).toBeNull();
+		expect(p.commentBody).toContain("4 rules did not pass.");
+	});
+
+	test("a surface left open renders its own level", () => {
+		const reviewOpen = policy(6, {
+			surfaces: ["comment", "check", "run-page"],
+		});
+		const p = plan({}, 6, DEFAULT_RESPONSE_CONFIG, true, reviewOpen);
+		expect(p.comment).toBe("delete");
+		expect(p.review).toContain("**Account age:**");
+	});
+
+	test("human review: one comment, never a review", () => {
+		const p = plan(
+			{ verdict: "needs_review", reasons: [] },
+			0,
+			DEFAULT_RESPONSE_CONFIG,
+			false,
+		);
+		expect(p.comment).toBe("upsert");
+		expect(p.review).toBeNull();
+		expect(p.commentBody).toMatchSnapshot();
+	});
+
+	test("human review when Tripwire could not finish", () => {
+		const p = plan(
+			{ verdict: "needs_review", reasons: [], degraded: true },
+			0,
+			DEFAULT_RESPONSE_CONFIG,
+			false,
+		);
+		expect(p.commentBody?.split("\n")[0]).toBe(
+			"@octocat, Tripwire could not finish checking this change request, so it needs human review. A maintainer will approve or block it.",
+		);
+		expect(checkSummary("needs_review", [], true)).toBe(
+			"Waiting for human review. Tripwire could not finish checking.",
+		);
+	});
+
+	test("human review and a block action at once: the review points at the comment", () => {
+		const p = plan({ verdict: "needs_review", reasons: MAIN });
+		expect(p.comment).toBe("upsert");
+		expect(p.review).toBe("Needs human review. See the comment.");
+		expect(p.commentBody).not.toContain("Account age");
+		const quiet = plan(
+			{ verdict: "needs_review", reasons: MAIN },
+			0,
+			config({ moderationQueued: "silent" }),
+		);
+		expect(quiet.comment).toBe("none");
+		expect(quiet.review).toBe(
+			`@octocat, this change request needs human review. A maintainer will approve or block it.\n\n${BADGE}`,
+		);
+	});
+
+	test("passed: at most one comment, never a review", () => {
+		expect(plan({ verdict: "pass", reasons: [] }).comment).toBe("none");
+		expect(plan({ verdict: "pass", reasons: [] }).review).toBeNull();
+		const loud = plan(
+			{ verdict: "pass", reasons: [] },
+			0,
+			config({ onSuccess: "comment" }),
+		);
+		expect(loud.comment).toBe("upsert");
+		expect(loud.review).toBeNull();
+		expect(loud.commentBody).toMatchSnapshot();
+	});
+});
+
+describe("transitions", () => {
+	test("block to pass only updates a comment that is already there", () => {
+		const p = plan({ verdict: "pass", reasons: [], previousVerdict: "block" });
+		expect(p.comment).toBe("if-present");
+		expect(p.review).toBeNull();
+		expect(p.commentBody).toMatchSnapshot();
+	});
+
+	test("block to human review", () => {
+		const p = plan({
+			verdict: "needs_review",
+			reasons: [],
+			previousVerdict: "block",
+		});
+		expect(p.comment).toBe("upsert");
+		expect(p.commentBody?.split("\n")[0]).toBe(
+			"@octocat, Tripwire no longer blocks this change request, but it needs human review. A maintainer will approve or block it.",
+		);
+	});
+
+	test("block, pass, block at every level", () => {
+		for (const level of [0, 5, 8]) {
+			const first = plan({}, level);
+			const cleared = plan(
+				{ verdict: "pass", reasons: [], previousVerdict: "block" },
+				level,
+			);
+			const again = plan({ previousVerdict: "pass" }, level);
+			expect(cleared.comment).toBe("if-present");
+			if (level <= 4) {
+				expect(first.comment).toBe("upsert");
+				expect(again.comment).toBe("upsert");
+				expect(again.commentBody?.split("\n")[0]).toBe(
+					"@octocat, Tripwire now blocks this change request.",
+				);
+			} else {
+				expect(first.comment).toBe("delete");
+				expect(again.comment).toBe("delete");
+				expect(again.review?.split("\n")[0]).toBe(
+					"@octocat, Tripwire now blocks this change request.",
+				);
+			}
+		}
+	});
+
+	test("re-run note rides under the reasons", () => {
+		const body = renderVerdictComment(
+			input({ rerun: true, reasons: [FILES] }),
+			DEFAULT_RESPONSE_CONFIG,
+		);
+		expect(body).toContain(
+			"Split it into smaller change requests.\n\nTripwire checked this again with the current rules.",
+		);
+	});
+});
+
+describe("no two items on one change request repeat a sentence", () => {
+	const configs: [string, ResponseConfig][] = [
+		["default", DEFAULT_RESPONSE_CONFIG],
+		["comment off", config({ onBlock: "silent" })],
+		["one line per rule", config({ blockComment: { mode: "one-liner-link" } })],
+		["link off", config({ blockComment: { showDetailsButton: false } })],
+	];
+	for (const [name, cfg] of configs) {
+		for (let level = 0; level <= REDACTION_MAX_LEVEL; level++) {
+			test(`${name}, level ${level}`, () => {
+				for (const reasons of [[AGE], MAIN, MANY]) {
+					const p = plan({ reasons }, level, cfg);
+					expectNoRepeats(p, checkSummary("block", reasons, false, level));
+				}
+			});
+		}
+	}
+
+	test("every verdict and transition", () => {
+		const verdicts: [Verdict, Verdict | null][] = [
+			["pass", null],
+			["pass", "block"],
+			["needs_review", null],
+			["needs_review", "block"],
+			["block", "pass"],
+			["block", "needs_review"],
+		];
+		for (const [verdict, previousVerdict] of verdicts) {
+			for (const level of [0, 5, 8]) {
+				const p = plan(
+					{
+						verdict,
+						previousVerdict,
+						reasons: verdict === "pass" ? [] : MAIN,
+					},
+					level,
+					config({ onSuccess: "comment" }),
+				);
+				expectNoRepeats(p, checkSummary(verdict, MAIN, false, level));
+			}
+		}
+	});
+});
+
+describe("renderVerdictComment: config-aware modes", () => {
+	const modeConfig = (
+		mode: BlockCommentMode,
+		extra: Omit<NonNullable<ResponseConfigInput["blockComment"]>, "mode"> = {},
+	) => config({ blockComment: { mode, ...extra } });
 
 	test("full mode is byte-identical to renderCommentBody, every verdict", () => {
 		const full = modeConfig("full");
 		for (const verdict of ["pass", "block", "needs_review"] as const) {
-			const input: CommentInput = {
-				...BLOCK_INPUT,
-				verdict,
-				reasons: verdict === "block" ? BLOCK_INPUT.reasons : [],
-			};
-			expect(renderVerdictComment(input, full)).toBe(renderCommentBody(input));
+			const one = input({ verdict, reasons: verdict === "block" ? MAIN : [] });
+			expect(renderVerdictComment(one, full)).toBe(renderCommentBody(one));
 		}
 	});
 
 	test("non-block verdicts render full regardless of mode", () => {
-		const input: CommentInput = {
-			...BLOCK_INPUT,
-			verdict: "pass",
-			reasons: [],
-		};
-		expect(renderVerdictComment(input, modeConfig("one-liner-link"))).toBe(
-			renderCommentBody(input),
+		const one = input({ verdict: "pass", reasons: [] });
+		expect(renderVerdictComment(one, modeConfig("one-liner-link"))).toBe(
+			renderCommentBody(one),
 		);
-	});
-
-	test("one-liner-link: one contributor label per failed rule, as a list", () => {
-		const body = renderVerdictComment(
-			BLOCK_INPUT,
-			modeConfig("one-liner-link"),
-		);
-		// Every failed rule speaks — catalog contributor labels, name-prefixed.
-		expect(body).toContain(
-			"- Account age: Your account is newer than this repository allows.",
-		);
-		expect(body).toContain(
-			"Crypto address: This change request contains a cryptocurrency wallet address.",
-		);
-		expect(body).toContain(
-			"Max files changed: This change request changes too many files.",
-		);
-		expect(body).not.toContain("more reasons");
-		// Brief mode: no collapsibles, but headline + button + marker stay.
-		expect(body).not.toContain("<details>");
-		expect(body).toContain("Tripwire blocked this.");
-		expect(body).toContain('href="https://tripwire.sh/runs/0198abcd"');
-		expect(body).toContain(COMMENT_MARKER);
-		expect(body).toMatchSnapshot();
 	});
 
 	test("custom: template vars substitute, marker still appended", () => {
 		const body = renderVerdictComment(
-			BLOCK_INPUT,
-			modeConfig("custom", {
-				template: "held: {{ruleName}}\n\n{{runUrl}}",
-			}),
+			input(),
+			modeConfig("custom", { template: "held: {{ruleName}}\n\n{{runUrl}}" }),
 		);
 		expect(body).toBe(
 			[
-				"held: your account is newer than this repository allows.",
+				"held: your account is too new for this repository.",
 				"",
-				'<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>',
+				BADGE,
 				"",
 				COMMENT_MARKER,
 				"",
@@ -231,41 +583,35 @@ describe("renderVerdictComment — config-aware modes", () => {
 	});
 
 	test("custom: {{ruleName}} keeps the inserted text's casing", () => {
-		const labelled = renderVerdictComment(
-			BLOCK_INPUT,
-			modeConfig("custom", { template: "held because {{ruleName}}" }),
-		);
-		expect(labelled).toContain(
-			"held because your account is newer than this repository allows.",
-		);
 		const raw = renderVerdictComment(
-			{
-				...BLOCK_INPUT,
-				reasons: [{ text: "fork rate is 12", remedy: "revise" }],
-			},
+			input({ reasons: [{ text: "fork rate is 12", remedy: "revise" }] }),
 			modeConfig("custom", { template: "held: {{ruleName}}" }),
 		);
 		expect(raw).toContain("held: fork rate is 12");
-		expect(raw).not.toContain("Fork rate");
 	});
 
-	test("custom: {{runUrl}} renders the run link, never a bare url", () => {
+	test("custom: {{ruleName}} at the names level is the display name, never a ref", () => {
 		const body = renderVerdictComment(
-			BLOCK_INPUT,
+			input({ reasons: [CUSTOM] }),
+			modeConfig("custom", { template: "held: {{ruleName}}" }),
+			policy(5),
+		);
+		expect(body).toContain("held: Doesn't go to main");
+	});
+
+	test("custom: {{runUrl}} renders the button, never a bare url", () => {
+		const body = renderVerdictComment(
+			input(),
 			modeConfig("custom", { template: "see {{runUrl}} for the evidence." }),
 		);
-		expect(body).toContain('href="https://tripwire.sh/runs/0198abcd"');
-		expect(body).toContain(">View on Tripwire</a>");
+		expect(body).toContain(BADGE);
 		expect(body).not.toContain("see https://tripwire.sh");
 	});
 });
 
-describe("renderVerdictComment — per-outcome custom text + details button", () => {
-	const withOverride = (
-		verdict: "pass" | "block" | "needs_review",
-		override: Record<string, unknown>,
-	) =>
-		responseConfigSchema.parse(
+describe("renderVerdictComment: per-outcome custom text and the button", () => {
+	const withOverride = (verdict: Verdict, override: OverrideInput) =>
+		config(
 			verdict === "pass"
 				? { onSuccess: "comment", passComment: override }
 				: verdict === "block"
@@ -273,82 +619,60 @@ describe("renderVerdictComment — per-outcome custom text + details button", ()
 					: { reviewComment: override },
 		);
 
-	test("custom text REPLACES the whole body — no reason, remedy, or explainer survives", () => {
+	test("custom text replaces the whole body", () => {
 		const body = renderVerdictComment(
-			BLOCK_INPUT,
-			withOverride("block", {
-				customText: "this change didn't pass the repo's checks.",
-			}),
+			input(),
+			withOverride("block", { customText: "This did not pass the checks." }),
 		);
-		expect(body).toContain("this change didn't pass the repo's checks.");
-		// The load-bearing assertion (§customize): a naive summary-only swap would
-		// strand the wait-hint / how-to-fix remedy and leak the very rule the
-		// maintainer set out to hide. NOTHING of the auto copy remains.
+		expect(body).toContain("This did not pass the checks.");
 		expect(body).not.toContain("Your account is 2 days old.");
 		expect(body).not.toContain("This clears in 5 days.");
 		expect(body).not.toContain("crypto");
 		expect(body).not.toContain("How do I fix this?");
-		expect(body).not.toContain("What is Tripwire?");
 		expect(body).not.toContain("Tripwire blocked this");
-		// The run button still rides by default; the marker anchors the upsert (§7).
-		expect(body).toContain('href="https://tripwire.sh/runs/0198abcd"');
+		expect(body).toContain(BADGE);
 		expect(body.trim().endsWith(COMMENT_MARKER)).toBe(true);
 	});
 
-	test("custom text + button off = the message and nothing else (full opacity)", () => {
+	test("custom text and the button off leave only the message", () => {
 		const body = renderVerdictComment(
-			BLOCK_INPUT,
+			input(),
 			withOverride("block", {
 				customText: "did not pass.",
 				showDetailsButton: false,
 			}),
 		);
-		expect(body).not.toContain("<a href");
-		expect(body).not.toContain("your account");
 		expect(body.replace(MARKERS, "").trim()).toBe("did not pass.");
 	});
 
-	test("button off without custom text keeps the reasons, drops only the run link", () => {
+	test("button off without custom text keeps the reasons", () => {
 		const body = renderVerdictComment(
-			BLOCK_INPUT,
+			input(),
 			withOverride("block", { showDetailsButton: false }),
 		);
-		// The contributor still sees why; they just don't get the run-page link.
 		expect(body).toContain("Your account is 2 days old.");
 		expect(body).not.toContain("<a href");
 		expect(body).toContain("<details><summary>How do I fix this?</summary>");
 	});
 
-	test("block and review custom text are independent messages", () => {
-		const config = responseConfigSchema.parse({
+	test("block and review custom text are independent", () => {
+		const both = config({
 			blockComment: { customText: "did not pass checks." },
 			reviewComment: { customText: "a maintainer will look shortly." },
 		});
-		const block = renderVerdictComment(
-			{ ...BLOCK_INPUT, verdict: "block" },
-			config,
-		);
+		const block = renderVerdictComment(input(), both);
 		const review = renderVerdictComment(
-			{ ...BLOCK_INPUT, verdict: "needs_review", reasons: [] },
-			config,
+			input({ verdict: "needs_review", reasons: [] }),
+			both,
 		);
 		expect(block).toContain("did not pass checks.");
 		expect(block).not.toContain("a maintainer will look shortly.");
 		expect(review).toContain("a maintainer will look shortly.");
 		expect(review).not.toContain("did not pass checks.");
 	});
-
-	test("pass custom text replaces the passed comment", () => {
-		const body = renderVerdictComment(
-			{ ...BLOCK_INPUT, verdict: "pass", reasons: [] },
-			withOverride("pass", { customText: "all good — merge away." }),
-		);
-		expect(body).toContain("all good — merge away.");
-		expect(body).not.toContain("passed Tripwire's checks");
-	});
 });
 
-describe("responseConfig — defaults and surface gates", () => {
+describe("responseConfig: defaults and surface gates", () => {
 	test("defaults: check-only pass, full comment on block and review", () => {
 		expect(DEFAULT_RESPONSE_CONFIG).toEqual({
 			onSuccess: "ci-check",
@@ -362,7 +686,6 @@ describe("responseConfig — defaults and surface gates", () => {
 			},
 			moderationQueued: "comment",
 			reviewComment: { customText: "", showDetailsButton: true },
-			// The safety net is ON unless a maintainer turns it off.
 			failClosedFallback: true,
 			redaction: {
 				inherit: true,
@@ -374,23 +697,14 @@ describe("responseConfig — defaults and surface gates", () => {
 		expect(responseConfigSchema.parse({})).toEqual(DEFAULT_RESPONSE_CONFIG);
 	});
 
-	test("a legacy row (pre-custom-text) upgrades — new fields default in, never undefined", () => {
-		// A stored response_configs row from before the per-outcome override
-		// existed. Both getResponseConfig and the /customize unflatten re-parse
-		// through this schema; a missing field must resolve to its default, not
-		// leak `undefined` into a downstream `.trim()`.
-		const legacy = {
+	test("a legacy row upgrades with defaults, never undefined", () => {
+		const parsed = responseConfigSchema.parse({
 			onSuccess: "ci-check",
 			onBlock: "comment",
 			blockComment: { mode: "full", showRuleName: true, template: "" },
 			moderationQueued: "comment",
-		};
-		const parsed = responseConfigSchema.parse(legacy);
-		expect(parsed.passComment).toEqual({
-			customText: "",
-			showDetailsButton: true,
 		});
-		expect(parsed.reviewComment).toEqual({
+		expect(parsed.passComment).toEqual({
 			customText: "",
 			showDetailsButton: true,
 		});
@@ -402,18 +716,13 @@ describe("responseConfig — defaults and surface gates", () => {
 		expect(wantsComment(DEFAULT_RESPONSE_CONFIG, "pass")).toBe(false);
 		expect(wantsComment(DEFAULT_RESPONSE_CONFIG, "block")).toBe(true);
 		expect(wantsComment(DEFAULT_RESPONSE_CONFIG, "needs_review")).toBe(true);
-		const loud = responseConfigSchema.parse({ onSuccess: "comment" });
-		expect(wantsComment(loud, "pass")).toBe(true);
-		const quiet = responseConfigSchema.parse({
-			onBlock: "silent",
-			moderationQueued: "silent",
-		});
+		const quiet = config({ onBlock: "silent", moderationQueued: "silent" });
 		expect(wantsComment(quiet, "block")).toBe(false);
 		expect(wantsComment(quiet, "needs_review")).toBe(false);
 	});
 
 	test("the check never drops for block or human review", () => {
-		const silent = responseConfigSchema.parse({
+		const silent = config({
 			onSuccess: "silent",
 			onBlock: "silent",
 			moderationQueued: "silent",
@@ -421,105 +730,20 @@ describe("responseConfig — defaults and surface gates", () => {
 		expect(wantsCheck(silent, "block")).toBe(true);
 		expect(wantsCheck(silent, "needs_review")).toBe(true);
 		expect(wantsCheck(silent, "pass")).toBe(false);
-		expect(wantsCheck(DEFAULT_RESPONSE_CONFIG, "pass")).toBe(true);
 	});
 });
 
-describe("checkSummary — the check line the preview mirrors", () => {
-	test("per verdict, degraded review named", () => {
-		expect(checkSummary("block", BLOCK_INPUT.reasons)).toBe(
-			"Blocked. Your account is 2 days old.",
+describe("checkSummary", () => {
+	test("per verdict", () => {
+		expect(checkSummary("block", MAIN)).toBe(
+			"Blocked by Account age, Crypto address, AI review and Doesn't go to main.",
+		);
+		expect(checkSummary("block", [])).toBe("Blocked.");
+		expect(checkSummary("block", [AGE], false, 6)).toBe("Blocked by 1 rule.");
+		expect(checkSummary("block", MANY)).toBe(
+			"Blocked by Account age, Crypto address, AI review, Doesn't go to main, Max files changed and 2 more.",
 		);
 		expect(checkSummary("pass", [])).toBe("Passed.");
 		expect(checkSummary("needs_review", [])).toBe("Waiting for human review.");
-		expect(checkSummary("needs_review", [], true)).toBe(
-			"Waiting for human review. Tripwire could not finish checking.",
-		);
-	});
-});
-
-const MANY_REASONS = Array.from({ length: 7 }, (_, index) => ({
-	text: `Problem ${index + 1}.`,
-	remedy: "revise" as const,
-}));
-
-describe("footprint: one comment, one review, nothing repeated", () => {
-	const input = (extra: Partial<CommentInput> = {}): CommentInput => ({
-		...BLOCK_INPUT,
-		...extra,
-	});
-
-	test("one reason renders as a plain line, not a list", () => {
-		const body = renderCommentBody(
-			input({ reasons: [{ text: "It changes 40 files.", remedy: "revise" }] }),
-		);
-		expect(body).toContain("this.\n\nIt changes 40 files.\n\n<a href");
-		expect(body).not.toMatch(/^- /m);
-	});
-
-	test("more reasons than the limit fold into the run link", () => {
-		const body = renderCommentBody(input({ reasons: MANY_REASONS }));
-		expect(body.match(/^- /gm)?.length).toBe(REASON_LIMIT);
-		expect(body).not.toContain("Problem 6.");
-		expect(body).toContain(
-			'<a href="https://tripwire.sh/runs/0198abcd">View all 7 reasons on Tripwire</a>',
-		);
-		expect(body).toMatchSnapshot();
-	});
-
-	test("with the link off, every reason stays in the comment", () => {
-		const body = renderCommentBody(input({ reasons: MANY_REASONS }), false);
-		expect(body.match(/^- /gm)?.length).toBe(7);
-		expect(body).not.toContain("<a href");
-	});
-
-	test("the comment never repeats the review or the check", () => {
-		const body = renderCommentBody(input());
-		expect(body).not.toContain(REVIEW_BODY);
-		expect(body).not.toContain("Blocked.");
-	});
-
-	test("the review is one line that points at the comment or the check", () => {
-		expect(reviewBody(true)).toBe("Blocked. See the comment.");
-		expect(reviewBody(false)).toBe("Blocked. See the tripwire check.");
-		expect(REVIEW_BODY_NO_COMMENT).not.toContain("\n");
-	});
-
-	test("human review: headline and link only", () => {
-		expect(
-			renderCommentBody(input({ verdict: "needs_review", reasons: [] })),
-		).toBe(
-			[
-				"@octocat, this needs human review. A maintainer will approve or block it.",
-				"",
-				'<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>',
-				"",
-				COMMENT_MARKER,
-				"",
-			].join("\n"),
-		);
-	});
-
-	test("transitions keep their own headline and drop the help on a pass", () => {
-		const cleared = renderCommentBody(
-			input({ verdict: "pass", reasons: [], previousVerdict: "block" }),
-		);
-		expect(cleared).toMatchSnapshot();
-		expect(cleared).not.toContain("<details>");
-		const toReview = renderCommentBody(
-			input({
-				verdict: "needs_review",
-				reasons: [],
-				previousVerdict: "block",
-			}),
-		);
-		expect(toReview).toMatchSnapshot();
-		const toBlock = renderCommentBody(input({ previousVerdict: "pass" }));
-		expect(toBlock.split("\n")[0]).toBe("@octocat, Tripwire now blocks this.");
-		expect(toBlock).toMatchSnapshot();
-		const degraded = renderCommentBody(
-			input({ verdict: "needs_review", reasons: [], degraded: true }),
-		);
-		expect(degraded).toMatchSnapshot();
 	});
 });

@@ -1,146 +1,170 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`renderCommentBody — snapshot golden files blocked (mixed remedies, wait-hint inline) 1`] = `
-"@octocat, Tripwire blocked this.
+exports[`the block comment, levels 0 to 4 every reason names its rule 1`] = `
+"@octocat, Tripwire blocked this change request.
 
-- Your account is 2 days old. This clears in 5 days.
-- It adds 2 crypto wallet addresses to DONATE.md.
+- **Account age:** Your account is 2 days old. This clears in 5 days.
+- **Crypto address:** It adds 2 crypto wallet addresses to DONATE.md. Remove the addresses.
+- **AI review:** Crypto donation addresses are spam surface with no maintainer value.
+- **Doesn't go to main:** Target branch is main.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
-
-<details><summary>How do I fix this?</summary>
-
-Fix what you can and push. Some problems will not clear with a new commit.
-
-If it should merge anyway, say so in a comment. A maintainer will decide.
-</details>
-<!-- tripwire:run -->
-"
-`;
-
-exports[`renderCommentBody — snapshot golden files blocked (3 reasons, all listed) 1`] = `
-"@octocat, Tripwire blocked this.
-
-- It adds 2 crypto wallet addresses to DONATE.md.
-- It changes 40 files.
-- Most of the title is not written in the Latin alphabet.
-
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
-
-<details><summary>How do I fix this?</summary>
-
-Fix the problems and push. Tripwire checks every push.
-
-If this is wrong, say so in a comment. A maintainer will decide.
-</details>
-<!-- tripwire:run -->
-"
-`;
-
-exports[`renderCommentBody — snapshot golden files passed 1`] = `
-"This passed Tripwire's checks.
-
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
-
-<!-- tripwire:run -->
-"
-`;
-
-exports[`renderCommentBody — snapshot golden files human review 1`] = `
-"@octocat, this needs human review. A maintainer will approve or block it.
-
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
-
-<!-- tripwire:run -->
-"
-`;
-
-exports[`renderCommentBody — snapshot golden files re-run: the quiet re-evaluation note rides under the headline 1`] = `
-"This passed Tripwire's checks.
-
-Checked again with the current rules.
-
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
-
-<!-- tripwire:run -->
-"
-`;
-
-exports[`renderVerdictComment — config-aware modes one-liner-link: one contributor label per failed rule, as a list 1`] = `
-"@octocat, Tripwire blocked this.
-
-- Account age: Your account is newer than this repository allows.
-- Crypto address: This change request contains a cryptocurrency wallet address.
-- Max files changed: This change request changes too many files.
-
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
-
-<!-- tripwire:run -->
-"
-`;
-
-exports[`footprint: one comment, one review, nothing repeated more reasons than the limit fold into the run link 1`] = `
-"@octocat, Tripwire blocked this.
-
-- Problem 1.
-- Problem 2.
-- Problem 3.
-- Problem 4.
-- Problem 5.
-
-<a href="https://tripwire.sh/runs/0198abcd">View all 7 reasons on Tripwire</a>
-
-<details><summary>How do I fix this?</summary>
-
-Fix the problems and push. Tripwire checks every push.
-
-If this is wrong, say so in a comment. A maintainer will decide.
-</details>
-<!-- tripwire:run -->
-"
-`;
-
-exports[`footprint: one comment, one review, nothing repeated transitions keep their own headline and drop the help on a pass 1`] = `
-"@octocat, this now passes Tripwire's checks.
-
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
-
-<!-- tripwire:run -->
-"
-`;
-
-exports[`footprint: one comment, one review, nothing repeated transitions keep their own headline and drop the help on a pass 2`] = `
-"@octocat, Tripwire no longer blocks this, but it needs human review. A maintainer will approve or block it.
-
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
-
-<!-- tripwire:run -->
-"
-`;
-
-exports[`footprint: one comment, one review, nothing repeated transitions keep their own headline and drop the help on a pass 3`] = `
-"@octocat, Tripwire now blocks this.
-
-- Your account is 2 days old. This clears in 5 days.
-- It adds 2 crypto wallet addresses to DONATE.md.
-- It changes 40 files.
-
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <details><summary>How do I fix this?</summary>
 
 Fix what you can and push. Some problems will not clear with a new commit.
 
-If it should merge anyway, say so in a comment. A maintainer will decide.
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
 </details>
+
 <!-- tripwire:run -->
 "
 `;
 
-exports[`footprint: one comment, one review, nothing repeated transitions keep their own headline and drop the help on a pass 4`] = `
-"Tripwire could not finish checking this, so it needs human review. A maintainer will approve or block it.
+exports[`the block comment, levels 0 to 4 one reason renders as a line, not a list 1`] = `
+"@octocat, Tripwire blocked this change request.
 
-<a href="https://tripwire.sh/runs/0198abcd">View on Tripwire</a>
+**Max files changed:** It changes 40 files. Split it into smaller change requests.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+<details><summary>How do I fix this?</summary>
+
+Push a commit that fixes the problems. Tripwire checks every push.
+
+If you think this is wrong, say so in a comment. A maintainer will decide.
+</details>
+
+<!-- tripwire:run -->
+"
+`;
+
+exports[`the block comment, levels 0 to 4 more reasons than the cap end with how many are left 1`] = `
+"@octocat, Tripwire blocked this change request.
+
+- **Account age:** Your account is 2 days old. This clears in 5 days.
+- **Crypto address:** It adds 2 crypto wallet addresses to DONATE.md. Remove the addresses.
+- **AI review:** Crypto donation addresses are spam surface with no maintainer value.
+- **Doesn't go to main:** Target branch is main.
+- **Max files changed:** It changes 40 files. Split it into smaller change requests.
+- And 2 more.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+<details><summary>How do I fix this?</summary>
+
+Fix what you can and push. Some problems will not clear with a new commit.
+
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
+</details>
+
+<!-- tripwire:run -->
+"
+`;
+
+exports[`the block comment, levels 0 to 4 only the AI review failed 1`] = `
+"@octocat, Tripwire blocked this change request.
+
+**AI review:** Crypto donation addresses are spam surface with no maintainer value.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+<details><summary>How do I fix this?</summary>
+
+Push a commit that fixes the problems. Tripwire checks every push.
+
+If you think this is wrong, say so in a comment. A maintainer will decide.
+</details>
+
+<!-- tripwire:run -->
+"
+`;
+
+exports[`the block comment, levels 0 to 4 only a custom rule failed 1`] = `
+"@octocat, Tripwire blocked this change request.
+
+**Doesn't go to main:** Target branch is main.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+<details><summary>How do I fix this?</summary>
+
+Push a commit that fixes the problems. Tripwire checks every push.
+
+If you think this is wrong, say so in a comment. A maintainer will decide.
+</details>
+
+<!-- tripwire:run -->
+"
+`;
+
+exports[`the block comment, levels 0 to 4 one line per rule uses the contributor label, or the reason when there is none 1`] = `
+"@octocat, Tripwire blocked this change request.
+
+- **Account age:** Your account is too new for this repository.
+- **Doesn't go to main:** Target branch is main.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+<!-- tripwire:run -->
+"
+`;
+
+exports[`how many items land on the change request level 5: one review with the rule names and the button, no comment 1`] = `
+"@octocat, Tripwire blocked this change request.
+
+4 rules did not pass: Account age, Crypto address, AI review and Doesn't go to main.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+<details><summary>How do I fix this?</summary>
+
+Fix what you can and push. Some problems will not clear with a new commit.
+
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
+</details>"
+`;
+
+exports[`how many items land on the change request comment off: the review never says to see the comment 1`] = `
+"@octocat, Tripwire blocked this change request.
+
+- **Account age:** Your account is 2 days old. This clears in 5 days.
+- **Crypto address:** It adds 2 crypto wallet addresses to DONATE.md. Remove the addresses.
+- **AI review:** Crypto donation addresses are spam surface with no maintainer value.
+- **Doesn't go to main:** Target branch is main.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+<details><summary>How do I fix this?</summary>
+
+Fix what you can and push. Some problems will not clear with a new commit.
+
+If you think it should merge anyway, say so in a comment. A maintainer will decide.
+</details>"
+`;
+
+exports[`how many items land on the change request human review: one comment, never a review 1`] = `
+"@octocat, this change request needs human review. A maintainer will approve or block it.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+<!-- tripwire:run -->
+"
+`;
+
+exports[`how many items land on the change request passed: at most one comment, never a review 1`] = `
+"Tripwire passed this change request.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
+
+<!-- tripwire:run -->
+"
+`;
+
+exports[`transitions block to pass only updates a comment that is already there 1`] = `
+"@octocat, Tripwire now passes this change request.
+
+<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
 
 <!-- tripwire:run -->
 "

@@ -212,6 +212,10 @@ describe("actions open-git cannot perform", () => {
 				reviewId: "r1",
 			},
 		],
+		[
+			"delete-comment",
+			{ kind: "delete-comment", repoFullName: "acme/api", number: 1 },
+		],
 	];
 
 	test.each(

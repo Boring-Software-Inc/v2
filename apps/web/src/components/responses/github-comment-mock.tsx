@@ -1,4 +1,4 @@
-import { COMMENT_MARKER } from "@tripwire/contracts";
+import { BADGE_PATH, BADGE_WIDTH, COMMENT_MARKER } from "@tripwire/contracts";
 import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
 import { AnimatedHeight } from "#/components/common/animated-height";
@@ -20,11 +20,13 @@ type BodyBlock =
 	| { kind: "paragraph"; text: string }
 	| { kind: "list"; items: string[] }
 	| { kind: "details"; summary: string; body: string }
-	| { kind: "link"; href: string; text: string };
+	| { kind: "link"; href: string; text: string }
+	| { kind: "button"; href: string; alt: string };
 
 const DETAILS_RE =
 	/<details><summary>(.*?)<\/summary>\n\n([\s\S]*?)\n<\/details>/;
 const LINK_RE = /<a href="([^"]*)">([^<]*)<\/a>/;
+const BUTTON_RE = /<a href="([^"]*)"><img [^>]*alt="([^"]*)" \/><\/a>/;
 const LIST_ITEM_RE = /^\s*[-*]\s+/;
 
 function textBlocks(text: string): BodyBlock[] {
@@ -53,7 +55,8 @@ function parseBody(body: string): BodyBlock[] {
 	while (rest.length > 0) {
 		const details = DETAILS_RE.exec(rest);
 		const link = LINK_RE.exec(rest);
-		const next = [details, link]
+		const button = BUTTON_RE.exec(rest);
+		const next = [details, link, button]
 			.filter((m): m is RegExpExecArray => m !== null)
 			.sort((a, b) => a.index - b.index)[0];
 		blocks.push(...textBlocks(next ? rest.slice(0, next.index) : rest));
@@ -65,6 +68,12 @@ function parseBody(body: string): BodyBlock[] {
 				kind: "details",
 				summary: details[1] ?? "",
 				body: details[2] ?? "",
+			});
+		} else if (next === button && button) {
+			blocks.push({
+				kind: "button",
+				href: button[1] ?? "",
+				alt: button[2] ?? "",
 			});
 		} else if (link) {
 			blocks.push({
@@ -79,6 +88,8 @@ function parseBody(body: string): BodyBlock[] {
 }
 
 const INLINE_RE = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\)|@[A-Za-z0-9-]+)/g;
+
+const ESCAPED_RE = /\\([\\`*_[\]<>])/g;
 
 function renderInline(text: string): ReactNode[] {
 	return text.split(INLINE_RE).map((part, i) => {
@@ -108,7 +119,7 @@ function renderInline(text: string): ReactNode[] {
 				</span>
 			);
 		}
-		return part;
+		return part.replace(ESCAPED_RE, "$1");
 	});
 }
 
@@ -121,6 +132,9 @@ function blockKey(block: BodyBlock): string {
 	}
 	if (block.kind === "link") {
 		return `link:${block.text}`;
+	}
+	if (block.kind === "button") {
+		return `button:${block.alt}`;
 	}
 	return `details:${block.summary}\n${block.body}`;
 }
@@ -157,6 +171,24 @@ function Markdown({ blocks }: { blocks: BodyBlock[] }) {
 						</motion.ul>
 					);
 				}
+				if (block.kind === "button") {
+					return (
+						<motion.div
+							className="relative w-fit rounded-tag"
+							data-dim=""
+							data-region="details-button"
+							key={key}
+							{...BLOCK_MOTION}
+						>
+							<img
+								alt={block.alt}
+								className="block h-auto"
+								src={BADGE_PATH}
+								width={BADGE_WIDTH}
+							/>
+						</motion.div>
+					);
+				}
 				if (block.kind === "link") {
 					return (
 						<motion.p
@@ -186,11 +218,13 @@ function Markdown({ blocks }: { blocks: BodyBlock[] }) {
 export interface GithubCommentMockProps {
 	body: string | null;
 	silentNote?: string;
+	action?: "comment" | "review";
 }
 
 export function GithubCommentMock({
 	body,
 	silentNote,
+	action = "comment",
 }: GithubCommentMockProps) {
 	return (
 		<AnimatedHeight>
@@ -201,7 +235,7 @@ export function GithubCommentMock({
 					</motion.div>
 				) : (
 					<motion.div key="comment" {...BLUR_SWAP}>
-						<PostedComment body={body} />
+						<PostedComment action={action} body={body} />
 					</motion.div>
 				)}
 			</AnimatePresence>
@@ -224,7 +258,13 @@ function SilentComment({ note }: { note?: string }) {
 	);
 }
 
-function PostedComment({ body }: { body: string }) {
+function PostedComment({
+	body,
+	action,
+}: {
+	body: string;
+	action: "comment" | "review";
+}) {
 	const blocks = parseBody(body);
 	return (
 		<div className="flex items-start gap-3">
@@ -247,7 +287,11 @@ function PostedComment({ body }: { body: string }) {
 						<Badge size="sm" variant="outline">
 							bot
 						</Badge>
-						<span className="type-body-sm text-text-2">commented just now</span>
+						<span className="type-body-sm text-text-2">
+							{action === "review"
+								? "requested changes just now"
+								: "commented just now"}
+						</span>
 					</header>
 					<div className="p-2">
 						<div
