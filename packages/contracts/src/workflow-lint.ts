@@ -4,6 +4,7 @@ import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
 	isRemovedAction,
+	isScheduleTrigger,
 	type NodePosition,
 	type RemovedActionKind,
 	type ReviewerRef,
@@ -49,6 +50,9 @@ export const LINT_RULES = {
 	"orphan-step": { severity: "error", stage: "structure" },
 	cycle: { severity: "error", stage: "structure" },
 	"no-action": { severity: "error", stage: "enable" },
+	"schedule-config": { severity: "error", stage: "enable" },
+	"schedule-mixed": { severity: "error", stage: "enable" },
+	"schedule-needs-change-request": { severity: "error", stage: "enable" },
 	"unknown-rule": { severity: "error", stage: "enable" },
 	"rule-config": { severity: "error", stage: "enable" },
 	"removed-step": { severity: "error", stage: "enable" },
@@ -450,10 +454,74 @@ function checkCycles(ctx: LintContext): Finding[] {
 }
 
 function reachableFromTriggers(ctx: LintContext): Set<string> {
+	return reachableFrom(
+		ctx,
+		ctx.def.nodes
+			.filter((node) => node.type === "trigger")
+			.map((node) => node.id),
+	);
+}
+
+function checkNoAction(ctx: LintContext): Finding[] {
+	const reached = reachableFromTriggers(ctx);
+	return ctx.def.nodes.some(
+		(node) => node.type === "action" && reached.has(node.id),
+	)
+		? []
+		: [{ message: "No action runs after a trigger. Connect one.", fixes: [] }];
+}
+
+function checkScheduleConfig(ctx: LintContext): Finding[] {
+	return ctx.def.nodes.flatMap((node) =>
+		node.type === "trigger" && isScheduleTrigger(node) && !node.schedule
+			? [
+					{
+						nodeId: node.id,
+						message: `${ctx.name(node)} has no schedule`,
+						fixes: [
+							{
+								label: "Set schedule",
+								intent: {
+									type: "focus-field",
+									nodeId: node.id,
+									field: "schedule",
+								},
+							},
+						],
+					},
+				]
+			: [],
+	);
+}
+
+function checkScheduleMixed(ctx: LintContext): Finding[] {
+	return ctx.def.nodes.flatMap((node) =>
+		node.type === "trigger" && isScheduleTrigger(node) && node.kinds.length > 1
+			? [
+					{
+						nodeId: node.id,
+						message: `${ctx.name(node)} runs on a schedule, so it cannot also run on events`,
+						fixes: [
+							{
+								label: "Choose events",
+								intent: {
+									type: "focus-field",
+									nodeId: node.id,
+									field: "kinds",
+								},
+							},
+						],
+					},
+				]
+			: [],
+	);
+}
+
+const CHANGE_REQUEST_ONLY_ACTIONS = new Set(["block", "send-to-moderation"]);
+
+function reachableFrom(ctx: LintContext, startIds: string[]): Set<string> {
 	const reached = new Set<string>();
-	const queue = ctx.def.nodes
-		.filter((node) => node.type === "trigger")
-		.map((node) => node.id);
+	const queue = [...startIds];
 	for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
 		if (reached.has(id)) {
 			continue;
@@ -464,13 +532,24 @@ function reachableFromTriggers(ctx: LintContext): Set<string> {
 	return reached;
 }
 
-function checkNoAction(ctx: LintContext): Finding[] {
-	const reached = reachableFromTriggers(ctx);
-	return ctx.def.nodes.some(
-		(node) => node.type === "action" && reached.has(node.id),
-	)
-		? []
-		: [{ message: "No action runs after a trigger. Connect one.", fixes: [] }];
+function checkScheduleActions(ctx: LintContext): Finding[] {
+	const reached = reachableFrom(
+		ctx,
+		ctx.def.nodes.filter(isScheduleTrigger).map((node) => node.id),
+	);
+	return ctx.def.nodes.flatMap((node) =>
+		node.type === "action" &&
+		reached.has(node.id) &&
+		CHANGE_REQUEST_ONLY_ACTIONS.has(node.action)
+			? [
+					{
+						nodeId: node.id,
+						message: `${ctx.name(node)} needs a change request event, not a schedule`,
+						fixes: [deleteStep(node.id)],
+					},
+				]
+			: [],
+	);
 }
 
 function catalogEntry(ctx: LintContext, ref: string) {
@@ -651,6 +730,12 @@ const CHECKS: { rule: CheckedRule; check: (ctx: LintContext) => Finding[] }[] =
 		{ rule: "orphan-step", check: checkOrphans },
 		{ rule: "cycle", check: checkCycles },
 		{ rule: "no-action", check: checkNoAction },
+		{ rule: "schedule-config", check: checkScheduleConfig },
+		{ rule: "schedule-mixed", check: checkScheduleMixed },
+		{
+			rule: "schedule-needs-change-request",
+			check: checkScheduleActions,
+		},
 		{ rule: "unknown-rule", check: checkUnknownRules },
 		{ rule: "rule-config", check: checkRuleConfigs },
 		{ rule: "removed-step", check: checkRemovedSteps },

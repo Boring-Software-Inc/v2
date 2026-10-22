@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { type EventKind, eventKindSchema } from "./events.ts";
+import {
+	type EventKind,
+	eventKindSchema,
+	threadSubjectSchema,
+} from "./events.ts";
 
 /** JSON — rule configs and action params are JSON on the wire by definition. */
 export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
@@ -60,6 +64,8 @@ export const workflowActionKindSchema = z.enum([
 	"send-to-moderation",
 	"webhook",
 	"discord",
+	"lock",
+	"close",
 ]);
 export type WorkflowActionKind = z.infer<typeof workflowActionKindSchema>;
 
@@ -169,12 +175,73 @@ export const requestReviewParamsSchema = requestReviewTargetsSchema.superRefine(
 	},
 );
 
+export const lockReasonSchema = z.enum([
+	"resolved",
+	"off-topic",
+	"too heated",
+	"spam",
+]);
+export type LockReason = z.infer<typeof lockReasonSchema>;
+
+export const lockParamsSchema = z.object({
+	reason: lockReasonSchema.optional(),
+});
+export type LockParams = z.infer<typeof lockParamsSchema>;
+
+export const scheduleEverySchema = z.enum(["1h", "6h", "12h", "24h"]);
+export type ScheduleEvery = z.infer<typeof scheduleEverySchema>;
+
+export const SCHEDULE_EVERY_MS = {
+	"1h": 60 * 60_000,
+	"6h": 6 * 60 * 60_000,
+	"12h": 12 * 60 * 60_000,
+	"24h": 24 * 60 * 60_000,
+} as const satisfies Record<ScheduleEvery, number>;
+
+export const scheduleMatchConfigSchema = z.object({
+	subjects: z.array(threadSubjectSchema).min(1),
+	state: z.enum(["open", "closed", "any"]),
+	inactiveDays: z.number().int().min(1).max(3650).optional(),
+	labels: z.array(z.string().min(1)).optional(),
+	excludeLabels: z.array(z.string().min(1)).optional(),
+	skipLocked: z.boolean().default(true),
+});
+export type ScheduleMatchConfig = z.infer<typeof scheduleMatchConfigSchema>;
+
+export const triggerScheduleSchema = z.object({
+	every: scheduleEverySchema,
+	match: scheduleMatchConfigSchema,
+});
+export type TriggerSchedule = z.infer<typeof triggerScheduleSchema>;
+
+export const DEFAULT_TRIGGER_SCHEDULE: TriggerSchedule = {
+	every: "12h",
+	match: {
+		subjects: ["issue", "change-request"],
+		state: "open",
+		inactiveDays: 15,
+		skipLocked: true,
+	},
+};
+
 export const triggerNodeSchema = z.object({
 	id: z.string(),
 	type: z.literal("trigger"),
 	kinds: z.array(eventKindSchema).min(1),
+	schedule: triggerScheduleSchema.optional(),
 	position: nodePositionSchema.optional(),
 });
+
+export type TriggerNode = z.infer<typeof triggerNodeSchema>;
+
+export function isScheduleTrigger(node: {
+	type: string;
+	kinds?: readonly string[];
+}): boolean {
+	return (
+		node.type === "trigger" && (node.kinds ?? []).includes("schedule.matched")
+	);
+}
 
 export const ruleNodeSchema = z.object({
 	id: z.string(),
@@ -341,6 +408,12 @@ export const TRIGGER_CATALOG: TriggerCatalogEntry[] = [
 		toolbox: true,
 	},
 	{
+		kind: "schedule.matched",
+		name: "On a schedule",
+		description: "Runs on a timer for issues and change requests that match.",
+		toolbox: true,
+	},
+	{
 		kind: "installation.created",
 		name: "Installation created",
 		description: "Internal event. Installations sync outside workflows.",
@@ -422,5 +495,15 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 		action: "webhook",
 		name: "Webhook",
 		description: "Posts the verdict as JSON to a URL you set.",
+	},
+	{
+		action: "lock",
+		name: "Lock",
+		description: "Locks the conversation so only maintainers can comment.",
+	},
+	{
+		action: "close",
+		name: "Close",
+		description: "Closes the issue or change request.",
 	},
 ];
