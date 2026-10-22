@@ -1,4 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import {
+	INSTALL_ACCESS_CHECK_TTL_SECONDS,
+	type InstallStatus,
+} from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { eq } from "drizzle-orm";
 import { backfillOrgs } from "../backfill-orgs.ts";
@@ -19,6 +23,7 @@ import {
 } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
 import { promoteUserAccess } from "./access.ts";
+import { recordInstallAccessCheck } from "./installation-access.ts";
 import {
 	countAdmins,
 	createInviteLink,
@@ -27,7 +32,6 @@ import {
 	enumerateOrgCascade,
 	getInstallationOrg,
 	getOrgForUser,
-	type InstallPreview,
 	linkOrgInstallation,
 	listApprovedInstallRequests,
 	listClaimableInstallations,
@@ -35,8 +39,8 @@ import {
 	listUserOrgs,
 	moveInstallation,
 	pickOrgSlug,
-	previewInstallation,
 	redeemInviteLink,
+	resolveInstallStatus,
 	revokeInviteLink,
 	userCanClaimInstallation,
 } from "./organizations.ts";
@@ -557,14 +561,14 @@ describe("claim ownership — only the installer, requester or account owner", (
 		);
 	}
 
-	const sealed = (installationId: string): InstallPreview => ({
+	const sealed = (
+		installationId: string,
+		recoverable: boolean,
+	): InstallStatus => ({
 		installationId,
 		forge: "github",
-		claimable: false,
-		account: null,
-		repoCount: 0,
-		stateOrg: null,
-		claimedByOrgSlug: null,
+		status: "not-yours",
+		recoverable,
 	});
 
 	let kolfOrg = "";
@@ -586,12 +590,12 @@ describe("claim ownership — only the installer, requester or account owner", (
 			[],
 		);
 		expect(
-			await previewInstallation(db, {
+			await resolveInstallStatus(db, {
 				userId: "salt",
 				installationId: "8001",
 				stateOrgId: null,
 			}),
-		).toEqual(sealed("8001"));
+		).toEqual(sealed("8001", true));
 		expect(
 			await userCanClaimInstallation(db, {
 				userId: "salt",
@@ -604,22 +608,22 @@ describe("claim ownership — only the installer, requester or account owner", (
 	test("a valid state for the attacker's own org does not unlock the victim's installation", async () => {
 		const saltOrg = await seedTeamOrg("salt-team", "salt");
 		expect(
-			await previewInstallation(db, {
+			await resolveInstallStatus(db, {
 				userId: "salt",
 				installationId: "8001",
 				stateOrgId: saltOrg,
 			}),
-		).toEqual(sealed("8001"));
+		).toEqual(sealed("8001", true));
 	});
 
 	test("anonymous callers get a sealed preview", async () => {
 		expect(
-			await previewInstallation(db, {
+			await resolveInstallStatus(db, {
 				userId: null,
 				installationId: "8001",
 				stateOrgId: null,
 			}),
-		).toEqual(sealed("8001"));
+		).toEqual(sealed("8001", false));
 	});
 
 	test("the installer lists, previews and may claim their installation", async () => {
@@ -635,7 +639,7 @@ describe("claim ownership — only the installer, requester or account owner", (
 			},
 		]);
 		expect(
-			await previewInstallation(db, {
+			await resolveInstallStatus(db, {
 				userId: "kolfadser1",
 				installationId: "8001",
 				stateOrgId: kolfOrg,
@@ -643,11 +647,10 @@ describe("claim ownership — only the installer, requester or account owner", (
 		).toEqual({
 			installationId: "8001",
 			forge: "github",
-			claimable: true,
+			status: "claimable",
 			account: "kolf-corp",
 			repoCount: 1,
 			stateOrg: { id: kolfOrg, slug: "kolf-team", name: "kolf-team" },
-			claimedByOrgSlug: null,
 		});
 		expect(
 			await userCanClaimInstallation(db, {
@@ -661,19 +664,19 @@ describe("claim ownership — only the installer, requester or account owner", (
 	test("once claimed, only members of the owning org learn which org has it", async () => {
 		await linkOrgInstallation(db, { orgId: kolfOrg, installationId: "8001" });
 		expect(
-			await previewInstallation(db, {
+			await resolveInstallStatus(db, {
 				userId: "kolfadser1",
 				installationId: "8001",
 				stateOrgId: null,
 			}),
-		).toMatchObject({ claimable: false, claimedByOrgSlug: "kolf-team" });
+		).toMatchObject({ status: "claimed-by-your-org", orgSlug: "kolf-team" });
 		expect(
-			await previewInstallation(db, {
+			await resolveInstallStatus(db, {
 				userId: "salt",
 				installationId: "8001",
 				stateOrgId: null,
 			}),
-		).toEqual(sealed("8001"));
+		).toEqual(sealed("8001", false));
 		expect(
 			await listClaimableInstallations(db, { userId: "kolfadser1" }),
 		).toEqual([]);
@@ -795,12 +798,12 @@ describe("claim ownership — only the installer, requester or account owner", (
 			],
 		);
 		expect(
-			await previewInstallation(db, {
+			await resolveInstallStatus(db, {
 				userId: "og-user",
 				installationId: "og-acct-1",
 				stateOrgId: null,
 			}),
-		).toMatchObject({ forge: "opengit", claimable: true, repoCount: 1 });
+		).toMatchObject({ forge: "opengit", status: "claimable", repoCount: 1 });
 		expect(
 			await userCanClaimInstallation(db, {
 				userId: "salt",
@@ -815,6 +818,282 @@ describe("claim ownership — only the installer, requester or account owner", (
 				installationId: "og-acct-1",
 			}),
 		).toBe(false);
+	});
+});
+
+describe("install status — what the setup page shows", () => {
+	async function seedGithubUser(id: string, githubId: string): Promise<void> {
+		await seedUser(id);
+		await db.insert(account).values({
+			id: generateId(),
+			userId: id,
+			providerId: "github",
+			accountId: githubId,
+		});
+	}
+
+	async function seedInstallEvent(input: {
+		installationId: string;
+		senderId: number;
+		kind: string | null;
+		quarantined?: boolean;
+		action?: string;
+	}): Promise<void> {
+		await db.insert(events).values({
+			id: generateId(),
+			forge: "github",
+			deliveryId: generateId(),
+			rawKind: "installation",
+			kind: input.kind,
+			quarantined: input.quarantined ?? false,
+			raw: {
+				action: input.action ?? "created",
+				installation: {
+					id: Number(input.installationId),
+					account: { id: 7777, login: "status-corp" },
+				},
+				sender: { id: input.senderId },
+			},
+		});
+	}
+
+	function status(userId: string | null, installationId: string) {
+		return resolveInstallStatus(db, {
+			userId,
+			installationId,
+			stateOrgId: null,
+		});
+	}
+
+	beforeAll(async () => {
+		await seedGithubUser("status-owner", "6101");
+		await seedGithubUser("status-other", "6102");
+	});
+
+	test("a stored but not yet normalized webhook is processing", async () => {
+		await seedInstallEvent({
+			installationId: "9001",
+			senderId: 6101,
+			kind: null,
+		});
+		expect(await status("status-owner", "9001")).toEqual({
+			installationId: "9001",
+			forge: "github",
+			status: "processing",
+		});
+	});
+
+	test("a raw installation event that is not a create never reads as processing", async () => {
+		await seedInstallEvent({
+			installationId: "9002",
+			senderId: 6101,
+			kind: null,
+			action: "new_permissions_accepted",
+		});
+		expect(await status("status-owner", "9002")).toMatchObject({
+			status: "missing",
+			recoverable: true,
+		});
+	});
+
+	test("a quarantined webhook is unreadable", async () => {
+		await seedInstallEvent({
+			installationId: "9003",
+			senderId: 6101,
+			kind: null,
+			quarantined: true,
+		});
+		expect(await status("status-owner", "9003")).toMatchObject({
+			status: "unreadable",
+		});
+	});
+
+	test("no webhook at all is missing, and recoverable until a check lands", async () => {
+		expect(await status("status-owner", "9004")).toEqual({
+			installationId: "9004",
+			forge: "github",
+			status: "missing",
+			recoverable: true,
+		});
+		await recordInstallAccessCheck(db, {
+			userId: "status-owner",
+			forge: "github",
+			installationId: "9004",
+			result: "pending",
+		});
+		expect(await status("status-owner", "9004")).toMatchObject({
+			status: "recovering",
+		});
+		await recordInstallAccessCheck(db, {
+			userId: "status-owner",
+			forge: "github",
+			installationId: "9004",
+			result: "failed",
+		});
+		expect(await status("status-owner", "9004")).toMatchObject({
+			status: "missing",
+			recoverable: false,
+		});
+	});
+
+	test("recovery results name the state", async () => {
+		await recordInstallAccessCheck(db, {
+			userId: "status-owner",
+			forge: "github",
+			installationId: "9005",
+			result: "not-for-tripwire",
+		});
+		await recordInstallAccessCheck(db, {
+			userId: "status-owner",
+			forge: "github",
+			installationId: "9006",
+			result: "token-expired",
+		});
+		expect(await status("status-owner", "9005")).toMatchObject({
+			status: "not-for-tripwire",
+		});
+		expect(await status("status-owner", "9006")).toMatchObject({
+			status: "token-expired",
+		});
+	});
+
+	test("a normalized webhook for someone else is not-yours and reveals nothing", async () => {
+		await seedInstallEvent({
+			installationId: "9007",
+			senderId: 6101,
+			kind: "installation.created",
+		});
+		await syncInstallationRepos(
+			db,
+			"9007",
+			[
+				{
+					externalId: "status-9007",
+					owner: "status-corp",
+					name: "secret",
+					fullName: "status-corp/secret",
+					private: true,
+				},
+			],
+			[],
+			null,
+		);
+		expect(await status("status-other", "9007")).toEqual({
+			installationId: "9007",
+			forge: "github",
+			status: "not-yours",
+			recoverable: true,
+		});
+		await recordInstallAccessCheck(db, {
+			userId: "status-other",
+			forge: "github",
+			installationId: "9007",
+			result: "denied",
+		});
+		expect(await status("status-other", "9007")).toEqual({
+			installationId: "9007",
+			forge: "github",
+			status: "not-yours",
+			recoverable: false,
+		});
+		expect(await status("status-owner", "9007")).toMatchObject({
+			status: "claimable",
+			account: "status-corp",
+			repoCount: 1,
+		});
+	});
+});
+
+describe("access checks — GitHub's own answer as ownership proof", () => {
+	async function seedGithubUser(id: string, githubId: string): Promise<void> {
+		await seedUser(id);
+		await db.insert(account).values({
+			id: generateId(),
+			userId: id,
+			providerId: "github",
+			accountId: githubId,
+		});
+	}
+
+	function canClaim(userId: string, installationId: string) {
+		return userCanClaimInstallation(db, {
+			userId,
+			forge: "github",
+			installationId,
+		});
+	}
+
+	beforeAll(async () => {
+		await seedGithubUser("check-admin", "6201");
+		await seedGithubUser("check-stranger", "6202");
+	});
+
+	test("a fresh granted check lets the user claim without a webhook", async () => {
+		expect(await canClaim("check-admin", "9101")).toBe(false);
+		await recordInstallAccessCheck(db, {
+			userId: "check-admin",
+			forge: "github",
+			installationId: "9101",
+			result: "granted",
+		});
+		expect(await canClaim("check-admin", "9101")).toBe(true);
+	});
+
+	test("a stale granted check does not", async () => {
+		await recordInstallAccessCheck(db, {
+			userId: "check-admin",
+			forge: "github",
+			installationId: "9102",
+			result: "granted",
+			at: new Date(Date.now() - (INSTALL_ACCESS_CHECK_TTL_SECONDS + 60) * 1000),
+		});
+		expect(await canClaim("check-admin", "9102")).toBe(false);
+		expect(
+			await resolveInstallStatus(db, {
+				userId: "check-admin",
+				installationId: "9102",
+				stateOrgId: null,
+			}),
+		).toMatchObject({ status: "missing", recoverable: true });
+	});
+
+	test("a negative check does not", async () => {
+		for (const result of ["denied", "failed", "pending"] as const) {
+			await recordInstallAccessCheck(db, {
+				userId: "check-admin",
+				forge: "github",
+				installationId: "9103",
+				result,
+			});
+			expect(await canClaim("check-admin", "9103")).toBe(false);
+		}
+	});
+
+	test("another user's check never applies", async () => {
+		await recordInstallAccessCheck(db, {
+			userId: "check-admin",
+			forge: "github",
+			installationId: "9104",
+			result: "granted",
+		});
+		expect(await canClaim("check-stranger", "9104")).toBe(false);
+		expect(
+			await resolveInstallStatus(db, {
+				userId: "check-stranger",
+				installationId: "9104",
+				stateOrgId: null,
+			}),
+		).toMatchObject({ status: "missing" });
+	});
+
+	test("the SALT case stays refused even with a check for someone else", async () => {
+		await recordInstallAccessCheck(db, {
+			userId: "kolfadser1",
+			forge: "github",
+			installationId: "8001",
+			result: "granted",
+		});
+		expect(await canClaim("salt", "8001")).toBe(false);
 	});
 });
 

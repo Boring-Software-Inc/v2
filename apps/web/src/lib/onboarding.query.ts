@@ -15,6 +15,13 @@ export const onboardingQueryKeys = {
 	// and sharing a key would serve one forge's install url for the other.
 	installUrl: (org: string, forge: Forge) =>
 		[...onboardingQueryKeys.all, "install-url", org, forge] as const,
+	installStatus: (installationId: string, state: string | null) =>
+		[
+			...onboardingQueryKeys.all,
+			"install-status",
+			installationId,
+			state,
+		] as const,
 	approvedRequests: () =>
 		[...onboardingQueryKeys.all, "approved-requests"] as const,
 };

@@ -2,6 +2,8 @@ import { createHash, randomBytes } from "node:crypto";
 import {
 	type Forge,
 	forgeSchema,
+	INSTALL_ACCESS_CHECK_TTL_SECONDS,
+	type InstallStatus,
 	type OrgRole,
 	orgSlugSchema,
 	slugifyOrgName,
@@ -20,6 +22,7 @@ import {
 } from "../schema/organizations.ts";
 import { repos, ruleConfigs, workflowDefinitions } from "../schema/repos.ts";
 import { promoteUserAccess } from "./access.ts";
+import { getFreshInstallAccessCheck } from "./installation-access.ts";
 
 /**
  * Organization services (§org-model). Better Auth's plugin owns the
@@ -716,6 +719,15 @@ function installationOwnedBy(
 			  AND e.kind = 'installation.created'
 			  AND e.raw->'installation'->>'id' = ${installationId}
 		))
+		OR EXISTS (
+			SELECT 1
+			FROM installation_access_checks c
+			WHERE c.user_id = ${userId}
+			  AND c.forge = ${forge}
+			  AND c.installation_id = ${installationId}
+			  AND c.result = 'granted'
+			  AND c.verified_at > now() - make_interval(secs => ${INSTALL_ACCESS_CHECK_TTL_SECONDS})
+		)
 		OR (${forge} <> 'github' AND EXISTS (
 			SELECT 1
 			FROM account a
@@ -773,16 +785,6 @@ export async function listClaimableInstallations(
 	return z.array(claimableInstallationSchema).parse(result.rows);
 }
 
-export interface InstallPreview {
-	installationId: string;
-	forge: Forge;
-	claimable: boolean;
-	account: string | null;
-	repoCount: number;
-	stateOrg: { id: string; slug: string; name: string } | null;
-	claimedByOrgSlug: string | null;
-}
-
 async function orgRef(
 	db: Db,
 	orgId: string,
@@ -799,14 +801,37 @@ async function orgRef(
 	return rows[0] ?? null;
 }
 
-export async function previewInstallation(
+const installEventStateSchema = z.object({
+	normalized: z.boolean().nullable(),
+	processing: z.boolean().nullable(),
+	quarantined: z.boolean().nullable(),
+});
+
+async function installEventState(
+	db: Db,
+	input: { forge: Forge; installationId: string },
+): Promise<z.infer<typeof installEventStateSchema>> {
+	const result = await db.execute(sql`
+		SELECT bool_or(e.kind = 'installation.created') AS normalized,
+		       bool_or(e.kind IS NULL AND NOT e.quarantined) AS processing,
+		       bool_or(e.quarantined) AS quarantined
+		FROM events e
+		WHERE e.forge = ${input.forge}
+		  AND e.raw_kind = 'installation'
+		  AND e.raw->>'action' = 'created'
+		  AND e.raw->'installation'->>'id' = ${input.installationId}
+	`);
+	return installEventStateSchema.parse(result.rows[0]);
+}
+
+export async function resolveInstallStatus(
 	db: Db,
 	input: {
 		userId: string | null;
 		installationId: string;
 		stateOrgId: string | null;
 	},
-): Promise<InstallPreview> {
+): Promise<InstallStatus> {
 	const repoRows = await db
 		.select({
 			owner: repos.owner,
@@ -822,49 +847,65 @@ export async function previewInstallation(
 		)
 		.groupBy(repos.owner, repos.forge);
 	const forge = repoRows[0]?.forge ?? "github";
-	const sealed: InstallPreview = {
-		installationId: input.installationId,
-		forge,
-		claimable: false,
-		account: null,
-		repoCount: 0,
-		stateOrg: null,
-		claimedByOrgSlug: null,
-	};
+	const base = { installationId: input.installationId, forge };
 	const userId = input.userId;
 	if (!userId) {
-		return sealed;
+		return { ...base, status: "not-yours", recoverable: false };
 	}
-	const seen: InstallPreview = {
-		...sealed,
-		account: repoRows[0]?.owner ?? null,
-		repoCount: repoRows.reduce((sum, row) => sum + row.n, 0),
-	};
 	const ownerOrgId = await getInstallationOrg(db, {
 		installationId: input.installationId,
 		forge,
 	});
 	if (ownerOrgId) {
 		const role = await getMemberRole(db, { orgId: ownerOrgId, userId });
-		if (!role) {
-			return sealed;
-		}
-		const owner = await orgRef(db, ownerOrgId);
-		return { ...seen, claimedByOrgSlug: owner?.slug ?? null };
+		const owner = role ? await orgRef(db, ownerOrgId) : null;
+		return owner
+			? { ...base, status: "claimed-by-your-org", orgSlug: owner.slug }
+			: { ...base, status: "not-yours", recoverable: false };
 	}
 	const claimable = await userCanClaimInstallation(db, {
 		userId,
 		forge,
 		installationId: input.installationId,
 	});
-	if (!claimable) {
-		return sealed;
+	if (claimable) {
+		return {
+			...base,
+			status: "claimable",
+			account: repoRows[0]?.owner ?? null,
+			repoCount: repoRows.reduce((sum, row) => sum + row.n, 0),
+			stateOrg: input.stateOrgId ? await orgRef(db, input.stateOrgId) : null,
+		};
 	}
-	return {
-		...seen,
-		claimable,
-		stateOrg: input.stateOrgId ? await orgRef(db, input.stateOrgId) : null,
-	};
+	const check = await getFreshInstallAccessCheck(db, {
+		userId,
+		forge,
+		installationId: input.installationId,
+	});
+	const result = check?.result ?? null;
+	if (result === "pending") {
+		return { ...base, status: "recovering" };
+	}
+	if (result === "not-for-tripwire" || result === "token-expired") {
+		return { ...base, status: result };
+	}
+	const events = await installEventState(db, {
+		forge,
+		installationId: input.installationId,
+	});
+	if (events.normalized) {
+		return { ...base, status: "not-yours", recoverable: check === null };
+	}
+	if (events.processing) {
+		return { ...base, status: "processing" };
+	}
+	if (result === "denied") {
+		return { ...base, status: "not-yours", recoverable: false };
+	}
+	if (events.quarantined) {
+		return { ...base, status: "unreadable" };
+	}
+	return { ...base, status: "missing", recoverable: check === null };
 }
 
 // ── deletion (§5) ───────────────────────────────────────────────────────

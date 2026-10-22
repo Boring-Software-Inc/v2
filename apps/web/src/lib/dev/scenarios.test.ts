@@ -10,6 +10,7 @@ import {
 	devLatencyMs,
 	getPreset,
 	normalizeScenario,
+	RECOVERY_INSTALLS,
 	searchPresets,
 	transitionScenario,
 } from "./scenarios.ts";
@@ -48,6 +49,24 @@ describe("dev scenario state machine", () => {
 	test("normalizing any combination yields a valid scenario", () => {
 		for (const state of everyScenario()) {
 			expect(isValid(normalizeScenario(state))).toBe(true);
+		}
+	});
+
+	test("recovery installs keep the owner on the setup page with no repos", () => {
+		for (const install of RECOVERY_INSTALLS) {
+			const next = transitionScenario(
+				{ ...OWNER, landing: "install-setup" },
+				"install",
+				install,
+			);
+			expect(next).toMatchObject({
+				account: "owner",
+				install,
+				repos: "none",
+				workflows: "none",
+				landing: "install-setup",
+			});
+			expect(getPreset(install)?.scenario).toEqual(next);
 		}
 	});
 

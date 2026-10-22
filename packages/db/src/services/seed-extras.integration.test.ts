@@ -26,8 +26,10 @@ import {
 } from "../seed-extras.ts";
 import {
 	BROKEN_WORKFLOW_NAME,
+	type DemoRecoveryState,
 	LIVE_WORKFLOW_NAME,
 	seedDemoWorkflows,
+	seedInstallRecoveryState,
 	seedUnclaimedInstall,
 } from "../seed-scenarios.ts";
 import * as orgServices from "./organizations.ts";
@@ -35,6 +37,16 @@ import * as repoServices from "./repos.ts";
 import * as workflowServices from "./workflows.ts";
 
 const countRow = z.object({ n: z.coerce.number() });
+
+const demoRecoveryStateSchema = z.enum([
+	"processing",
+	"recovering",
+	"unreadable",
+	"missing",
+	"not-for-tripwire",
+	"not-yours",
+	"token-expired",
+]);
 
 async function count(db: Db, query: ReturnType<typeof sql>): Promise<number> {
 	const result = await db.execute(query);
@@ -319,4 +331,45 @@ test("reset drops demo personal orgs and demo installation claims", async () => 
 		name: "Reset owner",
 	});
 	expect(fresh.slug).toBe(personal.slug);
+});
+
+test("each install recovery scenario resolves to its setup page state", async () => {
+	await resetDemoData(db);
+	const userId = await demoUser("recovery-owner");
+	const now = new Date();
+	const cases = {
+		processing: { status: "processing" },
+		recovering: { status: "recovering" },
+		unreadable: { status: "unreadable" },
+		missing: { status: "missing", recoverable: false },
+		"not-for-tripwire": { status: "not-for-tripwire" },
+		"not-yours": { status: "not-yours", recoverable: false },
+		"token-expired": { status: "token-expired" },
+	} satisfies Record<
+		DemoRecoveryState,
+		{ status: string; recoverable?: boolean }
+	>;
+	for (const [state, expected] of Object.entries(cases)) {
+		const installationId = `demo-inst-recovery-${state}`;
+		await seedInstallRecoveryState(db, {
+			installationId,
+			state: demoRecoveryStateSchema.parse(state),
+			userId,
+			now,
+		});
+		expect(
+			await orgServices.resolveInstallStatus(db, {
+				userId,
+				installationId,
+				stateOrgId: null,
+			}),
+		).toMatchObject(expected);
+	}
+	await resetDemoData(db);
+	expect(
+		await count(
+			db,
+			sql`SELECT count(*) AS n FROM events WHERE id LIKE 'demo-evt-install-demo-inst-recovery-%'`,
+		),
+	).toBe(0);
 });

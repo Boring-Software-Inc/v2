@@ -7,9 +7,11 @@ import {
 	createDirectPool,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	RECOVER_INSTALLATION_QUEUE,
 	REFRESH_SURFACES_QUEUE,
 	RERUN_QUEUE,
 	RESUME_RUN_QUEUE,
+	type RecoverInstallationJob,
 	type RefreshSurfacesJob,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
@@ -19,7 +21,10 @@ import {
 	syncRepoReviewersOptions,
 } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
-import { checkAppCredentials } from "@tripwire/forge-github";
+import {
+	checkAppCredentials,
+	GithubInstallations,
+} from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { WorkHandler } from "pg-boss";
 import pino from "pino";
@@ -32,6 +37,7 @@ import { economicsDigest } from "./jobs/economics-digest.ts";
 import { economicsRollup } from "./jobs/economics-rollup.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { pullProviderCosts } from "./jobs/pull-provider-costs.ts";
+import { recoverInstallation } from "./jobs/recover-installation.ts";
 import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
@@ -39,6 +45,7 @@ import { rollup } from "./jobs/rollup.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
 import { syncRepoReviewers } from "./jobs/sync-repo-reviewers.ts";
 import * as metering from "./metering.ts";
+import { installFailureReporter } from "./report-install-failure.ts";
 
 /**
  * @tripwire/worker — pg-boss consumers, where I/O meets the pure core. Request
@@ -99,6 +106,10 @@ if (import.meta.main) {
 	// Backfill (arm-time) is GitHub-only for now; hand it the GitHub reads.
 	const githubReads = resolveForge("github")?.reads ?? null;
 	const githubAdapter = resolveForge("github")?.adapter ?? null;
+	const githubInstallations =
+		appId && privateKey
+			? new GithubInstallations({ credentials: { appId, privateKey } })
+			: null;
 	/**
 	 * The sweeper spans forges, so it resolves per repo rather than taking one
 	 * adapter. `runs` has no forge column — only `repo_full_name` — so the forge
@@ -280,6 +291,27 @@ if (import.meta.main) {
 			},
 		);
 
+		await work<RecoverInstallationJob>(
+			RECOVER_INSTALLATION_QUEUE,
+			async (jobs) => {
+				for (const job of jobs) {
+					const jobLogger = logger.child({
+						installationId: job.data.installationId,
+						recovery: true,
+					});
+					await recoverInstallation(
+						{
+							db,
+							github: githubInstallations,
+							logger: jobLogger,
+							report: installFailureReporter(jobLogger),
+						},
+						job.data,
+					);
+				}
+			},
+		);
+
 		await work<RefreshSurfacesJob>(REFRESH_SURFACES_QUEUE, async (jobs) => {
 			for (const job of jobs) {
 				await refreshRepoSurfaces(
@@ -394,6 +426,7 @@ if (import.meta.main) {
 				BACKFILL_REPO_QUEUE,
 				SYNC_REPO_REVIEWERS_QUEUE,
 				REFRESH_SURFACES_QUEUE,
+				RECOVER_INSTALLATION_QUEUE,
 				"rollup",
 				"sweep-actions",
 				"deliver-webhook",

@@ -13,6 +13,8 @@ import type { Pool } from "pg";
 import type { Logger } from "pino";
 import { z } from "zod";
 import { type ForgeRuntime, normalizeFor } from "../forge-runtime.ts";
+import { installFailureReporter } from "../report-install-failure.ts";
+import { upsertInstallation } from "./installation-sync.ts";
 import { emitPendingCheck, emitPrSurface } from "./pr-surface.ts";
 import { refreshBranchSuggestions } from "./refresh-suggestions.ts";
 import { runWorkflows } from "./run-workflows.ts";
@@ -78,6 +80,17 @@ export async function processEvent(
 			{ eventId: event.id, deliveryId: event.deliveryId, reason },
 			"event quarantined — fixture candidate",
 		);
+		if (event.rawKind === "installation") {
+			const installation = installationRefSchema.safeParse(event.raw);
+			installFailureReporter(logger)({
+				state: "unreadable",
+				installationId: installation.success
+					? String(installation.data.installation.id)
+					: "unknown",
+				userId: null,
+				error: reason,
+			});
+		}
 		return;
 	}
 
@@ -310,43 +323,26 @@ async function syncInstallation(
 			event.repositories,
 		);
 	} else {
-		/**
-		 * §2 org resolution — installation→org→repos with ZERO user/session
-		 * assumptions. The claim itself is a human act (setup callback with a
-		 * signed org state, or the claim screen); the webhook path only reads
-		 * an existing claim and records account metadata on it. An unclaimed
-		 * install syncs repos with NULL org_id — invisible until claimed,
-		 * never auto-attached on a guess (§10).
-		 */
-		const orgId = await orgServices.getInstallationOrg(db, {
-			installationId,
-		});
-		await repoServices.syncInstallationRepos(
+		await upsertInstallation(
 			db,
-			installationId,
-			event.repositories,
-			[],
-			orgId,
+			{
+				installationId,
+				account: event.installation.account,
+				accountType: event.installation.accountType,
+				repositories: event.repositories,
+			},
+			logger,
 		);
-		await orgServices.recordInstallationAccount(db, {
-			installationId,
-			accountType: event.installation.accountType,
-			accountLogin: event.installation.account,
-		});
-		if (orgId) {
-			logger.info({ installationId, orgId }, "installation resolved to org");
-		} else {
-			logger.info(
-				{ installationId, account: event.installation.account },
-				"installation unclaimed — repos synced without org, awaiting claim",
-			);
-		}
 	}
 	logger.info(
 		{ kind: event.kind, installationId, repos: event.repositories.length },
 		"installation synced — no run, no surface",
 	);
 }
+
+const installationRefSchema = z.object({
+	installation: z.object({ id: z.union([z.number(), z.string()]) }),
+});
 
 /** The only field auto-connect needs off a raw installation delivery. */
 const installationDeliverySchema = z.object({ installation_id: z.string() });

@@ -23,6 +23,7 @@ describe("groupPresets", () => {
 		expect(groups.map((entry) => entry.group)).toEqual([
 			"Accounts",
 			"Onboarding",
+			"Install recovery",
 			"Loading",
 			"Workflows",
 			"Settings",

@@ -1,8 +1,11 @@
-import type {
-	DevAccount,
-	DevRepos,
-	DevScenario,
-	DevWorkflows,
+import type { DemoRecoveryState } from "@tripwire/db";
+import {
+	type DevAccount,
+	type DevRecoveryInstall,
+	type DevRepos,
+	type DevScenario,
+	type DevWorkflows,
+	isRecoveryInstall,
 } from "#/lib/dev/scenarios";
 
 export const DEV_PASSWORD = "tripwire-dev-persona";
@@ -27,12 +30,18 @@ export interface UnclaimedPlan {
 	repoNames: string[];
 }
 
+export interface RecoveryPlan {
+	installationId: string;
+	state: DemoRecoveryState;
+}
+
 export interface ScenarioPlan {
 	user: DevUserPlan | null;
 	orgKind: "personal" | "team";
 	teamRole: "member" | null;
 	repos: RepoPlan | null;
 	unclaimed: UnclaimedPlan | null;
+	recovery: RecoveryPlan | null;
 	approvedRequest: boolean;
 	workflows: DevWorkflows;
 	publicRun: boolean;
@@ -69,6 +78,34 @@ const REPOS = {
 
 const UNCLAIMED_ACCOUNT = "tripwire-demo";
 
+const RECOVERY_PLANS = {
+	"install-processing": {
+		installationId: "demo-inst-processing",
+		state: "processing",
+	},
+	"install-recovering": {
+		installationId: "demo-inst-recovering",
+		state: "recovering",
+	},
+	"install-unreadable": {
+		installationId: "demo-inst-unreadable",
+		state: "unreadable",
+	},
+	"install-missing": { installationId: "demo-inst-missing", state: "missing" },
+	"install-not-for-tripwire": {
+		installationId: "demo-inst-foreign",
+		state: "not-for-tripwire",
+	},
+	"install-not-yours": {
+		installationId: "demo-inst-not-yours",
+		state: "not-yours",
+	},
+	"install-token-expired": {
+		installationId: "demo-inst-token",
+		state: "token-expired",
+	},
+} satisfies Record<DevRecoveryInstall, RecoveryPlan>;
+
 export function planScenario(scenario: DevScenario): ScenarioPlan {
 	const user =
 		scenario.account === "anonymous" ? null : USERS[scenario.account];
@@ -82,6 +119,9 @@ export function planScenario(scenario: DevScenario): ScenarioPlan {
 		teamRole: scenario.account === "member" ? "member" : null,
 		repos,
 		unclaimed: unclaimedFor(scenario),
+		recovery: isRecoveryInstall(scenario.install)
+			? RECOVERY_PLANS[scenario.install]
+			: null,
 		approvedRequest: scenario.install === "request-approved",
 		workflows: scenario.workflows,
 		publicRun:
@@ -164,11 +204,13 @@ function installSetupLanding(
 	if (scenario.install === "request-approved") {
 		return `/onboarding/setup?installation_id=${APPROVED_INSTALLATION_ID}`;
 	}
-	if (!(plan.unclaimed && seeded.installState)) {
+	const installationId =
+		plan.unclaimed?.installationId ?? plan.recovery?.installationId;
+	if (!(installationId && seeded.installState)) {
 		return null;
 	}
 	const search = new URLSearchParams({
-		installation_id: plan.unclaimed.installationId,
+		installation_id: installationId,
 		setup_action: "install",
 		state: seeded.installState,
 	});

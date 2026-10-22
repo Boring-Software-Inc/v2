@@ -33,6 +33,13 @@ export {
 	InstallationTokenCache,
 } from "./client/auth.ts";
 export { GithubHttp, type GithubHttpOptions } from "./client/http.ts";
+export {
+	type GithubInstallation,
+	type GithubInstallationRepo,
+	GithubInstallations,
+	type GithubInstallationsOptions,
+	type UserInstallationAccess,
+} from "./client/installations.ts";
 export { GithubReads, type GithubReadsOptions } from "./client/reads.ts";
 export { listRepoReviewers } from "./client/reviewers.ts";
 export {

@@ -162,6 +162,13 @@
       "when": 1792643775492,
       "tag": "0022_rare_blue_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792695938786,
+      "tag": "0023_fearless_nocturne",
+      "breakpoints": true
     }
   ]
 }

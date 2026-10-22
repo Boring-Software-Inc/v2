@@ -4,6 +4,7 @@ import {
 	type DevScenario,
 	getPreset,
 	normalizeScenario,
+	RECOVERY_INSTALLS,
 } from "#/lib/dev/scenarios";
 import {
 	planScenario,
@@ -135,6 +136,30 @@ describe("resolveLanding", () => {
 				landing: "install-setup",
 			}),
 		).toBe("/onboarding/setup?installation_id=demo-inst-pending");
+	});
+
+	test("each recovery state plans its own installation and lands on setup", () => {
+		const seen = new Set<string>();
+		for (const install of RECOVERY_INSTALLS) {
+			const plan = planScenario(presetScenario(install));
+			expect(plan.recovery).not.toBeNull();
+			expect(plan.unclaimed).toBeNull();
+			expect(plan.repos).toBeNull();
+			const installationId = plan.recovery?.installationId ?? "";
+			seen.add(installationId);
+			const url = new URL(
+				landingFor(presetScenario(install)),
+				"http://localhost",
+			);
+			expect(url.pathname).toBe("/onboarding/setup");
+			expect(url.searchParams.get("installation_id")).toBe(installationId);
+			expect(url.searchParams.get("state")).toBe("signed.state");
+		}
+		expect(seen.size).toBe(RECOVERY_INSTALLS.length);
+		expect(planScenario(presetScenario("install-missing")).recovery).toEqual({
+			installationId: "demo-inst-missing",
+			state: "missing",
+		});
 	});
 
 	test("anonymous lands on the public run", () => {

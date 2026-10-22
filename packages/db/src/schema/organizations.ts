@@ -1,3 +1,4 @@
+import type { Forge, InstallAccessResult } from "@tripwire/contracts";
 import {
 	boolean,
 	index,
@@ -159,6 +160,29 @@ export const organizationInstallations = pgTable(
 			t.installationId,
 		),
 		index("org_installations_org_idx").on(t.organizationId),
+	],
+);
+
+export const installationAccessChecks = pgTable(
+	"installation_access_checks",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		forge: text("forge").$type<Forge>().notNull().default("github"),
+		installationId: text("installation_id").notNull(),
+		result: text("result").$type<InstallAccessResult>().notNull(),
+		verifiedAt: timestamp("verified_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [
+		uniqueIndex("installation_access_checks_user_installation_unique").on(
+			t.userId,
+			t.forge,
+			t.installationId,
+		),
 	],
 );
 

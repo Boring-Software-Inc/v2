@@ -1,9 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
-import { type Forge, forgeConnectable } from "@tripwire/contracts";
+import {
+	type ClaimableInstallStatus,
+	type Forge,
+	forgeConnectable,
+	type InstallStatus,
+} from "@tripwire/contracts";
 import type {
 	ApprovedInstallRequest,
 	ClaimableInstallation,
-	InstallPreview,
 	OrgWithRole,
 	SwitcherRepo,
 } from "@tripwire/db";
@@ -16,7 +20,8 @@ import {
 export type {
 	ApprovedInstallRequest,
 	ClaimableInstallation,
-	InstallPreview,
+	ClaimableInstallStatus,
+	InstallStatus,
 	SwitcherRepo,
 };
 
@@ -92,40 +97,61 @@ export const getOrgInstallUrl = createServerFn({ method: "GET" })
 		return installUrlFor(data.forge ?? "github", state);
 	});
 
-/**
- * What the setup-callback screen shows before anything is claimed: the
- * GitHub side (account + repo count, from repos the webhook already synced)
- * and the Tripwire side (the state's target org, when the state verifies AND
- * belongs to the signed-in caller). Reveals nothing about an installation the
- * caller did not install or request, and names the owning org only to its
- * members. The caller may not be an admin of anything yet; claiming is a
- * separate admin-gated act.
- */
 export const getInstallPreview = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware])
 	.inputValidator((input: { installationId: string; state?: string }) => input)
-	.handler(async ({ data }): Promise<InstallPreview> => {
+	.handler(async ({ data }): Promise<InstallStatus> => {
 		const { requireSession } = await import("#/lib/server/session");
 		const userId = await requireSession();
 		const { getDb } = await import("#/lib/server/db");
 		const { orgServices } = await import("@tripwire/db");
 		const { verifyInstallState } = await import("#/lib/server/install-state");
 		const bound = data.state ? verifyInstallState(data.state) : null;
-		const preview = await orgServices.previewInstallation(getDb().db, {
+		const status = await orgServices.resolveInstallStatus(getDb().db, {
 			userId,
 			installationId: data.installationId,
 			stateOrgId: bound && bound.userId === userId ? bound.orgId : null,
 		});
-		if (forgeConnectable(preview.forge)) {
-			return preview;
+		if (forgeConnectable(status.forge)) {
+			return status;
 		}
 		return {
-			...preview,
-			claimable: false,
-			account: null,
-			repoCount: 0,
-			stateOrg: null,
+			installationId: status.installationId,
+			forge: status.forge,
+			status: "not-yours",
+			recoverable: false,
 		};
+	});
+
+export const recoverInstallation = createServerFn({ method: "POST" })
+	.middleware([accessGuardMiddleware])
+	.inputValidator((input: { installationId: string }) => input)
+	.handler(async ({ data }): Promise<{ queued: boolean }> => {
+		const { requireSession } = await import("#/lib/server/session");
+		const userId = await requireSession();
+		if (!userId) {
+			return { queued: false };
+		}
+		const { getBoss, getDb } = await import("#/lib/server/db");
+		const {
+			installationAccessServices,
+			RECOVER_INSTALLATION_QUEUE,
+			recoverInstallationOptions,
+		} = await import("@tripwire/db");
+		const job = { userId, installationId: data.installationId };
+		await installationAccessServices.recordInstallAccessCheck(getDb().db, {
+			userId,
+			forge: "github",
+			installationId: data.installationId,
+			result: "pending",
+		});
+		const boss = await getBoss();
+		await boss.send(
+			RECOVER_INSTALLATION_QUEUE,
+			job,
+			recoverInstallationOptions(job),
+		);
+		return { queued: true };
 	});
 
 /**

@@ -23,13 +23,16 @@ export {
 	getRerunCooldownSeconds,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	RECOVER_INSTALLATION_QUEUE,
 	REFRESH_SURFACES_QUEUE,
 	RERUN_COOLDOWN_SECONDS,
 	RERUN_QUEUE,
 	RESUME_RUN_QUEUE,
+	type RecoverInstallationJob,
 	type RefreshSurfacesJob,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
+	recoverInstallationOptions,
 	SYNC_REPO_REVIEWERS_QUEUE,
 	type SyncRepoReviewersJob,
 	syncRepoReviewersOptions,
@@ -61,10 +64,12 @@ export {
 export {
 	BROKEN_WORKFLOW_NAME,
 	brokenWorkflowDefinition,
+	type DemoRecoveryState,
 	type DemoWorkflowMode,
 	LIVE_WORKFLOW_NAME,
 	liveWorkflowDefinition,
 	seedDemoWorkflows,
+	seedInstallRecoveryState,
 	seedUnclaimedInstall,
 } from "./seed-scenarios.ts";
 export * as accessServices from "./services/access.ts";
@@ -86,12 +91,16 @@ export type {
 export * as economicsServices from "./services/economics.ts";
 export * as eventServices from "./services/events.ts";
 export * as insightServices from "./services/insights.ts";
+export type {
+	InstallAccessCheck,
+	InstallAccessKey,
+} from "./services/installation-access.ts";
+export * as installationAccessServices from "./services/installation-access.ts";
 export * as moderationServices from "./services/moderation.ts";
 export type { RepoLite, SwitcherRepo } from "./services/onboarding.ts";
 export type {
 	ApprovedInstallRequest,
 	ClaimableInstallation,
-	InstallPreview,
 	InviteLinkView,
 	OrgCascade,
 	OrgSummary,
