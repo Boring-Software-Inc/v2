@@ -4,8 +4,8 @@ import { SlowRegion } from "#/components/glaze/ui/slow-notice";
 
 export function InvitePageSkeleton() {
 	return (
-		<div className="flex min-h-dvh w-full flex-col items-center justify-center bg-page px-4 py-10">
-			<SlowRegion className="pb-6 text-center">
+		<div className="relative flex min-h-dvh w-full items-center justify-center bg-page px-4 py-10">
+			<SlowRegion>
 				<div
 					aria-hidden
 					className="flex w-full max-w-sm flex-col items-center gap-6 text-center"

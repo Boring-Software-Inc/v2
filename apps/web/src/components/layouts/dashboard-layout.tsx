@@ -144,12 +144,7 @@ function DashboardShell({
 								tabIndex={-1}
 								className="min-h-0 flex-1 overflow-y-auto"
 							>
-								<SlowRegion
-									active={navigating}
-									className="px-4 pt-6 text-center md:px-8"
-								>
-									{children}
-								</SlowRegion>
+								<SlowRegion active={navigating}>{children}</SlowRegion>
 							</main>
 
 							{isDesktop || !content ? null : (

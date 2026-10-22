@@ -9,8 +9,8 @@ const CELL_SLOTS = ["a", "b", "c", "d"] as const;
  * disclosure row — so nothing reflows when the real buttons land. */
 export function LoginPageSkeleton() {
 	return (
-		<div className="flex min-h-dvh flex-col items-center justify-center bg-page px-4 pt-10 pb-40">
-			<SlowRegion className="pb-6 text-center">
+		<div className="relative flex min-h-dvh flex-col items-center justify-center bg-page px-4 pt-10 pb-40">
+			<SlowRegion>
 				<div
 					aria-hidden
 					className="flex w-full max-w-sm flex-col items-center gap-6"

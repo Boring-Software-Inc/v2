@@ -2,10 +2,11 @@
 
 import {Button as ButtonPrimitive} from '@base-ui/react/button';
 import {cva, type VariantProps} from 'class-variance-authority';
-import {useEffect, useMemo, useRef, type ReactNode, type Ref} from 'react';
+import {useEffect, useMemo, useRef, useState, type ReactNode, type Ref} from 'react';
+import {motion, useReducedMotion} from 'motion/react';
 import {Icon, Pending} from '#/components/glaze/icon.tsx';
 import {cn, controlHeight, mergeClass, mergeRefs} from '#/lib/glaze/utils.ts';
-import {SlowNotice, useActionMark} from '#/components/glaze/ui/slow-notice.tsx';
+import {SLOW_NOTICE, SlowTooltip, StillLabel, useSlowButton} from '#/components/glaze/ui/slow-notice.tsx';
 
 // Glaze's button on Base UI's Button. 32px tall by default, 26 small, 36 large, a 13/500 label.
 //
@@ -108,24 +109,50 @@ function useNameCheck() {
   return node;
 }
 
+function FitWidth({children}: {children: ReactNode}) {
+  const inner = useRef<HTMLSpanElement>(null);
+  const [width, setWidth] = useState<number | 'auto'>('auto');
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const size = entry?.borderBoxSize[0]?.inlineSize;
+      if (size !== undefined) setWidth(size);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return <motion.span
+    data-slot="button-fit"
+    initial={false}
+    animate={{width}}
+    transition={reduced ? {duration: 0} : {type: 'spring', stiffness: 420, damping: 40}}
+    className="inline-flex max-w-full min-w-0 justify-center overflow-hidden"
+  >
+    <span ref={inner} className="inline-flex shrink-0">{children}</span>
+  </motion.span>;
+}
+
 function Button({className, variant, size, pending, pendingLabel, disabled, focusableWhenDisabled, children, ref, ...props}: ButtonProps) {
   const v = variant ?? 'primary';
   const s = size ?? 'default';
   const iconOnly = s.startsWith('icon');
   const canPend = pending !== undefined;
   const named = useNameCheck();
-  const ownedByRow = useActionMark(pending === true);
+  const slow = useSlowButton(pending === true);
+  const still = slow === 'label';
   const mergedRef = useMemo(() => mergeRefs(ref as Ref<HTMLElement> | undefined, named), [ref, named]);
 
   // A text label never wraps; a label too long for its container ends in an ellipsis and stays the accessible name.
   const label = typeof children === 'string' ? <span data-slot="button-text" className="min-w-0 truncate">{children}</span> : children;
   const content = canPend
-    ? <span data-slot="button-stack" className="grid min-w-0 place-items-center [grid-template-areas:'stack']">
+    ? <FitWidth><span data-slot="button-stack" className="grid min-w-0 place-items-center [grid-template-areas:'stack']">
         <span data-slot="button-idle" className={cn('inline-flex max-w-full min-w-0 items-center gap-1.5 [grid-area:stack]', pending && 'opacity-0')}>{label}</span>
         <span data-slot="button-pending" aria-hidden className={cn('inline-flex max-w-full min-w-0 items-center gap-1.5 [grid-area:stack]', !pending && 'invisible')}>
-          <Arc/>{iconOnly ? null : typeof pendingLabel === 'string' ? <span className="min-w-0 truncate">{pendingLabel}</span> : pendingLabel ?? label}
+          <Arc/>{iconOnly ? null : still ? <StillLabel pendingLabel={pendingLabel}/> : typeof pendingLabel === 'string' ? <span className="min-w-0 truncate">{pendingLabel}</span> : pendingLabel ?? label}
         </span>
-      </span>
+      </span></FitWidth>
     : label;
 
   return <><ButtonPrimitive
@@ -136,9 +163,10 @@ function Button({className, variant, size, pending, pendingLabel, disabled, focu
     disabled={disabled || pending}
     focusableWhenDisabled={pending || focusableWhenDisabled}
     aria-busy={pending || undefined}
+    title={still ? SLOW_NOTICE : undefined}
     className={mergeClass(buttonVariants({variant: v, size: s}), className)}
     {...props}
-  >{content}</ButtonPrimitive>{canPend && !ownedByRow && <SlowNotice active={pending === true}/>}</>;
+  >{content}</ButtonPrimitive>{canPend && <SlowTooltip open={slow === 'tooltip'} anchor={named}/>}</>;
 }
 
 export {Button, buttonVariants, type ButtonProps};

@@ -6,7 +6,7 @@ import {Dialog, DialogContent, DialogDescription, DialogTitle, useDialogFootSlot
 import {Icon, Search, Pending} from '#/components/glaze/icon.tsx';
 import {cn, mergeRefs} from '#/lib/glaze/utils.ts';
 import {menuItemClass, menuLabelClass, menuSeparatorClass} from '#/lib/glaze/overlay.ts';
-import {SlowNotice} from '#/components/glaze/ui/slow-notice.tsx';
+import {SlowText, useSlowRegion} from '#/components/glaze/ui/slow-notice.tsx';
 import {Kbd} from '#/components/glaze/ui/kbd.tsx';
 import {Empty, EmptyDescription, EmptyHeader, EmptyTitle} from '#/components/glaze/ui/empty-state.tsx';
 
@@ -341,12 +341,13 @@ function CommandEmpty({className, children = 'No results', ...props}: React.Comp
 function CommandLoading({className, children = 'Loading', ...props}: React.ComponentProps<'div'>) {
   const {setLoading} = useCommand();
   const said = typeof children === 'string' ? children : 'Loading';
+  const inside = useSlowRegion(true);
   React.useLayoutEffect(() => { setLoading(said); return () => setLoading(null); }, [said, setLoading]);
   return <>
     <div data-slot="command-loading" aria-hidden className={cn('flex min-h-(--menu-item-h) items-center gap-2 px-2 type-label text-text-2', className)} {...props}>
       {children}
     </div>
-    <SlowNotice active insetClassName="px-2 pb-2"/>
+    <SlowText show={inside} className="px-2 pb-2"/>
   </>;
 }
 

@@ -6,8 +6,6 @@ import {AlertDialog as AlertDialogPrimitive} from '@base-ui/react/alert-dialog';
 import {cva, type VariantProps} from 'class-variance-authority';
 import {Button, type ButtonProps} from '#/components/glaze/ui/button.tsx';
 import {Icon, Failed, Close as CloseIcon} from '#/components/glaze/icon.tsx';
-import {ActionRegionContext, SlowNotice} from '#/components/glaze/ui/slow-notice.tsx';
-import {useWaitRegion} from '#/lib/glaze/waiting.ts';
 import {cn, mergeClass} from '#/lib/glaze/utils.ts';
 import {useGlazeModal, useGlazePortal} from '#/lib/glaze/portal.ts';
 import {createPortal} from 'react-dom';
@@ -239,8 +237,7 @@ type DialogFooterProps = React.ComponentProps<'div'> & {
 
 /** The shell's footer row: the meta, then DialogClose and one DialogAction, small, 3px from the shell's edges. */
 function DialogFooter({className, defaultAction, meta, children, ...props}: DialogFooterProps) {
-  const {error, pending} = useDialog();
-  const actions = useWaitRegion();
+  const {error} = useDialog();
   const slot = useDialogFootSlot();
   const row = <>
     {error && <div data-slot="dialog-error" role="alert" data-status="fail" className="mt-(--shell-inset) flex items-start gap-2 rounded-panel bg-fail-tint px-3 py-2 type-body-sm text-fail-text">
@@ -254,8 +251,7 @@ function DialogFooter({className, defaultAction, meta, children, ...props}: Dial
       {...props}
     >
       {meta && <span data-slot="dialog-footer-meta" className="me-auto">{meta}</span>}
-      <SlowNotice active={pending || actions.waiting} className="me-auto"/>
-      <ActionRegionContext.Provider value={actions.store}>{children}</ActionRegionContext.Provider>
+      {children}
     </div>
   </>;
   // Inside DialogContent the row goes on the shell under the panel; it waits the one commit the slot takes to mount.

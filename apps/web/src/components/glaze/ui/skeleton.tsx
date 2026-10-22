@@ -2,7 +2,7 @@
 
 import {useEffect, useRef, useState, type CSSProperties, type ReactNode} from 'react';
 import {cn} from '#/lib/glaze/utils.ts';
-import {LoadRegionContext, SlowNotice, useLoadingMark} from '#/components/glaze/ui/slow-notice.tsx';
+import {LoadRegionContext, SlowText, useLoadingMark, useSlowBehindContent, useSlowRegion} from '#/components/glaze/ui/slow-notice.tsx';
 
 // Holds the shape of content while it loads, so nothing moves when the content lands.
 // - Skeleton is a box. Give it the size of the real thing (size-6 rounded-pill for an avatar, h-(--control) w-24).
@@ -119,6 +119,8 @@ function SkeletonSwap({loading, fallback, children, delay: delayProp, minDuratio
     return () => clearTimeout(t);
   }, [reloading, delayProp]);
   const holding = !reloading && phase !== 'done';
+  const inside = useSlowRegion(holding);
+  useSlowBehindContent(reloading);
   return <LoadRegionContext.Provider value={null}><div
     ref={root}
     data-slot="skeleton-swap"
@@ -127,9 +129,8 @@ function SkeletonSwap({loading, fallback, children, delay: delayProp, minDuratio
     aria-busy={holding || reloading || undefined}
     className={cn('transition-opacity duration-(--dur-state) ease-out data-stale:opacity-(--stale)', className)}
   >
-    <SlowNotice active={holding || reloading} insetClassName="pb-2"/>
     {holding
-      ? <><div className={cn(phase === 'hidden' && 'invisible')}>{fallback}</div><span className="sr-only" role="status">{phase === 'shown' ? label : ''}</span></>
+      ? <><div className={cn('relative', phase === 'hidden' && 'invisible')}>{fallback}<SlowText show={inside} className="absolute inset-0 z-(--z-raised) grid place-items-center p-4 text-center"/></div><span className="sr-only" role="status">{phase === 'shown' ? label : ''}</span></>
       : children}
   </div></LoadRegionContext.Provider>;
 }

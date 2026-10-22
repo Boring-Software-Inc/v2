@@ -5,8 +5,8 @@ import { SlowRegion } from "#/components/glaze/ui/slow-notice";
 
 export function InstallSetupPageSkeleton() {
 	return (
-		<div className="flex min-h-dvh w-full flex-col items-center bg-page px-4 py-10 md:justify-center">
-			<SlowRegion className="pb-6 text-center">
+		<div className="relative flex min-h-dvh w-full justify-center bg-page px-4 py-10 md:items-center">
+			<SlowRegion>
 				<div aria-hidden className="flex w-full max-w-md flex-col gap-6">
 					<div className="flex justify-center">
 						<BrandLockup />

@@ -1,12 +1,12 @@
 import {describe, expect, test} from 'bun:test';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {SLOW_NOTICE, SlowNotice, SlowRegion} from '#/components/glaze/ui/slow-notice.tsx';
+import {SLOW_NOTICE, SlowRegion, SlowText} from '#/components/glaze/ui/slow-notice.tsx';
 import {Skeleton} from '#/components/glaze/ui/skeleton.tsx';
 import {Button} from '#/components/glaze/ui/button.tsx';
 
-describe('SlowNotice', () => {
-  test('renders nothing until the wait turns slow', () => {
-    expect(renderToStaticMarkup(<SlowNotice active/>)).toBe('');
+describe('slow notice', () => {
+  test('renders nothing until it is shown', () => {
+    expect(renderToStaticMarkup(<SlowText show={false}/>)).toBe('');
   });
 
   test('a region of skeleton bars renders only its bars before the wait turns slow', () => {

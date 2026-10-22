@@ -1,54 +1,83 @@
 'use client';
 
-import {createContext, useContext, type ReactNode} from 'react';
+import {createContext, useContext, useEffect, type ReactNode, type RefObject} from 'react';
+import {Tooltip as TooltipPrimitive} from '@base-ui/react/tooltip';
 import {AnimatePresence, motion, useReducedMotion} from 'motion/react';
-import {useMarkWaiting, useSlowAfter, useWaitRegion, type WaitStore} from '#/lib/glaze/waiting.ts';
+import {toast} from '#/components/glaze/ui/toast.tsx';
+import {tooltipMotionClass, tooltipPopupClass} from '#/components/glaze/ui/tooltip.tsx';
+import {useGlazePortal} from '#/lib/glaze/portal.ts';
+import {slowVariant} from '#/lib/glaze/slow-variant.ts';
 import {cn} from '#/lib/glaze/utils.ts';
+import {createWaitStore, useMarkWaiting, useSlowAfter, useWaitRegion, type WaitStore} from '#/lib/glaze/waiting.ts';
 
 const SLOW_NOTICE = 'This is taking abnormally long to process.';
+const SLOW_TOAST_ID = 'slow-wait';
 
 const BLUR_FADE = {
-  initial: {opacity: 0, filter: 'blur(6px)', height: 0},
-  animate: {opacity: 1, filter: 'blur(0px)', height: 'auto'},
-  exit: {opacity: 0, filter: 'blur(6px)', height: 0},
+  initial: {opacity: 0, filter: 'blur(6px)'},
+  animate: {opacity: 1, filter: 'blur(0px)'},
+  exit: {opacity: 0, filter: 'blur(6px)'},
 };
 
-const LoadRegionContext = createContext<WaitStore | null>(null);
-const ActionRegionContext = createContext<WaitStore | null>(null);
+const slowToasts = createWaitStore();
+let toastShown = false;
+slowToasts.subscribe(() => {
+  const waiting = slowToasts.waiting();
+  if (waiting === toastShown) return;
+  toastShown = waiting;
+  if (waiting) toast(SLOW_NOTICE, {id: SLOW_TOAST_ID, timeout: 0});
+  else toast.dismiss(SLOW_TOAST_ID);
+});
 
-type SlowNoticeProps = {
-  active: boolean;
+function useSlowToast(show: boolean) {
+  useEffect(() => (show ? slowToasts.mark() : undefined), [show]);
+}
+
+type SlowTextProps = {
+  show: boolean;
   className?: string;
-  insetClassName?: string;
 };
 
-function SlowNotice({active, className, insetClassName}: SlowNoticeProps) {
-  const slow = useSlowAfter(active);
+function SlowText({show, className}: SlowTextProps) {
   const reduced = useReducedMotion();
   return <AnimatePresence>
-    {slow && <motion.div
+    {show && <motion.div
       key="slow"
       data-slot="slow-notice"
       role="status"
       {...BLUR_FADE}
       transition={reduced ? {duration: 0} : {duration: 0.28, ease: [0.22, 1, 0.36, 1]}}
-      className={cn('min-w-0 overflow-hidden', className)}
+      className={cn('pointer-events-none', className)}
     >
-      <p className={cn('type-body-sm text-text-2', insetClassName)}>{SLOW_NOTICE}</p>
+      <p className="type-body-sm text-text-2">{SLOW_NOTICE}</p>
     </motion.div>}
   </AnimatePresence>;
 }
 
+function useSlowRegion(active: boolean) {
+  const slow = useSlowAfter(active);
+  const variant = slow ? slowVariant().region : null;
+  useSlowToast(variant === 'toast');
+  return variant === 'inside';
+}
+
+function useSlowBehindContent(active: boolean) {
+  useSlowToast(useSlowAfter(active));
+}
+
+const LoadRegionContext = createContext<WaitStore | null>(null);
+
 type SlowRegionProps = {
   children: ReactNode;
   active?: boolean;
-  className?: string;
 };
 
-function SlowRegion({children, active = false, className}: SlowRegionProps) {
+function SlowRegion({children, active = false}: SlowRegionProps) {
   const {store, waiting} = useWaitRegion();
+  const inside = useSlowRegion(waiting);
+  useSlowBehindContent(active && !waiting);
   return <LoadRegionContext.Provider value={store}>
-    <SlowNotice active={waiting || active} insetClassName={className}/>
+    <SlowText show={inside} className="absolute inset-0 z-(--z-raised) grid place-items-center p-4 text-center"/>
     {children}
   </LoadRegionContext.Provider>;
 }
@@ -57,20 +86,43 @@ function useLoadingMark() {
   useMarkWaiting(useContext(LoadRegionContext), true);
 }
 
-function useActionMark(active: boolean) {
-  const region = useContext(ActionRegionContext);
-  useMarkWaiting(region, active);
-  return region !== null;
+function useSlowButton(pending: boolean) {
+  const slow = useSlowAfter(pending);
+  const variant = slow ? slowVariant().button : null;
+  useSlowToast(variant === 'toast');
+  return variant;
+}
+
+function StillLabel({pendingLabel}: {pendingLabel: ReactNode}) {
+  return <span data-slot="button-still" className="min-w-0 truncate">
+    {pendingLabel ? <>Still <span className="inline-block first-letter:lowercase">{pendingLabel}</span></> : 'Still working'}
+  </span>;
+}
+
+function SlowTooltip({open, anchor}: {open: boolean; anchor: RefObject<HTMLElement | null>}) {
+  const container = useGlazePortal();
+  return <TooltipPrimitive.Root open={open}>
+    <TooltipPrimitive.Portal container={container}>
+      <TooltipPrimitive.Positioner anchor={anchor} side="inline-end" sideOffset={8} collisionPadding={8} className="isolate z-(--z-overlay)">
+        <TooltipPrimitive.Popup data-slot="slow-notice" role="status" className={cn(tooltipPopupClass, tooltipMotionClass, 'pointer-events-none max-w-80 whitespace-nowrap')}>
+          {SLOW_NOTICE}
+        </TooltipPrimitive.Popup>
+      </TooltipPrimitive.Positioner>
+    </TooltipPrimitive.Portal>
+  </TooltipPrimitive.Root>;
 }
 
 export {
-  SlowNotice,
+  SlowText,
   SlowRegion,
+  SlowTooltip,
   LoadRegionContext,
-  ActionRegionContext,
   useLoadingMark,
-  useActionMark,
+  useSlowRegion,
+  useSlowBehindContent,
+  useSlowButton,
+  StillLabel,
   SLOW_NOTICE,
-  type SlowNoticeProps,
+  type SlowTextProps,
   type SlowRegionProps,
 };
