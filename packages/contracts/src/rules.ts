@@ -180,7 +180,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Flags change requests from accounts younger than a threshold you set.",
-		contributorLabel: "your account is newer than this repository allows.",
+		contributorLabel: "your account is too new for this repository.",
 	},
 	{
 		ruleId: "min-merged-prs",
@@ -233,7 +233,8 @@ export const RULE_CATALOG = [
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags change requests that touch more files than you allow.",
-		contributorLabel: "this change request changes too many files.",
+		contributorLabel:
+			"this change request changes too many files. Split it into smaller ones.",
 	},
 	{
 		ruleId: "english-only",
@@ -245,7 +246,7 @@ export const RULE_CATALOG = [
 		optIn: false,
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Flags titles and comments that aren't mostly latin script.",
-		contributorLabel: "titles and comments must be written mostly in English.",
+		contributorLabel: "write the title and comments in English.",
 		evidenceRedaction: { "matched-values": ["sample"] },
 	},
 	{
@@ -263,7 +264,7 @@ export const RULE_CATALOG = [
 		description:
 			"Catches cryptocurrency addresses in titles, comments, and diffs.",
 		contributorLabel:
-			"this change request contains a cryptocurrency wallet address.",
+			"this change request adds crypto wallet addresses. Remove them.",
 		summaryReveals: ["file-paths"],
 		evidenceRedaction: {
 			"matched-values": ["matches.*.value"],
@@ -284,7 +285,8 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Catches change requests that touch paths no legitimate change would.",
-		contributorLabel: "this change request changes protected files.",
+		contributorLabel:
+			"this change request changes protected files. Undo those changes.",
 		evidenceRedaction: { "file-paths": ["touched"] },
 	},
 	{
@@ -302,7 +304,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Requires a minimum of profile text. Throwaway accounts rarely add one.",
-		contributorLabel: "your profile needs a short bio.",
+		contributorLabel: "add a short bio to your profile.",
 	},
 	{
 		ruleId: "ai-review",
@@ -322,7 +324,7 @@ export const RULE_CATALOG = [
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description:
 			"Reads the change like a reviewer and flags slop. Off until you turn it on, because it costs tokens.",
-		contributorLabel: "an AI review found problems in this change request.",
+		contributorLabel: "this change request has problems a reviewer would flag.",
 		summaryReveals: ["ai-summary"],
 		evidenceRedaction: {
 			"matched-values": ["output.findings.*.note"],
@@ -402,7 +404,11 @@ export function ruleIdOf(ref: string): string {
  */
 export function ruleDisplayName(ref: string): string {
 	const id = ruleIdOf(ref);
-	return RULE_CATALOG.find((entry) => entry.ruleId === id)?.name ?? id;
+	const name = RULE_CATALOG.find((entry) => entry.ruleId === id)?.name;
+	if (name) {
+		return name;
+	}
+	return id.startsWith("custom-") ? "Custom rule" : id;
 }
 
 /**

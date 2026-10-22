@@ -56,4 +56,8 @@ export const profileReadme = defineRule({
 			: "Your GitHub profile has no README.",
 	// Fixable off-change — add a profile readme/bio (not this PR, but the person's).
 	remedy: "revise",
+	fixHint: (e) =>
+		e.hasProfileText
+			? "Add a few lines about yourself."
+			: "Add one with a few lines about yourself.",
 });

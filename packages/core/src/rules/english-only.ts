@@ -81,4 +81,5 @@ export const englishOnly = defineRule({
 	summarize: () => "Most of the title is not written in the Latin alphabet.",
 	// Fixable in the change itself — rewrite the title/body in latin script.
 	remedy: "revise",
+	fixHint: () => "Write the title in English.",
 });

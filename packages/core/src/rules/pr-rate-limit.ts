@@ -89,9 +89,13 @@ export const prRateLimit = defineRule({
 	},
 	publicEvidence: (e) => ({ count: e.count, intervalCov: e.intervalCov }),
 	summarize: (e) =>
-		`You opened ${e.count} change ${e.count === 1 ? "request" : "requests"} in a short time.`,
+		e.count > e.maxPerWindow
+			? `You opened ${e.count} change ${e.count === 1 ? "request" : "requests"} in a short time.`
+			: `You opened ${e.count} change ${e.count === 1 ? "request" : "requests"} recently.`,
 	// A window property — clears as the rate falls back under the limit over time.
-	// No waitHint: the evidence carries no per-request timestamps, so the window
-	// remainder isn't derivable without leaking the configured windowHours.
+	// The hint names no remainder: the evidence carries no per-request
+	// timestamps, so one isn't derivable without leaking windowHours.
 	remedy: "wait",
+	waitHint: (e) =>
+		e.count > e.maxPerWindow ? "Wait before you open another." : null,
 });

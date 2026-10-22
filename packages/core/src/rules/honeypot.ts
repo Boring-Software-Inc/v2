@@ -49,4 +49,8 @@ export const honeypot = defineRule({
 				: `It changes ${e.touched.length} protected files.`,
 	// Fixable in the change itself — don't touch the protected paths.
 	remedy: "revise",
+	fixHint: (e) =>
+		e.touched.length === 1
+			? "Undo your change to that file."
+			: "Undo your changes to those files.",
 });

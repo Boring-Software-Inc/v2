@@ -108,10 +108,10 @@ describe("the maintainer sentence", () => {
 describe("the public summary (§10)", () => {
 	test("carries the observed value and NEVER the configured threshold", () => {
 		const summary = customRuleSummary(accountAge, 3);
-		expect(summary).toBe("account age is 3 days");
+		expect(summary).toBe("Account age is 3 days.");
 		expect(summary).not.toContain("7");
 		const windowed = customRuleSummary(forkRate, 42);
-		expect(windowed).toBe("fork rate in the last 24 hours is 42");
+		expect(windowed).toBe("Fork rate in the last 24 hours is 42.");
 		expect(windowed).not.toContain("20");
 	});
 
@@ -125,7 +125,7 @@ describe("the public summary (§10)", () => {
 				},
 				false,
 			),
-		).toBe("org member: no");
+		).toBe("Org member: no.");
 		expect(
 			customRuleSummary(
 				{
@@ -135,7 +135,7 @@ describe("the public summary (§10)", () => {
 				},
 				["a.ts", "b.ts"],
 			),
-		).toBe("this change touches 2 paths");
+		).toBe("It changes 2 paths.");
 	});
 });
 

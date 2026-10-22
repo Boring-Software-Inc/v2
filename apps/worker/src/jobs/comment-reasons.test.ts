@@ -42,7 +42,8 @@ describe("buildCommentReasons — custom rules", () => {
 			],
 			records,
 		);
-		expect(reasons[0]?.text).toBe("fork rate in the last 24 hours is 87");
+		expect(reasons[0]?.text).toBe("Fork rate in the last 24 hours is 87.");
+		expect(reasons[0]?.ruleName).toBe("spam forks");
 		expect(reasons[0]?.text).not.toContain("custom-spam-forks");
 		expect(reasons[0]?.text).not.toContain("50"); // the threshold never leaks
 	});
@@ -55,9 +56,54 @@ describe("buildCommentReasons — custom rules", () => {
 				output: { ruleId: "custom-mystery", version: 1, evidence: null },
 			},
 		]);
-		// no record + no observed ⇒ the bare-id fallback, but only as a last resort
-		expect(reasons[0]?.text).toBe(
-			'It does not meet the rule "custom-mystery".',
-		);
+		expect(reasons[0]?.text).toBe("It does not meet this rule.");
+		expect(reasons[0]?.ruleName).toBe("Custom rule");
+		expect(JSON.stringify(reasons)).not.toContain('"custom-mystery"}');
+	});
+});
+
+describe("buildCommentReasons — names and next steps", () => {
+	test("built-in rules carry their display name and a fix hint", () => {
+		const reasons = buildCommentReasons([
+			{
+				nodeKind: "rule",
+				status: "fail",
+				output: {
+					ruleId: "crypto-address",
+					version: 1,
+					evidence: {
+						matches: [
+							{ kind: "ethereum", value: "0xabc", location: "DONATE.md" },
+							{ kind: "bitcoin", value: "bc1abc", location: "DONATE.md" },
+						],
+					},
+				},
+			},
+			{
+				nodeKind: "rule",
+				status: "fail",
+				output: {
+					ruleId: "account-age",
+					version: 1,
+					evidence: { accountAgeDays: 2, minDays: 7 },
+				},
+			},
+		]);
+		expect(reasons).toEqual([
+			{
+				text: "It adds 2 crypto wallet addresses to DONATE.md.",
+				remedy: "revise",
+				hint: "Remove the addresses.",
+				ruleId: "crypto-address",
+				ruleName: "Crypto address",
+			},
+			{
+				text: "Your account is 2 days old.",
+				remedy: "wait",
+				hint: "This clears in 5 days.",
+				ruleId: "account-age",
+				ruleName: "Account age",
+			},
+		]);
 	});
 });

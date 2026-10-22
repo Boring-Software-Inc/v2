@@ -122,7 +122,9 @@ export const minMergedPrsV2 = defineRule({
 	waitHint: (e) => {
 		const remaining = e.min - e.mergedElsewhere;
 		return remaining > 0
-			? `This clears after ${remaining} more of your change requests ${remaining === 1 ? "is" : "are"} merged in other people's repositories.`
+			? remaining === 1
+				? "To clear this, get 1 more change request merged in someone else's repository."
+				: `To clear this, get ${remaining} more change requests merged in other people's repositories.`
 			: null;
 	},
 });

@@ -31,6 +31,12 @@ describe("ruleDisplayName — single source of truth", () => {
 		expect(ruleDisplayName("bare-id")).toBe("bare-id");
 	});
 
+	test("an unknown custom ref never shows its generated id", () => {
+		expect(ruleDisplayName("custom-doesnt-go-to-main-019fa6@1")).toBe(
+			"Custom rule",
+		);
+	});
+
 	test("ruleIdOf strips the version tag", () => {
 		expect(ruleIdOf("account-age@1")).toBe("account-age");
 		expect(ruleIdOf("ai-review@2")).toBe("ai-review");

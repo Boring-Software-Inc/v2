@@ -1,5 +1,5 @@
 import type { CommentReason, CustomRuleRecord } from "@tripwire/contracts";
-import { customRuleSummary } from "@tripwire/contracts";
+import { customRuleSummary, ruleDisplayName } from "@tripwire/contracts";
 import { getRule } from "@tripwire/core";
 
 /**
@@ -57,15 +57,17 @@ export function buildCommentReasons(
 			(custom && observed !== null
 				? customRuleSummary(custom.definition, observed)
 				: null) ??
-			`It does not meet the rule "${custom?.name ?? env.ruleId}".`;
+			"It does not meet this rule.";
 		const remedy = rule?.remedy ?? "revise";
-		const waitHint =
-			remedy === "wait" && rule?.waitHint && evidence
-				? rule.waitHint(evidence)
-				: null;
-		// ruleId rides along so non-full comment modes can resolve the catalog's
-		// contributorLabel; full mode never reads it.
-		reasons.push({ text, remedy, waitHint, ruleId: env.ruleId });
+		const hintFor = remedy === "wait" ? rule?.waitHint : rule?.fixHint;
+		const hint = hintFor && evidence ? hintFor(evidence) : null;
+		reasons.push({
+			text,
+			remedy,
+			hint,
+			ruleId: env.ruleId,
+			ruleName: custom?.name ?? ruleDisplayName(env.ruleId),
+		});
 	}
 	return reasons;
 }
