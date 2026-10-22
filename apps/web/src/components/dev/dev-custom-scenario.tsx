@@ -1,5 +1,10 @@
 import { DEV_CUSTOM_KEY } from "#/components/dev/use-dev-actions";
 import { Button } from "#/components/glaze/ui/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/glaze/ui/collapsible";
 import { Field, FieldLabel } from "#/components/glaze/ui/field";
 import {
 	Select,
@@ -18,9 +23,10 @@ import {
 	DEV_OPTIONS,
 	type DevAxis,
 	type DevLatency,
-	type DevPreset,
 	type DevScenario,
 } from "#/lib/dev/scenarios";
+
+const LABEL_CLASS = "w-20 flex-none type-caption text-text-2";
 
 interface DevAxisSelectProps<A extends DevAxis> {
 	axis: A;
@@ -40,8 +46,8 @@ function DevAxisSelect<A extends DevAxis>({
 		label: labels[option],
 	}));
 	return (
-		<Field>
-			<FieldLabel>{DEV_AXIS_LABELS[axis]}</FieldLabel>
+		<Field orientation="horizontal">
+			<FieldLabel className={LABEL_CLASS}>{DEV_AXIS_LABELS[axis]}</FieldLabel>
 			<Select
 				items={items}
 				onValueChange={(value) => {
@@ -52,7 +58,7 @@ function DevAxisSelect<A extends DevAxis>({
 				}}
 				value={scenario[axis]}
 			>
-				<SelectTrigger size="sm">
+				<SelectTrigger className="min-w-0 flex-1" size="sm">
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent size="sm">
@@ -81,7 +87,6 @@ function DevAxisSelect<A extends DevAxis>({
 interface DevCustomScenarioProps {
 	busy: string | null;
 	latency: DevLatency;
-	match: DevPreset | undefined;
 	onApply: () => void;
 	onAxisChange: <A extends DevAxis>(axis: A, value: DevScenario[A]) => void;
 	onLatencyChange: (latency: DevLatency) => void;
@@ -96,19 +101,20 @@ const LATENCY_ITEMS = DEV_LATENCIES.map((latency) => ({
 export function DevCustomScenario({
 	busy,
 	latency,
-	match,
 	onApply,
 	onAxisChange,
 	onLatencyChange,
 	scenario,
 }: DevCustomScenarioProps) {
 	return (
-		<section
-			aria-label="Custom"
-			className="flex flex-col gap-3 @2xl:w-64 @2xl:shrink-0"
+		<Collapsible
+			className="shrink-0 border-t border-line-faint p-1"
+			onKeyDown={(event) => event.stopPropagation()}
 		>
-			<h3 className="type-label">Custom</h3>
-			<div className="grid grid-cols-2 gap-x-2 gap-y-3">
+			<CollapsibleTrigger className="w-full self-stretch" size="sm">
+				Custom
+			</CollapsibleTrigger>
+			<CollapsibleContent className="flex flex-col gap-1.5 px-2 pt-1 pb-1.5">
 				{DEV_AXES.map((axis) => (
 					<DevAxisSelect
 						axis={axis}
@@ -117,8 +123,8 @@ export function DevCustomScenario({
 						scenario={scenario}
 					/>
 				))}
-				<Field>
-					<FieldLabel>Latency</FieldLabel>
+				<Field orientation="horizontal">
+					<FieldLabel className={LABEL_CLASS}>Latency</FieldLabel>
 					<Select
 						items={LATENCY_ITEMS}
 						onValueChange={(value) => {
@@ -131,7 +137,7 @@ export function DevCustomScenario({
 						}}
 						value={String(latency)}
 					>
-						<SelectTrigger size="sm">
+						<SelectTrigger className="min-w-0 flex-1" size="sm">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent size="sm">
@@ -143,22 +149,17 @@ export function DevCustomScenario({
 						</SelectContent>
 					</Select>
 				</Field>
-			</div>
-			<div className="flex items-center justify-end gap-3">
-				{match ? (
-					<p className="min-w-0 truncate type-caption text-text-2">
-						Same as {match.label}
-					</p>
-				) : null}
 				<Button
+					className="self-end"
 					disabled={busy !== null && busy !== DEV_CUSTOM_KEY}
 					onClick={onApply}
 					pending={busy === DEV_CUSTOM_KEY}
 					size="sm"
+					variant="secondary"
 				>
 					Apply
 				</Button>
-			</div>
-		</section>
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }

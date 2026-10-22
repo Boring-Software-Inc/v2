@@ -124,13 +124,19 @@ async function seedRepos(
 		}
 		seeded.push(repo);
 	}
-	await orgServices.linkOrgInstallation(db, {
-		orgId: org.id,
-		installationId: repos.installationId,
-		...(input.plan.orgKind === "team"
-			? { accountType: "Organization", accountLogin: "tripwire-demo" }
-			: {}),
-	});
+	if (input.plan.orgKind === "team") {
+		await orgServices.linkOrgInstallation(db, {
+			orgId: org.id,
+			installationId: repos.installationId,
+			accountType: "Organization",
+			accountLogin: "tripwire-demo",
+		});
+	} else {
+		await orgServices.linkOrgInstallation(db, {
+			orgId: org.id,
+			installationId: repos.installationId,
+		});
+	}
 	const [repo] = seeded;
 	if (repos.kind !== "active" || !repo) {
 		return seeded;

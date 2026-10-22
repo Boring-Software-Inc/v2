@@ -12,7 +12,7 @@ export function DevScenarioDisclosure() {
 	return (
 		<Collapsible className="flex w-full flex-col items-center gap-2">
 			<CollapsibleTrigger size="sm">Dev scenarios</CollapsibleTrigger>
-			<CollapsibleContent className="panel w-full p-3">
+			<CollapsibleContent className="w-88 max-w-full">
 				<DevScenarioPanel />
 			</CollapsibleContent>
 		</Collapsible>

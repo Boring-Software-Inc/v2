@@ -38,13 +38,13 @@ export interface ScenarioPlan {
 	publicRun: boolean;
 }
 
-const USERS: Record<Exclude<DevAccount, "anonymous">, DevUserPlan> = {
+const USERS = {
 	owner: { email: "owner@tripwire.demo", name: "Dev owner" },
 	member: { email: "member@tripwire.demo", name: "Dev member" },
 	outsider: { email: "outsider@tripwire.demo", name: "Dev outsider" },
-};
+} satisfies Record<Exclude<DevAccount, "anonymous">, DevUserPlan>;
 
-const REPOS: Record<Exclude<DevRepos, "none">, Omit<RepoPlan, "kind">> = {
+const REPOS = {
 	empty: {
 		installationId: "demo-inst-empty",
 		names: ["empty-repo"],
@@ -65,7 +65,7 @@ const REPOS: Record<Exclude<DevRepos, "none">, Omit<RepoPlan, "kind">> = {
 		names: ["active-webapp"],
 		storyDays: 365,
 	},
-};
+} satisfies Record<Exclude<DevRepos, "none">, Omit<RepoPlan, "kind">>;
 
 const UNCLAIMED_ACCOUNT = "tripwire-demo";
 
