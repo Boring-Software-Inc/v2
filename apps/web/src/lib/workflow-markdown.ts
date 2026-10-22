@@ -10,6 +10,9 @@ import {
 	type WorkflowDefinition,
 	type WorkflowNode,
 } from "@tripwire/contracts";
+import { z } from "zod";
+
+const stringList = z.array(z.string()).catch([]);
 
 /**
  * Serialize a workflow as markdown for pasting into an issue, Slack, or a PR.
@@ -127,6 +130,14 @@ function actionParams(node: ActionNode): string[] {
 			? params.labels.filter((l): l is string => typeof l === "string")
 			: [];
 		return labels.length > 0 ? [`labels: ${labels.join(", ")}`] : [];
+	}
+	if (node.action === "request-review") {
+		const people = stringList.parse(params.reviewers);
+		const teams = stringList.parse(params.teamReviewers);
+		return [
+			...(people.length > 0 ? [`people: ${people.join(", ")}`] : []),
+			...(teams.length > 0 ? [`teams: ${teams.join(", ")}`] : []),
+		];
 	}
 	if (node.action === "webhook" || node.action === "discord") {
 		const rows = [secretSet(params, "url") ? "url set" : "url not set"];

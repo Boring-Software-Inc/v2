@@ -56,10 +56,16 @@ export async function executeAction(
 			return { externalId: action.reviewId };
 		}
 		case "request-review": {
+			if (action.reviewers.length === 0 && action.teamReviewers.length === 0) {
+				throw new Error("request-review has no people or teams to ask.");
+			}
 			await http.post(
 				action.repoFullName,
 				`/repos/${action.repoFullName}/pulls/${action.number}/requested_reviewers`,
-				{},
+				{
+					reviewers: action.reviewers,
+					team_reviewers: action.teamReviewers,
+				},
 			);
 			return { externalId: null };
 		}

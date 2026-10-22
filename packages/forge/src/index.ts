@@ -91,7 +91,13 @@ export type ForgeAction =
 			 */
 			previousVerdict: Verdict | null;
 	  }
-	| { kind: "request-review"; repoFullName: string; number: number }
+	| {
+			kind: "request-review";
+			repoFullName: string;
+			number: number;
+			reviewers: string[];
+			teamReviewers: string[];
+	  }
 	| {
 			/**
 			 * Dismiss a stale tripwire request-changes review after a block clears —

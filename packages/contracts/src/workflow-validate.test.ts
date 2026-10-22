@@ -122,6 +122,44 @@ describe("validateWorkflow (base — every failure class)", () => {
 		).toBe(true);
 	});
 
+	test("trigger straight into a gate breaks the connection matrix", () => {
+		const g = graph({});
+		g.nodes.push({ id: "g", type: "gate", mode: "all-of" });
+		g.edges.push({ id: "e3", from: "t", to: "g" });
+		const result = validateWorkflow(g);
+		expect(result.valid).toBe(false);
+		expect(result.valid ? [] : result.issues).toContainEqual({
+			edgeId: "e3",
+			nodeId: "g",
+			message:
+				"a gate combines rule results, not trigger events. Connect the trigger to a rule first",
+		});
+	});
+
+	test("a gate fed from a doesn't-pass output breaks the connection matrix", () => {
+		const g = graph({});
+		g.nodes.push({ id: "g", type: "gate", mode: "any-of" });
+		g.edges.push({ id: "e3", from: "r", to: "g", when: "fail" });
+		expect(
+			issuesOf(validateWorkflow(g)).some((m) =>
+				m.includes("Connect it from the passes output"),
+			),
+		).toBe(true);
+	});
+
+	test("branching paths and several triggers stay valid", () => {
+		const g = graph({});
+		g.nodes.push(
+			{ id: "t2", type: "trigger", kinds: ["comment.created"] },
+			{ id: "c", type: "action", action: "comment" },
+		);
+		g.edges.push(
+			{ id: "e3", from: "r", to: "c" },
+			{ id: "e4", from: "t2", to: "c" },
+		);
+		expect(validateWorkflow(g).valid).toBe(true);
+	});
+
 	test("cycle detection", () => {
 		const g = graph({});
 		g.nodes.push({ id: "g", type: "gate", mode: "all-of" });

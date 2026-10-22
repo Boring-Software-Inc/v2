@@ -4,6 +4,7 @@ import {
 	checkSummary,
 	type NormalizedEvent,
 	renderVerdictComment,
+	requestReviewTargetsSchema,
 	reviewBody,
 	type Verdict,
 	type WebhookPayload,
@@ -262,8 +263,12 @@ export async function emitPrSurface(
 			await runServices.markActionExecuted(db, row.id, result.externalId);
 		} catch (error) {
 			// Best-effort actions: the check is the real gate, and a review dismiss
-			// is a nicety — a failure warns and settles the row, never kills the run.
-			if (row.kind === "block" || row.kind === "dismiss-review") {
+			// or review request is a nicety — a failure warns and settles the row.
+			if (
+				row.kind === "block" ||
+				row.kind === "dismiss-review" ||
+				row.kind === "request-review"
+			) {
 				logger.warn(
 					{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
 					"best-effort forge action failed — check remains the gate",
@@ -321,8 +326,16 @@ export function toForgeAction(
 				number,
 				labels: (row.payload.labels as string[]) ?? [],
 			};
-		case "request-review":
-			return { kind: "request-review" as const, repoFullName, number };
+		case "request-review": {
+			const targets = requestReviewTargetsSchema.safeParse(row.payload);
+			return {
+				kind: "request-review" as const,
+				repoFullName,
+				number,
+				reviewers: targets.success ? targets.data.reviewers : [],
+				teamReviewers: targets.success ? targets.data.teamReviewers : [],
+			};
+		}
 		default:
 			return {
 				kind: "block" as const,

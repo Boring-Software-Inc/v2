@@ -7,6 +7,8 @@ import type {
 import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
+	githubLoginSchema,
+	githubTeamSlugSchema,
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { useState } from "react";
@@ -17,6 +19,7 @@ import { Checkbox } from "#/components/glaze/ui/checkbox";
 import {
 	Field,
 	FieldDescription,
+	FieldError,
 	FieldLabel,
 	FieldLegend,
 	FieldSet,
@@ -56,6 +59,7 @@ export function hasEditableParams(node: WorkflowNode): boolean {
 		case "action":
 			return (
 				node.action === "label" ||
+				node.action === "request-review" ||
 				node.action === "webhook" ||
 				node.action === "discord"
 			);
@@ -173,13 +177,14 @@ function RuleFields({
 		<div className="flex flex-col gap-3">
 			<p className="type-body-sm text-text-2">{entry.blurb}</p>
 			{fields.map((field) => (
-				<ConfigField
-					field={field}
-					key={field.key}
-					onChange={(value) => setField(field.key, value)}
-					readOnly={readOnly}
-					value={config[field.key]}
-				/>
+				<div data-field={field.key} key={field.key}>
+					<ConfigField
+						field={field}
+						onChange={(value) => setField(field.key, value)}
+						readOnly={readOnly}
+						value={config[field.key]}
+					/>
+				</div>
 			))}
 		</div>
 	);
@@ -354,6 +359,11 @@ function ActionFields({
 			/>
 		);
 	}
+	if (node.action === "request-review") {
+		return (
+			<ReviewTargetFields node={node} onUpdate={onUpdate} readOnly={readOnly} />
+		);
+	}
 	if (node.action !== "label") {
 		return (
 			<p className="type-body-sm text-text-2">
@@ -389,6 +399,83 @@ function ActionFields({
 				{ACTION_CATALOG.find((entry) => entry.action === "label")?.description}
 			</FieldDescription>
 		</Field>
+	);
+}
+
+function splitTargets(raw: string, strip: RegExp): string[] {
+	return raw
+		.split(/[\n,]/)
+		.map((part) => part.trim().replace(strip, ""))
+		.filter((part) => part.length > 0);
+}
+
+function targetErrors(
+	targets: string[],
+	schema: z.ZodType<string>,
+): { message: string }[] {
+	return targets.flatMap((target) => {
+		const result = schema.safeParse(target);
+		return result.success
+			? []
+			: [{ message: result.error.issues[0]?.message ?? target }];
+	});
+}
+
+function ReviewTargetFields({
+	node,
+	readOnly,
+	onUpdate,
+}: {
+	node: Extract<WorkflowNode, { type: "action" }>;
+	readOnly: boolean;
+	onUpdate: (next: WorkflowNode) => void;
+}) {
+	const reviewers = labelList
+		.parse(node.params?.reviewers)
+		.filter((target) => target !== undefined);
+	const teamReviewers = labelList
+		.parse(node.params?.teamReviewers)
+		.filter((target) => target !== undefined);
+	const reviewerErrors = targetErrors(reviewers, githubLoginSchema);
+	const teamErrors = targetErrors(teamReviewers, githubTeamSlugSchema);
+	const setTargets = (key: "reviewers" | "teamReviewers", next: string[]) =>
+		onUpdate({ ...node, params: { ...node.params, [key]: next } });
+	return (
+		<div className="flex flex-col gap-3">
+			<p className="type-body-sm text-text-2">
+				{
+					ACTION_CATALOG.find((entry) => entry.action === "request-review")
+						?.description
+				}
+			</p>
+			<Field invalid={reviewerErrors.length > 0}>
+				<FieldLabel>People (GitHub usernames, one per line)</FieldLabel>
+				<Textarea
+					defaultValue={reviewers.join("\n")}
+					disabled={readOnly}
+					onChange={(event) =>
+						setTargets("reviewers", splitTargets(event.target.value, /^@/))
+					}
+					rows={3}
+				/>
+				<FieldError errors={reviewerErrors} />
+			</Field>
+			<Field invalid={teamErrors.length > 0}>
+				<FieldLabel>Teams (team slugs, one per line)</FieldLabel>
+				<Textarea
+					defaultValue={teamReviewers.join("\n")}
+					disabled={readOnly}
+					onChange={(event) =>
+						setTargets(
+							"teamReviewers",
+							splitTargets(event.target.value, /^@?(?:[^/]*\/)?/),
+						)
+					}
+					rows={3}
+				/>
+				<FieldError errors={teamErrors} />
+			</Field>
+		</div>
 	);
 }
 

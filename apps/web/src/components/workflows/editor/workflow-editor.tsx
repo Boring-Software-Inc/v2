@@ -15,6 +15,7 @@ import type {
 	WorkflowNode,
 } from "@tripwire/contracts";
 import {
+	connectionIssue,
 	customValidationEntries,
 	RULE_CATALOG,
 	validateWorkflowForEnable,
@@ -25,6 +26,7 @@ import {
 	Controls,
 	type Edge,
 	type EdgeChange,
+	type IsValidConnection,
 	type NodeChange,
 	ReactFlow,
 	ReactFlowProvider,
@@ -67,6 +69,7 @@ import {
 } from "#/components/workflows/editor/node-card";
 import {
 	CustomRuleNamesContext,
+	EditFieldContext,
 	NodeIssuesContext,
 } from "#/components/workflows/editor/node-issues";
 import {
@@ -392,6 +395,37 @@ function EditorBody({
 		[setNodes],
 	);
 
+	const [fieldFocus, setFieldFocus] = useState<{
+		nodeId: string;
+		key: string;
+	} | null>(null);
+
+	const editField = useCallback(
+		(nodeId: string, key: string) => {
+			selectNode(nodeId);
+			setFieldFocus({ nodeId, key });
+		},
+		[selectNode],
+	);
+
+	const isValidConnection = useCallback<IsValidConnection>(
+		(connection) => {
+			const source = nodes.find((n) => n.id === connection.source);
+			const target = nodes.find((n) => n.id === connection.target);
+			if (!(source && target) || source.id === target.id) {
+				return false;
+			}
+			return (
+				connectionIssue(
+					source.data.node,
+					target.data.node,
+					handleWhen(connection.sourceHandle),
+				) === null
+			);
+		},
+		[nodes],
+	);
+
 	const clearSelection = useCallback(() => {
 		setNodes((current) => current.map((n) => ({ ...n, selected: false })));
 	}, [setNodes]);
@@ -475,8 +509,15 @@ function EditorBody({
 				toast.warn(
 					"Workflow saved, but Tripwire could not reach a delivery address. Open the marked step to fix it.",
 				);
-			} else {
+			} else if (enabled) {
 				toast.success("Workflow saved");
+			} else {
+				toast.success("Saved. The workflow is still off.", {
+					action: {
+						label: "Turn on",
+						onClick: () => handleSetEnabled(true),
+					},
+				});
 			}
 		} else {
 			toast.fail(
@@ -530,35 +571,40 @@ function EditorBody({
 				<CanvasDropzone>
 					<CustomRuleNamesContext.Provider value={customRuleNames}>
 						<NodeIssuesContext.Provider value={issuesByNode}>
-							<ReactFlow
-								deleteKeyCode={readOnly ? null : DELETE_KEYS}
-								onBeforeDelete={readOnly ? undefined : onBeforeDelete}
-								edges={edges}
-								edgesReconnectable={!readOnly}
-								elementsSelectable
-								fitView
-								fitViewOptions={fitViewOptions()}
-								nodes={nodes}
-								nodesConnectable={!readOnly}
-								nodesDraggable={!readOnly}
-								nodeTypes={NODE_TYPES}
-								onConnect={readOnly ? undefined : onConnect}
-								onEdgesChange={onEdgesChange}
-								onNodesChange={onNodesChange}
-								onReconnect={readOnly ? undefined : onReconnect}
-								proOptions={{ hideAttribution: true }}
-								style={CANVAS_TOKENS}
-							>
-								<Controls
-									className="!m-3 overflow-hidden rounded-overlay border border-line"
-									position="bottom-right"
-									showInteractive={false}
-								/>
-							</ReactFlow>
+							<EditFieldContext.Provider value={editField}>
+								<ReactFlow
+									deleteKeyCode={readOnly ? null : DELETE_KEYS}
+									onBeforeDelete={readOnly ? undefined : onBeforeDelete}
+									edges={edges}
+									edgesReconnectable={!readOnly}
+									elementsSelectable
+									fitView
+									fitViewOptions={fitViewOptions()}
+									isValidConnection={isValidConnection}
+									nodes={nodes}
+									nodesConnectable={!readOnly}
+									nodesDraggable={!readOnly}
+									nodeTypes={NODE_TYPES}
+									onConnect={readOnly ? undefined : onConnect}
+									onEdgesChange={onEdgesChange}
+									onNodesChange={onNodesChange}
+									onReconnect={readOnly ? undefined : onReconnect}
+									proOptions={{ hideAttribution: true }}
+									style={CANVAS_TOKENS}
+								>
+									<Controls
+										className="!m-3 overflow-hidden rounded-overlay border border-line"
+										position="bottom-right"
+										showInteractive={false}
+									/>
+								</ReactFlow>
+							</EditFieldContext.Provider>
 						</NodeIssuesContext.Provider>
 					</CustomRuleNamesContext.Provider>
 					<EditorSidebar
 						customRules={customRules}
+						fieldFocus={fieldFocus}
+						onFieldFocused={() => setFieldFocus(null)}
 						org={org}
 						repo={repo}
 						onAdd={addAtFreePosition}
@@ -641,15 +687,18 @@ function IssuesPanel({
 	}
 	return (
 		<div className="absolute end-3 top-3 z-(--z-raised) flex flex-col items-end gap-2">
-			<Button
-				aria-expanded={open}
-				onClick={() => setOpen((value) => !value)}
-				size="sm"
-				variant="secondary"
-			>
-				<StatusMark className="self-center" status="fail" />
-				{count === 1 ? "1 issue" : `${count} issues`}
-			</Button>
+			<div className="rounded-pill bg-fail-tint">
+				<Button
+					aria-expanded={open}
+					onClick={() => setOpen((value) => !value)}
+					size="sm"
+					variant="ghost"
+				>
+					<Status size="sm" status="fail">
+						{count === 1 ? "1 issue" : `${count} issues`}
+					</Status>
+				</Button>
+			</div>
 			{open ? (
 				<div className="overlay max-h-56 w-72 max-w-full overflow-y-auto py-1">
 					{structuralError ? (

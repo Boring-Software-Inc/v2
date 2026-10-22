@@ -1,9 +1,11 @@
 import type { z } from "zod";
 import { RULE_CATALOG } from "./rules.ts";
 import {
+	requestReviewParamsSchema,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "./workflow.ts";
+import { connectionIssue } from "./workflow-connections.ts";
 
 export interface ValidationIssue {
 	nodeId?: string;
@@ -17,8 +19,8 @@ export type ValidationResult =
 
 /**
  * Structural validation of a workflow DAG (§6): schema shape, unique ids,
- * edges reference real nodes, `not` gates take exactly one input, moderation
- * resume edges only leave send-to-moderation nodes, at least one trigger, and
+ * edges reference real nodes, `not` gates take exactly one input, every edge
+ * fits the connection matrix (workflow-connections.ts), at least one trigger, and
  * NO cycles — the executor's topo walk depends on it.
  *
  * Lives in contracts (moved from core) so the web editor can run it live —
@@ -64,10 +66,6 @@ export function validateWorkflow(input: unknown): ValidationResult {
 	}
 	for (const node of def.nodes) {
 		const incoming = def.edges.filter((e) => e.to === node.id);
-		const outgoing = def.edges.filter((e) => e.from === node.id);
-		if (node.type === "trigger" && incoming.length > 0) {
-			issues.push({ nodeId: node.id, message: "trigger cannot have inputs" });
-		}
 		if (node.type === "gate" && node.mode === "not" && incoming.length !== 1) {
 			issues.push({
 				nodeId: node.id,
@@ -77,28 +75,20 @@ export function validateWorkflow(input: unknown): ValidationResult {
 		if (node.type !== "trigger" && incoming.length === 0) {
 			issues.push({ nodeId: node.id, message: "unreachable node" });
 		}
-		for (const edge of outgoing) {
-			const isModerationEdge = edge.when === "approve" || edge.when === "deny";
-			if (
-				isModerationEdge &&
-				!(node.type === "action" && node.action === "send-to-moderation")
-			) {
-				issues.push({
-					edgeId: edge.id,
-					message: "approve/deny edges may only leave send-to-moderation",
-				});
-			}
-			if (
-				node.type === "action" &&
-				node.action !== "send-to-moderation" &&
-				outgoing.length > 0
-			) {
-				issues.push({
-					nodeId: node.id,
-					message: "only send-to-moderation actions may have outputs",
-				});
-				break;
-			}
+	}
+	for (const edge of def.edges) {
+		const source = byId.get(edge.from);
+		const target = byId.get(edge.to);
+		if (!(source && target)) {
+			continue;
+		}
+		const issue = connectionIssue(source, target, edge.when);
+		if (issue) {
+			issues.push({
+				edgeId: edge.id,
+				nodeId: issue.on === "source" ? source.id : target.id,
+				message: issue.message,
+			});
 		}
 	}
 
@@ -184,6 +174,19 @@ export function validateWorkflowForEnable(
 			issues.push({
 				nodeId: node.id,
 				message: `${entry.name}: ${parsed.error.issues[0]?.message ?? "invalid config"}`,
+			});
+		}
+	}
+
+	for (const node of def.nodes) {
+		if (node.type !== "action" || node.action !== "request-review") {
+			continue;
+		}
+		const parsed = requestReviewParamsSchema.safeParse(node.params ?? {});
+		if (!parsed.success) {
+			issues.push({
+				nodeId: node.id,
+				message: `Request review: ${parsed.error.issues[0]?.message ?? "invalid reviewers"}`,
 			});
 		}
 	}

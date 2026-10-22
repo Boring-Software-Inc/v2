@@ -6,6 +6,8 @@ import {
 } from "@tripwire/contracts";
 import { z } from "zod";
 
+const targetList = z.array(z.string()).catch([]);
+
 /**
  * THE schema-to-fields source: one zod walk feeding BOTH the properties
  * panel's editors and the node face's inline summaries. Moved here from
@@ -200,6 +202,48 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 						value: labels,
 					},
 				];
+			}
+			if (node.action === "request-review") {
+				const targets = {
+					reviewers: targetList.parse(node.params?.reviewers),
+					teamReviewers: targetList.parse(node.params?.teamReviewers),
+				};
+				const rows: NodeFieldValue[] = [];
+				if (targets.reviewers.length > 0) {
+					rows.push({
+						field: {
+							key: "reviewers",
+							label: "People",
+							secret: false,
+							kind: "string-list",
+						},
+						value: targets.reviewers,
+					});
+				}
+				if (targets.teamReviewers.length > 0) {
+					rows.push({
+						field: {
+							key: "teamReviewers",
+							label: "Teams",
+							secret: false,
+							kind: "string-list",
+						},
+						value: targets.teamReviewers,
+					});
+				}
+				return rows.length > 0
+					? rows
+					: [
+							{
+								field: {
+									key: "reviewers",
+									label: "Reviewers",
+									secret: false,
+									kind: "string",
+								},
+								value: undefined,
+							},
+						];
 			}
 			if (node.action === "webhook" || node.action === "discord") {
 				const params = node.params ?? {};

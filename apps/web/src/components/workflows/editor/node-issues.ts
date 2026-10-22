@@ -24,3 +24,11 @@ export const CustomRuleNamesContext = createContext<
 export function useCustomRuleName(ref: string): string | null {
 	return useContext(CustomRuleNamesContext).get(ref) ?? null;
 }
+
+export const EditFieldContext = createContext<
+	(nodeId: string, fieldKey: string) => void
+>(() => undefined);
+
+export function useEditField(): (nodeId: string, fieldKey: string) => void {
+	return useContext(EditFieldContext);
+}

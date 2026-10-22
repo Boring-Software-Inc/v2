@@ -196,7 +196,13 @@ describe("actions open-git cannot perform", () => {
 		],
 		[
 			"request-review",
-			{ kind: "request-review", repoFullName: "acme/api", number: 1 },
+			{
+				kind: "request-review",
+				repoFullName: "acme/api",
+				number: 1,
+				reviewers: ["octocat"],
+				teamReviewers: [],
+			},
 		],
 		[
 			"dismiss-review",

@@ -76,7 +76,7 @@ describe("workflowToMarkdown — header + built-in rules", () => {
 
 	test("the action states its firing condition", () => {
 		expect(md).toContain("### Actions");
-		expect(md).toContain("- **Block**: when all of fails");
+		expect(md).toContain("- **Block merge**: when all of fails");
 	});
 });
 
@@ -202,7 +202,7 @@ describe("workflowToMarkdown — shape variants", () => {
 			],
 		});
 		const md = workflowToMarkdown(branching);
-		expect(md).toContain("- **Block**: when all of fails");
+		expect(md).toContain("- **Block merge**: when all of fails");
 		expect(md).toContain("- **Comment**: when all of passes");
 	});
 
@@ -241,5 +241,29 @@ describe("workflowToMarkdown — shape variants", () => {
 		});
 		const md = workflowToMarkdown(wf);
 		expect(md).toContain("- **custom-mystery** `custom-mystery@1`");
+	});
+});
+
+describe("workflowToMarkdown — request-review names who is asked", () => {
+	test("lists the people and teams on the action", () => {
+		const md = workflowToMarkdown(
+			makeWorkflow({
+				nodes: [
+					{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+					{
+						id: "a",
+						type: "action",
+						action: "request-review",
+						params: {
+							reviewers: ["octocat", "hubot"],
+							teamReviewers: ["core"],
+						},
+					},
+				],
+				edges: [{ id: "e1", from: "t", to: "a" }],
+			}),
+		);
+		expect(md).toContain("people: octocat, hubot");
+		expect(md).toContain("teams: core");
 	});
 });

@@ -31,4 +31,5 @@ export * from "./rules.ts";
 export * from "./runs.ts";
 export * from "./webhook-payload.ts";
 export * from "./workflow.ts";
+export * from "./workflow-connections.ts";
 export * from "./workflow-validate.ts";

@@ -6,6 +6,7 @@ import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
 import { ShaderDither } from "#/components/dither/shader-dither";
 import { Add, Icon, MoreVertical } from "#/components/glaze/icon";
+import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	ButtonGroup,
@@ -49,6 +50,7 @@ import {
 	ItemTitle,
 } from "#/components/glaze/ui/item";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
+import { Status } from "#/components/glaze/ui/status";
 import { Switch } from "#/components/glaze/ui/switch";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
@@ -84,13 +86,6 @@ const enabledKey = (workflowId: string) => `${workflowId}:enabled`;
 /** "change-request.opened" → "change request opened" */
 function humanizeTriggerKind(kind: string): string {
 	return kind.replace(/[.-]/g, " ");
-}
-
-function triggerSummary(kinds: string[]): string {
-	if (kinds.length === 0) {
-		return "No trigger yet";
-	}
-	return `On ${kinds.map(humanizeTriggerKind).join(", ")}`;
 }
 
 /**
@@ -494,22 +489,32 @@ function WorkflowRow({
 	return (
 		<>
 			<EntityCard
+				badges={
+					workflow.triggerKinds.length > 0
+						? workflow.triggerKinds.map((kind) => (
+								<Badge key={kind} variant="outline">
+									{humanizeTriggerKind(kind)}
+								</Badge>
+							))
+						: undefined
+				}
 				description={
-					<MetaRow>
-						<span>{triggerSummary(workflow.triggerKinds)}</span>
-						<span>
-							{workflow.nodeCount} {workflow.nodeCount === 1 ? "step" : "steps"}
-						</span>
-					</MetaRow>
+					workflow.triggerKinds.length === 0 ? "No trigger yet" : undefined
 				}
 				footerMeta={
 					<MetaRow>
+						<span className="tabular-nums">
+							{workflow.nodeCount} {workflow.nodeCount === 1 ? "step" : "steps"}
+						</span>
 						<span>Updated {formatRelativeTime(workflow.updatedAt)}</span>
 						{isAdmin ? null : <span>Only admins can change workflows</span>}
 					</MetaRow>
 				}
 				status={
 					<>
+						<Status size="sm" status={workflow.enabled ? "ok" : "idle"}>
+							{workflow.enabled ? "Live" : "Off"}
+						</Status>
 						<Switch
 							aria-label={`Run ${workflow.name} on change requests`}
 							checked={queuedEnabled}

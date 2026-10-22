@@ -13,7 +13,7 @@ import {
 	RULE_CATALOG,
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Add, ArrowLeft, Close, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -172,6 +172,8 @@ export interface EditorSidebarProps {
 	repo: string;
 	readOnly: boolean;
 	selectedNode: WorkflowNode | null;
+	fieldFocus: { nodeId: string; key: string } | null;
+	onFieldFocused: () => void;
 	onAdd: (item: ToolboxItem) => void;
 	onClearSelection: () => void;
 	onUpdateNode: (next: WorkflowNode) => void;
@@ -187,6 +189,8 @@ export function EditorSidebar({
 	repo,
 	readOnly,
 	selectedNode,
+	fieldFocus,
+	onFieldFocused,
 	onAdd,
 	onClearSelection,
 	onUpdateNode,
@@ -222,14 +226,15 @@ export function EditorSidebar({
 			? (customRules.find((rule) => rule.ref === selectedNode.ref)?.name ??
 				null)
 			: null;
+	const visibility = selectedNode ? "open" : shown;
 
 	return (
 		<>
 			<Button
 				className={cn(
 					"absolute start-3 top-3 z-(--z-raised)",
-					shown === "auto" && "md:hidden",
-					shown === "open" && "hidden",
+					visibility === "auto" && "md:hidden",
+					visibility === "open" && "hidden",
 				)}
 				onClick={() => setShown("open")}
 				size="sm"
@@ -241,18 +246,22 @@ export function EditorSidebar({
 			<div
 				className={cn(
 					"shell absolute start-3 top-3 bottom-3 z-(--z-raised) w-68 flex-col",
-					shown === "auto" && "hidden md:flex",
-					shown === "open" && "flex",
-					shown === "closed" && "hidden",
+					visibility === "auto" && "hidden md:flex",
+					visibility === "open" && "flex",
+					visibility === "closed" && "hidden",
 				)}
 			>
 				<div className="panel flex min-h-0 flex-1 flex-col overflow-hidden">
 					{selectedNode ? (
 						<StepProperties
 							customName={customName}
+							focusKey={
+								fieldFocus?.nodeId === selectedNode.id ? fieldFocus.key : null
+							}
 							key={selectedNode.id}
 							node={selectedNode}
 							onBack={onClearSelection}
+							onFocused={onFieldFocused}
 							onTestConnection={onTestConnection}
 							onUpdate={onUpdateNode}
 							readOnly={readOnly}
@@ -451,23 +460,51 @@ function ToolboxRow({
 	);
 }
 
+const FOCUSABLE_INPUT = "input:not([type=hidden]), textarea, select";
+const FOCUSABLE_CONTROL = "button:not(:disabled), [role=checkbox]";
+
 function StepProperties({
 	node,
 	customName,
+	focusKey,
 	readOnly,
 	onBack,
+	onFocused,
 	onUpdate,
 	onTestConnection,
 }: {
 	node: WorkflowNode;
 	customName: string | null;
+	focusKey: string | null;
 	readOnly: boolean;
 	onBack: () => void;
+	onFocused: () => void;
 	onUpdate: (next: WorkflowNode) => void;
 	onTestConnection: EditorSidebarProps["onTestConnection"];
 }) {
 	const name = stepName(node, customName);
 	const kind = KIND_LABEL[node.type];
+	const bodyRef = useRef<HTMLDivElement>(null);
+	const description =
+		node.type === "action"
+			? (ACTION_CATALOG.find((entry) => entry.action === node.action)
+					?.description ?? null)
+			: null;
+
+	useEffect(() => {
+		const body = bodyRef.current;
+		if (!(focusKey && body)) {
+			return;
+		}
+		const scope =
+			body.querySelector(`[data-field="${CSS.escape(focusKey)}"]`) ?? body;
+		const control =
+			scope.querySelector<HTMLElement>(FOCUSABLE_INPUT) ??
+			scope.querySelector<HTMLElement>(FOCUSABLE_CONTROL);
+		control?.focus();
+		onFocused();
+	}, [focusKey, onFocused]);
+
 	return (
 		<>
 			<div className="flex shrink-0 items-center gap-2 border-line-faint border-b py-2 ps-2 pe-3">
@@ -485,7 +522,10 @@ function StepProperties({
 					<span className="shrink-0 type-caption text-text-2">{kind}</span>
 				)}
 			</div>
-			<div className="min-h-0 flex-1 overflow-y-auto p-3">
+			<div
+				className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3"
+				ref={bodyRef}
+			>
 				{hasEditableParams(node) ? (
 					<PropertiesPanel
 						node={node}
@@ -495,9 +535,14 @@ function StepProperties({
 					/>
 				) : (
 					<p className="type-body-sm text-text-2">
-						This step has no settings to change.
+						{description ?? "This step has no settings to change."}
 					</p>
 				)}
+				{node.type === "trigger" ? (
+					<p className="type-body-sm text-text-2">
+						One output can feed several steps, and each path runs on its own.
+					</p>
+				) : null}
 			</div>
 		</>
 	);

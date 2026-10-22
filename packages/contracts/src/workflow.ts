@@ -84,6 +84,50 @@ export const discordParamsSchema = z.object({
 	url: z.url().meta({ secret: true }).describe("discord webhook url"),
 });
 
+export const MAX_REVIEW_TARGETS = 15;
+
+export const githubLoginSchema = z
+	.string()
+	.regex(/^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/, {
+		error: (issue) => `${String(issue.input)} is not a GitHub username`,
+	});
+
+export const githubTeamSlugSchema = z
+	.string()
+	.regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/, {
+		error: (issue) => `${String(issue.input)} is not a team slug`,
+	});
+
+export const requestReviewTargetsSchema = z.object({
+	reviewers: z
+		.array(githubLoginSchema)
+		.max(MAX_REVIEW_TARGETS, `ask at most ${MAX_REVIEW_TARGETS} people`)
+		.default([]),
+	teamReviewers: z
+		.array(githubTeamSlugSchema)
+		.max(MAX_REVIEW_TARGETS, `ask at most ${MAX_REVIEW_TARGETS} teams`)
+		.default([]),
+});
+export type RequestReviewTargets = z.infer<typeof requestReviewTargetsSchema>;
+
+export const requestReviewParamsSchema = requestReviewTargetsSchema.superRefine(
+	(targets, ctx) => {
+		const total = targets.reviewers.length + targets.teamReviewers.length;
+		if (total === 0) {
+			ctx.addIssue({
+				code: "custom",
+				message: "add at least one person or team to ask",
+			});
+		}
+		if (total > MAX_REVIEW_TARGETS) {
+			ctx.addIssue({
+				code: "custom",
+				message: `ask at most ${MAX_REVIEW_TARGETS} people and teams`,
+			});
+		}
+	},
+);
+
 export const triggerNodeSchema = z.object({
 	id: z.string(),
 	type: z.literal("trigger"),
@@ -314,8 +358,9 @@ export interface ActionCatalogEntry {
 export const ACTION_CATALOG: ActionCatalogEntry[] = [
 	{
 		action: "block",
-		name: "Block",
-		description: "Blocks the change request with a request-changes review.",
+		name: "Block merge",
+		description:
+			"Fails the Tripwire check and submits a request-changes review. It does not close the change request.",
 	},
 	{
 		action: "comment",
@@ -330,7 +375,8 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 	{
 		action: "request-review",
 		name: "Request review",
-		description: "Asks maintainers for a human review.",
+		description:
+			"Asks the people and teams you choose to review the change request.",
 	},
 	{
 		action: "send-to-moderation",
