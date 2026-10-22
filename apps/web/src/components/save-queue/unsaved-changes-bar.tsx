@@ -8,7 +8,7 @@ import {
 /**
  * The floating unsaved-changes bar. Driven ONLY by provider state — it has no
  * idea what is being saved. Hidden when clean. Centered pill above the mobile
- * footer nav and the customize drawer tab.
+ * footer nav and the responses drawer tab.
  */
 export function UnsavedChangesBar() {
 	const { isDirty, count, isCommitting, commit, discard } = useSaveQueue();

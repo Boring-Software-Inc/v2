@@ -215,32 +215,34 @@ function RunBody({ run }: { run: RunView }) {
 					</div>
 				</header>
 
-				<Card>
-					<CardHeader>
-						<CardTitle>Steps</CardTitle>
-					</CardHeader>
-					<CardContent flush>
-						{liveSteps.length === 0 ? (
-							<p className="px-3 py-4 type-body-sm text-text-2">
-								{evaluating
-									? "Starting the check."
-									: run.status === "failed"
-										? "This run did not finish. Re-run rules to try again."
-										: "Tripwire recorded no steps for this run."}
-							</p>
-						) : (
-							liveSteps.map((step) => (
-								<StepCard
-									key={step.id}
-									maintainer={run.access !== "public"}
-									repo={run.repoFullName}
-									sha={run.headSha}
-									step={step}
-								/>
-							))
-						)}
-					</CardContent>
-				</Card>
+				{run.stepsHidden ? null : (
+					<Card>
+						<CardHeader>
+							<CardTitle>Steps</CardTitle>
+						</CardHeader>
+						<CardContent flush>
+							{liveSteps.length === 0 ? (
+								<p className="px-3 py-4 type-body-sm text-text-2">
+									{evaluating
+										? "Starting the check."
+										: run.status === "failed"
+											? "This run did not finish. Re-run rules to try again."
+											: "Tripwire recorded no steps for this run."}
+								</p>
+							) : (
+								liveSteps.map((step) => (
+									<StepCard
+										key={step.id}
+										maintainer={run.access !== "public"}
+										repo={run.repoFullName}
+										sha={run.headSha}
+										step={step}
+									/>
+								))
+							)}
+						</CardContent>
+					</Card>
+				)}
 
 				{run.actions.length > 0 ? (
 					<Card>

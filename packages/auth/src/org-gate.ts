@@ -1,6 +1,7 @@
 import type { OrgRole } from "@tripwire/contracts";
 import type { Db, OrgWithRole } from "@tripwire/db";
 import { orgServices } from "@tripwire/db";
+import { type OrgPermission, permissionsForRole } from "./org-access.ts";
 
 /**
  * Org role gate (§4) — the same architecture as `assertApproved`: read the
@@ -17,9 +18,17 @@ export interface OrgDenial {
 	message: string;
 }
 
+export type OrgWithPermissions = OrgWithRole & {
+	permissions: OrgPermission[];
+};
+
 export type OrgGateResult =
-	| { ok: true; org: OrgWithRole }
+	| { ok: true; org: OrgWithPermissions }
 	| { ok: false; denial: OrgDenial };
+
+export function withPermissions(org: OrgWithRole): OrgWithPermissions {
+	return { ...org, permissions: permissionsForRole(org.role) };
+}
 
 /** Pure decision: does a held role afford the needed level? */
 export function roleAffords(held: OrgRole, need: OrgRole): boolean {
@@ -56,5 +65,32 @@ export async function assertOrgRole(
 			},
 		};
 	}
-	return { ok: true, org };
+	return { ok: true, org: withPermissions(org) };
+}
+
+export async function assertOrgPermission(
+	db: Db,
+	input: { userId: string; orgSlug: string; permission: OrgPermission },
+): Promise<OrgGateResult> {
+	const org = await orgServices.getOrgForUser(db, {
+		slug: input.orgSlug,
+		userId: input.userId,
+	});
+	if (!org) {
+		return {
+			ok: false,
+			denial: { code: "NOT_FOUND", message: "not found" },
+		};
+	}
+	const resolved = withPermissions(org);
+	if (!resolved.permissions.includes(input.permission)) {
+		return {
+			ok: false,
+			denial: {
+				code: "FORBIDDEN",
+				message: "this action needs a permission the caller lacks",
+			},
+		};
+	}
+	return { ok: true, org: resolved };
 }

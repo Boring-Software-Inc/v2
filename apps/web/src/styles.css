@@ -459,6 +459,48 @@ body {
 	}
 }
 
+.glaze [data-tally-row] {
+	display: grid;
+	grid-template-rows: 0fr;
+	opacity: 0;
+	transition:
+		grid-template-rows var(--dur-overlay) var(--ease-out),
+		opacity var(--dur-overlay) var(--ease-out);
+	transition-delay: var(--tally-delay, 0ms);
+}
+
+.glaze [data-tally-row][data-shown] {
+	grid-template-rows: 1fr;
+	opacity: 1;
+}
+
+.glaze [data-tally-row] > * {
+	min-height: 0;
+	overflow: hidden;
+	translate: 0 var(--space-1);
+	transition: translate var(--dur-overlay) var(--ease-out);
+	transition-delay: var(--tally-delay, 0ms);
+}
+
+.glaze [data-tally-row][data-shown] > * {
+	translate: 0 0;
+}
+
+.glaze [data-redact-wipe] {
+	animation: redact-wipe var(--dur-overlay) var(--ease-out) both;
+}
+
+@keyframes redact-wipe {
+	from {
+		clip-path: inset(0 100% 0 0);
+		opacity: 0.4;
+	}
+	to {
+		clip-path: inset(0);
+		opacity: 1;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.glaze .react-flow__handle[data-port-shape]::after,
 	.glaze [data-drop-node],
@@ -469,5 +511,15 @@ body {
 
 	.glaze [data-drop-hint] > * {
 		animation: none;
+	}
+
+	.glaze [data-redact-wipe] {
+		animation: none;
+	}
+
+	.glaze [data-tally-row],
+	.glaze [data-tally-row] > * {
+		transition-property: opacity;
+		transition-delay: 0ms;
 	}
 }

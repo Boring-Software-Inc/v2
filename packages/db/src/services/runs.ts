@@ -5,9 +5,10 @@ import {
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, desc, eq, inArray, isNotNull, lt, ne } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, lt, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
+import { events } from "../schema/events.ts";
 import { runActions, runSteps, runs } from "../schema/runs.ts";
 
 /**
@@ -645,4 +646,74 @@ export async function listRunsForReplay(
 		});
 	}
 	return result;
+}
+
+export interface OpenBlockedRun {
+	runId: string;
+	subjectNumber: number;
+	headSha: string | null;
+}
+
+export async function listOpenBlockedRuns(
+	db: Db,
+	repoFullName: string,
+	since: Date,
+): Promise<OpenBlockedRun[]> {
+	const latest = await db
+		.selectDistinctOn([runs.subjectNumber], {
+			runId: runs.id,
+			subjectNumber: runs.subjectNumber,
+			headSha: runs.headSha,
+			verdict: runs.verdict,
+		})
+		.from(runs)
+		.where(
+			and(
+				eq(runs.repoFullName, repoFullName),
+				isNotNull(runs.subjectNumber),
+				gt(runs.createdAt, since),
+			),
+		)
+		.orderBy(runs.subjectNumber, desc(runs.createdAt), desc(runs.id));
+	const blocked = latest.flatMap((row) =>
+		row.verdict === "block" && row.subjectNumber !== null
+			? [
+					{
+						runId: row.runId,
+						subjectNumber: row.subjectNumber,
+						headSha: row.headSha,
+					},
+				]
+			: [],
+	);
+	if (blocked.length === 0) {
+		return [];
+	}
+	const lastLifecycle = await db
+		.selectDistinctOn([events.subjectNumber], {
+			subjectNumber: events.subjectNumber,
+			kind: events.kind,
+		})
+		.from(events)
+		.where(
+			and(
+				eq(events.repoFullName, repoFullName),
+				inArray(
+					events.subjectNumber,
+					blocked.map((row) => row.subjectNumber),
+				),
+				inArray(events.kind, [
+					"change-request.opened",
+					"change-request.updated",
+					"change-request.closed",
+				]),
+			),
+		)
+		.orderBy(events.subjectNumber, desc(events.id));
+	const closed = new Set(
+		lastLifecycle
+			.filter((row) => row.kind === "change-request.closed")
+			.map((row) => row.subjectNumber),
+	);
+	return blocked.filter((row) => !closed.has(row.subjectNumber));
 }

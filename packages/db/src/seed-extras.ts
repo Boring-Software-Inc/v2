@@ -132,7 +132,7 @@ export async function seedRepoExtras(db: Db, repoId: string): Promise<void> {
 		db,
 		repoId,
 		responseConfigSchema.parse({
-			blockComment: { mode: "one-liner-link", showRuleName: true },
+			blockComment: { mode: "one-liner-link" },
 			reviewComment: { showDetailsButton: true },
 		}),
 	);

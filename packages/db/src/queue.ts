@@ -80,6 +80,12 @@ export function syncRepoReviewersOptions(repoId: string) {
 	return { singletonKey: repoId };
 }
 
+export const REFRESH_SURFACES_QUEUE = "refresh-response-surfaces";
+
+export interface RefreshSurfacesJob {
+	repoId: string;
+}
+
 /** Minimal logger surface — satisfied by pino, console, etc. */
 export interface BossErrorLogger {
 	error(obj: unknown, msg?: string): void;
@@ -119,5 +125,6 @@ export async function createBoss(
 	await boss.createQueue(BACKFILL_REPO_QUEUE);
 	await boss.createQueue(RERUN_QUEUE);
 	await boss.createQueue(SYNC_REPO_REVIEWERS_QUEUE, { policy: "stately" });
+	await boss.createQueue(REFRESH_SURFACES_QUEUE);
 	return boss;
 }

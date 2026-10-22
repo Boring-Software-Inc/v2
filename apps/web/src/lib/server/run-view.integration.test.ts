@@ -26,6 +26,7 @@ let orphanRunId: string;
 
 const NO_SESSION = { authEnabled: true, userId: null };
 const SESSION = { authEnabled: true, userId: "user-1" };
+const OUTSIDER = { authEnabled: true, userId: "user-2" };
 const OPEN_DEV = { authEnabled: false, userId: null };
 
 const AI_REVIEW_ENVELOPE = {
@@ -136,6 +137,15 @@ beforeAll(async () => {
 		[],
 		await orgServices.getInstallationOrg(db, { installationId: "inst-1" }),
 	);
+	await pool.query(
+		`INSERT INTO "user" (id, name, email) VALUES
+		 ('user-1', 'member', 'member@example.com'),
+		 ('user-2', 'outsider', 'outsider@example.com')`,
+	);
+	await pool.query(
+		`INSERT INTO member (id, organization_id, user_id, role)
+		 VALUES ('member-1', 'org-run-view', 'user-1', 'member')`,
+	);
 	publicRunId = await seedRun("acme/pub");
 	privateRunId = await seedRun("acme/priv");
 	orphanRunId = await seedRun("ghost/none");
@@ -163,7 +173,7 @@ describe("loadRunView — §10 access model", () => {
 		expect(view.steps[0]?.summary).toBe("exfiltrates tokens in ci.");
 	});
 
-	test("session ⇒ full view, trace intact, summary kept, no publicEvidence carrier", async () => {
+	test("org member ⇒ full view, trace intact, summary kept, no publicEvidence carrier", async () => {
 		const view = await loadRunView(db, publicRunId, SESSION);
 		expect(view?.access).toBe("full");
 		expect(JSON.stringify(view)).toContain("trace");
@@ -185,7 +195,7 @@ describe("loadRunView — §10 access model", () => {
 		expect(pub?.repoName).toBeNull();
 		expect(pub?.canRerun).toBe(false);
 
-		// A session gets the scope, but user-1 has no admin membership ⇒ no re-run.
+		// A member gets the scope, but user-1 is not an admin ⇒ no re-run.
 		const full = await loadRunView(db, publicRunId, SESSION);
 		expect(full?.repoName).toBe("pub");
 		expect(full?.canRerun).toBe(false);
@@ -199,6 +209,13 @@ describe("loadRunView — §10 access model", () => {
 	test("no session + private repo ⇒ nothing (indistinguishable from missing)", async () => {
 		expect(await loadRunView(db, privateRunId, NO_SESSION)).toBeNull();
 		expect((await loadRunView(db, privateRunId, SESSION))?.access).toBe("full");
+	});
+
+	test("signed-in non-member ⇒ the public view, never the full one", async () => {
+		const view = await loadRunView(db, publicRunId, OUTSIDER);
+		expect(view?.access).toBe("public");
+		expect(JSON.stringify(view)).not.toContain("trace");
+		expect(await loadRunView(db, privateRunId, OUTSIDER)).toBeNull();
 	});
 
 	test("no session + repo row missing ⇒ nothing (fail closed)", async () => {

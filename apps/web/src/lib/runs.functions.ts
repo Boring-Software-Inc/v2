@@ -73,6 +73,7 @@ export interface RunView {
 	subjectUrl: string | null;
 	/** Whether THIS viewer may re-run: admin, full view, and a CR to target. */
 	canRerun: boolean;
+	stepsHidden: boolean;
 	steps: RunStepView[];
 	actions: {
 		kind: string;

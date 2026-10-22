@@ -99,12 +99,3 @@ Max files changed: This change request changes too many files.
 <!-- tripwire:run -->
 "
 `;
-
-exports[`renderVerdictComment — config-aware modes link-only: verdict line and button, no reasons 1`] = `
-"@octocat, Tripwire blocked this.
-
-<a href="https://tripwire.sh/runs/0198abcd"><img src="https://tripwire.sh/badges/view-run.png" width="185" alt="View on Tripwire" /></a>
-
-<!-- tripwire:run -->
-"
-`;

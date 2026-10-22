@@ -5,7 +5,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import type { DraftKey } from "#/components/customize/customize-model";
+import type { DraftKey } from "#/components/responses/responses-model";
 
 type Drafts = Partial<Record<DraftKey, string>>;
 

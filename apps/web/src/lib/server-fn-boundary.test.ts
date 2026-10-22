@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { ORG_PERMISSIONS, roleHasPermission } from "@tripwire/auth/org-access";
 import { SERVER_FN_CLASSIFICATION } from "./server-fn-classification.ts";
 
 /**
@@ -32,8 +33,14 @@ interface ServerFn {
 	orgRole: "admin" | "member" | null;
 	/** Whether the chain attaches the platform-staff middleware. */
 	staff: boolean;
+	permission: string | "dynamic" | null;
+	method: string | null;
 	file: string;
 }
+
+const PERMISSION_CALL = /orgPermissionMiddleware\(\s*"([\w-]+:[\w-]+)"\s*\)/;
+const METHOD = /createServerFn\(\s*\{\s*method:\s*"(\w+)"/;
+const MEMBER_MUTATION_ALLOWLIST = new Set(["leaveOrg"]);
 
 function discoverServerFns(): ServerFn[] {
 	const found: ServerFn[] = [];
@@ -62,6 +69,10 @@ function discoverServerFns(): ServerFn[] {
 						? "member"
 						: null,
 				staff: chain.includes("platformAdminMiddleware"),
+				permission: chain.includes("orgPermissionMiddleware(")
+					? (PERMISSION_CALL.exec(chain)?.[1] ?? "dynamic")
+					: null,
+				method: METHOD.exec(chain)?.[1] ?? null,
 				file,
 			});
 			m = re.exec(src);
@@ -130,27 +141,95 @@ describe("server-fn access boundary (invariant 3)", () => {
 		const mismatches: string[] = [];
 		for (const f of fns) {
 			const cls = SERVER_FN_CLASSIFICATION[f.name];
-			const want =
-				cls === "public"
-					? { gated: false, orgRole: null, staff: false }
+			if (cls === undefined) {
+				continue;
+			}
+			const want = cls.startsWith("permission:")
+				? {
+						gated: true,
+						orgRole: null,
+						staff: false,
+						permission: cls.slice("permission:".length),
+					}
+				: cls === "public"
+					? { gated: false, orgRole: null, staff: false, permission: null }
 					: cls === "authed"
-						? { gated: true, orgRole: null, staff: false }
+						? { gated: true, orgRole: null, staff: false, permission: null }
 						: cls === "member"
-							? { gated: true, orgRole: "member" as const, staff: false }
+							? {
+									gated: true,
+									orgRole: "member" as const,
+									staff: false,
+									permission: null,
+								}
 							: cls === "staff"
-								? { gated: true, orgRole: null, staff: true }
-								: { gated: true, orgRole: "admin" as const, staff: false };
+								? {
+										gated: true,
+										orgRole: null,
+										staff: true,
+										permission: null,
+									}
+								: {
+										gated: true,
+										orgRole: "admin" as const,
+										staff: false,
+										permission: null,
+									};
 			if (
 				f.gated !== want.gated ||
 				f.orgRole !== want.orgRole ||
-				f.staff !== want.staff
+				f.staff !== want.staff ||
+				f.permission !== want.permission
 			) {
 				mismatches.push(
-					`${f.file}:${f.name} — class "${cls}" wants gated=${want.gated}/org=${want.orgRole}/staff=${want.staff}, chain has gated=${f.gated}/org=${f.orgRole}/staff=${f.staff}`,
+					`${f.file}:${f.name} — class "${cls}" wants gated=${want.gated}/org=${want.orgRole}/staff=${want.staff}/permission=${want.permission}, chain has gated=${f.gated}/org=${f.orgRole}/staff=${f.staff}/permission=${f.permission}`,
 				);
 			}
 		}
 		expect(mismatches).toEqual([]);
+	});
+});
+
+describe("org permission gates", () => {
+	const fns = discoverServerFns();
+
+	test("every permission middleware names a known permission literal", () => {
+		const unknown = fns
+			.filter(
+				(f) =>
+					f.permission !== null &&
+					!(ORG_PERMISSIONS as string[]).includes(f.permission),
+			)
+			.map((f) => `${f.file}:${f.name} (${f.permission})`);
+		expect(unknown).toEqual([]);
+	});
+
+	test("no member-level mutation outside the allowlist", () => {
+		const leaks = fns
+			.filter(
+				(f) =>
+					f.method === "POST" &&
+					f.orgRole === "member" &&
+					!MEMBER_MUTATION_ALLOWLIST.has(f.name),
+			)
+			.map((f) => `${f.file}:${f.name}`);
+		expect(leaks).toEqual([]);
+	});
+
+	test("no permission-gated mutation is held by plain members", () => {
+		const leaks = fns
+			.filter(
+				(f) =>
+					f.method === "POST" &&
+					f.permission !== null &&
+					f.permission !== "dynamic" &&
+					roleHasPermission(
+						"member",
+						f.permission as (typeof ORG_PERMISSIONS)[number],
+					),
+			)
+			.map((f) => `${f.file}:${f.name}`);
+		expect(leaks).toEqual([]);
 	});
 });
 

@@ -2,6 +2,7 @@ import {
 	boolean,
 	index,
 	integer,
+	jsonb,
 	pgTable,
 	text,
 	timestamp,
@@ -159,4 +160,19 @@ export const organizationInstallations = pgTable(
 		),
 		index("org_installations_org_idx").on(t.organizationId),
 	],
+);
+
+export const organizationResponseDefaults = pgTable(
+	"organization_response_defaults",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		config: jsonb("config").notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [uniqueIndex("org_response_defaults_org_unique").on(t.organizationId)],
 );

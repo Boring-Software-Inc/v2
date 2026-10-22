@@ -22,6 +22,7 @@ import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { OrgBillingPage } from "#/components/organizations/org-billing-page";
 import { OrgGeneralSettingsPage } from "#/components/organizations/org-general-settings-page";
 import { OrgMembersPage } from "#/components/organizations/org-members-page";
+import { OrgRedactionPage } from "#/components/organizations/org-redaction-page";
 import {
 	type OrgSettingsTab,
 	parseOrgSettingsTab,
@@ -35,6 +36,7 @@ import {
 const TABS: { value: OrgSettingsTab; label: string }[] = [
 	{ value: "members", label: "Members" },
 	{ value: "settings", label: "General" },
+	{ value: "redaction", label: "Redaction" },
 	{ value: "connections", label: "Connections" },
 	{ value: "billing", label: "Billing" },
 ];
@@ -132,6 +134,9 @@ export function OrgSettingsDialog() {
 						</TabsContent>
 						<TabsContent value="settings">
 							<OrgGeneralSettingsPage org={org} />
+						</TabsContent>
+						<TabsContent value="redaction">
+							<OrgRedactionPage org={org} />
 						</TabsContent>
 						<TabsContent value="connections">
 							<ConnectionsPage org={org} />

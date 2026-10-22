@@ -23,6 +23,8 @@ export * from "./forges.ts";
 export * from "./insights.ts";
 export * from "./moderation.ts";
 export * from "./org.ts";
+export * from "./redact.ts";
+export * from "./redaction.ts";
 export * from "./repo.ts";
 export * from "./repo-content.ts";
 export * from "./response.ts";

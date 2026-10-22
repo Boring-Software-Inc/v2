@@ -23,9 +23,11 @@ export {
 	getRerunCooldownSeconds,
 	PROCESS_EVENT_QUEUE,
 	type ProcessEventJob,
+	REFRESH_SURFACES_QUEUE,
 	RERUN_COOLDOWN_SECONDS,
 	RERUN_QUEUE,
 	RESUME_RUN_QUEUE,
+	type RefreshSurfacesJob,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	SYNC_REPO_REVIEWERS_QUEUE,
@@ -97,6 +99,8 @@ export type {
 export * as orgServices from "./services/organizations.ts";
 export * as presenceServices from "./services/presence.ts";
 export * as repoServices from "./services/repos.ts";
+export type { RedactionUsage } from "./services/responses.ts";
+export * as responseServices from "./services/responses.ts";
 export type { RepoReviewerList } from "./services/reviewers.ts";
 export * as reviewerServices from "./services/reviewers.ts";
 export * as runServices from "./services/runs.ts";

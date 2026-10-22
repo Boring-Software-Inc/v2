@@ -1,5 +1,13 @@
 import type { ResponseConfig, Verdict } from "@tripwire/contracts";
-import { type ReactNode, useId } from "react";
+import {
+	RadioGroup,
+	RadioGroupOption,
+} from "#/components/glaze/ui/radio-group";
+import { MessageEditor } from "#/components/responses/message-editor";
+import {
+	PreviewLinked,
+	usePreviewLink,
+} from "#/components/responses/preview-link";
 import {
 	type ContentChoice,
 	commentKey,
@@ -9,23 +17,15 @@ import {
 	overrideKey,
 	postsComment,
 	readDraftKey,
-} from "#/components/customize/customize-model";
-import { MessageEditor } from "#/components/customize/message-editor";
+} from "#/components/responses/responses-model";
 import {
-	PreviewLinked,
-	type PreviewSetting,
-	usePreviewLink,
-} from "#/components/customize/preview-link";
-import { Checkbox } from "#/components/glaze/ui/checkbox";
-import {
-	RadioGroup,
-	RadioGroupOption,
-} from "#/components/glaze/ui/radio-group";
+	SETTING_NESTED,
+	SETTING_ROW,
+	SettingSection,
+	SettingToggle,
+} from "#/components/responses/setting-rows";
 import type { useSaveQueue } from "#/components/save-queue";
 import { cn } from "#/lib/glaze/utils";
-
-const ROW = "rounded-panel px-3 py-2";
-const NESTED = "ps-10";
 
 const BLOCK_CHOICES: {
 	value: ContentChoice;
@@ -41,11 +41,6 @@ const BLOCK_CHOICES: {
 		value: "one-liner-link",
 		label: "One line per rule",
 		description: "One short line for each rule that blocked it.",
-	},
-	{
-		value: "link-only",
-		label: "Link only",
-		description: "Says it is blocked and links to the details.",
 	},
 	{
 		value: "message",
@@ -138,12 +133,12 @@ export function VerdictSettings({
 
 	return (
 		<div className="flex flex-col gap-7">
-			<Section
+			<SettingSection
 				description="What Tripwire writes on the change request."
 				id={`comment-${verdict}`}
 				title="Comment"
 			>
-				<Toggle
+				<SettingToggle
 					checked={commenting}
 					description={
 						verdict === "pass"
@@ -168,7 +163,11 @@ export function VerdictSettings({
 								(option) => (
 									<PreviewLinked key={option.value} setting="content">
 										<RadioGroupOption
-											className={cn(ROW, NESTED, disabled && "cursor-default")}
+											className={cn(
+												SETTING_ROW,
+												SETTING_NESTED,
+												disabled && "cursor-default",
+											)}
 											description={option.description}
 											label={option.label}
 											value={option.value}
@@ -191,19 +190,8 @@ export function VerdictSettings({
 								</div>
 							</PreviewLinked>
 						) : null}
-						{verdict === "block" && choice === "one-liner-link" ? (
-							<Toggle
-								checked={config.blockComment.showRuleName}
-								description="Starts each line with the rule's name."
-								disabled={disabled}
-								label="Show rule names"
-								nested
-								onChange={(on) => setField("blockComment.showRuleName", on)}
-								setting="rule-names"
-							/>
-						) : null}
 						{usesTemplate && choice === "message" ? null : (
-							<Toggle
+							<SettingToggle
 								checked={config[override].showDetailsButton}
 								description="Links to the run on Tripwire, with the details folded under it."
 								disabled={disabled}
@@ -215,15 +203,15 @@ export function VerdictSettings({
 						)}
 					</>
 				) : null}
-			</Section>
+			</SettingSection>
 
-			<Section
+			<SettingSection
 				description="The status Tripwire reports next to the merge button."
 				id={`check-${verdict}`}
 				title="Check run"
 			>
 				{verdict === "pass" ? (
-					<Toggle
+					<SettingToggle
 						checked={config.onSuccess !== "silent"}
 						description={
 							config.onSuccess === "comment"
@@ -236,7 +224,7 @@ export function VerdictSettings({
 						setting="check-run"
 					/>
 				) : (
-					<Toggle
+					<SettingToggle
 						checked
 						description="Always on. Holds the merge when branch protection requires the tripwire check."
 						disabled
@@ -245,97 +233,7 @@ export function VerdictSettings({
 						setting="check-run"
 					/>
 				)}
-			</Section>
+			</SettingSection>
 		</div>
-	);
-}
-
-function Section({
-	id,
-	title,
-	description,
-	children,
-}: {
-	id: string;
-	title: string;
-	description: string;
-	children: ReactNode;
-}) {
-	return (
-		<section aria-labelledby={id} className="flex flex-col gap-2">
-			<header className="flex flex-col gap-0.5 px-3">
-				<h2 className="type-heading-sm" id={id}>
-					{title}
-				</h2>
-				<p className="type-body-sm text-text-2">{description}</p>
-			</header>
-			<div className="flex flex-col gap-0.5">{children}</div>
-		</section>
-	);
-}
-
-function Toggle({
-	label,
-	description,
-	checked,
-	disabled,
-	setting,
-	nested = false,
-	onChange,
-}: {
-	label: string;
-	description: string;
-	checked: boolean;
-	disabled: boolean;
-	setting: PreviewSetting;
-	nested?: boolean;
-	onChange: (checked: boolean) => void;
-}) {
-	const link = usePreviewLink();
-	const id = useId();
-	return (
-		<PreviewLinked setting={setting}>
-			<label
-				htmlFor={id}
-				className={cn(
-					"flex items-start gap-3",
-					ROW,
-					nested && NESTED,
-					disabled ? "cursor-default" : "cursor-pointer",
-				)}
-			>
-				<Checkbox
-					aria-describedby={`${id}-d`}
-					aria-labelledby={`${id}-l`}
-					id={id}
-					checked={checked}
-					disabled={disabled}
-					onCheckedChange={(next) => {
-						onChange(next === true);
-						link.flash(setting);
-					}}
-				/>
-				<span className="flex min-w-0 flex-col gap-0.5">
-					<span
-						className={cn(
-							"type-label",
-							disabled ? "text-text-disabled" : "text-text-1",
-						)}
-						id={`${id}-l`}
-					>
-						{label}
-					</span>
-					<span
-						className={cn(
-							"type-body-sm",
-							disabled ? "text-text-disabled" : "text-text-2",
-						)}
-						id={`${id}-d`}
-					>
-						{description}
-					</span>
-				</span>
-			</label>
-		</PreviewLinked>
 	);
 }

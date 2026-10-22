@@ -1,3 +1,9 @@
+import { type RedactedReasons, redactCommentReasons } from "./redact.ts";
+import {
+	OPEN_REDACTION,
+	type RedactionPolicy,
+	redactionLevelFor,
+} from "./redaction.ts";
 import { commentOverrideFor, type ResponseConfig } from "./response.ts";
 import { ruleContributorLabel, ruleDisplayName } from "./rules.ts";
 import type { Verdict } from "./runs.ts";
@@ -157,11 +163,36 @@ export const BUTTON_ALT = "View on Tripwire";
 export const CHECK_NAME = "tripwire";
 
 /** The CHANGES_REQUESTED review stamp — one line, no link, no button. */
-export function reviewBody(reasons: CommentReason[]): string {
-	const first = reasons[0]?.text;
-	return first
-		? `Tripwire blocked this. ${asSentence(first)}`
-		: "Tripwire blocked this.";
+export function reviewBody(reasons: CommentReason[], level = 0): string {
+	const detail = leadDetail(redactCommentReasons(reasons, level));
+	return detail ? `Tripwire blocked this. ${detail}` : "Tripwire blocked this.";
+}
+
+function listNames(names: string[]): string {
+	if (names.length <= 1) {
+		return names[0] ?? "";
+	}
+	return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}
+
+export function redactedReasonLine(
+	redacted: Exclude<RedactedReasons, { kind: "reasons" }>,
+): string {
+	if (redacted.kind === "names") {
+		return `It did not meet these rules: ${listNames(redacted.names)}.`;
+	}
+	if (redacted.kind === "count") {
+		return `${redacted.count} ${redacted.count === 1 ? "rule" : "rules"} blocked it.`;
+	}
+	return "";
+}
+
+function leadDetail(redacted: RedactedReasons): string | null {
+	if (redacted.kind === "reasons") {
+		const first = redacted.reasons[0]?.text;
+		return first ? asSentence(first) : null;
+	}
+	return redactedReasonLine(redacted) || null;
 }
 
 /** The check run summary — mirrors the verdict, no "tripwire:" prefix. Moved
@@ -171,10 +202,11 @@ export function checkSummary(
 	verdict: Verdict,
 	reasons: CommentReason[],
 	degraded = false,
+	level = 0,
 ): string {
 	if (verdict === "block") {
-		const first = reasons[0]?.text;
-		return first ? `Blocked. ${asSentence(first)}` : "Blocked.";
+		const detail = leadDetail(redactCommentReasons(reasons, level));
+		return detail ? `Blocked. ${detail}` : "Blocked.";
 	}
 	if (verdict === "needs_review") {
 		return degraded
@@ -222,17 +254,36 @@ function runButton(input: CommentInput): string {
  * its output is snapshot-tested and must never drift (a repo that never opened
  * /customize gets exactly this).
  */
+function reasonSection(
+	redacted: RedactedReasons,
+	line: (reasons: CommentReason[]) => string,
+): string {
+	return redacted.kind === "reasons"
+		? line(redacted.reasons)
+		: redactedReasonLine(redacted);
+}
+
 export function renderCommentBody(
 	input: CommentInput,
 	showDetailsButton = true,
+	policy: RedactionPolicy = OPEN_REDACTION,
 ): string {
 	const button = runButton(input);
 	const headline = commentHeadline(input.verdict, input.contributorLogin, {
 		degraded: input.degraded,
 		previousVerdict: input.previousVerdict,
 	});
+	const showHelp = policy.showHelp;
 	const reasonList =
-		input.verdict === "block" ? reasonsBlock(input.reasons) : "";
+		input.verdict === "block"
+			? reasonSection(
+					redactCommentReasons(
+						input.reasons,
+						redactionLevelFor(policy, "comment"),
+					),
+					reasonsBlock,
+				)
+			: "";
 	const lines: string[] = [headlineWithReasons(headline, reasonList), ""];
 	if (input.rerun) {
 		lines.push(RERUN_NOTE, "");
@@ -244,12 +295,16 @@ export function renderCommentBody(
 		if (showDetailsButton) {
 			lines.push(button, "");
 		}
-		lines.push(howDoIFix(input.reasons), "", WHAT_IS_TRIPWIRE);
+		if (showHelp) {
+			lines.push(howDoIFix(input.reasons), "", WHAT_IS_TRIPWIRE);
+		}
 	} else if (input.verdict === "needs_review") {
 		if (showDetailsButton) {
 			lines.push(button, "");
 		}
-		lines.push(WHAT_IS_TRIPWIRE);
+		if (showHelp) {
+			lines.push(WHAT_IS_TRIPWIRE);
+		}
 	} else if (showDetailsButton) {
 		lines.push(button);
 	}
@@ -257,12 +312,12 @@ export function renderCommentBody(
 	return lines.join("\n");
 }
 
-/** One-liner-link line: the rule's contributor label, name-prefixed on demand. */
-function oneLinerLine(reason: CommentReason, showRuleName: boolean): string {
+/** One-liner-link line: the rule's name and its contributor label. */
+function oneLinerLine(reason: CommentReason): string {
 	const label =
 		(reason.ruleId ? ruleContributorLabel(reason.ruleId) : null) ??
 		reasonLine(reason);
-	return showRuleName && reason.ruleId
+	return reason.ruleId
 		? `${capitalize(ruleDisplayName(reason.ruleId))}: ${asSentence(label)}`
 		: asSentence(label);
 }
@@ -273,12 +328,21 @@ function oneLinerLine(reason: CommentReason, showRuleName: boolean): string {
  * linked badge image), not a bare URL — the run page is the appeal surface
  * (§10) and the button is how every other mode presents it.
  */
-function renderTemplate(input: CommentInput, template: string): string {
+function renderTemplate(
+	input: CommentInput,
+	template: string,
+	level: number,
+): string {
+	const redacted = redactCommentReasons(input.reasons, level);
 	const firstRuleId = input.reasons.find((r) => r.ruleId)?.ruleId;
 	const ruleName =
-		(firstRuleId ? ruleContributorLabel(firstRuleId) : null) ??
-		input.reasons[0]?.text ??
-		"";
+		redacted.kind === "count" || redacted.kind === "verdict"
+			? ""
+			: redacted.kind === "names"
+				? (redacted.names[0] ?? "")
+				: ((firstRuleId ? ruleContributorLabel(firstRuleId) : null) ??
+					redacted.reasons[0]?.text ??
+					"");
 	return template
 		.replaceAll("{{ruleName}}", ruleName)
 		.replaceAll("{{runUrl}}", runButton(input));
@@ -307,6 +371,7 @@ function renderTemplate(input: CommentInput, template: string): string {
 export function renderVerdictComment(
 	input: CommentInput,
 	config: ResponseConfig,
+	policy: RedactionPolicy = OPEN_REDACTION,
 ): string {
 	const override = commentOverrideFor(config, input.verdict);
 	const customText = override.customText.trim();
@@ -319,23 +384,22 @@ export function renderVerdictComment(
 		return lines.join("\n");
 	}
 	const blockComment = config.blockComment;
+	const level = redactionLevelFor(policy, "comment");
 	if (input.verdict !== "block" || blockComment.mode === "full") {
-		return renderCommentBody(input, override.showDetailsButton);
+		return renderCommentBody(input, override.showDetailsButton, policy);
 	}
 	if (blockComment.mode === "custom") {
-		const body = renderTemplate(input, blockComment.template).trim();
+		const body = renderTemplate(input, blockComment.template, level).trim();
 		return [body, "", COMMENT_MARKER, ""].join("\n");
 	}
 	const headline = commentHeadline(input.verdict, input.contributorLogin, {
 		degraded: input.degraded,
 		previousVerdict: input.previousVerdict,
 	});
-	const reasonList =
-		blockComment.mode === "one-liner-link"
-			? input.reasons
-					.map((reason) => oneLinerLine(reason, blockComment.showRuleName))
-					.join("\n\n")
-			: "";
+	const reasonList = reasonSection(
+		redactCommentReasons(input.reasons, level),
+		(reasons) => reasons.map(oneLinerLine).join("\n\n"),
+	);
 	const lines: string[] = [headlineWithReasons(headline, reasonList), ""];
 	if (input.rerun) {
 		lines.push(RERUN_NOTE, "");

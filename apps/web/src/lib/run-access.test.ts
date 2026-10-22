@@ -14,47 +14,47 @@ describe("resolveRunAccess", () => {
 		expect(
 			resolveRunAccess({
 				authEnabled: false,
-				hasSession: false,
+				isOrgMember: false,
 				repoPrivate: true,
 			}),
 		).toBe("full");
 	});
 
-	test("session ⇒ full, regardless of repo visibility", () => {
+	test("org member ⇒ full, regardless of repo visibility", () => {
 		expect(
 			resolveRunAccess({
 				authEnabled: true,
-				hasSession: true,
+				isOrgMember: true,
 				repoPrivate: true,
 			}),
 		).toBe("full");
 	});
 
-	test("no session + public repo ⇒ public view", () => {
+	test("non-member + public repo ⇒ public view, signed in or not", () => {
 		expect(
 			resolveRunAccess({
 				authEnabled: true,
-				hasSession: false,
+				isOrgMember: false,
 				repoPrivate: false,
 			}),
 		).toBe("public");
 	});
 
-	test("no session + private repo ⇒ denied", () => {
+	test("non-member + private repo ⇒ denied", () => {
 		expect(
 			resolveRunAccess({
 				authEnabled: true,
-				hasSession: false,
+				isOrgMember: false,
 				repoPrivate: true,
 			}),
 		).toBe("denied");
 	});
 
-	test("no session + unknown visibility ⇒ denied (fail closed)", () => {
+	test("non-member + unknown visibility ⇒ denied (fail closed)", () => {
 		expect(
 			resolveRunAccess({
 				authEnabled: true,
-				hasSession: false,
+				isOrgMember: false,
 				repoPrivate: null,
 			}),
 		).toBe("denied");
@@ -178,6 +178,7 @@ const fullView: RunView = {
 	forge: "github",
 	subjectUrl: null,
 	canRerun: true,
+	stepsHidden: false,
 	steps: [ruleStep, aiReviewStep],
 	actions: [
 		{
@@ -324,5 +325,68 @@ describe("toFullRunView", () => {
 		// stays — the run page shows it (quiet on pass, the statement on fail).
 		expect(full.steps[0]?.publicEvidence).toBeUndefined();
 		expect(full.steps[0]?.summary).toBe("this account is 1 days old");
+	});
+});
+
+describe("toPublicRunView redaction", () => {
+	const failed = { ...aiReviewStep, status: "fail" };
+	const passed = { ...ruleStep, id: "step-3", status: "pass" };
+	const trigger: RunStepView = {
+		...ruleStep,
+		id: "step-0",
+		nodeKind: "trigger",
+		ruleRef: null,
+		label: "trigger",
+	};
+	const view: RunView = { ...fullView, steps: [trigger, passed, failed] };
+
+	function aiInner(level: number) {
+		const step = toPublicRunView(view, level).steps.find(
+			(s) => s.id === failed.id,
+		);
+		return (step?.evidence as { evidence: unknown } | undefined)?.evidence;
+	}
+
+	test("stop 0 keeps the public partition as stored", () => {
+		expect(aiInner(0)).toEqual(aiReviewStep.publicEvidence);
+	});
+
+	test("stop 2 strips finding notes and file paths", () => {
+		expect(aiInner(2)).toEqual({
+			output: {
+				verdict: "block",
+				confidence: 1,
+				summary: "exfiltrates tokens in ci.",
+				findings: [{ severity: "critical" }],
+			},
+		});
+	});
+
+	test("stop 3 hides all evidence, stop 4 swaps the AI summary", () => {
+		expect(aiInner(3)).toBeNull();
+		const step = toPublicRunView(view, 4).steps.find((s) => s.id === failed.id);
+		expect(step?.summary).toBe(
+			"An AI review found problems in this change request.",
+		);
+	});
+
+	test("stop 6 hides rule identity and workflow steps", () => {
+		const steps = toPublicRunView(view, 6).steps;
+		expect(steps.map((s) => s.id)).toEqual([passed.id, failed.id]);
+		for (const step of steps) {
+			expect(step.ruleRef).toBeNull();
+			expect(step.ruleName).toBeNull();
+			expect(step.summary).toBeNull();
+		}
+	});
+
+	test("stop 7 keeps only failed rules, stop 8 hides every step", () => {
+		expect(toPublicRunView(view, 7).steps.map((s) => s.id)).toEqual([
+			failed.id,
+		]);
+		const verdictOnly = toPublicRunView(view, 8);
+		expect(verdictOnly.steps).toEqual([]);
+		expect(verdictOnly.stepsHidden).toBe(true);
+		expect(verdictOnly.verdict).toBe("block");
 	});
 });

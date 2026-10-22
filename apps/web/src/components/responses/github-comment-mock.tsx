@@ -1,7 +1,6 @@
 import { COMMENT_MARKER } from "@tripwire/contracts";
 import type { ReactNode } from "react";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { PreviewObject } from "#/components/customize/preview-object";
 import { Badge } from "#/components/glaze/ui/badge";
 import {
 	Empty,
@@ -9,6 +8,7 @@ import {
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
+import { PreviewObject } from "#/components/responses/preview-object";
 
 type BodyBlock =
 	| { kind: "paragraph"; text: string }
