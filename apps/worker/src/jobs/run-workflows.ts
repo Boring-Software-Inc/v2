@@ -7,6 +7,7 @@ import type {
 	WorkflowDefinition,
 } from "@tripwire/contracts";
 import {
+	actionCommentMarker,
 	type CustomRuleRecord,
 	customRuleRef,
 	customRuleSummary,
@@ -61,6 +62,26 @@ const VERDICT_RANK: Record<Verdict, number> = {
 	needs_review: 1,
 	block: 2,
 };
+
+export function actionPayload(
+	action: { nodeId: string; action: string; params: Record<string, unknown> },
+	definitionId: string,
+	runId: string,
+): Record<string, unknown> {
+	return {
+		...action.params,
+		nodeId: `${definitionId}:${action.nodeId}`,
+		...(action.action === "post-comment"
+			? {
+					marker: actionCommentMarker({
+						workflowId: definitionId,
+						nodeId: action.nodeId,
+						runId,
+					}),
+				}
+			: {}),
+	};
+}
 
 export function postsSomething(action: { action: string }): boolean {
 	return !isRemovedAction(action.action);
@@ -547,10 +568,7 @@ async function runWorkflowsInner(
 			(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
 				(action) => ({
 					kind: action.action,
-					payload: {
-						...action.params,
-						nodeId: `${execution.definition.id}:${action.nodeId}`,
-					},
+					payload: actionPayload(action, execution.definition.id, runId),
 					idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
 				}),
 			),

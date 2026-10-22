@@ -1,6 +1,6 @@
 import {
+	durationMs,
 	type Forge,
-	SCHEDULE_EVERY_MS,
 	type ScheduledEvent,
 } from "@tripwire/contracts";
 import type { Db, DueSchedule } from "@tripwire/db";
@@ -15,8 +15,6 @@ import type { ForgeRuntime } from "../forge-runtime.ts";
 export const SCHEDULE_TICK_QUEUE = "schedule-tick";
 export const SCHEDULE_TICK_CRON = "*/5 * * * *";
 export const MAX_THREADS_PER_TICK = 100;
-
-const DAY_MS = 24 * 60 * 60_000;
 
 export interface ScheduleTickDeps {
 	db: Db;
@@ -37,7 +35,7 @@ export function scheduleTickId(
 	every: DueSchedule["schedule"]["every"],
 	now: Date,
 ): string {
-	const size = SCHEDULE_EVERY_MS[every];
+	const size = durationMs(every);
 	return new Date(Math.floor(now.getTime() / size) * size).toISOString();
 }
 
@@ -95,9 +93,9 @@ async function tickOne(
 	const result = await listThreads(due.repoFullName, {
 		subjects: match.subjects,
 		state: match.state,
-		updatedBefore: match.inactiveDays
-			? new Date(now.getTime() - match.inactiveDays * DAY_MS).toISOString()
-			: null,
+		updatedBefore: new Date(
+			now.getTime() - durationMs(match.inactiveFor),
+		).toISOString(),
 		labels: match.labels ?? [],
 		excludeLabels: match.excludeLabels ?? [],
 		skipLocked: match.skipLocked,

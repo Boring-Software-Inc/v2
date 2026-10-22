@@ -16,8 +16,11 @@ import {
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	repoServices,
+	SYNC_REPO_LABELS_QUEUE,
 	SYNC_REPO_REVIEWERS_QUEUE,
+	type SyncRepoLabelsJob,
 	type SyncRepoReviewersJob,
+	syncRepoLabelsOptions,
 	syncRepoReviewersOptions,
 } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
@@ -53,6 +56,7 @@ import {
 	scheduleTick,
 } from "./jobs/schedule-tick.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
+import { syncRepoLabels } from "./jobs/sync-repo-labels.ts";
 import { syncRepoReviewers } from "./jobs/sync-repo-reviewers.ts";
 import * as metering from "./metering.ts";
 import { installFailureReporter } from "./report-install-failure.ts";
@@ -131,6 +135,7 @@ if (import.meta.main) {
 		const forge = await repoServices.findRepoForge(db, repoFullName);
 		return forge ? (resolveForge(forge)?.adapter ?? null) : null;
 	};
+	const selfLogins = new Set<string>();
 	if (appId && privateKey) {
 		/**
 		 * Boot health (live-test surprise #3): validate the App credentials with
@@ -140,6 +145,7 @@ if (import.meta.main) {
 		 */
 		try {
 			const health = await checkAppCredentials({ appId, privateKey });
+			selfLogins.add(`${health.slug}[bot]`.toLowerCase());
 			logger.info(
 				{ app: health.slug },
 				"github app credentials OK — reads + actions live",
@@ -197,6 +203,14 @@ if (import.meta.main) {
 		);
 	}
 
+	const enqueueLabelSync = async (repoId: string): Promise<void> => {
+		await boss.send(
+			SYNC_REPO_LABELS_QUEUE,
+			{ repoId },
+			syncRepoLabelsOptions(repoId),
+		);
+	};
+
 	const enqueueReviewerSync = async (repoId: string): Promise<void> => {
 		await boss.send(
 			SYNC_REPO_REVIEWERS_QUEUE,
@@ -227,6 +241,8 @@ if (import.meta.main) {
 						appUrl: process.env.APP_URL ?? "http://localhost:3000",
 						logger: logger.child({ eventId: job.data.eventId }),
 						enqueueReviewerSync,
+						enqueueLabelSync,
+						selfLogins,
 					},
 					job.data,
 				);
@@ -300,6 +316,19 @@ if (import.meta.main) {
 				}
 			},
 		);
+
+		await work<SyncRepoLabelsJob>(SYNC_REPO_LABELS_QUEUE, async (jobs) => {
+			for (const job of jobs) {
+				await syncRepoLabels(
+					{
+						db,
+						http: resolveForge("github")?.signalHttp ?? null,
+						logger: logger.child({ repoId: job.data.repoId }),
+					},
+					job.data,
+				);
+			}
+		});
 
 		await work<RecoverInstallationJob>(
 			RECOVER_INSTALLATION_QUEUE,
@@ -456,6 +485,7 @@ if (import.meta.main) {
 				RERUN_QUEUE,
 				BACKFILL_REPO_QUEUE,
 				SYNC_REPO_REVIEWERS_QUEUE,
+				SYNC_REPO_LABELS_QUEUE,
 				REFRESH_SURFACES_QUEUE,
 				RECOVER_INSTALLATION_QUEUE,
 				"rollup",

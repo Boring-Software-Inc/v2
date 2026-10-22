@@ -38,6 +38,21 @@ export interface ProcessEventDeps {
 	/** Derived COGS source, threaded to runWorkflows for best-effort metering. */
 	meterSource?: UsageSource;
 	enqueueReviewerSync?: (repoId: string) => Promise<void>;
+	enqueueLabelSync?: (repoId: string) => Promise<void>;
+	selfLogins?: ReadonlySet<string>;
+}
+
+export function isSelfEvent(
+	event: NormalizedEvent,
+	selfLogins: ReadonlySet<string> = new Set(),
+): boolean {
+	if (event.kind === "schedule.matched" || "installation" in event) {
+		return false;
+	}
+	return (
+		(event.kind === "comment.created" && event.comment.byTripwire === true) ||
+		selfLogins.has(event.actor.login.toLowerCase())
+	);
 }
 
 /**
@@ -173,6 +188,19 @@ export async function processEvent(
 		return;
 	}
 
+	if (isSelfEvent(normalized, deps.selfLogins)) {
+		logger.info(
+			{
+				eventId: event.id,
+				kind: normalized.kind,
+				actor: normalized.actor.login,
+			},
+			"event caused by tripwire itself, no run",
+		);
+		await pool.query("SELECT pg_notify('runs', $1)", [event.id]);
+		return;
+	}
+
 	/** Lazy repo upsert — covers installs that happened while the tunnel was down. */
 	if (
 		"changeRequest" in normalized &&
@@ -303,6 +331,7 @@ async function enqueueReviewerSync(
 ): Promise<void> {
 	try {
 		await deps.enqueueReviewerSync?.(repoId);
+		await deps.enqueueLabelSync?.(repoId);
 	} catch (error) {
 		deps.logger.warn(
 			{ repoId, error: getErrorMessage(error) },

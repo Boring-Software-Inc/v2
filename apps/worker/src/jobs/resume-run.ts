@@ -20,6 +20,7 @@ import { customRuleSource } from "./custom-rules.ts";
 import { emitPrSurface } from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import {
+	actionPayload,
 	makeEvaluator,
 	postsSomething,
 	withPublicProjection,
@@ -153,10 +154,7 @@ export async function resumeRun(
 	const actionRows = await runServices.recordActions(db, item.runId, [
 		...result.actions.filter(postsSomething).map((action) => ({
 			kind: action.action,
-			payload: {
-				...action.params,
-				nodeId: `${definition.id}:${action.nodeId}`,
-			},
+			payload: actionPayload(action, definition.id, item.runId),
 			idempotencyKey: `${action.action}:${definition.id}:${action.nodeId}:resume`,
 		})),
 		...(denyFloored

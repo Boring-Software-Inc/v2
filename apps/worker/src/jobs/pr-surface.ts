@@ -3,14 +3,15 @@ import {
 	type CommentReason,
 	checkSummary,
 	forgePostsReviews,
+	labelParamsSchema,
 	lockParamsSchema,
 	type NormalizedEvent,
 	planSurfaces,
+	postCommentParamsSchema,
 	REVIEW_POINTER,
 	redactCommentReasons,
 	redactionLevelFor,
 	requestReviewTargetsSchema,
-	type ScheduledEvent,
 	type ScheduledThread,
 	type SurfacePlan,
 	type Verdict,
@@ -113,7 +114,22 @@ export async function emitPrSurface(
 	const { db, adapter, logger } = deps;
 	const { event, runId, verdict } = input;
 	if (event.kind === "schedule.matched") {
-		await emitScheduledActions(deps, { ...input, event });
+		const { thread } = event;
+		await emitThreadActions(deps, input, {
+			number: thread.number,
+			title: thread.title,
+			author: thread.author,
+			skips: (kind) => SCHEDULED_SKIPS[kind]?.(thread) === true,
+		});
+		return;
+	}
+	if (event.kind === "comment.created") {
+		await emitThreadActions(deps, input, {
+			number: event.comment.subjectNumber,
+			title: "",
+			author: event.actor.login,
+			skips: () => false,
+		});
 		return;
 	}
 	if (!("changeRequest" in event)) {
@@ -339,14 +355,22 @@ const SCHEDULED_SKIPS: Record<string, (thread: ScheduledThread) => boolean> = {
 	"request-review": (thread) => thread.kind !== "change-request",
 };
 
-async function emitScheduledActions(
+async function emitThreadActions(
 	deps: PrSurfaceDeps,
-	input: EmitSurfaceInput & { event: ScheduledEvent },
+	input: EmitSurfaceInput,
+	thread: {
+		number: number;
+		title: string;
+		author: string;
+		skips: (kind: string) => boolean;
+	},
 ): Promise<void> {
 	const { db, adapter, logger } = deps;
 	const { event, runId, verdict } = input;
+	if (!("repo" in event)) {
+		return;
+	}
 	const repoFullName = event.repo.fullName;
-	const { thread } = event;
 	const runUrl = `${deps.appUrl}/runs/${runId}`;
 	const policy = await responseServices.getRedactionPolicy(
 		db,
@@ -379,7 +403,7 @@ async function emitScheduledActions(
 	if (!adapter) {
 		logger.warn(
 			{ runId },
-			"no forge credentials — scheduled actions recorded, not executed",
+			"no forge credentials — thread actions recorded, not executed",
 		);
 		return;
 	}
@@ -387,11 +411,11 @@ async function emitScheduledActions(
 		if (row.kind === "webhook") {
 			continue;
 		}
-		if (SCHEDULED_SKIPS[row.kind]?.(thread)) {
+		if (thread.skips(row.kind)) {
 			await runServices.markActionSuperseded(db, row.id);
 			logger.info(
 				{ runId, kind: row.kind, thread: thread.number },
-				"scheduled action does not apply to this thread",
+				"action does not apply to this thread",
 			);
 			continue;
 		}
@@ -403,7 +427,7 @@ async function emitScheduledActions(
 		} catch (error) {
 			logger.error(
 				{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
-				"scheduled action failed — row stays recorded for retry",
+				"thread action failed — row stays recorded for retry",
 			);
 		}
 	}
@@ -538,6 +562,25 @@ export function toForgeAction(
 		}
 		case "close":
 			return { kind: "close" as const, repoFullName, number };
+		case "remove-label": {
+			const params = labelParamsSchema.safeParse(row.payload);
+			return {
+				kind: "remove-label" as const,
+				repoFullName,
+				number,
+				labels: params.success ? params.data.labels : [],
+			};
+		}
+		case "post-comment": {
+			const params = postCommentParamsSchema.safeParse(row.payload);
+			return {
+				kind: "post-comment" as const,
+				repoFullName,
+				number,
+				body: params.success ? params.data.message : "",
+				marker: String(row.payload.marker ?? ""),
+			};
+		}
 		case "request-review": {
 			const targets = requestReviewTargetsSchema.safeParse(row.payload);
 			return {

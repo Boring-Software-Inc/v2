@@ -37,6 +37,7 @@ const REPO = "Codertocat/Hello-World";
 const QUIET = "Codertocat/Quiet";
 const T0 = new Date("2026-10-22T12:01:00.000Z");
 const HOUR = 60 * 60_000;
+const EVERY_12H = { n: 12, unit: "hours" } as const;
 
 const THREADS: ForgeThread[] = [
 	{
@@ -76,11 +77,11 @@ const SCHEDULED: WorkflowDefinition = {
 			type: "trigger",
 			kinds: ["schedule.matched"],
 			schedule: {
-				every: "12h",
+				every: { n: 12, unit: "hours" },
 				match: {
 					subjects: ["issue", "change-request"],
 					state: "any",
-					inactiveDays: 15,
+					inactiveFor: { n: 15, unit: "days" },
 					skipLocked: true,
 				},
 			},
@@ -104,12 +105,26 @@ const SCHEDULED: WorkflowDefinition = {
 			action: "request-review",
 			params: { reviewers: [{ login: "hubot" }] },
 		},
+		{
+			id: "warn",
+			type: "action",
+			action: "post-comment",
+			params: { message: "Locking this after 15 days with no activity." },
+		},
+		{
+			id: "unmark",
+			type: "action",
+			action: "remove-label",
+			params: { labels: ["needs triage"] },
+		},
 	],
 	edges: [
 		{ id: "e1", from: "every-12h", to: "old-account" },
 		{ id: "e2", from: "old-account", to: "lock" },
 		{ id: "e3", from: "every-12h", to: "close" },
 		{ id: "e4", from: "every-12h", to: "ask" },
+		{ id: "e5", from: "every-12h", to: "warn" },
+		{ id: "e6", from: "every-12h", to: "unmark" },
 	],
 };
 
@@ -286,7 +301,7 @@ describe("schedule tick", () => {
 		const events = await pool.query(
 			"SELECT delivery_id, forge FROM events WHERE raw_kind = 'schedule.matched' ORDER BY delivery_id",
 		);
-		const tickId = scheduleTickId("12h", T0);
+		const tickId = scheduleTickId(EVERY_12H, T0);
 		expect(events.rows).toEqual([
 			{
 				delivery_id: `schedule:wf-lock-inactive:every-12h:1:${tickId}`,
@@ -338,11 +353,34 @@ describe("schedule tick", () => {
 		).toEqual([
 			"1:close:executed",
 			"1:lock:executed",
+			"1:post-comment:executed",
+			"1:remove-label:executed",
 			"1:request-review:superseded",
 			"2:close:executed",
 			"2:lock:executed",
+			"2:post-comment:executed",
+			"2:remove-label:executed",
 			"2:request-review:executed",
 		]);
+
+		const runIds = new Map<number, string>(
+			runs.rows.map((run) => [run.subject_number, run.id]),
+		);
+		for (const number of [1, 2]) {
+			expect(executed).toContainEqual({
+				kind: "post-comment",
+				repoFullName: REPO,
+				number,
+				body: "Locking this after 15 days with no activity.",
+				marker: `<!-- tripwire:comment wf-lock-inactive/warn run=${runIds.get(number)} -->`,
+			});
+			expect(executed).toContainEqual({
+				kind: "remove-label",
+				repoFullName: REPO,
+				number,
+				labels: ["needs triage"],
+			});
+		}
 
 		expect(executed).toEqual(
 			expect.arrayContaining([
@@ -369,7 +407,7 @@ describe("schedule tick", () => {
 				},
 			]),
 		);
-		expect(executed).toHaveLength(5);
+		expect(executed).toHaveLength(9);
 		expect(
 			executed.filter((action) =>
 				["set-check", "comment", "block", "update-review"].includes(
@@ -400,7 +438,9 @@ describe("schedule tick", () => {
 		const later = new Date(T0.getTime() + 26 * HOUR);
 		const result = await tick(later);
 		expect(result).toEqual({ schedules: 1, events: 2, errors: 0 });
-		expect(scheduleTickId("12h", later)).not.toBe(scheduleTickId("12h", T0));
+		expect(scheduleTickId(EVERY_12H, later)).not.toBe(
+			scheduleTickId(EVERY_12H, T0),
+		);
 	});
 
 	test("a failed listing still marks the tick and records the error", async () => {
