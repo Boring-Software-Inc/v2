@@ -53,8 +53,9 @@ function PassedFold({ rules }: { rules: ChainRule[] }) {
 							className="flex items-baseline gap-2 type-body-sm text-text-2"
 							key={rule.step.id}
 						>
-							<span className="type-label text-text-1">{rule.name}</span>
-							<span className="min-w-0 flex-1">{rule.step.summary ?? ""}</span>
+							<span className="min-w-0 flex-1 type-label text-text-1">
+								{rule.name}
+							</span>
 							<span className="shrink-0 type-caption">
 								{rule.step.durationMs}ms
 							</span>
@@ -97,15 +98,8 @@ function FlaggedRule({
 					</span>
 				</div>
 				{reason ? (
-					<p
-						className={cn(
-							"[overflow-wrap:anywhere]",
-							reason.quiet
-								? "type-body-sm text-text-2"
-								: "type-body text-text-1",
-						)}
-					>
-						{reason.text}
+					<p className="type-body text-text-1 [overflow-wrap:anywhere]">
+						{reason}
 					</p>
 				) : null}
 				{failed ? (

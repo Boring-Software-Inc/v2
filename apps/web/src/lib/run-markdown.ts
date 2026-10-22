@@ -85,7 +85,7 @@ export function runToMarkdown(run: RunView, relativeTime: string): string {
 				lines.push(`\`${step.ruleRef}\``);
 			}
 			// Evidence is the rule's plain-English statement; omit when absent.
-			const evidence = step.summary?.trim();
+			const evidence = step.status === "pass" ? null : step.summary?.trim();
 			if (evidence) {
 				lines.push(quote(evidence));
 			}

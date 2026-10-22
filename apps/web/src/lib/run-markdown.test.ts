@@ -74,6 +74,23 @@ describe("runToMarkdown", () => {
 		expect(md).toContain("> your account is 1260 days old");
 	});
 
+	test("a passed rule step never quotes its stored sentence", () => {
+		const md = runToMarkdown(
+			makeRun({
+				steps: [
+					step({
+						ruleRef: "english-only@1",
+						status: "pass",
+						summary: "Most of the title is not written in the Latin alphabet.",
+					}),
+				],
+			}),
+			"just now",
+		);
+		expect(md).toContain("**English only**: passed");
+		expect(md).not.toContain("Latin alphabet");
+	});
+
 	test("a non-rule step uses its resolved label and has no ref line", () => {
 		const md = runToMarkdown(
 			makeRun({ steps: [step({ nodeKind: "action", label: "webhook" })] }),

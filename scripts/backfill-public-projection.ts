@@ -27,6 +27,7 @@ const stale = await db
 	.select({
 		id: runSteps.id,
 		ruleId: runSteps.ruleId,
+		status: runSteps.status,
 		evidence: runSteps.evidence,
 	})
 	.from(runSteps)
@@ -57,7 +58,7 @@ for (const step of stale) {
 			: envelope;
 	let projection: { publicEvidence: unknown; summary: string | null };
 	try {
-		projection = projectRulePublic(step.ruleId, inner);
+		projection = projectRulePublic(step.ruleId, inner, step.status === "pass");
 	} catch (err) {
 		skipped += 1;
 		console.warn(

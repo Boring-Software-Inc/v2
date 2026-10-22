@@ -41,7 +41,7 @@ export interface RuleDefinition<
 	 */
 	publicEvidence?: (evidence: z.infer<TEvidence>) => Record<string, unknown>;
 	/** §10 plain-English outcome for the public view — constitution voice. */
-	summarize?: (evidence: z.infer<TEvidence>) => string | null;
+	summarize?: (evidence: z.infer<TEvidence>, passed: boolean) => string | null;
 	/**
 	 * What a contributor can DO about a block from this rule — drives the PR
 	 * comment's "how do i fix this?" body (§12). Versioned WITH the rule.

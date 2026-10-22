@@ -622,7 +622,11 @@ export function withPublicProjection(
 					? null
 					: customRuleSummary(stored.definition, observed);
 		} else {
-			({ publicEvidence, summary } = projectRulePublic(step.ruleRef, inner));
+			({ publicEvidence, summary } = projectRulePublic(
+				step.ruleRef,
+				inner,
+				step.status === "pass",
+			));
 		}
 		// A skipped step carries no evidence; surface WHY (a skip with no reason
 		// is invisible failure — the class that let custom rules sit inert). The

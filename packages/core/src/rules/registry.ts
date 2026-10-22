@@ -70,6 +70,7 @@ export interface RulePublicProjection {
 export function projectRulePublic(
 	ref: string,
 	evidence: unknown,
+	passed: boolean,
 ): RulePublicProjection {
 	const rule = getRule(ref);
 	if (
@@ -83,6 +84,6 @@ export function projectRulePublic(
 	const ev = evidence as Record<string, unknown>;
 	return {
 		publicEvidence: rule.publicEvidence ? rule.publicEvidence(ev) : null,
-		summary: rule.summarize ? rule.summarize(ev) : null,
+		summary: rule.summarize ? rule.summarize(ev, passed) : null,
 	};
 }
