@@ -6,7 +6,7 @@ import { formatAdminDate } from "#/components/admin/format-admin-date";
 import { ChevronDown, ChevronRight, Icon } from "#/components/glaze/icon";
 import { Avatar } from "#/components/glaze/ui/avatar";
 import { Button } from "#/components/glaze/ui/button";
-import { Input } from "#/components/glaze/ui/input";
+import { FilterBarSearch } from "#/components/glaze/ui/filter-bar";
 import {
 	Item,
 	ItemActions,
@@ -90,6 +90,7 @@ export function AdminOrgsPage() {
 	const toolbar = (
 		<>
 			<SegmentedControl
+				size="sm"
 				aria-label="Org kind"
 				onValueChange={(value) => {
 					setKind(value as OrgKind);
@@ -103,16 +104,14 @@ export function AdminOrgsPage() {
 					</SegmentedControlItem>
 				))}
 			</SegmentedControl>
-			<Input
+			<FilterBarSearch
 				aria-label="Search orgs"
-				className="ms-auto w-full sm:w-56"
-				mode="search"
+				className="ms-auto w-full sm:w-56 sm:flex-none"
 				onValueChange={(value) => {
 					setSearch(value);
 					setOffset(0);
 				}}
 				placeholder="Name or slug"
-				size="sm"
 				value={search}
 			/>
 		</>

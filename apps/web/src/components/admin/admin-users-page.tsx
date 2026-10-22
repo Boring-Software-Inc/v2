@@ -9,7 +9,7 @@ import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import { Checkbox, CheckboxGroup } from "#/components/glaze/ui/checkbox";
 import { Chip } from "#/components/glaze/ui/chip";
-import { Input } from "#/components/glaze/ui/input";
+import { FilterBarSearch } from "#/components/glaze/ui/filter-bar";
 import { PaginationInfo } from "#/components/glaze/ui/pagination";
 import { RelativeTime } from "#/components/glaze/ui/relative-time";
 import {
@@ -128,6 +128,7 @@ export function AdminUsersPage() {
 	const toolbar = (
 		<>
 			<SegmentedControl
+				size="sm"
 				aria-label="Access status"
 				onValueChange={(value) => setFilter(String(value))}
 				value={status}
@@ -165,16 +166,14 @@ export function AdminUsersPage() {
 					</Button>
 				</div>
 			) : null}
-			<Input
+			<FilterBarSearch
 				aria-label="Search users"
-				className="ms-auto w-full sm:w-56"
-				mode="search"
+				className="ms-auto w-full sm:w-56 sm:flex-none"
 				onValueChange={(value) => {
 					setSearch(value);
 					setOffset(0);
 				}}
 				placeholder="Login or email"
-				size="sm"
 				value={search}
 			/>
 		</>

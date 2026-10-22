@@ -98,7 +98,7 @@ function InputLeading({className, ...props}: ComponentProps<'span'>) {
   const size = useContext(SizeContext);
   return <span
     data-slot="input-leading"
-    className={cn(slotClass, slotSize[size], 'has-[>[data-slot=input-action]:first-child]:-ms-[calc(var(--space-3)-var(--shell-inset))]', className)}
+    className={cn(slotClass, slotSize[size], 'has-[>[data-slot=input-action]:first-child]:-ms-[calc(var(--input-px,var(--space-3))-var(--shell-inset))]', className)}
     {...props}
   />;
 }
@@ -108,7 +108,7 @@ function InputTrailing({className, ...props}: ComponentProps<'span'>) {
   const size = useContext(SizeContext);
   return <span
     data-slot="input-trailing"
-    className={cn(slotClass, slotSize[size], 'has-[>[data-slot=input-action]:last-child]:-me-[calc(var(--space-3)-var(--shell-inset))]', className)}
+    className={cn(slotClass, slotSize[size], 'has-[>[data-slot=input-action]:last-child]:-me-[calc(var(--input-px,var(--space-3))-var(--shell-inset))]', className)}
     {...props}
   />;
 }

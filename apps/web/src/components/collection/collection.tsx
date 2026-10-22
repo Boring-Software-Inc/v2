@@ -180,6 +180,7 @@ function CollectionControls<Row>({
 			))}
 			{sorts.length > 1 ? (
 				<FilterBarSelect
+					defaultValue={definition.defaultSort ?? sorts[0]?.key}
 					label="Sort"
 					onValueChange={(value) => {
 						if (value) {
@@ -223,6 +224,7 @@ function CollectionSegment<Row>({
 	return (
 		<SegmentedControl
 			aria-label={filter.label}
+			size="sm"
 			onValueChange={(next) =>
 				collection.setFilter(filter.key, next === ALL ? [] : [next])
 			}
@@ -294,6 +296,7 @@ function CollectionChip<Row>({
 	return (
 		<FilterBarSelect
 			allLabel={filter.allLabel}
+			defaultValue={filter.defaultValue ?? null}
 			label={filter.label}
 			onValueChange={(value) =>
 				collection.setFilter(filter.key, value ? [value] : [])
