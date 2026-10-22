@@ -39,8 +39,14 @@ const pendingRow = z.object({
 	reason: z.string().nullable(),
 });
 
+export const PENDING_ITEMS_LIMIT = 200;
+
 /** The moderation queue, SCOPED to the user's active repo (§10). */
-export async function listPendingItems(db: Db, repoFullName: string) {
+export async function listPendingItems(
+	db: Db,
+	repoFullName: string,
+	limit = PENDING_ITEMS_LIMIT,
+) {
 	const result = await db.execute(sql`
 		SELECT m.id, m.run_id AS "runId", m.node_id AS "nodeId",
 		       m.created_at AS "createdAt", r.repo_full_name AS "repoFullName",
@@ -58,6 +64,7 @@ export async function listPendingItems(db: Db, repoFullName: string) {
 		) fr ON true
 		WHERE m.status = 'pending' AND r.repo_full_name = ${repoFullName}
 		ORDER BY m.id DESC
+		LIMIT ${limit}
 	`);
 	return z.array(pendingRow).parse(result.rows);
 }

@@ -22,19 +22,27 @@ export interface ModerationQueueItem {
 	reason: string | null;
 }
 
+export interface ModerationQueue {
+	items: ModerationQueueItem[];
+	limit: number;
+	truncated: boolean;
+}
+
 export const listModerationQueue = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware, orgMemberMiddleware])
 	.inputValidator((input: { org: string; repo: string }) => input)
-	.handler(async ({ data, context }): Promise<ModerationQueueItem[]> => {
+	.handler(async ({ data, context }): Promise<ModerationQueue> => {
 		const org = (context as { org: OrgWithRole }).org;
 		const repo = await resolveOrgRepo(org.id, data.repo);
 		const { moderationServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		const items = await moderationServices.listPendingItems(
+		const limit = moderationServices.PENDING_ITEMS_LIMIT;
+		const rows = await moderationServices.listPendingItems(
 			getDb().db,
 			repo.fullName,
+			limit + 1,
 		);
-		return items.map((item) => ({
+		const items = rows.slice(0, limit).map((item) => ({
 			id: item.id,
 			runId: item.runId,
 			nodeId: item.nodeId,
@@ -46,6 +54,7 @@ export const listModerationQueue = createServerFn({ method: "GET" })
 			title: item.title,
 			reason: item.reason,
 		}));
+		return { items, limit, truncated: rows.length > limit };
 	});
 
 /**
