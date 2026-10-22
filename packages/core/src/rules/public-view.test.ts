@@ -81,7 +81,7 @@ describe("§10 public partition", () => {
 			if (!sample) {
 				throw new Error(`no SAMPLE_EVIDENCE for ${rule.id} — add one`);
 			}
-			const { publicEvidence } = projectRulePublic(ref, sample);
+			const { publicEvidence } = projectRulePublic(ref, sample, false);
 			const serialized = JSON.stringify(publicEvidence);
 			for (const key of configKeys(rule.configSchema)) {
 				expect(serialized).not.toContain(`"${key}"`);
@@ -126,11 +126,11 @@ describe("§10 public partition", () => {
 			intervalCov: null,
 		};
 		const under = { ...over, count: 2 };
-		expect(rule?.summarize?.(over)).toBe(
+		expect(rule?.summarize?.(over, false)).toBe(
 			"You opened 12 change requests in a short time.",
 		);
 		expect(rule?.waitHint?.(over)).toBe("Wait before you open another.");
-		expect(rule?.summarize?.(under)).toBe(
+		expect(rule?.summarize?.(under, true)).toBe(
 			"You opened 2 change requests recently.",
 		);
 		expect(rule?.waitHint?.(under)).toBeNull();
@@ -177,6 +177,7 @@ describe("§10 public partition", () => {
 		const { publicEvidence, summary } = projectRulePublic(
 			"ai-review@1",
 			SAMPLE_EVIDENCE["ai-review"],
+			false,
 		);
 		const serialized = JSON.stringify(publicEvidence);
 		expect(serialized).toContain("findings");
@@ -188,6 +189,7 @@ describe("§10 public partition", () => {
 		const age = projectRulePublic(
 			"account-age@1",
 			SAMPLE_EVIDENCE["account-age"],
+			true,
 		);
 		expect(age.publicEvidence).toEqual({ accountAgeDays: 2038 });
 		expect(age.summary).toBe("Your account is 2038 days old.");
@@ -195,14 +197,44 @@ describe("§10 public partition", () => {
 		const crypto = projectRulePublic(
 			"crypto-address@1",
 			SAMPLE_EVIDENCE["crypto-address"],
+			false,
 		);
 		expect(crypto.summary).toBe(
 			"It adds 1 crypto wallet address to DONATE.md.",
 		);
 	});
 
+	test("a passing rule never projects a sentence that says it failed", () => {
+		const english = projectRulePublic(
+			"english-only@1",
+			{ ratio: 0, lettersExamined: 15, sample: "Add donate links" },
+			true,
+		);
+		expect(english.summary).toBeNull();
+		const readme = projectRulePublic(
+			"profile-readme@1",
+			{ hasProfileText: true, length: 80, minLength: 32 },
+			true,
+		);
+		expect(readme.summary).toBeNull();
+		expect(
+			projectRulePublic(
+				"english-only@1",
+				SAMPLE_EVIDENCE["english-only"],
+				false,
+			).summary,
+		).toBe("Most of the title is not written in the Latin alphabet.");
+		expect(
+			projectRulePublic(
+				"profile-readme@1",
+				SAMPLE_EVIDENCE["profile-readme"],
+				false,
+			).summary,
+		).toBe("Your GitHub profile README is too short.");
+	});
+
 	test("skipped evidence (null) projects to nothing — safe by default", () => {
-		expect(projectRulePublic("account-age@1", null)).toEqual({
+		expect(projectRulePublic("account-age@1", null, false)).toEqual({
 			publicEvidence: null,
 			summary: null,
 		});

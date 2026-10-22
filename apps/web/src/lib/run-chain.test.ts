@@ -1,4 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import {
+	type CommentInput,
+	type CommentReason,
+	checkSummary,
+	DEFAULT_RESPONSE_CONFIG,
+	planSurfaces,
+	redactionPolicySchema,
+} from "@tripwire/contracts";
 import { toFullRunView, toPublicRunView } from "#/lib/run-access";
 import {
 	branchSummary,
@@ -422,12 +430,37 @@ describe("re-runs and superseded runs", () => {
 });
 
 describe("redaction", () => {
-	test("level 5 shows the rule description in place of the reason", () => {
+	test("level 5 shows the rule name and nothing under it", () => {
 		const publicView = toPublicRunView(view(), 5);
 		const body = buildRunChain(publicView).checks?.body;
 		const flagged =
-			body?.kind === "branches" ? body.branches[1]?.flagged[0] : undefined;
-		expect(flagged && ruleReason(flagged, 5)?.quiet).toBe(true);
+			body?.kind === "branches"
+				? body.branches.flatMap((branch) => branch.flagged)
+				: [];
+		expect(flagged.length).toBe(2);
+		for (const rule of flagged) {
+			expect(ruleReason(rule, 5)).toBeNull();
+		}
+	});
+
+	test("a passed rule shows no sentence at any level", () => {
+		const steps = [
+			rule(
+				"default@1:english",
+				"english-only@1",
+				"pass",
+				"Most of the title is not written in the Latin alphabet.",
+			),
+		];
+		const body = buildRunChain(view({ steps, workflows: [RULES] })).checks
+			?.body;
+		const passed = body?.kind === "branches" ? body.branches[0]?.passed : [];
+		expect(passed?.length).toBe(1);
+		for (const level of [0, 4]) {
+			for (const passedRule of passed ?? []) {
+				expect(ruleReason(passedRule, level)).toBeNull();
+			}
+		}
 	});
 
 	test("level 6 is one node with the marks in run order, no names, no chips", () => {
@@ -442,9 +475,9 @@ describe("redaction", () => {
 		expect(chain.outcome.chips).toEqual([]);
 	});
 
-	test("level 7 drops the counts", () => {
+	test("level 7 keeps the failed count and drops the passed count", () => {
 		const chain = buildRunChain(toPublicRunView(view(), 7));
-		expect(chain.checks?.title).toBe("Rules did not pass");
+		expect(chain.checks?.title).toBe("2 rules did not pass");
 		expect(chain.checks?.body).toEqual({ kind: "none" });
 	});
 
@@ -453,6 +486,54 @@ describe("redaction", () => {
 		expect(chain.checks).toBeNull();
 		expect(chain.outcome.title).toBe("Blocked");
 		expect(chain.outcome.openReview).toBeNull();
+	});
+
+	test("the run page and GitHub state the failed count at the same levels", () => {
+		const reasons: CommentReason[] = [
+			{ text: "Crypto donation spam", remedy: "revise", ruleId: "ai-review" },
+			{
+				text: "It adds 2 wallets.",
+				remedy: "revise",
+				ruleId: "crypto-address",
+			},
+		];
+		const input: CommentInput = {
+			verdict: "block",
+			contributorLogin: "g-r-i-m",
+			reasons,
+			runUrl: "https://tripwire.sh/runs/run-1",
+		};
+		const expected = [
+			"2 of 4 rules did not pass",
+			"2 of 4 rules did not pass",
+			"2 of 4 rules did not pass",
+			"2 of 4 rules did not pass",
+			"2 of 4 rules did not pass",
+			"2 of 4 rules did not pass",
+			"2 of 4 rules did not pass",
+			"2 rules did not pass",
+			null,
+		];
+		for (const [level, title] of expected.entries()) {
+			const chain = buildRunChain(toPublicRunView(view(), level));
+			const policy = redactionPolicySchema.parse({ level });
+			const review =
+				planSurfaces(input, DEFAULT_RESPONSE_CONFIG, policy, {
+					reviewPosted: true,
+				}).review ?? "";
+			const check = checkSummary("block", reasons, false, level);
+			expect(chain.checks?.title ?? null).toBe(title);
+			if (level >= 5 && level <= 7) {
+				expect(review).toContain("2 rules did not pass");
+			}
+			if (level === 6 || level === 7) {
+				expect(check).toBe("Blocked by 2 rules.");
+			}
+			if (level === 8) {
+				expect(review).not.toContain("did not pass");
+				expect(check).toBe("Blocked.");
+			}
+		}
 	});
 
 	test("members see every chip at any level", () => {

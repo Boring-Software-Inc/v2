@@ -53,7 +53,7 @@ export function buildCommentReasons(
 				? (evidence as { observed: unknown }).observed
 				: null;
 		const text =
-			(rule?.summarize && evidence ? rule.summarize(evidence) : null) ??
+			(rule?.summarize && evidence ? rule.summarize(evidence, false) : null) ??
 			(custom && observed !== null
 				? customRuleSummary(custom.definition, observed)
 				: null) ??

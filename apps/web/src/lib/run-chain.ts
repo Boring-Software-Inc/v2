@@ -1,9 +1,7 @@
 import {
 	ACTION_CATALOG,
-	RULE_CATALOG,
 	redactionHides,
 	ruleDisplayName,
-	ruleIdOf,
 } from "@tripwire/contracts";
 import { z } from "zod";
 import {
@@ -351,7 +349,10 @@ function checksNode(
 	const offsetMs = first ? offsetBetween(run.createdAt, first) : null;
 	if (redactionHides(level, "passed-count")) {
 		return {
-			title: failed > 0 ? "Rules did not pass" : "Rules passed",
+			title:
+				failed > 0
+					? `${failed} ${failed === 1 ? "rule" : "rules"} did not pass`
+					: "Rules passed",
 			tone: failed > 0 ? "fail" : "ok",
 			glyph: failed > 0 ? "fail" : "pass",
 			offsetMs,
@@ -800,26 +801,17 @@ function asSentence(text: string): string {
 	return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
 }
 
-export interface RuleReason {
-	text: string;
-	quiet: boolean;
-}
-
-export function ruleReason(rule: ChainRule, level: number): RuleReason | null {
+export function ruleReason(rule: ChainRule, level: number): string | null {
+	if (rule.mark === "pass" || redactionHides(level, "reasons")) {
+		return null;
+	}
 	const step = rule.step;
 	if (step.summary) {
-		return { text: asSentence(step.summary), quiet: false };
+		return asSentence(step.summary);
 	}
 	const skip = skipReasonSchema.safeParse(step.evidence);
 	if (rule.mark === "skipped" && skip.success) {
-		return { text: skip.data.reason, quiet: false };
-	}
-	if (redactionHides(level, "reasons") && step.ruleRef) {
-		const ruleId = ruleIdOf(step.ruleRef);
-		const blurb = RULE_CATALOG.find((entry) => entry.ruleId === ruleId)?.blurb;
-		return blurb
-			? { text: blurb.charAt(0).toUpperCase() + blurb.slice(1), quiet: true }
-			: null;
+		return skip.data.reason;
 	}
 	return null;
 }
