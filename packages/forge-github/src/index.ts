@@ -32,7 +32,11 @@ export {
 	type GithubAppCredentials,
 	InstallationTokenCache,
 } from "./client/auth.ts";
-export { GithubHttp, type GithubHttpOptions } from "./client/http.ts";
+export {
+	GithubHttp,
+	GithubHttpError,
+	type GithubHttpOptions,
+} from "./client/http.ts";
 export {
 	type GithubInstallation,
 	type GithubInstallationRepo,
@@ -43,6 +47,7 @@ export {
 } from "./client/installations.ts";
 export { GithubReads, type GithubReadsOptions } from "./client/reads.ts";
 export { listRepoReviewers } from "./client/reviewers.ts";
+export { listThreads } from "./client/threads.ts";
 export {
 	DISMISS_REVIEW_MESSAGE,
 	PENDING_CHECK_SUMMARY,

@@ -18,7 +18,7 @@ import { setCheck } from "./check.ts";
  *
  * Comments append rather than upsert, and only on a verdict transition — see
  * the case below. Everything else throws: open-git has no labels, no reviewer
- * requests and no dismissals.
+ * requests, no dismissals, and no lock or close.
  * Throwing is deliberate: `block` and `dismiss-review` are best-effort at the
  * caller and settle with a warning, while the rest stay recorded rather than
  * being marked executed. Silently returning success would put an action in the
@@ -72,6 +72,12 @@ export async function executeAction(
 		}
 		case "request-review": {
 			throw new Error("open-git does not support review requests.");
+		}
+		case "lock": {
+			throw new Error("open-git does not support locking threads.");
+		}
+		case "close": {
+			throw new Error("open-git does not support closing threads.");
 		}
 		default: {
 			action satisfies never;

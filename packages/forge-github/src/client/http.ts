@@ -29,6 +29,30 @@ export class GithubHttp {
 		path: string,
 		body?: unknown,
 	): Promise<unknown> {
+		return (await this.send(repoFullName, method, path, body)).body;
+	}
+
+	async getPage(
+		repoFullName: string,
+		path: string,
+	): Promise<{ body: unknown; next: string | null }> {
+		const { body, headers } = await this.send(repoFullName, "GET", path);
+		const next = nextLink(headers.get("link"));
+		return {
+			body,
+			next:
+				next?.startsWith(this.apiBase) === true
+					? next.slice(this.apiBase.length)
+					: next,
+		};
+	}
+
+	private async send(
+		repoFullName: string,
+		method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
+		path: string,
+		body?: unknown,
+	): Promise<{ body: unknown; headers: Headers }> {
 		const token = await this.options.tokenFor(repoFullName);
 		const sentBody = body === undefined ? undefined : JSON.stringify(body);
 		const res = await this.fetchImpl(`${this.apiBase}${path}`, {
@@ -53,9 +77,16 @@ export class GithubHttp {
 			// metering must never fail a forge call
 		}
 		if (!res.ok) {
-			throw new Error(`${method} ${path} failed: ${res.status} ${text}`);
+			throw new GithubHttpError(
+				`${method} ${path} failed: ${res.status} ${text}`,
+				res.status,
+				isRateLimited(res, text),
+			);
 		}
-		return res.status === 204 || text.length === 0 ? null : JSON.parse(text);
+		return {
+			body: res.status === 204 || text.length === 0 ? null : JSON.parse(text),
+			headers: res.headers,
+		};
 	}
 
 	get(repo: string, path: string): Promise<unknown> {
@@ -73,4 +104,40 @@ export class GithubHttp {
 	delete(repo: string, path: string): Promise<unknown> {
 		return this.request(repo, "DELETE", path);
 	}
+}
+
+export class GithubHttpError extends Error {
+	constructor(
+		message: string,
+		readonly status: number,
+		readonly rateLimited: boolean,
+	) {
+		super(message);
+		this.name = "GithubHttpError";
+	}
+}
+
+function isRateLimited(res: Response, text: string): boolean {
+	if (res.status === 429) {
+		return true;
+	}
+	return (
+		res.status === 403 &&
+		(res.headers.get("x-ratelimit-remaining") === "0" ||
+			res.headers.has("retry-after") ||
+			/rate limit/i.test(text))
+	);
+}
+
+function nextLink(header: string | null): string | null {
+	if (!header) {
+		return null;
+	}
+	for (const part of header.split(",")) {
+		const match = part.match(/<([^>]+)>\s*;\s*rel="next"/);
+		if (match?.[1]) {
+			return match[1];
+		}
+	}
+	return null;
 }

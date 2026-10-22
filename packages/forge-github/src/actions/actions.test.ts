@@ -558,3 +558,51 @@ describe("executeAction — request-review asks named people and teams", () => {
 		).rejects.toThrow(/requested_reviewers failed: 422/);
 	});
 });
+
+describe("executeAction: lock and close use the issues API", () => {
+	test("lock sends the reason as lock_reason", async () => {
+		const { http, calls } = fakeHttp({});
+		const { executeAction } = await import("./execute.ts");
+		await executeAction(http, {
+			kind: "lock",
+			repoFullName: "a/b",
+			number: 9,
+			reason: "too heated",
+		});
+		expect(calls).toEqual([
+			{
+				method: "PUT",
+				path: "/repos/a/b/issues/9/lock",
+				body: { lock_reason: "too heated" },
+			},
+		]);
+	});
+
+	test("lock without a reason sends an empty body", async () => {
+		const { http, calls } = fakeHttp({});
+		const { executeAction } = await import("./execute.ts");
+		await executeAction(http, { kind: "lock", repoFullName: "a/b", number: 9 });
+		expect(calls[0]).toEqual({
+			method: "PUT",
+			path: "/repos/a/b/issues/9/lock",
+			body: {},
+		});
+	});
+
+	test("close patches the state", async () => {
+		const { http, calls } = fakeHttp({});
+		const { executeAction } = await import("./execute.ts");
+		await executeAction(http, {
+			kind: "close",
+			repoFullName: "a/b",
+			number: 9,
+		});
+		expect(calls).toEqual([
+			{
+				method: "PATCH",
+				path: "/repos/a/b/issues/9",
+				body: { state: "closed" },
+			},
+		]);
+	});
+});

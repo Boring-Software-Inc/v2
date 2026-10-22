@@ -8,7 +8,9 @@ import { deleteActiveComment, upsertComment } from "./comment.ts";
  * Executes a ForgeAction idempotently (§4). `block` files a request-changes
  * review so unprotected repos still get friction; the failing `tripwire`
  * check remains the primary gate (§7 — required status ⇒ dead merge button).
- * Closing PRs is not tripwire's job. Comment and check upsert their artifact.
+ * `block` never closes a PR; closing and locking happen only through the
+ * explicit `close` and `lock` workflow actions, which use the issues API and
+ * so work on issues and PRs alike. Comment and check upsert their artifact.
  * Review submission is best-effort at the caller: GitHub legally 403s
  * request-changes on your own PRs.
  */
@@ -85,6 +87,22 @@ export async function executeAction(
 		case "set-check": {
 			const result = await setCheck(http, action.repoFullName, action.check);
 			return { externalId: result.externalId };
+		}
+		case "lock": {
+			await http.put(
+				action.repoFullName,
+				`/repos/${action.repoFullName}/issues/${action.number}/lock`,
+				action.reason ? { lock_reason: action.reason } : {},
+			);
+			return { externalId: null };
+		}
+		case "close": {
+			await http.patch(
+				action.repoFullName,
+				`/repos/${action.repoFullName}/issues/${action.number}`,
+				{ state: "closed" },
+			);
+			return { externalId: null };
 		}
 		default: {
 			action satisfies never;
