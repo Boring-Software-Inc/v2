@@ -47,6 +47,32 @@ bun run dev:worker     # worker only (queue consumer)
 Set `BETTER_AUTH_SECRET` to enable real GitHub sign-in and the auth gates; leave
 it unset for the gateless "open-dev" posture.
 
+## unkey build secrets
+
+`VITE_SITE_URL` and `VITE_WAITLIST_OPENER_ORIGINS` are inlined when the web
+image builds. Unkey Compute does not pass Docker build args. It mounts the
+environment as one secret file, and `apps/web/Dockerfile` sources that file
+the way [Unkey build secrets](https://www.unkey.com/docs/compute/build/build-secrets)
+describe. Set these on the **web** app's environment (production and preview):
+
+| variable | value |
+| --- | --- |
+| `VITE_SITE_URL` | `https://app.tripwire.sh` |
+| `VITE_WAITLIST_OPENER_ORIGINS` | `https://tripwire.sh,https://www.tripwire.sh` |
+
+The landing site redirects apex to www, so the allowlist needs both origins.
+The api and worker images do not inline these. A local `docker build` with no
+secret uses `http://localhost:3000` and `http://localhost:3001`. `bun run dev`
+reads `.env` and does not use this path. Railway can still pass the same two
+names as build args.
+
+```
+docker build -f apps/web/Dockerfile \
+  --build-arg UNKEY_SECRETS_ID=env \
+  --secret id=env,src=.env \
+  .
+```
+
 ## checks
 
 ```
