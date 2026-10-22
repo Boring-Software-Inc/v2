@@ -12,6 +12,7 @@ import {
 	seedApprovedInstallRequest,
 	seedDemoWorkflows,
 	seedEconomics,
+	seedInstallRecoveryState,
 	seedPublicRun,
 	seedRepoExtras,
 	seedStory,
@@ -189,6 +190,13 @@ export async function applyScenario(input: {
 			now,
 		});
 	}
+	if (plan.recovery && user) {
+		await seedInstallRecoveryState(db, {
+			...plan.recovery,
+			userId: user.id,
+			now,
+		});
+	}
 	if (plan.approvedRequest && user) {
 		await seedApprovedInstallRequest(db, { userId: user.id, now });
 	}
@@ -204,7 +212,7 @@ export async function applyScenario(input: {
 			)
 		: null;
 	const installState =
-		plan.unclaimed && user && org
+		(plan.unclaimed || plan.recovery) && user && org
 			? signInstallState({ userId: user.id, orgId: org.id })
 			: null;
 

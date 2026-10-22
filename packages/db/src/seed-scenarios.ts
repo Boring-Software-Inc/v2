@@ -1,4 +1,5 @@
 import {
+	type InstallAccessResult,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
@@ -9,6 +10,7 @@ import { events } from "./schema/events.ts";
 import { workflowDefinitions } from "./schema/repos.ts";
 import { ensureDemoRepo } from "./seed.ts";
 import { ensureDemoGithubAccount, seedWorkflowCatalog } from "./seed-extras.ts";
+import { recordInstallAccessCheck } from "./services/installation-access.ts";
 import * as workflowServices from "./services/workflows.ts";
 
 export type DemoWorkflowMode = "none" | "off" | "live" | "issues";
@@ -181,4 +183,90 @@ export async function seedUnclaimedInstall(
 			kind: "installation.created",
 		})
 		.onConflictDoNothing();
+}
+
+export type DemoRecoveryState =
+	| "processing"
+	| "recovering"
+	| "unreadable"
+	| "missing"
+	| "not-for-tripwire"
+	| "not-yours"
+	| "token-expired";
+
+const RECOVERY_CHECKS = {
+	processing: null,
+	recovering: "pending",
+	unreadable: null,
+	missing: "failed",
+	"not-for-tripwire": "not-for-tripwire",
+	"not-yours": "denied",
+	"token-expired": "token-expired",
+} satisfies Record<DemoRecoveryState, InstallAccessResult | null>;
+
+function recoveryEvent(input: {
+	installationId: string;
+	state: DemoRecoveryState;
+	receivedAt: Date;
+}) {
+	const raw = {
+		action: "created",
+		installation: {
+			id: input.installationId,
+			account: { id: "demo-gh-stranger", login: "someone-else" },
+		},
+		sender: { id: "demo-gh-stranger" },
+	};
+	const base = {
+		id: `demo-evt-install-${input.installationId}`,
+		forge: "github" as const,
+		deliveryId: `demo-delivery-install-${input.installationId}`,
+		rawKind: "installation",
+		raw,
+		receivedAt: input.receivedAt,
+	};
+	if (input.state === "processing") {
+		return base;
+	}
+	if (input.state === "unreadable") {
+		return {
+			...base,
+			quarantined: true,
+			quarantineReason: "demo: payload failed to parse",
+		};
+	}
+	if (input.state === "not-yours") {
+		return { ...base, kind: "installation.created" };
+	}
+	return null;
+}
+
+export async function seedInstallRecoveryState(
+	db: Db,
+	input: {
+		installationId: string;
+		state: DemoRecoveryState;
+		userId: string;
+		now: Date;
+	},
+): Promise<void> {
+	await ensureDemoGithubAccount(db, input.userId);
+	const event = recoveryEvent({
+		installationId: input.installationId,
+		state: input.state,
+		receivedAt: new Date(input.now.getTime() - 60 * 1000),
+	});
+	if (event) {
+		await db.insert(events).values(event).onConflictDoNothing();
+	}
+	const result = RECOVERY_CHECKS[input.state];
+	if (result) {
+		await recordInstallAccessCheck(db, {
+			userId: input.userId,
+			forge: "github",
+			installationId: input.installationId,
+			result,
+			at: input.now,
+		});
+	}
 }

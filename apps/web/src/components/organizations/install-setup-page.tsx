@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { FORGE_CATALOG, type Forge } from "@tripwire/contracts";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { BrandLockup } from "#/components/auth/brand-lockup";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
@@ -27,11 +27,14 @@ import { toast } from "#/components/glaze/ui/toast";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { authClient } from "#/lib/auth-client";
 import {
+	type ClaimableInstallStatus,
 	claimInstallation,
 	getInstallPreview,
-	type InstallPreview,
+	type InstallStatus,
 	listClaimableInstallations,
+	recoverInstallation,
 } from "#/lib/onboarding.functions";
 import { onboardingQueryKeys } from "#/lib/onboarding.query";
 import { myOrgsQueryOptions, orgQueryKeys } from "#/lib/org.query";
@@ -149,6 +152,44 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	);
 }
 
+const MISSING_GRACE_MS = 30_000;
+const POLL_MS = 2000;
+
+function isWaiting(status: InstallStatus): boolean {
+	return (
+		status.status === "processing" ||
+		status.status === "recovering" ||
+		(status.status === "missing" && status.recoverable)
+	);
+}
+
+function useAutoRecover(
+	status: InstallStatus | undefined,
+	recover: () => void,
+) {
+	const fired = useRef(false);
+	const waitForWebhook = status?.status === "missing" && status.recoverable;
+	const checkNow = status?.status === "not-yours" && status.recoverable;
+	useEffect(() => {
+		if (fired.current) {
+			return;
+		}
+		if (checkNow) {
+			fired.current = true;
+			recover();
+			return;
+		}
+		if (!waitForWebhook) {
+			return;
+		}
+		const timer = setTimeout(() => {
+			fired.current = true;
+			recover();
+		}, MISSING_GRACE_MS);
+		return () => clearTimeout(timer);
+	}, [waitForWebhook, checkNow, recover]);
+}
+
 function SetupFlow({
 	installationId,
 	state,
@@ -156,24 +197,33 @@ function SetupFlow({
 	installationId: string;
 	state: string | undefined;
 }) {
+	const queryClient = useQueryClient();
 	const {
-		data: preview,
+		data: status,
 		isError,
 		refetch,
 	} = useQuery({
-		queryKey: ["onboarding", "install-preview", installationId, state ?? null],
+		queryKey: onboardingQueryKeys.installStatus(installationId, state ?? null),
 		queryFn: ({ signal }) =>
 			getInstallPreview({ data: { installationId, state }, signal }),
 		staleTime: 30_000,
 		refetchInterval: (query) =>
-			query.state.data?.claimable === false &&
-			query.state.data.claimedByOrgSlug === null
-				? 5000
-				: false,
+			query.state.data && isWaiting(query.state.data) ? POLL_MS : false,
 	});
+	const recovery = useMutation({
+		mutationFn: () => recoverInstallation({ data: { installationId } }),
+		onSettled: () =>
+			queryClient.invalidateQueries({
+				queryKey: onboardingQueryKeys.installStatus(
+					installationId,
+					state ?? null,
+				),
+			}),
+	});
+	useAutoRecover(status, recovery.mutate);
 	const [pickerOpen, setPickerOpen] = useState(false);
 
-	if (isError && !preview) {
+	if (isError && !status) {
 		return (
 			<LoadError
 				onRetry={() => refetch()}
@@ -181,57 +231,164 @@ function SetupFlow({
 			/>
 		);
 	}
-	if (!preview) {
+	if (!status) {
 		return <InstallSetupPageSkeleton />;
 	}
 
-	if (preview.claimedByOrgSlug) {
-		return (
-			<SetupShell>
-				<SetupHeader
-					body="Another Tripwire org already checks this installation. An installation can belong to one org at a time."
-					title={`Already connected to ${preview.claimedByOrgSlug}`}
+	switch (status.status) {
+		case "claimed-by-your-org":
+			return (
+				<SetupShell>
+					<SetupHeader
+						body="Another Tripwire org already checks this installation. An installation can belong to one org at a time."
+						title={`Already connected to ${status.orgSlug}`}
+					/>
+					<div className="flex justify-center">
+						<Button
+							nativeButton={false}
+							render={<Link params={{ org: status.orgSlug }} to="/$org/home" />}
+						>
+							{`Open ${status.orgSlug}`}
+						</Button>
+					</div>
+				</SetupShell>
+			);
+		case "processing":
+		case "recovering":
+			return <ConnectingScreen />;
+		case "missing":
+			return status.recoverable ? (
+				<ConnectingScreen />
+			) : (
+				<RecoveryScreen
+					action="Check again"
+					mood="install-nothing"
+					onRecover={() => recovery.mutate()}
+					pending={recovery.isPending}
+					title="Tripwire hasn't heard from GitHub about this install yet"
 				/>
-				<div className="flex justify-center">
-					<Button
-						nativeButton={false}
-						render={
-							<Link
-								params={{ org: preview.claimedByOrgSlug }}
-								to="/$org/home"
-							/>
-						}
-					>
-						{`Open ${preview.claimedByOrgSlug}`}
-					</Button>
-				</div>
-			</SetupShell>
-		);
-	}
-
-	if (!preview.claimable) {
-		return (
-			<SetupShell>
-				<SetupHeader
-					body={`Only the account that installed Tripwire, or requested the install, can connect it. If you installed it a moment ago, this page updates when ${forgeLabel(preview.forge)} confirms it.`}
-					title="Can't connect this installation"
+			);
+		case "unreadable":
+			return (
+				<RecoveryScreen
+					action="Try again"
+					mood="route-error"
+					onRecover={() => recovery.mutate()}
+					pending={recovery.isPending}
+					title="Tripwire couldn't read GitHub's install message"
 				/>
-				<BackHome />
-			</SetupShell>
-		);
+			);
+		case "not-for-tripwire":
+			return (
+				<SetupShell>
+					<MascotArt mood="not-found" />
+					<SetupHeader title="This installation isn't for Tripwire" />
+					<BackHome />
+				</SetupShell>
+			);
+		case "token-expired":
+			return <SignInAgainScreen />;
+		case "not-yours":
+			return (
+				<SetupShell>
+					<SetupHeader
+						body={`Only the account that installed Tripwire, or requested the install, can connect it. If you installed it a moment ago, this page updates when ${forgeLabel(status.forge)} confirms it.`}
+						title="Can't connect this installation"
+					/>
+					<BackHome />
+				</SetupShell>
+			);
+		case "claimable":
+			if (status.stateOrg && !pickerOpen) {
+				return (
+					<ConfirmScreen
+						onChooseDifferent={() => setPickerOpen(true)}
+						preview={status}
+						stateOrg={status.stateOrg}
+					/>
+				);
+			}
+			return <ClaimScreen preview={status} />;
 	}
+}
 
-	if (preview.stateOrg && !pickerOpen) {
-		return (
-			<ConfirmScreen
-				onChooseDifferent={() => setPickerOpen(true)}
-				preview={preview}
-				stateOrg={preview.stateOrg}
-			/>
-		);
-	}
+function ConnectingScreen() {
+	return (
+		<SetupShell>
+			<MascotArt mood="repos-syncing" />
+			<SetupHeader title="Connecting your installation…" />
+		</SetupShell>
+	);
+}
 
-	return <ClaimScreen preview={preview} />;
+function RecoveryScreen({
+	title,
+	action,
+	mood,
+	pending,
+	onRecover,
+}: {
+	title: string;
+	action: string;
+	mood: "install-nothing" | "route-error";
+	pending: boolean;
+	onRecover: () => void;
+}) {
+	return (
+		<SetupShell>
+			<MascotArt mood={mood} />
+			<SetupHeader title={title} />
+			<div className="flex flex-wrap justify-center gap-2">
+				<Button
+					onClick={onRecover}
+					pending={pending}
+					pendingLabel="Checking"
+					type="button"
+				>
+					{action}
+				</Button>
+				<Button
+					nativeButton={false}
+					render={<Link to="/" />}
+					variant="secondary"
+				>
+					Back home
+				</Button>
+			</div>
+		</SetupShell>
+	);
+}
+
+function SignInAgainScreen() {
+	const signIn = useMutation({
+		mutationFn: async () => {
+			const { error } = await authClient.linkSocial({
+				provider: "github",
+				callbackURL: `${window.location.pathname}${window.location.search}`,
+			});
+			if (error) {
+				throw new Error(
+					error.message ?? "Tripwire couldn't reach GitHub. Try again.",
+				);
+			}
+		},
+	});
+	return (
+		<SetupShell>
+			<SetupHeader title="Sign in with GitHub again to connect this installation" />
+			<div className="flex justify-center">
+				<Button
+					onClick={() => signIn.mutate()}
+					pending={signIn.isPending}
+					pendingLabel="Opening GitHub"
+					type="button"
+				>
+					Sign in with GitHub
+				</Button>
+			</div>
+			{signIn.error ? <ClaimError message={signIn.error} /> : null}
+		</SetupShell>
+	);
 }
 
 function ConfirmScreen({
@@ -239,8 +396,8 @@ function ConfirmScreen({
 	stateOrg,
 	onChooseDifferent,
 }: {
-	preview: InstallPreview;
-	stateOrg: NonNullable<InstallPreview["stateOrg"]>;
+	preview: ClaimableInstallStatus;
+	stateOrg: NonNullable<ClaimableInstallStatus["stateOrg"]>;
 	onChooseDifferent: () => void;
 }) {
 	const claim = useClaimMutation(preview.installationId, preview.forge);
@@ -290,7 +447,7 @@ function ConfirmScreen({
 	);
 }
 
-function ClaimScreen({ preview }: { preview: InstallPreview }) {
+function ClaimScreen({ preview }: { preview: ClaimableInstallStatus }) {
 	const { data: orgs, isError: orgsError } = useQuery(myOrgsQueryOptions());
 	const claim = useClaimMutation(preview.installationId, preview.forge);
 	const adminOrgs = (orgs ?? []).filter((org) => org.role === "admin");
@@ -424,7 +581,7 @@ function repoCountLabel(count: number): string {
 	return `${count} ${count === 1 ? "repo" : "repos"}`;
 }
 
-function SourceRow({ preview }: { preview: InstallPreview }) {
+function SourceRow({ preview }: { preview: ClaimableInstallStatus }) {
 	const syncing = preview.account === null && preview.repoCount === 0;
 	return (
 		<Item>
@@ -464,13 +621,15 @@ function OrgRowsSkeleton() {
 	);
 }
 
-function SetupHeader({ title, body }: { title: string; body: string }) {
+function SetupHeader({ title, body }: { title: string; body?: string }) {
 	return (
 		<header className="flex flex-col items-center gap-2 text-center">
 			<h1 className="type-title text-balance">{title}</h1>
-			<p className="max-w-measure-hint type-body text-pretty text-text-2">
-				{body}
-			</p>
+			{body ? (
+				<p className="max-w-measure-hint type-body text-pretty text-text-2">
+					{body}
+				</p>
+			) : null}
 		</header>
 	);
 }

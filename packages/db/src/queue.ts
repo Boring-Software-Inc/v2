@@ -80,6 +80,17 @@ export function syncRepoReviewersOptions(repoId: string) {
 	return { singletonKey: repoId };
 }
 
+export const RECOVER_INSTALLATION_QUEUE = "recover-installation";
+
+export interface RecoverInstallationJob {
+	userId: string;
+	installationId: string;
+}
+
+export function recoverInstallationOptions(job: RecoverInstallationJob) {
+	return { singletonKey: `${job.userId}:${job.installationId}` };
+}
+
 export const REFRESH_SURFACES_QUEUE = "refresh-response-surfaces";
 
 export interface RefreshSurfacesJob {
@@ -126,5 +137,6 @@ export async function createBoss(
 	await boss.createQueue(RERUN_QUEUE);
 	await boss.createQueue(SYNC_REPO_REVIEWERS_QUEUE, { policy: "stately" });
 	await boss.createQueue(REFRESH_SURFACES_QUEUE);
+	await boss.createQueue(RECOVER_INSTALLATION_QUEUE, { policy: "stately" });
 	return boss;
 }

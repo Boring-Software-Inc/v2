@@ -12,6 +12,13 @@ export const DEV_INSTALLS = [
 	"request-approved",
 	"awaiting-confirmation",
 	"syncing",
+	"install-processing",
+	"install-recovering",
+	"install-unreadable",
+	"install-missing",
+	"install-not-for-tripwire",
+	"install-not-yours",
+	"install-token-expired",
 	"connected",
 ] as const;
 export const DEV_REPOS = ["none", "empty", "one", "many", "active"] as const;
@@ -89,6 +96,13 @@ export const DEV_OPTION_LABELS: DevOptionLabelMap = {
 		"request-approved": "Install request approved",
 		"awaiting-confirmation": "Waiting for confirmation",
 		syncing: "Syncing repos",
+		"install-processing": "Webhook processing",
+		"install-recovering": "Checking with GitHub",
+		"install-unreadable": "Webhook unreadable",
+		"install-missing": "Webhook missing",
+		"install-not-for-tripwire": "Not a Tripwire install",
+		"install-not-yours": "Someone else's install",
+		"install-token-expired": "GitHub sign-in expired",
 		connected: "Connected",
 	},
 	repos: {
@@ -122,12 +136,31 @@ export const DEV_LATENCY_LABELS = {
 	4000: "4s",
 } satisfies Record<DevLatency, string>;
 
+export const RECOVERY_INSTALLS = [
+	"install-processing",
+	"install-recovering",
+	"install-unreadable",
+	"install-missing",
+	"install-not-for-tripwire",
+	"install-not-yours",
+	"install-token-expired",
+] as const satisfies readonly DevInstall[];
+
+export type DevRecoveryInstall = (typeof RECOVERY_INSTALLS)[number];
+
+export function isRecoveryInstall(
+	install: DevInstall,
+): install is DevRecoveryInstall {
+	return RECOVERY_INSTALLS.some((candidate) => candidate === install);
+}
+
 const NO_REPO_INSTALLS: readonly DevInstall[] = [
 	"none",
 	"request-pending",
 	"request-approved",
 	"awaiting-confirmation",
 	"syncing",
+	...RECOVERY_INSTALLS,
 ];
 
 const SETUP_INSTALLS: readonly DevInstall[] = [
@@ -135,6 +168,7 @@ const SETUP_INSTALLS: readonly DevInstall[] = [
 	"request-approved",
 	"awaiting-confirmation",
 	"syncing",
+	...RECOVERY_INSTALLS,
 ];
 
 type Guard<A extends DevAxis> = (
@@ -373,6 +407,21 @@ export const DEV_PRESETS: readonly DevPreset[] = [
 			landing: "install-setup",
 		},
 		{ keywords: ["background", "sync"] },
+	),
+	...RECOVERY_INSTALLS.map((install) =>
+		preset(
+			install,
+			DEV_OPTION_LABELS.install[install],
+			"Install recovery",
+			{
+				...OWNER_HOME,
+				install,
+				repos: "none",
+				workflows: "none",
+				landing: "install-setup",
+			},
+			{ keywords: ["install", "recovery", "webhook", "setup"] },
+		),
 	),
 	preset(
 		"forge-loading",

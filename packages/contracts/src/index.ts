@@ -21,6 +21,7 @@ export * from "./economics.ts";
 export * from "./events.ts";
 export * from "./forges.ts";
 export * from "./insights.ts";
+export * from "./install-status.ts";
 export * from "./moderation.ts";
 export * from "./org.ts";
 export * from "./redact.ts";

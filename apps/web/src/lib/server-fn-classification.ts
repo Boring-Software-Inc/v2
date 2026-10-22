@@ -41,6 +41,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	createOrg: "authed", // any approved user may found a team org
 	submitFeedback: "authed", // product feedback, not org data
 	getInstallPreview: "authed", // pre-claim: caller may not be an admin yet
+	recoverInstallation: "authed", // checks the caller's own access to an install
 	listClaimableInstallations: "authed", // recovery for id-less setup callbacks
 	listApprovedInstallRequests: "authed",
 	/**
