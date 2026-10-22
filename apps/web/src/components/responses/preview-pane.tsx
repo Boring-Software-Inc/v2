@@ -86,14 +86,16 @@ export function PreviewPane({
 			aria-labelledby={titleId}
 			className="flex min-h-0 flex-col overflow-hidden bg-shell max-lg:hidden lg:col-start-2 lg:row-start-2 lg:me-3 lg:mb-3 lg:rounded-shell lg:border lg:border-line-faint"
 		>
-			<h2
-				className="flex h-12 shrink-0 items-center px-6 type-label-lg text-text-1"
-				id={titleId}
-			>
-				Preview
-			</h2>
-			<div className="min-h-0 flex-1 overflow-y-auto">
-				<div className="w-full max-w-196 p-4 sm:p-6 lg:p-8">{children}</div>
+			<div className="shrink-0 [scrollbar-gutter:stable_both-edges] overflow-hidden">
+				<h2
+					className="mx-auto flex h-12 w-full max-w-196 items-center px-6 type-label-lg text-text-1"
+					id={titleId}
+				>
+					Preview
+				</h2>
+			</div>
+			<div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
+				<div className="mx-auto w-full max-w-196 px-6 pb-6">{children}</div>
 			</div>
 		</section>
 	);

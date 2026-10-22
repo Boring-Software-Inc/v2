@@ -3,7 +3,6 @@ import { Checkbox } from "#/components/glaze/ui/checkbox";
 import {
 	PreviewLinked,
 	type PreviewSetting,
-	usePreviewLink,
 } from "#/components/responses/preview-link";
 import { cn } from "#/lib/glaze/utils";
 
@@ -51,7 +50,6 @@ export function SettingToggle({
 	nested?: boolean;
 	onChange: (checked: boolean) => void;
 }) {
-	const link = usePreviewLink();
 	const id = useId();
 	return (
 		<PreviewLinked setting={setting}>
@@ -72,7 +70,6 @@ export function SettingToggle({
 					disabled={disabled}
 					onCheckedChange={(next) => {
 						onChange(next === true);
-						link.flash(setting);
 					}}
 				/>
 				<span className="flex min-w-0 flex-col gap-0.5">

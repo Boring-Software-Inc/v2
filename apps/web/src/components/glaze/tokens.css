@@ -202,12 +202,14 @@
   --scale-overlay: 0.97; /* the scale a modal overlay settles from and leaves to | dialog */
   --dur-spin: 800ms; /* one turn of the pending arc, a loop | button pending, spinner */
   --dur-slide: 200ms; /* a selection mark sliding to its new place: the segmented thumb, the pill tab | segmented control, tabs */
-  --dur-step-sweep: 520ms;
+  --dur-step: 300ms;
+  --step-thumb-fill: #ffffff;
   --dur-sweep: 1400ms; /* one pass of the indeterminate segment along a progress track, the other loop | progress indeterminate */
   --wait-show: 150ms; /* how long a load waits before its skeleton or dim shows, so a fast answer never flashes | skeleton swap */
   --wait-hold: 400ms; /* how long a skeleton stays once it shows, so it never blinks | skeleton swap */
   --stale: 0.6; /* the opacity of content that is reloading behind a busy mark | skeleton swap */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1); /* the house curve: arrives fast, settles | every transition */
+  --ease-step: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1); /* an element leaving | overlay exit */
   --scale-press-flat: 0.99; /* the scale a held secondary settles at, barely moving | secondary button */
   --scale-press: 0.97; /* the scale a held flat control settles at | secondary button, ghost */
@@ -326,5 +328,5 @@
 
 /* Reduced motion: no press scale, no fades. The pending arc stays as a still mark (styles.css stops it). */
 @media (prefers-reduced-motion: reduce) {
-  [data-system="glaze"], .glaze { --dur-press: 0ms; --dur-state: 0ms; --dur-overlay: 0ms; --scale-press: 1; --scale-press-flat: 1; --scale-press-glass: 1; --dur-glass-press: 0ms; --dur-glass-release: 0ms; --dur-slide: 0ms; }
+  [data-system="glaze"], .glaze { --dur-press: 0ms; --dur-state: 0ms; --dur-overlay: 0ms; --scale-press: 1; --scale-press-flat: 1; --scale-press-glass: 1; --dur-glass-press: 0ms; --dur-glass-release: 0ms; --dur-slide: 0ms; --dur-step: 0ms; }
 }

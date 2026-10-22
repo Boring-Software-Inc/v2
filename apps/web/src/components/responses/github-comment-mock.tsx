@@ -1,5 +1,7 @@
 import { COMMENT_MARKER } from "@tripwire/contracts";
+import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
+import { AnimatedHeight } from "#/components/common/animated-height";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { Badge } from "#/components/glaze/ui/badge";
 import {
@@ -8,6 +10,10 @@ import {
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
+import {
+	BLUR_SWAP,
+	keyedByContent,
+} from "#/components/responses/preview-motion";
 import { PreviewObject } from "#/components/responses/preview-object";
 
 type BodyBlock =
@@ -108,53 +114,74 @@ function renderInline(text: string): ReactNode[] {
 	});
 }
 
+function blockKey(block: BodyBlock): string {
+	if (block.kind === "paragraph") {
+		return `p:${block.text}`;
+	}
+	if (block.kind === "list") {
+		return `ul:${block.items.join("\n")}`;
+	}
+	if (block.kind === "button") {
+		return `button:${block.src}`;
+	}
+	return `details:${block.summary}\n${block.body}`;
+}
+
+const BLOCK_MOTION = { ...BLUR_SWAP, layout: "position" } as const;
+
 function Markdown({ blocks }: { blocks: BodyBlock[] }) {
 	return (
-		<>
-			{blocks.map((block, i) => {
-				const key = `${block.kind}-${i}`;
+		<AnimatePresence initial={false} mode="popLayout">
+			{keyedByContent(blocks, blockKey).map(({ item: block, key }) => {
 				if (block.kind === "paragraph") {
 					return (
-						<p className="whitespace-pre-line" data-dim="" key={key}>
+						<motion.p
+							className="whitespace-pre-line"
+							data-dim=""
+							key={key}
+							{...BLOCK_MOTION}
+						>
 							{renderInline(block.text)}
-						</p>
+						</motion.p>
 					);
 				}
 				if (block.kind === "list") {
 					return (
-						<ul
+						<motion.ul
 							className="flex list-disc flex-col gap-1 ps-6"
 							data-dim=""
 							key={key}
+							{...BLOCK_MOTION}
 						>
 							{block.items.map((item) => (
 								<li key={item}>{renderInline(item)}</li>
 							))}
-						</ul>
+						</motion.ul>
 					);
 				}
 				if (block.kind === "button") {
 					return (
-						<div
+						<motion.div
 							className="relative w-fit rounded-tag"
 							data-dim=""
 							data-region="details-button"
 							key={key}
+							{...BLOCK_MOTION}
 						>
 							<img alt={block.alt} className="w-46" src={block.src} />
-						</div>
+						</motion.div>
 					);
 				}
 				return (
-					<details data-dim="" key={key}>
+					<motion.details data-dim="" key={key} {...BLOCK_MOTION}>
 						<summary className="cursor-pointer">{block.summary}</summary>
 						<div className="mt-3 flex flex-col gap-4">
 							<Markdown blocks={textBlocks(block.body)} />
 						</div>
-					</details>
+					</motion.details>
 				);
 			})}
-		</>
+		</AnimatePresence>
 	);
 }
 
@@ -167,22 +194,39 @@ export function GithubCommentMock({
 	body,
 	silentNote,
 }: GithubCommentMockProps) {
-	if (body === null) {
-		return (
-			<div className="sm:ms-13" data-dim="">
-				<PreviewObject>
-					<Empty size="sm" variant="plain">
-						<EmptyHeader>
-							<EmptyTitle>Tripwire posts no comment</EmptyTitle>
-							{silentNote ? (
-								<EmptyDescription>{silentNote}</EmptyDescription>
-							) : null}
-						</EmptyHeader>
-					</Empty>
-				</PreviewObject>
-			</div>
-		);
-	}
+	return (
+		<AnimatedHeight>
+			<AnimatePresence initial={false} mode="wait">
+				{body === null ? (
+					<motion.div key="silent" {...BLUR_SWAP}>
+						<SilentComment note={silentNote} />
+					</motion.div>
+				) : (
+					<motion.div key="comment" {...BLUR_SWAP}>
+						<PostedComment body={body} />
+					</motion.div>
+				)}
+			</AnimatePresence>
+		</AnimatedHeight>
+	);
+}
+
+function SilentComment({ note }: { note?: string }) {
+	return (
+		<div className="sm:ms-13" data-dim="">
+			<PreviewObject>
+				<Empty size="sm" variant="plain">
+					<EmptyHeader>
+						<EmptyTitle>Tripwire posts no comment</EmptyTitle>
+						{note ? <EmptyDescription>{note}</EmptyDescription> : null}
+					</EmptyHeader>
+				</Empty>
+			</PreviewObject>
+		</div>
+	);
+}
+
+function PostedComment({ body }: { body: string }) {
 	const blocks = parseBody(body);
 	return (
 		<div className="flex items-start gap-3">
@@ -194,7 +238,7 @@ export function GithubCommentMock({
 				<TripwireLogo size={22} />
 			</span>
 			<article className="min-w-0 flex-1">
-				<PreviewObject stacked>
+				<PreviewObject>
 					<header
 						className="flex flex-wrap items-center gap-x-1.5 gap-y-1 bg-shell px-4 py-2"
 						data-dim=""
@@ -209,10 +253,14 @@ export function GithubCommentMock({
 					</header>
 					<div className="p-2">
 						<div
-							className="relative flex flex-col gap-4 rounded-tag px-2 py-2 type-body text-text-1"
+							className="relative rounded-tag px-2 py-2 type-body text-text-1"
 							data-region="comment-body"
 						>
-							<Markdown blocks={blocks} />
+							<AnimatedHeight>
+								<div className="flex flex-col gap-4">
+									<Markdown blocks={blocks} />
+								</div>
+							</AnimatedHeight>
 						</div>
 					</div>
 				</PreviewObject>
