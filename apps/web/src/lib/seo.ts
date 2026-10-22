@@ -50,9 +50,7 @@ export function buildSeo({
 		description ?? siteConfig.defaultDescription,
 	);
 	const url = toAbsoluteUrl(path);
-	// Shared links get a card, not bare text. SVG for now; swap to a 1200x630 PNG
-	// at /og.png for full platform coverage (X/Discord skip SVG, degrade to no image).
-	const ogImage = toAbsoluteUrl("/og.jpg");
+	const ogImage = toAbsoluteUrl("/og.png");
 	return {
 		meta: [
 			{ title: pageTitle },
