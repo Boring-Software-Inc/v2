@@ -1,5 +1,5 @@
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
-import { FORGE_CATALOG } from "@tripwire/contracts";
+import { FORGE_CATALOG, forgeConnectable } from "@tripwire/contracts";
 import {
 	FORGE_GRID,
 	ForgeCell,
@@ -124,7 +124,7 @@ export function ConnectForgeGrid({
 					label={forge.label}
 					showReason
 					state={
-						forge.status === "live"
+						forgeConnectable(forge.id)
 							? (STATE.get(forge.id)?.() ?? {
 									kind: "blocked",
 									title: `${forge.label} can't connect yet`,

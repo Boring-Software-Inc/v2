@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { Forge } from "@tripwire/contracts";
+import { type Forge, forgeConnectable } from "@tripwire/contracts";
 import type {
 	ApprovedInstallRequest,
 	ClaimableInstallation,
@@ -74,19 +74,7 @@ function installUrlFor(forge: Forge, state: string): InstallUrlState {
 				}
 			: { status: "not-configured" };
 	}
-	const owner = process.env.OPEN_GIT_BOT_OWNER;
-	const slug = process.env.OPEN_GIT_BOT_SLUG;
-	if (!(owner && slug)) {
-		return { status: "not-configured" };
-	}
-	const origin = (process.env.OPEN_GIT_URL ?? "https://open-git.com").replace(
-		/\/$/,
-		"",
-	);
-	return {
-		status: "ready",
-		url: `${origin}/integrations/${owner}/${slug}/install`,
-	};
+	return { status: "not-configured" };
 }
 
 export const getOrgInstallUrl = createServerFn({ method: "GET" })
@@ -123,11 +111,21 @@ export const getInstallPreview = createServerFn({ method: "GET" })
 		const { orgServices } = await import("@tripwire/db");
 		const { verifyInstallState } = await import("#/lib/server/install-state");
 		const bound = data.state ? verifyInstallState(data.state) : null;
-		return await orgServices.previewInstallation(getDb().db, {
+		const preview = await orgServices.previewInstallation(getDb().db, {
 			userId,
 			installationId: data.installationId,
 			stateOrgId: bound && bound.userId === userId ? bound.orgId : null,
 		});
+		if (forgeConnectable(preview.forge)) {
+			return preview;
+		}
+		return {
+			...preview,
+			claimable: false,
+			account: null,
+			repoCount: 0,
+			stateOrg: null,
+		};
 	});
 
 /**
@@ -150,13 +148,14 @@ export const claimInstallation = createServerFn({ method: "POST" })
 		const { orgServices, schema } = await import("@tripwire/db");
 		const { and, eq, isNull } = await import("drizzle-orm");
 		const db = getDb().db;
-		const owned = userId
-			? await orgServices.userCanClaimInstallation(db, {
-					userId,
-					forge: data.forge,
-					installationId: data.installationId,
-				})
-			: false;
+		const owned =
+			userId && forgeConnectable(data.forge)
+				? await orgServices.userCanClaimInstallation(db, {
+						userId,
+						forge: data.forge,
+						installationId: data.installationId,
+					})
+				: false;
 		if (!owned) {
 			throw new Error(
 				"Only the account that installed Tripwire, or requested the install, can connect it.",
@@ -251,9 +250,10 @@ export const listClaimableInstallations = createServerFn({ method: "GET" })
 		}
 		const { getDb } = await import("#/lib/server/db");
 		const { orgServices } = await import("@tripwire/db");
-		return await orgServices.listClaimableInstallations(getDb().db, {
+		const installs = await orgServices.listClaimableInstallations(getDb().db, {
 			userId,
 		});
+		return installs.filter((install) => forgeConnectable(install.forge));
 	});
 
 export const listApprovedInstallRequests = createServerFn({ method: "GET" })

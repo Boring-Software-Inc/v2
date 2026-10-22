@@ -48,6 +48,7 @@ export interface ForgeCatalogEntry {
 	 */
 	readonly signIn?: ForgeSignIn;
 	readonly reviews?: boolean;
+	readonly paused?: boolean;
 }
 
 export const FORGE_CATALOG = [
@@ -58,11 +59,10 @@ export const FORGE_CATALOG = [
 		signIn: "social",
 		reviews: true,
 	},
-	// Ingest + sign-in, no reads: open-git ships OAuth and signed webhooks, so
-	// deliveries can be verified and stored. Its API exposes no diff, commits,
-	// contents or users, so no rule that needs them can run — see the `forges`
-	// declarations in RULE_CATALOG.
-	{ id: "opengit", label: "OpenGit", status: "live", signIn: "oauth2" },
+	// Paused: open-git's installation webhook names no installer, so Tripwire
+	// cannot prove who may claim an install. Ingest for repos already connected
+	// continues; sign-in and new connections are off.
+	{ id: "opengit", label: "OpenGit", status: "live", paused: true },
 	{ id: "gitlab", label: "GitLab", status: "planned" },
 	{ id: "origin", label: "ORIGIN", status: "planned" },
 ] as const satisfies readonly ForgeCatalogEntry[];
@@ -98,7 +98,7 @@ export const forgeSchema = z.enum(
 /** Brand labels by status — so UI copy that names forges ("github and gitlab
  * today") is generated from the catalog instead of drifting out of sync. */
 export const LIVE_FORGE_LABELS: readonly string[] = FORGE_CATALOG.filter(
-	isLive,
+	(entry) => isLive(entry) && !("paused" in entry),
 ).map((entry) => entry.label);
 
 export const PLANNED_FORGE_LABELS: readonly string[] = FORGE_CATALOG.filter(
@@ -121,6 +121,11 @@ export const SIGN_IN_FORGE_IDS: readonly ForgeId[] = FORGE_CATALOG.filter(
 export function forgeSignIn(id: ForgeId): ForgeSignIn | null {
 	const entry = FORGE_BY_ID[id];
 	return entry && "signIn" in entry ? entry.signIn : null;
+}
+
+export function forgeConnectable(id: ForgeId): boolean {
+	const entry = FORGE_BY_ID[id];
+	return entry !== undefined && isLive(entry) && !("paused" in entry);
 }
 
 export function forgePostsReviews(id: ForgeId): boolean {
