@@ -2,7 +2,6 @@ import { z } from "zod";
 import {
 	DEFAULT_PRESET_ID,
 	DEV_LATENCIES,
-	DEV_OPTION_LABELS,
 	DEV_PRESETS,
 	type DevLatency,
 	type DevPreset,
@@ -38,24 +37,6 @@ const panelStateSchema = z.object({
 const appliedStateSchema = panelStateSchema.extend({
 	presetId: z.string().nullable(),
 });
-
-const WORKFLOW_SUMMARY: Record<DevScenario["workflows"], string | null> = {
-	none: null,
-	off: "Workflows off",
-	live: "Workflows live",
-	issues: "Workflow with issues",
-};
-
-export function summarizeScenario(scenario: DevScenario): string {
-	const parts = [
-		DEV_OPTION_LABELS.account[scenario.account],
-		DEV_OPTION_LABELS.install[scenario.install],
-		scenario.repos === "none" ? null : DEV_OPTION_LABELS.repos[scenario.repos],
-		WORKFLOW_SUMMARY[scenario.workflows],
-		DEV_OPTION_LABELS.landing[scenario.landing],
-	];
-	return parts.filter((part) => part !== null).join(", ");
-}
 
 export function groupPresets(presets: readonly DevPreset[]): DevPresetGroup[] {
 	const groups: DevPresetGroup[] = [];
@@ -111,10 +92,4 @@ export function parsePanelState(raw: string | null): DevPanelState {
 export function parseAppliedState(raw: string | null): DevAppliedState | null {
 	const parsed = appliedStateSchema.safeParse(parseJson(raw));
 	return parsed.success ? parsed.data : null;
-}
-
-export function appliedLabel(applied: DevAppliedState): string {
-	const preset =
-		applied.presetId === null ? undefined : getPreset(applied.presetId);
-	return preset?.label ?? "Custom";
 }

@@ -52,17 +52,19 @@ export const DEV_AXES: readonly DevAxis[] = [
 	"landing",
 ];
 
-export const DEV_AXIS_LABELS: Record<DevAxis, string> = {
+export const DEV_AXIS_LABELS = {
 	account: "Account",
 	install: "Install",
 	repos: "Repos",
 	workflows: "Workflows",
 	landing: "Open",
+} satisfies Record<DevAxis, string>;
+
+export type DevOptionMap = {
+	readonly [A in DevAxis]: readonly DevScenario[A][];
 };
 
-export const DEV_OPTIONS: {
-	readonly [A in DevAxis]: readonly DevScenario[A][];
-} = {
+export const DEV_OPTIONS: DevOptionMap = {
 	account: DEV_ACCOUNTS,
 	install: DEV_INSTALLS,
 	repos: DEV_REPOS,
@@ -70,9 +72,11 @@ export const DEV_OPTIONS: {
 	landing: DEV_LANDINGS,
 };
 
-export const DEV_OPTION_LABELS: {
+export type DevOptionLabelMap = {
 	[A in DevAxis]: Record<DevScenario[A], string>;
-} = {
+};
+
+export const DEV_OPTION_LABELS: DevOptionLabelMap = {
 	account: {
 		owner: "Org owner",
 		member: "Member, not admin",
@@ -111,12 +115,12 @@ export const DEV_OPTION_LABELS: {
 	},
 };
 
-export const DEV_LATENCY_LABELS: Record<DevLatency, string> = {
+export const DEV_LATENCY_LABELS = {
 	0: "No delay",
 	400: "400ms",
 	1500: "1.5s",
 	4000: "4s",
-};
+} satisfies Record<DevLatency, string>;
 
 const NO_REPO_INSTALLS: readonly DevInstall[] = [
 	"none",
@@ -138,7 +142,9 @@ type Guard<A extends DevAxis> = (
 	state: DevScenario,
 ) => string | null;
 
-const GUARDS: { [A in DevAxis]: Guard<A> } = {
+type GuardMap = { [A in DevAxis]: Guard<A> };
+
+const GUARDS: GuardMap = {
 	account: () => null,
 	install: (value, state) => {
 		if (state.account === "anonymous" && value !== "none") {

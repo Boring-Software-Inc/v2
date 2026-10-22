@@ -20,7 +20,7 @@ export function DevScenarioSwitcher() {
 				</PopoverTrigger>
 				<PopoverContent
 					align="start"
-					className="max-h-[min(44rem,var(--available-height))] w-[min(46rem,var(--available-width))]"
+					className="max-h-[min(32rem,var(--available-height))] w-88 gap-0 p-0"
 					initialFocus={searchRef}
 					side="top"
 				>

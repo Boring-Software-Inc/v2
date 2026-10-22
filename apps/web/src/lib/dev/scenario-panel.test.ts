@@ -1,13 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
-	appliedLabel,
 	type DevAppliedState,
 	defaultPanelState,
 	findMatchingPreset,
 	groupPresets,
 	parseAppliedState,
 	parsePanelState,
-	summarizeScenario,
 } from "./scenario-panel.ts";
 import { DEV_PRESETS, type DevScenario, getPreset } from "./scenarios.ts";
 
@@ -18,32 +16,6 @@ const OWNER: DevScenario = {
 	workflows: "off",
 	landing: "home",
 };
-
-describe("summarizeScenario", () => {
-	test("joins option labels with commas", () => {
-		expect(summarizeScenario(OWNER)).toBe(
-			"Org owner, Connected, Busy repo, Workflows off, Org home",
-		);
-	});
-
-	test("drops empty repos and workflows", () => {
-		expect(
-			summarizeScenario({
-				account: "anonymous",
-				install: "none",
-				repos: "none",
-				workflows: "none",
-				landing: "public-run",
-			}),
-		).toBe("Signed out, Not installed, Public run");
-	});
-
-	test("never uses em dashes or middle dots", () => {
-		for (const preset of DEV_PRESETS) {
-			expect(summarizeScenario(preset.scenario)).not.toMatch(/[—·]/);
-		}
-	});
-});
 
 describe("groupPresets", () => {
 	test("keeps first-seen group order and preset order", () => {
@@ -136,19 +108,5 @@ describe("parseAppliedState", () => {
 	test("returns null for junk", () => {
 		expect(parseAppliedState(null)).toBeNull();
 		expect(parseAppliedState("{}")).toBeNull();
-	});
-});
-
-describe("appliedLabel", () => {
-	test("names the preset or says custom", () => {
-		expect(
-			appliedLabel({ scenario: OWNER, latency: 0, presetId: "active" }),
-		).toBe("Busy dashboard");
-		expect(appliedLabel({ scenario: OWNER, latency: 0, presetId: null })).toBe(
-			"Custom",
-		);
-		expect(
-			appliedLabel({ scenario: OWNER, latency: 0, presetId: "gone" }),
-		).toBe("Custom");
 	});
 });
