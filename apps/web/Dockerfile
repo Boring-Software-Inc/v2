@@ -2,19 +2,26 @@
 # server bundle (.output); the SSR RUNTIME IS NODE, not Bun (nitro targets node).
 # Build context is the MONOREPO ROOT: `docker build -f apps/web/Dockerfile .`
 #
-# Build-time vs runtime env — this bites hard:
-#   VITE_SITE_URL is INLINED at build (import.meta.env, seo.ts). It MUST be the
-#   real public web URL at build time or canonical/OG tags point at localhost.
+# Build-time vs runtime env. This bites hard:
+#   VITE_SITE_URL and VITE_WAITLIST_OPENER_ORIGINS are inlined at build
+#   (import.meta.env). Unkey Compute does not pass --build-arg. It mounts the
+#   environment as a secret file; the build RUN sources that file.
+#   https://www.unkey.com/docs/compute/build/build-secrets
+#   Set both names on the web app's Unkey environment. ARG defaults are
+#   localhost so `docker build` with no secret still runs, and so a missing
+#   Unkey variable cannot ship a production URL by accident. Railway can still
+#   pass the same names as --build-arg. They are not ENV: ENV would keep the
+#   value in image history, and the sourced file has to override it for one RUN.
 #   Everything else the server reads (VITE_API_URL, BETTER_AUTH_*, APP_URL,
-#   GITHUB_OAUTH_*, DATABASE_URL) is process.env at RUNTIME — set on the service.
+#   GITHUB_OAUTH_*, DATABASE_URL) is process.env at RUNTIME. Set it on the service.
 
 FROM oven/bun:1.3 AS build
 WORKDIR /app
-ARG VITE_SITE_URL=https://app.tripwire.sh
-ENV VITE_SITE_URL=$VITE_SITE_URL
-ARG VITE_WAITLIST_OPENER_ORIGINS="https://tripwire.sh,https://www.tripwire.sh"
-ENV VITE_WAITLIST_OPENER_ORIGINS=$VITE_WAITLIST_OPENER_ORIGINS
-# Build runs under Bun, but the SSR RUNTIME is Node — force nitro's node-server
+# ARG does not cross FROM. Unkey sets this to the id of the mounted env file.
+ARG UNKEY_SECRETS_ID
+ARG VITE_SITE_URL=http://localhost:3000
+ARG VITE_WAITLIST_OPENER_ORIGINS=http://localhost:3001
+# Build runs under Bun, but the SSR RUNTIME is Node. Force nitro's node-server
 # preset so the bundle uses node http, not Bun.serve (the portability lesson).
 ENV NITRO_PRESET=node-server
 COPY package.json bun.lock bunfig.toml ./
@@ -36,7 +43,17 @@ RUN bun install --frozen-lockfile
 COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/web ./apps/web
-RUN bun --filter @tripwire/web build
+# `id=${UNKEY_SECRETS_ID}` is what reruns this step when an env value changes.
+# required=false: a local build passes no secret, so the file is absent and the
+# ARG defaults above stand. When the file is present it must name both inlined
+# variables, or the build stops instead of baking localhost into a deploy.
+RUN --mount=type=secret,id=${UNKEY_SECRETS_ID},target=/run/secrets/.env,required=false \
+    if [ -s /run/secrets/.env ]; then \
+      set -a && . /run/secrets/.env && set +a && \
+      grep -q '^VITE_SITE_URL=.' /run/secrets/.env || { echo "missing VITE_SITE_URL in Unkey build secrets" >&2; exit 1; } && \
+      grep -q '^VITE_WAITLIST_OPENER_ORIGINS=.' /run/secrets/.env || { echo "missing VITE_WAITLIST_OPENER_ORIGINS in Unkey build secrets" >&2; exit 1; }; \
+    fi && \
+    bun --filter @tripwire/web build
 
 # ---- runtime: node serves the nitro bundle; .output is self-contained ----
 FROM node:22-slim AS runtime
