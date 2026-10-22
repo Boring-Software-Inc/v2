@@ -101,5 +101,36 @@ export const SAMPLE_RUN: RunView = {
 			"It changes 1 file.",
 		),
 	],
-	actions: [],
+	actions: [
+		{
+			kind: "set-check",
+			status: "executed",
+			recordedAt: "2026-10-21T10:14:59.000Z",
+			url: null,
+		},
+		{
+			kind: "block",
+			status: "executed",
+			recordedAt: "2026-10-21T10:14:59.000Z",
+			url: null,
+		},
+		{
+			kind: "comment",
+			status: "executed",
+			recordedAt: "2026-10-21T10:14:59.000Z",
+			url: null,
+		},
+	],
+	redactionLevel: 0,
+	event: {
+		kind: "change-request.opened",
+		actor: "new-contributor",
+		title: "Add a donate page",
+		headSha: "8de51ef9f624c5d35fe48b55f6cc5486eecf5672",
+		at: "2026-10-21T10:14:58.000Z",
+	},
+	workflows: [{ id: "default@1", name: "Rules", outcome: "block" }],
+	reviews: [],
+	previousRun: null,
+	nextRun: null,
 };

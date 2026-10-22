@@ -5,71 +5,71 @@ import {
 	aiReviewTraceSchema,
 	ruleIdOf,
 } from "@tripwire/contracts";
-import { AiFindings } from "#/components/runs/ai-findings";
-import { AiTraceDisclosure } from "#/components/runs/ai-trace";
+import { z } from "zod";
 import {
-	CryptoMatches,
-	FileRows,
-	RawDisclosure,
-} from "#/components/runs/evidence-parts";
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/components/glaze/ui/collapsible";
+import { JsonView } from "#/components/glaze/ui/json-view";
+import { AiFindings } from "#/components/runs/ai-findings";
+import { AiTraceMeta } from "#/components/runs/ai-trace";
+import { CryptoMatches, FileRows } from "#/components/runs/evidence-parts";
 import type { JsonValue, RunStepView } from "#/lib/runs.functions";
 
-/**
- * Rule evidence, §10 — the stored projection, never raw JSON. The step's
- * `summary` is its statement (rendered by the step card); this renders the
- * detail block ONLY for rules that point at THINGS (honeypot ⇒ touched files,
- * crypto-address ⇒ matched addresses, ai-review ⇒ findings). Every other rule's
- * summary is the whole story. The raw `evidence` (thresholds, the ai-review
- * trace) is a maintainer-only collapsed disclosure — never for a public visitor.
- */
+const envelopeSchema = z.object({ evidence: z.json() });
+const matchesSchema = z
+	.object({
+		matches: z.array(z.object({ value: z.string(), location: z.string() })),
+	})
+	.catch({ matches: [] });
+const touchedSchema = z
+	.object({ touched: z.array(z.string()) })
+	.catch({ touched: [] });
+const reviewSchema = z
+	.object({ output: aiReviewOutputSchema.nullable().catch(null) })
+	.catch({ output: null });
+const traceSchema = z
+	.object({ trace: aiReviewTraceSchema.nullable().catch(null) })
+	.catch({ trace: null });
 
-function isRecord(v: JsonValue): v is { [k: string]: JsonValue } {
-	return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-/** The rule's `evidence`, unwrapped from the RuleResult envelope if present. */
 function innerEvidence(evidence: JsonValue): JsonValue {
-	if (isRecord(evidence) && "evidence" in evidence) {
-		return evidence.evidence ?? null;
-	}
-	return evidence ?? null;
+	const envelope = envelopeSchema.safeParse(evidence);
+	return envelope.success ? envelope.data.evidence : evidence;
 }
 
-function reviewOutput(inner: JsonValue): AiReviewOutput | null {
-	if (!isRecord(inner) || !("output" in inner)) {
+function plural(count: number, one: string, many: string): string {
+	return `${count} ${count === 1 ? one : many}`;
+}
+
+interface EvidenceDetail {
+	label: string;
+	body: React.ReactNode;
+}
+
+function aiDetail(
+	output: AiReviewOutput | null,
+	trace: AiReviewTrace | null,
+	step: RunStepView,
+	repo: string,
+	sha: string | null,
+): EvidenceDetail | null {
+	const findings = output?.findings.length ?? 0;
+	if (findings === 0 && !trace) {
 		return null;
 	}
-	const parsed = aiReviewOutputSchema.safeParse(inner.output);
-	return parsed.success ? parsed.data : null;
-}
-
-/** The bounded trace, if present. Old unbounded traces fail the schema ⇒ null. */
-function reviewTrace(inner: JsonValue): AiReviewTrace | null {
-	if (!isRecord(inner) || !("trace" in inner)) {
-		return null;
-	}
-	const parsed = aiReviewTraceSchema.safeParse(inner.trace);
-	return parsed.success ? parsed.data : null;
-}
-
-function touchedFiles(inner: JsonValue): string[] {
-	if (isRecord(inner) && Array.isArray(inner.touched)) {
-		return inner.touched.filter((v): v is string => typeof v === "string");
-	}
-	return [];
-}
-
-function cryptoMatches(
-	inner: JsonValue,
-): { value: string; location: string }[] {
-	if (!isRecord(inner) || !Array.isArray(inner.matches)) {
-		return [];
-	}
-	return inner.matches.flatMap((m) =>
-		isRecord(m) && typeof m.value === "string" && typeof m.location === "string"
-			? [{ value: m.value, location: m.location }]
-			: [],
-	);
+	const count = plural(findings, "finding", "findings");
+	return {
+		label: trace ? (findings > 0 ? `Trace, ${count}` : "Trace") : count,
+		body: (
+			<>
+				{output ? <AiFindings output={output} repo={repo} sha={sha} /> : null}
+				{trace ? (
+					<AiTraceMeta durationMs={step.durationMs} trace={trace} />
+				) : null}
+			</>
+		),
+	};
 }
 
 export function RuleEvidence({
@@ -81,38 +81,65 @@ export function RuleEvidence({
 	step: RunStepView;
 	repo: string;
 	sha: string | null;
-	/** The full (session/open-dev) view — public visitors never see raw. */
 	maintainer: boolean;
 }) {
 	const inner = innerEvidence(step.evidence);
 	const ruleId = step.ruleRef ? ruleIdOf(step.ruleRef) : null;
-	// Maintainer-only: the bounded reasoning trace (§8). Public view has no trace
-	// (publicEvidence strips it), so this is null there and renders nothing.
-	const trace =
-		ruleId === "ai-review" && maintainer ? reviewTrace(inner) : null;
-
-	let detail: React.ReactNode = null;
+	let detail: EvidenceDetail | null = null;
 	if (ruleId === "ai-review") {
-		const output = reviewOutput(inner);
-		detail = output ? (
-			<AiFindings output={output} repo={repo} sha={sha} />
-		) : null;
-	} else if (ruleId === "honeypot") {
-		const files = touchedFiles(inner);
-		detail =
-			files.length > 0 ? (
-				<FileRows files={files} repo={repo} sha={sha} />
-			) : null;
+		detail = aiDetail(
+			reviewSchema.parse(inner).output,
+			maintainer ? traceSchema.parse(inner).trace : null,
+			step,
+			repo,
+			sha,
+		);
 	} else if (ruleId === "crypto-address") {
-		const matches = cryptoMatches(inner);
-		detail = matches.length > 0 ? <CryptoMatches matches={matches} /> : null;
+		const { matches } = matchesSchema.parse(inner);
+		detail =
+			matches.length > 0
+				? {
+						label: `Evidence, ${plural(matches.length, "match", "matches")}`,
+						body: <CryptoMatches matches={matches} />,
+					}
+				: null;
+	} else if (ruleId === "honeypot") {
+		const { touched } = touchedSchema.parse(inner);
+		detail =
+			touched.length > 0
+				? {
+						label: `Evidence, ${plural(touched.length, "file", "files")}`,
+						body: <FileRows files={touched} repo={repo} sha={sha} />,
+					}
+				: null;
 	}
-
+	const raw = maintainer && inner !== null;
+	if (!(detail || raw)) {
+		return null;
+	}
 	return (
-		<>
-			{detail}
-			{trace ? <AiTraceDisclosure trace={trace} /> : null}
-			{maintainer ? <RawDisclosure evidence={inner} /> : null}
-		</>
+		<Collapsible className="pt-1">
+			<CollapsibleTrigger size="sm">
+				{detail?.label ?? "Evidence"}
+			</CollapsibleTrigger>
+			<CollapsibleContent hiddenUntilFound>
+				<div className="flex flex-col gap-2 pt-2">
+					{detail?.body}
+					{raw && detail ? (
+						<Collapsible>
+							<CollapsibleTrigger size="sm">Raw evidence</CollapsibleTrigger>
+							<CollapsibleContent>
+								<div className="pt-2">
+									<JsonView data={inner} label="Raw evidence" />
+								</div>
+							</CollapsibleContent>
+						</Collapsible>
+					) : null}
+					{raw && !detail ? (
+						<JsonView data={inner} label="Raw evidence" />
+					) : null}
+				</div>
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { ForgeId, Verdict } from "@tripwire/contracts";
+import type { EventKind, ForgeId, Verdict } from "@tripwire/contracts";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import { orgMemberMiddleware } from "#/lib/server/org-guard";
 
@@ -36,6 +36,53 @@ export interface RunStepView {
 	publicEvidence?: JsonValue;
 	/** §10 public view only — the rule's plain-English outcome. */
 	summary?: string | null;
+}
+
+export interface RunEventView {
+	kind: EventKind | null;
+	actor: string | null;
+	title: string | null;
+	headSha: string | null;
+	at: string;
+}
+
+export type WorkflowOutcome = "block" | "review" | "pass";
+
+export interface RunWorkflowView {
+	id: string;
+	name: string;
+	outcome: WorkflowOutcome | null;
+}
+
+export interface RunReviewView {
+	workflowId: string | null;
+	state: "open" | "approved" | "denied";
+	degraded: boolean;
+	openedAt: string;
+	decidedAt: string | null;
+	decidedBy: string | null;
+}
+
+export interface RunLinkView {
+	id: string;
+	createdAt: string;
+	status: string;
+	verdict: Verdict | null;
+	eventKind: EventKind | null;
+	actor: string | null;
+	headSha: string | null;
+	rerun: boolean;
+}
+
+export interface RunActionView {
+	kind: string;
+	status: string;
+	recordedAt: string;
+	url: string | null;
+	delivery?:
+		| { state: "sent" }
+		| { state: "queued" }
+		| { state: "failed"; reason: string };
 }
 
 export interface RunView {
@@ -75,17 +122,13 @@ export interface RunView {
 	canRerun: boolean;
 	stepsHidden: boolean;
 	steps: RunStepView[];
-	actions: {
-		kind: string;
-		status: string;
-		recordedAt: string;
-		/** Outbound (webhook/discord) delivery state, derived without the url —
-		 * `recorded` alone must never read as delivered. */
-		delivery?:
-			| { state: "sent" }
-			| { state: "queued" }
-			| { state: "failed"; reason: string };
-	}[];
+	actions: RunActionView[];
+	redactionLevel: number;
+	event: RunEventView | null;
+	workflows: RunWorkflowView[];
+	reviews: RunReviewView[];
+	previousRun: RunLinkView | null;
+	nextRun: RunLinkView | null;
 }
 
 /**

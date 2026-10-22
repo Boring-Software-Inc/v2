@@ -158,3 +158,11 @@ export async function getModerationItem(db: Db, itemId: string) {
 		.where(eq(moderationItems.id, itemId));
 	return rows[0] ?? null;
 }
+
+export async function listModerationItemsForRun(db: Db, runId: string) {
+	return await db
+		.select()
+		.from(moderationItems)
+		.where(eq(moderationItems.runId, runId))
+		.orderBy(moderationItems.createdAt);
+}

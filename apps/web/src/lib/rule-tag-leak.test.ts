@@ -8,17 +8,13 @@ import { join } from "node:path";
  * `ruleDisplayName` / `ruleIdOf` (contracts), never format or split a ref
  * themselves. This asserts the surfaces that used to print or split `id@version`
  * no longer do so.
- *
- * The ONE sanctioned exception is the maintainer-only operator ref on the run
- * page (`step-card.tsx`), which renders `{step.ruleRef}` under a `maintainer`
- * guard — a gated VALUE render, not a `.split("@")` or a literal `@{version}`
- * tag-format, so it trips none of these checks.
  */
 
 const componentsDir = join(import.meta.dir, "..", "components");
 const SURFACES = [
 	"rules/rule-card.tsx",
-	"runs/step-card.tsx",
+	"runs/branch-card.tsx",
+	"runs/run-chain.tsx",
 	"runs/rule-evidence.tsx",
 ] as const;
 
@@ -38,8 +34,8 @@ describe("rule @version tag is internalized (§6 display)", () => {
 		});
 	}
 
-	test("step card routes the step label through ruleDisplayName", () => {
-		const src = readFileSync(join(componentsDir, "runs/step-card.tsx"), "utf8");
+	test("the run chain routes rule names through ruleDisplayName", () => {
+		const src = readFileSync(join(import.meta.dir, "run-chain.ts"), "utf8");
 		expect(src).toContain("ruleDisplayName");
 	});
 });

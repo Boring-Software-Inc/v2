@@ -110,7 +110,10 @@ function visibleToPublic(step: RunStepView, level: number): boolean {
  * evidence + ai-review findings + a plain-English outcome per rule — no
  * configured thresholds, no ai-review trace, no workflow snapshot (§10).
  */
+const MEMBER_ONLY_ACTIONS = new Set(["discord", "webhook"]);
+
 export function toPublicRunView(view: RunView, level = 0): RunView {
+	const namesHidden = redactionHides(level, "rule-names");
 	return {
 		...view,
 		access: "public",
@@ -124,8 +127,20 @@ export function toPublicRunView(view: RunView, level = 0): RunView {
 		stepsHidden: redactionHides(level, "failed-count"),
 		steps: view.steps
 			.filter((step) => visibleToPublic(step, level))
-			.map((step) => toPublicStep(step, level)),
-		actions: redactionHides(level, "rule-names") ? [] : view.actions,
+			.map((step) => toPublicStep(step, level))
+			.map((step, index) =>
+				namesHidden ? { ...step, nodeId: `step-${index}` } : step,
+			),
+		actions: namesHidden
+			? []
+			: view.actions.filter((action) => !MEMBER_ONLY_ACTIONS.has(action.kind)),
+		redactionLevel: level,
+		workflows: namesHidden ? [] : view.workflows,
+		reviews: view.reviews.map((review) => ({
+			...review,
+			workflowId: namesHidden ? null : review.workflowId,
+			decidedBy: null,
+		})),
 	};
 }
 
@@ -138,6 +153,7 @@ export function toPublicRunView(view: RunView, level = 0): RunView {
 export function toFullRunView(view: RunView): RunView {
 	return {
 		...view,
+		redactionLevel: 0,
 		stepsHidden: false,
 		steps: view.steps.map(({ publicEvidence: _pe, ...step }) => step),
 	};

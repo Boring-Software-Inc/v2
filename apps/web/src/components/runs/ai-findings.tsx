@@ -4,54 +4,19 @@ import type {
 	FindingSeverity,
 } from "@tripwire/contracts";
 import { External, Icon } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
 import {
 	blobUrl,
 	FileIcon,
 	FilePath,
 	renderBackticks,
 } from "#/components/runs/evidence-parts";
+import { cn } from "#/lib/utils";
 
-const SEVERITY: Record<
-	FindingSeverity,
-	{
-		word: string;
-		label: string;
-		variant: "fail" | "warn" | "neutral";
-		order: number;
-	}
-> = {
-	critical: { word: "critical", label: "Critical", variant: "fail", order: 0 },
-	warn: { word: "warning", label: "Warning", variant: "warn", order: 1 },
-	info: { word: "note", label: "Note", variant: "neutral", order: 2 },
-};
-
-const COLLAPSE_AT = 3;
-
-function severityCounts(findings: Finding[]): string {
-	return (Object.keys(SEVERITY) as FindingSeverity[])
-		.sort((a, b) => SEVERITY[a].order - SEVERITY[b].order)
-		.map((s) => ({ s, n: findings.filter((f) => f.severity === s).length }))
-		.filter((x) => x.n > 0)
-		.map((x) => `${x.n} ${SEVERITY[x.s].word}`)
-		.join(", ");
-}
-
-function worstStatus(findings: Finding[]): "fail" | "warn" | undefined {
-	if (findings.some((f) => f.severity === "critical")) {
-		return "fail";
-	}
-	if (findings.some((f) => f.severity === "warn")) {
-		return "warn";
-	}
-	return undefined;
-}
+const SEVERITY = {
+	critical: { label: "Critical", tone: "text-fail-text" },
+	warn: { label: "Warning", tone: "text-text-1" },
+	info: { label: "Note", tone: "text-text-2" },
+} satisfies Record<FindingSeverity, { label: string; tone: string }>;
 
 function FindingRow({
 	finding,
@@ -62,97 +27,37 @@ function FindingRow({
 	repo: string;
 	sha: string | null;
 }) {
-	const sev = SEVERITY[finding.severity];
-	const url = blobUrl(repo, sha, finding.file, finding.line);
-	const inner = (
-		<>
-			<div className="flex items-center gap-2">
-				<Badge size="sm" variant={sev.variant}>
-					{sev.label}
-				</Badge>
+	const severity = SEVERITY[finding.severity];
+	const url = finding.line
+		? blobUrl(repo, sha, finding.file, finding.line)
+		: null;
+	return (
+		<li className="flex flex-col gap-1 rounded-tag bg-paper px-2 py-2">
+			<div className="flex items-baseline gap-2">
+				<span className={cn("type-label-sm", severity.tone)}>
+					{severity.label}
+				</span>
 				{finding.line ? (
-					<span className="type-caption text-text-2">Line {finding.line}</span>
+					url ? (
+						<a
+							className="type-caption text-text-2 hover:text-text-1 hover:underline"
+							href={url}
+							rel="noreferrer"
+							target="_blank"
+						>
+							Line {finding.line}
+						</a>
+					) : (
+						<span className="type-caption text-text-2">
+							Line {finding.line}
+						</span>
+					)
 				) : null}
 			</div>
-			<p className="mt-1 type-body-sm text-text-1">
+			<p className="type-body-sm text-text-1 [overflow-wrap:anywhere]">
 				{renderBackticks(finding.note)}
 			</p>
-		</>
-	);
-	return (
-		<li className="rule-row">
-			{url ? (
-				<a
-					className="block rounded-tag px-2 py-2 hover:bg-hover-row"
-					href={url}
-					rel="noreferrer"
-					target="_blank"
-				>
-					{inner}
-				</a>
-			) : (
-				<div className="px-2 py-2">{inner}</div>
-			)}
 		</li>
-	);
-}
-
-function FileFindings({
-	file,
-	findings,
-	repo,
-	sha,
-}: {
-	file: string;
-	findings: Finding[];
-	repo: string;
-	sha: string | null;
-}) {
-	const fileUrl = blobUrl(repo, sha, file);
-	return (
-		<Collapsible
-			className="flex flex-col gap-1"
-			defaultOpen={findings.length < COLLAPSE_AT}
-		>
-			<div className="flex min-w-0 items-center gap-1">
-				<CollapsibleTrigger
-					size="sm"
-					summary={severityCounts(findings)}
-					summaryStatus={worstStatus(findings)}
-				>
-					<span className="flex min-w-0 items-center gap-1">
-						<FileIcon />
-						<FilePath file={file} />
-					</span>
-				</CollapsibleTrigger>
-				{fileUrl ? (
-					<Button
-						nativeButton={false}
-						aria-label={`Open ${file} on GitHub`}
-						render={(props) => (
-							<a {...props} href={fileUrl} rel="noreferrer" target="_blank" />
-						)}
-						size="icon-sm"
-						variant="ghost"
-					>
-						<Icon icon={External} size={12} />
-					</Button>
-				) : null}
-			</div>
-			<CollapsibleContent>
-				<ul className="flex flex-col ps-6">
-					{findings.map((finding, i) => (
-						<FindingRow
-							finding={finding}
-							// biome-ignore lint/suspicious/noArrayIndexKey: findings have no id; index is stable within a file
-							key={i}
-							repo={repo}
-							sha={sha}
-						/>
-					))}
-				</ul>
-			</CollapsibleContent>
-		</Collapsible>
 	);
 }
 
@@ -170,24 +75,47 @@ export function AiFindings({
 	}
 	const byFile = new Map<string, Finding[]>();
 	for (const finding of output.findings) {
-		const bucket = byFile.get(finding.file);
-		if (bucket) {
-			bucket.push(finding);
-		} else {
-			byFile.set(finding.file, [finding]);
-		}
+		byFile.set(finding.file, [...(byFile.get(finding.file) ?? []), finding]);
 	}
 	return (
-		<div className="mt-3 flex flex-col gap-2">
-			{[...byFile.entries()].map(([file, findings]) => (
-				<FileFindings
-					file={file}
-					findings={findings}
-					key={file}
-					repo={repo}
-					sha={sha}
-				/>
-			))}
+		<div className="flex flex-col gap-2">
+			{[...byFile.entries()].map(([file, findings]) => {
+				const fileUrl = blobUrl(repo, sha, file);
+				return (
+					<div
+						className="flex flex-col gap-1 rounded-panel well p-1"
+						key={file}
+					>
+						<div className="flex min-w-0 items-center gap-1.5 px-2 py-1.5 type-code-sm">
+							<FileIcon />
+							{fileUrl ? (
+								<a
+									className="flex min-w-0 items-center gap-1 hover:underline"
+									href={fileUrl}
+									rel="noreferrer"
+									target="_blank"
+								>
+									<FilePath file={file} />
+									<Icon className="text-text-3" icon={External} size={12} />
+								</a>
+							) : (
+								<FilePath file={file} />
+							)}
+						</div>
+						<ul className="flex flex-col gap-1">
+							{findings.map((finding, i) => (
+								<FindingRow
+									finding={finding}
+									// biome-ignore lint/suspicious/noArrayIndexKey: findings have no id; order is fixed within a file
+									key={i}
+									repo={repo}
+									sha={sha}
+								/>
+							))}
+						</ul>
+					</div>
+				);
+			})}
 		</div>
 	);
 }
