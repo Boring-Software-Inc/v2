@@ -21,8 +21,10 @@ import {
 import type { ForgeAdapter } from "@tripwire/forge";
 import { checkAppCredentials } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
+import type { WorkHandler } from "pg-boss";
 import pino from "pino";
 import { createGenerate } from "./ai/generate.ts";
+import { resolveDeploymentId, startFence } from "./fence.ts";
 import { buildResolveForge } from "./forge-runtime.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
@@ -182,150 +184,176 @@ if (import.meta.main) {
 		);
 	};
 
-	await boss.work<ProcessEventJob>(PROCESS_EVENT_QUEUE, async (jobs) => {
-		for (const job of jobs) {
-			await processEvent(
-				{
-					db,
-					pool: directPool,
-					resolveForge,
-					makeGenerate,
-					meterSource,
-					appUrl: process.env.APP_URL ?? "http://localhost:3000",
-					logger: logger.child({ eventId: job.data.eventId }),
-					enqueueReviewerSync,
-				},
-				job.data,
-			);
+	const working = new Set<string>();
+	const work = async <T>(name: string, handler: WorkHandler<T>) => {
+		if (working.has(name)) {
+			return;
 		}
-	});
+		await boss.work<T>(name, handler);
+		working.add(name);
+	};
 
-	await boss.work<ResumeRunJob>(RESUME_RUN_QUEUE, async (jobs) => {
-		for (const job of jobs) {
-			await resumeRun(
-				{
-					db,
-					pool: directPool,
-					resolveForge,
-					makeGenerate,
-					meterSource,
-					appUrl: process.env.APP_URL ?? "http://localhost:3000",
-					logger: logger.child({ itemId: job.data.itemId }),
-				},
-				job.data,
-			);
-		}
-	});
-
-	await boss.work<RerunChangeRequestJob>(RERUN_QUEUE, async (jobs) => {
-		for (const job of jobs) {
-			await rerunChangeRequest(
-				{
-					db,
-					pool: directPool,
-					resolveForge,
-					makeGenerate,
-					meterSource,
-					appUrl: process.env.APP_URL ?? "http://localhost:3000",
-					logger: logger.child({
-						rerun: `${job.data.repoFullName}#${job.data.number}`,
-					}),
-				},
-				job.data,
-			);
-		}
-	});
-
-	await boss.work<BackfillRepoJob>(BACKFILL_REPO_QUEUE, async (jobs) => {
-		for (const job of jobs) {
-			await backfillRepo(
-				{
-					db,
-					pool: directPool,
-					reads: githubReads,
-					makeGenerate,
-					meterSource,
-					logger: logger.child({ repoId: job.data.repoId, backfill: true }),
-				},
-				job.data,
-			);
-		}
-	});
-
-	await boss.work<SyncRepoReviewersJob>(
-		SYNC_REPO_REVIEWERS_QUEUE,
-		async (jobs) => {
+	const consumeQueues = async (): Promise<void> => {
+		await work<ProcessEventJob>(PROCESS_EVENT_QUEUE, async (jobs) => {
 			for (const job of jobs) {
-				await syncRepoReviewers(
+				await processEvent(
 					{
 						db,
-						http: resolveForge("github")?.signalHttp ?? null,
-						logger: logger.child({ repoId: job.data.repoId }),
+						pool: directPool,
+						resolveForge,
+						makeGenerate,
+						meterSource,
+						appUrl: process.env.APP_URL ?? "http://localhost:3000",
+						logger: logger.child({ eventId: job.data.eventId }),
+						enqueueReviewerSync,
 					},
 					job.data,
 				);
 			}
-		},
-	);
+		});
 
-	await boss.work<RefreshSurfacesJob>(REFRESH_SURFACES_QUEUE, async (jobs) => {
-		for (const job of jobs) {
-			await refreshRepoSurfaces(
-				{
-					db,
-					resolveForge,
-					appUrl: process.env.APP_URL ?? "http://localhost:3000",
-					logger: logger.child({ refresh: job.data.repoId }),
-				},
-				job.data,
-				job.id,
-			);
+		await work<ResumeRunJob>(RESUME_RUN_QUEUE, async (jobs) => {
+			for (const job of jobs) {
+				await resumeRun(
+					{
+						db,
+						pool: directPool,
+						resolveForge,
+						makeGenerate,
+						meterSource,
+						appUrl: process.env.APP_URL ?? "http://localhost:3000",
+						logger: logger.child({ itemId: job.data.itemId }),
+					},
+					job.data,
+				);
+			}
+		});
+
+		await work<RerunChangeRequestJob>(RERUN_QUEUE, async (jobs) => {
+			for (const job of jobs) {
+				await rerunChangeRequest(
+					{
+						db,
+						pool: directPool,
+						resolveForge,
+						makeGenerate,
+						meterSource,
+						appUrl: process.env.APP_URL ?? "http://localhost:3000",
+						logger: logger.child({
+							rerun: `${job.data.repoFullName}#${job.data.number}`,
+						}),
+					},
+					job.data,
+				);
+			}
+		});
+
+		await work<BackfillRepoJob>(BACKFILL_REPO_QUEUE, async (jobs) => {
+			for (const job of jobs) {
+				await backfillRepo(
+					{
+						db,
+						pool: directPool,
+						reads: githubReads,
+						makeGenerate,
+						meterSource,
+						logger: logger.child({ repoId: job.data.repoId, backfill: true }),
+					},
+					job.data,
+				);
+			}
+		});
+
+		await work<SyncRepoReviewersJob>(
+			SYNC_REPO_REVIEWERS_QUEUE,
+			async (jobs) => {
+				for (const job of jobs) {
+					await syncRepoReviewers(
+						{
+							db,
+							http: resolveForge("github")?.signalHttp ?? null,
+							logger: logger.child({ repoId: job.data.repoId }),
+						},
+						job.data,
+					);
+				}
+			},
+		);
+
+		await work<RefreshSurfacesJob>(REFRESH_SURFACES_QUEUE, async (jobs) => {
+			for (const job of jobs) {
+				await refreshRepoSurfaces(
+					{
+						db,
+						resolveForge,
+						appUrl: process.env.APP_URL ?? "http://localhost:3000",
+						logger: logger.child({ refresh: job.data.repoId }),
+					},
+					job.data,
+					job.id,
+				);
+			}
+		});
+
+		await boss.createQueue("rollup");
+		await boss.schedule("rollup", "10 2 * * *", {}, {});
+		await work("rollup", async () => {
+			await rollup({ db, logger });
+		});
+
+		/** §5.12 surface sweeper — re-attempt actions stuck at `recorded` (outage). */
+		await boss.createQueue("sweep-actions");
+		await boss.schedule("sweep-actions", "* * * * *", {}, {});
+		await work("sweep-actions", async () => {
+			await sweepActions({ db, adapterFor, logger });
+		});
+
+		/** Outbound delivery — POST webhook/discord rows through the SSRF guard;
+		 * the poll IS the retry (recorded rows re-attempt each tick). */
+		await boss.createQueue("deliver-webhook");
+		await boss.schedule("deliver-webhook", "* * * * *", {}, {});
+		await work("deliver-webhook", async () => {
+			await deliverWebhooks({ db, logger });
+		});
+
+		/** Economics: pull provider invoices into provider_costs_daily. 01:40 UTC,
+		 * ahead of the 02:20 economics rollup. Best-effort per provider. */
+		await boss.createQueue("pull-provider-costs");
+		await boss.schedule("pull-provider-costs", "40 1 * * *", {}, {});
+		await work("pull-provider-costs", async () => {
+			await pullProviderCosts({ db, logger });
+		});
+
+		/** Economics: roll the prior UTC day into economics_daily with drift, credit
+		 * balance, and reconciliation. 02:20 UTC, after the pull. */
+		await boss.createQueue("economics-rollup");
+		await boss.schedule("economics-rollup", "20 2 * * *", {}, {});
+		await work("economics-rollup", async () => {
+			await economicsRollup({ db, logger });
+		});
+
+		/** Economics: post the daily digest + alerts to Discord, plus the monthly
+		 * report on the 1st. 02:30 UTC, after the rollup. */
+		await boss.createQueue("economics-digest");
+		await boss.schedule("economics-digest", "30 2 * * *", {}, {});
+		await work("economics-digest", async () => {
+			await economicsDigest({ db, logger });
+		});
+	};
+
+	const pauseQueues = async (): Promise<void> => {
+		for (const name of working) {
+			await boss.offWork(name, { wait: false });
+			working.delete(name);
 		}
-	});
+	};
 
-	await boss.createQueue("rollup");
-	await boss.schedule("rollup", "10 2 * * *", {}, {});
-	await boss.work("rollup", async () => {
-		await rollup({ db, logger });
-	});
-
-	/** §5.12 surface sweeper — re-attempt actions stuck at `recorded` (outage). */
-	await boss.createQueue("sweep-actions");
-	await boss.schedule("sweep-actions", "* * * * *", {}, {});
-	await boss.work("sweep-actions", async () => {
-		await sweepActions({ db, adapterFor, logger });
-	});
-
-	/** Outbound delivery — POST webhook/discord rows through the SSRF guard;
-	 * the poll IS the retry (recorded rows re-attempt each tick). */
-	await boss.createQueue("deliver-webhook");
-	await boss.schedule("deliver-webhook", "* * * * *", {}, {});
-	await boss.work("deliver-webhook", async () => {
-		await deliverWebhooks({ db, logger });
-	});
-
-	/** Economics: pull provider invoices into provider_costs_daily. 01:40 UTC,
-	 * ahead of the 02:20 economics rollup. Best-effort per provider. */
-	await boss.createQueue("pull-provider-costs");
-	await boss.schedule("pull-provider-costs", "40 1 * * *", {}, {});
-	await boss.work("pull-provider-costs", async () => {
-		await pullProviderCosts({ db, logger });
-	});
-
-	/** Economics: roll the prior UTC day into economics_daily with drift, credit
-	 * balance, and reconciliation. 02:20 UTC, after the pull. */
-	await boss.createQueue("economics-rollup");
-	await boss.schedule("economics-rollup", "20 2 * * *", {}, {});
-	await boss.work("economics-rollup", async () => {
-		await economicsRollup({ db, logger });
-	});
-
-	/** Economics: post the daily digest + alerts to Discord, plus the monthly
-	 * report on the 1st. 02:30 UTC, after the rollup. */
-	await boss.createQueue("economics-digest");
-	await boss.schedule("economics-digest", "30 2 * * *", {}, {});
-	await boss.work("economics-digest", async () => {
-		await economicsDigest({ db, logger });
+	const fence = await startFence({
+		db,
+		deploymentId: resolveDeploymentId(),
+		logger,
+		consume: consumeQueues,
+		pause: pauseQueues,
 	});
 
 	/**
@@ -348,6 +376,7 @@ if (import.meta.main) {
 					ok: true,
 					github: githubAdapter ? "live" : "disabled",
 					aiReview: makeGenerate ? "wired" : "disabled",
+					leader: fence.leader(),
 				});
 			}
 			return new Response("not found", { status: 404 });
@@ -357,6 +386,7 @@ if (import.meta.main) {
 	logger.info(
 		{
 			healthPort: health.port,
+			leader: fence.leader(),
 			queues: [
 				PROCESS_EVENT_QUEUE,
 				RESUME_RUN_QUEUE,
@@ -366,8 +396,12 @@ if (import.meta.main) {
 				REFRESH_SURFACES_QUEUE,
 				"rollup",
 				"sweep-actions",
+				"deliver-webhook",
+				"pull-provider-costs",
+				"economics-rollup",
+				"economics-digest",
 			],
 		},
-		"worker consuming process-event + resume-run + rerun-change-request + backfill + refresh-response-surfaces + rollup + sweep-actions",
+		"worker up",
 	);
 }

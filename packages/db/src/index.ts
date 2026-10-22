@@ -117,6 +117,8 @@ export type {
 	StaffUserRow,
 } from "./services/staff.ts";
 export * as staffServices from "./services/staff.ts";
+export type { WorkerDeploymentRow } from "./services/worker-deployments.ts";
+export * as workerDeploymentServices from "./services/worker-deployments.ts";
 export type {
 	SetEnabledResult,
 	WorkflowListItem,
