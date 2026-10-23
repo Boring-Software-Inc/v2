@@ -52,6 +52,40 @@ let client: Client;
 let orgSlug: string;
 let fullNames: string[];
 let repoRows: Awaited<ReturnType<typeof ensureDemoRepo>>[];
+const USER_ID = "mcp-tools-user";
+const clients: Client[] = [];
+
+async function connect(orgIds: string[]): Promise<Client> {
+	const server = new McpServer({ name: "tripwire-test", version: "0.0.0" });
+	registerTools(
+		server,
+		{
+			db,
+			pool,
+			getBoss: () => Promise.reject(new Error("no queue in tests")),
+			config,
+			agent: {
+				userId: USER_ID,
+				clientId: "test-client",
+				scopes: [...SCOPES],
+				orgIds,
+			},
+			accessDenied: null,
+		},
+		{ scopes: [...SCOPES], readOnly: false },
+	);
+	const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
+	await server.connect(serverSide);
+	const connected = new Client({ name: "test", version: "0.0.0" });
+	await connected.connect(clientSide);
+	clients.push(connected);
+	return connected;
+}
+
+async function orgId(): Promise<string | undefined> {
+	const orgs = await orgServices.listUserOrgs(db, USER_ID);
+	return orgs.find((org) => org.slug === orgSlug)?.id;
+}
 
 function never(): never {
 	throw new Error("missing test fixture");
@@ -61,7 +95,7 @@ beforeAll(async () => {
 	container = await createTestDatabase();
 	({ db, pool } = createDb(container.url));
 	await applyMigrations(db);
-	const userId = "mcp-tools-user";
+	const userId = USER_ID;
 	await db
 		.insert(schema.user)
 		.values({
@@ -97,32 +131,13 @@ beforeAll(async () => {
 			at: new Date(),
 		});
 	}
-	const server = new McpServer({ name: "tripwire-test", version: "0.0.0" });
-	registerTools(
-		server,
-		{
-			db,
-			pool,
-			getBoss: () => Promise.reject(new Error("no queue in tests")),
-			config,
-			agent: {
-				userId,
-				clientId: "test-client",
-				scopes: [...SCOPES],
-				orgIds: [org.id],
-			},
-			accessDenied: null,
-		},
-		{ scopes: [...SCOPES], readOnly: false },
-	);
-	const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
-	await server.connect(serverSide);
-	client = new Client({ name: "test", version: "0.0.0" });
-	await client.connect(clientSide);
+	client = await connect([org.id]);
 }, 120_000);
 
 afterAll(async () => {
-	await client?.close().catch(() => undefined);
+	for (const open of clients) {
+		await open.close().catch(() => undefined);
+	}
 	await pool?.end().catch(() => undefined);
 	await container?.stop();
 });
@@ -390,16 +405,111 @@ describe("list_workflows says what can run, like the web list", () => {
 	});
 });
 
+async function addOrg(
+	slug: string,
+	input: { member: boolean; repo: string; installationId: string },
+): Promise<string> {
+	const id = crypto.randomUUID();
+	await db
+		.insert(schema.organization)
+		.values({ id, name: slug, slug, isPersonal: false });
+	if (input.member) {
+		await db.insert(schema.member).values({
+			id: crypto.randomUUID(),
+			organizationId: id,
+			userId: USER_ID,
+			role: "admin",
+		});
+	}
+	await ensureDemoRepo(db, input.repo, {
+		installationId: input.installationId,
+	});
+	await orgServices.linkOrgInstallation(db, {
+		orgId: id,
+		installationId: input.installationId,
+	});
+	return id;
+}
+
+describe("a repo argument names the repo the way people copy it", () => {
+	const listed = async (target: Client, args: Record<string, unknown>) =>
+		textSchema.parse(
+			await target.callTool({ name: "list_workflows", arguments: args }),
+		);
+
+	test("by name, org/name, GitHub owner/name, or a pasted web URL", async () => {
+		for (const repo of [
+			"mcp-web",
+			`${orgSlug}/mcp-web`,
+			fullNames[1] ?? never(),
+			`https://staging.tripwire.sh/${orgSlug}/mcp-web`,
+			`https://staging.tripwire.sh/${orgSlug}/mcp-web/workflows/abc`,
+			`https://github.com/${fullNames[1] ?? never()}`,
+		]) {
+			const result = await listed(client, { repo });
+			expect({ repo, error: result.isError ?? false }).toEqual({
+				repo,
+				error: false,
+			});
+		}
+	});
+
+	test("an org in the argument picks that org over the selected one", async () => {
+		const otherId = await addOrg("other-team", {
+			member: true,
+			repo: "other-repo",
+			installationId: "other-inst",
+		});
+		const both = await connect([(await orgId()) ?? never(), otherId]);
+		const result = await listed(both, {
+			org: orgSlug,
+			repo: "other-team/other-repo",
+		});
+		expect(result.isError ?? false).toBe(false);
+		const plain = await listed(both, { org: orgSlug, repo: "other-repo" });
+		expect(plain.structuredContent).toEqual({
+			error: `The org ${orgSlug} has no repo named other-repo.`,
+			hint: "list_repos",
+			org: orgSlug,
+		});
+	});
+
+	test("an org the agent was not given is named in the error", async () => {
+		const result = await listed(client, { repo: "other-team/other-repo" });
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toContain(
+			"This agent was not given access to other-team.",
+		);
+	});
+
+	test("an org the user is not in reads as not one of their orgs", async () => {
+		await addOrg("stranger-team", {
+			member: false,
+			repo: "stranger-repo",
+			installationId: "stranger-inst",
+		});
+		const result = await listed(client, {
+			repo: "stranger-team/stranger-repo",
+		});
+		expect(result.structuredContent).toEqual({
+			error: `You are not in an org named stranger-team, and the org ${orgSlug} has no repo stranger-team/stranger-repo.`,
+			hint: "list_repos",
+			org: orgSlug,
+		});
+	});
+});
+
 describe("tool errors", () => {
 	test("keep tool names out of the message and put them in the hint", async () => {
 		const result = await call("list_workflows", { repo: "scratch" });
 		expect(result.isError).toBe(true);
 		expect(result.structuredContent).toEqual({
-			error: `No repo named scratch in ${orgSlug}.`,
+			error: `The org ${orgSlug} has no repo named scratch.`,
 			hint: "list_repos",
+			org: orgSlug,
 		});
 		expect(result.content[0]?.text).toBe(
-			`No repo named scratch in ${orgSlug}. Call list_repos to see the repos.`,
+			`The org ${orgSlug} has no repo named scratch. Call list_repos to see the repos.`,
 		);
 	});
 

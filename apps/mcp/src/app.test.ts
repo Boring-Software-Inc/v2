@@ -137,7 +137,9 @@ describe("tool access classification", () => {
 	test("handlers read their access from the catalog", () => {
 		const source = readFileSync(join(import.meta.dir, "tools.ts"), "utf8");
 		const checked = [
-			...source.matchAll(/resolveOrg\(\s*ctx,\s*\w+,\s*"([^"]+)"\s*\)/g),
+			...source.matchAll(
+				/(?:resolveOrg|resolveOrgRepo|scoped)\(\s*(?:\w+,\s*)+"([^"]+)",?\s*\)/g,
+			),
 		].map((match) => match[1]);
 		expect(checked.sort()).toEqual(
 			TOOL_NAMES.filter((name) => TOOL_SPECS[name].need !== "none").sort(),

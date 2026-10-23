@@ -108,28 +108,109 @@ export async function resolveOrg(
 	return member.org;
 }
 
-export async function resolveRepo(
+export interface RepoRef {
+	scope?: string;
+	name: string;
+}
+
+export function parseRepoRef(input: string): RepoRef {
+	const trimmed = input.trim();
+	const path = /^https?:\/\//i.test(trimmed)
+		? URL.canParse(trimmed)
+			? new URL(trimmed).pathname
+			: trimmed
+		: trimmed;
+	const parts = path.split("/").filter((part) => part.length > 0);
+	const [first, second] = parts;
+	if (first === undefined) {
+		return { name: trimmed };
+	}
+	if (second === undefined) {
+		return { name: first.replace(/\.git$/i, "") };
+	}
+	return { scope: first, name: second.replace(/\.git$/i, "") };
+}
+
+export class RepoNotFoundError extends ToolError {
+	readonly org: string;
+
+	constructor(message: string, org: string) {
+		super(message, "list_repos");
+		this.org = org;
+	}
+}
+
+async function findRepo(
 	ctx: ToolContext,
 	org: OrgWithRole,
-	repo: string,
-): Promise<RepoLite> {
-	const [owner, name] = repo.includes("/")
-		? [
-				repo.slice(0, repo.lastIndexOf("/")),
-				repo.slice(repo.lastIndexOf("/") + 1),
-			]
-		: [undefined, repo];
+	name: string,
+	owner?: string,
+): Promise<RepoLite | null> {
 	const found = await orgServices.getOrgRepo(ctx.db, {
 		orgId: org.id,
 		repoName: name,
 	});
+	if (!found) {
+		return null;
+	}
 	if (
-		!found ||
-		(owner !== undefined && found.owner.toLowerCase() !== owner.toLowerCase())
+		owner !== undefined &&
+		found.owner.toLowerCase() !== owner.toLowerCase()
 	) {
-		throw new ToolError(`No repo named ${repo} in ${org.slug}.`, "list_repos");
+		return null;
 	}
 	return found;
+}
+
+export async function resolveOrgRepo(
+	ctx: ToolContext,
+	requested: string | undefined,
+	repo: string,
+	tool: ToolName,
+): Promise<{ org: OrgWithPermissions; repo: RepoLite }> {
+	const ref = parseRepoRef(repo);
+	if (ref.scope === undefined) {
+		const org = await resolveOrg(ctx, requested, tool);
+		const found = await findRepo(ctx, org, ref.name);
+		if (!found) {
+			throw new RepoNotFoundError(
+				`The org ${org.slug} has no repo named ${ref.name}.`,
+				org.slug,
+			);
+		}
+		return { org, repo: found };
+	}
+	requireAccess(ctx);
+	const scope = ref.scope.toLowerCase();
+	const orgs = await orgServices.listUserOrgs(ctx.db, ctx.agent.userId);
+	const named = orgs.find((org) => org.slug.toLowerCase() === scope);
+	if (named) {
+		const org = await resolveOrg(ctx, named.slug, tool);
+		const found = await findRepo(ctx, org, ref.name);
+		if (!found) {
+			throw new RepoNotFoundError(
+				`The org ${org.slug} has no repo named ${ref.name}.`,
+				org.slug,
+			);
+		}
+		return { org, repo: found };
+	}
+	const candidates = orgs.filter((org) =>
+		requested
+			? org.slug.toLowerCase() === requested.toLowerCase()
+			: ctx.agent.orgIds.includes(org.id),
+	);
+	for (const candidate of candidates) {
+		const found = await findRepo(ctx, candidate, ref.name, ref.scope);
+		if (found) {
+			return { org: await resolveOrg(ctx, candidate.slug, tool), repo: found };
+		}
+	}
+	const org = await resolveOrg(ctx, requested, tool);
+	throw new RepoNotFoundError(
+		`You are not in an org named ${ref.scope}, and the org ${org.slug} has no repo ${ref.scope}/${ref.name}.`,
+		org.slug,
+	);
 }
 
 export function appLink(ctx: ToolContext, path: string): string {
@@ -142,6 +223,16 @@ export async function guard(
 	try {
 		return await run();
 	} catch (error) {
+		if (error instanceof RepoNotFoundError) {
+			return {
+				...fail(error.message, error.hint),
+				structuredContent: {
+					error: error.message,
+					hint: error.hint,
+					org: error.org,
+				},
+			};
+		}
 		if (error instanceof ToolError) {
 			return fail(error.message, error.hint);
 		}
