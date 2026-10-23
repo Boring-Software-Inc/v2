@@ -14,7 +14,7 @@ function subscribe(): () => void {
 	return () => undefined;
 }
 
-function useDeviceTimezone(): string {
+export function useDeviceTimezone(): string {
 	return useSyncExternalStore(
 		subscribe,
 		deviceTimezone,
