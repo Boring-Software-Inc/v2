@@ -336,17 +336,18 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 const MASK = "••••••••";
 
 /** Compact per-type value summary for the node face. */
+const labelListSchema = z.array(z.string());
+
 export function fieldListItems(
 	field: FieldSpec,
 	value: JsonValue | undefined,
 ): string[] | null {
-	if (field.kind !== "string-list" || field.secret || !Array.isArray(value)) {
+	const items = labelListSchema.safeParse(value);
+	if (field.kind !== "string-list" || field.secret || !items.success) {
 		return null;
 	}
-	const items = new Set(
-		value.filter((item): item is string => typeof item === "string"),
-	);
-	return items.size > 0 ? [...items] : null;
+	const unique = [...new Set(items.data)];
+	return unique.length > 0 ? unique : null;
 }
 
 export function summarizeFieldValue(

@@ -83,7 +83,7 @@ export function formatDateTime(instant: Date, zone: string): string {
 	return `${date}, ${time} ${zoneOffsetName(instant, zone)}`;
 }
 
-function dayParts(instant: Date, zone: string): { year: string; day: string } {
+function dayParts(instant: Date, zone: string) {
 	const day = new Intl.DateTimeFormat("en-CA", {
 		timeZone: zone,
 		year: "numeric",
