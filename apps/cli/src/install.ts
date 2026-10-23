@@ -3,6 +3,7 @@ import pc from "picocolors";
 import { type Agent, buildAgents } from "#/agents";
 import { hostAgentId } from "#/agents/host";
 import { formatCommand } from "#/agents/shell";
+import type { LoginCommand } from "#/agents/types";
 import { copyToClipboard } from "#/clipboard";
 import { mcpUrl } from "#/config";
 import type { MergeOutcome } from "#/json-config";
@@ -13,6 +14,7 @@ import {
 	type InstallResult,
 	installAgent,
 } from "#/run";
+import { planSignIns, runSignIns, type SignInResult } from "#/sign-in";
 import type { System } from "#/system";
 
 export interface InstallOptions {
@@ -76,59 +78,60 @@ async function selectAgents(
 	return detections.filter((detection) => chosen.includes(detection.agent.id));
 }
 
+function loginLine(login: LoginCommand): string {
+	return formatCommand(
+		login.command.split(/[\\/]/).pop() ?? login.command,
+		login.args,
+	);
+}
+
+function signInLine(result: SignInResult): string {
+	switch (result.outcome) {
+		case "signed-in":
+			return "signed in";
+		case "already":
+			return "already signed in";
+		case "failed":
+			return result.login
+				? `not signed in, run ${loginLine(result.login)}`
+				: "not signed in";
+		case "manual":
+			return `sign in with ${result.agent.signInHint}`;
+	}
+}
+
+function summarize(results: SignInResult[]): void {
+	const width = Math.max(...results.map(({ agent }) => agent.name.length));
+	const lines = results.map(
+		(result) => `${result.agent.name.padEnd(width)}  ${signInLine(result)}`,
+	);
+	const log = results.some(({ outcome }) => outcome === "failed")
+		? p.log.warn
+		: p.log.info;
+	log(`Tripwire sign-in\n${lines.join("\n")}`);
+}
+
 async function authenticate(
 	system: System,
 	reports: AgentReport[],
 ): Promise<boolean> {
-	const done = reports.filter((report) => report.result.kind === "done");
-	if (!done.some((report) => report.agent.login() !== null)) {
+	const agents = reports
+		.filter((report) => report.result.kind === "done")
+		.map(({ agent }) => agent);
+	if (agents.length === 0) {
 		return true;
 	}
-	const chosen = await p.multiselect({
-		message: "Select agents to authenticate the Tripwire MCP for",
-		options: done.map(({ agent }) => {
-			const login = agent.login();
-			return login
-				? { value: agent.id, label: agent.name }
-				: {
-						value: agent.id,
-						label: agent.name,
-						hint: "Configure in app",
-						disabled: true,
-					};
-		}),
-		initialValues: done
-			.filter(({ agent }) => agent.login() !== null)
-			.map(({ agent }) => agent.id),
-		required: false,
-		showInstructions: false,
+	const checking = agents.some((agent) => agent.login() !== null);
+	const spin = checking ? p.spinner() : null;
+	spin?.start("Checking Tripwire sign-in");
+	const plans = await planSignIns(agents);
+	spin?.stop("Checked Tripwire sign-in");
+	const results = await runSignIns(plans, async ({ agent, login }) => {
+		p.log.step(`${agent.name}: ${loginLine(login)}`);
+		return system.runInteractive(login.command, login.args);
 	});
-	if (p.isCancel(chosen) || chosen.length === 0) {
-		p.log.step("Authenticate the Tripwire MCP: skipped");
-		return true;
-	}
-	let ok = true;
-	for (const { agent } of done) {
-		const login = agent.login();
-		if (!(login && chosen.includes(agent.id))) {
-			continue;
-		}
-		const shown = formatCommand(
-			login.command.split(/[\\/]/).pop() ?? login.command,
-			login.args,
-		);
-		p.log.step(`${agent.name}: ${shown}`);
-		const result = await system.runInteractive(login.command, login.args);
-		if (result.ok) {
-			p.log.success(`${agent.name} authenticated`);
-		} else {
-			ok = false;
-			p.log.error(
-				`${agent.name} authentication failed${result.stderr ? `: ${result.stderr}` : ""}`,
-			);
-		}
-	}
-	return ok;
+	summarize(results);
+	return results.every(({ outcome }) => outcome !== "failed");
 }
 
 function nextSteps(

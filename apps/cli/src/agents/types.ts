@@ -1,8 +1,11 @@
 import type { MergeOutcome } from "#/json-config";
 
+export type SignInState = "signed-in" | "signed-out" | "unknown";
+
 export interface LoginCommand {
 	command: string;
 	args: string[];
+	status(): Promise<SignInState>;
 }
 
 export interface McpChange {

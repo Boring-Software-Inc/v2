@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import type { McpChange } from "#/agents/types";
+import type { McpChange, SignInState } from "#/agents/types";
 import { parseJsonc } from "#/json-config";
 import type { System } from "#/system";
 
@@ -53,6 +53,16 @@ export async function runOrThrow(
 			result.stderr || result.stdout || `${formatCommand(binary, args)} failed`,
 		);
 	}
+}
+
+export async function readSignIn(
+	system: System,
+	binary: string,
+	args: string[],
+	parse: (stdout: string) => SignInState,
+): Promise<SignInState> {
+	const result = await system.run(binary, args);
+	return parse(result.stdout);
 }
 
 export function appInstalled(system: System, paths: string[]): boolean {
