@@ -1,0 +1,53 @@
+import { describe, expect, test } from "bun:test";
+import {
+	parseSetupCommandArg,
+	setupProgressInputSchema,
+	setupPrompt,
+} from "./setup.ts";
+
+describe("setup prompt", () => {
+	test("with a run code it names the org, the code and both paths", () => {
+		expect(setupPrompt({ org: "acme", code: "AbCdE12345" })).toBe(
+			"Please help me set up Tripwire.\n\norg slug: acme\nrun code: AbCdE12345\n\nIf you can run commands, run npx @tripwire-sh/cli install acme#AbCdE12345. If not, add the MCP server https://mcp.tripwire.sh/mcp and use its tools.",
+		);
+	});
+
+	test("without a code it drops the org, the code and the argument", () => {
+		expect(setupPrompt()).toBe(
+			"Please help me set up Tripwire.\n\nIf you can run commands, run npx @tripwire-sh/cli install. If not, add the MCP server https://mcp.tripwire.sh/mcp and use its tools.",
+		);
+	});
+});
+
+describe("setup command argument", () => {
+	test("parses org#code", () => {
+		expect(parseSetupCommandArg("acme-co#AbCdE12345")).toEqual({
+			org: "acme-co",
+			code: "AbCdE12345",
+		});
+	});
+
+	test("rejects a short code or an uppercase org", () => {
+		expect(parseSetupCommandArg("acme#short")).toBeNull();
+		expect(parseSetupCommandArg("Acme#AbCdE12345")).toBeNull();
+	});
+});
+
+describe("progress input", () => {
+	test("accepts the documented shape and refuses unknown stages", () => {
+		expect(
+			setupProgressInputSchema.safeParse({
+				runCode: "AbCdE12345",
+				stage: "install_app",
+				status: "waiting",
+			}).success,
+		).toBe(true);
+		expect(
+			setupProgressInputSchema.safeParse({
+				runCode: "AbCdE12345",
+				stage: "analyze_project",
+				status: "active",
+			}).success,
+		).toBe(false);
+	});
+});
