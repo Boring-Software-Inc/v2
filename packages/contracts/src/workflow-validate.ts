@@ -80,8 +80,61 @@ const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
 ]);
 
 export function unrunnableIssues(input: WorkflowDefinition): LintResult[] {
-	const checked = validateWorkflow(input);
-	return checked.valid
-		? []
-		: checked.issues.filter((issue) => UNRUNNABLE_RULES.has(issue.rule));
+	return workflowReadiness(input).issues.filter((issue) =>
+		UNRUNNABLE_RULES.has(issue.rule),
+	);
+}
+
+export interface WorkflowReadiness {
+	runnable: boolean;
+	canTurnOn: boolean;
+	issues: LintResult[];
+}
+
+export function workflowReadiness(
+	definition: WorkflowDefinition,
+	catalog: readonly ValidationCatalogEntry[] = RULE_CATALOG,
+): WorkflowReadiness {
+	const report = lintWorkflowReport(definition, {
+		catalog,
+		stage: "enable",
+	});
+	const issues = report.results.filter((issue) => issue.severity === "error");
+	if (!report.definition) {
+		return { runnable: false, canTurnOn: false, issues };
+	}
+	return {
+		runnable: !issues.some((issue) => UNRUNNABLE_RULES.has(issue.rule)),
+		canTurnOn: issues.length === 0,
+		issues,
+	};
+}
+
+export type WorkflowState =
+	| "on"
+	| "off"
+	| "cant-run"
+	| "needs-fixes"
+	| "cant-turn-on";
+
+export const WORKFLOW_STATE_LABELS: Record<WorkflowState, string> = {
+	on: "Live",
+	off: "Off",
+	"cant-run": "Can't run",
+	"needs-fixes": "Needs fixes",
+	"cant-turn-on": "Can't turn on",
+};
+
+export function workflowState(input: {
+	enabled: boolean;
+	runnable: boolean;
+	canTurnOn: boolean;
+}): WorkflowState {
+	if (input.enabled) {
+		if (!input.runnable) {
+			return "cant-run";
+		}
+		return input.canTurnOn ? "on" : "needs-fixes";
+	}
+	return input.canTurnOn ? "off" : "cant-turn-on";
 }

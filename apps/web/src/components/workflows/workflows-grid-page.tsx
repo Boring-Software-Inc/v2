@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from "@tripwire/contracts";
+import {
+	WORKFLOW_STATE_LABELS,
+	WORKFLOW_TEMPLATES,
+	type WorkflowState,
+	type WorkflowTemplate,
+} from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { Collection } from "#/components/collection/collection";
 import { EntityCard } from "#/components/common/entity-card";
@@ -52,7 +57,7 @@ import {
 	ItemGroup,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
-import { Status } from "#/components/glaze/ui/status";
+import { Status, type StatusValue } from "#/components/glaze/ui/status";
 import { Switch } from "#/components/glaze/ui/switch";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
@@ -84,6 +89,14 @@ import {
 	workflowsListQueryOptions,
 	workflowsQueryKeys,
 } from "#/lib/workflows.query";
+
+const STATE_STATUS: Record<WorkflowState, StatusValue> = {
+	on: "ok",
+	off: "idle",
+	"cant-run": "warn",
+	"needs-fixes": "warn",
+	"cant-turn-on": "idle",
+};
 
 const route = getRouteApi("/$org/$repo/workflows/");
 
@@ -525,15 +538,9 @@ function WorkflowRow({
 				}
 				status={
 					<>
-						{workflow.enabled && !workflow.runnable ? (
-							<Status size="sm" status="warn">
-								Can't run
-							</Status>
-						) : (
-							<Status size="sm" status={workflow.enabled ? "ok" : "idle"}>
-								{workflow.enabled ? "Live" : "Off"}
-							</Status>
-						)}
+						<Status size="sm" status={STATE_STATUS[workflow.state]}>
+							{WORKFLOW_STATE_LABELS[workflow.state]}
+						</Status>
 						<Switch
 							aria-label={`Run ${workflow.name} on change requests`}
 							checked={queuedEnabled}

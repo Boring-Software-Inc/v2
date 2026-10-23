@@ -3,8 +3,12 @@ import { customValidationEntries } from "./custom-rules.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import { DEFAULT_WORKFLOW, type WorkflowDefinition } from "./workflow.ts";
 import {
+	unrunnableIssues,
 	validateWorkflow,
 	validateWorkflowForEnable,
+	WORKFLOW_STATE_LABELS,
+	workflowReadiness,
+	workflowState,
 } from "./workflow-validate.ts";
 
 function graph(over: Partial<WorkflowDefinition>): WorkflowDefinition {
@@ -249,5 +253,70 @@ describe("the removed comment step", () => {
 		expect(rulesOf(validateWorkflowForEnable(withComment))).toEqual([
 			"removed-step",
 		]);
+	});
+});
+
+describe("workflowReadiness (one answer for web, CLI and MCP)", () => {
+	const triggerIntoGate = graph({
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			{ id: "g", type: "gate", mode: "all-of" },
+			{ id: "a", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "g" },
+			{ id: "e2", from: "g", to: "a", when: "fail" },
+		],
+	});
+
+	test("a sound graph runs and can be turned on", () => {
+		expect(workflowReadiness(graph({}))).toMatchObject({
+			runnable: true,
+			canTurnOn: true,
+			issues: [],
+		});
+	});
+
+	test("a trigger wired into a gate can neither run nor be turned on", () => {
+		const readiness = workflowReadiness(triggerIntoGate);
+		expect(readiness.runnable).toBe(false);
+		expect(readiness.canTurnOn).toBe(false);
+		expect(readiness.canTurnOn).toBe(
+			validateWorkflowForEnable(triggerIntoGate).valid,
+		);
+		expect(unrunnableIssues(triggerIntoGate).length).toBeGreaterThan(0);
+	});
+
+	test("a graph with no action runs but cannot be turned on", () => {
+		const readiness = workflowReadiness(
+			graph({
+				nodes: [
+					{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+					{
+						id: "r",
+						type: "rule",
+						ref: "account-age@1",
+						config: { minDays: 7 },
+					},
+				],
+				edges: [{ id: "e1", from: "t", to: "r" }],
+			}),
+		);
+		expect(readiness).toMatchObject({ runnable: true, canTurnOn: false });
+	});
+
+	test("the state reads the same everywhere", () => {
+		const cases = [
+			[{ enabled: true, runnable: true, canTurnOn: true }, "on"],
+			[{ enabled: true, runnable: false, canTurnOn: false }, "cant-run"],
+			[{ enabled: true, runnable: true, canTurnOn: false }, "needs-fixes"],
+			[{ enabled: false, runnable: true, canTurnOn: true }, "off"],
+			[{ enabled: false, runnable: false, canTurnOn: false }, "cant-turn-on"],
+		] as const;
+		for (const [input, state] of cases) {
+			expect(workflowState(input)).toBe(state);
+		}
+		expect(WORKFLOW_STATE_LABELS["cant-run"]).toBe("Can't run");
+		expect(WORKFLOW_STATE_LABELS.on).toBe("Live");
 	});
 });

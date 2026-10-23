@@ -5,13 +5,15 @@ import {
 	mergeForPush,
 	resolveCatalog,
 	stripWorkflowSecrets,
-	unrunnableIssues,
 	type ValidationCatalogEntry,
 	type ValidationIssue,
 	validateWorkflowForEnable,
 	type WorkflowChange,
 	type WorkflowDefinition,
+	type WorkflowState,
 	workflowDefinitionSchema,
+	workflowReadiness,
+	workflowState,
 } from "@tripwire/contracts";
 import { generateId, pickWorkflowName } from "@tripwire/utils";
 import { and, eq } from "drizzle-orm";
@@ -41,21 +43,29 @@ export interface WorkflowListItem {
 	triggerKinds: string[];
 	updatedAt: string;
 	runnable: boolean;
+	canTurnOn: boolean;
+	state: WorkflowState;
 }
 
 export interface WorkflowRow extends WorkflowListItem {
 	definition: WorkflowDefinition;
 }
 
-function toListItem(row: {
-	id: string;
-	name: string;
-	enabled: boolean;
-	definition: unknown;
-	updatedAt: Date;
-}): WorkflowListItem {
+function toListItem(
+	row: {
+		id: string;
+		name: string;
+		enabled: boolean;
+		definition: unknown;
+		updatedAt: Date;
+	},
+	catalog: readonly ValidationCatalogEntry[],
+): WorkflowListItem {
 	const parsed = workflowDefinitionSchema.safeParse(row.definition);
 	const nodes = parsed.success ? parsed.data.nodes : [];
+	const readiness = parsed.success
+		? workflowReadiness(parsed.data, catalog)
+		: { runnable: false, canTurnOn: false };
 	return {
 		id: row.id,
 		name: row.name,
@@ -65,9 +75,9 @@ function toListItem(row: {
 			...new Set(nodes.flatMap((n) => (n.type === "trigger" ? n.kinds : []))),
 		],
 		updatedAt: row.updatedAt.toISOString(),
-		runnable:
-			!(row.enabled && parsed.success) ||
-			unrunnableIssues(parsed.data).length === 0,
+		runnable: readiness.runnable,
+		canTurnOn: readiness.canTurnOn,
+		state: workflowState({ enabled: row.enabled, ...readiness }),
 	};
 }
 
@@ -80,7 +90,8 @@ export async function listWorkflows(
 		.from(workflowDefinitions)
 		.where(eq(workflowDefinitions.repoId, repoId))
 		.orderBy(workflowDefinitions.createdAt);
-	return rows.map(toListItem);
+	const catalog = await repoRuleCatalog(db, repoId);
+	return rows.map((row) => toListItem(row, catalog));
 }
 
 export async function getWorkflow(
@@ -105,7 +116,10 @@ export async function getWorkflow(
 	if (!parsed.success) {
 		return null; // a stored-corrupt definition reads as missing, never throws into a route
 	}
-	return { ...toListItem(row), definition: parsed.data };
+	return {
+		...toListItem(row, await repoRuleCatalog(db, input.repoId)),
+		definition: parsed.data,
+	};
 }
 
 async function takenNames(db: Db, repoId: string): Promise<Set<string>> {
@@ -165,13 +179,10 @@ export async function createWorkflow(
 		createdAt: now,
 		updatedAt: now,
 	});
-	return toListItem({
-		id,
-		name,
-		enabled: false,
-		definition,
-		updatedAt: now,
-	});
+	return toListItem(
+		{ id, name, enabled: false, definition, updatedAt: now },
+		await repoRuleCatalog(db, input.repoId),
+	);
 }
 
 /** Update the definition (the editor's save). Never touches `enabled`. */
@@ -355,10 +366,11 @@ export async function listWorkflowRows(
 		.from(workflowDefinitions)
 		.where(eq(workflowDefinitions.repoId, repoId))
 		.orderBy(workflowDefinitions.createdAt);
+	const catalog = await repoRuleCatalog(db, repoId);
 	return rows.flatMap((row) => {
 		const parsed = workflowDefinitionSchema.safeParse(row.definition);
 		return parsed.success
-			? [{ ...toListItem(row), definition: parsed.data }]
+			? [{ ...toListItem(row, catalog), definition: parsed.data }]
 			: [];
 	});
 }
@@ -429,7 +441,7 @@ export async function applyWorkflowDefinition(
 		);
 		const changes = diffWorkflow(stored.data, merged);
 		const workflow = {
-			...toListItem(locked),
+			...toListItem(locked, catalog),
 			name: merged.name,
 		};
 		if (changes.length === 0) {

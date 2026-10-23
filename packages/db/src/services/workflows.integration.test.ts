@@ -232,12 +232,37 @@ describe("saving a live workflow", () => {
 			},
 		});
 		const listed = await listWorkflows(db, repoId);
-		expect(listed.find((item) => item.id === live.id)?.runnable).toBe(false);
+		expect(listed.find((item) => item.id === live.id)).toMatchObject({
+			runnable: false,
+			state: "cant-run",
+		});
 		const healthy = await liveWorkflow();
 		expect(
 			(await listWorkflows(db, repoId)).find((item) => item.id === healthy.id)
 				?.runnable,
 		).toBe(true);
+	});
+
+	test("an off workflow its wiring would stop says it cannot be turned on", async () => {
+		const created = await createWorkflow(db, { repoId });
+		await updateWorkflowDefinition(db, {
+			repoId,
+			workflowId: created.id,
+			definition: {
+				...validGraph(),
+				name: created.name,
+				edges: [{ id: "stale", from: "r", to: "deleted-step", when: "fail" }],
+			},
+		});
+		const listed = (await listWorkflows(db, repoId)).find(
+			(item) => item.id === created.id,
+		);
+		expect(listed).toMatchObject({
+			enabled: false,
+			runnable: false,
+			canTurnOn: false,
+			state: "cant-turn-on",
+		});
 	});
 });
 
@@ -476,7 +501,7 @@ describe("turning on and saving at once", () => {
 			const listed = (await listWorkflows(db, repoId)).find(
 				(item) => item.id === created.id,
 			);
-			expect(listed?.runnable).toBe(true);
+			expect(listed?.state).not.toBe("cant-run");
 		}
 	});
 });
