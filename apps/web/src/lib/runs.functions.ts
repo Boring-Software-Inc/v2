@@ -136,6 +136,7 @@ export interface RunView {
 	reviews: RunReviewView[];
 	previousRun: RunLinkView | null;
 	nextRun: RunLinkView | null;
+	backfill: boolean;
 }
 
 /**

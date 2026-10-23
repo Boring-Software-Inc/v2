@@ -6,6 +6,7 @@ import {
 	redactionHides,
 	ruleDisplayName,
 	runResult,
+	runResultLabel,
 } from "@tripwire/contracts";
 import { z } from "zod";
 import {
@@ -630,10 +631,11 @@ function verdictOutcome(run: RunView): ChainOutcome {
 		chips: outcomeChips(run),
 	};
 	const result = runViewResult(run);
-	const words = (key: RunResult) => ({
-		title: RUN_RESULT_LABELS[key],
-		short: RUN_RESULT_LABELS[key],
-	});
+	const words = (key: RunResult) => {
+		const label =
+			runResultLabel(key, { backfill: run.backfill }) ?? RUN_RESULT_LABELS[key];
+		return { title: label, short: label };
+	};
 	switch (result) {
 		case "checking":
 			return {

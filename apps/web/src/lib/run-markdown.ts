@@ -1,4 +1,8 @@
-import { RUN_RESULT_LABELS, ruleDisplayName } from "@tripwire/contracts";
+import {
+	RUN_RESULT_LABELS,
+	ruleDisplayName,
+	runResultLabel,
+} from "@tripwire/contracts";
 import { runViewResult } from "#/lib/run-chain";
 import type { RunStepView, RunView } from "#/lib/runs.functions";
 
@@ -64,7 +68,9 @@ export function runToMarkdown(run: RunView, relativeTime: string): string {
 	const verdict =
 		result === null
 			? run.status
-			: (VERDICT_LABEL[result] ?? RUN_RESULT_LABELS[result].toLowerCase());
+			: run.backfill
+				? (runResultLabel(result, { backfill: true }) ?? result).toLowerCase()
+				: (VERDICT_LABEL[result] ?? RUN_RESULT_LABELS[result].toLowerCase());
 	const lines: string[] = [`# Run: ${verdict}`];
 
 	// Header meta: repo, optional #pr, relative time, optional short sha.

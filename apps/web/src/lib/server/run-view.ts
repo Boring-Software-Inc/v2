@@ -243,6 +243,7 @@ export async function loadRunView(
 			latest && position >= 0 && latest.id !== result.run.id
 				? runLink(latest)
 				: null,
+		backfill: result.run.backfill,
 	};
 	if (access === "full") {
 		return toFullRunView(view);

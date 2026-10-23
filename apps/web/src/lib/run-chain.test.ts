@@ -129,6 +129,7 @@ function view(overrides: Partial<RunView> = {}): RunView {
 		],
 		previousRun: null,
 		nextRun: null,
+		backfill: false,
 		...overrides,
 	};
 }
@@ -621,6 +622,23 @@ describe("human review decisions", () => {
 		);
 		expect(chain.outcome.title).toBe("Waiting for human review");
 		expect(chain.outcome.detail).toBe("Tripwire could not check every rule.");
+	});
+});
+
+describe("a backfill run (R7-1)", () => {
+	test("that reached human review says it would have, since no review item exists", () => {
+		const chain = buildRunChain(
+			view({ verdict: "needs_review", status: "completed", backfill: true }),
+		);
+		expect(chain.outcome.title).toBe("Would go to human review");
+		expect(chain.outcome.short).toBe("Would go to human review");
+	});
+
+	test("that passed reads as what it would have done", () => {
+		const chain = buildRunChain(
+			view({ verdict: "pass", status: "completed", backfill: true }),
+		);
+		expect(chain.outcome.title).toBe("Would pass");
 	});
 });
 
