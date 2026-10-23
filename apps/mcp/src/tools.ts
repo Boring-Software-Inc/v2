@@ -35,7 +35,10 @@ const UNTRUSTED_NOTE =
 const orgArg = z
 	.string()
 	.min(1)
-	.describe("The Tripwire org slug, as in app.tripwire.sh/<org>.");
+	.optional()
+	.describe(
+		"The Tripwire org slug, as in app.tripwire.sh/<org>. Leave out when the agent can reach one org.",
+	);
 const repoArg = z
 	.string()
 	.min(1)

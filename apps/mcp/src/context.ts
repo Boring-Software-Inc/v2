@@ -35,12 +35,25 @@ export function requireAccess(ctx: ToolContext): void {
 	}
 }
 
+async function defaultOrgSlug(ctx: ToolContext): Promise<string> {
+	const orgs = await orgServices.listUserOrgs(ctx.db, ctx.agent.userId);
+	const granted = orgs.filter((o) => ctx.agent.orgIds.includes(o.id));
+	const only = granted.length === 1 ? granted[0] : undefined;
+	if (!only) {
+		throw new ToolError(
+			"This agent can reach more than one org. Pass org, or call whoami to see them.",
+		);
+	}
+	return only.slug;
+}
+
 export async function resolveOrg(
 	ctx: ToolContext,
-	slug: string,
+	requested: string | undefined,
 	need: OrgRole,
 ): Promise<OrgWithRole> {
 	requireAccess(ctx);
+	const slug = requested ?? (await defaultOrgSlug(ctx));
 	const member = await assertOrgRole(ctx.db, {
 		userId: ctx.agent.userId,
 		orgSlug: slug,
