@@ -96,7 +96,6 @@ export function TypedEdge({
 	return (
 		<>
 			<BaseEdge
-				data-edge-problem={status ?? undefined}
 				data-edge-tone={WORKFLOW_PORT_TONE[port]}
 				interactionWidth={interactionWidth}
 				path={path}
