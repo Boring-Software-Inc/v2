@@ -117,13 +117,13 @@ export type WorkflowState =
 	| "needs-fixes"
 	| "cant-turn-on";
 
-export const WORKFLOW_STATE_LABELS: Record<WorkflowState, string> = {
+export const WORKFLOW_STATE_LABELS = {
 	on: "Live",
 	off: "Off",
 	"cant-run": "Can't run",
 	"needs-fixes": "Needs fixes",
 	"cant-turn-on": "Can't turn on",
-};
+} as const satisfies Record<WorkflowState, string>;
 
 export function workflowState(input: {
 	enabled: boolean;

@@ -90,13 +90,13 @@ import {
 	workflowsQueryKeys,
 } from "#/lib/workflows.query";
 
-const STATE_STATUS: Record<WorkflowState, StatusValue> = {
+const STATE_STATUS = {
 	on: "ok",
 	off: "idle",
 	"cant-run": "warn",
 	"needs-fixes": "warn",
 	"cant-turn-on": "idle",
-};
+} as const satisfies Record<WorkflowState, StatusValue>;
 
 const route = getRouteApi("/$org/$repo/workflows/");
 

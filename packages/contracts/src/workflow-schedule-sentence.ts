@@ -160,6 +160,9 @@ const SCHEDULE_FIELD_LABELS = new Map([
 export function scheduleFieldLabel(
 	path: readonly PropertyKey[],
 ): string | null {
-	const key = path.filter((part) => typeof part === "string").join(".");
+	const key = path
+		.map(String)
+		.filter((part) => !/^\d+$/.test(part))
+		.join(".");
 	return SCHEDULE_FIELD_LABELS.get(key) ?? null;
 }

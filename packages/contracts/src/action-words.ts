@@ -1,8 +1,17 @@
+import { z } from "zod";
 import {
+	type JsonValue,
+	jsonValueSchema,
 	labelParamsSchema,
 	requestReviewTargetsSchema,
 	type WorkflowActionKind,
 } from "./workflow.ts";
+
+export type ActionParams = Record<string, JsonValue>;
+
+export const actionParamsSchema = z
+	.record(z.string(), jsonValueSchema)
+	.catch({});
 
 export function listWords(words: readonly string[]): string {
 	if (words.length <= 1) {
@@ -11,7 +20,7 @@ export function listWords(words: readonly string[]): string {
 	return `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
 }
 
-function labelsOf(params: unknown): string[] {
+function labelsOf(params: ActionParams): string[] {
 	const parsed = labelParamsSchema.safeParse(params);
 	return parsed.success ? parsed.data.labels : [];
 }
@@ -20,7 +29,7 @@ function labelPhrase(labels: readonly string[]): string {
 	return `${labels.length === 1 ? "the label" : "the labels"} ${listWords(labels)}`;
 }
 
-function reviewersOf(params: unknown): string[] {
+function reviewersOf(params: ActionParams): string[] {
 	const parsed = requestReviewTargetsSchema.safeParse(params);
 	if (!parsed.success) {
 		return [];
@@ -33,7 +42,7 @@ function reviewersOf(params: unknown): string[] {
 
 export function actionEffect(
 	action: WorkflowActionKind,
-	params: unknown,
+	params: ActionParams,
 ): string {
 	switch (action) {
 		case "block":
@@ -71,7 +80,7 @@ export function actionEffect(
 	}
 }
 
-export function actionDone(kind: string, params: unknown): string | null {
+export function actionDone(kind: string, params: ActionParams): string | null {
 	switch (kind) {
 		case "label": {
 			const labels = labelsOf(params);

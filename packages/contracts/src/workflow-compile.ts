@@ -675,7 +675,7 @@ function actionsAfter(
 			queue.push(edge.to);
 			const node = byId.get(edge.to);
 			if (node?.type === "action") {
-				actions.push(actionEffect(node.action, node.params));
+				actions.push(actionEffect(node.action, node.params ?? {}));
 			}
 		}
 	}

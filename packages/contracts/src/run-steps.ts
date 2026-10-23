@@ -38,7 +38,9 @@ export const VERDICT_LABELS = {
 
 const verdictWordSchema = verdictSchema.nullable().catch(null);
 
-export function verdictLabel(verdict: unknown): string | null {
+export function verdictLabel(
+	verdict: string | null | undefined,
+): string | null {
 	const parsed = verdictWordSchema.parse(verdict ?? null);
 	return parsed ? VERDICT_LABELS[parsed] : null;
 }

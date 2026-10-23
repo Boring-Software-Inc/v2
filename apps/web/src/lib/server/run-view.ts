@@ -1,6 +1,7 @@
 import {
 	ACTION_CATALOG,
 	actionDone,
+	actionParamsSchema,
 	bearsVerdict,
 	changeRequestUrl,
 	redactionLevelFor,
@@ -207,7 +208,10 @@ export async function loadRunView(
 				kind: action.kind,
 				status: action.status,
 				recordedAt: action.recordedAt.toISOString(),
-				label: actionDone(action.kind, action.payload),
+				label: actionDone(
+					action.kind,
+					actionParamsSchema.parse(action.payload),
+				),
 				url: actionUrl({
 					forge,
 					repoFullName: result.run.repoFullName,

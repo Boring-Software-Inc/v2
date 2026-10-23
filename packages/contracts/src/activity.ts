@@ -67,9 +67,6 @@ export interface ActivityAuthor {
 }
 
 function authorOf(event: NormalizedEvent): ActivityAuthor | null {
-	if (event.kind === "schedule.matched") {
-		return { login: event.thread.author, avatarUrl: null };
-	}
 	if (event.kind === "comment.created" && event.comment.byTripwire === true) {
 		return null;
 	}
