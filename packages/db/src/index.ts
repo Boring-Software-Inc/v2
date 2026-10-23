@@ -77,6 +77,8 @@ export {
 } from "./seed-scenarios.ts";
 export * as accessServices from "./services/access.ts";
 export * as accountServices from "./services/accounts.ts";
+export type { AgentGrant, ConnectedAgent } from "./services/agents.ts";
+export * as agentServices from "./services/agents.ts";
 export type {
 	AiReviewUsageInput,
 	BackfillUsageResult,
@@ -129,6 +131,12 @@ export * as ruleServices from "./services/rules.ts";
 export * as runServices from "./services/runs.ts";
 export type { DueSchedule } from "./services/schedules.ts";
 export * as scheduleServices from "./services/schedules.ts";
+export type {
+	SetupNextStep,
+	SetupProgressResult,
+	SetupStatus,
+} from "./services/setup.ts";
+export * as setupServices from "./services/setup.ts";
 export type {
 	StaffInstallationList,
 	StaffInstallationRow,
