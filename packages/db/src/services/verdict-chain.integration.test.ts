@@ -40,6 +40,15 @@ async function seedRun(
 	step++;
 	const at = new Date(start + step * MINUTE);
 	const eventId = generateId();
+	const actor = { login: "contributor", avatarUrl: null };
+	const normalized =
+		kind === "comment.created"
+			? {
+					kind,
+					actor,
+					comment: { externalId: eventId, subjectNumber: number },
+				}
+			: { kind, actor };
 	await db.insert(events).values({
 		id: eventId,
 		deliveryId: `d-${eventId}`,
@@ -48,13 +57,7 @@ async function seedRun(
 		kind,
 		repoFullName: REPO,
 		subjectNumber: number,
-		normalized: {
-			kind,
-			actor: { login: "contributor", avatarUrl: null },
-			...(kind === "comment.created"
-				? { comment: { externalId: eventId, subjectNumber: number } }
-				: {}),
-		},
+		normalized,
 		normalizedAt: at,
 		receivedAt: at,
 	});

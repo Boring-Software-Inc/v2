@@ -14,15 +14,17 @@ export function verdictStatus(
 	return verdict ? VERDICT[verdict] : undefined;
 }
 
-const RAN: { status: StatusValue; label: string } = {
-	status: "idle",
-	label: "Ran",
-};
+interface OutcomeLabel {
+	status: StatusValue;
+	label: string;
+}
+
+const RAN = { status: "idle", label: "Ran" } satisfies OutcomeLabel;
 
 export function runOutcome(
 	kind: EventKind,
 	verdict: string | null | undefined,
-): { status: StatusValue; label: string } | undefined {
+): OutcomeLabel | undefined {
 	if (!verdict || bearsVerdict(kind) || verdict === "needs_review") {
 		return verdictStatus(verdict);
 	}
