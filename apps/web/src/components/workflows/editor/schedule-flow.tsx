@@ -391,7 +391,6 @@ function ScheduleSteps({
 			<div className="-mx-4 mt-3 flex flex-col gap-3 border-line-faint border-t px-4 pt-4">
 				<div className="flex items-center gap-1.5">
 					<h3 className="type-label text-text-1">Filters</h3>
-					<span className="type-caption text-text-3">Optional</span>
 					<span className="ms-auto flex">
 						<RefreshLabels readOnly={readOnly} />
 					</span>
