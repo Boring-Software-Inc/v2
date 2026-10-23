@@ -32,6 +32,7 @@ export interface EditorHeaderProps {
 	zeroNodes: boolean;
 	blockers: readonly Problem[];
 	onSave: () => void;
+	onArrange: () => void;
 	onShowProblems: () => void;
 	onRename: (name: string) => Promise<{ ok: boolean; error?: string }>;
 	onSetEnabled: (enabled: boolean) => void;
@@ -51,6 +52,7 @@ export function EditorHeader({
 	zeroNodes,
 	blockers,
 	onSave,
+	onArrange,
 	onRename,
 	onSetEnabled,
 	onShowProblems,
@@ -148,6 +150,14 @@ export function EditorHeader({
 					<Badge variant="outline">Read only</Badge>
 				) : (
 					<>
+						<Button
+							disabled={zeroNodes}
+							onClick={onArrange}
+							size="sm"
+							variant="ghost"
+						>
+							Auto-arrange
+						</Button>
 						<Button
 							onClick={handleToggle}
 							pending={toggling}

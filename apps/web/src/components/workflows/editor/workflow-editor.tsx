@@ -23,6 +23,7 @@ import type {
 import {
 	acceptReason,
 	applyLintEdit,
+	arrangeWorkflow,
 	connectionIssue,
 	customValidationEntries,
 	type DragOrigin,
@@ -77,6 +78,7 @@ import {
 } from "#/components/workflows/editor/editor-sidebar";
 import {
 	estimateCardHeight,
+	LANE_SPACING,
 	laneDecor,
 	placeUnpositioned,
 } from "#/components/workflows/editor/lane-layout";
@@ -723,6 +725,49 @@ function EditorBody({
 		setDirty(true);
 	};
 
+	const arrange = () => {
+		const heights = new Map(
+			nodes.map((node) => [node.id, node.measured?.height]),
+		);
+		const arranged = arrangeWorkflow(currentDefinition(), {
+			spacing: LANE_SPACING,
+			heightOf: (node) => heights.get(node.id) ?? estimateCardHeight(node),
+		});
+		const placed = new Map(
+			arranged.nodes.map((node) => [node.id, node.position]),
+		);
+		const moved = nodes.some((node) => {
+			const next = placed.get(node.id);
+			return (
+				next !== undefined &&
+				(next.x !== node.position.x || next.y !== node.position.y)
+			);
+		});
+		if (!moved) {
+			return;
+		}
+		const before = { nodes, edges };
+		setNodes((current) =>
+			current.map((node) => ({
+				...node,
+				position: placed.get(node.id) ?? node.position,
+			})),
+		);
+		setDirty(true);
+		requestAnimationFrame(() =>
+			fitView({ ...fitViewOptions(), duration: 200 }),
+		);
+		toast("Steps arranged", {
+			action: {
+				label: "Undo",
+				onClick: () => {
+					setNodes(before.nodes);
+					setEdges(before.edges);
+				},
+			},
+		});
+	};
+
 	const connectPending = (item: ToolboxItem) => {
 		if (!pending) {
 			return;
@@ -1024,6 +1069,7 @@ function EditorBody({
 				dirty={dirty}
 				enabled={enabled}
 				name={name}
+				onArrange={arrange}
 				onRename={onRename}
 				onSave={handleSave}
 				onSetEnabled={handleSetEnabled}

@@ -124,3 +124,24 @@ export function layoutWorkflow(
 	});
 	return placed;
 }
+
+/**
+ * The graph with every node moved to its `layoutWorkflow` position. Only
+ * `position` changes, so arranging never changes what a workflow does.
+ */
+export function arrangeWorkflow<G extends Graph>(
+	graph: G,
+	options: {
+		spacing: LayoutSpacing;
+		heightOf: (node: WorkflowNode) => number;
+	},
+): G {
+	const placed = layoutWorkflow(graph, options);
+	return {
+		...graph,
+		nodes: graph.nodes.map((node) => {
+			const position = placed.get(node.id);
+			return position ? { ...node, position } : node;
+		}),
+	};
+}
