@@ -318,7 +318,7 @@ export function registerTools(
 							management: view.management,
 							optIn: view.optIn,
 							held: view.held,
-							cannotRun: view.forgeBlockReason,
+							cannotRun: view.forgeBlockReason ?? view.unavailableReason,
 							matches24h: view.matches24h,
 						})),
 					);

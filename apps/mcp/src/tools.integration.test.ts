@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { AI_CREDITS_COPY } from "@tripwire/contracts";
 import {
+	aiProviderServices,
 	applyMigrations,
 	createDb,
 	createTestDatabase,
@@ -539,6 +541,36 @@ describe("a repo argument names the repo the way people copy it", () => {
 			hint: "list_repos",
 			org: orgSlug,
 		});
+	});
+});
+
+describe("AI review while Tripwire is out of AI credits", () => {
+	test("set_rule refuses to turn it on, and get_repo_rules says it can't run", async () => {
+		await aiProviderServices.recordAiCredits(db, "out");
+		try {
+			const refused = await call("set_rule", {
+				repo: "mcp-api",
+				ruleId: "ai-review",
+				enabled: true,
+			});
+			expect(refused.isError).toBe(true);
+			expect(refused.structuredContent?.error).toBe(AI_CREDITS_COPY.cantRun);
+			const rules = z
+				.array(
+					z.object({ ruleId: z.string(), cannotRun: z.string().nullable() }),
+				)
+				.parse(
+					JSON.parse(
+						(await call("get_repo_rules", { repo: "mcp-api" })).content[0]
+							?.text ?? "",
+					),
+				);
+			expect(rules.find((rule) => rule.ruleId === "ai-review")?.cannotRun).toBe(
+				AI_CREDITS_COPY.reason,
+			);
+		} finally {
+			await aiProviderServices.recordAiCredits(db, "ready");
+		}
 	});
 });
 
