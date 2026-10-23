@@ -11,6 +11,9 @@ type Events = {
 	rule_toggled: { rule: string; enabled: boolean };
 	custom_rule_created: Record<string, never>;
 	moderation_decided: { decision: "approve" | "deny" };
+	setup_prompt_copied: { has_run_code: boolean };
+	agent_setup_prompt_dismissed: { count: 1 | 2 };
+	agent_setup_prompt_shown: { reminder: boolean };
 };
 
 export function trackEvent<E extends keyof Events>(name: E, props: Events[E]) {

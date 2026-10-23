@@ -29,6 +29,7 @@ import { MascotArt } from "#/components/mascot/mascot-art";
 import { ApprovedInstallBanner } from "#/components/organizations/approved-install-banner";
 import { ORG_REPOS_COLLECTION } from "#/components/organizations/org-home-collection";
 import { HomeLoading } from "#/components/organizations/org-home-page-skeleton";
+import { AgentSetupCard } from "#/components/setup/agent-setup-card";
 import { useCollection } from "#/hooks/use-collection";
 import { LIVE_FORGES } from "#/lib/forge-copy";
 import { formatRelativeTime } from "#/lib/format-relative-time";
@@ -43,7 +44,11 @@ export function OrgHomePage() {
 	const home = homeQuery.data;
 	const collection = useCollection(ORG_REPOS_COLLECTION, home?.repos);
 
+	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const repos = home?.repos ?? [];
+	const setupDone = Boolean(
+		home?.hasInstallation && repos.some((repo) => repo.armed),
+	);
 	const awaiting = repos.reduce((sum, r) => sum + r.pendingModeration, 0);
 	const blocked = repos.reduce((sum, r) => sum + r.blocked24h, 0);
 
@@ -65,6 +70,10 @@ export function OrgHomePage() {
 					</header>
 
 					<ApprovedInstallBanner />
+
+					{home && orgContext?.role === "admin" ? (
+						<AgentSetupCard org={org} setupDone={setupDone} />
+					) : null}
 
 					{home && !home.hasInstallation ? (
 						<InstallCta org={org} />

@@ -8,7 +8,9 @@
 		"./client": "./src/client.ts",
 		"./access": "./src/access.ts",
 		"./access-gate": "./src/access-gate.ts",
+		"./agent-auth": "./src/agent-auth.ts",
 		"./databuddy": "./src/databuddy.ts",
+		"./install-state": "./src/install-state.ts",
 		"./org-access": "./src/org-access.ts",
 		"./org-gate": "./src/org-gate.ts",
 		"./staff-gate": "./src/staff-gate.ts"
@@ -17,12 +19,14 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@better-auth/infra": "^0.3.7",
+		"@better-auth/cimd": "^1.7.12",
+		"@better-auth/infra": "^0.4.22",
+		"@better-auth/oauth-provider": "^1.7.12",
 		"@databuddy/sdk": "^2.4.20",
 		"@tripwire/contracts": "workspace:*",
 		"@tripwire/db": "workspace:*",
 		"@tripwire/utils": "workspace:*",
-		"better-auth": "^1.6.23",
+		"better-auth": "^1.7.12",
 		"drizzle-orm": "^0.45.2"
 	}
 }

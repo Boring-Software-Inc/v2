@@ -1,16 +1,8 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-
-/**
- * CSRF-safe install `state` (§10). The install URL carries a state that
- * HMAC-binds the initiating USER **and the target ORG** — the Setup URL
- * callback verifies both: the state's user must match the signed-in session,
- * and the installation is claimed for the state's org (after the confirmation
- * screen names both sides). An attacker can't forge a state (no secret), so
- * they can't trick a logged-in victim into claiming a foreign installation OR
- * into landing an installation in the wrong org. Installs arriving with no
- * valid state (initiated on GitHub's side) go to the claim screen instead —
- * never auto-attached. Server-only (Node crypto; never bundled client-side).
- */
+import {
+	type InstallState,
+	signInstallState as sign,
+	verifyInstallState as verify,
+} from "@tripwire/auth/install-state";
 
 function secret(): string {
 	// In open-dev there's no auth and no install flow; a constant keeps the
@@ -18,50 +10,14 @@ function secret(): string {
 	return process.env.BETTER_AUTH_SECRET ?? "tripwire-open-dev-install-state";
 }
 
-export interface InstallState {
-	userId: string;
-	orgId: string;
-}
+export type { InstallState };
 
 export function signInstallState(state: InstallState): string {
-	const payload = Buffer.from(
-		JSON.stringify({ u: state.userId, o: state.orgId }),
-	).toString("base64url");
-	const mac = createHmac("sha256", secret())
-		.update(payload)
-		.digest("base64url");
-	return `${payload}.${mac}`;
+	return sign(state, secret());
 }
 
-/** The bound {userId, orgId}, or null when the state is missing/forged. */
 export function verifyInstallState(
 	state: string | undefined,
 ): InstallState | null {
-	if (!state) {
-		return null;
-	}
-	const [payload, mac] = state.split(".");
-	if (!payload || !mac) {
-		return null;
-	}
-	const expected = createHmac("sha256", secret())
-		.update(payload)
-		.digest("base64url");
-	const got = Buffer.from(mac);
-	const want = Buffer.from(expected);
-	if (got.length !== want.length || !timingSafeEqual(got, want)) {
-		return null;
-	}
-	try {
-		const parsed = JSON.parse(Buffer.from(payload, "base64url").toString()) as {
-			u?: string;
-			o?: string;
-		};
-		if (!parsed.u || !parsed.o) {
-			return null;
-		}
-		return { userId: parsed.u, orgId: parsed.o };
-	} catch {
-		return null;
-	}
+	return verify(state, secret());
 }

@@ -116,13 +116,29 @@ export const disconnectForge = createServerFn({ method: "POST" })
 			);
 		}
 		const { getStartContext } = await import("@tanstack/start-storage-context");
+		const { getDb } = await import("#/lib/server/db");
+		const { repoServices, schema } = await import("@tripwire/db");
+		const { and, eq } = await import("drizzle-orm");
+		const rows = await getDb()
+			.db.select({ id: schema.account.id })
+			.from(schema.account)
+			.where(
+				and(
+					eq(schema.account.userId, userId),
+					eq(schema.account.providerId, data.forge),
+					eq(schema.account.accountId, data.accountId),
+				),
+			)
+			.limit(1);
+		const row = rows[0];
+		if (!row) {
+			throw new Error("This connection is already gone. Reload the page.");
+		}
 		await auth.api.unlinkAccount({
-			body: { providerId: data.forge, accountId: data.accountId },
+			body: { accountId: row.id },
 			headers: getStartContext().request.headers,
 		});
 
-		const { getDb } = await import("#/lib/server/db");
-		const { repoServices } = await import("@tripwire/db");
 		// `removeInstallation`, not a bare UPDATE — it also drops the
 		// `organization_installations` row. That row is a live-ownership pointer:
 		// leaving it behind meant a re-import produced repos that were unclaimed

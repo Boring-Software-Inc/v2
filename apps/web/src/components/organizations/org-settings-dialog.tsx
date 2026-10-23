@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { ConnectedAgentsPage } from "#/components/agents/connected-agents-page";
 import { ConnectionsPage } from "#/components/forges/connections-page";
 import {
 	Dialog,
@@ -36,6 +37,7 @@ const TABS: { value: OrgSettingsTab; label: string }[] = [
 	{ value: "settings", label: "General" },
 	{ value: "redaction", label: "Redaction" },
 	{ value: "connections", label: "Connections" },
+	{ value: "agents", label: "Agents" },
 	{ value: "billing", label: "Billing" },
 ];
 
@@ -142,6 +144,9 @@ export function OrgSettingsDialog() {
 						</TabsContent>
 						<TabsContent value="connections">
 							<ConnectionsPage org={org} />
+						</TabsContent>
+						<TabsContent value="agents">
+							<ConnectedAgentsPage />
 						</TabsContent>
 						<TabsContent value="billing">
 							<OrgBillingPage />

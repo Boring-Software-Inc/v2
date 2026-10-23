@@ -5,6 +5,7 @@ export const ORG_SETTINGS_TABS = [
 	"settings",
 	"redaction",
 	"connections",
+	"agents",
 	"billing",
 ] as const;
 

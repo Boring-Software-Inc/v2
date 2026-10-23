@@ -183,6 +183,20 @@
       "when": 1792727262466,
       "tag": "0025_serious_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792729778603,
+      "tag": "0026_agent_setup",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792735005071,
+      "tag": "0027_agent_setup_prompts",
+      "breakpoints": true
     }
   ]
 }

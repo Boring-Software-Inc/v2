@@ -52,6 +52,12 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	 */
 	listForgeConnections: "authed",
 	disconnectForge: "authed",
+	getConsentRequest: "authed", // the caller's own agent consent
+	grantConsentOrgs: "authed", // grants only orgs the caller belongs to
+	getDeviceRequest: "authed", // the caller's own cli sign-in
+	grantDeviceOrgs: "authed", // grants only orgs the caller belongs to
+	listConnectedAgents: "authed", // the caller's own agents
+	revokeConnectedAgent: "authed", // the caller's own agents
 
 	// ── member (org-scoped reads + self-scoped org actions) ─────────────
 	getOrgContext: "member",
@@ -82,6 +88,10 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	setCustomRuleEnabled: "admin",
 	deleteCustomRule: "admin",
 	updateOrg: "admin",
+	ensureSetupRun: "admin", // a setup run is an install-and-gate act
+	findSetupRun: "admin",
+	getAgentSetupPrompt: "admin",
+	dismissAgentSetupPrompt: "admin",
 	getOrgCascade: "admin", // pre-delete enumeration — admin surface
 	deleteOrg: "admin",
 	updateOrgMemberRole: "admin",

@@ -8,7 +8,7 @@ import {
   FileCodeIcon, FileCsvIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FunnelIcon, GearSixIcon, GlobeIcon, InfoIcon,
   KeyIcon, LinkSimpleIcon, LockIcon, MagnifyingGlassIcon, MicrophoneIcon, MicrophoneSlashIcon, MinusIcon, MoonIcon,
   PaperPlaneRightIcon, PaperclipIcon, PauseIcon, PencilSimpleIcon, PlayIcon, PlusIcon, RobotIcon, ShieldSlashIcon,
-  SparkleIcon, SquareIcon, SunIcon, TableIcon, TerminalWindowIcon, TrashIcon, TrayIcon,
+  SparkleIcon, SquareIcon, SunIcon, TableIcon, TerminalIcon, TerminalWindowIcon, TrashIcon, TrayIcon,
   UploadSimpleIcon, UserIcon, WarningIcon, WarningCircleIcon, WrenchIcon, XIcon, XCircleIcon, HourglassSimpleMediumIcon,
   BellIcon, BuildingsIcon, ChartBarIcon, ChatCircleIcon, ChatsCircleIcon, CommandIcon, CreditCardIcon, CursorIcon,
   DotsThreeVerticalIcon, EnvelopeIcon, FlowArrowIcon, FolderIcon, GitBranchIcon, GitForkIcon, GithubLogoIcon,
@@ -95,6 +95,7 @@ export const Stop = SquareIcon;
 export const Subtract = MinusIcon;
 export const Success = CheckCircleIcon;
 export const TableView = TableIcon;
+export const Prompt = TerminalIcon;
 export const Terminal = TerminalWindowIcon;
 export const Time = ClockIcon;
 export const Tool = WrenchIcon;

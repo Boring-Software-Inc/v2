@@ -38,6 +38,7 @@ export function getAuth(): Auth | null {
 		infraApiKey: process.env.BETTER_AUTH_API_KEY,
 		// Compile-time DEV flag: production bundles never enable email/password.
 		devLogin: import.meta.env.DEV,
+		mcpResource: process.env.MCP_PUBLIC_URL,
 	});
 	return instance;
 }

@@ -12,6 +12,7 @@
 
 export * from "./access.ts";
 export * from "./activity.ts";
+export * from "./agent-access.ts";
 export * from "./check.ts";
 export * from "./comment-render.ts";
 export * from "./contributor.ts";
@@ -30,8 +31,10 @@ export * from "./repo.ts";
 export * from "./repo-content.ts";
 export * from "./response.ts";
 export * from "./review.ts";
+export * from "./rule-execution.ts";
 export * from "./rules.ts";
 export * from "./runs.ts";
+export * from "./setup.ts";
 export * from "./webhook-payload.ts";
 export * from "./workflow.ts";
 export * from "./workflow-connections.ts";

@@ -9,7 +9,9 @@ import {
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, eq, isNull, sql } from "drizzle-orm";
+import type { PgBoss } from "pg-boss";
 import type { Db } from "../client.ts";
+import { BACKFILL_REPO_QUEUE } from "../queue.ts";
 import { organizationInstallations } from "../schema/organizations.ts";
 import {
 	customRules,
@@ -210,6 +212,17 @@ export async function setRepoArmed(
 	armed: boolean,
 ): Promise<void> {
 	await db.update(repos).set({ armed }).where(eq(repos.id, repoId));
+}
+
+export async function turnOnGate(
+	db: Db,
+	boss: PgBoss | null,
+	repoId: string,
+): Promise<void> {
+	await setRepoArmed(db, repoId, true);
+	if (boss) {
+		await boss.send(BACKFILL_REPO_QUEUE, { repoId });
+	}
 }
 
 /**

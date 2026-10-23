@@ -97,7 +97,7 @@ function RecoverInstallation({ state }: { state: string | undefined }) {
 	if (claimable.length === 0) {
 		return (
 			<SetupShell>
-				<MascotArt mood="install-nothing" />
+				<MascotArt className="self-center" mood="install-nothing" />
 				<SetupHeader
 					body="Tripwire has no new installations to connect. If you installed Tripwire a moment ago, refresh this page in a minute while it loads your repos. Repos you already connected are in their org."
 					title="Nothing to connect yet"
@@ -282,7 +282,7 @@ function SetupFlow({
 		case "not-for-tripwire":
 			return (
 				<SetupShell>
-					<MascotArt mood="not-found" />
+					<MascotArt className="self-center" mood="not-found" />
 					<SetupHeader title="This installation isn't for Tripwire" />
 					<BackHome />
 				</SetupShell>
@@ -328,7 +328,7 @@ function SetupFlow({
 function ConnectingScreen() {
 	return (
 		<SetupShell>
-			<MascotArt mood="repos-syncing" />
+			<MascotArt className="self-center" mood="repos-syncing" />
 			<SetupHeader title="Connecting your installation…" />
 		</SetupShell>
 	);
@@ -349,7 +349,7 @@ function RecoveryScreen({
 }) {
 	return (
 		<SetupShell>
-			<MascotArt mood={mood} />
+			<MascotArt className="self-center" mood={mood} />
 			<SetupHeader title={title} />
 			<div className="flex flex-wrap justify-center gap-2">
 				<Button

@@ -22,8 +22,8 @@ forge         ← forge-github, worker  (interface + types only; imports contrac
 core          ← worker ONLY           (pure: imports contracts + utils only.
                                        NO I/O, no db, no forge, no AI SDK, no octokit.
                                        Effects are INJECTED)
-db            ← worker, api, web      (schema + services)
-auth          ← web, api              (./server sessions + posture guard,
+db            ← worker, api, web, mcp (schema + services)
+auth          ← web, api, mcp         (./server sessions + posture guard,
                                        ./client browser; imports db + utils)
 forge-github  ← worker, api           (api uses webhook verify only)
 ui            ← web                   (primitives; no app logic, no data fetching)
@@ -31,6 +31,12 @@ ui            ← web                   (primitives; no app logic, no data fetch
 apps import packages; packages NEVER import apps; nothing imports core except
 worker. `scripts/check-boundaries.ts` fails the build on any wrong-direction
 import.
+
+Apps: `apps/web` (dashboard + auth server), `apps/api` (webhooks + SSE),
+`apps/worker` (runs), `apps/mcp` (remote MCP server for agents, a resource
+server over `@tripwire/db` services), `apps/cli` (`npx @tripwire-sh/cli`, the
+agent installer and device-grant login). `apps/mcp` and `apps/cli` approved
+2026-10-22 (docs/research/agent-setup.md).
 
 ## Naming conventions (§9)
 - Files **kebab-case** (`event-list.tsx`, `account-age.ts`) — including utils and
@@ -103,7 +109,7 @@ files from it.** It contains the scope creep that killed v1.
 
 ## The cut list (append, never delete)
 GitLab / any second forge adapter · SDK publishing · public OpenAPI surface ·
-`apps/mcp` implementation · ML layer · org-level features · billing ·
+~~`apps/mcp` implementation~~ (lifted 2026-10-22) · ML layer · org-level features · billing ·
 email/password auth · deep observability beyond pino · deployment automation ·
 content classifiers (profanity / harassment / NSFW) ·
 PR-description content matching · discussions / wiki / commit-message scanning ·

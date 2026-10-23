@@ -34,7 +34,10 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 				signal: request.signal,
 			});
 		}
-		if (!url.pathname.startsWith("/api/auth")) {
+		const authMetadata =
+			url.pathname.startsWith("/.well-known/oauth-authorization-server") ||
+			url.pathname.startsWith("/.well-known/openid-configuration");
+		if (!(url.pathname.startsWith("/api/auth") || authMetadata)) {
 			return await next();
 		}
 		const { getAuth } = await import("#/lib/server/auth");

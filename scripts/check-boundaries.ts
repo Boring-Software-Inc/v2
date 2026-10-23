@@ -15,7 +15,7 @@ import { Glob } from "bun";
  *   forge        ← forge-github, forge-opengit, worker
  *   core         ← worker ONLY
  *   sdk          ← forge-github, worker  (signal registry + defineForge; pure)
- *   db           ← worker, api, web
+ *   db           ← worker, api, web, mcp
  *   forge-github ← worker, api
  *   forge-opengit ← worker, api           (no sdk yet — no signals of its own)
  *   ui           ← web
@@ -36,6 +36,7 @@ const ALLOWED: Record<string, readonly string[]> = {
 	// apps
 	web: ["auth", "contracts", "utils", "db", "ui", "sdk"],
 	api: ["auth", "contracts", "utils", "db", "forge-github", "forge-opengit"],
+	mcp: ["auth", "contracts", "utils", "db"],
 	worker: [
 		"contracts",
 		"utils",
@@ -71,8 +72,6 @@ for (const root of ["packages", "apps"]) {
 		}
 		const importer = file.split("/")[1];
 		if (!(importer && KNOWN.has(importer))) {
-			// A workspace with no arrows defined (e.g. mcp) shouldn't import
-			// tripwire packages at all yet.
 			continue;
 		}
 		const source = await Bun.file(file).text();
