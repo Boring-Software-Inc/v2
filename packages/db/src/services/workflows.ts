@@ -290,17 +290,21 @@ export async function saveWorkflowDefinition(
 		if (!row) {
 			return { ok: false, issues: [{ message: "workflow not found" }] };
 		}
+		const stored = workflowDefinitionSchema.safeParse(row.definition);
 		if (row.enabled) {
-			const checked = validateWorkflowForEnable(definition, catalog);
-			if (!checked.valid) {
-				return { ok: false, issues: checked.issues };
+			const issues = liveSaveIssues(
+				stored.success ? stored.data : null,
+				definition,
+				catalog,
+			);
+			if (issues.length > 0) {
+				return { ok: false, issues };
 			}
 		}
 		await tx
 			.update(workflowDefinitions)
 			.set({ definition, name: definition.name, updatedAt: new Date() })
 			.where(eq(workflowDefinitions.id, row.id));
-		const stored = workflowDefinitionSchema.safeParse(row.definition);
 		await restartSchedules(
 			tx,
 			row.id,
@@ -543,12 +547,7 @@ export async function applyWorkflowDefinition(
 			return { ok: true, outcome: "unchanged", workflow, changes };
 		}
 		if (locked.enabled) {
-			const checked = validateWorkflowForEnable(merged, catalog);
-			const issues = checked.valid
-				? []
-				: checked.issues.filter(
-						(issue) => !alreadyLiveUnavailable(issue, stored.data, merged),
-					);
+			const issues = liveSaveIssues(stored.data, merged, catalog);
 			if (issues.length > 0) {
 				return { ok: false, reason: "live-cannot-run", issues };
 			}
@@ -562,20 +561,26 @@ export async function applyWorkflowDefinition(
 	});
 }
 
-function alreadyLiveUnavailable(
-	issue: ValidationIssue,
-	stored: WorkflowDefinition,
-	merged: WorkflowDefinition,
-): boolean {
-	if (issue.rule !== "rule-unavailable") {
-		return false;
+function liveSaveIssues(
+	stored: WorkflowDefinition | null,
+	next: WorkflowDefinition,
+	catalog: readonly ValidationCatalogEntry[],
+): ValidationIssue[] {
+	const checked = validateWorkflowForEnable(next, catalog);
+	if (checked.valid) {
+		return [];
 	}
-	const ref = (definition: WorkflowDefinition) => {
-		const node = definition.nodes.find((n) => n.id === issue.nodeId);
+	const ref = (definition: WorkflowDefinition | null, nodeId?: string) => {
+		const node = definition?.nodes.find((n) => n.id === nodeId);
 		return node?.type === "rule" ? node.ref : null;
 	};
-	const before = ref(stored);
-	return before !== null && before === ref(merged);
+	return checked.issues.filter((issue) => {
+		if (issue.rule !== "rule-unavailable") {
+			return true;
+		}
+		const before = ref(stored, issue.nodeId);
+		return before === null || before !== ref(next, issue.nodeId);
+	});
 }
 
 export type SetEnabledResult =

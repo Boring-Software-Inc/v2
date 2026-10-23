@@ -17,6 +17,7 @@ import {
 	createWorkflow,
 	getWorkflow,
 	listWorkflows,
+	saveWorkflowDefinition,
 	setWorkflowEnabled,
 } from "./workflows.ts";
 
@@ -255,6 +256,60 @@ describe("turning AI review on while credits are out", () => {
 			},
 		});
 		expect(result.ok).toBe(false);
+		expect(result.ok ? [] : result.issues.map((i) => i.message)).toEqual([
+			AI_CREDITS_COPY.cantRun,
+		]);
+	});
+
+	test("an editor save of a live workflow that already had AI review lands", async () => {
+		await recordAiCredits(db, "out");
+		const live = (await listWorkflows(db, repoId)).find((row) =>
+			row.name.startsWith("live ai gate"),
+		);
+		const stored =
+			live && (await getWorkflow(db, { repoId, workflowId: live.id }));
+		if (!stored) {
+			throw new Error("no live workflow");
+		}
+		const result = await saveWorkflowDefinition(db, {
+			repoId,
+			workflowId: stored.id,
+			definition: { ...stored.definition, name: "live ai gate v3" },
+		});
+		expect(result).toEqual({ ok: true });
+	});
+
+	test("an editor save that adds AI review to a live workflow is refused", async () => {
+		await recordAiCredits(db, "out");
+		const plain = (await listWorkflows(db, repoId)).find(
+			(row) => row.name === "plain gate",
+		);
+		const stored =
+			plain && (await getWorkflow(db, { repoId, workflowId: plain.id }));
+		if (!stored) {
+			throw new Error("no plain workflow");
+		}
+		const result = await saveWorkflowDefinition(db, {
+			repoId,
+			workflowId: stored.id,
+			definition: {
+				...stored.definition,
+				nodes: [
+					...stored.definition.nodes,
+					{
+						id: "ai",
+						type: "rule",
+						ref: "ai-review@2",
+						config: { maxSteps: 12 },
+					},
+				],
+				edges: [
+					...stored.definition.edges,
+					{ id: "e3", from: "t", to: "ai" },
+					{ id: "e4", from: "ai", to: "a", when: "fail" },
+				],
+			},
+		});
 		expect(result.ok ? [] : result.issues.map((i) => i.message)).toEqual([
 			AI_CREDITS_COPY.cantRun,
 		]);
