@@ -70,7 +70,10 @@ named.
 Webhook and Discord URLs are set in the app by the user, never in code.
 
 **Unknown results.** A rule that cannot evaluate is skipped. A skipped check
-fires no action through any port or gate, so it never blocks.
+fires no action through any port or gate, so it never blocks. A step that
+waits on a skipped check is skipped too. A check that is never reached, because
+an earlier check sent the run another way, does not pass in `allOf` or
+`anyOf`.
 
 **Wiring beyond one condition.** Name steps in `steps: { ... }`; the key is the
 step id. `.after(x)` runs a check or action after a trigger or an output:

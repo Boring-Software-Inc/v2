@@ -280,12 +280,12 @@ export function authoring<C extends AuthoringCatalog>() {
 			return makeCheck(rule, config, undefined, []);
 		},
 
-		/** Passes when every input passes. */
+		/** Passes when every input passes. An input that was never reached does not pass. */
 		allOf(...inputs: Input[]): GateStep {
 			return gate("all-of", inputs);
 		},
 
-		/** Passes when at least one input passes. */
+		/** Passes when at least one input passes. An input that was never reached does not pass. */
 		anyOf(...inputs: Input[]): GateStep {
 			return gate("any-of", inputs);
 		},

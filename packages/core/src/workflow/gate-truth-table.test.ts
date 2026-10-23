@@ -287,6 +287,7 @@ describe("regression: a rule that cannot run behind a Not", async () => {
 				["r", "skipped"],
 				["not", "skipped"],
 				["all", "skipped"],
+				["block", "skipped"],
 			]);
 		}
 	});
@@ -305,42 +306,158 @@ describe("regression: a rule that cannot run behind a Not", async () => {
 describe("unreached inputs", async () => {
 	const event = await fixtureEvent("change-request.opened.event");
 
-	const definition: WorkflowDefinition = {
-		id: "partial",
-		name: "partial",
-		version: 1,
-		nodes: [
-			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
-			{ id: "a", type: "rule", ref: "a@1", config: {} },
-			{ id: "b", type: "rule", ref: "b@1", config: {} },
-			{ id: "g", type: "gate", mode: "all-of" },
-			{ id: "block", type: "action", action: "block" },
-		],
-		edges: [
-			{ id: "e1", from: "t", to: "a" },
-			{ id: "e2", from: "a", to: "b", when: "fail" },
-			{ id: "e3", from: "a", to: "g" },
-			{ id: "e4", from: "b", to: "g" },
-			{ id: "e5", from: "g", to: "block", when: "fail" },
-		],
-	};
+	function chained(
+		mode: GateMode,
+		outputs: { id: string; when?: EdgeWhen; action: "block" | "label" }[],
+	): WorkflowDefinition {
+		return {
+			id: "chained",
+			name: "chained",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				{ id: "a", type: "rule", ref: "a@1", config: {} },
+				{ id: "b", type: "rule", ref: "b@1", config: {} },
+				{ id: "c", type: "rule", ref: "c@1", config: {} },
+				{ id: "g", type: "gate", mode },
+				...outputs.map((output) =>
+					output.action === "label"
+						? {
+								id: output.id,
+								type: "action" as const,
+								action: "label" as const,
+								params: { labels: ["trusted"] },
+							}
+						: {
+								id: output.id,
+								type: "action" as const,
+								action: "block" as const,
+							},
+				),
+			],
+			edges: [
+				{ id: "e1", from: "t", to: "a" },
+				{ id: "e2", from: "a", to: "b" },
+				{ id: "e3", from: "t", to: "c" },
+				{ id: "e4", from: "b", to: "g" },
+				{ id: "e5", from: "c", to: "g" },
+				...outputs.map((output) =>
+					output.when
+						? {
+								id: `out-${output.id}`,
+								from: "g",
+								to: output.id,
+								when: output.when,
+							}
+						: { id: `out-${output.id}`, from: "g", to: output.id },
+				),
+			],
+		};
+	}
 
-	test("a gate folds only the inputs that ran", async () => {
-		const result = await executeWorkflow({
+	async function run(
+		definition: WorkflowDefinition,
+		states: Record<string, InputState>,
+	) {
+		return await executeWorkflow({
 			definition,
 			event,
-			evaluateRuleRef: (ref) => Promise.resolve(resultFor(ref, "passes")),
+			evaluateRuleRef: (ref) =>
+				Promise.resolve(resultFor(ref, states[ref] ?? "passes")),
 			now: () => "2026-10-23T00:00:00.000Z",
 		});
+	}
+
+	test("an input unreached behind a skipped rule is unknown, so block never fires", async () => {
+		const definition = chained("any-of", [
+			{ id: "block", when: "fail", action: "block" },
+		]);
+		for (const state of ["skipped", "errored"] as const) {
+			const result = await run(definition, { "a@1": state, "c@1": "fails" });
+			expect(result.steps.find((step) => step.nodeId === "b")?.status).toBe(
+				"skipped",
+			);
+			expect(result.steps.find((step) => step.nodeId === "g")?.status).toBe(
+				"skipped",
+			);
+			expect(result.verdict).toBe("pass");
+			expect(result.actions).toEqual([]);
+		}
+	});
+
+	test("an input unreached behind a skipped rule never lets all-of pass", async () => {
+		const definition = chained("all-of", [{ id: "lab", action: "label" }]);
+		const result = await run(definition, { "a@1": "skipped", "c@1": "passes" });
+		expect(result.steps.find((step) => step.nodeId === "g")?.status).toBe(
+			"skipped",
+		);
+		expect(result.actions).toEqual([]);
+	});
+
+	test("an input its branch certainly never reached does not pass", async () => {
+		const blocking = chained("any-of", [
+			{ id: "block", when: "fail", action: "block" },
+		]);
+		const result = await run(blocking, { "a@1": "fails", "c@1": "fails" });
 		const gate = result.steps.find((step) => step.nodeId === "g");
 		expect(gate?.input).toEqual({
-			mode: "all-of",
+			mode: "any-of",
 			inputs: [
-				{ from: "a", port: "pass", outcome: "pass" },
-				{ from: "b", port: "pass", outcome: null },
+				{ from: "b", port: "pass", outcome: "fail", reached: false },
+				{ from: "c", port: "pass", outcome: "fail" },
 			],
 		});
-		expect(gate?.status).toBe("pass");
+		expect(gate?.status).toBe("fail");
+		expect(result.verdict).toBe("block");
+
+		const labelling = chained("all-of", [{ id: "lab", action: "label" }]);
+		const strict = await run(labelling, { "a@1": "fails", "c@1": "passes" });
+		expect(strict.steps.find((step) => step.nodeId === "g")?.status).toBe(
+			"fail",
+		);
+		expect(strict.actions).toEqual([]);
+	});
+
+	test("a certainly unreached input counts as not passing on a Doesn't pass edge too", async () => {
+		const definition: WorkflowDefinition = {
+			...chained("any-of", [{ id: "block", action: "block" }]),
+			edges: [
+				{ id: "e1", from: "t", to: "a" },
+				{ id: "e2", from: "a", to: "b" },
+				{ id: "e3", from: "t", to: "c" },
+				{ id: "e4", from: "b", to: "g", when: "fail" },
+				{ id: "e5", from: "c", to: "g", when: "fail" },
+				{ id: "out", from: "g", to: "block" },
+			],
+		};
+		const result = await run(definition, { "a@1": "fails", "c@1": "passes" });
+		expect(result.steps.find((step) => step.nodeId === "g")?.status).toBe(
+			"fail",
+		);
+		expect(result.verdict).toBe("pass");
+	});
+
+	test("a gate whose inputs were all certainly unreached stays unreached", async () => {
+		const definition: WorkflowDefinition = {
+			id: "dormant",
+			name: "dormant",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				{ id: "a", type: "rule", ref: "a@1", config: {} },
+				{ id: "b", type: "rule", ref: "b@1", config: {} },
+				{ id: "not", type: "gate", mode: "not" },
+				{ id: "block", type: "action", action: "block" },
+			],
+			edges: [
+				{ id: "e1", from: "t", to: "a" },
+				{ id: "e2", from: "a", to: "b", when: "fail" },
+				{ id: "e3", from: "b", to: "not" },
+				{ id: "e4", from: "not", to: "block" },
+			],
+		};
+		const result = await run(definition, { "a@1": "passes" });
+		expect(result.steps.map((step) => step.nodeId)).toEqual(["t", "a"]);
 		expect(result.verdict).toBe("pass");
 	});
 });

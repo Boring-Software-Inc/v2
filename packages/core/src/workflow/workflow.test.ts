@@ -207,7 +207,7 @@ describe("executeWorkflow", () => {
 		}
 	});
 
-	test("skipped rule conducts as pass but records skipped (§6)", async () => {
+	test("a skipped rule never blocks and records skipped (§6)", async () => {
 		const result = await executeWorkflow({
 			definition: GATED,
 			event: await fixtureEvent("change-request.opened.event"),

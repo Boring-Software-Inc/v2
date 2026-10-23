@@ -67,7 +67,7 @@ describe("workflowToMarkdown — header + built-in rules", () => {
 	test("the gate names its meaning and its inputs", () => {
 		expect(md).toContain("### Gates");
 		expect(md).toContain(
-			"- **All of**: Passes only when every connected check passes.",
+			"- **All of**: Passes only when every connected check passes. A check that was never reached does not pass.",
 		);
 		expect(md).toContain(
 			"inputs: Account age, Crypto address, Honeypot paths, Max files changed, English only",

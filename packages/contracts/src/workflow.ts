@@ -42,12 +42,13 @@ export type JsonValue =
  * Semantics (enforced by core/workflow):
  * - a rule/action node runs when ≥1 incoming edge conducts; a trigger conducts
  *   when its kinds include the event kind.
- * - a GATE node runs once ≥1 of its source nodes has settled (been reached) and
- *   aggregates their OUTCOMES — edge when-conduction does NOT gate gate
- *   execution, so a gate whose feeding rules all fail still runs and fails (the
- *   security fix; otherwise an all-failing gate would derive `pass`).
- * - rule nodes produce pass/fail; `skipped` conducts as pass but is recorded
- *   (a rule that can't evaluate must not block — §6 purity).
+ * - a GATE node runs once ≥1 of its source nodes has settled and folds every
+ *   input, failures included (Kleene three-valued, see foldGate).
+ * - `skipped` is unknown: a rule that can't evaluate conducts on no port. A
+ *   node that no edge conducts into, with an unknown among its inputs, settles
+ *   as skipped too, so unknown never fires an action.
+ * - a gate input whose source was certainly never reached does not pass. A
+ *   gate whose inputs were all certainly never reached is never reached.
  * - edges conduct on the source's outcome: `when: "pass"` (default) | "fail";
  *   `approve`/`deny` edges leave a send-to-moderation node and conduct only
  *   when the moderation decision resumes the run (§6: paused run).
@@ -648,12 +649,14 @@ export const GATE_CATALOG: GateCatalogEntry[] = [
 	{
 		mode: "all-of",
 		name: "All of",
-		description: "Passes only when every connected check passes.",
+		description:
+			"Passes only when every connected check passes. A check that was never reached does not pass.",
 	},
 	{
 		mode: "any-of",
 		name: "Any of",
-		description: "Passes when at least one connected check passes.",
+		description:
+			"Passes when at least one connected check passes. A check that was never reached does not pass.",
 	},
 	{
 		mode: "not",

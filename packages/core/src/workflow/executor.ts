@@ -111,38 +111,27 @@ export async function executeWorkflow(
 	let pausedAtNodeId: string | null = null;
 	let blocked = false;
 
-	const incomingConducts = (nodeId: string): boolean => {
-		const incoming = definition.edges.filter((e) => e.to === nodeId);
-		return incoming.some((edge) => {
-			const source = outcomes.get(edge.from);
-			if (source === undefined || !conducted.has(edge.from)) {
-				return false;
-			}
-			const when = edge.when ?? "pass";
-			if (when === "approve" || when === "deny") {
-				return (
-					resume !== undefined &&
-					edge.from === resume.nodeId &&
-					when === (resume.decision === "approve" ? "approve" : "deny")
-				);
-			}
-			return portValue(when, source) === "pass";
-		});
+	type EdgeValue = NodeOutcome | "unreached";
+
+	const edgeValue = (edge: WorkflowDefinition["edges"][number]): EdgeValue => {
+		const source = outcomes.get(edge.from);
+		const from = byId.get(edge.from);
+		if (source === undefined || !conducted.has(edge.from) || !from) {
+			return "unreached";
+		}
+		const when = edge.when ?? "pass";
+		if (when === "approve" || when === "deny") {
+			const decided =
+				resume !== undefined &&
+				edge.from === resume.nodeId &&
+				when === (resume.decision === "approve" ? "approve" : "deny");
+			return decided ? "pass" : "fail";
+		}
+		return portValue(edgePort(from, edge.when), source);
 	};
 
-	/**
-	 * Gate reachability (security fix — live-test surprise #2): a gate runs once
-	 * at least one of its source nodes has SETTLED (been reached and produced an
-	 * outcome). Topo order guarantees every source is processed before the gate,
-	 * so "conducted" == "settled" here. Edge when-conduction does NOT gate gate
-	 * execution — otherwise a gate whose feeding rules ALL fail (rule→gate edges
-	 * default to `when: "pass"`) would never run, never fire block, and the run
-	 * would derive verdict `pass`. The gate aggregates its sources' outcomes,
-	 * failures included; when-conduction still governs rule→action and
-	 * gate→action edges.
-	 */
-	const gateHasSettledSource = (nodeId: string): boolean =>
-		definition.edges.some((e) => e.to === nodeId && conducted.has(e.from));
+	const incomingEdges = (nodeId: string) =>
+		definition.edges.filter((e) => e.to === nodeId);
 
 	const record = async (
 		node: WorkflowNode,
@@ -202,11 +191,27 @@ export async function executeWorkflow(
 			continue;
 		}
 
+		const incoming = incomingEdges(node.id).map((edge) => ({
+			edge,
+			value: edgeValue(edge),
+		}));
+		const values = incoming.map((input) => input.value);
 		const reached =
 			node.type === "gate"
-				? gateHasSettledSource(node.id)
-				: incomingConducts(node.id);
+				? values.some((value) => value !== "unreached")
+				: values.includes("pass");
 		if (!(reached || isResumeTarget)) {
+			if (values.includes("skipped")) {
+				outcomes.set(node.id, "skipped");
+				conducted.add(node.id);
+				await record(
+					node,
+					"skipped",
+					{ unreached: "unknown" },
+					{ reason: "An earlier step could not run." },
+					startedAt,
+				);
+			}
 			continue;
 		}
 
@@ -235,26 +240,16 @@ export async function executeWorkflow(
 		}
 
 		if (node.type === "gate") {
-			const inputs = definition.edges
-				.filter((e) => e.to === node.id)
-				.map((e) => {
-					const source = outcomes.get(e.from);
-					const from = byId.get(e.from);
-					const port = from ? edgePort(from, e.when) : "pass";
-					return {
-						from: e.from,
-						port,
-						outcome:
-							source === undefined || !conducted.has(e.from)
-								? null
-								: portValue(port, source),
-					};
-				});
+			const inputs = incoming.map(({ edge, value }) => {
+				const from = byId.get(edge.from);
+				const port = from ? edgePort(from, edge.when) : "pass";
+				return value === "unreached"
+					? { from: edge.from, port, outcome: "fail" as const, reached: false }
+					: { from: edge.from, port, outcome: value };
+			});
 			const outcome = foldGate(
 				node.mode,
-				inputs
-					.map((i) => i.outcome)
-					.filter((o): o is NodeOutcome => o !== null),
+				inputs.map((input) => input.outcome),
 			);
 			outcomes.set(node.id, outcome);
 			conducted.add(node.id);
