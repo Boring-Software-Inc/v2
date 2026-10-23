@@ -128,7 +128,7 @@ describe("management commands over MCP", () => {
 			/^RUN\s+REPO\s+PR\s+STATUS\s+VERDICT\s+CREATED$/,
 		);
 		expect(result.stdout).toMatch(
-			/run_1\s+scratch\s+#12\s+completed\s+block\s+2026-10-22 14:03/,
+			/run_1\s+scratch\s+#12\s+completed\s+block\s+2026-10-22 14:03 UTC/,
 		);
 	});
 

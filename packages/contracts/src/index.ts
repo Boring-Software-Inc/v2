@@ -34,6 +34,7 @@ export * from "./response.ts";
 export * from "./review.ts";
 export * from "./rule-execution.ts";
 export * from "./rules.ts";
+export * from "./run-steps.ts";
 export * from "./runs.ts";
 export * from "./setup.ts";
 export * from "./webhook-payload.ts";

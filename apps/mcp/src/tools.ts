@@ -3,6 +3,7 @@ import { installUrlFor, signInstallState } from "@tripwire/auth/install-state";
 import {
 	AUTHORING_MODULE_PATH,
 	DEFAULT_SCHEDULE_TIMEZONE,
+	describeRunSteps,
 	diffWorkflow,
 	mergeForPush,
 	RULE_CATALOG,
@@ -646,7 +647,8 @@ export function registerTools(
 		server.registerTool(
 			"get_run",
 			{
-				description: "One run with its steps and actions.",
+				description:
+					"One run with its steps and actions. Each step names its workflow, its title and id, the gate mode for gates, and its outcome in product words. Times are ISO 8601 in UTC.",
 				inputSchema: { org: orgArg, runId: z.string().min(1) },
 				annotations: annotate("get_run"),
 			},
@@ -677,11 +679,19 @@ export function registerTools(
 						status: found.run.status,
 						verdict: found.run.verdict,
 						createdAt: found.run.createdAt.toISOString(),
-						steps: found.steps.map((step) => ({
-							kind: step.nodeKind,
-							rule: step.ruleId,
-							status: step.status,
-							summary: step.summary,
+						workflows: z
+							.array(z.object({ name: z.string() }))
+							.catch([])
+							.parse(found.run.workflowSnapshot)
+							.map((definition) => definition.name),
+						steps: describeRunSteps(
+							found.run.workflowSnapshot,
+							found.steps,
+						).map((view, index) => ({
+							...view,
+							kind: found.steps[index]?.nodeKind,
+							rule: found.steps[index]?.ruleId ?? null,
+							status: found.steps[index]?.status,
 						})),
 						actions: found.actions.map((action) => ({
 							kind: action.kind,

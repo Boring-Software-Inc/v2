@@ -145,6 +145,58 @@ describe("list_runs", () => {
 	});
 });
 
+describe("get_run", () => {
+	test("steps name their workflow, title, gate mode and outcome", async () => {
+		const listed = await call("list_runs", { repo: "mcp-api" });
+		const runId = runsSchema.parse(JSON.parse(listed.content[0]?.text ?? ""))[0]
+			?.id;
+		await pool.query(
+			"UPDATE run_steps SET node_id = 'seeded:' || node_id WHERE run_id = $1",
+			[runId],
+		);
+		await pool.query("UPDATE runs SET workflow_snapshot = $2 WHERE id = $1", [
+			runId,
+			JSON.stringify([
+				{
+					id: "seeded",
+					name: "Seeded gate",
+					version: 1,
+					nodes: [
+						{
+							id: "trigger",
+							type: "trigger",
+							kinds: ["change-request.opened"],
+						},
+						{ id: "gate", type: "gate", mode: "any-of" },
+					],
+					edges: [],
+				},
+			]),
+		]);
+		const result = await call("get_run", { runId });
+		expect(result.isError).toBeFalsy();
+		const run = JSON.parse(result.content[0]?.text ?? "");
+		expect(run.createdAt).toMatch(/Z$/);
+		expect(run.steps).toContainEqual(
+			expect.objectContaining({
+				workflow: "Seeded gate",
+				stepId: "trigger",
+				step: "Trigger",
+				outcome: "Ran",
+			}),
+		);
+		expect(run.steps).toContainEqual(
+			expect.objectContaining({
+				workflow: "Seeded gate",
+				stepId: "gate",
+				step: "Any of",
+				gate: "any of",
+				outcome: "Passes",
+			}),
+		);
+	});
+});
+
 describe("tool errors", () => {
 	test("keep tool names out of the message and put them in the hint", async () => {
 		const result = await call("list_workflows", { repo: "scratch" });

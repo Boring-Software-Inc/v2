@@ -92,7 +92,7 @@ function when(iso: string): string {
 	if (Number.isNaN(date.getTime())) {
 		return iso;
 	}
-	return date.toISOString().slice(0, 16).replace("T", " ");
+	return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
 function shortRepo(fullName: string): string {
@@ -196,6 +196,10 @@ const runSchema = z.object({
 			rule: z.string().nullish(),
 			status: z.string(),
 			summary: z.string().nullish(),
+			workflow: z.string().nullish(),
+			stepId: z.string().optional(),
+			step: z.string().optional(),
+			outcome: z.string().optional(),
 		}),
 	),
 	url: z.string().optional(),
@@ -406,13 +410,19 @@ const FORMATTERS: Record<string, Formatter> = {
 			return head;
 		}
 		const steps = table(
-			["STEP", "STATUS", "SUMMARY"],
-			run.steps.map((step) => [
-				step.rule ?? step.kind,
-				step.status === "fail" ? style.bad(step.status) : step.status,
-				step.summary ?? "",
-			]),
-			20,
+			["WORKFLOW", "STEP", "OUTCOME", "SUMMARY"],
+			run.steps.map((step) => {
+				const outcome = step.outcome ?? step.status;
+				return [
+					step.workflow ?? "-",
+					step.step && step.stepId
+						? `${step.step} (${step.stepId})`
+						: (step.rule ?? step.kind),
+					step.status === "fail" ? style.bad(outcome) : outcome,
+					step.summary ?? "",
+				];
+			}),
+			0,
 		);
 		return `${head}\n\n${steps}`;
 	}),
