@@ -11,6 +11,9 @@ export const TOOL_NAMES = [
 	"turn_on_gate",
 	"list_workflows",
 	"set_workflow_enabled",
+	"get_workflow",
+	"validate_workflow",
+	"apply_workflow",
 	"list_runs",
 	"get_run",
 	"list_moderation_queue",
@@ -37,6 +40,17 @@ export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
 	turn_on_gate: { scope: "tripwire:admin", role: "admin", readOnly: false },
 	list_workflows: { scope: "tripwire:read", role: "member", readOnly: true },
 	set_workflow_enabled: {
+		scope: "tripwire:configure",
+		role: "admin",
+		readOnly: false,
+	},
+	get_workflow: { scope: "tripwire:read", role: "member", readOnly: true },
+	validate_workflow: {
+		scope: "tripwire:read",
+		role: "member",
+		readOnly: true,
+	},
+	apply_workflow: {
 		scope: "tripwire:configure",
 		role: "admin",
 		readOnly: false,

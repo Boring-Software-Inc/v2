@@ -10,10 +10,12 @@ import {
 } from "../index.ts";
 import { repos } from "../schema/repos.ts";
 import {
+	applyWorkflowDefinition,
 	createWorkflow,
 	deleteWorkflow,
 	duplicateWorkflow,
 	getWorkflow,
+	listWorkflowRows,
 	listWorkflows,
 	renameWorkflow,
 	setWorkflowEnabled,
@@ -235,5 +237,106 @@ describe("duplicate / rename / delete", () => {
 		const row = list.find((w) => w.id === created.id);
 		expect(row?.nodeCount).toBe(8);
 		expect(row?.triggerKinds).toContain("change-request.opened");
+	});
+});
+
+describe("applyWorkflowDefinition (workflows as code)", () => {
+	const code = (id: string, minDays: number): WorkflowDefinition => ({
+		id,
+		name: `code ${id}`,
+		version: 1,
+		nodes: [
+			{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+			{
+				id: "account-age",
+				type: "rule",
+				ref: "account-age@1",
+				config: { minDays },
+			},
+			{ id: "block", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "trigger", to: "account-age" },
+			{ id: "e2", from: "account-age", to: "block", when: "fail" },
+		],
+	});
+
+	test("a new id creates a workflow that starts off", async () => {
+		const result = await applyWorkflowDefinition(db, {
+			repoId,
+			definition: code("as-code-1", 7),
+		});
+		expect(result.ok && result.outcome).toBe("created");
+		expect(result.ok && result.workflow.enabled).toBe(false);
+	});
+
+	test("the same code again changes nothing", async () => {
+		const result = await applyWorkflowDefinition(db, {
+			repoId,
+			definition: code("as-code-1", 7),
+		});
+		expect(result.ok && result.outcome).toBe("unchanged");
+	});
+
+	test("an edit updates in place and keeps canvas positions", async () => {
+		const [row] = (await listWorkflowRows(db, repoId)).filter(
+			(entry) => entry.definition.id === "as-code-1",
+		);
+		if (!row) {
+			throw new Error("missing");
+		}
+		await updateWorkflowDefinition(db, {
+			repoId,
+			workflowId: row.id,
+			definition: {
+				...row.definition,
+				nodes: row.definition.nodes.map((node) => ({
+					...node,
+					position: { x: 5, y: 6 },
+				})),
+			},
+		});
+		const result = await applyWorkflowDefinition(db, {
+			repoId,
+			definition: code("as-code-1", 30),
+		});
+		expect(result.ok && result.outcome).toBe("updated");
+		expect(result.ok && result.changes.map((change) => change.text)).toEqual([
+			"check account-age@1",
+		]);
+		const stored = await getWorkflow(db, { repoId, workflowId: row.id });
+		expect(stored?.definition.nodes[1]).toEqual({
+			id: "account-age",
+			type: "rule",
+			ref: "account-age@1",
+			config: { minDays: 30 },
+			position: { x: 5, y: 6 },
+		});
+	});
+
+	test("a live workflow refuses code that could not be turned on", async () => {
+		const [row] = (await listWorkflowRows(db, repoId)).filter(
+			(entry) => entry.definition.id === "as-code-1",
+		);
+		if (!row) {
+			throw new Error("missing");
+		}
+		await setWorkflowEnabled(db, {
+			repoId,
+			workflowId: row.id,
+			enabled: true,
+		});
+		const broken = code("as-code-1", 30);
+		const result = await applyWorkflowDefinition(db, {
+			repoId,
+			definition: {
+				...broken,
+				edges: [
+					...broken.edges,
+					{ id: "loop", from: "block", to: "account-age" },
+				],
+			},
+		});
+		expect(result.ok).toBe(false);
 	});
 });

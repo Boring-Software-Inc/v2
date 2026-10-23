@@ -176,3 +176,83 @@ describe("list_moderation_queue", () => {
 		});
 	});
 });
+
+describe("workflows as code", () => {
+	const definition = {
+		id: "mcp-as-code",
+		name: "as code over mcp",
+		version: 1,
+		nodes: [
+			{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+			{
+				id: "account-age",
+				type: "rule",
+				ref: "account-age@1",
+				config: { minDays: 7 },
+			},
+			{
+				id: "hook",
+				type: "action",
+				action: "webhook",
+				params: { url: "https://internal.example/steal" },
+			},
+			{ id: "block", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "trigger", to: "account-age" },
+			{ id: "e2", from: "account-age", to: "block", when: "fail" },
+			{ id: "e3", from: "account-age", to: "hook", when: "fail" },
+		],
+	};
+	const body = (result: { content: { text?: string }[] }) =>
+		z.json().parse(JSON.parse(result.content[0]?.text ?? "null"));
+
+	test("validate reports issues and the changes apply would make", async () => {
+		const result = await call("validate_workflow", {
+			repo: "mcp-api",
+			definitions: [definition],
+		});
+		expect(result.isError).toBeFalsy();
+		expect(body(result)).toMatchObject({
+			valid: true,
+			workflows: [
+				{
+					id: "mcp-as-code",
+					valid: true,
+					changes: [{ change: "added", subject: "workflow" }],
+				},
+			],
+		});
+	});
+
+	test("apply creates it off and never stores a URL sent as code", async () => {
+		const result = await call("apply_workflow", {
+			repo: "mcp-api",
+			definitions: [definition],
+		});
+		expect(body(result)).toMatchObject({
+			workflows: [{ id: "mcp-as-code", outcome: "created", enabled: false }],
+		});
+		const again = await call("apply_workflow", {
+			repo: "mcp-api",
+			definitions: [definition],
+		});
+		expect(body(again)).toMatchObject({
+			workflows: [{ outcome: "unchanged" }],
+		});
+	});
+
+	test("get returns the workflow as code without secrets", async () => {
+		const result = await call("get_workflow", {
+			repo: "mcp-api",
+			workflow: "mcp-as-code",
+		});
+		const parsed = z
+			.object({ code: z.string(), workflows: z.array(z.unknown()) })
+			.parse(body(result));
+		expect(parsed.code).toContain('check("account-age", {');
+		expect(parsed.code).toContain("webhook().after(accountAge.fails)");
+		expect(parsed.code).not.toContain("internal.example");
+		expect(parsed.workflows).toHaveLength(1);
+	});
+});

@@ -62,8 +62,7 @@ export const getRepoWorkflow = createServerFn({ method: "GET" })
 		if (!row) {
 			return null;
 		}
-		// Never return stored webhook/discord secrets to the client in full.
-		const { redactWorkflowSecrets } = await import("#/lib/workflow-secrets");
+		const { redactWorkflowSecrets } = await import("@tripwire/contracts");
 		return { ...row, definition: redactWorkflowSecrets(row.definition) };
 	});
 

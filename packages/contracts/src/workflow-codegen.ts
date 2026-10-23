@@ -13,6 +13,7 @@ import {
 	AUTHORING_ACTION_PARAMS,
 	AUTHORING_EVENT_KINDS,
 } from "./workflow-authoring-catalog.ts";
+import { WORKFLOW_SECRET_KEYS } from "./workflow-diff.ts";
 
 const jsonSchemaNode: z.ZodType<JsonSchemaNode> = z.lazy(() =>
 	z.object({
@@ -201,13 +202,6 @@ function camel(text: string): string {
 	return RESERVED.has(safe) ? `${safe}Step` : safe;
 }
 
-const SECRET_KEYS = new Set([
-	"url",
-	"signingSecret",
-	"urlSet",
-	"signingSecretSet",
-]);
-
 const ACTION_HELPER = {
 	block: "block",
 	label: "label",
@@ -221,7 +215,13 @@ const ACTION_HELPER = {
 	"send-to-moderation": "humanReview",
 } as const;
 
-const TAKES_NO_PARAMS = new Set(["block", "close", "send-to-moderation"]);
+const TAKES_NO_PARAMS = new Set([
+	"block",
+	"close",
+	"send-to-moderation",
+	"webhook",
+	"discord",
+]);
 
 function literal(value: JsonValue | ScheduleDraft, indent: string): string {
 	const text = JSON.stringify(value, null, "\t");
@@ -323,7 +323,7 @@ function stepExpression(
 			const helper = ACTION_HELPER[node.action];
 			const params = Object.fromEntries(
 				Object.entries(node.params ?? {}).filter(
-					([key]) => !SECRET_KEYS.has(key),
+					([key]) => !WORKFLOW_SECRET_KEYS.has(key),
 				),
 			);
 			const args =
@@ -447,3 +447,6 @@ export function authoringModuleText(authoringSource: string): string {
 		.join("\n\n")
 		.concat("\n");
 }
+
+/** Where a project's copy of the authoring module lives, next to tripwire.ts. */
+export const AUTHORING_MODULE_PATH = "./.tripwire/workflow.ts";

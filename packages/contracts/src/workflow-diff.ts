@@ -6,12 +6,69 @@ import type {
 } from "./workflow.ts";
 import { edgePort, WORKFLOW_PORT_LABELS } from "./workflow-connections.ts";
 
-const SECRET_KEYS = new Set([
+/** Params that hold secrets, and the markers that say one is stored. */
+export const WORKFLOW_SECRET_KEYS: ReadonlySet<string> = new Set([
 	"url",
 	"signingSecret",
 	"urlSet",
 	"signingSecretSet",
 ]);
+
+const SECRET_KEYS = WORKFLOW_SECRET_KEYS;
+
+function isDeliveryNode(
+	node: WorkflowNode,
+): node is Extract<WorkflowNode, { type: "action" }> {
+	return (
+		node.type === "action" &&
+		(node.action === "webhook" || node.action === "discord")
+	);
+}
+
+/**
+ * Blanks stored delivery secrets and marks which were set, for anything that
+ * leaves the server. The full value never does.
+ */
+export function redactWorkflowSecrets(
+	definition: WorkflowDefinition,
+): WorkflowDefinition {
+	return {
+		...definition,
+		nodes: definition.nodes.map((node) => {
+			if (!isDeliveryNode(node)) {
+				return node;
+			}
+			const params = { ...(node.params ?? {}) };
+			for (const key of ["url", "signingSecret"]) {
+				const value = params[key];
+				if (value !== undefined && value !== "" && value !== null) {
+					params[key] = "";
+					params[`${key}Set`] = true;
+				}
+			}
+			return { ...node, params };
+		}),
+	};
+}
+
+/** Drops every secret param, for definitions that arrive as code. */
+export function stripWorkflowSecrets(
+	definition: WorkflowDefinition,
+): WorkflowDefinition {
+	return {
+		...definition,
+		nodes: definition.nodes.map((node) => {
+			if (!(isDeliveryNode(node) && node.params)) {
+				return node;
+			}
+			const params = Object.fromEntries(
+				Object.entries(node.params).filter(([key]) => !SECRET_KEYS.has(key)),
+			);
+			const { params: _dropped, ...rest } = node;
+			return Object.keys(params).length > 0 ? { ...rest, params } : rest;
+		}),
+	};
+}
 
 export interface WorkflowChange {
 	change: "added" | "removed" | "changed";

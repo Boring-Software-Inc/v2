@@ -21,28 +21,6 @@ function isDeliverySecretNode(
 	);
 }
 
-/** Blank stored secrets, marking which were set — for the read path. */
-export function redactWorkflowSecrets(
-	def: WorkflowDefinition,
-): WorkflowDefinition {
-	return {
-		...def,
-		nodes: def.nodes.map((node) => {
-			if (!isDeliverySecretNode(node)) {
-				return node;
-			}
-			const params = { ...(node.params ?? {}) };
-			for (const key of SECRET_KEYS) {
-				if (typeof params[key] === "string" && params[key] !== "") {
-					params[key] = "";
-					params[`${key}Set`] = true;
-				}
-			}
-			return { ...node, params };
-		}),
-	};
-}
-
 export interface RestoreResult {
 	definition: WorkflowDefinition;
 	error?: string;

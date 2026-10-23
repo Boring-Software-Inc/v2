@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { WorkflowDefinition } from "@tripwire/contracts";
 import {
 	redactWorkflowSecrets,
-	restoreWorkflowSecrets,
-} from "./workflow-secrets";
+	type WorkflowDefinition,
+} from "@tripwire/contracts";
+import { restoreWorkflowSecrets } from "./workflow-secrets";
 
 function def(params: Record<string, unknown>): WorkflowDefinition {
 	return {

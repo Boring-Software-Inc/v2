@@ -1,10 +1,19 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { installUrlFor, signInstallState } from "@tripwire/auth/install-state";
 import {
+	AUTHORING_MODULE_PATH,
+	DEFAULT_SCHEDULE_TIMEZONE,
+	diffWorkflow,
+	mergeForPush,
 	RULE_CATALOG,
+	redactWorkflowSecrets,
+	reportWorkflows,
 	SETUP_STAGES,
+	scheduleReadBacks,
 	setupProgressInputSchema,
 	setupStageStatusSchema,
+	workflowDefinitionSchema,
+	workflowsToCode,
 } from "@tripwire/contracts";
 import {
 	agentServices,
@@ -435,6 +444,162 @@ export function registerTools(
 							`/${resolved.slug}/${found.name}/workflows/${workflowId}`,
 						),
 					});
+				}),
+		);
+	}
+
+	const workflowArg = z
+		.string()
+		.min(1)
+		.optional()
+		.describe(
+			"The workflow's id in code, its id in the app, or its name. Leave out for every workflow on the repo.",
+		);
+	const definitionsArg = z
+		.array(workflowDefinitionSchema)
+		.min(1)
+		.describe(
+			"Compiled workflow definitions. Write a tripwire.ts and run `tripwire workflows validate --json` to get them; each key in the file is a definition id.",
+		);
+	const workflowLink = (org: OrgWithRole, repo: string, rowId: string) =>
+		appLink(ctx, `/${org.slug}/${repo}/workflows/${rowId}`);
+
+	if (visible("get_workflow")) {
+		server.registerTool(
+			"get_workflow",
+			{
+				description: `A repo's workflows as tripwire.ts code, plus the stored definitions. Secrets are never included. Clock schedules without a timezone run in ${DEFAULT_SCHEDULE_TIMEZONE}.`,
+				inputSchema: { org: orgArg, repo: repoArg, workflow: workflowArg },
+				annotations: annotate("get_workflow"),
+			},
+			({ org, repo, workflow }) =>
+				guard(async () => {
+					const resolved = await resolveOrg(ctx, org, "member");
+					const found = await resolveRepo(ctx, resolved, repo);
+					const rows = await workflowServices.listWorkflowRows(
+						ctx.db,
+						found.id,
+					);
+					const picked = workflow
+						? rows.filter(
+								(row) =>
+									row.id === workflow ||
+									row.definition.id === workflow ||
+									row.name === workflow,
+							)
+						: rows;
+					if (workflow && picked.length === 0) {
+						throw new ToolError(
+							`No workflow ${workflow} on ${found.fullName}.`,
+							"list_workflows",
+						);
+					}
+					const definitions = picked.map((row) =>
+						redactWorkflowSecrets(row.definition),
+					);
+					const code = workflowsToCode(definitions, {
+						importFrom: AUTHORING_MODULE_PATH,
+					});
+					return ok({
+						code: code.code,
+						warnings: code.warnings,
+						workflows: picked.map((row, index) => ({
+							id: row.definition.id,
+							appId: row.id,
+							name: row.name,
+							enabled: row.enabled,
+							url: workflowLink(resolved, found.name, row.id),
+							schedules: scheduleReadBacks(row.definition),
+							definition: definitions[index],
+						})),
+					});
+				}),
+		);
+	}
+
+	if (visible("validate_workflow")) {
+		server.registerTool(
+			"validate_workflow",
+			{
+				description: `Check compiled workflows against this repo without saving: the issues that would stop each from being turned on, how each schedule reads back with its timezone (${DEFAULT_SCHEDULE_TIMEZONE} when none is set), and what apply_workflow would change.`,
+				inputSchema: {
+					org: orgArg,
+					repo: repoArg,
+					definitions: definitionsArg,
+				},
+				annotations: annotate("validate_workflow"),
+			},
+			({ org, repo, definitions }) =>
+				guard(async () => {
+					const resolved = await resolveOrg(ctx, org, "member");
+					const found = await resolveRepo(ctx, resolved, repo);
+					const [catalog, rows] = await Promise.all([
+						workflowServices.repoRuleCatalog(ctx.db, found.id),
+						workflowServices.listWorkflowRows(ctx.db, found.id),
+					]);
+					const reports = reportWorkflows(definitions, catalog);
+					return ok({
+						valid: reports.every((report) => report.valid),
+						workflows: reports.map((report, index) => {
+							const local = definitions[index];
+							const stored = rows.find(
+								(row) => row.definition.id === report.id,
+							);
+							return {
+								...report,
+								changes: local
+									? diffWorkflow(
+											stored?.definition ?? null,
+											stored ? mergeForPush(stored.definition, local) : local,
+										)
+									: [],
+							};
+						}),
+					});
+				}),
+		);
+	}
+
+	if (visible("apply_workflow")) {
+		server.registerTool(
+			"apply_workflow",
+			{
+				description:
+					"Save compiled workflows to a repo, matched by definition id. New workflows start off; call set_workflow_enabled to turn one on. A workflow that is on only takes a definition that could be turned on. Canvas layout and secrets already saved are kept.",
+				inputSchema: {
+					org: orgArg,
+					repo: repoArg,
+					definitions: definitionsArg,
+				},
+				annotations: annotate("apply_workflow"),
+			},
+			({ org, repo, definitions }) =>
+				guard(async () => {
+					const resolved = await resolveOrg(ctx, org, "admin");
+					const found = await resolveRepo(ctx, resolved, repo);
+					const results = [];
+					for (const definition of definitions) {
+						const result = await workflowServices.applyWorkflowDefinition(
+							ctx.db,
+							{ repoId: found.id, definition },
+						);
+						results.push(
+							result.ok
+								? {
+										id: definition.id,
+										outcome: result.outcome,
+										enabled: result.workflow.enabled,
+										changes: result.changes,
+										url: workflowLink(resolved, found.name, result.workflow.id),
+									}
+								: {
+										id: definition.id,
+										outcome: "refused" as const,
+										issues: result.issues.map((issue) => issue.message),
+									},
+						);
+					}
+					return ok({ workflows: results });
 				}),
 		);
 	}

@@ -1,9 +1,14 @@
 import {
 	customRuleRecordSchema,
+	diffWorkflow,
 	lintWorkflow,
+	mergeForPush,
 	resolveCatalog,
+	stripWorkflowSecrets,
+	type ValidationCatalogEntry,
 	type ValidationIssue,
 	validateWorkflowForEnable,
+	type WorkflowChange,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
@@ -263,6 +268,108 @@ export async function deleteWorkflow(
 	return { deleted: rows.length > 0 };
 }
 
+/**
+ * The runtime rule catalog for a repo: built-ins plus its custom rules, so a
+ * workflow can gate on either.
+ */
+export async function repoRuleCatalog(
+	db: Db,
+	repoId: string,
+): Promise<ValidationCatalogEntry[]> {
+	const customRows = await db
+		.select()
+		.from(customRules)
+		.where(eq(customRules.repoId, repoId));
+	const parsedCustom = customRows.flatMap((raw) => {
+		const parsed = customRuleRecordSchema.safeParse(raw);
+		return parsed.success ? [parsed.data] : [];
+	});
+	return resolveCatalog(parsedCustom);
+}
+
+/** Every workflow on a repo with its definition. Corrupt rows are skipped. */
+export async function listWorkflowRows(
+	db: Db,
+	repoId: string,
+): Promise<WorkflowRow[]> {
+	const rows = await db
+		.select()
+		.from(workflowDefinitions)
+		.where(eq(workflowDefinitions.repoId, repoId))
+		.orderBy(workflowDefinitions.createdAt);
+	return rows.flatMap((row) => {
+		const parsed = workflowDefinitionSchema.safeParse(row.definition);
+		return parsed.success
+			? [{ ...toListItem(row), definition: parsed.data }]
+			: [];
+	});
+}
+
+export type ApplyWorkflowResult =
+	| {
+			ok: true;
+			outcome: "created" | "updated" | "unchanged";
+			workflow: WorkflowListItem;
+			changes: WorkflowChange[];
+	  }
+	| { ok: false; issues: ValidationIssue[] };
+
+/**
+ * Stores a workflow written as code. It matches an existing workflow by its
+ * definition id; a new one starts off, like every new workflow. A live
+ * workflow only takes a definition that could be turned on, so a push never
+ * leaves broken wiring running.
+ */
+export async function applyWorkflowDefinition(
+	db: Db,
+	input: { repoId: string; definition: WorkflowDefinition },
+): Promise<ApplyWorkflowResult> {
+	const rows = await listWorkflowRows(db, input.repoId);
+	const existing = rows.find(
+		(row) => row.definition.id === input.definition.id,
+	);
+	if (!existing) {
+		const definition = stripWorkflowSecrets(input.definition);
+		const workflow = await createWorkflow(db, {
+			repoId: input.repoId,
+			name: definition.name,
+			definition,
+		});
+		return {
+			ok: true,
+			outcome: "created",
+			workflow,
+			changes: diffWorkflow(null, definition),
+		};
+	}
+	const merged = mergeForPush(
+		existing.definition,
+		stripWorkflowSecrets(input.definition),
+	);
+	const changes = diffWorkflow(existing.definition, merged);
+	if (changes.length === 0) {
+		return { ok: true, outcome: "unchanged", workflow: existing, changes };
+	}
+	if (existing.enabled) {
+		const catalog = await repoRuleCatalog(db, input.repoId);
+		const checked = validateWorkflowForEnable(merged, catalog);
+		if (!checked.valid) {
+			return { ok: false, issues: checked.issues };
+		}
+	}
+	await updateWorkflowDefinition(db, {
+		repoId: input.repoId,
+		workflowId: existing.id,
+		definition: merged,
+	});
+	return {
+		ok: true,
+		outcome: "updated",
+		workflow: { ...existing, name: merged.name },
+		changes,
+	};
+}
+
 export type SetEnabledResult =
 	| { ok: true; enabled: boolean; warnings?: ValidationIssue[] }
 	| { ok: false; issues: ValidationIssue[] };
@@ -282,17 +389,7 @@ export async function setWorkflowEnabled(
 		if (!row) {
 			return { ok: false, issues: [{ message: "workflow not found" }] };
 		}
-		// Enable-time refs validate against the RUNTIME catalog: built-ins
-		// plus this repo's custom rules, so a workflow can gate on either.
-		const customRows = await db
-			.select()
-			.from(customRules)
-			.where(eq(customRules.repoId, input.repoId));
-		const parsedCustom = customRows.flatMap((raw) => {
-			const parsed = customRuleRecordSchema.safeParse(raw);
-			return parsed.success ? [parsed.data] : [];
-		});
-		const catalog = resolveCatalog(parsedCustom);
+		const catalog = await repoRuleCatalog(db, input.repoId);
 		const result = validateWorkflowForEnable(row.definition, catalog);
 		if (!result.valid) {
 			return { ok: false, issues: result.issues };

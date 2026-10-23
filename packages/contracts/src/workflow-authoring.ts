@@ -355,18 +355,14 @@ export function authoring<C extends AuthoringCatalog>() {
 			return action("close", undefined);
 		},
 
-		/** Posts the verdict as JSON. The URL is set in the app and never pulled. */
-		webhook<P = ParamsOf<C, "webhook">>(
-			params?: Checked<ParamsOf<C, "webhook">, P>,
-		): ActionStep {
-			return action("webhook", params);
+		/** Posts the verdict as JSON. Its URL and secret are set in the app. */
+		webhook(): ActionStep {
+			return action("webhook", undefined);
 		},
 
-		/** Posts the verdict to Discord. The URL is set in the app and never pulled. */
-		discord<P = ParamsOf<C, "discord">>(
-			params?: Checked<ParamsOf<C, "discord">, P>,
-		): ActionStep {
-			return action("discord", params);
+		/** Posts the verdict to Discord. Its URL is set in the app. */
+		discord(): ActionStep {
+			return action("discord", undefined);
 		},
 
 		/**

@@ -2,7 +2,6 @@ import { z } from "zod";
 import type { EventKind } from "./events.ts";
 import type { RULE_CATALOG } from "./rules.ts";
 import {
-	discordParamsSchema,
 	githubLoginSchema,
 	githubTeamSlugSchema,
 	labelParamsSchema,
@@ -12,7 +11,6 @@ import {
 	reviewerRefSchema,
 	type triggerScheduleSchema,
 	type WorkflowActionKind,
-	webhookParamsSchema,
 } from "./workflow.ts";
 import { authoring } from "./workflow-authoring.ts";
 
@@ -29,8 +27,9 @@ export type AuthoringEventKind = (typeof AUTHORING_EVENT_KINDS)[number];
 const noParams = z.object({});
 
 /**
- * Params each action takes when written as code. Secrets are optional here:
- * code never carries them back out, and a push keeps the stored ones.
+ * Params each action takes when written as code. Delivery URLs and signing
+ * secrets are set in the app only: code never carries them, and a push keeps
+ * the stored ones.
  */
 export const AUTHORING_ACTION_PARAMS = {
 	block: noParams,
@@ -45,8 +44,8 @@ export const AUTHORING_ACTION_PARAMS = {
 	"post-comment": postCommentParamsSchema,
 	lock: lockParamsSchema,
 	close: noParams,
-	webhook: webhookParamsSchema.partial(),
-	discord: discordParamsSchema.partial(),
+	webhook: noParams,
+	discord: noParams,
 	"send-to-moderation": noParams,
 } as const satisfies Record<
 	Exclude<WorkflowActionKind, RemovedActionKind>,
