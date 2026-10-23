@@ -23,6 +23,7 @@
 		"format": "biome format --write .",
 		"check": "biome check .",
 		"check:boundaries": "bun run scripts/check-boundaries.ts",
+		"cli:release": "bun run scripts/cli-release/release.ts",
 		"test": "bun run scripts/e2e/harness.ts",
 		"beta": "bun --env-file=.env.production run scripts/beta-approve.ts",
 		"grant-admin": "bun --env-file=.env.production run scripts/grant-admin.ts",

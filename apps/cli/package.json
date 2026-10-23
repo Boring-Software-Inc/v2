@@ -7,6 +7,12 @@
 		"#/*": "./src/*"
 	},
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Boring-Software-Inc/v2.git",
+		"directory": "apps/cli"
+	},
+	"homepage": "https://tripwire.sh",
 	"bin": {
 		"tripwire": "dist/tripwire.js"
 	},
