@@ -16,7 +16,7 @@ import {
 } from "@tripwire/contracts";
 import { z } from "zod";
 import { authoringSource } from "#/authoring-source" with { type: "macro" };
-import { pairs, type Style } from "#/format";
+import { pairs, type Style, triggerWords } from "#/format";
 import type { PickerItem } from "#/picker";
 
 export const DEFAULT_WORKFLOW_FILE = "tripwire.ts";
@@ -129,7 +129,7 @@ export function workflowChoices(
 		const state =
 			(workflow.appId ? states.get(workflow.appId) : undefined) ??
 			(workflow.enabled ? "on" : "off");
-		const kinds = triggerKinds(workflow.definition);
+		const kinds = triggerWords(triggerKinds(workflow.definition));
 		const triggers =
 			kinds.length > 2
 				? `${kinds.slice(0, 2).join(", ")} +${kinds.length - 2} more`

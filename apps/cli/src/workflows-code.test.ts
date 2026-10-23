@@ -60,9 +60,9 @@ describe("picking workflows to pull", () => {
 			{
 				value: "new-accounts",
 				label: "New accounts",
-				hint: "needs fixes, change-request.opened",
+				hint: "needs fixes, change request opened",
 			},
-			{ value: "stale", label: "Stale issues", hint: "off, comment.created" },
+			{ value: "stale", label: "Stale issues", hint: "off, comment created" },
 		]);
 	});
 

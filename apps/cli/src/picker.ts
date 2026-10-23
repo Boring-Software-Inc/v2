@@ -30,6 +30,11 @@ export interface PickerKey {
 
 export type PickerStatus = "submit" | "cancel";
 
+export interface PickerStep {
+	state: PickerState;
+	done?: PickerStatus;
+}
+
 const BAR = pc.dim("│");
 const RULE = pc.dim("─");
 
@@ -66,7 +71,7 @@ export function pickerKey(
 	items: readonly PickerItem[],
 	state: PickerState,
 	key: PickerKey,
-): { state: PickerState; done?: PickerStatus } {
+): PickerStep {
 	const shown = filtered(items, state.query);
 	if (key.name === "return") {
 		return state.selected.size > 0 ? { state, done: "submit" } : { state };

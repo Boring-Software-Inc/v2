@@ -1,5 +1,6 @@
 import { stripVTControlCharacters } from "node:util";
 import {
+	TRIGGER_CATALOG,
 	verdictLabel,
 	WORKFLOW_STATE_LABELS,
 	workflowState,
@@ -101,6 +102,15 @@ export function warnLine(message: string, style: Style = PLAIN): string {
 export function formatUserCode(code: string): string {
 	const bare = code.replace(/[\s-]/g, "").toUpperCase();
 	return bare.length === 8 ? `${bare.slice(0, 4)}-${bare.slice(4)}` : code;
+}
+
+export function triggerWords(kinds: readonly string[]): string[] {
+	return kinds.map(
+		(kind) =>
+			TRIGGER_CATALOG.find(
+				(entry) => entry.kind === kind,
+			)?.name.toLowerCase() ?? kind,
+	);
 }
 
 function onOff(on: boolean, style: Style): string {
@@ -453,7 +463,7 @@ const FORMATTERS: Record<string, Formatter> = {
 				workflow.name,
 				workflow.id,
 				workflowStateWord(workflow, style),
-				(workflow.triggerKinds ?? []).join(", "),
+				triggerWords(workflow.triggerKinds ?? []).join(", "),
 			]),
 		);
 	}),

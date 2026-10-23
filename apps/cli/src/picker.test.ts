@@ -10,8 +10,12 @@ import {
 } from "#/picker";
 
 const ITEMS: PickerItem[] = [
-	{ value: "new-accounts", label: "New accounts", hint: "live, opened" },
-	{ value: "stale", label: "Stale issues", hint: "off, schedule" },
+	{
+		value: "new-accounts",
+		label: "New accounts",
+		hint: "live, change request opened",
+	},
+	{ value: "stale", label: "Stale issues", hint: "off, on a schedule" },
 	{
 		value: "broken",
 		label: "Broken",
@@ -89,8 +93,8 @@ describe("picker frame", () => {
 				"│",
 				"│ ❯ ◐ Select All (1/2)",
 				"│   ────────────────────────────────────",
-				"│   ● New accounts (live, opened)",
-				"│   ○ Stale issues (off, schedule)",
+				"│   ● New accounts (live, change request opened)",
+				"│   ○ Stale issues (off, on a schedule)",
 				"│   - Broken (cannot be written as code)",
 				"│",
 				"│  Selected: New accounts",

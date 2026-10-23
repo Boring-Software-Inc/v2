@@ -138,7 +138,7 @@ describe("plain text output", () => {
 					name: "Default gate",
 					enabled: true,
 					nodeCount: 4,
-					triggerKinds: ["change_request.opened"],
+					triggerKinds: ["change-request.opened", "schedule.matched"],
 					updatedAt: "2026-10-22T00:00:00.000Z",
 					url: "https://app.tripwire.sh/grim/scratch/workflows/wf_1",
 				},
@@ -146,7 +146,7 @@ describe("plain text output", () => {
 		).toBe(
 			[
 				"WORKFLOW                      ID       STATE     TRIGGERS",
-				"Default gate                  wf_1     live      change_request.opened",
+				"Default gate                  wf_1     live      change request opened, on a schedule",
 			].join("\n"),
 		);
 	});
