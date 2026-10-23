@@ -35,6 +35,7 @@ import { TooltipChip } from "#/components/glaze/ui/tooltip";
 import type { Timezones } from "#/hooks/use-timezones";
 import { cn } from "#/lib/glaze/utils";
 import {
+	committedSchedule,
 	editorNextRun,
 	formatNextRun,
 	isClockCadence,
@@ -192,14 +193,16 @@ export function ScheduleTextField({
 		onDraft(next);
 		const result = parseScheduleText(next);
 		if (result.ok) {
-			onChange({
-				every: result.every,
-				timezone:
-					result.timezone ??
-					(isClockCadence(result.every)
-						? (value.timezone ?? timezones.newSchedule)
-						: undefined),
-			});
+			onChange(
+				committedSchedule(value, {
+					every: result.every,
+					timezone:
+						result.timezone ??
+						(isClockCadence(result.every)
+							? (value.timezone ?? timezones.newSchedule)
+							: undefined),
+				}),
+			);
 		} else if (result.reason === "empty") {
 			onChange({ every: undefined, timezone: undefined });
 		}

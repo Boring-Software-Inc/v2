@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ScheduleCadence, WorkflowNode } from "@tripwire/contracts";
 import {
+	committedSchedule,
 	editorNextRun,
 	formatNextRun,
 	invalidScheduleDrafts,
@@ -113,5 +114,36 @@ describe("the editor's next run", () => {
 			now,
 		});
 		expect(next?.toISOString()).toBe("2026-10-23T23:15:00.000Z");
+	});
+});
+
+describe("committing typed schedule text", () => {
+	test("text with the same timing keeps the stored schedule", () => {
+		const stored = {
+			every: { n: 1, unit: "days" as const },
+			timezone: undefined,
+		};
+		expect(
+			committedSchedule(stored, {
+				every: { n: 24, unit: "hours" },
+				timezone: undefined,
+			}),
+		).toBe(stored);
+	});
+
+	test("text with new timing replaces it", () => {
+		const typed = {
+			every: { preset: "hourly" as const, minute: 0 },
+			timezone: "UTC",
+		};
+		expect(
+			committedSchedule(
+				{ every: { n: 1, unit: "hours" }, timezone: undefined },
+				typed,
+			),
+		).toBe(typed);
+		expect(
+			committedSchedule({ every: undefined, timezone: undefined }, typed),
+		).toBe(typed);
 	});
 });

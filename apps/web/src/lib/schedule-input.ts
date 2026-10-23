@@ -5,6 +5,7 @@ import {
 	parseScheduleText,
 	type ScheduleCadence,
 	type ScheduleTiming,
+	sameScheduleTiming,
 	scheduleCountsFrom,
 	type WorkflowNode,
 } from "@tripwire/contracts";
@@ -66,4 +67,20 @@ export function editorNextRun(
 		after: timing.now,
 		lastTickAt: scheduleCountsFrom({ ...timing, current: schedule }),
 	});
+}
+
+export interface TypedSchedule {
+	every: ScheduleCadence | undefined;
+	timezone: string | undefined;
+}
+
+export function committedSchedule(
+	stored: TypedSchedule,
+	typed: TypedSchedule,
+): TypedSchedule {
+	const timing = (schedule: TypedSchedule): ScheduleTiming | null =>
+		schedule.every
+			? { every: schedule.every, timezone: schedule.timezone }
+			: null;
+	return sameScheduleTiming(timing(stored), timing(typed)) ? stored : typed;
 }
