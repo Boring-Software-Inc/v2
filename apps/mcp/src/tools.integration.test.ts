@@ -261,6 +261,49 @@ describe("get_run reads like the run page", () => {
 	});
 });
 
+describe("a backfill run (R7-1)", () => {
+	test("list_runs and get_run mark it as history in would-have words", async () => {
+		const runId = await seedRun({
+			db,
+			repo: repoRows[0] ?? never(),
+			actor: { login: "someone", externalId: "4001" },
+			number: 94,
+			title: "backfilled",
+			verdict: "needs_review",
+			at: new Date(),
+		});
+		await pool.query(
+			"UPDATE runs SET status = 'completed', backfill = true WHERE id = $1",
+			[runId],
+		);
+		await pool.query("DELETE FROM moderation_items WHERE run_id = $1", [runId]);
+		const got = JSON.parse(
+			(await call("get_run", { runId })).content[0]?.text ?? "",
+		);
+		expect(got).toMatchObject({
+			backfill: true,
+			verdictLabel: "Would go to human review",
+		});
+		const listed = z
+			.array(
+				z.object({
+					id: z.string(),
+					backfill: z.boolean(),
+					verdictLabel: z.string().nullable(),
+				}),
+			)
+			.parse(
+				JSON.parse(
+					(await call("list_runs", { repo: "mcp-api" })).content[0]?.text ?? "",
+				),
+			);
+		expect(listed.find((row) => row.id === runId)).toMatchObject({
+			backfill: true,
+			verdictLabel: "Would go to human review",
+		});
+	});
+});
+
 describe("a run whose change request closed before review", () => {
 	async function closedRun(number: number) {
 		const runId = await seedRun({

@@ -517,6 +517,7 @@ export async function listRunsForChangeRequest(
 				eq(runs.repoFullName, repoFullName),
 				eq(runs.subjectNumber, subjectNumber),
 				eventBearsVerdict,
+				liveRun,
 			),
 		)
 		.orderBy(runs.createdAt, runs.id);
@@ -674,6 +675,7 @@ export async function listRepoRuns(
 			completedAt: runs.completedAt,
 			scheduled: sql<boolean>`${events.kind} IS NOT DISTINCT FROM 'schedule.matched'`,
 			bearsVerdict: sql<boolean>`${eventBearsVerdict}`,
+			backfill: runs.backfill,
 		})
 		.from(runs)
 		.leftJoin(events, eq(events.id, runs.eventId))

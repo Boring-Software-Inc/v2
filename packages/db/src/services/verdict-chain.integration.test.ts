@@ -35,7 +35,8 @@ let step = 0;
 async function seedRun(
 	number: number,
 	kind: Kind,
-	verdict: "pass" | "block",
+	verdict: "pass" | "block" | "needs_review",
+	options: { backfill?: boolean } = {},
 ): Promise<string> {
 	step++;
 	const at = new Date(start + step * MINUTE);
@@ -72,6 +73,7 @@ async function seedRun(
 		verdict,
 		workflowSnapshot: [],
 		createdAt: at,
+		backfill: options.backfill ?? false,
 	});
 	return id;
 }
@@ -158,5 +160,18 @@ describe("control: two blocks then a fix with no comment (staging PR 136)", () =
 		expect(await getPreviousVerdict(db, REPO, PR, fix)).toBe("block");
 		const chain = await listRunsForChangeRequest(db, REPO, PR);
 		expect(chain.map((row) => row.id)).toEqual([first, second, fix]);
+	});
+});
+
+describe("a backfill run on a change request (R7-1)", () => {
+	const PR = 137;
+
+	test("the chain holds live runs only, so a backfill run is never previous or latest", async () => {
+		const live = await seedRun(PR, "change-request.opened", "block");
+		await seedRun(PR, "change-request.updated", "needs_review", {
+			backfill: true,
+		});
+		const chain = await listRunsForChangeRequest(db, REPO, PR);
+		expect(chain.map((row) => row.id)).toEqual([live]);
 	});
 });

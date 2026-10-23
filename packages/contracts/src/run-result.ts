@@ -63,6 +63,29 @@ export function runResult(run: RunResultInput): RunResult | null {
 	return "ran";
 }
 
-export function runResultLabel(result: RunResult | null): string | null {
-	return result ? RUN_RESULT_LABELS[result] : null;
+export const BACKFILL_RESULT_LABELS = {
+	pass: "Would pass",
+	block: "Would block",
+	needs_review: "Would go to human review",
+} as const satisfies Partial<Record<RunResult, string>>;
+
+export const BACKFILL_RUN_LABEL = "History";
+
+function isBackfillResult(
+	result: RunResult,
+): result is keyof typeof BACKFILL_RESULT_LABELS {
+	return result in BACKFILL_RESULT_LABELS;
+}
+
+export function runResultLabel(
+	result: RunResult | null,
+	options: { backfill?: boolean } = {},
+): string | null {
+	if (!result) {
+		return null;
+	}
+	if (options.backfill && isBackfillResult(result)) {
+		return BACKFILL_RESULT_LABELS[result];
+	}
+	return RUN_RESULT_LABELS[result];
 }

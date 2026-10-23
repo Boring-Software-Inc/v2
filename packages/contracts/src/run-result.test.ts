@@ -12,6 +12,23 @@ import {
 } from "./run-result.ts";
 import { DEFAULT_WORKFLOW, workflowDisplayName } from "./workflow.ts";
 
+describe("a backfill run's result (R7-1)", () => {
+	test("reads as what Tripwire would have done, since it took no action", () => {
+		expect(runResultLabel("pass", { backfill: true })).toBe("Would pass");
+		expect(runResultLabel("block", { backfill: true })).toBe("Would block");
+		expect(runResultLabel("needs_review", { backfill: true })).toBe(
+			"Would go to human review",
+		);
+	});
+
+	test("a live run keeps its usual words", () => {
+		expect(runResultLabel("needs_review", { backfill: false })).toBe(
+			"Waiting for human review",
+		);
+		expect(runResultLabel("ran", { backfill: true })).toBe("Ran");
+	});
+});
+
 describe("a run's result", () => {
 	test("a verdict run reads its verdict", () => {
 		expect(
