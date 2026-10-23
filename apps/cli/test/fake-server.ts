@@ -1,0 +1,182 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { z } from "zod";
+
+export const TEST_TOKEN = "test-token-not-real";
+
+export const TOOL_NAMES = [
+	"whoami",
+	"setup_status",
+	"list_repos",
+	"get_install_link",
+	"list_rule_catalog",
+	"get_repo_rules",
+	"set_rule",
+	"turn_on_gate",
+	"list_workflows",
+	"set_workflow_enabled",
+	"list_runs",
+	"get_run",
+	"list_moderation_queue",
+	"decide_moderation",
+	"report_setup_progress",
+] as const;
+
+export interface ToolCall {
+	name: string;
+	args: z.infer<ReturnType<typeof z.json>>;
+}
+
+export interface FakeServer {
+	url: string;
+	calls: ToolCall[];
+	stop(): Promise<void>;
+}
+
+const RESULTS: Record<string, z.infer<ReturnType<typeof z.json>>> = {
+	whoami: {
+		user: {
+			id: "u1",
+			name: "grim",
+			email: "vysvisuals@gmail.com",
+			accessStatus: "approved",
+		},
+		access: { approved: true },
+		orgs: [{ slug: "grim", name: "grim", role: "admin", agentAllowed: true }],
+		scopes: ["tripwire:read"],
+	},
+	setup_status: {
+		org: "grim",
+		role: "admin",
+		hasInstallation: false,
+		repos: [],
+		nextStep: "install_app",
+		guide: "Give installUrl to the user to open.",
+		installUrl: "https://github.com/apps/tripwire/installations/new?state=s1",
+		home: "https://app.tripwire.sh/grim/home",
+	},
+	list_repos: [
+		{
+			name: "scratch",
+			fullName: "grim/scratch",
+			forge: "github",
+			gateOn: true,
+			toReview: 2,
+			blocked24h: 5,
+			url: "https://app.tripwire.sh/grim/scratch",
+		},
+		{
+			name: "website",
+			fullName: "grim/website",
+			forge: "github",
+			gateOn: false,
+			toReview: 0,
+			blocked24h: 0,
+			url: "https://app.tripwire.sh/grim/website",
+		},
+	],
+	list_runs: [
+		{
+			id: "run_1",
+			repo: "grim/scratch",
+			number: 12,
+			status: "completed",
+			verdict: "block",
+			createdAt: "2026-10-22T14:03:00.000Z",
+			url: "https://app.tripwire.sh/runs/run_1",
+		},
+	],
+	decide_moderation: {
+		done: false,
+		confirmUrl: "https://app.tripwire.sh/grim/scratch/moderation",
+		forUser: "Open this link to review the contributor and decide yourself.",
+	},
+};
+
+function reply(name: string, args: z.infer<ReturnType<typeof z.json>>) {
+	if (name === "get_run") {
+		return {
+			content: [
+				{
+					type: "text" as const,
+					text: "No run r1 in grim. Call list_runs to see recent runs.",
+				},
+			],
+			structuredContent: { error: "No run r1 in grim.", hint: "list_runs" },
+			isError: true,
+		};
+	}
+	const repo = z.looseObject({ repo: z.string() }).safeParse(args);
+	if (
+		name === "list_workflows" &&
+		repo.success &&
+		repo.data.repo === "scratc"
+	) {
+		return {
+			content: [
+				{
+					type: "text" as const,
+					text: "No repo named scratc in grim. Call list_repos to see the repos.",
+				},
+			],
+			structuredContent: {
+				error: "No repo named scratc in grim.",
+				hint: "list_repos",
+			},
+			isError: true,
+		};
+	}
+	const data = RESULTS[name] ?? { tool: name, args };
+	return {
+		content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
+	};
+}
+
+const STRICT: Partial<Record<string, z.ZodObject>> = {
+	list_moderation_queue: z.object({
+		org: z.string().optional(),
+		repo: z.string(),
+	}),
+};
+
+function buildServer(calls: ToolCall[]): McpServer {
+	const server = new McpServer({ name: "fake-tripwire", version: "0.0.0" });
+	for (const name of TOOL_NAMES) {
+		server.registerTool(
+			name,
+			{ description: name, inputSchema: STRICT[name] ?? z.looseObject({}) },
+			async (args) => {
+				const parsed = z.json().parse(args);
+				calls.push({ name, args: parsed });
+				return reply(name, parsed);
+			},
+		);
+	}
+	return server;
+}
+
+export function startFakeServer(): FakeServer {
+	const calls: ToolCall[] = [];
+	const http = Bun.serve({
+		port: 0,
+		async fetch(request) {
+			if (request.headers.get("authorization") !== `Bearer ${TEST_TOKEN}`) {
+				return new Response("unauthorized", { status: 401 });
+			}
+			const transport = new WebStandardStreamableHTTPServerTransport({
+				sessionIdGenerator: undefined,
+				enableJsonResponse: true,
+			});
+			const server = buildServer(calls);
+			await server.connect(transport);
+			return transport.handleRequest(request);
+		},
+	});
+	return {
+		url: `http://127.0.0.1:${http.port}/mcp`,
+		calls,
+		stop: async () => {
+			await http.stop(true);
+		},
+	};
+}

@@ -1,0 +1,395 @@
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	test,
+} from "bun:test";
+import {
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
+import {
+	type FakeServer,
+	startFakeServer,
+	TEST_TOKEN,
+	type ToolCall,
+} from "./fake-server";
+import { makeSandbox, runCli, type Sandbox } from "./sandbox";
+
+let server: FakeServer;
+let sandbox: Sandbox;
+
+beforeAll(() => {
+	server = startFakeServer();
+});
+
+afterAll(async () => {
+	await server.stop();
+});
+
+beforeEach(() => {
+	sandbox = makeSandbox();
+	server.calls.length = 0;
+});
+
+afterEach(() => sandbox.cleanup());
+
+function env(extra: Record<string, string> = {}) {
+	return {
+		...sandbox.env,
+		TRIPWIRE_MCP_URL: server.url,
+		TRIPWIRE_TOKEN: TEST_TOKEN,
+		...extra,
+	};
+}
+
+describe("management commands over MCP", () => {
+	test("whoami --json prints the server data", async () => {
+		const result = await runCli(["--json", "whoami"], env());
+		expect(result.code).toBe(0);
+		expect(JSON.parse(result.stdout)).toMatchObject({
+			user: { name: "grim", email: "vysvisuals@gmail.com" },
+			access: { approved: true },
+		});
+		expect(result.stdout).not.toContain(TEST_TOKEN);
+	});
+
+	test("whoami prints aligned plain text for humans", async () => {
+		const result = await runCli(["whoami"], env());
+		expect(result.stdout).toBe(
+			[
+				"user      grim  vysvisuals@gmail.com",
+				"access    approved",
+				"orgs      grim (admin)",
+				"",
+			].join("\n"),
+		);
+	});
+
+	test("status shows the next step and the install link", async () => {
+		const result = await runCli(["status"], env());
+		expect(result.stdout).toBe(
+			[
+				"org       grim",
+				"next      Install the GitHub App",
+				"open      https://github.com/apps/tripwire/installations/new?state=s1",
+				"",
+			].join("\n"),
+		);
+	});
+
+	test("repos prints a table", async () => {
+		const result = await runCli(["repos"], env());
+		expect(result.stdout).toBe(
+			[
+				"REPO                          GATE     TO REVIEW     BLOCKED 24H",
+				"scratch                       on       2             5",
+				"website                       off      0             0",
+				"",
+			].join("\n"),
+		);
+	});
+
+	test("runs list works without a repo and prints a table", async () => {
+		const result = await runCli(["runs", "list"], env());
+		expect(result.code).toBe(0);
+		expect(server.calls).toEqual([{ name: "list_runs", args: {} }]);
+		expect(result.stdout.split("\n")[0]).toMatch(
+			/^RUN\s+REPO\s+PR\s+STATUS\s+VERDICT\s+CREATED$/,
+		);
+		expect(result.stdout).toMatch(
+			/run_1\s+scratch\s+#12\s+completed\s+block\s+2026-10-22 14:03/,
+		);
+	});
+
+	test("human output has no raw JSON, em dashes or exclamation marks", async () => {
+		for (const args of [["whoami"], ["status"], ["repos"], ["runs", "list"]]) {
+			const result = await runCli(args, env());
+			expect(result.stdout).not.toMatch(/[{}!\u2014]/);
+		}
+	});
+
+	test("tool errors read for humans and name CLI commands, not tools", async () => {
+		const result = await runCli(["workflows", "list", "scratc"], env());
+		expect(result.code).toBe(1);
+		expect(result.stderr).toBe(
+			"error     No repo named scratc in grim. Run tripwire repos to see them.\n",
+		);
+		expect(result.stdout).toBe("");
+	});
+
+	test("input validation errors name the missing argument", async () => {
+		const result = await runCli(["queue", "list"], env());
+		expect(result.code).toBe(1);
+		expect(result.stderr).toBe("error     Missing argument: repo.\n");
+	});
+
+	test("an unknown command exits 1 and never runs install", async () => {
+		const result = await runCli(["list_repos"], env());
+		expect(result.code).toBe(1);
+		expect(result.stderr).toBe(
+			"error     Unknown command list_repos. Run tripwire --help.\n",
+		);
+		expect(result.stdout).toBe("");
+		expect(server.calls).toEqual([]);
+		expect(sandbox.argv()).toEqual([]);
+		expect(
+			readdirSync(sandbox.home).filter((name) => name !== "Library"),
+		).toEqual([]);
+	});
+
+	test("commands map to tools with org and args", async () => {
+		const cases: Array<[string[], string, ToolCall["args"]]> = [
+			[["status"], "setup_status", { org: "acme" }],
+			[["repos"], "list_repos", { org: "acme" }],
+			[["rules", "list"], "list_rule_catalog", { org: "acme" }],
+			[
+				["rules", "list", "acme/web"],
+				"get_repo_rules",
+				{ org: "acme", repo: "acme/web" },
+			],
+			[
+				[
+					"rules",
+					"set",
+					"acme/web",
+					"account-age@1",
+					"--enable",
+					"--param",
+					"minDays=30",
+					"--param",
+					"mode=strict",
+				],
+				"set_rule",
+				{
+					org: "acme",
+					repo: "acme/web",
+					ruleId: "account-age@1",
+					enabled: true,
+					config: { minDays: 30, mode: "strict" },
+				},
+			],
+			[
+				["gate", "on", "acme/web"],
+				"turn_on_gate",
+				{ org: "acme", repo: "acme/web" },
+			],
+			[
+				["workflows", "list", "acme/web"],
+				"list_workflows",
+				{ org: "acme", repo: "acme/web" },
+			],
+			[
+				["workflows", "disable", "acme/web", "wf_1"],
+				"set_workflow_enabled",
+				{ org: "acme", repo: "acme/web", workflowId: "wf_1", enabled: false },
+			],
+			[
+				["runs", "list", "--repo", "acme/web", "--limit", "5"],
+				"list_runs",
+				{ org: "acme", repo: "acme/web", limit: 5 },
+			],
+			[
+				["queue", "list", "--repo", "acme/web"],
+				"list_moderation_queue",
+				{ org: "acme", repo: "acme/web" },
+			],
+			[
+				["queue", "decide", "acme/web", "item_9", "approve"],
+				"decide_moderation",
+				{
+					org: "acme",
+					repo: "acme/web",
+					itemId: "item_9",
+					decision: "approve",
+				},
+			],
+		];
+		for (const [args, tool, expected] of cases) {
+			server.calls.length = 0;
+			const result = await runCli(["--org", "acme", "--json", ...args], env());
+			expect(result.code).toBe(0);
+			expect(server.calls).toEqual([{ name: tool, args: expected }]);
+		}
+	});
+
+	test("TRIPWIRE_ORG is used when --org is absent", async () => {
+		await runCli(["repos"], env({ TRIPWIRE_ORG: "beta" }));
+		expect(server.calls).toEqual([
+			{ name: "list_repos", args: { org: "beta" } },
+		]);
+	});
+
+	test("a ban prints the confirm link for a human", async () => {
+		const result = await runCli(
+			["queue", "decide", "scratch", "item_9", "ban"],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		expect(result.stdout).toBe(
+			[
+				"open      https://app.tripwire.sh/grim/scratch/moderation",
+				"          Open this link to review the contributor and decide yourself.",
+				"",
+			].join("\n"),
+		);
+		expect(server.calls).toEqual([
+			{
+				name: "decide_moderation",
+				args: { repo: "scratch", itemId: "item_9", decision: "ban" },
+			},
+		]);
+	});
+
+	test("rules set needs a change before calling the server", async () => {
+		const result = await runCli(["rules", "set", "scratch", "x@1"], env());
+		expect(result.code).toBe(1);
+		expect(result.stderr).toBe(
+			"error     Pass --enable, --disable or --param.\n",
+		);
+		expect(server.calls).toEqual([]);
+	});
+
+	test("rejects unknown queue actions before calling the server", async () => {
+		const result = await runCli(
+			["queue", "decide", "scratch", "item_9", "delete"],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(server.calls).toEqual([]);
+	});
+
+	test("tool errors exit 1 and show as json errors", async () => {
+		const result = await runCli(["--json", "runs", "show", "r1"], env());
+		expect(result.code).toBe(1);
+		expect(JSON.parse(result.stdout)).toEqual({
+			error: "No run r1 in grim. Call list_runs to see recent runs.",
+		});
+	});
+
+	test("a rejected token says to log in", async () => {
+		const result = await runCli(["whoami"], env({ TRIPWIRE_TOKEN: "wrong" }));
+		expect(result.code).toBe(1);
+		expect(result.stderr).toContain("Run tripwire login");
+		expect(result.stderr).not.toContain("wrong");
+	});
+
+	test("no token at all says to log in", async () => {
+		const { TRIPWIRE_TOKEN: _drop, ...rest } = env();
+		const result = await runCli(["--json", "status"], rest);
+		expect(result.code).toBe(1);
+		expect(JSON.parse(result.stdout).error).toContain("Not signed in");
+	});
+
+	test("reads a stored token from the 0600 credentials file", async () => {
+		const dir = join(sandbox.home, ".config", "tripwire");
+		mkdirSync(dir, { recursive: true });
+		const file = join(dir, "credentials.json");
+		writeFileSync(
+			file,
+			JSON.stringify({
+				accessToken: TEST_TOKEN,
+				mcpUrl: server.url,
+				authUrl: "http://127.0.0.1:1",
+			}),
+			{ mode: 0o600 },
+		);
+		const { TRIPWIRE_TOKEN: _drop, TRIPWIRE_MCP_URL: _url, ...rest } = env();
+		const result = await runCli(["whoami"], rest);
+		expect(result.code).toBe(0);
+		expect(statSync(file).mode & 0o777).toBe(0o600);
+	});
+
+	test("logout removes the stored token", async () => {
+		const dir = join(sandbox.home, ".config", "tripwire");
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			join(dir, "credentials.json"),
+			JSON.stringify({
+				accessToken: "x",
+				mcpUrl: server.url,
+				authUrl: "http://127.0.0.1:1",
+			}),
+		);
+		const result = await runCli(["logout"], sandbox.env);
+		expect(result.stdout).toBe("done      Signed out\n");
+		const again = await runCli(["logout"], sandbox.env);
+		expect(again.stdout).toBe("done      Not signed in\n");
+	});
+
+	describe("an expired token that cannot refresh", () => {
+		function writeExpired(authUrl: string): string {
+			const dir = join(sandbox.home, ".config", "tripwire");
+			mkdirSync(dir, { recursive: true });
+			const file = join(dir, "credentials.json");
+			writeFileSync(
+				file,
+				JSON.stringify({
+					accessToken: "old",
+					refreshToken: "rt",
+					expiresAt: 1,
+					mcpUrl: server.url,
+					authUrl,
+				}),
+				{ mode: 0o600 },
+			);
+			return file;
+		}
+
+		async function withAuth(
+			status: number,
+			body: string,
+			check: (result: Awaited<ReturnType<typeof runCli>>, file: string) => void,
+		) {
+			const auth = Bun.serve({
+				port: 0,
+				fetch: () => new Response(body, { status }),
+			});
+			try {
+				const file = writeExpired(`http://127.0.0.1:${auth.port}`);
+				const before = readFileSync(file, "utf8");
+				const { TRIPWIRE_TOKEN: _drop, ...rest } = env();
+				const result = await runCli(["whoami"], rest);
+				check(result, file);
+				expect(readFileSync(file, "utf8")).toBe(before);
+			} finally {
+				await auth.stop(true);
+			}
+		}
+
+		test("a 5xx from the auth server says unreachable", async () => {
+			await withAuth(
+				503,
+				JSON.stringify({
+					error: { code: "err:frontline:capacity:no_running_instances" },
+				}),
+				(result) => {
+					expect(result.code).toBe(1);
+					expect(result.stderr).toBe(
+						"error     Tripwire is not reachable right now. Try again in a minute.\n",
+					);
+				},
+			);
+		});
+
+		test("an OAuth invalid_grant says the session expired", async () => {
+			await withAuth(
+				400,
+				JSON.stringify({ error: "invalid_grant" }),
+				(result) => {
+					expect(result.code).toBe(1);
+					expect(result.stderr).toBe(
+						"error     Session expired. Run tripwire login.\n",
+					);
+				},
+			);
+		});
+	});
+});
