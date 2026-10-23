@@ -495,7 +495,7 @@ describe("workflows as code", () => {
 			env(),
 		);
 		expect(result.code).toBe(0);
-		expect(result.stdout).toContain("~ step check account-age@1");
+		expect(result.stdout).toContain("~ step account-age.minDays: 7 → 14");
 		const call = server.calls.find(
 			(entry) => entry.name === "validate_workflow",
 		);

@@ -3,7 +3,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { accountAgeConfigSchema } from "./rules.ts";
-import { DEFAULT_WORKFLOW, type WorkflowDefinition } from "./workflow.ts";
+import {
+	DEFAULT_WORKFLOW,
+	type TriggerNode,
+	type WorkflowDefinition,
+} from "./workflow.ts";
 import {
 	authoringModuleText,
 	schemaTypeText,
@@ -181,10 +185,81 @@ describe("diffWorkflow", () => {
 			),
 		).toEqual([
 			"changed workflow: name Moderated newcomers → Renamed",
-			"changed step: check account-age@1",
+			"changed step: age.minDays: 30 → 60",
 			"removed step: action label",
 			"removed connection: mod → ok (Approved)",
 		]);
+	});
+});
+
+describe("diffWorkflow names the field a step changed", () => {
+	const scheduled = (
+		schedule: TriggerNode["schedule"],
+	): WorkflowDefinition => ({
+		id: "stale",
+		name: "Stale",
+		version: 1,
+		nodes: [
+			{
+				id: "trigger",
+				type: "trigger",
+				kinds: ["schedule.matched"],
+				schedule,
+			},
+		],
+		edges: [],
+	});
+	const lines = (
+		before: TriggerNode["schedule"],
+		after: TriggerNode["schedule"],
+	) => diffWorkflow(scheduled(before), scheduled(after)).map((c) => c.text);
+	const match = { subjects: ["issue" as const], labels: ["stale"] };
+
+	test("a new time reads back with its zone", () => {
+		expect(
+			lines(
+				{
+					every: { preset: "daily", at: "07:00" },
+					timezone: "Europe/Berlin",
+					match,
+				},
+				{
+					every: { preset: "daily", at: "08:30" },
+					timezone: "Europe/Berlin",
+					match,
+				},
+			),
+		).toEqual([
+			"trigger.every: Every day at 07:00 (Europe/Berlin) → Every day at 08:30 (Europe/Berlin)",
+		]);
+	});
+
+	test("a zone change alone, and a label change, each get a line", () => {
+		expect(
+			lines(
+				{ every: { n: 12, unit: "hours" }, timezone: "UTC", match },
+				{
+					every: { n: 12, unit: "hours" },
+					timezone: "Europe/Berlin",
+					match: { ...match, labels: ["stale", "no-auto-close"] },
+				},
+			),
+		).toEqual([
+			"trigger.timezone: UTC → Europe/Berlin",
+			"trigger.match.labels: stale → stale, no-auto-close",
+		]);
+	});
+
+	test("a step that changes kind says what it was", () => {
+		const local: WorkflowDefinition = {
+			...MODERATED,
+			nodes: MODERATED.nodes.map((node) =>
+				node.id === "age" ? { id: "age", type: "gate", mode: "not" } : node,
+			),
+		};
+		expect(diffWorkflow(MODERATED, local).map((c) => c.text)).toContain(
+			"age: check account-age@1 → gate not",
+		);
 	});
 });
 

@@ -6,6 +6,7 @@ import type {
 	WorkflowNode,
 } from "./workflow.ts";
 import { edgePort, WORKFLOW_PORT_LABELS } from "./workflow-connections.ts";
+import { describeSchedule } from "./workflow-schedule.ts";
 
 /** Params that hold secrets, and the markers that say one is stored. */
 export const WORKFLOW_SECRET_KEYS: ReadonlySet<string> = new Set([
@@ -107,6 +108,101 @@ function describeNode(node: WorkflowNode): string {
 	}
 }
 
+type Shown = JsonValue | undefined;
+
+function shown(value: Shown): string {
+	if (value === undefined || value === null) {
+		return "none";
+	}
+	if (Array.isArray(value)) {
+		return value.length === 0
+			? "none"
+			: value
+					.map((item) =>
+						typeof item === "string" ? item : JSON.stringify(item),
+					)
+					.join(", ");
+	}
+	return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+function isRecord(value: Shown): value is Record<string, JsonValue> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function flatten(
+	value: Shown,
+	prefix: string,
+	into: Map<string, string>,
+): Map<string, string> {
+	if (isRecord(value) && Object.keys(value).length > 0) {
+		for (const [key, inner] of Object.entries(value)) {
+			flatten(inner, prefix ? `${prefix}.${key}` : key, into);
+		}
+	} else if (prefix) {
+		into.set(prefix, shown(value));
+	}
+	return into;
+}
+
+function nodeFields(node: WorkflowNode): Map<string, string> {
+	const fields = new Map<string, string>();
+	switch (node.type) {
+		case "trigger": {
+			if (!node.schedule) {
+				fields.set("on", node.kinds.join(", "));
+				return fields;
+			}
+			const { every, timezone, match } = node.schedule;
+			fields.set(
+				"every",
+				every ? describeSchedule({ every, timezone }) : "none",
+			);
+			fields.set("timezone", timezone ?? "none");
+			return flatten(match, "match", fields);
+		}
+		case "rule":
+			fields.set("ref", node.ref);
+			return flatten(node.config, "", fields);
+		case "gate":
+			fields.set("mode", node.mode);
+			return fields;
+		default: {
+			fields.set("action", node.action);
+			const params = Object.fromEntries(
+				Object.entries(node.params ?? {}).filter(
+					([key]) => !SECRET_KEYS.has(key),
+				),
+			);
+			return flatten(params, "", fields);
+		}
+	}
+}
+
+/** Each field a step changed, as `id.field: before → after`. */
+function fieldChanges(old: WorkflowNode, node: WorkflowNode): string[] {
+	if (old.type !== node.type) {
+		return [`${node.id}: ${describeNode(old)} → ${describeNode(node)}`];
+	}
+	const before = nodeFields(old);
+	const after = nodeFields(node);
+	const everyBefore = before.get("every");
+	const everyAfter = after.get("every") ?? "";
+	const zoneInEvery = (zone: string) =>
+		everyBefore !== everyAfter &&
+		everyAfter.includes(zone === "none" ? ", the default)" : `(${zone})`);
+	const lines: string[] = [];
+	for (const key of new Set([...before.keys(), ...after.keys()])) {
+		const was = before.get(key) ?? "none";
+		const now = after.get(key) ?? "none";
+		if (was === now || (key === "timezone" && zoneInEvery(now))) {
+			continue;
+		}
+		lines.push(`${node.id}.${key}: ${was} → ${now}`);
+	}
+	return lines.length > 0 ? lines : [describeNode(node)];
+}
+
 function edgeKey(edge: WorkflowEdge): string {
 	return `${edge.from}>${edge.to}>${edge.when ?? "pass"}`;
 }
@@ -159,12 +255,9 @@ export function diffWorkflow(
 				text: describeNode(node),
 			});
 		} else if (comparable(old) !== comparable(node)) {
-			changes.push({
-				change: "changed",
-				subject: "step",
-				id: node.id,
-				text: describeNode(node),
-			});
+			for (const text of fieldChanges(old, node)) {
+				changes.push({ change: "changed", subject: "step", id: node.id, text });
+			}
 		}
 	}
 	for (const node of server.nodes) {

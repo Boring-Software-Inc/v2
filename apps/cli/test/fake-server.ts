@@ -140,7 +140,7 @@ const RESULTS: Record<string, z.infer<ReturnType<typeof z.json>>> = {
 						change: "changed",
 						subject: "step",
 						id: "account-age",
-						text: "check account-age@1",
+						text: "account-age.minDays: 7 → 14",
 					},
 				],
 			},
