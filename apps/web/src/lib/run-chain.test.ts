@@ -641,6 +641,60 @@ describe("a backfill run (R7-1)", () => {
 		);
 		expect(chain.outcome.title).toBe("Would pass");
 	});
+
+	test("that blocked reads as what it would have done (R8-1)", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "block",
+				status: "completed",
+				backfill: true,
+				workflows: [],
+				reviews: [],
+			}),
+		);
+		expect(chain.outcome.title).toBe("Would block");
+		expect(chain.outcome.short).toBe("Would block");
+		expect(chain.outcome.tone).toBe("fail");
+	});
+
+	test("that a workflow blocked names it in would-words (R8-1)", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "block",
+				status: "completed",
+				backfill: true,
+				workflows: [RULES],
+				reviews: [],
+			}),
+		);
+		expect(chain.outcome.title).toBe("Rules would block it");
+		expect(chain.outcome.short).toBe("Would block");
+	});
+
+	test("superseded keeps the would-words on its last step (R8-1)", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "block",
+				status: "completed",
+				backfill: true,
+				workflows: [RULES],
+				reviews: [],
+				nextRun: {
+					id: "run-2",
+					createdAt: "2026-10-21T14:12:07.000Z",
+					status: "completed",
+					verdict: "pass",
+					eventKind: "change-request.updated",
+					actor: "g-r-i-m",
+					headSha: "3f9a2c1ffff",
+					rerun: false,
+				},
+			}),
+		);
+		expect(chain.steps.map((step) => step.title)).toEqual([
+			"Rules would block it",
+		]);
+	});
 });
 
 describe("a run whose AI review did not run (out of credits)", () => {

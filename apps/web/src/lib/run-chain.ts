@@ -440,6 +440,14 @@ function joinNames(names: readonly string[]): string {
 	return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
+function blockedByTitle(
+	blockers: readonly string[],
+	backfill: boolean,
+): string {
+	const names = joinNames(blockers);
+	return backfill ? `${names} would block it` : `Blocked by ${names}`;
+}
+
 function checkChip(run: RunView, action: RunActionView): ChainChip {
 	const base = {
 		key: `${action.kind}-${action.recordedAt}`,
@@ -666,13 +674,12 @@ function verdictOutcome(run: RunView): ChainOutcome {
 			const open = run.reviews.find(
 				(review) => review.state === "open" && !review.degraded,
 			);
+			const label = words(result);
+			const named = !denied && blockers.length > 0;
 			return {
 				...base,
-				title:
-					!denied && blockers.length > 0
-						? `Blocked by ${joinNames(blockers)}`
-						: RUN_RESULT_LABELS.block,
-				short: RUN_RESULT_LABELS.block,
+				...label,
+				title: named ? blockedByTitle(blockers, run.backfill) : label.title,
 				tone: "fail",
 				glyph: "blocked",
 				openReview:
