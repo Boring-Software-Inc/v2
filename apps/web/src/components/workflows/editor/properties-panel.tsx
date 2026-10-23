@@ -1,19 +1,9 @@
-import type {
-	EventKind,
-	GateMode,
-	JsonValue,
-	ScheduleEvery,
-	ThreadSubject,
-	TriggerSchedule,
-	WorkflowNode,
-} from "@tripwire/contracts";
+import type { GateMode, JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
 	ACTION_CATALOG,
-	DEFAULT_TRIGGER_SCHEDULE,
 	GATE_CATALOG,
-	isScheduleTrigger,
 	lockParamsSchema,
-	TRIGGER_CATALOG,
+	MAX_COMMENT_MESSAGE,
 } from "@tripwire/contracts";
 import { useState } from "react";
 import { z } from "zod";
@@ -23,8 +13,6 @@ import {
 	Field,
 	FieldDescription,
 	FieldLabel,
-	FieldLegend,
-	FieldSet,
 	Label,
 } from "#/components/glaze/ui/field";
 import { Input } from "#/components/glaze/ui/input";
@@ -32,14 +20,14 @@ import { NumberInput } from "#/components/glaze/ui/number-input";
 import { Select } from "#/components/glaze/ui/select";
 import { Status } from "#/components/glaze/ui/status";
 import { Textarea } from "#/components/glaze/ui/textarea";
+import { LabelPicker } from "#/components/workflows/editor/label-picker";
 import {
 	type FieldSpec,
 	fieldsForSchema,
 	ruleCatalogEntryForRef,
 } from "#/components/workflows/editor/node-fields";
 import { ReviewerPicker } from "#/components/workflows/editor/reviewer-picker";
-import { SCHEDULE_EVERY_LABEL } from "#/lib/schedule-summary";
-import { toggleTriggerKind } from "#/lib/trigger-kinds";
+import { TriggerFlow } from "#/components/workflows/editor/schedule-flow";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
@@ -67,7 +55,9 @@ export function hasEditableParams(node: WorkflowNode): boolean {
 				node.action === "label" ||
 				node.action === "request-review" ||
 				node.action === "webhook" ||
-				node.action === "lock"
+				node.action === "lock" ||
+				node.action === "remove-label" ||
+				node.action === "post-comment"
 			);
 		default:
 			return false;
@@ -121,180 +111,7 @@ function TriggerFields({
 	readOnly: boolean;
 	onUpdate: (next: WorkflowNode) => void;
 }) {
-	const toggle = (kind: EventKind, checked: boolean) => {
-		onUpdate(toggleTriggerKind(node, kind, checked));
-	};
-	return (
-		<div className="flex flex-col gap-4">
-			<FieldSet className="gap-2" data-field="kinds" disabled={readOnly}>
-				<FieldLegend variant="label">
-					Runs on these events (pick at least one)
-				</FieldLegend>
-				{TRIGGER_CATALOG.filter((entry) => entry.toolbox).map((entry) => (
-					<Label className="flex items-center gap-2" key={entry.kind}>
-						<Checkbox
-							checked={node.kinds.includes(entry.kind)}
-							disabled={readOnly}
-							onCheckedChange={(checked) => toggle(entry.kind, checked)}
-						/>
-						{entry.name}
-					</Label>
-				))}
-			</FieldSet>
-			{isScheduleTrigger(node) ? (
-				<ScheduleFields
-					node={node}
-					onUpdate={onUpdate}
-					readOnly={readOnly}
-					schedule={node.schedule ?? DEFAULT_TRIGGER_SCHEDULE}
-				/>
-			) : null}
-		</div>
-	);
-}
-
-const EVERY_OPTIONS = Object.entries(SCHEDULE_EVERY_LABEL).map(
-	([value, label]) => ({ value, label }),
-);
-
-const SUBJECT_OPTIONS: { value: ThreadSubject; label: string }[] = [
-	{ value: "issue", label: "Issues" },
-	{ value: "change-request", label: "Change requests" },
-];
-
-const STATE_OPTIONS: {
-	value: TriggerSchedule["match"]["state"];
-	label: string;
-}[] = [
-	{ value: "open", label: "Open" },
-	{ value: "closed", label: "Closed" },
-	{ value: "any", label: "Any" },
-];
-
-function splitLabels(text: string): string[] {
-	return text
-		.split(/[\n,]/)
-		.map((part) => part.trim())
-		.filter((part) => part.length > 0);
-}
-
-function ScheduleFields({
-	node,
-	schedule,
-	readOnly,
-	onUpdate,
-}: {
-	node: Extract<WorkflowNode, { type: "trigger" }>;
-	schedule: TriggerSchedule;
-	readOnly: boolean;
-	onUpdate: (next: WorkflowNode) => void;
-}) {
-	const setSchedule = (next: TriggerSchedule) =>
-		onUpdate({ ...node, schedule: next });
-	const setMatch = (patch: Partial<TriggerSchedule["match"]>) =>
-		setSchedule({ ...schedule, match: { ...schedule.match, ...patch } });
-	const toggleSubject = (subject: ThreadSubject, checked: boolean) => {
-		const subjects = checked
-			? [...schedule.match.subjects.filter((s) => s !== subject), subject]
-			: schedule.match.subjects.filter((s) => s !== subject);
-		setMatch({ subjects });
-	};
-	const listOrUndefined = (text: string) => {
-		const labels = splitLabels(text);
-		return labels.length > 0 ? labels : undefined;
-	};
-	return (
-		<div className="flex flex-col gap-3" data-field="schedule">
-			<Field>
-				<FieldLabel>Runs</FieldLabel>
-				<Select
-					disabled={readOnly}
-					items={EVERY_OPTIONS}
-					native
-					onValueChange={(next) => {
-						if (next) {
-							setSchedule({ ...schedule, every: next as ScheduleEvery });
-						}
-					}}
-					value={schedule.every}
-				/>
-			</Field>
-			<FieldSet className="gap-2" disabled={readOnly}>
-				<FieldLegend variant="label">Applies to</FieldLegend>
-				{SUBJECT_OPTIONS.map((option) => (
-					<Label className="flex items-center gap-2" key={option.value}>
-						<Checkbox
-							checked={schedule.match.subjects.includes(option.value)}
-							disabled={readOnly}
-							onCheckedChange={(checked) =>
-								toggleSubject(option.value, checked)
-							}
-						/>
-						{option.label}
-					</Label>
-				))}
-			</FieldSet>
-			<Field>
-				<FieldLabel>State</FieldLabel>
-				<Select
-					disabled={readOnly}
-					items={STATE_OPTIONS}
-					native
-					onValueChange={(next) => {
-						if (next) {
-							setMatch({
-								state: next as TriggerSchedule["match"]["state"],
-							});
-						}
-					}}
-					value={schedule.match.state}
-				/>
-			</Field>
-			<Field>
-				<FieldLabel optional>Inactive for</FieldLabel>
-				<NumberInput
-					disabled={readOnly}
-					unit="days"
-					max={3650}
-					min={1}
-					onValueChange={(next) =>
-						setMatch({ inactiveDays: next === null ? undefined : next })
-					}
-					value={schedule.match.inactiveDays ?? null}
-				/>
-			</Field>
-			<Field>
-				<FieldLabel optional>With labels</FieldLabel>
-				<Textarea
-					defaultValue={(schedule.match.labels ?? []).join("\n")}
-					disabled={readOnly}
-					onChange={(event) =>
-						setMatch({ labels: listOrUndefined(event.target.value) })
-					}
-					rows={2}
-				/>
-			</Field>
-			<Field>
-				<FieldLabel optional>Without labels</FieldLabel>
-				<Textarea
-					defaultValue={(schedule.match.excludeLabels ?? []).join("\n")}
-					disabled={readOnly}
-					onChange={(event) =>
-						setMatch({ excludeLabels: listOrUndefined(event.target.value) })
-					}
-					rows={2}
-				/>
-			</Field>
-			<Label className="flex items-center gap-2">
-				<Checkbox
-					checked={schedule.match.skipLocked}
-					disabled={readOnly}
-					onCheckedChange={(checked) => setMatch({ skipLocked: checked })}
-				/>
-				Skip locked threads
-			</Label>
-		</div>
-	);
+	return <TriggerFlow node={node} onUpdate={onUpdate} readOnly={readOnly} />;
 }
 
 const LOCK_REASON_OPTIONS: { value: string; label: string }[] = [
@@ -564,10 +381,15 @@ function ActionFields({
 	if (node.action === "lock") {
 		return <LockFields node={node} onUpdate={onUpdate} readOnly={readOnly} />;
 	}
-	if (node.action !== "label") {
+	if (node.action === "post-comment") {
+		return (
+			<CommentFields node={node} onUpdate={onUpdate} readOnly={readOnly} />
+		);
+	}
+	if (node.action !== "label" && node.action !== "remove-label") {
 		return (
 			<p className="type-body-sm text-text-2">
-				This rule has no settings to change.
+				This step has no settings to change.
 			</p>
 		);
 	}
@@ -575,28 +397,56 @@ function ActionFields({
 		.parse(node.params?.labels)
 		.filter((label) => label !== undefined);
 	return (
-		<Field>
-			<FieldLabel>Labels (comma or newline separated)</FieldLabel>
-			{/* uncontrolled: normalizing on change would eat typed newlines */}
+		<Field data-field="labels">
+			<FieldLabel>Labels</FieldLabel>
+			<LabelPicker
+				creatable
+				onChange={(next) =>
+					onUpdate({ ...node, params: { ...node.params, labels: next } })
+				}
+				readOnly={readOnly}
+				value={labels}
+			/>
+			<FieldDescription>
+				{
+					ACTION_CATALOG.find((entry) => entry.action === node.action)
+						?.description
+				}
+			</FieldDescription>
+		</Field>
+	);
+}
+
+function CommentFields({
+	node,
+	readOnly,
+	onUpdate,
+}: {
+	node: Extract<WorkflowNode, { type: "action" }>;
+	readOnly: boolean;
+	onUpdate: (next: WorkflowNode) => void;
+}) {
+	const message = textParam.parse(node.params?.message);
+	return (
+		<Field data-field="message">
+			<FieldLabel>Message</FieldLabel>
 			<Textarea
-				defaultValue={labels.join("\n")}
 				disabled={readOnly}
+				maxLength={MAX_COMMENT_MESSAGE}
 				onChange={(event) =>
 					onUpdate({
 						...node,
-						params: {
-							...node.params,
-							labels: event.target.value
-								.split(/[\n,]/)
-								.map((part) => part.trim())
-								.filter((part) => part.length > 0),
-						},
+						params: { ...node.params, message: event.target.value },
 					})
 				}
-				rows={3}
+				rows={5}
+				value={message}
 			/>
 			<FieldDescription>
-				{ACTION_CATALOG.find((entry) => entry.action === "label")?.description}
+				{
+					ACTION_CATALOG.find((entry) => entry.action === "post-comment")
+						?.description
+				}
 			</FieldDescription>
 		</Field>
 	);

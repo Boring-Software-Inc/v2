@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
-	DEFAULT_TRIGGER_SCHEDULE,
+	lintWorkflow,
+	NEW_SCHEDULE_DRAFT,
+	type RepoLabel,
 	type WorkflowDefinition,
 	type WorkflowNode,
 } from "@tripwire/contracts";
@@ -8,20 +10,26 @@ import {
 	nodeFieldValues,
 	summarizeFieldValue,
 } from "#/components/workflows/editor/node-fields";
+import { labelColor, labelOptions } from "#/lib/label-options";
 import { threadSubjectOf, threadUrlOf, toEventView } from "#/lib/run-links";
-import { scheduleSummary } from "#/lib/schedule-summary";
+import {
+	durationLabel,
+	everyLabel,
+	scheduleSentenceText,
+} from "#/lib/schedule-summary";
 import { workflowToMarkdown } from "#/lib/workflow-markdown";
+import { WORKFLOW_TEMPLATES } from "#/lib/workflow-templates";
 
 const SCHEDULE_TRIGGER: WorkflowNode = {
 	id: "t",
 	type: "trigger",
 	kinds: ["schedule.matched"],
 	schedule: {
-		every: "12h",
+		every: { n: 12, unit: "hours" },
 		match: {
 			subjects: ["issue", "change-request"],
 			state: "closed",
-			inactiveDays: 15,
+			inactiveFor: { n: 15, unit: "days" },
 			labels: ["stale"],
 			skipLocked: true,
 		},
@@ -58,38 +66,87 @@ const THREAD_EVENT = {
 	},
 };
 
-describe("scheduleSummary", () => {
-	test("reads the cadence and the inactivity window", () => {
-		expect(scheduleSummary(DEFAULT_TRIGGER_SCHEDULE)).toBe(
-			"Every 12 hours, inactive 15 days",
-		);
+describe("durations", () => {
+	test("one of a unit reads without the number", () => {
+		expect(everyLabel({ n: 1, unit: "hours" })).toBe("Every hour");
+		expect(everyLabel({ n: 1, unit: "days" })).toBe("Every day");
+		expect(everyLabel({ n: 12, unit: "hours" })).toBe("Every 12 hours");
+		expect(everyLabel({ n: 2, unit: "weeks" })).toBe("Every 2 weeks");
+		expect(durationLabel({ n: 1, unit: "months" })).toBe("1 month");
+		expect(durationLabel({ n: 15, unit: "days" })).toBe("15 days");
+	});
+});
+
+describe("schedule sentence", () => {
+	test("a complete schedule reads as one sentence", () => {
 		expect(
-			scheduleSummary({
-				every: "24h",
-				match: { subjects: ["issue"], state: "open", skipLocked: true },
-			}),
-		).toBe("Every day");
-		expect(
-			scheduleSummary({
-				every: "1h",
+			scheduleSentenceText({
+				every: { n: 12, unit: "hours" },
 				match: {
-					subjects: ["issue"],
+					subjects: ["issue", "change-request"],
+					state: "closed",
+					inactiveFor: { n: 15, unit: "days" },
+					skipLocked: true,
+				},
+			}),
+		).toBe(
+			"Every 12 hours, finds closed issues and change requests with no activity for 15 days, skipping locked ones.",
+		);
+	});
+
+	test("labels narrow the sentence", () => {
+		expect(
+			scheduleSentenceText({
+				every: { n: 1, unit: "days" },
+				match: {
+					subjects: ["change-request"],
 					state: "open",
-					inactiveDays: 1,
+					inactiveFor: { n: 7, unit: "days" },
+					labels: ["stale"],
+					excludeLabels: ["no-auto-close", "pinned"],
 					skipLocked: false,
 				},
 			}),
-		).toBe("Every hour, inactive 1 day");
+		).toBe(
+			"Every day, finds open change requests with no activity for 7 days, labeled stale, not labeled no-auto-close or pinned.",
+		);
+	});
+
+	test("an empty schedule shows every gap", () => {
+		expect(scheduleSentenceText(NEW_SCHEDULE_DRAFT)).toBe(
+			"Every [so often], finds [open or closed] [issues or change requests] with no activity for [some time], skipping locked ones.",
+		);
+	});
+
+	test("a half filled schedule shows the answers and the gaps", () => {
+		expect(
+			scheduleSentenceText({
+				every: { n: 6, unit: "hours" },
+				match: { subjects: ["issue"], state: "any" },
+			}),
+		).toBe(
+			"Every 6 hours, finds open and closed issues with no activity for [some time], skipping locked ones.",
+		);
 	});
 });
 
 describe("node faces", () => {
-	test("a schedule trigger shows its cadence", () => {
+	test("a schedule trigger shows its cadence and inactivity", () => {
 		expect(face(SCHEDULE_TRIGGER)).toEqual([
 			"Triggers on: On a schedule",
 			"Runs: Every 12 hours",
-			"Inactive for: 15 days",
+			"No activity for: 15 days",
 		]);
+	});
+
+	test("an unanswered schedule says not set", () => {
+		expect(face({ ...SCHEDULE_TRIGGER, schedule: NEW_SCHEDULE_DRAFT })).toEqual(
+			[
+				"Triggers on: On a schedule",
+				"Runs: not set",
+				"No activity for: not set",
+			],
+		);
 	});
 
 	test("lock shows its reason, or none", () => {
@@ -99,6 +156,28 @@ describe("node faces", () => {
 
 	test("close has no fields", () => {
 		expect(face({ id: "c", type: "action", action: "close" })).toEqual([]);
+	});
+
+	test("remove label lists its labels and comment shows its message", () => {
+		expect(
+			face({
+				id: "r",
+				type: "action",
+				action: "remove-label",
+				params: { labels: ["stale"] },
+			}),
+		).toEqual(["Labels: stale"]);
+		expect(
+			face({
+				id: "c",
+				type: "action",
+				action: "post-comment",
+				params: { message: "Closing this." },
+			}),
+		).toEqual(["Message: Closing this."]);
+		expect(face({ id: "c", type: "action", action: "post-comment" })).toEqual([
+			"Message: not set",
+		]);
 	});
 });
 
@@ -112,15 +191,87 @@ describe("workflowToMarkdown, scheduled", () => {
 	};
 	const md = workflowToMarkdown(definition);
 
-	test("names the schedule and its filters", () => {
+	test("names the schedule as a sentence", () => {
 		expect(md).toContain("On a schedule");
 		expect(md).toContain(
-			"Every 12 hours, inactive 15 days; applies to: issue, change-request; state: closed; with labels: stale; skips locked threads",
+			"Every 12 hours, finds closed issues and change requests with no activity for 15 days, labeled stale, skipping locked ones.",
 		);
 	});
 
 	test("lists the lock reason", () => {
 		expect(md).toContain("reason: resolved");
+	});
+});
+
+describe("templates", () => {
+	test("every template lints clean", () => {
+		for (const template of WORKFLOW_TEMPLATES) {
+			const results = lintWorkflow({
+				...template.definition,
+				id: template.id,
+				name: template.name,
+			});
+			expect({ template: template.id, results }).toEqual({
+				template: template.id,
+				results: [],
+			});
+		}
+	});
+
+	test("every node face in every template shows its values in full", () => {
+		for (const template of WORKFLOW_TEMPLATES) {
+			for (const node of template.definition.nodes) {
+				for (const { field, value } of nodeFieldValues(node)) {
+					const shown = summarizeFieldValue(field, value);
+					expect(shown).not.toContain("…");
+					expect(shown).not.toMatch(/ \+\d+$/);
+					if (typeof value === "string") {
+						expect(shown).toBe(value);
+					}
+				}
+			}
+		}
+		const reset = WORKFLOW_TEMPLATES.find(
+			(template) => template.id === "close-stale-change-requests",
+		)?.definition.nodes.find((node) => node.id === "reset");
+		expect(reset && face(reset)).toEqual([
+			"Triggers on: Change request updated, Comment created",
+		]);
+	});
+
+	test("close stale change requests holds three triggers", () => {
+		const stale = WORKFLOW_TEMPLATES.find(
+			(template) => template.id === "close-stale-change-requests",
+		);
+		const triggers = stale?.definition.nodes.filter(
+			(node) => node.type === "trigger",
+		);
+		expect(triggers?.map((node) => node.id)).toEqual([
+			"warn",
+			"close",
+			"reset",
+		]);
+	});
+});
+
+describe("label options", () => {
+	const synced: RepoLabel[] = [
+		{ name: "bug", color: "d73a4a", description: null },
+		{ name: "stale", color: "cfd3d7", description: null },
+	];
+
+	test("synced labels come first and saved ones stay", () => {
+		expect(labelOptions(synced, ["Stale", "pinned"])).toEqual([
+			{ name: "bug", color: "d73a4a", synced: true },
+			{ name: "stale", color: "cfd3d7", synced: true },
+			{ name: "pinned", color: null, synced: false },
+		]);
+	});
+
+	test("colors match by name, ignoring case", () => {
+		const options = labelOptions(synced, []);
+		expect(labelColor(options, "BUG")).toBe("d73a4a");
+		expect(labelColor(options, "missing")).toBeNull();
 	});
 });
 

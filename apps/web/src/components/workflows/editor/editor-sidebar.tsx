@@ -11,8 +11,8 @@ import type {
 import {
 	ACTION_CATALOG,
 	acceptReason,
-	DEFAULT_TRIGGER_SCHEDULE,
 	GATE_CATALOG,
+	NEW_SCHEDULE_DRAFT,
 	outputPorts,
 	RULE_CATALOG,
 	TRIGGER_CATALOG,
@@ -161,7 +161,7 @@ export function buildNodeFromItem(item: ToolboxItem): WorkflowNode {
 						id,
 						type: "trigger",
 						kinds: [item.eventKind],
-						schedule: structuredClone(DEFAULT_TRIGGER_SCHEDULE),
+						schedule: structuredClone(NEW_SCHEDULE_DRAFT),
 					}
 				: { id, type: "trigger", kinds: [item.eventKind] };
 		case "rule":

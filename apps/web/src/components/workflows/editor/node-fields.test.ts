@@ -30,7 +30,7 @@ describe("nodeFieldValues — request-review", () => {
 				reviewers: [{ id: 1, login: "octocat" }, "hubot"],
 				teamReviewers: ["core"],
 			}),
-		).toEqual(["Reviewers: octocat +1", "Teams: core"]);
+		).toEqual(["Reviewers: octocat, hubot", "Teams: core"]);
 	});
 
 	test("an action with no targets says so", () => {

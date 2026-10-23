@@ -1,12 +1,13 @@
 import type { JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
+	isScheduleTrigger,
 	RULE_CATALOG,
 	ruleUiSchema,
 	storedReviewerSchema,
 	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { z } from "zod";
-import { SCHEDULE_EVERY_LABEL } from "#/lib/schedule-summary";
+import { durationLabel, everyLabel } from "#/lib/schedule-summary";
 
 const targetList = z.array(z.string()).catch([]);
 const reviewerList = z
@@ -186,37 +187,30 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 				},
 				value: names,
 			};
-			if (!node.schedule) {
+			if (!isScheduleTrigger(node)) {
 				return [kindsRow];
 			}
-			const days = node.schedule.match.inactiveDays;
-			const rows: NodeFieldValue[] = [
+			const every = node.schedule?.every;
+			const inactiveFor = node.schedule?.match.inactiveFor;
+			return [
 				kindsRow,
 				{
+					field: { key: "every", label: "Runs", secret: false, kind: "string" },
+					value: every ? everyLabel(every) : undefined,
+				},
+				{
 					field: {
-						key: "schedule",
-						label: "Runs",
+						key: "inactiveFor",
+						label: "No activity for",
 						secret: false,
 						kind: "string",
 					},
-					value: SCHEDULE_EVERY_LABEL[node.schedule.every],
+					value: inactiveFor ? durationLabel(inactiveFor) : undefined,
 				},
 			];
-			if (days !== undefined) {
-				rows.push({
-					field: {
-						key: "inactiveDays",
-						label: "Inactive for",
-						secret: false,
-						kind: "string",
-					},
-					value: `${days} ${days === 1 ? "day" : "days"}`,
-				});
-			}
-			return rows;
 		}
 		case "action": {
-			if (node.action === "label") {
+			if (node.action === "label" || node.action === "remove-label") {
 				const labels = Array.isArray(node.params?.labels)
 					? node.params.labels.filter(
 							(item): item is string => typeof item === "string",
@@ -262,6 +256,23 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					});
 				}
 				return rows;
+			}
+			if (node.action === "post-comment") {
+				const message = node.params?.message;
+				return [
+					{
+						field: {
+							key: "message",
+							label: "Message",
+							secret: false,
+							kind: "string",
+						},
+						value:
+							typeof message === "string" && message.trim() !== ""
+								? message
+								: undefined,
+					},
+				];
 			}
 			if (node.action === "lock") {
 				const reason = node.params?.reason;
@@ -328,7 +339,7 @@ export function summarizeFieldValue(
 			if (items.length === 0) {
 				return "none";
 			}
-			return items.length === 1 ? items[0] : `${items[0]} +${items.length - 1}`;
+			return items.join(", ");
 		}
 		case "json": {
 			if (Array.isArray(value)) {

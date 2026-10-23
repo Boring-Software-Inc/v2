@@ -74,6 +74,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	listModerationQueue: "member",
 	getRepoResponseConfig: "member",
 	listRepoReviewers: "member",
+	listRepoLabels: "member",
 	getOrgResponseDefaults: "member",
 
 	// ── admin (org mutations) ────────────────────────────────────────────
@@ -102,6 +103,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	deleteRepoWorkflow: "admin",
 	setRepoWorkflowEnabled: "admin",
 	refreshRepoReviewers: "admin",
+	refreshRepoLabels: "admin",
 	saveRuleConfig: "admin",
 	saveRepoResponseConfig: "permission:repoResponse:update",
 	saveOrgResponseDefaults: "permission:orgResponseDefaults:update",

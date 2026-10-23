@@ -55,6 +55,8 @@ export type TripwireFlowNode = Node<{ node: WorkflowNode }, "tripwire">;
  */
 
 /** The mono detail line — the ref/config essence under the name. */
+const STACK_AFTER = 22;
+
 function nodeDetail(node: WorkflowNode): string | null {
 	switch (node.type) {
 		case "rule":
@@ -185,7 +187,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				/>
 			) : null}
 			<div className="flex items-baseline gap-1">
-				<span className="min-w-0 truncate type-label">
+				<span className="min-w-0 type-label [overflow-wrap:anywhere]">
 					{stepName(node, customName)}
 				</span>
 				{node.type === "gate" ? (
@@ -198,28 +200,42 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				) : null}
 			</div>
 			{detail ? (
-				<div className="truncate type-code-xs text-text-3">{detail}</div>
+				<div className="type-code-xs text-text-3 [overflow-wrap:anywhere]">
+					{detail}
+				</div>
 			) : null}
 			{fields.length > 0 ? (
 				<div className="mt-2 flex flex-col border-line-faint border-t pt-1">
-					{fields.map(({ field, value }) => (
-						<div className="-mx-2.5" key={field.key}>
-							<Button
-								aria-label={`Edit ${field.label}`}
-								className="w-full justify-between"
-								onClick={() => editField(node.id, field.key)}
-								size="sm"
-								variant="ghost"
-							>
-								<span className="min-w-0 truncate text-text-2">
-									{field.label}
-								</span>
-								<span className="max-w-1/2 shrink-0 truncate">
-									{summarizeFieldValue(field, value)}
-								</span>
-							</Button>
-						</div>
-					))}
+					{fields.map(({ field, value }) => {
+						const shown = summarizeFieldValue(field, value);
+						const stacked = shown.length > STACK_AFTER;
+						return (
+							<div className="-mx-2.5" key={field.key}>
+								<Button
+									aria-label={`Edit ${field.label}`}
+									className={cn(
+										"h-auto min-h-7 w-full gap-x-2 whitespace-normal py-1 text-start",
+										stacked
+											? "flex-col items-start justify-start gap-y-0.5"
+											: "items-start justify-between",
+									)}
+									onClick={() => editField(node.id, field.key)}
+									size="sm"
+									variant="ghost"
+								>
+									<span className="shrink-0 text-text-2">{field.label}</span>
+									<span
+										className={cn(
+											"min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]",
+											stacked ? "w-full" : "text-end",
+										)}
+									>
+										{shown}
+									</span>
+								</Button>
+							</div>
+						);
+					})}
 				</div>
 			) : null}
 			{cornerPort ? (

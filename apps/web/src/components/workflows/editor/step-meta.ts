@@ -35,6 +35,7 @@ import {
 	Negate,
 	Play,
 	Protected,
+	Subtract,
 	Tag,
 	Time,
 	Translate,
@@ -100,6 +101,8 @@ const ACTION_ICON = {
 	discord: DiscordMark,
 	lock: Locked,
 	close: FailedMark,
+	"remove-label": Subtract,
+	"post-comment": Comment,
 } satisfies Record<WorkflowActionKind, GlazeIcon>;
 
 export function triggerIcon(kind: EventKind): GlazeIcon {

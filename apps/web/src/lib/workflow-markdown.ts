@@ -8,12 +8,11 @@ import {
 	ruleUiSchema,
 	storedReviewerSchema,
 	TRIGGER_CATALOG,
-	type TriggerSchedule,
 	type WorkflowDefinition,
 	type WorkflowNode,
 } from "@tripwire/contracts";
 import { z } from "zod";
-import { scheduleSummary } from "#/lib/schedule-summary";
+import { scheduleSentenceText } from "#/lib/schedule-summary";
 
 const stringList = z.array(z.string()).catch([]);
 const reviewerList = z
@@ -214,24 +213,6 @@ function gateInputs(
 		});
 }
 
-function scheduleLine(schedule: TriggerSchedule): string {
-	const parts = [
-		scheduleSummary(schedule),
-		`applies to: ${schedule.match.subjects.join(", ")}`,
-		`state: ${schedule.match.state}`,
-	];
-	if (schedule.match.labels?.length) {
-		parts.push(`with labels: ${schedule.match.labels.join(", ")}`);
-	}
-	if (schedule.match.excludeLabels?.length) {
-		parts.push(`without labels: ${schedule.match.excludeLabels.join(", ")}`);
-	}
-	if (schedule.match.skipLocked) {
-		parts.push("skips locked threads");
-	}
-	return parts.join("; ");
-}
-
 export function workflowToMarkdown(
 	definition: WorkflowDefinition,
 	customRules: readonly CustomRuleDisplay[] = [],
@@ -252,7 +233,7 @@ export function workflowToMarkdown(
 		lines.push("", "### Trigger", names.join(", "));
 		for (const trigger of triggers) {
 			if (trigger.schedule) {
-				lines.push(scheduleLine(trigger.schedule));
+				lines.push(scheduleSentenceText(trigger.schedule));
 			}
 		}
 	}
