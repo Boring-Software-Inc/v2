@@ -13,7 +13,7 @@ import { admin, genericOAuth } from "better-auth/plugins";
 import { organization } from "better-auth/plugins/organization";
 import { eq } from "drizzle-orm";
 import { applySignupAccessDefaults } from "./access.ts";
-import { agentAuthPlugins } from "./agent-auth.ts";
+import { agentAuthPlugins, agentRateLimitRules } from "./agent-auth.ts";
 import { orgAc, orgRoles } from "./org-access.ts";
 
 /**
@@ -96,6 +96,7 @@ export function createAuth(input: CreateAuthInput) {
 		secret: input.secret,
 		baseURL: input.baseUrl,
 		disabledPaths: ["/token"],
+		rateLimit: { customRules: agentRateLimitRules },
 		session: {
 			cookieCache: {
 				enabled: true,
