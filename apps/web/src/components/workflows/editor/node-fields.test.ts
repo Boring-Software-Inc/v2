@@ -34,6 +34,6 @@ describe("nodeFieldValues — request-review", () => {
 	});
 
 	test("an action with no targets says so", () => {
-		expect(summary(undefined)).toEqual(["Reviewers: not set"]);
+		expect(summary(undefined)).toEqual(["Reviewers: Not set"]);
 	});
 });

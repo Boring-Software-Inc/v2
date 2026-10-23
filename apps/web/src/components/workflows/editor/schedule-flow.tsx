@@ -19,16 +19,10 @@ import { Checkbox } from "#/components/glaze/ui/checkbox";
 import {
 	Field,
 	FieldLabel,
-	FieldLegend,
-	FieldSet,
 	FieldTitle,
 	Label,
 } from "#/components/glaze/ui/field";
 import { NumberInput } from "#/components/glaze/ui/number-input";
-import {
-	RadioGroup,
-	RadioGroupOption,
-} from "#/components/glaze/ui/radio-group";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
@@ -36,14 +30,14 @@ import {
 import { Select } from "#/components/glaze/ui/select";
 import { LabelPicker } from "#/components/workflows/editor/label-picker";
 import { cn } from "#/lib/glaze/utils";
-import { scheduleSentence, UNIT_LABEL } from "#/lib/schedule-summary";
+import { UNIT_LABEL } from "#/lib/schedule-summary";
 import {
 	EVENT_KIND_OPTIONS,
-	eventSentence,
 	switchTriggerPath,
 	type TriggerPath,
 	toggleTriggerKind,
 	triggerPath,
+	whenLabel,
 } from "#/lib/trigger-kinds";
 
 type StepStatus = "answered" | "current" | "upcoming";
@@ -64,7 +58,12 @@ const SUBJECT_OPTIONS: { value: ThreadSubject; label: string }[] = [
 const STATE_OPTIONS: { value: ScheduleState; label: string }[] = [
 	{ value: "open", label: "Open" },
 	{ value: "closed", label: "Closed" },
-	{ value: "any", label: "Any" },
+	{ value: "any", label: "Either" },
+];
+
+const PATH_OPTIONS: { value: TriggerPath; label: string }[] = [
+	{ value: "event", label: "On an event" },
+	{ value: "schedule", label: "On a schedule" },
 ];
 
 const FOCUSABLE =
@@ -72,33 +71,6 @@ const FOCUSABLE =
 
 function maxFor(unit: keyof typeof DURATION_UNIT_MS, limitMs: number): number {
 	return Math.floor(limitMs / DURATION_UNIT_MS[unit]);
-}
-
-function TriggerSummary({
-	node,
-}: {
-	node: Extract<WorkflowNode, { type: "trigger" }>;
-}) {
-	const parts =
-		triggerPath(node) === "schedule"
-			? scheduleSentence(node.schedule ?? NEW_SCHEDULE_DRAFT)
-			: eventSentence(node.kinds);
-	return (
-		<p aria-live="polite" className="type-body text-text-1">
-			{parts.map((part) =>
-				part.placeholder ? (
-					<span
-						className="text-text-3 underline decoration-dotted underline-offset-4"
-						key={part.key}
-					>
-						{part.text}
-					</span>
-				) : (
-					<span key={part.key}>{part.text}</span>
-				),
-			)}
-		</p>
-	);
 }
 
 function Step({
@@ -113,9 +85,9 @@ function Step({
 	return (
 		<div
 			className={cn(
-				"flex flex-col gap-2 border-s-2 ps-3 transition-[border-color,opacity] duration-200",
-				status === "current" ? "border-line-focus" : "border-line-faint",
-				status === "upcoming" && "opacity-60",
+				"flex flex-col gap-2 border-s-2 py-2 ps-3 transition-[border-color,opacity] duration-200",
+				status === "current" ? "border-ink" : "border-line-faint",
+				status === "upcoming" && "opacity-45",
 			)}
 			data-field={step}
 			data-status={status}
@@ -129,9 +101,23 @@ function Step({
 function stepLabelClass(status: StepStatus): string {
 	return cn(
 		"transition-colors duration-200",
-		status === "current" && "text-text-1",
-		status === "answered" && "text-text-2",
-		status === "upcoming" && "text-text-3",
+		status === "current" ? "text-text-1" : "text-text-2",
+	);
+}
+
+function StepTitle({
+	status,
+	id,
+	children,
+}: {
+	status: StepStatus;
+	id: string;
+	children: ReactNode;
+}) {
+	return (
+		<FieldTitle className={stepLabelClass(status)} id={id}>
+			{children}
+		</FieldTitle>
 	);
 }
 
@@ -163,7 +149,7 @@ function DurationField<Unit extends keyof typeof DURATION_UNIT_MS>({
 			<FieldLabel className={stepLabelClass(status)}>{label}</FieldLabel>
 			<div className="flex items-center gap-2">
 				<NumberInput
-					className="min-w-0 flex-1"
+					className="w-28 shrink-0"
 					disabled={readOnly}
 					max={max}
 					min={1}
@@ -177,7 +163,7 @@ function DurationField<Unit extends keyof typeof DURATION_UNIT_MS>({
 				</span>
 				<Select
 					aria-labelledby={unitLabelId}
-					className="w-28 shrink-0"
+					className="min-w-0 flex-1"
 					disabled={readOnly}
 					items={units.map((entry) => ({
 						value: entry,
@@ -204,14 +190,48 @@ function DurationField<Unit extends keyof typeof DURATION_UNIT_MS>({
 	);
 }
 
-function ScheduleFlow({
+function CheckList<Value extends string>({
+	titleId,
+	options,
+	chosen,
+	readOnly,
+	onToggle,
+}: {
+	titleId: string;
+	options: readonly { value: Value; label: string }[];
+	chosen: readonly Value[];
+	readOnly: boolean;
+	onToggle: (value: Value, checked: boolean) => void;
+}) {
+	return (
+		<fieldset
+			aria-labelledby={titleId}
+			className="flex min-w-0 flex-col gap-2.5"
+		>
+			{options.map((option) => (
+				<Label className="flex items-center gap-2" key={option.value}>
+					<Checkbox
+						checked={chosen.includes(option.value)}
+						disabled={readOnly}
+						onCheckedChange={(checked) => onToggle(option.value, checked)}
+					/>
+					{option.label}
+				</Label>
+			))}
+		</fieldset>
+	);
+}
+
+function ScheduleSteps({
 	node,
 	readOnly,
 	onUpdate,
+	advance,
 }: {
 	node: Extract<WorkflowNode, { type: "trigger" }>;
 	readOnly: boolean;
 	onUpdate: (next: WorkflowNode) => void;
+	advance: (answered: ScheduleStep, next: ScheduleDraft) => void;
 }) {
 	const draft = node.schedule ?? NEW_SCHEDULE_DRAFT;
 	const missing = missingScheduleSteps(draft);
@@ -222,52 +242,27 @@ function ScheduleFlow({
 			: step === current
 				? "current"
 				: "upcoming";
-	const root = useRef<HTMLDivElement>(null);
-	const byPointer = useRef(false);
 	const subjectsTitleId = useId();
 	const stateTitleId = useId();
 
-	const focusStep = (step: ScheduleStep) => {
-		const scope = root.current?.querySelector(`[data-step="${step}"]`);
-		scope?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
-	};
-
 	const update = (next: ScheduleDraft, answered?: ScheduleStep) => {
 		onUpdate({ ...node, schedule: next });
-		const advance = byPointer.current && answered && missing.includes(answered);
-		byPointer.current = false;
-		if (!advance) {
-			return;
-		}
-		const upNext = missingScheduleSteps(next)[0];
-		if (upNext) {
-			requestAnimationFrame(() => focusStep(upNext));
+		if (answered && missing.includes(answered)) {
+			advance(answered, next);
 		}
 	};
 	const setMatch = (
 		patch: Partial<ScheduleDraft["match"]>,
 		answered?: ScheduleStep,
 	) => update({ ...draft, match: { ...draft.match, ...patch } }, answered);
-
-	const labels = draft.match.labels ?? [];
-	const excludeLabels = draft.match.excludeLabels ?? [];
+	const subjects = draft.match.subjects ?? [];
 
 	return (
-		<div
-			className="flex flex-col gap-4"
-			data-field="schedule"
-			onKeyDownCapture={() => {
-				byPointer.current = false;
-			}}
-			onPointerDownCapture={() => {
-				byPointer.current = true;
-			}}
-			ref={root}
-		>
+		<>
 			<Step status={statusOf("every")} step="every">
 				<DurationField
 					defaultUnit="hours"
-					label="Runs every"
+					label="Every"
 					limitMs={MAX_SCHEDULE_EVERY_MS}
 					onChange={(every) => update({ ...draft, every }, "every")}
 					readOnly={readOnly}
@@ -277,50 +272,30 @@ function ScheduleFlow({
 				/>
 			</Step>
 			<Step status={statusOf("subjects")} step="subjects">
-				<FieldTitle
-					className={stepLabelClass(statusOf("subjects"))}
-					id={subjectsTitleId}
-				>
-					Looks at
-				</FieldTitle>
-				<fieldset
-					aria-labelledby={subjectsTitleId}
-					className="flex min-w-0 flex-col gap-2"
-				>
-					{SUBJECT_OPTIONS.map((option) => {
-						const chosen = draft.match.subjects ?? [];
-						return (
-							<Label className="flex items-center gap-2" key={option.value}>
-								<Checkbox
-									checked={chosen.includes(option.value)}
-									disabled={readOnly}
-									onCheckedChange={(checked) =>
-										setMatch(
-											{
-												subjects: SUBJECT_OPTIONS.map((o) => o.value).filter(
-													(subject) =>
-														subject === option.value
-															? checked
-															: chosen.includes(subject),
-												),
-											},
-											"subjects",
-										)
-									}
-								/>
-								{option.label}
-							</Label>
-						);
-					})}
-				</fieldset>
+				<StepTitle id={subjectsTitleId} status={statusOf("subjects")}>
+					Applies to
+				</StepTitle>
+				<CheckList
+					chosen={subjects}
+					onToggle={(subject, checked) =>
+						setMatch(
+							{
+								subjects: SUBJECT_OPTIONS.map((o) => o.value).filter((s) =>
+									s === subject ? checked : subjects.includes(s),
+								),
+							},
+							"subjects",
+						)
+					}
+					options={SUBJECT_OPTIONS}
+					readOnly={readOnly}
+					titleId={subjectsTitleId}
+				/>
 			</Step>
 			<Step status={statusOf("state")} step="state">
-				<FieldTitle
-					className={stepLabelClass(statusOf("state"))}
-					id={stateTitleId}
-				>
-					That are
-				</FieldTitle>
+				<StepTitle id={stateTitleId} status={statusOf("state")}>
+					Status
+				</StepTitle>
 				<SegmentedControl
 					aria-labelledby={stateTitleId}
 					disabled={readOnly}
@@ -331,7 +306,11 @@ function ScheduleFlow({
 					value={draft.match.state ?? ""}
 				>
 					{STATE_OPTIONS.map((option) => (
-						<SegmentedControlItem key={option.value} value={option.value}>
+						<SegmentedControlItem
+							className="px-2"
+							key={option.value}
+							value={option.value}
+						>
 							{option.label}
 						</SegmentedControlItem>
 					))}
@@ -340,7 +319,7 @@ function ScheduleFlow({
 			<Step status={statusOf("inactiveFor")} step="inactiveFor">
 				<DurationField
 					defaultUnit="days"
-					label="With no activity for"
+					label="Inactive for"
 					limitMs={MAX_INACTIVE_FOR_MS}
 					onChange={(inactiveFor) => setMatch({ inactiveFor }, "inactiveFor")}
 					readOnly={readOnly}
@@ -349,26 +328,31 @@ function ScheduleFlow({
 					value={draft.match.inactiveFor}
 				/>
 			</Step>
-			<FieldSet className="gap-3 border-line-faint border-t pt-4">
-				<FieldLegend variant="label">Narrow it down</FieldLegend>
+			<div className="-mx-4 mt-3 flex flex-col gap-3 border-line-faint border-t px-4 pt-4">
+				<div className="flex items-baseline gap-1.5">
+					<h3 className="type-label text-text-1">Filters</h3>
+					<span className="type-caption text-text-3">Optional</span>
+				</div>
 				<Field data-field="labels">
-					<FieldLabel>Has all of these labels</FieldLabel>
+					<FieldLabel className="text-text-2">With labels</FieldLabel>
 					<LabelPicker
 						onChange={(next) =>
 							setMatch({ labels: next.length > 0 ? next : undefined })
 						}
+						placeholder="Any label"
 						readOnly={readOnly}
-						value={labels}
+						value={draft.match.labels ?? []}
 					/>
 				</Field>
 				<Field data-field="excludeLabels">
-					<FieldLabel>Has none of these labels</FieldLabel>
+					<FieldLabel className="text-text-2">Without labels</FieldLabel>
 					<LabelPicker
 						onChange={(next) =>
 							setMatch({ excludeLabels: next.length > 0 ? next : undefined })
 						}
+						placeholder="No label"
 						readOnly={readOnly}
-						value={excludeLabels}
+						value={draft.match.excludeLabels ?? []}
 					/>
 				</Field>
 				<Label className="flex items-center gap-2">
@@ -377,10 +361,10 @@ function ScheduleFlow({
 						disabled={readOnly}
 						onCheckedChange={(checked) => setMatch({ skipLocked: checked })}
 					/>
-					Skip locked threads
+					Skip locked
 				</Label>
-			</FieldSet>
-		</div>
+			</div>
+		</>
 	);
 }
 
@@ -396,24 +380,44 @@ export function TriggerFlow({
 	const path = triggerPath(node);
 	const root = useRef<HTMLDivElement>(null);
 	const byPointer = useRef(false);
-	const startsTitleId = useId();
-	const eventsTitleId = useId();
-	const choosePath = (next: TriggerPath) => {
-		const advance = byPointer.current && next !== path;
+	const runTitleId = useId();
+	const whenTitleId = useId();
+
+	const focusStep = (step: string) => {
+		requestAnimationFrame(() => {
+			const scope = root.current?.querySelector(`[data-step="${step}"]`);
+			scope?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+		});
+	};
+	const takePointer = () => {
+		const pointer = byPointer.current;
 		byPointer.current = false;
+		return pointer;
+	};
+	const choosePath = (next: TriggerPath) => {
+		const pointer = takePointer();
+		if (next === path) {
+			return;
+		}
 		onUpdate(switchTriggerPath(node, next));
-		if (advance) {
-			requestAnimationFrame(() => {
-				const scope = root.current?.querySelector(
-					`[data-step="${next === "schedule" ? "every" : "kinds"}"]`,
-				);
-				scope?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
-			});
+		if (pointer) {
+			focusStep(next === "schedule" ? "every" : "kinds");
 		}
 	};
+	const advance = (_answered: ScheduleStep, next: ScheduleDraft) => {
+		if (!takePointer()) {
+			return;
+		}
+		const upNext = missingScheduleSteps(next)[0];
+		if (upNext) {
+			focusStep(upNext);
+		}
+	};
+	const whenStatus: StepStatus = node.kinds.length > 0 ? "answered" : "current";
+
 	return (
 		<div
-			className="flex flex-col gap-4"
+			className="flex flex-col gap-1"
 			onKeyDownCapture={() => {
 				byPointer.current = false;
 			}}
@@ -422,56 +426,53 @@ export function TriggerFlow({
 			}}
 			ref={root}
 		>
-			<TriggerSummary node={node} />
-			<Step status="answered" step="starts">
-				<FieldTitle className={stepLabelClass("answered")} id={startsTitleId}>
-					Starts
-				</FieldTitle>
-				<RadioGroup
-					aria-labelledby={startsTitleId}
-					className="gap-2"
+			<Step status="answered" step="run">
+				<StepTitle id={runTitleId} status="answered">
+					Run
+				</StepTitle>
+				<SegmentedControl
+					aria-labelledby={runTitleId}
 					disabled={readOnly}
+					fill
 					onValueChange={(next) => choosePath(next as TriggerPath)}
 					value={path}
 				>
-					<RadioGroupOption label="When something happens" value="event" />
-					<RadioGroupOption label="On a schedule" value="schedule" />
-				</RadioGroup>
+					{PATH_OPTIONS.map((option) => (
+						<SegmentedControlItem
+							className="px-2"
+							key={option.value}
+							value={option.value}
+						>
+							{option.label}
+						</SegmentedControlItem>
+					))}
+				</SegmentedControl>
 			</Step>
 			{path === "event" ? (
-				<Step
-					status={node.kinds.length > 0 ? "answered" : "current"}
-					step="kinds"
-				>
-					<fieldset
-						aria-labelledby={eventsTitleId}
-						className="flex min-w-0 flex-col gap-2"
-						data-field="kinds"
-					>
-						<FieldTitle
-							className={stepLabelClass(
-								node.kinds.length > 0 ? "answered" : "current",
-							)}
-							id={eventsTitleId}
-						>
-							Runs on these events
-						</FieldTitle>
-						{EVENT_KIND_OPTIONS.map((entry) => (
-							<Label className="flex items-center gap-2" key={entry.kind}>
-								<Checkbox
-									checked={node.kinds.includes(entry.kind)}
-									disabled={readOnly}
-									onCheckedChange={(checked) =>
-										onUpdate(toggleTriggerKind(node, entry.kind, checked))
-									}
-								/>
-								{entry.name}
-							</Label>
-						))}
-					</fieldset>
+				<Step status={whenStatus} step="kinds">
+					<StepTitle id={whenTitleId} status={whenStatus}>
+						When
+					</StepTitle>
+					<CheckList
+						chosen={node.kinds}
+						onToggle={(kind, checked) =>
+							onUpdate(toggleTriggerKind(node, kind, checked))
+						}
+						options={EVENT_KIND_OPTIONS.map((entry) => ({
+							value: entry.kind,
+							label: whenLabel(entry.kind),
+						}))}
+						readOnly={readOnly}
+						titleId={whenTitleId}
+					/>
 				</Step>
 			) : (
-				<ScheduleFlow node={node} onUpdate={onUpdate} readOnly={readOnly} />
+				<ScheduleSteps
+					advance={advance}
+					node={node}
+					onUpdate={onUpdate}
+					readOnly={readOnly}
+				/>
 			)}
 		</div>
 	);

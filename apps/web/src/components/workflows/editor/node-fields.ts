@@ -4,10 +4,14 @@ import {
 	RULE_CATALOG,
 	ruleUiSchema,
 	storedReviewerSchema,
-	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { z } from "zod";
-import { durationLabel, everyLabel } from "#/lib/schedule-summary";
+import {
+	appliesToValue,
+	durationLabel,
+	everyValue,
+} from "#/lib/schedule-summary";
+import { whenSentence } from "#/lib/trigger-kinds";
 
 const targetList = z.array(z.string()).catch([]);
 const reviewerList = z
@@ -174,40 +178,42 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 			}));
 		}
 		case "trigger": {
-			const names = node.kinds.map(
-				(kind) =>
-					TRIGGER_CATALOG.find((entry) => entry.kind === kind)?.name ?? kind,
-			);
-			const kindsRow: NodeFieldValue = {
-				field: {
-					key: "kinds",
-					label: "Triggers on",
-					secret: false,
-					kind: "string-list",
-				},
-				value: names,
-			};
+			const row = (key: string, label: string, value: string | null) => ({
+				field: { key, label, secret: false, kind: "string" as const },
+				value: value ?? undefined,
+			});
 			if (!isScheduleTrigger(node)) {
-				return [kindsRow];
+				return [row("kinds", "When", whenSentence(node.kinds))];
 			}
-			const every = node.schedule?.every;
-			const inactiveFor = node.schedule?.match.inactiveFor;
-			return [
-				kindsRow,
-				{
-					field: { key: "every", label: "Runs", secret: false, kind: "string" },
-					value: every ? everyLabel(every) : undefined,
-				},
-				{
-					field: {
-						key: "inactiveFor",
-						label: "No activity for",
-						secret: false,
-						kind: "string",
-					},
-					value: inactiveFor ? durationLabel(inactiveFor) : undefined,
-				},
+			const draft = node.schedule;
+			const rows: NodeFieldValue[] = [
+				row("every", "Every", draft?.every ? everyValue(draft.every) : null),
+				row(
+					"subjects",
+					"Applies to",
+					appliesToValue(draft?.match.subjects, draft?.match.state),
+				),
+				row(
+					"inactiveFor",
+					"Inactive for",
+					draft?.match.inactiveFor
+						? durationLabel(draft.match.inactiveFor)
+						: null,
+				),
 			];
+			if (draft?.match.labels?.length) {
+				rows.push(row("labels", "With labels", draft.match.labels.join(", ")));
+			}
+			if (draft?.match.excludeLabels?.length) {
+				rows.push(
+					row(
+						"excludeLabels",
+						"Without labels",
+						draft.match.excludeLabels.join(", "),
+					),
+				);
+			}
+			return rows;
 		}
 		case "action": {
 			if (node.action === "label" || node.action === "remove-label") {
@@ -220,7 +226,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					{
 						field: {
 							key: "labels",
-							label: "Labels",
+							label: node.action === "label" ? "Adds" : "Removes",
 							secret: false,
 							kind: "string-list",
 						},
@@ -284,7 +290,10 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 							secret: false,
 							kind: "string",
 						},
-						value: typeof reason === "string" ? reason : "none",
+						value:
+							typeof reason === "string"
+								? `${reason.charAt(0).toUpperCase()}${reason.slice(1)}`
+								: "None",
 					},
 				];
 			}
@@ -327,7 +336,7 @@ export function summarizeFieldValue(
 		return MASK;
 	}
 	if (value === undefined || value === null) {
-		return "not set";
+		return "Not set";
 	}
 	switch (field.kind) {
 		case "boolean":

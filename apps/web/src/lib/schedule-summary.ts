@@ -121,3 +121,46 @@ export function scheduleSentenceText(draft: ScheduleDraft | undefined): string {
 		.map((part) => (part.placeholder ? `[${part.text}]` : part.text))
 		.join("");
 }
+
+export function everyValue(every: Duration): string {
+	if (every.n === 1) {
+		const word = UNIT_WORDS[every.unit][0];
+		return `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+	}
+	return durationLabel(every);
+}
+
+const STATE_PREFIX = {
+	open: "Open",
+	closed: "Closed",
+	any: null,
+} as const satisfies Record<ScheduleState, string | null>;
+
+export function appliesToValue(
+	subjects: readonly ThreadSubject[] | undefined,
+	state: ScheduleState | undefined,
+): string | null {
+	const chosen = (["issue", "change-request"] as const).filter((subject) =>
+		subjects?.includes(subject),
+	);
+	if (chosen.length === 0 || state === undefined) {
+		return null;
+	}
+	const list = chosen.map((subject) => SUBJECT_WORDS[subject]).join(", ");
+	const prefix = STATE_PREFIX[state];
+	return prefix
+		? `${prefix} ${list}`
+		: `${list.charAt(0).toUpperCase()}${list.slice(1)}`;
+}
+
+export function scheduleShortSummary(draft: ScheduleDraft | undefined): string {
+	const every = draft?.every ? everyLabel(draft.every) : "Schedule not set";
+	const applies = appliesToValue(draft?.match.subjects, draft?.match.state);
+	const inactive = draft?.match.inactiveFor
+		? `inactive ${durationLabel(draft.match.inactiveFor)}`
+		: null;
+	const rest = [applies?.toLowerCase(), inactive]
+		.filter((part): part is string => Boolean(part))
+		.join(" ");
+	return rest ? `${every}, ${rest}` : every;
+}

@@ -59,32 +59,61 @@ export function toggleTriggerKind(
 	return { ...node, kinds: node.kinds.filter((k) => k !== kind) };
 }
 
-export interface EventSentencePart {
-	key: string;
-	text: string;
-	placeholder?: boolean;
+const WHEN_LABELS: Partial<Record<EventKind, string>> = {
+	"change-request.opened": "A change request opens",
+	"change-request.updated": "A change request gets new commits",
+	"change-request.closed": "A change request closes",
+	"comment.created": "Someone comments",
+	push: "Someone pushes",
+};
+
+export function whenLabel(kind: EventKind): string {
+	return (
+		WHEN_LABELS[kind] ??
+		TRIGGER_CATALOG.find((entry) => entry.kind === kind)?.name ??
+		kind
+	);
 }
 
-export function eventSentence(
-	kinds: readonly EventKind[],
-): EventSentencePart[] {
-	const names = EVENT_KIND_OPTIONS.filter((entry) =>
-		kinds.includes(entry.kind),
-	).map((entry) => entry.name.toLowerCase());
-	if (names.length === 0) {
-		return [
-			{ key: "lead", text: "Runs when " },
-			{ key: "kinds", text: "something happens", placeholder: true },
-			{ key: "end", text: "." },
-		];
+const CHANGE_REQUEST_VERBS: Partial<Record<EventKind, string>> = {
+	"change-request.opened": "opens",
+	"change-request.updated": "gets new commits",
+	"change-request.closed": "closes",
+};
+
+const SOMEONE_VERBS: Partial<Record<EventKind, string>> = {
+	"comment.created": "comments",
+	push: "pushes",
+};
+
+function orList(words: readonly string[]): string {
+	if (words.length <= 1) {
+		return words[0] ?? "";
 	}
-	const joined =
-		names.length === 1
-			? (names[0] ?? "")
-			: `${names.slice(0, -1).join(", ")} or ${names.at(-1)}`;
-	return [
-		{ key: "lead", text: "Runs on " },
-		{ key: "kinds", text: joined },
-		{ key: "end", text: "." },
-	];
+	return `${words.slice(0, -1).join(", ")} or ${words.at(-1)}`;
+}
+
+export function whenSentence(kinds: readonly EventKind[]): string | null {
+	const ordered = EVENT_KIND_OPTIONS.map((entry) => entry.kind).filter((kind) =>
+		kinds.includes(kind),
+	);
+	const changeRequest = ordered.flatMap((kind) => {
+		const verb = CHANGE_REQUEST_VERBS[kind];
+		return verb ? [verb] : [];
+	});
+	const someone = ordered.flatMap((kind) => {
+		const verb = SOMEONE_VERBS[kind];
+		return verb ? [verb] : [];
+	});
+	const groups = [
+		changeRequest.length > 0
+			? `a change request ${orList(changeRequest)}`
+			: null,
+		someone.length > 0 ? `someone ${orList(someone)}` : null,
+	].filter((group): group is string => group !== null);
+	if (groups.length === 0) {
+		return null;
+	}
+	const sentence = groups.join(", or ");
+	return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`;
 }

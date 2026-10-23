@@ -1,6 +1,5 @@
 import type { GateMode, JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
-	ACTION_CATALOG,
 	GATE_CATALOG,
 	lockParamsSchema,
 	MAX_COMMENT_MESSAGE,
@@ -135,7 +134,7 @@ function LockFields({
 	const reason = parsed.success ? (parsed.data.reason ?? "") : "";
 	return (
 		<Field data-field="reason">
-			<FieldLabel>Reason</FieldLabel>
+			<FieldLabel className="text-text-2">Reason</FieldLabel>
 			<Select
 				disabled={readOnly}
 				items={LOCK_REASON_OPTIONS}
@@ -149,9 +148,6 @@ function LockFields({
 				}}
 				value={reason}
 			/>
-			<FieldDescription>
-				{ACTION_CATALOG.find((entry) => entry.action === "lock")?.description}
-			</FieldDescription>
 		</Field>
 	);
 }
@@ -398,7 +394,7 @@ function ActionFields({
 		.filter((label) => label !== undefined);
 	return (
 		<Field data-field="labels">
-			<FieldLabel>Labels</FieldLabel>
+			<FieldLabel className="text-text-2">Labels</FieldLabel>
 			<LabelPicker
 				creatable
 				onChange={(next) =>
@@ -407,12 +403,6 @@ function ActionFields({
 				readOnly={readOnly}
 				value={labels}
 			/>
-			<FieldDescription>
-				{
-					ACTION_CATALOG.find((entry) => entry.action === node.action)
-						?.description
-				}
-			</FieldDescription>
 		</Field>
 	);
 }
@@ -429,7 +419,7 @@ function CommentFields({
 	const message = textParam.parse(node.params?.message);
 	return (
 		<Field data-field="message">
-			<FieldLabel>Message</FieldLabel>
+			<FieldLabel className="text-text-2">Message</FieldLabel>
 			<Textarea
 				disabled={readOnly}
 				maxLength={MAX_COMMENT_MESSAGE}
@@ -442,12 +432,6 @@ function CommentFields({
 				rows={5}
 				value={message}
 			/>
-			<FieldDescription>
-				{
-					ACTION_CATALOG.find((entry) => entry.action === "post-comment")
-						?.description
-				}
-			</FieldDescription>
 		</Field>
 	);
 }
@@ -555,12 +539,6 @@ function DeliveryFields({
 					Signs each post so your receiver can verify it came from Tripwire.
 				</FieldDescription>
 			</Field>
-			<p className="type-body-sm text-text-2">
-				{
-					ACTION_CATALOG.find((entry) => entry.action === node.action)
-						?.description
-				}
-			</p>
 		</div>
 	);
 }

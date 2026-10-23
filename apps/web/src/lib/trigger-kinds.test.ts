@@ -2,10 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { NEW_SCHEDULE_DRAFT, type TriggerNode } from "@tripwire/contracts";
 import {
 	EVENT_KIND_OPTIONS,
-	eventSentence,
 	switchTriggerPath,
 	toggleTriggerKind,
 	triggerPath,
+	whenLabel,
+	whenSentence,
 } from "#/lib/trigger-kinds";
 
 const EVENTS: TriggerNode = {
@@ -83,26 +84,33 @@ describe("switchTriggerPath", () => {
 	});
 });
 
-describe("eventSentence", () => {
-	const text = (kinds: Parameters<typeof eventSentence>[0]) =>
-		eventSentence(kinds)
-			.map((part) => (part.placeholder ? `[${part.text}]` : part.text))
-			.join("");
-
-	test("names every chosen event", () => {
-		expect(text(["change-request.updated", "comment.created"])).toBe(
-			"Runs on change request updated or comment created.",
-		);
-		expect(text(["push"])).toBe("Runs on push.");
+describe("whenSentence", () => {
+	test("change request events share one subject", () => {
+		expect(
+			whenSentence(["change-request.updated", "change-request.opened"]),
+		).toBe("A change request opens or gets new commits");
 	});
 
-	test("no events leaves a gap", () => {
-		expect(text([])).toBe("Runs when [something happens].");
+	test("people events join after a comma", () => {
+		expect(whenSentence(["change-request.updated", "comment.created"])).toBe(
+			"A change request gets new commits, or someone comments",
+		);
+		expect(whenSentence(["push", "comment.created"])).toBe(
+			"Someone comments or pushes",
+		);
 	});
 
-	test("the event list leaves out the schedule", () => {
-		expect(EVENT_KIND_OPTIONS.map((entry) => entry.kind)).not.toContain(
-			"schedule.matched",
-		);
+	test("no events is not set", () => {
+		expect(whenSentence([])).toBeNull();
+	});
+
+	test("every event has a plain label", () => {
+		expect(EVENT_KIND_OPTIONS.map((entry) => whenLabel(entry.kind))).toEqual([
+			"A change request opens",
+			"A change request gets new commits",
+			"A change request closes",
+			"Someone comments",
+			"Someone pushes",
+		]);
 	});
 });

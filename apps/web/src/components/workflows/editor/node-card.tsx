@@ -7,6 +7,7 @@ import {
 	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
+import { Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { StatusMark } from "#/components/glaze/ui/status";
 import {
@@ -30,12 +31,13 @@ import {
 	ProblemPeek,
 	severityStatus,
 } from "#/components/workflows/editor/problems-list";
-import { stepName } from "#/components/workflows/editor/step-meta";
+import { stepIcon, stepName } from "#/components/workflows/editor/step-meta";
 import {
 	useDragPlan,
 	useNodeVerdict,
 } from "#/components/workflows/editor/typed-connections";
 import { cn } from "#/lib/glaze/utils";
+import { triggerPath } from "#/lib/trigger-kinds";
 
 /** The one node data shape the canvas renders. */
 export type TripwireFlowNode = Node<{ node: WorkflowNode }, "tripwire">;
@@ -54,17 +56,20 @@ export type TripwireFlowNode = Node<{ node: WorkflowNode }, "tripwire">;
  * the port blocks are appearance only, every id and type is unchanged.
  */
 
-/** The mono detail line — the ref/config essence under the name. */
-const STACK_AFTER = 22;
+function faceTitle(node: WorkflowNode, customName: string | null): string {
+	if (node.type === "trigger") {
+		return triggerPath(node) === "schedule" ? "On a schedule" : "On an event";
+	}
+	return stepName(node, customName);
+}
 
+/** The mono detail line — the ref/config essence under the name. */
 function nodeDetail(node: WorkflowNode): string | null {
 	switch (node.type) {
 		case "rule":
 			return node.ref;
 		case "gate":
 			return node.mode;
-		case "action":
-			return node.action;
 		default:
 			return null;
 	}
@@ -186,14 +191,15 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 					type="target"
 				/>
 			) : null}
-			<div className="flex items-baseline gap-1">
+			<div className="flex items-center gap-2">
+				<Icon className="shrink-0 text-text-1" icon={stepIcon(node)} />
 				<span className="min-w-0 type-label [overflow-wrap:anywhere]">
-					{stepName(node, customName)}
+					{faceTitle(node, customName)}
 				</span>
 				{node.type === "gate" ? (
 					<span className="shrink-0 type-caption text-text-2">Gate</span>
 				) : null}
-				{topPort ? (
+				{topPort && node.type !== "trigger" ? (
 					<span className="ms-auto flex">
 						<PortCaption port={topPort} />
 					</span>
@@ -207,30 +213,30 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 			{fields.length > 0 ? (
 				<div className="mt-2 flex flex-col border-line-faint border-t pt-1">
 					{fields.map(({ field, value }) => {
-						const shown = summarizeFieldValue(field, value);
-						const stacked = shown.length > STACK_AFTER;
+						const unset = value === undefined || value === null;
+						const bare = field.key === "message" && !unset;
 						return (
 							<div className="-mx-2.5" key={field.key}>
 								<Button
 									aria-label={`Edit ${field.label}`}
-									className={cn(
-										"h-auto min-h-7 w-full gap-x-2 whitespace-normal py-1 text-start",
-										stacked
-											? "flex-col items-start justify-start gap-y-0.5"
-											: "items-start justify-between",
-									)}
+									className="h-auto min-h-7 w-full items-start justify-between gap-x-3 whitespace-normal py-1 text-start"
 									onClick={() => editField(node.id, field.key)}
 									size="sm"
 									variant="ghost"
 								>
-									<span className="shrink-0 text-text-2">{field.label}</span>
+									{bare ? null : (
+										<span className="shrink-0 whitespace-nowrap text-text-2">
+											{field.label}
+										</span>
+									)}
 									<span
 										className={cn(
 											"min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]",
-											stacked ? "w-full" : "text-end",
+											bare ? "w-full" : "text-end",
+											unset && "text-text-3",
 										)}
 									>
-										{shown}
+										{summarizeFieldValue(field, value)}
 									</span>
 								</Button>
 							</div>

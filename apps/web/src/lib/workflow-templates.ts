@@ -68,14 +68,12 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 							skipLocked: true,
 						},
 					},
-					position: { x: 80, y: 160 },
 				},
 				{
 					id: "lock",
 					type: "action",
 					action: "lock",
 					params: { reason: "resolved" },
-					position: { x: 400, y: 160 },
 				},
 			],
 			edges: [{ id: "e1", from: "trigger", to: "lock" }],
@@ -103,14 +101,12 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 							skipLocked: true,
 						},
 					},
-					position: { x: 80, y: 40 },
 				},
 				{
 					id: "mark-stale",
 					type: "action",
 					action: "label",
 					params: { labels: ["stale"] },
-					position: { x: 440, y: 0 },
 				},
 				{
 					id: "warn-comment",
@@ -120,7 +116,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 						message:
 							"This change request has had no activity for 3 weeks. It will close in 7 days unless someone updates it.",
 					},
-					position: { x: 440, y: 140 },
 				},
 				{
 					id: "close",
@@ -137,7 +132,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 							skipLocked: true,
 						},
 					},
-					position: { x: 80, y: 480 },
 				},
 				{
 					id: "close-comment",
@@ -147,26 +141,22 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
 						message:
 							"Closing after 4 weeks with no activity. Reopen it when you pick it back up.",
 					},
-					position: { x: 440, y: 420 },
 				},
 				{
 					id: "close-it",
 					type: "action",
 					action: "close",
-					position: { x: 440, y: 640 },
 				},
 				{
 					id: "reset",
 					type: "trigger",
 					kinds: ["change-request.updated", "comment.created"],
-					position: { x: 80, y: 820 },
 				},
 				{
 					id: "unmark-stale",
 					type: "action",
 					action: "remove-label",
 					params: { labels: ["stale"] },
-					position: { x: 440, y: 820 },
 				},
 			],
 			edges: [

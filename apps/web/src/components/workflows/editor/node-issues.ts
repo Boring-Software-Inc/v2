@@ -5,6 +5,7 @@ export interface Problem {
 	key: string;
 	rule: string | null;
 	severity: LintSeverity;
+	step: string;
 	message: string;
 	nodeId?: string;
 	edgeId?: string;
@@ -55,14 +56,28 @@ export function groupProblems(
 
 export function problemCount(problems: readonly Problem[]): string {
 	const errors = problems.filter((p) => p.severity === "error").length;
-	const warnings = problems.length - errors;
-	const parts = [
-		errors > 0 ? `${errors} ${errors === 1 ? "error" : "errors"}` : null,
-		warnings > 0
-			? `${warnings} ${warnings === 1 ? "warning" : "warnings"}`
-			: null,
-	];
-	return parts.filter((part) => part !== null).join(", ");
+	if (errors > 0) {
+		return `${errors} to fix`;
+	}
+	const suggestions = problems.length;
+	return `${suggestions} ${suggestions === 1 ? "suggestion" : "suggestions"}`;
+}
+
+export interface ProblemSection {
+	key: "fix" | "suggest";
+	title: string;
+	problems: Problem[];
+}
+
+export function problemSections(
+	problems: readonly Problem[],
+): ProblemSection[] {
+	const fix = problems.filter((p) => p.severity === "error");
+	const suggest = problems.filter((p) => p.severity !== "error");
+	return [
+		{ key: "fix" as const, title: "Fix these to turn it on", problems: fix },
+		{ key: "suggest" as const, title: "Suggestions", problems: suggest },
+	].filter((section) => section.problems.length > 0);
 }
 
 export const CustomRuleNamesContext = createContext<

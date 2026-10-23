@@ -133,25 +133,22 @@ describe("schedule sentence", () => {
 describe("node faces", () => {
 	test("a schedule trigger shows its cadence and inactivity", () => {
 		expect(face(SCHEDULE_TRIGGER)).toEqual([
-			"Triggers on: On a schedule",
-			"Runs: Every 12 hours",
-			"No activity for: 15 days",
+			"Every: 12 hours",
+			"Applies to: Closed issues, change requests",
+			"Inactive for: 15 days",
+			"With labels: stale",
 		]);
 	});
 
 	test("an unanswered schedule says not set", () => {
 		expect(face({ ...SCHEDULE_TRIGGER, schedule: NEW_SCHEDULE_DRAFT })).toEqual(
-			[
-				"Triggers on: On a schedule",
-				"Runs: not set",
-				"No activity for: not set",
-			],
+			["Every: Not set", "Applies to: Not set", "Inactive for: Not set"],
 		);
 	});
 
 	test("lock shows its reason, or none", () => {
-		expect(face(LOCK)).toEqual(["Reason: resolved"]);
-		expect(face({ ...LOCK, params: undefined })).toEqual(["Reason: none"]);
+		expect(face(LOCK)).toEqual(["Reason: Resolved"]);
+		expect(face({ ...LOCK, params: undefined })).toEqual(["Reason: None"]);
 	});
 
 	test("close has no fields", () => {
@@ -166,7 +163,7 @@ describe("node faces", () => {
 				action: "remove-label",
 				params: { labels: ["stale"] },
 			}),
-		).toEqual(["Labels: stale"]);
+		).toEqual(["Removes: stale"]);
 		expect(
 			face({
 				id: "c",
@@ -176,7 +173,7 @@ describe("node faces", () => {
 			}),
 		).toEqual(["Message: Closing this."]);
 		expect(face({ id: "c", type: "action", action: "post-comment" })).toEqual([
-			"Message: not set",
+			"Message: Not set",
 		]);
 	});
 });
@@ -235,7 +232,7 @@ describe("templates", () => {
 			(template) => template.id === "close-stale-change-requests",
 		)?.definition.nodes.find((node) => node.id === "reset");
 		expect(reset && face(reset)).toEqual([
-			"Triggers on: Change request updated, Comment created",
+			"When: A change request gets new commits, or someone comments",
 		]);
 	});
 
