@@ -489,7 +489,7 @@ async function runWorkflowsInner(
 					messages: entry.issues.map((issue) => issue.message),
 				})),
 				enforced: unrunnableFloored && failClosed,
-				...(heldBack ? { tookNoAction: true } : {}),
+				tookNoAction: heldBack,
 			},
 			startedAt,
 			finishedAt: startedAt,

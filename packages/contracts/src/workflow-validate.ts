@@ -70,7 +70,7 @@ const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
 	"duplicate-id",
 ]);
 
-export function unrunnableIssues(input: unknown): LintResult[] {
+export function unrunnableIssues(input: WorkflowDefinition): LintResult[] {
 	const checked = validateWorkflow(input);
 	return checked.valid
 		? []
