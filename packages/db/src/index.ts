@@ -132,6 +132,7 @@ export * as runServices from "./services/runs.ts";
 export type { DueSchedule } from "./services/schedules.ts";
 export * as scheduleServices from "./services/schedules.ts";
 export type {
+	AgentSetupPromptState,
 	SetupNextStep,
 	SetupProgressResult,
 	SetupStatus,

@@ -4,6 +4,7 @@ import {
 	integer,
 	jsonb,
 	pgTable,
+	primaryKey,
 	text,
 	timestamp,
 	uniqueIndex,
@@ -279,4 +280,19 @@ export const setupRuns = pgTable(
 		uniqueIndex("setup_runs_code_unique").on(t.code),
 		index("setup_runs_org_user_idx").on(t.orgId, t.userId),
 	],
+);
+
+export const agentSetupPrompts = pgTable(
+	"agent_setup_prompts",
+	{
+		userId: text("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		orgId: text("org_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		firstDismissedAt: timestamp("first_dismissed_at", { withTimezone: true }),
+		dismissCount: integer("dismiss_count").notNull().default(0),
+	},
+	(t) => [primaryKey({ columns: [t.userId, t.orgId] })],
 );

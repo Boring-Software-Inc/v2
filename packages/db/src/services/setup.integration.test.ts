@@ -21,7 +21,10 @@ import {
 	saveAgentGrant,
 } from "./agents.ts";
 import {
+	AGENT_SETUP_REMIND_AFTER_MS,
+	dismissAgentSetupPrompt,
 	ensureSetupRun,
+	getAgentSetupPrompt,
 	getSetupStatus,
 	reportSetupProgress,
 } from "./setup.ts";
@@ -202,5 +205,129 @@ describe("agent grants", () => {
 				new Date(),
 			),
 		).toBe(true);
+	});
+});
+
+async function freshPair() {
+	const promptUserId = generateId();
+	const promptOrgId = generateId();
+	await db.insert(user).values({
+		id: promptUserId,
+		name: `u-${promptUserId}`,
+		email: `${promptUserId}@example.com`,
+	});
+	await db.insert(organization).values({
+		id: promptOrgId,
+		name: `o-${promptOrgId}`,
+		slug: `o-${promptOrgId}`,
+		isPersonal: false,
+	});
+	return { userId: promptUserId, orgId: promptOrgId };
+}
+
+describe("agent setup prompt", () => {
+	test("shows until dismissed, comes back once after 14 days, then stays gone", async () => {
+		const pair = await freshPair();
+		const start = new Date("2026-01-01T00:00:00Z");
+		expect(await getAgentSetupPrompt(db, { ...pair, now: start })).toEqual({
+			visible: true,
+			reminder: false,
+			dismissCount: 0,
+		});
+
+		expect(await dismissAgentSetupPrompt(db, { ...pair, now: start })).toEqual({
+			dismissCount: 1,
+		});
+		const early = new Date(start.getTime() + AGENT_SETUP_REMIND_AFTER_MS - 1);
+		expect(
+			(await getAgentSetupPrompt(db, { ...pair, now: early })).visible,
+		).toBe(false);
+
+		expect(await dismissAgentSetupPrompt(db, { ...pair, now: early })).toEqual({
+			dismissCount: 1,
+		});
+
+		const due = new Date(start.getTime() + AGENT_SETUP_REMIND_AFTER_MS);
+		expect(await getAgentSetupPrompt(db, { ...pair, now: due })).toEqual({
+			visible: true,
+			reminder: true,
+			dismissCount: 1,
+		});
+
+		expect(await dismissAgentSetupPrompt(db, { ...pair, now: due })).toEqual({
+			dismissCount: 2,
+		});
+		const later = new Date(due.getTime() + 10 * AGENT_SETUP_REMIND_AFTER_MS);
+		expect(await getAgentSetupPrompt(db, { ...pair, now: later })).toEqual({
+			visible: false,
+			reminder: false,
+			dismissCount: 2,
+		});
+	});
+
+	test("is per user per org", async () => {
+		const pair = await freshPair();
+		const other = await freshPair();
+		await dismissAgentSetupPrompt(db, pair);
+		expect((await getAgentSetupPrompt(db, pair)).visible).toBe(false);
+		expect(
+			(
+				await getAgentSetupPrompt(db, {
+					userId: pair.userId,
+					orgId: other.orgId,
+				})
+			).visible,
+		).toBe(true);
+		expect(
+			(
+				await getAgentSetupPrompt(db, {
+					userId: other.userId,
+					orgId: pair.orgId,
+				})
+			).visible,
+		).toBe(true);
+	});
+
+	test("hides once an agent is connected to the org for this user", async () => {
+		const pair = await freshPair();
+		const other = await freshPair();
+		await saveAgentGrant(db, {
+			userId: pair.userId,
+			clientId: CLIENT,
+			orgIds: [other.orgId],
+		});
+		expect((await getAgentSetupPrompt(db, pair)).visible).toBe(true);
+		await saveAgentGrant(db, {
+			userId: pair.userId,
+			clientId: CLIENT,
+			orgIds: [other.orgId, pair.orgId],
+		});
+		expect((await getAgentSetupPrompt(db, pair)).visible).toBe(false);
+	});
+
+	test("hides once the org has a setup run with progress", async () => {
+		const pair = await freshPair();
+		const run = await ensureSetupRun(db, pair);
+		expect((await getAgentSetupPrompt(db, pair)).visible).toBe(true);
+		await reportSetupProgress(db, {
+			userId: pair.userId,
+			orgIds: [pair.orgId],
+			progress: {
+				runCode: run.code,
+				stage: "connect_mcp",
+				status: "completed",
+				detail: "",
+			},
+		});
+		expect((await getAgentSetupPrompt(db, pair)).visible).toBe(false);
+		const teammate = await freshPair();
+		expect(
+			(
+				await getAgentSetupPrompt(db, {
+					userId: teammate.userId,
+					orgId: pair.orgId,
+				})
+			).visible,
+		).toBe(false);
 	});
 });

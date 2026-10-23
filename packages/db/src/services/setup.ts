@@ -9,9 +9,9 @@ import {
 	setupStagesSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, lte, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { setupRuns } from "../schema/oauth.ts";
+import { agentGrants, agentSetupPrompts, setupRuns } from "../schema/oauth.ts";
 import type { SwitcherRepo } from "./onboarding.ts";
 import { getOrgInstallState, listOrgSwitcherRepos } from "./organizations.ts";
 
@@ -185,4 +185,110 @@ export async function getSetupStatus(
 				? "done"
 				: "turn_on_gate";
 	return { hasInstallation: state.hasInstallation, repos, nextStep };
+}
+
+export const AGENT_SETUP_REMIND_AFTER_MS = 14 * 24 * 60 * 60 * 1000;
+
+export interface AgentSetupPromptState {
+	visible: boolean;
+	reminder: boolean;
+	dismissCount: number;
+}
+
+export async function hasTriedAgentSetup(
+	db: Db,
+	input: { orgId: string; userId: string },
+): Promise<boolean> {
+	const [grants, runs] = await Promise.all([
+		db
+			.select({ id: agentGrants.id })
+			.from(agentGrants)
+			.where(
+				and(
+					eq(agentGrants.userId, input.userId),
+					sql`${input.orgId} = ANY(${agentGrants.orgIds})`,
+				),
+			)
+			.limit(1),
+		db
+			.select({ id: setupRuns.id })
+			.from(setupRuns)
+			.where(
+				and(
+					eq(setupRuns.orgId, input.orgId),
+					isNotNull(setupRuns.lastReportAt),
+				),
+			)
+			.limit(1),
+	]);
+	return grants.length > 0 || runs.length > 0;
+}
+
+export async function getAgentSetupPrompt(
+	db: Db,
+	input: { orgId: string; userId: string; now?: Date },
+): Promise<AgentSetupPromptState> {
+	const now = input.now ?? new Date();
+	const [tried, rows] = await Promise.all([
+		hasTriedAgentSetup(db, input),
+		db
+			.select()
+			.from(agentSetupPrompts)
+			.where(
+				and(
+					eq(agentSetupPrompts.userId, input.userId),
+					eq(agentSetupPrompts.orgId, input.orgId),
+				),
+			)
+			.limit(1),
+	]);
+	const row = rows[0];
+	const dismissCount = row?.dismissCount ?? 0;
+	if (tried) {
+		return { visible: false, reminder: false, dismissCount };
+	}
+	if (dismissCount === 0) {
+		return { visible: true, reminder: false, dismissCount };
+	}
+	const reminderDue =
+		dismissCount === 1 &&
+		row?.firstDismissedAt != null &&
+		now.getTime() - row.firstDismissedAt.getTime() >=
+			AGENT_SETUP_REMIND_AFTER_MS;
+	return { visible: reminderDue, reminder: reminderDue, dismissCount };
+}
+
+export async function dismissAgentSetupPrompt(
+	db: Db,
+	input: { orgId: string; userId: string; now?: Date },
+): Promise<{ dismissCount: number }> {
+	const now = input.now ?? new Date();
+	const remindBefore = new Date(now.getTime() - AGENT_SETUP_REMIND_AFTER_MS);
+	await db
+		.insert(agentSetupPrompts)
+		.values({
+			userId: input.userId,
+			orgId: input.orgId,
+			firstDismissedAt: now,
+			dismissCount: 1,
+		})
+		.onConflictDoUpdate({
+			target: [agentSetupPrompts.userId, agentSetupPrompts.orgId],
+			set: { dismissCount: 2 },
+			setWhere: and(
+				eq(agentSetupPrompts.dismissCount, 1),
+				lte(agentSetupPrompts.firstDismissedAt, remindBefore),
+			),
+		});
+	const rows = await db
+		.select({ dismissCount: agentSetupPrompts.dismissCount })
+		.from(agentSetupPrompts)
+		.where(
+			and(
+				eq(agentSetupPrompts.userId, input.userId),
+				eq(agentSetupPrompts.orgId, input.orgId),
+			),
+		)
+		.limit(1);
+	return { dismissCount: rows[0]?.dismissCount ?? 1 };
 }
