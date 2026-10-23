@@ -115,81 +115,94 @@ interface Read {
 
 const WEEKDAYS = weekdaySchema.options;
 
-const WEEKDAY_NAMES: Record<string, number> = {};
-for (const [index, day] of WEEKDAYS.entries()) {
-	for (const name of [day, `${day}s`, day.slice(0, 3)]) {
-		WEEKDAY_NAMES[name] = index;
-	}
-}
-Object.assign(WEEKDAY_NAMES, { tues: 2, thur: 4, thurs: 4 });
+const WEEKDAY_NAMES = new Map<string, number>([
+	...WEEKDAYS.flatMap((day, index) =>
+		[day, `${day}s`, day.slice(0, 3)].map((name) => [name, index] as const),
+	),
+	["tues", 2],
+	["thur", 4],
+	["thurs", 4],
+]);
 
-const NUMBER_WORDS: Record<string, number> = {
-	one: 1,
-	two: 2,
-	three: 3,
-	four: 4,
-	five: 5,
-	six: 6,
-	seven: 7,
-	eight: 8,
-	nine: 9,
-	ten: 10,
-	eleven: 11,
-	twelve: 12,
-};
+const NUMBER_WORDS = new Map(
+	Object.entries({
+		one: 1,
+		two: 2,
+		three: 3,
+		four: 4,
+		five: 5,
+		six: 6,
+		seven: 7,
+		eight: 8,
+		nine: 9,
+		ten: 10,
+		eleven: 11,
+		twelve: 12,
+	} satisfies Record<string, number>),
+);
 
-const COMPACT_UNITS: Record<string, IntervalUnit> = {
-	m: "minutes",
-	h: "hours",
-	d: "days",
-	w: "weeks",
-};
+const COMPACT_UNITS = new Map(
+	Object.entries({
+		m: "minutes",
+		h: "hours",
+		d: "days",
+		w: "weeks",
+	} satisfies Record<string, IntervalUnit>),
+);
 
-const UNIT_WORDS: Record<string, IntervalUnit> = {
-	min: "minutes",
-	mins: "minutes",
-	minute: "minutes",
-	minutes: "minutes",
-	hr: "hours",
-	hrs: "hours",
-	hour: "hours",
-	hours: "hours",
-	day: "days",
-	days: "days",
-	wk: "weeks",
-	wks: "weeks",
-	week: "weeks",
-	weeks: "weeks",
-	month: "months",
-	months: "months",
-};
+const UNIT_WORDS = new Map(
+	Object.entries({
+		min: "minutes",
+		mins: "minutes",
+		minute: "minutes",
+		minutes: "minutes",
+		hr: "hours",
+		hrs: "hours",
+		hour: "hours",
+		hours: "hours",
+		day: "days",
+		days: "days",
+		wk: "weeks",
+		wks: "weeks",
+		week: "weeks",
+		weeks: "weeks",
+		month: "months",
+		months: "months",
+	} satisfies Record<string, IntervalUnit>),
+);
 
-const SINGLE_UNIT: Record<string, BaseKind | "minute"> = {
-	minute: "minute",
-	hour: "hourly",
-	day: "daily",
-	week: "week",
-	month: "monthly",
-};
+const SINGLE_UNIT = new Map(
+	Object.entries({
+		minute: "minute",
+		hour: "hourly",
+		day: "daily",
+		week: "week",
+		month: "monthly",
+	} satisfies Record<string, BaseKind | "minute">),
+);
 
-const KEYWORDS: Record<string, BaseKind> = {
-	hourly: "hourly",
-	daily: "daily",
-	weekly: "weekly",
-	monthly: "monthly",
-	weekday: "weekdays",
-	weekdays: "weekdays",
-	"mon-fri": "weekdays",
-	"monday-friday": "weekdays",
-	weekend: "weekends",
-	weekends: "weekends",
-};
+const KEYWORDS = new Map(
+	Object.entries({
+		hourly: "hourly",
+		daily: "daily",
+		weekly: "weekly",
+		monthly: "monthly",
+		weekday: "weekdays",
+		weekdays: "weekdays",
+		"mon-fri": "weekdays",
+		"monday-friday": "weekdays",
+		weekend: "weekends",
+		weekends: "weekends",
+	} satisfies Record<string, BaseKind>),
+);
 
-const ZONE_ALIASES: Record<string, string> = {
-	utc: DEFAULT_SCHEDULE_TIMEZONE,
-	gmt: DEFAULT_SCHEDULE_TIMEZONE,
-	z: DEFAULT_SCHEDULE_TIMEZONE,
-};
+const ZONE_ALIASES = new Map(
+	Object.entries({
+		utc: DEFAULT_SCHEDULE_TIMEZONE,
+		gmt: DEFAULT_SCHEDULE_TIMEZONE,
+		z: DEFAULT_SCHEDULE_TIMEZONE,
+	} satisfies Record<string, string>),
+);
 
 const MODERN_ZONES: readonly string[] = [
 	"Asia/Kolkata",
@@ -271,7 +284,7 @@ function titleZone(raw: string): string {
 
 function zoneFromId(raw: string): string | null {
 	const lower = raw.toLowerCase();
-	const alias = ZONE_ALIASES[lower];
+	const alias = ZONE_ALIASES.get(lower);
 	if (alias) {
 		return alias;
 	}
@@ -290,7 +303,8 @@ function zoneFromCity(words: readonly string[]): string | null {
 	return zones().byCity.get(words.join(" ").toLowerCase()) ?? null;
 }
 
-function zoneWord(zone: string): string {
+/** The word a zone reads as in schedule text: "Berlin", "UTC" or the IANA id. */
+export function scheduleZoneWord(zone: string): string {
 	if (zone === DEFAULT_SCHEDULE_TIMEZONE) {
 		return zone;
 	}
@@ -357,7 +371,7 @@ function countOf(word: string | undefined): number | null {
 	if (/^\d{1,4}$/.test(word)) {
 		return Number(word);
 	}
-	return NUMBER_WORDS[word] ?? null;
+	return NUMBER_WORDS.get(word) ?? null;
 }
 
 interface TimeRead {
@@ -511,8 +525,8 @@ class Reader {
 		const ok =
 			countOf(next) !== null ||
 			compact ||
-			next in SINGLE_UNIT ||
-			next in WEEKDAY_NAMES ||
+			SINGLE_UNIT.has(next) ||
+			WEEKDAY_NAMES.has(next) ||
 			next === "weekday" ||
 			next === "weekend" ||
 			next === "weekdays" ||
@@ -558,7 +572,7 @@ class Reader {
 		const compact = /^(\d{1,4})([a-z]+)$/.exec(word);
 		if (compact) {
 			const suffix = compact[2] ?? "";
-			const unit = COMPACT_UNITS[suffix] ?? UNIT_WORDS[suffix];
+			const unit = COMPACT_UNITS.get(suffix) ?? UNIT_WORDS.get(suffix);
 			if (!unit) {
 				return false;
 			}
@@ -580,7 +594,7 @@ class Reader {
 			return false;
 		}
 		const unitWord = this.lower(1) ?? "";
-		const unit = UNIT_WORDS[unitWord];
+		const unit = UNIT_WORDS.get(unitWord);
 		const countWord = this.word();
 		if (unit && countWord) {
 			this.setInterval(
@@ -617,7 +631,7 @@ class Reader {
 
 	private unit(): boolean {
 		const word = this.lower() ?? "";
-		const kind = SINGLE_UNIT[word];
+		const kind = SINGLE_UNIT.get(word);
 		if (!kind) {
 			return false;
 		}
@@ -643,7 +657,7 @@ class Reader {
 		let used = 0;
 		let kind: BaseKind | undefined;
 		const word = this.lower() ?? "";
-		const onWeekdays = word === "on" && KEYWORDS[this.lower(1) ?? ""];
+		const onWeekdays = word === "on" && KEYWORDS.get(this.lower(1) ?? "");
 		const start = onWeekdays ? 1 : 0;
 		const first = this.lower(start) ?? "";
 		if (
@@ -653,8 +667,8 @@ class Reader {
 		) {
 			kind = "weekdays";
 			used = start + 3;
-		} else if (KEYWORDS[first]) {
-			kind = KEYWORDS[first];
+		} else if (KEYWORDS.has(first)) {
+			kind = KEYWORDS.get(first);
 			used = start + 1;
 		}
 		if (!kind) {
@@ -669,13 +683,13 @@ class Reader {
 
 	private weekdays(): boolean {
 		const start = this.lower() === "on" ? 1 : 0;
-		if (WEEKDAY_NAMES[this.lower(start) ?? ""] === undefined) {
+		if (WEEKDAY_NAMES.get(this.lower(start) ?? "") === undefined) {
 			return false;
 		}
 		const days: number[] = [];
 		let used = start;
 		while (true) {
-			const day = WEEKDAY_NAMES[this.lower(used) ?? ""];
+			const day = WEEKDAY_NAMES.get(this.lower(used) ?? "");
 			if (day !== undefined) {
 				days.push(day);
 				used += 1;
@@ -684,7 +698,7 @@ class Reader {
 			const joiner = this.lower(used);
 			if (
 				(joiner === "and" || joiner === "&") &&
-				WEEKDAY_NAMES[this.lower(used + 1) ?? ""] !== undefined
+				WEEKDAY_NAMES.get(this.lower(used + 1) ?? "") !== undefined
 			) {
 				used += 1;
 				continue;
@@ -819,13 +833,13 @@ function withTime(text: string, read: Read): string {
 	return read.time ? text : `${text} at ${DEFAULT_TIME}`;
 }
 
-const UNIT_LABEL: Record<IntervalUnit, [string, string]> = {
+const UNIT_LABEL = {
 	minutes: ["minute", "minutes"],
 	hours: ["hour", "hours"],
 	days: ["day", "days"],
 	weeks: ["week", "weeks"],
 	months: ["month", "months"],
-};
+} as const satisfies Record<IntervalUnit, readonly [string, string]>;
 
 function unitText(n: number, unit: IntervalUnit): string {
 	const [one, many] = UNIT_LABEL[unit];
@@ -1144,11 +1158,11 @@ function dropTime(text: string, read: Read, closer: ScheduleFix[]): Outcome {
 	);
 }
 
-const MISSING_MONTH_DAY: Record<number, string> = {
-	29: "February has no 29th most years.",
-	30: "February has no 30th.",
-	31: "Five months have no 31st.",
-};
+const MISSING_MONTH_DAY = new Map<number, string>([
+	[29, "February has no 29th most years."],
+	[30, "February has no 30th."],
+	[31, "Five months have no 31st."],
+]);
 
 function resolveClock(text: string, read: Read): Outcome {
 	const zone = read.zone?.id;
@@ -1230,7 +1244,7 @@ function resolveClock(text: string, read: Read): Outcome {
 	if (day && day.value > 28 && !read.skip) {
 		return fail(
 			"ambiguous",
-			MISSING_MONTH_DAY[day.value] ?? "",
+			MISSING_MONTH_DAY.get(day.value) ?? "",
 			[
 				{
 					label: "Skip those months",
@@ -1583,7 +1597,7 @@ export function scheduleText(schedule: {
 	if (isScheduleInterval(schedule.every) || !schedule.timezone) {
 		return words;
 	}
-	return `${words} in ${zoneWord(schedule.timezone)}`;
+	return `${words} in ${scheduleZoneWord(schedule.timezone)}`;
 }
 
 const VOCABULARY = [
