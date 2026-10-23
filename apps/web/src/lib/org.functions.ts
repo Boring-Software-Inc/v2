@@ -94,6 +94,7 @@ export const listMyOrgs = createServerFn({ method: "GET" })
 					name: schema.organization.name,
 					isPersonal: schema.organization.isPersonal,
 					avatarHue: schema.organization.avatarHue,
+					timezone: schema.organization.timezone,
 				})
 				.from(schema.organization);
 			return rows.map((r) => ({ ...r, role: "admin" as const }));

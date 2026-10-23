@@ -44,6 +44,7 @@ export const organization = pgTable(
 		 * state.
 		 */
 		avatarHue: integer("avatar_hue"),
+		timezone: text("timezone"),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

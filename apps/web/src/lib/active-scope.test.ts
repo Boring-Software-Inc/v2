@@ -9,6 +9,7 @@ function org(slug: string, isPersonal = false): OrgWithRole {
 		name: slug,
 		isPersonal,
 		avatarHue: 0,
+		timezone: null,
 		role: "member",
 	};
 }

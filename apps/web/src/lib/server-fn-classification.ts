@@ -58,6 +58,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	grantDeviceOrgs: "authed", // grants only orgs the caller belongs to
 	listConnectedAgents: "authed", // the caller's own agents
 	revokeConnectedAgent: "authed", // the caller's own agents
+	setAccountTimezone: "authed",
 
 	// ── member (org shell: any role, including custom roles) ─────────────
 	getOrgContext: "member",
@@ -139,6 +140,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 
 	// ── org settings (manage is never grantable to a custom role) ─────────
 	updateOrg: "permission:settings:manage",
+	setOrgTimezone: "permission:settings:manage",
 	getOrgCascade: "permission:settings:manage", // pre-delete enumeration
 	deleteOrg: "permission:settings:manage",
 

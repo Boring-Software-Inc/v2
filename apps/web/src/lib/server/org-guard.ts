@@ -56,6 +56,7 @@ async function resolveOrgFor(
 				name: schema.organization.name,
 				isPersonal: schema.organization.isPersonal,
 				avatarHue: schema.organization.avatarHue,
+				timezone: schema.organization.timezone,
 			})
 			.from(schema.organization)
 			.where(eq(schema.organization.slug, orgSlug))

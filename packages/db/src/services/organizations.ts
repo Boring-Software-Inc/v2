@@ -69,6 +69,7 @@ export interface OrgSummary {
 	name: string;
 	isPersonal: boolean;
 	avatarHue: number | null;
+	timezone: string | null;
 }
 
 export interface OrgWithRole extends OrgSummary {
@@ -91,6 +92,7 @@ export async function getOrgForUser(
 			name: organization.name,
 			isPersonal: organization.isPersonal,
 			avatarHue: organization.avatarHue,
+			timezone: organization.timezone,
 			role: member.role,
 		})
 		.from(organization)
@@ -115,6 +117,7 @@ export async function listUserOrgs(
 			name: organization.name,
 			isPersonal: organization.isPersonal,
 			avatarHue: organization.avatarHue,
+			timezone: organization.timezone,
 			role: member.role,
 		})
 		.from(member)
@@ -319,6 +322,7 @@ export async function ensurePersonalOrg(
 			name: organization.name,
 			isPersonal: organization.isPersonal,
 			avatarHue: organization.avatarHue,
+			timezone: organization.timezone,
 		})
 		.from(organization)
 		.innerJoin(member, eq(member.organizationId, organization.id))
@@ -336,6 +340,7 @@ export async function ensurePersonalOrg(
 		slug,
 		isPersonal: true,
 		avatarHue: null,
+		timezone: null,
 	};
 	await db.insert(organization).values(org);
 	await db.insert(member).values({
@@ -1309,4 +1314,14 @@ export async function listUserRepoFullNames(
 		.innerJoin(member, eq(member.organizationId, repos.orgId))
 		.where(and(eq(member.userId, userId), isNull(repos.removedAt)));
 	return rows.map((r) => r.fullName);
+}
+
+export async function setOrgTimezone(
+	db: Db,
+	input: { orgId: string; timezone: string | null },
+): Promise<void> {
+	await db
+		.update(organization)
+		.set({ timezone: input.timezone })
+		.where(eq(organization.id, input.orgId));
 }

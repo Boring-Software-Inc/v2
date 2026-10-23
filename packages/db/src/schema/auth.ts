@@ -61,6 +61,7 @@ export const user = pgTable(
 		banReason: text("ban_reason"),
 		banExpires: timestamp("ban_expires", { withTimezone: true }),
 		lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+		timezone: text("timezone"),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

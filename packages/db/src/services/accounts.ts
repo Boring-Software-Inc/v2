@@ -1,7 +1,7 @@
 import type { Forge } from "@tripwire/contracts";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { account } from "../schema/auth.ts";
+import { account, user } from "../schema/auth.ts";
 
 /**
  * A maintainer's linked forge account (Better Auth `account` row). The provider
@@ -177,4 +177,14 @@ export async function getFreshForgeToken(
 		);
 	}
 	return winner.accessToken;
+}
+
+export async function setUserTimezone(
+	db: Db,
+	input: { userId: string; timezone: string | null },
+): Promise<void> {
+	await db
+		.update(user)
+		.set({ timezone: input.timezone, updatedAt: new Date() })
+		.where(eq(user.id, input.userId));
 }
