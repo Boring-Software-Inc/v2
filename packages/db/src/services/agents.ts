@@ -1,6 +1,7 @@
 import { generateId } from "@tripwire/utils";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
+import { user } from "../schema/auth.ts";
 import {
 	agentGrants,
 	oauthAccessToken,
@@ -61,6 +62,20 @@ export async function getAgentGrant(
 				eq(agentGrants.clientId, input.clientId),
 			),
 		)
+		.limit(1);
+	return rows[0] ?? null;
+}
+
+export async function getAgentUser(db: Db, userId: string) {
+	const rows = await db
+		.select({
+			id: user.id,
+			name: user.name,
+			email: user.email,
+			accessStatus: user.accessStatus,
+		})
+		.from(user)
+		.where(eq(user.id, userId))
 		.limit(1);
 	return rows[0] ?? null;
 }

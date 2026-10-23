@@ -640,6 +640,25 @@ export async function listRuns(
 	return await db.select().from(runs).orderBy(desc(runs.id)).limit(limit);
 }
 
+export async function listRepoRuns(
+	db: Db,
+	input: { repoFullName: string; limit: number },
+) {
+	return await db
+		.select({
+			id: runs.id,
+			subjectNumber: runs.subjectNumber,
+			status: runs.status,
+			verdict: runs.verdict,
+			createdAt: runs.createdAt,
+			completedAt: runs.completedAt,
+		})
+		.from(runs)
+		.where(eq(runs.repoFullName, input.repoFullName))
+		.orderBy(desc(runs.id))
+		.limit(input.limit);
+}
+
 /**
  * The most recent run's id for a repo, or null when none exist — powers the
  * command palette's "latest run" jump (§4). Backed by `runs_repo_created_idx`.

@@ -1,0 +1,30 @@
+{
+	"name": "@tripwire/mcp",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"dev": "bun --env-file=../../.env --watch src/index.ts",
+		"start": "bun src/index.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.32.1",
+		"@tripwire/auth": "workspace:*",
+		"@tripwire/contracts": "workspace:*",
+		"@tripwire/db": "workspace:*",
+		"@tripwire/utils": "workspace:*",
+		"better-auth": "^1.7.12",
+		"hono": "^4.12.29",
+		"pg": "^8.22.0",
+		"pg-boss": "^12.26.0",
+		"pino": "^10.3.1",
+		"zod": "^4.0.0"
+	},
+	"devDependencies": {
+		"@types/pg": "^8.20.0"
+	}
+}
