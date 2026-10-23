@@ -3,6 +3,7 @@ import {
 	diffWorkflow,
 	lintWorkflow,
 	mergeForPush,
+	reportWorkflows,
 	resolveCatalog,
 	stripWorkflowSecrets,
 	type ValidationCatalogEntry,
@@ -10,6 +11,7 @@ import {
 	validateWorkflowForEnable,
 	type WorkflowChange,
 	type WorkflowDefinition,
+	type WorkflowReport,
 	type WorkflowState,
 	workflowDefinitionSchema,
 	workflowReadiness,
@@ -375,6 +377,42 @@ export async function listWorkflowRows(
 	});
 }
 
+export function pushedDefinition(
+	stored: WorkflowDefinition | null,
+	incoming: WorkflowDefinition,
+): WorkflowDefinition {
+	return mergeForPush(stored, stripWorkflowSecrets(incoming));
+}
+
+export interface PushPreview {
+	valid: boolean;
+	workflows: (WorkflowReport & {
+		enabled: boolean;
+		changes: WorkflowChange[];
+	})[];
+}
+
+export async function previewWorkflowPush(
+	db: Db,
+	input: { repoId: string; definitions: readonly WorkflowDefinition[] },
+): Promise<PushPreview> {
+	const [catalog, rows] = await Promise.all([
+		repoRuleCatalog(db, input.repoId),
+		listWorkflowRows(db, input.repoId),
+	]);
+	const workflows = input.definitions.flatMap((incoming) => {
+		const stored =
+			rows.find((row) => row.definition.id === incoming.id) ?? null;
+		const pushed = pushedDefinition(stored?.definition ?? null, incoming);
+		return reportWorkflows([pushed], catalog).map((report) => ({
+			...report,
+			enabled: stored?.enabled ?? false,
+			changes: diffWorkflow(stored?.definition ?? null, pushed),
+		}));
+	});
+	return { valid: workflows.every((entry) => entry.valid), workflows };
+}
+
 export type ApplyWorkflowResult =
 	| {
 			ok: true;
@@ -412,7 +450,7 @@ export async function applyWorkflowDefinition(
 		};
 	}
 	if (!existing) {
-		const definition = stripWorkflowSecrets(input.definition);
+		const definition = pushedDefinition(null, input.definition);
 		const workflow = await createWorkflow(db, {
 			repoId: input.repoId,
 			name: definition.name,
@@ -435,10 +473,7 @@ export async function applyWorkflowDefinition(
 		if (!(locked && stored.success)) {
 			return { ok: false, issues: [{ message: "workflow not found" }] };
 		}
-		const merged = mergeForPush(
-			stored.data,
-			stripWorkflowSecrets(input.definition),
-		);
+		const merged = pushedDefinition(stored.data, input.definition);
 		const changes = diffWorkflow(stored.data, merged);
 		const workflow = {
 			...toListItem(locked, catalog),

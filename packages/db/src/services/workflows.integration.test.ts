@@ -17,6 +17,7 @@ import {
 	getWorkflow,
 	listWorkflowRows,
 	listWorkflows,
+	previewWorkflowPush,
 	renameWorkflow,
 	saveWorkflowDefinition,
 	setWorkflowEnabled,
@@ -503,5 +504,73 @@ describe("turning on and saving at once", () => {
 			);
 			expect(listed?.state).not.toBe("cant-run");
 		}
+	});
+});
+
+describe("validating code reads it the way a push stores it", () => {
+	const hook = (id: string, url?: string): WorkflowDefinition => ({
+		id,
+		name: `hook ${id}`,
+		version: 1,
+		nodes: [
+			{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+			{
+				id: "notify",
+				type: "action",
+				action: "webhook",
+				...(url ? { params: { url } } : {}),
+			},
+		],
+		edges: [{ id: "e1", from: "trigger", to: "notify" }],
+	});
+	const URL = "https://hooks.example.com/tripwire";
+
+	test("pulled code keeps the URL saved on the server", async () => {
+		const created = await createWorkflow(db, {
+			repoId,
+			name: "hook hook-pulled",
+			definition: hook("hook-pulled", URL),
+		});
+		const on = await setWorkflowEnabled(db, {
+			repoId,
+			workflowId: created.id,
+			enabled: true,
+		});
+		expect(on.ok).toBe(true);
+
+		const preview = await previewWorkflowPush(db, {
+			repoId,
+			definitions: [hook("hook-pulled")],
+		});
+		expect(preview.valid).toBe(true);
+		expect(preview.workflows[0]?.enabled).toBe(true);
+		expect(preview.workflows[0]?.changes).toEqual([]);
+
+		const applied = await applyWorkflowDefinition(db, {
+			repoId,
+			definition: hook("hook-pulled"),
+		});
+		expect(applied.ok && applied.outcome).toBe("unchanged");
+	});
+
+	test("a URL written in code is dropped, so it cannot make code valid", async () => {
+		const preview = await previewWorkflowPush(db, {
+			repoId,
+			definitions: [hook("hook-new", URL)],
+		});
+		expect(preview.valid).toBe(false);
+		expect(
+			preview.workflows[0]?.issues.map((issue) => issue.message),
+		).toContain("Set the webhook URL. It must use HTTPS.");
+
+		const applied = await applyWorkflowDefinition(db, {
+			repoId,
+			definition: hook("hook-new", URL),
+		});
+		expect(applied.ok && applied.outcome).toBe("created");
+		const [row] = (await listWorkflowRows(db, repoId)).filter(
+			(entry) => entry.definition.id === "hook-new",
+		);
+		expect(JSON.stringify(row?.definition)).not.toContain(URL);
 	});
 });

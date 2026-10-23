@@ -15,6 +15,7 @@ import {
 	schema,
 	seedRun,
 	type TestDatabase,
+	workflowServices,
 } from "@tripwire/db";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -458,13 +459,69 @@ describe("workflows as code", () => {
 		});
 		expect(result.isError).toBeFalsy();
 		expect(body(result)).toMatchObject({
-			valid: true,
+			valid: false,
 			workflows: [
 				{
 					id: "mcp-as-code",
-					valid: true,
+					valid: false,
+					issues: [{ step: "Webhook", rule: "action-params" }],
 					changes: [{ change: "added", subject: "workflow" }],
 				},
+			],
+		});
+		expect(JSON.stringify(body(result))).not.toContain("internal.example");
+	});
+
+	test("a pulled live webhook workflow validates as its push would save", async () => {
+		const repo = repoRows[0] ?? never();
+		const created = await workflowServices.createWorkflow(db, {
+			repoId: repo.id,
+			name: "pulled hook",
+			definition: {
+				id: "mcp-pulled-hook",
+				name: "pulled hook",
+				version: 1,
+				nodes: [
+					{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+					{
+						id: "hook",
+						type: "action",
+						action: "webhook",
+						params: { url: "https://hooks.example.com/tripwire" },
+					},
+				],
+				edges: [{ id: "e1", from: "t", to: "hook" }],
+			},
+		});
+		await workflowServices.setWorkflowEnabled(db, {
+			repoId: repo.id,
+			workflowId: created.id,
+			enabled: true,
+		});
+		const code = await call("get_workflow", {
+			repo: "mcp-api",
+			workflow: "mcp-pulled-hook",
+		});
+		expect(JSON.stringify(body(code))).not.toContain("hooks.example.com");
+		const checked = await call("validate_workflow", {
+			repo: "mcp-api",
+			definitions: [
+				{
+					id: "mcp-pulled-hook",
+					name: "pulled hook",
+					version: 1,
+					nodes: [
+						{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+						{ id: "hook", type: "action", action: "webhook" },
+					],
+					edges: [{ id: "e1", from: "t", to: "hook" }],
+				},
+			],
+		});
+		expect(body(checked)).toMatchObject({
+			valid: true,
+			workflows: [
+				{ id: "mcp-pulled-hook", enabled: true, valid: true, changes: [] },
 			],
 		});
 	});

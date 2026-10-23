@@ -5,11 +5,8 @@ import {
 	bearsVerdict,
 	DEFAULT_SCHEDULE_TIMEZONE,
 	describeRunSteps,
-	diffWorkflow,
-	mergeForPush,
 	RULE_CATALOG,
 	redactWorkflowSecrets,
-	reportWorkflows,
 	runResult,
 	runResultLabel,
 	runSnapshotSchema,
@@ -568,30 +565,12 @@ export function registerTools(
 				guard(async () => {
 					const resolved = await resolveOrg(ctx, org, "validate_workflow");
 					const found = await resolveRepo(ctx, resolved, repo);
-					const [catalog, rows] = await Promise.all([
-						workflowServices.repoRuleCatalog(ctx.db, found.id),
-						workflowServices.listWorkflowRows(ctx.db, found.id),
-					]);
-					const reports = reportWorkflows(definitions, catalog);
-					return ok({
-						valid: reports.every((report) => report.valid),
-						workflows: reports.map((report, index) => {
-							const local = definitions[index];
-							const stored = rows.find(
-								(row) => row.definition.id === report.id,
-							);
-							return {
-								...report,
-								enabled: stored?.enabled ?? false,
-								changes: local
-									? diffWorkflow(
-											stored?.definition ?? null,
-											stored ? mergeForPush(stored.definition, local) : local,
-										)
-									: [],
-							};
+					return ok(
+						await workflowServices.previewWorkflowPush(ctx.db, {
+							repoId: found.id,
+							definitions,
 						}),
-					});
+					);
 				}),
 		);
 	}
