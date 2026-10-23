@@ -386,6 +386,19 @@ export async function applyWorkflowDefinition(
 	const existing = rows.find(
 		(row) => row.definition.id === input.definition.id,
 	);
+	const clash = rows.find(
+		(row) => row.name === input.definition.name && row.id !== existing?.id,
+	);
+	if (clash) {
+		return {
+			ok: false,
+			issues: [
+				{
+					message: `Another workflow on this repo is named ${input.definition.name}. Pick another name.`,
+				},
+			],
+		};
+	}
 	if (!existing) {
 		const definition = stripWorkflowSecrets(input.definition);
 		const workflow = await createWorkflow(db, {
@@ -400,32 +413,40 @@ export async function applyWorkflowDefinition(
 			changes: diffWorkflow(null, definition),
 		};
 	}
-	const merged = mergeForPush(
-		existing.definition,
-		stripWorkflowSecrets(input.definition),
-	);
-	const changes = diffWorkflow(existing.definition, merged);
-	if (changes.length === 0) {
-		return { ok: true, outcome: "unchanged", workflow: existing, changes };
-	}
-	if (existing.enabled) {
-		const catalog = await repoRuleCatalog(db, input.repoId);
-		const checked = validateWorkflowForEnable(merged, catalog);
-		if (!checked.valid) {
-			return { ok: false, issues: checked.issues };
+	const catalog = await repoRuleCatalog(db, input.repoId);
+	return await db.transaction(async (tx): Promise<ApplyWorkflowResult> => {
+		const locked = await lockWorkflowRow(tx, {
+			repoId: input.repoId,
+			workflowId: existing.id,
+		});
+		const stored = workflowDefinitionSchema.safeParse(locked?.definition);
+		if (!(locked && stored.success)) {
+			return { ok: false, issues: [{ message: "workflow not found" }] };
 		}
-	}
-	await updateWorkflowDefinition(db, {
-		repoId: input.repoId,
-		workflowId: existing.id,
-		definition: merged,
+		const merged = mergeForPush(
+			stored.data,
+			stripWorkflowSecrets(input.definition),
+		);
+		const changes = diffWorkflow(stored.data, merged);
+		const workflow = {
+			...toListItem(locked),
+			name: merged.name,
+		};
+		if (changes.length === 0) {
+			return { ok: true, outcome: "unchanged", workflow, changes };
+		}
+		if (locked.enabled) {
+			const checked = validateWorkflowForEnable(merged, catalog);
+			if (!checked.valid) {
+				return { ok: false, issues: checked.issues };
+			}
+		}
+		await tx
+			.update(workflowDefinitions)
+			.set({ definition: merged, name: merged.name, updatedAt: new Date() })
+			.where(eq(workflowDefinitions.id, locked.id));
+		return { ok: true, outcome: "updated", workflow, changes };
 	});
-	return {
-		ok: true,
-		outcome: "updated",
-		workflow: { ...existing, name: merged.name },
-		changes,
-	};
 }
 
 export type SetEnabledResult =
@@ -441,41 +462,36 @@ export async function setWorkflowEnabled(
 	db: Db,
 	input: { repoId: string; workflowId: string; enabled: boolean },
 ): Promise<SetEnabledResult> {
-	let warnings: ValidationIssue[] = [];
-	if (input.enabled) {
-		const row = await getWorkflow(db, input);
+	const catalog = input.enabled ? await repoRuleCatalog(db, input.repoId) : [];
+	const synced = input.enabled
+		? await listRepoReviewers(db, input.repoId)
+		: null;
+	return await db.transaction(async (tx): Promise<SetEnabledResult> => {
+		const row = await lockWorkflowRow(tx, input);
 		if (!row) {
 			return { ok: false, issues: [{ message: "workflow not found" }] };
 		}
-		const catalog = await repoRuleCatalog(db, input.repoId);
-		const result = validateWorkflowForEnable(row.definition, catalog);
-		if (!result.valid) {
-			return { ok: false, issues: result.issues };
+		let warnings: ValidationIssue[] = [];
+		if (input.enabled) {
+			const result = validateWorkflowForEnable(row.definition, catalog);
+			if (!result.valid) {
+				return { ok: false, issues: result.issues };
+			}
+			warnings = synced?.syncedAt
+				? lintWorkflow(result.definition, {
+						catalog,
+						reviewers: synced.reviewers,
+					}).filter((issue) => issue.rule === "stale-reviewer")
+				: [];
 		}
-		const synced = await listRepoReviewers(db, input.repoId);
-		warnings = synced.syncedAt
-			? lintWorkflow(row.definition, {
-					catalog,
-					reviewers: synced.reviewers,
-				}).filter((issue) => issue.rule === "stale-reviewer")
-			: [];
-	}
-	const rows = await db
-		.update(workflowDefinitions)
-		.set({ enabled: input.enabled, updatedAt: new Date() })
-		.where(
-			and(
-				eq(workflowDefinitions.id, input.workflowId),
-				eq(workflowDefinitions.repoId, input.repoId),
-			),
-		)
-		.returning({ id: workflowDefinitions.id });
-	if (rows.length === 0) {
-		return { ok: false, issues: [{ message: "workflow not found" }] };
-	}
-	return warnings.length > 0
-		? { ok: true, enabled: input.enabled, warnings }
-		: { ok: true, enabled: input.enabled };
+		await tx
+			.update(workflowDefinitions)
+			.set({ enabled: input.enabled, updatedAt: new Date() })
+			.where(eq(workflowDefinitions.id, row.id));
+		return warnings.length > 0
+			? { ok: true, enabled: input.enabled, warnings }
+			: { ok: true, enabled: input.enabled };
+	});
 }
 
 /** Repo row id from full name — the worker-side hop kept here for tests. */

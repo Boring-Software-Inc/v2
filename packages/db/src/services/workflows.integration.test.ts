@@ -416,3 +416,67 @@ describe("applyWorkflowDefinition (workflows as code)", () => {
 		expect(result.ok).toBe(false);
 	});
 });
+
+describe("pushing workflows as code keeps names unique", () => {
+	test("a push that renames onto another workflow's name is refused", async () => {
+		const first = { ...validGraph(), name: "Taken by first" };
+		const second = { ...validGraph(), name: "Second" };
+		await applyWorkflowDefinition(db, { repoId, definition: first });
+		await applyWorkflowDefinition(db, { repoId, definition: second });
+		const result = await applyWorkflowDefinition(db, {
+			repoId,
+			definition: { ...second, name: "Taken by first" },
+		});
+		expect(result.ok).toBe(false);
+		const names = (await listWorkflows(db, repoId)).map((item) => item.name);
+		expect(names.filter((name) => name === "Taken by first")).toHaveLength(1);
+	});
+
+	test("a new workflow pushed with a taken name is refused", async () => {
+		await applyWorkflowDefinition(db, {
+			repoId,
+			definition: { ...validGraph(), name: "Only once" },
+		});
+		const result = await applyWorkflowDefinition(db, {
+			repoId,
+			definition: { ...validGraph(), name: "Only once" },
+		});
+		expect(result.ok).toBe(false);
+	});
+});
+
+describe("turning on and saving at once", () => {
+	test("never leaves a live workflow with wiring it cannot run", async () => {
+		for (let round = 0; round < 10; round++) {
+			const created = await createWorkflow(db, { repoId });
+			const definition = { ...validGraph(), name: created.name };
+			await updateWorkflowDefinition(db, {
+				repoId,
+				workflowId: created.id,
+				definition,
+			});
+			await Promise.all([
+				setWorkflowEnabled(db, {
+					repoId,
+					workflowId: created.id,
+					enabled: true,
+				}),
+				saveWorkflowDefinition(db, {
+					repoId,
+					workflowId: created.id,
+					definition: {
+						...definition,
+						edges: [
+							...definition.edges,
+							{ id: "stale", from: "r", to: "gone", when: "fail" },
+						],
+					},
+				}),
+			]);
+			const listed = (await listWorkflows(db, repoId)).find(
+				(item) => item.id === created.id,
+			);
+			expect(listed?.runnable).toBe(true);
+		}
+	});
+});
