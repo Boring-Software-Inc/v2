@@ -77,7 +77,7 @@ describe("nextCronRun", () => {
 		).toBe("2026-10-26T07:00:00.000Z");
 	});
 
-	test("a time the clock skips does not run that day", () => {
+	test("a time the clock skips runs when the clock comes back", () => {
 		expect(
 			zonedInstant(
 				{ year: 2026, month: 3, day: 29, hour: 2, minute: 30 },
@@ -90,7 +90,17 @@ describe("nextCronRun", () => {
 				"Europe/Berlin",
 				new Date("2026-03-28T12:00:00Z"),
 			)?.toISOString(),
-		).toBe("2026-03-30T00:30:00.000Z");
+		).toBe("2026-03-29T01:00:00.000Z");
+	});
+
+	test("a stepped day field still ands with the weekday, as in Vixie cron", () => {
+		expect(
+			nextCronRun(
+				spec("0 0 */2 * 1"),
+				"UTC",
+				new Date("2026-10-23T12:00:00Z"),
+			)?.toISOString(),
+		).toBe("2026-11-09T00:00:00.000Z");
 	});
 
 	test("a repeated hour runs once, at the first pass", () => {
@@ -158,6 +168,10 @@ describe("schedule schema", () => {
 		expect(
 			issue({ every: { n: 1, unit: "days" }, timezone: "Mars/Olympus" }),
 		).toBe("Mars/Olympus is not an IANA timezone, like Europe/Berlin");
+		expect(issue({ every: { cron: "* * * * *" } })).toBe(
+			"schedules run at most every 5 minutes",
+		);
+		expect(issue({ every: { cron: "*/5 * * * *" } })).toBeNull();
 	});
 });
 
@@ -229,6 +243,16 @@ describe("scheduleFireTime", () => {
 				new Date("2026-10-23T07:08:00Z"),
 			),
 		).toBeNull();
+	});
+
+	test("a fresh schedule still catches a run one tick late", () => {
+		expect(
+			scheduleFireTime(
+				daily,
+				null,
+				new Date("2026-10-23T07:08:00Z"),
+			)?.toISOString(),
+		).toBe("2026-10-23T07:00:00.000Z");
 	});
 
 	test("a fresh cron schedule waits for its time", () => {

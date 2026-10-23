@@ -4,7 +4,15 @@ import {
 	eventKindSchema,
 	threadSubjectSchema,
 } from "./events.ts";
-import { isValidTimeZone, nextCronRun, parseCron } from "./workflow-cron.ts";
+import {
+	cronShortestGap,
+	isValidTimeZone,
+	nextCronRun,
+	parseCron,
+} from "./workflow-cron.ts";
+
+/** How often the worker looks for due schedules, in minutes. */
+export const SCHEDULE_TICK_MINUTES = 5;
 
 /** JSON — rule configs and action params are JSON on the wire by definition. */
 export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
@@ -314,6 +322,12 @@ export const scheduleCronSchema = z.object({
 				nextCronRun(parsed.spec, "UTC", new Date(Date.UTC(2026, 0, 1))) === null
 			) {
 				ctx.addIssue({ code: "custom", message: "this cron never runs" });
+			}
+			if (cronShortestGap(parsed.spec) < SCHEDULE_TICK_MINUTES) {
+				ctx.addIssue({
+					code: "custom",
+					message: `schedules run at most every ${SCHEDULE_TICK_MINUTES} minutes`,
+				});
 			}
 		}),
 });

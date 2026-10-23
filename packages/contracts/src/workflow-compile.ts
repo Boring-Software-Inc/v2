@@ -145,6 +145,10 @@ function settingsIssues(
 			);
 }
 
+const inputShape = z.object({
+	kind: z.enum(["trigger", "check", "gate", "action", "output"]),
+});
+
 const stepShape = z.object({
 	kind: z.enum(["trigger", "check", "gate", "action"]),
 });
@@ -261,6 +265,13 @@ class WorkflowCompiler {
 	}
 
 	private connect(source: Step, port: OutputPort, target: Step): void {
+		if (source.kind === "trigger" && port !== "pass") {
+			this.issue(
+				"a trigger has only its event output; put a check or gate between it and this step",
+				target,
+			);
+			return;
+		}
 		const from = this.visit(source);
 		const to = this.idFor(target);
 		const when = portWhen(port, source);
@@ -278,6 +289,10 @@ class WorkflowCompiler {
 
 	private wireInputs(step: Step, inputs: readonly Input[]): void {
 		for (const input of inputs) {
+			if (!inputShape.safeParse(input).success) {
+				this.issue("an input is not a step or a step output", step);
+				continue;
+			}
 			if (isOutput(input)) {
 				if (!outputShape.safeParse(input).success) {
 					this.issue("an input is not a step or a step output", step);
@@ -517,6 +532,14 @@ class WorkflowCompiler {
 			const root = isOutput(spec.check)
 				? { step: spec.check.step, port: spec.check.port }
 				: { step: spec.check, port: "pass" as const };
+			if (
+				!isOutput(spec.check) &&
+				(root.step.kind === "trigger" || root.step.kind === "action")
+			) {
+				this.issue(
+					"`check` takes a check, a gate or one of their outputs; a trigger or action has no Passes and Doesn't pass",
+				);
+			}
 			this.visit(root.step);
 			for (const next of spec.pass ?? []) {
 				this.visit(next);
@@ -537,8 +560,11 @@ class WorkflowCompiler {
 				this.connect(source, "pass", next);
 			}
 		}
-		for (const step of Object.values(spec.steps ?? {})) {
+		const named = Object.values(spec.steps ?? {});
+		for (const step of named) {
 			this.visit(step);
+		}
+		for (const step of named) {
 			if (step.kind === "action" && !this.hasIncoming(step)) {
 				this.wireFromTriggers(step);
 			}

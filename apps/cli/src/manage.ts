@@ -25,6 +25,7 @@ import {
 	DEFAULT_WORKFLOW_FILE,
 	formatReports,
 	loadWorkflowFile,
+	localCatalog,
 	pulledDefinitions,
 	writePulled,
 } from "#/workflows-code";
@@ -414,7 +415,7 @@ function validateWorkflows(
 			out(formatReports(reports, options.style));
 			return reports.every((report) => report.valid) ? 0 : 1;
 		}
-		const reports = reportWorkflows(definitions);
+		const reports = reportWorkflows(definitions, localCatalog(definitions));
 		if (options.json) {
 			out(
 				JSON.stringify(

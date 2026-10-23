@@ -6,6 +6,8 @@ import {
 	authoringModuleText,
 	type CompileResult,
 	compileWorkflowModule,
+	RULE_CATALOG,
+	type ValidationCatalogEntry,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 	workflowsToCode,
@@ -69,6 +71,38 @@ export function pulledDefinitions(
 	data: JsonValue | null,
 ): WorkflowDefinition[] {
 	return pulledSchema.parse(data).workflows.map((entry) => entry.definition);
+}
+
+const customConfigSchema = z.record(z.string(), z.json());
+
+/**
+ * The catalog for a check without a repo: the built-in rules, plus every
+ * custom rule the file names, taken on trust until `--repo` checks it.
+ */
+export function localCatalog(
+	definitions: readonly WorkflowDefinition[],
+): ValidationCatalogEntry[] {
+	const custom = new Set(
+		definitions.flatMap((definition) =>
+			definition.nodes.flatMap((node) =>
+				node.type === "rule" && node.ref.startsWith("custom-")
+					? [node.ref]
+					: [],
+			),
+		),
+	);
+	return [
+		...RULE_CATALOG,
+		...[...custom].map((ref) => {
+			const [ruleId = ref, version = "1"] = ref.split("@");
+			return {
+				ruleId,
+				version: Number(version),
+				name: ruleId,
+				configSchema: customConfigSchema,
+			};
+		}),
+	];
 }
 
 export interface PullWrite {

@@ -126,8 +126,8 @@ export function parseCron(expression: string): CronParse {
 			days,
 			months,
 			weekdays,
-			daysRestricted: parts[2] !== "*",
-			weekdaysRestricted: parts[4] !== "*",
+			daysRestricted: !(parts[2] ?? "*").startsWith("*"),
+			weekdaysRestricted: !(parts[4] ?? "*").startsWith("*"),
 		},
 	};
 }
@@ -242,6 +242,56 @@ function dayMatches(spec: CronSpec, date: Date): boolean {
 }
 
 const SEARCH_DAYS = 366 * 5;
+const LONGEST_GAP_MINUTES = 180;
+
+/**
+ * The instant a wall time names, or, when the clock skips it, the first
+ * minute after the gap, so a schedule set inside a spring-forward hour still
+ * runs that day.
+ */
+function existingInstant(wall: WallTime, zone: string): Date | null {
+	const exact = zonedInstant(wall, zone);
+	if (exact) {
+		return exact;
+	}
+	const naive = Date.UTC(
+		wall.year,
+		wall.month - 1,
+		wall.day,
+		wall.hour,
+		wall.minute,
+	);
+	for (let minutes = 1; minutes <= LONGEST_GAP_MINUTES; minutes++) {
+		const next = new Date(naive + minutes * 60_000);
+		const shifted = zonedInstant(
+			{
+				year: next.getUTCFullYear(),
+				month: next.getUTCMonth() + 1,
+				day: next.getUTCDate(),
+				hour: next.getUTCHours(),
+				minute: next.getUTCMinutes(),
+			},
+			zone,
+		);
+		if (shifted) {
+			return shifted;
+		}
+	}
+	return null;
+}
+
+/** The shortest time between two runs of a cron, in minutes. */
+export function cronShortestGap(spec: CronSpec): number {
+	const { minutes, hours } = spec;
+	const gaps = minutes
+		.slice(1)
+		.map((minute, index) => minute - (minutes[index] ?? 0));
+	const nextHourRuns = hours.some((hour) => hours.includes((hour + 1) % 24));
+	if (nextHourRuns) {
+		gaps.push(60 - (minutes.at(-1) ?? 0) + (minutes[0] ?? 0));
+	}
+	return gaps.length > 0 ? Math.min(...gaps) : 24 * 60;
+}
 
 /** The first time strictly after `after` that the cron fires, in `zone`. */
 export function nextCronRun(
@@ -258,7 +308,7 @@ export function nextCronRun(
 		) {
 			for (const hour of spec.hours) {
 				for (const minute of spec.minutes) {
-					const instant = zonedInstant(
+					const instant = existingInstant(
 						{
 							year: cursor.getUTCFullYear(),
 							month: cursor.getUTCMonth() + 1,

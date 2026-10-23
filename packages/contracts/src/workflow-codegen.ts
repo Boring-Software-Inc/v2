@@ -305,11 +305,15 @@ function stepExpression(
 			return `check(${JSON.stringify(ruleId)}${args ? `, ${args}` : ""}${pin})${after}`;
 		}
 		case "gate": {
+			if (inputs.length === 0) {
+				warnings.push(`${node.id}: a gate with no inputs is left out`);
+				return null;
+			}
 			if (node.mode === "not") {
 				if (inputs.length > 1) {
 					warnings.push(`${node.id}: a Not gate keeps only its first input`);
 				}
-				return `not(${inputs[0] ?? ""})`;
+				return `not(${inputs[0]})`;
 			}
 			return `${node.mode === "all-of" ? "allOf" : "anyOf"}(${inputs.join(", ")})`;
 		}
@@ -362,12 +366,14 @@ function workflowFunction(
 	}
 	const lines: string[] = [];
 	const kept: string[] = [];
+	const left = new Set<string>();
 	for (const node of topological(definition)) {
 		const inputs = definition.edges
-			.filter((edge) => edge.to === node.id)
+			.filter((edge) => edge.to === node.id && !left.has(edge.from))
 			.map((edge) => inputText(edge, names, byId));
 		const expression = stepExpression(node, inputs, warnings, "\t");
 		if (expression === null) {
+			left.add(node.id);
 			continue;
 		}
 		if (node.type !== "trigger" && inputs.length === 0) {
@@ -409,7 +415,15 @@ export function workflowsToCode(
 	const used = new Set<string>();
 	const blocks: string[] = [];
 	const entries: string[] = [];
+	const ids = new Set<string>();
 	for (const definition of definitions) {
+		if (ids.has(definition.id)) {
+			warnings.push(
+				`${definition.name}: another workflow already uses the id ${definition.id}, so it is left out`,
+			);
+			continue;
+		}
+		ids.add(definition.id);
 		const base = camel(definition.name || definition.id);
 		let name = base;
 		for (let n = 2; used.has(name); n++) {

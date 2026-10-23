@@ -1,6 +1,7 @@
 import {
 	DEFAULT_SCHEDULE_TIMEZONE,
 	durationMs,
+	SCHEDULE_TICK_MINUTES,
 	type ScheduleCadence,
 	type ScheduleInterval,
 	type SchedulePreset,
@@ -10,7 +11,7 @@ import {
 import { type CronSpec, nextCronRun, parseCron } from "./workflow-cron.ts";
 
 /** How often the worker looks for due schedules. */
-export const SCHEDULE_TICK_MS = 5 * 60_000;
+export const SCHEDULE_TICK_MS = SCHEDULE_TICK_MINUTES * 60_000;
 
 export function isScheduleInterval(
 	cadence: ScheduleCadence,
@@ -289,7 +290,7 @@ export function scheduleFireTime(
 	}
 	const zone = scheduleZone(schedule.timezone).zone;
 	const anchor = Math.max(
-		lastTickAt?.getTime() ?? now.getTime() - SCHEDULE_TICK_MS,
+		lastTickAt?.getTime() ?? now.getTime() - 2 * SCHEDULE_TICK_MS,
 		now.getTime() - FIRE_LOOKBACK_MS,
 	);
 	let fire: Date | null = null;

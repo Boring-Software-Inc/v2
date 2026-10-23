@@ -546,3 +546,34 @@ describe("the workflows skill", () => {
 		expect(result.code).toBe(0);
 	});
 });
+
+describe("local validate and custom rules", () => {
+	test("a custom rule passes locally and is checked for real with --repo", async () => {
+		await runCli(
+			[
+				"workflows",
+				"pull",
+				"scratch",
+				"--file",
+				join(sandbox.root, "tripwire.ts"),
+			],
+			env(),
+		);
+		const file = join(sandbox.root, "tripwire.ts");
+		writeFileSync(
+			file,
+			readFileSync(file, "utf8")
+				.replace(
+					'check("account-age", {\n\t\t"minDays": 7\n\t})',
+					'customCheck("custom-no-newbs-01a15e")',
+				)
+				.replace("import {\n", "import {\n\tcustomCheck,\n"),
+		);
+		const result = await runCli(
+			["workflows", "validate", "--file", file],
+			env(),
+		);
+		expect(result.stdout).toContain("new-accounts can be turned on");
+		expect(result.code).toBe(0);
+	});
+});

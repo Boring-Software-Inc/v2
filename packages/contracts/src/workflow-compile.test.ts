@@ -537,3 +537,55 @@ describe("actionTakesSettings", () => {
 		]);
 	});
 });
+
+describe("review findings", () => {
+	test("a trigger cannot stand in for a check", () => {
+		const opened = trigger("change-request.opened");
+		expect(
+			issues(
+				workflows({
+					x: workflow({
+						on: opened,
+						check: opened,
+						fail: [block()],
+					}),
+				}),
+			),
+		).toContain(
+			"`check` takes a check, a gate or one of their outputs; a trigger or action has no Passes and Doesn't pass",
+		);
+	});
+
+	test("a review's targets wait for the decision, wherever they are listed", () => {
+		const stamp = label({ labels: ["ok"] });
+		const review = humanReview({ approve: [stamp] });
+		const [definition] = compiled(
+			workflows({
+				x: workflow({
+					on: "change-request.opened",
+					check: check("account-age", { minDays: 7 }),
+					fail: [review],
+					steps: { stamp, review },
+				}),
+			}),
+		);
+		expect(definition?.edges.filter((edge) => edge.to === "stamp")).toEqual([
+			{ id: "review-stamp", from: "review", to: "stamp", when: "approve" },
+		]);
+	});
+
+	test("a non-step input is reported, not thrown", () => {
+		expect(
+			issues({
+				x: {
+					kind: "workflow",
+					spec: {
+						on: "change-request.opened",
+						check: { kind: "gate", mode: "not", inputs: [null] },
+						pass: [],
+					},
+				},
+			}),
+		).toContain("an input is not a step or a step output");
+	});
+});

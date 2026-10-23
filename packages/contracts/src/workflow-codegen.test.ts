@@ -195,3 +195,31 @@ describe("catalog types", () => {
 		);
 	});
 });
+
+describe("pull leaves out what code cannot say, and says so", () => {
+	test("a gate with no inputs and a repeated id", async () => {
+		const draft: WorkflowDefinition = {
+			id: "draft",
+			name: "Draft",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["comment.created"] },
+				{ id: "lonely", type: "gate", mode: "not" },
+				{ id: "stop", type: "action", action: "block" },
+			],
+			edges: [
+				{ id: "e1", from: "lonely", to: "stop" },
+				{ id: "e2", from: "t", to: "stop" },
+			],
+		};
+		const { warnings, compiled } = await roundTrip([
+			draft,
+			{ ...draft, name: "Copy" },
+		]);
+		expect(warnings).toEqual([
+			"lonely: a gate with no inputs is left out",
+			"Copy: another workflow already uses the id draft, so it is left out",
+		]);
+		expect(compiled.ok).toBe(true);
+	});
+});
