@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from "node:util";
 import {
 	verdictLabel,
 	WORKFLOW_STATE_LABELS,
@@ -53,6 +54,14 @@ export function pairs(rows: Row[], style: Style = PLAIN): string {
 		.join("\n");
 }
 
+function visibleWidth(text: string): number {
+	return stripVTControlCharacters(text).length;
+}
+
+function padVisible(text: string, width: number): string {
+	return text + " ".repeat(Math.max(0, width - visibleWidth(text)));
+}
+
 export function table(
 	headers: string[],
 	rows: string[][],
@@ -61,7 +70,7 @@ export function table(
 	const widths = headers.map((header, index) => {
 		const longest = Math.max(
 			header.length,
-			...rows.map((row) => (row[index] ?? "").length),
+			...rows.map((row) => visibleWidth(row[index] ?? "")),
 		);
 		const width = longest + 5;
 		return index === 0 ? Math.max(minFirst, width) : width;
@@ -69,7 +78,9 @@ export function table(
 	const line = (cells: string[]) =>
 		cells
 			.map((cell, index) =>
-				index === cells.length - 1 ? cell : cell.padEnd(widths[index] ?? 0),
+				index === cells.length - 1
+					? cell
+					: padVisible(cell, widths[index] ?? 0),
 			)
 			.join("")
 			.trimEnd();

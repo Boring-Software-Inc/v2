@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { stripVTControlCharacters } from "node:util";
 import {
 	decisionChoiceError,
 	errorLine,
@@ -6,6 +7,7 @@ import {
 	formatUserCode,
 	friendlyError,
 	pairs,
+	styleFor,
 } from "#/format";
 
 describe("friendlyError", () => {
@@ -403,5 +405,89 @@ describe("run steps and decisions in product words", () => {
 		expect(decisionChoiceError("deny")).toBe(
 			"deny is not a choice. Use approve to let the change request through, remove to block it, or ban to get a link where a person bans the contributor.",
 		);
+	});
+});
+
+describe("tables with colored cells", () => {
+	const color = styleFor(true, {});
+	const visible = stripVTControlCharacters;
+	const columnsOf = (output: string) =>
+		visible(output)
+			.split("\n")
+			.map((line) => [...line.matchAll(/\S+(?: \S+)*/g)].map((m) => m.index));
+
+	test("repos values sit under their headers when the gate is colored", () => {
+		const output =
+			formatResult(
+				"list_repos",
+				[
+					{ name: "scratch", gateOn: true, toReview: 3, blocked24h: 24 },
+					{ name: "website", gateOn: false, toReview: 0, blocked24h: 1 },
+				],
+				color,
+			) ?? "";
+		expect(output).toContain("\x1b[");
+		expect(visible(output)).toBe(
+			[
+				"REPO                          GATE     TO REVIEW     BLOCKED 24H",
+				"scratch                       on       3             24",
+				"website                       off      0             1",
+			].join("\n"),
+		);
+	});
+
+	test("every colored table keeps its columns in line", () => {
+		const outputs = [
+			formatResult(
+				"get_repo_rules",
+				[
+					{ ruleId: "account-age@1", enabled: true, matches24h: 2 },
+					{ ruleId: "rate-limit@1", enabled: false, matches24h: 0 },
+				],
+				color,
+			),
+			formatResult(
+				"list_workflows",
+				[
+					{ id: "wf_1", name: "Gate", enabled: true, triggerKinds: ["pr"] },
+					{ id: "wf_2", name: "Stale", enabled: false, triggerKinds: ["cron"] },
+				],
+				color,
+			),
+			formatResult(
+				"list_runs",
+				[
+					{
+						id: "run_1",
+						repo: "o/scratch",
+						number: 4,
+						status: "done",
+						verdict: "pass",
+						result: "pass",
+						verdictLabel: "Passed",
+						createdAt: "2026-10-23T10:00:00Z",
+					},
+					{
+						id: "run_2",
+						repo: "o/scratch",
+						number: 5,
+						status: "done",
+						verdict: "block",
+						result: "block",
+						verdictLabel: "Blocked",
+						createdAt: "2026-10-23T11:00:00Z",
+					},
+				],
+				color,
+			),
+		];
+		for (const output of outputs) {
+			expect(output ?? "").toContain("\x1b[");
+			const [header, ...rows] = columnsOf(output ?? "");
+			for (const row of rows) {
+				expect(row.length).toBeGreaterThan(2);
+				expect(row).toEqual((header ?? []).slice(0, row.length));
+			}
+		}
 	});
 });
