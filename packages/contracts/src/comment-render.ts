@@ -17,7 +17,6 @@ import {
 	wantsComment,
 } from "./response.ts";
 import { ruleContributorLabel } from "./rules.ts";
-import { RUN_RESULT_LABELS } from "./run-result.ts";
 import type { Verdict } from "./runs.ts";
 
 /**
@@ -380,8 +379,24 @@ export function renderCommentBody(
 	return withMarker(renderBody(input, config, policy, "comment"));
 }
 
-export function renderClosedBeforeReviewComment(): string {
-	return withMarker(`${RUN_RESULT_LABELS["closed-before-review"]}.`);
+export interface ClosedCommentInput {
+	contributorLogin: string | null;
+	runUrl: string;
+	showRunLink: boolean;
+}
+
+export function renderClosedBeforeReviewComment(
+	input: ClosedCommentInput,
+): string {
+	const headline = input.contributorLogin
+		? `@${input.contributorLogin}, this change request closed before review.`
+		: "This change request closed before review.";
+	return withMarker(
+		joinParagraphs([
+			headline,
+			input.showRunLink ? runButton(input.runUrl) : null,
+		]),
+	);
 }
 
 export function renderVerdictComment(

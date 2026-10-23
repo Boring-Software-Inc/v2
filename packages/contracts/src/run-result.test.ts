@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	COMMENT_MARKER,
 	renderClosedBeforeReviewComment,
+	runButton,
 } from "./comment-render.ts";
 import {
 	RUN_RESULT_LABELS,
@@ -97,9 +98,39 @@ describe("workflow names", () => {
 });
 
 describe("the comment on a change request closed before review", () => {
-	test("says so in one line and keeps the marker", () => {
-		expect(renderClosedBeforeReviewComment()).toBe(
-			`Closed before review.\n\n${COMMENT_MARKER}\n`,
+	const runUrl = "https://tripwire.sh/runs/r1";
+
+	test("names the contributor and links the run, like the other verdicts", () => {
+		expect(
+			renderClosedBeforeReviewComment({
+				contributorLogin: "octocat",
+				runUrl,
+				showRunLink: true,
+			}),
+		).toBe(
+			`@octocat, this change request closed before review.\n\n${runButton(runUrl)}\n\n${COMMENT_MARKER}\n`,
 		);
+	});
+
+	test("leaves the run link out when the repo hides it", () => {
+		expect(
+			renderClosedBeforeReviewComment({
+				contributorLogin: "octocat",
+				runUrl,
+				showRunLink: false,
+			}),
+		).toBe(
+			`@octocat, this change request closed before review.\n\n${COMMENT_MARKER}\n`,
+		);
+	});
+
+	test("reads without a mention when the contributor is unknown", () => {
+		expect(
+			renderClosedBeforeReviewComment({
+				contributorLogin: null,
+				runUrl,
+				showRunLink: false,
+			}),
+		).toBe(`This change request closed before review.\n\n${COMMENT_MARKER}\n`);
 	});
 });

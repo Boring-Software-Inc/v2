@@ -69,6 +69,7 @@ async function waitingRun(id: string, number: number, sha: string) {
 		kind: "change-request.opened",
 		repoFullName: REPO,
 		subjectNumber: number,
+		actorLogin: "octocat",
 	});
 	const runId = await runServices.createRun(db, {
 		eventId: id,
@@ -155,7 +156,11 @@ describe("closing a change request while it waits for human review", () => {
 				kind: "comment",
 				repoFullName: REPO,
 				number: pullRequestClosed.number,
-				body: renderClosedBeforeReviewComment(),
+				body: renderClosedBeforeReviewComment({
+					contributorLogin: "octocat",
+					runUrl: `http://localhost:3000/runs/${runId}`,
+					showRunLink: true,
+				}),
 				verdict: "needs_review",
 				previousVerdict: "needs_review",
 				onlyIfPresent: true,
@@ -189,6 +194,7 @@ describe("the sweep closes reviews left waiting on closed change requests", () =
 			db,
 			adapterFor: () => Promise.resolve(adapter),
 			logger,
+			appUrl: "http://localhost:3000",
 		});
 
 		expect((await runServices.getRunById(db, runId))?.status).toBe("closed");

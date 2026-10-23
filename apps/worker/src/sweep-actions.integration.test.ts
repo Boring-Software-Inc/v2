@@ -142,7 +142,12 @@ describe("sweepActions", () => {
 
 		const fake = fakeAdapter();
 		const result = await sweepActions(
-			{ db, adapterFor: () => Promise.resolve(fake.adapter as never), logger },
+			{
+				db,
+				adapterFor: () => Promise.resolve(fake.adapter as never),
+				logger,
+				appUrl: "http://localhost:3000",
+			},
 			{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
 		);
 		expect(result.executed).toBe(2);
@@ -206,7 +211,12 @@ describe("sweepActions", () => {
 
 		const fake = fakeAdapter();
 		const result = await sweepActions(
-			{ db, adapterFor: () => Promise.resolve(fake.adapter as never), logger },
+			{
+				db,
+				adapterFor: () => Promise.resolve(fake.adapter as never),
+				logger,
+				appUrl: "http://localhost:3000",
+			},
 			{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
 		);
 		expect(result.superseded).toBe(2);
@@ -331,7 +341,12 @@ describe("a comment run's own reply", () => {
 
 		const fake = fakeAdapter();
 		await sweepActions(
-			{ db, adapterFor: () => Promise.resolve(fake.adapter as never), logger },
+			{
+				db,
+				adapterFor: () => Promise.resolve(fake.adapter as never),
+				logger,
+				appUrl: "http://localhost:3000",
+			},
 			{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
 		);
 		expect((await actionStatuses(commentRun))["reply:4"]).toBe("executed");

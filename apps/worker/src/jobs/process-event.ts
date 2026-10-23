@@ -202,6 +202,7 @@ export async function processEvent(
 			{ db, adapterFor: () => Promise.resolve(adapter), logger },
 			await moderationServices.closeReviewsForChangeRequest(
 				db,
+				deps.appUrl,
 				normalized.repo.fullName,
 				normalized.changeRequest.number,
 			),

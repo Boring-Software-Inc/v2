@@ -385,7 +385,12 @@ if (import.meta.main) {
 		await boss.createQueue("sweep-actions");
 		await boss.schedule("sweep-actions", "* * * * *", {}, {});
 		await work("sweep-actions", async () => {
-			await sweepActions({ db, adapterFor, logger });
+			await sweepActions({
+				db,
+				adapterFor,
+				logger,
+				appUrl: process.env.APP_URL ?? "http://localhost:3000",
+			});
 		});
 
 		await boss.createQueue(SCHEDULE_TICK_QUEUE);

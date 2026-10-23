@@ -40,6 +40,7 @@ export interface SweepDeps {
 	 */
 	adapterFor: (repoFullName: string) => Promise<ForgeAdapter | null>;
 	logger: Logger;
+	appUrl: string;
 }
 
 export interface SweepOptions {
@@ -89,7 +90,10 @@ export async function sweepActions(
 
 	await emitClosedReviewSurfaces(
 		deps,
-		await moderationServices.closeReviewsOfClosedChangeRequests(db),
+		await moderationServices.closeReviewsOfClosedChangeRequests(
+			db,
+			deps.appUrl,
+		),
 	);
 
 	const stuck = await runServices.listStuckActions(db, recordedBefore);

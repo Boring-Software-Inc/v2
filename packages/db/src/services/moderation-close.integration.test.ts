@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
+	DEFAULT_RESPONSE_CONFIG,
 	DEFAULT_WORKFLOW,
 	renderClosedBeforeReviewComment,
 } from "@tripwire/contracts";
@@ -21,6 +22,11 @@ import {
 	listPendingItems,
 	markModerationDecided,
 } from "./moderation.ts";
+import {
+	getRepoByFullName,
+	syncInstallationRepos,
+	upsertResponseConfig,
+} from "./repos.ts";
 import { createRun, getRunById, recordActions } from "./runs.ts";
 
 let container: TestDatabase;
@@ -28,6 +34,7 @@ let db: Db;
 let pool: { end(): Promise<void> };
 
 const REPO = "acme/queue";
+const APP_URL = "https://tripwire.test";
 
 beforeAll(async () => {
 	container = await createTestDatabase();
@@ -49,6 +56,7 @@ async function pausedRun(id: string, repo: string, number: number) {
 		kind: "change-request.opened",
 		repoFullName: repo,
 		subjectNumber: number,
+		actorLogin: "octocat",
 	});
 	const runId = await createRun(db, {
 		eventId: id,
@@ -106,7 +114,7 @@ describe("closing a change request", () => {
 		const otherNumber = await pausedItem("evt-141", REPO, 141);
 		const otherRepo = await pausedItem("evt-other", "acme/elsewhere", 140);
 
-		await closeReviewsForChangeRequest(db, REPO, 140);
+		await closeReviewsForChangeRequest(db, APP_URL, REPO, 140);
 
 		expect((await getModerationItem(db, open))?.status).toBe("closed");
 		expect((await getModerationItem(db, open))?.decidedAt).not.toBeNull();
@@ -119,7 +127,7 @@ describe("closing a change request", () => {
 
 	test("a closed item can no longer be decided", async () => {
 		const item = await pausedItem("evt-142", REPO, 142);
-		await closeReviewsForChangeRequest(db, REPO, 142);
+		await closeReviewsForChangeRequest(db, APP_URL, REPO, 142);
 		expect(
 			await markModerationDecided(db, {
 				itemId: item,
@@ -133,7 +141,7 @@ describe("closing a change request", () => {
 		const { runId } = await pausedRun("evt-143", REPO, 143);
 		await withPostedCheck(runId, "sha-evt-143");
 
-		const closed = await closeReviewsForChangeRequest(db, REPO, 143);
+		const closed = await closeReviewsForChangeRequest(db, APP_URL, REPO, 143);
 
 		const run = await getRunById(db, runId);
 		expect(run?.status).toBe("closed");
@@ -161,13 +169,19 @@ describe("closing a change request", () => {
 						number: 143,
 						verdict: "needs_review",
 						previousVerdict: "needs_review",
-						body: renderClosedBeforeReviewComment(),
+						body: renderClosedBeforeReviewComment({
+							contributorLogin: "octocat",
+							runUrl: `${APP_URL}/runs/${runId}`,
+							showRunLink: true,
+						}),
 						onlyIfPresent: true,
 					},
 				},
 			},
 		]);
-		expect(await closeReviewsForChangeRequest(db, REPO, 143)).toEqual([]);
+		expect(await closeReviewsForChangeRequest(db, APP_URL, REPO, 143)).toEqual(
+			[],
+		);
 		const awaiting = await listRecentRuns(db, {
 			repoFullName: REPO,
 			verdicts: ["needs_review"],
@@ -178,7 +192,7 @@ describe("closing a change request", () => {
 
 	test("a waiting run that never posted a check closes without one", async () => {
 		const { runId } = await pausedRun("evt-144", REPO, 144);
-		const closed = await closeReviewsForChangeRequest(db, REPO, 144);
+		const closed = await closeReviewsForChangeRequest(db, APP_URL, REPO, 144);
 		expect(closed).toMatchObject([
 			{
 				runId,
@@ -188,6 +202,42 @@ describe("closing a change request", () => {
 				comment: { kind: "comment" },
 			},
 		]);
+	});
+
+	test("the closed comment hides the run link when the repo hides it", async () => {
+		await syncInstallationRepos(
+			db,
+			"inst-1",
+			[
+				{
+					externalId: "9146",
+					owner: "acme",
+					name: "quiet",
+					fullName: "acme/quiet",
+					private: false,
+				},
+			],
+			[],
+		);
+		const repo = await getRepoByFullName(db, "acme/quiet", "github");
+		await upsertResponseConfig(db, repo?.id ?? "", {
+			...DEFAULT_RESPONSE_CONFIG,
+			reviewComment: { customText: "", showDetailsButton: false },
+		});
+		await pausedRun("evt-146", "acme/quiet", 146);
+		const [closed] = await closeReviewsForChangeRequest(
+			db,
+			APP_URL,
+			"acme/quiet",
+			146,
+		);
+		expect(closed?.comment?.payload.body).toBe(
+			renderClosedBeforeReviewComment({
+				contributorLogin: "octocat",
+				runUrl: "",
+				showRunLink: false,
+			}),
+		);
 	});
 
 	test("a newer run on the same head keeps the check", async () => {
@@ -211,7 +261,7 @@ describe("closing a change request", () => {
 			status: "completed",
 			verdict: "pass",
 		});
-		const [closed] = await closeReviewsForChangeRequest(db, REPO, 145);
+		const [closed] = await closeReviewsForChangeRequest(db, APP_URL, REPO, 145);
 		expect(closed?.runId).toBe(runId);
 		expect(closed?.check).toBeNull();
 		expect(closed?.comment).toBeNull();
@@ -224,7 +274,7 @@ describe("reviews left waiting on change requests closed earlier", () => {
 		await withPostedCheck(stale.runId, "sha-evt-150");
 		await closedEvent("evt-150-closed", REPO, 150);
 		const itemOnly = await pausedRun("evt-151", REPO, 151);
-		await closeReviewsForChangeRequest(db, REPO, 151);
+		await closeReviewsForChangeRequest(db, APP_URL, REPO, 151);
 		await db.execute(
 			sql`UPDATE runs SET status = 'paused', completed_at = NULL WHERE id = ${itemOnly.runId}`,
 		);
@@ -243,7 +293,7 @@ describe("reviews left waiting on change requests closed earlier", () => {
 		});
 		const open = await pausedRun("evt-153", REPO, 153);
 
-		const closed = await closeReviewsOfClosedChangeRequests(db);
+		const closed = await closeReviewsOfClosedChangeRequests(db, APP_URL);
 
 		expect(closed.map((row) => row.runId).sort()).toEqual(
 			[stale.runId, itemOnly.runId].sort(),
@@ -255,6 +305,6 @@ describe("reviews left waiting on change requests closed earlier", () => {
 		expect((await getRunById(db, itemOnly.runId))?.status).toBe("closed");
 		expect((await getRunById(db, reopened.runId))?.status).toBe("paused");
 		expect((await getModerationItem(db, open.itemId))?.status).toBe("pending");
-		expect(await closeReviewsOfClosedChangeRequests(db)).toEqual([]);
+		expect(await closeReviewsOfClosedChangeRequests(db, APP_URL)).toEqual([]);
 	});
 });

@@ -493,7 +493,12 @@ describe("schedule tick", () => {
 		);
 		executed.length = 0;
 		const result = await sweepActions(
-			{ db, adapterFor: () => Promise.resolve(adapter), logger },
+			{
+				db,
+				adapterFor: () => Promise.resolve(adapter),
+				logger,
+				appUrl: "http://localhost:3000",
+			},
 			{
 				recordedBefore: new Date(Date.now() + 60_000),
 				giveUpBefore: new Date(Date.now() - 60 * 60_000),

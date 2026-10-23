@@ -1,4 +1,5 @@
 import {
+	forgeSchema,
 	RUN_RESULT_LABELS,
 	renderClosedBeforeReviewComment,
 	VERDICT_EVENT_KINDS,
@@ -12,6 +13,7 @@ import type { Db } from "../client.ts";
 import { RESUME_RUN_QUEUE } from "../queue.ts";
 import { moderationItems } from "../schema/moderation.ts";
 import { runActions, runs } from "../schema/runs.ts";
+import { getRepoByFullName, getResponseConfig } from "./repos.ts";
 import {
 	getLatestRunIdForChangeRequest,
 	getRunById,
@@ -177,6 +179,8 @@ const waitingRunRow = z.object({
 	id: z.string(),
 	repoFullName: z.string(),
 	subjectNumber: z.number(),
+	actorLogin: z.string().nullable(),
+	forge: forgeSchema.catch("github"),
 });
 
 const postedCheckSchema = z.object({
@@ -213,20 +217,24 @@ export interface ClosedReview {
 
 export async function closeReviewsForChangeRequest(
 	db: Db,
+	appUrl: string,
 	repoFullName: string,
 	subjectNumber: number,
 ): Promise<ClosedReview[]> {
 	return await closeWaitingRuns(
 		db,
+		appUrl,
 		sql`r.repo_full_name = ${repoFullName} AND r.subject_number = ${subjectNumber}`,
 	);
 }
 
 export async function closeReviewsOfClosedChangeRequests(
 	db: Db,
+	appUrl: string,
 ): Promise<ClosedReview[]> {
 	return await closeWaitingRuns(
 		db,
+		appUrl,
 		sql`r.subject_number IS NOT NULL AND (
 			SELECT e.kind FROM events e
 			WHERE e.repo_full_name = r.repo_full_name
@@ -241,13 +249,19 @@ export async function closeReviewsOfClosedChangeRequests(
 	);
 }
 
-async function closeWaitingRuns(db: Db, scope: SQL): Promise<ClosedReview[]> {
+async function closeWaitingRuns(
+	db: Db,
+	appUrl: string,
+	scope: SQL,
+): Promise<ClosedReview[]> {
 	const waiting = z.array(waitingRunRow).parse(
 		(
 			await db.execute(sql`
 				SELECT r.id, r.repo_full_name AS "repoFullName",
-				       r.subject_number AS "subjectNumber"
+				       r.subject_number AS "subjectNumber",
+				       e.actor_login AS "actorLogin", e.forge
 				FROM runs r
+				LEFT JOIN events e ON e.id = r.event_id
 				WHERE r.status = 'paused' AND ${scope}
 			`)
 		).rows,
@@ -297,7 +311,8 @@ async function closeWaitingRuns(db: Db, scope: SQL): Promise<ClosedReview[]> {
 			repoFullName: run.repoFullName,
 			subjectNumber: run.subjectNumber,
 			check: await closedCheck(db, run, latestId),
-			comment: latestId === run.id ? await closedComment(db, run) : null,
+			comment:
+				latestId === run.id ? await closedComment(db, appUrl, run) : null,
 		});
 	}
 	return out;
@@ -305,13 +320,20 @@ async function closeWaitingRuns(db: Db, scope: SQL): Promise<ClosedReview[]> {
 
 async function closedComment(
 	db: Db,
+	appUrl: string,
 	run: z.infer<typeof waitingRunRow>,
 ): Promise<ClosedReview["comment"]> {
+	const repo = await getRepoByFullName(db, run.repoFullName, run.forge);
+	const config = await getResponseConfig(db, repo?.id ?? null);
 	const payload: ClosedCommentPayload = {
 		number: run.subjectNumber,
 		verdict: "needs_review",
 		previousVerdict: "needs_review",
-		body: renderClosedBeforeReviewComment(),
+		body: renderClosedBeforeReviewComment({
+			contributorLogin: run.actorLogin,
+			runUrl: `${appUrl}/runs/${run.id}`,
+			showRunLink: config.reviewComment.showDetailsButton,
+		}),
 		onlyIfPresent: true,
 	};
 	const [row] = await recordActions(db, run.id, [
