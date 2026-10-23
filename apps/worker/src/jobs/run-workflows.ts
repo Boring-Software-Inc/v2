@@ -741,7 +741,7 @@ async function noteAiCredits(
 			);
 			if (changed) {
 				deps.logger.error({ repo }, "AI provider is out of credits");
-				(deps.reportAiCredits ?? reportAiCreditsToSentry)({ repo });
+				(deps.reportAiCredits ?? reportAiCreditsToSentry)({ source: repo });
 			}
 			return;
 		}

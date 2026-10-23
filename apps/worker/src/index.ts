@@ -1,5 +1,6 @@
 import { deriveUsageSource } from "@tripwire/contracts";
 import {
+	aiProviderServices,
 	BACKFILL_REPO_QUEUE,
 	type BackfillRepoJob,
 	createBoss,
@@ -40,6 +41,11 @@ import {
 	auditInstallationClaims,
 } from "./jobs/audit-installation-claims.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
+import {
+	CHECK_AI_CREDITS_CRON,
+	CHECK_AI_CREDITS_QUEUE,
+	checkAiCredits,
+} from "./jobs/check-ai-credits.ts";
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
 import { economicsDigest } from "./jobs/economics-digest.ts";
 import { economicsRollup } from "./jobs/economics-rollup.ts";
@@ -60,6 +66,7 @@ import { syncRepoLabels } from "./jobs/sync-repo-labels.ts";
 import { syncRepoReviewers } from "./jobs/sync-repo-reviewers.ts";
 import * as metering from "./metering.ts";
 import { installFailureReporter } from "./report-install-failure.ts";
+import { reportAiCreditsToSentry } from "./report-unrunnable.ts";
 
 /**
  * @tripwire/worker — pg-boss consumers, where I/O meets the pure core. Request
@@ -412,6 +419,24 @@ if (import.meta.main) {
 		await work("deliver-webhook", async () => {
 			await deliverWebhooks({ db, logger });
 		});
+
+		await boss.createQueue(CHECK_AI_CREDITS_QUEUE);
+		await boss.schedule(CHECK_AI_CREDITS_QUEUE, CHECK_AI_CREDITS_CRON, {}, {});
+		await work(CHECK_AI_CREDITS_QUEUE, async () => {
+			await checkAiCredits(
+				{
+					logger: logger.child({ job: CHECK_AI_CREDITS_QUEUE }),
+					fetch,
+					record: (state) => aiProviderServices.recordAiCredits(db, state),
+					report: reportAiCreditsToSentry,
+				},
+				{
+					inferenceKey: openrouterKey ?? null,
+					managementKey: process.env.OPENROUTER_MANAGEMENT_KEY ?? null,
+				},
+			);
+		});
+		await boss.send(CHECK_AI_CREDITS_QUEUE, {});
 
 		/** Economics: pull provider invoices into provider_costs_daily. 01:40 UTC,
 		 * ahead of the 02:20 economics rollup. Best-effort per provider. */
