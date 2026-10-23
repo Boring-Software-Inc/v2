@@ -41,7 +41,7 @@ describe("demo scenario workflows", () => {
 		};
 		expect(validateWorkflow(rewired).valid).toBe(true);
 		expect(issueMessages(rewired)).toContainEqual(
-			expect.stringContaining("asks no one"),
+			"Pick people or teams to ask.",
 		);
 	});
 });
