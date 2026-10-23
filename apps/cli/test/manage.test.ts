@@ -528,3 +528,21 @@ describe("workflows as code", () => {
 		});
 	});
 });
+
+describe("the workflows skill", () => {
+	test("its reference example validates as written", async () => {
+		const skill = readFileSync(
+			join(import.meta.dir, "..", "skills", "tripwire-workflows", "SKILL.md"),
+			"utf8",
+		);
+		const example = /```ts\n([\s\S]*?)```/.exec(skill)?.[1] ?? "";
+		const file = join(sandbox.root, "tripwire.ts");
+		writeFileSync(file, example);
+		const result = await runCli(
+			["workflows", "validate", "--file", file],
+			env(),
+		);
+		expect(result.stdout).toContain("change-request-opens can be turned on");
+		expect(result.code).toBe(0);
+	});
+});

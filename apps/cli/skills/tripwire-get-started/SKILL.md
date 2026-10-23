@@ -77,3 +77,4 @@ Give a short summary and the repo link from `setup_status`. Then tell the user
 you can manage Tripwire later with the `tripwire` CLI (`npx @tripwire-sh/cli
 --help`): `login`, `status`, `repos`, `rules`, `gate`, `workflows`, `runs` and
 `queue`, each with `--json`.
+To write or change workflows as code, use the `tripwire-workflows` skill.
