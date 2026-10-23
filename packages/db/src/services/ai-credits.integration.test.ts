@@ -260,3 +260,45 @@ describe("turning AI review on while credits are out", () => {
 		]);
 	});
 });
+
+describe("concurrent credit reports", () => {
+	test("the newest report wins whatever order they land in", async () => {
+		const base = Date.now() + 60_000;
+		await recordAiCredits(db, "ready", new Date(base));
+		for (let round = 1; round <= 30; round++) {
+			const reports = Array.from({ length: 8 }, (_, i) => ({
+				credits: (round + i) % 2 === 0 ? ("out" as const) : ("ready" as const),
+				at: new Date(base + round * 100 + i),
+			}));
+			await Promise.all(
+				[...reports]
+					.reverse()
+					.map((report) => recordAiCredits(db, report.credits, report.at)),
+			);
+			expect(await getAiCredits(db)).toBe(reports[7]?.credits ?? "ready");
+		}
+	});
+
+	test("every reported change is a real transition", async () => {
+		const at = new Date(Date.now() + 120_000);
+		await recordAiCredits(db, "ready", at);
+		let changes = 0;
+		for (let round = 0; round < 30; round++) {
+			const results = await Promise.all(
+				Array.from({ length: 8 }, (_, i) =>
+					recordAiCredits(db, (round + i) % 2 === 0 ? "out" : "ready", at),
+				),
+			);
+			changes += results.filter((result) => result.changed).length;
+			expect(changes % 2 === 1).toBe((await getAiCredits(db)) === "out");
+		}
+	});
+
+	test("a report older than the stored one changes nothing", async () => {
+		await recordAiCredits(db, "out", new Date(Date.now() + 180_000));
+		expect(
+			await recordAiCredits(db, "ready", new Date(Date.now() + 170_000)),
+		).toEqual({ changed: false });
+		expect(await getAiCredits(db)).toBe("out");
+	});
+});
