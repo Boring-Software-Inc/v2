@@ -75,7 +75,6 @@ export type LintRuleId = keyof typeof LINT_RULES;
 export type LintEdit =
 	| { type: "remove-edge"; edgeId: string }
 	| { type: "use-passes"; edgeId: string }
-	| { type: "insert-not"; edgeId: string }
 	| { type: "delete-node"; nodeId: string }
 	| { type: "connect"; from: string; to: string }
 	| { type: "keep-one-input"; nodeId: string; edgeId: string }
@@ -113,7 +112,6 @@ export interface LintOptions {
 }
 
 type Finding = Omit<LintResult, "rule" | "severity" | "step">;
-type GateNode = Extract<WorkflowNode, { type: "gate" }>;
 type TriggerNode = Extract<WorkflowNode, { type: "trigger" }>;
 
 interface LintContext {
@@ -202,11 +200,10 @@ export function portHint(
 	}
 	const from = sourceName ? ` from ${sourceName}` : "";
 	const kind = WORKFLOW_PORT_KIND[port];
-	const message =
-		kind === "result"
-			? `${targetName} takes only Passes, not ${WORKFLOW_PORT_LABELS[port]}${from}`
-			: `${targetName} takes rule results, not ${kind === "event" ? "events" : "decisions"}${from}`;
-	return { rule: "gate-input", message };
+	return {
+		rule: "gate-input",
+		message: `${targetName} takes rule results, not ${kind === "event" ? "events" : "decisions"}${from}`,
+	};
 }
 
 export function outputHint(
@@ -228,11 +225,7 @@ export function outputHint(
 }
 
 function gateInputMessage(port: WorkflowPort): string {
-	const kind = WORKFLOW_PORT_KIND[port];
-	if (kind === "result") {
-		return "It takes only Passes.";
-	}
-	return kind === "event"
+	return WORKFLOW_PORT_KIND[port] === "event"
 		? "It takes rule results, not events."
 		: "It takes rule results, not decisions.";
 }
@@ -260,15 +253,6 @@ function gateInputFixes(edge: WorkflowEdge, port: WorkflowPort): LintFix[] {
 				intent: { type: "insert-step", edgeId: edge.id },
 			},
 			removeEdge(edge.id),
-		];
-	}
-	if (WORKFLOW_PORT_KIND[port] === "result") {
-		return [
-			{
-				label: "Insert a Not gate",
-				edit: { type: "insert-not", edgeId: edge.id },
-			},
-			{ label: "Use Passes", edit: { type: "use-passes", edgeId: edge.id } },
 		];
 	}
 	return [removeEdge(edge.id)];
@@ -1091,19 +1075,6 @@ export function openPosition(
 	return preferred;
 }
 
-function between(
-	def: WorkflowDefinition,
-	a: NodePosition | undefined,
-	b: NodePosition | undefined,
-): NodePosition | undefined {
-	return a && b
-		? openPosition(def, {
-				x: Math.round((a.x + b.x) / 2),
-				y: Math.round((a.y + b.y) / 2),
-			})
-		: undefined;
-}
-
 function withoutWhen(edge: WorkflowEdge): WorkflowEdge {
 	return { id: edge.id, from: edge.from, to: edge.to };
 }
@@ -1151,35 +1122,6 @@ export function applyLintEdit(
 					edge.id === edit.edgeId ? withoutWhen(edge) : edge,
 				),
 			};
-		case "insert-not": {
-			const edge = def.edges.find((entry) => entry.id === edit.edgeId);
-			if (!edge) {
-				return def;
-			}
-			const position = between(
-				def,
-				def.nodes.find((node) => node.id === edge.from)?.position,
-				def.nodes.find((node) => node.id === edge.to)?.position,
-			);
-			const not: GateNode = {
-				id: freshId(def, "not"),
-				type: "gate",
-				mode: "not",
-			};
-			if (position) {
-				not.position = position;
-			}
-			return insertStep(
-				{
-					...def,
-					edges: def.edges.map((entry) =>
-						entry.id === edge.id ? withoutWhen(entry) : entry,
-					),
-				},
-				edge.id,
-				not,
-			);
-		}
 		case "delete-node":
 			return {
 				...def,

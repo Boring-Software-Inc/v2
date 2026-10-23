@@ -130,11 +130,14 @@ describe("validateWorkflow (base — every failure class)", () => {
 		});
 	});
 
-	test("a gate fed from a doesn't-pass output breaks the connection matrix", () => {
+	test("a gate takes a doesn't-pass output as a negated result", () => {
 		const g = graph({});
 		g.nodes.push({ id: "g", type: "gate", mode: "any-of" });
 		g.edges.push({ id: "e3", from: "r", to: "g", when: "fail" });
-		expect(issuesOf(validateWorkflow(g))).toContain("It takes only Passes.");
+		expect(issuesOf(validateWorkflow(g))).not.toContain(
+			"It takes only Passes.",
+		);
+		expect(validateWorkflow(g).valid).toBe(true);
 	});
 
 	test("branching paths and several triggers stay valid", () => {

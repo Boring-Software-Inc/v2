@@ -1,9 +1,11 @@
-import type {
-	NormalizedEvent,
-	RuleResult,
-	Verdict,
-	WorkflowDefinition,
-	WorkflowNode,
+import {
+	applyPort,
+	edgePort,
+	type NormalizedEvent,
+	type RuleResult,
+	type Verdict,
+	type WorkflowDefinition,
+	type WorkflowNode,
 } from "@tripwire/contracts";
 
 /**
@@ -103,6 +105,7 @@ export async function executeWorkflow(
 		Object.entries(resume?.outcomes ?? {}),
 	);
 	const conducted = new Set<string>();
+	const byId = new Map(definition.nodes.map((n) => [n.id, n]));
 	const steps: StepRecord[] = [];
 	const actions: ExecutionResult["actions"] = [];
 	let pausedAtNodeId: string | null = null;
@@ -229,10 +232,19 @@ export async function executeWorkflow(
 		if (node.type === "gate") {
 			const inputs = definition.edges
 				.filter((e) => e.to === node.id)
-				.map((e) => ({
-					from: e.from,
-					outcome: outcomes.get(e.from) ?? null,
-				}));
+				.map((e) => {
+					const source = outcomes.get(e.from);
+					const from = byId.get(e.from);
+					const port = from ? edgePort(from, e.when) : "pass";
+					return {
+						from: e.from,
+						port,
+						outcome:
+							source === undefined || !conducted.has(e.from)
+								? null
+								: applyPort(port, source),
+					};
+				});
 			const known = inputs
 				.map((i) => i.outcome)
 				.filter((o): o is NodeOutcome => o !== null);

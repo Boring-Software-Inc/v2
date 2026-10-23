@@ -295,46 +295,15 @@ describe("gate-input from a trigger", () => {
 	});
 });
 
-describe("gate-input from Doesn't pass", () => {
+describe("Doesn't pass into a gate", () => {
 	const def = graph(CLEAN.nodes, [
 		{ id: "e1", from: "t", to: "r" },
 		{ id: "e2", from: "r", to: "g", when: "fail" },
 		{ id: "e3", from: "g", to: "a", when: "fail" },
 	]);
-	const [problem] = only(def, "gate-input");
 
-	test("names both steps", () => {
-		expect(problem).toMatchObject({
-			step: "All of",
-			message: "It takes only Passes.",
-		});
-		expect(problem?.fixes.map((fix) => fix.label)).toEqual([
-			"Insert a Not gate",
-			"Use Passes",
-		]);
-	});
-
-	test("Insert a Not gate routes Passes through Not and keeps the intent", () => {
-		const next = applyLintEdit(def, fixed(problem, "Insert a Not gate"));
-		expect(next.nodes.at(-1)).toEqual({
-			id: "not-1",
-			type: "gate",
-			mode: "not",
-			position: { x: 450, y: 120 },
-		});
-		expect(next.edges).toEqual([
-			{ id: "e1", from: "t", to: "r" },
-			{ id: "e3", from: "g", to: "a", when: "fail" },
-			{ id: "edge-1", from: "r", to: "not-1" },
-			{ id: "edge-2", from: "not-1", to: "g" },
-		]);
-		expect(lintWorkflow(next)).toEqual([]);
-	});
-
-	test("Use Passes drops the when", () => {
-		const next = applyLintEdit(def, fixed(problem, "Use Passes"));
-		expect(next.edges[1]).toEqual({ id: "e2", from: "r", to: "g" });
-		expect(lintWorkflow(next)).toEqual([]);
+	test("is clean, with no Not gate suggested", () => {
+		expect(lintWorkflow(def)).toEqual([]);
 	});
 });
 
@@ -711,15 +680,12 @@ describe("dead-end", () => {
 });
 
 describe("connection hints for the drag chip", () => {
-	test("a gate refuses events and Doesn't pass", () => {
+	test("a gate refuses events and decisions, and takes both results", () => {
 		expect(portHint(GATE, "event", "All of")).toEqual({
 			rule: "gate-input",
 			message: "All of takes rule results, not events",
 		});
-		expect(portHint(GATE, "fail", "All of")).toEqual({
-			rule: "gate-input",
-			message: "All of takes only Passes, not Doesn't pass",
-		});
+		expect(portHint(GATE, "fail", "All of")).toBeNull();
 		expect(portHint(GATE, "deny", "All of")?.message).toBe(
 			"All of takes rule results, not decisions",
 		);

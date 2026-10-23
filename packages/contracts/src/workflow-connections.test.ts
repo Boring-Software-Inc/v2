@@ -3,14 +3,18 @@ import type { EdgeWhen, WorkflowNode } from "./workflow.ts";
 import {
 	acceptedPortKinds,
 	acceptReason,
+	applyPort,
 	canAccept,
 	connectionIssue,
 	edgePort,
 	outputPorts,
+	portFnCodomain,
 	WORKFLOW_CONNECTIONS,
 	WORKFLOW_PORT_KIND,
 	WORKFLOW_PORT_TONE,
+	WORKFLOW_PORTS,
 	type WorkflowPort,
+	workflowPortSchema,
 } from "./workflow-connections.ts";
 
 const trigger: WorkflowNode = {
@@ -56,7 +60,7 @@ describe("connection matrix", () => {
 
 	test("triggers accept nothing; gates accept only results", () => {
 		expect(WORKFLOW_CONNECTIONS.trigger.accepts).toEqual([]);
-		expect(WORKFLOW_CONNECTIONS.gate.accepts).toEqual(["pass"]);
+		expect(WORKFLOW_CONNECTIONS.gate.accepts).toEqual(["pass", "fail"]);
 	});
 
 	test("trigger feeds rules and actions, never gates", () => {
@@ -79,9 +83,11 @@ describe("connection matrix", () => {
 		}
 	});
 
-	test("a gate takes the passes output only", () => {
-		expect(allowed(rule, gate, "fail")).toBe(false);
-		expect(connectionIssue(rule, gate, "fail")?.on).toBe("target");
+	test("a gate takes Doesn't pass wherever it takes Passes", () => {
+		for (const source of [rule, gate]) {
+			expect(allowed(source, gate, "fail")).toBe(true);
+			expect(allowed(source, gate)).toBe(true);
+		}
 	});
 
 	test("moderation decisions continue to rules and actions, not gates", () => {
@@ -150,9 +156,7 @@ describe("accept reasons", () => {
 		expect(acceptReason("gate", "event")).toBe(
 			"Gates take results, not events",
 		);
-		expect(acceptReason("gate", "fail")).toBe(
-			"Gates take only the Passes result",
-		);
+		expect(acceptReason("gate", "fail")).toBeNull();
 		expect(acceptReason("gate", "approve")).toBe(
 			"Gates take results, not decisions",
 		);
@@ -160,11 +164,47 @@ describe("accept reasons", () => {
 	});
 
 	test("validation reports the same reason the editor shows", () => {
-		expect(connectionIssue(rule, gate, "fail")?.message).toBe(
-			acceptReason("gate", "fail") ?? "",
+		expect(connectionIssue(trigger, gate, undefined)?.message).toBe(
+			acceptReason("gate", "event") ?? "",
 		);
 		expect(connectionIssue(moderation, gate, "deny")?.message).toBe(
 			acceptReason("gate", "deny") ?? "",
 		);
+	});
+});
+
+describe("port types", () => {
+	const every = workflowPortSchema.options;
+
+	test("every port function maps a type to itself", () => {
+		for (const port of every) {
+			const spec = WORKFLOW_PORTS[port];
+			expect(portFnCodomain(spec.fn, spec.type)).toBe(spec.type);
+		}
+	});
+
+	test("a negated port is accepted exactly where its plain twin is", () => {
+		const twins = [
+			["pass", "fail"],
+			["approve", "deny"],
+		] as const;
+		for (const type of ["trigger", "rule", "gate", "action"] as const) {
+			for (const [plain, negated] of twins) {
+				expect(canAccept(type, negated)).toBe(canAccept(type, plain));
+			}
+		}
+	});
+
+	test("events have no negation", () => {
+		expect(portFnCodomain("not", "event")).toBeNull();
+	});
+
+	test("applyPort flips only negated ports", () => {
+		expect(applyPort("pass", "pass")).toBe("pass");
+		expect(applyPort("pass", "fail")).toBe("fail");
+		expect(applyPort("fail", "pass")).toBe("fail");
+		expect(applyPort("fail", "fail")).toBe("pass");
+		expect(applyPort("deny", "pass")).toBe("fail");
+		expect(applyPort("event", "pass")).toBe("pass");
 	});
 });
