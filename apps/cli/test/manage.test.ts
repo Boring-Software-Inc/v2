@@ -327,7 +327,7 @@ describe("management commands over MCP", () => {
 		const result = await runCli(["--json", "runs", "show", "r1"], env());
 		expect(result.code).toBe(1);
 		expect(JSON.parse(result.stdout)).toEqual({
-			error: "No run r1 in grim. Call list_runs to see recent runs.",
+			error: "No run r1 in grim. Run tripwire runs list to see recent runs.",
 		});
 	});
 
