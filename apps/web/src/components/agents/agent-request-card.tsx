@@ -3,57 +3,37 @@ import {
 	AgentRequestHeader,
 	AgentRequestShell,
 } from "#/components/agents/agent-request-shell";
-import { MetaRow } from "#/components/common/meta-row";
+import {
+	permissionsFor,
+	staysSignedIn,
+} from "#/components/agents/agent-scopes";
+import { Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { Card, CardContent } from "#/components/glaze/ui/card";
 import { Checkbox } from "#/components/glaze/ui/checkbox";
-import {
-	Item,
-	ItemContent,
-	ItemGroup,
-	ItemMedia,
-	ItemTitle,
-} from "#/components/glaze/ui/item";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import type { AgentRequestOrg } from "#/lib/agents.functions";
 
-const SCOPE_LABELS: Record<string, string> = {
-	"tripwire:read": "See repos, rules, workflows and runs",
-	"tripwire:configure": "Change rules and workflows",
-	"tripwire:moderate": "Decide human review items",
-	"tripwire:admin": "Get install links and turn the gate on",
-	offline_access: "Stay connected for up to 30 days",
-	email: "Your email address",
-	profile: "Your name and avatar",
-};
-
-export function scopeLines(scopes: string[]): string[] {
-	return scopes.flatMap((scope) => {
-		const label = SCOPE_LABELS[scope];
-		return label ? [label] : [];
-	});
-}
-
 export function AgentRequestCard({
-	clientName,
-	redirectHost,
+	title,
+	subtitle,
+	lead,
 	scopes,
 	orgs,
-	extra,
 	onDecide,
 }: {
-	clientName: string;
-	redirectHost: string | null;
+	title: string;
+	subtitle: string;
+	lead: ReactNode;
 	scopes: string[];
 	orgs: AgentRequestOrg[];
-	extra?: ReactNode;
 	onDecide: (accept: boolean, orgIds: string[]) => Promise<void>;
 }) {
 	const [picked, setPicked] = useState<string[]>(() =>
 		orgs.length === 1 && orgs[0] ? [orgs[0].id] : [],
 	);
 	const [pending, setPending] = useState<"allow" | "deny" | null>(null);
-	const lines = scopeLines(scopes);
+	const permissions = permissionsFor(scopes);
 
 	const decide = async (accept: boolean) => {
 		setPending(accept ? "allow" : "deny");
@@ -66,59 +46,60 @@ export function AgentRequestCard({
 
 	return (
 		<AgentRequestShell>
-			<AgentRequestHeader title={`${clientName} wants access to Tripwire`} />
-			<Card>
-				<CardContent className="flex flex-col gap-4">
-					{extra}
-					{redirectHost ? (
-						<MetaRow>
-							<span>Returns to {redirectHost}</span>
-						</MetaRow>
+			<AgentRequestHeader subtitle={subtitle} title={title} />
+			<Card className="w-full">
+				<CardContent>
+					{lead}
+					{permissions.length > 0 ? (
+						<div className="flex flex-col px-1 pt-1">
+							<h2 className="pb-1.5 type-label-sm text-text-2">It can</h2>
+							<ul className="flex flex-col">
+								{permissions.map((permission) => (
+									<li
+										className="flex h-7 items-center gap-2.5 type-body-sm text-text-1"
+										key={permission.scope}
+									>
+										<Icon className="text-text-2" icon={permission.icon} />
+										{permission.label}
+									</li>
+								))}
+							</ul>
+						</div>
 					) : null}
-					{lines.length > 0 ? (
-						<ul aria-label="Access" className="flex flex-col gap-1 type-body">
-							{lines.map((line) => (
-								<li key={line}>{line}</li>
-							))}
-						</ul>
-					) : null}
-					<fieldset className="flex flex-col gap-2">
-						<legend className="mb-2 type-label text-text-2">Orgs</legend>
-						<ItemGroup variant="plain">
-							{orgs.map((org) => {
-								const checked = picked.includes(org.id);
-								return (
-									<Item key={org.id}>
-										<ItemMedia>
-											<Checkbox
-												checked={checked}
-												id={`agent-org-${org.id}`}
-												onCheckedChange={(next) =>
-													setPicked((prev) =>
-														next
-															? [...new Set([...prev, org.id])]
-															: prev.filter((id) => id !== org.id),
-													)
-												}
-											/>
-										</ItemMedia>
-										<ItemMedia>
-											<OrgAvatar hue={org.avatarHue} name={org.name} />
-										</ItemMedia>
-										<ItemContent>
-											<ItemTitle>
-												<label htmlFor={`agent-org-${org.id}`}>
-													{org.name}
-												</label>
-											</ItemTitle>
-										</ItemContent>
-									</Item>
-								);
-							})}
-						</ItemGroup>
+					<fieldset className="flex flex-col gap-1.5 px-1 pt-1">
+						<legend className="type-label-sm text-text-2">
+							{orgs.length > 1 ? "Orgs" : "Org"}
+						</legend>
+						{orgs.map((org) => {
+							const checked = picked.includes(org.id);
+							return (
+								<label
+									className="flex h-(--row) cursor-pointer items-center gap-2.5 rounded-overlay border border-line bg-hover-row px-2.5"
+									htmlFor={`agent-org-${org.id}`}
+									key={org.id}
+								>
+									<OrgAvatar hue={org.avatarHue} name={org.name} />
+									<span className="min-w-0 flex-1 truncate type-label text-text-1">
+										{org.name}
+									</span>
+									<Checkbox
+										checked={checked}
+										id={`agent-org-${org.id}`}
+										onCheckedChange={(next) =>
+											setPicked((prev) =>
+												next
+													? [...new Set([...prev, org.id])]
+													: prev.filter((id) => id !== org.id),
+											)
+										}
+									/>
+								</label>
+							);
+						})}
 					</fieldset>
-					<div className="flex flex-wrap justify-end gap-2">
+					<div className="flex gap-2 pt-1">
 						<Button
+							className="flex-1"
 							disabled={pending !== null}
 							onClick={() => void decide(false)}
 							pending={pending === "deny"}
@@ -128,6 +109,7 @@ export function AgentRequestCard({
 							Deny
 						</Button>
 						<Button
+							className="flex-1"
 							disabled={picked.length === 0 || pending !== null}
 							onClick={() => void decide(true)}
 							pending={pending === "allow"}
@@ -136,6 +118,11 @@ export function AgentRequestCard({
 							Allow
 						</Button>
 					</div>
+					{staysSignedIn(scopes) ? (
+						<p className="self-center py-0.5 type-caption text-text-2">
+							Stays signed in for 30 days.
+						</p>
+					) : null}
 				</CardContent>
 			</Card>
 		</AgentRequestShell>

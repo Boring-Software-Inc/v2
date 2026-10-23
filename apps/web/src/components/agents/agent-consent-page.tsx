@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { AgentClientLogo } from "#/components/agents/agent-client-logo";
 import { AgentRequestCard } from "#/components/agents/agent-request-card";
 import {
 	AgentRequestHeader,
@@ -26,7 +27,21 @@ export function AgentConsentPage() {
 
 	return (
 		<AgentRequestCard
-			clientName={data.clientName}
+			lead={
+				<div className="flex items-center gap-3 px-1 pt-1.5 pb-0.5">
+					<AgentClientLogo clientName={data.clientName} />
+					<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+						<span className="truncate type-label-lg text-text-1">
+							{data.clientName}
+						</span>
+						{data.redirectHost ? (
+							<span className="truncate font-mono text-[12px] text-text-2 leading-4">
+								Returns to {data.redirectHost}
+							</span>
+						) : null}
+					</div>
+				</div>
+			}
 			onDecide={async (accept, orgIds) => {
 				try {
 					const oauthQuery = rawOAuthQuery();
@@ -43,8 +58,9 @@ export function AgentConsentPage() {
 				}
 			}}
 			orgs={data.orgs}
-			redirectHost={data.redirectHost}
 			scopes={data.scopes}
+			subtitle="Allow only if you started this from your agent."
+			title={`${data.clientName} wants to use Tripwire`}
 		/>
 	);
 }
