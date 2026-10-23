@@ -563,6 +563,17 @@ export const DEFAULT_WORKFLOW: WorkflowDefinition = {
 	],
 };
 
+export const RULES_WORKFLOW_NAME = "Rules";
+
+export function workflowDisplayName(definition: {
+	id: string;
+	name: string;
+}): string {
+	return definition.id === DEFAULT_WORKFLOW.id
+		? RULES_WORKFLOW_NAME
+		: definition.name;
+}
+
 /**
  * Toolbox catalogs (§editor rebuild) — machine-readable metadata for every
  * node kind the editor can place, so the palette renders from data and a new
