@@ -644,17 +644,15 @@ describe("a backfill run (R7-1)", () => {
 });
 
 describe("a run whose AI review did not run (out of credits)", () => {
-	test("a pass says AI review did not run", () => {
+	test("a pass leaves the line to the AI review step", () => {
 		const chain = buildRunChain(
 			view({ verdict: "pass", status: "completed", aiReviewNotRun: true }),
 		);
 		expect(chain.outcome.title).toBe("Passed");
-		expect(chain.outcome.detail).toBe(
-			"AI review did not run. Tripwire is out of AI credits.",
-		);
+		expect(chain.outcome.detail).toBeNull();
 	});
 
-	test("human review names the missing AI review, not a vague gap", () => {
+	test("human review leaves the line to the AI review step", () => {
 		const chain = buildRunChain(
 			view({
 				verdict: "needs_review",
@@ -673,9 +671,7 @@ describe("a run whose AI review did not run (out of credits)", () => {
 			}),
 		);
 		expect(chain.outcome.title).toBe("Waiting for human review");
-		expect(chain.outcome.detail).toBe(
-			"AI review did not run. Tripwire is out of AI credits.",
-		);
+		expect(chain.outcome.detail).toBeNull();
 	});
 });
 
