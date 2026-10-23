@@ -55,5 +55,6 @@ export * from "./workflow-layout.ts";
 export * from "./workflow-lint.ts";
 export * from "./workflow-schedule.ts";
 export * from "./workflow-schedule-sentence.ts";
+export * from "./workflow-schedule-text.ts";
 export * from "./workflow-templates.ts";
 export * from "./workflow-validate.ts";
