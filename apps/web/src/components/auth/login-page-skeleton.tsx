@@ -8,7 +8,7 @@ const CELL_SLOTS = ["a", "b", "c", "d"] as const;
  * disclosure row — so nothing reflows when the real buttons land. */
 export function LoginPageSkeleton() {
 	return (
-		<div className="flex min-h-dvh flex-col items-center justify-center bg-page px-4 pt-10 pb-40">
+		<div className="flex min-h-dvh flex-col items-center justify-start bg-page px-4 pt-[max(2.5rem,calc(50svh-13rem))] pb-40">
 			<div
 				aria-hidden
 				className="flex w-full max-w-sm flex-col items-center gap-6"
@@ -22,15 +22,12 @@ export function LoginPageSkeleton() {
 
 				<Card className="w-full">
 					<CardContent>
-						<div className="flex flex-col gap-2">
-							<div className="grid grid-cols-2 gap-2">
-								{CELL_SLOTS.map((slot) => (
-									<Skeleton className="h-(--control) rounded-pill" key={slot} />
-								))}
-							</div>
-							<SkeletonText className="w-48" type="caption" />
+						<div className="grid grid-cols-2 gap-2">
+							{CELL_SLOTS.map((slot) => (
+								<Skeleton className="h-(--control) rounded-pill" key={slot} />
+							))}
 						</div>
-						<Skeleton className="h-(--control) w-44 rounded-pill" />
+						<Skeleton className="h-(--control-sm) w-44 rounded-pill" />
 					</CardContent>
 				</Card>
 			</div>

@@ -12,7 +12,7 @@ const route = getRouteApi("/login");
 export function LoginPage() {
 	const { redirect } = route.useSearch();
 	return (
-		<div className="relative isolate flex min-h-dvh flex-col items-center justify-center bg-page px-4 pt-10 pb-40">
+		<div className="relative isolate flex min-h-dvh flex-col items-center justify-start bg-page px-4 pt-[max(2.5rem,calc(50svh-13rem))] pb-40">
 			<ShaderDither className="-z-10 top-auto h-40" mask="bottom" />
 			<div className="flex w-full max-w-sm flex-col items-center gap-6">
 				<BrandLockup />
