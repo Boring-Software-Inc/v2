@@ -139,22 +139,12 @@ interface RateLimitRule {
 }
 
 async function grantTypeOf(request: Request): Promise<string | null> {
-	try {
-		const copy = request.clone();
-		const contentType = copy.headers.get("content-type") ?? "";
-		if (contentType.includes("application/json")) {
-			const body: unknown = await copy.json();
-			return typeof body === "object" &&
-				body !== null &&
-				"grant_type" in body &&
-				typeof body.grant_type === "string"
-				? body.grant_type
-				: null;
-		}
-		return new URLSearchParams(await copy.text()).get("grant_type");
-	} catch {
+	const copy = request.clone();
+	const contentType = copy.headers.get("content-type") ?? "";
+	if (!contentType.includes("application/x-www-form-urlencoded")) {
 		return null;
 	}
+	return new URLSearchParams(await copy.text()).get("grant_type");
 }
 
 export async function oauthTokenRateLimit(

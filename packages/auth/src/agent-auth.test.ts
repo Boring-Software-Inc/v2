@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { DEVICE_CODE_GRANT_TYPE } from "@better-auth/oauth-provider";
 import { TRIPWIRE_CLI_CLIENT_ID } from "@tripwire/contracts";
-import { type BetterAuthPlugin, betterAuth } from "better-auth";
+import { createDb } from "@tripwire/db";
+import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
 import {
 	agentAuthPlugins,
@@ -32,12 +33,6 @@ describe("oauthTokenRateLimit", () => {
 				RULE,
 			),
 		).toBe(false);
-		expect(
-			await oauthTokenRateLimit(
-				tokenRequest({ grant_type: DEVICE_CODE_GRANT_TYPE }, true),
-				RULE,
-			),
-		).toBe(false);
 	});
 
 	test("keeps the limiter on every other grant", async () => {
@@ -48,11 +43,7 @@ describe("oauthTokenRateLimit", () => {
 		}
 		expect(
 			await oauthTokenRateLimit(
-				new Request(`${BASE}/api/auth/oauth2/token`, {
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: "{",
-				}),
+				tokenRequest({ grant_type: DEVICE_CODE_GRANT_TYPE }, true),
 				RULE,
 			),
 		).toEqual(RULE);
@@ -94,8 +85,8 @@ describe("token endpoint with rate limiting on", () => {
 			customRules: agentRateLimitRules,
 		},
 		plugins: agentAuthPlugins({
-			db: undefined as never,
-		}) as BetterAuthPlugin[],
+			db: createDb("postgres://tripwire@127.0.0.1:1/unused").db,
+		}),
 	});
 	const post = (body: Record<string, string>) =>
 		auth.handler(tokenRequest(body));
