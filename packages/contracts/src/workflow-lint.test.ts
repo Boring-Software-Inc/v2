@@ -3,6 +3,7 @@ import { customValidationEntries } from "./custom-rules.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import {
 	DEFAULT_WORKFLOW,
+	type JsonValue,
 	type WorkflowDefinition,
 	type WorkflowEdge,
 	type WorkflowNode,
@@ -779,10 +780,11 @@ describe("delivery and label steps need their settings to go live", () => {
 	});
 
 	test("a stored URL, or the marker that one is stored, passes", () => {
-		for (const params of [
+		const stored: Record<string, JsonValue>[] = [
 			{ url: "https://hooks.example.com/tripwire" },
 			{ url: "", urlSet: true },
-		]) {
+		];
+		for (const params of stored) {
 			expect(
 				validateWorkflowForEnable(
 					withAction({ id: "x", type: "action", action: "webhook", params }),
