@@ -10,6 +10,24 @@ import {
 export interface RepoLabelsView {
 	labels: RepoLabel[];
 	syncedAt: string | null;
+	syncing: boolean;
+}
+
+async function queueLabelSync(repoId: string): Promise<boolean> {
+	const { getBoss, isDemoMode } = await import("#/lib/server/db");
+	if (isDemoMode()) {
+		return false;
+	}
+	const { SYNC_REPO_LABELS_QUEUE, syncRepoLabelsOptions } = await import(
+		"@tripwire/db"
+	);
+	const boss = await getBoss();
+	await boss.send(
+		SYNC_REPO_LABELS_QUEUE,
+		{ repoId },
+		syncRepoLabelsOptions(repoId),
+	);
+	return true;
 }
 
 export const listRepoLabels = createServerFn({ method: "GET" })
@@ -26,9 +44,13 @@ export const listRepoLabels = createServerFn({ method: "GET" })
 		const { labelServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
 		const list = await labelServices.listRepoLabels(getDb().db, data.repoId);
+		const syncing = labelServices.labelsNeedSync(list.syncedAt, new Date())
+			? await queueLabelSync(data.repoId)
+			: false;
 		return {
 			labels: list.labels,
 			syncedAt: list.syncedAt?.toISOString() ?? null,
+			syncing,
 		};
 	});
 
@@ -43,18 +65,5 @@ export const refreshRepoLabels = createServerFn({ method: "POST" })
 			(context as { org: OrgWithRole }).org.id,
 			data.repoId,
 		);
-		const { getBoss, isDemoMode } = await import("#/lib/server/db");
-		if (isDemoMode()) {
-			return { queued: false };
-		}
-		const { SYNC_REPO_LABELS_QUEUE, syncRepoLabelsOptions } = await import(
-			"@tripwire/db"
-		);
-		const boss = await getBoss();
-		await boss.send(
-			SYNC_REPO_LABELS_QUEUE,
-			{ repoId: data.repoId },
-			syncRepoLabelsOptions(data.repoId),
-		);
-		return { queued: true };
+		return { queued: await queueLabelSync(data.repoId) };
 	});

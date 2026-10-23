@@ -1,5 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useContext, useState } from "react";
+import { useContext } from "react";
 import { Icon, Retry } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -14,13 +13,12 @@ import {
 	ComboboxValue,
 	useComboboxAnchor,
 } from "#/components/glaze/ui/combobox";
+import { Status } from "#/components/glaze/ui/status";
 import { ReviewerScopeContext } from "#/components/workflows/editor/reviewer-picker";
+import { useSyncedList } from "#/hooks/use-synced-list";
 import { labelColor, labelOptions } from "#/lib/label-options";
 import { refreshRepoLabels } from "#/lib/labels.functions";
 import { repoLabelsQueryOptions } from "#/lib/labels.query";
-
-const POLL_MS = 2_000;
-const WAIT_MS = 30_000;
 
 function LabelDot({ color }: { color: string | null }) {
 	return (
@@ -54,38 +52,11 @@ export function LabelPicker({
 	const scope = useContext(ReviewerScopeContext);
 	const org = scope?.org ?? "";
 	const repoId = scope?.repoId ?? "";
-	const queryClient = useQueryClient();
 	const anchor = useComboboxAnchor();
-	const [waiting, setWaiting] = useState<{
-		since: string | null;
-		until: number;
-	} | null>(null);
-	const waitingFor = (syncedAt: string | null | undefined) =>
-		waiting !== null &&
-		(syncedAt ?? null) === waiting.since &&
-		Date.now() < waiting.until;
-	const { data, dataUpdatedAt } = useQuery({
-		...repoLabelsQueryOptions(org, repoId),
-		refetchInterval: (query) =>
-			waitingFor(query.state.data?.syncedAt) ? POLL_MS : false,
-	});
-	const refresh = useMutation({
-		mutationFn: refreshRepoLabels,
-		onSuccess: (result) => {
-			if (result.queued) {
-				setWaiting({
-					since: data?.syncedAt ?? null,
-					until: Date.now() + WAIT_MS,
-				});
-			}
-		},
-		onSettled: () =>
-			queryClient.invalidateQueries({
-				queryKey: repoLabelsQueryOptions(org, repoId).queryKey,
-			}),
-	});
-	const syncing =
-		refresh.isPending || (dataUpdatedAt > 0 && waitingFor(data?.syncedAt));
+	const { data, loading, syncing, refresh } = useSyncedList(
+		repoLabelsQueryOptions(org, repoId),
+		() => refreshRepoLabels({ data: { org, repoId } }),
+	);
 	const synced = data?.labels ?? [];
 	const options = labelOptions(synced, value);
 	const names = options.map((option) => option.name);
@@ -128,7 +99,11 @@ export function LabelPicker({
 				</ComboboxChips>
 				<ComboboxContent anchor={anchor}>
 					<ComboboxEmpty>
-						{synced.length > 0 ? "No labels match" : "No labels synced yet"}
+						{loading && synced.length === 0
+							? "Loading labels"
+							: synced.length > 0
+								? "No labels match"
+								: "No labels found"}
 					</ComboboxEmpty>
 					<ComboboxList>
 						{(name: string) => (
@@ -142,11 +117,15 @@ export function LabelPicker({
 					</ComboboxList>
 				</ComboboxContent>
 			</Combobox>
-			{synced.length === 0 ? (
+			{loading && synced.length === 0 ? (
+				<Status size="sm" status="running">
+					Loading labels
+				</Status>
+			) : (
 				<Button
 					className="self-start"
 					disabled={readOnly || repoId === ""}
-					onClick={() => refresh.mutate({ data: { org, repoId } })}
+					onClick={refresh}
 					pending={syncing}
 					pendingLabel="Refreshing"
 					size="sm"
@@ -155,7 +134,7 @@ export function LabelPicker({
 					<Icon icon={Retry} />
 					Refresh labels
 				</Button>
-			) : null}
+			)}
 		</div>
 	);
 }

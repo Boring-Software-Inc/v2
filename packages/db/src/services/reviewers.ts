@@ -3,6 +3,7 @@ import { generateId } from "@tripwire/utils";
 import { asc, eq, max, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { repoReviewers } from "../schema/repos.ts";
+import { syncIsStale } from "./sync-age.ts";
 
 export interface RepoReviewerList {
 	reviewers: RepoReviewer[];
@@ -11,12 +12,8 @@ export interface RepoReviewerList {
 
 export const REVIEWER_SYNC_STALE_MS = 24 * 60 * 60_000;
 
-/** A repo that never synced, or synced over a day ago, needs a fresh sync. */
 export function reviewersNeedSync(syncedAt: Date | null, now: Date): boolean {
-	return (
-		syncedAt === null ||
-		now.getTime() - syncedAt.getTime() >= REVIEWER_SYNC_STALE_MS
-	);
+	return syncIsStale(syncedAt, now, REVIEWER_SYNC_STALE_MS);
 }
 
 export async function listRepoReviewers(

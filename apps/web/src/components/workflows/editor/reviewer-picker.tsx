@@ -1,11 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { RepoReviewer, WorkflowNode } from "@tripwire/contracts";
 import {
 	requestReviewTargetsSchema,
 	reviewerJson,
 	sameReviewer,
 } from "@tripwire/contracts";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext } from "react";
 import { Icon, Retry, Warning } from "#/components/glaze/icon";
 import { Avatar } from "#/components/glaze/ui/avatar";
 import { Button } from "#/components/glaze/ui/button";
@@ -23,14 +22,9 @@ import {
 } from "#/components/glaze/ui/combobox";
 import { Field, FieldLabel } from "#/components/glaze/ui/field";
 import { Status } from "#/components/glaze/ui/status";
-import {
-	type RepoReviewersView,
-	refreshRepoReviewers,
-} from "#/lib/reviewers.functions";
+import { useSyncedList } from "#/hooks/use-synced-list";
+import { refreshRepoReviewers } from "#/lib/reviewers.functions";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
-
-const POLL_MS = 2_000;
-const WAIT_MS = 30_000;
 
 export const ReviewerScopeContext = createContext<{
 	org: string;
@@ -67,39 +61,11 @@ export function ReviewerPicker({
 	const scope = useContext(ReviewerScopeContext);
 	const org = scope?.org ?? "";
 	const repoId = scope?.repoId ?? "";
-	const queryClient = useQueryClient();
 	const anchor = useComboboxAnchor();
-	const [openedAt] = useState(Date.now);
-	const [waiting, setWaiting] = useState<{
-		since: string | null;
-		until: number;
-	} | null>(null);
-	const pending = (view: RepoReviewersView | undefined) =>
-		(view?.syncing === true && Date.now() < openedAt + WAIT_MS) ||
-		(waiting !== null &&
-			(view?.syncedAt ?? null) === waiting.since &&
-			Date.now() < waiting.until);
-	const { data, isPending } = useQuery({
-		...repoReviewersQueryOptions(org, repoId),
-		refetchInterval: (query) => (pending(query.state.data) ? POLL_MS : false),
-	});
-	const refresh = useMutation({
-		mutationFn: refreshRepoReviewers,
-		onSuccess: (result) => {
-			if (result.queued) {
-				setWaiting({
-					since: data?.syncedAt ?? null,
-					until: Date.now() + WAIT_MS,
-				});
-			}
-		},
-		onSettled: () =>
-			queryClient.invalidateQueries({
-				queryKey: repoReviewersQueryOptions(org, repoId).queryKey,
-			}),
-	});
-	const syncing = refresh.isPending || pending(data);
-	const loading = repoId !== "" && (isPending || syncing);
+	const { data, loading, syncing, refresh } = useSyncedList(
+		repoReviewersQueryOptions(org, repoId),
+		() => refreshRepoReviewers({ data: { org, repoId } }),
+	);
 
 	const synced = (data?.reviewers ?? []).map(picked);
 	const known = data?.syncedAt != null;
@@ -128,7 +94,7 @@ export function ReviewerPicker({
 		<Button
 			className="self-start"
 			disabled={readOnly || repoId === ""}
-			onClick={() => refresh.mutate({ data: { org, repoId } })}
+			onClick={refresh}
 			pending={syncing}
 			pendingLabel="Refreshing"
 			size="sm"

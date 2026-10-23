@@ -3,10 +3,17 @@ import { generateId } from "@tripwire/utils";
 import { asc, eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { repoLabels } from "../schema/repos.ts";
+import { syncIsStale } from "./sync-age.ts";
 
 export interface RepoLabelList {
 	labels: RepoLabel[];
 	syncedAt: Date | null;
+}
+
+export const LABEL_SYNC_STALE_MS = 60_000;
+
+export function labelsNeedSync(syncedAt: Date | null, now: Date): boolean {
+	return syncIsStale(syncedAt, now, LABEL_SYNC_STALE_MS);
 }
 
 export async function listRepoLabels(
