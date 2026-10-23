@@ -432,7 +432,7 @@ async function addOrg(
 }
 
 describe("a repo argument names the repo the way people copy it", () => {
-	const listed = async (target: Client, args: Record<string, unknown>) =>
+	const listed = async (target: Client, args: { org?: string; repo: string }) =>
 		textSchema.parse(
 			await target.callTool({ name: "list_workflows", arguments: args }),
 		);
