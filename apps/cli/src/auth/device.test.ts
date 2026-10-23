@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
 	type AuthDeps,
+	AuthUnreachableError,
 	DEVICE_GRANT,
 	pollForToken,
 	refreshCredential,
 	requestDeviceCode,
+	SessionExpiredError,
 } from "#/auth/device";
 
 const AUTH = "https://app.tripwire.sh/api/auth";
@@ -122,5 +124,48 @@ describe("device grant", () => {
 		expect(fresh.accessToken).toBe("new");
 		expect(fresh.refreshToken).toBe("rt");
 		expect(deps.requests[0]?.form.get("grant_type")).toBe("refresh_token");
+	});
+	describe("refresh failures", () => {
+		const credential = {
+			accessToken: "old",
+			refreshToken: "rt",
+			mcpUrl: MCP,
+			authUrl: AUTH,
+		};
+
+		test("an OAuth 400 or 401 error means the session expired", async () => {
+			for (const status of [400, 401]) {
+				const deps = fakeDeps([
+					[status, JSON.stringify({ error: "invalid_grant" })],
+				]);
+				await expect(
+					refreshCredential(deps, credential),
+				).rejects.toBeInstanceOf(SessionExpiredError);
+			}
+		});
+
+		test("5xx, non-JSON bodies and network errors mean unreachable", async () => {
+			const cases: Array<[number, string]> = [
+				[
+					503,
+					JSON.stringify({
+						error: { code: "err:frontline:capacity:no_running_instances" },
+					}),
+				],
+				[502, "<html>bad gateway</html>"],
+				[400, "not json"],
+				[500, JSON.stringify({ error: "server_error" })],
+			];
+			for (const response of cases) {
+				const deps = fakeDeps([response]);
+				await expect(
+					refreshCredential(deps, credential),
+				).rejects.toBeInstanceOf(AuthUnreachableError);
+			}
+			const offline = fakeDeps([]);
+			await expect(refreshCredential(offline, credential)).rejects.toThrow(
+				"Tripwire is not reachable right now. Try again in a minute.",
+			);
+		});
 	});
 });

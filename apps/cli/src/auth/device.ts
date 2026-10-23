@@ -29,6 +29,20 @@ const errorSchema = z.object({
 	error_description: z.string().optional(),
 });
 
+export class SessionExpiredError extends Error {
+	constructor() {
+		super("Session expired. Run tripwire login.");
+		this.name = "SessionExpiredError";
+	}
+}
+
+export class AuthUnreachableError extends Error {
+	constructor() {
+		super("Tripwire is not reachable right now. Try again in a minute.");
+		this.name = "AuthUnreachableError";
+	}
+}
+
 export interface AuthDeps {
 	fetch(url: string, init: RequestInit): Promise<Response>;
 	sleep(ms: number): Promise<void>;
@@ -163,7 +177,7 @@ export async function refreshCredential(
 	credential: Credential,
 ): Promise<Credential> {
 	if (!credential.refreshToken) {
-		throw new Error("Session expired. Run tripwire login.");
+		throw new SessionExpiredError();
 	}
 	const { status, body } = await postForm(
 		deps,
@@ -174,10 +188,17 @@ export async function refreshCredential(
 			client_id: CLIENT_ID,
 			resource: credential.mcpUrl,
 		},
-	);
+	).catch(() => {
+		throw new AuthUnreachableError();
+	});
 	const token = tokenSchema.safeParse(body);
 	if (status >= 400 || !token.success) {
-		throw new Error("Session expired. Run tripwire login.");
+		const error = errorSchema.safeParse(body);
+		const rejected =
+			(status === 400 || status === 401) &&
+			error.success &&
+			error.data.error !== "invalid_response";
+		throw rejected ? new SessionExpiredError() : new AuthUnreachableError();
 	}
 	return toCredential(
 		deps,

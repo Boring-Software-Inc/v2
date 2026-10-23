@@ -1,5 +1,9 @@
 import { type CredentialStore, credentialStore } from "#/auth/credentials";
-import { type AuthDeps, refreshCredential } from "#/auth/device";
+import {
+	type AuthDeps,
+	AuthUnreachableError,
+	refreshCredential,
+} from "#/auth/device";
 import { mcpUrl } from "#/config";
 import type { System } from "#/system";
 
@@ -33,10 +37,14 @@ export async function loadSession(
 		throw new NotSignedInError();
 	}
 	if (credential.expiresAt && credential.expiresAt - SKEW_MS < deps.now()) {
-		const fresh = await refreshCredential(deps, credential).catch(() => null);
-		if (!fresh) {
-			throw new NotSignedInError("Session expired. Run tripwire login.");
-		}
+		const fresh = await refreshCredential(deps, credential).catch(
+			(error: unknown) => {
+				if (error instanceof AuthUnreachableError) {
+					throw error;
+				}
+				throw new NotSignedInError("Session expired. Run tripwire login.");
+			},
+		);
 		await store.write(fresh);
 		return {
 			token: fresh.accessToken,
