@@ -73,6 +73,22 @@ describe("ai-review@1", () => {
 		expect(result.passed).toBe(false);
 	});
 
+	test("a provider out of credits ⇒ skipped with its cause, never a throw", async () => {
+		const generate = () =>
+			Promise.resolve({ unavailable: "out-of-credits" as const });
+		const result = await evaluateRule(
+			aiReviewV2,
+			await fixtureContext({ generate }),
+			CONFIG,
+		);
+		expect(result.status).toBe("skipped");
+		expect(result.passed).toBe(false);
+		expect(result.cause).toBe("ai-out-of-credits");
+		expect(result.reason).toBe(
+			"AI review did not run. Tripwire is out of AI credits.",
+		);
+	});
+
 	test("no injected generate ⇒ skipped, never a throw", async () => {
 		const result = await evaluateRule(aiReview, await fixtureContext(), CONFIG);
 		expect(result.status).toBe("skipped");

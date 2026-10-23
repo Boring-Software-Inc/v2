@@ -6,6 +6,7 @@ export type {
 	AiReviewGenerate,
 	AiReviewRequest,
 	AiReviewResponse,
+	AiReviewUnavailable,
 	ContextCommit,
 	ContextContributor,
 	ContextDiffFile,

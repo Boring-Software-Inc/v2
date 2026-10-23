@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ruleSkipCauseSchema } from "./ai-provider.ts";
 import { FORGE_BY_ID, type ForgeId } from "./forges.ts";
 import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
@@ -99,6 +100,7 @@ export const ruleResultSchema = z.object({
 	evidence: z.unknown(),
 	/** Present iff skipped. */
 	reason: z.string().optional(),
+	cause: ruleSkipCauseSchema.optional(),
 	evaluatedAt: z.iso.datetime(),
 });
 export type RuleResult = z.infer<typeof ruleResultSchema>;
