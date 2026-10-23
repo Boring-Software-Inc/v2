@@ -630,7 +630,7 @@ export function registerTools(
 			"list_runs",
 			{
 				description:
-					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A scheduled run acts on a thread on a timer, and its verdict is not the change request's verdict.",
+					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A run with bearsVerdict false came from a comment or a schedule. It acts on a thread, and its verdict is not the change request's verdict.",
 				inputSchema: {
 					org: orgArg,
 					repo: anyRepoArg,
@@ -654,6 +654,7 @@ export function registerTools(
 							status: run.status,
 							verdict: run.verdict,
 							scheduled: run.scheduled,
+							bearsVerdict: run.bearsVerdict,
 							createdAt: run.createdAt.toISOString(),
 							url: appLink(ctx, `/runs/${run.id}`),
 						})),

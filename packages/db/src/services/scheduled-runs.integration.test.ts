@@ -116,6 +116,12 @@ describe("a scheduled run on a change request", () => {
 				[scheduledRun, true],
 			].sort(),
 		);
+		expect(listed.map((row) => [row.id, row.bearsVerdict]).sort()).toEqual(
+			[
+				[blockRun, true],
+				[scheduledRun, false],
+			].sort(),
+		);
 	});
 
 	test("does not count toward verdict metrics", async () => {
