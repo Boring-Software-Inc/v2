@@ -90,6 +90,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	updateOrg: "admin",
 	ensureSetupRun: "admin", // a setup run is an install-and-gate act
 	findSetupRun: "admin",
+	getAgentSetupPrompt: "admin",
+	dismissAgentSetupPrompt: "admin",
 	getOrgCascade: "admin", // pre-delete enumeration — admin surface
 	deleteOrg: "admin",
 	updateOrgMemberRole: "admin",

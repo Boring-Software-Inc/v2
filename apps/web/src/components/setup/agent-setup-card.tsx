@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	SETUP_STAGES,
 	type SetupStage,
@@ -6,12 +6,21 @@ import {
 	type SetupStages,
 	setupPrompt,
 } from "@tripwire/contracts";
-import { useRef, useState } from "react";
-import { Bot, Icon } from "#/components/glaze/icon";
+import { useEffect, useRef, useState } from "react";
+import { Bot, Close, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { Card, CardContent } from "#/components/glaze/ui/card";
 import { Status, type StatusValue } from "#/components/glaze/ui/status";
-import { SETUP_POLL_MS, setupRunQueryOptions } from "#/lib/setup.query";
+import {
+	type AgentSetupPromptState,
+	dismissAgentSetupPrompt,
+} from "#/lib/setup.functions";
+import {
+	agentSetupPromptQueryOptions,
+	SETUP_POLL_MS,
+	setupQueryKeys,
+	setupRunQueryOptions,
+} from "#/lib/setup.query";
 import { trackEvent } from "#/lib/track";
 
 const STAGE_LABELS: Record<SetupStage, string> = {
@@ -88,6 +97,42 @@ function SetupChecklist({ stages }: { stages: SetupStages }) {
 	);
 }
 
+function useDismissPrompt(org: string) {
+	const queryClient = useQueryClient();
+	const key = setupQueryKeys.prompt(org);
+	return useMutation({
+		mutationFn: () => dismissAgentSetupPrompt({ data: { org } }),
+		onMutate: async () => {
+			await queryClient.cancelQueries({ queryKey: key });
+			const previous = queryClient.getQueryData<AgentSetupPromptState>(key);
+			if (previous) {
+				queryClient.setQueryData<AgentSetupPromptState>(key, {
+					visible: false,
+					reminder: false,
+					dismissCount: Math.min(previous.dismissCount + 1, 2),
+				});
+			}
+			return { previous };
+		},
+		onError: (_error, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(key, context.previous);
+			}
+		},
+		onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+	});
+}
+
+function useTrackShown(shown: boolean, reminder: boolean) {
+	const tracked = useRef(false);
+	useEffect(() => {
+		if (shown && !tracked.current) {
+			tracked.current = true;
+			trackEvent("agent_setup_prompt_shown", { reminder });
+		}
+	}, [shown, reminder]);
+}
+
 export function AgentSetupCard({
 	org,
 	setupDone,
@@ -95,8 +140,14 @@ export function AgentSetupCard({
 	org: string;
 	setupDone: boolean;
 }) {
+	const { data: promptState } = useQuery(agentSetupPromptQueryOptions(org));
+	const dismiss = useDismissPrompt(org);
+	const visible = promptState?.visible ?? false;
+	const reminder = promptState?.reminder ?? false;
+	const undismissed = promptState?.dismissCount === 0;
 	const { data } = useQuery({
-		...setupRunQueryOptions(org, !setupDone),
+		...setupRunQueryOptions(org, !setupDone && visible),
+		enabled: visible || undismissed,
 		refetchInterval: (query) => {
 			const state = query.state.data;
 			return state?.status === "ready" && state.run.completedAt
@@ -107,8 +158,12 @@ export function AgentSetupCard({
 	});
 	const run = data?.status === "ready" ? data.run : null;
 	const started = run ? Object.keys(run.stages).length > 0 : false;
+	const live = started && !run?.completedAt && undismissed;
+	const shown = (visible && !(setupDone && !started)) || live;
 
-	if (setupDone && !started) {
+	useTrackShown(shown, reminder);
+
+	if (!shown) {
 		return null;
 	}
 
@@ -125,7 +180,23 @@ export function AgentSetupCard({
 						<Icon icon={Bot} />
 						Set up with your coding agent
 					</h2>
-					<CopyPromptButton hasRunCode={Boolean(run)} prompt={prompt} />
+					<div className="flex items-center gap-1">
+						<CopyPromptButton hasRunCode={Boolean(run)} prompt={prompt} />
+						<Button
+							aria-label="Dismiss"
+							onClick={() => {
+								trackEvent("agent_setup_prompt_dismissed", {
+									count: reminder ? 2 : 1,
+								});
+								dismiss.mutate();
+							}}
+							size="icon-sm"
+							type="button"
+							variant="ghost"
+						>
+							<Icon icon={Close} />
+						</Button>
+					</div>
 				</div>
 				{started && run ? <SetupChecklist stages={run.stages} /> : null}
 			</CardContent>
