@@ -26,6 +26,7 @@ function collaborator(
 function httpWith(pages: Record<number, object[]>, seen: string[] = []) {
 	return new GithubHttp({
 		tokenFor: () => Promise.resolve("t"),
+		appId: 1,
 		fetchImpl: ((url: string | URL | Request) => {
 			seen.push(String(url));
 			const page = Number(new URL(String(url)).searchParams.get("page"));
@@ -141,6 +142,7 @@ describe("listRepoReviewers", () => {
 	test("a failed page throws so the caller keeps the old set", async () => {
 		const http = new GithubHttp({
 			tokenFor: () => Promise.resolve("t"),
+			appId: 1,
 			fetchImpl: ((_url: string | URL | Request) =>
 				Promise.resolve(
 					new Response("Not Found", { status: 404 }),

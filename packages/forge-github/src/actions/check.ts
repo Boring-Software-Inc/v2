@@ -1,4 +1,5 @@
 import { CHECK_NAME, type CheckState } from "@tripwire/contracts";
+import { z } from "zod";
 import type { GithubHttp } from "../client/http.ts";
 
 /**
@@ -8,9 +9,14 @@ import type { GithubHttp } from "../client/http.ts";
  * new SHA and gets a fresh check by GitHub semantics.
  */
 
-interface CheckRun {
-	id: number;
-}
+const checkRunSchema = z.object({
+	id: z.number(),
+	app: z.object({ id: z.number() }).nullish(),
+});
+
+const checkRunListSchema = z.object({
+	check_runs: z.array(checkRunSchema).default([]),
+});
 
 function toApiFields(state: CheckState) {
 	if (state.conclusion === "pending") {
@@ -41,11 +47,13 @@ export async function setCheck(
 		},
 	};
 
-	const existing = (await http.get(
-		repoFullName,
-		`/repos/${repoFullName}/commits/${state.sha}/check-runs?check_name=${CHECK_NAME}&filter=latest`,
-	)) as { check_runs?: CheckRun[] };
-	const found = existing.check_runs?.[0];
+	const existing = checkRunListSchema.parse(
+		await http.get(
+			repoFullName,
+			`/repos/${repoFullName}/commits/${state.sha}/check-runs?check_name=${CHECK_NAME}&app_id=${http.appId}&filter=latest`,
+		),
+	);
+	const found = existing.check_runs.find((run) => run.app?.id === http.appId);
 	if (found) {
 		await http.patch(
 			repoFullName,
@@ -54,10 +62,8 @@ export async function setCheck(
 		);
 		return { externalId: String(found.id), created: false };
 	}
-	const created = (await http.post(
-		repoFullName,
-		`/repos/${repoFullName}/check-runs`,
-		payload,
-	)) as CheckRun;
+	const created = checkRunSchema.parse(
+		await http.post(repoFullName, `/repos/${repoFullName}/check-runs`, payload),
+	);
 	return { externalId: String(created.id), created: true };
 }

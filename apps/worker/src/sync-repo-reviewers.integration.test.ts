@@ -46,6 +46,7 @@ afterAll(async () => {
 function httpReturning(status: number, body: object[] | string) {
 	return new GithubHttp({
 		tokenFor: () => Promise.resolve("t"),
+		appId: 1,
 		fetchImpl: ((_url: string | URL | Request) =>
 			Promise.resolve(
 				new Response(JSON.stringify(body), { status }),

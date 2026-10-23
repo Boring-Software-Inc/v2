@@ -6,6 +6,8 @@ import { listRepoLabels } from "../client/labels.ts";
 import { executeAction } from "./execute.ts";
 
 const API = "https://fake.api";
+const APP_ID = 4291944;
+const OURS = { performed_via_github_app: { id: APP_ID } };
 const LABEL = issueComment.issue.labels[0];
 const COMMENT = issueComment.comment;
 
@@ -19,6 +21,7 @@ function fakeHttp(reply: (method: string, path: string) => Reply) {
 	const calls: { method: string; path: string; body: unknown }[] = [];
 	const http = new GithubHttp({
 		tokenFor: () => Promise.resolve("t"),
+		appId: APP_ID,
 		apiBase: API,
 		fetchImpl: ((url: string | URL | Request, init?: RequestInit) => {
 			const method = init?.method ?? "GET";
@@ -118,7 +121,11 @@ describe("post-comment", () => {
 	test("a retry finds the comment it already posted", async () => {
 		const { http, calls } = fakeHttp((_, path) =>
 			path.includes("page=2")
-				? { body: [{ ...COMMENT, id: 91, body: `Earlier.\n\n${MARKER}` }] }
+				? {
+						body: [
+							{ ...COMMENT, ...OURS, id: 91, body: `Earlier.\n\n${MARKER}` },
+						],
+					}
 				: {
 						body: [COMMENT],
 						headers: {
@@ -135,6 +142,23 @@ describe("post-comment", () => {
 		});
 		expect(result).toEqual({ externalId: "91" });
 		expect(calls.every((call) => call.method === "GET")).toBe(true);
+	});
+
+	test("a contributor comment copying the marker does not stop the post", async () => {
+		const { http, calls } = fakeHttp((method) =>
+			method === "GET"
+				? { body: [{ ...COMMENT, body: `Fake.\n\n${MARKER}` }] }
+				: { status: 201, body: { ...COMMENT, id: 79 } },
+		);
+		const result = await executeAction(http, {
+			kind: "post-comment",
+			repoFullName: "a/b",
+			number: 4,
+			body: "This will close in 7 days.",
+			marker: MARKER,
+		});
+		expect(result).toEqual({ externalId: "79" });
+		expect(calls.at(-1)?.method).toBe("POST");
 	});
 
 	test("a comment from another node or run is not a match", async () => {

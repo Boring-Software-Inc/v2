@@ -24,6 +24,7 @@ const USER = {
 function readsWith(handler: (url: string) => Response): GithubReads {
 	return new GithubReads({
 		tokenFor: () => Promise.resolve("t"),
+		appId: 1,
 		fetchImpl: ((url: string | URL | Request) =>
 			Promise.resolve(handler(String(url)))) as typeof fetch,
 	});

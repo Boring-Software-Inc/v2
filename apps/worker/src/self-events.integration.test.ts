@@ -101,6 +101,26 @@ afterAll(async () => {
 	await container?.stop();
 });
 
+const BOT_SENDER = {
+	...pullRequestClosed.sender,
+	login: SELF,
+	id: 150000001,
+	type: "Bot",
+};
+
+function tripwireComment(body: string) {
+	return {
+		...issueComment,
+		sender: BOT_SENDER,
+		comment: {
+			...issueComment.comment,
+			body,
+			user: BOT_SENDER,
+			performed_via_github_app: { id: 3169732, slug: "tripwire-dev" },
+		},
+	};
+}
+
 async function deliver(
 	deliveryId: string,
 	rawKind: string,
@@ -133,13 +153,6 @@ async function deliver(
 	return runs.rows[0].n;
 }
 
-const BOT_SENDER = {
-	...pullRequestClosed.sender,
-	login: SELF,
-	id: 150000001,
-	type: "Bot",
-};
-
 describe("events tripwire caused itself", () => {
 	test("a contributor's comment runs the workflow", async () => {
 		expect(await deliver("self-1", "issue_comment", issueComment)).toBe(1);
@@ -147,27 +160,28 @@ describe("events tripwire caused itself", () => {
 	});
 
 	test("tripwire's own workflow comment does not", async () => {
-		const marked = {
-			...issueComment,
-			comment: {
-				...issueComment.comment,
-				body: `This change request has had no activity for 3 weeks.\n\n${actionCommentMarker(
-					{ workflowId: "wf-stale", nodeId: "warn", runId: "run-1" },
-				)}`,
-			},
-		};
+		const marked = tripwireComment(
+			`This change request has had no activity for 3 weeks.\n\n${actionCommentMarker(
+				{ workflowId: "wf-stale", nodeId: "warn", runId: "run-1" },
+			)}`,
+		);
 		expect(await deliver("self-2", "issue_comment", marked)).toBe(0);
 	});
 
 	test("tripwire's verdict comment does not", async () => {
-		const verdict = {
+		const verdict = tripwireComment("Blocked.\n\n<!-- tripwire:run -->");
+		expect(await deliver("self-3", "issue_comment", verdict)).toBe(0);
+	});
+
+	test("a contributor's comment that copies the marker still runs", async () => {
+		const spoofed = {
 			...issueComment,
 			comment: {
 				...issueComment.comment,
-				body: "Blocked.\n\n<!-- tripwire:run -->",
+				body: "Buy now.\n\n<!-- tripwire:run -->",
 			},
 		};
-		expect(await deliver("self-3", "issue_comment", verdict)).toBe(0);
+		expect(await deliver("self-3b", "issue_comment", spoofed)).toBe(1);
 	});
 
 	test("a close by the tripwire app does not", async () => {

@@ -90,6 +90,44 @@ describe("normalizeWebhook — fixture corpus (contract layer §11)", () => {
 		expect(normalizedEventSchema.parse(event)).toBeTruthy();
 	});
 
+	test("a contributor comment carrying the marker is not Tripwire's own", async () => {
+		const raw = JSON.parse(await fixture("issue_comment.created"));
+		raw.comment.body = "spam <!-- tripwire:run -->";
+		const event = normalizeWebhook(
+			{
+				deliveryId: "d-4b",
+				eventName: "issue_comment",
+				body: JSON.stringify(raw),
+				signature: null,
+			},
+			NOW,
+		);
+		if (event?.kind !== "comment.created") {
+			throw new Error("unreachable");
+		}
+		expect(event.comment.byTripwire).toBe(false);
+	});
+
+	test("an app-authored comment carrying the marker is Tripwire's own", async () => {
+		const raw = JSON.parse(await fixture("issue_comment.created"));
+		raw.comment.body = "Blocked. <!-- tripwire:run -->";
+		raw.comment.performed_via_github_app = { id: 4291944, slug: "tripwire-sh" };
+		raw.sender = { ...raw.sender, login: "tripwire-sh[bot]", type: "Bot" };
+		const event = normalizeWebhook(
+			{
+				deliveryId: "d-4c",
+				eventName: "issue_comment",
+				body: JSON.stringify(raw),
+				signature: null,
+			},
+			NOW,
+		);
+		if (event?.kind !== "comment.created") {
+			throw new Error("unreachable");
+		}
+		expect(event.comment.byTripwire).toBe(true);
+	});
+
 	test("push → push", async () => {
 		const body = await fixture("push");
 		const event = normalizeWebhook(

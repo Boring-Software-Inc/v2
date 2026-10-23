@@ -12,6 +12,7 @@ function httpWith(
 ): GithubHttp {
 	return new GithubHttp({
 		tokenFor: () => Promise.resolve("t"),
+		appId: 1,
 		onCall,
 		fetchImpl: ((url: string | URL | Request, init?: RequestInit) =>
 			Promise.resolve(handler(String(url), init))) as typeof fetch,

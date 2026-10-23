@@ -23,6 +23,7 @@ import {
 	type OpenGitBotCredentials,
 	OpenGitTokenCache,
 } from "@tripwire/forge-opengit";
+import { z } from "zod";
 import type { WorkerReads } from "./context.ts";
 
 /**
@@ -191,6 +192,8 @@ function buildOpenGitRuntime(
 	};
 }
 
+export const githubAppIdSchema = z.coerce.number().int().positive();
+
 function buildGithubRuntime(
 	db: Db,
 	credentials: { appId: string; privateKey: string },
@@ -208,7 +211,8 @@ function buildGithubRuntime(
 		}
 		return await tokens.getToken(repo.installationId);
 	};
-	const httpOptions = { tokenFor, onCall };
+	const appId = githubAppIdSchema.parse(credentials.appId);
+	const httpOptions = { tokenFor, onCall, appId };
 	const http = new GithubHttp(httpOptions);
 	return {
 		adapter: createGithubAdapter(httpOptions),
