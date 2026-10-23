@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ScheduleCadence } from "./workflow.ts";
-import { scheduleCadenceSchema } from "./workflow.ts";
+import { durationMs, scheduleCadenceSchema } from "./workflow.ts";
 import { nextScheduleRun } from "./workflow-schedule.ts";
 import {
 	completeScheduleText,
@@ -27,7 +27,20 @@ describe("phrases the schedule can store", () => {
 	const cases: [string, ScheduleCadence, string?][] = [
 		["every 5 days", { n: 5, unit: "days" }],
 		["every 12 hours", { n: 12, unit: "hours" }],
-		["every 1 hour", { n: 1, unit: "hours" }],
+		["every 1 hour", { preset: "hourly", minute: 0 }],
+		["every 1 hour at minute 30", { preset: "hourly", minute: 30 }],
+		["every 1 day at 6am", { preset: "daily", at: "06:00" }],
+		["every one day at 6am", { preset: "daily", at: "06:00" }],
+		[
+			"every 1 week on friday at 17:00",
+			{ preset: "weekly", on: "friday", at: "17:00" },
+		],
+		[
+			"every 1 month on the 3rd at 8",
+			{ preset: "monthly", day: 3, at: "08:00" },
+		],
+		["every 24 hours", { n: 24, unit: "hours" }],
+		["every 7 days", { n: 7, unit: "days" }],
 		["every 2 weeks", { n: 2, unit: "weeks" }],
 		["Every 52 weeks", { n: 52, unit: "weeks" }],
 		["every two days", { n: 2, unit: "days" }],
@@ -308,19 +321,13 @@ describe("phrases the schedule cannot store", () => {
 		);
 	});
 
-	test("one day with a time becomes every day at that time", () => {
-		const result = parse("every 1 day at 6am");
-		expect(result.ok ? [] : result.fixes.map((fix) => fix.text)).toEqual([
-			"every day at 6am",
-			"every 1 day",
-		]);
-	});
-
-	test("one week with a time becomes a weekly schedule", () => {
+	test("one week with a time asks for the day", () => {
 		const result = parse("every 1 week at 06:00");
+		expect(result.ok ? null : result.message).toBe(
+			"Add a day, like every monday.",
+		);
 		expect(result.ok ? [] : result.fixes.map((fix) => fix.text)).toEqual([
 			"every monday at 06:00",
-			"every 1 week",
 		]);
 	});
 
@@ -382,7 +389,8 @@ describe("unfinished phrases", () => {
 			"every month at 7 on the 1st",
 		],
 		["every 5", "Add a unit, like every 5 days.", "every 5 days"],
-		["every week", "Add a day, like every monday.", null],
+		["every week", "Add a day, like every monday.", "every monday at 09:00"],
+		["every 1 day", "Add a time, like at 09:00.", "every 1 day at 09:00"],
 		["at 9", "Add how often, like every day.", "every day at 9"],
 	])("%p", (text, message, fix) => {
 		const result = parse(text);
@@ -427,7 +435,9 @@ describe("unfinished phrases", () => {
 describe("canonical text", () => {
 	const cases: [ScheduleCadence, string | undefined, string][] = [
 		[{ n: 5, unit: "days" }, undefined, "every 5 days"],
-		[{ n: 1, unit: "days" }, undefined, "every 1 day"],
+		[{ n: 1, unit: "days" }, undefined, "every 24 hours"],
+		[{ n: 1, unit: "weeks" }, undefined, "every 7 days"],
+		[{ n: 1, unit: "hours" }, undefined, "every hour"],
 		[{ n: 12, unit: "hours" }, "Europe/Berlin", "every 12 hours"],
 		[{ preset: "hourly", minute: 0 }, undefined, "every hour"],
 		[{ preset: "hourly", minute: 15 }, "UTC", "every hour at minute 15 in UTC"],
@@ -477,9 +487,9 @@ describe("round trips", () => {
 		"America/Argentina/Buenos_Aires",
 	];
 	const CADENCES: ScheduleCadence[] = [
-		...[1, 2, 5, 12, 24, 36].map((n) => ({ n, unit: "hours" as const })),
-		...[1, 3, 5, 7, 30, 364].map((n) => ({ n, unit: "days" as const })),
-		...[1, 2, 4, 52].map((n) => ({ n, unit: "weeks" as const })),
+		...[2, 5, 12, 24, 36].map((n) => ({ n, unit: "hours" as const })),
+		...[3, 5, 7, 30, 364].map((n) => ({ n, unit: "days" as const })),
+		...[2, 4, 52].map((n) => ({ n, unit: "weeks" as const })),
 		...[0, 1, 15, 30, 59].map((minute) => ({
 			preset: "hourly" as const,
 			minute,
@@ -539,6 +549,39 @@ describe("round trips", () => {
 				timezone: interval ? undefined : schedule.timezone,
 			});
 			expect(scheduleText(result)).toBe(text);
+		}
+	});
+
+	test("one hour, day or week means the same as the words without a count", () => {
+		for (const [counted, plain] of [
+			["every 1 hour", "every hour"],
+			["every 1 hour at minute 15", "every hour at minute 15"],
+			["every 1 day at 07:00", "every day at 07:00"],
+			[
+				"every 1 week on monday at 07:00 berlin",
+				"every monday at 07:00 berlin",
+			],
+			["every 1 month on the 1st at 07:00", "monthly on the 1st at 07:00"],
+		] as const) {
+			const one = stored(counted);
+			expect(one).toEqual(stored(plain));
+			expect(stored(scheduleText(one))).toEqual(one);
+		}
+	});
+
+	test("a stored single interval reads back as the same span", () => {
+		for (const unit of ["hours", "days", "weeks"] as const) {
+			const legacy = { every: { n: 1, unit } };
+			const back = stored(scheduleText(legacy));
+			const span = (every: ScheduleCadence) =>
+				"n" in every
+					? durationMs(every)
+					: "preset" in every
+						? every.preset
+						: null;
+			expect(span(back.every)).toBe(
+				unit === "hours" ? "hourly" : durationMs(legacy.every),
+			);
 		}
 	});
 

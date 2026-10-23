@@ -707,7 +707,12 @@ class Reader {
 		}
 		const unique = [...new Set(days)].sort((a, b) => a - b);
 		const base = this.read.base;
-		if (base && base.kind === "weekly" && base.days.length === 0) {
+		if (
+			base &&
+			(base.kind === "weekly" || base.kind === "week") &&
+			base.days.length === 0
+		) {
+			base.kind = "weekly";
 			base.days = unique;
 			this.read.weekdaySpan = this.take(used);
 			return true;
@@ -1094,23 +1099,7 @@ function resolveInterval(text: string, read: Read): Outcome | null {
 	}
 	const every = { n, unit };
 	if (read.time || read.minute) {
-		const lead = read.every
-			? { from: read.every.from, to: interval.to }
-			: interval;
-		const closer: ScheduleFix[] = [];
-		if (n === 1 && unit === "days") {
-			closer.push({
-				label: "Run every day at that time",
-				text: replace(text, lead, "every day"),
-			});
-		}
-		if (n === 1 && unit === "weeks") {
-			closer.push({
-				label: "Run every Monday at that time",
-				text: replace(text, lead, "every monday"),
-			});
-		}
-		return dropTime(text, read, closer);
+		return dropTime(text, read, []);
 	}
 	if (read.zone) {
 		return fail(
@@ -1218,7 +1207,15 @@ function resolveClock(text: string, read: Read): Outcome {
 		base.kind === "week" ||
 		(base.kind === "weekly" && base.days.length === 0)
 	) {
-		return fail("incomplete", "Add a day, like every monday.");
+		const lead = read.every
+			? { from: Math.min(read.every.from, base.from), to: base.to }
+			: base;
+		return fail("incomplete", "Add a day, like every monday.", [
+			{
+				label: "Every Monday",
+				text: withTime(replace(text, lead, "every monday"), read),
+			},
+		]);
 	}
 	if (base.kind === "monthly") {
 		if (!read.day) {
@@ -1524,8 +1521,57 @@ function resolve(text: string, read: Read): Outcome {
 	if (read.everyDangling && !read.base && !read.interval) {
 		return fail("incomplete", "Add how often, like every day.");
 	}
-	return resolveInterval(text, read) ?? resolveClock(text, read);
+	return (
+		resolveInterval(text, normalizeSingle(read)) ?? resolveClock(text, read)
+	);
 }
+
+const SINGLE_INTERVAL_BASE = {
+	hours: "hourly",
+	days: "daily",
+	weeks: "week",
+	months: "monthly",
+} as const satisfies Partial<Record<IntervalUnit, BaseKind>>;
+
+function normalizeSingle(read: Read): Read {
+	const interval = read.interval;
+	if (!interval || interval.n !== 1 || interval.unit === null) {
+		return read;
+	}
+	const kind = read.base?.kind;
+	if (
+		(interval.unit === "weeks" && kind === "weekly") ||
+		(interval.unit === "months" && kind === "monthly")
+	) {
+		if (read.base && kind === "weekly" && !read.weekdaySpan) {
+			read.weekdaySpan = { from: read.base.from, to: read.base.to };
+			read.base.from = interval.from;
+			read.base.to = interval.to;
+		}
+		read.interval = undefined;
+		return read;
+	}
+	if (read.base) {
+		return read;
+	}
+	if (interval.unit === "minutes") {
+		return read;
+	}
+	read.base = {
+		from: interval.from,
+		to: interval.to,
+		kind: SINGLE_INTERVAL_BASE[interval.unit],
+		days: [],
+	};
+	read.interval = undefined;
+	return read;
+}
+
+const LEGACY_SINGLE = {
+	hours: "every hour",
+	days: "every 24 hours",
+	weeks: "every 7 days",
+} as const satisfies Record<EveryUnit, string>;
 
 function cronPhrase(cron: string): string | null {
 	const fields = cron.trim().split(/\s+/);
@@ -1556,6 +1602,9 @@ function cronPhrase(cron: string): string | null {
 
 function cadenceText(every: ScheduleCadence): string {
 	if (isScheduleInterval(every)) {
+		if (every.n === 1) {
+			return LEGACY_SINGLE[every.unit];
+		}
 		return `every ${unitText(every.n, every.unit)}`;
 	}
 	if ("preset" in every) {
