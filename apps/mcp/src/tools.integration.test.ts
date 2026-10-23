@@ -49,6 +49,11 @@ let pool: Pool;
 let client: Client;
 let orgSlug: string;
 let fullNames: string[];
+let repoRows: Awaited<ReturnType<typeof ensureDemoRepo>>[];
+
+function never(): never {
+	throw new Error("missing test fixture");
+}
 
 beforeAll(async () => {
 	container = await createTestDatabase();
@@ -77,6 +82,7 @@ beforeAll(async () => {
 		installationId: "mcp-inst",
 	});
 	fullNames = repos.map((repo) => repo.fullName);
+	repoRows = repos;
 	let number = 1;
 	for (const repo of repos) {
 		await seedRun({
@@ -227,13 +233,105 @@ describe("get_run reads like the run page", () => {
 		expect(run.verdict).toBe("needs_review");
 		expect(run.verdictLabel).toBe("Waiting for human review");
 		const unrunnable = run.steps.find(
-			(step: { stepId: string }) => step.stepId === "run:unrunnable",
+			(step: { status: string }) => step.status === "skipped",
 		);
 		expect(unrunnable).toMatchObject({
 			workflow: "Crypto or honeypot",
 			outcome: "Could not run",
 			kind: "gate",
 			status: "skipped",
+		});
+	});
+});
+
+describe("a run whose change request closed before review", () => {
+	async function closedRun(number: number) {
+		const runId = await seedRun({
+			db,
+			repo: repoRows[0] ?? never(),
+			actor: { login: "someone", externalId: "4000" },
+			number,
+			title: "closed before review",
+			verdict: "needs_review",
+			at: new Date(),
+		});
+		await pool.query(
+			"UPDATE runs SET status = 'closed', completed_at = now() WHERE id = $1",
+			[runId],
+		);
+		const items = await pool.query<{ id: string }>(
+			"UPDATE moderation_items SET status = 'closed', decided_at = now() WHERE run_id = $1 RETURNING id",
+			[runId],
+		);
+		return { runId, itemId: items.rows[0]?.id ?? never() };
+	}
+
+	test("get_run and list_runs read Closed before review", async () => {
+		const { runId } = await closedRun(90);
+		const got = JSON.parse(
+			(await call("get_run", { runId })).content[0]?.text ?? "",
+		);
+		expect(got).toMatchObject({
+			status: "closed",
+			verdict: "needs_review",
+			result: "closed-before-review",
+			verdictLabel: "Closed before review",
+		});
+		const listed = z
+			.array(
+				z.object({
+					id: z.string(),
+					result: z.string().nullable(),
+					verdictLabel: z.string().nullable(),
+				}),
+			)
+			.parse(
+				JSON.parse(
+					(await call("list_runs", { repo: "mcp-api" })).content[0]?.text ?? "",
+				),
+			);
+		expect(listed.find((row) => row.id === runId)).toMatchObject({
+			result: "closed-before-review",
+			verdictLabel: "Closed before review",
+		});
+	});
+
+	test("deciding its review item is an error that says it closed", async () => {
+		const { itemId } = await closedRun(92);
+		const result = await call("decide_moderation", {
+			repo: "mcp-api",
+			itemId,
+			decision: "approve",
+		});
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toContain(
+			"closed with its change request #92",
+		);
+	});
+});
+
+describe("a comment run reads Ran", () => {
+	test("get_run keeps the raw verdict and labels it Ran", async () => {
+		const runId = await seedRun({
+			db,
+			repo: repoRows[1] ?? never(),
+			actor: { login: "someone", externalId: "4000" },
+			number: 91,
+			title: "comment run",
+			verdict: "pass",
+			at: new Date(),
+		});
+		await pool.query(
+			"UPDATE events SET kind = 'comment.created' WHERE id = (SELECT event_id FROM runs WHERE id = $1)",
+			[runId],
+		);
+		const got = JSON.parse(
+			(await call("get_run", { runId })).content[0]?.text ?? "",
+		);
+		expect(got).toMatchObject({
+			verdict: "pass",
+			result: "ran",
+			verdictLabel: "Ran",
 		});
 	});
 });

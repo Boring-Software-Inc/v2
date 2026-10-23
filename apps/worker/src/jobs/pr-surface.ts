@@ -19,7 +19,12 @@ import {
 	wantsCheck,
 } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
-import { repoServices, responseServices, runServices } from "@tripwire/db";
+import {
+	type moderationServices,
+	repoServices,
+	responseServices,
+	runServices,
+} from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
@@ -499,6 +504,49 @@ export function firedRulesFor(
 		}));
 	}
 	return [];
+}
+
+export async function emitClosedReviewChecks(
+	deps: {
+		db: Db;
+		adapterFor: (repoFullName: string) => Promise<ForgeAdapter | null>;
+		logger: Logger;
+	},
+	closed: readonly moderationServices.ClosedReview[],
+): Promise<void> {
+	for (const review of closed) {
+		deps.logger.info(
+			{ runId: review.runId, number: review.subjectNumber },
+			"change request closed before review, run closed",
+		);
+		if (!review.check) {
+			continue;
+		}
+		const adapter = await deps.adapterFor(review.repoFullName);
+		if (!adapter) {
+			continue;
+		}
+		try {
+			const result = await adapter.execute(
+				toForgeAction(
+					review.check,
+					review.repoFullName,
+					review.subjectNumber,
+					REVIEW_POINTER.block,
+				),
+			);
+			await runServices.markActionExecuted(
+				deps.db,
+				review.check.id,
+				result.externalId,
+			);
+		} catch (error) {
+			deps.logger.warn(
+				{ runId: review.runId, error: getErrorMessage(error) },
+				"closed review check failed, the sweep retries it",
+			);
+		}
+	}
 }
 
 export function toForgeAction(

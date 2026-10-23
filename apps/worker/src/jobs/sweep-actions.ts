@@ -1,10 +1,10 @@
 import { bearsVerdict, REVIEW_POINTER } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
-import { runServices } from "@tripwire/db";
+import { moderationServices, runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
-import { toForgeAction } from "./pr-surface.ts";
+import { emitClosedReviewChecks, toForgeAction } from "./pr-surface.ts";
 
 /**
  * §5.12 surface sweeper (live-test surprise #3): actions are recorded FIRST and
@@ -86,6 +86,11 @@ export async function sweepActions(
 			"queued re-run never claimed — marked failed (worker not consuming?)",
 		);
 	}
+
+	await emitClosedReviewChecks(
+		deps,
+		await moderationServices.closeReviewsOfClosedChangeRequests(db),
+	);
 
 	const stuck = await runServices.listStuckActions(db, recordedBefore);
 	const result: SweepResult = {

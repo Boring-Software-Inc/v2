@@ -21,7 +21,11 @@ import { z } from "zod";
 import { type ForgeRuntime, normalizeFor } from "../forge-runtime.ts";
 import { installFailureReporter } from "../report-install-failure.ts";
 import { upsertInstallation } from "./installation-sync.ts";
-import { emitPendingCheck, emitPrSurface } from "./pr-surface.ts";
+import {
+	emitClosedReviewChecks,
+	emitPendingCheck,
+	emitPrSurface,
+} from "./pr-surface.ts";
 import { refreshBranchSuggestions } from "./refresh-suggestions.ts";
 import { runWorkflows } from "./run-workflows.ts";
 
@@ -194,18 +198,14 @@ export async function processEvent(
 	}
 
 	if (normalized.kind === "change-request.closed") {
-		const closed =
-			await moderationServices.closeModerationItemsForChangeRequest(
+		await emitClosedReviewChecks(
+			{ db, adapterFor: () => Promise.resolve(adapter), logger },
+			await moderationServices.closeReviewsForChangeRequest(
 				db,
 				normalized.repo.fullName,
 				normalized.changeRequest.number,
-			);
-		if (closed > 0) {
-			logger.info(
-				{ eventId: event.id, closed },
-				"change request closed, its waiting reviews closed",
-			);
-		}
+			),
+		);
 	}
 
 	if (isSelfEvent(normalized, deps.selfLogins)) {

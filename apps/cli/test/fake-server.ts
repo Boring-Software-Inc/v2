@@ -189,6 +189,20 @@ function reply(name: string, args: z.infer<ReturnType<typeof z.json>>) {
 			isError: true,
 		};
 	}
+	const item = z.looseObject({ itemId: z.string() }).safeParse(args);
+	if (
+		name === "decide_moderation" &&
+		item.success &&
+		item.data.itemId === "item_closed"
+	) {
+		const error =
+			"Review item item_closed closed with its change request #144 before anyone decided it. There is nothing to decide.";
+		return {
+			content: [{ type: "text" as const, text: error }],
+			structuredContent: { error },
+			isError: true,
+		};
+	}
 	const repo = z.looseObject({ repo: z.string() }).safeParse(args);
 	if (
 		name === "list_workflows" &&

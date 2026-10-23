@@ -1,12 +1,18 @@
+import { RUN_RESULT_LABELS, VERDICT_EVENT_KINDS } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, type SQL, sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import { RESUME_RUN_QUEUE } from "../queue.ts";
 import { moderationItems } from "../schema/moderation.ts";
-import { runs } from "../schema/runs.ts";
+import { runActions, runs } from "../schema/runs.ts";
+import {
+	getLatestRunIdForChangeRequest,
+	getRunById,
+	recordActions,
+} from "./runs.ts";
 
 /**
  * Moderation queue = a paused run (§6), not a separate system. A decision
@@ -161,33 +167,163 @@ export async function markModerationDecided(
 	return updated.length === 1;
 }
 
-export async function closeModerationItemsForChangeRequest(
+const CLOSED_CHECK_SUMMARY = `${RUN_RESULT_LABELS["closed-before-review"]}.`;
+
+const waitingRunRow = z.object({
+	id: z.string(),
+	repoFullName: z.string(),
+	subjectNumber: z.number(),
+});
+
+const postedCheckSchema = z.object({
+	sha: z.string(),
+	detailsUrl: z.string(),
+});
+
+export type ClosedCheckPayload = {
+	sha: string;
+	conclusion: "neutral";
+	summary: string;
+	detailsUrl: string;
+};
+
+export interface ClosedReview {
+	runId: string;
+	repoFullName: string;
+	subjectNumber: number;
+	check: { id: string; kind: "set-check"; payload: ClosedCheckPayload } | null;
+}
+
+export async function closeReviewsForChangeRequest(
 	db: Db,
 	repoFullName: string,
 	subjectNumber: number,
-): Promise<number> {
-	const closed = await db
+): Promise<ClosedReview[]> {
+	return await closeWaitingRuns(
+		db,
+		sql`r.repo_full_name = ${repoFullName} AND r.subject_number = ${subjectNumber}`,
+	);
+}
+
+export async function closeReviewsOfClosedChangeRequests(
+	db: Db,
+): Promise<ClosedReview[]> {
+	return await closeWaitingRuns(
+		db,
+		sql`r.subject_number IS NOT NULL AND (
+			SELECT e.kind FROM events e
+			WHERE e.repo_full_name = r.repo_full_name
+			  AND e.subject_number = r.subject_number
+			  AND e.kind IN (${sql.join(
+					VERDICT_EVENT_KINDS.map((kind) => sql`${kind}`),
+					sql`, `,
+				)})
+			ORDER BY e.received_at DESC, e.id DESC
+			LIMIT 1
+		) = 'change-request.closed'`,
+	);
+}
+
+async function closeWaitingRuns(db: Db, scope: SQL): Promise<ClosedReview[]> {
+	const waiting = z.array(waitingRunRow).parse(
+		(
+			await db.execute(sql`
+				SELECT r.id, r.repo_full_name AS "repoFullName",
+				       r.subject_number AS "subjectNumber"
+				FROM runs r
+				WHERE r.status = 'paused' AND ${scope}
+			`)
+		).rows,
+	);
+	if (waiting.length === 0) {
+		return [];
+	}
+	const ids = waiting.map((run) => run.id);
+	await db
 		.update(moderationItems)
 		.set({ status: "closed", decidedAt: new Date() })
 		.where(
 			and(
 				eq(moderationItems.status, "pending"),
-				inArray(
-					moderationItems.runId,
-					db
-						.select({ id: runs.id })
-						.from(runs)
-						.where(
-							and(
-								eq(runs.repoFullName, repoFullName),
-								eq(runs.subjectNumber, subjectNumber),
-							),
-						),
-				),
+				inArray(moderationItems.runId, ids),
+			),
+		);
+	const closed = z.array(z.object({ id: z.string() })).parse(
+		(
+			await db.execute(sql`
+				UPDATE runs r SET status = 'closed', completed_at = now()
+				WHERE r.status = 'paused'
+				  AND r.id IN (${sql.join(
+						ids.map((id) => sql`${id}`),
+						sql`, `,
+					)})
+				  AND NOT EXISTS (
+				    SELECT 1 FROM moderation_items m
+				    WHERE m.run_id = r.id AND m.status <> 'closed'
+				  )
+				RETURNING r.id
+			`)
+		).rows,
+	);
+	const out: ClosedReview[] = [];
+	for (const run of waiting) {
+		if (!closed.some((row) => row.id === run.id)) {
+			continue;
+		}
+		out.push({
+			runId: run.id,
+			repoFullName: run.repoFullName,
+			subjectNumber: run.subjectNumber,
+			check: await closedCheck(db, run),
+		});
+	}
+	return out;
+}
+
+async function closedCheck(
+	db: Db,
+	run: z.infer<typeof waitingRunRow>,
+): Promise<ClosedReview["check"]> {
+	const [posted] = await db
+		.select({ payload: runActions.payload })
+		.from(runActions)
+		.where(
+			and(
+				eq(runActions.runId, run.id),
+				eq(runActions.kind, "set-check"),
+				ne(runActions.status, "superseded"),
 			),
 		)
-		.returning({ id: moderationItems.id });
-	return closed.length;
+		.orderBy(desc(runActions.recordedAt))
+		.limit(1);
+	const check = postedCheckSchema.safeParse(posted?.payload);
+	if (!check.success) {
+		return null;
+	}
+	const latestId = await getLatestRunIdForChangeRequest(
+		db,
+		run.repoFullName,
+		run.subjectNumber,
+	);
+	const latest =
+		latestId && latestId !== run.id ? await getRunById(db, latestId) : null;
+	if (latest?.headSha === check.data.sha) {
+		return null;
+	}
+	const payload: ClosedCheckPayload = {
+		sha: check.data.sha,
+		conclusion: "neutral",
+		summary: CLOSED_CHECK_SUMMARY,
+		detailsUrl: check.data.detailsUrl,
+	};
+	const [row] = await recordActions(db, run.id, [
+		{
+			kind: "set-check",
+			payload,
+			idempotencyKey: `check:${check.data.sha}:closed`,
+		},
+	]);
+	return row ? { id: row.id, kind: "set-check", payload } : null;
 }
 
 export async function getModerationItem(db: Db, itemId: string) {
@@ -208,6 +344,10 @@ export async function listModerationItemsForRun(db: Db, runId: string) {
 
 export type ModerationDecision = "approve" | "deny";
 
+export type DecideResult =
+	| { ok: true }
+	| { ok: false; reason: "already-decided" | "closed" };
+
 export async function decideRepoModerationItem(
 	db: Db,
 	queue: { pool: Pool; boss: PgBoss } | null,
@@ -217,7 +357,7 @@ export async function decideRepoModerationItem(
 		decision: ModerationDecision;
 		decidedBy: string | null;
 	},
-): Promise<"not-found" | { ok: boolean }> {
+): Promise<"not-found" | DecideResult> {
 	const owned = await db
 		.select({ id: moderationItems.id })
 		.from(moderationItems)
@@ -237,10 +377,15 @@ export async function decideRepoModerationItem(
 		decision: input.decision,
 		decidedBy: input.decidedBy,
 	};
-	if (!queue) {
-		return { ok: await markModerationDecided(db, decision) };
+	const decided = queue
+		? await decideModerationItem(queue.pool, queue.boss, decision)
+		: await markModerationDecided(db, decision);
+	if (decided) {
+		return { ok: true };
 	}
+	const item = await getModerationItem(db, input.itemId);
 	return {
-		ok: await decideModerationItem(queue.pool, queue.boss, decision),
+		ok: false,
+		reason: item?.status === "closed" ? "closed" : "already-decided",
 	};
 }

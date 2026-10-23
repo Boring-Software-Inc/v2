@@ -1,6 +1,6 @@
 import type { ModStat, ModStats } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
@@ -228,6 +228,7 @@ export async function listRecentRuns(
 			and(
 				opts.verdicts ? inArray(runs.verdict, opts.verdicts) : undefined,
 				opts.verdicts ? eventBearsVerdict : undefined,
+				opts.verdicts ? ne(runs.status, "closed") : undefined,
 				opts.repoFullName
 					? eq(runs.repoFullName, opts.repoFullName)
 					: undefined,

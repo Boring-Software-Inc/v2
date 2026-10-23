@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { installUrlFor, signInstallState } from "@tripwire/auth/install-state";
 import {
 	AUTHORING_MODULE_PATH,
+	bearsVerdict,
 	DEFAULT_SCHEDULE_TIMEZONE,
 	describeRunSteps,
 	diffWorkflow,
@@ -9,18 +10,21 @@ import {
 	RULE_CATALOG,
 	redactWorkflowSecrets,
 	reportWorkflows,
+	runResult,
+	runResultLabel,
 	runSnapshotSchema,
 	SETUP_STAGES,
 	scheduleReadBacks,
 	setupProgressInputSchema,
 	setupStageStatusSchema,
 	validationIssueText,
-	verdictLabel,
 	workflowDefinitionSchema,
+	workflowDisplayName,
 	workflowsToCode,
 } from "@tripwire/contracts";
 import {
 	agentServices,
+	eventServices,
 	moderationServices,
 	type OrgWithRole,
 	orgServices,
@@ -74,6 +78,15 @@ const NEXT_STEP_GUIDE = {
 		"Repos are synced. Look at the code, call list_rule_catalog and get_repo_rules, suggest rules, and ask the user before set_rule or turn_on_gate.",
 	done: "Tripwire checks pull requests on at least one repo. Open a test pull request from another account to see a check.",
 } as const;
+
+function resultWords(run: {
+	status: string;
+	verdict: string | null;
+	bearsVerdict: boolean;
+}) {
+	const result = runResult(run);
+	return { result, verdictLabel: runResultLabel(result) };
+}
 
 function installLink(ctx: ToolContext, orgId: string): string | undefined {
 	const state = signInstallState(
@@ -632,7 +645,7 @@ export function registerTools(
 			"list_runs",
 			{
 				description:
-					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A run with bearsVerdict false came from a comment or a schedule. It acts on a thread, and its verdict is not the change request's verdict.",
+					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A run with bearsVerdict false came from a comment or a schedule. It acts on a thread, and its verdict is not the change request's verdict. result and verdictLabel say how the run ended, in the run page's words: closed-before-review means the change request closed while the run waited for human review.",
 				inputSchema: {
 					org: orgArg,
 					repo: anyRepoArg,
@@ -655,7 +668,7 @@ export function registerTools(
 							number: run.subjectNumber,
 							status: run.status,
 							verdict: run.verdict,
-							verdictLabel: verdictLabel(run.verdict),
+							...resultWords(run),
 							scheduled: run.scheduled,
 							bearsVerdict: run.bearsVerdict,
 							createdAt: run.createdAt.toISOString(),
@@ -671,7 +684,7 @@ export function registerTools(
 			"get_run",
 			{
 				description:
-					"One run with its steps and actions. verdictLabel is the verdict in the words the run page uses. Steps are grouped by workflow and follow each workflow's graph. Each step names its workflow, its title and id, the gate mode for gates, and its outcome in product words. Times are ISO 8601 in UTC.",
+					"One run with its steps and actions. result and verdictLabel say how the run ended, in the words the run page uses. A comment or scheduled run reads ran. Steps are grouped by workflow and follow each workflow's graph. Each step names its workflow, its title and id, the gate mode for gates, and its outcome in product words. Times are ISO 8601 in UTC.",
 				inputSchema: { org: orgArg, runId: z.string().min(1) },
 				annotations: annotate("get_run"),
 			},
@@ -695,6 +708,10 @@ export function registerTools(
 						);
 					}
 					const snapshot = runSnapshotSchema.parse(found.run.workflowSnapshot);
+					const event = await eventServices.getEventById(
+						ctx.db,
+						found.run.eventId,
+					);
 					return ok({
 						note: UNTRUSTED_NOTE,
 						id: found.run.id,
@@ -702,9 +719,12 @@ export function registerTools(
 						number: found.run.subjectNumber,
 						status: found.run.status,
 						verdict: found.run.verdict,
-						verdictLabel: verdictLabel(found.run.verdict),
+						...resultWords({
+							...found.run,
+							bearsVerdict: bearsVerdict(event?.kind),
+						}),
 						createdAt: found.run.createdAt.toISOString(),
-						workflows: snapshot.map((definition) => definition.name),
+						workflows: snapshot.map(workflowDisplayName),
 						steps: describeRunSteps(snapshot, found.steps),
 						actions: found.actions.map((action) => ({
 							kind: action.kind,
@@ -786,6 +806,28 @@ export function registerTools(
 								"Open this link to review the contributor and decide yourself.",
 						});
 					}
+					const item = await moderationServices.getModerationItem(
+						ctx.db,
+						itemId,
+					);
+					const run = item
+						? await runServices.getRunById(ctx.db, item.runId)
+						: null;
+					if (!(item && run?.repoFullName === found.fullName)) {
+						throw new ToolError(
+							`No review item ${itemId} on ${found.fullName}.`,
+							"list_queue",
+						);
+					}
+					const closedError = () =>
+						new ToolError(
+							`Review item ${itemId} closed with its change request${
+								run.subjectNumber ? ` #${run.subjectNumber}` : ""
+							} before anyone decided it. There is nothing to decide.`,
+						);
+					if (item.status === "closed") {
+						throw closedError();
+					}
 					const result = await moderationServices.decideRepoModerationItem(
 						ctx.db,
 						{ pool: ctx.pool, boss: await ctx.getBoss() },
@@ -802,20 +844,16 @@ export function registerTools(
 							"list_queue",
 						);
 					}
-					const item = await moderationServices.getModerationItem(
-						ctx.db,
-						itemId,
-					);
-					const run = item
-						? await runServices.getRunById(ctx.db, item.runId)
-						: null;
+					if (!result.ok && result.reason === "closed") {
+						throw closedError();
+					}
 					return ok({
 						done: result.ok,
 						alreadyDecided: !result.ok,
 						decision,
 						itemId,
 						repo: found.fullName,
-						number: run?.subjectNumber ?? null,
+						number: run.subjectNumber,
 					});
 				}),
 		);

@@ -209,6 +209,8 @@ const runsSchema = z.array(
 		number: z.number().nullish(),
 		status: z.string(),
 		verdict: z.string().nullish(),
+		result: z.string().nullish(),
+		verdictLabel: z.string().nullish(),
 		createdAt: z.string(),
 	}),
 );
@@ -219,6 +221,8 @@ const runSchema = z.object({
 	number: z.number().nullish(),
 	status: z.string(),
 	verdict: z.string().nullish(),
+	result: z.string().nullish(),
+	verdictLabel: z.string().nullish(),
 	createdAt: z.string(),
 	steps: z.array(
 		z.object({
@@ -227,7 +231,7 @@ const runSchema = z.object({
 			status: z.string(),
 			summary: z.string().nullish(),
 			workflow: z.string().nullish(),
-			stepId: z.string().optional(),
+			stepId: z.string().nullish(),
 			step: z.string().optional(),
 			outcome: z.string().optional(),
 		}),
@@ -282,22 +286,40 @@ function decidedTarget(value: z.infer<typeof decideSchema>): string {
 	return value.repo ? ` ${where} on ${value.repo}` : ` ${where}`;
 }
 
+function stepTitle(step: z.infer<typeof runSchema>["steps"][number]): string {
+	if (!step.step) {
+		return step.rule ?? step.kind;
+	}
+	return step.stepId ? `${step.step} (${step.stepId})` : step.step;
+}
+
 const setRuleSchema = z.object({ ruleId: z.string(), enabled: z.boolean() });
 
 const gateSchema = z.object({ repo: z.string(), url: z.string().optional() });
 
-function verdictWord(verdict: string | null | undefined, style: Style): string {
-	const label = verdictLabel(verdict);
-	if (!(verdict && label)) {
-		return verdict ?? "-";
+function verdictWord(
+	run: {
+		verdict?: string | null;
+		result?: string | null;
+		verdictLabel?: string | null;
+	},
+	style: Style,
+): string {
+	const result = run.result ?? run.verdict;
+	const label = run.verdictLabel ?? verdictLabel(run.verdict);
+	if (!(result && label)) {
+		return run.verdict ?? "-";
 	}
-	if (verdict === "pass") {
+	if (result === "pass") {
 		return style.good(label);
 	}
-	if (verdict === "block") {
+	if (result === "block") {
 		return style.bad(label);
 	}
-	return style.next(label);
+	if (result === "needs_review") {
+		return style.next(label);
+	}
+	return label;
 }
 
 type Formatter = (data: JsonValue, style: Style) => string | null;
@@ -447,7 +469,7 @@ const FORMATTERS: Record<string, Formatter> = {
 				run.repo ? shortRepo(run.repo) : "-",
 				run.number ? `#${run.number}` : "-",
 				run.status,
-				verdictWord(run.verdict, style),
+				verdictWord(run, style),
 				when(run.createdAt),
 			]),
 		);
@@ -457,7 +479,7 @@ const FORMATTERS: Record<string, Formatter> = {
 			["run", run.id],
 			["repo", run.number ? `${run.repo} #${run.number}` : run.repo],
 			["status", run.status],
-			["verdict", verdictWord(run.verdict, style)],
+			["verdict", verdictWord(run, style)],
 			["created", when(run.createdAt)],
 		];
 		if (run.url) {
@@ -473,9 +495,7 @@ const FORMATTERS: Record<string, Formatter> = {
 				const outcome = step.outcome ?? step.status;
 				return [
 					step.workflow ?? "-",
-					step.step && step.stepId
-						? `${step.step} (${step.stepId})`
-						: (step.rule ?? step.kind),
+					stepTitle(step),
 					step.status === "fail" ? style.bad(outcome) : outcome,
 					step.summary ?? "",
 				];

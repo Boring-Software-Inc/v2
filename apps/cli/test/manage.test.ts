@@ -309,6 +309,18 @@ describe("management commands over MCP", () => {
 		expect(result.stdout).toBe("done      Approved #138 on grim/scratch\n");
 	});
 
+	test("deciding an item closed with its change request fails with a clear line", async () => {
+		const result = await runCli(
+			["queue", "decide", "scratch", "item_closed", "approve"],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(result.stdout).toBe("");
+		expect(result.stderr).toBe(
+			"error     Review item item_closed closed with its change request #144 before anyone decided it. There is nothing to decide.\n",
+		);
+	});
+
 	test("tool errors exit 1 and show as json errors", async () => {
 		const result = await runCli(["--json", "runs", "show", "r1"], env());
 		expect(result.code).toBe(1);

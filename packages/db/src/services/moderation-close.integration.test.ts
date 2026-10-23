@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { DEFAULT_WORKFLOW } from "@tripwire/contracts";
+import { sql } from "drizzle-orm";
 import {
 	applyMigrations,
 	createDb,
@@ -8,14 +9,16 @@ import {
 	type TestDatabase,
 } from "../index.ts";
 import { events } from "../schema/events.ts";
+import { listRecentRuns } from "./insights.ts";
 import {
-	closeModerationItemsForChangeRequest,
+	closeReviewsForChangeRequest,
+	closeReviewsOfClosedChangeRequests,
 	createModerationItem,
 	getModerationItem,
 	listPendingItems,
 	markModerationDecided,
 } from "./moderation.ts";
-import { createRun } from "./runs.ts";
+import { createRun, getRunById, recordActions } from "./runs.ts";
 
 let container: TestDatabase;
 let db: Db;
@@ -34,7 +37,7 @@ afterAll(async () => {
 	await container?.stop();
 });
 
-async function pausedItem(id: string, repo: string, number: number) {
+async function pausedRun(id: string, repo: string, number: number) {
 	await db.insert(events).values({
 		id,
 		deliveryId: `d-${id}`,
@@ -53,7 +56,39 @@ async function pausedItem(id: string, repo: string, number: number) {
 		status: "paused",
 		verdict: "needs_review",
 	});
-	return await createModerationItem(db, { runId, nodeId: "w:review" });
+	const itemId = await createModerationItem(db, { runId, nodeId: "w:review" });
+	return { runId, itemId };
+}
+
+async function pausedItem(id: string, repo: string, number: number) {
+	return (await pausedRun(id, repo, number)).itemId;
+}
+
+async function withPostedCheck(runId: string, sha: string) {
+	await recordActions(db, runId, [
+		{
+			kind: "set-check",
+			payload: {
+				sha,
+				conclusion: "pending",
+				summary: "Waiting for human review.",
+				detailsUrl: `https://tripwire.test/runs/${runId}`,
+			},
+			idempotencyKey: `check:${sha}:needs_review`,
+		},
+	]);
+}
+
+async function closedEvent(id: string, repo: string, number: number) {
+	await db.insert(events).values({
+		id,
+		deliveryId: `d-${id}`,
+		rawKind: "pull_request",
+		raw: {},
+		kind: "change-request.closed",
+		repoFullName: repo,
+		subjectNumber: number,
+	});
 }
 
 describe("closing a change request", () => {
@@ -68,7 +103,7 @@ describe("closing a change request", () => {
 		const otherNumber = await pausedItem("evt-141", REPO, 141);
 		const otherRepo = await pausedItem("evt-other", "acme/elsewhere", 140);
 
-		expect(await closeModerationItemsForChangeRequest(db, REPO, 140)).toBe(1);
+		await closeReviewsForChangeRequest(db, REPO, 140);
 
 		expect((await getModerationItem(db, open))?.status).toBe("closed");
 		expect((await getModerationItem(db, open))?.decidedAt).not.toBeNull();
@@ -81,7 +116,7 @@ describe("closing a change request", () => {
 
 	test("a closed item can no longer be decided", async () => {
 		const item = await pausedItem("evt-142", REPO, 142);
-		await closeModerationItemsForChangeRequest(db, REPO, 142);
+		await closeReviewsForChangeRequest(db, REPO, 142);
 		expect(
 			await markModerationDecided(db, {
 				itemId: item,
@@ -89,5 +124,116 @@ describe("closing a change request", () => {
 				decidedBy: null,
 			}),
 		).toBe(false);
+	});
+
+	test("the waiting run closes, and its check is set to neutral", async () => {
+		const { runId } = await pausedRun("evt-143", REPO, 143);
+		await withPostedCheck(runId, "sha-evt-143");
+
+		const closed = await closeReviewsForChangeRequest(db, REPO, 143);
+
+		const run = await getRunById(db, runId);
+		expect(run?.status).toBe("closed");
+		expect(run?.verdict).toBe("needs_review");
+		expect(run?.completedAt).not.toBeNull();
+		expect(closed).toEqual([
+			{
+				runId,
+				repoFullName: REPO,
+				subjectNumber: 143,
+				check: {
+					id: expect.any(String),
+					kind: "set-check",
+					payload: {
+						sha: "sha-evt-143",
+						conclusion: "neutral",
+						summary: "Closed before review.",
+						detailsUrl: `https://tripwire.test/runs/${runId}`,
+					},
+				},
+			},
+		]);
+		expect(await closeReviewsForChangeRequest(db, REPO, 143)).toEqual([]);
+		const awaiting = await listRecentRuns(db, {
+			repoFullName: REPO,
+			verdicts: ["needs_review"],
+			limit: 100,
+		});
+		expect(awaiting.map((row) => row.runId)).not.toContain(runId);
+	});
+
+	test("a waiting run that never posted a check closes without one", async () => {
+		const { runId } = await pausedRun("evt-144", REPO, 144);
+		const closed = await closeReviewsForChangeRequest(db, REPO, 144);
+		expect(closed).toEqual([
+			{ runId, repoFullName: REPO, subjectNumber: 144, check: null },
+		]);
+	});
+
+	test("a newer run on the same head keeps the check", async () => {
+		const { runId } = await pausedRun("evt-145", REPO, 145);
+		await withPostedCheck(runId, "sha-evt-145");
+		await db.insert(events).values({
+			id: "evt-145-rerun",
+			deliveryId: "d-evt-145-rerun",
+			rawKind: "pull_request",
+			raw: {},
+			kind: "change-request.updated",
+			repoFullName: REPO,
+			subjectNumber: 145,
+		});
+		await createRun(db, {
+			eventId: "evt-145-rerun",
+			repoFullName: REPO,
+			subjectNumber: 145,
+			headSha: "sha-evt-145",
+			snapshot: [DEFAULT_WORKFLOW],
+			status: "completed",
+			verdict: "pass",
+		});
+		const [closed] = await closeReviewsForChangeRequest(db, REPO, 145);
+		expect(closed?.runId).toBe(runId);
+		expect(closed?.check).toBeNull();
+	});
+});
+
+describe("reviews left waiting on change requests closed earlier", () => {
+	test("close, run and item alike, while open change requests keep waiting", async () => {
+		const stale = await pausedRun("evt-150", REPO, 150);
+		await withPostedCheck(stale.runId, "sha-evt-150");
+		await closedEvent("evt-150-closed", REPO, 150);
+		const itemOnly = await pausedRun("evt-151", REPO, 151);
+		await closeReviewsForChangeRequest(db, REPO, 151);
+		await db.execute(
+			sql`UPDATE runs SET status = 'paused', completed_at = NULL WHERE id = ${itemOnly.runId}`,
+		);
+		await closedEvent("evt-151-closed", REPO, 151);
+		const reopened = await pausedRun("evt-152", REPO, 152);
+		await closedEvent("evt-152-closed", REPO, 152);
+		await db.insert(events).values({
+			id: "evt-152-reopened",
+			deliveryId: "d-evt-152-reopened",
+			rawKind: "pull_request",
+			raw: {},
+			kind: "change-request.opened",
+			repoFullName: REPO,
+			subjectNumber: 152,
+			receivedAt: new Date(Date.now() + 1000),
+		});
+		const open = await pausedRun("evt-153", REPO, 153);
+
+		const closed = await closeReviewsOfClosedChangeRequests(db);
+
+		expect(closed.map((row) => row.runId).sort()).toEqual(
+			[stale.runId, itemOnly.runId].sort(),
+		);
+		expect(
+			closed.find((row) => row.runId === stale.runId)?.check?.payload,
+		).toMatchObject({ sha: "sha-evt-150", conclusion: "neutral" });
+		expect((await getModerationItem(db, stale.itemId))?.status).toBe("closed");
+		expect((await getRunById(db, itemOnly.runId))?.status).toBe("closed");
+		expect((await getRunById(db, reopened.runId))?.status).toBe("paused");
+		expect((await getModerationItem(db, open.itemId))?.status).toBe("pending");
+		expect(await closeReviewsOfClosedChangeRequests(db)).toEqual([]);
 	});
 });

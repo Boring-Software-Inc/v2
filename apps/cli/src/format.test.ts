@@ -276,7 +276,7 @@ describe("run steps and decisions in product words", () => {
 					status: "skipped",
 					summary: "All of: It takes rule results, not events",
 					workflow: "QA any of crypto or honeypot blocks",
-					stepId: "run:unrunnable",
+					stepId: null,
 					step: "Its wiring is broken, so Tripwire did not run it",
 					gate: null,
 					outcome: "Could not run",
@@ -285,8 +285,95 @@ describe("run steps and decisions in product words", () => {
 		});
 		expect(text).toContain("verdict   Waiting for human review");
 		expect(text).toContain(
-			"QA any of crypto or honeypot blocks     Its wiring is broken, so Tripwire did not run it (run:unrunnable)",
+			"QA any of crypto or honeypot blocks     Its wiring is broken, so Tripwire did not run it     Could not run",
 		);
+		expect(text).not.toContain("run:unrunnable");
+		expect(text).not.toContain("\n-  ");
+	});
+
+	test("a run closed before review says so, and a comment run says Ran", () => {
+		const closed = formatResult("get_run", {
+			id: "run_3",
+			repo: "grim/scratch",
+			number: 144,
+			status: "closed",
+			verdict: "needs_review",
+			result: "closed-before-review",
+			verdictLabel: "Closed before review",
+			createdAt: "2026-10-23T14:15:00.000Z",
+			steps: [],
+		});
+		expect(closed).toContain("status    closed");
+		expect(closed).toContain("verdict   Closed before review");
+		expect(closed).not.toContain("Waiting");
+		const comment = formatResult("get_run", {
+			id: "run_4",
+			repo: "grim/scratch",
+			number: 142,
+			status: "completed",
+			verdict: "pass",
+			result: "ran",
+			verdictLabel: "Ran",
+			createdAt: "2026-10-23T14:15:00.000Z",
+			steps: [],
+		});
+		expect(comment).toContain("verdict   Ran");
+		expect(
+			formatResult("list_runs", [
+				{
+					id: "run_3",
+					repo: "grim/scratch",
+					number: 144,
+					status: "closed",
+					verdict: "needs_review",
+					result: "closed-before-review",
+					verdictLabel: "Closed before review",
+					createdAt: "2026-10-23T14:15:00.000Z",
+				},
+			]),
+		).toContain("Closed before review");
+	});
+
+	test("a decided review reads its decision once, and the floor names its workflow", () => {
+		const text = formatResult("get_run", {
+			id: "run_5",
+			repo: "grim/scratch",
+			number: 146,
+			status: "completed",
+			verdict: "block",
+			result: "block",
+			verdictLabel: "Blocked",
+			createdAt: "2026-10-23T14:15:00.000Z",
+			steps: [
+				{
+					kind: "action",
+					rule: null,
+					status: "pass",
+					summary: null,
+					workflow: "Doubtful title",
+					stepId: "send-to-moderation",
+					step: "Human review",
+					gate: null,
+					outcome: "Blocked",
+				},
+				{
+					kind: "action",
+					rule: null,
+					status: "pass",
+					summary: null,
+					workflow: "Doubtful title",
+					stepId: null,
+					step: "Human review blocked it",
+					gate: null,
+					outcome: "Blocked",
+				},
+			],
+		});
+		expect(text).toContain(
+			"Doubtful title     Human review (send-to-moderation)     Blocked",
+		);
+		expect(text).toContain("Doubtful title     Human review blocked it");
+		expect(text).not.toContain("run:deny-floor");
 		expect(text).not.toContain("\n-  ");
 	});
 
