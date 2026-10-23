@@ -5,7 +5,16 @@ import {
 	VERDICT_EVENT_KINDS,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, desc, eq, inArray, ne, type SQL, sql } from "drizzle-orm";
+import {
+	and,
+	desc,
+	eq,
+	inArray,
+	ne,
+	notInArray,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { z } from "zod";
@@ -306,16 +315,43 @@ async function closeWaitingRuns(
 			run.repoFullName,
 			run.subjectNumber,
 		);
+		const check = await closedCheck(db, run, latestId);
+		const comment =
+			latestId === run.id ? await closedComment(db, appUrl, run) : null;
+		await retireWaitingSurfaces(
+			db,
+			run.id,
+			[check, comment].flatMap((row) => (row ? [row.id] : [])),
+		);
 		out.push({
 			runId: run.id,
 			repoFullName: run.repoFullName,
 			subjectNumber: run.subjectNumber,
-			check: await closedCheck(db, run, latestId),
-			comment:
-				latestId === run.id ? await closedComment(db, appUrl, run) : null,
+			check,
+			comment,
 		});
 	}
 	return out;
+}
+
+const SURFACE_KINDS = ["comment", "delete-comment", "set-check"];
+
+async function retireWaitingSurfaces(
+	db: Db,
+	runId: string,
+	keep: readonly string[],
+): Promise<void> {
+	await db
+		.update(runActions)
+		.set({ status: "superseded" })
+		.where(
+			and(
+				eq(runActions.runId, runId),
+				eq(runActions.status, "recorded"),
+				inArray(runActions.kind, SURFACE_KINDS),
+				keep.length > 0 ? notInArray(runActions.id, [...keep]) : undefined,
+			),
+		);
 }
 
 async function closedComment(

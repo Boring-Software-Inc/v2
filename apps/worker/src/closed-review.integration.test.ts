@@ -206,3 +206,73 @@ describe("the sweep closes reviews left waiting on closed change requests", () =
 		expect(await moderationServices.listPendingItems(db, REPO)).toHaveLength(0);
 	});
 });
+
+describe("a forge outage before the change request closed", () => {
+	test("the sweep posts the closure and never replays the waiting surface", async () => {
+		const sha = "d".repeat(40);
+		const runId = await waitingRun("outage-open", 150, sha);
+		await runServices.recordActions(db, runId, [
+			{
+				kind: "set-check",
+				payload: {
+					sha,
+					conclusion: "pending",
+					summary: "Waiting for human review.",
+					detailsUrl: `http://localhost:3000/runs/${runId}`,
+				},
+				idempotencyKey: `check:${sha}:needs_review:retry`,
+			},
+			{
+				kind: "comment",
+				payload: {
+					number: 150,
+					body: "Waiting for human review.",
+					verdict: "needs_review",
+					previousVerdict: null,
+				},
+				idempotencyKey: "comment:150:needs_review",
+			},
+		]);
+		await db.insert(schema.events).values({
+			id: "outage-closed",
+			deliveryId: "d-outage-closed",
+			rawKind: "pull_request",
+			raw: {},
+			kind: "change-request.closed",
+			repoFullName: REPO,
+			subjectNumber: 150,
+		});
+		executed.length = 0;
+
+		const sweep = () =>
+			sweepActions(
+				{
+					db,
+					adapterFor: () => Promise.resolve(adapter),
+					logger,
+					appUrl: "http://localhost:3000",
+				},
+				{
+					recordedBefore: new Date(Date.now() + 60_000),
+					giveUpBefore: new Date(0),
+				},
+			);
+		await sweep();
+		await sweep();
+
+		expect((await runServices.getRunById(db, runId))?.status).toBe("closed");
+		expect(
+			executed.map((action) =>
+				action.kind === "set-check"
+					? `check:${action.check.conclusion}`
+					: action.kind === "comment"
+						? `comment:${action.body.includes("Waiting") ? "waiting" : "closed"}`
+						: action.kind,
+			),
+		).toEqual(["check:neutral", "comment:closed"]);
+		const recorded = (await runServices.listRunActions(db, runId)).filter(
+			(action) => action.status === "recorded",
+		);
+		expect(recorded).toEqual([]);
+	});
+});
