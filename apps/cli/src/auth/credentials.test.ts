@@ -23,6 +23,7 @@ function fakeSystem(keychain: RunResult): System {
 		runInteractive: async () => keychain,
 		which: (binary) => (binary === "security" ? "/usr/bin/security" : null),
 		exists: () => false,
+		list: () => [],
 	};
 }
 

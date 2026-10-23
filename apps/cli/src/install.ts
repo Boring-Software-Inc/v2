@@ -202,9 +202,7 @@ export async function runInstall(
 	p.intro(pc.dim("Setting up Tripwire in your coding agents"));
 	if (detections.length === 0) {
 		p.log.warn("No AI coding tools found");
-		p.outro(
-			"Install Claude Code, Codex, Cursor, VS Code, Devin Desktop or Grok, then run this again.",
-		);
+		p.outro("Install a supported coding agent, then run this again.");
 		return 1;
 	}
 	p.log.step(

@@ -164,12 +164,20 @@ describe("agent install", () => {
 		}
 	});
 
-	test("grok gets the MCP only", async () => {
+	test("grok: mcp add plus the shared skill", async () => {
 		sandbox.addBinary("grok", 'printf "%s\\n" "grok $*" >> "$ARGV_LOG"');
 		const grok = buildAgents(system).find((agent) => agent.id === "grok");
 		if (!grok) throw new Error("missing grok");
 		const result = await installAgent(grok, URL);
-		expect(result.kind === "done" && result.skills).toEqual([]);
+		expect(result.kind === "done" && result.skills.map((s) => s.path)).toEqual([
+			join(
+				sandbox.home,
+				".agents",
+				"skills",
+				"tripwire-get-started",
+				"SKILL.md",
+			),
+		]);
 		expect(sandbox.argv()).toEqual([
 			"grok mcp list",
 			`grok mcp add --transport http tripwire ${URL}`,

@@ -1,4 +1,4 @@
-import { formatCommand } from "#/agents/shell";
+import { formatCommand, sharedSkillsDir } from "#/agents/shell";
 import type { Agent } from "#/agents/types";
 import { SERVER_NAME } from "#/config";
 import type { System } from "#/system";
@@ -20,7 +20,7 @@ export function createGrok(system: System): Agent {
 	return {
 		id: "grok",
 		name: "Grok",
-		signInHint: "the MCP settings in Grok",
+		signInHint: "/mcps inside Grok",
 		detect: () => system.which("grok") !== null,
 		hasServer: listed,
 		addServer: async (url) => {
@@ -37,7 +37,7 @@ export function createGrok(system: System): Agent {
 			}
 			throw new Error(result.stderr || result.stdout || `${command} failed`);
 		},
-		skillsDirs: () => [],
+		skillsDirs: () => [sharedSkillsDir(system)],
 		login: () => null,
 	};
 }

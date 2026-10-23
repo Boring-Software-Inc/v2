@@ -42,8 +42,10 @@ them and carry on. They never block or change setup.
 1. **Connect.** Call `whoami`.
    - Tool missing or unauthorized: the MCP is not installed or not signed in.
      Tell the user to sign in with their agent: `claude mcp login tripwire` (or
-     `/mcp`) in Claude Code, `codex mcp login tripwire` in Codex, the MCP
-     settings in Cursor, VS Code or Devin Desktop. If it is not installed:
+     `/mcp`) in Claude Code, `codex mcp login tripwire` in Codex,
+     `opencode mcp auth tripwire` in OpenCode, `kilo mcp auth tripwire` in Kilo
+     Code, `muse mcp login tripwire` in Muse Code, `/mcp` in other terminal
+     agents, or the MCP settings in an editor. If it is not installed:
      `npx @tripwire-sh/cli install`. Wait, then call `whoami` again.
    - Access pending: Tripwire is in closed beta. Give the request access link
      https://app.tripwire.sh and stop.

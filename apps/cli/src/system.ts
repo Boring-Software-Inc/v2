@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { accessSync, constants, existsSync } from "node:fs";
+import { accessSync, constants, existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 
@@ -18,6 +18,7 @@ export interface System {
 	runInteractive(command: string, args: string[]): Promise<RunResult>;
 	which(binary: string): string | null;
 	exists(path: string): boolean;
+	list(dir: string): string[];
 }
 
 function isExecutable(path: string): boolean {
@@ -100,6 +101,14 @@ function inherit(
 	});
 }
 
+function listDir(dir: string): string[] {
+	try {
+		return readdirSync(dir);
+	} catch {
+		return [];
+	}
+}
+
 function macAppDirs(env: NodeJS.ProcessEnv, home: string): string[] {
 	if (env.TRIPWIRE_APP_DIRS !== undefined) {
 		return env.TRIPWIRE_APP_DIRS.split(delimiter).filter(Boolean);
@@ -119,5 +128,6 @@ export function realSystem(env: NodeJS.ProcessEnv = process.env): System {
 		runInteractive: (command, args) => inherit(command, args, env),
 		which: (binary) => findOnPath(binary, env, platform),
 		exists: existsSync,
+		list: listDir,
 	};
 }
