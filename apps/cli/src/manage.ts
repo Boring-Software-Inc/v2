@@ -9,6 +9,15 @@ import {
 } from "#/auth/device";
 import { loadSession } from "#/auth/session";
 import { authUrl, mcpUrl } from "#/config";
+import {
+	errorLine,
+	formatResult,
+	formatUserCode,
+	friendlyError,
+	pairs,
+	type Style,
+	styleFor,
+} from "#/format";
 import { callTool, type ToolArgs, type ToolOutput } from "#/mcp-client";
 import type { System } from "#/system";
 
@@ -22,6 +31,8 @@ export interface ManageDeps {
 interface GlobalOptions {
 	json: boolean;
 	org?: string;
+	style: Style;
+	errStyle: Style;
 }
 
 type JsonValue = z.infer<ReturnType<typeof z.json>>;
@@ -31,12 +42,19 @@ const globalsSchema = z.object({
 	org: z.string().optional(),
 });
 
-const confirmSchema = z.looseObject({ confirmUrl: z.string() });
+const whoamiNameSchema = z.looseObject({
+	user: z.looseObject({ name: z.string() }),
+});
 
 function globals(command: Command, system: System): GlobalOptions {
 	const parsed = globalsSchema.parse(command.optsWithGlobals());
 	const org = parsed.org ?? system.env.TRIPWIRE_ORG;
-	return { json: parsed.json === true, org };
+	return {
+		json: parsed.json === true,
+		org,
+		style: styleFor(process.stdout.isTTY === true, system.env),
+		errStyle: styleFor(process.stderr.isTTY === true, system.env),
+	};
 }
 
 function out(text: string): void {
@@ -62,7 +80,11 @@ function parseParam(pair: string): [string, JsonValue] {
 	}
 }
 
-function render(output: ToolOutput, options: GlobalOptions): number {
+function render(
+	tool: string,
+	output: ToolOutput,
+	options: GlobalOptions,
+): number {
 	if (options.json) {
 		const body = output.isError
 			? { error: output.text }
@@ -71,14 +93,13 @@ function render(output: ToolOutput, options: GlobalOptions): number {
 		return output.isError ? 1 : 0;
 	}
 	if (output.isError) {
-		err(output.text || "The Tripwire server returned an error");
+		err(errorLine(friendlyError(output.text, output.data), options.errStyle));
 		return 1;
 	}
-	out(output.text || JSON.stringify(output.data, null, 2));
-	const confirm = confirmSchema.safeParse(output.data);
-	if (confirm.success && !output.text.includes(confirm.data.confirmUrl)) {
-		out(`Open this link to confirm: ${confirm.data.confirmUrl}`);
-	}
+	out(
+		formatResult(tool, output.data, options.style) ??
+			(output.text || JSON.stringify(output.data, null, 2)),
+	);
 	return 0;
 }
 
@@ -86,7 +107,7 @@ function fail(error: Error, options: GlobalOptions): number {
 	if (options.json) {
 		out(JSON.stringify({ error: error.message }, null, 2));
 	} else {
-		err(error.message);
+		err(errorLine(friendlyError(error.message), options.errStyle));
 	}
 	return 1;
 }
@@ -110,7 +131,7 @@ async function runTool(
 			withOrg(options, args),
 			deps.fetch,
 		);
-		process.exitCode = render(output, options);
+		process.exitCode = render(name, output, options);
 	} catch (error) {
 		process.exitCode = fail(
 			error instanceof Error ? error : new Error(String(error)),
@@ -127,24 +148,59 @@ async function login(deps: ManageDeps, command: Command): Promise<void> {
 	try {
 		const code = await requestDeviceCode(deps.auth, base, resource);
 		const link = code.verification_uri_complete ?? code.verification_uri;
-		err(`Open ${link}`);
-		err(`and confirm this code: ${code.user_code}`);
+		err(
+			pairs(
+				[
+					["code", formatUserCode(code.user_code)],
+					["open", link],
+					["", "Waiting for you to allow it in the browser"],
+				],
+				options.errStyle,
+			),
+		);
 		if (browser && deps.openUrl) {
 			await deps.openUrl(link).catch(() => undefined);
 		}
-		err("Waiting for you to approve in the browser...");
 		const credential = await pollForToken(deps.auth, base, resource, code);
 		const where = await save(deps.system, credential);
 		if (options.json) {
 			out(JSON.stringify({ signedIn: true, store: where }, null, 2));
 		} else {
-			out(`Signed in. Token saved to the ${where}.`);
+			const name = await signedInName(deps, credential);
+			out(
+				pairs(
+					[["done", name ? `Signed in as ${name}` : "Signed in"]],
+					options.style,
+				),
+			);
 		}
 	} catch (error) {
 		process.exitCode = fail(
 			error instanceof Error ? error : new Error(String(error)),
 			options,
 		);
+	}
+}
+
+async function signedInName(
+	deps: ManageDeps,
+	credential: Credential,
+): Promise<string | null> {
+	try {
+		const output = await callTool(
+			{
+				token: credential.accessToken,
+				mcpUrl: deps.system.env.TRIPWIRE_MCP_URL || credential.mcpUrl,
+				source: "file",
+			},
+			"whoami",
+			{},
+			deps.fetch,
+		);
+		const parsed = whoamiNameSchema.safeParse(output.data);
+		return parsed.success ? parsed.data.user.name : null;
+	} catch {
+		return null;
 	}
 }
 
@@ -174,7 +230,12 @@ async function logout(deps: ManageDeps, command: Command): Promise<void> {
 	if (options.json) {
 		out(JSON.stringify({ signedIn: false }, null, 2));
 	} else {
-		out(credential ? "Signed out." : "Not signed in.");
+		out(
+			pairs(
+				[["done", credential ? "Signed out" : "Not signed in"]],
+				options.style,
+			),
+		);
 	}
 }
 
@@ -244,8 +305,19 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 				if (opts.enable || opts.disable) {
 					args.enabled = opts.enable === true;
 				}
-				if (opts.param.length > 0) {
-					args.params = Object.fromEntries(opts.param.map(parseParam));
+				try {
+					if (opts.param.length > 0) {
+						args.config = Object.fromEntries(opts.param.map(parseParam));
+					}
+					if (args.enabled === undefined && args.config === undefined) {
+						throw new Error("Pass --enable, --disable or --param.");
+					}
+				} catch (error) {
+					process.exitCode = fail(
+						error instanceof Error ? error : new Error(String(error)),
+						globals(command, deps.system),
+					);
+					return;
 				}
 				return runTool(deps, command, "set_rule", args);
 			},
@@ -323,18 +395,30 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 			),
 		);
 	queue
-		.command("decide <itemId> <action>")
+		.command("decide <repo> <itemId> <action>")
 		.description(
 			"Decide an item: approve, remove or ban. A ban returns a link a human must open",
 		)
-		.action((itemId: string, action: string, _options, command: Command) => {
-			if (!["approve", "remove", "ban"].includes(action)) {
-				process.exitCode = fail(
-					new Error("action must be approve, remove or ban"),
-					globals(command, deps.system),
-				);
-				return;
-			}
-			return runTool(deps, command, "decide_moderation", { itemId, action });
-		});
+		.action(
+			(
+				repo: string,
+				itemId: string,
+				action: string,
+				_options,
+				command: Command,
+			) => {
+				if (!["approve", "remove", "ban"].includes(action)) {
+					process.exitCode = fail(
+						new Error("action must be approve, remove or ban"),
+						globals(command, deps.system),
+					);
+					return;
+				}
+				return runTool(deps, command, "decide_moderation", {
+					repo,
+					itemId,
+					decision: action,
+				});
+			},
+		);
 }

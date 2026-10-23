@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { realAuthDeps } from "#/auth/device";
 import { VERSION } from "#/config";
+import { errorLine, styleFor } from "#/format";
 import { runInstall } from "#/install";
 import { type ManageDeps, registerManageCommands } from "#/manage";
 import type { System } from "#/system";
@@ -23,9 +24,14 @@ const PASSTHROUGH = new Set(["--help", "-h", "--version", "-V"]);
 
 const VALUE_OPTIONS = new Set(["--org"]);
 
-export function withDefaultCommand(argv: string[]): string[] {
+export type Route =
+	| { kind: "run"; argv: string[] }
+	| { kind: "help" }
+	| { kind: "unknown"; command: string };
+
+export function route(argv: string[]): Route {
 	if (argv.some((arg) => PASSTHROUGH.has(arg))) {
-		return argv;
+		return { kind: "run", argv };
 	}
 	let index = 0;
 	while (index < argv.length) {
@@ -36,10 +42,33 @@ export function withDefaultCommand(argv: string[]): string[] {
 		index += VALUE_OPTIONS.has(arg) ? 2 : 1;
 	}
 	const first = argv[index];
-	if (first !== undefined && COMMANDS.has(first)) {
-		return argv;
+	if (first === undefined) {
+		return { kind: "help" };
 	}
-	return ["install", ...argv];
+	if (COMMANDS.has(first)) {
+		return { kind: "run", argv };
+	}
+	return { kind: "unknown", command: first };
+}
+
+export async function main(system: System, argv: string[]): Promise<void> {
+	const routed = route(argv);
+	const program = buildProgram(system);
+	if (routed.kind === "unknown") {
+		process.stderr.write(
+			`${errorLine(
+				`Unknown command ${routed.command}. Run tripwire --help.`,
+				styleFor(process.stderr.isTTY === true, system.env),
+			)}\n`,
+		);
+		process.exitCode = 1;
+		return;
+	}
+	if (routed.kind === "help") {
+		program.outputHelp();
+		return;
+	}
+	await program.parseAsync(routed.argv, { from: "user" });
 }
 
 async function openUrl(system: System, url: string): Promise<void> {

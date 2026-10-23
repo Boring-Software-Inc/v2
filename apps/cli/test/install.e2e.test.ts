@@ -95,7 +95,7 @@ describe("tripwire install (e2e, temp HOME)", () => {
 	});
 
 	test("without a TTY it does not prompt, log in or touch the clipboard", async () => {
-		const result = await runCli(["acme#abcde12345"], sandbox.env);
+		const result = await runCli(["install", "acme#abcde12345"], sandbox.env);
 		expect(result.code).toBe(0);
 		expect(sandbox.argv().some((line) => line.includes("login"))).toBe(false);
 		expect(existsSync(join(sandbox.home, "clipboard.txt"))).toBe(false);
