@@ -190,6 +190,7 @@ export async function resumeRun(
 			reasons: buildCommentReasons(runData.steps, customRecords),
 			pendingActionRows: actionRows,
 			pendingCheckPosted: true,
+			resumedFrom: "needs_review",
 		},
 	);
 	// §9 live activity feed: the resumed run's verdict changed — announce it.
@@ -245,6 +246,7 @@ async function resumeDegradedRun(
 			reasons: buildCommentReasons(runData.steps, customRecords),
 			pendingActionRows: actionRows,
 			pendingCheckPosted: true,
+			resumedFrom: "needs_review",
 		},
 	);
 	await deps.pool.query("SELECT pg_notify('runs', $1)", [runData.run.eventId]);

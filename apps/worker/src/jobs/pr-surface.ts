@@ -98,6 +98,7 @@ export interface EmitSurfaceInput {
 	degraded?: boolean;
 	/** Manual re-run — the comment carries the re-evaluation note. */
 	rerun?: boolean;
+	resumedFrom?: Verdict;
 	pendingCheckPosted?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
 	pendingActionRows: {
@@ -143,12 +144,9 @@ export async function emitPrSurface(
 
 	// The verdict the PR already shows — drives the resolution copy AND whether a
 	// stale request-changes review must be dismissed (§7).
-	const previousVerdict = await runServices.getPreviousVerdict(
-		db,
-		repoFullName,
-		number,
-		runId,
-	);
+	const previousVerdict =
+		input.resumedFrom ??
+		(await runServices.getPreviousVerdict(db, repoFullName, number, runId));
 	// A block that just cleared ⇒ dismiss its outstanding request-changes review
 	// (it can't self-edit and would keep gating merge on required-review repos).
 	const reviewToDismiss =

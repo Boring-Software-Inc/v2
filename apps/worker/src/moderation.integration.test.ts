@@ -395,6 +395,110 @@ describe("deny floor — deny with no deny edge never fails open", () => {
 	});
 });
 
+describe("a resumed run moves the change request off human review", () => {
+	function surfaceRecorder() {
+		const comments: {
+			verdict: string;
+			previousVerdict: string | null;
+			body: string;
+		}[] = [];
+		const checks: string[] = [];
+		const adapter = {
+			execute: (action: {
+				kind: string;
+				body?: string;
+				verdict?: string;
+				previousVerdict?: string | null;
+				check?: { conclusion: string };
+			}) => {
+				if (action.kind === "comment") {
+					comments.push({
+						verdict: action.verdict ?? "",
+						previousVerdict: action.previousVerdict ?? null,
+						body: action.body ?? "",
+					});
+				}
+				if (action.kind === "set-check" && action.check) {
+					checks.push(action.check.conclusion);
+				}
+				return Promise.resolve({ externalId: null });
+			},
+		};
+		return {
+			comments,
+			checks,
+			resolveForge: staticForge({
+				adapter: adapter as never,
+				reads: freshReads,
+			}),
+		};
+	}
+
+	async function pauseOn(
+		number: number,
+		resolveForge: ReturnType<typeof staticForge>,
+	) {
+		const raw = await Bun.file(
+			new URL(
+				"../../../packages/forge-github/fixtures/pull_request.opened.json",
+				import.meta.url,
+			).pathname,
+		).json();
+		raw.number = number;
+		raw.pull_request.number = number;
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: `resume-surface-${number}`,
+			rawKind: "pull_request",
+			raw,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		await processEvent({ ...deps(), resolveForge }, { eventId });
+		const run = await pool.query("SELECT id FROM runs WHERE event_id = $1", [
+			eventId,
+		]);
+		const items = await moderationServices.listPendingItems(
+			db,
+			"Codertocat/Hello-World",
+		);
+		const item = items.find((i) => i.runId === run.rows[0].id);
+		if (!item) {
+			throw new Error("no pending item");
+		}
+		return item;
+	}
+
+	for (const [decision, number, verdict, conclusion] of [
+		["approve", 9101, "pass", "success"],
+		["deny", 9102, "block", "failure"],
+	] as const) {
+		test(`${decision} replaces the human review comment and check`, async () => {
+			const forge = surfaceRecorder();
+			const item = await pauseOn(number, forge.resolveForge);
+			expect(forge.comments.at(-1)?.verdict).toBe("needs_review");
+			expect(forge.checks.at(-1)).toBe("pending");
+
+			await moderationServices.decideModerationItem(pool, boss, {
+				itemId: item.id,
+				decision,
+				decidedBy: null,
+			});
+			await resumeRun(
+				{ ...deps(), resolveForge: forge.resolveForge },
+				{ itemId: item.id, decision },
+			);
+
+			expect(forge.comments.at(-1)).toMatchObject({
+				verdict,
+				previousVerdict: "needs_review",
+			});
+			expect(forge.comments.at(-1)?.body).not.toContain("human review");
+			expect(forge.checks.at(-1)).toBe(conclusion);
+		});
+	}
+});
+
 describe("the tripwire check while a person decides", () => {
 	function recordingForge() {
 		const checks: { conclusion: string; summary: string }[] = [];
