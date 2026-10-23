@@ -7,7 +7,7 @@ import type {
 	WorkflowDefinition,
 } from "@tripwire/contracts";
 import { workflowDefinitionSchema } from "@tripwire/contracts";
-import { executeWorkflow } from "@tripwire/core";
+import { executeWorkflow, type StepRecord } from "@tripwire/core";
 import {
 	eventServices,
 	moderationServices,
@@ -48,6 +48,34 @@ export function resolveResumeOutcome(
 		};
 	}
 	return { verdict: graph.verdict, floorBlock: false };
+}
+
+export function resumedSteps(
+	definitionId: string,
+	steps: readonly StepRecord[],
+	floorPausedNodeId: string | null,
+	at: string,
+): StepRecord[] {
+	const resumed = steps.map((step) => ({
+		...step,
+		nodeId: `${definitionId}:${step.nodeId}:resume`,
+	}));
+	if (floorPausedNodeId === null) {
+		return resumed;
+	}
+	return [
+		...resumed,
+		{
+			nodeId: "run:deny-floor",
+			nodeKind: "action",
+			status: "pass",
+			input: { decision: "deny", pausedNodeId: floorPausedNodeId },
+			output: { rule: "deny → block (graph produced no block action)" },
+			startedAt: at,
+			finishedAt: at,
+			durationMs: 0,
+		},
+	];
 }
 
 /**
@@ -128,22 +156,13 @@ export async function resumeRun(
 		result,
 	);
 
-	const steps = result.steps.map((step) => ({
-		...step,
-		nodeId: `${definition.id}:${step.nodeId}:resume`,
-	}));
+	const steps = resumedSteps(
+		definition.id,
+		result.steps,
+		denyFloored ? item.nodeId : null,
+		new Date().toISOString(),
+	);
 	if (denyFloored) {
-		const at = new Date().toISOString();
-		steps.push({
-			nodeId: "run:deny-floor",
-			nodeKind: "action",
-			status: "pass",
-			input: { decision: "deny", pausedNodeId: item.nodeId },
-			output: { rule: "deny → block (graph produced no block action)" },
-			startedAt: at,
-			finishedAt: at,
-			durationMs: 0,
-		});
 		logger.warn(
 			{ runId: item.runId, pausedNodeId: item.nodeId },
 			"deny produced no block action — verdict floored to block",

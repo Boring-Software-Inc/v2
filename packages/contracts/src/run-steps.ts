@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { RUN_RESULT_LABELS } from "./run-result.ts";
 import { type Verdict, verdictSchema } from "./runs.ts";
 import {
 	type GateMode,
 	type WorkflowDefinition,
 	type WorkflowNode,
 	workflowDefinitionSchema,
+	workflowDisplayName,
 } from "./workflow.ts";
 import { WORKFLOW_PORTS } from "./workflow-connections.ts";
 import { stepNames } from "./workflow-lint.ts";
@@ -15,12 +17,13 @@ export interface RunStepInput {
 	ruleId: string | null;
 	status: string;
 	summary: string | null;
+	input?: unknown;
 	output?: unknown;
 }
 
 export interface RunStepView {
 	workflow: string | null;
-	stepId: string;
+	stepId: string | null;
 	step: string;
 	gate: string | null;
 	outcome: string;
@@ -31,9 +34,9 @@ export interface RunStepView {
 }
 
 export const VERDICT_LABELS = {
-	pass: "Passed",
-	block: "Blocked",
-	needs_review: "Waiting for human review",
+	pass: RUN_RESULT_LABELS.pass,
+	block: RUN_RESULT_LABELS.block,
+	needs_review: RUN_RESULT_LABELS.needs_review,
 } as const satisfies Record<Verdict, string>;
 
 const verdictWordSchema = verdictSchema.nullable().catch(null);
@@ -75,8 +78,15 @@ const unrunnableOutputSchema = z
 	})
 	.catch({ workflows: [] });
 
-const decisionOutputSchema = z
+const decisionInputSchema = z
 	.object({ decision: z.enum(["approve", "deny"]) })
+	.nullable()
+	.catch(null);
+
+const DENY_FLOOR_STEP = "run:deny-floor";
+
+const denyFloorInputSchema = z
+	.object({ pausedNodeId: z.string() })
 	.nullable()
 	.catch(null);
 
@@ -168,6 +178,7 @@ interface Placed {
 	rank: number;
 	resumed: number;
 	index: number;
+	waitingOn?: string;
 }
 
 function unrunnableRows(
@@ -186,8 +197,8 @@ function unrunnableRows(
 				?.messages ?? [];
 		return {
 			view: {
-				workflow: workflow.name,
-				stepId: UNRUNNABLE_STEP,
+				workflow: workflowDisplayName(workflow),
+				stepId: null,
 				step: "Its wiring is broken, so Tripwire did not run it",
 				gate: null,
 				outcome: outcomeWord(step.nodeKind, step.status),
@@ -215,6 +226,7 @@ export function describeRunSteps(
 	const orders = new Map(
 		definitions.map((definition) => [definition.id, graphOrder(definition)]),
 	);
+	const decided = new Set<string>();
 	const placed = steps.flatMap((step, index): Placed[] => {
 		const resumed = step.nodeId.endsWith(RESUME_SUFFIX);
 		const nodeId = resumed
@@ -232,14 +244,37 @@ export function describeRunSteps(
 			rule: step.ruleId,
 			status: step.status,
 		};
+		if (nodeId === DENY_FLOOR_STEP) {
+			const paused = denyFloorInputSchema.parse(step.input ?? null);
+			const owner = paused ? locate(paused.pausedNodeId, definitions) : null;
+			if (owner) {
+				return [
+					{
+						view: {
+							workflow: workflowDisplayName(owner.definition),
+							stepId: null,
+							step: RUN_STEP_TITLES.get(nodeId) ?? nodeId,
+							gate: null,
+							outcome: DECISION_WORDS.deny,
+							...base,
+						},
+						group: definitions.indexOf(owner.definition),
+						rank: orders.get(owner.definition.id)?.get(owner.node.id) ?? 0,
+						resumed: 1,
+						index,
+					},
+				];
+			}
+		}
 		const found = locate(nodeId, definitions);
 		if (!found) {
+			const title = RUN_STEP_TITLES.get(nodeId);
 			return [
 				{
 					view: {
 						workflow: null,
-						stepId: nodeId,
-						step: RUN_STEP_TITLES.get(nodeId) ?? nodeId,
+						stepId: title ? null : nodeId,
+						step: title ?? nodeId,
 						gate: null,
 						outcome: outcomeWord(step.nodeKind, step.status),
 						...base,
@@ -254,12 +289,15 @@ export function describeRunSteps(
 		const { definition, node } = found;
 		const decision =
 			resumed && node.type === "action" && node.action === "send-to-moderation"
-				? decisionOutputSchema.parse(step.output ?? null)?.decision
+				? decisionInputSchema.parse(step.input ?? null)?.decision
 				: undefined;
+		if (decision) {
+			decided.add(`${definition.id}:${node.id}`);
+		}
 		return [
 			{
 				view: {
-					workflow: definition.name,
+					workflow: workflowDisplayName(definition),
 					stepId: node.id,
 					step: names.get(definition.id)?.get(node.id) ?? node.id,
 					gate: node.type === "gate" ? GATE_WORDS[node.mode] : null,
@@ -272,10 +310,13 @@ export function describeRunSteps(
 				rank: orders.get(definition.id)?.get(node.id) ?? 0,
 				resumed: resumed ? 1 : 0,
 				index,
+				waitingOn:
+					step.status === "paused" ? `${definition.id}:${node.id}` : undefined,
 			},
 		];
 	});
 	return placed
+		.filter((entry) => !(entry.waitingOn && decided.has(entry.waitingOn)))
 		.sort(
 			(a, b) =>
 				a.group - b.group ||

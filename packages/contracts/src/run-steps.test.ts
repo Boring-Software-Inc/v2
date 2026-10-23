@@ -5,7 +5,7 @@ import {
 	VERDICT_LABELS,
 	verdictLabel,
 } from "./run-steps.ts";
-import type { WorkflowDefinition } from "./workflow.ts";
+import { DEFAULT_WORKFLOW, type WorkflowDefinition } from "./workflow.ts";
 
 const NEWCOMERS: WorkflowDefinition = {
 	id: "newcomers",
@@ -93,6 +93,7 @@ describe("run steps read without the code", () => {
 					ruleId: null,
 					status: "pass",
 					summary: null,
+					input: { decision: "deny", pausedNodeId: "newcomers:either" },
 				},
 			],
 		);
@@ -104,10 +105,10 @@ describe("run steps read without the code", () => {
 			outcome: "Doesn't pass",
 		});
 		expect(floor).toMatchObject({
-			workflow: null,
-			stepId: "run:deny-floor",
+			workflow: "Newcomers",
+			stepId: null,
 			step: "Human review blocked it",
-			outcome: "Ran",
+			outcome: "Blocked",
 		});
 	});
 
@@ -160,7 +161,7 @@ describe("run steps read without the code", () => {
 				step("review:hold", "action", "paused"),
 				{
 					...step("review:hold:resume", "action", "pass"),
-					output: { action: "send-to-moderation", decision: "approve" },
+					input: { action: "send-to-moderation", decision: "approve" },
 				},
 				step("review:after:resume", "action", "pass"),
 			],
@@ -172,13 +173,62 @@ describe("run steps read without the code", () => {
 			["Newcomers", "Account age", "Passes"],
 			["Doubtful title", "Trigger", "Ran"],
 			["Doubtful title", "English only", "Doesn't pass"],
-			["Doubtful title", "Human review", "Waiting for human review"],
 			["Doubtful title", "Human review", "Approved"],
 			["Doubtful title", "Label", "Ran"],
 		]);
 		expect(views.some((view) => view.step.includes("after review"))).toBe(
 			false,
 		);
+	});
+
+	test("a denied review reads Blocked once, with the floor under its workflow", () => {
+		const review: WorkflowDefinition = {
+			id: "review",
+			name: "Doubtful title",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				{ id: "hold", type: "action", action: "send-to-moderation" },
+			],
+			edges: [{ id: "e1", from: "t", to: "hold" }],
+		};
+		const views = describeRunSteps(
+			[review, DEFAULT_WORKFLOW],
+			[
+				step("review:t", "trigger", "pass"),
+				step("review:hold", "action", "paused"),
+				step("default@1:trigger", "trigger", "pass"),
+				{
+					...step("review:hold:resume", "action", "pass"),
+					input: { action: "send-to-moderation", decision: "deny" },
+				},
+				{
+					...step("run:deny-floor", "action", "pass"),
+					input: { decision: "deny", pausedNodeId: "review:hold" },
+				},
+			],
+		);
+		expect(
+			views.map((view) => [
+				view.workflow,
+				view.stepId,
+				view.step,
+				view.outcome,
+			]),
+		).toEqual([
+			["Doubtful title", "t", "Trigger", "Ran"],
+			["Doubtful title", "hold", "Human review", "Blocked"],
+			["Doubtful title", null, "Human review blocked it", "Blocked"],
+			["Rules", "trigger", "Trigger", "Ran"],
+		]);
+	});
+
+	test("a review still waiting reads waiting", () => {
+		const [row] = describeRunSteps(
+			[NEWCOMERS],
+			[step("newcomers:stop", "action", "paused")],
+		);
+		expect(row?.outcome).toBe("Waiting for human review");
 	});
 
 	test("a workflow that could not run is named, with what is wrong", () => {
@@ -205,7 +255,7 @@ describe("run steps read without the code", () => {
 		);
 		expect(row).toMatchObject({
 			workflow: "Crypto or honeypot",
-			stepId: "run:unrunnable",
+			stepId: null,
 			step: "Its wiring is broken, so Tripwire did not run it",
 			outcome: "Could not run",
 			summary: "All of: It takes rule results, not events",
