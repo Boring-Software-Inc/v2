@@ -12,6 +12,7 @@
 
 export * from "./access.ts";
 export * from "./activity.ts";
+export * from "./agent-access.ts";
 export * from "./check.ts";
 export * from "./comment-render.ts";
 export * from "./contributor.ts";

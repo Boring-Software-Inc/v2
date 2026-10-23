@@ -13,6 +13,7 @@ import { admin, genericOAuth } from "better-auth/plugins";
 import { organization } from "better-auth/plugins/organization";
 import { eq } from "drizzle-orm";
 import { applySignupAccessDefaults } from "./access.ts";
+import { agentAuthPlugins } from "./agent-auth.ts";
 import { orgAc, orgRoles } from "./org-access.ts";
 
 /**
@@ -52,6 +53,7 @@ export interface CreateAuthInput {
 	 * sign-in endpoints are absent). Never set this true in a real deployment.
 	 */
 	devLogin?: boolean;
+	mcpResource?: string;
 }
 
 export function createAuth(input: CreateAuthInput) {
@@ -80,10 +82,20 @@ export function createAuth(input: CreateAuthInput) {
 				organization: schema.organization,
 				member: schema.member,
 				invitation: schema.invitation,
+				jwks: schema.jwks,
+				oauthClient: schema.oauthClient,
+				oauthResource: schema.oauthResource,
+				oauthClientResource: schema.oauthClientResource,
+				oauthRefreshToken: schema.oauthRefreshToken,
+				oauthAccessToken: schema.oauthAccessToken,
+				oauthConsent: schema.oauthConsent,
+				oauthClientAssertion: schema.oauthClientAssertion,
+				deviceCode: schema.deviceCode,
 			},
 		}),
 		secret: input.secret,
 		baseURL: input.baseUrl,
+		disabledPaths: ["/token"],
 		session: {
 			cookieCache: {
 				enabled: true,
@@ -291,6 +303,7 @@ export function createAuth(input: CreateAuthInput) {
 			 * activityTracking stays off, so no schema change.
 			 */
 			dash({ apiKey: input.infraApiKey }),
+			...agentAuthPlugins({ db: input.db, mcpResource: input.mcpResource }),
 		],
 		databaseHooks: {
 			user: {
