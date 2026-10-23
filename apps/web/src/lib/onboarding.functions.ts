@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { InstallUrlState } from "@tripwire/auth/install-state";
 import {
 	type ClaimableInstallStatus,
 	type Forge,
@@ -53,35 +54,12 @@ export const getOrgHomeState = createServerFn({ method: "GET" })
 		return { hasInstallation: state.hasInstallation, repos };
 	});
 
-export type InstallUrlState =
-	| { status: "ready"; url: string }
-	| { status: "not-configured" }
-	| { status: "no-session" };
+export type { InstallUrlState };
 
 /**
  * The install URL FOR THIS ORG, on the forge asked for. Admin-only: installing
  * changes what the org gates.
- *
- * GitHub round-trips a signed `state` carrying {userId, orgId}, so its Setup
- * callback can name both sides and confirm. open-git does NOT: its
- * `installationConnectUrl` appends `installation_id` and nothing else. That is
- * not a blocker — the same callback already treats a missing state as a CLAIM
- * and shows the org picker (§10, never auto-attach on a guess) — but it is the
- * reason the state is only attached for GitHub.
  */
-function installUrlFor(forge: Forge, state: string): InstallUrlState {
-	if (forge === "github") {
-		const slug = process.env.GITHUB_APP_SLUG;
-		return slug
-			? {
-					status: "ready",
-					url: `https://github.com/apps/${slug}/installations/new?state=${encodeURIComponent(state)}`,
-				}
-			: { status: "not-configured" };
-	}
-	return { status: "not-configured" };
-}
-
 export const getOrgInstallUrl = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware, orgAdminMiddleware])
 	.inputValidator((input: { org: string; forge?: Forge }) => input)
@@ -94,7 +72,12 @@ export const getOrgInstallUrl = createServerFn({ method: "GET" })
 		}
 		const { signInstallState } = await import("#/lib/server/install-state");
 		const state = signInstallState({ userId, orgId: org.id });
-		return installUrlFor(data.forge ?? "github", state);
+		const { installUrlFor } = await import("@tripwire/auth/install-state");
+		return installUrlFor(
+			data.forge ?? "github",
+			state,
+			process.env.GITHUB_APP_SLUG,
+		);
 	});
 
 export const getInstallPreview = createServerFn({ method: "GET" })

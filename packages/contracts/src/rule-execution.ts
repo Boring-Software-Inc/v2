@@ -1,4 +1,4 @@
-import { DEFAULT_WORKFLOW } from "@tripwire/contracts";
+import { DEFAULT_WORKFLOW } from "./workflow.ts";
 
 /**
  * The baseline rule set — the rule refs in the hand-seeded default gate. A

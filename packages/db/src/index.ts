@@ -120,6 +120,12 @@ export type { RedactionUsage } from "./services/responses.ts";
 export * as responseServices from "./services/responses.ts";
 export type { RepoReviewerList } from "./services/reviewers.ts";
 export * as reviewerServices from "./services/reviewers.ts";
+export type {
+	RuleConfigView,
+	RulesHeaderStats,
+	SaveRuleResult,
+} from "./services/rules.ts";
+export * as ruleServices from "./services/rules.ts";
 export * as runServices from "./services/runs.ts";
 export type { DueSchedule } from "./services/schedules.ts";
 export * as scheduleServices from "./services/schedules.ts";

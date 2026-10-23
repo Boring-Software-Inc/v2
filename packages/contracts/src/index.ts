@@ -30,6 +30,7 @@ export * from "./repo.ts";
 export * from "./repo-content.ts";
 export * from "./response.ts";
 export * from "./review.ts";
+export * from "./rule-execution.ts";
 export * from "./rules.ts";
 export * from "./runs.ts";
 export * from "./webhook-payload.ts";

@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { Db } from "../client.ts";
 import { RESUME_RUN_QUEUE } from "../queue.ts";
 import { moderationItems } from "../schema/moderation.ts";
+import { runs } from "../schema/runs.ts";
 
 /**
  * Moderation queue = a paused run (§6), not a separate system. A decision
@@ -165,4 +166,43 @@ export async function listModerationItemsForRun(db: Db, runId: string) {
 		.from(moderationItems)
 		.where(eq(moderationItems.runId, runId))
 		.orderBy(moderationItems.createdAt);
+}
+
+export type ModerationDecision = "approve" | "deny";
+
+export async function decideRepoModerationItem(
+	db: Db,
+	queue: { pool: Pool; boss: PgBoss } | null,
+	input: {
+		repoFullName: string;
+		itemId: string;
+		decision: ModerationDecision;
+		decidedBy: string | null;
+	},
+): Promise<"not-found" | { ok: boolean }> {
+	const owned = await db
+		.select({ id: moderationItems.id })
+		.from(moderationItems)
+		.innerJoin(runs, eq(runs.id, moderationItems.runId))
+		.where(
+			and(
+				eq(moderationItems.id, input.itemId),
+				eq(runs.repoFullName, input.repoFullName),
+			),
+		)
+		.limit(1);
+	if (!owned[0]) {
+		return "not-found";
+	}
+	const decision = {
+		itemId: input.itemId,
+		decision: input.decision,
+		decidedBy: input.decidedBy,
+	};
+	if (!queue) {
+		return { ok: await markModerationDecided(db, decision) };
+	}
+	return {
+		ok: await decideModerationItem(queue.pool, queue.boss, decision),
+	};
 }

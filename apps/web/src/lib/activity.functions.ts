@@ -8,10 +8,10 @@ import {
 	DEFAULT_WORKFLOW,
 	RULE_CATALOG,
 	ruleDisplayName,
+	ruleExecutes,
 	ruleIdOf,
 } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
-import { ruleExecutes } from "#/lib/rule-execution";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
 	orgAdminMiddleware,

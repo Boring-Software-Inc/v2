@@ -14,13 +14,13 @@ import {
  * dev:demo has no worker/queue, so arming alone is enough there.
  */
 async function armById(repoId: string): Promise<void> {
-	const { BACKFILL_REPO_QUEUE, repoServices } = await import("@tripwire/db");
+	const { repoServices } = await import("@tripwire/db");
 	const { getBoss, getDb, isDemoMode } = await import("#/lib/server/db");
-	await repoServices.setRepoArmed(getDb().db, repoId, true);
-	if (!isDemoMode()) {
-		const boss = await getBoss();
-		await boss.send(BACKFILL_REPO_QUEUE, { repoId });
-	}
+	await repoServices.turnOnGate(
+		getDb().db,
+		isDemoMode() ? null : await getBoss(),
+		repoId,
+	);
 }
 
 /** Arm the URL's repo (the scoped-page CTA). */
