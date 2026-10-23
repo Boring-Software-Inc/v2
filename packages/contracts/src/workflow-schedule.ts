@@ -7,6 +7,7 @@ import {
 	type ScheduleInterval,
 	type SchedulePreset,
 	type Weekday,
+	type WorkflowNode,
 	weekdaySchema,
 } from "./workflow.ts";
 import {
@@ -297,16 +298,107 @@ export function nextScheduleRun(
 ): Date | null {
 	if (isScheduleInterval(schedule.every)) {
 		const last = options.lastTickAt;
-		if (!last) {
-			return options.after;
-		}
-		const next = new Date(last.getTime() + durationMs(schedule.every));
-		return next.getTime() > options.after.getTime() ? next : options.after;
+		const due = last
+			? Math.max(
+					last.getTime() + durationMs(schedule.every),
+					options.after.getTime(),
+				)
+			: options.after.getTime();
+		return new Date(Math.ceil(due / SCHEDULE_TICK_MS) * SCHEDULE_TICK_MS);
 	}
 	const spec = cronSpec(schedule.every);
 	return spec
 		? nextCronRun(spec, scheduleZone(schedule.timezone).zone, options.after)
 		: null;
+}
+
+export interface ScheduleTiming {
+	every: ScheduleCadence;
+	timezone?: string;
+}
+
+function timingKey(schedule: ScheduleTiming): string {
+	const every = schedule.every;
+	const cadence = isScheduleInterval(every)
+		? `every ${every.n} ${every.unit}`
+		: (cadenceCron(every) ?? JSON.stringify(every));
+	return `${cadence} ${scheduleZone(schedule.timezone).zone}`;
+}
+
+/** Whether two schedules run at the same instants. */
+export function sameScheduleTiming(
+	a: ScheduleTiming | null,
+	b: ScheduleTiming | null,
+): boolean {
+	return a !== null && b !== null && timingKey(a) === timingKey(b);
+}
+
+/**
+ * The last tick a schedule starts over from when it is turned on or its timing
+ * changes, so no run missed before that is replayed. A clock schedule counts
+ * from `at`; an interval runs at the next worker tick.
+ */
+export function restartedTickAt(
+	schedule: ScheduleTiming,
+	at: Date,
+): Date | null {
+	return isScheduleInterval(schedule.every) ? null : at;
+}
+
+/** The timing of every schedule trigger in a workflow, by node id. */
+export function scheduleTimings(definition: {
+	nodes: readonly WorkflowNode[];
+}): Map<string, ScheduleTiming> {
+	const timings = new Map<string, ScheduleTiming>();
+	for (const node of definition.nodes) {
+		if (node.type === "trigger" && node.schedule?.every) {
+			timings.set(node.id, {
+				every: node.schedule.every,
+				timezone: node.schedule.timezone,
+			});
+		}
+	}
+	return timings;
+}
+
+/**
+ * The schedule triggers that start over when `after` replaces `before`: all
+ * of them when the workflow turns on (`before` is null), otherwise those whose
+ * timing changed. Each carries the last tick to store, null for none.
+ */
+export function restartedSchedules(
+	before: { nodes: readonly WorkflowNode[] } | null,
+	after: { nodes: readonly WorkflowNode[] },
+	at: Date,
+): { nodeId: string; lastTickAt: Date | null }[] {
+	const previous = before ? scheduleTimings(before) : new Map();
+	return [...scheduleTimings(after)]
+		.filter(
+			([nodeId, timing]) =>
+				before === null ||
+				!sameScheduleTiming(previous.get(nodeId) ?? null, timing),
+		)
+		.map(([nodeId, timing]) => ({
+			nodeId,
+			lastTickAt: restartedTickAt(timing, at),
+		}));
+}
+
+/**
+ * The last tick the worker will count from once the editor's schedule is
+ * live: the stored tick while the workflow stays on with the same timing,
+ * otherwise a fresh start at `now`.
+ */
+export function scheduleCountsFrom(input: {
+	enabled: boolean;
+	saved: ScheduleTiming | null;
+	current: ScheduleTiming;
+	lastTickAt: Date | null;
+	now: Date;
+}): Date | null {
+	return input.enabled && sameScheduleTiming(input.saved, input.current)
+		? input.lastTickAt
+		: restartedTickAt(input.current, input.now);
 }
 
 const FIRE_LOOKBACK_MS = 24 * 60 * 60_000;

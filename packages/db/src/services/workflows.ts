@@ -6,6 +6,7 @@ import {
 	mergeForPush,
 	reportWorkflows,
 	resolveCatalog,
+	restartedSchedules,
 	stripWorkflowSecrets,
 	type ValidationCatalogEntry,
 	type ValidationIssue,
@@ -21,7 +22,12 @@ import {
 import { generateId, pickWorkflowName } from "@tripwire/utils";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { customRules, repos, workflowDefinitions } from "../schema/repos.ts";
+import {
+	customRules,
+	repos,
+	workflowDefinitions,
+	workflowScheduleState,
+} from "../schema/repos.ts";
 import { getAiCredits } from "./ai-provider.ts";
 import { listRepoReviewers } from "./reviewers.ts";
 
@@ -232,6 +238,39 @@ async function lockWorkflowRow(
 	return rows[0] ?? null;
 }
 
+async function restartSchedules(
+	tx: Tx,
+	workflowRowId: string,
+	before: WorkflowDefinition | null,
+	after: WorkflowDefinition,
+): Promise<void> {
+	for (const restart of restartedSchedules(before, after, new Date())) {
+		const key = and(
+			eq(workflowScheduleState.workflowId, workflowRowId),
+			eq(workflowScheduleState.nodeId, restart.nodeId),
+		);
+		if (restart.lastTickAt === null) {
+			await tx.delete(workflowScheduleState).where(key);
+			continue;
+		}
+		await tx
+			.insert(workflowScheduleState)
+			.values({
+				workflowId: workflowRowId,
+				nodeId: restart.nodeId,
+				lastTickAt: restart.lastTickAt,
+				lastError: null,
+			})
+			.onConflictDoUpdate({
+				target: [
+					workflowScheduleState.workflowId,
+					workflowScheduleState.nodeId,
+				],
+				set: { lastTickAt: restart.lastTickAt, lastError: null },
+			});
+	}
+}
+
 export type SaveWorkflowResult =
 	| { ok: true }
 	| { ok: false; issues: ValidationIssue[] };
@@ -261,6 +300,13 @@ export async function saveWorkflowDefinition(
 			.update(workflowDefinitions)
 			.set({ definition, name: definition.name, updatedAt: new Date() })
 			.where(eq(workflowDefinitions.id, row.id));
+		const stored = workflowDefinitionSchema.safeParse(row.definition);
+		await restartSchedules(
+			tx,
+			row.id,
+			stored.success ? stored.data : null,
+			definition,
+		);
 		return { ok: true };
 	});
 }
@@ -511,6 +557,7 @@ export async function applyWorkflowDefinition(
 			.update(workflowDefinitions)
 			.set({ definition: merged, name: merged.name, updatedAt: new Date() })
 			.where(eq(workflowDefinitions.id, locked.id));
+		await restartSchedules(tx, locked.id, stored.data, merged);
 		return { ok: true, outcome: "updated", workflow, changes };
 	});
 }
@@ -558,6 +605,9 @@ export async function setWorkflowEnabled(
 			const result = validateWorkflowForEnable(row.definition, catalog);
 			if (!result.valid) {
 				return { ok: false, issues: result.issues };
+			}
+			if (!row.enabled) {
+				await restartSchedules(tx, row.id, null, result.definition);
 			}
 			warnings = synced?.syncedAt
 				? lintWorkflow(result.definition, {

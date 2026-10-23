@@ -651,3 +651,130 @@ describe("schedule tick", () => {
 		).toEqual([]);
 	});
 });
+
+describe("a schedule starts over when it turns on or its timing changes (R8-2)", () => {
+	const RESTART_REPO = "Codertocat/Restart";
+	let repoId = "";
+	const now = new Date();
+	const hourAgo = new Date(now.getTime() - HOUR);
+	const stale = new Date(now.getTime() - 3 * HOUR);
+	const dailyAt = (at: Date, shift = 0) =>
+		`${(at.getUTCMinutes() + shift) % 60} ${at.getUTCHours()} * * *`;
+
+	function cronWorkflow(id: string, cron: string): WorkflowDefinition {
+		return {
+			...SCHEDULED,
+			id,
+			name: id,
+			nodes: [
+				{
+					...SCHEDULED.nodes[0],
+					schedule: {
+						...(SCHEDULED.nodes[0] as { schedule: object }).schedule,
+						every: { cron },
+					},
+				} as WorkflowDefinition["nodes"][number],
+				...SCHEDULED.nodes.slice(1),
+			],
+		};
+	}
+
+	async function due(rowId: string, at: Date): Promise<boolean> {
+		const list = await scheduleServices.listDueSchedules(db, at);
+		return list.some((entry) => entry.workflowRowId === rowId);
+	}
+
+	async function markStale(rowId: string) {
+		await scheduleServices.markScheduleTicked(db, {
+			workflowRowId: rowId,
+			nodeId: "every-12h",
+			at: stale,
+			error: null,
+		});
+	}
+
+	beforeAll(async () => {
+		repoId = await repoServices.ensureRepo(db, {
+			externalId: "186853005",
+			owner: "Codertocat",
+			name: "Restart",
+			fullName: RESTART_REPO,
+			installationId: "2311213",
+		});
+		await repoServices.setRepoArmed(db, repoId, true);
+	});
+
+	test("a stale tick still owes the run it missed, as before", async () => {
+		const rowId = await enableWorkflow(
+			repoId,
+			cronWorkflow("wf-stale", dailyAt(hourAgo)),
+		);
+		await markStale(rowId);
+		expect(await due(rowId, now)).toBe(true);
+	});
+
+	test("turning it on again after a stale tick replays nothing", async () => {
+		const rowId = await enableWorkflow(
+			repoId,
+			cronWorkflow("wf-reenable", dailyAt(hourAgo)),
+		);
+		await workflowServices.setWorkflowEnabled(db, {
+			repoId,
+			workflowId: rowId,
+			enabled: false,
+		});
+		await markStale(rowId);
+		await workflowServices.setWorkflowEnabled(db, {
+			repoId,
+			workflowId: rowId,
+			enabled: true,
+		});
+		expect(await due(rowId, new Date())).toBe(false);
+		expect(await due(rowId, new Date(now.getTime() + 24 * HOUR))).toBe(true);
+	});
+
+	test("saving a new schedule starts over, saving the same one does not", async () => {
+		const definition = cronWorkflow("wf-edit", dailyAt(hourAgo));
+		const rowId = await enableWorkflow(repoId, definition);
+		await markStale(rowId);
+		const renamed = await workflowServices.saveWorkflowDefinition(db, {
+			repoId,
+			workflowId: rowId,
+			definition: { ...definition, name: "wf-edit-renamed" },
+		});
+		expect(renamed.ok).toBe(true);
+		expect(await due(rowId, now)).toBe(true);
+
+		const saved = await workflowServices.saveWorkflowDefinition(db, {
+			repoId,
+			workflowId: rowId,
+			definition: cronWorkflow("wf-edit", dailyAt(hourAgo, 1)),
+		});
+		expect(saved.ok).toBe(true);
+		expect(await due(rowId, new Date())).toBe(false);
+	});
+
+	test("a pushed schedule change starts over too", async () => {
+		const definition = cronWorkflow("wf-push", dailyAt(hourAgo));
+		const rowId = await enableWorkflow(repoId, definition);
+		await markStale(rowId);
+		const pushed = await workflowServices.applyWorkflowDefinition(db, {
+			repoId,
+			definition: cronWorkflow("wf-push", dailyAt(hourAgo, 2)),
+		});
+		expect(pushed.ok).toBe(true);
+		expect(await due(rowId, new Date())).toBe(false);
+	});
+
+	test("an interval turned on runs at the next tick, then one interval later", async () => {
+		const rowId = await enableWorkflow(repoId, {
+			...SCHEDULED,
+			id: "wf-interval-restart",
+			name: "wf-interval-restart",
+		});
+		expect(
+			await scheduleServices.getScheduleState(db, rowId, "every-12h"),
+		).toBeNull();
+		expect(await due(rowId, new Date())).toBe(true);
+	});
+});
