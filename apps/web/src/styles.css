@@ -276,6 +276,7 @@ body {
 .glaze .react-flow__handle[data-port-io="in"] {
 	left: calc(var(--space-1-5) * -1);
 	right: auto;
+	justify-items: end;
 }
 
 .glaze .react-flow__handle[data-port-io="out"] {
@@ -354,6 +355,10 @@ body {
 
 .glaze .react-flow__handle[data-drop="open"].connectingto::after {
 	--port-size: var(--space-4);
+}
+
+.glaze .react-flow__handle[data-port-io="in"][data-drop="open"]::after {
+	outline-color: transparent;
 }
 
 .glaze .react-flow__handle[data-drop="closed"]::after {
