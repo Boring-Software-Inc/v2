@@ -21,6 +21,7 @@ COPY packages/forge-opengit/package.json ./packages/forge-opengit/
 COPY packages/sdk/package.json ./packages/sdk/
 COPY packages/ui/package.json ./packages/ui/
 COPY apps/api/package.json ./apps/api/
+COPY apps/cli/package.json ./apps/cli/
 COPY apps/mcp/package.json ./apps/mcp/
 COPY apps/web/package.json ./apps/web/
 COPY apps/worker/package.json ./apps/worker/
