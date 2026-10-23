@@ -59,7 +59,7 @@ async function postForm(
 	deps: AuthDeps,
 	url: string,
 	form: Record<string, string>,
-): Promise<{ status: number; body: JsonValue }> {
+): Promise<{ status: number; body: JsonValue; headers: Headers }> {
 	const response = await deps.fetch(url, {
 		method: "POST",
 		headers: {
@@ -78,9 +78,14 @@ async function postForm(
 		return {
 			status: response.status,
 			body: parsed.success ? parsed.data : invalid,
+			headers: response.headers,
 		};
 	} catch {
-		return { status: response.status, body: invalid };
+		return {
+			status: response.status,
+			body: invalid,
+			headers: response.headers,
+		};
 	}
 }
 
@@ -132,6 +137,22 @@ function toCredential(
 	};
 }
 
+const SLOW_DOWN_STEP_MS = 5000;
+
+function retryAfterMs(headers: Headers, now: number): number | null {
+	const value = (
+		headers.get("retry-after") ?? headers.get("x-retry-after")
+	)?.trim();
+	if (!value) {
+		return null;
+	}
+	if (/^\d+$/.test(value)) {
+		return Number(value) * 1000;
+	}
+	const at = Date.parse(value);
+	return Number.isNaN(at) ? null : Math.max(0, at - now);
+}
+
 export async function pollForToken(
 	deps: AuthDeps,
 	authUrl: string,
@@ -139,18 +160,33 @@ export async function pollForToken(
 	code: DeviceCode,
 ): Promise<Credential> {
 	let interval = (code.interval ?? 5) * 1000;
+	let retryAfter: number | null = null;
 	const deadline = deps.now() + code.expires_in * 1000;
 	while (deps.now() < deadline) {
-		await deps.sleep(interval);
-		const { status, body } = await postForm(deps, `${authUrl}/oauth2/token`, {
-			grant_type: DEVICE_GRANT,
-			device_code: code.device_code,
-			client_id: CLIENT_ID,
-			resource,
-		});
+		await deps.sleep(
+			Math.min(Math.max(interval, retryAfter ?? 0), deadline - deps.now()),
+		);
+		retryAfter = null;
+		const { status, body, headers } = await postForm(
+			deps,
+			`${authUrl}/oauth2/token`,
+			{
+				grant_type: DEVICE_GRANT,
+				device_code: code.device_code,
+				client_id: CLIENT_ID,
+				resource,
+			},
+		);
 		const token = tokenSchema.safeParse(body);
 		if (status < 400 && token.success) {
 			return toCredential(deps, token.data, authUrl, resource);
+		}
+		if (status === 429) {
+			retryAfter = retryAfterMs(headers, deps.now());
+			if (retryAfter === null) {
+				interval += SLOW_DOWN_STEP_MS;
+			}
+			continue;
 		}
 		const error = errorSchema.safeParse(body);
 		const kind = error.success ? error.data.error : "";
@@ -158,7 +194,7 @@ export async function pollForToken(
 			continue;
 		}
 		if (kind === "slow_down") {
-			interval += 5000;
+			interval += SLOW_DOWN_STEP_MS;
 			continue;
 		}
 		if (kind === "access_denied") {

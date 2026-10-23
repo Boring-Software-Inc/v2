@@ -18,7 +18,7 @@ interface Recorded {
 }
 
 function fakeDeps(
-	responses: Array<[number, string]>,
+	responses: Array<[number, string, Record<string, string>?]>,
 ): AuthDeps & { requests: Recorded[]; slept: number[] } {
 	const requests: Recorded[] = [];
 	const slept: number[] = [];
@@ -30,7 +30,7 @@ function fakeDeps(
 			requests.push({ url, form: new URLSearchParams(String(init.body)) });
 			const next = responses.shift();
 			if (!next) throw new Error("no more responses");
-			return new Response(next[1], { status: next[0] });
+			return new Response(next[1], { status: next[0], headers: next[2] });
 		},
 		sleep: async (ms) => {
 			slept.push(ms);
@@ -97,6 +97,62 @@ describe("device grant", () => {
 			mcpUrl: MCP,
 			authUrl: AUTH,
 		});
+	});
+
+	test("a 429 with Retry-After waits that long and keeps polling", async () => {
+		const deps = fakeDeps([
+			[400, JSON.stringify({ error: "authorization_pending" })],
+			[
+				429,
+				JSON.stringify({ message: "Too many requests." }),
+				{ "x-retry-after": "45" },
+			],
+			[429, "", { "retry-after": "30" }],
+			[400, JSON.stringify({ error: "authorization_pending" })],
+			[200, JSON.stringify({ access_token: "at" })],
+		]);
+		const credential = await pollForToken(deps, AUTH, MCP, {
+			device_code: "dev",
+			user_code: "U",
+			verification_uri: "v",
+			expires_in: 600,
+			interval: 5,
+		});
+		expect(deps.slept).toEqual([5000, 5000, 45000, 30000, 5000]);
+		expect(credential.accessToken).toBe("at");
+	});
+
+	test("a 429 without Retry-After backs off like slow_down", async () => {
+		const deps = fakeDeps([
+			[429, "rate limited"],
+			[429, JSON.stringify({ message: "Too many requests." })],
+			[200, JSON.stringify({ access_token: "at" })],
+		]);
+		await pollForToken(deps, AUTH, MCP, {
+			device_code: "dev",
+			user_code: "U",
+			verification_uri: "v",
+			expires_in: 600,
+			interval: 5,
+		});
+		expect(deps.slept).toEqual([5000, 10000, 15000]);
+	});
+
+	test("429s never fail login before the code expires", async () => {
+		const responses: Array<[number, string, Record<string, string>?]> =
+			Array.from({ length: 200 }, () => [429, "", { "retry-after": "60" }]);
+		const deps = fakeDeps(responses);
+		await expect(
+			pollForToken(deps, AUTH, MCP, {
+				device_code: "dev",
+				user_code: "U",
+				verification_uri: "v",
+				expires_in: 600,
+				interval: 5,
+			}),
+		).rejects.toThrow("The code expired");
+		expect(deps.slept.reduce((sum, ms) => sum + ms, 0)).toBe(600_000);
+		expect(deps.requests.length).toBe(11);
 	});
 
 	test("stops on access_denied", async () => {
