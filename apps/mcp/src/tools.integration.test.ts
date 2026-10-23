@@ -525,7 +525,7 @@ describe("a repo argument names the repo the way people copy it", () => {
 		);
 	});
 
-	test("an org the user is not in reads as not one of their orgs", async () => {
+	test("a scope that is no org of the user's reads as a GitHub owner or org they are not in", async () => {
 		await addOrg("stranger-team", {
 			member: false,
 			repo: "stranger-repo",
@@ -535,7 +535,7 @@ describe("a repo argument names the repo the way people copy it", () => {
 			repo: "stranger-team/stranger-repo",
 		});
 		expect(result.structuredContent).toEqual({
-			error: `You are not in an org named stranger-team, and the org ${orgSlug} has no repo stranger-team/stranger-repo.`,
+			error: `The org ${orgSlug} has no repo stranger-team/stranger-repo, and stranger-team is not a Tripwire org you are in.`,
 			hint: "list_repos",
 			org: orgSlug,
 		});
