@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { describeRunSteps } from "./run-steps.ts";
+import { describeRunSteps, runSnapshotSchema } from "./run-steps.ts";
 import type { WorkflowDefinition } from "./workflow.ts";
 
 const NEWCOMERS: WorkflowDefinition = {
@@ -108,7 +108,9 @@ describe("run steps read without the code", () => {
 
 	test("a step whose workflow is not in the snapshot keeps its id", () => {
 		expect(
-			describeRunSteps("not a snapshot", [step("gone:x", "rule", "pass")]),
+			describeRunSteps(runSnapshotSchema.parse("not a snapshot"), [
+				step("gone:x", "rule", "pass"),
+			]),
 		).toEqual([
 			{
 				workflow: null,

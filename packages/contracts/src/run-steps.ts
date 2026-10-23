@@ -25,21 +25,22 @@ export interface RunStepView {
 	summary: string | null;
 }
 
-const RUN_STEP_TITLES: Record<string, string> = {
-	"run:deny-floor": "Human review blocked it",
-	"run:unrunnable": "A workflow could not run",
-	"run:degradation": "Too few checks could run",
-};
+const RUN_STEP_TITLES = new Map([
+	["run:deny-floor", "Human review blocked it"],
+	["run:unrunnable", "A workflow could not run"],
+	["run:degradation", "Too few checks could run"],
+]);
 
-const GATE_WORDS: Record<GateMode, string> = {
+const GATE_WORDS = {
 	"all-of": "all of",
 	"any-of": "any of",
 	not: "not",
-};
+} as const satisfies Record<GateMode, string>;
 
 const RESUME_SUFFIX = ":resume";
 
-const snapshotSchema = z.array(workflowDefinitionSchema);
+/** A stored workflow snapshot, or none when it does not parse. */
+export const runSnapshotSchema = z.array(workflowDefinitionSchema).catch([]);
 
 function outcomeWord(kind: string, status: string): string {
 	if (status === "skipped") {
@@ -88,11 +89,9 @@ function locate(
 
 /** Each run step in product words: its workflow, its title and what came of it. */
 export function describeRunSteps(
-	snapshot: unknown,
+	definitions: readonly WorkflowDefinition[],
 	steps: readonly RunStepInput[],
 ): RunStepView[] {
-	const parsed = snapshotSchema.safeParse(snapshot);
-	const definitions = parsed.success ? parsed.data : [];
 	const names = new Map(
 		definitions.map((definition) => [definition.id, stepNames(definition)]),
 	);
@@ -107,7 +106,7 @@ export function describeRunSteps(
 			return {
 				workflow: null,
 				stepId: nodeId,
-				step: RUN_STEP_TITLES[nodeId] ?? nodeId,
+				step: RUN_STEP_TITLES.get(nodeId) ?? nodeId,
 				gate: null,
 				outcome,
 				summary: step.summary,

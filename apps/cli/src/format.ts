@@ -489,14 +489,14 @@ const toolErrorSchema = z.object({
 	hint: z.string().optional(),
 });
 
-const ARGUMENT_TYPES: Record<string, string> = {
-	number: "a number",
-	int: "a whole number",
-	string: "text",
-	boolean: "true or false",
-	array: "a list",
-	object: "an object",
-};
+const ARGUMENT_TYPES = new Map([
+	["number", "a number"],
+	["int", "a whole number"],
+	["string", "text"],
+	["boolean", "true or false"],
+	["array", "a list"],
+	["object", "an object"],
+]);
 
 function argumentProblem(path: string, problem: string): string {
 	const bound =
@@ -519,7 +519,7 @@ function argumentProblem(path: string, problem: string): string {
 	const type = /^Invalid input: expected (\w+), received \w+$/.exec(problem);
 	if (type) {
 		const expected = type[1] ?? "";
-		return `${path} must be ${ARGUMENT_TYPES[expected] ?? expected}`;
+		return `${path} must be ${ARGUMENT_TYPES.get(expected) ?? expected}`;
 	}
 	const option = /^Invalid option: expected one of (.*)$/.exec(problem);
 	if (option) {

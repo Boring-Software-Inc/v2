@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { RULE_CATALOG } from "./rules.ts";
 import {
+	type JsonValue,
 	jsonValueSchema,
 	triggerScheduleSchema,
 	type WorkflowDefinition,
@@ -242,22 +243,24 @@ const TAKES_NO_PARAMS = new Set([
 	"discord",
 ]);
 
-function literal(value: unknown, indent: string): string {
+const listValueSchema = z.array(jsonValueSchema);
+
+function literal(value: JsonValue, indent: string): string {
 	const inner = `${indent}\t`;
-	if (Array.isArray(value)) {
-		return value.length === 0
+	const list = listValueSchema.safeParse(value);
+	if (list.success) {
+		return list.data.length === 0
 			? "[]"
-			: `[\n${value.map((item) => `${inner}${literal(item, inner)},`).join("\n")}\n${indent}]`;
+			: `[\n${list.data.map((item) => `${inner}${literal(item, inner)},`).join("\n")}\n${indent}]`;
 	}
-	if (typeof value === "object" && value !== null) {
-		const entries = Object.entries(value).filter(
-			([, item]) => item !== undefined,
-		);
+	const object = settingsRecord.safeParse(value);
+	if (object.success) {
+		const entries = Object.entries(object.data);
 		return entries.length === 0
 			? "{}"
 			: `{\n${entries.map(([key, item]) => `${inner}${propertyKey(key)}: ${literal(item, inner)},`).join("\n")}\n${indent}}`;
 	}
-	return JSON.stringify(value) ?? "null";
+	return JSON.stringify(value);
 }
 
 function inputText(
@@ -316,7 +319,7 @@ function stepExpression(
 	switch (node.type) {
 		case "trigger": {
 			if (node.schedule) {
-				return `schedule(${literal(node.schedule, indent)})`;
+				return `schedule(${literal(jsonValueSchema.parse(JSON.parse(JSON.stringify(node.schedule))), indent)})`;
 			}
 			return `trigger(${node.kinds.map((kind) => JSON.stringify(kind)).join(", ")})`;
 		}

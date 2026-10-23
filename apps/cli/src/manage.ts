@@ -292,11 +292,17 @@ const changeListSchema = z.object({
 				.array(
 					z.union([
 						z.string(),
-						z.object({
-							step: z.string(),
-							message: z.string(),
-							severity: z.string().optional(),
-						}),
+						z
+							.object({
+								step: z.string(),
+								message: z.string(),
+								severity: z.string().optional(),
+							})
+							.transform((issue) =>
+								issue.severity === "warning"
+									? ""
+									: `${issue.step}: ${issue.message}`,
+							),
 					]),
 				)
 				.optional(),
@@ -318,16 +324,7 @@ const CHANGE_MARK = { added: "+", removed: "-", changed: "~" } as const;
 type ChangeEntry = z.infer<typeof changeListSchema>["workflows"][number];
 
 function blockingReasons(entry: ChangeEntry): string {
-	return (entry.issues ?? [])
-		.flatMap((issue) => {
-			if (typeof issue === "string") {
-				return [issue];
-			}
-			return issue.severity === "warning"
-				? []
-				: [`${issue.step}: ${issue.message}`];
-		})
-		.join(" ");
+	return (entry.issues ?? []).filter(Boolean).join(" ");
 }
 
 function changeLines(
@@ -478,9 +475,9 @@ function validateWorkflows(
 				JSON.stringify(
 					{
 						valid,
-						...(issues.length > 0 ? { issues } : {}),
+						issues,
 						workflows: reports,
-						...(opts.repo ? {} : { definitions }),
+						definitions: opts.repo ? undefined : definitions,
 					},
 					null,
 					2,

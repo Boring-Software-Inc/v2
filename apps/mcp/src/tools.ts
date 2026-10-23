@@ -9,6 +9,7 @@ import {
 	RULE_CATALOG,
 	redactWorkflowSecrets,
 	reportWorkflows,
+	runSnapshotSchema,
 	SETUP_STAGES,
 	scheduleReadBacks,
 	setupProgressInputSchema,
@@ -689,6 +690,7 @@ export function registerTools(
 							"list_runs",
 						);
 					}
+					const snapshot = runSnapshotSchema.parse(found.run.workflowSnapshot);
 					return ok({
 						note: UNTRUSTED_NOTE,
 						id: found.run.id,
@@ -697,20 +699,15 @@ export function registerTools(
 						status: found.run.status,
 						verdict: found.run.verdict,
 						createdAt: found.run.createdAt.toISOString(),
-						workflows: z
-							.array(z.object({ name: z.string() }))
-							.catch([])
-							.parse(found.run.workflowSnapshot)
-							.map((definition) => definition.name),
-						steps: describeRunSteps(
-							found.run.workflowSnapshot,
-							found.steps,
-						).map((view, index) => ({
-							...view,
-							kind: found.steps[index]?.nodeKind,
-							rule: found.steps[index]?.ruleId ?? null,
-							status: found.steps[index]?.status,
-						})),
+						workflows: snapshot.map((definition) => definition.name),
+						steps: describeRunSteps(snapshot, found.steps).map(
+							(view, index) => ({
+								...view,
+								kind: found.steps[index]?.nodeKind,
+								rule: found.steps[index]?.ruleId ?? null,
+								status: found.steps[index]?.status,
+							}),
+						),
 						actions: found.actions.map((action) => ({
 							kind: action.kind,
 							status: action.status,

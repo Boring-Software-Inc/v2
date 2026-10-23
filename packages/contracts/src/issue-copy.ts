@@ -3,23 +3,21 @@ import type { z } from "zod";
 const ZOD_DEFAULT_TEXT =
 	/^(Too (small|big)|Invalid (input|option|string|number|key|element|value)|Unrecognized key)/;
 
-const TYPE_WORDS: Record<string, string> = {
-	number: "a number",
-	int: "a whole number",
-	string: "text",
-	boolean: "true or false",
-	array: "a list",
-	object: "a group of settings",
-};
+const TYPE_WORDS = new Map([
+	["number", "a number"],
+	["int", "a whole number"],
+	["string", "text"],
+	["boolean", "true or false"],
+	["array", "a list"],
+	["object", "a group of settings"],
+]);
 
 function plural(count: number | bigint, word: string): string {
 	return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
 function fieldName(path: readonly PropertyKey[]): string {
-	return path
-		.filter((part) => typeof part === "string" || typeof part === "number")
-		.join(".");
+	return path.map(String).join(".");
 }
 
 function productText(issue: z.core.$ZodIssue, field: string): string | null {
@@ -51,7 +49,7 @@ function productText(issue: z.core.$ZodIssue, field: string): string | null {
 		case "invalid_type":
 			return /received undefined/.test(issue.message)
 				? `${field} is missing`
-				: `${field} must be ${TYPE_WORDS[issue.expected] ?? issue.expected}`;
+				: `${field} must be ${TYPE_WORDS.get(issue.expected) ?? issue.expected}`;
 		case "invalid_value":
 			return issue.values.length === 1
 				? `${field} must be ${String(issue.values[0])}`

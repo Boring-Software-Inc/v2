@@ -80,45 +80,47 @@ export interface WorkflowChange {
 	text: string;
 }
 
-function canonical(value: unknown): JsonValue | undefined {
-	if (Array.isArray(value)) {
-		return value.map((item) => canonical(item) ?? null);
+const listSchema = z.array(jsonValueSchema);
+const objectSchema = z.record(z.string(), jsonValueSchema);
+
+function canonical(value: JsonValue): JsonValue {
+	const list = listSchema.safeParse(value);
+	if (list.success) {
+		return list.data.map(canonical);
 	}
-	if (typeof value === "object" && value !== null) {
-		return Object.fromEntries(
-			Object.entries(value)
-				.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-				.flatMap(([key, inner]) => {
-					const kept = canonical(inner);
-					return kept === undefined ? [] : [[key, kept]];
-				}),
-		);
-	}
-	if (
-		typeof value === "string" ||
-		typeof value === "number" ||
-		typeof value === "boolean" ||
-		value === null
-	) {
+	const object = objectSchema.safeParse(value);
+	if (!object.success) {
 		return value;
 	}
-	return undefined;
+	return Object.fromEntries(
+		Object.keys(object.data)
+			.sort()
+			.map((key) => [key, canonical(object.data[key] ?? null)]),
+	);
+}
+
+function asJson(value: WorkflowNode | Record<string, JsonValue>): JsonValue {
+	return jsonValueSchema.parse(JSON.parse(JSON.stringify(value)));
 }
 
 function comparable(node: WorkflowNode): string {
 	const { position: _position, ...rest } = node;
 	if (rest.type === "rule") {
-		return JSON.stringify(canonical({ ...rest, config: rest.config ?? {} }));
+		return JSON.stringify(
+			canonical(asJson({ ...rest, config: rest.config ?? {} })),
+		);
 	}
 	if (rest.type !== "action") {
-		return JSON.stringify(canonical(rest));
+		return JSON.stringify(canonical(asJson(rest)));
 	}
 	const params = Object.fromEntries(
 		Object.entries(rest.params ?? {}).filter(([key]) => !SECRET_KEYS.has(key)),
 	);
 	const { params: _params, ...bare } = rest;
 	return JSON.stringify(
-		canonical(Object.keys(params).length > 0 ? { ...bare, params } : bare),
+		canonical(
+			asJson(Object.keys(params).length > 0 ? { ...bare, params } : bare),
+		),
 	);
 }
 
