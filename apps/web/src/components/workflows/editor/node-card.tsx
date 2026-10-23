@@ -18,10 +18,12 @@ import {
 	Position,
 	useNodeConnections,
 } from "@xyflow/react";
+import { Fragment } from "react";
 import { Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { StatusMark } from "#/components/glaze/ui/status";
 import {
+	fieldListItems,
 	nodeFieldValues,
 	summarizeFieldValue,
 } from "#/components/workflows/editor/node-fields";
@@ -250,6 +252,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 					{fields.map(({ field, value }) => {
 						const unset = value === undefined || value === null;
 						const bare = field.key === "message" && !unset;
+						const items = fieldListItems(field, value);
 						return (
 							<div className="-mx-2.5" key={field.key}>
 								<Button
@@ -271,7 +274,16 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 											unset && "text-text-3",
 										)}
 									>
-										{summarizeFieldValue(field, value)}
+										{items
+											? items.map((item, index) => (
+													<Fragment key={item}>
+														{index > 0 ? " " : null}
+														<span className="inline-block max-w-full">
+															{index < items.length - 1 ? `${item},` : item}
+														</span>
+													</Fragment>
+												))
+											: summarizeFieldValue(field, value)}
 									</span>
 								</Button>
 							</div>

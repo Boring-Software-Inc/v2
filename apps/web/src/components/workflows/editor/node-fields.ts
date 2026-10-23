@@ -205,15 +205,19 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 						: null,
 				),
 			];
+			const labelRow = (key: string, label: string, labels: string[]) => ({
+				field: { key, label, secret: false, kind: "string-list" as const },
+				value: labels,
+			});
 			if (draft?.match.labels?.length) {
-				rows.push(row("labels", "With labels", draft.match.labels.join(", ")));
+				rows.push(labelRow("labels", "With labels", draft.match.labels));
 			}
 			if (draft?.match.excludeLabels?.length) {
 				rows.push(
-					row(
+					labelRow(
 						"excludeLabels",
 						"Without labels",
-						draft.match.excludeLabels.join(", "),
+						draft.match.excludeLabels,
 					),
 				);
 			}
@@ -332,6 +336,19 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 const MASK = "••••••••";
 
 /** Compact per-type value summary for the node face. */
+export function fieldListItems(
+	field: FieldSpec,
+	value: JsonValue | undefined,
+): string[] | null {
+	if (field.kind !== "string-list" || field.secret || !Array.isArray(value)) {
+		return null;
+	}
+	const items = new Set(
+		value.filter((item): item is string => typeof item === "string"),
+	);
+	return items.size > 0 ? [...items] : null;
+}
+
 export function summarizeFieldValue(
 	field: FieldSpec,
 	value: JsonValue | undefined,
