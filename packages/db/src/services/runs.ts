@@ -642,11 +642,19 @@ export async function listRuns(
 
 export async function listRepoRuns(
 	db: Db,
-	input: { repoFullName: string; limit: number },
+	input: { repoFullName: string | readonly string[]; limit: number },
 ) {
+	const names =
+		typeof input.repoFullName === "string"
+			? [input.repoFullName]
+			: input.repoFullName;
+	if (names.length === 0) {
+		return [];
+	}
 	return await db
 		.select({
 			id: runs.id,
+			repoFullName: runs.repoFullName,
 			subjectNumber: runs.subjectNumber,
 			status: runs.status,
 			verdict: runs.verdict,
@@ -654,7 +662,7 @@ export async function listRepoRuns(
 			completedAt: runs.completedAt,
 		})
 		.from(runs)
-		.where(eq(runs.repoFullName, input.repoFullName))
+		.where(inArray(runs.repoFullName, [...names]))
 		.orderBy(desc(runs.id))
 		.limit(input.limit);
 }

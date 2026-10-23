@@ -45,9 +45,14 @@ export const PENDING_ITEMS_LIMIT = 200;
 /** The moderation queue, SCOPED to the user's active repo (§10). */
 export async function listPendingItems(
 	db: Db,
-	repoFullName: string,
+	repoFullName: string | readonly string[],
 	limit = PENDING_ITEMS_LIMIT,
 ) {
+	const names =
+		typeof repoFullName === "string" ? [repoFullName] : repoFullName;
+	if (names.length === 0) {
+		return [];
+	}
 	const result = await db.execute(sql`
 		SELECT m.id, m.run_id AS "runId", m.node_id AS "nodeId",
 		       m.created_at AS "createdAt", r.repo_full_name AS "repoFullName",
@@ -63,7 +68,11 @@ export async function listPendingItems(
 			WHERE s.run_id = r.id AND s.node_kind = 'rule' AND s.status = 'fail'
 			ORDER BY s.started_at ASC LIMIT 1
 		) fr ON true
-		WHERE m.status = 'pending' AND r.repo_full_name = ${repoFullName}
+		WHERE m.status = 'pending'
+		  AND r.repo_full_name IN (${sql.join(
+				names.map((name) => sql`${name}`),
+				sql`, `,
+			)})
 		ORDER BY m.id DESC
 		LIMIT ${limit}
 	`);
