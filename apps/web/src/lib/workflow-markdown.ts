@@ -6,13 +6,13 @@ import {
 	type JsonValue,
 	ruleDisplayName,
 	ruleUiSchema,
+	scheduleSentenceText,
 	storedReviewerSchema,
 	TRIGGER_CATALOG,
 	type WorkflowDefinition,
 	type WorkflowNode,
 } from "@tripwire/contracts";
 import { z } from "zod";
-import { scheduleSentenceText } from "#/lib/schedule-summary";
 
 const stringList = z.array(z.string()).catch([]);
 const reviewerList = z

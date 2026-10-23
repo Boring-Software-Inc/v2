@@ -33,9 +33,11 @@ import {
 import {
 	type LintResult,
 	lintWorkflow,
+	stepNames,
 	type ValidationCatalogEntry,
 } from "./workflow-lint.ts";
 import { describeSchedule, scheduleZone } from "./workflow-schedule.ts";
+import { scheduleSentenceText } from "./workflow-schedule-sentence.ts";
 
 export interface CompileIssue {
 	workflow: string;
@@ -643,6 +645,60 @@ export interface ScheduleReadBack {
 	summary: string;
 	timezone: string;
 	defaulted: boolean;
+	description: string;
+}
+
+function actionsAfter(
+	definition: WorkflowDefinition,
+	startId: string,
+): string[] {
+	const names = stepNames(definition);
+	const byId = new Map(definition.nodes.map((node) => [node.id, node]));
+	const seen = new Set<string>([startId]);
+	const queue = [startId];
+	const actions: string[] = [];
+	for (let at = queue.shift(); at !== undefined; at = queue.shift()) {
+		for (const edge of definition.edges) {
+			if (edge.from !== at || seen.has(edge.to)) {
+				continue;
+			}
+			seen.add(edge.to);
+			queue.push(edge.to);
+			if (byId.get(edge.to)?.type === "action") {
+				actions.push(names.get(edge.to) ?? edge.to);
+			}
+		}
+	}
+	return actions;
+}
+
+/** How each schedule in a definition reads back, zone included. */
+export function scheduleReadBacks(
+	definition: WorkflowDefinition,
+): ScheduleReadBack[] {
+	return definition.nodes.flatMap((node) => {
+		if (node.type !== "trigger" || !node.schedule?.every) {
+			return [];
+		}
+		const zone = scheduleZone(node.schedule.timezone);
+		const actions = actionsAfter(definition, node.id);
+		const sentence = scheduleSentenceText(node.schedule);
+		return [
+			{
+				nodeId: node.id,
+				summary: describeSchedule({
+					every: node.schedule.every,
+					timezone: node.schedule.timezone,
+				}),
+				timezone: zone.zone,
+				defaulted: zone.defaulted,
+				description:
+					actions.length > 0
+						? `${sentence} Then ${actions.join(", ")}.`
+						: `${sentence} No action runs after it.`,
+			},
+		];
+	});
 }
 
 export interface WorkflowReport {
@@ -657,29 +713,6 @@ export interface WorkflowReport {
 export type WorkflowCheck =
 	| { ok: true; workflows: WorkflowReport[] }
 	| { ok: false; issues: CompileIssue[]; workflows: WorkflowReport[] };
-
-/** How each schedule in a definition reads back, zone included. */
-export function scheduleReadBacks(
-	definition: WorkflowDefinition,
-): ScheduleReadBack[] {
-	return definition.nodes.flatMap((node) => {
-		if (node.type !== "trigger" || !node.schedule?.every) {
-			return [];
-		}
-		const zone = scheduleZone(node.schedule.timezone);
-		return [
-			{
-				nodeId: node.id,
-				summary: describeSchedule({
-					every: node.schedule.every,
-					timezone: node.schedule.timezone,
-				}),
-				timezone: zone.zone,
-				defaulted: zone.defaulted,
-			},
-		];
-	});
-}
 
 /** Lints stored definitions the way turning them on would. */
 export function reportWorkflows(

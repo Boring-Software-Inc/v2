@@ -3,6 +3,8 @@ import {
 	lintWorkflow,
 	NEW_SCHEDULE_DRAFT,
 	type RepoLabel,
+	scheduleSentenceText,
+	scheduleShortSummary,
 	WORKFLOW_TEMPLATES,
 	type WorkflowDefinition,
 	type WorkflowNode,
@@ -13,10 +15,6 @@ import {
 } from "#/components/workflows/editor/node-fields";
 import { labelColor, labelOptions } from "#/lib/label-options";
 import { threadSubjectOf, threadUrlOf, toEventView } from "#/lib/run-links";
-import {
-	scheduleSentenceText,
-	scheduleShortSummary,
-} from "#/lib/schedule-summary";
 import { workflowToMarkdown } from "#/lib/workflow-markdown";
 
 const SCHEDULE_TRIGGER: WorkflowNode = {

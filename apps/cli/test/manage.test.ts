@@ -531,6 +531,38 @@ export default workflows({ broken: broken(), loose: loose() });
 		]);
 	});
 
+	test("validate reads a schedule back with what it finds and what it does", async () => {
+		await pulled();
+		writeFileSync(
+			file(),
+			`import { close, schedule, workflow, workflows } from "./.tripwire/workflow.ts";
+
+const nightly = schedule({
+	every: { cron: "*/15 * * * *" },
+	timezone: "Europe/Berlin",
+	match: {
+		subjects: ["issue"],
+		state: "open",
+		inactiveFor: { n: 3, unit: "weeks" },
+		labels: ["needs-info"],
+	},
+});
+
+export default workflows({
+	stale: workflow({ on: nightly, run: [close()] }),
+});
+`,
+		);
+		const result = await runCli(
+			["workflows", "validate", "--file", file()],
+			env(),
+		);
+		expect(result.stderr).toBe("");
+		expect(result.stdout).toContain(
+			"schedule: Every 15 minutes (Europe/Berlin), finds open issues with no activity for 3 weeks, labeled needs-info, skipping locked ones. Then Close.",
+		);
+	});
+
 	test("a wrong id also fails type-checking with the right one named", async () => {
 		await pulled();
 		writeFileSync(

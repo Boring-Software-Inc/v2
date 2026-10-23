@@ -243,6 +243,8 @@ describe("automation-shaped graphs", () => {
 				summary: "At 08:00 on Sunday (Europe/Berlin)",
 				timezone: "Europe/Berlin",
 				defaulted: false,
+				description:
+					"At 08:00 on Sunday (Europe/Berlin), finds open issues with no activity for 30 days, skipping locked ones. Then Comment.",
 			},
 		]);
 	});

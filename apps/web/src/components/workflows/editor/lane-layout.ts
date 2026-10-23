@@ -2,6 +2,7 @@ import {
 	type LayoutSpacing,
 	layoutWorkflow,
 	outputPorts,
+	scheduleShortSummary,
 	type WorkflowDefinition,
 	type WorkflowNode,
 	workflowLanes,
@@ -10,7 +11,6 @@ import {
 	nodeFieldValues,
 	summarizeFieldValue,
 } from "#/components/workflows/editor/node-fields";
-import { scheduleShortSummary } from "#/lib/schedule-summary";
 import { triggerPath, whenSentence } from "#/lib/trigger-kinds";
 
 type Graph = Pick<WorkflowDefinition, "nodes" | "edges">;

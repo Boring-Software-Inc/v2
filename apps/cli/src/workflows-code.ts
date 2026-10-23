@@ -137,7 +137,11 @@ export interface ReportView {
 	id: string;
 	valid: boolean;
 	issues: readonly { severity: string; step: string; message: string }[];
-	schedules: readonly { nodeId: string; summary: string }[];
+	schedules: readonly {
+		nodeId: string;
+		summary: string;
+		description?: string;
+	}[];
 }
 
 /** Plain-text read-back of reports: one block per workflow. */
@@ -162,7 +166,10 @@ export function formatReports(
 				]);
 			}
 			for (const schedule of report.schedules) {
-				rows.push(["runs", `${schedule.nodeId}: ${schedule.summary}`]);
+				rows.push([
+					"runs",
+					`${schedule.nodeId}: ${schedule.description ?? schedule.summary}`,
+				]);
 			}
 			return pairs(rows, style);
 		})

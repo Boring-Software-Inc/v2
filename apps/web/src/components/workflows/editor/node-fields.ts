@@ -1,5 +1,6 @@
 import type { JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
+	appliesToValue,
 	describeDuration,
 	describeSchedule,
 	isScheduleTrigger,
@@ -8,7 +9,6 @@ import {
 	storedReviewerSchema,
 } from "@tripwire/contracts";
 import { z } from "zod";
-import { appliesToValue } from "#/lib/schedule-summary";
 import { whenSentence } from "#/lib/trigger-kinds";
 
 const targetList = z.array(z.string()).catch([]);

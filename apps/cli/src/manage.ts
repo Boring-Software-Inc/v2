@@ -604,6 +604,7 @@ const reportsSchema = z.object({
 					summary: z.string(),
 					timezone: z.string(),
 					defaulted: z.boolean(),
+					description: z.string().optional(),
 				}),
 			),
 		}),

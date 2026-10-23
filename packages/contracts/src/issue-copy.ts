@@ -58,6 +58,8 @@ function productText(issue: z.core.$ZodIssue, field: string): string | null {
 				: `${field} must be one of ${issue.values.map(String).join(", ")}`;
 		case "invalid_format":
 			return `${field} is not a valid ${issue.format}`;
+		case "invalid_union":
+			return `${field} is not in a form Tripwire can read`;
 		case "unrecognized_keys":
 			return `${issue.keys.join(", ")} ${issue.keys.length === 1 ? "is not a setting" : "are not settings"}`;
 		default:
