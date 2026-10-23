@@ -584,3 +584,93 @@ describe("round trip keeps the meaning of what it writes", () => {
 		});
 	});
 });
+
+describe("diff ignores the key order Postgres stores", () => {
+	const AUTHORED = `import { block, check, trigger, workflow, workflows } from "./workflow.ts";
+
+function rate() {
+	const t = trigger("change-request.opened");
+	const limit = check("pr-rate-limit", { maxPerWindow: 5, windowHours: 24 }).after(t);
+	const stop = block().after(limit.fails);
+	return workflow({ name: "Rate", steps: { t, limit, stop } });
+}
+
+export default workflows({ rate: rate() });
+`;
+	const stored: WorkflowDefinition = {
+		id: "rate",
+		name: "Rate",
+		version: 4,
+		nodes: [
+			{ type: "trigger", id: "t", kinds: ["change-request.opened"] },
+			{
+				config: { windowHours: 24, maxPerWindow: 5 },
+				ref: "pr-rate-limit@1",
+				type: "rule",
+				id: "limit",
+			},
+			{ type: "action", id: "stop", action: "block" },
+		],
+		edges: [
+			{ id: "1", from: "t", to: "limit" },
+			{ id: "2", from: "limit", to: "stop", when: "fail" },
+		],
+	};
+
+	async function authored(): Promise<WorkflowDefinition> {
+		const file = join(dir, `authored-${counter++}.ts`);
+		writeFileSync(file, AUTHORED);
+		const compiled = compileWorkflowModule(await import(file));
+		if (!compiled.ok || !compiled.definitions[0]) {
+			throw new Error("authored module did not compile");
+		}
+		return compiled.definitions[0];
+	}
+
+	test("a reordered rule config is no change", async () => {
+		const local = await authored();
+		expect(diffWorkflow(stored, local)).toEqual([]);
+		expect(diffWorkflow(stored, mergeForPush(stored, local))).toEqual([]);
+	});
+
+	test("a real config change names the field, never the bare step", async () => {
+		const local = await authored();
+		const server: WorkflowDefinition = {
+			...stored,
+			nodes: stored.nodes.map((node) =>
+				node.id === "limit" && node.type === "rule"
+					? { ...node, config: { windowHours: 24, maxPerWindow: 3 } }
+					: node,
+			),
+		};
+		expect(diffWorkflow(server, local).map((change) => change.text)).toEqual([
+			"limit.maxPerWindow: 3 → 5",
+		]);
+	});
+
+	test("nested values compare without their key order", () => {
+		const reviewers = (order: "id-first" | "login-first"): WorkflowDefinition =>
+			single(
+				"ask",
+				[
+					T,
+					{
+						id: "ask",
+						type: "action",
+						action: "request-review",
+						params: {
+							reviewers: [
+								order === "id-first"
+									? { id: 1, login: "octocat" }
+									: { login: "octocat", id: 1 },
+							],
+						},
+					},
+				],
+				[{ id: "1", from: "t", to: "ask" }],
+			);
+		expect(
+			diffWorkflow(reviewers("id-first"), reviewers("login-first")),
+		).toEqual([]);
+	});
+});

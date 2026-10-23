@@ -80,20 +80,46 @@ export interface WorkflowChange {
 	text: string;
 }
 
+function canonical(value: unknown): JsonValue | undefined {
+	if (Array.isArray(value)) {
+		return value.map((item) => canonical(item) ?? null);
+	}
+	if (typeof value === "object" && value !== null) {
+		return Object.fromEntries(
+			Object.entries(value)
+				.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+				.flatMap(([key, inner]) => {
+					const kept = canonical(inner);
+					return kept === undefined ? [] : [[key, kept]];
+				}),
+		);
+	}
+	if (
+		typeof value === "string" ||
+		typeof value === "number" ||
+		typeof value === "boolean" ||
+		value === null
+	) {
+		return value;
+	}
+	return undefined;
+}
+
 function comparable(node: WorkflowNode): string {
 	const { position: _position, ...rest } = node;
-	if (rest.type !== "action" || !rest.params) {
-		return JSON.stringify(rest);
+	if (rest.type === "rule") {
+		return JSON.stringify(canonical({ ...rest, config: rest.config ?? {} }));
+	}
+	if (rest.type !== "action") {
+		return JSON.stringify(canonical(rest));
 	}
 	const params = Object.fromEntries(
-		Object.entries(rest.params)
-			.filter(([key]) => !SECRET_KEYS.has(key))
-			.sort(([a], [b]) => a.localeCompare(b)),
+		Object.entries(rest.params ?? {}).filter(([key]) => !SECRET_KEYS.has(key)),
 	);
-	return JSON.stringify({
-		...rest,
-		...(Object.keys(params).length > 0 ? { params } : { params: undefined }),
-	});
+	const { params: _params, ...bare } = rest;
+	return JSON.stringify(
+		canonical(Object.keys(params).length > 0 ? { ...bare, params } : bare),
+	);
 }
 
 function describeNode(node: WorkflowNode): string {
@@ -116,7 +142,7 @@ const recordSchema = z.record(z.string(), jsonValueSchema);
 
 function shownItem(value: JsonValue): string {
 	const text = textSchema.safeParse(value);
-	return text.success ? text.data : JSON.stringify(value);
+	return text.success ? text.data : JSON.stringify(canonical(value));
 }
 
 function shown(value: Shown): string {
@@ -149,8 +175,8 @@ function nodeFields(node: WorkflowNode): Map<string, string> {
 	const fields = new Map<string, string>();
 	switch (node.type) {
 		case "trigger": {
+			fields.set("on", node.kinds.join(", "));
 			if (!node.schedule) {
-				fields.set("on", node.kinds.join(", "));
 				return fields;
 			}
 			const { every, timezone, match } = node.schedule;
@@ -200,7 +226,7 @@ function fieldChanges(old: WorkflowNode, node: WorkflowNode): string[] {
 		}
 		lines.push(`${node.id}.${key}: ${was} → ${now}`);
 	}
-	return lines.length > 0 ? lines : [describeNode(node)];
+	return lines;
 }
 
 function edgeKey(edge: WorkflowEdge): string {
