@@ -263,6 +263,7 @@ function ScheduleSteps({
 		<>
 			<Step status={statusOf("every")} step="every">
 				<ScheduleCadenceField
+					key={node.id}
 					onChange={(cadence) =>
 						update(
 							{ ...draft, every: cadence.every, timezone: cadence.timezone },

@@ -206,20 +206,25 @@ function IntervalFields({
 	);
 }
 
-function CronField({
-	cron,
-	readOnly,
-	onChange,
-}: {
-	cron: string;
-	readOnly: boolean;
-	onChange: (cron: string) => void;
-}) {
-	const [text, setText] = useState(cron);
+function cronError(text: string): string | null {
 	const parsed = scheduleCronSchema.safeParse({ cron: text });
-	const error = parsed.success
+	return parsed.success
 		? null
 		: sentence(parsed.error.issues[0]?.message ?? "this cron does not parse");
+}
+
+function CronField({
+	text,
+	readOnly,
+	onText,
+	onChange,
+}: {
+	text: string;
+	readOnly: boolean;
+	onText: (text: string) => void;
+	onChange: (cron: string) => void;
+}) {
+	const error = cronError(text);
 	return (
 		<Field data-field="cron" invalid={error !== null}>
 			<FieldLabel className="text-text-2">Cron</FieldLabel>
@@ -229,7 +234,7 @@ function CronField({
 				mono
 				onChange={(event) => {
 					const next = event.target.value;
-					setText(next);
+					onText(next);
 					const valid = scheduleCronSchema.safeParse({ cron: next });
 					if (valid.success) {
 						onChange(valid.data.cron);
@@ -297,6 +302,8 @@ export function ScheduleCadenceField({
 	const zoneLabelId = useId();
 	const every = value.every;
 	const kind = every ? cadenceKind(every) : undefined;
+	const [cronText, setCronText] = useState<string | null>(null);
+	const cronInvalid = cronText !== null && cronError(cronText) !== null;
 	const setEvery = (next: ScheduleCadence) =>
 		onChange({
 			every: next,
@@ -326,6 +333,7 @@ export function ScheduleCadenceField({
 							(option) => option.value === next,
 						);
 						if (picked) {
+							setCronText(null);
 							setEvery(
 								cadenceForKind(picked.value satisfies CadenceKind, every),
 							);
@@ -346,9 +354,10 @@ export function ScheduleCadenceField({
 			) : null}
 			{every && "cron" in every ? (
 				<CronField
-					cron={every.cron}
 					onChange={(cron) => setEvery({ cron })}
+					onText={setCronText}
 					readOnly={readOnly}
+					text={cronText ?? every.cron}
 				/>
 			) : null}
 			{isClockCadence(every) ? (
@@ -367,7 +376,7 @@ export function ScheduleCadenceField({
 					/>
 				</Field>
 			) : null}
-			{every ? (
+			{every && !cronInvalid ? (
 				<ReadBack
 					display={timezones.display.zone}
 					every={every}
