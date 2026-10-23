@@ -235,9 +235,10 @@ describe("schedule lint rules", () => {
 			graph([partial, LOCK], SCHEDULED.edges),
 			"schedule-config",
 		);
-		expect(found[0]?.message).toBe(
-			"Trigger needs a status and how long without activity",
-		);
+		expect(found[0]).toMatchObject({
+			step: "Trigger",
+			message: "Set a status and how long without activity.",
+		});
 		expect(found[0]?.fixes[0]).toMatchObject({
 			intent: { type: "focus-field", nodeId: "t", field: "state" },
 		});
@@ -261,9 +262,11 @@ describe("schedule lint rules", () => {
 			],
 		);
 		const found = only(def, "action-params");
-		expect(found.map((result) => [result.nodeId, result.message])).toEqual([
-			["rm", "Remove label: choose at least one label"],
-			["say", "Comment: Invalid input: expected string, received undefined"],
+		expect(
+			found.map((result) => [result.nodeId, result.step, result.message]),
+		).toEqual([
+			["rm", "Remove label", "Pick the labels to remove."],
+			["say", "Comment", "Write the message."],
 		]);
 	});
 

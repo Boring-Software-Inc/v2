@@ -118,9 +118,10 @@ describe("validateWorkflow (base — every failure class)", () => {
 		expect(result.valid ? [] : result.issues).toContainEqual({
 			rule: "gate-input",
 			severity: "error",
+			step: "All of",
 			edgeId: "e3",
 			nodeId: "g",
-			message: "All of takes rule results, not events from Trigger",
+			message: "It takes rule results, not events.",
 			fixes: [
 				{
 					label: "Insert a rule",
@@ -138,9 +139,7 @@ describe("validateWorkflow (base — every failure class)", () => {
 		const g = graph({});
 		g.nodes.push({ id: "g", type: "gate", mode: "any-of" });
 		g.edges.push({ id: "e3", from: "r", to: "g", when: "fail" });
-		expect(issuesOf(validateWorkflow(g))).toContain(
-			"Any of takes only Passes, not Doesn't pass from Account age",
-		);
+		expect(issuesOf(validateWorkflow(g))).toContain("It takes only Passes.");
 	});
 
 	test("branching paths and several triggers stay valid", () => {
@@ -221,7 +220,7 @@ describe("validateWorkflowForEnable — custom rules via the runtime catalog", (
 
 	test("built-ins alone read a custom ref as 'unknown rule' (the editor bug)", () => {
 		expect(issuesOf(validateWorkflowForEnable(customGraph))).toContain(
-			"custom-irrelevant-019f93@1 is not a rule this repo has",
+			"This rule is not in this repo.",
 		);
 	});
 

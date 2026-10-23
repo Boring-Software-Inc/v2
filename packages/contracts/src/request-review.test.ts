@@ -164,8 +164,9 @@ describe("request-review in workflow validation", () => {
 		expect(result.valid ? [] : result.issues).toContainEqual({
 			rule: "review-targets",
 			severity: "error",
+			step: "Request GitHub review",
 			nodeId: "a",
-			message: "Request GitHub review asks no one",
+			message: "Pick people or teams to ask.",
 			fixes: [
 				{
 					label: "Add reviewers",
@@ -182,7 +183,7 @@ describe("request-review in workflow validation", () => {
 					withReviewParams({ reviewers: ["bad name"] }),
 				),
 			),
-		).toContain("Request GitHub review: bad name is not a GitHub username");
+		).toContain("Fix the reviewers: bad name is not a GitHub username.");
 	});
 
 	test("a node with targets enables", () => {
@@ -212,9 +213,15 @@ describe("stale-reviewer", () => {
 		const stale = lintWorkflow(def, { reviewers: synced }).filter(
 			(result) => result.rule === "stale-reviewer",
 		);
-		expect(stale.map((result) => result.message)).toEqual([
-			"Request GitHub review: gone can no longer review this repo",
-			"Request GitHub review: legacy can no longer review this repo",
+		expect(stale.map((result) => [result.step, result.message])).toEqual([
+			[
+				"Request GitHub review",
+				"Remove gone. They can no longer review this repo.",
+			],
+			[
+				"Request GitHub review",
+				"Remove legacy. They can no longer review this repo.",
+			],
 		]);
 		expect(stale[0]).toMatchObject({
 			severity: "warning",

@@ -20,6 +20,7 @@ import {
 	type WorkflowEdge,
 	type WorkflowNode,
 	workflowDefinitionSchema,
+	workflowNodeSchema,
 } from "./workflow.ts";
 import {
 	canAccept,
@@ -93,6 +94,7 @@ export type LintFix =
 export interface LintResult {
 	rule: LintRuleId;
 	severity: LintSeverity;
+	step: string;
 	message: string;
 	nodeId?: string;
 	edgeId?: string;
@@ -110,7 +112,7 @@ export interface LintOptions {
 	reviewers?: readonly ReviewerRef[];
 }
 
-type Finding = Omit<LintResult, "rule" | "severity">;
+type Finding = Omit<LintResult, "rule" | "severity" | "step">;
 type GateNode = Extract<WorkflowNode, { type: "gate" }>;
 type TriggerNode = Extract<WorkflowNode, { type: "trigger" }>;
 
@@ -130,9 +132,19 @@ const removeEdge = (edgeId: string): LintFix => ({
 });
 
 const deleteStep = (nodeId: string): LintFix => ({
-	label: "Delete step",
+	label: "Delete",
 	edit: { type: "delete-node", nodeId },
 });
+
+function withPeriod(text: string): string {
+	const trimmed = text.trim();
+	return /[.?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function sentence(text: string): string {
+	const trimmed = text.trim();
+	return withPeriod(`${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`);
+}
 
 function sentenceList(names: string[]): string {
 	if (names.length <= 1) {
@@ -215,6 +227,31 @@ export function outputHint(
 	return null;
 }
 
+function gateInputMessage(port: WorkflowPort): string {
+	const kind = WORKFLOW_PORT_KIND[port];
+	if (kind === "result") {
+		return "It takes only Passes.";
+	}
+	return kind === "event"
+		? "It takes rule results, not events."
+		: "It takes rule results, not decisions.";
+}
+
+export function stepNames(
+	def: Pick<WorkflowDefinition, "nodes">,
+	catalog: readonly ValidationCatalogEntry[] = RULE_CATALOG,
+): Map<string, string> {
+	const seen = new Map<string, number>();
+	const names = new Map<string, string>();
+	for (const node of def.nodes) {
+		const base = stepDisplayName(node, catalog);
+		const count = (seen.get(base) ?? 0) + 1;
+		seen.set(base, count);
+		names.set(node.id, count === 1 ? base : `${base} ${count}`);
+	}
+	return names;
+}
+
 function gateInputFixes(edge: WorkflowEdge, port: WorkflowPort): LintFix[] {
 	if (port === "event") {
 		return [
@@ -244,7 +281,7 @@ function checkDuplicateIds(ctx: LintContext): Finding[] {
 		if (seenNodes.has(node.id)) {
 			findings.push({
 				nodeId: node.id,
-				message: `Two steps use the id ${node.id}; rename one`,
+				message: "Another step uses the same id. Rename one.",
 				fixes: [],
 			});
 		}
@@ -255,7 +292,7 @@ function checkDuplicateIds(ctx: LintContext): Finding[] {
 		if (seenEdges.has(edge.id)) {
 			findings.push({
 				edgeId: edge.id,
-				message: `Two connections use the id ${edge.id}; rename one`,
+				message: "Another connection uses the same id. Rename one.",
 				fixes: [],
 			});
 		}
@@ -268,9 +305,9 @@ function checkMissingSteps(ctx: LintContext): Finding[] {
 	return ctx.def.edges.flatMap((edge) =>
 		[edge.from, edge.to]
 			.filter((id) => !ctx.byId.has(id))
-			.map((id) => ({
+			.map(() => ({
 				edgeId: edge.id,
-				message: `A connection points to ${id}, which is not a step`,
+				message: "A connection points to a step that is gone.",
 				fixes: [removeEdge(edge.id)],
 			})),
 	);
@@ -281,7 +318,7 @@ function checkNoTrigger(ctx: LintContext): Finding[] {
 		? []
 		: [
 				{
-					message: "No trigger starts this workflow",
+					message: "Add a trigger to start it.",
 					fixes: [{ label: "Add trigger", edit: { type: "add-trigger" } }],
 				},
 			];
@@ -317,7 +354,10 @@ function checkPortInputs(rule: "trigger-input" | "gate-input") {
 				{
 					edgeId: edge.id,
 					nodeId: ends.target.id,
-					message: hint.message,
+					message:
+						rule === "gate-input"
+							? gateInputMessage(port)
+							: "It takes no inputs.",
 					fixes:
 						rule === "gate-input"
 							? gateInputFixes(edge, port)
@@ -347,7 +387,10 @@ function checkOutputs(rule: "no-outputs" | "wrong-output") {
 				{
 					edgeId: edge.id,
 					nodeId: ends.source.id,
-					message: hint.message,
+					message:
+						rule === "no-outputs"
+							? "It has no outputs."
+							: `It has no ${WORKFLOW_PORT_LABELS[edgePort(ends.source, edge.when)]} output.`,
 					fixes:
 						rule === "wrong-output" && canPass
 							? [
@@ -378,7 +421,7 @@ function checkNotInputs(ctx: LintContext): Finding[] {
 		return [
 			{
 				nodeId: node.id,
-				message: `${ctx.name(node)} takes one input but has ${incoming.length}`,
+				message: "It takes one input. Keep one.",
 				fixes: [
 					{
 						label: "Keep first input",
@@ -404,7 +447,7 @@ function checkOrphans(ctx: LintContext): Finding[] {
 			triggers.length === 1 && onlyTrigger && canAccept(node.type, "event")
 				? [
 						{
-							label: "Connect trigger",
+							label: "Connect",
 							edit: { type: "connect", from: onlyTrigger.id, to: node.id },
 						},
 					]
@@ -412,7 +455,7 @@ function checkOrphans(ctx: LintContext): Finding[] {
 		return [
 			{
 				nodeId: node.id,
-				message: `${ctx.name(node)} has no input, so it never runs`,
+				message: "Nothing runs it. Connect it or delete it.",
 				fixes: [...connect, deleteStep(node.id)],
 			},
 		];
@@ -439,8 +482,8 @@ function checkCycles(ctx: LintContext): Finding[] {
 					nodeId: edge.to,
 					message:
 						names.length === 1
-							? `${names[0]} connects to itself`
-							: `${sentenceList(names)} form a loop`,
+							? "It connects to itself."
+							: `It loops back through ${sentenceList(names.slice(1))}.`,
 					fixes: [removeEdge(edge.id)],
 				});
 			} else if (next === undefined && ctx.byId.has(edge.to)) {
@@ -469,11 +512,28 @@ function reachableFromTriggers(ctx: LintContext): Set<string> {
 
 function checkNoAction(ctx: LintContext): Finding[] {
 	const reached = reachableFromTriggers(ctx);
+	const firstTrigger = ctx.def.nodes.find((node) => node.type === "trigger");
 	return ctx.def.nodes.some(
 		(node) => node.type === "action" && reached.has(node.id),
 	)
 		? []
-		: [{ message: "No action runs after a trigger. Connect one.", fixes: [] }];
+		: [
+				{
+					message: "Add an action after the trigger.",
+					fixes: firstTrigger
+						? [
+								{
+									label: "Add action",
+									intent: {
+										type: "add-next-step",
+										nodeId: firstTrigger.id,
+										port: "event",
+									},
+								},
+							]
+						: [],
+				},
+			];
 }
 
 const SCHEDULE_STEP_WORDS = {
@@ -496,7 +556,7 @@ function checkScheduleConfig(ctx: LintContext): Finding[] {
 		return [
 			{
 				nodeId: node.id,
-				message: `${ctx.name(node)} needs ${sentenceList(missing.map((step) => SCHEDULE_STEP_WORDS[step]))}`,
+				message: `Set ${sentenceList(missing.map((step) => SCHEDULE_STEP_WORDS[step]))}.`,
 				fixes: [
 					{
 						label: "Set schedule",
@@ -513,8 +573,18 @@ function checkScheduleConfig(ctx: LintContext): Finding[] {
 }
 
 const ACTION_PARAM_SCHEMAS = {
-	"remove-label": { schema: labelParamsSchema, field: "labels" },
-	"post-comment": { schema: postCommentParamsSchema, field: "message" },
+	"remove-label": {
+		schema: labelParamsSchema,
+		field: "labels",
+		message: "Pick the labels to remove.",
+		label: "Pick labels",
+	},
+	"post-comment": {
+		schema: postCommentParamsSchema,
+		field: "message",
+		message: "Write the message.",
+		label: "Write message",
+	},
 } as const;
 
 function checkActionParams(ctx: LintContext): Finding[] {
@@ -533,10 +603,10 @@ function checkActionParams(ctx: LintContext): Finding[] {
 		return [
 			{
 				nodeId: node.id,
-				message: `${ctx.name(node)}: ${parsed.error.issues[0]?.message ?? "missing settings"}`,
+				message: spec.message,
 				fixes: [
 					{
-						label: "Edit setting",
+						label: spec.label,
 						intent: { type: "focus-field", nodeId: node.id, field: spec.field },
 					},
 				],
@@ -551,10 +621,10 @@ function checkScheduleMixed(ctx: LintContext): Finding[] {
 			? [
 					{
 						nodeId: node.id,
-						message: `${ctx.name(node)} runs on a schedule, so it cannot also run on events`,
+						message: "It cannot run on a schedule and on events. Pick one.",
 						fixes: [
 							{
-								label: "Choose events",
+								label: "Pick one",
 								intent: {
 									type: "focus-field",
 									nodeId: node.id,
@@ -595,7 +665,8 @@ function checkScheduleActions(ctx: LintContext): Finding[] {
 			? [
 					{
 						nodeId: node.id,
-						message: `${ctx.name(node)} needs a change request event, not a schedule`,
+						message:
+							"It needs a change request event. A schedule cannot run it.",
 						fixes: [deleteStep(node.id)],
 					},
 				]
@@ -616,7 +687,7 @@ function checkUnknownRules(ctx: LintContext): Finding[] {
 			? [
 					{
 						nodeId: node.id,
-						message: `${node.ref} is not a rule this repo has`,
+						message: "This rule is not in this repo.",
 						fixes: [deleteStep(node.id)],
 					},
 				]
@@ -639,7 +710,9 @@ function checkRuleConfigs(ctx: LintContext): Finding[] {
 		return [
 			{
 				nodeId: node.id,
-				message: `${ctx.name(node)}: ${issue?.message ?? "invalid settings"}`,
+				message: issue?.message
+					? `Fix this setting: ${withPeriod(issue.message)}`
+					: "A setting is not valid.",
 				fixes:
 					field === undefined
 						? []
@@ -669,7 +742,7 @@ function checkRemovedSteps(ctx: LintContext): Finding[] {
 			? [
 					{
 						nodeId: node.id,
-						message: `${ctx.name(node)} was removed; ${REMOVED_STEP_REASONS[node.action]}`,
+						message: `This step was removed. ${sentence(REMOVED_STEP_REASONS[node.action])}`,
 						fixes: [deleteStep(node.id)],
 					},
 				]
@@ -697,8 +770,10 @@ function checkReviewTargets(ctx: LintContext): Finding[] {
 			{
 				nodeId: node.id,
 				message: empty
-					? `${ctx.name(node)} asks no one`
-					: `${ctx.name(node)}: ${issue?.message ?? "invalid reviewers"}`,
+					? "Pick people or teams to ask."
+					: issue?.message
+						? `Fix the reviewers: ${withPeriod(issue.message)}`
+						: "A reviewer is not valid.",
 				fixes: [
 					{
 						label: empty ? "Add reviewers" : "Edit reviewers",
@@ -727,7 +802,7 @@ function checkStaleReviewers(ctx: LintContext): Finding[] {
 			.filter((chosen) => !synced.some((known) => sameReviewer(known, chosen)))
 			.map((reviewer) => ({
 				nodeId: node.id,
-				message: `${ctx.name(node)}: ${reviewer.login} can no longer review this repo`,
+				message: `Remove ${reviewer.login}. They can no longer review this repo.`,
 				fixes: [
 					{
 						label: "Remove",
@@ -753,10 +828,10 @@ function checkDeadEnds(ctx: LintContext): Finding[] {
 		return [
 			{
 				nodeId: node.id,
-				message: `Nothing follows ${ctx.name(node)}`,
+				message: "Nothing runs after it.",
 				fixes: [
 					{
-						label: "Add next step",
+						label: "Add step",
 						intent: { type: "add-next-step", nodeId: node.id, port },
 					},
 					deleteStep(node.id),
@@ -804,8 +879,17 @@ function group(edges: WorkflowEdge[], key: "from" | "to") {
 	return map;
 }
 
-function result(rule: LintRuleId, finding: Finding): LintResult {
-	return { rule, severity: LINT_RULES[rule].severity, ...finding };
+function result(
+	rule: LintRuleId,
+	finding: Finding,
+	names: ReadonlyMap<string, string> = new Map(),
+): LintResult {
+	return {
+		rule,
+		severity: LINT_RULES[rule].severity,
+		step: finding.nodeId ? (names.get(finding.nodeId) ?? "Step") : "Workflow",
+		...finding,
+	};
 }
 
 function lintParsed(
@@ -814,19 +898,20 @@ function lintParsed(
 	stage: LintStage,
 	reviewers?: readonly ReviewerRef[],
 ): LintResult[] {
+	const names = stepNames(def, catalog);
 	const ctx: LintContext = {
 		def,
 		byId: new Map(def.nodes.map((node) => [node.id, node])),
 		incoming: group(def.edges, "to"),
 		outgoing: group(def.edges, "from"),
-		name: (node) => stepDisplayName(node, catalog),
+		name: (node) => names.get(node.id) ?? stepDisplayName(node, catalog),
 		catalog,
 		reviewers,
 	};
 	return CHECKS.flatMap(({ rule, check }) =>
 		stage === "structure" && LINT_RULES[rule].stage !== "structure"
 			? []
-			: check(ctx).map((finding) => result(rule, finding)),
+			: check(ctx).map((finding) => result(rule, finding, names)),
 	);
 }
 
@@ -840,18 +925,46 @@ const rawGraphSchema = z.object({
 	),
 });
 
-function schemaResults(error: z.ZodError, ids: string[]): LintResult[] {
+function rawStepNames(
+	rawNodes: readonly { id: string; type: string }[],
+	catalog: readonly ValidationCatalogEntry[],
+): Map<string, string> {
+	const seen = new Map<string, number>();
+	const names = new Map<string, string>();
+	for (const raw of rawNodes) {
+		const parsed = workflowNodeSchema.safeParse(raw);
+		const base = parsed.success
+			? stepDisplayName(parsed.data, catalog)
+			: raw.type
+				? `${raw.type.charAt(0).toUpperCase()}${raw.type.slice(1)}`
+				: "Step";
+		const count = (seen.get(base) ?? 0) + 1;
+		seen.set(base, count);
+		names.set(raw.id, count === 1 ? base : `${base} ${count}`);
+	}
+	return names;
+}
+
+function schemaResults(
+	error: z.ZodError,
+	ids: string[],
+	names: ReadonlyMap<string, string>,
+): LintResult[] {
 	return error.issues.map((issue) => {
 		const [head, index] = issue.path;
 		const nodeId =
 			head === "nodes" && Number.isInteger(index)
 				? ids[Number(index)]
 				: undefined;
-		return result("schema", {
-			nodeId: nodeId || undefined,
-			message: `${issue.path.join(".") || "workflow"}: ${issue.message}`,
-			fixes: [],
-		});
+		return result(
+			"schema",
+			{
+				nodeId: nodeId || undefined,
+				message: "A setting is not valid.",
+				fixes: [],
+			},
+			names,
+		);
 	});
 }
 
@@ -897,20 +1010,26 @@ export function lintWorkflowReport(
 			results: schemaResults(
 				parsed.error,
 				rawNodes.map((node) => node.id),
+				rawStepNames(rawNodes, catalog),
 			),
 		};
 	}
+	const patchedNames = stepNames(patched.data, catalog);
 	const silentResults = silent.map((node) =>
-		result("no-trigger-events", {
-			nodeId: node.id,
-			message: "Trigger runs on no events",
-			fixes: [
-				{
-					label: "Choose events",
-					intent: { type: "focus-field", nodeId: node.id, field: "kinds" },
-				},
-			],
-		}),
+		result(
+			"no-trigger-events",
+			{
+				nodeId: node.id,
+				message: "Pick when it runs.",
+				fixes: [
+					{
+						label: "Pick events",
+						intent: { type: "focus-field", nodeId: node.id, field: "kinds" },
+					},
+				],
+			},
+			patchedNames,
+		),
 	);
 	return {
 		definition: null,
