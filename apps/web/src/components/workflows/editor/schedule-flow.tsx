@@ -1,5 +1,5 @@
+import { useParams } from "@tanstack/react-router";
 import type {
-	EveryUnit,
 	InactiveUnit,
 	ScheduleDraft,
 	ScheduleState,
@@ -9,9 +9,7 @@ import type {
 } from "@tripwire/contracts";
 import {
 	DURATION_UNIT_MS,
-	isScheduleInterval,
 	MAX_INACTIVE_FOR_MS,
-	MAX_SCHEDULE_EVERY_MS,
 	missingScheduleSteps,
 	NEW_SCHEDULE_DRAFT,
 } from "@tripwire/contracts";
@@ -30,6 +28,8 @@ import {
 } from "#/components/glaze/ui/segmented-control";
 import { Select } from "#/components/glaze/ui/select";
 import { LabelPicker } from "#/components/workflows/editor/label-picker";
+import { ScheduleCadenceField } from "#/components/workflows/editor/schedule-cadence";
+import { useTimezones } from "#/hooks/use-timezones";
 import { cn } from "#/lib/glaze/utils";
 import { UNIT_LABEL } from "#/lib/schedule-summary";
 import {
@@ -43,7 +43,6 @@ import {
 
 type StepStatus = "answered" | "current" | "upcoming";
 
-const EVERY_UNITS: readonly EveryUnit[] = ["hours", "days", "weeks"];
 const INACTIVE_UNITS: readonly InactiveUnit[] = [
 	"hours",
 	"days",
@@ -245,6 +244,8 @@ function ScheduleSteps({
 				: "upcoming";
 	const subjectsTitleId = useId();
 	const stateTitleId = useId();
+	const { org } = useParams({ strict: false });
+	const timezones = useTimezones(org);
 
 	const update = (next: ScheduleDraft, answered?: ScheduleStep) => {
 		onUpdate({ ...node, schedule: next });
@@ -261,19 +262,16 @@ function ScheduleSteps({
 	return (
 		<>
 			<Step status={statusOf("every")} step="every">
-				<DurationField
-					defaultUnit="hours"
-					label="Every"
-					limitMs={MAX_SCHEDULE_EVERY_MS}
-					onChange={(every) => update({ ...draft, every }, "every")}
-					readOnly={readOnly}
-					status={statusOf("every")}
-					units={EVERY_UNITS}
-					value={
-						draft.every && isScheduleInterval(draft.every)
-							? draft.every
-							: undefined
+				<ScheduleCadenceField
+					onChange={(cadence) =>
+						update(
+							{ ...draft, every: cadence.every, timezone: cadence.timezone },
+							"every",
+						)
 					}
+					readOnly={readOnly}
+					timezones={timezones}
+					value={{ every: draft.every, timezone: draft.timezone }}
 				/>
 			</Step>
 			<Step status={statusOf("subjects")} step="subjects">
