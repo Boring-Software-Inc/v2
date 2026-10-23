@@ -1,4 +1,10 @@
-import type { WorkflowDefinition, WorkflowNode } from "@tripwire/contracts";
+import {
+	type LayoutSpacing,
+	layoutWorkflow,
+	type WorkflowDefinition,
+	type WorkflowNode,
+	workflowLanes,
+} from "@tripwire/contracts";
 import {
 	nodeFieldValues,
 	summarizeFieldValue,
@@ -8,69 +14,13 @@ import { triggerPath, whenSentence } from "#/lib/trigger-kinds";
 
 type Graph = Pick<WorkflowDefinition, "nodes" | "edges">;
 
-export interface WorkflowLane {
-	index: number;
-	triggerId: string;
-	nodeIds: string[];
-}
-
-export const LANE_SPACING = {
+export const LANE_SPACING: LayoutSpacing = {
 	cardWidth: 224,
 	columnGap: 96,
 	rowGap: 24,
 	laneGap: 112,
 	head: 40,
 };
-
-export function workflowLanes(graph: Graph): WorkflowLane[] {
-	const owner = new Map<string, number>();
-	const triggers = graph.nodes.filter((node) => node.type === "trigger");
-	return triggers.map((trigger, index) => {
-		const order: string[] = [];
-		const queue = [trigger.id];
-		for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
-			if (owner.has(id)) {
-				continue;
-			}
-			owner.set(id, index);
-			order.push(id);
-			for (const edge of graph.edges) {
-				if (edge.from === id && !owner.has(edge.to)) {
-					queue.push(edge.to);
-				}
-			}
-		}
-		return { index, triggerId: trigger.id, nodeIds: order };
-	});
-}
-
-function laneDepths(graph: Graph, lane: WorkflowLane): Map<string, number> {
-	const members = new Set(lane.nodeIds);
-	const depths = new Map<string, number>();
-	const depthOf = (id: string, seen: Set<string>): number => {
-		const known = depths.get(id);
-		if (known !== undefined) {
-			return known;
-		}
-		if (id === lane.triggerId || seen.has(id)) {
-			return 0;
-		}
-		const next = new Set(seen).add(id);
-		const parents = graph.edges.filter(
-			(edge) => edge.to === id && members.has(edge.from),
-		);
-		const depth =
-			parents.length === 0
-				? 1
-				: 1 + Math.max(...parents.map((edge) => depthOf(edge.from, next)));
-		depths.set(id, depth);
-		return depth;
-	};
-	for (const id of lane.nodeIds) {
-		depths.set(id, depthOf(id, new Set()));
-	}
-	return depths;
-}
 
 const LABELED_CHARS = 22;
 const BARE_CHARS = 30;
@@ -96,36 +46,7 @@ export function laneLayout(
 	graph: Graph,
 	heightOf: (node: WorkflowNode) => number = estimateCardHeight,
 ): Map<string, { x: number; y: number }> {
-	const lanes = workflowLanes(graph);
-	const byId = new Map(graph.nodes.map((node) => [node.id, node]));
-	const placed = new Map<string, { x: number; y: number }>();
-	const multi = lanes.length > 1;
-	const column = LANE_SPACING.cardWidth + LANE_SPACING.columnGap;
-	let top = 0;
-	for (const lane of lanes) {
-		const depths = laneDepths(graph, lane);
-		const stacks = new Map<number, number>();
-		const start = top + (multi ? LANE_SPACING.head : 0);
-		let bottom = start;
-		for (const id of lane.nodeIds) {
-			const node = byId.get(id);
-			if (!node) {
-				continue;
-			}
-			const depth = depths.get(id) ?? 0;
-			const y = stacks.get(depth) ?? start;
-			placed.set(id, { x: depth * column, y });
-			const end = y + heightOf(node);
-			stacks.set(depth, end + LANE_SPACING.rowGap);
-			bottom = Math.max(bottom, end);
-		}
-		top = bottom + LANE_SPACING.laneGap;
-	}
-	const loose = graph.nodes.filter((node) => !placed.has(node.id));
-	loose.forEach((node, index) => {
-		placed.set(node.id, { x: index * column, y: top });
-	});
-	return placed;
+	return layoutWorkflow(graph, { spacing: LANE_SPACING, heightOf });
 }
 
 export function laneSummary(node: WorkflowNode): string {

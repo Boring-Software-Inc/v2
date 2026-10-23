@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	WORKFLOW_TEMPLATES,
 	type WorkflowDefinition,
+	workflowLanes,
 } from "@tripwire/contracts";
 import {
 	LANE_SPACING,
@@ -9,7 +10,6 @@ import {
 	laneLayout,
 	laneSummary,
 	placeUnpositioned,
-	workflowLanes,
 } from "#/components/workflows/editor/lane-layout";
 
 const stale = WORKFLOW_TEMPLATES.find(

@@ -25,10 +25,14 @@ import {
 	applyLintEdit,
 	connectionIssue,
 	customValidationEntries,
+	type DragOrigin,
 	edgePort,
+	handlePort,
 	insertStep,
 	lintWorkflow,
 	openPosition,
+	planDrag,
+	portHandleId,
 	RULE_CATALOG,
 	stepDisplayName,
 	stepNames,
@@ -65,12 +69,6 @@ import {
 } from "#/components/glaze/ui/dialog";
 import { toast } from "#/components/glaze/ui/toast";
 import { CanvasZoom } from "#/components/workflows/editor/canvas-zoom";
-import {
-	type DragOrigin,
-	handlePort,
-	planDrag,
-	portHandleId,
-} from "#/components/workflows/editor/connection-plan";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import {
 	buildNodeFromItem,

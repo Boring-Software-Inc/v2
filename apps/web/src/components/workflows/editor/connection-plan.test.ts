@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import type { WorkflowNode } from "@tripwire/contracts";
-import { Position } from "@xyflow/react";
 import {
 	handlePort,
 	handleReason,
@@ -9,6 +8,9 @@ import {
 	outputLook,
 	planDrag,
 	portHandleId,
+} from "@tripwire/contracts";
+import { Position } from "@xyflow/react";
+import {
 	previewPath,
 	previewSides,
 } from "#/components/workflows/editor/connection-plan";
@@ -30,20 +32,43 @@ const nodes = [trigger, rule, gate, block];
 
 describe("port looks", () => {
 	test("outputs take their kind's shape and tone", () => {
-		expect(outputLook("event")).toEqual({ shape: "event", tone: "neutral" });
-		expect(outputLook("fail")).toEqual({ shape: "result", tone: "fail" });
-		expect(outputLook("approve")).toEqual({ shape: "decision", tone: "ok" });
+		expect(outputLook("event")).toEqual({
+			shape: "event",
+			tone: "neutral",
+			negated: false,
+		});
+		expect(outputLook("fail")).toEqual({
+			shape: "result",
+			tone: "fail",
+			negated: true,
+		});
+		expect(outputLook("approve")).toEqual({
+			shape: "decision",
+			tone: "ok",
+			negated: false,
+		});
 	});
 
 	test("inputs take the shape of what they accept", () => {
 		expect(inputLook("trigger")).toBeNull();
-		expect(inputLook("gate")).toEqual({ shape: "result", tone: "neutral" });
-		expect(inputLook("rule")).toEqual({ shape: "any", tone: "neutral" });
+		expect(inputLook("gate")).toEqual({
+			shape: "result",
+			tone: "neutral",
+			negated: false,
+		});
+		expect(inputLook("rule")).toEqual({
+			shape: "any",
+			tone: "neutral",
+			negated: false,
+		});
 	});
 
 	test("input summaries name what each step takes", () => {
 		expect(inputSummary("gate")).toEqual([
-			{ look: { shape: "result", tone: "neutral" }, label: "Results" },
+			{
+				look: { shape: "result", tone: "neutral", negated: false },
+				label: "Results",
+			},
 		]);
 		expect(inputSummary("rule").map((entry) => entry.label)).toEqual([
 			"Events",

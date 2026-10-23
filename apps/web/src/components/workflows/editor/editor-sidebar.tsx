@@ -13,6 +13,7 @@ import {
 	acceptReason,
 	GATE_CATALOG,
 	NEW_SCHEDULE_DRAFT,
+	outputLook,
 	RULE_CATALOG,
 	TRIGGER_CATALOG,
 	WORKFLOW_PORT_LABELS,
@@ -40,7 +41,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/glaze/ui/tooltip";
-import { outputLook } from "#/components/workflows/editor/connection-plan";
 import {
 	hasEditableParams,
 	PropertiesPanel,

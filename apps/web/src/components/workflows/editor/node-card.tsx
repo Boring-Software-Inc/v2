@@ -1,8 +1,12 @@
 import type { WorkflowNode, WorkflowPort } from "@tripwire/contracts";
 import {
-	acceptedPortKinds,
+	handleReason,
+	inputLook,
+	inputSummary,
+	type NodeVerdict,
+	outputLook,
 	outputPorts,
-	WORKFLOW_PORT_KIND_LABELS,
+	portHandleId,
 	WORKFLOW_PORT_LABELS,
 	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
@@ -10,13 +14,6 @@ import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { StatusMark } from "#/components/glaze/ui/status";
-import {
-	handleReason,
-	inputLook,
-	type NodeVerdict,
-	outputLook,
-	portHandleId,
-} from "#/components/workflows/editor/connection-plan";
 import {
 	nodeFieldValues,
 	summarizeFieldValue,
@@ -91,6 +88,7 @@ function OutputPort({
 		<Handle
 			data-drop={drop}
 			data-port-io="out"
+			data-port-negated={look.negated || undefined}
 			data-port-shape={look.shape}
 			data-port-slot={corner ? "corner" : "top"}
 			data-port-tone={look.tone}
@@ -185,8 +183,8 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 					data-port-tone={input.tone}
 					isConnectableStart={false}
 					position={Position.Left}
-					title={acceptedPortKinds(node.type)
-						.map((kind) => WORKFLOW_PORT_KIND_LABELS[kind])
+					title={inputSummary(node.type)
+						.map((entry) => entry.label)
 						.join(", ")}
 					type="target"
 				/>

@@ -3,7 +3,16 @@ import type {
 	EdgeWhen,
 	WorkflowPort,
 } from "@tripwire/contracts";
-import { WORKFLOW_PORT_KIND, WORKFLOW_PORT_TONE } from "@tripwire/contracts";
+import {
+	type DragPlan,
+	handlePort,
+	handleReason,
+	type NodeVerdict,
+	outputLook,
+	type PortLook,
+	WORKFLOW_PORT_KIND,
+	WORKFLOW_PORT_TONE,
+} from "@tripwire/contracts";
 import {
 	BaseEdge,
 	type ConnectionLineComponentProps,
@@ -20,14 +29,7 @@ import {
 import { createContext, useContext } from "react";
 import { StatusMark } from "#/components/glaze/ui/status";
 import { tooltipPopupClass } from "#/components/glaze/ui/tooltip";
-import {
-	type DragPlan,
-	handlePort,
-	handleReason,
-	type NodeVerdict,
-	type PortLook,
-	previewPath,
-} from "#/components/workflows/editor/connection-plan";
+import { previewPath } from "#/components/workflows/editor/connection-plan";
 import type { TripwireFlowNode } from "#/components/workflows/editor/node-card";
 import {
 	useEdgeProblems,
@@ -55,6 +57,7 @@ export function PortGlyph({ look }: { look: PortLook & { io: "in" | "out" } }) {
 			aria-hidden
 			data-port-glyph=""
 			data-port-io={look.io}
+			data-port-negated={look.negated || undefined}
 			data-port-shape={look.shape}
 			data-port-tone={look.tone}
 		/>
@@ -275,13 +278,7 @@ export function PendingConnection({
 				data-pending-port=""
 				style={marker}
 			>
-				<PortGlyph
-					look={{
-						shape: WORKFLOW_PORT_KIND[port],
-						tone: WORKFLOW_PORT_TONE[port],
-						io: "in",
-					}}
-				/>
+				<PortGlyph look={{ ...outputLook(port), io: "in" }} />
 			</div>
 		</ViewportPortal>
 	);

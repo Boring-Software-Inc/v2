@@ -1,10 +1,12 @@
 import type {
 	EdgeWhen,
 	WorkflowDefinition,
-	WorkflowEdge,
 	WorkflowNode,
 } from "@tripwire/contracts";
-import { workflowDefinitionSchema } from "@tripwire/contracts";
+import {
+	WORKFLOW_PORT_LABELS,
+	workflowDefinitionSchema,
+} from "@tripwire/contracts";
 
 /**
  * Pure graph ↔ definition converters. `graphToDefinition` is THE editor
@@ -34,10 +36,10 @@ export interface EditorEdge {
 }
 
 const EDGE_LABELS = {
-	pass: "Passes",
-	fail: "Doesn't pass",
-	approve: "Approved",
-	deny: "Blocked",
+	pass: WORKFLOW_PORT_LABELS.pass,
+	fail: WORKFLOW_PORT_LABELS.fail,
+	approve: WORKFLOW_PORT_LABELS.approve,
+	deny: WORKFLOW_PORT_LABELS.deny,
 } satisfies Record<EdgeWhen, string>;
 
 export function edgeLabel(when: EdgeWhen | undefined): string | undefined {
@@ -65,49 +67,21 @@ export function handleWhen(
 		: undefined;
 }
 
-function depthOf(
-	nodeId: string,
-	edges: WorkflowEdge[],
-	memo = new Map<string, number>(),
-): number {
-	const cached = memo.get(nodeId);
-	if (cached !== undefined) {
-		return cached;
-	}
-	memo.set(nodeId, 0);
-	const incoming = edges.filter((edge) => edge.to === nodeId);
-	const depth =
-		incoming.length === 0
-			? 0
-			: 1 +
-				Math.max(...incoming.map((edge) => depthOf(edge.from, edges, memo)));
-	memo.set(nodeId, depth);
-	return depth;
-}
-
 /**
- * Stored positions win (the user arranged them); nodes without one fall back
- * to the layered layout — columns by topo depth, rows by arrival order — so
- * pre-position definitions and generated graphs still render sensibly.
+ * Stored positions win (the user arranged them). Nodes without one get the
+ * core's lane layout from `placeUnpositioned`; the origin here is a
+ * placeholder it replaces.
  */
 export function definitionToGraph(definition: WorkflowDefinition): {
 	nodes: EditorNode[];
 	edges: EditorEdge[];
 } {
-	const rows = new Map<number, number>();
-	const nodes = definition.nodes.map((node) => {
-		const depth = depthOf(node.id, definition.edges);
-		const row = rows.get(depth) ?? 0;
-		rows.set(depth, row + 1);
-		return {
-			id: node.id,
-			// Fallback grid spacing tracks the WIDER field-bearing cards (max-w-64
-			// + inline rows) so unpositioned nodes don't overlap.
-			position: node.position ?? { x: depth * 300, y: row * 150 },
-			data: { node },
-			type: "tripwire" as const,
-		};
-	});
+	const nodes = definition.nodes.map((node) => ({
+		id: node.id,
+		position: node.position ?? { x: 0, y: 0 },
+		data: { node },
+		type: "tripwire" as const,
+	}));
 	const edges = definition.edges.map((edge) => ({
 		id: edge.id,
 		source: edge.from,
