@@ -87,6 +87,8 @@ const bundleSchema = z.object({
 	decisionNodeId: z.string().nullable(),
 });
 
+const unrunnableOutputSchema = z.object({ enforced: z.boolean() });
+
 function replayEvaluator(bundle: ReplayBundle, wfId: string) {
 	const stored = new Map<string, RuleResult>();
 	for (const step of bundle.steps) {
@@ -169,8 +171,14 @@ export async function replayBundle(
 	let paused = pausedNode !== null;
 
 	/** The run-workflows fail-closed floor, replayed (§6 amendment). */
+	const unrunnableHeld = bundle.steps.some(
+		(step) =>
+			step.nodeId === "run:unrunnable" &&
+			unrunnableOutputSchema.safeParse(step.output).data?.enforced === true,
+	);
 	const degraded =
-		ruleNodes > 0 && skippedRules * 2 >= ruleNodes && verdict === "pass";
+		((ruleNodes > 0 && skippedRules * 2 >= ruleNodes) || unrunnableHeld) &&
+		verdict === "pass";
 	if (degraded) {
 		verdict = "needs_review";
 		paused = true;

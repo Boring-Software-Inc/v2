@@ -264,8 +264,9 @@ export function buildBranches(
 		)
 		.filter(
 			(branch) =>
+				branch.outcome === "unrunnable" ||
 				branch.passed.length + branch.flagged.length + branch.pending.length >
-				0,
+					0,
 		);
 	const ordered = [
 		...all.filter((branch) => branch.isRules),
@@ -775,6 +776,9 @@ export interface BranchSummary {
 }
 
 export function branchSummary(branch: ChainBranch): BranchSummary {
+	if (branch.outcome === "unrunnable") {
+		return { tone: "neutral", glyph: "skipped", text: "Could not run" };
+	}
 	const failed = branch.flagged.filter((rule) => rule.mark === "fail");
 	const skipped = branch.flagged.filter((rule) => rule.mark === "skipped");
 	if (failed.length > 0) {
@@ -820,6 +824,9 @@ export function branchOutcomeLabel(
 	}
 	if (branch.outcome === "pass") {
 		return { tone: "ok", glyph: "pass", label: "Passed" };
+	}
+	if (branch.outcome === "unrunnable") {
+		return { tone: "neutral", glyph: "skipped", label: "Could not run" };
 	}
 	return null;
 }

@@ -134,6 +134,11 @@ function BranchBody({
 }) {
 	return (
 		<div className="flex flex-col">
+			{branch.outcome === "unrunnable" ? (
+				<p className="rule-row px-3 py-2 type-body text-text-1">
+					Its wiring is broken, so Tripwire did not run it.
+				</p>
+			) : null}
 			{branch.passed.length > 0 ? <PassedFold rules={branch.passed} /> : null}
 			{branch.flagged.map((rule) => (
 				<FlaggedRule context={context} key={rule.step.id} rule={rule} />

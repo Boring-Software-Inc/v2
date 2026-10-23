@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseCorpus, replay } from "./jobs/replay.ts";
+import { parseCorpus, replay, replayBundle } from "./jobs/replay.ts";
 
 /**
  * §11 verdict replay over the committed corpus (captured live scratch runs).
@@ -43,5 +43,42 @@ describe("verdict replay — committed corpus", () => {
 		for (const flip of report.flips) {
 			expect(flip.responsible).not.toContain("UNATTRIBUTED");
 		}
+	});
+});
+
+describe("verdict replay — a live workflow that could not run", () => {
+	test("keeps the run in human review", async () => {
+		const [bundle] = parseCorpus(
+			await Bun.file(
+				new URL("../fixtures/replay-corpus.json", import.meta.url).pathname,
+			).json(),
+		);
+		if (!bundle) {
+			throw new Error("empty corpus");
+		}
+		const passing = await replayBundle({
+			...bundle,
+			snapshot: [],
+			steps: [],
+			decision: null,
+			decisionNodeId: null,
+		});
+		expect(passing.newVerdict).toBe("pass");
+		const held = await replayBundle({
+			...bundle,
+			storedVerdict: "needs_review",
+			snapshot: [],
+			steps: [
+				{
+					nodeId: "run:unrunnable",
+					nodeKind: "gate",
+					status: "skipped",
+					output: { workflows: [], enforced: true },
+				},
+			],
+			decision: null,
+			decisionNodeId: null,
+		});
+		expect(held.newVerdict).toBe("needs_review");
 	});
 });

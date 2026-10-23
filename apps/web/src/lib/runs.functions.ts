@@ -51,7 +51,7 @@ export interface RunEventView {
 	at: string;
 }
 
-export type WorkflowOutcome = "block" | "review" | "pass";
+export type WorkflowOutcome = "block" | "review" | "pass" | "unrunnable";
 
 export interface RunWorkflowView {
 	id: string;

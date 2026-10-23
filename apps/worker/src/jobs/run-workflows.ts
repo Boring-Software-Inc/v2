@@ -1,6 +1,5 @@
 import type {
 	JsonValue,
-	LintRuleId,
 	RepoScopedEvent,
 	RuleResult,
 	UsageSource,
@@ -14,7 +13,7 @@ import {
 	customRuleSummary,
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
-	validateWorkflow,
+	unrunnableIssues,
 } from "@tripwire/contracts";
 import {
 	type AiReviewGenerate,
@@ -44,6 +43,10 @@ import {
 } from "../exemption.ts";
 import * as metering from "../metering.ts";
 import { readsInjectionRefusedInProd } from "../reads-injection.ts";
+import {
+	type ReportUnrunnable,
+	reportUnrunnableToSentry,
+} from "../report-unrunnable.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
 import {
 	type CustomRuleSource,
@@ -160,6 +163,7 @@ export interface RunWorkflowsDeps {
 	 * tests, which skip metering.
 	 */
 	meterSource?: UsageSource;
+	reportUnrunnable?: ReportUnrunnable;
 }
 
 export interface RunWorkflowsResult {
@@ -248,22 +252,14 @@ async function runWorkflowsInner(
 		event.repo.fullName,
 		event.forge,
 	);
-	const custom = stored.filter((definition) => {
-		const checked = validateWorkflow(definition);
-		const broken = checked.valid
-			? []
-			: checked.issues.filter((issue) => UNRUNNABLE.has(issue.rule));
-		if (broken.length > 0) {
-			logger.warn(
-				{
-					workflowId: definition.id,
-					issues: broken.map((issue) => issue.message),
-				},
-				"enabled workflow has wiring the executor cannot run, skipping it",
-			);
-		}
-		return broken.length === 0;
-	});
+	const checkedStored = stored.map((definition) => ({
+		definition,
+		issues: unrunnableIssues(definition),
+	}));
+	const custom = checkedStored.flatMap((entry) =>
+		entry.issues.length === 0 ? [entry.definition] : [],
+	);
+	const broken = checkedStored.filter((entry) => entry.issues.length > 0);
 	// Saved workflows orchestrate the rules they CONTAIN — they do not turn the
 	// rest off. Rules outside every enabled workflow keep running standalone via
 	// the derived default over the leftover toggles; owned rule ids are excluded
@@ -271,7 +267,7 @@ async function runWorkflowsInner(
 	// workflow node's config wins for owned rules). With no saved workflow the
 	// derived default runs alone, even trigger-only (all rules off ⇒ pass run).
 	const ownedRuleIds = new Set(
-		custom.flatMap((def) =>
+		stored.flatMap((def) =>
 			def.nodes.flatMap((node) =>
 				node.type === "rule" ? [ruleIdOf(node.ref)] : [],
 			),
@@ -312,12 +308,17 @@ async function runWorkflowsInner(
 				? [...custom, derived]
 				: custom
 			: [derived];
-	const matching = definitions.filter((def) =>
+	const triggeredBy = (def: WorkflowDefinition) =>
 		def.nodes.some(
 			(node) => node.type === "trigger" && node.kinds.includes(event.kind),
-		),
+		);
+	const matching = definitions.filter(triggeredBy);
+	const unrunnable = broken.filter(
+		(entry) =>
+			triggeredBy(entry.definition) &&
+			(!scheduled || entry.definition.id === scheduled.schedule.workflowId),
 	);
-	if (matching.length === 0) {
+	if (matching.length === 0 && unrunnable.length === 0) {
 		if (deps.claimRunId) {
 			await runServices.failRun(db, deps.claimRunId);
 		}
@@ -452,23 +453,71 @@ async function runWorkflowsInner(
 		(step) => step.status === "skipped",
 	).length;
 	const degraded = isRunDegraded(ruleSteps0.length, skippedCount, verdict);
-	const heldBack = degraded && scheduled !== null;
-	if (degraded) {
-		/**
-		 * The floor is configurable, and ON by default.
-		 *
-		 * Turning it off lets a partly-evaluated run pass. It does NOT hide what
-		 * happened: the step below is recorded either way, so the run page and
-		 * the audit trail still name every rule that could not evaluate. Turning
-		 * off a safety net must never turn off the evidence.
-		 */
-		const failClosed =
-			!heldBack &&
-			(await repoServices.getResponseConfig(db, repo.id)).failClosedFallback;
-		if (failClosed) {
-			verdict = "needs_review";
-			paused = true;
+	const unrunnableFloored = unrunnable.length > 0 && verdict === "pass";
+	const floored = degraded || unrunnableFloored;
+	const heldBack = floored && scheduled !== null;
+	/**
+	 * The floor is configurable, and ON by default.
+	 *
+	 * Turning it off lets a partly-evaluated run pass. It does NOT hide what
+	 * happened: the step below is recorded either way, so the run page and
+	 * the audit trail still name every rule that could not evaluate. Turning
+	 * off a safety net must never turn off the evidence.
+	 */
+	const failClosed =
+		floored &&
+		!heldBack &&
+		(await repoServices.getResponseConfig(db, repo.id)).failClosedFallback;
+	if (failClosed) {
+		verdict = "needs_review";
+		paused = true;
+	}
+	if (unrunnable.length > 0) {
+		const startedAt = new Date().toISOString();
+		const unrunnableStep: StepRecord = {
+			nodeId: "run:unrunnable",
+			nodeKind: "gate",
+			status: "skipped",
+			input: { rule: "unrunnable workflow" },
+			output: {
+				workflows: unrunnable.map((entry) => ({
+					id: entry.definition.id,
+					name: entry.definition.name,
+				})),
+				issues: unrunnable.map((entry) => ({
+					workflowId: entry.definition.id,
+					messages: entry.issues.map((issue) => issue.message),
+				})),
+				enforced: unrunnableFloored && failClosed,
+				...(heldBack ? { tookNoAction: true } : {}),
+			},
+			startedAt,
+			finishedAt: startedAt,
+			durationMs: 0,
+		};
+		steps.push(unrunnableStep);
+		if (liveRunId) {
+			await runServices.recordSteps(db, liveRunId, [unrunnableStep]);
 		}
+		for (const entry of unrunnable) {
+			logger.error(
+				{
+					workflowId: entry.definition.id,
+					issues: entry.issues.map((issue) => issue.message),
+				},
+				"live workflow has wiring the executor cannot run",
+			);
+			(deps.reportUnrunnable ?? reportUnrunnableToSentry)({
+				repo: event.repo.fullName,
+				forge: event.forge,
+				workflowId: entry.definition.id,
+				lintRule: entry.issues[0]?.rule ?? "unknown",
+				scheduled: scheduled !== null,
+				messages: entry.issues.map((issue) => issue.message),
+			});
+		}
+	}
+	if (degraded) {
 		const startedAt = new Date().toISOString();
 		const degradationStep: StepRecord = {
 			nodeId: "run:degradation",
@@ -571,7 +620,7 @@ async function runWorkflowsInner(
 			});
 		}
 	}
-	if (degraded && !heldBack) {
+	if ((degraded && !heldBack) || (unrunnableFloored && failClosed)) {
 		await moderationServices.createModerationItem(db, {
 			runId,
 			nodeId: "run:degraded",
@@ -709,21 +758,6 @@ export function publicSkipReason(reason: string): string {
 		? "Tripwire could not check this rule."
 		: reason;
 }
-
-/**
- * Lint errors that make a walk meaningless. A live workflow saved after it
- * was turned on skips the enable check, so the worker refuses these itself.
- */
-const UNRUNNABLE: ReadonlySet<LintRuleId> = new Set([
-	"cycle",
-	"gate-input",
-	"not-input",
-	"trigger-input",
-	"wrong-output",
-	"no-outputs",
-	"missing-step",
-	"duplicate-id",
-]);
 
 export function makeEvaluator(
 	ctx: RuleContext,

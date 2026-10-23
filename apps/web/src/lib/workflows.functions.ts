@@ -107,7 +107,10 @@ export const createRepoWorkflow = createServerFn({ method: "POST" })
 		},
 	);
 
-/** The editor's save. Drafts persist in ANY structural state; never enables. */
+/**
+ * The editor's save. Drafts persist in ANY structural state; never enables. A
+ * live workflow takes only a definition that could be turned on.
+ */
 export const saveRepoWorkflow = createServerFn({ method: "POST" })
 	.middleware([
 		accessGuardMiddleware,
@@ -159,13 +162,19 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 			if (merged.error) {
 				return { ok: false, error: merged.error };
 			}
-			const result = await workflowServices.updateWorkflowDefinition(db, {
+			const result = await workflowServices.saveWorkflowDefinition(db, {
 				repoId: data.repoId,
 				workflowId: data.workflowId,
 				definition: merged.definition,
 			});
 			if (!result.ok) {
-				return result;
+				const [first] = result.issues;
+				return {
+					ok: false,
+					error: first
+						? `This workflow is live, so Tripwire kept the last working version. ${first.message}`
+						: "Tripwire could not save this workflow. Try again.",
+				};
 			}
 			// Save is not blocked on delivery reachability — but a newly-set
 			// webhook url the maintainer never tested gets checked here, and a

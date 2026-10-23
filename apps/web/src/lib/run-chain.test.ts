@@ -9,6 +9,7 @@ import {
 } from "@tripwire/contracts";
 import { toFullRunView, toPublicRunView } from "#/lib/run-access";
 import {
+	branchOutcomeLabel,
 	branchPassed,
 	branchSummary,
 	buildBranches,
@@ -326,6 +327,24 @@ describe("branch grouping", () => {
 		);
 		expect(body.branches).toEqual([]);
 		expect(body.passedGroup.map((b) => b.name)).toEqual(["Rules", "docs-only"]);
+	});
+
+	test("a workflow that could not run keeps a branch with no checks", () => {
+		const body = buildBranches(
+			[
+				{ ...RULES, outcome: "pass" },
+				{ id: "wf-broken", name: "broken-wiring", outcome: "unrunnable" },
+			],
+			[rule("default@1:age", "account-age@1", "pass")],
+			false,
+		);
+		const broken = body.branches.find((b) => b.name === "broken-wiring");
+		expect(broken?.form).toBe("card");
+		expect(broken && branchOutcomeLabel(broken)).toEqual({
+			tone: "neutral",
+			glyph: "skipped",
+			label: "Could not run",
+		});
 	});
 
 	test("a rules-only run is one card with no branch outcome", () => {

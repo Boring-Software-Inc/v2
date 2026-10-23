@@ -18,6 +18,7 @@ import {
 	listWorkflowRows,
 	listWorkflows,
 	renameWorkflow,
+	saveWorkflowDefinition,
 	setWorkflowEnabled,
 	updateWorkflowDefinition,
 } from "./workflows.ts";
@@ -162,6 +163,81 @@ describe("enable gating", () => {
 		});
 		const loaded = await getWorkflow(db, { repoId, workflowId: created.id });
 		expect(loaded?.enabled).toBe(false);
+	});
+});
+
+describe("saving a live workflow", () => {
+	async function liveWorkflow() {
+		const created = await createWorkflow(db, { repoId });
+		const definition = { ...validGraph(), name: created.name };
+		await updateWorkflowDefinition(db, {
+			repoId,
+			workflowId: created.id,
+			definition,
+		});
+		await setWorkflowEnabled(db, {
+			repoId,
+			workflowId: created.id,
+			enabled: true,
+		});
+		return { id: created.id, definition };
+	}
+
+	test("a live workflow refuses a save that could not be turned on", async () => {
+		const live = await liveWorkflow();
+		const result = await saveWorkflowDefinition(db, {
+			repoId,
+			workflowId: live.id,
+			definition: {
+				...live.definition,
+				edges: [
+					...live.definition.edges,
+					{ id: "stale", from: "r", to: "deleted-step", when: "fail" },
+				],
+			},
+		});
+		expect(result.ok).toBe(false);
+		const loaded = await getWorkflow(db, { repoId, workflowId: live.id });
+		expect(loaded?.definition.edges.map((edge) => edge.id)).toEqual([
+			"e1",
+			"e2",
+		]);
+	});
+
+	test("a draft still saves in any state", async () => {
+		const created = await createWorkflow(db, { repoId });
+		const result = await saveWorkflowDefinition(db, {
+			repoId,
+			workflowId: created.id,
+			definition: {
+				...validGraph(),
+				name: created.name,
+				edges: [{ id: "stale", from: "r", to: "deleted-step" }],
+			},
+		});
+		expect(result.ok).toBe(true);
+	});
+
+	test("the list flags a live workflow the worker cannot run", async () => {
+		const live = await liveWorkflow();
+		await updateWorkflowDefinition(db, {
+			repoId,
+			workflowId: live.id,
+			definition: {
+				...live.definition,
+				edges: [
+					...live.definition.edges,
+					{ id: "stale", from: "r", to: "deleted-step", when: "fail" },
+				],
+			},
+		});
+		const listed = await listWorkflows(db, repoId);
+		expect(listed.find((item) => item.id === live.id)?.runnable).toBe(false);
+		const healthy = await liveWorkflow();
+		expect(
+			(await listWorkflows(db, repoId)).find((item) => item.id === healthy.id)
+				?.runnable,
+		).toBe(true);
 	});
 });
 

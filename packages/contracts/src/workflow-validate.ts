@@ -58,3 +58,21 @@ function toResult(
 	}
 	return { valid: true, definition: report.definition };
 }
+
+const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
+	"cycle",
+	"gate-input",
+	"not-input",
+	"trigger-input",
+	"wrong-output",
+	"no-outputs",
+	"missing-step",
+	"duplicate-id",
+]);
+
+export function unrunnableIssues(input: unknown): LintResult[] {
+	const checked = validateWorkflow(input);
+	return checked.valid
+		? []
+		: checked.issues.filter((issue) => UNRUNNABLE_RULES.has(issue.rule));
+}

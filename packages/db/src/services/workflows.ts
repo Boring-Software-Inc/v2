@@ -5,6 +5,7 @@ import {
 	mergeForPush,
 	resolveCatalog,
 	stripWorkflowSecrets,
+	unrunnableIssues,
 	type ValidationCatalogEntry,
 	type ValidationIssue,
 	validateWorkflowForEnable,
@@ -39,6 +40,7 @@ export interface WorkflowListItem {
 	/** Trigger event kinds across trigger nodes — the card's summary line. */
 	triggerKinds: string[];
 	updatedAt: string;
+	runnable: boolean;
 }
 
 export interface WorkflowRow extends WorkflowListItem {
@@ -63,6 +65,9 @@ function toListItem(row: {
 			...new Set(nodes.flatMap((n) => (n.type === "trigger" ? n.kinds : []))),
 		],
 		updatedAt: row.updatedAt.toISOString(),
+		runnable:
+			!(row.enabled && parsed.success) ||
+			unrunnableIssues(parsed.data).length === 0,
 	};
 }
 
@@ -190,6 +195,59 @@ export async function updateWorkflowDefinition(
 		)
 		.returning({ id: workflowDefinitions.id });
 	return { ok: rows.length > 0 };
+}
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+async function lockWorkflowRow(
+	tx: Tx,
+	input: { repoId: string; workflowId: string },
+) {
+	const rows = await tx
+		.select()
+		.from(workflowDefinitions)
+		.where(
+			and(
+				eq(workflowDefinitions.id, input.workflowId),
+				eq(workflowDefinitions.repoId, input.repoId),
+			),
+		)
+		.limit(1)
+		.for("update");
+	return rows[0] ?? null;
+}
+
+export type SaveWorkflowResult =
+	| { ok: true }
+	| { ok: false; issues: ValidationIssue[] };
+
+export async function saveWorkflowDefinition(
+	db: Db,
+	input: {
+		repoId: string;
+		workflowId: string;
+		definition: WorkflowDefinition;
+	},
+): Promise<SaveWorkflowResult> {
+	const definition = workflowDefinitionSchema.parse(input.definition);
+	const catalog = await repoRuleCatalog(db, input.repoId);
+	return await db.transaction(async (tx): Promise<SaveWorkflowResult> => {
+		const row = await lockWorkflowRow(tx, input);
+		if (!row) {
+			return { ok: false, issues: [{ message: "workflow not found" }] };
+		}
+		if (row.enabled) {
+			const checked = validateWorkflowForEnable(definition, catalog);
+			if (!checked.valid) {
+				return { ok: false, issues: checked.issues };
+			}
+		}
+		await tx
+			.update(workflowDefinitions)
+			.set({ definition, name: definition.name, updatedAt: new Date() })
+			.where(eq(workflowDefinitions.id, row.id));
+		return { ok: true };
+	});
 }
 
 export async function renameWorkflow(

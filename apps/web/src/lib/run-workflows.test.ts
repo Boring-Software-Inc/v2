@@ -59,6 +59,29 @@ describe("workflowOutcomes", () => {
 		]);
 	});
 
+	test("a live workflow that could not run is listed with its own outcome", () => {
+		expect(
+			workflowOutcomes(
+				[DEFAULT_WORKFLOW],
+				[
+					{
+						nodeId: "run:unrunnable",
+						nodeKind: "gate",
+						status: "skipped",
+						output: {
+							workflows: [{ id: "wf-broken", name: "broken-wiring" }],
+							enforced: true,
+						},
+					},
+				],
+				"paused",
+			),
+		).toEqual([
+			{ id: "default@1", name: "Rules", outcome: "pass" },
+			{ id: "wf-broken", name: "broken-wiring", outcome: "unrunnable" },
+		]);
+	});
+
 	test("an unreached block passes", () => {
 		expect(
 			workflowOutcomes(

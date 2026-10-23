@@ -523,9 +523,15 @@ function WorkflowRow({
 				}
 				status={
 					<>
-						<Status size="sm" status={workflow.enabled ? "ok" : "idle"}>
-							{workflow.enabled ? "Live" : "Off"}
-						</Status>
+						{workflow.enabled && !workflow.runnable ? (
+							<Status size="sm" status="warn">
+								Can't run
+							</Status>
+						) : (
+							<Status size="sm" status={workflow.enabled ? "ok" : "idle"}>
+								{workflow.enabled ? "Live" : "Off"}
+							</Status>
+						)}
 						<Switch
 							aria-label={`Run ${workflow.name} on change requests`}
 							checked={queuedEnabled}
