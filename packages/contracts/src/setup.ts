@@ -76,12 +76,15 @@ export function setupInstallCommand(run?: { org: string; code: string }) {
 		: `npx ${SETUP_CLI_PACKAGE} install`;
 }
 
+export function setupRunPrompt(run?: { org: string; code: string }): string {
+	return run
+		? `Please help me set up Tripwire.\n\norg slug: ${run.org}\nrun code: ${run.code}`
+		: "Please help me set up Tripwire.";
+}
+
 export function setupPrompt(
 	run?: { org: string; code: string },
 	mcpUrl: string = TRIPWIRE_MCP_URL,
 ): string {
-	const head = run
-		? `Please help me set up Tripwire.\n\norg slug: ${run.org}\nrun code: ${run.code}`
-		: "Please help me set up Tripwire.";
-	return `${head}\n\nIf you can run commands, run ${setupInstallCommand(run)}. If not, add the MCP server ${mcpUrl} and use its tools.`;
+	return `${setupRunPrompt(run)}\n\nIf you can run commands, run ${setupInstallCommand(run)}. If not, add the MCP server ${mcpUrl} and use its tools.`;
 }

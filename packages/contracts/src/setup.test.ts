@@ -3,6 +3,7 @@ import {
 	parseSetupCommandArg,
 	setupProgressInputSchema,
 	setupPrompt,
+	setupRunPrompt,
 } from "./setup.ts";
 
 describe("setup prompt", () => {
@@ -16,6 +17,15 @@ describe("setup prompt", () => {
 		expect(setupPrompt()).toBe(
 			"Please help me set up Tripwire.\n\nIf you can run commands, run npx @tripwire-sh/cli install. If not, add the MCP server https://mcp.tripwire.sh/mcp and use its tools.",
 		);
+	});
+});
+
+describe("setup run prompt", () => {
+	test("names the org and the code, with no install step", () => {
+		expect(setupRunPrompt({ org: "acme", code: "AbCdE12345" })).toBe(
+			"Please help me set up Tripwire.\n\norg slug: acme\nrun code: AbCdE12345",
+		);
+		expect(setupRunPrompt()).toBe("Please help me set up Tripwire.");
 	});
 });
 

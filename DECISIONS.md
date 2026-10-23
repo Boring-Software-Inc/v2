@@ -104,3 +104,10 @@ agent directly.
 
 **Boundaries:** `apps/cli` may import `@tripwire/contracts` only, so it can
 share the setup prompt builder with the web app later.
+
+**Added later:** `jsonc-parser` and `yaml` (devDependencies, bundled).
+- Replaces: rewriting agent configs with `JSON.stringify`, which drops
+  comments and fails on the JSONC that Zed, OpenCode, Kilo and Amp keep.
+- Why the stack can't: Goose keeps its MCP servers in YAML, and nothing in the
+  repo edits YAML or JSONC in place. Both were already in `bun.lock` through
+  other tools.
