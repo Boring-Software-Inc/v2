@@ -37,19 +37,10 @@ export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 							onSelect: async () => {
 								setSigningIn(forge.id);
 								const callbackURL = redirect ?? "/";
-								// `social` is a first-class better-auth provider; `oauth2` is
-								// the genericOAuth plugin. Same button, different endpoint —
-								// the catalog says which, so neither is hardcoded here.
-								const { error } =
-									kind === "social"
-										? await authClient.signIn.social({
-												provider: forge.id,
-												callbackURL,
-											})
-										: await authClient.signIn.oauth2({
-												providerId: forge.id,
-												callbackURL,
-											});
+								const { error } = await authClient.signIn.social({
+									provider: forge.id,
+									callbackURL,
+								});
 								if (error) {
 									setSigningIn(null);
 									toast.fail(

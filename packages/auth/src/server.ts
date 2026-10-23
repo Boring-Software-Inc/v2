@@ -155,7 +155,7 @@ export function createAuth(input: CreateAuthInput) {
 								{
 									// The provider id IS the forge id, so account.providerId lines
 									// up with the catalog and the callback path is
-									// /oauth2/callback/opengit.
+									// /callback/opengit.
 									providerId: "opengit",
 									clientId: input.opengit.clientId,
 									clientSecret: input.opengit.clientSecret,

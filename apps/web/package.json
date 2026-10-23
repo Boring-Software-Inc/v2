@@ -39,7 +39,7 @@
 		"@tripwire/db": "workspace:*",
 		"@tripwire/sdk": "workspace:*",
 		"@xyflow/react": "^12.11.2",
-		"better-auth": "^1.6.23",
+		"better-auth": "^1.7.12",
 		"bippy": "^0.6.0",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",

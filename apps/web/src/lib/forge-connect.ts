@@ -1,4 +1,4 @@
-import { FORGE_BY_ID, type ForgeId, forgeSignIn } from "@tripwire/contracts";
+import { FORGE_BY_ID, type ForgeId } from "@tripwire/contracts";
 import { authClient } from "#/lib/auth-client";
 
 /**
@@ -30,13 +30,10 @@ export class ForgeReauthRequiredError extends Error {
 export async function reconnectForge(forge: ForgeId): Promise<string | null> {
 	markPendingConnect(forge);
 	const callbackURL = `${window.location.pathname}${window.location.search}`;
-	// Mirrors the sign-in dispatch: a first-class provider links through
-	// `linkSocial`, a genericOAuth one through `oauth2.link`. Calling the wrong
-	// one 404s the provider id, so the catalog decides here too.
-	const { error } =
-		forgeSignIn(forge) === "oauth2"
-			? await authClient.oauth2.link({ providerId: forge, callbackURL })
-			: await authClient.linkSocial({ provider: forge, callbackURL });
+	const { error } = await authClient.linkSocial({
+		provider: forge,
+		callbackURL,
+	});
 	return (
 		error?.message ??
 		(error
