@@ -35,6 +35,7 @@ import {
 	planDrag,
 	portHandleId,
 	RULE_CATALOG,
+	scheduleTimings,
 	stepDisplayName,
 	stepNames,
 	WORKFLOW_PORT_TONE,
@@ -100,6 +101,8 @@ import {
 	ProblemsContext,
 	type ScheduleDraftsApi,
 	ScheduleDraftsContext,
+	ScheduleTimingContext,
+	type ScheduleTimingLookup,
 } from "#/components/workflows/editor/node-issues";
 import { ProblemsButton } from "#/components/workflows/editor/problems-list";
 import { ReviewerScopeContext } from "#/components/workflows/editor/reviewer-picker";
@@ -248,6 +251,7 @@ export interface WorkflowEditorProps {
 	definition: WorkflowDefinition;
 	name: string;
 	enabled: boolean;
+	lastTicks: Record<string, string>;
 	readOnly: boolean;
 	org: string;
 	repo: string;
@@ -286,6 +290,7 @@ function EditorBody({
 	definition,
 	name,
 	enabled,
+	lastTicks,
 	readOnly,
 	org,
 	repo,
@@ -311,6 +316,18 @@ function EditorBody({
 	);
 	const [edges, setEdges, onEdgesStateChange] = useEdgesState<FlowEdge>(
 		initial.edges,
+	);
+	const savedTimings = useMemo(() => scheduleTimings(definition), [definition]);
+	const scheduleTiming = useCallback<ScheduleTimingLookup>(
+		(nodeId) => {
+			const tick = lastTicks[nodeId];
+			return {
+				enabled,
+				saved: savedTimings.get(nodeId) ?? null,
+				lastTickAt: tick ? new Date(tick) : null,
+			};
+		},
+		[enabled, lastTicks, savedTimings],
 	);
 	const [dirty, setDirty] = useState(false);
 	const [scheduleDrafts, setScheduleDrafts] = useState<
@@ -1193,21 +1210,23 @@ function EditorBody({
 							</ProblemsContext.Provider>
 						</CustomRuleNamesContext.Provider>
 						<ScheduleDraftsContext.Provider value={scheduleDraftsApi}>
-							<EditorSidebar
-								connect={toolboxConnect}
-								customRules={customRules}
-								onCancelConnect={cancelPending}
-								fieldFocus={fieldFocus}
-								onFieldFocused={() => setFieldFocus(null)}
-								org={org}
-								repo={repo}
-								onAdd={addAtFreePosition}
-								onClearSelection={clearSelection}
-								onTestConnection={onTestConnection}
-								onUpdateNode={updateNode}
-								readOnly={readOnly}
-								selectedNode={selectedNode}
-							/>
+							<ScheduleTimingContext.Provider value={scheduleTiming}>
+								<EditorSidebar
+									connect={toolboxConnect}
+									customRules={customRules}
+									onCancelConnect={cancelPending}
+									fieldFocus={fieldFocus}
+									onFieldFocused={() => setFieldFocus(null)}
+									org={org}
+									repo={repo}
+									onAdd={addAtFreePosition}
+									onClearSelection={clearSelection}
+									onTestConnection={onTestConnection}
+									onUpdateNode={updateNode}
+									readOnly={readOnly}
+									selectedNode={selectedNode}
+								/>
+							</ScheduleTimingContext.Provider>
 						</ScheduleDraftsContext.Provider>
 						<ProblemsButton
 							onFix={fixProblem}

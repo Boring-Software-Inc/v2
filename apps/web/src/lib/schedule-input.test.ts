@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ScheduleCadence, WorkflowNode } from "@tripwire/contracts";
 import {
+	editorNextRun,
 	formatNextRun,
 	invalidScheduleDrafts,
 	isClockCadence,
@@ -73,5 +74,44 @@ describe("cadence helpers", () => {
 			"Mon, Oct 26, 07:00 GMT+1",
 		);
 		expect(formatNextRun(instant, "UTC")).toBe("Mon, Oct 26, 06:00 UTC");
+	});
+});
+
+describe("the editor's next run", () => {
+	const now = new Date("2026-10-23T23:01:59.000Z");
+	const every5Days = { every: { n: 5, unit: "days" } as const };
+
+	test("an interval on a live workflow counts from its last tick", () => {
+		const next = editorNextRun(every5Days, {
+			enabled: true,
+			saved: every5Days,
+			lastTickAt: new Date("2026-10-21T09:10:03.000Z"),
+			now,
+		});
+		expect(next?.toISOString()).toBe("2026-10-26T09:15:00.000Z");
+	});
+
+	test("an interval that is off runs at the first tick after it turns on", () => {
+		const next = editorNextRun(every5Days, {
+			enabled: false,
+			saved: every5Days,
+			lastTickAt: new Date("2026-10-21T09:10:03.000Z"),
+			now,
+		});
+		expect(next?.toISOString()).toBe("2026-10-23T23:05:00.000Z");
+	});
+
+	test("a clock schedule turned on after a stale tick shows the next slot", () => {
+		const berlin = {
+			every: { cron: "*/15 * * * *" },
+			timezone: "Europe/Berlin",
+		};
+		const next = editorNextRun(berlin, {
+			enabled: false,
+			saved: berlin,
+			lastTickAt: new Date("2026-10-23T21:30:27.000Z"),
+			now,
+		});
+		expect(next?.toISOString()).toBe("2026-10-23T23:15:00.000Z");
 	});
 });

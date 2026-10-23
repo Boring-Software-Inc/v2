@@ -29,7 +29,10 @@ import {
 	LabelPicker,
 	RefreshLabels,
 } from "#/components/workflows/editor/label-picker";
-import { useScheduleDraft } from "#/components/workflows/editor/node-issues";
+import {
+	useSavedScheduleTiming,
+	useScheduleDraft,
+} from "#/components/workflows/editor/node-issues";
 import { ScheduleTextField } from "#/components/workflows/editor/schedule-input";
 import { useTimezones } from "#/hooks/use-timezones";
 import { cn } from "#/lib/glaze/utils";
@@ -288,6 +291,7 @@ function ScheduleSteps({
 	const { org } = useParams({ strict: false });
 	const timezones = useTimezones(org);
 	const scheduleDraft = useScheduleDraft(node.id);
+	const savedTiming = useSavedScheduleTiming(node.id);
 
 	const update = (next: ScheduleDraft, answered?: ScheduleStep) => {
 		onUpdate({ ...node, schedule: next });
@@ -315,6 +319,7 @@ function ScheduleSteps({
 					}
 					onDraft={scheduleDraft.setDraft}
 					readOnly={readOnly}
+					savedTiming={savedTiming}
 					timezones={timezones}
 					value={{ every: draft.every, timezone: draft.timezone }}
 				/>

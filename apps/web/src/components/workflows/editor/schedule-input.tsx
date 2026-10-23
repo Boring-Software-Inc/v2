@@ -6,7 +6,6 @@ import type {
 import {
 	completeScheduleText,
 	DEFAULT_SCHEDULE_TIMEZONE,
-	nextScheduleRun,
 	parseScheduleText,
 	scheduleText,
 	scheduleZoneWord,
@@ -35,7 +34,12 @@ import {
 import { TooltipChip } from "#/components/glaze/ui/tooltip";
 import type { Timezones } from "#/hooks/use-timezones";
 import { cn } from "#/lib/glaze/utils";
-import { formatNextRun, isClockCadence } from "#/lib/schedule-input";
+import {
+	editorNextRun,
+	formatNextRun,
+	isClockCadence,
+	type SavedScheduleTiming,
+} from "#/lib/schedule-input";
 
 export interface CadenceValue {
 	every: ScheduleCadence | undefined;
@@ -50,14 +54,7 @@ const TOKEN_TONE = {
 	fail: "bg-fail-tint text-fail-text",
 } as const;
 
-function NextRun({ value, display }: { value: CadenceValue; display: string }) {
-	if (!(value.every && isClockCadence(value.every))) {
-		return null;
-	}
-	const next = nextScheduleRun(
-		{ every: value.every, timezone: value.timezone },
-		{ after: new Date(), lastTickAt: null },
-	);
+function NextRun({ next, display }: { next: Date | null; display: string }) {
 	if (!next) {
 		return null;
 	}
@@ -134,6 +131,7 @@ function readBack(parsed: ScheduleTextParse): string {
 export function ScheduleTextField({
 	value,
 	readOnly,
+	savedTiming,
 	timezones,
 	draft,
 	onDraft,
@@ -141,6 +139,7 @@ export function ScheduleTextField({
 }: {
 	value: CadenceValue;
 	readOnly: boolean;
+	savedTiming: SavedScheduleTiming;
 	timezones: Timezones;
 	draft: string | undefined;
 	onDraft: (text: string | null) => void;
@@ -263,7 +262,13 @@ export function ScheduleTextField({
 			: { left };
 	})();
 
-	const zoneLabel = zoneOffsetLabel(zone);
+	const next = value.every
+		? editorNextRun(
+				{ every: value.every, timezone: value.timezone },
+				{ ...savedTiming, now: new Date() },
+			)
+		: null;
+	const zoneLabel = zoneOffsetLabel(zone, next ?? undefined);
 	const described = parsed.ok ? readBack(parsed) : "";
 
 	return (
@@ -271,7 +276,7 @@ export function ScheduleTextField({
 			<div className="flex items-baseline justify-between gap-2">
 				<FieldLabel>When</FieldLabel>
 				{parsed.ok || problem === null ? (
-					<NextRun display={timezones.display.zone} value={value} />
+					<NextRun display={timezones.display.zone} next={next} />
 				) : null}
 			</div>
 			<div className="relative" ref={box}>
@@ -352,34 +357,37 @@ export function ScheduleTextField({
 						{activeToken.label}
 					</TooltipChip>
 				) : null}
+				<div role="status">
+					{problem ? (
+						<FieldError
+							className={cn(
+								"mt-1.5",
+								problem.reason === "ambiguous" && "text-warn-text",
+							)}
+						>
+							{problem.message}
+						</FieldError>
+					) : null}
+				</div>
+				{problem && problem.fixes.length > 0 && !readOnly ? (
+					<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+						{problem.fixes.map((fix) => (
+							<button
+								className="type-caption font-medium text-text-1 underline decoration-1 underline-offset-2 rounded-tag hover:text-text-2 focus-sm"
+								key={fix.label}
+								onClick={() => accept(fix.text)}
+								type="button"
+							>
+								{fix.label}
+							</button>
+						))}
+					</div>
+				) : null}
 			</div>
 			{described ? (
 				<FieldDescription className="sr-only">
 					{showZone ? `${described}, ${zoneLabel}` : described}
 				</FieldDescription>
-			) : null}
-			{problem ? (
-				<div className="flex flex-col gap-1">
-					<FieldError
-						className={cn(problem.reason === "ambiguous" && "text-warn-text")}
-					>
-						{problem.message}
-					</FieldError>
-					{problem.fixes.length > 0 && !readOnly ? (
-						<div className="flex flex-wrap gap-x-3 gap-y-1">
-							{problem.fixes.map((fix) => (
-								<button
-									className="type-caption font-medium text-text-1 underline decoration-1 underline-offset-2 rounded-tag hover:text-text-2 focus-sm"
-									key={fix.label}
-									onClick={() => accept(fix.text)}
-									type="button"
-								>
-									{fix.label}
-								</button>
-							))}
-						</div>
-					) : null}
-				</div>
 			) : null}
 		</Field>
 	);

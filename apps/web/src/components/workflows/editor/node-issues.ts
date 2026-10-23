@@ -1,5 +1,6 @@
 import type { LintFix, LintSeverity } from "@tripwire/contracts";
 import { createContext, useContext } from "react";
+import type { SavedScheduleTiming } from "#/lib/schedule-input";
 
 export interface Problem {
 	key: string;
@@ -117,4 +118,14 @@ export function useScheduleDraft(nodeId: string): ScheduleDraft {
 		draft: api.drafts.get(nodeId),
 		setDraft: (text) => api.setDraft(nodeId, text),
 	};
+}
+
+export type ScheduleTimingLookup = (nodeId: string) => SavedScheduleTiming;
+
+export const ScheduleTimingContext = createContext<ScheduleTimingLookup>(
+	() => ({ enabled: false, saved: null, lastTickAt: null }),
+);
+
+export function useSavedScheduleTiming(nodeId: string): SavedScheduleTiming {
+	return useContext(ScheduleTimingContext)(nodeId);
 }

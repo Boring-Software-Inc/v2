@@ -1,8 +1,11 @@
 import {
 	isScheduleInterval,
 	isScheduleTrigger,
+	nextScheduleRun,
 	parseScheduleText,
 	type ScheduleCadence,
+	type ScheduleTiming,
+	scheduleCountsFrom,
 	type WorkflowNode,
 } from "@tripwire/contracts";
 import { zoneOffsetName } from "#/lib/timezones";
@@ -47,4 +50,20 @@ export function formatNextRun(instant: Date, zone: string): string {
 		hour12: false,
 	}).format(instant);
 	return `${date}, ${time} ${zoneOffsetName(instant, zone)}`;
+}
+
+export interface SavedScheduleTiming {
+	enabled: boolean;
+	saved: ScheduleTiming | null;
+	lastTickAt: Date | null;
+}
+
+export function editorNextRun(
+	schedule: ScheduleTiming,
+	timing: SavedScheduleTiming & { now: Date },
+): Date | null {
+	return nextScheduleRun(schedule, {
+		after: timing.now,
+		lastTickAt: scheduleCountsFrom({ ...timing, current: schedule }),
+	});
 }
