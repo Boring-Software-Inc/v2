@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { RULE_CATALOG } from "./rules.ts";
 import {
+	type JsonValue,
+	jsonValueSchema,
+	type ScheduleDraft,
 	triggerScheduleSchema,
 	type WorkflowDefinition,
 	type WorkflowEdge,
@@ -34,6 +37,8 @@ interface JsonSchemaNode {
 	anyOf?: JsonSchemaNode[];
 	oneOf?: JsonSchemaNode[];
 }
+
+const settingsRecord = z.record(z.string(), jsonValueSchema);
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
@@ -218,7 +223,7 @@ const ACTION_HELPER = {
 
 const TAKES_NO_PARAMS = new Set(["block", "close", "send-to-moderation"]);
 
-function literal(value: unknown, indent: string): string {
+function literal(value: JsonValue | ScheduleDraft, indent: string): string {
 	const text = JSON.stringify(value, null, "\t");
 	return (text ?? "null").replaceAll("\n", `\n${indent}`);
 }
@@ -287,11 +292,9 @@ function stepExpression(
 			const [ruleId = node.ref, versionText] = node.ref.split("@");
 			const version = Number(versionText);
 			const entry = RULE_CATALOG.find((rule) => rule.ruleId === ruleId);
+			const settings = settingsRecord.safeParse(node.config);
 			const config =
-				node.config !== null &&
-				typeof node.config === "object" &&
-				!Array.isArray(node.config) &&
-				Object.keys(node.config).length === 0
+				settings.success && Object.keys(settings.data).length === 0
 					? null
 					: literal(node.config, indent);
 			if (!entry) {

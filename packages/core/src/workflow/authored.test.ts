@@ -3,6 +3,7 @@ import {
 	compileWorkflows,
 	type RuleResult,
 	type WorkflowDefinition,
+	type WorkflowFile,
 	workflowAuthoring,
 } from "@tripwire/contracts";
 import { fixtureEvent } from "../rules/test-context.ts";
@@ -11,7 +12,7 @@ import { executeWorkflow } from "./executor.ts";
 const { anyOf, block, check, requestReview, workflow, workflows } =
 	workflowAuthoring;
 
-function only(file: unknown): WorkflowDefinition {
+function only(file: WorkflowFile): WorkflowDefinition {
 	const result = compileWorkflows(file);
 	if (!(result.ok && result.definitions[0])) {
 		throw new Error("fixture does not compile");

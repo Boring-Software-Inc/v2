@@ -1,9 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import type { Settings, SettingValue } from "./workflow-authoring.ts";
 import { workflowAuthoring } from "./workflow-authoring-catalog.ts";
 import {
 	checkWorkflows,
+	compileWorkflowModule,
 	compileWorkflows,
 	didYouMean,
+	type WorkflowFile,
+	workflowFileSchema,
 } from "./workflow-compile.ts";
 import { WORKFLOW_TEMPLATES } from "./workflow-templates.ts";
 import { validateWorkflowForEnable } from "./workflow-validate.ts";
@@ -27,7 +31,7 @@ const {
 	workflows,
 } = workflowAuthoring;
 
-function compiled(file: unknown) {
+function compiled(file: WorkflowFile) {
 	const result = compileWorkflows(file);
 	if (!result.ok) {
 		throw new Error(result.issues.map((issue) => issue.message).join("; "));
@@ -35,8 +39,8 @@ function compiled(file: unknown) {
 	return result.definitions;
 }
 
-function issues(file: unknown): string[] {
-	const result = compileWorkflows(file);
+function issues(file: WorkflowFile | SettingValue): string[] {
+	const result = compileWorkflowModule({ default: file });
 	return result.ok ? [] : result.issues.map((issue) => issue.message);
 }
 
@@ -457,16 +461,12 @@ describe("invalid workflows say what is wrong", () => {
 	});
 
 	test("a cycle built by hand is refused", () => {
-		const first: {
-			kind: string;
-			rule: string;
-			config: object;
-			inputs: object[];
-		} = {
+		const inputs: Settings[] = [];
+		const first = {
 			kind: "check",
 			rule: "account-age",
 			config: { minDays: 1 },
-			inputs: [],
+			inputs,
 		};
 		const second = {
 			kind: "check",
@@ -474,13 +474,15 @@ describe("invalid workflows say what is wrong", () => {
 			config: {},
 			inputs: [{ kind: "output", step: first, port: "pass" }],
 		};
-		first.inputs.push({ kind: "output", step: second, port: "pass" });
-		const result = checkWorkflows({
-			x: {
-				kind: "workflow",
-				spec: { on: "change-request.opened", steps: { first, second } },
-			},
-		});
+		inputs.push({ kind: "output", step: second, port: "pass" });
+		const result = checkWorkflows(
+			workflowFileSchema.parse({
+				x: {
+					kind: "workflow",
+					spec: { on: "change-request.opened", steps: { first, second } },
+				},
+			}),
+		);
 		expect(result.ok).toBe(true);
 		if (!result.ok) {
 			return;

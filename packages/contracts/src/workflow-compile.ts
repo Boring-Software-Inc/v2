@@ -18,10 +18,11 @@ import type {
 	Output,
 	OutputPort,
 	ReviewStep,
+	Settings,
+	SettingValue,
 	Step,
 	TriggerStep,
 	WorkflowSpec,
-	WorkflowValue,
 } from "./workflow-authoring.ts";
 import {
 	AUTHORING_ACTION_PARAMS,
@@ -116,7 +117,7 @@ function unknownMessage(
 const objectSchema = z.record(z.string(), z.unknown());
 
 function settingsIssues(
-	given: unknown,
+	given: Settings | undefined,
 	schema: z.ZodType,
 	what: string,
 ): string[] {
@@ -151,14 +152,27 @@ const outputShape = z.object({
 	kind: z.literal("output"),
 	port: z.enum(["pass", "fail", "approve", "deny"]),
 });
-const workflowShape = z.object({
-	kind: z.literal("workflow"),
-	spec: z.object({}).loose(),
-});
+const specShape = z.object({}).loose();
 
-function isWorkflowValue(value: unknown): value is WorkflowValue {
-	return workflowShape.safeParse(value).success;
-}
+const triggerStepSchema = z.custom<TriggerStep>(
+	(step) => stepShape.safeParse(step).success,
+);
+
+/**
+ * A `tripwire.ts` default export, checked at the edge. Specs pass through by
+ * reference: a step used twice must stay one step.
+ */
+export const workflowFileSchema = z.record(
+	z.string(),
+	z.object({
+		kind: z.literal("workflow"),
+		spec: z.custom<WorkflowSpec>((spec) => specShape.safeParse(spec).success, {
+			error: "each entry must be workflow({ ... })",
+		}),
+	}),
+	{ error: "the default export must be workflows({ ... })" },
+);
+export type WorkflowFile = z.infer<typeof workflowFileSchema>;
 
 function isAuthoringAction(kind: string): kind is AuthoringActionKind {
 	return Object.hasOwn(AUTHORING_ACTION_PARAMS, kind);
@@ -226,7 +240,7 @@ class WorkflowCompiler {
 		const id = step ? this.ids.get(step) : undefined;
 		this.issues.push({
 			workflow: this.key,
-			...(id ? { step: id } : {}),
+			step: id,
 			message,
 		});
 	}
@@ -473,17 +487,21 @@ class WorkflowCompiler {
 		}
 		const on =
 			spec.on === undefined ? [] : Array.isArray(spec.on) ? spec.on : [spec.on];
-		const kinds = on.filter(
-			(entry): entry is string => typeof entry === "string",
-		);
+		const kinds: string[] = [];
+		const steps: TriggerStep[] = [];
+		for (const entry of on) {
+			const kind = z.string().safeParse(entry);
+			const step = triggerStepSchema.safeParse(entry);
+			if (kind.success) {
+				kinds.push(kind.data);
+			} else if (step.success) {
+				steps.push(step.data);
+			}
+		}
 		if (kinds.length > 0) {
 			this.triggers.push({ kind: "trigger", on: kinds, inputs: [] });
 		}
-		for (const entry of on) {
-			if (typeof entry !== "string") {
-				this.triggers.push(entry);
-			}
-		}
+		this.triggers.push(...steps);
 		for (const step of Object.values(spec.steps ?? {})) {
 			if (step.kind === "trigger" && !this.triggers.includes(step)) {
 				this.triggers.push(step);
@@ -549,29 +567,10 @@ class WorkflowCompiler {
  * Compiles a `tripwire.ts` default export to stored definitions. Errors come
  * back as values, with a suggestion for every id that is close to a real one.
  */
-export function compileWorkflows(file: unknown): CompileResult {
-	const entries = objectSchema.safeParse(file);
-	if (!entries.success) {
-		return {
-			ok: false,
-			issues: [
-				{
-					workflow: "",
-					message: "the default export must be workflows({ ... })",
-				},
-			],
-		};
-	}
+export function compileWorkflows(file: WorkflowFile): CompileResult {
 	const issues: CompileIssue[] = [];
 	const definitions: WorkflowDefinition[] = [];
-	for (const [key, value] of Object.entries(entries.data)) {
-		if (!isWorkflowValue(value)) {
-			issues.push({
-				workflow: key,
-				message: "each entry must be workflow({ ... })",
-			});
-			continue;
-		}
+	for (const [key, value] of Object.entries(file)) {
 		const compiler = new WorkflowCompiler(key, value.spec);
 		const definition = compiler.compile();
 		issues.push(...compiler.issues);
@@ -580,6 +579,23 @@ export function compileWorkflows(file: unknown): CompileResult {
 		}
 	}
 	return issues.length > 0 ? { ok: false, issues } : { ok: true, definitions };
+}
+
+/** Parses a loaded default export, then compiles it. */
+export function compileWorkflowModule(loaded: {
+	default?: WorkflowFile | SettingValue;
+}): CompileResult {
+	const file = workflowFileSchema.safeParse(loaded.default);
+	if (!file.success) {
+		return {
+			ok: false,
+			issues: file.error.issues.map((issue) => ({
+				workflow: String(issue.path[0] ?? ""),
+				message: issue.message,
+			})),
+		};
+	}
+	return compileWorkflows(file.data);
 }
 
 export interface ScheduleReadBack {
@@ -644,7 +660,7 @@ export function reportWorkflows(
 
 /** Compiles a `tripwire.ts` default export, then lints every workflow in it. */
 export function checkWorkflows(
-	file: unknown,
+	file: WorkflowFile,
 	catalog?: readonly ValidationCatalogEntry[],
 ): WorkflowCheck {
 	const compiled = compileWorkflows(file);

@@ -9,11 +9,31 @@
  * in a project's copy.
  */
 
+/** A value a rule setting or action param can hold: plain JSON. */
+export type SettingValue =
+	| string
+	| number
+	| boolean
+	| null
+	| undefined
+	| readonly SettingValue[]
+	| Settings;
+
+/** Rule settings or action params, as written in code. */
+export interface Settings {
+	readonly [key: string]: SettingValue;
+}
+
+/** One settings shape per rule id or action kind. */
+export interface SettingsByName {
+	readonly [name: string]: Settings;
+}
+
 export interface AuthoringCatalog {
 	/** Rule id to the config it takes. */
-	readonly rules: object;
+	readonly rules: SettingsByName;
 	/** Action kind to the params it takes. */
-	readonly actions: object;
+	readonly actions: SettingsByName;
 	/** Event kinds a workflow can start on. */
 	readonly events: string;
 	/** Settings for a schedule trigger. */
@@ -52,8 +72,8 @@ export interface ResultOutputs {
 export interface CheckStep extends StepBase, ResultOutputs {
 	readonly kind: "check";
 	readonly rule: string;
-	readonly config: unknown;
-	readonly version?: number;
+	readonly config: Settings;
+	readonly version: number | undefined;
 	/** Runs this check after the given outputs instead of the triggers. */
 	after(...inputs: Input[]): CheckStep;
 }
@@ -68,7 +88,7 @@ export interface GateStep extends StepBase, ResultOutputs {
 export interface ActionStep extends StepBase {
 	readonly kind: "action";
 	readonly action: string;
-	readonly params?: object;
+	readonly params: Settings | undefined;
 	/** Runs this action after the given outputs. */
 	after(...inputs: Input[]): ActionStep;
 }
@@ -76,7 +96,7 @@ export interface ActionStep extends StepBase {
 export interface ReviewStep extends StepBase {
 	readonly kind: "action";
 	readonly action: "send-to-moderation";
-	readonly params?: object;
+	readonly params: undefined;
 	readonly approve: readonly ActionStep[];
 	readonly deny: readonly ActionStep[];
 	/** The maintainer approved it. */
@@ -165,7 +185,7 @@ function output(step: Step, port: OutputPort): Output {
 
 function makeCheck(
 	rule: string,
-	config: unknown,
+	config: Settings | undefined,
 	options: CheckOptions | undefined,
 	inputs: readonly Input[],
 ): CheckStep {
@@ -173,7 +193,7 @@ function makeCheck(
 		kind: "check",
 		rule,
 		config: config ?? {},
-		...(options?.version === undefined ? {} : { version: options.version }),
+		version: options?.version,
 		inputs,
 		get passes() {
 			return output(step, "pass");
@@ -203,13 +223,13 @@ function gate(mode: AuthoringGateMode, inputs: readonly Input[]): GateStep {
 
 function action(
 	kind: string,
-	params: object | undefined,
+	params: Settings | undefined,
 	inputs: readonly Input[] = [],
 ): ActionStep {
 	return {
 		kind: "action",
 		action: kind,
-		...(params === undefined ? {} : { params }),
+		params,
 		inputs,
 		after: (...next: Input[]) => action(kind, params, next),
 	};
@@ -222,6 +242,7 @@ function review(
 	const step: ReviewStep = {
 		kind: "action",
 		action: "send-to-moderation",
+		params: undefined,
 		approve: branches.approve ?? [],
 		deny: branches.deny ?? [],
 		inputs,
@@ -255,10 +276,7 @@ export function authoring<C extends AuthoringCatalog>() {
 		},
 
 		/** One of the repo's custom rules, by its `custom-...` id. */
-		customCheck(
-			rule: CustomRuleRef,
-			config?: Readonly<Record<string, unknown>>,
-		): CheckStep {
+		customCheck(rule: CustomRuleRef, config?: Settings): CheckStep {
 			return makeCheck(rule, config, undefined, []);
 		},
 

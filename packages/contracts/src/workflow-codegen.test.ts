@@ -9,7 +9,7 @@ import {
 	schemaTypeText,
 	workflowsToCode,
 } from "./workflow-codegen.ts";
-import { compileWorkflows } from "./workflow-compile.ts";
+import { compileWorkflowModule } from "./workflow-compile.ts";
 import { diffWorkflow, mergeForPush } from "./workflow-diff.ts";
 import { WORKFLOW_TEMPLATES } from "./workflow-templates.ts";
 
@@ -29,8 +29,7 @@ async function roundTrip(definitions: readonly WorkflowDefinition[]) {
 	});
 	const file = join(dir, `tripwire-${counter++}.ts`);
 	writeFileSync(file, code);
-	const loaded: { default: unknown } = await import(file);
-	const compiled = compileWorkflows(loaded.default);
+	const compiled = compileWorkflowModule(await import(file));
 	return { code, warnings, compiled, file };
 }
 
