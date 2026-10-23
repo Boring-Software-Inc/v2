@@ -14,12 +14,25 @@ import { Checkbox } from "#/components/glaze/ui/checkbox";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import type { AgentRequestOrg } from "#/lib/agents.functions";
 
+export function initialOrgPick(
+	orgs: AgentRequestOrg[],
+	activeOrgId: string | null,
+): string[] {
+	const active = orgs.find((org) => org.id === activeOrgId);
+	if (active) {
+		return [active.id];
+	}
+	const [only] = orgs;
+	return orgs.length === 1 && only ? [only.id] : [];
+}
+
 export function AgentRequestCard({
 	title,
 	subtitle,
 	lead,
 	scopes,
 	orgs,
+	activeOrgId,
 	onDecide,
 }: {
 	title: string;
@@ -27,10 +40,11 @@ export function AgentRequestCard({
 	lead: ReactNode;
 	scopes: string[];
 	orgs: AgentRequestOrg[];
+	activeOrgId: string | null;
 	onDecide: (accept: boolean, orgIds: string[]) => Promise<void>;
 }) {
 	const [picked, setPicked] = useState<string[]>(() =>
-		orgs.length === 1 && orgs[0] ? [orgs[0].id] : [],
+		initialOrgPick(orgs, activeOrgId),
 	);
 	const [pending, setPending] = useState<"allow" | "deny" | null>(null);
 	const permissions = permissionsFor(scopes);

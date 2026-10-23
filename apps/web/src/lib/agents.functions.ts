@@ -20,6 +20,7 @@ export type AgentRequest =
 			redirectHost: string | null;
 			scopes: string[];
 			orgs: AgentRequestOrg[];
+			activeOrgId: string | null;
 	  }
 	| { status: "invalid" };
 
@@ -32,7 +33,24 @@ async function sessionContext() {
 	if (!(auth && session)) {
 		throw new Error("Your session ended. Sign in again to continue.");
 	}
-	return { auth, headers, userId: session.user.id };
+	return {
+		auth,
+		headers,
+		userId: session.user.id,
+		sessionId: session.session.id,
+	};
+}
+
+async function activeOrgOf(sessionId: string): Promise<string | null> {
+	const { getDb } = await import("#/lib/server/db");
+	const { schema } = await import("@tripwire/db");
+	const { eq } = await import("drizzle-orm");
+	const rows = await getDb()
+		.db.select({ activeOrganizationId: schema.session.activeOrganizationId })
+		.from(schema.session)
+		.where(eq(schema.session.id, sessionId))
+		.limit(1);
+	return rows[0]?.activeOrganizationId ?? null;
 }
 
 async function memberOrgs(userId: string): Promise<AgentRequestOrg[]> {
@@ -96,7 +114,7 @@ export const getConsentRequest = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware])
 	.inputValidator((input: { oauthQuery: string }) => input)
 	.handler(async ({ data }): Promise<AgentRequest> => {
-		const { auth, headers, userId } = await sessionContext();
+		const { auth, headers, userId, sessionId } = await sessionContext();
 		const { verifySignedOAuthQuery } = await import(
 			"@tripwire/auth/agent-auth"
 		);
@@ -120,6 +138,7 @@ export const getConsentRequest = createServerFn({ method: "GET" })
 			redirectHost: redirectHostOf(params),
 			scopes: (params.get("scope") ?? "").split(" ").filter(Boolean),
 			orgs: await memberOrgs(userId),
+			activeOrgId: await activeOrgOf(sessionId),
 		};
 	});
 
@@ -148,7 +167,7 @@ export const getDeviceRequest = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware])
 	.inputValidator((input: { userCode: string }) => input)
 	.handler(async ({ data }): Promise<AgentRequest> => {
-		const { auth, headers, userId } = await sessionContext();
+		const { auth, headers, userId, sessionId } = await sessionContext();
 		try {
 			const request = (await auth.api.deviceVerify({
 				query: { user_code: data.userCode },
@@ -165,6 +184,7 @@ export const getDeviceRequest = createServerFn({ method: "GET" })
 				redirectHost: null,
 				scopes: (request.scope ?? "").split(" ").filter(Boolean),
 				orgs: await memberOrgs(userId),
+				activeOrgId: await activeOrgOf(sessionId),
 			};
 		} catch {
 			return { status: "invalid" };
