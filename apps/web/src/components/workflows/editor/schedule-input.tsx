@@ -357,7 +357,7 @@ export function ScheduleTextField({
 						{activeToken.label}
 					</TooltipChip>
 				) : null}
-				<div role="status">
+				<output aria-live="polite" className="block">
 					{problem ? (
 						<FieldError
 							className={cn(
@@ -368,7 +368,7 @@ export function ScheduleTextField({
 							{problem.message}
 						</FieldError>
 					) : null}
-				</div>
+				</output>
 				{problem && problem.fixes.length > 0 && !readOnly ? (
 					<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
 						{problem.fixes.map((fix) => (
