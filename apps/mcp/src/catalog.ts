@@ -1,4 +1,4 @@
-import type { AgentScope, OrgRole } from "@tripwire/contracts";
+import type { AgentScope, OrgPermission } from "@tripwire/contracts";
 
 export const TOOL_NAMES = [
 	"whoami",
@@ -25,51 +25,63 @@ export type ToolName = (typeof TOOL_NAMES)[number];
 
 export interface ToolSpec {
 	scope: AgentScope;
-	role: OrgRole | null;
+	need: "member" | OrgPermission | null;
 	readOnly: boolean;
 }
 
 export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
-	whoami: { scope: "tripwire:read", role: null, readOnly: true },
-	setup_status: { scope: "tripwire:read", role: "member", readOnly: true },
-	list_repos: { scope: "tripwire:read", role: "member", readOnly: true },
-	get_install_link: { scope: "tripwire:admin", role: "admin", readOnly: true },
-	list_rule_catalog: { scope: "tripwire:read", role: null, readOnly: true },
-	get_repo_rules: { scope: "tripwire:read", role: "member", readOnly: true },
-	set_rule: { scope: "tripwire:configure", role: "admin", readOnly: false },
-	turn_on_gate: { scope: "tripwire:admin", role: "admin", readOnly: false },
-	list_workflows: { scope: "tripwire:read", role: "member", readOnly: true },
-	set_workflow_enabled: {
+	whoami: { scope: "tripwire:read", need: null, readOnly: true },
+	setup_status: { scope: "tripwire:read", need: "member", readOnly: true },
+	list_repos: { scope: "tripwire:read", need: "member", readOnly: true },
+	get_install_link: {
+		scope: "tripwire:admin",
+		need: "connections:manage",
+		readOnly: true,
+	},
+	list_rule_catalog: { scope: "tripwire:read", need: null, readOnly: true },
+	get_repo_rules: { scope: "tripwire:read", need: "member", readOnly: true },
+	set_rule: {
 		scope: "tripwire:configure",
-		role: "admin",
+		need: "rules:manage",
 		readOnly: false,
 	},
-	get_workflow: { scope: "tripwire:read", role: "member", readOnly: true },
+	turn_on_gate: {
+		scope: "tripwire:admin",
+		need: "connections:manage",
+		readOnly: false,
+	},
+	list_workflows: { scope: "tripwire:read", need: "member", readOnly: true },
+	set_workflow_enabled: {
+		scope: "tripwire:configure",
+		need: "workflows:manage",
+		readOnly: false,
+	},
+	get_workflow: { scope: "tripwire:read", need: "member", readOnly: true },
 	validate_workflow: {
 		scope: "tripwire:read",
-		role: "member",
+		need: "member",
 		readOnly: true,
 	},
 	apply_workflow: {
 		scope: "tripwire:configure",
-		role: "admin",
+		need: "workflows:manage",
 		readOnly: false,
 	},
-	list_runs: { scope: "tripwire:read", role: "member", readOnly: true },
-	get_run: { scope: "tripwire:read", role: "member", readOnly: true },
+	list_runs: { scope: "tripwire:read", need: "member", readOnly: true },
+	get_run: { scope: "tripwire:read", need: "member", readOnly: true },
 	list_moderation_queue: {
 		scope: "tripwire:read",
-		role: "member",
+		need: "member",
 		readOnly: true,
 	},
 	decide_moderation: {
 		scope: "tripwire:moderate",
-		role: "admin",
+		need: "moderation:manage",
 		readOnly: false,
 	},
 	report_setup_progress: {
 		scope: "tripwire:read",
-		role: null,
+		need: null,
 		readOnly: false,
 	},
 };

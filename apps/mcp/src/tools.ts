@@ -166,7 +166,8 @@ export function registerTools(
 						nextStep: status.nextStep,
 						guide: NEXT_STEP_GUIDE[status.nextStep],
 						installUrl:
-							status.nextStep === "install_app" && resolved.role === "admin"
+							status.nextStep === "install_app" &&
+							resolved.permissions.includes("connections:manage")
 								? installLink(ctx, resolved.id)
 								: undefined,
 						home: appLink(ctx, `/${resolved.slug}/home`),
@@ -217,7 +218,7 @@ export function registerTools(
 			},
 			({ org }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
+					const resolved = await resolveOrg(ctx, org, "connections:manage");
 					const url = installLink(ctx, resolved.id);
 					if (!url) {
 						throw new ToolError(
@@ -319,7 +320,7 @@ export function registerTools(
 			},
 			({ org, repo, ruleId, enabled, config }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
+					const resolved = await resolveOrg(ctx, org, "rules:manage");
 					if (!RULE_CATALOG.some((entry) => entry.ruleId === ruleId)) {
 						throw new ToolError(`No rule named ${ruleId}.`, "list_rules");
 					}
@@ -359,7 +360,7 @@ export function registerTools(
 			},
 			({ org, repo }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
+					const resolved = await resolveOrg(ctx, org, "connections:manage");
 					const found = await resolveRepo(ctx, resolved, repo);
 					await repoServices.turnOnGate(ctx.db, await ctx.getBoss(), found.id);
 					return ok({
@@ -416,7 +417,7 @@ export function registerTools(
 			},
 			({ org, repo, workflowId, enabled }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
+					const resolved = await resolveOrg(ctx, org, "workflows:manage");
 					const found = await resolveRepo(ctx, resolved, repo);
 					const result = await workflowServices.setWorkflowEnabled(ctx.db, {
 						repoId: found.id,
@@ -575,7 +576,7 @@ export function registerTools(
 			},
 			({ org, repo, definitions }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
+					const resolved = await resolveOrg(ctx, org, "workflows:manage");
 					const found = await resolveRepo(ctx, resolved, repo);
 					const results = [];
 					for (const definition of definitions) {
@@ -749,7 +750,7 @@ export function registerTools(
 			},
 			({ org, repo, itemId, decision }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
+					const resolved = await resolveOrg(ctx, org, "moderation:manage");
 					const found = await resolveRepo(ctx, resolved, repo);
 					if (decision === "ban") {
 						return ok({

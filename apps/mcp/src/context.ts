@@ -1,6 +1,9 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { assertOrgRole } from "@tripwire/auth/org-gate";
-import type { OrgRole } from "@tripwire/contracts";
+import {
+	type OrgWithPermissions,
+	resolveOrgAccess,
+} from "@tripwire/auth/org-gate";
+import type { OrgPermission } from "@tripwire/contracts";
 import type { Db, OrgWithRole, RepoLite } from "@tripwire/db";
 import { orgServices } from "@tripwire/db";
 import type { Pool } from "pg";
@@ -76,14 +79,14 @@ async function defaultOrgSlug(ctx: ToolContext): Promise<string> {
 export async function resolveOrg(
 	ctx: ToolContext,
 	requested: string | undefined,
-	need: OrgRole,
-): Promise<OrgWithRole> {
+	need: "member" | OrgPermission,
+): Promise<OrgWithPermissions> {
 	requireAccess(ctx);
 	const slug = requested ?? (await defaultOrgSlug(ctx));
-	const member = await assertOrgRole(ctx.db, {
+	const member = await resolveOrgAccess(ctx.db, {
 		userId: ctx.agent.userId,
 		orgSlug: slug,
-		need: "member",
+		requirement: { kind: "membership" },
 	});
 	if (!member.ok) {
 		throw new ToolError(`No org named ${slug} for this account.`, "list_orgs");
@@ -93,9 +96,9 @@ export async function resolveOrg(
 			`This agent was not given access to ${slug}. Disconnect it under Agents in Tripwire settings, then connect again and pick ${slug}.`,
 		);
 	}
-	if (need === "admin" && member.org.role !== "admin") {
+	if (need !== "member" && !member.org.permissions.includes(need)) {
 		throw new ToolError(
-			`Only an admin of ${slug} can do this. Ask an admin of the org.`,
+			`Your role in ${slug} cannot do this. Ask an admin of the org.`,
 		);
 	}
 	return member.org;
