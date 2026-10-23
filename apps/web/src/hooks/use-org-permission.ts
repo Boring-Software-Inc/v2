@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { OrgPermission } from "@tripwire/auth/org-access";
+import type { OrgPermission } from "@tripwire/contracts";
 import { orgContextQueryOptions } from "#/lib/org.query";
 
 export function useOrgPermission(
@@ -8,6 +8,7 @@ export function useOrgPermission(
 ): boolean {
 	const { data } = useQuery({
 		...orgContextQueryOptions(org),
+		enabled: org.length > 0,
 		select: (context) => context.permissions.includes(permission),
 	});
 	return data ?? false;

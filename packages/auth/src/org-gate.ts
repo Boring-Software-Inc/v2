@@ -1,15 +1,19 @@
 import type { OrgRole } from "@tripwire/contracts";
 import type { Db, OrgWithRole } from "@tripwire/db";
 import { orgServices } from "@tripwire/db";
-import { type OrgPermission, permissionsForRole } from "./org-access.ts";
+import {
+	isBuiltInOrgRole,
+	type OrgPermission,
+	resolveOrgPermissions,
+	roleNames,
+} from "./org-access.ts";
 
 /**
  * Org role gate (§4) — the same architecture as `assertApproved`: read the
  * membership FRESH from the DB on every check (never from session or client
- * claims), return a denial the caller turns into its own response. Two roles:
- * member reads, admin additionally mutates. Deny-by-default: no membership
- * row ⇒ NOT_FOUND (a non-member must see 404, never 403 — org existence is
- * not disclosed, §8).
+ * claims), return a denial the caller turns into its own response.
+ * Deny-by-default: no membership row ⇒ NOT_FOUND (a non-member must see 404,
+ * never 403 — org existence is not disclosed, §8).
  */
 
 export interface OrgDenial {
@@ -26,71 +30,87 @@ export type OrgGateResult =
 	| { ok: true; org: OrgWithPermissions }
 	| { ok: false; denial: OrgDenial };
 
-export function withPermissions(org: OrgWithRole): OrgWithPermissions {
-	return { ...org, permissions: permissionsForRole(org.role) };
-}
+export type OrgRequirement =
+	| { kind: "membership" }
+	| { kind: "role"; need: OrgRole }
+	| { kind: "permission"; permission: OrgPermission };
 
-/** Pure decision: does a held role afford the needed level? */
-export function roleAffords(held: OrgRole, need: OrgRole): boolean {
-	return need === "member" ? true : held === "admin";
-}
-
-/**
- * Resolve slug→org for a caller and require a role. `need: "member"` gates
- * reads; `need: "admin"` gates mutations. Admin-only moderation note: the
- * needed level for a surface is declared AT the server fn — loosening a
- * surface later (e.g. member-level moderation triage, the first candidate
- * for a per-org setting) is a one-site change of its `need`.
- */
-export async function assertOrgRole(
+export async function withPermissions(
 	db: Db,
-	input: { userId: string; orgSlug: string; need: OrgRole },
+	org: OrgWithRole,
+): Promise<OrgWithPermissions> {
+	const custom = roleNames(org.role).filter((name) => !isBuiltInOrgRole(name));
+	const rows = await orgServices.getOrgRoles(db, org.id, custom);
+	return { ...org, permissions: resolveOrgPermissions(org.role, rows) };
+}
+
+export function roleAffords(held: string, need: OrgRole): boolean {
+	const names = roleNames(held);
+	if (names.includes("admin")) {
+		return true;
+	}
+	return need === "member" && names.includes("member");
+}
+
+export function requirementMet(
+	org: OrgWithPermissions,
+	requirement: OrgRequirement,
+): boolean {
+	switch (requirement.kind) {
+		case "membership":
+			return true;
+		case "role":
+			return roleAffords(org.role, requirement.need);
+		case "permission":
+			return org.permissions.includes(requirement.permission);
+	}
+}
+
+export async function resolveOrgAccess(
+	db: Db,
+	input: { userId: string; orgSlug: string; requirement: OrgRequirement },
 ): Promise<OrgGateResult> {
-	const org = await orgServices.getOrgForUser(db, {
+	const found = await orgServices.getOrgForUser(db, {
 		slug: input.orgSlug,
 		userId: input.userId,
 	});
-	if (!org) {
+	if (!found) {
 		return {
 			ok: false,
 			denial: { code: "NOT_FOUND", message: "not found" },
 		};
 	}
-	if (!roleAffords(org.role, input.need)) {
+	const org = await withPermissions(db, found);
+	if (!requirementMet(org, input.requirement)) {
 		return {
 			ok: false,
 			denial: {
 				code: "FORBIDDEN",
-				message: "this action needs an org admin",
+				message: "this action needs access the caller lacks",
 			},
 		};
 	}
-	return { ok: true, org: withPermissions(org) };
+	return { ok: true, org };
+}
+
+export async function assertOrgRole(
+	db: Db,
+	input: { userId: string; orgSlug: string; need: OrgRole },
+): Promise<OrgGateResult> {
+	return await resolveOrgAccess(db, {
+		userId: input.userId,
+		orgSlug: input.orgSlug,
+		requirement: { kind: "role", need: input.need },
+	});
 }
 
 export async function assertOrgPermission(
 	db: Db,
 	input: { userId: string; orgSlug: string; permission: OrgPermission },
 ): Promise<OrgGateResult> {
-	const org = await orgServices.getOrgForUser(db, {
-		slug: input.orgSlug,
+	return await resolveOrgAccess(db, {
 		userId: input.userId,
+		orgSlug: input.orgSlug,
+		requirement: { kind: "permission", permission: input.permission },
 	});
-	if (!org) {
-		return {
-			ok: false,
-			denial: { code: "NOT_FOUND", message: "not found" },
-		};
-	}
-	const resolved = withPermissions(org);
-	if (!resolved.permissions.includes(input.permission)) {
-		return {
-			ok: false,
-			denial: {
-				code: "FORBIDDEN",
-				message: "this action needs a permission the caller lacks",
-			},
-		};
-	}
-	return { ok: true, org: resolved };
 }

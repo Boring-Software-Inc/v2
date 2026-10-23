@@ -25,6 +25,7 @@ export * from "./insights.ts";
 export * from "./install-status.ts";
 export * from "./moderation.ts";
 export * from "./org.ts";
+export * from "./org-roles.ts";
 export * from "./redact.ts";
 export * from "./redaction.ts";
 export * from "./repo.ts";

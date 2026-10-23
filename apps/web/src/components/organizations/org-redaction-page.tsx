@@ -39,7 +39,7 @@ function usageLine(view: OrgResponseDefaultsView): string {
 }
 
 export function OrgRedactionPage({ org }: { org: string }) {
-	const canEdit = useOrgPermission(org, "orgResponseDefaults:update");
+	const canEdit = useOrgPermission(org, "responses:manage");
 	const { data } = useQuery(orgResponseDefaultsQueryOptions(org));
 
 	return (

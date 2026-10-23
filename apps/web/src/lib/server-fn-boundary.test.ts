@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ORG_PERMISSIONS, roleHasPermission } from "@tripwire/auth/org-access";
 import { SERVER_FN_CLASSIFICATION } from "./server-fn-classification.ts";
+import { discoverServerFns, ORG_SHELL } from "./server-fn-discovery.ts";
 
 /**
  * Structural authz boundary (invariant 3). Server functions are HTTP endpoints;
@@ -23,63 +24,7 @@ const PUBLIC_ALLOWLIST = new Set([
 	"redeemOrgInvite", // §6: redemption APPROVES pending users — gating it deadlocks
 ]);
 
-const libDir = import.meta.dir;
-
-interface ServerFn {
-	name: string;
-	/** Whether the builder chain attaches the access-guard middleware. */
-	gated: boolean;
-	/** Which org-role middleware (if any) the chain attaches. */
-	orgRole: "admin" | "member" | null;
-	/** Whether the chain attaches the platform-staff middleware. */
-	staff: boolean;
-	permission: string | "dynamic" | null;
-	method: string | null;
-	file: string;
-}
-
-const PERMISSION_CALL = /orgPermissionMiddleware\(\s*"([\w-]+:[\w-]+)"\s*\)/;
-const METHOD = /createServerFn\(\s*\{\s*method:\s*"(\w+)"/;
 const MEMBER_MUTATION_ALLOWLIST = new Set(["leaveOrg", "rememberActiveOrg"]);
-
-function discoverServerFns(): ServerFn[] {
-	const found: ServerFn[] = [];
-	for (const file of readdirSync(libDir)) {
-		if (!file.endsWith(".functions.ts")) {
-			continue;
-		}
-		const src = readFileSync(join(libDir, file), "utf8");
-		const re = /export const (\w+)\s*=\s*createServerFn\(/g;
-		let m: RegExpExecArray | null = re.exec(src);
-		while (m !== null) {
-			const name = m[1] as string;
-			// Gating lives in the builder chain between this declaration and its
-			// `.handler(` — a gated fn carries `.middleware([accessGuardMiddleware])`
-			// there. (The chain can't wrap `createServerFn` in a helper or the
-			// compiler won't split it — gated-server-fn.ts explains why.)
-			const handlerIdx = src.indexOf(".handler(", m.index);
-			const chain =
-				handlerIdx === -1 ? src.slice(m.index) : src.slice(m.index, handlerIdx);
-			found.push({
-				name,
-				gated: chain.includes("accessGuardMiddleware"),
-				orgRole: chain.includes("orgAdminMiddleware")
-					? "admin"
-					: chain.includes("orgMemberMiddleware")
-						? "member"
-						: null,
-				staff: chain.includes("platformAdminMiddleware"),
-				permission: chain.includes("orgPermissionMiddleware(")
-					? (PERMISSION_CALL.exec(chain)?.[1] ?? "dynamic")
-					: null,
-				method: METHOD.exec(chain)?.[1] ?? null,
-				file,
-			});
-			m = re.exec(src);
-		}
-	}
-	return found;
-}
 
 describe("server-fn access boundary (invariant 3)", () => {
 	const fns = discoverServerFns();
@@ -114,7 +59,7 @@ describe("server-fn access boundary (invariant 3)", () => {
 	// classified one whose middleware CHAIN doesn't match its class fails too —
 	// a mutation cannot silently ship member-readable or ungated.
 
-	test("every server function is classified (admin/member/public)", () => {
+	test("every server function is classified", () => {
 		const unclassified = fns
 			.filter((f) => !(f.name in SERVER_FN_CLASSIFICATION))
 			.map((f) => `${f.file}:${f.name}`);
@@ -162,19 +107,12 @@ describe("server-fn access boundary (invariant 3)", () => {
 									staff: false,
 									permission: null,
 								}
-							: cls === "staff"
-								? {
-										gated: true,
-										orgRole: null,
-										staff: true,
-										permission: null,
-									}
-								: {
-										gated: true,
-										orgRole: "admin" as const,
-										staff: false,
-										permission: null,
-									};
+							: {
+									gated: true,
+									orgRole: null,
+									staff: true,
+									permission: null,
+								};
 			if (
 				f.gated !== want.gated ||
 				f.orgRole !== want.orgRole ||
@@ -202,6 +140,53 @@ describe("org permission gates", () => {
 			)
 			.map((f) => `${f.file}:${f.name} (${f.permission})`);
 		expect(unknown).toEqual([]);
+	});
+
+	test("every org-scoped fn outside the shell names a region scope", () => {
+		const unscoped = fns
+			.filter(
+				(f) =>
+					(f.orgRole !== null || f.permission !== null) &&
+					f.permission === null &&
+					!ORG_SHELL.includes(f.name),
+			)
+			.map((f) => `${f.file}:${f.name}`);
+		expect(unscoped).toEqual([]);
+	});
+
+	test("the org shell is exactly the membership-only fns", () => {
+		const shell = fns
+			.filter((f) => f.orgRole === "member")
+			.map((f) => f.name)
+			.sort();
+		expect(shell).toEqual(ORG_SHELL);
+	});
+
+	test("the role-tier admin middleware is never used", () => {
+		const legacy = fns
+			.filter((f) => f.orgRole === "admin")
+			.map((f) => `${f.file}:${f.name}`);
+		expect(legacy).toEqual([]);
+	});
+
+	test("no permission is computed at runtime", () => {
+		const dynamic = fns
+			.filter((f) => f.permission === "dynamic")
+			.map((f) => `${f.file}:${f.name}`);
+		expect(dynamic).toEqual([]);
+	});
+
+	test("every mutation needs manage, and every read needs read", () => {
+		const wrong = fns
+			.filter((f) => f.permission !== null)
+			.filter((f) =>
+				f.method === "POST"
+					? !f.permission?.endsWith(":manage")
+					: !f.permission?.endsWith(":read") &&
+						!f.permission?.endsWith(":manage"),
+			)
+			.map((f) => `${f.file}:${f.name} (${f.method} ${f.permission})`);
+		expect(wrong).toEqual([]);
 	});
 
 	test("no member-level mutation outside the allowlist", () => {

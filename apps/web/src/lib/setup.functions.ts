@@ -5,14 +5,17 @@ import type { AgentSetupPromptState, OrgWithRole } from "@tripwire/db";
 export type { AgentSetupPromptState };
 
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
-import { orgAdminMiddleware } from "#/lib/server/org-guard";
+import { orgPermissionMiddleware } from "#/lib/server/org-guard";
 
 export type SetupRunState =
 	| { status: "ready"; run: SetupRunView }
 	| { status: "unavailable" };
 
 export const ensureSetupRun = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
 	.inputValidator((input: { org: string }) => input)
 	.handler(async ({ context }): Promise<SetupRunState> => {
 		const org = (context as { org: OrgWithRole }).org;
@@ -31,7 +34,10 @@ export const ensureSetupRun = createServerFn({ method: "POST" })
 	});
 
 export const findSetupRun = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
 	.inputValidator((input: { org: string }) => input)
 	.handler(async ({ context }): Promise<SetupRunState> => {
 		const org = (context as { org: OrgWithRole }).org;
@@ -56,7 +62,10 @@ const HIDDEN_PROMPT: AgentSetupPromptState = {
 };
 
 export const getAgentSetupPrompt = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
 	.inputValidator((input: { org: string }) => input)
 	.handler(async ({ context }): Promise<AgentSetupPromptState> => {
 		const org = (context as { org: OrgWithRole }).org;
@@ -74,7 +83,10 @@ export const getAgentSetupPrompt = createServerFn({ method: "GET" })
 	});
 
 export const dismissAgentSetupPrompt = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
 	.inputValidator((input: { org: string }) => input)
 	.handler(async ({ context }): Promise<{ dismissCount: number }> => {
 		const org = (context as { org: OrgWithRole }).org;

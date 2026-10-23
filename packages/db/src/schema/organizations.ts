@@ -73,6 +73,28 @@ export const member = pgTable(
 	],
 );
 
+export const organizationRole = pgTable(
+	"organization_role",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		role: text("role").notNull(),
+		permission: text("permission").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }),
+	},
+	(t) => [
+		uniqueIndex("organization_role_org_role_unique").on(
+			t.organizationId,
+			t.role,
+		),
+	],
+);
+
 /** Plugin-required, dormant — see the module doc. Never surfaced in the UI. */
 export const invitation = pgTable("invitation", {
 	id: text("id").primaryKey(),

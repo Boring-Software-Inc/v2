@@ -6,11 +6,12 @@
  *
  *   public — bare createServerFn; session-less or self-gating by design.
  *   authed — accessGuardMiddleware only (approved session; no org context).
- *   member — accessGuard + orgMemberMiddleware (org-scoped read).
- *   admin  — accessGuard + orgAdminMiddleware (org-scoped mutation).
+ *   member — accessGuard + orgMemberMiddleware (org shell: any role).
  *   staff  — accessGuard + platformAdminMiddleware (/admin portal; platform
  *            role on the user row, NOT org membership; denial is always 404).
- *   permission:<id> — accessGuard + orgPermissionMiddleware("<id>").
+ *   permission:<region>:<read|manage> — accessGuard +
+ *            orgPermissionMiddleware("<region>:<level>"). Every org-scoped fn
+ *            outside the shell carries one (#37).
  */
 import type { OrgPermission } from "@tripwire/auth/org-access";
 
@@ -18,7 +19,6 @@ export type ServerFnClass =
 	| "public"
 	| "authed"
 	| "member"
-	| "admin"
 	| "staff"
 	| `permission:${OrgPermission}`;
 
@@ -59,78 +59,88 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	listConnectedAgents: "authed", // the caller's own agents
 	revokeConnectedAgent: "authed", // the caller's own agents
 
-	// ── member (org-scoped reads + self-scoped org actions) ─────────────
+	// ── member (org shell: any role, including custom roles) ─────────────
 	getOrgContext: "member",
-	rememberActiveOrg: "member",
 	getOrgRepoContext: "member",
-	getOrgAnalyticsSummary: "member",
 	getOrgHomeState: "member",
-	listOrgMembers: "member",
+	rememberActiveOrg: "member",
 	leaveOrg: "member", // the guarded door out (last-admin blocks)
-	getActivityFeed: "member",
-	getModerationStats: "member",
-	getAnalyticsActivity: "member",
-	getLatestRunId: "member",
-	listRuleConfigViews: "member",
-	listCustomRuleViews: "member",
-	getRulesHeaderStats: "member",
-	getRepoSuggestions: "member",
-	listRepoWorkflows: "member",
-	getRepoWorkflow: "member",
-	listModerationQueue: "member",
-	getRepoResponseConfig: "member",
-	listRepoReviewers: "member",
-	listRepoLabels: "member",
-	getOrgResponseDefaults: "member",
 
-	// ── admin (org mutations) ────────────────────────────────────────────
-	saveCustomRule: "admin",
-	setCustomRuleEnabled: "admin",
-	deleteCustomRule: "admin",
-	updateOrg: "admin",
-	ensureSetupRun: "admin", // a setup run is an install-and-gate act
-	findSetupRun: "admin",
-	getAgentSetupPrompt: "admin",
-	dismissAgentSetupPrompt: "admin",
-	getOrgCascade: "admin", // pre-delete enumeration — admin surface
-	deleteOrg: "admin",
-	updateOrgMemberRole: "admin",
-	removeOrgMember: "admin",
-	createOrgInvite: "admin",
-	listOrgInvites: "admin", // tokens are minted here; treat the list as admin
-	revokeOrgInvite: "admin",
-	getOrgInstallUrl: "admin", // mints an org-bound install state
-	claimInstallation: "admin",
-	moveInstallationToOrg: "admin",
-	armRepo: "admin",
-	disarmRepo: "admin",
-	armRepoById: "admin",
-	createRepoWorkflow: "admin",
-	saveRepoWorkflow: "admin",
-	testDeliveryConnection: "admin", // makes an outbound request
-	renameRepoWorkflow: "admin",
-	duplicateRepoWorkflow: "admin",
-	deleteRepoWorkflow: "admin",
-	setRepoWorkflowEnabled: "admin",
-	refreshRepoReviewers: "admin",
-	refreshRepoLabels: "admin",
-	saveRuleConfig: "admin",
-	saveRepoResponseConfig: "permission:repoResponse:update",
-	saveOrgResponseDefaults: "permission:orgResponseDefaults:update",
-	upgradeRuleConfig: "admin", // §6 (b) — re-pin a rule to the current version
-	/**
-	 * Approving a paused run releases code through the gate — a trust-level
-	 * action, not triage (admin under the two-role model). First candidate
-	 * for a per-org setting / third role when a customer needs member-level
-	 * triage; the middleware + this row are the one-site change.
-	 */
-	decideModeration: "admin",
-	/**
-	 * Manual re-run spends real evaluation (ai-review tokens) and publicly
-	 * rewrites the PR's verdict surfaces — a trust-level admin action.
-	 */
-	rerunChangeRequest: "admin",
-	getRerunPreview: "admin",
+	// ── moderation (human review) ─────────────────────────────────────────
+	listModerationQueue: "permission:moderation:read",
+	decideModeration: "permission:moderation:manage",
+
+	// ── activity (runs) ───────────────────────────────────────────────────
+	getActivityFeed: "permission:activity:read",
+	getLatestRunId: "permission:activity:read",
+	rerunChangeRequest: "permission:activity:manage",
+	getRerunPreview: "permission:activity:manage",
+
+	// ── rules ─────────────────────────────────────────────────────────────
+	listRuleConfigViews: "permission:rules:read",
+	listCustomRuleViews: "permission:rules:read",
+	getRulesHeaderStats: "permission:rules:read",
+	getRepoSuggestions: "permission:rules:read",
+	saveRuleConfig: "permission:rules:manage",
+	upgradeRuleConfig: "permission:rules:manage",
+	saveCustomRule: "permission:rules:manage",
+	setCustomRuleEnabled: "permission:rules:manage",
+	deleteCustomRule: "permission:rules:manage",
+
+	// ── workflows ─────────────────────────────────────────────────────────
+	listRepoWorkflows: "permission:workflows:read",
+	getRepoWorkflow: "permission:workflows:read",
+	listRepoReviewers: "permission:workflows:read",
+	listRepoLabels: "permission:workflows:read",
+	createRepoWorkflow: "permission:workflows:manage",
+	saveRepoWorkflow: "permission:workflows:manage",
+	renameRepoWorkflow: "permission:workflows:manage",
+	duplicateRepoWorkflow: "permission:workflows:manage",
+	deleteRepoWorkflow: "permission:workflows:manage",
+	setRepoWorkflowEnabled: "permission:workflows:manage",
+	testDeliveryConnection: "permission:workflows:manage", // makes an outbound request
+	refreshRepoReviewers: "permission:workflows:manage",
+	refreshRepoLabels: "permission:workflows:manage",
+
+	// ── responses + redaction ─────────────────────────────────────────────
+	getRepoResponseConfig: "permission:responses:read",
+	getOrgResponseDefaults: "permission:responses:read",
+	saveRepoResponseConfig: "permission:responses:manage",
+	saveOrgResponseDefaults: "permission:responses:manage",
+
+	// ── analytics ─────────────────────────────────────────────────────────
+	getOrgAnalyticsSummary: "permission:analytics:read",
+	getAnalyticsActivity: "permission:analytics:read",
+	getModerationStats: "permission:analytics:read",
+
+	// ── connections (installs, claims, turning repos on) ──────────────────
+	getOrgInstallUrl: "permission:connections:manage", // mints an org-bound install state
+	claimInstallation: "permission:connections:manage",
+	moveInstallationToOrg: "permission:connections:manage",
+	armRepo: "permission:connections:manage",
+	disarmRepo: "permission:connections:manage",
+	armRepoById: "permission:connections:manage",
+	ensureSetupRun: "permission:connections:manage", // a setup run is an install-and-gate act
+	findSetupRun: "permission:connections:manage",
+	getAgentSetupPrompt: "permission:connections:manage",
+	dismissAgentSetupPrompt: "permission:connections:manage",
+
+	// ── members + roles (manage is never grantable to a custom role) ──────
+	listOrgMembers: "permission:members:read",
+	listOrgRoles: "permission:members:read",
+	updateOrgMemberRole: "permission:members:manage",
+	removeOrgMember: "permission:members:manage",
+	createOrgInvite: "permission:members:manage",
+	listOrgInvites: "permission:members:manage", // tokens are minted here
+	revokeOrgInvite: "permission:members:manage",
+	createOrgRole: "permission:members:manage",
+	updateOrgRole: "permission:members:manage",
+	deleteOrgRole: "permission:members:manage",
+
+	// ── org settings (manage is never grantable to a custom role) ─────────
+	updateOrg: "permission:settings:manage",
+	getOrgCascade: "permission:settings:manage", // pre-delete enumeration
+	deleteOrg: "permission:settings:manage",
 
 	// ── staff (platform admin portal — /admin) ───────────────────────────
 	getAdminContext: "staff",

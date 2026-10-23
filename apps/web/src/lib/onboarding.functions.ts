@@ -14,8 +14,8 @@ import type {
 } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
-	orgAdminMiddleware,
 	orgMemberMiddleware,
+	orgPermissionMiddleware,
 } from "#/lib/server/org-guard";
 
 export type {
@@ -61,7 +61,10 @@ export type { InstallUrlState };
  * changes what the org gates.
  */
 export const getOrgInstallUrl = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
 	.inputValidator((input: { org: string; forge?: Forge }) => input)
 	.handler(async ({ context, data }): Promise<InstallUrlState> => {
 		const org = (context as { org: OrgWithRole }).org;
@@ -145,7 +148,10 @@ export const recoverInstallation = createServerFn({ method: "POST" })
  * ((forge, installationId) unique).
  */
 export const claimInstallation = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
 	.inputValidator(
 		(input: { org: string; installationId: string; forge: Forge }) => input,
 	)
@@ -195,7 +201,10 @@ export const claimInstallation = createServerFn({ method: "POST" })
  * the target (checked here).
  */
 export const moveInstallationToOrg = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
 	.inputValidator(
 		(input: { org: string; installationId: string; toOrg: string }) => input,
 	)

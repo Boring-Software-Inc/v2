@@ -1,6 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { OrgWithPermissions } from "@tripwire/auth/org-gate";
-import type { CreateInviteInput, OrgRole } from "@tripwire/contracts";
+import type { Auth } from "@tripwire/auth/server";
+import type {
+	CreateInviteInput,
+	OrgAccessLevel,
+	OrgRegion,
+	OrgRoleScopes,
+} from "@tripwire/contracts";
+import {
+	customOrgRoleNameSchema,
+	orgMemberRoleInputSchema,
+	orgRoleInputSchema,
+	scopesToStatements,
+	statementsToScopes,
+} from "@tripwire/contracts";
 import type {
 	InviteLinkView,
 	OrgCascade,
@@ -10,8 +23,8 @@ import type {
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
 	type OrgContext,
-	orgAdminMiddleware,
 	orgMemberMiddleware,
+	orgPermissionMiddleware,
 } from "#/lib/server/org-guard";
 
 export type {
@@ -129,7 +142,10 @@ export const createOrg = createServerFn({ method: "POST" })
 
 /** Rename / re-slug (admin; the plugin hook re-validates the slug line). */
 export const updateOrg = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("settings:manage"),
+	])
 	.inputValidator(
 		(input: {
 			org: string;
@@ -183,7 +199,10 @@ export const updateOrg = createServerFn({ method: "POST" })
 
 /** What deletion touches — shown before the typed-name confirm. */
 export const getOrgCascade = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("settings:manage"),
+	])
 	.inputValidator((input: { org: string }) => input)
 	.handler(async ({ context }): Promise<OrgCascade> => {
 		const org = (context as { org: OrgWithRole }).org;
@@ -197,7 +216,10 @@ export const getOrgCascade = createServerFn({ method: "GET" })
  * plugin's own delete endpoint is disabled; this is the only path.
  */
 export const deleteOrg = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("settings:manage"),
+	])
 	.inputValidator((input: { org: string; confirmName: string }) => input)
 	.handler(
 		async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
@@ -226,12 +248,12 @@ export interface OrgMemberView {
 	name: string;
 	email: string;
 	image: string | null;
-	role: OrgRole;
+	role: string;
 	joinedAt: string;
 }
 
 export const listOrgMembers = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("members:read")])
 	.inputValidator((input: { org: string }) => input)
 	.handler(async ({ context }): Promise<OrgMemberView[]> => {
 		const org = (context as { org: OrgWithRole }).org;
@@ -255,17 +277,21 @@ export const listOrgMembers = createServerFn({ method: "GET" })
 			.orderBy(schema.member.createdAt);
 		return rows.map((r) => ({
 			...r,
-			role: r.role as OrgRole,
 			joinedAt: r.joinedAt.toISOString(),
 		}));
 	});
 
 /** Role change via the plugin (hooks: last-admin + two-role enforcement). */
 export const updateOrgMemberRole = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
-	.inputValidator(
-		(input: { org: string; memberId: string; role: OrgRole }) => input,
-	)
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("members:manage"),
+	])
+	.inputValidator((input: { org: string; memberId: string; role: string }) => ({
+		org: input.org,
+		memberId: input.memberId,
+		role: orgMemberRoleInputSchema.parse(input.role),
+	}))
 	.handler(
 		async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
 			const org = (context as { org: OrgWithRole }).org;
@@ -305,7 +331,10 @@ export const updateOrgMemberRole = createServerFn({ method: "POST" })
 
 /** Remove a member (admin). No self-kick — leave is the door out. */
 export const removeOrgMember = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("members:manage"),
+	])
 	.inputValidator((input: { org: string; memberId: string }) => input)
 	.handler(
 		async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
@@ -357,6 +386,152 @@ export const removeOrgMember = createServerFn({ method: "POST" })
 		},
 	);
 
+export interface OrgRoleView {
+	id: string;
+	name: string;
+	scopes: Partial<Record<OrgRegion, OrgAccessLevel>>;
+	memberCount: number;
+}
+
+export const listOrgRoles = createServerFn({ method: "GET" })
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("members:read")])
+	.inputValidator((input: { org: string }) => input)
+	.handler(async ({ context }): Promise<OrgRoleView[]> => {
+		const org = (context as OrgContext).org;
+		const { getDb } = await import("#/lib/server/db");
+		const { orgServices } = await import("@tripwire/db");
+		const { parseRoleStatements } = await import("@tripwire/auth/org-access");
+		const db = getDb().db;
+		const rows = await orgServices.listOrgRoles(db, org.id);
+		return await Promise.all(
+			rows.map(async (row) => {
+				const statements = parseRoleStatements(row.permission);
+				return {
+					id: row.id,
+					name: row.role,
+					scopes: statements ? statementsToScopes(statements) : {},
+					memberCount: await orgServices.countMembersWithRole(
+						db,
+						org.id,
+						row.role,
+					),
+				};
+			}),
+		);
+	});
+
+type RoleWriteResult = { ok: true } | { ok: false; error: string };
+
+async function callRoleEndpoint(
+	run: (auth: Auth, headers: Headers) => Promise<unknown>,
+	fallback: string,
+): Promise<RoleWriteResult> {
+	const { getAuth } = await import("#/lib/server/auth");
+	const auth = getAuth();
+	if (!auth) {
+		return {
+			ok: false,
+			error:
+				"Sign-in is off in open-dev mode, so this action is not available.",
+		};
+	}
+	const { getStartContext } = await import("@tanstack/start-storage-context");
+	try {
+		await run(auth, getStartContext().request.headers);
+		return { ok: true };
+	} catch (err) {
+		return { ok: false, error: err instanceof Error ? err.message : fallback };
+	}
+}
+
+export const createOrgRole = createServerFn({ method: "POST" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("members:manage"),
+	])
+	.inputValidator(
+		(input: { org: string; name: string; scopes: OrgRoleScopes }) => ({
+			org: input.org,
+			...orgRoleInputSchema.parse(input),
+		}),
+	)
+	.handler(async ({ data, context }): Promise<RoleWriteResult> => {
+		const org = (context as OrgContext).org;
+		return await callRoleEndpoint(
+			(auth, headers) =>
+				auth.api.createOrgRole({
+					body: {
+						organizationId: org.id,
+						role: data.name,
+						permission: scopesToStatements(data.scopes),
+					},
+					headers,
+				}),
+			"Could not create the role. Try again.",
+		);
+	});
+
+export const updateOrgRole = createServerFn({ method: "POST" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("members:manage"),
+	])
+	.inputValidator(
+		(input: { org: string; name: string; scopes: OrgRoleScopes }) => ({
+			org: input.org,
+			...orgRoleInputSchema.parse(input),
+		}),
+	)
+	.handler(async ({ data, context }): Promise<RoleWriteResult> => {
+		const org = (context as OrgContext).org;
+		return await callRoleEndpoint(
+			(auth, headers) =>
+				auth.api.updateOrgRole({
+					body: {
+						organizationId: org.id,
+						roleName: data.name,
+						data: { permission: scopesToStatements(data.scopes) },
+					},
+					headers,
+				}),
+			"Could not save the role. Try again.",
+		);
+	});
+
+export const deleteOrgRole = createServerFn({ method: "POST" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("members:manage"),
+	])
+	.inputValidator((input: { org: string; name: string }) => ({
+		org: input.org,
+		name: customOrgRoleNameSchema.parse(input.name),
+	}))
+	.handler(async ({ data, context }): Promise<RoleWriteResult> => {
+		const org = (context as OrgContext).org;
+		const { getDb } = await import("#/lib/server/db");
+		const { orgServices } = await import("@tripwire/db");
+		const holders = await orgServices.countMembersWithRole(
+			getDb().db,
+			org.id,
+			data.name,
+		);
+		if (holders > 0) {
+			return {
+				ok: false,
+				error: "Give the members who hold this role another role first.",
+			};
+		}
+		return await callRoleEndpoint(
+			(auth, headers) =>
+				auth.api.deleteOrgRole({
+					body: { organizationId: org.id, roleName: data.name },
+					headers,
+				}),
+			"Could not delete the role. Try again.",
+		);
+	});
+
 /** Leave an org (member). The plugin guards the last admin; hooks guard personal. */
 export const leaveOrg = createServerFn({ method: "POST" })
 	.middleware([accessGuardMiddleware, orgMemberMiddleware])
@@ -396,7 +571,10 @@ export const leaveOrg = createServerFn({ method: "POST" })
 // ── invite links (§6) ───────────────────────────────────────────────────
 
 export const createOrgInvite = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("members:manage"),
+	])
 	.inputValidator((input: { org: string } & CreateInviteInput) => input)
 	.handler(
 		async ({ data, context }): Promise<{ token?: string; error?: string }> => {
@@ -429,7 +607,10 @@ export const createOrgInvite = createServerFn({ method: "POST" })
 	);
 
 export const listOrgInvites = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("members:manage"),
+	])
 	.inputValidator((input: { org: string }) => input)
 	.handler(async ({ context }): Promise<InviteLinkView[]> => {
 		const org = (context as { org: OrgWithRole }).org;
@@ -439,7 +620,10 @@ export const listOrgInvites = createServerFn({ method: "GET" })
 	});
 
 export const revokeOrgInvite = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("members:manage"),
+	])
 	.inputValidator((input: { org: string; inviteId: string }) => input)
 	.handler(async ({ data, context }): Promise<{ revoked: boolean }> => {
 		const org = (context as { org: OrgWithRole }).org;
@@ -505,7 +689,10 @@ export interface OrgAnalyticsSummary {
  * analytics infrastructure; per-repo depth lives at /:org/:repo/analytics).
  */
 export const getOrgAnalyticsSummary = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("analytics:read"),
+	])
 	.inputValidator((input: { org: string }) => input)
 	.handler(async ({ context }): Promise<OrgAnalyticsSummary> => {
 		const org = (context as { org: OrgWithRole }).org;

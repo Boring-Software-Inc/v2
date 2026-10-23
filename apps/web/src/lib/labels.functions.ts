@@ -3,8 +3,7 @@ import type { RepoLabel } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
-	orgAdminMiddleware,
-	orgMemberMiddleware,
+	orgPermissionMiddleware,
 	requireOrgRepoById,
 } from "#/lib/server/org-guard";
 
@@ -14,7 +13,10 @@ export interface RepoLabelsView {
 }
 
 export const listRepoLabels = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:read"),
+	])
 	.inputValidator((input: { org: string; repoId: string }) => input)
 	.handler(async ({ data, context }): Promise<RepoLabelsView> => {
 		await requireOrgRepoById(
@@ -31,7 +33,10 @@ export const listRepoLabels = createServerFn({ method: "GET" })
 	});
 
 export const refreshRepoLabels = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator((input: { org: string; repoId: string }) => input)
 	.handler(async ({ data, context }): Promise<{ queued: boolean }> => {
 		await requireOrgRepoById(

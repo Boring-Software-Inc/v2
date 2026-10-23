@@ -11,8 +11,7 @@ import type {
 } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
-	orgAdminMiddleware,
-	orgMemberMiddleware,
+	orgPermissionMiddleware,
 	requireOrgRepoById,
 } from "#/lib/server/org-guard";
 
@@ -26,7 +25,10 @@ export type { SetEnabledResult, WorkflowListItem, WorkflowRow };
  */
 
 export const listRepoWorkflows = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:read"),
+	])
 	.inputValidator((input: { org: string; repoId: string }) => input)
 	.handler(async ({ data, context }): Promise<WorkflowListItem[]> => {
 		await requireOrgRepoById(
@@ -39,7 +41,10 @@ export const listRepoWorkflows = createServerFn({ method: "GET" })
 	});
 
 export const getRepoWorkflow = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:read"),
+	])
 	.inputValidator(
 		(input: { org: string; repoId: string; workflowId: string }) => input,
 	)
@@ -67,7 +72,10 @@ export const getRepoWorkflow = createServerFn({ method: "GET" })
  * definition is supplied. ALWAYS created disabled (§4: saving never enables).
  */
 export const createRepoWorkflow = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: { org: string; repoId: string; definition?: unknown }) => input,
 	)
@@ -102,7 +110,10 @@ export const createRepoWorkflow = createServerFn({ method: "POST" })
 
 /** The editor's save. Drafts persist in ANY structural state; never enables. */
 export const saveRepoWorkflow = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: {
 			org: string;
@@ -188,7 +199,10 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
  * request). The url is tested, never returned; failures name the class.
  */
 export const testDeliveryConnection = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: {
 			org: string;
@@ -215,7 +229,10 @@ export const testDeliveryConnection = createServerFn({ method: "POST" })
 	);
 
 export const renameRepoWorkflow = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: {
 			org: string;
@@ -242,7 +259,10 @@ export const renameRepoWorkflow = createServerFn({ method: "POST" })
 
 /** Duplicate — DISABLED regardless of the source's state (§4). */
 export const duplicateRepoWorkflow = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: { org: string; repoId: string; workflowId: string }) => input,
 	)
@@ -266,7 +286,10 @@ export const duplicateRepoWorkflow = createServerFn({ method: "POST" })
 	);
 
 export const deleteRepoWorkflow = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: { org: string; repoId: string; workflowId: string }) => input,
 	)
@@ -289,7 +312,10 @@ export const deleteRepoWorkflow = createServerFn({ method: "POST" })
  * UI can show WHY instead of failing silently.
  */
 export const setRepoWorkflowEnabled = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: {
 			org: string;
