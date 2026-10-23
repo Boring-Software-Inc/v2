@@ -10,7 +10,11 @@ import {
 	weekdaySchema,
 } from "./workflow.ts";
 import { isValidTimeZone } from "./workflow-cron.ts";
-import { describeCron, isScheduleInterval } from "./workflow-schedule.ts";
+import {
+	describeCron,
+	isScheduleInterval,
+	nextScheduleRun,
+} from "./workflow-schedule.ts";
 
 export type ScheduleTokenKind =
 	| "cadence"
@@ -1476,6 +1480,29 @@ export function parseScheduleText(
 	options: ScheduleTextOptions = {},
 ): ScheduleTextParse {
 	const now = options.now ?? new Date();
+	const result = readScheduleText(text, now);
+	if (!result.ok || result.timezone === undefined) {
+		return result;
+	}
+	const next = nextScheduleRun(
+		{ every: result.every, timezone: result.timezone },
+		{ after: now },
+	);
+	if (!next) {
+		return result;
+	}
+	const zone = result.timezone;
+	return {
+		...result,
+		tokens: result.tokens.map((token) =>
+			token.kind === "zone"
+				? { ...token, label: zoneOffsetLabel(zone, next) }
+				: token,
+		),
+	};
+}
+
+function readScheduleText(text: string, now: Date): ScheduleTextParse {
 	if (text.trim() === "") {
 		return { ok: false, reason: "empty", message: "", fixes: [], tokens: [] };
 	}

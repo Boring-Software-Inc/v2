@@ -631,6 +631,17 @@ describe("daylight saving time", () => {
 		expect(summer.tokens.at(-1)?.label).toBe("America/New_York, UTC-4");
 	});
 
+	test("the zone label uses the offset at the next run, across a change", () => {
+		const result = parseScheduleText("every monday 7:00 berlin", {
+			now: new Date("2026-10-23T22:43:00.000Z"),
+		});
+		expect(result.tokens.at(-1)?.label).toBe("Europe/Berlin, UTC+1");
+		const cron = parseScheduleText("0 7 * * 1 berlin", {
+			now: new Date("2026-10-23T22:43:00.000Z"),
+		});
+		expect(cron.tokens.at(-1)?.label).toBe("Europe/Berlin, UTC+1");
+	});
+
 	test("Lord Howe shifts by half an hour", () => {
 		const result = parseScheduleText("daily at 9 lord howe", {
 			now: new Date(Date.UTC(2026, 6, 10)),
