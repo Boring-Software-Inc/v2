@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ScheduleCadence } from "./workflow.ts";
-import { durationMs, scheduleCadenceSchema } from "./workflow.ts";
-import { nextScheduleRun } from "./workflow-schedule.ts";
+import { scheduleCadenceSchema } from "./workflow.ts";
+import { nextScheduleRun, sameScheduleTiming } from "./workflow-schedule.ts";
 import {
 	completeScheduleText,
 	parseScheduleText,
@@ -54,7 +54,7 @@ describe("phrases the schedule can store", () => {
 		["hourly", { preset: "hourly", minute: 0 }],
 		["every hour at minute 15", { preset: "hourly", minute: 15 }],
 		["hourly at :45", { preset: "hourly", minute: 45 }],
-		["every 60 minutes", { preset: "hourly", minute: 0 }],
+		["every 60 minutes", { n: 1, unit: "hours" }],
 		["every day at 9am", { preset: "daily", at: "09:00" }],
 		["daily at 18:30", { preset: "daily", at: "18:30" }],
 		["every day at noon", { preset: "daily", at: "12:00" }],
@@ -437,7 +437,7 @@ describe("canonical text", () => {
 		[{ n: 5, unit: "days" }, undefined, "every 5 days"],
 		[{ n: 1, unit: "days" }, undefined, "every 24 hours"],
 		[{ n: 1, unit: "weeks" }, undefined, "every 7 days"],
-		[{ n: 1, unit: "hours" }, undefined, "every hour"],
+		[{ n: 1, unit: "hours" }, undefined, "every 60 minutes"],
 		[{ n: 12, unit: "hours" }, "Europe/Berlin", "every 12 hours"],
 		[{ preset: "hourly", minute: 0 }, undefined, "every hour"],
 		[{ preset: "hourly", minute: 15 }, "UTC", "every hour at minute 15 in UTC"],
@@ -487,7 +487,7 @@ describe("round trips", () => {
 		"America/Argentina/Buenos_Aires",
 	];
 	const CADENCES: ScheduleCadence[] = [
-		...[2, 5, 12, 24, 36].map((n) => ({ n, unit: "hours" as const })),
+		...[1, 2, 5, 12, 24, 36].map((n) => ({ n, unit: "hours" as const })),
 		...[3, 5, 7, 30, 364].map((n) => ({ n, unit: "days" as const })),
 		...[2, 4, 52].map((n) => ({ n, unit: "weeks" as const })),
 		...[0, 1, 15, 30, 59].map((minute) => ({
@@ -569,19 +569,24 @@ describe("round trips", () => {
 		}
 	});
 
-	test("a stored single interval reads back as the same span", () => {
+	test("every stored interval reads back with the same timing", () => {
+		const max = { hours: 52 * 7 * 24, days: 52 * 7, weeks: 52 } as const;
 		for (const unit of ["hours", "days", "weeks"] as const) {
-			const legacy = { every: { n: 1, unit } };
-			const back = stored(scheduleText(legacy));
-			const span = (every: ScheduleCadence) =>
-				"n" in every
-					? durationMs(every)
-					: "preset" in every
-						? every.preset
-						: null;
-			expect(span(back.every)).toBe(
-				unit === "hours" ? "hourly" : durationMs(legacy.every),
-			);
+			for (let n = 1; n <= max[unit]; n++) {
+				const schedule = { every: { n, unit } };
+				const back = stored(scheduleText(schedule));
+				expect(sameScheduleTiming(back, schedule)).toBe(true);
+				if (n > 1 || unit === "hours") {
+					expect(back.every).toEqual(schedule.every);
+				}
+			}
+		}
+	});
+
+	test("a one-hour interval stays an interval when its text is edited", () => {
+		const text = scheduleText({ every: { n: 1, unit: "hours" } });
+		for (const edited of [text, `${text} `, ` ${text.toUpperCase()}`]) {
+			expect(stored(edited).every).toEqual({ n: 1, unit: "hours" });
 		}
 	});
 

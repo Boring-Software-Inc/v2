@@ -46,6 +46,27 @@ describe("schedule timing", () => {
 		expect(sameScheduleTiming(null, BERLIN_15)).toBe(false);
 	});
 
+	test("intervals of the same length run at the same instants", () => {
+		expect(
+			sameScheduleTiming(
+				{ every: { n: 1, unit: "days" } },
+				{ every: { n: 24, unit: "hours" } },
+			),
+		).toBe(true);
+		expect(
+			sameScheduleTiming(
+				{ every: { n: 1, unit: "weeks" } },
+				{ every: { n: 7, unit: "days" } },
+			),
+		).toBe(true);
+		expect(
+			sameScheduleTiming(
+				{ every: { n: 1, unit: "hours" } },
+				{ every: { preset: "hourly", minute: 0 } },
+			),
+		).toBe(false);
+	});
+
 	test("a restart counts a clock schedule from now and an interval from its first tick", () => {
 		expect(restartedTickAt(BERLIN_15, NOW)).toEqual(NOW);
 		expect(restartedTickAt(EVERY_12H, NOW)).toBeNull();

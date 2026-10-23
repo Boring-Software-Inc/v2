@@ -1061,13 +1061,6 @@ function resolveInterval(text: string, read: Read): Outcome | null {
 			if (read.time || read.minute) {
 				return dropTime(text, read, []);
 			}
-			if (n === 60) {
-				return {
-					ok: true,
-					every: { preset: "hourly", minute: 0 },
-					timezone: read.zone?.id,
-				};
-			}
 			if (n > 60 || 60 % n !== 0) {
 				const step = nearestStep(n);
 				return fail(
@@ -1085,16 +1078,6 @@ function resolveInterval(text: string, read: Read): Outcome | null {
 			return {
 				ok: true,
 				every: { cron: `*/${n} * * * *` },
-				timezone: read.zone?.id,
-			};
-		}
-		if (n === 60) {
-			if (read.time || read.minute) {
-				return dropTime(text, read, []);
-			}
-			return {
-				ok: true,
-				every: { preset: "hourly", minute: 0 },
 				timezone: read.zone?.id,
 			};
 		}
@@ -1595,7 +1578,7 @@ function normalizeSingle(read: Read): Read {
 }
 
 const LEGACY_SINGLE = {
-	hours: "every hour",
+	hours: "every 60 minutes",
 	days: "every 24 hours",
 	weeks: "every 7 days",
 } as const satisfies Record<EveryUnit, string>;

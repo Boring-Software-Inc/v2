@@ -320,7 +320,7 @@ export interface ScheduleTiming {
 function timingKey(schedule: ScheduleTiming): string {
 	const every = schedule.every;
 	const cadence = isScheduleInterval(every)
-		? `every ${every.n} ${every.unit}`
+		? `every ${durationMs(every)}ms`
 		: (cadenceCron(every) ?? JSON.stringify(every));
 	return `${cadence} ${scheduleZone(schedule.timezone).zone}`;
 }
