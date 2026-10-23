@@ -15,7 +15,9 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import {
+	cannedResult,
 	type FakeServer,
 	startFakeServer,
 	TEST_TOKEN,
@@ -485,6 +487,103 @@ describe("workflows as code", () => {
 		);
 		expect(again.code).toBe(1);
 		expect(again.stderr).toContain("Pass --force");
+	});
+
+	const stale = {
+		id: "stale",
+		appId: "w2",
+		name: "Stale issues",
+		enabled: false,
+		definition: {
+			id: "stale",
+			name: "Stale issues",
+			version: 1,
+			nodes: [
+				{ id: "trigger", type: "trigger", kinds: ["comment.created"] },
+				{ id: "block", type: "action", action: "block" },
+			],
+			edges: [{ id: "e1", from: "trigger", to: "block" }],
+		},
+	};
+
+	function serveTwo() {
+		const [first] = z
+			.object({ workflows: z.array(z.json()) })
+			.parse(cannedResult("get_workflow")).workflows;
+		server.answerNext(
+			"get_workflow",
+			z.json().parse({ code: "", warnings: [], workflows: [first, stale] }),
+		);
+	}
+
+	test("pull takes several workflow args and writes only those", async () => {
+		serveTwo();
+		const result = await runCli(
+			["workflows", "pull", "scratch", "Stale issues", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		const code = readFileSync(file(), "utf8");
+		expect(code).toContain("stale: staleIssues(),");
+		expect(code).not.toContain("new-accounts");
+		const calls = server.calls.filter((entry) => entry.name === "get_workflow");
+		expect(calls.at(-1)?.args).toEqual({ repo: "scratch" });
+	});
+
+	test("pull names a workflow arg that is not on the repo", async () => {
+		serveTwo();
+		const result = await runCli(
+			["workflows", "pull", "scratch", "stale", "nope", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(result.stderr).toBe(
+			"error     No workflow nope on scratch. Run tripwire workflows list <repo> to see them.\n",
+		);
+	});
+
+	test("pulling a subset into tripwire.ts keeps its other workflows and says so", async () => {
+		await pulled();
+		serveTwo();
+		const result = await runCli(
+			["workflows", "pull", "scratch", "stale", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		const code = readFileSync(file(), "utf8");
+		expect(code).toContain('"new-accounts": newAccounts(),');
+		expect(code).toContain("stale: staleIssues(),");
+		expect(result.stdout).toContain("(1 workflow)");
+		expect(result.stdout).toContain(
+			"kept      New accounts, not pulled and left as it was",
+		);
+	});
+
+	test("pull refuses to overwrite a workflow that differs from the server", async () => {
+		await pulled();
+		writeFileSync(
+			file(),
+			readFileSync(file(), "utf8").replace("minDays: 7", "minDays: 30"),
+		);
+		const again = await runCli(
+			["workflows", "pull", "scratch", "--file", file()],
+			env(),
+		);
+		expect(again.code).toBe(1);
+		expect(again.stderr).toContain(
+			"New accounts in tripwire.ts differs from the server.",
+		);
+	});
+
+	test("pull --all and a pipe never open the picker", async () => {
+		serveTwo();
+		const result = await runCli(
+			["workflows", "pull", "scratch", "--all", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		expect(result.stdout).toContain("(2 workflows)");
+		expect(result.stdout).not.toContain("Select All");
 	});
 
 	test("validate compiles the pulled file and says it can be turned on", async () => {

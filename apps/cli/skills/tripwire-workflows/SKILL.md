@@ -14,7 +14,9 @@ the compiler checks it before anything runs.
 1. **Pull.** `npx @tripwire-sh/cli workflows pull <repo>`. This writes
    `tripwire.ts` and the typed helpers in `.tripwire/workflow.ts`. Done when
    both files exist. Read `tripwire.ts` before you change it: the canvas and
-   other people edit the same workflows.
+   other people edit the same workflows. To pull only some, name them:
+   `workflows pull <repo> <id> <id>`. Workflows already in the file that you
+   did not name stay as they are.
 2. **Write.** Edit `tripwire.ts` with the reference below. Keep each workflow's
    key: it is the workflow's id, and a new key makes a new workflow.
 3. **Validate until clean.** `npx @tripwire-sh/cli workflows validate --repo

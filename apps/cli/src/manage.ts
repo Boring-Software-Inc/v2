@@ -1,8 +1,10 @@
+import * as p from "@clack/prompts";
 import {
 	type CompileIssue,
 	compileIssueText,
 	reportWorkflows,
 	type WorkflowDefinition,
+	type WorkflowState,
 } from "@tripwire/contracts";
 import type { Command } from "commander";
 import { z } from "zod";
@@ -27,15 +29,22 @@ import {
 	warnLine,
 } from "#/format";
 import { callTool, type ToolArgs, type ToolOutput } from "#/mcp-client";
+import { runPicker } from "#/picker";
 import type { System } from "#/system";
 import {
 	DEFAULT_WORKFLOW_FILE,
 	formatReports,
+	initialPicks,
+	type LocalWorkflows,
 	loadWorkflowFile,
 	localCatalog,
+	type PulledWorkflow,
 	pulledCountText,
-	pulledDefinitions,
+	pulledWorkflows,
 	type ReportView,
+	readLocalWorkflows,
+	selectPulled,
+	workflowChoices,
 	writePulled,
 } from "#/workflows-code";
 
@@ -413,44 +422,138 @@ async function workflowAction(
 	}
 }
 
+interface PullOptions extends WorkflowFileOptions {
+	force?: boolean;
+	all?: boolean;
+	yes?: boolean;
+}
+
+const WORKFLOW_STATES = [
+	"on",
+	"off",
+	"cant-run",
+	"needs-fixes",
+	"cant-turn-on",
+] as const satisfies readonly WorkflowState[];
+
+const listedStatesSchema = z.array(
+	z.looseObject({ id: z.string(), state: z.enum(WORKFLOW_STATES).optional() }),
+);
+
+async function workflowStates(
+	deps: ManageDeps,
+	options: GlobalOptions,
+	repo: string,
+): Promise<Map<string, WorkflowState>> {
+	const output = await callForData(deps, options, "list_workflows", { repo });
+	const parsed = listedStatesSchema.safeParse(output.data);
+	const states = new Map<string, WorkflowState>();
+	for (const entry of parsed.success ? parsed.data : []) {
+		if (entry.state) {
+			states.set(entry.id, entry.state);
+		}
+	}
+	return states;
+}
+
+function localIds(local: LocalWorkflows): string[] | null {
+	return local.kind === "code"
+		? local.definitions.map((definition) => definition.id)
+		: null;
+}
+
+async function pickWorkflows(
+	deps: ManageDeps,
+	options: GlobalOptions,
+	repo: string,
+	workflows: PulledWorkflow[],
+	local: LocalWorkflows,
+): Promise<PulledWorkflow[] | null> {
+	const choices = workflowChoices(
+		workflows,
+		await workflowStates(deps, options, repo),
+	);
+	if (choices.filter((choice) => !choice.disabled).length < 2) {
+		return workflows;
+	}
+	const ids = await runPicker(
+		{ message: "Pick workflows to pull", items: choices, maxVisible: 12 },
+		initialPicks(choices, localIds(local)),
+		{
+			input: process.stdin,
+			write: (text) => process.stdout.write(text),
+			columns: () => process.stdout.columns || 80,
+		},
+	);
+	return ids ? workflows.filter((workflow) => ids.includes(workflow.id)) : null;
+}
+
+function keptText(kept: readonly string[]): string {
+	const names =
+		kept.length === 1
+			? (kept[0] ?? "")
+			: `${kept.slice(0, -1).join(", ")} and ${kept.at(-1)}`;
+	return kept.length === 1
+		? `${names}, not pulled and left as it was`
+		: `${names}, not pulled and left as they were`;
+}
+
 function pullWorkflows(
 	deps: ManageDeps,
 	command: Command,
 	repo: string,
-	workflow: string | undefined,
-	opts: WorkflowFileOptions & { force?: boolean },
+	wanted: string[],
+	opts: PullOptions,
 ): Promise<void> {
 	return workflowAction(command, deps, async (options) => {
-		const args: ToolArgs = { repo };
-		if (workflow) {
-			args.workflow = workflow;
-		}
-		const output = await callForData(deps, options, "get_workflow", args);
+		const output = await callForData(deps, options, "get_workflow", { repo });
 		if (output.isError) {
 			return render("get_workflow", output, options);
 		}
+		const workflows = pulledWorkflows(output.data);
+		const local = await readLocalWorkflows(opts.file);
+		let picked = workflows;
+		if (wanted.length > 0) {
+			const selection = selectPulled(workflows, wanted);
+			if (selection.unknown.length > 0) {
+				throw new Error(
+					`No workflow ${selection.unknown.join(", ")} on ${repo}. Run tripwire workflows list <repo> to see them.`,
+				);
+			}
+			picked = selection.picked;
+		} else if (
+			process.stdin.isTTY &&
+			process.stdout.isTTY &&
+			!(options.json || opts.all || opts.yes)
+		) {
+			const chosen = await pickWorkflows(deps, options, repo, workflows, local);
+			if (!chosen) {
+				p.cancel("Pull cancelled");
+				return 0;
+			}
+			picked = chosen;
+		}
 		const written = writePulled(
 			opts.file,
-			pulledDefinitions(output.data),
+			picked.map((workflow) => workflow.definition),
 			opts.force === true,
+			local,
 		);
 		if (options.json) {
 			out(JSON.stringify(written, null, 2));
 			return 0;
 		}
-		out(
-			pairs(
-				[
-					["wrote", `${written.file} (${pulledCountText(written)})`],
-					["helpers", written.module],
-					...written.warnings.map((warning): [string, string] => [
-						"note",
-						warning,
-					]),
-				],
-				options.style,
-			),
+		const rows: [string, string][] = [
+			["wrote", `${written.file} (${pulledCountText(written)})`],
+		];
+		if (written.kept.length > 0) {
+			rows.push(["kept", keptText(written.kept)]);
+		}
+		rows.push(
+			["helpers", written.module],
+			...written.warnings.map((warning): [string, string] => ["note", warning]),
 		);
+		out(pairs(rows, options.style));
 		return 0;
 	});
 }
@@ -723,19 +826,17 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 			"Manage workflows as tripwire.ts code: pull, validate, diff and push",
 		);
 	workflows
-		.command("pull <repo> [workflow]")
+		.command("pull <repo> [workflows...]")
 		.description(
 			"Write a repo's workflows to tripwire.ts, with the typed helpers in .tripwire/",
 		)
 		.option("--file <path>", "Where to write the code", DEFAULT_WORKFLOW_FILE)
-		.option("--force", "Replace the file if it has local edits")
+		.option("--all", "Pull every workflow without asking")
+		.option("-y, --yes", "Skip the picker")
+		.option("--force", "Overwrite workflows that differ from the server")
 		.action(
-			(
-				repo: string,
-				workflow: string | undefined,
-				opts: WorkflowFileOptions & { force?: boolean },
-				command: Command,
-			) => pullWorkflows(deps, command, repo, workflow, opts),
+			(repo: string, wanted: string[], opts: PullOptions, command: Command) =>
+				pullWorkflows(deps, command, repo, wanted, opts),
 		);
 	workflows
 		.command("validate")

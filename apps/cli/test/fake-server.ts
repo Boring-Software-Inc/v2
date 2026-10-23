@@ -167,6 +167,10 @@ const RESULTS: Record<string, z.infer<ReturnType<typeof z.json>>> = {
 	},
 };
 
+export function cannedResult(name: string) {
+	return RESULTS[name] ?? null;
+}
+
 const NEXT = new Map<string, z.infer<ReturnType<typeof z.json>>>();
 
 function reply(name: string, args: z.infer<ReturnType<typeof z.json>>) {
