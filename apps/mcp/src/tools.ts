@@ -609,7 +609,7 @@ export function registerTools(
 			"list_runs",
 			{
 				description:
-					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first.",
+					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A scheduled run acts on a thread on a timer, and its verdict is not the change request's verdict.",
 				inputSchema: {
 					org: orgArg,
 					repo: anyRepoArg,
@@ -632,6 +632,7 @@ export function registerTools(
 							number: run.subjectNumber,
 							status: run.status,
 							verdict: run.verdict,
+							scheduled: run.scheduled,
 							createdAt: run.createdAt.toISOString(),
 							url: appLink(ctx, `/runs/${run.id}`),
 						})),

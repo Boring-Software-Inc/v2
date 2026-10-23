@@ -347,7 +347,7 @@ export async function getStaffOverview(db: Db): Promise<StaffOverview> {
 			.select({
 				total: count(),
 				blocked:
-					sql<number>`count(distinct (${runs.repoFullName}, ${runs.subjectNumber})) filter (where ${runs.verdict} = 'block' and ${runs.subjectNumber} is not null)`.mapWith(
+					sql<number>`count(distinct (${runs.repoFullName}, ${runs.subjectNumber})) filter (where ${runs.verdict} = 'block' and ${runs.subjectNumber} is not null and not exists (select 1 from events se where se.id = ${runs.eventId} and se.kind = 'schedule.matched'))`.mapWith(
 						Number,
 					),
 			})

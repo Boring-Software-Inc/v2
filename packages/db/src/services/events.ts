@@ -419,7 +419,13 @@ function buildGroup(rows: RawRow[]): ActivityGroup {
 	// Header identity: the most recent change-request event carries the title.
 	const cr = [...events].reverse().find((e) => "changeRequest" in e);
 	// Current verdict = the verdict of the latest event that produced a run.
-	const withRun = [...chrono].reverse().find((r) => r.run_id != null);
+	const withRun = [...chrono]
+		.reverse()
+		.find(
+			(r) =>
+				r.run_id != null &&
+				(r.normalized as NormalizedEvent | null)?.kind !== "schedule.matched",
+		);
 	const subjectNumber = Number(latest.subject_number);
 	return {
 		repoFullName: String(latest.repo_full_name),

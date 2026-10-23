@@ -104,7 +104,7 @@ export async function loadRunView(
 	const eventNormalized = (eventRow?.normalized ?? null) as JsonValue | null;
 	const scheduled = eventRow?.kind === "schedule.matched";
 	const siblings =
-		result.run.subjectNumber === null
+		result.run.subjectNumber === null || scheduled
 			? []
 			: await runServices.listRunsForChangeRequest(
 					db,

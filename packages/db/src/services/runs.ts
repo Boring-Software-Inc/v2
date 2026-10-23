@@ -460,7 +460,7 @@ export async function listRunActions(
  * the comment. Latest by creation time (UUIDv7 id breaks ties). Scheduled
  * runs never own the PR surface, so they are left out here and below.
  */
-const notScheduled = sql`${events.kind} IS DISTINCT FROM 'schedule.matched'`;
+export const notScheduled = sql`${events.kind} IS DISTINCT FROM 'schedule.matched'`;
 
 export async function getLatestRunIdForChangeRequest(
 	db: Db,
@@ -506,6 +506,7 @@ export async function listRunsForChangeRequest(
 			and(
 				eq(runs.repoFullName, repoFullName),
 				eq(runs.subjectNumber, subjectNumber),
+				notScheduled,
 			),
 		)
 		.orderBy(runs.createdAt, runs.id);
@@ -660,8 +661,10 @@ export async function listRepoRuns(
 			verdict: runs.verdict,
 			createdAt: runs.createdAt,
 			completedAt: runs.completedAt,
+			scheduled: sql<boolean>`${events.kind} IS NOT DISTINCT FROM 'schedule.matched'`,
 		})
 		.from(runs)
+		.leftJoin(events, eq(events.id, runs.eventId))
 		.where(inArray(runs.repoFullName, [...names]))
 		.orderBy(desc(runs.id))
 		.limit(input.limit);
@@ -784,11 +787,13 @@ export async function listOpenBlockedRuns(
 			verdict: runs.verdict,
 		})
 		.from(runs)
+		.leftJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
 				eq(runs.repoFullName, repoFullName),
 				isNotNull(runs.subjectNumber),
 				gt(runs.createdAt, since),
+				notScheduled,
 			),
 		)
 		.orderBy(runs.subjectNumber, desc(runs.createdAt), desc(runs.id));

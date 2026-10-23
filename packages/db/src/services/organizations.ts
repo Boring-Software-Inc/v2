@@ -1251,6 +1251,7 @@ export async function listOrgSwitcherRepos(
 		LEFT JOIN (
 		  SELECT repo_full_name AS repo, count(*) AS n FROM runs
 		  WHERE verdict = 'block' AND created_at > now() - make_interval(hours => 24)
+		    AND NOT EXISTS (SELECT 1 FROM events se WHERE se.id = runs.event_id AND se.kind = 'schedule.matched')
 		  GROUP BY repo_full_name
 		) blk ON blk.repo = r.full_name
 		LEFT JOIN (

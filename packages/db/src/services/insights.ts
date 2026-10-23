@@ -5,6 +5,9 @@ import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
 import { runSteps, runs } from "../schema/runs.ts";
+import { notScheduled } from "./runs.ts";
+
+const verdictRun = sql`NOT EXISTS (SELECT 1 FROM events se WHERE se.id = runs.event_id AND se.kind = 'schedule.matched')`;
 
 /**
  * Rollups + Home stats (§4). `computeDailyRollups` is the worker's daily job;
@@ -50,6 +53,7 @@ export async function computeRollupsBetween(
 				count(*) FILTER (WHERE verdict = 'needs_review')::int AS review
 			FROM runs
 			WHERE created_at::date BETWEEN ${fromDay}::date AND ${toDay}::date
+			  AND ${verdictRun}
 			GROUP BY repo_full_name, created_at::date
 		) x ON x.repo_full_name = r.full_name AND x.day = d.day
 		ON CONFLICT (repo_id, day) DO UPDATE SET
@@ -114,20 +118,20 @@ export async function getHomeStats(
 			sql`SELECT floor(extract(epoch FROM (now() - created_at)) / 3600)::int AS h,
 			           count(*)::int AS n
 			    FROM runs
-			    WHERE verdict = ${verdict} AND ${ofRepo}
+			    WHERE verdict = ${verdict} AND ${ofRepo} AND ${verdictRun}
 			      AND created_at > now() - interval '24 hours'
 			    GROUP BY 1`,
 		);
 	const count24 = (verdict: string) =>
 		scalar(
 			sql`SELECT count(*)::int AS n FROM runs
-			    WHERE verdict = ${verdict} AND ${ofRepo}
+			    WHERE verdict = ${verdict} AND ${ofRepo} AND ${verdictRun}
 			      AND created_at > now() - interval '24 hours'`,
 		);
 	const countPrev = (verdict: string) =>
 		scalar(
 			sql`SELECT count(*)::int AS n FROM runs
-			    WHERE verdict = ${verdict} AND ${ofRepo}
+			    WHERE verdict = ${verdict} AND ${ofRepo} AND ${verdictRun}
 			      AND created_at BETWEEN now() - interval '48 hours' AND now() - interval '24 hours'`,
 		);
 
@@ -225,6 +229,7 @@ export async function listRecentRuns(
 		.where(
 			and(
 				opts.verdicts ? inArray(runs.verdict, opts.verdicts) : undefined,
+				opts.verdicts ? notScheduled : undefined,
 				opts.repoFullName
 					? eq(runs.repoFullName, opts.repoFullName)
 					: undefined,
