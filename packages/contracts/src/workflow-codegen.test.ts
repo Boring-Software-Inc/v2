@@ -223,3 +223,289 @@ describe("pull leaves out what code cannot say, and says so", () => {
 		expect(compiled.ok).toBe(true);
 	});
 });
+
+const T = {
+	id: "t",
+	type: "trigger" as const,
+	kinds: ["change-request.opened" as const],
+};
+
+function single(
+	id: string,
+	nodes: WorkflowDefinition["nodes"],
+	edges: WorkflowDefinition["edges"],
+	name = id,
+): WorkflowDefinition {
+	return { id, name, version: 1, nodes, edges };
+}
+
+const HEALTHY = single(
+	"healthy",
+	[T, { id: "x", type: "action", action: "block" }],
+	[{ id: "1", from: "t", to: "x" }],
+);
+
+describe("one bad stored workflow never blocks the push of the rest", () => {
+	const broken: WorkflowDefinition[] = [
+		single(
+			"cycle",
+			[
+				T,
+				{ id: "r1", type: "rule", ref: "crypto-address@1", config: {} },
+				{ id: "r2", type: "rule", ref: "crypto-address@1", config: {} },
+			],
+			[
+				{ id: "1", from: "t", to: "r1" },
+				{ id: "2", from: "r1", to: "r2" },
+				{ id: "3", from: "r2", to: "r1" },
+			],
+		),
+		single(
+			"dangling",
+			[T, { id: "x", type: "action", action: "block" }],
+			[
+				{ id: "1", from: "t", to: "x" },
+				{ id: "2", from: "gone", to: "x" },
+			],
+		),
+		single(
+			"removed-rule",
+			[
+				T,
+				{ id: "r", type: "rule", ref: "first-timer@1", config: {} },
+				{ id: "x", type: "action", action: "block" },
+			],
+			[
+				{ id: "1", from: "t", to: "r" },
+				{ id: "2", from: "r", to: "x", when: "fail" },
+			],
+		),
+		single(
+			"bad-config",
+			[
+				T,
+				{
+					id: "r",
+					type: "rule",
+					ref: "account-age@1",
+					config: { minDays: -5 },
+				},
+				{ id: "x", type: "action", action: "block" },
+			],
+			[
+				{ id: "1", from: "t", to: "r" },
+				{ id: "2", from: "r", to: "x", when: "fail" },
+			],
+		),
+		single(
+			"draft-schedule",
+			[
+				{
+					id: "s",
+					type: "trigger",
+					kinds: ["schedule.matched"],
+					schedule: { match: { skipLocked: true } },
+				},
+				{ id: "x", type: "action", action: "close" },
+			],
+			[{ id: "1", from: "s", to: "x" }],
+		),
+		single(
+			"empty-labels",
+			[T, { id: "l", type: "action", action: "label", params: { labels: [] } }],
+			[{ id: "1", from: "t", to: "l" }],
+		),
+		single(
+			"legacy-param",
+			[
+				T,
+				{
+					id: "l",
+					type: "action",
+					action: "lock",
+					params: { reason: "resolved", extra: 1 },
+				},
+			],
+			[{ id: "1", from: "t", to: "l" }],
+		),
+		single(
+			"not-two-inputs",
+			[
+				T,
+				{ id: "r1", type: "rule", ref: "crypto-address@1", config: {} },
+				{ id: "r2", type: "rule", ref: "crypto-address@1", config: {} },
+				{ id: "n", type: "gate", mode: "not" },
+				{ id: "x", type: "action", action: "block" },
+			],
+			[
+				{ id: "1", from: "t", to: "r1" },
+				{ id: "2", from: "t", to: "r2" },
+				{ id: "3", from: "r1", to: "n" },
+				{ id: "4", from: "r2", to: "n" },
+				{ id: "5", from: "n", to: "x" },
+			],
+		),
+		single(
+			"schedule-and-events",
+			[
+				{
+					id: "s",
+					type: "trigger",
+					kinds: ["schedule.matched", "comment.created"],
+					schedule: {
+						every: { n: 1, unit: "days" },
+						match: {
+							subjects: ["issue"],
+							state: "open",
+							inactiveFor: { n: 1, unit: "days" },
+							skipLocked: true,
+						},
+					},
+				},
+				{ id: "x", type: "action", action: "close" },
+			],
+			[{ id: "1", from: "s", to: "x" }],
+		),
+	];
+
+	test("each bad definition is left out with a warning, the rest compiles", async () => {
+		const { warnings, compiled } = await roundTrip([HEALTHY, ...broken]);
+		expect(compiled.ok).toBe(true);
+		if (!compiled.ok) {
+			return;
+		}
+		expect(compiled.definitions.map((definition) => definition.id)).toEqual([
+			"healthy",
+		]);
+		for (const definition of broken) {
+			expect(
+				warnings.some((warning) =>
+					warning.startsWith(`${definition.name}: left out`),
+				),
+			).toBe(true);
+		}
+	});
+});
+
+describe("pull then push keeps odd ids and names", () => {
+	test("ids with spaces or unicode, and reserved words", async () => {
+		const reserved = [
+			"arguments",
+			"eval",
+			"package",
+			"public",
+			"private",
+			"protected",
+			"interface",
+			"implements",
+		];
+		const definitions = [
+			single(
+				"spaced",
+				[
+					{ id: "my trigger", type: "trigger", kinds: ["comment.created"] },
+					{ id: "блок", type: "action", action: "block" },
+				],
+				[{ id: "1", from: "my trigger", to: "блок" }],
+				"Package",
+			),
+			...reserved.map((word) =>
+				single(
+					`reserved-${word}`,
+					[
+						T,
+						{
+							id: word,
+							type: "rule",
+							ref: "account-age@1",
+							config: { minDays: 1 },
+						},
+						{ id: "x", type: "action", action: "block" },
+					],
+					[
+						{ id: "1", from: "t", to: word },
+						{ id: "2", from: word, to: "x", when: "fail" },
+					],
+					word.charAt(0).toUpperCase() + word.slice(1),
+				),
+			),
+		];
+		const { compiled, warnings } = await roundTrip(definitions);
+		expect(warnings).toEqual([]);
+		expect(compiled.ok).toBe(true);
+		if (!compiled.ok) {
+			return;
+		}
+		for (const [index, original] of definitions.entries()) {
+			const back = compiled.definitions[index];
+			expect(
+				back && diffWorkflow(original, mergeForPush(original, back)),
+			).toEqual([]);
+		}
+	});
+});
+
+describe("round trip keeps the meaning of what it writes", () => {
+	test("a step nothing leads into is left out, never wired to the triggers", async () => {
+		const definition = single(
+			"orphan",
+			[
+				T,
+				{ id: "r", type: "rule", ref: "account-age@1", config: { minDays: 1 } },
+				{ id: "x", type: "action", action: "block" },
+				{
+					id: "ok",
+					type: "action",
+					action: "label",
+					params: { labels: ["ok"] },
+				},
+			],
+			[
+				{ id: "1", from: "r", to: "x", when: "fail" },
+				{ id: "2", from: "t", to: "ok" },
+			],
+		);
+		const { compiled, warnings } = await roundTrip([definition]);
+		expect(warnings).toEqual([
+			"r: nothing leads into it, so it is left out",
+			"x: nothing leads into it, so it is left out",
+		]);
+		expect(compiled.ok).toBe(true);
+		if (!compiled.ok) {
+			return;
+		}
+		expect(compiled.definitions[0]?.nodes.map((node) => node.id)).toEqual([
+			"t",
+			"ok",
+		]);
+	});
+
+	test("a null rule config stays null", async () => {
+		const definition = single(
+			"null-config",
+			[
+				T,
+				{ id: "r", type: "rule", ref: "crypto-address@1", config: null },
+				{ id: "x", type: "action", action: "block" },
+			],
+			[
+				{ id: "1", from: "t", to: "r" },
+				{ id: "2", from: "r", to: "x", when: "fail" },
+			],
+		);
+		const { compiled } = await roundTrip([definition]);
+		expect(compiled.ok).toBe(true);
+		if (!compiled.ok) {
+			return;
+		}
+		const back = compiled.definitions[0];
+		if (!back) {
+			throw new Error("missing");
+		}
+		const merged = mergeForPush(definition, back);
+		expect(diffWorkflow(definition, merged)).toEqual([]);
+		expect(merged.nodes.find((node) => node.id === "r")).toMatchObject({
+			config: null,
+		});
+	});
+});

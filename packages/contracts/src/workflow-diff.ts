@@ -218,6 +218,15 @@ function keepSecrets(
  * The definition a push stores: the code's graph, with each step keeping the
  * canvas position and the secrets it already had on the server.
  */
+function isEmptyObject(value: unknown): boolean {
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		!Array.isArray(value) &&
+		Object.keys(value).length === 0
+	);
+}
+
 export function mergeForPush(
 	server: WorkflowDefinition | null,
 	local: WorkflowDefinition,
@@ -235,6 +244,15 @@ export function mergeForPush(
 				return node;
 			}
 			const placed = old.position ? { ...node, position: old.position } : node;
+			if (
+				placed.type === "rule" &&
+				old.type === "rule" &&
+				old.ref === placed.ref &&
+				old.config === null &&
+				isEmptyObject(placed.config)
+			) {
+				return { ...placed, config: null };
+			}
 			if (
 				placed.type === "action" &&
 				old.type === "action" &&

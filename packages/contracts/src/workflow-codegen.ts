@@ -12,8 +12,11 @@ import {
 import {
 	AUTHORING_ACTION_PARAMS,
 	AUTHORING_EVENT_KINDS,
+	type AuthoringActionKind,
 } from "./workflow-authoring-catalog.ts";
+import { settingsIssues } from "./workflow-compile.ts";
 import { WORKFLOW_SECRET_KEYS } from "./workflow-diff.ts";
+import { unrunnableIssues } from "./workflow-validate.ts";
 
 const jsonSchemaNode: z.ZodType<JsonSchemaNode> = z.lazy(() =>
 	z.object({
@@ -187,6 +190,17 @@ const RESERVED = new Set<string>([
 	"with",
 	"yield",
 	"await",
+	"arguments",
+	"eval",
+	"package",
+	"public",
+	"private",
+	"protected",
+	"interface",
+	"implements",
+	"undefined",
+	"NaN",
+	"Infinity",
 ]);
 
 function camel(text: string): string {
@@ -341,6 +355,72 @@ function stepExpression(
 	}
 }
 
+function isAuthoringAction(kind: string): kind is AuthoringActionKind {
+	return Object.hasOwn(AUTHORING_ACTION_PARAMS, kind);
+}
+
+function nodeProblems(node: WorkflowNode): string[] {
+	switch (node.type) {
+		case "trigger": {
+			if (node.schedule === undefined) {
+				return node.kinds
+					.filter((kind) => !AUTHORING_EVENT_KINDS.some((k) => k === kind))
+					.map((kind) => `${node.id} starts on ${kind}, which code cannot say`);
+			}
+			if (node.kinds.some((kind) => kind !== "schedule.matched")) {
+				return [`${node.id} starts on a schedule and on events`];
+			}
+			return triggerScheduleSchema.safeParse(node.schedule).success
+				? []
+				: [`${node.id} has an unfinished schedule`];
+		}
+		case "rule": {
+			const [ruleId = node.ref, versionText] = node.ref.split("@");
+			if (ruleId.startsWith("custom-")) {
+				return [];
+			}
+			const entry = RULE_CATALOG.find((rule) => rule.ruleId === ruleId);
+			if (!entry) {
+				return [`${ruleId} is no longer a rule`];
+			}
+			if (Number(versionText) !== entry.version) {
+				return [];
+			}
+			const config = settingsRecord.safeParse(node.config ?? {});
+			return config.success
+				? settingsIssues(config.data, entry.configSchema, ruleId)
+				: [`${ruleId} settings are not an object`];
+		}
+		case "action": {
+			if (node.action === "comment" || TAKES_NO_PARAMS.has(node.action)) {
+				return [];
+			}
+			if (!isAuthoringAction(node.action)) {
+				return [`${node.action} is no longer an action`];
+			}
+			const params = Object.fromEntries(
+				Object.entries(node.params ?? {}).filter(
+					([key]) => !WORKFLOW_SECRET_KEYS.has(key),
+				),
+			);
+			return settingsIssues(
+				params,
+				AUTHORING_ACTION_PARAMS[node.action],
+				node.action,
+			);
+		}
+		default:
+			return [];
+	}
+}
+
+function codeProblems(definition: WorkflowDefinition): string[] {
+	return [
+		...unrunnableIssues(definition).map((issue) => issue.message),
+		...definition.nodes.flatMap(nodeProblems),
+	];
+}
+
 export interface CodegenResult {
 	code: string;
 	/** Things the code cannot say, so a push of it would drop them. */
@@ -377,9 +457,9 @@ function workflowFunction(
 			continue;
 		}
 		if (node.type !== "trigger" && inputs.length === 0) {
-			warnings.push(
-				`${node.id}: nothing leads into it, so it will run straight after the triggers`,
-			);
+			warnings.push(`${node.id}: nothing leads into it, so it is left out`);
+			left.add(node.id);
+			continue;
 		}
 		lines.push(`\tconst ${names.get(node.id)} = ${expression};`);
 		kept.push(node.id);
@@ -424,6 +504,13 @@ export function workflowsToCode(
 			continue;
 		}
 		ids.add(definition.id);
+		const [problem] = codeProblems(definition);
+		if (problem) {
+			warnings.push(
+				`${definition.name}: left out, it cannot be written as code. ${problem}`,
+			);
+			continue;
+		}
 		const base = camel(definition.name || definition.id);
 		let name = base;
 		for (let n = 2; used.has(name); n++) {

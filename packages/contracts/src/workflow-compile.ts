@@ -116,7 +116,7 @@ function unknownMessage(
 
 const objectSchema = z.record(z.string(), z.unknown());
 
-function settingsIssues(
+export function settingsIssues(
 	given: Settings | undefined,
 	schema: z.ZodType,
 	what: string,
@@ -223,7 +223,7 @@ function baseId(step: Step): string {
 	}
 }
 
-const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.@-]*$/;
+const ID_PATTERN = /^[^\p{Cc}]+$/u;
 
 class WorkflowCompiler {
 	readonly issues: CompileIssue[] = [];
