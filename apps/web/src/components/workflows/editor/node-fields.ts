@@ -1,11 +1,17 @@
 import type { JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
+	isScheduleTrigger,
 	RULE_CATALOG,
 	ruleUiSchema,
 	storedReviewerSchema,
-	TRIGGER_CATALOG,
 } from "@tripwire/contracts";
 import { z } from "zod";
+import {
+	appliesToValue,
+	durationLabel,
+	everyValue,
+} from "#/lib/schedule-summary";
+import { whenSentence } from "#/lib/trigger-kinds";
 
 const targetList = z.array(z.string()).catch([]);
 const reviewerList = z
@@ -172,24 +178,45 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 			}));
 		}
 		case "trigger": {
-			const names = node.kinds.map(
-				(kind) =>
-					TRIGGER_CATALOG.find((entry) => entry.kind === kind)?.name ?? kind,
-			);
-			return [
-				{
-					field: {
-						key: "kinds",
-						label: "Triggers on",
-						secret: false,
-						kind: "string-list",
-					},
-					value: names,
-				},
+			const row = (key: string, label: string, value: string | null) => ({
+				field: { key, label, secret: false, kind: "string" as const },
+				value: value ?? undefined,
+			});
+			if (!isScheduleTrigger(node)) {
+				return [row("kinds", "When", whenSentence(node.kinds))];
+			}
+			const draft = node.schedule;
+			const rows: NodeFieldValue[] = [
+				row("every", "Every", draft?.every ? everyValue(draft.every) : null),
+				row(
+					"subjects",
+					"Applies to",
+					appliesToValue(draft?.match.subjects, draft?.match.state),
+				),
+				row(
+					"inactiveFor",
+					"Inactive for",
+					draft?.match.inactiveFor
+						? durationLabel(draft.match.inactiveFor)
+						: null,
+				),
 			];
+			if (draft?.match.labels?.length) {
+				rows.push(row("labels", "With labels", draft.match.labels.join(", ")));
+			}
+			if (draft?.match.excludeLabels?.length) {
+				rows.push(
+					row(
+						"excludeLabels",
+						"Without labels",
+						draft.match.excludeLabels.join(", "),
+					),
+				);
+			}
+			return rows;
 		}
 		case "action": {
-			if (node.action === "label") {
+			if (node.action === "label" || node.action === "remove-label") {
 				const labels = Array.isArray(node.params?.labels)
 					? node.params.labels.filter(
 							(item): item is string => typeof item === "string",
@@ -199,7 +226,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					{
 						field: {
 							key: "labels",
-							label: "Labels",
+							label: node.action === "label" ? "Adds" : "Removes",
 							secret: false,
 							kind: "string-list",
 						},
@@ -235,6 +262,40 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					});
 				}
 				return rows;
+			}
+			if (node.action === "post-comment") {
+				const message = node.params?.message;
+				return [
+					{
+						field: {
+							key: "message",
+							label: "Message",
+							secret: false,
+							kind: "string",
+						},
+						value:
+							typeof message === "string" && message.trim() !== ""
+								? message
+								: undefined,
+					},
+				];
+			}
+			if (node.action === "lock") {
+				const reason = node.params?.reason;
+				return [
+					{
+						field: {
+							key: "reason",
+							label: "Reason",
+							secret: false,
+							kind: "string",
+						},
+						value:
+							typeof reason === "string"
+								? `${reason.charAt(0).toUpperCase()}${reason.slice(1)}`
+								: "None",
+					},
+				];
 			}
 			if (node.action === "webhook") {
 				const params = node.params ?? {};
@@ -275,7 +336,7 @@ export function summarizeFieldValue(
 		return MASK;
 	}
 	if (value === undefined || value === null) {
-		return "not set";
+		return "Not set";
 	}
 	switch (field.kind) {
 		case "boolean":
@@ -287,7 +348,7 @@ export function summarizeFieldValue(
 			if (items.length === 0) {
 				return "none";
 			}
-			return items.length === 1 ? items[0] : `${items[0]} +${items.length - 1}`;
+			return items.join(", ");
 		}
 		case "json": {
 			if (Array.isArray(value)) {

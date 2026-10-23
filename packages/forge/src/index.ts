@@ -1,7 +1,10 @@
 import type {
 	CheckState,
 	Forge,
+	LockReason,
 	NormalizedEvent,
+	ScheduledThread,
+	ThreadSubject,
 	Verdict,
 } from "@tripwire/contracts";
 
@@ -12,7 +15,8 @@ import type {
  *
  * Three responsibilities (spec §4): inbound (verify + normalize), reads (build
  * `RuleContext` inputs), actions (block / label / comment / setCheck — the
- * forge's native merge-gating primitive), all idempotent.
+ * forge's native merge-gating primitive — plus lock / close for moderation),
+ * all idempotent.
  */
 
 /** A webhook delivery exactly as the forge sent it, before any parsing. */
@@ -118,7 +122,47 @@ export type ForgeAction =
 			number: number;
 			reviewId: string;
 	  }
-	| { kind: "set-check"; repoFullName: string; check: CheckState };
+	| { kind: "set-check"; repoFullName: string; check: CheckState }
+	| {
+			kind: "lock";
+			repoFullName: string;
+			number: number;
+			reason?: LockReason;
+	  }
+	| { kind: "close"; repoFullName: string; number: number }
+	| {
+			kind: "remove-label";
+			repoFullName: string;
+			number: number;
+			labels: string[];
+	  }
+	| {
+			kind: "post-comment";
+			repoFullName: string;
+			number: number;
+			body: string;
+			marker: string;
+	  };
+
+export interface ThreadListQuery {
+	subjects: readonly ThreadSubject[];
+	state: "open" | "closed" | "any";
+	updatedBefore: string | null;
+	labels: readonly string[];
+	excludeLabels: readonly string[];
+	skipLocked: boolean;
+	cap: number;
+}
+
+export interface ForgeThread extends ScheduledThread {
+	authorExternalId: string;
+	authorAvatarUrl?: string;
+}
+
+export interface ThreadListResult {
+	threads: ForgeThread[];
+	stopped: "rate-limit" | null;
+}
 
 /** The result of executing an action — the forge-side artifact id, if any. */
 export interface ForgeActionResult {

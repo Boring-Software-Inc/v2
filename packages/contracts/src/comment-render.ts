@@ -247,6 +247,20 @@ export function checkSummary(
 
 export const COMMENT_MARKER = "<!-- tripwire:run -->";
 
+export const TRIPWIRE_MARKER_PREFIX = "<!-- tripwire:";
+
+export function actionCommentMarker(input: {
+	workflowId: string;
+	nodeId: string;
+	runId: string;
+}): string {
+	return `<!-- tripwire:comment ${input.workflowId}/${input.nodeId} run=${input.runId} -->`;
+}
+
+export function isTripwireComment(body: string): boolean {
+	return body.includes(COMMENT_MARKER) || body.includes(TRIPWIRE_MARKER_PREFIX);
+}
+
 export interface CommentInput {
 	verdict: Verdict;
 	contributorLogin: string;

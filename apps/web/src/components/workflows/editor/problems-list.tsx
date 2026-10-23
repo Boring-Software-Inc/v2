@@ -1,21 +1,15 @@
 import type { LintFix } from "@tripwire/contracts";
-import { Icon, Pointer } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
-import {
-	Item,
-	ItemContent,
-	ItemGroup,
-	ItemMedia,
-} from "#/components/glaze/ui/item";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/glaze/ui/popover";
-import { Status, StatusMark } from "#/components/glaze/ui/status";
+import { Status } from "#/components/glaze/ui/status";
 import {
 	type Problem,
 	problemCount,
+	problemSections,
 } from "#/components/workflows/editor/node-issues";
 import { cn } from "#/lib/glaze/utils";
 
@@ -35,55 +29,48 @@ function ProblemRow({
 	onReveal?: (problem: Problem) => void;
 }) {
 	const target = problem.nodeId ?? problem.edgeId;
-	const fixes = onFix ? problem.fixes : [];
+	const fixes = onFix
+		? problem.fixes.slice(0, problem.severity === "error" ? 1 : 2)
+		: [];
 	return (
-		<Item className="items-start" data-problem-rule={problem.rule} size="sm">
-			<ItemMedia>
-				<StatusMark
-					label={problem.severity === "error" ? "Error" : "Warning"}
-					status={problem.severity === "error" ? "fail" : "warn"}
-				/>
-			</ItemMedia>
-			<ItemContent className="gap-1.5">
-				<p className="type-body-sm">
-					{problem.rule ? (
-						<span className="me-1.5 type-code-xs text-text-3">
-							{problem.rule}
-						</span>
-					) : null}
-					{problem.message}
-				</p>
-				{fixes.length > 0 ? (
-					<div className="relative z-(--z-raised) flex flex-wrap gap-1">
-						{fixes.map((fix) => (
-							<Button
-								key={fix.label}
-								onClick={() => onFix?.(problem, fix)}
-								size="sm"
-								variant="secondary"
-							>
-								{fix.label}
-							</Button>
-						))}
-					</div>
-				) : null}
-			</ItemContent>
+		<div
+			className={cn(
+				"group/problem relative flex items-center gap-3 rounded-md p-2 transition-colors duration-(--dur-state)",
+				target && onReveal && "hover:bg-hover",
+			)}
+			data-problem-rule={problem.rule}
+		>
 			{target && onReveal ? (
-				<Button
-					aria-label="Show on canvas"
-					className="static after:absolute after:inset-0 after:content-['']"
-					data-slot="item-link"
+				<button
+					aria-label={`Show ${problem.step}`}
+					className="absolute inset-0 rounded-md focus-visible:focus-ring"
 					onClick={() => onReveal(problem)}
-					size="icon-sm"
-					variant="ghost"
-				>
-					<Icon
-						className="opacity-0 transition-opacity duration-(--dur-state) group-hover/item:opacity-100 group-has-[[data-slot=item-link]:focus-visible]/item:opacity-100 pointer-coarse:opacity-100"
-						icon={Pointer}
-					/>
-				</Button>
+					type="button"
+				/>
 			) : null}
-		</Item>
+			<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+				<span className="type-label text-text-1 [overflow-wrap:anywhere]">
+					{problem.step}
+				</span>
+				<span className="type-body-sm text-text-2 [overflow-wrap:anywhere]">
+					{problem.message}
+				</span>
+			</div>
+			{fixes.length > 0 ? (
+				<div className="relative flex shrink-0 gap-1.5">
+					{fixes.map((fix, index) => (
+						<Button
+							key={fix.label}
+							onClick={() => onFix?.(problem, fix)}
+							size="sm"
+							variant={index === 0 ? "secondary" : "ghost"}
+						>
+							{fix.label}
+						</Button>
+					))}
+				</div>
+			) : null}
+		</div>
 	);
 }
 
@@ -96,17 +83,32 @@ export function ProblemRows({
 	onFix?: (problem: Problem, fix: LintFix) => void;
 	onReveal?: (problem: Problem) => void;
 }) {
+	const sections = problemSections(problems);
 	return (
-		<ItemGroup aria-label="Problems" variant="plain">
-			{problems.map((problem) => (
-				<ProblemRow
-					key={problem.key}
-					onFix={onFix}
-					onReveal={onReveal}
-					problem={problem}
-				/>
+		<div className="flex flex-col">
+			{sections.map((section, index) => (
+				<section
+					aria-label={section.title}
+					className={cn(
+						"flex flex-col",
+						index > 0 && "-mx-1 mt-1 border-line-faint border-t px-1 pt-1",
+					)}
+					key={section.key}
+				>
+					<h3 className="px-2 pt-2 pb-1 type-caption text-text-2">
+						{section.title}
+					</h3>
+					{section.problems.map((problem) => (
+						<ProblemRow
+							key={problem.key}
+							onFix={onFix}
+							onReveal={onReveal}
+							problem={problem}
+						/>
+					))}
+				</section>
 			))}
-		</ItemGroup>
+		</div>
 	);
 }
 
@@ -126,26 +128,27 @@ export function ProblemsButton({
 	if (problems.length === 0) {
 		return null;
 	}
-	const status = severityStatus(problems);
+	const blocking = severityStatus(problems) === "fail";
 	return (
 		<Popover onOpenChange={onOpenChange} open={open}>
 			<div
 				className={cn(
 					"absolute end-3 top-3 z-(--z-raised) rounded-pill",
-					status === "fail" && "bg-fail-tint",
+					blocking && "bg-fail-tint",
 				)}
 			>
 				<PopoverTrigger
 					render={
-						<Button
-							size="sm"
-							variant={status === "fail" ? "ghost" : "secondary"}
-						/>
+						<Button size="sm" variant={blocking ? "ghost" : "secondary"} />
 					}
 				>
-					<Status size="sm" status={status}>
-						{problemCount(problems)}
-					</Status>
+					{blocking ? (
+						<Status size="sm" status="fail">
+							{problemCount(problems)}
+						</Status>
+					) : (
+						problemCount(problems)
+					)}
 				</PopoverTrigger>
 			</div>
 			<PopoverContent align="end" className="w-96 gap-0 p-1" finalFocus={false}>

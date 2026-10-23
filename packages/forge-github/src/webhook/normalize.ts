@@ -1,6 +1,6 @@
 import {
-	COMMENT_MARKER,
 	type EventKind,
+	isTripwireComment,
 	type NormalizedEvent,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
@@ -212,7 +212,7 @@ export function normalizeWebhook(
 				body: p.comment.body,
 				url: p.comment.html_url,
 				subjectNumber: p.issue.number,
-				byTripwire: p.comment.body.includes(COMMENT_MARKER),
+				byTripwire: isTripwireComment(p.comment.body),
 			},
 		});
 	}

@@ -164,6 +164,7 @@ const fullView: RunView = {
 	id: "run-1",
 	repoFullName: "acme/pub",
 	subjectNumber: 7,
+	subjectKind: "change-request",
 	headSha: "abc1234def",
 	status: "completed",
 	verdict: "block",

@@ -31,6 +31,7 @@ import {
 	openPosition,
 	RULE_CATALOG,
 	stepDisplayName,
+	stepNames,
 	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
 import {
@@ -77,6 +78,16 @@ import {
 	type ToolboxItem,
 } from "#/components/workflows/editor/editor-sidebar";
 import {
+	estimateCardHeight,
+	laneDecor,
+	placeUnpositioned,
+} from "#/components/workflows/editor/lane-layout";
+import {
+	type LaneHeadFlowNode,
+	LaneHeadNode,
+	LaneRules,
+} from "#/components/workflows/editor/lane-nodes";
+import {
 	type TripwireFlowNode,
 	TripwireNode,
 } from "#/components/workflows/editor/node-card";
@@ -87,7 +98,6 @@ import {
 	type Problem,
 	type ProblemsApi,
 	ProblemsContext,
-	problemCount,
 } from "#/components/workflows/editor/node-issues";
 import { ProblemsButton } from "#/components/workflows/editor/problems-list";
 import { ReviewerScopeContext } from "#/components/workflows/editor/reviewer-picker";
@@ -109,11 +119,17 @@ import {
 } from "#/lib/workflow-editor";
 import "@xyflow/react/dist/style.css";
 
-const NODE_TYPES = { tripwire: TripwireNode };
+const NODE_TYPES = {
+	tripwire: TripwireNode,
+	laneHead: LaneHeadNode,
+};
 const EDGE_TYPES = { typed: TypedEdge };
 const INPUT_HANDLE_OFFSET = { x: 0, y: 17 };
 const NEXT_STEP_GAP = 96;
 const CARD_WIDTH = 224;
+const LANE_PREFIX = "lane:";
+
+type CanvasNode = TripwireFlowNode | LaneHeadFlowNode;
 
 type FlowEdge = Edge<{ when?: EdgeWhen; port?: WorkflowPort }>;
 
@@ -137,6 +153,7 @@ function lintProblem(result: LintResult): Problem {
 		key: `${result.rule}:${result.nodeId ?? ""}:${result.edgeId ?? ""}:${result.message}`,
 		rule: result.rule,
 		severity: result.severity,
+		step: result.step,
 		message: result.message,
 		nodeId: result.nodeId,
 		edgeId: result.edgeId,
@@ -144,8 +161,16 @@ function lintProblem(result: LintResult): Problem {
 	};
 }
 
-function serverProblem(issue: ValidationIssue): Problem {
+function serverProblem(
+	issue: ValidationIssue,
+	names: ReadonlyMap<string, string> = new Map(),
+): Problem {
+	const step =
+		"step" in issue && typeof issue.step === "string"
+			? issue.step
+			: ((issue.nodeId ? names.get(issue.nodeId) : undefined) ?? "Workflow");
 	return {
+		step,
 		key: `server:${issue.rule ?? ""}:${issue.nodeId ?? ""}:${issue.edgeId ?? ""}:${issue.message}`,
 		rule: issue.rule ?? null,
 		severity: issue.severity ?? "error",
@@ -179,7 +204,7 @@ function fitViewOptions() {
 	const wide = globalThis.matchMedia?.("(min-width: 768px)").matches ?? false;
 	return {
 		padding: {
-			left: wide ? "288px" : "48px",
+			left: wide ? "336px" : "48px",
 			right: "48px",
 			top: wide ? "48px" : "64px",
 			bottom: "48px",
@@ -270,7 +295,10 @@ function EditorBody({
 	onSetEnabled,
 	onTestConnection,
 }: WorkflowEditorProps) {
-	const initial = useMemo(() => definitionToGraph(definition), [definition]);
+	const initial = useMemo(() => {
+		const graph = definitionToGraph(definition);
+		return { ...graph, nodes: placeUnpositioned(graph.nodes, definition) };
+	}, [definition]);
 	// Connection-test failures from the last save, keyed by node — merged into
 	// the validation issues so they surface with the same red-dot treatment.
 	const [connectionIssues, setConnectionIssues] = useState<
@@ -378,6 +406,10 @@ function EditorBody({
 	);
 
 	const problems = useMemo(() => {
+		const names = stepNames(
+			{ nodes: nodes.map((node) => node.data.node) },
+			enableCatalog,
+		);
 		const local = lintResults.map(lintProblem);
 		const delivery = [...connectionIssues].flatMap(([nodeId, messages]) =>
 			messages.map(
@@ -385,6 +417,7 @@ function EditorBody({
 					key: `delivery:${nodeId}:${message}`,
 					rule: "delivery",
 					severity: "warning",
+					step: names.get(nodeId) ?? "Webhook",
 					message,
 					nodeId,
 					fixes: [
@@ -401,19 +434,67 @@ function EditorBody({
 			serverIssues?.against === lintResults
 				? serverIssues.issues
 						.filter((issue) => !known.has(issue.message))
-						.map(serverProblem)
+						.map((issue) => serverProblem(issue, names))
 				: [];
 		return [...local, ...server, ...delivery].sort(
 			(a, b) =>
 				Number(a.severity === "warning") - Number(b.severity === "warning"),
 		);
-	}, [lintResults, connectionIssues, serverIssues]);
+	}, [lintResults, connectionIssues, serverIssues, nodes, enableCatalog]);
 
 	const blockers = problems.filter((problem) => problem.severity === "error");
 
+	const decor = useMemo(() => {
+		const graph = {
+			nodes: nodes.map((node) => node.data.node),
+			edges: edges.map((edge) => ({
+				id: edge.id,
+				from: edge.source,
+				to: edge.target,
+			})),
+		};
+		return laneDecor(
+			graph,
+			nodes.map((node) => ({
+				id: node.id,
+				x: node.position.x,
+				y: node.position.y,
+				width: node.measured?.width ?? CARD_WIDTH,
+				height: node.measured?.height ?? estimateCardHeight(node.data.node),
+			})),
+		);
+	}, [nodes, edges]);
+
+	const canvasNodes = useMemo((): CanvasNode[] => {
+		const fixed = {
+			draggable: false,
+			selectable: false,
+			focusable: false,
+			connectable: false,
+			deletable: false,
+		};
+		return [
+			...decor.heads.map(
+				(head): LaneHeadFlowNode => ({
+					id: `${LANE_PREFIX}head:${head.index}`,
+					type: "laneHead",
+					position: { x: head.x, y: head.y },
+					data: { index: head.index, label: head.label },
+					width: 640,
+					height: 20,
+					...fixed,
+				}),
+			),
+			...nodes,
+		];
+	}, [nodes, decor]);
+
 	// ---- graph mutations ---------------------------------------------------
 	const onNodesChange = useCallback(
-		(changes: NodeChange<TripwireFlowNode>[]) => {
+		(all: NodeChange<TripwireFlowNode>[]) => {
+			const changes = all.filter(
+				(change) => !("id" in change && change.id.startsWith(LANE_PREFIX)),
+			);
 			onNodesStateChange(changes);
 			if (
 				changes.some(
@@ -632,7 +713,8 @@ function EditorBody({
 	const currentDefinition = () => graphToCandidate(meta, nodes, edges);
 
 	const applyDefinition = (next: WorkflowDefinition, select?: string) => {
-		const graph = definitionToGraph(next);
+		const raw = definitionToGraph(next);
+		const graph = { ...raw, nodes: placeUnpositioned(raw.nodes, next) };
 		const previous = new Map(nodes.map((node) => [node.id, node]));
 		setNodes(
 			graph.nodes.map((node): TripwireFlowNode => {
@@ -927,7 +1009,7 @@ function EditorBody({
 				(issue) => (issue.severity ?? "error") === "error",
 			);
 			toast.fail(
-				`${problemCount(errors.map(serverProblem))} ${errors.length === 1 ? "keeps" : "keep"} the workflow off`,
+				`${errors.length} ${errors.length === 1 ? "problem keeps" : "problems keep"} the workflow off`,
 				{
 					action: {
 						label: "Show problems",
@@ -983,7 +1065,7 @@ function EditorBody({
 											fitView
 											fitViewOptions={fitViewOptions()}
 											isValidConnection={isValidConnection}
-											nodes={nodes}
+											nodes={canvasNodes as unknown as TripwireFlowNode[]}
 											nodesConnectable={!readOnly}
 											nodesDraggable={!readOnly}
 											nodeTypes={NODE_TYPES}
@@ -1005,6 +1087,7 @@ function EditorBody({
 											style={CANVAS_TOKENS}
 										>
 											<CanvasZoom />
+											<LaneRules ys={decor.rules.map((rule) => rule.y)} />
 											<DropHint />
 											{pending ? <PendingConnection {...pending} /> : null}
 										</ReactFlow>

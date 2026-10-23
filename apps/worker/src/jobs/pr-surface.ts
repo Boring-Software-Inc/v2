@@ -3,12 +3,16 @@ import {
 	type CommentReason,
 	checkSummary,
 	forgePostsReviews,
+	labelParamsSchema,
+	lockParamsSchema,
 	type NormalizedEvent,
 	planSurfaces,
+	postCommentParamsSchema,
 	REVIEW_POINTER,
 	redactCommentReasons,
 	redactionLevelFor,
 	requestReviewTargetsSchema,
+	type ScheduledThread,
 	type SurfacePlan,
 	type Verdict,
 	type WebhookPayload,
@@ -109,6 +113,25 @@ export async function emitPrSurface(
 ): Promise<void> {
 	const { db, adapter, logger } = deps;
 	const { event, runId, verdict } = input;
+	if (event.kind === "schedule.matched") {
+		const { thread } = event;
+		await emitThreadActions(deps, input, {
+			number: thread.number,
+			title: thread.title,
+			author: thread.author,
+			skips: (kind) => SCHEDULED_SKIPS[kind]?.(thread) === true,
+		});
+		return;
+	}
+	if (event.kind === "comment.created") {
+		await emitThreadActions(deps, input, {
+			number: event.comment.subjectNumber,
+			title: "",
+			author: event.actor.login,
+			skips: () => false,
+		});
+		return;
+	}
 	if (!("changeRequest" in event)) {
 		return;
 	}
@@ -327,6 +350,89 @@ export async function emitPrSurface(
 	}
 }
 
+const SCHEDULED_SKIPS: Record<string, (thread: ScheduledThread) => boolean> = {
+	block: () => true,
+	"request-review": (thread) => thread.kind !== "change-request",
+};
+
+async function emitThreadActions(
+	deps: PrSurfaceDeps,
+	input: EmitSurfaceInput,
+	thread: {
+		number: number;
+		title: string;
+		author: string;
+		skips: (kind: string) => boolean;
+	},
+): Promise<void> {
+	const { db, adapter, logger } = deps;
+	const { event, runId, verdict } = input;
+	if (!("repo" in event)) {
+		return;
+	}
+	const repoFullName = event.repo.fullName;
+	const runUrl = `${deps.appUrl}/runs/${runId}`;
+	const policy = await responseServices.getRedactionPolicy(
+		db,
+		(await repoServices.getRepoByFullName(db, repoFullName, event.forge))?.id ??
+			null,
+	);
+	for (const row of input.pendingActionRows) {
+		if (row.kind !== "webhook") {
+			continue;
+		}
+		const delivery: WebhookPayload = {
+			version: 1,
+			verdict,
+			org: repoFullName.split("/")[0] ?? repoFullName,
+			repo: repoFullName,
+			changeRequest: {
+				number: thread.number,
+				title: thread.title,
+				author: thread.author,
+			},
+			firedRules: firedRulesFor(
+				input.reasons,
+				redactionLevelFor(policy, "webhook"),
+			),
+			runUrl,
+			timestamp: new Date().toISOString(),
+		};
+		await runServices.attachDeliveryPayload(db, row.id, delivery);
+	}
+	if (!adapter) {
+		logger.warn(
+			{ runId },
+			"no forge credentials — thread actions recorded, not executed",
+		);
+		return;
+	}
+	for (const row of input.pendingActionRows) {
+		if (row.kind === "webhook") {
+			continue;
+		}
+		if (thread.skips(row.kind)) {
+			await runServices.markActionSuperseded(db, row.id);
+			logger.info(
+				{ runId, kind: row.kind, thread: thread.number },
+				"action does not apply to this thread",
+			);
+			continue;
+		}
+		try {
+			const result = await adapter.execute(
+				toForgeAction(row, repoFullName, thread.number, REVIEW_POINTER.block),
+			);
+			await runServices.markActionExecuted(db, row.id, result.externalId);
+		} catch (error) {
+			logger.error(
+				{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
+				"thread action failed — row stays recorded for retry",
+			);
+		}
+	}
+}
+
 interface CommentPayload {
 	number: number;
 	verdict: Verdict;
@@ -447,6 +553,34 @@ export function toForgeAction(
 				number,
 				labels: (row.payload.labels as string[]) ?? [],
 			};
+		case "lock": {
+			const params = lockParamsSchema.safeParse(row.payload);
+			const reason = params.success ? params.data.reason : undefined;
+			return reason
+				? { kind: "lock" as const, repoFullName, number, reason }
+				: { kind: "lock" as const, repoFullName, number };
+		}
+		case "close":
+			return { kind: "close" as const, repoFullName, number };
+		case "remove-label": {
+			const params = labelParamsSchema.safeParse(row.payload);
+			return {
+				kind: "remove-label" as const,
+				repoFullName,
+				number,
+				labels: params.success ? params.data.labels : [],
+			};
+		}
+		case "post-comment": {
+			const params = postCommentParamsSchema.safeParse(row.payload);
+			return {
+				kind: "post-comment" as const,
+				repoFullName,
+				number,
+				body: params.success ? params.data.message : "",
+				marker: String(row.payload.marker ?? ""),
+			};
+		}
 		case "request-review": {
 			const targets = requestReviewTargetsSchema.safeParse(row.payload);
 			return {

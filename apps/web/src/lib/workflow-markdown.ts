@@ -12,6 +12,7 @@ import {
 	type WorkflowNode,
 } from "@tripwire/contracts";
 import { z } from "zod";
+import { scheduleSentenceText } from "#/lib/schedule-summary";
 
 const stringList = z.array(z.string()).catch([]);
 const reviewerList = z
@@ -145,6 +146,11 @@ function actionParams(node: ActionNode): string[] {
 			...(teams.length > 0 ? [`teams: ${teams.join(", ")}`] : []),
 		];
 	}
+	if (node.action === "lock") {
+		return typeof params.reason === "string"
+			? [`reason: ${params.reason}`]
+			: [];
+	}
 	if (node.action === "webhook") {
 		const rows = [secretSet(params, "url") ? "url set" : "url not set"];
 		if (secretSet(params, "signingSecret")) {
@@ -225,6 +231,11 @@ export function workflowToMarkdown(
 			(kind) => TRIGGER_CATALOG.find((e) => e.kind === kind)?.name ?? kind,
 		);
 		lines.push("", "### Trigger", names.join(", "));
+		for (const trigger of triggers) {
+			if (trigger.schedule) {
+				lines.push(scheduleSentenceText(trigger.schedule));
+			}
+		}
 	}
 
 	const rules = definition.nodes.filter(isRule);

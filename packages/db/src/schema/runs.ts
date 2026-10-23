@@ -25,6 +25,7 @@ export const runs = pgTable(
 		repoFullName: text("repo_full_name").notNull(),
 		/** The change-request number the run gates, when applicable. */
 		subjectNumber: integer("subject_number"),
+		subjectKind: text("subject_kind"),
 		headSha: text("head_sha"),
 		/**
 		 * queued (re-run materialised at enqueue) → running → completed | paused

@@ -26,6 +26,7 @@ const degradationOutputSchema = z
 		ruleNodes: z.number().optional(),
 		degradedReads: z.array(z.string()).optional(),
 		enforced: z.boolean().optional(),
+		tookNoAction: z.boolean().optional(),
 	})
 	.catch({});
 
@@ -94,9 +95,11 @@ export function describeSyntheticStep(
 				? describeDegradedReads(shape.degradedReads)
 				: null,
 			// enforced:false ⇒ the maintainer turned the review fallback off.
-			shape.enforced === false
-				? "Passed without them. This repo passes change requests when a rule cannot run."
-				: "Needs human review.",
+			shape.tookNoAction === true
+				? "Tripwire could not check this thread, so it took no action."
+				: shape.enforced === false
+					? "Passed without them. This repo passes change requests when a rule cannot run."
+					: "Needs human review.",
 		];
 		return {
 			kind: "degradation",

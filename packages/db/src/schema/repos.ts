@@ -6,6 +6,7 @@ import {
 	integer,
 	jsonb,
 	pgTable,
+	primaryKey,
 	text,
 	timestamp,
 	uniqueIndex,
@@ -152,6 +153,23 @@ export const repoReviewers = pgTable(
 	],
 );
 
+export const repoLabels = pgTable(
+	"repo_labels",
+	{
+		id: text("id").primaryKey(),
+		repoId: text("repo_id")
+			.notNull()
+			.references(() => repos.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		color: text("color").notNull(),
+		description: text("description"),
+		syncedAt: timestamp("synced_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [uniqueIndex("repo_labels_repo_name_unique").on(t.repoId, t.name)],
+);
+
 /**
  * Custom rules: rules defined in data, per repo. `definition` is the
  * serialized SDK shape (contracts customRuleDefinitionSchema, validated on
@@ -190,3 +208,16 @@ export const workflowDefinitions = pgTable("workflow_definitions", {
 		.notNull()
 		.defaultNow(),
 });
+
+export const workflowScheduleState = pgTable(
+	"workflow_schedule_state",
+	{
+		workflowId: text("workflow_id")
+			.notNull()
+			.references(() => workflowDefinitions.id, { onDelete: "cascade" }),
+		nodeId: text("node_id").notNull(),
+		lastTickAt: timestamp("last_tick_at", { withTimezone: true }).notNull(),
+		lastError: text("last_error"),
+	},
+	(t) => [primaryKey({ columns: [t.workflowId, t.nodeId] })],
+);

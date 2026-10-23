@@ -15,6 +15,7 @@ export const eventKindSchema = z.enum([
 	"change-request.closed",
 	"comment.created",
 	"push",
+	"schedule.matched",
 	"installation.created",
 	"installation.deleted",
 	"installation-repositories.added",
@@ -73,6 +74,29 @@ export const pushPayloadSchema = z.object({
 	url: z.string().optional(),
 });
 export type PushPayload = z.infer<typeof pushPayloadSchema>;
+
+export const threadSubjectSchema = z.enum(["issue", "change-request"]);
+export type ThreadSubject = z.infer<typeof threadSubjectSchema>;
+
+export const scheduledThreadSchema = z.object({
+	kind: threadSubjectSchema,
+	number: z.number().int(),
+	title: z.string(),
+	url: z.string(),
+	state: z.enum(["open", "closed"]),
+	author: z.string(),
+	labels: z.array(z.string()),
+	locked: z.boolean(),
+	updatedAt: z.iso.datetime(),
+});
+export type ScheduledThread = z.infer<typeof scheduledThreadSchema>;
+
+export const scheduleMatchSchema = z.object({
+	workflowId: z.string(),
+	nodeId: z.string(),
+	tickId: z.string(),
+});
+export type ScheduleMatch = z.infer<typeof scheduleMatchSchema>;
 
 const eventBase = {
 	/** UUIDv7, assigned at ingest. */
@@ -156,6 +180,12 @@ export const normalizedEventSchema = z.discriminatedUnion("kind", [
 		kind: z.literal("push"),
 		push: pushPayloadSchema,
 	}),
+	z.object({
+		...eventBase,
+		kind: z.literal("schedule.matched"),
+		schedule: scheduleMatchSchema,
+		thread: scheduledThreadSchema,
+	}),
 	z.object({ ...installationBase, kind: z.literal("installation.created") }),
 	z.object({ ...installationBase, kind: z.literal("installation.deleted") }),
 	z.object({
@@ -173,6 +203,11 @@ export type NormalizedEvent = z.infer<typeof normalizedEventSchema>;
 export type RepoScopedEvent = Extract<NormalizedEvent, { repo: RepoRef }>;
 
 /** Installation-sync events (no single base repo). */
+export type ScheduledEvent = Extract<
+	NormalizedEvent,
+	{ kind: "schedule.matched" }
+>;
+
 export type InstallationEvent = Extract<
 	NormalizedEvent,
 	{ installation: { externalId: string } }

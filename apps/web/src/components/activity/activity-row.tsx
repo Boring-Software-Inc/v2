@@ -25,6 +25,7 @@ const KIND_LABEL: Record<EventKind, string> = {
 	"change-request.closed": "closed",
 	"comment.created": "commented on",
 	push: "pushed to",
+	"schedule.matched": "schedule matched",
 	"installation.created": "installed Tripwire on",
 	"installation.deleted": "uninstalled Tripwire from",
 	"installation-repositories.added": "gave Tripwire access to",
@@ -41,6 +42,9 @@ function subjectLine(event: NormalizedEvent): string {
 	if (event.kind === "push") {
 		return event.push.ref.replace("refs/heads/", "");
 	}
+	if (event.kind === "schedule.matched") {
+		return `#${event.thread.number} ${event.thread.title}`;
+	}
 	return `#${event.changeRequest.number} ${event.changeRequest.title}`;
 }
 
@@ -48,6 +52,7 @@ function noRunReason(event: NormalizedEvent): string {
 	if (
 		event.kind === "push" ||
 		event.kind === "comment.created" ||
+		event.kind === "schedule.matched" ||
 		event.kind.startsWith("installation")
 	) {
 		return "Not checked";
@@ -66,13 +71,19 @@ export function ActivityRow({
 	const hasRun = run !== null;
 	const forgeLink = eventForgeLink(event);
 
-	const text = (
-		<>
-			{event.actor.login}{" "}
-			<span className="text-text-2">{KIND_LABEL[event.kind]}</span>{" "}
-			{subjectLine(event)}
-		</>
-	);
+	const text =
+		event.kind === "schedule.matched" ? (
+			<>
+				<span className="text-text-2">Schedule matched</span>{" "}
+				{subjectLine(event)}
+			</>
+		) : (
+			<>
+				{event.actor.login}{" "}
+				<span className="text-text-2">{KIND_LABEL[event.kind]}</span>{" "}
+				{subjectLine(event)}
+			</>
+		);
 
 	return (
 		<Item>

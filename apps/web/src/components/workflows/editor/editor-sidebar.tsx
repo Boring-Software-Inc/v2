@@ -12,13 +12,13 @@ import {
 	ACTION_CATALOG,
 	acceptReason,
 	GATE_CATALOG,
-	outputPorts,
+	NEW_SCHEDULE_DRAFT,
 	RULE_CATALOG,
 	TRIGGER_CATALOG,
 	WORKFLOW_PORT_LABELS,
 } from "@tripwire/contracts";
 import { useEffect, useId, useRef, useState } from "react";
-import { Add, ArrowLeft, Close, Icon } from "#/components/glaze/icon";
+import { Add, Close, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Collapsible,
@@ -34,15 +34,13 @@ import {
 	ItemMedia,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
+import { Tabs, TabsList, TabsTrigger } from "#/components/glaze/ui/tabs";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/glaze/ui/tooltip";
-import {
-	inputSummary,
-	outputLook,
-} from "#/components/workflows/editor/connection-plan";
+import { outputLook } from "#/components/workflows/editor/connection-plan";
 import {
 	hasEditableParams,
 	PropertiesPanel,
@@ -51,7 +49,6 @@ import {
 	actionIcon,
 	gateIcon,
 	KIND_ICON,
-	KIND_LABEL,
 	ruleIcon,
 	stepIcon,
 	stepName,
@@ -155,7 +152,14 @@ export function buildNodeFromItem(item: ToolboxItem): WorkflowNode {
 	const id = crypto.randomUUID();
 	switch (item.kind) {
 		case "trigger":
-			return { id, type: "trigger", kinds: [item.eventKind] };
+			return item.eventKind === "schedule.matched"
+				? {
+						id,
+						type: "trigger",
+						kinds: [item.eventKind],
+						schedule: structuredClone(NEW_SCHEDULE_DRAFT),
+					}
+				: { id, type: "trigger", kinds: [item.eventKind] };
 		case "rule":
 			return {
 				id,
@@ -263,7 +267,14 @@ export function EditorSidebar({
 				null)
 			: null;
 	const visibility = selectedNode || connect?.pending ? "open" : shown;
-	const propertiesNode = connect ? null : selectedNode;
+	const [toolboxFor, setToolboxFor] = useState<string | null>(null);
+	const selectable = connect ? null : selectedNode;
+	const propertiesNode =
+		selectable && toolboxFor !== selectable.id ? selectable : null;
+	const hide = () => {
+		onClearSelection();
+		setShown("closed");
+	};
 
 	return (
 		<>
@@ -283,13 +294,40 @@ export function EditorSidebar({
 			<div
 				data-toolbox=""
 				className={cn(
-					"shell absolute start-3 top-3 bottom-3 z-(--z-raised) w-68 flex-col",
+					"shell absolute start-3 top-3 bottom-3 z-(--z-raised) w-75 flex-col",
 					visibility === "auto" && "hidden md:flex",
 					visibility === "open" && "flex",
 					visibility === "closed" && "hidden",
 				)}
 			>
 				<div className="panel flex min-h-0 flex-1 flex-col overflow-hidden">
+					<div className="flex shrink-0 items-center justify-between gap-2 border-line-faint border-b px-2 py-1.5">
+						<Tabs
+							onValueChange={(value) =>
+								setToolboxFor(
+									value === "toolbox" ? (selectable?.id ?? null) : null,
+								)
+							}
+							value={propertiesNode ? "properties" : "toolbox"}
+						>
+							<TabsList aria-label="Sidebar" size="sm">
+								<TabsTrigger value="toolbox">Toolbox</TabsTrigger>
+								<TabsTrigger disabled={!selectable} value="properties">
+									Properties
+								</TabsTrigger>
+							</TabsList>
+						</Tabs>
+						{connect?.pending ? null : (
+							<Button
+								aria-label="Hide sidebar"
+								onClick={hide}
+								size="icon-sm"
+								variant="ghost"
+							>
+								<Icon icon={Close} />
+							</Button>
+						)}
+					</div>
 					{propertiesNode ? (
 						<StepProperties
 							customName={customName}
@@ -298,7 +336,6 @@ export function EditorSidebar({
 							}
 							key={propertiesNode.id}
 							node={propertiesNode}
-							onBack={onClearSelection}
 							onFocused={onFieldFocused}
 							onTestConnection={onTestConnection}
 							onUpdate={onUpdateNode}
@@ -309,7 +346,6 @@ export function EditorSidebar({
 							connect={connect}
 							onAdd={addAndReveal}
 							onCancelConnect={onCancelConnect}
-							onHide={() => setShown("closed")}
 							org={org}
 							readOnly={readOnly}
 							repo={repo}
@@ -338,7 +374,6 @@ function Toolbox({
 	repo,
 	onAdd,
 	onCancelConnect,
-	onHide,
 }: {
 	sections: ToolboxSection[];
 	connect: ToolboxConnect | null;
@@ -347,7 +382,6 @@ function Toolbox({
 	org: string;
 	repo: string;
 	onAdd: (item: ToolboxItem) => void;
-	onHide: () => void;
 }) {
 	const [query, setQuery] = useState("");
 	const [open, setOpen] = useState<string[]>(OPEN_BY_DEFAULT);
@@ -395,16 +429,6 @@ function Toolbox({
 					size="sm"
 					value={query}
 				/>
-				{connect?.pending ? null : (
-					<Button
-						aria-label="Hide toolbox"
-						onClick={onHide}
-						size="icon-sm"
-						variant="ghost"
-					>
-						<Icon icon={Close} />
-					</Button>
-				)}
 			</div>
 			<div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
 				{visible.length === 0 ? (
@@ -562,44 +586,6 @@ function ToolboxRow({
 	);
 }
 
-function PortSummary({ node }: { node: WorkflowNode }) {
-	const inputs = inputSummary(node.type);
-	const outputs = outputPorts(node);
-	if (inputs.length === 0 && outputs.length === 0) {
-		return null;
-	}
-	return (
-		<dl className="flex shrink-0 flex-col gap-1 border-line-faint border-b px-3 py-2 type-caption">
-			{inputs.length > 0 ? (
-				<div className="flex items-center gap-2">
-					<dt className="w-6 text-text-3">In</dt>
-					<dd className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 text-text-2">
-						{inputs.map(({ look, label }) => (
-							<span className="inline-flex items-center gap-1.5" key={label}>
-								<PortGlyph look={{ ...look, io: "in" }} />
-								{label}
-							</span>
-						))}
-					</dd>
-				</div>
-			) : null}
-			{outputs.length > 0 ? (
-				<div className="flex items-center gap-2">
-					<dt className="w-6 text-text-3">Out</dt>
-					<dd className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 text-text-2">
-						{outputs.map((port) => (
-							<span className="inline-flex items-center gap-1.5" key={port}>
-								<PortGlyph look={{ ...outputLook(port), io: "out" }} />
-								{WORKFLOW_PORT_LABELS[port]}
-							</span>
-						))}
-					</dd>
-				</div>
-			) : null}
-		</dl>
-	);
-}
-
 const FOCUSABLE_INPUT = "input:not([type=hidden]), textarea, select";
 const FOCUSABLE_CONTROL = "button:not(:disabled), [role=checkbox]";
 
@@ -608,7 +594,6 @@ function StepProperties({
 	customName,
 	focusKey,
 	readOnly,
-	onBack,
 	onFocused,
 	onUpdate,
 	onTestConnection,
@@ -617,19 +602,12 @@ function StepProperties({
 	customName: string | null;
 	focusKey: string | null;
 	readOnly: boolean;
-	onBack: () => void;
 	onFocused: () => void;
 	onUpdate: (next: WorkflowNode) => void;
 	onTestConnection: EditorSidebarProps["onTestConnection"];
 }) {
 	const name = stepName(node, customName);
-	const kind = KIND_LABEL[node.type];
 	const bodyRef = useRef<HTMLDivElement>(null);
-	const description =
-		node.type === "action"
-			? (ACTION_CATALOG.find((entry) => entry.action === node.action)
-					?.description ?? null)
-			: null;
 
 	useEffect(() => {
 		const body = bodyRef.current;
@@ -646,27 +624,14 @@ function StepProperties({
 	}, [focusKey, onFocused]);
 
 	return (
-		<>
-			<div className="flex shrink-0 items-center gap-2 border-line-faint border-b py-2 ps-2 pe-3">
-				<Button
-					aria-label="Back to the toolbox"
-					onClick={onBack}
-					size="icon-sm"
-					variant="ghost"
-				>
-					<Icon icon={ArrowLeft} />
-				</Button>
-				<Icon className="text-text-2" icon={stepIcon(node)} />
-				<h2 className="min-w-0 flex-1 truncate type-label">{name}</h2>
-				{kind === name ? null : (
-					<span className="shrink-0 type-caption text-text-2">{kind}</span>
-				)}
+		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto" ref={bodyRef}>
+			<div className="flex shrink-0 items-center gap-2 px-4 pt-3.5">
+				<Icon className="text-text-1" icon={stepIcon(node)} />
+				<h2 className="min-w-0 flex-1 type-label-lg [overflow-wrap:anywhere]">
+					{name}
+				</h2>
 			</div>
-			<PortSummary node={node} />
-			<div
-				className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3"
-				ref={bodyRef}
-			>
+			<div className="flex flex-col gap-3 px-4 pt-2.5 pb-4">
 				{hasEditableParams(node) ? (
 					<PropertiesPanel
 						node={node}
@@ -676,15 +641,10 @@ function StepProperties({
 					/>
 				) : (
 					<p className="type-body-sm text-text-2">
-						{description ?? "This step has no settings to change."}
+						This step has no settings to change.
 					</p>
 				)}
-				{node.type === "trigger" ? (
-					<p className="type-body-sm text-text-2">
-						One output can feed several steps, and each path runs on its own.
-					</p>
-				) : null}
 			</div>
-		</>
+		</div>
 	);
 }

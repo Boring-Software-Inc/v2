@@ -1,13 +1,8 @@
-import type {
-	EventKind,
-	GateMode,
-	JsonValue,
-	WorkflowNode,
-} from "@tripwire/contracts";
+import type { GateMode, JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
-	ACTION_CATALOG,
 	GATE_CATALOG,
-	TRIGGER_CATALOG,
+	lockParamsSchema,
+	MAX_COMMENT_MESSAGE,
 } from "@tripwire/contracts";
 import { useState } from "react";
 import { z } from "zod";
@@ -17,8 +12,6 @@ import {
 	Field,
 	FieldDescription,
 	FieldLabel,
-	FieldLegend,
-	FieldSet,
 	Label,
 } from "#/components/glaze/ui/field";
 import { Input } from "#/components/glaze/ui/input";
@@ -26,12 +19,14 @@ import { NumberInput } from "#/components/glaze/ui/number-input";
 import { Select } from "#/components/glaze/ui/select";
 import { Status } from "#/components/glaze/ui/status";
 import { Textarea } from "#/components/glaze/ui/textarea";
+import { LabelPicker } from "#/components/workflows/editor/label-picker";
 import {
 	type FieldSpec,
 	fieldsForSchema,
 	ruleCatalogEntryForRef,
 } from "#/components/workflows/editor/node-fields";
 import { ReviewerPicker } from "#/components/workflows/editor/reviewer-picker";
+import { TriggerFlow } from "#/components/workflows/editor/schedule-flow";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
@@ -58,7 +53,10 @@ export function hasEditableParams(node: WorkflowNode): boolean {
 			return (
 				node.action === "label" ||
 				node.action === "request-review" ||
-				node.action === "webhook"
+				node.action === "webhook" ||
+				node.action === "lock" ||
+				node.action === "remove-label" ||
+				node.action === "post-comment"
 			);
 		default:
 			return false;
@@ -112,28 +110,45 @@ function TriggerFields({
 	readOnly: boolean;
 	onUpdate: (next: WorkflowNode) => void;
 }) {
-	const toggle = (kind: EventKind, checked: boolean) => {
-		const kinds = checked
-			? [...node.kinds, kind]
-			: node.kinds.filter((k) => k !== kind);
-		onUpdate({ ...node, kinds });
-	};
+	return <TriggerFlow node={node} onUpdate={onUpdate} readOnly={readOnly} />;
+}
+
+const LOCK_REASON_OPTIONS: { value: string; label: string }[] = [
+	{ value: "", label: "None" },
+	{ value: "resolved", label: "Resolved" },
+	{ value: "off-topic", label: "Off-topic" },
+	{ value: "too heated", label: "Too heated" },
+	{ value: "spam", label: "Spam" },
+];
+
+function LockFields({
+	node,
+	readOnly,
+	onUpdate,
+}: {
+	node: Extract<WorkflowNode, { type: "action" }>;
+	readOnly: boolean;
+	onUpdate: (next: WorkflowNode) => void;
+}) {
+	const parsed = lockParamsSchema.safeParse(node.params ?? {});
+	const reason = parsed.success ? (parsed.data.reason ?? "") : "";
 	return (
-		<FieldSet className="gap-2" data-field="kinds" disabled={readOnly}>
-			<FieldLegend variant="label">
-				Runs on these events (pick at least one)
-			</FieldLegend>
-			{TRIGGER_CATALOG.filter((entry) => entry.toolbox).map((entry) => (
-				<Label className="flex items-center gap-2" key={entry.kind}>
-					<Checkbox
-						checked={node.kinds.includes(entry.kind)}
-						disabled={readOnly}
-						onCheckedChange={(checked) => toggle(entry.kind, checked)}
-					/>
-					{entry.name}
-				</Label>
-			))}
-		</FieldSet>
+		<Field data-field="reason">
+			<FieldLabel className="text-text-2">Reason</FieldLabel>
+			<Select
+				disabled={readOnly}
+				items={LOCK_REASON_OPTIONS}
+				native
+				onValueChange={(next) => {
+					const { reason: _, ...rest } = node.params ?? {};
+					onUpdate({
+						...node,
+						params: next ? { ...rest, reason: next } : rest,
+					});
+				}}
+				value={reason}
+			/>
+		</Field>
 	);
 }
 
@@ -359,10 +374,18 @@ function ActionFields({
 			<ReviewerPicker node={node} onUpdate={onUpdate} readOnly={readOnly} />
 		);
 	}
-	if (node.action !== "label") {
+	if (node.action === "lock") {
+		return <LockFields node={node} onUpdate={onUpdate} readOnly={readOnly} />;
+	}
+	if (node.action === "post-comment") {
+		return (
+			<CommentFields node={node} onUpdate={onUpdate} readOnly={readOnly} />
+		);
+	}
+	if (node.action !== "label" && node.action !== "remove-label") {
 		return (
 			<p className="type-body-sm text-text-2">
-				This rule has no settings to change.
+				This step has no settings to change.
 			</p>
 		);
 	}
@@ -370,29 +393,45 @@ function ActionFields({
 		.parse(node.params?.labels)
 		.filter((label) => label !== undefined);
 	return (
-		<Field>
-			<FieldLabel>Labels (comma or newline separated)</FieldLabel>
-			{/* uncontrolled: normalizing on change would eat typed newlines */}
+		<Field data-field="labels">
+			<FieldLabel className="text-text-2">Labels</FieldLabel>
+			<LabelPicker
+				creatable
+				onChange={(next) =>
+					onUpdate({ ...node, params: { ...node.params, labels: next } })
+				}
+				readOnly={readOnly}
+				value={labels}
+			/>
+		</Field>
+	);
+}
+
+function CommentFields({
+	node,
+	readOnly,
+	onUpdate,
+}: {
+	node: Extract<WorkflowNode, { type: "action" }>;
+	readOnly: boolean;
+	onUpdate: (next: WorkflowNode) => void;
+}) {
+	const message = textParam.parse(node.params?.message);
+	return (
+		<Field data-field="message">
+			<FieldLabel className="text-text-2">Message</FieldLabel>
 			<Textarea
-				defaultValue={labels.join("\n")}
 				disabled={readOnly}
+				maxLength={MAX_COMMENT_MESSAGE}
 				onChange={(event) =>
 					onUpdate({
 						...node,
-						params: {
-							...node.params,
-							labels: event.target.value
-								.split(/[\n,]/)
-								.map((part) => part.trim())
-								.filter((part) => part.length > 0),
-						},
+						params: { ...node.params, message: event.target.value },
 					})
 				}
-				rows={3}
+				rows={5}
+				value={message}
 			/>
-			<FieldDescription>
-				{ACTION_CATALOG.find((entry) => entry.action === "label")?.description}
-			</FieldDescription>
 		</Field>
 	);
 }
@@ -500,12 +539,6 @@ function DeliveryFields({
 					Signs each post so your receiver can verify it came from Tripwire.
 				</FieldDescription>
 			</Field>
-			<p className="type-body-sm text-text-2">
-				{
-					ACTION_CATALOG.find((entry) => entry.action === node.action)
-						?.description
-				}
-			</p>
 		</div>
 	);
 }

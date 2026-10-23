@@ -7,6 +7,7 @@ import type {
 	WorkflowDefinition,
 } from "@tripwire/contracts";
 import {
+	actionCommentMarker,
 	type CustomRuleRecord,
 	customRuleRef,
 	customRuleSummary,
@@ -61,6 +62,26 @@ const VERDICT_RANK: Record<Verdict, number> = {
 	needs_review: 1,
 	block: 2,
 };
+
+export function actionPayload(
+	action: { nodeId: string; action: string; params: Record<string, unknown> },
+	definitionId: string,
+	runId: string,
+): Record<string, unknown> {
+	return {
+		...action.params,
+		nodeId: `${definitionId}:${action.nodeId}`,
+		...(action.action === "post-comment"
+			? {
+					marker: actionCommentMarker({
+						workflowId: definitionId,
+						nodeId: action.nodeId,
+						runId,
+					}),
+				}
+			: {}),
+	};
+}
 
 export function postsSomething(action: { action: string }): boolean {
 	return !isRemovedAction(action.action);
@@ -266,8 +287,10 @@ async function runWorkflowsInner(
 		event.forge,
 	);
 	const derivedHasRules = derived.nodes.some((node) => node.type === "rule");
-	const definitions: WorkflowDefinition[] =
-		custom.length > 0
+	const scheduled = event.kind === "schedule.matched" ? event : null;
+	const definitions: WorkflowDefinition[] = scheduled
+		? custom.filter((def) => def.id === scheduled.schedule.workflowId)
+		: custom.length > 0
 			? derivedHasRules
 				? [...custom, derived]
 				: custom
@@ -302,9 +325,12 @@ async function runWorkflowsInner(
 	}
 
 	const now = new Date().toISOString();
+	const needsReads =
+		!scheduled ||
+		matching.some((def) => def.nodes.some((node) => node.type === "rule"));
 	const { ctx, degradedReads } = await buildRuleContext(
 		event,
-		deps.reads,
+		needsReads ? deps.reads : null,
 		now,
 		logger,
 		deps.makeGenerate?.(event),
@@ -322,6 +348,7 @@ async function runWorkflowsInner(
 	}
 	const exemptionDisabled = isExemptionDisabled();
 	if (
+		!scheduled &&
 		!exemptionDisabled &&
 		(ctx.contributor?.isMaintainer || ctx.contributor?.isOrgMember)
 	) {
@@ -408,6 +435,7 @@ async function runWorkflowsInner(
 		(step) => step.status === "skipped",
 	).length;
 	const degraded = isRunDegraded(ruleSteps0.length, skippedCount, verdict);
+	const heldBack = degraded && scheduled !== null;
 	if (degraded) {
 		/**
 		 * The floor is configurable, and ON by default.
@@ -417,8 +445,9 @@ async function runWorkflowsInner(
 		 * the audit trail still name every rule that could not evaluate. Turning
 		 * off a safety net must never turn off the evidence.
 		 */
-		const failClosed = (await repoServices.getResponseConfig(db, repo.id))
-			.failClosedFallback;
+		const failClosed =
+			!heldBack &&
+			(await repoServices.getResponseConfig(db, repo.id)).failClosedFallback;
 		if (failClosed) {
 			verdict = "needs_review";
 			paused = true;
@@ -435,6 +464,7 @@ async function runWorkflowsInner(
 				ruleNodes: ruleSteps0.length,
 				/** false ⇒ the run passed with a partial evaluation, on purpose. */
 				enforced: failClosed,
+				...(heldBack ? { tookNoAction: true } : {}),
 			},
 			startedAt,
 			finishedAt: startedAt,
@@ -455,9 +485,11 @@ async function runWorkflowsInner(
 				ruleNodes: ruleSteps0.length,
 				enforced: failClosed,
 			},
-			failClosed
-				? "evaluation degraded — fail-closed floor routes run to moderation"
-				: "evaluation degraded — floor is off for this repo, run passes partial",
+			heldBack
+				? "evaluation degraded — scheduled run takes no action"
+				: failClosed
+					? "evaluation degraded — fail-closed floor routes run to moderation"
+					: "evaluation degraded — floor is off for this repo, run passes partial",
 		);
 	}
 
@@ -480,7 +512,9 @@ async function runWorkflowsInner(
 			? event.changeRequest.number
 			: "comment" in event
 				? event.comment.subjectNumber
-				: null;
+				: scheduled
+					? scheduled.thread.number
+					: null;
 	const terminalStatus = paused ? "paused" : "completed";
 	let runId: string;
 	if (liveRunId) {
@@ -498,6 +532,7 @@ async function runWorkflowsInner(
 			eventId,
 			repoFullName: event.repo.fullName,
 			subjectNumber,
+			subjectKind: scheduled ? scheduled.thread.kind : null,
 			headSha,
 			snapshot: matching,
 			status: terminalStatus,
@@ -519,7 +554,7 @@ async function runWorkflowsInner(
 			});
 		}
 	}
-	if (degraded) {
+	if (degraded && !heldBack) {
 		await moderationServices.createModerationItem(db, {
 			runId,
 			nodeId: "run:degraded",
@@ -530,14 +565,13 @@ async function runWorkflowsInner(
 		db,
 		runId,
 		executions.flatMap((execution) =>
-			execution.result.actions.filter(postsSomething).map((action) => ({
-				kind: action.action,
-				payload: {
-					...action.params,
-					nodeId: `${execution.definition.id}:${action.nodeId}`,
-				},
-				idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
-			})),
+			(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
+				(action) => ({
+					kind: action.action,
+					payload: actionPayload(action, execution.definition.id, runId),
+					idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
+				}),
+			),
 		),
 		deps.surface === false ? "suppressed" : "recorded",
 	);

@@ -171,7 +171,10 @@ export async function executeWorkflow(
 		const startedAt = now();
 
 		if (node.type === "trigger") {
-			const matches = node.kinds.includes(event.kind);
+			const matches =
+				node.kinds.includes(event.kind) &&
+				(event.kind !== "schedule.matched" ||
+					node.id === event.schedule.nodeId);
 			const resuming = resume !== undefined;
 			if (matches || resuming) {
 				outcomes.set(node.id, "pass");

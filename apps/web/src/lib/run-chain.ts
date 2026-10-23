@@ -25,6 +25,7 @@ export type ChainGlyph =
 	| "opened"
 	| "pushed"
 	| "rerun"
+	| "scheduled"
 	| "comment"
 	| "pass"
 	| "fail"
@@ -159,6 +160,9 @@ function eventChain(run: RunView): ChainEvent {
 			? `${run.rerunBy} re-ran the rules on ${on}`
 			: `Rules re-run on ${on}`;
 		glyph = "rerun";
+	} else if (event?.kind === "schedule.matched") {
+		title = "Matched by schedule";
+		glyph = "scheduled";
 	} else if (event?.kind === "change-request.updated") {
 		title = `${actor} pushed ${shortSha(event.headSha ?? run.headSha)} to ${on}`;
 		glyph = "pushed";

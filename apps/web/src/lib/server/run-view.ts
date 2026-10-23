@@ -19,7 +19,13 @@ import {
 	toFullRunView,
 	toPublicRunView,
 } from "#/lib/run-access";
-import { actionUrl, runLink, toEventView } from "#/lib/run-links";
+import {
+	actionUrl,
+	runLink,
+	threadSubjectOf,
+	threadUrlOf,
+	toEventView,
+} from "#/lib/run-links";
 import { parseSnapshot, workflowOutcomes } from "#/lib/run-workflows";
 import type { JsonValue, RunReviewView, RunView } from "#/lib/runs.functions";
 import type { SessionState } from "#/lib/server/session";
@@ -95,6 +101,8 @@ export async function loadRunView(
 		ref ? (customNameByRef.get(ref) ?? ruleDisplayName(ref)) : null;
 	const snapshot = parseSnapshot(result.run.workflowSnapshot as JsonValue);
 	const eventRow = await eventServices.getEventById(db, result.run.eventId);
+	const eventNormalized = (eventRow?.normalized ?? null) as JsonValue | null;
+	const scheduled = eventRow?.kind === "schedule.matched";
 	const siblings =
 		result.run.subjectNumber === null
 			? []
@@ -136,6 +144,7 @@ export async function loadRunView(
 		id: result.run.id,
 		repoFullName: result.run.repoFullName,
 		subjectNumber: result.run.subjectNumber,
+		subjectKind: threadSubjectOf(result.run.subjectKind, eventNormalized),
 		headSha: result.run.headSha,
 		status: result.run.status,
 		verdict: result.run.verdict as Verdict | null,
@@ -150,7 +159,7 @@ export async function loadRunView(
 				: null,
 		orgSlug,
 		repoName,
-		canRerun,
+		canRerun: canRerun && !scheduled,
 		stepsHidden: false,
 		forge,
 		/**
@@ -158,12 +167,13 @@ export async function loadRunView(
 		 * origin is environment, which contracts and the browser must not read.
 		 */
 		subjectUrl: forge
-			? changeRequestUrl({
+			? (threadUrlOf(eventNormalized) ??
+				changeRequestUrl({
 					forge,
 					repoFullName: result.run.repoFullName,
 					number: result.run.subjectNumber,
 					origin: forge === "opengit" ? process.env.OPEN_GIT_URL : undefined,
-				})
+				}))
 			: null,
 		// RENDER-TIME dedupe of a joined run (§5.11). Persisted rows stay 1:1 with
 		// execution — stats, replay, and delivery all read the raw rows, never this

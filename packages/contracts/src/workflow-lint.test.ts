@@ -119,10 +119,11 @@ describe("no-trigger-events", () => {
 		expect(results.map((result) => result.rule)).toEqual(["no-trigger-events"]);
 		expect(results[0]).toMatchObject({
 			nodeId: "t",
-			message: "Trigger runs on no events",
+			step: "Trigger",
+			message: "Pick when it runs.",
 			fixes: [
 				{
-					label: "Choose events",
+					label: "Pick events",
 					intent: { type: "focus-field", nodeId: "t", field: "kinds" },
 				},
 			],
@@ -141,8 +142,8 @@ describe("duplicate-id", () => {
 			[...CLEAN.edges, { id: "e1", from: "t", to: "a" }],
 		);
 		expect(only(def, "duplicate-id").map((result) => result.message)).toEqual([
-			"Two steps use the id r; rename one",
-			"Two connections use the id e1; rename one",
+			"Another step uses the same id. Rename one.",
+			"Another connection uses the same id. Rename one.",
 		]);
 	});
 
@@ -160,7 +161,8 @@ describe("missing-step", () => {
 	test("a connection to a step that does not exist", () => {
 		expect(only(def, "missing-step")[0]).toMatchObject({
 			edgeId: "e9",
-			message: "A connection points to ghost, which is not a step",
+			step: "Workflow",
+			message: "A connection points to a step that is gone.",
 		});
 	});
 
@@ -184,9 +186,10 @@ describe("no-trigger", () => {
 	);
 
 	test("a workflow with no trigger", () => {
-		expect(only(def, "no-trigger")[0]?.message).toBe(
-			"No trigger starts this workflow",
-		);
+		expect(only(def, "no-trigger")[0]).toMatchObject({
+			step: "Workflow",
+			message: "Add a trigger to start it.",
+		});
 		expect(only(CLEAN, "no-trigger")).toEqual([]);
 	});
 
@@ -215,7 +218,8 @@ describe("trigger-input", () => {
 		expect(only(def, "trigger-input")[0]).toMatchObject({
 			edgeId: "e4",
 			nodeId: "t",
-			message: "Trigger takes no inputs, but All of connects to it",
+			step: "Trigger",
+			message: "It takes no inputs.",
 		});
 		expect(only(CLEAN, "trigger-input")).toEqual([]);
 	});
@@ -245,7 +249,8 @@ describe("gate-input from a trigger", () => {
 			severity: "error",
 			edgeId: "e1",
 			nodeId: "g",
-			message: "All of takes rule results, not events from Trigger",
+			step: "All of",
+			message: "It takes rule results, not events.",
 			fixes: [
 				{
 					label: "Insert a rule",
@@ -299,9 +304,10 @@ describe("gate-input from Doesn't pass", () => {
 	const [problem] = only(def, "gate-input");
 
 	test("names both steps", () => {
-		expect(problem?.message).toBe(
-			"All of takes only Passes, not Doesn't pass from Account age",
-		);
+		expect(problem).toMatchObject({
+			step: "All of",
+			message: "It takes only Passes.",
+		});
 		expect(problem?.fixes.map((fix) => fix.label)).toEqual([
 			"Insert a Not gate",
 			"Use Passes",
@@ -350,9 +356,10 @@ describe("gate-input from a decision", () => {
 
 	test("only offers removal", () => {
 		const [problem] = only(def, "gate-input");
-		expect(problem?.message).toBe(
-			"All of takes rule results, not decisions from Human review",
-		);
+		expect(problem).toMatchObject({
+			step: "All of",
+			message: "It takes rule results, not decisions.",
+		});
 		const next = applyLintEdit(def, fixed(problem, "Remove connection"));
 		expect(only(next, "gate-input")).toEqual([]);
 	});
@@ -368,7 +375,8 @@ describe("no-outputs", () => {
 		expect(only(def, "no-outputs")[0]).toMatchObject({
 			edgeId: "e4",
 			nodeId: "a",
-			message: "Block has no outputs",
+			step: "Block",
+			message: "It has no outputs.",
 		});
 		expect(only(CLEAN, "no-outputs")).toEqual([]);
 	});
@@ -392,7 +400,8 @@ describe("wrong-output", () => {
 	test("an Approved edge leaving a gate", () => {
 		expect(only(def, "wrong-output")[0]).toMatchObject({
 			edgeId: "e3",
-			message: "All of has no Approved output",
+			step: "All of",
+			message: "It has no Approved output.",
 		});
 		expect(only(CLEAN, "wrong-output")).toEqual([]);
 	});
@@ -420,9 +429,10 @@ describe("not-input", () => {
 	);
 
 	test("a Not gate with two inputs", () => {
-		expect(only(def, "not-input")[0]?.message).toBe(
-			"Not takes one input but has 2",
-		);
+		expect(only(def, "not-input")[0]).toMatchObject({
+			step: "Not",
+			message: "It takes one input. Keep one.",
+		});
 		expect(only(CLEAN, "not-input")).toEqual([]);
 	});
 
@@ -442,22 +452,25 @@ describe("orphan-step", () => {
 	const [problem] = only(def, "orphan-step");
 
 	test("a step with no input", () => {
-		expect(problem?.message).toBe("Account age has no input, so it never runs");
+		expect(problem).toMatchObject({
+			step: "Account age 2",
+			message: "Nothing runs it. Connect it or delete it.",
+		});
 		expect(problem?.fixes.map((fix) => fix.label)).toEqual([
-			"Connect trigger",
-			"Delete step",
+			"Connect",
+			"Delete",
 		]);
 		expect(only(CLEAN, "orphan-step")).toEqual([]);
 	});
 
-	test("Connect trigger clears it", () => {
-		const next = applyLintEdit(def, fixed(problem, "Connect trigger"));
+	test("Connect clears it", () => {
+		const next = applyLintEdit(def, fixed(problem, "Connect"));
 		expect(next.edges.at(-1)).toEqual({ id: "edge-1", from: "t", to: "loose" });
 		expect(only(next, "orphan-step")).toEqual([]);
 	});
 
-	test("Delete step clears it", () => {
-		const next = applyLintEdit(def, fixed(problem, "Delete step"));
+	test("Delete clears it", () => {
+		const next = applyLintEdit(def, fixed(problem, "Delete"));
 		expect(next.nodes).toEqual(CLEAN.nodes);
 		expect(lintWorkflow(next)).toEqual([]);
 	});
@@ -466,7 +479,7 @@ describe("orphan-step", () => {
 		const gateDef = graph([...CLEAN.nodes, { ...GATE, id: "g2" }], CLEAN.edges);
 		expect(
 			only(gateDef, "orphan-step")[0]?.fixes.map((fix) => fix.label),
-		).toEqual(["Delete step"]);
+		).toEqual(["Delete"]);
 	});
 });
 
@@ -479,7 +492,8 @@ describe("cycle", () => {
 	test("names the steps in the loop", () => {
 		expect(only(def, "cycle")[0]).toMatchObject({
 			edgeId: "e4",
-			message: "Account age and All of form a loop",
+			step: "Account age",
+			message: "It loops back through All of.",
 		});
 		expect(only(CLEAN, "cycle")).toEqual([]);
 	});
@@ -489,9 +503,10 @@ describe("cycle", () => {
 			...CLEAN.edges,
 			{ id: "e4", from: "r", to: "r" },
 		]);
-		expect(only(self, "cycle")[0]?.message).toBe(
-			"Account age connects to itself",
-		);
+		expect(only(self, "cycle")[0]).toMatchObject({
+			step: "Account age",
+			message: "It connects to itself.",
+		});
 	});
 
 	test("Remove connection clears it", () => {
@@ -507,8 +522,14 @@ describe("no-action", () => {
 	test("no action after a trigger needs one short instruction", () => {
 		const def = graph([TRIGGER, RULE], [{ id: "e1", from: "t", to: "r" }]);
 		expect(only(def, "no-action")[0]).toMatchObject({
-			message: "No action runs after a trigger. Connect one.",
-			fixes: [],
+			step: "Workflow",
+			message: "Add an action after the trigger.",
+			fixes: [
+				{
+					label: "Add action",
+					intent: { type: "add-next-step", nodeId: "t", port: "event" },
+				},
+			],
 		});
 		expect(only(CLEAN, "no-action")).toEqual([]);
 	});
@@ -522,7 +543,7 @@ describe("unknown-rule", () => {
 
 	test("a rule missing from the catalog", () => {
 		expect(only(def, "unknown-rule")[0]?.message).toBe(
-			"ai-review@1 is not a rule this repo has",
+			"This rule is not in this repo.",
 		);
 		expect(only(CLEAN, "unknown-rule")).toEqual([]);
 	});
@@ -542,10 +563,10 @@ describe("unknown-rule", () => {
 		);
 	});
 
-	test("Delete step clears it", () => {
+	test("Delete clears it", () => {
 		const next = applyLintEdit(
 			def,
-			fixed(only(def, "unknown-rule")[0], "Delete step"),
+			fixed(only(def, "unknown-rule")[0], "Delete"),
 		);
 		expect(only(next, "unknown-rule")).toEqual([]);
 	});
@@ -560,7 +581,8 @@ describe("rule-config", () => {
 			BLOCK,
 		]);
 		const [problem] = only(def, "rule-config");
-		expect(problem?.message.startsWith("Account age: ")).toBe(true);
+		expect(problem?.step).toBe("Account age");
+		expect(problem?.message).toMatch(/^[A-Z].*\.$/);
 		expect(problem?.fixes).toEqual([
 			{
 				label: "Edit setting",
@@ -578,16 +600,17 @@ describe("removed-step", () => {
 	);
 
 	test("a Comment step", () => {
-		expect(only(def, "removed-step")[0]?.message).toBe(
-			"Comment was removed; Customize sets the verdict comment now",
-		);
+		expect(only(def, "removed-step")[0]).toMatchObject({
+			step: "Comment",
+			message: "This step was removed. Customize sets the verdict comment now.",
+		});
 		expect(only(CLEAN, "removed-step")).toEqual([]);
 	});
 
-	test("Delete step clears it and its connection", () => {
+	test("Delete clears it and its connection", () => {
 		const next = applyLintEdit(
 			def,
-			fixed(only(def, "removed-step")[0], "Delete step"),
+			fixed(only(def, "removed-step")[0], "Delete"),
 		);
 		expect(next).toEqual(CLEAN);
 	});
@@ -608,15 +631,16 @@ describe("removed-step", () => {
 	test("a Discord step", () => {
 		const [finding] = only(withDiscord, "removed-step");
 		expect(finding?.nodeId).toBe("d");
+		expect(finding?.step).toBe("Discord");
 		expect(finding?.message).toBe(
-			"Discord was removed; delete it to turn this workflow on",
+			"This step was removed. Delete it to turn this workflow on.",
 		);
 	});
 
-	test("Delete step clears a Discord step and its connection", () => {
+	test("Delete clears a Discord step and its connection", () => {
 		const next = applyLintEdit(
 			withDiscord,
-			fixed(only(withDiscord, "removed-step")[0], "Delete step"),
+			fixed(only(withDiscord, "removed-step")[0], "Delete"),
 		);
 		expect(next).toEqual(CLEAN);
 	});
@@ -633,7 +657,8 @@ describe("review-targets", () => {
 
 	test("asks no one: Add reviewers focuses the people field", () => {
 		expect(only(review(), "review-targets")[0]).toMatchObject({
-			message: "Request GitHub review asks no one",
+			step: "Request GitHub review",
+			message: "Pick people or teams to ask.",
 			fixes: [
 				{
 					label: "Add reviewers",
@@ -647,7 +672,7 @@ describe("review-targets", () => {
 		expect(
 			only(review({ teamReviewers: ["org/team"] }), "review-targets")[0],
 		).toMatchObject({
-			message: "Request GitHub review: org/team is not a team slug",
+			message: "Fix the reviewers: org/team is not a team slug.",
 			fixes: [
 				{
 					label: "Edit reviewers",
@@ -676,17 +701,32 @@ describe("dead-end", () => {
 				rule: "dead-end",
 				severity: "warning",
 				nodeId: "r2",
-				message: "Nothing follows Account age",
+				step: "Account age 2",
+				message: "Nothing runs after it.",
 				fixes: [
 					{
-						label: "Add next step",
+						label: "Add step",
 						intent: { type: "add-next-step", nodeId: "r2", port: "pass" },
 					},
-					{ label: "Delete step", edit: { type: "delete-node", nodeId: "r2" } },
+					{ label: "Delete", edit: { type: "delete-node", nodeId: "r2" } },
 				],
 			},
 		]);
 		expect(only(CLEAN, "dead-end")).toEqual([]);
+	});
+
+	test("a lone trigger only asks for an action, once", () => {
+		const lone = graph([TRIGGER], []);
+		expect(lintWorkflow(lone).map((result) => result.rule)).toEqual([
+			"no-action",
+		]);
+		const withLooseTrigger = graph(
+			[...CLEAN.nodes, { ...TRIGGER, id: "t2" }],
+			CLEAN.edges,
+		);
+		expect(only(withLooseTrigger, "dead-end")).toEqual([
+			expect.objectContaining({ nodeId: "t2", step: "Trigger 2" }),
+		]);
 	});
 
 	test("orphans are not also dead ends", () => {
@@ -694,11 +734,8 @@ describe("dead-end", () => {
 		expect(only(orphan, "dead-end")).toEqual([]);
 	});
 
-	test("Delete step clears it", () => {
-		const next = applyLintEdit(
-			def,
-			fixed(only(def, "dead-end")[0], "Delete step"),
-		);
+	test("Delete clears it", () => {
+		const next = applyLintEdit(def, fixed(only(def, "dead-end")[0], "Delete"));
 		expect(lintWorkflow(next)).toEqual([]);
 	});
 });

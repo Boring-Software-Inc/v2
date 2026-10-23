@@ -1,9 +1,10 @@
-import type {
-	Forge,
-	InstallationEvent,
-	NormalizedEvent,
-	RepoScopedEvent,
-	UsageSource,
+import {
+	type Forge,
+	type InstallationEvent,
+	type NormalizedEvent,
+	normalizedEventSchema,
+	type RepoScopedEvent,
+	type UsageSource,
 } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
@@ -37,6 +38,21 @@ export interface ProcessEventDeps {
 	/** Derived COGS source, threaded to runWorkflows for best-effort metering. */
 	meterSource?: UsageSource;
 	enqueueReviewerSync?: (repoId: string) => Promise<void>;
+	enqueueLabelSync?: (repoId: string) => Promise<void>;
+	selfLogins?: ReadonlySet<string>;
+}
+
+export function isSelfEvent(
+	event: NormalizedEvent,
+	selfLogins: ReadonlySet<string> = new Set(),
+): boolean {
+	if (event.kind === "schedule.matched" || "installation" in event) {
+		return false;
+	}
+	return (
+		(event.kind === "comment.created" && event.comment.byTripwire === true) ||
+		selfLogins.has(event.actor.login.toLowerCase())
+	);
 }
 
 /**
@@ -64,15 +80,18 @@ export async function processEvent(
 	try {
 		// Normalization is pure and chosen by the stored forge — always available
 		// even when that forge's reads/actions runtime is offline.
-		normalized = normalizeFor(event.forge)(
-			{
-				deliveryId: event.deliveryId,
-				eventName: event.rawKind,
-				body: JSON.stringify(event.raw),
-				signature: null,
-			},
-			event.receivedAt.toISOString(),
-		);
+		normalized =
+			event.rawKind === "schedule.matched"
+				? normalizedEventSchema.parse(event.raw)
+				: normalizeFor(event.forge)(
+						{
+							deliveryId: event.deliveryId,
+							eventName: event.rawKind,
+							body: JSON.stringify(event.raw),
+							signature: null,
+						},
+						event.receivedAt.toISOString(),
+					);
 	} catch (error) {
 		const reason = getErrorMessage(error);
 		await eventServices.quarantineEvent(db, event.id, reason);
@@ -166,6 +185,19 @@ export async function processEvent(
 				await enqueueReviewerSync(deps, repo.id);
 			}
 		}
+		return;
+	}
+
+	if (isSelfEvent(normalized, deps.selfLogins)) {
+		logger.info(
+			{
+				eventId: event.id,
+				kind: normalized.kind,
+				actor: normalized.actor.login,
+			},
+			"event caused by tripwire itself, no run",
+		);
+		await pool.query("SELECT pg_notify('runs', $1)", [event.id]);
 		return;
 	}
 
@@ -299,6 +331,7 @@ async function enqueueReviewerSync(
 ): Promise<void> {
 	try {
 		await deps.enqueueReviewerSync?.(repoId);
+		await deps.enqueueLabelSync?.(repoId);
 	} catch (error) {
 		deps.logger.warn(
 			{ repoId, error: getErrorMessage(error) },
