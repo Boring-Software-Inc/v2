@@ -197,6 +197,82 @@ describe("get_run", () => {
 	});
 });
 
+describe("get_run reads like the run page", () => {
+	test("verdict words, steps grouped by workflow, and the unrunnable workflow named", async () => {
+		const listed = await call("list_runs", { repo: "mcp-web" });
+		const runId = runsSchema.parse(JSON.parse(listed.content[0]?.text ?? ""))[0]
+			?.id;
+		await pool.query("UPDATE runs SET verdict = 'needs_review' WHERE id = $1", [
+			runId,
+		]);
+		await pool.query(
+			`INSERT INTO run_steps (id, run_id, node_id, node_kind, status, output, started_at, finished_at, duration_ms)
+			 VALUES ($1, $2, 'run:unrunnable', 'gate', 'skipped', $3, now() - interval '1 hour', now() - interval '1 hour', 0)`,
+			[
+				"mcp-unrunnable-step",
+				runId,
+				JSON.stringify({
+					workflows: [{ id: "broken", name: "Crypto or honeypot" }],
+					issues: [
+						{
+							workflowId: "broken",
+							messages: ["All of: It takes rule results, not events"],
+						},
+					],
+				}),
+			],
+		);
+		const result = await call("get_run", { runId });
+		const run = JSON.parse(result.content[0]?.text ?? "");
+		expect(run.verdict).toBe("needs_review");
+		expect(run.verdictLabel).toBe("Waiting for human review");
+		const unrunnable = run.steps.find(
+			(step: { stepId: string }) => step.stepId === "run:unrunnable",
+		);
+		expect(unrunnable).toMatchObject({
+			workflow: "Crypto or honeypot",
+			outcome: "Could not run",
+			kind: "gate",
+			status: "skipped",
+		});
+	});
+});
+
+describe("list_workflows says what can run, like the web list", () => {
+	test("a trigger wired into all-of can neither run nor be turned on", async () => {
+		await call("apply_workflow", {
+			repo: "mcp-web",
+			definitions: [
+				{
+					id: "bad-allof-trigger",
+					name: "bad-allof-trigger",
+					version: 1,
+					nodes: [
+						{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+						{ id: "g", type: "gate", mode: "all-of" },
+						{ id: "b", type: "action", action: "block" },
+					],
+					edges: [
+						{ id: "e1", from: "t", to: "g" },
+						{ id: "e2", from: "g", to: "b", when: "fail" },
+					],
+				},
+			],
+		});
+		const result = await call("list_workflows", { repo: "mcp-web" });
+		const listed = JSON.parse(result.content[0]?.text ?? "[]");
+		expect(listed).toContainEqual(
+			expect.objectContaining({
+				name: "bad-allof-trigger",
+				enabled: false,
+				runnable: false,
+				canTurnOn: false,
+				state: "cant-turn-on",
+			}),
+		);
+	});
+});
+
 describe("tool errors", () => {
 	test("keep tool names out of the message and put them in the hint", async () => {
 		const result = await call("list_workflows", { repo: "scratch" });

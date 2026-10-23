@@ -11,6 +11,7 @@
  */
 
 export * from "./access.ts";
+export * from "./action-words.ts";
 export * from "./activity.ts";
 export * from "./agent-access.ts";
 export * from "./check.ts";

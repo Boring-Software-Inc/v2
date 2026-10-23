@@ -15,6 +15,7 @@ import {
 	setupProgressInputSchema,
 	setupStageStatusSchema,
 	validationIssueText,
+	verdictLabel,
 	workflowDefinitionSchema,
 	workflowsToCode,
 } from "@tripwire/contracts";
@@ -379,7 +380,8 @@ export function registerTools(
 		server.registerTool(
 			"list_workflows",
 			{
-				description: "The workflows on a repo and whether each is on.",
+				description:
+					"The workflows on a repo. enabled says whether each is on. runnable says Tripwire can run it as wired. canTurnOn says it passes the check for turning it on. state sums them up: on, off, cant-run, needs-fixes or cant-turn-on.",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("list_workflows"),
 			},
@@ -653,6 +655,7 @@ export function registerTools(
 							number: run.subjectNumber,
 							status: run.status,
 							verdict: run.verdict,
+							verdictLabel: verdictLabel(run.verdict),
 							scheduled: run.scheduled,
 							bearsVerdict: run.bearsVerdict,
 							createdAt: run.createdAt.toISOString(),
@@ -668,7 +671,7 @@ export function registerTools(
 			"get_run",
 			{
 				description:
-					"One run with its steps and actions. Each step names its workflow, its title and id, the gate mode for gates, and its outcome in product words. Times are ISO 8601 in UTC.",
+					"One run with its steps and actions. verdictLabel is the verdict in the words the run page uses. Steps are grouped by workflow and follow each workflow's graph. Each step names its workflow, its title and id, the gate mode for gates, and its outcome in product words. Times are ISO 8601 in UTC.",
 				inputSchema: { org: orgArg, runId: z.string().min(1) },
 				annotations: annotate("get_run"),
 			},
@@ -699,16 +702,10 @@ export function registerTools(
 						number: found.run.subjectNumber,
 						status: found.run.status,
 						verdict: found.run.verdict,
+						verdictLabel: verdictLabel(found.run.verdict),
 						createdAt: found.run.createdAt.toISOString(),
 						workflows: snapshot.map((definition) => definition.name),
-						steps: describeRunSteps(snapshot, found.steps).map(
-							(view, index) => ({
-								...view,
-								kind: found.steps[index]?.nodeKind,
-								rule: found.steps[index]?.ruleId ?? null,
-								status: found.steps[index]?.status,
-							}),
-						),
+						steps: describeRunSteps(snapshot, found.steps),
 						actions: found.actions.map((action) => ({
 							kind: action.kind,
 							status: action.status,
@@ -805,9 +802,20 @@ export function registerTools(
 							"list_queue",
 						);
 					}
+					const item = await moderationServices.getModerationItem(
+						ctx.db,
+						itemId,
+					);
+					const run = item
+						? await runServices.getRunById(ctx.db, item.runId)
+						: null;
 					return ok({
 						done: result.ok,
 						alreadyDecided: !result.ok,
+						decision,
+						itemId,
+						repo: found.fullName,
+						number: run?.subjectNumber ?? null,
 					});
 				}),
 		);

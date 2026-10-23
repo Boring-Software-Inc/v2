@@ -258,7 +258,7 @@ export function diffWorkflow(
 				change: "added",
 				subject: "workflow",
 				id: local.id,
-				text: `new workflow ${local.name}`,
+				text: JSON.stringify(local.name),
 			},
 		];
 	}

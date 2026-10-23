@@ -109,7 +109,21 @@ export interface PullWrite {
 	file: string;
 	module: string;
 	count: number;
+	pulled: number;
 	warnings: string[];
+}
+
+function workflowCount(count: number): string {
+	return `${count} ${count === 1 ? "workflow" : "workflows"}`;
+}
+
+export function pulledCountText(
+	write: Pick<PullWrite, "count" | "pulled">,
+): string {
+	const left = write.pulled - write.count;
+	return left > 0
+		? `${workflowCount(write.count)}, ${left} left out`
+		: workflowCount(write.count);
 }
 
 /** Writes pulled definitions as code, refusing to clobber local edits. */
@@ -119,7 +133,7 @@ export function writePulled(
 	force: boolean,
 ): PullWrite {
 	const path = resolve(file);
-	const { code, warnings } = workflowsToCode(definitions, {
+	const { code, warnings, written } = workflowsToCode(definitions, {
 		importFrom: AUTHORING_MODULE_PATH,
 	});
 	if (existsSync(path) && !force && readFileSync(path, "utf8") !== code) {
@@ -129,7 +143,13 @@ export function writePulled(
 	}
 	const module = writeAuthoringModule(path);
 	writeFileSync(path, code);
-	return { file: path, module, count: definitions.length, warnings };
+	return {
+		file: path,
+		module,
+		count: written.length,
+		pulled: definitions.length,
+		warnings,
+	};
 }
 
 /** What the CLI prints of a workflow report, local or from the server. */

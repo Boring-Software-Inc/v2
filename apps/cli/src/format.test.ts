@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	decisionChoiceError,
 	errorLine,
 	formatResult,
 	formatUserCode,
@@ -131,9 +132,38 @@ describe("plain text output", () => {
 		).toBe(
 			[
 				"WORKFLOW                      ID       STATE     TRIGGERS",
-				"Default gate                  wf_1     on        change_request.opened",
+				"Default gate                  wf_1     live      change_request.opened",
 			].join("\n"),
 		);
+	});
+
+	test("workflows list says when a live workflow cannot run, like the web", () => {
+		const rows = formatResult("list_workflows", [
+			{
+				id: "wf_1",
+				name: "Crypto",
+				enabled: true,
+				runnable: false,
+				canTurnOn: false,
+			},
+			{
+				id: "wf_2",
+				name: "bad-allof-trigger",
+				enabled: false,
+				runnable: false,
+				canTurnOn: false,
+			},
+			{
+				id: "wf_3",
+				name: "Fine",
+				enabled: false,
+				runnable: true,
+				canTurnOn: true,
+			},
+		]);
+		expect(rows).toContain("wf_1     can't run");
+		expect(rows).toContain("wf_2     can't turn on");
+		expect(rows).toContain("wf_3     off");
 	});
 
 	test("run show", () => {
@@ -178,7 +208,7 @@ describe("plain text output", () => {
 				"run       run_1",
 				"repo      grim/scratch #12",
 				"status    completed",
-				"verdict   block",
+				"verdict   Blocked",
 				"created   2026-10-22 14:03 UTC",
 				"open      https://app.tripwire.sh/runs/run_1",
 				"",
@@ -226,6 +256,65 @@ describe("plain text output", () => {
 			}),
 		).toBe(
 			"org       grim\nnext      Ask an admin of grim to install the GitHub App",
+		);
+	});
+});
+
+describe("run steps and decisions in product words", () => {
+	test("a workflow that could not run is named in runs show", () => {
+		const text = formatResult("get_run", {
+			id: "run_2",
+			repo: "grim/scratch",
+			number: 140,
+			status: "paused",
+			verdict: "needs_review",
+			createdAt: "2026-10-23T14:15:00.000Z",
+			steps: [
+				{
+					kind: "gate",
+					rule: null,
+					status: "skipped",
+					summary: "All of: It takes rule results, not events",
+					workflow: "QA any of crypto or honeypot blocks",
+					stepId: "run:unrunnable",
+					step: "Its wiring is broken, so Tripwire did not run it",
+					gate: null,
+					outcome: "Could not run",
+				},
+			],
+		});
+		expect(text).toContain("verdict   Waiting for human review");
+		expect(text).toContain(
+			"QA any of crypto or honeypot blocks     Its wiring is broken, so Tripwire did not run it (run:unrunnable)",
+		);
+		expect(text).not.toContain("\n-  ");
+	});
+
+	test("a decision names the decision and the change request", () => {
+		expect(
+			formatResult("decide_moderation", {
+				done: true,
+				decision: "remove",
+				itemId: "i1",
+				repo: "grim/scratch",
+				number: 139,
+			}),
+		).toBe("done      Blocked #139 on grim/scratch");
+		expect(
+			formatResult("decide_moderation", {
+				done: false,
+				alreadyDecided: true,
+				decision: "approve",
+				itemId: "i1",
+				repo: "grim/scratch",
+				number: 139,
+			}),
+		).toBe("done      #139 on grim/scratch was already decided");
+	});
+
+	test("an unknown decision lists the choices", () => {
+		expect(decisionChoiceError("deny")).toBe(
+			"deny is not a choice. Use approve to let the change request through, remove to block it, or ban to get a link where a person bans the contributor.",
 		);
 	});
 });

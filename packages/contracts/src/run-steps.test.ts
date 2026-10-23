@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { describeRunSteps, runSnapshotSchema } from "./run-steps.ts";
+import {
+	describeRunSteps,
+	runSnapshotSchema,
+	VERDICT_LABELS,
+	verdictLabel,
+} from "./run-steps.ts";
 import type { WorkflowDefinition } from "./workflow.ts";
 
 const NEWCOMERS: WorkflowDefinition = {
@@ -33,7 +38,7 @@ describe("run steps read without the code", () => {
 					step("newcomers:stop", "action", "pass"),
 				],
 			),
-		).toEqual([
+		).toMatchObject([
 			{
 				workflow: "Newcomers",
 				stepId: "t",
@@ -94,7 +99,7 @@ describe("run steps read without the code", () => {
 		expect(resumed).toMatchObject({
 			workflow: "Newcomers",
 			stepId: "either",
-			step: "Any of (after review)",
+			step: "Any of",
 			gate: "any of",
 			outcome: "Doesn't pass",
 		});
@@ -111,7 +116,7 @@ describe("run steps read without the code", () => {
 			describeRunSteps(runSnapshotSchema.parse("not a snapshot"), [
 				step("gone:x", "rule", "pass"),
 			]),
-		).toEqual([
+		).toMatchObject([
 			{
 				workflow: null,
 				stepId: "gone:x",
@@ -121,5 +126,107 @@ describe("run steps read without the code", () => {
 				summary: null,
 			},
 		]);
+	});
+
+	test("steps group by workflow and follow the graph after a resume", () => {
+		const review: WorkflowDefinition = {
+			id: "review",
+			name: "Doubtful title",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				{ id: "english", type: "rule", ref: "english-only@1", config: {} },
+				{ id: "hold", type: "action", action: "send-to-moderation" },
+				{
+					id: "after",
+					type: "action",
+					action: "label",
+					params: { labels: ["approved"] },
+				},
+			],
+			edges: [
+				{ id: "e1", from: "t", to: "english" },
+				{ id: "e2", from: "english", to: "hold", when: "fail" },
+				{ id: "e3", from: "hold", to: "after", when: "approve" },
+			],
+		};
+		const views = describeRunSteps(
+			[NEWCOMERS, review],
+			[
+				step("newcomers:t", "trigger", "pass"),
+				step("review:english", "rule", "fail"),
+				step("newcomers:age", "rule", "pass"),
+				step("review:t", "trigger", "pass"),
+				step("review:hold", "action", "paused"),
+				{
+					...step("review:hold:resume", "action", "pass"),
+					output: { action: "send-to-moderation", decision: "approve" },
+				},
+				step("review:after:resume", "action", "pass"),
+			],
+		);
+		expect(
+			views.map((view) => [view.workflow, view.step, view.outcome]),
+		).toEqual([
+			["Newcomers", "Trigger", "Ran"],
+			["Newcomers", "Account age", "Passes"],
+			["Doubtful title", "Trigger", "Ran"],
+			["Doubtful title", "English only", "Doesn't pass"],
+			["Doubtful title", "Human review", "Waiting for human review"],
+			["Doubtful title", "Human review", "Approved"],
+			["Doubtful title", "Label", "Ran"],
+		]);
+		expect(views.some((view) => view.step.includes("after review"))).toBe(
+			false,
+		);
+	});
+
+	test("a workflow that could not run is named, with what is wrong", () => {
+		const [row] = describeRunSteps(
+			[NEWCOMERS],
+			[
+				{
+					nodeId: "run:unrunnable",
+					nodeKind: "gate",
+					ruleId: null,
+					status: "skipped",
+					summary: null,
+					output: {
+						workflows: [{ id: "broken", name: "Crypto or honeypot" }],
+						issues: [
+							{
+								workflowId: "broken",
+								messages: ["All of: It takes rule results, not events"],
+							},
+						],
+					},
+				},
+			],
+		);
+		expect(row).toMatchObject({
+			workflow: "Crypto or honeypot",
+			stepId: "run:unrunnable",
+			step: "Its wiring is broken, so Tripwire did not run it",
+			outcome: "Could not run",
+			summary: "All of: It takes rule results, not events",
+		});
+	});
+});
+
+describe("verdict words", () => {
+	test("match the run page", () => {
+		expect(verdictLabel("pass")).toBe("Passed");
+		expect(verdictLabel("block")).toBe("Blocked");
+		expect(verdictLabel("needs_review")).toBe("Waiting for human review");
+		expect(Object.keys(VERDICT_LABELS)).toEqual([
+			"pass",
+			"block",
+			"needs_review",
+		]);
+	});
+
+	test("an unknown or missing verdict has no words", () => {
+		expect(verdictLabel(null)).toBeNull();
+		expect(verdictLabel("maybe")).toBeNull();
 	});
 });

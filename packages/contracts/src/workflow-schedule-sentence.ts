@@ -132,3 +132,34 @@ export function scheduleShortSummary(draft: ScheduleDraft | undefined): string {
 		.join(" ");
 	return rest ? `${every}, ${rest}` : every;
 }
+
+const SCHEDULE_FIELD_LABELS = new Map([
+	["every", "The schedule"],
+	["every.n", "The interval"],
+	["every.unit", "The interval unit"],
+	["every.minute", "The minute"],
+	["every.at", "The time"],
+	["every.at.hour", "The hour"],
+	["every.at.minute", "The minute"],
+	["every.on", "The weekday"],
+	["every.day", "The day of the month"],
+	["every.cron", "The cron"],
+	["every.preset", "The preset"],
+	["timezone", "The timezone"],
+	["match", "What it looks for"],
+	["match.subjects", "What it looks at"],
+	["match.state", "The state"],
+	["match.inactiveFor", "The inactive time"],
+	["match.inactiveFor.n", "The inactive time"],
+	["match.inactiveFor.unit", "The inactive time unit"],
+	["match.labels", "The labels"],
+	["match.excludeLabels", "The labels to skip"],
+	["match.skipLocked", "Skip locked"],
+]);
+
+export function scheduleFieldLabel(
+	path: readonly PropertyKey[],
+): string | null {
+	const key = path.filter((part) => typeof part === "string").join(".");
+	return SCHEDULE_FIELD_LABELS.get(key) ?? null;
+}

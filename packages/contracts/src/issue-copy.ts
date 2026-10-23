@@ -65,14 +65,23 @@ function productText(issue: z.core.$ZodIssue, field: string): string | null {
 	}
 }
 
+export type FieldLabeler = (path: readonly PropertyKey[]) => string | null;
+
 /** One validation issue as a product sentence that names its field. */
-export function fieldIssueSentence(issue: z.core.$ZodIssue): string {
-	const field = fieldName(issue.path);
+export function fieldIssueSentence(
+	issue: z.core.$ZodIssue,
+	label?: FieldLabeler,
+): string {
+	const named = label?.(issue.path) ?? null;
+	const field = named ?? fieldName(issue.path);
 	if (ZOD_DEFAULT_TEXT.test(issue.message)) {
 		const text = productText(issue, field || "This setting");
 		if (text) {
 			return text;
 		}
+	}
+	if (named) {
+		return `${named} is not valid: ${issue.message}`;
 	}
 	return field ? `${field}: ${issue.message}` : issue.message;
 }

@@ -128,7 +128,7 @@ describe("management commands over MCP", () => {
 			/^RUN\s+REPO\s+PR\s+STATUS\s+VERDICT\s+CREATED$/,
 		);
 		expect(result.stdout).toMatch(
-			/run_1\s+scratch\s+#12\s+completed\s+block\s+2026-10-22 14:03 UTC/,
+			/run_1\s+scratch\s+#12\s+completed\s+Blocked\s+2026-10-22 14:03 UTC/,
 		);
 	});
 
@@ -282,11 +282,31 @@ describe("management commands over MCP", () => {
 
 	test("rejects unknown queue actions before calling the server", async () => {
 		const result = await runCli(
-			["queue", "decide", "scratch", "item_9", "delete"],
+			["queue", "decide", "scratch", "item_9", "deny"],
 			env(),
 		);
 		expect(result.code).toBe(1);
+		expect(result.stderr).toBe(
+			"error     deny is not a choice. Use approve to let the change request through, remove to block it, or ban to get a link where a person bans the contributor.\n",
+		);
 		expect(server.calls).toEqual([]);
+	});
+
+	test("a decision says what was decided and on what", async () => {
+		server.answerNext("decide_moderation", {
+			done: true,
+			alreadyDecided: false,
+			decision: "approve",
+			itemId: "item_9",
+			repo: "grim/scratch",
+			number: 138,
+		});
+		const result = await runCli(
+			["queue", "decide", "scratch", "item_9", "approve"],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		expect(result.stdout).toBe("done      Approved #138 on grim/scratch\n");
 	});
 
 	test("tool errors exit 1 and show as json errors", async () => {
@@ -431,7 +451,7 @@ describe("workflows as code", () => {
 
 	test("pull writes tripwire.ts and the typed helpers beside it", async () => {
 		const result = await pulled();
-		expect(result.stdout).toContain("(1 workflows)");
+		expect(result.stdout).toContain("(1 workflow)");
 		const code = readFileSync(file(), "utf8");
 		expect(code).toContain('from "./.tripwire/workflow.ts"');
 		expect(code).toContain('check("account-age", {');
@@ -559,7 +579,7 @@ export default workflows({
 		);
 		expect(result.stderr).toBe("");
 		expect(result.stdout).toContain(
-			"schedule: Every 15 minutes (Europe/Berlin), finds open issues with no activity for 3 weeks, labeled needs-info, skipping locked ones. Then Close.",
+			"schedule: Every 15 minutes (Europe/Berlin), finds open issues with no activity for 3 weeks, labeled needs-info, skipping locked ones. Then Tripwire closes it.",
 		);
 	});
 

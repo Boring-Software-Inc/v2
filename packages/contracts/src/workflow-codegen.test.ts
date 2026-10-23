@@ -222,6 +222,17 @@ describe("diffWorkflow", () => {
 			"removed connection: mod → ok (Approved)",
 		]);
 	});
+
+	test("a new workflow is named once, not called new twice", () => {
+		expect(diffWorkflow(null, MODERATED)).toEqual([
+			{
+				change: "added",
+				subject: "workflow",
+				id: MODERATED.id,
+				text: '"Moderated newcomers"',
+			},
+		]);
+	});
 });
 
 describe("diffWorkflow names the field a step changed", () => {
@@ -328,6 +339,11 @@ describe("pull leaves out what code cannot say, and says so", () => {
 			"Copy: another workflow already uses the id draft, so it is left out",
 		]);
 		expect(compiled.ok).toBe(true);
+		expect(
+			workflowsToCode([draft, { ...draft, name: "Copy" }], {
+				importFrom: "./x",
+			}).written,
+		).toEqual(["draft"]);
 	});
 });
 

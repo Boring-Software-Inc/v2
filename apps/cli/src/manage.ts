@@ -16,6 +16,7 @@ import {
 import { loadSession } from "#/auth/session";
 import { authUrl, mcpUrl } from "#/config";
 import {
+	decisionChoiceError,
 	errorLine,
 	formatResult,
 	formatUserCode,
@@ -32,6 +33,7 @@ import {
 	formatReports,
 	loadWorkflowFile,
 	localCatalog,
+	pulledCountText,
 	pulledDefinitions,
 	type ReportView,
 	writePulled,
@@ -429,7 +431,7 @@ function pullWorkflows(
 		out(
 			pairs(
 				[
-					["wrote", `${written.file} (${written.count} workflows)`],
+					["wrote", `${written.file} (${pulledCountText(written)})`],
 					["helpers", written.module],
 					...written.warnings.map((warning): [string, string] => [
 						"note",
@@ -828,7 +830,7 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 			) => {
 				if (!["approve", "remove", "ban"].includes(action)) {
 					process.exitCode = fail(
-						new Error("action must be approve, remove or ban"),
+						new Error(decisionChoiceError(action)),
 						globals(command, deps.system),
 					);
 					return;

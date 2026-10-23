@@ -1,3 +1,8 @@
+import {
+	verdictLabel,
+	WORKFLOW_STATE_LABELS,
+	workflowState,
+} from "@tripwire/contracts";
 import pc from "picocolors";
 import { z } from "zod";
 
@@ -166,9 +171,30 @@ const workflowsSchema = z.array(
 		id: z.string(),
 		name: z.string(),
 		enabled: z.boolean(),
+		runnable: z.boolean().optional(),
+		canTurnOn: z.boolean().optional(),
 		triggerKinds: z.array(z.string()).optional(),
 	}),
 );
+
+function workflowStateWord(
+	workflow: z.infer<typeof workflowsSchema>[number],
+	style: Style,
+): string {
+	const state = workflowState({
+		enabled: workflow.enabled,
+		runnable: workflow.runnable ?? true,
+		canTurnOn: workflow.canTurnOn ?? true,
+	});
+	const word = WORKFLOW_STATE_LABELS[state].toLowerCase();
+	if (state === "on") {
+		return style.good(word);
+	}
+	if (state === "cant-run" || state === "needs-fixes") {
+		return style.bad(word);
+	}
+	return word;
+}
 
 const workflowSetSchema = z.object({
 	enabled: z.boolean(),
@@ -227,23 +253,51 @@ const decideSchema = z.object({
 	alreadyDecided: z.boolean().optional(),
 	confirmUrl: z.string().optional(),
 	forUser: z.string().optional(),
+	decision: z.enum(["approve", "remove", "ban"]).optional(),
+	itemId: z.string().optional(),
+	repo: z.string().optional(),
+	number: z.number().nullish(),
 });
+
+export const DECISION_CHOICES = [
+	["approve", "let the change request through"],
+	["remove", "block it"],
+	["ban", "get a link where a person bans the contributor"],
+] as const;
+
+export function decisionChoiceError(action: string): string {
+	const choices = DECISION_CHOICES.map(
+		([choice, effect]) => `${choice} to ${effect}`,
+	);
+	return `${action} is not a choice. Use ${choices.slice(0, -1).join(", ")}, or ${choices.at(-1)}.`;
+}
+
+const DECIDED_WORDS = { approve: "Approved", remove: "Blocked" } as const;
+
+function decidedTarget(value: z.infer<typeof decideSchema>): string {
+	const where = value.number ? `#${value.number}` : value.itemId;
+	if (!where) {
+		return "";
+	}
+	return value.repo ? ` ${where} on ${value.repo}` : ` ${where}`;
+}
 
 const setRuleSchema = z.object({ ruleId: z.string(), enabled: z.boolean() });
 
 const gateSchema = z.object({ repo: z.string(), url: z.string().optional() });
 
 function verdictWord(verdict: string | null | undefined, style: Style): string {
-	if (!verdict) {
-		return "-";
+	const label = verdictLabel(verdict);
+	if (!(verdict && label)) {
+		return verdict ?? "-";
 	}
 	if (verdict === "pass") {
-		return style.good(verdict);
+		return style.good(label);
 	}
 	if (verdict === "block") {
-		return style.bad(verdict);
+		return style.bad(label);
 	}
-	return style.next(verdict);
+	return style.next(label);
 }
 
 type Formatter = (data: JsonValue, style: Style) => string | null;
@@ -365,7 +419,7 @@ const FORMATTERS: Record<string, Formatter> = {
 			workflows.map((workflow) => [
 				workflow.name,
 				workflow.id,
-				onOff(workflow.enabled, style),
+				workflowStateWord(workflow, style),
 				(workflow.triggerKinds ?? []).join(", "),
 			]),
 		);
@@ -455,10 +509,18 @@ const FORMATTERS: Record<string, Formatter> = {
 				style,
 			);
 		}
-		return pairs(
-			[["done", value.done ? style.good("Decided") : "Already decided"]],
-			style,
-		);
+		const target = decidedTarget(value);
+		if (!value.done) {
+			return pairs(
+				[["done", `${target.trim() || "This item"} was already decided`]],
+				style,
+			);
+		}
+		const word =
+			value.decision === "approve" || value.decision === "remove"
+				? DECIDED_WORDS[value.decision]
+				: "Decided";
+		return pairs([["done", style.good(`${word}${target}`)]], style);
 	}),
 };
 

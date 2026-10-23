@@ -244,7 +244,7 @@ describe("automation-shaped graphs", () => {
 				timezone: "Europe/Berlin",
 				defaulted: false,
 				description:
-					"At 08:00 on Sunday (Europe/Berlin), finds open issues with no activity for 30 days, skipping locked ones. Then Comment.",
+					"At 08:00 on Sunday (Europe/Berlin), finds open issues with no activity for 30 days, skipping locked ones. Then Tripwire posts your comment.",
 			},
 		]);
 	});
@@ -461,10 +461,16 @@ describe("invalid workflows say what is wrong", () => {
 			}),
 		});
 		expect(zone.ok || zone.issues.map(compileIssueText)).toEqual([
-			"x > schedule: timezone: Europe/Berlinn is not an IANA timezone, like Europe/Berlin",
+			"x > schedule: The timezone is not valid: Europe/Berlinn is not an IANA timezone, like Europe/Berlin.",
 		]);
 		expect(zero.ok || zero.issues.map(compileIssueText)).toEqual([
-			"x > schedule: match.inactiveFor.n must be 1 or more",
+			"x > schedule: The inactive time must be 1 or more.",
+		]);
+		const cron = compileWorkflowModule({
+			default: scheduled({ every: { cron: "75 * * * *" }, match }),
+		});
+		expect(cron.ok || cron.issues.map(compileIssueText)).toEqual([
+			"x > schedule: The cron is not valid: minute must be 0 to 59.",
 		]);
 	});
 

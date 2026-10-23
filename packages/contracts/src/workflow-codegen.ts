@@ -446,6 +446,7 @@ export interface CodegenResult {
 	code: string;
 	/** Things the code cannot say, so a push of it would drop them. */
 	warnings: string[];
+	written: string[];
 }
 
 function workflowFunction(
@@ -517,6 +518,7 @@ export function workflowsToCode(
 	const blocks: string[] = [];
 	const entries: string[] = [];
 	const ids = new Set<string>();
+	const written: string[] = [];
 	for (const definition of definitions) {
 		if (ids.has(definition.id)) {
 			warnings.push(
@@ -538,6 +540,7 @@ export function workflowsToCode(
 			name = `${base}${n}`;
 		}
 		used.add(name);
+		written.push(definition.id);
 		blocks.push(workflowFunction(definition, name, warnings));
 		entries.push(`\t${propertyKey(definition.id)}: ${name}(),`);
 	}
@@ -552,7 +555,7 @@ export function workflowsToCode(
 		`import {\n${helpers.map((helper) => `\t${helper},`).join("\n")}\n} from ${JSON.stringify(options.importFrom)};`,
 		body,
 	].join("\n\n");
-	return { code: `${code}\n`, warnings };
+	return { code: `${code}\n`, warnings, written };
 }
 
 /**

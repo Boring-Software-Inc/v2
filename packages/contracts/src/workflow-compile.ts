@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { actionEffect, listWords } from "./action-words.ts";
 import { type EventKind, eventKindSchema } from "./events.ts";
 import { fieldIssueSentence } from "./issue-copy.ts";
 import { RULE_CATALOG } from "./rules.ts";
@@ -33,11 +34,17 @@ import {
 import {
 	type LintResult,
 	lintWorkflow,
-	stepNames,
 	type ValidationCatalogEntry,
 } from "./workflow-lint.ts";
 import { describeSchedule, scheduleZone } from "./workflow-schedule.ts";
-import { scheduleSentenceText } from "./workflow-schedule-sentence.ts";
+import {
+	scheduleFieldLabel,
+	scheduleSentenceText,
+} from "./workflow-schedule-sentence.ts";
+
+function asSentence(text: string): string {
+	return /[.?]$/.test(text) ? text : `${text}.`;
+}
 
 export interface CompileIssue {
 	workflow: string;
@@ -384,7 +391,10 @@ class WorkflowCompiler {
 			const parsed = triggerScheduleSchema.safeParse(step.schedule);
 			if (!parsed.success) {
 				for (const problem of parsed.error.issues) {
-					this.issue(`schedule: ${fieldIssueSentence(problem)}`, step);
+					this.issue(
+						asSentence(fieldIssueSentence(problem, scheduleFieldLabel)),
+						step,
+					);
 				}
 				return;
 			}
@@ -652,7 +662,6 @@ function actionsAfter(
 	definition: WorkflowDefinition,
 	startId: string,
 ): string[] {
-	const names = stepNames(definition);
 	const byId = new Map(definition.nodes.map((node) => [node.id, node]));
 	const seen = new Set<string>([startId]);
 	const queue = [startId];
@@ -664,8 +673,9 @@ function actionsAfter(
 			}
 			seen.add(edge.to);
 			queue.push(edge.to);
-			if (byId.get(edge.to)?.type === "action") {
-				actions.push(names.get(edge.to) ?? edge.to);
+			const node = byId.get(edge.to);
+			if (node?.type === "action") {
+				actions.push(actionEffect(node.action, node.params));
 			}
 		}
 	}
@@ -694,7 +704,7 @@ export function scheduleReadBacks(
 				defaulted: zone.defaulted,
 				description:
 					actions.length > 0
-						? `${sentence} Then ${actions.join(", ")}.`
+						? `${sentence} Then Tripwire ${listWords(actions)}.`
 						: `${sentence} No action runs after it.`,
 			},
 		];
