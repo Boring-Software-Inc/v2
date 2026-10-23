@@ -1,5 +1,6 @@
 import type {
 	JsonValue,
+	LintRuleId,
 	RepoScopedEvent,
 	RuleResult,
 	UsageSource,
@@ -13,6 +14,7 @@ import {
 	customRuleSummary,
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
+	validateWorkflow,
 } from "@tripwire/contracts";
 import {
 	type AiReviewGenerate,
@@ -241,11 +243,27 @@ async function runWorkflowsInner(
 		? await repoServices.listCustomRules(db, repo.id)
 		: [];
 
-	const custom = await repoServices.listEnabledWorkflows(
+	const stored = await repoServices.listEnabledWorkflows(
 		db,
 		event.repo.fullName,
 		event.forge,
 	);
+	const custom = stored.filter((definition) => {
+		const checked = validateWorkflow(definition);
+		const broken = checked.valid
+			? []
+			: checked.issues.filter((issue) => UNRUNNABLE.has(issue.rule));
+		if (broken.length > 0) {
+			logger.warn(
+				{
+					workflowId: definition.id,
+					issues: broken.map((issue) => issue.message),
+				},
+				"enabled workflow has wiring the executor cannot run, skipping it",
+			);
+		}
+		return broken.length === 0;
+	});
 	// Saved workflows orchestrate the rules they CONTAIN — they do not turn the
 	// rest off. Rules outside every enabled workflow keep running standalone via
 	// the derived default over the leftover toggles; owned rule ids are excluded
@@ -691,6 +709,21 @@ export function publicSkipReason(reason: string): string {
 		? "Tripwire could not check this rule."
 		: reason;
 }
+
+/**
+ * Lint errors that make a walk meaningless. A live workflow saved after it
+ * was turned on skips the enable check, so the worker refuses these itself.
+ */
+const UNRUNNABLE: ReadonlySet<LintRuleId> = new Set([
+	"cycle",
+	"gate-input",
+	"not-input",
+	"trigger-input",
+	"wrong-output",
+	"no-outputs",
+	"missing-step",
+	"duplicate-id",
+]);
 
 export function makeEvaluator(
 	ctx: RuleContext,

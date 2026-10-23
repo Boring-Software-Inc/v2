@@ -1,7 +1,9 @@
 import {
-	applyPort,
 	edgePort,
+	foldGate,
+	type NodeOutcome,
 	type NormalizedEvent,
+	portValue,
 	type RuleResult,
 	type Verdict,
 	type WorkflowDefinition,
@@ -13,8 +15,6 @@ import {
  * input/output recorded as a step. Pure — rule evaluation arrives injected so
  * the executor never touches the registry, the adapter, or the clock directly.
  */
-
-export type NodeOutcome = "pass" | "fail";
 
 export interface StepRecord {
 	nodeId: string;
@@ -126,7 +126,7 @@ export async function executeWorkflow(
 					when === (resume.decision === "approve" ? "approve" : "deny")
 				);
 			}
-			return source === when;
+			return portValue(when, source) === "pass";
 		});
 	};
 
@@ -216,12 +216,16 @@ export async function executeWorkflow(
 			// worker as it derives the default over non-workflowed rules.
 			const result = await evaluateRuleRef(node.ref, node.config);
 			const outcome: NodeOutcome =
-				result.status === "skipped" || result.passed ? "pass" : "fail";
+				result.status === "skipped"
+					? "skipped"
+					: result.passed
+						? "pass"
+						: "fail";
 			outcomes.set(node.id, outcome);
 			conducted.add(node.id);
 			await record(
 				node,
-				result.status === "skipped" ? "skipped" : outcome,
+				outcome,
 				{ ref: node.ref, config: node.config },
 				result,
 				startedAt,
@@ -242,23 +246,15 @@ export async function executeWorkflow(
 						outcome:
 							source === undefined || !conducted.has(e.from)
 								? null
-								: applyPort(port, source),
+								: portValue(port, source),
 					};
 				});
-			const known = inputs
-				.map((i) => i.outcome)
-				.filter((o): o is NodeOutcome => o !== null);
-			let outcome: NodeOutcome;
-			if (node.mode === "all-of") {
-				outcome =
-					known.length > 0 && known.every((o) => o === "pass")
-						? "pass"
-						: "fail";
-			} else if (node.mode === "any-of") {
-				outcome = known.some((o) => o === "pass") ? "pass" : "fail";
-			} else {
-				outcome = known[0] === "pass" ? "fail" : "pass";
-			}
+			const outcome = foldGate(
+				node.mode,
+				inputs
+					.map((i) => i.outcome)
+					.filter((o): o is NodeOutcome => o !== null),
+			);
 			outcomes.set(node.id, outcome);
 			conducted.add(node.id);
 			await record(

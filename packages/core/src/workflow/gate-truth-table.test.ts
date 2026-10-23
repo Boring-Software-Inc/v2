@@ -38,22 +38,47 @@ function resultFor(ref: string, state: InputState): RuleResult {
 }
 
 /**
- * The oracle, written apart from the executor: a rule that cannot evaluate
- * counts as passing, then the edge's port applies, then the gate folds.
+ * The oracle, written apart from the executor. A rule that cannot evaluate is
+ * unknown, so the oracle tries it both ways: the gate passes or fails only
+ * when every possible world agrees, and is skipped otherwise.
  */
-function expectedInput(state: InputState, port: InputPort): boolean {
-	const passed = state !== "fails";
-	return port === "pass" ? passed : !passed;
+function possibleInputs(state: InputState, port: InputPort): boolean[] {
+	const worlds =
+		state === "passes" ? [true] : state === "fails" ? [false] : [true, false];
+	return worlds.map((passed) => (port === "pass" ? passed : !passed));
 }
 
-function expectedGate(mode: GateMode, inputs: boolean[]): "pass" | "fail" {
+function plainGate(mode: GateMode, inputs: readonly boolean[]): boolean {
 	if (mode === "all-of") {
-		return inputs.every(Boolean) ? "pass" : "fail";
+		return inputs.every(Boolean);
 	}
 	if (mode === "any-of") {
-		return inputs.some(Boolean) ? "pass" : "fail";
+		return inputs.some(Boolean);
 	}
-	return inputs[0] ? "fail" : "pass";
+	return !inputs[0];
+}
+
+function worlds(choices: readonly boolean[][]): boolean[][] {
+	const [first, ...rest] = choices;
+	if (!first) {
+		return [[]];
+	}
+	return first.flatMap((value) => worlds(rest).map((tail) => [value, ...tail]));
+}
+
+function expectedGate(
+	mode: GateMode,
+	wires: readonly Wire[],
+): "pass" | "fail" | "skipped" {
+	const answers = new Set(
+		worlds(wires.map((wire) => possibleInputs(wire.state, wire.port))).map(
+			(inputs) => plainGate(mode, inputs),
+		),
+	);
+	if (answers.size > 1) {
+		return "skipped";
+	}
+	return answers.has(true) ? "pass" : "fail";
 }
 
 interface Wire {
@@ -138,10 +163,7 @@ describe("gate truth tables", async () => {
 				for (const wires of combinations(size)) {
 					const result = await runGate(event, mode, wires);
 					const gate = result.steps.find((step) => step.nodeId === "g");
-					const want = expectedGate(
-						mode,
-						wires.map((wire) => expectedInput(wire.state, wire.port)),
-					);
+					const want = expectedGate(mode, wires);
 					expect({ wires: label(wires), gate: gate?.status }).toEqual({
 						wires: label(wires),
 						gate: want,
@@ -159,10 +181,7 @@ describe("gate truth tables", async () => {
 		for (const wires of combinations(1)) {
 			const result = await runGate(event, "not", wires);
 			const gate = result.steps.find((step) => step.nodeId === "g");
-			const want = expectedGate(
-				"not",
-				wires.map((wire) => expectedInput(wire.state, wire.port)),
-			);
+			const want = expectedGate("not", wires);
 			expect({ wires: label(wires), gate: gate?.status }).toEqual({
 				wires: label(wires),
 				gate: want,
@@ -229,6 +248,57 @@ describe("regression: Doesn't pass into a gate", async () => {
 			const viaNot = await runGate(event, "not", [{ state, port: "pass" }]);
 			expect(direct.verdict).toBe(viaNot.verdict);
 		}
+	});
+});
+
+describe("regression: a rule that cannot run behind a Not", async () => {
+	const event = await fixtureEvent("change-request.opened.event");
+
+	const definition: WorkflowDefinition = {
+		id: "not-chain",
+		name: "not-chain",
+		version: 1,
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			{ id: "r", type: "rule", ref: "r@1", config: {} },
+			{ id: "not", type: "gate", mode: "not" },
+			{ id: "all", type: "gate", mode: "all-of" },
+			{ id: "block", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "r" },
+			{ id: "e2", from: "r", to: "not" },
+			{ id: "e3", from: "not", to: "all" },
+			{ id: "e4", from: "all", to: "block", when: "fail" },
+		],
+	};
+
+	test("never blocks, whatever the negations", async () => {
+		for (const state of ["skipped", "errored"] as const) {
+			const result = await executeWorkflow({
+				definition,
+				event,
+				evaluateRuleRef: (ref) => Promise.resolve(resultFor(ref, state)),
+				now: () => "2026-10-23T00:00:00.000Z",
+			});
+			expect(result.verdict).toBe("pass");
+			expect(result.steps.map((step) => [step.nodeId, step.status])).toEqual([
+				["t", "pass"],
+				["r", "skipped"],
+				["not", "skipped"],
+				["all", "skipped"],
+			]);
+		}
+	});
+
+	test("still blocks when the rule ran and passed", async () => {
+		const result = await executeWorkflow({
+			definition,
+			event,
+			evaluateRuleRef: (ref) => Promise.resolve(resultFor(ref, "passes")),
+			now: () => "2026-10-23T00:00:00.000Z",
+		});
+		expect(result.verdict).toBe("block");
 	});
 });
 

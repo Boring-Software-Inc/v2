@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import type { RuleResult, WorkflowDefinition } from "@tripwire/contracts";
+import type {
+	NodeOutcome,
+	RuleResult,
+	WorkflowDefinition,
+} from "@tripwire/contracts";
 import { fixtureEvent } from "../rules/test-context.ts";
-import { executeWorkflow, type NodeOutcome } from "./executor.ts";
+import { executeWorkflow } from "./executor.ts";
 import { validateWorkflow } from "./validate.ts";
 
 /** A gate workflow: two rules → all-of → block on fail. */

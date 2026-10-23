@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { EdgeWhen, WorkflowActionKind, WorkflowNode } from "./workflow.ts";
+import type {
+	EdgeWhen,
+	GateMode,
+	WorkflowActionKind,
+	WorkflowNode,
+} from "./workflow.ts";
 
 export type WorkflowNodeType = WorkflowNode["type"];
 
@@ -80,6 +85,47 @@ export function applyPort(
 		return outcome;
 	}
 	return outcome === "pass" ? "fail" : "pass";
+}
+
+/**
+ * A node's settled value. `skipped` is unknown: a rule that could not
+ * evaluate, or a gate whose answer hangs on one. Unknown values conduct on no
+ * port, so a rule that cannot run never fires an action, through any number
+ * of negations.
+ */
+export type NodeOutcome = "pass" | "fail" | "skipped";
+
+/** The value a node's outcome carries out of `port`. */
+export function portValue(
+	port: WorkflowPort,
+	outcome: NodeOutcome,
+): NodeOutcome {
+	return outcome === "skipped" ? "skipped" : applyPort(port, outcome);
+}
+
+/**
+ * Kleene three-valued folds over the inputs that ran. An unknown input
+ * decides a gate only when the known inputs leave the answer open.
+ */
+export function foldGate(
+	mode: GateMode,
+	inputs: readonly NodeOutcome[],
+): NodeOutcome {
+	if (mode === "not") {
+		const [only] = inputs;
+		if (only === undefined || only === "skipped") {
+			return "skipped";
+		}
+		return only === "pass" ? "fail" : "pass";
+	}
+	const decisive = mode === "all-of" ? "fail" : "pass";
+	if (inputs.includes(decisive)) {
+		return decisive;
+	}
+	if (inputs.length === 0 || inputs.includes("skipped")) {
+		return "skipped";
+	}
+	return decisive === "fail" ? "pass" : "fail";
 }
 
 export const WORKFLOW_PORT_LABELS = {

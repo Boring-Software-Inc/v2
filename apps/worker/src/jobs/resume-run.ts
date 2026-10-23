@@ -1,12 +1,13 @@
 import type {
 	Forge,
+	NodeOutcome,
 	NormalizedEvent,
 	RepoScopedEvent,
 	Verdict,
 	WorkflowDefinition,
 } from "@tripwire/contracts";
 import { workflowDefinitionSchema } from "@tripwire/contracts";
-import { executeWorkflow, type NodeOutcome } from "@tripwire/core";
+import { executeWorkflow } from "@tripwire/core";
 import {
 	eventServices,
 	moderationServices,
@@ -283,7 +284,10 @@ function deriveOutcomes(
 		}
 		const local = step.nodeId.slice(wfId.length + 1);
 		if (definition.nodes.some((node) => node.id === local)) {
-			outcomes[local] = step.status === "fail" ? "fail" : "pass";
+			outcomes[local] =
+				step.status === "fail" || step.status === "skipped"
+					? step.status
+					: "pass";
 		}
 	}
 	return outcomes;
