@@ -1,5 +1,6 @@
 import {
 	type CompileIssue,
+	compileIssueText,
 	reportWorkflows,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
@@ -329,13 +330,7 @@ function compileIssueLines(
 	options: GlobalOptions,
 ): string {
 	return issues
-		.map((issue) => {
-			const where = [issue.workflow, issue.step].filter(Boolean).join(" > ");
-			return errorLine(
-				where ? `${where}: ${issue.message}` : issue.message,
-				options.errStyle,
-			);
-		})
+		.map((issue) => errorLine(compileIssueText(issue), options.errStyle))
 		.join("\n");
 }
 

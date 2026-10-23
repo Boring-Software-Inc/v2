@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { type EventKind, eventKindSchema } from "./events.ts";
+import { fieldIssueSentence } from "./issue-copy.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import {
 	type EdgeWhen,
@@ -40,6 +41,21 @@ export interface CompileIssue {
 	workflow: string;
 	step?: string;
 	message: string;
+}
+
+/** A compile issue as one line, naming its workflow and step once. */
+export function compileIssueText(issue: CompileIssue): string {
+	const { workflow, step, message } = issue;
+	const named =
+		step !== undefined &&
+		(message.startsWith(`${step} `) || message.startsWith(`${step}:`));
+	const where = [workflow, named ? undefined : step]
+		.filter(Boolean)
+		.join(" > ");
+	if (!where) {
+		return message;
+	}
+	return named ? `${where} > ${message}` : `${where}: ${message}`;
 }
 
 export type CompileResult =
@@ -138,10 +154,8 @@ export function settingsIssues(
 	const parsed = schema.safeParse(record.data);
 	return parsed.success
 		? []
-		: parsed.error.issues.map((issue) =>
-				issue.path.length > 0
-					? `${what}: ${issue.path.join(".")}: ${issue.message}`
-					: `${what}: ${issue.message}`,
+		: parsed.error.issues.map(
+				(issue) => `${what}: ${fieldIssueSentence(issue)}`,
 			);
 }
 
@@ -368,10 +382,7 @@ class WorkflowCompiler {
 			const parsed = triggerScheduleSchema.safeParse(step.schedule);
 			if (!parsed.success) {
 				for (const problem of parsed.error.issues) {
-					this.issue(
-						`schedule: ${problem.path.length > 0 ? `${problem.path.join(".")}: ` : ""}${problem.message}`,
-						step,
-					);
+					this.issue(`schedule: ${fieldIssueSentence(problem)}`, step);
 				}
 				return;
 			}
@@ -581,7 +592,7 @@ class WorkflowCompiler {
 		});
 		if (!parsed.success) {
 			for (const problem of parsed.error.issues) {
-				this.issue(problem.message);
+				this.issue(fieldIssueSentence(problem));
 			}
 			return null;
 		}

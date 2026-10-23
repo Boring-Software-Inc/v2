@@ -29,7 +29,12 @@ describe("friendlyError", () => {
 			friendlyError(
 				"MCP error -32602: Input validation error: Invalid arguments for tool list_runs: Too big: expected number to be <=50 at limit",
 			),
-		).toBe("Invalid argument: limit (Too big: expected number to be <=50).");
+		).toBe("limit must be 50 or less.");
+		expect(
+			friendlyError(
+				'MCP error -32602: Input validation error: Invalid arguments for tool list_runs: Too small: expected number to be >=1 at limit\nInvalid option: expected one of "approve"|"deny" at decision',
+			),
+		).toBe("limit must be 1 or more. decision must be one of approve, deny.");
 	});
 
 	test("maps the server hint to a CLI command", () => {

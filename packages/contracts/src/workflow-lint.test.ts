@@ -813,3 +813,25 @@ describe("delivery and label steps need their settings to go live", () => {
 		).toBe(true);
 	});
 });
+
+describe("a bad rule setting reads as a product sentence", () => {
+	test("it names the field and never shows raw validation text", () => {
+		const results = lintWorkflow({
+			id: "w",
+			name: "w",
+			version: 1,
+			nodes: [
+				TRIGGER,
+				{ ...RULE, config: { minDays: -1 } },
+				{ id: "x", type: "action", action: "block" },
+			],
+			edges: [
+				{ id: "1", from: "t", to: "r" },
+				{ id: "2", from: "r", to: "x", when: "fail" },
+			],
+		});
+		const messages = results.map((result) => result.message);
+		expect(messages).toContain("Fix this setting: minDays must be 0 or more.");
+		expect(messages.join(" ")).not.toMatch(/Too small|expected number/);
+	});
+});

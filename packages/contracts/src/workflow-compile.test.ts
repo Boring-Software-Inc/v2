@@ -7,6 +7,7 @@ import {
 } from "./workflow-authoring-catalog.ts";
 import {
 	checkWorkflows,
+	compileIssueText,
 	compileWorkflowModule,
 	compileWorkflows,
 	didYouMean,
@@ -425,7 +426,66 @@ describe("invalid workflows say what is wrong", () => {
 					}),
 				}),
 			),
-		).toEqual(["account-age: minDays: Too small: expected number to be >=0"]);
+		).toEqual(["account-age: minDays must be 0 or more"]);
+	});
+
+	test("a bad schedule names the field once, in product words", () => {
+		const scheduled = (settings: Settings) =>
+			workflows({
+				x: workflow({
+					on: schedule(
+						// @ts-expect-error
+						settings,
+					),
+					run: [close()],
+				}),
+			});
+		const match = {
+			subjects: ["issue"],
+			state: "open",
+			inactiveFor: { n: 3, unit: "days" },
+		};
+		const zone = compileWorkflowModule({
+			default: scheduled({
+				every: { preset: "daily", at: "09:00" },
+				timezone: "Europe/Berlinn",
+				match,
+			}),
+		});
+		const zero = compileWorkflowModule({
+			default: scheduled({
+				every: { preset: "daily", at: "09:00" },
+				match: { ...match, inactiveFor: { n: 0, unit: "days" } },
+			}),
+		});
+		expect(zone.ok || zone.issues.map(compileIssueText)).toEqual([
+			"x > schedule: timezone: Europe/Berlinn is not an IANA timezone, like Europe/Berlin",
+		]);
+		expect(zero.ok || zero.issues.map(compileIssueText)).toEqual([
+			"x > schedule: match.inactiveFor.n must be 1 or more",
+		]);
+	});
+
+	test("an issue that already names its step does not name it twice", () => {
+		expect(
+			compileIssueText({
+				workflow: "bad-rule-id",
+				step: "crypto-adress",
+				message: "crypto-adress is not a rule. Did you mean crypto-address?",
+			}),
+		).toBe(
+			"bad-rule-id > crypto-adress is not a rule. Did you mean crypto-address?",
+		);
+		expect(
+			compileIssueText({
+				workflow: "w",
+				step: "limit",
+				message: "pr-rate-limit: maxPerWindow must be 1 or more",
+			}),
+		).toBe("w > limit: pr-rate-limit: maxPerWindow must be 1 or more");
+		expect(compileIssueText({ workflow: "", message: "bad export" })).toBe(
+			"bad export",
+		);
 	});
 
 	test("a gate with no inputs", () => {

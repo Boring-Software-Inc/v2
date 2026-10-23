@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fieldIssueSentence } from "./issue-copy.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import {
 	ACTION_CATALOG,
@@ -764,8 +765,8 @@ function checkRuleConfigs(ctx: LintContext): Finding[] {
 		return [
 			{
 				nodeId: node.id,
-				message: issue?.message
-					? `Fix this setting: ${withPeriod(issue.message)}`
+				message: issue
+					? `Fix this setting: ${withPeriod(fieldIssueSentence(issue))}`
 					: "A setting is not valid.",
 				fixes:
 					field === undefined

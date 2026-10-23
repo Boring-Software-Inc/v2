@@ -485,6 +485,45 @@ const toolErrorSchema = z.object({
 	hint: z.string().optional(),
 });
 
+const ARGUMENT_TYPES: Record<string, string> = {
+	number: "a number",
+	int: "a whole number",
+	string: "text",
+	boolean: "true or false",
+	array: "a list",
+	object: "an object",
+};
+
+function argumentProblem(path: string, problem: string): string {
+	const bound =
+		/^Too (big|small): expected (number|string|array) to (?:be|have) ([<>]=?)(\S+)(?: (characters|items))?$/.exec(
+			problem,
+		);
+	if (bound) {
+		const [, size = "", kind = "", op = "", limit = "", unit = ""] = bound;
+		if (kind === "number") {
+			const word =
+				op === "<=" ? "or less" : op === ">=" ? "or more" : "exactly";
+			return op.length === 1
+				? `${path} must be ${op === "<" ? "less" : "more"} than ${limit}`
+				: `${path} must be ${limit} ${word}`;
+		}
+		return size === "big"
+			? `${path} can have at most ${limit} ${unit}`
+			: `${path} needs at least ${limit} ${unit}`;
+	}
+	const type = /^Invalid input: expected (\w+), received \w+$/.exec(problem);
+	if (type) {
+		const expected = type[1] ?? "";
+		return `${path} must be ${ARGUMENT_TYPES[expected] ?? expected}`;
+	}
+	const option = /^Invalid option: expected one of (.*)$/.exec(problem);
+	if (option) {
+		return `${path} must be one of ${(option[1] ?? "").replaceAll('"', "").split("|").join(", ")}`;
+	}
+	return `${path} is not valid`;
+}
+
 function validationMessage(detail: string): string {
 	const missing: string[] = [];
 	const invalid: string[] = [];
@@ -497,14 +536,14 @@ function validationMessage(detail: string): string {
 		if (/received undefined/.test(problem)) {
 			missing.push(path);
 		} else {
-			invalid.push(`${path} (${problem.replace(/^Invalid input: /, "")})`);
+			invalid.push(argumentProblem(path, problem));
 		}
 	}
 	if (missing.length > 0) {
 		return `Missing argument${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}.`;
 	}
 	if (invalid.length > 0) {
-		return `Invalid argument${invalid.length > 1 ? "s" : ""}: ${invalid.join(", ")}.`;
+		return `${invalid.join(". ")}.`;
 	}
 	return "Invalid arguments.";
 }
