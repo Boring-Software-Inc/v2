@@ -1,0 +1,78 @@
+name: release cli
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: patch, minor, major, or an exact x.y.z
+        required: true
+        default: patch
+  push:
+    tags:
+      - "cli-v*"
+
+concurrency:
+  group: release-cli
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest
+      - run: bun install --frozen-lockfile
+
+      - name: Pick the version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            bun run scripts/cli-release/prepare.ts tag "${{ github.ref_name }}"
+          else
+            bun run scripts/cli-release/prepare.ts bump "${{ github.event.inputs.bump }}"
+          fi
+
+      - name: Check
+        run: |
+          bunx tsc --noEmit -p apps/cli
+          bun test apps/cli scripts/cli-release
+
+      - name: Build
+        working-directory: apps/cli
+        run: |
+          bun run build
+          test "$(node dist/tripwire.js --version)" = "${{ steps.version.outputs.version }}"
+          npm pack --dry-run
+
+      - name: Publish to npm
+        working-directory: apps/cli
+        run: npm publish --provenance --access public
+
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          tag="cli-v$VERSION"
+          if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            git tag "$tag"
+            git push origin "$tag"
+          fi
+          previous=$(git tag --list 'cli-v*' --sort=-v:refname | grep -vx "$tag" | head -1)
+          range=${previous:+$previous..}$tag
+          notes=$(git log --format='- %s' "$range" -- apps/cli packages/contracts/src/setup.ts)
+          gh release create "$tag" --title "@tripwire-sh/cli $VERSION" --notes "${notes:-- maintenance release}" || gh release edit "$tag" --notes "${notes:-- maintenance release}"

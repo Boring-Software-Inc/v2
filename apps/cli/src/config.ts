@@ -1,4 +1,6 @@
-export const VERSION = "0.1.0";
+import pkg from "../package.json" with { type: "json" };
+
+export const VERSION = pkg.version;
 export const SERVER_NAME = "tripwire";
 export const SKILL_NAME = "tripwire-get-started";
 export const CLIENT_ID = "tripwire-cli";
