@@ -6,6 +6,7 @@ import {
 	createTestDatabase,
 	type Db,
 	eventServices,
+	moderationServices,
 	repoServices,
 	type TestDatabase,
 } from "@tripwire/db";
@@ -485,6 +486,62 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 			[runRows.rows[0].id],
 		);
 		expect(items.rows[0].node_id).toBe("run:degraded");
+	});
+
+	test("closing the change request closes its waiting human review", async () => {
+		const raw = await fixtureRaw();
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "worker-close-1",
+			rawKind: "pull_request",
+			raw,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		const failing = () => Promise.reject(new Error("github is down"));
+		const deps = {
+			db,
+			pool,
+			logger,
+			makeGenerate: null,
+			appUrl: "http://localhost:3000",
+			resolveForge: staticForge({
+				reads: {
+					getDiff: failing,
+					getCommits: failing,
+					getContributorProfile: failing,
+				},
+			}),
+		};
+		await processEvent(deps, { eventId });
+		const before = await moderationServices.listPendingItems(
+			db,
+			"Codertocat/Hello-World",
+		);
+		expect(before.length).toBeGreaterThan(0);
+
+		const closed = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "worker-close-2",
+			rawKind: "pull_request",
+			raw: await Bun.file(
+				new URL(
+					"../../../packages/forge-github/fixtures/pull_request.closed.json",
+					import.meta.url,
+				).pathname,
+			).json(),
+		});
+		if (!closed.eventId) {
+			throw new Error("insert failed");
+		}
+		await processEvent(deps, { eventId: closed.eventId });
+
+		expect(
+			await moderationServices.listPendingItems(db, "Codertocat/Hello-World"),
+		).toEqual([]);
+		const statuses = await pool.query(
+			"SELECT DISTINCT m.status FROM moderation_items m JOIN runs r ON r.id = m.run_id WHERE r.subject_number = 2",
+		);
+		expect(statuses.rows.map((row) => row.status)).not.toContain("pending");
 	});
 
 	test("partial degradation (minority skipped) ⇒ still pass", async () => {

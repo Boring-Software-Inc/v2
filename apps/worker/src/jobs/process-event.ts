@@ -8,7 +8,12 @@ import {
 } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
-import { eventServices, orgServices, repoServices } from "@tripwire/db";
+import {
+	eventServices,
+	moderationServices,
+	orgServices,
+	repoServices,
+} from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { Logger } from "pino";
@@ -186,6 +191,21 @@ export async function processEvent(
 			}
 		}
 		return;
+	}
+
+	if (normalized.kind === "change-request.closed") {
+		const closed =
+			await moderationServices.closeModerationItemsForChangeRequest(
+				db,
+				normalized.repo.fullName,
+				normalized.changeRequest.number,
+			);
+		if (closed > 0) {
+			logger.info(
+				{ eventId: event.id, closed },
+				"change request closed, its waiting reviews closed",
+			);
+		}
 	}
 
 	if (isSelfEvent(normalized, deps.selfLogins)) {

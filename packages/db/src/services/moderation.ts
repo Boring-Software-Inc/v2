@@ -1,5 +1,5 @@
 import { generateId } from "@tripwire/utils";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import { z } from "zod";
@@ -159,6 +159,35 @@ export async function markModerationDecided(
 		)
 		.returning({ id: moderationItems.id });
 	return updated.length === 1;
+}
+
+export async function closeModerationItemsForChangeRequest(
+	db: Db,
+	repoFullName: string,
+	subjectNumber: number,
+): Promise<number> {
+	const closed = await db
+		.update(moderationItems)
+		.set({ status: "closed", decidedAt: new Date() })
+		.where(
+			and(
+				eq(moderationItems.status, "pending"),
+				inArray(
+					moderationItems.runId,
+					db
+						.select({ id: runs.id })
+						.from(runs)
+						.where(
+							and(
+								eq(runs.repoFullName, repoFullName),
+								eq(runs.subjectNumber, subjectNumber),
+							),
+						),
+				),
+			),
+		)
+		.returning({ id: moderationItems.id });
+	return closed.length;
 }
 
 export async function getModerationItem(db: Db, itemId: string) {
