@@ -100,6 +100,34 @@ describe("tool selection", () => {
 		expect(toolVisible("get_repo_rules", selection)).toBe(true);
 	});
 
+	test("a role sees the org shell and only the tools its region scopes allow", () => {
+		const selection = selectTools(new URL("http://x/mcp"));
+		if (!selection.ok) {
+			throw new Error("expected a selection");
+		}
+		const listed = TOOL_NAMES.filter((name) =>
+			toolVisible(name, { ...selection, permissions: ["moderation:read"] }),
+		);
+		expect(listed).toEqual([
+			"whoami",
+			"setup_status",
+			"list_repos",
+			"list_rule_catalog",
+			"list_moderation_queue",
+			"report_setup_progress",
+		]);
+	});
+
+	test("without a role filter every scoped tool is listed", () => {
+		const selection = selectTools(new URL("http://x/mcp"));
+		if (!selection.ok) {
+			throw new Error("expected a selection");
+		}
+		expect(TOOL_NAMES.filter((name) => toolVisible(name, selection))).toEqual([
+			...TOOL_NAMES,
+		]);
+	});
+
 	test("disable-skills cannot remove everything", () => {
 		expect(
 			selectTools(new URL("http://x/mcp?skills=admin&disable-skills=admin")).ok,

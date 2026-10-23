@@ -15,6 +15,7 @@ import {
 	type ToolName,
 } from "./catalog.ts";
 import type { McpConfig } from "./config.ts";
+import { grantedPermissions } from "./context.ts";
 import {
 	insufficientScope,
 	protectedResourceMetadata,
@@ -143,6 +144,10 @@ export function createApp(deps: McpDeps) {
 				logger.warn({ error }, "agent grant touch failed");
 			});
 
+		const permissions =
+			calledTools(body).length === 0
+				? await grantedPermissions(db, agent)
+				: undefined;
 		const server = new McpServer({ name: "tripwire", version: "1.0.0" });
 		registerTools(
 			server,
@@ -156,7 +161,7 @@ export function createApp(deps: McpDeps) {
 					? `Your Tripwire access is not approved yet. Request access at ${config.appUrl}/queue and try again once you are in.`
 					: null,
 			},
-			selection,
+			{ ...selection, permissions },
 		);
 		const transport = new WebStandardStreamableHTTPServerTransport({
 			sessionIdGenerator: undefined,

@@ -155,15 +155,29 @@ export function selectTools(url: URL): ToolSelection {
 	return { ok: true, scopes, readOnly };
 }
 
+export interface ToolVisibility {
+	scopes: AgentScope[];
+	readOnly: boolean;
+	permissions?: readonly OrgPermission[];
+}
+
 export function toolVisible(
 	name: ToolName,
-	selection: { scopes: AgentScope[]; readOnly: boolean },
+	selection: ToolVisibility,
 ): boolean {
 	const spec = TOOL_SPECS[name];
 	if (name === "report_setup_progress") {
 		return true;
 	}
 	if (selection.readOnly && !spec.readOnly) {
+		return false;
+	}
+	if (
+		selection.permissions &&
+		spec.need !== "none" &&
+		spec.need !== "org-shell" &&
+		!selection.permissions.includes(spec.need)
+	) {
 		return false;
 	}
 	return selection.scopes.includes(spec.scope);

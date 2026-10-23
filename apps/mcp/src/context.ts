@@ -1,8 +1,10 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
+	memberPermissions,
 	type OrgWithPermissions,
 	resolveOrgAccess,
 } from "@tripwire/auth/org-gate";
+import type { OrgPermission } from "@tripwire/contracts";
 import type { Db, OrgWithRole, RepoLite } from "@tripwire/db";
 import { orgServices } from "@tripwire/db";
 import type { Pool } from "pg";
@@ -58,6 +60,23 @@ export function fail(message: string, hint?: ErrorHint): CallToolResult {
 		],
 		structuredContent: hint ? { error: message, hint } : { error: message },
 	};
+}
+
+export async function grantedPermissions(
+	db: Db,
+	agent: Pick<VerifiedAgent, "userId" | "orgIds">,
+): Promise<OrgPermission[]> {
+	const held = new Set<OrgPermission>();
+	for (const orgId of agent.orgIds) {
+		const permissions = await memberPermissions(db, {
+			orgId,
+			userId: agent.userId,
+		});
+		for (const permission of permissions ?? []) {
+			held.add(permission);
+		}
+	}
+	return [...held];
 }
 
 export function requireAccess(ctx: ToolContext): void {

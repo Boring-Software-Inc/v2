@@ -20,6 +20,7 @@ import { and, eq } from "drizzle-orm";
 import type { Pool } from "pg";
 import { z } from "zod";
 import { readConfig } from "./config.ts";
+import { grantedPermissions } from "./context.ts";
 import { registerTools } from "./tools.ts";
 
 const config = readConfig({
@@ -247,5 +248,70 @@ describe("MCP reads follow the org's role scopes", () => {
 			const result = await call(reviewer, tool, { org: orgSlug });
 			expect(result.isError).toBeFalsy();
 		}
+	});
+});
+
+describe("the tool list follows the member's role", () => {
+	async function listedFor(userId: string): Promise<string[]> {
+		const agent = {
+			userId,
+			clientId: `client-${userId}`,
+			scopes: [...SCOPES],
+			orgIds: [orgId],
+		};
+		const server = new McpServer({ name: "tripwire-test", version: "0.0.0" });
+		registerTools(
+			server,
+			{
+				db,
+				pool,
+				getBoss: () => Promise.reject(new Error("no queue in tests")),
+				config,
+				agent,
+				accessDenied: null,
+			},
+			{
+				scopes: [...SCOPES],
+				readOnly: false,
+				permissions: await grantedPermissions(db, agent),
+			},
+		);
+		const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
+		await server.connect(serverSide);
+		const client = new Client({ name: "test", version: "0.0.0" });
+		await client.connect(clientSide);
+		clients.push(client);
+		return (await client.listTools()).tools.map((tool) => tool.name).sort();
+	}
+
+	test("a moderation-only role lists the org shell and the review queue tools", async () => {
+		expect(await listedFor("perm-reviewer")).toEqual([
+			"decide_moderation",
+			"list_moderation_queue",
+			"list_repos",
+			"list_rule_catalog",
+			"report_setup_progress",
+			"setup_status",
+			"whoami",
+		]);
+	});
+
+	test("a workflows-only role lists the org shell and the workflow tools", async () => {
+		expect(await listedFor("perm-builder")).toEqual([
+			"apply_workflow",
+			"get_workflow",
+			"list_repos",
+			"list_rule_catalog",
+			"list_workflows",
+			"report_setup_progress",
+			"set_workflow_enabled",
+			"setup_status",
+			"validate_workflow",
+			"whoami",
+		]);
+	});
+
+	test("an org admin lists every tool", async () => {
+		expect(await listedFor("perm-admin")).toHaveLength(18);
 	});
 });
