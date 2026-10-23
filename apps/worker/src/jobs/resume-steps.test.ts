@@ -116,7 +116,7 @@ describe("a resumed human review, as the executor records it", () => {
 		]);
 	});
 
-	test("deny reads Blocked, once, and the floor names its workflow", async () => {
+	test("deny reads Blocked, once, at the review", async () => {
 		const views = await decidedRun("deny");
 		expect(
 			views.map((view) => [
@@ -129,7 +129,6 @@ describe("a resumed human review, as the executor records it", () => {
 			["Doubtful title", "t", "Trigger", "Ran"],
 			["Doubtful title", "english", "English only", "Doesn't pass"],
 			["Doubtful title", "hold", "Human review", "Blocked"],
-			["Doubtful title", null, "Human review blocked it", "Blocked"],
 		]);
 	});
 });

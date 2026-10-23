@@ -181,7 +181,7 @@ describe("run steps read without the code", () => {
 		);
 	});
 
-	test("a denied review reads Blocked once, with the floor under its workflow", () => {
+	test("a denied review reads Blocked once, at the review", () => {
 		const review: WorkflowDefinition = {
 			id: "review",
 			name: "Doubtful title",
@@ -199,12 +199,12 @@ describe("run steps read without the code", () => {
 				step("review:hold", "action", "paused"),
 				step("default@1:trigger", "trigger", "pass"),
 				{
-					...step("review:hold:resume", "action", "pass"),
-					input: { action: "send-to-moderation", decision: "deny" },
-				},
-				{
 					...step("run:deny-floor", "action", "pass"),
 					input: { decision: "deny", pausedNodeId: "review:hold" },
+				},
+				{
+					...step("review:hold:resume", "action", "pass"),
+					input: { action: "send-to-moderation", decision: "deny" },
 				},
 			],
 		);
@@ -218,8 +218,36 @@ describe("run steps read without the code", () => {
 		).toEqual([
 			["Doubtful title", "t", "Trigger", "Ran"],
 			["Doubtful title", "hold", "Human review", "Blocked"],
-			["Doubtful title", null, "Human review blocked it", "Blocked"],
 			["Rules", "trigger", "Trigger", "Ran"],
+		]);
+	});
+
+	test("a deny floor without a recorded decision reads after the review", () => {
+		const review: WorkflowDefinition = {
+			id: "review",
+			name: "Doubtful title",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				{ id: "hold", type: "action", action: "send-to-moderation" },
+			],
+			edges: [{ id: "e1", from: "t", to: "hold" }],
+		};
+		const views = describeRunSteps(
+			[review],
+			[
+				step("review:t", "trigger", "pass"),
+				{
+					...step("run:deny-floor", "action", "pass"),
+					input: { decision: "deny", pausedNodeId: "review:hold" },
+				},
+				step("review:hold:resume", "action", "pass"),
+			],
+		);
+		expect(views.map((view) => [view.step, view.outcome])).toEqual([
+			["Trigger", "Ran"],
+			["Human review", "Ran"],
+			["Human review blocked it", "Blocked"],
 		]);
 	});
 
@@ -229,6 +257,15 @@ describe("run steps read without the code", () => {
 			[step("newcomers:stop", "action", "paused")],
 		);
 		expect(row?.outcome).toBe("Waiting for human review");
+	});
+
+	test("a review on a closed run reads closed before review", () => {
+		const [row] = describeRunSteps(
+			[NEWCOMERS],
+			[step("newcomers:stop", "action", "paused")],
+			"closed",
+		);
+		expect(row?.outcome).toBe("Closed before review");
 	});
 
 	test("a workflow that could not run is named, with what is wrong", () => {

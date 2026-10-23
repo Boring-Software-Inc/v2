@@ -11,6 +11,7 @@ import {
 	ensureDemoRepo,
 	ensureTeamOrg,
 	orgServices,
+	runServices,
 	schema,
 	seedRun,
 	type TestDatabase,
@@ -259,6 +260,18 @@ describe("a run whose change request closed before review", () => {
 			"UPDATE runs SET status = 'closed', completed_at = now() WHERE id = $1",
 			[runId],
 		);
+		await runServices.recordSteps(db, runId, [
+			{
+				nodeId: "review:hold",
+				nodeKind: "action",
+				status: "paused",
+				input: null,
+				output: null,
+				startedAt: new Date().toISOString(),
+				finishedAt: new Date().toISOString(),
+				durationMs: 0,
+			},
+		]);
 		const items = await pool.query<{ id: string }>(
 			"UPDATE moderation_items SET status = 'closed', decided_at = now() WHERE run_id = $1 RETURNING id",
 			[runId],
@@ -277,6 +290,11 @@ describe("a run whose change request closed before review", () => {
 			result: "closed-before-review",
 			verdictLabel: "Closed before review",
 		});
+		const waiting = z
+			.array(z.object({ status: z.string(), outcome: z.string() }))
+			.parse(got.steps)
+			.filter((row) => row.status === "paused");
+		expect(waiting.map((row) => row.outcome)).toEqual(["Closed before review"]);
 		const listed = z
 			.array(
 				z.object({

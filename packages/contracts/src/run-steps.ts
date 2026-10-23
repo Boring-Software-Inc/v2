@@ -92,7 +92,7 @@ const denyFloorInputSchema = z
 
 const DECISION_WORDS = { approve: "Approved", deny: "Blocked" } as const;
 
-function outcomeWord(kind: string, status: string): string {
+function outcomeWord(kind: string, status: string, closed = false): string {
 	if (status === "skipped") {
 		return "Could not run";
 	}
@@ -100,7 +100,9 @@ function outcomeWord(kind: string, status: string): string {
 		return "Turned off";
 	}
 	if (status === "paused") {
-		return "Waiting for human review";
+		return closed
+			? RUN_RESULT_LABELS["closed-before-review"]
+			: RUN_RESULT_LABELS.needs_review;
 	}
 	if (kind === "rule" || kind === "gate") {
 		if (status === "pass") {
@@ -179,6 +181,7 @@ interface Placed {
 	resumed: number;
 	index: number;
 	waitingOn?: string;
+	floorFor?: string;
 }
 
 function unrunnableRows(
@@ -219,7 +222,9 @@ function unrunnableRows(
 export function describeRunSteps(
 	definitions: readonly WorkflowDefinition[],
 	steps: readonly RunStepInput[],
+	runStatus?: string,
 ): RunStepView[] {
+	const closed = runStatus === "closed";
 	const names = new Map(
 		definitions.map((definition) => [definition.id, stepNames(definition)]),
 	);
@@ -260,8 +265,9 @@ export function describeRunSteps(
 						},
 						group: definitions.indexOf(owner.definition),
 						rank: orders.get(owner.definition.id)?.get(owner.node.id) ?? 0,
-						resumed: 1,
+						resumed: 2,
 						index,
+						floorFor: `${owner.definition.id}:${owner.node.id}`,
 					},
 				];
 			}
@@ -276,7 +282,7 @@ export function describeRunSteps(
 						stepId: title ? null : nodeId,
 						step: title ?? nodeId,
 						gate: null,
-						outcome: outcomeWord(step.nodeKind, step.status),
+						outcome: outcomeWord(step.nodeKind, step.status, closed),
 						...base,
 					},
 					group: definitions.length + 1,
@@ -303,7 +309,7 @@ export function describeRunSteps(
 					gate: node.type === "gate" ? GATE_WORDS[node.mode] : null,
 					outcome: decision
 						? DECISION_WORDS[decision]
-						: outcomeWord(step.nodeKind, step.status),
+						: outcomeWord(step.nodeKind, step.status, closed),
 					...base,
 				},
 				group: definitions.indexOf(definition),
@@ -316,7 +322,11 @@ export function describeRunSteps(
 		];
 	});
 	return placed
-		.filter((entry) => !(entry.waitingOn && decided.has(entry.waitingOn)))
+		.filter(
+			(entry) =>
+				!(entry.waitingOn && decided.has(entry.waitingOn)) &&
+				!(entry.floorFor && decided.has(entry.floorFor)),
+		)
 		.sort(
 			(a, b) =>
 				a.group - b.group ||

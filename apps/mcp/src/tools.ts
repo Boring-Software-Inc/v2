@@ -725,7 +725,7 @@ export function registerTools(
 						}),
 						createdAt: found.run.createdAt.toISOString(),
 						workflows: snapshot.map(workflowDisplayName),
-						steps: describeRunSteps(snapshot, found.steps),
+						steps: describeRunSteps(snapshot, found.steps, found.run.status),
 						actions: found.actions.map((action) => ({
 							kind: action.kind,
 							status: action.status,
