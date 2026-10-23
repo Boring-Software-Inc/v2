@@ -64,13 +64,15 @@ function readValue(raw: string, field: FieldShape): number | null {
 	return value >= field.min && value <= field.max ? value : null;
 }
 
-function readField(raw: string, field: FieldShape): number[] | string {
+type FieldRead = { ok: true; values: number[] } | { ok: false; error: string };
+
+function readField(raw: string, field: FieldShape): FieldRead {
 	const values = new Set<number>();
 	for (const part of raw.split(",")) {
 		const [range = "", stepRaw] = part.split("/");
 		const step = stepRaw === undefined ? 1 : Number(stepRaw);
 		if (!(Number.isInteger(step) && step >= 1)) {
-			return `${field.name} has a bad step "${part}"`;
+			return { ok: false, error: `${field.name} has a bad step "${part}"` };
 		}
 		let low: number | null;
 		let high: number | null;
@@ -86,13 +88,13 @@ function readField(raw: string, field: FieldShape): number[] | string {
 			high = stepRaw === undefined ? low : field.max;
 		}
 		if (low === null || high === null || low > high) {
-			return `${field.name} cannot read "${part}"`;
+			return { ok: false, error: `${field.name} cannot read "${part}"` };
 		}
 		for (let value = low; value <= high; value += step) {
 			values.add(value);
 		}
 	}
-	return [...values].sort((a, b) => a - b);
+	return { ok: true, values: [...values].sort((a, b) => a - b) };
 }
 
 export function parseCron(expression: string): CronParse {
@@ -106,10 +108,10 @@ export function parseCron(expression: string): CronParse {
 	const read: number[][] = [];
 	for (const [index, field] of FIELDS.entries()) {
 		const value = readField(parts[index] ?? "", field);
-		if (typeof value === "string") {
-			return { ok: false, error: value };
+		if (!value.ok) {
+			return value;
 		}
-		read.push(value);
+		read.push(value.values);
 	}
 	const [minutes = [], hours = [], days = [], months = [], rawWeekdays = []] =
 		read;

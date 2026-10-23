@@ -32,7 +32,7 @@ const WEEKDAY_INDEX = {
 	saturday: 6,
 } as const satisfies Record<Weekday, number>;
 
-function clock(at: string): { hour: number; minute: number } {
+function clock(at: string) {
 	const [hour = "0", minute = "0"] = at.split(":");
 	return { hour: Number(hour), minute: Number(minute) };
 }

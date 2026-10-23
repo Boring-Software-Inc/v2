@@ -3,6 +3,7 @@ import {
 	lintWorkflow,
 	NEW_SCHEDULE_DRAFT,
 	type RepoLabel,
+	WORKFLOW_TEMPLATES,
 	type WorkflowDefinition,
 	type WorkflowNode,
 } from "@tripwire/contracts";
@@ -18,7 +19,6 @@ import {
 	scheduleShortSummary,
 } from "#/lib/schedule-summary";
 import { workflowToMarkdown } from "#/lib/workflow-markdown";
-import { WORKFLOW_TEMPLATES } from "#/lib/workflow-templates";
 
 const SCHEDULE_TRIGGER: WorkflowNode = {
 	id: "t",

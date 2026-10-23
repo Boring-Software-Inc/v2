@@ -144,7 +144,7 @@ describe("schedule schema", () => {
 	});
 
 	test("refuses a cron that never runs, a bad zone and a bad time", () => {
-		const issue = (value: object) => {
+		const issue = (value: { every: unknown; timezone?: string }) => {
 			const parsed = triggerScheduleSchema.safeParse({
 				...value,
 				match: MATCH,

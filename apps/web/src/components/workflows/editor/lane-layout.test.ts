@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { WorkflowDefinition } from "@tripwire/contracts";
+import {
+	WORKFLOW_TEMPLATES,
+	type WorkflowDefinition,
+} from "@tripwire/contracts";
 import {
 	LANE_SPACING,
 	laneDecor,
@@ -8,7 +11,6 @@ import {
 	placeUnpositioned,
 	workflowLanes,
 } from "#/components/workflows/editor/lane-layout";
-import { WORKFLOW_TEMPLATES } from "#/lib/workflow-templates";
 
 const stale = WORKFLOW_TEMPLATES.find(
 	(template) => template.id === "close-stale-change-requests",

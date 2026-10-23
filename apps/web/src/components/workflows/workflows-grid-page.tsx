@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { Collection } from "#/components/collection/collection";
 import { EntityCard } from "#/components/common/entity-card";
@@ -70,8 +71,6 @@ import { useCollection } from "#/hooks/use-collection";
 import { formatRelativeTime } from "#/lib/format-relative-time";
 import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
 import { trackEvent } from "#/lib/track";
-import type { WorkflowTemplate } from "#/lib/workflow-templates";
-import { WORKFLOW_TEMPLATES } from "#/lib/workflow-templates";
 import type { WorkflowListItem } from "#/lib/workflows.functions";
 import {
 	createRepoWorkflow,
