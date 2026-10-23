@@ -672,6 +672,7 @@ export default workflows({
 				{
 					id: "new-accounts",
 					outcome: "refused",
+					reason: "live-cannot-run",
 					issues: ["Any of: It takes no inputs.", "Block: Nothing runs it."],
 				},
 			],
@@ -683,6 +684,44 @@ export default workflows({
 		expect(result.code).toBe(1);
 		expect(result.stderr).toContain(
 			"new-accounts is on, so this version was not saved. Any of: It takes no inputs. Block: Nothing runs it.",
+		);
+	});
+
+	test("a push refused for a taken name says so, not that the workflow is on", async () => {
+		await pulled();
+		server.answerNext("apply_workflow", {
+			workflows: [
+				{
+					id: "qa6-clash",
+					outcome: "refused",
+					reason: "name-taken",
+					issues: [
+						"Another workflow on this repo is named QA. Pick another name.",
+					],
+				},
+			],
+		});
+		const result = await runCli(
+			["workflows", "push", "scratch", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(result.stderr).toBe(
+			"error     qa6-clash was not saved. Another workflow on this repo is named QA. Pick another name.\n",
+		);
+	});
+
+	test("a refusal without a reason never claims the workflow is on", async () => {
+		await pulled();
+		server.answerNext("apply_workflow", {
+			workflows: [{ id: "qa6-clash", outcome: "refused", issues: [] }],
+		});
+		const result = await runCli(
+			["workflows", "push", "scratch", "--file", file()],
+			env(),
+		);
+		expect(result.stderr).toBe(
+			"error     qa6-clash was not saved. Run tripwire workflows validate --repo scratch to see why.\n",
 		);
 	});
 

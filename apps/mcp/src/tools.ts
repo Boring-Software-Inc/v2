@@ -650,6 +650,7 @@ export function registerTools(
 								: {
 										id: definition.id,
 										outcome: "refused" as const,
+										reason: result.reason,
 										issues: result.issues.map(validationIssueText),
 									},
 						);

@@ -288,6 +288,7 @@ const changeListSchema = z.object({
 			id: z.string(),
 			valid: z.boolean().optional(),
 			outcome: z.string().optional(),
+			reason: z.string().optional(),
 			url: z.string().optional(),
 			enabled: z.boolean().optional(),
 			issues: z
@@ -327,6 +328,15 @@ type ChangeEntry = z.infer<typeof changeListSchema>["workflows"][number];
 
 function blockingReasons(entry: ChangeEntry): string {
 	return (entry.issues ?? []).filter(Boolean).join(" ");
+}
+
+function refusalText(entry: ChangeEntry, repo: string): string {
+	const reasons =
+		blockingReasons(entry) ||
+		`Run tripwire workflows validate --repo ${repo} to see why.`;
+	return entry.reason === "live-cannot-run"
+		? `${entry.id} is on, so this version was not saved. ${reasons}`
+		: `${entry.id} was not saved. ${reasons}`;
 }
 
 function changeLines(
@@ -577,15 +587,7 @@ function pushWorkflows(
 			),
 		);
 		for (const entry of refused) {
-			const reasons = blockingReasons(entry);
-			err(
-				errorLine(
-					reasons
-						? `${entry.id} is on, so this version was not saved. ${reasons}`
-						: `${entry.id} is on, so this version was not saved. Run tripwire workflows validate --repo ${repo} to see why.`,
-					options.errStyle,
-				),
-			);
+			err(errorLine(refusalText(entry, repo), options.errStyle));
 		}
 		return refused.length > 0 ? 1 : 0;
 	});

@@ -709,6 +709,28 @@ describe("workflows as code", () => {
 		expect(refused?.issues.some((issue) => issue.startsWith("Any of: "))).toBe(
 			true,
 		);
+		expect(body(pushed)).toMatchObject({
+			workflows: [{ reason: "live-cannot-run" }],
+		});
+	});
+
+	test("a new workflow pushed with a taken name is refused for its name", async () => {
+		const pushed = await call("apply_workflow", {
+			repo: "mcp-api",
+			definitions: [{ ...definition, id: "mcp-clash", name: "live over mcp" }],
+		});
+		expect(body(pushed)).toEqual({
+			workflows: [
+				{
+					id: "mcp-clash",
+					outcome: "refused",
+					reason: "name-taken",
+					issues: [
+						"Another workflow on this repo is named live over mcp. Pick another name.",
+					],
+				},
+			],
+		});
 	});
 
 	test("get returns the workflow as code without secrets", async () => {

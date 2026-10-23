@@ -420,7 +420,11 @@ export type ApplyWorkflowResult =
 			workflow: WorkflowListItem;
 			changes: WorkflowChange[];
 	  }
-	| { ok: false; issues: ValidationIssue[] };
+	| {
+			ok: false;
+			reason: "name-taken" | "live-cannot-run" | "not-found";
+			issues: ValidationIssue[];
+	  };
 
 /**
  * Stores a workflow written as code. It matches an existing workflow by its
@@ -442,6 +446,7 @@ export async function applyWorkflowDefinition(
 	if (clash) {
 		return {
 			ok: false,
+			reason: "name-taken",
 			issues: [
 				{
 					message: `Another workflow on this repo is named ${input.definition.name}. Pick another name.`,
@@ -471,7 +476,11 @@ export async function applyWorkflowDefinition(
 		});
 		const stored = workflowDefinitionSchema.safeParse(locked?.definition);
 		if (!(locked && stored.success)) {
-			return { ok: false, issues: [{ message: "workflow not found" }] };
+			return {
+				ok: false,
+				reason: "not-found",
+				issues: [{ message: "workflow not found" }],
+			};
 		}
 		const merged = pushedDefinition(stored.data, input.definition);
 		const changes = diffWorkflow(stored.data, merged);
@@ -485,7 +494,7 @@ export async function applyWorkflowDefinition(
 		if (locked.enabled) {
 			const checked = validateWorkflowForEnable(merged, catalog);
 			if (!checked.valid) {
-				return { ok: false, issues: checked.issues };
+				return { ok: false, reason: "live-cannot-run", issues: checked.issues };
 			}
 		}
 		await tx
