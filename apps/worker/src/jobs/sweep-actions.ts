@@ -4,7 +4,7 @@ import { moderationServices, runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
-import { emitClosedReviewChecks, toForgeAction } from "./pr-surface.ts";
+import { emitClosedReviewSurfaces, toForgeAction } from "./pr-surface.ts";
 
 /**
  * §5.12 surface sweeper (live-test surprise #3): actions are recorded FIRST and
@@ -87,7 +87,7 @@ export async function sweepActions(
 		);
 	}
 
-	await emitClosedReviewChecks(
+	await emitClosedReviewSurfaces(
 		deps,
 		await moderationServices.closeReviewsOfClosedChangeRequests(db),
 	);

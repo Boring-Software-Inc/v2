@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+	COMMENT_MARKER,
+	renderClosedBeforeReviewComment,
+} from "./comment-render.ts";
+import {
 	RUN_RESULT_LABELS,
 	RUN_STATUSES,
 	runResult,
@@ -88,6 +92,14 @@ describe("workflow names", () => {
 		expect(workflowDisplayName(DEFAULT_WORKFLOW)).toBe("Rules");
 		expect(workflowDisplayName({ id: "x", name: "Newcomers" })).toBe(
 			"Newcomers",
+		);
+	});
+});
+
+describe("the comment on a change request closed before review", () => {
+	test("says so in one line and keeps the marker", () => {
+		expect(renderClosedBeforeReviewComment()).toBe(
+			`Closed before review.\n\n${COMMENT_MARKER}\n`,
 		);
 	});
 });

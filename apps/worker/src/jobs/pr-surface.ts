@@ -506,7 +506,7 @@ export function firedRulesFor(
 	return [];
 }
 
-export async function emitClosedReviewChecks(
+export async function emitClosedReviewSurfaces(
 	deps: {
 		db: Db;
 		adapterFor: (repoFullName: string) => Promise<ForgeAdapter | null>;
@@ -519,32 +519,41 @@ export async function emitClosedReviewChecks(
 			{ runId: review.runId, number: review.subjectNumber },
 			"change request closed before review, run closed",
 		);
-		if (!review.check) {
+		const rows = [review.check, review.comment].flatMap((row) =>
+			row ? [row] : [],
+		);
+		if (rows.length === 0) {
 			continue;
 		}
 		const adapter = await deps.adapterFor(review.repoFullName);
 		if (!adapter) {
 			continue;
 		}
-		try {
-			const result = await adapter.execute(
-				toForgeAction(
-					review.check,
-					review.repoFullName,
-					review.subjectNumber,
-					REVIEW_POINTER.block,
-				),
-			);
-			await runServices.markActionExecuted(
-				deps.db,
-				review.check.id,
-				result.externalId,
-			);
-		} catch (error) {
-			deps.logger.warn(
-				{ runId: review.runId, error: getErrorMessage(error) },
-				"closed review check failed, the sweep retries it",
-			);
+		for (const row of rows) {
+			try {
+				const result = await adapter.execute(
+					toForgeAction(
+						row,
+						review.repoFullName,
+						review.subjectNumber,
+						REVIEW_POINTER.block,
+					),
+				);
+				await runServices.markActionExecuted(
+					deps.db,
+					row.id,
+					result.externalId,
+				);
+			} catch (error) {
+				deps.logger.warn(
+					{
+						runId: review.runId,
+						kind: row.kind,
+						error: getErrorMessage(error),
+					},
+					"closed review surface failed, the sweep retries it",
+				);
+			}
 		}
 	}
 }

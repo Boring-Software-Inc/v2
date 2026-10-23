@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { DEFAULT_WORKFLOW } from "@tripwire/contracts";
+import {
+	DEFAULT_WORKFLOW,
+	renderClosedBeforeReviewComment,
+} from "@tripwire/contracts";
 import { sql } from "drizzle-orm";
 import {
 	applyMigrations,
@@ -151,6 +154,17 @@ describe("closing a change request", () => {
 						detailsUrl: `https://tripwire.test/runs/${runId}`,
 					},
 				},
+				comment: {
+					id: expect.any(String),
+					kind: "comment",
+					payload: {
+						number: 143,
+						verdict: "needs_review",
+						previousVerdict: "needs_review",
+						body: renderClosedBeforeReviewComment(),
+						onlyIfPresent: true,
+					},
+				},
 			},
 		]);
 		expect(await closeReviewsForChangeRequest(db, REPO, 143)).toEqual([]);
@@ -165,8 +179,14 @@ describe("closing a change request", () => {
 	test("a waiting run that never posted a check closes without one", async () => {
 		const { runId } = await pausedRun("evt-144", REPO, 144);
 		const closed = await closeReviewsForChangeRequest(db, REPO, 144);
-		expect(closed).toEqual([
-			{ runId, repoFullName: REPO, subjectNumber: 144, check: null },
+		expect(closed).toMatchObject([
+			{
+				runId,
+				repoFullName: REPO,
+				subjectNumber: 144,
+				check: null,
+				comment: { kind: "comment" },
+			},
 		]);
 	});
 
@@ -194,6 +214,7 @@ describe("closing a change request", () => {
 		const [closed] = await closeReviewsForChangeRequest(db, REPO, 145);
 		expect(closed?.runId).toBe(runId);
 		expect(closed?.check).toBeNull();
+		expect(closed?.comment).toBeNull();
 	});
 });
 

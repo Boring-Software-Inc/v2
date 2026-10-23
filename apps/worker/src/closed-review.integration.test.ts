@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { DEFAULT_WORKFLOW } from "@tripwire/contracts";
+import {
+	DEFAULT_WORKFLOW,
+	renderClosedBeforeReviewComment,
+} from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -145,6 +148,19 @@ describe("closing a change request while it waits for human review", () => {
 				detailsUrl: `http://localhost:3000/runs/${runId}`,
 			},
 		]);
+		expect(
+			executed.flatMap((action) => (action.kind === "comment" ? [action] : [])),
+		).toEqual([
+			{
+				kind: "comment",
+				repoFullName: REPO,
+				number: pullRequestClosed.number,
+				body: renderClosedBeforeReviewComment(),
+				verdict: "needs_review",
+				previousVerdict: "needs_review",
+				onlyIfPresent: true,
+			},
+		]);
 		const actions = await runServices.listRunActions(db, runId);
 		expect(
 			actions.filter(
@@ -177,6 +193,10 @@ describe("the sweep closes reviews left waiting on closed change requests", () =
 
 		expect((await runServices.getRunById(db, runId))?.status).toBe("closed");
 		expect(neutralChecks().map((check) => check.sha)).toEqual([sha]);
+		expect(executed.map((action) => action.kind).sort()).toEqual([
+			"comment",
+			"set-check",
+		]);
 		expect(await moderationServices.listPendingItems(db, REPO)).toHaveLength(0);
 	});
 });

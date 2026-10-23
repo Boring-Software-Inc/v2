@@ -17,6 +17,7 @@ import {
 	wantsComment,
 } from "./response.ts";
 import { ruleContributorLabel } from "./rules.ts";
+import { RUN_RESULT_LABELS } from "./run-result.ts";
 import type { Verdict } from "./runs.ts";
 
 /**
@@ -377,6 +378,10 @@ export function renderCommentBody(
 		reviewComment: override,
 	};
 	return withMarker(renderBody(input, config, policy, "comment"));
+}
+
+export function renderClosedBeforeReviewComment(): string {
+	return withMarker(`${RUN_RESULT_LABELS["closed-before-review"]}.`);
 }
 
 export function renderVerdictComment(

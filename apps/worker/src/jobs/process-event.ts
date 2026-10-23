@@ -22,7 +22,7 @@ import { type ForgeRuntime, normalizeFor } from "../forge-runtime.ts";
 import { installFailureReporter } from "../report-install-failure.ts";
 import { upsertInstallation } from "./installation-sync.ts";
 import {
-	emitClosedReviewChecks,
+	emitClosedReviewSurfaces,
 	emitPendingCheck,
 	emitPrSurface,
 } from "./pr-surface.ts";
@@ -198,7 +198,7 @@ export async function processEvent(
 	}
 
 	if (normalized.kind === "change-request.closed") {
-		await emitClosedReviewChecks(
+		await emitClosedReviewSurfaces(
 			{ db, adapterFor: () => Promise.resolve(adapter), logger },
 			await moderationServices.closeReviewsForChangeRequest(
 				db,

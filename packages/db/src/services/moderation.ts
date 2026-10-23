@@ -1,4 +1,8 @@
-import { RUN_RESULT_LABELS, VERDICT_EVENT_KINDS } from "@tripwire/contracts";
+import {
+	RUN_RESULT_LABELS,
+	renderClosedBeforeReviewComment,
+	VERDICT_EVENT_KINDS,
+} from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, desc, eq, inArray, ne, type SQL, sql } from "drizzle-orm";
 import type { Pool } from "pg";
@@ -187,11 +191,24 @@ export type ClosedCheckPayload = {
 	detailsUrl: string;
 };
 
+export type ClosedCommentPayload = {
+	number: number;
+	verdict: "needs_review";
+	previousVerdict: "needs_review";
+	body: string;
+	onlyIfPresent: true;
+};
+
 export interface ClosedReview {
 	runId: string;
 	repoFullName: string;
 	subjectNumber: number;
 	check: { id: string; kind: "set-check"; payload: ClosedCheckPayload } | null;
+	comment: {
+		id: string;
+		kind: "comment";
+		payload: ClosedCommentPayload;
+	} | null;
 }
 
 export async function closeReviewsForChangeRequest(
@@ -270,19 +287,47 @@ async function closeWaitingRuns(db: Db, scope: SQL): Promise<ClosedReview[]> {
 		if (!closed.some((row) => row.id === run.id)) {
 			continue;
 		}
+		const latestId = await getLatestRunIdForChangeRequest(
+			db,
+			run.repoFullName,
+			run.subjectNumber,
+		);
 		out.push({
 			runId: run.id,
 			repoFullName: run.repoFullName,
 			subjectNumber: run.subjectNumber,
-			check: await closedCheck(db, run),
+			check: await closedCheck(db, run, latestId),
+			comment: latestId === run.id ? await closedComment(db, run) : null,
 		});
 	}
 	return out;
 }
 
+async function closedComment(
+	db: Db,
+	run: z.infer<typeof waitingRunRow>,
+): Promise<ClosedReview["comment"]> {
+	const payload: ClosedCommentPayload = {
+		number: run.subjectNumber,
+		verdict: "needs_review",
+		previousVerdict: "needs_review",
+		body: renderClosedBeforeReviewComment(),
+		onlyIfPresent: true,
+	};
+	const [row] = await recordActions(db, run.id, [
+		{
+			kind: "comment",
+			payload,
+			idempotencyKey: `comment:${run.subjectNumber}:closed`,
+		},
+	]);
+	return row ? { id: row.id, kind: "comment", payload } : null;
+}
+
 async function closedCheck(
 	db: Db,
 	run: z.infer<typeof waitingRunRow>,
+	latestId: string | null,
 ): Promise<ClosedReview["check"]> {
 	const [posted] = await db
 		.select({ payload: runActions.payload })
@@ -300,11 +345,6 @@ async function closedCheck(
 	if (!check.success) {
 		return null;
 	}
-	const latestId = await getLatestRunIdForChangeRequest(
-		db,
-		run.repoFullName,
-		run.subjectNumber,
-	);
 	const latest =
 		latestId && latestId !== run.id ? await getRunById(db, latestId) : null;
 	if (latest?.headSha === check.data.sha) {
