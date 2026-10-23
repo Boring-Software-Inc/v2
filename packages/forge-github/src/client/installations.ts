@@ -11,6 +11,7 @@ const MAX_PAGES = 50;
 const installationSchema = z.object({
 	account: z
 		.object({
+			id: z.number(),
 			login: z.string(),
 			type: z.string().optional(),
 		})
@@ -30,13 +31,19 @@ const repositoryPageSchema = z.object({
 	),
 });
 
-const userInstallationPageSchema = z.object({
+const userInstallationRepositoryPageSchema = z.object({
 	total_count: z.number(),
-	installations: z.array(z.object({ id: z.number() })),
+	repositories: z.array(
+		z.object({
+			id: z.number(),
+			permissions: z.object({ admin: z.boolean() }).optional(),
+		}),
+	),
 });
 
 export interface GithubInstallation {
 	account: string;
+	accountId: string | null;
 	accountType: "User" | "Organization" | undefined;
 }
 
@@ -48,8 +55,14 @@ export interface GithubInstallationRepo {
 	private: boolean;
 }
 
+export interface UserInstallationRepo {
+	externalId: string;
+	admin: boolean;
+}
+
 export type UserInstallationAccess =
-	| { status: "listed"; installationIds: string[] }
+	| { status: "listed"; repositories: UserInstallationRepo[] }
+	| { status: "not-found" }
 	| { status: "unauthorized" }
 	| { status: "forbidden" };
 
@@ -111,6 +124,7 @@ export class GithubInstallations {
 		const parsed = installationSchema.parse(await res.json());
 		return {
 			account: parsed.account?.login ?? "",
+			accountId: parsed.account ? String(parsed.account.id) : null,
 			accountType: accountType(parsed.account?.type),
 		};
 	}
@@ -148,11 +162,15 @@ export class GithubInstallations {
 		return found;
 	}
 
-	async userInstallations(userToken: string): Promise<UserInstallationAccess> {
-		const installationIds: string[] = [];
+	async userInstallationRepositories(
+		userToken: string,
+		installationId: string,
+	): Promise<UserInstallationAccess> {
+		const repositories: UserInstallationRepo[] = [];
+		const path = `/user/installations/${encodeURIComponent(installationId)}/repositories`;
 		for (let page = 1; page <= MAX_PAGES; page++) {
 			const res = await this.get(
-				`/user/installations?per_page=${PAGE_SIZE}&page=${page}`,
+				`${path}?per_page=${PAGE_SIZE}&page=${page}`,
 				userToken,
 			);
 			if (res.status === 401) {
@@ -161,20 +179,28 @@ export class GithubInstallations {
 			if (res.status === 403) {
 				return { status: "forbidden" };
 			}
-			if (!res.ok) {
-				throw new Error(`GET /user/installations failed: ${res.status}`);
+			if (res.status === 404) {
+				return { status: "not-found" };
 			}
-			const body = userInstallationPageSchema.parse(await res.json());
-			for (const installation of body.installations) {
-				installationIds.push(String(installation.id));
+			if (!res.ok) {
+				throw new Error(
+					`GET /user/installations/${installationId}/repositories failed: ${res.status}`,
+				);
+			}
+			const body = userInstallationRepositoryPageSchema.parse(await res.json());
+			for (const repo of body.repositories) {
+				repositories.push({
+					externalId: String(repo.id),
+					admin: repo.permissions?.admin === true,
+				});
 			}
 			if (
-				body.installations.length < PAGE_SIZE ||
-				installationIds.length >= body.total_count
+				body.repositories.length < PAGE_SIZE ||
+				repositories.length >= body.total_count
 			) {
 				break;
 			}
 		}
-		return { status: "listed", installationIds };
+		return { status: "listed", repositories };
 	}
 }

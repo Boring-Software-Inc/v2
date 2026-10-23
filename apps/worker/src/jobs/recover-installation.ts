@@ -5,6 +5,7 @@ import type {
 	GithubInstallation,
 	GithubInstallationRepo,
 	UserInstallationAccess,
+	UserInstallationRepo,
 } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
@@ -17,7 +18,10 @@ import { upsertInstallation } from "./installation-sync.ts";
 export interface InstallationLookup {
 	getInstallation(installationId: string): Promise<GithubInstallation | null>;
 	listRepositories(installationId: string): Promise<GithubInstallationRepo[]>;
-	userInstallations(userToken: string): Promise<UserInstallationAccess>;
+	userInstallationRepositories(
+		userToken: string,
+		installationId: string,
+	): Promise<UserInstallationAccess>;
 }
 
 export interface RecoverInstallationDeps {
@@ -34,20 +38,44 @@ interface Outcome {
 	error?: string;
 }
 
-async function userToken(
+interface UserCredentials {
+	accountId: string;
+	token: string | null;
+}
+
+async function userCredentials(
 	db: Db,
 	userId: string,
 	now: Date,
-): Promise<string | null> {
+): Promise<UserCredentials | null> {
 	const account = await accountServices.getForgeAccount(db, userId, "github");
-	if (!account?.accessToken) {
+	if (!account) {
 		return null;
 	}
 	const expiresAt = account.accessTokenExpiresAt;
-	if (expiresAt && expiresAt.getTime() <= now.getTime()) {
-		return null;
-	}
-	return account.accessToken;
+	const expired = expiresAt !== null && expiresAt.getTime() <= now.getTime();
+	return {
+		accountId: account.accountId,
+		token: account.accessToken && !expired ? account.accessToken : null,
+	};
+}
+
+const GRANTED: Outcome = { result: "granted-admin", failure: null };
+const DENIED: Outcome = { result: "denied", failure: null };
+const NOT_ADMIN: Outcome = { result: "not-admin", failure: "not-admin" };
+const TOKEN_EXPIRED: Outcome = {
+	result: "token-expired",
+	failure: "token-expired",
+};
+
+function adminOfEvery(
+	installed: GithubInstallationRepo[],
+	visible: UserInstallationRepo[],
+): boolean {
+	const admin = new Set(
+		visible.filter((repo) => repo.admin).map((repo) => repo.externalId),
+	);
+	return installed.every((repo) => admin.has(repo.externalId));
 }
 
 async function verify(
@@ -70,28 +98,47 @@ async function verify(
 		},
 		deps.logger,
 	);
-	const token = await userToken(
+	const user = await userCredentials(
 		deps.db,
 		job.userId,
 		deps.now?.() ?? new Date(),
 	);
-	if (!token) {
-		return { result: "token-expired", failure: "token-expired" };
+	if (!user) {
+		return TOKEN_EXPIRED;
 	}
-	const access = await github.userInstallations(token);
+	if (
+		installation.accountId !== null &&
+		installation.accountId === user.accountId
+	) {
+		return GRANTED;
+	}
+	if (installation.accountType !== "Organization") {
+		return DENIED;
+	}
+	if (!user.token) {
+		return TOKEN_EXPIRED;
+	}
+	if (repositories.length === 0) {
+		return DENIED;
+	}
+	const access = await github.userInstallationRepositories(
+		user.token,
+		job.installationId,
+	);
 	if (access.status === "unauthorized") {
-		return { result: "token-expired", failure: "token-expired" };
+		return TOKEN_EXPIRED;
 	}
 	if (access.status === "forbidden") {
 		return {
 			result: "failed",
 			failure: "unverifiable",
-			error: "GET /user/installations refused the user token",
+			error: "GET /user/installations/{id}/repositories refused the user token",
 		};
 	}
-	return access.installationIds.includes(job.installationId)
-		? { result: "granted", failure: null }
-		: { result: "denied", failure: null };
+	if (access.status === "not-found") {
+		return NOT_ADMIN;
+	}
+	return adminOfEvery(repositories, access.repositories) ? GRANTED : NOT_ADMIN;
 }
 
 async function outcomeFor(

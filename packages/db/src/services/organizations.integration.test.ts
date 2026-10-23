@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import {
 	INSTALL_ACCESS_CHECK_TTL_SECONDS,
 	type InstallStatus,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { z } from "zod";
 import { backfillOrgs } from "../backfill-orgs.ts";
 import {
 	applyMigrations,
@@ -16,6 +18,7 @@ import {
 import { account, user } from "../schema/auth.ts";
 import { events } from "../schema/events.ts";
 import {
+	installationAccessChecks,
 	member,
 	organization,
 	organizationInstallations,
@@ -36,6 +39,7 @@ import {
 	listApprovedInstallRequests,
 	listClaimableInstallations,
 	listInviteLinks,
+	listUnprovenInstallationClaims,
 	listUserOrgs,
 	moveInstallation,
 	pickOrgSlug,
@@ -1034,7 +1038,7 @@ describe("access checks — GitHub's own answer as ownership proof", () => {
 			userId: "check-admin",
 			forge: "github",
 			installationId: "9101",
-			result: "granted",
+			result: "granted-admin",
 		});
 		expect(await canClaim("check-admin", "9101")).toBe(true);
 	});
@@ -1044,7 +1048,7 @@ describe("access checks — GitHub's own answer as ownership proof", () => {
 			userId: "check-admin",
 			forge: "github",
 			installationId: "9102",
-			result: "granted",
+			result: "granted-admin",
 			at: new Date(Date.now() - (INSTALL_ACCESS_CHECK_TTL_SECONDS + 60) * 1000),
 		});
 		expect(await canClaim("check-admin", "9102")).toBe(false);
@@ -1074,7 +1078,7 @@ describe("access checks — GitHub's own answer as ownership proof", () => {
 			userId: "check-admin",
 			forge: "github",
 			installationId: "9104",
-			result: "granted",
+			result: "granted-admin",
 		});
 		expect(await canClaim("check-stranger", "9104")).toBe(false);
 		expect(
@@ -1091,9 +1095,209 @@ describe("access checks — GitHub's own answer as ownership proof", () => {
 			userId: "kolfadser1",
 			forge: "github",
 			installationId: "8001",
-			result: "granted",
+			result: "granted-admin",
 		});
 		expect(await canClaim("salt", "8001")).toBe(false);
+	});
+});
+
+describe("claim rule — admin-grade proof only", () => {
+	async function seedGithubUser(id: string, githubId: string): Promise<void> {
+		await seedUser(id);
+		await db.insert(account).values({
+			id: generateId(),
+			userId: id,
+			providerId: "github",
+			accountId: githubId,
+		});
+	}
+
+	function canClaim(userId: string, installationId: string) {
+		return userCanClaimInstallation(db, {
+			userId,
+			forge: "github",
+			installationId,
+		});
+	}
+
+	async function legacyGrant(
+		userId: string,
+		installationId: string,
+	): Promise<void> {
+		await db.execute(sql`
+			INSERT INTO installation_access_checks (id, user_id, forge, installation_id, result)
+			VALUES (${generateId()}, ${userId}, 'github', ${installationId}, 'granted')
+			ON CONFLICT (user_id, forge, installation_id)
+			DO UPDATE SET result = 'granted', verified_at = now()
+		`);
+	}
+
+	beforeAll(async () => {
+		await seedGithubUser("rule-reader", "6301");
+		await seedGithubUser("rule-stranger", "6302");
+	});
+
+	test("a fresh granted row from the old rule no longer allows a claim", async () => {
+		await legacyGrant("rule-reader", "9201");
+		expect(await canClaim("rule-reader", "9201")).toBe(false);
+		expect(
+			await listClaimableInstallations(db, { userId: "rule-reader" }),
+		).toEqual([]);
+	});
+
+	test("the migration turns old granted rows into denials", async () => {
+		await legacyGrant("rule-reader", "9202");
+		const migration = await Bun.file(
+			fileURLToPath(
+				new URL(
+					"../../drizzle/0024_revoke_legacy_install_grants.sql",
+					import.meta.url,
+				),
+			),
+		).text();
+		await db.execute(sql.raw(migration));
+		const rows = await db
+			.select({ result: installationAccessChecks.result })
+			.from(installationAccessChecks)
+			.where(eq(installationAccessChecks.installationId, "9202"));
+		expect(rows).toEqual([{ result: "denied" }]);
+	});
+
+	test("an admin-grade check for one forge never unlocks another", async () => {
+		await recordInstallAccessCheck(db, {
+			userId: "rule-reader",
+			forge: "opengit",
+			installationId: "9203",
+			result: "granted-admin",
+		});
+		expect(await canClaim("rule-reader", "9203")).toBe(false);
+	});
+
+	test("a stranger with no link is refused, the installer and requester are allowed", async () => {
+		await db.insert(events).values({
+			id: generateId(),
+			forge: "github",
+			deliveryId: generateId(),
+			rawKind: "installation",
+			kind: "installation.created",
+			raw: {
+				action: "created",
+				installation: {
+					id: 9204,
+					account: { id: 6390, login: "rule-corp", type: "Organization" },
+				},
+				sender: { id: 6301 },
+				requester: { id: 6303 },
+			},
+		});
+		await seedGithubUser("rule-requester", "6303");
+		expect(await canClaim("rule-stranger", "9204")).toBe(false);
+		expect(await canClaim("rule-reader", "9204")).toBe(true);
+		expect(await canClaim("rule-requester", "9204")).toBe(true);
+	});
+});
+
+describe("installation claim audit", () => {
+	async function seedGithubUser(id: string, githubId: string): Promise<void> {
+		await seedUser(id);
+		await db.insert(account).values({
+			id: generateId(),
+			userId: id,
+			providerId: "github",
+			accountId: githubId,
+		});
+	}
+
+	async function claimed(installationId: string): Promise<string[]> {
+		const found = await listUnprovenInstallationClaims(db);
+		return found
+			.filter((claim) => claim.installationId === installationId)
+			.map((claim) => claim.orgSlug);
+	}
+
+	const fixture = z
+		.object({
+			installation: z.object({ id: z.number() }),
+			sender: z.object({ id: z.number() }),
+		})
+		.passthrough();
+
+	test("a claim backed by the captured installer webhook passes", async () => {
+		const raw = fixture.parse(
+			await Bun.file(
+				fileURLToPath(
+					new URL(
+						"../../../forge-github/fixtures/installation.created.json",
+						import.meta.url,
+					),
+				),
+			).json(),
+		);
+		const installationId = String(raw.installation.id);
+		await db.insert(events).values({
+			id: generateId(),
+			forge: "github",
+			deliveryId: generateId(),
+			rawKind: "installation",
+			kind: "installation.created",
+			raw,
+		});
+		await seedGithubUser("audit-installer", String(raw.sender.id));
+		const orgId = await seedTeamOrg("audit-owned", "audit-installer");
+		await linkOrgInstallation(db, { orgId, installationId });
+		expect(await claimed(installationId)).toEqual([]);
+	});
+
+	test("a claim with no owner link among the org's admins is reported", async () => {
+		await seedGithubUser("audit-stranger", "6402");
+		const orgId = await seedTeamOrg("audit-stolen", "audit-stranger");
+		await linkOrgInstallation(db, { orgId, installationId: "9301" });
+		await db.execute(sql`
+			INSERT INTO installation_access_checks (id, user_id, forge, installation_id, result)
+			VALUES (${generateId()}, 'audit-stranger', 'github', '9301', 'granted')
+		`);
+		expect(await claimed("9301")).toEqual(["audit-stolen"]);
+	});
+
+	test("an admin-grade check of any age proves the claim, a plain member's does not", async () => {
+		await seedGithubUser("audit-admin", "6403");
+		await seedGithubUser("audit-member", "6404");
+		const orgId = await seedTeamOrg("audit-checked", "audit-admin");
+		await db.insert(member).values({
+			id: generateId(),
+			organizationId: orgId,
+			userId: "audit-member",
+			role: "member",
+		});
+		await linkOrgInstallation(db, { orgId, installationId: "9302" });
+		await recordInstallAccessCheck(db, {
+			userId: "audit-member",
+			forge: "github",
+			installationId: "9302",
+			result: "granted-admin",
+		});
+		expect(await claimed("9302")).toEqual(["audit-checked"]);
+		await recordInstallAccessCheck(db, {
+			userId: "audit-admin",
+			forge: "github",
+			installationId: "9302",
+			result: "granted-admin",
+			at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+		});
+		expect(await claimed("9302")).toEqual([]);
+	});
+
+	test("non-numeric and non-github installations are skipped", async () => {
+		await seedGithubUser("audit-oauth", "6405");
+		const orgId = await seedTeamOrg("audit-oauth", "audit-oauth");
+		await linkOrgInstallation(db, { orgId, installationId: "demo-inst-x" });
+		await linkOrgInstallation(db, {
+			orgId,
+			installationId: "9303",
+			forge: "opengit",
+		});
+		const found = await listUnprovenInstallationClaims(db);
+		expect(found.map((claim) => claim.orgSlug)).not.toContain("audit-oauth");
 	});
 });
 

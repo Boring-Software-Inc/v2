@@ -39,6 +39,7 @@ export {
 	GithubInstallations,
 	type GithubInstallationsOptions,
 	type UserInstallationAccess,
+	type UserInstallationRepo,
 } from "./client/installations.ts";
 export { GithubReads, type GithubReadsOptions } from "./client/reads.ts";
 export { listRepoReviewers } from "./client/reviewers.ts";

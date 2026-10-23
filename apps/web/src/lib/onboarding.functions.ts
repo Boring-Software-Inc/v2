@@ -184,7 +184,7 @@ export const claimInstallation = createServerFn({ method: "POST" })
 				: false;
 		if (!owned) {
 			throw new Error(
-				"Only the account that installed Tripwire, or requested the install, can connect it.",
+				"Only an admin of this account on GitHub can connect it. Ask an owner of the account to connect Tripwire.",
 			);
 		}
 		const owner = await db

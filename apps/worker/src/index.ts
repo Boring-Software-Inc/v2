@@ -32,6 +32,10 @@ import { createGenerate } from "./ai/generate.ts";
 import { captureJobFailures } from "./capture-job-failures.ts";
 import { resolveDeploymentId, startFence } from "./fence.ts";
 import { buildResolveForge } from "./forge-runtime.ts";
+import {
+	AUDIT_INSTALLATION_CLAIMS_QUEUE,
+	auditInstallationClaims,
+} from "./jobs/audit-installation-claims.ts";
 import { backfillRepo } from "./jobs/backfill-repo.ts";
 import { deliverWebhooks } from "./jobs/deliver-webhook.ts";
 import { economicsDigest } from "./jobs/economics-digest.ts";
@@ -334,6 +338,15 @@ if (import.meta.main) {
 			await rollup({ db, logger });
 		});
 
+		await boss.createQueue(AUDIT_INSTALLATION_CLAIMS_QUEUE);
+		await boss.schedule(AUDIT_INSTALLATION_CLAIMS_QUEUE, "50 2 * * *", {}, {});
+		await work(AUDIT_INSTALLATION_CLAIMS_QUEUE, async () => {
+			await auditInstallationClaims({
+				db,
+				logger: logger.child({ audit: AUDIT_INSTALLATION_CLAIMS_QUEUE }),
+			});
+		});
+
 		/** §5.12 surface sweeper — re-attempt actions stuck at `recorded` (outage). */
 		await boss.createQueue("sweep-actions");
 		await boss.schedule("sweep-actions", "* * * * *", {}, {});
@@ -429,6 +442,7 @@ if (import.meta.main) {
 				REFRESH_SURFACES_QUEUE,
 				RECOVER_INSTALLATION_QUEUE,
 				"rollup",
+				AUDIT_INSTALLATION_CLAIMS_QUEUE,
 				"sweep-actions",
 				"deliver-webhook",
 				"pull-provider-costs",

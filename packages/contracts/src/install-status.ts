@@ -3,8 +3,9 @@ import { forgeSchema } from "./forges.ts";
 
 export const installAccessResultSchema = z.enum([
 	"pending",
-	"granted",
+	"granted-admin",
 	"denied",
+	"not-admin",
 	"not-for-tripwire",
 	"token-expired",
 	"failed",
@@ -48,6 +49,11 @@ export const installStatusSchema = z.discriminatedUnion("status", [
 		recoverable: z.boolean(),
 	}),
 	z.object({ ...installStatusBase, status: z.literal("token-expired") }),
+	z.object({
+		...installStatusBase,
+		status: z.literal("not-admin"),
+		account: z.string().nullable(),
+	}),
 ]);
 export type InstallStatus = z.infer<typeof installStatusSchema>;
 export type ClaimableInstallStatus = Extract<
