@@ -15,6 +15,9 @@ export const TOOL_NAMES = [
 	"turn_on_gate",
 	"list_workflows",
 	"set_workflow_enabled",
+	"get_workflow",
+	"validate_workflow",
+	"apply_workflow",
 	"list_runs",
 	"get_run",
 	"list_moderation_queue",
@@ -86,6 +89,74 @@ const RESULTS: Record<string, z.infer<ReturnType<typeof z.json>>> = {
 			url: "https://app.tripwire.sh/runs/run_1",
 		},
 	],
+	get_workflow: {
+		code: "",
+		warnings: [],
+		workflows: [
+			{
+				id: "new-accounts",
+				definition: {
+					id: "new-accounts",
+					name: "New accounts",
+					version: 1,
+					nodes: [
+						{
+							id: "trigger",
+							type: "trigger",
+							kinds: ["change-request.opened"],
+						},
+						{
+							id: "account-age",
+							type: "rule",
+							ref: "account-age@1",
+							config: { minDays: 7 },
+						},
+						{ id: "block", type: "action", action: "block" },
+					],
+					edges: [
+						{ id: "e1", from: "trigger", to: "account-age" },
+						{
+							id: "e2",
+							from: "account-age",
+							to: "block",
+							when: "fail",
+						},
+					],
+				},
+			},
+		],
+	},
+	validate_workflow: {
+		valid: true,
+		workflows: [
+			{
+				id: "new-accounts",
+				name: "New accounts",
+				valid: true,
+				issues: [],
+				schedules: [],
+				changes: [
+					{
+						change: "changed",
+						subject: "step",
+						id: "account-age",
+						text: "check account-age@1",
+					},
+				],
+			},
+		],
+	},
+	apply_workflow: {
+		workflows: [
+			{
+				id: "new-accounts",
+				outcome: "updated",
+				enabled: false,
+				changes: [],
+				url: "https://app.tripwire.sh/grim/scratch/workflows/w1",
+			},
+		],
+	},
 	decide_moderation: {
 		done: false,
 		confirmUrl: "https://app.tripwire.sh/grim/scratch/moderation",

@@ -393,3 +393,138 @@ describe("management commands over MCP", () => {
 		});
 	});
 });
+
+describe("workflows as code", () => {
+	const file = () => join(sandbox.root, "tripwire.ts");
+
+	async function pulled() {
+		const result = await runCli(
+			["workflows", "pull", "scratch", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		return result;
+	}
+
+	test("pull writes tripwire.ts and the typed helpers beside it", async () => {
+		const result = await pulled();
+		expect(result.stdout).toContain("(1 workflows)");
+		const code = readFileSync(file(), "utf8");
+		expect(code).toContain('from "./.tripwire/workflow.ts"');
+		expect(code).toContain('check("account-age", {');
+		expect(code).toContain('"new-accounts": newAccounts(),');
+		const helpers = readFileSync(
+			join(sandbox.root, ".tripwire", "workflow.ts"),
+			"utf8",
+		);
+		expect(helpers).toContain("export interface TripwireCatalog");
+		expect(helpers).toContain("} = authoring<TripwireCatalog>();");
+	});
+
+	test("pull refuses to replace local edits without --force", async () => {
+		await pulled();
+		writeFileSync(file(), `${readFileSync(file(), "utf8")}\n`);
+		const again = await runCli(
+			["workflows", "pull", "scratch", "--file", file()],
+			env(),
+		);
+		expect(again.code).toBe(1);
+		expect(again.stderr).toContain("Pass --force");
+	});
+
+	test("validate compiles the pulled file and says it can be turned on", async () => {
+		await pulled();
+		const result = await runCli(
+			["workflows", "validate", "--file", file()],
+			env(),
+		);
+		expect(result.stdout).toContain("new-accounts can be turned on");
+		expect(result.code).toBe(0);
+	});
+
+	test("validate points a wrong rule id at the right one", async () => {
+		await pulled();
+		writeFileSync(
+			file(),
+			readFileSync(file(), "utf8").replace('"account-age"', '"acount-age"'),
+		);
+		const result = await runCli(
+			["workflows", "validate", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(result.stderr).toContain(
+			"acount-age is not a rule. Did you mean account-age?",
+		);
+	});
+
+	test("a wrong id also fails type-checking with the right one named", async () => {
+		await pulled();
+		writeFileSync(
+			file(),
+			readFileSync(file(), "utf8")
+				.replace('"account-age"', '"acount-age"')
+				.replace('"minDays"', '"minDayz"'),
+		);
+		const tsc = Bun.spawnSync(
+			[
+				process.execPath,
+				"x",
+				"tsc",
+				"--noEmit",
+				"--strict",
+				"--target",
+				"es2022",
+				"--module",
+				"esnext",
+				"--moduleResolution",
+				"bundler",
+				"--allowImportingTsExtensions",
+				file(),
+			],
+			{ cwd: join(import.meta.dir, "..") },
+		);
+		const output = tsc.stdout.toString();
+		expect(output).toContain('"acount-age is not a rule, try account-age"');
+	});
+
+	test("diff lists what a push would change", async () => {
+		await pulled();
+		const result = await runCli(
+			["workflows", "diff", "scratch", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		expect(result.stdout).toContain("~ step check account-age@1");
+		const call = server.calls.find(
+			(entry) => entry.name === "validate_workflow",
+		);
+		expect(call?.args).toMatchObject({
+			repo: "scratch",
+			definitions: [{ id: "new-accounts", name: "New accounts" }],
+		});
+	});
+
+	test("push sends the compiled definitions to apply_workflow", async () => {
+		await pulled();
+		const result = await runCli(
+			["workflows", "push", "scratch", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		expect(result.stdout).toContain("new-accounts  updated");
+		const call = server.calls.find((entry) => entry.name === "apply_workflow");
+		expect(call?.args).toMatchObject({
+			repo: "scratch",
+			definitions: [
+				{
+					id: "new-accounts",
+					edges: [
+						{ from: "trigger", to: "account-age" },
+						{ from: "account-age", to: "block", when: "fail" },
+					],
+				},
+			],
+		});
+	});
+});
