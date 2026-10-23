@@ -686,6 +686,88 @@ export default workflows({
 		);
 	});
 
+	test("a refused push exits 1 with --json too", async () => {
+		await pulled();
+		server.answerNext("apply_workflow", {
+			workflows: [
+				{
+					id: "new-accounts",
+					outcome: "refused",
+					issues: ["Nothing runs it."],
+				},
+			],
+		});
+		const result = await runCli(
+			["--json", "workflows", "push", "scratch", "--file", file()],
+			env(),
+		);
+		expect(JSON.parse(result.stdout).workflows[0].outcome).toBe("refused");
+		expect(result.code).toBe(1);
+	});
+
+	test("validate --repo exits 1 on an invalid report with --json too", async () => {
+		await pulled();
+		const invalid = {
+			valid: false,
+			workflows: [
+				{
+					id: "new-accounts",
+					name: "New accounts",
+					valid: false,
+					issues: [
+						{
+							rule: "gate-input",
+							severity: "error",
+							step: "Any of",
+							message: "It takes no inputs.",
+						},
+					],
+					schedules: [],
+					changes: [],
+				},
+			],
+		};
+		server.answerNext("validate_workflow", invalid);
+		const json = await runCli(
+			[
+				"--json",
+				"workflows",
+				"validate",
+				"--repo",
+				"scratch",
+				"--file",
+				file(),
+			],
+			env(),
+		);
+		expect(JSON.parse(json.stdout).valid).toBe(false);
+		expect(json.code).toBe(1);
+		server.answerNext("validate_workflow", invalid);
+		const text = await runCli(
+			["workflows", "validate", "--repo", "scratch", "--file", file()],
+			env(),
+		);
+		expect(text.code).toBe(1);
+	});
+
+	test("each workflows command exits the same with and without --json", async () => {
+		await pulled();
+		const commands = [
+			["workflows", "validate", "--file", file()],
+			["workflows", "validate", "--repo", "scratch", "--file", file()],
+			["workflows", "diff", "scratch", "--file", file()],
+			["workflows", "push", "scratch", "--file", file()],
+		];
+		for (const command of commands) {
+			const text = await runCli(command, env());
+			const json = await runCli(["--json", ...command], env());
+			expect([command.join(" "), json.code]).toEqual([
+				command.join(" "),
+				text.code,
+			]);
+		}
+	});
+
 	test("diff warns when the pushed workflow could not be turned on", async () => {
 		await pulled();
 		const report = {

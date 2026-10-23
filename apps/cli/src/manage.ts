@@ -455,17 +455,19 @@ function validateWorkflows(
 		const issues = compiled.ok ? [] : compiled.issues;
 		const { definitions } = compiled;
 		let reports: ReportView[] = [];
+		let remote: JsonValue | null = null;
 		if (definitions.length > 0 && opts.repo) {
 			const output = await callForData(deps, options, "validate_workflow", {
 				repo: opts.repo,
 				definitions: definitionsJson(definitions),
 			});
-			if (output.isError || (options.json && issues.length === 0)) {
+			if (output.isError) {
 				if (issues.length > 0) {
 					err(compileIssueLines(issues, options));
 				}
 				return render("validate_workflow", output, options);
 			}
+			remote = output.data;
 			reports = reportsSchema.parse(output.data).workflows;
 		} else if (definitions.length > 0) {
 			reports = reportWorkflows(definitions, localCatalog(definitions));
@@ -475,12 +477,14 @@ function validateWorkflows(
 		if (options.json) {
 			out(
 				JSON.stringify(
-					{
-						valid,
-						issues,
-						workflows: reports,
-						definitions: opts.repo ? undefined : definitions,
-					},
+					remote !== null && issues.length === 0
+						? remote
+						: {
+								valid,
+								issues,
+								workflows: reports,
+								definitions: opts.repo ? undefined : definitions,
+							},
 					null,
 					2,
 				),
@@ -556,18 +560,22 @@ function pushWorkflows(
 			repo,
 			definitions: definitionsJson(definitions),
 		});
-		if (options.json || output.isError) {
+		if (output.isError) {
 			return render("apply_workflow", output, options);
 		}
 		const parsed = changeListSchema.safeParse(output.data);
+		const refused = parsed.success
+			? parsed.data.workflows.filter((entry) => entry.outcome === "refused")
+			: [];
+		if (options.json) {
+			out(JSON.stringify(output.data ?? { text: output.text }, null, 2));
+			return refused.length > 0 ? 1 : 0;
+		}
 		out(
 			changeLines(output.data, options.style, (entry) =>
 				[entry.id, entry.outcome, entry.url].filter(Boolean).join("  "),
 			),
 		);
-		const refused = parsed.success
-			? parsed.data.workflows.filter((entry) => entry.outcome === "refused")
-			: [];
 		for (const entry of refused) {
 			const reasons = blockingReasons(entry);
 			err(
