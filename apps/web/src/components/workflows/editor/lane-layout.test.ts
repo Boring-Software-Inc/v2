@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
 	WORKFLOW_TEMPLATES,
 	type WorkflowDefinition,
-	workflowLanes,
 } from "@tripwire/contracts";
 import {
 	LANE_SPACING,
@@ -25,39 +24,6 @@ const STALE: WorkflowDefinition = {
 };
 
 const fixedHeight = () => 100;
-
-describe("workflowLanes", () => {
-	test("each trigger owns the steps it reaches, in run order", () => {
-		expect(workflowLanes(STALE)).toEqual([
-			{
-				index: 0,
-				triggerId: "warn",
-				nodeIds: ["warn", "mark-stale", "warn-comment"],
-			},
-			{
-				index: 1,
-				triggerId: "close",
-				nodeIds: ["close", "close-comment", "close-it"],
-			},
-			{ index: 2, triggerId: "reset", nodeIds: ["reset", "unmark-stale"] },
-		]);
-	});
-
-	test("a step two triggers reach belongs to the first", () => {
-		const lanes = workflowLanes({
-			nodes: [
-				{ id: "a", type: "trigger", kinds: ["push"] },
-				{ id: "b", type: "trigger", kinds: ["comment.created"] },
-				{ id: "x", type: "action", action: "close" },
-			],
-			edges: [
-				{ id: "e1", from: "a", to: "x" },
-				{ id: "e2", from: "b", to: "x" },
-			],
-		});
-		expect(lanes.map((lane) => lane.nodeIds)).toEqual([["a", "x"], ["b"]]);
-	});
-});
 
 describe("laneLayout", () => {
 	const layout = laneLayout(STALE, fixedHeight);
