@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
-import { VerdictChip, verdictStatus } from "#/components/activity/verdict-chip";
+import { runOutcome, VerdictChip } from "#/components/activity/verdict-chip";
 import { EntityCard } from "#/components/common/entity-card";
 import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
@@ -187,7 +187,7 @@ function EntryRow({
 			</ItemContent>
 			<EntryOutcome
 				outcome={
-					verdictStatus(run?.verdict) ??
+					runOutcome(event.kind, run?.verdict) ??
 					(pending ? { status: "running", label: "Checking" } : undefined)
 				}
 			/>

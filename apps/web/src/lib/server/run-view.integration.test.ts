@@ -303,3 +303,55 @@ describe("loadRunView, the chain of events", () => {
 		expect(stranger?.reviews[0]?.decidedBy).toBeNull();
 	});
 });
+
+describe("loadRunView, a comment run on the change request", () => {
+	let openedRunId: string;
+	let commentRunId: string;
+	let pushRunId: string;
+
+	beforeAll(async () => {
+		await pool.query(
+			`INSERT INTO events (id, delivery_id, raw_kind, raw, kind, actor_login, subject_number, head_sha, normalized)
+			 VALUES ('evt-cmt-1', 'cmt-1', 'pull_request', '{}', 'change-request.opened', 'contrib', 9, 'ccc1111', '{}'),
+			        ('evt-cmt-2', 'cmt-2', 'issue_comment', '{}', 'comment.created', 'contrib', 9, NULL, '{}'),
+			        ('evt-cmt-3', 'cmt-3', 'pull_request', '{}', 'change-request.updated', 'contrib', 9, 'ddd2222', '{}')`,
+		);
+		const create = async (
+			eventId: string,
+			headSha: string | null,
+			verdict: "pass" | "block",
+			minutes: number,
+		) => {
+			const id = await runServices.createRun(db, {
+				eventId,
+				repoFullName: "acme/pub",
+				subjectNumber: 9,
+				headSha,
+				snapshot: [DEFAULT_WORKFLOW],
+				status: "completed",
+				verdict,
+			});
+			await pool.query(
+				`UPDATE runs SET created_at = created_at + make_interval(mins => $2) WHERE id = $1`,
+				[id, minutes],
+			);
+			return id;
+		};
+		openedRunId = await create("evt-cmt-1", "ccc1111", "block", 0);
+		commentRunId = await create("evt-cmt-2", null, "pass", 1);
+		pushRunId = await create("evt-cmt-3", "ddd2222", "block", 2);
+	});
+
+	test("the push run replaces the opened run, not the comment run", async () => {
+		const view = await loadRunView(db, pushRunId, SESSION);
+		expect(view?.previousRun?.id).toBe(openedRunId);
+		const opened = await loadRunView(db, openedRunId, SESSION);
+		expect(opened?.nextRun?.id).toBe(pushRunId);
+	});
+
+	test("the comment run is neither replaced nor replacing", async () => {
+		const view = await loadRunView(db, commentRunId, SESSION);
+		expect(view?.previousRun).toBeNull();
+		expect(view?.nextRun).toBeNull();
+	});
+});

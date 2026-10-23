@@ -1,5 +1,5 @@
 import type { EventKind, NormalizedEvent } from "@tripwire/contracts";
-import { verdictStatus } from "#/components/activity/verdict-chip";
+import { runOutcome } from "#/components/activity/verdict-chip";
 import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
@@ -120,6 +120,7 @@ export function ActivityRow({
 				</ItemDescription>
 			</ItemContent>
 			<RowStatus
+				kind={event.kind}
 				pending={pending}
 				reason={unarmed && !hasRun ? "Tripwire is off" : noRunReason(event)}
 				run={run}
@@ -137,16 +138,18 @@ export function ActivityRow({
 }
 
 function RowStatus({
+	kind,
 	run,
 	pending,
 	reason,
 }: {
+	kind: EventKind;
 	run: ActivityItem["run"];
 	pending?: boolean;
 	reason: string;
 }) {
 	if (run || pending) {
-		const verdict = verdictStatus(run?.verdict);
+		const verdict = runOutcome(kind, run?.verdict);
 		return verdict ? (
 			<Status size="sm" status={verdict.status}>
 				{verdict.label}

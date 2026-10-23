@@ -1,9 +1,11 @@
-import type { Verdict, WorkflowDefinition } from "@tripwire/contracts";
 import {
 	ACTION_CATALOG,
+	bearsVerdict,
 	changeRequestUrl,
 	redactionLevelFor,
 	ruleDisplayName,
+	type Verdict,
+	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import {
 	type Db,
@@ -104,7 +106,7 @@ export async function loadRunView(
 	const eventNormalized = (eventRow?.normalized ?? null) as JsonValue | null;
 	const scheduled = eventRow?.kind === "schedule.matched";
 	const siblings =
-		result.run.subjectNumber === null || scheduled
+		result.run.subjectNumber === null || !bearsVerdict(eventRow?.kind)
 			? []
 			: await runServices.listRunsForChangeRequest(
 					db,
