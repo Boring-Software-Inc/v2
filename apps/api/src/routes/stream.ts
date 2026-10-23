@@ -1,5 +1,6 @@
 import { assertApproved } from "@tripwire/auth/access-gate";
-import { eventServices, orgServices } from "@tripwire/db";
+import { reposWithPermission } from "@tripwire/auth/org-gate";
+import { eventServices } from "@tripwire/db";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { ApiEnv } from "../env.ts";
@@ -42,7 +43,9 @@ export const stream = new Hono<ApiEnv>().get(
 			// refreshed on each heartbeat below so new grants land mid-stream.
 			c.set(
 				"visibleRepos",
-				new Set(await orgServices.listUserRepoFullNames(db, session.user.id)),
+				new Set(
+					await reposWithPermission(db, session.user.id, "activity:read"),
+				),
 			);
 		} else {
 			c.set("visibleRepos", null);
@@ -123,7 +126,7 @@ export const stream = new Hono<ApiEnv>().get(
 				});
 				if (session) {
 					visibleRepos = new Set(
-						await orgServices.listUserRepoFullNames(db, session.user.id),
+						await reposWithPermission(db, session.user.id, "activity:read"),
 					);
 				}
 			};

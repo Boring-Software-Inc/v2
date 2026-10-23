@@ -28,6 +28,8 @@ const NO_SESSION = { authEnabled: true, userId: null };
 const SESSION = { authEnabled: true, userId: "user-1" };
 const OUTSIDER = { authEnabled: true, userId: "user-2" };
 const OPEN_DEV = { authEnabled: false, userId: null };
+const BUILDER = { authEnabled: true, userId: "user-3" };
+const OPERATOR = { authEnabled: true, userId: "user-4" };
 
 const AI_REVIEW_ENVELOPE = {
 	ruleId: "ai-review",
@@ -140,11 +142,20 @@ beforeAll(async () => {
 	await pool.query(
 		`INSERT INTO "user" (id, name, email) VALUES
 		 ('user-1', 'member', 'member@example.com'),
-		 ('user-2', 'outsider', 'outsider@example.com')`,
+		 ('user-2', 'outsider', 'outsider@example.com'),
+		 ('user-3', 'builder', 'builder@example.com'),
+		 ('user-4', 'operator', 'operator@example.com')`,
 	);
 	await pool.query(
-		`INSERT INTO member (id, organization_id, user_id, role)
-		 VALUES ('member-1', 'org-run-view', 'user-1', 'member')`,
+		`INSERT INTO organization_role (id, organization_id, role, permission) VALUES
+		 ('role-builder', 'org-run-view', 'builder', '{"workflows":["read","manage"]}'),
+		 ('role-operator', 'org-run-view', 'operator', '{"activity":["read","manage"]}')`,
+	);
+	await pool.query(
+		`INSERT INTO member (id, organization_id, user_id, role) VALUES
+		 ('member-1', 'org-run-view', 'user-1', 'member'),
+		 ('member-3', 'org-run-view', 'user-3', 'builder'),
+		 ('member-4', 'org-run-view', 'user-4', 'operator')`,
 	);
 	publicRunId = await seedRun("acme/pub");
 	privateRunId = await seedRun("acme/priv");
@@ -216,6 +227,20 @@ describe("loadRunView — §10 access model", () => {
 		expect(view?.access).toBe("public");
 		expect(JSON.stringify(view)).not.toContain("trace");
 		expect(await loadRunView(db, privateRunId, OUTSIDER)).toBeNull();
+	});
+
+	test("a member whose role has no activity access ⇒ only what an outsider sees", async () => {
+		const view = await loadRunView(db, publicRunId, BUILDER);
+		expect(view?.access).toBe("public");
+		expect(JSON.stringify(view)).not.toContain("trace");
+		expect(view?.canRerun).toBe(false);
+		expect(await loadRunView(db, privateRunId, BUILDER)).toBeNull();
+	});
+
+	test("activity manage, not the admin role, offers the re-run", async () => {
+		const view = await loadRunView(db, privateRunId, OPERATOR);
+		expect(view?.access).toBe("full");
+		expect(view?.canRerun).toBe(true);
 	});
 
 	test("no session + repo row missing ⇒ nothing (fail closed)", async () => {

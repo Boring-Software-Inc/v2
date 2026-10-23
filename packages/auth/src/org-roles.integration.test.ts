@@ -9,12 +9,13 @@ import {
 	createDb,
 	createTestDatabase,
 	type Db,
+	ensureDemoRepo,
 	orgServices,
 	schema,
 	type TestDatabase,
 } from "@tripwire/db";
 import { and, eq } from "drizzle-orm";
-import { resolveOrgAccess } from "./org-gate.ts";
+import { reposWithPermission, resolveOrgAccess } from "./org-gate.ts";
 import { createAuth } from "./server.ts";
 
 let container: TestDatabase;
@@ -190,6 +191,22 @@ describe("a moderator role with only human review access", () => {
 		expect(await permissionsOf(reader.userId)).toEqual(
 			ORG_PERMISSIONS.filter((p) => p.endsWith(":read")),
 		);
+	});
+
+	test("the live activity stream skips repos the role cannot read", async () => {
+		await ensureDemoRepo(db, "roles-api", { installationId: "roles-inst" });
+		await orgServices.linkOrgInstallation(db, {
+			orgId,
+			installationId: "roles-inst",
+		});
+		const read = await reposWithPermission(db, reader.userId, "activity:read");
+		expect(read.filter((name) => name.endsWith("/roles-api"))).toHaveLength(1);
+		expect(
+			await reposWithPermission(db, moderator.userId, "activity:read"),
+		).toEqual([]);
+		expect(
+			await reposWithPermission(db, moderator.userId, "moderation:read"),
+		).toEqual(read);
 	});
 
 	test("a non-member gets not found", async () => {

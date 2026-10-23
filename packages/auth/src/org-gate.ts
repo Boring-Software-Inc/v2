@@ -44,6 +44,36 @@ export async function withPermissions(
 	return { ...org, permissions: resolveOrgPermissions(org.role, rows) };
 }
 
+export async function memberPermissions(
+	db: Db,
+	input: { orgId: string; userId: string },
+): Promise<OrgPermission[] | null> {
+	const role = await orgServices.getMemberRole(db, input);
+	if (role === null) {
+		return null;
+	}
+	const custom = roleNames(role).filter((name) => !isBuiltInOrgRole(name));
+	const rows = await orgServices.getOrgRoles(db, input.orgId, custom);
+	return resolveOrgPermissions(role, rows);
+}
+
+export async function reposWithPermission(
+	db: Db,
+	userId: string,
+	permission: OrgPermission,
+): Promise<string[]> {
+	const orgs = await orgServices.listUserOrgs(db, userId);
+	const names: string[] = [];
+	for (const org of orgs) {
+		const scoped = await withPermissions(db, org);
+		if (scoped.permissions.includes(permission)) {
+			const repos = await orgServices.listOrgRepos(db, org.id);
+			names.push(...repos.map((repo) => repo.fullName));
+		}
+	}
+	return names;
+}
+
 export function roleAffords(held: string, need: OrgRole): boolean {
 	const names = roleNames(held);
 	if (names.includes("admin")) {

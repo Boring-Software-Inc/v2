@@ -1302,22 +1302,6 @@ export async function getOrgInstallState(
 	};
 }
 
-/**
- * Every repo fullName the user can see through membership — the SSE stream's
- * visibility set (a member of org A must not receive org B's notifications).
- */
-export async function listUserRepoFullNames(
-	db: Db,
-	userId: string,
-): Promise<string[]> {
-	const rows = await db
-		.select({ fullName: repos.fullName })
-		.from(repos)
-		.innerJoin(member, eq(member.organizationId, repos.orgId))
-		.where(and(eq(member.userId, userId), isNull(repos.removedAt)));
-	return rows.map((r) => r.fullName);
-}
-
 export async function setOrgTimezone(
 	db: Db,
 	input: { orgId: string; timezone: string | null },

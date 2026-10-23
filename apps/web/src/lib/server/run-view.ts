@@ -1,3 +1,4 @@
+import { memberPermissions } from "@tripwire/auth/org-gate";
 import {
 	ACTION_CATALOG,
 	actionDone,
@@ -13,7 +14,6 @@ import {
 	type Db,
 	eventServices,
 	moderationServices,
-	orgServices,
 	repoServices,
 	responseServices,
 	runServices,
@@ -61,33 +61,34 @@ export async function loadRunView(
 	const repo = forge
 		? await repoServices.getRepoByFullName(db, result.run.repoFullName, forge)
 		: null;
-	const memberRole =
+	const permissions =
 		session.userId && repo?.orgId
-			? await orgServices.getMemberRole(db, {
+			? ((await memberPermissions(db, {
 					orgId: repo.orgId,
 					userId: session.userId,
-				})
-			: null;
+				})) ?? [])
+			: [];
 	const access = resolveRunAccess({
 		authEnabled: session.authEnabled,
-		isOrgMember: memberRole !== null,
+		canReadActivity: permissions.includes("activity:read"),
 		repoPrivate: repo?.private ?? null,
 	});
 	if (access === "denied") {
 		return null;
 	}
 
-	// §6 — re-run is admin-only and addressed by org slug + repo name. Resolve
+	// §6 — re-run needs activity manage and is addressed by org slug + repo name. Resolve
 	// the scope for the full view only; the public view carries none of it and
-	// `canRerun` stays false. Open-dev (auth disabled) treats the viewer as admin.
+	// `canRerun` stays false. Open-dev (auth disabled) offers it.
 	let orgSlug: string | null = null;
 	let repoName: string | null = null;
 	let canRerun = false;
 	if (access === "full" && repo?.orgId) {
 		orgSlug = await orgSlugById(db, repo.orgId);
 		repoName = repo.name;
-		const admin = !session.authEnabled || memberRole === "admin";
-		canRerun = admin && result.run.subjectNumber !== null;
+		const rerunner =
+			!session.authEnabled || permissions.includes("activity:manage");
+		canRerun = rerunner && result.run.subjectNumber !== null;
 	}
 	const nodeLabels = snapshotNodeLabels(result.run.workflowSnapshot);
 	// Resolve rule display names through the merged catalog: built-ins via
