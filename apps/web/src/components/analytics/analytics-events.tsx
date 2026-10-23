@@ -45,13 +45,13 @@ import {
 	statusVariants,
 } from "#/components/glaze/ui/status";
 import { MascotArt } from "#/components/mascot/mascot-art";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import type {
 	AnalyticsEvent,
 	EventImpact,
 	EventKind,
 } from "#/lib/analytics-events";
 import type { DateRange } from "#/lib/date-range";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 import { cn } from "#/lib/glaze/utils";
 
 const KIND_ICON = {
@@ -254,8 +254,8 @@ function EventRow({
 				</ItemTitle>
 			</ItemContent>
 			{event.impact ? <ImpactChip impact={event.impact} /> : null}
-			<ItemMeta className="w-14 text-end">
-				{formatRelativeTime(event.at)}
+			<ItemMeta className="w-36 whitespace-nowrap text-end">
+				<ZonedTime at={event.at} format="short" />
 			</ItemMeta>
 		</Item>
 	);

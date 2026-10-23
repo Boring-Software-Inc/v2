@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	formatClockTime,
 	formatDateTime,
+	formatShortTime,
 	newScheduleTimezone,
 	resolveDisplayZone,
 	timezoneNames,
@@ -53,6 +54,26 @@ describe("formatting", () => {
 		expect(formatDateTime(INSTANT, "America/New_York")).toBe(
 			"Oct 23, 2026, 8:34 AM EDT",
 		);
+	});
+
+	test("a short time drops the date today and the year this year", () => {
+		const now = new Date("2026-10-23T20:00:00Z");
+		expect(formatShortTime(INSTANT, "America/New_York", now)).toBe(
+			"8:34 AM EDT",
+		);
+		expect(formatShortTime(new Date("2026-10-21T09:05:00Z"), "UTC", now)).toBe(
+			"Oct 21, 9:05 AM UTC",
+		);
+		expect(formatShortTime(new Date("2025-12-31T23:30:00Z"), "UTC", now)).toBe(
+			"Dec 31, 2025, 11:30 PM UTC",
+		);
+	});
+
+	test("today is today in the display zone, not in UTC", () => {
+		const now = new Date("2026-10-23T02:00:00Z");
+		const late = new Date("2026-10-22T23:00:00Z");
+		expect(formatShortTime(late, "UTC", now)).toBe("Oct 22, 11:00 PM UTC");
+		expect(formatShortTime(late, "Asia/Tokyo", now)).toBe("8:00 AM GMT+9");
 	});
 
 	test("the zone list always offers UTC", () => {

@@ -22,9 +22,9 @@ import {
 	type StatusValue,
 	statusVariants,
 } from "#/components/glaze/ui/status";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
 import { changeRequestForgeLink, eventForgeLink } from "#/lib/activity-links";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 
 const VISIBLE = 10;
 
@@ -120,7 +120,7 @@ function StackDescription({ group }: { group: ActivityGroup }) {
 		<MetaRow>
 			<span>{group.actor.login}</span>
 			<span>{group.repoFullName}</span>
-			<span>{formatRelativeTime(group.latestActivityAt)}</span>
+			<ZonedTime at={group.latestActivityAt} format="short" />
 		</MetaRow>
 	);
 }
@@ -191,8 +191,8 @@ function EntryRow({
 					(pending ? { status: "running", label: "Checking" } : undefined)
 				}
 			/>
-			<ItemMeta className="w-14 text-end">
-				{formatRelativeTime(event.occurredAt)}
+			<ItemMeta className="w-36 whitespace-nowrap text-end">
+				<ZonedTime at={event.occurredAt} format="short" />
 			</ItemMeta>
 			<ItemActions className="w-14 justify-end">
 				{forgeLink ? (

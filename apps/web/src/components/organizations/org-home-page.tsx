@@ -30,10 +30,10 @@ import { ApprovedInstallBanner } from "#/components/organizations/approved-insta
 import { ORG_REPOS_COLLECTION } from "#/components/organizations/org-home-collection";
 import { HomeLoading } from "#/components/organizations/org-home-page-skeleton";
 import { AgentSetupCard } from "#/components/setup/agent-setup-card";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { LIVE_FORGES } from "#/lib/forge-copy";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
 import { orgContextQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 
@@ -232,7 +232,7 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 							: "Open the repo to turn Tripwire on"}
 					</span>
 					{repo.lastActivityAt ? (
-						<span>{formatRelativeTime(repo.lastActivityAt)}</span>
+						<ZonedTime at={repo.lastActivityAt} format="short" />
 					) : null}
 				</MetaRow>
 			}

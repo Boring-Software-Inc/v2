@@ -82,3 +82,40 @@ export function formatDateTime(instant: Date, zone: string): string {
 	}).format(instant);
 	return `${date}, ${time} ${zoneOffsetName(instant, zone)}`;
 }
+
+function dayParts(instant: Date, zone: string): { year: string; day: string } {
+	const day = new Intl.DateTimeFormat("en-CA", {
+		timeZone: zone,
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	}).format(instant);
+	return { year: day.slice(0, 4), day };
+}
+
+export function formatShortTime(
+	instant: Date,
+	zone: string,
+	now: Date = new Date(),
+): string {
+	const at = dayParts(instant, zone);
+	const today = dayParts(now, zone);
+	if (at.year !== today.year) {
+		return formatDateTime(instant, zone);
+	}
+	const time = new Intl.DateTimeFormat("en-US", {
+		timeZone: zone,
+		hour: "numeric",
+		minute: "2-digit",
+	}).format(instant);
+	const zoneName = zoneOffsetName(instant, zone);
+	if (at.day === today.day) {
+		return `${time} ${zoneName}`;
+	}
+	const date = new Intl.DateTimeFormat("en-US", {
+		timeZone: zone,
+		month: "short",
+		day: "numeric",
+	}).format(instant);
+	return `${date}, ${time} ${zoneName}`;
+}

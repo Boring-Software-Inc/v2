@@ -48,8 +48,8 @@ import {
 import { toast } from "#/components/glaze/ui/toast";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { isCommentItem } from "#/components/moderation/moderation-collection";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import { useOrgPermission } from "#/hooks/use-org-permission";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 import {
 	decideModeration,
 	listModerationQueue,
@@ -165,7 +165,7 @@ export function ModerationQueue({
 									<ItemDescription>
 										<MetaRow>
 											<span>{item.actorLogin ?? "Unknown contributor"}</span>
-											<span>{formatRelativeTime(item.createdAt)}</span>
+											<ZonedTime at={item.createdAt} format="short" />
 											{item.reason ? <span>{item.reason}</span> : null}
 										</MetaRow>
 									</ItemDescription>

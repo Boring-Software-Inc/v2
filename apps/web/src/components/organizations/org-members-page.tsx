@@ -54,10 +54,10 @@ import {
 	INVITES_COLLECTION,
 	MEMBERS_COLLECTION,
 } from "#/components/organizations/org-members-collection";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { InviteLinkView, OrgMemberView } from "#/lib/org.functions";
 import {
 	createOrgInvite,
@@ -275,7 +275,9 @@ function MemberRow({
 				<ItemDescription>
 					<MetaRow>
 						<span>{member.email}</span>
-						<span>Joined {formatRelativeTime(member.joinedAt)}</span>
+						<span>
+							Joined <ZonedTime at={member.joinedAt} format="short" />
+						</span>
 					</MetaRow>
 				</ItemDescription>
 			</ItemContent>

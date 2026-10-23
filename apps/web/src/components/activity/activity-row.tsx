@@ -15,9 +15,9 @@ import {
 	ItemTitle,
 } from "#/components/glaze/ui/item";
 import { Status } from "#/components/glaze/ui/status";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import type { ActivityItem } from "#/lib/activity.functions";
 import { eventForgeLink } from "#/lib/activity-links";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 
 const KIND_LABEL: Record<EventKind, string> = {
 	"change-request.opened": "opened",
@@ -124,8 +124,8 @@ export function ActivityRow({
 				reason={unarmed && !hasRun ? "Tripwire is off" : noRunReason(event)}
 				run={run}
 			/>
-			<ItemMeta className="w-14 text-end">
-				{formatRelativeTime(event.occurredAt)}
+			<ItemMeta className="w-36 whitespace-nowrap text-end">
+				<ZonedTime at={event.occurredAt} format="short" />
 			</ItemMeta>
 			<ItemActions className="w-14 justify-end">
 				{forgeLink ? (

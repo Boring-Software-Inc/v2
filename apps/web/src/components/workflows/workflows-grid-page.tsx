@@ -62,6 +62,7 @@ import {
 	UnsavedChangesBar,
 	useSaveQueueField,
 } from "#/components/save-queue";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	humanizeTriggerKind,
 	WORKFLOWS_COLLECTION,
@@ -69,7 +70,6 @@ import {
 import { GridSkeleton } from "#/components/workflows/workflows-grid-page-skeleton";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import { trackEvent } from "#/lib/track";
 import type { WorkflowListItem } from "#/lib/workflows.functions";
@@ -517,7 +517,9 @@ function WorkflowRow({
 						<span className="tabular-nums">
 							{workflow.nodeCount} {workflow.nodeCount === 1 ? "step" : "steps"}
 						</span>
-						<span>Updated {formatRelativeTime(workflow.updatedAt)}</span>
+						<span>
+							Updated <ZonedTime at={workflow.updatedAt} format="short" />
+						</span>
 						{canManage ? null : <span>Read only</span>}
 					</MetaRow>
 				}
