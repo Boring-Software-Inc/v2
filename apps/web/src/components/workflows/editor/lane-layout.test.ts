@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
+	DEFAULT_WORKFLOW,
 	WORKFLOW_TEMPLATES,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import {
+	estimateCardHeight,
 	LANE_SPACING,
 	laneDecor,
 	laneLayout,
@@ -128,5 +130,51 @@ describe("laneDecor", () => {
 		expect(laneSummary({ id: "t", type: "trigger", kinds: [] })).toBe(
 			"Event not set",
 		);
+	});
+});
+
+describe("estimateCardHeight", () => {
+	const byId = (definition: WorkflowDefinition, id: string) => {
+		const node = definition.nodes.find((entry) => entry.id === id);
+		if (!node) {
+			throw new Error(`missing ${id}`);
+		}
+		return node;
+	};
+
+	test("never undershoots the heights the cards render at", () => {
+		const measured: [string, number][] = [
+			["trigger", 89],
+			["account-age", 110],
+			["crypto", 69],
+			["honeypot", 122],
+			["max-files", 110],
+			["english", 110],
+			["gate", 69],
+			["block", 36],
+		];
+		for (const [id, height] of measured) {
+			const estimate = estimateCardHeight(byId(DEFAULT_WORKFLOW, id));
+			expect([id, estimate >= height]).toEqual([id, true]);
+			expect([id, estimate - height <= 16]).toEqual([id, true]);
+		}
+	});
+
+	test("counts the outcome row and wrapped schedule labels", () => {
+		const issues = WORKFLOW_TEMPLATES.find(
+			(template) => template.id === "close-stale-issues",
+		);
+		if (!issues) {
+			throw new Error("stale issues template missing");
+		}
+		expect(
+			estimateCardHeight(byId(issues.definition, "warn")),
+		).toBeGreaterThanOrEqual(173);
+		expect(
+			estimateCardHeight(byId(issues.definition, "close")),
+		).toBeGreaterThanOrEqual(189);
+		expect(
+			estimateCardHeight({ id: "n", type: "gate", mode: "not" }),
+		).toBeGreaterThanOrEqual(69);
 	});
 });

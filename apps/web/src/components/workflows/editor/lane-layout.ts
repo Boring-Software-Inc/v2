@@ -1,6 +1,7 @@
 import {
 	type LayoutSpacing,
 	layoutWorkflow,
+	outputPorts,
 	type WorkflowDefinition,
 	type WorkflowNode,
 	workflowLanes,
@@ -22,24 +23,43 @@ export const LANE_SPACING: LayoutSpacing = {
 	head: 40,
 };
 
-const LABELED_CHARS = 22;
-const BARE_CHARS = 30;
+const CARD = {
+	head: 36,
+	detail: 16,
+	outcome: 17,
+	fields: 13,
+	rowMin: 28,
+	rowPad: 8,
+	line: 16,
+	rowWidth: 196,
+	char: 7,
+	labelGap: 12,
+};
+
+function textLines(text: string, width: number): number {
+	const perLine = Math.max(1, Math.floor(width / CARD.char));
+	return Math.max(1, Math.ceil(text.length / perLine));
+}
 
 export function estimateCardHeight(node: WorkflowNode): number {
+	const detail = node.type === "rule" || node.type === "gate";
+	const outcome = outputPorts(node).length > 1;
 	const rows = nodeFieldValues(node);
-	if (rows.length === 0) {
-		return 44;
-	}
 	const body = rows.reduce((sum, { field, value }) => {
 		const text = summarizeFieldValue(field, value);
-		const perLine =
-			field.key === "message" && value !== undefined
-				? BARE_CHARS
-				: LABELED_CHARS;
-		const lines = Math.max(1, Math.ceil(text.length / perLine));
-		return sum + Math.max(28, 8 + lines * 17);
+		const bare = field.key === "message" && value !== undefined;
+		const width = bare
+			? CARD.rowWidth
+			: CARD.rowWidth - field.label.length * CARD.char - CARD.labelGap;
+		const lines = textLines(text, width);
+		return sum + Math.max(CARD.rowMin, CARD.rowPad + lines * CARD.line);
 	}, 0);
-	return 44 + 12 + body;
+	return (
+		CARD.head +
+		(detail ? CARD.detail : 0) +
+		(rows.length > 0 ? CARD.fields + body : 0) +
+		(outcome ? CARD.outcome : 0)
+	);
 }
 
 export function laneLayout(
