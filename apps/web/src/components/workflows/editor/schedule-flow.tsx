@@ -21,18 +21,16 @@ import {
 	FieldTitle,
 	Label,
 } from "#/components/glaze/ui/field";
-import { NumberInput } from "#/components/glaze/ui/number-input";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
 } from "#/components/glaze/ui/segmented-control";
-import { Select } from "#/components/glaze/ui/select";
 import {
 	LabelPicker,
 	RefreshLabels,
 } from "#/components/workflows/editor/label-picker";
-import { useCronDraft } from "#/components/workflows/editor/node-issues";
-import { ScheduleCadenceField } from "#/components/workflows/editor/schedule-cadence";
+import { useScheduleDraft } from "#/components/workflows/editor/node-issues";
+import { ScheduleTextField } from "#/components/workflows/editor/schedule-input";
 import { useTimezones } from "#/hooks/use-timezones";
 import { cn } from "#/lib/glaze/utils";
 import { UNIT_LABEL } from "#/lib/schedule-summary";
@@ -125,9 +123,13 @@ function StepTitle({
 	);
 }
 
+function unitWord(unit: keyof typeof DURATION_UNIT_MS, n: number | undefined) {
+	const word = UNIT_LABEL[unit].toLowerCase();
+	return n === 1 ? word.slice(0, -1) : word;
+}
+
 function DurationField<Unit extends keyof typeof DURATION_UNIT_MS>({
-	label,
-	status,
+	labelId,
 	value,
 	units,
 	defaultUnit,
@@ -135,8 +137,7 @@ function DurationField<Unit extends keyof typeof DURATION_UNIT_MS>({
 	readOnly,
 	onChange,
 }: {
-	label: string;
-	status: StepStatus;
+	labelId: string;
 	value: { n: number; unit: Unit } | undefined;
 	units: readonly Unit[];
 	defaultUnit: Unit;
@@ -145,63 +146,88 @@ function DurationField<Unit extends keyof typeof DURATION_UNIT_MS>({
 	onChange: (next: { n: number; unit: Unit } | undefined) => void;
 }) {
 	const [pendingUnit, setPendingUnit] = useState<Unit>(defaultUnit);
+	const [typed, setTyped] = useState<string | null>(null);
 	const unit = value?.unit ?? pendingUnit;
 	const max = maxFor(unit, limitMs);
 	const unitLabelId = useId();
+	const set = (n: number | null) =>
+		onChange(
+			n === null ? undefined : { n: Math.min(Math.max(n, 1), max), unit },
+		);
 	return (
-		<Field>
-			<FieldLabel className={stepLabelClass(status)}>{label}</FieldLabel>
-			<div className="flex items-center gap-2">
-				<NumberInput
-					className="w-28 shrink-0"
-					disabled={readOnly}
-					max={max}
-					min={1}
-					onValueChange={(next) =>
-						onChange(next === null ? undefined : { n: next, unit })
+		<div
+			className={cn(
+				"field w-auto gap-1 px-2",
+				readOnly && "bg-field text-text-disabled",
+			)}
+			data-slot="input"
+		>
+			<input
+				aria-labelledby={labelId}
+				className="w-6 min-w-0 flex-none bg-transparent text-end tabular-nums placeholder:text-text-3"
+				data-control=""
+				disabled={readOnly}
+				inputMode="numeric"
+				onBlur={() => setTyped(null)}
+				onChange={(event) => {
+					const digits = event.target.value.replace(/\D/g, "").slice(0, 4);
+					setTyped(digits);
+					set(digits === "" ? null : Number(digits));
+				}}
+				onKeyDown={(event) => {
+					if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+						return;
 					}
-					value={value?.n ?? null}
-				/>
-				<span className="sr-only" id={unitLabelId}>
-					Unit
-				</span>
-				<Select
-					aria-labelledby={unitLabelId}
-					className="min-w-0 flex-1"
-					disabled={readOnly}
-					items={units.map((entry) => ({
-						value: entry,
-						label: UNIT_LABEL[entry],
-					}))}
-					native
-					onValueChange={(next) => {
-						if (!next) {
-							return;
-						}
-						const nextUnit = next as Unit;
-						setPendingUnit(nextUnit);
-						if (value) {
-							onChange({
-								n: Math.min(value.n, maxFor(nextUnit, limitMs)),
-								unit: nextUnit,
-							});
-						}
-					}}
-					value={unit}
-				/>
-			</div>
-		</Field>
+					event.preventDefault();
+					setTyped(null);
+					set((value?.n ?? 0) + (event.key === "ArrowUp" ? 1 : -1));
+				}}
+				placeholder="30"
+				value={typed ?? (value ? String(value.n) : "")}
+			/>
+			<span className="sr-only" id={unitLabelId}>
+				Unit
+			</span>
+			<select
+				aria-labelledby={unitLabelId}
+				className="field-sizing-content cursor-pointer appearance-none bg-transparent disabled:cursor-not-allowed"
+				data-control=""
+				disabled={readOnly}
+				onChange={(event) => {
+					const nextUnit = units.find((entry) => entry === event.target.value);
+					if (!nextUnit) {
+						return;
+					}
+					setPendingUnit(nextUnit);
+					if (value) {
+						onChange({
+							n: Math.min(value.n, maxFor(nextUnit, limitMs)),
+							unit: nextUnit,
+						});
+					}
+				}}
+				value={unit}
+			>
+				{units.map((entry) => (
+					<option key={entry} value={entry}>
+						{unitWord(entry, value?.n)}
+					</option>
+				))}
+			</select>
+		</div>
 	);
 }
 
 function CheckList<Value extends string>({
 	titleId,
+	row = false,
 	options,
 	chosen,
 	readOnly,
 	onToggle,
 }: {
 	titleId: string;
+	row?: boolean;
 	options: readonly { value: Value; label: string }[];
 	chosen: readonly Value[];
 	readOnly: boolean;
@@ -210,7 +236,10 @@ function CheckList<Value extends string>({
 	return (
 		<fieldset
 			aria-labelledby={titleId}
-			className="flex min-w-0 flex-col gap-2.5"
+			className={cn(
+				"flex min-w-0",
+				row ? "flex-row flex-wrap gap-x-4 gap-y-2" : "flex-col gap-2.5",
+			)}
 		>
 			{options.map((option) => (
 				<Label className="flex items-center gap-2" key={option.value}>
@@ -246,11 +275,19 @@ function ScheduleSteps({
 			: step === current
 				? "current"
 				: "upcoming";
+	const matchStatus: StepStatus =
+		statusOf("state") === "current" || statusOf("inactiveFor") === "current"
+			? "current"
+			: statusOf("state") === "answered" &&
+					statusOf("inactiveFor") === "answered"
+				? "answered"
+				: "upcoming";
 	const subjectsTitleId = useId();
 	const stateTitleId = useId();
+	const inactiveTitleId = useId();
 	const { org } = useParams({ strict: false });
 	const timezones = useTimezones(org);
-	const cron = useCronDraft(node.id);
+	const scheduleDraft = useScheduleDraft(node.id);
 
 	const update = (next: ScheduleDraft, answered?: ScheduleStep) => {
 		onUpdate({ ...node, schedule: next });
@@ -267,8 +304,8 @@ function ScheduleSteps({
 	return (
 		<>
 			<Step status={statusOf("every")} step="every">
-				<ScheduleCadenceField
-					cronDraft={cron.draft}
+				<ScheduleTextField
+					draft={scheduleDraft.draft}
 					key={node.id}
 					onChange={(cadence) =>
 						update(
@@ -276,7 +313,7 @@ function ScheduleSteps({
 							"every",
 						)
 					}
-					onCronDraft={cron.setDraft}
+					onDraft={scheduleDraft.setDraft}
 					readOnly={readOnly}
 					timezones={timezones}
 					value={{ every: draft.every, timezone: draft.timezone }}
@@ -300,44 +337,56 @@ function ScheduleSteps({
 					}
 					options={SUBJECT_OPTIONS}
 					readOnly={readOnly}
+					row
 					titleId={subjectsTitleId}
 				/>
 			</Step>
-			<Step status={statusOf("state")} step="state">
-				<StepTitle id={stateTitleId} status={statusOf("state")}>
-					Status
-				</StepTitle>
-				<SegmentedControl
-					aria-labelledby={stateTitleId}
-					disabled={readOnly}
-					fill
-					onValueChange={(next) =>
-						setMatch({ state: next as ScheduleState }, "state")
-					}
-					value={draft.match.state ?? ""}
-				>
-					{STATE_OPTIONS.map((option) => (
-						<SegmentedControlItem
-							className="px-2"
-							key={option.value}
-							value={option.value}
+			<Step status={matchStatus} step="state">
+				<div className="flex items-start justify-between gap-2">
+					<div className="flex flex-col gap-2">
+						<StepTitle id={stateTitleId} status={statusOf("state")}>
+							Status
+						</StepTitle>
+						<SegmentedControl
+							aria-labelledby={stateTitleId}
+							disabled={readOnly}
+							onValueChange={(next) =>
+								setMatch({ state: next as ScheduleState }, "state")
+							}
+							value={draft.match.state ?? ""}
 						>
-							{option.label}
-						</SegmentedControlItem>
-					))}
-				</SegmentedControl>
-			</Step>
-			<Step status={statusOf("inactiveFor")} step="inactiveFor">
-				<DurationField
-					defaultUnit="days"
-					label="Inactive for"
-					limitMs={MAX_INACTIVE_FOR_MS}
-					onChange={(inactiveFor) => setMatch({ inactiveFor }, "inactiveFor")}
-					readOnly={readOnly}
-					status={statusOf("inactiveFor")}
-					units={INACTIVE_UNITS}
-					value={draft.match.inactiveFor}
-				/>
+							{STATE_OPTIONS.map((option) => (
+								<SegmentedControlItem
+									className="px-1"
+									key={option.value}
+									value={option.value}
+								>
+									{option.label}
+								</SegmentedControlItem>
+							))}
+						</SegmentedControl>
+					</div>
+					<div
+						className="flex shrink-0 flex-col gap-2"
+						data-field="inactiveFor"
+						data-step="inactiveFor"
+					>
+						<StepTitle id={inactiveTitleId} status={statusOf("inactiveFor")}>
+							Inactive for
+						</StepTitle>
+						<DurationField
+							defaultUnit="days"
+							labelId={inactiveTitleId}
+							limitMs={MAX_INACTIVE_FOR_MS}
+							onChange={(inactiveFor) =>
+								setMatch({ inactiveFor }, "inactiveFor")
+							}
+							readOnly={readOnly}
+							units={INACTIVE_UNITS}
+							value={draft.match.inactiveFor}
+						/>
+					</div>
+				</div>
 			</Step>
 			<div className="-mx-4 mt-3 flex flex-col gap-3 border-line-faint border-t px-4 pt-4">
 				<div className="flex items-center gap-1.5">

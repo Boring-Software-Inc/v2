@@ -92,14 +92,14 @@ import {
 	TripwireNode,
 } from "#/components/workflows/editor/node-card";
 import {
-	type CronDraftsApi,
-	CronDraftsContext,
 	CustomRuleNamesContext,
 	EditFieldContext,
 	groupProblems,
 	type Problem,
 	type ProblemsApi,
 	ProblemsContext,
+	type ScheduleDraftsApi,
+	ScheduleDraftsContext,
 } from "#/components/workflows/editor/node-issues";
 import { ProblemsButton } from "#/components/workflows/editor/problems-list";
 import { ReviewerScopeContext } from "#/components/workflows/editor/reviewer-picker";
@@ -112,7 +112,7 @@ import {
 	type TypedFlowEdge,
 } from "#/components/workflows/editor/typed-connections";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
-import { invalidCronDrafts } from "#/lib/schedule-cadence";
+import { invalidScheduleDrafts } from "#/lib/schedule-input";
 import {
 	definitionToGraph,
 	edgeWhenFields,
@@ -313,14 +313,14 @@ function EditorBody({
 		initial.edges,
 	);
 	const [dirty, setDirty] = useState(false);
-	const [cronDrafts, setCronDrafts] = useState<ReadonlyMap<string, string>>(
-		new Map(),
-	);
-	const cronDraftsApi = useMemo<CronDraftsApi>(
+	const [scheduleDrafts, setScheduleDrafts] = useState<
+		ReadonlyMap<string, string>
+	>(new Map());
+	const scheduleDraftsApi = useMemo<ScheduleDraftsApi>(
 		() => ({
-			drafts: cronDrafts,
+			drafts: scheduleDrafts,
 			setDraft: (nodeId, text) =>
-				setCronDrafts((current) => {
+				setScheduleDrafts((current) => {
 					const next = new Map(current);
 					if (text === null) {
 						next.delete(nodeId);
@@ -330,7 +330,7 @@ function EditorBody({
 					return next;
 				}),
 		}),
-		[cronDrafts],
+		[scheduleDrafts],
 	);
 	const [dragged, setDragged] = useState<ToolboxItem | null>(null);
 	const { fitView, getIntersectingNodes, getZoom, screenToFlowPosition } =
@@ -457,12 +457,12 @@ function EditorBody({
 						.filter((issue) => !known.has(issue.message))
 						.map((issue) => serverProblem(issue, names))
 				: [];
-		const drafted = invalidCronDrafts(
-			cronDrafts,
+		const drafted = invalidScheduleDrafts(
+			scheduleDrafts,
 			nodes.map((node) => node.data.node),
 		).map(
 			({ nodeId, message }): Problem => ({
-				key: `cron:${nodeId}`,
+				key: `schedule:${nodeId}`,
 				rule: null,
 				severity: "error",
 				step: names.get(nodeId) ?? "Schedule",
@@ -470,7 +470,7 @@ function EditorBody({
 				nodeId,
 				fixes: [
 					{
-						label: "Edit cron",
+						label: "Edit schedule",
 						intent: { type: "focus-field", nodeId, field: "every" },
 					},
 				],
@@ -486,7 +486,7 @@ function EditorBody({
 		serverIssues,
 		nodes,
 		enableCatalog,
-		cronDrafts,
+		scheduleDrafts,
 	]);
 
 	const blockers = problems.filter((problem) => problem.severity === "error");
@@ -1039,10 +1039,10 @@ function EditorBody({
 	// ---- save ---------------------------------------------------------------
 	const handleSave = async () => {
 		const unparsed = problems.find((problem) =>
-			problem.key.startsWith("cron:"),
+			problem.key.startsWith("schedule:"),
 		);
 		if (unparsed) {
-			toast.fail(`${unparsed.message} Fix the cron to save.`);
+			toast.fail(`${unparsed.message} Fix the schedule to save.`);
 			revealProblem(unparsed);
 			return;
 		}
@@ -1192,7 +1192,7 @@ function EditorBody({
 								</EditFieldContext.Provider>
 							</ProblemsContext.Provider>
 						</CustomRuleNamesContext.Provider>
-						<CronDraftsContext.Provider value={cronDraftsApi}>
+						<ScheduleDraftsContext.Provider value={scheduleDraftsApi}>
 							<EditorSidebar
 								connect={toolboxConnect}
 								customRules={customRules}
@@ -1208,7 +1208,7 @@ function EditorBody({
 								readOnly={readOnly}
 								selectedNode={selectedNode}
 							/>
-						</CronDraftsContext.Provider>
+						</ScheduleDraftsContext.Provider>
 						<ProblemsButton
 							onFix={fixProblem}
 							onOpenChange={setProblemsOpen}

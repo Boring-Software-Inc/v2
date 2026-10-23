@@ -96,23 +96,23 @@ export function useEditField(): (nodeId: string, fieldKey: string) => void {
 	return useContext(EditFieldContext);
 }
 
-export interface CronDraftsApi {
+export interface ScheduleDraftsApi {
 	drafts: ReadonlyMap<string, string>;
 	setDraft: (nodeId: string, text: string | null) => void;
 }
 
-export const CronDraftsContext = createContext<CronDraftsApi>({
+export const ScheduleDraftsContext = createContext<ScheduleDraftsApi>({
 	drafts: new Map(),
 	setDraft: () => undefined,
 });
 
-export interface CronDraft {
+export interface ScheduleDraft {
 	draft: string | undefined;
 	setDraft: (text: string | null) => void;
 }
 
-export function useCronDraft(nodeId: string): CronDraft {
-	const api = useContext(CronDraftsContext);
+export function useScheduleDraft(nodeId: string): ScheduleDraft {
+	const api = useContext(ScheduleDraftsContext);
 	return {
 		draft: api.drafts.get(nodeId),
 		setDraft: (text) => api.setDraft(nodeId, text),
