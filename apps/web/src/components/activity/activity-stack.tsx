@@ -117,7 +117,7 @@ function StackTitle({ group }: { group: ActivityGroup }) {
 
 function StackDescription({ group }: { group: ActivityGroup }) {
 	return (
-		<MetaRow>
+		<MetaRow wrap>
 			<span>{group.actor.login}</span>
 			<span>{group.repoFullName}</span>
 			<ZonedTime at={group.latestActivityAt} format="short" />
