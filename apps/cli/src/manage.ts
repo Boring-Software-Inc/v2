@@ -358,10 +358,11 @@ function pullWorkflows(
 	opts: WorkflowFileOptions & { force?: boolean },
 ): Promise<void> {
 	return workflowAction(command, deps, async (options) => {
-		const output = await callForData(deps, options, "get_workflow", {
-			repo,
-			...(workflow ? { workflow } : {}),
-		});
+		const args: ToolArgs = { repo };
+		if (workflow) {
+			args.workflow = workflow;
+		}
+		const output = await callForData(deps, options, "get_workflow", args);
 		if (output.isError) {
 			return render("get_workflow", output, options);
 		}
