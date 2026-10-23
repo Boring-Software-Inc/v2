@@ -481,6 +481,56 @@ describe("workflows as code", () => {
 		);
 	});
 
+	test("validate still reports the workflows that compile when one does not", async () => {
+		await pulled();
+		writeFileSync(
+			file(),
+			`import { block, check, trigger, workflow, workflows } from "./.tripwire/workflow.ts";
+
+function broken() {
+	const t = trigger("change-request.opened");
+	const age = check("acount-age", { minDays: 7 }).after(t);
+	return workflow({ name: "Broken", steps: { t, age, stop: block().after(age.fails) } });
+}
+
+function loose() {
+	const t = trigger("change-request.opened");
+	const age = check("account-age", { minDays: 7 }).after(t);
+	const spare = check("account-age", { minDays: 30 }).after(t);
+	return workflow({
+		name: "Loose",
+		steps: { t, age, spare, stop: block().after(age.fails) },
+	});
+}
+
+export default workflows({ broken: broken(), loose: loose() });
+`,
+		);
+		const result = await runCli(
+			["workflows", "validate", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(result.stderr).toContain(
+			"acount-age is not a rule. Did you mean account-age?",
+		);
+		expect(result.stdout).toContain("loose can be turned on");
+		expect(result.stdout).toContain("Account age 2: Nothing runs after it.");
+		expect(result.stdout).not.toContain("broken can be turned on");
+
+		const json = await runCli(
+			["--json", "workflows", "validate", "--file", file()],
+			env(),
+		);
+		expect(json.code).toBe(1);
+		const parsed = JSON.parse(json.stdout);
+		expect(parsed.valid).toBe(false);
+		expect(parsed.issues[0].workflow).toBe("broken");
+		expect(parsed.workflows.map((w: { id: string }) => w.id)).toEqual([
+			"loose",
+		]);
+	});
+
 	test("a wrong id also fails type-checking with the right one named", async () => {
 		await pulled();
 		writeFileSync(

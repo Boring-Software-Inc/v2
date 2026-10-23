@@ -44,7 +44,7 @@ export interface CompileIssue {
 
 export type CompileResult =
 	| { ok: true; definitions: WorkflowDefinition[] }
-	| { ok: false; issues: CompileIssue[] };
+	| { ok: false; issues: CompileIssue[]; definitions: WorkflowDefinition[] };
 
 function distance(a: string, b: string): number {
 	const row = Array.from({ length: b.length + 1 }, (_, index) => index);
@@ -600,11 +600,13 @@ export function compileWorkflows(file: WorkflowFile): CompileResult {
 		const compiler = new WorkflowCompiler(key, value.spec);
 		const definition = compiler.compile();
 		issues.push(...compiler.issues);
-		if (definition) {
+		if (definition && compiler.issues.length === 0) {
 			definitions.push(definition);
 		}
 	}
-	return issues.length > 0 ? { ok: false, issues } : { ok: true, definitions };
+	return issues.length > 0
+		? { ok: false, issues, definitions }
+		: { ok: true, definitions };
 }
 
 /** Parses a loaded default export, then compiles it. */
@@ -619,6 +621,7 @@ export function compileWorkflowModule(loaded: {
 				workflow: String(issue.path[0] ?? ""),
 				message: issue.message,
 			})),
+			definitions: [],
 		};
 	}
 	return compileWorkflows(file.data);
@@ -642,7 +645,7 @@ export interface WorkflowReport {
 
 export type WorkflowCheck =
 	| { ok: true; workflows: WorkflowReport[] }
-	| { ok: false; issues: CompileIssue[] };
+	| { ok: false; issues: CompileIssue[]; workflows: WorkflowReport[] };
 
 /** How each schedule in a definition reads back, zone included. */
 export function scheduleReadBacks(
@@ -690,11 +693,8 @@ export function checkWorkflows(
 	catalog?: readonly ValidationCatalogEntry[],
 ): WorkflowCheck {
 	const compiled = compileWorkflows(file);
-	if (!compiled.ok) {
-		return compiled;
-	}
-	return {
-		ok: true,
-		workflows: reportWorkflows(compiled.definitions, catalog),
-	};
+	const workflows = reportWorkflows(compiled.definitions, catalog);
+	return compiled.ok
+		? { ok: true, workflows }
+		: { ok: false, issues: compiled.issues, workflows };
 }

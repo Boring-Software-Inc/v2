@@ -1,4 +1,8 @@
-import { reportWorkflows, type WorkflowDefinition } from "@tripwire/contracts";
+import {
+	type CompileIssue,
+	reportWorkflows,
+	type WorkflowDefinition,
+} from "@tripwire/contracts";
 import type { Command } from "commander";
 import { z } from "zod";
 import { type Credential, credentialStore } from "#/auth/credentials";
@@ -27,6 +31,7 @@ import {
 	loadWorkflowFile,
 	localCatalog,
 	pulledDefinitions,
+	type ReportView,
 	writePulled,
 } from "#/workflows-code";
 
@@ -319,6 +324,21 @@ function changeLines(
 		.join("\n\n");
 }
 
+function compileIssueLines(
+	issues: readonly CompileIssue[],
+	options: GlobalOptions,
+): string {
+	return issues
+		.map((issue) => {
+			const where = [issue.workflow, issue.step].filter(Boolean).join(" > ");
+			return errorLine(
+				where ? `${where}: ${issue.message}` : issue.message,
+				options.errStyle,
+			);
+		})
+		.join("\n");
+}
+
 async function compileFile(
 	file: string,
 	options: GlobalOptions,
@@ -330,18 +350,7 @@ async function compileFile(
 	if (options.json) {
 		out(JSON.stringify({ valid: false, issues: compiled.issues }, null, 2));
 	} else {
-		err(
-			compiled.issues
-				.map((issue) =>
-					errorLine(
-						[issue.workflow, issue.step].filter(Boolean).join(" > ")
-							? `${[issue.workflow, issue.step].filter(Boolean).join(" > ")}: ${issue.message}`
-							: issue.message,
-						options.errStyle,
-					),
-				)
-				.join("\n"),
-		);
+		err(compileIssueLines(compiled.issues, options));
 	}
 	return null;
 }
@@ -420,39 +429,49 @@ function validateWorkflows(
 	opts: WorkflowFileOptions & { repo?: string },
 ): Promise<void> {
 	return workflowAction(command, deps, async (options) => {
-		const definitions = await compileFile(opts.file, options);
-		if (!definitions) {
-			return 1;
-		}
-		if (opts.repo) {
+		const compiled = await loadWorkflowFile(opts.file);
+		const issues = compiled.ok ? [] : compiled.issues;
+		const { definitions } = compiled;
+		let reports: ReportView[] = [];
+		if (definitions.length > 0 && opts.repo) {
 			const output = await callForData(deps, options, "validate_workflow", {
 				repo: opts.repo,
 				definitions: definitionsJson(definitions),
 			});
-			if (options.json || output.isError) {
+			if (output.isError || (options.json && issues.length === 0)) {
+				if (issues.length > 0) {
+					err(compileIssueLines(issues, options));
+				}
 				return render("validate_workflow", output, options);
 			}
-			const reports = reportsSchema.parse(output.data).workflows;
-			out(formatReports(reports, options.style));
-			return reports.every((report) => report.valid) ? 0 : 1;
+			reports = reportsSchema.parse(output.data).workflows;
+		} else if (definitions.length > 0) {
+			reports = reportWorkflows(definitions, localCatalog(definitions));
 		}
-		const reports = reportWorkflows(definitions, localCatalog(definitions));
+		const valid =
+			issues.length === 0 && reports.every((report) => report.valid);
 		if (options.json) {
 			out(
 				JSON.stringify(
 					{
-						valid: reports.every((report) => report.valid),
+						valid,
+						...(issues.length > 0 ? { issues } : {}),
 						workflows: reports,
-						definitions,
+						...(opts.repo ? {} : { definitions }),
 					},
 					null,
 					2,
 				),
 			);
-		} else {
+			return valid ? 0 : 1;
+		}
+		if (issues.length > 0) {
+			err(compileIssueLines(issues, options));
+		}
+		if (reports.length > 0) {
 			out(formatReports(reports, options.style));
 		}
-		return reports.every((report) => report.valid) ? 0 : 1;
+		return valid ? 0 : 1;
 	});
 }
 
