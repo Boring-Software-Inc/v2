@@ -57,6 +57,18 @@ describe("friendlyError", () => {
 		);
 	});
 
+	test("a missing repo names its org in the command to list repos", () => {
+		expect(
+			friendlyError("x", {
+				error: "The org grim has no repo named scrach.",
+				hint: "list_repos",
+				org: "grim",
+			}),
+		).toBe(
+			"The org grim has no repo named scrach. Run tripwire repos --org grim to see them.",
+		);
+	});
+
 	test("drops tool names from an older server message", () => {
 		expect(
 			friendlyError(

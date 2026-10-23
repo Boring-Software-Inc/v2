@@ -143,7 +143,7 @@ describe("management commands over MCP", () => {
 		const result = await runCli(["workflows", "list", "scratc"], env());
 		expect(result.code).toBe(1);
 		expect(result.stderr).toBe(
-			"error     No repo named scratc in grim. Run tripwire repos to see them.\n",
+			"error     The org grim has no repo named scratc. Run tripwire repos --org grim to see them.\n",
 		);
 		expect(result.stdout).toBe("");
 	});

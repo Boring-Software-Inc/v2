@@ -580,7 +580,15 @@ const CLI_HINTS: Record<string, string> = {
 const toolErrorSchema = z.object({
 	error: z.string(),
 	hint: z.string().optional(),
+	org: z.string().optional(),
 });
+
+function cliHint(hint: string | undefined, org: string | undefined) {
+	if (hint === "list_repos" && org) {
+		return `Run tripwire repos --org ${org} to see them.`;
+	}
+	return hint ? CLI_HINTS[hint] : undefined;
+}
 
 const ARGUMENT_TYPES = new Map([
 	["number", "a number"],
@@ -651,9 +659,7 @@ export function friendlyError(
 ): string {
 	const structured = toolErrorSchema.safeParse(data);
 	if (structured.success) {
-		const hint = structured.data.hint
-			? CLI_HINTS[structured.data.hint]
-			: undefined;
+		const hint = cliHint(structured.data.hint, structured.data.org);
 		return hint ? `${structured.data.error} ${hint}` : structured.data.error;
 	}
 	const bare = text.replace(/^MCP error -?\d+:\s*/, "").trim();

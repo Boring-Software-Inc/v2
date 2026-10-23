@@ -213,12 +213,13 @@ function reply(name: string, args: z.infer<ReturnType<typeof z.json>>) {
 			content: [
 				{
 					type: "text" as const,
-					text: "No repo named scratc in grim. Call list_repos to see the repos.",
+					text: "The org grim has no repo named scratc. Call list_repos to see the repos.",
 				},
 			],
 			structuredContent: {
-				error: "No repo named scratc in grim.",
+				error: "The org grim has no repo named scratc.",
 				hint: "list_repos",
+				org: "grim",
 			},
 			isError: true,
 		};
