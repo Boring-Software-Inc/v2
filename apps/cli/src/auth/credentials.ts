@@ -140,6 +140,23 @@ function secretServiceStore(system: System, tool: string): CredentialStore {
 	};
 }
 
+function withFileFallback(
+	primary: CredentialStore,
+	system: System,
+): CredentialStore {
+	const file = fileStore(system);
+	return {
+		kind: primary.kind,
+		location: primary.location,
+		read: async () => (await primary.read()) ?? (await file.read()),
+		write: (credential) => primary.write(credential),
+		clear: async () => {
+			await primary.clear();
+			await file.clear();
+		},
+	};
+}
+
 export function credentialStore(system: System): CredentialStore {
 	if (system.env.TRIPWIRE_CREDENTIAL_STORE === "file") {
 		return fileStore(system);
@@ -147,13 +164,13 @@ export function credentialStore(system: System): CredentialStore {
 	if (system.platform === "darwin") {
 		const security = system.which("security");
 		if (security) {
-			return keychainStore(system, security);
+			return withFileFallback(keychainStore(system, security), system);
 		}
 	}
 	if (system.platform === "linux") {
 		const tool = system.which("secret-tool");
 		if (tool) {
-			return secretServiceStore(system, tool);
+			return withFileFallback(secretServiceStore(system, tool), system);
 		}
 	}
 	return fileStore(system);
