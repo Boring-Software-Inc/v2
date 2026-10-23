@@ -378,7 +378,7 @@ describe("applyWorkflowDefinition (workflows as code)", () => {
 		});
 		expect(result.ok && result.outcome).toBe("updated");
 		expect(result.ok && result.changes.map((change) => change.text)).toEqual([
-			"check account-age@1",
+			"account-age.minDays: 7 → 30",
 		]);
 		const stored = await getWorkflow(db, { repoId, workflowId: row.id });
 		expect(stored?.definition.nodes[1]).toEqual({

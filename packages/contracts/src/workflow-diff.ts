@@ -1,9 +1,10 @@
 import { z } from "zod";
-import type {
-	JsonValue,
-	WorkflowDefinition,
-	WorkflowEdge,
-	WorkflowNode,
+import {
+	type JsonValue,
+	jsonValueSchema,
+	type WorkflowDefinition,
+	type WorkflowEdge,
+	type WorkflowNode,
 } from "./workflow.ts";
 import { edgePort, WORKFLOW_PORT_LABELS } from "./workflow-connections.ts";
 import { describeSchedule } from "./workflow-schedule.ts";
@@ -110,24 +111,22 @@ function describeNode(node: WorkflowNode): string {
 
 type Shown = JsonValue | undefined;
 
+const textSchema = z.string();
+const recordSchema = z.record(z.string(), jsonValueSchema);
+
+function shownItem(value: JsonValue): string {
+	const text = textSchema.safeParse(value);
+	return text.success ? text.data : JSON.stringify(value);
+}
+
 function shown(value: Shown): string {
 	if (value === undefined || value === null) {
 		return "none";
 	}
 	if (Array.isArray(value)) {
-		return value.length === 0
-			? "none"
-			: value
-					.map((item) =>
-						typeof item === "string" ? item : JSON.stringify(item),
-					)
-					.join(", ");
+		return value.length === 0 ? "none" : value.map(shownItem).join(", ");
 	}
-	return typeof value === "string" ? value : JSON.stringify(value);
-}
-
-function isRecord(value: Shown): value is Record<string, JsonValue> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return shownItem(value);
 }
 
 function flatten(
@@ -135,8 +134,9 @@ function flatten(
 	prefix: string,
 	into: Map<string, string>,
 ): Map<string, string> {
-	if (isRecord(value) && Object.keys(value).length > 0) {
-		for (const [key, inner] of Object.entries(value)) {
+	const record = recordSchema.safeParse(value);
+	if (record.success && Object.keys(record.data).length > 0) {
+		for (const [key, inner] of Object.entries(record.data)) {
 			flatten(inner, prefix ? `${prefix}.${key}` : key, into);
 		}
 	} else if (prefix) {
