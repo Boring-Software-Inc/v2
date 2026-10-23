@@ -39,11 +39,15 @@ jobs:
 
       - name: Pick the version
         id: version
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          BUMP: ${{ github.event.inputs.bump }}
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            bun run scripts/cli-release/prepare.ts tag "${{ github.ref_name }}"
+          if [ "$EVENT" = "push" ]; then
+            bun run scripts/cli-release/prepare.ts tag "$REF_NAME"
           else
-            bun run scripts/cli-release/prepare.ts bump "${{ github.event.inputs.bump }}"
+            bun run scripts/cli-release/prepare.ts bump "$BUMP"
           fi
 
       - name: Check
@@ -53,9 +57,11 @@ jobs:
 
       - name: Build
         working-directory: apps/cli
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           bun run build
-          test "$(node dist/tripwire.js --version)" = "${{ steps.version.outputs.version }}"
+          test "$(node dist/tripwire.js --version)" = "$VERSION"
           npm pack --dry-run
 
       - name: Publish to npm
