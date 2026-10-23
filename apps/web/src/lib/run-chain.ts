@@ -1,5 +1,6 @@
 import {
 	ACTION_CATALOG,
+	AI_CREDITS_COPY,
 	bearsVerdict,
 	RUN_RESULT_LABELS,
 	type RunResult,
@@ -652,7 +653,13 @@ function verdictOutcome(run: RunView): ChainOutcome {
 		case "ran":
 			return { ...base, ...words(result), tone: "neutral", glyph: "ran" };
 		case "pass":
-			return { ...base, ...words(result), tone: "ok", glyph: "pass" };
+			return {
+				...base,
+				...words(result),
+				tone: "ok",
+				glyph: "pass",
+				detail: run.aiReviewNotRun ? AI_CREDITS_COPY.notRun : null,
+			};
 		case "block": {
 			const denied = run.reviews.some((review) => review.state === "denied");
 			const blockers = run.workflows
@@ -682,9 +689,11 @@ function verdictOutcome(run: RunView): ChainOutcome {
 				...words(result),
 				tone: "neutral",
 				glyph: "waiting",
-				detail: run.reviews.some((review) => review.degraded)
-					? "Tripwire could not check every rule."
-					: null,
+				detail: run.aiReviewNotRun
+					? AI_CREDITS_COPY.notRun
+					: run.reviews.some((review) => review.degraded)
+						? "Tripwire could not check every rule."
+						: null,
 			};
 		default:
 			return {

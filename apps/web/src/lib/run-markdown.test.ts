@@ -32,6 +32,7 @@ function makeRun(over: Partial<RunView> = {}): RunView {
 		previousRun: null,
 		nextRun: null,
 		backfill: false,
+		aiReviewNotRun: false,
 		...over,
 	};
 }

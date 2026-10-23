@@ -130,6 +130,7 @@ function view(overrides: Partial<RunView> = {}): RunView {
 		previousRun: null,
 		nextRun: null,
 		backfill: false,
+		aiReviewNotRun: false,
 		...overrides,
 	};
 }
@@ -639,6 +640,42 @@ describe("a backfill run (R7-1)", () => {
 			view({ verdict: "pass", status: "completed", backfill: true }),
 		);
 		expect(chain.outcome.title).toBe("Would pass");
+	});
+});
+
+describe("a run whose AI review did not run (out of credits)", () => {
+	test("a pass says AI review did not run", () => {
+		const chain = buildRunChain(
+			view({ verdict: "pass", status: "completed", aiReviewNotRun: true }),
+		);
+		expect(chain.outcome.title).toBe("Passed");
+		expect(chain.outcome.detail).toBe(
+			"AI review did not run. Tripwire is out of AI credits.",
+		);
+	});
+
+	test("human review names the missing AI review, not a vague gap", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "needs_review",
+				status: "paused",
+				aiReviewNotRun: true,
+				reviews: [
+					{
+						workflowId: null,
+						state: "open",
+						degraded: true,
+						openedAt: AT,
+						decidedAt: null,
+						decidedBy: null,
+					},
+				],
+			}),
+		);
+		expect(chain.outcome.title).toBe("Waiting for human review");
+		expect(chain.outcome.detail).toBe(
+			"AI review did not run. Tripwire is out of AI credits.",
+		);
 	});
 });
 

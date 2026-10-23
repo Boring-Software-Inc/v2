@@ -63,6 +63,7 @@ const memberView: RunView = {
 	previousRun: null,
 	nextRun: null,
 	backfill: false,
+	aiReviewNotRun: false,
 };
 
 const publicView = toPublicRunView(memberView);

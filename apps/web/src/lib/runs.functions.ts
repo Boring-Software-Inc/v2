@@ -137,6 +137,7 @@ export interface RunView {
 	previousRun: RunLinkView | null;
 	nextRun: RunLinkView | null;
 	backfill: boolean;
+	aiReviewNotRun: boolean;
 }
 
 /**

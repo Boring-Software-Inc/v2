@@ -135,4 +135,5 @@ export const SAMPLE_RUN: RunView = {
 	previousRun: null,
 	nextRun: null,
 	backfill: false,
+	aiReviewNotRun: false,
 };
