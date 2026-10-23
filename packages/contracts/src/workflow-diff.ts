@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type {
 	JsonValue,
 	WorkflowDefinition,
@@ -218,13 +219,10 @@ function keepSecrets(
  * The definition a push stores: the code's graph, with each step keeping the
  * canvas position and the secrets it already had on the server.
  */
-function isEmptyObject(value: unknown): boolean {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		!Array.isArray(value) &&
-		Object.keys(value).length === 0
-	);
+const emptyConfigSchema = z.object({}).strict();
+
+function isEmptyObject(value: JsonValue): boolean {
+	return emptyConfigSchema.safeParse(value).success;
 }
 
 export function mergeForPush(

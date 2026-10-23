@@ -5,6 +5,7 @@ import {
 	GATE_CATALOG,
 	isRemovedAction,
 	isScheduleTrigger,
+	type JsonValue,
 	labelParamsSchema,
 	missingScheduleSteps,
 	type NodePosition,
@@ -585,7 +586,7 @@ const deliveryParamsSchema = z.object({
 
 function deliveryUrlReady(
 	action: "webhook" | "discord",
-	params: unknown,
+	params: Record<string, JsonValue> | undefined,
 ): boolean {
 	const parsed = deliveryParamsSchema.safeParse(params ?? {});
 	if (!parsed.success) {

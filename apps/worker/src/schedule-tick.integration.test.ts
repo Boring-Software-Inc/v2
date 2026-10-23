@@ -551,6 +551,7 @@ describe("schedule tick", () => {
 						{ ...THREADS[0], number: 9 } as ForgeThread,
 						{ ...THREADS[0], number: 10 } as ForgeThread,
 					],
+					stopped: null,
 				}),
 		});
 		const retried = await scheduleTick({

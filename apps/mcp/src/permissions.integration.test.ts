@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { JsonValue } from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createDb,
@@ -83,12 +84,12 @@ async function connect(userId: string): Promise<Client> {
 async function call(
 	client: Client,
 	name: string,
-	args: Record<string, unknown>,
+	args: Record<string, JsonValue>,
 ) {
 	return textSchema.parse(await client.callTool({ name, arguments: args }));
 }
 
-const WORKFLOW = {
+const WORKFLOW: JsonValue = {
 	id: "perm-wf",
 	name: "Permissions",
 	version: 1,
