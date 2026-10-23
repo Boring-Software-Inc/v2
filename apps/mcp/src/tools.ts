@@ -46,13 +46,22 @@ const repoArg = z
 
 const NEXT_STEP_GUIDE = {
 	install_app:
-		"Call get_install_link and give the link to the user. They install the GitHub App and confirm on the Tripwire page GitHub sends them to. Then call setup_status every 10 to 15 seconds until repos appear.",
+		"Give installUrl to the user to open. Admins get it here; get_install_link also returns it. They install the GitHub App and confirm on the Tripwire page GitHub sends them to. Then call setup_status every 10 to 15 seconds until repos appear.",
 	sync_repos:
 		"The app is installed. Repos appear a few seconds after the user confirms on Tripwire. Call setup_status again in 10 to 15 seconds.",
 	turn_on_gate:
 		"Repos are synced. Look at the code, call list_rule_catalog and get_repo_rules, suggest rules, and ask the user before set_rule or turn_on_gate.",
 	done: "Tripwire checks pull requests on at least one repo. Open a test pull request from another account to see a check.",
 } as const;
+
+function installLink(ctx: ToolContext, orgId: string): string | undefined {
+	const state = signInstallState(
+		{ userId: ctx.agent.userId, orgId },
+		ctx.config.installStateSecret,
+	);
+	const link = installUrlFor("github", state, ctx.config.githubAppSlug);
+	return link.status === "ready" ? link.url : undefined;
+}
 
 export function registerTools(
 	server: McpServer,
@@ -129,6 +138,10 @@ export function registerTools(
 						})),
 						nextStep: status.nextStep,
 						guide: NEXT_STEP_GUIDE[status.nextStep],
+						installUrl:
+							status.nextStep === "install_app" && resolved.role === "admin"
+								? installLink(ctx, resolved.id)
+								: undefined,
 						home: appLink(ctx, `/${resolved.slug}/home`),
 					});
 				}),
@@ -178,18 +191,14 @@ export function registerTools(
 			({ org }) =>
 				guard(async () => {
 					const resolved = await resolveOrg(ctx, org, "admin");
-					const state = signInstallState(
-						{ userId: ctx.agent.userId, orgId: resolved.id },
-						ctx.config.installStateSecret,
-					);
-					const link = installUrlFor("github", state, ctx.config.githubAppSlug);
-					if (link.status !== "ready") {
+					const url = installLink(ctx, resolved.id);
+					if (!url) {
 						throw new ToolError(
 							"The GitHub App is not set up on this Tripwire server. Ask the Tripwire team.",
 						);
 					}
 					return ok({
-						url: link.url,
+						url,
 						forUser:
 							"Open this link, pick the repos, then confirm on the Tripwire page GitHub sends you to.",
 					});
