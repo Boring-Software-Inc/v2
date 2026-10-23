@@ -32,7 +32,9 @@ export interface ToolCall {
 
 export interface FakeServer {
 	url: string;
+	authUrl: string;
 	calls: ToolCall[];
+	rejectNext(count: number): void;
 	stop(): Promise<void>;
 }
 
@@ -228,10 +230,28 @@ function buildServer(calls: ToolCall[]): McpServer {
 
 export function startFakeServer(): FakeServer {
 	const calls: ToolCall[] = [];
+	let rejections = 0;
 	const http = Bun.serve({
 		port: 0,
 		async fetch(request) {
+			const path = new URL(request.url).pathname;
+			if (path.endsWith("/device/code")) {
+				return Response.json({
+					device_code: "device-1",
+					user_code: "ABCD1234",
+					verification_uri: "https://app.tripwire.sh/device",
+					expires_in: 60,
+					interval: 0,
+				});
+			}
+			if (path.endsWith("/oauth2/token")) {
+				return Response.json({ access_token: TEST_TOKEN, expires_in: 3600 });
+			}
 			if (request.headers.get("authorization") !== `Bearer ${TEST_TOKEN}`) {
+				return new Response("unauthorized", { status: 401 });
+			}
+			if (rejections > 0) {
+				rejections -= 1;
 				return new Response("unauthorized", { status: 401 });
 			}
 			const transport = new WebStandardStreamableHTTPServerTransport({
@@ -245,7 +265,11 @@ export function startFakeServer(): FakeServer {
 	});
 	return {
 		url: `http://127.0.0.1:${http.port}/mcp`,
+		authUrl: `http://127.0.0.1:${http.port}/api/auth`,
 		calls,
+		rejectNext: (count) => {
+			rejections = count;
+		},
 		stop: async () => {
 			await http.stop(true);
 		},

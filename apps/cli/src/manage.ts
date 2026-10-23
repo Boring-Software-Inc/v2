@@ -52,8 +52,13 @@ const globalsSchema = z.object({
 });
 
 const whoamiNameSchema = z.looseObject({
-	user: z.looseObject({ name: z.string() }),
+	user: z.looseObject({
+		name: z.string().nullish(),
+		email: z.string().nullish(),
+	}),
 });
+
+const NAME_RETRY_MS = 1000;
 
 function globals(command: Command, system: System): GlobalOptions {
 	const parsed = globalsSchema.parse(command.optsWithGlobals());
@@ -191,7 +196,7 @@ async function login(deps: ManageDeps, command: Command): Promise<void> {
 	}
 }
 
-async function signedInName(
+async function whoamiName(
 	deps: ManageDeps,
 	credential: Credential,
 ): Promise<string | null> {
@@ -207,10 +212,26 @@ async function signedInName(
 			deps.fetch,
 		);
 		const parsed = whoamiNameSchema.safeParse(output.data);
-		return parsed.success ? parsed.data.user.name : null;
+		if (!parsed.success) {
+			return null;
+		}
+		const { name, email } = parsed.data.user;
+		return name?.trim() || email?.trim() || null;
 	} catch {
 		return null;
 	}
+}
+
+async function signedInName(
+	deps: ManageDeps,
+	credential: Credential,
+): Promise<string | null> {
+	const first = await whoamiName(deps, credential);
+	if (first) {
+		return first;
+	}
+	await deps.auth.sleep(NAME_RETRY_MS);
+	return await whoamiName(deps, credential);
 }
 
 async function save(system: System, credential: Credential): Promise<string> {

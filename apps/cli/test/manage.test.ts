@@ -51,6 +51,29 @@ function env(extra: Record<string, string> = {}) {
 }
 
 describe("management commands over MCP", () => {
+	test("login ends with the name it signed in as", async () => {
+		const result = await runCli(["login", "--no-browser"], {
+			...sandbox.env,
+			TRIPWIRE_MCP_URL: server.url,
+			TRIPWIRE_AUTH_URL: server.authUrl,
+			TRIPWIRE_CREDENTIAL_STORE: "file",
+		});
+		expect(result.code).toBe(0);
+		expect(result.stdout).toBe("done      Signed in as grim\n");
+	});
+
+	test("login still names the user when the first whoami is refused", async () => {
+		server.rejectNext(1);
+		const result = await runCli(["login", "--no-browser"], {
+			...sandbox.env,
+			TRIPWIRE_MCP_URL: server.url,
+			TRIPWIRE_AUTH_URL: server.authUrl,
+			TRIPWIRE_CREDENTIAL_STORE: "file",
+		});
+		expect(result.code).toBe(0);
+		expect(result.stdout).toBe("done      Signed in as grim\n");
+	});
+
 	test("whoami --json prints the server data", async () => {
 		const result = await runCli(["--json", "whoami"], env());
 		expect(result.code).toBe(0);
