@@ -298,6 +298,48 @@ describe("executeWorkflow", () => {
 		expect(approved.actions.map((a) => a.action)).toEqual(["label"]);
 	});
 
+	test("resume conducts only the triggers that fired before the pause", async () => {
+		const definition: WorkflowDefinition = {
+			id: "wf-two-triggers",
+			name: "two triggers",
+			version: 1,
+			nodes: [
+				{ id: "t1", type: "trigger", kinds: ["change-request.opened"] },
+				{ id: "t2", type: "trigger", kinds: ["push"] },
+				{ id: "mod", type: "action", action: "send-to-moderation" },
+				{ id: "close", type: "action", action: "close" },
+				{
+					id: "ok",
+					type: "action",
+					action: "label",
+					params: { labels: ["ok"] },
+				},
+			],
+			edges: [
+				{ id: "e1", from: "t1", to: "mod" },
+				{ id: "e2", from: "t2", to: "close" },
+				{ id: "e3", from: "mod", to: "ok", when: "approve" },
+			],
+		};
+		const event = await fixtureEvent("change-request.opened.event");
+		const paused = await executeWorkflow({
+			definition,
+			event,
+			evaluateRuleRef: fakeEvaluator({}),
+			now: clock,
+		});
+		expect(paused.pausedAtNodeId).toBe("mod");
+
+		const approved = await executeWorkflow({
+			definition,
+			event,
+			evaluateRuleRef: fakeEvaluator({}),
+			now: clock,
+			resume: { outcomes: paused.outcomes, nodeId: "mod", decision: "approve" },
+		});
+		expect(approved.actions.map((a) => a.action)).toEqual(["label"]);
+	});
+
 	test("steps carry timings and rule evidence", async () => {
 		const result = await executeWorkflow({
 			definition: GATED,

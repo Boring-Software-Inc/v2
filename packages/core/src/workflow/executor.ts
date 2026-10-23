@@ -179,7 +179,8 @@ export async function executeWorkflow(
 				(event.kind !== "schedule.matched" ||
 					node.id === event.schedule.nodeId);
 			const resuming = resume !== undefined;
-			if (matches || resuming) {
+			const firedBeforePause = resume?.outcomes[node.id] === "pass";
+			if (resuming ? firedBeforePause : matches) {
 				outcomes.set(node.id, "pass");
 				conducted.add(node.id);
 				if (!resuming) {
