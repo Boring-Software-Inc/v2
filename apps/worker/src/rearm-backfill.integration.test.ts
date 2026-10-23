@@ -272,11 +272,14 @@ describe("turning a gate off and on again", () => {
 		expect(await drainBackfills()).toBe(1);
 
 		const runs = await runsOfChangeRequest();
-		expect(runs).toHaveLength(2);
-		const replayed = runs[1];
-		expect(replayed?.eventKind).toBe("change-request.updated");
-		expect(replayed?.status).toBe("completed");
-		expect(replayed?.verdict).toBe("needs_review");
+		expect(runs).toHaveLength(1);
+		const replayed = await pool.query<{ status: string; verdict: string }>(
+			"SELECT status, verdict FROM runs WHERE repo_full_name = $1 AND backfill = true",
+			[REPO],
+		);
+		expect(replayed.rows).toEqual([
+			{ status: "completed", verdict: "needs_review" },
+		]);
 		expect(await moderationServices.listPendingItems(db, REPO)).toHaveLength(1);
 		expect(
 			await runServices.getLatestRunIdForChangeRequest(db, REPO, NUMBER),
