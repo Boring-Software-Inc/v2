@@ -11,6 +11,7 @@ type Events = {
 	rule_toggled: { rule: string; enabled: boolean };
 	custom_rule_created: Record<string, never>;
 	moderation_decided: { decision: "approve" | "deny" };
+	setup_prompt_copied: { has_run_code: boolean };
 };
 
 export function trackEvent<E extends keyof Events>(name: E, props: Events[E]) {
