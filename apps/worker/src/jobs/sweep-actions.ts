@@ -1,4 +1,4 @@
-import { REVIEW_POINTER } from "@tripwire/contracts";
+import { bearsVerdict, REVIEW_POINTER } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
@@ -101,7 +101,8 @@ export async function sweepActions(
 		}
 		if (
 			(row.kind === "comment" || row.kind === "delete-comment") &&
-			row.subjectNumber !== null
+			row.subjectNumber !== null &&
+			bearsVerdict(row.eventKind)
 		) {
 			const latest = await runServices.getLatestRunIdForChangeRequest(
 				db,

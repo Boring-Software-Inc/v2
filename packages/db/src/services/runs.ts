@@ -1,5 +1,6 @@
 import {
 	ruleResultSchema,
+	VERDICT_EVENT_KINDS,
 	type Verdict,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
@@ -401,6 +402,7 @@ export interface StuckAction {
 	repoFullName: string;
 	subjectNumber: number | null;
 	headSha: string | null;
+	eventKind: string | null;
 }
 
 /**
@@ -425,9 +427,11 @@ export async function listStuckActions(
 			repoFullName: runs.repoFullName,
 			subjectNumber: runs.subjectNumber,
 			headSha: runs.headSha,
+			eventKind: events.kind,
 		})
 		.from(runActions)
 		.innerJoin(runs, eq(runActions.runId, runs.id))
+		.leftJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
 				eq(runActions.status, "recorded"),
@@ -457,10 +461,11 @@ export async function listRunActions(
 /**
  * The latest run gating a change request (§6 comment ownership): runs are
  * per-event/SHA but the PR comment is per-PR, so only the latest run may own
- * the comment. Latest by creation time (UUIDv7 id breaks ties). Scheduled
- * runs never own the PR surface, so they are left out here and below.
+ * the comment. Latest by creation time (UUIDv7 id breaks ties).
  */
-export const notScheduled = sql`${events.kind} IS DISTINCT FROM 'schedule.matched'`;
+export const eventBearsVerdict = inArray(events.kind, [...VERDICT_EVENT_KINDS]);
+
+export const runBearsVerdict = sql`EXISTS (SELECT 1 FROM events ve WHERE ve.id = ${runs.eventId} AND ${inArray(sql`ve.kind`, [...VERDICT_EVENT_KINDS])})`;
 
 export async function getLatestRunIdForChangeRequest(
 	db: Db,
@@ -475,7 +480,7 @@ export async function getLatestRunIdForChangeRequest(
 			and(
 				eq(runs.repoFullName, repoFullName),
 				eq(runs.subjectNumber, subjectNumber),
-				notScheduled,
+				eventBearsVerdict,
 			),
 		)
 		.orderBy(desc(runs.createdAt), desc(runs.id))
@@ -506,7 +511,7 @@ export async function listRunsForChangeRequest(
 			and(
 				eq(runs.repoFullName, repoFullName),
 				eq(runs.subjectNumber, subjectNumber),
-				notScheduled,
+				eventBearsVerdict,
 			),
 		)
 		.orderBy(runs.createdAt, runs.id);
@@ -533,7 +538,7 @@ export async function getPreviousVerdict(
 				eq(runs.subjectNumber, subjectNumber),
 				ne(runs.id, currentRunId),
 				isNotNull(runs.verdict),
-				notScheduled,
+				eventBearsVerdict,
 			),
 		)
 		.orderBy(desc(runs.createdAt), desc(runs.id))
@@ -662,6 +667,7 @@ export async function listRepoRuns(
 			createdAt: runs.createdAt,
 			completedAt: runs.completedAt,
 			scheduled: sql<boolean>`${events.kind} IS NOT DISTINCT FROM 'schedule.matched'`,
+			bearsVerdict: sql<boolean>`${eventBearsVerdict}`,
 		})
 		.from(runs)
 		.leftJoin(events, eq(events.id, runs.eventId))
@@ -793,7 +799,7 @@ export async function listOpenBlockedRuns(
 				eq(runs.repoFullName, repoFullName),
 				isNotNull(runs.subjectNumber),
 				gt(runs.createdAt, since),
-				notScheduled,
+				eventBearsVerdict,
 			),
 		)
 		.orderBy(runs.subjectNumber, desc(runs.createdAt), desc(runs.id));

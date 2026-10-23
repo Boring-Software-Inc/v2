@@ -202,6 +202,21 @@ export type NormalizedEvent = z.infer<typeof normalizedEventSchema>;
 /** Events scoped to a single repo — everything except installation sync. */
 export type RepoScopedEvent = Extract<NormalizedEvent, { repo: RepoRef }>;
 
+export const verdictEventKindSchema = eventKindSchema.extract([
+	"change-request.opened",
+	"change-request.updated",
+	"change-request.closed",
+]);
+export type VerdictEventKind = z.infer<typeof verdictEventKindSchema>;
+export const VERDICT_EVENT_KINDS: readonly VerdictEventKind[] =
+	verdictEventKindSchema.options;
+
+export function bearsVerdict(
+	kind: string | null | undefined,
+): kind is VerdictEventKind {
+	return verdictEventKindSchema.safeParse(kind).success;
+}
+
 /** Installation-sync events (no single base repo). */
 export type ScheduledEvent = Extract<
 	NormalizedEvent,

@@ -34,6 +34,7 @@ async function seedEvent(id: string, repoFullName: string): Promise<string> {
 		deliveryId: `d-${id}`,
 		rawKind: "pull_request",
 		raw: {},
+		kind: "change-request.opened",
 		repoFullName,
 	});
 	return id;

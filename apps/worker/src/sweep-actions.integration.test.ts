@@ -67,7 +67,10 @@ function fakeAdapter() {
 	};
 }
 
-async function insertEvent(deliveryId: string): Promise<string> {
+async function insertEvent(
+	deliveryId: string,
+	kind = "change-request.opened",
+): Promise<string> {
 	const { eventId } = await eventServices.insertRawEvent(pool, boss, {
 		deliveryId,
 		rawKind: "pull_request",
@@ -76,6 +79,10 @@ async function insertEvent(deliveryId: string): Promise<string> {
 	if (!eventId) {
 		throw new Error("insert failed");
 	}
+	await pool.query("UPDATE events SET kind = $1 WHERE id = $2", [
+		kind,
+		eventId,
+	]);
 	return eventId;
 }
 
@@ -290,5 +297,43 @@ describe("comment ownership (§6 — decide older run after newer)", () => {
 		expect(comments[0]?.detail).toContain(
 			"Tripwire now blocks this change request.",
 		);
+	});
+});
+
+describe("a comment run's own reply", () => {
+	test("is executed, not superseded by the change request's latest run", async () => {
+		const commentRun = await runServices.createRun(db, {
+			eventId: await insertEvent("reply-comment", "comment.created"),
+			repoFullName: "acme/reply",
+			subjectNumber: 4,
+			headSha: null,
+			snapshot: SNAPSHOT,
+			status: "completed",
+			verdict: "pass",
+		});
+		await runServices.recordActions(db, commentRun, [
+			{
+				kind: "comment",
+				payload: { number: 4, body: "thanks for the ping" },
+				idempotencyKey: "reply:4",
+			},
+		]);
+		await sleep(15);
+		await runServices.createRun(db, {
+			eventId: await insertEvent("reply-push"),
+			repoFullName: "acme/reply",
+			subjectNumber: 4,
+			headSha: "4".repeat(40),
+			snapshot: SNAPSHOT,
+			status: "completed",
+			verdict: "block",
+		});
+
+		const fake = fakeAdapter();
+		await sweepActions(
+			{ db, adapterFor: () => Promise.resolve(fake.adapter as never), logger },
+			{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
+		);
+		expect((await actionStatuses(commentRun))["reply:4"]).toBe("executed");
 	});
 });

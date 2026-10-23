@@ -5,6 +5,7 @@ import {
 	type ActivityGroup,
 	type ActivityRunSummary,
 	type ActivityTimelineEntry,
+	bearsVerdict,
 	type NormalizedEvent,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
@@ -424,7 +425,7 @@ function buildGroup(rows: RawRow[]): ActivityGroup {
 		.find(
 			(r) =>
 				r.run_id != null &&
-				(r.normalized as NormalizedEvent | null)?.kind !== "schedule.matched",
+				bearsVerdict((r.normalized as NormalizedEvent | null)?.kind),
 		);
 	const subjectNumber = Number(latest.subject_number);
 	return {

@@ -120,6 +120,7 @@ describe("the request-changes review lives once per block", () => {
 			if (!eventId) {
 				throw new Error("insert failed");
 			}
+			await eventServices.markEventNormalized(db, pool, eventId, event);
 			const runId = await runServices.createRun(db, {
 				eventId,
 				repoFullName: REPO,
@@ -363,6 +364,53 @@ async function harness(repo: string, number: number, level: number) {
 		await sleep(15);
 		return after();
 	};
+	const comment = async (verdict: Verdict) => {
+		push++;
+		const event = normalizedEventSchema.parse({
+			id: base.id,
+			forge: base.forge,
+			deliveryId: `${repo}-comment-${push}`,
+			repo: { ...base.repo, fullName: repo },
+			actor: base.actor,
+			occurredAt: base.occurredAt,
+			receivedAt: base.receivedAt,
+			kind: "comment.created",
+			comment: {
+				externalId: `c-${push}`,
+				body: "any update?",
+				url: `${base.changeRequest.url}#c-${push}`,
+				subjectNumber: number,
+			},
+		});
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: `${repo}-${push}`,
+			rawKind: "issue_comment",
+			raw: { action: "created" },
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		await eventServices.markEventNormalized(db, pool, eventId, event);
+		const runId = await runServices.createRun(db, {
+			eventId,
+			repoFullName: repo,
+			subjectNumber: number,
+			headSha: null,
+			snapshot: SNAPSHOT,
+			status: "completed",
+			verdict,
+		});
+		const after = since();
+		await emitPrSurface(deps, {
+			runId,
+			verdict,
+			event,
+			reasons: [],
+			pendingActionRows: [],
+		});
+		await sleep(15);
+		return after();
+	};
 	let jobs = 0;
 	const refresh = async (next: number) => {
 		await setLevel(next);
@@ -380,7 +428,7 @@ async function harness(repo: string, number: number, level: number) {
 		);
 		return after();
 	};
-	return { run, refresh };
+	return { run, comment, refresh };
 }
 
 function reviewBodyOf(actions: ForgeAction[]): string {
@@ -464,5 +512,55 @@ describe("a redaction level change on an open block", () => {
 			"**Max files changed:** It changes 40 files. Split it into smaller change requests.",
 		);
 		expect(reviewBodyOf(down)).toBe(REVIEW_POINTER.block);
+	});
+});
+
+describe("a comment run between pushes is not the change request's verdict", () => {
+	test("block, comment passes, block edits in place, then the fix clears it (PR 135)", async () => {
+		const { run, comment } = await harness("acme/comment-between", 135, 0);
+
+		const first = await run("block");
+		expect(first.map((a) => a.kind)).toEqual(["block", "comment"]);
+
+		expect(await comment("pass")).toEqual([]);
+
+		const second = await run("block");
+		expect(second.map((a) => a.kind)).toEqual(["update-review", "comment"]);
+		expect(second.find((a) => a.kind === "comment")).toMatchObject({
+			verdict: "block",
+			previousVerdict: "block",
+		});
+
+		const fixed = await run("pass");
+		expect(fixed.map((a) => a.kind).sort()).toEqual([
+			"comment",
+			"dismiss-review",
+		]);
+		expect(fixed.find((a) => a.kind === "comment")).toMatchObject({
+			verdict: "pass",
+			previousVerdict: "block",
+		});
+	});
+
+	test("control: block, block, fix with no comment between (PR 136)", async () => {
+		const { run } = await harness("acme/no-comment", 136, 0);
+
+		await run("block");
+		const second = await run("block");
+		expect(second.map((a) => a.kind)).toEqual(["update-review", "comment"]);
+		expect(second.find((a) => a.kind === "comment")).toMatchObject({
+			verdict: "block",
+			previousVerdict: "block",
+		});
+
+		const fixed = await run("pass");
+		expect(fixed.map((a) => a.kind).sort()).toEqual([
+			"comment",
+			"dismiss-review",
+		]);
+		expect(fixed.find((a) => a.kind === "comment")).toMatchObject({
+			verdict: "pass",
+			previousVerdict: "block",
+		});
 	});
 });
