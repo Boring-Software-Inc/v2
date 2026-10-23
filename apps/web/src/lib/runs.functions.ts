@@ -84,6 +84,7 @@ export interface RunActionView {
 	status: string;
 	recordedAt: string;
 	url: string | null;
+	label?: string | null;
 	delivery?:
 		| { state: "sent" }
 		| { state: "queued" }

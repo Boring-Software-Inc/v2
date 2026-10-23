@@ -203,9 +203,87 @@ describe("buildRunChain, a blocked run with two workflows", () => {
 		expect(chain.outcome.chips.map((chip) => [chip.label, chip.href])).toEqual([
 			["Check blocked", "https://github.com/acme/scratch/runs/9"],
 			["Requested changes", null],
-			["Commented", "https://github.com/acme/scratch/pull/91#issuecomment-5"],
+			[
+				"Verdict comment",
+				"https://github.com/acme/scratch/pull/91#issuecomment-5",
+			],
 			["Sent to Discord", null],
 		]);
+	});
+
+	test("label and comment chips say what each added, and never repeat", () => {
+		const chips = buildRunChain(
+			view({
+				verdict: "pass",
+				actions: [
+					{
+						kind: "comment",
+						status: "executed",
+						recordedAt: AT,
+						url: null,
+						label: "Verdict comment",
+					},
+					{
+						kind: "label",
+						status: "executed",
+						recordedAt: AT,
+						url: null,
+						label: "Labeled needs-a-human",
+					},
+					{
+						kind: "label",
+						status: "executed",
+						recordedAt: AT,
+						url: null,
+						label: "Labeled human-approved",
+					},
+					{
+						kind: "label",
+						status: "executed",
+						recordedAt: AT,
+						url: null,
+						label: "Labeled human-approved",
+					},
+					{
+						kind: "post-comment",
+						status: "executed",
+						recordedAt: AT,
+						url: null,
+						label: "Workflow comment",
+					},
+				],
+			}),
+		).outcome.chips.map((chip) => chip.label);
+		expect(chips).toEqual([
+			"Verdict comment",
+			"Labeled needs-a-human",
+			"Labeled human-approved",
+			"Workflow comment",
+		]);
+	});
+});
+
+describe("the checks header is honest about a workflow that could not run", () => {
+	test("every rule passed, but a workflow could not run", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "needs_review",
+				status: "paused",
+				steps: [
+					rule("default@1:spam", "spam-forks@1", "pass"),
+					rule("default@1:age", "account-age@1", "pass"),
+					rule("wf-solar:english", "english-only@1", "pass"),
+				],
+				workflows: [
+					{ ...RULES, outcome: "pass" },
+					{ ...SOLAR, outcome: "pass" },
+					{ id: "broken", name: "Crypto", outcome: "unrunnable" },
+				],
+			}),
+		);
+		const checks = chain.checks;
+		expect(checks?.title).toBe("3 of 3 rules passed. 1 workflow could not run");
+		expect(checks?.tone).toBe("neutral");
 	});
 });
 

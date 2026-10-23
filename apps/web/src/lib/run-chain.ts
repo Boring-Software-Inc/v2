@@ -2,6 +2,7 @@ import {
 	ACTION_CATALOG,
 	redactionHides,
 	ruleDisplayName,
+	VERDICT_LABELS,
 } from "@tripwire/contracts";
 import { z } from "zod";
 import {
@@ -331,6 +332,19 @@ export function buildBranches(
 	};
 }
 
+function unrunnableCount(run: RunView): number {
+	return run.workflows.filter((workflow) => workflow.outcome === "unrunnable")
+		.length;
+}
+
+function withUnrunnable(title: string, run: RunView): string {
+	const count = unrunnableCount(run);
+	if (count === 0) {
+		return title;
+	}
+	return `${title}. ${count} ${count === 1 ? "workflow" : "workflows"} could not run`;
+}
+
 function checksNode(
 	run: RunView,
 	steps: readonly RunStepView[],
@@ -379,7 +393,7 @@ function checksNode(
 	}
 	if (failed > 0) {
 		return {
-			title: `${failed} of ${total} rules did not pass`,
+			title: withUnrunnable(`${failed} of ${total} rules did not pass`, run),
 			tone: run.verdict === "pass" ? "neutral" : "fail",
 			glyph: "fail",
 			offsetMs,
@@ -388,7 +402,17 @@ function checksNode(
 	}
 	if (skipped > 0) {
 		return {
-			title: `${skipped} of ${total} rules skipped`,
+			title: withUnrunnable(`${skipped} of ${total} rules skipped`, run),
+			tone: "neutral",
+			glyph: "skipped",
+			offsetMs,
+			body,
+		};
+	}
+	const unrunnable = unrunnableCount(run);
+	if (unrunnable > 0) {
+		return {
+			title: withUnrunnable(`${total} of ${total} rules passed`, run),
 			tone: "neutral",
 			glyph: "skipped",
 			offsetMs,
@@ -508,7 +532,7 @@ export function outcomeChips(run: RunView): ChainChip[] {
 		} else if (action.kind === "comment") {
 			chips.push({
 				key,
-				label: "Commented",
+				label: action.label ?? "Verdict comment",
 				glyph: "comment",
 				tone: "neutral",
 				href: action.url,
@@ -528,6 +552,7 @@ export function outcomeChips(run: RunView): ChainChip[] {
 			chips.push({
 				key,
 				label:
+					action.label ??
 					ACTION_CATALOG.find((entry) => entry.action === action.kind)?.name ??
 					action.kind,
 				glyph: "action",
@@ -537,7 +562,12 @@ export function outcomeChips(run: RunView): ChainChip[] {
 			});
 		}
 	}
-	return chips;
+	return chips.filter(
+		(chip, index) =>
+			chips.findIndex(
+				(other) => other.label === chip.label && other.href === chip.href,
+			) === index,
+	);
 }
 
 function workflowNameById(run: RunView, id: string | null): string | null {
@@ -611,8 +641,8 @@ function verdictOutcome(run: RunView): ChainOutcome {
 			title:
 				!denied && blockers.length > 0
 					? `Blocked by ${joinNames(blockers)}`
-					: "Blocked",
-			short: "Blocked",
+					: VERDICT_LABELS.block,
+			short: VERDICT_LABELS.block,
 			tone: "fail",
 			glyph: "blocked",
 			openReview:
@@ -624,8 +654,8 @@ function verdictOutcome(run: RunView): ChainOutcome {
 	if (run.verdict === "pass") {
 		return {
 			...base,
-			title: "Passed",
-			short: "Passed",
+			title: VERDICT_LABELS.pass,
+			short: VERDICT_LABELS.pass,
 			tone: "ok",
 			glyph: "pass",
 		};
@@ -646,8 +676,8 @@ function verdictOutcome(run: RunView): ChainOutcome {
 		}
 		return {
 			...base,
-			title: "Waiting for human review",
-			short: "Waiting for human review",
+			title: VERDICT_LABELS.needs_review,
+			short: VERDICT_LABELS.needs_review,
 			tone: "neutral",
 			glyph: "waiting",
 			detail: degraded ? "Tripwire could not check every rule." : null,
