@@ -106,6 +106,7 @@ export type {
 	OrgSummary,
 	OrgWithRole,
 	RedeemResult,
+	UnprovenInstallationClaim,
 } from "./services/organizations.ts";
 export * as orgServices from "./services/organizations.ts";
 export * as presenceServices from "./services/presence.ts";

@@ -169,6 +169,13 @@
       "when": 1792695938786,
       "tag": "0023_fearless_nocturne",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792713405211,
+      "tag": "0024_revoke_legacy_install_grants",
+      "breakpoints": true
     }
   ]
 }

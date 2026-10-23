@@ -699,10 +699,14 @@ export async function listApprovedInstallRequests(
 }
 
 function installationOwnedBy(
-	userId: string,
+	userId: SQL,
 	forge: SQL,
 	installationId: SQL,
+	options: { anyAge?: boolean } = {},
 ): SQL {
+	const fresh = options.anyAge
+		? sql``
+		: sql`AND c.verified_at > now() - make_interval(secs => ${INSTALL_ACCESS_CHECK_TTL_SECONDS})`;
 	return sql`(
 		(${forge} = 'github' AND EXISTS (
 			SELECT 1
@@ -719,15 +723,15 @@ function installationOwnedBy(
 			  AND e.kind = 'installation.created'
 			  AND e.raw->'installation'->>'id' = ${installationId}
 		))
-		OR EXISTS (
+		OR (${forge} = 'github' AND EXISTS (
 			SELECT 1
 			FROM installation_access_checks c
 			WHERE c.user_id = ${userId}
-			  AND c.forge = ${forge}
+			  AND c.forge = 'github'
 			  AND c.installation_id = ${installationId}
-			  AND c.result = 'granted'
-			  AND c.verified_at > now() - make_interval(secs => ${INSTALL_ACCESS_CHECK_TTL_SECONDS})
-		)
+			  AND c.result = 'granted-admin'
+			  ${fresh}
+		))
 		OR (${forge} <> 'github' AND EXISTS (
 			SELECT 1
 			FROM account a
@@ -745,12 +749,52 @@ export async function userCanClaimInstallation(
 	const result = await db.execute(sql`
 		SELECT 1 AS owned
 		WHERE ${installationOwnedBy(
-			input.userId,
+			sql`${input.userId}`,
 			sql`${input.forge}`,
 			sql`${input.installationId}`,
 		)}
 	`);
 	return result.rows.length > 0;
+}
+
+const unprovenInstallationClaimSchema = z.object({
+	installationId: z.string(),
+	orgId: z.string(),
+	orgSlug: z.string(),
+	account: z.string().nullable(),
+});
+
+export type UnprovenInstallationClaim = z.infer<
+	typeof unprovenInstallationClaimSchema
+>;
+
+export async function listUnprovenInstallationClaims(
+	db: Db,
+): Promise<UnprovenInstallationClaim[]> {
+	const result = await db.execute(sql`
+		SELECT oi.installation_id AS "installationId",
+		       o.id AS "orgId",
+		       o.slug AS "orgSlug",
+		       oi.account_login AS account
+		FROM organization_installations oi
+		JOIN organization o ON o.id = oi.organization_id
+		WHERE oi.forge = 'github'
+		  AND oi.installation_id ~ '^[0-9]+$'
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM member m
+		    WHERE m.organization_id = oi.organization_id
+		      AND 'admin' = ANY(string_to_array(m.role, ','))
+		      AND ${installationOwnedBy(
+						sql`m.user_id`,
+						sql`oi.forge`,
+						sql`oi.installation_id`,
+						{ anyAge: true },
+					)}
+		  )
+		ORDER BY oi.installation_id
+	`);
+	return z.array(unprovenInstallationClaimSchema).parse(result.rows);
 }
 
 const claimableInstallationSchema = z.object({
@@ -778,7 +822,7 @@ export async function listClaimableInstallations(
 		  AND r.installation_id <> ''
 		  AND r.removed_at IS NULL
 		  AND oi.id IS NULL
-		  AND ${installationOwnedBy(input.userId, sql`r.forge`, sql`r.installation_id`)}
+		  AND ${installationOwnedBy(sql`${input.userId}`, sql`r.forge`, sql`r.installation_id`)}
 		GROUP BY r.installation_id, r.forge
 		ORDER BY min(r.installed_at) DESC
 	`);
@@ -888,6 +932,13 @@ export async function resolveInstallStatus(
 	}
 	if (result === "not-for-tripwire" || result === "token-expired") {
 		return { ...base, status: result };
+	}
+	if (result === "not-admin") {
+		return {
+			...base,
+			status: "not-admin",
+			account: repoRows[0]?.owner ?? null,
+		};
 	}
 	const events = await installEventState(db, {
 		forge,

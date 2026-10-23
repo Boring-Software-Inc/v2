@@ -299,6 +299,18 @@ function SetupFlow({
 					<BackHome />
 				</SetupShell>
 			);
+		case "not-admin": {
+			const forge = forgeLabel(status.forge);
+			const body = status.account
+				? `Only an admin of ${status.account} on ${forge} can connect it. Ask an owner of ${status.account} to connect Tripwire.`
+				: `Only an admin of this account on ${forge} can connect it. Ask an owner of the account to connect Tripwire.`;
+			return (
+				<SetupShell>
+					<SetupHeader body={body} title="Can't connect this installation" />
+					<BackHome />
+				</SetupShell>
+			);
+		}
 		case "claimable":
 			if (status.stateOrg && !pickerOpen) {
 				return (

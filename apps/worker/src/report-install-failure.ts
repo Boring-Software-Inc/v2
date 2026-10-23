@@ -5,6 +5,7 @@ export type InstallFailureState =
 	| "unreadable"
 	| "not-for-tripwire"
 	| "token-expired"
+	| "not-admin"
 	| "unverifiable"
 	| "recovery-failed";
 
@@ -20,6 +21,7 @@ export type ReportInstallFailure = (failure: InstallFailure) => void;
 const INSTALL_FAILURE_LEVEL = {
 	"not-for-tripwire": "warning",
 	"token-expired": "warning",
+	"not-admin": "warning",
 	unreadable: "error",
 	unverifiable: "error",
 	"recovery-failed": "error",
