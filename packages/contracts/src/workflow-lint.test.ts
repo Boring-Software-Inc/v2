@@ -715,6 +715,20 @@ describe("dead-end", () => {
 		expect(only(CLEAN, "dead-end")).toEqual([]);
 	});
 
+	test("a lone trigger only asks for an action, once", () => {
+		const lone = graph([TRIGGER], []);
+		expect(lintWorkflow(lone).map((result) => result.rule)).toEqual([
+			"no-action",
+		]);
+		const withLooseTrigger = graph(
+			[...CLEAN.nodes, { ...TRIGGER, id: "t2" }],
+			CLEAN.edges,
+		);
+		expect(only(withLooseTrigger, "dead-end")).toEqual([
+			expect.objectContaining({ nodeId: "t2", step: "Trigger 2" }),
+		]);
+	});
+
 	test("orphans are not also dead ends", () => {
 		const orphan = graph([...CLEAN.nodes, { ...RULE, id: "r2" }], CLEAN.edges);
 		expect(only(orphan, "dead-end")).toEqual([]);

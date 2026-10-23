@@ -908,11 +908,19 @@ function lintParsed(
 		catalog,
 		reviewers,
 	};
-	return CHECKS.flatMap(({ rule, check }) =>
+	const results = CHECKS.flatMap(({ rule, check }) =>
 		stage === "structure" && LINT_RULES[rule].stage !== "structure"
 			? []
 			: check(ctx).map((finding) => result(rule, finding, names)),
 	);
+	const noAction = results.some((entry) => entry.rule === "no-action");
+	return noAction
+		? results.filter(
+				(entry) =>
+					entry.rule !== "dead-end" ||
+					ctx.byId.get(entry.nodeId ?? "")?.type !== "trigger",
+			)
+		: results;
 }
 
 const rawGraphSchema = z.object({
