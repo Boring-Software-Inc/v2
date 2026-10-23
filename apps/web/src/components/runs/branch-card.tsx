@@ -205,14 +205,20 @@ export function BranchRow({
 		<Card>
 			<Collapsible>
 				<div className="px-3 py-2">
-					<CollapsibleTrigger
-						summary={summary.text}
-						summaryStatus={summary.tone === "fail" ? "fail" : undefined}
-					>
+					<CollapsibleTrigger>
 						<span className="flex min-w-0 items-baseline gap-1.5">
 							<ChainMark glyph={summary.glyph} size={12} tone={summary.tone} />
 							<span className="min-w-0 truncate" title={branch.name}>
 								{branch.name}
+							</span>
+							<span
+								className={cn(
+									"max-w-1/2 shrink-0 truncate type-caption group-data-panel-open/collapsible-trigger:hidden",
+									summary.tone === "fail" ? "text-fail-text" : "text-text-2",
+								)}
+								title={summary.text}
+							>
+								{summary.text}
 							</span>
 						</span>
 					</CollapsibleTrigger>

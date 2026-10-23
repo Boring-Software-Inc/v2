@@ -43,7 +43,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 	return (
 		<nav
 			aria-label="Primary"
-			className="flex h-12 min-w-0 shrink-0 items-center gap-1 px-3"
+			className="flex h-12 min-w-0 shrink-0 items-center gap-1 px-2 sm:px-3"
 		>
 			<Brand org={org} />
 			<Slash />
@@ -54,7 +54,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 					<RepoSwitcher />
 				</>
 			) : null}
-			<div className="ms-auto flex shrink-0 items-center gap-2">
+			<div className="ms-auto flex shrink-0 items-center gap-1 sm:gap-2">
 				<CommandPaletteButton />
 				<BetaTag />
 				<UserMenu user={user} />
