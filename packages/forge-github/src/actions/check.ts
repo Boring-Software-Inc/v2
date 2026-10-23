@@ -5,8 +5,9 @@ import type { GithubHttp } from "../client/http.ts";
 /**
  * The merge gate (§7): ONE check run named `tripwire` per head SHA, emitted
  * App-side via the Checks API — never a workflow file in the customer's repo.
- * Re-run of the same SHA UPDATES the existing check (upsert); a new push is a
- * new SHA and gets a fresh check by GitHub semantics.
+ * Re-run of the same SHA UPDATES the newest own check (upsert), except a
+ * pending state over a completed check: GitHub never reopens a completed
+ * check, so that posts a new one. A new push is a new SHA and a fresh check.
  */
 
 const checkRunSchema = z.object({
@@ -14,8 +15,10 @@ const checkRunSchema = z.object({
 	app: z.object({ id: z.number() }).nullish(),
 });
 
+const listedCheckRunSchema = checkRunSchema.extend({ status: z.string() });
+
 const checkRunListSchema = z.object({
-	check_runs: z.array(checkRunSchema).default([]),
+	check_runs: z.array(listedCheckRunSchema).default([]),
 });
 
 function toApiFields(state: CheckState) {
@@ -50,11 +53,18 @@ export async function setCheck(
 	const existing = checkRunListSchema.parse(
 		await http.get(
 			repoFullName,
-			`/repos/${repoFullName}/commits/${state.sha}/check-runs?check_name=${CHECK_NAME}&app_id=${http.appId}&filter=latest`,
+			`/repos/${repoFullName}/commits/${state.sha}/check-runs?check_name=${CHECK_NAME}&app_id=${http.appId}&filter=all&per_page=100`,
 		),
 	);
-	const found = existing.check_runs.find((run) => run.app?.id === http.appId);
-	if (found) {
+	const found = existing.check_runs
+		.filter((run) => run.app?.id === http.appId)
+		.reduce<z.infer<typeof listedCheckRunSchema> | null>(
+			(newest, run) => (newest && newest.id > run.id ? newest : run),
+			null,
+		);
+	const reopensCompleted =
+		status !== "completed" && found?.status === "completed";
+	if (found && !reopensCompleted) {
 		await http.patch(
 			repoFullName,
 			`/repos/${repoFullName}/check-runs/${found.id}`,

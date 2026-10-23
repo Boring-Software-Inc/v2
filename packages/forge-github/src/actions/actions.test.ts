@@ -291,7 +291,7 @@ describe("setCheck", () => {
 	test("re-run of the same SHA updates the existing check", async () => {
 		const { http, calls } = fakeHttp({
 			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
-				check_runs: [{ id: 55, app: { id: APP_ID } }],
+				check_runs: [{ id: 55, status: "completed", app: { id: APP_ID } }],
 			},
 		});
 		const result = await setCheck(http, "a/b", state);
@@ -299,6 +299,112 @@ describe("setCheck", () => {
 		expect(calls.find((c) => c.method === "PATCH")?.path).toBe(
 			"/repos/a/b/check-runs/55",
 		);
+	});
+
+	test("a pending state after a completed check starts a new check", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [{ id: 55, status: "completed", app: { id: APP_ID } }],
+			},
+			"POST /repos/a/b/check-runs": { id: 79 },
+		});
+		const result = await setCheck(http, "a/b", {
+			...state,
+			conclusion: "pending",
+			summary: "Waiting for human review.",
+		});
+		expect(result).toEqual({ externalId: "79", created: true });
+		expect(calls.some((c) => c.method === "PATCH")).toBe(false);
+		expect(calls.find((c) => c.method === "POST")?.body).toMatchObject({
+			head_sha: state.sha,
+			status: "in_progress",
+		});
+	});
+
+	test("a pending state updates a check that is still in progress", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [{ id: 56, status: "in_progress", app: { id: APP_ID } }],
+			},
+		});
+		const result = await setCheck(http, "a/b", {
+			...state,
+			conclusion: "pending",
+		});
+		expect(result).toEqual({ externalId: "56", created: false });
+		expect(calls.some((c) => c.method === "POST")).toBe(false);
+	});
+
+	test("a queued check counts as not completed", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [{ id: 57, status: "queued", app: { id: APP_ID } }],
+			},
+		});
+		await setCheck(http, "a/b", { ...state, conclusion: "pending" });
+		expect(calls.find((c) => c.method === "PATCH")?.path).toBe(
+			"/repos/a/b/check-runs/57",
+		);
+	});
+
+	test("a decision completes the check that waits for it", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [{ id: 58, status: "in_progress", app: { id: APP_ID } }],
+			},
+		});
+		await setCheck(http, "a/b", { ...state, conclusion: "success" });
+		const patch = calls.find((c) => c.method === "PATCH");
+		expect(patch?.path).toBe("/repos/a/b/check-runs/58");
+		expect(patch?.body).toMatchObject({
+			status: "completed",
+			conclusion: "success",
+		});
+	});
+
+	test("a new conclusion replaces a completed one on the same check", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [{ id: 59, status: "completed", app: { id: APP_ID } }],
+			},
+		});
+		await setCheck(http, "a/b", { ...state, conclusion: "success" });
+		expect(calls.some((c) => c.method === "POST")).toBe(false);
+		expect(calls.find((c) => c.method === "PATCH")?.body).toMatchObject({
+			status: "completed",
+			conclusion: "success",
+		});
+	});
+
+	test("writes to the newest own check when the SHA has several", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [
+					{ id: 55, status: "completed", app: { id: APP_ID } },
+					{ id: 90, status: "in_progress", app: { id: APP_ID } },
+					{ id: 120, status: "in_progress", app: { id: 1 } },
+				],
+			},
+		});
+		const result = await setCheck(http, "a/b", {
+			...state,
+			conclusion: "success",
+		});
+		expect(result).toEqual({ externalId: "90", created: false });
+		expect(calls.find((c) => c.method === "PATCH")?.path).toBe(
+			"/repos/a/b/check-runs/90",
+		);
+	});
+
+	test("lists every own check on the SHA, not only the latest", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: { check_runs: [] },
+			"POST /repos/a/b/check-runs": { id: 91 },
+		});
+		await setCheck(http, "a/b", state);
+		const query = new URL(`https://x${calls[0]?.path}`).searchParams;
+		expect(query.get("filter")).toBe("all");
+		expect(query.get("per_page")).toBe("100");
 	});
 
 	test("pending maps to in_progress with no conclusion (§5.6b)", async () => {
@@ -718,7 +824,7 @@ describe("only objects this app created are ever touched", () => {
 		const sha = "c".repeat(40);
 		const { http, calls } = fakeHttp({
 			[`GET /repos/a/b/commits/${sha}/check-runs`]: {
-				check_runs: [{ id: 66, app: { id: 1 } }],
+				check_runs: [{ id: 66, status: "completed", app: { id: 1 } }],
 			},
 			"POST /repos/a/b/check-runs": { id: 81 },
 		});
