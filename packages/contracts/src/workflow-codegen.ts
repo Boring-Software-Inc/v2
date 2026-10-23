@@ -1,9 +1,7 @@
 import { z } from "zod";
 import { RULE_CATALOG } from "./rules.ts";
 import {
-	type JsonValue,
 	jsonValueSchema,
-	type ScheduleDraft,
 	triggerScheduleSchema,
 	type WorkflowDefinition,
 	type WorkflowEdge,
@@ -203,8 +201,15 @@ const RESERVED = new Set<string>([
 	"Infinity",
 ]);
 
+function wordCase(word: string): string {
+	return /^[A-Z0-9]+$/.test(word) ? word.toLowerCase() : word;
+}
+
 function camel(text: string): string {
-	const words = text.split(/[^A-Za-z0-9]+/).filter(Boolean);
+	const words = text
+		.split(/[^A-Za-z0-9]+/)
+		.filter(Boolean)
+		.map(wordCase);
 	const joined = words
 		.map((word, index) =>
 			index === 0
@@ -237,9 +242,22 @@ const TAKES_NO_PARAMS = new Set([
 	"discord",
 ]);
 
-function literal(value: JsonValue | ScheduleDraft, indent: string): string {
-	const text = JSON.stringify(value, null, "\t");
-	return (text ?? "null").replaceAll("\n", `\n${indent}`);
+function literal(value: unknown, indent: string): string {
+	const inner = `${indent}\t`;
+	if (Array.isArray(value)) {
+		return value.length === 0
+			? "[]"
+			: `[\n${value.map((item) => `${inner}${literal(item, inner)},`).join("\n")}\n${indent}]`;
+	}
+	if (typeof value === "object" && value !== null) {
+		const entries = Object.entries(value).filter(
+			([, item]) => item !== undefined,
+		);
+		return entries.length === 0
+			? "{}"
+			: `{\n${entries.map(([key, item]) => `${inner}${propertyKey(key)}: ${literal(item, inner)},`).join("\n")}\n${indent}}`;
+	}
+	return JSON.stringify(value) ?? "null";
 }
 
 function inputText(
@@ -518,7 +536,7 @@ export function workflowsToCode(
 		}
 		used.add(name);
 		blocks.push(workflowFunction(definition, name, warnings));
-		entries.push(`\t${JSON.stringify(definition.id)}: ${name}(),`);
+		entries.push(`\t${propertyKey(definition.id)}: ${name}(),`);
 	}
 	const body = [
 		...blocks,

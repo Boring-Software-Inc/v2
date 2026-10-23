@@ -111,10 +111,42 @@ describe("pull then push changes nothing", () => {
 	test("the pulled module reads like hand-written code", async () => {
 		const { code } = await roundTrip([MODERATED]);
 		expect(code).toContain(
-			'const oldPrs = check("min-merged-prs", {\n\t\t"min": 2\n\t}, { version: 1 }).after(t);',
+			'const oldPrs = check("min-merged-prs", {\n\t\tmin: 2,\n\t}, { version: 1 }).after(t);',
 		);
 		expect(code).toContain("const either = anyOf(age.fails, oldPrs.fails);");
 		expect(code).toContain("const stop = block().after(mod.denied);");
+	});
+
+	test("keys are quoted only when they must be, and names read as words", async () => {
+		const definition = single(
+			"qa-gsimone-opens",
+			[
+				T,
+				{
+					id: "honeypot",
+					type: "rule",
+					ref: "honeypot@1",
+					config: { paths: [".github/workflows/**"] },
+				},
+				{ id: "x", type: "action", action: "block" },
+			],
+			[
+				{ id: "1", from: "t", to: "honeypot" },
+				{ id: "2", from: "honeypot", to: "x", when: "fail" },
+			],
+			"QA gsimone opens",
+		);
+		const plain = single("rate", definition.nodes, definition.edges, "PR rate");
+		const { code, compiled } = await roundTrip([definition, plain]);
+		expect(compiled.ok).toBe(true);
+		expect(code).toContain("function qaGsimoneOpens() {");
+		expect(code).toContain("function prRate() {");
+		expect(code).toContain('\t"qa-gsimone-opens": qaGsimoneOpens(),');
+		expect(code).toContain("\trate: prRate(),");
+		expect(code).toContain(
+			'check("honeypot", {\n\t\tpaths: [\n\t\t\t".github/workflows/**",\n\t\t],\n\t})',
+		);
+		expect(code).not.toMatch(/"(paths|minDays|min)":/);
 	});
 
 	test("node can load the module with type stripping alone", async () => {

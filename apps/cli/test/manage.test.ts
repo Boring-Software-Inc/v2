@@ -537,7 +537,7 @@ export default workflows({ broken: broken(), loose: loose() });
 			file(),
 			readFileSync(file(), "utf8")
 				.replace('"account-age"', '"acount-age"')
-				.replace('"minDays"', '"minDayz"'),
+				.replace("minDays:", "minDayz:"),
 		);
 		const tsc = Bun.spawnSync(
 			[
@@ -699,10 +699,13 @@ describe("local validate and custom rules", () => {
 			file,
 			readFileSync(file, "utf8")
 				.replace(
-					'check("account-age", {\n\t\t"minDays": 7\n\t})',
+					'check("account-age", {\n\t\tminDays: 7,\n\t})',
 					'customCheck("custom-no-newbs-01a15e")',
 				)
 				.replace("import {\n", "import {\n\tcustomCheck,\n"),
+		);
+		expect(readFileSync(file, "utf8")).toContain(
+			'customCheck("custom-no-newbs-01a15e")',
 		);
 		const result = await runCli(
 			["workflows", "validate", "--file", file],
