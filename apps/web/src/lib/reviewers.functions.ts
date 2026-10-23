@@ -10,6 +10,24 @@ import {
 export interface RepoReviewersView {
 	reviewers: RepoReviewer[];
 	syncedAt: string | null;
+	syncing: boolean;
+}
+
+async function queueReviewerSync(repoId: string): Promise<boolean> {
+	const { getBoss, isDemoMode } = await import("#/lib/server/db");
+	if (isDemoMode()) {
+		return false;
+	}
+	const { SYNC_REPO_REVIEWERS_QUEUE, syncRepoReviewersOptions } = await import(
+		"@tripwire/db"
+	);
+	const boss = await getBoss();
+	await boss.send(
+		SYNC_REPO_REVIEWERS_QUEUE,
+		{ repoId },
+		syncRepoReviewersOptions(repoId),
+	);
+	return true;
 }
 
 export const listRepoReviewers = createServerFn({ method: "GET" })
@@ -29,9 +47,16 @@ export const listRepoReviewers = createServerFn({ method: "GET" })
 			getDb().db,
 			data.repoId,
 		);
+		const syncing = reviewerServices.reviewersNeedSync(
+			list.syncedAt,
+			new Date(),
+		)
+			? await queueReviewerSync(data.repoId)
+			: false;
 		return {
 			reviewers: list.reviewers,
 			syncedAt: list.syncedAt?.toISOString() ?? null,
+			syncing,
 		};
 	});
 
@@ -46,17 +71,5 @@ export const refreshRepoReviewers = createServerFn({ method: "POST" })
 			(context as { org: OrgWithRole }).org.id,
 			data.repoId,
 		);
-		const { getBoss, isDemoMode } = await import("#/lib/server/db");
-		if (isDemoMode()) {
-			return { queued: false };
-		}
-		const { SYNC_REPO_REVIEWERS_QUEUE, syncRepoReviewersOptions } =
-			await import("@tripwire/db");
-		const boss = await getBoss();
-		await boss.send(
-			SYNC_REPO_REVIEWERS_QUEUE,
-			{ repoId: data.repoId },
-			syncRepoReviewersOptions(data.repoId),
-		);
-		return { queued: true };
+		return { queued: await queueReviewerSync(data.repoId) };
 	});

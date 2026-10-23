@@ -9,6 +9,16 @@ export interface RepoReviewerList {
 	syncedAt: Date | null;
 }
 
+export const REVIEWER_SYNC_STALE_MS = 24 * 60 * 60_000;
+
+/** A repo that never synced, or synced over a day ago, needs a fresh sync. */
+export function reviewersNeedSync(syncedAt: Date | null, now: Date): boolean {
+	return (
+		syncedAt === null ||
+		now.getTime() - syncedAt.getTime() >= REVIEWER_SYNC_STALE_MS
+	);
+}
+
 export async function listRepoReviewers(
 	db: Db,
 	repoId: string,

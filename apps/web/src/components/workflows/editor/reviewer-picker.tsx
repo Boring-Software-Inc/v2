@@ -22,7 +22,11 @@ import {
 	useComboboxAnchor,
 } from "#/components/glaze/ui/combobox";
 import { Field, FieldLabel } from "#/components/glaze/ui/field";
-import { refreshRepoReviewers } from "#/lib/reviewers.functions";
+import { Status } from "#/components/glaze/ui/status";
+import {
+	type RepoReviewersView,
+	refreshRepoReviewers,
+} from "#/lib/reviewers.functions";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
 
 const POLL_MS = 2_000;
@@ -65,18 +69,19 @@ export function ReviewerPicker({
 	const repoId = scope?.repoId ?? "";
 	const queryClient = useQueryClient();
 	const anchor = useComboboxAnchor();
+	const [openedAt] = useState(Date.now);
 	const [waiting, setWaiting] = useState<{
 		since: string | null;
 		until: number;
 	} | null>(null);
-	const waitingFor = (syncedAt: string | null | undefined) =>
-		waiting !== null &&
-		(syncedAt ?? null) === waiting.since &&
-		Date.now() < waiting.until;
-	const { data, dataUpdatedAt } = useQuery({
+	const pending = (view: RepoReviewersView | undefined) =>
+		(view?.syncing === true && Date.now() < openedAt + WAIT_MS) ||
+		(waiting !== null &&
+			(view?.syncedAt ?? null) === waiting.since &&
+			Date.now() < waiting.until);
+	const { data, isPending } = useQuery({
 		...repoReviewersQueryOptions(org, repoId),
-		refetchInterval: (query) =>
-			waitingFor(query.state.data?.syncedAt) ? POLL_MS : false,
+		refetchInterval: (query) => (pending(query.state.data) ? POLL_MS : false),
 	});
 	const refresh = useMutation({
 		mutationFn: refreshRepoReviewers,
@@ -93,8 +98,8 @@ export function ReviewerPicker({
 				queryKey: repoReviewersQueryOptions(org, repoId).queryKey,
 			}),
 	});
-	const syncing =
-		refresh.isPending || (dataUpdatedAt > 0 && waitingFor(data?.syncedAt));
+	const syncing = refresh.isPending || pending(data);
+	const loading = repoId !== "" && (isPending || syncing);
 
 	const synced = (data?.reviewers ?? []).map(picked);
 	const known = data?.syncedAt != null;
@@ -135,9 +140,18 @@ export function ReviewerPicker({
 	);
 
 	if (synced.length === 0 && chosen.length === 0) {
+		if (loading) {
+			return (
+				<div data-field="reviewers">
+					<Status size="sm" status="running">
+						Loading reviewers
+					</Status>
+				</div>
+			);
+		}
 		return (
 			<div className="flex flex-col gap-2" data-field="reviewers">
-				<p className="type-body-sm text-text-2">No reviewers synced yet</p>
+				<p className="type-body-sm text-text-2">No reviewers found</p>
 				{refreshButton}
 			</div>
 		);
@@ -184,7 +198,7 @@ export function ReviewerPicker({
 					</ComboboxChips>
 					<ComboboxContent anchor={anchor}>
 						<ComboboxEmpty>
-							{synced.length > 0 ? "No one matches" : "No reviewers synced yet"}
+							{synced.length > 0 ? "No one matches" : "No reviewers found"}
 						</ComboboxEmpty>
 						<ComboboxList>
 							{(reviewer: PickedReviewer) => (
