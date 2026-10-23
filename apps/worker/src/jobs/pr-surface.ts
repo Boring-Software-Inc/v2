@@ -103,6 +103,7 @@ export interface EmitSurfaceInput {
 	degraded?: boolean;
 	/** Manual re-run — the comment carries the re-evaluation note. */
 	rerun?: boolean;
+	aiReviewNotRun?: boolean;
 	resumedFrom?: Verdict;
 	pendingCheckPosted?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
@@ -187,6 +188,7 @@ export async function emitPrSurface(
 			degraded: input.degraded,
 			previousVerdict,
 			rerun: input.rerun,
+			aiReviewNotRun: input.aiReviewNotRun,
 		},
 		responseConfig,
 		policy,
@@ -218,6 +220,7 @@ export async function emitPrSurface(
 								reasons,
 								input.degraded,
 								redactionLevelFor(policy, "check"),
+								input.aiReviewNotRun,
 							),
 							detailsUrl: runUrl,
 						},

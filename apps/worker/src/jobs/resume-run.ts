@@ -22,6 +22,7 @@ import { emitPrSurface } from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import {
 	actionPayload,
+	isAiOutOfCreditsStep,
 	makeEvaluator,
 	postsSomething,
 	withPublicProjection,
@@ -207,6 +208,7 @@ export async function resumeRun(
 			verdict,
 			event: normalized,
 			reasons: buildCommentReasons(runData.steps, customRecords),
+			aiReviewNotRun: runData.steps.some(isAiOutOfCreditsStep),
 			pendingActionRows: actionRows,
 			pendingCheckPosted: true,
 			resumedFrom: "needs_review",
@@ -263,6 +265,7 @@ async function resumeDegradedRun(
 			verdict,
 			event: normalized,
 			reasons: buildCommentReasons(runData.steps, customRecords),
+			aiReviewNotRun: runData.steps.some(isAiOutOfCreditsStep),
 			pendingActionRows: actionRows,
 			pendingCheckPosted: true,
 			resumedFrom: "needs_review",

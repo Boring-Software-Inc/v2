@@ -1,3 +1,4 @@
+import { AI_CREDITS_COPY } from "./ai-provider.ts";
 import {
 	type RedactedReasons,
 	reasonName,
@@ -227,6 +228,17 @@ export function checkSummary(
 	reasons: CommentReason[],
 	degraded = false,
 	level = 0,
+	aiReviewNotRun = false,
+): string {
+	const summary = verdictCheckSummary(verdict, reasons, degraded, level);
+	return aiReviewNotRun ? `${summary} ${AI_CREDITS_COPY.notRunShort}` : summary;
+}
+
+function verdictCheckSummary(
+	verdict: Verdict,
+	reasons: CommentReason[],
+	degraded: boolean,
+	level: number,
 ): string {
 	if (verdict === "block") {
 		if (reasons.length === 0 || redactionHides(level, "failed-count")) {
@@ -269,6 +281,7 @@ export interface CommentInput {
 	degraded?: boolean;
 	previousVerdict?: Verdict | null;
 	rerun?: boolean;
+	aiReviewNotRun?: boolean;
 }
 
 export function badgeUrl(runUrl: string): string {
@@ -327,7 +340,11 @@ function renderBody(
 	const button = override.showDetailsButton ? runButton(input.runUrl) : null;
 	const customText = override.customText.trim();
 	if (customText !== "") {
-		return joinParagraphs([customText, button]);
+		return joinParagraphs([
+			customText,
+			input.aiReviewNotRun ? AI_CREDITS_COPY.notRunShort : null,
+			button,
+		]);
 	}
 	const level = redactionLevelFor(policy, surface);
 	const block = input.verdict === "block";
@@ -353,6 +370,7 @@ function renderBody(
 			: null;
 	return joinParagraphs([
 		headline,
+		input.aiReviewNotRun ? AI_CREDITS_COPY.notRunShort : null,
 		detail,
 		input.rerun ? RERUN_NOTE : null,
 		button,

@@ -7,6 +7,7 @@ import type {
 	WorkflowDefinition,
 } from "@tripwire/contracts";
 import {
+	AI_REVIEW_RULE_ID,
 	actionCommentMarker,
 	type CustomRuleRecord,
 	customRuleRef,
@@ -27,6 +28,7 @@ import {
 } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
 import {
+	aiProviderServices,
 	economicsServices,
 	moderationServices,
 	repoServices,
@@ -44,7 +46,9 @@ import {
 import * as metering from "../metering.ts";
 import { readsInjectionRefusedInProd } from "../reads-injection.ts";
 import {
+	type ReportAiCredits,
 	type ReportUnrunnable,
+	reportAiCreditsToSentry,
 	reportUnrunnableToSentry,
 } from "../report-unrunnable.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
@@ -165,6 +169,7 @@ export interface RunWorkflowsDeps {
 	 */
 	meterSource?: UsageSource;
 	reportUnrunnable?: ReportUnrunnable;
+	reportAiCredits?: ReportAiCredits;
 }
 
 export interface RunWorkflowsResult {
@@ -176,6 +181,7 @@ export interface RunWorkflowsResult {
 	reasons: CommentReason[];
 	/** True when the fail-closed floor fired (evaluation degraded). */
 	degraded: boolean;
+	aiReviewNotRun?: boolean;
 }
 
 /**
@@ -455,7 +461,9 @@ async function runWorkflowsInner(
 	).length;
 	const degraded = isRunDegraded(ruleSteps0.length, skippedCount, verdict);
 	const unrunnableFloored = unrunnable.length > 0 && verdict === "pass";
-	const floored = degraded || unrunnableFloored;
+	const aiReviewNotRun = ruleSteps0.some(isAiOutOfCreditsStep);
+	const aiCreditsFloored = aiReviewNotRun && verdict === "pass";
+	const floored = degraded || unrunnableFloored || aiCreditsFloored;
 	const heldBack = floored && scheduled !== null;
 	/**
 	 * The floor is configurable, and ON by default.
@@ -625,7 +633,8 @@ async function runWorkflowsInner(
 	}
 	if (
 		!backfill &&
-		((degraded && !heldBack) || (unrunnableFloored && failClosed))
+		((degraded && !heldBack) ||
+			((unrunnableFloored || aiCreditsFloored) && failClosed))
 	) {
 		await moderationServices.createModerationItem(db, {
 			runId,
@@ -650,6 +659,7 @@ async function runWorkflowsInner(
 
 	const reasons = buildCommentReasons(steps, customSignals.records);
 	logger.info({ runId, verdict, paused, steps: steps.length }, "run persisted");
+	await noteAiCredits(deps, ruleSteps0, event.repo.fullName);
 
 	// Best-effort metering (economics-surface-contracts.md): record ai-review
 	// usage and the per-run resource counters AFTER the run persists. A failure
@@ -680,7 +690,71 @@ async function runWorkflowsInner(
 			);
 		}
 	}
-	return { runId, verdict, paused, actionRows, reasons, degraded };
+	return {
+		runId,
+		verdict,
+		paused,
+		actionRows,
+		reasons,
+		degraded: degraded || (aiCreditsFloored && failClosed),
+		aiReviewNotRun,
+	};
+}
+
+interface CausedStep {
+	status: string;
+	output: unknown;
+}
+
+function stepCause(step: CausedStep): unknown {
+	const output = step.output;
+	return output && typeof output === "object" && "cause" in output
+		? output.cause
+		: undefined;
+}
+
+export function isAiOutOfCreditsStep(step: CausedStep): boolean {
+	return step.status === "skipped" && stepCause(step) === "ai-out-of-credits";
+}
+
+function isAiReviewStep(step: StepRecord): boolean {
+	return step.ruleRef?.startsWith(`${AI_REVIEW_RULE_ID}@`) === true;
+}
+
+async function noteAiCredits(
+	deps: RunWorkflowsDeps,
+	ruleSteps: StepRecord[],
+	repo: string,
+): Promise<void> {
+	const out = ruleSteps.some(isAiOutOfCreditsStep);
+	const reviewed = ruleSteps.some(
+		(step) => isAiReviewStep(step) && step.status !== "skipped",
+	);
+	if (!(out || reviewed)) {
+		return;
+	}
+	try {
+		if (out) {
+			const { changed } = await aiProviderServices.recordAiCredits(
+				deps.db,
+				"out",
+			);
+			if (changed) {
+				deps.logger.error({ repo }, "AI provider is out of credits");
+				(deps.reportAiCredits ?? reportAiCreditsToSentry)({ repo });
+			}
+			return;
+		}
+		if ((await aiProviderServices.getAiCredits(deps.db)) === "out") {
+			await aiProviderServices.recordAiCredits(deps.db, "ready");
+			deps.logger.info({ repo }, "AI provider has credits again");
+		}
+	} catch (error) {
+		deps.logger.warn(
+			{ error: getErrorMessage(error) },
+			"recording AI credit state failed, run unaffected",
+		);
+	}
 }
 
 /**

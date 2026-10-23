@@ -167,6 +167,7 @@ export async function rerunChangeRequest(
 			event,
 			reasons: result.reasons,
 			degraded: result.degraded,
+			aiReviewNotRun: result.aiReviewNotRun,
 			rerun: true,
 			pendingActionRows: result.actionRows,
 			pendingCheckPosted,
