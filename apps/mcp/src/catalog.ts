@@ -23,23 +23,29 @@ export const TOOL_NAMES = [
 
 export type ToolName = (typeof TOOL_NAMES)[number];
 
+export type ToolNeed = "none" | "org-shell" | OrgPermission;
+
 export interface ToolSpec {
 	scope: AgentScope;
-	need: "member" | OrgPermission | null;
+	need: ToolNeed;
 	readOnly: boolean;
 }
 
 export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
-	whoami: { scope: "tripwire:read", need: null, readOnly: true },
-	setup_status: { scope: "tripwire:read", need: "member", readOnly: true },
-	list_repos: { scope: "tripwire:read", need: "member", readOnly: true },
+	whoami: { scope: "tripwire:read", need: "none", readOnly: true },
+	setup_status: { scope: "tripwire:read", need: "org-shell", readOnly: true },
+	list_repos: { scope: "tripwire:read", need: "org-shell", readOnly: true },
 	get_install_link: {
 		scope: "tripwire:admin",
 		need: "connections:manage",
 		readOnly: true,
 	},
-	list_rule_catalog: { scope: "tripwire:read", need: null, readOnly: true },
-	get_repo_rules: { scope: "tripwire:read", need: "member", readOnly: true },
+	list_rule_catalog: { scope: "tripwire:read", need: "none", readOnly: true },
+	get_repo_rules: {
+		scope: "tripwire:read",
+		need: "rules:read",
+		readOnly: true,
+	},
 	set_rule: {
 		scope: "tripwire:configure",
 		need: "rules:manage",
@@ -50,16 +56,24 @@ export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
 		need: "connections:manage",
 		readOnly: false,
 	},
-	list_workflows: { scope: "tripwire:read", need: "member", readOnly: true },
+	list_workflows: {
+		scope: "tripwire:read",
+		need: "workflows:read",
+		readOnly: true,
+	},
 	set_workflow_enabled: {
 		scope: "tripwire:configure",
 		need: "workflows:manage",
 		readOnly: false,
 	},
-	get_workflow: { scope: "tripwire:read", need: "member", readOnly: true },
+	get_workflow: {
+		scope: "tripwire:read",
+		need: "workflows:read",
+		readOnly: true,
+	},
 	validate_workflow: {
 		scope: "tripwire:read",
-		need: "member",
+		need: "workflows:read",
 		readOnly: true,
 	},
 	apply_workflow: {
@@ -67,11 +81,11 @@ export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
 		need: "workflows:manage",
 		readOnly: false,
 	},
-	list_runs: { scope: "tripwire:read", need: "member", readOnly: true },
-	get_run: { scope: "tripwire:read", need: "member", readOnly: true },
+	list_runs: { scope: "tripwire:read", need: "activity:read", readOnly: true },
+	get_run: { scope: "tripwire:read", need: "activity:read", readOnly: true },
 	list_moderation_queue: {
 		scope: "tripwire:read",
-		need: "member",
+		need: "moderation:read",
 		readOnly: true,
 	},
 	decide_moderation: {
@@ -81,7 +95,7 @@ export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
 	},
 	report_setup_progress: {
 		scope: "tripwire:read",
-		need: null,
+		need: "none",
 		readOnly: false,
 	},
 };

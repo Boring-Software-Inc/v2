@@ -166,7 +166,7 @@ export function registerTools(
 			},
 			({ org }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "setup_status");
 					const status = await setupServices.getSetupStatus(
 						ctx.db,
 						resolved.id,
@@ -204,7 +204,7 @@ export function registerTools(
 			},
 			({ org }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "list_repos");
 					const repos = await orgServices.listOrgSwitcherRepos(
 						ctx.db,
 						resolved.id,
@@ -235,7 +235,7 @@ export function registerTools(
 			},
 			({ org }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "connections:manage");
+					const resolved = await resolveOrg(ctx, org, "get_install_link");
 					const url = installLink(ctx, resolved.id);
 					if (!url) {
 						throw new ToolError(
@@ -291,7 +291,7 @@ export function registerTools(
 			},
 			({ org, repo }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "get_repo_rules");
 					const found = await resolveRepo(ctx, resolved, repo);
 					const views = await ruleServices.listRuleViews(ctx.db, found.id);
 					return ok(
@@ -337,7 +337,7 @@ export function registerTools(
 			},
 			({ org, repo, ruleId, enabled, config }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "rules:manage");
+					const resolved = await resolveOrg(ctx, org, "set_rule");
 					if (!RULE_CATALOG.some((entry) => entry.ruleId === ruleId)) {
 						throw new ToolError(`No rule named ${ruleId}.`, "list_rules");
 					}
@@ -377,7 +377,7 @@ export function registerTools(
 			},
 			({ org, repo }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "connections:manage");
+					const resolved = await resolveOrg(ctx, org, "turn_on_gate");
 					const found = await resolveRepo(ctx, resolved, repo);
 					await repoServices.turnOnGate(ctx.db, await ctx.getBoss(), found.id);
 					return ok({
@@ -400,7 +400,7 @@ export function registerTools(
 			},
 			({ org, repo }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "list_workflows");
 					const found = await resolveRepo(ctx, resolved, repo);
 					const workflows = await workflowServices.listWorkflows(
 						ctx.db,
@@ -438,7 +438,7 @@ export function registerTools(
 			},
 			({ org, repo, workflowId, enabled }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "workflows:manage");
+					const resolved = await resolveOrg(ctx, org, "set_workflow_enabled");
 					const found = await resolveRepo(ctx, resolved, repo);
 					const rows = await workflowServices.listWorkflowRows(
 						ctx.db,
@@ -509,7 +509,7 @@ export function registerTools(
 			},
 			({ org, repo, workflow }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "get_workflow");
 					const found = await resolveRepo(ctx, resolved, repo);
 					const rows = await workflowServices.listWorkflowRows(
 						ctx.db,
@@ -566,7 +566,7 @@ export function registerTools(
 			},
 			({ org, repo, definitions }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "validate_workflow");
 					const found = await resolveRepo(ctx, resolved, repo);
 					const [catalog, rows] = await Promise.all([
 						workflowServices.repoRuleCatalog(ctx.db, found.id),
@@ -611,7 +611,7 @@ export function registerTools(
 			},
 			({ org, repo, definitions }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "workflows:manage");
+					const resolved = await resolveOrg(ctx, org, "apply_workflow");
 					const found = await resolveRepo(ctx, resolved, repo);
 					const results = [];
 					for (const definition of definitions) {
@@ -655,7 +655,7 @@ export function registerTools(
 			},
 			({ org, repo, limit }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "list_runs");
 					const names = await repoNames(resolved, repo);
 					const runs = await runServices.listRepoRuns(ctx.db, {
 						repoFullName: names,
@@ -690,7 +690,7 @@ export function registerTools(
 			},
 			({ org, runId }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "get_run");
 					const found = await runServices.getRunWithSteps(ctx.db, runId);
 					const repos = await orgServices.listOrgSwitcherRepos(
 						ctx.db,
@@ -747,7 +747,7 @@ export function registerTools(
 			},
 			({ org, repo }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "list_moderation_queue");
 					const found = repo ? await resolveRepo(ctx, resolved, repo) : null;
 					const items = await moderationServices.listPendingItems(
 						ctx.db,
@@ -793,7 +793,7 @@ export function registerTools(
 			},
 			({ org, repo, itemId, decision }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "moderation:manage");
+					const resolved = await resolveOrg(ctx, org, "decide_moderation");
 					const found = await resolveRepo(ctx, resolved, repo);
 					if (decision === "ban") {
 						return ok({

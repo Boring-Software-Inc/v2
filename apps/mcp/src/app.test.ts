@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Db } from "@tripwire/db";
 import type { Pool } from "pg";
 import pino from "pino";
 import { createApp } from "./app.ts";
-import { selectTools, toolVisible } from "./catalog.ts";
+import { selectTools, TOOL_NAMES, TOOL_SPECS, toolVisible } from "./catalog.ts";
 import { readConfig } from "./config.ts";
 
 const config = readConfig({
@@ -102,5 +104,43 @@ describe("tool selection", () => {
 		expect(
 			selectTools(new URL("http://x/mcp?skills=admin&disable-skills=admin")).ok,
 		).toBe(false);
+	});
+});
+
+describe("tool access classification", () => {
+	test("every tool names a region scope, the org shell, or no org", () => {
+		const byNeed = Object.fromEntries(
+			TOOL_NAMES.map((name) => [name, TOOL_SPECS[name].need]),
+		);
+		expect(byNeed).toEqual({
+			whoami: "none",
+			setup_status: "org-shell",
+			list_repos: "org-shell",
+			get_install_link: "connections:manage",
+			list_rule_catalog: "none",
+			get_repo_rules: "rules:read",
+			set_rule: "rules:manage",
+			turn_on_gate: "connections:manage",
+			list_workflows: "workflows:read",
+			set_workflow_enabled: "workflows:manage",
+			get_workflow: "workflows:read",
+			validate_workflow: "workflows:read",
+			apply_workflow: "workflows:manage",
+			list_runs: "activity:read",
+			get_run: "activity:read",
+			list_moderation_queue: "moderation:read",
+			decide_moderation: "moderation:manage",
+			report_setup_progress: "none",
+		});
+	});
+
+	test("handlers read their access from the catalog", () => {
+		const source = readFileSync(join(import.meta.dir, "tools.ts"), "utf8");
+		const checked = [
+			...source.matchAll(/resolveOrg\(\s*ctx,\s*\w+,\s*"([^"]+)"\s*\)/g),
+		].map((match) => match[1]);
+		expect(checked.sort()).toEqual(
+			TOOL_NAMES.filter((name) => TOOL_SPECS[name].need !== "none").sort(),
+		);
 	});
 });

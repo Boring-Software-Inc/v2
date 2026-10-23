@@ -102,17 +102,23 @@ const WORKFLOW: JsonValue = {
 
 let member: Client;
 let builder: Client;
+let reviewer: Client;
 
 beforeAll(async () => {
 	container = await createTestDatabase();
 	({ db, pool } = createDb(container.url));
 	await applyMigrations(db);
-	for (const id of ["perm-admin", "perm-member", "perm-builder"]) {
+	for (const id of [
+		"perm-admin",
+		"perm-member",
+		"perm-builder",
+		"perm-reviewer",
+	]) {
 		await addUser(id);
 	}
 	const org = await ensureTeamOrg(db, {
 		adminUserId: "perm-admin",
-		memberUserIds: ["perm-member", "perm-builder"],
+		memberUserIds: ["perm-member", "perm-builder", "perm-reviewer"],
 	});
 	orgSlug = org.slug;
 	orgId = org.id;
@@ -136,8 +142,24 @@ beforeAll(async () => {
 				eq(schema.member.userId, "perm-builder"),
 			),
 		);
+	await db.insert(schema.organizationRole).values({
+		id: generateId(),
+		organizationId: orgId,
+		role: "reviewer",
+		permission: JSON.stringify({ moderation: ["read", "manage"] }),
+	});
+	await db
+		.update(schema.member)
+		.set({ role: "reviewer" })
+		.where(
+			and(
+				eq(schema.member.organizationId, orgId),
+				eq(schema.member.userId, "perm-reviewer"),
+			),
+		);
 	member = await connect("perm-member");
 	builder = await connect("perm-builder");
+	reviewer = await connect("perm-reviewer");
 }, 120_000);
 
 afterAll(async () => {
@@ -185,5 +207,45 @@ describe("MCP writes follow the org's role scopes", () => {
 			enabled: true,
 		});
 		expect(result.isError).toBe(true);
+	});
+});
+
+describe("MCP reads follow the org's role scopes", () => {
+	const outside: [string, Record<string, JsonValue>][] = [
+		["get_repo_rules", { repo: "perm-api" }],
+		["list_workflows", { repo: "perm-api" }],
+		["get_workflow", { repo: "perm-api" }],
+		["validate_workflow", { repo: "perm-api", definitions: [WORKFLOW] }],
+		["list_runs", {}],
+		["get_run", { runId: "019f0000-0000-7000-8000-000000000000" }],
+	];
+
+	for (const [tool, args] of outside) {
+		test(`a moderation-only role cannot call ${tool}`, async () => {
+			const result = await call(reviewer, tool, { org: orgSlug, ...args });
+			expect(result.isError).toBe(true);
+			expect(result.content[0]?.text).toContain("Your role in");
+		});
+	}
+
+	test("a moderation-only role reads the human review queue", async () => {
+		const result = await call(reviewer, "list_moderation_queue", {
+			org: orgSlug,
+		});
+		expect(result.isError).toBeFalsy();
+	});
+
+	test("a workflows-only role cannot read the human review queue", async () => {
+		const result = await call(builder, "list_moderation_queue", {
+			org: orgSlug,
+		});
+		expect(result.isError).toBe(true);
+	});
+
+	test("the org shell stays open to every role", async () => {
+		for (const tool of ["setup_status", "list_repos"]) {
+			const result = await call(reviewer, tool, { org: orgSlug });
+			expect(result.isError).toBeFalsy();
+		}
 	});
 });

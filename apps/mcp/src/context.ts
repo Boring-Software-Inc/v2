@@ -3,11 +3,11 @@ import {
 	type OrgWithPermissions,
 	resolveOrgAccess,
 } from "@tripwire/auth/org-gate";
-import type { OrgPermission } from "@tripwire/contracts";
 import type { Db, OrgWithRole, RepoLite } from "@tripwire/db";
 import { orgServices } from "@tripwire/db";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
+import { TOOL_SPECS, type ToolName } from "./catalog.ts";
 import type { McpConfig } from "./config.ts";
 import type { VerifiedAgent } from "./token.ts";
 
@@ -79,8 +79,12 @@ async function defaultOrgSlug(ctx: ToolContext): Promise<string> {
 export async function resolveOrg(
 	ctx: ToolContext,
 	requested: string | undefined,
-	need: "member" | OrgPermission,
+	tool: ToolName,
 ): Promise<OrgWithPermissions> {
+	const need = TOOL_SPECS[tool].need;
+	if (need === "none") {
+		throw new Error(`${tool} does not act on an org`);
+	}
 	requireAccess(ctx);
 	const slug = requested ?? (await defaultOrgSlug(ctx));
 	const member = await resolveOrgAccess(ctx.db, {
@@ -96,7 +100,7 @@ export async function resolveOrg(
 			`This agent was not given access to ${slug}. Disconnect it under Agents in Tripwire settings, then connect again and pick ${slug}.`,
 		);
 	}
-	if (need !== "member" && !member.org.permissions.includes(need)) {
+	if (need !== "org-shell" && !member.org.permissions.includes(need)) {
 		throw new ToolError(
 			`Your role in ${slug} cannot do this. Ask an admin of the org.`,
 		);
