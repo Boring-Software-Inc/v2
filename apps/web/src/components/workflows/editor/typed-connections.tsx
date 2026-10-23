@@ -10,7 +10,6 @@ import {
 	type NodeVerdict,
 	outputLook,
 	type PortLook,
-	WORKFLOW_PORT_KIND,
 	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
 import {
@@ -39,7 +38,6 @@ import {
 	ProblemPeek,
 	severityStatus,
 } from "#/components/workflows/editor/problems-list";
-import { cn } from "#/lib/glaze/utils";
 
 export const DragPlanContext = createContext<DragPlan | null>(null);
 
@@ -77,7 +75,6 @@ export function TypedEdge({
 	targetX,
 	targetY,
 	targetPosition,
-	label,
 	data,
 	interactionWidth,
 }: EdgeProps<TypedFlowEdge>) {
@@ -99,34 +96,24 @@ export function TypedEdge({
 	return (
 		<>
 			<BaseEdge
-				data-edge-kind={WORKFLOW_PORT_KIND[port]}
 				data-edge-problem={status ?? undefined}
 				data-edge-tone={WORKFLOW_PORT_TONE[port]}
 				interactionWidth={interactionWidth}
 				path={path}
 			/>
-			{label || status ? (
+			{status ? (
 				<EdgeLabelRenderer>
 					<div
-						className={cn(
-							"absolute flex items-center gap-1 rounded-tag border bg-paper px-1 type-caption",
-							status === "fail"
-								? "border-fail text-fail-text"
-								: "border-line-faint text-text-2",
-							status && "nodrag nopan pointer-events-auto",
-						)}
-						data-edge-label=""
+						className="nodrag nopan pointer-events-auto absolute flex rounded-pill bg-paper"
+						data-edge-problem-peek=""
 						style={place}
 					>
-						{status ? (
-							<ProblemPeek className="flex" onFix={onFix} problems={problems}>
-								<StatusMark
-									label={problems.map((problem) => problem.message).join(". ")}
-									status={status}
-								/>
-							</ProblemPeek>
-						) : null}
-						{label}
+						<ProblemPeek className="flex" onFix={onFix} problems={problems}>
+							<StatusMark
+								label={problems.map((problem) => problem.message).join(". ")}
+								status={status}
+							/>
+						</ProblemPeek>
 					</div>
 				</EdgeLabelRenderer>
 			) : null}
@@ -197,7 +184,6 @@ export function TypedConnectionLine({
 		<path
 			className="react-flow__connection-path"
 			d={path}
-			data-line-kind={port ? WORKFLOW_PORT_KIND[port] : "event"}
 			data-line-status={target?.status ?? "idle"}
 			data-line-tone={port ? WORKFLOW_PORT_TONE[port] : "neutral"}
 			fill="none"
@@ -266,7 +252,6 @@ export function PendingConnection({
 					<path
 						className="react-flow__connection-path"
 						d={path}
-						data-line-kind={WORKFLOW_PORT_KIND[port]}
 						data-line-status="idle"
 						data-line-tone={WORKFLOW_PORT_TONE[port]}
 						fill="none"

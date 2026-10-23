@@ -3,10 +3,7 @@ import type {
 	WorkflowDefinition,
 	WorkflowNode,
 } from "@tripwire/contracts";
-import {
-	WORKFLOW_PORT_LABELS,
-	workflowDefinitionSchema,
-} from "@tripwire/contracts";
+import { workflowDefinitionSchema } from "@tripwire/contracts";
 
 /**
  * Pure graph ↔ definition converters. `graphToDefinition` is THE editor
@@ -31,33 +28,20 @@ export interface EditorEdge {
 	 * "approve"/"deny" on send-to-moderation nodes); pass edges leave it unset.
 	 */
 	sourceHandle?: string | null;
-	label?: string;
 	data?: { when?: EdgeWhen };
 }
 
-const EDGE_LABELS = {
-	pass: WORKFLOW_PORT_LABELS.pass,
-	fail: WORKFLOW_PORT_LABELS.fail,
-	approve: WORKFLOW_PORT_LABELS.approve,
-	deny: WORKFLOW_PORT_LABELS.deny,
-} satisfies Record<EdgeWhen, string>;
-
-export function edgeLabel(when: EdgeWhen | undefined): string | undefined {
-	return when ? EDGE_LABELS[when] : undefined;
-}
-
 export function edgeWhenFields(when: EdgeWhen | undefined): {
-	label?: string;
 	data: { when?: EdgeWhen };
 } {
-	return when ? { label: EDGE_LABELS[when], data: { when } } : { data: {} };
+	return when ? { data: { when } } : { data: {} };
 }
 
 const HANDLE_WHENS = new Set(["fail", "approve", "deny"]);
 
 /**
  * The handle an edge was drawn from is the source of truth for its `when` —
- * a label can go stale, the handle cannot.
+ * stored data can go stale, the handle cannot.
  */
 export function handleWhen(
 	sourceHandle: string | null | undefined,

@@ -215,8 +215,6 @@ const CANVAS_TOKENS = {
 	"--xy-edge-stroke": "var(--ink-45)",
 	"--xy-edge-stroke-selected": "var(--ink)",
 	"--xy-connectionline-stroke": "var(--ink-45)",
-	"--xy-edge-label-background-color": "var(--paper)",
-	"--xy-edge-label-color": "var(--text-2)",
 	"--xy-handle-background-color": "var(--ink-32)",
 	"--xy-handle-border-color": "var(--paper)",
 	"--xy-node-color": "var(--text-1)",
@@ -539,9 +537,7 @@ function EditorBody({
 			const when = handleWhen(connection.sourceHandle);
 			setEdges((current) =>
 				reconnectEdge(oldEdge, connection, current).map((edge) =>
-					edge.id === oldEdge.id
-						? { ...edge, label: undefined, ...edgeWhenFields(when) }
-						: edge,
+					edge.id === oldEdge.id ? { ...edge, ...edgeWhenFields(when) } : edge,
 				),
 			);
 			setDirty(true);

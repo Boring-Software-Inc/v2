@@ -149,7 +149,6 @@ describe("outcome handles ↔ when (T4 editor fix)", () => {
 				source: "age",
 				target: "mod",
 				sourceHandle: "fail",
-				label: "Passes",
 				data: { when: "pass" },
 			},
 		];
@@ -237,7 +236,7 @@ describe("outcome handles ↔ when (T4 editor fix)", () => {
 		}
 	});
 
-	test("edge labels are plain words, never the stored branch id", () => {
+	test("edges carry no text label: the source port names the outcome", () => {
 		const graph = definitionToGraph({
 			id: "w",
 			name: "w",
@@ -251,12 +250,19 @@ describe("outcome handles ↔ when (T4 editor fix)", () => {
 				{ id: "e5", from: "age", to: "block", when: "pass" },
 			],
 		});
-		expect(graph.edges.map((edge) => edge.label)).toEqual([
+		expect(graph.edges.map((edge) => "label" in edge)).toEqual([
+			false,
+			false,
+			false,
+			false,
+			false,
+		]);
+		expect(graph.edges.map((edge) => edge.data?.when)).toEqual([
 			undefined,
-			"Doesn't pass",
-			"Blocked",
-			"Approved",
-			"Passes",
+			"fail",
+			"deny",
+			"approve",
+			"pass",
 		]);
 	});
 });

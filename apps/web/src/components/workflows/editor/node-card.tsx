@@ -10,7 +10,14 @@ import {
 	WORKFLOW_PORT_LABELS,
 	WORKFLOW_PORT_TONE,
 } from "@tripwire/contracts";
-import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
+import {
+	Handle,
+	type Node,
+	type NodeConnection,
+	type NodeProps,
+	Position,
+	useNodeConnections,
+} from "@xyflow/react";
 import { Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { StatusMark } from "#/components/glaze/ui/status";
@@ -78,15 +85,18 @@ function OutputPort({
 	port,
 	corner,
 	drop,
+	linked,
 }: {
 	port: WorkflowPort;
 	corner: boolean;
 	drop: DropState;
+	linked: boolean;
 }) {
 	const look = outputLook(port);
 	return (
 		<Handle
 			data-drop={drop}
+			data-port-linked={linked || undefined}
 			data-port-io="out"
 			data-port-negated={look.negated || undefined}
 			data-port-shape={look.shape}
@@ -100,12 +110,18 @@ function OutputPort({
 	);
 }
 
-function PortCaption({ port }: { port: WorkflowPort }) {
-	const tone = WORKFLOW_PORT_TONE[port];
+function PortCaption({
+	port,
+	linked,
+}: {
+	port: WorkflowPort;
+	linked: boolean;
+}) {
+	const tone = linked ? WORKFLOW_PORT_TONE[port] : "neutral";
 	return (
 		<span
 			className={cn(
-				"shrink-0 type-caption",
+				"shrink-0 type-caption transition-colors duration-(--dur-state)",
 				tone === "ok" && "text-ok-text",
 				tone === "fail" && "text-fail-text",
 				tone === "neutral" && "text-text-3",
@@ -113,6 +129,19 @@ function PortCaption({ port }: { port: WorkflowPort }) {
 		>
 			{WORKFLOW_PORT_LABELS[port]}
 		</span>
+	);
+}
+
+function linkedFrom(
+	connections: readonly NodeConnection[],
+	port: WorkflowPort | undefined,
+): boolean {
+	if (!port) {
+		return false;
+	}
+	const handleId = portHandleId(port);
+	return connections.some(
+		(connection) => (connection.sourceHandle ?? null) === handleId,
 	);
 }
 
@@ -144,6 +173,10 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 	const input = inputLook(node.type);
 	const verdict = useNodeVerdict(node.id);
 	const direction = useDragPlan()?.direction;
+	const outgoing = useNodeConnections({ handleType: "source" });
+	const incoming = useNodeConnections({ handleType: "target" });
+	const topLinked = linkedFrom(outgoing, topPort);
+	const cornerLinked = linkedFrom(outgoing, cornerPort);
 	const nodeDrop = verdict
 		? verdict.origin
 			? "origin"
@@ -178,6 +211,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				<Handle
 					data-drop={dropState(verdict, null, "in", direction)}
 					data-port-io="in"
+					data-port-linked={incoming.length > 0 || undefined}
 					data-port-shape={input.shape}
 					data-port-slot="top"
 					data-port-tone={input.tone}
@@ -190,7 +224,10 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				/>
 			) : null}
 			<div className="flex items-center gap-2">
-				<Icon className="shrink-0 text-text-1" icon={stepIcon(node)} />
+				<Icon
+					className={cn("shrink-0 text-text-1", input && "-ms-1.5")}
+					icon={stepIcon(node)}
+				/>
 				<span className="min-w-0 type-label [overflow-wrap:anywhere]">
 					{faceTitle(node, customName)}
 				</span>
@@ -199,7 +236,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				) : null}
 				{topPort && node.type !== "trigger" ? (
 					<span className="ms-auto flex">
-						<PortCaption port={topPort} />
+						<PortCaption linked={topLinked} port={topPort} />
 					</span>
 				) : null}
 			</div>
@@ -244,13 +281,14 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 			) : null}
 			{cornerPort ? (
 				<div className="mt-1 flex justify-end">
-					<PortCaption port={cornerPort} />
+					<PortCaption linked={cornerLinked} port={cornerPort} />
 				</div>
 			) : null}
 			{topPort ? (
 				<OutputPort
 					corner={false}
 					drop={dropState(verdict, portHandleId(topPort), "out", direction)}
+					linked={topLinked}
 					port={topPort}
 				/>
 			) : null}
@@ -258,6 +296,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				<OutputPort
 					corner
 					drop={dropState(verdict, portHandleId(cornerPort), "out", direction)}
+					linked={cornerLinked}
 					port={cornerPort}
 				/>
 			) : null}
