@@ -38,6 +38,42 @@ export interface LabelPickerProps {
 	placeholder?: string;
 	id?: string;
 	"aria-label"?: string;
+	showRefresh?: boolean;
+}
+
+function useRepoLabels() {
+	const scope = useContext(ReviewerScopeContext);
+	const org = scope?.org ?? "";
+	const repoId = scope?.repoId ?? "";
+	const list = useSyncedList(repoLabelsQueryOptions(org, repoId), () =>
+		refreshRepoLabels({ data: { org, repoId } }),
+	);
+	return { ...list, repoId };
+}
+
+export function RefreshLabels({ readOnly }: { readOnly: boolean }) {
+	const { data, loading, syncing, refresh, repoId } = useRepoLabels();
+	if (loading && (data?.labels ?? []).length === 0) {
+		return (
+			<Status size="sm" status="running">
+				Loading labels
+			</Status>
+		);
+	}
+	return (
+		<Button
+			className="self-start"
+			disabled={readOnly || repoId === ""}
+			onClick={refresh}
+			pending={syncing}
+			pendingLabel="Refreshing"
+			size="sm"
+			variant="ghost"
+		>
+			<Icon icon={Retry} />
+			Refresh labels
+		</Button>
+	);
 }
 
 export function LabelPicker({
@@ -48,15 +84,10 @@ export function LabelPicker({
 	placeholder,
 	id,
 	"aria-label": ariaLabel,
+	showRefresh = true,
 }: LabelPickerProps) {
-	const scope = useContext(ReviewerScopeContext);
-	const org = scope?.org ?? "";
-	const repoId = scope?.repoId ?? "";
 	const anchor = useComboboxAnchor();
-	const { data, loading, syncing, refresh } = useSyncedList(
-		repoLabelsQueryOptions(org, repoId),
-		() => refreshRepoLabels({ data: { org, repoId } }),
-	);
+	const { data, loading } = useRepoLabels();
 	const synced = data?.labels ?? [];
 	const options = labelOptions(synced, value);
 	const names = options.map((option) => option.name);
@@ -117,24 +148,7 @@ export function LabelPicker({
 					</ComboboxList>
 				</ComboboxContent>
 			</Combobox>
-			{loading && synced.length === 0 ? (
-				<Status size="sm" status="running">
-					Loading labels
-				</Status>
-			) : (
-				<Button
-					className="self-start"
-					disabled={readOnly || repoId === ""}
-					onClick={refresh}
-					pending={syncing}
-					pendingLabel="Refreshing"
-					size="sm"
-					variant="ghost"
-				>
-					<Icon icon={Retry} />
-					Refresh labels
-				</Button>
-			)}
+			{showRefresh ? <RefreshLabels readOnly={readOnly} /> : null}
 		</div>
 	);
 }

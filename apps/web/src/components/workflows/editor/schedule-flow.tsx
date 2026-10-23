@@ -27,7 +27,10 @@ import {
 	SegmentedControlItem,
 } from "#/components/glaze/ui/segmented-control";
 import { Select } from "#/components/glaze/ui/select";
-import { LabelPicker } from "#/components/workflows/editor/label-picker";
+import {
+	LabelPicker,
+	RefreshLabels,
+} from "#/components/workflows/editor/label-picker";
 import { ScheduleCadenceField } from "#/components/workflows/editor/schedule-cadence";
 import { useTimezones } from "#/hooks/use-timezones";
 import { cn } from "#/lib/glaze/utils";
@@ -333,9 +336,12 @@ function ScheduleSteps({
 				/>
 			</Step>
 			<div className="-mx-4 mt-3 flex flex-col gap-3 border-line-faint border-t px-4 pt-4">
-				<div className="flex items-baseline gap-1.5">
+				<div className="flex items-center gap-1.5">
 					<h3 className="type-label text-text-1">Filters</h3>
 					<span className="type-caption text-text-3">Optional</span>
+					<span className="ms-auto flex">
+						<RefreshLabels readOnly={readOnly} />
+					</span>
 				</div>
 				<Field data-field="labels">
 					<FieldLabel className="text-text-2">With labels</FieldLabel>
@@ -345,6 +351,7 @@ function ScheduleSteps({
 						}
 						placeholder="Any label"
 						readOnly={readOnly}
+						showRefresh={false}
 						value={draft.match.labels ?? []}
 					/>
 				</Field>
@@ -356,6 +363,7 @@ function ScheduleSteps({
 						}
 						placeholder="No label"
 						readOnly={readOnly}
+						showRefresh={false}
 						value={draft.match.excludeLabels ?? []}
 					/>
 				</Field>
