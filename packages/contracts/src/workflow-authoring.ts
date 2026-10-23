@@ -44,13 +44,15 @@ export type CustomRuleRef = `custom-${string}`;
 
 export type OutputPort = "pass" | "fail" | "approve" | "deny";
 
-export interface Output {
+export interface Output<P extends OutputPort = OutputPort> {
 	readonly kind: "output";
 	readonly step: Step;
-	readonly port: OutputPort;
+	readonly port: P;
 }
 
 export type Input = Step | Output;
+
+export type ResultInput = CheckStep | GateStep | Output<"pass" | "fail">;
 
 interface StepBase {
 	readonly inputs: readonly Input[];
@@ -64,9 +66,9 @@ export interface TriggerStep extends StepBase {
 
 export interface ResultOutputs {
 	/** The step's Passes output. */
-	readonly passes: Output;
+	readonly passes: Output<"pass">;
 	/** The step's Doesn't pass output: `not(passes)`, accepted wherever Passes is. */
-	readonly fails: Output;
+	readonly fails: Output<"fail">;
 }
 
 export interface CheckStep extends StepBase, ResultOutputs {
@@ -100,30 +102,42 @@ export interface ReviewStep extends StepBase {
 	readonly approve: readonly ActionStep[];
 	readonly deny: readonly ActionStep[];
 	/** The maintainer approved it. */
-	readonly approved: Output;
+	readonly approved: Output<"approve">;
 	/** The maintainer blocked it. */
-	readonly denied: Output;
+	readonly denied: Output<"deny">;
 	after(...inputs: Input[]): ReviewStep;
 }
 
 export type Step = TriggerStep | CheckStep | GateStep | ActionStep | ReviewStep;
 
-export interface WorkflowSpec<Event extends string = string> {
+interface WorkflowSpecBase<Event extends string> {
 	/** The name shown in the app. Defaults to the workflow's key. */
 	readonly name?: string;
 	/** What starts it: event kinds, or `trigger()` / `schedule()` steps. */
 	readonly on?: Event | TriggerStep | readonly (Event | TriggerStep)[];
-	/** The condition. A check, a gate, or one output of either. */
-	readonly check?: Input;
-	/** Actions when `check` passes. */
-	readonly pass?: readonly (ActionStep | ReviewStep)[];
-	/** Actions when `check` does not pass. */
-	readonly fail?: readonly (ActionStep | ReviewStep)[];
 	/** Actions straight after the triggers, for workflows with no check. */
 	readonly run?: readonly (ActionStep | ReviewStep)[];
 	/** Named steps. The key becomes the step id; use it for any other wiring. */
 	readonly steps?: Readonly<Record<string, Step>>;
 }
+
+interface CheckedSpec {
+	/** The condition. A check, a gate, or one output of either. */
+	readonly check: ResultInput;
+	/** Actions when `check` passes. */
+	readonly pass?: readonly (ActionStep | ReviewStep)[];
+	/** Actions when `check` does not pass. */
+	readonly fail?: readonly (ActionStep | ReviewStep)[];
+}
+
+interface UncheckedSpec {
+	readonly check?: undefined;
+	readonly pass?: undefined;
+	readonly fail?: undefined;
+}
+
+export type WorkflowSpec<Event extends string = string> =
+	WorkflowSpecBase<Event> & (CheckedSpec | UncheckedSpec);
 
 export interface WorkflowValue {
 	readonly kind: "workflow";
@@ -179,7 +193,7 @@ type ParamsOf<
 	A extends string,
 > = A extends keyof C["actions"] ? C["actions"][A] : never;
 
-function output(step: Step, port: OutputPort): Output {
+function output<P extends OutputPort>(step: Step, port: P): Output<P> {
 	return { kind: "output", step, port };
 }
 
@@ -281,17 +295,17 @@ export function authoring<C extends AuthoringCatalog>() {
 		},
 
 		/** Passes when every input passes. An input that was never reached does not pass. */
-		allOf(...inputs: Input[]): GateStep {
+		allOf(...inputs: [ResultInput, ...ResultInput[]]): GateStep {
 			return gate("all-of", inputs);
 		},
 
 		/** Passes when at least one input passes. An input that was never reached does not pass. */
-		anyOf(...inputs: Input[]): GateStep {
+		anyOf(...inputs: [ResultInput, ...ResultInput[]]): GateStep {
 			return gate("any-of", inputs);
 		},
 
 		/** An explicit Not gate. `step.fails` says the same without a gate. */
-		not(input: Input): GateStep {
+		not(input: ResultInput): GateStep {
 			return gate("not", [input]);
 		},
 

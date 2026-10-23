@@ -434,6 +434,7 @@ describe("invalid workflows say what is wrong", () => {
 				workflows({
 					x: workflow({
 						on: "change-request.opened",
+						// @ts-expect-error
 						check: anyOf(),
 						fail: [block()],
 					}),
@@ -448,6 +449,7 @@ describe("invalid workflows say what is wrong", () => {
 			workflows({
 				x: workflow({
 					on: "change-request.opened",
+					// @ts-expect-error
 					check: anyOf(review.approved),
 					pass: [block()],
 					steps: { review },
@@ -500,6 +502,7 @@ describe("invalid workflows say what is wrong", () => {
 		expect(
 			issues(
 				workflows({
+					// @ts-expect-error
 					x: workflow({ on: "comment.created", pass: [block()] }),
 				}),
 			),
@@ -546,6 +549,7 @@ describe("review findings", () => {
 				workflows({
 					x: workflow({
 						on: opened,
+						// @ts-expect-error
 						check: opened,
 						fail: [block()],
 					}),
