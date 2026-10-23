@@ -1,5 +1,6 @@
 import type { GateMode, JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
+	actionTakesSettings,
 	GATE_CATALOG,
 	lockParamsSchema,
 	MAX_COMMENT_MESSAGE,
@@ -51,15 +52,7 @@ export function hasEditableParams(node: WorkflowNode): boolean {
 			return (fieldsForSchema(entry?.configSchema)?.length ?? 0) > 0;
 		}
 		case "action":
-			return (
-				node.action === "label" ||
-				node.action === "request-review" ||
-				node.action === "webhook" ||
-				node.action === "lock" ||
-				node.action === "remove-label" ||
-				node.action === "post-comment" ||
-				node.action === "discord"
-			);
+			return actionTakesSettings(node.action);
 		default:
 			return false;
 	}

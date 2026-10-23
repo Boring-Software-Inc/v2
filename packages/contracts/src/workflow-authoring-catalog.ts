@@ -53,6 +53,23 @@ export const AUTHORING_ACTION_PARAMS = {
 >;
 export type AuthoringActionKind = keyof typeof AUTHORING_ACTION_PARAMS;
 
+/** Actions whose settings live in the app only: a URL and its secret. */
+export const APP_SETTINGS_ACTIONS = [
+	"webhook",
+	"discord",
+] as const satisfies readonly AuthoringActionKind[];
+
+/** Whether an action has anything to set, in code or in the app. */
+export function actionTakesSettings(action: WorkflowActionKind): boolean {
+	if (APP_SETTINGS_ACTIONS.some((kind) => kind === action)) {
+		return true;
+	}
+	const entry = Object.entries(AUTHORING_ACTION_PARAMS).find(
+		([kind]) => kind === action,
+	);
+	return entry ? Object.keys(entry[1].shape).length > 0 : false;
+}
+
 type BuiltInRuleConfigs = {
 	[Entry in (typeof RULE_CATALOG)[number] as Entry["ruleId"]]: z.input<
 		Entry["configSchema"]

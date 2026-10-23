@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { workflowActionKindSchema } from "./workflow.ts";
 import type { Settings, SettingValue } from "./workflow-authoring.ts";
-import { workflowAuthoring } from "./workflow-authoring-catalog.ts";
+import {
+	actionTakesSettings,
+	workflowAuthoring,
+} from "./workflow-authoring-catalog.ts";
 import {
 	checkWorkflows,
 	compileWorkflowModule,
@@ -514,5 +518,22 @@ describe("didYouMean", () => {
 			"account-age",
 		);
 		expect(didYouMean("banana", ["account-age", "ai-review"])).toBeNull();
+	});
+});
+
+describe("actionTakesSettings", () => {
+	test("matches what the panel can edit", () => {
+		const editable = workflowActionKindSchema.options.filter((kind) =>
+			actionTakesSettings(kind),
+		);
+		expect(editable).toEqual([
+			"label",
+			"request-review",
+			"webhook",
+			"discord",
+			"lock",
+			"remove-label",
+			"post-comment",
+		]);
 	});
 });
