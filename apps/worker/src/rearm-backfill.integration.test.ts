@@ -142,7 +142,12 @@ beforeEach(async () => {
 });
 
 let delivery = 0;
-async function deliver(raw: unknown): Promise<string> {
+type PullRequestFixture =
+	| typeof pullRequestOpened
+	| typeof pullRequestSynchronize
+	| typeof pullRequestClosed;
+
+async function deliver(raw: PullRequestFixture): Promise<string> {
 	delivery += 1;
 	const { eventId } = await eventServices.insertRawEvent(pool, boss, {
 		deliveryId: `rearm-${delivery}`,
