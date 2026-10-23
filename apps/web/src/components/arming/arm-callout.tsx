@@ -14,6 +14,7 @@ import {
 	CardTitle,
 } from "#/components/glaze/ui/card";
 import { toast } from "#/components/glaze/ui/toast";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import { armRepo } from "#/lib/arm.functions";
 import { orgContextQueryOptions } from "#/lib/org.query";
 import { trackEvent } from "#/lib/track";
@@ -59,7 +60,7 @@ export function ArmCallout({
 }: ArmCalloutProps) {
 	const arm = useArm(org, repo, repoFullName);
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
-	const canArm = orgContext?.role === "admin";
+	const canArm = useOrgPermission(org, "connections:manage");
 
 	if (variant === "hero") {
 		return (

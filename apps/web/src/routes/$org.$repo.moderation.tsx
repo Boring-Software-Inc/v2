@@ -6,6 +6,7 @@ import { collectionSearchSchema } from "#/lib/collection";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/$org/$repo/moderation")({
+	staticData: { region: "moderation" },
 	validateSearch: collectionSearchSchema(MODERATION_COLLECTION),
 	component: ModerationPage,
 	pendingComponent: ModerationPageSkeleton,

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const ORG_SETTINGS_TABS = [
 	"members",
+	"roles",
 	"settings",
 	"redaction",
 	"connections",

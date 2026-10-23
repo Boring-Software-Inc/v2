@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import type { OrgRegion } from "@tripwire/contracts";
 import { useEffect } from "react";
 import { ConnectedAgentsPage } from "#/components/agents/connected-agents-page";
 import { ConnectionsPage } from "#/components/forges/connections-page";
@@ -24,6 +25,7 @@ import { OrgBillingPage } from "#/components/organizations/org-billing-page";
 import { OrgGeneralSettingsPage } from "#/components/organizations/org-general-settings-page";
 import { OrgMembersPage } from "#/components/organizations/org-members-page";
 import { OrgRedactionPage } from "#/components/organizations/org-redaction-page";
+import { OrgRolesPage } from "#/components/organizations/org-roles-page";
 import {
 	orgContextQueryOptions,
 	orgInvitesQueryOptions,
@@ -32,10 +34,11 @@ import {
 import { ORG_SETTINGS_TABS, type OrgSettingsTab } from "#/lib/org-search";
 import { pickValue } from "#/lib/pick-value";
 
-const TABS: { value: OrgSettingsTab; label: string }[] = [
-	{ value: "members", label: "Members" },
-	{ value: "settings", label: "General" },
-	{ value: "redaction", label: "Redaction" },
+const TABS: { value: OrgSettingsTab; label: string; region?: OrgRegion }[] = [
+	{ value: "members", label: "Members", region: "members" },
+	{ value: "roles", label: "Roles", region: "members" },
+	{ value: "settings", label: "General", region: "settings" },
+	{ value: "redaction", label: "Redaction", region: "responses" },
 	{ value: "connections", label: "Connections" },
 	{ value: "agents", label: "Agents" },
 	{ value: "billing", label: "Billing" },
@@ -60,17 +63,26 @@ export function OrgSettingsDialog() {
 		enabled: Boolean(org),
 	});
 	const open = Boolean(org && tab);
-	const isAdmin = orgContext?.role === "admin";
+	const isAdmin = orgContext?.permissions.includes("members:manage") ?? false;
+	const tabs = TABS.filter(
+		(item) =>
+			!item.region ||
+			(orgContext?.permissions.includes(`${item.region}:read`) ?? false),
+	);
+	const current =
+		tabs.find((item) => item.value === tab)?.value ?? tabs[0]?.value;
 
 	useEffect(() => {
 		if (!open || !org) {
 			return;
 		}
-		queryClient.prefetchQuery(orgMembersQueryOptions(org));
+		if (orgContext?.permissions.includes("members:read")) {
+			queryClient.prefetchQuery(orgMembersQueryOptions(org));
+		}
 		if (isAdmin) {
 			queryClient.prefetchQuery(orgInvitesQueryOptions(org));
 		}
-	}, [open, org, isAdmin, queryClient]);
+	}, [open, org, isAdmin, orgContext, queryClient]);
 
 	if (!org) {
 		return null;
@@ -105,7 +117,7 @@ export function OrgSettingsDialog() {
 					onValueChange={(value) =>
 						setTab(pickValue(ORG_SETTINGS_TABS, String(value)))
 					}
-					value={tab ?? "members"}
+					value={current}
 				>
 					<DialogHeader className="gap-3 group-data-close/dialog:pe-3 sm:group-data-close/dialog:pe-4">
 						<div className="flex items-center gap-3 pe-8">
@@ -125,7 +137,7 @@ export function OrgSettingsDialog() {
 							aria-label="Org settings"
 							className="[--density-tab-x:var(--space-2)] sm:[--density-tab-x:var(--space-4)]"
 						>
-							{TABS.map((item) => (
+							{tabs.map((item) => (
 								<TabsTrigger key={item.value} value={item.value}>
 									{item.label}
 								</TabsTrigger>
@@ -133,15 +145,26 @@ export function OrgSettingsDialog() {
 						</TabsList>
 					</DialogHeader>
 					<InsetSheetBody>
-						<TabsContent value="members">
-							<OrgMembersPage org={org} />
-						</TabsContent>
-						<TabsContent value="settings">
-							<OrgGeneralSettingsPage org={org} />
-						</TabsContent>
-						<TabsContent value="redaction">
-							<OrgRedactionPage org={org} />
-						</TabsContent>
+						{current === "members" ? (
+							<TabsContent value="members">
+								<OrgMembersPage org={org} />
+							</TabsContent>
+						) : null}
+						{current === "roles" ? (
+							<TabsContent value="roles">
+								<OrgRolesPage org={org} />
+							</TabsContent>
+						) : null}
+						{current === "settings" ? (
+							<TabsContent value="settings">
+								<OrgGeneralSettingsPage org={org} />
+							</TabsContent>
+						) : null}
+						{current === "redaction" ? (
+							<TabsContent value="redaction">
+								<OrgRedactionPage org={org} />
+							</TabsContent>
+						) : null}
 						<TabsContent value="connections">
 							<ConnectionsPage org={org} />
 						</TabsContent>

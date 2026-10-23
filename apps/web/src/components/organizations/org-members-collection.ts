@@ -25,10 +25,14 @@ export const MEMBERS_COLLECTION = defineCollection<OrgMemberView>({
 			key: "role",
 			label: "Role",
 			kind: "select",
-			value: (member) => member.role,
+			value: (member) =>
+				member.role === "admin" || member.role === "member"
+					? member.role
+					: "custom",
 			options: [
 				{ value: "admin", label: "Admin" },
 				{ value: "member", label: "Member" },
+				{ value: "custom", label: "Custom role" },
 			],
 		},
 	],

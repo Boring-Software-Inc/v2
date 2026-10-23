@@ -8,6 +8,7 @@ import { buildSeo, formatPageTitle } from "#/lib/seo";
 /** The workflows GRID (§grid). Index route on purpose — a flat workflows.tsx
  * would become a layout whose redirects hijack the editor child. */
 export const Route = createFileRoute("/$org/$repo/workflows/")({
+	staticData: { region: "workflows" },
 	validateSearch: collectionSearchSchema(WORKFLOWS_COLLECTION),
 	component: WorkflowsGridPage,
 	pendingComponent: WorkflowsGridPageSkeleton,

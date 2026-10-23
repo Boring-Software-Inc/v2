@@ -29,6 +29,7 @@ import {
 } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import { authQueryKeys } from "#/lib/auth.query";
 import type { OrgWithRole } from "#/lib/org.functions";
 import { deleteOrg, updateOrg } from "#/lib/org.functions";
@@ -40,6 +41,7 @@ import {
 
 export function OrgGeneralSettingsPage({ org }: { org: string }) {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
+	const canManage = useOrgPermission(org, "settings:manage");
 
 	return (
 		<SkeletonSwap
@@ -49,7 +51,7 @@ export function OrgGeneralSettingsPage({ org }: { org: string }) {
 		>
 			{orgContext ? (
 				<div className="flex flex-col gap-8">
-					{orgContext.role === "admin" ? (
+					{canManage ? (
 						<>
 							<RenameSection
 								key={orgContext.id}

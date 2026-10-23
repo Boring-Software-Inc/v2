@@ -4,6 +4,7 @@ import { OrgAnalyticsPageSkeleton } from "#/components/organizations/org-analyti
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/$org/analytics")({
+	staticData: { region: "analytics" },
 	component: OrgAnalyticsPage,
 	pendingComponent: OrgAnalyticsPageSkeleton,
 	head: ({ params, match }) =>

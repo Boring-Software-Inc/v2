@@ -3,9 +3,8 @@ import type { OrgWithPermissions } from "@tripwire/auth/org-gate";
 import type { Auth } from "@tripwire/auth/server";
 import type {
 	CreateInviteInput,
-	OrgAccessLevel,
-	OrgRegion,
 	OrgRoleScopes,
+	OrgScopeLevels,
 } from "@tripwire/contracts";
 import {
 	customOrgRoleNameSchema,
@@ -389,7 +388,7 @@ export const removeOrgMember = createServerFn({ method: "POST" })
 export interface OrgRoleView {
 	id: string;
 	name: string;
-	scopes: Partial<Record<OrgRegion, OrgAccessLevel>>;
+	scopes: OrgScopeLevels;
 	memberCount: number;
 }
 

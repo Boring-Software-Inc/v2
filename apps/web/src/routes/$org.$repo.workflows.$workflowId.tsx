@@ -5,6 +5,7 @@ import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 /** The full-screen editor (§editor rebuild). */
 export const Route = createFileRoute("/$org/$repo/workflows/$workflowId")({
+	staticData: { region: "workflows" },
 	component: WorkflowEditorPage,
 	pendingComponent: WorkflowEditorPageSkeleton,
 	head: ({ params, match }) =>

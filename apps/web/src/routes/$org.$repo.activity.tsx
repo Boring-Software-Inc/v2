@@ -8,6 +8,7 @@ import {
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/$org/$repo/activity")({
+	staticData: { region: "activity" },
 	validateSearch: activitySearchSchema,
 	search: { middlewares: [stripSearchParams(ACTIVITY_SEARCH_DEFAULTS)] },
 	component: ActivityPage,

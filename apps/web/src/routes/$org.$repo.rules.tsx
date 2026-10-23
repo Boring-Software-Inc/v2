@@ -6,6 +6,7 @@ import { collectionSearchSchema } from "#/lib/collection";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/$org/$repo/rules")({
+	staticData: { region: "rules" },
 	validateSearch: collectionSearchSchema(RULES_COLLECTION),
 	component: RulesPage,
 	pendingComponent: RulesPageSkeleton,

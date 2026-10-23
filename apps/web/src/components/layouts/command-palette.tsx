@@ -40,6 +40,7 @@ import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useFeaturePath } from "#/hooks/use-feature-path";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import { armRepo, disarmRepo } from "#/lib/arm.functions";
 import { authClient } from "#/lib/auth-client";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
@@ -101,6 +102,7 @@ export function CommandPalette({
 		...orgHomeQueryOptions(currentOrg ?? ""),
 		enabled: open && currentOrg !== undefined,
 	});
+	const canReadActivity = useOrgPermission(currentOrg ?? "", "activity:read");
 	const repoScope =
 		currentOrg && currentRepo ? { org: currentOrg, repo: currentRepo } : null;
 	const { data: latestRunId } = useQuery({
@@ -109,7 +111,7 @@ export function CommandPalette({
 			repoScope
 				? getLatestRunId({ data: repoScope, signal })
 				: Promise.resolve(null),
-		enabled: open && repoScope !== null,
+		enabled: open && repoScope !== null && canReadActivity,
 		staleTime: 15_000,
 	});
 

@@ -1,4 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
+import type { OrgRegion } from "@tripwire/contracts";
 import { type RefObject, useEffect, useRef } from "react";
 import {
 	Activity,
@@ -13,6 +15,7 @@ import {
 	Workflow,
 } from "#/components/glaze/icon";
 import { cn } from "#/lib/glaze/utils";
+import { orgContextQueryOptions } from "#/lib/org.query";
 
 type NavVariant = "tabs" | "rail";
 
@@ -37,6 +40,13 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 	const repo = params.repo;
 	const navRef = useRef<HTMLElement>(null);
 	useActiveLinkInView(navRef);
+	const { data: permissions } = useQuery({
+		...orgContextQueryOptions(org ?? ""),
+		enabled: Boolean(org),
+		select: (context) => context.permissions,
+	});
+	const reads = (region: OrgRegion) =>
+		permissions?.includes(`${region}:read`) ?? false;
 
 	if (!org) {
 		return null;
@@ -51,13 +61,15 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 					to={`/${org}/home`}
 					variant={variant}
 				/>
-				<NavLink
-					exact={false}
-					icon={Analytics}
-					label="Analytics"
-					to={`/${org}/analytics`}
-					variant={variant}
-				/>
+				{reads("analytics") ? (
+					<NavLink
+						exact={false}
+						icon={Analytics}
+						label="Analytics"
+						to={`/${org}/analytics`}
+						variant={variant}
+					/>
+				) : null}
 				<NavLink
 					activeOptions={{ exact: true, includeSearch: true }}
 					icon={Settings}
@@ -72,44 +84,56 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 
 	return (
 		<nav aria-label="Repo" ref={navRef} className={NAV_CLASS[variant]}>
-			<NavLink
-				variant={variant}
-				icon={Moderation}
-				label="Human review"
-				to={`/${org}/${repo}/moderation`}
-				value={counts.queue}
-			/>
-			<NavLink
-				variant={variant}
-				icon={Activity}
-				label="Activity"
-				to={`/${org}/${repo}/activity`}
-			/>
-			<NavLink
-				icon={Rules}
-				label="Rules"
-				to={`/${org}/${repo}/rules`}
-				variant={variant}
-			/>
-			<NavLink
-				variant={variant}
-				icon={Workflow}
-				label="Workflows"
-				to={`/${org}/${repo}/workflows`}
-			/>
-			<NavLink
-				variant={variant}
-				icon={Customize}
-				label="Responses"
-				to={`/${org}/${repo}/responses`}
-			/>
-			<NavLink
-				variant={variant}
-				exact={false}
-				icon={Analytics}
-				label="Analytics"
-				to={`/${org}/${repo}/analytics`}
-			/>
+			{reads("moderation") ? (
+				<NavLink
+					variant={variant}
+					icon={Moderation}
+					label="Human review"
+					to={`/${org}/${repo}/moderation`}
+					value={counts.queue}
+				/>
+			) : null}
+			{reads("activity") ? (
+				<NavLink
+					variant={variant}
+					icon={Activity}
+					label="Activity"
+					to={`/${org}/${repo}/activity`}
+				/>
+			) : null}
+			{reads("rules") ? (
+				<NavLink
+					icon={Rules}
+					label="Rules"
+					to={`/${org}/${repo}/rules`}
+					variant={variant}
+				/>
+			) : null}
+			{reads("workflows") ? (
+				<NavLink
+					variant={variant}
+					icon={Workflow}
+					label="Workflows"
+					to={`/${org}/${repo}/workflows`}
+				/>
+			) : null}
+			{reads("responses") ? (
+				<NavLink
+					variant={variant}
+					icon={Customize}
+					label="Responses"
+					to={`/${org}/${repo}/responses`}
+				/>
+			) : null}
+			{reads("analytics") ? (
+				<NavLink
+					variant={variant}
+					exact={false}
+					icon={Analytics}
+					label="Analytics"
+					to={`/${org}/${repo}/analytics`}
+				/>
+			) : null}
 		</nav>
 	);
 }
