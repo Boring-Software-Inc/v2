@@ -31,6 +31,7 @@ import { TriggerFlow } from "#/components/workflows/editor/schedule-flow";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
+const textParam = z.string().catch("");
 
 /**
  * Schema-driven properties for the selected node — rule editors are DERIVED
@@ -497,7 +498,10 @@ function DeliveryFields({
 		setTestResult(null);
 		try {
 			setTestResult(
-				await onTestConnection(url, node.action as "webhook" | "discord"),
+				await onTestConnection(
+					url,
+					node.action === "discord" ? "discord" : "webhook",
+				),
 			);
 		} catch {
 			setTestResult({
@@ -568,7 +572,9 @@ function DeliveryFields({
 						disabled={readOnly}
 						mode="password"
 						onChange={(event) => setParam("signingSecret", event.target.value)}
-						placeholder={secretSet ? "Saved. Leave blank to keep it" : undefined}
+						placeholder={
+							secretSet ? "Saved. Leave blank to keep it" : undefined
+						}
 						value={textParam.parse(params.signingSecret)}
 					/>
 					<FieldDescription>
