@@ -1,12 +1,11 @@
-import type { WebhookPayload } from "@tripwire/contracts";
+import { formatDiscordMessage, type WebhookPayload } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { runServices } from "@tripwire/db";
 import { type GuardedFetchDeps, guardedPost } from "@tripwire/utils";
 import type { Logger } from "pino";
-import { z } from "zod";
 
 /**
- * Outbound delivery for webhook action nodes — the async, retriable
+ * Outbound delivery for webhook + discord action nodes — the async, retriable
  * path (§5.12). Runs on a schedule: picks `recorded` delivery rows, POSTs
  * through the SSRF guard, marks executed on success, leaves recorded to retry
  * on a transient failure, and abandons a row too old to keep trying. The
@@ -17,11 +16,10 @@ import { z } from "zod";
  * A failure NEVER logs the url — only the class (blocked-destination, timeout,
  * …). The idempotency key sent to the receiver is the ACTION ROW ID, stable
  * across every retry, so a re-attempt after a network blip dedupes receiver-
- * side.
+ * side (discord ignores it — see docs/webhooks.md).
  */
 
 const GIVE_UP_MS = 60 * 60_000;
-const optionalSecret = z.string().optional().catch(undefined);
 
 export interface DeliverWebhookDeps {
 	db: Db;
@@ -53,16 +51,6 @@ export async function deliverWebhooks(
 	const giveUpBefore = new Date(now - GIVE_UP_MS);
 
 	for (const row of rows) {
-		if (row.kind !== "webhook") {
-			await runServices.recordDeliveryFailure(db, row.id, "step removed");
-			await runServices.markActionSuperseded(db, row.id);
-			result.abandoned++;
-			logger.info(
-				{ actionId: row.id, kind: row.kind },
-				"delivery kind removed, row retired",
-			);
-			continue;
-		}
 		const url = typeof row.payload.url === "string" ? row.payload.url : null;
 		const delivery = row.payload.delivery as WebhookPayload | undefined;
 		if (!url || !delivery) {
@@ -77,10 +65,17 @@ export async function deliverWebhooks(
 			continue;
 		}
 
-		const signingSecret = optionalSecret.parse(row.payload.signingSecret);
+		const body =
+			row.kind === "discord" ? formatDiscordMessage(delivery) : delivery;
+		const signingSecret =
+			row.kind === "webhook" && typeof row.payload.signingSecret === "string"
+				? row.payload.signingSecret
+				: undefined;
 
-		const sent = await guardedPost(url, delivery, {
-			deliveryId: row.id,
+		const sent = await guardedPost(url, body, {
+			// Discord ignores idempotency + signature headers; only the raw
+			// webhook carries them (delivery id = the stable action row id).
+			deliveryId: row.kind === "webhook" ? row.id : undefined,
 			signingSecret,
 			...deps.guardDeps,
 		});

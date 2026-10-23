@@ -17,8 +17,17 @@ export type ProbeResult =
 	| { ok: true; status: number }
 	| { ok: false; failure: GuardFailure };
 
-export async function probeDelivery(url: string): Promise<ProbeResult> {
-	const result = await guardedPost(url, { event: "tripwire.test", version: 1 });
+export async function probeDelivery(
+	url: string,
+	kind: "webhook" | "discord",
+): Promise<ProbeResult> {
+	// Discord rejects a non-Discord body outright; give it a valid minimal
+	// message so a good url reaches a clean 2xx. A raw webhook gets a typed ping.
+	const body =
+		kind === "discord"
+			? { content: "tripwire connection test" }
+			: { event: "tripwire.test", version: 1 };
+	const result = await guardedPost(url, body);
 	if (result.ok) {
 		return { ok: true, status: result.status };
 	}

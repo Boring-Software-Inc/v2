@@ -261,6 +261,7 @@ export interface WorkflowEditorProps {
 	/** Panel "test connection" — probes a delivery url through the guard. */
 	onTestConnection: (
 		url: string,
+		kind: "webhook" | "discord",
 	) => Promise<{ ok: boolean; status?: number; failure?: string }>;
 	onRename: (name: string) => Promise<{ ok: boolean; error?: string }>;
 	onSetEnabled: (

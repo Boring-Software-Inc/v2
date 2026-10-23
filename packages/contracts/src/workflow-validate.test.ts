@@ -1,12 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { customValidationEntries } from "./custom-rules.ts";
 import { RULE_CATALOG } from "./rules.ts";
-import {
-	ACTION_CATALOG,
-	DEFAULT_WORKFLOW,
-	type WorkflowDefinition,
-	workflowDefinitionSchema,
-} from "./workflow.ts";
+import { DEFAULT_WORKFLOW, type WorkflowDefinition } from "./workflow.ts";
 import {
 	validateWorkflow,
 	validateWorkflowForEnable,
@@ -251,43 +246,5 @@ describe("the removed comment step", () => {
 		expect(rulesOf(validateWorkflowForEnable(withComment))).toEqual([
 			"removed-step",
 		]);
-	});
-});
-
-describe("the removed discord step", () => {
-	const withDiscord = graph({
-		nodes: [
-			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
-			{ id: "r", type: "rule", ref: "account-age@1", config: { minDays: 7 } },
-			{ id: "b", type: "action", action: "block" },
-			{
-				id: "d",
-				type: "action",
-				action: "discord",
-				params: { url: "https://discord.com/api/webhooks/1/abc" },
-			},
-		],
-		edges: [
-			{ id: "e1", from: "t", to: "r" },
-			{ id: "e2", from: "r", to: "b", when: "fail" },
-			{ id: "e3", from: "r", to: "d", when: "fail" },
-		],
-	});
-
-	test("a stored workflow with one still parses", () => {
-		expect(workflowDefinitionSchema.safeParse(withDiscord).success).toBe(true);
-		expect(validateWorkflow(withDiscord).valid).toBe(true);
-	});
-
-	test("it cannot be enabled until the step is deleted", () => {
-		expect(rulesOf(validateWorkflowForEnable(withDiscord))).toEqual([
-			"removed-step",
-		]);
-	});
-
-	test("the toolbox no longer offers it", () => {
-		expect(ACTION_CATALOG.map((entry) => entry.action)).not.toContain(
-			"discord",
-		);
 	});
 });

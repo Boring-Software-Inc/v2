@@ -4,7 +4,7 @@ import { isIP } from "node:net";
 
 /**
  * The egress security boundary for outbound POSTs to USER-CONTROLLED URLs
- * (workflow webhook action nodes). Deny-by-default: https only, no
+ * (workflow webhook + Discord action nodes). Deny-by-default: https only, no
  * redirects, no private/reserved destinations, bounded time and size, response
  * body discarded. This is the SSRF guard — its test suite is the proof it
  * works, not the happy path.

@@ -11,7 +11,6 @@ import {
 	type CustomRuleRecord,
 	customRuleRef,
 	customRuleSummary,
-	isRemovedAction,
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
 } from "@tripwire/contracts";
@@ -84,7 +83,7 @@ export function actionPayload(
 }
 
 export function postsSomething(action: { action: string }): boolean {
-	return !isRemovedAction(action.action);
+	return action.action !== "comment";
 }
 
 export function worstVerdict(verdicts: Verdict[]): Verdict {

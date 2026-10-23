@@ -614,36 +614,6 @@ describe("removed-step", () => {
 		);
 		expect(next).toEqual(CLEAN);
 	});
-
-	const withDiscord = graph(
-		[
-			...CLEAN.nodes,
-			{
-				id: "d",
-				type: "action",
-				action: "discord",
-				params: { url: "https://discord.com/api/webhooks/1/abc" },
-			},
-		],
-		[...CLEAN.edges, { id: "e4", from: "r", to: "d", when: "fail" }],
-	);
-
-	test("a Discord step", () => {
-		const [finding] = only(withDiscord, "removed-step");
-		expect(finding?.nodeId).toBe("d");
-		expect(finding?.step).toBe("Discord");
-		expect(finding?.message).toBe(
-			"This step was removed. Delete it to turn this workflow on.",
-		);
-	});
-
-	test("Delete clears a Discord step and its connection", () => {
-		const next = applyLintEdit(
-			withDiscord,
-			fixed(only(withDiscord, "removed-step")[0], "Delete"),
-		);
-		expect(next).toEqual(CLEAN);
-	});
 });
 
 describe("review-targets", () => {

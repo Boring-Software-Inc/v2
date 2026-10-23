@@ -73,7 +73,6 @@ export type WorkflowActionKind = z.infer<typeof workflowActionKindSchema>;
 
 export const REMOVED_ACTION_KINDS = [
 	"comment",
-	"discord",
 ] as const satisfies readonly WorkflowActionKind[];
 export type RemovedActionKind = (typeof REMOVED_ACTION_KINDS)[number];
 
@@ -97,6 +96,9 @@ export const webhookParamsSchema = z.object({
 		.optional()
 		.meta({ secret: true })
 		.describe("signing secret"),
+});
+export const discordParamsSchema = z.object({
+	url: z.url().meta({ secret: true }).describe("discord webhook url"),
 });
 
 export const MAX_REVIEW_TARGETS = 15;
@@ -615,5 +617,10 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 		name: "Comment",
 		description:
 			"Posts a comment you write. It is separate from the verdict comment.",
+	},
+	{
+		action: "discord",
+		name: "Discord",
+		description: "Posts the verdict to a Discord channel you set.",
 	},
 ];

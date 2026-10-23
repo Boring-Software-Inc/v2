@@ -297,7 +297,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					},
 				];
 			}
-			if (node.action === "webhook") {
+			if (node.action === "webhook" || node.action === "discord") {
 				const params = node.params ?? {};
 				const rows: NodeFieldValue[] = [
 					{
@@ -305,7 +305,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 						value: typeof params.url === "string" ? params.url : undefined,
 					},
 				];
-				if (params.signingSecret) {
+				if (node.action === "webhook" && params.signingSecret) {
 					rows.push({
 						field: {
 							key: "signingSecret",

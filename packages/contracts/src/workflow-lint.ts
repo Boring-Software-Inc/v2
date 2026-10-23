@@ -733,7 +733,6 @@ function checkRuleConfigs(ctx: LintContext): Finding[] {
 
 const REMOVED_STEP_REASONS = {
 	comment: "Customize sets the verdict comment now",
-	discord: "delete it to turn this workflow on",
 } as const satisfies Record<RemovedActionKind, string>;
 
 function checkRemovedSteps(ctx: LintContext): Finding[] {

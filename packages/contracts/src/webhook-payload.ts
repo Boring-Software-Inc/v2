@@ -39,3 +39,54 @@ export const webhookPayloadSchema = z.object({
 	timestamp: z.string(),
 });
 export type WebhookPayload = z.infer<typeof webhookPayloadSchema>;
+
+function discordHeadline(payload: WebhookPayload): string {
+	const subject = `${payload.repo} #${payload.changeRequest.number}`;
+	if (payload.verdict === "pass") {
+		return `${subject} passed Tripwire's checks.`;
+	}
+	if (payload.verdict === "block") {
+		return `Tripwire blocked ${subject}.`;
+	}
+	return `${subject} needs human review.`;
+}
+
+/**
+ * The Discord message shape (`content` + one embed). Its OWN pure formatter —
+ * it does not reuse the GitHub comment renderer (that output is locked and
+ * markdown-shaped for GitHub). String in, Discord JSON out, so the worker and
+ * any preview share it.
+ */
+export function formatDiscordMessage(payload: WebhookPayload): {
+	content: string;
+	embeds: {
+		title: string;
+		url: string;
+		description: string;
+		color: number;
+	}[];
+} {
+	const color =
+		payload.verdict === "pass"
+			? 0x22c55e
+			: payload.verdict === "block"
+				? 0xef4444
+				: 0xf59e0b;
+	const reasons =
+		payload.firedRules.length > 0
+			? payload.firedRules.map((rule) => `- ${rule.summary}`).join("\n")
+			: payload.verdict === "block"
+				? "Details are on the Tripwire run page."
+				: "No rule blocked this change request.";
+	return {
+		content: discordHeadline(payload),
+		embeds: [
+			{
+				title: `#${payload.changeRequest.number} ${payload.changeRequest.title}`,
+				url: payload.runUrl,
+				description: reasons,
+				color,
+			},
+		],
+	};
+}

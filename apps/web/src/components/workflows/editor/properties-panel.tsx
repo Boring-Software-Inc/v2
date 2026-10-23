@@ -6,6 +6,7 @@ import {
 } from "@tripwire/contracts";
 import { useState } from "react";
 import { z } from "zod";
+import { Alert, AlertDescription } from "#/components/glaze/ui/alert";
 import { Button } from "#/components/glaze/ui/button";
 import { Checkbox } from "#/components/glaze/ui/checkbox";
 import {
@@ -30,7 +31,6 @@ import { TriggerFlow } from "#/components/workflows/editor/schedule-flow";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
-const textParam = z.string().catch("");
 
 /**
  * Schema-driven properties for the selected node — rule editors are DERIVED
@@ -56,7 +56,8 @@ export function hasEditableParams(node: WorkflowNode): boolean {
 				node.action === "webhook" ||
 				node.action === "lock" ||
 				node.action === "remove-label" ||
-				node.action === "post-comment"
+				node.action === "post-comment" ||
+				node.action === "discord"
 			);
 		default:
 			return false;
@@ -69,6 +70,7 @@ export interface PropertiesPanelProps {
 	onUpdate: (next: WorkflowNode) => void;
 	onTestConnection?: (
 		url: string,
+		kind: "webhook" | "discord",
 	) => Promise<{ ok: boolean; status?: number; failure?: string }>;
 }
 
@@ -357,9 +359,10 @@ function ActionFields({
 	onUpdate: (next: WorkflowNode) => void;
 	onTestConnection?: (
 		url: string,
+		kind: "webhook" | "discord",
 	) => Promise<{ ok: boolean; status?: number; failure?: string }>;
 }) {
-	if (node.action === "webhook") {
+	if (node.action === "webhook" || node.action === "discord") {
 		return (
 			<DeliveryFields
 				node={node}
@@ -437,7 +440,26 @@ function CommentFields({
 }
 
 /**
- * Webhook config. Secrets arrive masked (blank value + a `*Set`
+ * A webhook node pointed at a Discord url silently 400s forever (Discord wants
+ * its own message shape, not our raw json). Detect it so the panel can steer
+ * the user to the discord node — warn, never block, since the url is valid.
+ */
+function looksLikeDiscordUrl(raw: string): boolean {
+	try {
+		const host = new URL(raw).host.toLowerCase();
+		return (
+			host === "discord.com" ||
+			host === "discordapp.com" ||
+			host === "ptb.discord.com" ||
+			host === "canary.discord.com"
+		);
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Webhook + Discord config. Secrets arrive masked (blank value + a `*Set`
  * marker): a set field shows a "leave blank to keep" placeholder, a blank save
  * keeps the stored value, a typed value replaces it. The full secret never
  * round-trips to the client.
@@ -453,6 +475,7 @@ function DeliveryFields({
 	onUpdate: (next: WorkflowNode) => void;
 	onTestConnection?: (
 		url: string,
+		kind: "webhook" | "discord",
 	) => Promise<{ ok: boolean; status?: number; failure?: string }>;
 }) {
 	const params = (node.params ?? {}) as Record<string, JsonValue>;
@@ -473,7 +496,9 @@ function DeliveryFields({
 		setTesting(true);
 		setTestResult(null);
 		try {
-			setTestResult(await onTestConnection(url));
+			setTestResult(
+				await onTestConnection(url, node.action as "webhook" | "discord"),
+			);
 		} catch {
 			setTestResult({
 				ok: false,
@@ -486,7 +511,9 @@ function DeliveryFields({
 	return (
 		<div className="flex flex-col gap-3">
 			<Field>
-				<FieldLabel>Webhook URL</FieldLabel>
+				<FieldLabel>
+					{node.action === "discord" ? "Discord webhook URL" : "Webhook URL"}
+				</FieldLabel>
 				<Input
 					autoComplete="off"
 					disabled={readOnly}
@@ -506,6 +533,14 @@ function DeliveryFields({
 					HTTPS only. Private and internal addresses are refused.
 				</FieldDescription>
 			</Field>
+			{node.action === "webhook" && looksLikeDiscordUrl(url) ? (
+				<Alert announce={false} status="warn">
+					<AlertDescription>
+						This looks like a Discord URL. Use a Discord step instead. A webhook
+						step sends raw JSON, and Discord does not accept it.
+					</AlertDescription>
+				</Alert>
+			) : null}
 			<div className="flex flex-wrap items-center gap-2">
 				<Button
 					disabled={readOnly || url === ""}
@@ -525,20 +560,22 @@ function DeliveryFields({
 					</Status>
 				) : null}
 			</div>
-			<Field>
-				<FieldLabel optional>Signing secret</FieldLabel>
-				<Input
-					autoComplete="off"
-					disabled={readOnly}
-					mode="password"
-					onChange={(event) => setParam("signingSecret", event.target.value)}
-					placeholder={secretSet ? "Saved. Leave blank to keep it" : undefined}
-					value={textParam.parse(params.signingSecret)}
-				/>
-				<FieldDescription>
-					Signs each post so your receiver can verify it came from Tripwire.
-				</FieldDescription>
-			</Field>
+			{node.action === "webhook" ? (
+				<Field>
+					<FieldLabel optional>Signing secret</FieldLabel>
+					<Input
+						autoComplete="off"
+						disabled={readOnly}
+						mode="password"
+						onChange={(event) => setParam("signingSecret", event.target.value)}
+						placeholder={secretSet ? "Saved. Leave blank to keep it" : undefined}
+						value={textParam.parse(params.signingSecret)}
+					/>
+					<FieldDescription>
+						Signs each post so your receiver can verify it came from Tripwire.
+					</FieldDescription>
+				</Field>
+			) : null}
 		</div>
 	);
 }
