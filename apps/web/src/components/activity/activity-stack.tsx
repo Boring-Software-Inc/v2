@@ -1,7 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
-import { runOutcome, VerdictChip } from "#/components/activity/verdict-chip";
+import {
+	groupOutcome,
+	runOutcome,
+	VerdictChip,
+} from "#/components/activity/verdict-chip";
 import { EntityCard } from "#/components/common/entity-card";
 import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
@@ -136,7 +140,7 @@ function StackStatus({ group }: { group: ActivityGroup }) {
 					Checking again
 				</Status>
 			) : (
-				<VerdictChip verdict={group.currentVerdict} />
+				<VerdictChip outcome={groupOutcome(group)} />
 			)}
 			{forge && forgeLink ? (
 				<ForgeLinkButton forge={forge} link={forgeLink} />
@@ -189,7 +193,7 @@ function EntryRow({
 			</ItemContent>
 			<EntryOutcome
 				outcome={
-					runOutcome(event.kind, run?.verdict) ??
+					runOutcome(event.kind, run) ??
 					(pending ? { status: "running", label: "Checking" } : undefined)
 				}
 			/>

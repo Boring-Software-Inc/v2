@@ -1,8 +1,11 @@
 import {
 	ACTION_CATALOG,
+	bearsVerdict,
+	RUN_RESULT_LABELS,
+	type RunResult,
 	redactionHides,
 	ruleDisplayName,
-	VERDICT_LABELS,
+	runResult,
 } from "@tripwire/contracts";
 import { z } from "zod";
 import {
@@ -35,7 +38,8 @@ export type ChainGlyph =
 	| "waiting"
 	| "running"
 	| "errored"
-	| "superseded";
+	| "superseded"
+	| "ran";
 
 export type RuleMark = "pass" | "fail" | "skipped" | "pending";
 
@@ -457,6 +461,14 @@ function checkChip(run: RunView, action: RunActionView): ChainChip {
 			tone: "ok",
 		};
 	}
+	if (runViewResult(run) === "closed-before-review") {
+		return {
+			...base,
+			label: "Check neutral",
+			glyph: "action",
+			tone: "neutral",
+		};
+	}
 	return { ...base, label: "Check pending", glyph: "pending", tone: "neutral" };
 }
 
@@ -600,6 +612,14 @@ function outcomeReachedAt(run: RunView): string | null {
 	);
 }
 
+export function runViewResult(run: RunView): RunResult | null {
+	return runResult({
+		status: run.status,
+		verdict: run.verdict,
+		bearsVerdict: run.event ? bearsVerdict(run.event.kind) : true,
+	});
+}
+
 function verdictOutcome(run: RunView): ChainOutcome {
 	const offsetMs = offsetBetween(run.createdAt, outcomeReachedAt(run));
 	const base = {
@@ -609,87 +629,70 @@ function verdictOutcome(run: RunView): ChainOutcome {
 		openReview: null,
 		chips: outcomeChips(run),
 	};
-	if (run.status === "queued" || run.status === "running") {
-		return {
-			...base,
-			offsetMs: null,
-			title: "Checking",
-			short: "Checking",
-			tone: "neutral",
-			glyph: "running",
-		};
-	}
-	if (run.status === "failed") {
-		return {
-			...base,
-			title: "Did not finish",
-			short: "Did not finish",
-			tone: "neutral",
-			glyph: "errored",
-		};
-	}
-	if (run.verdict === "block") {
-		const denied = run.reviews.some((review) => review.state === "denied");
-		const blockers = run.workflows
-			.filter((workflow) => workflow.outcome === "block")
-			.map((workflow) => workflow.name);
-		const open = run.reviews.find(
-			(review) => review.state === "open" && !review.degraded,
-		);
-		return {
-			...base,
-			title:
-				!denied && blockers.length > 0
-					? `Blocked by ${joinNames(blockers)}`
-					: VERDICT_LABELS.block,
-			short: VERDICT_LABELS.block,
-			tone: "fail",
-			glyph: "blocked",
-			openReview:
-				open && !run.stepsHidden
-					? { name: workflowNameById(run, open.workflowId) }
-					: null,
-		};
-	}
-	if (run.verdict === "pass") {
-		return {
-			...base,
-			title: VERDICT_LABELS.pass,
-			short: VERDICT_LABELS.pass,
-			tone: "ok",
-			glyph: "pass",
-		};
-	}
-	if (run.verdict === "needs_review") {
-		const degraded = run.reviews.some((review) => review.degraded);
-		if (
-			run.reviews.length > 0 &&
-			run.reviews.every((review) => review.state === "closed")
-		) {
+	const result = runViewResult(run);
+	const words = (key: RunResult) => ({
+		title: RUN_RESULT_LABELS[key],
+		short: RUN_RESULT_LABELS[key],
+	});
+	switch (result) {
+		case "checking":
 			return {
 				...base,
-				title: "Closed before review",
-				short: "Closed before review",
+				...words(result),
+				offsetMs: null,
 				tone: "neutral",
-				glyph: "skipped",
+				glyph: "running",
+			};
+		case "did-not-finish":
+			return { ...base, ...words(result), tone: "neutral", glyph: "errored" };
+		case "closed-before-review":
+			return { ...base, ...words(result), tone: "neutral", glyph: "skipped" };
+		case "ran":
+			return { ...base, ...words(result), tone: "neutral", glyph: "ran" };
+		case "pass":
+			return { ...base, ...words(result), tone: "ok", glyph: "pass" };
+		case "block": {
+			const denied = run.reviews.some((review) => review.state === "denied");
+			const blockers = run.workflows
+				.filter((workflow) => workflow.outcome === "block")
+				.map((workflow) => workflow.name);
+			const open = run.reviews.find(
+				(review) => review.state === "open" && !review.degraded,
+			);
+			return {
+				...base,
+				title:
+					!denied && blockers.length > 0
+						? `Blocked by ${joinNames(blockers)}`
+						: RUN_RESULT_LABELS.block,
+				short: RUN_RESULT_LABELS.block,
+				tone: "fail",
+				glyph: "blocked",
+				openReview:
+					open && !run.stepsHidden
+						? { name: workflowNameById(run, open.workflowId) }
+						: null,
 			};
 		}
-		return {
-			...base,
-			title: VERDICT_LABELS.needs_review,
-			short: VERDICT_LABELS.needs_review,
-			tone: "neutral",
-			glyph: "waiting",
-			detail: degraded ? "Tripwire could not check every rule." : null,
-		};
+		case "needs_review":
+			return {
+				...base,
+				...words(result),
+				tone: "neutral",
+				glyph: "waiting",
+				detail: run.reviews.some((review) => review.degraded)
+					? "Tripwire could not check every rule."
+					: null,
+			};
+		default:
+			return {
+				...base,
+				title: "No verdict",
+				short: "No verdict",
+				tone: "neutral",
+				glyph: "errored",
+			};
 	}
-	return {
-		...base,
-		title: "No verdict",
-		short: "No verdict",
-		tone: "neutral",
-		glyph: "errored",
-	};
 }
 
 function decisionSteps(run: RunView): ChainStep[] {

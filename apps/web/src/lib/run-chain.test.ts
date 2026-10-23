@@ -162,6 +162,61 @@ describe("buildRunChain, a scheduled run", () => {
 	});
 });
 
+describe("buildRunChain, runs that carry no verdict", () => {
+	const comment = {
+		kind: "comment.created" as const,
+		actor: "g-r-i-m",
+		title: "",
+		headSha: null,
+		at: AT,
+	};
+
+	test("a comment run reads Ran, neutral, while the change request is blocked", () => {
+		const chain = buildRunChain(
+			view({ verdict: "pass", reviews: [], event: comment }),
+		);
+		expect(chain.outcome.title).toBe("Ran");
+		expect(chain.outcome.short).toBe("Ran");
+		expect(chain.outcome.tone).toBe("neutral");
+		expect(chain.outcome.glyph).not.toBe("pass");
+	});
+
+	test("a scheduled run reads Ran even when a workflow blocked", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "block",
+				reviews: [],
+				subjectKind: "issue",
+				event: {
+					kind: "schedule.matched",
+					actor: "octocat",
+					title: "Crash on start",
+					headSha: null,
+					at: AT,
+				},
+			}),
+		);
+		expect(chain.outcome.title).toBe("Ran");
+		expect(chain.outcome.tone).toBe("neutral");
+	});
+
+	test("its own per-workflow results stay visible", () => {
+		const chain = buildRunChain(
+			view({ verdict: "block", reviews: [], event: comment }),
+		);
+		const body = chain.checks?.body;
+		expect(body?.kind).toBe("branches");
+		if (body?.kind !== "branches") {
+			return;
+		}
+		expect(body.branches.map((b) => b.name)).toEqual([
+			"Rules",
+			"solar-lighthouse",
+		]);
+		expect(chain.checks?.title).toBe("2 of 4 rules did not pass");
+	});
+});
+
 describe("buildRunChain, a blocked run with two workflows", () => {
 	const chain = buildRunChain(view());
 
@@ -313,7 +368,7 @@ describe("outcome offset", () => {
 	test("a review closed with its change request reads as closed, not waiting", () => {
 		const chain = buildRunChain(
 			view({
-				status: "paused",
+				status: "closed",
 				verdict: "needs_review",
 				completedAt: null,
 				reviews: [
@@ -329,6 +384,10 @@ describe("outcome offset", () => {
 			}),
 		);
 		expect(chain.outcome.title).toBe("Closed before review");
+		expect(chain.outcome.tone).toBe("neutral");
+		expect(chain.outcome.chips.map((chip) => chip.label)).toContain(
+			"Check neutral",
+		);
 		expect(chain.steps.map((step) => step.title)).not.toContain(
 			"Blocked by a maintainer",
 		);

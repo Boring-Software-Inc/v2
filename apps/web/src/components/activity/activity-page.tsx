@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { ActivityListSkeleton } from "#/components/activity/activity-page-skeleton";
 import { ActivityRow } from "#/components/activity/activity-row";
 import { ActivityStack } from "#/components/activity/activity-stack";
+import { groupResult } from "#/components/activity/verdict-chip";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { Button } from "#/components/glaze/ui/button";
@@ -52,7 +53,7 @@ function matches(item: ActivityFeedItem, filter: Filter): boolean {
 	if (item.type === "group") {
 		return filter === "no-run"
 			? item.group.currentVerdict === null
-			: item.group.currentVerdict === filter;
+			: groupResult(item.group) === filter;
 	}
 	return filter === "no-run" && item.entry.run === null && !item.entry.pending;
 }
@@ -135,7 +136,7 @@ export function ActivityPage() {
 					<div className="-mx-4 overflow-x-auto px-4">
 						<SegmentedControl
 							aria-label="Filter by verdict"
-							className="w-max"
+							className="w-max max-w-none"
 							onValueChange={(value) => {
 								const next = pickValue(ACTIVITY_VERDICTS, value);
 								if (next) {

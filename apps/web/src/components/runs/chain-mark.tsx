@@ -36,6 +36,7 @@ const RING_GLYPH = {
 	running: Pending,
 	errored: Warning,
 	superseded: Undo,
+	ran: Check,
 } satisfies Record<ChainGlyph, GlazeIcon>;
 
 const NODE_GLYPH = {

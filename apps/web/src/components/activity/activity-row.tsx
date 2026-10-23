@@ -149,7 +149,7 @@ function RowStatus({
 	reason: string;
 }) {
 	if (run || pending) {
-		const verdict = runOutcome(kind, run?.verdict);
+		const verdict = runOutcome(kind, run);
 		return verdict ? (
 			<Status size="sm" status={verdict.status}>
 				{verdict.label}
