@@ -1,4 +1,5 @@
 import type { Auth } from "@tripwire/auth/server";
+import { scopesToStatements } from "@tripwire/contracts";
 import {
 	accessServices,
 	type Db,
@@ -18,7 +19,8 @@ import {
 	seedStory,
 	seedUnclaimedInstall,
 } from "@tripwire/db";
-import { eq } from "drizzle-orm";
+import { generateId } from "@tripwire/utils";
+import { and, eq } from "drizzle-orm";
 import type { DevScenario } from "#/lib/dev/scenarios";
 import { signInstallState } from "#/lib/server/install-state";
 import {
@@ -95,10 +97,44 @@ async function targetOrg(
 	if (!admin) {
 		throw new Error("no demo teammate to own the team org");
 	}
-	return await ensureTeamOrg(db, {
+	const org = await ensureTeamOrg(db, {
 		adminUserId: admin,
 		memberUserIds: plan.teamRole ? [...teammates, user.id] : teammates,
 	});
+	if (plan.teamRole === "admin") {
+		await db
+			.update(schema.member)
+			.set({ role: "admin" })
+			.where(
+				and(
+					eq(schema.member.organizationId, org.id),
+					eq(schema.member.userId, user.id),
+				),
+			);
+	}
+	if (plan.teamRole === "moderator") {
+		await db
+			.insert(schema.organizationRole)
+			.values({
+				id: generateId(),
+				organizationId: org.id,
+				role: "moderator",
+				permission: JSON.stringify(
+					scopesToStatements({ moderation: "manage" }),
+				),
+			})
+			.onConflictDoNothing();
+		await db
+			.update(schema.member)
+			.set({ role: "moderator" })
+			.where(
+				and(
+					eq(schema.member.organizationId, org.id),
+					eq(schema.member.userId, user.id),
+				),
+			);
+	}
+	return org;
 }
 
 async function seedRepos(

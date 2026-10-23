@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Db } from "@tripwire/db";
 import type { Pool } from "pg";
 import pino from "pino";
 import { createApp } from "./app.ts";
-import { selectTools, toolVisible } from "./catalog.ts";
+import { selectTools, TOOL_NAMES, TOOL_SPECS, toolVisible } from "./catalog.ts";
 import { readConfig } from "./config.ts";
 
 const config = readConfig({
@@ -98,9 +100,77 @@ describe("tool selection", () => {
 		expect(toolVisible("get_repo_rules", selection)).toBe(true);
 	});
 
+	test("a role sees the org shell and only the tools its region scopes allow", () => {
+		const selection = selectTools(new URL("http://x/mcp"));
+		if (!selection.ok) {
+			throw new Error("expected a selection");
+		}
+		const listed = TOOL_NAMES.filter((name) =>
+			toolVisible(name, { ...selection, permissions: ["moderation:read"] }),
+		);
+		expect(listed).toEqual([
+			"whoami",
+			"setup_status",
+			"list_repos",
+			"list_rule_catalog",
+			"list_moderation_queue",
+			"report_setup_progress",
+		]);
+	});
+
+	test("without a role filter every scoped tool is listed", () => {
+		const selection = selectTools(new URL("http://x/mcp"));
+		if (!selection.ok) {
+			throw new Error("expected a selection");
+		}
+		expect(TOOL_NAMES.filter((name) => toolVisible(name, selection))).toEqual([
+			...TOOL_NAMES,
+		]);
+	});
+
 	test("disable-skills cannot remove everything", () => {
 		expect(
 			selectTools(new URL("http://x/mcp?skills=admin&disable-skills=admin")).ok,
 		).toBe(false);
+	});
+});
+
+describe("tool access classification", () => {
+	test("every tool names a region scope, the org shell, or no org", () => {
+		const byNeed = Object.fromEntries(
+			TOOL_NAMES.map((name) => [name, TOOL_SPECS[name].need]),
+		);
+		expect(byNeed).toEqual({
+			whoami: "none",
+			setup_status: "org-shell",
+			list_repos: "org-shell",
+			get_install_link: "connections:manage",
+			list_rule_catalog: "none",
+			get_repo_rules: "rules:read",
+			set_rule: "rules:manage",
+			turn_on_gate: "connections:manage",
+			list_workflows: "workflows:read",
+			set_workflow_enabled: "workflows:manage",
+			get_workflow: "workflows:read",
+			validate_workflow: "workflows:read",
+			apply_workflow: "workflows:manage",
+			list_runs: "activity:read",
+			get_run: "activity:read",
+			list_moderation_queue: "moderation:read",
+			decide_moderation: "moderation:manage",
+			report_setup_progress: "none",
+		});
+	});
+
+	test("handlers read their access from the catalog", () => {
+		const source = readFileSync(join(import.meta.dir, "tools.ts"), "utf8");
+		const checked = [
+			...source.matchAll(
+				/(?:resolveOrg|resolveOrgRepo|scoped)\(\s*(?:\w+,\s*)+"([^"]+)",?\s*\)/g,
+			),
+		].map((match) => match[1]);
+		expect(checked.sort()).toEqual(
+			TOOL_NAMES.filter((name) => TOOL_SPECS[name].need !== "none").sort(),
+		);
 	});
 });

@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { SAMPLE_RUN } from "#/components/responses/sample-run";
+import { PassedGroup } from "#/components/runs/branch-card";
 import { RunChainView } from "#/components/runs/run-chain";
 import { toPublicRunView } from "#/lib/run-access";
-import { buildRunChain } from "#/lib/run-chain";
+import { buildRunChain, type ChainBranch } from "#/lib/run-chain";
 import type { RunView } from "#/lib/runs.functions";
 
 const WITH_REVIEW: RunView = {
@@ -24,21 +26,27 @@ const WITH_REVIEW: RunView = {
 function render(run: RunView, level: number): string {
 	const view = toPublicRunView(run, level);
 	return renderToStaticMarkup(
-		<RunChainView
-			chain={buildRunChain(view)}
-			context={{
-				level,
-				maintainer: false,
-				repo: view.repoFullName,
-				sha: view.headSha,
-			}}
-		/>,
+		<QueryClientProvider client={new QueryClient()}>
+			<RunChainView
+				chain={buildRunChain(view)}
+				context={{
+					level,
+					maintainer: false,
+					repo: view.repoFullName,
+					sha: view.headSha,
+				}}
+			/>
+		</QueryClientProvider>,
 	);
 }
 
 describe("run chain outcome node", () => {
 	test("shows its offset from the event", () => {
 		expect(render(WITH_REVIEW, 8)).toContain("+2.7s");
+	});
+
+	test("shows each clock time with its zone", () => {
+		expect(render(WITH_REVIEW, 8)).toMatch(/\d{2}:\d{2}:\d{2} UTC/);
 	});
 
 	test("shows the offset of a run still waiting for review", () => {
@@ -55,5 +63,27 @@ describe("run chain outcome node", () => {
 		expect(render(WITH_REVIEW, 6)).toContain("Human review open");
 		expect(render(WITH_REVIEW, 7)).toContain("Human review open");
 		expect(render(WITH_REVIEW, 8)).not.toContain("Human review open");
+	});
+});
+
+describe("passed workflows group", () => {
+	test("its button reads the count and the noun with a space", () => {
+		const branch = (id: string): ChainBranch => ({
+			id,
+			name: `Workflow ${id}`,
+			isRules: false,
+			form: "row",
+			passed: [],
+			flagged: [],
+			pending: [],
+			outcome: null,
+		});
+		const markup = renderToString(
+			<PassedGroup
+				branches={[branch("a"), branch("b")]}
+				context={{ level: 8, maintainer: false, repo: "o/r", sha: null }}
+			/>,
+		);
+		expect(markup).toContain(">2 workflows passed<");
 	});
 });

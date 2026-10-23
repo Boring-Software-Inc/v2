@@ -8,6 +8,7 @@ import {
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 
 export const Route = createFileRoute("/$org/$repo/analytics")({
+	staticData: { region: "analytics" },
 	validateSearch: analyticsSearchSchema,
 	search: { middlewares: [stripSearchParams(ANALYTICS_SEARCH_DEFAULTS)] },
 	component: AnalyticsPage,

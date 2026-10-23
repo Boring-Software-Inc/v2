@@ -133,6 +133,33 @@ export function agentAuthPlugins(input: { db: Db; mcpResource?: string }) {
 	];
 }
 
+interface RateLimitRule {
+	window: number;
+	max: number;
+}
+
+async function grantTypeOf(request: Request): Promise<string | null> {
+	const copy = request.clone();
+	const contentType = copy.headers.get("content-type") ?? "";
+	if (!contentType.includes("application/x-www-form-urlencoded")) {
+		return null;
+	}
+	return new URLSearchParams(await copy.text()).get("grant_type");
+}
+
+export async function oauthTokenRateLimit(
+	request: Request,
+	current: RateLimitRule,
+): Promise<false | RateLimitRule> {
+	return (await grantTypeOf(request)) === DEVICE_CODE_GRANT_TYPE
+		? false
+		: current;
+}
+
+export const agentRateLimitRules = {
+	"/oauth2/token": oauthTokenRateLimit,
+};
+
 export async function verifySignedOAuthQuery(
 	query: string,
 	secret: string,

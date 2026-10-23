@@ -46,6 +46,7 @@ function fakeHttp(pages: Page[]) {
 	const paths: string[] = [];
 	const http = new GithubHttp({
 		tokenFor: () => Promise.resolve("t"),
+		appId: 1,
 		apiBase: API,
 		fetchImpl: ((url: string | URL | Request) => {
 			paths.push(String(url).replace(API, ""));

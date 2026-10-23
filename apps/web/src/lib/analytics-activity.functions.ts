@@ -3,7 +3,10 @@ import type { OrgWithRole } from "@tripwire/db";
 import type { AnalyticsEvent } from "#/lib/analytics-events";
 import type { DateRange } from "#/lib/date-range";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
-import { orgMemberMiddleware, resolveOrgRepo } from "#/lib/server/org-guard";
+import {
+	orgPermissionMiddleware,
+	resolveOrgRepo,
+} from "#/lib/server/org-guard";
 
 /**
  * Real activity behind a moderation metric — the list under the chart on
@@ -34,7 +37,10 @@ function actor(actorLogin: string | null): string {
 }
 
 export const getAnalyticsActivity = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("analytics:read"),
+	])
 	.inputValidator(
 		(input: {
 			org: string;

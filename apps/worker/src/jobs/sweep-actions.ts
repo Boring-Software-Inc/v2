@@ -1,10 +1,10 @@
-import { REVIEW_POINTER } from "@tripwire/contracts";
+import { bearsVerdict, REVIEW_POINTER } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
-import { runServices } from "@tripwire/db";
+import { moderationServices, runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
-import { toForgeAction } from "./pr-surface.ts";
+import { emitClosedReviewSurfaces, toForgeAction } from "./pr-surface.ts";
 
 /**
  * §5.12 surface sweeper (live-test surprise #3): actions are recorded FIRST and
@@ -40,6 +40,7 @@ export interface SweepDeps {
 	 */
 	adapterFor: (repoFullName: string) => Promise<ForgeAdapter | null>;
 	logger: Logger;
+	appUrl: string;
 }
 
 export interface SweepOptions {
@@ -87,6 +88,14 @@ export async function sweepActions(
 		);
 	}
 
+	await emitClosedReviewSurfaces(
+		deps,
+		await moderationServices.closeReviewsOfClosedChangeRequests(
+			db,
+			deps.appUrl,
+		),
+	);
+
 	const stuck = await runServices.listStuckActions(db, recordedBefore);
 	const result: SweepResult = {
 		swept: stuck.length,
@@ -101,7 +110,8 @@ export async function sweepActions(
 		}
 		if (
 			(row.kind === "comment" || row.kind === "delete-comment") &&
-			row.subjectNumber !== null
+			row.subjectNumber !== null &&
+			bearsVerdict(row.eventKind)
 		) {
 			const latest = await runServices.getLatestRunIdForChangeRequest(
 				db,

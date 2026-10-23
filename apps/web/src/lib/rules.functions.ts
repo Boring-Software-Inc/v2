@@ -9,15 +9,14 @@ import { resolveRuleUpgrade } from "#/lib/rule-upgrade";
 import type { JsonValue } from "#/lib/runs.functions";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
-	orgAdminMiddleware,
-	orgMemberMiddleware,
+	orgPermissionMiddleware,
 	requireOrgRepoById,
 } from "#/lib/server/org-guard";
 
 export type { RuleConfigView, RulesHeaderStats };
 
 export const listRuleConfigViews = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:read")])
 	.inputValidator((input: { org: string; repoId: string }) => input)
 	.handler(async ({ data, context }): Promise<RuleConfigView[]> => {
 		await requireOrgRepoById(
@@ -30,7 +29,7 @@ export const listRuleConfigViews = createServerFn({ method: "GET" })
 	});
 
 export const getRulesHeaderStats = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:read")])
 	.inputValidator((input: { org: string; repoId: string }) => input)
 	.handler(async ({ data, context }): Promise<RulesHeaderStats> => {
 		await requireOrgRepoById(
@@ -43,7 +42,7 @@ export const getRulesHeaderStats = createServerFn({ method: "GET" })
 	});
 
 export const saveRuleConfig = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:manage")])
 	.inputValidator(
 		(input: {
 			org: string;
@@ -78,7 +77,7 @@ export const saveRuleConfig = createServerFn({ method: "POST" })
  * maintainer then re-tunes). No-ops when unconfigured or already current.
  */
 export const upgradeRuleConfig = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:manage")])
 	.inputValidator(
 		(input: { org: string; repoId: string; ruleId: string }) => input,
 	)
@@ -121,7 +120,7 @@ export const upgradeRuleConfig = createServerFn({ method: "POST" })
  * falls back to free text.
  */
 export const getRepoSuggestions = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:read")])
 	.inputValidator(
 		(input: { org: string; repoId: string; kind: string }) => input,
 	)

@@ -385,7 +385,12 @@ if (import.meta.main) {
 		await boss.createQueue("sweep-actions");
 		await boss.schedule("sweep-actions", "* * * * *", {}, {});
 		await work("sweep-actions", async () => {
-			await sweepActions({ db, adapterFor, logger });
+			await sweepActions({
+				db,
+				adapterFor,
+				logger,
+				appUrl: process.env.APP_URL ?? "http://localhost:3000",
+			});
 		});
 
 		await boss.createQueue(SCHEDULE_TICK_QUEUE);
@@ -400,7 +405,7 @@ if (import.meta.main) {
 			});
 		});
 
-		/** Outbound delivery — POST webhook rows through the SSRF guard;
+		/** Outbound delivery — POST webhook/discord rows through the SSRF guard;
 		 * the poll IS the retry (recorded rows re-attempt each tick). */
 		await boss.createQueue("deliver-webhook");
 		await boss.schedule("deliver-webhook", "* * * * *", {}, {});

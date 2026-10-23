@@ -24,6 +24,7 @@ import {
 } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
 import { runs } from "../schema/runs.ts";
+import { runBearsVerdict } from "./runs.ts";
 
 /**
  * Staff-scoped list queries for the /admin portal. Reads only — every
@@ -347,7 +348,7 @@ export async function getStaffOverview(db: Db): Promise<StaffOverview> {
 			.select({
 				total: count(),
 				blocked:
-					sql<number>`count(distinct (${runs.repoFullName}, ${runs.subjectNumber})) filter (where ${runs.verdict} = 'block' and ${runs.subjectNumber} is not null)`.mapWith(
+					sql<number>`count(distinct (${runs.repoFullName}, ${runs.subjectNumber})) filter (where ${runs.verdict} = 'block' and ${runs.subjectNumber} is not null and ${runBearsVerdict})`.mapWith(
 						Number,
 					),
 			})

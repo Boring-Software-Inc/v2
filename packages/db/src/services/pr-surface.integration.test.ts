@@ -48,6 +48,7 @@ async function seedRun(
 		deliveryId: `d-${id}`,
 		rawKind: "pull_request",
 		raw: {},
+		kind: "change-request.updated",
 		repoFullName: REPO,
 	});
 	return createRun(db, {

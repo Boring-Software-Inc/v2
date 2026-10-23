@@ -10,8 +10,7 @@ import type { OrgWithRole } from "@tripwire/db";
 import { storedRuleIssue } from "@tripwire/sdk";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
-	orgAdminMiddleware,
-	orgMemberMiddleware,
+	orgPermissionMiddleware,
 	requireOrgRepoById,
 } from "#/lib/server/org-guard";
 
@@ -40,7 +39,7 @@ function slugify(name: string): string {
 }
 
 export const listCustomRuleViews = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:read")])
 	.inputValidator((input: { org: string; repoId: string }) => input)
 	.handler(async ({ data, context }): Promise<CustomRuleView[]> => {
 		await requireOrgRepoById(
@@ -64,7 +63,7 @@ export const listCustomRuleViews = createServerFn({ method: "GET" })
 	});
 
 export const saveCustomRule = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:manage")])
 	.inputValidator(
 		(input: {
 			org: string;
@@ -136,7 +135,7 @@ export const saveCustomRule = createServerFn({ method: "POST" })
 	);
 
 export const setCustomRuleEnabled = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:manage")])
 	.inputValidator(
 		(input: { org: string; repoId: string; id: string; enabled: boolean }) =>
 			input,
@@ -169,7 +168,7 @@ export const setCustomRuleEnabled = createServerFn({ method: "POST" })
 	);
 
 export const deleteCustomRule = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:manage")])
 	.inputValidator((input: { org: string; repoId: string; id: string }) => input)
 	.handler(
 		async ({ data, context }): Promise<{ ok: true } | { error: string }> => {

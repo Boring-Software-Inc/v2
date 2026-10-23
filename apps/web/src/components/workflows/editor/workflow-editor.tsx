@@ -23,12 +23,17 @@ import type {
 import {
 	acceptReason,
 	applyLintEdit,
+	arrangeWorkflow,
 	connectionIssue,
 	customValidationEntries,
+	type DragOrigin,
 	edgePort,
+	handlePort,
 	insertStep,
 	lintWorkflow,
 	openPosition,
+	planDrag,
+	portHandleId,
 	RULE_CATALOG,
 	stepDisplayName,
 	stepNames,
@@ -65,12 +70,6 @@ import {
 } from "#/components/glaze/ui/dialog";
 import { toast } from "#/components/glaze/ui/toast";
 import { CanvasZoom } from "#/components/workflows/editor/canvas-zoom";
-import {
-	type DragOrigin,
-	handlePort,
-	planDrag,
-	portHandleId,
-} from "#/components/workflows/editor/connection-plan";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import {
 	buildNodeFromItem,
@@ -79,6 +78,7 @@ import {
 } from "#/components/workflows/editor/editor-sidebar";
 import {
 	estimateCardHeight,
+	LANE_SPACING,
 	laneDecor,
 	placeUnpositioned,
 } from "#/components/workflows/editor/lane-layout";
@@ -92,6 +92,8 @@ import {
 	TripwireNode,
 } from "#/components/workflows/editor/node-card";
 import {
+	type CronDraftsApi,
+	CronDraftsContext,
 	CustomRuleNamesContext,
 	EditFieldContext,
 	groupProblems,
@@ -110,6 +112,7 @@ import {
 	type TypedFlowEdge,
 } from "#/components/workflows/editor/typed-connections";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
+import { invalidCronDrafts } from "#/lib/schedule-cadence";
 import {
 	definitionToGraph,
 	edgeWhenFields,
@@ -217,8 +220,6 @@ const CANVAS_TOKENS = {
 	"--xy-edge-stroke": "var(--ink-45)",
 	"--xy-edge-stroke-selected": "var(--ink)",
 	"--xy-connectionline-stroke": "var(--ink-45)",
-	"--xy-edge-label-background-color": "var(--paper)",
-	"--xy-edge-label-color": "var(--text-2)",
 	"--xy-handle-background-color": "var(--ink-32)",
 	"--xy-handle-border-color": "var(--paper)",
 	"--xy-node-color": "var(--text-1)",
@@ -261,6 +262,7 @@ export interface WorkflowEditorProps {
 	/** Panel "test connection" — probes a delivery url through the guard. */
 	onTestConnection: (
 		url: string,
+		kind: "webhook" | "discord",
 	) => Promise<{ ok: boolean; status?: number; failure?: string }>;
 	onRename: (name: string) => Promise<{ ok: boolean; error?: string }>;
 	onSetEnabled: (
@@ -311,6 +313,25 @@ function EditorBody({
 		initial.edges,
 	);
 	const [dirty, setDirty] = useState(false);
+	const [cronDrafts, setCronDrafts] = useState<ReadonlyMap<string, string>>(
+		new Map(),
+	);
+	const cronDraftsApi = useMemo<CronDraftsApi>(
+		() => ({
+			drafts: cronDrafts,
+			setDraft: (nodeId, text) =>
+				setCronDrafts((current) => {
+					const next = new Map(current);
+					if (text === null) {
+						next.delete(nodeId);
+					} else {
+						next.set(nodeId, text);
+					}
+					return next;
+				}),
+		}),
+		[cronDrafts],
+	);
 	const [dragged, setDragged] = useState<ToolboxItem | null>(null);
 	const { fitView, getIntersectingNodes, getZoom, screenToFlowPosition } =
 		useReactFlow<TripwireFlowNode, FlowEdge>();
@@ -436,11 +457,37 @@ function EditorBody({
 						.filter((issue) => !known.has(issue.message))
 						.map((issue) => serverProblem(issue, names))
 				: [];
-		return [...local, ...server, ...delivery].sort(
+		const drafted = invalidCronDrafts(
+			cronDrafts,
+			nodes.map((node) => node.data.node),
+		).map(
+			({ nodeId, message }): Problem => ({
+				key: `cron:${nodeId}`,
+				rule: null,
+				severity: "error",
+				step: names.get(nodeId) ?? "Schedule",
+				message,
+				nodeId,
+				fixes: [
+					{
+						label: "Edit cron",
+						intent: { type: "focus-field", nodeId, field: "every" },
+					},
+				],
+			}),
+		);
+		return [...drafted, ...local, ...server, ...delivery].sort(
 			(a, b) =>
 				Number(a.severity === "warning") - Number(b.severity === "warning"),
 		);
-	}, [lintResults, connectionIssues, serverIssues, nodes, enableCatalog]);
+	}, [
+		lintResults,
+		connectionIssues,
+		serverIssues,
+		nodes,
+		enableCatalog,
+		cronDrafts,
+	]);
 
 	const blockers = problems.filter((problem) => problem.severity === "error");
 
@@ -540,9 +587,7 @@ function EditorBody({
 			const when = handleWhen(connection.sourceHandle);
 			setEdges((current) =>
 				reconnectEdge(oldEdge, connection, current).map((edge) =>
-					edge.id === oldEdge.id
-						? { ...edge, label: undefined, ...edgeWhenFields(when) }
-						: edge,
+					edge.id === oldEdge.id ? { ...edge, ...edgeWhenFields(when) } : edge,
 				),
 			);
 			setDirty(true);
@@ -726,6 +771,49 @@ function EditorBody({
 		);
 		setEdges(graph.edges);
 		setDirty(true);
+	};
+
+	const arrange = () => {
+		const heights = new Map(
+			nodes.map((node) => [node.id, node.measured?.height]),
+		);
+		const arranged = arrangeWorkflow(currentDefinition(), {
+			spacing: LANE_SPACING,
+			heightOf: (node) => heights.get(node.id) ?? estimateCardHeight(node),
+		});
+		const placed = new Map(
+			arranged.nodes.map((node) => [node.id, node.position]),
+		);
+		const moved = nodes.some((node) => {
+			const next = placed.get(node.id);
+			return (
+				next !== undefined &&
+				(next.x !== node.position.x || next.y !== node.position.y)
+			);
+		});
+		if (!moved) {
+			return;
+		}
+		const before = { nodes, edges };
+		setNodes((current) =>
+			current.map((node) => ({
+				...node,
+				position: placed.get(node.id) ?? node.position,
+			})),
+		);
+		setDirty(true);
+		requestAnimationFrame(() =>
+			fitView({ ...fitViewOptions(), duration: 200 }),
+		);
+		toast("Steps arranged", {
+			action: {
+				label: "Undo",
+				onClick: () => {
+					setNodes(before.nodes);
+					setEdges(before.edges);
+				},
+			},
+		});
 	};
 
 	const connectPending = (item: ToolboxItem) => {
@@ -950,6 +1038,14 @@ function EditorBody({
 
 	// ---- save ---------------------------------------------------------------
 	const handleSave = async () => {
+		const unparsed = problems.find((problem) =>
+			problem.key.startsWith("cron:"),
+		);
+		if (unparsed) {
+			toast.fail(`${unparsed.message} Fix the cron to save.`);
+			revealProblem(unparsed);
+			return;
+		}
 		const result = graphToDefinition(meta, nodes, edges);
 		if (!result.ok) {
 			toast.fail(result.error);
@@ -1029,6 +1125,7 @@ function EditorBody({
 				dirty={dirty}
 				enabled={enabled}
 				name={name}
+				onArrange={arrange}
 				onRename={onRename}
 				onSave={handleSave}
 				onSetEnabled={handleSetEnabled}
@@ -1095,21 +1192,23 @@ function EditorBody({
 								</EditFieldContext.Provider>
 							</ProblemsContext.Provider>
 						</CustomRuleNamesContext.Provider>
-						<EditorSidebar
-							connect={toolboxConnect}
-							customRules={customRules}
-							onCancelConnect={cancelPending}
-							fieldFocus={fieldFocus}
-							onFieldFocused={() => setFieldFocus(null)}
-							org={org}
-							repo={repo}
-							onAdd={addAtFreePosition}
-							onClearSelection={clearSelection}
-							onTestConnection={onTestConnection}
-							onUpdateNode={updateNode}
-							readOnly={readOnly}
-							selectedNode={selectedNode}
-						/>
+						<CronDraftsContext.Provider value={cronDraftsApi}>
+							<EditorSidebar
+								connect={toolboxConnect}
+								customRules={customRules}
+								onCancelConnect={cancelPending}
+								fieldFocus={fieldFocus}
+								onFieldFocused={() => setFieldFocus(null)}
+								org={org}
+								repo={repo}
+								onAdd={addAtFreePosition}
+								onClearSelection={clearSelection}
+								onTestConnection={onTestConnection}
+								onUpdateNode={updateNode}
+								readOnly={readOnly}
+								selectedNode={selectedNode}
+							/>
+						</CronDraftsContext.Provider>
 						<ProblemsButton
 							onFix={fixProblem}
 							onOpenChange={setProblemsOpen}

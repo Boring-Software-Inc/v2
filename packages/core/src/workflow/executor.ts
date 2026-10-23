@@ -1,9 +1,13 @@
-import type {
-	NormalizedEvent,
-	RuleResult,
-	Verdict,
-	WorkflowDefinition,
-	WorkflowNode,
+import {
+	edgePort,
+	foldGate,
+	type NodeOutcome,
+	type NormalizedEvent,
+	portValue,
+	type RuleResult,
+	type Verdict,
+	type WorkflowDefinition,
+	type WorkflowNode,
 } from "@tripwire/contracts";
 
 /**
@@ -11,8 +15,6 @@ import type {
  * input/output recorded as a step. Pure — rule evaluation arrives injected so
  * the executor never touches the registry, the adapter, or the clock directly.
  */
-
-export type NodeOutcome = "pass" | "fail";
 
 export interface StepRecord {
 	nodeId: string;
@@ -103,43 +105,33 @@ export async function executeWorkflow(
 		Object.entries(resume?.outcomes ?? {}),
 	);
 	const conducted = new Set<string>();
+	const byId = new Map(definition.nodes.map((n) => [n.id, n]));
 	const steps: StepRecord[] = [];
 	const actions: ExecutionResult["actions"] = [];
 	let pausedAtNodeId: string | null = null;
 	let blocked = false;
 
-	const incomingConducts = (nodeId: string): boolean => {
-		const incoming = definition.edges.filter((e) => e.to === nodeId);
-		return incoming.some((edge) => {
-			const source = outcomes.get(edge.from);
-			if (source === undefined || !conducted.has(edge.from)) {
-				return false;
-			}
-			const when = edge.when ?? "pass";
-			if (when === "approve" || when === "deny") {
-				return (
-					resume !== undefined &&
-					edge.from === resume.nodeId &&
-					when === (resume.decision === "approve" ? "approve" : "deny")
-				);
-			}
-			return source === when;
-		});
+	type EdgeValue = NodeOutcome | "unreached";
+
+	const edgeValue = (edge: WorkflowDefinition["edges"][number]): EdgeValue => {
+		const source = outcomes.get(edge.from);
+		const from = byId.get(edge.from);
+		if (source === undefined || !conducted.has(edge.from) || !from) {
+			return "unreached";
+		}
+		const when = edge.when ?? "pass";
+		if (when === "approve" || when === "deny") {
+			const decided =
+				resume !== undefined &&
+				edge.from === resume.nodeId &&
+				when === (resume.decision === "approve" ? "approve" : "deny");
+			return decided ? "pass" : "fail";
+		}
+		return portValue(edgePort(from, edge.when), source);
 	};
 
-	/**
-	 * Gate reachability (security fix — live-test surprise #2): a gate runs once
-	 * at least one of its source nodes has SETTLED (been reached and produced an
-	 * outcome). Topo order guarantees every source is processed before the gate,
-	 * so "conducted" == "settled" here. Edge when-conduction does NOT gate gate
-	 * execution — otherwise a gate whose feeding rules ALL fail (rule→gate edges
-	 * default to `when: "pass"`) would never run, never fire block, and the run
-	 * would derive verdict `pass`. The gate aggregates its sources' outcomes,
-	 * failures included; when-conduction still governs rule→action and
-	 * gate→action edges.
-	 */
-	const gateHasSettledSource = (nodeId: string): boolean =>
-		definition.edges.some((e) => e.to === nodeId && conducted.has(e.from));
+	const incomingEdges = (nodeId: string) =>
+		definition.edges.filter((e) => e.to === nodeId);
 
 	const record = async (
 		node: WorkflowNode,
@@ -176,7 +168,8 @@ export async function executeWorkflow(
 				(event.kind !== "schedule.matched" ||
 					node.id === event.schedule.nodeId);
 			const resuming = resume !== undefined;
-			if (matches || resuming) {
+			const firedBeforePause = resume?.outcomes[node.id] === "pass";
+			if (resuming ? firedBeforePause : matches) {
 				outcomes.set(node.id, "pass");
 				conducted.add(node.id);
 				if (!resuming) {
@@ -198,11 +191,27 @@ export async function executeWorkflow(
 			continue;
 		}
 
+		const incoming = incomingEdges(node.id).map((edge) => ({
+			edge,
+			value: edgeValue(edge),
+		}));
+		const values = incoming.map((input) => input.value);
 		const reached =
 			node.type === "gate"
-				? gateHasSettledSource(node.id)
-				: incomingConducts(node.id);
+				? values.some((value) => value !== "unreached")
+				: values.includes("pass");
 		if (!(reached || isResumeTarget)) {
+			if (values.includes("skipped")) {
+				outcomes.set(node.id, "skipped");
+				conducted.add(node.id);
+				await record(
+					node,
+					"skipped",
+					{ unreached: "unknown" },
+					{ reason: "An earlier step could not run." },
+					startedAt,
+				);
+			}
 			continue;
 		}
 
@@ -213,12 +222,16 @@ export async function executeWorkflow(
 			// worker as it derives the default over non-workflowed rules.
 			const result = await evaluateRuleRef(node.ref, node.config);
 			const outcome: NodeOutcome =
-				result.status === "skipped" || result.passed ? "pass" : "fail";
+				result.status === "skipped"
+					? "skipped"
+					: result.passed
+						? "pass"
+						: "fail";
 			outcomes.set(node.id, outcome);
 			conducted.add(node.id);
 			await record(
 				node,
-				result.status === "skipped" ? "skipped" : outcome,
+				outcome,
 				{ ref: node.ref, config: node.config },
 				result,
 				startedAt,
@@ -227,26 +240,17 @@ export async function executeWorkflow(
 		}
 
 		if (node.type === "gate") {
-			const inputs = definition.edges
-				.filter((e) => e.to === node.id)
-				.map((e) => ({
-					from: e.from,
-					outcome: outcomes.get(e.from) ?? null,
-				}));
-			const known = inputs
-				.map((i) => i.outcome)
-				.filter((o): o is NodeOutcome => o !== null);
-			let outcome: NodeOutcome;
-			if (node.mode === "all-of") {
-				outcome =
-					known.length > 0 && known.every((o) => o === "pass")
-						? "pass"
-						: "fail";
-			} else if (node.mode === "any-of") {
-				outcome = known.some((o) => o === "pass") ? "pass" : "fail";
-			} else {
-				outcome = known[0] === "pass" ? "fail" : "pass";
-			}
+			const inputs = incoming.map(({ edge, value }) => {
+				const from = byId.get(edge.from);
+				const port = from ? edgePort(from, edge.when) : "pass";
+				return value === "unreached"
+					? { from: edge.from, port, outcome: "fail" as const, reached: false }
+					: { from: edge.from, port, outcome: value };
+			});
+			const outcome = foldGate(
+				node.mode,
+				inputs.map((input) => input.outcome),
+			);
 			outcomes.set(node.id, outcome);
 			conducted.add(node.id);
 			await record(

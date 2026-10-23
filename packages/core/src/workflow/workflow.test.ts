@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import type { RuleResult, WorkflowDefinition } from "@tripwire/contracts";
+import type {
+	NodeOutcome,
+	RuleResult,
+	WorkflowDefinition,
+} from "@tripwire/contracts";
 import { fixtureEvent } from "../rules/test-context.ts";
-import { executeWorkflow, type NodeOutcome } from "./executor.ts";
+import { executeWorkflow } from "./executor.ts";
 import { validateWorkflow } from "./validate.ts";
 
 /** A gate workflow: two rules → all-of → block on fail. */
@@ -203,7 +207,7 @@ describe("executeWorkflow", () => {
 		}
 	});
 
-	test("skipped rule conducts as pass but records skipped (§6)", async () => {
+	test("a skipped rule never blocks and records skipped (§6)", async () => {
 		const result = await executeWorkflow({
 			definition: GATED,
 			event: await fixtureEvent("change-request.opened.event"),
@@ -291,6 +295,48 @@ describe("executeWorkflow", () => {
 			},
 		});
 		expect(approved.verdict).toBe("pass");
+		expect(approved.actions.map((a) => a.action)).toEqual(["label"]);
+	});
+
+	test("resume conducts only the triggers that fired before the pause", async () => {
+		const definition: WorkflowDefinition = {
+			id: "wf-two-triggers",
+			name: "two triggers",
+			version: 1,
+			nodes: [
+				{ id: "t1", type: "trigger", kinds: ["change-request.opened"] },
+				{ id: "t2", type: "trigger", kinds: ["push"] },
+				{ id: "mod", type: "action", action: "send-to-moderation" },
+				{ id: "close", type: "action", action: "close" },
+				{
+					id: "ok",
+					type: "action",
+					action: "label",
+					params: { labels: ["ok"] },
+				},
+			],
+			edges: [
+				{ id: "e1", from: "t1", to: "mod" },
+				{ id: "e2", from: "t2", to: "close" },
+				{ id: "e3", from: "mod", to: "ok", when: "approve" },
+			],
+		};
+		const event = await fixtureEvent("change-request.opened.event");
+		const paused = await executeWorkflow({
+			definition,
+			event,
+			evaluateRuleRef: fakeEvaluator({}),
+			now: clock,
+		});
+		expect(paused.pausedAtNodeId).toBe("mod");
+
+		const approved = await executeWorkflow({
+			definition,
+			event,
+			evaluateRuleRef: fakeEvaluator({}),
+			now: clock,
+			resume: { outcomes: paused.outcomes, nodeId: "mod", decision: "approve" },
+		});
 		expect(approved.actions.map((a) => a.action)).toEqual(["label"]);
 	});
 

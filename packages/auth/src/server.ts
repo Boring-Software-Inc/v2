@@ -13,8 +13,9 @@ import { admin, genericOAuth } from "better-auth/plugins";
 import { organization } from "better-auth/plugins/organization";
 import { eq } from "drizzle-orm";
 import { applySignupAccessDefaults } from "./access.ts";
-import { agentAuthPlugins } from "./agent-auth.ts";
+import { agentAuthPlugins, agentRateLimitRules } from "./agent-auth.ts";
 import { orgAc, orgRoles } from "./org-access.ts";
+import { orgRoleGuard } from "./org-role-guard.ts";
 
 /**
  * Better Auth (§10): GitHub OAuth only at launch. One `createAuth` shared by
@@ -82,6 +83,7 @@ export function createAuth(input: CreateAuthInput) {
 				organization: schema.organization,
 				member: schema.member,
 				invitation: schema.invitation,
+				organizationRole: schema.organizationRole,
 				jwks: schema.jwks,
 				oauthClient: schema.oauthClient,
 				oauthResource: schema.oauthResource,
@@ -96,6 +98,7 @@ export function createAuth(input: CreateAuthInput) {
 		secret: input.secret,
 		baseURL: input.baseUrl,
 		disabledPaths: ["/token"],
+		rateLimit: { customRules: agentRateLimitRules },
 		session: {
 			cookieCache: {
 				enabled: true,
@@ -182,6 +185,7 @@ export function createAuth(input: CreateAuthInput) {
 						}),
 					]
 				: []),
+			orgRoleGuard(),
 			organization({
 				ac: orgAc,
 				roles: orgRoles,
@@ -191,6 +195,10 @@ export function createAuth(input: CreateAuthInput) {
 				 * guard therefore doubles as our last-admin-on-leave guard.
 				 */
 				creatorRole: "admin",
+				dynamicAccessControl: {
+					enabled: true,
+					maximumRolesPerOrganization: 20,
+				},
 				/**
 				 * Deletion is disabled plugin-wide: the spec requires typed-name
 				 * confirmation server-side + an enumerated cascade, which the raw

@@ -1,5 +1,5 @@
 import type { EventKind, NormalizedEvent } from "@tripwire/contracts";
-import { verdictStatus } from "#/components/activity/verdict-chip";
+import { runOutcome } from "#/components/activity/verdict-chip";
 import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
@@ -15,9 +15,9 @@ import {
 	ItemTitle,
 } from "#/components/glaze/ui/item";
 import { Status } from "#/components/glaze/ui/status";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import type { ActivityItem } from "#/lib/activity.functions";
 import { eventForgeLink } from "#/lib/activity-links";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 
 const KIND_LABEL: Record<EventKind, string> = {
 	"change-request.opened": "opened",
@@ -120,12 +120,13 @@ export function ActivityRow({
 				</ItemDescription>
 			</ItemContent>
 			<RowStatus
+				kind={event.kind}
 				pending={pending}
 				reason={unarmed && !hasRun ? "Tripwire is off" : noRunReason(event)}
 				run={run}
 			/>
-			<ItemMeta className="w-14 text-end">
-				{formatRelativeTime(event.occurredAt)}
+			<ItemMeta className="w-36 whitespace-nowrap text-end">
+				<ZonedTime at={event.occurredAt} format="short" />
 			</ItemMeta>
 			<ItemActions className="w-14 justify-end">
 				{forgeLink ? (
@@ -137,16 +138,18 @@ export function ActivityRow({
 }
 
 function RowStatus({
+	kind,
 	run,
 	pending,
 	reason,
 }: {
+	kind: EventKind;
 	run: ActivityItem["run"];
 	pending?: boolean;
 	reason: string;
 }) {
 	if (run || pending) {
-		const verdict = verdictStatus(run?.verdict);
+		const verdict = runOutcome(kind, run);
 		return verdict ? (
 			<Status size="sm" status={verdict.status}>
 				{verdict.label}

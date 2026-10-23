@@ -19,7 +19,12 @@ import {
 	wantsCheck,
 } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
-import { repoServices, responseServices, runServices } from "@tripwire/db";
+import {
+	type moderationServices,
+	repoServices,
+	responseServices,
+	runServices,
+} from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
@@ -98,6 +103,7 @@ export interface EmitSurfaceInput {
 	degraded?: boolean;
 	/** Manual re-run — the comment carries the re-evaluation note. */
 	rerun?: boolean;
+	resumedFrom?: Verdict;
 	pendingCheckPosted?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
 	pendingActionRows: {
@@ -143,12 +149,9 @@ export async function emitPrSurface(
 
 	// The verdict the PR already shows — drives the resolution copy AND whether a
 	// stale request-changes review must be dismissed (§7).
-	const previousVerdict = await runServices.getPreviousVerdict(
-		db,
-		repoFullName,
-		number,
-		runId,
-	);
+	const previousVerdict =
+		input.resumedFrom ??
+		(await runServices.getPreviousVerdict(db, repoFullName, number, runId));
 	// A block that just cleared ⇒ dismiss its outstanding request-changes review
 	// (it can't self-edit and would keep gating merge on required-review repos).
 	const reviewToDismiss =
@@ -233,13 +236,13 @@ export async function emitPrSurface(
 			: []),
 	]);
 
-	// Outbound delivery (webhook) is independent of GitHub — build and
+	// Outbound delivery (webhook/discord) is independent of GitHub — build and
 	// attach each row's payload here (we have the run context + appUrl), leave
 	// it `recorded`, and let the deliver-webhook job POST it through the guard.
 	// This runs BEFORE the forge guard so webhooks fire even with no GitHub
 	// credentials.
 	for (const row of input.pendingActionRows) {
-		if (row.kind !== "webhook") {
+		if (row.kind !== "webhook" && row.kind !== "discord") {
 			continue;
 		}
 		const delivery: WebhookPayload = {
@@ -288,7 +291,7 @@ export async function emitPrSurface(
 	for (const row of [...input.pendingActionRows, ...surfaceRows]) {
 		// Outbound delivery is handled above + by the deliver-webhook job, not
 		// through the forge adapter.
-		if (row.kind === "webhook") {
+		if (row.kind === "webhook" || row.kind === "discord") {
 			continue;
 		}
 		// Ownership (§6): only the latest run writes to the shared PR — the comment
@@ -501,6 +504,58 @@ export function firedRulesFor(
 		}));
 	}
 	return [];
+}
+
+export async function emitClosedReviewSurfaces(
+	deps: {
+		db: Db;
+		adapterFor: (repoFullName: string) => Promise<ForgeAdapter | null>;
+		logger: Logger;
+	},
+	closed: readonly moderationServices.ClosedReview[],
+): Promise<void> {
+	for (const review of closed) {
+		deps.logger.info(
+			{ runId: review.runId, number: review.subjectNumber },
+			"change request closed before review, run closed",
+		);
+		const rows = [review.check, review.comment].flatMap((row) =>
+			row ? [row] : [],
+		);
+		if (rows.length === 0) {
+			continue;
+		}
+		const adapter = await deps.adapterFor(review.repoFullName);
+		if (!adapter) {
+			continue;
+		}
+		for (const row of rows) {
+			try {
+				const result = await adapter.execute(
+					toForgeAction(
+						row,
+						review.repoFullName,
+						review.subjectNumber,
+						REVIEW_POINTER.block,
+					),
+				);
+				await runServices.markActionExecuted(
+					deps.db,
+					row.id,
+					result.externalId,
+				);
+			} catch (error) {
+				deps.logger.warn(
+					{
+						runId: review.runId,
+						kind: row.kind,
+						error: getErrorMessage(error),
+					},
+					"closed review surface failed, the sweep retries it",
+				);
+			}
+		}
+	}
 }
 
 export function toForgeAction(

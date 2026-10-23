@@ -57,6 +57,7 @@ export function AgentConsentPage() {
 					);
 				}
 			}}
+			activeOrgId={data.activeOrgId}
 			orgs={data.orgs}
 			scopes={data.scopes}
 			subtitle="Allow only if you started this from your agent."

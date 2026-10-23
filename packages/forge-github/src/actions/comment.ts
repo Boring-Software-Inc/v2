@@ -1,6 +1,12 @@
 import { COMMENT_MARKER, type Verdict } from "@tripwire/contracts";
 import type { GithubHttp } from "../client/http.ts";
 import { supersededBody } from "../copy.ts";
+import {
+	type IssueComment,
+	isOwnMarkedComment,
+	issueCommentListSchema,
+	issueCommentSchema,
+} from "./ownership.ts";
 
 /**
  * The comment's GitHub lifecycle (§7). The BODY is rendered upstream by
@@ -9,11 +15,6 @@ import { supersededBody } from "../copy.ts";
  * owns the posting: locate the active comment by its hidden marker, edit in
  * place on a same verdict, supersede + post on a transition.
  */
-
-interface IssueComment {
-	id: number;
-	body?: string;
-}
 
 /**
  * Verdict-aware upsert (§7). RUN HISTORY is the source of truth for what
@@ -55,11 +56,13 @@ export async function upsertComment(
 		created: boolean;
 		supersededId: string | null;
 	}> => {
-		const created = (await http.post(
-			repoFullName,
-			`/repos/${repoFullName}/issues/${number}/comments`,
-			{ body },
-		)) as IssueComment;
+		const created = issueCommentSchema.parse(
+			await http.post(
+				repoFullName,
+				`/repos/${repoFullName}/issues/${number}/comments`,
+				{ body },
+			),
+		);
 		return { externalId: String(created.id), created: true, supersededId };
 	};
 
@@ -100,11 +103,15 @@ async function findActiveComment(
 	repoFullName: string,
 	number: number,
 ): Promise<IssueComment | undefined> {
-	const comments = (await http.get(
-		repoFullName,
-		`/repos/${repoFullName}/issues/${number}/comments?per_page=100`,
-	)) as IssueComment[];
-	return [...comments].reverse().find((c) => c.body?.includes(COMMENT_MARKER));
+	const comments = issueCommentListSchema.parse(
+		await http.get(
+			repoFullName,
+			`/repos/${repoFullName}/issues/${number}/comments?per_page=100`,
+		),
+	);
+	return [...comments]
+		.reverse()
+		.find((c) => isOwnMarkedComment(http.appId, c, COMMENT_MARKER));
 }
 
 export async function deleteActiveComment(

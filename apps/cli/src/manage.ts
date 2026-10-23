@@ -1,3 +1,11 @@
+import * as p from "@clack/prompts";
+import {
+	type CompileIssue,
+	compileIssueText,
+	reportWorkflows,
+	type WorkflowDefinition,
+	type WorkflowState,
+} from "@tripwire/contracts";
 import type { Command } from "commander";
 import { z } from "zod";
 import { type Credential, credentialStore } from "#/auth/credentials";
@@ -10,6 +18,7 @@ import {
 import { loadSession } from "#/auth/session";
 import { authUrl, mcpUrl } from "#/config";
 import {
+	decisionChoiceError,
 	errorLine,
 	formatResult,
 	formatUserCode,
@@ -17,9 +26,27 @@ import {
 	pairs,
 	type Style,
 	styleFor,
+	warnLine,
 } from "#/format";
 import { callTool, type ToolArgs, type ToolOutput } from "#/mcp-client";
+import { runPicker } from "#/picker";
 import type { System } from "#/system";
+import {
+	DEFAULT_WORKFLOW_FILE,
+	formatReports,
+	initialPicks,
+	type LocalWorkflows,
+	loadWorkflowFile,
+	localCatalog,
+	type PulledWorkflow,
+	pulledCountText,
+	pulledWorkflows,
+	type ReportView,
+	readLocalWorkflows,
+	selectPulled,
+	workflowChoices,
+	writePulled,
+} from "#/workflows-code";
 
 export interface ManageDeps {
 	system: System;
@@ -43,8 +70,13 @@ const globalsSchema = z.object({
 });
 
 const whoamiNameSchema = z.looseObject({
-	user: z.looseObject({ name: z.string() }),
+	user: z.looseObject({
+		name: z.string().nullish(),
+		email: z.string().nullish(),
+	}),
 });
+
+const NAME_RETRY_MS = 1000;
 
 function globals(command: Command, system: System): GlobalOptions {
 	const parsed = globalsSchema.parse(command.optsWithGlobals());
@@ -182,7 +214,7 @@ async function login(deps: ManageDeps, command: Command): Promise<void> {
 	}
 }
 
-async function signedInName(
+async function whoamiName(
 	deps: ManageDeps,
 	credential: Credential,
 ): Promise<string | null> {
@@ -198,10 +230,26 @@ async function signedInName(
 			deps.fetch,
 		);
 		const parsed = whoamiNameSchema.safeParse(output.data);
-		return parsed.success ? parsed.data.user.name : null;
+		if (!parsed.success) {
+			return null;
+		}
+		const { name, email } = parsed.data.user;
+		return name?.trim() || email?.trim() || null;
 	} catch {
 		return null;
 	}
+}
+
+async function signedInName(
+	deps: ManageDeps,
+	credential: Credential,
+): Promise<string | null> {
+	const first = await whoamiName(deps, credential);
+	if (first) {
+		return first;
+	}
+	await deps.auth.sleep(NAME_RETRY_MS);
+	return await whoamiName(deps, credential);
 }
 
 async function save(system: System, credential: Credential): Promise<string> {
@@ -237,6 +285,446 @@ async function logout(deps: ManageDeps, command: Command): Promise<void> {
 			),
 		);
 	}
+}
+
+interface WorkflowFileOptions {
+	file: string;
+}
+
+const changeListSchema = z.object({
+	workflows: z.array(
+		z.object({
+			id: z.string(),
+			valid: z.boolean().optional(),
+			outcome: z.string().optional(),
+			reason: z.string().optional(),
+			url: z.string().optional(),
+			enabled: z.boolean().optional(),
+			issues: z
+				.array(
+					z.union([
+						z.string(),
+						z
+							.object({
+								step: z.string(),
+								message: z.string(),
+								severity: z.string().optional(),
+							})
+							.transform((issue) =>
+								issue.severity === "warning"
+									? ""
+									: `${issue.step}: ${issue.message}`,
+							),
+					]),
+				)
+				.optional(),
+			changes: z
+				.array(
+					z.object({
+						change: z.enum(["added", "removed", "changed"]),
+						subject: z.string(),
+						text: z.string(),
+					}),
+				)
+				.optional(),
+		}),
+	),
+});
+
+const CHANGE_MARK = { added: "+", removed: "-", changed: "~" } as const;
+
+type ChangeEntry = z.infer<typeof changeListSchema>["workflows"][number];
+
+function blockingReasons(entry: ChangeEntry): string {
+	return (entry.issues ?? []).filter(Boolean).join(" ");
+}
+
+function refusalText(entry: ChangeEntry, repo: string): string {
+	const reasons =
+		blockingReasons(entry) ||
+		`Run tripwire workflows validate --repo ${repo} to see why.`;
+	return entry.reason === "live-cannot-run"
+		? `${entry.id} is on, so this version was not saved. ${reasons}`
+		: `${entry.id} was not saved. ${reasons}`;
+}
+
+function changeLines(
+	data: JsonValue | null,
+	style: Style,
+	describe: (
+		entry: z.infer<typeof changeListSchema>["workflows"][number],
+	) => string,
+): string {
+	const parsed = changeListSchema.safeParse(data);
+	if (!parsed.success) {
+		return JSON.stringify(data, null, 2);
+	}
+	return parsed.data.workflows
+		.map((entry) => {
+			const changes = entry.changes ?? [];
+			const lines = changes.map(
+				(change) =>
+					`  ${CHANGE_MARK[change.change]} ${change.subject} ${change.text}`,
+			);
+			return [style.label(describe(entry)), ...lines].join("\n");
+		})
+		.join("\n\n");
+}
+
+function compileIssueLines(
+	issues: readonly CompileIssue[],
+	options: GlobalOptions,
+): string {
+	return issues
+		.map((issue) => errorLine(compileIssueText(issue), options.errStyle))
+		.join("\n");
+}
+
+async function compileFile(
+	file: string,
+	options: GlobalOptions,
+): Promise<WorkflowDefinition[] | null> {
+	const compiled = await loadWorkflowFile(file);
+	if (compiled.ok) {
+		return compiled.definitions;
+	}
+	if (options.json) {
+		out(JSON.stringify({ valid: false, issues: compiled.issues }, null, 2));
+	} else {
+		err(compileIssueLines(compiled.issues, options));
+	}
+	return null;
+}
+
+async function callForData(
+	deps: ManageDeps,
+	options: GlobalOptions,
+	name: string,
+	args: ToolArgs,
+): Promise<ToolOutput> {
+	const session = await loadSession(deps.system, deps.auth);
+	return await callTool(session, name, withOrg(options, args), deps.fetch);
+}
+
+async function workflowAction(
+	command: Command,
+	deps: ManageDeps,
+	body: (options: GlobalOptions) => Promise<number>,
+): Promise<void> {
+	const options = globals(command, deps.system);
+	try {
+		process.exitCode = await body(options);
+	} catch (error) {
+		process.exitCode = fail(
+			error instanceof Error ? error : new Error(String(error)),
+			options,
+		);
+	}
+}
+
+interface PullOptions extends WorkflowFileOptions {
+	force?: boolean;
+	all?: boolean;
+	yes?: boolean;
+}
+
+const WORKFLOW_STATES = [
+	"on",
+	"off",
+	"cant-run",
+	"needs-fixes",
+	"cant-turn-on",
+] as const satisfies readonly WorkflowState[];
+
+const listedStatesSchema = z.array(
+	z.looseObject({ id: z.string(), state: z.enum(WORKFLOW_STATES).optional() }),
+);
+
+async function workflowStates(
+	deps: ManageDeps,
+	options: GlobalOptions,
+	repo: string,
+): Promise<Map<string, WorkflowState>> {
+	const output = await callForData(deps, options, "list_workflows", { repo });
+	const parsed = listedStatesSchema.safeParse(output.data);
+	const states = new Map<string, WorkflowState>();
+	for (const entry of parsed.success ? parsed.data : []) {
+		if (entry.state) {
+			states.set(entry.id, entry.state);
+		}
+	}
+	return states;
+}
+
+function localIds(local: LocalWorkflows): string[] | null {
+	return local.kind === "code"
+		? local.definitions.map((definition) => definition.id)
+		: null;
+}
+
+async function pickWorkflows(
+	deps: ManageDeps,
+	options: GlobalOptions,
+	repo: string,
+	workflows: PulledWorkflow[],
+	local: LocalWorkflows,
+): Promise<PulledWorkflow[] | null> {
+	const choices = workflowChoices(
+		workflows,
+		await workflowStates(deps, options, repo),
+	);
+	if (choices.filter((choice) => !choice.disabled).length < 2) {
+		return workflows;
+	}
+	const ids = await runPicker(
+		{ message: "Pick workflows to pull", items: choices, maxVisible: 12 },
+		initialPicks(choices, localIds(local)),
+		{
+			input: process.stdin,
+			write: (text) => process.stdout.write(text),
+			columns: () => process.stdout.columns || 80,
+		},
+	);
+	return ids ? workflows.filter((workflow) => ids.includes(workflow.id)) : null;
+}
+
+function keptText(kept: readonly string[]): string {
+	const names =
+		kept.length === 1
+			? (kept[0] ?? "")
+			: `${kept.slice(0, -1).join(", ")} and ${kept.at(-1)}`;
+	return kept.length === 1
+		? `${names}, not pulled and left as it was`
+		: `${names}, not pulled and left as they were`;
+}
+
+function pullWorkflows(
+	deps: ManageDeps,
+	command: Command,
+	repo: string,
+	wanted: string[],
+	opts: PullOptions,
+): Promise<void> {
+	return workflowAction(command, deps, async (options) => {
+		const output = await callForData(deps, options, "get_workflow", { repo });
+		if (output.isError) {
+			return render("get_workflow", output, options);
+		}
+		const workflows = pulledWorkflows(output.data);
+		const local = await readLocalWorkflows(opts.file);
+		let picked = workflows;
+		if (wanted.length > 0) {
+			const selection = selectPulled(workflows, wanted);
+			if (selection.unknown.length > 0) {
+				throw new Error(
+					`No workflow ${selection.unknown.join(", ")} on ${repo}. Run tripwire workflows list <repo> to see them.`,
+				);
+			}
+			picked = selection.picked;
+		} else if (
+			process.stdin.isTTY &&
+			process.stdout.isTTY &&
+			!(options.json || opts.all || opts.yes)
+		) {
+			const chosen = await pickWorkflows(deps, options, repo, workflows, local);
+			if (!chosen) {
+				p.cancel("Pull cancelled");
+				return 0;
+			}
+			picked = chosen;
+		}
+		const written = writePulled(
+			opts.file,
+			picked.map((workflow) => workflow.definition),
+			opts.force === true,
+			local,
+		);
+		if (options.json) {
+			out(JSON.stringify(written, null, 2));
+			return 0;
+		}
+		const rows: [string, string][] = [
+			["wrote", `${written.file} (${pulledCountText(written)})`],
+		];
+		if (written.kept.length > 0) {
+			rows.push(["kept", keptText(written.kept)]);
+		}
+		rows.push(
+			["helpers", written.module],
+			...written.warnings.map((warning): [string, string] => ["note", warning]),
+		);
+		out(pairs(rows, options.style));
+		return 0;
+	});
+}
+
+function validateWorkflows(
+	deps: ManageDeps,
+	command: Command,
+	opts: WorkflowFileOptions & { repo?: string },
+): Promise<void> {
+	return workflowAction(command, deps, async (options) => {
+		const compiled = await loadWorkflowFile(opts.file);
+		const issues = compiled.ok ? [] : compiled.issues;
+		const { definitions } = compiled;
+		let reports: ReportView[] = [];
+		let remote: JsonValue | null = null;
+		if (definitions.length > 0 && opts.repo) {
+			const output = await callForData(deps, options, "validate_workflow", {
+				repo: opts.repo,
+				definitions: definitionsJson(definitions),
+			});
+			if (output.isError) {
+				if (issues.length > 0) {
+					err(compileIssueLines(issues, options));
+				}
+				return render("validate_workflow", output, options);
+			}
+			remote = output.data;
+			reports = reportsSchema.parse(output.data).workflows;
+		} else if (definitions.length > 0) {
+			reports = reportWorkflows(definitions, localCatalog(definitions));
+		}
+		const valid =
+			issues.length === 0 && reports.every((report) => report.valid);
+		if (options.json) {
+			out(
+				JSON.stringify(
+					remote !== null && issues.length === 0
+						? remote
+						: {
+								valid,
+								issues,
+								workflows: reports,
+								definitions: opts.repo ? undefined : definitions,
+							},
+					null,
+					2,
+				),
+			);
+			return valid ? 0 : 1;
+		}
+		if (issues.length > 0) {
+			err(compileIssueLines(issues, options));
+		}
+		if (reports.length > 0) {
+			out(formatReports(reports, options.style));
+		}
+		return valid ? 0 : 1;
+	});
+}
+
+function diffWorkflows(
+	deps: ManageDeps,
+	command: Command,
+	repo: string,
+	opts: WorkflowFileOptions,
+): Promise<void> {
+	return workflowAction(command, deps, async (options) => {
+		const definitions = await compileFile(opts.file, options);
+		if (!definitions) {
+			return 1;
+		}
+		const output = await callForData(deps, options, "validate_workflow", {
+			repo,
+			definitions: definitionsJson(definitions),
+		});
+		if (options.json || output.isError) {
+			return render("validate_workflow", output, options);
+		}
+		out(
+			changeLines(output.data, options.style, (entry) =>
+				(entry.changes ?? []).length === 0
+					? `${entry.id}: no changes`
+					: entry.id,
+			),
+		);
+		const parsed = changeListSchema.safeParse(output.data);
+		const blocked = parsed.success
+			? parsed.data.workflows.filter((entry) => entry.valid === false)
+			: [];
+		for (const entry of blocked) {
+			const reasons = blockingReasons(entry);
+			err(
+				warnLine(
+					entry.enabled
+						? `${entry.id} is on, so a push will be refused. ${reasons}`
+						: `${entry.id} could not be turned on after a push. ${reasons}`,
+					options.errStyle,
+				),
+			);
+		}
+		return 0;
+	});
+}
+
+function pushWorkflows(
+	deps: ManageDeps,
+	command: Command,
+	repo: string,
+	opts: WorkflowFileOptions,
+): Promise<void> {
+	return workflowAction(command, deps, async (options) => {
+		const definitions = await compileFile(opts.file, options);
+		if (!definitions) {
+			return 1;
+		}
+		const output = await callForData(deps, options, "apply_workflow", {
+			repo,
+			definitions: definitionsJson(definitions),
+		});
+		if (output.isError) {
+			return render("apply_workflow", output, options);
+		}
+		const parsed = changeListSchema.safeParse(output.data);
+		const refused = parsed.success
+			? parsed.data.workflows.filter((entry) => entry.outcome === "refused")
+			: [];
+		if (options.json) {
+			out(JSON.stringify(output.data ?? { text: output.text }, null, 2));
+			return refused.length > 0 ? 1 : 0;
+		}
+		out(
+			changeLines(output.data, options.style, (entry) =>
+				[entry.id, entry.outcome, entry.url].filter(Boolean).join("  "),
+			),
+		);
+		for (const entry of refused) {
+			err(errorLine(refusalText(entry, repo), options.errStyle));
+		}
+		return refused.length > 0 ? 1 : 0;
+	});
+}
+
+const reportsSchema = z.object({
+	workflows: z.array(
+		z.object({
+			id: z.string(),
+			name: z.string(),
+			valid: z.boolean(),
+			issues: z.array(
+				z.object({
+					rule: z.string(),
+					severity: z.enum(["error", "warning"]),
+					step: z.string(),
+					message: z.string(),
+				}),
+			),
+			schedules: z.array(
+				z.object({
+					nodeId: z.string(),
+					summary: z.string(),
+					timezone: z.string(),
+					defaulted: z.boolean(),
+					description: z.string().optional(),
+				}),
+			),
+		}),
+	),
+});
+
+function definitionsJson(definitions: WorkflowDefinition[]): JsonValue {
+	return z.json().parse(JSON.parse(JSON.stringify(definitions)));
 }
 
 export function registerManageCommands(program: Command, deps: ManageDeps) {
@@ -334,7 +822,51 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 
 	const workflows = program
 		.command("workflows")
-		.description("List, enable and disable workflows");
+		.description(
+			"Manage workflows as tripwire.ts code: pull, validate, diff and push",
+		);
+	workflows
+		.command("pull <repo> [workflows...]")
+		.description(
+			"Write a repo's workflows to tripwire.ts, with the typed helpers in .tripwire/",
+		)
+		.option("--file <path>", "Where to write the code", DEFAULT_WORKFLOW_FILE)
+		.option("--all", "Pull every workflow without asking")
+		.option("-y, --yes", "Skip the picker")
+		.option("--force", "Overwrite workflows that differ from the server")
+		.action(
+			(repo: string, wanted: string[], opts: PullOptions, command: Command) =>
+				pullWorkflows(deps, command, repo, wanted, opts),
+		);
+	workflows
+		.command("validate")
+		.description(
+			"Compile tripwire.ts and check it; with --repo, against that repo's rules",
+		)
+		.option("--file <path>", "The workflow file", DEFAULT_WORKFLOW_FILE)
+		.option(
+			"--repo <repo>",
+			"Also check against this repo, custom rules included",
+		)
+		.action((opts: WorkflowFileOptions & { repo?: string }, command: Command) =>
+			validateWorkflows(deps, command, opts),
+		);
+	workflows
+		.command("diff <repo>")
+		.description("Show what a push of tripwire.ts would change on the repo")
+		.option("--file <path>", "The workflow file", DEFAULT_WORKFLOW_FILE)
+		.action((repo: string, opts: WorkflowFileOptions, command: Command) =>
+			diffWorkflows(deps, command, repo, opts),
+		);
+	workflows
+		.command("push <repo>")
+		.description(
+			"Save tripwire.ts to the repo. New workflows start off; enable them when ready",
+		)
+		.option("--file <path>", "The workflow file", DEFAULT_WORKFLOW_FILE)
+		.action((repo: string, opts: WorkflowFileOptions, command: Command) =>
+			pushWorkflows(deps, command, repo, opts),
+		);
 	workflows
 		.command("list <repo>")
 		.description("List a repo's workflows")
@@ -409,7 +941,7 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 			) => {
 				if (!["approve", "remove", "ban"].includes(action)) {
 					process.exitCode = fail(
-						new Error("action must be approve, remove or ban"),
+						new Error(decisionChoiceError(action)),
 						globals(command, deps.system),
 					);
 					return;

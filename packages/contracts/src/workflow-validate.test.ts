@@ -1,15 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { customValidationEntries } from "./custom-rules.ts";
 import { RULE_CATALOG } from "./rules.ts";
+import { DEFAULT_WORKFLOW, type WorkflowDefinition } from "./workflow.ts";
 import {
-	ACTION_CATALOG,
-	DEFAULT_WORKFLOW,
-	type WorkflowDefinition,
-	workflowDefinitionSchema,
-} from "./workflow.ts";
-import {
+	unrunnableIssues,
 	validateWorkflow,
 	validateWorkflowForEnable,
+	WORKFLOW_STATE_LABELS,
+	workflowReadiness,
+	workflowState,
 } from "./workflow-validate.ts";
 
 function graph(over: Partial<WorkflowDefinition>): WorkflowDefinition {
@@ -135,11 +134,14 @@ describe("validateWorkflow (base — every failure class)", () => {
 		});
 	});
 
-	test("a gate fed from a doesn't-pass output breaks the connection matrix", () => {
+	test("a gate takes a doesn't-pass output as a negated result", () => {
 		const g = graph({});
 		g.nodes.push({ id: "g", type: "gate", mode: "any-of" });
 		g.edges.push({ id: "e3", from: "r", to: "g", when: "fail" });
-		expect(issuesOf(validateWorkflow(g))).toContain("It takes only Passes.");
+		expect(issuesOf(validateWorkflow(g))).not.toContain(
+			"It takes only Passes.",
+		);
+		expect(validateWorkflow(g).valid).toBe(true);
 	});
 
 	test("branching paths and several triggers stay valid", () => {
@@ -254,40 +256,67 @@ describe("the removed comment step", () => {
 	});
 });
 
-describe("the removed discord step", () => {
-	const withDiscord = graph({
+describe("workflowReadiness (one answer for web, CLI and MCP)", () => {
+	const triggerIntoGate = graph({
 		nodes: [
 			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
-			{ id: "r", type: "rule", ref: "account-age@1", config: { minDays: 7 } },
-			{ id: "b", type: "action", action: "block" },
-			{
-				id: "d",
-				type: "action",
-				action: "discord",
-				params: { url: "https://discord.com/api/webhooks/1/abc" },
-			},
+			{ id: "g", type: "gate", mode: "all-of" },
+			{ id: "a", type: "action", action: "block" },
 		],
 		edges: [
-			{ id: "e1", from: "t", to: "r" },
-			{ id: "e2", from: "r", to: "b", when: "fail" },
-			{ id: "e3", from: "r", to: "d", when: "fail" },
+			{ id: "e1", from: "t", to: "g" },
+			{ id: "e2", from: "g", to: "a", when: "fail" },
 		],
 	});
 
-	test("a stored workflow with one still parses", () => {
-		expect(workflowDefinitionSchema.safeParse(withDiscord).success).toBe(true);
-		expect(validateWorkflow(withDiscord).valid).toBe(true);
+	test("a sound graph runs and can be turned on", () => {
+		expect(workflowReadiness(graph({}))).toMatchObject({
+			runnable: true,
+			canTurnOn: true,
+			issues: [],
+		});
 	});
 
-	test("it cannot be enabled until the step is deleted", () => {
-		expect(rulesOf(validateWorkflowForEnable(withDiscord))).toEqual([
-			"removed-step",
-		]);
-	});
-
-	test("the toolbox no longer offers it", () => {
-		expect(ACTION_CATALOG.map((entry) => entry.action)).not.toContain(
-			"discord",
+	test("a trigger wired into a gate can neither run nor be turned on", () => {
+		const readiness = workflowReadiness(triggerIntoGate);
+		expect(readiness.runnable).toBe(false);
+		expect(readiness.canTurnOn).toBe(false);
+		expect(readiness.canTurnOn).toBe(
+			validateWorkflowForEnable(triggerIntoGate).valid,
 		);
+		expect(unrunnableIssues(triggerIntoGate).length).toBeGreaterThan(0);
+	});
+
+	test("a graph with no action runs but cannot be turned on", () => {
+		const readiness = workflowReadiness(
+			graph({
+				nodes: [
+					{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+					{
+						id: "r",
+						type: "rule",
+						ref: "account-age@1",
+						config: { minDays: 7 },
+					},
+				],
+				edges: [{ id: "e1", from: "t", to: "r" }],
+			}),
+		);
+		expect(readiness).toMatchObject({ runnable: true, canTurnOn: false });
+	});
+
+	test("the state reads the same everywhere", () => {
+		const cases = [
+			[{ enabled: true, runnable: true, canTurnOn: true }, "on"],
+			[{ enabled: true, runnable: false, canTurnOn: false }, "cant-run"],
+			[{ enabled: true, runnable: true, canTurnOn: false }, "needs-fixes"],
+			[{ enabled: false, runnable: true, canTurnOn: true }, "off"],
+			[{ enabled: false, runnable: false, canTurnOn: false }, "cant-turn-on"],
+		] as const;
+		for (const [input, state] of cases) {
+			expect(workflowState(input)).toBe(state);
+		}
+		expect(WORKFLOW_STATE_LABELS["cant-run"]).toBe("Can't run");
+		expect(WORKFLOW_STATE_LABELS.on).toBe("Live");
 	});
 });

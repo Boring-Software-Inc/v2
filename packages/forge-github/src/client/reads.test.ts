@@ -24,6 +24,7 @@ const USER = {
 function readsWith(handler: (url: string) => Response): GithubReads {
 	return new GithubReads({
 		tokenFor: () => Promise.resolve("t"),
+		appId: 1,
 		fetchImpl: ((url: string | URL | Request) =>
 			Promise.resolve(handler(String(url)))) as typeof fetch,
 	});
@@ -74,5 +75,93 @@ describe("getContributorProfile — global merges exclude owned repos", () => {
 		const profile = await reads.getContributorProfile("acme/app", "octocat");
 		expect(profile.mergedElsewhere).toBeNull();
 		expect(profile.mergedInRepo).toBe(4);
+	});
+});
+
+const HEAD = "d125d3a".padEnd(40, "0");
+const COMPARE_FILE = {
+	filename: "qa4/d1b.md",
+	status: "modified",
+	additions: 1,
+	deletions: 0,
+	patch: "+bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+};
+const COMPARE_COMMIT = {
+	sha: HEAD,
+	commit: { message: "add d1b", author: { date: "2026-10-23T17:40:00Z" } },
+	author: { login: "octocat" },
+};
+
+describe("getDiff and getCommits read the event's own head", () => {
+	test("with a head, the diff comes from the compare of base and that SHA", async () => {
+		const seen: string[] = [];
+		const reads = readsWith((url) => {
+			seen.push(url);
+			if (url.includes("/compare/")) {
+				return jsonResponse({ files: [COMPARE_FILE], commits: [] });
+			}
+			return jsonResponse([]);
+		});
+
+		const diff = await reads.getDiff("acme/app", 151, {
+			sha: HEAD,
+			baseRef: "release/1.x",
+		});
+
+		expect(seen).toEqual([
+			`https://api.github.com/repos/acme/app/compare/release%2F1.x...${HEAD}?per_page=100`,
+		]);
+		expect(diff).toEqual([
+			{
+				path: "qa4/d1b.md",
+				status: "modified",
+				additions: 1,
+				deletions: 0,
+				patch: COMPARE_FILE.patch,
+				previousPath: undefined,
+			},
+		]);
+	});
+
+	test("with a head, the commits come from the same compare", async () => {
+		const seen: string[] = [];
+		const reads = readsWith((url) => {
+			seen.push(url);
+			return jsonResponse({ files: [], commits: [COMPARE_COMMIT] });
+		});
+
+		const commits = await reads.getCommits("acme/app", 151, {
+			sha: HEAD,
+			baseRef: "main",
+		});
+
+		expect(seen).toEqual([
+			`https://api.github.com/repos/acme/app/compare/main...${HEAD}?per_page=100`,
+		]);
+		expect(commits).toEqual([
+			{
+				sha: HEAD,
+				message: "add d1b",
+				authorLogin: "octocat",
+				authorEmail: null,
+				authoredAt: "2026-10-23T17:40:00Z",
+			},
+		]);
+	});
+
+	test("without a head, the reads follow the change request's current head", async () => {
+		const seen: string[] = [];
+		const reads = readsWith((url) => {
+			seen.push(url);
+			return jsonResponse([]);
+		});
+
+		await reads.getDiff("acme/app", 151);
+		await reads.getCommits("acme/app", 151);
+
+		expect(seen).toEqual([
+			"https://api.github.com/repos/acme/app/pulls/151/files?per_page=100",
+			"https://api.github.com/repos/acme/app/pulls/151/commits?per_page=100",
+		]);
 	});
 });

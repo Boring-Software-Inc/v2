@@ -3,8 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { OrgWithRole } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
-	orgAdminMiddleware,
-	orgMemberMiddleware,
+	orgPermissionMiddleware,
 	resolveOrgRepo,
 } from "#/lib/server/org-guard";
 
@@ -29,7 +28,10 @@ export interface ModerationQueue {
 }
 
 export const listModerationQueue = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("moderation:read"),
+	])
 	.inputValidator((input: { org: string; repo: string }) => input)
 	.handler(async ({ data, context }): Promise<ModerationQueue> => {
 		const org = (context as { org: OrgWithRole }).org;
@@ -57,15 +59,11 @@ export const listModerationQueue = createServerFn({ method: "GET" })
 		return { items, limit, truncated: rows.length > limit };
 	});
 
-/**
- * Admin-only (§4 decision): approving a paused run releases code through the
- * gate — a trust-level action, not triage. First candidate for a per-org
- * setting / third role when a customer needs member-level triage; loosening
- * is this one site (orgAdminMiddleware → orgMemberMiddleware + the
- * classification row).
- */
 export const decideModeration = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("moderation:manage"),
+	])
 	.inputValidator(
 		(input: {
 			org: string;

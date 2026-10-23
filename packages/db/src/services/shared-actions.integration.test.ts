@@ -148,6 +148,23 @@ describe("decideRepoModerationItem", () => {
 		});
 		expect(await decideRepoModerationItem(db, null, input)).toEqual({
 			ok: false,
+			reason: "already-decided",
 		});
+	});
+
+	test("an item closed with its change request says so", async () => {
+		const itemId = await seedPendingItem("acme/web");
+		await db
+			.update(moderationItems)
+			.set({ status: "closed", decidedAt: new Date() })
+			.where(eq(moderationItems.id, itemId));
+		expect(
+			await decideRepoModerationItem(db, null, {
+				repoFullName: "acme/web",
+				itemId,
+				decision: "approve",
+				decidedBy: null,
+			}),
+		).toEqual({ ok: false, reason: "closed" });
 	});
 });

@@ -19,10 +19,12 @@ import {
 	organization,
 	organizationInstallations,
 	organizationInviteLinks,
+	organizationRole,
 } from "../schema/organizations.ts";
 import { repos, ruleConfigs, workflowDefinitions } from "../schema/repos.ts";
 import { promoteUserAccess } from "./access.ts";
 import { getFreshInstallAccessCheck } from "./installation-access.ts";
+import { runBearsVerdict } from "./runs.ts";
 
 /**
  * Organization services (§org-model). Better Auth's plugin owns the
@@ -68,10 +70,11 @@ export interface OrgSummary {
 	name: string;
 	isPersonal: boolean;
 	avatarHue: number | null;
+	timezone: string | null;
 }
 
 export interface OrgWithRole extends OrgSummary {
-	role: OrgRole;
+	role: string;
 }
 
 /**
@@ -90,6 +93,7 @@ export async function getOrgForUser(
 			name: organization.name,
 			isPersonal: organization.isPersonal,
 			avatarHue: organization.avatarHue,
+			timezone: organization.timezone,
 			role: member.role,
 		})
 		.from(organization)
@@ -99,7 +103,7 @@ export async function getOrgForUser(
 		)
 		.limit(1);
 	const row = rows[0];
-	return row ? { ...row, role: row.role as OrgRole } : null;
+	return row ?? null;
 }
 
 /** Every org the user belongs to — the switcher list. Personal org first. */
@@ -114,20 +118,21 @@ export async function listUserOrgs(
 			name: organization.name,
 			isPersonal: organization.isPersonal,
 			avatarHue: organization.avatarHue,
+			timezone: organization.timezone,
 			role: member.role,
 		})
 		.from(member)
 		.innerJoin(organization, eq(organization.id, member.organizationId))
 		.where(eq(member.userId, userId))
 		.orderBy(sql`${organization.isPersonal} DESC, ${organization.name}`);
-	return rows.map((r) => ({ ...r, role: r.role as OrgRole }));
+	return rows;
 }
 
 /** The caller's role in an org, fresh from the DB (never from session). */
 export async function getMemberRole(
 	db: Db,
 	input: { orgId: string; userId: string },
-): Promise<OrgRole | null> {
+): Promise<string | null> {
 	const rows = await db
 		.select({ role: member.role })
 		.from(member)
@@ -138,7 +143,71 @@ export async function getMemberRole(
 			),
 		)
 		.limit(1);
-	return (rows[0]?.role as OrgRole) ?? null;
+	return rows[0]?.role ?? null;
+}
+
+export interface OrgRoleRow {
+	id: string;
+	role: string;
+	permission: string;
+	createdAt: Date;
+}
+
+export async function listOrgRoles(
+	db: Db,
+	orgId: string,
+): Promise<OrgRoleRow[]> {
+	return await db
+		.select({
+			id: organizationRole.id,
+			role: organizationRole.role,
+			permission: organizationRole.permission,
+			createdAt: organizationRole.createdAt,
+		})
+		.from(organizationRole)
+		.where(eq(organizationRole.organizationId, orgId))
+		.orderBy(organizationRole.role);
+}
+
+export async function getOrgRoles(
+	db: Db,
+	orgId: string,
+	names: readonly string[],
+): Promise<OrgRoleRow[]> {
+	if (names.length === 0) {
+		return [];
+	}
+	return await db
+		.select({
+			id: organizationRole.id,
+			role: organizationRole.role,
+			permission: organizationRole.permission,
+			createdAt: organizationRole.createdAt,
+		})
+		.from(organizationRole)
+		.where(
+			and(
+				eq(organizationRole.organizationId, orgId),
+				inArray(organizationRole.role, [...names]),
+			),
+		);
+}
+
+export async function countMembersWithRole(
+	db: Db,
+	orgId: string,
+	role: string,
+): Promise<number> {
+	const rows = await db
+		.select({ n: sql<number>`count(*)::int` })
+		.from(member)
+		.where(
+			and(
+				eq(member.organizationId, orgId),
+				sql`${role} = ANY(string_to_array(replace(${member.role}, ' ', ''), ','))`,
+			),
+		);
+	return rows[0]?.n ?? 0;
 }
 
 export async function countAdmins(db: Db, orgId: string): Promise<number> {
@@ -168,8 +237,14 @@ export async function assertRoleChangeAllowed(
 	if (input.isPersonal) {
 		throw new Error("cannot change roles in a personal org");
 	}
+	if (input.newRole.includes(",")) {
+		throw new Error("a member holds one role");
+	}
 	if (input.newRole !== "admin" && input.newRole !== "member") {
-		throw new Error("unknown role");
+		const [custom] = await getOrgRoles(db, input.orgId, [input.newRole]);
+		if (!custom) {
+			throw new Error("unknown role");
+		}
 	}
 	if (
 		input.currentRole.split(",").includes("admin") &&
@@ -248,6 +323,7 @@ export async function ensurePersonalOrg(
 			name: organization.name,
 			isPersonal: organization.isPersonal,
 			avatarHue: organization.avatarHue,
+			timezone: organization.timezone,
 		})
 		.from(organization)
 		.innerJoin(member, eq(member.organizationId, organization.id))
@@ -265,6 +341,7 @@ export async function ensurePersonalOrg(
 		slug,
 		isPersonal: true,
 		avatarHue: null,
+		timezone: null,
 	};
 	await db.insert(organization).values(org);
 	await db.insert(member).values({
@@ -1175,6 +1252,7 @@ export async function listOrgSwitcherRepos(
 		LEFT JOIN (
 		  SELECT repo_full_name AS repo, count(*) AS n FROM runs
 		  WHERE verdict = 'block' AND created_at > now() - make_interval(hours => 24)
+		    AND ${runBearsVerdict}
 		  GROUP BY repo_full_name
 		) blk ON blk.repo = r.full_name
 		LEFT JOIN (
@@ -1224,18 +1302,12 @@ export async function getOrgInstallState(
 	};
 }
 
-/**
- * Every repo fullName the user can see through membership — the SSE stream's
- * visibility set (a member of org A must not receive org B's notifications).
- */
-export async function listUserRepoFullNames(
+export async function setOrgTimezone(
 	db: Db,
-	userId: string,
-): Promise<string[]> {
-	const rows = await db
-		.select({ fullName: repos.fullName })
-		.from(repos)
-		.innerJoin(member, eq(member.organizationId, repos.orgId))
-		.where(and(eq(member.userId, userId), isNull(repos.removedAt)));
-	return rows.map((r) => r.fullName);
+	input: { orgId: string; timezone: string | null },
+): Promise<void> {
+	await db
+		.update(organization)
+		.set({ timezone: input.timezone })
+		.where(eq(organization.id, input.orgId));
 }

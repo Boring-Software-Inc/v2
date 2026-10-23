@@ -1,5 +1,5 @@
+import { useParams } from "@tanstack/react-router";
 import type {
-	EveryUnit,
 	InactiveUnit,
 	ScheduleDraft,
 	ScheduleState,
@@ -10,7 +10,6 @@ import type {
 import {
 	DURATION_UNIT_MS,
 	MAX_INACTIVE_FOR_MS,
-	MAX_SCHEDULE_EVERY_MS,
 	missingScheduleSteps,
 	NEW_SCHEDULE_DRAFT,
 } from "@tripwire/contracts";
@@ -28,7 +27,13 @@ import {
 	SegmentedControlItem,
 } from "#/components/glaze/ui/segmented-control";
 import { Select } from "#/components/glaze/ui/select";
-import { LabelPicker } from "#/components/workflows/editor/label-picker";
+import {
+	LabelPicker,
+	RefreshLabels,
+} from "#/components/workflows/editor/label-picker";
+import { useCronDraft } from "#/components/workflows/editor/node-issues";
+import { ScheduleCadenceField } from "#/components/workflows/editor/schedule-cadence";
+import { useTimezones } from "#/hooks/use-timezones";
 import { cn } from "#/lib/glaze/utils";
 import { UNIT_LABEL } from "#/lib/schedule-summary";
 import {
@@ -42,7 +47,6 @@ import {
 
 type StepStatus = "answered" | "current" | "upcoming";
 
-const EVERY_UNITS: readonly EveryUnit[] = ["hours", "days", "weeks"];
 const INACTIVE_UNITS: readonly InactiveUnit[] = [
 	"hours",
 	"days",
@@ -244,6 +248,9 @@ function ScheduleSteps({
 				: "upcoming";
 	const subjectsTitleId = useId();
 	const stateTitleId = useId();
+	const { org } = useParams({ strict: false });
+	const timezones = useTimezones(org);
+	const cron = useCronDraft(node.id);
 
 	const update = (next: ScheduleDraft, answered?: ScheduleStep) => {
 		onUpdate({ ...node, schedule: next });
@@ -260,15 +267,19 @@ function ScheduleSteps({
 	return (
 		<>
 			<Step status={statusOf("every")} step="every">
-				<DurationField
-					defaultUnit="hours"
-					label="Every"
-					limitMs={MAX_SCHEDULE_EVERY_MS}
-					onChange={(every) => update({ ...draft, every }, "every")}
+				<ScheduleCadenceField
+					cronDraft={cron.draft}
+					key={node.id}
+					onChange={(cadence) =>
+						update(
+							{ ...draft, every: cadence.every, timezone: cadence.timezone },
+							"every",
+						)
+					}
+					onCronDraft={cron.setDraft}
 					readOnly={readOnly}
-					status={statusOf("every")}
-					units={EVERY_UNITS}
-					value={draft.every}
+					timezones={timezones}
+					value={{ every: draft.every, timezone: draft.timezone }}
 				/>
 			</Step>
 			<Step status={statusOf("subjects")} step="subjects">
@@ -329,9 +340,12 @@ function ScheduleSteps({
 				/>
 			</Step>
 			<div className="-mx-4 mt-3 flex flex-col gap-3 border-line-faint border-t px-4 pt-4">
-				<div className="flex items-baseline gap-1.5">
+				<div className="flex items-center gap-1.5">
 					<h3 className="type-label text-text-1">Filters</h3>
 					<span className="type-caption text-text-3">Optional</span>
+					<span className="ms-auto flex">
+						<RefreshLabels readOnly={readOnly} />
+					</span>
 				</div>
 				<Field data-field="labels">
 					<FieldLabel className="text-text-2">With labels</FieldLabel>
@@ -341,6 +355,7 @@ function ScheduleSteps({
 						}
 						placeholder="Any label"
 						readOnly={readOnly}
+						showRefresh={false}
 						value={draft.match.labels ?? []}
 					/>
 				</Field>
@@ -352,6 +367,7 @@ function ScheduleSteps({
 						}
 						placeholder="No label"
 						readOnly={readOnly}
+						showRefresh={false}
 						value={draft.match.excludeLabels ?? []}
 					/>
 				</Field>

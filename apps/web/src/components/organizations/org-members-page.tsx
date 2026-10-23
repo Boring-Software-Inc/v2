@@ -54,9 +54,10 @@ import {
 	INVITES_COLLECTION,
 	MEMBERS_COLLECTION,
 } from "#/components/organizations/org-members-collection";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import { useCollection } from "#/hooks/use-collection";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { InviteLinkView, OrgMemberView } from "#/lib/org.functions";
 import {
 	createOrgInvite,
@@ -70,6 +71,7 @@ import {
 	orgInvitesQueryOptions,
 	orgMembersQueryOptions,
 	orgQueryKeys,
+	orgRolesQueryOptions,
 } from "#/lib/org.query";
 
 const ROLE_ITEMS = [
@@ -81,6 +83,10 @@ const ROLE_LABEL = {
 	admin: "Admin",
 	member: "Member",
 } satisfies Record<OrgRole, string>;
+
+function roleLabel(role: string): string {
+	return isOrgRole(role) ? ROLE_LABEL[role] : role;
+}
 
 function isOrgRole(value: string | null): value is OrgRole {
 	return value === "admin" || value === "member";
@@ -133,7 +139,18 @@ export function OrgMembersPage({ org }: { org: string }) {
 	});
 	const { data: session } = useQuery(sessionInfoQueryOptions());
 
-	const isAdmin = orgContext?.role === "admin";
+	const isAdmin = useOrgPermission(org, "members:manage");
+	const rolesQuery = useQuery({
+		...orgRolesQueryOptions(org),
+		enabled: isAdmin,
+	});
+	const roleItems = [
+		...ROLE_ITEMS,
+		...(rolesQuery.data ?? []).map((role) => ({
+			value: role.name,
+			label: role.name,
+		})),
+	];
 	const isPersonal = orgContext?.isPersonal ?? true;
 	const callerUserId = session?.user?.id ?? null;
 
@@ -173,6 +190,7 @@ export function OrgMembersPage({ org }: { org: string }) {
 									callerUserId={callerUserId}
 									isAdmin={isAdmin}
 									key={member.memberId}
+									roleItems={roleItems}
 									member={member}
 									org={org}
 								/>
@@ -192,11 +210,13 @@ function MemberRow({
 	member,
 	isAdmin,
 	callerUserId,
+	roleItems,
 }: {
 	org: string;
 	member: OrgMemberView;
 	isAdmin: boolean;
 	callerUserId: string | null;
+	roleItems: { value: string; label: string }[];
 }) {
 	const queryClient = useQueryClient();
 	const isSelf = callerUserId !== null && member.userId === callerUserId;
@@ -204,7 +224,7 @@ function MemberRow({
 	const [confirmRemove, setConfirmRemove] = useState(false);
 
 	const roleMutation = useMutation({
-		mutationFn: (role: OrgRole) =>
+		mutationFn: (role: string) =>
 			updateOrgMemberRole({ data: { org, memberId: member.memberId, role } }),
 		onSuccess: (result, role) => {
 			if (!result.ok) {
@@ -214,10 +234,11 @@ function MemberRow({
 				);
 				return;
 			}
-			toast.success(`${member.name} is now ${ROLE_LABEL[role].toLowerCase()}`);
+			toast.success(`${member.name} is now ${roleLabel(role).toLowerCase()}`);
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: orgQueryKeys.members(org) });
+			queryClient.invalidateQueries({ queryKey: orgQueryKeys.roles(org) });
 		},
 	});
 
@@ -254,7 +275,9 @@ function MemberRow({
 				<ItemDescription>
 					<MetaRow>
 						<span>{member.email}</span>
-						<span>Joined {formatRelativeTime(member.joinedAt)}</span>
+						<span>
+							Joined <ZonedTime at={member.joinedAt} format="short" />
+						</span>
 					</MetaRow>
 				</ItemDescription>
 			</ItemContent>
@@ -262,9 +285,9 @@ function MemberRow({
 				<ItemActions className="gap-2 @max-sm/item:ms-10 @max-sm/item:me-0 @max-sm/item:basis-full">
 					<Select
 						disabled={roleMutation.isPending}
-						items={ROLE_ITEMS}
+						items={roleItems}
 						onValueChange={(value) => {
-							if (isOrgRole(value)) {
+							if (value && value !== member.role) {
 								roleMutation.mutate(value);
 							}
 						}}
@@ -272,13 +295,13 @@ function MemberRow({
 					>
 						<SelectTrigger
 							aria-label={`Role for ${member.name}`}
-							className="w-24"
+							className="w-32"
 							size="sm"
 						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent size="sm">
-							{ROLE_ITEMS.map((item) => (
+							{roleItems.map((item) => (
 								<SelectItem key={item.value} value={item.value}>
 									{item.label}
 								</SelectItem>
@@ -305,7 +328,7 @@ function MemberRow({
 				</ItemActions>
 			) : (
 				<ItemActions>
-					<Badge variant="outline">{ROLE_LABEL[member.role]}</Badge>
+					<Badge variant="outline">{roleLabel(member.role)}</Badge>
 				</ItemActions>
 			)}
 		</Item>

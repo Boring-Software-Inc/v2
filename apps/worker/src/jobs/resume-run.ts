@@ -1,12 +1,13 @@
 import type {
 	Forge,
+	NodeOutcome,
 	NormalizedEvent,
 	RepoScopedEvent,
 	Verdict,
 	WorkflowDefinition,
 } from "@tripwire/contracts";
 import { workflowDefinitionSchema } from "@tripwire/contracts";
-import { executeWorkflow, type NodeOutcome } from "@tripwire/core";
+import { executeWorkflow, type StepRecord } from "@tripwire/core";
 import {
 	eventServices,
 	moderationServices,
@@ -29,7 +30,7 @@ import {
 /**
  * The resumed run's outcome is the MAINTAINER's decision, not a function of
  * which nodes the graph happened to walk (T4 floor, hardened after a prod miss:
- * a deny edge drawn to a non-block action resumed to `pass`, a green
+ * a deny edge drawn to a non-block action — discord — resumed to `pass`, a green
  * check on an explicitly denied change). Deny means blocked, full stop: a deny
  * edge to a non-block action, or to nowhere, still blocks. Approve resumes to
  * the graph's own verdict — that IS the correct reading of approve. `floorBlock`
@@ -47,6 +48,34 @@ export function resolveResumeOutcome(
 		};
 	}
 	return { verdict: graph.verdict, floorBlock: false };
+}
+
+export function resumedSteps(
+	definitionId: string,
+	steps: readonly StepRecord[],
+	floorPausedNodeId: string | null,
+	at: string,
+): StepRecord[] {
+	const resumed = steps.map((step) => ({
+		...step,
+		nodeId: `${definitionId}:${step.nodeId}:resume`,
+	}));
+	if (floorPausedNodeId === null) {
+		return resumed;
+	}
+	return [
+		...resumed,
+		{
+			nodeId: "run:deny-floor",
+			nodeKind: "action",
+			status: "pass",
+			input: { decision: "deny", pausedNodeId: floorPausedNodeId },
+			output: { rule: "deny → block (graph produced no block action)" },
+			startedAt: at,
+			finishedAt: at,
+			durationMs: 0,
+		},
+	];
 }
 
 /**
@@ -127,22 +156,13 @@ export async function resumeRun(
 		result,
 	);
 
-	const steps = result.steps.map((step) => ({
-		...step,
-		nodeId: `${definition.id}:${step.nodeId}:resume`,
-	}));
+	const steps = resumedSteps(
+		definition.id,
+		result.steps,
+		denyFloored ? item.nodeId : null,
+		new Date().toISOString(),
+	);
 	if (denyFloored) {
-		const at = new Date().toISOString();
-		steps.push({
-			nodeId: "run:deny-floor",
-			nodeKind: "action",
-			status: "pass",
-			input: { decision: "deny", pausedNodeId: item.nodeId },
-			output: { rule: "deny → block (graph produced no block action)" },
-			startedAt: at,
-			finishedAt: at,
-			durationMs: 0,
-		});
 		logger.warn(
 			{ runId: item.runId, pausedNodeId: item.nodeId },
 			"deny produced no block action — verdict floored to block",
@@ -189,6 +209,7 @@ export async function resumeRun(
 			reasons: buildCommentReasons(runData.steps, customRecords),
 			pendingActionRows: actionRows,
 			pendingCheckPosted: true,
+			resumedFrom: "needs_review",
 		},
 	);
 	// §9 live activity feed: the resumed run's verdict changed — announce it.
@@ -244,6 +265,7 @@ async function resumeDegradedRun(
 			reasons: buildCommentReasons(runData.steps, customRecords),
 			pendingActionRows: actionRows,
 			pendingCheckPosted: true,
+			resumedFrom: "needs_review",
 		},
 	);
 	await deps.pool.query("SELECT pg_notify('runs', $1)", [runData.run.eventId]);
@@ -283,7 +305,10 @@ function deriveOutcomes(
 		}
 		const local = step.nodeId.slice(wfId.length + 1);
 		if (definition.nodes.some((node) => node.id === local)) {
-			outcomes[local] = step.status === "fail" ? "fail" : "pass";
+			outcomes[local] =
+				step.status === "fail" || step.status === "skipped"
+					? step.status
+					: "pass";
 		}
 	}
 	return outcomes;

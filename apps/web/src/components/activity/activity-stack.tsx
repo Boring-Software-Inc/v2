@@ -1,7 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import type { NormalizedEvent } from "@tripwire/contracts";
 import { useState } from "react";
-import { VerdictChip, verdictStatus } from "#/components/activity/verdict-chip";
+import {
+	groupOutcome,
+	runOutcome,
+	VerdictChip,
+} from "#/components/activity/verdict-chip";
 import { EntityCard } from "#/components/common/entity-card";
 import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
@@ -22,9 +26,9 @@ import {
 	type StatusValue,
 	statusVariants,
 } from "#/components/glaze/ui/status";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
 import { changeRequestForgeLink, eventForgeLink } from "#/lib/activity-links";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 
 const VISIBLE = 10;
 
@@ -44,8 +48,6 @@ function entryLabel(event: NormalizedEvent): string {
 			return `commented on #${event.comment.subjectNumber}`;
 		case "push":
 			return "pushed";
-		case "schedule.matched":
-			return "matched by schedule";
 		default:
 			return event.kind;
 	}
@@ -117,10 +119,10 @@ function StackTitle({ group }: { group: ActivityGroup }) {
 
 function StackDescription({ group }: { group: ActivityGroup }) {
 	return (
-		<MetaRow>
+		<MetaRow wrap>
 			<span>{group.actor.login}</span>
 			<span>{group.repoFullName}</span>
-			<span>{formatRelativeTime(group.latestActivityAt)}</span>
+			<ZonedTime at={group.latestActivityAt} format="short" />
 		</MetaRow>
 	);
 }
@@ -138,7 +140,7 @@ function StackStatus({ group }: { group: ActivityGroup }) {
 					Checking again
 				</Status>
 			) : (
-				<VerdictChip verdict={group.currentVerdict} />
+				<VerdictChip outcome={groupOutcome(group)} />
 			)}
 			{forge && forgeLink ? (
 				<ForgeLinkButton forge={forge} link={forgeLink} />
@@ -163,10 +165,14 @@ function EntryRow({
 	const note = reevaluating ? "Checking again" : (run?.reason ?? null);
 	const text = (
 		<MetaRow>
-			<span>
-				{ours ? "Tripwire" : event.actor.login}{" "}
-				<span className="text-text-2">{entryLabel(event)}</span>
-			</span>
+			{event.kind === "schedule.matched" ? (
+				<span>Matched by schedule</span>
+			) : (
+				<span>
+					{ours ? "Tripwire" : event.actor.login}{" "}
+					<span className="text-text-2">{entryLabel(event)}</span>
+				</span>
+			)}
 			{note ? <span className="text-text-2">{note}</span> : null}
 		</MetaRow>
 	);
@@ -187,12 +193,12 @@ function EntryRow({
 			</ItemContent>
 			<EntryOutcome
 				outcome={
-					verdictStatus(run?.verdict) ??
+					runOutcome(event.kind, run) ??
 					(pending ? { status: "running", label: "Checking" } : undefined)
 				}
 			/>
-			<ItemMeta className="w-14 text-end">
-				{formatRelativeTime(event.occurredAt)}
+			<ItemMeta className="w-36 whitespace-nowrap text-end">
+				<ZonedTime at={event.occurredAt} format="short" />
 			</ItemMeta>
 			<ItemActions className="w-14 justify-end">
 				{forgeLink ? (

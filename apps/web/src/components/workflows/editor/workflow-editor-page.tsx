@@ -17,7 +17,8 @@ import {
 	EditorFrameSkeleton,
 	PAGE_FRAME,
 } from "#/components/workflows/editor/workflow-editor-page-skeleton";
-import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
+import { useOrgPermission } from "#/hooks/use-org-permission";
+import { orgRepoQueryOptions } from "#/lib/org.query";
 import { ruleConfigsQueryOptions } from "#/lib/rules.query";
 import {
 	renameRepoWorkflow,
@@ -42,7 +43,6 @@ export function WorkflowEditorPage() {
 	const { org, repo, workflowId } = routeApi.useParams();
 	const queryClient = useQueryClient();
 	const { data: repoCtx } = useQuery(orgRepoQueryOptions(org, repo));
-	const { data: orgCtx } = useQuery(orgContextQueryOptions(org));
 	const repoId = repoCtx?.id ?? "";
 	const { data: workflow, isPending } = useQuery(
 		workflowDetailQueryOptions(org, repoId, workflowId),
@@ -78,9 +78,7 @@ export function WorkflowEditorPage() {
 		onSettled: invalidate,
 	});
 
-	// default read-only until the role resolves — never a flash of edit chrome
-	// a member shouldn't have.
-	const readOnly = orgCtx?.role !== "admin";
+	const readOnly = !useOrgPermission(org, "workflows:manage");
 
 	const loading = repoId === "" || isPending;
 	let body: React.ReactNode = null;
@@ -132,8 +130,8 @@ export function WorkflowEditorPage() {
 						data: { org, repoId, workflowId, enabled },
 					})
 				}
-				onTestConnection={(url) =>
-					testDeliveryConnection({ data: { org, repoId, url } })
+				onTestConnection={(url, kind) =>
+					testDeliveryConnection({ data: { org, repoId, url, kind } })
 				}
 				org={org}
 				readOnly={readOnly}

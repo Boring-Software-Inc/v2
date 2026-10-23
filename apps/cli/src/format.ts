@@ -1,3 +1,10 @@
+import { stripVTControlCharacters } from "node:util";
+import {
+	TRIGGER_CATALOG,
+	verdictLabel,
+	WORKFLOW_STATE_LABELS,
+	workflowState,
+} from "@tripwire/contracts";
 import pc from "picocolors";
 import { z } from "zod";
 
@@ -48,6 +55,14 @@ export function pairs(rows: Row[], style: Style = PLAIN): string {
 		.join("\n");
 }
 
+function visibleWidth(text: string): number {
+	return stripVTControlCharacters(text).length;
+}
+
+function padVisible(text: string, width: number): string {
+	return text + " ".repeat(Math.max(0, width - visibleWidth(text)));
+}
+
 export function table(
 	headers: string[],
 	rows: string[][],
@@ -56,7 +71,7 @@ export function table(
 	const widths = headers.map((header, index) => {
 		const longest = Math.max(
 			header.length,
-			...rows.map((row) => (row[index] ?? "").length),
+			...rows.map((row) => visibleWidth(row[index] ?? "")),
 		);
 		const width = longest + 5;
 		return index === 0 ? Math.max(minFirst, width) : width;
@@ -64,7 +79,9 @@ export function table(
 	const line = (cells: string[]) =>
 		cells
 			.map((cell, index) =>
-				index === cells.length - 1 ? cell : cell.padEnd(widths[index] ?? 0),
+				index === cells.length - 1
+					? cell
+					: padVisible(cell, widths[index] ?? 0),
 			)
 			.join("")
 			.trimEnd();
@@ -78,9 +95,22 @@ export function errorLine(message: string, style: Style = PLAIN): string {
 	});
 }
 
+export function warnLine(message: string, style: Style = PLAIN): string {
+	return pairs([["warn", message]], style);
+}
+
 export function formatUserCode(code: string): string {
 	const bare = code.replace(/[\s-]/g, "").toUpperCase();
 	return bare.length === 8 ? `${bare.slice(0, 4)}-${bare.slice(4)}` : code;
+}
+
+export function triggerWords(kinds: readonly string[]): string[] {
+	return kinds.map(
+		(kind) =>
+			TRIGGER_CATALOG.find(
+				(entry) => entry.kind === kind,
+			)?.name.toLowerCase() ?? kind,
+	);
 }
 
 function onOff(on: boolean, style: Style): string {
@@ -92,7 +122,7 @@ function when(iso: string): string {
 	if (Number.isNaN(date.getTime())) {
 		return iso;
 	}
-	return date.toISOString().slice(0, 16).replace("T", " ");
+	return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
 function shortRepo(fullName: string): string {
@@ -162,9 +192,30 @@ const workflowsSchema = z.array(
 		id: z.string(),
 		name: z.string(),
 		enabled: z.boolean(),
+		runnable: z.boolean().optional(),
+		canTurnOn: z.boolean().optional(),
 		triggerKinds: z.array(z.string()).optional(),
 	}),
 );
+
+function workflowStateWord(
+	workflow: z.infer<typeof workflowsSchema>[number],
+	style: Style,
+): string {
+	const state = workflowState({
+		enabled: workflow.enabled,
+		runnable: workflow.runnable ?? true,
+		canTurnOn: workflow.canTurnOn ?? true,
+	});
+	const word = WORKFLOW_STATE_LABELS[state].toLowerCase();
+	if (state === "on") {
+		return style.good(word);
+	}
+	if (state === "cant-run" || state === "needs-fixes") {
+		return style.bad(word);
+	}
+	return word;
+}
 
 const workflowSetSchema = z.object({
 	enabled: z.boolean(),
@@ -179,6 +230,8 @@ const runsSchema = z.array(
 		number: z.number().nullish(),
 		status: z.string(),
 		verdict: z.string().nullish(),
+		result: z.string().nullish(),
+		verdictLabel: z.string().nullish(),
 		createdAt: z.string(),
 	}),
 );
@@ -189,6 +242,8 @@ const runSchema = z.object({
 	number: z.number().nullish(),
 	status: z.string(),
 	verdict: z.string().nullish(),
+	result: z.string().nullish(),
+	verdictLabel: z.string().nullish(),
 	createdAt: z.string(),
 	steps: z.array(
 		z.object({
@@ -196,6 +251,10 @@ const runSchema = z.object({
 			rule: z.string().nullish(),
 			status: z.string(),
 			summary: z.string().nullish(),
+			workflow: z.string().nullish(),
+			stepId: z.string().nullish(),
+			step: z.string().optional(),
+			outcome: z.string().optional(),
 		}),
 	),
 	url: z.string().optional(),
@@ -219,23 +278,69 @@ const decideSchema = z.object({
 	alreadyDecided: z.boolean().optional(),
 	confirmUrl: z.string().optional(),
 	forUser: z.string().optional(),
+	decision: z.enum(["approve", "remove", "ban"]).optional(),
+	itemId: z.string().optional(),
+	repo: z.string().optional(),
+	number: z.number().nullish(),
 });
+
+export const DECISION_CHOICES = [
+	["approve", "let the change request through"],
+	["remove", "block it"],
+	["ban", "get a link where a person bans the contributor"],
+] as const;
+
+export function decisionChoiceError(action: string): string {
+	const choices = DECISION_CHOICES.map(
+		([choice, effect]) => `${choice} to ${effect}`,
+	);
+	return `${action} is not a choice. Use ${choices.slice(0, -1).join(", ")}, or ${choices.at(-1)}.`;
+}
+
+const DECIDED_WORDS = { approve: "Approved", remove: "Blocked" } as const;
+
+function decidedTarget(value: z.infer<typeof decideSchema>): string {
+	const where = value.number ? `#${value.number}` : value.itemId;
+	if (!where) {
+		return "";
+	}
+	return value.repo ? ` ${where} on ${value.repo}` : ` ${where}`;
+}
+
+function stepTitle(step: z.infer<typeof runSchema>["steps"][number]): string {
+	if (!step.step) {
+		return step.rule ?? step.kind;
+	}
+	return step.stepId ? `${step.step} (${step.stepId})` : step.step;
+}
 
 const setRuleSchema = z.object({ ruleId: z.string(), enabled: z.boolean() });
 
 const gateSchema = z.object({ repo: z.string(), url: z.string().optional() });
 
-function verdictWord(verdict: string | null | undefined, style: Style): string {
-	if (!verdict) {
-		return "-";
+function verdictWord(
+	run: {
+		verdict?: string | null;
+		result?: string | null;
+		verdictLabel?: string | null;
+	},
+	style: Style,
+): string {
+	const result = run.result ?? run.verdict;
+	const label = run.verdictLabel ?? verdictLabel(run.verdict);
+	if (!(result && label)) {
+		return run.verdict ?? "-";
 	}
-	if (verdict === "pass") {
-		return style.good(verdict);
+	if (result === "pass") {
+		return style.good(label);
 	}
-	if (verdict === "block") {
-		return style.bad(verdict);
+	if (result === "block") {
+		return style.bad(label);
 	}
-	return style.next(verdict);
+	if (result === "needs_review") {
+		return style.next(label);
+	}
+	return label;
 }
 
 type Formatter = (data: JsonValue, style: Style) => string | null;
@@ -357,8 +462,8 @@ const FORMATTERS: Record<string, Formatter> = {
 			workflows.map((workflow) => [
 				workflow.name,
 				workflow.id,
-				onOff(workflow.enabled, style),
-				(workflow.triggerKinds ?? []).join(", "),
+				workflowStateWord(workflow, style),
+				triggerWords(workflow.triggerKinds ?? []).join(", "),
 			]),
 		);
 	}),
@@ -385,7 +490,7 @@ const FORMATTERS: Record<string, Formatter> = {
 				run.repo ? shortRepo(run.repo) : "-",
 				run.number ? `#${run.number}` : "-",
 				run.status,
-				verdictWord(run.verdict, style),
+				verdictWord(run, style),
 				when(run.createdAt),
 			]),
 		);
@@ -395,7 +500,7 @@ const FORMATTERS: Record<string, Formatter> = {
 			["run", run.id],
 			["repo", run.number ? `${run.repo} #${run.number}` : run.repo],
 			["status", run.status],
-			["verdict", verdictWord(run.verdict, style)],
+			["verdict", verdictWord(run, style)],
 			["created", when(run.createdAt)],
 		];
 		if (run.url) {
@@ -406,13 +511,17 @@ const FORMATTERS: Record<string, Formatter> = {
 			return head;
 		}
 		const steps = table(
-			["STEP", "STATUS", "SUMMARY"],
-			run.steps.map((step) => [
-				step.rule ?? step.kind,
-				step.status === "fail" ? style.bad(step.status) : step.status,
-				step.summary ?? "",
-			]),
-			20,
+			["WORKFLOW", "STEP", "OUTCOME", "SUMMARY"],
+			run.steps.map((step) => {
+				const outcome = step.outcome ?? step.status;
+				return [
+					step.workflow ?? "-",
+					stepTitle(step),
+					step.status === "fail" ? style.bad(outcome) : outcome,
+					step.summary ?? "",
+				];
+			}),
+			0,
 		);
 		return `${head}\n\n${steps}`;
 	}),
@@ -441,10 +550,18 @@ const FORMATTERS: Record<string, Formatter> = {
 				style,
 			);
 		}
-		return pairs(
-			[["done", value.done ? style.good("Decided") : "Already decided"]],
-			style,
-		);
+		const target = decidedTarget(value);
+		if (!value.done) {
+			return pairs(
+				[["done", `${target.trim() || "This item"} was already decided`]],
+				style,
+			);
+		}
+		const word =
+			value.decision === "approve" || value.decision === "remove"
+				? DECIDED_WORDS[value.decision]
+				: "Decided";
+		return pairs([["done", style.good(`${word}${target}`)]], style);
 	}),
 };
 
@@ -473,7 +590,54 @@ const CLI_HINTS: Record<string, string> = {
 const toolErrorSchema = z.object({
 	error: z.string(),
 	hint: z.string().optional(),
+	org: z.string().optional(),
 });
+
+function cliHint(hint: string | undefined, org: string | undefined) {
+	if (hint === "list_repos" && org) {
+		return `Run tripwire repos --org ${org} to see them.`;
+	}
+	return hint ? CLI_HINTS[hint] : undefined;
+}
+
+const ARGUMENT_TYPES = new Map([
+	["number", "a number"],
+	["int", "a whole number"],
+	["string", "text"],
+	["boolean", "true or false"],
+	["array", "a list"],
+	["object", "an object"],
+]);
+
+function argumentProblem(path: string, problem: string): string {
+	const bound =
+		/^Too (big|small): expected (number|string|array) to (?:be|have) ([<>]=?)(\S+)(?: (characters|items))?$/.exec(
+			problem,
+		);
+	if (bound) {
+		const [, size = "", kind = "", op = "", limit = "", unit = ""] = bound;
+		if (kind === "number") {
+			const word =
+				op === "<=" ? "or less" : op === ">=" ? "or more" : "exactly";
+			return op.length === 1
+				? `${path} must be ${op === "<" ? "less" : "more"} than ${limit}`
+				: `${path} must be ${limit} ${word}`;
+		}
+		return size === "big"
+			? `${path} can have at most ${limit} ${unit}`
+			: `${path} needs at least ${limit} ${unit}`;
+	}
+	const type = /^Invalid input: expected (\w+), received \w+$/.exec(problem);
+	if (type) {
+		const expected = type[1] ?? "";
+		return `${path} must be ${ARGUMENT_TYPES.get(expected) ?? expected}`;
+	}
+	const option = /^Invalid option: expected one of (.*)$/.exec(problem);
+	if (option) {
+		return `${path} must be one of ${(option[1] ?? "").replaceAll('"', "").split("|").join(", ")}`;
+	}
+	return `${path} is not valid`;
+}
 
 function validationMessage(detail: string): string {
 	const missing: string[] = [];
@@ -487,14 +651,14 @@ function validationMessage(detail: string): string {
 		if (/received undefined/.test(problem)) {
 			missing.push(path);
 		} else {
-			invalid.push(`${path} (${problem.replace(/^Invalid input: /, "")})`);
+			invalid.push(argumentProblem(path, problem));
 		}
 	}
 	if (missing.length > 0) {
 		return `Missing argument${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}.`;
 	}
 	if (invalid.length > 0) {
-		return `Invalid argument${invalid.length > 1 ? "s" : ""}: ${invalid.join(", ")}.`;
+		return `${invalid.join(". ")}.`;
 	}
 	return "Invalid arguments.";
 }
@@ -505,9 +669,7 @@ export function friendlyError(
 ): string {
 	const structured = toolErrorSchema.safeParse(data);
 	if (structured.success) {
-		const hint = structured.data.hint
-			? CLI_HINTS[structured.data.hint]
-			: undefined;
+		const hint = cliHint(structured.data.hint, structured.data.org);
 		return hint ? `${structured.data.error} ${hint}` : structured.data.error;
 	}
 	const bare = text.replace(/^MCP error -?\d+:\s*/, "").trim();

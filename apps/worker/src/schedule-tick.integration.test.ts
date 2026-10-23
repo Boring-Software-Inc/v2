@@ -38,6 +38,18 @@ const QUIET = "Codertocat/Quiet";
 const T0 = new Date("2026-10-22T12:01:00.000Z");
 const HOUR = 60 * 60_000;
 const EVERY_12H = { n: 12, unit: "hours" } as const;
+const firstTick = {
+	schedule: {
+		every: EVERY_12H,
+		match: {
+			subjects: ["issue" as const],
+			state: "open" as const,
+			inactiveFor: { n: 15, unit: "days" as const },
+			skipLocked: true,
+		},
+	},
+	lastTickAt: null,
+};
 
 const THREADS: ForgeThread[] = [
 	{
@@ -301,7 +313,7 @@ describe("schedule tick", () => {
 		const events = await pool.query(
 			"SELECT delivery_id, forge FROM events WHERE raw_kind = 'schedule.matched' ORDER BY delivery_id",
 		);
-		const tickId = scheduleTickId(EVERY_12H, T0);
+		const tickId = scheduleTickId(firstTick, T0);
 		expect(events.rows).toEqual([
 			{
 				delivery_id: `schedule:wf-lock-inactive:every-12h:1:${tickId}`,
@@ -438,12 +450,17 @@ describe("schedule tick", () => {
 		const later = new Date(T0.getTime() + 26 * HOUR);
 		const result = await tick(later);
 		expect(result).toEqual({ schedules: 1, events: 2, errors: 0 });
-		expect(scheduleTickId(EVERY_12H, later)).not.toBe(
-			scheduleTickId(EVERY_12H, T0),
+		expect(scheduleTickId(firstTick, later)).not.toBe(
+			scheduleTickId(firstTick, T0),
 		);
 	});
 
-	test("a failed listing still marks the tick and records the error", async () => {
+	test("a failed listing records the error and keeps the tick due", async () => {
+		const before = await scheduleServices.getScheduleState(
+			db,
+			scheduledRowId,
+			"every-12h",
+		);
 		const failing = staticForge({
 			adapter,
 			listThreads: () => Promise.reject(new Error("GET issues failed: 502")),
@@ -463,7 +480,9 @@ describe("schedule tick", () => {
 			scheduledRowId,
 			"every-12h",
 		);
-		expect(state?.lastTickAt.toISOString()).toBe(at.toISOString());
+		expect(state?.lastTickAt.toISOString()).toBe(
+			before?.lastTickAt.toISOString(),
+		);
 		expect(state?.lastError).toContain("502");
 	});
 
@@ -474,7 +493,12 @@ describe("schedule tick", () => {
 		);
 		executed.length = 0;
 		const result = await sweepActions(
-			{ db, adapterFor: () => Promise.resolve(adapter), logger },
+			{
+				db,
+				adapterFor: () => Promise.resolve(adapter),
+				logger,
+				appUrl: "http://localhost:3000",
+			},
 			{
 				recordedBefore: new Date(Date.now() + 60_000),
 				giveUpBefore: new Date(Date.now() - 60 * 60_000),
@@ -490,7 +514,12 @@ describe("schedule tick", () => {
 		expect(executed.some((action) => action.kind === "block")).toBe(false);
 	});
 
-	test("a rate limit keeps what was read and records why it stopped", async () => {
+	test("a rate limit keeps what was read, records why, and keeps the tick due", async () => {
+		const before = await scheduleServices.getScheduleState(
+			db,
+			scheduledRowId,
+			"every-12h",
+		);
 		const limited = staticForge({
 			adapter,
 			listThreads: () =>
@@ -515,6 +544,36 @@ describe("schedule tick", () => {
 			"every-12h",
 		);
 		expect(state?.lastError).toContain("rate limited");
+		expect(state?.lastTickAt.toISOString()).toBe(
+			before?.lastTickAt.toISOString(),
+		);
+
+		const recovered = staticForge({
+			adapter,
+			listThreads: () =>
+				Promise.resolve({
+					threads: [
+						{ ...THREADS[0], number: 9 } as ForgeThread,
+						{ ...THREADS[0], number: 10 } as ForgeThread,
+					],
+					stopped: null,
+				}),
+		});
+		const retried = await scheduleTick({
+			db,
+			pool,
+			boss,
+			resolveForge: recovered,
+			logger,
+			now: () => new Date(at.getTime() + 5 * 60_000),
+		});
+		expect(retried).toEqual({ schedules: 1, events: 1, errors: 0 });
+		const cleared = await scheduleServices.getScheduleState(
+			db,
+			scheduledRowId,
+			"every-12h",
+		);
+		expect(cleared?.lastError).toBeNull();
 	});
 
 	test("a scheduled run whose rules mostly skip takes no action and asks no one", async () => {

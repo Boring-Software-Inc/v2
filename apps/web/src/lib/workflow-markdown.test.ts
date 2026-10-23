@@ -5,8 +5,7 @@ import { workflowToMarkdown } from "./workflow-markdown";
 /**
  * The serializer as a pure function: definition (+ custom-rule display) in,
  * markdown out. The load-bearing test is the leak fixture — a workflow that
- * HAS a real webhook url, a url stored on a removed Discord step, and a
- * signing secret, so a
+ * HAS a real webhook url, a real discord url, and a signing secret, so a
  * regression in the never-emit-by-construction rule would show up as a leak
  * (an empty workflow would pass trivially).
  */
@@ -68,7 +67,7 @@ describe("workflowToMarkdown — header + built-in rules", () => {
 	test("the gate names its meaning and its inputs", () => {
 		expect(md).toContain("### Gates");
 		expect(md).toContain(
-			"- **All of**: Passes only when every connected check passes.",
+			"- **All of**: Passes only when every connected check passes. A check that was never reached does not pass.",
 		);
 		expect(md).toContain(
 			"inputs: Account age, Crypto address, Honeypot paths, Max files changed, English only",
@@ -112,7 +111,7 @@ describe("workflowToMarkdown — secret safety (the leak fixture)", () => {
 	});
 	const md = workflowToMarkdown(leaky);
 
-	test("no webhook url, stored discord url, or signing secret reaches the output", () => {
+	test("no webhook url, discord url, or signing secret reaches the output", () => {
 		// Teeth: the values ARE in the definition, so a passing assertion is real.
 		const raw = JSON.stringify(leaky);
 		expect(raw).toContain("evil.example.com");
@@ -129,8 +128,7 @@ describe("workflowToMarkdown — secret safety (the leak fixture)", () => {
 	test("but the FACT that a destination is set is reported", () => {
 		expect(md).toContain("- **Webhook**: when all of fails, url set");
 		expect(md).toContain("signing secret set");
-		expect(md).toContain("- **discord**: when all of fails");
-		expect(md).not.toContain("**discord**: when all of fails, url");
+		expect(md).toContain("- **Discord**: when all of fails, url set");
 	});
 
 	test("a redacted definition (urlSet marker, blank url) also reads as set", () => {

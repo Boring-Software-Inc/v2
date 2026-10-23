@@ -3,6 +3,7 @@ import { customValidationEntries } from "./custom-rules.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import {
 	DEFAULT_WORKFLOW,
+	type JsonValue,
 	type WorkflowDefinition,
 	type WorkflowEdge,
 	type WorkflowNode,
@@ -20,6 +21,7 @@ import {
 	portHint,
 	stepDisplayName,
 } from "./workflow-lint.ts";
+import { validateWorkflowForEnable } from "./workflow-validate.ts";
 
 const TRIGGER: WorkflowNode = {
 	id: "t",
@@ -295,46 +297,15 @@ describe("gate-input from a trigger", () => {
 	});
 });
 
-describe("gate-input from Doesn't pass", () => {
+describe("Doesn't pass into a gate", () => {
 	const def = graph(CLEAN.nodes, [
 		{ id: "e1", from: "t", to: "r" },
 		{ id: "e2", from: "r", to: "g", when: "fail" },
 		{ id: "e3", from: "g", to: "a", when: "fail" },
 	]);
-	const [problem] = only(def, "gate-input");
 
-	test("names both steps", () => {
-		expect(problem).toMatchObject({
-			step: "All of",
-			message: "It takes only Passes.",
-		});
-		expect(problem?.fixes.map((fix) => fix.label)).toEqual([
-			"Insert a Not gate",
-			"Use Passes",
-		]);
-	});
-
-	test("Insert a Not gate routes Passes through Not and keeps the intent", () => {
-		const next = applyLintEdit(def, fixed(problem, "Insert a Not gate"));
-		expect(next.nodes.at(-1)).toEqual({
-			id: "not-1",
-			type: "gate",
-			mode: "not",
-			position: { x: 450, y: 120 },
-		});
-		expect(next.edges).toEqual([
-			{ id: "e1", from: "t", to: "r" },
-			{ id: "e3", from: "g", to: "a", when: "fail" },
-			{ id: "edge-1", from: "r", to: "not-1" },
-			{ id: "edge-2", from: "not-1", to: "g" },
-		]);
-		expect(lintWorkflow(next)).toEqual([]);
-	});
-
-	test("Use Passes drops the when", () => {
-		const next = applyLintEdit(def, fixed(problem, "Use Passes"));
-		expect(next.edges[1]).toEqual({ id: "e2", from: "r", to: "g" });
-		expect(lintWorkflow(next)).toEqual([]);
+	test("is clean, with no Not gate suggested", () => {
+		expect(lintWorkflow(def)).toEqual([]);
 	});
 });
 
@@ -614,36 +585,6 @@ describe("removed-step", () => {
 		);
 		expect(next).toEqual(CLEAN);
 	});
-
-	const withDiscord = graph(
-		[
-			...CLEAN.nodes,
-			{
-				id: "d",
-				type: "action",
-				action: "discord",
-				params: { url: "https://discord.com/api/webhooks/1/abc" },
-			},
-		],
-		[...CLEAN.edges, { id: "e4", from: "r", to: "d", when: "fail" }],
-	);
-
-	test("a Discord step", () => {
-		const [finding] = only(withDiscord, "removed-step");
-		expect(finding?.nodeId).toBe("d");
-		expect(finding?.step).toBe("Discord");
-		expect(finding?.message).toBe(
-			"This step was removed. Delete it to turn this workflow on.",
-		);
-	});
-
-	test("Delete clears a Discord step and its connection", () => {
-		const next = applyLintEdit(
-			withDiscord,
-			fixed(only(withDiscord, "removed-step")[0], "Delete"),
-		);
-		expect(next).toEqual(CLEAN);
-	});
 });
 
 describe("review-targets", () => {
@@ -741,15 +682,12 @@ describe("dead-end", () => {
 });
 
 describe("connection hints for the drag chip", () => {
-	test("a gate refuses events and Doesn't pass", () => {
+	test("a gate refuses events and decisions, and takes both results", () => {
 		expect(portHint(GATE, "event", "All of")).toEqual({
 			rule: "gate-input",
 			message: "All of takes rule results, not events",
 		});
-		expect(portHint(GATE, "fail", "All of")).toEqual({
-			rule: "gate-input",
-			message: "All of takes only Passes, not Doesn't pass",
-		});
+		expect(portHint(GATE, "fail", "All of")).toBeNull();
 		expect(portHint(GATE, "deny", "All of")?.message).toBe(
 			"All of takes rule results, not decisions",
 		);
@@ -790,5 +728,110 @@ describe("openPosition", () => {
 			x: 320,
 			y: -140,
 		});
+	});
+});
+
+describe("delivery and label steps need their settings to go live", () => {
+	function withAction(
+		action: Extract<WorkflowNode, { type: "action" }>,
+	): WorkflowDefinition {
+		return {
+			id: "w",
+			name: "w",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				action,
+			],
+			edges: [{ id: "e", from: "t", to: action.id }],
+		};
+	}
+
+	test("a webhook, Discord or label step with nothing set cannot go live", () => {
+		for (const action of ["webhook", "discord", "label"] as const) {
+			const result = validateWorkflowForEnable(
+				withAction({ id: "x", type: "action", action }),
+			);
+			expect({ action, valid: result.valid }).toEqual({ action, valid: false });
+		}
+	});
+
+	test("a webhook URL must use https, a Discord URL must be a Discord webhook", () => {
+		expect(
+			validateWorkflowForEnable(
+				withAction({
+					id: "x",
+					type: "action",
+					action: "webhook",
+					params: { url: "http://169.254.169.254/latest" },
+				}),
+			).valid,
+		).toBe(false);
+		expect(
+			validateWorkflowForEnable(
+				withAction({
+					id: "x",
+					type: "action",
+					action: "discord",
+					params: { url: "https://evil.example/x" },
+				}),
+			).valid,
+		).toBe(false);
+	});
+
+	test("a stored URL, or the marker that one is stored, passes", () => {
+		const stored: Record<string, JsonValue>[] = [
+			{ url: "https://hooks.example.com/tripwire" },
+			{ url: "", urlSet: true },
+		];
+		for (const params of stored) {
+			expect(
+				validateWorkflowForEnable(
+					withAction({ id: "x", type: "action", action: "webhook", params }),
+				).valid,
+			).toBe(true);
+		}
+		expect(
+			validateWorkflowForEnable(
+				withAction({
+					id: "x",
+					type: "action",
+					action: "discord",
+					params: { url: "https://discord.com/api/webhooks/1/abc" },
+				}),
+			).valid,
+		).toBe(true);
+		expect(
+			validateWorkflowForEnable(
+				withAction({
+					id: "x",
+					type: "action",
+					action: "label",
+					params: { labels: ["triage"] },
+				}),
+			).valid,
+		).toBe(true);
+	});
+});
+
+describe("a bad rule setting reads as a product sentence", () => {
+	test("it names the field and never shows raw validation text", () => {
+		const results = lintWorkflow({
+			id: "w",
+			name: "w",
+			version: 1,
+			nodes: [
+				TRIGGER,
+				{ ...RULE, config: { minDays: -1 } },
+				{ id: "x", type: "action", action: "block" },
+			],
+			edges: [
+				{ id: "1", from: "t", to: "r" },
+				{ id: "2", from: "r", to: "x", when: "fail" },
+			],
+		});
+		const messages = results.map((result) => result.message);
+		expect(messages).toContain("Fix this setting: minDays must be 0 or more.");
+		expect(messages.join(" ")).not.toMatch(/Too small|expected number/);
 	});
 });

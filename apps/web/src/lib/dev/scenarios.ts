@@ -3,6 +3,8 @@ import { z } from "zod";
 export const DEV_ACCOUNTS = [
 	"owner",
 	"member",
+	"moderator",
+	"team-admin",
 	"outsider",
 	"anonymous",
 ] as const;
@@ -87,6 +89,8 @@ export const DEV_OPTION_LABELS: DevOptionLabelMap = {
 	account: {
 		owner: "Org owner",
 		member: "Member, not admin",
+		moderator: "Moderator, human review only",
+		"team-admin": "Team org admin",
 		outsider: "Signed in, outside the org",
 		anonymous: "Signed out",
 	},
@@ -349,6 +353,20 @@ export const DEV_PRESETS: readonly DevPreset[] = [
 		"Accounts",
 		{ ...OWNER_HOME, account: "member", repos: "one", workflows: "live" },
 		{ keywords: ["role", "permissions", "read only"] },
+	),
+	preset(
+		"moderator",
+		"Moderator, human review only",
+		"Accounts",
+		{ ...OWNER_HOME, account: "moderator", repos: "one", workflows: "live" },
+		{ keywords: ["role", "custom role", "scopes", "human review"] },
+	),
+	preset(
+		"team-admin",
+		"Team org admin",
+		"Accounts",
+		{ ...OWNER_HOME, account: "team-admin", repos: "one", workflows: "live" },
+		{ keywords: ["roles", "members", "admin", "team"] },
 	),
 	preset(
 		"outsider",

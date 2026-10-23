@@ -14,8 +14,7 @@ import {
 import type { OrgWithRole } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
-	orgAdminMiddleware,
-	orgMemberMiddleware,
+	orgPermissionMiddleware,
 	resolveOrgRepo,
 } from "#/lib/server/org-guard";
 
@@ -122,7 +121,10 @@ export function rerunRulesLine(ruleNames: string[]): string {
 
 /** Preview the rule set a re-run would evaluate (confirm dialog). */
 export const getRerunPreview = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("activity:manage"),
+	])
 	.inputValidator((input: { org: string; repo: string }) => input)
 	.handler(async ({ data, context }): Promise<RerunPreview> => {
 		const org = (context as { org: OrgWithRole }).org;
@@ -150,7 +152,10 @@ export const getRerunPreview = createServerFn({ method: "GET" })
  * cooldown window; a deduped send returns null and the caller sees the cooldown.
  */
 export const rerunChangeRequest = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("activity:manage"),
+	])
 	.inputValidator(
 		(input: { org: string; repo: string; number: number }) => input,
 	)
@@ -257,7 +262,7 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 	});
 
 export const getActivityFeed = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("activity:read")])
 	.inputValidator((input: { org: string; repo: string }) => input)
 	.handler(async ({ data, context }): Promise<ActivityFeedData> => {
 		const org = (context as { org: OrgWithRole }).org;

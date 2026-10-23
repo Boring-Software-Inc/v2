@@ -10,6 +10,7 @@ export interface SessionInfo {
 		image: string | null;
 		/** Closed-beta access queue status (server-assigned). */
 		accessStatus: AccessStatus;
+		timezone: string | null;
 	} | null;
 	authEnabled: boolean;
 	/**
@@ -59,7 +60,10 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 		const { isAccessGateEnabled } = await import("@tripwire/auth/access-gate");
 		const db = getDb().db;
 		const rows = await db
-			.select({ accessStatus: userTable.accessStatus })
+			.select({
+				accessStatus: userTable.accessStatus,
+				timezone: userTable.timezone,
+			})
 			.from(userTable)
 			.where(eq(userTable.id, session.user.id))
 			.limit(1);
@@ -89,6 +93,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 				email: session.user.email,
 				image: session.user.image ?? null,
 				accessStatus,
+				timezone: rows[0]?.timezone ?? null,
 			},
 			authEnabled: true,
 			defaultOrgSlug,

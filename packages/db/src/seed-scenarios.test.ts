@@ -24,7 +24,7 @@ describe("demo scenario workflows", () => {
 		expect(messages).toContainEqual(
 			expect.stringContaining("takes rule results, not events"),
 		);
-		expect(messages).toContainEqual(
+		expect(messages).not.toContainEqual(
 			expect.stringContaining("takes only Passes"),
 		);
 	});

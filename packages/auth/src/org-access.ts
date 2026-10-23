@@ -1,78 +1,141 @@
+import {
+	ORG_PERMISSIONS,
+	ORG_REGIONS,
+	type OrgPermission,
+	type OrgRegion,
+	type OrgRoleStatements,
+	orgRoleStatementsSchema,
+} from "@tripwire/contracts";
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/organization/access";
 
-/**
- * Exactly TWO roles (§org-model): member reads everything in the org; admin
- * additionally mutates. There is deliberately no "owner" — the plugin's
- * `creatorRole: "admin"` makes the creator a plain admin, and the last-admin
- * guard (hooks + leave route) keeps every org at ≥1 admin. Deny-by-default:
- * a statement not granted here is refused by the plugin's AC, and our
- * server-fn middlewares (`orgAdminMiddleware`/`orgMemberMiddleware`) enforce
- * the same two-role line on every product surface.
- *
- * `team` and `ac` statements exist in defaultStatements but neither feature
- * is enabled — granting none of them keeps those endpoints dead even if a
- * future upgrade turns something on implicitly.
- */
+export type { OrgPermission };
+export { ORG_PERMISSIONS };
+
+const READ_MANAGE = ["read", "manage"] as const;
+
 const productStatement = {
-	repoResponse: ["update"],
-	orgResponseDefaults: ["update"],
-} as const;
+	moderation: READ_MANAGE,
+	activity: READ_MANAGE,
+	rules: READ_MANAGE,
+	workflows: READ_MANAGE,
+	responses: READ_MANAGE,
+	analytics: READ_MANAGE,
+	connections: READ_MANAGE,
+	members: READ_MANAGE,
+	settings: READ_MANAGE,
+} as const satisfies Record<OrgRegion, typeof READ_MANAGE>;
 
 const statement = { ...defaultStatements, ...productStatement } as const;
 
 export const orgAc = createAccessControl(statement);
 
 export const orgAdminRole = orgAc.newRole({
-	organization: ["update"], // delete is disabled plugin-wide; ours re-checks
+	organization: ["update"],
 	member: ["create", "update", "delete"],
-	invitation: ["create", "cancel"], // dormant path, hard-refused by hook anyway
-	repoResponse: ["update"],
-	orgResponseDefaults: ["update"],
+	invitation: ["create", "cancel"],
+	ac: ["create", "read", "update", "delete"],
+	moderation: ["read", "manage"],
+	activity: ["read", "manage"],
+	rules: ["read", "manage"],
+	workflows: ["read", "manage"],
+	responses: ["read", "manage"],
+	analytics: ["read", "manage"],
+	connections: ["read", "manage"],
+	members: ["read", "manage"],
+	settings: ["read", "manage"],
 });
 
-export const orgMemberRole = orgAc.newRole({});
+export const orgMemberRole = orgAc.newRole({
+	moderation: ["read"],
+	activity: ["read"],
+	rules: ["read"],
+	workflows: ["read"],
+	responses: ["read"],
+	analytics: ["read"],
+	connections: ["read"],
+	members: ["read"],
+	settings: ["read"],
+});
 
 export const orgRoles = {
 	admin: orgAdminRole,
 	member: orgMemberRole,
 };
 
-type ProductStatement = typeof productStatement;
+type AuthorizingRole = Pick<typeof orgMemberRole, "authorize">;
 
-export type OrgPermission = {
-	[R in keyof ProductStatement]: `${R}:${ProductStatement[R][number]}`;
-}[keyof ProductStatement];
-
-export const ORG_PERMISSIONS = (
-	Object.entries(productStatement) as [string, readonly string[]][]
-).flatMap(([resource, actions]) =>
-	actions.map((action) => `${resource}:${action}`),
-) as OrgPermission[];
-
-function isOrgRoleName(name: string): name is keyof typeof orgRoles {
-	return name in orgRoles;
+export interface CustomOrgRoleRow {
+	role: string;
+	permission: string;
 }
 
-function roleAuthorizes(roleName: string, permission: OrgPermission): boolean {
-	if (!isOrgRoleName(roleName)) {
-		return false;
+function isBuiltInRole(name: string): name is keyof typeof orgRoles {
+	return Object.hasOwn(orgRoles, name);
+}
+
+export function parseRoleStatements(raw: string): OrgRoleStatements | null {
+	let json: unknown;
+	try {
+		json = JSON.parse(raw);
+	} catch {
+		return null;
 	}
-	const [resource, action] = permission.split(":") as [
-		keyof ProductStatement,
-		"update",
-	];
-	return orgRoles[roleName].authorize({ [resource]: [action] }).success;
+	const parsed = orgRoleStatementsSchema.safeParse(json);
+	return parsed.success ? parsed.data : null;
 }
 
-export function permissionsForRole(role: string): OrgPermission[] {
-	const held = role
+export function roleNames(role: string): string[] {
+	return role
 		.split(",")
 		.map((name) => name.trim())
 		.filter(Boolean);
-	return ORG_PERMISSIONS.filter((permission) =>
-		held.some((name) => roleAuthorizes(name, permission)),
-	);
+}
+
+function rolesFor(
+	role: string,
+	customRoles: readonly CustomOrgRoleRow[],
+): AuthorizingRole[] {
+	const held: AuthorizingRole[] = [];
+	for (const name of roleNames(role)) {
+		if (isBuiltInRole(name)) {
+			held.push(orgRoles[name]);
+			continue;
+		}
+		const row = customRoles.find((custom) => custom.role === name);
+		const statements = row ? parseRoleStatements(row.permission) : null;
+		if (statements) {
+			held.push(orgAc.newRole(statements));
+		}
+	}
+	return held;
+}
+
+export function resolveOrgPermissions(
+	role: string,
+	customRoles: readonly CustomOrgRoleRow[] = [],
+): OrgPermission[] {
+	const held = rolesFor(role, customRoles);
+	const permissions: OrgPermission[] = [];
+	for (const region of ORG_REGIONS) {
+		const manage = held.some(
+			(entry) => entry.authorize({ [region]: ["manage"] }).success,
+		);
+		const read =
+			manage ||
+			held.some((entry) => entry.authorize({ [region]: ["read"] }).success);
+		if (read) {
+			permissions.push(`${region}:read`);
+		}
+		if (manage) {
+			permissions.push(`${region}:manage`);
+		}
+	}
+	return permissions;
+}
+
+export function permissionsForRole(role: string): OrgPermission[] {
+	return resolveOrgPermissions(role);
 }
 
 export function roleHasPermission(
@@ -80,4 +143,8 @@ export function roleHasPermission(
 	permission: OrgPermission,
 ): boolean {
 	return permissionsForRole(role).includes(permission);
+}
+
+export function isBuiltInOrgRole(name: string): boolean {
+	return isBuiltInRole(name);
 }

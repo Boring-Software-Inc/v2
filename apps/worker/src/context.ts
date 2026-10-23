@@ -1,6 +1,7 @@
 import type { RepoScopedEvent } from "@tripwire/contracts";
 import type { AiReviewGenerate, RuleContext } from "@tripwire/core";
 import type {
+	ChangeRequestHead,
 	ContributorProfile,
 	DiffFile,
 	ForgeCommit,
@@ -16,8 +17,16 @@ import { forcedReadFailures } from "./reads-injection.ts";
  */
 
 export interface WorkerReads {
-	getDiff(repoFullName: string, number: number): Promise<DiffFile[]>;
-	getCommits(repoFullName: string, number: number): Promise<ForgeCommit[]>;
+	getDiff(
+		repoFullName: string,
+		number: number,
+		head?: ChangeRequestHead,
+	): Promise<DiffFile[]>;
+	getCommits(
+		repoFullName: string,
+		number: number,
+		head?: ChangeRequestHead,
+	): Promise<ForgeCommit[]>;
 	getContributorProfile(
 		repoFullName: string,
 		login: string,
@@ -38,6 +47,7 @@ export async function buildRuleContext(
 	generate?: AiReviewGenerate,
 ): Promise<BuiltRuleContext> {
 	const number = "changeRequest" in event ? event.changeRequest.number : null;
+	const head = changeRequestHead(event);
 	const repo = event.repo.fullName;
 	const degradedReads: string[] = [];
 	const forcedFailures = forcedReadFailures();
@@ -62,10 +72,10 @@ export async function buildRuleContext(
 
 	const [diff, commits, contributor] = await Promise.all([
 		reads && number !== null
-			? guard("diff", () => reads.getDiff(repo, number))
+			? guard("diff", () => reads.getDiff(repo, number, head))
 			: Promise.resolve(null),
 		reads && number !== null
-			? guard("commits", () => reads.getCommits(repo, number))
+			? guard("commits", () => reads.getCommits(repo, number, head))
 			: Promise.resolve(null),
 		reads
 			? guard("contributor", () =>
@@ -109,4 +119,16 @@ export async function buildRuleContext(
 			: null,
 	};
 	return { ctx, degradedReads };
+}
+
+export function changeRequestHead(
+	event: RepoScopedEvent,
+): ChangeRequestHead | undefined {
+	if (!("changeRequest" in event) || !event.changeRequest.baseRef) {
+		return undefined;
+	}
+	return {
+		sha: event.changeRequest.headSha,
+		baseRef: event.changeRequest.baseRef,
+	};
 }

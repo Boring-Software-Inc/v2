@@ -31,6 +31,7 @@ import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
+import { ZonedTime, ZoneOrgScope } from "#/components/timezones/zoned-time";
 import {
 	getRerunPreview,
 	rerunChangeRequest,
@@ -123,51 +124,56 @@ function RunBody({ run }: { run: RunView }) {
 	);
 
 	return (
-		<div className="px-4 py-6 md:px-8 md:py-10">
-			<div className="mx-auto flex w-full max-w-220 flex-col gap-10">
-				<header className="flex flex-col gap-2">
-					<div className="flex flex-wrap items-center justify-between gap-3">
-						<h1 className="type-title">
-							{run.subjectNumber ? `Run on #${run.subjectNumber}` : "Run"}
-						</h1>
-						<div className="flex flex-wrap items-center gap-2">
-							<CopyButton
-								label="run as Markdown"
-								size="icon"
-								title="Copy run as Markdown"
-								value={() =>
-									runToMarkdown(run, formatRelativeTime(run.createdAt))
-								}
-								variant="ghost"
-							/>
-							<ViewOnForgeButton run={run} />
-							{run.canRerun && run.orgSlug && run.repoName ? (
-								<RerunRunButton
-									number={run.subjectNumber}
-									org={run.orgSlug}
-									repo={run.repoName}
-									subtitle={`#${run.subjectNumber} in ${run.repoFullName}`}
+		<ZoneOrgScope
+			org={run.access === "public" ? undefined : (run.orgSlug ?? undefined)}
+		>
+			<div className="px-4 py-6 md:px-8 md:py-10">
+				<div className="mx-auto flex w-full max-w-220 flex-col gap-10">
+					<header className="flex flex-col gap-2">
+						<div className="flex flex-wrap items-center justify-between gap-3">
+							<h1 className="type-title">
+								{run.subjectNumber ? `Run on #${run.subjectNumber}` : "Run"}
+							</h1>
+							<div className="flex flex-wrap items-center gap-2">
+								<CopyButton
+									label="run as Markdown"
+									size="icon"
+									title="Copy run as Markdown"
+									value={() =>
+										runToMarkdown(run, formatRelativeTime(run.createdAt))
+									}
+									variant="ghost"
 								/>
-							) : null}
+								<ViewOnForgeButton run={run} />
+								{run.canRerun && run.orgSlug && run.repoName ? (
+									<RerunRunButton
+										number={run.subjectNumber}
+										org={run.orgSlug}
+										repo={run.repoName}
+										subtitle={`#${run.subjectNumber} in ${run.repoFullName}`}
+									/>
+								) : null}
+							</div>
 						</div>
-					</div>
-					<MetaRow className="type-body-sm text-text-2">
-						<RunStatusMark outcome={chain.outcome} />
-						<span>{run.repoFullName}</span>
-						<span>{formatRelativeTime(run.createdAt)}</span>
-					</MetaRow>
-				</header>
-				<RunChainView
-					chain={chain}
-					context={{
-						level: run.redactionLevel,
-						maintainer: run.access !== "public",
-						repo: run.repoFullName,
-						sha: run.headSha,
-					}}
-				/>
+						<MetaRow className="type-body-sm text-text-2" wrap>
+							<RunStatusMark outcome={chain.outcome} />
+							<span>{run.repoFullName}</span>
+							<span>{formatRelativeTime(run.createdAt)}</span>
+							<ZonedTime at={run.createdAt} format="date-time" />
+						</MetaRow>
+					</header>
+					<RunChainView
+						chain={chain}
+						context={{
+							level: run.redactionLevel,
+							maintainer: run.access !== "public",
+							repo: run.repoFullName,
+							sha: run.headSha,
+						}}
+					/>
+				</div>
 			</div>
-		</div>
+		</ZoneOrgScope>
 	);
 }
 

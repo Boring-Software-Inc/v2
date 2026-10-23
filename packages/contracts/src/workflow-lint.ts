@@ -1,10 +1,12 @@
 import { z } from "zod";
+import { fieldIssueSentence } from "./issue-copy.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
 	isRemovedAction,
 	isScheduleTrigger,
+	type JsonValue,
 	labelParamsSchema,
 	missingScheduleSteps,
 	type NodePosition,
@@ -75,7 +77,6 @@ export type LintRuleId = keyof typeof LINT_RULES;
 export type LintEdit =
 	| { type: "remove-edge"; edgeId: string }
 	| { type: "use-passes"; edgeId: string }
-	| { type: "insert-not"; edgeId: string }
 	| { type: "delete-node"; nodeId: string }
 	| { type: "connect"; from: string; to: string }
 	| { type: "keep-one-input"; nodeId: string; edgeId: string }
@@ -113,7 +114,6 @@ export interface LintOptions {
 }
 
 type Finding = Omit<LintResult, "rule" | "severity" | "step">;
-type GateNode = Extract<WorkflowNode, { type: "gate" }>;
 type TriggerNode = Extract<WorkflowNode, { type: "trigger" }>;
 
 interface LintContext {
@@ -202,11 +202,10 @@ export function portHint(
 	}
 	const from = sourceName ? ` from ${sourceName}` : "";
 	const kind = WORKFLOW_PORT_KIND[port];
-	const message =
-		kind === "result"
-			? `${targetName} takes only Passes, not ${WORKFLOW_PORT_LABELS[port]}${from}`
-			: `${targetName} takes rule results, not ${kind === "event" ? "events" : "decisions"}${from}`;
-	return { rule: "gate-input", message };
+	return {
+		rule: "gate-input",
+		message: `${targetName} takes rule results, not ${kind === "event" ? "events" : "decisions"}${from}`,
+	};
 }
 
 export function outputHint(
@@ -228,11 +227,7 @@ export function outputHint(
 }
 
 function gateInputMessage(port: WorkflowPort): string {
-	const kind = WORKFLOW_PORT_KIND[port];
-	if (kind === "result") {
-		return "It takes only Passes.";
-	}
-	return kind === "event"
+	return WORKFLOW_PORT_KIND[port] === "event"
 		? "It takes rule results, not events."
 		: "It takes rule results, not decisions.";
 }
@@ -260,15 +255,6 @@ function gateInputFixes(edge: WorkflowEdge, port: WorkflowPort): LintFix[] {
 				intent: { type: "insert-step", edgeId: edge.id },
 			},
 			removeEdge(edge.id),
-		];
-	}
-	if (WORKFLOW_PORT_KIND[port] === "result") {
-		return [
-			{
-				label: "Insert a Not gate",
-				edit: { type: "insert-not", edgeId: edge.id },
-			},
-			{ label: "Use Passes", edit: { type: "use-passes", edgeId: edge.id } },
 		];
 	}
 	return [removeEdge(edge.id)];
@@ -587,10 +573,90 @@ const ACTION_PARAM_SCHEMAS = {
 	},
 } as const;
 
+const DISCORD_HOSTS: ReadonlySet<string> = new Set([
+	"discord.com",
+	"discordapp.com",
+	"ptb.discord.com",
+	"canary.discord.com",
+]);
+
+const deliveryParamsSchema = z.object({
+	url: z.string().optional(),
+	urlSet: z.boolean().optional(),
+});
+
+function deliveryUrlReady(
+	action: "webhook" | "discord",
+	params: Record<string, JsonValue> | undefined,
+): boolean {
+	const parsed = deliveryParamsSchema.safeParse(params ?? {});
+	if (!parsed.success) {
+		return false;
+	}
+	const { url, urlSet } = parsed.data;
+	if (url === undefined || url === "") {
+		return urlSet === true;
+	}
+	const checked = z.url({ protocol: /^https$/ }).safeParse(url);
+	if (!checked.success) {
+		return false;
+	}
+	if (action === "webhook") {
+		return true;
+	}
+	const target = new URL(checked.data);
+	return (
+		DISCORD_HOSTS.has(target.hostname) &&
+		target.pathname.startsWith("/api/webhooks/")
+	);
+}
+
+const DELIVERY_PARAMS = {
+	webhook: {
+		message: "Set the webhook URL. It must use HTTPS.",
+		label: "Set URL",
+	},
+	discord: {
+		message: "Set the Discord webhook URL.",
+		label: "Set URL",
+	},
+} as const;
+
+function paramsFinding(
+	nodeId: string,
+	message: string,
+	label: string,
+	field: string,
+): Finding {
+	return {
+		nodeId,
+		message,
+		fixes: [{ label, intent: { type: "focus-field", nodeId, field } }],
+	};
+}
+
 function checkActionParams(ctx: LintContext): Finding[] {
 	return ctx.def.nodes.flatMap((node) => {
 		if (node.type !== "action") {
 			return [];
+		}
+		if (node.action === "webhook" || node.action === "discord") {
+			const spec = DELIVERY_PARAMS[node.action];
+			return deliveryUrlReady(node.action, node.params)
+				? []
+				: [paramsFinding(node.id, spec.message, spec.label, "url")];
+		}
+		if (node.action === "label") {
+			return labelParamsSchema.safeParse(node.params ?? {}).success
+				? []
+				: [
+						paramsFinding(
+							node.id,
+							"Pick the labels to add.",
+							"Pick labels",
+							"labels",
+						),
+					];
 		}
 		const spec =
 			node.action === "remove-label" || node.action === "post-comment"
@@ -600,18 +666,7 @@ function checkActionParams(ctx: LintContext): Finding[] {
 		if (!(spec && parsed) || parsed.success) {
 			return [];
 		}
-		return [
-			{
-				nodeId: node.id,
-				message: spec.message,
-				fixes: [
-					{
-						label: spec.label,
-						intent: { type: "focus-field", nodeId: node.id, field: spec.field },
-					},
-				],
-			},
-		];
+		return [paramsFinding(node.id, spec.message, spec.label, spec.field)];
 	});
 }
 
@@ -710,8 +765,8 @@ function checkRuleConfigs(ctx: LintContext): Finding[] {
 		return [
 			{
 				nodeId: node.id,
-				message: issue?.message
-					? `Fix this setting: ${withPeriod(issue.message)}`
+				message: issue
+					? `Fix this setting: ${withPeriod(fieldIssueSentence(issue))}`
 					: "A setting is not valid.",
 				fixes:
 					field === undefined
@@ -733,7 +788,6 @@ function checkRuleConfigs(ctx: LintContext): Finding[] {
 
 const REMOVED_STEP_REASONS = {
 	comment: "Customize sets the verdict comment now",
-	discord: "delete it to turn this workflow on",
 } as const satisfies Record<RemovedActionKind, string>;
 
 function checkRemovedSteps(ctx: LintContext): Finding[] {
@@ -1092,19 +1146,6 @@ export function openPosition(
 	return preferred;
 }
 
-function between(
-	def: WorkflowDefinition,
-	a: NodePosition | undefined,
-	b: NodePosition | undefined,
-): NodePosition | undefined {
-	return a && b
-		? openPosition(def, {
-				x: Math.round((a.x + b.x) / 2),
-				y: Math.round((a.y + b.y) / 2),
-			})
-		: undefined;
-}
-
 function withoutWhen(edge: WorkflowEdge): WorkflowEdge {
 	return { id: edge.id, from: edge.from, to: edge.to };
 }
@@ -1152,35 +1193,6 @@ export function applyLintEdit(
 					edge.id === edit.edgeId ? withoutWhen(edge) : edge,
 				),
 			};
-		case "insert-not": {
-			const edge = def.edges.find((entry) => entry.id === edit.edgeId);
-			if (!edge) {
-				return def;
-			}
-			const position = between(
-				def,
-				def.nodes.find((node) => node.id === edge.from)?.position,
-				def.nodes.find((node) => node.id === edge.to)?.position,
-			);
-			const not: GateNode = {
-				id: freshId(def, "not"),
-				type: "gate",
-				mode: "not",
-			};
-			if (position) {
-				not.position = position;
-			}
-			return insertStep(
-				{
-					...def,
-					edges: def.edges.map((entry) =>
-						entry.id === edge.id ? withoutWhen(entry) : entry,
-					),
-				},
-				edge.id,
-				not,
-			);
-		}
 		case "delete-node":
 			return {
 				...def,

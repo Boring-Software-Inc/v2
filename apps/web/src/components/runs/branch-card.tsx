@@ -39,7 +39,7 @@ function PassedFold({ rules }: { rules: ChainRule[] }) {
 				<CollapsibleTrigger size="sm">
 					<span className="flex items-baseline gap-1.5">
 						<ChainMark glyph="pass" size={12} tone="ok" />
-						<span className="text-ok-text">{rules.length} passed</span>
+						<span className="text-ok-text">{`${rules.length} passed`}</span>
 					</span>
 				</CollapsibleTrigger>
 				<span className="min-w-0 flex-1 pt-1 type-body-sm text-text-2">
@@ -134,6 +134,11 @@ function BranchBody({
 }) {
 	return (
 		<div className="flex flex-col">
+			{branch.outcome === "unrunnable" ? (
+				<p className="rule-row px-3 py-2 type-body text-text-1">
+					Its wiring is broken, so Tripwire did not run it.
+				</p>
+			) : null}
 			{branch.passed.length > 0 ? <PassedFold rules={branch.passed} /> : null}
 			{branch.flagged.map((rule) => (
 				<FlaggedRule context={context} key={rule.step.id} rule={rule} />
@@ -176,7 +181,9 @@ export function BranchCard({
 	return (
 		<Card className={className}>
 			<CardHeader>
-				<CardTitle>{branch.name}</CardTitle>
+				<CardTitle className="truncate" title={branch.name}>
+					{branch.name}
+				</CardTitle>
 			</CardHeader>
 			<CardContent flush>
 				<BranchBody branch={branch} context={context} />
@@ -198,13 +205,21 @@ export function BranchRow({
 		<Card>
 			<Collapsible>
 				<div className="px-3 py-2">
-					<CollapsibleTrigger
-						summary={summary.text}
-						summaryStatus={summary.tone === "fail" ? "fail" : undefined}
-					>
-						<span className="flex items-baseline gap-1.5">
+					<CollapsibleTrigger>
+						<span className="flex min-w-0 items-baseline gap-1.5">
 							<ChainMark glyph={summary.glyph} size={12} tone={summary.tone} />
-							{branch.name}
+							<span className="min-w-0 truncate" title={branch.name}>
+								{branch.name}
+							</span>
+							<span
+								className={cn(
+									"max-w-1/2 shrink-0 truncate type-caption group-data-panel-open/collapsible-trigger:hidden",
+									summary.tone === "fail" ? "text-fail-text" : "text-text-2",
+								)}
+								title={summary.text}
+							>
+								{summary.text}
+							</span>
 						</span>
 					</CollapsibleTrigger>
 				</div>
@@ -231,9 +246,7 @@ export function PassedGroup({
 					<CollapsibleTrigger>
 						<span className="flex items-baseline gap-1.5">
 							<ChainMark glyph="pass" size={12} tone="ok" />
-							<span className="text-ok-text">
-								{branches.length} {noun} passed
-							</span>
+							<span className="text-ok-text">{`${branches.length} ${noun} passed`}</span>
 						</span>
 					</CollapsibleTrigger>
 					<span className="min-w-0 flex-1 pt-1.5 type-body-sm text-text-2">
@@ -247,6 +260,7 @@ export function PassedGroup({
 								<CollapsibleTrigger
 									size="sm"
 									summary={`${branch.passed.length} passed`}
+									title={branch.name}
 								>
 									{branch.name}
 								</CollapsibleTrigger>

@@ -60,7 +60,7 @@ const NO_MESSAGE_CHOSEN = {
 export function ResponsesPage() {
 	const { org, repo: repoName } = routeApi.useParams();
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
-	const canEdit = useOrgPermission(org, "repoResponse:update");
+	const canEdit = useOrgPermission(org, "responses:manage");
 	const repoId = repo?.id ?? "";
 	const { data: savedConfig } = useQuery(
 		responseConfigQueryOptions(org, repoId),

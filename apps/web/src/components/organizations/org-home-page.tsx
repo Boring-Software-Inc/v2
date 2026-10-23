@@ -30,9 +30,10 @@ import { ApprovedInstallBanner } from "#/components/organizations/approved-insta
 import { ORG_REPOS_COLLECTION } from "#/components/organizations/org-home-collection";
 import { HomeLoading } from "#/components/organizations/org-home-page-skeleton";
 import { AgentSetupCard } from "#/components/setup/agent-setup-card";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import { useCollection } from "#/hooks/use-collection";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import { LIVE_FORGES } from "#/lib/forge-copy";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
 import { orgContextQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 
@@ -44,7 +45,7 @@ export function OrgHomePage() {
 	const home = homeQuery.data;
 	const collection = useCollection(ORG_REPOS_COLLECTION, home?.repos);
 
-	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
+	const canSetUp = useOrgPermission(org, "connections:manage");
 	const repos = home?.repos ?? [];
 	const setupDone = Boolean(
 		home?.hasInstallation && repos.some((repo) => repo.armed),
@@ -71,7 +72,7 @@ export function OrgHomePage() {
 
 					<ApprovedInstallBanner />
 
-					{home && orgContext?.role === "admin" ? (
+					{home && canSetUp ? (
 						<AgentSetupCard org={org} setupDone={setupDone} />
 					) : null}
 
@@ -135,9 +136,8 @@ function NoReposYet({ org }: { org: string }) {
 }
 
 function InstallCta({ org }: { org: string }) {
-	const { data: ctx } = useQuery(orgContextQueryOptions(org));
 	const [connecting, setConnecting] = useState(false);
-	const isAdmin = ctx?.role === "admin";
+	const isAdmin = useOrgPermission(org, "connections:manage");
 
 	return (
 		<Empty art={<MascotArt mood="repos-empty" />}>
@@ -171,14 +171,41 @@ function InstallCta({ org }: { org: string }) {
 }
 
 const SHORTCUTS = [
-	{ to: "/$org/$repo/moderation", label: "Human review", icon: Moderation },
-	{ to: "/$org/$repo/rules", label: "Rules", icon: Rules },
-	{ to: "/$org/$repo/workflows", label: "Workflows", icon: Workflow },
-	{ to: "/$org/$repo/activity", label: "Activity", icon: Activity },
-	{ to: "/$org/$repo/analytics", label: "Analytics", icon: Analytics },
+	{
+		to: "/$org/$repo/moderation",
+		label: "Human review",
+		icon: Moderation,
+		region: "moderation",
+	},
+	{ to: "/$org/$repo/rules", label: "Rules", icon: Rules, region: "rules" },
+	{
+		to: "/$org/$repo/workflows",
+		label: "Workflows",
+		icon: Workflow,
+		region: "workflows",
+	},
+	{
+		to: "/$org/$repo/activity",
+		label: "Activity",
+		icon: Activity,
+		region: "activity",
+	},
+	{
+		to: "/$org/$repo/analytics",
+		label: "Analytics",
+		icon: Analytics,
+		region: "analytics",
+	},
 ] as const;
 
 function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
+	const { data: permissions } = useQuery({
+		...orgContextQueryOptions(org),
+		select: (context) => context.permissions,
+	});
+	const shortcuts = SHORTCUTS.filter((shortcut) =>
+		permissions?.includes(`${shortcut.region}:read`),
+	);
 	return (
 		<EntityCard
 			badges={
@@ -205,7 +232,7 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 							: "Open the repo to turn Tripwire on"}
 					</span>
 					{repo.lastActivityAt ? (
-						<span>{formatRelativeTime(repo.lastActivityAt)}</span>
+						<ZonedTime at={repo.lastActivityAt} format="short" />
 					) : null}
 				</MetaRow>
 			}
@@ -215,7 +242,7 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 						aria-label={`Shortcuts for ${repo.fullName}`}
 						className="flex min-w-0 flex-1 flex-wrap gap-1.5"
 					>
-						{SHORTCUTS.map((shortcut) => (
+						{shortcuts.map((shortcut) => (
 							<Button
 								key={shortcut.to}
 								nativeButton={false}

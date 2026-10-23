@@ -4,6 +4,7 @@
  */
 export interface GithubHttpOptions {
 	tokenFor(repoFullName: string): Promise<string>;
+	appId: number;
 	apiBase?: string;
 	fetchImpl?: typeof fetch;
 	/**
@@ -16,10 +17,12 @@ export interface GithubHttpOptions {
 
 export class GithubHttp {
 	readonly apiBase: string;
+	readonly appId: number;
 	private readonly fetchImpl: typeof fetch;
 
 	constructor(private readonly options: GithubHttpOptions) {
 		this.apiBase = options.apiBase ?? "https://api.github.com";
+		this.appId = options.appId;
 		this.fetchImpl = options.fetchImpl ?? fetch;
 	}
 

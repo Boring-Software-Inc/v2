@@ -130,6 +130,7 @@ function makeCtx(event: RepoScopedEvent = prEvent) {
 	const responses = fakeResponses();
 	const http = new GithubHttp({
 		tokenFor: async () => "test-token",
+		appId: 1,
 		fetchImpl: (async (input: string | URL | Request) => {
 			const path = String(input).replace("https://api.github.com", "");
 			calls.push(path);
@@ -430,6 +431,7 @@ describe("suggest", () => {
 		const calls: string[] = [];
 		const http = new GithubHttp({
 			tokenFor: async () => "t",
+			appId: 1,
 			fetchImpl: (async (input: string | URL | Request) => {
 				const path = String(input).replace("https://api.github.com", "");
 				calls.push(path);

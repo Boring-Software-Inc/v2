@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	formatDiscordMessage,
 	type WebhookPayload,
 	webhookPayloadSchema,
 } from "./webhook-payload.ts";
@@ -29,5 +30,38 @@ describe("webhookPayloadSchema — the public v1 contract", () => {
 	});
 	test("carries no url secret in the body shape", () => {
 		expect(Object.keys(PAYLOAD)).not.toContain("url");
+	});
+});
+
+describe("formatDiscordMessage — own formatter, verdict-colored", () => {
+	test("blocked: content + embed with reasons and run link", () => {
+		const msg = formatDiscordMessage(PAYLOAD);
+		expect(msg.content).toBe("Tripwire blocked acme/web #42.");
+		expect(msg.embeds[0]?.url).toBe("https://tripwire.sh/runs/abc");
+		expect(msg.embeds[0]?.color).toBe(0xef4444);
+		expect(msg.embeds[0]?.description).toContain("your account is 2 days old");
+	});
+	test("passed: green, no rule blocked it", () => {
+		const msg = formatDiscordMessage({
+			...PAYLOAD,
+			verdict: "pass",
+			firedRules: [],
+		});
+		expect(msg.content).toBe("acme/web #42 passed Tripwire's checks.");
+		expect(msg.embeds[0]?.color).toBe(0x22c55e);
+		expect(msg.embeds[0]?.description).toBe(
+			"No rule blocked this change request.",
+		);
+	});
+	test("blocked with every rule redacted points at the run page", () => {
+		const msg = formatDiscordMessage({ ...PAYLOAD, firedRules: [] });
+		expect(msg.embeds[0]?.description).toBe(
+			"Details are on the Tripwire run page.",
+		);
+	});
+	test("human review: amber", () => {
+		const msg = formatDiscordMessage({ ...PAYLOAD, verdict: "needs_review" });
+		expect(msg.content).toBe("acme/web #42 needs human review.");
+		expect(msg.embeds[0]?.color).toBe(0xf59e0b);
 	});
 });

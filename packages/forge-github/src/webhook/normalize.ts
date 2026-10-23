@@ -59,6 +59,7 @@ const issueCommentPayload = z.object({
 		body: z.string(),
 		html_url: z.string(),
 		created_at: z.string(),
+		performed_via_github_app: z.object({ id: z.number() }).nullish(),
 	}),
 	repository: ghRepository,
 	sender: ghAccount,
@@ -212,7 +213,9 @@ export function normalizeWebhook(
 				body: p.comment.body,
 				url: p.comment.html_url,
 				subjectNumber: p.issue.number,
-				byTripwire: isTripwireComment(p.comment.body),
+				byTripwire:
+					p.comment.performed_via_github_app != null &&
+					isTripwireComment(p.comment.body),
 			},
 		});
 	}

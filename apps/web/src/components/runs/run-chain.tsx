@@ -28,6 +28,7 @@ import {
 	ChainRow,
 	TONE_WORD,
 } from "#/components/runs/chain-mark";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	type ChainBranch,
 	type ChainChecks,
@@ -39,19 +40,8 @@ import {
 } from "#/lib/run-chain";
 import { cn } from "#/lib/utils";
 
-const clock = new Intl.DateTimeFormat("en-GB", {
-	hour: "2-digit",
-	minute: "2-digit",
-	second: "2-digit",
-	hour12: false,
-});
-
 function ClockTime({ at }: { at: string }) {
-	return (
-		<time dateTime={at} suppressHydrationWarning>
-			{clock.format(new Date(at))}
-		</time>
-	);
+	return <ZonedTime at={at} format="clock" />;
 }
 
 function When({

@@ -62,6 +62,27 @@ interface OutcomeStep {
 	nodeId: string;
 	nodeKind: string;
 	status: string;
+	output?: unknown;
+}
+
+const unrunnableOutputSchema = z
+	.object({
+		workflows: z.array(z.object({ id: z.string(), name: z.string() })),
+	})
+	.catch({ workflows: [] });
+
+function unrunnableWorkflows(steps: readonly OutcomeStep[]): RunWorkflowView[] {
+	return steps.flatMap((step) =>
+		step.nodeId === "run:unrunnable"
+			? unrunnableOutputSchema.parse(step.output).workflows.map(
+					(workflow): RunWorkflowView => ({
+						id: workflow.id,
+						name: workflow.name,
+						outcome: "unrunnable",
+					}),
+				)
+			: [],
+	);
 }
 
 export function workflowOutcomes(
@@ -71,7 +92,7 @@ export function workflowOutcomes(
 ): RunWorkflowView[] {
 	const ids = snapshot.map((definition) => definition.id);
 	const evaluating = runStatus === "queued" || runStatus === "running";
-	return snapshot.map((definition) => {
+	const ran = snapshot.map((definition): RunWorkflowView => {
 		const own = steps.flatMap((step) => {
 			const ref = splitStepNode(step.nodeId, ids);
 			return ref.workflowId === definition.id
@@ -105,4 +126,5 @@ export function workflowOutcomes(
 			outcome,
 		};
 	});
+	return [...ran, ...unrunnableWorkflows(steps)];
 }

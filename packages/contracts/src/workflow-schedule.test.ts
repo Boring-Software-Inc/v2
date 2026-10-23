@@ -93,7 +93,7 @@ describe("schedule trigger schema", () => {
 			},
 		});
 		expect(schedule.match.skipLocked).toBe(true);
-		expect(durationMs(schedule.every)).toBe(14 * 24 * 60 * 60_000);
+		expect(schedule.every).toEqual({ n: 2, unit: "weeks" });
 		expect(durationMs(schedule.match.inactiveFor)).toBe(90 * 24 * 60 * 60_000);
 	});
 

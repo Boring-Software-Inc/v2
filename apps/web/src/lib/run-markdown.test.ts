@@ -55,6 +55,28 @@ describe("runToMarkdown", () => {
 		expect(md).toContain("`acme/web` #83, just now, `8de51ef`");
 	});
 
+	test("header: a comment run reads ran, a closed review reads closed before review", () => {
+		const comment = runToMarkdown(
+			makeRun({
+				verdict: "pass",
+				event: {
+					kind: "comment.created",
+					actor: "g-r-i-m",
+					title: "",
+					headSha: null,
+					at: "2026-07-21T00:00:00.000Z",
+				},
+			}),
+			"just now",
+		);
+		expect(comment).toContain("# Run: ran");
+		const closed = runToMarkdown(
+			makeRun({ status: "closed", verdict: "needs_review" }),
+			"just now",
+		);
+		expect(closed).toContain("# Run: closed before review");
+	});
+
 	test("a rule step renders label, status, duration, ref, and quoted evidence", () => {
 		const md = runToMarkdown(
 			makeRun({

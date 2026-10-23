@@ -39,7 +39,6 @@ export {
 export {
 	type ExecutionResult,
 	executeWorkflow,
-	type NodeOutcome,
 	type StepRecord,
 } from "./workflow/executor.ts";
 export {

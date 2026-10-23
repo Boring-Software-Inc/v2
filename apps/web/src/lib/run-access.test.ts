@@ -14,47 +14,47 @@ describe("resolveRunAccess", () => {
 		expect(
 			resolveRunAccess({
 				authEnabled: false,
-				isOrgMember: false,
+				canReadActivity: false,
 				repoPrivate: true,
 			}),
 		).toBe("full");
 	});
 
-	test("org member ⇒ full, regardless of repo visibility", () => {
+	test("activity read ⇒ full, regardless of repo visibility", () => {
 		expect(
 			resolveRunAccess({
 				authEnabled: true,
-				isOrgMember: true,
+				canReadActivity: true,
 				repoPrivate: true,
 			}),
 		).toBe("full");
 	});
 
-	test("non-member + public repo ⇒ public view, signed in or not", () => {
+	test("no activity read + public repo ⇒ public view, signed in or not", () => {
 		expect(
 			resolveRunAccess({
 				authEnabled: true,
-				isOrgMember: false,
+				canReadActivity: false,
 				repoPrivate: false,
 			}),
 		).toBe("public");
 	});
 
-	test("non-member + private repo ⇒ denied", () => {
+	test("no activity read + private repo ⇒ denied", () => {
 		expect(
 			resolveRunAccess({
 				authEnabled: true,
-				isOrgMember: false,
+				canReadActivity: false,
 				repoPrivate: true,
 			}),
 		).toBe("denied");
 	});
 
-	test("non-member + unknown visibility ⇒ denied (fail closed)", () => {
+	test("no activity read + unknown visibility ⇒ denied (fail closed)", () => {
 		expect(
 			resolveRunAccess({
 				authEnabled: true,
-				isOrgMember: false,
+				canReadActivity: false,
 				repoPrivate: null,
 			}),
 		).toBe("denied");

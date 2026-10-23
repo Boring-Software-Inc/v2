@@ -1,8 +1,10 @@
 import { notFound } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import type { OrgPermission } from "@tripwire/auth/org-access";
-import type { OrgWithPermissions } from "@tripwire/auth/org-gate";
-import type { OrgRole } from "@tripwire/contracts";
+import type {
+	OrgRequirement,
+	OrgWithPermissions,
+} from "@tripwire/auth/org-gate";
 import { z } from "zod";
 
 /**
@@ -11,16 +13,17 @@ import { z } from "zod";
  * gate) in the chain:
  *
  *   createServerFn({ method })
- *     .middleware([accessGuardMiddleware, orgMemberMiddleware])   // reads
- *     .middleware([accessGuardMiddleware, orgAdminMiddleware])    // mutations
+ *     .middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:read")])
+ *     .middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:manage")])
+ *     .middleware([accessGuardMiddleware, orgMemberMiddleware])   // org shell only
  *     .inputValidator((i: { org: string; ... }) => i)
  *     .handler(async ({ data, context }) => { context.org.id ... })
  *
  * The middleware reads `data.org` (the URL's org slug — every org-scoped fn
- * carries it), resolves membership FRESH from the DB via `assertOrgRole`, and
+ * carries it), resolves membership and scopes FRESH from the DB via `resolveOrgAccess`, and
  * passes the resolved org (with the caller's role) to the handler as
  * `context.org`. EVERY denial — no session, no such org, non-member, or
- * member-but-not-admin — is a `notFound()` (§8: existence is never disclosed,
+ * member without the scope — is a `notFound()` (§8: existence is never disclosed,
  * the same posture as /admin). `notFound()`/`redirect()` are the ONLY throws
  * here: a raw `Response` can't cross the server-fn RPC boundary (Seroval can't
  * serialize it), which crashes SSR route loads. The structural boundary test
@@ -30,10 +33,6 @@ import { z } from "zod";
 
 const ORG_SCOPED_INPUT = z.object({ org: z.string().min(1) });
 
-type OrgRequirement =
-	| { kind: "role"; need: OrgRole }
-	| { kind: "permission"; permission: OrgPermission };
-
 async function resolveOrgFor(
 	orgSlug: string,
 	requirement: OrgRequirement,
@@ -42,7 +41,7 @@ async function resolveOrgFor(
 	const auth = getAuth();
 	const { getDb } = await import("#/lib/server/db");
 	const db = getDb().db;
-	const { withPermissions, assertOrgPermission, assertOrgRole } = await import(
+	const { withPermissions, resolveOrgAccess } = await import(
 		"@tripwire/auth/org-gate"
 	);
 	if (!auth) {
@@ -57,6 +56,7 @@ async function resolveOrgFor(
 				name: schema.organization.name,
 				isPersonal: schema.organization.isPersonal,
 				avatarHue: schema.organization.avatarHue,
+				timezone: schema.organization.timezone,
 			})
 			.from(schema.organization)
 			.where(eq(schema.organization.slug, orgSlug))
@@ -65,7 +65,7 @@ async function resolveOrgFor(
 		if (!row) {
 			throw notFound();
 		}
-		return withPermissions({ ...row, role: "admin" });
+		return await withPermissions(db, { ...row, role: "admin" });
 	}
 	const { getStartContext } = await import("@tanstack/start-storage-context");
 	const session = await auth.api.getSession({
@@ -74,22 +74,12 @@ async function resolveOrgFor(
 	if (!session) {
 		throw notFound();
 	}
-	const result =
-		requirement.kind === "role"
-			? await assertOrgRole(db, {
-					userId: session.user.id,
-					orgSlug: orgSlug,
-					need: requirement.need,
-				})
-			: await assertOrgPermission(db, {
-					userId: session.user.id,
-					orgSlug: orgSlug,
-					permission: requirement.permission,
-				});
+	const result = await resolveOrgAccess(db, {
+		userId: session.user.id,
+		orgSlug,
+		requirement,
+	});
 	if (!result.ok) {
-		// Both NOT_FOUND and member-but-not-admin collapse to 404: a member
-		// must not learn an admin surface exists any more than a non-member
-		// learns the org does.
 		throw notFound();
 	}
 	return result.org;
@@ -108,24 +98,13 @@ function orgRequirementMiddleware(requirement: OrgRequirement) {
 	);
 }
 
-function orgRoleMiddleware(need: OrgRole) {
-	return orgRequirementMiddleware({ kind: "role", need });
-}
-
 export function orgPermissionMiddleware(permission: OrgPermission) {
 	return orgRequirementMiddleware({ kind: "permission", permission });
 }
 
-/** Org reads — any member. `context.org` carries the caller's role. */
-export const orgMemberMiddleware = orgRoleMiddleware("member");
-
-/**
- * Org mutations — admins only. Loosening a single surface later (e.g.
- * member-level moderation triage) means moving THAT fn to
- * `orgMemberMiddleware` and updating its classification row — a one-site
- * change by design.
- */
-export const orgAdminMiddleware = orgRoleMiddleware("admin");
+export const orgMemberMiddleware = orgRequirementMiddleware({
+	kind: "membership",
+});
 
 export type OrgContext = { org: OrgWithPermissions };
 

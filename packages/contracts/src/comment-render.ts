@@ -379,6 +379,26 @@ export function renderCommentBody(
 	return withMarker(renderBody(input, config, policy, "comment"));
 }
 
+export interface ClosedCommentInput {
+	contributorLogin: string | null;
+	runUrl: string;
+	showRunLink: boolean;
+}
+
+export function renderClosedBeforeReviewComment(
+	input: ClosedCommentInput,
+): string {
+	const headline = input.contributorLogin
+		? `@${input.contributorLogin}, this change request closed before review.`
+		: "This change request closed before review.";
+	return withMarker(
+		joinParagraphs([
+			headline,
+			input.showRunLink ? runButton(input.runUrl) : null,
+		]),
+	);
+}
+
 export function renderVerdictComment(
 	input: CommentInput,
 	config: ResponseConfig,

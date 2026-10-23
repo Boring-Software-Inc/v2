@@ -1,5 +1,5 @@
 import { queryOptions, useQueryClient } from "@tanstack/react-query";
-import type { NormalizedEvent } from "@tripwire/contracts";
+import { changeRequestAuthor, type NormalizedEvent } from "@tripwire/contracts";
 import { useEffect } from "react";
 import {
 	type ActivityFeedData,
@@ -138,6 +138,7 @@ function mergeEvent(
 				: [...group.timeline, entry];
 		const updated: ActivityGroup = {
 			...group,
+			actor: changeRequestAuthor(timeline.map((t) => t.event)),
 			timeline,
 			eventCount: oursIdx >= 0 ? group.eventCount : group.eventCount + 1,
 			latestActivityAt: event.receivedAt,
@@ -157,10 +158,7 @@ function mergeEvent(
 		subjectNumber: key.subjectNumber,
 		title: groupTitle(event, key.subjectNumber),
 		url: eventUrl(event),
-		actor: {
-			login: event.actor.login,
-			avatarUrl: event.actor.avatarUrl ?? null,
-		},
+		actor: changeRequestAuthor([event]),
 		currentVerdict: null,
 		currentRunId: null,
 		latestActivityAt: event.receivedAt,

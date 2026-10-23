@@ -6,7 +6,7 @@ import type {
 	Verdict,
 } from "@tripwire/contracts";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
-import { orgMemberMiddleware } from "#/lib/server/org-guard";
+import { orgPermissionMiddleware } from "#/lib/server/org-guard";
 
 /** Serializable JSON — evidence/output cross the server-fn boundary as JSON. */
 export type JsonValue =
@@ -51,7 +51,7 @@ export interface RunEventView {
 	at: string;
 }
 
-export type WorkflowOutcome = "block" | "review" | "pass";
+export type WorkflowOutcome = "block" | "review" | "pass" | "unrunnable";
 
 export interface RunWorkflowView {
 	id: string;
@@ -61,7 +61,7 @@ export interface RunWorkflowView {
 
 export interface RunReviewView {
 	workflowId: string | null;
-	state: "open" | "approved" | "denied";
+	state: "open" | "approved" | "denied" | "closed";
 	degraded: boolean;
 	openedAt: string;
 	decidedAt: string | null;
@@ -84,6 +84,7 @@ export interface RunActionView {
 	status: string;
 	recordedAt: string;
 	url: string | null;
+	label?: string | null;
 	delivery?:
 		| { state: "sent" }
 		| { state: "queued" }
@@ -156,7 +157,7 @@ export const getRun = createServerFn({ method: "GET" })
  * "latest run" jump. Null when the repo has no runs yet (nothing to jump to).
  */
 export const getLatestRunId = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("activity:read")])
 	.inputValidator((input: { org: string; repo: string }) => input)
 	.handler(async ({ data, context }): Promise<string | null> => {
 		const { resolveOrgRepo } = await import("#/lib/server/org-guard");

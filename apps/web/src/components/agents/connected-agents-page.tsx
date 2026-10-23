@@ -27,6 +27,7 @@ import {
 } from "#/components/glaze/ui/item";
 import { SkeletonSwap, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	type ConnectedAgent,
 	revokeConnectedAgent,
@@ -35,7 +36,6 @@ import {
 	agentQueryKeys,
 	connectedAgentsQueryOptions,
 } from "#/lib/agents.query";
-import { formatRelativeTime } from "#/lib/format-relative-time";
 
 function AgentRow({ agent }: { agent: ConnectedAgent }) {
 	const queryClient = useQueryClient();
@@ -59,11 +59,17 @@ function AgentRow({ agent }: { agent: ConnectedAgent }) {
 								? agent.orgs.map((org) => org.name).join(", ")
 								: "No orgs"}
 						</span>
-						<span>Connected {formatRelativeTime(agent.connectedAt)}</span>
 						<span>
-							{agent.lastUsedAt
-								? `Used ${formatRelativeTime(agent.lastUsedAt)}`
-								: "Not used yet"}
+							Connected <ZonedTime at={agent.connectedAt} format="short" />
+						</span>
+						<span>
+							{agent.lastUsedAt ? (
+								<>
+									Used <ZonedTime at={agent.lastUsedAt} format="short" />
+								</>
+							) : (
+								"Not used yet"
+							)}
 						</span>
 					</MetaRow>
 				</ItemDescription>

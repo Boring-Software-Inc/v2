@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import {
+	WORKFLOW_STATE_LABELS,
+	WORKFLOW_TEMPLATES,
+	type WorkflowState,
+	type WorkflowTemplate,
+} from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { Collection } from "#/components/collection/collection";
 import { EntityCard } from "#/components/common/entity-card";
@@ -51,7 +57,7 @@ import {
 	ItemGroup,
 	ItemTitle,
 } from "#/components/glaze/ui/item";
-import { Status } from "#/components/glaze/ui/status";
+import { Status, type StatusValue } from "#/components/glaze/ui/status";
 import { Switch } from "#/components/glaze/ui/switch";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
@@ -61,17 +67,16 @@ import {
 	UnsavedChangesBar,
 	useSaveQueueField,
 } from "#/components/save-queue";
+import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	humanizeTriggerKind,
 	WORKFLOWS_COLLECTION,
 } from "#/components/workflows/workflows-collection";
 import { GridSkeleton } from "#/components/workflows/workflows-grid-page-skeleton";
 import { useCollection } from "#/hooks/use-collection";
-import { formatRelativeTime } from "#/lib/format-relative-time";
-import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
+import { useOrgPermission } from "#/hooks/use-org-permission";
+import { orgRepoQueryOptions } from "#/lib/org.query";
 import { trackEvent } from "#/lib/track";
-import type { WorkflowTemplate } from "#/lib/workflow-templates";
-import { WORKFLOW_TEMPLATES } from "#/lib/workflow-templates";
 import type { WorkflowListItem } from "#/lib/workflows.functions";
 import {
 	createRepoWorkflow,
@@ -84,6 +89,14 @@ import {
 	workflowsListQueryOptions,
 	workflowsQueryKeys,
 } from "#/lib/workflows.query";
+
+const STATE_STATUS = {
+	on: "ok",
+	off: "idle",
+	"cant-run": "warn",
+	"needs-fixes": "warn",
+	"cant-turn-on": "idle",
+} as const satisfies Record<WorkflowState, StatusValue>;
 
 const route = getRouteApi("/$org/$repo/workflows/");
 
@@ -106,8 +119,7 @@ export function WorkflowsGridPage() {
 	const workflowsQuery = useQuery(workflowsListQueryOptions(org, repoId));
 	const workflows = workflowsQuery.data;
 	const collection = useCollection(WORKFLOWS_COLLECTION, workflows);
-	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
-	const isAdmin = orgContext?.role === "admin";
+	const canManage = useOrgPermission(org, "workflows:manage");
 
 	const createMutation = useMutation({
 		mutationFn: (
@@ -224,7 +236,7 @@ export function WorkflowsGridPage() {
 									gates and actions.
 								</p>
 							</div>
-							{isAdmin && hasWorkflows ? (
+							{canManage && hasWorkflows ? (
 								<CreateSplitButton
 									creating={createMutation.isPending}
 									onBlank={createBlank}
@@ -238,7 +250,7 @@ export function WorkflowsGridPage() {
 							empty={
 								<WorkflowsEmpty
 									creating={createMutation.isPending}
-									isAdmin={isAdmin}
+									canManage={canManage}
 									onBlank={createBlank}
 									onTemplate={createFromTemplate}
 									org={org}
@@ -256,7 +268,7 @@ export function WorkflowsGridPage() {
 									{rows.map((workflow) => (
 										<li key={workflow.id}>
 											<WorkflowRow
-												isAdmin={isAdmin}
+												canManage={canManage}
 												org={org}
 												repoId={repoId}
 												repoName={repoName}
@@ -317,19 +329,19 @@ function CreateSplitButton({
 function WorkflowsEmpty({
 	org,
 	repoName,
-	isAdmin,
+	canManage,
 	creating,
 	onBlank,
 	onTemplate,
 }: {
 	org: string;
 	repoName: string;
-	isAdmin: boolean;
+	canManage: boolean;
 	creating: boolean;
 	onBlank: () => void;
 	onTemplate: (tpl: WorkflowTemplate) => void;
 }) {
-	if (!isAdmin) {
+	if (!canManage) {
 		return (
 			<Empty art={<MascotArt mood="workflows-empty" />}>
 				<EmptyHeader>
@@ -419,13 +431,13 @@ function WorkflowRow({
 	repoName,
 	repoId,
 	workflow,
-	isAdmin,
+	canManage,
 }: {
 	org: string;
 	repoName: string;
 	repoId: string;
 	workflow: WorkflowListItem;
-	isAdmin: boolean;
+	canManage: boolean;
 }) {
 	const queryClient = useQueryClient();
 	const listKey = workflowsQueryKeys.list(org, repoId);
@@ -518,23 +530,25 @@ function WorkflowRow({
 						<span className="tabular-nums">
 							{workflow.nodeCount} {workflow.nodeCount === 1 ? "step" : "steps"}
 						</span>
-						<span>Updated {formatRelativeTime(workflow.updatedAt)}</span>
-						{isAdmin ? null : <span>Only admins can change workflows</span>}
+						<span>
+							Updated <ZonedTime at={workflow.updatedAt} format="short" />
+						</span>
+						{canManage ? null : <span>Read only</span>}
 					</MetaRow>
 				}
 				status={
 					<>
-						<Status size="sm" status={workflow.enabled ? "ok" : "idle"}>
-							{workflow.enabled ? "Live" : "Off"}
+						<Status size="sm" status={STATE_STATUS[workflow.state]}>
+							{WORKFLOW_STATE_LABELS[workflow.state]}
 						</Status>
 						<Switch
 							aria-label={`Run ${workflow.name} on change requests`}
 							checked={queuedEnabled}
-							disabled={!isAdmin}
+							disabled={!canManage}
 							onCheckedChange={setQueuedEnabled}
 							size="sm"
 						/>
-						{isAdmin ? (
+						{canManage ? (
 							<DropdownMenu>
 								<DropdownMenuTrigger
 									render={

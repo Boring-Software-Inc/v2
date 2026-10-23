@@ -11,9 +11,9 @@ import {
 	type CustomRuleRecord,
 	customRuleRef,
 	customRuleSummary,
-	isRemovedAction,
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
+	unrunnableIssues,
 } from "@tripwire/contracts";
 import {
 	type AiReviewGenerate,
@@ -43,6 +43,10 @@ import {
 } from "../exemption.ts";
 import * as metering from "../metering.ts";
 import { readsInjectionRefusedInProd } from "../reads-injection.ts";
+import {
+	type ReportUnrunnable,
+	reportUnrunnableToSentry,
+} from "../report-unrunnable.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
 import {
 	type CustomRuleSource,
@@ -84,7 +88,7 @@ export function actionPayload(
 }
 
 export function postsSomething(action: { action: string }): boolean {
-	return !isRemovedAction(action.action);
+	return action.action !== "comment";
 }
 
 export function worstVerdict(verdicts: Verdict[]): Verdict {
@@ -141,9 +145,10 @@ export interface RunWorkflowsDeps {
 	 */
 	onBeforeEvaluate?: () => Promise<void>;
 	/**
-	 * §4 backfill — false ⇒ persist the run/steps/verdict exactly as a live run,
-	 * but record its actions as `suppressed` so nothing surfaces on the historical
-	 * change request (no comment, no check, no sweeper pickup). Default true.
+	 * §4 backfill — false ⇒ persist the run/steps/verdict as history only: actions
+	 * are `suppressed` (no comment, no check, no sweeper pickup), no review item
+	 * opens, the run never pauses, and it never counts as the latest run that
+	 * owns the change request's surfaces. Default true.
 	 */
 	surface?: boolean;
 	/** Manual re-run: the triggering admin's user id, stamped on the run. */
@@ -159,6 +164,7 @@ export interface RunWorkflowsDeps {
 	 * tests, which skip metering.
 	 */
 	meterSource?: UsageSource;
+	reportUnrunnable?: ReportUnrunnable;
 }
 
 export interface RunWorkflowsResult {
@@ -242,11 +248,19 @@ async function runWorkflowsInner(
 		? await repoServices.listCustomRules(db, repo.id)
 		: [];
 
-	const custom = await repoServices.listEnabledWorkflows(
+	const stored = await repoServices.listEnabledWorkflows(
 		db,
 		event.repo.fullName,
 		event.forge,
 	);
+	const checkedStored = stored.map((definition) => ({
+		definition,
+		issues: unrunnableIssues(definition),
+	}));
+	const custom = checkedStored.flatMap((entry) =>
+		entry.issues.length === 0 ? [entry.definition] : [],
+	);
+	const broken = checkedStored.filter((entry) => entry.issues.length > 0);
 	// Saved workflows orchestrate the rules they CONTAIN — they do not turn the
 	// rest off. Rules outside every enabled workflow keep running standalone via
 	// the derived default over the leftover toggles; owned rule ids are excluded
@@ -254,7 +268,7 @@ async function runWorkflowsInner(
 	// workflow node's config wins for owned rules). With no saved workflow the
 	// derived default runs alone, even trigger-only (all rules off ⇒ pass run).
 	const ownedRuleIds = new Set(
-		custom.flatMap((def) =>
+		stored.flatMap((def) =>
 			def.nodes.flatMap((node) =>
 				node.type === "rule" ? [ruleIdOf(node.ref)] : [],
 			),
@@ -295,12 +309,17 @@ async function runWorkflowsInner(
 				? [...custom, derived]
 				: custom
 			: [derived];
-	const matching = definitions.filter((def) =>
+	const triggeredBy = (def: WorkflowDefinition) =>
 		def.nodes.some(
 			(node) => node.type === "trigger" && node.kinds.includes(event.kind),
-		),
+		);
+	const matching = definitions.filter(triggeredBy);
+	const unrunnable = broken.filter(
+		(entry) =>
+			triggeredBy(entry.definition) &&
+			(!scheduled || entry.definition.id === scheduled.schedule.workflowId),
 	);
-	if (matching.length === 0) {
+	if (matching.length === 0 && unrunnable.length === 0) {
 		if (deps.claimRunId) {
 			await runServices.failRun(db, deps.claimRunId);
 		}
@@ -435,23 +454,71 @@ async function runWorkflowsInner(
 		(step) => step.status === "skipped",
 	).length;
 	const degraded = isRunDegraded(ruleSteps0.length, skippedCount, verdict);
-	const heldBack = degraded && scheduled !== null;
-	if (degraded) {
-		/**
-		 * The floor is configurable, and ON by default.
-		 *
-		 * Turning it off lets a partly-evaluated run pass. It does NOT hide what
-		 * happened: the step below is recorded either way, so the run page and
-		 * the audit trail still name every rule that could not evaluate. Turning
-		 * off a safety net must never turn off the evidence.
-		 */
-		const failClosed =
-			!heldBack &&
-			(await repoServices.getResponseConfig(db, repo.id)).failClosedFallback;
-		if (failClosed) {
-			verdict = "needs_review";
-			paused = true;
+	const unrunnableFloored = unrunnable.length > 0 && verdict === "pass";
+	const floored = degraded || unrunnableFloored;
+	const heldBack = floored && scheduled !== null;
+	/**
+	 * The floor is configurable, and ON by default.
+	 *
+	 * Turning it off lets a partly-evaluated run pass. It does NOT hide what
+	 * happened: the step below is recorded either way, so the run page and
+	 * the audit trail still name every rule that could not evaluate. Turning
+	 * off a safety net must never turn off the evidence.
+	 */
+	const failClosed =
+		floored &&
+		!heldBack &&
+		(await repoServices.getResponseConfig(db, repo.id)).failClosedFallback;
+	if (failClosed) {
+		verdict = "needs_review";
+		paused = true;
+	}
+	if (unrunnable.length > 0) {
+		const startedAt = new Date().toISOString();
+		const unrunnableStep: StepRecord = {
+			nodeId: "run:unrunnable",
+			nodeKind: "gate",
+			status: "skipped",
+			input: { rule: "unrunnable workflow" },
+			output: {
+				workflows: unrunnable.map((entry) => ({
+					id: entry.definition.id,
+					name: entry.definition.name,
+				})),
+				issues: unrunnable.map((entry) => ({
+					workflowId: entry.definition.id,
+					messages: entry.issues.map((issue) => issue.message),
+				})),
+				enforced: unrunnableFloored && failClosed,
+				tookNoAction: heldBack,
+			},
+			startedAt,
+			finishedAt: startedAt,
+			durationMs: 0,
+		};
+		steps.push(unrunnableStep);
+		if (liveRunId) {
+			await runServices.recordSteps(db, liveRunId, [unrunnableStep]);
 		}
+		for (const entry of unrunnable) {
+			logger.error(
+				{
+					workflowId: entry.definition.id,
+					issues: entry.issues.map((issue) => issue.message),
+				},
+				"live workflow has wiring the executor cannot run",
+			);
+			(deps.reportUnrunnable ?? reportUnrunnableToSentry)({
+				repo: event.repo.fullName,
+				forge: event.forge,
+				workflowId: entry.definition.id,
+				lintRule: entry.issues[0]?.rule ?? "unknown",
+				scheduled: scheduled !== null,
+				messages: entry.issues.map((issue) => issue.message),
+			});
+		}
+	}
+	if (degraded) {
 		const startedAt = new Date().toISOString();
 		const degradationStep: StepRecord = {
 			nodeId: "run:degradation",
@@ -515,7 +582,8 @@ async function runWorkflowsInner(
 				: scheduled
 					? scheduled.thread.number
 					: null;
-	const terminalStatus = paused ? "paused" : "completed";
+	const backfill = deps.surface === false;
+	const terminalStatus = paused && !backfill ? "paused" : "completed";
 	let runId: string;
 	if (liveRunId) {
 		runId = liveRunId;
@@ -538,6 +606,7 @@ async function runWorkflowsInner(
 			status: terminalStatus,
 			verdict,
 			triggeredBy: deps.triggeredBy ?? null,
+			backfill,
 		});
 		await runServices.recordSteps(
 			db,
@@ -546,7 +615,7 @@ async function runWorkflowsInner(
 		);
 	}
 
-	for (const execution of executions) {
+	for (const execution of backfill ? [] : executions) {
 		if (execution.result.pausedAtNodeId) {
 			await moderationServices.createModerationItem(db, {
 				runId,
@@ -554,7 +623,10 @@ async function runWorkflowsInner(
 			});
 		}
 	}
-	if (degraded && !heldBack) {
+	if (
+		!backfill &&
+		((degraded && !heldBack) || (unrunnableFloored && failClosed))
+	) {
 		await moderationServices.createModerationItem(db, {
 			runId,
 			nodeId: "run:degraded",
@@ -573,7 +645,7 @@ async function runWorkflowsInner(
 				}),
 			),
 		),
-		deps.surface === false ? "suppressed" : "recorded",
+		backfill ? "suppressed" : "recorded",
 	);
 
 	const reasons = buildCommentReasons(steps, customSignals.records);

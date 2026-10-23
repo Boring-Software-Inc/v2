@@ -29,6 +29,8 @@ import {
 } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { TimezonePicker } from "#/components/timezones/timezone-picker";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import { authQueryKeys } from "#/lib/auth.query";
 import type { OrgWithRole } from "#/lib/org.functions";
 import { deleteOrg, updateOrg } from "#/lib/org.functions";
@@ -37,9 +39,11 @@ import {
 	orgContextQueryOptions,
 	orgQueryKeys,
 } from "#/lib/org.query";
+import { setOrgTimezone } from "#/lib/timezone.functions";
 
 export function OrgGeneralSettingsPage({ org }: { org: string }) {
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
+	const canManage = useOrgPermission(org, "settings:manage");
 
 	return (
 		<SkeletonSwap
@@ -49,17 +53,29 @@ export function OrgGeneralSettingsPage({ org }: { org: string }) {
 		>
 			{orgContext ? (
 				<div className="flex flex-col gap-8">
-					{orgContext.role === "admin" ? (
+					{canManage ? (
 						<>
 							<RenameSection
 								key={orgContext.id}
 								org={org}
 								orgContext={orgContext}
 							/>
+							<TimezoneSection
+								canManage
+								org={org}
+								timezone={orgContext.timezone}
+							/>
 							<DangerZone org={org} orgContext={orgContext} />
 						</>
 					) : (
-						<ReadOnlySection orgContext={orgContext} />
+						<>
+							<ReadOnlySection orgContext={orgContext} />
+							<TimezoneSection
+								canManage={false}
+								org={org}
+								timezone={orgContext.timezone}
+							/>
+						</>
 					)}
 				</div>
 			) : null}
@@ -229,6 +245,46 @@ function RenameSection({
 					</Button>
 				</div>
 			</form>
+		</section>
+	);
+}
+
+function TimezoneSection({
+	org,
+	timezone,
+	canManage,
+}: {
+	org: string;
+	timezone: string | null;
+	canManage: boolean;
+}) {
+	const queryClient = useQueryClient();
+	const save = useMutation({
+		mutationFn: (next: string | null) =>
+			setOrgTimezone({ data: { org, timezone: next } }),
+		onSuccess: () => toast.success("Timezone saved"),
+		onError: () =>
+			toast.fail("Tripwire could not save the timezone. Try again."),
+		onSettled: () =>
+			queryClient.invalidateQueries({ queryKey: orgQueryKeys.detail(org) }),
+	});
+	return (
+		<section
+			aria-labelledby="org-timezone-heading"
+			className="flex max-w-md flex-col gap-3"
+		>
+			<SectionHeading
+				description="New schedules start in this zone, and it shows times for members who have not picked their own."
+				id="org-timezone-heading"
+				title="Timezone"
+			/>
+			<TimezonePicker
+				disabled={!canManage || save.isPending}
+				labelledBy="org-timezone-heading"
+				onChange={(next) => save.mutate(next)}
+				unsetLabel="UTC, the default"
+				value={timezone}
+			/>
 		</section>
 	);
 }

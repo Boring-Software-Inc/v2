@@ -3,10 +3,17 @@ import { generateId } from "@tripwire/utils";
 import { asc, eq, max, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { repoReviewers } from "../schema/repos.ts";
+import { syncIsStale } from "./sync-age.ts";
 
 export interface RepoReviewerList {
 	reviewers: RepoReviewer[];
 	syncedAt: Date | null;
+}
+
+export const REVIEWER_SYNC_STALE_MS = 24 * 60 * 60_000;
+
+export function reviewersNeedSync(syncedAt: Date | null, now: Date): boolean {
+	return syncIsStale(syncedAt, now, REVIEWER_SYNC_STALE_MS);
 }
 
 export async function listRepoReviewers(

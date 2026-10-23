@@ -5,6 +5,8 @@ import {
 	type ActivityGroup,
 	type ActivityRunSummary,
 	type ActivityTimelineEntry,
+	bearsVerdict,
+	changeRequestAuthor,
 	type NormalizedEvent,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
@@ -352,6 +354,7 @@ export async function listBackfillEvents(
 			  AND received_at > now() - make_interval(days => ${sinceDays})
 			ORDER BY subject_number, received_at DESC
 		) latest
+		WHERE NOT EXISTS (SELECT 1 FROM runs r WHERE r.event_id = latest.id)
 		ORDER BY received_at DESC
 		LIMIT ${cap}
 	`);
@@ -419,7 +422,13 @@ function buildGroup(rows: RawRow[]): ActivityGroup {
 	// Header identity: the most recent change-request event carries the title.
 	const cr = [...events].reverse().find((e) => "changeRequest" in e);
 	// Current verdict = the verdict of the latest event that produced a run.
-	const withRun = [...chrono].reverse().find((r) => r.run_id != null);
+	const withRun = [...chrono]
+		.reverse()
+		.find(
+			(r) =>
+				r.run_id != null &&
+				bearsVerdict((r.normalized as NormalizedEvent | null)?.kind),
+		);
 	const subjectNumber = Number(latest.subject_number);
 	return {
 		repoFullName: String(latest.repo_full_name),
@@ -429,10 +438,7 @@ function buildGroup(rows: RawRow[]): ActivityGroup {
 				? cr.changeRequest.title
 				: `#${subjectNumber}`,
 		url: cr ? eventUrl(cr) : header ? eventUrl(header) : null,
-		actor: {
-			login: header?.actor.login ?? "",
-			avatarUrl: header?.actor.avatarUrl ?? null,
-		},
+		actor: changeRequestAuthor(events),
 		currentVerdict: withRun ? asString(withRun.verdict) : null,
 		currentRunId: withRun ? asString(withRun.run_id) : null,
 		latestActivityAt: asIso(latest.received_at),

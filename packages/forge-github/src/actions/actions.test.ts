@@ -16,6 +16,12 @@ import { upsertComment } from "./comment.ts";
  * `@tripwire/contracts` (comment-render.test.ts) with the render function.
  */
 
+const APP_ID = 4291944;
+
+function ours(id: number, body: string) {
+	return { id, body, performed_via_github_app: { id: APP_ID } };
+}
+
 interface RecordedCall {
 	method: string;
 	path: string;
@@ -26,6 +32,7 @@ function fakeHttp(responses: Record<string, unknown>) {
 	const calls: RecordedCall[] = [];
 	const http = new GithubHttp({
 		tokenFor: () => Promise.resolve("test-token"),
+		appId: APP_ID,
 		apiBase: "https://fake.api",
 		fetchImpl: ((url: string | URL | Request, init?: RequestInit) => {
 			const path = String(url).replace("https://fake.api", "");
@@ -92,7 +99,7 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 
 	test("SAME verdict edits in place — never a new comment", async () => {
 		const { http, calls } = fakeHttp({
-			"GET /repos/a/b/issues/7/comments": [{ id: 9, body: BLOCK_COMMENT }],
+			"GET /repos/a/b/issues/7/comments": [ours(9, BLOCK_COMMENT)],
 		});
 		const result = await upsertComment(
 			http,
@@ -115,7 +122,7 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 
 	test("ten same-verdict re-runs = ONE comment (ten edits, zero posts)", async () => {
 		const { http, calls } = fakeHttp({
-			"GET /repos/a/b/issues/7/comments": [{ id: 9, body: BLOCK_COMMENT }],
+			"GET /repos/a/b/issues/7/comments": [ours(9, BLOCK_COMMENT)],
 		});
 		for (let i = 0; i < 10; i++) {
 			await upsertComment(http, "a/b", 7, BLOCK_COMMENT, "block", "block");
@@ -126,7 +133,7 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 
 	test("a VERDICT TRANSITION supersedes the old comment AND posts a new one", async () => {
 		const { http, calls } = fakeHttp({
-			"GET /repos/a/b/issues/7/comments": [{ id: 9, body: BLOCK_COMMENT }],
+			"GET /repos/a/b/issues/7/comments": [ours(9, BLOCK_COMMENT)],
 			"POST /repos/a/b/issues/7/comments": { id: 50 },
 		});
 		// Run history says the PR shows "block" → this is a transition.
@@ -205,7 +212,7 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 
 	test("only-if-present still updates a comment that is there", async () => {
 		const { http, calls } = fakeHttp({
-			"GET /repos/a/b/issues/7/comments": [{ id: 5, body: BLOCK_COMMENT }],
+			"GET /repos/a/b/issues/7/comments": [ours(5, BLOCK_COMMENT)],
 			"POST /repos/a/b/issues/7/comments": { id: 61 },
 		});
 		const result = await upsertComment(
@@ -284,7 +291,7 @@ describe("setCheck", () => {
 	test("re-run of the same SHA updates the existing check", async () => {
 		const { http, calls } = fakeHttp({
 			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
-				check_runs: [{ id: 55 }],
+				check_runs: [{ id: 55, status: "completed", app: { id: APP_ID } }],
 			},
 		});
 		const result = await setCheck(http, "a/b", state);
@@ -292,6 +299,112 @@ describe("setCheck", () => {
 		expect(calls.find((c) => c.method === "PATCH")?.path).toBe(
 			"/repos/a/b/check-runs/55",
 		);
+	});
+
+	test("a pending state after a completed check starts a new check", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [{ id: 55, status: "completed", app: { id: APP_ID } }],
+			},
+			"POST /repos/a/b/check-runs": { id: 79 },
+		});
+		const result = await setCheck(http, "a/b", {
+			...state,
+			conclusion: "pending",
+			summary: "Waiting for human review.",
+		});
+		expect(result).toEqual({ externalId: "79", created: true });
+		expect(calls.some((c) => c.method === "PATCH")).toBe(false);
+		expect(calls.find((c) => c.method === "POST")?.body).toMatchObject({
+			head_sha: state.sha,
+			status: "in_progress",
+		});
+	});
+
+	test("a pending state updates a check that is still in progress", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [{ id: 56, status: "in_progress", app: { id: APP_ID } }],
+			},
+		});
+		const result = await setCheck(http, "a/b", {
+			...state,
+			conclusion: "pending",
+		});
+		expect(result).toEqual({ externalId: "56", created: false });
+		expect(calls.some((c) => c.method === "POST")).toBe(false);
+	});
+
+	test("a queued check counts as not completed", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [{ id: 57, status: "queued", app: { id: APP_ID } }],
+			},
+		});
+		await setCheck(http, "a/b", { ...state, conclusion: "pending" });
+		expect(calls.find((c) => c.method === "PATCH")?.path).toBe(
+			"/repos/a/b/check-runs/57",
+		);
+	});
+
+	test("a decision completes the check that waits for it", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [{ id: 58, status: "in_progress", app: { id: APP_ID } }],
+			},
+		});
+		await setCheck(http, "a/b", { ...state, conclusion: "success" });
+		const patch = calls.find((c) => c.method === "PATCH");
+		expect(patch?.path).toBe("/repos/a/b/check-runs/58");
+		expect(patch?.body).toMatchObject({
+			status: "completed",
+			conclusion: "success",
+		});
+	});
+
+	test("a new conclusion replaces a completed one on the same check", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [{ id: 59, status: "completed", app: { id: APP_ID } }],
+			},
+		});
+		await setCheck(http, "a/b", { ...state, conclusion: "success" });
+		expect(calls.some((c) => c.method === "POST")).toBe(false);
+		expect(calls.find((c) => c.method === "PATCH")?.body).toMatchObject({
+			status: "completed",
+			conclusion: "success",
+		});
+	});
+
+	test("writes to the newest own check when the SHA has several", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: {
+				check_runs: [
+					{ id: 55, status: "completed", app: { id: APP_ID } },
+					{ id: 90, status: "in_progress", app: { id: APP_ID } },
+					{ id: 120, status: "in_progress", app: { id: 1 } },
+				],
+			},
+		});
+		const result = await setCheck(http, "a/b", {
+			...state,
+			conclusion: "success",
+		});
+		expect(result).toEqual({ externalId: "90", created: false });
+		expect(calls.find((c) => c.method === "PATCH")?.path).toBe(
+			"/repos/a/b/check-runs/90",
+		);
+	});
+
+	test("lists every own check on the SHA, not only the latest", async () => {
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${state.sha}/check-runs`]: { check_runs: [] },
+			"POST /repos/a/b/check-runs": { id: 91 },
+		});
+		await setCheck(http, "a/b", state);
+		const query = new URL(`https://x${calls[0]?.path}`).searchParams;
+		expect(query.get("filter")).toBe("all");
+		expect(query.get("per_page")).toBe("100");
 	});
 
 	test("pending maps to in_progress with no conclusion (§5.6b)", async () => {
@@ -389,6 +502,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		const calls: string[] = [];
 		const http = new GithubHttp({
 			tokenFor: () => Promise.resolve("test-token"),
+			appId: APP_ID,
 			apiBase: "https://fake.api",
 			fetchImpl: ((_url: string | URL | Request, init?: RequestInit) => {
 				const method = init?.method ?? "GET";
@@ -442,7 +556,7 @@ describe("executeAction: delete-comment removes the active comment", () => {
 	test("deletes the comment that carries the marker", async () => {
 		const { http, calls } = fakeHttp({
 			"GET /repos/a/b/issues/7/comments": [
-				{ id: 4, body: BLOCK_COMMENT },
+				ours(4, BLOCK_COMMENT),
 				{ id: 5, body: "unrelated" },
 			],
 			"DELETE /repos/a/b/issues/comments/4": {},
@@ -477,12 +591,13 @@ describe("executeAction: delete-comment removes the active comment", () => {
 	test("a comment deleted in the meantime is not an error", async () => {
 		const http = new GithubHttp({
 			tokenFor: () => Promise.resolve("t"),
+			appId: APP_ID,
 			apiBase: "https://fake.api",
 			fetchImpl: ((_url: string | URL | Request, init?: RequestInit) =>
 				Promise.resolve(
 					init?.method === "DELETE"
 						? new Response("Not Found", { status: 404 })
-						: new Response(JSON.stringify([{ id: 4, body: BLOCK_COMMENT }]), {
+						: new Response(JSON.stringify([ours(4, BLOCK_COMMENT)]), {
 								status: 200,
 							}),
 				)) as typeof fetch,
@@ -538,6 +653,7 @@ describe("executeAction — request-review asks named people and teams", () => {
 	test("a GitHub refusal surfaces as an error carrying the status", async () => {
 		const http = new GithubHttp({
 			tokenFor: () => Promise.resolve("test-token"),
+			appId: APP_ID,
 			apiBase: "https://fake.api",
 			fetchImpl: ((_url: string | URL | Request, _init?: RequestInit) =>
 				Promise.resolve(
@@ -604,5 +720,121 @@ describe("executeAction: lock and close use the issues API", () => {
 				body: { state: "closed" },
 			},
 		]);
+	});
+});
+
+describe("only objects this app created are ever touched", () => {
+	const spoofed = {
+		id: 3,
+		body: BLOCK_COMMENT,
+		user: { login: "mallory", type: "User" },
+		performed_via_github_app: null,
+	};
+	const otherApp = {
+		id: 8,
+		body: BLOCK_COMMENT,
+		user: { login: "copycat[bot]", type: "Bot" },
+		performed_via_github_app: { id: 1, slug: "copycat" },
+	};
+
+	test("a contributor comment carrying the marker is never edited", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/issues/7/comments": [spoofed],
+			"POST /repos/a/b/issues/7/comments": { id: 70 },
+		});
+		const result = await upsertComment(
+			http,
+			"a/b",
+			7,
+			BLOCK_COMMENT,
+			"block",
+			"block",
+		);
+		expect(result.externalId).toBe("70");
+		expect(calls.some((c) => c.method === "PATCH")).toBe(false);
+	});
+
+	test("another app's bot comment carrying the marker is never superseded", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/issues/7/comments": [otherApp],
+			"POST /repos/a/b/issues/7/comments": { id: 71 },
+		});
+		const result = await upsertComment(
+			http,
+			"a/b",
+			7,
+			PASS_COMMENT,
+			"pass",
+			"block",
+		);
+		expect(result).toEqual({
+			externalId: "71",
+			created: true,
+			supersededId: null,
+		});
+		expect(calls.some((c) => c.method === "PATCH")).toBe(false);
+	});
+
+	test("our own comment is found behind a newer spoofed one", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/issues/7/comments": [
+				ours(2, BLOCK_COMMENT),
+				spoofed,
+				otherApp,
+			],
+		});
+		await upsertComment(http, "a/b", 7, BLOCK_COMMENT, "block", "block");
+		expect(calls.find((c) => c.method === "PATCH")?.path).toBe(
+			"/repos/a/b/issues/comments/2",
+		);
+	});
+
+	test("delete-comment never deletes a spoofed or foreign comment", async () => {
+		const { http, calls } = fakeHttp({
+			"GET /repos/a/b/issues/7/comments": [spoofed, otherApp],
+		});
+		const { executeAction } = await import("./execute.ts");
+		const result = await executeAction(http, {
+			kind: "delete-comment",
+			repoFullName: "a/b",
+			number: 7,
+		});
+		expect(result.externalId).toBeNull();
+		expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+	});
+
+	test("setCheck lists only this app's check runs", async () => {
+		const sha = "b".repeat(40);
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${sha}/check-runs`]: { check_runs: [] },
+			"POST /repos/a/b/check-runs": { id: 80 },
+		});
+		await setCheck(http, "a/b", {
+			sha,
+			conclusion: "success",
+			summary: "Passed.",
+			detailsUrl: "https://tripwire.sh/runs/x",
+		});
+		const query = new URL(`https://x${calls[0]?.path}`).searchParams;
+		expect(query.get("app_id")).toBe(String(APP_ID));
+		expect(query.get("check_name")).toBe(CHECK_NAME);
+	});
+
+	test("setCheck never patches another app's check named tripwire", async () => {
+		const sha = "c".repeat(40);
+		const { http, calls } = fakeHttp({
+			[`GET /repos/a/b/commits/${sha}/check-runs`]: {
+				check_runs: [{ id: 66, status: "completed", app: { id: 1 } }],
+			},
+			"POST /repos/a/b/check-runs": { id: 81 },
+		});
+		const result = await setCheck(http, "a/b", {
+			sha,
+			conclusion: "failure",
+			summary: "Blocked.",
+			detailsUrl: "https://tripwire.sh/runs/x",
+		});
+		expect(result).toEqual({ externalId: "81", created: true });
+		expect(calls.some((c) => c.method === "PATCH")).toBe(false);
 	});
 });

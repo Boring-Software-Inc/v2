@@ -48,7 +48,8 @@ import {
 import { toast } from "#/components/glaze/ui/toast";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { isCommentItem } from "#/components/moderation/moderation-collection";
-import { formatRelativeTime } from "#/lib/format-relative-time";
+import { ZonedTime } from "#/components/timezones/zoned-time";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import {
 	decideModeration,
 	listModerationQueue,
@@ -112,6 +113,7 @@ export function ModerationQueue({
 	title: ReactNode;
 }) {
 	const queryClient = useQueryClient();
+	const canDecide = useOrgPermission(org, "moderation:manage");
 	const decide = useMutation({
 		mutationFn: decideModeration,
 		onSuccess: (_result, variables) =>
@@ -163,14 +165,14 @@ export function ModerationQueue({
 									<ItemDescription>
 										<MetaRow>
 											<span>{item.actorLogin ?? "Unknown contributor"}</span>
-											<span>{formatRelativeTime(item.createdAt)}</span>
+											<ZonedTime at={item.createdAt} format="short" />
 											{item.reason ? <span>{item.reason}</span> : null}
 										</MetaRow>
 									</ItemDescription>
 								</ItemContent>
 								<ItemActions className="me-0 gap-2">
 									<BlockButton
-										disabled={decide.isPending}
+										disabled={decide.isPending || !canDecide}
 										name={name}
 										onBlock={() =>
 											decide.mutateAsync(
@@ -189,7 +191,7 @@ export function ModerationQueue({
 									/>
 									<Button
 										aria-label={`Approve ${subject}`}
-										disabled={decide.isPending}
+										disabled={decide.isPending || !canDecide}
 										onClick={() =>
 											decide.mutate(
 												{

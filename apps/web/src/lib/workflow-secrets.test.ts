@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type { WorkflowDefinition } from "@tripwire/contracts";
 import {
 	redactWorkflowSecrets,
-	restoreWorkflowSecrets,
-} from "./workflow-secrets";
+	type WorkflowDefinition,
+} from "@tripwire/contracts";
+import { restoreWorkflowSecrets } from "./workflow-secrets";
 
 function def(params: Record<string, unknown>): WorkflowDefinition {
 	return {
@@ -76,30 +76,5 @@ describe("workflow secrets — set-only masking", () => {
 		const incoming = def({ url: "https://127.0.0.1/x" });
 		const { error } = restoreWorkflowSecrets(incoming, null);
 		expect(error).toBeDefined();
-	});
-
-	test("a removed Discord step keeps its stored url masked", () => {
-		const stored: WorkflowDefinition = {
-			id: "wf1",
-			name: "wf",
-			version: 1,
-			nodes: [
-				{
-					id: "d",
-					type: "action",
-					action: "discord",
-					params: { url: "https://discord.com/api/webhooks/1/TOKEN" },
-				},
-			],
-			edges: [],
-		};
-		const redacted = redactWorkflowSecrets(stored);
-		expect(JSON.stringify(redacted)).not.toContain("TOKEN");
-		const { definition, changedUrlNodes } = restoreWorkflowSecrets(
-			redacted,
-			stored,
-		);
-		expect(definition).toEqual(stored);
-		expect(changedUrlNodes).toEqual([]);
 	});
 });

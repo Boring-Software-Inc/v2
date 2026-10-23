@@ -82,6 +82,7 @@ async function seedRun(opts: {
 		deliveryId: `d-${eventId}`,
 		rawKind: "pull_request",
 		raw: {},
+		kind: "change-request.opened",
 	});
 	await db.insert(runs).values({
 		id: generateId(),

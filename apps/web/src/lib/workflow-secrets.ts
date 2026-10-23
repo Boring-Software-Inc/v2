@@ -2,7 +2,7 @@ import type { WorkflowDefinition, WorkflowNode } from "@tripwire/contracts";
 import { isDeliverableUrl } from "@tripwire/utils";
 
 /**
- * Set-only masking for action node secrets (url, signingSecret). The
+ * Set-only masking for webhook/discord node secrets (url, signingSecret). The
  * full value never leaves the server: on read it is blanked and a `*Set`
  * marker tells the editor "a value is stored, leave blank to keep it"; on save
  * a blank field restores the stored value, and only a genuinely new value
@@ -15,37 +15,22 @@ const SECRET_KEYS = ["url", "signingSecret"] as const;
 function isDeliverySecretNode(
 	node: WorkflowNode,
 ): node is Extract<WorkflowNode, { type: "action" }> {
-	return node.type === "action";
-}
-
-/** Blank stored secrets, marking which were set — for the read path. */
-export function redactWorkflowSecrets(
-	def: WorkflowDefinition,
-): WorkflowDefinition {
-	return {
-		...def,
-		nodes: def.nodes.map((node) => {
-			if (!isDeliverySecretNode(node)) {
-				return node;
-			}
-			const params = { ...(node.params ?? {}) };
-			for (const key of SECRET_KEYS) {
-				if (typeof params[key] === "string" && params[key] !== "") {
-					params[key] = "";
-					params[`${key}Set`] = true;
-				}
-			}
-			return { ...node, params };
-		}),
-	};
+	return (
+		node.type === "action" &&
+		(node.action === "webhook" || node.action === "discord")
+	);
 }
 
 export interface RestoreResult {
 	definition: WorkflowDefinition;
 	error?: string;
-	/** webhook nodes whose url was newly set this save — the save-time
+	/** webhook/discord nodes whose url was newly set this save — the save-time
 	 * connection test targets exactly these (a kept, blank url is not retested). */
-	changedUrlNodes: { nodeId: string; url: string }[];
+	changedUrlNodes: {
+		nodeId: string;
+		url: string;
+		kind: "webhook" | "discord";
+	}[];
 }
 
 /**
@@ -63,7 +48,11 @@ export function restoreWorkflowSecrets(
 		(stored?.nodes ?? []).map((node) => [node.id, node]),
 	);
 	let error: string | undefined;
-	const changedUrlNodes: { nodeId: string; url: string }[] = [];
+	const changedUrlNodes: {
+		nodeId: string;
+		url: string;
+		kind: "webhook" | "discord";
+	}[] = [];
 	const nodes = incoming.nodes.map((node) => {
 		if (!isDeliverySecretNode(node)) {
 			return node;
@@ -88,8 +77,12 @@ export function restoreWorkflowSecrets(
 				if (key === "url" && !isDeliverableUrl(incomingValue)) {
 					error =
 						"The webhook URL must use HTTPS and must not be a private address.";
-				} else if (key === "url" && node.action === "webhook") {
-					changedUrlNodes.push({ nodeId: node.id, url: incomingValue });
+				} else if (key === "url") {
+					changedUrlNodes.push({
+						nodeId: node.id,
+						url: incomingValue,
+						kind: node.action as "webhook" | "discord",
+					});
 				}
 				if (key === "signingSecret" && incomingValue.length > 512) {
 					error = "The signing secret is too long.";

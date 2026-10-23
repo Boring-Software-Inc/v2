@@ -1,4 +1,5 @@
 import type {
+	NodeOutcome,
 	NormalizedEvent,
 	RepoScopedEvent,
 	RuleResult,
@@ -86,6 +87,8 @@ const bundleSchema = z.object({
 	decisionNodeId: z.string().nullable(),
 });
 
+const unrunnableOutputSchema = z.object({ enforced: z.boolean() });
+
 function replayEvaluator(bundle: ReplayBundle, wfId: string) {
 	const stored = new Map<string, RuleResult>();
 	for (const step of bundle.steps) {
@@ -107,7 +110,7 @@ export async function replayBundle(
 	const verdicts: Verdict[] = [];
 	let pausedWf: WorkflowDefinition | null = null;
 	let pausedNode: string | null = null;
-	let pausedOutcomes: Record<string, "pass" | "fail"> = {};
+	let pausedOutcomes: Record<string, NodeOutcome> = {};
 	let gateReachabilityChanged = false;
 	let skippedRules = 0;
 	let ruleNodes = 0;
@@ -153,7 +156,7 @@ export async function replayBundle(
 		if (result.pausedAtNodeId) {
 			pausedWf = definition;
 			pausedNode = result.pausedAtNodeId;
-			pausedOutcomes = result.outcomes as Record<string, "pass" | "fail">;
+			pausedOutcomes = result.outcomes;
 		}
 		const storedGateRan = bundle.steps.some(
 			(s) => s.nodeKind === "gate" && s.nodeId.startsWith(`${definition.id}:`),
@@ -168,8 +171,14 @@ export async function replayBundle(
 	let paused = pausedNode !== null;
 
 	/** The run-workflows fail-closed floor, replayed (§6 amendment). */
+	const unrunnableHeld = bundle.steps.some(
+		(step) =>
+			step.nodeId === "run:unrunnable" &&
+			unrunnableOutputSchema.safeParse(step.output).data?.enforced === true,
+	);
 	const degraded =
-		ruleNodes > 0 && skippedRules * 2 >= ruleNodes && verdict === "pass";
+		((ruleNodes > 0 && skippedRules * 2 >= ruleNodes) || unrunnableHeld) &&
+		verdict === "pass";
 	if (degraded) {
 		verdict = "needs_review";
 		paused = true;
@@ -206,13 +215,24 @@ export async function replayBundle(
 	if (verdict === bundle.storedVerdict) {
 		return { newVerdict: verdict, flip: null };
 	}
+	const negatedGateInput = bundle.snapshot.some((definition) =>
+		definition.edges.some(
+			(edge) =>
+				edge.when === "fail" &&
+				definition.nodes.some(
+					(node) => node.id === edge.to && node.type === "gate",
+				),
+		),
+	);
 	const responsible = denyFloored
 		? "deny-floor resume semantics (unit 5) — deny with no deny edge now blocks"
-		: gateReachabilityChanged
-			? "gate reachability (unit 1) — gates now run once a source settles, failures included"
-			: degraded
-				? "fail-closed degradation floor"
-				: "UNATTRIBUTED — investigate before shipping";
+		: negatedGateInput
+			? "gate ports (#66): a Doesn't pass wire into a gate now feeds the negated result, it was read as Passes"
+			: gateReachabilityChanged
+				? "gate reachability (unit 1) — gates now run once a source settles, failures included"
+				: degraded
+					? "fail-closed degradation floor"
+					: "UNATTRIBUTED — investigate before shipping";
 	return {
 		newVerdict: verdict,
 		flip: {

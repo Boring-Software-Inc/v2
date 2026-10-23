@@ -60,6 +60,7 @@ export async function rerunChangeRequest(
 		} else if (
 			existing.status === "completed" ||
 			existing.status === "paused" ||
+			existing.status === "closed" ||
 			existing.status === "failed"
 		) {
 			logger.info(

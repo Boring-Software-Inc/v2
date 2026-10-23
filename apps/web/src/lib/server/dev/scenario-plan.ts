@@ -38,7 +38,7 @@ export interface RecoveryPlan {
 export interface ScenarioPlan {
 	user: DevUserPlan | null;
 	orgKind: "personal" | "team";
-	teamRole: "member" | null;
+	teamRole: "member" | "moderator" | "admin" | null;
 	repos: RepoPlan | null;
 	unclaimed: UnclaimedPlan | null;
 	recovery: RecoveryPlan | null;
@@ -50,6 +50,8 @@ export interface ScenarioPlan {
 const USERS = {
 	owner: { email: "owner@tripwire.demo", name: "Dev owner" },
 	member: { email: "member@tripwire.demo", name: "Dev member" },
+	moderator: { email: "moderator@tripwire.demo", name: "Dev moderator" },
+	"team-admin": { email: "team-admin@tripwire.demo", name: "Dev team admin" },
 	outsider: { email: "outsider@tripwire.demo", name: "Dev outsider" },
 } satisfies Record<Exclude<DevAccount, "anonymous">, DevUserPlan>;
 
@@ -106,6 +108,15 @@ const RECOVERY_PLANS = {
 	},
 } satisfies Record<DevRecoveryInstall, RecoveryPlan>;
 
+const TEAM_ROLES = {
+	owner: null,
+	member: "member",
+	moderator: "moderator",
+	"team-admin": "admin",
+	outsider: null,
+	anonymous: null,
+} satisfies Record<DevAccount, ScenarioPlan["teamRole"]>;
+
 export function planScenario(scenario: DevScenario): ScenarioPlan {
 	const user =
 		scenario.account === "anonymous" ? null : USERS[scenario.account];
@@ -116,7 +127,7 @@ export function planScenario(scenario: DevScenario): ScenarioPlan {
 	return {
 		user,
 		orgKind: scenario.account === "owner" ? "personal" : "team",
-		teamRole: scenario.account === "member" ? "member" : null,
+		teamRole: TEAM_ROLES[scenario.account],
 		repos,
 		unclaimed: unclaimedFor(scenario),
 		recovery: isRecoveryInstall(scenario.install)

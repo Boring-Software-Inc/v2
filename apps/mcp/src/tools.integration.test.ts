@@ -11,9 +11,11 @@ import {
 	ensureDemoRepo,
 	ensureTeamOrg,
 	orgServices,
+	runServices,
 	schema,
 	seedRun,
 	type TestDatabase,
+	workflowServices,
 } from "@tripwire/db";
 import type { Pool } from "pg";
 import { z } from "zod";
@@ -49,12 +51,51 @@ let pool: Pool;
 let client: Client;
 let orgSlug: string;
 let fullNames: string[];
+let repoRows: Awaited<ReturnType<typeof ensureDemoRepo>>[];
+const USER_ID = "mcp-tools-user";
+const clients: Client[] = [];
+
+async function connect(orgIds: string[]): Promise<Client> {
+	const server = new McpServer({ name: "tripwire-test", version: "0.0.0" });
+	registerTools(
+		server,
+		{
+			db,
+			pool,
+			getBoss: () => Promise.reject(new Error("no queue in tests")),
+			config,
+			agent: {
+				userId: USER_ID,
+				clientId: "test-client",
+				scopes: [...SCOPES],
+				orgIds,
+			},
+			accessDenied: null,
+		},
+		{ scopes: [...SCOPES], readOnly: false },
+	);
+	const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
+	await server.connect(serverSide);
+	const connected = new Client({ name: "test", version: "0.0.0" });
+	await connected.connect(clientSide);
+	clients.push(connected);
+	return connected;
+}
+
+async function orgId(): Promise<string | undefined> {
+	const orgs = await orgServices.listUserOrgs(db, USER_ID);
+	return orgs.find((org) => org.slug === orgSlug)?.id;
+}
+
+function never(): never {
+	throw new Error("missing test fixture");
+}
 
 beforeAll(async () => {
 	container = await createTestDatabase();
 	({ db, pool } = createDb(container.url));
 	await applyMigrations(db);
-	const userId = "mcp-tools-user";
+	const userId = USER_ID;
 	await db
 		.insert(schema.user)
 		.values({
@@ -77,6 +118,7 @@ beforeAll(async () => {
 		installationId: "mcp-inst",
 	});
 	fullNames = repos.map((repo) => repo.fullName);
+	repoRows = repos;
 	let number = 1;
 	for (const repo of repos) {
 		await seedRun({
@@ -89,32 +131,13 @@ beforeAll(async () => {
 			at: new Date(),
 		});
 	}
-	const server = new McpServer({ name: "tripwire-test", version: "0.0.0" });
-	registerTools(
-		server,
-		{
-			db,
-			pool,
-			getBoss: () => Promise.reject(new Error("no queue in tests")),
-			config,
-			agent: {
-				userId,
-				clientId: "test-client",
-				scopes: [...SCOPES],
-				orgIds: [org.id],
-			},
-			accessDenied: null,
-		},
-		{ scopes: [...SCOPES], readOnly: false },
-	);
-	const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
-	await server.connect(serverSide);
-	client = new Client({ name: "test", version: "0.0.0" });
-	await client.connect(clientSide);
+	client = await connect([org.id]);
 }, 120_000);
 
 afterAll(async () => {
-	await client?.close().catch(() => undefined);
+	for (const open of clients) {
+		await open.close().catch(() => undefined);
+	}
 	await pool?.end().catch(() => undefined);
 	await container?.stop();
 });
@@ -145,16 +168,348 @@ describe("list_runs", () => {
 	});
 });
 
+describe("get_run", () => {
+	test("steps name their workflow, title, gate mode and outcome", async () => {
+		const listed = await call("list_runs", { repo: "mcp-api" });
+		const runId = runsSchema.parse(JSON.parse(listed.content[0]?.text ?? ""))[0]
+			?.id;
+		await pool.query(
+			"UPDATE run_steps SET node_id = 'seeded:' || node_id WHERE run_id = $1",
+			[runId],
+		);
+		await pool.query("UPDATE runs SET workflow_snapshot = $2 WHERE id = $1", [
+			runId,
+			JSON.stringify([
+				{
+					id: "seeded",
+					name: "Seeded gate",
+					version: 1,
+					nodes: [
+						{
+							id: "trigger",
+							type: "trigger",
+							kinds: ["change-request.opened"],
+						},
+						{ id: "gate", type: "gate", mode: "any-of" },
+					],
+					edges: [],
+				},
+			]),
+		]);
+		const result = await call("get_run", { runId });
+		expect(result.isError).toBeFalsy();
+		const run = JSON.parse(result.content[0]?.text ?? "");
+		expect(run.createdAt).toMatch(/Z$/);
+		expect(run.steps).toContainEqual(
+			expect.objectContaining({
+				workflow: "Seeded gate",
+				stepId: "trigger",
+				step: "Trigger",
+				outcome: "Ran",
+			}),
+		);
+		expect(run.steps).toContainEqual(
+			expect.objectContaining({
+				workflow: "Seeded gate",
+				stepId: "gate",
+				step: "Any of",
+				gate: "any of",
+				outcome: "Passes",
+			}),
+		);
+	});
+});
+
+describe("get_run reads like the run page", () => {
+	test("verdict words, steps grouped by workflow, and the unrunnable workflow named", async () => {
+		const listed = await call("list_runs", { repo: "mcp-web" });
+		const runId = runsSchema.parse(JSON.parse(listed.content[0]?.text ?? ""))[0]
+			?.id;
+		await pool.query("UPDATE runs SET verdict = 'needs_review' WHERE id = $1", [
+			runId,
+		]);
+		await pool.query(
+			`INSERT INTO run_steps (id, run_id, node_id, node_kind, status, output, started_at, finished_at, duration_ms)
+			 VALUES ($1, $2, 'run:unrunnable', 'gate', 'skipped', $3, now() - interval '1 hour', now() - interval '1 hour', 0)`,
+			[
+				"mcp-unrunnable-step",
+				runId,
+				JSON.stringify({
+					workflows: [{ id: "broken", name: "Crypto or honeypot" }],
+					issues: [
+						{
+							workflowId: "broken",
+							messages: ["All of: It takes rule results, not events"],
+						},
+					],
+				}),
+			],
+		);
+		const result = await call("get_run", { runId });
+		const run = JSON.parse(result.content[0]?.text ?? "");
+		expect(run.verdict).toBe("needs_review");
+		expect(run.verdictLabel).toBe("Waiting for human review");
+		const unrunnable = run.steps.find(
+			(step: { status: string }) => step.status === "skipped",
+		);
+		expect(unrunnable).toMatchObject({
+			workflow: "Crypto or honeypot",
+			outcome: "Could not run",
+			kind: "gate",
+			status: "skipped",
+		});
+	});
+});
+
+describe("a run whose change request closed before review", () => {
+	async function closedRun(number: number) {
+		const runId = await seedRun({
+			db,
+			repo: repoRows[0] ?? never(),
+			actor: { login: "someone", externalId: "4000" },
+			number,
+			title: "closed before review",
+			verdict: "needs_review",
+			at: new Date(),
+		});
+		await pool.query(
+			"UPDATE runs SET status = 'closed', completed_at = now() WHERE id = $1",
+			[runId],
+		);
+		await runServices.recordSteps(db, runId, [
+			{
+				nodeId: "review:hold",
+				nodeKind: "action",
+				status: "paused",
+				input: null,
+				output: null,
+				startedAt: new Date().toISOString(),
+				finishedAt: new Date().toISOString(),
+				durationMs: 0,
+			},
+		]);
+		const items = await pool.query<{ id: string }>(
+			"UPDATE moderation_items SET status = 'closed', decided_at = now() WHERE run_id = $1 RETURNING id",
+			[runId],
+		);
+		return { runId, itemId: items.rows[0]?.id ?? never() };
+	}
+
+	test("get_run and list_runs read Closed before review", async () => {
+		const { runId } = await closedRun(90);
+		const got = JSON.parse(
+			(await call("get_run", { runId })).content[0]?.text ?? "",
+		);
+		expect(got).toMatchObject({
+			status: "closed",
+			verdict: "needs_review",
+			result: "closed-before-review",
+			verdictLabel: "Closed before review",
+		});
+		const waiting = z
+			.array(z.object({ status: z.string(), outcome: z.string() }))
+			.parse(got.steps)
+			.filter((row) => row.status === "paused");
+		expect(waiting.map((row) => row.outcome)).toEqual(["Closed before review"]);
+		const listed = z
+			.array(
+				z.object({
+					id: z.string(),
+					result: z.string().nullable(),
+					verdictLabel: z.string().nullable(),
+				}),
+			)
+			.parse(
+				JSON.parse(
+					(await call("list_runs", { repo: "mcp-api" })).content[0]?.text ?? "",
+				),
+			);
+		expect(listed.find((row) => row.id === runId)).toMatchObject({
+			result: "closed-before-review",
+			verdictLabel: "Closed before review",
+		});
+	});
+
+	test("deciding its review item is an error that says it closed", async () => {
+		const { itemId } = await closedRun(92);
+		const result = await call("decide_moderation", {
+			repo: "mcp-api",
+			itemId,
+			decision: "approve",
+		});
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toContain(
+			"closed with its change request #92",
+		);
+	});
+});
+
+describe("a comment run reads Ran", () => {
+	test("get_run keeps the raw verdict and labels it Ran", async () => {
+		const runId = await seedRun({
+			db,
+			repo: repoRows[1] ?? never(),
+			actor: { login: "someone", externalId: "4000" },
+			number: 91,
+			title: "comment run",
+			verdict: "pass",
+			at: new Date(),
+		});
+		await pool.query(
+			"UPDATE events SET kind = 'comment.created' WHERE id = (SELECT event_id FROM runs WHERE id = $1)",
+			[runId],
+		);
+		const got = JSON.parse(
+			(await call("get_run", { runId })).content[0]?.text ?? "",
+		);
+		expect(got).toMatchObject({
+			verdict: "pass",
+			result: "ran",
+			verdictLabel: "Ran",
+		});
+	});
+});
+
+describe("list_workflows says what can run, like the web list", () => {
+	test("a trigger wired into all-of can neither run nor be turned on", async () => {
+		await call("apply_workflow", {
+			repo: "mcp-web",
+			definitions: [
+				{
+					id: "bad-allof-trigger",
+					name: "bad-allof-trigger",
+					version: 1,
+					nodes: [
+						{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+						{ id: "g", type: "gate", mode: "all-of" },
+						{ id: "b", type: "action", action: "block" },
+					],
+					edges: [
+						{ id: "e1", from: "t", to: "g" },
+						{ id: "e2", from: "g", to: "b", when: "fail" },
+					],
+				},
+			],
+		});
+		const result = await call("list_workflows", { repo: "mcp-web" });
+		const listed = JSON.parse(result.content[0]?.text ?? "[]");
+		expect(listed).toContainEqual(
+			expect.objectContaining({
+				name: "bad-allof-trigger",
+				enabled: false,
+				runnable: false,
+				canTurnOn: false,
+				state: "cant-turn-on",
+			}),
+		);
+	});
+});
+
+async function addOrg(
+	slug: string,
+	input: { member: boolean; repo: string; installationId: string },
+): Promise<string> {
+	const id = crypto.randomUUID();
+	await db
+		.insert(schema.organization)
+		.values({ id, name: slug, slug, isPersonal: false });
+	if (input.member) {
+		await db.insert(schema.member).values({
+			id: crypto.randomUUID(),
+			organizationId: id,
+			userId: USER_ID,
+			role: "admin",
+		});
+	}
+	await ensureDemoRepo(db, input.repo, {
+		installationId: input.installationId,
+	});
+	await orgServices.linkOrgInstallation(db, {
+		orgId: id,
+		installationId: input.installationId,
+	});
+	return id;
+}
+
+describe("a repo argument names the repo the way people copy it", () => {
+	const listed = async (target: Client, args: { org?: string; repo: string }) =>
+		textSchema.parse(
+			await target.callTool({ name: "list_workflows", arguments: args }),
+		);
+
+	test("by name, org/name, GitHub owner/name, or a pasted web URL", async () => {
+		for (const repo of [
+			"mcp-web",
+			`${orgSlug}/mcp-web`,
+			fullNames[1] ?? never(),
+			`https://staging.tripwire.sh/${orgSlug}/mcp-web`,
+			`https://staging.tripwire.sh/${orgSlug}/mcp-web/workflows/abc`,
+			`https://github.com/${fullNames[1] ?? never()}`,
+		]) {
+			const result = await listed(client, { repo });
+			expect({ repo, error: result.isError ?? false }).toEqual({
+				repo,
+				error: false,
+			});
+		}
+	});
+
+	test("an org in the argument picks that org over the selected one", async () => {
+		const otherId = await addOrg("other-team", {
+			member: true,
+			repo: "other-repo",
+			installationId: "other-inst",
+		});
+		const both = await connect([(await orgId()) ?? never(), otherId]);
+		const result = await listed(both, {
+			org: orgSlug,
+			repo: "other-team/other-repo",
+		});
+		expect(result.isError ?? false).toBe(false);
+		const plain = await listed(both, { org: orgSlug, repo: "other-repo" });
+		expect(plain.structuredContent).toEqual({
+			error: `The org ${orgSlug} has no repo named other-repo.`,
+			hint: "list_repos",
+			org: orgSlug,
+		});
+	});
+
+	test("an org the agent was not given is named in the error", async () => {
+		const result = await listed(client, { repo: "other-team/other-repo" });
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toContain(
+			"This agent was not given access to other-team.",
+		);
+	});
+
+	test("an org the user is not in reads as not one of their orgs", async () => {
+		await addOrg("stranger-team", {
+			member: false,
+			repo: "stranger-repo",
+			installationId: "stranger-inst",
+		});
+		const result = await listed(client, {
+			repo: "stranger-team/stranger-repo",
+		});
+		expect(result.structuredContent).toEqual({
+			error: `You are not in an org named stranger-team, and the org ${orgSlug} has no repo stranger-team/stranger-repo.`,
+			hint: "list_repos",
+			org: orgSlug,
+		});
+	});
+});
+
 describe("tool errors", () => {
 	test("keep tool names out of the message and put them in the hint", async () => {
 		const result = await call("list_workflows", { repo: "scratch" });
 		expect(result.isError).toBe(true);
 		expect(result.structuredContent).toEqual({
-			error: `No repo named scratch in ${orgSlug}.`,
+			error: `The org ${orgSlug} has no repo named scratch.`,
 			hint: "list_repos",
+			org: orgSlug,
 		});
 		expect(result.content[0]?.text).toBe(
-			`No repo named scratch in ${orgSlug}. Call list_repos to see the repos.`,
+			`The org ${orgSlug} has no repo named scratch. Call list_repos to see the repos.`,
 		);
 	});
 
@@ -174,5 +529,221 @@ describe("list_moderation_queue", () => {
 		expect(JSON.parse(result.content[0]?.text ?? "")).toMatchObject({
 			items: [],
 		});
+	});
+});
+
+describe("workflows as code", () => {
+	const definition = {
+		id: "mcp-as-code",
+		name: "as code over mcp",
+		version: 1,
+		nodes: [
+			{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+			{
+				id: "account-age",
+				type: "rule",
+				ref: "account-age@1",
+				config: { minDays: 7 },
+			},
+			{
+				id: "hook",
+				type: "action",
+				action: "webhook",
+				params: { url: "https://internal.example/steal" },
+			},
+			{ id: "block", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "trigger", to: "account-age" },
+			{ id: "e2", from: "account-age", to: "block", when: "fail" },
+			{ id: "e3", from: "account-age", to: "hook", when: "fail" },
+		],
+	};
+	const body = (result: { content: { text?: string }[] }) =>
+		z.json().parse(JSON.parse(result.content[0]?.text ?? "null"));
+
+	test("validate reports issues and the changes apply would make", async () => {
+		const result = await call("validate_workflow", {
+			repo: "mcp-api",
+			definitions: [definition],
+		});
+		expect(result.isError).toBeFalsy();
+		expect(body(result)).toMatchObject({
+			valid: false,
+			workflows: [
+				{
+					id: "mcp-as-code",
+					valid: false,
+					issues: [{ step: "Webhook", rule: "action-params" }],
+					changes: [{ change: "added", subject: "workflow" }],
+				},
+			],
+		});
+		expect(JSON.stringify(body(result))).not.toContain("internal.example");
+	});
+
+	test("a pulled live webhook workflow validates as its push would save", async () => {
+		const repo = repoRows[0] ?? never();
+		const created = await workflowServices.createWorkflow(db, {
+			repoId: repo.id,
+			name: "pulled hook",
+			definition: {
+				id: "mcp-pulled-hook",
+				name: "pulled hook",
+				version: 1,
+				nodes: [
+					{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+					{
+						id: "hook",
+						type: "action",
+						action: "webhook",
+						params: { url: "https://hooks.example.com/tripwire" },
+					},
+				],
+				edges: [{ id: "e1", from: "t", to: "hook" }],
+			},
+		});
+		await workflowServices.setWorkflowEnabled(db, {
+			repoId: repo.id,
+			workflowId: created.id,
+			enabled: true,
+		});
+		const code = await call("get_workflow", {
+			repo: "mcp-api",
+			workflow: "mcp-pulled-hook",
+		});
+		expect(JSON.stringify(body(code))).not.toContain("hooks.example.com");
+		const checked = await call("validate_workflow", {
+			repo: "mcp-api",
+			definitions: [
+				{
+					id: "mcp-pulled-hook",
+					name: "pulled hook",
+					version: 1,
+					nodes: [
+						{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+						{ id: "hook", type: "action", action: "webhook" },
+					],
+					edges: [{ id: "e1", from: "t", to: "hook" }],
+				},
+			],
+		});
+		expect(body(checked)).toMatchObject({
+			valid: true,
+			workflows: [
+				{ id: "mcp-pulled-hook", enabled: true, valid: true, changes: [] },
+			],
+		});
+	});
+
+	test("apply creates it off and never stores a URL sent as code", async () => {
+		const result = await call("apply_workflow", {
+			repo: "mcp-api",
+			definitions: [definition],
+		});
+		expect(body(result)).toMatchObject({
+			workflows: [{ id: "mcp-as-code", outcome: "created", enabled: false }],
+		});
+		const again = await call("apply_workflow", {
+			repo: "mcp-api",
+			definitions: [definition],
+		});
+		expect(body(again)).toMatchObject({
+			workflows: [{ outcome: "unchanged" }],
+		});
+	});
+
+	test("a refused enable names the step and the reason", async () => {
+		const result = await call("set_workflow_enabled", {
+			repo: "mcp-api",
+			workflowId: "mcp-as-code",
+			enabled: true,
+		});
+		expect(result.isError).toBe(true);
+		const error = String(result.structuredContent?.error ?? "");
+		expect(error).toMatch(
+			/^Workflow mcp-as-code cannot be turned on\. Webhook: \S/,
+		);
+		expect(error).not.toContain(";");
+	});
+
+	test("a refused push names the step, and validate says the workflow is on", async () => {
+		const live = {
+			...definition,
+			id: "mcp-live",
+			name: "live over mcp",
+			nodes: definition.nodes.filter((node) => node.id !== "hook"),
+			edges: definition.edges.filter((edge) => edge.to !== "hook"),
+		};
+		await call("apply_workflow", { repo: "mcp-api", definitions: [live] });
+		const on = await call("set_workflow_enabled", {
+			repo: "mcp-api",
+			workflowId: "mcp-live",
+			enabled: true,
+		});
+		expect(on.isError).toBeFalsy();
+		const broken = {
+			...live,
+			nodes: [...live.nodes, { id: "either", type: "gate", mode: "any-of" }],
+			edges: [...live.edges, { id: "e9", from: "either", to: "block" }],
+		};
+		const checked = await call("validate_workflow", {
+			repo: "mcp-api",
+			definitions: [broken],
+		});
+		expect(body(checked)).toMatchObject({
+			workflows: [{ id: "mcp-live", enabled: true, valid: false }],
+		});
+		const pushed = await call("apply_workflow", {
+			repo: "mcp-api",
+			definitions: [broken],
+		});
+		const refused = z
+			.object({
+				workflows: z.array(
+					z.object({ outcome: z.string(), issues: z.array(z.string()) }),
+				),
+			})
+			.parse(body(pushed)).workflows[0];
+		expect(refused?.outcome).toBe("refused");
+		expect(refused?.issues.some((issue) => issue.startsWith("Any of: "))).toBe(
+			true,
+		);
+		expect(body(pushed)).toMatchObject({
+			workflows: [{ reason: "live-cannot-run" }],
+		});
+	});
+
+	test("a new workflow pushed with a taken name is refused for its name", async () => {
+		const pushed = await call("apply_workflow", {
+			repo: "mcp-api",
+			definitions: [{ ...definition, id: "mcp-clash", name: "live over mcp" }],
+		});
+		expect(body(pushed)).toEqual({
+			workflows: [
+				{
+					id: "mcp-clash",
+					outcome: "refused",
+					reason: "name-taken",
+					issues: [
+						"Another workflow on this repo is named live over mcp. Pick another name.",
+					],
+				},
+			],
+		});
+	});
+
+	test("get returns the workflow as code without secrets", async () => {
+		const result = await call("get_workflow", {
+			repo: "mcp-api",
+			workflow: "mcp-as-code",
+		});
+		const parsed = z
+			.object({ code: z.string(), workflows: z.array(z.unknown()) })
+			.parse(body(result));
+		expect(parsed.code).toContain('check("account-age", {');
+		expect(parsed.code).toContain("webhook().after(accountAge.fails)");
+		expect(parsed.code).not.toContain("internal.example");
+		expect(parsed.workflows).toHaveLength(1);
 	});
 });

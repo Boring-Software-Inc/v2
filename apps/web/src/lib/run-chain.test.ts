@@ -9,6 +9,8 @@ import {
 } from "@tripwire/contracts";
 import { toFullRunView, toPublicRunView } from "#/lib/run-access";
 import {
+	branchOutcomeLabel,
+	branchPassed,
 	branchSummary,
 	buildBranches,
 	buildRunChain,
@@ -99,7 +101,7 @@ function view(overrides: Partial<RunView> = {}): RunView {
 			},
 			{ kind: "block", status: "executed", recordedAt: AT, url: null },
 			{
-				kind: "webhook",
+				kind: "discord",
 				status: "executed",
 				recordedAt: AT,
 				url: null,
@@ -160,6 +162,61 @@ describe("buildRunChain, a scheduled run", () => {
 	});
 });
 
+describe("buildRunChain, runs that carry no verdict", () => {
+	const comment = {
+		kind: "comment.created" as const,
+		actor: "g-r-i-m",
+		title: "",
+		headSha: null,
+		at: AT,
+	};
+
+	test("a comment run reads Ran, neutral, while the change request is blocked", () => {
+		const chain = buildRunChain(
+			view({ verdict: "pass", reviews: [], event: comment }),
+		);
+		expect(chain.outcome.title).toBe("Ran");
+		expect(chain.outcome.short).toBe("Ran");
+		expect(chain.outcome.tone).toBe("neutral");
+		expect(chain.outcome.glyph).not.toBe("pass");
+	});
+
+	test("a scheduled run reads Ran even when a workflow blocked", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "block",
+				reviews: [],
+				subjectKind: "issue",
+				event: {
+					kind: "schedule.matched",
+					actor: "octocat",
+					title: "Crash on start",
+					headSha: null,
+					at: AT,
+				},
+			}),
+		);
+		expect(chain.outcome.title).toBe("Ran");
+		expect(chain.outcome.tone).toBe("neutral");
+	});
+
+	test("its own per-workflow results stay visible", () => {
+		const chain = buildRunChain(
+			view({ verdict: "block", reviews: [], event: comment }),
+		);
+		const body = chain.checks?.body;
+		expect(body?.kind).toBe("branches");
+		if (body?.kind !== "branches") {
+			return;
+		}
+		expect(body.branches.map((b) => b.name)).toEqual([
+			"Rules",
+			"solar-lighthouse",
+		]);
+		expect(chain.checks?.title).toBe("2 of 4 rules did not pass");
+	});
+});
+
 describe("buildRunChain, a blocked run with two workflows", () => {
 	const chain = buildRunChain(view());
 
@@ -201,9 +258,87 @@ describe("buildRunChain, a blocked run with two workflows", () => {
 		expect(chain.outcome.chips.map((chip) => [chip.label, chip.href])).toEqual([
 			["Check blocked", "https://github.com/acme/scratch/runs/9"],
 			["Requested changes", null],
-			["Commented", "https://github.com/acme/scratch/pull/91#issuecomment-5"],
-			["Sent to a webhook", null],
+			[
+				"Verdict comment",
+				"https://github.com/acme/scratch/pull/91#issuecomment-5",
+			],
+			["Sent to Discord", null],
 		]);
+	});
+
+	test("label and comment chips say what each added, and never repeat", () => {
+		const chips = buildRunChain(
+			view({
+				verdict: "pass",
+				actions: [
+					{
+						kind: "comment",
+						status: "executed",
+						recordedAt: AT,
+						url: null,
+						label: "Verdict comment",
+					},
+					{
+						kind: "label",
+						status: "executed",
+						recordedAt: AT,
+						url: null,
+						label: "Labeled needs-a-human",
+					},
+					{
+						kind: "label",
+						status: "executed",
+						recordedAt: AT,
+						url: null,
+						label: "Labeled human-approved",
+					},
+					{
+						kind: "label",
+						status: "executed",
+						recordedAt: AT,
+						url: null,
+						label: "Labeled human-approved",
+					},
+					{
+						kind: "post-comment",
+						status: "executed",
+						recordedAt: AT,
+						url: null,
+						label: "Workflow comment",
+					},
+				],
+			}),
+		).outcome.chips.map((chip) => chip.label);
+		expect(chips).toEqual([
+			"Verdict comment",
+			"Labeled needs-a-human",
+			"Labeled human-approved",
+			"Workflow comment",
+		]);
+	});
+});
+
+describe("the checks header is honest about a workflow that could not run", () => {
+	test("every rule passed, but a workflow could not run", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "needs_review",
+				status: "paused",
+				steps: [
+					rule("default@1:spam", "spam-forks@1", "pass"),
+					rule("default@1:age", "account-age@1", "pass"),
+					rule("wf-solar:english", "english-only@1", "pass"),
+				],
+				workflows: [
+					{ ...RULES, outcome: "pass" },
+					{ ...SOLAR, outcome: "pass" },
+					{ id: "broken", name: "Crypto", outcome: "unrunnable" },
+				],
+			}),
+		);
+		const checks = chain.checks;
+		expect(checks?.title).toBe("3 of 3 rules passed. 1 workflow could not run");
+		expect(checks?.tone).toBe("neutral");
 	});
 });
 
@@ -228,6 +363,34 @@ describe("outcome offset", () => {
 		);
 		expect(chain.outcome.title).toBe("Waiting for human review");
 		expect(chain.outcome.offsetMs).toBe(22 * 60_000);
+	});
+
+	test("a review closed with its change request reads as closed, not waiting", () => {
+		const chain = buildRunChain(
+			view({
+				status: "closed",
+				verdict: "needs_review",
+				completedAt: null,
+				reviews: [
+					{
+						workflowId: "wf-solar",
+						state: "closed",
+						degraded: false,
+						openedAt: "2026-10-21T14:24:07.000Z",
+						decidedAt: "2026-10-21T15:00:07.000Z",
+						decidedBy: null,
+					},
+				],
+			}),
+		);
+		expect(chain.outcome.title).toBe("Closed before review");
+		expect(chain.outcome.tone).toBe("neutral");
+		expect(chain.outcome.chips.map((chip) => chip.label)).toContain(
+			"Check neutral",
+		);
+		expect(chain.steps.map((step) => step.title)).not.toContain(
+			"Blocked by a maintainer",
+		);
 	});
 
 	test("a run that did not finish reads from its last step", () => {
@@ -325,6 +488,24 @@ describe("branch grouping", () => {
 		);
 		expect(body.branches).toEqual([]);
 		expect(body.passedGroup.map((b) => b.name)).toEqual(["Rules", "docs-only"]);
+	});
+
+	test("a workflow that could not run keeps a branch with no checks", () => {
+		const body = buildBranches(
+			[
+				{ ...RULES, outcome: "pass" },
+				{ id: "wf-broken", name: "broken-wiring", outcome: "unrunnable" },
+			],
+			[rule("default@1:age", "account-age@1", "pass")],
+			false,
+		);
+		const broken = body.branches.find((b) => b.name === "broken-wiring");
+		expect(broken?.form).toBe("card");
+		expect(broken && branchOutcomeLabel(broken)).toEqual({
+			tone: "neutral",
+			glyph: "skipped",
+			label: "Could not run",
+		});
 	});
 
 	test("a rules-only run is one card with no branch outcome", () => {
@@ -622,6 +803,45 @@ describe("redaction", () => {
 
 	test("members see every chip at any level", () => {
 		const labels = outcomeChips(toFullRunView(view())).map((c) => c.label);
-		expect(labels).toContain("Sent to a webhook");
+		expect(labels).toContain("Sent to Discord");
+	});
+});
+
+describe("the checks node agrees with the gate's verdict", () => {
+	const anyOf: RunWorkflowView = { id: "wf-any", name: "any", outcome: "pass" };
+
+	test("a failed rule an any-of gate allowed is not shown as a failure", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "pass",
+				workflows: [anyOf],
+				steps: [
+					rule("wf-any:age", "account-age@1", "pass"),
+					rule("wf-any:crypto", "crypto-address@1", "fail"),
+				],
+				actions: [],
+				reviews: [],
+			}),
+		);
+		expect(chain.checks?.title).toBe("1 of 2 rules did not pass");
+		expect(chain.checks?.tone).toBe("neutral");
+		const body = chain.checks?.body;
+		expect(body?.kind === "branches" && body.branches.every(branchPassed)).toBe(
+			true,
+		);
+	});
+
+	test("passing rules behind a Not that blocked are not shown as ok", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "block",
+				workflows: [{ id: "wf-not", name: "not", outcome: "block" }],
+				steps: [rule("wf-not:age", "account-age@1", "pass")],
+				actions: [],
+				reviews: [],
+			}),
+		);
+		expect(chain.checks?.title).toBe("1 of 1 rules passed");
+		expect(chain.checks?.tone).toBe("neutral");
 	});
 });

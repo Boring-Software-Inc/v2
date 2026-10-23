@@ -6,6 +6,7 @@ import {
 	createTestDatabase,
 	type Db,
 	eventServices,
+	moderationServices,
 	repoServices,
 	type TestDatabase,
 } from "@tripwire/db";
@@ -487,6 +488,62 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 		expect(items.rows[0].node_id).toBe("run:degraded");
 	});
 
+	test("closing the change request closes its waiting human review", async () => {
+		const raw = await fixtureRaw();
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "worker-close-1",
+			rawKind: "pull_request",
+			raw,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		const failing = () => Promise.reject(new Error("github is down"));
+		const deps = {
+			db,
+			pool,
+			logger,
+			makeGenerate: null,
+			appUrl: "http://localhost:3000",
+			resolveForge: staticForge({
+				reads: {
+					getDiff: failing,
+					getCommits: failing,
+					getContributorProfile: failing,
+				},
+			}),
+		};
+		await processEvent(deps, { eventId });
+		const before = await moderationServices.listPendingItems(
+			db,
+			"Codertocat/Hello-World",
+		);
+		expect(before.length).toBeGreaterThan(0);
+
+		const closed = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "worker-close-2",
+			rawKind: "pull_request",
+			raw: await Bun.file(
+				new URL(
+					"../../../packages/forge-github/fixtures/pull_request.closed.json",
+					import.meta.url,
+				).pathname,
+			).json(),
+		});
+		if (!closed.eventId) {
+			throw new Error("insert failed");
+		}
+		await processEvent(deps, { eventId: closed.eventId });
+
+		expect(
+			await moderationServices.listPendingItems(db, "Codertocat/Hello-World"),
+		).toEqual([]);
+		const statuses = await pool.query(
+			"SELECT DISTINCT m.status FROM moderation_items m JOIN runs r ON r.id = m.run_id WHERE r.subject_number = 2",
+		);
+		expect(statuses.rows.map((row) => row.status)).not.toContain("pending");
+	});
+
 	test("partial degradation (minority skipped) ⇒ still pass", async () => {
 		const raw = await fixtureRaw();
 		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
@@ -787,120 +844,5 @@ describe("installation sync (§4 installation sync — live gap fix)", () => {
 		);
 		expect(rows.rowCount).toBe(1);
 		expect(rows.rows[0].external_id).toMatch(/^\d+$/);
-	});
-});
-
-describe("a live workflow with a removed Discord step", () => {
-	test("runs its other steps and records no Discord delivery", async () => {
-		const repoId = await repoServices.ensureRepo(db, {
-			externalId: "186853002",
-			owner: "Codertocat",
-			name: "Hello-World",
-			fullName: "Codertocat/Hello-World",
-		});
-		const wasEnabled = await pool.query(
-			"UPDATE workflow_definitions SET enabled = false WHERE repo_id = $1 AND enabled RETURNING id",
-			[repoId],
-		);
-		const definitionId = await repoServices.saveWorkflowDefinition(db, repoId, {
-			id: "legacy-discord@1",
-			name: "legacy discord",
-			version: 1,
-			nodes: [
-				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
-				{
-					id: "age",
-					type: "rule",
-					ref: "account-age@1",
-					config: { minDays: 7 },
-				},
-				{ id: "block", type: "action", action: "block" },
-				{
-					id: "ping",
-					type: "action",
-					action: "discord",
-					params: { url: "https://discord.com/api/webhooks/1/abc" },
-				},
-			],
-			edges: [
-				{ id: "e1", from: "t", to: "age" },
-				{ id: "e2", from: "age", to: "block", when: "fail" },
-				{ id: "e3", from: "age", to: "ping", when: "fail" },
-			],
-		});
-		await pool.query(
-			"UPDATE workflow_definitions SET enabled = true WHERE id = $1",
-			[definitionId],
-		);
-
-		const raw = await fixtureRaw();
-		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
-			deliveryId: "legacy-discord-1",
-			rawKind: "pull_request",
-			raw,
-		});
-		if (!eventId) {
-			throw new Error("insert failed");
-		}
-		const executed: string[] = [];
-		await processEvent(
-			{
-				db,
-				pool,
-				logger,
-				makeGenerate: null,
-				appUrl: "https://tripwire.sh",
-				resolveForge: staticForge({
-					adapter: {
-						execute: (action: { kind: string }) => {
-							executed.push(action.kind);
-							return Promise.resolve({ externalId: null });
-						},
-					} as never,
-					reads: {
-						getDiff: () => Promise.resolve([]),
-						getCommits: () => Promise.resolve([]),
-						getContributorProfile: () =>
-							Promise.resolve({
-								login: "sockpuppet",
-								externalId: "999",
-								createdAt: new Date(Date.now() - 86_400_000).toISOString(),
-								followers: 0,
-								following: 0,
-								publicRepos: 0,
-								profileText: null,
-								mergedInRepo: 0,
-								mergedElsewhere: 0,
-								recentChangeRequestTimes: [],
-								isOrgMember: false,
-								isMaintainer: false,
-							}),
-					},
-				}),
-			},
-			{ eventId },
-		);
-
-		const run = await pool.query(
-			"SELECT id, status, verdict FROM runs WHERE event_id = $1",
-			[eventId],
-		);
-		expect(run.rows[0].status).toBe("completed");
-		expect(run.rows[0].verdict).toBe("block");
-		const actions = await pool.query(
-			"SELECT kind, status FROM run_actions WHERE run_id = $1 ORDER BY kind",
-			[run.rows[0].id],
-		);
-		expect(actions.rows.map((r) => [r.kind, r.status])).toEqual([
-			["block", "executed"],
-			["comment", "executed"],
-			["set-check", "executed"],
-		]);
-		expect(executed).not.toContain("discord");
-
-		await pool.query(
-			"UPDATE workflow_definitions SET enabled = (id = ANY($2::text[])) WHERE repo_id = $1",
-			[repoId, wasEnabled.rows.map((r) => r.id)],
-		);
 	});
 });

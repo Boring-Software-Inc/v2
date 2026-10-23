@@ -12,7 +12,6 @@ import type { RedactionUsage } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
 	type OrgContext,
-	orgMemberMiddleware,
 	orgPermissionMiddleware,
 	requireOrgRepoById,
 } from "#/lib/server/org-guard";
@@ -32,7 +31,10 @@ function samePolicy(a: RedactionPolicy, b: RedactionPolicy): boolean {
 }
 
 export const getRepoResponseConfig = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("responses:read"),
+	])
 	.inputValidator((input: { org: string; repoId: string }) => input)
 	.handler(async ({ data, context }): Promise<ResponseConfig> => {
 		await requireOrgRepoById((context as OrgContext).org.id, data.repoId);
@@ -44,7 +46,7 @@ export const getRepoResponseConfig = createServerFn({ method: "GET" })
 export const saveRepoResponseConfig = createServerFn({ method: "POST" })
 	.middleware([
 		accessGuardMiddleware,
-		orgPermissionMiddleware("repoResponse:update"),
+		orgPermissionMiddleware("responses:manage"),
 	])
 	.inputValidator(
 		(input: { org: string; repoId: string; config: unknown }) => input,
@@ -71,7 +73,10 @@ export const saveRepoResponseConfig = createServerFn({ method: "POST" })
 	});
 
 export const getOrgResponseDefaults = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("responses:read"),
+	])
 	.inputValidator((input: { org: string }) => input)
 	.handler(async ({ context }): Promise<OrgResponseDefaultsView> => {
 		const orgId = (context as OrgContext).org.id;
@@ -88,7 +93,7 @@ export const getOrgResponseDefaults = createServerFn({ method: "GET" })
 export const saveOrgResponseDefaults = createServerFn({ method: "POST" })
 	.middleware([
 		accessGuardMiddleware,
-		orgPermissionMiddleware("orgResponseDefaults:update"),
+		orgPermissionMiddleware("responses:manage"),
 	])
 	.inputValidator((input: { org: string; defaults: unknown }) => input)
 	.handler(async ({ data, context }): Promise<SaveResult> => {

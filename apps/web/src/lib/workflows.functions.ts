@@ -11,8 +11,7 @@ import type {
 } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
-	orgAdminMiddleware,
-	orgMemberMiddleware,
+	orgPermissionMiddleware,
 	requireOrgRepoById,
 } from "#/lib/server/org-guard";
 
@@ -26,7 +25,10 @@ export type { SetEnabledResult, WorkflowListItem, WorkflowRow };
  */
 
 export const listRepoWorkflows = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:read"),
+	])
 	.inputValidator((input: { org: string; repoId: string }) => input)
 	.handler(async ({ data, context }): Promise<WorkflowListItem[]> => {
 		await requireOrgRepoById(
@@ -39,7 +41,10 @@ export const listRepoWorkflows = createServerFn({ method: "GET" })
 	});
 
 export const getRepoWorkflow = createServerFn({ method: "GET" })
-	.middleware([accessGuardMiddleware, orgMemberMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:read"),
+	])
 	.inputValidator(
 		(input: { org: string; repoId: string; workflowId: string }) => input,
 	)
@@ -57,8 +62,7 @@ export const getRepoWorkflow = createServerFn({ method: "GET" })
 		if (!row) {
 			return null;
 		}
-		// Never return stored delivery secrets to the client in full.
-		const { redactWorkflowSecrets } = await import("#/lib/workflow-secrets");
+		const { redactWorkflowSecrets } = await import("@tripwire/contracts");
 		return { ...row, definition: redactWorkflowSecrets(row.definition) };
 	});
 
@@ -67,7 +71,10 @@ export const getRepoWorkflow = createServerFn({ method: "GET" })
  * definition is supplied. ALWAYS created disabled (§4: saving never enables).
  */
 export const createRepoWorkflow = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: { org: string; repoId: string; definition?: unknown }) => input,
 	)
@@ -100,9 +107,15 @@ export const createRepoWorkflow = createServerFn({ method: "POST" })
 		},
 	);
 
-/** The editor's save. Drafts persist in ANY structural state; never enables. */
+/**
+ * The editor's save. Drafts persist in ANY structural state; never enables. A
+ * live workflow takes only a definition that could be turned on.
+ */
 export const saveRepoWorkflow = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: {
 			org: string;
@@ -135,7 +148,7 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 			const { workflowServices } = await import("@tripwire/db");
 			const { getDb } = await import("#/lib/server/db");
 			const db = getDb().db;
-			// Set-only secrets: a blank webhook field keeps the stored
+			// Set-only secrets: a blank webhook/discord field keeps the stored
 			// value; a new value is validated (https + shape) before it persists.
 			const { restoreWorkflowSecrets } = await import("#/lib/workflow-secrets");
 			const existing = await workflowServices.getWorkflow(db, {
@@ -149,21 +162,27 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 			if (merged.error) {
 				return { ok: false, error: merged.error };
 			}
-			const result = await workflowServices.updateWorkflowDefinition(db, {
+			const result = await workflowServices.saveWorkflowDefinition(db, {
 				repoId: data.repoId,
 				workflowId: data.workflowId,
 				definition: merged.definition,
 			});
 			if (!result.ok) {
-				return result;
+				const [first] = result.issues;
+				return {
+					ok: false,
+					error: first
+						? `This workflow is live, so Tripwire kept the last working version. ${first.message}`
+						: "Tripwire could not save this workflow. Try again.",
+				};
 			}
 			// Save is not blocked on delivery reachability — but a newly-set
 			// webhook url the maintainer never tested gets checked here, and a
 			// failure comes back as a node issue (same surface as validation).
 			const { probeDelivery } = await import("#/lib/delivery-probe");
 			const connectionIssues = await Promise.all(
-				merged.changedUrlNodes.map(async ({ nodeId, url }) => {
-					const probe = await probeDelivery(url);
+				merged.changedUrlNodes.map(async ({ nodeId, url, kind }) => {
+					const probe = await probeDelivery(url, kind);
 					return probe.ok
 						? null
 						: {
@@ -183,14 +202,22 @@ export const saveRepoWorkflow = createServerFn({ method: "POST" })
 	);
 
 /**
- * The panel's "test connection" — POST a ping to a webhook url through
+ * The panel's "test connection" — POST a ping to a webhook/discord url through
  * the SSRF guard and report whether it lands. Admin-gated (it makes an outbound
  * request). The url is tested, never returned; failures name the class.
  */
 export const testDeliveryConnection = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
-		(input: { org: string; repoId: string; url: string }) => input,
+		(input: {
+			org: string;
+			repoId: string;
+			url: string;
+			kind: "webhook" | "discord";
+		}) => input,
 	)
 	.handler(
 		async ({
@@ -202,7 +229,7 @@ export const testDeliveryConnection = createServerFn({ method: "POST" })
 				data.repoId,
 			);
 			const { probeDelivery } = await import("#/lib/delivery-probe");
-			const result = await probeDelivery(data.url);
+			const result = await probeDelivery(data.url, data.kind);
 			return result.ok
 				? { ok: true, status: result.status }
 				: { ok: false, failure: result.failure };
@@ -210,7 +237,10 @@ export const testDeliveryConnection = createServerFn({ method: "POST" })
 	);
 
 export const renameRepoWorkflow = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: {
 			org: string;
@@ -237,7 +267,10 @@ export const renameRepoWorkflow = createServerFn({ method: "POST" })
 
 /** Duplicate — DISABLED regardless of the source's state (§4). */
 export const duplicateRepoWorkflow = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: { org: string; repoId: string; workflowId: string }) => input,
 	)
@@ -261,7 +294,10 @@ export const duplicateRepoWorkflow = createServerFn({ method: "POST" })
 	);
 
 export const deleteRepoWorkflow = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: { org: string; repoId: string; workflowId: string }) => input,
 	)
@@ -284,7 +320,10 @@ export const deleteRepoWorkflow = createServerFn({ method: "POST" })
  * UI can show WHY instead of failing silently.
  */
 export const setRepoWorkflowEnabled = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
 	.inputValidator(
 		(input: {
 			org: string;

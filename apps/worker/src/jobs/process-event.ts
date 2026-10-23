@@ -8,7 +8,12 @@ import {
 } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { Db } from "@tripwire/db";
-import { eventServices, orgServices, repoServices } from "@tripwire/db";
+import {
+	eventServices,
+	moderationServices,
+	orgServices,
+	repoServices,
+} from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { Logger } from "pino";
@@ -16,7 +21,11 @@ import { z } from "zod";
 import { type ForgeRuntime, normalizeFor } from "../forge-runtime.ts";
 import { installFailureReporter } from "../report-install-failure.ts";
 import { upsertInstallation } from "./installation-sync.ts";
-import { emitPendingCheck, emitPrSurface } from "./pr-surface.ts";
+import {
+	emitClosedReviewSurfaces,
+	emitPendingCheck,
+	emitPrSurface,
+} from "./pr-surface.ts";
 import { refreshBranchSuggestions } from "./refresh-suggestions.ts";
 import { runWorkflows } from "./run-workflows.ts";
 
@@ -186,6 +195,18 @@ export async function processEvent(
 			}
 		}
 		return;
+	}
+
+	if (normalized.kind === "change-request.closed") {
+		await emitClosedReviewSurfaces(
+			{ db, adapterFor: () => Promise.resolve(adapter), logger },
+			await moderationServices.closeReviewsForChangeRequest(
+				db,
+				deps.appUrl,
+				normalized.repo.fullName,
+				normalized.changeRequest.number,
+			),
+		);
 	}
 
 	if (isSelfEvent(normalized, deps.selfLogins)) {

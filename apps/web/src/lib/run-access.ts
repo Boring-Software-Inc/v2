@@ -17,7 +17,7 @@ export type RunAccess = "full" | "public" | "denied";
 export interface RunAccessInput {
 	/** false in open-dev posture (resolveAuthPosture) — the gate stands open. */
 	authEnabled: boolean;
-	isOrgMember: boolean;
+	canReadActivity: boolean;
 	/**
 	 * Repo visibility from installation sync; null when the repo row is
 	 * missing or unresolved — treated as private (fail closed).
@@ -27,10 +27,10 @@ export interface RunAccessInput {
 
 export function resolveRunAccess({
 	authEnabled,
-	isOrgMember,
+	canReadActivity,
 	repoPrivate,
 }: RunAccessInput): RunAccess {
-	if (!authEnabled || isOrgMember) {
+	if (!authEnabled || canReadActivity) {
 		return "full";
 	}
 	return repoPrivate === false ? "public" : "denied";

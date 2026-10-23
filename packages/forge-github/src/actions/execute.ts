@@ -3,6 +3,11 @@ import { type GithubHttp, GithubHttpError } from "../client/http.ts";
 import { DISMISS_REVIEW_MESSAGE } from "../copy.ts";
 import { setCheck } from "./check.ts";
 import { deleteActiveComment, upsertComment } from "./comment.ts";
+import {
+	isOwnMarkedComment,
+	issueCommentListSchema,
+	issueCommentSchema,
+} from "./ownership.ts";
 
 /**
  * Executes a ForgeAction idempotently (§4). `block` files a request-changes
@@ -143,20 +148,24 @@ async function postActionComment(
 			action.repoFullName,
 			path,
 		);
-		const found = (result.body as { id: number; body?: string }[]).find(
-			(comment) => comment.body?.includes(action.marker),
-		);
+		const found = issueCommentListSchema
+			.parse(result.body)
+			.find((comment) =>
+				isOwnMarkedComment(http.appId, comment, action.marker),
+			);
 		if (found) {
 			return { externalId: String(found.id) };
 		}
 		path = result.next;
 	}
-	const created = (await http.post(
-		action.repoFullName,
-		`/repos/${action.repoFullName}/issues/${action.number}/comments`,
-		{ body: `${action.body}\n\n${action.marker}` },
-	)) as { id?: number };
-	return { externalId: created.id ? String(created.id) : null };
+	const created = issueCommentSchema.parse(
+		await http.post(
+			action.repoFullName,
+			`/repos/${action.repoFullName}/issues/${action.number}/comments`,
+			{ body: `${action.body}\n\n${action.marker}` },
+		),
+	);
+	return { externalId: String(created.id) };
 }
 
 interface PullReview {

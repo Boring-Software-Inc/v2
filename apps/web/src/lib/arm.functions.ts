@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { OrgWithRole } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
-	orgAdminMiddleware,
+	orgPermissionMiddleware,
 	requireOrgRepoById,
 	resolveOrgRepo,
 } from "#/lib/server/org-guard";
@@ -25,7 +25,10 @@ async function armById(repoId: string): Promise<void> {
 
 /** Arm the URL's repo (the scoped-page CTA). */
 export const armRepo = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
 	.inputValidator((input: { org: string; repo: string }) => input)
 	.handler(
 		async ({ data, context }): Promise<{ armed: boolean; repoId: string }> => {
@@ -42,7 +45,10 @@ export const armRepo = createServerFn({ method: "POST" })
  * on the way back on later — the stored events are still there to replay.
  */
 export const disarmRepo = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
 	.inputValidator((input: { org: string; repo: string }) => input)
 	.handler(
 		async ({ data, context }): Promise<{ armed: boolean; repoId: string }> => {
@@ -57,7 +63,10 @@ export const disarmRepo = createServerFn({ method: "POST" })
 
 /** Arm a specific repo by id (org home rows) — must belong to the org. */
 export const armRepoById = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
 	.inputValidator((input: { org: string; repoId: string }) => input)
 	.handler(async ({ data, context }): Promise<{ armed: boolean }> => {
 		const org = (context as { org: OrgWithRole }).org;

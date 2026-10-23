@@ -31,6 +31,7 @@ import {
 	UnsavedChangesBar,
 } from "#/components/save-queue";
 import { useCollection } from "#/hooks/use-collection";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import {
 	deleteCustomRule,
 	saveCustomRule,
@@ -93,7 +94,7 @@ export function RulesPage() {
 	const { org, repo: repoName } = routeApi.useParams();
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
-	const isAdmin = orgContext?.role === "admin";
+	const isAdmin = useOrgPermission(org, "rules:manage");
 	const [builderOpen, setBuilderOpen] = useState(false);
 	const repoId = repo?.id ?? "";
 	const rulesQuery = useQuery(ruleConfigsQueryOptions(org, repoId));
@@ -261,7 +262,7 @@ export function RulesPage() {
 								</p>
 								{orgContext && !isAdmin ? (
 									<p className="type-body-sm text-text-2">
-										Only org admins can change rules.
+										Your role can view rules but not change them.
 									</p>
 								) : null}
 							</div>

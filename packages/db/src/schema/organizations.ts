@@ -44,6 +44,7 @@ export const organization = pgTable(
 		 * state.
 		 */
 		avatarHue: integer("avatar_hue"),
+		timezone: text("timezone"),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
@@ -70,6 +71,28 @@ export const member = pgTable(
 	(t) => [
 		uniqueIndex("member_org_user_unique").on(t.organizationId, t.userId),
 		index("member_user_idx").on(t.userId),
+	],
+);
+
+export const organizationRole = pgTable(
+	"organization_role",
+	{
+		id: text("id").primaryKey(),
+		organizationId: text("organization_id")
+			.notNull()
+			.references(() => organization.id, { onDelete: "cascade" }),
+		role: text("role").notNull(),
+		permission: text("permission").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }),
+	},
+	(t) => [
+		uniqueIndex("organization_role_org_role_unique").on(
+			t.organizationId,
+			t.role,
+		),
 	],
 );
 

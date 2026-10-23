@@ -1,29 +1,51 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { SKILL_NAME } from "#/config";
+import { SKILL_NAME, WORKFLOWS_SKILL_NAME } from "#/config";
 import type { MergeOutcome } from "#/json-config";
 import SKILL_MD from "../skills/tripwire-get-started/SKILL.md" with {
 	type: "text",
 };
+import WORKFLOWS_SKILL_MD from "../skills/tripwire-workflows/SKILL.md" with {
+	type: "text",
+};
 
-export function skillPath(skillsDir: string): string {
-	return join(skillsDir, SKILL_NAME, "SKILL.md");
+const SKILLS = [
+	{ name: SKILL_NAME, body: SKILL_MD },
+	{ name: WORKFLOWS_SKILL_NAME, body: WORKFLOWS_SKILL_MD },
+] as const;
+
+export function skillPath(
+	skillsDir: string,
+	name: string = SKILL_NAME,
+): string {
+	return join(skillsDir, name, "SKILL.md");
 }
 
-export function writeSkill(skillsDir: string): MergeOutcome {
-	const path = skillPath(skillsDir);
+function writeOne(skillsDir: string, name: string, body: string): MergeOutcome {
+	const path = skillPath(skillsDir, name);
 	let current: string | null = null;
 	try {
 		current = readFileSync(path, "utf8");
 	} catch {
 		current = null;
 	}
-	if (current === SKILL_MD) {
+	if (current === body) {
 		return "unchanged";
 	}
-	mkdirSync(join(skillsDir, SKILL_NAME), { recursive: true });
+	mkdirSync(join(skillsDir, name), { recursive: true });
 	const temp = `${path}.tripwire-${process.pid}.tmp`;
-	writeFileSync(temp, SKILL_MD);
+	writeFileSync(temp, body);
 	renameSync(temp, path);
 	return current === null ? "added" : "updated";
+}
+
+/** Writes every bundled skill; the outcome is the strongest change made. */
+export function writeSkill(skillsDir: string): MergeOutcome {
+	const outcomes = SKILLS.map((skill) =>
+		writeOne(skillsDir, skill.name, skill.body),
+	);
+	if (outcomes.includes("added")) {
+		return "added";
+	}
+	return outcomes.includes("updated") ? "updated" : "unchanged";
 }

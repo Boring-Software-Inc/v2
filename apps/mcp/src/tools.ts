@@ -1,16 +1,31 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { installUrlFor, signInstallState } from "@tripwire/auth/install-state";
 import {
+	AUTHORING_MODULE_PATH,
+	bearsVerdict,
+	DEFAULT_SCHEDULE_TIMEZONE,
+	describeRunSteps,
 	RULE_CATALOG,
+	redactWorkflowSecrets,
+	runResult,
+	runResultLabel,
+	runSnapshotSchema,
 	SETUP_STAGES,
+	scheduleReadBacks,
 	setupProgressInputSchema,
 	setupStageStatusSchema,
+	validationIssueText,
+	workflowDefinitionSchema,
+	workflowDisplayName,
+	workflowsToCode,
 } from "@tripwire/contracts";
 import {
 	agentServices,
+	eventServices,
 	moderationServices,
 	type OrgWithRole,
 	orgServices,
+	type RepoLite,
 	repoServices,
 	ruleServices,
 	runServices,
@@ -25,7 +40,7 @@ import {
 	ok,
 	requireAccess,
 	resolveOrg,
-	resolveRepo,
+	resolveOrgRepo,
 	type ToolContext,
 	ToolError,
 } from "./context.ts";
@@ -62,6 +77,15 @@ const NEXT_STEP_GUIDE = {
 	done: "Tripwire checks pull requests on at least one repo. Open a test pull request from another account to see a check.",
 } as const;
 
+function resultWords(run: {
+	status: string;
+	verdict: string | null;
+	bearsVerdict: boolean;
+}) {
+	const result = runResult(run);
+	return { result, verdictLabel: runResultLabel(result) };
+}
+
 function installLink(ctx: ToolContext, orgId: string): string | undefined {
 	const state = signInstallState(
 		{ userId: ctx.agent.userId, orgId },
@@ -77,15 +101,22 @@ export function registerTools(
 	selection: Parameters<typeof toolVisible>[1],
 ): void {
 	const visible = (name: ToolName) => toolVisible(name, selection);
-	const repoNames = async (
-		org: OrgWithRole,
+	const scoped = async (
+		org: string | undefined,
 		repo: string | undefined,
-	): Promise<string[]> => {
+		tool: ToolName,
+	): Promise<{ org: OrgWithRole; repo?: RepoLite; names: string[] }> => {
 		if (repo) {
-			return [(await resolveRepo(ctx, org, repo)).fullName];
+			const found = await resolveOrgRepo(ctx, org, repo, tool);
+			return {
+				org: found.org,
+				repo: found.repo,
+				names: [found.repo.fullName],
+			};
 		}
-		const repos = await orgServices.listOrgRepos(ctx.db, org.id);
-		return repos.map((item) => item.fullName);
+		const resolved = await resolveOrg(ctx, org, tool);
+		const repos = await orgServices.listOrgRepos(ctx.db, resolved.id);
+		return { org: resolved, names: repos.map((item) => item.fullName) };
 	};
 	const annotate = (name: ToolName) => ({
 		readOnlyHint: TOOL_SPECS[name].readOnly,
@@ -140,7 +171,7 @@ export function registerTools(
 			},
 			({ org }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "setup_status");
 					const status = await setupServices.getSetupStatus(
 						ctx.db,
 						resolved.id,
@@ -157,7 +188,8 @@ export function registerTools(
 						nextStep: status.nextStep,
 						guide: NEXT_STEP_GUIDE[status.nextStep],
 						installUrl:
-							status.nextStep === "install_app" && resolved.role === "admin"
+							status.nextStep === "install_app" &&
+							resolved.permissions.includes("connections:manage")
 								? installLink(ctx, resolved.id)
 								: undefined,
 						home: appLink(ctx, `/${resolved.slug}/home`),
@@ -177,7 +209,7 @@ export function registerTools(
 			},
 			({ org }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "list_repos");
 					const repos = await orgServices.listOrgSwitcherRepos(
 						ctx.db,
 						resolved.id,
@@ -208,7 +240,7 @@ export function registerTools(
 			},
 			({ org }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
+					const resolved = await resolveOrg(ctx, org, "get_install_link");
 					const url = installLink(ctx, resolved.id);
 					if (!url) {
 						throw new ToolError(
@@ -264,8 +296,12 @@ export function registerTools(
 			},
 			({ org, repo }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
-					const found = await resolveRepo(ctx, resolved, repo);
+					const { repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"get_repo_rules",
+					);
 					const views = await ruleServices.listRuleViews(ctx.db, found.id);
 					return ok(
 						views.map((view) => ({
@@ -310,11 +346,15 @@ export function registerTools(
 			},
 			({ org, repo, ruleId, enabled, config }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
 					if (!RULE_CATALOG.some((entry) => entry.ruleId === ruleId)) {
 						throw new ToolError(`No rule named ${ruleId}.`, "list_rules");
 					}
-					const found = await resolveRepo(ctx, resolved, repo);
+					const { org: resolved, repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"set_rule",
+					);
 					const views = await ruleServices.listRuleViews(ctx.db, found.id);
 					const view = views.find((item) => item.ruleId === ruleId);
 					if (view?.management === "managed" && view.workflowId) {
@@ -350,8 +390,12 @@ export function registerTools(
 			},
 			({ org, repo }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
-					const found = await resolveRepo(ctx, resolved, repo);
+					const { org: resolved, repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"turn_on_gate",
+					);
 					await repoServices.turnOnGate(ctx.db, await ctx.getBoss(), found.id);
 					return ok({
 						gateOn: true,
@@ -366,14 +410,19 @@ export function registerTools(
 		server.registerTool(
 			"list_workflows",
 			{
-				description: "The workflows on a repo and whether each is on.",
+				description:
+					"The workflows on a repo. enabled says whether each is on. runnable says Tripwire can run it as wired. canTurnOn says it passes the check for turning it on. state sums them up: on, off, cant-run, needs-fixes or cant-turn-on.",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("list_workflows"),
 			},
 			({ org, repo }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
-					const found = await resolveRepo(ctx, resolved, repo);
+					const { org: resolved, repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"list_workflows",
+					);
 					const workflows = await workflowServices.listWorkflows(
 						ctx.db,
 						found.id,
@@ -391,12 +440,15 @@ export function registerTools(
 		);
 	}
 
+	const workflowLink = (org: OrgWithRole, repo: string, rowId: string) =>
+		appLink(ctx, `/${org.slug}/${repo}/workflows/${rowId}`);
+
 	if (visible("set_workflow_enabled")) {
 		server.registerTool(
 			"set_workflow_enabled",
 			{
 				description:
-					"Turn a workflow on or off. Webhook URLs and secrets are set by the user in the app, never here.",
+					"Turn a workflow on or off, by its id in code, its id in the app, or its name. A refusal names each step that stops it. Webhook URLs and secrets are set by the user in the app, never here.",
 				inputSchema: {
 					org: orgArg,
 					repo: repoArg,
@@ -407,13 +459,35 @@ export function registerTools(
 			},
 			({ org, repo, workflowId, enabled }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
-					const found = await resolveRepo(ctx, resolved, repo);
-					const result = await workflowServices.setWorkflowEnabled(ctx.db, {
-						repoId: found.id,
-						workflowId,
-						enabled,
-					});
+					const { org: resolved, repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"set_workflow_enabled",
+					);
+					const rows = await workflowServices.listWorkflowRows(
+						ctx.db,
+						found.id,
+					);
+					const row = rows.find(
+						(candidate) =>
+							candidate.id === workflowId ||
+							candidate.definition.id === workflowId ||
+							candidate.name === workflowId,
+					);
+					const result = row
+						? await workflowServices.setWorkflowEnabled(ctx.db, {
+								repoId: found.id,
+								workflowId: row.id,
+								enabled,
+							})
+						: null;
+					if (!(row && result)) {
+						throw new ToolError(
+							`No workflow ${workflowId} on ${found.fullName}.`,
+							"list_workflows",
+						);
+					}
 					if (!result.ok) {
 						const missing = result.issues.some(
 							(issue) => issue.message === "workflow not found",
@@ -425,16 +499,163 @@ export function registerTools(
 							);
 						}
 						throw new ToolError(
-							`Workflow ${workflowId} cannot be turned on: ${result.issues.map((issue) => issue.message).join("; ")}`,
+							`Workflow ${workflowId} cannot be turned on. ${result.issues.map(validationIssueText).join(" ")}`,
 						);
 					}
 					return ok({
 						...result,
-						url: appLink(
-							ctx,
-							`/${resolved.slug}/${found.name}/workflows/${workflowId}`,
-						),
+						url: workflowLink(resolved, found.name, row.id),
 					});
+				}),
+		);
+	}
+
+	const workflowArg = z
+		.string()
+		.min(1)
+		.optional()
+		.describe(
+			"The workflow's id in code, its id in the app, or its name. Leave out for every workflow on the repo.",
+		);
+	const definitionsArg = z
+		.array(workflowDefinitionSchema)
+		.min(1)
+		.describe(
+			"Compiled workflow definitions. Write a tripwire.ts and run `tripwire workflows validate --json` to get them; each key in the file is a definition id.",
+		);
+
+	if (visible("get_workflow")) {
+		server.registerTool(
+			"get_workflow",
+			{
+				description: `A repo's workflows as tripwire.ts code, plus the stored definitions. Secrets are never included. Clock schedules without a timezone run in ${DEFAULT_SCHEDULE_TIMEZONE}.`,
+				inputSchema: { org: orgArg, repo: repoArg, workflow: workflowArg },
+				annotations: annotate("get_workflow"),
+			},
+			({ org, repo, workflow }) =>
+				guard(async () => {
+					const { org: resolved, repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"get_workflow",
+					);
+					const rows = await workflowServices.listWorkflowRows(
+						ctx.db,
+						found.id,
+					);
+					const picked = workflow
+						? rows.filter(
+								(row) =>
+									row.id === workflow ||
+									row.definition.id === workflow ||
+									row.name === workflow,
+							)
+						: rows;
+					if (workflow && picked.length === 0) {
+						throw new ToolError(
+							`No workflow ${workflow} on ${found.fullName}.`,
+							"list_workflows",
+						);
+					}
+					const definitions = picked.map((row) =>
+						redactWorkflowSecrets(row.definition),
+					);
+					const code = workflowsToCode(definitions, {
+						importFrom: AUTHORING_MODULE_PATH,
+					});
+					return ok({
+						code: code.code,
+						warnings: code.warnings,
+						workflows: picked.map((row, index) => ({
+							id: row.definition.id,
+							appId: row.id,
+							name: row.name,
+							enabled: row.enabled,
+							url: workflowLink(resolved, found.name, row.id),
+							schedules: scheduleReadBacks(row.definition),
+							definition: definitions[index],
+						})),
+					});
+				}),
+		);
+	}
+
+	if (visible("validate_workflow")) {
+		server.registerTool(
+			"validate_workflow",
+			{
+				description: `Check compiled workflows against this repo without saving: the issues that would stop each from being turned on, how each schedule reads back with its timezone (${DEFAULT_SCHEDULE_TIMEZONE} when none is set), and what apply_workflow would change.`,
+				inputSchema: {
+					org: orgArg,
+					repo: repoArg,
+					definitions: definitionsArg,
+				},
+				annotations: annotate("validate_workflow"),
+			},
+			({ org, repo, definitions }) =>
+				guard(async () => {
+					const { repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"validate_workflow",
+					);
+					return ok(
+						await workflowServices.previewWorkflowPush(ctx.db, {
+							repoId: found.id,
+							definitions,
+						}),
+					);
+				}),
+		);
+	}
+
+	if (visible("apply_workflow")) {
+		server.registerTool(
+			"apply_workflow",
+			{
+				description:
+					"Save compiled workflows to a repo, matched by definition id. New workflows start off; call set_workflow_enabled to turn one on. A workflow that is on only takes a definition that could be turned on. Canvas layout and secrets already saved are kept.",
+				inputSchema: {
+					org: orgArg,
+					repo: repoArg,
+					definitions: definitionsArg,
+				},
+				annotations: annotate("apply_workflow"),
+			},
+			({ org, repo, definitions }) =>
+				guard(async () => {
+					const { org: resolved, repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"apply_workflow",
+					);
+					const results = [];
+					for (const definition of definitions) {
+						const result = await workflowServices.applyWorkflowDefinition(
+							ctx.db,
+							{ repoId: found.id, definition },
+						);
+						results.push(
+							result.ok
+								? {
+										id: definition.id,
+										outcome: result.outcome,
+										enabled: result.workflow.enabled,
+										changes: result.changes,
+										url: workflowLink(resolved, found.name, result.workflow.id),
+									}
+								: {
+										id: definition.id,
+										outcome: "refused" as const,
+										reason: result.reason,
+										issues: result.issues.map(validationIssueText),
+									},
+						);
+					}
+					return ok({ workflows: results });
 				}),
 		);
 	}
@@ -444,7 +665,7 @@ export function registerTools(
 			"list_runs",
 			{
 				description:
-					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first.",
+					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A run with bearsVerdict false came from a comment or a schedule. It acts on a thread, and its verdict is not the change request's verdict. result and verdictLabel say how the run ended, in the run page's words: closed-before-review means the change request closed while the run waited for human review.",
 				inputSchema: {
 					org: orgArg,
 					repo: anyRepoArg,
@@ -454,8 +675,7 @@ export function registerTools(
 			},
 			({ org, repo, limit }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
-					const names = await repoNames(resolved, repo);
+					const { names } = await scoped(org, repo, "list_runs");
 					const runs = await runServices.listRepoRuns(ctx.db, {
 						repoFullName: names,
 						limit: limit ?? 20,
@@ -467,6 +687,9 @@ export function registerTools(
 							number: run.subjectNumber,
 							status: run.status,
 							verdict: run.verdict,
+							...resultWords(run),
+							scheduled: run.scheduled,
+							bearsVerdict: run.bearsVerdict,
 							createdAt: run.createdAt.toISOString(),
 							url: appLink(ctx, `/runs/${run.id}`),
 						})),
@@ -479,13 +702,14 @@ export function registerTools(
 		server.registerTool(
 			"get_run",
 			{
-				description: "One run with its steps and actions.",
+				description:
+					"One run with its steps and actions. result and verdictLabel say how the run ended, in the words the run page uses. A comment or scheduled run reads ran. Steps are grouped by workflow and follow each workflow's graph. Each step names its workflow, its title and id, the gate mode for gates, and its outcome in product words. Times are ISO 8601 in UTC.",
 				inputSchema: { org: orgArg, runId: z.string().min(1) },
 				annotations: annotate("get_run"),
 			},
 			({ org, runId }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
+					const resolved = await resolveOrg(ctx, org, "get_run");
 					const found = await runServices.getRunWithSteps(ctx.db, runId);
 					const repos = await orgServices.listOrgSwitcherRepos(
 						ctx.db,
@@ -502,6 +726,11 @@ export function registerTools(
 							"list_runs",
 						);
 					}
+					const snapshot = runSnapshotSchema.parse(found.run.workflowSnapshot);
+					const event = await eventServices.getEventById(
+						ctx.db,
+						found.run.eventId,
+					);
 					return ok({
 						note: UNTRUSTED_NOTE,
 						id: found.run.id,
@@ -509,13 +738,13 @@ export function registerTools(
 						number: found.run.subjectNumber,
 						status: found.run.status,
 						verdict: found.run.verdict,
+						...resultWords({
+							...found.run,
+							bearsVerdict: bearsVerdict(event?.kind),
+						}),
 						createdAt: found.run.createdAt.toISOString(),
-						steps: found.steps.map((step) => ({
-							kind: step.nodeKind,
-							rule: step.ruleId,
-							status: step.status,
-							summary: step.summary,
-						})),
+						workflows: snapshot.map(workflowDisplayName),
+						steps: describeRunSteps(snapshot, found.steps, found.run.status),
 						actions: found.actions.map((action) => ({
 							kind: action.kind,
 							status: action.status,
@@ -537,11 +766,14 @@ export function registerTools(
 			},
 			({ org, repo }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "member");
-					const found = repo ? await resolveRepo(ctx, resolved, repo) : null;
+					const {
+						org: resolved,
+						repo: found,
+						names,
+					} = await scoped(org, repo, "list_moderation_queue");
 					const items = await moderationServices.listPendingItems(
 						ctx.db,
-						found ? found.fullName : await repoNames(resolved, undefined),
+						names,
 						50,
 					);
 					return ok({
@@ -583,8 +815,12 @@ export function registerTools(
 			},
 			({ org, repo, itemId, decision }) =>
 				guard(async () => {
-					const resolved = await resolveOrg(ctx, org, "admin");
-					const found = await resolveRepo(ctx, resolved, repo);
+					const { org: resolved, repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"decide_moderation",
+					);
 					if (decision === "ban") {
 						return ok({
 							done: false,
@@ -595,6 +831,28 @@ export function registerTools(
 							forUser:
 								"Open this link to review the contributor and decide yourself.",
 						});
+					}
+					const item = await moderationServices.getModerationItem(
+						ctx.db,
+						itemId,
+					);
+					const run = item
+						? await runServices.getRunById(ctx.db, item.runId)
+						: null;
+					if (!(item && run?.repoFullName === found.fullName)) {
+						throw new ToolError(
+							`No review item ${itemId} on ${found.fullName}.`,
+							"list_queue",
+						);
+					}
+					const closedError = () =>
+						new ToolError(
+							`Review item ${itemId} closed with its change request${
+								run.subjectNumber ? ` #${run.subjectNumber}` : ""
+							} before anyone decided it. There is nothing to decide.`,
+						);
+					if (item.status === "closed") {
+						throw closedError();
 					}
 					const result = await moderationServices.decideRepoModerationItem(
 						ctx.db,
@@ -612,9 +870,16 @@ export function registerTools(
 							"list_queue",
 						);
 					}
+					if (!result.ok && result.reason === "closed") {
+						throw closedError();
+					}
 					return ok({
 						done: result.ok,
 						alreadyDecided: !result.ok,
+						decision,
+						itemId,
+						repo: found.fullName,
+						number: run.subjectNumber,
 					});
 				}),
 		);

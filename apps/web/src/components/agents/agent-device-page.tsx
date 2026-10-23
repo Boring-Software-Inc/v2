@@ -168,6 +168,7 @@ function DeviceRequest({ userCode }: { userCode: string }) {
 					);
 				}
 			}}
+			activeOrgId={data.activeOrgId}
 			orgs={data.orgs}
 			scopes={data.scopes}
 			subtitle="Check that this code matches your terminal."

@@ -4,6 +4,15 @@ import {
 	eventKindSchema,
 	threadSubjectSchema,
 } from "./events.ts";
+import {
+	cronShortestGap,
+	isValidTimeZone,
+	nextCronRun,
+	parseCron,
+} from "./workflow-cron.ts";
+
+/** How often the worker looks for due schedules, in minutes. */
+export const SCHEDULE_TICK_MINUTES = 5;
 
 /** JSON — rule configs and action params are JSON on the wire by definition. */
 export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
@@ -33,12 +42,13 @@ export type JsonValue =
  * Semantics (enforced by core/workflow):
  * - a rule/action node runs when ≥1 incoming edge conducts; a trigger conducts
  *   when its kinds include the event kind.
- * - a GATE node runs once ≥1 of its source nodes has settled (been reached) and
- *   aggregates their OUTCOMES — edge when-conduction does NOT gate gate
- *   execution, so a gate whose feeding rules all fail still runs and fails (the
- *   security fix; otherwise an all-failing gate would derive `pass`).
- * - rule nodes produce pass/fail; `skipped` conducts as pass but is recorded
- *   (a rule that can't evaluate must not block — §6 purity).
+ * - a GATE node runs once ≥1 of its source nodes has settled and folds every
+ *   input, failures included (Kleene three-valued, see foldGate).
+ * - `skipped` is unknown: a rule that can't evaluate conducts on no port. A
+ *   node that no edge conducts into, with an unknown among its inputs, settles
+ *   as skipped too, so unknown never fires an action.
+ * - a gate input whose source was certainly never reached does not pass. A
+ *   gate whose inputs were all certainly never reached is never reached.
  * - edges conduct on the source's outcome: `when: "pass"` (default) | "fail";
  *   `approve`/`deny` edges leave a send-to-moderation node and conduct only
  *   when the moderation decision resumes the run (§6: paused run).
@@ -73,7 +83,6 @@ export type WorkflowActionKind = z.infer<typeof workflowActionKindSchema>;
 
 export const REMOVED_ACTION_KINDS = [
 	"comment",
-	"discord",
 ] as const satisfies readonly WorkflowActionKind[];
 export type RemovedActionKind = (typeof REMOVED_ACTION_KINDS)[number];
 
@@ -97,6 +106,9 @@ export const webhookParamsSchema = z.object({
 		.optional()
 		.meta({ secret: true })
 		.describe("signing secret"),
+});
+export const discordParamsSchema = z.object({
+	url: z.url().meta({ secret: true }).describe("discord webhook url"),
 });
 
 export const MAX_REVIEW_TARGETS = 15;
@@ -244,7 +256,97 @@ export const scheduleEverySchema = z
 	.refine((every) => durationMs(every) <= MAX_SCHEDULE_EVERY_MS, {
 		message: "runs at least once a year",
 	});
-export type ScheduleEvery = z.infer<typeof scheduleEverySchema>;
+export type ScheduleInterval = z.infer<typeof scheduleEverySchema>;
+
+/**
+ * The timezone a clock-based schedule (preset or cron) runs in when it names
+ * none. Every read-back of a schedule states its zone, defaulted or not.
+ */
+export const DEFAULT_SCHEDULE_TIMEZONE = "UTC";
+
+export const scheduleTimezoneSchema = z
+	.string()
+	.min(1)
+	.refine(isValidTimeZone, {
+		error: (issue) =>
+			`${String(issue.input)} is not an IANA timezone, like Europe/Berlin`,
+	});
+
+export const timeOfDaySchema = z
+	.string()
+	.regex(/^([01]\d|2[0-3]):[0-5]\d$/, "use 24-hour HH:MM, like 07:30");
+export type TimeOfDay = z.infer<typeof timeOfDaySchema>;
+
+export const weekdaySchema = z.enum([
+	"sunday",
+	"monday",
+	"tuesday",
+	"wednesday",
+	"thursday",
+	"friday",
+	"saturday",
+]);
+export type Weekday = z.infer<typeof weekdaySchema>;
+
+export const schedulePresetSchema = z.discriminatedUnion("preset", [
+	z.object({
+		preset: z.literal("hourly"),
+		minute: z.number().int().min(0).max(59),
+	}),
+	z.object({ preset: z.literal("daily"), at: timeOfDaySchema }),
+	z.object({ preset: z.literal("weekdays"), at: timeOfDaySchema }),
+	z.object({
+		preset: z.literal("weekly"),
+		on: weekdaySchema,
+		at: timeOfDaySchema,
+	}),
+	z.object({
+		preset: z.literal("monthly"),
+		day: z.number().int().min(1).max(28),
+		at: timeOfDaySchema,
+	}),
+]);
+export type SchedulePreset = z.infer<typeof schedulePresetSchema>;
+export type SchedulePresetKind = SchedulePreset["preset"];
+
+export const scheduleCronSchema = z.object({
+	cron: z
+		.string()
+		.trim()
+		.superRefine((expression, ctx) => {
+			const parsed = parseCron(expression);
+			if (!parsed.ok) {
+				ctx.addIssue({ code: "custom", message: parsed.error });
+				return;
+			}
+			if (
+				nextCronRun(parsed.spec, "UTC", new Date(Date.UTC(2026, 0, 1))) === null
+			) {
+				ctx.addIssue({
+					code: "custom",
+					message: "this cron never runs. Pick a day the month has",
+				});
+			}
+			if (cronShortestGap(parsed.spec) < SCHEDULE_TICK_MINUTES) {
+				ctx.addIssue({
+					code: "custom",
+					message: `runs must be at least ${SCHEDULE_TICK_MINUTES} minutes apart`,
+				});
+			}
+		}),
+});
+export type ScheduleCron = z.infer<typeof scheduleCronSchema>;
+
+/**
+ * When a schedule runs: a fixed interval (the original shape, still stored
+ * as `{ n, unit }`), a preset, or a cron expression.
+ */
+export const scheduleCadenceSchema = z.union([
+	scheduleEverySchema,
+	schedulePresetSchema,
+	scheduleCronSchema,
+]);
+export type ScheduleCadence = z.infer<typeof scheduleCadenceSchema>;
 
 export const inactiveForSchema = z
 	.object({ n: z.number().int().min(1), unit: inactiveUnitSchema })
@@ -269,13 +371,15 @@ export const scheduleMatchConfigSchema = z.object({
 export type ScheduleMatchConfig = z.infer<typeof scheduleMatchConfigSchema>;
 
 export const triggerScheduleSchema = z.object({
-	every: scheduleEverySchema,
+	every: scheduleCadenceSchema,
+	timezone: scheduleTimezoneSchema.optional(),
 	match: scheduleMatchConfigSchema,
 });
 export type TriggerSchedule = z.infer<typeof triggerScheduleSchema>;
 
 export const scheduleDraftSchema = z.object({
-	every: scheduleEverySchema.optional(),
+	every: scheduleCadenceSchema.optional(),
+	timezone: scheduleTimezoneSchema.optional(),
 	match: z
 		.object({
 			subjects: z.array(threadSubjectSchema).optional(),
@@ -459,6 +563,17 @@ export const DEFAULT_WORKFLOW: WorkflowDefinition = {
 	],
 };
 
+export const RULES_WORKFLOW_NAME = "Rules";
+
+export function workflowDisplayName(definition: {
+	id: string;
+	name: string;
+}): string {
+	return definition.id === DEFAULT_WORKFLOW.id
+		? RULES_WORKFLOW_NAME
+		: definition.name;
+}
+
 /**
  * Toolbox catalogs (§editor rebuild) — machine-readable metadata for every
  * node kind the editor can place, so the palette renders from data and a new
@@ -548,12 +663,14 @@ export const GATE_CATALOG: GateCatalogEntry[] = [
 	{
 		mode: "all-of",
 		name: "All of",
-		description: "Passes only when every connected check passes.",
+		description:
+			"Passes only when every connected check passes. A check that was never reached does not pass.",
 	},
 	{
 		mode: "any-of",
 		name: "Any of",
-		description: "Passes when at least one connected check passes.",
+		description:
+			"Passes when at least one connected check passes. A check that was never reached does not pass.",
 	},
 	{
 		mode: "not",
@@ -615,5 +732,10 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 		name: "Comment",
 		description:
 			"Posts a comment you write. It is separate from the verdict comment.",
+	},
+	{
+		action: "discord",
+		name: "Discord",
+		description: "Posts the verdict to a Discord channel you set.",
 	},
 ];

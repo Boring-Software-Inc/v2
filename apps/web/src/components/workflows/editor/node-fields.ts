@@ -1,16 +1,14 @@
 import type { JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
+	appliesToValue,
+	describeDuration,
+	describeSchedule,
 	isScheduleTrigger,
 	RULE_CATALOG,
 	ruleUiSchema,
 	storedReviewerSchema,
 } from "@tripwire/contracts";
 import { z } from "zod";
-import {
-	appliesToValue,
-	durationLabel,
-	everyValue,
-} from "#/lib/schedule-summary";
 import { whenSentence } from "#/lib/trigger-kinds";
 
 const targetList = z.array(z.string()).catch([]);
@@ -187,7 +185,13 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 			}
 			const draft = node.schedule;
 			const rows: NodeFieldValue[] = [
-				row("every", "Every", draft?.every ? everyValue(draft.every) : null),
+				row(
+					"every",
+					"Runs",
+					draft?.every
+						? describeSchedule({ every: draft.every, timezone: draft.timezone })
+						: null,
+				),
 				row(
 					"subjects",
 					"Applies to",
@@ -197,19 +201,23 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					"inactiveFor",
 					"Inactive for",
 					draft?.match.inactiveFor
-						? durationLabel(draft.match.inactiveFor)
+						? describeDuration(draft.match.inactiveFor)
 						: null,
 				),
 			];
+			const labelRow = (key: string, label: string, labels: string[]) => ({
+				field: { key, label, secret: false, kind: "string-list" as const },
+				value: labels,
+			});
 			if (draft?.match.labels?.length) {
-				rows.push(row("labels", "With labels", draft.match.labels.join(", ")));
+				rows.push(labelRow("labels", "With labels", draft.match.labels));
 			}
 			if (draft?.match.excludeLabels?.length) {
 				rows.push(
-					row(
+					labelRow(
 						"excludeLabels",
 						"Without labels",
-						draft.match.excludeLabels.join(", "),
+						draft.match.excludeLabels,
 					),
 				);
 			}
@@ -297,7 +305,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					},
 				];
 			}
-			if (node.action === "webhook") {
+			if (node.action === "webhook" || node.action === "discord") {
 				const params = node.params ?? {};
 				const rows: NodeFieldValue[] = [
 					{
@@ -305,7 +313,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 						value: typeof params.url === "string" ? params.url : undefined,
 					},
 				];
-				if (params.signingSecret) {
+				if (node.action === "webhook" && params.signingSecret) {
 					rows.push({
 						field: {
 							key: "signingSecret",
@@ -328,6 +336,20 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 const MASK = "••••••••";
 
 /** Compact per-type value summary for the node face. */
+const labelListSchema = z.array(z.string());
+
+export function fieldListItems(
+	field: FieldSpec,
+	value: JsonValue | undefined,
+): string[] | null {
+	const items = labelListSchema.safeParse(value);
+	if (field.kind !== "string-list" || field.secret || !items.success) {
+		return null;
+	}
+	const unique = [...new Set(items.data)];
+	return unique.length > 0 ? unique : null;
+}
+
 export function summarizeFieldValue(
 	field: FieldSpec,
 	value: JsonValue | undefined,

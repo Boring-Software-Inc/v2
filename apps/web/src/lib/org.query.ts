@@ -8,6 +8,7 @@ import {
 	listMyOrgs,
 	listOrgInvites,
 	listOrgMembers,
+	listOrgRoles,
 } from "#/lib/org.functions";
 
 /**
@@ -24,6 +25,7 @@ export const orgQueryKeys = {
 		[...orgQueryKeys.detail(org), "analytics"] as const,
 	members: (org: string) => [...orgQueryKeys.detail(org), "members"] as const,
 	invites: (org: string) => [...orgQueryKeys.detail(org), "invites"] as const,
+	roles: (org: string) => [...orgQueryKeys.detail(org), "roles"] as const,
 	cascade: (org: string) => [...orgQueryKeys.detail(org), "cascade"] as const,
 	repo: (org: string, repo: string) =>
 		[...orgQueryKeys.detail(org), "repo", repo] as const,
@@ -68,6 +70,13 @@ export const orgInvitesQueryOptions = (org: string) =>
 	queryOptions({
 		queryKey: orgQueryKeys.invites(org),
 		queryFn: ({ signal }) => listOrgInvites({ data: { org }, signal }),
+		staleTime: 15_000,
+	});
+
+export const orgRolesQueryOptions = (org: string) =>
+	queryOptions({
+		queryKey: orgQueryKeys.roles(org),
+		queryFn: ({ signal }) => listOrgRoles({ data: { org }, signal }),
 		staleTime: 15_000,
 	});
 

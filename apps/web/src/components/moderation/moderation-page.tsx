@@ -14,7 +14,9 @@ import {
 	ModerationQueueEmpty,
 	moderationQueueOptions,
 } from "#/components/moderation/moderation-queue";
+import { RegionGate } from "#/components/organizations/region-gate";
 import { useCollection } from "#/hooks/use-collection";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import { moderationStatsQueryOptions } from "#/lib/moderation.query";
 import type { ModStats } from "#/lib/moderation.types";
 import { orgRepoQueryOptions } from "#/lib/org.query";
@@ -47,7 +49,11 @@ export function ModerationPage() {
 		MODERATION_COLLECTION,
 		queueQuery.data?.items,
 	);
-	const statsQuery = useQuery(moderationStatsQueryOptions(org, repoName));
+	const canReadAnalytics = useOrgPermission(org, "analytics:read");
+	const statsQuery = useQuery({
+		...moderationStatsQueryOptions(org, repoName),
+		enabled: canReadAnalytics,
+	});
 
 	const repo = repoQuery.data;
 	if (repo && !repo.armed) {
@@ -131,61 +137,78 @@ export function ModerationPage() {
 						)}
 					</Collection>
 
-					{rows.length > 0 && atRest ? (
-						<ChartAtRest
-							action={
-								<Button
-									nativeButton={false}
-									render={
-										<Link
-											params={{ org, repo: repoName }}
-											to="/$org/$repo/rules"
-										/>
-									}
-									size="sm"
-									variant="ghost"
-								>
-									Review rules
-								</Button>
-							}
-							config={verdictConfig}
-							data={rows}
-							label="Verdicts by hour, last 24 hours"
-							message="No verdicts in the last 24 hours"
-							stacked
-							type="bar"
-							unit="count"
-							xKey="hour"
-						/>
-					) : (
-						<Chart
-							actions={
-								<Button
-									nativeButton={false}
-									render={
-										<Link
-											params={{ org, repo: repoName }}
-											search={{ metric: "blocked" }}
-											to="/$org/$repo/analytics"
-										/>
-									}
-									size="sm"
-									variant="ghost"
-								>
-									Open analytics
-								</Button>
-							}
-							config={verdictConfig}
-							data={rows}
-							empty="No verdicts in the last 24 hours"
-							label="Verdicts by hour, last 24 hours"
-							loading={!stats}
-							stacked
-							type="bar"
-							unit="count"
-							xKey="hour"
-						/>
-					)}
+					<RegionGate
+						org={org}
+						placeholder={
+							<Chart
+								config={verdictConfig}
+								data={[]}
+								empty=""
+								label="Verdicts by hour, last 24 hours"
+								stacked
+								type="bar"
+								unit="count"
+								xKey="hour"
+							/>
+						}
+						region="analytics"
+					>
+						{rows.length > 0 && atRest ? (
+							<ChartAtRest
+								action={
+									<Button
+										nativeButton={false}
+										render={
+											<Link
+												params={{ org, repo: repoName }}
+												to="/$org/$repo/rules"
+											/>
+										}
+										size="sm"
+										variant="ghost"
+									>
+										Review rules
+									</Button>
+								}
+								config={verdictConfig}
+								data={rows}
+								label="Verdicts by hour, last 24 hours"
+								message="No verdicts in the last 24 hours"
+								stacked
+								type="bar"
+								unit="count"
+								xKey="hour"
+							/>
+						) : (
+							<Chart
+								actions={
+									<Button
+										nativeButton={false}
+										render={
+											<Link
+												params={{ org, repo: repoName }}
+												search={{ metric: "blocked" }}
+												to="/$org/$repo/analytics"
+											/>
+										}
+										size="sm"
+										variant="ghost"
+									>
+										Open analytics
+									</Button>
+								}
+								config={verdictConfig}
+								data={rows}
+								empty="No verdicts in the last 24 hours"
+								label="Verdicts by hour, last 24 hours"
+								loading={!stats}
+								stacked
+								type="bar"
+								unit="count"
+								xKey="hour"
+							/>
+						)}
+					</RegionGate>
 				</div>
 			</div>
 		</DashboardLayout>
