@@ -3,6 +3,7 @@ import type { Db } from "@tripwire/db";
 import { runServices } from "@tripwire/db";
 import { type GuardedFetchDeps, guardedPost } from "@tripwire/utils";
 import type { Logger } from "pino";
+import { z } from "zod";
 
 /**
  * Outbound delivery for webhook + discord action nodes — the async, retriable
@@ -20,6 +21,8 @@ import type { Logger } from "pino";
  */
 
 const GIVE_UP_MS = 60 * 60_000;
+
+const signingSecretSchema = z.string().min(1).optional().catch(undefined);
 
 export interface DeliverWebhookDeps {
 	db: Db;
@@ -68,8 +71,8 @@ export async function deliverWebhooks(
 		const body =
 			row.kind === "discord" ? formatDiscordMessage(delivery) : delivery;
 		const signingSecret =
-			row.kind === "webhook" && typeof row.payload.signingSecret === "string"
-				? row.payload.signingSecret
+			row.kind === "webhook"
+				? signingSecretSchema.parse(row.payload.signingSecret)
 				: undefined;
 
 		const sent = await guardedPost(url, body, {

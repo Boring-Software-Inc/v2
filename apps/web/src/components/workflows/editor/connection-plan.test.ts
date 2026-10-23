@@ -37,13 +37,13 @@ describe("port looks", () => {
 
 	test("inputs take the shape of what they accept", () => {
 		expect(inputLook("trigger")).toBeNull();
-		expect(inputLook("gate")).toEqual({ shape: "result", tone: "ok" });
+		expect(inputLook("gate")).toEqual({ shape: "result", tone: "neutral" });
 		expect(inputLook("rule")).toEqual({ shape: "any", tone: "neutral" });
 	});
 
 	test("input summaries name what each step takes", () => {
 		expect(inputSummary("gate")).toEqual([
-			{ look: { shape: "result", tone: "ok" }, label: "Passes" },
+			{ look: { shape: "result", tone: "neutral" }, label: "Results" },
 		]);
 		expect(inputSummary("rule").map((entry) => entry.label)).toEqual([
 			"Events",
@@ -93,7 +93,7 @@ describe("drag plans", () => {
 		});
 	});
 
-	test("reconnecting into a gate opens only Passes outputs", () => {
+	test("reconnecting into a gate opens both result outputs", () => {
 		const plan = planDrag(
 			{ nodeId: "g", handleId: null, handleType: "target" },
 			nodes,
@@ -101,10 +101,7 @@ describe("drag plans", () => {
 		const fromRule = plan?.verdicts.get("r");
 		expect(fromRule?.reason).toBeNull();
 		expect(handleReason(fromRule, null)).toBeNull();
-		expect(handleReason(fromRule, "fail")).toEqual({
-			rule: "gate-input",
-			message: "All of takes only Passes, not Doesn't pass",
-		});
+		expect(handleReason(fromRule, "fail")).toBeNull();
 		expect(plan?.verdicts.get("t")?.reason?.rule).toBe("gate-input");
 		expect(plan?.verdicts.get("b")?.reason).toEqual({
 			rule: "no-outputs",

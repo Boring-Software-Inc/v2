@@ -57,15 +57,20 @@ function discordHeadline(payload: WebhookPayload): string {
  * markdown-shaped for GitHub). String in, Discord JSON out, so the worker and
  * any preview share it.
  */
-export function formatDiscordMessage(payload: WebhookPayload): {
-	content: string;
-	embeds: {
-		title: string;
-		url: string;
-		description: string;
-		color: number;
-	}[];
-} {
+export const discordMessageSchema = z.object({
+	content: z.string(),
+	embeds: z.array(
+		z.object({
+			title: z.string(),
+			url: z.string(),
+			description: z.string(),
+			color: z.number().int(),
+		}),
+	),
+});
+export type DiscordMessage = z.infer<typeof discordMessageSchema>;
+
+export function formatDiscordMessage(payload: WebhookPayload): DiscordMessage {
 	const color =
 		payload.verdict === "pass"
 			? 0x22c55e
