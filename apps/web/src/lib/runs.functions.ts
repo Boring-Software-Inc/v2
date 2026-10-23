@@ -61,7 +61,7 @@ export interface RunWorkflowView {
 
 export interface RunReviewView {
 	workflowId: string | null;
-	state: "open" | "approved" | "denied";
+	state: "open" | "approved" | "denied" | "closed";
 	degraded: boolean;
 	openedAt: string;
 	decidedAt: string | null;

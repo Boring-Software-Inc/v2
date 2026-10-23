@@ -632,6 +632,18 @@ function verdictOutcome(run: RunView): ChainOutcome {
 	}
 	if (run.verdict === "needs_review") {
 		const degraded = run.reviews.some((review) => review.degraded);
+		if (
+			run.reviews.length > 0 &&
+			run.reviews.every((review) => review.state === "closed")
+		) {
+			return {
+				...base,
+				title: "Closed before review",
+				short: "Closed before review",
+				tone: "neutral",
+				glyph: "skipped",
+			};
+		}
 		return {
 			...base,
 			title: "Waiting for human review",
@@ -652,7 +664,7 @@ function verdictOutcome(run: RunView): ChainOutcome {
 
 function decisionSteps(run: RunView): ChainStep[] {
 	return run.reviews.flatMap((review, index): ChainStep[] => {
-		if (review.state === "open") {
+		if (review.state === "open" || review.state === "closed") {
 			return [];
 		}
 		const by = review.decidedBy ?? "a maintainer";

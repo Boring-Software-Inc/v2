@@ -132,7 +132,9 @@ export async function loadRunView(
 					? "approved"
 					: item.status === "denied"
 						? "denied"
-						: "open",
+						: item.status === "closed"
+							? "closed"
+							: "open",
 			degraded: item.nodeId === "run:degraded",
 			openedAt: item.createdAt.toISOString(),
 			decidedAt: item.decidedAt?.toISOString() ?? null,

@@ -232,6 +232,30 @@ describe("outcome offset", () => {
 		expect(chain.outcome.offsetMs).toBe(22 * 60_000);
 	});
 
+	test("a review closed with its change request reads as closed, not waiting", () => {
+		const chain = buildRunChain(
+			view({
+				status: "paused",
+				verdict: "needs_review",
+				completedAt: null,
+				reviews: [
+					{
+						workflowId: "wf-solar",
+						state: "closed",
+						degraded: false,
+						openedAt: "2026-10-21T14:24:07.000Z",
+						decidedAt: "2026-10-21T15:00:07.000Z",
+						decidedBy: null,
+					},
+				],
+			}),
+		);
+		expect(chain.outcome.title).toBe("Closed before review");
+		expect(chain.steps.map((step) => step.title)).not.toContain(
+			"Blocked by a maintainer",
+		);
+	});
+
 	test("a run that did not finish reads from its last step", () => {
 		const chain = buildRunChain(
 			view({
