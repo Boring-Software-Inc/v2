@@ -68,8 +68,9 @@ import {
 } from "#/components/workflows/workflows-collection";
 import { GridSkeleton } from "#/components/workflows/workflows-grid-page-skeleton";
 import { useCollection } from "#/hooks/use-collection";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import { formatRelativeTime } from "#/lib/format-relative-time";
-import { orgContextQueryOptions, orgRepoQueryOptions } from "#/lib/org.query";
+import { orgRepoQueryOptions } from "#/lib/org.query";
 import { trackEvent } from "#/lib/track";
 import type { WorkflowListItem } from "#/lib/workflows.functions";
 import {
@@ -105,8 +106,7 @@ export function WorkflowsGridPage() {
 	const workflowsQuery = useQuery(workflowsListQueryOptions(org, repoId));
 	const workflows = workflowsQuery.data;
 	const collection = useCollection(WORKFLOWS_COLLECTION, workflows);
-	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
-	const isAdmin = orgContext?.role === "admin";
+	const canManage = useOrgPermission(org, "workflows:manage");
 
 	const createMutation = useMutation({
 		mutationFn: (
@@ -223,7 +223,7 @@ export function WorkflowsGridPage() {
 									gates and actions.
 								</p>
 							</div>
-							{isAdmin && hasWorkflows ? (
+							{canManage && hasWorkflows ? (
 								<CreateSplitButton
 									creating={createMutation.isPending}
 									onBlank={createBlank}
@@ -237,7 +237,7 @@ export function WorkflowsGridPage() {
 							empty={
 								<WorkflowsEmpty
 									creating={createMutation.isPending}
-									isAdmin={isAdmin}
+									canManage={canManage}
 									onBlank={createBlank}
 									onTemplate={createFromTemplate}
 									org={org}
@@ -255,7 +255,7 @@ export function WorkflowsGridPage() {
 									{rows.map((workflow) => (
 										<li key={workflow.id}>
 											<WorkflowRow
-												isAdmin={isAdmin}
+												canManage={canManage}
 												org={org}
 												repoId={repoId}
 												repoName={repoName}
@@ -316,19 +316,19 @@ function CreateSplitButton({
 function WorkflowsEmpty({
 	org,
 	repoName,
-	isAdmin,
+	canManage,
 	creating,
 	onBlank,
 	onTemplate,
 }: {
 	org: string;
 	repoName: string;
-	isAdmin: boolean;
+	canManage: boolean;
 	creating: boolean;
 	onBlank: () => void;
 	onTemplate: (tpl: WorkflowTemplate) => void;
 }) {
-	if (!isAdmin) {
+	if (!canManage) {
 		return (
 			<Empty art={<MascotArt mood="workflows-empty" />}>
 				<EmptyHeader>
@@ -418,13 +418,13 @@ function WorkflowRow({
 	repoName,
 	repoId,
 	workflow,
-	isAdmin,
+	canManage,
 }: {
 	org: string;
 	repoName: string;
 	repoId: string;
 	workflow: WorkflowListItem;
-	isAdmin: boolean;
+	canManage: boolean;
 }) {
 	const queryClient = useQueryClient();
 	const listKey = workflowsQueryKeys.list(org, repoId);
@@ -518,7 +518,7 @@ function WorkflowRow({
 							{workflow.nodeCount} {workflow.nodeCount === 1 ? "step" : "steps"}
 						</span>
 						<span>Updated {formatRelativeTime(workflow.updatedAt)}</span>
-						{isAdmin ? null : <span>Only admins can change workflows</span>}
+						{canManage ? null : <span>Read only</span>}
 					</MetaRow>
 				}
 				status={
@@ -529,11 +529,11 @@ function WorkflowRow({
 						<Switch
 							aria-label={`Run ${workflow.name} on change requests`}
 							checked={queuedEnabled}
-							disabled={!isAdmin}
+							disabled={!canManage}
 							onCheckedChange={setQueuedEnabled}
 							size="sm"
 						/>
-						{isAdmin ? (
+						{canManage ? (
 							<DropdownMenu>
 								<DropdownMenuTrigger
 									render={
