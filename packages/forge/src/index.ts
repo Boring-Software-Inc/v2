@@ -31,6 +31,11 @@ export interface RawForgeEvent {
 	signature: string | null;
 }
 
+export interface ChangeRequestHead {
+	sha: string;
+	baseRef: string;
+}
+
 /** One file in a change request's diff. */
 export interface DiffFile {
 	path: string;
@@ -190,8 +195,16 @@ export interface ForgeAdapter {
 	): NormalizedEvent | null;
 
 	/** Reads — everything rules may need, pre-fetched by the worker (§5.8). */
-	getDiff(repoFullName: string, number: number): Promise<DiffFile[]>;
-	getCommits(repoFullName: string, number: number): Promise<ForgeCommit[]>;
+	getDiff(
+		repoFullName: string,
+		number: number,
+		head?: ChangeRequestHead,
+	): Promise<DiffFile[]>;
+	getCommits(
+		repoFullName: string,
+		number: number,
+		head?: ChangeRequestHead,
+	): Promise<ForgeCommit[]>;
 	readFile(
 		repoFullName: string,
 		path: string,

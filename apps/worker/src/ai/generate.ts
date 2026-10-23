@@ -4,7 +4,7 @@ import { aiReviewOutputSchema, boundAiReviewTrace } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import { generateText, hasToolCall, stepCountIs, tool } from "ai";
 import { z } from "zod";
-import type { WorkerReads } from "../context.ts";
+import { changeRequestHead, type WorkerReads } from "../context.ts";
 
 /**
  * §8 — the bounded tool loop, NOT an open agent. Tools are thin wrappers over
@@ -101,7 +101,11 @@ export function createGenerate(options: {
 					inputSchema: z.object({}),
 					execute: async () =>
 						options.reads && number !== null
-							? await options.reads.getCommits(repo, number)
+							? await options.reads.getCommits(
+									repo,
+									number,
+									changeRequestHead(options.event),
+								)
 							: "(unavailable)",
 				}),
 				get_contributor_context: tool({

@@ -22,8 +22,8 @@ export function createGithubAdapter(options: GithubHttpOptions): ForgeAdapter {
 		normalizeWebhook(event: RawForgeEvent, receivedAt: string) {
 			return normalizeWebhook(event, receivedAt);
 		},
-		getDiff: (repo, number) => reads.getDiff(repo, number),
-		getCommits: (repo, number) => reads.getCommits(repo, number),
+		getDiff: (repo, number, head) => reads.getDiff(repo, number, head),
+		getCommits: (repo, number, head) => reads.getCommits(repo, number, head),
 		readFile: (repo, path, ref) => reads.readFile(repo, path, ref),
 		getContributorProfile: (repo, login) =>
 			reads.getContributorProfile(repo, login),

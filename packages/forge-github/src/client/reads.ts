@@ -1,8 +1,10 @@
 import type {
+	ChangeRequestHead,
 	ContributorProfile,
 	DiffFile,
 	ForgeCommit,
 } from "@tripwire/forge";
+import { z } from "zod";
 
 /**
  * The adapter's read surface (§4): diff, commits, file contents, contributor
@@ -25,6 +27,50 @@ const STATUS_MAP: Record<string, DiffFile["status"]> = {
 	unchanged: "modified",
 };
 
+const diffFileSchema = z.object({
+	filename: z.string(),
+	status: z.string(),
+	additions: z.number(),
+	deletions: z.number(),
+	patch: z.string().optional(),
+	previous_filename: z.string().optional(),
+});
+
+const commitSchema = z.object({
+	sha: z.string(),
+	commit: z.object({
+		message: z.string(),
+		author: z.object({ date: z.string() }).nullable(),
+	}),
+	author: z.object({ login: z.string() }).nullable(),
+});
+
+const compareSchema = z.object({
+	files: z.array(diffFileSchema).default([]),
+	commits: z.array(commitSchema).default([]),
+});
+
+function toDiffFile(file: z.infer<typeof diffFileSchema>): DiffFile {
+	return {
+		path: file.filename,
+		status: STATUS_MAP[file.status] ?? "modified",
+		additions: file.additions,
+		deletions: file.deletions,
+		patch: file.patch,
+		previousPath: file.previous_filename,
+	};
+}
+
+function toForgeCommit(c: z.infer<typeof commitSchema>): ForgeCommit {
+	return {
+		sha: c.sha,
+		message: c.commit.message,
+		authorLogin: c.author?.login ?? null,
+		authorEmail: null,
+		authoredAt: c.commit.author?.date ?? "",
+	};
+}
+
 export class GithubReads {
 	private readonly http: GithubHttp;
 
@@ -36,47 +82,53 @@ export class GithubReads {
 		return this.http.get(repoFullName, path);
 	}
 
-	async getDiff(repoFullName: string, number: number): Promise<DiffFile[]> {
-		const files = (await this.get(
-			repoFullName,
-			`/repos/${repoFullName}/pulls/${number}/files?per_page=100`,
-		)) as {
-			filename: string;
-			status: string;
-			additions: number;
-			deletions: number;
-			patch?: string;
-			previous_filename?: string;
-		}[];
-		return files.map((file) => ({
-			path: file.filename,
-			status: STATUS_MAP[file.status] ?? "modified",
-			additions: file.additions,
-			deletions: file.deletions,
-			patch: file.patch,
-			previousPath: file.previous_filename,
-		}));
+	private async compare(repoFullName: string, head: ChangeRequestHead) {
+		return compareSchema.parse(
+			await this.get(
+				repoFullName,
+				`/repos/${repoFullName}/compare/${encodeURIComponent(head.baseRef)}...${head.sha}?per_page=100`,
+			),
+		);
+	}
+
+	async getDiff(
+		repoFullName: string,
+		number: number,
+		head?: ChangeRequestHead,
+	): Promise<DiffFile[]> {
+		if (head) {
+			return (await this.compare(repoFullName, head)).files.map(toDiffFile);
+		}
+		const files = z
+			.array(diffFileSchema)
+			.parse(
+				await this.get(
+					repoFullName,
+					`/repos/${repoFullName}/pulls/${number}/files?per_page=100`,
+				),
+			);
+		return files.map(toDiffFile);
 	}
 
 	async getCommits(
 		repoFullName: string,
 		number: number,
+		head?: ChangeRequestHead,
 	): Promise<ForgeCommit[]> {
-		const commits = (await this.get(
-			repoFullName,
-			`/repos/${repoFullName}/pulls/${number}/commits?per_page=100`,
-		)) as {
-			sha: string;
-			commit: { message: string; author: { date: string } | null };
-			author: { login: string } | null;
-		}[];
-		return commits.map((c) => ({
-			sha: c.sha,
-			message: c.commit.message,
-			authorLogin: c.author?.login ?? null,
-			authorEmail: null,
-			authoredAt: c.commit.author?.date ?? "",
-		}));
+		if (head) {
+			return (await this.compare(repoFullName, head)).commits.map(
+				toForgeCommit,
+			);
+		}
+		const commits = z
+			.array(commitSchema)
+			.parse(
+				await this.get(
+					repoFullName,
+					`/repos/${repoFullName}/pulls/${number}/commits?per_page=100`,
+				),
+			);
+		return commits.map(toForgeCommit);
 	}
 
 	async readFile(
