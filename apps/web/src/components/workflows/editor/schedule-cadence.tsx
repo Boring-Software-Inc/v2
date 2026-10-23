@@ -16,7 +16,7 @@ import {
 	timeOfDaySchema,
 	weekdaySchema,
 } from "@tripwire/contracts";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { Field, FieldError, FieldLabel } from "#/components/glaze/ui/field";
 import { Input } from "#/components/glaze/ui/input";
 import { NumberInput } from "#/components/glaze/ui/number-input";
@@ -28,6 +28,7 @@ import {
 	type CadenceKind,
 	cadenceForKind,
 	cadenceKind,
+	cronError,
 	isClockCadence,
 } from "#/lib/schedule-cadence";
 import { UNIT_LABEL } from "#/lib/schedule-summary";
@@ -42,10 +43,6 @@ const WEEKDAY_OPTIONS = weekdaySchema.options.map((day) => ({
 export interface CadenceValue {
 	every: ScheduleCadence | undefined;
 	timezone: string | undefined;
-}
-
-function sentence(message: string): string {
-	return `${message.charAt(0).toUpperCase()}${message.slice(1)}.`;
 }
 
 function TimeField({
@@ -206,13 +203,6 @@ function IntervalFields({
 	);
 }
 
-function cronError(text: string): string | null {
-	const parsed = scheduleCronSchema.safeParse({ cron: text });
-	return parsed.success
-		? null
-		: sentence(parsed.error.issues[0]?.message ?? "this cron does not parse");
-}
-
 function CronField({
 	text,
 	readOnly,
@@ -221,7 +211,7 @@ function CronField({
 }: {
 	text: string;
 	readOnly: boolean;
-	onText: (text: string) => void;
+	onText: (text: string | null) => void;
 	onChange: (cron: string) => void;
 }) {
 	const error = cronError(text);
@@ -234,10 +224,12 @@ function CronField({
 				mono
 				onChange={(event) => {
 					const next = event.target.value;
-					onText(next);
 					const valid = scheduleCronSchema.safeParse({ cron: next });
 					if (valid.success) {
+						onText(null);
 						onChange(valid.data.cron);
+					} else {
+						onText(next);
 					}
 				}}
 				placeholder="0 7 1 * *"
@@ -291,19 +283,26 @@ export function ScheduleCadenceField({
 	value,
 	readOnly,
 	timezones,
+	cronDraft,
+	onCronDraft,
 	onChange,
 }: {
 	value: CadenceValue;
 	readOnly: boolean;
 	timezones: Timezones;
+	cronDraft: string | undefined;
+	onCronDraft: (text: string | null) => void;
 	onChange: (next: CadenceValue) => void;
 }) {
 	const kindLabelId = useId();
 	const zoneLabelId = useId();
 	const every = value.every;
 	const kind = every ? cadenceKind(every) : undefined;
-	const [cronText, setCronText] = useState<string | null>(null);
-	const cronInvalid = cronText !== null && cronError(cronText) !== null;
+	const cronInvalid =
+		every !== undefined &&
+		"cron" in every &&
+		cronDraft !== undefined &&
+		cronError(cronDraft) !== null;
 	const setEvery = (next: ScheduleCadence) =>
 		onChange({
 			every: next,
@@ -333,7 +332,7 @@ export function ScheduleCadenceField({
 							(option) => option.value === next,
 						);
 						if (picked) {
-							setCronText(null);
+							onCronDraft(null);
 							setEvery(
 								cadenceForKind(picked.value satisfies CadenceKind, every),
 							);
@@ -355,9 +354,9 @@ export function ScheduleCadenceField({
 			{every && "cron" in every ? (
 				<CronField
 					onChange={(cron) => setEvery({ cron })}
-					onText={setCronText}
+					onText={onCronDraft}
 					readOnly={readOnly}
-					text={cronText ?? every.cron}
+					text={cronDraft ?? every.cron}
 				/>
 			) : null}
 			{isClockCadence(every) ? (

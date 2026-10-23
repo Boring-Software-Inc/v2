@@ -3,7 +3,9 @@ import {
 	isScheduleInterval,
 	type ScheduleCadence,
 	type SchedulePresetKind,
+	scheduleCronSchema,
 	type TimeOfDay,
+	type WorkflowNode,
 } from "@tripwire/contracts";
 
 export type CadenceKind = "interval" | SchedulePresetKind | "cron";
@@ -65,4 +67,33 @@ export function cadenceForKind(
 
 export function isClockCadence(cadence: ScheduleCadence | undefined): boolean {
 	return cadence !== undefined && !isScheduleInterval(cadence);
+}
+
+export function cronError(text: string): string | null {
+	const parsed = scheduleCronSchema.safeParse({ cron: text });
+	if (parsed.success) {
+		return null;
+	}
+	const message = parsed.error.issues[0]?.message ?? "this cron does not parse";
+	return `${message.charAt(0).toUpperCase()}${message.slice(1)}.`;
+}
+
+export interface InvalidCronDraft {
+	nodeId: string;
+	message: string;
+}
+
+export function invalidCronDrafts(
+	drafts: ReadonlyMap<string, string>,
+	nodes: readonly WorkflowNode[],
+): InvalidCronDraft[] {
+	return nodes.flatMap((node) => {
+		const text = drafts.get(node.id);
+		const every = node.type === "trigger" ? node.schedule?.every : undefined;
+		if (text === undefined || !every || !("cron" in every)) {
+			return [];
+		}
+		const message = cronError(text);
+		return message ? [{ nodeId: node.id, message }] : [];
+	});
 }

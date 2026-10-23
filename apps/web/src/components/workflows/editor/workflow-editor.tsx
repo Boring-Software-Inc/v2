@@ -92,6 +92,8 @@ import {
 	TripwireNode,
 } from "#/components/workflows/editor/node-card";
 import {
+	type CronDraftsApi,
+	CronDraftsContext,
 	CustomRuleNamesContext,
 	EditFieldContext,
 	groupProblems,
@@ -110,6 +112,7 @@ import {
 	type TypedFlowEdge,
 } from "#/components/workflows/editor/typed-connections";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
+import { invalidCronDrafts } from "#/lib/schedule-cadence";
 import {
 	definitionToGraph,
 	edgeWhenFields,
@@ -310,6 +313,25 @@ function EditorBody({
 		initial.edges,
 	);
 	const [dirty, setDirty] = useState(false);
+	const [cronDrafts, setCronDrafts] = useState<ReadonlyMap<string, string>>(
+		new Map(),
+	);
+	const cronDraftsApi = useMemo<CronDraftsApi>(
+		() => ({
+			drafts: cronDrafts,
+			setDraft: (nodeId, text) =>
+				setCronDrafts((current) => {
+					const next = new Map(current);
+					if (text === null) {
+						next.delete(nodeId);
+					} else {
+						next.set(nodeId, text);
+					}
+					return next;
+				}),
+		}),
+		[cronDrafts],
+	);
 	const [dragged, setDragged] = useState<ToolboxItem | null>(null);
 	const { fitView, getIntersectingNodes, getZoom, screenToFlowPosition } =
 		useReactFlow<TripwireFlowNode, FlowEdge>();
@@ -435,11 +457,37 @@ function EditorBody({
 						.filter((issue) => !known.has(issue.message))
 						.map((issue) => serverProblem(issue, names))
 				: [];
-		return [...local, ...server, ...delivery].sort(
+		const drafted = invalidCronDrafts(
+			cronDrafts,
+			nodes.map((node) => node.data.node),
+		).map(
+			({ nodeId, message }): Problem => ({
+				key: `cron:${nodeId}`,
+				rule: null,
+				severity: "error",
+				step: names.get(nodeId) ?? "Schedule",
+				message,
+				nodeId,
+				fixes: [
+					{
+						label: "Edit cron",
+						intent: { type: "focus-field", nodeId, field: "every" },
+					},
+				],
+			}),
+		);
+		return [...drafted, ...local, ...server, ...delivery].sort(
 			(a, b) =>
 				Number(a.severity === "warning") - Number(b.severity === "warning"),
 		);
-	}, [lintResults, connectionIssues, serverIssues, nodes, enableCatalog]);
+	}, [
+		lintResults,
+		connectionIssues,
+		serverIssues,
+		nodes,
+		enableCatalog,
+		cronDrafts,
+	]);
 
 	const blockers = problems.filter((problem) => problem.severity === "error");
 
@@ -990,6 +1038,14 @@ function EditorBody({
 
 	// ---- save ---------------------------------------------------------------
 	const handleSave = async () => {
+		const unparsed = problems.find((problem) =>
+			problem.key.startsWith("cron:"),
+		);
+		if (unparsed) {
+			toast.fail(`${unparsed.message} Fix the cron to save.`);
+			revealProblem(unparsed);
+			return;
+		}
 		const result = graphToDefinition(meta, nodes, edges);
 		if (!result.ok) {
 			toast.fail(result.error);
@@ -1091,48 +1147,50 @@ function EditorBody({
 						<CustomRuleNamesContext.Provider value={customRuleNames}>
 							<ProblemsContext.Provider value={problemsApi}>
 								<EditFieldContext.Provider value={editField}>
-									<DragPlanContext.Provider value={plan}>
-										<ReactFlow
-											connectionLineComponent={TypedConnectionLine}
-											data-drag-tone={
-												plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
-											}
-											deleteKeyCode={readOnly ? null : DELETE_KEYS}
-											onBeforeDelete={readOnly ? undefined : onBeforeDelete}
-											edges={flowEdges}
-											edgeTypes={EDGE_TYPES}
-											edgesReconnectable={!readOnly}
-											elementsSelectable
-											fitView
-											fitViewOptions={fitViewOptions()}
-											isValidConnection={isValidConnection}
-											nodes={canvasNodes as unknown as TripwireFlowNode[]}
-											nodesConnectable={!readOnly}
-											nodesDraggable={!readOnly}
-											nodeTypes={NODE_TYPES}
-											onConnect={readOnly ? undefined : onConnect}
-											onConnectEnd={onConnectEnd}
-											onConnectStart={cancelPending}
-											onNodeClick={cancelPending}
-											onPaneClick={cancelPending}
-											onReconnectEnd={() => {
-												reconnecting.current = false;
-											}}
-											onReconnectStart={() => {
-												reconnecting.current = true;
-											}}
-											onEdgesChange={onEdgesChange}
-											onNodesChange={onNodesChange}
-											onReconnect={readOnly ? undefined : onReconnect}
-											proOptions={{ hideAttribution: true }}
-											style={CANVAS_TOKENS}
-										>
-											<CanvasZoom />
-											<LaneRules ys={decor.rules.map((rule) => rule.y)} />
-											<DropHint />
-											{pending ? <PendingConnection {...pending} /> : null}
-										</ReactFlow>
-									</DragPlanContext.Provider>
+									<CronDraftsContext.Provider value={cronDraftsApi}>
+										<DragPlanContext.Provider value={plan}>
+											<ReactFlow
+												connectionLineComponent={TypedConnectionLine}
+												data-drag-tone={
+													plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
+												}
+												deleteKeyCode={readOnly ? null : DELETE_KEYS}
+												onBeforeDelete={readOnly ? undefined : onBeforeDelete}
+												edges={flowEdges}
+												edgeTypes={EDGE_TYPES}
+												edgesReconnectable={!readOnly}
+												elementsSelectable
+												fitView
+												fitViewOptions={fitViewOptions()}
+												isValidConnection={isValidConnection}
+												nodes={canvasNodes as unknown as TripwireFlowNode[]}
+												nodesConnectable={!readOnly}
+												nodesDraggable={!readOnly}
+												nodeTypes={NODE_TYPES}
+												onConnect={readOnly ? undefined : onConnect}
+												onConnectEnd={onConnectEnd}
+												onConnectStart={cancelPending}
+												onNodeClick={cancelPending}
+												onPaneClick={cancelPending}
+												onReconnectEnd={() => {
+													reconnecting.current = false;
+												}}
+												onReconnectStart={() => {
+													reconnecting.current = true;
+												}}
+												onEdgesChange={onEdgesChange}
+												onNodesChange={onNodesChange}
+												onReconnect={readOnly ? undefined : onReconnect}
+												proOptions={{ hideAttribution: true }}
+												style={CANVAS_TOKENS}
+											>
+												<CanvasZoom />
+												<LaneRules ys={decor.rules.map((rule) => rule.y)} />
+												<DropHint />
+												{pending ? <PendingConnection {...pending} /> : null}
+											</ReactFlow>
+										</DragPlanContext.Provider>
+									</CronDraftsContext.Provider>
 								</EditFieldContext.Provider>
 							</ProblemsContext.Provider>
 						</CustomRuleNamesContext.Provider>

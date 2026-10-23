@@ -1,9 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { describeCadence, scheduleCadenceSchema } from "@tripwire/contracts";
+import {
+	describeCadence,
+	type ScheduleCadence,
+	scheduleCadenceSchema,
+	type WorkflowNode,
+} from "@tripwire/contracts";
 import {
 	CADENCE_KIND_OPTIONS,
 	cadenceForKind,
 	cadenceKind,
+	invalidCronDrafts,
 	isClockCadence,
 } from "#/lib/schedule-cadence";
 
@@ -51,5 +57,47 @@ describe("cadence kinds", () => {
 		expect(isClockCadence({ n: 1, unit: "days" })).toBe(false);
 		expect(isClockCadence({ cron: "0 7 * * *" })).toBe(true);
 		expect(isClockCadence(undefined)).toBe(false);
+	});
+});
+
+describe("typed cron drafts", () => {
+	const scheduled = (id: string, every: ScheduleCadence): WorkflowNode => ({
+		id,
+		type: "trigger",
+		kinds: ["schedule.matched"],
+		schedule: { every, match: {} },
+	});
+
+	test("a cron the field cannot parse is reported with the field's own error", () => {
+		expect(
+			invalidCronDrafts(new Map([["t", "0 7 * *"]]), [
+				scheduled("t", { cron: "0 7 * * *" }),
+			]),
+		).toEqual([
+			{
+				nodeId: "t",
+				message: "Use five fields: minute hour day month weekday.",
+			},
+		]);
+	});
+
+	test("a draft on a removed step or one no longer on cron reports nothing", () => {
+		expect(
+			invalidCronDrafts(
+				new Map([
+					["gone", "nope"],
+					["daily", "nope"],
+				]),
+				[scheduled("daily", { preset: "daily", at: "09:00" })],
+			),
+		).toEqual([]);
+	});
+
+	test("a valid draft reports nothing", () => {
+		expect(
+			invalidCronDrafts(new Map([["t", "0 8 * * 1"]]), [
+				scheduled("t", { cron: "0 7 * * *" }),
+			]),
+		).toEqual([]);
 	});
 });

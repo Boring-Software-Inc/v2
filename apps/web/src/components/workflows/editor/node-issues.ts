@@ -95,3 +95,24 @@ export const EditFieldContext = createContext<
 export function useEditField(): (nodeId: string, fieldKey: string) => void {
 	return useContext(EditFieldContext);
 }
+
+export interface CronDraftsApi {
+	drafts: ReadonlyMap<string, string>;
+	setDraft: (nodeId: string, text: string | null) => void;
+}
+
+export const CronDraftsContext = createContext<CronDraftsApi>({
+	drafts: new Map(),
+	setDraft: () => undefined,
+});
+
+export function useCronDraft(nodeId: string): {
+	draft: string | undefined;
+	setDraft: (text: string | null) => void;
+} {
+	const api = useContext(CronDraftsContext);
+	return {
+		draft: api.drafts.get(nodeId),
+		setDraft: (text) => api.setDraft(nodeId, text),
+	};
+}

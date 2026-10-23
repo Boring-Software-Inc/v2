@@ -31,6 +31,7 @@ import {
 	LabelPicker,
 	RefreshLabels,
 } from "#/components/workflows/editor/label-picker";
+import { useCronDraft } from "#/components/workflows/editor/node-issues";
 import { ScheduleCadenceField } from "#/components/workflows/editor/schedule-cadence";
 import { useTimezones } from "#/hooks/use-timezones";
 import { cn } from "#/lib/glaze/utils";
@@ -249,6 +250,7 @@ function ScheduleSteps({
 	const stateTitleId = useId();
 	const { org } = useParams({ strict: false });
 	const timezones = useTimezones(org);
+	const cron = useCronDraft(node.id);
 
 	const update = (next: ScheduleDraft, answered?: ScheduleStep) => {
 		onUpdate({ ...node, schedule: next });
@@ -266,6 +268,7 @@ function ScheduleSteps({
 		<>
 			<Step status={statusOf("every")} step="every">
 				<ScheduleCadenceField
+					cronDraft={cron.draft}
 					key={node.id}
 					onChange={(cadence) =>
 						update(
@@ -273,6 +276,7 @@ function ScheduleSteps({
 							"every",
 						)
 					}
+					onCronDraft={cron.setDraft}
 					readOnly={readOnly}
 					timezones={timezones}
 					value={{ every: draft.every, timezone: draft.timezone }}
