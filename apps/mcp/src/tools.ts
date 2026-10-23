@@ -9,6 +9,7 @@ import {
 import {
 	agentServices,
 	moderationServices,
+	type OrgWithRole,
 	orgServices,
 	repoServices,
 	ruleServices,
@@ -43,6 +44,13 @@ const repoArg = z
 	.string()
 	.min(1)
 	.describe("The repo name, or owner/name, as listed by list_repos.");
+const anyRepoArg = z
+	.string()
+	.min(1)
+	.optional()
+	.describe(
+		"The repo name, or owner/name, as listed by list_repos. Leave out for every repo in the org.",
+	);
 
 const NEXT_STEP_GUIDE = {
 	install_app:
@@ -69,6 +77,16 @@ export function registerTools(
 	selection: Parameters<typeof toolVisible>[1],
 ): void {
 	const visible = (name: ToolName) => toolVisible(name, selection);
+	const repoNames = async (
+		org: OrgWithRole,
+		repo: string | undefined,
+	): Promise<string[]> => {
+		if (repo) {
+			return [(await resolveRepo(ctx, org, repo)).fullName];
+		}
+		const repos = await orgServices.listOrgRepos(ctx.db, org.id);
+		return repos.map((item) => item.fullName);
+	};
 	const annotate = (name: ToolName) => ({
 		readOnlyHint: TOOL_SPECS[name].readOnly,
 		destructiveHint: false,
@@ -277,12 +295,15 @@ export function registerTools(
 					org: orgArg,
 					repo: repoArg,
 					ruleId: z.string().min(1),
-					enabled: z.boolean(),
+					enabled: z
+						.boolean()
+						.optional()
+						.describe("Leave out to keep the rule on or off as it is."),
 					config: z
 						.record(z.string(), z.unknown())
 						.optional()
 						.describe(
-							"Rule settings. Leave out to keep the current settings. See list_rule_catalog for the schema.",
+							"Rule settings to change. Keys you leave out keep their current value. See list_rule_catalog for the schema.",
 						),
 				},
 				annotations: annotate("set_rule"),
@@ -290,6 +311,9 @@ export function registerTools(
 			({ org, repo, ruleId, enabled, config }) =>
 				guard(async () => {
 					const resolved = await resolveOrg(ctx, org, "admin");
+					if (!RULE_CATALOG.some((entry) => entry.ruleId === ruleId)) {
+						throw new ToolError(`No rule named ${ruleId}.`, "list_rules");
+					}
 					const found = await resolveRepo(ctx, resolved, repo);
 					const views = await ruleServices.listRuleViews(ctx.db, found.id);
 					const view = views.find((item) => item.ruleId === ruleId);
@@ -298,16 +322,19 @@ export function registerTools(
 							`A workflow runs ${ruleId} on this repo. Change it in the workflow: ${appLink(ctx, `/${resolved.slug}/${found.name}/workflows/${view.workflowId}`)}`,
 						);
 					}
+					const nextEnabled = enabled ?? view?.enabled ?? false;
+					const current =
+						view?.config && typeof view.config === "object" ? view.config : {};
 					const result = await ruleServices.saveRuleConfig(ctx.db, {
 						repoId: found.id,
 						ruleId,
-						enabled,
-						config: config ?? view?.config ?? {},
+						enabled: nextEnabled,
+						config: { ...current, ...config },
 					});
 					if ("error" in result) {
 						throw new ToolError(result.error);
 					}
-					return ok({ saved: true, ruleId, enabled });
+					return ok({ saved: true, ruleId, enabled: nextEnabled });
 				}),
 		);
 	}
@@ -387,6 +414,20 @@ export function registerTools(
 						workflowId,
 						enabled,
 					});
+					if (!result.ok) {
+						const missing = result.issues.some(
+							(issue) => issue.message === "workflow not found",
+						);
+						if (missing) {
+							throw new ToolError(
+								`No workflow ${workflowId} on ${found.fullName}.`,
+								"list_workflows",
+							);
+						}
+						throw new ToolError(
+							`Workflow ${workflowId} cannot be turned on: ${result.issues.map((issue) => issue.message).join("; ")}`,
+						);
+					}
 					return ok({
 						...result,
 						url: appLink(
@@ -402,10 +443,11 @@ export function registerTools(
 		server.registerTool(
 			"list_runs",
 			{
-				description: "Recent Tripwire runs on a repo, newest first.",
+				description:
+					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first.",
 				inputSchema: {
 					org: orgArg,
-					repo: repoArg,
+					repo: anyRepoArg,
 					limit: z.number().int().min(1).max(50).optional(),
 				},
 				annotations: annotate("list_runs"),
@@ -413,14 +455,15 @@ export function registerTools(
 			({ org, repo, limit }) =>
 				guard(async () => {
 					const resolved = await resolveOrg(ctx, org, "member");
-					const found = await resolveRepo(ctx, resolved, repo);
+					const names = await repoNames(resolved, repo);
 					const runs = await runServices.listRepoRuns(ctx.db, {
-						repoFullName: found.fullName,
+						repoFullName: names,
 						limit: limit ?? 20,
 					});
 					return ok(
 						runs.map((run) => ({
 							id: run.id,
+							repo: run.repoFullName,
 							number: run.subjectNumber,
 							status: run.status,
 							verdict: run.verdict,
@@ -454,7 +497,10 @@ export function registerTools(
 							repos.some((repo) => repo.fullName === found.run.repoFullName)
 						)
 					) {
-						throw new ToolError(`No run ${runId} in ${resolved.slug}.`);
+						throw new ToolError(
+							`No run ${runId} in ${resolved.slug}.`,
+							"list_runs",
+						);
 					}
 					return ok({
 						note: UNTRUSTED_NOTE,
@@ -484,23 +530,25 @@ export function registerTools(
 		server.registerTool(
 			"list_moderation_queue",
 			{
-				description: "Change requests waiting on a human review decision.",
-				inputSchema: { org: orgArg, repo: repoArg },
+				description:
+					"Change requests waiting on a human review decision, on a repo or on every repo in the org when repo is left out.",
+				inputSchema: { org: orgArg, repo: anyRepoArg },
 				annotations: annotate("list_moderation_queue"),
 			},
 			({ org, repo }) =>
 				guard(async () => {
 					const resolved = await resolveOrg(ctx, org, "member");
-					const found = await resolveRepo(ctx, resolved, repo);
+					const found = repo ? await resolveRepo(ctx, resolved, repo) : null;
 					const items = await moderationServices.listPendingItems(
 						ctx.db,
-						found.fullName,
+						found ? found.fullName : await repoNames(resolved, undefined),
 						50,
 					);
 					return ok({
 						note: UNTRUSTED_NOTE,
 						items: items.map((item) => ({
 							itemId: item.id,
+							repo: item.repoFullName,
 							runId: item.runId,
 							number: item.subjectNumber,
 							actor: item.actorLogin,
@@ -508,7 +556,9 @@ export function registerTools(
 							reason: item.reason,
 							createdAt: item.createdAt.toISOString(),
 						})),
-						url: appLink(ctx, `/${resolved.slug}/${found.name}/moderation`),
+						url: found
+							? appLink(ctx, `/${resolved.slug}/${found.name}/moderation`)
+							: undefined,
 					});
 				}),
 		);
@@ -559,6 +609,7 @@ export function registerTools(
 					if (result === "not-found") {
 						throw new ToolError(
 							`No review item ${itemId} on ${found.fullName}.`,
+							"list_queue",
 						);
 					}
 					return ok({

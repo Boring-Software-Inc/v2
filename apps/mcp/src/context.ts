@@ -17,7 +17,26 @@ export interface ToolContext {
 	accessDenied: string | null;
 }
 
-export class ToolError extends Error {}
+export const ERROR_HINTS = {
+	list_orgs: "Call whoami to see your orgs.",
+	pick_org: "Pass org, or call whoami to see them.",
+	list_repos: "Call list_repos to see the repos.",
+	list_runs: "Call list_runs to see recent runs.",
+	list_queue: "Call list_moderation_queue to see the items.",
+	list_rules: "Call list_rule_catalog to see the rules.",
+	list_workflows: "Call list_workflows to see them.",
+} as const;
+
+export type ErrorHint = keyof typeof ERROR_HINTS;
+
+export class ToolError extends Error {
+	readonly hint?: ErrorHint;
+
+	constructor(message: string, hint?: ErrorHint) {
+		super(message);
+		this.hint = hint;
+	}
+}
 
 export function ok(data: unknown): CallToolResult {
 	return {
@@ -25,8 +44,17 @@ export function ok(data: unknown): CallToolResult {
 	};
 }
 
-export function fail(message: string): CallToolResult {
-	return { isError: true, content: [{ type: "text", text: message }] };
+export function fail(message: string, hint?: ErrorHint): CallToolResult {
+	return {
+		isError: true,
+		content: [
+			{
+				type: "text",
+				text: hint ? `${message} ${ERROR_HINTS[hint]}` : message,
+			},
+		],
+		structuredContent: hint ? { error: message, hint } : { error: message },
+	};
 }
 
 export function requireAccess(ctx: ToolContext): void {
@@ -40,9 +68,7 @@ async function defaultOrgSlug(ctx: ToolContext): Promise<string> {
 	const granted = orgs.filter((o) => ctx.agent.orgIds.includes(o.id));
 	const only = granted.length === 1 ? granted[0] : undefined;
 	if (!only) {
-		throw new ToolError(
-			"This agent can reach more than one org. Pass org, or call whoami to see them.",
-		);
+		throw new ToolError("You can reach more than one org.", "pick_org");
 	}
 	return only.slug;
 }
@@ -60,9 +86,7 @@ export async function resolveOrg(
 		need: "member",
 	});
 	if (!member.ok) {
-		throw new ToolError(
-			`No org named ${slug} for this account. Call whoami to see your orgs.`,
-		);
+		throw new ToolError(`No org named ${slug} for this account.`, "list_orgs");
 	}
 	if (!ctx.agent.orgIds.includes(member.org.id)) {
 		throw new ToolError(
@@ -82,15 +106,21 @@ export async function resolveRepo(
 	org: OrgWithRole,
 	repo: string,
 ): Promise<RepoLite> {
-	const name = repo.includes("/") ? (repo.split("/").pop() ?? repo) : repo;
+	const [owner, name] = repo.includes("/")
+		? [
+				repo.slice(0, repo.lastIndexOf("/")),
+				repo.slice(repo.lastIndexOf("/") + 1),
+			]
+		: [undefined, repo];
 	const found = await orgServices.getOrgRepo(ctx.db, {
 		orgId: org.id,
 		repoName: name,
 	});
-	if (!found) {
-		throw new ToolError(
-			`No repo named ${repo} in ${org.slug}. Call list_repos to see the repos.`,
-		);
+	if (
+		!found ||
+		(owner !== undefined && found.owner.toLowerCase() !== owner.toLowerCase())
+	) {
+		throw new ToolError(`No repo named ${repo} in ${org.slug}.`, "list_repos");
 	}
 	return found;
 }
@@ -106,7 +136,7 @@ export async function guard(
 		return await run();
 	} catch (error) {
 		if (error instanceof ToolError) {
-			return fail(error.message);
+			return fail(error.message, error.hint);
 		}
 		throw error;
 	}
