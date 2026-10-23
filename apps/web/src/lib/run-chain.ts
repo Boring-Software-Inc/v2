@@ -233,11 +233,12 @@ function branchOf(
 }
 
 export function branchPassed(branch: ChainBranch): boolean {
-	return (
-		branch.flagged.length === 0 &&
-		branch.pending.length === 0 &&
-		(branch.outcome === "pass" || branch.outcome === null)
-	);
+	if (branch.pending.length > 0) {
+		return false;
+	}
+	return branch.outcome === null
+		? branch.flagged.length === 0
+		: branch.outcome === "pass";
 }
 
 export function buildBranches(
@@ -378,7 +379,7 @@ function checksNode(
 	if (failed > 0) {
 		return {
 			title: `${failed} of ${total} rules did not pass`,
-			tone: "fail",
+			tone: run.verdict === "pass" ? "neutral" : "fail",
 			glyph: "fail",
 			offsetMs,
 			body,
@@ -395,7 +396,7 @@ function checksNode(
 	}
 	return {
 		title: `${total} of ${total} rules passed`,
-		tone: "ok",
+		tone: run.verdict === "block" ? "neutral" : "ok",
 		glyph: "pass",
 		offsetMs,
 		body,

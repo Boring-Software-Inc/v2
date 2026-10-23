@@ -9,6 +9,7 @@ import {
 } from "@tripwire/contracts";
 import { toFullRunView, toPublicRunView } from "#/lib/run-access";
 import {
+	branchPassed,
 	branchSummary,
 	buildBranches,
 	buildRunChain,
@@ -623,5 +624,44 @@ describe("redaction", () => {
 	test("members see every chip at any level", () => {
 		const labels = outcomeChips(toFullRunView(view())).map((c) => c.label);
 		expect(labels).toContain("Sent to Discord");
+	});
+});
+
+describe("the checks node agrees with the gate's verdict", () => {
+	const anyOf: RunWorkflowView = { id: "wf-any", name: "any", outcome: "pass" };
+
+	test("a failed rule an any-of gate allowed is not shown as a failure", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "pass",
+				workflows: [anyOf],
+				steps: [
+					rule("wf-any:age", "account-age@1", "pass"),
+					rule("wf-any:crypto", "crypto-address@1", "fail"),
+				],
+				actions: [],
+				reviews: [],
+			}),
+		);
+		expect(chain.checks?.title).toBe("1 of 2 rules did not pass");
+		expect(chain.checks?.tone).toBe("neutral");
+		const body = chain.checks?.body;
+		expect(body?.kind === "branches" && body.branches.every(branchPassed)).toBe(
+			true,
+		);
+	});
+
+	test("passing rules behind a Not that blocked are not shown as ok", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "block",
+				workflows: [{ id: "wf-not", name: "not", outcome: "block" }],
+				steps: [rule("wf-not:age", "account-age@1", "pass")],
+				actions: [],
+				reviews: [],
+			}),
+		);
+		expect(chain.checks?.title).toBe("1 of 1 rules passed");
+		expect(chain.checks?.tone).toBe("neutral");
 	});
 });
