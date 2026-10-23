@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SAMPLE_RUN } from "#/components/responses/sample-run";
 import { RunChainView } from "#/components/runs/run-chain";
@@ -24,21 +25,27 @@ const WITH_REVIEW: RunView = {
 function render(run: RunView, level: number): string {
 	const view = toPublicRunView(run, level);
 	return renderToStaticMarkup(
-		<RunChainView
-			chain={buildRunChain(view)}
-			context={{
-				level,
-				maintainer: false,
-				repo: view.repoFullName,
-				sha: view.headSha,
-			}}
-		/>,
+		<QueryClientProvider client={new QueryClient()}>
+			<RunChainView
+				chain={buildRunChain(view)}
+				context={{
+					level,
+					maintainer: false,
+					repo: view.repoFullName,
+					sha: view.headSha,
+				}}
+			/>
+		</QueryClientProvider>,
 	);
 }
 
 describe("run chain outcome node", () => {
 	test("shows its offset from the event", () => {
 		expect(render(WITH_REVIEW, 8)).toContain("+2.7s");
+	});
+
+	test("shows each clock time with its zone", () => {
+		expect(render(WITH_REVIEW, 8)).toMatch(/\d{2}:\d{2}:\d{2} UTC/);
 	});
 
 	test("shows the offset of a run still waiting for review", () => {
