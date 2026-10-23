@@ -133,11 +133,7 @@ function stepOf(values: readonly number[], min: number): number | null {
 		: null;
 }
 
-function describeWeekdays(spec: CronSpec): string | null {
-	if (!spec.weekdaysRestricted) {
-		return null;
-	}
-	const days = spec.weekdays;
+function describeWeekdays(days: readonly number[]): string {
 	if (days.join(",") === "1,2,3,4,5") {
 		return "on weekdays";
 	}
@@ -145,6 +141,43 @@ function describeWeekdays(spec: CronSpec): string | null {
 		return "on weekends";
 	}
 	return `on ${joinWords(days.map((day) => WEEKDAY_WORDS[day] ?? String(day)))}`;
+}
+
+const MAX_LISTED_DAYS = 7;
+
+function describeDays(spec: CronSpec): { part: string | null } | null {
+	const allDays = isEvery(spec.days, 1, 31);
+	const allWeekdays = isEvery(spec.weekdays, 0, 6);
+	if (spec.daysRestricted && spec.weekdaysRestricted) {
+		return allDays || allWeekdays ? { part: null } : null;
+	}
+	if (allDays && allWeekdays) {
+		return { part: null };
+	}
+	if (!(allDays || allWeekdays)) {
+		return null;
+	}
+	if (allDays) {
+		return { part: describeWeekdays(spec.weekdays) };
+	}
+	return spec.days.length > MAX_LISTED_DAYS
+		? null
+		: { part: `on the ${joinWords(spec.days.map(ordinal))} of the month` };
+}
+
+function evenStep(
+	values: readonly number[],
+	min: number,
+	span: number,
+): number | null {
+	const step = stepOf(values, min);
+	const last = values.at(-1);
+	return step !== null &&
+		last !== undefined &&
+		span % step === 0 &&
+		last + step === min + span
+		? step
+		: null;
 }
 
 /**
@@ -160,22 +193,19 @@ export function describeCron(expression: string): string | null {
 	if (!isEvery(spec.months, 1, 12)) {
 		return null;
 	}
-	const dayPart = spec.daysRestricted
-		? spec.weekdaysRestricted
-			? null
-			: `on the ${joinWords(spec.days.map(ordinal))} of the month`
-		: describeWeekdays(spec);
-	if (spec.daysRestricted && spec.weekdaysRestricted) {
+	const days = describeDays(spec);
+	if (!days) {
 		return null;
 	}
-	const anyDay = !(spec.daysRestricted || spec.weekdaysRestricted);
+	const anyDay = days.part === null;
+	const dayPart = days.part;
 	const allHours = isEvery(spec.hours, 0, 23);
 	const allMinutes = isEvery(spec.minutes, 0, 59);
 	let time: string | null = null;
 	if (allMinutes && allHours) {
 		time = "Every minute";
 	} else if (allHours) {
-		const step = stepOf(spec.minutes, 0);
+		const step = evenStep(spec.minutes, 0, 60);
 		if (step) {
 			time = `Every ${step} minutes`;
 		} else if (spec.minutes.length === 1) {
@@ -184,7 +214,7 @@ export function describeCron(expression: string): string | null {
 		}
 	} else if (spec.minutes.length === 1) {
 		const [minute = 0] = spec.minutes;
-		const step = stepOf(spec.hours, 0);
+		const step = evenStep(spec.hours, 0, 24);
 		if (step && spec.hours.length > 2) {
 			time = `Every ${step} hours at minute ${minute}`;
 		} else if (spec.hours.length <= 4) {

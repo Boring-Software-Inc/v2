@@ -69,7 +69,11 @@ type FieldRead = { ok: true; values: number[] } | { ok: false; error: string };
 function readField(raw: string, field: FieldShape): FieldRead {
 	const values = new Set<number>();
 	for (const part of raw.split(",")) {
-		const [range = "", stepRaw] = part.split("/");
+		const pieces = part.split("/");
+		const [range = "", stepRaw] = pieces;
+		if (pieces.length > 2 || range.split("-").length > 2) {
+			return { ok: false, error: `${field.name} cannot read "${part}"` };
+		}
 		const step = stepRaw === undefined ? 1 : Number(stepRaw);
 		if (!(Number.isInteger(step) && step >= 1)) {
 			return { ok: false, error: `${field.name} has a bad step "${part}"` };

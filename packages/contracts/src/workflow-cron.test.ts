@@ -279,3 +279,33 @@ describe("scheduleFireTime", () => {
 		).toBe("2026-10-23T12:00:00.000Z");
 	});
 });
+
+describe("ranges", () => {
+	test("a range with two dashes is rejected", () => {
+		expect(parseCron("1-2-3 * * * *").ok).toBe(false);
+	});
+});
+
+describe("describeCron says only what the cron runs", () => {
+	test("a cron that skips days, minutes or hours never reads as regular", () => {
+		expect(describeCron("0 0 */2 * *")).toBeNull();
+		expect(describeCron("0 9 */2 * 1")).toBeNull();
+		expect(describeCron("0-10/5 * * * *")).toBeNull();
+		expect(describeCron("0 */5 * * *")).toBeNull();
+		expect(describeCron("0 0 1-31 * 1")).toBe("Every day at 00:00");
+	});
+
+	test("an uneven step reads as the times it runs", () => {
+		expect(describeCron("0 0-12/6 * * *")).toBe(
+			"Every day at 00:00, 06:00 and 12:00",
+		);
+		expect(describeCron("0 0 * * */2")).toBe(
+			"At 00:00 on Sunday, Tuesday, Thursday and Saturday",
+		);
+	});
+
+	test("an even step still reads as a step", () => {
+		expect(describeCron("*/15 * * * *")).toBe("Every 15 minutes");
+		expect(describeCron("0 */6 * * *")).toBe("Every 6 hours at minute 0");
+	});
+});
