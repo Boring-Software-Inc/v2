@@ -20,6 +20,7 @@ import {
 	portHint,
 	stepDisplayName,
 } from "./workflow-lint.ts";
+import { validateWorkflowForEnable } from "./workflow-validate.ts";
 
 const TRIGGER: WorkflowNode = {
 	id: "t",
@@ -726,5 +727,87 @@ describe("openPosition", () => {
 			x: 320,
 			y: -140,
 		});
+	});
+});
+
+describe("delivery and label steps need their settings to go live", () => {
+	function withAction(
+		action: Extract<WorkflowNode, { type: "action" }>,
+	): WorkflowDefinition {
+		return {
+			id: "w",
+			name: "w",
+			version: 1,
+			nodes: [
+				{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+				action,
+			],
+			edges: [{ id: "e", from: "t", to: action.id }],
+		};
+	}
+
+	test("a webhook, Discord or label step with nothing set cannot go live", () => {
+		for (const action of ["webhook", "discord", "label"] as const) {
+			const result = validateWorkflowForEnable(
+				withAction({ id: "x", type: "action", action }),
+			);
+			expect({ action, valid: result.valid }).toEqual({ action, valid: false });
+		}
+	});
+
+	test("a webhook URL must use https, a Discord URL must be a Discord webhook", () => {
+		expect(
+			validateWorkflowForEnable(
+				withAction({
+					id: "x",
+					type: "action",
+					action: "webhook",
+					params: { url: "http://169.254.169.254/latest" },
+				}),
+			).valid,
+		).toBe(false);
+		expect(
+			validateWorkflowForEnable(
+				withAction({
+					id: "x",
+					type: "action",
+					action: "discord",
+					params: { url: "https://evil.example/x" },
+				}),
+			).valid,
+		).toBe(false);
+	});
+
+	test("a stored URL, or the marker that one is stored, passes", () => {
+		for (const params of [
+			{ url: "https://hooks.example.com/tripwire" },
+			{ url: "", urlSet: true },
+		]) {
+			expect(
+				validateWorkflowForEnable(
+					withAction({ id: "x", type: "action", action: "webhook", params }),
+				).valid,
+			).toBe(true);
+		}
+		expect(
+			validateWorkflowForEnable(
+				withAction({
+					id: "x",
+					type: "action",
+					action: "discord",
+					params: { url: "https://discord.com/api/webhooks/1/abc" },
+				}),
+			).valid,
+		).toBe(true);
+		expect(
+			validateWorkflowForEnable(
+				withAction({
+					id: "x",
+					type: "action",
+					action: "label",
+					params: { labels: ["triage"] },
+				}),
+			).valid,
+		).toBe(true);
 	});
 });

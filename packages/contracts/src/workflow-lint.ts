@@ -571,10 +571,90 @@ const ACTION_PARAM_SCHEMAS = {
 	},
 } as const;
 
+const DISCORD_HOSTS: ReadonlySet<string> = new Set([
+	"discord.com",
+	"discordapp.com",
+	"ptb.discord.com",
+	"canary.discord.com",
+]);
+
+const deliveryParamsSchema = z.object({
+	url: z.string().optional(),
+	urlSet: z.boolean().optional(),
+});
+
+function deliveryUrlReady(
+	action: "webhook" | "discord",
+	params: unknown,
+): boolean {
+	const parsed = deliveryParamsSchema.safeParse(params ?? {});
+	if (!parsed.success) {
+		return false;
+	}
+	const { url, urlSet } = parsed.data;
+	if (url === undefined || url === "") {
+		return urlSet === true;
+	}
+	const checked = z.url({ protocol: /^https$/ }).safeParse(url);
+	if (!checked.success) {
+		return false;
+	}
+	if (action === "webhook") {
+		return true;
+	}
+	const target = new URL(checked.data);
+	return (
+		DISCORD_HOSTS.has(target.hostname) &&
+		target.pathname.startsWith("/api/webhooks/")
+	);
+}
+
+const DELIVERY_PARAMS = {
+	webhook: {
+		message: "Set the webhook URL. It must use HTTPS.",
+		label: "Set URL",
+	},
+	discord: {
+		message: "Set the Discord webhook URL.",
+		label: "Set URL",
+	},
+} as const;
+
+function paramsFinding(
+	nodeId: string,
+	message: string,
+	label: string,
+	field: string,
+): Finding {
+	return {
+		nodeId,
+		message,
+		fixes: [{ label, intent: { type: "focus-field", nodeId, field } }],
+	};
+}
+
 function checkActionParams(ctx: LintContext): Finding[] {
 	return ctx.def.nodes.flatMap((node) => {
 		if (node.type !== "action") {
 			return [];
+		}
+		if (node.action === "webhook" || node.action === "discord") {
+			const spec = DELIVERY_PARAMS[node.action];
+			return deliveryUrlReady(node.action, node.params)
+				? []
+				: [paramsFinding(node.id, spec.message, spec.label, "url")];
+		}
+		if (node.action === "label") {
+			return labelParamsSchema.safeParse(node.params ?? {}).success
+				? []
+				: [
+						paramsFinding(
+							node.id,
+							"Pick the labels to add.",
+							"Pick labels",
+							"labels",
+						),
+					];
 		}
 		const spec =
 			node.action === "remove-label" || node.action === "post-comment"
@@ -584,18 +664,7 @@ function checkActionParams(ctx: LintContext): Finding[] {
 		if (!(spec && parsed) || parsed.success) {
 			return [];
 		}
-		return [
-			{
-				nodeId: node.id,
-				message: spec.message,
-				fixes: [
-					{
-						label: spec.label,
-						intent: { type: "focus-field", nodeId: node.id, field: spec.field },
-					},
-				],
-			},
-		];
+		return [paramsFinding(node.id, spec.message, spec.label, spec.field)];
 	});
 }
 
