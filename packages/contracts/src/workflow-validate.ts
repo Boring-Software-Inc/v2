@@ -12,10 +12,19 @@ import {
 export interface ValidationIssue {
 	rule?: LintRuleId;
 	severity?: LintSeverity;
+	step?: string;
 	nodeId?: string;
 	edgeId?: string;
 	message: string;
 	fixes?: LintFix[];
+}
+
+/** An issue as one sentence that names its step. */
+export function validationIssueText(issue: ValidationIssue): string {
+	const text = /[.?]$/.test(issue.message)
+		? issue.message
+		: `${issue.message}.`;
+	return issue.step ? `${issue.step}: ${text}` : text;
 }
 
 export type ValidationResult =

@@ -35,6 +35,7 @@ export interface FakeServer {
 	authUrl: string;
 	calls: ToolCall[];
 	rejectNext(count: number): void;
+	answerNext(name: string, data: z.infer<ReturnType<typeof z.json>>): void;
 	stop(): Promise<void>;
 }
 
@@ -166,7 +167,16 @@ const RESULTS: Record<string, z.infer<ReturnType<typeof z.json>>> = {
 	},
 };
 
+const NEXT = new Map<string, z.infer<ReturnType<typeof z.json>>>();
+
 function reply(name: string, args: z.infer<ReturnType<typeof z.json>>) {
+	const next = NEXT.get(name);
+	if (next !== undefined) {
+		NEXT.delete(name);
+		return {
+			content: [{ type: "text" as const, text: JSON.stringify(next, null, 2) }],
+		};
+	}
 	if (name === "get_run") {
 		return {
 			content: [
@@ -269,6 +279,9 @@ export function startFakeServer(): FakeServer {
 		calls,
 		rejectNext: (count) => {
 			rejections = count;
+		},
+		answerNext: (name, data) => {
+			NEXT.set(name, data);
 		},
 		stop: async () => {
 			await http.stop(true);

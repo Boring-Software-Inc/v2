@@ -294,6 +294,64 @@ describe("workflows as code", () => {
 		});
 	});
 
+	test("a refused enable names the step and the reason", async () => {
+		const result = await call("set_workflow_enabled", {
+			repo: "mcp-api",
+			workflowId: "mcp-as-code",
+			enabled: true,
+		});
+		expect(result.isError).toBe(true);
+		const error = String(result.structuredContent?.error ?? "");
+		expect(error).toMatch(
+			/^Workflow mcp-as-code cannot be turned on\. Webhook: \S/,
+		);
+		expect(error).not.toContain(";");
+	});
+
+	test("a refused push names the step, and validate says the workflow is on", async () => {
+		const live = {
+			...definition,
+			id: "mcp-live",
+			name: "live over mcp",
+			nodes: definition.nodes.filter((node) => node.id !== "hook"),
+			edges: definition.edges.filter((edge) => edge.to !== "hook"),
+		};
+		await call("apply_workflow", { repo: "mcp-api", definitions: [live] });
+		const on = await call("set_workflow_enabled", {
+			repo: "mcp-api",
+			workflowId: "mcp-live",
+			enabled: true,
+		});
+		expect(on.isError).toBeFalsy();
+		const broken = {
+			...live,
+			nodes: [...live.nodes, { id: "either", type: "gate", mode: "any-of" }],
+			edges: [...live.edges, { id: "e9", from: "either", to: "block" }],
+		};
+		const checked = await call("validate_workflow", {
+			repo: "mcp-api",
+			definitions: [broken],
+		});
+		expect(body(checked)).toMatchObject({
+			workflows: [{ id: "mcp-live", enabled: true, valid: false }],
+		});
+		const pushed = await call("apply_workflow", {
+			repo: "mcp-api",
+			definitions: [broken],
+		});
+		const refused = z
+			.object({
+				workflows: z.array(
+					z.object({ outcome: z.string(), issues: z.array(z.string()) }),
+				),
+			})
+			.parse(body(pushed)).workflows[0];
+		expect(refused?.outcome).toBe("refused");
+		expect(refused?.issues.some((issue) => issue.startsWith("Any of: "))).toBe(
+			true,
+		);
+	});
+
 	test("get returns the workflow as code without secrets", async () => {
 		const result = await call("get_workflow", {
 			repo: "mcp-api",

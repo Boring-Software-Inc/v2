@@ -78,6 +78,10 @@ export function errorLine(message: string, style: Style = PLAIN): string {
 	});
 }
 
+export function warnLine(message: string, style: Style = PLAIN): string {
+	return pairs([["warn", message]], style);
+}
+
 export function formatUserCode(code: string): string {
 	const bare = code.replace(/[\s-]/g, "").toUpperCase();
 	return bare.length === 8 ? `${bare.slice(0, 4)}-${bare.slice(4)}` : code;

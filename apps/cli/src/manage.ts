@@ -23,6 +23,7 @@ import {
 	pairs,
 	type Style,
 	styleFor,
+	warnLine,
 } from "#/format";
 import { callTool, type ToolArgs, type ToolOutput } from "#/mcp-client";
 import type { System } from "#/system";
@@ -286,7 +287,19 @@ const changeListSchema = z.object({
 			valid: z.boolean().optional(),
 			outcome: z.string().optional(),
 			url: z.string().optional(),
-			issues: z.array(z.unknown()).optional(),
+			enabled: z.boolean().optional(),
+			issues: z
+				.array(
+					z.union([
+						z.string(),
+						z.object({
+							step: z.string(),
+							message: z.string(),
+							severity: z.string().optional(),
+						}),
+					]),
+				)
+				.optional(),
 			changes: z
 				.array(
 					z.object({
@@ -301,6 +314,21 @@ const changeListSchema = z.object({
 });
 
 const CHANGE_MARK = { added: "+", removed: "-", changed: "~" } as const;
+
+type ChangeEntry = z.infer<typeof changeListSchema>["workflows"][number];
+
+function blockingReasons(entry: ChangeEntry): string {
+	return (entry.issues ?? [])
+		.flatMap((issue) => {
+			if (typeof issue === "string") {
+				return [issue];
+			}
+			return issue.severity === "warning"
+				? []
+				: [`${issue.step}: ${issue.message}`];
+		})
+		.join(" ");
+}
 
 function changeLines(
 	data: JsonValue | null,
@@ -495,6 +523,21 @@ function diffWorkflows(
 					: entry.id,
 			),
 		);
+		const parsed = changeListSchema.safeParse(output.data);
+		const blocked = parsed.success
+			? parsed.data.workflows.filter((entry) => entry.valid === false)
+			: [];
+		for (const entry of blocked) {
+			const reasons = blockingReasons(entry);
+			err(
+				warnLine(
+					entry.enabled
+						? `${entry.id} is on, so a push will be refused. ${reasons}`
+						: `${entry.id} could not be turned on after a push. ${reasons}`,
+					options.errStyle,
+				),
+			);
+		}
 		return 0;
 	});
 }
@@ -527,9 +570,12 @@ function pushWorkflows(
 			? parsed.data.workflows.filter((entry) => entry.outcome === "refused")
 			: [];
 		for (const entry of refused) {
+			const reasons = blockingReasons(entry);
 			err(
 				errorLine(
-					`${entry.id} is on, and this version could not be turned on. Run tripwire workflows validate --repo ${repo}.`,
+					reasons
+						? `${entry.id} is on, so this version was not saved. ${reasons}`
+						: `${entry.id} is on, so this version was not saved. Run tripwire workflows validate --repo ${repo} to see why.`,
 					options.errStyle,
 				),
 			);

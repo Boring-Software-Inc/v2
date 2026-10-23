@@ -13,6 +13,7 @@ import {
 	scheduleReadBacks,
 	setupProgressInputSchema,
 	setupStageStatusSchema,
+	validationIssueText,
 	workflowDefinitionSchema,
 	workflowsToCode,
 } from "@tripwire/contracts";
@@ -402,12 +403,15 @@ export function registerTools(
 		);
 	}
 
+	const workflowLink = (org: OrgWithRole, repo: string, rowId: string) =>
+		appLink(ctx, `/${org.slug}/${repo}/workflows/${rowId}`);
+
 	if (visible("set_workflow_enabled")) {
 		server.registerTool(
 			"set_workflow_enabled",
 			{
 				description:
-					"Turn a workflow on or off. Webhook URLs and secrets are set by the user in the app, never here.",
+					"Turn a workflow on or off, by its id in code, its id in the app, or its name. A refusal names each step that stops it. Webhook URLs and secrets are set by the user in the app, never here.",
 				inputSchema: {
 					org: orgArg,
 					repo: repoArg,
@@ -420,11 +424,29 @@ export function registerTools(
 				guard(async () => {
 					const resolved = await resolveOrg(ctx, org, "workflows:manage");
 					const found = await resolveRepo(ctx, resolved, repo);
-					const result = await workflowServices.setWorkflowEnabled(ctx.db, {
-						repoId: found.id,
-						workflowId,
-						enabled,
-					});
+					const rows = await workflowServices.listWorkflowRows(
+						ctx.db,
+						found.id,
+					);
+					const row = rows.find(
+						(candidate) =>
+							candidate.id === workflowId ||
+							candidate.definition.id === workflowId ||
+							candidate.name === workflowId,
+					);
+					const result = row
+						? await workflowServices.setWorkflowEnabled(ctx.db, {
+								repoId: found.id,
+								workflowId: row.id,
+								enabled,
+							})
+						: null;
+					if (!(row && result)) {
+						throw new ToolError(
+							`No workflow ${workflowId} on ${found.fullName}.`,
+							"list_workflows",
+						);
+					}
 					if (!result.ok) {
 						const missing = result.issues.some(
 							(issue) => issue.message === "workflow not found",
@@ -436,15 +458,12 @@ export function registerTools(
 							);
 						}
 						throw new ToolError(
-							`Workflow ${workflowId} cannot be turned on: ${result.issues.map((issue) => issue.message).join("; ")}`,
+							`Workflow ${workflowId} cannot be turned on. ${result.issues.map(validationIssueText).join(" ")}`,
 						);
 					}
 					return ok({
 						...result,
-						url: appLink(
-							ctx,
-							`/${resolved.slug}/${found.name}/workflows/${workflowId}`,
-						),
+						url: workflowLink(resolved, found.name, row.id),
 					});
 				}),
 		);
@@ -463,8 +482,6 @@ export function registerTools(
 		.describe(
 			"Compiled workflow definitions. Write a tripwire.ts and run `tripwire workflows validate --json` to get them; each key in the file is a definition id.",
 		);
-	const workflowLink = (org: OrgWithRole, repo: string, rowId: string) =>
-		appLink(ctx, `/${org.slug}/${repo}/workflows/${rowId}`);
 
 	if (visible("get_workflow")) {
 		server.registerTool(
@@ -549,6 +566,7 @@ export function registerTools(
 							);
 							return {
 								...report,
+								enabled: stored?.enabled ?? false,
 								changes: local
 									? diffWorkflow(
 											stored?.definition ?? null,
@@ -597,7 +615,7 @@ export function registerTools(
 								: {
 										id: definition.id,
 										outcome: "refused" as const,
-										issues: result.issues.map((issue) => issue.message),
+										issues: result.issues.map(validationIssueText),
 									},
 						);
 					}

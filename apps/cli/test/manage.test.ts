@@ -600,6 +600,68 @@ export default workflows({ broken: broken(), loose: loose() });
 			],
 		});
 	});
+
+	test("a refused push says why, step by step", async () => {
+		await pulled();
+		server.answerNext("apply_workflow", {
+			workflows: [
+				{
+					id: "new-accounts",
+					outcome: "refused",
+					issues: ["Any of: It takes no inputs.", "Block: Nothing runs it."],
+				},
+			],
+		});
+		const result = await runCli(
+			["workflows", "push", "scratch", "--file", file()],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(result.stderr).toContain(
+			"new-accounts is on, so this version was not saved. Any of: It takes no inputs. Block: Nothing runs it.",
+		);
+	});
+
+	test("diff warns when the pushed workflow could not be turned on", async () => {
+		await pulled();
+		const report = {
+			id: "new-accounts",
+			name: "New accounts",
+			valid: false,
+			issues: [
+				{
+					rule: "gate-input",
+					severity: "error",
+					step: "Any of",
+					message: "It takes no inputs.",
+				},
+			],
+			schedules: [],
+			changes: [],
+		};
+		server.answerNext("validate_workflow", {
+			valid: false,
+			workflows: [{ ...report, enabled: true }],
+		});
+		const live = await runCli(
+			["workflows", "diff", "scratch", "--file", file()],
+			env(),
+		);
+		expect(live.stderr).toContain(
+			"new-accounts is on, so a push will be refused. Any of: It takes no inputs.",
+		);
+		server.answerNext("validate_workflow", {
+			valid: false,
+			workflows: [{ ...report, enabled: false }],
+		});
+		const off = await runCli(
+			["workflows", "diff", "scratch", "--file", file()],
+			env(),
+		);
+		expect(off.stderr).toContain(
+			"new-accounts could not be turned on after a push. Any of: It takes no inputs.",
+		);
+	});
 });
 
 describe("the workflows skill", () => {
