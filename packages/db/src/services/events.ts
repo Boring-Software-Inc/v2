@@ -354,6 +354,7 @@ export async function listBackfillEvents(
 			  AND received_at > now() - make_interval(days => ${sinceDays})
 			ORDER BY subject_number, received_at DESC
 		) latest
+		WHERE NOT EXISTS (SELECT 1 FROM runs r WHERE r.event_id = latest.id)
 		ORDER BY received_at DESC
 		LIMIT ${cap}
 	`);

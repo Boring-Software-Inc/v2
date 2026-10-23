@@ -1,4 +1,5 @@
 import {
+	boolean,
 	index,
 	integer,
 	jsonb,
@@ -42,6 +43,7 @@ export const runs = pgTable(
 		 * re-run, never the actor (§10).
 		 */
 		triggeredBy: text("triggered_by"),
+		backfill: boolean("backfill").notNull().default(false),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

@@ -49,6 +49,7 @@ export interface CreateRunInput {
 	triggeredBy?: string | null;
 	/** Optional pre-assigned id (re-run materializes the id at enqueue). */
 	id?: string;
+	backfill?: boolean;
 }
 
 export async function createRun(db: Db, input: CreateRunInput) {
@@ -65,6 +66,7 @@ export async function createRun(db: Db, input: CreateRunInput) {
 		verdict: input.verdict,
 		workflowSnapshot: snapshot,
 		triggeredBy: input.triggeredBy ?? null,
+		backfill: input.backfill ?? false,
 		completedAt: input.status === "completed" ? new Date() : null,
 	});
 	return id;
@@ -465,6 +467,8 @@ export async function listRunActions(
  */
 export const eventBearsVerdict = inArray(events.kind, [...VERDICT_EVENT_KINDS]);
 
+export const liveRun = eq(runs.backfill, false);
+
 export const runBearsVerdict = sql`EXISTS (SELECT 1 FROM events ve WHERE ve.id = ${runs.eventId} AND ${inArray(sql`ve.kind`, [...VERDICT_EVENT_KINDS])})`;
 
 export async function getLatestRunIdForChangeRequest(
@@ -481,6 +485,7 @@ export async function getLatestRunIdForChangeRequest(
 				eq(runs.repoFullName, repoFullName),
 				eq(runs.subjectNumber, subjectNumber),
 				eventBearsVerdict,
+				liveRun,
 			),
 		)
 		.orderBy(desc(runs.createdAt), desc(runs.id))
@@ -539,6 +544,7 @@ export async function getPreviousVerdict(
 				ne(runs.id, currentRunId),
 				isNotNull(runs.verdict),
 				eventBearsVerdict,
+				liveRun,
 			),
 		)
 		.orderBy(desc(runs.createdAt), desc(runs.id))
@@ -800,6 +806,7 @@ export async function listOpenBlockedRuns(
 				isNotNull(runs.subjectNumber),
 				gt(runs.createdAt, since),
 				eventBearsVerdict,
+				liveRun,
 			),
 		)
 		.orderBy(runs.subjectNumber, desc(runs.createdAt), desc(runs.id));

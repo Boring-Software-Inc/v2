@@ -202,9 +202,9 @@ export async function getRepoById(db: Db, repoId: string) {
 }
 
 /**
- * §4 arming — the ONLY writer of `armed`. Arming is always an explicit act
- * (the Unit 2 ARM button, or tests); installation sync and `ensureRepo` never
- * touch it, so a re-sync/reinstall preserves the maintainer's choice.
+ * §4 arming — this and turnOnGate are the only writers of `armed`. Arming is
+ * an explicit act (the Unit 2 ARM button, or tests); installation sync and
+ * `ensureRepo` never touch it, so a re-sync/reinstall preserves the maintainer's choice.
  */
 export async function setRepoArmed(
 	db: Db,
@@ -219,8 +219,12 @@ export async function turnOnGate(
 	boss: PgBoss | null,
 	repoId: string,
 ): Promise<void> {
-	await setRepoArmed(db, repoId, true);
-	if (boss) {
+	const turnedOn = await db
+		.update(repos)
+		.set({ armed: true })
+		.where(and(eq(repos.id, repoId), eq(repos.armed, false)))
+		.returning({ id: repos.id });
+	if (boss && turnedOn.length > 0) {
 		await boss.send(BACKFILL_REPO_QUEUE, { repoId });
 	}
 }

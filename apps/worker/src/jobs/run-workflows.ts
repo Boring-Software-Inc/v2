@@ -145,9 +145,10 @@ export interface RunWorkflowsDeps {
 	 */
 	onBeforeEvaluate?: () => Promise<void>;
 	/**
-	 * §4 backfill — false ⇒ persist the run/steps/verdict exactly as a live run,
-	 * but record its actions as `suppressed` so nothing surfaces on the historical
-	 * change request (no comment, no check, no sweeper pickup). Default true.
+	 * §4 backfill — false ⇒ persist the run/steps/verdict as history only: actions
+	 * are `suppressed` (no comment, no check, no sweeper pickup), no review item
+	 * opens, the run never pauses, and it never counts as the latest run that
+	 * owns the change request's surfaces. Default true.
 	 */
 	surface?: boolean;
 	/** Manual re-run: the triggering admin's user id, stamped on the run. */
@@ -581,7 +582,8 @@ async function runWorkflowsInner(
 				: scheduled
 					? scheduled.thread.number
 					: null;
-	const terminalStatus = paused ? "paused" : "completed";
+	const backfill = deps.surface === false;
+	const terminalStatus = paused && !backfill ? "paused" : "completed";
 	let runId: string;
 	if (liveRunId) {
 		runId = liveRunId;
@@ -604,6 +606,7 @@ async function runWorkflowsInner(
 			status: terminalStatus,
 			verdict,
 			triggeredBy: deps.triggeredBy ?? null,
+			backfill,
 		});
 		await runServices.recordSteps(
 			db,
@@ -612,7 +615,7 @@ async function runWorkflowsInner(
 		);
 	}
 
-	for (const execution of executions) {
+	for (const execution of backfill ? [] : executions) {
 		if (execution.result.pausedAtNodeId) {
 			await moderationServices.createModerationItem(db, {
 				runId,
@@ -620,7 +623,10 @@ async function runWorkflowsInner(
 			});
 		}
 	}
-	if ((degraded && !heldBack) || (unrunnableFloored && failClosed)) {
+	if (
+		!backfill &&
+		((degraded && !heldBack) || (unrunnableFloored && failClosed))
+	) {
 		await moderationServices.createModerationItem(db, {
 			runId,
 			nodeId: "run:degraded",
@@ -639,7 +645,7 @@ async function runWorkflowsInner(
 				}),
 			),
 		),
-		deps.surface === false ? "suppressed" : "recorded",
+		backfill ? "suppressed" : "recorded",
 	);
 
 	const reasons = buildCommentReasons(steps, customSignals.records);
