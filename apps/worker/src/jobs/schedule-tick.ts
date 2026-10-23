@@ -167,12 +167,20 @@ export async function scheduleTick(
 		} else {
 			log.info({ events: outcome.events }, "schedule ticked");
 		}
-		await scheduleServices.markScheduleTicked(deps.db, {
-			workflowRowId: schedule.workflowRowId,
-			nodeId: schedule.nodeId,
-			at: now,
-			error: outcome.error,
-		});
+		if (outcome.error) {
+			await scheduleServices.markScheduleFailed(deps.db, {
+				workflowRowId: schedule.workflowRowId,
+				nodeId: schedule.nodeId,
+				error: outcome.error,
+			});
+		} else {
+			await scheduleServices.markScheduleTicked(deps.db, {
+				workflowRowId: schedule.workflowRowId,
+				nodeId: schedule.nodeId,
+				at: now,
+				error: null,
+			});
+		}
 	}
 	return result;
 }

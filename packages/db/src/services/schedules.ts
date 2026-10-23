@@ -135,6 +135,21 @@ export async function markScheduleTicked(
 		});
 }
 
+export async function markScheduleFailed(
+	db: Db,
+	input: { workflowRowId: string; nodeId: string; error: string },
+): Promise<void> {
+	await db
+		.update(workflowScheduleState)
+		.set({ lastError: input.error })
+		.where(
+			and(
+				eq(workflowScheduleState.workflowId, input.workflowRowId),
+				eq(workflowScheduleState.nodeId, input.nodeId),
+			),
+		);
+}
+
 export async function getScheduleState(
 	db: Db,
 	workflowRowId: string,
