@@ -181,7 +181,9 @@ export function BranchCard({
 	return (
 		<Card className={className}>
 			<CardHeader>
-				<CardTitle>{branch.name}</CardTitle>
+				<CardTitle className="truncate" title={branch.name}>
+					{branch.name}
+				</CardTitle>
 			</CardHeader>
 			<CardContent flush>
 				<BranchBody branch={branch} context={context} />
@@ -207,9 +209,11 @@ export function BranchRow({
 						summary={summary.text}
 						summaryStatus={summary.tone === "fail" ? "fail" : undefined}
 					>
-						<span className="flex items-baseline gap-1.5">
+						<span className="flex min-w-0 items-baseline gap-1.5">
 							<ChainMark glyph={summary.glyph} size={12} tone={summary.tone} />
-							{branch.name}
+							<span className="min-w-0 truncate" title={branch.name}>
+								{branch.name}
+							</span>
 						</span>
 					</CollapsibleTrigger>
 				</div>
@@ -250,6 +254,7 @@ export function PassedGroup({
 								<CollapsibleTrigger
 									size="sm"
 									summary={`${branch.passed.length} passed`}
+									title={branch.name}
 								>
 									{branch.name}
 								</CollapsibleTrigger>

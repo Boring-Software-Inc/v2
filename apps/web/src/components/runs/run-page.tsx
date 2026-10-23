@@ -155,7 +155,7 @@ function RunBody({ run }: { run: RunView }) {
 								) : null}
 							</div>
 						</div>
-						<MetaRow className="type-body-sm text-text-2">
+						<MetaRow className="type-body-sm text-text-2" wrap>
 							<RunStatusMark outcome={chain.outcome} />
 							<span>{run.repoFullName}</span>
 							<span>{formatRelativeTime(run.createdAt)}</span>
