@@ -4,6 +4,7 @@ import {
 	eventKindSchema,
 	threadSubjectSchema,
 } from "./events.ts";
+import { isValidTimeZone, nextCronRun, parseCron } from "./workflow-cron.ts";
 
 /** JSON — rule configs and action params are JSON on the wire by definition. */
 export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
@@ -246,7 +247,88 @@ export const scheduleEverySchema = z
 	.refine((every) => durationMs(every) <= MAX_SCHEDULE_EVERY_MS, {
 		message: "runs at least once a year",
 	});
-export type ScheduleEvery = z.infer<typeof scheduleEverySchema>;
+export type ScheduleInterval = z.infer<typeof scheduleEverySchema>;
+
+/**
+ * The timezone a clock-based schedule (preset or cron) runs in when it names
+ * none. Every read-back of a schedule states its zone, defaulted or not.
+ */
+export const DEFAULT_SCHEDULE_TIMEZONE = "UTC";
+
+export const scheduleTimezoneSchema = z
+	.string()
+	.min(1)
+	.refine(isValidTimeZone, {
+		error: (issue) =>
+			`${String(issue.input)} is not an IANA timezone, like Europe/Berlin`,
+	});
+
+export const timeOfDaySchema = z
+	.string()
+	.regex(/^([01]\d|2[0-3]):[0-5]\d$/, "use 24-hour HH:MM, like 07:30");
+export type TimeOfDay = z.infer<typeof timeOfDaySchema>;
+
+export const weekdaySchema = z.enum([
+	"sunday",
+	"monday",
+	"tuesday",
+	"wednesday",
+	"thursday",
+	"friday",
+	"saturday",
+]);
+export type Weekday = z.infer<typeof weekdaySchema>;
+
+export const schedulePresetSchema = z.discriminatedUnion("preset", [
+	z.object({
+		preset: z.literal("hourly"),
+		minute: z.number().int().min(0).max(59),
+	}),
+	z.object({ preset: z.literal("daily"), at: timeOfDaySchema }),
+	z.object({ preset: z.literal("weekdays"), at: timeOfDaySchema }),
+	z.object({
+		preset: z.literal("weekly"),
+		on: weekdaySchema,
+		at: timeOfDaySchema,
+	}),
+	z.object({
+		preset: z.literal("monthly"),
+		day: z.number().int().min(1).max(28),
+		at: timeOfDaySchema,
+	}),
+]);
+export type SchedulePreset = z.infer<typeof schedulePresetSchema>;
+export type SchedulePresetKind = SchedulePreset["preset"];
+
+export const scheduleCronSchema = z.object({
+	cron: z
+		.string()
+		.trim()
+		.superRefine((expression, ctx) => {
+			const parsed = parseCron(expression);
+			if (!parsed.ok) {
+				ctx.addIssue({ code: "custom", message: parsed.error });
+				return;
+			}
+			if (
+				nextCronRun(parsed.spec, "UTC", new Date(Date.UTC(2026, 0, 1))) === null
+			) {
+				ctx.addIssue({ code: "custom", message: "this cron never runs" });
+			}
+		}),
+});
+export type ScheduleCron = z.infer<typeof scheduleCronSchema>;
+
+/**
+ * When a schedule runs: a fixed interval (the original shape, still stored
+ * as `{ n, unit }`), a preset, or a cron expression.
+ */
+export const scheduleCadenceSchema = z.union([
+	scheduleEverySchema,
+	schedulePresetSchema,
+	scheduleCronSchema,
+]);
+export type ScheduleCadence = z.infer<typeof scheduleCadenceSchema>;
 
 export const inactiveForSchema = z
 	.object({ n: z.number().int().min(1), unit: inactiveUnitSchema })
@@ -271,13 +353,15 @@ export const scheduleMatchConfigSchema = z.object({
 export type ScheduleMatchConfig = z.infer<typeof scheduleMatchConfigSchema>;
 
 export const triggerScheduleSchema = z.object({
-	every: scheduleEverySchema,
+	every: scheduleCadenceSchema,
+	timezone: scheduleTimezoneSchema.optional(),
 	match: scheduleMatchConfigSchema,
 });
 export type TriggerSchedule = z.infer<typeof triggerScheduleSchema>;
 
 export const scheduleDraftSchema = z.object({
-	every: scheduleEverySchema.optional(),
+	every: scheduleCadenceSchema.optional(),
+	timezone: scheduleTimezoneSchema.optional(),
 	match: z
 		.object({
 			subjects: z.array(threadSubjectSchema).optional(),

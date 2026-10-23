@@ -1,16 +1,13 @@
 import type { JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
+	describeSchedule,
 	isScheduleTrigger,
 	RULE_CATALOG,
 	ruleUiSchema,
 	storedReviewerSchema,
 } from "@tripwire/contracts";
 import { z } from "zod";
-import {
-	appliesToValue,
-	durationLabel,
-	everyValue,
-} from "#/lib/schedule-summary";
+import { appliesToValue, durationLabel } from "#/lib/schedule-summary";
 import { whenSentence } from "#/lib/trigger-kinds";
 
 const targetList = z.array(z.string()).catch([]);
@@ -187,7 +184,13 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 			}
 			const draft = node.schedule;
 			const rows: NodeFieldValue[] = [
-				row("every", "Every", draft?.every ? everyValue(draft.every) : null),
+				row(
+					"every",
+					"Runs",
+					draft?.every
+						? describeSchedule({ every: draft.every, timezone: draft.timezone })
+						: null,
+				),
 				row(
 					"subjects",
 					"Applies to",

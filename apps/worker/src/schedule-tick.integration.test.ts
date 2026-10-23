@@ -38,6 +38,18 @@ const QUIET = "Codertocat/Quiet";
 const T0 = new Date("2026-10-22T12:01:00.000Z");
 const HOUR = 60 * 60_000;
 const EVERY_12H = { n: 12, unit: "hours" } as const;
+const firstTick = {
+	schedule: {
+		every: EVERY_12H,
+		match: {
+			subjects: ["issue" as const],
+			state: "open" as const,
+			inactiveFor: { n: 15, unit: "days" as const },
+			skipLocked: true,
+		},
+	},
+	lastTickAt: null,
+};
 
 const THREADS: ForgeThread[] = [
 	{
@@ -301,7 +313,7 @@ describe("schedule tick", () => {
 		const events = await pool.query(
 			"SELECT delivery_id, forge FROM events WHERE raw_kind = 'schedule.matched' ORDER BY delivery_id",
 		);
-		const tickId = scheduleTickId(EVERY_12H, T0);
+		const tickId = scheduleTickId(firstTick, T0);
 		expect(events.rows).toEqual([
 			{
 				delivery_id: `schedule:wf-lock-inactive:every-12h:1:${tickId}`,
@@ -438,8 +450,8 @@ describe("schedule tick", () => {
 		const later = new Date(T0.getTime() + 26 * HOUR);
 		const result = await tick(later);
 		expect(result).toEqual({ schedules: 1, events: 2, errors: 0 });
-		expect(scheduleTickId(EVERY_12H, later)).not.toBe(
-			scheduleTickId(EVERY_12H, T0),
+		expect(scheduleTickId(firstTick, later)).not.toBe(
+			scheduleTickId(firstTick, T0),
 		);
 	});
 

@@ -2,6 +2,7 @@ import {
 	durationMs,
 	type Forge,
 	type ScheduledEvent,
+	scheduleFireTime,
 } from "@tripwire/contracts";
 import type { Db, DueSchedule } from "@tripwire/db";
 import { eventServices, scheduleServices } from "@tripwire/db";
@@ -32,11 +33,12 @@ export interface ScheduleTickResult {
 }
 
 export function scheduleTickId(
-	every: DueSchedule["schedule"]["every"],
+	due: Pick<DueSchedule, "schedule" | "lastTickAt">,
 	now: Date,
 ): string {
-	const size = durationMs(every);
-	return new Date(Math.floor(now.getTime() / size) * size).toISOString();
+	return (
+		scheduleFireTime(due.schedule, due.lastTickAt, now) ?? now
+	).toISOString();
 }
 
 export function scheduleDeliveryId(
@@ -101,7 +103,7 @@ async function tickOne(
 		skipLocked: match.skipLocked,
 		cap: MAX_THREADS_PER_TICK,
 	});
-	const tickId = scheduleTickId(due.schedule.every, now);
+	const tickId = scheduleTickId(due, now);
 	let events = 0;
 	const failures: string[] = [];
 	for (const thread of result.threads) {

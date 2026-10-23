@@ -1,8 +1,9 @@
-import type {
-	DurationUnit,
-	ScheduleDraft,
-	ScheduleState,
-	ThreadSubject,
+import {
+	type DurationUnit,
+	describeSchedule,
+	type ScheduleDraft,
+	type ScheduleState,
+	type ThreadSubject,
 } from "@tripwire/contracts";
 
 interface Duration {
@@ -27,13 +28,6 @@ export const UNIT_LABEL = {
 export function durationLabel(duration: Duration): string {
 	const [one, many] = UNIT_WORDS[duration.unit];
 	return `${duration.n} ${duration.n === 1 ? one : many}`;
-}
-
-export function everyLabel(every: Duration): string {
-	if (every.n === 1) {
-		return `Every ${UNIT_WORDS[every.unit][0]}`;
-	}
-	return `Every ${durationLabel(every)}`;
 }
 
 const SUBJECT_WORDS = {
@@ -68,7 +62,15 @@ export function scheduleSentence(
 		match.subjects?.includes(subject),
 	);
 	const parts: SentencePart[] = draft?.every
-		? [{ key: "every", text: everyLabel(draft.every) }]
+		? [
+				{
+					key: "every",
+					text: describeSchedule({
+						every: draft.every,
+						timezone: draft.timezone,
+					}),
+				},
+			]
 		: [
 				{ key: "every-lead", text: "Every " },
 				{ key: "every", text: "so often", placeholder: true },
@@ -122,14 +124,6 @@ export function scheduleSentenceText(draft: ScheduleDraft | undefined): string {
 		.join("");
 }
 
-export function everyValue(every: Duration): string {
-	if (every.n === 1) {
-		const word = UNIT_WORDS[every.unit][0];
-		return `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
-	}
-	return durationLabel(every);
-}
-
 const STATE_PREFIX = {
 	open: "Open",
 	closed: "Closed",
@@ -154,7 +148,9 @@ export function appliesToValue(
 }
 
 export function scheduleShortSummary(draft: ScheduleDraft | undefined): string {
-	const every = draft?.every ? everyLabel(draft.every) : "Schedule not set";
+	const every = draft?.every
+		? describeSchedule({ every: draft.every, timezone: draft.timezone })
+		: "Schedule not set";
 	const applies = appliesToValue(draft?.match.subjects, draft?.match.state);
 	const inactive = draft?.match.inactiveFor
 		? `inactive ${durationLabel(draft.match.inactiveFor)}`

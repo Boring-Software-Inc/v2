@@ -14,8 +14,8 @@ import { labelColor, labelOptions } from "#/lib/label-options";
 import { threadSubjectOf, threadUrlOf, toEventView } from "#/lib/run-links";
 import {
 	durationLabel,
-	everyLabel,
 	scheduleSentenceText,
+	scheduleShortSummary,
 } from "#/lib/schedule-summary";
 import { workflowToMarkdown } from "#/lib/workflow-markdown";
 import { WORKFLOW_TEMPLATES } from "#/lib/workflow-templates";
@@ -68,10 +68,6 @@ const THREAD_EVENT = {
 
 describe("durations", () => {
 	test("one of a unit reads without the number", () => {
-		expect(everyLabel({ n: 1, unit: "hours" })).toBe("Every hour");
-		expect(everyLabel({ n: 1, unit: "days" })).toBe("Every day");
-		expect(everyLabel({ n: 12, unit: "hours" })).toBe("Every 12 hours");
-		expect(everyLabel({ n: 2, unit: "weeks" })).toBe("Every 2 weeks");
 		expect(durationLabel({ n: 1, unit: "months" })).toBe("1 month");
 		expect(durationLabel({ n: 15, unit: "days" })).toBe("15 days");
 	});
@@ -133,7 +129,7 @@ describe("schedule sentence", () => {
 describe("node faces", () => {
 	test("a schedule trigger shows its cadence and inactivity", () => {
 		expect(face(SCHEDULE_TRIGGER)).toEqual([
-			"Every: 12 hours",
+			"Runs: Every 12 hours",
 			"Applies to: Closed issues, change requests",
 			"Inactive for: 15 days",
 			"With labels: stale",
@@ -142,7 +138,7 @@ describe("node faces", () => {
 
 	test("an unanswered schedule says not set", () => {
 		expect(face({ ...SCHEDULE_TRIGGER, schedule: NEW_SCHEDULE_DRAFT })).toEqual(
-			["Every: Not set", "Applies to: Not set", "Inactive for: Not set"],
+			["Runs: Not set", "Applies to: Not set", "Inactive for: Not set"],
 		);
 	});
 
@@ -300,5 +296,23 @@ describe("scheduled run links", () => {
 				receivedAt: new Date("2026-10-21T14:00:00.000Z"),
 			}).title,
 		).toBe("Crash on start");
+	});
+});
+
+describe("clock schedules", () => {
+	test("the sentence states the zone the schedule runs in", () => {
+		expect(
+			scheduleShortSummary({
+				every: { preset: "daily", at: "07:00" },
+				match: { subjects: ["issue"], state: "open" },
+			}),
+		).toBe("Every day at 07:00 (UTC, the default), open issues");
+		expect(
+			scheduleShortSummary({
+				every: { cron: "0 */12 * * *" },
+				timezone: "Europe/Berlin",
+				match: {},
+			}),
+		).toBe("Every day at 00:00 and 12:00 (Europe/Berlin)");
 	});
 });

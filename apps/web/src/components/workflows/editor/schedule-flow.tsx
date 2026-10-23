@@ -9,6 +9,7 @@ import type {
 } from "@tripwire/contracts";
 import {
 	DURATION_UNIT_MS,
+	isScheduleInterval,
 	MAX_INACTIVE_FOR_MS,
 	MAX_SCHEDULE_EVERY_MS,
 	missingScheduleSteps,
@@ -268,7 +269,11 @@ function ScheduleSteps({
 					readOnly={readOnly}
 					status={statusOf("every")}
 					units={EVERY_UNITS}
-					value={draft.every}
+					value={
+						draft.every && isScheduleInterval(draft.every)
+							? draft.every
+							: undefined
+					}
 				/>
 			</Step>
 			<Step status={statusOf("subjects")} step="subjects">

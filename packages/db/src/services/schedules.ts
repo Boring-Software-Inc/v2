@@ -1,8 +1,8 @@
 import {
 	completeSchedule,
-	durationMs,
 	type Forge,
 	isScheduleTrigger,
+	scheduleFireTime,
 	type TriggerSchedule,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
@@ -30,14 +30,11 @@ export interface DueSchedule {
 }
 
 export function isScheduleDue(
-	every: TriggerSchedule["every"],
+	schedule: Pick<TriggerSchedule, "every" | "timezone">,
 	lastTickAt: Date | null,
 	now: Date,
 ): boolean {
-	return (
-		lastTickAt === null ||
-		now.getTime() - lastTickAt.getTime() >= durationMs(every)
-	);
+	return scheduleFireTime(schedule, lastTickAt, now) !== null;
 }
 
 export async function listDueSchedules(
@@ -92,7 +89,7 @@ export async function listDueSchedules(
 			}
 			const lastTickAt =
 				lastTick.get(`${row.workflowRowId}:${node.id}`) ?? null;
-			if (!isScheduleDue(schedule.every, lastTickAt, now)) {
+			if (!isScheduleDue(schedule, lastTickAt, now)) {
 				return [];
 			}
 			return [
