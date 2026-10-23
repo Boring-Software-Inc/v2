@@ -27,6 +27,8 @@ auth          ← web, api, mcp         (./server sessions + posture guard,
                                        ./client browser; imports db + utils)
 forge-github  ← worker, api           (api uses webhook verify only)
 ui            ← web                   (primitives; no app logic, no data fetching)
+apps/cli      → contracts only        (npm @tripwire-sh/cli, bin `tripwire`; one ESM
+                                       file for Node. Talks to the MCP server over HTTP)
 ```
 apps import packages; packages NEVER import apps; nothing imports core except
 worker. `scripts/check-boundaries.ts` fails the build on any wrong-direction

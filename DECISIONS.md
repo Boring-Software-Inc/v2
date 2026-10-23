@@ -75,3 +75,32 @@ separately). See AGENTS.md.
 **Lifetimes:** access token 15 minutes, refresh token 30 days absolute from
 when the user connected the agent (enforced through `agent_grants`), device
 code 10 minutes.
+
+## 2026-10-22: `apps/cli`, the `tripwire` installer and terminal client
+
+**Added:** a new app, `apps/cli`, published as `@tripwire-sh/cli` with the bin
+`tripwire`. Approved by Grim for the agent setup work. Its devDependencies:
+`@modelcontextprotocol/sdk`, `@clack/prompts`, `commander` (v14), `picocolors`,
+`zod`. Bun bundles them into one ESM file (`dist/tripwire.js`), so the
+published package has no runtime dependencies and runs under `npx` on Node 20.12+.
+
+**What it replaces:** nothing. Today setup is only the web onboarding. The CLI
+copies Sentry's `npx @sentry/agent-plugin install` flow, but with no plugins:
+it adds the remote MCP server and the `tripwire-get-started` skill to each
+agent directly.
+
+**Why the stack can't do it:**
+
+- `@modelcontextprotocol/sdk`: the management commands are an MCP client of
+  the same server the agents use. Writing the streamable HTTP transport and
+  JSON-RPC session by hand would be a second, untested MCP client.
+- `@clack/prompts`: the agent multi-select and the confirm prompt need a raw
+  mode TTY prompt. Already a root devDependency for `scripts/e2e`.
+- `commander`: subcommands, `--help` and option parsing for 11 commands.
+  Already a root devDependency. Pinned to v14 because v15 needs Node 22.12.
+- `picocolors`: color that respects `NO_COLOR`. Already a root devDependency.
+- `zod`: parses every external value (agent config files, OAuth responses,
+  stored credentials, tool output). Already used by `@tripwire/contracts`.
+
+**Boundaries:** `apps/cli` may import `@tripwire/contracts` only, so it can
+share the setup prompt builder with the web app later.

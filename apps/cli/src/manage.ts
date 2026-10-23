@@ -1,0 +1,340 @@
+import type { Command } from "commander";
+import { z } from "zod";
+import { type Credential, credentialStore } from "#/auth/credentials";
+import {
+	type AuthDeps,
+	pollForToken,
+	requestDeviceCode,
+	revokeCredential,
+} from "#/auth/device";
+import { loadSession } from "#/auth/session";
+import { authUrl, mcpUrl } from "#/config";
+import { callTool, type ToolArgs, type ToolOutput } from "#/mcp-client";
+import type { System } from "#/system";
+
+export interface ManageDeps {
+	system: System;
+	auth: AuthDeps;
+	fetch?: typeof fetch;
+	openUrl?(url: string): Promise<void>;
+}
+
+interface GlobalOptions {
+	json: boolean;
+	org?: string;
+}
+
+type JsonValue = z.infer<ReturnType<typeof z.json>>;
+
+const globalsSchema = z.object({
+	json: z.boolean().optional(),
+	org: z.string().optional(),
+});
+
+const confirmSchema = z.looseObject({ confirmUrl: z.string() });
+
+function globals(command: Command, system: System): GlobalOptions {
+	const parsed = globalsSchema.parse(command.optsWithGlobals());
+	const org = parsed.org ?? system.env.TRIPWIRE_ORG;
+	return { json: parsed.json === true, org };
+}
+
+function out(text: string): void {
+	process.stdout.write(text.endsWith("\n") ? text : `${text}\n`);
+}
+
+function err(text: string): void {
+	process.stderr.write(text.endsWith("\n") ? text : `${text}\n`);
+}
+
+function parseParam(pair: string): [string, JsonValue] {
+	const index = pair.indexOf("=");
+	if (index <= 0) {
+		throw new Error(`Expected key=value, got ${pair}`);
+	}
+	const key = pair.slice(0, index);
+	const raw = pair.slice(index + 1);
+	try {
+		const parsed = z.json().safeParse(JSON.parse(raw));
+		return [key, parsed.success ? parsed.data : raw];
+	} catch {
+		return [key, raw];
+	}
+}
+
+function render(output: ToolOutput, options: GlobalOptions): number {
+	if (options.json) {
+		const body = output.isError
+			? { error: output.text }
+			: (output.data ?? { text: output.text });
+		out(JSON.stringify(body, null, 2));
+		return output.isError ? 1 : 0;
+	}
+	if (output.isError) {
+		err(output.text || "The Tripwire server returned an error");
+		return 1;
+	}
+	out(output.text || JSON.stringify(output.data, null, 2));
+	const confirm = confirmSchema.safeParse(output.data);
+	if (confirm.success && !output.text.includes(confirm.data.confirmUrl)) {
+		out(`Open this link to confirm: ${confirm.data.confirmUrl}`);
+	}
+	return 0;
+}
+
+function fail(error: Error, options: GlobalOptions): number {
+	if (options.json) {
+		out(JSON.stringify({ error: error.message }, null, 2));
+	} else {
+		err(error.message);
+	}
+	return 1;
+}
+
+function withOrg(options: GlobalOptions, args: ToolArgs): ToolArgs {
+	return options.org ? { org: options.org, ...args } : args;
+}
+
+async function runTool(
+	deps: ManageDeps,
+	command: Command,
+	name: string,
+	args: ToolArgs,
+): Promise<void> {
+	const options = globals(command, deps.system);
+	try {
+		const session = await loadSession(deps.system, deps.auth);
+		const output = await callTool(
+			session,
+			name,
+			withOrg(options, args),
+			deps.fetch,
+		);
+		process.exitCode = render(output, options);
+	} catch (error) {
+		process.exitCode = fail(
+			error instanceof Error ? error : new Error(String(error)),
+			options,
+		);
+	}
+}
+
+async function login(deps: ManageDeps, command: Command): Promise<void> {
+	const options = globals(command, deps.system);
+	const browser = command.opts<{ browser: boolean }>().browser;
+	const base = authUrl(deps.system.env);
+	const resource = mcpUrl(deps.system.env);
+	try {
+		const code = await requestDeviceCode(deps.auth, base, resource);
+		const link = code.verification_uri_complete ?? code.verification_uri;
+		err(`Open ${link}`);
+		err(`and confirm this code: ${code.user_code}`);
+		if (browser && deps.openUrl) {
+			await deps.openUrl(link).catch(() => undefined);
+		}
+		err("Waiting for you to approve in the browser...");
+		const credential = await pollForToken(deps.auth, base, resource, code);
+		const where = await save(deps.system, credential);
+		if (options.json) {
+			out(JSON.stringify({ signedIn: true, store: where }, null, 2));
+		} else {
+			out(`Signed in. Token saved to the ${where}.`);
+		}
+	} catch (error) {
+		process.exitCode = fail(
+			error instanceof Error ? error : new Error(String(error)),
+			options,
+		);
+	}
+}
+
+async function save(system: System, credential: Credential): Promise<string> {
+	const store = credentialStore(system);
+	try {
+		await store.write(credential);
+		return store.location;
+	} catch {
+		const fallback = credentialStore({
+			...system,
+			env: { ...system.env, TRIPWIRE_CREDENTIAL_STORE: "file" },
+		});
+		await fallback.write(credential);
+		return fallback.location;
+	}
+}
+
+async function logout(deps: ManageDeps, command: Command): Promise<void> {
+	const options = globals(command, deps.system);
+	const store = credentialStore(deps.system);
+	const credential = await store.read();
+	if (credential) {
+		await revokeCredential(deps.auth, credential);
+	}
+	await store.clear();
+	if (options.json) {
+		out(JSON.stringify({ signedIn: false }, null, 2));
+	} else {
+		out(credential ? "Signed out." : "Not signed in.");
+	}
+}
+
+export function registerManageCommands(program: Command, deps: ManageDeps) {
+	program
+		.command("login")
+		.description("Sign in with the OAuth device flow and store the token")
+		.option("--no-browser", "Print the link without opening a browser")
+		.action((_options, command: Command) => login(deps, command));
+
+	program
+		.command("logout")
+		.description("Revoke and remove the stored token")
+		.action((_options, command: Command) => logout(deps, command));
+
+	program
+		.command("whoami")
+		.description("Show the signed-in account, access status and orgs")
+		.action((_options, command: Command) =>
+			runTool(deps, command, "whoami", {}),
+		);
+
+	program
+		.command("status")
+		.description("Show setup status and the next step")
+		.action((_options, command: Command) =>
+			runTool(deps, command, "setup_status", {}),
+		);
+
+	program
+		.command("repos")
+		.description("List repos and their gate state")
+		.action((_options, command: Command) =>
+			runTool(deps, command, "list_repos", {}),
+		);
+
+	const rules = program.command("rules").description("Read and change rules");
+	rules
+		.command("list [repo]")
+		.description(
+			"List a repo's rules, or the rule catalog when no repo is given",
+		)
+		.action((repo: string | undefined, _options, command: Command) =>
+			repo
+				? runTool(deps, command, "get_repo_rules", { repo })
+				: runTool(deps, command, "list_rule_catalog", {}),
+		);
+	rules
+		.command("set <repo> <ruleId>")
+		.description("Turn a rule on or off and set its params")
+		.option("--enable", "Turn the rule on")
+		.option("--disable", "Turn the rule off")
+		.option(
+			"--param <key=value>",
+			"Set a param, repeatable. Values parse as JSON when they can",
+			(value: string, previous: string[]) => [...previous, value],
+			[],
+		)
+		.action(
+			(
+				repo: string,
+				ruleId: string,
+				opts: { enable?: boolean; disable?: boolean; param: string[] },
+				command: Command,
+			) => {
+				const args: ToolArgs = { repo, ruleId };
+				if (opts.enable || opts.disable) {
+					args.enabled = opts.enable === true;
+				}
+				if (opts.param.length > 0) {
+					args.params = Object.fromEntries(opts.param.map(parseParam));
+				}
+				return runTool(deps, command, "set_rule", args);
+			},
+		);
+
+	program
+		.command("gate")
+		.description("Control the Tripwire gate on a repo")
+		.command("on <repo>")
+		.description("Turn the gate on for a repo")
+		.action((repo: string, _options, command: Command) =>
+			runTool(deps, command, "turn_on_gate", { repo }),
+		);
+
+	const workflows = program
+		.command("workflows")
+		.description("List, enable and disable workflows");
+	workflows
+		.command("list <repo>")
+		.description("List a repo's workflows")
+		.action((repo: string, _options, command: Command) =>
+			runTool(deps, command, "list_workflows", { repo }),
+		);
+	for (const verb of ["enable", "disable"] as const) {
+		workflows
+			.command(`${verb} <repo> <workflowId>`)
+			.description(`${verb === "enable" ? "Enable" : "Disable"} a workflow`)
+			.action((repo: string, workflowId: string, _options, command: Command) =>
+				runTool(deps, command, "set_workflow_enabled", {
+					repo,
+					workflowId,
+					enabled: verb === "enable",
+				}),
+			);
+	}
+
+	const runs = program.command("runs").description("Inspect runs");
+	runs
+		.command("list")
+		.description("List recent runs")
+		.option("--repo <repo>", "Only runs for this repo")
+		.option("--limit <n>", "How many runs to show", (value) =>
+			Number.parseInt(value, 10),
+		)
+		.action((opts: { repo?: string; limit?: number }, command: Command) => {
+			const args: ToolArgs = {};
+			if (opts.repo) {
+				args.repo = opts.repo;
+			}
+			if (opts.limit) {
+				args.limit = opts.limit;
+			}
+			return runTool(deps, command, "list_runs", args);
+		});
+	runs
+		.command("show <runId>")
+		.description("Show one run with its rule results")
+		.action((runId: string, _options, command: Command) =>
+			runTool(deps, command, "get_run", { runId }),
+		);
+
+	const queue = program
+		.command("queue")
+		.description("Work the human review queue");
+	queue
+		.command("list")
+		.description("List items waiting for human review")
+		.option("--repo <repo>", "Only items for this repo")
+		.action((opts: { repo?: string }, command: Command) =>
+			runTool(
+				deps,
+				command,
+				"list_moderation_queue",
+				opts.repo ? { repo: opts.repo } : {},
+			),
+		);
+	queue
+		.command("decide <itemId> <action>")
+		.description(
+			"Decide an item: approve, remove or ban. A ban returns a link a human must open",
+		)
+		.action((itemId: string, action: string, _options, command: Command) => {
+			if (!["approve", "remove", "ban"].includes(action)) {
+				process.exitCode = fail(
+					new Error("action must be approve, remove or ban"),
+					globals(command, deps.system),
+				);
+				return;
+			}
+			return runTool(deps, command, "decide_moderation", { itemId, action });
+		});
+}

@@ -47,6 +47,7 @@ const ALLOWED: Record<string, readonly string[]> = {
 		"forge-opengit",
 		"sdk",
 	],
+	cli: ["contracts"],
 };
 
 const KNOWN = new Set(Object.keys(ALLOWED));
