@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { triggerScheduleSchema } from "./workflow.ts";
-import { nextCronRun, parseCron, zonedInstant } from "./workflow-cron.ts";
+import {
+	latestCronRun,
+	nextCronRun,
+	parseCron,
+	zonedInstant,
+} from "./workflow-cron.ts";
 import {
 	cadenceCron,
 	describeCadence,
@@ -307,5 +312,100 @@ describe("describeCron says only what the cron runs", () => {
 	test("an even step still reads as a step", () => {
 		expect(describeCron("*/15 * * * *")).toBe("Every 15 minutes");
 		expect(describeCron("0 */6 * * *")).toBe("Every 6 hours at minute 0");
+	});
+});
+
+describe("catch-up after an outage", () => {
+	function walkForward(
+		cron: string,
+		zone: string,
+		after: Date,
+		until: Date,
+	): Date | null {
+		const parsed = parseCron(cron);
+		if (!parsed.ok) {
+			return null;
+		}
+		let fire: Date | null = null;
+		let cursor = nextCronRun(parsed.spec, zone, after);
+		while (cursor && cursor.getTime() <= until.getTime()) {
+			fire = cursor;
+			cursor = nextCronRun(parsed.spec, zone, cursor);
+		}
+		return fire;
+	}
+
+	test("the latest fire matches a walk through every fire", () => {
+		const cases: [string, string, string, string][] = [
+			[
+				"*/5 * * * *",
+				"Europe/Berlin",
+				"2026-05-31T18:00:00Z",
+				"2026-06-01T23:57:00Z",
+			],
+			[
+				"30 2 * * *",
+				"America/New_York",
+				"2026-03-07T00:00:00Z",
+				"2026-03-08T12:00:00Z",
+			],
+			[
+				"30 1 * * *",
+				"America/New_York",
+				"2026-10-31T00:00:00Z",
+				"2026-11-01T06:10:00Z",
+			],
+			[
+				"*/5 * * * *",
+				"America/New_York",
+				"2026-11-01T04:00:00Z",
+				"2026-11-01T07:02:00Z",
+			],
+			["0 9 * * 1-5", "UTC", "2026-06-05T10:00:00Z", "2026-06-08T08:59:00Z"],
+			[
+				"15 2 * * *",
+				"Australia/Lord_Howe",
+				"2026-10-02T12:00:00Z",
+				"2026-10-04T12:00:00Z",
+			],
+		];
+		for (const [cron, zone, after, until] of cases) {
+			const parsed = parseCron(cron);
+			if (!parsed.ok) {
+				throw new Error(parsed.error);
+			}
+			expect({
+				cron,
+				zone,
+				fire: latestCronRun(
+					parsed.spec,
+					zone,
+					new Date(after),
+					new Date(until),
+				)?.toISOString(),
+			}).toEqual({
+				cron,
+				zone,
+				fire: walkForward(
+					cron,
+					zone,
+					new Date(after),
+					new Date(until),
+				)?.toISOString(),
+			});
+		}
+	});
+
+	test("a day of missed five-minute fires costs about one fire", () => {
+		const now = new Date("2026-06-01T23:57:00Z");
+		const started = performance.now();
+		for (let i = 0; i < 20; i++) {
+			scheduleFireTime(
+				{ every: { cron: "*/5 * * * *" }, timezone: "Europe/Berlin" },
+				new Date(now.getTime() - 30 * 3_600_000),
+				now,
+			);
+		}
+		expect((performance.now() - started) / 20).toBeLessThan(25);
 	});
 });

@@ -332,3 +332,43 @@ export function nextCronRun(
 	}
 	return null;
 }
+
+export function latestCronRun(
+	spec: CronSpec,
+	zone: string,
+	after: Date,
+	until: Date,
+): Date | null {
+	const first = wallTime(after, zone);
+	const last = wallTime(until, zone);
+	const floor = Date.UTC(first.year, first.month - 1, first.day);
+	const cursor = new Date(Date.UTC(last.year, last.month - 1, last.day));
+	const hours = [...spec.hours].reverse();
+	const minutes = [...spec.minutes].reverse();
+	while (cursor.getTime() >= floor) {
+		if (
+			spec.months.includes(cursor.getUTCMonth() + 1) &&
+			dayMatches(spec, cursor)
+		) {
+			for (const hour of hours) {
+				for (const minute of minutes) {
+					const instant = existingInstant(
+						{
+							year: cursor.getUTCFullYear(),
+							month: cursor.getUTCMonth() + 1,
+							day: cursor.getUTCDate(),
+							hour,
+							minute,
+						},
+						zone,
+					);
+					if (instant && instant.getTime() <= until.getTime()) {
+						return instant.getTime() > after.getTime() ? instant : null;
+					}
+				}
+			}
+		}
+		cursor.setUTCDate(cursor.getUTCDate() - 1);
+	}
+	return null;
+}

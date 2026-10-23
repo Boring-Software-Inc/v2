@@ -9,7 +9,12 @@ import {
 	type Weekday,
 	weekdaySchema,
 } from "./workflow.ts";
-import { type CronSpec, nextCronRun, parseCron } from "./workflow-cron.ts";
+import {
+	type CronSpec,
+	latestCronRun,
+	nextCronRun,
+	parseCron,
+} from "./workflow-cron.ts";
 
 /** How often the worker looks for due schedules. */
 export const SCHEDULE_TICK_MS = SCHEDULE_TICK_MINUTES * 60_000;
@@ -331,13 +336,7 @@ export function scheduleFireTime(
 		lastTickAt?.getTime() ?? now.getTime() - 2 * SCHEDULE_TICK_MS,
 		now.getTime() - FIRE_LOOKBACK_MS,
 	);
-	let fire: Date | null = null;
-	let cursor = nextCronRun(spec, zone, new Date(anchor));
-	while (cursor && cursor.getTime() <= now.getTime()) {
-		fire = cursor;
-		cursor = nextCronRun(spec, zone, cursor);
-	}
-	return fire;
+	return latestCronRun(spec, zone, new Date(anchor), now);
 }
 
 /**
