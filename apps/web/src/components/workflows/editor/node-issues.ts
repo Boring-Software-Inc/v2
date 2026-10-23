@@ -106,10 +106,12 @@ export const CronDraftsContext = createContext<CronDraftsApi>({
 	setDraft: () => undefined,
 });
 
-export function useCronDraft(nodeId: string): {
+export interface CronDraft {
 	draft: string | undefined;
 	setDraft: (text: string | null) => void;
-} {
+}
+
+export function useCronDraft(nodeId: string): CronDraft {
 	const api = useContext(CronDraftsContext);
 	return {
 		draft: api.drafts.get(nodeId),

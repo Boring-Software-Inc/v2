@@ -514,12 +514,9 @@ describe("validating code reads it the way a push stores it", () => {
 		version: 1,
 		nodes: [
 			{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
-			{
-				id: "notify",
-				type: "action",
-				action: "webhook",
-				...(url ? { params: { url } } : {}),
-			},
+			url
+				? { id: "notify", type: "action", action: "webhook", params: { url } }
+				: { id: "notify", type: "action", action: "webhook" },
 		],
 		edges: [{ id: "e1", from: "trigger", to: "notify" }],
 	});

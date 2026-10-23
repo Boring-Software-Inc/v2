@@ -1147,68 +1147,68 @@ function EditorBody({
 						<CustomRuleNamesContext.Provider value={customRuleNames}>
 							<ProblemsContext.Provider value={problemsApi}>
 								<EditFieldContext.Provider value={editField}>
-									<CronDraftsContext.Provider value={cronDraftsApi}>
-										<DragPlanContext.Provider value={plan}>
-											<ReactFlow
-												connectionLineComponent={TypedConnectionLine}
-												data-drag-tone={
-													plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
-												}
-												deleteKeyCode={readOnly ? null : DELETE_KEYS}
-												onBeforeDelete={readOnly ? undefined : onBeforeDelete}
-												edges={flowEdges}
-												edgeTypes={EDGE_TYPES}
-												edgesReconnectable={!readOnly}
-												elementsSelectable
-												fitView
-												fitViewOptions={fitViewOptions()}
-												isValidConnection={isValidConnection}
-												nodes={canvasNodes as unknown as TripwireFlowNode[]}
-												nodesConnectable={!readOnly}
-												nodesDraggable={!readOnly}
-												nodeTypes={NODE_TYPES}
-												onConnect={readOnly ? undefined : onConnect}
-												onConnectEnd={onConnectEnd}
-												onConnectStart={cancelPending}
-												onNodeClick={cancelPending}
-												onPaneClick={cancelPending}
-												onReconnectEnd={() => {
-													reconnecting.current = false;
-												}}
-												onReconnectStart={() => {
-													reconnecting.current = true;
-												}}
-												onEdgesChange={onEdgesChange}
-												onNodesChange={onNodesChange}
-												onReconnect={readOnly ? undefined : onReconnect}
-												proOptions={{ hideAttribution: true }}
-												style={CANVAS_TOKENS}
-											>
-												<CanvasZoom />
-												<LaneRules ys={decor.rules.map((rule) => rule.y)} />
-												<DropHint />
-												{pending ? <PendingConnection {...pending} /> : null}
-											</ReactFlow>
-										</DragPlanContext.Provider>
-									</CronDraftsContext.Provider>
+									<DragPlanContext.Provider value={plan}>
+										<ReactFlow
+											connectionLineComponent={TypedConnectionLine}
+											data-drag-tone={
+												plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
+											}
+											deleteKeyCode={readOnly ? null : DELETE_KEYS}
+											onBeforeDelete={readOnly ? undefined : onBeforeDelete}
+											edges={flowEdges}
+											edgeTypes={EDGE_TYPES}
+											edgesReconnectable={!readOnly}
+											elementsSelectable
+											fitView
+											fitViewOptions={fitViewOptions()}
+											isValidConnection={isValidConnection}
+											nodes={canvasNodes as unknown as TripwireFlowNode[]}
+											nodesConnectable={!readOnly}
+											nodesDraggable={!readOnly}
+											nodeTypes={NODE_TYPES}
+											onConnect={readOnly ? undefined : onConnect}
+											onConnectEnd={onConnectEnd}
+											onConnectStart={cancelPending}
+											onNodeClick={cancelPending}
+											onPaneClick={cancelPending}
+											onReconnectEnd={() => {
+												reconnecting.current = false;
+											}}
+											onReconnectStart={() => {
+												reconnecting.current = true;
+											}}
+											onEdgesChange={onEdgesChange}
+											onNodesChange={onNodesChange}
+											onReconnect={readOnly ? undefined : onReconnect}
+											proOptions={{ hideAttribution: true }}
+											style={CANVAS_TOKENS}
+										>
+											<CanvasZoom />
+											<LaneRules ys={decor.rules.map((rule) => rule.y)} />
+											<DropHint />
+											{pending ? <PendingConnection {...pending} /> : null}
+										</ReactFlow>
+									</DragPlanContext.Provider>
 								</EditFieldContext.Provider>
 							</ProblemsContext.Provider>
 						</CustomRuleNamesContext.Provider>
-						<EditorSidebar
-							connect={toolboxConnect}
-							customRules={customRules}
-							onCancelConnect={cancelPending}
-							fieldFocus={fieldFocus}
-							onFieldFocused={() => setFieldFocus(null)}
-							org={org}
-							repo={repo}
-							onAdd={addAtFreePosition}
-							onClearSelection={clearSelection}
-							onTestConnection={onTestConnection}
-							onUpdateNode={updateNode}
-							readOnly={readOnly}
-							selectedNode={selectedNode}
-						/>
+						<CronDraftsContext.Provider value={cronDraftsApi}>
+							<EditorSidebar
+								connect={toolboxConnect}
+								customRules={customRules}
+								onCancelConnect={cancelPending}
+								fieldFocus={fieldFocus}
+								onFieldFocused={() => setFieldFocus(null)}
+								org={org}
+								repo={repo}
+								onAdd={addAtFreePosition}
+								onClearSelection={clearSelection}
+								onTestConnection={onTestConnection}
+								onUpdateNode={updateNode}
+								readOnly={readOnly}
+								selectedNode={selectedNode}
+							/>
+						</CronDraftsContext.Provider>
 						<ProblemsButton
 							onFix={fixProblem}
 							onOpenChange={setProblemsOpen}
