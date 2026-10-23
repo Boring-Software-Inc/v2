@@ -39,7 +39,7 @@ function PassedFold({ rules }: { rules: ChainRule[] }) {
 				<CollapsibleTrigger size="sm">
 					<span className="flex items-baseline gap-1.5">
 						<ChainMark glyph="pass" size={12} tone="ok" />
-						<span className="text-ok-text">{rules.length} passed</span>
+						<span className="text-ok-text">{`${rules.length} passed`}</span>
 					</span>
 				</CollapsibleTrigger>
 				<span className="min-w-0 flex-1 pt-1 type-body-sm text-text-2">
@@ -236,9 +236,7 @@ export function PassedGroup({
 					<CollapsibleTrigger>
 						<span className="flex items-baseline gap-1.5">
 							<ChainMark glyph="pass" size={12} tone="ok" />
-							<span className="text-ok-text">
-								{branches.length} {noun} passed
-							</span>
+							<span className="text-ok-text">{`${branches.length} ${noun} passed`}</span>
 						</span>
 					</CollapsibleTrigger>
 					<span className="min-w-0 flex-1 pt-1.5 type-body-sm text-text-2">

@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { SAMPLE_RUN } from "#/components/responses/sample-run";
+import { PassedGroup } from "#/components/runs/branch-card";
 import { RunChainView } from "#/components/runs/run-chain";
 import { toPublicRunView } from "#/lib/run-access";
-import { buildRunChain } from "#/lib/run-chain";
+import { buildRunChain, type ChainBranch } from "#/lib/run-chain";
 import type { RunView } from "#/lib/runs.functions";
 
 const WITH_REVIEW: RunView = {
@@ -62,5 +63,27 @@ describe("run chain outcome node", () => {
 		expect(render(WITH_REVIEW, 6)).toContain("Human review open");
 		expect(render(WITH_REVIEW, 7)).toContain("Human review open");
 		expect(render(WITH_REVIEW, 8)).not.toContain("Human review open");
+	});
+});
+
+describe("passed workflows group", () => {
+	test("its button reads the count and the noun with a space", () => {
+		const branch = (id: string): ChainBranch => ({
+			id,
+			name: `Workflow ${id}`,
+			isRules: false,
+			form: "row",
+			passed: [],
+			flagged: [],
+			pending: [],
+			outcome: null,
+		});
+		const markup = renderToString(
+			<PassedGroup
+				branches={[branch("a"), branch("b")]}
+				context={{ level: 8, maintainer: false, repo: "o/r", sha: null }}
+			/>,
+		);
+		expect(markup).toContain(">2 workflows passed<");
 	});
 });
