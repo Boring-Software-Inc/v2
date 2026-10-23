@@ -5,6 +5,7 @@ import {
 	type OrgPermission,
 	type OrgRegion,
 	type OrgRoleScopes,
+	type OrgScopeLevels,
 	orgRoleScopesSchema,
 	scopesToStatements,
 } from "@tripwire/contracts";
@@ -125,8 +126,8 @@ const GRANTABLE = {
 
 function* everyScopeSet(
 	index = 0,
-	acc: Partial<Record<OrgRegion, OrgAccessLevel>> = {},
-): Generator<Partial<Record<OrgRegion, OrgAccessLevel>>> {
+	acc: OrgScopeLevels = {},
+): Generator<OrgScopeLevels> {
 	const region = ORG_REGIONS[index];
 	if (!region) {
 		yield acc;
@@ -140,9 +141,7 @@ function* everyScopeSet(
 	}
 }
 
-function expected(
-	scopes: Partial<Record<OrgRegion, OrgAccessLevel>>,
-): OrgPermission[] {
+function expected(scopes: OrgScopeLevels): OrgPermission[] {
 	return ORG_REGIONS.flatMap((region) => {
 		const held = scopes[region];
 		const out: OrgPermission[] = [];

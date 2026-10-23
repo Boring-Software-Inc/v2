@@ -81,10 +81,16 @@ export function scopesToStatements(scopes: OrgRoleScopes): OrgRoleStatements {
 	return statements;
 }
 
+export const orgScopeLevelsSchema = z.partialRecord(
+	orgRegionSchema,
+	orgAccessLevelSchema,
+);
+export type OrgScopeLevels = z.infer<typeof orgScopeLevelsSchema>;
+
 export function statementsToScopes(
 	statements: OrgRoleStatements,
-): Partial<Record<OrgRegion, OrgAccessLevel>> {
-	const scopes: Partial<Record<OrgRegion, OrgAccessLevel>> = {};
+): OrgScopeLevels {
+	const scopes: OrgScopeLevels = {};
 	for (const region of ORG_REGIONS) {
 		const actions = statements[region];
 		if (actions?.includes("manage")) {

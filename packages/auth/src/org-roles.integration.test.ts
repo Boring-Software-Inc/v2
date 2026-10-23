@@ -65,7 +65,7 @@ async function memberId(orgId: string, userId: string): Promise<string> {
 	return must(rows[0]).id;
 }
 
-async function rawPost(path: string, cookie: string, body: object) {
+async function rawPost(path: string, cookie: string, body: string) {
 	return await auth.handler(
 		new Request(`${BASE}/api/auth${path}`, {
 			method: "POST",
@@ -74,7 +74,7 @@ async function rawPost(path: string, cookie: string, body: object) {
 				"content-type": "application/json",
 				origin: BASE,
 			},
-			body: JSON.stringify(body),
+			body,
 		}),
 	);
 }
@@ -281,11 +281,15 @@ describe("no path lets a role escalate", () => {
 			{},
 		];
 		for (const permission of refused) {
-			const res = await rawPost("/organization/create-role", admin.cookie, {
-				organizationId: orgId,
-				role: "sneaky",
-				permission,
-			});
+			const res = await rawPost(
+				"/organization/create-role",
+				admin.cookie,
+				JSON.stringify({
+					organizationId: orgId,
+					role: "sneaky",
+					permission,
+				}),
+			);
 			expect(res.status).toBe(400);
 		}
 		const rows = await orgServices.listOrgRoles(db, orgId);
@@ -294,27 +298,39 @@ describe("no path lets a role escalate", () => {
 
 	test("reserved and malformed role names are refused", async () => {
 		for (const role of ["admin", "member", "owner", "Mod Squad", "x", ""]) {
-			const res = await rawPost("/organization/create-role", admin.cookie, {
-				organizationId: orgId,
-				role,
-				permission: { moderation: ["read"] },
-			});
+			const res = await rawPost(
+				"/organization/create-role",
+				admin.cookie,
+				JSON.stringify({
+					organizationId: orgId,
+					role,
+					permission: { moderation: ["read"] },
+				}),
+			);
 			expect(res.status).toBe(400);
 		}
 	});
 
 	test("a role update cannot rename the role or widen into plugin powers", async () => {
-		const rename = await rawPost("/organization/update-role", admin.cookie, {
-			organizationId: orgId,
-			roleName: "moderator",
-			data: { roleName: "admin2", permission: { moderation: ["read"] } },
-		});
+		const rename = await rawPost(
+			"/organization/update-role",
+			admin.cookie,
+			JSON.stringify({
+				organizationId: orgId,
+				roleName: "moderator",
+				data: { roleName: "admin2", permission: { moderation: ["read"] } },
+			}),
+		);
 		expect(rename.status).toBe(400);
-		const widen = await rawPost("/organization/update-role", admin.cookie, {
-			organizationId: orgId,
-			roleName: "moderator",
-			data: { permission: { member: ["update"] } },
-		});
+		const widen = await rawPost(
+			"/organization/update-role",
+			admin.cookie,
+			JSON.stringify({
+				organizationId: orgId,
+				roleName: "moderator",
+				data: { permission: { member: ["update"] } },
+			}),
+		);
 		expect(widen.status).toBe(400);
 		expect(await permissionsOf(moderator.userId)).toEqual([
 			"moderation:read",
