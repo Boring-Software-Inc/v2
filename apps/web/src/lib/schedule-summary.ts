@@ -1,22 +1,11 @@
 import {
 	type DurationUnit,
+	describeDuration,
 	describeSchedule,
 	type ScheduleDraft,
 	type ScheduleState,
 	type ThreadSubject,
 } from "@tripwire/contracts";
-
-interface Duration {
-	n: number;
-	unit: DurationUnit;
-}
-
-const UNIT_WORDS = {
-	hours: ["hour", "hours"],
-	days: ["day", "days"],
-	weeks: ["week", "weeks"],
-	months: ["month", "months"],
-} as const satisfies Record<DurationUnit, readonly [string, string]>;
 
 export const UNIT_LABEL = {
 	hours: "Hours",
@@ -24,11 +13,6 @@ export const UNIT_LABEL = {
 	weeks: "Weeks",
 	months: "Months",
 } as const satisfies Record<DurationUnit, string>;
-
-export function durationLabel(duration: Duration): string {
-	const [one, many] = UNIT_WORDS[duration.unit];
-	return `${duration.n} ${duration.n === 1 ? one : many}`;
-}
 
 const SUBJECT_WORDS = {
 	issue: "issues",
@@ -96,7 +80,7 @@ export function scheduleSentence(
 				},
 		{ key: "inactive-lead", text: " with no activity for " },
 		match.inactiveFor
-			? { key: "inactiveFor", text: durationLabel(match.inactiveFor) }
+			? { key: "inactiveFor", text: describeDuration(match.inactiveFor) }
 			: { key: "inactiveFor", text: "some time", placeholder: true },
 	);
 	if (match.labels?.length) {
@@ -153,7 +137,7 @@ export function scheduleShortSummary(draft: ScheduleDraft | undefined): string {
 		: "Schedule not set";
 	const applies = appliesToValue(draft?.match.subjects, draft?.match.state);
 	const inactive = draft?.match.inactiveFor
-		? `inactive ${durationLabel(draft.match.inactiveFor)}`
+		? `inactive ${describeDuration(draft.match.inactiveFor)}`
 		: null;
 	const rest = [applies?.toLowerCase(), inactive]
 		.filter((part): part is string => Boolean(part))

@@ -5,6 +5,7 @@ import {
 	cadenceCron,
 	describeCadence,
 	describeCron,
+	describeDuration,
 	describeSchedule,
 	formatScheduleTime,
 	nextScheduleRun,
@@ -199,6 +200,12 @@ describe("read-back", () => {
 		expect(describeSchedule({ every: { n: 12, unit: "hours" } })).toBe(
 			"Every 12 hours",
 		);
+	});
+
+	test("durations read in words", () => {
+		expect(describeDuration({ n: 1, unit: "months" })).toBe("1 month");
+		expect(describeDuration({ n: 15, unit: "days" })).toBe("15 days");
+		expect(describeCadence({ n: 1, unit: "weeks" })).toBe("Every week");
 	});
 
 	test("common cron shapes read as words, the rest as the expression", () => {

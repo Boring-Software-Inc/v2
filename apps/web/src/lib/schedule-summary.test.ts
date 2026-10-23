@@ -14,7 +14,6 @@ import {
 import { labelColor, labelOptions } from "#/lib/label-options";
 import { threadSubjectOf, threadUrlOf, toEventView } from "#/lib/run-links";
 import {
-	durationLabel,
 	scheduleSentenceText,
 	scheduleShortSummary,
 } from "#/lib/schedule-summary";
@@ -65,13 +64,6 @@ const THREAD_EVENT = {
 		updatedAt: "2026-09-01T00:00:00.000Z",
 	},
 };
-
-describe("durations", () => {
-	test("one of a unit reads without the number", () => {
-		expect(durationLabel({ n: 1, unit: "months" })).toBe("1 month");
-		expect(durationLabel({ n: 15, unit: "days" })).toBe("15 days");
-	});
-});
 
 describe("schedule sentence", () => {
 	test("a complete schedule reads as one sentence", () => {

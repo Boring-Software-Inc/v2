@@ -1,5 +1,6 @@
 import type { JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
+	describeDuration,
 	describeSchedule,
 	isScheduleTrigger,
 	RULE_CATALOG,
@@ -7,7 +8,7 @@ import {
 	storedReviewerSchema,
 } from "@tripwire/contracts";
 import { z } from "zod";
-import { appliesToValue, durationLabel } from "#/lib/schedule-summary";
+import { appliesToValue } from "#/lib/schedule-summary";
 import { whenSentence } from "#/lib/trigger-kinds";
 
 const targetList = z.array(z.string()).catch([]);
@@ -200,7 +201,7 @@ export function nodeFieldValues(node: WorkflowNode): NodeFieldValue[] {
 					"inactiveFor",
 					"Inactive for",
 					draft?.match.inactiveFor
-						? durationLabel(draft.match.inactiveFor)
+						? describeDuration(draft.match.inactiveFor)
 						: null,
 				),
 			];

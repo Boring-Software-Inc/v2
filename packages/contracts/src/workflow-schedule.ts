@@ -1,5 +1,6 @@
 import {
 	DEFAULT_SCHEDULE_TIMEZONE,
+	type DurationUnit,
 	durationMs,
 	SCHEDULE_TICK_MINUTES,
 	type ScheduleCadence,
@@ -85,10 +86,16 @@ const UNIT_WORDS = {
 	hours: ["hour", "hours"],
 	days: ["day", "days"],
 	weeks: ["week", "weeks"],
-} as const satisfies Record<
-	ScheduleInterval["unit"],
-	readonly [string, string]
->;
+	months: ["month", "months"],
+} as const satisfies Record<DurationUnit, readonly [string, string]>;
+
+export function describeDuration(duration: {
+	n: number;
+	unit: DurationUnit;
+}): string {
+	const [one, many] = UNIT_WORDS[duration.unit];
+	return `${duration.n} ${duration.n === 1 ? one : many}`;
+}
 
 const WEEKDAY_WORDS = weekdaySchema.options.map(
 	(day) => `${day.charAt(0).toUpperCase()}${day.slice(1)}`,
@@ -196,8 +203,9 @@ export function describeCron(expression: string): string | null {
 /** The cadence in plain words, without its zone. */
 export function describeCadence(cadence: ScheduleCadence): string {
 	if (isScheduleInterval(cadence)) {
-		const [one, many] = UNIT_WORDS[cadence.unit];
-		return cadence.n === 1 ? `Every ${one}` : `Every ${cadence.n} ${many}`;
+		return cadence.n === 1
+			? `Every ${UNIT_WORDS[cadence.unit][0]}`
+			: `Every ${describeDuration(cadence)}`;
 	}
 	if (isPreset(cadence)) {
 		switch (cadence.preset) {
