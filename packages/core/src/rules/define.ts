@@ -129,7 +129,7 @@ export async function evaluateRule(
 			passed: false,
 			evidence: null,
 			reason: outcome.reason,
-			...(outcome.cause ? { cause: outcome.cause } : {}),
+			cause: outcome.cause,
 		};
 	}
 	const evidence = rule.resultSchema.safeParse(outcome.evidence);

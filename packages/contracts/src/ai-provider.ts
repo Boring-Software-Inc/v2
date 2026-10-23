@@ -34,42 +34,48 @@ const OUT_OF_CREDITS_TEXT =
 
 const MAX_ERROR_DEPTH = 6;
 
-function field(value: object, key: string): unknown {
-	return key in value ? (value as Record<string, unknown>)[key] : undefined;
+export const providerErrorSchema = z.looseObject({
+	statusCode: z.number().optional().catch(undefined),
+	status: z.number().optional().catch(undefined),
+	message: z.string().optional().catch(undefined),
+	responseBody: z.string().optional().catch(undefined),
+	lastError: z.unknown().optional(),
+	cause: z.unknown().optional(),
+	data: z.unknown().optional(),
+	error: z.unknown().optional(),
+	errors: z.array(z.unknown()).optional().catch(undefined),
+});
+export type ProviderError = z.infer<typeof providerErrorSchema>;
+
+function nestedErrors(error: ProviderError): ProviderError[] {
+	return [
+		error.lastError,
+		error.cause,
+		error.data,
+		error.error,
+		...(error.errors ?? []),
+	].flatMap((value) => {
+		const parsed = providerErrorSchema.safeParse(value);
+		return parsed.success ? [parsed.data] : [];
+	});
 }
 
-export function isAiOutOfCreditsError(error: unknown): boolean {
-	const seen = new Set<unknown>();
-	let queue: unknown[] = [error];
+function saysOutOfCredits(error: ProviderError): boolean {
+	return (
+		(error.statusCode ?? error.status) === 402 ||
+		[error.message, error.responseBody].some(
+			(text) => text !== undefined && OUT_OF_CREDITS_TEXT.test(text),
+		)
+	);
+}
+
+export function isAiOutOfCreditsError(error: ProviderError): boolean {
+	let queue = [error];
 	for (let depth = 0; depth < MAX_ERROR_DEPTH && queue.length > 0; depth++) {
-		const next: unknown[] = [];
-		for (const item of queue) {
-			if (typeof item !== "object" || item === null || seen.has(item)) {
-				continue;
-			}
-			seen.add(item);
-			const status = field(item, "statusCode") ?? field(item, "status");
-			if (status === 402) {
-				return true;
-			}
-			for (const key of ["message", "responseBody"]) {
-				const text = field(item, key);
-				if (typeof text === "string" && OUT_OF_CREDITS_TEXT.test(text)) {
-					return true;
-				}
-			}
-			next.push(
-				field(item, "lastError"),
-				field(item, "cause"),
-				field(item, "data"),
-				field(item, "error"),
-			);
-			const errors = field(item, "errors");
-			if (Array.isArray(errors)) {
-				next.push(...errors);
-			}
+		if (queue.some(saysOutOfCredits)) {
+			return true;
 		}
-		queue = next;
+		queue = queue.flatMap(nestedErrors);
 	}
 	return false;
 }
@@ -102,7 +108,7 @@ export function aiCreditsFromBalance(input: {
 		);
 	}
 	const keyRemaining = input.key?.data.limit_remaining;
-	if (typeof keyRemaining === "number") {
+	if (keyRemaining !== undefined && keyRemaining !== null) {
 		remaining.push(keyRemaining);
 	}
 	if (remaining.length === 0) {

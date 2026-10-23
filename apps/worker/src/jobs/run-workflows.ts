@@ -14,6 +14,7 @@ import {
 	customRuleSummary,
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
+	ruleResultSchema,
 	unrunnableIssues,
 } from "@tripwire/contracts";
 import {
@@ -706,15 +707,13 @@ interface CausedStep {
 	output: unknown;
 }
 
-function stepCause(step: CausedStep): unknown {
-	const output = step.output;
-	return output && typeof output === "object" && "cause" in output
-		? output.cause
-		: undefined;
-}
+const stepCauseSchema = ruleResultSchema.pick({ cause: true });
 
 export function isAiOutOfCreditsStep(step: CausedStep): boolean {
-	return step.status === "skipped" && stepCause(step) === "ai-out-of-credits";
+	return (
+		step.status === "skipped" &&
+		stepCauseSchema.safeParse(step.output).data?.cause === "ai-out-of-credits"
+	);
 }
 
 function isAiReviewStep(step: StepRecord): boolean {

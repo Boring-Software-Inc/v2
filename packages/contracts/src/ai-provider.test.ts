@@ -7,6 +7,7 @@ import {
 	isAiOutOfCreditsError,
 	openRouterCreditsSchema,
 	openRouterKeySchema,
+	providerErrorSchema,
 } from "./ai-provider.ts";
 import { RULE_CATALOG, ruleResultSchema } from "./rules.ts";
 import type { WorkflowDefinition } from "./workflow.ts";
@@ -36,9 +37,17 @@ describe("an out-of-credits provider error", () => {
 	});
 
 	test("the can-only-afford wording reads as out of credits on its own", () => {
-		expect(isAiOutOfCreditsError(new Error(PROD_402_MESSAGE))).toBe(true);
 		expect(
-			isAiOutOfCreditsError(new Error("Insufficient credits on this account")),
+			isAiOutOfCreditsError(
+				providerErrorSchema.parse(new Error(PROD_402_MESSAGE)),
+			),
+		).toBe(true);
+		expect(
+			isAiOutOfCreditsError(
+				providerErrorSchema.parse(
+					new Error("Insufficient credits on this account"),
+				),
+			),
 		).toBe(true);
 	});
 
@@ -51,7 +60,11 @@ describe("an out-of-credits provider error", () => {
 			}),
 		).toBe(true);
 		expect(
-			isAiOutOfCreditsError(new Error("wrapped", { cause: { status: 402 } })),
+			isAiOutOfCreditsError(
+				providerErrorSchema.parse(
+					new Error("wrapped", { cause: { status: 402 } }),
+				),
+			),
 		).toBe(true);
 	});
 
@@ -74,16 +87,20 @@ describe("an out-of-credits provider error", () => {
 		expect(isAiOutOfCreditsError({ statusCode: 429 })).toBe(false);
 		expect(isAiOutOfCreditsError({ statusCode: 403 })).toBe(false);
 		expect(isAiOutOfCreditsError({ statusCode: 503 })).toBe(false);
-		expect(isAiOutOfCreditsError(new TypeError("x is undefined"))).toBe(false);
-		expect(isAiOutOfCreditsError(null)).toBe(false);
-		expect(isAiOutOfCreditsError("402")).toBe(false);
+		expect(
+			isAiOutOfCreditsError(
+				providerErrorSchema.parse(new TypeError("x is undefined")),
+			),
+		).toBe(false);
+		expect(providerErrorSchema.safeParse(null).success).toBe(false);
+		expect(providerErrorSchema.safeParse("402").success).toBe(false);
 	});
 
 	test("a cyclic cause chain ends", () => {
-		const a: { cause?: unknown } = {};
-		const b = { cause: a };
+		const a = new Error("a");
+		const b = new Error("b", { cause: a });
 		a.cause = b;
-		expect(isAiOutOfCreditsError(a)).toBe(false);
+		expect(isAiOutOfCreditsError(providerErrorSchema.parse(a))).toBe(false);
 	});
 });
 

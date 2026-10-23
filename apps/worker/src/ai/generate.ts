@@ -4,6 +4,7 @@ import {
 	aiReviewOutputSchema,
 	boundAiReviewTrace,
 	isAiOutOfCreditsError,
+	providerErrorSchema,
 } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import { generateText, hasToolCall, stepCountIs, tool } from "ai";
@@ -146,7 +147,8 @@ export function createGenerate(options: {
 		try {
 			result = await runReview();
 		} catch (error) {
-			if (isAiOutOfCreditsError(error)) {
+			const parsed = providerErrorSchema.safeParse(error);
+			if (parsed.success && isAiOutOfCreditsError(parsed.data)) {
 				return { unavailable: "out-of-credits" };
 			}
 			throw error;

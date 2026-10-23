@@ -32,7 +32,10 @@ const PROD_402_BODY = {
 	},
 };
 
-function generateWith(status: number, body: unknown) {
+function generateWith(
+	status: number,
+	body: { error: { code: number; message: string } },
+) {
 	const fetchImpl = () => Promise.resolve(Response.json(body, { status }));
 	return createGenerate({
 		apiKey: "test-key",

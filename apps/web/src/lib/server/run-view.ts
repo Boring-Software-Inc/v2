@@ -257,16 +257,16 @@ export async function loadRunView(
 	return toPublicRunView(view, redactionLevelFor(policy, "run-page"));
 }
 
+const stepCauseSchema = ruleResultSchema.pick({ cause: true });
+
 function isAiOutOfCreditsStep(step: {
 	status: string;
 	output: unknown;
 }): boolean {
-	const cause = ruleResultSchema.shape.cause.safeParse(
-		step.output && typeof step.output === "object" && "cause" in step.output
-			? step.output.cause
-			: undefined,
+	return (
+		step.status === "skipped" &&
+		stepCauseSchema.safeParse(step.output).data?.cause === "ai-out-of-credits"
 	);
-	return step.status === "skipped" && cause.data === "ai-out-of-credits";
 }
 
 /** A joined run (§5.11) repeats its trigger once per def — one event, shown
