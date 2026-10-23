@@ -77,6 +77,7 @@ const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
 	"no-outputs",
 	"missing-step",
 	"duplicate-id",
+	"rule-unavailable",
 ]);
 
 export function unrunnableIssues(input: WorkflowDefinition): LintResult[] {

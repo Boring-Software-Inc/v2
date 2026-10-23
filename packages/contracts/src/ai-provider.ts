@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ValidationCatalogEntry } from "./workflow-lint.ts";
 
 export const AI_REVIEW_RULE_ID = "ai-review";
 
@@ -12,10 +13,21 @@ export type RuleSkipCause = z.infer<typeof ruleSkipCauseSchema>;
 
 export const AI_CREDITS_COPY = {
 	reason: "Out of AI credits",
-	refuseTurnOn: "Tripwire is out of AI credits, so AI review can't turn on.",
+	cantRun: "Tripwire is out of AI credits, so AI review can't run.",
 	notRun: "AI review did not run. Tripwire is out of AI credits.",
 	notRunShort: "AI review did not run.",
 } as const;
+
+export function catalogWithAiCredits<T extends ValidationCatalogEntry>(
+	catalog: readonly T[],
+	credits: AiCreditsState,
+): T[] {
+	return catalog.map((entry) =>
+		entry.ruleId === AI_REVIEW_RULE_ID && credits === "out"
+			? { ...entry, unavailable: AI_CREDITS_COPY.cantRun }
+			: entry,
+	);
+}
 
 const OUT_OF_CREDITS_TEXT =
 	/can only afford|requires more credits|insufficient credits|out of credits|openrouter_credits|openrouter_key_limit/i;

@@ -38,6 +38,7 @@ export interface ValidationCatalogEntry {
 	version: number;
 	name: string;
 	configSchema: z.ZodType;
+	unavailable?: string;
 }
 
 export type LintSeverity = "error" | "warning";
@@ -62,6 +63,7 @@ export const LINT_RULES = {
 	"schedule-mixed": { severity: "error", stage: "enable" },
 	"schedule-needs-change-request": { severity: "error", stage: "enable" },
 	"unknown-rule": { severity: "error", stage: "enable" },
+	"rule-unavailable": { severity: "error", stage: "enable" },
 	"rule-config": { severity: "error", stage: "enable" },
 	"removed-step": { severity: "error", stage: "enable" },
 	"review-targets": { severity: "error", stage: "enable" },
@@ -750,6 +752,16 @@ function checkUnknownRules(ctx: LintContext): Finding[] {
 	);
 }
 
+function checkUnavailableRules(ctx: LintContext): Finding[] {
+	return ctx.def.nodes.flatMap((node) => {
+		const unavailable =
+			node.type === "rule" ? catalogEntry(ctx, node.ref)?.unavailable : null;
+		return unavailable
+			? [{ nodeId: node.id, message: unavailable, fixes: [] }]
+			: [];
+	});
+}
+
 function checkRuleConfigs(ctx: LintContext): Finding[] {
 	return ctx.def.nodes.flatMap((node) => {
 		if (node.type !== "rule") {
@@ -918,6 +930,7 @@ const CHECKS: { rule: CheckedRule; check: (ctx: LintContext) => Finding[] }[] =
 			check: checkScheduleActions,
 		},
 		{ rule: "unknown-rule", check: checkUnknownRules },
+		{ rule: "rule-unavailable", check: checkUnavailableRules },
 		{ rule: "rule-config", check: checkRuleConfigs },
 		{ rule: "removed-step", check: checkRemovedSteps },
 		{ rule: "review-targets", check: checkReviewTargets },

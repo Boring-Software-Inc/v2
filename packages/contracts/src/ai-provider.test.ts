@@ -1,12 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import {
+	AI_CREDITS_COPY,
 	AI_REVIEW_MIN_CREDITS_USD,
 	aiCreditsFromBalance,
+	catalogWithAiCredits,
 	isAiOutOfCreditsError,
 	openRouterCreditsSchema,
 	openRouterKeySchema,
 } from "./ai-provider.ts";
-import { ruleResultSchema } from "./rules.ts";
+import { RULE_CATALOG, ruleResultSchema } from "./rules.ts";
+import type { WorkflowDefinition } from "./workflow.ts";
+import {
+	unrunnableIssues,
+	validateWorkflowForEnable,
+	workflowReadiness,
+	workflowState,
+} from "./workflow-validate.ts";
 
 const PROD_402_MESSAGE =
 	"This request requires more credits, or fewer max_tokens. You requested up to 65536 tokens, but can only afford 4500. To increase, visit https://openrouter.ai/settings/credits and upgrade to a paid account";
@@ -134,5 +143,49 @@ describe("a rule result that did not run for lack of credits", () => {
 			ruleResultSchema.parse({ ...base, cause: "ai-out-of-credits" }).cause,
 		).toBe("ai-out-of-credits");
 		expect(ruleResultSchema.parse(base).cause).toBeUndefined();
+	});
+});
+
+const AI_GATE: WorkflowDefinition = {
+	id: "w",
+	name: "w",
+	version: 1,
+	nodes: [
+		{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+		{ id: "r", type: "rule", ref: "ai-review@2", config: { maxSteps: 12 } },
+		{ id: "a", type: "action", action: "block" },
+	],
+	edges: [
+		{ id: "e1", from: "t", to: "r" },
+		{ id: "e2", from: "r", to: "a", when: "fail" },
+	],
+};
+
+describe("a workflow with AI review while credits are out", () => {
+	const out = catalogWithAiCredits(RULE_CATALOG, "out");
+
+	test("can't turn on, and says why", () => {
+		const result = validateWorkflowForEnable(AI_GATE, out);
+		expect(result.valid).toBe(false);
+		expect(result.valid ? [] : result.issues.map((i) => i.message)).toEqual([
+			AI_CREDITS_COPY.cantRun,
+		]);
+	});
+
+	test("reads Can't run when it is already live, and Can't turn on when off", () => {
+		const readiness = workflowReadiness(AI_GATE, out);
+		expect(workflowState({ enabled: true, ...readiness })).toBe("cant-run");
+		expect(workflowState({ enabled: false, ...readiness })).toBe(
+			"cant-turn-on",
+		);
+	});
+
+	test("turns on as usual once credits are back", () => {
+		const ready = catalogWithAiCredits(RULE_CATALOG, "ready");
+		expect(validateWorkflowForEnable(AI_GATE, ready).valid).toBe(true);
+	});
+
+	test("the worker's own wiring check is not touched by credits", () => {
+		expect(unrunnableIssues(AI_GATE)).toEqual([]);
 	});
 });
