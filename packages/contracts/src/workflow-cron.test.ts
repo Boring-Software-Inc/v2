@@ -168,14 +168,14 @@ describe("schedule schema", () => {
 			return parsed.success ? null : parsed.error.issues[0]?.message;
 		};
 		expect(issue({ every: { cron: "0 0 30 2 *" } })).toBe(
-			"this cron never runs",
+			"this cron never runs. Pick a day the month has",
 		);
 		expect(issue({ every: { preset: "daily", at: "7am" } })).toBeTruthy();
 		expect(
 			issue({ every: { n: 1, unit: "days" }, timezone: "Mars/Olympus" }),
 		).toBe("Mars/Olympus is not an IANA timezone, like Europe/Berlin");
 		expect(issue({ every: { cron: "* * * * *" } })).toBe(
-			"schedules run at most every 5 minutes",
+			"runs must be at least 5 minutes apart",
 		);
 		expect(issue({ every: { cron: "*/5 * * * *" } })).toBeNull();
 	});
@@ -288,6 +288,36 @@ describe("scheduleFireTime", () => {
 describe("ranges", () => {
 	test("a range with two dashes is rejected", () => {
 		expect(parseCron("1-2-3 * * * *").ok).toBe(false);
+	});
+});
+
+describe("cron errors say what to type", () => {
+	const error = (expression: string) => {
+		const parsed = parseCron(expression);
+		return parsed.ok ? null : parsed.error;
+	};
+
+	test("a value out of range names the range", () => {
+		expect(error("60 * * * *")).toBe("minute must be 0 to 59");
+		expect(error("0 25 * * *")).toBe("hour must be 0 to 23");
+		expect(error("0 7 0 * *")).toBe("day of month must be 1 to 31");
+		expect(error("0 7 * 13 *")).toBe("month must be 1 to 12 or jan to dec");
+		expect(error("0 7 * * 8")).toBe("day of week must be 0 to 7 or sun to sat");
+		expect(error("0 7 * * mon-fry")).toBe(
+			"day of week must be 0 to 7 or sun to sat",
+		);
+	});
+
+	test("a bad shape, step or range shows the right form", () => {
+		expect(error("1-2-3 * * * *")).toBe(
+			"minute must be a number, a range like 1-5 or a step like */15",
+		);
+		expect(error("*/0 * * * *")).toBe(
+			"minute step must be a whole number of 1 or more, like */15",
+		);
+		expect(error("0 9-5 * * *")).toBe(
+			"hour range must go from low to high, like 1-5",
+		);
 	});
 });
 

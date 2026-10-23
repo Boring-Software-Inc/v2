@@ -37,6 +37,7 @@ const WEEKDAY_NAMES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 interface FieldShape {
 	name: string;
+	range: string;
 	min: number;
 	max: number;
 	names?: readonly string[];
@@ -44,11 +45,25 @@ interface FieldShape {
 }
 
 const FIELDS: readonly FieldShape[] = [
-	{ name: "minute", min: 0, max: 59 },
-	{ name: "hour", min: 0, max: 23 },
-	{ name: "day of month", min: 1, max: 31 },
-	{ name: "month", min: 1, max: 12, names: MONTH_NAMES, nameBase: 1 },
-	{ name: "day of week", min: 0, max: 7, names: WEEKDAY_NAMES, nameBase: 0 },
+	{ name: "minute", range: "0 to 59", min: 0, max: 59 },
+	{ name: "hour", range: "0 to 23", min: 0, max: 23 },
+	{ name: "day of month", range: "1 to 31", min: 1, max: 31 },
+	{
+		name: "month",
+		range: "1 to 12 or jan to dec",
+		min: 1,
+		max: 12,
+		names: MONTH_NAMES,
+		nameBase: 1,
+	},
+	{
+		name: "day of week",
+		range: "0 to 7 or sun to sat",
+		min: 0,
+		max: 7,
+		names: WEEKDAY_NAMES,
+		nameBase: 0,
+	},
 ];
 
 function readValue(raw: string, field: FieldShape): number | null {
@@ -72,11 +87,17 @@ function readField(raw: string, field: FieldShape): FieldRead {
 		const pieces = part.split("/");
 		const [range = "", stepRaw] = pieces;
 		if (pieces.length > 2 || range.split("-").length > 2) {
-			return { ok: false, error: `${field.name} cannot read "${part}"` };
+			return {
+				ok: false,
+				error: `${field.name} must be a number, a range like 1-5 or a step like */15`,
+			};
 		}
 		const step = stepRaw === undefined ? 1 : Number(stepRaw);
 		if (!(Number.isInteger(step) && step >= 1)) {
-			return { ok: false, error: `${field.name} has a bad step "${part}"` };
+			return {
+				ok: false,
+				error: `${field.name} step must be a whole number of 1 or more, like */15`,
+			};
 		}
 		let low: number | null;
 		let high: number | null;
@@ -91,8 +112,14 @@ function readField(raw: string, field: FieldShape): FieldRead {
 			low = readValue(range, field);
 			high = stepRaw === undefined ? low : field.max;
 		}
-		if (low === null || high === null || low > high) {
-			return { ok: false, error: `${field.name} cannot read "${part}"` };
+		if (low === null || high === null) {
+			return { ok: false, error: `${field.name} must be ${field.range}` };
+		}
+		if (low > high) {
+			return {
+				ok: false,
+				error: `${field.name} range must go from low to high, like 1-5`,
+			};
 		}
 		for (let value = low; value <= high; value += step) {
 			values.add(value);

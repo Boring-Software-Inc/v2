@@ -322,12 +322,15 @@ export const scheduleCronSchema = z.object({
 			if (
 				nextCronRun(parsed.spec, "UTC", new Date(Date.UTC(2026, 0, 1))) === null
 			) {
-				ctx.addIssue({ code: "custom", message: "this cron never runs" });
+				ctx.addIssue({
+					code: "custom",
+					message: "this cron never runs. Pick a day the month has",
+				});
 			}
 			if (cronShortestGap(parsed.spec) < SCHEDULE_TICK_MINUTES) {
 				ctx.addIssue({
 					code: "custom",
-					message: `schedules run at most every ${SCHEDULE_TICK_MINUTES} minutes`,
+					message: `runs must be at least ${SCHEDULE_TICK_MINUTES} minutes apart`,
 				});
 			}
 		}),
