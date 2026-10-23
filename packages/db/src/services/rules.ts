@@ -1,4 +1,6 @@
 import {
+	AI_CREDITS_COPY,
+	AI_REVIEW_RULE_ID,
 	customRuleRecordSchema,
 	customRuleSentence,
 	type JsonValue,
@@ -12,6 +14,7 @@ import {
 	ruleForgeBlockReason,
 } from "@tripwire/contracts";
 import type { Db } from "../client.ts";
+import { getAiCredits } from "./ai-provider.ts";
 import { getRulesStats } from "./insights.ts";
 import {
 	getRepoById,
@@ -31,6 +34,7 @@ export interface RuleConfigView {
 	 * rule needs, so toggling it on would arm something that never fires.
 	 */
 	forgeBlockReason: string | null;
+	unavailableReason: string | null;
 	/** The catalog's CURRENT version — what a repo runs once advanced. */
 	version: number;
 	/**
@@ -140,6 +144,7 @@ export async function listRuleViews(
 			// since most custom rules use pr.* signals that always resolve.
 			// TODO(per-signal-support): surface unusable signals in the builder.
 			forgeBlockReason: null,
+			unavailableReason: null,
 			version: 1,
 			held: false,
 			changeNote: null,
@@ -159,6 +164,7 @@ export async function listRuleViews(
 			blockingWorkflows: blockingByRuleId.get(record.id) ?? [],
 		});
 	}
+	const aiCredits = await getAiCredits(db);
 	const builtIns = RULE_CATALOG.map((entry): RuleConfigView => {
 		const row = stored.find((c) => c.ruleId === entry.ruleId);
 		const ref = `${entry.ruleId}@${entry.version}`;
@@ -183,6 +189,10 @@ export async function listRuleViews(
 			forgeBlockReason: repo
 				? ruleForgeBlockReason(entry.ruleId, repo.forge)
 				: null,
+			unavailableReason:
+				entry.ruleId === AI_REVIEW_RULE_ID && aiCredits === "out"
+					? AI_CREDITS_COPY.reason
+					: null,
 			version: entry.version,
 			held,
 			changeNote: held ? ruleChangeNote(ref) : null,
@@ -271,6 +281,18 @@ export async function saveRuleConfig(
 				parsed.error.issues[0]?.message ??
 				"These settings are not valid. Check the values and save again.",
 		};
+	}
+	if (
+		input.enabled &&
+		entry.ruleId === AI_REVIEW_RULE_ID &&
+		(await getAiCredits(db)) === "out"
+	) {
+		const current = (await listRuleConfigs(db, input.repoId)).find(
+			(row) => row.ruleId === entry.ruleId,
+		);
+		if (!ruleExecutes(`${entry.ruleId}@${entry.version}`, current?.enabled)) {
+			return { error: AI_CREDITS_COPY.cantRun };
+		}
 	}
 	await upsertRuleConfig(db, input.repoId, {
 		ruleId: entry.ruleId,

@@ -1,4 +1,5 @@
 import {
+	catalogWithAiCredits,
 	customRuleRecordSchema,
 	diffWorkflow,
 	lintWorkflow,
@@ -21,6 +22,7 @@ import { generateId, pickWorkflowName } from "@tripwire/utils";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { customRules, repos, workflowDefinitions } from "../schema/repos.ts";
+import { getAiCredits } from "./ai-provider.ts";
 import { listRepoReviewers } from "./reviewers.ts";
 
 /**
@@ -355,7 +357,10 @@ export async function repoRuleCatalog(
 		const parsed = customRuleRecordSchema.safeParse(raw);
 		return parsed.success ? [parsed.data] : [];
 	});
-	return resolveCatalog(parsedCustom);
+	return catalogWithAiCredits(
+		resolveCatalog(parsedCustom),
+		await getAiCredits(db),
+	);
 }
 
 /** Every workflow on a repo with its definition. Corrupt rows are skipped. */
@@ -493,8 +498,13 @@ export async function applyWorkflowDefinition(
 		}
 		if (locked.enabled) {
 			const checked = validateWorkflowForEnable(merged, catalog);
-			if (!checked.valid) {
-				return { ok: false, reason: "live-cannot-run", issues: checked.issues };
+			const issues = checked.valid
+				? []
+				: checked.issues.filter(
+						(issue) => !alreadyLiveUnavailable(issue, stored.data, merged),
+					);
+			if (issues.length > 0) {
+				return { ok: false, reason: "live-cannot-run", issues };
 			}
 		}
 		await tx
@@ -503,6 +513,22 @@ export async function applyWorkflowDefinition(
 			.where(eq(workflowDefinitions.id, locked.id));
 		return { ok: true, outcome: "updated", workflow, changes };
 	});
+}
+
+function alreadyLiveUnavailable(
+	issue: ValidationIssue,
+	stored: WorkflowDefinition,
+	merged: WorkflowDefinition,
+): boolean {
+	if (issue.rule !== "rule-unavailable") {
+		return false;
+	}
+	const ref = (definition: WorkflowDefinition) => {
+		const node = definition.nodes.find((n) => n.id === issue.nodeId);
+		return node?.type === "rule" ? node.ref : null;
+	};
+	const before = ref(stored);
+	return before !== null && before === ref(merged);
 }
 
 export type SetEnabledResult =
