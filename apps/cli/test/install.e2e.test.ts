@@ -19,9 +19,7 @@ beforeEach(() => {
 	sandbox.addBinary("claude", FAKE_CLAUDE);
 	sandbox.addBinary("codex", FAKE_CODEX);
 	sandbox.addBinary("pbcopy", FAKE_CLIPBOARD);
-	mkdirSync(join(sandbox.env.TRIPWIRE_APP_DIRS ?? "", "Cursor.app"), {
-		recursive: true,
-	});
+	sandbox.addBinary("cursor", "exit 0");
 	mkdirSync(join(sandbox.home, ".cursor"), { recursive: true });
 	writeFileSync(
 		join(sandbox.home, ".cursor", "mcp.json"),

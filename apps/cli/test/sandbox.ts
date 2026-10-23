@@ -60,6 +60,7 @@ export function makeSandbox(): Sandbox {
 		TRIPWIRE_APP_DIRS: apps,
 		TRIPWIRE_CREDENTIAL_STORE: "file",
 		NO_COLOR: "1",
+		BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
 	};
 	return {
 		root,

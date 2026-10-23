@@ -116,8 +116,10 @@ function macAppDirs(env: NodeJS.ProcessEnv, home: string): string[] {
 	return ["/Applications", join(home, "Applications")];
 }
 
-export function realSystem(env: NodeJS.ProcessEnv = process.env): System {
-	const platform = process.platform;
+export function realSystem(
+	env: NodeJS.ProcessEnv = process.env,
+	platform: NodeJS.Platform = process.platform,
+): System {
 	const home = env.HOME ?? env.USERPROFILE ?? homedir();
 	return {
 		platform,

@@ -18,7 +18,7 @@ let system: System;
 
 beforeEach(() => {
 	sandbox = makeSandbox();
-	system = { ...realSystem(sandbox.env), platform: "darwin" };
+	system = realSystem(sandbox.env, "darwin");
 });
 
 afterEach(() => sandbox.cleanup());
