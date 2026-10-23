@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { normalizedEventSchema } from "./events.ts";
+import { type NormalizedEvent, normalizedEventSchema } from "./events.ts";
 
 /**
  * The /activity feed wire shapes (§4/§9). These cross the server→client boundary
@@ -60,3 +60,36 @@ export const activityFeedSchema = z.object({
 	items: z.array(activityFeedItemSchema),
 });
 export type ActivityFeed = z.infer<typeof activityFeedSchema>;
+
+export interface ActivityAuthor {
+	login: string;
+	avatarUrl: string | null;
+}
+
+function authorOf(event: NormalizedEvent): ActivityAuthor | null {
+	if (event.kind === "schedule.matched") {
+		return { login: event.thread.author, avatarUrl: null };
+	}
+	if (event.kind === "comment.created" && event.comment.byTripwire === true) {
+		return null;
+	}
+	return { login: event.actor.login, avatarUrl: event.actor.avatarUrl ?? null };
+}
+
+export function changeRequestAuthor(
+	events: readonly NormalizedEvent[],
+): ActivityAuthor {
+	const opened = events.find((event) => event.kind === "change-request.opened");
+	const fallback = events.flatMap((event) => {
+		const author = authorOf(event);
+		return author ? [author] : [];
+	});
+	const first = events[0];
+	return (
+		(opened ? authorOf(opened) : null) ??
+		fallback[0] ?? {
+			login: first?.actor.login ?? "",
+			avatarUrl: first?.actor.avatarUrl ?? null,
+		}
+	);
+}

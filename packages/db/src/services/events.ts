@@ -6,6 +6,7 @@ import {
 	type ActivityRunSummary,
 	type ActivityTimelineEntry,
 	bearsVerdict,
+	changeRequestAuthor,
 	type NormalizedEvent,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
@@ -436,10 +437,7 @@ function buildGroup(rows: RawRow[]): ActivityGroup {
 				? cr.changeRequest.title
 				: `#${subjectNumber}`,
 		url: cr ? eventUrl(cr) : header ? eventUrl(header) : null,
-		actor: {
-			login: header?.actor.login ?? "",
-			avatarUrl: header?.actor.avatarUrl ?? null,
-		},
+		actor: changeRequestAuthor(events),
 		currentVerdict: withRun ? asString(withRun.verdict) : null,
 		currentRunId: withRun ? asString(withRun.run_id) : null,
 		latestActivityAt: asIso(latest.received_at),

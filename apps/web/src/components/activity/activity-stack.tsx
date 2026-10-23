@@ -44,8 +44,6 @@ function entryLabel(event: NormalizedEvent): string {
 			return `commented on #${event.comment.subjectNumber}`;
 		case "push":
 			return "pushed";
-		case "schedule.matched":
-			return "matched by schedule";
 		default:
 			return event.kind;
 	}
@@ -163,10 +161,14 @@ function EntryRow({
 	const note = reevaluating ? "Checking again" : (run?.reason ?? null);
 	const text = (
 		<MetaRow>
-			<span>
-				{ours ? "Tripwire" : event.actor.login}{" "}
-				<span className="text-text-2">{entryLabel(event)}</span>
-			</span>
+			{event.kind === "schedule.matched" ? (
+				<span>Matched by schedule</span>
+			) : (
+				<span>
+					{ours ? "Tripwire" : event.actor.login}{" "}
+					<span className="text-text-2">{entryLabel(event)}</span>
+				</span>
+			)}
 			{note ? <span className="text-text-2">{note}</span> : null}
 		</MetaRow>
 	);
