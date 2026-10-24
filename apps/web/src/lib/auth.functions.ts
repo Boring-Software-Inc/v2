@@ -127,6 +127,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
  * fabricated identity. `login` is the forge handle from `forge_identities`.
  */
 export interface CurrentUser {
+	id: string;
 	name: string;
 	login: string;
 	email: string | null;
@@ -156,6 +157,7 @@ export const getCurrentUser = createServerFn({ method: "GET" }).handler(
 			.where(eq(forgeIdentities.userId, session.user.id))
 			.limit(1);
 		return {
+			id: session.user.id,
 			name: session.user.name,
 			login: rows[0]?.username ?? session.user.name,
 			email: session.user.email ?? null,
