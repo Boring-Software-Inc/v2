@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { WorkflowWork } from "@tripwire/contracts";
 import { useEffect } from "react";
-import { parseLive, subscribeLive } from "#/lib/live-stream";
+import { onLiveResync, parseLive, subscribeLive } from "#/lib/live-stream";
 import { mergeWorkIntoCards, mergeWorkIntoDetail } from "#/lib/live-work";
 import type { WorkflowCard, WorkflowDetail } from "#/lib/workflows.functions";
 import { workflowsQueryKeys } from "#/lib/workflows.query";
@@ -44,11 +44,19 @@ export function useLiveWork(org: string, repoId: string): void {
 				}
 			}
 		};
-		return subscribeLive("agent", (data) => {
+		const off = subscribeLive("agent", (data) => {
 			const message = parseLive(data);
 			if (message?.type === "work" && message.work.repoId === repoId) {
 				apply(message.work);
 			}
 		});
+		const offResync = onLiveResync(() => {
+			queryClient.invalidateQueries({ queryKey: listKey });
+			queryClient.invalidateQueries({ queryKey: detailPrefix });
+		});
+		return () => {
+			offResync();
+			off();
+		};
 	}, [org, repoId, queryClient]);
 }

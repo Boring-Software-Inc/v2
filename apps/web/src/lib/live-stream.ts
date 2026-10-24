@@ -4,12 +4,32 @@ import { useSyncExternalStore } from "react";
 type Handler = (data: string) => void;
 
 const STREAM_URL = "/api/events/stream";
+export const LIVE_RETRY_MS = 3000;
 
 const handlers = new Map<string, Set<Handler>>();
 const attached = new Set<string>();
 const statusListeners = new Set<() => void>();
+const resyncListeners = new Set<() => void>();
 let source: EventSource | null = null;
 let connected = false;
+let lost = false;
+let retry: ReturnType<typeof setTimeout> | null = null;
+
+function resync() {
+	for (const listener of resyncListeners) {
+		listener();
+	}
+}
+
+function onVisibility() {
+	if (document.visibilityState === "visible") {
+		resync();
+	}
+}
+
+function busy(): boolean {
+	return [...handlers.values()].some((set) => set.size > 0);
+}
 
 function setConnected(next: boolean) {
 	if (connected === next) {
@@ -33,14 +53,45 @@ function attach(event: string) {
 	});
 }
 
+function dropSource() {
+	source?.close();
+	source = null;
+	attached.clear();
+	setConnected(false);
+}
+
 function open() {
-	if (source || !("EventSource" in globalThis)) {
+	if (source || retry || !("EventSource" in globalThis)) {
 		return;
 	}
 	const next = new EventSource(STREAM_URL);
+	if ("document" in globalThis) {
+		document.addEventListener("visibilitychange", onVisibility);
+	}
 	source = next;
-	next.onopen = () => setConnected(true);
-	next.onerror = () => setConnected(next.readyState === EventSource.OPEN);
+	next.onopen = () => {
+		setConnected(true);
+		if (lost) {
+			lost = false;
+			resync();
+		}
+	};
+	next.onerror = () => {
+		if (next.readyState === EventSource.OPEN) {
+			return;
+		}
+		lost = true;
+		setConnected(false);
+		if (next.readyState === EventSource.CLOSED && source === next) {
+			dropSource();
+			retry = setTimeout(() => {
+				retry = null;
+				if (busy()) {
+					open();
+				}
+			}, LIVE_RETRY_MS);
+		}
+	};
 	next.addEventListener("heartbeat", () => setConnected(true));
 	for (const event of handlers.keys()) {
 		attach(event);
@@ -48,14 +99,18 @@ function open() {
 }
 
 function closeIfIdle() {
-	const busy = [...handlers.values()].some((set) => set.size > 0);
-	if (busy || !source) {
+	if (busy()) {
 		return;
 	}
-	source.close();
-	source = null;
-	attached.clear();
-	setConnected(false);
+	if (retry) {
+		clearTimeout(retry);
+		retry = null;
+	}
+	if ("document" in globalThis) {
+		document.removeEventListener("visibilitychange", onVisibility);
+	}
+	lost = false;
+	dropSource();
 }
 
 /**
@@ -71,6 +126,17 @@ export function subscribeLive(event: string, handler: Handler): () => void {
 	return () => {
 		set.delete(handler);
 		closeIfIdle();
+	};
+}
+
+/**
+ * Called when the stream may have missed messages: after a reconnect, and
+ * when the tab comes back into view. Views refetch what they show.
+ */
+export function onLiveResync(listener: () => void): () => void {
+	resyncListeners.add(listener);
+	return () => {
+		resyncListeners.delete(listener);
 	};
 }
 

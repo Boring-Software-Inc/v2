@@ -1,6 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { parseLive, subscribeLive, useLiveConnected } from "#/lib/live-stream";
+import {
+	onLiveResync,
+	parseLive,
+	subscribeLive,
+	useLiveConnected,
+} from "#/lib/live-stream";
 import {
 	ensureSetupRun,
 	findSetupRun,
@@ -46,7 +51,10 @@ export function useLiveSetup(enabled: boolean): boolean {
 		if (!enabled) {
 			return;
 		}
-		return subscribeLive("agent", (data) => {
+		const offResync = onLiveResync(() => {
+			queryClient.invalidateQueries({ queryKey: setupQueryKeys.runs() });
+		});
+		const off = subscribeLive("agent", (data) => {
 			const message = parseLive(data);
 			if (message?.type !== "setup") {
 				return;
@@ -62,6 +70,10 @@ export function useLiveSetup(enabled: boolean): boolean {
 				}
 			}
 		});
+		return () => {
+			offResync();
+			off();
+		};
 	}, [enabled, queryClient]);
 	return enabled && connected;
 }

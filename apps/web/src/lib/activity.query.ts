@@ -8,7 +8,7 @@ import {
 	type ActivityItem,
 	getActivityFeed,
 } from "#/lib/activity.functions";
-import { subscribeLive } from "#/lib/live-stream";
+import { onLiveResync, subscribeLive } from "#/lib/live-stream";
 
 export const activityQueryKeys = {
 	all: ["activity"] as const,
@@ -253,7 +253,13 @@ export function useActivityStream(
 				(c) => mergeRun(c, resolved),
 			);
 		});
+		const offResync = onLiveResync(() => {
+			queryClient.invalidateQueries({
+				queryKey: activityQueryKeys.feed(org, repo),
+			});
+		});
 		return () => {
+			offResync();
 			offEvent();
 			offRun();
 		};
