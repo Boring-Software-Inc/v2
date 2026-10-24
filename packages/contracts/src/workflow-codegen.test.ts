@@ -8,12 +8,15 @@ import {
 	type TriggerNode,
 	type WorkflowDefinition,
 } from "./workflow.ts";
+import { workflowAuthoring } from "./workflow-authoring-catalog.ts";
 import {
+	AUTHORING_MODULE_PATH,
 	authoringModuleText,
 	schemaTypeText,
 	workflowsToCode,
+	workflowToCode,
 } from "./workflow-codegen.ts";
-import { compileWorkflowModule } from "./workflow-compile.ts";
+import { compileWorkflowModule, compileWorkflows } from "./workflow-compile.ts";
 import { diffWorkflow, mergeForPush } from "./workflow-diff.ts";
 import { WORKFLOW_TEMPLATES } from "./workflow-templates.ts";
 
@@ -111,7 +114,7 @@ describe("pull then push changes nothing", () => {
 	test("the pulled module reads like hand-written code", async () => {
 		const { code } = await roundTrip([MODERATED]);
 		expect(code).toContain(
-			'const oldPrs = check("min-merged-prs", {\n\t\tmin: 2,\n\t}, { version: 1 }).after(t);',
+			'const oldPrs = check("min-merged-prs", { min: 2 }, { version: 1 }).after(t);',
 		);
 		expect(code).toContain("const either = anyOf(age.fails, oldPrs.fails);");
 		expect(code).toContain("const stop = block().after(mod.denied);");
@@ -144,7 +147,7 @@ describe("pull then push changes nothing", () => {
 		expect(code).toContain('\t"qa-gsimone-opens": qaGsimoneOpens(),');
 		expect(code).toContain("\trate: prRate(),");
 		expect(code).toContain(
-			'check("honeypot", {\n\t\tpaths: [\n\t\t\t".github/workflows/**",\n\t\t],\n\t})',
+			'check("honeypot", {\n\t\tpaths: [".github/workflows/**"],\n\t})',
 		);
 		expect(code).not.toMatch(/"(paths|minDays|min)":/);
 	});
@@ -735,5 +738,357 @@ export default workflows({ rate: rate() });
 		expect(
 			diffWorkflow(reviewers("id-first"), reviewers("login-first")),
 		).toEqual([]);
+	});
+});
+
+const MARK_STALE: WorkflowDefinition = {
+	id: "mark-stale-issues",
+	name: "Mark stale issues",
+	version: 1,
+	nodes: [
+		{
+			id: "warn",
+			type: "trigger",
+			kinds: ["schedule.matched"],
+			schedule: {
+				every: { preset: "weekdays", at: "09:00" },
+				timezone: "Europe/Berlin",
+				match: {
+					subjects: ["issue"],
+					state: "open",
+					inactiveFor: { n: 30, unit: "days" },
+					excludeLabels: ["keep-open"],
+					skipLocked: true,
+				},
+			},
+		},
+		{
+			id: "mark-stale",
+			type: "action",
+			action: "label",
+			params: { labels: ["stale"] },
+		},
+		{
+			id: "warn-comment",
+			type: "action",
+			action: "post-comment",
+			params: { message: "No activity in 30 days. Comment to keep it open." },
+		},
+	],
+	edges: [
+		{ id: "e1", from: "warn", to: "mark-stale" },
+		{ id: "e2", from: "warn", to: "warn-comment" },
+	],
+};
+
+const MARK_STALE_CODE = `import {
+\tlabel,
+\tpostComment,
+\tschedule,
+\tworkflow,
+\tworkflows,
+} from "./workflow.ts";
+
+function markStaleIssues() {
+\tconst warn = schedule({
+\t\tevery: { preset: "weekdays", at: "09:00" },
+\t\ttimezone: "Europe/Berlin",
+\t\tmatch: {
+\t\t\tsubjects: ["issue"],
+\t\t\tstate: "open",
+\t\t\tinactiveFor: { n: 30, unit: "days" },
+\t\t\texcludeLabels: ["keep-open"],
+\t\t\tskipLocked: true,
+\t\t},
+\t});
+\tconst markStale = label({ labels: ["stale"] }).after(warn);
+\tconst warnComment = postComment({
+\t\tmessage: "No activity in 30 days. Comment to keep it open.",
+\t}).after(warn);
+\treturn workflow({
+\t\tname: "Mark stale issues",
+\t\tsteps: {
+\t\t\twarn,
+\t\t\t"mark-stale": markStale,
+\t\t\t"warn-comment": warnComment,
+\t\t},
+\t});
+}
+
+export default workflows({
+\t"mark-stale-issues": markStaleIssues(),
+});
+`;
+
+const authoring = workflowAuthoring;
+
+function fixtureDefinitions(): WorkflowDefinition[] {
+	const noNewbs = () => authoring.check("account-age", { minDays: 7 });
+	const rateLimit = () =>
+		authoring.check("pr-rate-limit", { maxPerWindow: 5, windowHours: 24 });
+	const review = authoring.humanReview({
+		approve: [authoring.label({ labels: ["reviewed"] })],
+		deny: [authoring.lock({ reason: "spam" }), authoring.close()],
+	});
+	const compiled = compileWorkflows(
+		authoring.workflows({
+			"change-request-opens": authoring.workflow({
+				on: "change-request.opened",
+				check: authoring.anyOf(noNewbs().fails, rateLimit().fails),
+				pass: [authoring.block()],
+				fail: [authoring.requestReview({ reviewers: ["gsimone"] })],
+			}),
+			"someone-comments": authoring.workflow({
+				on: "comment.created",
+				check: authoring.check("ai-review", { maxSteps: 12 }),
+				fail: [authoring.block()],
+			}),
+			ci: authoring.workflow({
+				name: "pull request checks",
+				on: ["change-request.opened", "change-request.updated"],
+				check: authoring.allOf(
+					authoring.check("max-files-changed", { max: 200 }),
+					authoring.check("english-only"),
+					authoring.check("crypto-address"),
+				),
+				pass: [authoring.label({ labels: ["ready"] })],
+				fail: [
+					authoring.block(),
+					authoring.postComment({ message: "Checks did not pass." }),
+				],
+			}),
+			triage: authoring.workflow({
+				on: "comment.created",
+				check: authoring.check("ai-review", { maxSteps: 12 }),
+				fail: [review],
+			}),
+			digest: authoring.workflow({
+				on: authoring.schedule({
+					every: { cron: "0 8 * * 0" },
+					timezone: "Europe/Berlin",
+					match: {
+						subjects: ["issue", "change-request"],
+						state: "open",
+						inactiveFor: { n: 30, unit: "days" },
+					},
+				}),
+				run: [authoring.postComment({ message: "Still working on this?" })],
+			}),
+		}),
+	);
+	if (!compiled.ok) {
+		throw new Error(compiled.issues.map((issue) => issue.message).join("; "));
+	}
+	return compiled.definitions;
+}
+
+describe("short literal arrays and objects print inline", () => {
+	test("an object nests no object on its line, and wraps past 80 columns", () => {
+		const { code } = workflowsToCode(
+			[
+				single(
+					"wide",
+					[
+						T,
+						{
+							id: "custom-x",
+							type: "rule",
+							ref: "custom-x@1",
+							config: {
+								outer: { inner: 1 },
+								longer:
+									"a value long enough to push this object past the line width",
+							},
+						},
+						{ id: "x", type: "action", action: "block" },
+					],
+					[
+						{ id: "1", from: "t", to: "custom-x" },
+						{ id: "2", from: "custom-x", to: "x", when: "fail" },
+					],
+				),
+			],
+			{ importFrom: "./workflow.ts" },
+		);
+		expect(code).toContain(
+			'const customX = customCheck("custom-x", {\n\t\touter: { inner: 1 },\n',
+		);
+		for (const line of code.split("\n")) {
+			expect(line.replaceAll("\t", "  ").length).toBeLessThanOrEqual(80);
+		}
+	});
+
+	test("a schedule workflow reads like the file a person would write", async () => {
+		const { code, compiled } = await roundTrip([MARK_STALE]);
+		expect(code).toBe(MARK_STALE_CODE);
+		expect(compiled.ok).toBe(true);
+		if (compiled.ok) {
+			expect(
+				diffWorkflow(MARK_STALE, compiled.definitions[0] ?? MARK_STALE),
+			).toEqual([]);
+		}
+	});
+
+	test("an array too long for one line prints one item per line", () => {
+		const labels = Array.from({ length: 8 }, (_, n) => `needs-triage-${n}`);
+		const { code } = workflowsToCode(
+			[
+				single(
+					"long",
+					[
+						T,
+						{ id: "tag", type: "action", action: "label", params: { labels } },
+					],
+					[{ id: "1", from: "t", to: "tag" }],
+				),
+			],
+			{ importFrom: "./workflow.ts" },
+		);
+		expect(code).toContain(
+			`\t\tlabels: [\n${labels.map((label) => `\t\t\t${JSON.stringify(label)},`).join("\n")}\n\t\t],`,
+		);
+		for (const line of code.split("\n")) {
+			expect(line.replaceAll("\t", "  ").length).toBeLessThanOrEqual(80);
+		}
+	});
+
+	test("an array that holds objects keeps one item per line", () => {
+		const { code } = workflowsToCode(
+			[
+				single(
+					"nested",
+					[
+						T,
+						{
+							id: "custom-x",
+							type: "rule",
+							ref: "custom-x@1",
+							config: { pairs: [{ a: 1 }] },
+						},
+						{ id: "x", type: "action", action: "block" },
+					],
+					[
+						{ id: "1", from: "t", to: "custom-x" },
+						{ id: "2", from: "custom-x", to: "x", when: "fail" },
+					],
+				),
+			],
+			{ importFrom: "./workflow.ts" },
+		);
+		expect(code).toContain("pairs: [\n\t\t\t{ a: 1 },\n\t\t],");
+	});
+
+	test("printing is stable: pull, push, pull gives the same file", async () => {
+		const definitions = [
+			...WORKFLOW_TEMPLATES.map((template) => template.definition),
+			...fixtureDefinitions(),
+			MARK_STALE,
+		];
+		const first = await roundTrip(definitions);
+		expect(first.compiled.ok).toBe(true);
+		if (!first.compiled.ok) {
+			return;
+		}
+		const second = workflowsToCode(first.compiled.definitions, {
+			importFrom: "./workflow.ts",
+		});
+		expect(second.code).toBe(first.code);
+	});
+
+	test("the test fixtures survive the round trip", async () => {
+		const definitions = fixtureDefinitions();
+		const { compiled, warnings } = await roundTrip(definitions);
+		expect(warnings).toEqual([]);
+		expect(compiled.ok).toBe(true);
+		if (!compiled.ok) {
+			return;
+		}
+		for (const [index, original] of definitions.entries()) {
+			const back = compiled.definitions[index];
+			expect(back && diffWorkflow(original, back)).toEqual([]);
+		}
+	});
+});
+
+describe("workflowToCode is the file pull writes for one workflow", () => {
+	test("same text as pull, never a secret", () => {
+		const result = workflowToCode(MODERATED);
+		expect(result).toEqual({
+			ok: true,
+			code: workflowsToCode([MODERATED], { importFrom: AUTHORING_MODULE_PATH })
+				.code,
+			warnings: [],
+		});
+		expect(JSON.stringify(result)).not.toContain("example.com");
+	});
+
+	test("a gate fed by an event says why it cannot be code", () => {
+		const result = workflowToCode(
+			single(
+				"fed",
+				[
+					T,
+					{
+						id: "age",
+						type: "rule",
+						ref: "account-age@1",
+						config: { minDays: 3 },
+					},
+					{ id: "both", type: "gate", mode: "all-of" },
+					{ id: "x", type: "action", action: "block" },
+				],
+				[
+					{ id: "1", from: "t", to: "age" },
+					{ id: "2", from: "t", to: "both" },
+					{ id: "3", from: "both", to: "x" },
+				],
+			),
+		);
+		expect(result.ok).toBe(false);
+		expect(result.ok ? "" : result.reason).toBe(
+			"The All of gate takes rule results, not events.",
+		);
+	});
+
+	test("a trigger with an input and a step with no outputs say which", () => {
+		const fed = workflowToCode(
+			single(
+				"fed-trigger",
+				[
+					T,
+					{
+						id: "a",
+						type: "rule",
+						ref: "account-age@1",
+						config: { minDays: 3 },
+					},
+					{ id: "t2", type: "trigger", kinds: ["comment.created"] },
+					{ id: "x", type: "action", action: "block" },
+				],
+				[
+					{ id: "1", from: "t", to: "a" },
+					{ id: "2", from: "a", to: "t2", when: "fail" },
+					{ id: "3", from: "t2", to: "x" },
+				],
+			),
+		);
+		expect(fed.ok ? "" : fed.reason).toBe("Trigger 2 takes no inputs.");
+		const fromBlock = workflowToCode(
+			single(
+				"dead-end",
+				[
+					T,
+					{ id: "x", type: "action", action: "block" },
+					{ id: "y", type: "action", action: "close" },
+				],
+				[
+					{ id: "1", from: "t", to: "x" },
+					{ id: "2", from: "x", to: "y" },
+				],
+			),
+		);
+		expect(fromBlock.ok ? "" : fromBlock.reason).toMatch(
+			/^The .+ step has no outputs\.$/,
+		);
 	});
 });

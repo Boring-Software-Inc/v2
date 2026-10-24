@@ -14,7 +14,11 @@ import {
 	type AuthoringActionKind,
 } from "./workflow-authoring-catalog.ts";
 import { settingsIssues } from "./workflow-compile.ts";
-import { WORKFLOW_SECRET_KEYS } from "./workflow-diff.ts";
+import {
+	redactWorkflowSecrets,
+	WORKFLOW_SECRET_KEYS,
+} from "./workflow-diff.ts";
+import type { LintResult } from "./workflow-lint.ts";
 import { unrunnableIssues } from "./workflow-validate.ts";
 
 const jsonSchemaNode: z.ZodType<JsonSchemaNode> = z.lazy(() =>
@@ -244,8 +248,56 @@ const TAKES_NO_PARAMS = new Set([
 ]);
 
 const listValueSchema = z.array(jsonValueSchema);
+const scalarSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const scalarListSchema = z.array(scalarSchema);
 
-function literal(value: JsonValue, indent: string): string {
+const LINE_WIDTH = 80;
+const TAB_WIDTH = 2;
+
+function flatList(value: JsonValue): string | null {
+	const scalars = scalarListSchema.safeParse(value);
+	return scalars.success
+		? `[${scalars.data.map((item) => JSON.stringify(item)).join(", ")}]`
+		: null;
+}
+
+function flatObject(value: JsonValue): string | null {
+	const object = settingsRecord.safeParse(value);
+	if (!object.success) {
+		return null;
+	}
+	const entries = Object.entries(object.data);
+	if (entries.length === 0) {
+		return "{}";
+	}
+	const parts: string[] = [];
+	for (const [key, item] of entries) {
+		const scalar = scalarSchema.safeParse(item);
+		const text = scalar.success ? JSON.stringify(scalar.data) : flatList(item);
+		if (text === null) {
+			return null;
+		}
+		parts.push(`${propertyKey(key)}: ${text}`);
+	}
+	return `{ ${parts.join(", ")} }`;
+}
+
+function literal(
+	value: JsonValue,
+	indent: string,
+	lead = "",
+	tail = ",",
+): string {
+	const scalar = scalarSchema.safeParse(value);
+	if (scalar.success) {
+		return JSON.stringify(scalar.data);
+	}
+	const flat = flatList(value) ?? flatObject(value);
+	const width =
+		indent.length * TAB_WIDTH + lead.length + (flat?.length ?? 0) + tail.length;
+	if (flat !== null && width <= LINE_WIDTH) {
+		return flat;
+	}
 	const inner = `${indent}\t`;
 	const list = listValueSchema.safeParse(value);
 	if (list.success) {
@@ -258,7 +310,12 @@ function literal(value: JsonValue, indent: string): string {
 		const entries = Object.entries(object.data);
 		return entries.length === 0
 			? "{}"
-			: `{\n${entries.map(([key, item]) => `${inner}${propertyKey(key)}: ${literal(item, inner)},`).join("\n")}\n${indent}}`;
+			: `{\n${entries
+					.map(([key, item]) => {
+						const prefix = `${propertyKey(key)}: `;
+						return `${inner}${prefix}${literal(item, inner, prefix)},`;
+					})
+					.join("\n")}\n${indent}}`;
 	}
 	return JSON.stringify(value);
 }
@@ -314,12 +371,18 @@ function stepExpression(
 	inputs: string[],
 	warnings: string[],
 	indent: string,
+	declared: string,
 ): string | null {
 	const after = inputs.length > 0 ? `.after(${inputs.join(", ")})` : "";
+	const argument = (value: JsonValue, head: string, tail: string) =>
+		literal(value, indent, `${declared}${head}`, `${tail};`);
 	switch (node.type) {
 		case "trigger": {
 			if (node.schedule) {
-				return `schedule(${literal(jsonValueSchema.parse(JSON.parse(JSON.stringify(node.schedule))), indent)})`;
+				const schedule = jsonValueSchema.parse(
+					JSON.parse(JSON.stringify(node.schedule)),
+				);
+				return `schedule(${argument(schedule, "schedule(", ")")})`;
 			}
 			return `trigger(${node.kinds.map((kind) => JSON.stringify(kind)).join(", ")})`;
 		}
@@ -328,16 +391,16 @@ function stepExpression(
 			const version = Number(versionText);
 			const entry = RULE_CATALOG.find((rule) => rule.ruleId === ruleId);
 			const settings = settingsRecord.safeParse(node.config);
-			const config =
-				settings.success && Object.keys(settings.data).length === 0
-					? null
-					: literal(node.config, indent);
-			if (!entry) {
-				return `customCheck(${JSON.stringify(ruleId)}${config ? `, ${config}` : ""})${after}`;
-			}
-			const pin = version === entry.version ? "" : `, { version: ${version} }`;
+			const empty = settings.success && Object.keys(settings.data).length === 0;
+			const helper = entry ? "check" : "customCheck";
+			const head = `${helper}(${JSON.stringify(ruleId)}, `;
+			const pin =
+				!entry || version === entry.version ? "" : `, { version: ${version} }`;
+			const config = empty
+				? null
+				: argument(node.config, head, `${pin})${after}`);
 			const args = config ?? (pin ? "{}" : "");
-			return `check(${JSON.stringify(ruleId)}${args ? `, ${args}` : ""}${pin})${after}`;
+			return `${helper}(${JSON.stringify(ruleId)}${args ? `, ${args}` : ""}${pin})${after}`;
 		}
 		case "gate": {
 			if (inputs.length === 0) {
@@ -368,7 +431,7 @@ function stepExpression(
 			const args =
 				TAKES_NO_PARAMS.has(node.action) || Object.keys(params).length === 0
 					? ""
-					: literal(params, indent);
+					: argument(params, `${helper}(`, `)${after}`);
 			return `${helper}(${args})${after}`;
 		}
 		default:
@@ -435,9 +498,30 @@ function nodeProblems(node: WorkflowNode): string[] {
 	}
 }
 
+const STEP_NOUN = {
+	trigger: "trigger",
+	rule: "step",
+	gate: "gate",
+	action: "step",
+} as const satisfies Record<WorkflowNode["type"], string>;
+
+function refusalText(issue: LintResult, definition: WorkflowDefinition) {
+	if (!issue.message.startsWith("It ")) {
+		return issue.message;
+	}
+	const rest = issue.message.slice(3);
+	const node = definition.nodes.find((n) => n.id === issue.nodeId);
+	const noun = STEP_NOUN[node?.type ?? "action"];
+	return new RegExp(`\\b${noun}\\b`, "i").test(issue.step)
+		? `${issue.step} ${rest}`
+		: `The ${issue.step} ${noun} ${rest}`;
+}
+
 function codeProblems(definition: WorkflowDefinition): string[] {
 	return [
-		...unrunnableIssues(definition).map((issue) => issue.message),
+		...unrunnableIssues(definition).map((issue) =>
+			refusalText(issue, definition),
+		),
 		...definition.nodes.flatMap(nodeProblems),
 	];
 }
@@ -473,7 +557,13 @@ function workflowFunction(
 		const inputs = definition.edges
 			.filter((edge) => edge.to === node.id && !left.has(edge.from))
 			.map((edge) => inputText(edge, names, byId));
-		const expression = stepExpression(node, inputs, warnings, "\t");
+		const expression = stepExpression(
+			node,
+			inputs,
+			warnings,
+			"\t",
+			`const ${names.get(node.id)} = `,
+		);
 		if (expression === null) {
 			left.add(node.id);
 			continue;
@@ -556,6 +646,25 @@ export function workflowsToCode(
 		body,
 	].join("\n\n");
 	return { code: `${code}\n`, warnings, written };
+}
+
+export type WorkflowCodeResult =
+	| { ok: true; code: string; warnings: string[] }
+	| { ok: false; reason: string };
+
+/** One workflow as the `tripwire.ts` that `tripwire workflows pull` writes for it. */
+export function workflowToCode(
+	definition: WorkflowDefinition,
+): WorkflowCodeResult {
+	const [problem] = codeProblems(definition);
+	if (problem) {
+		return { ok: false, reason: problem };
+	}
+	const { code, warnings } = workflowsToCode(
+		[redactWorkflowSecrets(definition)],
+		{ importFrom: AUTHORING_MODULE_PATH },
+	);
+	return { ok: true, code, warnings };
 }
 
 /**

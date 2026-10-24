@@ -114,8 +114,10 @@ import {
 	TypedEdge,
 	type TypedFlowEdge,
 } from "#/components/workflows/editor/typed-connections";
+import { WorkflowCode } from "#/components/workflows/editor/workflow-code";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
 import { invalidScheduleDrafts } from "#/lib/schedule-input";
+import { workflowCodeView } from "#/lib/workflow-code-view";
 import {
 	definitionToGraph,
 	edgeWhenFields,
@@ -124,6 +126,7 @@ import {
 	graphToDefinition,
 	handleWhen,
 } from "#/lib/workflow-editor";
+import type { WorkflowEditorView } from "#/lib/workflow-editor-search";
 import "@xyflow/react/dist/style.css";
 
 const NODE_TYPES = {
@@ -237,11 +240,19 @@ const CANVAS_TOKENS = {
  * context instead, and `event.over` stays undefined forever (the bug that
  * made drag-in silently no-op).
  */
-function CanvasDropzone({ children }: { children: React.ReactNode }) {
+function CanvasDropzone({
+	children,
+	hidden,
+	mounted,
+}: {
+	children: React.ReactNode;
+	hidden: boolean;
+	mounted: boolean;
+}) {
 	const { setNodeRef } = useDroppable({ id: CANVAS_DROP_ID });
 	return (
-		<div className="relative min-h-0 flex-1" ref={setNodeRef}>
-			{children}
+		<div className="relative min-h-0 flex-1" hidden={hidden} ref={setNodeRef}>
+			{mounted ? children : null}
 		</div>
 	);
 }
@@ -260,6 +271,8 @@ export interface WorkflowEditorProps {
 	repoId: string;
 	saving: boolean;
 	toggling: boolean;
+	view: WorkflowEditorView;
+	onViewChange: (view: WorkflowEditorView) => void;
 	onSave: (definition: WorkflowDefinition) => Promise<{
 		ok: boolean;
 		error?: string;
@@ -300,6 +313,8 @@ function EditorBody({
 	repoId,
 	saving,
 	toggling,
+	view,
+	onViewChange,
 	onSave,
 	onRename,
 	onSetEnabled,
@@ -363,7 +378,8 @@ function EditorBody({
 	const [pending, setPending] = useState<PendingConnect | null>(null);
 	const reconnecting = useRef(false);
 	const leave = useBlocker({
-		shouldBlockFn: () => dirty && !readOnly,
+		shouldBlockFn: ({ current, next }) =>
+			dirty && !readOnly && current.pathname !== next.pathname,
 		enableBeforeUnload: () => dirty && !readOnly,
 		withResolver: true,
 	});
@@ -780,6 +796,19 @@ function EditorBody({
 
 	const currentDefinition = () => graphToCandidate(meta, nodes, edges);
 
+	const [canvasShown, setCanvasShown] = useState(view === "canvas");
+	if (view === "canvas" && !canvasShown) {
+		setCanvasShown(true);
+	}
+
+	const codeView = useMemo(
+		() =>
+			view === "code"
+				? workflowCodeView(graphToCandidate(meta, nodes, edges), definition)
+				: null,
+		[view, meta, nodes, edges, definition],
+	);
+
 	const applyDefinition = (next: WorkflowDefinition, select?: string) => {
 		const raw = definitionToGraph(next);
 		const graph = { ...raw, nodes: placeUnpositioned(raw.nodes, next) };
@@ -1144,6 +1173,8 @@ function EditorBody({
 			<EditorHeader
 				blockers={blockers}
 				customRules={customRules}
+				onViewChange={onViewChange}
+				view={view}
 				definition={definition}
 				dirty={dirty}
 				enabled={enabled}
@@ -1160,12 +1191,18 @@ function EditorBody({
 				toggling={toggling}
 				zeroNodes={nodes.length === 0}
 			/>
+			{codeView ? (
+				<WorkflowCode
+					unsaved={dirty && codeView.kind === "code" && codeView.unsaved}
+					view={codeView}
+				/>
+			) : null}
 			<DndContext
 				onDragEnd={onDragEnd}
 				onDragStart={onDragStart}
 				sensors={sensors}
 			>
-				<CanvasDropzone>
+				<CanvasDropzone hidden={view !== "canvas"} mounted={canvasShown}>
 					<ReviewerScopeContext.Provider value={reviewerScope}>
 						<CustomRuleNamesContext.Provider value={customRuleNames}>
 							<ProblemsContext.Provider value={problemsApi}>
@@ -1176,7 +1213,9 @@ function EditorBody({
 											data-drag-tone={
 												plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
 											}
-											deleteKeyCode={readOnly ? null : DELETE_KEYS}
+											deleteKeyCode={
+												readOnly || view !== "canvas" ? null : DELETE_KEYS
+											}
 											onBeforeDelete={readOnly ? undefined : onBeforeDelete}
 											edges={flowEdges}
 											edgeTypes={EDGE_TYPES}

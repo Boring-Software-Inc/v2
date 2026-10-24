@@ -1,0 +1,35 @@
+import {
+	type WorkflowDefinition,
+	workflowDefinitionSchema,
+	workflowToCode,
+} from "@tripwire/contracts";
+
+export type WorkflowCodeView =
+	| { kind: "code"; code: string; warnings: string[]; unsaved: boolean }
+	| { kind: "refused"; reason: string };
+
+export function workflowCodeView(
+	current: WorkflowDefinition,
+	saved: WorkflowDefinition,
+): WorkflowCodeView {
+	const parsed = workflowDefinitionSchema.safeParse(current);
+	if (!parsed.success) {
+		const issue = parsed.error.issues[0];
+		const where = issue?.path.join(".");
+		return {
+			kind: "refused",
+			reason: `${where ? `${where}: ` : ""}${issue?.message ?? "the workflow is not valid"}`,
+		};
+	}
+	const result = workflowToCode(parsed.data);
+	if (!result.ok) {
+		return { kind: "refused", reason: result.reason };
+	}
+	const before = workflowToCode(saved);
+	return {
+		kind: "code",
+		code: result.code,
+		warnings: result.warnings,
+		unsaved: !before.ok || before.code !== result.code,
+	};
+}

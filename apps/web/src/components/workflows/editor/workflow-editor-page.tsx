@@ -42,6 +42,8 @@ const routeApi = getRouteApi("/$org/$repo/workflows/$workflowId");
 
 export function WorkflowEditorPage() {
 	const { org, repo, workflowId } = routeApi.useParams();
+	const view = routeApi.useSearch({ select: (search) => search.view });
+	const navigate = routeApi.useNavigate();
 	const queryClient = useQueryClient();
 	const { data: repoCtx } = useQuery(orgRepoQueryOptions(org, repo));
 	const repoId = repoCtx?.id ?? "";
@@ -125,6 +127,12 @@ export function WorkflowEditorPage() {
 				onRename={(name) =>
 					rename.mutateAsync({ data: { org, repoId, workflowId, name } })
 				}
+				onViewChange={(next) =>
+					navigate({
+						search: (previous) => ({ ...previous, view: next }),
+						replace: true,
+					})
+				}
 				onSave={(definition) =>
 					save.mutateAsync({ data: { org, repoId, workflowId, definition } })
 				}
@@ -142,6 +150,7 @@ export function WorkflowEditorPage() {
 				repoId={repoId}
 				saving={save.isPending}
 				toggling={setEnabled.isPending}
+				view={view}
 			/>
 		);
 	}

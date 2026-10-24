@@ -13,6 +13,7 @@ import {
 	type WorkflowState,
 	workflowDefinitionSchema,
 	workflowsToCode,
+	workflowToCode,
 } from "@tripwire/contracts";
 import { z } from "zod";
 import { authoringSource } from "#/authoring-source" with { type: "macro" };
@@ -106,15 +107,8 @@ function triggerKinds(definition: WorkflowDefinition): string[] {
 }
 
 function codeProblem(definition: WorkflowDefinition): string | undefined {
-	const result = workflowsToCode([definition], {
-		importFrom: AUTHORING_MODULE_PATH,
-	});
-	if (result.written.length > 0) {
-		return undefined;
-	}
-	const warning = result.warnings[0] ?? "";
-	const reason = warning.slice(warning.indexOf("cannot be written as code"));
-	return reason.startsWith("cannot") ? reason : "cannot be written as code";
+	const result = workflowToCode(definition);
+	return result.ok ? undefined : `cannot be written as code. ${result.reason}`;
 }
 
 export interface ListedWorkflow {
