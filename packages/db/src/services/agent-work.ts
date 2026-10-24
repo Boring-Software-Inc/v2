@@ -19,7 +19,7 @@ import {
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { generateId, pickWorkflowName } from "@tripwire/utils";
-import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { agentActivity, workflowDrafts } from "../schema/agent-work.ts";
 import { oauthClient } from "../schema/oauth.ts";
@@ -28,10 +28,12 @@ import { notifyLive } from "./live-notify.ts";
 import {
 	type ApplyWorkflowResult,
 	applyWorkflowDefinition,
+	type Executor,
 	getWorkflow,
 	listWorkflowRows,
 	listWorkflows,
 	pushedDefinition,
+	type Tx,
 	type WorkflowListItem,
 	type WorkflowRow,
 } from "./workflows.ts";
@@ -106,7 +108,7 @@ function isLiveDraft(row: DraftRow, now: Date): boolean {
 }
 
 async function openDraft(
-	db: Db,
+	db: Executor,
 	input: { repoId: string; definitionId: string },
 	now: Date,
 ): Promise<DraftRow | null> {
@@ -150,7 +152,7 @@ async function recentAgents(
 }
 
 async function workflowRowByDefinition(
-	db: Db,
+	db: Executor,
 	repoId: string,
 	definitionId: string,
 ): Promise<WorkflowRow | null> {
@@ -363,8 +365,22 @@ export async function getWorkflowWithWork(
 	return { ...draftOnlyRow(draft), draftId: draft.id, work };
 }
 
-async function touch(
+async function withDraftLock<T>(
 	db: Db,
+	key: { repoId: string; definitionId: string },
+	work: (tx: Tx) => Promise<T>,
+): Promise<T> {
+	const lockKey = `workflow-draft:${key.repoId}:${key.definitionId}`;
+	return await db.transaction(async (tx) => {
+		await tx.execute(
+			sql`select pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`,
+		);
+		return await work(tx);
+	});
+}
+
+async function touch(
+	db: Executor,
 	input: {
 		repoId: string;
 		definitionId: string;
@@ -429,7 +445,7 @@ async function touch(
 }
 
 async function writeDraft(
-	db: Db,
+	db: Executor,
 	input: {
 		repoId: string;
 		definitionId: string;
@@ -496,7 +512,7 @@ async function writeDraft(
 	return row;
 }
 
-async function takenNames(db: Db, repoId: string, now: Date) {
+async function takenNames(db: Executor, repoId: string, now: Date) {
 	const [saved, drafts] = await Promise.all([
 		listWorkflows(db, repoId),
 		db
@@ -546,44 +562,57 @@ export async function beginWorkflowWork(
 				row.id === input.workflow || row.definition.id === input.workflow,
 		) ?? null;
 	const definitionId = stored?.definition.id ?? input.workflow ?? generateId();
-	const existing = await openDraft(
+	return await withDraftLock(
 		db,
 		{ repoId: input.repoId, definitionId },
-		now,
+		async (tx) => {
+			const saved = stored
+				? await workflowRowByDefinition(tx, input.repoId, definitionId)
+				: null;
+			const existing = await openDraft(
+				tx,
+				{ repoId: input.repoId, definitionId },
+				now,
+			);
+			const name =
+				existing?.name ??
+				saved?.name ??
+				(input.name?.trim() ||
+					pickWorkflowName(await takenNames(tx, input.repoId, now)));
+			const draft = await writeDraft(tx, {
+				repoId: input.repoId,
+				definitionId,
+				workflowId: saved?.id ?? null,
+				name,
+				definition: existing ? null : (saved?.definition ?? null),
+				change: null,
+				agent: input.agent,
+				now,
+			});
+			await touch(tx, {
+				repoId: input.repoId,
+				definitionId,
+				agent: input.agent,
+				touches: (input.nodeIds ?? []).map((id) => ({
+					id,
+					action: "read",
+					at: now.toISOString(),
+				})),
+				now,
+			});
+			await notifyLive(tx, {
+				type: "work",
+				repoId: input.repoId,
+				definitionId,
+			});
+			return {
+				definitionId,
+				workflowId: saved?.id ?? null,
+				draftId: draft.id,
+				name: draft.name,
+			};
+		},
 	);
-	const name =
-		existing?.name ??
-		stored?.name ??
-		(input.name?.trim() ||
-			pickWorkflowName(await takenNames(db, input.repoId, now)));
-	const draft = await writeDraft(db, {
-		repoId: input.repoId,
-		definitionId,
-		workflowId: stored?.id ?? null,
-		name,
-		definition: existing ? null : (stored?.definition ?? null),
-		change: null,
-		agent: input.agent,
-		now,
-	});
-	await touch(db, {
-		repoId: input.repoId,
-		definitionId,
-		agent: input.agent,
-		touches: (input.nodeIds ?? []).map((id) => ({
-			id,
-			action: "read",
-			at: now.toISOString(),
-		})),
-		now,
-	});
-	await notifyLive(db, { type: "work", repoId: input.repoId, definitionId });
-	return {
-		definitionId,
-		workflowId: stored?.id ?? null,
-		draftId: draft.id,
-		name: draft.name,
-	};
 }
 
 export interface DraftSignalResult {
@@ -608,44 +637,63 @@ export async function saveAgentDraft(
 ): Promise<DraftSignalResult> {
 	const now = input.now ?? new Date();
 	const definitionId = input.definition.id;
-	const stored = await workflowRowByDefinition(db, input.repoId, definitionId);
-	const current = await openDraft(
+	return await withDraftLock(
 		db,
 		{ repoId: input.repoId, definitionId },
-		now,
+		async (tx) => {
+			const stored = await workflowRowByDefinition(
+				tx,
+				input.repoId,
+				definitionId,
+			);
+			const current = await openDraft(
+				tx,
+				{ repoId: input.repoId, definitionId },
+				now,
+			);
+			const previous =
+				(current ? draftDefinition(current) : null) ??
+				stored?.definition ??
+				null;
+			const next = pushedDefinition(
+				stored?.definition ?? null,
+				input.definition,
+			);
+			const change = workflowChangeSet(previous, next);
+			const draft = await writeDraft(tx, {
+				repoId: input.repoId,
+				definitionId,
+				workflowId: stored?.id ?? null,
+				name: next.name,
+				definition: next,
+				change,
+				agent: input.agent,
+				now,
+			});
+			await touch(tx, {
+				repoId: input.repoId,
+				definitionId,
+				agent: input.agent,
+				touches: touchesFromChangeSet(change, now),
+				now,
+			});
+			await notifyLive(tx, {
+				type: "work",
+				repoId: input.repoId,
+				definitionId,
+			});
+			return {
+				draftId: draft.id,
+				definitionId,
+				workflowId: stored?.id ?? null,
+				change,
+			};
+		},
 	);
-	const previous =
-		(current ? draftDefinition(current) : null) ?? stored?.definition ?? null;
-	const next = pushedDefinition(stored?.definition ?? null, input.definition);
-	const change = workflowChangeSet(previous, next);
-	const draft = await writeDraft(db, {
-		repoId: input.repoId,
-		definitionId,
-		workflowId: stored?.id ?? null,
-		name: next.name,
-		definition: next,
-		change,
-		agent: input.agent,
-		now,
-	});
-	await touch(db, {
-		repoId: input.repoId,
-		definitionId,
-		agent: input.agent,
-		touches: touchesFromChangeSet(change, now),
-		now,
-	});
-	await notifyLive(db, { type: "work", repoId: input.repoId, definitionId });
-	return {
-		draftId: draft.id,
-		definitionId,
-		workflowId: stored?.id ?? null,
-		change,
-	};
 }
 
 async function closeDraft(
-	db: Db,
+	db: Executor,
 	input: {
 		draft: DraftRow;
 		status: "promoted" | "discarded";
@@ -688,47 +736,61 @@ export async function applyAgentWorkflow(
 ): Promise<AgentApplyResult> {
 	const now = input.now ?? new Date();
 	const definitionId = input.definition.id;
-	const before = await workflowRowByDefinition(db, input.repoId, definitionId);
-	const draft = await openDraft(
+	return await withDraftLock(
 		db,
 		{ repoId: input.repoId, definitionId },
-		now,
+		async (tx) => {
+			const before = await workflowRowByDefinition(
+				tx,
+				input.repoId,
+				definitionId,
+			);
+			const draft = await openDraft(
+				tx,
+				{ repoId: input.repoId, definitionId },
+				now,
+			);
+			const result = await applyWorkflowDefinition(tx, {
+				repoId: input.repoId,
+				definition: input.definition,
+			});
+			if (!result.ok) {
+				return { ...result, draftId: draft?.id ?? null };
+			}
+			const after = await getWorkflow(tx, {
+				repoId: input.repoId,
+				workflowId: result.workflow.id,
+			});
+			const previous =
+				(draft ? draftDefinition(draft) : null) ?? before?.definition ?? null;
+			const change = after
+				? workflowChangeSet(previous, after.definition)
+				: workflowChangeSet(previous, input.definition);
+			if (draft) {
+				await closeDraft(tx, {
+					draft,
+					status: "promoted",
+					workflowId: result.workflow.id,
+					definition: after?.definition,
+					change,
+					now,
+				});
+			}
+			await touch(tx, {
+				repoId: input.repoId,
+				definitionId,
+				agent: input.agent,
+				touches: touchesFromChangeSet(change, now),
+				now,
+			});
+			await notifyLive(tx, {
+				type: "work",
+				repoId: input.repoId,
+				definitionId,
+			});
+			return { ...result, draftId: draft?.id ?? null };
+		},
 	);
-	const result = await applyWorkflowDefinition(db, {
-		repoId: input.repoId,
-		definition: input.definition,
-	});
-	if (!result.ok) {
-		return { ...result, draftId: draft?.id ?? null };
-	}
-	const after = await getWorkflow(db, {
-		repoId: input.repoId,
-		workflowId: result.workflow.id,
-	});
-	const previous =
-		(draft ? draftDefinition(draft) : null) ?? before?.definition ?? null;
-	const change = after
-		? workflowChangeSet(previous, after.definition)
-		: workflowChangeSet(previous, input.definition);
-	if (draft) {
-		await closeDraft(db, {
-			draft,
-			status: "promoted",
-			workflowId: result.workflow.id,
-			definition: after?.definition,
-			change,
-			now,
-		});
-	}
-	await touch(db, {
-		repoId: input.repoId,
-		definitionId,
-		agent: input.agent,
-		touches: touchesFromChangeSet(change, now),
-		now,
-	});
-	await notifyLive(db, { type: "work", repoId: input.repoId, definitionId });
-	return { ...result, draftId: draft?.id ?? null };
 }
 
 /**
@@ -746,27 +808,43 @@ export async function promoteSavedDrafts(
 	const now = input.now ?? new Date();
 	const promoted: string[] = [];
 	for (const { definitionId, workflowId } of input.saved) {
-		const draft = await openDraft(
+		const draftId = await withDraftLock(
 			db,
 			{ repoId: input.repoId, definitionId },
-			now,
+			async (tx) => {
+				const draft = await openDraft(
+					tx,
+					{ repoId: input.repoId, definitionId },
+					now,
+				);
+				if (!draft) {
+					return null;
+				}
+				const after = await getWorkflow(tx, {
+					repoId: input.repoId,
+					workflowId,
+				});
+				await closeDraft(tx, {
+					draft,
+					status: "promoted",
+					workflowId,
+					definition: after?.definition,
+					change: after
+						? workflowChangeSet(draftDefinition(draft), after.definition)
+						: undefined,
+					now,
+				});
+				await notifyLive(tx, {
+					type: "work",
+					repoId: input.repoId,
+					definitionId,
+				});
+				return draft.id;
+			},
 		);
-		if (!draft) {
-			continue;
+		if (draftId) {
+			promoted.push(draftId);
 		}
-		const after = await getWorkflow(db, { repoId: input.repoId, workflowId });
-		await closeDraft(db, {
-			draft,
-			status: "promoted",
-			workflowId,
-			definition: after?.definition,
-			change: after
-				? workflowChangeSet(draftDefinition(draft), after.definition)
-				: undefined,
-			now,
-		});
-		await notifyLive(db, { type: "work", repoId: input.repoId, definitionId });
-		promoted.push(draft.id);
 	}
 	return promoted;
 }
@@ -818,16 +896,30 @@ export async function finishWorkflowWork(
 		.from(agentActivity)
 		.where(and(...filters));
 	for (const row of rows) {
-		const nodes = releaseTouches(activityTouches(row), input.nodeIds);
-		await db
-			.update(agentActivity)
-			.set({ nodes, finishedAt: input.nodeIds ? null : now })
-			.where(eq(agentActivity.id, row.id));
-		await notifyLive(db, {
-			type: "work",
-			repoId: input.repoId,
-			definitionId: row.definitionId,
-		});
+		await withDraftLock(
+			db,
+			{ repoId: input.repoId, definitionId: row.definitionId },
+			async (tx) => {
+				const held = await tx
+					.select()
+					.from(agentActivity)
+					.where(eq(agentActivity.id, row.id))
+					.limit(1);
+				const nodes = releaseTouches(
+					activityTouches(held[0] ?? row),
+					input.nodeIds,
+				);
+				await tx
+					.update(agentActivity)
+					.set({ nodes, finishedAt: input.nodeIds ? null : now })
+					.where(eq(agentActivity.id, row.id));
+				await notifyLive(tx, {
+					type: "work",
+					repoId: input.repoId,
+					definitionId: row.definitionId,
+				});
+			},
+		);
 	}
 	return { released: rows.length };
 }
@@ -836,7 +928,12 @@ export type DraftDecisionResult =
 	| { ok: true; workflowId: string }
 	| { ok: false; issues: ValidationIssue[] };
 
-async function draftById(db: Db, repoId: string, draftId: string, now: Date) {
+async function draftById(
+	db: Executor,
+	repoId: string,
+	draftId: string,
+	now: Date,
+) {
 	const rows = await db
 		.select()
 		.from(workflowDrafts)
@@ -857,33 +954,42 @@ export async function promoteDraft(
 	input: { repoId: string; draftId: string; now?: Date },
 ): Promise<DraftDecisionResult> {
 	const now = input.now ?? new Date();
-	const draft = await draftById(db, input.repoId, input.draftId, now);
-	if (!draft) {
+	const found = await draftById(db, input.repoId, input.draftId, now);
+	if (!found) {
 		return { ok: false, issues: [{ message: "This draft is gone." }] };
 	}
-	const definition = draftDefinition(draft);
-	if (!definition || definition.nodes.length === 0) {
-		return { ok: false, issues: [{ message: "This draft has no steps yet." }] };
-	}
-	const result = await applyWorkflowDefinition(db, {
-		repoId: input.repoId,
-		definition,
+	return await withDraftLock(db, found, async (tx) => {
+		const draft = await draftById(tx, input.repoId, input.draftId, now);
+		if (!draft) {
+			return { ok: false, issues: [{ message: "This draft is gone." }] };
+		}
+		const definition = draftDefinition(draft);
+		if (!definition || definition.nodes.length === 0) {
+			return {
+				ok: false,
+				issues: [{ message: "This draft has no steps yet." }],
+			};
+		}
+		const result = await applyWorkflowDefinition(tx, {
+			repoId: input.repoId,
+			definition,
+		});
+		if (!result.ok) {
+			return { ok: false, issues: result.issues };
+		}
+		await closeDraft(tx, {
+			draft,
+			status: "promoted",
+			workflowId: result.workflow.id,
+			now,
+		});
+		await notifyLive(tx, {
+			type: "work",
+			repoId: input.repoId,
+			definitionId: draft.definitionId,
+		});
+		return { ok: true, workflowId: result.workflow.id };
 	});
-	if (!result.ok) {
-		return { ok: false, issues: result.issues };
-	}
-	await closeDraft(db, {
-		draft,
-		status: "promoted",
-		workflowId: result.workflow.id,
-		now,
-	});
-	await notifyLive(db, {
-		type: "work",
-		repoId: input.repoId,
-		definitionId: draft.definitionId,
-	});
-	return { ok: true, workflowId: result.workflow.id };
 }
 
 export async function discardDraft(
@@ -891,17 +997,23 @@ export async function discardDraft(
 	input: { repoId: string; draftId: string; now?: Date },
 ): Promise<{ discarded: boolean }> {
 	const now = input.now ?? new Date();
-	const draft = await draftById(db, input.repoId, input.draftId, now);
-	if (!draft) {
+	const found = await draftById(db, input.repoId, input.draftId, now);
+	if (!found) {
 		return { discarded: false };
 	}
-	await closeDraft(db, { draft, status: "discarded", now });
-	await notifyLive(db, {
-		type: "work",
-		repoId: input.repoId,
-		definitionId: draft.definitionId,
+	return await withDraftLock(db, found, async (tx) => {
+		const draft = await draftById(tx, input.repoId, input.draftId, now);
+		if (!draft) {
+			return { discarded: false };
+		}
+		await closeDraft(tx, { draft, status: "discarded", now });
+		await notifyLive(tx, {
+			type: "work",
+			repoId: input.repoId,
+			definitionId: draft.definitionId,
+		});
+		return { discarded: true };
 	});
-	return { discarded: true };
 }
 
 export async function repoFullNameOf(

@@ -1,10 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
+	compileWorkflows,
 	liveNodeTouches,
 	WORKFLOW_TEMPLATES,
 	type WorkflowDefinition,
+	workflowAuthoring,
+	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
+import { eq } from "drizzle-orm";
 import { Client } from "pg";
 import {
 	applyMigrations,
@@ -13,6 +17,7 @@ import {
 	type Db,
 	type TestDatabase,
 } from "../index.ts";
+import { workflowDrafts } from "../schema/agent-work.ts";
 import { user } from "../schema/auth.ts";
 import { oauthClient } from "../schema/oauth.ts";
 import { organization } from "../schema/organizations.ts";
@@ -32,7 +37,7 @@ import { liveMessageFor } from "./live.ts";
 import { listEnabledWorkflows } from "./repos.ts";
 import { listDueSchedules } from "./schedules.ts";
 import { decideWorkflowPush, proposeWorkflowPush } from "./workflow-pushes.ts";
-import { listWorkflows, setWorkflowEnabled } from "./workflows.ts";
+import { getWorkflow, listWorkflows, setWorkflowEnabled } from "./workflows.ts";
 
 let container: TestDatabase;
 let db: Db;
@@ -65,6 +70,52 @@ function staleTemplate(): WorkflowDefinition {
 		throw new Error("template missing");
 	}
 	return { ...found.definition, id: generateId(), name: "Close stale PRs" };
+}
+
+function withExtraStep(definition: WorkflowDefinition): WorkflowDefinition {
+	const [first] = definition.nodes;
+	if (!first) {
+		throw new Error("empty template");
+	}
+	return {
+		...definition,
+		nodes: [...definition.nodes, { ...first, id: "added-step" }],
+	};
+}
+
+function hasStep(stored: { definition: unknown } | undefined, id: string) {
+	const parsed = workflowDefinitionSchema.safeParse(stored?.definition);
+	return parsed.success && parsed.data.nodes.some((node) => node.id === id);
+}
+
+async function draftsOf(repoId: string) {
+	return await db
+		.select()
+		.from(workflowDrafts)
+		.where(eq(workflowDrafts.repoId, repoId));
+}
+
+function compiledCodegen(): WorkflowDefinition {
+	const { anyOf, block, check, requestReview, workflow, workflows } =
+		workflowAuthoring;
+	const result = compileWorkflows(
+		workflows({
+			"change-request-opens": workflow({
+				on: "change-request.opened",
+				check: anyOf(
+					check("account-age", { minDays: 7 }).fails,
+					check("pr-rate-limit", { maxPerWindow: 5, windowHours: 24 }).fails,
+				),
+				pass: [block()],
+				fail: [requestReview({ reviewers: ["gsimone"] })],
+			}),
+		}),
+	);
+	const definition = result.ok ? result.definitions[0] : undefined;
+	if (!definition) {
+		throw new Error("codegen failed");
+	}
+	return { ...definition, id: generateId() };
 }
 
 beforeAll(async () => {
@@ -441,6 +492,156 @@ describe("saving a draft", () => {
 		expect(
 			await listWorkflowCards(db, { repoId, now: later(60 * 60 * 24 + 1) }),
 		).toEqual([]);
+	});
+});
+
+describe("concurrent draft signals", () => {
+	test("first signals at once for one new workflow share one open draft", async () => {
+		const repoId = await newRepo("race-first");
+		const definition = staleTemplate();
+		const results = await Promise.allSettled(
+			Array.from({ length: 6 }, () =>
+				saveAgentDraft(db, { repoId, agent, definition, now: T0 }),
+			),
+		);
+		expect(results.map((r) => r.status)).toEqual(
+			Array.from({ length: 6 }, () => "fulfilled"),
+		);
+		const ids = new Set(
+			results.flatMap((r) =>
+				r.status === "fulfilled" ? [r.value.draftId] : [],
+			),
+		);
+		expect(ids.size).toBe(1);
+		const rows = await draftsOf(repoId);
+		expect(rows.map((row) => row.status)).toEqual(["open"]);
+	});
+
+	test("a promote racing an agent save never loses the newer revision", async () => {
+		for (let round = 0; round < 6; round++) {
+			const repoId = await newRepo(`race-promote-${round}`);
+			const definition = staleTemplate();
+			const first = await saveAgentDraft(db, {
+				repoId,
+				agent,
+				definition,
+				now: T0,
+			});
+			const [promoted, saved] = await Promise.all([
+				promoteDraft(db, { repoId, draftId: first.draftId, now: later(5) }),
+				saveAgentDraft(db, {
+					repoId,
+					agent,
+					definition: withExtraStep(definition),
+					now: later(5),
+				}),
+			]);
+			expect(promoted.ok).toBe(true);
+			const rows = await draftsOf(repoId);
+			const open = rows.filter((row) => row.status === "open");
+			expect(open.length).toBeLessThanOrEqual(1);
+			const workflowId = promoted.ok ? promoted.workflowId : "";
+			const stored = await getWorkflow(db, { repoId, workflowId });
+			const kept =
+				hasStep(stored ?? undefined, "added-step") ||
+				open.some((row) => hasStep(row, "added-step"));
+			expect(kept).toBe(true);
+			const promotedRow = rows.find((row) => row.id === first.draftId);
+			expect(promotedRow?.status).toBe("promoted");
+			expect(hasStep(promotedRow, "added-step")).toBe(
+				hasStep(stored ?? undefined, "added-step"),
+			);
+			if (saved.draftId === first.draftId) {
+				expect(hasStep(stored ?? undefined, "added-step")).toBe(true);
+			}
+		}
+	});
+
+	test("a discard racing an agent save keeps what the save reported", async () => {
+		for (let round = 0; round < 6; round++) {
+			const repoId = await newRepo(`race-discard-${round}`);
+			const definition = staleTemplate();
+			const first = await saveAgentDraft(db, {
+				repoId,
+				agent,
+				definition,
+				now: T0,
+			});
+			const [discarded, saved] = await Promise.all([
+				discardDraft(db, { repoId, draftId: first.draftId, now: later(5) }),
+				saveAgentDraft(db, {
+					repoId,
+					agent,
+					definition: withExtraStep(definition),
+					now: later(5),
+				}),
+			]);
+			expect(discarded.discarded).toBe(true);
+			const rows = await draftsOf(repoId);
+			const savedRow = rows.find((row) => row.id === saved.draftId);
+			expect(hasStep(savedRow, "added-step")).toBe(true);
+			if (saved.draftId !== first.draftId) {
+				expect(savedRow?.status).toBe("open");
+			}
+			expect(
+				rows.filter((row) => row.status === "open").length,
+			).toBeLessThanOrEqual(1);
+		}
+	});
+});
+
+describe("presence follows the workflow node ids", () => {
+	test("codegen node ids show as written", async () => {
+		const repoId = await newRepo("codegen-ids");
+		const definition = compiledCodegen();
+		await saveAgentDraft(db, { repoId, agent, definition, now: T0 });
+		const work = await getWorkflowWork(db, {
+			repoId,
+			definitionId: definition.id,
+			now: later(1),
+		});
+		const live = liveNodeTouches(work, later(1));
+		expect([...live.keys()].sort()).toEqual(
+			definition.nodes.map((node) => node.id).sort(),
+		);
+	});
+
+	test("a node id the definition accepts never fails a save or an apply", async () => {
+		const repoId = await newRepo("long-ids");
+		const base = compiledCodegen();
+		const long = `step-${"x".repeat(220)}`;
+		const [trigger, ...rest] = base.nodes;
+		if (!trigger) {
+			throw new Error("empty codegen");
+		}
+		const definition: WorkflowDefinition = {
+			...base,
+			nodes: [{ ...trigger, id: long }, ...rest],
+			edges: base.edges.map((edge) => ({
+				...edge,
+				from: edge.from === trigger.id ? long : edge.from,
+			})),
+		};
+		const saved = await saveAgentDraft(db, {
+			repoId,
+			agent,
+			definition,
+			now: T0,
+		});
+		expect(saved.change.nodes.added).toContain(long);
+		const applied = await applyAgentWorkflow(db, {
+			repoId,
+			agent,
+			definition,
+			now: later(1),
+		});
+		expect(applied.ok).toBe(true);
+		const work = await getWorkflowWork(db, {
+			repoId,
+			definitionId: definition.id,
+			now: later(2),
+		});
+		expect(liveNodeTouches(work, later(2)).has(long)).toBe(true);
 	});
 });
 

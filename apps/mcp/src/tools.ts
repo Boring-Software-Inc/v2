@@ -23,6 +23,7 @@ import {
 	type WorkflowPushView,
 	workflowDefinitionSchema,
 	workflowDisplayName,
+	workflowNodeIdSchema,
 	workflowsToCode,
 } from "@tripwire/contracts";
 import {
@@ -714,7 +715,7 @@ export function registerTools(
 		);
 	}
 
-	const nodeIdsArg = z.array(z.string().min(1).max(200)).max(100).optional();
+	const nodeIdsArg = z.array(workflowNodeIdSchema).max(100).optional();
 
 	if (visible("begin_workflow_work")) {
 		server.registerTool(

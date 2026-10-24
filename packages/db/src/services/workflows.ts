@@ -46,6 +46,9 @@ import { listRepoReviewers } from "./reviewers.ts";
  *     picker).
  */
 
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+export type Executor = Db | Tx;
+
 export interface WorkflowListItem {
 	id: string;
 	name: string;
@@ -105,7 +108,7 @@ function toListItem(
 }
 
 export async function listWorkflows(
-	db: Db,
+	db: Executor,
 	repoId: string,
 ): Promise<WorkflowListItem[]> {
 	const rows = await db
@@ -118,7 +121,7 @@ export async function listWorkflows(
 }
 
 export async function getWorkflow(
-	db: Db,
+	db: Executor,
 	input: { repoId: string; workflowId: string },
 ): Promise<WorkflowRow | null> {
 	const rows = await db
@@ -145,7 +148,7 @@ export async function getWorkflow(
 	};
 }
 
-async function takenNames(db: Db, repoId: string): Promise<Set<string>> {
+async function takenNames(db: Executor, repoId: string): Promise<Set<string>> {
 	const rows = await db
 		.select({ name: workflowDefinitions.name })
 		.from(workflowDefinitions)
@@ -160,7 +163,7 @@ async function takenNames(db: Db, repoId: string): Promise<Set<string>> {
  * the wire shape; the editor treats a lone default trigger as "blank").
  */
 export async function createWorkflow(
-	db: Db,
+	db: Executor,
 	input: {
 		repoId: string;
 		name?: string;
@@ -230,8 +233,6 @@ export async function updateWorkflowDefinition(
 		.returning({ id: workflowDefinitions.id });
 	return { ok: rows.length > 0 };
 }
-
-export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 async function lockWorkflowRow(
 	tx: Tx,
@@ -397,7 +398,7 @@ export async function deleteWorkflow(
  * workflow can gate on either.
  */
 export async function repoRuleCatalog(
-	db: Db,
+	db: Executor,
 	repoId: string,
 ): Promise<ValidationCatalogEntry[]> {
 	const customRows = await db
@@ -416,7 +417,7 @@ export async function repoRuleCatalog(
 
 /** Every workflow on a repo with its definition. Corrupt rows are skipped. */
 export async function listWorkflowRows(
-	db: Db,
+	db: Executor,
 	repoId: string,
 ): Promise<WorkflowRow[]> {
 	const rows = await db
@@ -491,7 +492,7 @@ export type ApplyWorkflowResult =
  * leaves broken wiring running.
  */
 export async function applyWorkflowDefinition(
-	db: Db,
+	db: Executor,
 	input: { repoId: string; definition: WorkflowDefinition },
 ): Promise<ApplyWorkflowResult> {
 	const rows = await listWorkflowRows(db, input.repoId);

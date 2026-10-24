@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { setupRunViewSchema } from "./setup.ts";
-import { workflowDefinitionSchema } from "./workflow.ts";
+import { workflowDefinitionSchema, workflowNodeIdSchema } from "./workflow.ts";
 import type { WorkflowChangeSet } from "./workflow-diff.ts";
 
 export const AGENT_NODE_HOLD_MS = 40_000;
@@ -12,7 +12,7 @@ export const agentActionSchema = z.enum(["read", "write", "edit", "delete"]);
 export type AgentAction = z.infer<typeof agentActionSchema>;
 
 export const agentNodeTouchSchema = z.object({
-	id: z.string().min(1).max(200),
+	id: workflowNodeIdSchema,
 	action: agentActionSchema,
 	at: z.iso.datetime(),
 });
