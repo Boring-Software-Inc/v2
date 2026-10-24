@@ -1316,7 +1316,7 @@ function EditorBody({
 												fitView
 												fitViewOptions={fitViewOptions()}
 												isValidConnection={isValidConnection}
-												nodes={canvasNodes as unknown as TripwireFlowNode[]}
+												nodes={canvasNodes as TripwireFlowNode[]}
 												nodesConnectable={!readOnly}
 												nodesDraggable={!readOnly}
 												nodeTypes={NODE_TYPES}
