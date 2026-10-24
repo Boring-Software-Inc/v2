@@ -206,3 +206,46 @@ describe("a workflow with AI review while credits are out", () => {
 		expect(unrunnableIssues(AI_GATE)).toEqual([]);
 	});
 });
+
+describe("the credit state from every balance and key combination", () => {
+	const account = {
+		unread: null,
+		empty: openRouterCreditsSchema.parse({
+			data: { total_credits: 5, total_usage: 4.9 },
+		}),
+		funded: openRouterCreditsSchema.parse({
+			data: { total_credits: 10, total_usage: 2 },
+		}),
+	};
+	const keys = {
+		unread: null,
+		uncapped: openRouterKeySchema.parse({
+			data: { limit: null, limit_remaining: null, usage: 1 },
+		}),
+		spent: openRouterKeySchema.parse({
+			data: { limit: 5, limit_remaining: 0.01, usage: 4.99 },
+		}),
+		room: openRouterKeySchema.parse({
+			data: { limit: 50, limit_remaining: 40, usage: 10 },
+		}),
+	};
+	const cases: [keyof typeof account, keyof typeof keys, string][] = [
+		["unread", "unread", "unknown"],
+		["unread", "uncapped", "unknown"],
+		["unread", "spent", "out"],
+		["unread", "room", "unknown"],
+		["empty", "unread", "out"],
+		["empty", "uncapped", "out"],
+		["empty", "spent", "out"],
+		["empty", "room", "out"],
+		["funded", "unread", "ready"],
+		["funded", "uncapped", "ready"],
+		["funded", "spent", "out"],
+		["funded", "room", "ready"],
+	];
+	test.each(cases)("account %s, key %s: %s", (credits, key, state) => {
+		expect(
+			aiCreditsFromBalance({ credits: account[credits], key: keys[key] }),
+		).toBe(state);
+	});
+});

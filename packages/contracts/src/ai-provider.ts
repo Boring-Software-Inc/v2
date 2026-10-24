@@ -97,22 +97,26 @@ export const openRouterKeySchema = z.object({
 });
 export type OpenRouterKey = z.infer<typeof openRouterKeySchema>;
 
+/**
+ * A key's limit is a spending cap, not money, so it can only say "out".
+ * "ready" needs a readable account balance at or above the floor.
+ */
 export function aiCreditsFromBalance(input: {
 	credits: OpenRouterCredits | null;
 	key: OpenRouterKey | null;
 }): AiCreditsState | "unknown" {
-	const remaining: number[] = [];
-	if (input.credits) {
-		remaining.push(
-			input.credits.data.total_credits - input.credits.data.total_usage,
-		);
-	}
 	const keyRemaining = input.key?.data.limit_remaining;
-	if (keyRemaining !== undefined && keyRemaining !== null) {
-		remaining.push(keyRemaining);
+	if (
+		keyRemaining !== undefined &&
+		keyRemaining !== null &&
+		keyRemaining < AI_REVIEW_MIN_CREDITS_USD
+	) {
+		return "out";
 	}
-	if (remaining.length === 0) {
+	if (!input.credits) {
 		return "unknown";
 	}
-	return Math.min(...remaining) < AI_REVIEW_MIN_CREDITS_USD ? "out" : "ready";
+	const balance =
+		input.credits.data.total_credits - input.credits.data.total_usage;
+	return balance < AI_REVIEW_MIN_CREDITS_USD ? "out" : "ready";
 }
