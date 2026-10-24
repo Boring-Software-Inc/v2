@@ -23,7 +23,9 @@ export const moderationItems = pgTable(
 			.defaultNow(),
 		decidedAt: timestamp("decided_at", { withTimezone: true }),
 		/** The maintainer who decided — FK to user.id (UUIDv7), never a forge id. */
-		decidedBy: text("decided_by").references(() => user.id),
+		decidedBy: text("decided_by").references(() => user.id, {
+			onDelete: "set null",
+		}),
 		note: text("note"),
 	},
 	(t) => [index("moderation_items_status_idx").on(t.status)],
