@@ -8,10 +8,10 @@ import {
 	type SchedulePreset,
 	type Weekday,
 	type WorkflowNode,
-	weekdaySchema,
 } from "./workflow.ts";
 import {
 	type CronSpec,
+	cronSpecKey,
 	latestCronRun,
 	nextCronRun,
 	parseCron,
@@ -98,139 +98,6 @@ export function describeDuration(duration: {
 	return `${duration.n} ${duration.n === 1 ? one : many}`;
 }
 
-const WEEKDAY_WORDS = weekdaySchema.options.map(
-	(day) => `${day.charAt(0).toUpperCase()}${day.slice(1)}`,
-);
-
-function pad(value: number): string {
-	return String(value).padStart(2, "0");
-}
-
-function ordinal(day: number): string {
-	const teen = day % 100 >= 11 && day % 100 <= 13;
-	const suffix = teen ? "th" : (["th", "st", "nd", "rd"][day % 10] ?? "th");
-	return `${day}${suffix}`;
-}
-
-function joinWords(words: readonly string[]): string {
-	if (words.length <= 1) {
-		return words[0] ?? "";
-	}
-	return `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
-}
-
-function isEvery(values: readonly number[], min: number, max: number): boolean {
-	return values.length === max - min + 1;
-}
-
-function stepOf(values: readonly number[], min: number): number | null {
-	const [first, second] = values;
-	if (first !== min || second === undefined || values.length < 2) {
-		return null;
-	}
-	const step = second - first;
-	return values.every((value, index) => value === min + index * step)
-		? step
-		: null;
-}
-
-function describeWeekdays(days: readonly number[]): string {
-	if (days.join(",") === "1,2,3,4,5") {
-		return "on weekdays";
-	}
-	if (days.join(",") === "0,6") {
-		return "on weekends";
-	}
-	return `on ${joinWords(days.map((day) => WEEKDAY_WORDS[day] ?? String(day)))}`;
-}
-
-const MAX_LISTED_DAYS = 7;
-
-function describeDays(spec: CronSpec): { part: string | null } | null {
-	const allDays = isEvery(spec.days, 1, 31);
-	const allWeekdays = isEvery(spec.weekdays, 0, 6);
-	if (spec.daysRestricted && spec.weekdaysRestricted) {
-		return allDays || allWeekdays ? { part: null } : null;
-	}
-	if (allDays && allWeekdays) {
-		return { part: null };
-	}
-	if (!(allDays || allWeekdays)) {
-		return null;
-	}
-	if (allDays) {
-		return { part: describeWeekdays(spec.weekdays) };
-	}
-	return spec.days.length > MAX_LISTED_DAYS
-		? null
-		: { part: `on the ${joinWords(spec.days.map(ordinal))} of the month` };
-}
-
-function evenStep(
-	values: readonly number[],
-	min: number,
-	span: number,
-): number | null {
-	const step = stepOf(values, min);
-	const last = values.at(-1);
-	return step !== null &&
-		last !== undefined &&
-		span % step === 0 &&
-		last + step === min + span
-		? step
-		: null;
-}
-
-/**
- * Plain words for a cron, or null when the shape is too irregular to say
- * honestly. Callers then show the expression itself.
- */
-export function describeCron(expression: string): string | null {
-	const parsed = parseCron(expression);
-	if (!parsed.ok) {
-		return null;
-	}
-	const spec = parsed.spec;
-	if (!isEvery(spec.months, 1, 12)) {
-		return null;
-	}
-	const days = describeDays(spec);
-	if (!days) {
-		return null;
-	}
-	const anyDay = days.part === null;
-	const dayPart = days.part;
-	const allHours = isEvery(spec.hours, 0, 23);
-	const allMinutes = isEvery(spec.minutes, 0, 59);
-	let time: string | null = null;
-	if (allMinutes && allHours) {
-		time = "Every minute";
-	} else if (allHours) {
-		const step = evenStep(spec.minutes, 0, 60);
-		if (step) {
-			time = `Every ${step} minutes`;
-		} else if (spec.minutes.length === 1) {
-			const [minute = 0] = spec.minutes;
-			time = minute === 0 ? "Every hour" : `Every hour at minute ${minute}`;
-		}
-	} else if (spec.minutes.length === 1) {
-		const [minute = 0] = spec.minutes;
-		const step = evenStep(spec.hours, 0, 24);
-		if (step && spec.hours.length > 2) {
-			time = `Every ${step} hours at minute ${minute}`;
-		} else if (spec.hours.length <= 4) {
-			time = `At ${joinWords(spec.hours.map((hour) => `${pad(hour)}:${pad(minute)}`))}`;
-		}
-	}
-	if (!time) {
-		return null;
-	}
-	if (anyDay) {
-		return time.startsWith("At") ? `Every day ${time.toLowerCase()}` : time;
-	}
-	return `${time} ${dayPart ?? ""}`.trim();
-}
-
 function cronSpec(cadence: ScheduleCadence): CronSpec | null {
 	const cron = cadenceCron(cadence);
 	if (cron === null) {
@@ -294,9 +161,12 @@ export interface ScheduleTiming {
 
 function timingKey(schedule: ScheduleTiming): string {
 	const every = schedule.every;
+	const spec = cronSpec(every);
 	const cadence = isScheduleInterval(every)
 		? `every ${durationMs(every)}ms`
-		: (cadenceCron(every) ?? JSON.stringify(every));
+		: spec
+			? cronSpecKey(spec)
+			: JSON.stringify(every);
 	return `${cadence} ${scheduleZone(schedule.timezone).zone}`;
 }
 
