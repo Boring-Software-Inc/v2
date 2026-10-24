@@ -1,9 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import type { WorkflowDefinition } from "@tripwire/contracts";
 import { useState } from "react";
-import { ArrowLeft, Edit, Icon } from "#/components/glaze/icon";
+import { ArrowLeft, Edit, Icon, More } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/glaze/ui/dropdown-menu";
 import { Input } from "#/components/glaze/ui/input";
 import {
 	SegmentedControl,
@@ -17,7 +23,10 @@ import {
 	WORKFLOW_EDITOR_VIEWS,
 	type WorkflowEditorView,
 } from "#/lib/workflow-editor-search";
-import type { CustomRuleDisplay } from "#/lib/workflow-markdown";
+import {
+	type CustomRuleDisplay,
+	workflowToMarkdown,
+} from "#/lib/workflow-markdown";
 
 /**
  * Slim editor header — back link, inline-editable name, enabled badge +
@@ -101,63 +110,94 @@ export function EditorHeader({
 		onSetEnabled(true);
 	};
 
+	const copyMarkdown = async () => {
+		try {
+			await navigator.clipboard.writeText(
+				workflowToMarkdown(definition, customRules),
+			);
+			toast.success("Copied the workflow as Markdown");
+		} catch {
+			toast.fail("Tripwire could not copy the workflow. Try again.");
+		}
+	};
+
+	const menuItems = [
+		readOnly ? null : (
+			<DropdownMenuItem key="toggle" onClick={handleToggle}>
+				{enabled ? "Turn off workflow" : "Turn on workflow"}
+			</DropdownMenuItem>
+		),
+		readOnly || view !== "canvas" ? null : (
+			<DropdownMenuItem disabled={zeroNodes} key="arrange" onClick={onArrange}>
+				Auto-arrange
+			</DropdownMenuItem>
+		),
+		view === "canvas" ? (
+			<DropdownMenuItem key="markdown" onClick={copyMarkdown}>
+				Copy as Markdown
+			</DropdownMenuItem>
+		) : null,
+	].filter((item) => item !== null);
+
 	return (
-		<header className="flex shrink-0 flex-wrap items-center gap-2 border-line-faint border-b px-3 py-2">
-			<Button
-				nativeButton={false}
-				render={
-					<Link
-						activeOptions={{ exact: true }}
-						params={{ org, repo }}
-						to="/$org/$repo/workflows"
-					/>
-				}
-				size="sm"
-				variant="ghost"
-			>
-				<Icon icon={ArrowLeft} />
-				Workflows
-			</Button>
-			{readOnly ? (
-				<span className="min-w-0 truncate type-label">{name}</span>
-			) : renaming ? (
-				<Input
-					aria-label="Workflow name"
-					autoComplete="off"
-					autoFocus
-					className="w-56 min-w-0"
-					defaultValue={name}
-					key={name}
-					onBlur={(event) => {
-						setRenaming(false);
-						commitName(event.target.value);
-					}}
-					onFocus={(event) => event.currentTarget.select()}
-					onKeyDown={(event) => {
-						if (event.key === "Enter") {
-							event.currentTarget.blur();
-						}
-						if (event.key === "Escape") {
-							event.currentTarget.value = name;
-							event.currentTarget.blur();
-						}
-					}}
-					size="sm"
-				/>
-			) : (
+		<header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-line-faint border-b px-3 py-2">
+			<div className="flex min-w-0 flex-1 items-center gap-2 max-md:basis-full">
 				<Button
-					aria-label={`Rename ${name}`}
-					className="min-w-0 max-w-56 justify-start"
-					onClick={() => setRenaming(true)}
+					nativeButton={false}
+					render={
+						<Link
+							activeOptions={{ exact: true }}
+							params={{ org, repo }}
+							to="/$org/$repo/workflows"
+						/>
+					}
 					size="sm"
 					variant="ghost"
 				>
-					<span className="min-w-0 truncate type-label">{name}</span>
-					<Icon className="text-text-3" icon={Edit} />
+					<Icon icon={ArrowLeft} />
+					<span className="max-md:sr-only">Workflows</span>
 				</Button>
-			)}
-			{enabled ? <Badge>On</Badge> : null}
-			<div className="ms-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+				{readOnly ? (
+					<span className="min-w-0 truncate type-label">{name}</span>
+				) : renaming ? (
+					<Input
+						aria-label="Workflow name"
+						autoComplete="off"
+						autoFocus
+						className="w-56 min-w-0"
+						defaultValue={name}
+						key={name}
+						onBlur={(event) => {
+							setRenaming(false);
+							commitName(event.target.value);
+						}}
+						onFocus={(event) => event.currentTarget.select()}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								event.currentTarget.blur();
+							}
+							if (event.key === "Escape") {
+								event.currentTarget.value = name;
+								event.currentTarget.blur();
+							}
+						}}
+						size="sm"
+					/>
+				) : (
+					<Button
+						aria-label={`Rename ${name}`}
+						className="min-w-0 max-w-56 justify-start max-md:max-w-full"
+						onClick={() => setRenaming(true)}
+						size="sm"
+						variant="ghost"
+					>
+						<span className="min-w-0 truncate type-label">{name}</span>
+						<Icon className="text-text-3" icon={Edit} />
+					</Button>
+				)}
+				{enabled ? <Badge>On</Badge> : null}
+			</div>
+			<div className="ms-auto flex min-w-0 items-center gap-2 max-md:w-full">
 				<SegmentedControl
 					aria-label="Workflow view"
 					className={controlHeight.sm}
@@ -173,10 +213,31 @@ export function EditorHeader({
 					<SegmentedControlItem value="code">Code</SegmentedControlItem>
 				</SegmentedControl>
 				{view === "canvas" ? (
-					<CopyWorkflowButton
-						customRules={customRules}
-						definition={definition}
-					/>
+					<span className="max-md:hidden">
+						<CopyWorkflowButton
+							customRules={customRules}
+							definition={definition}
+						/>
+					</span>
+				) : null}
+				{menuItems.length > 0 ? (
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							className="ms-auto md:hidden"
+							render={
+								<Button
+									aria-label="More workflow actions"
+									size="icon-sm"
+									variant="ghost"
+								/>
+							}
+						>
+							<Icon icon={More} />
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" size="sm">
+							{menuItems}
+						</DropdownMenuContent>
+					</DropdownMenu>
 				) : null}
 				{readOnly ? (
 					<Badge variant="outline">Read only</Badge>
@@ -184,6 +245,7 @@ export function EditorHeader({
 					<>
 						{view === "canvas" ? (
 							<Button
+								className="max-md:hidden"
 								disabled={zeroNodes}
 								onClick={onArrange}
 								size="sm"
@@ -193,6 +255,7 @@ export function EditorHeader({
 							</Button>
 						) : null}
 						<Button
+							className="max-md:hidden"
 							onClick={handleToggle}
 							pending={toggling}
 							size="sm"
@@ -201,7 +264,10 @@ export function EditorHeader({
 							{enabled ? "Turn off workflow" : "Turn on workflow"}
 						</Button>
 						{zeroNodes ? (
-							<span className="type-caption text-text-2" id="save-hint">
+							<span
+								className="type-caption text-text-2 max-md:hidden"
+								id="save-hint"
+							>
 								Add a step to save
 							</span>
 						) : null}
