@@ -12,6 +12,7 @@ import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
 import { ThemeProvider } from "next-themes";
 import { lazy, Suspense } from "react";
 import { AnalyticsIdentity } from "#/components/common/analytics-identity";
+import { ImpersonationBanner } from "#/components/common/impersonation-banner";
 import glazeCss from "#/components/glaze/styles.css?url";
 import { useSlowWait } from "#/components/glaze/ui/slow-notice";
 import { Toaster } from "#/components/glaze/ui/toast";
@@ -152,6 +153,7 @@ function RootComponent() {
 			{/* Above the Outlet, not inside DashboardLayout: pages own their own
 				    layout wrap, so a provider down there would remount — and re-read
 				    storage — on every navigation. */}
+			<ImpersonationBanner />
 			<FlagsProvider clientId={DATABUDDY_CLIENT_ID}>
 				<RepoTabsProvider>
 					<Outlet />

@@ -29,6 +29,22 @@ describe("adminUsersSearchSchema", () => {
 	});
 });
 
+describe("adminUsersSearchSchema user", () => {
+	test("keeps the open user id", () => {
+		expect(adminUsersSearchSchema.parse({ user: "u1" })).toEqual({
+			status: "all",
+			user: "u1",
+		});
+	});
+
+	test("drops a bad user id", () => {
+		expect(adminUsersSearchSchema.parse({ user: "" })).toEqual({
+			status: "all",
+			user: undefined,
+		});
+	});
+});
+
 describe("adminReposSearchSchema", () => {
 	test("defaults to all repos", () => {
 		expect(adminReposSearchSchema.parse({})).toEqual({ status: "all" });

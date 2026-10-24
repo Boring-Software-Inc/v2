@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { AccountDeletionPlan } from "@tripwire/auth/account-deletion";
 import { z } from "zod";
-import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
+import {
+	accessGuardMiddleware,
+	notImpersonatingMiddleware,
+} from "#/lib/server/gated-server-fn";
 
 const FRESH_SESSION_MS = 24 * 60 * 60 * 1000;
 
@@ -77,7 +80,7 @@ export const listMySessions = createServerFn({ method: "GET" })
 	});
 
 export const revokeMySession = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware])
+	.middleware([accessGuardMiddleware, notImpersonatingMiddleware])
 	.inputValidator((input: { sessionId: string }) => sessionIdInput.parse(input))
 	.handler(async ({ data }): Promise<{ ok: true }> => {
 		const { auth, headers, session } = await accountContext();
@@ -94,7 +97,7 @@ export const revokeMySession = createServerFn({ method: "POST" })
 	});
 
 export const revokeMyOtherSessions = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware])
+	.middleware([accessGuardMiddleware, notImpersonatingMiddleware])
 	.handler(async (): Promise<{ ok: true }> => {
 		const { auth, headers } = await accountContext();
 		await auth.api.revokeOtherSessions({ headers });
@@ -118,7 +121,7 @@ export const getAccountDeletionPlan = createServerFn({ method: "GET" })
 	});
 
 export const deleteMyAccount = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware])
+	.middleware([accessGuardMiddleware, notImpersonatingMiddleware])
 	.inputValidator((input: { confirm: string }) =>
 		deleteAccountInput.parse(input),
 	)
@@ -137,8 +140,10 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
 			};
 		}
 		const { getDb } = await import("#/lib/server/db");
-		const { deleteAccount } = await import("@tripwire/auth/account-deletion");
-		const result = await deleteAccount(getDb().db, userId);
+		const { deleteAccountAndSyncFlags } = await import(
+			"#/lib/server/staff-users"
+		);
+		const result = await deleteAccountAndSyncFlags(getDb().db, userId);
 		if (result.ok) {
 			return { ok: true };
 		}

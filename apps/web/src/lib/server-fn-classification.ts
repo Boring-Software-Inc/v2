@@ -35,6 +35,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	 * in the service.
 	 */
 	redeemOrgInvite: "public",
+	stopImpersonating: "public",
+	recordDatabuddyAnonId: "public",
 
 	// ── authed (approved session, no org scope) ─────────────────────────
 	listMyOrgs: "authed", // the caller's own memberships
@@ -166,6 +168,20 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	reviewUserAccess: "staff", // writes through promote/rejectUserAccess only
 	adminUpdateOrgMemberRole: "staff", // shares the plugin hook's guard
 	setUserRerunCooldownExempt: "staff",
+	getAdminUser: "staff",
+	getAdminUserFlags: "staff",
+	getAdminUserActivity: "staff",
+	setAdminUserFlagOverride: "staff",
+	retryAdminUserFlagSync: "staff",
+	setAdminUserTimezone: "staff",
+	setAdminUserPlatformAdmin: "staff",
+	revokeAdminUserSession: "staff",
+	revokeAdminUserSessions: "staff",
+	revokeAdminUserAgent: "staff",
+	banAdminUser: "staff",
+	unbanAdminUser: "staff",
+	deleteAdminUser: "staff",
+	impersonateAdminUser: "staff",
 	getEconomicsOverview: "staff", // platform-wide cost data
 	getEconomicsSeries: "staff",
 	getCostByOrg: "staff",

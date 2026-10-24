@@ -9,5 +9,8 @@
 	"types": "./src/index.ts",
 	"scripts": {
 		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@tripwire/contracts": "workspace:*"
 	}
 }

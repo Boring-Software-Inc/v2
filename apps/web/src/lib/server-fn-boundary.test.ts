@@ -22,6 +22,8 @@ const PUBLIC_ALLOWLIST = new Set([
 	"getRun", // the unlisted-public run page — readable without a session by design
 	"getWebviewHost", // echoes the caller's own user-agent; /login is signed-out
 	"redeemOrgInvite", // §6: redemption APPROVES pending users — gating it deadlocks
+	"stopImpersonating",
+	"recordDatabuddyAnonId",
 ]);
 
 const MEMBER_MUTATION_ALLOWLIST = new Set(["leaveOrg", "rememberActiveOrg"]);
@@ -255,5 +257,40 @@ describe("active-repo is dead (URL owns scope)", () => {
 		const appsWeb = join(import.meta.dir, "..");
 		scan(appsWeb, hits);
 		expect(hits).toEqual([]);
+	});
+});
+
+describe("staff mutations and impersonation guards", () => {
+	const fns = discoverServerFns();
+
+	test("every staff mutation refuses cross-site requests", () => {
+		const open = fns
+			.filter((f) => f.staff && f.method === "POST" && !f.sameOrigin)
+			.map((f) => `${f.file}:${f.name}`);
+		expect(open).toEqual([]);
+	});
+
+	test("the public impersonation and analytics writes are same-origin only", () => {
+		for (const name of ["stopImpersonating", "recordDatabuddyAnonId"]) {
+			expect(fns.find((f) => f.name === name)?.sameOrigin).toBe(true);
+		}
+	});
+
+	test("account security changes are refused while impersonating", () => {
+		const guarded = fns
+			.filter((f) => f.notImpersonating)
+			.map((f) => f.name)
+			.sort();
+		expect(guarded).toEqual(
+			[
+				"deleteMyAccount",
+				"disconnectForge",
+				"grantConsentOrgs",
+				"grantDeviceOrgs",
+				"revokeConnectedAgent",
+				"revokeMyOtherSessions",
+				"revokeMySession",
+			].sort(),
+		);
 	});
 });

@@ -14,7 +14,7 @@ import {
 	TRIPWIRE_MCP_URL,
 } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
-import { agentServices } from "@tripwire/db";
+import { agentServices, staffUserServices } from "@tripwire/db";
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { jwt } from "better-auth/plugins";
@@ -98,6 +98,12 @@ export function agentAuthPlugins(input: { db: Db; mcpResource?: string }) {
 						accessToken: async ({ client, user }) => {
 							if (!user) {
 								return {};
+							}
+							if (await staffUserServices.isUserBanned(input.db, user.id)) {
+								throw new APIError("BAD_REQUEST", {
+									error: "invalid_grant",
+									error_description: "This account is banned from Tripwire.",
+								});
 							}
 							const grant = await agentServices.getAgentGrant(input.db, {
 								userId: user.id,

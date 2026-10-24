@@ -33,10 +33,13 @@ export {
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	recoverInstallationOptions,
+	SYNC_FLAG_OVERRIDES_QUEUE,
 	SYNC_REPO_LABELS_QUEUE,
 	SYNC_REPO_REVIEWERS_QUEUE,
+	type SyncFlagOverridesJob,
 	type SyncRepoLabelsJob,
 	type SyncRepoReviewersJob,
+	syncFlagOverridesOptions,
 	syncRepoLabelsOptions,
 	syncRepoReviewersOptions,
 } from "./queue.ts";
@@ -118,6 +121,14 @@ export type {
 } from "./services/economics.ts";
 export * as economicsServices from "./services/economics.ts";
 export * as eventServices from "./services/events.ts";
+export * as flagOverrideServices from "./services/flag-overrides.ts";
+export {
+	FLAG_MISSING_MESSAGE,
+	type FlagOverrideHistoryEntry,
+	type SetFlagOverrideResult,
+	type SyncFlagResult,
+	type UserFlagOverride,
+} from "./services/flag-overrides.ts";
 export * as insightServices from "./services/insights.ts";
 export type {
 	InstallAccessCheck,
@@ -176,6 +187,17 @@ export type {
 	StaffUserRow,
 } from "./services/staff.ts";
 export * as staffServices from "./services/staff.ts";
+export type { StaffAuditEntry } from "./services/staff-audit.ts";
+export * as staffAuditServices from "./services/staff-audit.ts";
+export type {
+	SessionGuardState,
+	StaffContributorRun,
+	StaffForgeIdentity,
+	StaffModerationDecision,
+	StaffUserDetail,
+	StaffUserSession,
+} from "./services/staff-users.ts";
+export * as staffUserServices from "./services/staff-users.ts";
 export type { WorkerDeploymentRow } from "./services/worker-deployments.ts";
 export * as workerDeploymentServices from "./services/worker-deployments.ts";
 export type {

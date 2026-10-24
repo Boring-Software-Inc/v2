@@ -30,6 +30,7 @@ export interface McpDeps {
 	getBoss: () => Promise<PgBoss>;
 	config: McpConfig;
 	logger: Logger;
+	verifyToken?: typeof verifyAgentToken;
 }
 
 const TOOL_NAME_SET = new Set<string>(TOOL_NAMES);
@@ -57,6 +58,7 @@ function calledTools(body: unknown): ToolName[] {
 
 export function createApp(deps: McpDeps) {
 	const { config, db, logger } = deps;
+	const verifyToken = deps.verifyToken ?? verifyAgentToken;
 	const mcpPath = new URL(config.resource).pathname || "/mcp";
 	const app = new Hono();
 
@@ -95,7 +97,7 @@ export function createApp(deps: McpDeps) {
 				400,
 			);
 		}
-		const token = await verifyAgentToken(request, config);
+		const token = await verifyToken(request, config);
 		if (!token.ok) {
 			return unauthorized(config, token.reason, selection.readOnly);
 		}

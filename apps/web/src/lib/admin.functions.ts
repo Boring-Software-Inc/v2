@@ -1,5 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { AccessStatus, OrgRole } from "@tripwire/contracts";
+import {
+	type AccessStatus,
+	type OrgRole,
+	orgRoleSchema,
+	staffReviewAccessInputSchema,
+	staffSetRerunExemptInputSchema,
+} from "@tripwire/contracts";
 import type {
 	StaffInstallationList,
 	StaffOrgList,
@@ -8,8 +14,12 @@ import type {
 	StaffRepoList,
 	StaffUserList,
 } from "@tripwire/db";
+import { z } from "zod";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
-import { platformAdminMiddleware } from "#/lib/server/staff-guard";
+import {
+	platformAdminMiddleware,
+	sameOriginMiddleware,
+} from "#/lib/server/staff-guard";
 
 export type {
 	StaffInstallationList,
@@ -125,30 +135,46 @@ export interface ReviewAccessResult {
  * a bulk approve is a no-op for already-approved users.
  */
 export const reviewUserAccess = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, platformAdminMiddleware])
+	.middleware([
+		accessGuardMiddleware,
+		platformAdminMiddleware,
+		sameOriginMiddleware,
+	])
 	.inputValidator(
-		(input: { userIds: string[]; decision: "approve" | "reject" }) => input,
+		(input: { userIds: string[]; decision: "approve" | "reject" }) =>
+			staffReviewAccessInputSchema.parse(input),
 	)
 	.handler(async ({ data, context }): Promise<ReviewAccessResult> => {
 		const userIds = [...new Set(data.userIds)].slice(0, 100);
 		const { getDb } = await import("#/lib/server/db");
-		const { accessServices } = await import("@tripwire/db");
+		const { accessServices, staffAuditServices } = await import("@tripwire/db");
 		const reviewedBy = context.staff.userId;
+		const action =
+			data.decision === "approve" ? "access.approve" : "access.decline";
 		let changed = 0;
 		await getDb().db.transaction(async (tx) => {
 			for (const userId of userIds) {
-				if (data.decision === "approve") {
-					const { promoted } = await accessServices.promoteUserAccess(tx, {
-						userId,
-						reviewedBy,
+				const flipped =
+					data.decision === "approve"
+						? (
+								await accessServices.promoteUserAccess(tx, {
+									userId,
+									reviewedBy,
+								})
+							).promoted
+						: (
+								await accessServices.rejectUserAccess(tx, {
+									userId,
+									reviewedBy,
+								})
+							).rejected;
+				if (flipped) {
+					changed++;
+					await staffAuditServices.recordStaffAudit(tx, {
+						actorId: reviewedBy,
+						targetUserId: userId,
+						action,
 					});
-					if (promoted) changed++;
-				} else {
-					const { rejected } = await accessServices.rejectUserAccess(tx, {
-						userId,
-						reviewedBy,
-					});
-					if (rejected) changed++;
 				}
 			}
 		});
@@ -161,17 +187,40 @@ export const reviewUserAccess = createServerFn({ method: "POST" })
  * SAME `assertRoleChangeAllowed` guard the plugin hook runs, so the last-admin
  * and personal-org invariants apply identically.
  */
+const memberRoleInput = z.object({
+	memberId: z.string().min(1).max(200),
+	role: orgRoleSchema,
+});
+
 export const adminUpdateOrgMemberRole = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, platformAdminMiddleware])
-	.inputValidator((input: { memberId: string; role: OrgRole }) => input)
+	.middleware([
+		accessGuardMiddleware,
+		platformAdminMiddleware,
+		sameOriginMiddleware,
+	])
+	.inputValidator((input: { memberId: string; role: OrgRole }) =>
+		memberRoleInput.parse(input),
+	)
 	.handler(
-		async ({ data }): Promise<{ ok: true } | { ok: false; error: string }> => {
+		async ({
+			data,
+			context,
+		}): Promise<{ ok: true } | { ok: false; error: string }> => {
 			const { getDb } = await import("#/lib/server/db");
-			const { orgServices } = await import("@tripwire/db");
-			return orgServices.updateMemberRoleForStaff(getDb().db, {
+			const { orgServices, staffAuditServices } = await import("@tripwire/db");
+			const result = await orgServices.updateMemberRoleForStaff(getDb().db, {
 				memberId: data.memberId,
 				role: data.role,
 			});
+			if (result.ok) {
+				await staffAuditServices.recordStaffAudit(getDb().db, {
+					actorId: context.staff.userId,
+					targetUserId: null,
+					action: "org.member_role",
+					detail: { memberId: data.memberId, role: data.role },
+				});
+			}
+			return result;
 		},
 	);
 
@@ -180,10 +229,25 @@ export const adminUpdateOrgMemberRole = createServerFn({ method: "POST" })
  * global via `RERUN_COOLDOWN_SECONDS`; this only opts an account out.
  */
 export const setUserRerunCooldownExempt = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, platformAdminMiddleware])
-	.inputValidator((input: { userId: string; exempt: boolean }) => input)
-	.handler(async ({ data }): Promise<{ changed: boolean }> => {
+	.middleware([
+		accessGuardMiddleware,
+		platformAdminMiddleware,
+		sameOriginMiddleware,
+	])
+	.inputValidator((input: { userId: string; exempt: boolean }) =>
+		staffSetRerunExemptInputSchema.parse(input),
+	)
+	.handler(async ({ data, context }): Promise<{ changed: boolean }> => {
 		const { getDb } = await import("#/lib/server/db");
-		const { staffServices } = await import("@tripwire/db");
-		return staffServices.setRerunCooldownExempt(getDb().db, data);
+		const { staffAuditServices, staffServices } = await import("@tripwire/db");
+		const result = await staffServices.setRerunCooldownExempt(getDb().db, data);
+		if (result.changed) {
+			await staffAuditServices.recordStaffAudit(getDb().db, {
+				actorId: context.staff.userId,
+				targetUserId: data.userId,
+				action: "account.rerun_cooldown",
+				detail: { exempt: data.exempt },
+			});
+		}
+		return result;
 	});

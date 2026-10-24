@@ -4,6 +4,7 @@ import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
 import {
 	agentGrants,
+	deviceCode,
 	oauthAccessToken,
 	oauthClient,
 	oauthClientResource,
@@ -12,6 +13,8 @@ import {
 	oauthResource,
 } from "../schema/oauth.ts";
 import { organization } from "../schema/organizations.ts";
+import type { DbLike } from "./access.ts";
+import { banNotInForce } from "./bans.ts";
 
 export const AGENT_GRANT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -56,10 +59,12 @@ export async function getAgentGrant(
 			createdAt: agentGrants.createdAt,
 		})
 		.from(agentGrants)
+		.innerJoin(user, eq(user.id, agentGrants.userId))
 		.where(
 			and(
 				eq(agentGrants.userId, input.userId),
 				eq(agentGrants.clientId, input.clientId),
+				banNotInForce(),
 			),
 		)
 		.limit(1);
@@ -185,6 +190,19 @@ export async function revokeAgent(
 				),
 			);
 	});
+}
+
+export async function revokeAllAgentCredentials(
+	db: DbLike,
+	userId: string,
+): Promise<void> {
+	await db.delete(agentGrants).where(eq(agentGrants.userId, userId));
+	await db.delete(oauthConsent).where(eq(oauthConsent.userId, userId));
+	await db.delete(oauthAccessToken).where(eq(oauthAccessToken.userId, userId));
+	await db
+		.delete(oauthRefreshToken)
+		.where(eq(oauthRefreshToken.userId, userId));
+	await db.delete(deviceCode).where(eq(deviceCode.userId, userId));
 }
 
 export async function removeOrgFromAgentGrants(

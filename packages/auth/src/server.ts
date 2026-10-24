@@ -16,6 +16,7 @@ import { applySignupAccessDefaults } from "./access.ts";
 import { agentAuthPlugins, agentRateLimitRules } from "./agent-auth.ts";
 import { orgAc, orgRoles } from "./org-access.ts";
 import { orgRoleGuard } from "./org-role-guard.ts";
+import { staffImpersonation } from "./staff-impersonation.ts";
 
 /**
  * Better Auth (§10): GitHub OAuth only at launch. One `createAuth` shared by
@@ -304,6 +305,7 @@ export function createAuth(input: CreateAuthInput) {
 			 * isPlatformAdmin staff model is unchanged.
 			 */
 			admin(),
+			staffImpersonation({ db: input.db }),
 			/**
 			 * Better Auth Infrastructure dashboard connector — mounts the /dash/*
 			 * admin + audit endpoints and streams auth events to the infra API.

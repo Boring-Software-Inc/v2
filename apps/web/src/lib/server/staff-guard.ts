@@ -35,6 +35,11 @@ export const platformAdminMiddleware = createMiddleware({
 	if (!session) {
 		throw notFound();
 	}
+	const { fenceOf } = await import("#/lib/server/staff-users");
+	const fence = await fenceOf(session);
+	if (!fence.live || fence.impersonatedBy) {
+		throw notFound();
+	}
 	const { isPlatformAdmin } = await import("@tripwire/auth/staff-gate");
 	const { getDb } = await import("#/lib/server/db");
 	if (!(await isPlatformAdmin(getDb().db, session.user.id))) {
@@ -44,3 +49,11 @@ export const platformAdminMiddleware = createMiddleware({
 });
 
 export type StaffContext = { staff: { userId: string } };
+
+export const sameOriginMiddleware = createMiddleware({
+	type: "function",
+}).server(async ({ next }) => {
+	const { assertSameOrigin } = await import("#/lib/server/same-origin");
+	await assertSameOrigin();
+	return next();
+});

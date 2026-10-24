@@ -29,9 +29,23 @@ export const accessGuardMiddleware = createMiddleware({
 	const { assertApproved } = await import("@tripwire/auth/access-gate");
 	const { getDb } = await import("#/lib/server/db");
 	const { presenceServices } = await import("@tripwire/db");
-	presenceServices.touchLastSeen(getDb().db, session.user.id).catch((error) => {
-		console.error("[presence] last seen write failed:", error);
-	});
+	const { fenceOf, SESSION_ENDED_MESSAGE } = await import(
+		"#/lib/server/staff-users"
+	);
+	const guard = await fenceOf(session);
+	if (!guard.live) {
+		throw new Error(SESSION_ENDED_MESSAGE);
+	}
+	if (guard.banned) {
+		throw new Error("This account is banned from Tripwire.");
+	}
+	if (!guard.impersonatedBy) {
+		presenceServices
+			.touchLastSeen(getDb().db, session.user.id)
+			.catch((error) => {
+				console.error("[presence] last seen write failed:", error);
+			});
+	}
 	const denial = await assertApproved(
 		getDb().db,
 		session.user.id,
@@ -60,3 +74,11 @@ export const accessGuardMiddleware = createMiddleware({
  * enforces that each product endpoint carries this middleware; bare
  * `createServerFn` is reserved for the explicit public allowlist there.
  */
+
+export const notImpersonatingMiddleware = createMiddleware({
+	type: "function",
+}).server(async ({ next }) => {
+	const { assertNotImpersonating } = await import("#/lib/server/staff-users");
+	await assertNotImpersonating();
+	return next();
+});

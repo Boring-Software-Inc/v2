@@ -63,6 +63,10 @@ export const user = pgTable(
 		lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
 		timezone: text("timezone"),
 		reduceAgentMotion: boolean("reduce_agent_motion").notNull().default(false),
+		databuddyAnonId: text("databuddy_anon_id"),
+		databuddyAnonIdAt: timestamp("databuddy_anon_id_at", {
+			withTimezone: true,
+		}),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
