@@ -79,10 +79,12 @@ import {
 } from "#/components/glaze/ui/dialog";
 import { toast } from "#/components/glaze/ui/toast";
 import {
-	AGENT_SETTLE_MS,
+	AGENT_SETTLE_SLACK_MS,
 	decorateLive,
+	freshOnMount,
 	settleLive,
 } from "#/components/workflows/editor/agent-canvas";
+import { AgentEnterContext } from "#/components/workflows/editor/agent-work-context";
 import { CanvasZoom } from "#/components/workflows/editor/canvas-zoom";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import {
@@ -152,6 +154,7 @@ const INPUT_HANDLE_OFFSET = { x: 0, y: 17 };
 const NEXT_STEP_GAP = 96;
 const CARD_WIDTH = 224;
 const LANE_PREFIX = "lane:";
+const NO_ENTERING: ReadonlyMap<string, number> = new Map();
 
 type CanvasNode = TripwireFlowNode | LaneHeadFlowNode;
 
@@ -274,6 +277,7 @@ function CanvasDropzone({
 export interface WorkflowEditorLive {
 	revision: number;
 	change: WorkflowChangeSet | null;
+	changedAt: string | null;
 	motion: AgentMotion;
 }
 
@@ -398,7 +402,12 @@ function EditorBody({
 		useReactFlow<TripwireFlowNode, FlowEdge>();
 	const shownGraph = useRef({ nodes, edges });
 	shownGraph.current = { nodes, edges };
-	const liveRevision = useRef(live?.revision);
+	const [mountRevision] = useState(() =>
+		live && freshOnMount(live.changedAt, new Date()) ? null : live?.revision,
+	);
+	const liveRevision = useRef(mountRevision);
+	const [entering, setEntering] =
+		useState<ReadonlyMap<string, number>>(NO_ENTERING);
 	const liveChange = live?.change ?? null;
 	const liveMotion = live?.motion;
 	useEffect(() => {
@@ -421,6 +430,7 @@ function EditorBody({
 		});
 		setNodes(decorated.nodes);
 		setEdges(decorated.edges);
+		setEntering(decorated.entering);
 		const fit = setTimeout(
 			() =>
 				fitView({
@@ -430,9 +440,10 @@ function EditorBody({
 			60,
 		);
 		const settle = setTimeout(() => {
+			setEntering(NO_ENTERING);
 			setNodes((current) => settleLive(current));
 			setEdges((current) => settleLive(current));
-		}, AGENT_SETTLE_MS);
+		}, decorated.settleMs + AGENT_SETTLE_SLACK_MS);
 		return () => {
 			clearTimeout(fit);
 			clearTimeout(settle);
@@ -638,7 +649,7 @@ function EditorBody({
 		return [
 			...decor.heads.map(
 				(head): LaneHeadFlowNode => ({
-					id: `${LANE_PREFIX}head:${head.index}`,
+					id: `${LANE_PREFIX}head:${head.id}`,
 					type: "laneHead",
 					position: { x: head.x, y: head.y },
 					data: { index: head.index, label: head.label },
@@ -1286,50 +1297,52 @@ function EditorBody({
 							<ProblemsContext.Provider value={problemsApi}>
 								<EditFieldContext.Provider value={editField}>
 									<DragPlanContext.Provider value={plan}>
-										<ReactFlow
-											connectionLineComponent={TypedConnectionLine}
-											data-agent-live={live ? "" : undefined}
-											data-agent-motion={live?.motion}
-											data-drag-tone={
-												plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
-											}
-											deleteKeyCode={
-												readOnly || view !== "canvas" ? null : DELETE_KEYS
-											}
-											onBeforeDelete={readOnly ? undefined : onBeforeDelete}
-											edges={flowEdges}
-											edgeTypes={EDGE_TYPES}
-											edgesReconnectable={!readOnly}
-											elementsSelectable
-											fitView
-											fitViewOptions={fitViewOptions()}
-											isValidConnection={isValidConnection}
-											nodes={canvasNodes as unknown as TripwireFlowNode[]}
-											nodesConnectable={!readOnly}
-											nodesDraggable={!readOnly}
-											nodeTypes={NODE_TYPES}
-											onConnect={readOnly ? undefined : onConnect}
-											onConnectEnd={onConnectEnd}
-											onConnectStart={cancelPending}
-											onNodeClick={cancelPending}
-											onPaneClick={cancelPending}
-											onReconnectEnd={() => {
-												reconnecting.current = false;
-											}}
-											onReconnectStart={() => {
-												reconnecting.current = true;
-											}}
-											onEdgesChange={onEdgesChange}
-											onNodesChange={onNodesChange}
-											onReconnect={readOnly ? undefined : onReconnect}
-											proOptions={{ hideAttribution: true }}
-											style={CANVAS_TOKENS}
-										>
-											<CanvasZoom />
-											<LaneRules ys={decor.rules.map((rule) => rule.y)} />
-											<DropHint />
-											{pending ? <PendingConnection {...pending} /> : null}
-										</ReactFlow>
+										<AgentEnterContext.Provider value={entering}>
+											<ReactFlow
+												connectionLineComponent={TypedConnectionLine}
+												data-agent-live={live ? "" : undefined}
+												data-agent-motion={live?.motion}
+												data-drag-tone={
+													plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
+												}
+												deleteKeyCode={
+													readOnly || view !== "canvas" ? null : DELETE_KEYS
+												}
+												onBeforeDelete={readOnly ? undefined : onBeforeDelete}
+												edges={flowEdges}
+												edgeTypes={EDGE_TYPES}
+												edgesReconnectable={!readOnly}
+												elementsSelectable
+												fitView
+												fitViewOptions={fitViewOptions()}
+												isValidConnection={isValidConnection}
+												nodes={canvasNodes as TripwireFlowNode[]}
+												nodesConnectable={!readOnly}
+												nodesDraggable={!readOnly}
+												nodeTypes={NODE_TYPES}
+												onConnect={readOnly ? undefined : onConnect}
+												onConnectEnd={onConnectEnd}
+												onConnectStart={cancelPending}
+												onNodeClick={cancelPending}
+												onPaneClick={cancelPending}
+												onReconnectEnd={() => {
+													reconnecting.current = false;
+												}}
+												onReconnectStart={() => {
+													reconnecting.current = true;
+												}}
+												onEdgesChange={onEdgesChange}
+												onNodesChange={onNodesChange}
+												onReconnect={readOnly ? undefined : onReconnect}
+												proOptions={{ hideAttribution: true }}
+												style={CANVAS_TOKENS}
+											>
+												<CanvasZoom />
+												<LaneRules ys={decor.rules.map((rule) => rule.y)} />
+												<DropHint />
+												{pending ? <PendingConnection {...pending} /> : null}
+											</ReactFlow>
+										</AgentEnterContext.Provider>
 									</DragPlanContext.Provider>
 								</EditFieldContext.Provider>
 							</ProblemsContext.Provider>

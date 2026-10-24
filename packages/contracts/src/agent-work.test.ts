@@ -112,30 +112,30 @@ describe("touchesFromChangeSet", () => {
 });
 
 describe("agent presence", () => {
-	test("an agent works until two minutes after its last signal", () => {
-		expect(agentWorking(presence(), when(119))).toBe(true);
-		expect(agentWorking(presence(), when(120))).toBe(false);
+	test("an agent works until 30 seconds after its last signal", () => {
+		expect(agentWorking(presence(), when(29))).toBe(true);
+		expect(agentWorking(presence(), when(30))).toBe(false);
 	});
 
 	test("a finished agent is not working", () => {
 		expect(agentWorking(presence({ finishedAt: at(1) }), when(2))).toBe(false);
 	});
 
-	test("a node clears 40 seconds after its last touch", () => {
+	test("a node clears 12 seconds after its last touch", () => {
 		const work = {
 			agents: [
 				presence({
-					lastSignalAt: at(30),
+					lastSignalAt: at(10),
 					nodes: [
 						{ id: "a", action: "write", at: at(0) },
-						{ id: "b", action: "edit", at: at(30) },
+						{ id: "b", action: "edit", at: at(10) },
 					],
 				}),
 			],
 		};
-		expect([...liveNodeTouches(work, when(39)).keys()]).toEqual(["a", "b"]);
-		expect([...liveNodeTouches(work, when(40)).keys()]).toEqual(["b"]);
-		expect([...liveNodeTouches(work, when(70)).keys()]).toEqual([]);
+		expect([...liveNodeTouches(work, when(11)).keys()]).toEqual(["a", "b"]);
+		expect([...liveNodeTouches(work, when(12)).keys()]).toEqual(["b"]);
+		expect([...liveNodeTouches(work, when(22)).keys()]).toEqual([]);
 	});
 
 	test("the newest touch on a node wins across agents", () => {
@@ -167,9 +167,9 @@ describe("agent presence", () => {
 				}),
 			],
 		};
-		expect(workSettlesIn(work, when(20))).toBe(30_000);
-		expect(workSettlesIn(work, when(50))).toBe(80_000);
-		expect(workSettlesIn(work, when(130))).toBeNull();
+		expect(workSettlesIn(work, when(15))).toBe(7_000);
+		expect(workSettlesIn(work, when(25))).toBe(15_000);
+		expect(workSettlesIn(work, when(40))).toBeNull();
 	});
 });
 
@@ -177,13 +177,13 @@ describe("touch lists", () => {
 	test("merging drops stale touches and moves a retouched node to the end", () => {
 		const held = [
 			{ id: "old", action: "write" as const, at: at(0) },
-			{ id: "a", action: "write" as const, at: at(30) },
-			{ id: "b", action: "write" as const, at: at(31) },
+			{ id: "a", action: "write" as const, at: at(40) },
+			{ id: "b", action: "write" as const, at: at(41) },
 		];
 		expect(
 			mergeTouches(held, [{ id: "a", action: "edit", at: at(45) }], when(45)),
 		).toEqual([
-			{ id: "b", action: "write", at: at(31) },
+			{ id: "b", action: "write", at: at(41) },
 			{ id: "a", action: "edit", at: at(45) },
 		]);
 	});

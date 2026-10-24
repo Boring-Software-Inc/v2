@@ -1,5 +1,6 @@
 import type { LiveNodeTouch } from "@tripwire/contracts";
 import { createContext, useContext, useRef } from "react";
+import { AgentDissolve } from "#/components/agent/agent-dissolve";
 import { AgentOutline } from "#/components/agent/agent-outline";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
 
@@ -12,7 +13,7 @@ const EMPTY: AgentWorkState = { touches: new Map(), motion: "full" };
 
 export const AgentWorkContext = createContext<AgentWorkState>(EMPTY);
 
-/** The dithered outline on a node an agent is working on; it fades when released. */
+/** The agent outline on a node an agent is working on; it fades when released. */
 export function NodeAgentOutline({ nodeId }: { nodeId: string }) {
 	const { touches, motion } = useContext(AgentWorkContext);
 	const touch = touches.get(nodeId);
@@ -24,12 +25,14 @@ export function NodeAgentOutline({ nodeId }: { nodeId: string }) {
 	if (!shown) {
 		return null;
 	}
-	return (
-		<AgentOutline
-			action={shown.action}
-			active={Boolean(touch)}
-			at={shown.at}
-			motion={motion}
-		/>
-	);
+	return <AgentOutline active={Boolean(touch)} motion={motion} seed={nodeId} />;
+}
+
+export const AgentEnterContext = createContext<ReadonlyMap<string, number>>(
+	new Map(),
+);
+
+export function NodeEnterDissolve({ nodeId }: { nodeId: string }) {
+	const delay = useContext(AgentEnterContext).get(nodeId);
+	return delay === undefined ? null : <AgentDissolve delay={delay} />;
 }

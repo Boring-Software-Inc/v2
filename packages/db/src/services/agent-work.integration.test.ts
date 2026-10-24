@@ -283,14 +283,21 @@ describe("drafts from an agent", () => {
 		expect(work.draft?.status).toBe("open");
 	});
 
-	test("an agent that stops signalling drops off after two minutes", async () => {
+	test("an agent that stops signalling drops off after 30 seconds", async () => {
 		const repoId = await newRepo("crash");
 		const definition = staleTemplate();
 		await saveAgentDraft(db, { repoId, agent, definition, now: T0 });
+		const held = await getWorkflowWork(db, {
+			repoId,
+			definitionId: definition.id,
+			now: later(29),
+		});
+		expect(held.agents).toHaveLength(1);
+		expect(liveNodeTouches(held, later(29)).size).toBe(0);
 		const work = await getWorkflowWork(db, {
 			repoId,
 			definitionId: definition.id,
-			now: later(121),
+			now: later(30),
 		});
 		expect(work.agents).toEqual([]);
 		expect(work.draft?.status).toBe("open");

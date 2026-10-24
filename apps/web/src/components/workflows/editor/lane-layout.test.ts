@@ -102,6 +102,14 @@ describe("laneDecor", () => {
 		]);
 	});
 
+	test("a head is keyed by its lane's trigger, so it moves with its lane", () => {
+		expect(decor.heads.map((head) => head.id)).toEqual([
+			"warn",
+			"close",
+			"reset",
+		]);
+	});
+
 	test("a full width rule sits between each pair of lanes", () => {
 		expect(decor.rules).toHaveLength(2);
 		const [first, second] = decor.rules;
