@@ -530,11 +530,10 @@ function WorkflowRow({
 		<>
 			<div className="relative">
 				<AgentOutline
-					action={agents[0]?.nodes.at(-1)?.action ?? "write"}
 					active={agents.length > 0}
-					at={agents[0]?.lastSignalAt ?? workflow.updatedAt}
 					motion={motion}
 					radius={14}
+					seed={workflow.id}
 				/>
 				<EntityCard
 					badges={

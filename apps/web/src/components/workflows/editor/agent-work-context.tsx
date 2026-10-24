@@ -12,7 +12,7 @@ const EMPTY: AgentWorkState = { touches: new Map(), motion: "full" };
 
 export const AgentWorkContext = createContext<AgentWorkState>(EMPTY);
 
-/** The dithered outline on a node an agent is working on; it fades when released. */
+/** The agent outline on a node an agent is working on; it fades when released. */
 export function NodeAgentOutline({ nodeId }: { nodeId: string }) {
 	const { touches, motion } = useContext(AgentWorkContext);
 	const touch = touches.get(nodeId);
@@ -24,12 +24,5 @@ export function NodeAgentOutline({ nodeId }: { nodeId: string }) {
 	if (!shown) {
 		return null;
 	}
-	return (
-		<AgentOutline
-			action={shown.action}
-			active={Boolean(touch)}
-			at={shown.at}
-			motion={motion}
-		/>
-	);
+	return <AgentOutline active={Boolean(touch)} motion={motion} seed={nodeId} />;
 }

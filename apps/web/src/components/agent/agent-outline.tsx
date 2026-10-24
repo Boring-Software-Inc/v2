@@ -1,56 +1,73 @@
-import type { AgentAction } from "@tripwire/contracts";
 import { useEffect, useRef, useState } from "react";
 import { onAgentTick } from "#/components/agent/agent-ticker";
 import {
-	cellLit,
 	DEFAULT_RING,
+	DEFAULT_SHIMMER,
 	type RingCell,
 	type RingGeometry,
 	ringCells,
 	ringGeometry,
-	ringIntensity,
+	ringPhase,
+	ringTiming,
+	type ShimmerTiming,
+	segmentLit,
+	trackAlpha,
 } from "#/components/agent/dither-ring";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
 import { cn } from "#/lib/glaze/utils";
 
 const FADE_OUT_MS = 300;
 
+interface RingLook {
+	ring: RingGeometry;
+	timing: ShimmerTiming;
+}
+
+const DEFAULT_LOOK: RingLook = { ring: DEFAULT_RING, timing: DEFAULT_SHIMMER };
+
 function agentColor(el: HTMLElement): string {
 	return getComputedStyle(el).getPropertyValue("--agent").trim() || "blue";
 }
 
-function sameRing(a: RingGeometry, b: RingGeometry): boolean {
-	return a.cell === b.cell && a.band === b.band && a.pad === b.pad;
+function readLook(el: HTMLElement): RingLook {
+	const style = getComputedStyle(el);
+	const token = (name: string) => style.getPropertyValue(name);
+	return {
+		ring: ringGeometry({
+			gap: token("--agent-outline-gap"),
+			track: token("--agent-outline-width"),
+			segment: token("--agent-segment-width"),
+			scale: token("--agent-dither-scale"),
+		}),
+		timing: ringTiming({
+			lap: token("--agent-lap"),
+			breathe: token("--agent-breathe"),
+			length: token("--agent-segment-length"),
+		}),
+	};
 }
 
-function readRing(el: HTMLElement): RingGeometry {
-	const style = getComputedStyle(el);
-	return ringGeometry(
-		style.getPropertyValue("--agent-outline-width"),
-		style.getPropertyValue("--agent-dither-scale"),
-	);
+function sameLook(a: RingLook, b: RingLook): boolean {
+	return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export interface AgentOutlineProps {
 	active: boolean;
-	action: AgentAction;
-	at: string;
 	motion: AgentMotion;
+	seed: string;
 	radius?: number;
 	className?: string;
 }
 
 /**
- * A dithered blue band around whatever it sits in, drawn on a canvas from
- * the 4 by 4 Bayer grid. It drifts while an agent works on the thing and
- * sweeps once for each new read, write, edit or delete. Reduced motion
- * draws it once, still.
+ * A thin blue track around whatever it sits in, with a dithered segment
+ * that travels round it while the track breathes. Reduced motion draws the
+ * track alone, still.
  */
 export function AgentOutline({
 	active,
-	action,
-	at,
 	motion,
+	seed,
 	radius = 11,
 	className,
 }: AgentOutlineProps) {
@@ -58,9 +75,8 @@ export function AgentOutline({
 	const [size, setSize] = useState<{ width: number; height: number } | null>(
 		null,
 	);
-	const [ring, setRing] = useState<RingGeometry>(DEFAULT_RING);
+	const [look, setLook] = useState<RingLook>(DEFAULT_LOOK);
 	const [shown, setShown] = useState(active);
-	const startedAt = useRef(0);
 
 	useEffect(() => {
 		if (active) {
@@ -82,16 +98,12 @@ export function AgentOutline({
 			if (box) {
 				setSize({ width: box.inlineSize, height: box.blockSize });
 			}
-			const next = readRing(canvas);
-			setRing((current) => (sameRing(current, next) ? current : next));
+			const next = readLook(canvas);
+			setLook((current) => (sameLook(current, next) ? current : next));
 		});
 		observer.observe(parent);
 		return () => observer.disconnect();
 	}, []);
-
-	useEffect(() => {
-		startedAt.current = Date.parse(at) || Date.now();
-	}, [at]);
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -102,25 +114,43 @@ export function AgentOutline({
 		if (!context) {
 			return;
 		}
+		const { ring, timing } = look;
 		const ratio = window.devicePixelRatio || 1;
-		const width = size.width + ring.pad * 2;
-		const height = size.height + ring.pad * 2;
-		canvas.width = Math.round(width * ratio);
-		canvas.height = Math.round(height * ratio);
+		canvas.width = Math.round((size.width + ring.pad * 2) * ratio);
+		canvas.height = Math.round((size.height + ring.pad * 2) * ratio);
 		const cells: RingCell[] = ringCells(size.width, size.height, radius, ring);
 		const still = motion === "reduced";
-		const pixel = ring.cell * ratio;
+		const phase = ringPhase(seed);
+		const inset = ring.pad - ring.gap - ring.track / 2;
 		const draw = (clock: number) => {
+			context.setTransform(ratio, 0, 0, ratio, 0, 0);
 			context.clearRect(0, 0, canvas.width, canvas.height);
-			context.fillStyle = agentColor(canvas);
-			const elapsed = still
-				? Number.POSITIVE_INFINITY
-				: Date.now() - startedAt.current;
+			const color = agentColor(canvas);
+			context.strokeStyle = color;
+			context.fillStyle = color;
+			context.lineWidth = ring.track;
+			context.globalAlpha = trackAlpha(clock, still, timing);
+			context.beginPath();
+			context.roundRect(
+				inset,
+				inset,
+				size.width + (ring.pad - inset) * 2,
+				size.height + (ring.pad - inset) * 2,
+				radius + ring.gap + ring.track / 2,
+			);
+			context.stroke();
+			if (still) {
+				return;
+			}
+			context.globalAlpha = 1;
 			for (const cell of cells) {
-				if (
-					cellLit(cell, ringIntensity(cell, { action, elapsed, clock, still }))
-				) {
-					context.fillRect(cell.col * pixel, cell.row * pixel, pixel, pixel);
+				if (segmentLit(cell, clock, phase, timing)) {
+					context.fillRect(
+						cell.col * ring.cell,
+						cell.row * ring.cell,
+						ring.cell,
+						ring.cell,
+					);
 				}
 			}
 		};
@@ -129,7 +159,7 @@ export function AgentOutline({
 			return;
 		}
 		return onAgentTick(draw);
-	}, [size, shown, motion, radius, action, ring]);
+	}, [size, shown, motion, radius, look, seed]);
 
 	return (
 		<canvas
@@ -142,9 +172,9 @@ export function AgentOutline({
 			data-agent-outline={active ? "on" : "off"}
 			ref={canvasRef}
 			style={{
-				inset: -ring.pad,
-				width: `calc(100% + ${ring.pad * 2}px)`,
-				height: `calc(100% + ${ring.pad * 2}px)`,
+				inset: -look.ring.pad,
+				width: `calc(100% + ${look.ring.pad * 2}px)`,
+				height: `calc(100% + ${look.ring.pad * 2}px)`,
 			}}
 		/>
 	);
