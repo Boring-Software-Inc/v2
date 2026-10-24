@@ -13,10 +13,10 @@ import { SkeletonSwap, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { myOrgsQueryOptions } from "#/lib/org.query";
 
-const ROLE_LABEL: Record<string, string> = {
-	admin: "Admin",
-	member: "Member",
-};
+const ROLE_LABEL = new Map([
+	["admin", "Admin"],
+	["member", "Member"],
+]);
 
 const ROW_SLOTS = ["a", "b"] as const;
 
@@ -70,7 +70,7 @@ export function AccountOrgsPage({ onOpenOrg }: { onOpenOrg: () => void }) {
 										<Badge size="sm">Personal</Badge>
 									) : (
 										<Badge size="sm" variant="outline">
-											{ROLE_LABEL[org.role] ?? org.role}
+											{ROLE_LABEL.get(org.role) ?? org.role}
 										</Badge>
 									)}
 								</ItemTitle>

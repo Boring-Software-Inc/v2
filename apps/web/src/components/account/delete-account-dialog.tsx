@@ -55,18 +55,18 @@ import { orgQueryKeys } from "#/lib/org.query";
 
 type RepoState = "on" | "turning-off" | "off" | "failed";
 
-const REPO_STATUS: Record<RepoState, { status: StatusValue; label: string }> = {
+const REPO_STATUS = {
 	on: { status: "idle", label: "On" },
 	"turning-off": { status: "running", label: "Turning off" },
 	off: { status: "ok", label: "Off" },
 	failed: { status: "fail", label: "Could not turn off" },
-};
+} satisfies Record<RepoState, { status: StatusValue; label: string }>;
 
-const STEP_LABEL: Record<Exclude<DeletionStep, "blocked">, string> = {
+const STEP_LABEL = {
 	repos: "Turn off",
 	checks: "Check",
 	confirm: "Confirm",
-};
+} satisfies Record<Exclude<DeletionStep, "blocked">, string>;
 
 function plural(count: number, one: string, many: string): string {
 	return `${count} ${count === 1 ? one : many}`;
