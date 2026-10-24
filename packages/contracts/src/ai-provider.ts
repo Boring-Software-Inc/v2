@@ -14,6 +14,7 @@ export type RuleSkipCause = z.infer<typeof ruleSkipCauseSchema>;
 export const AI_CREDITS_COPY = {
 	reason: "Out of AI credits",
 	cantRun: "Tripwire is out of AI credits, so AI review can't run.",
+	waiting: "AI review can't run until credits return.",
 	notRun: "AI review did not run. Tripwire is out of AI credits.",
 	notRunShort: "AI review did not run.",
 } as const;
@@ -24,7 +25,7 @@ export function catalogWithAiCredits<T extends ValidationCatalogEntry>(
 ): T[] {
 	return catalog.map((entry) =>
 		entry.ruleId === AI_REVIEW_RULE_ID && credits === "out"
-			? { ...entry, unavailable: AI_CREDITS_COPY.cantRun }
+			? { ...entry, unavailable: AI_CREDITS_COPY.waiting }
 			: entry,
 	);
 }

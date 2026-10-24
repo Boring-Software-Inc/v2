@@ -69,26 +69,16 @@ function toResult(
 }
 
 /**
- * The issues that refuse a save to a live workflow. A rule the stored version
- * already ran at the same step keeps running, so its rule-unavailable issue
- * does not count. A new or changed rule step does.
+ * The issues a workflow shows in its current state. An off workflow does not
+ * run, so a rule that can't run right now is not worth a word until it is on.
  */
-export function liveSaveIssues<T extends ValidationIssue>(
-	stored: WorkflowDefinition | null,
-	next: WorkflowDefinition,
+export function issuesInState<T extends { rule?: LintRuleId }>(
 	issues: readonly T[],
+	enabled: boolean,
 ): T[] {
-	const ref = (definition: WorkflowDefinition | null, nodeId?: string) => {
-		const node = definition?.nodes.find((n) => n.id === nodeId);
-		return node?.type === "rule" ? node.ref : null;
-	};
-	return issues.filter((issue) => {
-		if (issue.rule !== "rule-unavailable") {
-			return true;
-		}
-		const before = ref(stored, issue.nodeId);
-		return before === null || before !== ref(next, issue.nodeId);
-	});
+	return enabled
+		? [...issues]
+		: issues.filter((issue) => issue.rule !== "rule-unavailable");
 }
 
 const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
@@ -100,7 +90,6 @@ const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
 	"no-outputs",
 	"missing-step",
 	"duplicate-id",
-	"rule-unavailable",
 ]);
 
 export function unrunnableIssues(input: WorkflowDefinition): LintResult[] {

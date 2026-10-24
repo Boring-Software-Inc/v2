@@ -10,8 +10,8 @@ import type {
 import {
 	AI_REVIEW_RULE_ID,
 	catalogWithAiCredits,
+	issuesInState,
 	lintWorkflow,
-	liveSaveIssues,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 
@@ -162,11 +162,10 @@ export function aiCreditsOf(
 }
 
 /**
- * The editor's issues, checked the way the server checks a save. A live
- * workflow only counts the rule steps it does not already run.
+ * The editor's issues, checked the way the server checks a save. An off
+ * workflow leaves out the rules that can't run right now.
  */
 export function editorLint(input: {
-	stored: WorkflowDefinition;
 	candidate: WorkflowDefinition;
 	enabled: boolean;
 	catalog: readonly ValidationCatalogEntry[];
@@ -177,7 +176,5 @@ export function editorLint(input: {
 		catalog: catalogWithAiCredits(input.catalog, input.aiCredits),
 		reviewers: input.reviewers,
 	});
-	return input.enabled
-		? liveSaveIssues(input.stored, input.candidate, results)
-		: results;
+	return issuesInState(results, input.enabled);
 }

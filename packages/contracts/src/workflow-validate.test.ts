@@ -3,8 +3,8 @@ import { catalogWithAiCredits } from "./ai-provider.ts";
 import { customValidationEntries } from "./custom-rules.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import { DEFAULT_WORKFLOW, type WorkflowDefinition } from "./workflow.ts";
+import { lintWorkflowReport } from "./workflow-lint.ts";
 import {
-	liveSaveIssues,
 	unrunnableIssues,
 	validateWorkflow,
 	validateWorkflowForEnable,
@@ -343,31 +343,31 @@ describe("a live workflow saved while AI review can't run", () => {
 			{ id: "e2", from: "old", to: "a", when: "fail" },
 		],
 	});
-	const issuesFor = (next: WorkflowDefinition) => {
-		const checked = validateWorkflowForEnable(next, OUT);
-		return checked.valid ? [] : checked.issues;
-	};
 
 	test("the AI review step it already had does not block", () => {
-		expect(liveSaveIssues(live, live, issuesFor(live))).toEqual([]);
+		expect(validateWorkflowForEnable(live, OUT).valid).toBe(true);
 	});
 
-	test("a new AI review step is refused with the credit reason", () => {
+	test("a new AI review step does not block either", () => {
 		const next = graph({
 			nodes: [...live.nodes, ai("new")],
-			edges: [...live.edges, { id: "e3", from: "t", to: "new" }],
+			edges: [
+				...live.edges,
+				{ id: "e3", from: "t", to: "new" },
+				{ id: "e4", from: "new", to: "a", when: "fail" },
+			],
 		});
-		expect(
-			liveSaveIssues(live, next, issuesFor(next)).map((issue) => [
-				issue.nodeId,
-				issue.message,
-			]),
-		).toEqual([
-			["new", "Tripwire is out of AI credits, so AI review can't run."],
-		]);
+		expect(validateWorkflowForEnable(next, OUT).valid).toBe(true);
 	});
 
-	test("a workflow with no stored version keeps every issue", () => {
-		expect(liveSaveIssues(null, live, issuesFor(live))).toHaveLength(1);
+	test("each AI review step carries a quiet warning, not an error", () => {
+		const report = lintWorkflowReport(live, { catalog: OUT, stage: "enable" });
+		expect(
+			report.results
+				.filter((issue) => issue.rule === "rule-unavailable")
+				.map((issue) => [issue.nodeId, issue.severity, issue.message]),
+		).toEqual([
+			["old", "warning", "AI review can't run until credits return."],
+		]);
 	});
 });

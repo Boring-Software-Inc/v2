@@ -299,7 +299,6 @@ describe("AI review steps while Tripwire is out of AI credits", () => {
 	};
 	const credits = (candidate: WorkflowDefinition, enabled: boolean) =>
 		editorLint({
-			stored,
 			candidate,
 			enabled,
 			catalog: RULE_CATALOG,
@@ -308,31 +307,38 @@ describe("AI review steps while Tripwire is out of AI credits", () => {
 			.filter((issue) => issue.rule === "rule-unavailable")
 			.map((issue) => [issue.nodeId, issue.severity, issue.message]);
 
-	test("a new step on a live workflow is an issue before save", () => {
+	test("every AI review step on a live workflow carries a quiet warning", () => {
 		expect(credits(added, true)).toEqual([
-			[
-				"new",
-				"error",
-				"Tripwire is out of AI credits, so AI review can't run.",
-			],
+			["old", "warning", "AI review can't run until credits return."],
+			["new", "warning", "AI review can't run until credits return."],
 		]);
 	});
 
-	test("the step the live workflow already had is not", () => {
-		expect(credits(stored, true)).toEqual([]);
+	test("nothing on a live workflow blocks a save or reads as a fix", () => {
+		expect(
+			editorLint({
+				candidate: added,
+				enabled: true,
+				catalog: RULE_CATALOG,
+				aiCredits: "out",
+			}).filter((issue) => issue.severity === "error"),
+		).toEqual(
+			editorLint({
+				candidate: added,
+				enabled: true,
+				catalog: RULE_CATALOG,
+				aiCredits: "ready",
+			}).filter((issue) => issue.severity === "error"),
+		);
 	});
 
-	test("an off workflow names every step that stops it turning on", () => {
-		expect(credits(added, false).map(([nodeId]) => nodeId)).toEqual([
-			"old",
-			"new",
-		]);
+	test("an off workflow shows no AI review issue at all", () => {
+		expect(credits(added, false)).toEqual([]);
 	});
 
 	test("with credits there is no issue", () => {
 		expect(
 			editorLint({
-				stored,
 				candidate: added,
 				enabled: true,
 				catalog: RULE_CATALOG,

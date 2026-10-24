@@ -2,8 +2,8 @@ import {
 	catalogWithAiCredits,
 	customRuleRecordSchema,
 	diffWorkflow,
+	issuesInState,
 	lintWorkflow,
-	liveSaveIssues,
 	mergeForPush,
 	reportWorkflows,
 	resolveCatalog,
@@ -285,11 +285,7 @@ export async function saveWorkflowDefinition(
 		}
 		const stored = workflowDefinitionSchema.safeParse(row.definition);
 		if (row.enabled) {
-			const issues = liveSaveRefusals(
-				stored.success ? stored.data : null,
-				definition,
-				catalog,
-			);
+			const issues = liveSaveRefusals(definition, catalog);
 			if (issues.length > 0) {
 				return { ok: false, issues };
 			}
@@ -452,9 +448,11 @@ export async function previewWorkflowPush(
 		const stored =
 			rows.find((row) => row.definition.id === incoming.id) ?? null;
 		const pushed = pushedDefinition(stored?.definition ?? null, incoming);
+		const enabled = stored?.enabled ?? false;
 		return reportWorkflows([pushed], catalog).map((report) => ({
 			...report,
-			enabled: stored?.enabled ?? false,
+			issues: issuesInState(report.issues, enabled),
+			enabled,
 			changes: diffWorkflow(stored?.definition ?? null, pushed),
 		}));
 	});
@@ -540,7 +538,7 @@ export async function applyWorkflowDefinition(
 			return { ok: true, outcome: "unchanged", workflow, changes };
 		}
 		if (locked.enabled) {
-			const issues = liveSaveRefusals(stored.data, merged, catalog);
+			const issues = liveSaveRefusals(merged, catalog);
 			if (issues.length > 0) {
 				return { ok: false, reason: "live-cannot-run", issues };
 			}
@@ -555,12 +553,11 @@ export async function applyWorkflowDefinition(
 }
 
 function liveSaveRefusals(
-	stored: WorkflowDefinition | null,
 	next: WorkflowDefinition,
 	catalog: readonly ValidationCatalogEntry[],
 ): ValidationIssue[] {
 	const checked = validateWorkflowForEnable(next, catalog);
-	return checked.valid ? [] : liveSaveIssues(stored, next, checked.issues);
+	return checked.valid ? [] : checked.issues;
 }
 
 export type SetEnabledResult =

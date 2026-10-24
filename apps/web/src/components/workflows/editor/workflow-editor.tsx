@@ -435,7 +435,6 @@ function EditorBody({
 			nodes.length === 0
 				? []
 				: editorLint({
-						stored: definition,
 						candidate: graphToCandidate(meta, nodes, edges),
 						enabled,
 						catalog: enableCatalog,
@@ -446,7 +445,6 @@ function EditorBody({
 			nodes,
 			edges,
 			meta,
-			definition,
 			enabled,
 			enableCatalog,
 			aiCredits,

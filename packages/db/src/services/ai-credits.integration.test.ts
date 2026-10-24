@@ -150,7 +150,7 @@ describe("turning AI review on while credits are out", () => {
 		).toEqual({ error: AI_CREDITS_COPY.cantRun });
 	});
 
-	test("a workflow with AI review can't turn on, and a live one reads Can't run", async () => {
+	test("a workflow with AI review still turns on, and reads Live, not Can't run", async () => {
 		await recordAiCredits(db, "ready");
 		const live = await createWorkflow(db, {
 			repoId,
@@ -164,27 +164,38 @@ describe("turning AI review on while credits are out", () => {
 				enabled: true,
 			}),
 		).toMatchObject({ ok: true });
-		const off = await createWorkflow(db, {
+		await createWorkflow(db, {
 			repoId,
 			name: "off ai gate",
 			definition: aiGate("off ai gate"),
 		});
 
 		await recordAiCredits(db, "out");
-		const refused = await setWorkflowEnabled(db, {
-			repoId,
-			workflowId: off.id,
-			enabled: true,
-		});
-		expect(refused.ok).toBe(false);
-		expect(refused.ok ? [] : refused.issues.map((i) => i.message)).toEqual([
-			AI_CREDITS_COPY.cantRun,
-		]);
 		const states = Object.fromEntries(
-			(await listWorkflows(db, repoId)).map((w) => [w.name, w.state]),
+			(await listWorkflows(db, repoId)).map((w) => [
+				w.name,
+				[w.state, w.runnable, w.canTurnOn],
+			]),
 		);
-		expect(states["live ai gate"]).toBe("cant-run");
-		expect(states["off ai gate"]).toBe("cant-turn-on");
+		expect(states["live ai gate"]).toEqual(["on", true, true]);
+		expect(states["off ai gate"]).toEqual(["off", true, true]);
+		const second = await createWorkflow(db, {
+			repoId,
+			name: "second ai gate",
+			definition: aiGate("second ai gate"),
+		});
+		expect(
+			await setWorkflowEnabled(db, {
+				repoId,
+				workflowId: second.id,
+				enabled: true,
+			}),
+		).toEqual({ ok: true, enabled: true });
+		await setWorkflowEnabled(db, {
+			repoId,
+			workflowId: second.id,
+			enabled: false,
+		});
 	});
 
 	test("a push to a live workflow that already had AI review still lands", async () => {
@@ -205,7 +216,7 @@ describe("turning AI review on while credits are out", () => {
 		expect(result.ok).toBe(true);
 	});
 
-	test("a push that adds AI review to a live workflow is refused", async () => {
+	test("a push that adds AI review to a live workflow lands", async () => {
 		await recordAiCredits(db, "ready");
 		const plain: WorkflowDefinition = {
 			...aiGate("plain gate"),
@@ -255,10 +266,7 @@ describe("turning AI review on while credits are out", () => {
 				],
 			},
 		});
-		expect(result.ok).toBe(false);
-		expect(result.ok ? [] : result.issues.map((i) => i.message)).toEqual([
-			AI_CREDITS_COPY.cantRun,
-		]);
+		expect(result).toMatchObject({ ok: true, outcome: "updated" });
 	});
 
 	test("an editor save of a live workflow that already had AI review lands", async () => {
@@ -279,7 +287,7 @@ describe("turning AI review on while credits are out", () => {
 		expect(result).toEqual({ ok: true });
 	});
 
-	test("an editor save that adds AI review to a live workflow is refused", async () => {
+	test("an editor save that adds AI review to a live workflow lands", async () => {
 		await recordAiCredits(db, "out");
 		const plain = (await listWorkflows(db, repoId)).find(
 			(row) => row.name === "plain gate",
@@ -297,7 +305,7 @@ describe("turning AI review on while credits are out", () => {
 				nodes: [
 					...stored.definition.nodes,
 					{
-						id: "ai",
+						id: "ai-2",
 						type: "rule",
 						ref: "ai-review@2",
 						config: { maxSteps: 12 },
@@ -305,14 +313,12 @@ describe("turning AI review on while credits are out", () => {
 				],
 				edges: [
 					...stored.definition.edges,
-					{ id: "e3", from: "t", to: "ai" },
-					{ id: "e4", from: "ai", to: "a", when: "fail" },
+					{ id: "e5", from: "t", to: "ai-2" },
+					{ id: "e6", from: "ai-2", to: "a", when: "fail" },
 				],
 			},
 		});
-		expect(result.ok ? [] : result.issues.map((i) => i.message)).toEqual([
-			AI_CREDITS_COPY.cantRun,
-		]);
+		expect(result).toEqual({ ok: true });
 	});
 });
 

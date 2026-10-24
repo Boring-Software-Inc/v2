@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ruleSkipCauseSchema } from "./ai-provider.ts";
+import { AI_REVIEW_RULE_ID, ruleSkipCauseSchema } from "./ai-provider.ts";
 import { FORGE_BY_ID, type ForgeId } from "./forges.ts";
 import { threadKindSchema } from "./insights.ts";
 import { itemTypeSchema, modStatSchema } from "./moderation.ts";
@@ -104,6 +104,23 @@ export const ruleResultSchema = z.object({
 	evaluatedAt: z.iso.datetime(),
 });
 export type RuleResult = z.infer<typeof ruleResultSchema>;
+
+const stepRuleSchema = ruleResultSchema.pick({ ruleId: true });
+
+/**
+ * Whether a run step is an AI review that did not run: out of credits, not
+ * set up, or failed. AI review is a bonus, so the run's verdict comes from
+ * the other steps and the run says AI review did not run.
+ */
+export function isAiReviewNotRunStep(step: {
+	status: string;
+	output: unknown;
+}): boolean {
+	return (
+		step.status === "skipped" &&
+		stepRuleSchema.safeParse(step.output).data?.ruleId === AI_REVIEW_RULE_ID
+	);
+}
 
 /**
  * AUTHORED — per-rule config schemas. They live here (not in core) because

@@ -10,8 +10,13 @@ import {
 	openRouterKeySchema,
 	providerErrorSchema,
 } from "./ai-provider.ts";
-import { RULE_CATALOG, ruleResultSchema } from "./rules.ts";
+import {
+	isAiReviewNotRunStep,
+	RULE_CATALOG,
+	ruleResultSchema,
+} from "./rules.ts";
 import type { WorkflowDefinition } from "./workflow.ts";
+import { lintWorkflowReport } from "./workflow-lint.ts";
 import {
 	unrunnableIssues,
 	validateWorkflowForEnable,
@@ -182,25 +187,37 @@ const AI_GATE: WorkflowDefinition = {
 describe("a workflow with AI review while credits are out", () => {
 	const out = catalogWithAiCredits(RULE_CATALOG, "out");
 
-	test("can't turn on, and says why", () => {
-		const result = validateWorkflowForEnable(AI_GATE, out);
-		expect(result.valid).toBe(false);
-		expect(result.valid ? [] : result.issues.map((i) => i.message)).toEqual([
-			AI_CREDITS_COPY.cantRun,
-		]);
+	test("still turns on: AI review is a bonus, not a requirement", () => {
+		expect(validateWorkflowForEnable(AI_GATE, out).valid).toBe(true);
 	});
 
-	test("reads Can't run when it is already live, and Can't turn on when off", () => {
+	test("reads Live when on and Off when off, never Can't run", () => {
 		const readiness = workflowReadiness(AI_GATE, out);
-		expect(workflowState({ enabled: true, ...readiness })).toBe("cant-run");
-		expect(workflowState({ enabled: false, ...readiness })).toBe(
-			"cant-turn-on",
-		);
+		expect(readiness).toMatchObject({ runnable: true, canTurnOn: true });
+		expect(workflowState({ enabled: true, ...readiness })).toBe("on");
+		expect(workflowState({ enabled: false, ...readiness })).toBe("off");
 	});
 
-	test("turns on as usual once credits are back", () => {
+	test("the AI review step says it can't run until credits return", () => {
+		const report = lintWorkflowReport(AI_GATE, {
+			catalog: out,
+			stage: "enable",
+		});
+		expect(
+			report.results.map((issue) => [
+				issue.rule,
+				issue.severity,
+				issue.message,
+			]),
+		).toEqual([["rule-unavailable", "warning", AI_CREDITS_COPY.waiting]]);
+	});
+
+	test("with credits there is nothing to say", () => {
 		const ready = catalogWithAiCredits(RULE_CATALOG, "ready");
 		expect(validateWorkflowForEnable(AI_GATE, ready).valid).toBe(true);
+		expect(
+			lintWorkflowReport(AI_GATE, { catalog: ready, stage: "enable" }).results,
+		).toEqual([]);
 	});
 
 	test("the worker's own wiring check is not touched by credits", () => {
@@ -252,5 +269,39 @@ describe("the credit state from every balance and key combination", () => {
 		expect(
 			aiCreditsFromBalance({ credits: account[credits], key: keys[key] }),
 		).toBe(state);
+	});
+});
+
+describe("an AI review step that did not run", () => {
+	const step = (
+		status: string,
+		ruleId: string,
+		cause?: "ai-out-of-credits",
+	) => ({
+		status,
+		output: ruleResultSchema.parse({
+			ruleId,
+			version: 2,
+			status: status === "skipped" ? "skipped" : "evaluated",
+			passed: status !== "skipped",
+			evidence: null,
+			...(status === "skipped" ? { reason: "did not run" } : {}),
+			...(cause ? { cause } : {}),
+			evaluatedAt: "2026-10-23T00:00:00.000Z",
+		}),
+	});
+
+	test.each([
+		[
+			"skipped for credits",
+			step("skipped", "ai-review", "ai-out-of-credits"),
+			true,
+		],
+		["skipped with no key or a failure", step("skipped", "ai-review"), true],
+		["evaluated", step("completed", "ai-review"), false],
+		["another rule skipped", step("skipped", "account-age"), false],
+		["no rule output", { status: "skipped", output: null }, false],
+	])("%s", (_name, input, expected) => {
+		expect(isAiReviewNotRunStep(input)).toBe(expected);
 	});
 });
