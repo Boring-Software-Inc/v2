@@ -3,6 +3,7 @@ import {
 	customRuleRecordSchema,
 	diffWorkflow,
 	lintWorkflow,
+	liveSaveIssues,
 	mergeForPush,
 	reportWorkflows,
 	resolveCatalog,
@@ -284,7 +285,7 @@ export async function saveWorkflowDefinition(
 		}
 		const stored = workflowDefinitionSchema.safeParse(row.definition);
 		if (row.enabled) {
-			const issues = liveSaveIssues(
+			const issues = liveSaveRefusals(
 				stored.success ? stored.data : null,
 				definition,
 				catalog,
@@ -539,7 +540,7 @@ export async function applyWorkflowDefinition(
 			return { ok: true, outcome: "unchanged", workflow, changes };
 		}
 		if (locked.enabled) {
-			const issues = liveSaveIssues(stored.data, merged, catalog);
+			const issues = liveSaveRefusals(stored.data, merged, catalog);
 			if (issues.length > 0) {
 				return { ok: false, reason: "live-cannot-run", issues };
 			}
@@ -553,26 +554,13 @@ export async function applyWorkflowDefinition(
 	});
 }
 
-function liveSaveIssues(
+function liveSaveRefusals(
 	stored: WorkflowDefinition | null,
 	next: WorkflowDefinition,
 	catalog: readonly ValidationCatalogEntry[],
 ): ValidationIssue[] {
 	const checked = validateWorkflowForEnable(next, catalog);
-	if (checked.valid) {
-		return [];
-	}
-	const ref = (definition: WorkflowDefinition | null, nodeId?: string) => {
-		const node = definition?.nodes.find((n) => n.id === nodeId);
-		return node?.type === "rule" ? node.ref : null;
-	};
-	return checked.issues.filter((issue) => {
-		if (issue.rule !== "rule-unavailable") {
-			return true;
-		}
-		const before = ref(stored, issue.nodeId);
-		return before === null || before !== ref(next, issue.nodeId);
-	});
+	return checked.valid ? [] : liveSaveIssues(stored, next, checked.issues);
 }
 
 export type SetEnabledResult =

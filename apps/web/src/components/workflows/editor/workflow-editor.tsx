@@ -11,6 +11,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useBlocker } from "@tanstack/react-router";
 import type {
+	AiCreditsState,
 	EdgeWhen,
 	LintFix,
 	LintIntent,
@@ -30,7 +31,6 @@ import {
 	edgePort,
 	handlePort,
 	insertStep,
-	lintWorkflow,
 	openPosition,
 	planDrag,
 	portHandleId,
@@ -119,6 +119,7 @@ import { invalidScheduleDrafts } from "#/lib/schedule-input";
 import {
 	definitionToGraph,
 	edgeWhenFields,
+	editorLint,
 	graphToCandidate,
 	graphToDefinition,
 	handleWhen,
@@ -248,6 +249,7 @@ function CanvasDropzone({ children }: { children: React.ReactNode }) {
 export interface WorkflowEditorProps {
 	/** The repo's custom rules for the palette. */
 	customRules: { ref: string; name: string; description: string }[];
+	aiCredits: AiCreditsState;
 	definition: WorkflowDefinition;
 	name: string;
 	enabled: boolean;
@@ -286,6 +288,7 @@ export function WorkflowEditor(props: WorkflowEditorProps) {
 }
 
 function EditorBody({
+	aiCredits,
 	customRules,
 	definition,
 	name,
@@ -431,11 +434,24 @@ function EditorBody({
 		() =>
 			nodes.length === 0
 				? []
-				: lintWorkflow(graphToCandidate(meta, nodes, edges), {
+				: editorLint({
+						stored: definition,
+						candidate: graphToCandidate(meta, nodes, edges),
+						enabled,
 						catalog: enableCatalog,
+						aiCredits,
 						reviewers: syncedReviewers,
 					}),
-		[nodes, edges, meta, enableCatalog, syncedReviewers],
+		[
+			nodes,
+			edges,
+			meta,
+			definition,
+			enabled,
+			enableCatalog,
+			aiCredits,
+			syncedReviewers,
+		],
 	);
 
 	const customRuleNames = useMemo(

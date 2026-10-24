@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import { catalogWithAiCredits } from "./ai-provider.ts";
 import { customValidationEntries } from "./custom-rules.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import { DEFAULT_WORKFLOW, type WorkflowDefinition } from "./workflow.ts";
 import {
+	liveSaveIssues,
 	unrunnableIssues,
 	validateWorkflow,
 	validateWorkflowForEnable,
@@ -318,5 +320,54 @@ describe("workflowReadiness (one answer for web, CLI and MCP)", () => {
 		}
 		expect(WORKFLOW_STATE_LABELS["cant-run"]).toBe("Can't run");
 		expect(WORKFLOW_STATE_LABELS.on).toBe("Live");
+	});
+});
+
+describe("a live workflow saved while AI review can't run", () => {
+	const OUT = catalogWithAiCredits(RULE_CATALOG, "out");
+	const ai = (id: string) =>
+		({
+			id,
+			type: "rule",
+			ref: "ai-review@2",
+			config: { maxSteps: 12 },
+		}) as const;
+	const live = graph({
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			ai("old"),
+			{ id: "a", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "old" },
+			{ id: "e2", from: "old", to: "a", when: "fail" },
+		],
+	});
+	const issuesFor = (next: WorkflowDefinition) => {
+		const checked = validateWorkflowForEnable(next, OUT);
+		return checked.valid ? [] : checked.issues;
+	};
+
+	test("the AI review step it already had does not block", () => {
+		expect(liveSaveIssues(live, live, issuesFor(live))).toEqual([]);
+	});
+
+	test("a new AI review step is refused with the credit reason", () => {
+		const next = graph({
+			nodes: [...live.nodes, ai("new")],
+			edges: [...live.edges, { id: "e3", from: "t", to: "new" }],
+		});
+		expect(
+			liveSaveIssues(live, next, issuesFor(next)).map((issue) => [
+				issue.nodeId,
+				issue.message,
+			]),
+		).toEqual([
+			["new", "Tripwire is out of AI credits, so AI review can't run."],
+		]);
+	});
+
+	test("a workflow with no stored version keeps every issue", () => {
+		expect(liveSaveIssues(null, live, issuesFor(live))).toHaveLength(1);
 	});
 });

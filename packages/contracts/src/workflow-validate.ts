@@ -68,6 +68,29 @@ function toResult(
 	return { valid: true, definition: report.definition };
 }
 
+/**
+ * The issues that refuse a save to a live workflow. A rule the stored version
+ * already ran at the same step keeps running, so its rule-unavailable issue
+ * does not count. A new or changed rule step does.
+ */
+export function liveSaveIssues<T extends ValidationIssue>(
+	stored: WorkflowDefinition | null,
+	next: WorkflowDefinition,
+	issues: readonly T[],
+): T[] {
+	const ref = (definition: WorkflowDefinition | null, nodeId?: string) => {
+		const node = definition?.nodes.find((n) => n.id === nodeId);
+		return node?.type === "rule" ? node.ref : null;
+	};
+	return issues.filter((issue) => {
+		if (issue.rule !== "rule-unavailable") {
+			return true;
+		}
+		const before = ref(stored, issue.nodeId);
+		return before === null || before !== ref(next, issue.nodeId);
+	});
+}
+
 const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
 	"cycle",
 	"gate-input",
