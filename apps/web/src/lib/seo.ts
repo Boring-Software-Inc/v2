@@ -54,6 +54,7 @@ export function buildSeo({
 	);
 	const url = toAbsoluteUrl(path);
 	const ogImage = toAbsoluteUrl(image.path);
+	const ogVideo = toAbsoluteUrl(image.video);
 	return {
 		meta: [
 			{ title: pageTitle },
@@ -67,6 +68,11 @@ export function buildSeo({
 			{ property: "og:image:type", content: "image/png" },
 			{ property: "og:image:width", content: String(image.width) },
 			{ property: "og:image:height", content: String(image.height) },
+			{ property: "og:video", content: ogVideo },
+			{ property: "og:video:secure_url", content: ogVideo },
+			{ property: "og:video:type", content: "video/mp4" },
+			{ property: "og:video:width", content: String(image.width) },
+			{ property: "og:video:height", content: String(image.height) },
 			{ name: "twitter:card", content: "summary_large_image" },
 			{ name: "twitter:image", content: ogImage },
 			...(noindex ? PRIVATE_ROUTE_HEADERS : []),

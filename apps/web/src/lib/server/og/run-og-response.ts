@@ -1,5 +1,6 @@
 import {
-	APP_OG_IMAGE_PATH,
+	APP_OG_IMAGE,
+	type OgFormat,
 	type RunOgCard,
 	runOgCard,
 	runOgHash,
@@ -9,12 +10,16 @@ import type { RunView } from "#/lib/runs.functions";
 
 export interface RunOgDeps {
 	loadView: (runId: string) => Promise<RunView | null>;
-	render: (card: RunOgCard) => Promise<Uint8Array>;
+	render: (card: RunOgCard, format: OgFormat) => Promise<Uint8Array>;
 }
 
 const IMAGE_HASH = /^[a-z0-9]{1,32}$/;
 const IMMUTABLE = "public, max-age=31536000, immutable";
 const SHORT = "public, max-age=300";
+const CONTENT_TYPE = {
+	png: "image/png",
+	mp4: "video/mp4",
+} satisfies Record<OgFormat, string>;
 
 function redirect(location: string): Response {
 	return new Response(null, {
@@ -23,31 +28,37 @@ function redirect(location: string): Response {
 	});
 }
 
+function pathFor(format: OgFormat, image = APP_OG_IMAGE): string {
+	return format === "mp4" ? image.video : image.path;
+}
+
 export async function runOgResponse(
 	runId: string,
 	hash: string,
 	deps: RunOgDeps,
+	format: OgFormat = "png",
 ): Promise<Response> {
+	const fallback = pathFor(format);
 	if (!IMAGE_HASH.test(hash)) {
-		return redirect(APP_OG_IMAGE_PATH);
+		return redirect(fallback);
 	}
 	const view = await deps.loadView(runId).catch(() => null);
 	const card = runOgCard(view);
 	if (!card) {
-		return redirect(APP_OG_IMAGE_PATH);
+		return redirect(fallback);
 	}
 	if (runOgHash(card) !== hash) {
-		return redirect(runOgImage(runId, view).path);
+		return redirect(pathFor(format, runOgImage(runId, view)));
 	}
-	const png = await deps.render(card).catch(() => null);
-	if (!png) {
-		return redirect(APP_OG_IMAGE_PATH);
+	const bytes = await deps.render(card, format).catch(() => null);
+	if (!bytes) {
+		return redirect(fallback);
 	}
-	return new Response(new Uint8Array(png), {
+	return new Response(new Uint8Array(bytes), {
 		status: 200,
 		headers: {
-			"content-type": "image/png",
-			"content-length": String(png.byteLength),
+			"content-type": CONTENT_TYPE[format],
+			"content-length": String(bytes.byteLength),
 			"cache-control": IMMUTABLE,
 		},
 	});

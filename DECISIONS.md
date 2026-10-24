@@ -207,3 +207,30 @@ name as a slug (`"block-crypto-pushes": blockCryptoPushes()`), not its id.
 UUIDs), keys as the stored definition id (a rename or a slug change would
 make a new workflow on the server), a comment beside each key (comments are
 lost when the file is regenerated).
+
+## 2026-10-24: og images move, encoded in process by h264-mp4-encoder
+
+**Decision:** link previews get an `og:video` next to `og:image`: a 3 s,
+48 frame, 1200x630 H.264 Baseline loop where only the fire moves. The web
+head encodes run videos in process with `h264-mp4-encoder@1.0.12` (MIT).
+
+- The package is a 1 MB CommonJS file with the wasm inlined. It needs no
+  native binary, so the web image and the build stay as they are.
+- Importing it adds Emscripten `uncaughtException` and `unhandledRejection`
+  listeners that rethrow. `loadEncoder` removes them right after the import,
+  and a test checks that the listener counts do not change.
+- Its mp4 has `moov` after `mdat`. `faststart` moves `moov` first, so iMessage
+  and Discord can play the file before it has fully downloaded.
+- Encodes run one at a time. The handler keeps the last 12 run videos.
+  Measured on the production bundle: about 1.8 s for a cold render, 11 ms
+  for a cached one, about 480 KB per run video, and +9 MB server RSS.
+- The site loop `/og.mp4` (175 KB) is rendered once by
+  `apps/web/scripts/render-og-video.ts` and committed to `public/`.
+- `twitter:card` stays `summary_large_image` and `og:type` stays as it is. X
+  plays video only through approved player cards. Telegram's preview breaks
+  with `twitter:player`.
+
+**Alternatives looked at:** an ffmpeg static binary in the runtime image
+(about 80 MB and a child process per request), ffmpeg.wasm (about 30 MB of
+wasm, slower), WebCodecs (not in Node), and an animated GIF `og:image` (no
+platform we checked confirms that it animates).

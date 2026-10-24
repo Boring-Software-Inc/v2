@@ -26,7 +26,7 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 			const { handleRunOgRequest } = await import(
 				"#/lib/server/og/run-og-handler"
 			);
-			return await handleRunOgRequest(runOg.runId, runOg.hash);
+			return await handleRunOgRequest(runOg.runId, runOg.hash, runOg.format);
 		}
 		if (
 			import.meta.env.DEV &&

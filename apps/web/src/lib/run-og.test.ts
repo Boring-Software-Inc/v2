@@ -165,13 +165,14 @@ describe("runOgCard", () => {
 });
 
 describe("runOgImage", () => {
-	test("points a public run at a content-hashed image", () => {
+	test("points a public run at a content-hashed image and video", () => {
 		const card = runOgCard(publicView);
 		if (!card) {
 			throw new Error("expected a card");
 		}
 		expect(runOgImage("run-1", publicView)).toEqual({
 			path: `/og/runs/run-1/${runOgHash(card)}`,
+			video: `/og/runs/run-1/${runOgHash(card)}.mp4`,
 			width: 1200,
 			height: 630,
 		});
@@ -192,6 +193,24 @@ describe("parseRunOgPath", () => {
 		expect(parseRunOgPath("/og/runs/run-1/abc")).toEqual({
 			runId: "run-1",
 			hash: "abc",
+			format: "png",
+		});
+	});
+
+	test("an .mp4 suffix asks for the video", () => {
+		expect(parseRunOgPath("/og/runs/run-1/abc.mp4")).toEqual({
+			runId: "run-1",
+			hash: "abc",
+			format: "mp4",
+		});
+	});
+
+	test("a private run falls back to the app image and video", () => {
+		expect(runOgImage("run-1", null)).toEqual({
+			path: "/og.png",
+			video: "/og.mp4",
+			width: 1200,
+			height: 630,
 		});
 	});
 

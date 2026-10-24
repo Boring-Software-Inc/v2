@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { toPublicRunView } from "#/lib/run-access";
-import { type RunOgCard, runOgImage } from "#/lib/run-og";
+import { type OgFormat, type RunOgCard, runOgImage } from "#/lib/run-og";
 import type { RunView } from "#/lib/runs.functions";
 import { runOgResponse } from "#/lib/server/og/run-og-response";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+const MP4 = new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70]);
 
 const memberView: RunView = {
 	id: "run-1",
@@ -72,13 +73,16 @@ const currentHash =
 
 function harness(view: RunView | null) {
 	const rendered: RunOgCard[] = [];
+	const formats: OgFormat[] = [];
 	return {
 		rendered,
+		formats,
 		deps: {
 			loadView: async () => view,
-			render: async (card: RunOgCard) => {
+			render: async (card: RunOgCard, format: OgFormat) => {
 				rendered.push(card);
-				return PNG;
+				formats.push(format);
+				return format === "mp4" ? MP4 : PNG;
 			},
 		},
 	};
@@ -166,5 +170,48 @@ describe("runOgResponse", () => {
 			},
 		});
 		expect(response.headers.get("location")).toBe("/og.png");
+	});
+
+	test("a public run's video renders an immutable mp4", async () => {
+		const { deps, formats } = harness(publicView);
+		const response = await runOgResponse("run-1", currentHash, deps, "mp4");
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toBe("video/mp4");
+		expect(response.headers.get("cache-control")).toBe(
+			"public, max-age=31536000, immutable",
+		);
+		expect(new Uint8Array(await response.arrayBuffer())).toEqual(MP4);
+		expect(formats).toEqual(["mp4"]);
+	});
+
+	test("a private run's video redirects to the app video", async () => {
+		const { deps, rendered } = harness(null);
+		const response = await runOgResponse("run-1", currentHash, deps, "mp4");
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe("/og.mp4");
+		expect(rendered).toHaveLength(0);
+	});
+
+	test("a stale video hash redirects to the current video", async () => {
+		const { deps } = harness(publicView);
+		const response = await runOgResponse("run-1", "0000000", deps, "mp4");
+		expect(response.headers.get("location")).toBe(
+			`/og/runs/run-1/${currentHash}.mp4`,
+		);
+	});
+
+	test("a video render failure falls back to the app video", async () => {
+		const response = await runOgResponse(
+			"run-1",
+			currentHash,
+			{
+				loadView: async () => publicView,
+				render: async () => {
+					throw new Error("encoder failed");
+				},
+			},
+			"mp4",
+		);
+		expect(response.headers.get("location")).toBe("/og.mp4");
 	});
 });
