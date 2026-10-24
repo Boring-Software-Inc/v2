@@ -186,6 +186,7 @@ describe("account deletion", () => {
 		const installs = await listOrgInstallations(db, [personal]);
 		expect(installs).toEqual([
 			{
+				forge: "github",
 				installationId: "inst-reader",
 				accountLogin: "reader",
 				accountType: "User",

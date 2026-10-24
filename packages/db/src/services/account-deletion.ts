@@ -44,6 +44,7 @@ export interface OnRepo {
 }
 
 export interface OrgInstallation {
+	forge: string;
 	installationId: string;
 	accountLogin: string | null;
 	accountType: string | null;
@@ -142,6 +143,7 @@ export async function listOrgInstallations(
 	}
 	return await db
 		.select({
+			forge: organizationInstallations.forge,
 			installationId: organizationInstallations.installationId,
 			accountLogin: organizationInstallations.accountLogin,
 			accountType: organizationInstallations.accountType,

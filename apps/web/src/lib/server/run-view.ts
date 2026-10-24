@@ -13,6 +13,7 @@ import {
 } from "@tripwire/contracts";
 import {
 	type Db,
+	DELETED_ACCOUNT_ACTOR,
 	eventServices,
 	moderationServices,
 	repoServices,
@@ -162,7 +163,9 @@ export async function loadRunView(
 		access: "full",
 		rerun: result.run.triggeredBy !== null,
 		rerunBy:
-			result.run.triggeredBy && access === "full"
+			result.run.triggeredBy &&
+			result.run.triggeredBy !== DELETED_ACCOUNT_ACTOR &&
+			access === "full"
 				? await resolveTriggeredByName(db, result.run.triggeredBy)
 				: null,
 		orgSlug,
