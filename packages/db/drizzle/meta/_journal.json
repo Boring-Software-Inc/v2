@@ -253,6 +253,13 @@
       "when": 1792830999216,
       "tag": "0035_live_agent_work",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792835322477,
+      "tag": "0036_staff_user_sheet",
+      "breakpoints": true
     }
   ]
 }

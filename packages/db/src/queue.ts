@@ -101,6 +101,21 @@ export function recoverInstallationOptions(job: RecoverInstallationJob) {
 	return { singletonKey: `${job.userId}:${job.installationId}` };
 }
 
+export const SYNC_FLAG_OVERRIDES_QUEUE = "sync-flag-overrides";
+
+export interface SyncFlagOverridesJob {
+	flagKey: string;
+}
+
+export function syncFlagOverridesOptions(flagKey: string) {
+	return {
+		singletonKey: flagKey,
+		retryLimit: 5,
+		retryDelay: 15,
+		retryBackoff: true,
+	};
+}
+
 export const REFRESH_SURFACES_QUEUE = "refresh-response-surfaces";
 
 export interface RefreshSurfacesJob {
@@ -148,6 +163,7 @@ export async function createBoss(
 	await boss.createQueue(SYNC_REPO_REVIEWERS_QUEUE, { policy: "stately" });
 	await boss.createQueue(SYNC_REPO_LABELS_QUEUE, { policy: "stately" });
 	await boss.createQueue(REFRESH_SURFACES_QUEUE);
+	await boss.createQueue(SYNC_FLAG_OVERRIDES_QUEUE, { policy: "stately" });
 	await boss.createQueue(RECOVER_INSTALLATION_QUEUE, { policy: "stately" });
 	return boss;
 }

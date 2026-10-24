@@ -3,6 +3,15 @@
  * Check here before writing any inline helper; a helper used by 2+ files
  * moves here.
  */
+
+export {
+	createDatabuddyApi,
+	DATABUDDY_API_URL,
+	type DatabuddyApi,
+	type DatabuddyApiConfig,
+	DatabuddyApiError,
+	type DatabuddyQueryRow,
+} from "./databuddy-api.ts";
 export { getErrorMessage, toError } from "./errors.ts";
 export {
 	type GuardedFetchDeps,

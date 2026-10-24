@@ -267,6 +267,9 @@
     "packages/utils": {
       "name": "@tripwire/utils",
       "version": "0.0.0",
+      "dependencies": {
+        "@tripwire/contracts": "workspace:*",
+      },
     },
   },
   "trustedDependencies": [
