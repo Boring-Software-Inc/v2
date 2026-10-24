@@ -75,7 +75,7 @@ export type WorkflowPushView = z.infer<typeof workflowPushViewSchema>;
 export const WORKFLOW_PUSH_STATUS_LABELS: Record<WorkflowPushStatus, string> = {
 	pending: "Waiting for review",
 	accepted: "Accepted",
-	rejected: "Rejected",
+	rejected: "Declined",
 	expired: "Expired",
 	stale: "Out of date",
 };

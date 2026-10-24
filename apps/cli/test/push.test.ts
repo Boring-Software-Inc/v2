@@ -125,7 +125,7 @@ describe("workflows push sends tripwire.ts for review", () => {
 	});
 
 	for (const [status, line] of [
-		["rejected", "The push was rejected. Nothing was saved."],
+		["rejected", "The push was declined. Nothing was saved."],
 		["expired", "The review link expired. Nothing was saved. Push again."],
 		[
 			"stale",

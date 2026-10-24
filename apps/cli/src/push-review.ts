@@ -80,7 +80,7 @@ export function outcomeText(view: WorkflowPushView, style: Style): string {
 export function pushRefusalText(view: WorkflowPushView, repo: string): string {
 	switch (view.status) {
 		case "rejected":
-			return "The push was rejected. Nothing was saved.";
+			return "The push was declined. Nothing was saved.";
 		case "expired":
 			return "The review link expired. Nothing was saved. Push again.";
 		case "stale":
