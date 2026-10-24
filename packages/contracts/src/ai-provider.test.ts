@@ -285,8 +285,8 @@ describe("an AI review step that did not run", () => {
 			status: status === "skipped" ? "skipped" : "evaluated",
 			passed: status !== "skipped",
 			evidence: null,
-			...(status === "skipped" ? { reason: "did not run" } : {}),
-			...(cause ? { cause } : {}),
+			reason: status === "skipped" ? "did not run" : undefined,
+			cause,
 			evaluatedAt: "2026-10-23T00:00:00.000Z",
 		}),
 	});

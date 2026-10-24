@@ -441,15 +441,7 @@ function EditorBody({
 						aiCredits,
 						reviewers: syncedReviewers,
 					}),
-		[
-			nodes,
-			edges,
-			meta,
-			enabled,
-			enableCatalog,
-			aiCredits,
-			syncedReviewers,
-		],
+		[nodes, edges, meta, enabled, enableCatalog, aiCredits, syncedReviewers],
 	);
 
 	const customRuleNames = useMemo(
