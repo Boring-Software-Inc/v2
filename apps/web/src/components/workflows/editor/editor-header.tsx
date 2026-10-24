@@ -5,9 +5,18 @@ import { ArrowLeft, Edit, Icon } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import { Input } from "#/components/glaze/ui/input";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/components/glaze/ui/segmented-control";
 import { toast } from "#/components/glaze/ui/toast";
 import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
 import type { Problem } from "#/components/workflows/editor/node-issues";
+import { controlHeight } from "#/lib/glaze/utils";
+import {
+	WORKFLOW_EDITOR_VIEWS,
+	type WorkflowEditorView,
+} from "#/lib/workflow-editor-search";
 import type { CustomRuleDisplay } from "#/lib/workflow-markdown";
 
 /**
@@ -31,6 +40,8 @@ export interface EditorHeaderProps {
 	toggling: boolean;
 	zeroNodes: boolean;
 	blockers: readonly Problem[];
+	view: WorkflowEditorView;
+	onViewChange: (view: WorkflowEditorView) => void;
 	onSave: () => void;
 	onArrange: () => void;
 	onShowProblems: () => void;
@@ -51,6 +62,8 @@ export function EditorHeader({
 	toggling,
 	zeroNodes,
 	blockers,
+	view,
+	onViewChange,
 	onSave,
 	onArrange,
 	onRename,
@@ -144,20 +157,41 @@ export function EditorHeader({
 				</Button>
 			)}
 			{enabled ? <Badge>On</Badge> : null}
-			<div className="ms-auto flex shrink-0 items-center gap-2">
-				<CopyWorkflowButton customRules={customRules} definition={definition} />
+			<div className="ms-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+				<SegmentedControl
+					aria-label="Workflow view"
+					className={controlHeight.sm}
+					onValueChange={(next) => {
+						const picked = WORKFLOW_EDITOR_VIEWS.find((v) => v === next);
+						if (picked) {
+							onViewChange(picked);
+						}
+					}}
+					value={view}
+				>
+					<SegmentedControlItem value="canvas">Canvas</SegmentedControlItem>
+					<SegmentedControlItem value="code">Code</SegmentedControlItem>
+				</SegmentedControl>
+				{view === "canvas" ? (
+					<CopyWorkflowButton
+						customRules={customRules}
+						definition={definition}
+					/>
+				) : null}
 				{readOnly ? (
 					<Badge variant="outline">Read only</Badge>
 				) : (
 					<>
-						<Button
-							disabled={zeroNodes}
-							onClick={onArrange}
-							size="sm"
-							variant="ghost"
-						>
-							Auto-arrange
-						</Button>
+						{view === "canvas" ? (
+							<Button
+								disabled={zeroNodes}
+								onClick={onArrange}
+								size="sm"
+								variant="ghost"
+							>
+								Auto-arrange
+							</Button>
+						) : null}
 						<Button
 							onClick={handleToggle}
 							pending={toggling}
