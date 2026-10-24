@@ -10,7 +10,7 @@ import { runs } from "../schema/runs.ts";
 import type { DbLike } from "./access.ts";
 import { revokeAllAgentCredentials } from "./agents.ts";
 import { isBanInForce } from "./bans.ts";
-import { liveRun, runBearsVerdict } from "./runs.ts";
+import { changeRequestAuthorLogin, liveRun, runBearsVerdict } from "./runs.ts";
 
 export interface StaffUserDetail {
 	id: string;
@@ -241,7 +241,7 @@ export async function listContributorRuns(
 		return { runs: [], total: 0 };
 	}
 	const where = and(
-		inArray(sql`lower(${events.actorLogin})`, lowered),
+		inArray(sql`lower(${changeRequestAuthorLogin})`, lowered),
 		runBearsVerdict,
 		liveRun,
 	);

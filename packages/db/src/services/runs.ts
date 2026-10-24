@@ -469,6 +469,10 @@ export const eventBearsVerdict = inArray(events.kind, [...VERDICT_EVENT_KINDS]);
 
 export const liveRun = eq(runs.backfill, false);
 
+export const changeRequestAuthorLogin = sql<
+	string | null
+>`coalesce(${events.raw} #>> '{pull_request,user,login}', ${events.actorLogin})`;
+
 export const runBearsVerdict = sql`EXISTS (SELECT 1 FROM events ve WHERE ve.id = ${runs.eventId} AND ${inArray(sql`ve.kind`, [...VERDICT_EVENT_KINDS])})`;
 
 export async function getLatestRunIdForChangeRequest(

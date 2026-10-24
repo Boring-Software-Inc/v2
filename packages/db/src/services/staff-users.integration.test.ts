@@ -140,6 +140,8 @@ async function credentialCounts(userId: string) {
 
 async function seedRun(opts: {
 	login: string;
+	author?: string;
+	kind?: "change-request.opened" | "change-request.updated";
 	repo: string;
 	number: number;
 	verdict: "pass" | "block" | "needs_review";
@@ -150,8 +152,15 @@ async function seedRun(opts: {
 		id: eventId,
 		deliveryId: `d-${eventId}`,
 		rawKind: "pull_request",
-		raw: {},
-		kind: "change-request.opened",
+		raw: {
+			action: opts.kind === "change-request.updated" ? "synchronize" : "opened",
+			pull_request: {
+				number: opts.number,
+				user: { login: opts.author ?? opts.login },
+			},
+			sender: { login: opts.login },
+		},
+		kind: opts.kind ?? "change-request.opened",
 		actorLogin: opts.login,
 	});
 	const runId = generateId();
@@ -436,6 +445,24 @@ describe("moderation", () => {
 			repoFullName: "openfield/web",
 			subjectNumber: 91,
 		});
+	});
+});
+
+describe("contributor history", () => {
+	test("files a run under the change request author, not the webhook sender", async () => {
+		const pushedByMaintainer = await seedRun({
+			login: "maintainer-bot",
+			author: "ada-contrib",
+			kind: "change-request.updated",
+			repo: "openfield/api",
+			number: 140,
+			verdict: "block",
+		});
+		const author = await listContributorRuns(db, ["Ada-Contrib"]);
+		expect(author.total).toBe(1);
+		expect(author.runs.map((r) => r.runId)).toEqual([pushedByMaintainer]);
+		const sender = await listContributorRuns(db, ["maintainer-bot"]);
+		expect(sender).toEqual({ runs: [], total: 0 });
 	});
 });
 
