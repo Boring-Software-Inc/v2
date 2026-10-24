@@ -2,9 +2,14 @@ import * as p from "@clack/prompts";
 import {
 	type CompileIssue,
 	compileIssueText,
+	pushExitCode,
 	reportWorkflows,
+	WORKFLOW_PUSH_STATUS_LABELS,
 	type WorkflowDefinition,
+	type WorkflowPushView,
 	type WorkflowState,
+	workflowPushProposalResultSchema,
+	workflowPushViewSchema,
 } from "@tripwire/contracts";
 import type { Command } from "commander";
 import { z } from "zod";
@@ -30,6 +35,14 @@ import {
 } from "#/format";
 import { callTool, type ToolArgs, type ToolOutput } from "#/mcp-client";
 import { runPicker } from "#/picker";
+import {
+	blockedText,
+	canOpenBrowser,
+	outcomeText,
+	pushRefusalText,
+	waitForDecision,
+	waitingText,
+} from "#/push-review";
 import type { System } from "#/system";
 import {
 	DEFAULT_WORKFLOW_FILE,
@@ -662,41 +675,150 @@ function diffWorkflows(
 	});
 }
 
+interface PushOptions extends WorkflowFileOptions {
+	force?: boolean;
+	browser: boolean;
+	wait?: boolean;
+}
+
+async function applyDirect(
+	deps: ManageDeps,
+	options: GlobalOptions,
+	repo: string,
+	definitions: WorkflowDefinition[],
+): Promise<number> {
+	const output = await callForData(deps, options, "apply_workflow", {
+		repo,
+		definitions: definitionsJson(definitions),
+	});
+	if (output.isError) {
+		return render("apply_workflow", output, options);
+	}
+	const parsed = changeListSchema.safeParse(output.data);
+	const refused = parsed.success
+		? parsed.data.workflows.filter((entry) => entry.outcome === "refused")
+		: [];
+	if (options.json) {
+		out(JSON.stringify(output.data ?? { text: output.text }, null, 2));
+		return refused.length > 0 ? 1 : 0;
+	}
+	out(
+		changeLines(output.data, options.style, (entry) =>
+			[entry.id, entry.outcome, entry.url].filter(Boolean).join("  "),
+		),
+	);
+	for (const entry of refused) {
+		err(errorLine(refusalText(entry, repo), options.errStyle));
+	}
+	return refused.length > 0 ? 1 : 0;
+}
+
+async function readPush(
+	deps: ManageDeps,
+	options: GlobalOptions,
+	push: WorkflowPushView,
+	waitSeconds: number,
+): Promise<WorkflowPushView> {
+	const output = await callForData(
+		deps,
+		{ ...options, org: push.org },
+		"get_workflow_push",
+		{ push: push.id, waitSeconds },
+	);
+	if (output.isError) {
+		throw new Error(friendlyError(output.text, output.data));
+	}
+	return workflowPushViewSchema.parse(output.data);
+}
+
+async function awaitReview(
+	deps: ManageDeps,
+	options: GlobalOptions,
+	push: WorkflowPushView,
+): Promise<WorkflowPushView> {
+	const spin =
+		process.stderr.isTTY && !options.json
+			? p.spinner({ output: process.stderr })
+			: null;
+	spin?.start(waitingText(push));
+	if (!spin && !options.json) {
+		err(pairs([["", waitingText(push)]], options.errStyle));
+	}
+	try {
+		const final = await waitForDecision(push, {
+			read: (waitSeconds) => readPush(deps, options, push, waitSeconds),
+			sleep: deps.auth.sleep,
+		});
+		spin?.stop(WORKFLOW_PUSH_STATUS_LABELS[final.status]);
+		return final;
+	} catch (error) {
+		spin?.error("Lost track of the review");
+		throw error;
+	}
+}
+
 function pushWorkflows(
 	deps: ManageDeps,
 	command: Command,
 	repo: string,
-	opts: WorkflowFileOptions,
+	opts: PushOptions,
 ): Promise<void> {
 	return workflowAction(command, deps, async (options) => {
 		const definitions = await compileFile(opts.file, options);
 		if (!definitions) {
 			return 1;
 		}
-		const output = await callForData(deps, options, "apply_workflow", {
+		if (opts.force) {
+			return await applyDirect(deps, options, repo, definitions);
+		}
+		const output = await callForData(deps, options, "propose_workflow_push", {
 			repo,
 			definitions: definitionsJson(definitions),
 		});
 		if (output.isError) {
-			return render("apply_workflow", output, options);
+			return render("propose_workflow_push", output, options);
 		}
-		const parsed = changeListSchema.safeParse(output.data);
-		const refused = parsed.success
-			? parsed.data.workflows.filter((entry) => entry.outcome === "refused")
-			: [];
+		const proposal = workflowPushProposalResultSchema.parse(output.data);
+		if (proposal.result === "unchanged") {
+			if (options.json) {
+				out(JSON.stringify(proposal, null, 2));
+			} else {
+				out(pairs([["done", "No changes to push"]], options.style));
+			}
+			return 0;
+		}
+		if (proposal.result === "blocked") {
+			if (options.json) {
+				out(JSON.stringify(proposal, null, 2));
+			} else {
+				err(blockedText(proposal.workflows, options.errStyle));
+			}
+			return 1;
+		}
+		const { push } = proposal;
+		if (options.json && !opts.wait) {
+			out(JSON.stringify(push, null, 2));
+			return 0;
+		}
+		if (!options.json) {
+			err(pairs([["review", push.url]], options.errStyle));
+		}
+		if (
+			opts.browser &&
+			deps.openUrl &&
+			canOpenBrowser(deps.system.env, deps.system.platform)
+		) {
+			await deps.openUrl(push.url).catch(() => undefined);
+		}
+		const final = await awaitReview(deps, options, push);
 		if (options.json) {
-			out(JSON.stringify(output.data ?? { text: output.text }, null, 2));
-			return refused.length > 0 ? 1 : 0;
+			out(JSON.stringify(final, null, 2));
+		} else if (final.status === "accepted") {
+			out(outcomeText(final, options.style));
+		} else {
+			err(errorLine(pushRefusalText(final, repo), options.errStyle));
 		}
-		out(
-			changeLines(output.data, options.style, (entry) =>
-				[entry.id, entry.outcome, entry.url].filter(Boolean).join("  "),
-			),
-		);
-		for (const entry of refused) {
-			err(errorLine(refusalText(entry, repo), options.errStyle));
-		}
-		return refused.length > 0 ? 1 : 0;
+		return pushExitCode(final.status);
 	});
 }
 
@@ -865,10 +987,13 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 	workflows
 		.command("push <repo>")
 		.description(
-			"Save tripwire.ts to the repo. New workflows start off; enable them when ready",
+			"Send tripwire.ts for review in the browser, then save it once accepted. New workflows start off",
 		)
 		.option("--file <path>", "The workflow file", DEFAULT_WORKFLOW_FILE)
-		.action((repo: string, opts: WorkflowFileOptions, command: Command) =>
+		.option("--force", "Save without review")
+		.option("--no-browser", "Print the review link without opening a browser")
+		.option("--wait", "With --json, wait for the review")
+		.action((repo: string, opts: PushOptions, command: Command) =>
 			pushWorkflows(deps, command, repo, opts),
 		);
 	workflows

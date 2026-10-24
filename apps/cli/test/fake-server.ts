@@ -18,6 +18,8 @@ export const TOOL_NAMES = [
 	"get_workflow",
 	"validate_workflow",
 	"apply_workflow",
+	"propose_workflow_push",
+	"get_workflow_push",
 	"list_runs",
 	"get_run",
 	"list_moderation_queue",
@@ -160,6 +162,37 @@ const RESULTS: Record<string, z.infer<ReturnType<typeof z.json>>> = {
 			},
 		],
 	},
+	propose_workflow_push: {
+		result: "proposed",
+		push: {
+			id: "push-1",
+			org: "grim",
+			repo: "grim/scratch",
+			status: "pending",
+			url: "https://app.tripwire.sh/grim/scratch/workflows/review/push-1",
+			expiresAt: "2026-10-24T13:00:00.000Z",
+			workflows: [
+				{ id: "new-accounts", name: "new-accounts", change: "changed" },
+			],
+		},
+	},
+	get_workflow_push: {
+		id: "push-1",
+		org: "grim",
+		repo: "grim/scratch",
+		status: "accepted",
+		url: "https://app.tripwire.sh/grim/scratch/workflows/review/push-1",
+		expiresAt: "2026-10-24T13:00:00.000Z",
+		workflows: [
+			{
+				id: "new-accounts",
+				name: "new-accounts",
+				change: "changed",
+				outcome: "updated",
+				url: "https://app.tripwire.sh/grim/scratch/workflows/w1",
+			},
+		],
+	},
 	decide_moderation: {
 		done: false,
 		confirmUrl: "https://app.tripwire.sh/grim/scratch/moderation",
@@ -171,12 +204,11 @@ export function cannedResult(name: string) {
 	return RESULTS[name] ?? null;
 }
 
-const NEXT = new Map<string, z.infer<ReturnType<typeof z.json>>>();
+const NEXT = new Map<string, z.infer<ReturnType<typeof z.json>>[]>();
 
 function reply(name: string, args: z.infer<ReturnType<typeof z.json>>) {
-	const next = NEXT.get(name);
+	const next = NEXT.get(name)?.shift();
 	if (next !== undefined) {
-		NEXT.delete(name);
 		return {
 			content: [{ type: "text" as const, text: JSON.stringify(next, null, 2) }],
 		};
@@ -300,7 +332,7 @@ export function startFakeServer(): FakeServer {
 			rejections = count;
 		},
 		answerNext: (name, data) => {
-			NEXT.set(name, data);
+			NEXT.set(name, [...(NEXT.get(name) ?? []), data]);
 		},
 		stop: async () => {
 			await http.stop(true);

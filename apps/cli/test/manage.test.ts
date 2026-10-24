@@ -847,10 +847,10 @@ export default workflows({
 		});
 	});
 
-	test("push sends the compiled definitions to apply_workflow", async () => {
+	test("push --force sends the compiled definitions to apply_workflow", async () => {
 		await pulled();
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -870,7 +870,7 @@ export default workflows({
 		});
 	});
 
-	test("a refused push says why, step by step", async () => {
+	test("a refused push --force says why, step by step", async () => {
 		await pulled();
 		server.answerNext("apply_workflow", {
 			workflows: [
@@ -883,7 +883,7 @@ export default workflows({
 			],
 		});
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(1);
@@ -907,7 +907,7 @@ export default workflows({
 			],
 		});
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(1);
@@ -922,7 +922,7 @@ export default workflows({
 			workflows: [{ id: "qa6-clash", outcome: "refused", issues: [] }],
 		});
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.stderr).toBe(
@@ -942,7 +942,7 @@ export default workflows({
 			],
 		});
 		const result = await runCli(
-			["--json", "workflows", "push", "scratch", "--file", file()],
+			["--json", "workflows", "push", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(JSON.parse(result.stdout).workflows[0].outcome).toBe("refused");

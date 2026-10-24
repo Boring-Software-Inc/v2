@@ -25,13 +25,17 @@ the compiler checks it before anything runs.
    `runs` line reads back the schedule the user asked for, timezone included.
 4. **Diff.** `npx @tripwire-sh/cli workflows diff <repo>`. Show the user the
    lines and ask before you push.
-5. **Push.** `npx @tripwire-sh/cli workflows push <repo>`. New workflows start
-   off. Turn one on only when the user says so:
+5. **Push.** `npx @tripwire-sh/cli workflows push <repo>`. It opens a review
+   page in the user's browser and waits until they accept or reject it. Give
+   the user the `review` link it prints. Exit 0 means accepted; on exit 1 tell
+   the user why and stop. `--force` saves without review: use it only when the
+   user asks. New workflows start off. Turn one on only when the user says so:
    `npx @tripwire-sh/cli workflows enable <repo> <id>`.
 
 Loading `tripwire.ts` needs Bun or Node 22.18+. On older Node, use
 `bunx @tripwire-sh/cli`. Without the CLI, the MCP tools `get_workflow`,
-`validate_workflow` and `apply_workflow` do the same with compiled JSON.
+`validate_workflow`, `propose_workflow_push` and `apply_workflow` do the same
+with compiled JSON.
 
 ## Reference
 
