@@ -2,7 +2,11 @@ import type { AccountDeletionResult } from "@tripwire/auth/account-deletion";
 import type { FlagEvaluator } from "@tripwire/auth/flag-evaluation";
 import { DATABUDDY_WEBSITE_ID } from "@tripwire/contracts";
 import type { Db, SessionGuardState } from "@tripwire/db";
-import { createDatabuddyApi, type DatabuddyApi } from "@tripwire/utils";
+import {
+	createDatabuddyApi,
+	type DatabuddyApi,
+	getErrorMessage,
+} from "@tripwire/utils";
 
 let api: DatabuddyApi | null | undefined;
 let evaluator: FlagEvaluator | undefined;
@@ -65,9 +69,13 @@ export async function deleteAccountAndSyncFlags(
 		return result;
 	}
 	for (const flagKey of result.deleted.flagKeys) {
-		await enqueueFlagSync(flagKey).catch((error: unknown) => {
-			console.error("[flags] sync after account deletion not queued:", error);
-		});
+		try {
+			await enqueueFlagSync(flagKey);
+		} catch (error) {
+			console.error(
+				`[flags] sync for ${flagKey} after account deletion not queued: ${getErrorMessage(error)}`,
+			);
+		}
 	}
 	return result;
 }
