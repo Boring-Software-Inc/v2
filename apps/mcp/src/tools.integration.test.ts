@@ -813,6 +813,39 @@ describe("workflows as code", () => {
 		});
 	});
 
+	test("a key that is a saved workflow's name as a slug lands on that workflow", async () => {
+		const got = z
+			.object({
+				code: z.string(),
+				workflows: z.array(z.object({ id: z.string(), key: z.string() })),
+			})
+			.parse(
+				body(
+					await call("get_workflow", {
+						repo: "mcp-api",
+						workflow: "mcp-live",
+					}),
+				),
+			);
+		expect(got.workflows).toEqual([{ id: "mcp-live", key: "live-over-mcp" }]);
+		expect(got.code).toContain('\t"live-over-mcp": liveOverMcp(),');
+		const checked = await call("validate_workflow", {
+			repo: "mcp-api",
+			definitions: [
+				{
+					...definition,
+					id: "live-over-mcp",
+					name: "live over mcp",
+					nodes: definition.nodes.filter((node) => node.id !== "hook"),
+					edges: definition.edges.filter((edge) => edge.to !== "hook"),
+				},
+			],
+		});
+		expect(body(checked)).toMatchObject({
+			workflows: [{ id: "mcp-live", enabled: true }],
+		});
+	});
+
 	test("get returns the workflow as code without secrets", async () => {
 		const result = await call("get_workflow", {
 			repo: "mcp-api",

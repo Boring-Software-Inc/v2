@@ -3,6 +3,7 @@ import {
 	type WorkflowDefinition,
 	type WorkflowPushChange,
 	type WorkflowPushStatus,
+	workflowKeys,
 	workflowToCode,
 } from "@tripwire/contracts";
 
@@ -41,14 +42,16 @@ export interface PushReviewWorkflow {
 }
 
 function codeOf(entry: PushReviewSource): PushReviewCode {
-	const after = workflowToCode(entry.after);
+	const named = entry.before ?? entry.after;
+	const key = workflowKeys([named]).get(named.id);
+	const after = workflowToCode(entry.after, { key });
 	if (!after.ok) {
 		return { kind: "refused", reason: after.reason };
 	}
 	if (!entry.before) {
 		return { kind: "code", before: "", after: after.code };
 	}
-	const before = workflowToCode(entry.before);
+	const before = workflowToCode(entry.before, { key });
 	return before.ok
 		? { kind: "code", before: before.code, after: after.code }
 		: { kind: "refused", reason: before.reason };

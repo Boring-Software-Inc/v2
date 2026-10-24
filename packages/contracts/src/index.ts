@@ -51,6 +51,7 @@ export * from "./workflow-compile.ts";
 export * from "./workflow-connections.ts";
 export * from "./workflow-cron.ts";
 export * from "./workflow-diff.ts";
+export * from "./workflow-keys.ts";
 export * from "./workflow-layout.ts";
 export * from "./workflow-lint.ts";
 export * from "./workflow-push.ts";

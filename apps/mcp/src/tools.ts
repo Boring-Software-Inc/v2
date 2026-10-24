@@ -5,6 +5,7 @@ import {
 	bearsVerdict,
 	DEFAULT_SCHEDULE_TIMEZONE,
 	describeRunSteps,
+	matchWorkflowIds,
 	RULE_CATALOG,
 	redactWorkflowSecrets,
 	runResult,
@@ -16,6 +17,7 @@ import {
 	setupStageStatusSchema,
 	validationIssueText,
 	WORKFLOW_PUSH_MAX_WAIT_SECONDS,
+	type WorkflowDefinition,
 	type WorkflowPushProposalResult,
 	type WorkflowPushView,
 	workflowDefinitionSchema,
@@ -450,6 +452,17 @@ export function registerTools(
 		);
 	}
 
+	const withServerIds = async (
+		repoId: string,
+		definitions: readonly WorkflowDefinition[],
+	): Promise<WorkflowDefinition[]> => {
+		const rows = await workflowServices.listWorkflowRows(ctx.db, repoId);
+		return matchWorkflowIds(
+			definitions,
+			rows.map((row) => row.definition),
+		).definitions;
+	};
+
 	const workflowLink = (org: OrgWithRole, repo: string, rowId: string) =>
 		appLink(ctx, `/${org.slug}/${repo}/workflows/${rowId}`);
 
@@ -531,14 +544,14 @@ export function registerTools(
 		.array(workflowDefinitionSchema)
 		.min(1)
 		.describe(
-			"Compiled workflow definitions. Write a tripwire.ts and run `tripwire workflows validate --json` to get them; each key in the file is a definition id.",
+			"Compiled workflow definitions. Write a tripwire.ts and run `tripwire workflows validate --json` to get them. Each id is a workflow's definition id, or its key in tripwire.ts: a key that is no id here matches the workflow whose name has that slug, else it is a new workflow.",
 		);
 
 	if (visible("get_workflow")) {
 		server.registerTool(
 			"get_workflow",
 			{
-				description: `A repo's workflows as tripwire.ts code, plus the stored definitions. Secrets are never included. Clock schedules without a timezone run in ${DEFAULT_SCHEDULE_TIMEZONE}.`,
+				description: `A repo's workflows as tripwire.ts code, plus the stored definitions. Each workflow's key in the code is its name as a slug. Secrets are never included. Clock schedules without a timezone run in ${DEFAULT_SCHEDULE_TIMEZONE}.`,
 				inputSchema: { org: orgArg, repo: repoArg, workflow: workflowArg },
 				annotations: annotate("get_workflow"),
 			},
@@ -579,6 +592,7 @@ export function registerTools(
 						warnings: code.warnings,
 						workflows: picked.map((row, index) => ({
 							id: row.definition.id,
+							key: code.keys.get(row.definition.id),
 							appId: row.id,
 							name: row.name,
 							enabled: row.enabled,
@@ -614,7 +628,7 @@ export function registerTools(
 					return ok(
 						await workflowServices.previewWorkflowPush(ctx.db, {
 							repoId: found.id,
-							definitions,
+							definitions: await withServerIds(found.id, definitions),
 						}),
 					);
 				}),
@@ -643,7 +657,7 @@ export function registerTools(
 						"apply_workflow",
 					);
 					const results = [];
-					for (const definition of definitions) {
+					for (const definition of await withServerIds(found.id, definitions)) {
 						const result = await workflowServices.applyWorkflowDefinition(
 							ctx.db,
 							{ repoId: found.id, definition },
@@ -726,7 +740,7 @@ export function registerTools(
 							orgId: resolved.id,
 							repoId: found.id,
 							authorId: ctx.agent.userId,
-							definitions,
+							definitions: await withServerIds(found.id, definitions),
 						},
 					);
 					const body: WorkflowPushProposalResult = !result.ok

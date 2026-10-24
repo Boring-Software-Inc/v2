@@ -1,6 +1,7 @@
 import {
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
+	workflowKeys,
 	workflowToCode,
 } from "@tripwire/contracts";
 
@@ -27,11 +28,12 @@ export function workflowCodeView(
 			reason: `${where ? `${where}: ` : ""}${issue?.message ?? "the workflow is not valid"}`,
 		};
 	}
-	const result = workflowToCode(parsed.data);
+	const key = workflowKeys([saved]).get(saved.id);
+	const result = workflowToCode(parsed.data, { key });
 	if (!result.ok) {
 		return { kind: "refused", reason: result.reason };
 	}
-	const before = workflowToCode(saved);
+	const before = workflowToCode(saved, { key });
 	return {
 		kind: "code",
 		code: result.code,

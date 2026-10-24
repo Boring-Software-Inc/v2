@@ -56,6 +56,21 @@ describe("pushReviewWorkflow", () => {
 		expect(view.code.before).not.toBe(view.code.after);
 	});
 
+	test("the key is the saved name as a slug, so a rename changes only the name line", () => {
+		const view = pushReviewWorkflow(
+			source({
+				before: { ...gate(7), id: "01a16cb7-uuid", name: "Block crypto" },
+				after: { ...gate(7), id: "01a16cb7-uuid", name: "Block coins" },
+			}),
+		);
+		if (view.code.kind !== "code") {
+			throw new Error("expected code");
+		}
+		expect(view.code.before).toContain('"block-crypto": blockCrypto(),');
+		expect(view.code.after).toContain('"block-crypto": blockCoins(),');
+		expect(view.code.after).not.toContain("01a16cb7-uuid");
+	});
+
 	test("a new workflow diffs against nothing", () => {
 		const view = pushReviewWorkflow(source({ change: "new", before: null }));
 		expect(view.code).toMatchObject({ kind: "code", before: "" });
