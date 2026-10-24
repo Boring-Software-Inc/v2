@@ -35,5 +35,7 @@ export interface ApiEnv {
 		 * unrestricted (dev open posture). Set by the stream's session gate.
 		 */
 		visibleRepos: Set<string> | null;
+		/** The signed-in viewer; null in dev open posture. */
+		viewerId: string | null;
 	};
 }

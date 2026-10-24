@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Auth } from "@tripwire/auth/server";
 import {
+	agentWorkServices,
 	applyMigrations,
 	createBoss,
 	createDb,
@@ -114,5 +115,92 @@ describe("GET /events/stream gate", () => {
 		expect(res.status).toBe(401);
 		const health = await makeApp(fakeAuth(null)).request("/healthz");
 		expect(health.status).toBe(200);
+	});
+});
+
+async function readUntil(
+	res: Response,
+	needle: string,
+	ms: number,
+): Promise<string> {
+	const reader = res.body?.getReader();
+	if (!reader) {
+		throw new Error("no body");
+	}
+	const decoder = new TextDecoder();
+	let seen = "";
+	const deadline = Date.now() + ms;
+	while (Date.now() < deadline && !seen.includes(needle)) {
+		const next = await Promise.race([
+			reader.read(),
+			new Promise<null>((resolve) =>
+				setTimeout(() => resolve(null), deadline - Date.now()),
+			),
+		]);
+		if (!next || next.done) {
+			break;
+		}
+		seen += decoder.decode(next.value);
+	}
+	await reader.cancel();
+	return seen;
+}
+
+describe("GET /events/stream agent channel", () => {
+	const definition = {
+		id: "stream-close-stale",
+		name: "Close stale PRs",
+		version: 1,
+		nodes: [
+			{
+				id: "t",
+				type: "trigger" as const,
+				kinds: ["change-request.opened" as const],
+			},
+		],
+		edges: [],
+	};
+
+	async function seedRepo(name: string): Promise<string> {
+		const id = `repo-${name}`;
+		await db.insert(schema.repos).values({
+			id,
+			externalId: `ext-${name}`,
+			owner: "g-r-i-m",
+			name,
+			fullName: `g-r-i-m/${name}`,
+		});
+		return id;
+	}
+
+	test("a viewer who can see the repo gets each agent change as it lands", async () => {
+		const repoId = await seedRepo("stream-open");
+		const res = await makeApp(null).request("/events/stream");
+		const reading = readUntil(res, "event: agent", 5000);
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		await agentWorkServices.saveAgentDraft(db, {
+			repoId,
+			agent: { userId: "u1", clientId: "claude-code" },
+			definition,
+		});
+		const text = await reading;
+		expect(text).toContain("event: agent");
+		expect(text).toContain('"type":"work"');
+		expect(text).toContain('"repoFullName":"g-r-i-m/stream-open"');
+	});
+
+	test("a user without access to the repo gets no agent events", async () => {
+		const repoId = await seedRepo("stream-hidden");
+		const res = await makeApp(fakeAuth({ user: { id: "u1" } })).request(
+			"/events/stream",
+		);
+		const reading = readUntil(res, "event: agent", 1500);
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		await agentWorkServices.saveAgentDraft(db, {
+			repoId,
+			agent: { userId: "u1", clientId: "claude-code" },
+			definition: { ...definition, id: "stream-hidden-wf" },
+		});
+		expect(await reading).not.toContain("event: agent");
 	});
 });
