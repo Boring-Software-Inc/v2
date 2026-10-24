@@ -315,6 +315,6 @@ describe("clock schedules", () => {
 				timezone: "Europe/Berlin",
 				match: {},
 			}),
-		).toBe("0 */12 * * * in Berlin");
+		).toBe("Every day at 00:00 and 12:00 in Berlin");
 	});
 });

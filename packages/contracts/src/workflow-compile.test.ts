@@ -240,11 +240,11 @@ describe("automation-shaped graphs", () => {
 		expect(result.ok && result.workflows[0]?.schedules).toEqual([
 			{
 				nodeId: "schedule",
-				summary: "0 8 * * 0 in Berlin",
+				summary: "Every Sunday at 08:00 in Berlin",
 				timezone: "Europe/Berlin",
 				defaulted: false,
 				description:
-					"0 8 * * 0 in Berlin, finds open issues with no activity for 30 days, skipping locked ones. Then Tripwire posts your comment.",
+					"Every Sunday at 08:00 in Berlin, finds open issues with no activity for 30 days, skipping locked ones. Then Tripwire posts your comment.",
 			},
 		]);
 	});
