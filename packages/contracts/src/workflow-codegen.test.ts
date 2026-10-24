@@ -145,11 +145,32 @@ describe("pull then push changes nothing", () => {
 		expect(code).toContain("function qaGsimoneOpens() {");
 		expect(code).toContain("function prRate() {");
 		expect(code).toContain('\t"qa-gsimone-opens": qaGsimoneOpens(),');
-		expect(code).toContain("\trate: prRate(),");
+		expect(code).toContain('\t"pr-rate": prRate(),');
 		expect(code).toContain(
 			'check("honeypot", {\n\t\tpaths: [".github/workflows/**"],\n\t})',
 		);
 		expect(code).not.toMatch(/"(paths|minDays|min)":/);
+	});
+
+	test("a key is the workflow's name as a slug, and the keys map leads back to the id", async () => {
+		const { code, compiled } = await roundTrip([MODERATED]);
+		expect(code).toContain('\t"moderated-newcomers": moderatedNewcomers(),');
+		const { keys } = workflowsToCode([MODERATED], {
+			importFrom: "./workflow.ts",
+		});
+		expect([...keys]).toEqual([["moderated", "moderated-newcomers"]]);
+		expect(compiled.ok && compiled.definitions[0]?.id).toBe(
+			"moderated-newcomers",
+		);
+	});
+
+	test("a kept key holds through a rename", () => {
+		const { code } = workflowsToCode([{ ...MODERATED, name: "Renamed" }], {
+			importFrom: "./workflow.ts",
+			keys: new Map([["moderated", "moderated-newcomers"]]),
+		});
+		expect(code).toContain('\t"moderated-newcomers": renamed(),');
+		expect(code).toContain('name: "Renamed",');
 	});
 
 	test("node can load the module with type stripping alone", async () => {
@@ -168,7 +189,9 @@ describe("pull then push changes nothing", () => {
 			runner,
 			`const m = await import(${JSON.stringify(file)});\nconsole.log(Object.keys(m.default).join(","));\n`,
 		);
-		expect((await Bun.$`${node} ${runner}`.text()).trim()).toBe("moderated");
+		expect((await Bun.$`${node} ${runner}`.text()).trim()).toBe(
+			"moderated-newcomers",
+		);
 	});
 });
 

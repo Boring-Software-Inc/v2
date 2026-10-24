@@ -15,6 +15,7 @@ import {
 } from "../index.ts";
 import { user } from "../schema/auth.ts";
 import { oauthClient } from "../schema/oauth.ts";
+import { organization } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
 import {
 	applyAgentWorkflow,
@@ -30,6 +31,7 @@ import {
 import { liveMessageFor } from "./live.ts";
 import { listEnabledWorkflows } from "./repos.ts";
 import { listDueSchedules } from "./schedules.ts";
+import { decideWorkflowPush, proposeWorkflowPush } from "./workflow-pushes.ts";
 import { listWorkflows, setWorkflowEnabled } from "./workflows.ts";
 
 let container: TestDatabase;
@@ -292,6 +294,82 @@ describe("saving a draft", () => {
 		});
 		expect(detail?.id).toBe(work.workflowId ?? "");
 		expect(detail?.enabled).toBe(false);
+	});
+
+	test("an accepted push review saves the workflow and promotes its draft", async () => {
+		const orgId = generateId();
+		await db
+			.insert(organization)
+			.values({ id: orgId, name: orgId, slug: orgId, isPersonal: false });
+		const repoId = await newRepo("push-review");
+		const definition = staleTemplate();
+		const saved = await saveAgentDraft(db, {
+			repoId,
+			agent,
+			definition,
+			now: T0,
+		});
+		const proposed = await proposeWorkflowPush(db, {
+			orgId,
+			repoId,
+			authorId: agent.userId,
+			definitions: [definition],
+			now: later(5),
+		});
+		if (!proposed.ok || proposed.kind !== "proposed") {
+			throw new Error("expected a proposal");
+		}
+		const decided = await decideWorkflowPush(db, {
+			orgId,
+			pushId: proposed.push.id,
+			userId: agent.userId,
+			decision: "accept",
+			now: later(10),
+		});
+		expect(decided.ok).toBe(true);
+		const work = await getWorkflowWork(db, {
+			repoId,
+			definitionId: definition.id,
+			now: later(11),
+		});
+		expect(work.draft?.id).toBe(saved.draftId);
+		expect(work.draft?.status).toBe("promoted");
+		expect(work.workflowId).not.toBeNull();
+		const cards = await listWorkflowCards(db, { repoId, now: later(11) });
+		expect(cards.map((card) => card.draftId)).toEqual([null]);
+	});
+
+	test("a rejected push review leaves the draft open", async () => {
+		const orgId = generateId();
+		await db
+			.insert(organization)
+			.values({ id: orgId, name: orgId, slug: orgId, isPersonal: false });
+		const repoId = await newRepo("push-reject");
+		const definition = staleTemplate();
+		await saveAgentDraft(db, { repoId, agent, definition, now: T0 });
+		const proposed = await proposeWorkflowPush(db, {
+			orgId,
+			repoId,
+			authorId: agent.userId,
+			definitions: [definition],
+			now: later(5),
+		});
+		if (!proposed.ok || proposed.kind !== "proposed") {
+			throw new Error("expected a proposal");
+		}
+		await decideWorkflowPush(db, {
+			orgId,
+			pushId: proposed.push.id,
+			userId: agent.userId,
+			decision: "reject",
+			now: later(10),
+		});
+		const work = await getWorkflowWork(db, {
+			repoId,
+			definitionId: definition.id,
+			now: later(11),
+		});
+		expect(work.draft?.status).toBe("open");
 	});
 
 	test("an agent edit to a live workflow waits in a draft; the live one keeps running", async () => {

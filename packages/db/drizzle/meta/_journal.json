@@ -241,9 +241,16 @@
       "breakpoints": true
     },
     {
+      "idx": 34,
+      "version": "7",
+      "when": 1792825356335,
+      "tag": "0034_workflow_push_proposals",
+      "breakpoints": true
+    },
+    {
       "idx": 35,
       "version": "7",
-      "when": 1792828975323,
+      "when": 1792830999216,
       "tag": "0035_live_agent_work",
       "breakpoints": true
     }

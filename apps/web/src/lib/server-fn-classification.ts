@@ -106,6 +106,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	deleteRepoWorkflow: "permission:workflows:manage",
 	promoteRepoDraft: "permission:workflows:manage",
 	discardRepoDraft: "permission:workflows:manage",
+	getWorkflowPushReview: "permission:workflows:manage",
+	decideWorkflowPush: "permission:workflows:manage",
 	setRepoWorkflowEnabled: "permission:workflows:manage",
 	testDeliveryConnection: "permission:workflows:manage", // makes an outbound request
 	refreshRepoReviewers: "permission:workflows:manage",

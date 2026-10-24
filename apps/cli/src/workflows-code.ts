@@ -12,6 +12,7 @@ import {
 	type WorkflowDefinition,
 	type WorkflowState,
 	workflowDefinitionSchema,
+	workflowKeys,
 	workflowsToCode,
 	workflowToCode,
 } from "@tripwire/contracts";
@@ -160,9 +161,17 @@ export interface PullSelection {
 export function selectPulled(
 	workflows: readonly PulledWorkflow[],
 	wanted: readonly string[],
+	keys: ReadonlyMap<string, string> = new Map(),
 ): PullSelection {
+	const derived = workflowKeys(
+		workflows.map((workflow) => workflow.definition),
+		keys,
+	);
 	const hits = (workflow: PulledWorkflow, key: string) =>
-		workflow.id === key || workflow.appId === key || workflow.name === key;
+		workflow.id === key ||
+		workflow.appId === key ||
+		workflow.name === key ||
+		derived.get(workflow.id) === key;
 	return {
 		picked: workflows.filter((workflow) =>
 			wanted.some((key) => hits(workflow, key)),
@@ -237,6 +246,7 @@ export interface PullWrite {
 	pulled: number;
 	kept: string[];
 	warnings: string[];
+	keys: Map<string, string>;
 }
 
 function workflowCount(count: number): string {
@@ -278,9 +288,14 @@ export async function readLocalWorkflows(
 	}
 }
 
-function codeOf(definitions: readonly WorkflowDefinition[]): string {
-	return workflowsToCode(definitions, { importFrom: AUTHORING_MODULE_PATH })
-		.code;
+function codeOf(
+	definitions: readonly WorkflowDefinition[],
+	keys?: ReadonlyMap<string, string>,
+): string {
+	return workflowsToCode(definitions, {
+		importFrom: AUTHORING_MODULE_PATH,
+		keys,
+	}).code;
 }
 
 function listText(names: readonly string[]): string {
@@ -293,6 +308,7 @@ function refusal(
 	file: string,
 	local: LocalWorkflows,
 	definitions: readonly WorkflowDefinition[],
+	keys: ReadonlyMap<string, string>,
 ): string | null {
 	if (local.kind === "unreadable") {
 		return `${file} does not compile, so a pull cannot keep its other workflows. Fix it, or pass --force to replace it.`;
@@ -310,7 +326,7 @@ function refusal(
 	if (differs.length > 0) {
 		return `${listText(differs)} in ${name} ${differs.length === 1 ? "differs" : "differ"} from the server. Run tripwire workflows diff <repo> to compare, or pass --force to take the server's version.`;
 	}
-	if (codeOf(local.definitions) !== local.text) {
+	if (codeOf(local.definitions, keys) !== local.text) {
 		return `${name} has edits a pull would rewrite. Pass --force to rewrite it, or diff it first.`;
 	}
 	return null;
@@ -322,17 +338,20 @@ export function writePulled(
 	definitions: readonly WorkflowDefinition[],
 	force: boolean,
 	local: LocalWorkflows = { kind: "none" },
+	localKeys: ReadonlyMap<string, string> = new Map(),
 ): PullWrite {
 	const path = resolve(file);
 	const merged = mergeDefinitions(
 		local.kind === "code" ? local.definitions : [],
 		definitions,
 	);
-	const { code, warnings, written } = workflowsToCode(merged.definitions, {
-		importFrom: AUTHORING_MODULE_PATH,
-	});
+	const { code, warnings, written, keys } = workflowsToCode(
+		merged.definitions,
+		{ importFrom: AUTHORING_MODULE_PATH, keys: localKeys },
+	);
 	const unchanged = local.kind === "code" && local.text === code;
-	const problem = force || unchanged ? null : refusal(file, local, definitions);
+	const problem =
+		force || unchanged ? null : refusal(file, local, definitions, localKeys);
 	if (problem) {
 		throw new Error(problem);
 	}
@@ -346,6 +365,7 @@ export function writePulled(
 		pulled: definitions.length,
 		kept: merged.kept,
 		warnings,
+		keys,
 	};
 }
 

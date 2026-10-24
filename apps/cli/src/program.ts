@@ -12,6 +12,8 @@ const COMMANDS = new Set([
 	"logout",
 	"whoami",
 	"status",
+	"link",
+	"unlink",
 	"repos",
 	"rules",
 	"gate",
@@ -98,7 +100,7 @@ export function buildProgram(
 		.option("--json", "Print machine-readable JSON")
 		.option(
 			"--org <slug>",
-			"Org to act on (default: TRIPWIRE_ORG or your only org)",
+			"Org to act on (default: TRIPWIRE_ORG, the linked project, or your only org)",
 		)
 		.showHelpAfterError();
 

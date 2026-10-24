@@ -731,6 +731,46 @@ export async function applyAgentWorkflow(
 	return { ...result, draftId: draft?.id ?? null };
 }
 
+/**
+ * A person accepted a push review. Each saved workflow promotes its open
+ * draft, the same way the agent's apply does.
+ */
+export async function promoteSavedDrafts(
+	db: Db,
+	input: {
+		repoId: string;
+		saved: readonly { definitionId: string; workflowId: string }[];
+		now?: Date;
+	},
+): Promise<string[]> {
+	const now = input.now ?? new Date();
+	const promoted: string[] = [];
+	for (const { definitionId, workflowId } of input.saved) {
+		const draft = await openDraft(
+			db,
+			{ repoId: input.repoId, definitionId },
+			now,
+		);
+		if (!draft) {
+			continue;
+		}
+		const after = await getWorkflow(db, { repoId: input.repoId, workflowId });
+		await closeDraft(db, {
+			draft,
+			status: "promoted",
+			workflowId,
+			definition: after?.definition,
+			change: after
+				? workflowChangeSet(draftDefinition(draft), after.definition)
+				: undefined,
+			now,
+		});
+		await notifyLive(db, { type: "work", repoId: input.repoId, definitionId });
+		promoted.push(draft.id);
+	}
+	return promoted;
+}
+
 /** Releases the listed nodes, or every node and the session when none. */
 export async function finishWorkflowWork(
 	db: Db,

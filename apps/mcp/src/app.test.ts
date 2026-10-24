@@ -156,6 +156,8 @@ describe("tool access classification", () => {
 			apply_workflow: "workflows:manage",
 			begin_workflow_work: "workflows:manage",
 			finish_workflow_work: "workflows:manage",
+			propose_workflow_push: "workflows:manage",
+			get_workflow_push: "workflows:read",
 			list_runs: "activity:read",
 			get_run: "activity:read",
 			list_moderation_queue: "moderation:read",

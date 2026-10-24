@@ -18,6 +18,7 @@ import {
 	redactWorkflowSecrets,
 	WORKFLOW_SECRET_KEYS,
 } from "./workflow-diff.ts";
+import { workflowKeys } from "./workflow-keys.ts";
 import type { LintResult } from "./workflow-lint.ts";
 import { unrunnableIssues } from "./workflow-validate.ts";
 
@@ -531,6 +532,7 @@ export interface CodegenResult {
 	/** Things the code cannot say, so a push of it would drop them. */
 	warnings: string[];
 	written: string[];
+	keys: Map<string, string>;
 }
 
 function workflowFunction(
@@ -601,7 +603,7 @@ function workflowFunction(
  */
 export function workflowsToCode(
 	definitions: readonly WorkflowDefinition[],
-	options: { importFrom: string },
+	options: { importFrom: string; keys?: ReadonlyMap<string, string> },
 ): CodegenResult {
 	const warnings: string[] = [];
 	const used = new Set<string>();
@@ -609,6 +611,13 @@ export function workflowsToCode(
 	const entries: string[] = [];
 	const ids = new Set<string>();
 	const written: string[] = [];
+	const seen = new Set<string>();
+	const writable = definitions.filter((definition) => {
+		const fresh = !seen.has(definition.id);
+		seen.add(definition.id);
+		return fresh && codeProblems(definition).length === 0;
+	});
+	const keys = workflowKeys(writable, options.keys);
 	for (const definition of definitions) {
 		if (ids.has(definition.id)) {
 			warnings.push(
@@ -632,7 +641,9 @@ export function workflowsToCode(
 		used.add(name);
 		written.push(definition.id);
 		blocks.push(workflowFunction(definition, name, warnings));
-		entries.push(`\t${propertyKey(definition.id)}: ${name}(),`);
+		entries.push(
+			`\t${propertyKey(keys.get(definition.id) ?? definition.id)}: ${name}(),`,
+		);
 	}
 	const body = [
 		...blocks,
@@ -645,7 +656,7 @@ export function workflowsToCode(
 		`import {\n${helpers.map((helper) => `\t${helper},`).join("\n")}\n} from ${JSON.stringify(options.importFrom)};`,
 		body,
 	].join("\n\n");
-	return { code: `${code}\n`, warnings, written };
+	return { code: `${code}\n`, warnings, written, keys };
 }
 
 export type WorkflowCodeResult =
@@ -655,6 +666,7 @@ export type WorkflowCodeResult =
 /** One workflow as the `tripwire.ts` that `tripwire workflows pull` writes for it. */
 export function workflowToCode(
 	definition: WorkflowDefinition,
+	options: { key?: string } = {},
 ): WorkflowCodeResult {
 	const [problem] = codeProblems(definition);
 	if (problem) {
@@ -662,7 +674,10 @@ export function workflowToCode(
 	}
 	const { code, warnings } = workflowsToCode(
 		[redactWorkflowSecrets(definition)],
-		{ importFrom: AUTHORING_MODULE_PATH },
+		{
+			importFrom: AUTHORING_MODULE_PATH,
+			keys: options.key ? new Map([[definition.id, options.key]]) : undefined,
+		},
 	);
 	return { ok: true, code, warnings };
 }

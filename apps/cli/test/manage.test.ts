@@ -157,11 +157,11 @@ describe("management commands over MCP", () => {
 	});
 
 	test.each([
-		["workflows", "pull", "--help", "<repo> [workflows...]"],
+		["workflows", "pull", "--help", "[repo] [workflows...]"],
 		["workflows", "validate", "-h", ""],
-		["workflows", "diff", "--help", "<repo>"],
-		["workflows", "push", "-h", "<repo>"],
-		["rules", "set", "--help", "<repo> <ruleId>"],
+		["workflows", "diff", "--help", "[repo]"],
+		["workflows", "push", "-h", "[repo]"],
+		["rules", "set", "--help", "[repo] <ruleId>"],
 	])("%s %s %s prints that subcommand's help", async (group, sub, flag, args) => {
 		const result = await runCli([group, sub, flag], env());
 		expect(result.code).toBe(0);
@@ -177,7 +177,7 @@ describe("management commands over MCP", () => {
 			env(),
 		);
 		expect(result.stdout.split("\n")[0]).toBe(
-			"Usage: tripwire workflows pull [options] <repo> [workflows...]",
+			"Usage: tripwire workflows pull [options] [repo] [workflows...]",
 		);
 	});
 
@@ -630,7 +630,7 @@ export default workflows({
 		);
 		expect(result.code).toBe(0);
 		const code = readFileSync(file(), "utf8");
-		expect(code).toContain("stale: staleIssues(),");
+		expect(code).toContain('\t"stale-issues": staleIssues(),');
 		expect(code).not.toContain("new-accounts");
 		const calls = server.calls.filter((entry) => entry.name === "get_workflow");
 		expect(calls.at(-1)?.args).toEqual({ repo: "scratch" });
@@ -658,7 +658,7 @@ export default workflows({
 		expect(result.code).toBe(0);
 		const code = readFileSync(file(), "utf8");
 		expect(code).toContain('"new-accounts": newAccounts(),');
-		expect(code).toContain("stale: staleIssues(),");
+		expect(code).toContain('\t"stale-issues": staleIssues(),');
 		expect(result.stdout).toContain("(1 workflow)");
 		expect(result.stdout).toContain(
 			"kept      New accounts, not pulled and left as it was",
@@ -847,10 +847,10 @@ export default workflows({
 		});
 	});
 
-	test("push sends the compiled definitions to apply_workflow", async () => {
+	test("push --force sends the compiled definitions to apply_workflow", async () => {
 		await pulled();
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(0);
@@ -870,7 +870,7 @@ export default workflows({
 		});
 	});
 
-	test("a refused push says why, step by step", async () => {
+	test("a refused push --force says why, step by step", async () => {
 		await pulled();
 		server.answerNext("apply_workflow", {
 			workflows: [
@@ -883,7 +883,7 @@ export default workflows({
 			],
 		});
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(1);
@@ -907,7 +907,7 @@ export default workflows({
 			],
 		});
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.code).toBe(1);
@@ -922,7 +922,7 @@ export default workflows({
 			workflows: [{ id: "qa6-clash", outcome: "refused", issues: [] }],
 		});
 		const result = await runCli(
-			["workflows", "push", "scratch", "--file", file()],
+			["workflows", "push", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(result.stderr).toBe(
@@ -942,7 +942,7 @@ export default workflows({
 			],
 		});
 		const result = await runCli(
-			["--json", "workflows", "push", "scratch", "--file", file()],
+			["--json", "workflows", "push", "scratch", "--force", "--file", file()],
 			env(),
 		);
 		expect(JSON.parse(result.stdout).workflows[0].outcome).toBe("refused");
@@ -1067,7 +1067,7 @@ describe("the workflows skill", () => {
 			["workflows", "validate", "--file", file],
 			env(),
 		);
-		expect(result.stdout).toContain("change-request-opens can be turned on");
+		expect(result.stdout).toContain("new-contributors can be turned on");
 		expect(result.code).toBe(0);
 	});
 });
