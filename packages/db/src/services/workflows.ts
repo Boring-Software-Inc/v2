@@ -1,7 +1,6 @@
 import {
 	catalogWithAiCredits,
 	customRuleRecordSchema,
-	describeSchedule,
 	diffWorkflow,
 	issuesInState,
 	lintWorkflow,
@@ -9,6 +8,7 @@ import {
 	reportWorkflows,
 	resolveCatalog,
 	restartedSchedules,
+	scheduleWords,
 	stripWorkflowSecrets,
 	type ValidationCatalogEntry,
 	type ValidationIssue,
@@ -90,7 +90,7 @@ function toListItem(
 		schedules: nodes.flatMap((n) =>
 			n.type === "trigger" && n.schedule?.every
 				? [
-						describeSchedule({
+						scheduleWords({
 							every: n.schedule.every,
 							timezone: n.schedule.timezone,
 						}),

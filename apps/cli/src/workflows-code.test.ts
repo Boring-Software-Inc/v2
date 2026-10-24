@@ -56,13 +56,61 @@ const PULLED: PulledWorkflow[] = [
 
 describe("picking workflows to pull", () => {
 	test("each choice shows its state and triggers", () => {
-		expect(workflowChoices(PULLED, new Map([["w1", "needs-fixes"]]))).toEqual([
+		expect(
+			workflowChoices(PULLED, new Map([["w1", { state: "needs-fixes" }]])),
+		).toEqual([
 			{
 				value: "new-accounts",
 				label: "New accounts",
 				hint: "needs fixes, change request opened",
 			},
 			{ value: "stale", label: "Stale issues", hint: "off, comment created" },
+		]);
+	});
+
+	test("a scheduled workflow shows its schedule in the list's words", () => {
+		const sweep: PulledWorkflow = {
+			id: "stale-sweep",
+			appId: "w3",
+			name: "Stale sweep",
+			enabled: true,
+			definition: workflowDefinitionSchema.parse({
+				id: "stale-sweep",
+				name: "Stale sweep",
+				version: 1,
+				nodes: [
+					{
+						id: "trigger",
+						type: "trigger",
+						kinds: ["schedule.matched"],
+						schedule: {
+							every: { cron: "*/15 * * * *" },
+							timezone: "Europe/Berlin",
+							match: {
+								subjects: ["issue"],
+								state: "open",
+								inactiveFor: { n: 30, unit: "days" },
+							},
+						},
+					},
+					{ id: "close", type: "action", action: "close" },
+				],
+				edges: [{ id: "e1", from: "trigger", to: "close" }],
+			}),
+		};
+		expect(
+			workflowChoices(
+				[sweep],
+				new Map([
+					["w3", { state: "on", schedules: ["every 15 minutes in Berlin"] }],
+				]),
+			),
+		).toEqual([
+			{
+				value: "stale-sweep",
+				label: "Stale sweep",
+				hint: "live, every 15 minutes in Berlin",
+			},
 		]);
 	});
 

@@ -1855,21 +1855,30 @@ export function scheduleText(schedule: {
 }
 
 /**
- * The schedule as every surface reads it back: the canvas, the editor field,
- * the CLI and MCP. It is scheduleText, starting with a capital, and a clock
- * schedule without a zone names the zone it runs in.
+ * The schedule as a list reads it back, mid-sentence: scheduleText, and a
+ * clock schedule without a zone names the zone it runs in.
  */
-export function describeSchedule(schedule: {
+export function scheduleWords(schedule: {
 	every: ScheduleCadence;
 	timezone?: string | undefined;
 }): string {
-	const text = scheduleText({
+	return scheduleText({
 		every: schedule.every,
 		timezone: isScheduleInterval(schedule.every)
 			? undefined
 			: (schedule.timezone ?? DEFAULT_SCHEDULE_TIMEZONE),
 	});
-	return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+}
+
+/**
+ * The schedule as every surface reads it back: the canvas, the editor field,
+ * the CLI and MCP. It is scheduleWords, starting with a capital.
+ */
+export function describeSchedule(schedule: {
+	every: ScheduleCadence;
+	timezone?: string | undefined;
+}): string {
+	return capital(scheduleWords(schedule));
 }
 
 const VOCABULARY = [

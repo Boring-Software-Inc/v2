@@ -199,11 +199,10 @@ const workflowsSchema = z.array(
 	}),
 );
 
-function workflowTriggerWords(
-	workflow: z.infer<typeof workflowsSchema>[number],
+export function workflowTriggerWords(
+	kinds: readonly string[],
+	schedules: readonly string[],
 ): string[] {
-	const kinds = workflow.triggerKinds ?? [];
-	const schedules = workflow.schedules ?? [];
 	if (schedules.length === 0) {
 		return triggerWords(kinds);
 	}
@@ -478,7 +477,10 @@ const FORMATTERS: Record<string, Formatter> = {
 				workflow.name,
 				workflow.id,
 				workflowStateWord(workflow, style),
-				workflowTriggerWords(workflow).join(", "),
+				workflowTriggerWords(
+					workflow.triggerKinds ?? [],
+					workflow.schedules ?? [],
+				).join(", "),
 			]),
 		);
 	}),

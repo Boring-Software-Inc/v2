@@ -8,8 +8,13 @@ on:
         required: true
         default: patch
   push:
+    branches:
+      - main
     tags:
       - "cli-v*"
+    paths:
+      - "apps/cli/**"
+      - "packages/contracts/**"
 
 concurrency:
   group: release-cli
@@ -41,13 +46,14 @@ jobs:
         id: version
         env:
           EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
           BUMP: ${{ github.event.inputs.bump }}
         run: |
-          if [ "$EVENT" = "push" ]; then
+          if [ "$EVENT" = "push" ] && [ "$REF_TYPE" = "tag" ]; then
             bun run scripts/cli-release/prepare.ts tag "$REF_NAME"
           else
-            bun run scripts/cli-release/prepare.ts bump "$BUMP"
+            bun run scripts/cli-release/prepare.ts bump "${BUMP:-patch}"
           fi
 
       - name: Check

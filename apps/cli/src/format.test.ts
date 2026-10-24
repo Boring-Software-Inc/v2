@@ -159,21 +159,21 @@ describe("plain text output", () => {
 					name: "Stale issues",
 					enabled: false,
 					triggerKinds: ["schedule.matched"],
-					schedules: ["Every Sunday at 08:00 in Berlin"],
+					schedules: ["every Sunday at 08:00 in Berlin"],
 				},
 				{
 					id: "wf_2",
 					name: "Mixed",
 					enabled: false,
 					triggerKinds: ["change-request.opened", "schedule.matched"],
-					schedules: ["Every 15 minutes in UTC", "Every 2 hours"],
+					schedules: ["every 15 minutes in UTC", "every 2 hours"],
 				},
 			]),
 		).toBe(
 			[
 				"WORKFLOW                      ID       STATE     TRIGGERS",
-				"Stale issues                  wf_1     off       Every Sunday at 08:00 in Berlin",
-				"Mixed                         wf_2     off       change request opened, Every 15 minutes in UTC, Every 2 hours",
+				"Stale issues                  wf_1     off       every Sunday at 08:00 in Berlin",
+				"Mixed                         wf_2     off       change request opened, every 15 minutes in UTC, every 2 hours",
 			].join("\n"),
 		);
 	});

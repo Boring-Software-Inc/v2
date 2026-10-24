@@ -35,6 +35,7 @@ import {
 	DEFAULT_WORKFLOW_FILE,
 	formatReports,
 	initialPicks,
+	type ListedWorkflow,
 	type LocalWorkflows,
 	loadWorkflowFile,
 	localCatalog,
@@ -436,24 +437,27 @@ const WORKFLOW_STATES = [
 	"cant-turn-on",
 ] as const satisfies readonly WorkflowState[];
 
-const listedStatesSchema = z.array(
-	z.looseObject({ id: z.string(), state: z.enum(WORKFLOW_STATES).optional() }),
+const listedWorkflowsSchema = z.array(
+	z.looseObject({
+		id: z.string(),
+		state: z.enum(WORKFLOW_STATES).optional(),
+		schedules: z.array(z.string()).optional(),
+	}),
 );
 
-async function workflowStates(
+async function listedWorkflows(
 	deps: ManageDeps,
 	options: GlobalOptions,
 	repo: string,
-): Promise<Map<string, WorkflowState>> {
+): Promise<Map<string, ListedWorkflow>> {
 	const output = await callForData(deps, options, "list_workflows", { repo });
-	const parsed = listedStatesSchema.safeParse(output.data);
-	const states = new Map<string, WorkflowState>();
-	for (const entry of parsed.success ? parsed.data : []) {
-		if (entry.state) {
-			states.set(entry.id, entry.state);
-		}
-	}
-	return states;
+	const parsed = listedWorkflowsSchema.safeParse(output.data);
+	return new Map(
+		(parsed.success ? parsed.data : []).map((entry) => [
+			entry.id,
+			{ state: entry.state, schedules: entry.schedules },
+		]),
+	);
 }
 
 function localIds(local: LocalWorkflows): string[] | null {
@@ -471,7 +475,7 @@ async function pickWorkflows(
 ): Promise<PulledWorkflow[] | null> {
 	const choices = workflowChoices(
 		workflows,
-		await workflowStates(deps, options, repo),
+		await listedWorkflows(deps, options, repo),
 	);
 	if (choices.filter((choice) => !choice.disabled).length < 2) {
 		return workflows;

@@ -363,7 +363,7 @@ describe("duplicate / rename / delete", () => {
 		});
 		const list = await listWorkflows(db, repoId);
 		const row = list.find((w) => w.id === created.id);
-		expect(row?.schedules).toEqual(["Every 2 hours at :30 in UTC"]);
+		expect(row?.schedules).toEqual(["every 2 hours at :30 in UTC"]);
 	});
 });
 
