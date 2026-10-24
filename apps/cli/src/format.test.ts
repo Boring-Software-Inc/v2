@@ -151,6 +151,33 @@ describe("plain text output", () => {
 		);
 	});
 
+	test("workflows list shows schedule triggers in the schedule's words", () => {
+		expect(
+			formatResult("list_workflows", [
+				{
+					id: "wf_1",
+					name: "Stale issues",
+					enabled: false,
+					triggerKinds: ["schedule.matched"],
+					schedules: ["Every Sunday at 08:00 in Berlin"],
+				},
+				{
+					id: "wf_2",
+					name: "Mixed",
+					enabled: false,
+					triggerKinds: ["change-request.opened", "schedule.matched"],
+					schedules: ["Every 15 minutes in UTC", "Every 2 hours"],
+				},
+			]),
+		).toBe(
+			[
+				"WORKFLOW                      ID       STATE     TRIGGERS",
+				"Stale issues                  wf_1     off       Every Sunday at 08:00 in Berlin",
+				"Mixed                         wf_2     off       change request opened, Every 15 minutes in UTC, Every 2 hours",
+			].join("\n"),
+		);
+	});
+
 	test("workflows list says when a live workflow cannot run, like the web", () => {
 		const rows = formatResult("list_workflows", [
 			{

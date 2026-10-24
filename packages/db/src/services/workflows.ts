@@ -1,6 +1,7 @@
 import {
 	catalogWithAiCredits,
 	customRuleRecordSchema,
+	describeSchedule,
 	diffWorkflow,
 	issuesInState,
 	lintWorkflow,
@@ -52,6 +53,7 @@ export interface WorkflowListItem {
 	nodeCount: number;
 	/** Trigger event kinds across trigger nodes — the card's summary line. */
 	triggerKinds: string[];
+	schedules: string[];
 	updatedAt: string;
 	runnable: boolean;
 	canTurnOn: boolean;
@@ -85,6 +87,16 @@ function toListItem(
 		triggerKinds: [
 			...new Set(nodes.flatMap((n) => (n.type === "trigger" ? n.kinds : []))),
 		],
+		schedules: nodes.flatMap((n) =>
+			n.type === "trigger" && n.schedule?.every
+				? [
+						describeSchedule({
+							every: n.schedule.every,
+							timezone: n.schedule.timezone,
+						}),
+					]
+				: [],
+		),
 		updatedAt: row.updatedAt.toISOString(),
 		runnable: readiness.runnable,
 		canTurnOn: readiness.canTurnOn,

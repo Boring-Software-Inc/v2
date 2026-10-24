@@ -339,6 +339,31 @@ describe("duplicate / rename / delete", () => {
 		const row = list.find((w) => w.id === created.id);
 		expect(row?.nodeCount).toBe(8);
 		expect(row?.triggerKinds).toContain("change-request.opened");
+		expect(row?.schedules).toEqual([]);
+	});
+
+	test("list carries each schedule in the words every surface uses", async () => {
+		const created = await createWorkflow(db, {
+			repoId,
+			definition: {
+				id: generateId(),
+				name: "scheduled",
+				version: 1,
+				nodes: [
+					{
+						id: "t",
+						type: "trigger",
+						kinds: ["schedule.matched"],
+						schedule: { every: { cron: "30 */2 * * *" }, match: {} },
+					},
+				],
+				edges: [],
+			},
+			name: "scheduled",
+		});
+		const list = await listWorkflows(db, repoId);
+		const row = list.find((w) => w.id === created.id);
+		expect(row?.schedules).toEqual(["Every 2 hours at :30 in UTC"]);
 	});
 });
 
