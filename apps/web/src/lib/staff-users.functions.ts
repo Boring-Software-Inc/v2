@@ -588,9 +588,7 @@ export const deleteAdminUser = createServerFn({ method: "POST" })
 			};
 		}
 		const db = await staffDb();
-		const { flagOverrideServices, staffUserServices } = await import(
-			"@tripwire/db"
-		);
+		const { staffUserServices } = await import("@tripwire/db");
 		const bits = await staffUserServices.getUserStaffBits(db, data.userId);
 		if (!bits) {
 			return { ok: false, error: "This user no longer exists." };
@@ -605,12 +603,10 @@ export const deleteAdminUser = createServerFn({ method: "POST" })
 		if (!expected || data.confirm.trim() !== expected) {
 			return { ok: false, error: `Type ${expected ?? bits.name} to confirm.` };
 		}
-		const flagKeys = await flagOverrideServices.listActiveOverrideFlagKeys(
-			db,
-			data.userId,
+		const { deleteAccountAndSyncFlags } = await import(
+			"#/lib/server/staff-users"
 		);
-		const { deleteAccount } = await import("@tripwire/auth/account-deletion");
-		const result = await deleteAccount(db, data.userId);
+		const result = await deleteAccountAndSyncFlags(db, data.userId);
 		if (!result.ok) {
 			return {
 				ok: false,
@@ -626,10 +622,6 @@ export const deleteAdminUser = createServerFn({ method: "POST" })
 			action: "user.delete",
 			detail: { login: expected },
 		});
-		const { enqueueFlagSync } = await import("#/lib/server/staff-users");
-		for (const flagKey of flagKeys) {
-			await enqueueFlagSync(flagKey);
-		}
 		return { ok: true };
 	});
 

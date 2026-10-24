@@ -9,10 +9,15 @@ import {
 	getErrorMessage,
 	truncate,
 } from "@tripwire/utils";
-import { and, desc, eq, inArray, isNotNull, type SQL, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, type SQL, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
-import { userFlagOverrideEvents, userFlagOverrides } from "../schema/staff.ts";
+import {
+	flagOverrideRemovals,
+	userFlagOverrideEvents,
+	userFlagOverrides,
+} from "../schema/staff.ts";
+import type { DbLike } from "./access.ts";
 
 export interface UserFlagOverride {
 	flagKey: string;
@@ -177,19 +182,37 @@ export async function markFlagOverridePending(
 	return rows.length > 0;
 }
 
-export async function listActiveOverrideFlagKeys(
-	db: Db,
+export async function recordFlagOverrideRemovals(
+	db: DbLike,
 	userId: string,
 ): Promise<string[]> {
 	const rows = await db
 		.selectDistinct({ flagKey: userFlagOverrides.flagKey })
 		.from(userFlagOverrides)
-		.where(
-			and(
-				eq(userFlagOverrides.userId, userId),
-				isNotNull(userFlagOverrides.value),
-			),
-		);
+		.where(eq(userFlagOverrides.userId, userId));
+	const flagKeys = rows.map((row) => row.flagKey);
+	if (flagKeys.length === 0) {
+		return [];
+	}
+	await db
+		.insert(flagOverrideRemovals)
+		.values(flagKeys.map((flagKey) => ({ id: generateId(), userId, flagKey })))
+		.onConflictDoUpdate({
+			target: [flagOverrideRemovals.userId, flagOverrideRemovals.flagKey],
+			set: { createdAt: new Date() },
+		});
+	return flagKeys;
+}
+
+export async function listPendingFlagRemovals(
+	db: Db,
+	olderThan: Date,
+): Promise<string[]> {
+	const rows = await db
+		.selectDistinct({ flagKey: flagOverrideRemovals.flagKey })
+		.from(flagOverrideRemovals)
+		.where(lt(flagOverrideRemovals.createdAt, olderThan))
+		.orderBy(flagOverrideRemovals.flagKey);
 	return rows.map((row) => row.flagKey);
 }
 
@@ -236,6 +259,21 @@ export async function syncFlagOverrides(
 		.filter((row) => row.value === false)
 		.map((row) => row.userId);
 	const unsynced = rows.filter((row) => row.syncStatus !== "synced");
+	const removals = await db
+		.select({ id: flagOverrideRemovals.id })
+		.from(flagOverrideRemovals)
+		.where(eq(flagOverrideRemovals.flagKey, flagKey));
+	const clearRemovals = async (): Promise<void> => {
+		if (removals.length === 0) {
+			return;
+		}
+		await db.delete(flagOverrideRemovals).where(
+			inArray(
+				flagOverrideRemovals.id,
+				removals.map((row) => row.id),
+			),
+		);
+	};
 
 	const settle = async (set: {
 		syncStatus: FlagSyncStatus;
@@ -264,6 +302,7 @@ export async function syncFlagOverrides(
 				syncError: FLAG_MISSING_MESSAGE,
 				syncAttempts: sql`${userFlagOverrides.syncAttempts} + 1`,
 			});
+			await clearRemovals();
 			return { status: "missing" };
 		}
 		const rules = mergeTripwireRules(flag.rules ?? [], { on, off });
@@ -274,6 +313,7 @@ export async function syncFlagOverrides(
 			syncAttempts: 0,
 			syncedAt: new Date(),
 		});
+		await clearRemovals();
 		return {
 			status: "synced",
 			rows: rows.length,

@@ -10,6 +10,7 @@ import {
 } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
 import { runs } from "../schema/runs.ts";
+import { recordFlagOverrideRemovals } from "./flag-overrides.ts";
 
 export const DELETED_ACCOUNT_ACTOR = "account:deleted";
 
@@ -213,6 +214,7 @@ export interface DeletedAccount {
 	deleted: boolean;
 	personalOrgs: number;
 	reposRemoved: number;
+	flagKeys: string[];
 }
 
 async function lockMemberOrgs(tx: Tx, userId: string): Promise<void> {
@@ -243,7 +245,12 @@ export async function deleteUserAccount(
 			.where(eq(user.id, userId))
 			.for("update");
 		if (!found[0]) {
-			return { deleted: false, personalOrgs: 0, reposRemoved: 0 };
+			return {
+				deleted: false,
+				personalOrgs: 0,
+				reposRemoved: 0,
+				flagKeys: [],
+			};
 		}
 		await tx
 			.select({ id: member.id })
@@ -283,11 +290,13 @@ export async function deleteUserAccount(
 			.where(eq(user.accessReviewedBy, userId));
 		await tx.delete(session).where(eq(session.impersonatedBy, userId));
 		await tx.delete(deviceCode).where(eq(deviceCode.userId, userId));
+		const flagKeys = await recordFlagOverrideRemovals(tx, userId);
 		await tx.delete(user).where(eq(user.id, userId));
 		return {
 			deleted: true,
 			personalOrgs: personalIds.length,
 			reposRemoved: removed.length,
+			flagKeys,
 		};
 	});
 }

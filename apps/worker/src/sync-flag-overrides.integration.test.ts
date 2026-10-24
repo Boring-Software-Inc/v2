@@ -5,6 +5,7 @@ import {
 	type JsonValue,
 } from "@tripwire/contracts";
 import {
+	accountDeletionServices,
 	applyMigrations,
 	createBoss,
 	createDb,
@@ -22,7 +23,9 @@ import type { PgBoss } from "pg-boss";
 import pino from "pino";
 import {
 	DATABUDDY_NOT_CONNECTED,
+	FLAG_REMOVAL_GRACE_MS,
 	FlagSyncFailedError,
+	sweepFlagRemovals,
 	syncFlagOverridesJob,
 } from "./jobs/sync-flag-overrides.ts";
 
@@ -182,5 +185,23 @@ describe("sync-flag-overrides job", () => {
 			singletonKey: "show-sidebar",
 			retryLimit: 5,
 		});
+	});
+});
+
+describe("sweep-flag-removals", () => {
+	test("queues a sync for a deleted user's flag once the grace period passes", async () => {
+		const userId = await seedOverride("sweep-flag");
+		await accountDeletionServices.deleteUserAccount(db, userId);
+		const queued: string[] = [];
+		const enqueue = async (flagKey: string) => {
+			queued.push(flagKey);
+		};
+		await sweepFlagRemovals({ db, enqueue, logger }, new Date());
+		expect(queued).toEqual([]);
+		await sweepFlagRemovals(
+			{ db, enqueue, logger },
+			new Date(Date.now() + FLAG_REMOVAL_GRACE_MS + 1000),
+		);
+		expect(queued).toEqual(["sweep-flag"]);
 	});
 });

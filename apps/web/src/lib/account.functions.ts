@@ -140,8 +140,10 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
 			};
 		}
 		const { getDb } = await import("#/lib/server/db");
-		const { deleteAccount } = await import("@tripwire/auth/account-deletion");
-		const result = await deleteAccount(getDb().db, userId);
+		const { deleteAccountAndSyncFlags } = await import(
+			"#/lib/server/staff-users"
+		);
+		const result = await deleteAccountAndSyncFlags(getDb().db, userId);
 		if (result.ok) {
 			return { ok: true };
 		}

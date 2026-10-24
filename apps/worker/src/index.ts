@@ -23,6 +23,7 @@ import {
 	type SyncFlagOverridesJob,
 	type SyncRepoLabelsJob,
 	type SyncRepoReviewersJob,
+	syncFlagOverridesOptions,
 	syncRepoLabelsOptions,
 	syncRepoReviewersOptions,
 } from "@tripwire/db";
@@ -64,7 +65,12 @@ import {
 	scheduleTick,
 } from "./jobs/schedule-tick.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
-import { syncFlagOverridesJob } from "./jobs/sync-flag-overrides.ts";
+import {
+	SWEEP_FLAG_REMOVALS_CRON,
+	SWEEP_FLAG_REMOVALS_QUEUE,
+	sweepFlagRemovals,
+	syncFlagOverridesJob,
+} from "./jobs/sync-flag-overrides.ts";
 import { syncRepoLabels } from "./jobs/sync-repo-labels.ts";
 import { syncRepoReviewers } from "./jobs/sync-repo-reviewers.ts";
 import * as metering from "./metering.ts";
@@ -419,6 +425,27 @@ if (import.meta.main) {
 			});
 		});
 
+		await boss.createQueue(SWEEP_FLAG_REMOVALS_QUEUE);
+		await boss.schedule(
+			SWEEP_FLAG_REMOVALS_QUEUE,
+			SWEEP_FLAG_REMOVALS_CRON,
+			{},
+			{},
+		);
+		await work(SWEEP_FLAG_REMOVALS_QUEUE, async () => {
+			await sweepFlagRemovals({
+				db,
+				enqueue: async (flagKey) => {
+					await boss.send(
+						SYNC_FLAG_OVERRIDES_QUEUE,
+						{ flagKey },
+						syncFlagOverridesOptions(flagKey),
+					);
+				},
+				logger,
+			});
+		});
+
 		/** §5.12 surface sweeper — re-attempt actions stuck at `recorded` (outage). */
 		await boss.createQueue("sweep-actions");
 		await boss.schedule("sweep-actions", "* * * * *", {}, {});
@@ -548,6 +575,7 @@ if (import.meta.main) {
 				SYNC_REPO_REVIEWERS_QUEUE,
 				SYNC_REPO_LABELS_QUEUE,
 				SYNC_FLAG_OVERRIDES_QUEUE,
+				SWEEP_FLAG_REMOVALS_QUEUE,
 				REFRESH_SURFACES_QUEUE,
 				RECOVER_INSTALLATION_QUEUE,
 				"rollup",

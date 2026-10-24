@@ -264,7 +264,12 @@ describe("account deletion", () => {
 		});
 
 		const result = await deleteUserAccount(db, "leaver");
-		expect(result).toEqual({ deleted: true, personalOrgs: 1, reposRemoved: 1 });
+		expect(result).toEqual({
+			deleted: true,
+			personalOrgs: 1,
+			reposRemoved: 1,
+			flagKeys: [],
+		});
 
 		expect(await db.select().from(user).where(eq(user.id, "leaver"))).toEqual(
 			[],
@@ -382,6 +387,7 @@ describe("account deletion", () => {
 			deleted: false,
 			personalOrgs: 0,
 			reposRemoved: 0,
+			flagKeys: [],
 		});
 	});
 });

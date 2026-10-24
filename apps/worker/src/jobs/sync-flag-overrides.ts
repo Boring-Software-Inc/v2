@@ -47,3 +47,30 @@ export async function syncFlagOverridesJob(
 	logger.info({ flagKey: job.flagKey, result }, "flag overrides synced");
 	return result;
 }
+
+export const SWEEP_FLAG_REMOVALS_QUEUE = "sweep-flag-removals";
+export const SWEEP_FLAG_REMOVALS_CRON = "*/10 * * * *";
+export const FLAG_REMOVAL_GRACE_MS = 5 * 60 * 1000;
+
+export interface SweepFlagRemovalsDeps {
+	db: Db;
+	enqueue: (flagKey: string) => Promise<void>;
+	logger: Logger;
+}
+
+export async function sweepFlagRemovals(
+	deps: SweepFlagRemovalsDeps,
+	now = new Date(),
+): Promise<string[]> {
+	const flagKeys = await flagOverrideServices.listPendingFlagRemovals(
+		deps.db,
+		new Date(now.getTime() - FLAG_REMOVAL_GRACE_MS),
+	);
+	for (const flagKey of flagKeys) {
+		await deps.enqueue(flagKey);
+	}
+	if (flagKeys.length > 0) {
+		deps.logger.info({ flagKeys }, "flag removals queued for sync");
+	}
+	return flagKeys;
+}

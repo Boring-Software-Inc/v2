@@ -23,10 +23,11 @@ import {
 } from "../index.ts";
 import { user } from "../schema/auth.ts";
 import { userFlagOverrides } from "../schema/staff.ts";
+import { deleteUserAccount } from "./account-deletion.ts";
 import {
 	FLAG_MISSING_MESSAGE,
-	listActiveOverrideFlagKeys,
 	listFlagOverrideHistory,
+	listPendingFlagRemovals,
 	listUserFlagOverrides,
 	markFlagOverridePending,
 	setUserFlagOverride,
@@ -173,7 +174,6 @@ describe("setUserFlagOverride", () => {
 		const rows = await listUserFlagOverrides(db, mara);
 		expect(rows).toHaveLength(1);
 		expect(rows[0]?.choice).toBe("default");
-		expect(await listActiveOverrideFlagKeys(db, mara)).toEqual([]);
 	});
 });
 
@@ -354,5 +354,72 @@ describe("syncFlagOverrides", () => {
 		await db.delete(user).where(eq(user.id, gone));
 		await syncFlagOverrides(db, fake, "show-sidebar");
 		expect(fake.rulesOf("show-sidebar")).toEqual(theirRules);
+	});
+});
+
+describe("account deletion", () => {
+	test("a deleted user leaves Databuddy on the next sync, even with no rows left", async () => {
+		fake.seed("show-sidebar", theirRules);
+		fake.seed("access-gate", []);
+		const gone = await seedUser("deleted-user");
+		const stays = await seedUser("staying-user");
+		for (const flagKey of ["show-sidebar", "access-gate"]) {
+			await setUserFlagOverride(db, {
+				userId: gone,
+				flagKey,
+				choice: "on",
+				actorId: staff,
+			});
+			await syncFlagOverrides(db, fake, flagKey);
+		}
+		await setUserFlagOverride(db, {
+			userId: stays,
+			flagKey: "show-sidebar",
+			choice: "off",
+			actorId: staff,
+		});
+		await syncFlagOverrides(db, fake, "show-sidebar");
+		expect(JSON.stringify(fake.rulesOf("access-gate"))).toContain(gone);
+
+		const deleted = await deleteUserAccount(db, gone);
+		expect(deleted.flagKeys.sort()).toEqual(["access-gate", "show-sidebar"]);
+		const later = new Date(Date.now() + 60_000);
+		expect((await listPendingFlagRemovals(db, later)).sort()).toEqual([
+			"access-gate",
+			"show-sidebar",
+		]);
+
+		await syncFlagOverrides(db, fake, "access-gate");
+		await syncFlagOverrides(db, fake, "show-sidebar");
+		expect(fake.rulesOf("access-gate")).toEqual([]);
+		expect(JSON.stringify(fake.rulesOf("show-sidebar"))).not.toContain(gone);
+		expect(JSON.stringify(fake.rulesOf("show-sidebar"))).toContain(stays);
+		expect(fake.rulesOf("show-sidebar")).toEqual(
+			expect.arrayContaining(theirRules),
+		);
+		expect(await listPendingFlagRemovals(db, later)).toEqual([]);
+	});
+
+	test("a failed sync keeps the removal so a later sweep retries it", async () => {
+		fake.seed("show-sidebar", []);
+		const gone = await seedUser("deleted-retry");
+		await setUserFlagOverride(db, {
+			userId: gone,
+			flagKey: "show-sidebar",
+			choice: "off",
+			actorId: staff,
+		});
+		await syncFlagOverrides(db, fake, "show-sidebar");
+		await deleteUserAccount(db, gone);
+		fake.failNext = "Databuddy is down";
+		expect((await syncFlagOverrides(db, fake, "show-sidebar")).status).toBe(
+			"failed",
+		);
+		const later = new Date(Date.now() + 60_000);
+		expect(await listPendingFlagRemovals(db, later)).toEqual(["show-sidebar"]);
+		expect(await listPendingFlagRemovals(db, new Date(0))).toEqual([]);
+		await syncFlagOverrides(db, fake, "show-sidebar");
+		expect(fake.rulesOf("show-sidebar")).toEqual([]);
+		expect(await listPendingFlagRemovals(db, later)).toEqual([]);
 	});
 });

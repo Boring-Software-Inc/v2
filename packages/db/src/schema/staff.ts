@@ -65,6 +65,25 @@ export const userFlagOverrideEvents = pgTable(
 	],
 );
 
+export const flagOverrideRemovals = pgTable(
+	"flag_override_removals",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id").notNull(),
+		flagKey: text("flag_key").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [
+		uniqueIndex("flag_override_removals_user_flag_unique").on(
+			t.userId,
+			t.flagKey,
+		),
+		index("flag_override_removals_flag_idx").on(t.flagKey, t.createdAt),
+	],
+);
+
 export const staffAuditLog = pgTable(
 	"staff_audit_log",
 	{
