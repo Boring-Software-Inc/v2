@@ -170,6 +170,7 @@ export async function proposeWorkflowPush(
 			definition: stripWorkflowSecrets(definition),
 			baseWorkflowId: base?.id ?? null,
 			baseHash: base ? definitionHash(base.definition) : null,
+			baseDefinition: base ? redactWorkflowSecrets(base.definition) : null,
 		};
 	});
 	const id = generateId();
@@ -288,6 +289,7 @@ function reviewEntry(
 	rows: readonly WorkflowRow[],
 	catalog: readonly ValidationCatalogEntry[],
 	definitions: readonly WorkflowDefinition[],
+	open: boolean,
 ): WorkflowPushReviewEntry {
 	const base =
 		entry.baseWorkflowId === null
@@ -303,9 +305,11 @@ function reviewEntry(
 		name: entry.definition.name,
 		change: entry.baseWorkflowId === null ? "new" : "changed",
 		enabled,
-		stale: drifted(entry, rows),
-		before: base ? redactWorkflowSecrets(base.definition) : null,
-		after: redactWorkflowSecrets(merged),
+		stale: open && drifted(entry, rows),
+		before: entry.baseDefinition,
+		after: redactWorkflowSecrets(
+			pushedDefinition(entry.baseDefinition, entry.definition),
+		),
 		issues,
 		blocking: [
 			...(clash ? [clash] : []),
@@ -327,8 +331,9 @@ export async function reviewWorkflowPush(
 		repoRuleCatalog(db, push.repoId),
 	]);
 	const definitions = push.entries.map((entry) => entry.definition);
+	const open = push.status === "pending" || push.status === "stale";
 	const workflows = push.entries.map((entry) =>
-		reviewEntry(entry, rows, catalog, definitions),
+		reviewEntry(entry, rows, catalog, definitions, open),
 	);
 	return {
 		...push,

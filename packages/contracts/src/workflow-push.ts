@@ -29,6 +29,7 @@ export const workflowPushEntrySchema = z.object({
 	definition: workflowDefinitionSchema,
 	baseWorkflowId: z.string().nullable(),
 	baseHash: z.string().nullable(),
+	baseDefinition: workflowDefinitionSchema.nullable(),
 });
 
 export type WorkflowPushEntry = z.infer<typeof workflowPushEntrySchema>;

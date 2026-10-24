@@ -157,11 +157,13 @@ describe("propose", () => {
 				definition: gate("gate", "Gate", 30),
 				baseWorkflowId: saved.id,
 				baseHash: definitionHash(stored?.definition ?? gate("x", "x")),
+				baseDefinition: stored?.definition ?? null,
 			},
 			{
 				definition: gate("fresh", "Fresh"),
 				baseWorkflowId: null,
 				baseHash: null,
+				baseDefinition: null,
 			},
 		]);
 	});
@@ -408,6 +410,76 @@ describe("decide", () => {
 		expect(read?.outcomes).toHaveLength(2);
 	});
 
+	test("a decided push still shows the diff it was accepted with", async () => {
+		const repoId = await newRepo();
+		await seeded(repoId, gate("gate", "Gate"));
+		const push = await propose(repoId, [gate("gate", "Gate", 30)]);
+		await decideWorkflowPush(db, {
+			orgId,
+			pushId: push.id,
+			userId: reviewerId,
+			decision: "accept",
+		});
+		const review = await reviewWorkflowPush(db, {
+			orgId,
+			repoId,
+			pushId: push.id,
+		});
+		expect(review?.status).toBe("accepted");
+		expect(review?.workflows[0]?.stale).toBe(false);
+		expect(review?.workflows[0]?.before?.nodes[1]).toMatchObject({
+			config: { minDays: 7 },
+		});
+		expect(review?.workflows[0]?.after.nodes[1]).toMatchObject({
+			config: { minDays: 30 },
+		});
+	});
+
+	test("the stored base keeps no secret of the saved workflow", async () => {
+		const repoId = await newRepo();
+		const hooked: WorkflowDefinition = {
+			...gate("hooked", "Hooked"),
+			nodes: [
+				...gate("hooked", "Hooked").nodes,
+				{
+					id: "w",
+					type: "action",
+					action: "webhook",
+					params: { url: "https://saved.example/hook", signingSecret: "k3y" },
+					position: { x: 780, y: 0 },
+				},
+			],
+			edges: [
+				...gate("hooked", "Hooked").edges,
+				{ id: "e3", from: "r", to: "w", when: "fail" },
+			],
+		};
+		await seeded(repoId, hooked);
+		const push = await propose(repoId, [
+			{
+				...hooked,
+				nodes: hooked.nodes.map((node) =>
+					node.type === "rule" ? { ...node, config: { minDays: 30 } } : node,
+				),
+			},
+		]);
+		const raw = await db
+			.select({ entries: workflowPushProposals.entries })
+			.from(workflowPushProposals)
+			.where(eq(workflowPushProposals.id, push.id));
+		expect(JSON.stringify(raw)).not.toContain("saved.example");
+		expect(JSON.stringify(raw)).not.toContain("k3y");
+		const result = await decideWorkflowPush(db, {
+			orgId,
+			pushId: push.id,
+			userId: reviewerId,
+			decision: "accept",
+		});
+		expect(result.ok).toBe(true);
+		const rows = await listWorkflowRows(db, repoId);
+		expect(JSON.stringify(rows[0]?.definition)).toContain("saved.example");
+	});
+
 	test("a second accept is refused and changes nothing", async () => {
 		const repoId = await newRepo();
 		await seeded(repoId, gate("gate", "Gate"));
@@ -545,6 +617,7 @@ describe("decide", () => {
 						definition: broken("gate", "Gate"),
 						baseWorkflowId: saved.id,
 						baseHash: push.entries[0]?.baseHash ?? null,
+						baseDefinition: push.entries[0]?.baseDefinition ?? null,
 					},
 				],
 			})
