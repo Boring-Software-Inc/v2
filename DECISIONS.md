@@ -207,3 +207,29 @@ name as a slug (`"block-crypto-pushes": blockCryptoPushes()`), not its id.
 UUIDs), keys as the stored definition id (a rename or a slug change would
 make a new workflow on the server), a comment beside each key (comments are
 lost when the file is regenerated).
+
+## 2026-10-24: the site og image moves; h264-mp4-encoder is a dev-only tool
+
+**Decision (founder, 2026-10-24):** the site link preview gets an `og:video`
+next to `og:image`: `/og.mp4`, a 3 s, 48 frame, 1200x630 H.264 Baseline loop
+in which only the fire moves. Run pages keep only their still `og:image`.
+
+- `/og.mp4` is a committed asset. `apps/web/scripts/og-video/render.ts`
+  makes it again from `public/og.png` and the Paper fire layer.
+- `h264-mp4-encoder@1.0.12` (MIT, 1 MB, wasm inlined, no native binary) is a
+  devDependency that only that script imports. The server bundle does not
+  contain it. On import it adds Emscripten `uncaughtException` and
+  `unhandledRejection` handlers that rethrow, so it must never load in the
+  server.
+- Its mp4 has `moov` after `mdat`. `faststart` in the script moves `moov`
+  first, so the file plays before it has fully downloaded.
+- `twitter:card` stays `summary_large_image` and `og:type` stays as it is. X
+  plays video only through approved player cards. Telegram's preview breaks
+  with `twitter:player`.
+- Run videos rendered on request were built and measured (about 1.8 s cold,
+  480 KB each) and then left out. If they come back, the founder wants
+  bigger, bolder glyphs in the run fire.
+
+**Alternatives looked at:** an ffmpeg static binary (about 80 MB), ffmpeg.wasm
+(about 30 MB of wasm), WebCodecs (not in Node), and an animated GIF
+`og:image` (no platform we checked confirms that it animates).

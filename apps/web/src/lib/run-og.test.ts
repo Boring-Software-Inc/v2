@@ -187,6 +187,16 @@ describe("runOgImage", () => {
 	});
 });
 
+describe("runOgImage fallback", () => {
+	test("a private run page gets the still app image and no video", () => {
+		expect(runOgImage("run-1", null)).toEqual({
+			path: "/og.png",
+			width: 1200,
+			height: 630,
+		});
+	});
+});
+
 describe("parseRunOgPath", () => {
 	test("reads the run id and hash", () => {
 		expect(parseRunOgPath("/og/runs/run-1/abc")).toEqual({

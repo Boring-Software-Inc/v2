@@ -68,6 +68,7 @@
 		"@typescript-eslint/parser": "^8.71.0",
 		"@vitejs/plugin-react": "^5.1.4",
 		"eslint": "^9.39.5",
+		"h264-mp4-encoder": "1.0.12",
 		"typescript": "^5.7.2",
 		"vite": "^7.3.1",
 		"vite-tsconfig-paths": "^5.1.4"

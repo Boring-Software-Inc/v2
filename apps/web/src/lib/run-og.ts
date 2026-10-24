@@ -3,6 +3,7 @@ import type { RunView } from "#/lib/runs.functions";
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
 export const APP_OG_IMAGE_PATH = "/og.png";
+export const APP_OG_VIDEO_PATH = "/og.mp4";
 
 const RUN_OG_VERSION = 1;
 const RUN_OG_PATH = /^\/og\/runs\/([^/]+)\/([^/]+)$/;
@@ -21,12 +22,18 @@ export interface OgImage {
 	path: string;
 	width: number;
 	height: number;
+	video?: string;
 }
 
 export const APP_OG_IMAGE: OgImage = {
 	path: APP_OG_IMAGE_PATH,
 	width: OG_IMAGE_WIDTH,
 	height: OG_IMAGE_HEIGHT,
+};
+
+export const SITE_OG_IMAGE: OgImage = {
+	...APP_OG_IMAGE,
+	video: APP_OG_VIDEO_PATH,
 };
 
 function graphemes(text: string): string[] {
