@@ -1,22 +1,130 @@
 import type {Icon as PhosphorIcon, IconProps as PhosphorProps} from '@phosphor-icons/react';
-import {
-  ArrowBendDownRightIcon, ArrowClockwiseIcon, ArrowDownIcon, ArrowElbowDownLeftIcon, ArrowLeftIcon, ArrowRightIcon,
-  ArrowSquareOutIcon, ArrowUDownLeftIcon, ArrowUUpLeftIcon, ArrowUpIcon, ArrowUpRightIcon, ArrowsInLineVerticalIcon,
-  ArrowsOutLineVerticalIcon, BrainIcon, CalendarBlankIcon, CaretDownIcon, CaretLeftIcon, CaretRightIcon, CaretUpIcon,
-  CaretUpDownIcon, ChartLineIcon, CheckIcon, CheckCircleIcon, CircleNotchIcon, ClockIcon, CodeIcon, ColumnsIcon,
-  CopyIcon, DotsThreeIcon, DownloadSimpleIcon, EyeIcon, EyeSlashIcon, FileIcon, FileArchiveIcon, FileAudioIcon,
-  FileCodeIcon, FileCsvIcon, FileImageIcon, FileTextIcon, FileVideoIcon, FunnelIcon, GearSixIcon, GlobeIcon, InfoIcon,
-  KeyIcon, LinkSimpleIcon, LockIcon, MagnifyingGlassIcon, MicrophoneIcon, MicrophoneSlashIcon, MinusIcon, MoonIcon,
-  PaperPlaneRightIcon, PaperclipIcon, PauseIcon, PencilSimpleIcon, PlayIcon, PlusIcon, RobotIcon, ShieldSlashIcon,
-  SparkleIcon, SquareIcon, SunIcon, TableIcon, TerminalIcon, TerminalWindowIcon, TrashIcon, TrayIcon,
-  UploadSimpleIcon, UserIcon, WarningIcon, WarningCircleIcon, WrenchIcon, XIcon, XCircleIcon, HourglassSimpleMediumIcon,
-  BellIcon, BuildingsIcon, ChartBarIcon, ChatCircleIcon, ChatsCircleIcon, CommandIcon, CreditCardIcon, CursorIcon,
-  DotsThreeVerticalIcon, EnvelopeIcon, FlowArrowIcon, FolderIcon, GitBranchIcon, GitForkIcon, GithubLogoIcon,
-  GitlabLogoIcon, GitPullRequestIcon, HashIcon, HouseIcon, LightningIcon, ListChecksIcon, MonitorIcon, PackageIcon,
-  PlugIcon, ProhibitIcon, PulseIcon, QuestionIcon, QueueIcon, ShieldCheckIcon, SignOutIcon, SlidersHorizontalIcon, TreeStructureIcon,
-  TrendDownIcon, TrendUpIcon, UserPlusIcon, UsersIcon, ArchiveIcon, ArrowsMergeIcon, ChecksIcon, DiscordLogoIcon, FilesIcon,
-  CornersOutIcon, GaugeIcon, GitCommitIcon, GitMergeIcon, MinusCircleIcon, TagIcon, TranslateIcon, WalletIcon, WebhooksLogoIcon,
-} from '@phosphor-icons/react/ssr';
+import {ArchiveIcon} from '@phosphor-icons/react/dist/ssr/Archive';
+import {ArrowBendDownRightIcon} from '@phosphor-icons/react/dist/ssr/ArrowBendDownRight';
+import {ArrowClockwiseIcon} from '@phosphor-icons/react/dist/ssr/ArrowClockwise';
+import {ArrowDownIcon} from '@phosphor-icons/react/dist/ssr/ArrowDown';
+import {ArrowElbowDownLeftIcon} from '@phosphor-icons/react/dist/ssr/ArrowElbowDownLeft';
+import {ArrowLeftIcon} from '@phosphor-icons/react/dist/ssr/ArrowLeft';
+import {ArrowRightIcon} from '@phosphor-icons/react/dist/ssr/ArrowRight';
+import {ArrowSquareOutIcon} from '@phosphor-icons/react/dist/ssr/ArrowSquareOut';
+import {ArrowUDownLeftIcon} from '@phosphor-icons/react/dist/ssr/ArrowUDownLeft';
+import {ArrowUUpLeftIcon} from '@phosphor-icons/react/dist/ssr/ArrowUUpLeft';
+import {ArrowUpIcon} from '@phosphor-icons/react/dist/ssr/ArrowUp';
+import {ArrowUpRightIcon} from '@phosphor-icons/react/dist/ssr/ArrowUpRight';
+import {ArrowsInLineVerticalIcon} from '@phosphor-icons/react/dist/ssr/ArrowsInLineVertical';
+import {ArrowsMergeIcon} from '@phosphor-icons/react/dist/ssr/ArrowsMerge';
+import {ArrowsOutLineVerticalIcon} from '@phosphor-icons/react/dist/ssr/ArrowsOutLineVertical';
+import {BellIcon} from '@phosphor-icons/react/dist/ssr/Bell';
+import {BrainIcon} from '@phosphor-icons/react/dist/ssr/Brain';
+import {BuildingsIcon} from '@phosphor-icons/react/dist/ssr/Buildings';
+import {CalendarBlankIcon} from '@phosphor-icons/react/dist/ssr/CalendarBlank';
+import {CaretDownIcon} from '@phosphor-icons/react/dist/ssr/CaretDown';
+import {CaretLeftIcon} from '@phosphor-icons/react/dist/ssr/CaretLeft';
+import {CaretRightIcon} from '@phosphor-icons/react/dist/ssr/CaretRight';
+import {CaretUpDownIcon} from '@phosphor-icons/react/dist/ssr/CaretUpDown';
+import {CaretUpIcon} from '@phosphor-icons/react/dist/ssr/CaretUp';
+import {ChartBarIcon} from '@phosphor-icons/react/dist/ssr/ChartBar';
+import {ChartLineIcon} from '@phosphor-icons/react/dist/ssr/ChartLine';
+import {ChatCircleIcon} from '@phosphor-icons/react/dist/ssr/ChatCircle';
+import {ChatsCircleIcon} from '@phosphor-icons/react/dist/ssr/ChatsCircle';
+import {CheckCircleIcon} from '@phosphor-icons/react/dist/ssr/CheckCircle';
+import {CheckIcon} from '@phosphor-icons/react/dist/ssr/Check';
+import {ChecksIcon} from '@phosphor-icons/react/dist/ssr/Checks';
+import {CircleNotchIcon} from '@phosphor-icons/react/dist/ssr/CircleNotch';
+import {ClockIcon} from '@phosphor-icons/react/dist/ssr/Clock';
+import {CodeIcon} from '@phosphor-icons/react/dist/ssr/Code';
+import {ColumnsIcon} from '@phosphor-icons/react/dist/ssr/Columns';
+import {CommandIcon} from '@phosphor-icons/react/dist/ssr/Command';
+import {CopyIcon} from '@phosphor-icons/react/dist/ssr/Copy';
+import {CornersOutIcon} from '@phosphor-icons/react/dist/ssr/CornersOut';
+import {CreditCardIcon} from '@phosphor-icons/react/dist/ssr/CreditCard';
+import {CursorIcon} from '@phosphor-icons/react/dist/ssr/Cursor';
+import {DiscordLogoIcon} from '@phosphor-icons/react/dist/ssr/DiscordLogo';
+import {DotsThreeIcon} from '@phosphor-icons/react/dist/ssr/DotsThree';
+import {DotsThreeVerticalIcon} from '@phosphor-icons/react/dist/ssr/DotsThreeVertical';
+import {DownloadSimpleIcon} from '@phosphor-icons/react/dist/ssr/DownloadSimple';
+import {EnvelopeIcon} from '@phosphor-icons/react/dist/ssr/Envelope';
+import {EyeIcon} from '@phosphor-icons/react/dist/ssr/Eye';
+import {EyeSlashIcon} from '@phosphor-icons/react/dist/ssr/EyeSlash';
+import {FileArchiveIcon} from '@phosphor-icons/react/dist/ssr/FileArchive';
+import {FileAudioIcon} from '@phosphor-icons/react/dist/ssr/FileAudio';
+import {FileCodeIcon} from '@phosphor-icons/react/dist/ssr/FileCode';
+import {FileCsvIcon} from '@phosphor-icons/react/dist/ssr/FileCsv';
+import {FileIcon} from '@phosphor-icons/react/dist/ssr/File';
+import {FileImageIcon} from '@phosphor-icons/react/dist/ssr/FileImage';
+import {FileTextIcon} from '@phosphor-icons/react/dist/ssr/FileText';
+import {FileVideoIcon} from '@phosphor-icons/react/dist/ssr/FileVideo';
+import {FilesIcon} from '@phosphor-icons/react/dist/ssr/Files';
+import {FlowArrowIcon} from '@phosphor-icons/react/dist/ssr/FlowArrow';
+import {FolderIcon} from '@phosphor-icons/react/dist/ssr/Folder';
+import {FunnelIcon} from '@phosphor-icons/react/dist/ssr/Funnel';
+import {GaugeIcon} from '@phosphor-icons/react/dist/ssr/Gauge';
+import {GearSixIcon} from '@phosphor-icons/react/dist/ssr/GearSix';
+import {GitBranchIcon} from '@phosphor-icons/react/dist/ssr/GitBranch';
+import {GitCommitIcon} from '@phosphor-icons/react/dist/ssr/GitCommit';
+import {GitForkIcon} from '@phosphor-icons/react/dist/ssr/GitFork';
+import {GitMergeIcon} from '@phosphor-icons/react/dist/ssr/GitMerge';
+import {GitPullRequestIcon} from '@phosphor-icons/react/dist/ssr/GitPullRequest';
+import {GithubLogoIcon} from '@phosphor-icons/react/dist/ssr/GithubLogo';
+import {GitlabLogoIcon} from '@phosphor-icons/react/dist/ssr/GitlabLogo';
+import {GlobeIcon} from '@phosphor-icons/react/dist/ssr/Globe';
+import {HashIcon} from '@phosphor-icons/react/dist/ssr/Hash';
+import {HourglassSimpleMediumIcon} from '@phosphor-icons/react/dist/ssr/HourglassSimpleMedium';
+import {HouseIcon} from '@phosphor-icons/react/dist/ssr/House';
+import {InfoIcon} from '@phosphor-icons/react/dist/ssr/Info';
+import {KeyIcon} from '@phosphor-icons/react/dist/ssr/Key';
+import {LightningIcon} from '@phosphor-icons/react/dist/ssr/Lightning';
+import {LinkSimpleIcon} from '@phosphor-icons/react/dist/ssr/LinkSimple';
+import {ListChecksIcon} from '@phosphor-icons/react/dist/ssr/ListChecks';
+import {LockIcon} from '@phosphor-icons/react/dist/ssr/Lock';
+import {MagnifyingGlassIcon} from '@phosphor-icons/react/dist/ssr/MagnifyingGlass';
+import {MicrophoneIcon} from '@phosphor-icons/react/dist/ssr/Microphone';
+import {MicrophoneSlashIcon} from '@phosphor-icons/react/dist/ssr/MicrophoneSlash';
+import {MinusCircleIcon} from '@phosphor-icons/react/dist/ssr/MinusCircle';
+import {MinusIcon} from '@phosphor-icons/react/dist/ssr/Minus';
+import {MonitorIcon} from '@phosphor-icons/react/dist/ssr/Monitor';
+import {MoonIcon} from '@phosphor-icons/react/dist/ssr/Moon';
+import {PackageIcon} from '@phosphor-icons/react/dist/ssr/Package';
+import {PaperPlaneRightIcon} from '@phosphor-icons/react/dist/ssr/PaperPlaneRight';
+import {PaperclipIcon} from '@phosphor-icons/react/dist/ssr/Paperclip';
+import {PauseIcon} from '@phosphor-icons/react/dist/ssr/Pause';
+import {PencilSimpleIcon} from '@phosphor-icons/react/dist/ssr/PencilSimple';
+import {PlayIcon} from '@phosphor-icons/react/dist/ssr/Play';
+import {PlugIcon} from '@phosphor-icons/react/dist/ssr/Plug';
+import {PlusIcon} from '@phosphor-icons/react/dist/ssr/Plus';
+import {ProhibitIcon} from '@phosphor-icons/react/dist/ssr/Prohibit';
+import {PulseIcon} from '@phosphor-icons/react/dist/ssr/Pulse';
+import {QuestionIcon} from '@phosphor-icons/react/dist/ssr/Question';
+import {QueueIcon} from '@phosphor-icons/react/dist/ssr/Queue';
+import {RobotIcon} from '@phosphor-icons/react/dist/ssr/Robot';
+import {ShieldCheckIcon} from '@phosphor-icons/react/dist/ssr/ShieldCheck';
+import {ShieldSlashIcon} from '@phosphor-icons/react/dist/ssr/ShieldSlash';
+import {SignOutIcon} from '@phosphor-icons/react/dist/ssr/SignOut';
+import {SlidersHorizontalIcon} from '@phosphor-icons/react/dist/ssr/SlidersHorizontal';
+import {SparkleIcon} from '@phosphor-icons/react/dist/ssr/Sparkle';
+import {SquareIcon} from '@phosphor-icons/react/dist/ssr/Square';
+import {SunIcon} from '@phosphor-icons/react/dist/ssr/Sun';
+import {TableIcon} from '@phosphor-icons/react/dist/ssr/Table';
+import {TagIcon} from '@phosphor-icons/react/dist/ssr/Tag';
+import {TerminalIcon} from '@phosphor-icons/react/dist/ssr/Terminal';
+import {TerminalWindowIcon} from '@phosphor-icons/react/dist/ssr/TerminalWindow';
+import {TranslateIcon} from '@phosphor-icons/react/dist/ssr/Translate';
+import {TrashIcon} from '@phosphor-icons/react/dist/ssr/Trash';
+import {TrayIcon} from '@phosphor-icons/react/dist/ssr/Tray';
+import {TreeStructureIcon} from '@phosphor-icons/react/dist/ssr/TreeStructure';
+import {TrendDownIcon} from '@phosphor-icons/react/dist/ssr/TrendDown';
+import {TrendUpIcon} from '@phosphor-icons/react/dist/ssr/TrendUp';
+import {UploadSimpleIcon} from '@phosphor-icons/react/dist/ssr/UploadSimple';
+import {UserIcon} from '@phosphor-icons/react/dist/ssr/User';
+import {UserPlusIcon} from '@phosphor-icons/react/dist/ssr/UserPlus';
+import {UsersIcon} from '@phosphor-icons/react/dist/ssr/Users';
+import {WalletIcon} from '@phosphor-icons/react/dist/ssr/Wallet';
+import {WarningCircleIcon} from '@phosphor-icons/react/dist/ssr/WarningCircle';
+import {WarningIcon} from '@phosphor-icons/react/dist/ssr/Warning';
+import {WebhooksLogoIcon} from '@phosphor-icons/react/dist/ssr/WebhooksLogo';
+import {WrenchIcon} from '@phosphor-icons/react/dist/ssr/Wrench';
+import {XCircleIcon} from '@phosphor-icons/react/dist/ssr/XCircle';
+import {XIcon} from '@phosphor-icons/react/dist/ssr/X';
 import {cn} from '#/lib/glaze/utils.ts';
 
 // The one place Glaze imports icons from. Components import from here, never from @phosphor-icons/react, so the set
