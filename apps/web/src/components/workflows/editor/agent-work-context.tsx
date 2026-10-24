@@ -1,5 +1,6 @@
 import type { LiveNodeTouch } from "@tripwire/contracts";
 import { createContext, useContext, useRef } from "react";
+import { AgentDissolve } from "#/components/agent/agent-dissolve";
 import { AgentOutline } from "#/components/agent/agent-outline";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
 
@@ -25,4 +26,13 @@ export function NodeAgentOutline({ nodeId }: { nodeId: string }) {
 		return null;
 	}
 	return <AgentOutline active={Boolean(touch)} motion={motion} seed={nodeId} />;
+}
+
+export const AgentEnterContext = createContext<ReadonlyMap<string, number>>(
+	new Map(),
+);
+
+export function NodeEnterDissolve({ nodeId }: { nodeId: string }) {
+	const delay = useContext(AgentEnterContext).get(nodeId);
+	return delay === undefined ? null : <AgentDissolve delay={delay} />;
 }

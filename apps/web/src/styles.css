@@ -480,8 +480,10 @@ body {
 	transition: transform 500ms var(--ease-out);
 }
 
-.glaze [data-agent-motion="full"] .react-flow__node.agent-enter > * {
-	animation: agent-node-in var(--agent-duration) ease-out var(--agent-delay) both;
+.glaze [data-agent-motion="full"] .react-flow__node.agent-enter > :not([data-agent-dissolve]) {
+	animation:
+		agent-node-fade var(--agent-duration) linear var(--agent-delay) both,
+		agent-node-land var(--agent-duration) var(--ease-step) var(--agent-delay) both;
 }
 
 .glaze [data-agent-motion="full"] .react-flow__node.agent-pulse-a > *,
@@ -518,11 +520,24 @@ body {
 	opacity: 0;
 }
 
-@keyframes agent-node-in {
-	from {
+@keyframes agent-node-fade {
+	0% {
 		opacity: 0;
+	}
+	35% {
+		opacity: 0.35;
+	}
+	65% {
+		opacity: 0.85;
+	}
+	100% {
+		opacity: 1;
+	}
+}
+
+@keyframes agent-node-land {
+	from {
 		scale: 0.96;
-		filter: blur(2px);
 	}
 }
 

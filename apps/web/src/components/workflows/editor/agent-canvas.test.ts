@@ -42,27 +42,31 @@ describe("decorateLive", () => {
 	const nodeOf = (id: string) => decorated.nodes.find((n) => n.id === id);
 	const edgeOf = (id: string) => decorated.edges.find((e) => e.id === id);
 
-	test("new nodes animate in for 360 ms, 60 ms apart in the order they arrive", () => {
+	test("new nodes land in 340 ms, 60 ms apart in the order they arrive", () => {
 		expect(nodeOf("b")?.className).toBe("agent-enter");
 		expect(nodeOf("b")?.style).toEqual({
 			"--agent-delay": "0ms",
-			"--agent-duration": "360ms",
+			"--agent-duration": "340ms",
 		});
 		expect(nodeOf("c")?.style).toEqual({
 			"--agent-delay": "60ms",
-			"--agent-duration": "360ms",
+			"--agent-duration": "340ms",
 		});
+		expect([...decorated.entering]).toEqual([
+			["b", 0],
+			["c", 60],
+		]);
 	});
 
-	test("a new edge draws in for 240 ms once both of its ends are in", () => {
+	test("a new edge draws in for 140 ms once both of its ends have landed", () => {
 		expect(edgeOf("ab")?.className).toBe("agent-trail");
 		expect(edgeOf("ab")?.style).toEqual({
-			"--agent-delay": "360ms",
-			"--agent-duration": "240ms",
+			"--agent-delay": "340ms",
+			"--agent-duration": "140ms",
 		});
 		expect(edgeOf("bc")?.style).toEqual({
-			"--agent-delay": "420ms",
-			"--agent-duration": "240ms",
+			"--agent-delay": "400ms",
+			"--agent-duration": "140ms",
 		});
 	});
 
@@ -79,9 +83,9 @@ describe("decorateLive", () => {
 		});
 		expect(linked.edges[0]?.style).toEqual({
 			"--agent-delay": "0ms",
-			"--agent-duration": "240ms",
+			"--agent-duration": "140ms",
 		});
-		expect(linked.settleMs).toBe(240);
+		expect(linked.settleMs).toBe(140);
 	});
 
 	test("a changed node pulses, alternating so each revision replays", () => {
@@ -121,7 +125,7 @@ describe("decorateLive", () => {
 			},
 			revision: 1,
 		});
-		expect(built.settleMs).toBe(660);
+		expect(built.settleMs).toBe(540);
 	});
 
 	test("with no change set the next graph shows as it is, with nothing to settle", () => {
@@ -133,6 +137,7 @@ describe("decorateLive", () => {
 		});
 		expect(plain.nodes).toEqual([node("a")]);
 		expect(plain.settleMs).toBe(0);
+		expect(plain.entering.size).toBe(0);
 	});
 });
 

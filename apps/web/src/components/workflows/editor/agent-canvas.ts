@@ -1,9 +1,9 @@
 import type { WorkflowChangeSet } from "@tripwire/contracts";
 import type { CSSProperties } from "react";
 
-export const AGENT_ENTER_MS = 360;
+export const AGENT_ENTER_MS = 340;
 export const AGENT_STAGGER_MS = 60;
-export const AGENT_TRAIL_MS = 240;
+export const AGENT_TRAIL_MS = 140;
 export const AGENT_LEAVE_MS = 200;
 export const AGENT_PULSE_MS = 1000;
 export const AGENT_FRESH_MS = 2000;
@@ -61,6 +61,7 @@ export interface LiveGraph<N, E> {
 	nodes: N[];
 	edges: E[];
 	settleMs: number;
+	entering: ReadonlyMap<string, number>;
 }
 
 /**
@@ -77,7 +78,12 @@ export function decorateLive<N extends Piece, E extends Link>(input: {
 }): LiveGraph<N, E> {
 	const { change, next, previous } = input;
 	if (!change) {
-		return { nodes: [...next.nodes], edges: [...next.edges], settleMs: 0 };
+		return {
+			nodes: [...next.nodes],
+			edges: [...next.edges],
+			settleMs: 0,
+			entering: new Map(),
+		};
 	}
 	let settleMs = 0;
 	const ends = (at: number) => {
@@ -129,6 +135,7 @@ export function decorateLive<N extends Piece, E extends Link>(input: {
 		nodes: [...nodes, ...leaving],
 		edges: [...edges, ...fading],
 		settleMs,
+		entering: enterAt,
 	};
 }
 
