@@ -87,3 +87,22 @@ describe("passed workflows group", () => {
 		expect(markup).toContain(">2 workflows passed<");
 	});
 });
+
+describe("a passing AI review in the passed list", () => {
+	const SUMMARY = "It adds a donation address with no related code change.";
+	const passingAi: RunView = {
+		...SAMPLE_RUN,
+		steps: SAMPLE_RUN.steps.map((step) =>
+			step.ruleRef === "ai-review@2" ? { ...step, status: "pass" } : step,
+		),
+	};
+
+	test("shows its summary next to the other passed rules", () => {
+		expect(render(passingAi, 0)).toContain(SUMMARY);
+		expect(render(passingAi, 3)).toContain(SUMMARY);
+	});
+
+	test("hides it where the repo hides AI summaries", () => {
+		expect(render(passingAi, 4)).not.toContain(SUMMARY);
+	});
+});

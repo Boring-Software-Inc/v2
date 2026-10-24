@@ -17,6 +17,7 @@ import {
 	branchSummary,
 	type ChainBranch,
 	type ChainRule,
+	passedNote,
 	ruleReason,
 } from "#/lib/run-chain";
 import { cn } from "#/lib/utils";
@@ -32,7 +33,13 @@ function joinNames(rules: readonly ChainRule[]): string {
 	return rules.map((rule) => rule.name).join(", ");
 }
 
-function PassedFold({ rules }: { rules: ChainRule[] }) {
+function PassedFold({
+	rules,
+	context,
+}: {
+	rules: ChainRule[];
+	context: BranchContext;
+}) {
 	return (
 		<Collapsible className="rule-row gap-2 px-3 py-2">
 			<div className="flex items-start gap-2">
@@ -46,21 +53,34 @@ function PassedFold({ rules }: { rules: ChainRule[] }) {
 					{joinNames(rules)}
 				</span>
 			</div>
-			<CollapsibleContent>
+			<CollapsibleContent hiddenUntilFound>
 				<ul className="flex flex-col gap-1 ps-2 pb-1">
-					{rules.map((rule) => (
-						<li
-							className="flex items-baseline gap-2 type-body-sm text-text-2"
-							key={rule.step.id}
-						>
-							<span className="min-w-0 flex-1 type-label text-text-1">
-								{rule.name}
-							</span>
-							<span className="shrink-0 type-caption">
-								{rule.step.durationMs}ms
-							</span>
-						</li>
-					))}
+					{rules.map((rule) => {
+						const note = passedNote(rule, context.level, context.maintainer);
+						return (
+							<li
+								className="flex flex-col gap-0.5 type-body-sm text-text-2"
+								key={rule.step.id}
+							>
+								<span className="flex items-baseline gap-2">
+									<span className="min-w-0 flex-1 type-label text-text-1">
+										{rule.name}
+									</span>
+									{note?.model ? (
+										<span className="min-w-0 truncate type-code-sm">
+											{note.model}
+										</span>
+									) : null}
+									<span className="shrink-0 type-caption">
+										{rule.step.durationMs}ms
+									</span>
+								</span>
+								{note ? (
+									<p className="[overflow-wrap:anywhere]">{note.summary}</p>
+								) : null}
+							</li>
+						);
+					})}
 				</ul>
 			</CollapsibleContent>
 		</Collapsible>
@@ -139,7 +159,9 @@ function BranchBody({
 					Its wiring is broken, so Tripwire did not run it.
 				</p>
 			) : null}
-			{branch.passed.length > 0 ? <PassedFold rules={branch.passed} /> : null}
+			{branch.passed.length > 0 ? (
+				<PassedFold context={context} rules={branch.passed} />
+			) : null}
 			{branch.flagged.map((rule) => (
 				<FlaggedRule context={context} key={rule.step.id} rule={rule} />
 			))}

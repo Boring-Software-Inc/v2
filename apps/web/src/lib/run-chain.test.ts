@@ -16,6 +16,7 @@ import {
 	buildRunChain,
 	formatOffset,
 	outcomeChips,
+	passedNote,
 	ruleReason,
 } from "#/lib/run-chain";
 import type {
@@ -948,5 +949,65 @@ describe("the checks node agrees with the gate's verdict", () => {
 		);
 		expect(chain.checks?.title).toBe("1 of 1 rules passed");
 		expect(chain.checks?.tone).toBe("neutral");
+	});
+});
+
+describe("a passing AI review in the passed list", () => {
+	const TRACE = {
+		model: "anthropic/claude-sonnet-4.5",
+		stepsUsed: 1,
+		maxSteps: 12,
+		trimmed: false,
+		usage: { input: 1200, output: 80, cached: null },
+		steps: [],
+	};
+	const aiStep = (): RunStepView => ({
+		...rule(
+			"default@1:ai",
+			"ai-review@2",
+			"pass",
+			"the diff fixes a typo in the README",
+		),
+		evidence: { evidence: { output: null, trace: TRACE } },
+	});
+	const passedOf = (runView: RunView) => {
+		const body = buildRunChain(runView).checks?.body;
+		return body?.kind === "branches"
+			? body.branches.flatMap((branch) => branch.passed)
+			: [];
+	};
+	const steps = () => [
+		aiStep(),
+		rule("default@1:english", "english-only@1", "pass", "Mostly English."),
+	];
+
+	test("members see its summary and model", () => {
+		const [ai, english] = passedOf(
+			toFullRunView(view({ steps: steps(), workflows: [RULES] })),
+		);
+		expect(ai && passedNote(ai, 0, true)).toEqual({
+			summary: "The diff fixes a typo in the README.",
+			model: "anthropic/claude-sonnet-4.5",
+		});
+		expect(english && passedNote(english, 0, true)).toBeNull();
+	});
+
+	test("the public sees the summary while the repo shows AI summaries", () => {
+		const [ai] = passedOf(
+			toPublicRunView(view({ steps: steps(), workflows: [RULES] }), 3),
+		);
+		expect(ai && passedNote(ai, 3, false)).toEqual({
+			summary: "The diff fixes a typo in the README.",
+			model: null,
+		});
+	});
+
+	test("a level that hides the AI summary shows nothing under the name", () => {
+		for (const level of [4, 5]) {
+			const [ai] = passedOf(
+				toPublicRunView(view({ steps: steps(), workflows: [RULES] }), level),
+			);
+			expect(ai && passedNote(ai, level, false)).toBeNull();
+		}
 	});
 });
