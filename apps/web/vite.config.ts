@@ -6,8 +6,18 @@ import viteReact from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { pierreCatalogs, pierreClientOnly } from "./scripts/pierre-catalogs";
 
 const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+
+const QUIET_WARNINGS = new Set([
+	"EVAL",
+	"CIRCULAR_DEPENDENCY",
+	"THIS_IS_UNDEFINED",
+	"EMPTY_BUNDLE",
+	"MODULE_LEVEL_DIRECTIVE",
+	"INVALID_ANNOTATION",
+]);
 
 const sentryPlugins = sentryAuthToken
 	? sentryVitePlugin({
@@ -32,16 +42,30 @@ const sentryPlugins = sentryAuthToken
 export default defineConfig({
 	environments: {
 		client: {
-			build: { sourcemap: sentryAuthToken ? "hidden" : false },
+			build: {
+				sourcemap: sentryAuthToken ? "hidden" : false,
+				rollupOptions: {
+					external: [/^node:/, ...builtinModules, /^@electric-sql\/pglite/],
+				},
+			},
 		},
 	},
 	plugins: [
+		pierreCatalogs(),
+		pierreClientOnly(),
 		tsconfigPaths({ projects: ["./tsconfig.json"] }),
 		tailwindcss(),
 		tanstackStart(),
 		nitro({
 			compressPublicAssets: { gzip: true, brotli: true },
-			rollupConfig: { external: [/^@resvg\/resvg-js-/] },
+			rollupConfig: {
+				external: [/^@resvg\/resvg-js-/],
+				onwarn(warning, warn) {
+					if (!QUIET_WARNINGS.has(warning.code ?? "")) {
+						warn(warning);
+					}
+				},
+			},
 			routeRules: {
 				"/assets/**": {
 					headers: {
