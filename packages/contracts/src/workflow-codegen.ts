@@ -247,38 +247,62 @@ const TAKES_NO_PARAMS = new Set([
 ]);
 
 const listValueSchema = z.array(jsonValueSchema);
-const scalarListSchema = z.array(
-	z.union([z.string(), z.number(), z.boolean(), z.null()]),
-);
+const scalarSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const scalarListSchema = z.array(scalarSchema);
 
 const LINE_WIDTH = 80;
 const TAB_WIDTH = 2;
 
-function inlineList(
-	value: JsonValue,
-	indent: string,
-	lead: string,
-): string | null {
+function flatList(value: JsonValue): string | null {
 	const scalars = scalarListSchema.safeParse(value);
-	if (!scalars.success) {
-		return null;
-	}
-	const text = `[${scalars.data.map((item) => JSON.stringify(item)).join(", ")}]`;
-	const width = indent.length * TAB_WIDTH + lead.length + text.length + 1;
-	return width <= LINE_WIDTH ? text : null;
+	return scalars.success
+		? `[${scalars.data.map((item) => JSON.stringify(item)).join(", ")}]`
+		: null;
 }
 
-function literal(value: JsonValue, indent: string, lead = ""): string {
+function flatObject(value: JsonValue): string | null {
+	const object = settingsRecord.safeParse(value);
+	if (!object.success) {
+		return null;
+	}
+	const entries = Object.entries(object.data);
+	if (entries.length === 0) {
+		return "{}";
+	}
+	const parts: string[] = [];
+	for (const [key, item] of entries) {
+		const scalar = scalarSchema.safeParse(item);
+		const text = scalar.success ? JSON.stringify(scalar.data) : flatList(item);
+		if (text === null) {
+			return null;
+		}
+		parts.push(`${propertyKey(key)}: ${text}`);
+	}
+	return `{ ${parts.join(", ")} }`;
+}
+
+function literal(
+	value: JsonValue,
+	indent: string,
+	lead = "",
+	tail = ",",
+): string {
+	const scalar = scalarSchema.safeParse(value);
+	if (scalar.success) {
+		return JSON.stringify(scalar.data);
+	}
+	const flat = flatList(value) ?? flatObject(value);
+	const width =
+		indent.length * TAB_WIDTH + lead.length + (flat?.length ?? 0) + tail.length;
+	if (flat !== null && width <= LINE_WIDTH) {
+		return flat;
+	}
 	const inner = `${indent}\t`;
 	const list = listValueSchema.safeParse(value);
 	if (list.success) {
-		if (list.data.length === 0) {
-			return "[]";
-		}
-		return (
-			inlineList(value, indent, lead) ??
-			`[\n${list.data.map((item) => `${inner}${literal(item, inner)},`).join("\n")}\n${indent}]`
-		);
+		return list.data.length === 0
+			? "[]"
+			: `[\n${list.data.map((item) => `${inner}${literal(item, inner)},`).join("\n")}\n${indent}]`;
 	}
 	const object = settingsRecord.safeParse(value);
 	if (object.success) {
@@ -346,12 +370,18 @@ function stepExpression(
 	inputs: string[],
 	warnings: string[],
 	indent: string,
+	declared: string,
 ): string | null {
 	const after = inputs.length > 0 ? `.after(${inputs.join(", ")})` : "";
+	const argument = (value: JsonValue, head: string, tail: string) =>
+		literal(value, indent, `${declared}${head}`, `${tail};`);
 	switch (node.type) {
 		case "trigger": {
 			if (node.schedule) {
-				return `schedule(${literal(jsonValueSchema.parse(JSON.parse(JSON.stringify(node.schedule))), indent)})`;
+				const schedule = jsonValueSchema.parse(
+					JSON.parse(JSON.stringify(node.schedule)),
+				);
+				return `schedule(${argument(schedule, "schedule(", ")")})`;
 			}
 			return `trigger(${node.kinds.map((kind) => JSON.stringify(kind)).join(", ")})`;
 		}
@@ -360,16 +390,16 @@ function stepExpression(
 			const version = Number(versionText);
 			const entry = RULE_CATALOG.find((rule) => rule.ruleId === ruleId);
 			const settings = settingsRecord.safeParse(node.config);
-			const config =
-				settings.success && Object.keys(settings.data).length === 0
-					? null
-					: literal(node.config, indent);
-			if (!entry) {
-				return `customCheck(${JSON.stringify(ruleId)}${config ? `, ${config}` : ""})${after}`;
-			}
-			const pin = version === entry.version ? "" : `, { version: ${version} }`;
+			const empty = settings.success && Object.keys(settings.data).length === 0;
+			const helper = entry ? "check" : "customCheck";
+			const head = `${helper}(${JSON.stringify(ruleId)}, `;
+			const pin =
+				!entry || version === entry.version ? "" : `, { version: ${version} }`;
+			const config = empty
+				? null
+				: argument(node.config, head, `${pin})${after}`);
 			const args = config ?? (pin ? "{}" : "");
-			return `check(${JSON.stringify(ruleId)}${args ? `, ${args}` : ""}${pin})${after}`;
+			return `${helper}(${JSON.stringify(ruleId)}${args ? `, ${args}` : ""}${pin})${after}`;
 		}
 		case "gate": {
 			if (inputs.length === 0) {
@@ -400,7 +430,7 @@ function stepExpression(
 			const args =
 				TAKES_NO_PARAMS.has(node.action) || Object.keys(params).length === 0
 					? ""
-					: literal(params, indent);
+					: argument(params, `${helper}(`, `)${after}`);
 			return `${helper}(${args})${after}`;
 		}
 		default:
@@ -509,7 +539,13 @@ function workflowFunction(
 		const inputs = definition.edges
 			.filter((edge) => edge.to === node.id && !left.has(edge.from))
 			.map((edge) => inputText(edge, names, byId));
-		const expression = stepExpression(node, inputs, warnings, "\t");
+		const expression = stepExpression(
+			node,
+			inputs,
+			warnings,
+			"\t",
+			`const ${names.get(node.id)} = `,
+		);
 		if (expression === null) {
 			left.add(node.id);
 			continue;

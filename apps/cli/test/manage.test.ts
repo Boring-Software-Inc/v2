@@ -558,25 +558,17 @@ describe("workflows as code", () => {
 
 function markStaleIssues() {
 	const warn = schedule({
-		every: {
-			preset: "weekdays",
-			at: "09:00",
-		},
+		every: { preset: "weekdays", at: "09:00" },
 		timezone: "Europe/Berlin",
 		match: {
 			subjects: ["issue"],
 			state: "open",
-			inactiveFor: {
-				n: 30,
-				unit: "days",
-			},
+			inactiveFor: { n: 30, unit: "days" },
 			excludeLabels: ["keep-open"],
 			skipLocked: true,
 		},
 	});
-	const markStale = label({
-		labels: ["stale"],
-	}).after(warn);
+	const markStale = label({ labels: ["stale"] }).after(warn);
 	return workflow({
 		name: "Mark stale issues",
 		steps: {
@@ -1097,7 +1089,7 @@ describe("local validate and custom rules", () => {
 			file,
 			readFileSync(file, "utf8")
 				.replace(
-					'check("account-age", {\n\t\tminDays: 7,\n\t})',
+					'check("account-age", { minDays: 7 })',
 					'customCheck("custom-no-newbs-01a15e")',
 				)
 				.replace("import {\n", "import {\n\tcustomCheck,\n"),

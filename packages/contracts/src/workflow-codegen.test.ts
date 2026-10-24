@@ -114,7 +114,7 @@ describe("pull then push changes nothing", () => {
 	test("the pulled module reads like hand-written code", async () => {
 		const { code } = await roundTrip([MODERATED]);
 		expect(code).toContain(
-			'const oldPrs = check("min-merged-prs", {\n\t\tmin: 2,\n\t}, { version: 1 }).after(t);',
+			'const oldPrs = check("min-merged-prs", { min: 2 }, { version: 1 }).after(t);',
 		);
 		expect(code).toContain("const either = anyOf(age.fails, oldPrs.fails);");
 		expect(code).toContain("const stop = block().after(mod.denied);");
@@ -791,25 +791,17 @@ const MARK_STALE_CODE = `import {
 
 function markStaleIssues() {
 \tconst warn = schedule({
-\t\tevery: {
-\t\t\tpreset: "weekdays",
-\t\t\tat: "09:00",
-\t\t},
+\t\tevery: { preset: "weekdays", at: "09:00" },
 \t\ttimezone: "Europe/Berlin",
 \t\tmatch: {
 \t\t\tsubjects: ["issue"],
 \t\t\tstate: "open",
-\t\t\tinactiveFor: {
-\t\t\t\tn: 30,
-\t\t\t\tunit: "days",
-\t\t\t},
+\t\t\tinactiveFor: { n: 30, unit: "days" },
 \t\t\texcludeLabels: ["keep-open"],
 \t\t\tskipLocked: true,
 \t\t},
 \t});
-\tconst markStale = label({
-\t\tlabels: ["stale"],
-\t}).after(warn);
+\tconst markStale = label({ labels: ["stale"] }).after(warn);
 \tconst warnComment = postComment({
 \t\tmessage: "No activity in 30 days. Comment to keep it open.",
 \t}).after(warn);
@@ -890,7 +882,42 @@ function fixtureDefinitions(): WorkflowDefinition[] {
 	return compiled.definitions;
 }
 
-describe("short literal arrays print inline", () => {
+describe("short literal arrays and objects print inline", () => {
+	test("an object nests no object on its line, and wraps past 80 columns", () => {
+		const { code } = workflowsToCode(
+			[
+				single(
+					"wide",
+					[
+						T,
+						{
+							id: "custom-x",
+							type: "rule",
+							ref: "custom-x@1",
+							config: {
+								outer: { inner: 1 },
+								longer:
+									"a value long enough to push this object past the line width",
+							},
+						},
+						{ id: "x", type: "action", action: "block" },
+					],
+					[
+						{ id: "1", from: "t", to: "custom-x" },
+						{ id: "2", from: "custom-x", to: "x", when: "fail" },
+					],
+				),
+			],
+			{ importFrom: "./workflow.ts" },
+		);
+		expect(code).toContain(
+			'const customX = customCheck("custom-x", {\n\t\touter: { inner: 1 },\n',
+		);
+		for (const line of code.split("\n")) {
+			expect(line.replaceAll("\t", "  ").length).toBeLessThanOrEqual(80);
+		}
+	});
+
 	test("a schedule workflow reads like the file a person would write", async () => {
 		const { code, compiled } = await roundTrip([MARK_STALE]);
 		expect(code).toBe(MARK_STALE_CODE);
@@ -948,9 +975,7 @@ describe("short literal arrays print inline", () => {
 			],
 			{ importFrom: "./workflow.ts" },
 		);
-		expect(code).toContain(
-			"pairs: [\n\t\t\t{\n\t\t\t\ta: 1,\n\t\t\t},\n\t\t],",
-		);
+		expect(code).toContain("pairs: [\n\t\t\t{ a: 1 },\n\t\t],");
 	});
 
 	test("printing is stable: pull, push, pull gives the same file", async () => {
