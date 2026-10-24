@@ -1659,6 +1659,24 @@ export function scheduleText(schedule: {
 	return `${words} in ${scheduleZoneWord(schedule.timezone)}`;
 }
 
+/**
+ * The schedule as every surface reads it back: the canvas, the editor field,
+ * the CLI and MCP. It is scheduleText, starting with a capital, and a clock
+ * schedule without a zone names the zone it runs in.
+ */
+export function describeSchedule(schedule: {
+	every: ScheduleCadence;
+	timezone?: string | undefined;
+}): string {
+	const text = scheduleText({
+		every: schedule.every,
+		timezone: isScheduleInterval(schedule.every)
+			? undefined
+			: (schedule.timezone ?? DEFAULT_SCHEDULE_TIMEZONE),
+	});
+	return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+}
+
 const VOCABULARY = [
 	"every",
 	...WEEKDAYS,

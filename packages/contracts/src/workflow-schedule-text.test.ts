@@ -4,6 +4,7 @@ import { scheduleCadenceSchema } from "./workflow.ts";
 import { nextScheduleRun, sameScheduleTiming } from "./workflow-schedule.ts";
 import {
 	completeScheduleText,
+	describeSchedule,
 	parseScheduleText,
 	type ScheduleTextParse,
 	scheduleText,
@@ -684,5 +685,56 @@ describe("ghost completion", () => {
 		"every fortnight",
 	])("%p has no suggestion", (text) => {
 		expect(completeScheduleText(text)).toBeNull();
+	});
+});
+
+describe("one wording everywhere", () => {
+	const cases: [ScheduleCadence, string | undefined, string][] = [
+		[{ n: 1, unit: "hours" }, undefined, "Every 60 minutes"],
+		[{ n: 1, unit: "weeks" }, undefined, "Every 7 days"],
+		[{ n: 12, unit: "hours" }, "Europe/Berlin", "Every 12 hours"],
+		[{ preset: "hourly", minute: 0 }, undefined, "Every hour in UTC"],
+		[{ preset: "daily", at: "07:00" }, undefined, "Every day at 07:00 in UTC"],
+		[
+			{ preset: "daily", at: "09:00" },
+			"Europe/Berlin",
+			"Every day at 09:00 in Berlin",
+		],
+		[{ cron: "0 */12 * * *" }, "Europe/Berlin", "0 */12 * * * in Berlin"],
+	];
+	test.each(cases)("%j in %p", (every, timezone, text) => {
+		expect(describeSchedule({ every, timezone })).toBe(text);
+	});
+
+	test("the read-back is the field's text with the zone it runs in", () => {
+		expect(describeSchedule({ every: { n: 1, unit: "hours" } })).toBe(
+			"Every 60 minutes",
+		);
+		expect(scheduleText({ every: { n: 1, unit: "hours" } })).toBe(
+			"every 60 minutes",
+		);
+	});
+
+	test("the read-back parses to the same timing", () => {
+		const schedules = [
+			{ every: { n: 1, unit: "hours" } },
+			{ every: { n: 3, unit: "days" } },
+			{ every: { preset: "hourly", minute: 0 } },
+			{ every: { preset: "weekdays", at: "08:30" }, timezone: "Asia/Tokyo" },
+			{ every: { cron: "5,20,35,50 * * * *" } },
+		] as const satisfies readonly {
+			every: ScheduleCadence;
+			timezone?: string;
+		}[];
+		for (const schedule of schedules) {
+			const back = stored(describeSchedule(schedule));
+			expect(back.every).toEqual(schedule.every);
+			expect(
+				sameScheduleTiming(
+					{ every: back.every, timezone: back.timezone },
+					schedule,
+				),
+			).toBe(true);
+		}
 	});
 });

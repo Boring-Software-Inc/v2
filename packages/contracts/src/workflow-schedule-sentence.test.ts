@@ -45,11 +45,11 @@ describe("a schedule reads back like the panel", () => {
 		expect(scheduleReadBacks(STALE)).toEqual([
 			{
 				nodeId: "nightly",
-				summary: "Every day at 09:00 (Europe/Berlin)",
+				summary: "Every day at 09:00 in Berlin",
 				timezone: "Europe/Berlin",
 				defaulted: false,
 				description:
-					"Every day at 09:00 (Europe/Berlin), finds open issues with no activity for 3 weeks, labeled needs-info, not labeled pinned, skipping locked ones. Then Tripwire posts your comment and closes it.",
+					"Every day at 09:00 in Berlin, finds open issues with no activity for 3 weeks, labeled needs-info, not labeled pinned, skipping locked ones. Then Tripwire posts your comment and closes it.",
 			},
 		]);
 	});

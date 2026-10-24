@@ -83,11 +83,6 @@ export function scheduleZone(timezone: string | undefined): ScheduleZone {
 		: { zone: DEFAULT_SCHEDULE_TIMEZONE, defaulted: true };
 }
 
-/** The zone as read-back text: "Europe/Berlin", or "UTC, the default". */
-export function zoneLabel(zone: ScheduleZone): string {
-	return zone.defaulted ? `${zone.zone}, the default` : zone.zone;
-}
-
 const UNIT_WORDS = {
 	hours: ["hour", "hours"],
 	days: ["day", "days"],
@@ -234,49 +229,6 @@ export function describeCron(expression: string): string | null {
 		return time.startsWith("At") ? `Every day ${time.toLowerCase()}` : time;
 	}
 	return `${time} ${dayPart ?? ""}`.trim();
-}
-
-/** The cadence in plain words, without its zone. */
-export function describeCadence(cadence: ScheduleCadence): string {
-	if (isScheduleInterval(cadence)) {
-		return cadence.n === 1
-			? `Every ${UNIT_WORDS[cadence.unit][0]}`
-			: `Every ${describeDuration(cadence)}`;
-	}
-	if (isPreset(cadence)) {
-		switch (cadence.preset) {
-			case "hourly":
-				return cadence.minute === 0
-					? "Every hour"
-					: `Every hour at minute ${cadence.minute}`;
-			case "daily":
-				return `Every day at ${cadence.at}`;
-			case "weekdays":
-				return `Weekdays at ${cadence.at}`;
-			case "weekly":
-				return `Every ${WEEKDAY_WORDS[WEEKDAY_INDEX[cadence.on]]} at ${cadence.at}`;
-			case "monthly":
-				return `On the ${ordinal(cadence.day)} of every month at ${cadence.at}`;
-			default:
-				return "On a schedule";
-		}
-	}
-	return describeCron(cadence.cron) ?? `Cron ${cadence.cron.trim()}`;
-}
-
-/**
- * The full read-back: the cadence plus the zone it runs in. Intervals are not
- * tied to a clock, so they carry no zone.
- */
-export function describeSchedule(schedule: {
-	every: ScheduleCadence;
-	timezone?: string;
-}): string {
-	const words = describeCadence(schedule.every);
-	if (isScheduleInterval(schedule.every)) {
-		return words;
-	}
-	return `${words} (${zoneLabel(scheduleZone(schedule.timezone))})`;
 }
 
 function cronSpec(cadence: ScheduleCadence): CronSpec | null {

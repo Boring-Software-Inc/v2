@@ -1,11 +1,8 @@
-import type {
-	ScheduleCadence,
-	ScheduleTextParse,
-	ScheduleToken,
-} from "@tripwire/contracts";
+import type { ScheduleCadence, ScheduleToken } from "@tripwire/contracts";
 import {
 	completeScheduleText,
 	DEFAULT_SCHEDULE_TIMEZONE,
+	describeSchedule,
 	parseScheduleText,
 	scheduleText,
 	scheduleZoneWord,
@@ -121,13 +118,6 @@ function Segments({
 			{ghost ? <span className="text-text-3">{ghost}</span> : null}
 		</>
 	);
-}
-
-function readBack(parsed: ScheduleTextParse): string {
-	return parsed.tokens
-		.filter((token) => token.tone === "ok" && token.kind !== "unknown")
-		.map((token) => token.label)
-		.join(", ");
 }
 
 export function ScheduleTextField({
@@ -274,7 +264,9 @@ export function ScheduleTextField({
 			)
 		: null;
 	const zoneLabel = zoneOffsetLabel(zone, next ?? undefined);
-	const described = parsed.ok ? readBack(parsed) : "";
+	const described = parsed.ok
+		? describeSchedule({ every: parsed.every, timezone: zone })
+		: "";
 
 	return (
 		<Field className="relative" data-field="every" invalid={problem !== null}>
@@ -390,9 +382,7 @@ export function ScheduleTextField({
 				) : null}
 			</div>
 			{described ? (
-				<FieldDescription className="sr-only">
-					{showZone ? `${described}, ${zoneLabel}` : described}
-				</FieldDescription>
+				<FieldDescription className="sr-only">{described}</FieldDescription>
 			) : null}
 		</Field>
 	);

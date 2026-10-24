@@ -8,10 +8,8 @@ import {
 } from "./workflow-cron.ts";
 import {
 	cadenceCron,
-	describeCadence,
 	describeCron,
 	describeDuration,
-	describeSchedule,
 	formatScheduleTime,
 	nextScheduleRun,
 	scheduleFireTime,
@@ -192,25 +190,9 @@ describe("read-back", () => {
 		expect(cadenceCron({ n: 2, unit: "days" })).toBeNull();
 	});
 
-	test("every clock schedule states its zone, defaulted or chosen", () => {
-		expect(describeSchedule({ every: { preset: "daily", at: "07:00" } })).toBe(
-			"Every day at 07:00 (UTC, the default)",
-		);
-		expect(
-			describeSchedule({
-				every: { cron: "0 9 * * 1-5" },
-				timezone: "America/New_York",
-			}),
-		).toBe("At 09:00 on weekdays (America/New_York)");
-		expect(describeSchedule({ every: { n: 12, unit: "hours" } })).toBe(
-			"Every 12 hours",
-		);
-	});
-
 	test("durations read in words", () => {
 		expect(describeDuration({ n: 1, unit: "months" })).toBe("1 month");
 		expect(describeDuration({ n: 15, unit: "days" })).toBe("15 days");
-		expect(describeCadence({ n: 1, unit: "weeks" })).toBe("Every week");
 	});
 
 	test("common cron shapes read as words, the rest as the expression", () => {
@@ -220,7 +202,7 @@ describe("read-back", () => {
 		expect(describeCron("0 7 * * *")).toBe("Every day at 07:00");
 		expect(describeCron("30 8 1 * *")).toBe("At 08:30 on the 1st of the month");
 		expect(describeCron("0 0 * * 0,6")).toBe("At 00:00 on weekends");
-		expect(describeCadence({ cron: "0 0 13 * 5" })).toBe("Cron 0 0 13 * 5");
+		expect(describeCron("0 0 13 * 5")).toBeNull();
 	});
 
 	test("next run is shown with its zone", () => {

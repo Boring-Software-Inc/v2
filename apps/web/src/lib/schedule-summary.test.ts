@@ -5,6 +5,7 @@ import {
 	type RepoLabel,
 	scheduleSentenceText,
 	scheduleShortSummary,
+	scheduleText,
 	WORKFLOW_TEMPLATES,
 	type WorkflowDefinition,
 	type WorkflowNode,
@@ -94,7 +95,7 @@ describe("schedule sentence", () => {
 				},
 			}),
 		).toBe(
-			"Every day, finds open change requests with no activity for 7 days, labeled stale, not labeled no-auto-close or pinned.",
+			"Every 24 hours, finds open change requests with no activity for 7 days, labeled stale, not labeled no-auto-close or pinned.",
 		);
 	});
 
@@ -124,6 +125,17 @@ describe("node faces", () => {
 			"Inactive for: 15 days",
 			"With labels: stale",
 		]);
+	});
+
+	test("a one hour interval reads the same on the node and in the field", () => {
+		const every = { n: 1, unit: "hours" } as const;
+		const node: WorkflowNode = {
+			...SCHEDULE_TRIGGER,
+			schedule: { every, match: {} },
+		};
+		expect(scheduleText({ every })).toBe("every 60 minutes");
+		expect(face(node)[0]).toBe("Runs: Every 60 minutes");
+		expect(scheduleShortSummary({ every, match: {} })).toBe("Every 60 minutes");
 	});
 
 	test("an unanswered schedule says not set", () => {
@@ -296,13 +308,13 @@ describe("clock schedules", () => {
 				every: { preset: "daily", at: "07:00" },
 				match: { subjects: ["issue"], state: "open" },
 			}),
-		).toBe("Every day at 07:00 (UTC, the default), open issues");
+		).toBe("Every day at 07:00 in UTC, open issues");
 		expect(
 			scheduleShortSummary({
 				every: { cron: "0 */12 * * *" },
 				timezone: "Europe/Berlin",
 				match: {},
 			}),
-		).toBe("Every day at 00:00 and 12:00 (Europe/Berlin)");
+		).toBe("0 */12 * * * in Berlin");
 	});
 });
