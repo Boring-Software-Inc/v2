@@ -2,6 +2,7 @@ import { captureException } from "@sentry/node";
 import { isNotFound, isRedirect } from "@tanstack/react-router";
 import { createMiddleware, createStart } from "@tanstack/react-start";
 import { parseRunOgPath } from "#/lib/run-og";
+import { isServerOnlyAuthPath } from "#/lib/server-only-auth-paths";
 
 /**
  * Better Auth is mounted HERE, as global request middleware — /api/auth is
@@ -49,6 +50,9 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 			url.pathname.startsWith("/.well-known/openid-configuration");
 		if (!(url.pathname.startsWith("/api/auth") || authMetadata)) {
 			return await next();
+		}
+		if (isServerOnlyAuthPath(url.pathname)) {
+			return new Response("not found", { status: 404 });
 		}
 		const { getAuth } = await import("#/lib/server/auth");
 		const auth = getAuth();

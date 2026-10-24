@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { type Forge, forgeSchema } from "@tripwire/contracts";
 import { z } from "zod";
-import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
+import {
+	accessGuardMiddleware,
+	notImpersonatingMiddleware,
+} from "#/lib/server/gated-server-fn";
 
 /**
  * One row of the connections query. `accessTokenExpiresAt` accepts a Date or a
@@ -100,7 +103,7 @@ export const listForgeConnections = createServerFn({ method: "GET" })
  * better-auth refuses to unlink your last credential, so this cannot lock you out.
  */
 export const disconnectForge = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware])
+	.middleware([accessGuardMiddleware, notImpersonatingMiddleware])
 	.inputValidator((data: { forge: Forge; accountId: string }) => data)
 	.handler(async ({ data }): Promise<{ removedRepos: number }> => {
 		const { requireSession } = await import("#/lib/server/session");

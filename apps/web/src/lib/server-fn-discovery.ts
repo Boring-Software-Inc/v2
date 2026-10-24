@@ -12,6 +12,8 @@ export interface ServerFn {
 	/** Whether the chain attaches the platform-staff middleware. */
 	staff: boolean;
 	permission: string | "dynamic" | null;
+	sameOrigin: boolean;
+	notImpersonating: boolean;
 	method: string | null;
 	file: string;
 }
@@ -57,6 +59,8 @@ export function discoverServerFns(): ServerFn[] {
 					? (PERMISSION_CALL.exec(chain)?.[1] ?? "dynamic")
 					: null,
 				method: METHOD.exec(chain)?.[1] ?? null,
+				sameOrigin: chain.includes("sameOriginMiddleware"),
+				notImpersonating: chain.includes("notImpersonatingMiddleware"),
 				file,
 			});
 			m = re.exec(src);

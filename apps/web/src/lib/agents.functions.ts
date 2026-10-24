@@ -1,6 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { ConnectedAgent, OrgWithRole } from "@tripwire/db";
-import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
+import {
+	accessGuardMiddleware,
+	notImpersonatingMiddleware,
+} from "#/lib/server/gated-server-fn";
 
 export type { ConnectedAgent };
 
@@ -143,7 +146,7 @@ export const getConsentRequest = createServerFn({ method: "GET" })
 	});
 
 export const grantConsentOrgs = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware])
+	.middleware([accessGuardMiddleware, notImpersonatingMiddleware])
 	.inputValidator((input: { oauthQuery: string; orgIds: string[] }) => input)
 	.handler(async ({ data }): Promise<{ ok: true }> => {
 		const { auth, userId } = await sessionContext();
@@ -192,7 +195,7 @@ export const getDeviceRequest = createServerFn({ method: "GET" })
 	});
 
 export const grantDeviceOrgs = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware])
+	.middleware([accessGuardMiddleware, notImpersonatingMiddleware])
 	.inputValidator((input: { userCode: string; orgIds: string[] }) => input)
 	.handler(async ({ data }): Promise<{ ok: true }> => {
 		const { auth, headers, userId } = await sessionContext();
@@ -221,7 +224,7 @@ export const listConnectedAgents = createServerFn({ method: "GET" })
 	});
 
 export const revokeConnectedAgent = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware])
+	.middleware([accessGuardMiddleware, notImpersonatingMiddleware])
 	.inputValidator((input: { clientId: string }) => input)
 	.handler(async ({ data }): Promise<{ ok: true }> => {
 		const { requireSession } = await import("#/lib/server/session");

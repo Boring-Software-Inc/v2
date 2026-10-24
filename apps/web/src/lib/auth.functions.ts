@@ -26,6 +26,10 @@ export interface SessionInfo {
 	 * route gate can never disagree with what the server actually blocks.
 	 */
 	gateEnabled: boolean;
+	impersonation?: {
+		login: string | null;
+		expiresAt: string;
+	} | null;
 }
 
 export const getSessionInfo = createServerFn({ method: "GET" }).handler(
@@ -88,7 +92,19 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			orgs.find((o) => o.isPersonal)?.slug ??
 			orgs[0]?.slug ??
 			null;
+		const { impersonatorOf } = await import("#/lib/server/staff-users");
+		const impersonating = await impersonatorOf(session.session.id);
+		const { staffUserServices } = await import("@tripwire/db");
+		const impersonation = impersonating
+			? {
+					login:
+						(await staffUserServices.getUserLogins(db, session.user.id))[0] ??
+						null,
+					expiresAt: new Date(session.session.expiresAt).toISOString(),
+				}
+			: null;
 		return {
+			impersonation,
 			user: {
 				id: session.user.id,
 				name: session.user.name,
