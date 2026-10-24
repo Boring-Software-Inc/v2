@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	AI_CREDITS_COPY,
 	AI_REVIEW_MIN_CREDITS_USD,
+	type AiCreditsState,
 	aiCreditsFromBalance,
 	catalogWithAiCredits,
 	isAiOutOfCreditsError,
@@ -229,7 +230,11 @@ describe("the credit state from every balance and key combination", () => {
 			data: { limit: 50, limit_remaining: 40, usage: 10 },
 		}),
 	};
-	const cases: [keyof typeof account, keyof typeof keys, string][] = [
+	const cases: [
+		keyof typeof account,
+		keyof typeof keys,
+		AiCreditsState | "unknown",
+	][] = [
 		["unread", "unread", "unknown"],
 		["unread", "uncapped", "unknown"],
 		["unread", "spent", "out"],
