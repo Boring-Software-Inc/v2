@@ -59,6 +59,7 @@ describe("the code view shows what pull writes", () => {
 			expect(workflowCodeView(throughCanvas(definition), definition)).toEqual({
 				kind: "code",
 				code: codeOf(definition),
+				saved: codeOf(definition),
 				warnings: [],
 				unsaved: false,
 			});
@@ -97,6 +98,17 @@ describe("the code view shows what pull writes", () => {
 		if (view.kind === "code") {
 			expect(view.unsaved).toBe(true);
 			expect(view.code).toContain("minDays: 30");
+			expect(view.saved).not.toBeNull();
+			expect(view.saved).not.toContain("minDays: 30");
+			expect(view.saved).not.toBe(view.code);
+		}
+	});
+
+	test("saved code is the saved workflow, so a diff compares the two", () => {
+		const view = workflowCodeView(throughCanvas(HOOKED), HOOKED);
+		expect(view.kind).toBe("code");
+		if (view.kind === "code") {
+			expect(view.saved).toBe(view.code);
 		}
 	});
 

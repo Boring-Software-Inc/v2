@@ -5,7 +5,13 @@ import {
 } from "@tripwire/contracts";
 
 export type WorkflowCodeView =
-	| { kind: "code"; code: string; warnings: string[]; unsaved: boolean }
+	| {
+			kind: "code";
+			code: string;
+			saved: string | null;
+			warnings: string[];
+			unsaved: boolean;
+	  }
 	| { kind: "refused"; reason: string };
 
 export function workflowCodeView(
@@ -29,6 +35,7 @@ export function workflowCodeView(
 	return {
 		kind: "code",
 		code: result.code,
+		saved: before.ok ? before.code : null,
 		warnings: result.warnings,
 		unsaved: !before.ok || before.code !== result.code,
 	};

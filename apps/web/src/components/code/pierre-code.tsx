@@ -1,12 +1,14 @@
+import { parseDiffFromFile } from "@pierre/diffs";
 import type {
 	FileContents,
 	FileDiffOptions,
 	FileOptions,
 	SelectedLineRange,
 } from "@pierre/diffs/react";
-import { File, MultiFileDiff } from "@pierre/diffs/react";
+import { File, FileDiff } from "@pierre/diffs/react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
+import type { DiffStats } from "#/components/code/code-header";
 import {
 	codeSurfaceStyle,
 	registerTripwireCodeTheme,
@@ -17,6 +19,7 @@ import type { LineRange } from "#/components/code/line-anchor";
 registerTripwireCodeTheme();
 
 const THEMES = { light: TRIPWIRE_CODE_THEME, dark: TRIPWIRE_CODE_THEME };
+const SHELL_CSS = "[data-diffs-header]{display:none}pre{padding-block:8px}";
 
 export interface PierreFileProps {
 	name: string;
@@ -25,7 +28,6 @@ export interface PierreFileProps {
 	wrap: boolean;
 	selected: LineRange | null;
 	onSelect?: (range: LineRange | null) => void;
-	header: ReactNode;
 }
 
 export function PierreFile({
@@ -35,10 +37,9 @@ export function PierreFile({
 	wrap,
 	selected,
 	onSelect,
-	header,
 }: PierreFileProps) {
 	const file = useMemo<FileContents>(
-		() => ({ name, contents: code, cacheKey: `${name}:${code.length}` }),
+		() => ({ name, contents: code }),
 		[name, code],
 	);
 	const options = useMemo<FileOptions<undefined, undefined>>(
@@ -46,6 +47,7 @@ export function PierreFile({
 			theme: THEMES,
 			themeType: dark ? "dark" : "light",
 			overflow: wrap ? "wrap" : "scroll",
+			unsafeCSS: SHELL_CSS,
 			lineHoverHighlight: "both",
 			enableLineSelection: onSelect !== undefined,
 			onLineSelected: onSelect
@@ -59,7 +61,6 @@ export function PierreFile({
 		<File
 			file={file}
 			options={options}
-			renderHeaderMetadata={() => header}
 			selectedLines={selected}
 			style={codeSurfaceStyle}
 		/>
@@ -73,7 +74,7 @@ export interface PierreDiffProps {
 	dark: boolean;
 	wrap: boolean;
 	split: boolean;
-	header: ReactNode;
+	renderHeader: (stats: DiffStats) => ReactNode;
 }
 
 export function PierreDiff({
@@ -83,15 +84,23 @@ export function PierreDiff({
 	dark,
 	wrap,
 	split,
-	header,
+	renderHeader,
 }: PierreDiffProps) {
-	const oldFile = useMemo<FileContents>(
-		() => ({ name, contents: before }),
-		[name, before],
+	const fileDiff = useMemo(
+		() =>
+			parseDiffFromFile({ name, contents: before }, { name, contents: after }),
+		[name, before, after],
 	);
-	const newFile = useMemo<FileContents>(
-		() => ({ name, contents: after }),
-		[name, after],
+	const stats = useMemo<DiffStats>(
+		() =>
+			fileDiff.hunks.reduce(
+				(sum, hunk) => ({
+					added: sum.added + hunk.additionLines,
+					removed: sum.removed + hunk.deletionLines,
+				}),
+				{ added: 0, removed: 0 },
+			),
+		[fileDiff],
 	);
 	const options = useMemo<FileDiffOptions<undefined, undefined>>(
 		() => ({
@@ -99,6 +108,7 @@ export function PierreDiff({
 			themeType: dark ? "dark" : "light",
 			overflow: wrap ? "wrap" : "scroll",
 			diffStyle: split ? "split" : "unified",
+			unsafeCSS: SHELL_CSS,
 			diffIndicators: "bars",
 			lineDiffType: "word",
 			hunkSeparators: "line-info",
@@ -107,12 +117,13 @@ export function PierreDiff({
 		[dark, wrap, split],
 	);
 	return (
-		<MultiFileDiff
-			newFile={newFile}
-			oldFile={oldFile}
-			options={options}
-			renderHeaderMetadata={() => header}
-			style={codeSurfaceStyle}
-		/>
+		<>
+			{renderHeader(stats)}
+			<FileDiff
+				fileDiff={fileDiff}
+				options={options}
+				style={codeSurfaceStyle}
+			/>
+		</>
 	);
 }

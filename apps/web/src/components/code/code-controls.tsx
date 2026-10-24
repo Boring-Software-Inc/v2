@@ -23,7 +23,7 @@ export function WrapToggle({ wrap, onWrapChange }: WrapToggleProps) {
 	);
 }
 
-export function useCodeDark(): { mounted: boolean; dark: boolean } {
+export function useCodeDark() {
 	const mounted = useHasMounted();
 	const { resolvedTheme } = useTheme();
 	return { mounted, dark: mounted && resolvedTheme === "dark" };

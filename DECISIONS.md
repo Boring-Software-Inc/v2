@@ -137,7 +137,12 @@ code we should not own.
 **Size:** 11 MB unpacked on npm, most of it Shiki grammars that load on
 demand. Nothing ships in the route chunk: `components/code` loads Pierre with
 `React.lazy` after mount, so the server and the first paint render plain
-text. Chunk sizes before and after are in the change that wires the editor.
+text. Measured with `vite build` on the workflow editor route:
+- route chunk `_org._repo.workflows._workflowId`: 305.22 kB (100.83 kB gzip)
+  before, 308.10 kB (101.77 kB gzip) after.
+- entry chunk: 1,849.68 kB before, 1,855.25 kB after.
+- lazy `pierre-code` chunk: 404.51 kB (108.89 kB gzip), plus the TypeScript
+  grammar, 181.08 kB (16.04 kB gzip), fetched only when code shows.
 
 **Theme:** a CSS variable theme (`registerCustomCSSVariableTheme`) that
 points every syntax colour at Glaze ink steps (`--text-1`, `--text-2`). Glaze

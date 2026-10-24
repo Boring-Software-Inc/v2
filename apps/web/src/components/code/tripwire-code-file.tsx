@@ -1,5 +1,6 @@
 import { lazy, type ReactNode, Suspense, useCallback, useState } from "react";
 import { useCodeDark, WrapToggle } from "#/components/code/code-controls";
+import { CodeHeader } from "#/components/code/code-header";
 import {
 	formatLineAnchor,
 	type LineRange,
@@ -23,13 +24,6 @@ export interface TripwireCodeFileProps {
 	className?: string;
 }
 
-function initialRange(lineAnchors: boolean): LineRange | null {
-	if (!lineAnchors || typeof window === "undefined") {
-		return null;
-	}
-	return parseLineAnchor(window.location.hash);
-}
-
 export function TripwireCodeFile({
 	name,
 	code,
@@ -39,9 +33,15 @@ export function TripwireCodeFile({
 }: TripwireCodeFileProps) {
 	const { mounted, dark } = useCodeDark();
 	const [wrap, setWrap] = useState(false);
-	const [selected, setSelected] = useState(() => initialRange(lineAnchors));
+	const [picked, setPicked] = useState<LineRange | null>();
+	const selected =
+		picked !== undefined
+			? picked
+			: mounted && lineAnchors
+				? parseLineAnchor(window.location.hash)
+				: null;
 	const select = useCallback((range: LineRange | null) => {
-		setSelected(range);
+		setPicked(range);
 		const { pathname, search } = window.location;
 		window.history.replaceState(
 			window.history.state,
@@ -49,14 +49,7 @@ export function TripwireCodeFile({
 			`${pathname}${search}${formatLineAnchor(range)}`,
 		);
 	}, []);
-	const header = (
-		<div className="flex items-center gap-1">
-			{actions}
-			<WrapToggle onWrapChange={setWrap} wrap={wrap} />
-			<CopyButton label={name} showLabel value={code} variant="secondary" />
-		</div>
-	);
-	const plain = <PlainCode code={code} header={header} name={name} />;
+	const plain = <PlainCode code={code} />;
 	return (
 		<div
 			className={cn(
@@ -65,12 +58,16 @@ export function TripwireCodeFile({
 			)}
 			data-slot="tripwire-code-file"
 		>
+			<CodeHeader name={name}>
+				{actions}
+				<WrapToggle onWrapChange={setWrap} wrap={wrap} />
+				<CopyButton label={name} showLabel value={code} variant="secondary" />
+			</CodeHeader>
 			{mounted ? (
 				<Suspense fallback={plain}>
 					<PierreFile
 						code={code}
 						dark={dark}
-						header={header}
 						name={name}
 						onSelect={lineAnchors ? select : undefined}
 						selected={selected}

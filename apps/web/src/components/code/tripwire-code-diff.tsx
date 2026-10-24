@@ -1,11 +1,13 @@
 import { lazy, type ReactNode, Suspense, useState } from "react";
 import { useCodeDark, WrapToggle } from "#/components/code/code-controls";
+import { CodeHeader, type DiffStats } from "#/components/code/code-header";
 import { PlainCode } from "#/components/code/plain-code";
 import { CopyButton } from "#/components/glaze/ui/copy-button";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
 } from "#/components/glaze/ui/segmented-control";
+import { useMediaQuery } from "#/hooks/use-media-query";
 import { cn } from "#/lib/glaze/utils";
 
 const PierreDiff = lazy(() =>
@@ -36,8 +38,9 @@ export function TripwireCodeDiff({
 	const { mounted, dark } = useCodeDark();
 	const [wrap, setWrap] = useState(false);
 	const [shown, setShown] = useState<CodeDiffLayout>(layout);
-	const header = (
-		<div className="flex items-center gap-1">
+	const narrow = useMediaQuery("(max-width: 639.98px)");
+	const header = (stats?: DiffStats) => (
+		<CodeHeader name={name} stats={stats}>
 			{actions}
 			<SegmentedControl
 				aria-label="Diff layout"
@@ -55,7 +58,13 @@ export function TripwireCodeDiff({
 			</SegmentedControl>
 			<WrapToggle onWrapChange={setWrap} wrap={wrap} />
 			<CopyButton label={name} showLabel value={after} variant="secondary" />
-		</div>
+		</CodeHeader>
+	);
+	const plain = (
+		<>
+			{header()}
+			<PlainCode code={after} />
+		</>
 	);
 	return (
 		<div
@@ -66,21 +75,19 @@ export function TripwireCodeDiff({
 			data-slot="tripwire-code-diff"
 		>
 			{mounted ? (
-				<Suspense
-					fallback={<PlainCode code={after} header={header} name={name} />}
-				>
+				<Suspense fallback={plain}>
 					<PierreDiff
 						after={after}
 						before={before}
 						dark={dark}
-						header={header}
 						name={name}
-						split={shown === "split"}
+						renderHeader={header}
+						split={!narrow && shown === "split"}
 						wrap={wrap}
 					/>
 				</Suspense>
 			) : (
-				<PlainCode code={after} header={header} name={name} />
+				plain
 			)}
 		</div>
 	);

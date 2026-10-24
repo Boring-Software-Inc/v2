@@ -40,6 +40,6 @@ export const codeSurfaceStyle = {
 	"--diffs-fg-number-override": "var(--text-3)",
 	"--diffs-addition-color": "var(--ok)",
 	"--diffs-deletion-color": "var(--fail)",
-	"--diffs-modified-color": "var(--text-2)",
+	"--diffs-modified-color": "var(--text-3)",
 	"--diffs-gap-inline": "var(--space-4)",
 } as CSSProperties;
