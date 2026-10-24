@@ -96,8 +96,8 @@ describe("laneDecor", () => {
 
 	test("each lane gets a numbered head with its trigger summary", () => {
 		expect(decor.heads.map((head) => `${head.index} ${head.label}`)).toEqual([
-			"1 Every day, open change requests inactive 21 days",
-			"2 Every day, open change requests inactive 7 days",
+			"1 Every 24 hours, open change requests inactive 21 days",
+			"2 Every 24 hours, open change requests inactive 7 days",
 			"3 A change request gets new commits, or someone comments",
 		]);
 	});

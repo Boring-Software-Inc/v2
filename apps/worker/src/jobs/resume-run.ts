@@ -6,7 +6,10 @@ import type {
 	Verdict,
 	WorkflowDefinition,
 } from "@tripwire/contracts";
-import { workflowDefinitionSchema } from "@tripwire/contracts";
+import {
+	isAiReviewNotRunStep,
+	workflowDefinitionSchema,
+} from "@tripwire/contracts";
 import { executeWorkflow, type StepRecord } from "@tripwire/core";
 import {
 	eventServices,
@@ -22,7 +25,6 @@ import { emitPrSurface } from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import {
 	actionPayload,
-	isAiOutOfCreditsStep,
 	makeEvaluator,
 	postsSomething,
 	withPublicProjection,
@@ -208,7 +210,7 @@ export async function resumeRun(
 			verdict,
 			event: normalized,
 			reasons: buildCommentReasons(runData.steps, customRecords),
-			aiReviewNotRun: runData.steps.some(isAiOutOfCreditsStep),
+			aiReviewNotRun: runData.steps.some(isAiReviewNotRunStep),
 			pendingActionRows: actionRows,
 			pendingCheckPosted: true,
 			resumedFrom: "needs_review",
@@ -265,7 +267,7 @@ async function resumeDegradedRun(
 			verdict,
 			event: normalized,
 			reasons: buildCommentReasons(runData.steps, customRecords),
-			aiReviewNotRun: runData.steps.some(isAiOutOfCreditsStep),
+			aiReviewNotRun: runData.steps.some(isAiReviewNotRunStep),
 			pendingActionRows: actionRows,
 			pendingCheckPosted: true,
 			resumedFrom: "needs_review",

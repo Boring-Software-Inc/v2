@@ -76,6 +76,18 @@ export {
 	seedUnclaimedInstall,
 } from "./seed-scenarios.ts";
 export * as accessServices from "./services/access.ts";
+export type {
+	AccountMembership,
+	DeletedAccount,
+	OnRepo,
+	OrgInstallation,
+	SoleAdminOrg,
+} from "./services/account-deletion.ts";
+export * as accountDeletionServices from "./services/account-deletion.ts";
+export {
+	AccountDeletionBlockedError,
+	DELETED_ACCOUNT_ACTOR,
+} from "./services/account-deletion.ts";
 export * as accountServices from "./services/accounts.ts";
 export type { AgentGrant, ConnectedAgent } from "./services/agents.ts";
 export * as agentServices from "./services/agents.ts";

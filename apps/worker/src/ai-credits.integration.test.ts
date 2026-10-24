@@ -21,7 +21,6 @@ import {
 	createTestDatabase,
 	type Db,
 	eventServices,
-	moderationServices,
 	repoServices,
 	type TestDatabase,
 } from "@tripwire/db";
@@ -30,7 +29,6 @@ import type { PgBoss } from "pg-boss";
 import pino from "pino";
 import { staticForge } from "./forge-runtime.ts";
 import { processEvent } from "./jobs/process-event.ts";
-import { resumeRun } from "./jobs/resume-run.ts";
 
 let container: TestDatabase;
 let db: Db;
@@ -69,6 +67,9 @@ const freshReads = {
 
 const outOfCredits: AiReviewGenerate = () =>
 	Promise.resolve({ unavailable: "out-of-credits" });
+
+const failing: AiReviewGenerate = () =>
+	Promise.reject(new Error("provider down"));
 
 const PASS: AiReviewOutput = {
 	verdict: "pass",
@@ -112,7 +113,7 @@ async function fixtureRaw(): Promise<unknown> {
 
 async function processWith(
 	deliveryId: string,
-	generate: AiReviewGenerate,
+	generate: AiReviewGenerate | null,
 ): Promise<string> {
 	const { eventId } = await eventServices.insertRawEvent(pool, boss, {
 		deliveryId,
@@ -128,7 +129,7 @@ async function processWith(
 			pool,
 			logger,
 			resolveForge: staticForge({ reads: freshReads }),
-			makeGenerate: () => generate,
+			makeGenerate: generate ? () => generate : null,
 			appUrl: "http://localhost:3000",
 		},
 		{ eventId },
@@ -212,60 +213,70 @@ afterAll(async () => {
 	await container?.stop();
 });
 
+async function reviewItems(runId: string): Promise<string[]> {
+	const items = await pool.query<{ node_id: string }>(
+		"SELECT node_id FROM moderation_items WHERE run_id = $1",
+		[runId],
+	);
+	return items.rows.map((row) => row.node_id);
+}
+
+function aiOnly(): WorkflowDefinition {
+	return {
+		id: "ai-only",
+		name: "AI only",
+		version: 1,
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			{ id: "ai", type: "rule", ref: "ai-review@2", config: { maxSteps: 12 } },
+			{ id: "block", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "ai" },
+			{ id: "e2", from: "ai", to: "block", when: "fail" },
+		],
+	};
+}
+
 describe("a run whose AI review could not run for lack of credits", () => {
-	test("never passes silently: it goes to human review and says AI review did not run", async () => {
+	test("passes on the other rules with the floor on, and says AI review did not run", async () => {
 		await repoServices.saveWorkflowDefinition(db, repoId, aiGate());
 		const eventId = await processWith("credits-1", outOfCredits);
 		const run = await runOf(eventId);
-		expect(run.verdict).toBe("needs_review");
+		expect(run.verdict).toBe("pass");
 		expect(await aiStep(run.id)).toEqual({
 			status: "skipped",
 			summary: AI_CREDITS_COPY.notRun,
 		});
-		const items = await pool.query<{ node_id: string }>(
-			"SELECT node_id FROM moderation_items WHERE run_id = $1",
-			[run.id],
-		);
-		expect(items.rows.map((row) => row.node_id)).toEqual(["run:degraded"]);
-		const [body] = await commentBodies(run.id);
-		expect(body).toContain(AI_CREDITS_COPY.notRunShort);
+		expect(await reviewItems(run.id)).toEqual([]);
 		expect(await checkSummaries(run.id)).toEqual([
-			`Waiting for human review. Tripwire could not finish checking. ${AI_CREDITS_COPY.notRunShort}`,
+			`Passed. ${AI_CREDITS_COPY.notRunShort}`,
 		]);
 	});
 
-	test("an approved review keeps saying AI review did not run", async () => {
+	test("a repo that comments on a pass says AI review did not run there too", async () => {
 		await repoServices.saveWorkflowDefinition(db, repoId, aiGate());
+		await repoServices.upsertResponseConfig(db, repoId, {
+			...DEFAULT_RESPONSE_CONFIG,
+			onSuccess: "comment",
+		});
+		const eventId = await processWith("credits-10", outOfCredits);
+		const run = await runOf(eventId);
+		expect(run.verdict).toBe("pass");
+		const [body] = await commentBodies(run.id);
+		expect(body).toContain(AI_CREDITS_COPY.notRunShort);
+		expect(body).not.toContain("could not finish checking");
+	});
+
+	test("a workflow whose only rule is AI review passes and says so", async () => {
+		await repoServices.saveWorkflowDefinition(db, repoId, aiOnly());
 		const eventId = await processWith("credits-6", outOfCredits);
 		const run = await runOf(eventId);
-		const items = await pool.query<{ id: string }>(
-			"SELECT id FROM moderation_items WHERE run_id = $1",
-			[run.id],
-		);
-		const itemId = items.rows[0]?.id;
-		if (!itemId) {
-			throw new Error("no review item");
-		}
-		await moderationServices.decideModerationItem(pool, boss, {
-			itemId,
-			decision: "approve",
-			decidedBy: null,
-		});
-		await resumeRun(
-			{
-				db,
-				pool,
-				logger,
-				resolveForge: staticForge({ reads: freshReads }),
-				makeGenerate: () => outOfCredits,
-				appUrl: "http://localhost:3000",
-			},
-			{ itemId, decision: "approve" },
-		);
-		expect((await runOf(eventId)).verdict).toBe("pass");
-		expect(await checkSummaries(run.id)).toContain(
+		expect(run.verdict).toBe("pass");
+		expect(await reviewItems(run.id)).toEqual([]);
+		expect(await checkSummaries(run.id)).toEqual([
 			`Passed. ${AI_CREDITS_COPY.notRunShort}`,
-		);
+		]);
 	});
 
 	test("records the provider as out of credits, and a working review clears it", async () => {
@@ -276,7 +287,7 @@ describe("a run whose AI review could not run for lack of credits", () => {
 		expect(await aiProviderServices.getAiCredits(db)).toBe("ready");
 	});
 
-	test("with the floor off the run passes, and still says AI review did not run", async () => {
+	test("with the floor off the run passes the same way", async () => {
 		await repoServices.saveWorkflowDefinition(db, repoId, aiGate());
 		await repoServices.upsertResponseConfig(db, repoId, {
 			...DEFAULT_RESPONSE_CONFIG,
@@ -301,5 +312,23 @@ describe("a run whose AI review could not run for lack of credits", () => {
 		});
 		const eventId = await processWith("credits-5", outOfCredits);
 		expect((await runOf(eventId)).verdict).toBe("block");
+	});
+});
+
+describe("a run whose AI review is not set up or fails", () => {
+	test.each([
+		["no AI provider on this deployment", "credits-7", null],
+		["the provider throws", "credits-8", failing],
+	] as const)("%s: the run passes on the other rules and says AI review did not run", async (_name, deliveryId, generate) => {
+		await repoServices.saveWorkflowDefinition(db, repoId, aiGate());
+		const eventId = await processWith(deliveryId, generate);
+		const run = await runOf(eventId);
+		expect(run.verdict).toBe("pass");
+		expect((await aiStep(run.id))?.status).toBe("skipped");
+		expect(await reviewItems(run.id)).toEqual([]);
+		expect(await checkSummaries(run.id)).toEqual([
+			`Passed. ${AI_CREDITS_COPY.notRunShort}`,
+		]);
+		expect(await aiProviderServices.getAiCredits(db)).toBe("ready");
 	});
 });

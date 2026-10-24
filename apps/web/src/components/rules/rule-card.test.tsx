@@ -116,14 +116,14 @@ describe("RuleCard management states", () => {
 					name: "ai review",
 					optIn: true,
 					enabled: false,
-					blurb: "off until you turn it on — ai review costs tokens.",
+					blurb: "reads the change like a reviewer and flags slop.",
 					config: { maxSteps: 12 },
 					defaultConfig: { maxSteps: 12 },
 				})}
 			/>,
 		);
 		expect(html).toContain("Enable rule");
-		expect(html).toContain("costs tokens");
+		expect(html).toContain("flags slop");
 	});
 
 	test("workflow deep-links and labels are wired (source-locked, router-free)", () => {

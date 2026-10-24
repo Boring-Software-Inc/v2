@@ -195,8 +195,23 @@ const workflowsSchema = z.array(
 		runnable: z.boolean().optional(),
 		canTurnOn: z.boolean().optional(),
 		triggerKinds: z.array(z.string()).optional(),
+		schedules: z.array(z.string()).optional(),
 	}),
 );
+
+function workflowTriggerWords(
+	workflow: z.infer<typeof workflowsSchema>[number],
+): string[] {
+	const kinds = workflow.triggerKinds ?? [];
+	const schedules = workflow.schedules ?? [];
+	if (schedules.length === 0) {
+		return triggerWords(kinds);
+	}
+	return [
+		...triggerWords(kinds.filter((kind) => kind !== "schedule.matched")),
+		...schedules,
+	];
+}
 
 function workflowStateWord(
 	workflow: z.infer<typeof workflowsSchema>[number],
@@ -463,7 +478,7 @@ const FORMATTERS: Record<string, Formatter> = {
 				workflow.name,
 				workflow.id,
 				workflowStateWord(workflow, style),
-				triggerWords(workflow.triggerKinds ?? []).join(", "),
+				workflowTriggerWords(workflow).join(", "),
 			]),
 		);
 	}),

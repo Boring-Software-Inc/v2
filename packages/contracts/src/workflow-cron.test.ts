@@ -4,14 +4,12 @@ import {
 	latestCronRun,
 	nextCronRun,
 	parseCron,
+	sameCron,
 	zonedInstant,
 } from "./workflow-cron.ts";
 import {
 	cadenceCron,
-	describeCadence,
-	describeCron,
 	describeDuration,
-	describeSchedule,
 	formatScheduleTime,
 	nextScheduleRun,
 	scheduleFireTime,
@@ -192,35 +190,9 @@ describe("read-back", () => {
 		expect(cadenceCron({ n: 2, unit: "days" })).toBeNull();
 	});
 
-	test("every clock schedule states its zone, defaulted or chosen", () => {
-		expect(describeSchedule({ every: { preset: "daily", at: "07:00" } })).toBe(
-			"Every day at 07:00 (UTC, the default)",
-		);
-		expect(
-			describeSchedule({
-				every: { cron: "0 9 * * 1-5" },
-				timezone: "America/New_York",
-			}),
-		).toBe("At 09:00 on weekdays (America/New_York)");
-		expect(describeSchedule({ every: { n: 12, unit: "hours" } })).toBe(
-			"Every 12 hours",
-		);
-	});
-
 	test("durations read in words", () => {
 		expect(describeDuration({ n: 1, unit: "months" })).toBe("1 month");
 		expect(describeDuration({ n: 15, unit: "days" })).toBe("15 days");
-		expect(describeCadence({ n: 1, unit: "weeks" })).toBe("Every week");
-	});
-
-	test("common cron shapes read as words, the rest as the expression", () => {
-		expect(describeCron("*/15 * * * *")).toBe("Every 15 minutes");
-		expect(describeCron("0 * * * *")).toBe("Every hour");
-		expect(describeCron("0 */12 * * *")).toBe("Every day at 00:00 and 12:00");
-		expect(describeCron("0 7 * * *")).toBe("Every day at 07:00");
-		expect(describeCron("30 8 1 * *")).toBe("At 08:30 on the 1st of the month");
-		expect(describeCron("0 0 * * 0,6")).toBe("At 00:00 on weekends");
-		expect(describeCadence({ cron: "0 0 13 * 5" })).toBe("Cron 0 0 13 * 5");
 	});
 
 	test("next run is shown with its zone", () => {
@@ -327,27 +299,25 @@ describe("cron errors say what to type", () => {
 	});
 });
 
-describe("describeCron says only what the cron runs", () => {
-	test("a cron that skips days, minutes or hours never reads as regular", () => {
-		expect(describeCron("0 0 */2 * *")).toBeNull();
-		expect(describeCron("0 9 */2 * 1")).toBeNull();
-		expect(describeCron("0-10/5 * * * *")).toBeNull();
-		expect(describeCron("0 */5 * * *")).toBeNull();
-		expect(describeCron("0 0 1-31 * 1")).toBe("Every day at 00:00");
+describe("crons that fire at the same wall times", () => {
+	test.each([
+		["0 9 * * 1-5", "0 9 * * mon,tue,wed,thu,fri"],
+		["0 9 * * 0", "0 9 * * 7"],
+		["*/15 * * * *", "0,15,30,45 * * * *"],
+		["0 0 1-31 * 1", "0 0 * * *"],
+		["0 0 * * */2", "0 0 * * 0,2,4,6"],
+		["0 */12 * * *", "0 0,12 * * *"],
+	])("%p and %p", (a, b) => {
+		expect(sameCron(a, b)).toBe(true);
 	});
 
-	test("an uneven step reads as the times it runs", () => {
-		expect(describeCron("0 0-12/6 * * *")).toBe(
-			"Every day at 00:00, 06:00 and 12:00",
-		);
-		expect(describeCron("0 0 * * */2")).toBe(
-			"At 00:00 on Sunday, Tuesday, Thursday and Saturday",
-		);
-	});
-
-	test("an even step still reads as a step", () => {
-		expect(describeCron("*/15 * * * *")).toBe("Every 15 minutes");
-		expect(describeCron("0 */6 * * *")).toBe("Every 6 hours at minute 0");
+	test.each([
+		["0 9 * * 1-5", "0 9 * * 1-4"],
+		["0 9 1 * 1", "0 9 1 * *"],
+		["0 9 * * *", "0 9 * 1 *"],
+		["0 9 * * *", "not a cron"],
+	])("%p and %p differ", (a, b) => {
+		expect(sameCron(a, b)).toBe(false);
 	});
 });
 

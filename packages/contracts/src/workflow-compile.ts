@@ -36,11 +36,12 @@ import {
 	lintWorkflow,
 	type ValidationCatalogEntry,
 } from "./workflow-lint.ts";
-import { describeSchedule, scheduleZone } from "./workflow-schedule.ts";
+import { scheduleZone } from "./workflow-schedule.ts";
 import {
 	scheduleFieldLabel,
 	scheduleSentenceText,
 } from "./workflow-schedule-sentence.ts";
+import { describeSchedule } from "./workflow-schedule-text.ts";
 
 function asSentence(text: string): string {
 	return /[.?]$/.test(text) ? text : `${text}.`;

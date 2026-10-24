@@ -4,6 +4,7 @@ import { scheduleCadenceSchema } from "./workflow.ts";
 import { nextScheduleRun, sameScheduleTiming } from "./workflow-schedule.ts";
 import {
 	completeScheduleText,
+	describeSchedule,
 	parseScheduleText,
 	type ScheduleTextParse,
 	scheduleText,
@@ -98,6 +99,20 @@ describe("phrases the schedule can store", () => {
 		["0 */12 * * *", { cron: "0 */12 * * *" }],
 		["  0 7 1 * *  ", { cron: "0 7 1 * *" }],
 		["*/10 * * * 1-5", { cron: "*/10 * * * 1-5" }],
+		["every 2 hours at :30", { cron: "30 */2 * * *" }],
+		["every 6 hours at minute 15", { cron: "15 */6 * * *" }],
+		["every 3 hours at :00 in berlin", { cron: "0 */3 * * *" }],
+		["every day at 9 and 17", { cron: "0 9,17 * * *" }],
+		["every day at 09:00 and 09:30", { cron: "0,30 9 * * *" }],
+		["weekdays at 9am and 1pm", { cron: "0 9,13 * * 1-5" }],
+		["every Sunday at 08:00 and 20:00", { cron: "0 8,20 * * 0" }],
+		["monthly on the 1st and 15th at 06:00", { cron: "0 6 1,15 * *" }],
+		["on the 1st and 15th at 06:00", { cron: "0 6 1,15 * *" }],
+		["on the 1st, 8th and the 15th at 6", { cron: "0 6 1,8,15 * *" }],
+		[
+			"monthly on the 15th and 31st at 7, skipping shorter months",
+			{ cron: "0 7 15,31 * *" },
+		],
 	];
 	test.each(cases)("%p", (text, every) => {
 		const result = stored(text);
@@ -361,10 +376,35 @@ describe("phrases the schedule cannot store", () => {
 		expect(result.ok ? null : result.fixes[0]?.text).toBe("every 52 weeks");
 	});
 
+	test.each([
+		[
+			"every 5 hours at :30",
+			"An interval counts from the last run, so it has no time of day.",
+		],
+		[
+			"every 2 hours at 10:00",
+			"An interval counts from the last run, so it has no time of day.",
+		],
+		[
+			"every 24 hours at :30",
+			"An interval counts from the last run, so it has no time of day.",
+		],
+		[
+			"every day at 09:00 and 17:30",
+			"Times in one schedule share their minutes, like 09:00 and 17:00.",
+		],
+		["every day at 09:00 and 09:02", "Runs must be at least 5 minutes apart."],
+		["monthly on the 1st and 32nd at 6", "A month has at most 31 days."],
+		["monthly on the 1st and 31st at 6", "Five months have no 31st."],
+	])("%p", (text, message) => {
+		const result = parse(text);
+		expect(result.ok ? null : result.message).toBe(message);
+	});
+
 	test("an hour of the clock on an hourly schedule", () => {
 		const result = parse("every hour at 9am");
 		expect(result.ok ? null : result.message).toBe(
-			"An hourly schedule takes a minute, like at minute 15.",
+			"An hourly schedule takes a minute, like at :15.",
 		);
 	});
 });
@@ -440,38 +480,169 @@ describe("canonical text", () => {
 		[{ n: 1, unit: "hours" }, undefined, "every 60 minutes"],
 		[{ n: 12, unit: "hours" }, "Europe/Berlin", "every 12 hours"],
 		[{ preset: "hourly", minute: 0 }, undefined, "every hour"],
-		[{ preset: "hourly", minute: 15 }, "UTC", "every hour at minute 15 in UTC"],
+		[{ preset: "hourly", minute: 15 }, "UTC", "every hour at :15 in UTC"],
+		[{ preset: "hourly", minute: 5 }, undefined, "every hour at :05"],
 		[{ preset: "daily", at: "09:00" }, undefined, "every day at 09:00"],
 		[{ preset: "weekdays", at: "09:00" }, undefined, "weekdays at 09:00"],
 		[
 			{ preset: "weekly", on: "monday", at: "07:00" },
 			"Europe/Berlin",
-			"every monday at 07:00 in Berlin",
+			"every Monday at 07:00 in Berlin",
 		],
 		[
 			{ preset: "monthly", day: 1, at: "07:00" },
 			"America/New_York",
 			"monthly on the 1st at 07:00 in New York",
 		],
-		[{ cron: "*/15 * * * *" }, undefined, "every 15 minutes"],
-		[{ cron: "0 9 * * 1,4" }, undefined, "every monday and thursday at 09:00"],
-		[{ cron: "0 10 * * 0,6" }, undefined, "weekends at 10:00"],
-		[
-			{ cron: "0 7 31 * *" },
-			undefined,
-			"monthly on the 31st at 07:00, skipping shorter months",
-		],
-		[{ cron: "0 */12 * * *" }, undefined, "0 */12 * * *"],
-		[{ cron: "0 9 * * *" }, undefined, "0 9 * * *"],
-		[{ cron: "0 9 * * mon" }, "Asia/Tokyo", "0 9 * * mon in Tokyo"],
-		[
-			{ cron: "0 9 * * *" },
-			"America/Argentina/Buenos_Aires",
-			"0 9 * * * in Buenos Aires",
-		],
 	];
 	test.each(cases)("%j in %p", (every, timezone, text) => {
 		expect(scheduleText({ every, timezone })).toBe(text);
+	});
+});
+
+describe("a stored cron reads as words", () => {
+	const cases: [string, string][] = [
+		["*/5 * * * *", "every 5 minutes"],
+		["*/15 * * * *", "every 15 minutes"],
+		["0,15,30,45 * * * *", "every 15 minutes"],
+		["*/30 * * * *", "every 30 minutes"],
+		["0 * * * *", "every hour"],
+		["30 * * * *", "every hour at :30"],
+		["5 * * * *", "every hour at :05"],
+		["30 */2 * * *", "every 2 hours at :30"],
+		["0 */3 * * *", "every 3 hours at :00"],
+		["15 */6 * * *", "every 6 hours at :15"],
+		["0 0,8,16 * * *", "every 8 hours at :00"],
+		["0 */12 * * *", "every day at 00:00 and 12:00"],
+		["0 9 * * *", "every day at 09:00"],
+		["0 9,17 * * *", "every day at 09:00 and 17:00"],
+		["0,30 9 * * *", "every day at 09:00 and 09:30"],
+		["0 0-12/6 * * *", "every day at 00:00, 06:00 and 12:00"],
+		["0 9 * * 1-5", "weekdays at 09:00"],
+		["0 9 * * mon-fri", "weekdays at 09:00"],
+		["30 8 * * 1-5", "weekdays at 08:30"],
+		["0 9,13 * * 1-5", "weekdays at 09:00 and 13:00"],
+		["0 10 * * 0,6", "weekends at 10:00"],
+		["0 10 * * sat,sun", "weekends at 10:00"],
+		["0 8 * * 0", "every Sunday at 08:00"],
+		["0 8 * * 7", "every Sunday at 08:00"],
+		["0 8 * * sun", "every Sunday at 08:00"],
+		["0 9 * * mon", "every Monday at 09:00"],
+		["0 9 * * 1,4", "every Monday and Thursday at 09:00"],
+		["0 9 * * 1,3,5", "every Monday, Wednesday and Friday at 09:00"],
+		["0 9 * * 0,1", "every Monday and Sunday at 09:00"],
+		["0 0 * * */2", "every Tuesday, Thursday, Saturday and Sunday at 00:00"],
+		["0 7 1-31 * 1", "every day at 07:00"],
+		["0 6 1 * *", "monthly on the 1st at 06:00"],
+		["0 6 1,15 * *", "monthly on the 1st and 15th at 06:00"],
+		["30 8 1,8,15,22 * *", "monthly on the 1st, 8th, 15th and 22nd at 08:30"],
+		["0 7 31 * *", "monthly on the 31st at 07:00, skipping shorter months"],
+		["0 7 29 * *", "monthly on the 29th at 07:00, skipping shorter months"],
+	];
+	test.each(cases)("%p reads %p", (cron, text) => {
+		expect(scheduleText({ every: { cron } })).toBe(text);
+	});
+
+	test.each(cases)("%p reads back as the same cron", (cron) => {
+		const text = scheduleText({ every: { cron }, timezone: "Europe/Berlin" });
+		const back = stored(text);
+		expect(
+			sameScheduleTiming(back, { every: { cron }, timezone: "Europe/Berlin" }),
+		).toBe(true);
+		expect(scheduleText(back)).toBe(text);
+	});
+
+	test.each([
+		["0 9 * * *", "UTC", "every day at 09:00 in UTC"],
+		["0 8 * * 0", "Europe/Berlin", "every Sunday at 08:00 in Berlin"],
+		["0 9 * * mon", "Asia/Tokyo", "every Monday at 09:00 in Tokyo"],
+		[
+			"0 9 * * *",
+			"America/Argentina/Buenos_Aires",
+			"every day at 09:00 in Buenos Aires",
+		],
+	])("%p in %p reads %p", (cron, timezone, text) => {
+		expect(scheduleText({ every: { cron }, timezone })).toBe(text);
+	});
+
+	test.each([
+		["0 9 * 1 *", "a month"],
+		["0 9 1 * 1", "a day of the month or a weekday"],
+		["0 9 */2 * *", "every other day"],
+		["0 0 13 * 5", "a day of the month or a weekday"],
+		["0-10/5 * * * *", "the first minutes of each hour"],
+		["5/15 * * * *", "minutes off the hour"],
+		["0 */5 * * *", "hours that do not divide the day"],
+		["0 1-23/2 * * *", "hours that do not start at midnight"],
+		["*/15 9-17 * * *", "minutes inside some hours"],
+		["*/30 * * * 1-5", "minutes on some days"],
+		["0 */2 * * 1-5", "hours on some days"],
+		["0 9,12,15,18,21 * * *", "five times a day"],
+		["0,30 9,17,20 * * 1", "six times on Monday"],
+		["0 7 15,31 * *", "a list that reaches past the 28th"],
+	])("%p stays a cron: %s", (cron) => {
+		expect(scheduleText({ every: { cron } })).toBe(cron);
+	});
+
+	test("every cron in a wide grid reads as words that run the same, or as itself", () => {
+		const minutes = ["0", "30", "5", "*/5", "*/15", "0,30", "5/15", "0-10/5"];
+		const hours = [
+			"*",
+			"9",
+			"0",
+			"9,17",
+			"*/2",
+			"*/6",
+			"1-23/2",
+			"*/5",
+			"9-17",
+			"0,6,12,18,21",
+		];
+		const days = ["*", "1", "15", "1,15", "31", "15,31", "*/2", "1-31"];
+		const weekdays = [
+			"*",
+			"0",
+			"7",
+			"1-5",
+			"0,6",
+			"1,4",
+			"*/2",
+			"mon",
+			"sat,sun",
+		];
+		let words = 0;
+		for (const minute of minutes) {
+			for (const hour of hours) {
+				for (const day of days) {
+					for (const weekday of weekdays) {
+						const cron = `${minute} ${hour} ${day} * ${weekday}`;
+						if (!scheduleCadenceSchema.safeParse({ cron }).success) {
+							continue;
+						}
+						const schedule = { every: { cron }, timezone: "Asia/Kolkata" };
+						const text = scheduleText(schedule);
+						if (text === `${cron} in Kolkata`) {
+							continue;
+						}
+						words += 1;
+						const back = stored(text);
+						expect({ cron, same: sameScheduleTiming(back, schedule) }).toEqual({
+							cron,
+							same: true,
+						});
+						expect(scheduleText(back)).toBe(text);
+					}
+				}
+			}
+		}
+		expect(words).toBeGreaterThan(300);
+	});
+
+	test("the field's cron token says the same words", () => {
+		expect(parse("0 8 * * 0 in berlin").tokens[0]?.label).toBe(
+			"Every Sunday at 08:00",
+		);
+		expect(parse("0 9 * 1 *").tokens[0]?.label).toBe("Cron");
 	});
 });
 
@@ -543,11 +714,16 @@ describe("round trips", () => {
 				throw new Error(`${text}: ${result.message}`);
 			}
 			const interval = "n" in schedule.every;
-			expect({ text, every: result.every, timezone: result.timezone }).toEqual({
-				text,
-				every: schedule.every,
-				timezone: interval ? undefined : schedule.timezone,
-			});
+			const back = { every: result.every, timezone: result.timezone };
+			if ("cron" in schedule.every) {
+				expect(sameScheduleTiming(back, schedule)).toBe(true);
+			} else {
+				expect({ text, ...back }).toEqual({
+					text,
+					every: schedule.every,
+					timezone: interval ? undefined : schedule.timezone,
+				});
+			}
 			expect(scheduleText(result)).toBe(text);
 		}
 	});
@@ -684,5 +860,61 @@ describe("ghost completion", () => {
 		"every fortnight",
 	])("%p has no suggestion", (text) => {
 		expect(completeScheduleText(text)).toBeNull();
+	});
+});
+
+describe("one wording everywhere", () => {
+	const cases: [ScheduleCadence, string | undefined, string][] = [
+		[{ n: 1, unit: "hours" }, undefined, "Every 60 minutes"],
+		[{ n: 1, unit: "weeks" }, undefined, "Every 7 days"],
+		[{ n: 12, unit: "hours" }, "Europe/Berlin", "Every 12 hours"],
+		[{ preset: "hourly", minute: 0 }, undefined, "Every hour in UTC"],
+		[{ preset: "daily", at: "07:00" }, undefined, "Every day at 07:00 in UTC"],
+		[
+			{ preset: "daily", at: "09:00" },
+			"Europe/Berlin",
+			"Every day at 09:00 in Berlin",
+		],
+		[
+			{ cron: "0 */12 * * *" },
+			"Europe/Berlin",
+			"Every day at 00:00 and 12:00 in Berlin",
+		],
+		[{ cron: "0 9 * 1 *" }, "Europe/Berlin", "0 9 * 1 * in Berlin"],
+	];
+	test.each(cases)("%j in %p", (every, timezone, text) => {
+		expect(describeSchedule({ every, timezone })).toBe(text);
+	});
+
+	test("the read-back is the field's text with the zone it runs in", () => {
+		expect(describeSchedule({ every: { n: 1, unit: "hours" } })).toBe(
+			"Every 60 minutes",
+		);
+		expect(scheduleText({ every: { n: 1, unit: "hours" } })).toBe(
+			"every 60 minutes",
+		);
+	});
+
+	test("the read-back parses to the same timing", () => {
+		const schedules = [
+			{ every: { n: 1, unit: "hours" } },
+			{ every: { n: 3, unit: "days" } },
+			{ every: { preset: "hourly", minute: 0 } },
+			{ every: { preset: "weekdays", at: "08:30" }, timezone: "Asia/Tokyo" },
+			{ every: { cron: "5,20,35,50 * * * *" } },
+		] as const satisfies readonly {
+			every: ScheduleCadence;
+			timezone?: string;
+		}[];
+		for (const schedule of schedules) {
+			const back = stored(describeSchedule(schedule));
+			expect(back.every).toEqual(schedule.every);
+			expect(
+				sameScheduleTiming(
+					{ every: back.every, timezone: back.timezone },
+					schedule,
+				),
+			).toBe(true);
+		}
 	});
 });

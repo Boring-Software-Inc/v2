@@ -690,7 +690,7 @@ export default workflows({
 		);
 		expect(result.stderr).toBe("");
 		expect(result.stdout).toContain(
-			"schedule: Every 15 minutes (Europe/Berlin), finds open issues with no activity for 3 weeks, labeled needs-info, skipping locked ones. Then Tripwire closes it.",
+			"schedule: Every 15 minutes in Berlin, finds open issues with no activity for 3 weeks, labeled needs-info, skipping locked ones. Then Tripwire closes it.",
 		);
 	});
 

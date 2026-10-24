@@ -6,12 +6,17 @@ import {
 	SCHEDULE_TICK_MINUTES,
 	type ScheduleCadence,
 	scheduleCronSchema,
-	type Weekday,
 	weekdaySchema,
 } from "./workflow.ts";
-import { isValidTimeZone } from "./workflow-cron.ts";
 import {
-	describeCron,
+	type CronSpec,
+	cronRunsOn,
+	isValidTimeZone,
+	parseCron,
+	sameCron,
+} from "./workflow-cron.ts";
+import {
+	cadenceCron,
 	isScheduleInterval,
 	nextScheduleRun,
 } from "./workflow-schedule.ts";
@@ -96,6 +101,12 @@ type BaseKind =
 	| "weekends"
 	| "week";
 
+interface Clock {
+	hour: number;
+	minute: number;
+	valid: boolean;
+}
+
 interface Read {
 	every?: Span;
 	interval?: Span & {
@@ -107,10 +118,10 @@ interface Read {
 	base?: Span & { kind: BaseKind; days: number[] };
 	weekdaySpan?: Span;
 	monthOf?: Span;
-	time?: Span & { hour: number; minute: number; valid: boolean };
+	time?: Span & Clock & { times: Clock[] };
 	atDangling?: Span;
 	minute?: Span & { value: number };
-	day?: Span & { value: number };
+	day?: Span & { value: number; values: number[] };
 	zone?: Span & { id: string };
 	skip?: Span;
 	unknown?: Span;
@@ -740,10 +751,18 @@ class Reader {
 			value = readDay(this.lower(used));
 			used += 1;
 		}
-		if (value === null || this.read.day) {
+		if (value === null) {
 			return false;
 		}
-		this.read.day = { ...this.take(used), value };
+		const where = this.take(used);
+		const day = this.read.day;
+		if (day) {
+			day.to = where.to;
+			day.values.push(value);
+			day.value = Math.max(day.value, value);
+			return true;
+		}
+		this.read.day = { ...where, value, values: [value] };
 		return true;
 	}
 
@@ -787,15 +806,19 @@ class Reader {
 
 	private time(skip = 0): boolean {
 		const read = readTime(this.words, this.at + skip);
-		if (!read || this.read.time) {
+		if (!read) {
 			return false;
 		}
-		this.read.time = {
-			...this.take(skip + read.used),
-			hour: read.hour,
-			minute: read.minute,
-			valid: read.valid,
-		};
+		const where = this.take(skip + read.used);
+		const clock = { hour: read.hour, minute: read.minute, valid: read.valid };
+		const time = this.read.time;
+		if (time) {
+			time.to = where.to;
+			time.times.push(clock);
+			time.valid = time.valid && clock.valid;
+			return true;
+		}
+		this.read.time = { ...where, ...clock, times: [clock] };
 		return true;
 	}
 
@@ -944,7 +967,12 @@ function tokensOf(
 		baseLabel(base ?? { from: 0, to: 0, kind: "weekly", days: [] }),
 	);
 	if (read.day) {
-		push("day", read.day, "day", `The ${ordinal(read.day.value)} of the month`);
+		push(
+			"day",
+			read.day,
+			"day",
+			`The ${joinWords(monthDays(read.day).map(ordinal))} of the month`,
+		);
 	}
 	if (read.time) {
 		push(
@@ -952,13 +980,17 @@ function tokensOf(
 			read.time,
 			"time",
 			read.time.valid
-				? clockText(read.time.hour, read.time.minute)
+				? joinWords(
+						clocksOf(read.time).map((clock) =>
+							clockText(clock.hour, clock.minute),
+						),
+					)
 				: "Not a time",
 		);
 	}
 	push("at", read.atDangling, "time", "At");
 	if (read.minute) {
-		push("minute", read.minute, "minute", `At minute ${read.minute.value}`);
+		push("minute", read.minute, "minute", `At :${pad(read.minute.value)}`);
 	}
 	if (read.zone) {
 		push("zone", read.zone, "zone", zoneOffsetLabel(read.zone.id, now));
@@ -1085,6 +1117,21 @@ function resolveInterval(text: string, read: Read): Outcome | null {
 		unit = "hours";
 	}
 	const every = { n, unit };
+	if (
+		unit === "hours" &&
+		read.minute &&
+		!read.time &&
+		!read.skip &&
+		n > 1 &&
+		n < 24 &&
+		24 % n === 0
+	) {
+		return {
+			ok: true,
+			every: { cron: `${read.minute.value} */${n} * * *` },
+			timezone: read.zone?.id,
+		};
+	}
 	if (read.time || read.minute) {
 		return dropTime(text, read, []);
 	}
@@ -1164,11 +1211,11 @@ function resolveClock(text: string, read: Read): Outcome {
 		if (read.time) {
 			return fail(
 				"unstorable",
-				"An hourly schedule takes a minute, like at minute 15.",
+				"An hourly schedule takes a minute, like at :15.",
 				[
 					{
-						label: "Use minute 0",
-						text: replace(text, read.time, "at minute 0"),
+						label: "Use :00",
+						text: replace(text, read.time, "at :00"),
 					},
 				],
 				{ time: "fail" },
@@ -1222,7 +1269,8 @@ function resolveClock(text: string, read: Read): Outcome {
 		);
 	}
 	const day = read.day;
-	if (day && (day.value < 1 || day.value > 31)) {
+	const days = day ? monthDays(day) : [];
+	if (days.some((value) => value < 1 || value > 31)) {
 		return fail("invalid", "A month has at most 31 days.", [], { day: "fail" });
 	}
 	if (day && day.value > 28 && !read.skip) {
@@ -1263,49 +1311,90 @@ function resolveClock(text: string, read: Read): Outcome {
 			],
 		);
 	}
-	const at = clockText(read.time.hour, read.time.minute);
-	const { hour, minute } = read.time;
+	const clocks = clocksOf(read.time);
+	const [first] = clocks;
+	if (clocks.length === 1 && days.length <= 1 && first) {
+		const preset = presetFor(base, days[0], first);
+		if (preset) {
+			return { ok: true, every: preset, timezone: zone };
+		}
+	}
+	const minutes = [...new Set(clocks.map((clock) => clock.minute))];
+	const hours = [...new Set(clocks.map((clock) => clock.hour))];
+	if (minutes.length * hours.length !== clocks.length) {
+		return fail(
+			"unstorable",
+			"Times in one schedule share their minutes, like 09:00 and 17:00.",
+			[],
+			{ time: "fail" },
+		);
+	}
+	const cron = `${minutes.join(",")} ${hours.join(",")} ${dayFields(base, days)}`;
+	const checked = scheduleCronSchema.safeParse({ cron });
+	if (!checked.success) {
+		return fail(
+			"invalid",
+			cronMessage(
+				checked.error.issues[0]?.message ?? "this cron does not parse",
+			),
+			[],
+			{ time: "fail" },
+		);
+	}
+	return { ok: true, every: { cron: checked.data.cron }, timezone: zone };
+}
+
+function monthDays(day: NonNullable<Read["day"]>): number[] {
+	return [...new Set(day.values)].sort((a, b) => a - b);
+}
+
+function clocksOf(time: NonNullable<Read["time"]>): Clock[] {
+	const seen = new Map<number, Clock>();
+	for (const clock of time.times) {
+		seen.set(clock.hour * 60 + clock.minute, clock);
+	}
+	return [...seen.entries()]
+		.sort(([a], [b]) => a - b)
+		.map(([, clock]) => clock);
+}
+
+function presetFor(
+	base: NonNullable<Read["base"]>,
+	day: number | undefined,
+	clock: Clock,
+): ScheduleCadence | null {
+	const at = clockText(clock.hour, clock.minute);
 	switch (base.kind) {
 		case "daily":
-			return { ok: true, every: { preset: "daily", at }, timezone: zone };
+			return { preset: "daily", at };
 		case "weekdays":
-			return { ok: true, every: { preset: "weekdays", at }, timezone: zone };
-		case "weekends":
-			return {
-				ok: true,
-				every: { cron: `${minute} ${hour} * * 0,6` },
-				timezone: zone,
-			};
+			return { preset: "weekdays", at };
 		case "monthly": {
-			const value = day?.value ?? 1;
-			return value > 28
-				? {
-						ok: true,
-						every: { cron: `${minute} ${hour} ${value} * *` },
-						timezone: zone,
-					}
-				: {
-						ok: true,
-						every: { preset: "monthly", day: value, at },
-						timezone: zone,
-					};
+			const value = day ?? 1;
+			return value > 28 ? null : { preset: "monthly", day: value, at };
 		}
-		default: {
+		case "weekly": {
 			const [only] = base.days;
-			if (base.days.length === 1 && only !== undefined) {
-				const on: Weekday = WEEKDAYS[only] ?? "monday";
-				return {
-					ok: true,
-					every: { preset: "weekly", on, at },
-					timezone: zone,
-				};
-			}
-			return {
-				ok: true,
-				every: { cron: `${minute} ${hour} * * ${base.days.join(",")}` },
-				timezone: zone,
-			};
+			const on = only === undefined ? undefined : WEEKDAYS[only];
+			return base.days.length === 1 && on ? { preset: "weekly", on, at } : null;
 		}
+		default:
+			return null;
+	}
+}
+
+function dayFields(base: NonNullable<Read["base"]>, days: number[]): string {
+	switch (base.kind) {
+		case "weekdays":
+			return "* * 1-5";
+		case "weekends":
+			return "* * 0,6";
+		case "monthly":
+			return `${days.length > 0 ? days.join(",") : "1"} * *`;
+		case "weekly":
+			return `* * ${base.days.join(",")}`;
+		default:
+			return "* * *";
 	}
 }
 
@@ -1377,7 +1466,8 @@ function parseCronText(
 			zone = read.zone;
 		}
 	}
-	const label = describeCron(cron) ?? "Cron";
+	const readBack = cronText(cron);
+	const label = readBack ? capital(readBack) : "Cron";
 	const tokens = (tone: ScheduleTokenTone): ScheduleToken[] => {
 		const list: ScheduleToken[] = [
 			{
@@ -1583,31 +1673,143 @@ const LEGACY_SINGLE = {
 	weeks: "every 7 days",
 } as const satisfies Record<EveryUnit, string>;
 
-function cronPhrase(cron: string): string | null {
-	const fields = cron.trim().split(/\s+/);
-	const [minute = "", hour = "", day = "", month = "", weekday = ""] = fields;
-	const step = /^\*\/(\d+)$/.exec(minute);
-	if (step && hour === "*" && day === "*" && month === "*" && weekday === "*") {
-		return `every ${step[1]} minutes`;
+type CronDays =
+	| { kind: "daily" }
+	| { kind: "weekly"; days: number[] }
+	| { kind: "monthly"; days: number[] };
+
+const MONTH_DAYS = Array.from({ length: 31 }, (_, index) => index + 1);
+const WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
+
+function cronDays(spec: CronSpec): CronDays | null {
+	const runs = (day: number, weekday: number) => cronRunsOn(spec, day, weekday);
+	const weekdays = WEEK_DAYS.filter((weekday) =>
+		MONTH_DAYS.every((day) => runs(day, weekday)),
+	);
+	const byWeekday = WEEK_DAYS.every((weekday) =>
+		MONTH_DAYS.every(
+			(day) => runs(day, weekday) === weekdays.includes(weekday),
+		),
+	);
+	if (byWeekday) {
+		return weekdays.length === 7
+			? { kind: "daily" }
+			: { kind: "weekly", days: weekdays };
 	}
-	if (!/^\d+$/.test(minute) || !/^\d+$/.test(hour) || month !== "*") {
+	const days = MONTH_DAYS.filter((day) =>
+		WEEK_DAYS.every((weekday) => runs(day, weekday)),
+	);
+	const byDay = MONTH_DAYS.every((day) =>
+		WEEK_DAYS.every((weekday) => runs(day, weekday) === days.includes(day)),
+	);
+	return byDay ? { kind: "monthly", days } : null;
+}
+
+function evenStep(values: readonly number[], span: number): number | null {
+	const [first, second] = values;
+	if (first !== 0 || second === undefined) {
 		return null;
 	}
-	const at = clockText(Number(hour), Number(minute));
-	if (day === "*" && weekday === "0,6") {
-		return `weekends at ${at}`;
+	const step = second - first;
+	const even = values.every((value, index) => value === index * step);
+	return even && span % step === 0 && values.length === span / step
+		? step
+		: null;
+}
+
+const MAX_CRON_TIMES = 4;
+
+function weekOrder(day: number): number {
+	return (day + 6) % 7;
+}
+
+function cronLead(days: CronDays): string | null {
+	if (days.kind === "daily") {
+		return "every day";
 	}
-	if (day === "*" && /^\d(,\d)+$/.test(weekday)) {
-		const names = weekday
-			.split(",")
-			.map((value) => WEEKDAYS[Number(value)])
-			.filter((name): name is Weekday => name !== undefined);
-		return `every ${joinWords(names)} at ${at}`;
+	if (days.kind === "monthly") {
+		return days.days.length === 0
+			? null
+			: `monthly on the ${joinWords(days.days.map(ordinal))}`;
 	}
-	if (weekday === "*" && /^(29|30|31)$/.test(day)) {
-		return `monthly on the ${ordinal(Number(day))} at ${at}, skipping shorter months`;
+	const list = days.days.join(",");
+	if (list === "1,2,3,4,5") {
+		return "weekdays";
 	}
-	return null;
+	if (list === "0,6") {
+		return "weekends";
+	}
+	const names = [...days.days]
+		.sort((a, b) => weekOrder(a) - weekOrder(b))
+		.map(weekdayName);
+	return names.length === 0 ? null : `every ${joinWords(names)}`;
+}
+
+/**
+ * Words for a cron in the field's own voice, before the round trip check:
+ * "every Sunday at 08:00", "weekdays at 09:00", "every 15 minutes",
+ * "every 2 hours at :30", "monthly on the 1st and 15th at 06:00".
+ */
+function cronPhrase(cron: string): string | null {
+	const parsed = parseCron(cron);
+	if (!parsed.ok || parsed.spec.months.length !== 12) {
+		return null;
+	}
+	const { minutes, hours } = parsed.spec;
+	const days = cronDays(parsed.spec);
+	if (!days) {
+		return null;
+	}
+	const daily = days.kind === "daily";
+	const [minute] = minutes;
+	if (hours.length === 24) {
+		if (!daily) {
+			return null;
+		}
+		if (minutes.length === 1 && minute !== undefined) {
+			return minute === 0 ? "every hour" : `every hour at :${pad(minute)}`;
+		}
+		const step = evenStep(minutes, 60);
+		return step ? `every ${step} minutes` : null;
+	}
+	const hourStep = evenStep(hours, 24);
+	if (
+		minutes.length === 1 &&
+		minute !== undefined &&
+		hourStep &&
+		hours.length > 2
+	) {
+		return daily ? `every ${hourStep} hours at :${pad(minute)}` : null;
+	}
+	if (minutes.length * hours.length > MAX_CRON_TIMES) {
+		return null;
+	}
+	const lead = cronLead(days);
+	if (!lead) {
+		return null;
+	}
+	const times = hours.flatMap((hour) =>
+		minutes.map((value) => clockText(hour, value)),
+	);
+	const at = `${lead} at ${joinWords(times)}`;
+	if (days.kind !== "monthly" || days.days.every((day) => day <= 28)) {
+		return at;
+	}
+	return days.days.length === 1 ? `${at}, skipping shorter months` : null;
+}
+
+/**
+ * The words a cron reads as on every surface, or null when no phrase reads
+ * back as the same cron. Callers then show the cron itself.
+ */
+export function cronText(cron: string): string | null {
+	const phrase = cronPhrase(cron);
+	if (!phrase) {
+		return null;
+	}
+	const back = readScheduleText(phrase, new Date(0));
+	const backCron = back.ok ? cadenceCron(back.every) : null;
+	return backCron !== null && sameCron(backCron, cron) ? phrase : null;
 }
 
 function cadenceText(every: ScheduleCadence): string {
@@ -1622,26 +1824,19 @@ function cadenceText(every: ScheduleCadence): string {
 			case "hourly":
 				return every.minute === 0
 					? "every hour"
-					: `every hour at minute ${every.minute}`;
+					: `every hour at :${pad(every.minute)}`;
 			case "daily":
 				return `every day at ${every.at}`;
 			case "weekdays":
 				return `weekdays at ${every.at}`;
 			case "weekly":
-				return `every ${every.on} at ${every.at}`;
+				return `every ${capital(every.on)} at ${every.at}`;
 			default:
 				return `monthly on the ${ordinal(every.day)} at ${every.at}`;
 		}
 	}
 	const cron = every.cron.trim();
-	const phrase = cronPhrase(cron);
-	if (phrase) {
-		const back = parseScheduleText(phrase);
-		if (back.ok && "cron" in back.every && back.every.cron === cron) {
-			return phrase;
-		}
-	}
-	return cron;
+	return cronText(cron) ?? cron;
 }
 
 /**
@@ -1657,6 +1852,24 @@ export function scheduleText(schedule: {
 		return words;
 	}
 	return `${words} in ${scheduleZoneWord(schedule.timezone)}`;
+}
+
+/**
+ * The schedule as every surface reads it back: the canvas, the editor field,
+ * the CLI and MCP. It is scheduleText, starting with a capital, and a clock
+ * schedule without a zone names the zone it runs in.
+ */
+export function describeSchedule(schedule: {
+	every: ScheduleCadence;
+	timezone?: string | undefined;
+}): string {
+	const text = scheduleText({
+		every: schedule.every,
+		timezone: isScheduleInterval(schedule.every)
+			? undefined
+			: (schedule.timezone ?? DEFAULT_SCHEDULE_TIMEZONE),
+	});
+	return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 }
 
 const VOCABULARY = [

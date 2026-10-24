@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { catalogWithAiCredits } from "./ai-provider.ts";
 import { customValidationEntries } from "./custom-rules.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import { DEFAULT_WORKFLOW, type WorkflowDefinition } from "./workflow.ts";
+import { lintWorkflowReport } from "./workflow-lint.ts";
 import {
 	unrunnableIssues,
 	validateWorkflow,
@@ -318,5 +320,54 @@ describe("workflowReadiness (one answer for web, CLI and MCP)", () => {
 		}
 		expect(WORKFLOW_STATE_LABELS["cant-run"]).toBe("Can't run");
 		expect(WORKFLOW_STATE_LABELS.on).toBe("Live");
+	});
+});
+
+describe("a live workflow saved while AI review can't run", () => {
+	const OUT = catalogWithAiCredits(RULE_CATALOG, "out");
+	const ai = (id: string) =>
+		({
+			id,
+			type: "rule",
+			ref: "ai-review@2",
+			config: { maxSteps: 12 },
+		}) as const;
+	const live = graph({
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			ai("old"),
+			{ id: "a", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "old" },
+			{ id: "e2", from: "old", to: "a", when: "fail" },
+		],
+	});
+
+	test("the AI review step it already had does not block", () => {
+		expect(validateWorkflowForEnable(live, OUT).valid).toBe(true);
+	});
+
+	test("a new AI review step does not block either", () => {
+		const next = graph({
+			nodes: [...live.nodes, ai("new")],
+			edges: [
+				...live.edges,
+				{ id: "e3", from: "t", to: "new" },
+				{ id: "e4", from: "new", to: "a", when: "fail" },
+			],
+		});
+		expect(validateWorkflowForEnable(next, OUT).valid).toBe(true);
+	});
+
+	test("each AI review step carries a quiet warning, not an error", () => {
+		const report = lintWorkflowReport(live, { catalog: OUT, stage: "enable" });
+		expect(
+			report.results
+				.filter((issue) => issue.rule === "rule-unavailable")
+				.map((issue) => [issue.nodeId, issue.severity, issue.message]),
+		).toEqual([
+			["old", "warning", "AI review can't run until credits return."],
+		]);
 	});
 });

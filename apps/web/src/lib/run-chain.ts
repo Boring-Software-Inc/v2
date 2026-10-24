@@ -1,12 +1,16 @@
 import {
 	ACTION_CATALOG,
+	AI_REVIEW_RULE_ID,
+	aiReviewTraceSchema,
 	bearsVerdict,
 	RUN_RESULT_LABELS,
 	type RunResult,
 	redactionHides,
 	ruleDisplayName,
+	ruleIdOf,
 	runResult,
 	runResultLabel,
+	summaryRevealsHidden,
 } from "@tripwire/contracts";
 import { z } from "zod";
 import {
@@ -912,4 +916,44 @@ export function ruleReason(rule: ChainRule, level: number): string | null {
 		return skip.data.reason;
 	}
 	return null;
+}
+
+const aiTraceModelSchema = z
+	.object({
+		evidence: z
+			.object({ trace: aiReviewTraceSchema.pick({ model: true }) })
+			.nullable()
+			.catch(null),
+	})
+	.catch({ evidence: null });
+
+export interface PassedNote {
+	summary: string;
+	model: string | null;
+}
+
+/**
+ * What a passing AI review found, under its name in the passed list. The
+ * summary follows the same redaction as a failing rule's reason, and the model
+ * shows only where the trace does.
+ */
+export function passedNote(
+	rule: ChainRule,
+	level: number,
+	maintainer: boolean,
+): PassedNote | null {
+	const { step } = rule;
+	if (
+		rule.mark !== "pass" ||
+		!step.ruleRef ||
+		ruleIdOf(step.ruleRef) !== AI_REVIEW_RULE_ID ||
+		!step.summary?.trim() ||
+		summaryRevealsHidden(step.ruleRef, level)
+	) {
+		return null;
+	}
+	const trace = maintainer
+		? aiTraceModelSchema.parse(step.evidence).evidence?.trace
+		: undefined;
+	return { summary: asSentence(step.summary), model: trace?.model ?? null };
 }

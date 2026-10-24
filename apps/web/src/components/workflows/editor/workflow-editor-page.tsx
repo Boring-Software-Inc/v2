@@ -20,6 +20,7 @@ import {
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import { ruleConfigsQueryOptions } from "#/lib/rules.query";
+import { aiCreditsOf } from "#/lib/workflow-editor";
 import {
 	renameRepoWorkflow,
 	saveRepoWorkflow,
@@ -114,6 +115,7 @@ export function WorkflowEditorPage() {
 	} else if (!loading && workflow) {
 		body = (
 			<WorkflowEditor
+				aiCredits={aiCreditsOf(ruleViews)}
 				customRules={customRules}
 				definition={workflow.definition}
 				enabled={workflow.enabled}

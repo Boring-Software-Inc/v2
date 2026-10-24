@@ -63,7 +63,7 @@ export const LINT_RULES = {
 	"schedule-mixed": { severity: "error", stage: "enable" },
 	"schedule-needs-change-request": { severity: "error", stage: "enable" },
 	"unknown-rule": { severity: "error", stage: "enable" },
-	"rule-unavailable": { severity: "error", stage: "enable" },
+	"rule-unavailable": { severity: "warning", stage: "enable" },
 	"rule-config": { severity: "error", stage: "enable" },
 	"removed-step": { severity: "error", stage: "enable" },
 	"review-targets": { severity: "error", stage: "enable" },

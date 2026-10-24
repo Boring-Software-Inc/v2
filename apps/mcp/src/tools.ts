@@ -416,7 +416,7 @@ export function registerTools(
 			"list_workflows",
 			{
 				description:
-					"The workflows on a repo. enabled says whether each is on. runnable says Tripwire can run it as wired. canTurnOn says it passes the check for turning it on. state sums them up: on, off, cant-run, needs-fixes or cant-turn-on.",
+					"The workflows on a repo. enabled says whether each is on. runnable says Tripwire can run it as wired. canTurnOn says it passes the check for turning it on. state sums them up: on, off, cant-run, needs-fixes or cant-turn-on. schedules reads each schedule trigger in words.",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("list_workflows"),
 			},

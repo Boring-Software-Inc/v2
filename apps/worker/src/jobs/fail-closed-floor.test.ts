@@ -1,22 +1,25 @@
 import { describe, expect, test } from "bun:test";
 import type { RuleContext } from "@tripwire/core";
 import pino from "pino";
-import { isRunDegraded, makeEvaluator } from "./run-workflows.ts";
+import {
+	floorRuleSteps,
+	isRunDegraded,
+	makeEvaluator,
+} from "./run-workflows.ts";
 
 const logger = pino({ level: "silent" });
 
 /**
  * §6 fail-closed floor — a would-be pass with too much skipped evaluation goes to
  * moderation, not through. Both sides of the 50% line, plus the "only escalates a
- * pass" rule. This is the AI-outage safety net (key revoked / OpenRouter down ⇒
- * ai-review skips): under the floor a contributor still passes, at the floor a
+ * pass" rule. Under the floor a contributor still passes, at the floor a
  * human looks.
  */
 describe("isRunDegraded (fail-closed floor)", () => {
 	test("AT the floor (>=50% skipped) escalates a pass to review", () => {
 		expect(isRunDegraded(2, 1, "pass")).toBe(true); // 1 of 2
 		expect(isRunDegraded(4, 2, "pass")).toBe(true); // 2 of 4
-		expect(isRunDegraded(1, 1, "pass")).toBe(true); // ai-review alone, skipped
+		expect(isRunDegraded(1, 1, "pass")).toBe(true); // one rule alone, skipped
 		expect(isRunDegraded(3, 3, "pass")).toBe(true); // all skipped
 	});
 
@@ -33,6 +36,68 @@ describe("isRunDegraded (fail-closed floor)", () => {
 
 	test("no rule nodes ⇒ not degraded", () => {
 		expect(isRunDegraded(0, 0, "pass")).toBe(false);
+	});
+});
+
+describe("AI review is a bonus the floor does not count", () => {
+	const step = (ruleId: string, status: "skipped" | "pass") => ({
+		status,
+		output: {
+			ruleId,
+			version: 1,
+			status: status === "skipped" ? "skipped" : "evaluated",
+			passed: status === "pass",
+			evidence: null,
+			evaluatedAt: "2026-01-01T00:00:00.000Z",
+		},
+	});
+	const degradedOf = (steps: ReturnType<typeof step>[]) => {
+		const counted = floorRuleSteps(steps);
+		return isRunDegraded(
+			counted.length,
+			counted.filter((s) => s.status === "skipped").length,
+			"pass",
+		);
+	};
+
+	test.each([
+		[
+			"AI review skipped next to a passing rule",
+			[step("ai-review", "skipped"), step("account-age", "pass")],
+			false,
+		],
+		["AI review skipped alone", [step("ai-review", "skipped")], false],
+		[
+			"AI review ran and passed",
+			[step("ai-review", "pass"), step("account-age", "pass")],
+			false,
+		],
+		[
+			"another rule skipped next to AI review skipped",
+			[step("ai-review", "skipped"), step("account-age", "skipped")],
+			true,
+		],
+		[
+			"half of the other rules skipped",
+			[
+				step("ai-review", "skipped"),
+				step("account-age", "skipped"),
+				step("rate-limit", "pass"),
+			],
+			true,
+		],
+		[
+			"a third of the other rules skipped",
+			[
+				step("ai-review", "pass"),
+				step("account-age", "skipped"),
+				step("rate-limit", "pass"),
+				step("first-timer", "pass"),
+			],
+			false,
+		],
+	])("%s: degraded %p", (_name, steps, degraded) => {
+		expect(degradedOf(steps)).toBe(degraded);
 	});
 });
 

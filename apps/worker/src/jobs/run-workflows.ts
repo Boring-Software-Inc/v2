@@ -12,6 +12,7 @@ import {
 	type CustomRuleRecord,
 	customRuleRef,
 	customRuleSummary,
+	isAiReviewNotRunStep,
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
 	ruleResultSchema,
@@ -110,6 +111,17 @@ export function worstVerdict(verdicts: Verdict[]): Verdict {
  * active rule nodes routes the run to moderation instead. Pure so both sides of
  * the 50% line are unit-testable without a live run. Only escalates a `pass`.
  */
+/**
+ * The rule steps the fail-closed floor counts. AI review is a bonus: when it
+ * does not run, the verdict comes from the other rules, and the run says AI
+ * review did not run instead of going to human review.
+ */
+export function floorRuleSteps<T extends { status: string; output: unknown }>(
+	ruleSteps: readonly T[],
+): T[] {
+	return ruleSteps.filter((step) => !isAiReviewNotRunStep(step));
+}
+
 export function isRunDegraded(
 	ruleNodeCount: number,
 	skippedCount: number,
@@ -457,14 +469,14 @@ async function runWorkflowsInner(
 	const ruleSteps0 = steps.filter(
 		(step) => step.nodeKind === "rule" && step.status !== "disabled",
 	);
-	const skippedCount = ruleSteps0.filter(
+	const floorSteps = floorRuleSteps(ruleSteps0);
+	const skippedCount = floorSteps.filter(
 		(step) => step.status === "skipped",
 	).length;
-	const degraded = isRunDegraded(ruleSteps0.length, skippedCount, verdict);
+	const degraded = isRunDegraded(floorSteps.length, skippedCount, verdict);
 	const unrunnableFloored = unrunnable.length > 0 && verdict === "pass";
-	const aiReviewNotRun = ruleSteps0.some(isAiOutOfCreditsStep);
-	const aiCreditsFloored = aiReviewNotRun && verdict === "pass";
-	const floored = degraded || unrunnableFloored || aiCreditsFloored;
+	const aiReviewNotRun = ruleSteps0.some(isAiReviewNotRunStep);
+	const floored = degraded || unrunnableFloored;
 	const heldBack = floored && scheduled !== null;
 	/**
 	 * The floor is configurable, and ON by default.
@@ -537,7 +549,7 @@ async function runWorkflowsInner(
 			output: {
 				degradedReads,
 				skippedRules: skippedCount,
-				ruleNodes: ruleSteps0.length,
+				ruleNodes: floorSteps.length,
 				/** false ⇒ the run passed with a partial evaluation, on purpose. */
 				enforced: failClosed,
 				...(heldBack ? { tookNoAction: true } : {}),
@@ -558,7 +570,7 @@ async function runWorkflowsInner(
 			{
 				degradedReads,
 				skippedCount,
-				ruleNodes: ruleSteps0.length,
+				ruleNodes: floorSteps.length,
 				enforced: failClosed,
 			},
 			heldBack
@@ -634,8 +646,7 @@ async function runWorkflowsInner(
 	}
 	if (
 		!backfill &&
-		((degraded && !heldBack) ||
-			((unrunnableFloored || aiCreditsFloored) && failClosed))
+		((degraded && !heldBack) || (unrunnableFloored && failClosed))
 	) {
 		await moderationServices.createModerationItem(db, {
 			runId,
@@ -697,7 +708,7 @@ async function runWorkflowsInner(
 		paused,
 		actionRows,
 		reasons,
-		degraded: degraded || (aiCreditsFloored && failClosed),
+		degraded,
 		aiReviewNotRun,
 	};
 }

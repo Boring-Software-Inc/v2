@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { scheduleTimings } from "@tripwire/contracts";
+import { scheduleTimings, type WorkflowDefinition } from "@tripwire/contracts";
 import { getRepoWorkflow, listRepoWorkflows } from "#/lib/workflows.functions";
 
 export const workflowsQueryKeys = {
@@ -21,6 +21,12 @@ export const workflowsListQueryOptions = (org: string, repoId: string) =>
 		enabled: repoId !== "",
 	});
 
+export function followsSchedule(
+	data: { enabled: boolean; definition: WorkflowDefinition } | null | undefined,
+): boolean {
+	return Boolean(data?.enabled && scheduleTimings(data.definition).size > 0);
+}
+
 export const workflowDetailQueryOptions = (
 	org: string,
 	repoId: string,
@@ -32,8 +38,8 @@ export const workflowDetailQueryOptions = (
 			getRepoWorkflow({ data: { org, repoId, workflowId }, signal }),
 		staleTime: 10_000,
 		refetchInterval: ({ state }) =>
-			state.data?.enabled && scheduleTimings(state.data.definition).size > 0
-				? 60_000
-				: false,
+			followsSchedule(state.data) ? 60_000 : false,
+		refetchOnWindowFocus: ({ state }) =>
+			followsSchedule(state.data) ? "always" : true,
 		enabled: repoId !== "",
 	});

@@ -1,9 +1,19 @@
 import type {
+	AiCreditsState,
 	EdgeWhen,
+	LintResult,
+	ReviewerRef,
+	ValidationCatalogEntry,
 	WorkflowDefinition,
 	WorkflowNode,
 } from "@tripwire/contracts";
-import { workflowDefinitionSchema } from "@tripwire/contracts";
+import {
+	AI_REVIEW_RULE_ID,
+	catalogWithAiCredits,
+	issuesInState,
+	lintWorkflow,
+	workflowDefinitionSchema,
+} from "@tripwire/contracts";
 
 /**
  * Pure graph ↔ definition converters. `graphToDefinition` is THE editor
@@ -137,4 +147,34 @@ export function graphToDefinition(
 		};
 	}
 	return { ok: true, definition: parsed.data };
+}
+
+export function aiCreditsOf(
+	views:
+		| readonly { ruleId: string; unavailableReason: string | null }[]
+		| undefined,
+): AiCreditsState {
+	return views?.some(
+		(view) => view.ruleId === AI_REVIEW_RULE_ID && view.unavailableReason,
+	)
+		? "out"
+		: "ready";
+}
+
+/**
+ * The editor's issues, checked the way the server checks a save. An off
+ * workflow leaves out the rules that can't run right now.
+ */
+export function editorLint(input: {
+	candidate: WorkflowDefinition;
+	enabled: boolean;
+	catalog: readonly ValidationCatalogEntry[];
+	aiCredits: AiCreditsState;
+	reviewers?: readonly ReviewerRef[];
+}): LintResult[] {
+	const results = lintWorkflow(input.candidate, {
+		catalog: catalogWithAiCredits(input.catalog, input.aiCredits),
+		reviewers: input.reviewers,
+	});
+	return issuesInState(results, input.enabled);
 }

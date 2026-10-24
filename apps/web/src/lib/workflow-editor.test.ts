@@ -1,13 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import {
 	DEFAULT_WORKFLOW,
+	RULE_CATALOG,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import {
+	aiCreditsOf,
 	definitionToGraph,
 	type EditorEdge,
 	type EditorNode,
+	editorLint,
 	graphToDefinition,
 } from "./workflow-editor.ts";
 
@@ -264,5 +267,96 @@ describe("outcome handles ↔ when (T4 editor fix)", () => {
 			"approve",
 			"pass",
 		]);
+	});
+});
+
+describe("AI review steps while Tripwire is out of AI credits", () => {
+	const ai = (id: string) =>
+		({
+			id,
+			type: "rule",
+			ref: "ai-review@2",
+			config: { maxSteps: 12 },
+		}) as const;
+	const stored: WorkflowDefinition = {
+		id: "w",
+		name: "w",
+		version: 1,
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			ai("old"),
+			{ id: "a", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "old" },
+			{ id: "e2", from: "old", to: "a", when: "fail" },
+		],
+	};
+	const added: WorkflowDefinition = {
+		...stored,
+		nodes: [...stored.nodes, ai("new")],
+		edges: [...stored.edges, { id: "e3", from: "t", to: "new" }],
+	};
+	const credits = (candidate: WorkflowDefinition, enabled: boolean) =>
+		editorLint({
+			candidate,
+			enabled,
+			catalog: RULE_CATALOG,
+			aiCredits: "out",
+		})
+			.filter((issue) => issue.rule === "rule-unavailable")
+			.map((issue) => [issue.nodeId, issue.severity, issue.message]);
+
+	test("every AI review step on a live workflow carries a quiet warning", () => {
+		expect(credits(added, true)).toEqual([
+			["old", "warning", "AI review can't run until credits return."],
+			["new", "warning", "AI review can't run until credits return."],
+		]);
+	});
+
+	test("nothing on a live workflow blocks a save or reads as a fix", () => {
+		expect(
+			editorLint({
+				candidate: added,
+				enabled: true,
+				catalog: RULE_CATALOG,
+				aiCredits: "out",
+			}).filter((issue) => issue.severity === "error"),
+		).toEqual(
+			editorLint({
+				candidate: added,
+				enabled: true,
+				catalog: RULE_CATALOG,
+				aiCredits: "ready",
+			}).filter((issue) => issue.severity === "error"),
+		);
+	});
+
+	test("an off workflow shows no AI review issue at all", () => {
+		expect(credits(added, false)).toEqual([]);
+	});
+
+	test("with credits there is no issue", () => {
+		expect(
+			editorLint({
+				candidate: added,
+				enabled: true,
+				catalog: RULE_CATALOG,
+				aiCredits: "ready",
+			}).filter((issue) => issue.rule === "rule-unavailable"),
+		).toEqual([]);
+	});
+
+	test("the rules page's AI review status is the credit state", () => {
+		expect(
+			aiCreditsOf([
+				{ ruleId: "account-age", unavailableReason: null },
+				{ ruleId: "ai-review", unavailableReason: "Out of AI credits" },
+			]),
+		).toBe("out");
+		expect(
+			aiCreditsOf([{ ruleId: "ai-review", unavailableReason: null }]),
+		).toBe("ready");
+		expect(aiCreditsOf(undefined)).toBe("ready");
 	});
 });

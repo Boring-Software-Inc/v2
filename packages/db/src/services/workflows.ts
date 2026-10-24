@@ -1,7 +1,9 @@
 import {
 	catalogWithAiCredits,
 	customRuleRecordSchema,
+	describeSchedule,
 	diffWorkflow,
+	issuesInState,
 	lintWorkflow,
 	mergeForPush,
 	reportWorkflows,
@@ -51,6 +53,7 @@ export interface WorkflowListItem {
 	nodeCount: number;
 	/** Trigger event kinds across trigger nodes — the card's summary line. */
 	triggerKinds: string[];
+	schedules: string[];
 	updatedAt: string;
 	runnable: boolean;
 	canTurnOn: boolean;
@@ -84,6 +87,16 @@ function toListItem(
 		triggerKinds: [
 			...new Set(nodes.flatMap((n) => (n.type === "trigger" ? n.kinds : []))),
 		],
+		schedules: nodes.flatMap((n) =>
+			n.type === "trigger" && n.schedule?.every
+				? [
+						describeSchedule({
+							every: n.schedule.every,
+							timezone: n.schedule.timezone,
+						}),
+					]
+				: [],
+		),
 		updatedAt: row.updatedAt.toISOString(),
 		runnable: readiness.runnable,
 		canTurnOn: readiness.canTurnOn,
@@ -284,11 +297,7 @@ export async function saveWorkflowDefinition(
 		}
 		const stored = workflowDefinitionSchema.safeParse(row.definition);
 		if (row.enabled) {
-			const issues = liveSaveIssues(
-				stored.success ? stored.data : null,
-				definition,
-				catalog,
-			);
+			const issues = liveSaveRefusals(definition, catalog);
 			if (issues.length > 0) {
 				return { ok: false, issues };
 			}
@@ -451,9 +460,11 @@ export async function previewWorkflowPush(
 		const stored =
 			rows.find((row) => row.definition.id === incoming.id) ?? null;
 		const pushed = pushedDefinition(stored?.definition ?? null, incoming);
+		const enabled = stored?.enabled ?? false;
 		return reportWorkflows([pushed], catalog).map((report) => ({
 			...report,
-			enabled: stored?.enabled ?? false,
+			issues: issuesInState(report.issues, enabled),
+			enabled,
 			changes: diffWorkflow(stored?.definition ?? null, pushed),
 		}));
 	});
@@ -539,7 +550,7 @@ export async function applyWorkflowDefinition(
 			return { ok: true, outcome: "unchanged", workflow, changes };
 		}
 		if (locked.enabled) {
-			const issues = liveSaveIssues(stored.data, merged, catalog);
+			const issues = liveSaveRefusals(merged, catalog);
 			if (issues.length > 0) {
 				return { ok: false, reason: "live-cannot-run", issues };
 			}
@@ -553,26 +564,12 @@ export async function applyWorkflowDefinition(
 	});
 }
 
-function liveSaveIssues(
-	stored: WorkflowDefinition | null,
+function liveSaveRefusals(
 	next: WorkflowDefinition,
 	catalog: readonly ValidationCatalogEntry[],
 ): ValidationIssue[] {
 	const checked = validateWorkflowForEnable(next, catalog);
-	if (checked.valid) {
-		return [];
-	}
-	const ref = (definition: WorkflowDefinition | null, nodeId?: string) => {
-		const node = definition?.nodes.find((n) => n.id === nodeId);
-		return node?.type === "rule" ? node.ref : null;
-	};
-	return checked.issues.filter((issue) => {
-		if (issue.rule !== "rule-unavailable") {
-			return true;
-		}
-		const before = ref(stored, issue.nodeId);
-		return before === null || before !== ref(next, issue.nodeId);
-	});
+	return checked.valid ? [] : checked.issues;
 }
 
 export type SetEnabledResult =

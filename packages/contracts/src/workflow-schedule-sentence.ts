@@ -1,6 +1,7 @@
 import type { ThreadSubject } from "./events.ts";
 import type { ScheduleDraft, ScheduleState } from "./workflow.ts";
-import { describeDuration, describeSchedule } from "./workflow-schedule.ts";
+import { describeDuration } from "./workflow-schedule.ts";
+import { describeSchedule } from "./workflow-schedule-text.ts";
 
 const SUBJECT_WORDS = {
 	issue: "issues",

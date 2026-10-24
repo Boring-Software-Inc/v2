@@ -273,7 +273,22 @@ describe("diffWorkflow names the field a step changed", () => {
 				},
 			),
 		).toEqual([
-			"trigger.every: Every day at 07:00 (Europe/Berlin) → Every day at 08:30 (Europe/Berlin)",
+			"trigger.every: Every day at 07:00 in Berlin → Every day at 08:30 in Berlin",
+		]);
+	});
+
+	test("a zone the new time already names gets no line of its own", () => {
+		expect(
+			lines(
+				{ every: { preset: "daily", at: "07:00" }, match },
+				{
+					every: { preset: "daily", at: "08:30" },
+					timezone: "Europe/Berlin",
+					match,
+				},
+			),
+		).toEqual([
+			"trigger.every: Every day at 07:00 in UTC → Every day at 08:30 in Berlin",
 		]);
 	});
 

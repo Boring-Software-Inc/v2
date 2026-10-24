@@ -261,15 +261,50 @@ export function zonedInstant(wall: WallTime, zone: string): Date | null {
 	return null;
 }
 
-function dayMatches(spec: CronSpec, date: Date): boolean {
-	const day = date.getUTCDate();
-	const weekday = date.getUTCDay();
+/** Whether a cron runs on a day of the month that falls on a weekday. */
+export function cronRunsOn(
+	spec: CronSpec,
+	day: number,
+	weekday: number,
+): boolean {
 	const byDay = spec.days.includes(day);
 	const byWeekday = spec.weekdays.includes(weekday);
 	if (spec.daysRestricted && spec.weekdaysRestricted) {
 		return byDay || byWeekday;
 	}
 	return byDay && byWeekday;
+}
+
+function dayMatches(spec: CronSpec, date: Date): boolean {
+	return cronRunsOn(spec, date.getUTCDate(), date.getUTCDay());
+}
+
+const DAY_PROBES = Array.from({ length: 7 * 31 }, (_, index) => ({
+	day: (index % 31) + 1,
+	weekday: Math.floor(index / 31),
+}));
+
+/**
+ * A key two crons share exactly when they fire at the same wall times, so
+ * "0 9 * * 1-5" and "0 9 * * mon,tue,wed,thu,fri" read as one schedule.
+ */
+export function cronSpecKey(spec: CronSpec): string {
+	const days = DAY_PROBES.map(({ day, weekday }) =>
+		cronRunsOn(spec, day, weekday) ? "1" : "0",
+	).join("");
+	return [spec.minutes, spec.hours, spec.months]
+		.map((values) => values.join(","))
+		.concat(days)
+		.join(" ");
+}
+
+/** Whether two cron expressions fire at the same wall times. */
+export function sameCron(a: string, b: string): boolean {
+	const left = parseCron(a);
+	const right = parseCron(b);
+	return (
+		left.ok && right.ok && cronSpecKey(left.spec) === cronSpecKey(right.spec)
+	);
 }
 
 const SEARCH_DAYS = 366 * 5;

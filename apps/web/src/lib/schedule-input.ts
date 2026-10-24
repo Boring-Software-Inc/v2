@@ -4,6 +4,7 @@ import {
 	nextScheduleRun,
 	parseScheduleText,
 	type ScheduleCadence,
+	type ScheduleTextParse,
 	type ScheduleTiming,
 	sameScheduleTiming,
 	scheduleCountsFrom,
@@ -75,12 +76,49 @@ export interface TypedSchedule {
 }
 
 export function committedSchedule(
-	stored: TypedSchedule,
+	saved: ScheduleTiming | null,
 	typed: TypedSchedule,
 ): TypedSchedule {
-	const timing = (schedule: TypedSchedule): ScheduleTiming | null =>
-		schedule.every
-			? { every: schedule.every, timezone: schedule.timezone }
-			: null;
-	return sameScheduleTiming(timing(stored), timing(typed)) ? stored : typed;
+	const timing = typed.every
+		? { every: typed.every, timezone: typed.timezone }
+		: null;
+	return saved && sameScheduleTiming(saved, timing)
+		? { every: saved.every, timezone: saved.timezone }
+		: typed;
+}
+
+export function typedScheduleCommit(
+	text: string,
+	context: {
+		saved: ScheduleTiming | null;
+		current: TypedSchedule;
+		newZone: string | undefined;
+	},
+): TypedSchedule | null {
+	const result = parseScheduleText(text);
+	if (result.ok) {
+		return committedSchedule(context.saved, {
+			every: result.every,
+			timezone:
+				result.timezone ??
+				(isClockCadence(result.every)
+					? (context.current.timezone ?? context.newZone)
+					: undefined),
+		});
+	}
+	return result.reason === "empty"
+		? { every: undefined, timezone: undefined }
+		: null;
+}
+
+export function showsScheduleZone(
+	text: string,
+	parsed: ScheduleTextParse,
+): boolean {
+	if (text.trim() === "" || parsed.tokens.some((t) => t.kind === "zone")) {
+		return false;
+	}
+	return parsed.ok
+		? isClockCadence(parsed.every)
+		: !parsed.tokens.some((token) => token.kind === "interval");
 }

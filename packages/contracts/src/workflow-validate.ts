@@ -68,6 +68,19 @@ function toResult(
 	return { valid: true, definition: report.definition };
 }
 
+/**
+ * The issues a workflow shows in its current state. An off workflow does not
+ * run, so a rule that can't run right now is not worth a word until it is on.
+ */
+export function issuesInState<T extends { rule?: LintRuleId }>(
+	issues: readonly T[],
+	enabled: boolean,
+): T[] {
+	return enabled
+		? [...issues]
+		: issues.filter((issue) => issue.rule !== "rule-unavailable");
+}
+
 const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
 	"cycle",
 	"gate-input",
@@ -77,7 +90,6 @@ const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
 	"no-outputs",
 	"missing-step",
 	"duplicate-id",
-	"rule-unavailable",
 ]);
 
 export function unrunnableIssues(input: WorkflowDefinition): LintResult[] {

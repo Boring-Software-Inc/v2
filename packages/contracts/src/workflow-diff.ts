@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+	DEFAULT_SCHEDULE_TIMEZONE,
 	type JsonValue,
 	jsonValueSchema,
 	type WorkflowDefinition,
@@ -7,7 +8,10 @@ import {
 	type WorkflowNode,
 } from "./workflow.ts";
 import { edgePort, WORKFLOW_PORT_LABELS } from "./workflow-connections.ts";
-import { describeSchedule } from "./workflow-schedule.ts";
+import {
+	describeSchedule,
+	scheduleZoneWord,
+} from "./workflow-schedule-text.ts";
 
 /** Params that hold secrets, and the markers that say one is stored. */
 export const WORKFLOW_SECRET_KEYS: ReadonlySet<string> = new Set([
@@ -218,7 +222,9 @@ function fieldChanges(old: WorkflowNode, node: WorkflowNode): string[] {
 	const everyAfter = after.get("every") ?? "";
 	const zoneInEvery = (zone: string) =>
 		everyBefore !== everyAfter &&
-		everyAfter.includes(zone === "none" ? ", the default)" : `(${zone})`);
+		everyAfter.endsWith(
+			` in ${scheduleZoneWord(zone === "none" ? DEFAULT_SCHEDULE_TIMEZONE : zone)}`,
+		);
 	const lines: string[] = [];
 	for (const key of new Set([...before.keys(), ...after.keys()])) {
 		const was = before.get(key) ?? "none";

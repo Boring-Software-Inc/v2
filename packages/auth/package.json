@@ -8,6 +8,7 @@
 		"./client": "./src/client.ts",
 		"./access": "./src/access.ts",
 		"./access-gate": "./src/access-gate.ts",
+		"./account-deletion": "./src/account-deletion.ts",
 		"./agent-auth": "./src/agent-auth.ts",
 		"./databuddy": "./src/databuddy.ts",
 		"./install-state": "./src/install-state.ts",

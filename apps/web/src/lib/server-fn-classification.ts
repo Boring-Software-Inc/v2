@@ -58,6 +58,11 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	grantDeviceOrgs: "authed", // grants only orgs the caller belongs to
 	listConnectedAgents: "authed", // the caller's own agents
 	revokeConnectedAgent: "authed", // the caller's own agents
+	listMySessions: "authed",
+	revokeMySession: "authed",
+	revokeMyOtherSessions: "authed",
+	getAccountDeletionPlan: "authed",
+	deleteMyAccount: "authed",
 	setAccountTimezone: "authed",
 
 	// ── member (org shell: any role, including custom roles) ─────────────
@@ -121,6 +126,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	armRepo: "permission:connections:manage",
 	disarmRepo: "permission:connections:manage",
 	armRepoById: "permission:connections:manage",
+	disarmRepoById: "permission:connections:manage",
 	ensureSetupRun: "permission:connections:manage", // a setup run is an install-and-gate act
 	findSetupRun: "permission:connections:manage",
 	getAgentSetupPrompt: "permission:connections:manage",

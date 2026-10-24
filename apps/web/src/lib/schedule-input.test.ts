@@ -1,11 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import type { ScheduleCadence, WorkflowNode } from "@tripwire/contracts";
+import {
+	parseScheduleText,
+	type ScheduleCadence,
+	type WorkflowNode,
+} from "@tripwire/contracts";
 import {
 	committedSchedule,
 	editorNextRun,
 	formatNextRun,
 	invalidScheduleDrafts,
 	isClockCadence,
+	showsScheduleZone,
+	type TypedSchedule,
+	typedScheduleCommit,
 } from "#/lib/schedule-input";
 
 const scheduled = (id: string, every: ScheduleCadence): WorkflowNode => ({
@@ -118,17 +125,40 @@ describe("the editor's next run", () => {
 });
 
 describe("committing typed schedule text", () => {
-	test("text with the same timing keeps the stored schedule", () => {
-		const stored = {
-			every: { n: 1, unit: "days" as const },
-			timezone: undefined,
-		};
+	const commitEach = (
+		saved: { every: ScheduleCadence; timezone?: string } | null,
+		texts: readonly string[],
+	) => {
+		let value: TypedSchedule = saved
+			? { every: saved.every, timezone: saved.timezone }
+			: { every: undefined, timezone: undefined };
+		for (const text of texts) {
+			value =
+				typedScheduleCommit(text, { saved, current: value, newZone: "UTC" }) ??
+				value;
+		}
+		return value;
+	};
+
+	test("text with the same timing keeps the saved schedule", () => {
 		expect(
-			committedSchedule(stored, {
-				every: { n: 24, unit: "hours" },
-				timezone: undefined,
-			}),
-		).toBe(stored);
+			committedSchedule(
+				{ every: { n: 1, unit: "days" } },
+				{ every: { n: 24, unit: "hours" }, timezone: undefined },
+			),
+		).toEqual({ every: { n: 1, unit: "days" }, timezone: undefined });
+	});
+
+	test("retyping a saved cron as words keeps the cron", () => {
+		const saved = { every: { cron: "0 8 * * 0" }, timezone: "Europe/Berlin" };
+		expect(
+			commitEach(saved, [
+				"",
+				"every sunday",
+				"every sunday at 8",
+				"every sunday at 8am in berlin",
+			]),
+		).toEqual(saved);
 	});
 
 	test("text with new timing replaces it", () => {
@@ -136,14 +166,47 @@ describe("committing typed schedule text", () => {
 			every: { preset: "hourly" as const, minute: 0 },
 			timezone: "UTC",
 		};
+		expect(committedSchedule({ every: { n: 1, unit: "hours" } }, typed)).toBe(
+			typed,
+		);
+		expect(committedSchedule(null, typed)).toBe(typed);
+	});
+
+	test("a clock phrase without a zone keeps the current one", () => {
 		expect(
-			committedSchedule(
-				{ every: { n: 1, unit: "hours" }, timezone: undefined },
-				typed,
-			),
-		).toBe(typed);
-		expect(
-			committedSchedule({ every: undefined, timezone: undefined }, typed),
-		).toBe(typed);
+			commitEach({ every: { n: 1, unit: "days" } }, [
+				"every sunday at 8am in berlin",
+				"every sunday at 9am",
+			]),
+		).toEqual({
+			every: { preset: "weekly", on: "sunday", at: "09:00" },
+			timezone: "Europe/Berlin",
+		});
+	});
+
+	test("clearing the field clears the schedule", () => {
+		expect(commitEach({ every: { n: 1, unit: "days" } }, [""])).toEqual({
+			every: undefined,
+			timezone: undefined,
+		});
+	});
+});
+
+describe("the zone beside the schedule field", () => {
+	const shown = (text: string) =>
+		showsScheduleZone(text, parseScheduleText(text));
+
+	test("a clock cron without a zone shows it, as the canvas does", () => {
+		expect(shown("*/15 * * * *")).toBe(true);
+		expect(shown("30 */2 * * *")).toBe(true);
+		expect(shown("every 15 minutes")).toBe(true);
+		expect(shown("every day at 9")).toBe(true);
+	});
+
+	test("an interval, a typed zone or empty text shows none", () => {
+		expect(shown("every 2 hours")).toBe(false);
+		expect(shown("every 5 days")).toBe(false);
+		expect(shown("every day at 9 in berlin")).toBe(false);
+		expect(shown("  ")).toBe(false);
 	});
 });
