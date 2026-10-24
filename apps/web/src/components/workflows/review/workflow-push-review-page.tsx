@@ -281,7 +281,7 @@ function WorkflowSection({ workflow }: { workflow: PushReviewWorkflow }) {
 				<TripwireCodeDiff
 					after={workflow.code.after}
 					before={workflow.code.before}
-					name={`${workflow.id}.ts`}
+					name="tripwire.ts"
 				/>
 			) : (
 				<p className="type-body-sm text-text-2">{workflow.code.reason}</p>
