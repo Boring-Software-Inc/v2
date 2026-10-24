@@ -111,3 +111,39 @@ share the setup prompt builder with the web app later.
 - Why the stack can't: Goose keeps its MCP servers in YAML, and nothing in the
   repo edits YAML or JSONC in place. Both were already in `bun.lock` through
   other tools.
+
+## 2026-10-24: `@pierre/diffs` for code and diffs in the web app
+
+**Added:** `@pierre/diffs@^1.6.1` (apps/web). Apache-2.0. It pulls `shiki`
+(MIT), `diff` (BSD-3-Clause), `@pierre/theme`, `@pierre/theming` and
+`@pierre/highlights` (all Apache-2.0).
+
+**What it replaces:** the Glaze `tokenize` + `TokenLine` rendering in the
+workflow Code view, and the plain "Unsaved" badge. The founder asked for
+Pierre on the Code view. The push review page needs the same diff surface.
+
+**Why the stack can't do it:** Glaze's tokenizer is small on purpose. It has
+no diff, no split view, no word-level change marks, no hunk folding and no
+line selection. Writing a diff renderer with those is a library's worth of
+code we should not own.
+
+**Alternatives looked at:**
+- `react-diff-viewer-continued`: a diff only, no file view, styled with
+  emotion, no Shiki.
+- `@git-diff-view/react`: diff only, needs its own highlighter wiring.
+- Shiki plus `diff` by hand: the same two deps Pierre already wraps, with
+  the layout, selection and virtualization left to us.
+
+**Size:** 11 MB unpacked on npm, most of it Shiki grammars that load on
+demand. Nothing ships in the route chunk: `components/code` loads Pierre with
+`React.lazy` after mount, so the server and the first paint render plain
+text. Chunk sizes before and after are in the change that wires the editor.
+
+**Theme:** a CSS variable theme (`registerCustomCSSVariableTheme`) that
+points every syntax colour at Glaze ink steps (`--text-1`, `--text-2`). Glaze
+keeps colour for status, so only additions and deletions take colour, from
+`--ok` and `--fail`.
+
+**Shared surface:** `apps/web/src/components/code` exports
+`TripwireCodeFile` and `TripwireCodeDiff`. Use these, not `@pierre/diffs`
+directly, so the theme and the lazy split stay in one place.
