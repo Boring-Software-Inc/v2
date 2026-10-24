@@ -215,6 +215,23 @@ export interface DeletedAccount {
 	reposRemoved: number;
 }
 
+async function lockMemberOrgs(tx: Tx, userId: string): Promise<void> {
+	await tx
+		.select({ id: organization.id })
+		.from(organization)
+		.where(
+			inArray(
+				organization.id,
+				tx
+					.select({ id: member.organizationId })
+					.from(member)
+					.where(eq(member.userId, userId)),
+			),
+		)
+		.orderBy(organization.id)
+		.for("update");
+}
+
 export async function deleteUserAccount(
 	db: Db,
 	userId: string,
@@ -233,7 +250,8 @@ export async function deleteUserAccount(
 			.from(member)
 			.where(eq(member.userId, userId))
 			.for("update");
-		const soleAdmin = await listSoleAdminOrgs(tx, userId);
+		await lockMemberOrgs(tx, userId);
+		const soleAdmin =await listSoleAdminOrgs(tx, userId);
 		if (soleAdmin.length > 0) {
 			throw new AccountDeletionBlockedError(soleAdmin.map((org) => org.slug));
 		}

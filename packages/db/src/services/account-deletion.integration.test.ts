@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { generateId } from "@tripwire/utils";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
 	applyMigrations,
 	createDb,
@@ -32,7 +32,7 @@ import { ensurePersonalOrg } from "./organizations.ts";
 
 let container: TestDatabase;
 let db: Db;
-let pool: { end(): Promise<void> };
+let pool: ReturnType<typeof createDb>["pool"];
 
 async function seedUser(id: string): Promise<string> {
 	await db.insert(user).values({ id, name: id, email: `${id}@example.com` });
@@ -108,6 +108,19 @@ async function seedReview(input: {
 		decidedBy: input.decidedBy,
 	});
 	return { runId, itemId };
+}
+
+async function waitForLockWaiters(count: number): Promise<void> {
+	for (let attempt = 0; attempt < 200; attempt++) {
+		const result = await db.execute<{ n: number }>(
+			sql`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+		);
+		if ((result.rows[0]?.n ?? 0) >= count) {
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 25));
+	}
+	throw new Error(`never saw ${count} transactions waiting on a lock`);
 }
 
 beforeAll(async () => {
@@ -315,6 +328,53 @@ describe("account deletion", () => {
 			.from(member)
 			.where(eq(member.organizationId, team));
 		expect(teamMembers.map((row) => row.userId)).toEqual(["keeper"]);
+	});
+
+	test("two admins deleting at once leave the team one admin", async () => {
+		await seedUser("race-a");
+		await seedUser("race-b");
+		await seedUser("race-member");
+		const orgId = await seedTeamOrg("race-team", [
+			{ userId: "race-a", role: "admin" },
+			{ userId: "race-b", role: "admin" },
+			{ userId: "race-member", role: "member" },
+		]);
+
+		const gate = await pool.connect();
+		await gate.query("BEGIN");
+		await gate.query("LOCK TABLE device_code IN EXCLUSIVE MODE");
+		const results = Promise.allSettled([
+			deleteUserAccount(db, "race-a"),
+			deleteUserAccount(db, "race-b"),
+		]);
+		try {
+			await waitForLockWaiters(2);
+		} finally {
+			await gate.query("COMMIT");
+			gate.release();
+		}
+		const [first, second] = await results;
+
+		const outcomes = [first, second].map((result) =>
+			result.status === "fulfilled" ? "deleted" : "blocked",
+		);
+		expect(outcomes.sort()).toEqual(["blocked", "deleted"]);
+		const rejected = [first, second].find(
+			(result) => result.status === "rejected",
+		);
+		expect(rejected?.status === "rejected" && rejected.reason).toBeInstanceOf(
+			AccountDeletionBlockedError,
+		);
+		expect(
+			rejected?.status === "rejected" &&
+				rejected.reason instanceof AccountDeletionBlockedError &&
+				rejected.reason.orgSlugs,
+		).toEqual(["race-team"]);
+		const admins = await db
+			.select({ userId: member.userId })
+			.from(member)
+			.where(and(eq(member.organizationId, orgId), eq(member.role, "admin")));
+		expect(admins).toHaveLength(1);
 	});
 
 	test("deleting an account that is already gone is a no-op", async () => {
