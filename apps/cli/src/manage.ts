@@ -3,12 +3,16 @@ import * as p from "@clack/prompts";
 import {
 	type CompileIssue,
 	compileIssueText,
+	type MatchedWorkflows,
+	matchWorkflowIds,
+	type NamedWorkflow,
 	pushExitCode,
 	reportWorkflows,
 	WORKFLOW_PUSH_STATUS_LABELS,
 	type WorkflowDefinition,
 	type WorkflowPushView,
 	type WorkflowState,
+	workflowKeys,
 	workflowPushProposalResultSchema,
 	workflowPushViewSchema,
 } from "@tripwire/contracts";
@@ -46,6 +50,7 @@ import {
 	resolveOrg,
 	resolveRepo,
 	sameLink,
+	workflowMapping,
 	writeProjectLink,
 } from "#/project-link";
 import {
@@ -548,16 +553,122 @@ interface PullOptions extends WorkflowFileOptions {
 
 interface SavedLink {
 	path: string;
-	changed: boolean;
+	linked: boolean;
 }
 
 function savePullLink(file: string, link: ProjectLink): SavedLink {
 	const dir = dirname(resolve(file));
 	const here = findProjectLink(dir, dir);
+	const linked =
+		!here || here.link.repo !== link.repo || here.link.org !== link.org;
 	if (here && sameLink(here.link, link)) {
-		return { path: here.path, changed: false };
+		return { path: here.path, linked };
 	}
-	return { path: writeProjectLink(dir, link), changed: true };
+	return { path: writeProjectLink(dir, link), linked };
+}
+
+interface ProjectKeys {
+	found: FoundLink | null;
+	mapping: Record<string, string>;
+}
+
+function projectKeys(file: string, repo: string): ProjectKeys {
+	const found = findProjectLink(dirname(resolve(file)));
+	return {
+		found,
+		mapping:
+			found && found.link.repo === repo ? (found.link.workflows ?? {}) : {},
+	};
+}
+
+function idKeys(matched: MatchedWorkflows): Map<string, string> {
+	return new Map(matched.matches.map((match) => [match.id, match.key]));
+}
+
+async function serverWorkflows(
+	deps: ManageDeps,
+	options: GlobalOptions,
+	repo: string,
+): Promise<NamedWorkflow[]> {
+	const output = await callForData(deps, options, "get_workflow", { repo });
+	return output.isError
+		? []
+		: pulledWorkflows(output.data).map((workflow) => workflow.definition);
+}
+
+async function withServerIds(
+	deps: ManageDeps,
+	options: GlobalOptions,
+	repo: string,
+	file: string,
+	definitions: WorkflowDefinition[],
+): Promise<MatchedWorkflows> {
+	const { mapping } = projectKeys(file, repo);
+	const unmapped = definitions.some((definition) => !mapping[definition.id]);
+	const server = unmapped ? await serverWorkflows(deps, options, repo) : [];
+	const matched = matchWorkflowIds(definitions, server, mapping);
+	for (const match of matched.matches) {
+		if (match.by === "new" && unmapped) {
+			err(
+				warnLine(
+					`${match.key} matches no workflow on the server, so a push adds it as a new one.`,
+					options.errStyle,
+				),
+			);
+		}
+		if (match.by === "name") {
+			const name = server.find((workflow) => workflow.id === match.id)?.name;
+			err(
+				warnLine(
+					`${match.key} has no saved id in .tripwire/project.json, so it matches ${name ?? match.id} on the server by its name.`,
+					options.errStyle,
+				),
+			);
+		}
+	}
+	return matched;
+}
+
+function rememberIds(file: string, repo: string, matched: MatchedWorkflows) {
+	const { found } = projectKeys(file, repo);
+	if (!found || found.link.repo !== repo) {
+		return;
+	}
+	const ids = new Set(matched.matches.map((match) => match.id));
+	const kept = Object.entries(found.link.workflows ?? {}).filter(
+		([, id]) => !ids.has(id),
+	);
+	const workflows = workflowMapping(
+		new Map([
+			...kept.map(([key, id]): [string, string] => [id, key]),
+			...idKeys(matched),
+		]),
+	);
+	const next = { ...found.link, workflows };
+	if (!sameLink(found.link, next)) {
+		writeProjectLink(dirname(dirname(found.path)), next);
+	}
+}
+
+const keyedSchema = z.looseObject({
+	workflows: z.array(z.looseObject({ id: z.string() })),
+});
+
+function keyed(
+	data: JsonValue | null,
+	keys: ReadonlyMap<string, string>,
+): JsonValue | null {
+	const parsed = keyedSchema.safeParse(data);
+	if (!parsed.success) {
+		return data;
+	}
+	return z.json().parse({
+		...parsed.data,
+		workflows: parsed.data.workflows.map((entry) => ({
+			...entry,
+			id: keys.get(entry.id) ?? entry.id,
+		})),
+	});
 }
 
 const WORKFLOW_STATES = [
@@ -646,10 +757,37 @@ function pullWorkflows(
 			return render("get_workflow", output, options);
 		}
 		const workflows = pulledWorkflows(output.data);
-		const local = await readLocalWorkflows(opts.file);
+		const read = await readLocalWorkflows(opts.file);
+		const { mapping } = projectKeys(opts.file, repo);
+		const matched =
+			read.kind === "code"
+				? matchWorkflowIds(
+						read.definitions,
+						workflows.map((workflow) => workflow.definition),
+						mapping,
+					)
+				: null;
+		const local: LocalWorkflows =
+			read.kind === "code" && matched
+				? { ...read, definitions: matched.definitions }
+				: read;
+		const savedKeys = new Map([
+			...Object.entries(mapping).map(([key, id]): [string, string] => [
+				id,
+				key,
+			]),
+			...(matched ? idKeys(matched) : []),
+		]);
+		const localKeys = new Map([
+			...savedKeys,
+			...workflowKeys(
+				workflows.map((workflow) => workflow.definition),
+				savedKeys,
+			),
+		]);
 		let picked = workflows;
 		if (wanted.length > 0) {
-			const selection = selectPulled(workflows, wanted);
+			const selection = selectPulled(workflows, wanted, localKeys);
 			if (selection.unknown.length > 0) {
 				throw new Error(
 					`No workflow ${selection.unknown.join(", ")} on ${repo}. Run tripwire workflows list <repo> to see them.`,
@@ -673,12 +811,27 @@ function pullWorkflows(
 			picked.map((workflow) => workflow.definition),
 			opts.force === true,
 			local,
+			localKeys,
 		);
 		const linked = opts.link
-			? savePullLink(opts.file, { org: options.org, repo })
+			? savePullLink(opts.file, {
+					org: options.org,
+					repo,
+					workflows: workflowMapping(written.keys),
+				})
 			: null;
 		if (options.json) {
-			out(JSON.stringify({ ...written, link: linked?.path ?? null }, null, 2));
+			out(
+				JSON.stringify(
+					{
+						...written,
+						keys: Object.fromEntries(written.keys),
+						link: linked?.path ?? null,
+					},
+					null,
+					2,
+				),
+			);
 			return 0;
 		}
 		const rows: [string, string][] = [
@@ -688,7 +841,7 @@ function pullWorkflows(
 			rows.push(["kept", keptText(written.kept)]);
 		}
 		rows.push(["helpers", written.module]);
-		if (linked?.changed) {
+		if (linked?.linked) {
 			rows.push(["linked", `${repo} in ${linked.path}`]);
 		}
 		rows.push(
@@ -707,13 +860,20 @@ function validateWorkflows(
 	return workflowAction(command, deps, async (options) => {
 		const compiled = await loadWorkflowFile(opts.file);
 		const issues = compiled.ok ? [] : compiled.issues;
-		const { definitions } = compiled;
+		let { definitions } = compiled;
 		let reports: ReportView[] = [];
 		let remote: JsonValue | null = null;
 		if (definitions.length > 0 && opts.repo) {
+			const matched = await withServerIds(
+				deps,
+				options,
+				opts.repo,
+				opts.file,
+				definitions,
+			);
 			const output = await callForData(deps, options, "validate_workflow", {
 				repo: opts.repo,
-				definitions: definitionsJson(definitions),
+				definitions: definitionsJson(matched.definitions),
 			});
 			if (output.isError) {
 				if (issues.length > 0) {
@@ -722,9 +882,17 @@ function validateWorkflows(
 				return render("validate_workflow", output, options);
 			}
 			remote = output.data;
-			reports = reportsSchema.parse(output.data).workflows;
+			reports = reportsSchema.parse(
+				keyed(output.data, idKeys(matched)),
+			).workflows;
 		} else if (definitions.length > 0) {
 			reports = reportWorkflows(definitions, localCatalog(definitions));
+			const linked = options.link?.link;
+			definitions = matchWorkflowIds(
+				definitions,
+				[],
+				linked ? (linked.workflows ?? {}) : {},
+			).definitions;
 		}
 		const valid =
 			issues.length === 0 && reports.every((report) => report.valid);
@@ -762,17 +930,25 @@ function diffWorkflows(
 	opts: WorkflowFileOptions,
 ): Promise<void> {
 	return workflowAction(command, deps, async (options) => {
-		const definitions = await compileFile(opts.file, options);
-		if (!definitions) {
+		const compiled = await compileFile(opts.file, options);
+		if (!compiled) {
 			return 1;
 		}
-		const output = await callForData(deps, options, "validate_workflow", {
+		const matched = await withServerIds(
+			deps,
+			options,
 			repo,
-			definitions: definitionsJson(definitions),
+			opts.file,
+			compiled,
+		);
+		const raw = await callForData(deps, options, "validate_workflow", {
+			repo,
+			definitions: definitionsJson(matched.definitions),
 		});
-		if (options.json || output.isError) {
-			return render("validate_workflow", output, options);
+		if (options.json || raw.isError) {
+			return render("validate_workflow", raw, options);
 		}
+		const output = { ...raw, data: keyed(raw.data, idKeys(matched)) };
 		out(
 			changeLines(output.data, options.style, (entry) =>
 				(entry.changes ?? []).length === 0
@@ -809,15 +985,20 @@ async function applyDirect(
 	deps: ManageDeps,
 	options: GlobalOptions,
 	repo: string,
-	definitions: WorkflowDefinition[],
+	file: string,
+	matched: MatchedWorkflows,
 ): Promise<number> {
-	const output = await callForData(deps, options, "apply_workflow", {
+	const raw = await callForData(deps, options, "apply_workflow", {
 		repo,
-		definitions: definitionsJson(definitions),
+		definitions: definitionsJson(matched.definitions),
 	});
-	if (output.isError) {
-		return render("apply_workflow", output, options);
+	if (raw.isError) {
+		return render("apply_workflow", raw, options);
 	}
+	rememberIds(file, repo, matched);
+	const output = options.json
+		? raw
+		: { ...raw, data: keyed(raw.data, idKeys(matched)) };
 	const parsed = changeListSchema.safeParse(output.data);
 	const refused = parsed.success
 		? parsed.data.workflows.filter((entry) => entry.outcome === "refused")
@@ -888,22 +1069,30 @@ function pushWorkflows(
 	opts: PushOptions,
 ): Promise<void> {
 	return workflowAction(command, deps, async (options) => {
-		const definitions = await compileFile(opts.file, options);
-		if (!definitions) {
+		const compiled = await compileFile(opts.file, options);
+		if (!compiled) {
 			return 1;
 		}
+		const matched = await withServerIds(
+			deps,
+			options,
+			repo,
+			opts.file,
+			compiled,
+		);
 		if (opts.force) {
-			return await applyDirect(deps, options, repo, definitions);
+			return await applyDirect(deps, options, repo, opts.file, matched);
 		}
 		const output = await callForData(deps, options, "propose_workflow_push", {
 			repo,
-			definitions: definitionsJson(definitions),
+			definitions: definitionsJson(matched.definitions),
 		});
 		if (output.isError) {
 			return render("propose_workflow_push", output, options);
 		}
 		const proposal = workflowPushProposalResultSchema.parse(output.data);
 		if (proposal.result === "unchanged") {
+			rememberIds(opts.file, repo, matched);
 			if (options.json) {
 				out(JSON.stringify(proposal, null, 2));
 			} else {
@@ -935,6 +1124,9 @@ function pushWorkflows(
 			await deps.openUrl(push.url).catch(() => undefined);
 		}
 		const final = await awaitReview(deps, options, push);
+		if (final.status === "accepted") {
+			rememberIds(opts.file, repo, matched);
+		}
 		if (options.json) {
 			out(JSON.stringify(final, null, 2));
 		} else if (final.status === "accepted") {
@@ -991,7 +1183,12 @@ async function linkProject(
 			process.exitCode = render("list_workflows", output, options);
 			return;
 		}
-		const link: ProjectLink = { org: options.org, repo };
+		const here = findProjectLink(process.cwd(), process.cwd());
+		const link: ProjectLink = {
+			org: options.org,
+			repo,
+			workflows: here?.link.repo === repo ? here.link.workflows : undefined,
+		};
 		const path = writeProjectLink(process.cwd(), link);
 		const found = { path, link: { ...link } };
 		if (options.json) {

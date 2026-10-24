@@ -630,7 +630,7 @@ export default workflows({
 		);
 		expect(result.code).toBe(0);
 		const code = readFileSync(file(), "utf8");
-		expect(code).toContain("stale: staleIssues(),");
+		expect(code).toContain('\t"stale-issues": staleIssues(),');
 		expect(code).not.toContain("new-accounts");
 		const calls = server.calls.filter((entry) => entry.name === "get_workflow");
 		expect(calls.at(-1)?.args).toEqual({ repo: "scratch" });
@@ -658,7 +658,7 @@ export default workflows({
 		expect(result.code).toBe(0);
 		const code = readFileSync(file(), "utf8");
 		expect(code).toContain('"new-accounts": newAccounts(),');
-		expect(code).toContain("stale: staleIssues(),");
+		expect(code).toContain('\t"stale-issues": staleIssues(),');
 		expect(result.stdout).toContain("(1 workflow)");
 		expect(result.stdout).toContain(
 			"kept      New accounts, not pulled and left as it was",
@@ -1067,7 +1067,7 @@ describe("the workflows skill", () => {
 			["workflows", "validate", "--file", file],
 			env(),
 		);
-		expect(result.stdout).toContain("change-request-opens can be turned on");
+		expect(result.stdout).toContain("new-contributors can be turned on");
 		expect(result.code).toBe(0);
 	});
 });

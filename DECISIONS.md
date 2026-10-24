@@ -144,10 +144,10 @@ text. Measured with `vite build` on the workflow editor route:
 - lazy `pierre-code` chunk: 404.51 kB (108.89 kB gzip), plus the TypeScript
   grammar, 181.08 kB (16.04 kB gzip), fetched only when code shows.
 
-**Theme:** a CSS variable theme (`registerCustomCSSVariableTheme`) that
-points every syntax colour at Glaze ink steps (`--text-1`, `--text-2`). Glaze
-keeps colour for status, so only additions and deletions take colour, from
-`--ok` and `--fail`.
+**Theme:** Pierre's own `pierre-light` and `pierre-dark` themes, full syntax
+colour, picked from the app's light or dark setting (founder decision,
+2026-10-24). Only the background is ours (`--code-surface`), so the code sits
+in the Glaze card. Additions and deletions keep Pierre's green and red.
 
 **Shared surface:** `apps/web/src/components/code` exports
 `TripwireCodeFile` and `TripwireCodeDiff`. Use these, not `@pierre/diffs`
@@ -180,3 +180,30 @@ proposal; Accept merges them from the saved row, as apply does.
 
 **Copy:** the UI says Decline, not Reject, per the constitution. The status
 value stays `rejected`.
+
+## 2026-10-24: workflow keys in tripwire.ts are slugs; ids live in the link
+
+**Decision (founder, 2026-10-24):** a workflow's key in `tripwire.ts` is its
+name as a slug (`"block-crypto-pushes": blockCryptoPushes()`), not its id.
+
+- `workflowSlug` and `workflowKeys` in `@tripwire/contracts` make the key:
+  lowercase ASCII words joined by `-`, at most 48 characters, `-2`, `-3` for a
+  repeated name, in file order. The CLI, `get_workflow`, the Code view and the
+  push review all use them, so they show the same key for the same name.
+- The key to id map lives in `.tripwire/project.json` under `workflows`. Pull
+  writes it. An accepted push or a `--force` push updates it. A pull keeps a
+  key from the map, so a rename never makes a second key or a second workflow.
+- `matchWorkflowIds` turns keys back into ids, in this order: the map, a key
+  that is already a server id, the server workflow whose name has that slug,
+  else a new workflow whose id is the key. The CLI says when it matched by name
+  or will add a new one. The MCP tools `validate_workflow`, `apply_workflow`
+  and `propose_workflow_push` run the same match, so an agent that sends keys
+  without the map still lands on the right rows.
+- The web shows the key from the saved name. After a rename that is not yet
+  saved, the review and the Code view keep the old key, so the diff shows only
+  the name change.
+
+**Alternatives looked at:** ids as keys (what shipped first; unreadable
+UUIDs), keys as the stored definition id (a rename or a slug change would
+make a new workflow on the server), a comment beside each key (comments are
+lost when the file is regenerated).

@@ -13,6 +13,7 @@ export const PROJECT_LINK_PATH = join(".tripwire", "project.json");
 export const projectLinkSchema = z.object({
 	org: z.string().min(1).optional(),
 	repo: z.string().min(1),
+	workflows: z.record(z.string().min(1), z.string().min(1)).optional(),
 });
 
 export type ProjectLink = z.infer<typeof projectLinkSchema>;
@@ -101,7 +102,20 @@ export function resolveOrg(
 }
 
 export function sameLink(a: ProjectLink, b: ProjectLink): boolean {
-	return a.repo === b.repo && a.org === b.org;
+	return (
+		JSON.stringify(projectLinkSchema.parse(a)) ===
+		JSON.stringify(projectLinkSchema.parse(b))
+	);
+}
+
+export function workflowMapping(
+	keys: ReadonlyMap<string, string>,
+): Record<string, string> {
+	return Object.fromEntries(
+		[...keys]
+			.map(([id, key]): [string, string] => [key, id])
+			.sort(([a], [b]) => a.localeCompare(b)),
+	);
 }
 
 export function linkedWorkflowFile(

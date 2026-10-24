@@ -76,7 +76,11 @@ describe("pull links the project", () => {
 			project,
 		);
 		expect(result.code).toBe(0);
-		expect(readLink()).toEqual({ org: "acme", repo: "scratch" });
+		expect(readLink()).toEqual({
+			org: "acme",
+			repo: "scratch",
+			workflows: { "new-accounts": "new-accounts" },
+		});
 		expect(result.stdout).toContain(`linked    scratch in ${linkFile()}`);
 	});
 
@@ -253,7 +257,10 @@ describe("link and unlink", () => {
 		expect(server.calls).toEqual([
 			{ name: "list_workflows", args: { org: "acme", repo: "scratch" } },
 		]);
-		expect(readLink()).toEqual({ org: "acme", repo: "scratch" });
+		expect(readLink()).toEqual({
+			org: "acme",
+			repo: "scratch",
+		});
 		expect(result.stdout).toBe(
 			["linked    scratch in org acme", `file      ${linkFile()}`, ""].join(
 				"\n",
