@@ -189,6 +189,7 @@ export function UserMenu({
 			<AccountSettingsDialog
 				onOpenChange={setSettingsOpen}
 				open={settingsOpen}
+				user={moderator}
 			/>
 		</>
 	);

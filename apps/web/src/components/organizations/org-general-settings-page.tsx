@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { orgSlugSchema } from "@tripwire/contracts";
 import { useState } from "react";
+import { SectionHeading } from "#/components/common/section-heading";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Dialog,
@@ -80,25 +81,6 @@ export function OrgGeneralSettingsPage({ org }: { org: string }) {
 				</div>
 			) : null}
 		</SkeletonSwap>
-	);
-}
-
-function SectionHeading({
-	id,
-	title,
-	description,
-}: {
-	id: string;
-	title: string;
-	description: string;
-}) {
-	return (
-		<div className="flex flex-col gap-0.5">
-			<h3 className="type-heading-sm" id={id}>
-				{title}
-			</h3>
-			<p className="type-body-sm text-text-2">{description}</p>
-		</div>
 	);
 }
 
