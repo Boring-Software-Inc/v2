@@ -157,11 +157,11 @@ describe("management commands over MCP", () => {
 	});
 
 	test.each([
-		["workflows", "pull", "--help", "<repo> [workflows...]"],
+		["workflows", "pull", "--help", "[repo] [workflows...]"],
 		["workflows", "validate", "-h", ""],
-		["workflows", "diff", "--help", "<repo>"],
-		["workflows", "push", "-h", "<repo>"],
-		["rules", "set", "--help", "<repo> <ruleId>"],
+		["workflows", "diff", "--help", "[repo]"],
+		["workflows", "push", "-h", "[repo]"],
+		["rules", "set", "--help", "[repo] <ruleId>"],
 	])("%s %s %s prints that subcommand's help", async (group, sub, flag, args) => {
 		const result = await runCli([group, sub, flag], env());
 		expect(result.code).toBe(0);
@@ -177,7 +177,7 @@ describe("management commands over MCP", () => {
 			env(),
 		);
 		expect(result.stdout.split("\n")[0]).toBe(
-			"Usage: tripwire workflows pull [options] <repo> [workflows...]",
+			"Usage: tripwire workflows pull [options] [repo] [workflows...]",
 		);
 	});
 

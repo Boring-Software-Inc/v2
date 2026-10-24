@@ -12,11 +12,17 @@ the compiler checks it before anything runs.
 ## Steps
 
 1. **Pull.** `npx @tripwire-sh/cli workflows pull <repo>`. This writes
-   `tripwire.ts` and the typed helpers in `.tripwire/workflow.ts`. Done when
-   both files exist. Read `tripwire.ts` before you change it: the canvas and
-   other people edit the same workflows. To pull only some, name them:
-   `workflows pull <repo> <id> <id>`. Workflows already in the file that you
-   did not name stay as they are.
+   `tripwire.ts`, the typed helpers in `.tripwire/workflow.ts` and the link in
+   `.tripwire/project.json`. Done when the files exist. Read `tripwire.ts`
+   before you change it: the canvas and other people edit the same workflows.
+   To pull only some, name them: `workflows pull <repo> <id> <id>`. Workflows
+   already in the file that you did not name stay as they are.
+
+   The link holds the repo and the org (slugs, no secrets), so commit it.
+   Anywhere under that folder, `diff`, `push`, `list`, `enable` and the other
+   commands can leave out `<repo>` and `--org`. An explicit `<repo>`, `--org`
+   or `TRIPWIRE_ORG` wins over the link. `tripwire link <repo>` and
+   `tripwire unlink` set and clear it; `tripwire status` shows it.
 2. **Write.** Edit `tripwire.ts` with the reference below. Keep each workflow's
    key: it is the workflow's id, and a new key makes a new workflow.
 3. **Validate until clean.** `npx @tripwire-sh/cli workflows validate --repo
