@@ -152,3 +152,31 @@ keeps colour for status, so only additions and deletions take colour, from
 **Shared surface:** `apps/web/src/components/code` exports
 `TripwireCodeFile` and `TripwireCodeDiff`. Use these, not `@pierre/diffs`
 directly, so the theme and the lazy split stay in one place.
+
+## 2026-10-24 — CLI pushes wait for a person; apply_workflow stays direct
+
+**Decision:** `tripwire workflows push` sends compiled workflows as a push
+proposal (`workflow_push_proposals`, migration 0034). A member with
+`workflows:manage` opens the review page, sees each workflow as a diff of
+pulled `tripwire.ts` code, and accepts or declines. `--force` keeps the
+direct save. The MCP tool `apply_workflow` stays direct for agents; agents
+that want a person in the loop call `propose_workflow_push`.
+
+**Why apply_workflow stays direct:** an agent calling `apply_workflow` already
+holds a token its user granted `tripwire:configure` with `workflows:manage`.
+That grant is the consent. A forced review would break every agent setup
+flow that saves a workflow and turns it on in one session, and a new
+workflow still starts off, so nothing runs until someone enables it.
+
+**What blocks Accept:** the same refusals `apply_workflow` makes. Errors on a
+workflow that is on, and a name another workflow holds. A workflow that is
+off saves with errors, as a draft, because a push strips delivery secrets
+and a new webhook step can only get its URL in the editor.
+
+**Stale:** each proposal keeps, per workflow, the saved row id, a SHA-256 of
+its stored definition and a redacted copy for the diff. Accept locks the
+rows and refuses when any hash moved. Secrets are never stored in a
+proposal; Accept merges them from the saved row, as apply does.
+
+**Copy:** the UI says Decline, not Reject, per the constitution. The status
+value stays `rejected`.
