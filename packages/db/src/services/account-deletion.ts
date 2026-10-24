@@ -251,7 +251,7 @@ export async function deleteUserAccount(
 			.where(eq(member.userId, userId))
 			.for("update");
 		await lockMemberOrgs(tx, userId);
-		const soleAdmin =await listSoleAdminOrgs(tx, userId);
+		const soleAdmin = await listSoleAdminOrgs(tx, userId);
 		if (soleAdmin.length > 0) {
 			throw new AccountDeletionBlockedError(soleAdmin.map((org) => org.slug));
 		}

@@ -111,7 +111,7 @@ async function seedReview(input: {
 }
 
 async function waitForLockWaiters(count: number): Promise<void> {
-	for (let attempt = 0; attempt < 200; attempt++) {
+	for (let attempt = 0; attempt < 100; attempt++) {
 		const result = await db.execute<{ n: number }>(
 			sql`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`,
 		);
