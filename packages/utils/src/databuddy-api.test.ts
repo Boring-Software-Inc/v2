@@ -1,21 +1,25 @@
 import { describe, expect, test } from "bun:test";
+import { type JsonValue, parseJsonText } from "@tripwire/contracts";
 import { createDatabuddyApi, DatabuddyApiError } from "./databuddy-api.ts";
 
 interface Call {
 	url: string;
 	headers: Headers;
-	body: unknown;
+	body: JsonValue | null;
 }
 
-function fakeFetch(
-	respond: (call: Call) => { status: number; body: unknown },
-): { fetch: typeof fetch; calls: Call[] } {
+interface FakeAnswer {
+	status: number;
+	body: JsonValue;
+}
+
+function fakeFetch(respond: (call: Call) => FakeAnswer) {
 	const calls: Call[] = [];
 	const impl = async (input: string | URL | Request, init?: RequestInit) => {
 		const call: Call = {
 			url: String(input),
 			headers: new Headers(init?.headers),
-			body: init?.body ? JSON.parse(String(init.body)) : null,
+			body: parseJsonText(String(init?.body ?? "")),
 		};
 		calls.push(call);
 		const answer = respond(call);
@@ -24,7 +28,10 @@ function fakeFetch(
 			headers: { "content-type": "application/json" },
 		});
 	};
-	return { fetch: impl as typeof fetch, calls };
+	const typed: typeof fetch = Object.assign(impl, {
+		preconnect: fetch.preconnect,
+	});
+	return { fetch: typed, calls };
 }
 
 const flag = {
@@ -71,16 +78,13 @@ describe("databuddy api client", () => {
 				body: { json: { message: "Missing scope manage:flags" } },
 			})).fetch,
 		});
-		const error = await broken.getFlagByKey("x").catch((e: unknown) => e);
-		expect(error).toBeInstanceOf(DatabuddyApiError);
-		expect(String(error)).toContain("Missing scope manage:flags");
+		const failing = broken.getFlagByKey("x");
+		await expect(failing).rejects.toBeInstanceOf(DatabuddyApiError);
+		await expect(failing).rejects.toThrow("Missing scope manage:flags");
 	});
 
 	test("update sends the whole rules array for the flag id", async () => {
-		const fake = fakeFetch((call) => ({
-			status: 200,
-			body: { ...flag, rules: (call.body as { rules: unknown[] }).rules },
-		}));
+		const fake = fakeFetch(() => ({ status: 200, body: flag }));
 		const api = createDatabuddyApi({
 			apiKey: "k",
 			websiteId: "s",
@@ -92,14 +96,17 @@ describe("databuddy api client", () => {
 		expect(fake.calls[0]?.body).toEqual({ id: "flag_1", rules });
 	});
 
-	test("query returns rows keyed by parameter", async () => {
+	test("profile activity parses the profile and its sessions", async () => {
 		const fake = fakeFetch(() => ({
 			status: 200,
 			body: {
 				success: true,
 				data: [
 					{ parameter: "profile_detail", data: [{ total_sessions: 3 }] },
-					{ parameter: "profile_sessions", data: [] },
+					{
+						parameter: "profile_sessions",
+						data: [{ session_id: "s1", duration: "61" }],
+					},
 				],
 			},
 		}));
@@ -108,14 +115,18 @@ describe("databuddy api client", () => {
 			websiteId: "site 1",
 			fetch: fake.fetch,
 		});
-		const rows = await api.query({
-			parameters: ["profile_detail", "profile_sessions"],
-			filters: [{ field: "anonymous_id", op: "eq", value: "u1" }],
+		const activity = await api.profileActivity("u1");
+		expect(activity.profile?.total_sessions).toBe(3);
+		expect(activity.sessions[0]).toMatchObject({
+			session_id: "s1",
+			duration: 61,
 		});
-		expect(rows.profile_detail).toEqual([{ total_sessions: 3 }]);
-		expect(rows.profile_sessions).toEqual([]);
 		expect(fake.calls[0]?.url).toBe(
 			"https://api.databuddy.cc/v1/query?website_id=site%201",
 		);
+		expect(fake.calls[0]?.body).toMatchObject({
+			parameters: ["profile_detail", "profile_sessions"],
+			filters: [{ field: "anonymous_id", op: "eq", value: "u1" }],
+		});
 	});
 });

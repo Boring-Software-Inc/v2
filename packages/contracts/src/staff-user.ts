@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { scheduleTimezoneSchema } from "./workflow.ts";
+import {
+	type JsonValue,
+	jsonValueSchema,
+	scheduleTimezoneSchema,
+} from "./workflow.ts";
 
 export const DATABUDDY_WEBSITE_ID = "09661145-7249-45d9-a9e3-f1a93e9c7266";
 
@@ -80,26 +84,41 @@ export const databuddyFlagSchema = z.looseObject({
 	description: z.string().nullish(),
 	status: z.enum(["active", "inactive", "archived"]).optional(),
 	defaultValue: z.boolean().optional(),
-	rules: z.array(z.unknown()).nullish(),
+	rules: z.array(jsonValueSchema).nullish(),
 });
 export type DatabuddyFlag = z.infer<typeof databuddyFlagSchema>;
 
 export const databuddyFlagListSchema = z.array(databuddyFlagSchema);
 
-export function isTripwireRule(rule: unknown): boolean {
-	if (typeof rule !== "object" || rule === null || !("field" in rule)) {
+const ruleFieldSchema = z.looseObject({ field: z.string() });
+
+export function isTripwireRule(rule: JsonValue): boolean {
+	const parsed = ruleFieldSchema.safeParse(rule);
+	if (!parsed.success) {
 		return false;
 	}
-	const field = rule.field;
+	const field = parsed.data.field;
 	return field === TRIPWIRE_RULE_FIELD.on || field === TRIPWIRE_RULE_FIELD.off;
 }
 
+export function parseJsonText(text: string): JsonValue | null {
+	if (text.trim() === "") {
+		return null;
+	}
+	try {
+		const parsed = jsonValueSchema.safeParse(JSON.parse(text));
+		return parsed.success ? parsed.data : null;
+	} catch {
+		return null;
+	}
+}
+
 export function mergeTripwireRules(
-	existing: readonly unknown[],
+	existing: readonly JsonValue[],
 	overrides: { on: readonly string[]; off: readonly string[] },
-): unknown[] {
+): JsonValue[] {
 	const theirs = existing.filter((rule) => !isTripwireRule(rule));
-	const ours: DatabuddyRule[] = [];
+	const ours: JsonValue[] = [];
 	const off = [...new Set(overrides.off)].sort();
 	const on = [...new Set(overrides.on)].sort();
 	if (off.length > 0) {
@@ -226,15 +245,52 @@ export const recordAnonIdInputSchema = z.object({
 	anonId: databuddyAnonIdSchema,
 });
 
-const looseRecord = z.record(z.string(), z.unknown());
+const textCell = z
+	.union([z.string(), z.number()])
+	.transform(String)
+	.nullish()
+	.catch(null);
 
-export const databuddyQueryResultSchema = z.looseObject({
-	success: z.boolean().optional(),
+const numberCell = z
+	.union([z.number(), z.string().regex(/^-?\d+(\.\d+)?$/)])
+	.transform(Number)
+	.nullish()
+	.catch(null);
+
+export const databuddyProfileRowSchema = z.object({
+	first_visit: textCell,
+	last_visit: textCell,
+	total_sessions: numberCell,
+	total_pageviews: numberCell,
+	country: textCell,
+	country_name: textCell,
+	device_type: textCell,
+	browser_name: textCell,
+	os_name: textCell,
+});
+export type DatabuddyProfileRow = z.infer<typeof databuddyProfileRowSchema>;
+
+export const databuddySessionRowSchema = z.object({
+	session_id: textCell,
+	session_start: textCell,
+	first_visit: textCell,
+	duration: numberCell,
+	page_views: numberCell,
+	path: textCell,
+	entry_page: textCell,
+	country: textCell,
+	country_name: textCell,
+	browser_name: textCell,
+	device_type: textCell,
+});
+export type DatabuddySessionRow = z.infer<typeof databuddySessionRowSchema>;
+
+export const databuddyProfileQuerySchema = z.object({
 	data: z
 		.array(
-			z.looseObject({
+			z.object({
 				parameter: z.string().optional(),
-				data: z.array(looseRecord).optional(),
+				data: z.array(jsonValueSchema).optional(),
 			}),
 		)
 		.optional(),

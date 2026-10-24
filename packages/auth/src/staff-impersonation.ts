@@ -72,13 +72,13 @@ export function impersonationRefusal(input: {
 	return null;
 }
 
-const REFUSAL_COPY: Record<ImpersonationRefusal, string> = {
+const REFUSAL_COPY = {
 	self: "You cannot impersonate yourself.",
 	missing: "This user no longer exists.",
 	staff: "Staff accounts cannot be impersonated.",
 	"admin-role": "Admin accounts cannot be impersonated.",
 	banned: "Unban this user before you impersonate them.",
-};
+} satisfies Record<ImpersonationRefusal, string>;
 
 export function impersonationRefusalMessage(refusal: ImpersonationRefusal) {
 	return REFUSAL_COPY[refusal];

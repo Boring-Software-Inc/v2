@@ -153,24 +153,22 @@ describe("impersonationRefusal", () => {
 
 describe("staff impersonation endpoint", () => {
 	test("a non-staff user cannot impersonate anyone", async () => {
-		const attempt = await auth.api
-			.staffImpersonateUser({
+		await expect(
+			auth.api.staffImpersonateUser({
 				body: { userId: staff.id },
 				headers: headersFor(mara.cookie),
-			})
-			.catch((error: unknown) => error);
-		expect(attempt).toMatchObject({ status: "NOT_FOUND" });
+			}),
+		).rejects.toMatchObject({ status: "NOT_FOUND" });
 	});
 
 	test("staff cannot impersonate other staff or themselves", async () => {
 		for (const target of [otherStaff.id, staff.id]) {
-			const attempt = await auth.api
-				.staffImpersonateUser({
+			await expect(
+				auth.api.staffImpersonateUser({
 					body: { userId: target },
 					headers: headersFor(staff.cookie),
-				})
-				.catch((error: unknown) => error);
-			expect(attempt).toBeInstanceOf(Error);
+				}),
+			).rejects.toMatchObject({ status: "FORBIDDEN" });
 		}
 		const sessions = await db
 			.select()
@@ -205,23 +203,21 @@ describe("staff impersonation endpoint", () => {
 			action: "impersonation.start",
 		});
 
-		const nested = await auth.api
-			.staffImpersonateUser({
+		await expect(
+			auth.api.staffImpersonateUser({
 				body: { userId: otherStaff.id },
 				headers: headersFor(asMara),
-			})
-			.catch((error: unknown) => error);
-		expect(String(nested)).toContain(IMPERSONATION_REFUSED);
-
-		const changeName = await auth.api
-			.updateUser({ body: { name: "Hijacked" }, headers: headersFor(asMara) })
-			.catch((error: unknown) => error);
-		expect(String(changeName)).toContain(IMPERSONATION_REFUSED);
-
-		const revokeAll = await auth.api
-			.revokeSessions({ headers: headersFor(asMara) })
-			.catch((error: unknown) => error);
-		expect(String(revokeAll)).toContain(IMPERSONATION_REFUSED);
+			}),
+		).rejects.toThrow(IMPERSONATION_REFUSED);
+		await expect(
+			auth.api.updateUser({
+				body: { name: "Hijacked" },
+				headers: headersFor(asMara),
+			}),
+		).rejects.toThrow(IMPERSONATION_REFUSED);
+		await expect(
+			auth.api.revokeSessions({ headers: headersFor(asMara) }),
+		).rejects.toThrow(IMPERSONATION_REFUSED);
 
 		const stopped = await auth.api.stopImpersonating({
 			headers: headersFor(asMara),
@@ -250,13 +246,12 @@ describe("staff impersonation endpoint", () => {
 			reason: "Spam",
 			expires: null,
 		});
-		const attempt = await auth.api
-			.staffImpersonateUser({
+		await expect(
+			auth.api.staffImpersonateUser({
 				body: { userId: mara.id },
 				headers: headersFor(staff.cookie),
-			})
-			.catch((error: unknown) => error);
-		expect(String(attempt)).toContain("Unban");
+			}),
+		).rejects.toThrow("Unban");
 		await staffUserServices.unbanUser(db, mara.id);
 	});
 });

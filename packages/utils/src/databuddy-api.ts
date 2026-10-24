@@ -1,9 +1,15 @@
 import {
 	type DatabuddyFlag,
+	type DatabuddyProfileRow,
+	type DatabuddySessionRow,
 	databuddyErrorBodySchema,
 	databuddyFlagListSchema,
 	databuddyFlagSchema,
-	databuddyQueryResultSchema,
+	databuddyProfileQuerySchema,
+	databuddyProfileRowSchema,
+	databuddySessionRowSchema,
+	type JsonValue,
+	parseJsonText,
 } from "@tripwire/contracts";
 
 export const DATABUDDY_API_URL = "https://api.databuddy.cc";
@@ -16,18 +22,19 @@ export interface DatabuddyApiConfig {
 	timeoutMs?: number;
 }
 
-export type DatabuddyQueryRow = Record<string, unknown>;
+export interface DatabuddyProfileActivity {
+	profile: DatabuddyProfileRow | null;
+	sessions: DatabuddySessionRow[];
+}
 
 export interface DatabuddyApi {
 	listFlags(): Promise<DatabuddyFlag[]>;
 	getFlagByKey(key: string): Promise<DatabuddyFlag | null>;
-	updateFlagRules(id: string, rules: unknown[]): Promise<DatabuddyFlag>;
-	query(input: {
-		parameters: string[];
-		filters?: { field: string; op: "eq"; value: string }[];
-		preset?: string;
-		limit?: number;
-	}): Promise<Record<string, DatabuddyQueryRow[]>>;
+	updateFlagRules(id: string, rules: JsonValue[]): Promise<DatabuddyFlag>;
+	profileActivity(
+		profileId: string,
+		limit?: number,
+	): Promise<DatabuddyProfileActivity>;
 }
 
 export class DatabuddyApiError extends Error {
@@ -39,7 +46,7 @@ export class DatabuddyApiError extends Error {
 	}
 }
 
-function messageOf(body: unknown, status: number): string {
+function messageOf(body: JsonValue | null, status: number): string {
 	const parsed = databuddyErrorBodySchema.safeParse(body);
 	if (parsed.success) {
 		const value = parsed.data;
@@ -56,7 +63,10 @@ export function createDatabuddyApi(config: DatabuddyApiConfig): DatabuddyApi {
 	const doFetch = config.fetch ?? fetch;
 	const timeoutMs = config.timeoutMs ?? 10_000;
 
-	async function post(path: string, body: unknown): Promise<unknown> {
+	async function post(
+		path: string,
+		body: JsonValue,
+	): Promise<JsonValue | null> {
 		const response = await doFetch(`${base}${path}`, {
 			method: "POST",
 			headers: {
@@ -66,13 +76,7 @@ export function createDatabuddyApi(config: DatabuddyApiConfig): DatabuddyApi {
 			body: JSON.stringify(body),
 			signal: AbortSignal.timeout(timeoutMs),
 		});
-		const text = await response.text();
-		let parsed: unknown = null;
-		try {
-			parsed = text ? JSON.parse(text) : null;
-		} catch {
-			parsed = null;
-		}
+		const parsed = parseJsonText(await response.text());
 		if (!response.ok) {
 			throw new DatabuddyApiError(
 				response.status,
@@ -108,25 +112,30 @@ export function createDatabuddyApi(config: DatabuddyApiConfig): DatabuddyApi {
 			const body = await post("/flags/update", { id, rules });
 			return databuddyFlagSchema.parse(body);
 		},
-		async query(input) {
+		async profileActivity(profileId, limit = 10) {
 			const body = await post(
 				`/v1/query?website_id=${encodeURIComponent(config.websiteId)}`,
 				{
-					parameters: input.parameters,
-					preset: input.preset ?? "last_90d",
-					filters: input.filters ?? [],
-					limit: input.limit ?? 20,
+					parameters: ["profile_detail", "profile_sessions"],
+					preset: "last_90d",
+					filters: [{ field: "anonymous_id", op: "eq", value: profileId }],
+					limit,
 					timezone: "UTC",
 				},
 			);
-			const parsed = databuddyQueryResultSchema.parse(body);
-			const out: Record<string, DatabuddyQueryRow[]> = {};
-			for (const entry of parsed.data ?? []) {
-				if (entry.parameter) {
-					out[entry.parameter] = entry.data ?? [];
-				}
-			}
-			return out;
+			const result = databuddyProfileQuerySchema.parse(body);
+			const rowsOf = (parameter: string) =>
+				result.data?.find((entry) => entry.parameter === parameter)?.data ?? [];
+			const profile = rowsOf("profile_detail")[0];
+			return {
+				profile:
+					profile === undefined
+						? null
+						: databuddyProfileRowSchema.parse(profile),
+				sessions: rowsOf("profile_sessions")
+					.slice(0, limit)
+					.map((row) => databuddySessionRowSchema.parse(row)),
+			};
 		},
 	};
 }

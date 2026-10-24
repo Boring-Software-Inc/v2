@@ -10,7 +10,7 @@ export {
 	type DatabuddyApi,
 	type DatabuddyApiConfig,
 	DatabuddyApiError,
-	type DatabuddyQueryRow,
+	type DatabuddyProfileActivity,
 } from "./databuddy-api.ts";
 export { getErrorMessage, toError } from "./errors.ts";
 export {

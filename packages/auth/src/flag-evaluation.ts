@@ -20,7 +20,7 @@ export function createFlagEvaluator(
 	const manager = createServerFlagsManager({
 		clientId: DATABUDDY_CLIENT_ID,
 		apiUrl: input.apiUrl,
-		cacheTtl: 5_000,
+		cacheTtl: 1,
 	});
 	return async (keys, user) =>
 		await Promise.all(

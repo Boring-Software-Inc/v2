@@ -264,16 +264,12 @@ export const getAdminUserActivity = createServerFn({ method: "GET" })
 		);
 		const { getErrorMessage } = await import("@tripwire/utils");
 		try {
-			const result = await api.query({
-				parameters: ["profile_detail", "profile_sessions"],
-				filters: [{ field: "anonymous_id", op: "eq", value: data.userId }],
-				limit: 10,
-			});
+			const activity = await api.profileActivity(data.userId);
 			return {
 				connected: true,
 				error: null,
-				profile: summarizeProfile(result.profile_detail ?? []),
-				sessions: summarizeSessions(result.profile_sessions ?? []),
+				profile: summarizeProfile(activity.profile),
+				sessions: summarizeSessions(activity.sessions),
 			};
 		} catch (error) {
 			return { connected: true, error: getErrorMessage(error) };

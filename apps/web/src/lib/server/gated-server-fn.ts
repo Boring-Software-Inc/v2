@@ -29,12 +29,20 @@ export const accessGuardMiddleware = createMiddleware({
 	const { assertApproved } = await import("@tripwire/auth/access-gate");
 	const { getDb } = await import("#/lib/server/db");
 	const { presenceServices, staffUserServices } = await import("@tripwire/db");
-	if (await staffUserServices.isUserBanned(getDb().db, session.user.id)) {
+	const guard = await staffUserServices.getSessionGuardState(getDb().db, {
+		userId: session.user.id,
+		sessionId: session.session.id,
+	});
+	if (guard.banned) {
 		throw new Error("This account is banned from Tripwire.");
 	}
-	presenceServices.touchLastSeen(getDb().db, session.user.id).catch((error) => {
-		console.error("[presence] last seen write failed:", error);
-	});
+	if (!guard.impersonatedBy) {
+		presenceServices
+			.touchLastSeen(getDb().db, session.user.id)
+			.catch((error) => {
+				console.error("[presence] last seen write failed:", error);
+			});
+	}
 	const denial = await assertApproved(
 		getDb().db,
 		session.user.id,

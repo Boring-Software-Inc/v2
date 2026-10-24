@@ -22,8 +22,8 @@ const PUBLIC_ALLOWLIST = new Set([
 	"getRun", // the unlisted-public run page — readable without a session by design
 	"getWebviewHost", // echoes the caller's own user-agent; /login is signed-out
 	"redeemOrgInvite", // §6: redemption APPROVES pending users — gating it deadlocks
-	"stopImpersonating", // the impersonated session may be pending; ends impersonation only
-	"recordDatabuddyAnonId", // writes the caller's own analytics id; pending users too
+	"stopImpersonating",
+	"recordDatabuddyAnonId",
 ]);
 
 const MEMBER_MUTATION_ALLOWLIST = new Set(["leaveOrg", "rememberActiveOrg"]);

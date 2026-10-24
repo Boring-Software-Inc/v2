@@ -17,6 +17,7 @@ import { promoteUserAccess } from "./access.ts";
 import { listStaffAuditForUser, recordStaffAudit } from "./staff-audit.ts";
 import {
 	banUser,
+	getSessionGuardState,
 	getSessionImpersonator,
 	getStaffUserDetail,
 	isUserBanned,
@@ -183,6 +184,12 @@ describe("sessions", () => {
 	test("an impersonation session names who started it", async () => {
 		const id = await seedSession(mara, { impersonatedBy: staff });
 		expect(await getSessionImpersonator(db, id)).toBe(staff);
+		expect(
+			await getSessionGuardState(db, { userId: mara, sessionId: id }),
+		).toEqual({ banned: false, impersonatedBy: staff });
+		expect(
+			await getSessionGuardState(db, { userId: staff, sessionId: id }),
+		).toEqual({ banned: false, impersonatedBy: null });
 		const own = await seedSession(mara);
 		expect(await getSessionImpersonator(db, own)).toBeNull();
 		await revokeAllUserSessions(db, mara);

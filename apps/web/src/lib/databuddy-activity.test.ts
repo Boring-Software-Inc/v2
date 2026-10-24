@@ -1,24 +1,25 @@
 import { describe, expect, test } from "bun:test";
+import {
+	databuddyProfileRowSchema,
+	databuddySessionRowSchema,
+} from "@tripwire/contracts";
 import { summarizeProfile, summarizeSessions } from "./databuddy-activity.ts";
 
 describe("summarizeProfile", () => {
-	test("reads the first profile row and its known fields", () => {
-		expect(
-			summarizeProfile([
-				{
-					first_visit: "2026-10-11 09:40:00",
-					last_visit: "2026-10-24 08:12:00",
-					total_sessions: "14",
-					total_pageviews: 212,
-					country: "NG",
-					device_type: "desktop",
-					browser_name: "Chrome",
-					os_name: "macOS",
-				},
-			]),
-		).toEqual({
-			firstSeen: "2026-10-11 09:40:00",
-			lastSeen: "2026-10-24 08:12:00",
+	test("reads the profile row from Databuddy", () => {
+		const row = databuddyProfileRowSchema.parse({
+			first_visit: "2026-10-11 09:40:00",
+			last_visit: "2026-10-24 08:12:00",
+			total_sessions: "14",
+			total_pageviews: 212,
+			country: "NG",
+			device_type: "desktop",
+			browser_name: "Chrome",
+			os_name: "macOS",
+		});
+		expect(summarizeProfile(row)).toEqual({
+			firstSeen: "2026-10-11T09:40:00Z",
+			lastSeen: "2026-10-24T08:12:00Z",
 			sessions: 14,
 			pageviews: 212,
 			country: "NG",
@@ -28,48 +29,47 @@ describe("summarizeProfile", () => {
 		});
 	});
 
-	test("no rows is no profile", () => {
-		expect(summarizeProfile([])).toBeNull();
+	test("no row is no profile", () => {
+		expect(summarizeProfile(null)).toBeNull();
 	});
 
-	test("unknown shapes become empty fields, never a crash", () => {
-		expect(summarizeProfile([{ weird: { nested: true } }])).toEqual({
-			firstSeen: null,
-			lastSeen: null,
+	test("fields of the wrong shape become empty, never a crash", () => {
+		const row = databuddyProfileRowSchema.parse({
+			total_sessions: { nested: true },
+			country: ["NG"],
+		});
+		expect(summarizeProfile(row)).toMatchObject({
 			sessions: null,
-			pageviews: null,
 			country: null,
-			device: null,
-			browser: null,
-			os: null,
 		});
 	});
 });
 
 describe("summarizeSessions", () => {
-	test("maps rows and caps the list", () => {
-		const rows = Array.from({ length: 12 }, (_, i) => ({
-			session_id: `s${i}`,
+	test("maps session rows", () => {
+		const row = databuddySessionRowSchema.parse({
+			session_id: "s1",
 			session_start: "2026-10-24 08:12:00",
 			duration: 61,
-			page_views: 3,
+			page_views: "3",
 			path: "/lumen-labs/home",
-		}));
-		const sessions = summarizeSessions(rows);
-		expect(sessions).toHaveLength(10);
-		expect(sessions[0]).toEqual({
-			id: "s0",
-			startedAt: "2026-10-24 08:12:00",
-			durationSeconds: 61,
-			pageviews: 3,
-			entryPage: "/lumen-labs/home",
-			country: null,
-			browser: null,
-			device: null,
 		});
+		expect(summarizeSessions([row])).toEqual([
+			{
+				id: "s1",
+				startedAt: "2026-10-24T08:12:00Z",
+				durationSeconds: 61,
+				pageviews: 3,
+				entryPage: "/lumen-labs/home",
+				country: null,
+				browser: null,
+				device: null,
+			},
+		]);
 	});
 
 	test("a row without an id still gets a stable key", () => {
-		expect(summarizeSessions([{}])[0]?.id).toBe("session-0");
+		const row = databuddySessionRowSchema.parse({});
+		expect(summarizeSessions([row])[0]?.id).toBe("session-0");
 	});
 });

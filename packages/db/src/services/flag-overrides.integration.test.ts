@@ -9,6 +9,7 @@ import {
 import {
 	type DatabuddyFlag,
 	isTripwireRule,
+	type JsonValue,
 	TRIPWIRE_RULE_FIELD,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
@@ -36,29 +37,30 @@ let container: TestDatabase;
 let db: Db;
 let pool: { end(): Promise<void> };
 
-const theirRules = [
-	{
-		type: "email",
-		operator: "ends_with",
-		value: "@lumenlabs.dev",
-		enabled: true,
-		batch: false,
-	},
-	{
-		type: "user_id",
-		operator: "in",
-		values: ["someone-else"],
-		enabled: false,
-		batch: false,
-	},
-];
+const theirEmailRule = {
+	type: "email",
+	operator: "ends_with",
+	value: "@lumenlabs.dev",
+	enabled: true,
+	batch: false,
+};
+
+const theirUserRule = {
+	type: "user_id",
+	operator: "in",
+	values: ["someone-else"],
+	enabled: false,
+	batch: false,
+};
+
+const theirRules = [theirEmailRule, theirUserRule];
 
 class FakeDatabuddy {
 	flags = new Map<string, DatabuddyFlag>();
 	updates = 0;
 	failNext: string | null = null;
 
-	seed(key: string, rules: unknown[]) {
+	seed(key: string, rules: JsonValue[]) {
 		this.flags.set(key, {
 			id: `id-${key}`,
 			key,
@@ -66,7 +68,7 @@ class FakeDatabuddy {
 		});
 	}
 
-	rulesOf(key: string): unknown[] {
+	rulesOf(key: string): JsonValue[] {
 		return this.flags.get(key)?.rules ?? [];
 	}
 
@@ -80,7 +82,7 @@ class FakeDatabuddy {
 		return flag ? structuredClone(flag) : null;
 	}
 
-	async updateFlagRules(id: string, rules: unknown[]) {
+	async updateFlagRules(id: string, rules: JsonValue[]) {
 		for (const flag of this.flags.values()) {
 			if (flag.id === id) {
 				flag.rules = structuredClone(rules);

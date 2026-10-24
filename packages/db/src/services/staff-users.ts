@@ -406,3 +406,28 @@ export async function getSessionImpersonator(
 		.limit(1);
 	return rows[0]?.impersonatedBy ?? null;
 }
+
+export async function getSessionGuardState(
+	db: Db,
+	input: { userId: string; sessionId: string },
+	now = new Date(),
+): Promise<{ banned: boolean; impersonatedBy: string | null }> {
+	const rows = await db
+		.select({
+			banned: user.banned,
+			banExpires: user.banExpires,
+			impersonatedBy: session.impersonatedBy,
+		})
+		.from(user)
+		.leftJoin(
+			session,
+			and(eq(session.id, input.sessionId), eq(session.userId, user.id)),
+		)
+		.where(eq(user.id, input.userId))
+		.limit(1);
+	const row = rows[0];
+	const banned =
+		row?.banned === true &&
+		(row.banExpires === null || row.banExpires.getTime() > now.getTime());
+	return { banned, impersonatedBy: row?.impersonatedBy ?? null };
+}

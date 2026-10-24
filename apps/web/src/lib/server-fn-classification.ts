@@ -35,16 +35,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	 * in the service.
 	 */
 	redeemOrgInvite: "public",
-	/**
-	 * Ends an impersonation. The session is the impersonated user's, who may be
-	 * pending, so the access gate would trap the staff member inside it. It
-	 * requires an impersonated session and a same-origin request.
-	 */
 	stopImpersonating: "public",
-	/**
-	 * Stores the caller's own Databuddy anonymous id on their user row. Pending
-	 * users reach it too, so staff see the id while they review access.
-	 */
 	recordDatabuddyAnonId: "public",
 
 	// ── authed (approved session, no org scope) ─────────────────────────
@@ -179,18 +170,18 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	setUserRerunCooldownExempt: "staff",
 	getAdminUser: "staff",
 	getAdminUserFlags: "staff",
-	getAdminUserActivity: "staff", // reads Databuddy server-side only
+	getAdminUserActivity: "staff",
 	setAdminUserFlagOverride: "staff",
 	retryAdminUserFlagSync: "staff",
 	setAdminUserTimezone: "staff",
-	setAdminUserPlatformAdmin: "staff", // typed confirm, server-checked
+	setAdminUserPlatformAdmin: "staff",
 	revokeAdminUserSession: "staff",
 	revokeAdminUserSessions: "staff",
 	revokeAdminUserAgent: "staff",
 	banAdminUser: "staff",
 	unbanAdminUser: "staff",
-	deleteAdminUser: "staff", // typed confirm, deletion service semantics
-	impersonateAdminUser: "staff", // never staff targets, audited
+	deleteAdminUser: "staff",
+	impersonateAdminUser: "staff",
 	getEconomicsOverview: "staff", // platform-wide cost data
 	getEconomicsSeries: "staff",
 	getCostByOrg: "staff",

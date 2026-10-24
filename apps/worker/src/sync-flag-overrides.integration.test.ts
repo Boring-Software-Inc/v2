@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { type DatabuddyFlag, isTripwireRule } from "@tripwire/contracts";
+import {
+	type DatabuddyFlag,
+	isTripwireRule,
+	type JsonValue,
+} from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -50,7 +54,7 @@ function fakeApi(flag: DatabuddyFlag, failures: number) {
 				}
 				return key === state.flag.key ? structuredClone(state.flag) : null;
 			},
-			async updateFlagRules(_id: string, rules: unknown[]) {
+			async updateFlagRules(_id: string, rules: JsonValue[]) {
 				state.flag = { ...state.flag, rules: structuredClone(rules) };
 				return structuredClone(state.flag);
 			},
