@@ -3,8 +3,8 @@ import { setupRunViewSchema } from "./setup.ts";
 import { workflowDefinitionSchema, workflowNodeIdSchema } from "./workflow.ts";
 import type { WorkflowChangeSet } from "./workflow-diff.ts";
 
-export const AGENT_NODE_HOLD_MS = 40_000;
-export const AGENT_SESSION_HOLD_MS = 120_000;
+export const AGENT_NODE_HOLD_MS = 12_000;
+export const AGENT_SESSION_HOLD_MS = 30_000;
 export const WORKFLOW_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 export const AGENT_TOUCH_LIMIT = 200;
 
