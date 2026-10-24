@@ -108,3 +108,22 @@ export function pushBlockingIssues<
 			)
 		: [];
 }
+
+export const workflowPushBlockSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	issues: z.array(z.string()),
+});
+
+export const workflowPushProposalResultSchema = z.discriminatedUnion("result", [
+	z.object({ result: z.literal("proposed"), push: workflowPushViewSchema }),
+	z.object({ result: z.literal("unchanged") }),
+	z.object({
+		result: z.literal("blocked"),
+		workflows: z.array(workflowPushBlockSchema),
+	}),
+]);
+
+export type WorkflowPushProposalResult = z.infer<
+	typeof workflowPushProposalResultSchema
+>;
