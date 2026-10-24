@@ -141,7 +141,7 @@ describe("a workflow code cannot say shows the reason", () => {
 		const view = workflowCodeView(gated, HOOKED);
 		expect(view.kind).toBe("refused");
 		expect(view.kind === "refused" ? view.reason : "").toBe(
-			"All of takes rule results, not events.",
+			"The All of gate takes rule results, not events.",
 		);
 	});
 

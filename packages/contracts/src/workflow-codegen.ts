@@ -18,6 +18,7 @@ import {
 	redactWorkflowSecrets,
 	WORKFLOW_SECRET_KEYS,
 } from "./workflow-diff.ts";
+import type { LintResult } from "./workflow-lint.ts";
 import { unrunnableIssues } from "./workflow-validate.ts";
 
 const jsonSchemaNode: z.ZodType<JsonSchemaNode> = z.lazy(() =>
@@ -497,12 +498,29 @@ function nodeProblems(node: WorkflowNode): string[] {
 	}
 }
 
+const STEP_NOUN = {
+	trigger: "trigger",
+	rule: "step",
+	gate: "gate",
+	action: "step",
+} as const satisfies Record<WorkflowNode["type"], string>;
+
+function refusalText(issue: LintResult, definition: WorkflowDefinition) {
+	if (!issue.message.startsWith("It ")) {
+		return issue.message;
+	}
+	const rest = issue.message.slice(3);
+	const node = definition.nodes.find((n) => n.id === issue.nodeId);
+	const noun = STEP_NOUN[node?.type ?? "action"];
+	return new RegExp(`\\b${noun}\\b`, "i").test(issue.step)
+		? `${issue.step} ${rest}`
+		: `The ${issue.step} ${noun} ${rest}`;
+}
+
 function codeProblems(definition: WorkflowDefinition): string[] {
 	return [
 		...unrunnableIssues(definition).map((issue) =>
-			issue.message.startsWith("It ")
-				? `${issue.step} ${issue.message.slice(3)}`
-				: issue.message,
+			refusalText(issue, definition),
 		),
 		...definition.nodes.flatMap(nodeProblems),
 	];

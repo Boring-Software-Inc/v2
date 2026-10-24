@@ -1046,7 +1046,49 @@ describe("workflowToCode is the file pull writes for one workflow", () => {
 		);
 		expect(result.ok).toBe(false);
 		expect(result.ok ? "" : result.reason).toBe(
-			"All of takes rule results, not events.",
+			"The All of gate takes rule results, not events.",
+		);
+	});
+
+	test("a trigger with an input and a step with no outputs say which", () => {
+		const fed = workflowToCode(
+			single(
+				"fed-trigger",
+				[
+					T,
+					{
+						id: "a",
+						type: "rule",
+						ref: "account-age@1",
+						config: { minDays: 3 },
+					},
+					{ id: "t2", type: "trigger", kinds: ["comment.created"] },
+					{ id: "x", type: "action", action: "block" },
+				],
+				[
+					{ id: "1", from: "t", to: "a" },
+					{ id: "2", from: "a", to: "t2", when: "fail" },
+					{ id: "3", from: "t2", to: "x" },
+				],
+			),
+		);
+		expect(fed.ok ? "" : fed.reason).toBe("Trigger 2 takes no inputs.");
+		const fromBlock = workflowToCode(
+			single(
+				"dead-end",
+				[
+					T,
+					{ id: "x", type: "action", action: "block" },
+					{ id: "y", type: "action", action: "close" },
+				],
+				[
+					{ id: "1", from: "t", to: "x" },
+					{ id: "2", from: "x", to: "y" },
+				],
+			),
+		);
+		expect(fromBlock.ok ? "" : fromBlock.reason).toMatch(
+			/^The .+ step has no outputs\.$/,
 		);
 	});
 });
