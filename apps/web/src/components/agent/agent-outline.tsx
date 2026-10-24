@@ -63,11 +63,9 @@ export function AgentOutline({
 			return;
 		}
 		const observer = new ResizeObserver(([entry]) => {
-			if (entry) {
-				setSize({
-					width: entry.contentRect.width,
-					height: entry.contentRect.height,
-				});
+			const box = entry?.borderBoxSize[0];
+			if (box) {
+				setSize({ width: box.inlineSize, height: box.blockSize });
 			}
 		});
 		observer.observe(parent);
@@ -120,7 +118,7 @@ export function AgentOutline({
 		<canvas
 			aria-hidden
 			className={cn(
-				"pointer-events-none absolute transition-opacity",
+				"pointer-events-none absolute max-w-none transition-opacity",
 				active ? "opacity-100 duration-100" : "opacity-0 duration-300",
 				className,
 			)}

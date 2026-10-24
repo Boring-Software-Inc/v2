@@ -1,4 +1,4 @@
-import { createDb, createPgliteDb } from "@tripwire/db";
+import { createDb, createPgliteDb, type PgliteHandle } from "@tripwire/db";
 import type { PgBoss } from "pg-boss";
 
 type DbBundle = ReturnType<typeof createDb>;
@@ -15,6 +15,7 @@ type DbPool = DbBundle["pool"];
  */
 let instance: DbBundle | null = null;
 let boss: PgBoss | null = null;
+let pglite: PgliteHandle["client"] | null = null;
 
 /** `dev:demo` runs the web head alone against embedded PGlite. */
 export function isDemoMode(): boolean {
@@ -38,12 +39,19 @@ export function getDb() {
 		return instance;
 	}
 	if (isDemoMode()) {
-		const { db } = createPgliteDb(process.env.PGLITE_DATA_DIR);
+		const { db, client } = createPgliteDb(process.env.PGLITE_DATA_DIR);
+		pglite = client;
 		instance = { db, pool: DEMO_POOL };
 		return instance;
 	}
 	instance = createDb();
 	return instance;
+}
+
+/** The embedded Postgres in demo mode, for its in-process LISTEN. */
+export function getPglite(): PgliteHandle["client"] | null {
+	getDb();
+	return pglite;
 }
 
 export async function getBoss(): Promise<PgBoss> {

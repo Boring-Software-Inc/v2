@@ -552,7 +552,11 @@ function WorkflowRow({
 						) : undefined
 					}
 					description={
-						workflow.triggerKinds.length === 0 ? "No trigger yet" : undefined
+						agents.length > 0 ? (
+							<AgentPresence agents={agents} motion={motion} />
+						) : workflow.triggerKinds.length === 0 ? (
+							"No trigger yet"
+						) : undefined
 					}
 					footerActions={
 						workflow.draftId && canManage ? (
@@ -566,20 +570,16 @@ function WorkflowRow({
 						) : undefined
 					}
 					footerMeta={
-						agents.length > 0 ? (
-							<AgentPresence agents={agents} motion={motion} />
-						) : (
-							<MetaRow>
-								<span className="tabular-nums">
-									{workflow.nodeCount}{" "}
-									{workflow.nodeCount === 1 ? "step" : "steps"}
-								</span>
-								<span>
-									Updated <ZonedTime at={workflow.updatedAt} format="short" />
-								</span>
-								{canManage ? null : <span>Read only</span>}
-							</MetaRow>
-						)
+						<MetaRow>
+							<span className="tabular-nums">
+								{workflow.nodeCount}{" "}
+								{workflow.nodeCount === 1 ? "step" : "steps"}
+							</span>
+							<span>
+								Updated <ZonedTime at={workflow.updatedAt} format="short" />
+							</span>
+							{canManage ? null : <span>Read only</span>}
+						</MetaRow>
 					}
 					status={
 						draftOnly ? undefined : (

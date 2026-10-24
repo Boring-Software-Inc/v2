@@ -27,6 +27,16 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 			);
 			return await handleRunOgRequest(runOg.runId, runOg.hash);
 		}
+		if (
+			import.meta.env.DEV &&
+			process.env.PGLITE_DATA_DIR &&
+			url.pathname === "/api/events/stream"
+		) {
+			const { handleDevLiveStream } = await import(
+				"#/lib/server/dev/live-stream"
+			);
+			return await handleDevLiveStream(request);
+		}
 		if (url.pathname === "/api/events/stream") {
 			const apiOrigin = process.env.VITE_API_URL ?? "http://localhost:8787";
 			return await fetch(`${apiOrigin}/events/stream`, {
