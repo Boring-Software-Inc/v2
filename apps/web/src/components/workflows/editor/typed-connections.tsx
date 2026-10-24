@@ -77,6 +77,7 @@ export function TypedEdge({
 	targetPosition,
 	data,
 	interactionWidth,
+	style,
 }: EdgeProps<TypedFlowEdge>) {
 	const [path, labelX, labelY] = getBezierPath({
 		sourceX,
@@ -99,6 +100,8 @@ export function TypedEdge({
 				data-edge-tone={WORKFLOW_PORT_TONE[port]}
 				interactionWidth={interactionWidth}
 				path={path}
+				pathLength={1}
+				style={style}
 			/>
 			{status ? (
 				<EdgeLabelRenderer>

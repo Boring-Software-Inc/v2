@@ -179,6 +179,7 @@ export function WorkflowEditorPage() {
 							? {
 									revision: draft?.revision ?? 0,
 									change: draft?.lastChange ?? null,
+									changedAt: draft?.updatedAt ?? null,
 									motion,
 								}
 							: undefined

@@ -79,8 +79,9 @@ import {
 } from "#/components/glaze/ui/dialog";
 import { toast } from "#/components/glaze/ui/toast";
 import {
-	AGENT_SETTLE_MS,
+	AGENT_SETTLE_SLACK_MS,
 	decorateLive,
+	freshOnMount,
 	settleLive,
 } from "#/components/workflows/editor/agent-canvas";
 import { CanvasZoom } from "#/components/workflows/editor/canvas-zoom";
@@ -274,6 +275,7 @@ function CanvasDropzone({
 export interface WorkflowEditorLive {
 	revision: number;
 	change: WorkflowChangeSet | null;
+	changedAt: string | null;
 	motion: AgentMotion;
 }
 
@@ -398,7 +400,10 @@ function EditorBody({
 		useReactFlow<TripwireFlowNode, FlowEdge>();
 	const shownGraph = useRef({ nodes, edges });
 	shownGraph.current = { nodes, edges };
-	const liveRevision = useRef(live?.revision);
+	const [mountRevision] = useState(() =>
+		live && freshOnMount(live.changedAt, new Date()) ? null : live?.revision,
+	);
+	const liveRevision = useRef(mountRevision);
 	const liveChange = live?.change ?? null;
 	const liveMotion = live?.motion;
 	useEffect(() => {
@@ -432,7 +437,7 @@ function EditorBody({
 		const settle = setTimeout(() => {
 			setNodes((current) => settleLive(current));
 			setEdges((current) => settleLive(current));
-		}, AGENT_SETTLE_MS);
+		}, decorated.settleMs + AGENT_SETTLE_SLACK_MS);
 		return () => {
 			clearTimeout(fit);
 			clearTimeout(settle);
