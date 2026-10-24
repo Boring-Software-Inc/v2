@@ -2,7 +2,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { AI_CREDITS_COPY } from "@tripwire/contracts";
+import {
+	AI_CREDITS_COPY,
+	workflowPushProposalResultSchema,
+	workflowPushViewSchema,
+} from "@tripwire/contracts";
 import {
 	aiProviderServices,
 	applyMigrations,
@@ -17,6 +21,7 @@ import {
 	schema,
 	seedRun,
 	type TestDatabase,
+	workflowPushServices,
 	workflowServices,
 } from "@tripwire/db";
 import type { Pool } from "pg";
@@ -808,6 +813,39 @@ describe("workflows as code", () => {
 		});
 	});
 
+	test("a key that is a saved workflow's name as a slug lands on that workflow", async () => {
+		const got = z
+			.object({
+				code: z.string(),
+				workflows: z.array(z.object({ id: z.string(), key: z.string() })),
+			})
+			.parse(
+				body(
+					await call("get_workflow", {
+						repo: "mcp-api",
+						workflow: "mcp-live",
+					}),
+				),
+			);
+		expect(got.workflows).toEqual([{ id: "mcp-live", key: "live-over-mcp" }]);
+		expect(got.code).toContain('\t"live-over-mcp": liveOverMcp(),');
+		const checked = await call("validate_workflow", {
+			repo: "mcp-api",
+			definitions: [
+				{
+					...definition,
+					id: "live-over-mcp",
+					name: "live over mcp",
+					nodes: definition.nodes.filter((node) => node.id !== "hook"),
+					edges: definition.edges.filter((edge) => edge.to !== "hook"),
+				},
+			],
+		});
+		expect(body(checked)).toMatchObject({
+			workflows: [{ id: "mcp-live", enabled: true }],
+		});
+	});
+
 	test("get returns the workflow as code without secrets", async () => {
 		const result = await call("get_workflow", {
 			repo: "mcp-api",
@@ -820,5 +858,99 @@ describe("workflows as code", () => {
 		expect(parsed.code).toContain("webhook().after(accountAge.fails)");
 		expect(parsed.code).not.toContain("internal.example");
 		expect(parsed.workflows).toHaveLength(1);
+	});
+});
+
+describe("workflow push review", () => {
+	const body = (result: { content: { text?: string }[] }) =>
+		JSON.parse(result.content[0]?.text ?? "null");
+	const reviewed = {
+		id: "mcp-reviewed",
+		name: "reviewed over mcp",
+		version: 1,
+		nodes: [
+			{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+			{
+				id: "age",
+				type: "rule",
+				ref: "account-age@1",
+				config: { minDays: 7 },
+			},
+			{ id: "block", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "e1", from: "t", to: "age" },
+			{ id: "e2", from: "age", to: "block", when: "fail" },
+		],
+	};
+
+	test("a proposal saves nothing and links to its review page", async () => {
+		const result = await call("propose_workflow_push", {
+			repo: "mcp-web",
+			definitions: [reviewed],
+		});
+		const parsed = workflowPushProposalResultSchema.parse(body(result));
+		if (parsed.result !== "proposed") {
+			throw new Error(`expected a proposal, got ${parsed.result}`);
+		}
+		expect(parsed.push).toMatchObject({
+			org: orgSlug,
+			repo: fullNames[1],
+			status: "pending",
+			workflows: [{ id: "mcp-reviewed", change: "new" }],
+		});
+		expect(parsed.push.url).toBe(
+			`http://localhost:3420/${orgSlug}/mcp-web/workflows/review/${parsed.push.id}`,
+		);
+		const rows = await workflowServices.listWorkflowRows(
+			db,
+			repoRows[1]?.id ?? never(),
+		);
+		expect(rows.some((row) => row.definition.id === "mcp-reviewed")).toBe(
+			false,
+		);
+	});
+
+	test("get waits for the decision and returns each outcome", async () => {
+		const proposed = workflowPushProposalResultSchema.parse(
+			body(
+				await call("propose_workflow_push", {
+					repo: "mcp-web",
+					definitions: [reviewed],
+				}),
+			),
+		);
+		if (proposed.result !== "proposed") {
+			throw new Error("expected a proposal");
+		}
+		const pushId = proposed.push.id;
+		const waiting = call("get_workflow_push", { push: pushId, waitSeconds: 5 });
+		await new Promise((done) => setTimeout(done, 300));
+		const decided = await workflowPushServices.decideWorkflowPush(db, {
+			orgId: (await orgId()) ?? never(),
+			pushId,
+			userId: USER_ID,
+			decision: "accept",
+		});
+		expect(decided.ok).toBe(true);
+		const view = workflowPushViewSchema.parse(body(await waiting));
+		expect(view.status).toBe("accepted");
+		expect(view.workflows[0]).toMatchObject({
+			id: "mcp-reviewed",
+			outcome: "created",
+			url: expect.stringContaining(`/${orgSlug}/mcp-web/workflows/`),
+		});
+		const again = await call("propose_workflow_push", {
+			repo: "mcp-web",
+			definitions: [reviewed],
+		});
+		expect(body(again)).toEqual({ result: "unchanged" });
+	});
+
+	test("an unknown push is an error", async () => {
+		const result = await call("get_workflow_push", {
+			push: "019f0000-0000-7000-8000-000000000000",
+		});
+		expect(result.isError).toBe(true);
 	});
 });

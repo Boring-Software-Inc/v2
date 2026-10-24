@@ -12,26 +12,39 @@ the compiler checks it before anything runs.
 ## Steps
 
 1. **Pull.** `npx @tripwire-sh/cli workflows pull <repo>`. This writes
-   `tripwire.ts` and the typed helpers in `.tripwire/workflow.ts`. Done when
-   both files exist. Read `tripwire.ts` before you change it: the canvas and
-   other people edit the same workflows. To pull only some, name them:
-   `workflows pull <repo> <id> <id>`. Workflows already in the file that you
-   did not name stay as they are.
-2. **Write.** Edit `tripwire.ts` with the reference below. Keep each workflow's
-   key: it is the workflow's id, and a new key makes a new workflow.
+   `tripwire.ts`, the typed helpers in `.tripwire/workflow.ts` and the link in
+   `.tripwire/project.json`. Done when the files exist. Read `tripwire.ts`
+   before you change it: the canvas and other people edit the same workflows.
+   To pull only some, name them: `workflows pull <repo> <key> <key>`. Workflows
+   already in the file that you did not name stay as they are.
+
+   The link holds the repo, the org and each workflow's id, no secrets, so
+   commit it.
+   Anywhere under that folder, `diff`, `push`, `list`, `enable` and the other
+   commands can leave out `<repo>` and `--org`. An explicit `<repo>`, `--org`
+   or `TRIPWIRE_ORG` wins over the link. `tripwire link <repo>` and
+   `tripwire unlink` set and clear it; `tripwire status` shows it.
+2. **Write.** Edit `tripwire.ts` with the reference below. Each workflow's key
+   is its name as a slug, and `.tripwire/project.json` maps it to the
+   workflow's id. Keep the key when you rename a workflow. A new key makes a
+   new workflow.
 3. **Validate until clean.** `npx @tripwire-sh/cli workflows validate --repo
    <repo>`. Every message names the step and, for a wrong id, the right one.
    Fix and rerun. Done when every workflow says `can be turned on` and each
    `runs` line reads back the schedule the user asked for, timezone included.
 4. **Diff.** `npx @tripwire-sh/cli workflows diff <repo>`. Show the user the
    lines and ask before you push.
-5. **Push.** `npx @tripwire-sh/cli workflows push <repo>`. New workflows start
-   off. Turn one on only when the user says so:
+5. **Push.** `npx @tripwire-sh/cli workflows push <repo>`. It opens a review
+   page in the user's browser and waits until they accept or reject it. Give
+   the user the `review` link it prints. Exit 0 means accepted; on exit 1 tell
+   the user why and stop. `--force` saves without review: use it only when the
+   user asks. New workflows start off. Turn one on only when the user says so:
    `npx @tripwire-sh/cli workflows enable <repo> <id>`.
 
 Loading `tripwire.ts` needs Bun or Node 22.18+. On older Node, use
 `bunx @tripwire-sh/cli`. Without the CLI, the MCP tools `get_workflow`,
-`validate_workflow` and `apply_workflow` do the same with compiled JSON.
+`validate_workflow`, `propose_workflow_push` and `apply_workflow` do the same
+with compiled JSON.
 
 ## Reference
 
@@ -39,7 +52,7 @@ Loading `tripwire.ts` needs Bun or Node 22.18+. On older Node, use
 import { anyOf, block, check, requestReview, workflow, workflows } from "./.tripwire/workflow.ts";
 
 export default workflows({
-	"change-request-opens": workflow({
+	"new-contributors": workflow({
 		name: "New contributors",
 		on: "change-request.opened",
 		check: anyOf(

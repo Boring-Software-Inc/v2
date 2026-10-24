@@ -239,6 +239,13 @@
       "when": 1792816676783,
       "tag": "0033_last_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792825356335,
+      "tag": "0034_workflow_push_proposals",
+      "breakpoints": true
     }
   ]
 }

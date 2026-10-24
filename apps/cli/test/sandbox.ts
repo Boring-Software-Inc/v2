@@ -85,9 +85,11 @@ export function makeSandbox(): Sandbox {
 export async function runCli(
 	args: string[],
 	env: Record<string, string>,
+	cwd?: string,
 ): Promise<{ code: number; stdout: string; stderr: string }> {
 	const child = Bun.spawn([process.execPath, CLI_ENTRY, ...args], {
 		env,
+		cwd,
 		stdin: "ignore",
 		stdout: "pipe",
 		stderr: "pipe",

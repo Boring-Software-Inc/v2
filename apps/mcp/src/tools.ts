@@ -5,6 +5,7 @@ import {
 	bearsVerdict,
 	DEFAULT_SCHEDULE_TIMEZONE,
 	describeRunSteps,
+	matchWorkflowIds,
 	RULE_CATALOG,
 	redactWorkflowSecrets,
 	runResult,
@@ -15,6 +16,10 @@ import {
 	setupProgressInputSchema,
 	setupStageStatusSchema,
 	validationIssueText,
+	WORKFLOW_PUSH_MAX_WAIT_SECONDS,
+	type WorkflowDefinition,
+	type WorkflowPushProposalResult,
+	type WorkflowPushView,
 	workflowDefinitionSchema,
 	workflowDisplayName,
 	workflowsToCode,
@@ -30,6 +35,8 @@ import {
 	ruleServices,
 	runServices,
 	setupServices,
+	type WorkflowPushRecord,
+	workflowPushServices,
 	workflowServices,
 } from "@tripwire/db";
 import { z } from "zod";
@@ -445,6 +452,17 @@ export function registerTools(
 		);
 	}
 
+	const withServerIds = async (
+		repoId: string,
+		definitions: readonly WorkflowDefinition[],
+	): Promise<WorkflowDefinition[]> => {
+		const rows = await workflowServices.listWorkflowRows(ctx.db, repoId);
+		return matchWorkflowIds(
+			definitions,
+			rows.map((row) => row.definition),
+		).definitions;
+	};
+
 	const workflowLink = (org: OrgWithRole, repo: string, rowId: string) =>
 		appLink(ctx, `/${org.slug}/${repo}/workflows/${rowId}`);
 
@@ -526,14 +544,14 @@ export function registerTools(
 		.array(workflowDefinitionSchema)
 		.min(1)
 		.describe(
-			"Compiled workflow definitions. Write a tripwire.ts and run `tripwire workflows validate --json` to get them; each key in the file is a definition id.",
+			"Compiled workflow definitions. Write a tripwire.ts and run `tripwire workflows validate --json` to get them. Each id is a workflow's definition id, or its key in tripwire.ts: a key that is no id here matches the workflow whose name has that slug, else it is a new workflow.",
 		);
 
 	if (visible("get_workflow")) {
 		server.registerTool(
 			"get_workflow",
 			{
-				description: `A repo's workflows as tripwire.ts code, plus the stored definitions. Secrets are never included. Clock schedules without a timezone run in ${DEFAULT_SCHEDULE_TIMEZONE}.`,
+				description: `A repo's workflows as tripwire.ts code, plus the stored definitions. Each workflow's key in the code is its name as a slug. Secrets are never included. Clock schedules without a timezone run in ${DEFAULT_SCHEDULE_TIMEZONE}.`,
 				inputSchema: { org: orgArg, repo: repoArg, workflow: workflowArg },
 				annotations: annotate("get_workflow"),
 			},
@@ -574,6 +592,7 @@ export function registerTools(
 						warnings: code.warnings,
 						workflows: picked.map((row, index) => ({
 							id: row.definition.id,
+							key: code.keys.get(row.definition.id),
 							appId: row.id,
 							name: row.name,
 							enabled: row.enabled,
@@ -609,7 +628,7 @@ export function registerTools(
 					return ok(
 						await workflowServices.previewWorkflowPush(ctx.db, {
 							repoId: found.id,
-							definitions,
+							definitions: await withServerIds(found.id, definitions),
 						}),
 					);
 				}),
@@ -621,7 +640,7 @@ export function registerTools(
 			"apply_workflow",
 			{
 				description:
-					"Save compiled workflows to a repo, matched by definition id. New workflows start off; call set_workflow_enabled to turn one on. A workflow that is on only takes a definition that could be turned on. Canvas layout and secrets already saved are kept.",
+					"Save compiled workflows to a repo, matched by definition id. New workflows start off; call set_workflow_enabled to turn one on. A workflow that is on only takes a definition that could be turned on. Canvas layout and secrets already saved are kept. To have a person review the diff first, use propose_workflow_push.",
 				inputSchema: {
 					org: orgArg,
 					repo: repoArg,
@@ -638,7 +657,7 @@ export function registerTools(
 						"apply_workflow",
 					);
 					const results = [];
-					for (const definition of definitions) {
+					for (const definition of await withServerIds(found.id, definitions)) {
 						const result = await workflowServices.applyWorkflowDefinition(
 							ctx.db,
 							{ repoId: found.id, definition },
@@ -661,6 +680,121 @@ export function registerTools(
 						);
 					}
 					return ok({ workflows: results });
+				}),
+		);
+	}
+
+	const pushView = (
+		org: OrgWithRole,
+		push: WorkflowPushRecord,
+	): WorkflowPushView => ({
+		id: push.id,
+		org: org.slug,
+		repo: push.repoFullName,
+		status: push.status,
+		url: appLink(
+			ctx,
+			`/${org.slug}/${push.repoName}/workflows/review/${push.id}`,
+		),
+		expiresAt: push.expiresAt.toISOString(),
+		workflows: push.entries.map((entry) => {
+			const done = push.outcomes.find(
+				(outcome) => outcome.id === entry.definition.id,
+			);
+			return {
+				id: entry.definition.id,
+				name: entry.definition.name,
+				change: entry.baseWorkflowId === null ? "new" : "changed",
+				outcome: done?.outcome,
+				url: done
+					? workflowLink(org, push.repoName, done.workflowId)
+					: undefined,
+			};
+		}),
+	});
+
+	if (visible("propose_workflow_push")) {
+		server.registerTool(
+			"propose_workflow_push",
+			{
+				description:
+					"Send compiled workflows for review instead of saving them. Returns a link a person with workflow access opens to see the diff and accept or reject it within an hour; poll get_workflow_push for the outcome. Only changed and new workflows are sent. apply_workflow saves without review.",
+				inputSchema: {
+					org: orgArg,
+					repo: repoArg,
+					definitions: definitionsArg,
+				},
+				annotations: annotate("propose_workflow_push"),
+			},
+			({ org, repo, definitions }) =>
+				guard(async () => {
+					const { org: resolved, repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"propose_workflow_push",
+					);
+					const result = await workflowPushServices.proposeWorkflowPush(
+						ctx.db,
+						{
+							orgId: resolved.id,
+							repoId: found.id,
+							authorId: ctx.agent.userId,
+							definitions: await withServerIds(found.id, definitions),
+						},
+					);
+					const body: WorkflowPushProposalResult = !result.ok
+						? { result: "blocked", workflows: result.blocks }
+						: result.kind === "unchanged"
+							? { result: "unchanged" }
+							: { result: "proposed", push: pushView(resolved, result.push) };
+					return ok(body);
+				}),
+		);
+	}
+
+	if (visible("get_workflow_push")) {
+		server.registerTool(
+			"get_workflow_push",
+			{
+				description: `Read a push sent with propose_workflow_push: pending, accepted, rejected, expired or stale, with each workflow's outcome once accepted. Pass waitSeconds (up to ${WORKFLOW_PUSH_MAX_WAIT_SECONDS}) to wait for a decision before answering.`,
+				inputSchema: {
+					org: orgArg,
+					push: z
+						.string()
+						.min(1)
+						.describe("The push id from propose_workflow_push."),
+					waitSeconds: z
+						.number()
+						.int()
+						.min(0)
+						.max(WORKFLOW_PUSH_MAX_WAIT_SECONDS)
+						.optional()
+						.describe(
+							"Wait this long for a decision while the push is pending.",
+						),
+				},
+				annotations: annotate("get_workflow_push"),
+			},
+			({ org, push, waitSeconds }) =>
+				guard(async () => {
+					const resolved = await resolveOrg(ctx, org, "get_workflow_push");
+					const deadline = Date.now() + (waitSeconds ?? 0) * 1000;
+					for (;;) {
+						const found = await workflowPushServices.getWorkflowPush(ctx.db, {
+							orgId: resolved.id,
+							pushId: push,
+						});
+						if (!found) {
+							throw new ToolError(`No push ${push} in ${resolved.slug}.`);
+						}
+						if (found.status !== "pending" || Date.now() >= deadline) {
+							return ok(pushView(resolved, found));
+						}
+						await new Promise((done) =>
+							setTimeout(done, Math.min(1000, deadline - Date.now())),
+						);
+					}
 				}),
 		);
 	}

@@ -190,6 +190,26 @@ describe("MCP writes follow the org's role scopes", () => {
 		expect(result.isError).toBeFalsy();
 	});
 
+	test("a plain member cannot send a workflow for review", async () => {
+		const result = await call(member, "propose_workflow_push", {
+			org: orgSlug,
+			repo: "perm-api",
+			definitions: [WORKFLOW],
+		});
+		expect(result.isError).toBe(true);
+	});
+
+	test("a custom role with workflows manage can send a workflow for review", async () => {
+		const result = await call(builder, "propose_workflow_push", {
+			org: orgSlug,
+			repo: "perm-api",
+			definitions: [
+				{ ...WORKFLOW, id: "perm-reviewed", name: "perm reviewed" },
+			],
+		});
+		expect(result.isError).toBeFalsy();
+	});
+
 	test("workflows manage does not grant rules manage", async () => {
 		const result = await call(builder, "set_rule", {
 			org: orgSlug,
@@ -217,6 +237,7 @@ describe("MCP reads follow the org's role scopes", () => {
 		["list_workflows", { repo: "perm-api" }],
 		["get_workflow", { repo: "perm-api" }],
 		["validate_workflow", { repo: "perm-api", definitions: [WORKFLOW] }],
+		["get_workflow_push", { push: "019f0000-0000-7000-8000-000000000000" }],
 		["list_runs", {}],
 		["get_run", { runId: "019f0000-0000-7000-8000-000000000000" }],
 	];
@@ -300,9 +321,11 @@ describe("the tool list follows the member's role", () => {
 		expect(await listedFor("perm-builder")).toEqual([
 			"apply_workflow",
 			"get_workflow",
+			"get_workflow_push",
 			"list_repos",
 			"list_rule_catalog",
 			"list_workflows",
+			"propose_workflow_push",
 			"report_setup_progress",
 			"set_workflow_enabled",
 			"setup_status",
@@ -312,6 +335,6 @@ describe("the tool list follows the member's role", () => {
 	});
 
 	test("an org admin lists every tool", async () => {
-		expect(await listedFor("perm-admin")).toHaveLength(18);
+		expect(await listedFor("perm-admin")).toHaveLength(20);
 	});
 });
