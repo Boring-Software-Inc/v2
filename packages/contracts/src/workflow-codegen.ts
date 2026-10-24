@@ -469,7 +469,11 @@ function nodeProblems(node: WorkflowNode): string[] {
 
 function codeProblems(definition: WorkflowDefinition): string[] {
 	return [
-		...unrunnableIssues(definition).map((issue) => issue.message),
+		...unrunnableIssues(definition).map((issue) =>
+			issue.message.startsWith("It ")
+				? `${issue.step} ${issue.message.slice(3)}`
+				: issue.message,
+		),
 		...definition.nodes.flatMap(nodeProblems),
 	];
 }

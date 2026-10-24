@@ -8,6 +8,7 @@ import {
 	type TriggerNode,
 	type WorkflowDefinition,
 } from "./workflow.ts";
+import { workflowAuthoring } from "./workflow-authoring-catalog.ts";
 import {
 	AUTHORING_MODULE_PATH,
 	authoringModuleText,
@@ -17,7 +18,6 @@ import {
 } from "./workflow-codegen.ts";
 import { compileWorkflowModule, compileWorkflows } from "./workflow-compile.ts";
 import { diffWorkflow, mergeForPush } from "./workflow-diff.ts";
-import { workflowAuthoring } from "./workflow-authoring-catalog.ts";
 import { WORKFLOW_TEMPLATES } from "./workflow-templates.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "tripwire-codegen-"));
@@ -1020,6 +1020,8 @@ describe("workflowToCode is the file pull writes for one workflow", () => {
 			),
 		);
 		expect(result.ok).toBe(false);
-		expect(result.ok ? "" : result.reason).toContain("takes rule results");
+		expect(result.ok ? "" : result.reason).toBe(
+			"All of takes rule results, not events.",
+		);
 	});
 });
