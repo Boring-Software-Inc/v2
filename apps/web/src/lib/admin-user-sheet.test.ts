@@ -3,6 +3,7 @@ import {
 	activeSectionAt,
 	changeRequestLabel,
 	contributorVerdictLabel,
+	databuddyUserUrl,
 	flagSourceLabel,
 	flagSyncLabel,
 	formatWait,
@@ -193,5 +194,13 @@ describe("activeSectionAt", () => {
 
 	test("nothing passed yet means the first section", () => {
 		expect(activeSectionAt([{ id: "access", top: 300 }], 100)).toBe("access");
+	});
+});
+
+describe("databuddyUserUrl", () => {
+	test("opens the user's page on the Tripwire website in Databuddy", () => {
+		expect(databuddyUserUrl("01a16721-882b-75a0-85a5-276c79b03e8f")).toBe(
+			"https://app.databuddy.cc/websites/09661145-7249-45d9-a9e3-f1a93e9c7266/users/01a16721-882b-75a0-85a5-276c79b03e8f",
+		);
 	});
 });

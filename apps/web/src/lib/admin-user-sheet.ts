@@ -1,8 +1,13 @@
-import type {
-	FlagOverrideChoice,
-	FlagSource,
-	FlagSyncStatus,
+import {
+	DATABUDDY_WEBSITE_ID,
+	type FlagOverrideChoice,
+	type FlagSource,
+	type FlagSyncStatus,
 } from "@tripwire/contracts";
+
+export function databuddyUserUrl(userId: string): string {
+	return `https://app.databuddy.cc/websites/${DATABUDDY_WEBSITE_ID}/users/${encodeURIComponent(userId)}`;
+}
 
 export type SheetStep =
 	| { kind: "user"; id: string }

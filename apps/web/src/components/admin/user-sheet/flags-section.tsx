@@ -14,7 +14,15 @@ import {
 	errorText,
 	unwrapStaffAction,
 } from "#/components/admin/user-sheet/use-staff-action";
-import { Add, Check, Failed, Icon, Retry, Time } from "#/components/glaze/icon";
+import {
+	Add,
+	Check,
+	External,
+	Failed,
+	Icon,
+	Retry,
+	Time,
+} from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { CopyButton } from "#/components/glaze/ui/copy-button";
 import {
@@ -35,6 +43,7 @@ import {
 	TooltipTrigger,
 } from "#/components/glaze/ui/tooltip";
 import {
+	databuddyUserUrl,
 	flagSourceLabel,
 	flagSyncLabel,
 	historySentence,
@@ -319,6 +328,15 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 						size="icon-sm"
 						value={user.id}
 					/>
+					<a
+						className="inline-flex shrink-0 items-center gap-1 rounded-tag text-text-1 underline decoration-line-control underline-offset-3 hover:decoration-ink focus-visible:focus-ring"
+						href={databuddyUserUrl(user.id)}
+						rel="noreferrer"
+						target="_blank"
+					>
+						Open in Databuddy
+						<Icon icon={External} size={12} />
+					</a>
 				</FieldRow>
 				<FieldRow label="Last anonymous id">
 					{user.databuddyAnonId ? (
