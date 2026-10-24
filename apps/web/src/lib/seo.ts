@@ -1,4 +1,4 @@
-import { APP_OG_IMAGE, type OgImage } from "#/lib/run-og";
+import { type OgImage, SITE_OG_IMAGE } from "#/lib/run-og";
 import { siteConfig } from "#/lib/site-config";
 
 /**
@@ -30,6 +30,17 @@ export function summarizeText(text: string, max = 160): string {
 	return `${collapsed.slice(0, max - 1).trimEnd()}…`;
 }
 
+function videoMeta(path: string, size: Omit<OgImage, "path">) {
+	const url = toAbsoluteUrl(path);
+	return [
+		{ property: "og:video", content: url },
+		{ property: "og:video:secure_url", content: url },
+		{ property: "og:video:type", content: "video/mp4" },
+		{ property: "og:video:width", content: String(size.width) },
+		{ property: "og:video:height", content: String(size.height) },
+	];
+}
+
 interface BuildSeoInput {
 	path: string;
 	title?: string;
@@ -46,7 +57,7 @@ export function buildSeo({
 	description,
 	type = "website",
 	noindex = false,
-	image = APP_OG_IMAGE,
+	image = SITE_OG_IMAGE,
 }: BuildSeoInput) {
 	const pageTitle = title ?? siteConfig.defaultTitle;
 	const pageDescription = summarizeText(
@@ -54,7 +65,6 @@ export function buildSeo({
 	);
 	const url = toAbsoluteUrl(path);
 	const ogImage = toAbsoluteUrl(image.path);
-	const ogVideo = toAbsoluteUrl(image.video);
 	return {
 		meta: [
 			{ title: pageTitle },
@@ -68,11 +78,7 @@ export function buildSeo({
 			{ property: "og:image:type", content: "image/png" },
 			{ property: "og:image:width", content: String(image.width) },
 			{ property: "og:image:height", content: String(image.height) },
-			{ property: "og:video", content: ogVideo },
-			{ property: "og:video:secure_url", content: ogVideo },
-			{ property: "og:video:type", content: "video/mp4" },
-			{ property: "og:video:width", content: String(image.width) },
-			{ property: "og:video:height", content: String(image.height) },
+			...(image.video ? videoMeta(image.video, image) : []),
 			{ name: "twitter:card", content: "summary_large_image" },
 			{ name: "twitter:image", content: ogImage },
 			...(noindex ? PRIVATE_ROUTE_HEADERS : []),

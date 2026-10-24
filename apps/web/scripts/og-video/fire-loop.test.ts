@@ -3,7 +3,7 @@ import {
 	FIRE_LOOP_FRAMES,
 	fireFieldFromLevels,
 	fireFrameLevels,
-} from "#/lib/server/og/fire-loop";
+} from "./fire-loop";
 
 const COLS = 24;
 const ROWS = 30;

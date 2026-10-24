@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { encodeMp4, faststart, loadEncoder } from "#/lib/server/og/mp4";
+import { encodeMp4, faststart } from "./mp4";
 
 function box(type: string, body: Uint8Array): Uint8Array {
 	const out = new Uint8Array(8 + body.length);
@@ -59,18 +59,6 @@ describe("faststart", () => {
 });
 
 describe("encodeMp4", () => {
-	test("loading the encoder leaves the process error handlers alone", async () => {
-		const before = [
-			process.listenerCount("uncaughtException"),
-			process.listenerCount("unhandledRejection"),
-		];
-		await loadEncoder();
-		expect([
-			process.listenerCount("uncaughtException"),
-			process.listenerCount("unhandledRejection"),
-		]).toEqual(before);
-	});
-
 	test("encodes rgba frames into a streamable mp4", async () => {
 		const width = 64;
 		const height = 32;

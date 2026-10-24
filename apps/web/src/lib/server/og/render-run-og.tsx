@@ -8,7 +8,6 @@ import {
 	OG_IMAGE_WIDTH,
 	type RunOgCard,
 } from "#/lib/run-og";
-import { type Raster, rasterFromSvg } from "#/lib/server/og/raster";
 import { loadEmoji } from "#/lib/server/og/remote-assets";
 
 export interface RunOgAssets {
@@ -18,8 +17,7 @@ export interface RunOgAssets {
 	fireRight: string;
 }
 
-export const GROUND = "#FBFBFA";
-export const GUTTER_WIDTH = 120;
+const GROUND = "#FBFBFA";
 const LINE = "#05050514";
 const CROSS = "#05050540";
 const INK = "#050505CC";
@@ -191,48 +189,23 @@ function Lockup() {
 	);
 }
 
-function Gutters({ assets }: { assets: RunOgAssets | null }) {
-	if (!assets) {
-		return (
-			<div
-				style={{
-					position: "absolute",
-					left: GUTTER_WIDTH,
-					top: 0,
-					width: OG_IMAGE_WIDTH - 2 * GUTTER_WIDTH,
-					height: OG_IMAGE_HEIGHT,
-					backgroundColor: GROUND,
-				}}
-			/>
-		);
-	}
+function Frame({ assets }: { assets: RunOgAssets }) {
 	return (
 		<>
 			<img
 				alt=""
 				src={assets.fireLeft}
-				width={GUTTER_WIDTH}
-				height={OG_IMAGE_HEIGHT}
+				width={120}
+				height={630}
 				style={{ position: "absolute", left: 0, top: 0 }}
 			/>
 			<img
 				alt=""
 				src={assets.fireRight}
-				width={GUTTER_WIDTH}
-				height={OG_IMAGE_HEIGHT}
-				style={{
-					position: "absolute",
-					left: OG_IMAGE_WIDTH - GUTTER_WIDTH,
-					top: 0,
-				}}
+				width={120}
+				height={630}
+				style={{ position: "absolute", left: 1080, top: 0 }}
 			/>
-		</>
-	);
-}
-
-function Frame() {
-	return (
-		<>
 			<Rule left={120} top={0} width={1} height={630} />
 			<Rule left={1079} top={0} width={1} height={630} />
 			<Rule left={0} top={68} width={1200} height={1} />
@@ -257,26 +230,24 @@ function Avatar({ src }: { src: string | null }) {
 	);
 }
 
-async function runOgSvg(
+export async function renderRunOg(
 	card: RunOgCard,
 	assets: RunOgAssets,
 	avatar: string | null,
-	fire: boolean,
-): Promise<string> {
+): Promise<Uint8Array> {
 	const fitted = await prepareTitle(card.title, assets);
-	return await satori(
+	const svg = await satori(
 		<div
 			style={{
 				position: "relative",
 				display: "flex",
 				width: OG_IMAGE_WIDTH,
 				height: OG_IMAGE_HEIGHT,
-				backgroundColor: fire ? GROUND : "transparent",
+				backgroundColor: GROUND,
 				fontFamily: "Geist",
 			}}
 		>
-			<Gutters assets={fire ? assets : null} />
-			<Frame />
+			<Frame assets={assets} />
 			<Lockup />
 			<div
 				style={{
@@ -363,21 +334,5 @@ async function runOgSvg(
 			graphemeImages: fitted.graphemeImages,
 		},
 	);
-}
-
-export async function renderRunOg(
-	card: RunOgCard,
-	assets: RunOgAssets,
-	avatar: string | null,
-): Promise<Uint8Array> {
-	const svg = await runOgSvg(card, assets, avatar, true);
 	return new Resvg(svg, { fitTo: { mode: "original" } }).render().asPng();
-}
-
-export async function renderRunOgOverlay(
-	card: RunOgCard,
-	assets: RunOgAssets,
-	avatar: string | null,
-): Promise<Raster> {
-	return rasterFromSvg(await runOgSvg(card, assets, avatar, false));
 }

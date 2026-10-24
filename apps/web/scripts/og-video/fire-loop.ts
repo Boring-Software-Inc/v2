@@ -23,13 +23,6 @@ export const FIRE_MOTION: FireMotion = {
 	turbulence: 0.45,
 };
 
-export interface FireShape {
-	keep: number;
-	spread: number;
-}
-
-export const BLOCK_SHAPE: FireShape = { keep: 0.5, spread: 1 };
-
 const TAU = Math.PI * 2;
 const NOISE_PERIOD = 8;
 const NOISE_WIDTH = 4;
@@ -77,7 +70,6 @@ export function fireFieldFromLevels(
 	cols: number,
 	rows: number,
 	maxLevel: number,
-	shape: FireShape = BLOCK_SHAPE,
 ): FireField {
 	const heat = new Float32Array(cols * rows);
 	for (let y = 0; y < rows; y++) {
@@ -97,8 +89,7 @@ export function fireFieldFromLevels(
 			}
 			const own = (levels[y * cols + x] ?? 0) / maxLevel;
 			const blurred = sum / count / maxLevel;
-			heat[y * cols + x] =
-				own > 0 ? Math.max(blurred, own * shape.keep) : blurred * shape.spread;
+			heat[y * cols + x] = own > 0 ? Math.max(blurred, own * 0.5) : blurred;
 		}
 	}
 	return { cols, rows, heat };

@@ -28,19 +28,15 @@ describe("buildSeo", () => {
 		expect(head["twitter:image"]).toBe(toAbsoluteUrl("/og.png"));
 	});
 
-	test("a run page points both tags at its own hashed files", () => {
+	test("a run page keeps its still image and gets no video", () => {
 		const head = tags(
 			buildSeo({
 				path: "/runs/run-1",
-				image: {
-					path: "/og/runs/run-1/abc",
-					video: "/og/runs/run-1/abc.mp4",
-					width: 1200,
-					height: 630,
-				},
+				image: { path: "/og/runs/run-1/abc", width: 1200, height: 630 },
 			}).meta,
 		);
 		expect(head["og:image"]).toBe(toAbsoluteUrl("/og/runs/run-1/abc"));
-		expect(head["og:video"]).toBe(toAbsoluteUrl("/og/runs/run-1/abc.mp4"));
+		expect(head["og:video"]).toBeUndefined();
+		expect(head["og:video:type"]).toBeUndefined();
 	});
 });

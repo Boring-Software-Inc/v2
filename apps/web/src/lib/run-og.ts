@@ -6,7 +6,7 @@ export const APP_OG_IMAGE_PATH = "/og.png";
 export const APP_OG_VIDEO_PATH = "/og.mp4";
 
 const RUN_OG_VERSION = 1;
-const RUN_OG_PATH = /^\/og\/runs\/([^/]+)\/([^/]+?)(\.mp4)?$/;
+const RUN_OG_PATH = /^\/og\/runs\/([^/]+)\/([^/]+)$/;
 const TITLE_MAX_GRAPHEMES = 90;
 const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 
@@ -18,20 +18,22 @@ export interface RunOgCard {
 	avatarUrl: string | null;
 }
 
-export type OgFormat = "png" | "mp4";
-
 export interface OgImage {
 	path: string;
-	video: string;
 	width: number;
 	height: number;
+	video?: string;
 }
 
 export const APP_OG_IMAGE: OgImage = {
 	path: APP_OG_IMAGE_PATH,
-	video: APP_OG_VIDEO_PATH,
 	width: OG_IMAGE_WIDTH,
 	height: OG_IMAGE_HEIGHT,
+};
+
+export const SITE_OG_IMAGE: OgImage = {
+	...APP_OG_IMAGE,
+	video: APP_OG_VIDEO_PATH,
 };
 
 function graphemes(text: string): string[] {
@@ -141,10 +143,8 @@ export function runOgImage(runId: string, view: RunView | null): OgImage {
 	if (!card) {
 		return APP_OG_IMAGE;
 	}
-	const path = `/og/runs/${encodeURIComponent(runId)}/${runOgHash(card)}`;
 	return {
-		path,
-		video: `${path}.mp4`,
+		path: `/og/runs/${encodeURIComponent(runId)}/${runOgHash(card)}`,
 		width: OG_IMAGE_WIDTH,
 		height: OG_IMAGE_HEIGHT,
 	};
@@ -152,17 +152,13 @@ export function runOgImage(runId: string, view: RunView | null): OgImage {
 
 export function parseRunOgPath(
 	pathname: string,
-): { runId: string; hash: string; format: OgFormat } | null {
+): { runId: string; hash: string } | null {
 	const match = RUN_OG_PATH.exec(pathname);
 	if (!(match?.[1] && match[2])) {
 		return null;
 	}
 	try {
-		return {
-			runId: decodeURIComponent(match[1]),
-			hash: match[2],
-			format: match[3] ? "mp4" : "png",
-		};
+		return { runId: decodeURIComponent(match[1]), hash: match[2] };
 	} catch {
 		return null;
 	}

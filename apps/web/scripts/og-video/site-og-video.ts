@@ -5,9 +5,9 @@ import {
 	type FireField,
 	fireFieldFromLevels,
 	fireFrameLevels,
-} from "#/lib/server/og/fire-loop";
-import { encodeMp4 } from "#/lib/server/og/mp4";
-import { decodePng, type Raster } from "#/lib/server/og/raster";
+} from "./fire-loop";
+import { encodeMp4 } from "./mp4";
+import { decodePng, type Raster } from "./raster";
 
 const CELL = 5;
 const FIELD_SCALE = 2;

@@ -1,4 +1,4 @@
-import type { H264MP4Encoder } from "h264-mp4-encoder";
+import { createH264MP4Encoder } from "h264-mp4-encoder";
 
 export interface Mp4Clip {
 	width: number;
@@ -8,57 +8,11 @@ export interface Mp4Clip {
 	frame: (index: number) => Uint8Array;
 }
 
-type EncoderFactory = () => Promise<H264MP4Encoder>;
-
-interface EncoderModule {
-	createH264MP4Encoder?: EncoderFactory;
-	default?: { createH264MP4Encoder?: EncoderFactory };
-}
-
 const QUANTIZER = 28;
 
-let factory: Promise<EncoderFactory> | null = null;
-let queue: Promise<unknown> = Promise.resolve();
-let sequence = 0;
-
-async function importEncoder(): Promise<EncoderFactory> {
-	const exceptions = new Set(process.listeners("uncaughtException"));
-	const rejections = new Set(process.listeners("unhandledRejection"));
-	const loaded: EncoderModule = await import("h264-mp4-encoder");
-	for (const listener of process.listeners("uncaughtException")) {
-		if (!exceptions.has(listener)) {
-			process.off("uncaughtException", listener);
-		}
-	}
-	for (const listener of process.listeners("unhandledRejection")) {
-		if (!rejections.has(listener)) {
-			process.off("unhandledRejection", listener);
-		}
-	}
-	const create =
-		loaded.createH264MP4Encoder ?? loaded.default?.createH264MP4Encoder;
-	if (!create) {
-		throw new Error("h264-mp4-encoder has no createH264MP4Encoder");
-	}
-	return create;
-}
-
-export function loadEncoder(): Promise<EncoderFactory> {
-	if (!factory) {
-		const pending = importEncoder();
-		factory = pending;
-		pending.catch(() => {
-			if (factory === pending) {
-				factory = null;
-			}
-		});
-	}
-	return factory;
-}
-
-async function encode(clip: Mp4Clip): Promise<Uint8Array> {
-	const encoder = await (await loadEncoder())();
-	const name = `clip-${++sequence}.mp4`;
+export async function encodeMp4(clip: Mp4Clip): Promise<Uint8Array> {
+	const encoder = await createH264MP4Encoder();
+	const name = "og.mp4";
 	try {
 		encoder.outputFilename = name;
 		encoder.width = clip.width;
@@ -78,15 +32,6 @@ async function encode(clip: Mp4Clip): Promise<Uint8Array> {
 	} finally {
 		encoder.delete();
 	}
-}
-
-export function encodeMp4(clip: Mp4Clip): Promise<Uint8Array> {
-	const run = queue.then(
-		() => encode(clip),
-		() => encode(clip),
-	);
-	queue = run.catch(() => undefined);
-	return run;
 }
 
 interface Box {

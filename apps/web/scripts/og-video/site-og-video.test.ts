@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { decodePng } from "#/lib/server/og/raster";
-import { siteOgFrames } from "#/lib/server/og/site-og-video";
+import { decodePng } from "./raster";
+import { siteOgFrames } from "./site-og-video";
 
-const WEB = new URL("../../../../", import.meta.url);
+const WEB = new URL("../../", import.meta.url);
 const og = readFileSync(new URL("public/og.png", WEB));
-const field = readFileSync(new URL("scripts/assets/og-fire-field.png", WEB));
+const field = readFileSync(new URL("fire-field.png", import.meta.url));
 
 function changed(a: Uint8Array, b: Uint8Array, box: number[]) {
 	const [left = 0, top = 0, right = 0, bottom = 0] = box;
