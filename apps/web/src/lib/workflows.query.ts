@@ -1,4 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
+import { scheduleTimings } from "@tripwire/contracts";
 import { getRepoWorkflow, listRepoWorkflows } from "#/lib/workflows.functions";
 
 export const workflowsQueryKeys = {
@@ -30,5 +31,9 @@ export const workflowDetailQueryOptions = (
 		queryFn: ({ signal }) =>
 			getRepoWorkflow({ data: { org, repoId, workflowId }, signal }),
 		staleTime: 10_000,
+		refetchInterval: ({ state }) =>
+			state.data?.enabled && scheduleTimings(state.data.definition).size > 0
+				? 60_000
+				: false,
 		enabled: repoId !== "",
 	});

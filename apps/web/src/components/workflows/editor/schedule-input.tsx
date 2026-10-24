@@ -32,6 +32,7 @@ import {
 	InputTrailing,
 } from "#/components/glaze/ui/input";
 import { TooltipChip } from "#/components/glaze/ui/tooltip";
+import { useMinuteClock } from "#/hooks/use-minute-clock";
 import type { Timezones } from "#/hooks/use-timezones";
 import { cn } from "#/lib/glaze/utils";
 import {
@@ -146,6 +147,7 @@ export function ScheduleTextField({
 	onDraft: (text: string | null) => void;
 	onChange: (next: CadenceValue) => void;
 }) {
+	const now = useMinuteClock();
 	const input = useRef<HTMLInputElement>(null);
 	const box = useRef<HTMLDivElement>(null);
 	const spans = useRef<(HTMLSpanElement | null)[]>([]);
@@ -268,7 +270,7 @@ export function ScheduleTextField({
 	const next = value.every
 		? editorNextRun(
 				{ every: value.every, timezone: value.timezone },
-				{ ...savedTiming, now: new Date() },
+				{ ...savedTiming, now },
 			)
 		: null;
 	const zoneLabel = zoneOffsetLabel(zone, next ?? undefined);
