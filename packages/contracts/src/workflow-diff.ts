@@ -390,3 +390,68 @@ export function mergeForPush(
 		}),
 	};
 }
+
+export interface WorkflowChangeSet {
+	renamed: boolean;
+	nodes: { added: string[]; changed: string[]; removed: string[] };
+	edges: { added: string[]; removed: string[] };
+}
+
+export function emptyChangeSet(): WorkflowChangeSet {
+	return {
+		renamed: false,
+		nodes: { added: [], changed: [], removed: [] },
+		edges: { added: [], removed: [] },
+	};
+}
+
+export function changeSetSize(set: WorkflowChangeSet): number {
+	return (
+		set.nodes.added.length +
+		set.nodes.changed.length +
+		set.nodes.removed.length +
+		set.edges.added.length +
+		set.edges.removed.length +
+		(set.renamed ? 1 : 0)
+	);
+}
+
+/**
+ * The node and edge ids one definition changed against another, so a viewer
+ * can animate exactly what moved. Position never counts as a change.
+ */
+export function workflowChangeSet(
+	before: WorkflowDefinition | null,
+	after: WorkflowDefinition,
+): WorkflowChangeSet {
+	const set = emptyChangeSet();
+	const old = new Map((before?.nodes ?? []).map((node) => [node.id, node]));
+	const next = new Set(after.nodes.map((node) => node.id));
+	set.renamed = before !== null && before.name !== after.name;
+	for (const node of after.nodes) {
+		const was = old.get(node.id);
+		if (!was) {
+			set.nodes.added.push(node.id);
+		} else if (comparable(was) !== comparable(node)) {
+			set.nodes.changed.push(node.id);
+		}
+	}
+	for (const node of before?.nodes ?? []) {
+		if (!next.has(node.id)) {
+			set.nodes.removed.push(node.id);
+		}
+	}
+	const oldEdges = new Set((before?.edges ?? []).map(edgeKey));
+	const newEdges = new Set(after.edges.map(edgeKey));
+	for (const edge of after.edges) {
+		if (!oldEdges.has(edgeKey(edge))) {
+			set.edges.added.push(edge.id);
+		}
+	}
+	for (const edge of before?.edges ?? []) {
+		if (!newEdges.has(edgeKey(edge))) {
+			set.edges.removed.push(edge.id);
+		}
+	}
+	return set;
+}

@@ -89,6 +89,16 @@ export {
 	DELETED_ACCOUNT_ACTOR,
 } from "./services/account-deletion.ts";
 export * as accountServices from "./services/accounts.ts";
+export type {
+	AgentApplyResult,
+	BeginWorkResult,
+	DraftDecisionResult,
+	DraftSignalResult,
+	WorkAgent,
+	WorkflowCard,
+	WorkflowWorkDetail,
+} from "./services/agent-work.ts";
+export * as agentWorkServices from "./services/agent-work.ts";
 export type { AgentGrant, ConnectedAgent } from "./services/agents.ts";
 export * as agentServices from "./services/agents.ts";
 export * as aiProviderServices from "./services/ai-provider.ts";
@@ -116,6 +126,8 @@ export type {
 export * as installationAccessServices from "./services/installation-access.ts";
 export type { RepoLabelList } from "./services/labels.ts";
 export * as labelServices from "./services/labels.ts";
+export type { LiveViewer } from "./services/live.ts";
+export * as liveServices from "./services/live.ts";
 export * as moderationServices from "./services/moderation.ts";
 export type { RepoLite, SwitcherRepo } from "./services/onboarding.ts";
 export type {
