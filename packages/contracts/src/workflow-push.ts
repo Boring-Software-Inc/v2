@@ -102,7 +102,9 @@ export function pushExitCode(status: WorkflowPushStatus): 0 | 1 {
 export function pushBlockingIssues<
 	T extends { rule?: LintRuleId; severity?: LintSeverity },
 >(issues: readonly T[], enabled: boolean): T[] {
-	return issuesInState(issues, enabled).filter(
-		(issue) => issue.severity === "error",
-	);
+	return enabled
+		? issuesInState(issues, enabled).filter(
+				(issue) => issue.severity === "error",
+			)
+		: [];
 }

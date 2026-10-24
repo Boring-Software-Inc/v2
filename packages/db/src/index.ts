@@ -167,6 +167,15 @@ export * as staffServices from "./services/staff.ts";
 export type { WorkerDeploymentRow } from "./services/worker-deployments.ts";
 export * as workerDeploymentServices from "./services/worker-deployments.ts";
 export type {
+	DecideWorkflowPushResult,
+	ProposeWorkflowPushResult,
+	PushBlock,
+	WorkflowPushRecord,
+	WorkflowPushReview,
+	WorkflowPushReviewEntry,
+} from "./services/workflow-pushes.ts";
+export * as workflowPushServices from "./services/workflow-pushes.ts";
+export type {
 	SetEnabledResult,
 	WorkflowListItem,
 	WorkflowRow,

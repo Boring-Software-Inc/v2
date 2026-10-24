@@ -231,7 +231,7 @@ export async function updateWorkflowDefinition(
 	return { ok: rows.length > 0 };
 }
 
-type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 async function lockWorkflowRow(
 	tx: Tx,
@@ -251,7 +251,7 @@ async function lockWorkflowRow(
 	return rows[0] ?? null;
 }
 
-async function restartSchedules(
+export async function restartSchedules(
 	tx: Tx,
 	workflowRowId: string,
 	before: WorkflowDefinition | null,
@@ -564,7 +564,7 @@ export async function applyWorkflowDefinition(
 	});
 }
 
-function liveSaveRefusals(
+export function liveSaveRefusals(
 	next: WorkflowDefinition,
 	catalog: readonly ValidationCatalogEntry[],
 ): ValidationIssue[] {

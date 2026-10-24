@@ -93,10 +93,10 @@ describe("pushExitCode", () => {
 
 describe("pushBlockingIssues", () => {
 	const error = {
-		rule: "missing-step" as const,
+		rule: "no-action" as const,
 		severity: "error" as const,
-		step: "Any of",
-		message: "It takes no inputs.",
+		step: "Trigger",
+		message: "Add an action after the trigger.",
 		fixes: [],
 	};
 	const unavailable = {
@@ -110,13 +110,17 @@ describe("pushBlockingIssues", () => {
 		severity: "warning" as const,
 	};
 
-	test("errors block, warnings do not", () => {
-		expect(pushBlockingIssues([error, warning], false)).toEqual([error]);
+	test("on a workflow that is on, errors block and warnings do not", () => {
+		expect(pushBlockingIssues([error, unavailable, warning], true)).toEqual([
+			error,
+			unavailable,
+		]);
 	});
 
-	test("an unavailable rule blocks only a workflow that is on", () => {
-		expect(pushBlockingIssues([unavailable], false)).toEqual([]);
-		expect(pushBlockingIssues([unavailable], true)).toEqual([unavailable]);
+	test("a workflow that is off saves with errors, as apply does", () => {
+		expect(pushBlockingIssues([error, unavailable, warning], false)).toEqual(
+			[],
+		);
 	});
 });
 
