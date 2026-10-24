@@ -400,7 +400,23 @@ export function AdminUsersPage() {
 									/>
 								) : (
 									users.map((u) => (
-										<TableRow key={u.id} selected={selected.includes(u.id)}>
+										<TableRow
+											className="cursor-pointer"
+											key={u.id}
+											onClick={(event) => {
+												if (
+													event.target instanceof Element &&
+													event.target.closest(
+														"button, a, input, label, [role='checkbox'], [role='switch'], [role='menuitem']",
+													)
+												) {
+													return;
+												}
+												openUser(u.id);
+											}}
+											open={u.id === openUserId}
+											selected={selected.includes(u.id)}
+										>
 											<TableCell>
 												<Checkbox
 													aria-label={`Select ${u.name}`}

@@ -99,7 +99,7 @@ function Table({className, frame = 'card', title, count, actions, toolbar, foote
       role={tab === 0 && (name || labelledBy) ? 'region' : undefined}
       aria-label={tab === 0 && name ? name : undefined}
       aria-labelledby={tab === 0 ? labelledBy : undefined}
-      className={cn('group/table relative w-full min-w-0 overflow-auto overscroll-contain focus-visible:focus-ring-inset', containerClassName)}
+      className={cn('group/table relative w-full min-w-0 overflow-auto overscroll-x-contain focus-visible:focus-ring-inset', containerClassName)}
       // value-ok: the scroll box's height is the caller's, a number of px or any length, so it can only live inline.
       style={maxHeight !== undefined ? {maxHeight} : undefined}
     >
