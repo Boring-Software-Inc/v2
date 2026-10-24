@@ -1,7 +1,7 @@
 import { captureException } from "@sentry/node";
 import { isNotFound, isRedirect } from "@tanstack/react-router";
 import { createMiddleware, createStart } from "@tanstack/react-start";
-import { parseRunOgPath } from "#/lib/run-og";
+import { APP_OG_VIDEO_PATH, parseRunOgPath } from "#/lib/run-og";
 import { isServerOnlyAuthPath } from "#/lib/server-only-auth-paths";
 
 /**
@@ -20,6 +20,15 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
 		if (import.meta.env.DEV && url.pathname.startsWith("/api/dev/")) {
 			const { handleDevRequest } = await import("#/lib/server/dev/handler");
 			return await handleDevRequest(request);
+		}
+		if (
+			url.pathname === APP_OG_VIDEO_PATH &&
+			(request.method === "GET" || request.method === "HEAD")
+		) {
+			const { handleSiteVideoRequest } = await import(
+				"#/lib/server/og/site-video"
+			);
+			return handleSiteVideoRequest(request);
 		}
 		const runOg = parseRunOgPath(url.pathname);
 		if (runOg && (request.method === "GET" || request.method === "HEAD")) {
