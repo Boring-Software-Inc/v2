@@ -8,6 +8,7 @@ import {
 	parseScheduleText,
 	type ScheduleTextParse,
 	scheduleText,
+	scheduleWords,
 } from "./workflow-schedule-text.ts";
 
 const NOW = new Date(Date.UTC(2026, 10, 10, 12, 0));
@@ -893,6 +894,24 @@ describe("one wording everywhere", () => {
 		expect(scheduleText({ every: { n: 1, unit: "hours" } })).toBe(
 			"every 60 minutes",
 		);
+	});
+
+	test("the read-back in a list is the field's lowercase text with its zone", () => {
+		expect(scheduleWords({ every: { cron: "*/15 * * * *" } })).toBe(
+			"every 15 minutes in UTC",
+		);
+		expect(scheduleWords({ every: { n: 2, unit: "hours" } })).toBe(
+			"every 2 hours",
+		);
+		expect(scheduleWords({ every: { preset: "hourly", minute: 0 } })).toBe(
+			"every hour in UTC",
+		);
+		expect(
+			scheduleWords({
+				every: { preset: "weekly", on: "monday", at: "08:00" },
+				timezone: "Europe/Berlin",
+			}),
+		).toBe("every Monday at 08:00 in Berlin");
 	});
 
 	test("the read-back parses to the same timing", () => {
