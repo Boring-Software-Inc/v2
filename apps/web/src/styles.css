@@ -455,3 +455,139 @@ body {
 	}
 
 }
+
+.glaze [data-agent-rain] > span {
+	opacity: 0.7;
+}
+
+.glaze [data-agent-rain="full"] > span {
+	animation-name: agent-rain;
+	animation-timing-function: ease-in-out;
+	animation-iteration-count: infinite;
+	animation-direction: alternate;
+}
+
+@keyframes agent-rain {
+	from {
+		opacity: 0.2;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.glaze [data-agent-motion="full"] .react-flow__node {
+	transition: transform 500ms var(--ease-out);
+}
+
+.glaze [data-agent-motion="full"] .react-flow__node.agent-enter > * {
+	animation: agent-node-in 420ms var(--ease-out) var(--agent-delay, 0ms) both;
+}
+
+.glaze [data-agent-motion="full"] .react-flow__node.agent-pulse-a > *,
+.glaze [data-agent-motion="full"] .react-flow__node.agent-pulse-b > * {
+	animation: agent-node-pulse 1000ms var(--ease-out) both;
+}
+
+.glaze [data-agent-motion="full"] .react-flow__node.agent-pulse-b > * {
+	animation-name: agent-node-pulse-b;
+}
+
+.glaze .react-flow__node.agent-leave {
+	pointer-events: none;
+}
+
+.glaze [data-agent-motion="full"] .react-flow__node.agent-leave > * {
+	animation: agent-node-out 800ms var(--ease-in) both;
+}
+
+.glaze [data-agent-motion="reduced"] .react-flow__node.agent-leave > * {
+	opacity: 0;
+}
+
+.glaze [data-agent-motion="full"] .react-flow__edge.agent-trail .react-flow__edge-path {
+	stroke-dasharray: 1600;
+	animation:
+		agent-trail-draw 900ms var(--ease-out) var(--agent-delay, 0ms) both,
+		agent-trail-ink 1600ms var(--ease-out) var(--agent-delay, 0ms) both;
+}
+
+.glaze [data-agent-motion="full"] .react-flow__edge.agent-trail-out .react-flow__edge-path {
+	animation: agent-trail-out 800ms var(--ease-in) both;
+}
+
+.glaze [data-agent-motion="reduced"] .react-flow__edge.agent-trail-out {
+	opacity: 0;
+}
+
+@keyframes agent-node-in {
+	from {
+		opacity: 0;
+		scale: 0.96;
+	}
+}
+
+@keyframes agent-node-pulse {
+	from {
+		outline: 1px solid var(--agent);
+		outline-offset: 0;
+	}
+	to {
+		outline: 1px solid transparent;
+		outline-offset: 4px;
+	}
+}
+
+@keyframes agent-node-pulse-b {
+	from {
+		outline: 1px solid var(--agent);
+		outline-offset: 0;
+	}
+	to {
+		outline: 1px solid transparent;
+		outline-offset: 4px;
+	}
+}
+
+@keyframes agent-node-out {
+	to {
+		opacity: 0;
+		scale: 0.96;
+	}
+}
+
+@keyframes agent-trail-draw {
+	from {
+		stroke-dashoffset: 1600;
+	}
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+@keyframes agent-trail-ink {
+	from {
+		stroke: var(--agent);
+	}
+	to {
+		stroke: var(--edge-color);
+	}
+}
+
+@keyframes agent-trail-out {
+	to {
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.glaze [data-agent-rain] > span,
+	.glaze .react-flow__node > *,
+	.glaze .react-flow__edge-path {
+		animation: none;
+	}
+
+	.glaze [data-agent-motion] .react-flow__node {
+		transition: none;
+	}
+}

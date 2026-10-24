@@ -1,11 +1,11 @@
 import { defineCollection } from "#/lib/collection";
-import type { WorkflowListItem } from "#/lib/workflows.functions";
+import type { WorkflowCard } from "#/lib/workflows.functions";
 
 export function humanizeTriggerKind(kind: string): string {
 	return kind.replace(/[.-]/g, " ");
 }
 
-export const WORKFLOWS_COLLECTION = defineCollection<WorkflowListItem>({
+export const WORKFLOWS_COLLECTION = defineCollection<WorkflowCard>({
 	id: "workflows",
 	noun: "workflows",
 	search: {

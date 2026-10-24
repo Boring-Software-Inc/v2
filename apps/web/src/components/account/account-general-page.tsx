@@ -9,9 +9,11 @@ import {
 	SkeletonSwap,
 	SkeletonText,
 } from "#/components/glaze/ui/skeleton";
+import { Switch } from "#/components/glaze/ui/switch";
 import { toast } from "#/components/glaze/ui/toast";
 import { TimezonePicker } from "#/components/timezones/timezone-picker";
 import { useDeviceTimezone } from "#/hooks/use-timezones";
+import { setAgentMotion } from "#/lib/agent-motion.functions";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { authQueryKeys, sessionInfoQueryOptions } from "#/lib/auth.query";
 import { setAccountTimezone } from "#/lib/timezone.functions";
@@ -35,6 +37,9 @@ export function AccountGeneralPage({
 				<div className="flex flex-col gap-8">
 					<ProfileSection user={user} />
 					<TimezoneSection timezone={session.user?.timezone ?? null} />
+					<AgentMotionSection
+						reduce={session.user?.reduceAgentMotion ?? false}
+					/>
 					<DeleteAccountSection onLeave={onLeave} />
 				</div>
 			) : null}
@@ -104,6 +109,34 @@ function TimezoneSection({ timezone }: { timezone: string | null }) {
 				unsetLabel={`Org timezone, or this device (${device})`}
 				value={timezone}
 			/>
+		</section>
+	);
+}
+
+function AgentMotionSection({ reduce }: { reduce: boolean }) {
+	const queryClient = useQueryClient();
+	const save = useMutation({
+		mutationFn: (next: boolean) => setAgentMotion({ data: { reduce: next } }),
+		onError: () =>
+			toast.fail("Tripwire could not save the setting. Try again."),
+		onSettled: () =>
+			queryClient.invalidateQueries({ queryKey: authQueryKeys.session() }),
+	});
+	const checked = save.isPending ? (save.variables ?? reduce) : reduce;
+	return (
+		<section
+			aria-labelledby="account-agent-motion-heading"
+			className="flex max-w-md flex-col gap-3"
+		>
+			<SectionHeading id="account-agent-motion-heading" title="Agents" />
+			<label className="flex items-center justify-between gap-3 type-body">
+				Reduce agent animations
+				<Switch
+					checked={checked}
+					onCheckedChange={(next) => save.mutate(next)}
+					pending={save.isPending}
+				/>
+			</label>
 		</section>
 	);
 }

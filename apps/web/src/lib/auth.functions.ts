@@ -11,6 +11,7 @@ export interface SessionInfo {
 		/** Closed-beta access queue status (server-assigned). */
 		accessStatus: AccessStatus;
 		timezone: string | null;
+		reduceAgentMotion: boolean;
 	} | null;
 	authEnabled: boolean;
 	/**
@@ -63,6 +64,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			.select({
 				accessStatus: userTable.accessStatus,
 				timezone: userTable.timezone,
+				reduceAgentMotion: userTable.reduceAgentMotion,
 			})
 			.from(userTable)
 			.where(eq(userTable.id, session.user.id))
@@ -94,6 +96,7 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 				image: session.user.image ?? null,
 				accessStatus,
 				timezone: rows[0]?.timezone ?? null,
+				reduceAgentMotion: rows[0]?.reduceAgentMotion ?? false,
 			},
 			authEnabled: true,
 			defaultOrgSlug,

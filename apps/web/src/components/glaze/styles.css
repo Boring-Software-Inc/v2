@@ -141,6 +141,7 @@
   --color-fail: var(--fail);
   --color-fail-text: var(--fail-text);
   --color-fail-tint: var(--fail-tint);
+  --color-agent: var(--agent);
   --color-transparent: transparent;
   --color-current: currentColor;
 

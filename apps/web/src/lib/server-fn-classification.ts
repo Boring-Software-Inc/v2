@@ -64,6 +64,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getAccountDeletionPlan: "authed",
 	deleteMyAccount: "authed",
 	setAccountTimezone: "authed",
+	setAgentMotion: "authed",
 
 	// ── member (org shell: any role, including custom roles) ─────────────
 	getOrgContext: "member",
@@ -103,6 +104,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	renameRepoWorkflow: "permission:workflows:manage",
 	duplicateRepoWorkflow: "permission:workflows:manage",
 	deleteRepoWorkflow: "permission:workflows:manage",
+	promoteRepoDraft: "permission:workflows:manage",
+	discardRepoDraft: "permission:workflows:manage",
 	setRepoWorkflowEnabled: "permission:workflows:manage",
 	testDeliveryConnection: "permission:workflows:manage", // makes an outbound request
 	refreshRepoReviewers: "permission:workflows:manage",

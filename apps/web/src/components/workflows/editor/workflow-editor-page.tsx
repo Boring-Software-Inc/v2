@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
+import { liveNodeTouches, workingAgents } from "@tripwire/contracts";
+import { AgentPresence } from "#/components/agent/agent-presence";
 import { ArrowLeft, Icon } from "#/components/glaze/icon";
+import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Empty,
@@ -12,12 +15,18 @@ import {
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
+import { DraftActions } from "#/components/workflows/draft-actions";
+import { AgentWorkContext } from "#/components/workflows/editor/agent-work-context";
 import { WorkflowEditor } from "#/components/workflows/editor/workflow-editor";
 import {
 	EditorFrameSkeleton,
 	PAGE_FRAME,
 } from "#/components/workflows/editor/workflow-editor-page-skeleton";
+import { useAgentMotion } from "#/hooks/use-agent-motion";
 import { useOrgPermission } from "#/hooks/use-org-permission";
+import { useWorkClock } from "#/hooks/use-work-clock";
+import { shownDefinition } from "#/lib/live-work";
+import { useLiveWork } from "#/lib/live-work.query";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import { ruleConfigsQueryOptions } from "#/lib/rules.query";
 import { aiCreditsOf } from "#/lib/workflow-editor";
@@ -81,7 +90,16 @@ export function WorkflowEditorPage() {
 		onSettled: invalidate,
 	});
 
-	const readOnly = !useOrgPermission(org, "workflows:manage");
+	const canManage = useOrgPermission(org, "workflows:manage");
+	useLiveWork(org, repoId);
+	const motion = useAgentMotion();
+	const work = workflow?.work ?? null;
+	const now = useWorkClock(work);
+	const agents = workingAgents(work, now);
+	const touches = liveNodeTouches(work, now);
+	const draft = work?.draft?.status === "open" ? work.draft : null;
+	const draftId = workflow?.draftId ?? null;
+	const readOnly = !canManage || draftId !== null;
 
 	const loading = repoId === "" || isPending;
 	let body: React.ReactNode = null;
@@ -116,42 +134,86 @@ export function WorkflowEditorPage() {
 		);
 	} else if (!loading && workflow) {
 		body = (
-			<WorkflowEditor
-				aiCredits={aiCreditsOf(ruleViews)}
-				customRules={customRules}
-				definition={workflow.definition}
-				enabled={workflow.enabled}
-				key={workflow.id}
-				lastTicks={workflow.lastTicks}
-				name={workflow.name}
-				onRename={(name) =>
-					rename.mutateAsync({ data: { org, repoId, workflowId, name } })
-				}
-				onViewChange={(next) =>
-					navigate({
-						search: (previous) => ({ ...previous, view: next }),
-						replace: true,
-					})
-				}
-				onSave={(definition) =>
-					save.mutateAsync({ data: { org, repoId, workflowId, definition } })
-				}
-				onSetEnabled={(enabled) =>
-					setEnabled.mutateAsync({
-						data: { org, repoId, workflowId, enabled },
-					})
-				}
-				onTestConnection={(url, kind) =>
-					testDeliveryConnection({ data: { org, repoId, url, kind } })
-				}
-				org={org}
-				readOnly={readOnly}
-				repo={repo}
-				repoId={repoId}
-				saving={save.isPending}
-				toggling={setEnabled.isPending}
-				view={view}
-			/>
+			<AgentWorkContext.Provider value={{ touches, motion }}>
+				<WorkflowEditor
+					aiCredits={aiCreditsOf(ruleViews)}
+					customRules={customRules}
+					definition={shownDefinition(workflow)}
+					enabled={workflow.enabled}
+					headerActions={
+						draftId && canManage ? (
+							<DraftActions
+								draftId={draftId}
+								name={workflow.name}
+								onDiscarded={() =>
+									navigate({
+										to: "/$org/$repo/workflows",
+										params: { org, repo },
+									})
+								}
+								onSaved={(savedId) =>
+									navigate({
+										to: "/$org/$repo/workflows/$workflowId",
+										params: { org, repo, workflowId: savedId },
+									})
+								}
+								org={org}
+								replacesLive={workflow.enabled}
+								repoId={repoId}
+							/>
+						) : undefined
+					}
+					headerLeading={
+						<>
+							{draftId ? <Badge variant="outline">Draft</Badge> : null}
+							<AgentPresence
+								agents={agents}
+								className="max-md:hidden"
+								motion={motion}
+							/>
+						</>
+					}
+					key={`${workflow.id}:${draftId ?? "saved"}`}
+					live={
+						draftId
+							? {
+									revision: draft?.revision ?? 0,
+									change: draft?.lastChange ?? null,
+									motion,
+								}
+							: undefined
+					}
+					lastTicks={workflow.lastTicks}
+					name={workflow.name}
+					onRename={(name) =>
+						rename.mutateAsync({ data: { org, repoId, workflowId, name } })
+					}
+					onViewChange={(next) =>
+						navigate({
+							search: (previous) => ({ ...previous, view: next }),
+							replace: true,
+						})
+					}
+					onSave={(definition) =>
+						save.mutateAsync({ data: { org, repoId, workflowId, definition } })
+					}
+					onSetEnabled={(enabled) =>
+						setEnabled.mutateAsync({
+							data: { org, repoId, workflowId, enabled },
+						})
+					}
+					onTestConnection={(url, kind) =>
+						testDeliveryConnection({ data: { org, repoId, url, kind } })
+					}
+					org={org}
+					readOnly={readOnly}
+					repo={repo}
+					repoId={repoId}
+					saving={save.isPending}
+					toggling={setEnabled.isPending}
+					view={view}
+				/>
+			</AgentWorkContext.Provider>
 		);
 	}
 
