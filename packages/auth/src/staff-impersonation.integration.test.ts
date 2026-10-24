@@ -16,6 +16,7 @@ import {
 	IMPERSONATION_SECONDS,
 	impersonationBlocksPermission,
 	impersonationRefusal,
+	sessionFence,
 } from "./staff-impersonation.ts";
 
 let container: TestDatabase;
@@ -186,14 +187,12 @@ describe("staff impersonation endpoint", () => {
 		const asMara = cookieHeader(started.headers, staff.cookie);
 		const session = await auth.api.getSession({ headers: headersFor(asMara) });
 		expect(session?.user.id).toBe(mara.id);
-		expect(
-			await staffUserServices.getSessionImpersonator(
-				db,
-				session?.session.id ?? "",
-			),
-		).toBe(staff.id);
+		if (!session) {
+			throw new Error("no impersonation session");
+		}
+		expect((await sessionFence(db, session)).impersonatedBy).toBe(staff.id);
 		const expiresIn =
-			new Date(session?.session.expiresAt ?? 0).getTime() - Date.now();
+			new Date(session.session.expiresAt).getTime() - Date.now();
 		expect(expiresIn).toBeLessThanOrEqual(IMPERSONATION_SECONDS * 1000);
 		expect(expiresIn).toBeGreaterThan((IMPERSONATION_SECONDS - 60) * 1000);
 
@@ -238,6 +237,88 @@ describe("staff impersonation endpoint", () => {
 			.from(schema.user)
 			.where(eq(schema.user.id, mara.id));
 		expect(row?.name).toBe("Mara Okafor");
+	});
+
+	test("a revoked impersonation keeps its fence while the cookie cache still holds it", async () => {
+		const started = await auth.api.staffImpersonateUser({
+			body: { userId: mara.id },
+			headers: headersFor(staff.cookie),
+			returnHeaders: true,
+		});
+		const asMara = cookieHeader(started.headers, staff.cookie);
+		const live = await auth.api.getSession({ headers: headersFor(asMara) });
+		if (!live) {
+			throw new Error("no impersonation session");
+		}
+		expect(await sessionFence(db, live)).toEqual({
+			live: true,
+			banned: false,
+			impersonatedBy: staff.id,
+		});
+
+		await staffUserServices.revokeUserSession(db, {
+			userId: mara.id,
+			sessionId: live.session.id,
+		});
+		const cached = await auth.api.getSession({ headers: headersFor(asMara) });
+		expect(cached?.user.id).toBe(mara.id);
+		if (!cached) {
+			throw new Error("cookie cache dropped the session");
+		}
+		expect(await sessionFence(db, cached)).toEqual({
+			live: false,
+			banned: false,
+			impersonatedBy: staff.id,
+		});
+		await expect(
+			auth.api.updateUser({
+				body: { name: "Hijacked" },
+				headers: headersFor(asMara),
+			}),
+		).rejects.toThrow(IMPERSONATION_REFUSED);
+
+		const stopped = await auth.api.stopImpersonating({
+			headers: headersFor(asMara),
+			returnHeaders: true,
+		});
+		const back = cookieHeader(stopped.headers, asMara);
+		const restored = await auth.api.getSession({ headers: headersFor(back) });
+		expect(restored?.user.id).toBe(staff.id);
+		if (!restored) {
+			throw new Error("staff session was not restored");
+		}
+		expect(await sessionFence(db, restored)).toEqual({
+			live: true,
+			banned: false,
+			impersonatedBy: null,
+		});
+	});
+
+	test("a plain session that was signed out elsewhere is not live", async () => {
+		const own = await auth.api.getSession({ headers: headersFor(mara.cookie) });
+		if (!own) {
+			throw new Error("no session");
+		}
+		const extra = await signUp("kofi@lumenlabs.dev", "Kofi");
+		const session = await auth.api.getSession({
+			headers: headersFor(extra.cookie),
+		});
+		if (!session) {
+			throw new Error("no session");
+		}
+		await staffUserServices.revokeAllUserSessions(db, extra.id);
+		const cached = await auth.api.getSession({
+			headers: headersFor(extra.cookie),
+		});
+		if (!cached) {
+			throw new Error("cookie cache dropped the session");
+		}
+		expect(await sessionFence(db, cached)).toEqual({
+			live: false,
+			banned: false,
+			impersonatedBy: null,
+		});
+		expect((await sessionFence(db, own)).live).toBe(true);
 	});
 
 	test("a banned user cannot be impersonated", async () => {

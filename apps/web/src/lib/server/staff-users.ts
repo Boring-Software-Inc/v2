@@ -1,5 +1,6 @@
 import type { FlagEvaluator } from "@tripwire/auth/flag-evaluation";
 import { DATABUDDY_WEBSITE_ID } from "@tripwire/contracts";
+import type { SessionGuardState } from "@tripwire/db";
 import { createDatabuddyApi, type DatabuddyApi } from "@tripwire/utils";
 
 let api: DatabuddyApi | null | undefined;
@@ -68,17 +69,28 @@ export async function currentSession() {
 export const IMPERSONATING_MESSAGE =
 	"You are viewing as someone else. Stop impersonating to change this.";
 
-export async function impersonatorOf(
-	sessionId: string,
-): Promise<string | null> {
+export const SESSION_ENDED_MESSAGE =
+	"Your session ended. Sign in again to continue.";
+
+export async function fenceOf(current: {
+	user: { id: string };
+	session: { id: string; impersonatedBy?: string | null };
+}): Promise<SessionGuardState> {
 	const { getDb } = await import("#/lib/server/db");
-	const { staffUserServices } = await import("@tripwire/db");
-	return await staffUserServices.getSessionImpersonator(getDb().db, sessionId);
+	const { sessionFence } = await import("@tripwire/auth/staff-impersonation");
+	return await sessionFence(getDb().db, current);
 }
 
 export async function assertNotImpersonating(): Promise<void> {
 	const current = await currentSession();
-	if (current && (await impersonatorOf(current.session.session.id))) {
+	if (!current) {
+		return;
+	}
+	const fence = await fenceOf(current.session);
+	if (!fence.live) {
+		throw new Error(SESSION_ENDED_MESSAGE);
+	}
+	if (fence.impersonatedBy) {
 		throw new Error(IMPERSONATING_MESSAGE);
 	}
 }

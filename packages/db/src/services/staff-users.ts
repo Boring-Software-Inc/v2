@@ -394,27 +394,27 @@ export async function getUserStaffBits(
 	return rows[0] ?? null;
 }
 
-export async function getSessionImpersonator(
-	db: Db,
-	sessionId: string,
-): Promise<string | null> {
-	const rows = await db
-		.select({ impersonatedBy: session.impersonatedBy })
-		.from(session)
-		.where(eq(session.id, sessionId))
-		.limit(1);
-	return rows[0]?.impersonatedBy ?? null;
+export interface SessionGuardState {
+	live: boolean;
+	banned: boolean;
+	impersonatedBy: string | null;
 }
 
 export async function getSessionGuardState(
 	db: Db,
-	input: { userId: string; sessionId: string },
+	input: {
+		userId: string;
+		sessionId: string;
+		cachedImpersonatedBy?: string | null;
+	},
 	now = new Date(),
-): Promise<{ banned: boolean; impersonatedBy: string | null }> {
+): Promise<SessionGuardState> {
 	const rows = await db
 		.select({
 			banned: user.banned,
 			banExpires: user.banExpires,
+			sessionId: session.id,
+			expiresAt: session.expiresAt,
 			impersonatedBy: session.impersonatedBy,
 		})
 		.from(user)
@@ -425,6 +425,13 @@ export async function getSessionGuardState(
 		.where(eq(user.id, input.userId))
 		.limit(1);
 	const row = rows[0];
-	const banned = isBanInForce(row, now);
-	return { banned, impersonatedBy: row?.impersonatedBy ?? null };
+	const live =
+		row?.sessionId != null &&
+		row.expiresAt != null &&
+		row.expiresAt.getTime() > now.getTime();
+	return {
+		live,
+		banned: isBanInForce(row, now),
+		impersonatedBy: row?.impersonatedBy ?? input.cachedImpersonatedBy ?? null,
+	};
 }

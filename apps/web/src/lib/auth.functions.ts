@@ -92,8 +92,8 @@ export const getSessionInfo = createServerFn({ method: "GET" }).handler(
 			orgs.find((o) => o.isPersonal)?.slug ??
 			orgs[0]?.slug ??
 			null;
-		const { impersonatorOf } = await import("#/lib/server/staff-users");
-		const impersonating = await impersonatorOf(session.session.id);
+		const { fenceOf } = await import("#/lib/server/staff-users");
+		const impersonating = (await fenceOf(session)).impersonatedBy;
 		const { staffUserServices } = await import("@tripwire/db");
 		const impersonation = impersonating
 			? {

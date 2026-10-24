@@ -74,14 +74,16 @@ async function resolveOrgFor(
 	if (!session) {
 		throw notFound();
 	}
-	if (requirement.kind === "permission") {
+	const { fenceOf } = await import("#/lib/server/staff-users");
+	const fence = await fenceOf(session);
+	if (!fence.live) {
+		throw notFound();
+	}
+	if (requirement.kind === "permission" && fence.impersonatedBy) {
 		const { impersonationBlocksPermission, IMPERSONATION_REFUSED } =
 			await import("@tripwire/auth/staff-impersonation");
 		if (impersonationBlocksPermission(requirement.permission)) {
-			const { impersonatorOf } = await import("#/lib/server/staff-users");
-			if (await impersonatorOf(session.session.id)) {
-				throw new Error(IMPERSONATION_REFUSED);
-			}
+			throw new Error(IMPERSONATION_REFUSED);
 		}
 	}
 	const result = await resolveOrgAccess(db, {

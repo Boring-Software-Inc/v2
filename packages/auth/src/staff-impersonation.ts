@@ -1,5 +1,10 @@
 import { staffUserRefSchema } from "@tripwire/contracts";
-import { type Db, staffAuditServices, staffUserServices } from "@tripwire/db";
+import {
+	type Db,
+	type SessionGuardState,
+	staffAuditServices,
+	staffUserServices,
+} from "@tripwire/db";
 import type { BetterAuthPlugin } from "better-auth";
 import {
 	APIError,
@@ -82,6 +87,20 @@ const REFUSAL_COPY = {
 
 export function impersonationRefusalMessage(refusal: ImpersonationRefusal) {
 	return REFUSAL_COPY[refusal];
+}
+
+export async function sessionFence(
+	db: Db,
+	current: {
+		user: { id: string };
+		session: { id: string; impersonatedBy?: string | null };
+	},
+): Promise<SessionGuardState> {
+	return await staffUserServices.getSessionGuardState(db, {
+		userId: current.user.id,
+		sessionId: current.session.id,
+		cachedImpersonatedBy: current.session.impersonatedBy ?? null,
+	});
 }
 
 export function staffImpersonation(input: { db: Db }) {

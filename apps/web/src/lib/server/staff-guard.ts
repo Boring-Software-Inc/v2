@@ -35,8 +35,9 @@ export const platformAdminMiddleware = createMiddleware({
 	if (!session) {
 		throw notFound();
 	}
-	const { impersonatorOf } = await import("#/lib/server/staff-users");
-	if (await impersonatorOf(session.session.id)) {
+	const { fenceOf } = await import("#/lib/server/staff-users");
+	const fence = await fenceOf(session);
+	if (!fence.live || fence.impersonatedBy) {
 		throw notFound();
 	}
 	const { isPlatformAdmin } = await import("@tripwire/auth/staff-gate");

@@ -190,6 +190,7 @@ export * as staffServices from "./services/staff.ts";
 export type { StaffAuditEntry } from "./services/staff-audit.ts";
 export * as staffAuditServices from "./services/staff-audit.ts";
 export type {
+	SessionGuardState,
 	StaffContributorRun,
 	StaffForgeIdentity,
 	StaffModerationDecision,

@@ -27,7 +27,6 @@ import { listStaffAuditForUser, recordStaffAudit } from "./staff-audit.ts";
 import {
 	banUser,
 	getSessionGuardState,
-	getSessionImpersonator,
 	getStaffUserDetail,
 	isUserBanned,
 	listContributorRuns,
@@ -262,15 +261,35 @@ describe("sessions", () => {
 
 	test("an impersonation session names who started it", async () => {
 		const id = await seedSession(mara, { impersonatedBy: staff });
-		expect(await getSessionImpersonator(db, id)).toBe(staff);
 		expect(
 			await getSessionGuardState(db, { userId: mara, sessionId: id }),
-		).toEqual({ banned: false, impersonatedBy: staff });
+		).toEqual({ live: true, banned: false, impersonatedBy: staff });
 		expect(
 			await getSessionGuardState(db, { userId: staff, sessionId: id }),
-		).toEqual({ banned: false, impersonatedBy: null });
+		).toEqual({ live: false, banned: false, impersonatedBy: null });
 		const own = await seedSession(mara);
-		expect(await getSessionImpersonator(db, own)).toBeNull();
+		expect(
+			(await getSessionGuardState(db, { userId: mara, sessionId: own }))
+				.impersonatedBy,
+		).toBeNull();
+		await revokeAllUserSessions(db, mara);
+	});
+
+	test("a session missing from the database is not live and keeps its cached fence", async () => {
+		const id = await seedSession(mara, { impersonatedBy: staff });
+		await revokeUserSession(db, { userId: mara, sessionId: id });
+		expect(
+			await getSessionGuardState(db, {
+				userId: mara,
+				sessionId: id,
+				cachedImpersonatedBy: staff,
+			}),
+		).toEqual({ live: false, banned: false, impersonatedBy: staff });
+		const expired = await seedSession(mara, { expiresIn: -HOUR });
+		expect(
+			(await getSessionGuardState(db, { userId: mara, sessionId: expired }))
+				.live,
+		).toBe(false);
 		await revokeAllUserSessions(db, mara);
 	});
 });

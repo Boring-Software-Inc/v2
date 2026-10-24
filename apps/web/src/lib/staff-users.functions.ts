@@ -671,12 +671,12 @@ export const stopImpersonating = createServerFn({ method: "POST" })
 		async (): Promise<
 			{ ok: true; userId: string } | { ok: false; error: string }
 		> => {
-			const { currentSession, impersonatorOf } = await import(
+			const { currentSession, fenceOf } = await import(
 				"#/lib/server/staff-users"
 			);
 			const current = await currentSession();
 			const actorId = current
-				? await impersonatorOf(current.session.session.id)
+				? (await fenceOf(current.session)).impersonatedBy
 				: null;
 			if (!(current && actorId)) {
 				return { ok: false, error: "You are not impersonating anyone." };
@@ -705,11 +705,15 @@ export const recordDatabuddyAnonId = createServerFn({ method: "POST" })
 		recordAnonIdInputSchema.parse(input),
 	)
 	.handler(async ({ data }): Promise<{ ok: true }> => {
-		const { currentSession, impersonatorOf } = await import(
+		const { currentSession, fenceOf } = await import(
 			"#/lib/server/staff-users"
 		);
 		const current = await currentSession();
-		if (!current || (await impersonatorOf(current.session.session.id))) {
+		if (!current) {
+			return { ok: true };
+		}
+		const fence = await fenceOf(current.session);
+		if (!fence.live || fence.impersonatedBy) {
 			return { ok: true };
 		}
 		const { staffUserServices } = await import("@tripwire/db");

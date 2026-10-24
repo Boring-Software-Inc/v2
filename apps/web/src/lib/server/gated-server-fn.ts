@@ -28,11 +28,14 @@ export const accessGuardMiddleware = createMiddleware({
 	}
 	const { assertApproved } = await import("@tripwire/auth/access-gate");
 	const { getDb } = await import("#/lib/server/db");
-	const { presenceServices, staffUserServices } = await import("@tripwire/db");
-	const guard = await staffUserServices.getSessionGuardState(getDb().db, {
-		userId: session.user.id,
-		sessionId: session.session.id,
-	});
+	const { presenceServices } = await import("@tripwire/db");
+	const { fenceOf, SESSION_ENDED_MESSAGE } = await import(
+		"#/lib/server/staff-users"
+	);
+	const guard = await fenceOf(session);
+	if (!guard.live) {
+		throw new Error(SESSION_ENDED_MESSAGE);
+	}
 	if (guard.banned) {
 		throw new Error("This account is banned from Tripwire.");
 	}
