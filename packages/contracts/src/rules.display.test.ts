@@ -63,3 +63,12 @@ describe("ruleChangeNote — the versioning-law upgrade summary (§6 b)", () => 
 		expect(ruleChangeNote("does-not-exist@1")).toBeNull();
 	});
 });
+
+describe("toolbox descriptions", () => {
+	test("AI review reads as what it does", () => {
+		const entry = RULE_CATALOG.find((rule) => rule.ruleId === "ai-review");
+		expect(entry?.description).toBe(
+			"Reads the change like a reviewer and flags slop.",
+		);
+	});
+});

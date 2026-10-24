@@ -341,8 +341,7 @@ export const RULE_CATALOG = [
 		/** §6 (b) — what @2 changed vs the pinned prior version. */
 		changeNote: "findings must quote code",
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
-		description:
-			"Reads the change like a reviewer and flags slop. Off until you turn it on, because it costs tokens.",
+		description: "Reads the change like a reviewer and flags slop.",
 		contributorLabel: "this change request has problems a reviewer would flag.",
 		summaryReveals: ["ai-summary"],
 		evidenceRedaction: {
