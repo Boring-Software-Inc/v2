@@ -1,6 +1,7 @@
 import { assertApproved } from "@tripwire/auth/access-gate";
 import { reposWithPermission } from "@tripwire/auth/org-gate";
-import { eventServices } from "@tripwire/db";
+import { LIVE_CHANNEL } from "@tripwire/contracts";
+import { eventServices, liveServices } from "@tripwire/db";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { ApiEnv } from "../env.ts";
@@ -41,6 +42,7 @@ export const stream = new Hono<ApiEnv>().get(
 			// §org-model visibility: a member of org A must not receive org B's
 			// notifications. Snapshot the membership-visible repo set here;
 			// refreshed on each heartbeat below so new grants land mid-stream.
+			c.set("viewerId", session.user.id);
 			c.set(
 				"visibleRepos",
 				new Set(
@@ -48,6 +50,7 @@ export const stream = new Hono<ApiEnv>().get(
 				),
 			);
 		} else {
+			c.set("viewerId", null);
 			c.set("visibleRepos", null);
 		}
 		return await next();
@@ -67,6 +70,16 @@ export const stream = new Hono<ApiEnv>().get(
 				payload?: string;
 			}) => {
 				if (!(open && msg.payload)) {
+					return;
+				}
+				if (msg.channel === LIVE_CHANNEL) {
+					const message = await liveServices.liveMessageFor(db, msg.payload, {
+						userId: c.get("viewerId"),
+						canSeeRepo: (name) => canSee(name),
+					});
+					if (message) {
+						await s.writeSSE({ event: "agent", data: JSON.stringify(message) });
+					}
 					return;
 				}
 				// `runs` → a run reached a resolved state (or none ran); re-fetch the
@@ -108,12 +121,14 @@ export const stream = new Hono<ApiEnv>().get(
 			});
 			await client.query("LISTEN events");
 			await client.query("LISTEN runs");
+			await client.query(`LISTEN ${LIVE_CHANNEL}`);
 
 			s.onAbort(() => {
 				open = false;
-				client.query("UNLISTEN events").catch(() => undefined);
-				client.query("UNLISTEN runs").catch(() => undefined);
-				client.release();
+				client
+					.query("UNLISTEN *")
+					.catch(() => undefined)
+					.finally(() => client.release());
 			});
 
 			const { auth } = c.get("deps");

@@ -8,6 +8,7 @@ import {
 	type ActivityItem,
 	getActivityFeed,
 } from "#/lib/activity.functions";
+import { onLiveResync, subscribeLive } from "#/lib/live-stream";
 
 export const activityQueryKeys = {
 	all: ["activity"] as const,
@@ -232,9 +233,8 @@ export function useActivityStream(
 		if (!repoFullName) {
 			return;
 		}
-		const source = new EventSource("/api/events/stream");
-		source.addEventListener("event", (message) => {
-			const event = JSON.parse(message.data) as NormalizedEvent;
+		const offEvent = subscribeLive("event", (data) => {
+			const event = JSON.parse(data) as NormalizedEvent;
 			if (!belongsTo(event, repoFullName)) {
 				return;
 			}
@@ -243,8 +243,8 @@ export function useActivityStream(
 				(c) => mergeEvent(c, event),
 			);
 		});
-		source.addEventListener("run", (message) => {
-			const resolved = JSON.parse(message.data) as ActivityItem;
+		const offRun = subscribeLive("run", (data) => {
+			const resolved = JSON.parse(data) as ActivityItem;
 			if (!belongsTo(resolved.event, repoFullName)) {
 				return;
 			}
@@ -253,6 +253,15 @@ export function useActivityStream(
 				(c) => mergeRun(c, resolved),
 			);
 		});
-		return () => source.close();
+		const offResync = onLiveResync(() => {
+			queryClient.invalidateQueries({
+				queryKey: activityQueryKeys.feed(org, repo),
+			});
+		});
+		return () => {
+			offResync();
+			offEvent();
+			offRun();
+		};
 	}, [org, repo, repoFullName, queryClient]);
 }

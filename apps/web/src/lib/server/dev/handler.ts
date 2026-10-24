@@ -9,6 +9,7 @@ import {
 	getPreset,
 	normalizeScenario,
 } from "#/lib/dev/scenarios";
+import { agentSimBodySchema, runAgentSim } from "./agent-sim.ts";
 import { applyScenario } from "./apply-scenario.ts";
 import { assertDevLoginAllowed } from "./guard.ts";
 
@@ -158,6 +159,24 @@ export async function handleDevRequest(request: Request): Promise<Response> {
 			scenario: body.data.scenario,
 			latency: body.data.latency,
 		});
+	}
+
+	if (pathname === "/api/dev/agent-sim") {
+		const session = await auth.api.getSession({ headers: request.headers });
+		const body = agentSimBodySchema.safeParse(await readBody(request));
+		if (!(session && body.success)) {
+			return json({ error: "sign in and send org and repo" }, 400);
+		}
+		try {
+			return json(
+				await runAgentSim({ db, userId: session.user.id, body: body.data }),
+			);
+		} catch (error) {
+			return json(
+				{ error: error instanceof Error ? error.message : "sim failed" },
+				400,
+			);
+		}
 	}
 
 	if (pathname === "/api/dev/login") {

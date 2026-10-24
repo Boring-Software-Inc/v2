@@ -5,7 +5,8 @@
    Rules
    - Ink is the brand. Ink is #050505, a neutral near-black, and nothing shows it solid: text is ink at 80%, a soft dark grey, and every grey
      is ink at an alpha (80, 60, 45, 32, 15, 10, 6, 3), so a grey always sits between the text and the page it is on. There is no brand accent.
-   - Colour means status only: green for done, amber for a warning, coral for a failure and a destructive action.
+   - Colour means status only: green for done, amber for a warning, coral for a failure and a destructive action,
+     and blue (--agent) for an agent working on something right now. Blue marks agent activity and nothing else.
      Focus is ink, never coral, so a focused field never reads as an error.
    - Glass goes only on what a person presses: the primary button family and icon buttons. Everything else is flat.
      The glass recipe is the Glass group below: ink, coral and green are the primary button's three keys. A value
@@ -85,6 +86,9 @@
   --fail: #e35e49; /* coral: a failure mark and the coral glass's top | status mark, invalid field line, destructive button */
   --fail-text: #b23c29; /* the failure word, 5.9:1 on paper, 5.0:1 on its tint | error message, status word */
   --fail-tint: #fbe9e5; /* the failure ground | error badge, error alert */
+
+  /* == Agent: the one blue, only for an agent working on something now == */
+  --agent: oklch(0.637 0.167 254); /* an agent at work: the dithered outline and the activity mark, never text or fills | agent outline, agent activity */
 
   /* == Glass: the press recipe, a glossy glaze over the reference's overlay stack; ink, coral and green are the primary's keys == */
   --glass-ink-base: rgb(0 0 0 / 0.66); /* ink glass, the body: black at 66% over what is behind it, a grey on white (the reference's 56%, darkened so the label holds over the catch-light) | primary button, icon button */
@@ -295,6 +299,7 @@
   --fail: #ec6f5a;
   --fail-text: #f2917f;
   --fail-tint: #2c1714;
+  --agent: oklch(0.7 0.15 254);
 
   --glass-ink-base: rgb(255 255 255 / 0.62);
   --glass-ink-text: rgb(5 5 5 / 0.90);

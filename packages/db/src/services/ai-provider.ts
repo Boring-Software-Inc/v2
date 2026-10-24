@@ -5,7 +5,9 @@ import { aiProviderStatus } from "../schema/workers.ts";
 
 const PROVIDER = "openrouter";
 
-export async function getAiCredits(db: Db): Promise<AiCreditsState> {
+export async function getAiCredits(
+	db: Pick<Db, "select">,
+): Promise<AiCreditsState> {
 	const [row] = await db
 		.select({ credits: aiProviderStatus.credits })
 		.from(aiProviderStatus)

@@ -17,6 +17,7 @@ import type {
 	LintIntent,
 	LintResult,
 	ValidationIssue,
+	WorkflowChangeSet,
 	WorkflowDefinition,
 	WorkflowNode,
 	WorkflowPort,
@@ -58,7 +59,14 @@ import {
 	useNodesState,
 	useReactFlow,
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	Dialog,
 	DialogAction,
@@ -70,6 +78,11 @@ import {
 	DialogTitle,
 } from "#/components/glaze/ui/dialog";
 import { toast } from "#/components/glaze/ui/toast";
+import {
+	AGENT_SETTLE_MS,
+	decorateLive,
+	settleLive,
+} from "#/components/workflows/editor/agent-canvas";
 import { CanvasZoom } from "#/components/workflows/editor/canvas-zoom";
 import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import {
@@ -115,6 +128,7 @@ import {
 	type TypedFlowEdge,
 } from "#/components/workflows/editor/typed-connections";
 import { WorkflowCode } from "#/components/workflows/editor/workflow-code";
+import type { AgentMotion } from "#/hooks/use-agent-motion";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
 import { invalidScheduleDrafts } from "#/lib/schedule-input";
 import { workflowCodeView } from "#/lib/workflow-code-view";
@@ -257,7 +271,16 @@ function CanvasDropzone({
 	);
 }
 
+export interface WorkflowEditorLive {
+	revision: number;
+	change: WorkflowChangeSet | null;
+	motion: AgentMotion;
+}
+
 export interface WorkflowEditorProps {
+	live?: WorkflowEditorLive;
+	headerLeading?: ReactNode;
+	headerActions?: ReactNode;
 	/** The repo's custom rules for the palette. */
 	customRules: { ref: string; name: string; description: string }[];
 	aiCredits: AiCreditsState;
@@ -301,6 +324,9 @@ export function WorkflowEditor(props: WorkflowEditorProps) {
 }
 
 function EditorBody({
+	live,
+	headerLeading,
+	headerActions,
 	aiCredits,
 	customRules,
 	definition,
@@ -370,6 +396,56 @@ function EditorBody({
 	const [dragged, setDragged] = useState<ToolboxItem | null>(null);
 	const { fitView, getIntersectingNodes, getZoom, screenToFlowPosition } =
 		useReactFlow<TripwireFlowNode, FlowEdge>();
+	const shownGraph = useRef({ nodes, edges });
+	shownGraph.current = { nodes, edges };
+	const liveRevision = useRef(live?.revision);
+	const liveChange = live?.change ?? null;
+	const liveMotion = live?.motion;
+	useEffect(() => {
+		if (liveRevision.current === undefined || liveMotion === undefined) {
+			return;
+		}
+		const revision = live?.revision ?? 0;
+		if (revision === liveRevision.current) {
+			return;
+		}
+		liveRevision.current = revision;
+		const decorated = decorateLive({
+			previous: shownGraph.current,
+			next: {
+				nodes: initial.nodes as TripwireFlowNode[],
+				edges: initial.edges,
+			},
+			change: liveMotion === "full" ? liveChange : null,
+			revision,
+		});
+		setNodes(decorated.nodes);
+		setEdges(decorated.edges);
+		const fit = setTimeout(
+			() =>
+				fitView({
+					...fitViewOptions(),
+					duration: liveMotion === "full" ? 400 : 0,
+				}),
+			60,
+		);
+		const settle = setTimeout(() => {
+			setNodes((current) => settleLive(current));
+			setEdges((current) => settleLive(current));
+		}, AGENT_SETTLE_MS);
+		return () => {
+			clearTimeout(fit);
+			clearTimeout(settle);
+		};
+	}, [
+		initial,
+		live?.revision,
+		liveChange,
+		liveMotion,
+		setNodes,
+		setEdges,
+		fitView,
+	]);
 	const [problemsOpen, setProblemsOpen] = useState(false);
 	const [serverIssues, setServerIssues] = useState<{
 		against: readonly LintResult[];
@@ -1190,6 +1266,8 @@ function EditorBody({
 				saving={saving}
 				toggling={toggling}
 				zeroNodes={nodes.length === 0}
+				leading={headerLeading}
+				actions={headerActions}
 			/>
 			{codeView ? (
 				<WorkflowCode
@@ -1210,6 +1288,8 @@ function EditorBody({
 									<DragPlanContext.Provider value={plan}>
 										<ReactFlow
 											connectionLineComponent={TypedConnectionLine}
+											data-agent-live={live ? "" : undefined}
+											data-agent-motion={live?.motion}
 											data-drag-tone={
 												plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
 											}
@@ -1284,7 +1364,9 @@ function EditorBody({
 					{nodes.length === 0 ? (
 						<div className="pointer-events-none absolute inset-0 grid place-items-center">
 							<p className="type-body-sm text-text-2">
-								Drag a step from the toolbox, or press its add button
+								{live
+									? "No steps yet"
+									: "Drag a step from the toolbox, or press its add button"}
 							</p>
 						</div>
 					) : null}

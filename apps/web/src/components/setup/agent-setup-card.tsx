@@ -20,6 +20,7 @@ import {
 	SETUP_POLL_MS,
 	setupQueryKeys,
 	setupRunQueryOptions,
+	useLiveSetup,
 } from "#/lib/setup.query";
 import { trackEvent } from "#/lib/track";
 
@@ -145,12 +146,13 @@ export function AgentSetupCard({
 	const visible = promptState?.visible ?? false;
 	const reminder = promptState?.reminder ?? false;
 	const undismissed = promptState?.dismissCount === 0;
+	const streamed = useLiveSetup(visible || undismissed);
 	const { data } = useQuery({
 		...setupRunQueryOptions(org, !setupDone && visible),
 		enabled: visible || undismissed,
 		refetchInterval: (query) => {
 			const state = query.state.data;
-			return state?.status === "ready" && state.run.completedAt
+			return streamed || (state?.status === "ready" && state.run.completedAt)
 				? false
 				: SETUP_POLL_MS;
 		},

@@ -427,8 +427,10 @@ export function completeSchedule(
 	return parsed.success ? parsed.data : null;
 }
 
+export const workflowNodeIdSchema = z.string();
+
 export const triggerNodeSchema = z.object({
-	id: z.string(),
+	id: workflowNodeIdSchema,
 	type: z.literal("trigger"),
 	kinds: z.array(eventKindSchema).min(1),
 	schedule: scheduleDraftSchema.optional(),
@@ -447,7 +449,7 @@ export function isScheduleTrigger(node: {
 }
 
 export const ruleNodeSchema = z.object({
-	id: z.string(),
+	id: workflowNodeIdSchema,
 	type: z.literal("rule"),
 	/** `id@version`, e.g. "account-age@1" — the versioning law (§6). */
 	ref: z.string().regex(/^[a-z][a-z0-9-]*@\d+$/),
@@ -456,14 +458,14 @@ export const ruleNodeSchema = z.object({
 });
 
 export const gateNodeSchema = z.object({
-	id: z.string(),
+	id: workflowNodeIdSchema,
 	type: z.literal("gate"),
 	mode: gateModeSchema,
 	position: nodePositionSchema.optional(),
 });
 
 export const actionNodeSchema = z.object({
-	id: z.string(),
+	id: workflowNodeIdSchema,
 	type: z.literal("action"),
 	action: workflowActionKindSchema,
 	params: z.record(z.string(), jsonValueSchema).optional(),
@@ -483,8 +485,8 @@ export type EdgeWhen = z.infer<typeof edgeWhenSchema>;
 
 export const workflowEdgeSchema = z.object({
 	id: z.string(),
-	from: z.string(),
-	to: z.string(),
+	from: workflowNodeIdSchema,
+	to: workflowNodeIdSchema,
 	/** Default: conducts on "pass". */
 	when: edgeWhenSchema.optional(),
 });

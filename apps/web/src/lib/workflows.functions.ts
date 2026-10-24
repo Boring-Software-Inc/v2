@@ -4,10 +4,12 @@ import {
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import type {
+	DraftDecisionResult,
 	OrgWithRole,
 	SetEnabledResult,
+	WorkflowCard,
 	WorkflowListItem,
-	WorkflowRow,
+	WorkflowWorkDetail,
 } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
@@ -15,9 +17,9 @@ import {
 	requireOrgRepoById,
 } from "#/lib/server/org-guard";
 
-export type { SetEnabledResult, WorkflowListItem, WorkflowRow };
+export type { DraftDecisionResult, SetEnabledResult, WorkflowCard };
 
-export interface WorkflowDetail extends WorkflowRow {
+export interface WorkflowDetail extends WorkflowWorkDetail {
 	lastTicks: Record<string, string>;
 }
 
@@ -34,14 +36,16 @@ export const listRepoWorkflows = createServerFn({ method: "GET" })
 		orgPermissionMiddleware("workflows:read"),
 	])
 	.inputValidator((input: { org: string; repoId: string }) => input)
-	.handler(async ({ data, context }): Promise<WorkflowListItem[]> => {
+	.handler(async ({ data, context }): Promise<WorkflowCard[]> => {
 		await requireOrgRepoById(
 			(context as { org: OrgWithRole }).org.id,
 			data.repoId,
 		);
-		const { workflowServices } = await import("@tripwire/db");
+		const { agentWorkServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		return await workflowServices.listWorkflows(getDb().db, data.repoId);
+		return await agentWorkServices.listWorkflowCards(getDb().db, {
+			repoId: data.repoId,
+		});
 	});
 
 export const getRepoWorkflow = createServerFn({ method: "GET" })
@@ -57,10 +61,12 @@ export const getRepoWorkflow = createServerFn({ method: "GET" })
 			(context as { org: OrgWithRole }).org.id,
 			data.repoId,
 		);
-		const { scheduleServices, workflowServices } = await import("@tripwire/db");
+		const { agentWorkServices, scheduleServices } = await import(
+			"@tripwire/db"
+		);
 		const { getDb } = await import("#/lib/server/db");
 		const { db } = getDb();
-		const row = await workflowServices.getWorkflow(db, {
+		const row = await agentWorkServices.getWorkflowWithWork(db, {
 			repoId: data.repoId,
 			workflowId: data.workflowId,
 		});
@@ -352,5 +358,47 @@ export const setRepoWorkflowEnabled = createServerFn({ method: "POST" })
 			repoId: data.repoId,
 			workflowId: data.workflowId,
 			enabled: data.enabled,
+		});
+	});
+
+export const promoteRepoDraft = createServerFn({ method: "POST" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
+	.inputValidator(
+		(input: { org: string; repoId: string; draftId: string }) => input,
+	)
+	.handler(async ({ data, context }): Promise<DraftDecisionResult> => {
+		await requireOrgRepoById(
+			(context as { org: OrgWithRole }).org.id,
+			data.repoId,
+		);
+		const { agentWorkServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		return await agentWorkServices.promoteDraft(getDb().db, {
+			repoId: data.repoId,
+			draftId: data.draftId,
+		});
+	});
+
+export const discardRepoDraft = createServerFn({ method: "POST" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("workflows:manage"),
+	])
+	.inputValidator(
+		(input: { org: string; repoId: string; draftId: string }) => input,
+	)
+	.handler(async ({ data, context }): Promise<{ discarded: boolean }> => {
+		await requireOrgRepoById(
+			(context as { org: OrgWithRole }).org.id,
+			data.repoId,
+		);
+		const { agentWorkServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		return await agentWorkServices.discardDraft(getDb().db, {
+			repoId: data.repoId,
+			draftId: data.draftId,
 		});
 	});

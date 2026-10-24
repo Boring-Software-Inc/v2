@@ -27,6 +27,7 @@ import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
 import { repos, workflowDefinitions } from "../schema/repos.ts";
 import { workflowPushProposals } from "../schema/workflow-pushes.ts";
+import { openDraftMarks, promoteSavedDrafts } from "./agent-work.ts";
 import {
 	listWorkflowRows,
 	liveSaveRefusals,
@@ -149,6 +150,11 @@ export async function proposeWorkflowPush(
 	if (blocks.length > 0) {
 		return { ok: false, reason: "blocked", blocks };
 	}
+	const drafts = await openDraftMarks(db, {
+		repoId: input.repoId,
+		definitionIds: changed.map((definition) => definition.id),
+		now,
+	});
 	const entries: WorkflowPushEntry[] = changed.map((definition) => {
 		const base = rows.find((row) => row.definition.id === definition.id);
 		return {
@@ -156,6 +162,7 @@ export async function proposeWorkflowPush(
 			baseWorkflowId: base?.id ?? null,
 			baseHash: base ? definitionHash(base.definition) : null,
 			baseDefinition: base ? redactWorkflowSecrets(base.definition) : null,
+			draft: drafts.get(definition.id) ?? null,
 		};
 	});
 	const id = generateId();
@@ -453,64 +460,82 @@ export async function decideWorkflowPush(
 		return { ok: false, reason: "not-found" };
 	}
 	const catalog = await repoRuleCatalog(db, repoId);
-	return await db.transaction(async (tx): Promise<DecideWorkflowPushResult> => {
-		const locked = await tx
-			.select()
-			.from(workflowPushProposals)
-			.where(eq(workflowPushProposals.id, input.pushId))
-			.limit(1)
-			.for("update");
-		const push = locked[0];
-		if (!push) {
-			return { ok: false, reason: "not-found" };
-		}
-		if (push.status !== "pending") {
-			return { ok: false, reason: "already-decided", status: push.status };
-		}
-		const close = (
-			status: WorkflowPushStatus,
-			outcomes: WorkflowPushOutcome[] | null = null,
-		) =>
-			tx
-				.update(workflowPushProposals)
-				.set({
-					status,
-					decidedAt: now,
-					decidedBy:
-						status === "accepted" || status === "rejected"
-							? input.userId
-							: null,
-					outcomes,
-				})
-				.where(eq(workflowPushProposals.id, push.id));
-		if (now.getTime() >= push.expiresAt.getTime()) {
-			await close("expired");
-			return { ok: false, reason: "expired" };
-		}
-		if (input.decision === "reject") {
-			await close("rejected");
-			return { ok: true, status: "rejected" };
-		}
-		const entries = workflowPushEntriesSchema.parse(push.entries);
-		const rows = await lockRepoRows(tx, push.repoId);
-		const moved = entries.filter((entry) => drifted(entry, rows));
-		if (moved.length > 0) {
-			await close("stale");
-			return {
-				ok: false,
-				reason: "stale",
-				workflows: moved.map((entry) => entry.definition.name),
-			};
-		}
-		const blocks = acceptBlocks(entries, rows, catalog);
-		if (blocks.length > 0) {
-			return { ok: false, reason: "blocked", blocks };
-		}
-		const outcomes: WorkflowPushOutcome[] = [];
-		for (const entry of entries) {
-			outcomes.push(await applyEntry(tx, push.repoId, entry, rows, now));
-		}
-		await close("accepted", workflowPushOutcomesSchema.parse(outcomes));
-		return { ok: true, status: "accepted", outcomes };
-	});
+	let marks = new Map<string, WorkflowPushEntry["draft"]>();
+	const decided = await db.transaction(
+		async (tx): Promise<DecideWorkflowPushResult> => {
+			const locked = await tx
+				.select()
+				.from(workflowPushProposals)
+				.where(eq(workflowPushProposals.id, input.pushId))
+				.limit(1)
+				.for("update");
+			const push = locked[0];
+			if (!push) {
+				return { ok: false, reason: "not-found" };
+			}
+			if (push.status !== "pending") {
+				return { ok: false, reason: "already-decided", status: push.status };
+			}
+			const close = (
+				status: WorkflowPushStatus,
+				outcomes: WorkflowPushOutcome[] | null = null,
+			) =>
+				tx
+					.update(workflowPushProposals)
+					.set({
+						status,
+						decidedAt: now,
+						decidedBy:
+							status === "accepted" || status === "rejected"
+								? input.userId
+								: null,
+						outcomes,
+					})
+					.where(eq(workflowPushProposals.id, push.id));
+			if (now.getTime() >= push.expiresAt.getTime()) {
+				await close("expired");
+				return { ok: false, reason: "expired" };
+			}
+			if (input.decision === "reject") {
+				await close("rejected");
+				return { ok: true, status: "rejected" };
+			}
+			const entries = workflowPushEntriesSchema.parse(push.entries);
+			const rows = await lockRepoRows(tx, push.repoId);
+			const moved = entries.filter((entry) => drifted(entry, rows));
+			if (moved.length > 0) {
+				await close("stale");
+				return {
+					ok: false,
+					reason: "stale",
+					workflows: moved.map((entry) => entry.definition.name),
+				};
+			}
+			const blocks = acceptBlocks(entries, rows, catalog);
+			if (blocks.length > 0) {
+				return { ok: false, reason: "blocked", blocks };
+			}
+			marks = new Map(
+				entries.map((entry) => [entry.definition.id, entry.draft]),
+			);
+			const outcomes: WorkflowPushOutcome[] = [];
+			for (const entry of entries) {
+				outcomes.push(await applyEntry(tx, push.repoId, entry, rows, now));
+			}
+			await close("accepted", workflowPushOutcomesSchema.parse(outcomes));
+			return { ok: true, status: "accepted", outcomes };
+		},
+	);
+	if (decided.ok && decided.status === "accepted") {
+		await promoteSavedDrafts(db, {
+			repoId,
+			saved: decided.outcomes.map((outcome) => ({
+				definitionId: outcome.id,
+				workflowId: outcome.workflowId,
+				draft: marks.get(outcome.id),
+			})),
+			now,
+		});
+	}
+	return decided;
 }

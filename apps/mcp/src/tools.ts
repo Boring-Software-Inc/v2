@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { installUrlFor, signInstallState } from "@tripwire/auth/install-state";
+import type { OrgWithPermissions } from "@tripwire/auth/org-gate";
 import {
 	AUTHORING_MODULE_PATH,
 	bearsVerdict,
@@ -22,10 +23,12 @@ import {
 	type WorkflowPushView,
 	workflowDefinitionSchema,
 	workflowDisplayName,
+	workflowNodeIdSchema,
 	workflowsToCode,
 } from "@tripwire/contracts";
 import {
 	agentServices,
+	agentWorkServices,
 	eventServices,
 	moderationServices,
 	type OrgWithRole,
@@ -605,11 +608,18 @@ export function registerTools(
 		);
 	}
 
+	const draftsAllowed = (org: OrgWithPermissions) =>
+		!selection.readOnly &&
+		ctx.agent.scopes.includes("tripwire:configure") &&
+		org.permissions.includes("workflows:manage");
+	const draftLink = (org: OrgWithRole, repo: string, id: string) =>
+		appLink(ctx, `/${org.slug}/${repo}/workflows/${id}`);
+
 	if (visible("validate_workflow")) {
 		server.registerTool(
 			"validate_workflow",
 			{
-				description: `Check compiled workflows against this repo without saving: the issues that would stop each from being turned on, how each schedule reads back with its timezone (${DEFAULT_SCHEDULE_TIMEZONE} when none is set), and what apply_workflow would change.`,
+				description: `Check compiled workflows against this repo: the issues that would stop each from being turned on, how each schedule reads back with its timezone (${DEFAULT_SCHEDULE_TIMEZONE} when none is set), and what apply_workflow would change. When you may manage workflows, each checked workflow is also kept as a draft the user can watch in the app. A draft never runs.`,
 				inputSchema: {
 					org: orgArg,
 					repo: repoArg,
@@ -619,18 +629,38 @@ export function registerTools(
 			},
 			({ org, repo, definitions }) =>
 				guard(async () => {
-					const { repo: found } = await resolveOrgRepo(
+					const { org: resolved, repo: found } = await resolveOrgRepo(
 						ctx,
 						org,
 						repo,
 						"validate_workflow",
 					);
-					return ok(
-						await workflowServices.previewWorkflowPush(ctx.db, {
+					const matched = await withServerIds(found.id, definitions);
+					const preview = await workflowServices.previewWorkflowPush(ctx.db, {
+						repoId: found.id,
+						definitions: matched,
+					});
+					if (!draftsAllowed(resolved)) {
+						return ok(preview);
+					}
+					const drafts = [];
+					for (const [index, definition] of matched.entries()) {
+						const draft = await agentWorkServices.saveAgentDraft(ctx.db, {
 							repoId: found.id,
-							definitions: await withServerIds(found.id, definitions),
-						}),
-					);
+							agent: ctx.agent,
+							definition,
+						});
+						drafts.push({
+							id: definitions[index]?.id ?? definition.id,
+							draftId: draft.draftId,
+							url: draftLink(
+								resolved,
+								found.name,
+								draft.workflowId ?? draft.draftId,
+							),
+						});
+					}
+					return ok({ ...preview, drafts });
 				}),
 		);
 	}
@@ -640,7 +670,7 @@ export function registerTools(
 			"apply_workflow",
 			{
 				description:
-					"Save compiled workflows to a repo, matched by definition id. New workflows start off; call set_workflow_enabled to turn one on. A workflow that is on only takes a definition that could be turned on. Canvas layout and secrets already saved are kept. To have a person review the diff first, use propose_workflow_push.",
+					"Save compiled workflows to a repo, matched by definition id, and promote their drafts. New workflows start off; call set_workflow_enabled to turn one on. A workflow that is on only takes a definition that could be turned on. Canvas layout and secrets already saved are kept. To have a person review the diff first, use propose_workflow_push.",
 				inputSchema: {
 					org: orgArg,
 					repo: repoArg,
@@ -658,10 +688,11 @@ export function registerTools(
 					);
 					const results = [];
 					for (const definition of await withServerIds(found.id, definitions)) {
-						const result = await workflowServices.applyWorkflowDefinition(
-							ctx.db,
-							{ repoId: found.id, definition },
-						);
+						const result = await agentWorkServices.applyAgentWorkflow(ctx.db, {
+							repoId: found.id,
+							agent: ctx.agent,
+							definition,
+						});
 						results.push(
 							result.ok
 								? {
@@ -680,6 +711,105 @@ export function registerTools(
 						);
 					}
 					return ok({ workflows: results });
+				}),
+		);
+	}
+
+	const nodeIdsArg = z.array(workflowNodeIdSchema).max(100).optional();
+
+	if (visible("begin_workflow_work")) {
+		server.registerTool(
+			"begin_workflow_work",
+			{
+				description:
+					"Call before you build or change a workflow, so the user can watch it in the app. Leave out workflow to start a new one: you get a definitionId to use as the id of the workflow you write. Pass workflow to change one that exists; nodeIds names the steps you are reading. The workflow shows as a draft that never runs until a person turns it on. Call finish_workflow_work when you are done.",
+				inputSchema: {
+					org: orgArg,
+					repo: repoArg,
+					workflow: z
+						.string()
+						.min(1)
+						.optional()
+						.describe(
+							"The workflow's id in code or its id in the app. Leave out for a new workflow.",
+						),
+					name: z
+						.string()
+						.trim()
+						.min(1)
+						.max(80)
+						.optional()
+						.describe("A name for a new workflow."),
+					nodeIds: nodeIdsArg.describe("Steps you are reading now."),
+				},
+				annotations: annotate("begin_workflow_work"),
+			},
+			({ org, repo, workflow, name, nodeIds }) =>
+				guard(async () => {
+					const { org: resolved, repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"begin_workflow_work",
+					);
+					const begun = await agentWorkServices.beginWorkflowWork(ctx.db, {
+						repoId: found.id,
+						agent: ctx.agent,
+						workflow,
+						name,
+						nodeIds,
+					});
+					return ok({
+						definitionId: begun.definitionId,
+						draftId: begun.draftId,
+						name: begun.name,
+						url: draftLink(
+							resolved,
+							found.name,
+							begun.workflowId ?? begun.draftId,
+						),
+						next: "Write the workflow with this definitionId, check it with validate_workflow, and call finish_workflow_work when you are done.",
+					});
+				}),
+		);
+	}
+
+	if (visible("finish_workflow_work")) {
+		server.registerTool(
+			"finish_workflow_work",
+			{
+				description:
+					"Call when you stop working on a workflow. nodeIds releases only those steps; leave it out to release every step and end the session. Leave out workflow to finish all your work on the repo. The draft stays for the user to review.",
+				inputSchema: {
+					org: orgArg,
+					repo: repoArg,
+					workflow: z
+						.string()
+						.min(1)
+						.optional()
+						.describe(
+							"The definitionId, the workflow's id in the app, or the draft id.",
+						),
+					nodeIds: nodeIdsArg.describe("Steps you are done with."),
+				},
+				annotations: annotate("finish_workflow_work"),
+			},
+			({ org, repo, workflow, nodeIds }) =>
+				guard(async () => {
+					const { repo: found } = await resolveOrgRepo(
+						ctx,
+						org,
+						repo,
+						"finish_workflow_work",
+					);
+					return ok(
+						await agentWorkServices.finishWorkflowWork(ctx.db, {
+							repoId: found.id,
+							agent: ctx.agent,
+							workflow,
+							nodeIds,
+						}),
+					);
 				}),
 		);
 	}

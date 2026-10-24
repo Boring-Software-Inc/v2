@@ -5,8 +5,11 @@ import {
 	WORKFLOW_TEMPLATES,
 	type WorkflowState,
 	type WorkflowTemplate,
+	workingAgents,
 } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
+import { AgentOutline } from "#/components/agent/agent-outline";
+import { AgentPresence } from "#/components/agent/agent-presence";
 import { Collection } from "#/components/collection/collection";
 import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
@@ -68,16 +71,20 @@ import {
 	useSaveQueueField,
 } from "#/components/save-queue";
 import { ZonedTime } from "#/components/timezones/zoned-time";
+import { DraftActions } from "#/components/workflows/draft-actions";
 import {
 	humanizeTriggerKind,
 	WORKFLOWS_COLLECTION,
 } from "#/components/workflows/workflows-collection";
 import { GridSkeleton } from "#/components/workflows/workflows-grid-page-skeleton";
+import { type AgentMotion, useAgentMotion } from "#/hooks/use-agent-motion";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
+import { useWorkClock } from "#/hooks/use-work-clock";
+import { useLiveWork } from "#/lib/live-work.query";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import { trackEvent } from "#/lib/track";
-import type { WorkflowListItem } from "#/lib/workflows.functions";
+import type { WorkflowCard } from "#/lib/workflows.functions";
 import {
 	createRepoWorkflow,
 	deleteRepoWorkflow,
@@ -120,6 +127,8 @@ export function WorkflowsGridPage() {
 	const workflows = workflowsQuery.data;
 	const collection = useCollection(WORKFLOWS_COLLECTION, workflows);
 	const canManage = useOrgPermission(org, "workflows:manage");
+	useLiveWork(org, repoId);
+	const motion = useAgentMotion();
 
 	const createMutation = useMutation({
 		mutationFn: (
@@ -269,6 +278,7 @@ export function WorkflowsGridPage() {
 										<li key={workflow.id}>
 											<WorkflowRow
 												canManage={canManage}
+												motion={motion}
 												org={org}
 												repoId={repoId}
 												repoName={repoName}
@@ -432,13 +442,19 @@ function WorkflowRow({
 	repoId,
 	workflow,
 	canManage,
+	motion,
 }: {
 	org: string;
 	repoName: string;
 	repoId: string;
-	workflow: WorkflowListItem;
+	workflow: WorkflowCard;
 	canManage: boolean;
+	motion: AgentMotion;
 }) {
+	const now = useWorkClock(workflow.work);
+	const agents = workingAgents(workflow.work, now);
+	const draftOnly =
+		workflow.draftId !== null && workflow.id === workflow.draftId;
 	const queryClient = useQueryClient();
 	const listKey = workflowsQueryKeys.list(org, repoId);
 
@@ -512,91 +528,123 @@ function WorkflowRow({
 
 	return (
 		<>
-			<EntityCard
-				badges={
-					workflow.triggerKinds.length > 0
-						? workflow.triggerKinds.map((kind) => (
-								<Badge key={kind} variant="outline">
-									{humanizeTriggerKind(kind)}
-								</Badge>
-							))
-						: undefined
-				}
-				description={
-					workflow.triggerKinds.length === 0 ? "No trigger yet" : undefined
-				}
-				footerMeta={
-					<MetaRow>
-						<span className="tabular-nums">
-							{workflow.nodeCount} {workflow.nodeCount === 1 ? "step" : "steps"}
-						</span>
-						<span>
-							Updated <ZonedTime at={workflow.updatedAt} format="short" />
-						</span>
-						{canManage ? null : <span>Read only</span>}
-					</MetaRow>
-				}
-				status={
-					<>
-						<Status size="sm" status={STATE_STATUS[workflow.state]}>
-							{WORKFLOW_STATE_LABELS[workflow.state]}
-						</Status>
-						<Switch
-							aria-label={`Run ${workflow.name} on change requests`}
-							checked={queuedEnabled}
-							disabled={!canManage}
-							onCheckedChange={setQueuedEnabled}
-							size="sm"
-						/>
-						{canManage ? (
-							<DropdownMenu>
-								<DropdownMenuTrigger
-									render={
-										<Button
-											aria-label={`Actions for ${workflow.name}`}
-											size="icon-sm"
-											variant="ghost"
-										/>
-									}
-								>
-									<Icon icon={MoreVertical} />
-								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end" size="sm">
-									<DropdownMenuItem
-										onClick={() => {
-											setRenameValue(workflow.name);
-											setRenaming(true);
-										}}
-									>
-										Rename workflow
-									</DropdownMenuItem>
-									<DropdownMenuItem
-										disabled={duplicateMutation.isPending}
-										onClick={() => duplicateMutation.mutate()}
-									>
-										Duplicate workflow
-									</DropdownMenuItem>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem
-										onClick={() => setDeleting(true)}
-										variant="destructive"
-									>
-										Delete workflow
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
-						) : null}
-					</>
-				}
-				title={
-					<CardRouterLink
-						params={{ org, repo: repoName, workflowId: workflow.id }}
-						to="/$org/$repo/workflows/$workflowId"
-					>
-						{workflow.name}
-					</CardRouterLink>
-				}
-			/>
+			<div className="relative">
+				<AgentOutline
+					action={agents[0]?.nodes.at(-1)?.action ?? "write"}
+					active={agents.length > 0}
+					at={agents[0]?.lastSignalAt ?? workflow.updatedAt}
+					motion={motion}
+					radius={14}
+				/>
+				<EntityCard
+					badges={
+						workflow.draftId || workflow.triggerKinds.length > 0 ? (
+							<>
+								{workflow.draftId ? (
+									<Badge variant="outline">Draft</Badge>
+								) : null}
+								{workflow.triggerKinds.map((kind) => (
+									<Badge key={kind} variant="outline">
+										{humanizeTriggerKind(kind)}
+									</Badge>
+								))}
+							</>
+						) : undefined
+					}
+					description={
+						agents.length > 0 ? (
+							<AgentPresence agents={agents} motion={motion} />
+						) : workflow.triggerKinds.length === 0 ? (
+							"No trigger yet"
+						) : undefined
+					}
+					footerActions={
+						workflow.draftId && canManage ? (
+							<DraftActions
+								draftId={workflow.draftId}
+								name={workflow.name}
+								org={org}
+								replacesLive={workflow.enabled}
+								repoId={repoId}
+							/>
+						) : undefined
+					}
+					footerMeta={
+						<MetaRow>
+							<span className="tabular-nums">
+								{workflow.nodeCount}{" "}
+								{workflow.nodeCount === 1 ? "step" : "steps"}
+							</span>
+							<span>
+								Updated <ZonedTime at={workflow.updatedAt} format="short" />
+							</span>
+							{canManage ? null : <span>Read only</span>}
+						</MetaRow>
+					}
+					status={
+						draftOnly ? undefined : (
+							<>
+								<Status size="sm" status={STATE_STATUS[workflow.state]}>
+									{WORKFLOW_STATE_LABELS[workflow.state]}
+								</Status>
+								<Switch
+									aria-label={`Run ${workflow.name} on change requests`}
+									checked={queuedEnabled}
+									disabled={!canManage}
+									onCheckedChange={setQueuedEnabled}
+									size="sm"
+								/>
+								{canManage ? (
+									<DropdownMenu>
+										<DropdownMenuTrigger
+											render={
+												<Button
+													aria-label={`Actions for ${workflow.name}`}
+													size="icon-sm"
+													variant="ghost"
+												/>
+											}
+										>
+											<Icon icon={MoreVertical} />
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end" size="sm">
+											<DropdownMenuItem
+												onClick={() => {
+													setRenameValue(workflow.name);
+													setRenaming(true);
+												}}
+											>
+												Rename workflow
+											</DropdownMenuItem>
+											<DropdownMenuItem
+												disabled={duplicateMutation.isPending}
+												onClick={() => duplicateMutation.mutate()}
+											>
+												Duplicate workflow
+											</DropdownMenuItem>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												onClick={() => setDeleting(true)}
+												variant="destructive"
+											>
+												Delete workflow
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
+								) : null}
+							</>
+						)
+					}
+					title={
+						<CardRouterLink
+							params={{ org, repo: repoName, workflowId: workflow.id }}
+							to="/$org/$repo/workflows/$workflowId"
+						>
+							{workflow.name}
+						</CardRouterLink>
+					}
+				/>
+			</div>
 
 			<Dialog onOpenChange={setRenaming} open={renaming}>
 				<DialogContent size="sm">

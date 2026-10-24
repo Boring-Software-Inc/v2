@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { WorkflowDefinition } from "@tripwire/contracts";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { ArrowLeft, Edit, Icon, More } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
@@ -56,6 +56,8 @@ export interface EditorHeaderProps {
 	onShowProblems: () => void;
 	onRename: (name: string) => Promise<{ ok: boolean; error?: string }>;
 	onSetEnabled: (enabled: boolean) => void;
+	leading?: ReactNode;
+	actions?: ReactNode;
 }
 
 export function EditorHeader({
@@ -78,6 +80,8 @@ export function EditorHeader({
 	onRename,
 	onSetEnabled,
 	onShowProblems,
+	leading,
+	actions,
 }: EditorHeaderProps) {
 	const [renaming, setRenaming] = useState(false);
 
@@ -196,6 +200,7 @@ export function EditorHeader({
 					</Button>
 				)}
 				{enabled ? <Badge>On</Badge> : null}
+				{leading}
 			</div>
 			<div className="ms-auto flex min-w-0 items-center gap-2 max-md:w-full">
 				<SegmentedControl
@@ -239,7 +244,9 @@ export function EditorHeader({
 						</DropdownMenuContent>
 					</DropdownMenu>
 				) : null}
-				{readOnly ? (
+				{actions ? (
+					actions
+				) : readOnly ? (
 					<Badge variant="outline">Read only</Badge>
 				) : (
 					<>

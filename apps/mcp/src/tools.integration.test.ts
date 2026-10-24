@@ -4,10 +4,12 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
 	AI_CREDITS_COPY,
+	liveNodeTouches,
 	workflowPushProposalResultSchema,
 	workflowPushViewSchema,
 } from "@tripwire/contracts";
 import {
+	agentWorkServices,
 	aiProviderServices,
 	applyMigrations,
 	createDb,
@@ -858,6 +860,155 @@ describe("workflows as code", () => {
 		expect(parsed.code).toContain("webhook().after(accountAge.fails)");
 		expect(parsed.code).not.toContain("internal.example");
 		expect(parsed.workflows).toHaveLength(1);
+	});
+});
+
+describe("live agent work", () => {
+	const body = (result: { content: { text?: string }[] }) =>
+		z.json().parse(JSON.parse(result.content[0]?.text ?? "null"));
+	const stale = {
+		id: "mcp-close-stale",
+		name: "Close stale PRs",
+		version: 1,
+		nodes: [
+			{
+				id: "every-12h",
+				type: "trigger",
+				kinds: ["schedule.matched"],
+				schedule: {
+					every: { n: 12, unit: "hours" },
+					match: {
+						subjects: ["change-request"],
+						state: "open",
+						inactiveFor: { n: 14, unit: "days" },
+					},
+				},
+			},
+			{ id: "close", type: "action", action: "close" },
+		],
+		edges: [{ id: "e1", from: "every-12h", to: "close" }],
+	};
+	const repoId = () => (repoRows[1] ?? never()).id;
+
+	test("validate keeps the workflow as a draft the user can open, and saves nothing", async () => {
+		const result = await call("validate_workflow", {
+			repo: "mcp-web",
+			definitions: [stale],
+		});
+		expect(result.isError).toBeFalsy();
+		expect(body(result)).toMatchObject({
+			drafts: [{ id: "mcp-close-stale" }],
+		});
+		const cards = await agentWorkServices.listWorkflowCards(db, {
+			repoId: repoId(),
+		});
+		const card = cards.find((entry) => entry.name === "Close stale PRs");
+		expect(card?.draftId).not.toBeNull();
+		expect(card?.enabled).toBe(false);
+		expect(
+			(await workflowServices.listWorkflows(db, repoId())).map((w) => w.name),
+		).not.toContain("Close stale PRs");
+		const touched = liveNodeTouches(card?.work, new Date());
+		expect([...touched.keys()].sort()).toEqual(["close", "every-12h"]);
+	});
+
+	test("finish releases every node at once and keeps the draft", async () => {
+		const result = await call("finish_workflow_work", {
+			repo: "mcp-web",
+			workflow: "mcp-close-stale",
+		});
+		expect(body(result)).toEqual({ released: 1 });
+		const work = await agentWorkServices.getWorkflowWork(db, {
+			repoId: repoId(),
+			definitionId: "mcp-close-stale",
+		});
+		expect(liveNodeTouches(work, new Date()).size).toBe(0);
+		expect(work.draft?.status).toBe("open");
+	});
+
+	test("apply saves it off and promotes the draft", async () => {
+		const result = await call("apply_workflow", {
+			repo: "mcp-web",
+			definitions: [stale],
+		});
+		expect(body(result)).toMatchObject({
+			workflows: [
+				{ id: "mcp-close-stale", outcome: "created", enabled: false },
+			],
+		});
+		const work = await agentWorkServices.getWorkflowWork(db, {
+			repoId: repoId(),
+			definitionId: "mcp-close-stale",
+		});
+		expect(work.draft?.status).toBe("promoted");
+	});
+
+	test("begin opens an empty draft and hands back the id to write with", async () => {
+		const result = await call("begin_workflow_work", {
+			repo: "mcp-web",
+			name: "Label first-time contributors",
+		});
+		const begun = z
+			.object({
+				definitionId: z.string(),
+				draftId: z.string(),
+				url: z.string(),
+			})
+			.parse(body(result));
+		expect(begun.url).toContain(`/workflows/${begun.draftId}`);
+		const detail = await agentWorkServices.getWorkflowWithWork(db, {
+			repoId: repoId(),
+			workflowId: begun.draftId,
+		});
+		expect(detail?.name).toBe("Label first-time contributors");
+		expect(detail?.work?.agents).toHaveLength(1);
+	});
+
+	test("a read-only agent validates without leaving a draft", async () => {
+		const id = await orgId();
+		const server = new McpServer({ name: "tripwire-test", version: "0.0.0" });
+		registerTools(
+			server,
+			{
+				db,
+				pool,
+				getBoss: () => Promise.reject(new Error("no queue in tests")),
+				config,
+				agent: {
+					userId: USER_ID,
+					clientId: "read-only-client",
+					scopes: ["tripwire:read"],
+					orgIds: id ? [id] : [],
+				},
+				accessDenied: null,
+			},
+			{ scopes: ["tripwire:read"], readOnly: true },
+		);
+		const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
+		await server.connect(serverSide);
+		const reader = new Client({ name: "reader", version: "0.0.0" });
+		await reader.connect(clientSide);
+		clients.push(reader);
+		const tools = await reader.listTools();
+		expect(tools.tools.map((tool) => tool.name)).not.toContain(
+			"begin_workflow_work",
+		);
+		const result = textSchema.parse(
+			await reader.callTool({
+				name: "validate_workflow",
+				arguments: {
+					repo: "mcp-web",
+					definitions: [{ ...stale, id: "read-only-check" }],
+				},
+			}),
+		);
+		expect(result.isError).toBeFalsy();
+		expect(body(result)).not.toHaveProperty("drafts");
+		const work = await agentWorkServices.getWorkflowWork(db, {
+			repoId: repoId(),
+			definitionId: "read-only-check",
+		});
+		expect(work.draft).toBeNull();
 	});
 });
 

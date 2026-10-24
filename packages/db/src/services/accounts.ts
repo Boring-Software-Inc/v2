@@ -188,3 +188,13 @@ export async function setUserTimezone(
 		.set({ timezone: input.timezone, updatedAt: new Date() })
 		.where(eq(user.id, input.userId));
 }
+
+export async function setUserReduceAgentMotion(
+	db: Db,
+	input: { userId: string; reduce: boolean },
+): Promise<void> {
+	await db
+		.update(user)
+		.set({ reduceAgentMotion: input.reduce, updatedAt: new Date() })
+		.where(eq(user.id, input.userId));
+}

@@ -12,6 +12,7 @@ import { generateId } from "@tripwire/utils";
 import { and, desc, eq, gt, isNotNull, lte, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { agentGrants, agentSetupPrompts, setupRuns } from "../schema/oauth.ts";
+import { notifyLive } from "./live-notify.ts";
 import type { SwitcherRepo } from "./onboarding.ts";
 import { getOrgInstallState, listOrgSwitcherRepos } from "./organizations.ts";
 
@@ -38,6 +39,21 @@ function toView(row: SetupRunRow): SetupRunView {
 		completedAt: row.completedAt?.toISOString() ?? null,
 		lastReportAt: row.lastReportAt?.toISOString() ?? null,
 	};
+}
+
+export async function getSetupRunForLive(
+	db: Db,
+	runId: string,
+): Promise<{ orgId: string; userId: string; run: SetupRunView } | null> {
+	const rows = await db
+		.select()
+		.from(setupRuns)
+		.where(eq(setupRuns.id, runId))
+		.limit(1);
+	const row = rows[0];
+	return row
+		? { orgId: row.orgId, userId: row.userId, run: toView(row) }
+		: null;
 }
 
 export async function findActiveSetupRun(
@@ -154,6 +170,7 @@ export async function reportSetupProgress(
 			completedAt: finished ? now : null,
 		})
 		.where(eq(setupRuns.id, row.id));
+	await notifyLive(db, { type: "setup", runId: row.id });
 	return { recorded: true, continueUpdates: !finished };
 }
 

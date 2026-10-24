@@ -14,6 +14,8 @@ export const TOOL_NAMES = [
 	"get_workflow",
 	"validate_workflow",
 	"apply_workflow",
+	"begin_workflow_work",
+	"finish_workflow_work",
 	"propose_workflow_push",
 	"get_workflow_push",
 	"list_runs",
@@ -79,6 +81,16 @@ export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
 		readOnly: true,
 	},
 	apply_workflow: {
+		scope: "tripwire:configure",
+		need: "workflows:manage",
+		readOnly: false,
+	},
+	begin_workflow_work: {
+		scope: "tripwire:configure",
+		need: "workflows:manage",
+		readOnly: false,
+	},
+	finish_workflow_work: {
 		scope: "tripwire:configure",
 		need: "workflows:manage",
 		readOnly: false,

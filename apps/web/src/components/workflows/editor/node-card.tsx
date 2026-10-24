@@ -22,6 +22,7 @@ import { Fragment } from "react";
 import { Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { StatusMark } from "#/components/glaze/ui/status";
+import { NodeAgentOutline } from "#/components/workflows/editor/agent-work-context";
 import {
 	fieldListItems,
 	nodeFieldValues,
@@ -197,6 +198,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				status === "warn" && !selected && "border-warn",
 			)}
 		>
+			<NodeAgentOutline nodeId={node.id} />
 			{status ? (
 				<ProblemPeek
 					className="absolute -top-2 -right-2 flex rounded-pill bg-paper"

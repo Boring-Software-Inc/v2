@@ -158,12 +158,14 @@ describe("propose", () => {
 				baseWorkflowId: saved.id,
 				baseHash: definitionHash(stored?.definition ?? gate("x", "x")),
 				baseDefinition: stored?.definition ?? null,
+				draft: null,
 			},
 			{
 				definition: gate("fresh", "Fresh"),
 				baseWorkflowId: null,
 				baseHash: null,
 				baseDefinition: null,
+				draft: null,
 			},
 		]);
 	});
