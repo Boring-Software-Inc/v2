@@ -97,7 +97,7 @@ function DashboardShell({
 		<FeedbackProvider config={feedbackConfig}>
 			<div
 				className={cn(
-					"isolate flex h-dvh origin-top flex-col transition-[background-color,scale,translate] duration-(--dur-overlay) ease-out inert:translate-y-3 inert:scale-(--scale-overlay)",
+					"isolate flex h-[calc(100dvh-var(--impersonation-bar,0rem))] origin-top flex-col transition-[background-color,scale,translate] duration-(--dur-overlay) ease-out inert:translate-y-3 inert:scale-(--scale-overlay)",
 					inset ? "bg-page" : "bg-paper",
 				)}
 				data-shell=""

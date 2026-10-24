@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { AccessStatusMark } from "#/components/admin/access-status-dot";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
+import { UserSheet } from "#/components/admin/user-sheet/user-sheet";
 import { Avatar } from "#/components/glaze/ui/avatar";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
@@ -40,6 +41,11 @@ import {
 	adminUsersQueryOptions,
 } from "#/lib/admin.query";
 import { ADMIN_USER_STATUSES, type AdminUsersSearch } from "#/lib/admin-search";
+import {
+	pickFromPage,
+	type SheetStep,
+	sheetPosition,
+} from "#/lib/admin-user-sheet";
 import { pickValue } from "#/lib/pick-value";
 import { trackEvent } from "#/lib/track";
 
@@ -56,7 +62,13 @@ const COLUMN_COUNT = 9;
 
 export function AdminUsersPage() {
 	const queryClient = useQueryClient();
-	const { online, status } = useSearch({ from: "/admin/users" });
+	const {
+		online,
+		status,
+		user: openUserId,
+	} = useSearch({
+		from: "/admin/users",
+	});
 	const navigate = useNavigate({ from: "/admin/users" });
 	const [search, setSearch] = useState("");
 	const [offset, setOffset] = useState(0);
@@ -119,6 +131,43 @@ export function AdminUsersPage() {
 
 	const users = data?.users ?? [];
 	const total = data?.total ?? 0;
+
+	const openUser = (userId: string | undefined) => {
+		void navigate({
+			search: (prev) => ({ ...prev, user: userId }),
+			replace: userId !== undefined && openUserId !== undefined,
+			resetScroll: false,
+		});
+	};
+
+	const position = sheetPosition({
+		ids: users.map((u) => u.id),
+		offset,
+		pageSize: ADMIN_PAGE_SIZE,
+		total,
+		userId: openUserId ?? "",
+	});
+
+	const step = async (target: SheetStep) => {
+		if (!target) {
+			return;
+		}
+		if (target.kind === "user") {
+			openUser(target.id);
+			return;
+		}
+		const page = await queryClient.fetchQuery(
+			adminUsersQueryOptions({ ...filter, offset: target.offset }),
+		);
+		const picked = pickFromPage(
+			page.users.map((u) => u.id),
+			target.pick,
+		);
+		setOffset(target.offset);
+		if (picked) {
+			openUser(picked);
+		}
+	};
 	const pendingIds = users
 		.filter((u) => u.accessStatus === "pending")
 		.map((u) => u.id);
@@ -360,7 +409,12 @@ export function AdminUsersPage() {
 												/>
 											</TableCell>
 											<TableCell>
-												<div className="flex min-w-0 items-center gap-2">
+												<button
+													aria-label={`Open ${u.name}`}
+													className="flex min-w-0 items-center gap-2 rounded-tag text-start focus-visible:focus-ring"
+													onClick={() => openUser(u.id)}
+													type="button"
+												>
 													<Avatar
 														decorative
 														name={u.name}
@@ -380,7 +434,7 @@ export function AdminUsersPage() {
 															{u.email}
 														</span>
 													</div>
-												</div>
+												</button>
 											</TableCell>
 											<TableCell>
 												<AccessStatusMark status={u.accessStatus} />
@@ -488,6 +542,12 @@ export function AdminUsersPage() {
 					</CheckboxGroup>
 				</div>
 			</div>
+			<UserSheet
+				onClose={() => openUser(undefined)}
+				onStep={(target) => void step(target)}
+				position={position}
+				userId={openUserId}
+			/>
 		</DashboardLayout>
 	);
 }

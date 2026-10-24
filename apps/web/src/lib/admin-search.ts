@@ -11,6 +11,7 @@ export const adminUsersSearchSchema = z.object({
 		.default(ADMIN_USERS_SEARCH_DEFAULTS.status)
 		.catch(ADMIN_USERS_SEARCH_DEFAULTS.status),
 	online: z.boolean().optional().catch(undefined),
+	user: z.string().min(1).max(200).optional().catch(undefined),
 });
 
 export type AdminUsersSearch = z.infer<typeof adminUsersSearchSchema>;
