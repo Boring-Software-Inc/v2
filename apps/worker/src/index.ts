@@ -1,4 +1,4 @@
-import { deriveUsageSource } from "@tripwire/contracts";
+import { DATABUDDY_WEBSITE_ID, deriveUsageSource } from "@tripwire/contracts";
 import {
 	aiProviderServices,
 	BACKFILL_REPO_QUEUE,
@@ -17,8 +17,10 @@ import {
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	repoServices,
+	SYNC_FLAG_OVERRIDES_QUEUE,
 	SYNC_REPO_LABELS_QUEUE,
 	SYNC_REPO_REVIEWERS_QUEUE,
+	type SyncFlagOverridesJob,
 	type SyncRepoLabelsJob,
 	type SyncRepoReviewersJob,
 	syncRepoLabelsOptions,
@@ -29,7 +31,7 @@ import {
 	checkAppCredentials,
 	GithubInstallations,
 } from "@tripwire/forge-github";
-import { getErrorMessage } from "@tripwire/utils";
+import { createDatabuddyApi, getErrorMessage } from "@tripwire/utils";
 import type { WorkHandler } from "pg-boss";
 import pino from "pino";
 import { createGenerate } from "./ai/generate.ts";
@@ -62,6 +64,7 @@ import {
 	scheduleTick,
 } from "./jobs/schedule-tick.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
+import { syncFlagOverridesJob } from "./jobs/sync-flag-overrides.ts";
 import { syncRepoLabels } from "./jobs/sync-repo-labels.ts";
 import { syncRepoReviewers } from "./jobs/sync-repo-reviewers.ts";
 import * as metering from "./metering.ts";
@@ -210,6 +213,18 @@ if (import.meta.main) {
 		);
 	}
 
+	const databuddyKey = process.env.DATABUDDY_API_KEY;
+	const databuddyApi = databuddyKey
+		? createDatabuddyApi({
+				apiKey: databuddyKey,
+				websiteId: DATABUDDY_WEBSITE_ID,
+				baseUrl: process.env.DATABUDDY_API_URL,
+			})
+		: null;
+	if (!databuddyApi) {
+		logger.warn("DATABUDDY_API_KEY missing: flag overrides will not sync");
+	}
+
 	const enqueueLabelSync = async (repoId: string): Promise<void> => {
 		await boss.send(
 			SYNC_REPO_LABELS_QUEUE,
@@ -336,6 +351,22 @@ if (import.meta.main) {
 				);
 			}
 		});
+
+		await work<SyncFlagOverridesJob>(
+			SYNC_FLAG_OVERRIDES_QUEUE,
+			async (jobs) => {
+				for (const job of jobs) {
+					await syncFlagOverridesJob(
+						{
+							db,
+							api: databuddyApi,
+							logger: logger.child({ flagKey: job.data.flagKey }),
+						},
+						job.data,
+					);
+				}
+			},
+		);
 
 		await work<RecoverInstallationJob>(
 			RECOVER_INSTALLATION_QUEUE,
@@ -516,6 +547,7 @@ if (import.meta.main) {
 				BACKFILL_REPO_QUEUE,
 				SYNC_REPO_REVIEWERS_QUEUE,
 				SYNC_REPO_LABELS_QUEUE,
+				SYNC_FLAG_OVERRIDES_QUEUE,
 				REFRESH_SURFACES_QUEUE,
 				RECOVER_INSTALLATION_QUEUE,
 				"rollup",

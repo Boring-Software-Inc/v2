@@ -4,17 +4,19 @@
 	"private": true,
 	"type": "module",
 	"exports": {
-		"./server": "./src/server.ts",
-		"./client": "./src/client.ts",
 		"./access": "./src/access.ts",
 		"./access-gate": "./src/access-gate.ts",
 		"./account-deletion": "./src/account-deletion.ts",
 		"./agent-auth": "./src/agent-auth.ts",
+		"./client": "./src/client.ts",
 		"./databuddy": "./src/databuddy.ts",
+		"./flag-evaluation": "./src/flag-evaluation.ts",
 		"./install-state": "./src/install-state.ts",
 		"./org-access": "./src/org-access.ts",
 		"./org-gate": "./src/org-gate.ts",
-		"./staff-gate": "./src/staff-gate.ts"
+		"./server": "./src/server.ts",
+		"./staff-gate": "./src/staff-gate.ts",
+		"./staff-impersonation": "./src/staff-impersonation.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit"
