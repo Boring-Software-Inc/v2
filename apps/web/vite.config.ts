@@ -75,9 +75,6 @@ export default defineConfig({
 				"/og.png": {
 					headers: { "cache-control": "public, max-age=86400" },
 				},
-				"/og.mp4": {
-					headers: { "cache-control": "public, max-age=86400" },
-				},
 				"/fonts/**": {
 					headers: {
 						"cache-control": "public, max-age=31536000, immutable",

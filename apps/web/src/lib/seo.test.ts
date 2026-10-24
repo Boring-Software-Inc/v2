@@ -16,7 +16,7 @@ function tags(meta: ReturnType<typeof buildSeo>["meta"]) {
 describe("buildSeo", () => {
 	test("the site page carries the fire loop next to the still image", () => {
 		const head = tags(buildSeo({ path: "/" }).meta);
-		const video = toAbsoluteUrl("/og.mp4");
+		const video = toAbsoluteUrl("/og/site.mp4");
 		expect(head["og:image"]).toBe(toAbsoluteUrl("/og.png"));
 		expect(head["og:video"]).toBe(video);
 		expect(head["og:video:secure_url"]).toBe(video);

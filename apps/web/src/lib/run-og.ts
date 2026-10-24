@@ -3,7 +3,7 @@ import type { RunView } from "#/lib/runs.functions";
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
 export const APP_OG_IMAGE_PATH = "/og.png";
-export const APP_OG_VIDEO_PATH = "/og.mp4";
+export const APP_OG_VIDEO_PATH = "/og/site.mp4";
 
 const RUN_OG_VERSION = 1;
 const RUN_OG_PATH = /^\/og\/runs\/([^/]+)\/([^/]+)$/;

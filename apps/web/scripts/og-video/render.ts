@@ -2,7 +2,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { renderSiteOgVideo } from "./site-og-video";
 
 const root = new URL("../../", import.meta.url);
-const out = process.argv[2] ?? new URL("public/og.mp4", root).pathname;
+const out =
+	process.argv[2] ??
+	new URL("src/lib/server/og/assets/site.mp4", root).pathname;
 const started = performance.now();
 const mp4 = await renderSiteOgVideo(
 	readFileSync(new URL("public/og.png", root)),
