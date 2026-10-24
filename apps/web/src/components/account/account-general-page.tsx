@@ -129,14 +129,17 @@ function AgentMotionSection({ reduce }: { reduce: boolean }) {
 			className="flex max-w-md flex-col gap-3"
 		>
 			<SectionHeading id="account-agent-motion-heading" title="Agents" />
-			<label className="flex items-center justify-between gap-3 type-body">
-				Reduce agent animations
+			<div className="flex items-center justify-between gap-3">
+				<span className="type-body" id="account-agent-motion-label">
+					Reduce agent animations
+				</span>
 				<Switch
+					aria-labelledby="account-agent-motion-label"
 					checked={checked}
 					onCheckedChange={(next) => save.mutate(next)}
 					pending={save.isPending}
 				/>
-			</label>
+			</div>
 		</section>
 	);
 }
