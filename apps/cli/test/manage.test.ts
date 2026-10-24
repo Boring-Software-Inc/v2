@@ -503,6 +503,95 @@ describe("workflows as code", () => {
 		expect(helpers).toContain("} = authoring<TripwireCatalog>();");
 	});
 
+	test("pull prints short lists inline and quotes only ids that need it", async () => {
+		server.answerNext(
+			"get_workflow",
+			z.json().parse({
+				code: "",
+				warnings: [],
+				workflows: [
+					{
+						id: "mark-stale-issues",
+						name: "Mark stale issues",
+						enabled: false,
+						definition: {
+							id: "mark-stale-issues",
+							name: "Mark stale issues",
+							version: 1,
+							nodes: [
+								{
+									id: "warn",
+									type: "trigger",
+									kinds: ["schedule.matched"],
+									schedule: {
+										every: { preset: "weekdays", at: "09:00" },
+										timezone: "Europe/Berlin",
+										match: {
+											subjects: ["issue"],
+											state: "open",
+											inactiveFor: { n: 30, unit: "days" },
+											excludeLabels: ["keep-open"],
+											skipLocked: true,
+										},
+									},
+								},
+								{
+									id: "mark-stale",
+									type: "action",
+									action: "label",
+									params: { labels: ["stale"] },
+								},
+							],
+							edges: [{ id: "e1", from: "warn", to: "mark-stale" }],
+						},
+					},
+				],
+			}),
+		);
+		await pulled();
+		expect(readFileSync(file(), "utf8")).toBe(`import {
+	label,
+	schedule,
+	workflow,
+	workflows,
+} from "./.tripwire/workflow.ts";
+
+function markStaleIssues() {
+	const warn = schedule({
+		every: {
+			preset: "weekdays",
+			at: "09:00",
+		},
+		timezone: "Europe/Berlin",
+		match: {
+			subjects: ["issue"],
+			state: "open",
+			inactiveFor: {
+				n: 30,
+				unit: "days",
+			},
+			excludeLabels: ["keep-open"],
+			skipLocked: true,
+		},
+	});
+	const markStale = label({
+		labels: ["stale"],
+	}).after(warn);
+	return workflow({
+		name: "Mark stale issues",
+		steps: {
+			warn,
+			"mark-stale": markStale,
+		},
+	});
+}
+
+export default workflows({
+	"mark-stale-issues": markStaleIssues(),
+});
+`);
+	});
+
 	test("pull refuses to replace local edits without --force", async () => {
 		await pulled();
 		writeFileSync(file(), `${readFileSync(file(), "utf8")}\n`);

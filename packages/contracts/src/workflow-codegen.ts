@@ -14,7 +14,10 @@ import {
 	type AuthoringActionKind,
 } from "./workflow-authoring-catalog.ts";
 import { settingsIssues } from "./workflow-compile.ts";
-import { WORKFLOW_SECRET_KEYS } from "./workflow-diff.ts";
+import {
+	redactWorkflowSecrets,
+	WORKFLOW_SECRET_KEYS,
+} from "./workflow-diff.ts";
 import { unrunnableIssues } from "./workflow-validate.ts";
 
 const jsonSchemaNode: z.ZodType<JsonSchemaNode> = z.lazy(() =>
@@ -244,21 +247,50 @@ const TAKES_NO_PARAMS = new Set([
 ]);
 
 const listValueSchema = z.array(jsonValueSchema);
+const scalarListSchema = z.array(
+	z.union([z.string(), z.number(), z.boolean(), z.null()]),
+);
 
-function literal(value: JsonValue, indent: string): string {
+const LINE_WIDTH = 80;
+const TAB_WIDTH = 2;
+
+function inlineList(
+	value: JsonValue,
+	indent: string,
+	lead: string,
+): string | null {
+	const scalars = scalarListSchema.safeParse(value);
+	if (!scalars.success) {
+		return null;
+	}
+	const text = `[${scalars.data.map((item) => JSON.stringify(item)).join(", ")}]`;
+	const width = indent.length * TAB_WIDTH + lead.length + text.length + 1;
+	return width <= LINE_WIDTH ? text : null;
+}
+
+function literal(value: JsonValue, indent: string, lead = ""): string {
 	const inner = `${indent}\t`;
 	const list = listValueSchema.safeParse(value);
 	if (list.success) {
-		return list.data.length === 0
-			? "[]"
-			: `[\n${list.data.map((item) => `${inner}${literal(item, inner)},`).join("\n")}\n${indent}]`;
+		if (list.data.length === 0) {
+			return "[]";
+		}
+		return (
+			inlineList(value, indent, lead) ??
+			`[\n${list.data.map((item) => `${inner}${literal(item, inner)},`).join("\n")}\n${indent}]`
+		);
 	}
 	const object = settingsRecord.safeParse(value);
 	if (object.success) {
 		const entries = Object.entries(object.data);
 		return entries.length === 0
 			? "{}"
-			: `{\n${entries.map(([key, item]) => `${inner}${propertyKey(key)}: ${literal(item, inner)},`).join("\n")}\n${indent}}`;
+			: `{\n${entries
+					.map(([key, item]) => {
+						const prefix = `${propertyKey(key)}: `;
+						return `${inner}${prefix}${literal(item, inner, prefix)},`;
+					})
+					.join("\n")}\n${indent}}`;
 	}
 	return JSON.stringify(value);
 }
@@ -556,6 +588,25 @@ export function workflowsToCode(
 		body,
 	].join("\n\n");
 	return { code: `${code}\n`, warnings, written };
+}
+
+export type WorkflowCodeResult =
+	| { ok: true; code: string; warnings: string[] }
+	| { ok: false; reason: string };
+
+/** One workflow as the `tripwire.ts` that `tripwire workflows pull` writes for it. */
+export function workflowToCode(
+	definition: WorkflowDefinition,
+): WorkflowCodeResult {
+	const [problem] = codeProblems(definition);
+	if (problem) {
+		return { ok: false, reason: problem };
+	}
+	const { code, warnings } = workflowsToCode(
+		[redactWorkflowSecrets(definition)],
+		{ importFrom: AUTHORING_MODULE_PATH },
+	);
+	return { ok: true, code, warnings };
 }
 
 /**
