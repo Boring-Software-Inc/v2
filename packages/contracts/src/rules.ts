@@ -334,7 +334,7 @@ export const RULE_CATALOG = [
 		// runs, but a repo enabling ai-review now pins the current version.
 		version: 2,
 		name: "AI review",
-		blurb: "off until you turn it on, because ai review costs tokens.",
+		blurb: "reads the change like a reviewer and flags slop.",
 		configSchema: aiReviewConfigSchema,
 		defaultConfig: { maxSteps: 12 },
 		optIn: true,
