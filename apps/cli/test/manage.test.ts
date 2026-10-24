@@ -156,6 +156,31 @@ describe("management commands over MCP", () => {
 		expect(result.stderr).toBe("error     Missing argument: repo.\n");
 	});
 
+	test.each([
+		["workflows", "pull", "--help", "<repo> [workflows...]"],
+		["workflows", "validate", "-h", ""],
+		["workflows", "diff", "--help", "<repo>"],
+		["workflows", "push", "-h", "<repo>"],
+		["rules", "set", "--help", "<repo> <ruleId>"],
+	])("%s %s %s prints that subcommand's help", async (group, sub, flag, args) => {
+		const result = await runCli([group, sub, flag], env());
+		expect(result.code).toBe(0);
+		expect(result.stdout.split("\n")[0]).toBe(
+			`Usage: tripwire ${group} ${sub} [options] ${args}`.trimEnd(),
+		);
+		expect(server.calls).toEqual([]);
+	});
+
+	test("subcommand help follows global options", async () => {
+		const result = await runCli(
+			["--org", "acme", "workflows", "pull", "--help"],
+			env(),
+		);
+		expect(result.stdout.split("\n")[0]).toBe(
+			"Usage: tripwire workflows pull [options] <repo> [workflows...]",
+		);
+	});
+
 	test("an unknown command exits 1 and never runs install", async () => {
 		const result = await runCli(["list_repos"], env());
 		expect(result.code).toBe(1);
