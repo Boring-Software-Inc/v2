@@ -56,30 +56,34 @@ type ActivityRow = typeof agentActivity.$inferSelect;
 
 const AGENT_FALLBACK_NAME = "Your agent";
 
-function parseDefinition(value: unknown): WorkflowDefinition | null {
-	const parsed = workflowDefinitionSchema.safeParse(value);
+function draftDefinition(
+	row: Pick<DraftRow, "definition">,
+): WorkflowDefinition | null {
+	const parsed = workflowDefinitionSchema.safeParse(row.definition);
 	return parsed.success ? parsed.data : null;
 }
 
-function parseChange(value: unknown): WorkflowChangeSet | null {
-	const parsed = workflowChangeSetSchema.safeParse(value);
+function draftChange(
+	row: Pick<DraftRow, "lastChange">,
+): WorkflowChangeSet | null {
+	const parsed = workflowChangeSetSchema.safeParse(row.lastChange);
 	return parsed.success ? parsed.data : null;
 }
 
-function parseTouches(value: unknown): AgentNodeTouch[] {
-	const parsed = agentNodeTouchesSchema.safeParse(value);
+function activityTouches(row: Pick<ActivityRow, "nodes">): AgentNodeTouch[] {
+	const parsed = agentNodeTouchesSchema.safeParse(row.nodes);
 	return parsed.success ? parsed.data : [];
 }
 
 function draftView(row: DraftRow): WorkflowDraftView {
-	const definition = parseDefinition(row.definition);
+	const definition = draftDefinition(row);
 	return {
 		id: row.id,
 		name: row.name,
 		status: row.status,
 		definition: definition ? redactWorkflowSecrets(definition) : null,
 		revision: row.revision,
-		lastChange: parseChange(row.lastChange),
+		lastChange: draftChange(row),
 		createdAt: row.createdAt.toISOString(),
 		updatedAt: row.updatedAt.toISOString(),
 		expiresAt: row.expiresAt.toISOString(),
@@ -93,7 +97,7 @@ function presence(row: ActivityRow, name: string | null): AgentPresence {
 		name: name?.trim() || AGENT_FALLBACK_NAME,
 		lastSignalAt: row.lastSignalAt.toISOString(),
 		finishedAt: row.finishedAt?.toISOString() ?? null,
-		nodes: parseTouches(row.nodes),
+		nodes: activityTouches(row),
 	};
 }
 
@@ -237,8 +241,7 @@ function blankDefinition(id: string, name: string): WorkflowDefinition {
 
 function draftOnlyRow(draft: DraftRow): WorkflowRow {
 	const definition =
-		parseDefinition(draft.definition) ??
-		blankDefinition(draft.definitionId, draft.name);
+		draftDefinition(draft) ?? blankDefinition(draft.definitionId, draft.name);
 	return {
 		id: draft.id,
 		name: draft.name,
@@ -388,11 +391,7 @@ async function touch(
 		row.finishedAt === null &&
 		input.now.getTime() - row.lastSignalAt.getTime() < AGENT_SESSION_HOLD_MS;
 	const nodes = agentNodeTouchesSchema.parse(
-		mergeTouches(
-			fresh ? parseTouches(row.nodes) : [],
-			input.touches,
-			input.now,
-		),
+		mergeTouches(fresh ? activityTouches(row) : [], input.touches, input.now),
 	);
 	if (!row) {
 		await db
@@ -616,9 +615,7 @@ export async function saveAgentDraft(
 		now,
 	);
 	const previous =
-		(current ? parseDefinition(current.definition) : null) ??
-		stored?.definition ??
-		null;
+		(current ? draftDefinition(current) : null) ?? stored?.definition ?? null;
 	const next = pushedDefinition(stored?.definition ?? null, input.definition);
 	const change = workflowChangeSet(previous, next);
 	const draft = await writeDraft(db, {
@@ -709,9 +706,7 @@ export async function applyAgentWorkflow(
 		workflowId: result.workflow.id,
 	});
 	const previous =
-		(draft ? parseDefinition(draft.definition) : null) ??
-		before?.definition ??
-		null;
+		(draft ? draftDefinition(draft) : null) ?? before?.definition ?? null;
 	const change = after
 		? workflowChangeSet(previous, after.definition)
 		: workflowChangeSet(previous, input.definition);
@@ -783,7 +778,7 @@ export async function finishWorkflowWork(
 		.from(agentActivity)
 		.where(and(...filters));
 	for (const row of rows) {
-		const nodes = releaseTouches(parseTouches(row.nodes), input.nodeIds);
+		const nodes = releaseTouches(activityTouches(row), input.nodeIds);
 		await db
 			.update(agentActivity)
 			.set({ nodes, finishedAt: input.nodeIds ? null : now })
@@ -826,7 +821,7 @@ export async function promoteDraft(
 	if (!draft) {
 		return { ok: false, issues: [{ message: "This draft is gone." }] };
 	}
-	const definition = parseDefinition(draft.definition);
+	const definition = draftDefinition(draft);
 	if (!definition || definition.nodes.length === 0) {
 		return { ok: false, issues: [{ message: "This draft has no steps yet." }] };
 	}

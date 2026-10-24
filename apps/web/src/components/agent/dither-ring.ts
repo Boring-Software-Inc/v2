@@ -1,19 +1,19 @@
 import type { AgentAction } from "@tripwire/contracts";
 import { BAYER4, clamp01 } from "#/components/dither/pixel";
 
-export const AGENT_ACTION_MS: Record<AgentAction, number> = {
+export const AGENT_ACTION_MS = {
 	read: 1500,
 	write: 1500,
 	edit: 1000,
 	delete: 800,
-};
+} satisfies Record<AgentAction, number>;
 
-const ACTION_STRENGTH: Record<AgentAction, number> = {
+const ACTION_STRENGTH = {
 	read: 0.45,
 	write: 0.9,
 	edit: 0.75,
 	delete: 0.8,
-};
+} satisfies Record<AgentAction, number>;
 
 export const RING_CELL = 2;
 export const RING_BAND = 3;

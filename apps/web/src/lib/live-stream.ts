@@ -34,7 +34,7 @@ function attach(event: string) {
 }
 
 function open() {
-	if (source || typeof EventSource === "undefined") {
+	if (source || !("EventSource" in globalThis)) {
 		return;
 	}
 	const next = new EventSource(STREAM_URL);

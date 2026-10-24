@@ -38,6 +38,11 @@ function ghost<T extends Piece>(piece: T, name: string): T {
 	};
 }
 
+export interface LiveGraph<N, E> {
+	nodes: N[];
+	edges: E[];
+}
+
 /**
  * Marks what one agent change did to the canvas: new nodes fade in one after
  * another, new edges draw in behind them like a trail, changed nodes pulse,
@@ -48,7 +53,7 @@ export function decorateLive<N extends Piece, E extends Piece>(input: {
 	next: { nodes: readonly N[]; edges: readonly E[] };
 	change: WorkflowChangeSet | null;
 	revision: number;
-}): { nodes: N[]; edges: E[] } {
+}): LiveGraph<N, E> {
 	const { change, next, previous } = input;
 	if (!change) {
 		return { nodes: [...next.nodes], edges: [...next.edges] };
