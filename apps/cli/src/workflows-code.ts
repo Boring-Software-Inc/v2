@@ -16,7 +16,7 @@ import {
 } from "@tripwire/contracts";
 import { z } from "zod";
 import { authoringSource } from "#/authoring-source" with { type: "macro" };
-import { pairs, type Style, triggerWords } from "#/format";
+import { pairs, type Style, workflowTriggerWords } from "#/format";
 import type { PickerItem } from "#/picker";
 
 export const DEFAULT_WORKFLOW_FILE = "tripwire.ts";
@@ -117,19 +117,26 @@ function codeProblem(definition: WorkflowDefinition): string | undefined {
 	return reason.startsWith("cannot") ? reason : "cannot be written as code";
 }
 
+export interface ListedWorkflow {
+	state?: WorkflowState;
+	schedules?: readonly string[];
+}
+
 export function workflowChoices(
 	workflows: readonly PulledWorkflow[],
-	states: ReadonlyMap<string, WorkflowState>,
+	listed: ReadonlyMap<string, ListedWorkflow>,
 ): PickerItem[] {
 	return workflows.map((workflow) => {
 		const problem = codeProblem(workflow.definition);
 		if (problem) {
 			return { value: workflow.id, label: workflow.name, disabled: problem };
 		}
-		const state =
-			(workflow.appId ? states.get(workflow.appId) : undefined) ??
-			(workflow.enabled ? "on" : "off");
-		const kinds = triggerWords(triggerKinds(workflow.definition));
+		const entry = workflow.appId ? listed.get(workflow.appId) : undefined;
+		const state = entry?.state ?? (workflow.enabled ? "on" : "off");
+		const kinds = workflowTriggerWords(
+			triggerKinds(workflow.definition),
+			entry?.schedules ?? [],
+		);
 		const triggers =
 			kinds.length > 2
 				? `${kinds.slice(0, 2).join(", ")} +${kinds.length - 2} more`
