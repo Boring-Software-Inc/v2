@@ -32,6 +32,9 @@ the compiler checks it before anything runs.
 Loading `tripwire.ts` needs Bun or Node 22.18+. On older Node, use
 `bunx @tripwire-sh/cli`. Without the CLI, the MCP tools `get_workflow`,
 `validate_workflow` and `apply_workflow` do the same with compiled JSON.
+Over the MCP, call `begin_workflow_work` before you build so the user can
+watch the draft in the app, and `finish_workflow_work` when you stop. A draft
+never runs.
 
 ## Reference
 
