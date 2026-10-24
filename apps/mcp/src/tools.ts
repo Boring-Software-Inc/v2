@@ -691,12 +691,10 @@ export function registerTools(
 				id: entry.definition.id,
 				name: entry.definition.name,
 				change: entry.baseWorkflowId === null ? "new" : "changed",
-				...(done
-					? {
-							outcome: done.outcome,
-							url: workflowLink(org, push.repoName, done.workflowId),
-						}
-					: {}),
+				outcome: done?.outcome,
+				url: done
+					? workflowLink(org, push.repoName, done.workflowId)
+					: undefined,
 			};
 		}),
 	});

@@ -73,13 +73,13 @@ export const workflowPushViewSchema = z.object({
 
 export type WorkflowPushView = z.infer<typeof workflowPushViewSchema>;
 
-export const WORKFLOW_PUSH_STATUS_LABELS: Record<WorkflowPushStatus, string> = {
+export const WORKFLOW_PUSH_STATUS_LABELS = {
 	pending: "Waiting for review",
 	accepted: "Accepted",
 	rejected: "Declined",
 	expired: "Expired",
 	stale: "Out of date",
-};
+} as const satisfies Record<WorkflowPushStatus, string>;
 
 export function effectivePushStatus(input: {
 	status: WorkflowPushStatus;

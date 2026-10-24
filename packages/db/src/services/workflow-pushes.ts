@@ -39,23 +39,8 @@ import {
 	type WorkflowRow,
 } from "./workflows.ts";
 
-function canonical(value: unknown): string {
-	if (Array.isArray(value)) {
-		return `[${value.map(canonical).join(",")}]`;
-	}
-	if (value !== null && typeof value === "object") {
-		const entries = Object.entries(value)
-			.filter(([, item]) => item !== undefined)
-			.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-		return `{${entries
-			.map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
-			.join(",")}}`;
-	}
-	return JSON.stringify(value);
-}
-
 export function definitionHash(definition: WorkflowDefinition): string {
-	return createHash("sha256").update(canonical(definition)).digest("hex");
+	return createHash("sha256").update(JSON.stringify(definition)).digest("hex");
 }
 
 export interface PushBlock {
@@ -482,7 +467,10 @@ export async function decideWorkflowPush(
 		if (push.status !== "pending") {
 			return { ok: false, reason: "already-decided", status: push.status };
 		}
-		const close = (status: WorkflowPushStatus, outcomes?: unknown) =>
+		const close = (
+			status: WorkflowPushStatus,
+			outcomes: WorkflowPushOutcome[] | null = null,
+		) =>
 			tx
 				.update(workflowPushProposals)
 				.set({
@@ -492,7 +480,7 @@ export async function decideWorkflowPush(
 						status === "accepted" || status === "rejected"
 							? input.userId
 							: null,
-					...(outcomes === undefined ? {} : { outcomes }),
+					outcomes,
 				})
 				.where(eq(workflowPushProposals.id, push.id));
 		if (now.getTime() >= push.expiresAt.getTime()) {

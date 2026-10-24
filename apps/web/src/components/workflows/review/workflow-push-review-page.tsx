@@ -44,14 +44,14 @@ import { workflowsQueryKeys } from "#/lib/workflows.query";
 
 const routeApi = getRouteApi("/$org/$repo/workflows/review/$pushId");
 
-const STATE_STATUS: Record<PushReviewState, StatusValue> = {
+const STATE_STATUS = {
 	open: "waiting",
 	blocked: "fail",
 	stale: "warn",
 	accepted: "ok",
 	rejected: "idle",
 	expired: "idle",
-};
+} as const satisfies Record<PushReviewState, StatusValue>;
 
 function workflowCount(count: number): string {
 	return `${count} ${count === 1 ? "workflow" : "workflows"}`;

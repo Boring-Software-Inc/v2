@@ -94,12 +94,12 @@ function listText(names: readonly string[]): string {
 		: `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
-const CLOSED_TEXT: Record<Exclude<WorkflowPushStatus, "pending">, string> = {
+const CLOSED_TEXT = {
 	accepted: "This push was already accepted.",
 	rejected: "This push was already declined.",
 	expired: "This push expired. Push again from the CLI.",
 	stale: "The workflows changed after this push. Push again from the CLI.",
-};
+} as const satisfies Record<Exclude<WorkflowPushStatus, "pending">, string>;
 
 export const decideWorkflowPush = createServerFn({ method: "POST" })
 	.middleware([
