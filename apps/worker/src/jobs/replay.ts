@@ -16,7 +16,7 @@ import { normalizeWebhook } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import pino from "pino";
 import { z } from "zod";
-import { worstVerdict } from "./run-workflows.ts";
+import { floorRuleSteps, worstVerdict } from "./run-workflows.ts";
 
 /**
  * §11 verdict replay — rerun the CURRENT engine over stored runs and diff the
@@ -146,8 +146,9 @@ export async function replayBundle(
 		});
 		verdicts.push(result.verdict);
 		const ruleSteps = result.steps.filter((s) => s.nodeKind === "rule");
-		ruleNodes += ruleSteps.length;
-		skippedRules += ruleSteps.filter((s) => s.status === "skipped").length;
+		const floorSteps = floorRuleSteps(ruleSteps);
+		ruleNodes += floorSteps.length;
+		skippedRules += floorSteps.filter((s) => s.status === "skipped").length;
 		for (const s of ruleSteps) {
 			if (s.status === "fail" && s.ruleRef) {
 				failedRules.push(s.ruleRef);
