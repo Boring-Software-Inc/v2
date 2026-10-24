@@ -649,7 +649,7 @@ function EditorBody({
 		return [
 			...decor.heads.map(
 				(head): LaneHeadFlowNode => ({
-					id: `${LANE_PREFIX}head:${head.index}`,
+					id: `${LANE_PREFIX}head:${head.id}`,
 					type: "laneHead",
 					position: { x: head.x, y: head.y },
 					data: { index: head.index, label: head.label },

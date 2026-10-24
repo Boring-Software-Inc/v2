@@ -88,7 +88,7 @@ export interface LaneBox {
 }
 
 export interface LaneDecor {
-	heads: { index: number; x: number; y: number; label: string }[];
+	heads: { id: string; index: number; x: number; y: number; label: string }[];
 	rules: { y: number; x: number; width: number }[];
 }
 
@@ -122,6 +122,7 @@ export function laneDecor(graph: Graph, boxes: readonly LaneBox[]): LaneDecor {
 	const heads = bounds.map((bound) => {
 		const trigger = byId.get(bound.lane.triggerId);
 		return {
+			id: bound.lane.triggerId,
 			index: bound.lane.index + 1,
 			x: bound.left,
 			y: bound.top - LANE_SPACING.head + 8,

@@ -477,13 +477,17 @@ body {
 }
 
 .glaze [data-agent-motion="full"] .react-flow__node {
-	transition: transform 500ms var(--ease-out);
+	transition: transform var(--agent-move) var(--ease-out);
 }
 
 .glaze [data-agent-motion="full"] .react-flow__node.agent-enter > :not([data-agent-dissolve]) {
 	animation:
 		agent-node-fade var(--agent-duration) linear var(--agent-delay) both,
 		agent-node-land var(--agent-duration) var(--ease-step) var(--agent-delay) both;
+}
+
+.glaze [data-agent-motion="full"] .react-flow__node-laneHead > * {
+	animation: lane-head-in var(--dur-overlay) var(--ease-out) var(--agent-move) both;
 }
 
 .glaze [data-agent-motion="full"] .react-flow__node.agent-pulse-a > *,
@@ -518,6 +522,12 @@ body {
 
 .glaze [data-agent-motion="reduced"] .react-flow__edge.agent-trail-out {
 	opacity: 0;
+}
+
+@keyframes lane-head-in {
+	from {
+		opacity: 0;
+	}
 }
 
 @keyframes agent-node-fade {

@@ -96,6 +96,7 @@
   --agent-dither-scale: 1;
   --agent-lap: 2400ms;
   --agent-breathe: 2800ms;
+  --agent-move: 500ms;
 
   /* == Glass: the press recipe, a glossy glaze over the reference's overlay stack; ink, coral and green are the primary's keys == */
   --glass-ink-base: rgb(0 0 0 / 0.66); /* ink glass, the body: black at 66% over what is behind it, a grey on white (the reference's 56%, darkened so the label holds over the catch-light) | primary button, icon button */
