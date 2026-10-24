@@ -1,10 +1,12 @@
 import {
+	catalogWithAiCredits,
 	customRuleRecordSchema,
 	diffWorkflow,
 	lintWorkflow,
 	mergeForPush,
 	reportWorkflows,
 	resolveCatalog,
+	restartedSchedules,
 	stripWorkflowSecrets,
 	type ValidationCatalogEntry,
 	type ValidationIssue,
@@ -20,7 +22,13 @@ import {
 import { generateId, pickWorkflowName } from "@tripwire/utils";
 import { and, eq } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { customRules, repos, workflowDefinitions } from "../schema/repos.ts";
+import {
+	customRules,
+	repos,
+	workflowDefinitions,
+	workflowScheduleState,
+} from "../schema/repos.ts";
+import { getAiCredits } from "./ai-provider.ts";
 import { listRepoReviewers } from "./reviewers.ts";
 
 /**
@@ -230,6 +238,31 @@ async function lockWorkflowRow(
 	return rows[0] ?? null;
 }
 
+async function restartSchedules(
+	tx: Tx,
+	workflowRowId: string,
+	before: WorkflowDefinition | null,
+	after: WorkflowDefinition,
+): Promise<void> {
+	for (const restart of restartedSchedules(before, after, new Date())) {
+		await tx
+			.insert(workflowScheduleState)
+			.values({
+				workflowId: workflowRowId,
+				nodeId: restart.nodeId,
+				lastTickAt: restart.lastTickAt,
+				lastError: null,
+			})
+			.onConflictDoUpdate({
+				target: [
+					workflowScheduleState.workflowId,
+					workflowScheduleState.nodeId,
+				],
+				set: { lastTickAt: restart.lastTickAt, lastError: null },
+			});
+	}
+}
+
 export type SaveWorkflowResult =
 	| { ok: true }
 	| { ok: false; issues: ValidationIssue[] };
@@ -249,16 +282,27 @@ export async function saveWorkflowDefinition(
 		if (!row) {
 			return { ok: false, issues: [{ message: "workflow not found" }] };
 		}
+		const stored = workflowDefinitionSchema.safeParse(row.definition);
 		if (row.enabled) {
-			const checked = validateWorkflowForEnable(definition, catalog);
-			if (!checked.valid) {
-				return { ok: false, issues: checked.issues };
+			const issues = liveSaveIssues(
+				stored.success ? stored.data : null,
+				definition,
+				catalog,
+			);
+			if (issues.length > 0) {
+				return { ok: false, issues };
 			}
 		}
 		await tx
 			.update(workflowDefinitions)
 			.set({ definition, name: definition.name, updatedAt: new Date() })
 			.where(eq(workflowDefinitions.id, row.id));
+		await restartSchedules(
+			tx,
+			row.id,
+			stored.success ? stored.data : null,
+			definition,
+		);
 		return { ok: true };
 	});
 }
@@ -355,7 +399,10 @@ export async function repoRuleCatalog(
 		const parsed = customRuleRecordSchema.safeParse(raw);
 		return parsed.success ? [parsed.data] : [];
 	});
-	return resolveCatalog(parsedCustom);
+	return catalogWithAiCredits(
+		resolveCatalog(parsedCustom),
+		await getAiCredits(db),
+	);
 }
 
 /** Every workflow on a repo with its definition. Corrupt rows are skipped. */
@@ -492,16 +539,39 @@ export async function applyWorkflowDefinition(
 			return { ok: true, outcome: "unchanged", workflow, changes };
 		}
 		if (locked.enabled) {
-			const checked = validateWorkflowForEnable(merged, catalog);
-			if (!checked.valid) {
-				return { ok: false, reason: "live-cannot-run", issues: checked.issues };
+			const issues = liveSaveIssues(stored.data, merged, catalog);
+			if (issues.length > 0) {
+				return { ok: false, reason: "live-cannot-run", issues };
 			}
 		}
 		await tx
 			.update(workflowDefinitions)
 			.set({ definition: merged, name: merged.name, updatedAt: new Date() })
 			.where(eq(workflowDefinitions.id, locked.id));
+		await restartSchedules(tx, locked.id, stored.data, merged);
 		return { ok: true, outcome: "updated", workflow, changes };
+	});
+}
+
+function liveSaveIssues(
+	stored: WorkflowDefinition | null,
+	next: WorkflowDefinition,
+	catalog: readonly ValidationCatalogEntry[],
+): ValidationIssue[] {
+	const checked = validateWorkflowForEnable(next, catalog);
+	if (checked.valid) {
+		return [];
+	}
+	const ref = (definition: WorkflowDefinition | null, nodeId?: string) => {
+		const node = definition?.nodes.find((n) => n.id === nodeId);
+		return node?.type === "rule" ? node.ref : null;
+	};
+	return checked.issues.filter((issue) => {
+		if (issue.rule !== "rule-unavailable") {
+			return true;
+		}
+		const before = ref(stored, issue.nodeId);
+		return before === null || before !== ref(next, issue.nodeId);
 	});
 }
 
@@ -532,6 +602,9 @@ export async function setWorkflowEnabled(
 			const result = validateWorkflowForEnable(row.definition, catalog);
 			if (!result.valid) {
 				return { ok: false, issues: result.issues };
+			}
+			if (!row.enabled) {
+				await restartSchedules(tx, row.id, null, result.definition);
 			}
 			warnings = synced?.syncedAt
 				? lintWorkflow(result.definition, {

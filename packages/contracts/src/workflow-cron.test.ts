@@ -273,15 +273,21 @@ describe("scheduleFireTime", () => {
 		).toBeNull();
 	});
 
-	test("an interval keeps its old tick ids", () => {
-		const now = new Date("2026-10-23T13:02:00Z");
+	test("an interval's tick id is the slot it was due, so a retry keeps it", () => {
+		const every12h = { every: { n: 12, unit: "hours" } } as const;
+		const last = new Date("2026-10-23T00:25:00Z");
+		const fire = scheduleFireTime(
+			every12h,
+			last,
+			new Date("2026-10-23T12:25:31Z"),
+		);
+		expect(fire?.toISOString()).toBe("2026-10-23T12:25:00.000Z");
 		expect(
-			scheduleFireTime(
-				{ every: { n: 12, unit: "hours" } },
-				null,
-				now,
-			)?.toISOString(),
-		).toBe("2026-10-23T12:00:00.000Z");
+			scheduleFireTime(every12h, last, new Date("2026-10-23T12:30:04Z")),
+		).toEqual(fire);
+		expect(
+			scheduleFireTime(every12h, null, new Date("2026-10-23T13:02:00Z")),
+		).toEqual(new Date("2026-10-23T13:00:00Z"));
 	});
 });
 

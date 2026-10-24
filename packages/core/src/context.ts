@@ -63,9 +63,13 @@ export interface AiReviewResponse {
 	trace: unknown;
 }
 
+export interface AiReviewUnavailable {
+	unavailable: "out-of-credits";
+}
+
 export type AiReviewGenerate = (
 	request: AiReviewRequest,
-) => Promise<AiReviewResponse>;
+) => Promise<AiReviewResponse | AiReviewUnavailable>;
 
 export interface RuleContext {
 	event: NormalizedEvent;

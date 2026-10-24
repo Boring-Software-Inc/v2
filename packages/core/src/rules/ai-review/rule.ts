@@ -1,4 +1,5 @@
 import {
+	AI_CREDITS_COPY,
 	type AiReviewOutput,
 	aiReviewConfigSchema,
 	aiReviewOutputSchema,
@@ -101,6 +102,13 @@ function defineAiReview(version: number, instructions: string) {
 				instructions,
 				prompt,
 			});
+			if ("unavailable" in response) {
+				return {
+					status: "skipped",
+					reason: AI_CREDITS_COPY.notRun,
+					cause: "ai-out-of-credits",
+				};
+			}
 			const parsed = aiReviewOutputSchema.safeParse(response.output);
 			if (!parsed.success) {
 				return {

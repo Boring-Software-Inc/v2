@@ -119,7 +119,7 @@ function render(
 ): number {
 	if (options.json) {
 		const body = output.isError
-			? { error: output.text }
+			? { error: friendlyError(output.text, output.data) }
 			: (output.data ?? { text: output.text });
 		out(JSON.stringify(body, null, 2));
 		return output.isError ? 1 : 0;
@@ -137,7 +137,7 @@ function render(
 
 function fail(error: Error, options: GlobalOptions): number {
 	if (options.json) {
-		out(JSON.stringify({ error: error.message }, null, 2));
+		out(JSON.stringify({ error: friendlyError(error.message) }, null, 2));
 	} else {
 		err(errorLine(friendlyError(error.message), options.errStyle));
 	}

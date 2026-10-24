@@ -1,6 +1,7 @@
 import {
 	FORGE_BY_ID,
 	type RuleResult,
+	type RuleSkipCause,
 	ruleForgeBlockReason,
 	ruleSupportsForge,
 } from "@tripwire/contracts";
@@ -15,7 +16,7 @@ import type { RuleContext } from "../context.ts";
 
 export type RuleOutcome<TEvidence> =
 	| { status: "evaluated"; passed: boolean; evidence: TEvidence }
-	| { status: "skipped"; reason: string };
+	| { status: "skipped"; reason: string; cause?: RuleSkipCause };
 
 export interface RuleDefinition<
 	TConfig extends z.ZodType = z.ZodType,
@@ -128,6 +129,7 @@ export async function evaluateRule(
 			passed: false,
 			evidence: null,
 			reason: outcome.reason,
+			cause: outcome.cause,
 		};
 	}
 	const evidence = rule.resultSchema.safeParse(outcome.evidence);

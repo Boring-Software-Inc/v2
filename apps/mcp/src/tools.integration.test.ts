@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { AI_CREDITS_COPY } from "@tripwire/contracts";
 import {
+	aiProviderServices,
 	applyMigrations,
 	createDb,
 	createTestDatabase,
@@ -261,6 +263,49 @@ describe("get_run reads like the run page", () => {
 	});
 });
 
+describe("a backfill run (R7-1)", () => {
+	test("list_runs and get_run mark it as history in would-have words", async () => {
+		const runId = await seedRun({
+			db,
+			repo: repoRows[0] ?? never(),
+			actor: { login: "someone", externalId: "4001" },
+			number: 94,
+			title: "backfilled",
+			verdict: "needs_review",
+			at: new Date(),
+		});
+		await pool.query(
+			"UPDATE runs SET status = 'completed', backfill = true WHERE id = $1",
+			[runId],
+		);
+		await pool.query("DELETE FROM moderation_items WHERE run_id = $1", [runId]);
+		const got = JSON.parse(
+			(await call("get_run", { runId })).content[0]?.text ?? "",
+		);
+		expect(got).toMatchObject({
+			backfill: true,
+			verdictLabel: "Would go to human review",
+		});
+		const listed = z
+			.array(
+				z.object({
+					id: z.string(),
+					backfill: z.boolean(),
+					verdictLabel: z.string().nullable(),
+				}),
+			)
+			.parse(
+				JSON.parse(
+					(await call("list_runs", { repo: "mcp-api" })).content[0]?.text ?? "",
+				),
+			);
+		expect(listed.find((row) => row.id === runId)).toMatchObject({
+			backfill: true,
+			verdictLabel: "Would go to human review",
+		});
+	});
+});
+
 describe("a run whose change request closed before review", () => {
 	async function closedRun(number: number) {
 		const runId = await seedRun({
@@ -482,7 +527,7 @@ describe("a repo argument names the repo the way people copy it", () => {
 		);
 	});
 
-	test("an org the user is not in reads as not one of their orgs", async () => {
+	test("a scope that is no org of the user's reads as a GitHub owner or org they are not in", async () => {
 		await addOrg("stranger-team", {
 			member: false,
 			repo: "stranger-repo",
@@ -492,10 +537,40 @@ describe("a repo argument names the repo the way people copy it", () => {
 			repo: "stranger-team/stranger-repo",
 		});
 		expect(result.structuredContent).toEqual({
-			error: `You are not in an org named stranger-team, and the org ${orgSlug} has no repo stranger-team/stranger-repo.`,
+			error: `The org ${orgSlug} has no repo stranger-team/stranger-repo, and stranger-team is not a Tripwire org you are in.`,
 			hint: "list_repos",
 			org: orgSlug,
 		});
+	});
+});
+
+describe("AI review while Tripwire is out of AI credits", () => {
+	test("set_rule refuses to turn it on, and get_repo_rules says it can't run", async () => {
+		await aiProviderServices.recordAiCredits(db, "out");
+		try {
+			const refused = await call("set_rule", {
+				repo: "mcp-api",
+				ruleId: "ai-review",
+				enabled: true,
+			});
+			expect(refused.isError).toBe(true);
+			expect(refused.structuredContent?.error).toBe(AI_CREDITS_COPY.cantRun);
+			const rules = z
+				.array(
+					z.object({ ruleId: z.string(), cannotRun: z.string().nullable() }),
+				)
+				.parse(
+					JSON.parse(
+						(await call("get_repo_rules", { repo: "mcp-api" })).content[0]
+							?.text ?? "",
+					),
+				);
+			expect(rules.find((rule) => rule.ruleId === "ai-review")?.cannotRun).toBe(
+				AI_CREDITS_COPY.reason,
+			);
+		} finally {
+			await aiProviderServices.recordAiCredits(db, "ready");
+		}
 	});
 });
 

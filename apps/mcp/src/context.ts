@@ -227,7 +227,7 @@ export async function resolveOrgRepo(
 	}
 	const org = await resolveOrg(ctx, requested, tool);
 	throw new RepoNotFoundError(
-		`You are not in an org named ${ref.scope}, and the org ${org.slug} has no repo ${ref.scope}/${ref.name}.`,
+		`The org ${org.slug} has no repo ${ref.scope}/${ref.name}, and ${ref.scope} is not a Tripwire org you are in.`,
 		org.slug,
 	);
 }

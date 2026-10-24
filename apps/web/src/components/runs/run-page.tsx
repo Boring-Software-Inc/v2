@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { FORGE_BY_ID } from "@tripwire/contracts";
+import { BACKFILL_RUN_LABEL, FORGE_BY_ID } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
@@ -157,6 +157,7 @@ function RunBody({ run }: { run: RunView }) {
 						</div>
 						<MetaRow className="type-body-sm text-text-2" wrap>
 							<RunStatusMark outcome={chain.outcome} />
+							{run.backfill ? <span>{BACKFILL_RUN_LABEL}</span> : null}
 							<span>{run.repoFullName}</span>
 							<span>{formatRelativeTime(run.createdAt)}</span>
 							<ZonedTime at={run.createdAt} format="date-time" />

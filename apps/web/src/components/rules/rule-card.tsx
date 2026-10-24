@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ruleUiSchema } from "@tripwire/contracts";
+import { ruleUiSchema, WORKFLOW_STATE_LABELS } from "@tripwire/contracts";
 import { useId, useState } from "react";
 import { ArrowRight, Blocked, Icon, More } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
@@ -75,7 +75,9 @@ export function RuleCard({
 	const hasTrend = rule.trend.some((n) => n > 0);
 	const standalone = rule.management === "standalone";
 	const forgeBlocked = rule.forgeBlockReason !== null;
-	const offering = rule.optIn && !enabled && standalone && !forgeBlocked;
+	const unavailable = rule.unavailableReason !== null;
+	const offering =
+		rule.optIn && !enabled && standalone && !forgeBlocked && !unavailable;
 	const off = standalone && (!enabled || forgeBlocked);
 	const params = ruleUiSchema(rule.ruleId)?.params ?? [];
 	const showParams = params.length > 0 && !offering;
@@ -101,7 +103,7 @@ export function RuleCard({
 		<Button
 			aria-describedby={queuedId}
 			aria-label={`${verb} ${rule.name}`}
-			disabled={!canEdit || forgeBlocked}
+			disabled={!canEdit || forgeBlocked || (unavailable && off)}
 			onClick={() => setEnabled(!enabled)}
 			size="sm"
 			variant="secondary"
@@ -132,6 +134,13 @@ export function RuleCard({
 		>
 			{rule.forgeBlockReason}
 		</Badge>
+	) : unavailable ? (
+		<span className="flex items-center gap-2">
+			<Badge variant="warn">
+				{WORKFLOW_STATE_LABELS[off ? "cant-turn-on" : "cant-run"]}
+			</Badge>
+			<span>{rule.unavailableReason}</span>
+		</span>
 	) : off ? (
 		<span>Off</span>
 	) : rule.matches24h > 0 ? (

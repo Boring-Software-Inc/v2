@@ -7,6 +7,7 @@ import {
 	changeRequestUrl,
 	redactionLevelFor,
 	ruleDisplayName,
+	ruleResultSchema,
 	type Verdict,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
@@ -243,6 +244,8 @@ export async function loadRunView(
 			latest && position >= 0 && latest.id !== result.run.id
 				? runLink(latest)
 				: null,
+		backfill: result.run.backfill,
+		aiReviewNotRun: result.steps.some(isAiOutOfCreditsStep),
 	};
 	if (access === "full") {
 		return toFullRunView(view);
@@ -252,6 +255,18 @@ export async function loadRunView(
 		repo?.id ?? null,
 	);
 	return toPublicRunView(view, redactionLevelFor(policy, "run-page"));
+}
+
+const stepCauseSchema = ruleResultSchema.pick({ cause: true });
+
+function isAiOutOfCreditsStep(step: {
+	status: string;
+	output: unknown;
+}): boolean {
+	return (
+		step.status === "skipped" &&
+		stepCauseSchema.safeParse(step.output).data?.cause === "ai-out-of-credits"
+	);
 }
 
 /** A joined run (§5.11) repeats its trigger once per def — one event, shown

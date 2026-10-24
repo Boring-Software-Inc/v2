@@ -118,6 +118,7 @@ export function WorkflowEditorPage() {
 				definition={workflow.definition}
 				enabled={workflow.enabled}
 				key={workflow.id}
+				lastTicks={workflow.lastTicks}
 				name={workflow.name}
 				onRename={(name) =>
 					rename.mutateAsync({ data: { org, repoId, workflowId, name } })

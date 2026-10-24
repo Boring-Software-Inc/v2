@@ -7,6 +7,7 @@ import {
 	type ScheduleInterval,
 	type SchedulePreset,
 	type Weekday,
+	type WorkflowNode,
 	weekdaySchema,
 } from "./workflow.ts";
 import {
@@ -287,45 +288,158 @@ function cronSpec(cadence: ScheduleCadence): CronSpec | null {
 	return parsed.ok ? parsed.spec : null;
 }
 
-/**
- * When the schedule runs next after `after`. An interval runs one interval
- * after its last tick, or at the next worker tick when it never ran.
- */
-export function nextScheduleRun(
-	schedule: { every: ScheduleCadence; timezone?: string },
-	options: { after: Date; lastTickAt?: Date | null },
-): Date | null {
-	if (isScheduleInterval(schedule.every)) {
-		const last = options.lastTickAt;
-		if (!last) {
-			return options.after;
-		}
-		const next = new Date(last.getTime() + durationMs(schedule.every));
-		return next.getTime() > options.after.getTime() ? next : options.after;
-	}
-	const spec = cronSpec(schedule.every);
-	return spec
-		? nextCronRun(spec, scheduleZone(schedule.timezone).zone, options.after)
-		: null;
+/** The five-minute mark a worker tick starting at `at` belongs to. */
+export function scheduleTickSlot(at: Date): Date {
+	return new Date(
+		Math.floor(at.getTime() / SCHEDULE_TICK_MS) * SCHEDULE_TICK_MS,
+	);
+}
+
+function slotAtOrAfter(ms: number): number {
+	return Math.ceil(ms / SCHEDULE_TICK_MS) * SCHEDULE_TICK_MS;
+}
+
+function intervalDueSlot(every: ScheduleInterval, lastTickAt: Date): number {
+	return slotAtOrAfter(lastTickAt.getTime() + durationMs(every));
 }
 
 const FIRE_LOOKBACK_MS = 24 * 60 * 60_000;
 
 /**
+ * The tick slot the schedule runs at next, seen at `after`. An interval runs
+ * at the first slot one interval after its last tick. A clock schedule runs at
+ * the first slot on or after its next cron time since the last tick.
+ */
+export function nextScheduleRun(
+	schedule: { every: ScheduleCadence; timezone?: string },
+	options: { after: Date; lastTickAt?: Date | null },
+): Date | null {
+	const current = scheduleTickSlot(options.after).getTime();
+	const last = options.lastTickAt ?? null;
+	if (isScheduleInterval(schedule.every)) {
+		return new Date(
+			last
+				? Math.max(intervalDueSlot(schedule.every, last), current)
+				: slotAtOrAfter(options.after.getTime()),
+		);
+	}
+	const spec = cronSpec(schedule.every);
+	if (!spec) {
+		return null;
+	}
+	const zone = scheduleZone(schedule.timezone).zone;
+	const from = last
+		? new Date(Math.max(last.getTime(), current - FIRE_LOOKBACK_MS))
+		: options.after;
+	const run = nextCronRun(spec, zone, from);
+	return run ? new Date(Math.max(slotAtOrAfter(run.getTime()), current)) : null;
+}
+
+export interface ScheduleTiming {
+	every: ScheduleCadence;
+	timezone?: string;
+}
+
+function timingKey(schedule: ScheduleTiming): string {
+	const every = schedule.every;
+	const cadence = isScheduleInterval(every)
+		? `every ${durationMs(every)}ms`
+		: (cadenceCron(every) ?? JSON.stringify(every));
+	return `${cadence} ${scheduleZone(schedule.timezone).zone}`;
+}
+
+/** Whether two schedules run at the same instants. */
+export function sameScheduleTiming(
+	a: ScheduleTiming | null,
+	b: ScheduleTiming | null,
+): boolean {
+	return a !== null && b !== null && timingKey(a) === timingKey(b);
+}
+
+/**
+ * The last tick a schedule starts over from when it is turned on or its timing
+ * changes, so no run missed before that is replayed. A clock schedule counts
+ * from `at`. An interval counts as last run one interval before `at`, so it
+ * runs at the first tick slot on or after `at`.
+ */
+export function restartedTickAt(schedule: ScheduleTiming, at: Date): Date {
+	return isScheduleInterval(schedule.every)
+		? new Date(at.getTime() - durationMs(schedule.every))
+		: at;
+}
+
+/** The timing of every schedule trigger in a workflow, by node id. */
+export function scheduleTimings(definition: {
+	nodes: readonly WorkflowNode[];
+}): Map<string, ScheduleTiming> {
+	const timings = new Map<string, ScheduleTiming>();
+	for (const node of definition.nodes) {
+		if (node.type === "trigger" && node.schedule?.every) {
+			timings.set(node.id, {
+				every: node.schedule.every,
+				timezone: node.schedule.timezone,
+			});
+		}
+	}
+	return timings;
+}
+
+/**
+ * The schedule triggers that start over when `after` replaces `before`: all
+ * of them when the workflow turns on (`before` is null), otherwise those whose
+ * timing changed. Each carries the last tick to store, null for none.
+ */
+export function restartedSchedules(
+	before: { nodes: readonly WorkflowNode[] } | null,
+	after: { nodes: readonly WorkflowNode[] },
+	at: Date,
+): { nodeId: string; lastTickAt: Date }[] {
+	const previous = before ? scheduleTimings(before) : new Map();
+	return [...scheduleTimings(after)]
+		.filter(
+			([nodeId, timing]) =>
+				before === null ||
+				!sameScheduleTiming(previous.get(nodeId) ?? null, timing),
+		)
+		.map(([nodeId, timing]) => ({
+			nodeId,
+			lastTickAt: restartedTickAt(timing, at),
+		}));
+}
+
+/**
+ * The last tick the worker will count from once the editor's schedule is
+ * live: the stored tick while the workflow stays on with the same timing,
+ * otherwise a fresh start at `now`.
+ */
+export function scheduleCountsFrom(input: {
+	enabled: boolean;
+	saved: ScheduleTiming | null;
+	current: ScheduleTiming;
+	lastTickAt: Date | null;
+	now: Date;
+}): Date | null {
+	return input.enabled && sameScheduleTiming(input.saved, input.current)
+		? input.lastTickAt
+		: restartedTickAt(input.current, input.now);
+}
+
+/**
  * The run a tick at `now` owes, as the instant it was due, or null when the
- * schedule is not due. The instant doubles as the tick id, so retries of the
- * same run dedupe.
+ * schedule is not due. The tick counts as its slot, the same slot the editor
+ * shows. An interval is due at a slot, a clock schedule at its cron time. The
+ * instant doubles as the tick id, so retries of the same run dedupe and every
+ * new run gets a new id.
  */
 export function scheduleFireTime(
 	schedule: { every: ScheduleCadence; timezone?: string },
 	lastTickAt: Date | null,
 	now: Date,
 ): Date | null {
+	const slot = scheduleTickSlot(now).getTime();
 	if (isScheduleInterval(schedule.every)) {
-		const size = durationMs(schedule.every);
-		const due =
-			lastTickAt === null || now.getTime() - lastTickAt.getTime() >= size;
-		return due ? new Date(Math.floor(now.getTime() / size) * size) : null;
+		const due = lastTickAt ? intervalDueSlot(schedule.every, lastTickAt) : slot;
+		return slot >= due ? new Date(due) : null;
 	}
 	const spec = cronSpec(schedule.every);
 	if (!spec) {
@@ -333,10 +447,10 @@ export function scheduleFireTime(
 	}
 	const zone = scheduleZone(schedule.timezone).zone;
 	const anchor = Math.max(
-		lastTickAt?.getTime() ?? now.getTime() - 2 * SCHEDULE_TICK_MS,
-		now.getTime() - FIRE_LOOKBACK_MS,
+		lastTickAt?.getTime() ?? slot - 2 * SCHEDULE_TICK_MS,
+		slot - FIRE_LOOKBACK_MS,
 	);
-	return latestCronRun(spec, zone, new Date(anchor), now);
+	return latestCronRun(spec, zone, new Date(anchor), new Date(slot));
 }
 
 /**

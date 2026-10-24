@@ -318,6 +318,7 @@ export async function processEvent(
 			event: normalized,
 			reasons: result.reasons,
 			degraded: result.degraded,
+			aiReviewNotRun: result.aiReviewNotRun,
 			pendingActionRows: result.actionRows,
 			pendingCheckPosted,
 		});

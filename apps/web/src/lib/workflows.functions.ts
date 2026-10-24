@@ -17,6 +17,10 @@ import {
 
 export type { SetEnabledResult, WorkflowListItem, WorkflowRow };
 
+export interface WorkflowDetail extends WorkflowRow {
+	lastTicks: Record<string, string>;
+}
+
 /**
  * Workflows surface (§grid + editor). Members read; admins mutate. Every fn
  * verifies the repo belongs to the URL's org (requireOrgRepoById — a foreign
@@ -48,14 +52,15 @@ export const getRepoWorkflow = createServerFn({ method: "GET" })
 	.inputValidator(
 		(input: { org: string; repoId: string; workflowId: string }) => input,
 	)
-	.handler(async ({ data, context }): Promise<WorkflowRow | null> => {
+	.handler(async ({ data, context }): Promise<WorkflowDetail | null> => {
 		await requireOrgRepoById(
 			(context as { org: OrgWithRole }).org.id,
 			data.repoId,
 		);
-		const { workflowServices } = await import("@tripwire/db");
+		const { scheduleServices, workflowServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		const row = await workflowServices.getWorkflow(getDb().db, {
+		const { db } = getDb();
+		const row = await workflowServices.getWorkflow(db, {
 			repoId: data.repoId,
 			workflowId: data.workflowId,
 		});
@@ -63,7 +68,11 @@ export const getRepoWorkflow = createServerFn({ method: "GET" })
 			return null;
 		}
 		const { redactWorkflowSecrets } = await import("@tripwire/contracts");
-		return { ...row, definition: redactWorkflowSecrets(row.definition) };
+		return {
+			...row,
+			definition: redactWorkflowSecrets(row.definition),
+			lastTicks: await scheduleServices.listScheduleTicks(db, row.id),
+		};
 	});
 
 /**

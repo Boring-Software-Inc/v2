@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { formatCommand, runOrThrow } from "#/agents/shell";
-import type { Agent } from "#/agents/types";
+import { z } from "zod";
+import { formatCommand, readSignIn, runOrThrow } from "#/agents/shell";
+import type { Agent, SignInState } from "#/agents/types";
 import { SERVER_NAME } from "#/config";
 import type { System } from "#/system";
 
@@ -28,6 +29,25 @@ export function codexServerUrl(toml: string, name: string): string | null {
 		}
 	}
 	return "";
+}
+
+const codexListSchema = z.array(
+	z.object({ name: z.string(), auth_status: z.string().nullish() }),
+);
+
+export function codexSignIn(stdout: string): SignInState {
+	try {
+		const list = codexListSchema.safeParse(JSON.parse(stdout));
+		const status = list.success
+			? list.data.find((entry) => entry.name === SERVER_NAME)?.auth_status
+			: undefined;
+		if (status === "o_auth" || status === "bearer_token") {
+			return "signed-in";
+		}
+		return status === "not_logged_in" ? "signed-out" : "unknown";
+	} catch {
+		return "unknown";
+	}
 }
 
 function currentUrl(system: System): string | null {
@@ -69,6 +89,8 @@ export function createCodex(system: System): Agent {
 		login: () => ({
 			command: binary(),
 			args: ["mcp", "login", SERVER_NAME],
+			status: () =>
+				readSignIn(system, binary(), ["mcp", "list", "--json"], codexSignIn),
 		}),
 	};
 }

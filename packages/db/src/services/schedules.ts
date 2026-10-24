@@ -166,3 +166,16 @@ export async function getScheduleState(
 		);
 	return rows[0] ?? null;
 }
+
+export async function listScheduleTicks(
+	db: Db,
+	workflowRowId: string,
+): Promise<Record<string, string>> {
+	const rows = await db
+		.select()
+		.from(workflowScheduleState)
+		.where(eq(workflowScheduleState.workflowId, workflowRowId));
+	return Object.fromEntries(
+		rows.map((row) => [row.nodeId, row.lastTickAt.toISOString()]),
+	);
+}

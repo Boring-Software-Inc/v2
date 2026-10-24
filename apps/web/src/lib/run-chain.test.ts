@@ -129,6 +129,8 @@ function view(overrides: Partial<RunView> = {}): RunView {
 		],
 		previousRun: null,
 		nextRun: null,
+		backfill: false,
+		aiReviewNotRun: false,
 		...overrides,
 	};
 }
@@ -621,6 +623,109 @@ describe("human review decisions", () => {
 		);
 		expect(chain.outcome.title).toBe("Waiting for human review");
 		expect(chain.outcome.detail).toBe("Tripwire could not check every rule.");
+	});
+});
+
+describe("a backfill run (R7-1)", () => {
+	test("that reached human review says it would have, since no review item exists", () => {
+		const chain = buildRunChain(
+			view({ verdict: "needs_review", status: "completed", backfill: true }),
+		);
+		expect(chain.outcome.title).toBe("Would go to human review");
+		expect(chain.outcome.short).toBe("Would go to human review");
+	});
+
+	test("that passed reads as what it would have done", () => {
+		const chain = buildRunChain(
+			view({ verdict: "pass", status: "completed", backfill: true }),
+		);
+		expect(chain.outcome.title).toBe("Would pass");
+	});
+
+	test("that blocked reads as what it would have done (R8-1)", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "block",
+				status: "completed",
+				backfill: true,
+				workflows: [],
+				reviews: [],
+			}),
+		);
+		expect(chain.outcome.title).toBe("Would block");
+		expect(chain.outcome.short).toBe("Would block");
+		expect(chain.outcome.tone).toBe("fail");
+	});
+
+	test("that a workflow blocked names it in would-words (R8-1)", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "block",
+				status: "completed",
+				backfill: true,
+				workflows: [RULES],
+				reviews: [],
+			}),
+		);
+		expect(chain.outcome.title).toBe("Rules would block it");
+		expect(chain.outcome.short).toBe("Would block");
+	});
+
+	test("superseded keeps the would-words on its last step (R8-1)", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "block",
+				status: "completed",
+				backfill: true,
+				workflows: [RULES],
+				reviews: [],
+				nextRun: {
+					id: "run-2",
+					createdAt: "2026-10-21T14:12:07.000Z",
+					status: "completed",
+					verdict: "pass",
+					eventKind: "change-request.updated",
+					actor: "g-r-i-m",
+					headSha: "3f9a2c1ffff",
+					rerun: false,
+				},
+			}),
+		);
+		expect(chain.steps.map((step) => step.title)).toEqual([
+			"Rules would block it",
+		]);
+	});
+});
+
+describe("a run whose AI review did not run (out of credits)", () => {
+	test("a pass leaves the line to the AI review step", () => {
+		const chain = buildRunChain(
+			view({ verdict: "pass", status: "completed", aiReviewNotRun: true }),
+		);
+		expect(chain.outcome.title).toBe("Passed");
+		expect(chain.outcome.detail).toBeNull();
+	});
+
+	test("human review leaves the line to the AI review step", () => {
+		const chain = buildRunChain(
+			view({
+				verdict: "needs_review",
+				status: "paused",
+				aiReviewNotRun: true,
+				reviews: [
+					{
+						workflowId: null,
+						state: "open",
+						degraded: true,
+						openedAt: AT,
+						decidedAt: null,
+						decidedBy: null,
+					},
+				],
+			}),
+		);
+		expect(chain.outcome.title).toBe("Waiting for human review");
+		expect(chain.outcome.detail).toBeNull();
 	});
 });
 

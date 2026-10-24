@@ -81,9 +81,14 @@ function resultWords(run: {
 	status: string;
 	verdict: string | null;
 	bearsVerdict: boolean;
+	backfill: boolean;
 }) {
 	const result = runResult(run);
-	return { result, verdictLabel: runResultLabel(result) };
+	return {
+		result,
+		verdictLabel: runResultLabel(result, { backfill: run.backfill }),
+		backfill: run.backfill,
+	};
 }
 
 function installLink(ctx: ToolContext, orgId: string): string | undefined {
@@ -313,7 +318,7 @@ export function registerTools(
 							management: view.management,
 							optIn: view.optIn,
 							held: view.held,
-							cannotRun: view.forgeBlockReason,
+							cannotRun: view.forgeBlockReason ?? view.unavailableReason,
 							matches24h: view.matches24h,
 						})),
 					);
@@ -665,7 +670,7 @@ export function registerTools(
 			"list_runs",
 			{
 				description:
-					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A run with bearsVerdict false came from a comment or a schedule. It acts on a thread, and its verdict is not the change request's verdict. result and verdictLabel say how the run ended, in the run page's words: closed-before-review means the change request closed while the run waited for human review.",
+					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A run with bearsVerdict false came from a comment or a schedule. It acts on a thread, and its verdict is not the change request's verdict. A run with backfill true is history: Tripwire checked a change request from before the gate was on and took no action. result and verdictLabel say how the run ended, in the run page's words: closed-before-review means the change request closed while the run waited for human review.",
 				inputSchema: {
 					org: orgArg,
 					repo: anyRepoArg,

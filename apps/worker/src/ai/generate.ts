@@ -1,6 +1,11 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { RepoScopedEvent } from "@tripwire/contracts";
-import { aiReviewOutputSchema, boundAiReviewTrace } from "@tripwire/contracts";
+import {
+	aiReviewOutputSchema,
+	boundAiReviewTrace,
+	isAiOutOfCreditsError,
+	providerErrorSchema,
+} from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import { generateText, hasToolCall, stepCountIs, tool } from "ai";
 import { z } from "zod";
@@ -46,8 +51,13 @@ export function createGenerate(options: {
 	event: RepoScopedEvent;
 	/** Best-effort metering of request bytes sent to OpenRouter. Optional. */
 	countBytesOut?: (bytes: number) => void;
+	fetch?: (
+		input: Parameters<typeof fetch>[0],
+		init?: Parameters<typeof fetch>[1],
+	) => Promise<Response>;
 }): AiReviewGenerate {
 	const countBytesOut = options.countBytesOut;
+	const baseFetch = options.fetch ?? fetch;
 	// Wrap fetch only to size the request body; the response is untouched.
 	const meteredFetch = countBytesOut
 		? (
@@ -61,9 +71,9 @@ export function createGenerate(options: {
 						// metering must never break the model call
 					}
 				}
-				return fetch(input, init);
+				return baseFetch(input, init);
 			}
-		: undefined;
+		: options.fetch;
 	const openrouter = createOpenRouter({
 		apiKey: options.apiKey,
 		...(meteredFetch ? { fetch: meteredFetch as typeof fetch } : {}),
@@ -82,53 +92,67 @@ export function createGenerate(options: {
 		let review: unknown = null;
 		const resolvedModel = model ?? options.defaultModel;
 
-		const result = await generateText({
-			// usage.include turns on OpenRouter usage accounting, so each step's
-			// providerMetadata carries token counts AND cost (§8 metering).
-			model: openrouter(resolvedModel, { usage: { include: true } }),
-			system: instructions,
-			prompt,
-			stopWhen: [stepCountIs(maxSteps), hasToolCall("submit_review")],
-			tools: {
-				read_file: tool({
-					description: "read a file from the change request's head for context",
-					inputSchema: z.object({ path: z.string() }),
-					execute: async ({ path }) =>
-						(await options.readFile(repo, path, headRef)) ?? "(file not found)",
-				}),
-				get_commits: tool({
-					description: "list the change request's commits",
-					inputSchema: z.object({}),
-					execute: async () =>
-						options.reads && number !== null
-							? await options.reads.getCommits(
-									repo,
-									number,
-									changeRequestHead(options.event),
-								)
-							: "(unavailable)",
-				}),
-				get_contributor_context: tool({
-					description: "fetch the contributor's forge profile and history",
-					inputSchema: z.object({}),
-					execute: async () =>
-						options.reads
-							? await options.reads.getContributorProfile(
-									repo,
-									options.event.actor.login,
-								)
-							: "(unavailable)",
-				}),
-				submit_review: tool({
-					description: "submit the final structured review. call exactly once.",
-					inputSchema: aiReviewOutputSchema,
-					execute: (output) => {
-						review = output;
-						return "review recorded";
-					},
-				}),
-			},
-		});
+		const runReview = () =>
+			generateText({
+				// usage.include turns on OpenRouter usage accounting, so each step's
+				// providerMetadata carries token counts AND cost (§8 metering).
+				model: openrouter(resolvedModel, { usage: { include: true } }),
+				system: instructions,
+				prompt,
+				stopWhen: [stepCountIs(maxSteps), hasToolCall("submit_review")],
+				tools: {
+					read_file: tool({
+						description:
+							"read a file from the change request's head for context",
+						inputSchema: z.object({ path: z.string() }),
+						execute: async ({ path }) =>
+							(await options.readFile(repo, path, headRef)) ??
+							"(file not found)",
+					}),
+					get_commits: tool({
+						description: "list the change request's commits",
+						inputSchema: z.object({}),
+						execute: async () =>
+							options.reads && number !== null
+								? await options.reads.getCommits(
+										repo,
+										number,
+										changeRequestHead(options.event),
+									)
+								: "(unavailable)",
+					}),
+					get_contributor_context: tool({
+						description: "fetch the contributor's forge profile and history",
+						inputSchema: z.object({}),
+						execute: async () =>
+							options.reads
+								? await options.reads.getContributorProfile(
+										repo,
+										options.event.actor.login,
+									)
+								: "(unavailable)",
+					}),
+					submit_review: tool({
+						description:
+							"submit the final structured review. call exactly once.",
+						inputSchema: aiReviewOutputSchema,
+						execute: (output) => {
+							review = output;
+							return "review recorded";
+						},
+					}),
+				},
+			});
+		let result: Awaited<ReturnType<typeof runReview>>;
+		try {
+			result = await runReview();
+		} catch (error) {
+			const parsed = providerErrorSchema.safeParse(error);
+			if (parsed.success && isAiOutOfCreditsError(parsed.data)) {
+				return { unavailable: "out-of-credits" };
+			}
+			throw error;
+		}
 
 		// Per-run cost is the sum of per-step OpenRouter cost (one HTTP request per
 		// step). Null when no step reported a cost, so metering degrades to tokens.

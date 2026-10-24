@@ -35,6 +35,7 @@ import {
 	planDrag,
 	portHandleId,
 	RULE_CATALOG,
+	scheduleTimings,
 	stepDisplayName,
 	stepNames,
 	WORKFLOW_PORT_TONE,
@@ -92,14 +93,16 @@ import {
 	TripwireNode,
 } from "#/components/workflows/editor/node-card";
 import {
-	type CronDraftsApi,
-	CronDraftsContext,
 	CustomRuleNamesContext,
 	EditFieldContext,
 	groupProblems,
 	type Problem,
 	type ProblemsApi,
 	ProblemsContext,
+	type ScheduleDraftsApi,
+	ScheduleDraftsContext,
+	ScheduleTimingContext,
+	type ScheduleTimingLookup,
 } from "#/components/workflows/editor/node-issues";
 import { ProblemsButton } from "#/components/workflows/editor/problems-list";
 import { ReviewerScopeContext } from "#/components/workflows/editor/reviewer-picker";
@@ -112,7 +115,7 @@ import {
 	type TypedFlowEdge,
 } from "#/components/workflows/editor/typed-connections";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
-import { invalidCronDrafts } from "#/lib/schedule-cadence";
+import { invalidScheduleDrafts } from "#/lib/schedule-input";
 import {
 	definitionToGraph,
 	edgeWhenFields,
@@ -248,6 +251,7 @@ export interface WorkflowEditorProps {
 	definition: WorkflowDefinition;
 	name: string;
 	enabled: boolean;
+	lastTicks: Record<string, string>;
 	readOnly: boolean;
 	org: string;
 	repo: string;
@@ -286,6 +290,7 @@ function EditorBody({
 	definition,
 	name,
 	enabled,
+	lastTicks,
 	readOnly,
 	org,
 	repo,
@@ -312,15 +317,27 @@ function EditorBody({
 	const [edges, setEdges, onEdgesStateChange] = useEdgesState<FlowEdge>(
 		initial.edges,
 	);
-	const [dirty, setDirty] = useState(false);
-	const [cronDrafts, setCronDrafts] = useState<ReadonlyMap<string, string>>(
-		new Map(),
+	const savedTimings = useMemo(() => scheduleTimings(definition), [definition]);
+	const scheduleTiming = useCallback<ScheduleTimingLookup>(
+		(nodeId) => {
+			const tick = lastTicks[nodeId];
+			return {
+				enabled,
+				saved: savedTimings.get(nodeId) ?? null,
+				lastTickAt: tick ? new Date(tick) : null,
+			};
+		},
+		[enabled, lastTicks, savedTimings],
 	);
-	const cronDraftsApi = useMemo<CronDraftsApi>(
+	const [dirty, setDirty] = useState(false);
+	const [scheduleDrafts, setScheduleDrafts] = useState<
+		ReadonlyMap<string, string>
+	>(new Map());
+	const scheduleDraftsApi = useMemo<ScheduleDraftsApi>(
 		() => ({
-			drafts: cronDrafts,
+			drafts: scheduleDrafts,
 			setDraft: (nodeId, text) =>
-				setCronDrafts((current) => {
+				setScheduleDrafts((current) => {
 					const next = new Map(current);
 					if (text === null) {
 						next.delete(nodeId);
@@ -330,7 +347,7 @@ function EditorBody({
 					return next;
 				}),
 		}),
-		[cronDrafts],
+		[scheduleDrafts],
 	);
 	const [dragged, setDragged] = useState<ToolboxItem | null>(null);
 	const { fitView, getIntersectingNodes, getZoom, screenToFlowPosition } =
@@ -457,12 +474,12 @@ function EditorBody({
 						.filter((issue) => !known.has(issue.message))
 						.map((issue) => serverProblem(issue, names))
 				: [];
-		const drafted = invalidCronDrafts(
-			cronDrafts,
+		const drafted = invalidScheduleDrafts(
+			scheduleDrafts,
 			nodes.map((node) => node.data.node),
 		).map(
 			({ nodeId, message }): Problem => ({
-				key: `cron:${nodeId}`,
+				key: `schedule:${nodeId}`,
 				rule: null,
 				severity: "error",
 				step: names.get(nodeId) ?? "Schedule",
@@ -470,7 +487,7 @@ function EditorBody({
 				nodeId,
 				fixes: [
 					{
-						label: "Edit cron",
+						label: "Edit schedule",
 						intent: { type: "focus-field", nodeId, field: "every" },
 					},
 				],
@@ -486,7 +503,7 @@ function EditorBody({
 		serverIssues,
 		nodes,
 		enableCatalog,
-		cronDrafts,
+		scheduleDrafts,
 	]);
 
 	const blockers = problems.filter((problem) => problem.severity === "error");
@@ -1039,10 +1056,10 @@ function EditorBody({
 	// ---- save ---------------------------------------------------------------
 	const handleSave = async () => {
 		const unparsed = problems.find((problem) =>
-			problem.key.startsWith("cron:"),
+			problem.key.startsWith("schedule:"),
 		);
 		if (unparsed) {
-			toast.fail(`${unparsed.message} Fix the cron to save.`);
+			toast.fail(`${unparsed.message} Fix the schedule to save.`);
 			revealProblem(unparsed);
 			return;
 		}
@@ -1192,23 +1209,25 @@ function EditorBody({
 								</EditFieldContext.Provider>
 							</ProblemsContext.Provider>
 						</CustomRuleNamesContext.Provider>
-						<CronDraftsContext.Provider value={cronDraftsApi}>
-							<EditorSidebar
-								connect={toolboxConnect}
-								customRules={customRules}
-								onCancelConnect={cancelPending}
-								fieldFocus={fieldFocus}
-								onFieldFocused={() => setFieldFocus(null)}
-								org={org}
-								repo={repo}
-								onAdd={addAtFreePosition}
-								onClearSelection={clearSelection}
-								onTestConnection={onTestConnection}
-								onUpdateNode={updateNode}
-								readOnly={readOnly}
-								selectedNode={selectedNode}
-							/>
-						</CronDraftsContext.Provider>
+						<ScheduleDraftsContext.Provider value={scheduleDraftsApi}>
+							<ScheduleTimingContext.Provider value={scheduleTiming}>
+								<EditorSidebar
+									connect={toolboxConnect}
+									customRules={customRules}
+									onCancelConnect={cancelPending}
+									fieldFocus={fieldFocus}
+									onFieldFocused={() => setFieldFocus(null)}
+									org={org}
+									repo={repo}
+									onAdd={addAtFreePosition}
+									onClearSelection={clearSelection}
+									onTestConnection={onTestConnection}
+									onUpdateNode={updateNode}
+									readOnly={readOnly}
+									selectedNode={selectedNode}
+								/>
+							</ScheduleTimingContext.Provider>
+						</ScheduleDraftsContext.Provider>
 						<ProblemsButton
 							onFix={fixProblem}
 							onOpenChange={setProblemsOpen}

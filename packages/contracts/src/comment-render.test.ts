@@ -746,3 +746,31 @@ describe("checkSummary", () => {
 		expect(checkSummary("needs_review", [])).toBe("Waiting for human review.");
 	});
 });
+
+describe("a run whose AI review did not run", () => {
+	test("the comment says so under the headline, for every verdict", () => {
+		for (const verdict of ["pass", "block", "needs_review"] as const) {
+			const body = renderCommentBody(
+				input({ verdict, reasons: [], aiReviewNotRun: true }),
+			);
+			const lines = body.split("\n\n");
+			expect(lines[1]).toBe("AI review did not run.");
+		}
+	});
+
+	test("the check summary says so", () => {
+		expect(checkSummary("pass", [], false, 0, true)).toBe(
+			"Passed. AI review did not run.",
+		);
+		expect(checkSummary("needs_review", [], true, 0, true)).toBe(
+			"Waiting for human review. Tripwire could not finish checking. AI review did not run.",
+		);
+	});
+
+	test("a run that reviewed reads as before", () => {
+		expect(renderCommentBody(input({ reasons: [] }))).not.toContain(
+			"AI review did not run",
+		);
+		expect(checkSummary("pass", [])).toBe("Passed.");
+	});
+});

@@ -220,6 +220,8 @@ const fullView: RunView = {
 	],
 	previousRun: null,
 	nextRun: null,
+	backfill: false,
+	aiReviewNotRun: false,
 };
 
 describe("toPublicRunView", () => {

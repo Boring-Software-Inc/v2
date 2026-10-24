@@ -6,10 +6,11 @@ import {
 	firstExisting,
 	firstOnPath,
 	macApps,
+	readSignIn,
 	sharedSkillsDir,
 	xdgConfigHome,
 } from "#/agents/shell";
-import type { Agent } from "#/agents/types";
+import type { Agent, SignInState } from "#/agents/types";
 import { SERVER_NAME } from "#/config";
 import { writeServerEntry } from "#/json-config";
 import type { System } from "#/system";
@@ -21,6 +22,22 @@ interface OpencodeFamily {
 	apps: string[];
 	extensionId: string | null;
 	configPath: (system: System) => string;
+}
+
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+
+export function opencodeSignIn(stdout: string): SignInState {
+	const line = stdout
+		.replace(ANSI, "")
+		.split(/\r?\n/)
+		.find((text) => new RegExp(`(^|\\s)${SERVER_NAME}\\s`).test(text));
+	if (line === undefined) {
+		return "unknown";
+	}
+	if (/✓/.test(line) && /\bconnected\b/.test(line)) {
+		return "signed-in";
+	}
+	return /needs authentication/.test(line) ? "signed-out" : "unknown";
 }
 
 function createOpencodeFamily(system: System, family: OpencodeFamily): Agent {
@@ -52,7 +69,12 @@ function createOpencodeFamily(system: System, family: OpencodeFamily): Agent {
 		login: () => {
 			const binary = cli();
 			return binary
-				? { command: binary, args: ["mcp", "auth", SERVER_NAME] }
+				? {
+						command: binary,
+						args: ["mcp", "auth", SERVER_NAME],
+						status: () =>
+							readSignIn(system, binary, ["mcp", "list"], opencodeSignIn),
+					}
 				: null;
 		},
 	};

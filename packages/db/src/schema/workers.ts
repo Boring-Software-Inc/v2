@@ -9,3 +9,14 @@ export const workerDeployments = pgTable("worker_deployments", {
 		.notNull()
 		.defaultNow(),
 });
+
+export const aiProviderStatus = pgTable("ai_provider_status", {
+	provider: text("provider").primaryKey(),
+	credits: text("credits", { enum: ["ready", "out"] }).notNull(),
+	checkedAt: timestamp("checked_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+	changedAt: timestamp("changed_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+});

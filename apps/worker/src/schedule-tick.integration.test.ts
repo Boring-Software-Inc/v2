@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { WorkflowDefinition } from "@tripwire/contracts";
+import {
+	restartedTickAt,
+	SCHEDULE_TICK_MS,
+	type WorkflowDefinition,
+} from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -279,6 +283,7 @@ beforeAll(async () => {
 		installationId: "2311213",
 	});
 	await enableWorkflow(quietId, { ...SCHEDULED, id: "wf-quiet" });
+	await pool.query("DELETE FROM workflow_schedule_state");
 }, 120_000);
 
 afterAll(async () => {
@@ -329,7 +334,7 @@ describe("schedule tick", () => {
 			scheduledRowId,
 			"every-12h",
 		);
-		expect(state?.lastTickAt.toISOString()).toBe(T0.toISOString());
+		expect(state?.lastTickAt.toISOString()).toBe("2026-10-22T12:00:00.000Z");
 		expect(state?.lastError).toBeNull();
 	});
 
@@ -429,9 +434,9 @@ describe("schedule tick", () => {
 		).toEqual([]);
 	});
 
-	test("re-ticking inside the same tick id inserts nothing new", async () => {
+	test("a second tick in the same slot inserts nothing new", async () => {
 		await pool.query("DELETE FROM workflow_schedule_state");
-		const result = await tick(new Date(T0.getTime() + 2 * HOUR));
+		const result = await tick(new Date(T0.getTime() + 40_000));
 		expect(result).toEqual({ schedules: 1, events: 0, errors: 0 });
 		const count = await pool.query(
 			"SELECT count(*)::int AS n FROM events WHERE raw_kind = 'schedule.matched'",
@@ -441,7 +446,7 @@ describe("schedule tick", () => {
 
 	test("a schedule that is not due is skipped", async () => {
 		const before = queries.length;
-		const result = await tick(new Date(T0.getTime() + 13 * HOUR));
+		const result = await tick(new Date(T0.getTime() + 11 * HOUR));
 		expect(result.schedules).toBe(0);
 		expect(queries.length).toBe(before);
 	});
@@ -649,5 +654,177 @@ describe("schedule tick", () => {
 		expect(
 			executed.filter((action) => action.repoFullName === staleRepo),
 		).toEqual([]);
+	});
+});
+
+describe("a schedule starts over when it turns on or its timing changes (R8-2)", () => {
+	const RESTART_REPO = "Codertocat/Restart";
+	let repoId = "";
+	const now = new Date();
+	const hourAgo = new Date(now.getTime() - HOUR);
+	const stale = new Date(now.getTime() - 3 * HOUR);
+	const dailyAt = (at: Date, shift = 0) =>
+		`${(at.getUTCMinutes() + shift) % 60} ${at.getUTCHours()} * * *`;
+
+	function cronWorkflow(id: string, cron: string): WorkflowDefinition {
+		return {
+			...SCHEDULED,
+			id,
+			name: id,
+			nodes: [
+				{
+					...SCHEDULED.nodes[0],
+					schedule: {
+						...(SCHEDULED.nodes[0] as { schedule: object }).schedule,
+						every: { cron },
+					},
+				} as WorkflowDefinition["nodes"][number],
+				...SCHEDULED.nodes.slice(1),
+			],
+		};
+	}
+
+	async function due(rowId: string, at: Date): Promise<boolean> {
+		const list = await scheduleServices.listDueSchedules(db, at);
+		return list.some((entry) => entry.workflowRowId === rowId);
+	}
+
+	async function markStale(rowId: string) {
+		await scheduleServices.markScheduleTicked(db, {
+			workflowRowId: rowId,
+			nodeId: "every-12h",
+			at: stale,
+			error: null,
+		});
+	}
+
+	beforeAll(async () => {
+		repoId = await repoServices.ensureRepo(db, {
+			externalId: "186853005",
+			owner: "Codertocat",
+			name: "Restart",
+			fullName: RESTART_REPO,
+			installationId: "2311213",
+		});
+		await repoServices.setRepoArmed(db, repoId, true);
+	});
+
+	test("a stale tick still owes the run it missed, as before", async () => {
+		const rowId = await enableWorkflow(
+			repoId,
+			cronWorkflow("wf-stale", dailyAt(hourAgo)),
+		);
+		await markStale(rowId);
+		expect(await due(rowId, now)).toBe(true);
+	});
+
+	test("turning it on again after a stale tick replays nothing", async () => {
+		const rowId = await enableWorkflow(
+			repoId,
+			cronWorkflow("wf-reenable", dailyAt(hourAgo)),
+		);
+		await workflowServices.setWorkflowEnabled(db, {
+			repoId,
+			workflowId: rowId,
+			enabled: false,
+		});
+		await markStale(rowId);
+		await workflowServices.setWorkflowEnabled(db, {
+			repoId,
+			workflowId: rowId,
+			enabled: true,
+		});
+		expect(await due(rowId, new Date())).toBe(false);
+		expect(await due(rowId, new Date(now.getTime() + 24 * HOUR))).toBe(true);
+	});
+
+	test("saving a new schedule starts over, saving the same one does not", async () => {
+		const definition = cronWorkflow("wf-edit", dailyAt(hourAgo));
+		const rowId = await enableWorkflow(repoId, definition);
+		await markStale(rowId);
+		const renamed = await workflowServices.saveWorkflowDefinition(db, {
+			repoId,
+			workflowId: rowId,
+			definition: { ...definition, name: "wf-edit-renamed" },
+		});
+		expect(renamed.ok).toBe(true);
+		expect(await due(rowId, now)).toBe(true);
+
+		const saved = await workflowServices.saveWorkflowDefinition(db, {
+			repoId,
+			workflowId: rowId,
+			definition: cronWorkflow("wf-edit", dailyAt(hourAgo, 1)),
+		});
+		expect(saved.ok).toBe(true);
+		expect(await due(rowId, new Date())).toBe(false);
+	});
+
+	test("a pushed schedule change starts over too", async () => {
+		const definition = cronWorkflow("wf-push", dailyAt(hourAgo));
+		const rowId = await enableWorkflow(repoId, definition);
+		await markStale(rowId);
+		const pushed = await workflowServices.applyWorkflowDefinition(db, {
+			repoId,
+			definition: cronWorkflow("wf-push", dailyAt(hourAgo, 2)),
+		});
+		expect(pushed.ok).toBe(true);
+		expect(await due(rowId, new Date())).toBe(false);
+	});
+
+	test("an interval turned on runs at the first tick slot after it turns on", async () => {
+		const before = Date.now();
+		const rowId = await enableWorkflow(repoId, {
+			...SCHEDULED,
+			id: "wf-interval-restart",
+			name: "wf-interval-restart",
+		});
+		const state = await scheduleServices.getScheduleState(
+			db,
+			rowId,
+			"every-12h",
+		);
+		const turnedOn = (state?.lastTickAt.getTime() ?? 0) + 12 * HOUR;
+		expect(turnedOn).toBeGreaterThanOrEqual(before);
+		expect(turnedOn).toBeLessThanOrEqual(Date.now());
+		const slot = Math.ceil(turnedOn / SCHEDULE_TICK_MS) * SCHEDULE_TICK_MS;
+		expect(await due(rowId, new Date(slot - 1))).toBe(slot === turnedOn);
+		expect(await due(rowId, new Date(slot + 34_000))).toBe(true);
+	});
+
+	test("a restart after a run, inside the same interval window, runs again", async () => {
+		const workflowId = "wf-interval-rerun";
+		const rowId = await enableWorkflow(repoId, {
+			...SCHEDULED,
+			id: workflowId,
+			name: workflowId,
+		});
+		const state = await scheduleServices.getScheduleState(
+			db,
+			rowId,
+			"every-12h",
+		);
+		const turnedOn = (state?.lastTickAt.getTime() ?? 0) + 12 * HOUR;
+		const firstSlot = Math.ceil(turnedOn / SCHEDULE_TICK_MS) * SCHEDULE_TICK_MS;
+		await tick(new Date(firstSlot + 20_000));
+		const savedAgain = new Date(firstSlot + 2 * 60_000);
+		await scheduleServices.markScheduleTicked(db, {
+			workflowRowId: rowId,
+			nodeId: "every-12h",
+			at: restartedTickAt({ every: EVERY_12H }, savedAgain),
+			error: null,
+		});
+		await tick(new Date(firstSlot + SCHEDULE_TICK_MS + 20_000));
+		const events = await pool.query(
+			"SELECT delivery_id FROM events WHERE delivery_id LIKE $1 ORDER BY delivery_id",
+			[`schedule:${workflowId}:%`],
+		);
+		const first = new Date(firstSlot).toISOString();
+		const second = new Date(firstSlot + SCHEDULE_TICK_MS).toISOString();
+		expect(events.rows.map((row) => row.delivery_id)).toEqual([
+			`schedule:${workflowId}:every-12h:1:${first}`,
+			`schedule:${workflowId}:every-12h:1:${second}`,
+			`schedule:${workflowId}:every-12h:2:${first}`,
+			`schedule:${workflowId}:every-12h:2:${second}`,
+		]);
 	});
 });

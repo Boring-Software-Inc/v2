@@ -25,6 +25,7 @@ function render(node: ReactNode): string {
 const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	ruleId: "account-age",
 	forgeBlockReason: null,
+	unavailableReason: null,
 	version: 1,
 	held: false,
 	changeNote: null,
@@ -171,5 +172,49 @@ describe("RuleCard forge support", () => {
 		expect(html).not.toContain("not usable with");
 		expect(html).toContain(">Disable rule<");
 		expect(html).not.toMatch(/<button[^>]*\sdisabled=""/);
+	});
+});
+
+describe("RuleCard when AI review is out of credits", () => {
+	const aiRule = (over: Partial<RuleConfigView>) =>
+		rule({
+			ruleId: "ai-review",
+			name: "AI review",
+			optIn: true,
+			config: { maxSteps: 12 },
+			defaultConfig: { maxSteps: 12 },
+			unavailableReason: "Out of AI credits",
+			...over,
+		});
+	const AI_ENABLE_DISABLED =
+		/<button(?=[^>]*\sdisabled="")(?=[^>]*aria-label="Enable rule AI review")[^>]*>/;
+
+	test("off: it can't turn on, says why, and the enable button is disabled", () => {
+		const html = render(
+			<RuleCard {...base} rule={aiRule({ enabled: false })} />,
+		);
+		expect(html).toContain("Can&#x27;t turn on");
+		expect(html).toContain("Out of AI credits");
+		expect(html).toMatch(AI_ENABLE_DISABLED);
+	});
+
+	test("on: it reads Can't run and can still be turned off", () => {
+		const html = render(
+			<RuleCard {...base} rule={aiRule({ enabled: true })} />,
+		);
+		expect(html).toContain("Can&#x27;t run");
+		expect(html).toContain("Out of AI credits");
+		expect(html).toContain(">Disable rule<");
+		expect(html).not.toMatch(/<button[^>]*\sdisabled=""/);
+	});
+
+	test("in a workflow: it reads Can't run", () => {
+		const html = render(
+			<RuleCard
+				{...base}
+				rule={aiRule({ enabled: true, management: "managed" })}
+			/>,
+		);
+		expect(html).toContain("Can&#x27;t run");
 	});
 });

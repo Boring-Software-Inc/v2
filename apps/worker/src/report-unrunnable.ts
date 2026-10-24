@@ -35,3 +35,19 @@ export function unrunnableReporter(
 }
 
 export const reportUnrunnableToSentry: ReportUnrunnable = unrunnableReporter();
+
+export type ReportAiCredits = (context: { source: string }) => void;
+
+export function aiCreditsReporter(
+	capture: typeof captureMessage = captureMessage,
+): ReportAiCredits {
+	return (context) => {
+		capture("AI provider is out of credits", {
+			level: "error",
+			fingerprint: ["ai-provider-out-of-credits"],
+			tags: { source: context.source },
+		});
+	};
+}
+
+export const reportAiCreditsToSentry: ReportAiCredits = aiCreditsReporter();

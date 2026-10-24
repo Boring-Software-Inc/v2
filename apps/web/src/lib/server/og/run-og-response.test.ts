@@ -62,6 +62,8 @@ const memberView: RunView = {
 	reviews: [],
 	previousRun: null,
 	nextRun: null,
+	backfill: false,
+	aiReviewNotRun: false,
 };
 
 const publicView = toPublicRunView(memberView);

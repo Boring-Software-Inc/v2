@@ -31,6 +31,7 @@ export function createMuse(system: System): Agent {
 		login: () => ({
 			command: system.which("muse") ?? "muse",
 			args: ["mcp", "login", SERVER_NAME],
+			status: async () => "unknown",
 		}),
 	};
 }
