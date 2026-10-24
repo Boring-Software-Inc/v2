@@ -3,10 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { onAgentTick } from "#/components/agent/agent-ticker";
 import {
 	cellLit,
-	RING_CELL,
-	RING_PAD,
+	DEFAULT_RING,
 	type RingCell,
+	type RingGeometry,
 	ringCells,
+	ringGeometry,
 	ringIntensity,
 } from "#/components/agent/dither-ring";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
@@ -16,6 +17,18 @@ const FADE_OUT_MS = 300;
 
 function agentColor(el: HTMLElement): string {
 	return getComputedStyle(el).getPropertyValue("--agent").trim() || "blue";
+}
+
+function sameRing(a: RingGeometry, b: RingGeometry): boolean {
+	return a.cell === b.cell && a.band === b.band && a.pad === b.pad;
+}
+
+function readRing(el: HTMLElement): RingGeometry {
+	const style = getComputedStyle(el);
+	return ringGeometry(
+		style.getPropertyValue("--agent-outline-width"),
+		style.getPropertyValue("--agent-dither-scale"),
+	);
 }
 
 export interface AgentOutlineProps {
@@ -45,6 +58,7 @@ export function AgentOutline({
 	const [size, setSize] = useState<{ width: number; height: number } | null>(
 		null,
 	);
+	const [ring, setRing] = useState<RingGeometry>(DEFAULT_RING);
 	const [shown, setShown] = useState(active);
 	const startedAt = useRef(0);
 
@@ -58,8 +72,9 @@ export function AgentOutline({
 	}, [active]);
 
 	useEffect(() => {
-		const parent = canvasRef.current?.parentElement;
-		if (!parent) {
+		const canvas = canvasRef.current;
+		const parent = canvas?.parentElement;
+		if (!(canvas && parent)) {
 			return;
 		}
 		const observer = new ResizeObserver(([entry]) => {
@@ -67,6 +82,8 @@ export function AgentOutline({
 			if (box) {
 				setSize({ width: box.inlineSize, height: box.blockSize });
 			}
+			const next = readRing(canvas);
+			setRing((current) => (sameRing(current, next) ? current : next));
 		});
 		observer.observe(parent);
 		return () => observer.disconnect();
@@ -86,13 +103,13 @@ export function AgentOutline({
 			return;
 		}
 		const ratio = window.devicePixelRatio || 1;
-		const width = size.width + RING_PAD * 2;
-		const height = size.height + RING_PAD * 2;
+		const width = size.width + ring.pad * 2;
+		const height = size.height + ring.pad * 2;
 		canvas.width = Math.round(width * ratio);
 		canvas.height = Math.round(height * ratio);
-		const cells: RingCell[] = ringCells(size.width, size.height, radius);
+		const cells: RingCell[] = ringCells(size.width, size.height, radius, ring);
 		const still = motion === "reduced";
-		const pixel = RING_CELL * ratio;
+		const pixel = ring.cell * ratio;
 		const draw = (clock: number) => {
 			context.clearRect(0, 0, canvas.width, canvas.height);
 			context.fillStyle = agentColor(canvas);
@@ -112,7 +129,7 @@ export function AgentOutline({
 			return;
 		}
 		return onAgentTick(draw);
-	}, [size, shown, motion, radius, action]);
+	}, [size, shown, motion, radius, action, ring]);
 
 	return (
 		<canvas
@@ -125,9 +142,9 @@ export function AgentOutline({
 			data-agent-outline={active ? "on" : "off"}
 			ref={canvasRef}
 			style={{
-				inset: -RING_PAD,
-				width: `calc(100% + ${RING_PAD * 2}px)`,
-				height: `calc(100% + ${RING_PAD * 2}px)`,
+				inset: -ring.pad,
+				width: `calc(100% + ${ring.pad * 2}px)`,
+				height: `calc(100% + ${ring.pad * 2}px)`,
 			}}
 		/>
 	);

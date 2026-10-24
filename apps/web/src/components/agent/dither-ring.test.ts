@@ -1,12 +1,51 @@
 import { describe, expect, test } from "bun:test";
 import {
 	cellLit,
-	RING_BAND,
-	RING_CELL,
-	RING_PAD,
+	DEFAULT_RING,
 	ringCells,
+	ringGeometry,
 	ringIntensity,
 } from "#/components/agent/dither-ring";
+
+const { band: RING_BAND, cell: RING_CELL, pad: RING_PAD } = DEFAULT_RING;
+
+describe("ringGeometry", () => {
+	test("the default tokens keep the current 6 px band of 2 px cells", () => {
+		expect(ringGeometry("6px", "2")).toEqual({
+			cell: 2,
+			band: 3,
+			gap: 2,
+			pad: 8,
+		});
+		expect(DEFAULT_RING).toEqual(ringGeometry("6px", "2"));
+	});
+
+	test("a wider outline adds cell rows, a larger scale makes coarser cells", () => {
+		expect(ringGeometry("12px", "2")).toMatchObject({ band: 6, pad: 14 });
+		expect(ringGeometry("8px", "4")).toEqual({
+			cell: 4,
+			band: 2,
+			gap: 2,
+			pad: 10,
+		});
+	});
+
+	test("a missing or broken token falls back to the default", () => {
+		expect(ringGeometry("", "")).toEqual(DEFAULT_RING);
+		expect(ringGeometry("wide", "-1")).toEqual(DEFAULT_RING);
+	});
+
+	test("the band follows the geometry it is given", () => {
+		const wide = ringGeometry("12px", "2");
+		const cells = ringCells(100, 40, 8, wide);
+		const topMiddle = cells.filter(
+			(cell) => cell.col === Math.floor((wide.pad + 50) / wide.cell),
+		);
+		expect(
+			topMiddle.filter((cell) => cell.row < wide.pad / wide.cell),
+		).toHaveLength(6);
+	});
+});
 
 describe("ringCells", () => {
 	const cells = ringCells(100, 40, 8);

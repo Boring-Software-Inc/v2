@@ -15,10 +15,33 @@ const ACTION_STRENGTH = {
 	delete: 0.8,
 } satisfies Record<AgentAction, number>;
 
-export const RING_CELL = 2;
-export const RING_BAND = 3;
-export const RING_GAP = 2;
-export const RING_PAD = RING_GAP + RING_BAND * RING_CELL;
+const RING_GAP = 2;
+const DEFAULT_CELL = 2;
+const DEFAULT_WIDTH = 6;
+
+export interface RingGeometry {
+	cell: number;
+	band: number;
+	gap: number;
+	pad: number;
+}
+
+function positive(value: string, fallback: number): number {
+	const parsed = Number.parseFloat(value);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function ringGeometry(
+	outlineWidth: string,
+	ditherScale: string,
+): RingGeometry {
+	const cell = positive(ditherScale, DEFAULT_CELL);
+	const width = positive(outlineWidth, DEFAULT_WIDTH);
+	const band = Math.max(1, Math.round(width / cell));
+	return { cell, band, gap: RING_GAP, pad: RING_GAP + band * cell };
+}
+
+export const DEFAULT_RING = ringGeometry("", "");
 
 const DRIFT_MS = 2600;
 const TRAIL = 0.35;
@@ -68,27 +91,28 @@ export function ringCells(
 	width: number,
 	height: number,
 	radius: number,
+	ring: RingGeometry = DEFAULT_RING,
 ): RingCell[] {
-	const outerWidth = width + RING_PAD * 2;
-	const outerHeight = height + RING_PAD * 2;
-	const cols = Math.ceil(outerWidth / RING_CELL);
-	const rows = Math.ceil(outerHeight / RING_CELL);
+	const outerWidth = width + ring.pad * 2;
+	const outerHeight = height + ring.pad * 2;
+	const cols = Math.ceil(outerWidth / ring.cell);
+	const rows = Math.ceil(outerHeight / ring.cell);
 	const halfWidth = width / 2;
 	const halfHeight = height / 2;
 	const r = Math.max(0, Math.min(radius, halfWidth, halfHeight));
-	const band = RING_BAND * RING_CELL;
+	const band = ring.band * ring.cell;
 	const cells: RingCell[] = [];
 	for (let row = 0; row < rows; row++) {
 		for (let col = 0; col < cols; col++) {
-			const x = (col + 0.5) * RING_CELL - RING_PAD - halfWidth;
-			const y = (row + 0.5) * RING_CELL - RING_PAD - halfHeight;
+			const x = (col + 0.5) * ring.cell - ring.pad - halfWidth;
+			const y = (row + 0.5) * ring.cell - ring.pad - halfHeight;
 			const qx = Math.abs(x) - halfWidth + r;
 			const qy = Math.abs(y) - halfHeight + r;
 			const outside =
 				Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) +
 				Math.min(Math.max(qx, qy), 0) -
 				r;
-			const d = outside - RING_GAP;
+			const d = outside - ring.gap;
 			if (d < 0 || d >= band) {
 				continue;
 			}
