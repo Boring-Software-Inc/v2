@@ -9,16 +9,9 @@ import { File, FileDiff } from "@pierre/diffs/react";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import type { DiffStats } from "#/components/code/code-header";
-import {
-	codeSurfaceStyle,
-	registerTripwireCodeTheme,
-	TRIPWIRE_CODE_THEME,
-} from "#/components/code/code-theme";
+import { CODE_THEMES, codeSurfaceStyle } from "#/components/code/code-theme";
 import type { LineRange } from "#/components/code/line-anchor";
 
-registerTripwireCodeTheme();
-
-const THEMES = { light: TRIPWIRE_CODE_THEME, dark: TRIPWIRE_CODE_THEME };
 const SHELL_CSS = "[data-diffs-header]{display:none}pre{padding-block:8px}";
 
 export interface PierreFileProps {
@@ -44,7 +37,7 @@ export function PierreFile({
 	);
 	const options = useMemo<FileOptions<undefined, undefined>>(
 		() => ({
-			theme: THEMES,
+			theme: CODE_THEMES,
 			themeType: dark ? "dark" : "light",
 			overflow: wrap ? "wrap" : "scroll",
 			unsafeCSS: SHELL_CSS,
@@ -104,7 +97,7 @@ export function PierreDiff({
 	);
 	const options = useMemo<FileDiffOptions<undefined, undefined>>(
 		() => ({
-			theme: THEMES,
+			theme: CODE_THEMES,
 			themeType: dark ? "dark" : "light",
 			overflow: wrap ? "wrap" : "scroll",
 			diffStyle: split ? "split" : "unified",

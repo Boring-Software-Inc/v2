@@ -12,7 +12,7 @@ export interface WorkflowCodeProps {
 export function WorkflowCode({ view, unsaved }: WorkflowCodeProps) {
 	return (
 		<div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-			<div className="mx-auto flex w-full max-w-190 flex-col gap-3 px-3 pt-6 pb-8 sm:px-6">
+			<div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-3 pt-6 pb-8 sm:px-6">
 				{view.kind === "code" ? (
 					<>
 						{view.warnings.length > 0 ? (
