@@ -99,6 +99,7 @@ export function BetaTag() {
 }
 
 const PLACEHOLDER_USER: CurrentUser = {
+	id: "",
 	name: "local session",
 	login: "dev",
 	email: null,
