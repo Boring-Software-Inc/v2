@@ -33,11 +33,11 @@ import { useMinuteClock } from "#/hooks/use-minute-clock";
 import type { Timezones } from "#/hooks/use-timezones";
 import { cn } from "#/lib/glaze/utils";
 import {
-	committedSchedule,
 	editorNextRun,
 	formatNextRun,
-	isClockCadence,
 	type SavedScheduleTiming,
+	showsScheduleZone,
+	typedScheduleCommit,
 } from "#/lib/schedule-input";
 
 export interface CadenceValue {
@@ -169,34 +169,22 @@ export function ScheduleTextField({
 	const active =
 		hovered ?? (caretToken >= 0 && problem === null ? caretToken : null);
 	const activeToken = active === null ? undefined : tokens[active];
-	const hasZone = tokens.some((token) => token.kind === "zone");
-	const intervalOnly =
-		parsed.ok && !isClockCadence(parsed.every)
-			? true
-			: tokens.some((token) => token.kind === "interval");
 	const zone =
 		(parsed.ok ? parsed.timezone : undefined) ??
 		value.timezone ??
 		timezones.newSchedule ??
 		DEFAULT_SCHEDULE_TIMEZONE;
-	const showZone = text.trim() !== "" && !hasZone && !intervalOnly;
+	const showZone = showsScheduleZone(text, parsed);
 
 	const commit = (next: string) => {
 		onDraft(next);
-		const result = parseScheduleText(next);
-		if (result.ok) {
-			onChange(
-				committedSchedule(value, {
-					every: result.every,
-					timezone:
-						result.timezone ??
-						(isClockCadence(result.every)
-							? (value.timezone ?? timezones.newSchedule)
-							: undefined),
-				}),
-			);
-		} else if (result.reason === "empty") {
-			onChange({ every: undefined, timezone: undefined });
+		const committed = typedScheduleCommit(next, {
+			saved: savedTiming.saved,
+			current: value,
+			newZone: timezones.newSchedule,
+		});
+		if (committed) {
+			onChange(committed);
 		}
 	};
 
