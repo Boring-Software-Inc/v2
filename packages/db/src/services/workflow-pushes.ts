@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
 	effectivePushStatus,
+	issuesInState,
 	type LintResult,
 	pushBlockingIssues,
 	redactWorkflowSecrets,
@@ -295,7 +296,7 @@ function reviewEntry(
 	const merged = pushedDefinition(base?.definition ?? null, entry.definition);
 	const enabled = base?.enabled ?? false;
 	const report = reportWorkflows([merged], catalog)[0];
-	const issues = report?.issues ?? [];
+	const issues = issuesInState(report?.issues ?? [], enabled);
 	const clash = nameClash(entry.definition, rows, definitions);
 	return {
 		id: entry.definition.id,

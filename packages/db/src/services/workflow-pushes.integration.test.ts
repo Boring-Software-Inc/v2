@@ -235,6 +235,27 @@ describe("propose", () => {
 		).toBe(true);
 	});
 
+	test("the review hides rules the repo lacks while the workflow is off", async () => {
+		const repoId = await newRepo();
+		const base = gate("missing", "Missing");
+		const push = await propose(repoId, [
+			{
+				...base,
+				nodes: base.nodes.map((node) =>
+					node.type === "rule" ? { ...node, ref: "custom-gone@1" } : node,
+				),
+			},
+		]);
+		const review = await reviewWorkflowPush(db, {
+			orgId,
+			repoId,
+			pushId: push.id,
+		});
+		expect(
+			review?.workflows[0]?.issues.map((issue) => issue.rule),
+		).not.toContain("rule-unavailable");
+	});
+
 	test("refuses a name another workflow holds", async () => {
 		const repoId = await newRepo();
 		await seeded(repoId, gate("gate", "Gate"));
