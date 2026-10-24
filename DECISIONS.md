@@ -153,7 +153,7 @@ keeps colour for status, so only additions and deletions take colour, from
 `TripwireCodeFile` and `TripwireCodeDiff`. Use these, not `@pierre/diffs`
 directly, so the theme and the lazy split stay in one place.
 
-## 2026-10-24 — CLI pushes wait for a person; apply_workflow stays direct
+## 2026-10-24: CLI pushes wait for a person; apply_workflow stays direct
 
 **Decision:** `tripwire workflows push` sends compiled workflows as a push
 proposal (`workflow_push_proposals`, migration 0034). A member with
