@@ -13,6 +13,7 @@ export const agentSimBodySchema = z.object({
 	action: z.enum(["build", "finish"]).default("build"),
 	stepMs: z.number().int().min(200).max(10_000).default(1400),
 	finishAfterMs: z.number().int().min(0).max(600_000).nullable().default(null),
+	removeLast: z.boolean().default(false),
 });
 export type AgentSimBody = z.infer<typeof agentSimBodySchema>;
 
@@ -77,6 +78,17 @@ function tightened(definition: WorkflowDefinition): WorkflowDefinition {
 				},
 			};
 		}),
+	};
+}
+
+function withoutLastStep(definition: WorkflowDefinition): WorkflowDefinition {
+	const gone = new Set(BUILD_ORDER.at(-1));
+	return {
+		...definition,
+		nodes: definition.nodes.filter((node) => !gone.has(node.id)),
+		edges: definition.edges.filter(
+			(edge) => !(gone.has(edge.from) || gone.has(edge.to)),
+		),
 	};
 }
 
@@ -149,6 +161,14 @@ export async function runAgentSim(input: {
 			agent,
 			definition: tightened(last),
 		});
+		if (body.removeLast) {
+			await wait(body.stepMs);
+			await agentWorkServices.saveAgentDraft(db, {
+				repoId: repo.id,
+				agent,
+				definition: withoutLastStep(tightened(last)),
+			});
+		}
 		if (body.finishAfterMs !== null) {
 			await wait(body.finishAfterMs);
 			await agentWorkServices.finishWorkflowWork(db, {

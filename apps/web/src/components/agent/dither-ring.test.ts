@@ -1,111 +1,143 @@
 import { describe, expect, test } from "bun:test";
 import {
-	cellLit,
-	RING_BAND,
-	RING_CELL,
-	RING_PAD,
+	DEFAULT_RING,
+	DEFAULT_SHIMMER,
 	ringCells,
-	ringIntensity,
+	ringGeometry,
+	ringPhase,
+	ringTiming,
+	segmentLit,
+	segmentStrength,
+	trackAlpha,
 } from "#/components/agent/dither-ring";
 
-describe("ringCells", () => {
-	const cells = ringCells(100, 40, 8);
+describe("ringGeometry", () => {
+	test("the default tokens give a 1 px track 2 px out with a 3 px segment of 1 px cells", () => {
+		expect(DEFAULT_RING).toEqual({
+			cell: 1,
+			gap: 2,
+			track: 1,
+			band: 3,
+			pad: 5,
+		});
+	});
 
-	test("every cell sits in the band outside the box, never over it", () => {
+	test("every knob comes from its token", () => {
+		expect(
+			ringGeometry({ gap: "4px", track: "2px", segment: "4px", scale: "2" }),
+		).toEqual({ cell: 2, gap: 4, track: 2, band: 2, pad: 8 });
+	});
+
+	test("a missing or broken token falls back to the default", () => {
+		expect(
+			ringGeometry({ gap: "", track: "wide", segment: "-1", scale: "" }),
+		).toEqual(DEFAULT_RING);
+	});
+});
+
+describe("ringTiming", () => {
+	test("the default lap is 2.4 s, the breath 2.8 s, the segment 18 percent", () => {
+		expect(DEFAULT_SHIMMER).toEqual({
+			lapMs: 2400,
+			breatheMs: 2800,
+			length: 0.18,
+		});
+	});
+
+	test("reads ms and a fraction, and falls back on nonsense", () => {
+		expect(ringTiming({ lap: "3000ms", breathe: "2s", length: "0.2" })).toEqual(
+			{ lapMs: 3000, breatheMs: 2000, length: 0.2 },
+		);
+		expect(ringTiming({ lap: "", breathe: "x", length: "4" })).toEqual(
+			DEFAULT_SHIMMER,
+		);
+	});
+});
+
+describe("ringCells", () => {
+	const ring = DEFAULT_RING;
+	const cells = ringCells(100, 40, 11, ring);
+
+	test("every cell sits outside the rounded box, never over it", () => {
 		for (const cell of cells) {
-			const x = (cell.col + 0.5) * RING_CELL - RING_PAD;
-			const y = (cell.row + 0.5) * RING_CELL - RING_PAD;
-			const inside = x > 0 && x < 100 && y > 0 && y < 40;
-			expect(inside).toBe(false);
-			expect(cell.depth).toBeGreaterThanOrEqual(0);
-			expect(cell.depth).toBeLessThan(1);
+			const x = (cell.col + 0.5) * ring.cell - ring.pad;
+			const y = (cell.row + 0.5) * ring.cell - ring.pad;
+			const besideCorner = (x > 11 && x < 89) || (y > 11 && y < 29);
+			expect(besideCorner && x > 0 && x < 100 && y > 0 && y < 40).toBe(false);
 		}
 	});
 
-	test("the band wraps the whole edge, top left round to the left side", () => {
+	test("the band is as deep as the segment and wraps the whole edge", () => {
+		const topMiddle = cells.filter(
+			(cell) => cell.col === Math.floor((ring.pad + 50) / ring.cell),
+		);
+		expect(topMiddle.filter((cell) => cell.row < ring.pad)).toHaveLength(3);
 		const us = cells.map((cell) => cell.u);
 		expect(Math.min(...us)).toBeLessThan(0.02);
 		expect(Math.max(...us)).toBeGreaterThan(0.98);
-		const rows = new Set(cells.map((cell) => cell.row));
-		expect(rows.size).toBeGreaterThan(40 / RING_CELL);
-	});
-
-	test("the band is as deep as its cell rows", () => {
-		const topMiddle = cells.filter(
-			(cell) => cell.col === Math.floor((RING_PAD + 50) / RING_CELL),
-		);
-		expect(
-			topMiddle.filter((cell) => cell.row < RING_PAD / RING_CELL),
-		).toHaveLength(RING_BAND);
 	});
 });
 
-describe("ringIntensity", () => {
-	const cell = { col: 3, row: 1, u: 0.5, depth: 0 };
-
-	test("a still ring is the same at any moment", () => {
-		const a = ringIntensity(cell, {
-			action: "write",
-			elapsed: 10,
-			clock: 0,
-			still: true,
-		});
-		const b = ringIntensity(cell, {
-			action: "write",
-			elapsed: 900,
-			clock: 5000,
-			still: true,
-		});
-		expect(a).toBe(b);
+describe("trackAlpha", () => {
+	test("a still track holds one level", () => {
+		expect(trackAlpha(0, true)).toBe(trackAlpha(1234, true));
 	});
 
-	test("a write sweeps past: the cell is brighter while the head passes it", () => {
-		const idle = ringIntensity(cell, {
-			action: "write",
-			elapsed: 5000,
-			clock: 0,
-			still: false,
-		});
-		const passing = ringIntensity(cell, {
-			action: "write",
-			elapsed: 340,
-			clock: 0,
-			still: false,
-		});
-		expect(passing).toBeGreaterThan(idle);
-	});
-
-	test("a delete fades the ring out over its 800 ms", () => {
-		const early = ringIntensity(
-			{ ...cell, u: 0.99 },
-			{ action: "delete", elapsed: 50, clock: 0, still: false },
+	test("the track breathes gently and repeats each breath", () => {
+		const levels = Array.from({ length: 28 }, (_, i) =>
+			trackAlpha(i * 100, false),
 		);
-		const late = ringIntensity(
-			{ ...cell, u: 0.99 },
-			{ action: "delete", elapsed: 790, clock: 0, still: false },
-		);
-		expect(late).toBeLessThan(early);
+		expect(Math.min(...levels)).toBeGreaterThanOrEqual(0.5);
+		expect(Math.max(...levels)).toBeLessThanOrEqual(1);
+		expect(Math.max(...levels) - Math.min(...levels)).toBeGreaterThan(0.2);
+		expect(trackAlpha(700, false)).toBeCloseTo(trackAlpha(3500, false), 6);
 	});
 });
 
-describe("cellLit", () => {
-	test("full intensity lights every cell and none lights none", () => {
-		for (let row = 0; row < 4; row++) {
-			for (let col = 0; col < 4; col++) {
-				const cell = { col, row, u: 0, depth: 0 };
-				expect(cellLit(cell, 1)).toBe(true);
-				expect(cellLit(cell, 0)).toBe(false);
-			}
+describe("segmentStrength", () => {
+	test("the segment travels one lap every 2.4 s", () => {
+		expect(segmentStrength(0, 0, 0)).toBe(1);
+		expect(segmentStrength(0.5, 1200, 0)).toBe(1);
+		expect(segmentStrength(0.5, 0, 0)).toBe(0);
+		expect(segmentStrength(0.25, 2400 * 0.25, 0)).toBe(1);
+	});
+
+	test("the phase shifts where the segment is", () => {
+		expect(segmentStrength(0.3, 0, 0.3)).toBe(1);
+	});
+
+	test("the ends fade softly and wrap past the top left", () => {
+		const edge = segmentStrength(0.08, 0, 0);
+		expect(edge).toBeGreaterThan(0);
+		expect(edge).toBeLessThan(1);
+		expect(segmentStrength(0.97, 0, 0)).toBeGreaterThan(0);
+		expect(segmentStrength(0.2, 0, 0)).toBe(0);
+	});
+});
+
+describe("segmentLit", () => {
+	const cell = { col: 7, row: 1, u: 0.075, depth: 1 / 3 };
+
+	test("nothing outside the segment ever lights", () => {
+		for (let lap = 0; lap < 40; lap += 1) {
+			expect(segmentLit({ ...cell, u: 0.5 }, lap * 2400, 0)).toBe(false);
 		}
 	});
 
-	test("half intensity lights half of a 4 by 4 tile", () => {
-		let lit = 0;
-		for (let row = 0; row < 4; row++) {
-			for (let col = 0; col < 4; col++) {
-				lit += cellLit({ col, row, u: 0, depth: 0 }, 0.5) ? 1 : 0;
-			}
+	test("a cell on the soft end twinkles as the dither shifts", () => {
+		const states = new Set<boolean>();
+		for (let clock = 0; clock < 60; clock += 1) {
+			states.add(segmentLit(cell, clock * 2400, 0));
 		}
-		expect(lit).toBe(8);
+		expect(states.size).toBe(2);
+	});
+});
+
+describe("ringPhase", () => {
+	test("each seed starts its lap at its own place", () => {
+		expect(ringPhase("warn")).toBe(ringPhase("warn"));
+		expect(ringPhase("warn")).not.toBe(ringPhase("close"));
+		expect(ringPhase("warn")).toBeGreaterThanOrEqual(0);
+		expect(ringPhase("warn")).toBeLessThan(1);
 	});
 });

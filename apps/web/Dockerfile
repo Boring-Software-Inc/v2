@@ -16,6 +16,7 @@
 #   GITHUB_OAUTH_*, DATABASE_URL) is process.env at RUNTIME. Set it on the service.
 
 FROM oven/bun:1.3 AS build
+COPY --from=node:22-slim /usr/local/bin/node /usr/local/bin/node
 WORKDIR /app
 # ARG does not cross FROM. Unkey sets this to the id of the mounted env file.
 ARG UNKEY_SECRETS_ID
@@ -25,6 +26,7 @@ ARG VITE_SENTRY_DSN=
 # Build runs under Bun, but the SSR RUNTIME is Node. Force nitro's node-server
 # preset so the bundle uses node http, not Bun.serve (the portability lesson).
 ENV NITRO_PRESET=node-server
+ENV NODE_OPTIONS=--max-old-space-size=4096
 COPY package.json bun.lock bunfig.toml ./
 COPY packages/contracts/package.json ./packages/contracts/
 COPY packages/utils/package.json ./packages/utils/
@@ -41,7 +43,8 @@ COPY apps/cli/package.json ./apps/cli/
 COPY apps/mcp/package.json ./apps/mcp/
 COPY apps/web/package.json ./apps/web/
 COPY apps/worker/package.json ./apps/worker/
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 # Packages' tsconfig.json extend ../../tsconfig.base.json; esbuild resolves it.
 COPY tsconfig.base.json ./
 COPY packages ./packages
