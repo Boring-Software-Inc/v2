@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { OrgWithRole } from "@tripwire/db";
+import { z } from "zod";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
 	orgPermissionMiddleware,
@@ -73,4 +74,26 @@ export const armRepoById = createServerFn({ method: "POST" })
 		await requireOrgRepoById(org.id, data.repoId);
 		await armById(data.repoId);
 		return { armed: true };
+	});
+
+const repoByIdInput = z.object({
+	org: z.string().min(1),
+	repoId: z.string().min(1),
+});
+
+export const disarmRepoById = createServerFn({ method: "POST" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("connections:manage"),
+	])
+	.inputValidator((input: { org: string; repoId: string }) =>
+		repoByIdInput.parse(input),
+	)
+	.handler(async ({ data, context }): Promise<{ armed: boolean }> => {
+		const org = (context as { org: OrgWithRole }).org;
+		await requireOrgRepoById(org.id, data.repoId);
+		const { repoServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		await repoServices.setRepoArmed(getDb().db, data.repoId, false);
+		return { armed: false };
 	});
