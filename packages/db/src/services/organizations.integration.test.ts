@@ -5,7 +5,7 @@ import {
 	type InstallStatus,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { backfillOrgs } from "../backfill-orgs.ts";
 import {
@@ -46,6 +46,7 @@ import {
 	redeemInviteLink,
 	resolveInstallStatus,
 	revokeInviteLink,
+	updateMemberRoleForStaff,
 	userCanClaimInstallation,
 } from "./organizations.ts";
 import { syncInstallationRepos } from "./repos.ts";
@@ -57,7 +58,7 @@ import { syncInstallationRepos } from "./repos.ts";
  */
 let container: TestDatabase;
 let db: Db;
-let pool: { end(): Promise<void> };
+let pool: ReturnType<typeof createDb>["pool"];
 
 async function seedUser(
 	id: string,
@@ -82,6 +83,29 @@ async function seedTeamOrg(slug: string, adminId: string): Promise<string> {
 	return orgId;
 }
 
+async function addMember(
+	orgId: string,
+	userId: string,
+	role: string,
+): Promise<string> {
+	const id = generateId();
+	await db.insert(member).values({ id, organizationId: orgId, userId, role });
+	return id;
+}
+
+async function waitForLockWaiters(count: number): Promise<void> {
+	for (let attempt = 0; attempt < 100; attempt++) {
+		const result = await db.execute<{ n: number }>(
+			sql`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+		);
+		if ((result.rows[0]?.n ?? 0) >= count) {
+			return;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 25));
+	}
+	throw new Error(`never saw ${count} transactions waiting on a lock`);
+}
+
 beforeAll(async () => {
 	container = await createTestDatabase();
 	const handle = createDb(container.url);
@@ -93,6 +117,103 @@ beforeAll(async () => {
 afterAll(async () => {
 	await pool.end();
 	await container.stop();
+});
+
+describe("last admin", () => {
+	test("two admins removed at once leave the team one admin", async () => {
+		await seedUser("rm-a");
+		await seedUser("rm-b");
+		const orgId = await seedTeamOrg("rm-team", "rm-a");
+		const memberA = await db
+			.select({ id: member.id })
+			.from(member)
+			.where(eq(member.organizationId, orgId));
+		const memberB = await addMember(orgId, "rm-b", "admin");
+
+		const gate = await pool.connect();
+		await gate.query("BEGIN");
+		await gate.query("SELECT id FROM organization WHERE id = $1 FOR UPDATE", [
+			orgId,
+		]);
+		const results = Promise.allSettled(
+			[memberA[0]?.id ?? "", memberB].map((id) =>
+				db.delete(member).where(eq(member.id, id)),
+			),
+		);
+		try {
+			await waitForLockWaiters(2);
+		} finally {
+			await gate.query("COMMIT");
+			gate.release();
+		}
+		const settled = await results;
+
+		expect(settled.map((result) => result.status).sort()).toEqual([
+			"fulfilled",
+			"rejected",
+		]);
+		expect(await countAdmins(db, orgId)).toBe(1);
+	});
+
+	test("two staff demotions at once leave the team one admin", async () => {
+		await seedUser("staff-a");
+		await seedUser("staff-b");
+		const orgId = await seedTeamOrg("staff-team", "staff-a");
+		const [first] = await db
+			.select({ id: member.id })
+			.from(member)
+			.where(eq(member.organizationId, orgId));
+		const second = await addMember(orgId, "staff-b", "admin");
+
+		const gate = await pool.connect();
+		await gate.query("BEGIN");
+		await gate.query("SELECT id FROM organization WHERE id = $1 FOR UPDATE", [
+			orgId,
+		]);
+		const results = Promise.all(
+			[first?.id ?? "", second].map((memberId) =>
+				updateMemberRoleForStaff(db, { memberId, role: "member" }),
+			),
+		);
+		try {
+			await waitForLockWaiters(2);
+		} finally {
+			await gate.query("COMMIT");
+			gate.release();
+		}
+
+		expect(await results).toContainEqual({
+			ok: false,
+			error: "an org must keep at least one admin",
+		});
+		expect(await results).toContainEqual({ ok: true });
+		expect(await countAdmins(db, orgId)).toBe(1);
+	});
+
+	test("demoting the last admin is refused by the database", async () => {
+		await seedUser("demote-a");
+		const orgId = await seedTeamOrg("demote-team", "demote-a");
+
+		await expect(
+			db
+				.update(member)
+				.set({ role: "member" })
+				.where(
+					and(eq(member.organizationId, orgId), eq(member.userId, "demote-a")),
+				)
+				.execute(),
+		).rejects.toThrow();
+		expect(await countAdmins(db, orgId)).toBe(1);
+	});
+
+	test("deleting a team org still removes its admin", async () => {
+		await seedUser("gone-a");
+		const orgId = await seedTeamOrg("gone-team", "gone-a");
+
+		await db.delete(organization).where(eq(organization.id, orgId));
+
+		expect(await countAdmins(db, orgId)).toBe(0);
+	});
 });
 
 describe("personal orgs (§1)", () => {

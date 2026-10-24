@@ -169,8 +169,11 @@ export async function listOrgRoles(
 		.orderBy(organizationRole.role);
 }
 
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+type Executor = Db | Tx;
+
 export async function getOrgRoles(
-	db: Db,
+	db: Executor,
 	orgId: string,
 	names: readonly string[],
 ): Promise<OrgRoleRow[]> {
@@ -210,7 +213,10 @@ export async function countMembersWithRole(
 	return rows[0]?.n ?? 0;
 }
 
-export async function countAdmins(db: Db, orgId: string): Promise<number> {
+export async function countAdmins(
+	db: Executor,
+	orgId: string,
+): Promise<number> {
 	const rows = await db
 		.select({ n: sql<number>`count(*)::int` })
 		.from(member)
@@ -226,7 +232,7 @@ export async function countAdmins(db: Db, orgId: string): Promise<number> {
  * hook always threw; callers surface them as-is.
  */
 export async function assertRoleChangeAllowed(
-	db: Db,
+	db: Executor,
 	input: {
 		orgId: string;
 		isPersonal: boolean;
@@ -268,38 +274,41 @@ export async function updateMemberRoleForStaff(
 	db: Db,
 	input: { memberId: string; role: OrgRole },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-	const rows = await db
-		.select({
-			orgId: member.organizationId,
-			currentRole: member.role,
-			isPersonal: organization.isPersonal,
-		})
-		.from(member)
-		.innerJoin(organization, eq(organization.id, member.organizationId))
-		.where(eq(member.id, input.memberId))
-		.limit(1);
-	const row = rows[0];
-	if (!row) {
-		return { ok: false, error: "member not found" };
-	}
-	try {
-		await assertRoleChangeAllowed(db, {
-			orgId: row.orgId,
-			isPersonal: row.isPersonal,
-			currentRole: row.currentRole,
-			newRole: input.role,
-		});
-	} catch (error) {
-		return {
-			ok: false,
-			error: error instanceof Error ? error.message : "role change refused",
-		};
-	}
-	await db
-		.update(member)
-		.set({ role: input.role })
-		.where(eq(member.id, input.memberId));
-	return { ok: true };
+	return await db.transaction(async (tx) => {
+		const rows = await tx
+			.select({
+				orgId: member.organizationId,
+				currentRole: member.role,
+				isPersonal: organization.isPersonal,
+			})
+			.from(member)
+			.innerJoin(organization, eq(organization.id, member.organizationId))
+			.where(eq(member.id, input.memberId))
+			.limit(1)
+			.for("update", { of: organization });
+		const row = rows[0];
+		if (!row) {
+			return { ok: false, error: "member not found" };
+		}
+		try {
+			await assertRoleChangeAllowed(tx, {
+				orgId: row.orgId,
+				isPersonal: row.isPersonal,
+				currentRole: row.currentRole,
+				newRole: input.role,
+			});
+		} catch (error) {
+			return {
+				ok: false,
+				error: error instanceof Error ? error.message : "role change refused",
+			};
+		}
+		await tx
+			.update(member)
+			.set({ role: input.role })
+			.where(eq(member.id, input.memberId));
+		return { ok: true };
+	});
 }
 
 /**
