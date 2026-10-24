@@ -245,14 +245,6 @@ async function restartSchedules(
 	after: WorkflowDefinition,
 ): Promise<void> {
 	for (const restart of restartedSchedules(before, after, new Date())) {
-		const key = and(
-			eq(workflowScheduleState.workflowId, workflowRowId),
-			eq(workflowScheduleState.nodeId, restart.nodeId),
-		);
-		if (restart.lastTickAt === null) {
-			await tx.delete(workflowScheduleState).where(key);
-			continue;
-		}
 		await tx
 			.insert(workflowScheduleState)
 			.values({

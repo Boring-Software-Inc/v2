@@ -3,6 +3,7 @@ import {
 	type Forge,
 	type ScheduledEvent,
 	scheduleFireTime,
+	scheduleTickSlot,
 } from "@tripwire/contracts";
 import type { Db, DueSchedule } from "@tripwire/db";
 import { eventServices, scheduleServices } from "@tripwire/db";
@@ -177,7 +178,7 @@ export async function scheduleTick(
 			await scheduleServices.markScheduleTicked(deps.db, {
 				workflowRowId: schedule.workflowRowId,
 				nodeId: schedule.nodeId,
-				at: now,
+				at: scheduleTickSlot(now),
 				error: null,
 			});
 		}

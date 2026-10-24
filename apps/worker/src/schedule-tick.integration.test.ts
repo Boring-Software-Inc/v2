@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { WorkflowDefinition } from "@tripwire/contracts";
+import { SCHEDULE_TICK_MS, type WorkflowDefinition } from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -279,6 +279,7 @@ beforeAll(async () => {
 		installationId: "2311213",
 	});
 	await enableWorkflow(quietId, { ...SCHEDULED, id: "wf-quiet" });
+	await pool.query("DELETE FROM workflow_schedule_state");
 }, 120_000);
 
 afterAll(async () => {
@@ -329,7 +330,7 @@ describe("schedule tick", () => {
 			scheduledRowId,
 			"every-12h",
 		);
-		expect(state?.lastTickAt.toISOString()).toBe(T0.toISOString());
+		expect(state?.lastTickAt.toISOString()).toBe("2026-10-22T12:00:00.000Z");
 		expect(state?.lastError).toBeNull();
 	});
 
@@ -766,15 +767,23 @@ describe("a schedule starts over when it turns on or its timing changes (R8-2)",
 		expect(await due(rowId, new Date())).toBe(false);
 	});
 
-	test("an interval turned on runs at the next tick, then one interval later", async () => {
+	test("an interval turned on runs at the first tick slot after it turns on", async () => {
+		const before = Date.now();
 		const rowId = await enableWorkflow(repoId, {
 			...SCHEDULED,
 			id: "wf-interval-restart",
 			name: "wf-interval-restart",
 		});
-		expect(
-			await scheduleServices.getScheduleState(db, rowId, "every-12h"),
-		).toBeNull();
-		expect(await due(rowId, new Date())).toBe(true);
+		const state = await scheduleServices.getScheduleState(
+			db,
+			rowId,
+			"every-12h",
+		);
+		const turnedOn = (state?.lastTickAt.getTime() ?? 0) + 12 * HOUR;
+		expect(turnedOn).toBeGreaterThanOrEqual(before);
+		expect(turnedOn).toBeLessThanOrEqual(Date.now());
+		const slot = Math.ceil(turnedOn / SCHEDULE_TICK_MS) * SCHEDULE_TICK_MS;
+		expect(await due(rowId, new Date(slot - 1))).toBe(slot === turnedOn);
+		expect(await due(rowId, new Date(slot + 34_000))).toBe(true);
 	});
 });

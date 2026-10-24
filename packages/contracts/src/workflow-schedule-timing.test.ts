@@ -67,9 +67,11 @@ describe("schedule timing", () => {
 		).toBe(false);
 	});
 
-	test("a restart counts a clock schedule from now and an interval from its first tick", () => {
+	test("a restart counts a clock schedule from now and an interval as due at the next slot", () => {
 		expect(restartedTickAt(BERLIN_15, NOW)).toEqual(NOW);
-		expect(restartedTickAt(EVERY_12H, NOW)).toBeNull();
+		expect(restartedTickAt(EVERY_12H, NOW).toISOString()).toBe(
+			"2026-10-23T11:01:59.000Z",
+		);
 	});
 });
 
@@ -134,7 +136,7 @@ describe("editing the schedule of a live workflow (R8-2)", () => {
 			lastTickAt: STALE,
 			now: NOW,
 		});
-		expect(countsFrom).toBeNull();
+		expect(countsFrom?.toISOString()).toBe("2026-10-23T11:01:59.000Z");
 		const shown = nextScheduleRun(EVERY_12H, {
 			after: NOW,
 			lastTickAt: countsFrom,
