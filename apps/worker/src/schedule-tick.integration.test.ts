@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { SCHEDULE_TICK_MS, type WorkflowDefinition } from "@tripwire/contracts";
+import {
+	restartedTickAt,
+	SCHEDULE_TICK_MS,
+	type WorkflowDefinition,
+} from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -430,9 +434,9 @@ describe("schedule tick", () => {
 		).toEqual([]);
 	});
 
-	test("re-ticking inside the same tick id inserts nothing new", async () => {
+	test("a second tick in the same slot inserts nothing new", async () => {
 		await pool.query("DELETE FROM workflow_schedule_state");
-		const result = await tick(new Date(T0.getTime() + 2 * HOUR));
+		const result = await tick(new Date(T0.getTime() + 40_000));
 		expect(result).toEqual({ schedules: 1, events: 0, errors: 0 });
 		const count = await pool.query(
 			"SELECT count(*)::int AS n FROM events WHERE raw_kind = 'schedule.matched'",
@@ -442,7 +446,7 @@ describe("schedule tick", () => {
 
 	test("a schedule that is not due is skipped", async () => {
 		const before = queries.length;
-		const result = await tick(new Date(T0.getTime() + 13 * HOUR));
+		const result = await tick(new Date(T0.getTime() + 11 * HOUR));
 		expect(result.schedules).toBe(0);
 		expect(queries.length).toBe(before);
 	});
@@ -785,5 +789,42 @@ describe("a schedule starts over when it turns on or its timing changes (R8-2)",
 		const slot = Math.ceil(turnedOn / SCHEDULE_TICK_MS) * SCHEDULE_TICK_MS;
 		expect(await due(rowId, new Date(slot - 1))).toBe(slot === turnedOn);
 		expect(await due(rowId, new Date(slot + 34_000))).toBe(true);
+	});
+
+	test("a restart after a run, inside the same interval window, runs again", async () => {
+		const workflowId = "wf-interval-rerun";
+		const rowId = await enableWorkflow(repoId, {
+			...SCHEDULED,
+			id: workflowId,
+			name: workflowId,
+		});
+		const state = await scheduleServices.getScheduleState(
+			db,
+			rowId,
+			"every-12h",
+		);
+		const turnedOn = (state?.lastTickAt.getTime() ?? 0) + 12 * HOUR;
+		const firstSlot = Math.ceil(turnedOn / SCHEDULE_TICK_MS) * SCHEDULE_TICK_MS;
+		await tick(new Date(firstSlot + 20_000));
+		const savedAgain = new Date(firstSlot + 2 * 60_000);
+		await scheduleServices.markScheduleTicked(db, {
+			workflowRowId: rowId,
+			nodeId: "every-12h",
+			at: restartedTickAt({ every: EVERY_12H }, savedAgain),
+			error: null,
+		});
+		await tick(new Date(firstSlot + SCHEDULE_TICK_MS + 20_000));
+		const events = await pool.query(
+			"SELECT delivery_id FROM events WHERE delivery_id LIKE $1 ORDER BY delivery_id",
+			[`schedule:${workflowId}:%`],
+		);
+		const first = new Date(firstSlot).toISOString();
+		const second = new Date(firstSlot + SCHEDULE_TICK_MS).toISOString();
+		expect(events.rows.map((row) => row.delivery_id)).toEqual([
+			`schedule:${workflowId}:every-12h:1:${first}`,
+			`schedule:${workflowId}:every-12h:1:${second}`,
+			`schedule:${workflowId}:every-12h:2:${first}`,
+			`schedule:${workflowId}:every-12h:2:${second}`,
+		]);
 	});
 });

@@ -64,14 +64,14 @@ function expectAgreement(
 	}
 }
 
-const EVERY: Record<string, Schedule> = {
+const EVERY = {
 	"every hour": { every: { n: 1, unit: "hours" } },
 	"every 12 hours": { every: { n: 12, unit: "hours" } },
 	"every 5 days": { every: { n: 5, unit: "days" } },
 	"every 2 weeks": { every: { n: 2, unit: "weeks" } },
-};
+} satisfies Record<string, Schedule>;
 
-const CLOCK: Record<string, Schedule> = {
+const CLOCK = {
 	"every 5 minutes": { every: { cron: "*/5 * * * *" } },
 	"every 15 minutes in Berlin": {
 		every: { cron: "*/15 * * * *" },
@@ -86,7 +86,7 @@ const CLOCK: Record<string, Schedule> = {
 		every: { preset: "weekly", on: "monday", at: "07:03" },
 		timezone: "America/New_York",
 	},
-};
+} satisfies Record<string, Schedule>;
 
 const LAST_TICKS = [
 	"2026-10-24T00:25:18.961Z",
@@ -108,7 +108,7 @@ describe("tick slots", () => {
 	});
 
 	test("R9-1: every 12 hours ticked at 00:25:18.961 fires at the shown 12:30, not 12:25", () => {
-		const schedule = EVERY["every 12 hours"] as Schedule;
+		const schedule = EVERY["every 12 hours"];
 		const last = new Date("2026-10-24T00:25:18.961Z");
 		const shown = nextScheduleRun(schedule, {
 			after: new Date("2026-10-24T00:26:00Z"),
@@ -124,7 +124,7 @@ describe("tick slots", () => {
 	});
 
 	test("a tick stored as its slot shows and fires one interval later on the mark", () => {
-		const schedule = EVERY["every 12 hours"] as Schedule;
+		const schedule = EVERY["every 12 hours"];
 		const last = scheduleTickSlot(new Date("2026-10-24T00:25:18.961Z"));
 		const shown = nextScheduleRun(schedule, {
 			after: new Date("2026-10-24T00:26:00Z"),
@@ -174,7 +174,7 @@ describe("turning on or editing a schedule inside a tick's late window", () => {
 	}
 
 	test("a restarted interval runs at the first mark after the save", () => {
-		const schedule = EVERY["every 12 hours"] as Schedule;
+		const schedule = EVERY["every 12 hours"];
 		const at = new Date("2026-10-24T12:25:10Z");
 		expect(
 			nextScheduleRun(schedule, {
@@ -182,5 +182,53 @@ describe("turning on or editing a schedule inside a tick's late window", () => {
 				lastTickAt: restartedTickAt(schedule, at),
 			})?.toISOString(),
 		).toBe("2026-10-24T12:30:00.000Z");
+	});
+});
+
+describe("interval tick ids", () => {
+	const schedule = EVERY["every 12 hours"];
+
+	test("two ticks in the same slot share one id", () => {
+		const last = new Date("2026-10-24T00:25:00Z");
+		expect(
+			scheduleFireTime(schedule, last, new Date("2026-10-24T12:25:05Z")),
+		).toEqual(
+			scheduleFireTime(schedule, last, new Date("2026-10-24T12:25:50Z")),
+		);
+	});
+
+	test("a restart inside the same interval window fires with a new id", () => {
+		const firstTick = new Date("2026-10-24T12:05:12Z");
+		const first = scheduleFireTime(schedule, null, firstTick);
+		const saved = new Date("2026-10-24T12:40:30Z");
+		const restarted = restartedTickAt(schedule, saved);
+		const tickAt = new Date("2026-10-24T12:45:20Z");
+		const second = scheduleFireTime(schedule, restarted, tickAt);
+		expect(first?.toISOString()).toBe("2026-10-24T12:05:00.000Z");
+		expect(second?.toISOString()).toBe("2026-10-24T12:45:00.000Z");
+	});
+
+	test("every firing of a run of ticks gets its own id", () => {
+		const ids = new Set<string>();
+		let last: Date | null = null;
+		for (
+			let at = Date.parse("2026-10-24T00:00:34Z");
+			at < Date.parse("2026-10-27T00:00:00Z");
+			at += SCHEDULE_TICK_MS
+		) {
+			const fire = scheduleFireTime(schedule, last, new Date(at));
+			if (fire) {
+				ids.add(fire.toISOString());
+				last = scheduleTickSlot(new Date(at));
+			}
+		}
+		expect([...ids]).toEqual([
+			"2026-10-24T00:00:00.000Z",
+			"2026-10-24T12:00:00.000Z",
+			"2026-10-25T00:00:00.000Z",
+			"2026-10-25T12:00:00.000Z",
+			"2026-10-26T00:00:00.000Z",
+			"2026-10-26T12:00:00.000Z",
+		]);
 	});
 });

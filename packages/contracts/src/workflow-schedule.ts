@@ -427,7 +427,9 @@ export function scheduleCountsFrom(input: {
 /**
  * The run a tick at `now` owes, as the instant it was due, or null when the
  * schedule is not due. The tick counts as its slot, the same slot the editor
- * shows. The instant doubles as the tick id, so retries of the same run dedupe.
+ * shows. An interval is due at a slot, a clock schedule at its cron time. The
+ * instant doubles as the tick id, so retries of the same run dedupe and every
+ * new run gets a new id.
  */
 export function scheduleFireTime(
 	schedule: { every: ScheduleCadence; timezone?: string },
@@ -436,11 +438,8 @@ export function scheduleFireTime(
 ): Date | null {
 	const slot = scheduleTickSlot(now).getTime();
 	if (isScheduleInterval(schedule.every)) {
-		const size = durationMs(schedule.every);
-		const due =
-			lastTickAt === null ||
-			slot >= intervalDueSlot(schedule.every, lastTickAt);
-		return due ? new Date(Math.floor(now.getTime() / size) * size) : null;
+		const due = lastTickAt ? intervalDueSlot(schedule.every, lastTickAt) : slot;
+		return slot >= due ? new Date(due) : null;
 	}
 	const spec = cronSpec(schedule.every);
 	if (!spec) {
