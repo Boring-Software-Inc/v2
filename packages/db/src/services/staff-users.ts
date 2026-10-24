@@ -8,6 +8,8 @@ import { moderationItems } from "../schema/moderation.ts";
 import { member, organization } from "../schema/organizations.ts";
 import { runs } from "../schema/runs.ts";
 import type { DbLike } from "./access.ts";
+import { revokeAllAgentCredentials } from "./agents.ts";
+import { isBanInForce } from "./bans.ts";
 import { liveRun, runBearsVerdict } from "./runs.ts";
 
 export interface StaffUserDetail {
@@ -307,6 +309,7 @@ export async function banUser(
 			return { banned: false, sessionsEnded: 0 };
 		}
 		const sessionsEnded = await revokeAllUserSessions(tx, input.userId);
+		await revokeAllAgentCredentials(tx, input.userId);
 		return { banned: true, sessionsEnded };
 	});
 }
@@ -338,11 +341,7 @@ export async function isUserBanned(
 		.from(user)
 		.where(eq(user.id, userId))
 		.limit(1);
-	const row = rows[0];
-	if (!row?.banned) {
-		return false;
-	}
-	return row.banExpires === null || row.banExpires.getTime() > now.getTime();
+	return isBanInForce(rows[0], now);
 }
 
 export async function recordDatabuddyAnonId(
@@ -426,8 +425,6 @@ export async function getSessionGuardState(
 		.where(eq(user.id, input.userId))
 		.limit(1);
 	const row = rows[0];
-	const banned =
-		row?.banned === true &&
-		(row.banExpires === null || row.banExpires.getTime() > now.getTime());
+	const banned = isBanInForce(row, now);
 	return { banned, impersonatedBy: row?.impersonatedBy ?? null };
 }

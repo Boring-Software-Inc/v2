@@ -11,9 +11,18 @@ import {
 import { account, forgeIdentities, session, user } from "../schema/auth.ts";
 import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
+import {
+	agentGrants,
+	deviceCode,
+	oauthAccessToken,
+	oauthClient,
+	oauthConsent,
+	oauthRefreshToken,
+} from "../schema/oauth.ts";
 import { member, organization } from "../schema/organizations.ts";
 import { runSteps, runs } from "../schema/runs.ts";
 import { promoteUserAccess } from "./access.ts";
+import { getAgentGrant, saveAgentGrant } from "./agents.ts";
 import { listStaffAuditForUser, recordStaffAudit } from "./staff-audit.ts";
 import {
 	banUser,
@@ -58,6 +67,76 @@ async function seedSession(
 		impersonatedBy: opts.impersonatedBy ?? null,
 	});
 	return id;
+}
+
+async function seedAgent(userId: string): Promise<string> {
+	const clientId = `client-${generateId()}`;
+	await db.insert(oauthClient).values({
+		id: generateId(),
+		clientId,
+		name: "Claude Code",
+		redirectUris: ["http://127.0.0.1:7777/callback"],
+	});
+	await saveAgentGrant(db, { userId, clientId, orgIds: [] });
+	const refreshId = generateId();
+	await db.insert(oauthRefreshToken).values({
+		id: refreshId,
+		token: generateId(),
+		clientId,
+		userId,
+		scopes: ["tripwire:read"],
+	});
+	await db.insert(oauthAccessToken).values({
+		id: generateId(),
+		token: generateId(),
+		clientId,
+		userId,
+		refreshId,
+		scopes: ["tripwire:read"],
+	});
+	await db.insert(oauthConsent).values({
+		id: generateId(),
+		clientId,
+		userId,
+		scopes: ["tripwire:read"],
+	});
+	await db.insert(deviceCode).values({
+		id: generateId(),
+		deviceCode: generateId(),
+		userCode: generateId(),
+		userId,
+		clientId,
+		status: "approved",
+		expiresAt: new Date(Date.now() + HOUR),
+	});
+	return clientId;
+}
+
+async function credentialCounts(userId: string) {
+	const count = async (rows: Promise<unknown[]>) => (await rows).length;
+	return {
+		grants: await count(
+			db.select().from(agentGrants).where(eq(agentGrants.userId, userId)),
+		),
+		access: await count(
+			db
+				.select()
+				.from(oauthAccessToken)
+				.where(eq(oauthAccessToken.userId, userId)),
+		),
+		refresh: await count(
+			db
+				.select()
+				.from(oauthRefreshToken)
+				.where(eq(oauthRefreshToken.userId, userId)),
+		),
+		consents: await count(
+			db.select().from(oauthConsent).where(eq(oauthConsent.userId, userId)),
+		),
+		deviceCodes: await count(
+			db.select().from(deviceCode).where(eq(deviceCode.userId, userId)),
+		),
+	};
 }
 
 async function seedRun(opts: {
@@ -216,6 +295,34 @@ describe("ban", () => {
 		expect((await unbanUser(db, spammer)).changed).toBe(true);
 		expect(await isUserBanned(db, spammer)).toBe(false);
 		expect((await unbanUser(db, spammer)).changed).toBe(false);
+	});
+
+	test("a ban ends every agent credential: grants, tokens, consents and device codes", async () => {
+		const agentUser = await seedUser("agent-user");
+		const clientId = await seedAgent(agentUser);
+		const bystander = await seedUser("bystander");
+		await seedAgent(bystander);
+		await banUser(db, { userId: agentUser, reason: "Abuse", expires: null });
+		expect(await credentialCounts(agentUser)).toEqual({
+			grants: 0,
+			access: 0,
+			refresh: 0,
+			consents: 0,
+			deviceCodes: 0,
+		});
+		expect(await credentialCounts(bystander)).toEqual({
+			grants: 1,
+			access: 1,
+			refresh: 1,
+			consents: 1,
+			deviceCodes: 1,
+		});
+		await saveAgentGrant(db, { userId: agentUser, clientId, orgIds: [] });
+		expect(await getAgentGrant(db, { userId: agentUser, clientId })).toBeNull();
+		await unbanUser(db, agentUser);
+		expect(
+			await getAgentGrant(db, { userId: agentUser, clientId }),
+		).not.toBeNull();
 	});
 
 	test("a ban with no end date holds forever", async () => {
