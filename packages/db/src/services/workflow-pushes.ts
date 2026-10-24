@@ -27,7 +27,7 @@ import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
 import { repos, workflowDefinitions } from "../schema/repos.ts";
 import { workflowPushProposals } from "../schema/workflow-pushes.ts";
-import { promoteSavedDrafts } from "./agent-work.ts";
+import { openDraftMarks, promoteSavedDrafts } from "./agent-work.ts";
 import {
 	listWorkflowRows,
 	liveSaveRefusals,
@@ -150,6 +150,11 @@ export async function proposeWorkflowPush(
 	if (blocks.length > 0) {
 		return { ok: false, reason: "blocked", blocks };
 	}
+	const drafts = await openDraftMarks(db, {
+		repoId: input.repoId,
+		definitionIds: changed.map((definition) => definition.id),
+		now,
+	});
 	const entries: WorkflowPushEntry[] = changed.map((definition) => {
 		const base = rows.find((row) => row.definition.id === definition.id);
 		return {
@@ -157,6 +162,7 @@ export async function proposeWorkflowPush(
 			baseWorkflowId: base?.id ?? null,
 			baseHash: base ? definitionHash(base.definition) : null,
 			baseDefinition: base ? redactWorkflowSecrets(base.definition) : null,
+			draft: drafts.get(definition.id) ?? null,
 		};
 	});
 	const id = generateId();
@@ -454,6 +460,7 @@ export async function decideWorkflowPush(
 		return { ok: false, reason: "not-found" };
 	}
 	const catalog = await repoRuleCatalog(db, repoId);
+	let marks = new Map<string, WorkflowPushEntry["draft"]>();
 	const decided = await db.transaction(
 		async (tx): Promise<DecideWorkflowPushResult> => {
 			const locked = await tx
@@ -508,6 +515,9 @@ export async function decideWorkflowPush(
 			if (blocks.length > 0) {
 				return { ok: false, reason: "blocked", blocks };
 			}
+			marks = new Map(
+				entries.map((entry) => [entry.definition.id, entry.draft]),
+			);
 			const outcomes: WorkflowPushOutcome[] = [];
 			for (const entry of entries) {
 				outcomes.push(await applyEntry(tx, push.repoId, entry, rows, now));
@@ -522,6 +532,7 @@ export async function decideWorkflowPush(
 			saved: decided.outcomes.map((outcome) => ({
 				definitionId: outcome.id,
 				workflowId: outcome.workflowId,
+				draft: marks.get(outcome.id),
 			})),
 			now,
 		});

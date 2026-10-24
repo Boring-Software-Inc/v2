@@ -25,11 +25,19 @@ export const workflowPushDecisionSchema = z.enum(WORKFLOW_PUSH_DECISIONS);
 
 export type WorkflowPushDecision = z.infer<typeof workflowPushDecisionSchema>;
 
+export const workflowPushDraftMarkSchema = z.object({
+	id: z.string(),
+	revision: z.number().int().min(0),
+});
+
+export type WorkflowPushDraftMark = z.infer<typeof workflowPushDraftMarkSchema>;
+
 export const workflowPushEntrySchema = z.object({
 	definition: workflowDefinitionSchema,
 	baseWorkflowId: z.string().nullable(),
 	baseHash: z.string().nullable(),
 	baseDefinition: workflowDefinitionSchema.nullable(),
+	draft: workflowPushDraftMarkSchema.nullable().optional(),
 });
 
 export type WorkflowPushEntry = z.infer<typeof workflowPushEntrySchema>;

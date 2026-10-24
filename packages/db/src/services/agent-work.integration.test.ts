@@ -37,7 +37,12 @@ import { liveMessageFor } from "./live.ts";
 import { listEnabledWorkflows } from "./repos.ts";
 import { listDueSchedules } from "./schedules.ts";
 import { decideWorkflowPush, proposeWorkflowPush } from "./workflow-pushes.ts";
-import { getWorkflow, listWorkflows, setWorkflowEnabled } from "./workflows.ts";
+import {
+	getWorkflow,
+	listWorkflowRows,
+	listWorkflows,
+	setWorkflowEnabled,
+} from "./workflows.ts";
 
 let container: TestDatabase;
 let db: Db;
@@ -388,6 +393,65 @@ describe("saving a draft", () => {
 		expect(work.workflowId).not.toBeNull();
 		const cards = await listWorkflowCards(db, { repoId, now: later(11) });
 		expect(cards.map((card) => card.draftId)).toEqual([null]);
+	});
+
+	test("an accepted push keeps a draft the agent changed after proposing", async () => {
+		const orgId = generateId();
+		await db
+			.insert(organization)
+			.values({ id: orgId, name: orgId, slug: orgId, isPersonal: false });
+		const repoId = await newRepo("push-moved-on");
+		const definition = staleTemplate();
+		const saved = await saveAgentDraft(db, {
+			repoId,
+			agent,
+			definition,
+			now: T0,
+		});
+		const proposed = await proposeWorkflowPush(db, {
+			orgId,
+			repoId,
+			authorId: agent.userId,
+			definitions: [definition],
+			now: later(5),
+		});
+		if (!proposed.ok || proposed.kind !== "proposed") {
+			throw new Error("expected a proposal");
+		}
+		const newer = await saveAgentDraft(db, {
+			repoId,
+			agent,
+			definition: withExtraStep(definition),
+			now: later(7),
+		});
+		expect(newer.draftId).toBe(saved.draftId);
+		const decided = await decideWorkflowPush(db, {
+			orgId,
+			pushId: proposed.push.id,
+			userId: agent.userId,
+			decision: "accept",
+			now: later(10),
+		});
+		expect(decided.ok).toBe(true);
+		const stored = (await listWorkflowRows(db, repoId)).find(
+			(row) => row.definition.id === definition.id,
+		);
+		expect(stored).toBeDefined();
+		expect(hasStep(stored, "added-step")).toBe(false);
+		const work = await getWorkflowWork(db, {
+			repoId,
+			definitionId: definition.id,
+			now: later(11),
+		});
+		expect(work.draft?.id).toBe(saved.draftId);
+		expect(work.draft?.status).toBe("open");
+		expect(work.draft?.revision).toBe(2);
+		expect(work.workflowId).toBe(stored?.id ?? "");
+		expect(
+			work.draft?.definition?.nodes.some((node) => node.id === "added-step"),
+		).toBe(true);
+		const cards = await listWorkflowCards(db, { repoId, now: later(11) });
+		expect(cards.map((card) => card.draftId)).toEqual([saved.draftId]);
 	});
 
 	test("a rejected push review leaves the draft open", async () => {

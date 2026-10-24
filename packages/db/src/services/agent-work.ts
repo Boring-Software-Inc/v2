@@ -13,6 +13,7 @@ import {
 	type WorkflowChangeSet,
 	type WorkflowDefinition,
 	type WorkflowDraftView,
+	type WorkflowPushDraftMark,
 	type WorkflowWork,
 	workflowChangeSet,
 	workflowChangeSetSchema,
@@ -793,21 +794,67 @@ export async function applyAgentWorkflow(
 	);
 }
 
+export async function openDraftMarks(
+	db: Executor,
+	input: { repoId: string; definitionIds: readonly string[]; now?: Date },
+): Promise<Map<string, WorkflowPushDraftMark>> {
+	if (input.definitionIds.length === 0) {
+		return new Map();
+	}
+	const rows = await db
+		.select({
+			id: workflowDrafts.id,
+			definitionId: workflowDrafts.definitionId,
+			revision: workflowDrafts.revision,
+		})
+		.from(workflowDrafts)
+		.where(
+			and(
+				eq(workflowDrafts.repoId, input.repoId),
+				inArray(workflowDrafts.definitionId, [...input.definitionIds]),
+				eq(workflowDrafts.status, "open"),
+				gt(workflowDrafts.expiresAt, input.now ?? new Date()),
+			),
+		);
+	return new Map(
+		rows.map((row) => [
+			row.definitionId,
+			{ id: row.id, revision: row.revision },
+		]),
+	);
+}
+
+function draftMoved(
+	draft: DraftRow,
+	mark: WorkflowPushDraftMark | null | undefined,
+): boolean {
+	if (mark === undefined) {
+		return false;
+	}
+	return mark?.id !== draft.id || mark.revision !== draft.revision;
+}
+
 /**
  * A person accepted a push review. Each saved workflow promotes its open
- * draft, the same way the agent's apply does.
+ * draft, the same way the agent's apply does, unless the agent changed the
+ * draft after the push was proposed: that draft stays open on the saved
+ * workflow.
  */
 export async function promoteSavedDrafts(
 	db: Db,
 	input: {
 		repoId: string;
-		saved: readonly { definitionId: string; workflowId: string }[];
+		saved: readonly {
+			definitionId: string;
+			workflowId: string;
+			draft?: WorkflowPushDraftMark | null;
+		}[];
 		now?: Date;
 	},
 ): Promise<string[]> {
 	const now = input.now ?? new Date();
 	const promoted: string[] = [];
-	for (const { definitionId, workflowId } of input.saved) {
+	for (const { definitionId, workflowId, draft: mark } of input.saved) {
 		const draftId = await withDraftLock(
 			db,
 			{ repoId: input.repoId, definitionId },
@@ -818,6 +865,18 @@ export async function promoteSavedDrafts(
 					now,
 				);
 				if (!draft) {
+					return null;
+				}
+				if (draftMoved(draft, mark)) {
+					await tx
+						.update(workflowDrafts)
+						.set({ workflowId })
+						.where(eq(workflowDrafts.id, draft.id));
+					await notifyLive(tx, {
+						type: "work",
+						repoId: input.repoId,
+						definitionId,
+					});
 					return null;
 				}
 				const after = await getWorkflow(tx, {
