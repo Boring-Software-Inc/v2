@@ -299,6 +299,8 @@ describe("the tool list follows the member's role", () => {
 	test("a workflows-only role lists the org shell and the workflow tools", async () => {
 		expect(await listedFor("perm-builder")).toEqual([
 			"apply_workflow",
+			"begin_workflow_work",
+			"finish_workflow_work",
 			"get_workflow",
 			"list_repos",
 			"list_rule_catalog",
@@ -312,6 +314,6 @@ describe("the tool list follows the member's role", () => {
 	});
 
 	test("an org admin lists every tool", async () => {
-		expect(await listedFor("perm-admin")).toHaveLength(18);
+		expect(await listedFor("perm-admin")).toHaveLength(20);
 	});
 });
