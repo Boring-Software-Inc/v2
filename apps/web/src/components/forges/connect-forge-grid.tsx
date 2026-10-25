@@ -1,20 +1,18 @@
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
-import { FORGE_CATALOG, forgeConnectable } from "@tripwire/contracts";
 import {
 	FORGE_GRID,
 	ForgeCell,
 	type ForgeCellState,
 } from "#/components/forges/forge-cell";
-import { LIVE_FORGES } from "#/lib/forge-copy";
+import { connectForges } from "#/lib/forge-grid";
 import type { InstallUrlState } from "#/lib/onboarding.functions";
 import { orgInstallUrlQueryOptions } from "#/lib/onboarding.query";
 import { myOrgsQueryOptions } from "#/lib/org.query";
 import { trackEvent } from "#/lib/track";
 
 /**
- * "connect repos" — the same 2×2 catalog grid as sign-in, with connect as the
- * verb. One cell per catalog entry: a `live` forge gets a real connect action, a
- * `planned` one is inert and says so.
+ * "connect repos": the same catalog grid as sign-in, with connect as the verb.
+ * Only forges that can be connected get a cell.
  *
  * Both live forges connect as an app/bot INSTALLATION: org-scoped (the install
  * url is minted per org and only an admin may grant) and the flow leaves the app
@@ -25,13 +23,13 @@ import { trackEvent } from "#/lib/track";
  * falls through to the CLAIM screen and asks which org it belongs to. Both end
  * up bound deliberately; neither auto-attaches on a guess (§10).
  *
- * Where a live forge can't run, the cell is blocked WITH THE REASON rather than
- * hidden — a missing menu item teaches nothing, and "add repos" silently
- * vanishing for non-admins is the bug this replaces.
+ * Where a connectable forge can't run, the cell is blocked WITH THE REASON
+ * rather than hidden: a missing menu item teaches nothing, and "add repos"
+ * silently vanishing for non-admins is the bug this replaces.
  *
- * Every live forge needs an entry in `STATE`. One flipped to `live` in the
- * catalog without one falls through to an honest "can't connect yet" instead of
- * a cell that looks ready and does nothing.
+ * A forge also needs an entry in `STATE` to show. One flipped to `live` in the
+ * catalog without one stays hidden instead of a cell that looks ready and does
+ * nothing.
  */
 export function ConnectForgeGrid({
 	org,
@@ -111,8 +109,8 @@ export function ConnectForgeGrid({
 
 	/**
 	 * A Map, not a dictionary: a catalog entry with no builder here must MISS,
-	 * which is what makes the cell fall through to an honest "can't connect yet"
-	 * instead of an open index signature quietly returning undefined.
+	 * which is what keeps it out of the grid instead of an open index signature
+	 * quietly returning undefined.
 	 */
 	const STATE = new Map<string, () => ForgeCellState>([
 		["github", () => installState("GitHub", github)],
@@ -121,25 +119,12 @@ export function ConnectForgeGrid({
 
 	return (
 		<div className={FORGE_GRID}>
-			{FORGE_CATALOG.map((forge) => (
+			{connectForges((id) => STATE.has(id)).map((forge) => (
 				<ForgeCell
 					id={forge.id}
 					key={forge.id}
 					label={forge.label}
-					showReason
-					state={
-						forgeConnectable(forge.id)
-							? (STATE.get(forge.id)?.() ?? {
-									kind: "blocked",
-									title: `${forge.label} can't connect yet`,
-									body: `You can sign in with ${forge.label}, but Tripwire can't watch its repos yet.`,
-								})
-							: {
-									kind: "blocked",
-									title: `${forge.label} isn't available yet`,
-									body: `Tripwire watches ${LIVE_FORGES} today.`,
-								}
-					}
+					state={STATE.get(forge.id)?.() ?? { kind: "loading" }}
 				/>
 			))}
 		</div>

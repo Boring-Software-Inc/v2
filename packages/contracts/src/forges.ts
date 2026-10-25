@@ -10,19 +10,16 @@ import { z } from "zod";
  * - `live`     — an adapter exists, so tripwire can INGEST events for it and
  *                store them on a row. These and only these widen `Forge`.
  *                It does NOT promise reads or a connect flow: open-git is live
- *                for ingest while its API still has no read endpoints, and the
- *                connect grid says so on the cell.
- * - `planned`  — announced in the UI, not built. It renders in every forge grid
- *                as an inert cell, and CANNOT reach the database, because
- *                `forgeSchema` never sees it.
+ *                for ingest while its API still has no read endpoints, so
+ *                the connect grid leaves it out.
+ * - `planned`  — not built. It shows in no forge grid, and CANNOT reach the
+ *                database, because `forgeSchema` never sees it.
  *
  * Flipping a `planned` entry to `live` widens `Forge`, which breaks every
  * exhaustive `Record<Forge, …>` in the app until the new arm exists. That
  * compile error is the checklist — don't route around it.
  *
- * Array ORDER is display order: the login and connect grids lay this out 2×2 in
- * exactly this sequence, so live and planned alternate rather than clustering
- * into a dead column.
+ * Array ORDER is display order in the login and connect grids.
  */
 export type ForgeStatus = "live" | "planned";
 
@@ -70,7 +67,7 @@ export const FORGE_CATALOG = [
 type CatalogEntry = (typeof FORGE_CATALOG)[number];
 type LiveEntry = Extract<CatalogEntry, { status: "live" }>;
 
-/** Every forge the UI advertises, built or not — the grids iterate this. */
+/** Every forge in the catalog, built or not. */
 export type ForgeId = CatalogEntry["id"];
 
 /**
@@ -99,10 +96,6 @@ export const forgeSchema = z.enum(
  * today") is generated from the catalog instead of drifting out of sync. */
 export const LIVE_FORGE_LABELS: readonly string[] = FORGE_CATALOG.filter(
 	(entry) => isLive(entry) && !("paused" in entry),
-).map((entry) => entry.label);
-
-export const PLANNED_FORGE_LABELS: readonly string[] = FORGE_CATALOG.filter(
-	(entry) => entry.status === "planned",
 ).map((entry) => entry.label);
 
 /**
