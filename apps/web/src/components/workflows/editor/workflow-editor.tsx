@@ -91,9 +91,11 @@ import { EditorHeader } from "#/components/workflows/editor/editor-header";
 import {
 	buildNodeFromItem,
 	EditorSidebar,
+	TOOLBOX_SECTIONS,
 	type ToolboxItem,
 } from "#/components/workflows/editor/editor-sidebar";
 import {
+	cardHeightOf,
 	estimateCardHeight,
 	LANE_SPACING,
 	laneDecor,
@@ -123,6 +125,15 @@ import {
 import { ProblemsButton } from "#/components/workflows/editor/problems-list";
 import { ReviewerScopeContext } from "#/components/workflows/editor/reviewer-picker";
 import {
+	RuleGroupNode,
+	SkipWhenNode,
+} from "#/components/workflows/editor/rule-group-cards";
+import {
+	type RuleChoice,
+	type RuleGroupsApi,
+	RuleGroupsContext,
+} from "#/components/workflows/editor/rule-groups-context";
+import {
 	DragPlanContext,
 	DropHint,
 	PendingConnection,
@@ -133,6 +144,21 @@ import {
 import { WorkflowCode } from "#/components/workflows/editor/workflow-code";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
+import {
+	addGroupRule,
+	addSkipCheck,
+	attachSkip,
+	connectTrigger,
+	deleteCard,
+	isViewEdge,
+	type RuleCard,
+	removeGroupRule,
+	removeSkip,
+	removeSkipCheck,
+	ruleGroupsView,
+	setSkipMode,
+	viewGraph,
+} from "#/lib/rule-groups";
 import { invalidScheduleDrafts } from "#/lib/schedule-input";
 import { workflowCodeView } from "#/lib/workflow-code-view";
 import {
@@ -148,6 +174,8 @@ import "@xyflow/react/dist/style.css";
 
 const NODE_TYPES = {
 	tripwire: TripwireNode,
+	ruleGroup: RuleGroupNode,
+	skipWhen: SkipWhenNode,
 	laneHead: LaneHeadNode,
 };
 const EDGE_TYPES = { typed: TypedEdge };
@@ -161,8 +189,8 @@ type CanvasNode = TripwireFlowNode | LaneHeadFlowNode;
 
 type FlowEdge = Edge<{
 	when?: EdgeWhen;
-	input?: GateInput;
 	port?: WorkflowPort;
+	input?: GateInput;
 }>;
 
 export interface PendingConnect {
@@ -171,6 +199,36 @@ export interface PendingConnect {
 	port: WorkflowPort;
 	at: { x: number; y: number };
 	insert?: { edgeId: string };
+}
+
+function stateGraph(definition: WorkflowDefinition) {
+	const graph = definitionToGraph(definition);
+	const nodes = placeUnpositioned(
+		graph.nodes,
+		viewGraph(definition),
+		definition,
+	).map(
+		(node): TripwireFlowNode => ({ ...node, type: "tripwire", hidden: false }),
+	);
+	return { nodes, edges: graph.edges.filter((edge) => !isViewEdge(edge.id)) };
+}
+
+function cardType(card: RuleCard | undefined): string {
+	if (card?.kind === "group") {
+		return "ruleGroup";
+	}
+	return card?.kind === "skip" ? "skipWhen" : "tripwire";
+}
+
+function routedCard(card: RuleCard | undefined): boolean {
+	if (!card) {
+		return false;
+	}
+	return card.kind === "skip" || card.gateId !== null || card.unlessId !== null;
+}
+
+function newId(): string {
+	return crypto.randomUUID();
 }
 
 function handlePoint(position: { x: number; y: number }) {
@@ -356,8 +414,16 @@ function EditorBody({
 	onTestConnection,
 }: WorkflowEditorProps) {
 	const initial = useMemo(() => {
-		const graph = definitionToGraph(definition);
-		return { ...graph, nodes: placeUnpositioned(graph.nodes, definition) };
+		const graph = stateGraph(definition);
+		const empty = [...ruleGroupsView(definition).cards.values()].find(
+			(card) => card.kind === "skip" && card.checkIds.length === 0,
+		);
+		return {
+			...graph,
+			nodes: graph.nodes.map((node) =>
+				node.id === empty?.id ? { ...node, selected: true } : node,
+			),
+		};
 	}, [definition]);
 	// Connection-test failures from the last save, keyed by node — merged into
 	// the validation issues so they surface with the same red-dot treatment.
@@ -468,7 +534,7 @@ function EditorBody({
 		issues: ValidationIssue[];
 	} | null>(null);
 	const [pending, setPending] = useState<PendingConnect | null>(null);
-	const reconnecting = useRef(false);
+	const reconnecting = useRef<string | null>(null);
 	const leave = useBlocker({
 		shouldBlockFn: ({ current, next }) =>
 			dirty && !readOnly && current.pathname !== next.pathname,
@@ -483,6 +549,39 @@ function EditorBody({
 		nodes: TripwireFlowNode[];
 		edges: FlowEdge[];
 	}) => {
+		const cardIds = deletedNodes
+			.map((node) => node.id)
+			.filter((id) => groups.cards.has(id));
+		if (cardIds.length > 0) {
+			const others = new Set(
+				deletedNodes
+					.map((node) => node.id)
+					.filter((id) => !groups.cards.has(id)),
+			);
+			const dropped = new Set(deletedEdges.map((edge) => edge.id));
+			const start = graphToCandidate(meta, nodes, edges);
+			const trimmed = cardIds.reduce((graph, id) => deleteCard(graph, id), {
+				...start,
+				nodes: start.nodes.filter((node) => !others.has(node.id)),
+				edges: start.edges.filter(
+					(edge) =>
+						!dropped.has(edge.id) &&
+						!others.has(edge.from) &&
+						!others.has(edge.to),
+				),
+			});
+			const undo = commit(trimmed);
+			toast(cardIds.length === 1 ? "Step deleted" : "Steps deleted", {
+				action: {
+					label: "Undo",
+					onClick: () => {
+						setNodes(undo.nodes);
+						setEdges(undo.edges);
+					},
+				},
+			});
+			return false;
+		}
 		const before = { nodes, edges };
 		const stepCount = deletedNodes.length;
 		const title =
@@ -538,18 +637,31 @@ function EditorBody({
 		: undefined;
 	const reviewerScope = useMemo(() => ({ org, repoId }), [org, repoId]);
 
+	const candidate = useMemo(
+		() => graphToCandidate(meta, nodes, edges),
+		[meta, nodes, edges],
+	);
+	const groups = useMemo(() => ruleGroupsView(candidate), [candidate]);
+
 	const lintResults = useMemo(
 		() =>
 			nodes.length === 0
 				? []
 				: editorLint({
-						candidate: graphToCandidate(meta, nodes, edges),
+						candidate,
 						enabled,
 						catalog: enableCatalog,
 						aiCredits,
 						reviewers: syncedReviewers,
 					}),
-		[nodes, edges, meta, enabled, enableCatalog, aiCredits, syncedReviewers],
+		[
+			nodes.length,
+			candidate,
+			enabled,
+			enableCatalog,
+			aiCredits,
+			syncedReviewers,
+		],
 	);
 
 	const customRuleNames = useMemo(
@@ -607,11 +719,19 @@ function EditorBody({
 				],
 			}),
 		);
-		return [...drafted, ...local, ...server, ...delivery].sort(
-			(a, b) =>
-				Number(a.severity === "warning") - Number(b.severity === "warning"),
-		);
+		return [...drafted, ...local, ...server, ...delivery]
+			.map((problem) => {
+				const card = problem.nodeId
+					? groups.memberOf.get(problem.nodeId)
+					: undefined;
+				return card ? { ...problem, nodeId: card } : problem;
+			})
+			.sort(
+				(a, b) =>
+					Number(a.severity === "warning") - Number(b.severity === "warning"),
+			);
 	}, [
+		groups,
 		lintResults,
 		connectionIssues,
 		serverIssues,
@@ -623,25 +743,21 @@ function EditorBody({
 	const blockers = problems.filter((problem) => problem.severity === "error");
 
 	const decor = useMemo(() => {
-		const graph = {
-			nodes: nodes.map((node) => node.data.node),
-			edges: edges.map((edge) => ({
-				id: edge.id,
-				from: edge.source,
-				to: edge.target,
-			})),
-		};
+		const graph = viewGraph(candidate);
+		const shown = new Set(graph.nodes.map((node) => node.id));
 		return laneDecor(
 			graph,
-			nodes.map((node) => ({
-				id: node.id,
-				x: node.position.x,
-				y: node.position.y,
-				width: node.measured?.width ?? CARD_WIDTH,
-				height: node.measured?.height ?? estimateCardHeight(node.data.node),
-			})),
+			nodes
+				.filter((node) => shown.has(node.id))
+				.map((node) => ({
+					id: node.id,
+					x: node.position.x,
+					y: node.position.y,
+					width: node.measured?.width ?? CARD_WIDTH,
+					height: node.measured?.height ?? estimateCardHeight(node.data.node),
+				})),
 		);
-	}, [nodes, edges]);
+	}, [nodes, candidate]);
 
 	const canvasNodes = useMemo((): CanvasNode[] => {
 		const fixed = {
@@ -663,9 +779,15 @@ function EditorBody({
 					...fixed,
 				}),
 			),
-			...nodes,
+			...nodes.map(
+				(node): TripwireFlowNode => ({
+					...node,
+					type: cardType(groups.cards.get(node.id)) as "tripwire",
+					hidden: groups.memberOf.has(node.id),
+				}),
+			),
 		];
-	}, [nodes, decor]);
+	}, [nodes, decor, groups]);
 
 	// ---- graph mutations ---------------------------------------------------
 	const onNodesChange = useCallback(
@@ -695,9 +817,22 @@ function EditorBody({
 		[onEdgesStateChange],
 	);
 
+	const commitRef = useRef<(next: WorkflowDefinition) => void>(() => undefined);
+
 	const onConnect = useCallback(
 		(connection: Connection) => {
 			const when = handleWhen(connection.sourceHandle);
+			if (routedCard(groups.cards.get(connection.target))) {
+				commitRef.current(
+					connectTrigger(
+						candidate,
+						connection.source,
+						connection.target,
+						newId,
+					),
+				);
+				return;
+			}
 			setEdges((current) =>
 				addEdge(
 					{
@@ -710,7 +845,7 @@ function EditorBody({
 			);
 			setDirty(true);
 		},
-		[setEdges],
+		[candidate, groups, setEdges],
 	);
 
 	const onReconnect = useCallback(
@@ -718,17 +853,7 @@ function EditorBody({
 			const when = handleWhen(connection.sourceHandle);
 			setEdges((current) =>
 				reconnectEdge(oldEdge, connection, current).map((edge) =>
-					edge.id === oldEdge.id
-						? {
-								...edge,
-								...edgeWhenFields(
-									when,
-									connection.target === oldEdge.target
-										? oldEdge.data?.input
-										: undefined,
-								),
-							}
-						: edge,
+					edge.id === oldEdge.id ? { ...edge, ...edgeWhenFields(when) } : edge,
 				),
 			);
 			setDirty(true);
@@ -795,8 +920,15 @@ function EditorBody({
 		(connection) => {
 			const source = nodes.find((n) => n.id === connection.source);
 			const target = nodes.find((n) => n.id === connection.target);
-			if (!(source && target) || source.id === target.id) {
+			if (
+				!(source && target) ||
+				source.id === target.id ||
+				groups.cards.get(source.id)?.kind === "skip"
+			) {
 				return false;
+			}
+			if (routedCard(groups.cards.get(target.id))) {
+				return source.data.node.type === "trigger";
 			}
 			return (
 				connectionIssue(
@@ -806,7 +938,7 @@ function EditorBody({
 				) === null
 			);
 		},
-		[nodes],
+		[nodes, groups],
 	);
 
 	const origin = useConnection(selectOrigin);
@@ -818,27 +950,44 @@ function EditorBody({
 
 	const flowEdges = useMemo(() => {
 		const byId = new Map(workflowNodes.map((node) => [node.id, node]));
-		return edges.map((edge): TypedFlowEdge => {
+		const shown = edges.map((edge): TypedFlowEdge => {
 			const source = byId.get(edge.source);
+			const role = edge.data?.input !== undefined;
 			return {
 				...edge,
 				type: "typed",
+				hidden: groups.hiddenEdges.has(edge.id),
+				deletable: role ? false : edge.deletable,
+				reconnectable: role ? false : edge.reconnectable,
 				data: {
-					...edge.data,
+					when: edge.data?.when,
 					port: source
 						? edgePort(source, handleWhen(edge.sourceHandle))
 						: "pass",
 				},
 			};
 		});
-	}, [edges, workflowNodes]);
+		const routed = groups.viewEdges.map(
+			(edge): TypedFlowEdge => ({
+				id: edge.id,
+				source: edge.from,
+				target: edge.to,
+				type: "typed",
+				deletable: false,
+				selectable: false,
+				reconnectable: false,
+				data: { port: "event" },
+			}),
+		);
+		return [...shown, ...routed];
+	}, [edges, workflowNodes, groups]);
 
 	const onConnectEnd = useCallback(
 		(event: MouseEvent | TouchEvent, state: FinalConnectionState) => {
 			const { fromHandle } = state;
 			const fromNode = nodes.find((n) => n.id === state.fromNode?.id);
 			if (
-				reconnecting.current ||
+				reconnecting.current !== null ||
 				readOnly ||
 				state.isValid ||
 				state.toHandle ||
@@ -912,8 +1061,7 @@ function EditorBody({
 	);
 
 	const applyDefinition = (next: WorkflowDefinition, select?: string) => {
-		const raw = definitionToGraph(next);
-		const graph = { ...raw, nodes: placeUnpositioned(raw.nodes, next) };
+		const graph = stateGraph(next);
 		const previous = new Map(nodes.map((node) => [node.id, node]));
 		setNodes(
 			graph.nodes.map((node): TripwireFlowNode => {
@@ -931,9 +1079,10 @@ function EditorBody({
 		const heights = new Map(
 			nodes.map((node) => [node.id, node.measured?.height]),
 		);
-		const arranged = arrangeWorkflow(currentDefinition(), {
+		const arranged = arrangeWorkflow(viewGraph(currentDefinition()), {
 			spacing: LANE_SPACING,
-			heightOf: (node) => heights.get(node.id) ?? estimateCardHeight(node),
+			heightOf: (node) =>
+				heights.get(node.id) ?? cardHeightOf(currentDefinition())(node),
 		});
 		const placed = new Map(
 			arranged.nodes.map((node) => [node.id, node.position]),
@@ -1086,6 +1235,64 @@ function EditorBody({
 		});
 	};
 
+	const commit = (next: WorkflowDefinition, select?: string) => {
+		const before = { nodes, edges };
+		applyDefinition(next, select);
+		return before;
+	};
+	commitRef.current = (next) => {
+		commit(next);
+	};
+
+	const ruleChoices = useMemo(
+		(): RuleChoice[] => [
+			...(
+				TOOLBOX_SECTIONS.find((section) => section.kind === "rule")?.items ?? []
+			).flatMap((item) =>
+				item.kind === "rule"
+					? [
+							{
+								ref: item.ref,
+								name: item.name,
+								config: item.defaultConfig,
+							},
+						]
+					: [],
+			),
+			...customRules.map((rule) => ({
+				ref: rule.ref,
+				name: rule.name,
+				config: {},
+			})),
+		],
+		[customRules],
+	);
+
+	const ruleGroupsApi: RuleGroupsApi = {
+		view: groups,
+		nodes: new Map(candidate.nodes.map((node) => [node.id, node])),
+		choices: ruleChoices,
+		readOnly,
+		addRule: (cardId, choice) =>
+			commit(addGroupRule(currentDefinition(), cardId, choice, newId)),
+		removeRule: (cardId, ruleId) =>
+			commit(removeGroupRule(currentDefinition(), cardId, ruleId)),
+		addCheck: (cardId, choice) =>
+			commit(addSkipCheck(currentDefinition(), cardId, choice, newId)),
+		removeCheck: (cardId, ruleId) =>
+			commit(removeSkipCheck(currentDefinition(), cardId, ruleId, newId)),
+		setMode: (cardId, mode) =>
+			commit(setSkipMode(currentDefinition(), cardId, mode)),
+		attachSkip: (cardId) => {
+			const attached = attachSkip(currentDefinition(), cardId, newId);
+			if (attached) {
+				commit(attached.graph, attached.skipId);
+			}
+		},
+		removeSkip: (cardId) => commit(removeSkip(currentDefinition(), cardId)),
+		select: selectNode,
+	};
+
 	const fixProblem = (_problem: Problem, fix: LintFix) => {
 		if ("intent" in fix) {
 			runIntent(fix.intent);
@@ -1135,9 +1342,11 @@ function EditorBody({
 			: null;
 
 	const selectedFlowNodes = nodes.filter((n) => n.selected);
+	const selectedOne =
+		selectedFlowNodes.length === 1 ? selectedFlowNodes[0] : undefined;
 	const selectedNode =
-		selectedFlowNodes.length === 1
-			? (selectedFlowNodes[0]?.data.node ?? null)
+		selectedOne && !groups.cards.has(selectedOne.id)
+			? selectedOne.data.node
 			: null;
 
 	// ---- dnd-kit drag-in ---------------------------------------------------
@@ -1169,6 +1378,18 @@ function EditorBody({
 			x: activator.clientX + event.delta.x,
 			y: activator.clientY + event.delta.y,
 		});
+		const hit = getIntersectingNodes({ ...position, width: 1, height: 1 })
+			.map((node) => groups.cards.get(node.id))
+			.find((card) => card !== undefined);
+		if (hit && item.kind === "rule") {
+			const choice = { ref: item.ref, config: item.defaultConfig };
+			commit(
+				hit.kind === "group"
+					? addGroupRule(currentDefinition(), hit.id, choice, newId)
+					: addSkipCheck(currentDefinition(), hit.id, choice, newId),
+			);
+			return;
+		}
 		insertNode(buildNodeFromItem(item), {
 			// Center-ish for the wider, taller field-bearing cards.
 			x: position.x - 110,
@@ -1313,50 +1534,54 @@ function EditorBody({
 								<EditFieldContext.Provider value={editField}>
 									<DragPlanContext.Provider value={plan}>
 										<AgentEnterContext.Provider value={entering}>
-											<ReactFlow
-												connectionLineComponent={TypedConnectionLine}
-												data-agent-live={live ? "" : undefined}
-												data-agent-motion={live?.motion}
-												data-drag-tone={
-													plan?.port ? WORKFLOW_PORT_TONE[plan.port] : undefined
-												}
-												deleteKeyCode={
-													readOnly || view !== "canvas" ? null : DELETE_KEYS
-												}
-												onBeforeDelete={readOnly ? undefined : onBeforeDelete}
-												edges={flowEdges}
-												edgeTypes={EDGE_TYPES}
-												edgesReconnectable={!readOnly}
-												elementsSelectable
-												fitView
-												fitViewOptions={fitViewOptions()}
-												isValidConnection={isValidConnection}
-												nodes={canvasNodes as TripwireFlowNode[]}
-												nodesConnectable={!readOnly}
-												nodesDraggable={!readOnly}
-												nodeTypes={NODE_TYPES}
-												onConnect={readOnly ? undefined : onConnect}
-												onConnectEnd={onConnectEnd}
-												onConnectStart={cancelPending}
-												onNodeClick={cancelPending}
-												onPaneClick={cancelPending}
-												onReconnectEnd={() => {
-													reconnecting.current = false;
-												}}
-												onReconnectStart={() => {
-													reconnecting.current = true;
-												}}
-												onEdgesChange={onEdgesChange}
-												onNodesChange={onNodesChange}
-												onReconnect={readOnly ? undefined : onReconnect}
-												proOptions={{ hideAttribution: true }}
-												style={CANVAS_TOKENS}
-											>
-												<CanvasZoom />
-												<LaneRules ys={decor.rules.map((rule) => rule.y)} />
-												<DropHint />
-												{pending ? <PendingConnection {...pending} /> : null}
-											</ReactFlow>
+											<RuleGroupsContext.Provider value={ruleGroupsApi}>
+												<ReactFlow
+													connectionLineComponent={TypedConnectionLine}
+													data-agent-live={live ? "" : undefined}
+													data-agent-motion={live?.motion}
+													data-drag-tone={
+														plan?.port
+															? WORKFLOW_PORT_TONE[plan.port]
+															: undefined
+													}
+													deleteKeyCode={
+														readOnly || view !== "canvas" ? null : DELETE_KEYS
+													}
+													onBeforeDelete={readOnly ? undefined : onBeforeDelete}
+													edges={flowEdges}
+													edgeTypes={EDGE_TYPES}
+													edgesReconnectable={!readOnly}
+													elementsSelectable
+													fitView
+													fitViewOptions={fitViewOptions()}
+													isValidConnection={isValidConnection}
+													nodes={canvasNodes as TripwireFlowNode[]}
+													nodesConnectable={!readOnly}
+													nodesDraggable={!readOnly}
+													nodeTypes={NODE_TYPES}
+													onConnect={readOnly ? undefined : onConnect}
+													onConnectEnd={onConnectEnd}
+													onConnectStart={cancelPending}
+													onNodeClick={cancelPending}
+													onPaneClick={cancelPending}
+													onReconnectEnd={() => {
+														reconnecting.current = null;
+													}}
+													onReconnectStart={(_event, edge) => {
+														reconnecting.current = edge.id;
+													}}
+													onEdgesChange={onEdgesChange}
+													onNodesChange={onNodesChange}
+													onReconnect={readOnly ? undefined : onReconnect}
+													proOptions={{ hideAttribution: true }}
+													style={CANVAS_TOKENS}
+												>
+													<CanvasZoom />
+													<LaneRules ys={decor.rules.map((rule) => rule.y)} />
+													<DropHint />
+													{pending ? <PendingConnection {...pending} /> : null}
+												</ReactFlow>
+											</RuleGroupsContext.Provider>
 										</AgentEnterContext.Provider>
 									</DragPlanContext.Provider>
 								</EditFieldContext.Provider>

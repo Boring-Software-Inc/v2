@@ -13,6 +13,8 @@ import {
 	resolveEffectiveRuleConfig,
 	resolveRuleManagement,
 	ruleChangeNote,
+	ruleDisplayName,
+	ruleExceptionNames,
 	ruleExecutes,
 	ruleForgeBlockReason,
 	ruleIdOf,
@@ -83,20 +85,33 @@ export interface RuleConfigView {
 	 * refused while non-empty, and the card names them. Empty for built-ins. */
 	blockingWorkflows: { id: string; name: string }[];
 	outcome: RuleOutcomeSetting;
-	owners: { id: string; name: string }[];
+	owners: RuleOwner[];
+}
+
+export interface RuleOwner {
+	id: string;
+	name: string;
+	exceptions: string[];
 }
 
 export function ruleOwners(
 	ruleId: string,
 	enabledRows: readonly { id: string; definition: WorkflowDefinition }[],
-): { id: string; name: string }[] {
+	ruleName: (ref: string) => string = ruleDisplayName,
+): RuleOwner[] {
 	return enabledRows
 		.filter((row) =>
 			row.definition.nodes.some(
 				(node) => node.type === "rule" && ruleIdOf(node.ref) === ruleId,
 			),
 		)
-		.map((row) => ({ id: row.id, name: row.definition.name }));
+		.map((row) => ({
+			id: row.id,
+			name: row.definition.name,
+			exceptions: ruleExceptionNames(row.definition, ruleId, ruleName).flatMap(
+				(name) => (name ? [name] : []),
+			),
+		}));
 }
 
 export interface RulesHeaderStats {
@@ -130,6 +145,9 @@ export async function listRuleViews(
 	const stats = repo ? await getRulesStats(db, repo.fullName) : { perRule: [] };
 	const byRef = new Map(stats.perRule.map((s) => [s.ref, s]));
 	const customRows = await listCustomRules(db, repoId);
+	const customNames = new Map(customRows.map((row) => [row.id, row.name]));
+	const nameOf = (ref: string) =>
+		customNames.get(ruleIdOf(ref)) ?? ruleDisplayName(ref);
 	// Which workflows (enabled OR disabled) reference each custom rule — the
 	// card disables delete and names them, mirroring the server guard.
 	const blockingByRuleId = new Map<string, { id: string; name: string }[]>();
@@ -180,7 +198,7 @@ export async function listRuleViews(
 			sentence,
 			blockingWorkflows: blockingByRuleId.get(record.id) ?? [],
 			outcome: rowRaw.outcome ?? DEFAULT_RULE_OUTCOME_SETTING,
-			owners: ruleOwners(record.id, enabledRows),
+			owners: ruleOwners(record.id, enabledRows, nameOf),
 		});
 	}
 	const aiCredits = await getAiCredits(db);
@@ -233,7 +251,7 @@ export async function listRuleViews(
 			sentence: null,
 			blockingWorkflows: [],
 			outcome: row?.outcome ?? DEFAULT_RULE_OUTCOME_SETTING,
-			owners: ruleOwners(entry.ruleId, enabledRows),
+			owners: ruleOwners(entry.ruleId, enabledRows, nameOf),
 		};
 	});
 	return [...builtIns, ...customViews];

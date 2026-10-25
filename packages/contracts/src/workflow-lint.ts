@@ -424,6 +424,18 @@ function checkNotInputs(ctx: LintContext): Finding[] {
 	});
 }
 
+export const EMPTY_EXCEPTION_GROUP = "Add a check.";
+
+export const UNLESS_EMPTY_PORT = {
+	requirement: "Add a rule.",
+	exception: "Add a check.",
+} as const;
+
+const UNLESS_EXTRA_INPUT = {
+	requirement: "It takes one rule group. Keep one.",
+	exception: "It takes one Skip when. Keep one.",
+} as const;
+
 function checkUnlessInputs(ctx: LintContext): Finding[] {
 	const stray = ctx.def.edges.flatMap((edge) => {
 		const target = ctx.byId.get(edge.to);
@@ -438,34 +450,45 @@ function checkUnlessInputs(ctx: LintContext): Finding[] {
 			{
 				nodeId: edge.to,
 				edgeId: edge.id,
-				message:
-					"Only an Except when gate takes a requirement or an exception.",
+				message: "This connection does nothing. Remove it.",
 				fixes: [removeEdge(edge.id)],
 			},
 		];
 	});
-	const gates = ctx.def.nodes.flatMap((node) => {
+	const gates = ctx.def.nodes.flatMap((node): Finding[] => {
 		if (node.type !== "gate" || node.mode !== "unless") {
 			return [];
 		}
 		const incoming = ctx.incoming.get(node.id) ?? [];
-		const count = (role: "requirement" | "exception") =>
-			incoming.filter((edge) => edge.input === role).length;
 		const unnamed = incoming.filter((edge) => edge.input === undefined);
-		if (
-			count("requirement") === 1 &&
-			count("exception") === 1 &&
-			unnamed.length === 0
-		) {
-			return [];
+		const findings: Finding[] = [];
+		for (const role of ["requirement", "exception"] as const) {
+			const edges = incoming.filter((edge) => edge.input === role);
+			const [, ...extra] = edges;
+			if (edges.length === 0) {
+				findings.push({
+					nodeId: node.id,
+					message: UNLESS_EMPTY_PORT[role],
+					fixes: [],
+				});
+			}
+			if (extra.length > 0) {
+				findings.push({
+					nodeId: node.id,
+					message: UNLESS_EXTRA_INPUT[role],
+					fixes: extra.map((edge): LintFix => removeEdge(edge.id)),
+				});
+			}
 		}
-		return [
-			{
+		for (const edge of unnamed) {
+			findings.push({
 				nodeId: node.id,
-				message: "It needs one requirement and one exception.",
-				fixes: unnamed.map((edge): LintFix => removeEdge(edge.id)),
-			},
-		];
+				edgeId: edge.id,
+				message: "This connection does nothing. Remove it.",
+				fixes: [removeEdge(edge.id)],
+			});
+		}
+		return findings;
 	});
 	return [...stray, ...gates];
 }
@@ -479,6 +502,20 @@ function checkOrphans(ctx: LintContext): Finding[] {
 			(ctx.incoming.get(node.id) ?? []).length > 0
 		) {
 			return [];
+		}
+		const exceptionGroup =
+			node.type === "gate" &&
+			(ctx.outgoing.get(node.id) ?? []).some(
+				(edge) => edge.input === "exception",
+			);
+		if (exceptionGroup) {
+			return [
+				{
+					nodeId: node.id,
+					message: EMPTY_EXCEPTION_GROUP,
+					fixes: [],
+				},
+			];
 		}
 		const connect: LintFix[] =
 			triggers.length === 1 && onlyTrigger && canAccept(node.type, "event")
@@ -1225,12 +1262,7 @@ export function openPosition(
 }
 
 function withoutWhen(edge: WorkflowEdge): WorkflowEdge {
-	return {
-		id: edge.id,
-		from: edge.from,
-		to: edge.to,
-		...(edge.input ? { input: edge.input } : {}),
-	};
+	return { id: edge.id, from: edge.from, to: edge.to };
 }
 
 export function insertStep(
@@ -1243,9 +1275,9 @@ export function insertStep(
 		return def;
 	}
 	const withNode = { ...def, nodes: [...def.nodes, node] };
-	const { input, ...rest } = edge;
+	const { input, ...plain } = edge;
 	const into: WorkflowEdge = {
-		...rest,
+		...plain,
 		id: freshId(withNode, "edge"),
 		to: node.id,
 	};
@@ -1253,8 +1285,10 @@ export function insertStep(
 		id: freshId({ ...withNode, edges: [...def.edges, into] }, "edge"),
 		from: node.id,
 		to: edge.to,
-		...(input ? { input } : {}),
 	};
+	if (input) {
+		out.input = input;
+	}
 	return {
 		...withNode,
 		edges: [...def.edges.filter((entry) => entry.id !== edgeId), into, out],

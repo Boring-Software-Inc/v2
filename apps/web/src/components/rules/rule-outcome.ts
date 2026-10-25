@@ -74,8 +74,14 @@ export function outcomeSavedMessage(
 	return `${name}: ${line ? `${line.label.toLowerCase()} saved` : "saved"}`;
 }
 
+export interface RuleOwnerView {
+	id: string;
+	name: string;
+	exceptions?: string[];
+}
+
 export type OutcomeFooterState =
-	| { kind: "managed"; owners: { id: string; name: string }[] }
+	| { kind: "managed"; owners: RuleOwnerView[] }
 	| {
 			kind: "standalone";
 			setting: RuleOutcomeSetting;
@@ -84,7 +90,7 @@ export type OutcomeFooterState =
 
 export function outcomeFooterState(rule: {
 	management: string;
-	owners?: { id: string; name: string }[];
+	owners?: RuleOwnerView[];
 	workflowId: string | null;
 	outcome?: RuleOutcomeSetting;
 }): OutcomeFooterState {

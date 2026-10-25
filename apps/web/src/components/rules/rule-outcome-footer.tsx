@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import {
+	exceptionLine,
 	MAX_OUTCOME_MESSAGE,
 	RULE_OUTCOME_LABELS,
 	type RuleOutcomeSetting,
@@ -23,6 +24,7 @@ import {
 	type OutcomeLine,
 	outcomeFooterState,
 	RULE_OUTCOME_ITEMS,
+	type RuleOwnerView,
 	withInstruction,
 	withOutcome,
 } from "#/components/rules/rule-outcome";
@@ -40,6 +42,8 @@ export function RuleOutcomeFooter({
 	off,
 	activity,
 	onOutcomeChange,
+	onAddException,
+	addingException = false,
 }: {
 	org: string;
 	repo: string;
@@ -48,6 +52,8 @@ export function RuleOutcomeFooter({
 	off: boolean;
 	activity: ReactNode;
 	onOutcomeChange?: (rule: RuleConfigView, next: RuleOutcomeSetting) => void;
+	onAddException?: (rule: RuleConfigView) => void;
+	addingException?: boolean;
 }) {
 	const state = outcomeFooterState(rule);
 	const editable = canEdit && onOutcomeChange !== undefined;
@@ -63,13 +69,26 @@ export function RuleOutcomeFooter({
 			{state.kind === "managed" ? (
 				<ManagedBy org={org} owners={state.owners} repo={repo} />
 			) : (
-				<OutcomePicker
-					editable={editable}
-					off={off}
-					onChange={(outcome) => change(withOutcome(state.setting, outcome))}
-					ruleName={rule.name}
-					setting={state.setting}
-				/>
+				<span className={cn(ROW_CLASS, "justify-between")}>
+					<OutcomePicker
+						editable={editable}
+						off={off}
+						onChange={(outcome) => change(withOutcome(state.setting, outcome))}
+						ruleName={rule.name}
+						setting={state.setting}
+					/>
+					{canEdit && onAddException ? (
+						<Button
+							aria-label={`Add exception to ${rule.name}`}
+							onClick={() => onAddException(rule)}
+							pending={addingException}
+							size="sm"
+							variant="secondary"
+						>
+							Add exception
+						</Button>
+					) : null}
+				</span>
 			)}
 			{state.kind === "standalone" && state.line ? (
 				<OutcomeLineField
@@ -198,27 +217,37 @@ function ManagedBy({
 }: {
 	org: string;
 	repo: string;
-	owners: { id: string; name: string }[];
+	owners: RuleOwnerView[];
 }) {
 	return (
 		<span className="flex min-w-0 flex-col gap-1 overflow-visible">
 			{owners.map((owner) => (
-				<span className={ROW_CLASS} key={owner.id}>
-					<span className="type-label-sm">Set in {owner.name}</span>
-					<Button
-						nativeButton={false}
-						render={
-							<Link
-								params={{ org, repo, workflowId: owner.id }}
-								to="/$org/$repo/workflows/$workflowId"
-							/>
-						}
-						size="sm"
-						variant="secondary"
-					>
-						Edit workflow
-						<Icon icon={ArrowRight} />
-					</Button>
+				<span className="flex min-w-0 flex-col gap-1" key={owner.id}>
+					{(owner.exceptions ?? []).map((name) => (
+						<span
+							className="whitespace-normal type-label-sm text-text-1 [overflow-wrap:anywhere]"
+							key={name}
+						>
+							{exceptionLine(name)}
+						</span>
+					))}
+					<span className={ROW_CLASS}>
+						<span className="type-label-sm">Set in {owner.name}</span>
+						<Button
+							nativeButton={false}
+							render={
+								<Link
+									params={{ org, repo, workflowId: owner.id }}
+									to="/$org/$repo/workflows/$workflowId"
+								/>
+							}
+							size="sm"
+							variant="secondary"
+						>
+							Edit workflow
+							<Icon icon={ArrowRight} />
+						</Button>
+					</span>
 				</span>
 			))}
 		</span>

@@ -17,6 +17,7 @@ import {
 	branchSummary,
 	type ChainBranch,
 	type ChainRule,
+	type ChainSkip,
 	passedNote,
 	ruleReason,
 } from "#/lib/run-chain";
@@ -135,6 +136,64 @@ function FlaggedRule({
 	);
 }
 
+const RULE_MARK_LOOK = {
+	pass: { glyph: "pass", tone: "ok" },
+	fail: { glyph: "fail", tone: "fail" },
+	skipped: { glyph: "skipped", tone: "neutral" },
+	pending: { glyph: "running", tone: "neutral" },
+} as const;
+
+function SkipRow({
+	skip,
+	context,
+}: {
+	skip: ChainSkip;
+	context: BranchContext;
+}) {
+	return (
+		<div className="rule-row flex gap-2 px-3 pt-3 pb-4" data-skip={skip.state}>
+			<ChainMark glyph={skip.glyph} tone={skip.tone} />
+			<div className="flex min-w-0 flex-1 flex-col gap-1">
+				<span className="type-label text-text-1 [overflow-wrap:anywhere]">
+					{skip.text}
+				</span>
+				{skip.checks.length > 0 ? (
+					<ul className="flex flex-col gap-1">
+						{skip.checks.map((rule) => {
+							const look = RULE_MARK_LOOK[rule.mark];
+							const reason = ruleReason(rule, context.level);
+							return (
+								<li
+									className="flex flex-col gap-0.5 type-body-sm text-text-2"
+									key={rule.step.id}
+								>
+									<span className="flex items-baseline gap-1.5">
+										<ChainMark glyph={look.glyph} size={12} tone={look.tone} />
+										<span className="min-w-0 [overflow-wrap:anywhere]">
+											{rule.name}
+										</span>
+									</span>
+									{reason ? (
+										<p className="ps-5 [overflow-wrap:anywhere]">{reason}</p>
+									) : null}
+									<div className="ps-3">
+										<RuleEvidence
+											maintainer={context.maintainer}
+											repo={context.repo}
+											sha={context.sha}
+											step={rule.step}
+										/>
+									</div>
+								</li>
+							);
+						})}
+					</ul>
+				) : null}
+			</div>
+		</div>
+	);
+}
+
 function PendingRule({ rule }: { rule: ChainRule }) {
 	return (
 		<div className="rule-row flex items-center gap-2 px-3 py-2">
@@ -164,6 +223,9 @@ function BranchBody({
 			) : null}
 			{branch.flagged.map((rule) => (
 				<FlaggedRule context={context} key={rule.step.id} rule={rule} />
+			))}
+			{branch.skips.map((skip) => (
+				<SkipRow context={context} key={skip.id} skip={skip} />
 			))}
 			{branch.pending.map((rule) => (
 				<PendingRule key={rule.step.id} rule={rule} />

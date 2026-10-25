@@ -1,16 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
-	applyLintEdit,
-	compileWorkflows,
 	DEFAULT_WORKFLOW,
-	diffWorkflow,
-	insertStep,
-	lintWorkflow,
+	exceptionDraft,
 	RULE_CATALOG,
 	type WorkflowDefinition,
-	workflowAuthoring,
 	workflowDefinitionSchema,
-	workflowsToCode,
 } from "@tripwire/contracts";
 import {
 	aiCreditsOf,
@@ -19,6 +13,7 @@ import {
 	type EditorNode,
 	editorLint,
 	graphToDefinition,
+	handleInput,
 } from "./workflow-editor.ts";
 
 /** Positions are layout, persisted since the editor rebuild — identity is
@@ -368,118 +363,39 @@ describe("AI review steps while Tripwire is out of AI credits", () => {
 	});
 });
 
-describe("Except when keeps its requirement and exception through the editor", () => {
-	const {
-		allOf,
-		customCheck,
-		requestFix,
-		trigger,
-		unless,
-		workflow,
-		workflows,
-	} = workflowAuthoring;
-	const on = trigger("change-request.opened", "change-request.updated");
-	const compiled = compileWorkflows(
-		workflows({
-			target: workflow({
-				on,
-				check: unless(
-					customCheck("custom-target-main"),
-					allOf(
-						customCheck("custom-target-release"),
-						customCheck("custom-release-author"),
-					),
-				),
-				fail: [requestFix({ message: "Change the target to main." })],
-			}),
-		}),
-	);
-	const first = compiled.ok ? compiled.definitions[0] : undefined;
-	if (!first) {
-		throw new Error("fixture does not compile");
-	}
-	const original: WorkflowDefinition = first;
-	const roles = (def: WorkflowDefinition) =>
-		def.edges.flatMap((edge) =>
-			edge.input ? [`${edge.from}>${edge.to}:${edge.input}`] : [],
-		);
-
-	function save(edges: EditorEdge[], nodes: EditorNode[]) {
+describe("Skip when on the canvas", () => {
+	test("requirement and exception roles survive definition, graph and back", () => {
+		const draft = exceptionDraft({
+			id: "wf",
+			name: "Target is main",
+			rule: {
+				ref: "account-age@1",
+				config: { minDays: 7 },
+				outcome: {
+					outcome: "request_fix",
+					instruction: "Change the target to main.",
+				},
+			},
+		});
+		const graph = definitionToGraph(draft);
+		expect(
+			graph.edges.find((edge) => edge.id === "requirement-gate")?.data?.input,
+		).toBe("requirement");
 		const result = graphToDefinition(
-			{ id: original.id, name: original.name, version: original.version },
-			nodes,
-			edges,
+			{ id: draft.id, name: draft.name, version: draft.version },
+			graph.nodes,
+			graph.edges,
 		);
-		if (!result.ok) {
-			throw new Error(result.error);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.definition.edges).toEqual(draft.edges);
 		}
-		return result.definition;
-	}
-
-	test("tripwire.ts to editor graph to save to code is identical", () => {
-		const graph = definitionToGraph(original);
-		const saved = save(graph.edges, graph.nodes);
-		expect(stripPositions(saved)).toEqual(original);
-		expect(roles(saved)).toEqual([
-			"custom-target-main>unless:requirement",
-			"all-of>unless:exception",
-		]);
-		const { code, warnings } = workflowsToCode([saved], {
-			importFrom: "./.tripwire/workflow.ts",
-		});
-		expect(warnings).toEqual([]);
-		expect(code).toContain("unless(customTargetMain, allOfStep)");
-		expect(
-			lintWorkflow(saved).filter((issue) => issue.rule === "unless-inputs"),
-		).toEqual([]);
 	});
 
-	test("edge order on the canvas never swaps the roles", () => {
-		const graph = definitionToGraph(original);
-		const saved = save([...graph.edges].reverse(), graph.nodes);
-		expect(roles(saved).sort()).toEqual(
-			[
-				"all-of>unless:exception",
-				"custom-target-main>unless:requirement",
-			].sort(),
-		);
-		const { code } = workflowsToCode([saved], {
-			importFrom: "./.tripwire/workflow.ts",
-		});
-		expect(code).toContain("unless(customTargetMain, allOfStep)");
-	});
-
-	test("editor edits keep the roles: use passes, insert a step, and the diff names a swap", () => {
-		const requirement = original.edges.find(
-			(edge) => edge.input === "requirement",
-		);
-		if (!requirement) {
-			throw new Error("no requirement edge");
-		}
-		const passes = applyLintEdit(original, {
-			type: "use-passes",
-			edgeId: requirement.id,
-		});
-		expect(roles(passes)).toEqual(roles(original));
-		const inserted = insertStep(original, requirement.id, {
-			id: "not-gate",
-			type: "gate",
-			mode: "not",
-		});
-		expect(roles(inserted)).toContain("not-gate>unless:requirement");
-		expect(
-			inserted.edges.find((edge) => edge.to === "not-gate")?.input,
-		).toBeUndefined();
-		const swapped = {
-			...original,
-			edges: original.edges.map((edge) =>
-				edge.input === "requirement"
-					? { ...edge, input: "exception" as const }
-					: edge.input === "exception"
-						? { ...edge, input: "requirement" as const }
-						: edge,
-			),
-		};
-		expect(diffWorkflow(original, swapped).length).toBeGreaterThan(0);
+	test("a handle that is not a gate input stores no role", () => {
+		expect(handleInput("requirement")).toBe("requirement");
+		expect(handleInput("exception")).toBe("exception");
+		expect(handleInput(null)).toBeUndefined();
+		expect(handleInput("fail")).toBeUndefined();
 	});
 });

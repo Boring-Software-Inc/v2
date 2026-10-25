@@ -172,6 +172,8 @@ export type { RedactionUsage } from "./services/responses.ts";
 export * as responseServices from "./services/responses.ts";
 export type { RepoReviewerList } from "./services/reviewers.ts";
 export * as reviewerServices from "./services/reviewers.ts";
+export type { ExceptionDraftResult } from "./services/rule-exceptions.ts";
+export * as ruleExceptionServices from "./services/rule-exceptions.ts";
 export type {
 	PreviewChangeRequest,
 	PreviewInputs,
@@ -181,6 +183,7 @@ export type {
 export * as rulePreviewServices from "./services/rule-previews.ts";
 export type {
 	RuleConfigView,
+	RuleOwner,
 	RulesHeaderStats,
 	SaveRuleResult,
 } from "./services/rules.ts";

@@ -78,11 +78,45 @@ its Doesn't pass output, `not(passes)`, and it fits anywhere a check fits, so
 `pass: [block()]`. `not(x)` is an explicit Not gate for the same idea.
 `pass` actions run when `check` passes, `fail` actions when it does not.
 
-**Except when.** `unless(requirement, exception)` passes when the requirement
-passes or the exception passes. Otherwise it keeps the requirement's result:
-missing or skipped exception proof never waives a failed requirement. Scope an
-exception to one requirement, for example
-`unless(customCheck("custom-target-main"), allOf(isRelease, fromReleasePlease))`.
+**Skip when.** In the app, a rule group reads "If any of these rules fail"
+and can have a Skip when in front of it. If the Skip when matches, the group's
+rules are skipped. Otherwise they run as normal. In code that is
+`unless(group, skipWhen)`: the first argument is the group (one check, or
+`allOf(a, b)` for several), the second the Skip when (a check, `allOf(...)` or
+`anyOf(...)`). Order matters. It fails closed: if the Skip when errors, is
+skipped or has no proof, the rules run. Put the outcome on its `fail` side:
+
+```ts
+const on = trigger("change-request.opened", "change-request.updated");
+const releasePr = allOf(
+	customCheck("custom-target-release"),
+	customCheck("custom-release-source"),
+	customCheck("custom-release-author"),
+);
+export default workflows({
+	target: workflow({
+		on,
+		check: unless(customCheck("custom-target-main"), releasePr),
+		fail: [requestFix({ message: "Change the target to main." })],
+	}),
+	crypto: workflow({ on, check: check("crypto-address"), fail: [block()] }),
+});
+```
+
+Keep other rules in their own group so the Skip when never skips them. A run
+shows a skipped group as skipped, with the Skip when checks as evidence, never
+as passed.
+
+**Add exception.** On the rules page, a rule that runs by itself has Add
+exception. It opens a draft workflow named after the rule: the trigger, an
+empty Skip when, a group with that rule, and the rule's current outcome. Add
+the Skip when checks, then turn the workflow on. A draft changes nothing.
+Turning it on moves the rule from running by itself to the workflow in one
+step; the rule card then shows `Skip when: <checks>` and `Set in <workflow>`.
+The Skip when's own rules can stay off: a workflow runs the rules it uses. In
+code, the same draft is the `unless` above; `workflows pull` brings it down
+once it exists. `get_repo_rules` lists each rule's `setIn` workflows and its
+`exceptions`.
 
 **Ids are the code's ids.** Rules: `check("<rule id>", settings)`, typed from
 the catalog; `list_rule_catalog` lists them. A repo's custom rules:

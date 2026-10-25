@@ -208,6 +208,7 @@ export const FileImage = FileImageIcon;
 export const FileTable = FileCsvIcon;
 export const FileVideo = FileVideoIcon;
 export const Filter = FunnelIcon;
+export const Except = ArrowBendDownRightIcon;
 export const FollowUp = ArrowBendDownRightIcon;
 export const Globe = GlobeIcon;
 export const Hide = EyeSlashIcon;

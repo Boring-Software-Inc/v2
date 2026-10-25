@@ -36,6 +36,7 @@ import {
 	type RulesTab,
 } from "#/components/rules/rules-collection";
 import { RuleGridSkeleton } from "#/components/rules/rules-page-skeleton";
+import { useAddException } from "#/components/rules/use-add-exception";
 import { useRuleOutcome } from "#/components/rules/use-rule-outcome";
 import { useTurnOnRules } from "#/components/rules/use-turn-on-rules";
 import {
@@ -121,6 +122,12 @@ export function RulesPage() {
 	const navigate = routeApi.useNavigate();
 	const { turnOn, pending } = useTurnOnRules(org, repoId);
 	const changeOutcome = useRuleOutcome(org, repoId);
+	const canManageWorkflows = useOrgPermission(org, "workflows:manage");
+	const { addException, pendingRuleId } = useAddException(
+		org,
+		repoName,
+		repoId,
+	);
 
 	const onRules = (rules ?? []).filter((r) => r.enabled);
 	const customRules = (rules ?? []).filter((r) => r.source === "custom");
@@ -500,8 +507,12 @@ export function RulesPage() {
 													<div className="grid items-stretch gap-3 sm:grid-cols-2">
 														{visible.map((rule) => (
 															<RuleCard
+																addingException={pendingRuleId === rule.ruleId}
 																canEdit={isAdmin}
 																key={rule.ruleId}
+																onAddException={
+																	canManageWorkflows ? addException : undefined
+																}
 																onDelete={removeCustomRule}
 																onOutcomeChange={changeOutcome}
 																org={org}
