@@ -25,8 +25,6 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	source: "built-in",
 	sentence: null,
 	blockingWorkflows: [],
-	outcome: { outcome: "block", instruction: "" },
-	owners: [],
 	...over,
 });
 
@@ -63,7 +61,7 @@ describe("RuleLibrary", () => {
 			<RuleLibrary
 				canEdit
 				mostUsed={mostUsed}
-				onTurnOn={() => undefined}
+				onInstall={() => undefined}
 				pending={null}
 				preview={null}
 				repoName="app"
@@ -71,7 +69,7 @@ describe("RuleLibrary", () => {
 			/>,
 		);
 
-	test("shows the settings that turning the rule on will run", () => {
+	test("shows the settings that installing the rule will run", () => {
 		const html = render([rule({ config: { minDays: 30 } })], []);
 		expect(html).toContain("30");
 		expect(html).not.toContain(">7<");

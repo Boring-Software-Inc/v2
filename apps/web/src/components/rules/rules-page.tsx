@@ -36,9 +36,7 @@ import {
 	type RulesTab,
 } from "#/components/rules/rules-collection";
 import { RuleGridSkeleton } from "#/components/rules/rules-page-skeleton";
-import { useAddException } from "#/components/rules/use-add-exception";
-import { useRuleOutcome } from "#/components/rules/use-rule-outcome";
-import { useTurnOnRules } from "#/components/rules/use-turn-on-rules";
+import { useInstallRules } from "#/components/rules/use-install-rules";
 import {
 	type SaveQueueCommit,
 	SaveQueueProvider,
@@ -64,7 +62,6 @@ import {
 	rulesStatsQueryOptions,
 } from "#/lib/rules.query";
 import { trackEvent } from "#/lib/track";
-import { workflowBannerCopy } from "#/lib/workflow-banner-copy";
 
 const routeApi = getRouteApi("/$org/$repo/rules");
 
@@ -120,26 +117,23 @@ export function RulesPage() {
 	const libraryQuery = useQuery(ruleLibraryQueryOptions(org, repoId));
 	const { tab } = routeApi.useSearch();
 	const navigate = routeApi.useNavigate();
-	const { turnOn, pending } = useTurnOnRules(org, repoId);
-	const changeOutcome = useRuleOutcome(org, repoId);
-	const canManageWorkflows = useOrgPermission(org, "workflows:manage");
-	const { addException, pendingRuleId } = useAddException(
-		org,
-		repoName,
-		repoId,
-	);
+	const { install, pending } = useInstallRules(org, repoId);
 
-	const onRules = (rules ?? []).filter((r) => r.enabled);
+	const installedRules = (rules ?? []).filter((r) => r.enabled);
 	const customRules = (rules ?? []).filter((r) => r.source === "custom");
 	const offered = libraryRules(rules ?? []);
 	const starting =
 		rules !== undefined &&
 		tab === undefined &&
-		onRules.length === 0 &&
+		installedRules.length === 0 &&
 		customRules.length === 0;
 	const activeTab: RulesTab =
 		tab ??
-		(onRules.length > 0 ? "on" : customRules.length > 0 ? "custom" : "library");
+		(installedRules.length > 0
+			? "installed"
+			: customRules.length > 0
+				? "custom"
+				: "library");
 	const showTab = (next: RulesTab) =>
 		navigate({ to: ".", search: (prev) => ({ ...prev, tab: next }) });
 
@@ -149,11 +143,8 @@ export function RulesPage() {
 			? undefined
 			: activeTab === "custom"
 				? customRules
-				: onRules,
+				: installedRules,
 	);
-	const managedNames = (rules ?? [])
-		.filter((r) => r.management === "managed")
-		.map((r) => r.name);
 
 	/**
 	 * One batch, N per-rule writes: group pending keys by rule, run a queued
@@ -277,7 +268,6 @@ export function RulesPage() {
 				name: draft.name,
 				enabled: true,
 				definition: draft.definition,
-				outcome: draft.outcome,
 			},
 		});
 		if (result && "error" in result) {
@@ -308,7 +298,7 @@ export function RulesPage() {
 								<h1 className="type-title">Rules</h1>
 								<p className="type-body text-text-2">
 									{starting
-										? "None are on. Tripwire checks nothing until you turn one on."
+										? "None are installed. Tripwire checks nothing until you install one."
 										: "Requirements that every contributor outside your org must meet on every change request."}
 								</p>
 								{orgContext && !isAdmin ? (
@@ -348,7 +338,7 @@ export function RulesPage() {
 							<>
 								<RulePacks
 									canEdit={isAdmin}
-									onTurnOn={turnOn}
+									onInstall={install}
 									pending={pending}
 									preview={preview}
 									repoName={repoName}
@@ -382,8 +372,11 @@ export function RulesPage() {
 									}}
 									value={activeTab}
 								>
-									<SegmentedControlItem count={onRules.length} value="on">
-										On
+									<SegmentedControlItem
+										count={installedRules.length}
+										value="installed"
+									>
+										Installed
 									</SegmentedControlItem>
 									<SegmentedControlItem count={offered.length} value="library">
 										Library
@@ -423,14 +416,16 @@ export function RulesPage() {
 									) : offered.length === 0 ? (
 										<Empty art={<MascotArt mood="rules-empty" />}>
 											<EmptyHeader>
-												<EmptyTitle>Every rule in the library is on</EmptyTitle>
+												<EmptyTitle>
+													Every rule in the library is installed
+												</EmptyTitle>
 											</EmptyHeader>
 										</Empty>
 									) : (
 										<RuleLibrary
 											canEdit={isAdmin}
 											mostUsed={library?.mostUsed ?? []}
-											onTurnOn={turnOn}
+											onInstall={install}
 											pending={pending}
 											preview={preview}
 											repoName={repoName}
@@ -439,7 +434,7 @@ export function RulesPage() {
 									)
 								) : (
 									<>
-										{activeTab === "on" ? (
+										{activeTab === "installed" ? (
 											<RuleHeaderStats stats={statsQuery.data} />
 										) : null}
 										<Collection
@@ -477,7 +472,7 @@ export function RulesPage() {
 												) : (
 													<Empty art={<MascotArt mood="rules-empty" />}>
 														<EmptyHeader>
-															<EmptyTitle>No rules are on</EmptyTitle>
+															<EmptyTitle>No rules installed</EmptyTitle>
 														</EmptyHeader>
 														<EmptyContent>
 															<Button
@@ -498,30 +493,18 @@ export function RulesPage() {
 											skeleton={<RuleGridSkeleton />}
 										>
 											{(visible) => (
-												<>
-													{managedNames.length > 0 && activeTab === "on" ? (
-														<p className="type-body-sm text-text-2">
-															{workflowBannerCopy(managedNames)}
-														</p>
-													) : null}
-													<div className="grid items-stretch gap-3 sm:grid-cols-2">
-														{visible.map((rule) => (
-															<RuleCard
-																addingException={pendingRuleId === rule.ruleId}
-																canEdit={isAdmin}
-																key={rule.ruleId}
-																onAddException={
-																	canManageWorkflows ? addException : undefined
-																}
-																onDelete={removeCustomRule}
-																onOutcomeChange={changeOutcome}
-																org={org}
-																repo={repoName}
-																rule={rule}
-															/>
-														))}
-													</div>
-												</>
+												<div className="grid items-stretch gap-3 sm:grid-cols-2">
+													{visible.map((rule) => (
+														<RuleCard
+															canEdit={isAdmin}
+															key={rule.ruleId}
+															onDelete={removeCustomRule}
+															org={org}
+															repo={repoName}
+															rule={rule}
+														/>
+													))}
+												</div>
 											)}
 										</Collection>
 									</>

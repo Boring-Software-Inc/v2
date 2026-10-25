@@ -5,7 +5,7 @@ import { setRulesEnabled } from "#/lib/rules.functions";
 import { rulesQueryKeys } from "#/lib/rules.query";
 import { trackEvent } from "#/lib/track";
 
-export function useTurnOnRules(org: string, repoId: string) {
+export function useInstallRules(org: string, repoId: string) {
 	const queryClient = useQueryClient();
 	const [pending, setPending] = useState<string | null>(null);
 
@@ -24,7 +24,7 @@ export function useTurnOnRules(org: string, repoId: string) {
 		}
 	};
 
-	const turnOn = async (key: string, label: string, ruleIds: string[]) => {
+	const install = async (key: string, label: string, ruleIds: string[]) => {
 		if (ruleIds.length === 0 || pending !== null) {
 			return;
 		}
@@ -38,7 +38,7 @@ export function useTurnOnRules(org: string, repoId: string) {
 		for (const rule of ruleIds) {
 			trackEvent("rule_toggled", { rule, enabled: true });
 		}
-		toast.success(`${label} is on`, {
+		toast.success(`${label} installed`, {
 			action: {
 				label: "Undo",
 				onClick: async () => {
@@ -50,11 +50,11 @@ export function useTurnOnRules(org: string, repoId: string) {
 					for (const rule of ruleIds) {
 						trackEvent("rule_toggled", { rule, enabled: false });
 					}
-					toast.success(`${label} is off`);
+					toast.success(`${label} uninstalled`);
 				},
 			},
 		});
 	};
 
-	return { turnOn, pending };
+	return { install, pending };
 }

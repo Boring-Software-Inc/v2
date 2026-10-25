@@ -23,7 +23,7 @@ export const RULES_COLLECTION = defineCollection<RuleConfigView>({
 	defaultSort: "active",
 });
 
-export const RULES_TABS = ["on", "library", "custom"] as const;
+export const RULES_TABS = ["installed", "library", "custom"] as const;
 export type RulesTab = (typeof RULES_TABS)[number];
 
 const collectionSearch = collectionSearchSchema(RULES_COLLECTION);

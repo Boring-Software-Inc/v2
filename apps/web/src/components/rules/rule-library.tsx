@@ -46,7 +46,7 @@ export function RuleLibrary({
 	repoName,
 	canEdit,
 	pending,
-	onTurnOn,
+	onInstall,
 }: {
 	rules: readonly RuleConfigView[];
 	preview: RulePreview | null;
@@ -54,7 +54,7 @@ export function RuleLibrary({
 	repoName: string;
 	canEdit: boolean;
 	pending: string | null;
-	onTurnOn: (key: string, label: string, ruleIds: string[]) => void;
+	onInstall: (key: string, label: string, ruleIds: string[]) => void;
 }) {
 	const available = libraryRules(rules);
 	const ids = libraryGroups(
@@ -81,7 +81,7 @@ export function RuleLibrary({
 									<LibraryRow
 										canEdit={canEdit}
 										key={rule.ruleId}
-										onTurnOn={onTurnOn}
+										onInstall={onInstall}
 										pending={pending}
 										preview={preview}
 										rule={rule}
@@ -103,14 +103,14 @@ function LibraryRow({
 	preview,
 	canEdit,
 	pending,
-	onTurnOn,
+	onInstall,
 }: {
 	rule: RuleConfigView;
 	rules: readonly RuleConfigView[];
 	preview: RulePreview | null;
 	canEdit: boolean;
 	pending: string | null;
-	onTurnOn: (key: string, label: string, ruleIds: string[]) => void;
+	onInstall: (key: string, label: string, ruleIds: string[]) => void;
 }) {
 	const count = rulesCaught(preview, rules, [rule.ruleId]);
 	const examples =
@@ -152,20 +152,20 @@ function LibraryRow({
 			)}
 			<ItemActions className="me-0">
 				<Button
-					aria-label={`Turn on ${rule.name}`}
+					aria-label={`Install ${rule.name}`}
 					disabled={
 						!canEdit ||
 						blocked !== null ||
 						turnableRuleIds(rules, [rule.ruleId]).length === 0 ||
 						(pending !== null && pending !== key)
 					}
-					onClick={() => onTurnOn(key, rule.name, [rule.ruleId])}
+					onClick={() => onInstall(key, rule.name, [rule.ruleId])}
 					pending={pending === key}
-					pendingLabel="Turning on"
+					pendingLabel="Installing"
 					size="sm"
 					variant="secondary"
 				>
-					Turn on
+					Install
 				</Button>
 			</ItemActions>
 		</Item>

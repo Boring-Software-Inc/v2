@@ -234,31 +234,3 @@ export const getRepoSuggestions = createServerFn({ method: "GET" })
 		}
 		return list.values;
 	});
-
-export const setRuleOutcome = createServerFn({ method: "POST" })
-	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:manage")])
-	.inputValidator(
-		(input: {
-			org: string;
-			repoId: string;
-			ruleId: string;
-			outcome: string;
-			instruction: string;
-		}) => input,
-	)
-	.handler(
-		async ({ data, context }): Promise<{ ok: true } | { error: string }> => {
-			await requireOrgRepoById(
-				(context as { org: OrgWithRole }).org.id,
-				data.repoId,
-			);
-			const { ruleServices } = await import("@tripwire/db");
-			const { getDb } = await import("#/lib/server/db");
-			return await ruleServices.setRuleOutcome(getDb().db, {
-				repoId: data.repoId,
-				ruleId: data.ruleId,
-				outcome: data.outcome,
-				instruction: data.instruction,
-			});
-		},
-	);
