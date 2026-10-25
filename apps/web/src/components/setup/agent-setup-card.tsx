@@ -28,7 +28,7 @@ const STAGE_LABELS: Record<SetupStage, string> = {
 	connect_mcp: "Connect your agent",
 	install_app: "Install the GitHub App",
 	sync_repos: "Sync repos",
-	pick_rules: "Pick rules",
+	pick_rules: "Install rules",
 	turn_on_gate: "Turn on the gate",
 	verify_check: "Check a pull request",
 };
