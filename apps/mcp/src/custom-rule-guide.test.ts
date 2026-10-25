@@ -15,9 +15,12 @@ describe("the custom rule guide", () => {
 		);
 	});
 
-	test("allows release-please by exact branch name, never by substring", () => {
-		expect(RELEASE_EXAMPLE.fromReleasePlease.comparison.kind).toBe("oneOf");
-		expect(CUSTOM_RULE_GUIDE).not.toContain("starts with release-please");
+	test("allows release-please by branch prefix, never by substring", () => {
+		expect(RELEASE_EXAMPLE.fromReleasePlease.comparison).toEqual({
+			kind: "startsWith",
+			args: ["release-please"],
+		});
+		expect(CUSTOM_RULE_GUIDE).toContain("starts with release-please");
 		expect(CUSTOM_RULE_GUIDE).toContain("never use has as a prefix check");
 	});
 

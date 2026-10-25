@@ -35,17 +35,61 @@ const forkRate: CustomRuleDefinition = {
 };
 
 describe("verb narrowing by meaning", () => {
-	test("enum-ish text signals offer is / is not / is one of, not substring", () => {
+	test("enum-ish text signals lead with is / is not / is one of, then prefix, suffix and part", () => {
 		const verbs = verbsForSignal(display("pr.targetBranch")).map((v) => v.kind);
-		expect(verbs).toEqual(["equals", "noneOf", "oneOf"]);
-		expect(verbs).not.toContain("has");
+		expect(verbs).toEqual([
+			"equals",
+			"noneOf",
+			"oneOf",
+			"startsWith",
+			"endsWith",
+			"has",
+		]);
 		expect(verbs).not.toContain("containsAny");
+	});
+
+	test("branch sentences read starts with, ends with and contains", () => {
+		expect(
+			customRuleSentence({
+				when: { id: "pr.sourceBranch" },
+				comparison: { kind: "startsWith", args: ["release-please"] },
+			}),
+		).toBe("require that source branch starts with release-please");
+		expect(
+			customRuleSentence({
+				when: { id: "pr.targetBranch" },
+				comparison: { kind: "endsWith", args: ["-stable"] },
+			}),
+		).toBe("require that target branch ends with -stable");
+		expect(
+			customRuleSentence({
+				when: { id: "pr.sourceBranch" },
+				comparison: { kind: "has", args: ["release-please"] },
+			}),
+		).toBe("require that source branch contains release-please");
 	});
 
 	test("free-text signals keep the substring verbs", () => {
 		const verbs = verbsForSignal(display("pr.body")).map((v) => v.kind);
 		expect(verbs).toContain("has");
+		expect(verbs).toContain("startsWith");
+		expect(verbs).toContain("endsWith");
 		expect(verbs).toContain("containsAny");
+	});
+
+	test("a free-text sentence reads starts with and ends with", () => {
+		expect(
+			customRuleSentence({
+				when: { id: "pr.title" },
+				comparison: { kind: "startsWith", args: ["feat"] },
+			}),
+		).toBe("require that title starts with feat");
+		expect(
+			customRuleSentence({
+				when: { id: "pr.title" },
+				comparison: { kind: "endsWith", args: ["."] },
+			}),
+		).toBe("require that title ends with .");
 	});
 
 	test("the sentence uses the narrowed label for an enum signal", () => {
@@ -162,6 +206,95 @@ describe("the picker offers only safe, type-valid verbs", () => {
 	test("every picker signal has a verb menu for its kind", () => {
 		for (const signal of CUSTOM_SIGNALS) {
 			expect(VERBS_BY_KIND[signal.kind].length).toBeGreaterThan(0);
+		}
+	});
+});
+
+describe("negated sentences say what the evaluator checks", () => {
+	test("a boolean reads present or missing by its final polarity", () => {
+		const sentence = (comparison: CustomRuleDefinition["comparison"]) =>
+			customRuleSentence({ when: { id: "pr.isDraft" }, comparison });
+		expect(sentence({ kind: "equals", args: [true] })).toBe(
+			"require that draft is present",
+		);
+		expect(sentence({ kind: "equals", args: [false] })).toBe(
+			"require that draft is missing",
+		);
+		expect(
+			sentence({ kind: "not", args: [{ kind: "equals", args: [true] }] }),
+		).toBe("require that draft is missing");
+		expect(
+			sentence({ kind: "not", args: [{ kind: "equals", args: [false] }] }),
+		).toBe("require that draft is present");
+	});
+
+	test("a negated text comparison reads as its opposite verb", () => {
+		const sentence = (inner: { kind: string; args: string[] }) =>
+			customRuleSentence({
+				when: { id: "pr.sourceBranch" },
+				comparison: {
+					kind: "not",
+					args: [inner],
+				} as CustomRuleDefinition["comparison"],
+			});
+		expect(sentence({ kind: "startsWith", args: ["release-please"] })).toBe(
+			"require that source branch does not start with release-please",
+		);
+		expect(sentence({ kind: "endsWith", args: ["-wip"] })).toBe(
+			"require that source branch does not end with -wip",
+		);
+		expect(sentence({ kind: "has", args: ["tmp"] })).toBe(
+			"require that source branch does not contain tmp",
+		);
+		expect(sentence({ kind: "equals", args: ["main"] })).toBe(
+			"require that source branch is not main",
+		);
+	});
+
+	test("negated numbers, ranges and lists never print an object", () => {
+		const cases: [CustomRuleDefinition, string][] = [
+			[
+				{
+					when: { id: "contributor.accountAge" },
+					comparison: { kind: "not", args: [{ kind: "under", args: [7] }] },
+				},
+				"require that account age is at least 7 days",
+			],
+			[
+				{
+					when: { id: "pr.filesChanged" },
+					comparison: {
+						kind: "not",
+						args: [{ kind: "between", args: [1, 5] }],
+					},
+				},
+				"require that files changed is not between 1 and 5",
+			],
+			[
+				{
+					when: { id: "pr.body" },
+					comparison: {
+						kind: "not",
+						args: [{ kind: "containsAny", args: [["airdrop", "giveaway"]] }],
+					},
+				},
+				"require that description contains none of airdrop, giveaway",
+			],
+			[
+				{
+					when: { id: "pr.changedPaths" },
+					comparison: {
+						kind: "not",
+						args: [{ kind: "noneMatch", args: [["docs/**"]] }],
+					},
+				},
+				"require that changed paths touches some of docs/**",
+			],
+		];
+		for (const [definition, expected] of cases) {
+			const sentence = customRuleSentence(definition);
+			expect(sentence).toBe(expected);
+			expect(sentence).not.toContain("[object Object]");
 		}
 	});
 });

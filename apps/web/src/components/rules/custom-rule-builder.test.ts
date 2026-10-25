@@ -3,7 +3,11 @@ import {
 	type CustomSignalDisplay,
 	customSignalDisplay,
 } from "@tripwire/contracts";
-import { type BuilderState, valueIssue } from "./custom-rule-builder.tsx";
+import {
+	type BuilderState,
+	nextStep,
+	valueIssue,
+} from "./custom-rule-builder.tsx";
 
 /**
  * The client-side "why is Save disabled" message. The server re-validates via
@@ -99,5 +103,21 @@ describe("valueIssue", () => {
 
 	test("boolean signals take no value", () => {
 		expect(valueIssue(state("contributor.hireable", "equals"))).toBeNull();
+	});
+});
+
+describe("branch prefix and suffix", () => {
+	test("a source branch that starts with a prefix only waits for a name", () => {
+		expect(
+			nextStep(
+				state("pr.sourceBranch", "startsWith", { value: "release-please" }),
+			),
+		).toBe("Name the rule to save it.");
+	});
+
+	test("ends with on a target branch needs a value first", () => {
+		expect(nextStep(state("pr.targetBranch", "endsWith"))).toBe(
+			"Enter a value.",
+		);
 	});
 });

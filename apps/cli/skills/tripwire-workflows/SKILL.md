@@ -139,9 +139,8 @@ and comparison.
 A new rule starts off. A rule that is on and that no workflow uses runs by
 itself on every change request. To combine rules, keep them off and use them
 in `tripwire.ts`. For example, to block change requests into `release` unless
-they come from the release-please branch, make a second rule that lists the
-exact source branch names to allow,
-`{"when":{"id":"pr.sourceBranch"},"comparison":{"kind":"oneOf","args":[["release-please--branches--release"]]}}`,
+the source branch comes from release-please, make a second rule
+`{"when":{"id":"pr.sourceBranch"},"comparison":{"kind":"startsWith","args":["release-please"]}}`,
 then:
 
 ```ts
@@ -156,8 +155,9 @@ then:
 }),
 ```
 
-There is no starts-with or regex comparison. Match branches by exact name
-with `oneOf`. Never use `has` as a prefix check: it matches anywhere in the
-text, so `feature/release-please-x` would pass. Text compares are case
-sensitive. Validate with `--repo` so the ids
+Text comparisons are `equals`, `has` (contains), `startsWith`, `endsWith`,
+`containsAny`, `oneOf` and `noneOf`. Use `startsWith` for a prefix. Never use
+`has` as a prefix check: it matches anywhere in the text, so
+`feature/release-please-x` would pass. There is no regex, and text compares
+are case sensitive. Validate with `--repo` so the ids
 are checked against the repo, then diff and push as usual.

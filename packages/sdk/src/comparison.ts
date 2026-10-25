@@ -72,6 +72,14 @@ export function has(needle: string): Comparison<string> {
 	return { kind: "has", args: [needle] };
 }
 
+export function startsWith(prefix: string): Comparison<string> {
+	return { kind: "startsWith", args: [prefix] };
+}
+
+export function endsWith(suffix: string): Comparison<string> {
+	return { kind: "endsWith", args: [suffix] };
+}
+
 /** True when the text contains any needle in the list. Plain substring, no regex. */
 export function containsAny(needles: readonly string[]): Comparison<string> {
 	return { kind: "containsAny", args: [needles] };

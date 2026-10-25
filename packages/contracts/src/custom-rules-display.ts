@@ -388,6 +388,8 @@ export const VERBS_BY_KIND: Record<
 	],
 	text: [
 		{ kind: "has", label: "contains" },
+		{ kind: "startsWith", label: "starts with" },
+		{ kind: "endsWith", label: "ends with" },
 		{ kind: "containsAny", label: "contains any of" },
 		{ kind: "equals", label: "is exactly" },
 		{ kind: "oneOf", label: "is one of" },
@@ -410,18 +412,22 @@ export const VERBS_BY_KIND: Record<
 	],
 };
 
-/** Enum-ish text signals compare by identity, not substring. */
+/** Enum-ish text signals compare by identity first, then by prefix, suffix
+ * or part, so a family of branches like release-please/* can be matched. */
 const ENUM_TEXT_VERBS: readonly { kind: string; label: string }[] = [
 	{ kind: "equals", label: "is" },
 	{ kind: "noneOf", label: "is not" },
 	{ kind: "oneOf", label: "is one of" },
+	{ kind: "startsWith", label: "starts with" },
+	{ kind: "endsWith", label: "ends with" },
+	{ kind: "has", label: "contains" },
 ];
 
 /**
  * The verb menu for a specific signal, narrowed by meaning. A branch or a login
- * (kind text, but drawn from a set) offers is / is not / is one of, not the
- * substring verbs that make no sense on an identifier. Free-text signals keep
- * the substring verbs. Presentation only; the evaluator still accepts either.
+ * (kind text, but drawn from a set) leads with is / is not / is one of and
+ * drops containsAny. Free-text signals keep every text verb. Presentation
+ * only; the evaluator still accepts either.
  */
 export function verbsForSignal(
 	signal: CustomSignalDisplay,
@@ -473,6 +479,12 @@ export function valuePlaceholder(
 	if (signal.kind === "textList") {
 		return "add a value";
 	}
+	if (verbKind === "startsWith") {
+		return "the start of the text";
+	}
+	if (verbKind === "endsWith") {
+		return "the end of the text";
+	}
 	if (verbKind === "has" || verbKind === "containsAny") {
 		return "a term";
 	}
@@ -516,22 +528,66 @@ function windowPhrase(definition: CustomRuleDefinition): string {
  * The maintainer read state, one sentence: what the builder edits and the
  * rule card shows. Carries the configured value; maintainer surface only.
  */
+interface ClauseComparison {
+	kind: string;
+	args: readonly unknown[];
+}
+
+const NEGATED_VERBS: Record<string, string> = {
+	under: "is at least",
+	over: "is at most",
+	atLeast: "is under",
+	atMost: "is over",
+	equals: "is not",
+	oneOf: "is none of",
+	noneOf: "is one of",
+	has: "does not contain",
+	startsWith: "does not start with",
+	endsWith: "does not end with",
+	containsAny: "contains none of",
+	anyIn: "is none of",
+	noneMatch: "touches some of",
+};
+
+function innerOf(comparison: ClauseComparison): ClauseComparison {
+	return comparison.args[0] as ClauseComparison;
+}
+
+function booleanHolds(comparison: ClauseComparison): boolean {
+	return comparison.kind === "not"
+		? !booleanHolds(innerOf(comparison))
+		: comparison.args[0] !== false;
+}
+
+function comparisonClause(
+	comparison: ClauseComparison,
+	signal: CustomSignalDisplay | null,
+	negated: boolean,
+): string {
+	if (comparison.kind === "not") {
+		return comparisonClause(innerOf(comparison), signal, !negated);
+	}
+	if (comparison.kind === "between") {
+		return `${negated ? "is not" : "is"} between ${formatValue(comparison.args[0])} and ${formatValue(comparison.args[1], signal?.unit)}`;
+	}
+	const verb = negated
+		? (NEGATED_VERBS[comparison.kind] ??
+			`is not ${verbPhrase(comparison.kind, signal)}`)
+		: verbPhrase(comparison.kind, signal);
+	return `${verb} ${formatValue(comparison.args[0], signal?.unit)}`;
+}
+
 export function customRuleSentence(definition: CustomRuleDefinition): string {
 	const signal = customSignalDisplay(definition.when.id);
 	const label = signal?.label ?? definition.when.id;
 	const signalKind = signal?.kind ?? "number";
 	const { comparison } = definition;
-	let clause: string;
-	if (signalKind === "boolean") {
-		clause =
-			comparison.kind === "not" || comparison.args[0] === false
-				? "is missing"
-				: "is present";
-	} else if (comparison.kind === "between") {
-		clause = `is between ${formatValue(comparison.args[0])} and ${formatValue(comparison.args[1], signal?.unit)}`;
-	} else {
-		clause = `${verbPhrase(comparison.kind, signal)} ${formatValue(comparison.args[0], signal?.unit)}`;
-	}
+	const clause =
+		signalKind === "boolean"
+			? booleanHolds(comparison)
+				? "is present"
+				: "is missing"
+			: comparisonClause(comparison, signal, false);
 	// "require that" — the PASS condition, matching the evaluator (passed = the
 	// comparison holds), uniform with built-ins. The author states what is
 	// ALLOWED, not what is bad; "flag when" read as the opposite of what ran.

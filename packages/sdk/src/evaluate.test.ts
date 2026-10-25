@@ -5,6 +5,7 @@ import {
 	between,
 	containsAny,
 	empty,
+	endsWith,
 	equals,
 	has,
 	matches,
@@ -12,6 +13,7 @@ import {
 	noneOf,
 	not,
 	oneOf,
+	startsWith,
 	under,
 } from "./comparison.ts";
 import {
@@ -101,6 +103,43 @@ describe("text and boolean paths", () => {
 				{ kind: "not", args: [{ kind: "equals", args: ["true"] }] },
 				"s",
 			),
+		).toThrow(SignalEvaluationError);
+	});
+
+	test("startsWith and endsWith anchor the text at one end", () => {
+		expect(
+			evaluateComparison(
+				"text",
+				"release-please--branches--main",
+				startsWith("release-please"),
+				"s",
+			),
+		).toBe(true);
+		expect(
+			evaluateComparison(
+				"text",
+				"fix/release-please",
+				startsWith("release-please"),
+				"s",
+			),
+		).toBe(false);
+		expect(
+			evaluateComparison("text", "v2-stable", endsWith("-stable"), "s"),
+		).toBe(true);
+		expect(
+			evaluateComparison("text", "stable-v2", endsWith("-stable"), "s"),
+		).toBe(false);
+		expect(
+			evaluateComparison("text", "Release", startsWith("release"), "s"),
+		).toBe(false);
+		expect(
+			evaluateComparison("text", "main", not(startsWith("release")), "s"),
+		).toBe(true);
+		expect(() => evaluateComparison("number", 3, startsWith("3"), "s")).toThrow(
+			SignalEvaluationError,
+		);
+		expect(() =>
+			evaluateComparison("text", "main", { kind: "endsWith", args: [3] }, "s"),
 		).toThrow(SignalEvaluationError);
 	});
 

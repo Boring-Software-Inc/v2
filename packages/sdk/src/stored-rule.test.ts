@@ -53,6 +53,42 @@ describe("storedRuleIssue", () => {
 		).toContain("window count");
 	});
 
+	test("startsWith and endsWith apply to text only and take a string", () => {
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.sourceBranch" },
+				comparison: { kind: "startsWith", args: ["release-please"] },
+			}),
+		).toBeNull();
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.title" },
+				comparison: {
+					kind: "not",
+					args: [{ kind: "endsWith", args: ["."] }],
+				},
+			}),
+		).toBeNull();
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.accountAge" },
+				comparison: { kind: "startsWith", args: ["1"] },
+			}),
+		).toContain("does not apply");
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.changedPaths" },
+				comparison: { kind: "endsWith", args: [".md"] },
+			}),
+		).toContain("does not apply");
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.sourceBranch" },
+				comparison: { kind: "startsWith", args: [7] },
+			}),
+		).not.toBeNull();
+	});
+
 	test("containsAny applies to text, anyIn to lists, and neither crosses kinds", () => {
 		expect(
 			storedRuleIssue({

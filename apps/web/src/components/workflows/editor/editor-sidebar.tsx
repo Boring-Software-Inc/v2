@@ -19,22 +19,13 @@ import {
 	WORKFLOW_PORT_LABELS,
 } from "@tripwire/contracts";
 import { useEffect, useId, useRef, useState } from "react";
+import {
+	GroupedPicker,
+	PickerRow,
+	PickerRowAction,
+} from "#/components/common/grouped-picker";
 import { Add, Close, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleGroup,
-	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import { Input } from "#/components/glaze/ui/input";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemMedia,
-	ItemTitle,
-} from "#/components/glaze/ui/item";
 import { Tabs, TabsList, TabsTrigger } from "#/components/glaze/ui/tabs";
 import {
 	Tooltip,
@@ -384,20 +375,6 @@ function Toolbox({
 	repo: string;
 	onAdd: (item: ToolboxItem) => void;
 }) {
-	const [query, setQuery] = useState("");
-	const [open, setOpen] = useState<string[]>(OPEN_BY_DEFAULT);
-	const needle = query.trim().toLowerCase();
-	const searching = needle !== "";
-	const visible = searching
-		? sections
-				.map((section) => ({
-					...section,
-					items: section.items.filter((item) => matches(item, needle)),
-				}))
-				.filter((section) => section.items.length > 0)
-		: sections;
-
-	const allOpen = searching || connect !== null;
 	return (
 		<>
 			{connect ? (
@@ -420,70 +397,42 @@ function Toolbox({
 					) : null}
 				</div>
 			) : null}
-			<div className="flex shrink-0 items-center gap-1 border-line-faint border-b p-2">
-				<Input
-					aria-label="Search steps"
-					className="min-w-0 flex-1"
-					mode="search"
-					onValueChange={setQuery}
-					placeholder="Search steps"
-					size="sm"
-					value={query}
-				/>
-			</div>
-			<div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-				{visible.length === 0 ? (
-					<p className="px-1 py-3 type-body-sm text-text-2">
-						No steps match “{query.trim()}”.
-					</p>
-				) : (
-					<CollapsibleGroup
-						multiple
-						onValueChange={(next) => setOpen(next as string[])}
-						value={allOpen ? visible.map((section) => section.kind) : open}
-						variant="plain"
-					>
-						{visible.map((section) => (
-							<Collapsible key={section.kind} value={section.kind}>
-								<CollapsibleTrigger summary={String(section.items.length)}>
-									<span className="inline-flex items-center gap-2">
-										<Icon icon={KIND_ICON[section.kind]} />
-										{section.title}
-									</span>
-								</CollapsibleTrigger>
-								<CollapsibleContent className="max-w-none pe-0 pb-2 group-data-[variant=plain]/collapsible-group:ps-2">
-									<div className="flex flex-col">
-										{section.items.map((item) => (
-											<ToolboxRow
-												disabled={readOnly}
-												item={item}
-												refusal={connectRefusal(connect, item.kind)}
-												picking={connect?.pending ?? false}
-												key={item.id}
-												onAdd={onAdd}
-											/>
-										))}
-									</div>
-									{section.kind === "rule" && !allOpen ? (
-										<Button
-											className="ms-0.5 mt-1"
-											nativeButton={false}
-											render={
-												<Link params={{ org, repo }} to="/$org/$repo/rules" />
-											}
-											size="sm"
-											variant="ghost"
-										>
-											<Icon icon={Add} />
-											Create rule
-										</Button>
-									) : null}
-								</CollapsibleContent>
-							</Collapsible>
-						))}
-					</CollapsibleGroup>
+			<GroupedPicker
+				defaultOpen={OPEN_BY_DEFAULT}
+				forceOpen={connect !== null}
+				groups={sections.map((section) => ({
+					key: section.kind,
+					title: section.title,
+					icon: KIND_ICON[section.kind],
+					items: section.items,
+				}))}
+				matches={matches}
+				noun="steps"
+				renderFooter={(group, allOpen) =>
+					group.key === "rule" && !allOpen ? (
+						<Button
+							className="ms-0.5 mt-1"
+							nativeButton={false}
+							render={<Link params={{ org, repo }} to="/$org/$repo/rules" />}
+							size="sm"
+							variant="ghost"
+						>
+							<Icon icon={Add} />
+							Create rule
+						</Button>
+					) : null
+				}
+				renderItem={(item) => (
+					<ToolboxRow
+						disabled={readOnly}
+						item={item}
+						key={item.id}
+						onAdd={onAdd}
+						picking={connect?.pending ?? false}
+						refusal={connectRefusal(connect, item.kind)}
+					/>
 				)}
-			</div>
+			/>
 		</>
 	);
 }
@@ -524,66 +473,47 @@ function ToolboxRow({
 		disabled: disabled || refused || picking,
 	});
 	const addButton = (
-		<Button
+		<PickerRowAction
 			aria-describedby={refused ? reasonId : undefined}
 			aria-disabled={refused || undefined}
 			aria-label={`Add ${item.name}`}
-			className="static after:absolute after:inset-0 after:content-['']"
-			data-slot="item-link"
 			disabled={disabled}
-			size="icon-sm"
-			variant="ghost"
-		>
-			<Icon
-				className={cn(
-					"opacity-0 transition-opacity duration-(--dur-state) pointer-coarse:opacity-100",
-					!refused &&
-						"group-hover/item:opacity-100 group-has-[[data-slot=item-link]:focus-visible]/item:opacity-100",
-				)}
-				icon={Add}
-			/>
-		</Button>
+			glyph={Add}
+			reveal={refused ? "touch" : "hover"}
+		/>
 	);
 	return (
-		<Item
+		<PickerRow
+			action={
+				<>
+					{refused ? (
+						<Tooltip>
+							<TooltipTrigger render={addButton} />
+							<TooltipContent side="right">{refusal}</TooltipContent>
+						</Tooltip>
+					) : (
+						addButton
+					)}
+					{refused ? (
+						<span className="sr-only" id={reasonId}>
+							{refusal}
+						</span>
+					) : null}
+				</>
+			}
 			className={cn(
 				!(disabled || refused || picking) && "cursor-grab",
 				isDragging && "opacity-40",
 			)}
 			disabled={disabled || refused}
+			icon={toolboxItemIcon(item)}
+			muted={refused}
+			name={item.name}
 			onClick={disabled || refused ? undefined : () => onAdd(item)}
 			ref={setNodeRef}
-			size="sm"
 			title={refused ? undefined : item.description}
 			{...listeners}
-		>
-			<ItemMedia>
-				<Icon
-					className={refused ? "text-text-disabled" : "text-text-2"}
-					icon={toolboxItemIcon(item)}
-				/>
-			</ItemMedia>
-			<ItemContent>
-				<ItemTitle>
-					<span className="truncate">{item.name}</span>
-				</ItemTitle>
-			</ItemContent>
-			<ItemActions className="static -me-3">
-				{refused ? (
-					<Tooltip>
-						<TooltipTrigger render={addButton} />
-						<TooltipContent side="right">{refusal}</TooltipContent>
-					</Tooltip>
-				) : (
-					addButton
-				)}
-				{refused ? (
-					<span className="sr-only" id={reasonId}>
-						{refusal}
-					</span>
-				) : null}
-			</ItemActions>
-		</Item>
+		/>
 	);
 }
 

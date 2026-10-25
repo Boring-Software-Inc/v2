@@ -1,5 +1,6 @@
-import { type Db, repoServices } from "@tripwire/db";
+import { type Db, repoServices, type SyncRepoBranchesJob } from "@tripwire/db";
 import { type GithubHttp, githubForge } from "@tripwire/forge-github";
+import type { Logger } from "pino";
 
 /**
  * Refreshes the cached branch suggestions for a repo. The worker holds the
@@ -24,4 +25,23 @@ export async function refreshBranchSuggestions(
 	} catch {
 		// Stale or missing suggestions are acceptable; never fail the job.
 	}
+}
+
+export interface SyncRepoBranchesDeps {
+	db: Db;
+	http: GithubHttp | null;
+	logger: Logger;
+}
+
+export async function syncRepoBranches(
+	deps: SyncRepoBranchesDeps,
+	job: SyncRepoBranchesJob,
+): Promise<void> {
+	const { db, http, logger } = deps;
+	const repo = await repoServices.getRepoById(db, job.repoId);
+	if (!repo || repo.removedAt || repo.forge !== "github") {
+		logger.info({ repoId: job.repoId }, "branch sync skipped: no github repo");
+		return;
+	}
+	await refreshBranchSuggestions(db, http, repo.id, repo.fullName);
 }

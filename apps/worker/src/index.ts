@@ -18,9 +18,11 @@ import {
 	type ResumeRunJob,
 	repoServices,
 	SYNC_FLAG_OVERRIDES_QUEUE,
+	SYNC_REPO_BRANCHES_QUEUE,
 	SYNC_REPO_LABELS_QUEUE,
 	SYNC_REPO_REVIEWERS_QUEUE,
 	type SyncFlagOverridesJob,
+	type SyncRepoBranchesJob,
 	type SyncRepoLabelsJob,
 	type SyncRepoReviewersJob,
 	syncFlagOverridesOptions,
@@ -55,6 +57,7 @@ import { economicsRollup } from "./jobs/economics-rollup.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { pullProviderCosts } from "./jobs/pull-provider-costs.ts";
 import { recoverInstallation } from "./jobs/recover-installation.ts";
+import { syncRepoBranches } from "./jobs/refresh-suggestions.ts";
 import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
@@ -358,6 +361,19 @@ if (import.meta.main) {
 			}
 		});
 
+		await work<SyncRepoBranchesJob>(SYNC_REPO_BRANCHES_QUEUE, async (jobs) => {
+			for (const job of jobs) {
+				await syncRepoBranches(
+					{
+						db,
+						http: resolveForge("github")?.signalHttp ?? null,
+						logger: logger.child({ repoId: job.data.repoId }),
+					},
+					job.data,
+				);
+			}
+		});
+
 		await work<SyncFlagOverridesJob>(
 			SYNC_FLAG_OVERRIDES_QUEUE,
 			async (jobs) => {
@@ -574,6 +590,7 @@ if (import.meta.main) {
 				BACKFILL_REPO_QUEUE,
 				SYNC_REPO_REVIEWERS_QUEUE,
 				SYNC_REPO_LABELS_QUEUE,
+				SYNC_REPO_BRANCHES_QUEUE,
 				SYNC_FLAG_OVERRIDES_QUEUE,
 				SWEEP_FLAG_REMOVALS_QUEUE,
 				REFRESH_SURFACES_QUEUE,
