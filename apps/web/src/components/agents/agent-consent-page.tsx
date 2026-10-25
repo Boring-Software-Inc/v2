@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { AgentAccountRow } from "#/components/agents/agent-account-row";
 import { AgentClientLogo } from "#/components/agents/agent-client-logo";
 import { AgentRequestCard } from "#/components/agents/agent-request-card";
 import {
@@ -10,9 +11,11 @@ import { toast } from "#/components/glaze/ui/toast";
 import { answerConsent } from "#/lib/agent-auth-endpoints";
 import { grantConsentOrgs } from "#/lib/agents.functions";
 import { consentRequestQueryOptions, rawOAuthQuery } from "#/lib/agents.query";
+import { currentUserQueryOptions } from "#/lib/auth.query";
 
 export function AgentConsentPage() {
 	const { data, isError } = useQuery(consentRequestQueryOptions());
+	const { data: user } = useQuery(currentUserQueryOptions());
 
 	if (isError || data?.status === "invalid") {
 		return (
@@ -27,6 +30,15 @@ export function AgentConsentPage() {
 
 	return (
 		<AgentRequestCard
+			account={
+				user ? (
+					<AgentAccountRow
+						forgeLogin={user.forgeLogin}
+						name={user.name}
+						oauthQuery={rawOAuthQuery}
+					/>
+				) : null
+			}
 			lead={
 				<div className="flex items-center gap-3 px-1 pt-1.5 pb-0.5">
 					<AgentClientLogo clientName={data.clientName} />

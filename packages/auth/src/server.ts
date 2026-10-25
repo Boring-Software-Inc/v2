@@ -1,9 +1,5 @@
 import { dash } from "@better-auth/infra";
-import {
-	forgeSchema,
-	orgSlugSchema,
-	SIGN_IN_FORGE_IDS,
-} from "@tripwire/contracts";
+import { orgSlugSchema, SIGN_IN_FORGE_IDS } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { orgServices, schema } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
@@ -11,9 +7,9 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, genericOAuth } from "better-auth/plugins";
 import { organization } from "better-auth/plugins/organization";
-import { eq } from "drizzle-orm";
 import { applySignupAccessDefaults } from "./access.ts";
 import { agentAuthPlugins, agentRateLimitRules } from "./agent-auth.ts";
+import { mirrorForgeIdentity, refreshForgeLogin } from "./forge-identity.ts";
 import { orgAc, orgRoles } from "./org-access.ts";
 import { orgRoleGuard } from "./org-role-guard.ts";
 import { staffImpersonation } from "./staff-impersonation.ts";
@@ -338,39 +334,17 @@ export function createAuth(input: CreateAuthInput) {
 					 * per (forge, external id). A provider with no forge (none today)
 					 * is ignored, not guessed. */
 					after: async (account) => {
-						// Better Auth's provider id IS the forge slug ("github",
-						// "gitlab"), so the forgeSchema enum validates it directly — no
-						// map to maintain. A non-forge provider (e.g. dev credentials)
-						// fails the parse and is skipped, not guessed. Add a forge = add
-						// it to forgeSchema; this hook needs no edit.
-						const forge = forgeSchema.safeParse(account.providerId);
-						if (!forge.success) {
-							return;
-						}
-						const users = await input.db
-							.select()
-							.from(schema.user)
-							.where(eqUserId(account.userId));
-						const username = users[0]?.name ?? account.userId;
-						await input.db
-							.insert(schema.forgeIdentities)
-							.values({
-								id: generateId(),
-								userId: account.userId,
-								forge: forge.data,
-								externalId: account.accountId,
-								username,
-							})
-							.onConflictDoNothing();
+						await mirrorForgeIdentity(input.db, account);
+					},
+				},
+				update: {
+					after: async (account) => {
+						await refreshForgeLogin(input.db, account);
 					},
 				},
 			},
 		},
 	});
-}
-
-function eqUserId(userId: string) {
-	return eq(schema.user.id, userId);
 }
 
 export type Auth = ReturnType<typeof createAuth>;

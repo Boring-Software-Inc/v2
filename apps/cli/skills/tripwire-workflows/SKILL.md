@@ -50,6 +50,8 @@ the same folder. Without the CLI, the MCP tools `get_workflow`,
 with compiled JSON. Over the MCP, call `begin_workflow_work` before you build
 so the user can watch the draft in the app, and `finish_workflow_work` when
 you stop. A draft never runs. An accepted push or an apply saves the draft.
+If the MCP cannot see the repo, call `whoami`. If its GitHub login is the
+wrong account, call `switch_account` and give the user the reconnect step.
 
 ## Reference
 

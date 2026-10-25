@@ -30,6 +30,7 @@ export function AgentRequestCard({
 	title,
 	subtitle,
 	lead,
+	account,
 	scopes,
 	orgs,
 	activeOrgId,
@@ -38,6 +39,7 @@ export function AgentRequestCard({
 	title: string;
 	subtitle: string;
 	lead: ReactNode;
+	account?: ReactNode;
 	scopes: string[];
 	orgs: AgentRequestOrg[];
 	activeOrgId: string | null;
@@ -139,6 +141,7 @@ export function AgentRequestCard({
 					) : null}
 				</CardContent>
 			</Card>
+			{account}
 		</AgentRequestShell>
 	);
 }

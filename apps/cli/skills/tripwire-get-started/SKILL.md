@@ -50,6 +50,11 @@ them and carry on. They never block or change setup.
      repo's `package.json` has a `devEngines` field: run
      `bunx @tripwire-sh/cli install` or `npx --prefix ~ @tripwire-sh/cli install`.
      Wait, then call `whoami` again.
+   - Wrong account: `whoami` names the GitHub login as `signedInAs`. If it is
+     not the account that owns the repos, or a repo the user expects is
+     missing, ask the user, then call `switch_account`. It signs only this
+     agent out. Give the user its `reconnect` step. On the Tripwire page they
+     pick Use another account. Then call `whoami` again.
    - Access pending: Tripwire is in closed beta. Give the request access link
      https://app.tripwire.sh and stop.
    - Otherwise report `connect_mcp` completed. Use the org slug from the

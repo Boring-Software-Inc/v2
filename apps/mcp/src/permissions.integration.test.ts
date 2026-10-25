@@ -332,6 +332,7 @@ describe("the tool list follows the member's role", () => {
 			"list_rule_catalog",
 			"report_setup_progress",
 			"setup_status",
+			"switch_account",
 			"whoami",
 		]);
 	});
@@ -350,12 +351,13 @@ describe("the tool list follows the member's role", () => {
 			"report_setup_progress",
 			"set_workflow_enabled",
 			"setup_status",
+			"switch_account",
 			"validate_workflow",
 			"whoami",
 		]);
 	});
 
 	test("an org admin lists every tool", async () => {
-		expect(await listedFor("perm-admin")).toHaveLength(24);
+		expect(await listedFor("perm-admin")).toHaveLength(25);
 	});
 });

@@ -130,6 +130,7 @@ export interface CurrentUser {
 	id: string;
 	name: string;
 	login: string;
+	forgeLogin: string | null;
 	email: string | null;
 	image: string | null;
 }
@@ -160,6 +161,7 @@ export const getCurrentUser = createServerFn({ method: "GET" }).handler(
 			id: session.user.id,
 			name: session.user.name,
 			login: rows[0]?.username ?? session.user.name,
+			forgeLogin: rows[0]?.username ?? null,
 			email: session.user.email ?? null,
 			image: session.user.image ?? null,
 		};

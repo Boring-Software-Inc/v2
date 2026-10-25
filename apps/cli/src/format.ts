@@ -131,7 +131,11 @@ function shortRepo(fullName: string): string {
 
 const whoamiSchema = z.object({
 	user: z
-		.object({ name: z.string().nullish(), email: z.string().nullish() })
+		.object({
+			name: z.string().nullish(),
+			email: z.string().nullish(),
+			githubLogin: z.string().nullish(),
+		})
 		.nullish(),
 	access: z.object({
 		approved: z.boolean(),
@@ -396,6 +400,9 @@ const FORMATTERS: Record<string, Formatter> = {
 		);
 		const rows: Row[] = [
 			["user", user || "-"],
+			...(value.user?.githubLogin
+				? [["github", `@${value.user.githubLogin}`] satisfies Row]
+				: []),
 			[
 				"access",
 				value.access.approved
