@@ -142,7 +142,7 @@ function CopyPromptButton({ org }: { org: string }) {
 			type="button"
 			variant="secondary"
 		>
-			{copied ? "Copied" : "Copy prompt"}
+			{copied ? "Copied" : "Copy agent setup prompt"}
 		</Button>
 	);
 }
@@ -201,7 +201,6 @@ function ManualChecklist({ org, repo, state, progress }: ChecklistProps) {
 			<header className="flex flex-col gap-1">
 				<h1 className="type-title">Set up {repo}</h1>
 				<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-					<p className="type-body text-text-2">Or let your agent set it up</p>
 					<CopyPromptButton org={org} />
 				</div>
 			</header>

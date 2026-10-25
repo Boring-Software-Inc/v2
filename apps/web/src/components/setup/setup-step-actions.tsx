@@ -73,7 +73,7 @@ export function FirstCheckAction({
 					size="sm"
 					variant={number === null ? "primary" : "ghost"}
 				>
-					While your rules were off
+					View rule replay
 				</Button>
 			) : null}
 		</div>
@@ -100,7 +100,7 @@ export function ResponsesAction({ org, repo, state }: StepActionProps) {
 				render={<Link params={{ org, repo }} to="/$org/$repo/responses" />}
 				size="sm"
 			>
-				Open Responses
+				Open responses
 			</Button>
 		</div>
 	);

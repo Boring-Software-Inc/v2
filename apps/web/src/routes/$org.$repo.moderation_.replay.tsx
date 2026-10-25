@@ -10,7 +10,7 @@ export const Route = createFileRoute("/$org/$repo/moderation_/replay")({
 	head: ({ params, match }) =>
 		buildSeo({
 			path: match.pathname,
-			title: formatPageTitle(`${params.repo} | While your rules were off`),
+			title: formatPageTitle(`${params.repo} | Rule replay`),
 			description: "What your rules would have done on recent change requests.",
 			noindex: true,
 		}),

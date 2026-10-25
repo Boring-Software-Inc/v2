@@ -262,7 +262,6 @@ export function RuleCard({
 			<CardFooter className={RULE_FOOTER_CLASS}>{activity}</CardFooter>
 			<ConfirmDeleteDialog
 				actionLabel="Delete rule"
-				description="Its past matches stay in Activity."
 				onConfirm={() => onDelete?.(rule.ruleId)}
 				onOpenChange={setConfirmingDelete}
 				open={Boolean(deletable) && confirmingDelete}

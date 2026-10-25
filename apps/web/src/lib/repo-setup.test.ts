@@ -32,7 +32,7 @@ describe("setupProgress", () => {
 		expect(progress.steps.map((step) => step.title)).toEqual([
 			"Install the GitHub App",
 			"Install rules",
-			"See a first check",
+			"Run first check",
 			"Pick what Tripwire posts",
 		]);
 		expect(nextLabel(progress)).toBe("Next: install the GitHub App");
@@ -52,11 +52,11 @@ describe("setupProgress", () => {
 			done: true,
 		});
 		expect(progress.steps[1]).toMatchObject({
-			title: "Rules on",
+			title: "Checks ready",
 			detail: "Spam protection",
 		});
 		expect(progress.current?.key).toBe("check");
-		expect(nextLabel(progress)).toBe("Next: see a first check");
+		expect(nextLabel(progress)).toBe("Next: run first check");
 		expect(progress.complete).toBe(false);
 	});
 

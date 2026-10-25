@@ -107,7 +107,7 @@ export function RulesReplayPage() {
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
 					<header className="flex flex-wrap items-end justify-between gap-4">
 						<div className="flex flex-col gap-1">
-							<h1 className="type-title">While your rules were off</h1>
+							<h1 className="type-title">Rule replay</h1>
 							{replay ? (
 								<p className="type-body text-text-2">
 									Last {replay.windowDays} days with {label}
@@ -119,7 +119,7 @@ export function RulesReplayPage() {
 								disabled={!canEdit || pending !== null}
 								onClick={() => install("replay", label, turnable)}
 								pending={pending === "replay"}
-								pendingLabel="Turning on"
+								pendingLabel="Installing"
 							>
 								Install these rules
 							</Button>
@@ -129,7 +129,7 @@ export function RulesReplayPage() {
 					{failed ? (
 						<Empty reason="error">
 							<EmptyHeader>
-								<EmptyTitle>Tripwire could not load this</EmptyTitle>
+								<EmptyTitle>Could not load rule replay</EmptyTitle>
 							</EmptyHeader>
 							<EmptyRetry
 								onRetry={async () => {

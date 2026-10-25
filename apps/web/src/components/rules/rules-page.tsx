@@ -296,11 +296,12 @@ export function RulesPage() {
 						<header className="flex items-start justify-between gap-4">
 							<div className="flex flex-col gap-1">
 								<h1 className="type-title">Rules</h1>
-								<p className="type-body text-text-2">
-									{starting
-										? "None are installed. Tripwire checks nothing until you install one."
-										: "Requirements that every contributor outside your org must meet on every change request."}
-								</p>
+								{starting ? null : (
+									<p className="type-body text-text-2">
+										Requirements that every contributor outside your org must
+										meet on every change request.
+									</p>
+								)}
 								{orgContext && !isAdmin ? (
 									<p className="type-body-sm text-text-2">
 										Your role can view rules but not change them.
@@ -345,12 +346,6 @@ export function RulesPage() {
 									rules={rules ?? []}
 								/>
 								<section className="flex flex-wrap items-center justify-between gap-4 border-line-faint border-t pt-6">
-									<div className="flex flex-col gap-0.5">
-										<h2 className="type-heading-sm">Or pick single rules</h2>
-										<p className="type-body-sm text-text-2">
-											{offered.length} rules in the library
-										</p>
-									</div>
 									<Button
 										onClick={() => showTab("library")}
 										size="sm"
@@ -396,8 +391,7 @@ export function RulesPage() {
 												<EmptyHeader>
 													<EmptyTitle>Rules did not load</EmptyTitle>
 													<EmptyDescription>
-														Tripwire could not load rules. Check your
-														connection, then try again.
+														Check your connection and try again.
 													</EmptyDescription>
 												</EmptyHeader>
 												<EmptyContent>

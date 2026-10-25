@@ -33,7 +33,7 @@ export interface RepoSetupProgress {
 const TODO_TITLES: Record<SetupStepKey, string> = {
 	install: "Install the GitHub App",
 	rules: "Install rules",
-	check: "See a first check",
+	check: "Run first check",
 	responses: "Pick what Tripwire posts",
 };
 
@@ -81,7 +81,7 @@ function step(
 export function setupProgress(facts: RepoSetupFacts): RepoSetupProgress {
 	const steps = [
 		step("install", facts.installed, "GitHub App installed", null),
-		step("rules", rulesOn(facts), "Rules on", rulesSummary(facts) || null),
+		step("rules", rulesOn(facts), "Checks ready", rulesSummary(facts) || null),
 		step(
 			"check",
 			facts.firstCheck !== null,
@@ -127,7 +127,7 @@ const STAGE_WORDS: Record<SetupStage, string> = {
 	install_app: "Installing the GitHub App",
 	sync_repos: "Syncing repos",
 	pick_rules: "Picking rules",
-	turn_on_gate: "Turning on rules",
+	turn_on_gate: "Turning on Tripwire",
 	verify_check: "Running a first check",
 };
 
