@@ -685,6 +685,10 @@ describe("responseConfig: defaults and surface gates", () => {
 			},
 			moderationQueued: "comment",
 			reviewComment: { customText: "", showDetailsButton: true },
+			onChangesRequired: "comment",
+			changesRequiredComment: { customText: "", showDetailsButton: true },
+			onNote: "comment",
+			noteComment: { customText: "", showDetailsButton: true },
 			failClosedFallback: true,
 			redaction: {
 				inherit: true,

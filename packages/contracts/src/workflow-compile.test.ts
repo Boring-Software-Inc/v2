@@ -605,6 +605,8 @@ describe("actionTakesSettings", () => {
 			"lock",
 			"remove-label",
 			"post-comment",
+			"request-fix",
+			"note",
 		]);
 	});
 });

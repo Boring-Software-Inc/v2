@@ -65,6 +65,10 @@ export const responseConfigSchema = z.object({
 	moderationQueued: commentSurfaceSchema.default("comment"),
 	/** Review comment override — independent of the block override. */
 	reviewComment: commentOverrideSchema.prefault({}),
+	onChangesRequired: commentSurfaceSchema.default("comment"),
+	changesRequiredComment: commentOverrideSchema.prefault({}),
+	onNote: commentSurfaceSchema.default("comment"),
+	noteComment: commentOverrideSchema.prefault({}),
 	/**
 	 * The fail-closed floor. ON by default, and it should stay on.
 	 *
@@ -100,12 +104,18 @@ export const DEFAULT_ORG_RESPONSE_DEFAULTS: OrgResponseDefaults =
 export function commentOverrideFor(
 	config: ResponseConfig,
 	verdict: Verdict,
+	options: { notes?: boolean } = {},
 ): CommentOverride {
 	if (verdict === "pass") {
-		return config.passComment;
+		return options.notes && config.onNote === "comment"
+			? config.noteComment
+			: config.passComment;
 	}
-	if (verdict === "block") {
+	if (verdict === "block" || verdict === "close") {
 		return config.blockComment;
+	}
+	if (verdict === "changes_required") {
+		return config.changesRequiredComment;
 	}
 	return config.reviewComment;
 }
@@ -121,12 +131,19 @@ export const DEFAULT_RESPONSE_CONFIG: ResponseConfig =
 export function wantsComment(
 	config: ResponseConfig,
 	verdict: Verdict,
+	options: { notes?: boolean } = {},
 ): boolean {
 	if (verdict === "pass") {
-		return config.onSuccess === "comment";
+		return (
+			config.onSuccess === "comment" ||
+			(options.notes === true && config.onNote === "comment")
+		);
 	}
-	if (verdict === "block") {
+	if (verdict === "block" || verdict === "close") {
 		return config.onBlock === "comment";
+	}
+	if (verdict === "changes_required") {
+		return config.onChangesRequired === "comment";
 	}
 	return config.moderationQueued === "comment";
 }

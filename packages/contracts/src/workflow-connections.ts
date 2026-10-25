@@ -111,6 +111,10 @@ export function foldGate(
 	mode: GateMode,
 	inputs: readonly NodeOutcome[],
 ): NodeOutcome {
+	if (mode === "unless") {
+		const [requirement, exception] = inputs;
+		return foldUnless(requirement, exception).outcome;
+	}
 	if (mode === "not") {
 		const [only] = inputs;
 		if (only === undefined || only === "skipped") {
@@ -126,6 +130,24 @@ export function foldGate(
 		return "skipped";
 	}
 	return decisive === "fail" ? "pass" : "fail";
+}
+
+export interface UnlessFold {
+	outcome: NodeOutcome;
+	exceptionApplied: boolean;
+}
+
+export function foldUnless(
+	requirement: NodeOutcome | undefined,
+	exception: NodeOutcome | undefined,
+): UnlessFold {
+	if (requirement === "pass") {
+		return { outcome: "pass", exceptionApplied: false };
+	}
+	if (exception === "pass") {
+		return { outcome: "pass", exceptionApplied: requirement === "fail" };
+	}
+	return { outcome: requirement ?? "skipped", exceptionApplied: false };
 }
 
 export const WORKFLOW_PORT_LABELS = {

@@ -1,4 +1,5 @@
 import {
+	type RunStanding,
 	ruleResultSchema,
 	VERDICT_EVENT_KINDS,
 	type Verdict,
@@ -20,6 +21,7 @@ import {
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
+import { moderationItems } from "../schema/moderation.ts";
 import { runActions, runSteps, runs } from "../schema/runs.ts";
 
 /**
@@ -623,6 +625,82 @@ export async function completeRun(
 		.update(runs)
 		.set({ status: "completed", verdict, completedAt: new Date() })
 		.where(eq(runs.id, runId));
+}
+
+export async function setRunVerdict(
+	db: Db,
+	runId: string,
+	verdict: Verdict,
+	status: "paused" | "completed",
+): Promise<void> {
+	await db
+		.update(runs)
+		.set(
+			status === "completed"
+				? { status, verdict, completedAt: new Date() }
+				: { status, verdict },
+		)
+		.where(eq(runs.id, runId));
+}
+
+export async function getRunStanding(
+	db: Db,
+	runId: string,
+): Promise<RunStanding> {
+	const runRows = await db
+		.select({ headSha: runs.headSha })
+		.from(runs)
+		.where(eq(runs.id, runId));
+	const actions = await db
+		.select({ kind: runActions.kind })
+		.from(runActions)
+		.where(
+			and(
+				eq(runActions.runId, runId),
+				ne(runActions.status, "suppressed"),
+				inArray(runActions.kind, ["close", "block", "request-fix"]),
+			),
+		);
+	const pending = await db
+		.select({ id: moderationItems.id })
+		.from(moderationItems)
+		.where(
+			and(
+				eq(moderationItems.runId, runId),
+				eq(moderationItems.status, "pending"),
+			),
+		);
+	const count = (kind: string) =>
+		actions.filter((action) => action.kind === kind).length;
+	return {
+		closes: runRows[0]?.headSha ? count("close") : 0,
+		blocks: count("block"),
+		fixes: count("request-fix"),
+		reviewsPending: pending.length,
+	};
+}
+
+export async function closedOnHead(
+	db: Db,
+	repoFullName: string,
+	subjectNumber: number,
+	headSha: string,
+): Promise<boolean> {
+	const rows = await db
+		.select({ id: runActions.id })
+		.from(runActions)
+		.innerJoin(runs, eq(runActions.runId, runs.id))
+		.where(
+			and(
+				eq(runs.repoFullName, repoFullName),
+				eq(runs.subjectNumber, subjectNumber),
+				eq(runs.headSha, headSha),
+				eq(runActions.kind, "close"),
+				eq(runActions.status, "executed"),
+			),
+		)
+		.limit(1);
+	return rows.length > 0;
 }
 
 export async function pauseRun(db: Db, runId: string): Promise<void> {

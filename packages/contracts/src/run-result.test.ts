@@ -98,7 +98,9 @@ describe("a run's result", () => {
 			"did-not-finish": "Did not finish",
 			pass: "Passed",
 			block: "Blocked",
+			changes_required: "Changes needed",
 			needs_review: "Waiting for human review",
+			close: "Closed",
 			"closed-before-review": "Closed before review",
 			ran: "Ran",
 		});
