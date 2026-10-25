@@ -27,7 +27,6 @@ export const honeypot = defineRule({
 		const requirement = rule("honeypot", {
 			when: signals.pr.changedPaths,
 			comparison: noneMatch(config.paths),
-			severity: "high",
 		});
 		const { passed } = evaluateSignalRule(requirement, {
 			value: read.value,

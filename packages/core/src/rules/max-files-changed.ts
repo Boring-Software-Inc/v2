@@ -25,7 +25,6 @@ export const maxFilesChanged = defineRule({
 		const requirement = rule("max files changed", {
 			when: signals.pr.filesChanged,
 			comparison: atMost(config.max),
-			severity: "low",
 		});
 		const { passed } = evaluateSignalRule(requirement, {
 			value: read.value,

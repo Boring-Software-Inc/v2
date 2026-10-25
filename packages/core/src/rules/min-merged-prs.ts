@@ -84,12 +84,10 @@ export const minMergedPrsV2 = defineRule({
 		const trustedLocally = rule("trusted locally", {
 			when: signals.repoRelation.mergedInRepo,
 			comparison: atLeast(config.trustedAfter),
-			severity: "medium",
 		});
 		const provenElsewhere = rule("proven elsewhere", {
 			when: signals.contributor.mergedElsewhere,
 			comparison: atLeast(config.min),
-			severity: "medium",
 		});
 		const passed =
 			evaluateSignalRule(trustedLocally, { value: local.value, now: ctx.now })

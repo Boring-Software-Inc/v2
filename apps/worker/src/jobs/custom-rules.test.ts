@@ -76,7 +76,6 @@ describe("custom rule round trip", () => {
 		const record = storedRule({
 			when: { id: "contributor.publicGists" },
 			comparison: { kind: "atLeast", args: [3] },
-			severity: "low",
 		});
 		const { ctx } = makeSignalCtx({
 			"/users/mallory": {
@@ -111,7 +110,6 @@ describe("custom rule round trip", () => {
 				transform: { kind: "lastCount", window: "24h" },
 			},
 			comparison: { kind: "atMost", args: [1] },
-			severity: "high",
 		});
 		const { ctx } = makeSignalCtx({
 			"/users/mallory/events?per_page=100&page=1": [
@@ -130,7 +128,6 @@ describe("custom rule round trip", () => {
 		const record = storedRule({
 			when: { id: "comment.body", transform: { kind: "letterCount" } },
 			comparison: { kind: "atLeast", args: [4] },
-			severity: "low",
 		});
 		const { ctx } = makeSignalCtx({});
 		const result = await evaluateCustomRule(record, ctx, NOW);
@@ -142,7 +139,6 @@ describe("custom rule round trip", () => {
 		const record = storedRule({
 			when: { id: "contributor.publicGists" },
 			comparison: { kind: "atLeast", args: [1] },
-			severity: "low",
 		});
 		const result = await evaluateCustomRule(record, null, NOW);
 		expect(result.status).toBe("skipped");
@@ -171,7 +167,6 @@ describe("custom rule round trip", () => {
 		const gists = storedRule({
 			when: { id: "contributor.publicGists" },
 			comparison: { kind: "atLeast", args: [1] },
-			severity: "low",
 		});
 		const followers: CustomRuleRecord = {
 			...gists,
@@ -179,7 +174,6 @@ describe("custom rule round trip", () => {
 			definition: {
 				when: { id: "contributor.followers" },
 				comparison: { kind: "atLeast", args: [1] },
-				severity: "low",
 			},
 		};
 		const { ctx, calls } = makeSignalCtx({
@@ -215,7 +209,6 @@ describe("pass = the comparison holds (author the ALLOW condition)", () => {
 		storedRule({
 			when: { id: "contributor.accountAge" },
 			comparison: { kind: "atLeast", args: [7] },
-			severity: "medium",
 		});
 	const userAgedDays = (days: number) => ({
 		"/users/mallory": {

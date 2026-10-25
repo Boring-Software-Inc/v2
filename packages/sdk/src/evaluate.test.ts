@@ -31,7 +31,6 @@ function numberRule(comparison: {
 		name: "n",
 		signal: { id: "contributor.accountAge" },
 		comparison,
-		severity: "low",
 	};
 }
 
@@ -164,7 +163,6 @@ describe("windowed transforms", () => {
 			name: "w",
 			signal: { id: "contributor.recentChangeRequestTimes", transform },
 			comparison,
-			severity: "low",
 		};
 	}
 
@@ -186,7 +184,6 @@ describe("windowed transforms", () => {
 			name: "t",
 			signal: { id: "contributor.recentChangeRequestTimes" },
 			comparison: under(3),
-			severity: "low",
 		};
 		expect(() => evaluateSignalRule(rule, { value: times, now: NOW })).toThrow(
 			"no comparison applies to timestamps signals yet",
@@ -202,7 +199,6 @@ describe("windowed transforms", () => {
 				transform: { kind: "lastCount", window: "90d" as any },
 			},
 			comparison: under(3),
-			severity: "low",
 		};
 		expect(() => evaluateSignalRule(rule, { value: times, now: NOW })).toThrow(
 			"asks for more than it can answer",
@@ -254,7 +250,6 @@ describe("scan transform", () => {
 				transform: { kind: "scan", patterns },
 			},
 			comparison: empty(),
-			severity: "high",
 		} as const;
 		const result = evaluateSignalRule(scanRule, {
 			value: { comment: `send to ${address}`, title: "clean" },
@@ -274,7 +269,6 @@ describe("scan transform", () => {
 				transform: { kind: "scan", patterns },
 			},
 			comparison: empty(),
-			severity: "high",
 		} as const;
 		const result = evaluateSignalRule(scanRule, { value: {}, now: NOW });
 		expect(result.passed).toBe(true);

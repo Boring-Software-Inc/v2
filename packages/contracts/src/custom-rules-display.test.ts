@@ -24,7 +24,6 @@ function display(id: string) {
 const accountAge: CustomRuleDefinition = {
 	when: { id: "contributor.accountAge" },
 	comparison: { kind: "under", args: [7] },
-	severity: "medium",
 };
 
 const forkRate: CustomRuleDefinition = {
@@ -33,7 +32,6 @@ const forkRate: CustomRuleDefinition = {
 		transform: { kind: "lastCount", window: "24h" },
 	},
 	comparison: { kind: "atMost", args: [20] },
-	severity: "high",
 };
 
 describe("verb narrowing by meaning", () => {
@@ -55,7 +53,6 @@ describe("verb narrowing by meaning", () => {
 			customRuleSentence({
 				when: { id: "pr.targetBranch" },
 				comparison: { kind: "oneOf", args: [["Next"]] },
-				severity: "medium",
 			}),
 		).toBe("require that target branch is one of Next");
 	});
@@ -67,7 +64,6 @@ describe("verb narrowing by meaning", () => {
 			customRuleSentence({
 				when: { id: "pr.targetBranch" },
 				comparison: { kind: "noneOf", args: [["staging"]] },
-				severity: "high",
 			}),
 		).toBe("require that target branch is not staging");
 	});
@@ -121,7 +117,6 @@ describe("the public summary (§10)", () => {
 				{
 					when: { id: "repoRelation.isOrgMember" },
 					comparison: { kind: "equals", args: [true] },
-					severity: "low",
 				},
 				false,
 			),
@@ -131,7 +126,6 @@ describe("the public summary (§10)", () => {
 				{
 					when: { id: "pr.changedPaths" },
 					comparison: { kind: "noneMatch", args: [[".github/**"]] },
-					severity: "high",
 				},
 				["a.ts", "b.ts"],
 			),

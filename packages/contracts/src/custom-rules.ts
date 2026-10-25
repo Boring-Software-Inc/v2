@@ -17,7 +17,7 @@ export function definitionReferencesRule(
 
 /**
  * Custom rules: rules defined in DATA instead of code. The stored definition
- * IS the serialized SDK shape ({ when, comparison, severity }); a row
+ * IS the serialized SDK shape ({ when, comparison }); a row
  * deserializes directly to what evaluateSignalRule takes. Registration is a
  * loader that synthesizes a catalog entry; built-ins keep defineRule. Two
  * registration paths, one catalog: every consumer reads both identically.
@@ -83,7 +83,6 @@ export const customRuleDefinitionSchema = z.object({
 		transform: transformSchema.optional(),
 	}),
 	comparison: customComparisonSchema,
-	severity: z.enum(["low", "medium", "high"]),
 });
 export type CustomRuleDefinition = z.infer<typeof customRuleDefinitionSchema>;
 

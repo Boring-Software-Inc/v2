@@ -69,7 +69,6 @@ beforeAll(async () => {
 		definition: {
 			when: { id: "contributor.accountAge" },
 			comparison: { kind: "atLeast", args: [7] },
-			severity: "medium",
 		},
 	});
 }, 120_000);

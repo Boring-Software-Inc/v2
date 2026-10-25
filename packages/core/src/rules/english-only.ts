@@ -53,7 +53,6 @@ export const englishOnly = defineRule({
 		const requirement = rule("english only", {
 			when: when.nonLatinRatio,
 			comparison: atMost(config.maxNonLatinRatio),
-			severity: "low",
 		});
 		const { passed, resolvedValue } = evaluateSignalRule(requirement, {
 			value: text,

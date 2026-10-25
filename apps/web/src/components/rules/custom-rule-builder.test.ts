@@ -32,7 +32,6 @@ function state(
 		value: fields.value ?? "",
 		high: fields.high ?? "",
 		values: fields.values ?? [],
-		severity: null,
 		name: "",
 	};
 }

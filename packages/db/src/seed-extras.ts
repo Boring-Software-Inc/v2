@@ -52,7 +52,6 @@ const CUSTOM_RULES: CustomRuleRecord[] = [
 				transform: { kind: "lastCount", window: "24h" },
 			},
 			comparison: { kind: "atMost", args: [20] },
-			severity: "high",
 		},
 	},
 	{
@@ -62,7 +61,6 @@ const CUSTOM_RULES: CustomRuleRecord[] = [
 		definition: {
 			when: { id: "contributor.followers" },
 			comparison: { kind: "atLeast", args: [3] },
-			severity: "low",
 		},
 	},
 ];

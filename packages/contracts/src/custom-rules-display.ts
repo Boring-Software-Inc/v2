@@ -535,8 +535,6 @@ export function customRuleSentence(definition: CustomRuleDefinition): string {
 	// "require that" — the PASS condition, matching the evaluator (passed = the
 	// comparison holds), uniform with built-ins. The author states what is
 	// ALLOWED, not what is bad; "flag when" read as the opposite of what ran.
-	// Severity is not part of the requirement (it weighs a failure) — the card
-	// shows it separately.
 	return `require that ${label.toLowerCase()}${windowPhrase(definition)} ${clause}`;
 }
 

@@ -64,7 +64,6 @@ export const prRateLimit = defineRule({
 		const requirement = rule("pr rate limit", {
 			when: windowed.count,
 			comparison: atMost(config.maxPerWindow),
-			severity: "high",
 		});
 		const { passed, resolvedValue } = evaluateSignalRule(requirement, {
 			value: read.value,
