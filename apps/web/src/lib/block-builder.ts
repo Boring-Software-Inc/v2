@@ -3,6 +3,7 @@ import type {
 	ResponseBlock,
 	ResponseBlockType,
 } from "@tripwire/contracts";
+import { BLOCK_LIST_MAX } from "@tripwire/contracts";
 
 export type DragItem =
 	| { source: "palette"; type: ResponseBlockType }
@@ -75,6 +76,10 @@ function moveBlock(
 	return insertAt(rest, block, to);
 }
 
+export function isFull(blocks: readonly ResponseBlock[]): boolean {
+	return blocks.length >= BLOCK_LIST_MAX;
+}
+
 export function addIndex(state: BuilderState): number {
 	const selected = state.blocks.findIndex(
 		(block) => block.id === state.selectedId,
@@ -88,6 +93,9 @@ export function reduceBuilder(
 ): BuilderState {
 	switch (action.type) {
 		case "add":
+			if (isFull(state.blocks)) {
+				return state;
+			}
 			return {
 				...state,
 				blocks: insertAt(

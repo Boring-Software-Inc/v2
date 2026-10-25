@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { ResponseBlock } from "@tripwire/contracts";
+import { BLOCK_LIST_MAX } from "@tripwire/contracts";
 import {
 	type BuilderState,
 	dropIndexFor,
 	dropLineIndex,
 	dropPosition,
+	isFull,
 	movedIndex,
 	OPEN_VIEW,
 	reduceBuilder,
@@ -56,6 +58,25 @@ describe("add", () => {
 		expect(
 			ids(reduceBuilder(state(), { type: "add", block: NEW, index: 99 })),
 		).toEqual(["a", "b", "c", "n"]);
+	});
+});
+
+describe("the block limit", () => {
+	test("adding stops at the list maximum, by click or by drop", () => {
+		const blocks = Array.from({ length: BLOCK_LIST_MAX }, (_, index) => ({
+			id: `b${index}`,
+			type: "headline" as const,
+		}));
+		const full = state({ blocks });
+		expect(isFull(blocks)).toBe(true);
+		expect(reduceBuilder(full, { type: "add", block: NEW })).toBe(full);
+		const dragging = reduceBuilder(full, {
+			type: "drag-start",
+			item: { source: "palette", type: "text" },
+		});
+		expect(
+			reduceBuilder(dragging, { type: "drop", block: NEW, index: 0 }).blocks,
+		).toBe(blocks);
 	});
 });
 

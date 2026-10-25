@@ -96,6 +96,7 @@ export const responseVariableSchema = z.enum(RESPONSE_VARIABLES);
 export type ResponseVariable = z.infer<typeof responseVariableSchema>;
 
 export const TEXT_BLOCK_MAX = 4000;
+export const TEXT_PARTS_MAX = 200;
 
 export const textPartSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("text"), text: z.string().max(TEXT_BLOCK_MAX) }),
@@ -119,7 +120,7 @@ const BLOCK_OPTIONS = [
 		type: z.literal("text"),
 		parts: z
 			.array(textPartSchema)
-			.max(200)
+			.max(TEXT_PARTS_MAX)
 			.refine(
 				(parts) =>
 					parts.reduce(

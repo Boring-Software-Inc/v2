@@ -71,7 +71,7 @@ export function BlockColumn({ builder, outcome, readOnly }: BlockColumnProps) {
 					/>
 				) : (
 					<BlockPalette
-						disabled={readOnly}
+						disabled={readOnly || builder.full}
 						onAdd={builder.add}
 						outcome={outcome}
 					/>

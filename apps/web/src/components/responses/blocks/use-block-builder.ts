@@ -6,6 +6,7 @@ import {
 	type DragItem,
 	dropLineIndex,
 	IDLE_UI,
+	isFull,
 	type PreviewView,
 	reduceBuilder,
 	reduceBuilderUi,
@@ -37,6 +38,7 @@ export function useBlockBuilder(
 		selected: blocks.find((block) => block.id === ui.selectedId) ?? null,
 		drag: ui.drag,
 		dropLine: dropLineIndex({ blocks, ...ui }),
+		full: isFull(blocks),
 		paletteOpen: ui.paletteOpen,
 		view: ui.view,
 		add: (type: ResponseBlockType) =>

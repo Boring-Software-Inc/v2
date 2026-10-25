@@ -10,18 +10,25 @@ export const VARIABLE_CHIP_CLASS =
 export interface VariableChipProps {
 	name: ResponseVariable;
 	hidden: boolean;
+	disabled: boolean;
 	onInsert: (name: ResponseVariable) => void;
 }
 
-export function VariableChip({ name, hidden, onInsert }: VariableChipProps) {
+export function VariableChip({
+	name,
+	hidden,
+	disabled,
+	onInsert,
+}: VariableChipProps) {
 	const insert = () => onInsert(name);
 	return (
 		<button
 			aria-label={`Insert ${VARIABLE_LABELS[name]}${hidden ? ", hidden from outsiders" : ""}`}
 			className={cn(
 				VARIABLE_CHIP_CLASS,
-				"cursor-pointer bg-paper hover:bg-hover focus-visible:focus-sm",
+				"cursor-pointer bg-paper hover:bg-hover focus-visible:focus-sm disabled:cursor-default disabled:text-text-disabled disabled:hover:bg-paper",
 			)}
+			disabled={disabled}
 			onClick={insert}
 			onMouseDown={preventBlur}
 			type="button"

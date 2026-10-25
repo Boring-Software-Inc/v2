@@ -2,6 +2,7 @@ import type { ResponseBlock, ResponseVariable } from "@tripwire/contracts";
 import {
 	RESPONSE_VARIABLES,
 	TEXT_BLOCK_MAX,
+	TEXT_PARTS_MAX,
 	VARIABLE_HIDDEN_AT,
 } from "@tripwire/contracts";
 import { type ClipboardEvent, type KeyboardEvent, useRef } from "react";
@@ -11,9 +12,10 @@ import {
 	VARIABLE_LABELS,
 } from "#/components/responses/blocks/block-catalog";
 import {
-	clampParts,
+	fitParts,
 	nodesFromParts,
 	partsFromNode,
+	textLength,
 } from "#/components/responses/blocks/text-parts";
 import {
 	VARIABLE_CHIP_CLASS,
@@ -83,13 +85,28 @@ export function TextBlockEditor({
 	};
 
 	const emit = () => {
-		if (editor.current) {
-			onChange({
-				...block,
-				parts: clampParts(partsFromNode(editor.current), TEXT_BLOCK_MAX),
-			});
+		const el = editor.current;
+		if (!el) {
+			return;
 		}
+		const { parts, trimmed } = fitParts(
+			partsFromNode(el),
+			TEXT_BLOCK_MAX,
+			TEXT_PARTS_MAX,
+		);
+		if (trimmed) {
+			el.replaceChildren(...nodesFromParts(parts, chip));
+			placeCaret(endOf(el));
+		}
+		onChange({ ...block, parts });
 	};
+
+	const partsFull = block.parts.length >= TEXT_PARTS_MAX - 1;
+
+	const room = () =>
+		editor.current
+			? TEXT_BLOCK_MAX - textLength(partsFromNode(editor.current))
+			: 0;
 
 	const mount = (el: HTMLDivElement | null) => {
 		editor.current = el;
@@ -109,7 +126,7 @@ export function TextBlockEditor({
 
 	const insert = (name: ResponseVariable) => {
 		const el = editor.current;
-		if (!el) {
+		if (!el || partsFull) {
 			return;
 		}
 		const range = rangeIn(el) ?? caret.current ?? endOf(el);
@@ -127,13 +144,17 @@ export function TextBlockEditor({
 	const onKeyDown = (event: KeyboardEvent) => {
 		if (event.key === "Enter") {
 			event.preventDefault();
-			insertText("\n");
+			if (room() > 0) {
+				insertText("\n");
+			}
 		}
 	};
 
 	const onPaste = (event: ClipboardEvent) => {
 		event.preventDefault();
-		insertText(event.clipboardData.getData("text/plain"));
+		insertText(
+			event.clipboardData.getData("text/plain").slice(0, Math.max(0, room())),
+		);
 	};
 
 	return (
@@ -171,6 +192,7 @@ export function TextBlockEditor({
 				<span className="pe-0.5 type-body-sm text-text-2">Insert</span>
 				{INSERTABLE_VARIABLES.map((name) => (
 					<VariableChip
+						disabled={partsFull}
 						hidden={rulesHidden && RULE_VARIABLES.has(name)}
 						key={name}
 						name={name}

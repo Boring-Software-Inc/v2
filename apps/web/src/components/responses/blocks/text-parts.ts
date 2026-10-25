@@ -55,6 +55,25 @@ export function partsFromNode(root: Node): TextPart[] {
 	return mergeParts(parts);
 }
 
+export function textLength(parts: readonly TextPart[]): number {
+	return parts.reduce(
+		(sum, part) => sum + (part.kind === "text" ? part.text.length : 0),
+		0,
+	);
+}
+
+export function fitParts(
+	parts: readonly TextPart[],
+	maxText: number,
+	maxParts: number,
+): { parts: TextPart[]; trimmed: boolean } {
+	const fitted = mergeParts(clampParts(parts.slice(0, maxParts), maxText));
+	return {
+		parts: fitted,
+		trimmed: parts.length > maxParts || textLength(fitted) < textLength(parts),
+	};
+}
+
 export function clampParts(
 	parts: readonly TextPart[],
 	max: number,

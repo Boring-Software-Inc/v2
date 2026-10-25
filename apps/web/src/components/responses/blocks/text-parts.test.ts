@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
 	clampParts,
+	fitParts,
 	mergeParts,
+	textLength,
 } from "#/components/responses/blocks/text-parts";
 
 describe("text parts", () => {
@@ -37,5 +39,28 @@ describe("text parts", () => {
 			{ kind: "var", name: "author" },
 			{ kind: "text", text: "ef" },
 		]);
+	});
+
+	test("fitting reports when it had to trim text or parts", () => {
+		const parts = [
+			{ kind: "text", text: "abcdef" },
+			{ kind: "var", name: "author" },
+		] as const;
+		expect(fitParts([...parts], 10, 5)).toEqual({
+			parts: [...parts],
+			trimmed: false,
+		});
+		expect(fitParts([...parts], 4, 5)).toEqual({
+			parts: [
+				{ kind: "text", text: "abcd" },
+				{ kind: "var", name: "author" },
+			],
+			trimmed: true,
+		});
+		expect(fitParts([...parts], 10, 1)).toEqual({
+			parts: [{ kind: "text", text: "abcdef" }],
+			trimmed: true,
+		});
+		expect(textLength([...parts])).toBe(6);
 	});
 });
