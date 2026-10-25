@@ -196,7 +196,7 @@ function Picker() {
 				<PickOutline box={box} element={hovered.node} name={hovered.name} />
 			) : null}
 			<div
-				aria-label="Pick what this is about"
+				aria-label="Pick an element"
 				className="fixed bottom-6 left-1/2 z-(--z-overlay) flex w-max max-w-[calc(100vw-var(--space-4)*2)] -translate-x-1/2 items-center gap-2 rounded-pill border border-line bg-paper py-1 ps-4 pe-1 text-text-1 outline-none focus-visible:focus-ring"
 				data-feedback-chrome
 				data-screenshot-ignore
@@ -204,7 +204,7 @@ function Picker() {
 				role="dialog"
 				tabIndex={-1}
 			>
-				<span className="type-label">Pick what this is about</span>
+				<span className="type-label">Pick an element</span>
 				<span aria-live="polite" className="sr-only">
 					{announcement}
 				</span>

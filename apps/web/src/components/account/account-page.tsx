@@ -184,7 +184,7 @@ function SignInSection({
 								size="sm"
 								variant="secondary"
 							>
-								Open Connections
+								Open connections
 								<Icon icon={ArrowRight} />
 							</Button>
 						</ItemActions>

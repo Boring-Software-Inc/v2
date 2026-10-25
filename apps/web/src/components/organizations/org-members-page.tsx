@@ -312,7 +312,6 @@ function MemberRow({
 			</ItemActions>
 			<ConfirmDeleteDialog
 				actionLabel="Remove"
-				description="You can invite them again later."
 				onConfirm={() => removeMutation.mutateAsync()}
 				onOpenChange={setConfirmRemove}
 				open={confirmRemove}
@@ -588,7 +587,6 @@ function InviteLinkRow({
 			</ItemActions>
 			<ConfirmDeleteDialog
 				actionLabel="Revoke"
-				description="Nobody can join with it after this."
 				onConfirm={() => revokeMutation.mutateAsync()}
 				onOpenChange={setConfirmRevoke}
 				open={confirmRevoke}

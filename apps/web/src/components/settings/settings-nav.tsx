@@ -35,7 +35,7 @@ export function SettingsNav({ org }: { org: string }) {
 			aria-label="Settings"
 			className="-mx-4 flex gap-1 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:flex-col md:gap-6 md:sticky md:top-6 md:self-start md:overflow-visible md:px-0"
 		>
-			<NavGroup label={(orgContext ?? resolved).slug}>
+			<NavGroup>
 				{sections.map((section) => (
 					<Link
 						activeProps={{ "aria-current": "page" }}
@@ -48,7 +48,7 @@ export function SettingsNav({ org }: { org: string }) {
 					</Link>
 				))}
 			</NavGroup>
-			<NavGroup label="Your account">
+			<NavGroup>
 				{ACCOUNT_SECTIONS.map((section) => (
 					<Link
 						activeOptions={{ exact: true, includeHash: true }}
@@ -72,13 +72,8 @@ export function SettingsNav({ org }: { org: string }) {
 	);
 }
 
-function NavGroup({ label, children }: { label: string; children: ReactNode }) {
+function NavGroup({ children }: { children: ReactNode }) {
 	return (
-		<div className="flex shrink-0 gap-1 md:flex-col md:gap-0.5">
-			<p className="hidden truncate px-3 pb-1 type-label-sm text-text-2 md:block">
-				{label}
-			</p>
-			{children}
-		</div>
+		<div className="flex shrink-0 gap-1 md:flex-col md:gap-0.5">{children}</div>
 	);
 }

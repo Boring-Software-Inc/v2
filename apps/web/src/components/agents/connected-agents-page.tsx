@@ -79,7 +79,6 @@ function AgentRow({ agent }: { agent: ConnectedAgent }) {
 			<ConfirmDeleteDialog
 				actionLabel="Disconnect"
 				confirmText={agent.name}
-				description="It loses access now."
 				onConfirm={() => revoke.mutateAsync()}
 				onOpenChange={setConfirming}
 				open={confirming}

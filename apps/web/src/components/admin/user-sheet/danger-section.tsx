@@ -127,7 +127,7 @@ export function DeleteUserDialog({
 		<ConfirmDeleteDialog
 			actionLabel="Delete account"
 			confirmText={confirmText}
-			description="Their personal org goes with it."
+			description="This also deletes their personal org."
 			onConfirm={async () => {
 				await remove.mutateAsync();
 				onDeleted();

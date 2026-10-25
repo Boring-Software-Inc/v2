@@ -108,7 +108,7 @@ function Panel() {
 	const send = async () => {
 		const comment = draft.trim();
 		if (!comment) {
-			setError("Write what is off before you send.");
+			setError("Write your feedback.");
 			textareaRef.current?.focus();
 			return;
 		}
@@ -208,7 +208,7 @@ function Panel() {
 							type="button"
 							variant="ghost"
 						>
-							{picked ? "Pick again" : "Pick what this is about"}
+							{picked ? "Pick again" : "Pick an element"}
 						</Button>
 					</div>
 					<Textarea
