@@ -4,12 +4,15 @@ import {
 	useCallback,
 	useContext,
 	useMemo,
+	useReducer,
 	useRef,
-	useState,
 } from "react";
+import {
+	type FeedbackPhase,
+	feedbackReducer,
+	initialFeedbackState,
+} from "./feedback-state";
 import type { FeedbackElementSummary } from "./pick";
-
-export type FeedbackPhase = "closed" | "picking" | "open";
 
 export interface PickedElement {
 	element: HTMLElement;
@@ -25,12 +28,14 @@ export interface FeedbackContextType {
 	phase: FeedbackPhase;
 	picked: PickedElement | null;
 	draft: string;
+	session: number;
 	setDraft: (value: string) => void;
 	start: () => void;
 	pick: (picked: PickedElement | null) => void;
 	pickAgain: () => void;
 	cancelPicking: () => void;
 	close: () => void;
+	finish: (session: number) => void;
 	config: FeedbackConfig;
 }
 
@@ -51,69 +56,88 @@ export function FeedbackProvider({
 	children: ReactNode;
 	config?: FeedbackConfig;
 }) {
-	const [phase, setPhase] = useState<FeedbackPhase>("closed");
-	const [picked, setPicked] = useState<PickedElement | null>(null);
-	const [draft, setDraft] = useState("");
-	const [resumable, setResumable] = useState(false);
+	const [state, dispatch] = useReducer(
+		feedbackReducer<PickedElement>,
+		undefined,
+		initialFeedbackState<PickedElement>,
+	);
+	const sessionRef = useRef(state.session);
+	sessionRef.current = state.session;
+	const resumableRef = useRef(state.resumable);
+	resumableRef.current = state.resumable;
 	const returnFocus = useRef<Element | null>(null);
 
-	const start = useCallback(() => {
-		returnFocus.current = document.activeElement;
-		setPicked(null);
-		setResumable(false);
-		setPhase("picking");
-	}, []);
-
-	const pick = useCallback((next: PickedElement | null) => {
-		setPicked(next);
-		setPhase("open");
-	}, []);
-
-	const pickAgain = useCallback(() => {
-		setResumable(true);
-		setPhase("picking");
-	}, []);
-
-	const close = useCallback(() => {
-		setPhase("closed");
-		setPicked(null);
-		setDraft("");
-		setResumable(false);
+	const returnFocusSoon = useCallback(() => {
 		const target = returnFocus.current;
 		returnFocus.current = null;
 		requestAnimationFrame(() => restoreFocus(target));
 	}, []);
 
+	const start = useCallback(() => {
+		returnFocus.current = document.activeElement;
+		dispatch({ type: "start" });
+	}, []);
+
+	const pick = useCallback((picked: PickedElement | null) => {
+		dispatch({ type: "pick", picked });
+	}, []);
+
+	const pickAgain = useCallback(() => {
+		dispatch({ type: "pick-again" });
+	}, []);
+
+	const setDraft = useCallback((value: string) => {
+		dispatch({ type: "draft", value });
+	}, []);
+
+	const close = useCallback(() => {
+		dispatch({ type: "close" });
+		returnFocusSoon();
+	}, [returnFocusSoon]);
+
 	const cancelPicking = useCallback(() => {
-		if (resumable) {
-			setPhase("open");
-			return;
+		const resumable = resumableRef.current;
+		dispatch({ type: "cancel-picking" });
+		if (!resumable) {
+			returnFocusSoon();
 		}
-		close();
-	}, [resumable, close]);
+	}, [returnFocusSoon]);
+
+	const finish = useCallback(
+		(session: number) => {
+			if (session !== sessionRef.current) {
+				return;
+			}
+			dispatch({ type: "finish", session });
+			returnFocusSoon();
+		},
+		[returnFocusSoon],
+	);
 
 	const value = useMemo<FeedbackContextType>(
 		() => ({
-			phase,
-			picked,
-			draft,
+			phase: state.phase,
+			picked: state.picked,
+			draft: state.draft,
+			session: state.session,
 			setDraft,
 			start,
 			pick,
 			pickAgain,
 			cancelPicking,
 			close,
+			finish,
 			config,
 		}),
 		[
-			phase,
-			picked,
-			draft,
+			state,
+			setDraft,
 			start,
 			pick,
 			pickAgain,
 			cancelPicking,
 			close,
+			finish,
 			config,
 		],
 	);

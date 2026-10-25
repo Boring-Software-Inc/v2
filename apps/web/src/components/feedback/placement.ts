@@ -44,6 +44,14 @@ export function placePanel(
 	}
 	const right = target.left + target.width;
 	const bottom = target.top + target.height;
+	const offScreen =
+		bottom <= 0 ||
+		target.top >= viewport.height ||
+		right <= 0 ||
+		target.left >= viewport.width;
+	if (offScreen) {
+		return pinned;
+	}
 	const sideTop = clamp(target.top, margin, maxTop);
 	const stackLeft = clamp(target.left, margin, maxLeft);
 
@@ -57,10 +65,16 @@ export function placePanel(
 			top: sideTop,
 		};
 	}
-	if (bottom + gap + panel.height <= viewport.height - margin) {
+	if (
+		bottom + gap >= margin &&
+		bottom + gap + panel.height <= viewport.height - margin
+	) {
 		return { side: "below", left: stackLeft, top: bottom + gap };
 	}
-	if (target.top - gap - panel.height >= margin) {
+	if (
+		target.top - gap - panel.height >= margin &&
+		target.top - gap <= viewport.height - margin
+	) {
 		return {
 			side: "above",
 			left: stackLeft,

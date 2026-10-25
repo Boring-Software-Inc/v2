@@ -84,4 +84,32 @@ describe("placePanel", () => {
 			top: 900 - 8 - 240,
 		});
 	});
+
+	test("pins when the element scrolls above the viewport on a phone", () => {
+		const phone = { width: 390, height: 844 };
+		const target = { left: 16, top: -400, width: 358, height: 120 };
+		const at = placePanel(target, { width: 358, height: 240 }, phone);
+		expect(at.side).toBe("pinned");
+		expect(at.top).toBeGreaterThanOrEqual(8);
+		expect(at.top + 240).toBeLessThanOrEqual(844 - 8);
+	});
+
+	test("pins when the element scrolls below the viewport", () => {
+		const phone = { width: 390, height: 844 };
+		const target = { left: 16, top: 1200, width: 358, height: 120 };
+		const at = placePanel(target, { width: 358, height: 240 }, phone);
+		expect(at.side).toBe("pinned");
+		expect(at.top + 240).toBeLessThanOrEqual(844 - 8);
+	});
+
+	test("never places a stacked panel outside the viewport", () => {
+		const phone = { width: 390, height: 844 };
+		const size = { width: 358, height: 240 };
+		for (let top = -900; top <= 1700; top += 13) {
+			const target = { left: 16, top, width: 358, height: 120 };
+			const at = placePanel(target, size, phone);
+			expect(at.top).toBeGreaterThanOrEqual(8);
+			expect(at.top + size.height).toBeLessThanOrEqual(844 - 8);
+		}
+	});
 });

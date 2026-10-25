@@ -81,7 +81,8 @@ function useViewport(): Size {
 }
 
 function Panel() {
-	const { picked, draft, setDraft, pickAgain, close, config } = useFeedback();
+	const { picked, draft, setDraft, pickAgain, close, finish, session, config } =
+		useFeedback();
 	const [panel, setPanel] = useState<HTMLDivElement | null>(null);
 	const [sending, setSending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -111,6 +112,7 @@ function Panel() {
 			textareaRef.current?.focus();
 			return;
 		}
+		const sentFrom = session;
 		setError(null);
 		setSending(true);
 		try {
@@ -129,7 +131,7 @@ function Panel() {
 				throw new Error(SEND_ERROR);
 			}
 			toast.success("Feedback sent");
-			close();
+			finish(sentFrom);
 		} catch {
 			setError(SEND_ERROR);
 			setSending(false);
