@@ -32,7 +32,7 @@ export interface RepoSetupProgress {
 
 const TODO_TITLES: Record<SetupStepKey, string> = {
 	install: "Install the GitHub App",
-	rules: "Turn on rules",
+	rules: "Install rules",
 	check: "See a first check",
 	responses: "Pick what Tripwire posts",
 };

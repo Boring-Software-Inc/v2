@@ -31,7 +31,7 @@ describe("setupProgress", () => {
 		expect(progress.current?.key).toBe("install");
 		expect(progress.steps.map((step) => step.title)).toEqual([
 			"Install the GitHub App",
-			"Turn on rules",
+			"Install rules",
 			"See a first check",
 			"Pick what Tripwire posts",
 		]);
