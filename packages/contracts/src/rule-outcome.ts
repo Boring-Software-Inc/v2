@@ -59,6 +59,24 @@ export function readRuleOutcome(input: {
 	return parsed.success ? parsed.data : DEFAULT_RULE_OUTCOME_SETTING;
 }
 
+export function parseRuleOutcomeInput(input: {
+	outcome?: string;
+	instruction?: string;
+}): { ok: true; setting: RuleOutcomeSetting } | { ok: false; error: string } {
+	const parsed = ruleOutcomeSettingSchema.safeParse(input);
+	if (parsed.success) {
+		return { ok: true, setting: parsed.data };
+	}
+	const issue = parsed.error.issues[0];
+	return {
+		ok: false,
+		error:
+			issue?.path[0] === "outcome"
+				? `Pick one of ${ruleOutcomeSchema.options.join(", ")}.`
+				: `Instruction: ${issue?.message ?? "this is not valid"}.`,
+	};
+}
+
 export function ruleOutcomeAction(setting: RuleOutcomeSetting): {
 	action: WorkflowActionKind;
 	params?: Record<string, JsonValue>;

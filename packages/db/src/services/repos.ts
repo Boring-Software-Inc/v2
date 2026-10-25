@@ -609,8 +609,15 @@ export async function upsertCustomRule(
 		description?: string | null;
 		enabled: boolean;
 		definition: unknown;
+		outcome?: RuleOutcomeSetting;
 	},
 ): Promise<void> {
+	const outcome = rule.outcome
+		? {
+				outcome: rule.outcome.outcome,
+				outcomeInstruction: rule.outcome.instruction,
+			}
+		: {};
 	await db
 		.insert(customRules)
 		.values({
@@ -620,6 +627,7 @@ export async function upsertCustomRule(
 			description: rule.description ?? null,
 			enabled: rule.enabled,
 			definition: rule.definition,
+			...outcome,
 		})
 		.onConflictDoUpdate({
 			target: customRules.id,
@@ -631,6 +639,7 @@ export async function upsertCustomRule(
 						: rule.description,
 				enabled: rule.enabled,
 				definition: rule.definition,
+				...outcome,
 				updatedAt: new Date(),
 			},
 		});
