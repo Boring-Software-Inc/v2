@@ -174,7 +174,9 @@ describe("rule outcome settings", () => {
 		expect(enabled.ok).toBe(true);
 		const age = await view(repoId, "account-age");
 		expect(age.management).toBe("managed");
-		expect(age.owners).toEqual([{ id: workflow.id, name: "Age gate" }]);
+		expect(age.owners).toEqual([
+			{ id: workflow.id, name: "Age gate", exceptions: [] },
+		]);
 		const refused = await ruleServices.setRuleOutcome(db, {
 			repoId,
 			ruleId: "account-age",
