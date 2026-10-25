@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	libraryGroups,
 	MOST_USED_MIN_REPOS,
 	mostUsedOrder,
 	previewCaught,
@@ -7,6 +8,7 @@ import {
 	RULE_FALLBACK_ORDER,
 	RULE_PACKS,
 	type RulePreview,
+	sameSettings,
 } from "./rule-packs.ts";
 import { RULE_CATALOG } from "./rules.ts";
 
@@ -83,5 +85,43 @@ describe("previewCaught", () => {
 		expect(previewCaught(preview, ["english-only", "account-age"])).toBeNull();
 		expect(previewCaught(preview, ["honeypot"])).toBeNull();
 		expect(previewCaught(null, ["english-only"])).toBeNull();
+	});
+});
+
+describe("sameSettings", () => {
+	test("ignores key order and compares nested values", () => {
+		expect(
+			sameSettings(
+				{ windowHours: 24, maxPerWindow: 5 },
+				{ maxPerWindow: 5, windowHours: 24 },
+			),
+		).toBe(true);
+		expect(sameSettings({ minDays: 30 }, { minDays: 7 })).toBe(false);
+		expect(sameSettings({ paths: ["a", "b"] }, { paths: ["b", "a"] })).toBe(
+			false,
+		);
+	});
+});
+
+describe("libraryGroups", () => {
+	const available = [
+		"account-age",
+		"honeypot",
+		"pr-rate-limit",
+		"max-files-changed",
+	];
+
+	test("keeps every available rule when the ranking is missing", () => {
+		expect(libraryGroups(available, [])).toEqual({
+			recommended: ["account-age"],
+			mostUsed: ["pr-rate-limit", "honeypot", "max-files-changed"],
+		});
+	});
+
+	test("ranked rules first, then the rest in the recommended order", () => {
+		expect(libraryGroups(available, ["max-files-changed"])).toEqual({
+			recommended: ["account-age"],
+			mostUsed: ["max-files-changed", "pr-rate-limit", "honeypot"],
+		});
 	});
 });

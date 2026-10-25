@@ -30,7 +30,7 @@ export interface PreviewStep {
 	ref: string;
 	config: unknown;
 	status: "pass" | "fail" | "skipped";
-	summary: string | null;
+	evidence: unknown;
 }
 
 export interface PreviewInputs {
@@ -93,8 +93,20 @@ const stepRowSchema = z.object({
 	rule_id: z.string(),
 	status: z.enum(["pass", "fail", "skipped"]),
 	input: z.unknown(),
-	summary: z.string().nullable(),
+	evidence: z.unknown(),
 });
+
+function innerEvidence(stored: unknown): unknown {
+	if (
+		stored !== null &&
+		typeof stored === "object" &&
+		"ruleId" in stored &&
+		"evidence" in stored
+	) {
+		return stored.evidence;
+	}
+	return stored;
+}
 
 export async function loadPreviewInputs(
 	db: Db,
@@ -137,7 +149,7 @@ export async function loadPreviewInputs(
 	}
 	const numbers = changeRequests.map((cr) => cr.number);
 	const stepRows = await db.execute(sql`
-		SELECT r.subject_number, s.rule_id, s.status, s.input, s.summary
+		SELECT r.subject_number, s.rule_id, s.status, s.input, s.evidence
 		FROM run_steps s
 		JOIN runs r ON r.id = s.run_id
 		WHERE r.repo_full_name = ${repo.fullName}
@@ -162,7 +174,7 @@ export async function loadPreviewInputs(
 			ref: row.data.rule_id,
 			config: input?.config,
 			status: row.data.status,
-			summary: row.data.summary,
+			evidence: innerEvidence(row.data.evidence),
 		});
 	}
 	return { changeRequests, steps };

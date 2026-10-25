@@ -8,7 +8,7 @@ import {
 	type RulePreviewRule,
 	ruleSupportsForge,
 } from "@tripwire/contracts";
-import { evaluateRule, getRule, projectRulePublic } from "@tripwire/core";
+import { evaluateRule, getRule, maintainerLine } from "@tripwire/core";
 import {
 	type Db,
 	type PreviewInputs,
@@ -74,7 +74,7 @@ async function previewRule(
 					number: cr.number,
 					title: cr.title,
 					author: cr.author,
-					reason: projectRulePublic(ref, result.evidence, false).summary,
+					reason: maintainerLine(ref, result.evidence),
 				});
 			}
 			continue;
@@ -92,7 +92,7 @@ async function previewRule(
 				number: cr.number,
 				title: cr.title,
 				author: cr.author,
-				reason: failed.summary,
+				reason: maintainerLine(ref, failed.evidence),
 			});
 			continue;
 		}

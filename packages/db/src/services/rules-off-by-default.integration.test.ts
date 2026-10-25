@@ -42,7 +42,7 @@ afterAll(async () => {
 	await container?.stop();
 });
 
-test("existing repos keep the rules that ran by default, and nothing else changes", async () => {
+test("armed repos keep the rules that ran by default, unarmed repos start empty", async () => {
 	const fresh = await repoServices.ensureRepo(db, {
 		externalId: "1",
 		owner: "acme",
@@ -62,6 +62,15 @@ test("existing repos keep the rules that ran by default, and nothing else change
 		name: "elsewhere",
 		fullName: "acme/elsewhere",
 	});
+	const unarmed = await repoServices.ensureRepo(db, {
+		externalId: "4",
+		owner: "acme",
+		name: "unarmed",
+		fullName: "acme/unarmed",
+	});
+	for (const repoId of [fresh, tuned, openGit]) {
+		await repoServices.setRepoArmed(db, repoId, true);
+	}
 	await repoServices.upsertRuleConfig(db, tuned, {
 		ruleId: "account-age",
 		version: 1,
@@ -103,6 +112,8 @@ test("existing repos keep the rules that ran by default, and nothing else change
 
 	const openGitRows = await repoServices.listRuleConfigs(db, openGit);
 	expect(openGitRows.map((row) => row.ruleId)).toEqual(["english-only"]);
+
+	expect(await repoServices.listRuleConfigs(db, unarmed)).toEqual([]);
 
 	const ids = await db.execute(sql`SELECT id FROM rule_configs`);
 	for (const row of ids.rows as { id: string }[]) {

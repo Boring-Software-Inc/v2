@@ -29,5 +29,5 @@ CROSS JOIN (
 		('max-files-changed', '{"max":200}'::jsonb, true),
 		('english-only', '{"maxNonLatinRatio":0.5}'::jsonb, false)
 ) AS b("rule_id", "config", "github_only")
-WHERE r."forge" = 'github' OR NOT b."github_only"
+WHERE r."armed" AND (r."forge" = 'github' OR NOT b."github_only")
 ON CONFLICT ("repo_id", "rule_id") DO NOTHING;

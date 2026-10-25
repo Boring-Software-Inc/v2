@@ -1,6 +1,5 @@
 import {
-	previewCaught,
-	RECOMMENDED_RULE_IDS,
+	libraryGroups,
 	type RulePreview,
 	ruleUiSchema,
 } from "@tripwire/contracts";
@@ -21,7 +20,11 @@ import {
 	ItemTitle,
 } from "#/components/glaze/ui/item";
 import { CaughtCount, caughtLabel } from "#/components/rules/caught-count";
-import { PreviewWindow, turnableRuleIds } from "#/components/rules/rule-packs";
+import {
+	PreviewWindow,
+	rulesCaught,
+	turnableRuleIds,
+} from "#/components/rules/rule-packs";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
@@ -54,11 +57,15 @@ export function RuleLibrary({
 	onTurnOn: (key: string, label: string, ruleIds: string[]) => void;
 }) {
 	const available = libraryRules(rules);
-	const pick = (ids: readonly string[]) =>
-		ids.flatMap((id) => available.filter((rule) => rule.ruleId === id));
+	const ids = libraryGroups(
+		available.map((rule) => rule.ruleId),
+		mostUsed,
+	);
+	const pick = (list: readonly string[]) =>
+		list.flatMap((id) => available.filter((rule) => rule.ruleId === id));
 	const groups = [
-		{ title: "Recommended", rules: pick(RECOMMENDED_RULE_IDS) },
-		{ title: "Most used", rules: pick(mostUsed) },
+		{ title: "Recommended", rules: pick(ids.recommended) },
+		{ title: "Most used", rules: pick(ids.mostUsed) },
 	].filter((group) => group.rules.length > 0);
 
 	return (
@@ -105,7 +112,7 @@ function LibraryRow({
 	pending: string | null;
 	onTurnOn: (key: string, label: string, ruleIds: string[]) => void;
 }) {
-	const count = previewCaught(preview, [rule.ruleId]);
+	const count = rulesCaught(preview, rules, [rule.ruleId]);
 	const examples =
 		preview?.rules.find((entry) => entry.ruleId === rule.ruleId)?.examples ??
 		[];
@@ -126,7 +133,7 @@ function LibraryRow({
 					<ParamSentence
 						canEdit={false}
 						className="first-letter:uppercase"
-						config={rule.defaultConfig}
+						config={rule.config}
 						onSaveParam={() => undefined}
 						ruleId={rule.ruleId}
 					/>

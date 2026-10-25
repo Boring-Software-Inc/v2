@@ -88,7 +88,15 @@ test("loads the window's change requests and their stored rule steps", async () 
 		ruleId: "account-age@1",
 		status: "fail",
 		input: { ref: "account-age@1", config: { minDays: 7 } },
-		summary: "Account is 1 day old.",
+		evidence: {
+			ruleId: "account-age",
+			version: 1,
+			status: "evaluated",
+			passed: false,
+			evaluatedAt: NOW.toISOString(),
+			evidence: { accountAgeDays: 1, minDays: 7 },
+		},
+		summary: "Your account is 1 day old.",
 		startedAt: NOW,
 		finishedAt: NOW,
 		durationMs: 1,
@@ -108,7 +116,7 @@ test("loads the window's change requests and their stored rule steps", async () 
 			ref: "account-age@1",
 			config: { minDays: 7 },
 			status: "fail",
-			summary: "Account is 1 day old.",
+			evidence: { accountAgeDays: 1, minDays: 7 },
 		},
 	]);
 });

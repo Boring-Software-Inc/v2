@@ -3,6 +3,7 @@ import {
 	RULE_CATALOG,
 	RULE_PACKS,
 	type RulePreview,
+	sameSettings,
 } from "@tripwire/contracts";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
@@ -32,6 +33,18 @@ export function turnableRuleIds(
 			rule.unavailableReason === null
 		);
 	});
+}
+
+export function rulesCaught(
+	preview: RulePreview | null,
+	rules: readonly RuleConfigView[],
+	ruleIds: readonly string[],
+): number | null {
+	const tuned = ruleIds.some((id) => {
+		const rule = rules.find((r) => r.ruleId === id);
+		return rule !== undefined && !sameSettings(rule.config, rule.defaultConfig);
+	});
+	return tuned ? null : previewCaught(preview, ruleIds);
 }
 
 export function PreviewWindow({
@@ -99,7 +112,7 @@ export function RulePacks({
 									</ItemContent>
 									<CaughtCount
 										className="max-sm:hidden"
-										count={previewCaught(preview, pack.ruleIds)}
+										count={rulesCaught(preview, rules, pack.ruleIds)}
 									/>
 									<ItemActions className="me-0">
 										<Button

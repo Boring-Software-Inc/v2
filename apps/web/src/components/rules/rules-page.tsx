@@ -12,6 +12,7 @@ import {
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
+	EmptyRetry,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
 import {
@@ -387,7 +388,28 @@ export function RulesPage() {
 
 								{activeTab === "library" ? (
 									rules === undefined ? (
-										<RuleGridSkeleton />
+										rulesQuery.isError ? (
+											<Empty reason="error">
+												<EmptyHeader>
+													<EmptyTitle>Rules did not load</EmptyTitle>
+													<EmptyDescription>
+														Tripwire could not load rules. Check your
+														connection, then try again.
+													</EmptyDescription>
+												</EmptyHeader>
+												<EmptyContent>
+													<EmptyRetry
+														onRetry={async () => {
+															await rulesQuery.refetch({ throwOnError: true });
+														}}
+													>
+														Load rules again
+													</EmptyRetry>
+												</EmptyContent>
+											</Empty>
+										) : (
+											<RuleGridSkeleton />
+										)
 									) : offered.length === 0 ? (
 										<Empty art={<MascotArt mood="rules-empty" />}>
 											<EmptyHeader>

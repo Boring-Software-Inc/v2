@@ -70,6 +70,7 @@ describe("computeRulePreview", () => {
 		expect(english?.examples[0]).toMatchObject({
 			number: 3,
 			author: "user-3",
+			reason: "Title 100% non-latin",
 		});
 	});
 
@@ -97,21 +98,21 @@ describe("computeRulePreview", () => {
 						ref: "account-age@1",
 						config: { minDays: 7 },
 						status: "pass",
-						summary: null,
+						evidence: null,
 					},
 					{
 						number: 5,
 						ref: "account-age@1",
 						config: { minDays: 7 },
 						status: "fail",
-						summary: "Account is 2 days old.",
+						evidence: { accountAgeDays: 1, minDays: 7 },
 					},
 					{
 						number: 4,
 						ref: "account-age@1",
 						config: { minDays: 7 },
 						status: "pass",
-						summary: null,
+						evidence: null,
 					},
 				],
 			},
@@ -120,7 +121,7 @@ describe("computeRulePreview", () => {
 		);
 		const age = ruleOf(preview, "account-age");
 		expect(age?.caught).toEqual([5]);
-		expect(age?.examples[0]?.reason).toBe("Account is 2 days old.");
+		expect(age?.examples[0]?.reason).toBe("Account 1 day old");
 	});
 
 	test("an evaluation at other settings, or a skip, is not evidence", async () => {
@@ -136,14 +137,14 @@ describe("computeRulePreview", () => {
 						ref: "account-age@1",
 						config: { minDays: 30 },
 						status: "fail",
-						summary: null,
+						evidence: null,
 					},
 					{
 						number: 4,
 						ref: "account-age@1",
 						config: { minDays: 7 },
 						status: "skipped",
-						summary: null,
+						evidence: null,
 					},
 				],
 			},

@@ -120,3 +120,37 @@ export function previewCaught(
 	}
 	return numbers.size;
 }
+
+function canonical(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(canonical);
+	}
+	if (value !== null && typeof value === "object") {
+		return Object.fromEntries(
+			Object.entries(value)
+				.sort(([a], [b]) => a.localeCompare(b))
+				.map(([key, inner]) => [key, canonical(inner)]),
+		);
+	}
+	return value;
+}
+
+export function sameSettings(a: unknown, b: unknown): boolean {
+	return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+}
+
+export function libraryGroups(
+	available: readonly string[],
+	mostUsed: readonly string[],
+): { recommended: string[]; mostUsed: string[] } {
+	const recommended = RECOMMENDED_RULE_IDS.filter((id) =>
+		available.includes(id),
+	);
+	const rest = available.filter((id) => !recommended.includes(id));
+	const ranked = mostUsed.filter((id) => rest.includes(id));
+	const leftover = mostUsedOrder(
+		rest.filter((id) => !ranked.includes(id)),
+		null,
+	);
+	return { recommended, mostUsed: [...ranked, ...leftover] };
+}
