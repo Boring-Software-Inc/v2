@@ -40,8 +40,11 @@ export async function latestOpenChangeRequest(
 		  AND normalized_at IS NOT NULL
 		  AND kind IN ('change-request.opened', 'change-request.updated', 'change-request.closed')
 		GROUP BY subject_number
-		HAVING bool_or(kind = 'change-request.opened')
-		   AND NOT bool_or(kind = 'change-request.closed')
+		HAVING max(received_at) FILTER (WHERE kind = 'change-request.opened')
+		     > coalesce(
+		         max(received_at) FILTER (WHERE kind = 'change-request.closed'),
+		         '-infinity'::timestamptz
+		       )
 		ORDER BY max(received_at) DESC
 		LIMIT 1`);
 	const row = openRowSchema.safeParse(result.rows[0]);

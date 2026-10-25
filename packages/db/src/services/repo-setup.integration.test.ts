@@ -192,5 +192,17 @@ describe("repo setup facts", () => {
 				forge: "github",
 			}),
 		).toBe(509);
+		await addEvent(
+			"lumenhq/lumen",
+			512,
+			"change-request.opened",
+			new Date(t0.getTime() + 240_000),
+		);
+		expect(
+			await latestOpenChangeRequest(db, {
+				fullName: "lumenhq/lumen",
+				forge: "github",
+			}),
+		).toBe(512);
 	});
 });
