@@ -209,3 +209,92 @@ describe("the picker offers only safe, type-valid verbs", () => {
 		}
 	});
 });
+
+describe("negated sentences say what the evaluator checks", () => {
+	test("a boolean reads present or missing by its final polarity", () => {
+		const sentence = (comparison: CustomRuleDefinition["comparison"]) =>
+			customRuleSentence({ when: { id: "pr.isDraft" }, comparison });
+		expect(sentence({ kind: "equals", args: [true] })).toBe(
+			"require that draft is present",
+		);
+		expect(sentence({ kind: "equals", args: [false] })).toBe(
+			"require that draft is missing",
+		);
+		expect(
+			sentence({ kind: "not", args: [{ kind: "equals", args: [true] }] }),
+		).toBe("require that draft is missing");
+		expect(
+			sentence({ kind: "not", args: [{ kind: "equals", args: [false] }] }),
+		).toBe("require that draft is present");
+	});
+
+	test("a negated text comparison reads as its opposite verb", () => {
+		const sentence = (inner: { kind: string; args: string[] }) =>
+			customRuleSentence({
+				when: { id: "pr.sourceBranch" },
+				comparison: {
+					kind: "not",
+					args: [inner],
+				} as CustomRuleDefinition["comparison"],
+			});
+		expect(sentence({ kind: "startsWith", args: ["release-please"] })).toBe(
+			"require that source branch does not start with release-please",
+		);
+		expect(sentence({ kind: "endsWith", args: ["-wip"] })).toBe(
+			"require that source branch does not end with -wip",
+		);
+		expect(sentence({ kind: "has", args: ["tmp"] })).toBe(
+			"require that source branch does not contain tmp",
+		);
+		expect(sentence({ kind: "equals", args: ["main"] })).toBe(
+			"require that source branch is not main",
+		);
+	});
+
+	test("negated numbers, ranges and lists never print an object", () => {
+		const cases: [CustomRuleDefinition, string][] = [
+			[
+				{
+					when: { id: "contributor.accountAge" },
+					comparison: { kind: "not", args: [{ kind: "under", args: [7] }] },
+				},
+				"require that account age is at least 7 days",
+			],
+			[
+				{
+					when: { id: "pr.filesChanged" },
+					comparison: {
+						kind: "not",
+						args: [{ kind: "between", args: [1, 5] }],
+					},
+				},
+				"require that files changed is not between 1 and 5",
+			],
+			[
+				{
+					when: { id: "pr.body" },
+					comparison: {
+						kind: "not",
+						args: [{ kind: "containsAny", args: [["airdrop", "giveaway"]] }],
+					},
+				},
+				"require that description contains none of airdrop, giveaway",
+			],
+			[
+				{
+					when: { id: "pr.changedPaths" },
+					comparison: {
+						kind: "not",
+						args: [{ kind: "noneMatch", args: [["docs/**"]] }],
+					},
+				},
+				"require that changed paths touches some of docs/**",
+			],
+		];
+		for (const [definition, expected] of cases) {
+			const sentence = customRuleSentence(definition);
+			expect(sentence).toBe(expected);
+			expect(sentence).not.toContain("[object Object]");
+		}
+	});
+});
