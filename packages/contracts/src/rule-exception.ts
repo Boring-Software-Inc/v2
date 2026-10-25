@@ -162,7 +162,7 @@ export function exceptionName(
 }
 
 export function exceptionLine(name: string): string {
-	return `Except: ${name}`;
+	return `Skip when: ${name}`;
 }
 
 export function ruleExceptionGates(

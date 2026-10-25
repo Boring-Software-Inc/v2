@@ -509,11 +509,6 @@ export type EdgeWhen = z.infer<typeof edgeWhenSchema>;
 export const gateInputSchema = z.enum(["requirement", "exception"]);
 export type GateInput = z.infer<typeof gateInputSchema>;
 
-export const GATE_INPUT_LABELS = {
-	requirement: "Requirement",
-	exception: "Exception",
-} as const satisfies Record<GateInput, string>;
-
 export const workflowEdgeSchema = z.object({
 	id: z.string(),
 	from: workflowNodeIdSchema,
@@ -714,7 +709,7 @@ export const GATE_CATALOG: GateCatalogEntry[] = [
 		name: "Except when",
 		description:
 			"Passes when the requirement passes or the exception passes. Missing exception proof does not waive the requirement.",
-		toolbox: true,
+		toolbox: false,
 	},
 ];
 

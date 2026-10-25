@@ -424,16 +424,16 @@ function checkNotInputs(ctx: LintContext): Finding[] {
 	});
 }
 
-export const EMPTY_EXCEPTION_GROUP = "Connect the rules of this exception.";
+export const EMPTY_EXCEPTION_GROUP = "Add a check.";
 
 export const UNLESS_EMPTY_PORT = {
-	requirement: "Connect a requirement.",
-	exception: "Connect an exception.",
+	requirement: "Add a rule.",
+	exception: "Add a check.",
 } as const;
 
 const UNLESS_EXTRA_INPUT = {
-	requirement: "It takes one requirement. Keep one.",
-	exception: "It takes one exception. Keep one.",
+	requirement: "It takes one rule group. Keep one.",
+	exception: "It takes one Skip when. Keep one.",
 } as const;
 
 function checkUnlessInputs(ctx: LintContext): Finding[] {
@@ -450,8 +450,7 @@ function checkUnlessInputs(ctx: LintContext): Finding[] {
 			{
 				nodeId: edge.to,
 				edgeId: edge.id,
-				message:
-					"Only an Except when gate takes a requirement or an exception.",
+				message: "This connection does nothing. Remove it.",
 				fixes: [removeEdge(edge.id)],
 			},
 		];
@@ -485,7 +484,7 @@ function checkUnlessInputs(ctx: LintContext): Finding[] {
 			findings.push({
 				nodeId: node.id,
 				edgeId: edge.id,
-				message: "Connect it to Requirement or Exception.",
+				message: "This connection does nothing. Remove it.",
 				fixes: [removeEdge(edge.id)],
 			});
 		}

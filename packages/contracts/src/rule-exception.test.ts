@@ -247,7 +247,7 @@ describe("Except when lint", () => {
 		const issue = lintWorkflow(doubled).find(
 			(entry) => entry.rule === "unless-inputs",
 		);
-		expect(issue?.message).toBe("It takes one requirement. Keep one.");
+		expect(issue?.message).toBe("It takes one rule group. Keep one.");
 		expect(issue?.fixes).toEqual([
 			{
 				label: expect.any(String),

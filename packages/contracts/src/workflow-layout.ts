@@ -77,16 +77,6 @@ export function laneDepths(
 	for (const id of lane.nodeIds) {
 		depths.set(id, depthOf(id, new Set()));
 	}
-	for (const id of lane.nodeIds) {
-		const outgoing = graph.edges.filter((edge) => edge.from === id);
-		const gateDepths = outgoing.flatMap((edge) =>
-			edge.input === "requirement" ? [depths.get(edge.to) ?? 0] : [],
-		);
-		const own = depths.get(id) ?? 0;
-		if (gateDepths.length > 0 && gateDepths.length === outgoing.length) {
-			depths.set(id, Math.max(own, Math.min(...gateDepths) - 1));
-		}
-	}
 	return depths;
 }
 
@@ -128,36 +118,10 @@ export function layoutWorkflow(
 		}
 		top = bottom + spacing.laneGap;
 	}
-	const bottoms = new Map<number, number>();
-	for (const node of graph.nodes) {
-		const at = placed.get(node.id);
-		if (at) {
-			bottoms.set(
-				at.x,
-				Math.max(bottoms.get(at.x) ?? 0, at.y + heightOf(node)),
-			);
-		}
-	}
 	const loose = graph.nodes.filter((node) => !placed.has(node.id));
-	let next = 0;
-	for (const node of loose) {
-		const feeds = graph.edges.find(
-			(edge) =>
-				edge.from === node.id &&
-				edge.input === "exception" &&
-				placed.has(edge.to),
-		);
-		const gate = feeds ? placed.get(feeds.to) : undefined;
-		if (gate && gate.x >= column) {
-			const x = gate.x - column;
-			const y = (bottoms.get(x) ?? gate.y) + spacing.rowGap;
-			placed.set(node.id, { x, y });
-			bottoms.set(x, y + heightOf(node));
-			continue;
-		}
-		placed.set(node.id, { x: next * column, y: top });
-		next++;
-	}
+	loose.forEach((node, index) => {
+		placed.set(node.id, { x: index * column, y: top });
+	});
 	return placed;
 }
 

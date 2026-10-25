@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { exceptionDraft } from "./rule-exception.ts";
 import type { WorkflowDefinition } from "./workflow.ts";
 import {
 	arrangeWorkflow,
@@ -140,60 +139,5 @@ describe("workflowLanes", () => {
 			],
 		});
 		expect(lanes.map((lane) => lane.nodeIds)).toEqual([["a", "x"], ["b"]]);
-	});
-});
-
-describe("Except when layout", () => {
-	test("the requirement sits beside the exception group, one column before the gate", () => {
-		const draft = exceptionDraft({
-			id: "wf",
-			name: "Target is main",
-			rule: {
-				ref: "account-age@1",
-				config: { minDays: 7 },
-				outcome: { outcome: "block", instruction: "" },
-			},
-		});
-		const filled: WorkflowDefinition = {
-			...draft,
-			nodes: [
-				...draft.nodes,
-				{
-					id: "x",
-					type: "rule",
-					ref: "max-files-changed@1",
-					config: { max: 1 },
-				},
-			],
-			edges: [
-				...draft.edges,
-				{ id: "tx", from: "trigger", to: "x" },
-				{ id: "xg", from: "x", to: "exception" },
-			],
-		};
-		const placed = layoutWorkflow(filled, { spacing: SPACING, heightOf });
-		const column = SPACING.cardWidth + SPACING.columnGap;
-		expect(placed.get("x")?.x).toBe(column);
-		expect(placed.get("exception")?.x).toBe(2 * column);
-		expect(placed.get("requirement")?.x).toBe(2 * column);
-		expect(placed.get("except-when")?.x).toBe(3 * column);
-		expect(placed.get("requirement")?.y).toBe(placed.get("except-when")?.y);
-	});
-
-	test("an empty exception group sits under the requirement, before the gate", () => {
-		const draft = exceptionDraft({
-			id: "wf",
-			name: "Account age",
-			rule: {
-				ref: "account-age@1",
-				config: { minDays: 7 },
-				outcome: { outcome: "block", instruction: "" },
-			},
-		});
-		const placed = layoutWorkflow(draft, { spacing: SPACING, heightOf });
-		const requirement = placed.get("requirement");
-		const group = placed.get("exception");
-		expect(group?.x).toBe(requirement?.x);
-		expect(group?.y).toBe((requirement?.y ?? 0) + 60 + SPACING.rowGap);
 	});
 });
