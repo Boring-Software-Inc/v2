@@ -1255,7 +1255,6 @@ function EditorBody({
 								ref: item.ref,
 								name: item.name,
 								config: item.defaultConfig,
-								custom: false,
 							},
 						]
 					: [],
@@ -1264,7 +1263,6 @@ function EditorBody({
 				ref: rule.ref,
 				name: rule.name,
 				config: {},
-				custom: true,
 			})),
 		],
 		[customRules],

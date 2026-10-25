@@ -11,9 +11,7 @@ import { Button } from "#/components/glaze/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
-	DropdownMenuGroup,
 	DropdownMenuItem,
-	DropdownMenuLabel,
 	DropdownMenuTrigger,
 } from "#/components/glaze/ui/dropdown-menu";
 import {
@@ -194,8 +192,6 @@ function AddRuleMenu({
 		return null;
 	}
 	const open = choices.filter((choice) => !exclude.has(ruleIdOf(choice.ref)));
-	const builtIn = open.filter((choice) => !choice.custom);
-	const custom = open.filter((choice) => choice.custom);
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger
@@ -211,25 +207,12 @@ function AddRuleMenu({
 				{label}
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start" size="sm">
-				{[
-					{ title: "Rules", items: builtIn },
-					{ title: "Custom rules", items: custom },
-				]
-					.filter((section) => section.items.length > 0)
-					.map((section) => (
-						<DropdownMenuGroup key={section.title}>
-							<DropdownMenuLabel>{section.title}</DropdownMenuLabel>
-							{section.items.map((choice) => (
-								<DropdownMenuItem
-									key={choice.ref}
-									onClick={() => onPick(choice)}
-								>
-									<Icon icon={ruleIcon(choice.ref)} />
-									{choice.name}
-								</DropdownMenuItem>
-							))}
-						</DropdownMenuGroup>
-					))}
+				{open.map((choice) => (
+					<DropdownMenuItem key={choice.ref} onClick={() => onPick(choice)}>
+						<Icon icon={ruleIcon(choice.ref)} />
+						{choice.name}
+					</DropdownMenuItem>
+				))}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

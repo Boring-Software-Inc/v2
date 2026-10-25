@@ -6,7 +6,6 @@ export interface RuleChoice {
 	ref: string;
 	name: string;
 	config: JsonValue;
-	custom: boolean;
 }
 
 export interface RuleGroupsApi {
