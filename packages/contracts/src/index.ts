@@ -37,6 +37,7 @@ export * from "./repo-content.ts";
 export * from "./response.ts";
 export * from "./review.ts";
 export * from "./rule-execution.ts";
+export * from "./rule-packs.ts";
 export * from "./rules.ts";
 export * from "./run-result.ts";
 export * from "./run-steps.ts";

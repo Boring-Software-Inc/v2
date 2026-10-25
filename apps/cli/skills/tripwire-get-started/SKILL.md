@@ -66,8 +66,9 @@ them and carry on. They never block or change setup.
    it moves on.
 3. **Sync repos.** Poll `setup_status` until `list_repos` shows the repos.
    Pick the repo that matches this project, or ask.
-4. **Pick rules.** Read this repo's README and CONTRIBUTING, then
-   `list_rule_catalog` and `get_repo_rules`. Propose a short starting set with
+4. **Pick rules.** A new repo starts with no rules on, so the gate checks
+   nothing until you turn some on. Read this repo's README and CONTRIBUTING,
+   then `list_rule_catalog` and `get_repo_rules`. Propose a short starting set with
    params and say why in one line each. On yes, call `set_rule` for each.
    When no built-in rule fits, propose a custom rule and save it with
    `save_custom_rule`. Show the user the sentence it returns.

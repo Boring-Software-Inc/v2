@@ -1,5 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
-import { RULE_CATALOG } from "@tripwire/contracts";
+import {
+	mostUsedOrder,
+	RECOMMENDED_RULE_IDS,
+	RULE_CATALOG,
+	RULE_FALLBACK_ORDER,
+	type RulePreview,
+} from "@tripwire/contracts";
 import type {
 	OrgWithRole,
 	RuleConfigView,
@@ -30,6 +36,74 @@ async function queueBranchSync(repoId: string): Promise<void> {
 		syncRepoBranchesOptions(repoId),
 	);
 }
+
+async function queueRulePreview(repoId: string): Promise<void> {
+	const { getBoss, isDemoMode } = await import("#/lib/server/db");
+	if (isDemoMode()) {
+		return;
+	}
+	const { RULE_PREVIEW_QUEUE, rulePreviewOptions } = await import(
+		"@tripwire/db"
+	);
+	const boss = await getBoss();
+	await boss.send(RULE_PREVIEW_QUEUE, { repoId }, rulePreviewOptions(repoId));
+}
+
+export interface RuleLibrary {
+	preview: RulePreview | null;
+	mostUsed: string[];
+}
+
+export const getRuleLibrary = createServerFn({ method: "GET" })
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:read")])
+	.inputValidator((input: { org: string; repoId: string }) => input)
+	.handler(async ({ data, context }): Promise<RuleLibrary> => {
+		await requireOrgRepoById(
+			(context as { org: OrgWithRole }).org.id,
+			data.repoId,
+		);
+		const { rulePreviewServices } = await import("@tripwire/db");
+		const { getDb } = await import("#/lib/server/db");
+		const db = getDb().db;
+		const stored = await rulePreviewServices.getRulePreview(db, data.repoId);
+		if (rulePreviewServices.previewNeedsRefresh(stored, new Date())) {
+			await queueRulePreview(data.repoId);
+		}
+		const usage = await rulePreviewServices.getRuleUsage(db);
+		return {
+			preview: stored?.preview ?? null,
+			mostUsed: mostUsedOrder(
+				RULE_FALLBACK_ORDER.filter((id) => !RECOMMENDED_RULE_IDS.includes(id)),
+				usage,
+			),
+		};
+	});
+
+export const setRulesEnabled = createServerFn({ method: "POST" })
+	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:manage")])
+	.inputValidator(
+		(input: {
+			org: string;
+			repoId: string;
+			ruleIds: string[];
+			enabled: boolean;
+		}) => input,
+	)
+	.handler(
+		async ({ data, context }): Promise<{ ok: true } | { error: string }> => {
+			await requireOrgRepoById(
+				(context as { org: OrgWithRole }).org.id,
+				data.repoId,
+			);
+			const { ruleServices } = await import("@tripwire/db");
+			const { getDb } = await import("#/lib/server/db");
+			return await ruleServices.setRulesEnabled(getDb().db, {
+				repoId: data.repoId,
+				ruleIds: data.ruleIds,
+				enabled: data.enabled,
+			});
+		},
+	);
 
 export const listRuleConfigViews = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:read")])

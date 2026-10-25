@@ -16,6 +16,8 @@ import {
 	type RefreshSurfacesJob,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
+	RULE_PREVIEW_QUEUE,
+	type RulePreviewJob,
 	repoServices,
 	SYNC_FLAG_OVERRIDES_QUEUE,
 	SYNC_REPO_BRANCHES_QUEUE,
@@ -62,6 +64,7 @@ import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { rollup } from "./jobs/rollup.ts";
+import { refreshRulePreview } from "./jobs/rule-preview.ts";
 import {
 	SCHEDULE_TICK_CRON,
 	SCHEDULE_TICK_QUEUE,
@@ -374,6 +377,15 @@ if (import.meta.main) {
 			}
 		});
 
+		await work<RulePreviewJob>(RULE_PREVIEW_QUEUE, async (jobs) => {
+			for (const job of jobs) {
+				await refreshRulePreview(
+					{ db, logger: logger.child({ repoId: job.data.repoId }) },
+					job.data,
+				);
+			}
+		});
+
 		await work<SyncFlagOverridesJob>(
 			SYNC_FLAG_OVERRIDES_QUEUE,
 			async (jobs) => {
@@ -591,6 +603,7 @@ if (import.meta.main) {
 				SYNC_REPO_REVIEWERS_QUEUE,
 				SYNC_REPO_LABELS_QUEUE,
 				SYNC_REPO_BRANCHES_QUEUE,
+				RULE_PREVIEW_QUEUE,
 				SYNC_FLAG_OVERRIDES_QUEUE,
 				SWEEP_FLAG_REMOVALS_QUEUE,
 				REFRESH_SURFACES_QUEUE,

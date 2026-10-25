@@ -358,7 +358,7 @@ export function registerTools(
 			"get_repo_rules",
 			{
 				description:
-					"The rules on a repo: on or off, current settings, and whether a workflow owns them. Custom rules also carry their sentence, description, definition and the workflows that use them. Use a custom rule in tripwire.ts with customCheck(ruleId).",
+					"The rules on a repo: on or off, current settings, and whether a workflow owns them. A repo starts with no rules on, and Tripwire checks nothing until a rule is turned on. Custom rules also carry their sentence, description, definition and the workflows that use them. Use a custom rule in tripwire.ts with customCheck(ruleId).",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("get_repo_rules"),
 			},
@@ -611,7 +611,7 @@ export function registerTools(
 			"turn_on_gate",
 			{
 				description:
-					"Turn the Tripwire gate on for a repo so new pull requests get checked. Ask the user first.",
+					"Turn the Tripwire gate on for a repo so new pull requests get checked. Ask the user first. With no rules on, the gate checks nothing, so turn rules on with set_rule first.",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("turn_on_gate"),
 			},

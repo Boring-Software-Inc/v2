@@ -297,3 +297,33 @@ export async function saveRuleConfig(
 	});
 	return { ok: true };
 }
+
+export async function setRulesEnabled(
+	db: Db,
+	input: { repoId: string; ruleIds: readonly string[]; enabled: boolean },
+): Promise<SaveRuleResult> {
+	const stored = await listRuleConfigs(db, input.repoId);
+	for (const ruleId of input.ruleIds) {
+		const entry = RULE_CATALOG.find((r) => r.ruleId === ruleId);
+		if (!entry) {
+			return {
+				error: `Tripwire does not know the rule ${ruleId}. Reload the page and try again.`,
+			};
+		}
+		const row = stored.find((c) => c.ruleId === ruleId);
+		const config =
+			row && entry.configSchema.safeParse(row.config).success
+				? row.config
+				: entry.defaultConfig;
+		const result = await saveRuleConfig(db, {
+			repoId: input.repoId,
+			ruleId,
+			enabled: input.enabled,
+			config,
+		});
+		if ("error" in result) {
+			return result;
+		}
+	}
+	return { ok: true };
+}

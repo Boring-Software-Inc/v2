@@ -645,7 +645,7 @@ export function ruleProjection(
 		return {
 			evidence: { accountAgeDays: age, minDays: 7 },
 			publicEvidence: { accountAgeDays: age },
-			summary: `your account is ${age} days old`,
+			summary: `your account is ${age} ${age === 1 ? "day" : "days"} old`,
 		};
 	}
 	if (id === "crypto-address") {

@@ -5,7 +5,7 @@ import { deriveDefaultWorkflow, type RuleToggle } from "./derive.ts";
 import { executeWorkflow } from "./executor.ts";
 import { validateWorkflow } from "./validate.ts";
 
-const baselineRefs = DEFAULT_WORKFLOW.nodes
+const legacyRefs = DEFAULT_WORKFLOW.nodes
 	.filter((n): n is Extract<typeof n, { type: "rule" }> => n.type === "rule")
 	.map((n) => n.ref);
 
@@ -18,57 +18,53 @@ function refsOf(def: ReturnType<typeof deriveDefaultWorkflow>): string[] {
 const clock = () => new Date(1_752_000_000_000).toISOString();
 
 describe("deriveDefaultWorkflow", () => {
-	test("no toggles ⇒ valid workflow reproducing the baseline rule set", () => {
+	test("no toggles ⇒ a valid trigger-only workflow: nothing is on by default", () => {
 		const def = deriveDefaultWorkflow([]);
 		expect(validateWorkflow(def).valid).toBe(true);
 		expect(def.id).toBe(DEFAULT_WORKFLOW.id);
-		expect(refsOf(def).sort()).toEqual([...baselineRefs].sort());
+		expect(refsOf(def)).toEqual([]);
+		expect(def.nodes.some((n) => n.type === "gate")).toBe(false);
 	});
 
-	test("disabling a baseline rule drops it from the derived graph (§6 kill switch)", () => {
-		const target = baselineRefs[0] as string;
-		const toggles: RuleToggle[] = [{ ref: target, enabled: false, config: {} }];
-		const def = deriveDefaultWorkflow(toggles);
-		expect(refsOf(def)).not.toContain(target);
-		expect(refsOf(def).length).toBe(baselineRefs.length - 1);
+	test("enabled toggles run, disabled ones do not", () => {
+		const def = deriveDefaultWorkflow([
+			{ ref: "account-age@1", enabled: true, config: { minDays: 90 } },
+			{ ref: "honeypot@1", enabled: false, config: {} },
+		]);
+		expect(refsOf(def)).toEqual(["account-age@1"]);
+		const node = def.nodes.find(
+			(n) => n.type === "rule" && n.ref === "account-age@1",
+		) as Extract<(typeof def.nodes)[number], { type: "rule" }>;
+		expect(node.config).toEqual({ minDays: 90 });
 		expect(validateWorkflow(def).valid).toBe(true);
 	});
 
-	test("toggle config overrides the baseline config", () => {
-		const target = "account-age@1";
-		const def = deriveDefaultWorkflow([
-			{ ref: target, enabled: true, config: { minDays: 90 } },
-		]);
-		const node = def.nodes.find(
-			(n) => n.type === "rule" && n.ref === target,
-		) as Extract<(typeof def.nodes)[number], { type: "rule" }>;
-		expect(node.config).toEqual({ minDays: 90 });
-	});
-
-	test("a held toggle at a different version REPLACES the baseline entry (no double-eval)", () => {
-		// §6 (b): account-age is baseline at @1. A repo HELD on another version of
-		// the SAME rule must yield exactly one account-age node — the toggle's —
-		// never the baseline @1 alongside it. (derive keys by rule id, not ref.)
+	test("the stored version is the one that runs", () => {
 		const def = deriveDefaultWorkflow([
 			{ ref: "account-age@2", enabled: true, config: { minDays: 30 } },
 		]);
-		const accountAgeRefs = refsOf(def).filter((r) =>
-			r.startsWith("account-age@"),
-		);
-		expect(accountAgeRefs).toEqual(["account-age@2"]);
+		expect(refsOf(def)).toEqual(["account-age@2"]);
 	});
 
-	test("an enabled non-baseline rule is opted in", () => {
-		const extra = "min-merged-prs@1";
-		expect(baselineRefs).not.toContain(extra);
-		const def = deriveDefaultWorkflow([
-			{ ref: extra, enabled: true, config: { min: 5 } },
+	test("rules run in catalog order whatever order the rows come in", () => {
+		const toggles: RuleToggle[] = [
+			{ ref: "english-only@1", enabled: true, config: {} },
+			{ ref: "custom-b@1", enabled: true, config: {} },
+			{ ref: "account-age@1", enabled: true, config: {} },
+			{ ref: "custom-a@1", enabled: true, config: {} },
+		];
+		expect(refsOf(deriveDefaultWorkflow(toggles))).toEqual([
+			"account-age@1",
+			"english-only@1",
+			"custom-a@1",
+			"custom-b@1",
 		]);
-		expect(refsOf(def)).toContain(extra);
+		expect(refsOf(deriveDefaultWorkflow([...toggles].reverse()))).toEqual(
+			refsOf(deriveDefaultWorkflow(toggles)),
+		);
 	});
 
-	test("ai-review is opt-in (§8): absent from the baseline, opted in only when enabled", () => {
-		expect(baselineRefs).not.toContain("ai-review@1");
+	test("ai-review is off until enabled (§8)", () => {
 		expect(refsOf(deriveDefaultWorkflow([]))).not.toContain("ai-review@1");
 		const def = deriveDefaultWorkflow([
 			{ ref: "ai-review@1", enabled: true, config: { maxSteps: 12 } },
@@ -77,23 +73,19 @@ describe("deriveDefaultWorkflow", () => {
 	});
 
 	test("excluded rule ids (owned by a saved workflow) are left out of the derivation", () => {
-		// §6 — workflows compose: the worker derives the default over the rules a
-		// saved workflow does NOT own. Exclusion beats the toggle: an enabled
-		// baseline rule AND an enabled opt-in both drop when a workflow owns them.
-		const owned = baselineRefs[0] as string;
-		const ownedId = owned.split("@")[0] as string;
 		const def = deriveDefaultWorkflow(
-			[{ ref: "min-merged-prs@1", enabled: true, config: { min: 5 } }],
-			new Set([ownedId, "min-merged-prs"]),
+			[
+				{ ref: "account-age@1", enabled: true, config: {} },
+				{ ref: "min-merged-prs@1", enabled: true, config: { min: 5 } },
+			],
+			new Set(["min-merged-prs"]),
 		);
-		expect(refsOf(def)).not.toContain(owned);
-		expect(refsOf(def)).not.toContain("min-merged-prs@1");
-		expect(refsOf(def).length).toBe(baselineRefs.length - 1);
+		expect(refsOf(def)).toEqual(["account-age@1"]);
 		expect(validateWorkflow(def).valid).toBe(true);
 	});
 
-	test("all baseline rules disabled ⇒ trigger-only workflow ⇒ verdict pass", async () => {
-		const toggles: RuleToggle[] = baselineRefs.map((ref) => ({
+	test("all rules disabled ⇒ trigger-only workflow ⇒ verdict pass", async () => {
+		const toggles: RuleToggle[] = legacyRefs.map((ref) => ({
 			ref,
 			enabled: false,
 			config: {},
@@ -122,20 +114,22 @@ describe("deriveDefaultWorkflow", () => {
 });
 
 describe("forge-aware derivation", () => {
-	/**
-	 * The bug this pins: every baseline rule but english-only is declared
-	 * `forges: ["github"]`, so an open-git gate built without filtering carried
-	 * four rules that could only ever skip — and one skip trips the fail-closed
-	 * floor, so every pull request went to review no matter what the rules said.
-	 */
-	test("a rule the forge cannot run is left out, not added and skipped", () => {
-		const onGithub = deriveDefaultWorkflow([], undefined, "github");
-		const onOpenGit = deriveDefaultWorkflow([], undefined, "opengit");
-		const refs = (wf: ReturnType<typeof deriveDefaultWorkflow>) =>
-			wf.nodes.flatMap((node) => (node.type === "rule" ? [node.ref] : []));
+	const legacyToggles: RuleToggle[] = legacyRefs.map((ref) => ({
+		ref,
+		enabled: true,
+		config: {},
+	}));
+	const refs = (wf: ReturnType<typeof deriveDefaultWorkflow>) =>
+		wf.nodes.flatMap((node) => (node.type === "rule" ? [node.ref] : []));
 
+	test("a rule the forge cannot run is left out, not added and skipped", () => {
+		const onGithub = deriveDefaultWorkflow(legacyToggles, undefined, "github");
+		const onOpenGit = deriveDefaultWorkflow(
+			legacyToggles,
+			undefined,
+			"opengit",
+		);
 		expect(refs(onGithub).length).toBeGreaterThan(refs(onOpenGit).length);
-		// english-only reads the title off the webhook, so it survives everywhere.
 		expect(refs(onOpenGit).some((ref) => ref.startsWith("english-only@"))).toBe(
 			true,
 		);
@@ -145,8 +139,8 @@ describe("forge-aware derivation", () => {
 	});
 
 	test("omitting the forge filters nothing", () => {
-		const unfiltered = deriveDefaultWorkflow([]);
-		const onGithub = deriveDefaultWorkflow([], undefined, "github");
+		const unfiltered = deriveDefaultWorkflow(legacyToggles);
+		const onGithub = deriveDefaultWorkflow(legacyToggles, undefined, "github");
 		expect(unfiltered.nodes.length).toBe(onGithub.nodes.length);
 	});
 
