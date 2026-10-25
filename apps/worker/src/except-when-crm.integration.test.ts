@@ -60,7 +60,8 @@ interface Pr {
 const offline = new GithubHttp({
 	tokenFor: () => Promise.resolve("offline"),
 	appId: 1,
-	fetchImpl: () => Promise.reject(new Error("offline")),
+	fetchImpl: ((_input: string | URL | Request) =>
+		Promise.reject(new Error("offline"))) as typeof fetch,
 });
 
 function reads(pr: Pr) {
