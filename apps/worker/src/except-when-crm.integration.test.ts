@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
+	type CustomRuleDefinition,
 	EXCEPTION_DRAFT_IDS,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
@@ -208,7 +209,7 @@ function commentBody(executed: ForgeAction[]): string {
 async function customRule(
 	repoId: string,
 	name: string,
-	definition: unknown,
+	definition: CustomRuleDefinition,
 	outcome?: { outcome: string; instruction: string },
 ): Promise<string> {
 	const saved = await customRuleServices.saveCustomRule(db, {
