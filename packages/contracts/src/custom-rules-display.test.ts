@@ -35,17 +35,61 @@ const forkRate: CustomRuleDefinition = {
 };
 
 describe("verb narrowing by meaning", () => {
-	test("enum-ish text signals offer is / is not / is one of, not substring", () => {
+	test("enum-ish text signals lead with is / is not / is one of, then prefix, suffix and part", () => {
 		const verbs = verbsForSignal(display("pr.targetBranch")).map((v) => v.kind);
-		expect(verbs).toEqual(["equals", "noneOf", "oneOf"]);
-		expect(verbs).not.toContain("has");
+		expect(verbs).toEqual([
+			"equals",
+			"noneOf",
+			"oneOf",
+			"startsWith",
+			"endsWith",
+			"has",
+		]);
 		expect(verbs).not.toContain("containsAny");
+	});
+
+	test("branch sentences read starts with, ends with and contains", () => {
+		expect(
+			customRuleSentence({
+				when: { id: "pr.sourceBranch" },
+				comparison: { kind: "startsWith", args: ["release-please"] },
+			}),
+		).toBe("require that source branch starts with release-please");
+		expect(
+			customRuleSentence({
+				when: { id: "pr.targetBranch" },
+				comparison: { kind: "endsWith", args: ["-stable"] },
+			}),
+		).toBe("require that target branch ends with -stable");
+		expect(
+			customRuleSentence({
+				when: { id: "pr.sourceBranch" },
+				comparison: { kind: "has", args: ["release-please"] },
+			}),
+		).toBe("require that source branch contains release-please");
 	});
 
 	test("free-text signals keep the substring verbs", () => {
 		const verbs = verbsForSignal(display("pr.body")).map((v) => v.kind);
 		expect(verbs).toContain("has");
+		expect(verbs).toContain("startsWith");
+		expect(verbs).toContain("endsWith");
 		expect(verbs).toContain("containsAny");
+	});
+
+	test("a free-text sentence reads starts with and ends with", () => {
+		expect(
+			customRuleSentence({
+				when: { id: "pr.title" },
+				comparison: { kind: "startsWith", args: ["feat"] },
+			}),
+		).toBe("require that title starts with feat");
+		expect(
+			customRuleSentence({
+				when: { id: "pr.title" },
+				comparison: { kind: "endsWith", args: ["."] },
+			}),
+		).toBe("require that title ends with .");
 	});
 
 	test("the sentence uses the narrowed label for an enum signal", () => {

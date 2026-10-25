@@ -20,6 +20,7 @@ export {
 	type Comparison,
 	containsAny,
 	empty,
+	endsWith,
 	equals,
 	has,
 	matches,
@@ -29,6 +30,7 @@ export {
 	oneOf,
 	over,
 	type SerializedComparison,
+	startsWith,
 	under,
 } from "./comparison.ts";
 export {

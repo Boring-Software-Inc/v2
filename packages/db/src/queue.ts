@@ -90,6 +90,16 @@ export function syncRepoLabelsOptions(repoId: string) {
 	return { singletonKey: repoId };
 }
 
+export const SYNC_REPO_BRANCHES_QUEUE = "sync-repo-branches";
+
+export interface SyncRepoBranchesJob {
+	repoId: string;
+}
+
+export function syncRepoBranchesOptions(repoId: string) {
+	return { singletonKey: repoId };
+}
+
 export const RECOVER_INSTALLATION_QUEUE = "recover-installation";
 
 export interface RecoverInstallationJob {
@@ -162,6 +172,7 @@ export async function createBoss(
 	await boss.createQueue(RERUN_QUEUE);
 	await boss.createQueue(SYNC_REPO_REVIEWERS_QUEUE, { policy: "stately" });
 	await boss.createQueue(SYNC_REPO_LABELS_QUEUE, { policy: "stately" });
+	await boss.createQueue(SYNC_REPO_BRANCHES_QUEUE, { policy: "stately" });
 	await boss.createQueue(REFRESH_SURFACES_QUEUE);
 	await boss.createQueue(SYNC_FLAG_OVERRIDES_QUEUE, { policy: "stately" });
 	await boss.createQueue(RECOVER_INSTALLATION_QUEUE, { policy: "stately" });

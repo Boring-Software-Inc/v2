@@ -38,6 +38,8 @@ export const CUSTOM_COMPARISON_KINDS = [
 	"oneOf",
 	"noneOf",
 	"has",
+	"startsWith",
+	"endsWith",
 	"containsAny",
 	"noneMatch",
 	"anyIn",

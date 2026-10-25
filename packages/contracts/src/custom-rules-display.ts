@@ -388,6 +388,8 @@ export const VERBS_BY_KIND: Record<
 	],
 	text: [
 		{ kind: "has", label: "contains" },
+		{ kind: "startsWith", label: "starts with" },
+		{ kind: "endsWith", label: "ends with" },
 		{ kind: "containsAny", label: "contains any of" },
 		{ kind: "equals", label: "is exactly" },
 		{ kind: "oneOf", label: "is one of" },
@@ -410,18 +412,22 @@ export const VERBS_BY_KIND: Record<
 	],
 };
 
-/** Enum-ish text signals compare by identity, not substring. */
+/** Enum-ish text signals compare by identity first, then by prefix, suffix
+ * or part, so a family of branches like release-please/* can be matched. */
 const ENUM_TEXT_VERBS: readonly { kind: string; label: string }[] = [
 	{ kind: "equals", label: "is" },
 	{ kind: "noneOf", label: "is not" },
 	{ kind: "oneOf", label: "is one of" },
+	{ kind: "startsWith", label: "starts with" },
+	{ kind: "endsWith", label: "ends with" },
+	{ kind: "has", label: "contains" },
 ];
 
 /**
  * The verb menu for a specific signal, narrowed by meaning. A branch or a login
- * (kind text, but drawn from a set) offers is / is not / is one of, not the
- * substring verbs that make no sense on an identifier. Free-text signals keep
- * the substring verbs. Presentation only; the evaluator still accepts either.
+ * (kind text, but drawn from a set) leads with is / is not / is one of and
+ * drops containsAny. Free-text signals keep every text verb. Presentation
+ * only; the evaluator still accepts either.
  */
 export function verbsForSignal(
 	signal: CustomSignalDisplay,
@@ -472,6 +478,12 @@ export function valuePlaceholder(
 	}
 	if (signal.kind === "textList") {
 		return "add a value";
+	}
+	if (verbKind === "startsWith") {
+		return "the start of the text";
+	}
+	if (verbKind === "endsWith") {
+		return "the end of the text";
 	}
 	if (verbKind === "has" || verbKind === "containsAny") {
 		return "a term";

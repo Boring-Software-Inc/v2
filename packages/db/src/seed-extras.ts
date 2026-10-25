@@ -65,7 +65,13 @@ const CUSTOM_RULES: CustomRuleRecord[] = [
 	},
 ];
 
-const BRANCHES = ["main", "develop", "release/2026-10", "docs"];
+const BRANCHES = [
+	"main",
+	"develop",
+	"release/2026-10",
+	"release-please--branches--main",
+	"docs",
+];
 
 const REVIEWERS = [
 	{ id: 91_000_001, login: "sam-okafor", permission: "admin" },

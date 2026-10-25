@@ -14,7 +14,7 @@ import {
 	PickerRow,
 	PickerRowAction,
 } from "#/components/common/grouped-picker";
-import { Check, Icon } from "#/components/glaze/icon";
+import { Check, type GlazeIcon, Icon } from "#/components/glaze/icon";
 import { ComboboxField } from "#/components/glaze/ui/combobox";
 import {
 	Dialog,
@@ -330,6 +330,12 @@ export function CustomRuleBuilder({
 	const verbLabel = state.verb?.label;
 	const windowLabel = WINDOWS.find((w) => w.window === state.window)?.label;
 	const listValue = state.values.join(", ");
+	const scalarPlaceholder =
+		state.signal && state.verb
+			? valuePlaceholder(state.signal, state.verb.kind)
+			: undefined;
+	const textSignalIcon =
+		state.signal?.kind === "text" ? conditionIcon(state.signal) : null;
 
 	return (
 		<Dialog onOpenChange={(next) => !next && onClose()} open={open}>
@@ -453,21 +459,33 @@ export function CustomRuleBuilder({
 											: "value"
 									}
 								>
-									<Input
-										aria-invalid={valueMessage !== null}
-										aria-label="Value"
-										autoFocus
-										inputMode={numericInput ? "numeric" : undefined}
-										max={percentInput ? 100 : undefined}
-										min={percentInput ? 0 : undefined}
-										onChange={(e) => set({ value: e.target.value })}
-										placeholder={valuePlaceholder(
-											state.signal,
-											state.verb.kind,
-										)}
-										type={numericInput ? "number" : "text"}
-										value={state.value}
-									/>
+									{(close) => (
+										<>
+											<Input
+												aria-invalid={valueMessage !== null}
+												aria-label="Value"
+												autoFocus
+												inputMode={numericInput ? "numeric" : undefined}
+												max={percentInput ? 100 : undefined}
+												min={percentInput ? 0 : undefined}
+												onChange={(e) => set({ value: e.target.value })}
+												placeholder={scalarPlaceholder}
+												type={numericInput ? "number" : "text"}
+												value={state.value}
+											/>
+											{textSignalIcon ? (
+												<SuggestedValues
+													icon={textSignalIcon}
+													onPick={(value) => {
+														set({ value });
+														close();
+													}}
+													query={state.value}
+													values={suggestions ?? []}
+												/>
+											) : null}
+										</>
+									)}
 								</ValueWord>
 							)
 						) : null}
@@ -575,6 +593,50 @@ function SignalWord({
 	);
 }
 
+const SUGGESTION_LIMIT = 50;
+
+function SuggestedValues({
+	values,
+	query,
+	icon,
+	onPick,
+}: {
+	values: readonly string[];
+	query: string;
+	icon: GlazeIcon;
+	onPick: (value: string) => void;
+}) {
+	const needle = query.trim().toLowerCase();
+	const shown = values
+		.filter((value) => value.toLowerCase().includes(needle))
+		.slice(0, SUGGESTION_LIMIT);
+	if (shown.length === 0) {
+		return null;
+	}
+	return (
+		<div className="-mx-1 mt-2 flex max-h-60 flex-col overflow-y-auto">
+			{shown.map((value) => (
+				<PickerRow
+					action={
+						<PickerRowAction
+							aria-current={value === query || undefined}
+							aria-label={value}
+							glyph={Check}
+							reveal={value === query ? "always" : "never"}
+						/>
+					}
+					icon={icon}
+					key={value}
+					name={value}
+					onClick={() => onPick(value)}
+					selected={value === query}
+					title={value}
+				/>
+			))}
+		</div>
+	);
+}
+
 function ValueWord({
 	label,
 	empty,
@@ -582,9 +644,10 @@ function ValueWord({
 }: {
 	label: string;
 	empty: boolean;
-	children: ReactNode;
+	children: ReactNode | ((close: () => void) => ReactNode);
 }) {
 	const [open, setOpen] = useState(false);
+	const close = () => setOpen(false);
 	return (
 		<Popover onOpenChange={setOpen} open={open}>
 			<PopoverTrigger className={wordClass(empty)}>{label}</PopoverTrigger>
@@ -592,10 +655,10 @@ function ValueWord({
 				<form
 					onSubmit={(event) => {
 						event.preventDefault();
-						setOpen(false);
+						close();
 					}}
 				>
-					{children}
+					{typeof children === "function" ? children(close) : children}
 				</form>
 			</PopoverContent>
 		</Popover>

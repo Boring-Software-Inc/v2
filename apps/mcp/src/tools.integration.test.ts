@@ -1202,7 +1202,7 @@ describe("custom rules", () => {
 			),
 		);
 		expect(second.sentence).toBe(
-			"require that source branch is one of release-please--branches--release",
+			"require that source branch starts with release-please",
 		);
 		fromId = second.id;
 		const { allOf, block, customCheck, workflow, workflows } =

@@ -15,6 +15,22 @@ import {
 
 export type { RuleConfigView, RulesHeaderStats };
 
+async function queueBranchSync(repoId: string): Promise<void> {
+	const { getBoss, isDemoMode } = await import("#/lib/server/db");
+	if (isDemoMode()) {
+		return;
+	}
+	const { SYNC_REPO_BRANCHES_QUEUE, syncRepoBranchesOptions } = await import(
+		"@tripwire/db"
+	);
+	const boss = await getBoss();
+	await boss.send(
+		SYNC_REPO_BRANCHES_QUEUE,
+		{ repoId },
+		syncRepoBranchesOptions(repoId),
+	);
+}
+
 export const listRuleConfigViews = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware, orgPermissionMiddleware("rules:read")])
 	.inputValidator((input: { org: string; repoId: string }) => input)
@@ -131,5 +147,16 @@ export const getRepoSuggestions = createServerFn({ method: "GET" })
 		);
 		const { repoServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		return repoServices.getRepoSuggestions(getDb().db, data.repoId, data.kind);
+		const list = await repoServices.getRepoSuggestionList(
+			getDb().db,
+			data.repoId,
+			data.kind,
+		);
+		if (
+			data.kind === "branches" &&
+			repoServices.suggestionsNeedSync(list.updatedAt, new Date())
+		) {
+			await queueBranchSync(data.repoId);
+		}
+		return list.values;
 	});

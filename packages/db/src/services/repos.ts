@@ -21,6 +21,7 @@ import {
 	ruleConfigs,
 	workflowDefinitions,
 } from "../schema/repos.ts";
+import { syncIsStale } from "./sync-age.ts";
 
 /** Repo + config persistence (§4): installation sync, config CRUD, workflows. */
 
@@ -474,6 +475,38 @@ export async function upsertResponseConfig(
 		});
 }
 
+export const SUGGESTION_SYNC_STALE_MS = 60_000;
+
+export function suggestionsNeedSync(
+	updatedAt: Date | null,
+	now: Date,
+): boolean {
+	return syncIsStale(updatedAt, now, SUGGESTION_SYNC_STALE_MS);
+}
+
+export interface RepoSuggestionList {
+	values: string[];
+	updatedAt: Date | null;
+}
+
+export async function getRepoSuggestionList(
+	db: Db,
+	repoId: string | null,
+	kind: string,
+): Promise<RepoSuggestionList> {
+	if (!repoId) {
+		return { values: [], updatedAt: null };
+	}
+	const rows = await db
+		.select()
+		.from(repoSuggestions)
+		.where(
+			and(eq(repoSuggestions.repoId, repoId), eq(repoSuggestions.kind, kind)),
+		);
+	const row = rows[0];
+	return { values: row?.values ?? [], updatedAt: row?.updatedAt ?? null };
+}
+
 /**
  * Cached builder suggestions for a repo and kind (e.g. "branches"). Empty when
  * the worker has not refreshed them yet, so the builder falls back to free text.
@@ -483,16 +516,7 @@ export async function getRepoSuggestions(
 	repoId: string | null,
 	kind: string,
 ): Promise<string[]> {
-	if (!repoId) {
-		return [];
-	}
-	const rows = await db
-		.select()
-		.from(repoSuggestions)
-		.where(
-			and(eq(repoSuggestions.repoId, repoId), eq(repoSuggestions.kind, kind)),
-		);
-	return rows[0]?.values ?? [];
+	return (await getRepoSuggestionList(db, repoId, kind)).values;
 }
 
 export async function upsertRepoSuggestions(
