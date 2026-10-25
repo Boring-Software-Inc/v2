@@ -591,7 +591,7 @@ describe("schedule tick", () => {
 			installationId: "2311213",
 		});
 		await repoServices.setRepoArmed(db, staleId, true);
-		await enableWorkflow(staleId, {
+		const staleRowId = await enableWorkflow(staleId, {
 			id: "wf-needs-diff",
 			name: "Lock big inactive threads",
 			version: 1,
@@ -618,6 +618,10 @@ describe("schedule tick", () => {
 				{ id: "e2", from: "files", to: "lock" },
 			],
 		});
+		await pool.query(
+			"DELETE FROM workflow_schedule_state WHERE workflow_id = $1",
+			[staleRowId],
+		);
 		const at = new Date(T0.getTime() + 61 * HOUR);
 		const result = await tick(at);
 		expect(result.schedules).toBe(1);
