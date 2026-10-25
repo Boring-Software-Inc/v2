@@ -6,16 +6,23 @@ import {
 } from "./redact.ts";
 import {
 	OPEN_REDACTION,
+	type RedactionItem,
 	type RedactionPolicy,
 	type RedactionSurface,
 	redactionHides,
 	redactionLevelFor,
 } from "./redaction.ts";
 import {
+	blockOutcomeFor,
+	type CloseGif,
 	commentOverrideFor,
 	DEFAULT_RESPONSE_CONFIG,
 	isGiphyMediaUrl,
+	type ResponseBlock,
+	type ResponseBlockType,
 	type ResponseConfig,
+	type ResponseVariable,
+	type TextPart,
 	wantsComment,
 } from "./response.ts";
 import { ruleContributorLabel } from "./rules.ts";
@@ -395,6 +402,8 @@ export interface CommentInput extends OutcomeIssues {
 	previousVerdict?: Verdict | null;
 	rerun?: boolean;
 	aiReviewNotRun?: boolean;
+	title?: string;
+	targetBranch?: string | null;
 }
 
 export function badgeUrl(runUrl: string): string {
@@ -423,99 +432,332 @@ function joinParagraphs(parts: (string | null | false)[]): string {
 	return parts.filter((part): part is string => !!part).join("\n\n");
 }
 
-function renderTemplate(
+export type BlockViewer = "outsider" | "member";
+
+export interface BlockLens {
+	level: number;
+	showHelp: boolean;
+	viewer: BlockViewer;
+}
+
+export type BlockRenderSurface = Extract<
+	RedactionSurface,
+	"comment" | "review"
+>;
+
+export const BLOCK_HIDDEN_AT: Partial<
+	Record<ResponseBlockType, RedactionItem>
+> = { "failed-rules": "failed-count" };
+
+export const VARIABLE_HIDDEN_AT: Partial<
+	Record<ResponseVariable, RedactionItem>
+> = { "failed-rules": "rule-names", "rule-name": "rule-names" };
+
+export function lensLevel(lens: BlockLens): number {
+	return lens.viewer === "member" ? 0 : lens.level;
+}
+
+export function blockHidden(block: ResponseBlock, lens: BlockLens): boolean {
+	if (lens.viewer === "member") {
+		return false;
+	}
+	if (block.type === "help" && !lens.showHelp) {
+		return true;
+	}
+	const item = BLOCK_HIDDEN_AT[block.type];
+	return item !== undefined && redactionHides(lens.level, item);
+}
+
+export function variableHidden(
+	name: ResponseVariable,
+	lens: BlockLens,
+): boolean {
+	const item = VARIABLE_HIDDEN_AT[name];
+	return item !== undefined && redactionHides(lensLevel(lens), item);
+}
+
+function plainInline(text: string): string {
+	return escapeMarkdown(text).replaceAll("@", "@​");
+}
+
+function firstRuleName(input: CommentInput, level: number): string {
+	const redacted = redactCommentReasons(input.reasons, level);
+	if (redacted.kind === "count" || redacted.kind === "verdict") {
+		return "";
+	}
+	if (redacted.kind === "names") {
+		return redacted.names[0] ?? "";
+	}
+	const first = input.reasons[0];
+	return (
+		(first?.ruleId ? ruleContributorLabel(first.ruleId) : null) ??
+		redacted.reasons[0]?.text ??
+		""
+	);
+}
+
+export const FAILED_RULES_HIDDEN = "some rules";
+
+function failedRuleNames(input: CommentInput, level: number): string {
+	const count = input.reasons.length;
+	if (count === 0) {
+		return "";
+	}
+	if (redactionHides(level, "failed-count")) {
+		return FAILED_RULES_HIDDEN;
+	}
+	if (redactionHides(level, "rule-names")) {
+		return `${count} ${count === 1 ? "rule" : "rules"}`;
+	}
+	return listNames(input.reasons.map(reasonName).map(escapeMarkdown));
+}
+
+export function variableText(
+	name: ResponseVariable,
 	input: CommentInput,
-	template: string,
 	level: number,
 ): string {
-	const redacted = redactCommentReasons(input.reasons, level);
-	const first = input.reasons[0];
-	const ruleName =
-		redacted.kind === "count" || redacted.kind === "verdict"
-			? ""
-			: redacted.kind === "names"
-				? (redacted.names[0] ?? "")
-				: ((first?.ruleId ? ruleContributorLabel(first.ruleId) : null) ??
-					redacted.reasons[0]?.text ??
-					"");
-	return template
-		.replaceAll("{{ruleName}}", ruleName)
-		.replaceAll("{{runUrl}}", runButton(input.runUrl));
+	switch (name) {
+		case "author":
+			return `@${input.contributorLogin}`;
+		case "failed-rules":
+			return failedRuleNames(input, level);
+		case "rule-name":
+			return firstRuleName(input, level);
+		case "run-link":
+			return runButton(input.runUrl);
+		case "title":
+			return plainInline(input.title ?? "");
+		case "target-branch":
+			return plainInline(input.targetBranch ?? "");
+	}
+}
+
+function headlineText(input: CommentInput, level: number): string {
+	if (input.verdict === "changes_required") {
+		return changesLine(input.fixes ?? [], input.reviewPending === true, level);
+	}
+	const headline = commentHeadline(input.verdict, input.contributorLogin, {
+		degraded: input.degraded,
+		previousVerdict: input.previousVerdict,
+	});
+	const notes = notesLine(input.notes ?? []);
+	return input.verdict === "pass" && notes ? `${headline} ${notes}` : headline;
+}
+
+function blockBody(
+	block: ResponseBlock,
+	input: CommentInput,
+	level: number,
+	reasonLimit: number,
+): string {
+	switch (block.type) {
+		case "headline":
+			return headlineText(input, level);
+		case "verdict-line":
+			return checkSummary(
+				input.verdict,
+				input.reasons,
+				input.degraded,
+				level,
+				false,
+				input,
+			);
+		case "instruction":
+			return issueTail(input, level).changes ?? "";
+		case "text":
+			return block.parts
+				.map((part) =>
+					part.kind === "text"
+						? part.text
+						: variableText(part.name, input, level),
+				)
+				.join("")
+				.trim();
+		case "failed-rules":
+			return reasonSection(
+				redactCommentReasons(input.reasons, level),
+				block.style === "one-liner" ? oneLinerLine : reasonLine,
+				reasonLimit,
+			);
+		case "notes":
+			return input.verdict === "pass"
+				? ""
+				: (issueTail(input, level).notes ?? "");
+		case "ai-notice":
+			return input.aiReviewNotRun ? AI_CREDITS_COPY.notRunShort : "";
+		case "rerun-notice":
+			return input.rerun ? RERUN_NOTE : "";
+		case "run-link":
+			return runButton(input.runUrl);
+		case "help":
+			return howDoIFix(input.reasons, level);
+		case "gif":
+			return gifMarkdown(block.gif) ?? "";
+	}
+}
+
+export interface BlockOutput {
+	block: ResponseBlock;
+	body: string | null;
+}
+
+export function renderBlockOutputs(
+	blocks: readonly ResponseBlock[],
+	input: CommentInput,
+	lens: BlockLens,
+): BlockOutput[] {
+	const level = lensLevel(lens);
+	const reasonLimit = blocks.some((block) => block.type === "run-link")
+		? REASON_LIMIT
+		: Number.POSITIVE_INFINITY;
+	return blocks.map((block) => ({
+		block,
+		body: blockHidden(block, lens)
+			? null
+			: blockBody(block, input, level, reasonLimit),
+	}));
+}
+
+export function renderBlocks(
+	blocks: readonly ResponseBlock[],
+	input: CommentInput,
+	lens: BlockLens,
+): string {
+	return joinParagraphs(
+		renderBlockOutputs(blocks, input, lens).map((output) => output.body),
+	);
+}
+
+const TEMPLATE_TOKENS: readonly [string, ResponseVariable][] = [
+	["{{ruleName}}", "rule-name"],
+	["{{runUrl}}", "run-link"],
+];
+
+function templateParts(template: string): TextPart[] {
+	const parts: TextPart[] = [];
+	let rest = template;
+	while (rest !== "") {
+		const next = TEMPLATE_TOKENS.map(([token, name]) => ({
+			token,
+			name,
+			index: rest.indexOf(token),
+		}))
+			.filter((hit) => hit.index !== -1)
+			.sort((a, b) => a.index - b.index)[0];
+		if (!next) {
+			parts.push({ kind: "text", text: rest });
+			break;
+		}
+		if (next.index > 0) {
+			parts.push({ kind: "text", text: rest.slice(0, next.index) });
+		}
+		parts.push({ kind: "var", name: next.name });
+		rest = rest.slice(next.index + next.token.length);
+	}
+	return parts;
+}
+
+export interface DefaultBlockOptions {
+	notes?: boolean;
+	surface?: BlockRenderSurface;
+}
+
+export function defaultBlocks(
+	config: ResponseConfig,
+	verdict: Verdict,
+	options: DefaultBlockOptions = {},
+): ResponseBlock[] {
+	const override = commentOverrideFor(config, verdict, options);
+	const link: ResponseBlock[] = override.showDetailsButton
+		? [{ id: "run-link", type: "run-link" }]
+		: [];
+	const gif: ResponseBlock[] =
+		verdict === "close" && config.closeComment.gif
+			? [{ id: "gif", type: "gif", gif: config.closeComment.gif }]
+			: [];
+	const customText = override.customText.trim();
+	if (customText !== "") {
+		return [
+			{ id: "text", type: "text", parts: [{ kind: "text", text: customText }] },
+			{ id: "ai-notice", type: "ai-notice" },
+			...link,
+			...gif,
+		];
+	}
+	if (verdict === "block" && config.blockComment.mode === "custom") {
+		return [
+			{
+				id: "text",
+				type: "text",
+				parts: templateParts(config.blockComment.template),
+			},
+		];
+	}
+	const oneLiner =
+		verdict === "block" && config.blockComment.mode === "one-liner-link";
+	const stopped: ResponseBlock[] =
+		verdict === "block" || verdict === "close"
+			? [
+					{
+						id: "failed-rules",
+						type: "failed-rules",
+						style: oneLiner ? "one-liner" : "full",
+					},
+				]
+			: [];
+	const help: ResponseBlock[] =
+		verdict === "block" && (!oneLiner || options.surface === "review")
+			? [{ id: "help", type: "help" }]
+			: [];
+	return [
+		{ id: "headline", type: "headline" },
+		{ id: "ai-notice", type: "ai-notice" },
+		...stopped,
+		{ id: "instruction", type: "instruction" },
+		{ id: "notes", type: "notes" },
+		{ id: "rerun-notice", type: "rerun-notice" },
+		...link,
+		...help,
+		...gif,
+	];
+}
+
+export function blocksFor(
+	config: ResponseConfig,
+	verdict: Verdict,
+	options: DefaultBlockOptions = {},
+): ResponseBlock[] {
+	const outcome = blockOutcomeFor(config, verdict, options);
+	return (
+		(outcome ? config.blocks[outcome] : undefined) ??
+		defaultBlocks(config, verdict, options)
+	);
 }
 
 function renderBody(
 	input: CommentInput,
 	config: ResponseConfig,
 	policy: RedactionPolicy,
-	surface: Extract<RedactionSurface, "comment" | "review">,
+	surface: BlockRenderSurface,
 ): string {
-	const hasNotes = (input.notes ?? []).length > 0;
-	const override = commentOverrideFor(config, input.verdict, {
-		notes: hasNotes,
-	});
-	const button = override.showDetailsButton ? runButton(input.runUrl) : null;
-	const customText = override.customText.trim();
-	const gif = input.verdict === "close" ? closeGifMarkdown(config) : null;
-	if (customText !== "") {
-		return joinParagraphs([
-			customText,
-			input.aiReviewNotRun ? AI_CREDITS_COPY.notRunShort : null,
-			button,
-			gif,
-		]);
-	}
-	const level = redactionLevelFor(policy, surface);
-	const stopped = input.verdict === "block" || input.verdict === "close";
-	if (input.verdict === "block" && config.blockComment.mode === "custom") {
-		return renderTemplate(input, config.blockComment.template, level).trim();
-	}
-	const oneLiner =
-		input.verdict === "block" && config.blockComment.mode === "one-liner-link";
-	const tail = issueTail(input, level);
-	const baseHeadline =
-		input.verdict === "changes_required"
-			? changesLine(input.fixes ?? [], input.reviewPending === true, level)
-			: commentHeadline(input.verdict, input.contributorLogin, {
-					degraded: input.degraded,
-					previousVerdict: input.previousVerdict,
-				});
-	const headline =
-		input.verdict === "pass" && tail.notes
-			? `${baseHeadline} ${tail.notes}`
-			: baseHeadline;
-	const limit = button ? REASON_LIMIT : Number.POSITIVE_INFINITY;
-	const detail = stopped
-		? reasonSection(
-				redactCommentReasons(input.reasons, level),
-				oneLiner ? oneLinerLine : reasonLine,
-				limit,
-			)
-		: "";
-	const help =
-		input.verdict === "block" &&
-		policy.showHelp &&
-		(!oneLiner || surface === "review")
-			? howDoIFix(input.reasons, level)
-			: null;
-	return joinParagraphs([
-		headline,
-		input.aiReviewNotRun ? AI_CREDITS_COPY.notRunShort : null,
-		detail,
-		tail.changes,
-		input.verdict === "pass" ? null : tail.notes,
-		input.rerun ? RERUN_NOTE : null,
-		button,
-		help,
-		gif,
-	]);
+	const notes = (input.notes ?? []).length > 0;
+	return renderBlocks(
+		blocksFor(config, input.verdict, { notes, surface }),
+		input,
+		{
+			level: redactionLevelFor(policy, surface),
+			showHelp: policy.showHelp,
+			viewer: "outsider",
+		},
+	);
 }
 
 function gifAlt(title: string): string {
 	return title.replace(/[\\[\]\n\r]/g, " ").trim() || "GIF";
 }
 
-export function closeGifMarkdown(config: ResponseConfig): string | null {
-	const gif = config.closeComment.gif;
+export function gifMarkdown(gif: CloseGif | null): string | null {
 	if (!gif || !isGiphyMediaUrl(gif.url)) {
 		return null;
 	}
@@ -523,6 +765,10 @@ export function closeGifMarkdown(config: ResponseConfig): string | null {
 		.replaceAll("(", "%28")
 		.replaceAll(")", "%29");
 	return `![${gifAlt(gif.title)}](${href})`;
+}
+
+export function closeGifMarkdown(config: ResponseConfig): string | null {
+	return gifMarkdown(config.closeComment.gif);
 }
 
 function withMarker(body: string): string {
@@ -587,14 +833,31 @@ export function blockCommentAddsDetail(
 	config: ResponseConfig,
 	policy: RedactionPolicy,
 ): boolean {
+	const level = redactionLevelFor(policy, "comment");
+	const stored = config.blocks.block;
+	if (stored) {
+		return stored.some((block) =>
+			block.type === "failed-rules"
+				? !redactionHides(level, "reasons")
+				: DETAIL_BLOCKS.has(block.type),
+		);
+	}
 	if (
 		config.blockComment.customText.trim() !== "" ||
 		config.blockComment.mode === "custom"
 	) {
 		return true;
 	}
-	return !redactionHides(redactionLevelFor(policy, "comment"), "reasons");
+	return !redactionHides(level, "reasons");
 }
+
+const DETAIL_BLOCKS: ReadonlySet<ResponseBlockType> = new Set([
+	"text",
+	"verdict-line",
+	"instruction",
+	"notes",
+	"gif",
+]);
 
 export type CommentPlan = "upsert" | "if-present" | "delete" | "none";
 

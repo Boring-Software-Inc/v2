@@ -1,9 +1,9 @@
 import type {
-	BlockCommentMode,
 	CloseGif,
 	CommentInput,
 	CommentReason,
 	RedactionPolicy,
+	ResponseBlock,
 	ResponseConfig,
 	SurfacePlan,
 	Verdict,
@@ -11,6 +11,7 @@ import type {
 import {
 	checkSummary,
 	closeGifSchema,
+	defaultBlocks,
 	planSurfaces,
 	redactionLevelFor,
 	responseConfigSchema,
@@ -37,20 +38,11 @@ export type CommentSurfaceKey =
 	| "onNote"
 	| "onClose";
 
-export type OverrideKey =
-	| "blockComment"
-	| "changesRequiredComment"
-	| "reviewComment"
-	| "noteComment"
-	| "closeComment";
-
 export interface OutcomeMeta {
 	value: OutcomeScope;
 	label: string;
 	verdict: Verdict;
 	surface: CommentSurfaceKey;
-	override: OverrideKey;
-	editable: boolean;
 	edited: boolean;
 }
 
@@ -59,8 +51,6 @@ const BLOCK_OUTCOME: OutcomeMeta = {
 	label: "Block",
 	verdict: "block",
 	surface: "onBlock",
-	override: "blockComment",
-	editable: false,
 	edited: false,
 };
 
@@ -71,8 +61,6 @@ export const OUTCOMES: readonly OutcomeMeta[] = [
 		label: "Ask author to fix",
 		verdict: "changes_required",
 		surface: "onChangesRequired",
-		override: "changesRequiredComment",
-		editable: true,
 		edited: true,
 	},
 	{
@@ -80,8 +68,6 @@ export const OUTCOMES: readonly OutcomeMeta[] = [
 		label: "Human review",
 		verdict: "needs_review",
 		surface: "moderationQueued",
-		override: "reviewComment",
-		editable: true,
 		edited: false,
 	},
 	{
@@ -89,8 +75,6 @@ export const OUTCOMES: readonly OutcomeMeta[] = [
 		label: "Note only",
 		verdict: "pass",
 		surface: "onNote",
-		override: "noteComment",
-		editable: false,
 		edited: false,
 	},
 	{
@@ -98,8 +82,6 @@ export const OUTCOMES: readonly OutcomeMeta[] = [
 		label: "Close",
 		verdict: "close",
 		surface: "onClose",
-		override: "closeComment",
-		editable: true,
 		edited: false,
 	},
 ];
@@ -130,18 +112,49 @@ export const SAMPLE_REASONS: CommentReason[] = [
 
 const CLOSE_REASONS: CommentReason[] = SAMPLE_REASONS.slice(0, 1);
 
-const TEMPLATE_PLACEHOLDER = "blocked: {{ruleName}}\n\n{{runUrl}}";
-
 const ENCODED_SURFACES = z.string();
 
-export type ContentChoice = Exclude<BlockCommentMode, "custom"> | "message";
+const BLOCK_KEYS = [
+	"blocks.block",
+	"blocks.changes_required",
+	"blocks.needs_review",
+	"blocks.note",
+	"blocks.close",
+] as const;
 
-export type DraftKey =
-	| "blockComment.customText"
-	| "blockComment.template"
-	| "changesRequiredComment.customText"
-	| "reviewComment.customText"
-	| "closeComment.customText";
+export type BlockKey = (typeof BLOCK_KEYS)[number];
+
+export function blockKey(outcome: OutcomeMeta): BlockKey {
+	return `blocks.${outcome.value}`;
+}
+
+export function encodeBlocks(blocks: readonly ResponseBlock[] | undefined) {
+	return blocks ? JSON.stringify(blocks) : "";
+}
+
+function decodeBlocks(value: unknown): unknown {
+	if (typeof value !== "string" || value === "") {
+		return undefined;
+	}
+	try {
+		return JSON.parse(value);
+	} catch {
+		return undefined;
+	}
+}
+
+export function outcomeBlocks(
+	config: ResponseConfig,
+	outcome: OutcomeMeta,
+): ResponseBlock[] {
+	return (
+		config.blocks[outcome.value] ??
+		defaultBlocks(config, outcome.verdict, {
+			notes: outcome.value === "note",
+			surface: "comment",
+		})
+	);
+}
 
 export function encodeGif(gif: CloseGif | null): string {
 	return gif ? JSON.stringify(gif) : "";
@@ -189,6 +202,11 @@ export function flattenConfig(config: ResponseConfig) {
 		"redaction.level": config.redaction.level,
 		"redaction.surfaces": encodeSurfaces(config.redaction.surfaces),
 		"redaction.showHelp": config.redaction.showHelp,
+		"blocks.block": encodeBlocks(config.blocks.block),
+		"blocks.changes_required": encodeBlocks(config.blocks.changes_required),
+		"blocks.needs_review": encodeBlocks(config.blocks.needs_review),
+		"blocks.note": encodeBlocks(config.blocks.note),
+		"blocks.close": encodeBlocks(config.blocks.close),
 	};
 }
 
@@ -238,84 +256,17 @@ export function unflattenConfig(
 			),
 			showHelp: flat["redaction.showHelp"],
 		},
+		blocks: Object.fromEntries(
+			BLOCK_KEYS.map((key) => [
+				key.slice("blocks.".length),
+				decodeBlocks(flat[key]),
+			]),
+		),
 	});
 }
 
 export function postsComment(config: ResponseConfig, outcome: OutcomeMeta) {
 	return config[outcome.surface] === "comment";
-}
-
-export function blockContentChoice(config: ResponseConfig): ContentChoice {
-	if (config.blockComment.customText.trim() !== "") {
-		return "message";
-	}
-	return config.blockComment.mode === "custom"
-		? "message"
-		: config.blockComment.mode;
-}
-
-export function blockDraftKey(config: ResponseConfig): DraftKey {
-	return config.blockComment.customText.trim() !== ""
-		? "blockComment.customText"
-		: "blockComment.template";
-}
-
-export function customTextKey(outcome: OutcomeMeta): DraftKey | null {
-	switch (outcome.value) {
-		case "changes_required":
-			return "changesRequiredComment.customText";
-		case "needs_review":
-			return "reviewComment.customText";
-		case "close":
-			return "closeComment.customText";
-		default:
-			return null;
-	}
-}
-
-export function readDraftKey(config: ResponseConfig, key: DraftKey): string {
-	switch (key) {
-		case "blockComment.customText":
-			return config.blockComment.customText;
-		case "blockComment.template":
-			return config.blockComment.template;
-		case "changesRequiredComment.customText":
-			return config.changesRequiredComment.customText;
-		case "reviewComment.customText":
-			return config.reviewComment.customText;
-		case "closeComment.customText":
-			return config.closeComment.customText;
-	}
-}
-
-export function withDrafts(
-	config: ResponseConfig,
-	drafts: Partial<Record<DraftKey, string>>,
-): ResponseConfig {
-	if (Object.keys(drafts).length === 0) {
-		return config;
-	}
-	const text = (key: DraftKey) => drafts[key] ?? readDraftKey(config, key);
-	return {
-		...config,
-		blockComment: {
-			...config.blockComment,
-			customText: text("blockComment.customText"),
-			template: text("blockComment.template"),
-		},
-		changesRequiredComment: {
-			...config.changesRequiredComment,
-			customText: text("changesRequiredComment.customText"),
-		},
-		reviewComment: {
-			...config.reviewComment,
-			customText: text("reviewComment.customText"),
-		},
-		closeComment: {
-			...config.closeComment,
-			customText: text("closeComment.customText"),
-		},
-	};
 }
 
 export function sampleInput(outcome: OutcomeMeta): CommentInput {
@@ -324,6 +275,8 @@ export function sampleInput(outcome: OutcomeMeta): CommentInput {
 		contributorLogin: "contributor",
 		reasons: [] as CommentReason[],
 		runUrl: "https://tripwire.sh/runs/sample",
+		title: "Add sponsor wallet",
+		targetBranch: "release/2.x",
 	};
 	switch (outcome.value) {
 		case "block":
@@ -344,20 +297,7 @@ export function previewPlan(
 	outcome: OutcomeMeta,
 	policy: RedactionPolicy,
 ): SurfacePlan {
-	const previewConfig =
-		outcome.value === "block" &&
-		config.blockComment.mode === "custom" &&
-		config.blockComment.template.trim() === "" &&
-		config.blockComment.customText.trim() === ""
-			? {
-					...config,
-					blockComment: {
-						...config.blockComment,
-						template: TEMPLATE_PLACEHOLDER,
-					},
-				}
-			: config;
-	return planSurfaces(sampleInput(outcome), previewConfig, policy, {
+	return planSurfaces(sampleInput(outcome), config, policy, {
 		reviewPosted: outcome.value === "block",
 	});
 }

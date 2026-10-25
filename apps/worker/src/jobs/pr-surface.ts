@@ -220,6 +220,8 @@ export async function emitPrSurface(
 			previousVerdict,
 			rerun: input.rerun,
 			aiReviewNotRun: input.aiReviewNotRun,
+			title: event.changeRequest.title,
+			targetBranch: event.changeRequest.baseRef ?? null,
 			...issues,
 		},
 		responseConfig,

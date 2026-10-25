@@ -1,22 +1,10 @@
 import type { GifsResult } from "@giphy/js-fetch-api";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CloseGif } from "@tripwire/contracts";
-import {
-	lazy,
-	Suspense,
-	type SyntheticEvent,
-	useCallback,
-	useEffect,
-	useState,
-} from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { lazy, Suspense, type SyntheticEvent, useState } from "react";
 import { Input } from "#/components/glaze/ui/input";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTitle,
-	PopoverTrigger,
-} from "#/components/glaze/ui/popover";
+import { PopoverTitle } from "#/components/glaze/ui/popover";
+import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { closeGifFrom, type GiphyGif } from "#/lib/giphy-gif";
 import { closeGifsQueryOptions } from "#/lib/response.query";
 import type { GiphyStatus } from "#/lib/server/giphy-search";
@@ -36,18 +24,9 @@ const STATUS_COPY: Record<Exclude<GiphyStatus, "ok">, string> = {
 	unavailable: "GIFs are not available right now.",
 };
 
-export function searchTerm(text: string): string {
+function searchTerm(text: string): string {
 	const trimmed = text.trim();
 	return trimmed.length >= MIN_QUERY ? trimmed : "";
-}
-
-function useDebounced(value: string, delay: number): string {
-	const [settled, setSettled] = useState(value);
-	useEffect(() => {
-		const timer = setTimeout(() => setSettled(value), delay);
-		return () => clearTimeout(timer);
-	}, [value, delay]);
-	return settled;
 }
 
 function GridLoader() {
@@ -56,72 +35,26 @@ function GridLoader() {
 	);
 }
 
-export interface CloseGifPickerProps {
+export interface GifSearchProps {
 	org: string;
-	gif: CloseGif | null;
-	disabled: boolean;
 	onPick: (gif: CloseGif) => void;
 }
 
-export function CloseGifPicker({
-	org,
-	gif,
-	disabled,
-	onPick,
-}: CloseGifPickerProps) {
-	const [open, setOpen] = useState(false);
-	return (
-		<Popover onOpenChange={setOpen} open={open}>
-			<PopoverTrigger
-				disabled={disabled}
-				render={<Button size="sm" variant="secondary" />}
-			>
-				{gif ? "Replace GIF" : "Add a GIF"}
-			</PopoverTrigger>
-			<PopoverContent
-				align="start"
-				className="w-80"
-				side="bottom"
-				sideOffset={8}
-			>
-				{open ? (
-					<GifSearch
-						onPick={(picked) => {
-							onPick(picked);
-							setOpen(false);
-						}}
-						org={org}
-					/>
-				) : null}
-			</PopoverContent>
-		</Popover>
-	);
-}
-
-function GifSearch({
-	org,
-	onPick,
-}: {
-	org: string;
-	onPick: (gif: CloseGif) => void;
-}) {
+export function GifSearch({ org, onPick }: GifSearchProps) {
 	const queryClient = useQueryClient();
 	const [text, setText] = useState("");
-	const query = useDebounced(searchTerm(text), SEARCH_DELAY_MS);
+	const query = useDebouncedValue(searchTerm(text), SEARCH_DELAY_MS);
 	const [status, setStatus] = useState<GiphyStatus>("ok");
 
-	const fetchGifs = useCallback(
-		async (offset: number): Promise<GifsResult> => {
-			const page = await queryClient.fetchQuery(
-				closeGifsQueryOptions(org, query, offset),
-			);
-			if (offset === 0 || page.status !== "ok") {
-				setStatus(page.status);
-			}
-			return page.result;
-		},
-		[org, query, queryClient],
-	);
+	const fetchGifs = async (offset: number): Promise<GifsResult> => {
+		const page = await queryClient.fetchQuery(
+			closeGifsQueryOptions(org, query, offset),
+		);
+		if (offset === 0 || page.status !== "ok") {
+			setStatus(page.status);
+		}
+		return page.result;
+	};
 
 	const pick = (picked: GiphyGif, event: SyntheticEvent<HTMLElement>) => {
 		event.preventDefault();
@@ -132,11 +65,12 @@ function GifSearch({
 	};
 
 	return (
-		<div className="flex flex-col gap-3">
+		<div className="flex min-h-0 flex-1 flex-col gap-3">
 			<PopoverTitle className="sr-only">Pick a GIF</PopoverTitle>
 			<Input
 				aria-label="Search GIPHY"
 				autoFocus
+				className="shrink-0"
 				clearLabel="Clear search"
 				mode="search"
 				onValueChange={setText}
@@ -148,7 +82,7 @@ function GifSearch({
 					{STATUS_COPY[status]}
 				</output>
 			) : null}
-			<div className="-mx-1 h-90 overflow-y-auto overscroll-contain px-1">
+			<div className="-mx-1 h-90 min-h-0 shrink overflow-y-auto overscroll-contain px-1">
 				<Suspense fallback={<GridLoader />}>
 					<Grid
 						columns={2}

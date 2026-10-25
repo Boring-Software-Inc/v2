@@ -84,6 +84,99 @@ export const closeCommentConfigSchema = commentOverrideSchema.extend({
 });
 export type CloseCommentConfig = z.infer<typeof closeCommentConfigSchema>;
 
+export const RESPONSE_VARIABLES = [
+	"author",
+	"failed-rules",
+	"target-branch",
+	"title",
+	"rule-name",
+	"run-link",
+] as const;
+export const responseVariableSchema = z.enum(RESPONSE_VARIABLES);
+export type ResponseVariable = z.infer<typeof responseVariableSchema>;
+
+export const TEXT_BLOCK_MAX = 4000;
+export const TEXT_PARTS_MAX = 200;
+
+export const textPartSchema = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("text"), text: z.string().max(TEXT_BLOCK_MAX) }),
+	z.object({ kind: z.literal("var"), name: responseVariableSchema }),
+]);
+export type TextPart = z.infer<typeof textPartSchema>;
+
+const blockId = z.string().min(1).max(64);
+const plainBlock = <T extends string>(type: T) =>
+	z.object({ id: blockId, type: z.literal(type) });
+
+export const failedRulesStyleSchema = z.enum(["full", "one-liner"]);
+export type FailedRulesStyle = z.infer<typeof failedRulesStyleSchema>;
+
+const BLOCK_OPTIONS = [
+	plainBlock("headline"),
+	plainBlock("verdict-line"),
+	plainBlock("instruction"),
+	z.object({
+		id: blockId,
+		type: z.literal("text"),
+		parts: z
+			.array(textPartSchema)
+			.max(TEXT_PARTS_MAX)
+			.refine(
+				(parts) =>
+					parts.reduce(
+						(sum, part) => sum + (part.kind === "text" ? part.text.length : 0),
+						0,
+					) <= TEXT_BLOCK_MAX,
+				"Keep the text under 4000 characters.",
+			),
+	}),
+	z.object({
+		id: blockId,
+		type: z.literal("failed-rules"),
+		style: failedRulesStyleSchema.default("full"),
+	}),
+	plainBlock("notes"),
+	plainBlock("ai-notice"),
+	plainBlock("rerun-notice"),
+	plainBlock("run-link"),
+	plainBlock("help"),
+] as const;
+
+const gifBlockSchema = z.object({
+	id: blockId,
+	type: z.literal("gif"),
+	gif: closeGifSchema.nullable(),
+});
+
+const uniqueIds = (blocks: readonly { id: string }[]) =>
+	new Set(blocks.map((block) => block.id)).size === blocks.length;
+
+export const BLOCK_LIST_MAX = 40;
+
+export const responseBlockSchema = z.discriminatedUnion("type", BLOCK_OPTIONS);
+export const closeBlockSchema = z.discriminatedUnion("type", [
+	...BLOCK_OPTIONS,
+	gifBlockSchema,
+]);
+export type ResponseBlock = z.infer<typeof closeBlockSchema>;
+export type ResponseBlockType = ResponseBlock["type"];
+
+const blockList = <T extends z.ZodType<{ id: string }>>(block: T) =>
+	z
+		.array(block)
+		.max(BLOCK_LIST_MAX)
+		.refine(uniqueIds, "Each block needs its own id.");
+
+export const responseBlocksSchema = z.object({
+	block: blockList(responseBlockSchema).optional(),
+	changes_required: blockList(responseBlockSchema).optional(),
+	needs_review: blockList(responseBlockSchema).optional(),
+	note: blockList(responseBlockSchema).optional(),
+	close: blockList(closeBlockSchema).optional(),
+});
+export type ResponseBlocks = z.infer<typeof responseBlocksSchema>;
+export type BlockOutcome = keyof ResponseBlocks;
+
 export const responseConfigSchema = z.object({
 	onSuccess: successSurfaceSchema.default("ci-check"),
 	/** Pass comment override — only consulted when onSuccess is "comment". */
@@ -118,6 +211,7 @@ export const responseConfigSchema = z.object({
 	 */
 	failClosedFallback: z.boolean().default(true),
 	redaction: repoRedactionSchema.prefault({}),
+	blocks: responseBlocksSchema.prefault({}),
 });
 export type ResponseConfig = z.infer<typeof responseConfigSchema>;
 
@@ -152,6 +246,17 @@ export function commentOverrideFor(
 		return config.changesRequiredComment;
 	}
 	return config.reviewComment;
+}
+
+export function blockOutcomeFor(
+	config: ResponseConfig,
+	verdict: Verdict,
+	options: { notes?: boolean } = {},
+): BlockOutcome | null {
+	if (verdict === "pass") {
+		return options.notes && config.onNote === "comment" ? "note" : null;
+	}
+	return verdict;
 }
 
 export const DEFAULT_RESPONSE_CONFIG: ResponseConfig =

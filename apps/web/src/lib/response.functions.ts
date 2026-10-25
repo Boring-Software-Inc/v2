@@ -3,6 +3,7 @@ import type {
 	CloseGif,
 	OrgResponseDefaults,
 	RedactionPolicy,
+	ResponseBlock,
 	ResponseConfig,
 } from "@tripwire/contracts";
 import {
@@ -32,18 +33,51 @@ const STALE_GIF = Symbol("stale-gif");
 const STALE_GIF_ERROR =
 	"That GIF is no longer available. Pick it again and save.";
 
-async function settledCloseGif(
+function savedGifs(config: ResponseConfig): Map<string, CloseGif> {
+	const gifs = [
+		config.closeComment.gif,
+		...(config.blocks.close ?? []).map((block) =>
+			block.type === "gif" ? block.gif : null,
+		),
+	].filter((gif): gif is CloseGif => gif !== null);
+	return new Map(gifs.map((gif) => [gif.id, gif]));
+}
+
+async function settledGif(
 	next: CloseGif | null,
-	saved: CloseGif | null,
+	saved: Map<string, CloseGif>,
 ): Promise<CloseGif | null | typeof STALE_GIF> {
 	if (!next) {
 		return null;
 	}
-	if (saved && saved.id === next.id) {
-		return saved;
+	const known = saved.get(next.id);
+	if (known) {
+		return known;
 	}
 	const { resolveServedGif } = await import("#/lib/server/giphy-store");
 	return (await resolveServedGif(next.id)) ?? STALE_GIF;
+}
+
+async function settledCloseBlocks(
+	blocks: ResponseBlock[] | undefined,
+	saved: Map<string, CloseGif>,
+): Promise<ResponseBlock[] | undefined | typeof STALE_GIF> {
+	if (!blocks) {
+		return undefined;
+	}
+	const settled: ResponseBlock[] = [];
+	for (const block of blocks) {
+		if (block.type !== "gif") {
+			settled.push(block);
+			continue;
+		}
+		const gif = await settledGif(block.gif, saved);
+		if (gif === STALE_GIF) {
+			return STALE_GIF;
+		}
+		settled.push({ ...block, gif });
+	}
+	return settled;
 }
 
 function samePolicy(a: RedactionPolicy, b: RedactionPolicy): boolean {
@@ -81,16 +115,16 @@ export const saveRepoResponseConfig = createServerFn({ method: "POST" })
 		const { getDb } = await import("#/lib/server/db");
 		const db = getDb().db;
 		const saved = await repoServices.getResponseConfig(db, data.repoId);
-		const gif = await settledCloseGif(
-			parsed.data.closeComment.gif,
-			saved.closeComment.gif,
-		);
-		if (gif === STALE_GIF) {
+		const known = savedGifs(saved);
+		const gif = await settledGif(parsed.data.closeComment.gif, known);
+		const close = await settledCloseBlocks(parsed.data.blocks.close, known);
+		if (gif === STALE_GIF || close === STALE_GIF) {
 			return { error: STALE_GIF_ERROR };
 		}
 		const config: ResponseConfig = {
 			...parsed.data,
 			closeComment: { ...parsed.data.closeComment, gif },
+			blocks: { ...parsed.data.blocks, close },
 		};
 		const before = await responseServices.getRedactionPolicy(db, data.repoId);
 		await repoServices.upsertResponseConfig(db, data.repoId, config);
