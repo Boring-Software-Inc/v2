@@ -6,12 +6,12 @@ import { signInForges } from "#/lib/forge-grid";
 
 /**
  * The sign-in grid, rendered straight off `FORGE_CATALOG`: there is no list of
- * forges here. Giving a catalog entry a `signIn` adds its button, no edit to
+ * forges here. Giving a catalog entry a `signIn` enables its button, no edit to
  * this file.
  *
- * A cell shows when the forge can be SIGNED INTO, which is not the same as
+ * A cell is enabled when the forge can be SIGNED INTO, which is not the same as
  * `status: "live"`. A forge's OAuth can ship long before its adapter. Keying
- * this grid on `status` would hide a working login.
+ * this grid on `status` would disable a working login.
  *
  * Pending state is keyed by forge id rather than a boolean so the forges spin
  * independently. The OAuth hop is a full navigation; without it the button
@@ -27,25 +27,29 @@ export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 					id={forge.id}
 					key={forge.id}
 					label={forge.label}
-					state={{
-						kind: "ready",
-						pending: signingIn === forge.id,
-						onSelect: async () => {
-							setSigningIn(forge.id);
-							const callbackURL = redirect ?? "/";
-							const { error } = await authClient.signIn.social({
-								provider: forge.id,
-								callbackURL,
-							});
-							if (error) {
-								setSigningIn(null);
-								toast.fail(
-									error.message ??
-										`Couldn't reach ${forge.label}. Check your connection and try again.`,
-								);
-							}
-						},
-					}}
+					state={
+						forge.available
+							? {
+									kind: "ready",
+									pending: signingIn === forge.id,
+									onSelect: async () => {
+										setSigningIn(forge.id);
+										const callbackURL = redirect ?? "/";
+										const { error } = await authClient.signIn.social({
+											provider: forge.id,
+											callbackURL,
+										});
+										if (error) {
+											setSigningIn(null);
+											toast.fail(
+												error.message ??
+													`Couldn't reach ${forge.label}. Check your connection and try again.`,
+											);
+										}
+									},
+								}
+							: { kind: "unavailable" }
+					}
 				/>
 			))}
 		</div>

@@ -4,7 +4,7 @@ import {
 	CollapsibleGroup,
 	CollapsibleTrigger,
 } from "#/components/glaze/ui/collapsible";
-import { SUPPORTED_FORGES_ANSWER } from "#/lib/forge-copy";
+import { LIVE_FORGES, SIGN_IN_FORGES } from "#/lib/forge-copy";
 
 const FAQ = [
 	{
@@ -22,7 +22,10 @@ const FAQ = [
 	{
 		id: "which-supported",
 		question: "Which forges are supported?",
-		answer: SUPPORTED_FORGES_ANSWER,
+		// Two different sets, and conflating them would be a lie: you can sign in
+		// with a forge before tripwire can watch its repos. Both generated from
+		// the catalog, so an adapter shipping can't leave this calling it "next".
+		answer: `Tripwire watches ${LIVE_FORGES} today. You can sign in with ${SIGN_IN_FORGES}; the others are not available for sign-in yet.`,
 	},
 ];
 

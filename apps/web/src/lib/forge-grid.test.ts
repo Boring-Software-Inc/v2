@@ -1,44 +1,46 @@
 import { describe, expect, test } from "bun:test";
-import { FORGE_GRID } from "#/components/forges/forge-cell";
-import { SUPPORTED_FORGES_ANSWER } from "#/lib/forge-copy";
+import { FORGE_CATALOG } from "@tripwire/contracts";
 import { connectForges, signInForges } from "#/lib/forge-grid";
 
-const ids = (forges: readonly { id: string }[]) => forges.map((f) => f.id);
+const catalogIds = FORGE_CATALOG.map((forge) => forge.id);
+
+const availability = (forges: readonly { id: string; available: boolean }[]) =>
+	Object.fromEntries(forges.map((forge) => [forge.id, forge.available]));
 
 describe("sign-in grid", () => {
-	test("shows only forges you can sign in with", () => {
-		expect(ids(signInForges())).toEqual(["github"]);
+	test("lists every forge in catalog order", () => {
+		expect(signInForges().map((forge) => forge.id)).toEqual(catalogIds);
+	});
+
+	test("enables only forges you can sign in with", () => {
+		expect(availability(signInForges())).toEqual({
+			github: true,
+			opengit: false,
+			gitlab: false,
+			gitcafe: false,
+		});
 	});
 });
 
 describe("connect grid", () => {
-	test("shows only forges that can be connected", () => {
-		expect(ids(connectForges(() => true))).toEqual(["github"]);
-	});
-
-	test("hides a connectable forge with no connect flow", () => {
-		expect(ids(connectForges((id) => id !== "github"))).toEqual([]);
-	});
-
-	test("never shows paused or planned forges", () => {
-		const shown = ids(connectForges(() => true));
-		expect(shown).not.toContain("opengit");
-		expect(shown).not.toContain("gitlab");
-		expect(shown).not.toContain("origin");
-	});
-});
-
-describe("grid layout", () => {
-	test("an odd last cell spans the full row", () => {
-		expect(FORGE_GRID).toContain("[&>*:last-child:nth-child(odd)]:col-span-2");
-	});
-});
-
-describe("supported forges answer", () => {
-	test("states only what works", () => {
-		expect(SUPPORTED_FORGES_ANSWER).toBe(
-			"Tripwire watches repos on GitHub. You sign in with GitHub.",
+	test("lists every forge in catalog order", () => {
+		expect(connectForges(() => true).map((forge) => forge.id)).toEqual(
+			catalogIds,
 		);
-		expect(SUPPORTED_FORGES_ANSWER).not.toMatch(/yet|soon|today/i);
+	});
+
+	test("enables only forges that can be connected", () => {
+		expect(availability(connectForges(() => true))).toEqual({
+			github: true,
+			opengit: false,
+			gitlab: false,
+			gitcafe: false,
+		});
+	});
+
+	test("disables a connectable forge with no connect flow", () => {
+		expect(availability(connectForges((id) => id !== "github")).github).toBe(
+			false,
+		);
 	});
 });

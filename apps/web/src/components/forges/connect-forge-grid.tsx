@@ -12,7 +12,7 @@ import { trackEvent } from "#/lib/track";
 
 /**
  * "connect repos": the same catalog grid as sign-in, with connect as the verb.
- * Only forges that can be connected get a cell.
+ * Every forge gets a cell; one that cannot be connected is disabled.
  *
  * Both live forges connect as an app/bot INSTALLATION: org-scoped (the install
  * url is minted per org and only an admin may grant) and the flow leaves the app
@@ -27,9 +27,9 @@ import { trackEvent } from "#/lib/track";
  * rather than hidden: a missing menu item teaches nothing, and "add repos"
  * silently vanishing for non-admins is the bug this replaces.
  *
- * A forge also needs an entry in `STATE` to show. One flipped to `live` in the
- * catalog without one stays hidden instead of a cell that looks ready and does
- * nothing.
+ * A forge also needs an entry in `STATE` to be enabled. One flipped to `live`
+ * in the catalog without one stays disabled instead of a cell that looks ready
+ * and does nothing.
  */
 export function ConnectForgeGrid({
 	org,
@@ -109,7 +109,7 @@ export function ConnectForgeGrid({
 
 	/**
 	 * A Map, not a dictionary: a catalog entry with no builder here must MISS,
-	 * which is what keeps it out of the grid instead of an open index signature
+	 * which is what keeps its cell disabled instead of an open index signature
 	 * quietly returning undefined.
 	 */
 	const STATE = new Map<string, () => ForgeCellState>([
@@ -124,7 +124,11 @@ export function ConnectForgeGrid({
 					id={forge.id}
 					key={forge.id}
 					label={forge.label}
-					state={STATE.get(forge.id)?.() ?? { kind: "loading" }}
+					state={
+						forge.available
+							? (STATE.get(forge.id)?.() ?? { kind: "unavailable" })
+							: { kind: "unavailable" }
+					}
 				/>
 			))}
 		</div>

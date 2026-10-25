@@ -11,5 +11,3 @@ export const LIVE_FORGES = LIST.format(LIVE_FORGE_LABELS);
 export const SIGN_IN_FORGES = LIST.format(
 	SIGN_IN_FORGE_IDS.map((id) => FORGE_BY_ID[id].label),
 );
-
-export const SUPPORTED_FORGES_ANSWER = `Tripwire watches repos on ${LIVE_FORGES}. You sign in with ${SIGN_IN_FORGES}.`;
