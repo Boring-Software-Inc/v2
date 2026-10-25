@@ -220,6 +220,25 @@ describe("MCP writes follow the org's role scopes", () => {
 		expect(result.isError).toBe(true);
 	});
 
+	test("workflows manage does not grant making or deleting custom rules", async () => {
+		const saved = await call(builder, "save_custom_rule", {
+			org: orgSlug,
+			repo: "perm-api",
+			name: "Not into release",
+			definition: {
+				when: { id: "pr.targetBranch" },
+				comparison: { kind: "noneOf", args: [["release"]] },
+			},
+		});
+		expect(saved.isError).toBe(true);
+		const deleted = await call(member, "delete_custom_rule", {
+			org: orgSlug,
+			repo: "perm-api",
+			id: "custom-missing-000000",
+		});
+		expect(deleted.isError).toBe(true);
+	});
+
 	test("a plain member cannot turn a workflow on", async () => {
 		const result = await call(member, "set_workflow_enabled", {
 			org: orgSlug,
@@ -337,6 +356,6 @@ describe("the tool list follows the member's role", () => {
 	});
 
 	test("an org admin lists every tool", async () => {
-		expect(await listedFor("perm-admin")).toHaveLength(22);
+		expect(await listedFor("perm-admin")).toHaveLength(24);
 	});
 });

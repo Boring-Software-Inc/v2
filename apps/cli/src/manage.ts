@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import * as p from "@clack/prompts";
 import {
@@ -1226,6 +1227,126 @@ function unlinkProject(deps: ManageDeps, command: Command): void {
 	);
 }
 
+interface CustomRuleOptions {
+	name?: string;
+	description?: string;
+	definition?: string;
+	enable?: boolean;
+	disable?: boolean;
+}
+
+const CUSTOM_RULE_HELP = `
+A definition is JSON: {"when":{"id":"<signal>"},"comparison":{"kind":"<verb>","args":[...]}}.
+The rule passes when the comparison holds. Run tripwire rules list <repo> to see rules and their sentences.
+
+Example:
+  tripwire rules create acme/web --name "Not into release" \\
+    --definition '{"when":{"id":"pr.targetBranch"},"comparison":{"kind":"noneOf","args":[["release"]]}}'
+`;
+
+function readDefinition(raw: string): JsonValue {
+	let text = raw;
+	if (raw.startsWith("@")) {
+		try {
+			text = readFileSync(raw.slice(1), "utf8");
+		} catch {
+			throw new Error(`Cannot read ${raw.slice(1)}.`);
+		}
+	}
+	try {
+		return z.json().parse(JSON.parse(text));
+	} catch {
+		throw new Error(
+			"--definition must be JSON, or @ and the path to a JSON file.",
+		);
+	}
+}
+
+function customRuleArgs(opts: CustomRuleOptions): ToolArgs {
+	if (opts.enable && opts.disable) {
+		throw new Error("Pass --enable or --disable, not both.");
+	}
+	const args: ToolArgs = {};
+	if (opts.name !== undefined) {
+		args.name = opts.name;
+	}
+	if (opts.description !== undefined) {
+		args.description = opts.description;
+	}
+	if (opts.definition !== undefined) {
+		args.definition = readDefinition(opts.definition);
+	}
+	if (opts.enable || opts.disable) {
+		args.enabled = opts.enable === true;
+	}
+	return args;
+}
+
+const currentRulesSchema = z.array(
+	z.looseObject({
+		ruleId: z.string(),
+		name: z.string(),
+		definition: z.json().optional(),
+	}),
+);
+
+function saveCustomRule(
+	deps: ManageDeps,
+	command: Command,
+	repo: string,
+	ruleId: string | undefined,
+	args: ToolArgs,
+): Promise<void> {
+	return workflowAction(command, deps, async (options) => {
+		let body = args;
+		if (
+			ruleId !== undefined &&
+			(args.name === undefined || args.definition === undefined)
+		) {
+			const output = await callForData(deps, options, "get_repo_rules", {
+				repo,
+			});
+			if (output.isError) {
+				return render("get_repo_rules", output, options);
+			}
+			const parsed = currentRulesSchema.safeParse(output.data);
+			const current = parsed.success
+				? parsed.data.find((rule) => rule.ruleId === ruleId)
+				: undefined;
+			if (current?.definition === undefined) {
+				throw new Error(
+					`No custom rule ${ruleId} on ${repo}. Run tripwire rules list ${repo} to see them.`,
+				);
+			}
+			body = { name: current.name, definition: current.definition, ...args };
+		}
+		const request: ToolArgs = { repo, ...body };
+		if (ruleId !== undefined) {
+			request.id = ruleId;
+		}
+		const output = await callForData(
+			deps,
+			options,
+			"save_custom_rule",
+			request,
+		);
+		return render("save_custom_rule", output, options);
+	});
+}
+
+function customRuleFlags(command: Command): Command {
+	return command
+		.option("--name <name>", "The rule's name")
+		.option(
+			"--definition <json>",
+			"The rule as JSON, or @ and the path to a JSON file",
+		)
+		.option("--description <text>", "Why the rule exists")
+		.option("--enable", "Run the rule by itself")
+		.option("--disable", "Stop running the rule by itself")
+		.addHelpText("after", CUSTOM_RULE_HELP);
+}
+
 export function registerManageCommands(program: Command, deps: ManageDeps) {
 	program
 		.command("login")
@@ -1297,7 +1418,9 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 	rules
 		.command("set <repoOrRule> [ruleId]")
 		.usage("[options] [repo] <ruleId>")
-		.description("Turn a rule on or off and set its params")
+		.description(
+			"Turn a rule on or off and set its params. A custom rule only turns on or off",
+		)
 		.option("--enable", "Turn the rule on")
 		.option("--disable", "Turn the rule off")
 		.option(
@@ -1335,6 +1458,92 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 				}
 				return withRepo(deps, command, repo, (target) =>
 					runTool(deps, command, "set_rule", { repo: target, ...args }),
+				);
+			},
+		);
+
+	customRuleFlags(
+		rules
+			.command("create [repo]")
+			.description(
+				"Create a custom rule. It starts off: pass --enable, or use it in tripwire.ts with customCheck",
+			),
+	).action(
+		(repo: string | undefined, opts: CustomRuleOptions, command: Command) => {
+			let args: ToolArgs;
+			try {
+				args = customRuleArgs(opts);
+				if (args.name === undefined || args.definition === undefined) {
+					throw new Error("Pass --name and --definition.");
+				}
+			} catch (error) {
+				process.exitCode = fail(
+					error instanceof Error ? error : new Error(String(error)),
+					globals(command, deps.system),
+				);
+				return;
+			}
+			return withRepo(deps, command, repo, (target) =>
+				saveCustomRule(deps, command, target, undefined, args),
+			);
+		},
+	);
+	customRuleFlags(
+		rules
+			.command("update <repoOrRule> [ruleId]")
+			.usage("[options] [repo] <ruleId>")
+			.description(
+				"Change a custom rule in place. Options you leave out keep their value",
+			),
+	).action(
+		(
+			first: string,
+			second: string | undefined,
+			opts: CustomRuleOptions,
+			command: Command,
+		) => {
+			const [repo, ruleId] =
+				second === undefined ? [undefined, first] : [first, second];
+			let args: ToolArgs;
+			try {
+				args = customRuleArgs(opts);
+				if (Object.keys(args).length === 0) {
+					throw new Error(
+						"Pass --name, --definition, --description, --enable or --disable.",
+					);
+				}
+			} catch (error) {
+				process.exitCode = fail(
+					error instanceof Error ? error : new Error(String(error)),
+					globals(command, deps.system),
+				);
+				return;
+			}
+			return withRepo(deps, command, repo, (target) =>
+				saveCustomRule(deps, command, target, ruleId, args),
+			);
+		},
+	);
+	rules
+		.command("delete <repoOrRule> [ruleId]")
+		.usage("[options] [repo] <ruleId>")
+		.description(
+			"Delete a custom rule. A rule a workflow uses cannot be deleted",
+		)
+		.action(
+			(
+				first: string,
+				second: string | undefined,
+				_options,
+				command: Command,
+			) => {
+				const [repo, ruleId] =
+					second === undefined ? [undefined, first] : [first, second];
+				return withRepo(deps, command, repo, (target) =>
+					runTool(deps, command, "delete_custom_rule", {
+						repo: target,
+						id: ruleId,
+					}),
 				);
 			},
 		);

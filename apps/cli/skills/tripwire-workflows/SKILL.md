@@ -42,7 +42,10 @@ the compiler checks it before anything runs.
    `npx @tripwire-sh/cli workflows enable <repo> <id>`.
 
 Loading `tripwire.ts` needs Bun or Node 22.18+. On older Node, use
-`bunx @tripwire-sh/cli`. Without the CLI, the MCP tools `get_workflow`,
+`bunx @tripwire-sh/cli`. If `npx` stops with `EBADDEVENGINES`, the repo's
+`package.json` has a `devEngines` field that npm enforces. Use
+`bunx @tripwire-sh/cli`, or `npx --prefix ~ @tripwire-sh/cli`, which runs in
+the same folder. Without the CLI, the MCP tools `get_workflow`,
 `validate_workflow`, `propose_workflow_push` and `apply_workflow` do the same
 with compiled JSON. Over the MCP, call `begin_workflow_work` before you build
 so the user can watch the draft in the app, and `finish_workflow_work` when
@@ -111,3 +114,45 @@ workflow({ steps: { opened, age, stop: block().after(age.fails) } });
 - `match`: `{ subjects: ["issue"], state: "open", inactiveFor: { n: 15,
   unit: "days" }, labels, excludeLabels }`.
 - Use `run: [...]` for actions straight after the trigger.
+
+## Custom rules
+
+When no built-in rule checks what the user wants, make a custom rule. A custom
+rule reads one signal and passes when its comparison holds. Ask the user
+before you save one.
+
+```sh
+npx @tripwire-sh/cli rules create <repo> --name "Not into release" \
+  --definition '{"when":{"id":"pr.targetBranch"},"comparison":{"kind":"noneOf","args":[["release"]]}}'
+```
+
+It prints the rule's id and its sentence, here `require that target branch is
+not release`. Show the user the sentence. `rules update <repo> <id>` changes a
+rule in place and keeps its id. `rules delete <repo> <id>` deletes it; a rule a
+workflow uses cannot be deleted. `rules list <repo>` shows each rule's
+sentence. Over the MCP, the tools are `save_custom_rule`, `delete_custom_rule`
+and `get_repo_rules`. The `save_custom_rule` description lists every signal
+and comparison.
+
+A new rule starts off. A rule that is on and that no workflow uses runs by
+itself on every change request. To combine rules, keep them off and use them
+in `tripwire.ts`. For example, to block change requests into `release` unless
+the source branch comes from release-please, make a second rule
+`{"when":{"id":"pr.sourceBranch"},"comparison":{"kind":"has","args":["release-please"]}}`,
+then:
+
+```ts
+"release-branch": workflow({
+	name: "Release branch",
+	on: "change-request.opened",
+	check: allOf(
+		customCheck("custom-not-into-release-1a2b3c").fails,
+		customCheck("custom-from-release-please-4d5e6f").fails,
+	),
+	pass: [block()],
+}),
+```
+
+There is no starts-with or regex comparison: `has` matches anywhere in the
+text, and text compares are case sensitive. Validate with `--repo` so the ids
+are checked against the repo, then diff and push as usual.

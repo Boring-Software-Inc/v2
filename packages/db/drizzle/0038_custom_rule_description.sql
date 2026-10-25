@@ -1,0 +1,1 @@
+ALTER TABLE "custom_rules" ADD COLUMN "description" text;

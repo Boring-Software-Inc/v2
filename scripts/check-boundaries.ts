@@ -14,7 +14,7 @@ import { Glob } from "bun";
  *   utils        ← everything except contracts
  *   forge        ← forge-github, forge-opengit, worker
  *   core         ← worker ONLY
- *   sdk          ← forge-github, worker  (signal registry + defineForge; pure)
+ *   sdk          ← forge-github, worker, db, web  (signal registry + defineForge; pure)
  *   db           ← worker, api, web, mcp
  *   forge-github ← worker, api
  *   forge-opengit ← worker, api           (no sdk yet — no signals of its own)
@@ -31,7 +31,7 @@ const ALLOWED: Record<string, readonly string[]> = {
 	sdk: ["contracts"],
 	"forge-github": ["contracts", "utils", "forge", "sdk"],
 	"forge-opengit": ["contracts", "utils", "forge"],
-	db: ["contracts", "utils"],
+	db: ["contracts", "utils", "sdk"],
 	ui: [],
 	// apps
 	web: ["auth", "contracts", "utils", "db", "ui", "sdk"],

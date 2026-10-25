@@ -184,8 +184,23 @@ const repoRulesSchema = z.array(
 		management: z.string().nullish(),
 		cannotRun: z.string().nullish(),
 		matches24h: z.number().nullish(),
+		sentence: z.string().nullish(),
 	}),
 );
+
+const customRuleSchema = z.object({
+	id: z.string(),
+	created: z.boolean(),
+	enabled: z.boolean(),
+	sentence: z.string(),
+	use: z.string().optional(),
+	url: z.string().optional(),
+});
+
+const deletedRuleSchema = z.object({
+	deleted: z.literal(true),
+	id: z.string(),
+});
 
 const workflowsSchema = z.array(
 	z.object({
@@ -448,7 +463,9 @@ const FORMATTERS: Record<string, Formatter> = {
 				onOff(rule.enabled, style),
 				String(rule.matches24h ?? 0),
 				rule.cannotRun ??
-					(rule.management === "managed" ? "set by a workflow" : ""),
+					(rule.management === "managed"
+						? "set by a workflow"
+						: (rule.sentence ?? "")),
 			]),
 		);
 	}),
@@ -457,6 +474,23 @@ const FORMATTERS: Record<string, Formatter> = {
 			[["done", `${value.ruleId} is ${onOff(value.enabled, style)}`]],
 			style,
 		),
+	),
+	save_custom_rule: using(customRuleSchema, (value, style) => {
+		const rows: Row[] = [
+			["done", `${value.created ? "Created" : "Saved"} ${value.id}`],
+			["rule", value.sentence],
+			["state", onOff(value.enabled, style)],
+		];
+		if (value.use) {
+			rows.push(["use", value.use]);
+		}
+		if (value.url) {
+			rows.push(["open", value.url]);
+		}
+		return pairs(rows, style);
+	}),
+	delete_custom_rule: using(deletedRuleSchema, (value, style) =>
+		pairs([["done", `Deleted ${value.id}`]], style),
 	),
 	turn_on_gate: using(gateSchema, (value, style) => {
 		const rows: Row[] = [

@@ -267,6 +267,13 @@
       "when": 1792839036802,
       "tag": "0037_flag_override_removals",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792898173240,
+      "tag": "0038_custom_rule_description",
+      "breakpoints": true
     }
   ]
 }

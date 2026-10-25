@@ -9,13 +9,13 @@ import {
 describe("setup prompt", () => {
 	test("with a run code it names the org, the code and both paths", () => {
 		expect(setupPrompt({ org: "acme", code: "AbCdE12345" })).toBe(
-			"Please help me set up Tripwire.\n\norg slug: acme\nrun code: AbCdE12345\n\nIf you can run commands, run npx @tripwire-sh/cli install acme#AbCdE12345. If not, add the MCP server https://mcp.tripwire.sh/mcp and use its tools.",
+			"Please help me set up Tripwire.\n\norg slug: acme\nrun code: AbCdE12345\n\nIf you can run commands, run npx @tripwire-sh/cli install acme#AbCdE12345, or bunx @tripwire-sh/cli install acme#AbCdE12345 when npx stops with EBADDEVENGINES. If not, add the MCP server https://mcp.tripwire.sh/mcp and use its tools.",
 		);
 	});
 
 	test("without a code it drops the org, the code and the argument", () => {
 		expect(setupPrompt()).toBe(
-			"Please help me set up Tripwire.\n\nIf you can run commands, run npx @tripwire-sh/cli install. If not, add the MCP server https://mcp.tripwire.sh/mcp and use its tools.",
+			"Please help me set up Tripwire.\n\nIf you can run commands, run npx @tripwire-sh/cli install, or bunx @tripwire-sh/cli install when npx stops with EBADDEVENGINES. If not, add the MCP server https://mcp.tripwire.sh/mcp and use its tools.",
 		);
 	});
 });

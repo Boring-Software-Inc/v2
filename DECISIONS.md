@@ -233,3 +233,18 @@ in which only the fire moves. Run pages keep only their still `og:image`.
 **Alternatives looked at:** an ffmpeg static binary (about 80 MB), ffmpeg.wasm
 (about 30 MB of wasm), WebCodecs (not in Node), and an animated GIF
 `og:image` (no platform we checked confirms that it animates).
+
+## 2026-10-24: db imports sdk for custom rule writes
+
+**Added:** `@tripwire/sdk` as a workspace dependency of `@tripwire/db`, and
+`db → sdk` in `scripts/check-boundaries.ts`.
+
+**What it replaces:** the custom rule write path in
+`apps/web/src/lib/custom-rules.functions.ts`. The MCP server and the CLI now
+create custom rules too, so the checks moved to `customRuleServices` in db,
+where web and mcp both call them.
+
+**Why:** a save must run `storedRuleIssue` from sdk, the same check the
+evaluator applies. sdk is pure and imports only contracts, so the edge adds no
+I/O and no cycle. The other choice was to pass the check in from each caller,
+which lets a new caller skip it.

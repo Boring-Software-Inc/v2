@@ -70,10 +70,13 @@ export type SetupRunView = z.infer<typeof setupRunViewSchema>;
 export const SETUP_CLI_PACKAGE = "@tripwire-sh/cli";
 export const TRIPWIRE_MCP_URL = "https://mcp.tripwire.sh/mcp";
 
-export function setupInstallCommand(run?: { org: string; code: string }) {
+export function setupInstallCommand(
+	run?: { org: string; code: string },
+	runner: "npx" | "bunx" = "npx",
+) {
 	return run
-		? `npx ${SETUP_CLI_PACKAGE} install ${run.org}#${run.code}`
-		: `npx ${SETUP_CLI_PACKAGE} install`;
+		? `${runner} ${SETUP_CLI_PACKAGE} install ${run.org}#${run.code}`
+		: `${runner} ${SETUP_CLI_PACKAGE} install`;
 }
 
 export function setupRunPrompt(run?: { org: string; code: string }): string {
@@ -86,5 +89,5 @@ export function setupPrompt(
 	run?: { org: string; code: string },
 	mcpUrl: string = TRIPWIRE_MCP_URL,
 ): string {
-	return `${setupRunPrompt(run)}\n\nIf you can run commands, run ${setupInstallCommand(run)}. If not, add the MCP server ${mcpUrl} and use its tools.`;
+	return `${setupRunPrompt(run)}\n\nIf you can run commands, run ${setupInstallCommand(run)}, or ${setupInstallCommand(run, "bunx")} when npx stops with EBADDEVENGINES. If not, add the MCP server ${mcpUrl} and use its tools.`;
 }

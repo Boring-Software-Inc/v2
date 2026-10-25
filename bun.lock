@@ -209,6 +209,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@tripwire/contracts": "workspace:*",
+        "@tripwire/sdk": "workspace:*",
         "@tripwire/utils": "workspace:*",
         "drizzle-orm": "^0.45.2",
         "pg": "^8.22.0",
