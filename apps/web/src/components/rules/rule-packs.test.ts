@@ -23,6 +23,7 @@ const rule = (over: Partial<RuleConfigView>): RuleConfigView => ({
 	sentence: null,
 	blockingWorkflows: [],
 	outcome: { outcome: "block", instruction: "" },
+	owners: [],
 	...over,
 });
 
