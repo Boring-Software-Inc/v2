@@ -164,6 +164,8 @@ export type {
 } from "./services/organizations.ts";
 export * as orgServices from "./services/organizations.ts";
 export * as presenceServices from "./services/presence.ts";
+export type { RepoSetupFacts } from "./services/repo-setup.ts";
+export * as repoSetupServices from "./services/repo-setup.ts";
 export * as repoServices from "./services/repos.ts";
 export type { RedactionUsage } from "./services/responses.ts";
 export * as responseServices from "./services/responses.ts";
@@ -187,6 +189,7 @@ export type { DueSchedule } from "./services/schedules.ts";
 export * as scheduleServices from "./services/schedules.ts";
 export type {
 	AgentSetupPromptState,
+	RepoAgentRun,
 	SetupNextStep,
 	SetupProgressResult,
 	SetupStatus,

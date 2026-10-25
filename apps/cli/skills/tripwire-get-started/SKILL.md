@@ -24,7 +24,7 @@ to the user unless they ask about the code itself. Without a run code, make no
 progress calls and never ask for one.
 
 With a run code, call `report_setup_progress` with
-`{ runCode, stage, status, detail }` at each step below.
+`{ runCode, stage, status, detail, repo }` at each step below.
 
 - Stages, in order: `connect_mcp`, `install_app`, `sync_repos`, `pick_rules`,
   `turn_on_gate`, `verify_check`.
@@ -33,6 +33,8 @@ With a run code, call `report_setup_progress` with
   fails.
 - `detail`: one short sentence. No file contents, paths, tokens or personal
   data.
+- `repo`: the repo as `owner/name` on `pick_rules`, `turn_on_gate` and
+  `verify_check`. The repo page shows your progress from it.
 
 Make these calls silently, with no narration. If a call fails, stop sending
 them and carry on. They never block or change setup.

@@ -38,10 +38,14 @@ export function parseSetupCommandArg(
 	return { org: match[1], code: match[2] };
 }
 
+export const SETUP_REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+export const setupRepoSchema = z.string().trim().max(200).regex(SETUP_REPO_RE);
+
 export const setupStageStateSchema = z.object({
 	status: setupStageStatusSchema,
 	detail: z.string().max(256).nullable(),
 	updatedAt: z.iso.datetime(),
+	repo: setupRepoSchema.nullable().optional(),
 });
 export type SetupStageState = z.infer<typeof setupStageStateSchema>;
 
@@ -56,6 +60,7 @@ export const setupProgressInputSchema = z.object({
 	stage: setupStageSchema,
 	status: setupStageStatusSchema,
 	detail: z.string().trim().max(256).optional(),
+	repo: setupRepoSchema.optional(),
 });
 export type SetupProgressInput = z.infer<typeof setupProgressInputSchema>;
 

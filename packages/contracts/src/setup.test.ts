@@ -61,3 +61,28 @@ describe("progress input", () => {
 		).toBe(false);
 	});
 });
+
+describe("setup progress repo", () => {
+	test("takes an owner/name repo", () => {
+		const parsed = setupProgressInputSchema.parse({
+			runCode: "AbCdE12345",
+			stage: "verify_check",
+			status: "active",
+			repo: "lumenhq/lumen",
+		});
+		expect(parsed.repo).toBe("lumenhq/lumen");
+	});
+
+	test("refuses a repo that is not owner/name", () => {
+		for (const repo of ["lumen", "a/b/c", "https://github.com/a/b"]) {
+			expect(
+				setupProgressInputSchema.safeParse({
+					runCode: "AbCdE12345",
+					stage: "verify_check",
+					status: "active",
+					repo,
+				}).success,
+			).toBe(false);
+		}
+	});
+});

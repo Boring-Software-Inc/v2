@@ -1379,6 +1379,13 @@ export function registerTools(
 					.max(256)
 					.optional()
 					.describe("A short note. No code, paths or secrets."),
+				repo: z
+					.string()
+					.max(200)
+					.optional()
+					.describe(
+						"The repo this stage is for, as owner/name. Send it on pick_rules, turn_on_gate and verify_check so the repo page shows your progress.",
+					),
 			},
 			annotations: {
 				readOnlyHint: false,

@@ -24,9 +24,12 @@ import {
 	AGENT_SETUP_REMIND_AFTER_MS,
 	dismissAgentSetupPrompt,
 	ensureSetupRun,
+	findRepoAgentRun,
 	getAgentSetupPrompt,
 	getSetupStatus,
 	reportSetupProgress,
+	SETUP_AGENT_LIVE_MS,
+	takeOverSetupRun,
 } from "./setup.ts";
 
 let container: TestDatabase;
@@ -329,5 +332,86 @@ describe("agent setup prompt", () => {
 				})
 			).visible,
 		).toBe(false);
+	});
+});
+
+describe("an agent setting up one repo", () => {
+	const agentUserId = generateId();
+
+	test("the repo sees the run, its agent and its stages until a person takes over", async () => {
+		await db
+			.insert(user)
+			.values({ id: agentUserId, name: "cy", email: "cy@example.com" });
+		await saveAgentGrant(db, {
+			userId: agentUserId,
+			clientId: CLIENT,
+			orgIds: [orgId],
+		});
+		const run = await ensureSetupRun(db, { orgId, userId: agentUserId });
+		const now = new Date();
+		expect(
+			await findRepoAgentRun(db, { orgId, repoFullName: "acme/app", now }),
+		).toBeNull();
+		await reportSetupProgress(db, {
+			userId: agentUserId,
+			orgIds: [orgId],
+			now,
+			progress: {
+				runCode: run.code,
+				stage: "verify_check",
+				status: "active",
+				detail: "Running rules on #512",
+				repo: "acme/app",
+			},
+		});
+		const found = await findRepoAgentRun(db, {
+			orgId,
+			repoFullName: "Acme/App",
+			now,
+		});
+		expect(found?.code).toBe(run.code);
+		expect(found?.agentName).toBe("Tripwire CLI");
+		expect(found?.stages.verify_check).toMatchObject({
+			status: "active",
+			detail: "Running rules on #512",
+			repo: "acme/app",
+		});
+		expect(found?.stages.connect_mcp?.status).toBe("skipped");
+		expect(
+			await findRepoAgentRun(db, { orgId, repoFullName: "acme/other", now }),
+		).toBeNull();
+		expect(
+			await findRepoAgentRun(db, {
+				orgId: otherOrgId,
+				repoFullName: "acme/app",
+				now,
+			}),
+		).toBeNull();
+		expect(
+			await findRepoAgentRun(db, {
+				orgId,
+				repoFullName: "acme/app",
+				now: new Date(now.getTime() + SETUP_AGENT_LIVE_MS + 1000),
+			}),
+		).toBeNull();
+
+		expect(
+			await takeOverSetupRun(db, { orgId: otherOrgId, code: run.code }),
+		).toBe(false);
+		expect(await takeOverSetupRun(db, { orgId, code: run.code })).toBe(true);
+		expect(
+			await findRepoAgentRun(db, { orgId, repoFullName: "acme/app", now }),
+		).toBeNull();
+		const after = await reportSetupProgress(db, {
+			userId: agentUserId,
+			orgIds: [orgId],
+			progress: {
+				runCode: run.code,
+				stage: "verify_check",
+				status: "completed",
+				repo: "acme/app",
+			},
+		});
+		expect(after).toEqual({ recorded: false, continueUpdates: false });
 	});
 });
