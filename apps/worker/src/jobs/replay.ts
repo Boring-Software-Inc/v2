@@ -7,7 +7,9 @@ import type {
 	WorkflowDefinition,
 } from "@tripwire/contracts";
 import {
+	nonEnforcingRuleNodeIds,
 	normalizedEventSchema,
+	verdictSchema,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { executeWorkflow } from "@tripwire/core";
@@ -72,7 +74,7 @@ export interface ReplayReport {
 
 const bundleSchema = z.object({
 	runId: z.string(),
-	storedVerdict: z.enum(["pass", "block", "needs_review"]),
+	storedVerdict: verdictSchema,
 	snapshot: z.array(workflowDefinitionSchema),
 	event: normalizedEventSchema,
 	steps: z.array(
@@ -146,7 +148,10 @@ export async function replayBundle(
 		});
 		verdicts.push(result.verdict);
 		const ruleSteps = result.steps.filter((s) => s.nodeKind === "rule");
-		const floorSteps = floorRuleSteps(ruleSteps);
+		const quiet = nonEnforcingRuleNodeIds(definition);
+		const floorSteps = floorRuleSteps(ruleSteps).filter(
+			(step) => !quiet.has(step.nodeId),
+		);
 		ruleNodes += floorSteps.length;
 		skippedRules += floorSteps.filter((s) => s.status === "skipped").length;
 		for (const s of ruleSteps) {

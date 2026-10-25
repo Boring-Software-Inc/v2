@@ -13,6 +13,8 @@ import {
 	customRuleRef,
 	customRuleSummary,
 	isAiReviewNotRunStep,
+	joinVerdicts,
+	nonEnforcingRuleNodeIds,
 	resolveEffectiveRuleConfig,
 	ruleIdOf,
 	ruleResultSchema,
@@ -67,12 +69,6 @@ import {
  * recorded as rows first. Verdict severity: block > needs_review > pass.
  */
 
-const VERDICT_RANK: Record<Verdict, number> = {
-	pass: 0,
-	needs_review: 1,
-	block: 2,
-};
-
 export function actionPayload(
 	action: { nodeId: string; action: string; params: Record<string, unknown> },
 	definitionId: string,
@@ -98,10 +94,27 @@ export function postsSomething(action: { action: string }): boolean {
 }
 
 export function worstVerdict(verdicts: Verdict[]): Verdict {
-	return verdicts.reduce<Verdict>(
-		(worst, v) => (VERDICT_RANK[v] > VERDICT_RANK[worst] ? v : worst),
-		"pass",
+	return joinVerdicts(verdicts);
+}
+
+export function floorStepsOf<
+	T extends { nodeId: string; status: string; output: unknown },
+>(definitions: readonly WorkflowDefinition[], ruleSteps: readonly T[]): T[] {
+	const quiet = new Set(
+		definitions.flatMap((definition) =>
+			[...nonEnforcingRuleNodeIds(definition)].map(
+				(nodeId) => `${definition.id}:${nodeId}`,
+			),
+		),
 	);
+	return floorRuleSteps(ruleSteps).filter((step) => !quiet.has(step.nodeId));
+}
+
+export function isEvaluationDegraded(
+	ruleNodeCount: number,
+	skippedCount: number,
+): boolean {
+	return ruleNodeCount > 0 && skippedCount * 2 >= ruleNodeCount;
 }
 
 /**
@@ -299,14 +312,15 @@ async function runWorkflowsInner(
 	// id, so a held old version replaces — never doubles — the baseline.
 	const derived = deriveDefaultWorkflow(
 		[
-			...ruleConfigs.map((config) =>
-				resolveEffectiveRuleConfig({
+			...ruleConfigs.map((config) => ({
+				...resolveEffectiveRuleConfig({
 					ruleId: config.ruleId,
 					version: config.version,
 					enabled: config.enabled,
 					config: config.config as JsonValue,
 				}),
-			),
+				outcome: config.outcome,
+			})),
 			// Custom rules join the toggle set like any non-baseline rule: they
 			// run when enabled, and workflow ownership excludes them like any id.
 			...customRows.map((row) => ({
@@ -314,6 +328,7 @@ async function runWorkflowsInner(
 				enabled: row.enabled,
 				config: {} as JsonValue,
 				held: false,
+				outcome: row.outcome,
 			})),
 		],
 		ownedRuleIds,
@@ -410,10 +425,7 @@ async function runWorkflowsInner(
 			: null,
 	);
 	const evaluateRuleRef = makeEvaluator(ctx, logger, customSignals);
-	const executions: {
-		definition: WorkflowDefinition;
-		result: Awaited<ReturnType<typeof executeWorkflow>>;
-	}[] = [];
+	const executions: Execution[] = [];
 	try {
 		for (const definition of matching) {
 			executions.push({
@@ -450,7 +462,7 @@ async function runWorkflowsInner(
 	}
 
 	let verdict = worstVerdict(executions.map((e) => e.result.verdict));
-	let paused = executions.some((e) => e.result.pausedAtNodeId !== null);
+	let paused = executions.some((e) => e.result.pausedAtNodeIds.length > 0);
 	const steps: StepRecord[] = executions.flatMap((execution) =>
 		execution.result.steps.map((step) => ({
 			...step,
@@ -469,11 +481,28 @@ async function runWorkflowsInner(
 	const ruleSteps0 = steps.filter(
 		(step) => step.nodeKind === "rule" && step.status !== "disabled",
 	);
-	const floorSteps = floorRuleSteps(ruleSteps0);
+	const floorSteps = floorStepsOf(matching, ruleSteps0);
 	const skippedCount = floorSteps.filter(
 		(step) => step.status === "skipped",
 	).length;
-	const degraded = isRunDegraded(floorSteps.length, skippedCount, verdict);
+	const closeHeld = await holdCloses({
+		db,
+		event,
+		executions,
+		evaluationDegraded: isEvaluationDegraded(floorSteps.length, skippedCount),
+		steps,
+	});
+	if (closeHeld) {
+		verdict = worstVerdict(executions.map((e) => e.result.verdict));
+		paused = executions.some((e) => e.result.pausedAtNodeIds.length > 0);
+		const heldStep = steps.at(-1);
+		if (liveRunId && heldStep) {
+			await runServices.recordSteps(db, liveRunId, [heldStep]);
+		}
+	}
+	const degraded =
+		isRunDegraded(floorSteps.length, skippedCount, verdict) ||
+		closeHeld === "degraded";
 	const unrunnableFloored = unrunnable.length > 0 && verdict === "pass";
 	const aiReviewNotRun = ruleSteps0.some(isAiReviewNotRunStep);
 	const floored = degraded || unrunnableFloored;
@@ -491,7 +520,7 @@ async function runWorkflowsInner(
 		!heldBack &&
 		(await repoServices.getResponseConfig(db, repo.id)).failClosedFallback;
 	if (failClosed) {
-		verdict = "needs_review";
+		verdict = joinVerdicts([verdict, "needs_review"]);
 		paused = true;
 	}
 	if (unrunnable.length > 0) {
@@ -637,10 +666,10 @@ async function runWorkflowsInner(
 	}
 
 	for (const execution of backfill ? [] : executions) {
-		if (execution.result.pausedAtNodeId) {
+		for (const pausedNodeId of execution.result.pausedAtNodeIds) {
 			await moderationServices.createModerationItem(db, {
 				runId,
-				nodeId: `${execution.definition.id}:${execution.result.pausedAtNodeId}`,
+				nodeId: `${execution.definition.id}:${pausedNodeId}`,
 			});
 		}
 	}
@@ -711,6 +740,102 @@ async function runWorkflowsInner(
 		degraded,
 		aiReviewNotRun,
 	};
+}
+
+export type CloseHold = false | "degraded" | "reopened";
+
+type Execution = {
+	definition: WorkflowDefinition;
+	result: Awaited<ReturnType<typeof executeWorkflow>>;
+};
+
+export function executionVerdict(result: Execution["result"]): Verdict {
+	return joinVerdicts([
+		...result.actions.map((action): Verdict => {
+			if (action.action === "close") {
+				return "close";
+			}
+			if (action.action === "block") {
+				return "block";
+			}
+			return action.action === "request-fix" ? "changes_required" : "pass";
+		}),
+		result.pausedAtNodeIds.length > 0 ? "needs_review" : "pass",
+	]);
+}
+
+export function applyCloseHold(
+	executions: readonly Execution[],
+	hold: Exclude<CloseHold, false>,
+): void {
+	for (const execution of executions) {
+		const closes = execution.result.actions.some(
+			(action) => action.action === "close",
+		);
+		if (!closes) {
+			continue;
+		}
+		execution.result.actions = execution.result.actions.flatMap((action) => {
+			if (action.action !== "close") {
+				return [action];
+			}
+			return hold === "reopened"
+				? [{ nodeId: action.nodeId, action: "block", params: {} }]
+				: [];
+		});
+		execution.result.verdict = executionVerdict(execution.result);
+	}
+}
+
+async function holdCloses(input: {
+	db: Db;
+	event: RepoScopedEvent;
+	executions: readonly Execution[];
+	evaluationDegraded: boolean;
+	steps: StepRecord[];
+}): Promise<CloseHold> {
+	const { event } = input;
+	if (
+		!("changeRequest" in input.event) ||
+		!input.executions.some((execution) =>
+			execution.result.actions.some((action) => action.action === "close"),
+		)
+	) {
+		return false;
+	}
+	const changeRequest = "changeRequest" in event ? event.changeRequest : null;
+	const hold: CloseHold = input.evaluationDegraded
+		? "degraded"
+		: changeRequest &&
+				(await runServices.closedOnHead(
+					input.db,
+					event.repo.fullName,
+					changeRequest.number,
+					changeRequest.headSha,
+				))
+			? "reopened"
+			: false;
+	if (!hold) {
+		return false;
+	}
+	applyCloseHold(input.executions, hold);
+	const at = new Date().toISOString();
+	input.steps.push({
+		nodeId: "run:close-held",
+		nodeKind: "action",
+		status: "skipped",
+		input: { action: "close", hold },
+		output: {
+			reason:
+				hold === "degraded"
+					? "Too few checks could run, so Tripwire did not close it."
+					: "A person reopened it on this commit, so Tripwire blocks instead of closing again.",
+		},
+		startedAt: at,
+		finishedAt: at,
+		durationMs: 0,
+	});
+	return hold;
 }
 
 interface CausedStep {

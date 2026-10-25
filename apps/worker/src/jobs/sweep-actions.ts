@@ -4,7 +4,11 @@ import { moderationServices, runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
-import { emitClosedReviewSurfaces, toForgeAction } from "./pr-surface.ts";
+import {
+	emitClosedReviewSurfaces,
+	toForgeAction,
+	VERDICT_ONLY_KINDS,
+} from "./pr-surface.ts";
 
 /**
  * §5.12 surface sweeper (live-test surprise #3): actions are recorded FIRST and
@@ -108,8 +112,14 @@ export async function sweepActions(
 		if (DELIVERY_KINDS.has(row.kind)) {
 			continue;
 		}
+		if (VERDICT_ONLY_KINDS.has(row.kind)) {
+			await runServices.markActionExecuted(db, row.id, null);
+			continue;
+		}
 		if (
-			(row.kind === "comment" || row.kind === "delete-comment") &&
+			(row.kind === "comment" ||
+				row.kind === "delete-comment" ||
+				row.kind === "close") &&
 			row.subjectNumber !== null &&
 			bearsVerdict(row.eventKind)
 		) {

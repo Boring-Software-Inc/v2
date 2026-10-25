@@ -157,3 +157,118 @@ describe("forge-aware derivation", () => {
 		).toBe(false);
 	});
 });
+
+describe("standalone rule outcomes", () => {
+	const toggles: RuleToggle[] = [
+		{ ref: "account-age@1", enabled: true, config: { minDays: 7 } },
+		{ ref: "crypto-address@1", enabled: true, config: {} },
+	];
+
+	test("rules with no outcome, or Block, derive the same workflow as before", () => {
+		const before = deriveDefaultWorkflow(toggles);
+		const explicit = deriveDefaultWorkflow(
+			toggles.map((toggle) => ({
+				...toggle,
+				outcome: { outcome: "block", instruction: "" },
+			})),
+		);
+		expect(explicit).toEqual(before);
+		expect(before.nodes.map((node) => node.id)).toEqual([
+			"trigger",
+			"rule-0",
+			"rule-1",
+			"gate",
+			"block",
+		]);
+	});
+
+	test("each outcome wires its own action, and the workflow stays valid", () => {
+		const def = deriveDefaultWorkflow([
+			{
+				ref: "account-age@1",
+				enabled: true,
+				config: { minDays: 7 },
+				outcome: {
+					outcome: "request_fix",
+					instruction: "Change the target to main.",
+				},
+			},
+			{
+				ref: "crypto-address@1",
+				enabled: true,
+				config: {},
+				outcome: { outcome: "close", instruction: "" },
+			},
+			{
+				ref: "honeypot@1",
+				enabled: true,
+				config: {},
+				outcome: { outcome: "note", instruction: "" },
+			},
+			{
+				ref: "max-files-changed@1",
+				enabled: true,
+				config: { max: 1 },
+				outcome: { outcome: "human_review", instruction: "" },
+			},
+		]);
+		expect(validateWorkflow(def).valid).toBe(true);
+		const actions = def.nodes.flatMap((node) =>
+			node.type === "action"
+				? [{ id: node.id, action: node.action, params: node.params }]
+				: [],
+		);
+		expect(actions).toEqual([
+			{ id: "close", action: "close", params: undefined },
+			{ id: "review", action: "send-to-moderation", params: undefined },
+			{
+				id: "fix-0",
+				action: "request-fix",
+				params: { message: "Change the target to main." },
+			},
+			{ id: "note-3", action: "note", params: undefined },
+		]);
+	});
+
+	test("a failing fix rule resolves to changes needed, a failing note rule passes", async () => {
+		const event = await fixtureEvent("change-request.opened.event");
+		const def = deriveDefaultWorkflow([
+			{
+				ref: "account-age@1",
+				enabled: true,
+				config: { minDays: 7 },
+				outcome: { outcome: "request_fix", instruction: "" },
+			},
+			{
+				ref: "crypto-address@1",
+				enabled: true,
+				config: {},
+				outcome: { outcome: "note", instruction: "" },
+			},
+		]);
+		const failing = (failed: readonly string[]) => (ref: string) =>
+			Promise.resolve<RuleResult>({
+				ruleId: ref.split("@")[0] ?? ref,
+				version: 1,
+				status: "evaluated",
+				passed: !failed.includes(ref),
+				evidence: {},
+				evaluatedAt: clock(),
+			});
+		const fix = await executeWorkflow({
+			definition: def,
+			event,
+			evaluateRuleRef: failing(["account-age@1"]),
+			now: clock,
+		});
+		expect(fix.verdict).toBe("changes_required");
+		const noted = await executeWorkflow({
+			definition: def,
+			event,
+			evaluateRuleRef: failing(["crypto-address@1"]),
+			now: clock,
+		});
+		expect(noted.verdict).toBe("pass");
+		expect(noted.actions.map((action) => action.action)).toEqual(["note"]);
+	});
+});
