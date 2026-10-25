@@ -1,6 +1,7 @@
 import {
 	type RunStanding,
 	ruleResultSchema,
+	standingVerdict,
 	VERDICT_EVENT_KINDS,
 	type Verdict,
 	type WorkflowDefinition,
@@ -14,8 +15,10 @@ import {
 	gt,
 	inArray,
 	isNotNull,
+	isNull,
 	lt,
 	ne,
+	or,
 	sql,
 } from "drizzle-orm";
 import { z } from "zod";
@@ -627,24 +630,10 @@ export async function completeRun(
 		.where(eq(runs.id, runId));
 }
 
-export async function setRunVerdict(
-	db: Db,
-	runId: string,
-	verdict: Verdict,
-	status: "paused" | "completed",
-): Promise<void> {
-	await db
-		.update(runs)
-		.set(
-			status === "completed"
-				? { status, verdict, completedAt: new Date() }
-				: { status, verdict },
-		)
-		.where(eq(runs.id, runId));
-}
+type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export async function getRunStanding(
-	db: Db,
+	db: Queryable,
 	runId: string,
 ): Promise<RunStanding> {
 	const runRows = await db
@@ -661,13 +650,19 @@ export async function getRunStanding(
 				inArray(runActions.kind, ["close", "block", "request-fix"]),
 			),
 		);
-	const pending = await db
+	const outstanding = await db
 		.select({ id: moderationItems.id })
 		.from(moderationItems)
 		.where(
 			and(
 				eq(moderationItems.runId, runId),
-				eq(moderationItems.status, "pending"),
+				or(
+					eq(moderationItems.status, "pending"),
+					and(
+						inArray(moderationItems.status, ["approved", "denied"]),
+						isNull(moderationItems.appliedAt),
+					),
+				),
 			),
 		);
 	const count = (kind: string) =>
@@ -676,8 +671,36 @@ export async function getRunStanding(
 		closes: runRows[0]?.headSha ? count("close") : 0,
 		blocks: count("block"),
 		fixes: count("request-fix"),
-		reviewsPending: pending.length,
+		reviewsPending: outstanding.length,
 	};
+}
+
+export async function settleRun(
+	db: Db,
+	runId: string,
+	appliedItemId: string | null,
+): Promise<{ verdict: Verdict; status: "paused" | "completed" }> {
+	return await db.transaction(async (tx) => {
+		await tx.execute(sql`SELECT id FROM runs WHERE id = ${runId} FOR UPDATE`);
+		if (appliedItemId) {
+			await tx
+				.update(moderationItems)
+				.set({ appliedAt: new Date() })
+				.where(eq(moderationItems.id, appliedItemId));
+		}
+		const standing = await getRunStanding(tx, runId);
+		const verdict = standingVerdict(standing);
+		const status = standing.reviewsPending > 0 ? "paused" : "completed";
+		await tx
+			.update(runs)
+			.set(
+				status === "completed"
+					? { status, verdict, completedAt: new Date() }
+					: { status, verdict },
+			)
+			.where(eq(runs.id, runId));
+		return { verdict, status };
+	});
 }
 
 export async function closedOnHead(

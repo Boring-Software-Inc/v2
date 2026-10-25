@@ -803,3 +803,171 @@ describe("retries and stale runs", () => {
 		]);
 	});
 });
+
+describe("review findings", () => {
+	const AGE_REVIEW = workflow(
+		"age-review",
+		[
+			{
+				id: "age",
+				type: "rule",
+				ref: "account-age@1",
+				config: { minDays: 7 },
+			},
+			{ id: "review", type: "action", action: "send-to-moderation" },
+		],
+		[
+			{ id: "e1", from: "t", to: "age" },
+			{ id: "e2", from: "age", to: "review", when: "fail" },
+		],
+	);
+
+	test("two decisions queued before either resume both apply", async () => {
+		const repo = await withWorkflows(AGE_REVIEW, FILES_REVIEW);
+		const scenario = { ...YOUNG, files: 5 };
+		const { run } = await openPr(repo, scenario);
+		const runId = run?.id ?? "";
+		expect(run?.status).toBe("paused");
+		const items = await moderationServices.listModerationItemsForRun(db, runId);
+		const byNode = new Map(items.map((item) => [item.nodeId, item]));
+		const approveItem = byNode.get("age-review:review");
+		const denyItem = byNode.get("files-review:review");
+		if (!(approveItem && denyItem)) {
+			throw new Error("expected two review items");
+		}
+		await moderationServices.decideModerationItem(pool, boss, {
+			itemId: approveItem.id,
+			decision: "approve",
+			decidedBy: null,
+		});
+		await moderationServices.decideModerationItem(pool, boss, {
+			itemId: denyItem.id,
+			decision: "deny",
+			decidedBy: null,
+		});
+		const resumeDeps = {
+			db,
+			pool,
+			logger,
+			resolveForge: staticForge({
+				reads: reads(scenario),
+				adapter: fakeAdapter().adapter as never,
+			}),
+			makeGenerate: null,
+			appUrl: "https://tripwire.sh",
+		};
+		await resumeRun(resumeDeps, {
+			itemId: approveItem.id,
+			decision: "approve",
+		});
+		const between = await pool.query("SELECT status FROM runs WHERE id = $1", [
+			runId,
+		]);
+		expect(between.rows[0]?.status).toBe("paused");
+		await resumeRun(resumeDeps, { itemId: denyItem.id, decision: "deny" });
+		const after = await pool.query(
+			"SELECT status, verdict FROM runs WHERE id = $1",
+			[runId],
+		);
+		expect(after.rows[0]).toEqual({ status: "completed", verdict: "block" });
+	});
+
+	test("closing the change request keeps the Close result while a review waited", async () => {
+		const repo = await withWorkflows(FILES_REVIEW);
+		await enableRule(
+			repo.repoId,
+			"account-age",
+			{ minDays: 7 },
+			{ outcome: "close", instruction: "" },
+		);
+		const { run } = await openPr(repo, { ...YOUNG, files: 5 });
+		expect(run).toMatchObject({ status: "paused", verdict: "close" });
+		const closed = await moderationServices.closeReviewsForChangeRequest(
+			db,
+			"https://tripwire.sh",
+			repo.fullName,
+			2,
+		);
+		expect(closed).toEqual([]);
+		const after = await pool.query(
+			"SELECT status, verdict FROM runs WHERE id = $1",
+			[run?.id],
+		);
+		expect(after.rows[0]).toEqual({ status: "completed", verdict: "close" });
+		const items = await moderationServices.listModerationItemsForRun(
+			db,
+			run?.id ?? "",
+		);
+		expect(items.map((item) => item.status)).toEqual(["closed"]);
+	});
+
+	test("close waits until its comment and check have posted", async () => {
+		const repo = await freshRepo();
+		await enableRule(
+			repo.repoId,
+			"account-age",
+			{ minDays: 7 },
+			{ outcome: "close", instruction: "" },
+		);
+		const raw = await Bun.file(
+			new URL(
+				"../../../packages/forge-github/fixtures/pull_request.opened.json",
+				import.meta.url,
+			).pathname,
+		).json();
+		const [owner, name] = repo.fullName.split("/");
+		raw.repository.full_name = repo.fullName;
+		raw.repository.name = name;
+		raw.repository.owner.login = owner;
+		raw.repository.id = repo.externalId;
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId: "outcomes-close-waits",
+			rawKind: "pull_request",
+			raw,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		const flaky = fakeAdapter();
+		const execute = flaky.adapter.execute;
+		flaky.adapter.execute = (action: ForgeAction) =>
+			action.kind === "comment"
+				? Promise.reject(new Error("comment down"))
+				: execute(action);
+		await processEvent(
+			{
+				db,
+				pool,
+				logger,
+				resolveForge: staticForge({
+					reads: reads(YOUNG),
+					adapter: flaky.adapter as never,
+				}),
+				makeGenerate: null,
+				appUrl: "https://tripwire.sh",
+			},
+			{ eventId },
+		);
+		expect(kinds(flaky.executed)).not.toContain("close");
+
+		const healthy = fakeAdapter();
+		const sweep = () =>
+			sweepActions(
+				{
+					db,
+					adapterFor: () => Promise.resolve(healthy.adapter as never),
+					logger,
+					appUrl: "https://tripwire.sh",
+				},
+				{
+					recordedBefore: new Date(Date.now() + 60_000),
+					giveUpBefore: new Date(0),
+				},
+			);
+		await sweep();
+		await sweep();
+		const order = kinds(healthy.executed);
+		expect(order).toContain("close");
+		expect(order.indexOf("comment")).toBeLessThan(order.indexOf("close"));
+	});
+});

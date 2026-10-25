@@ -2,8 +2,11 @@ import { describe, expect, test } from "bun:test";
 import {
 	type CommentReason,
 	checkSummary,
+	FIX_FALLBACK,
+	fixText,
 	renderVerdictComment,
 } from "./comment-render.ts";
+import { OPEN_REDACTION } from "./redaction.ts";
 import { DEFAULT_RESPONSE_CONFIG, wantsComment } from "./response.ts";
 import {
 	joinVerdicts,
@@ -309,6 +312,25 @@ describe("issue attribution", () => {
 		]);
 	});
 
+	test("a fix or note behind a check that could not run is not an issue", () => {
+		const outcomes = runOutcomes(
+			[DEF],
+			[
+				step("t", "trigger", "pass"),
+				step("target", "rule", "skipped"),
+				step("release", "rule", "fail"),
+				step("u", "gate", "skipped", {
+					output: { outcome: "skipped", exceptionApplied: false },
+				}),
+				step("fix", "action", "skipped"),
+				step("readme", "rule", "skipped"),
+				step("note", "action", "skipped"),
+			],
+		);
+		expect(outcomes.fixes).toEqual([]);
+		expect(outcomes.notes).toEqual([]);
+	});
+
 	test("note-only checks never count toward the degraded floor", () => {
 		expect([...nonEnforcingRuleNodeIds(DEF)].sort()).toEqual([
 			"readme",
@@ -329,7 +351,7 @@ describe("PR wording", () => {
 			{
 				...input,
 				verdict: "changes_required",
-				fixes: ["Change the target to main."],
+				fixes: [{ message: "Change the target to main.", reasons: [] }],
 			},
 			DEFAULT_RESPONSE_CONFIG,
 		);
@@ -338,7 +360,7 @@ describe("PR wording", () => {
 		);
 		expect(
 			checkSummary("changes_required", [], false, 0, false, {
-				fixes: ["Change the target to main."],
+				fixes: [{ message: "Change the target to main.", reasons: [] }],
 			}),
 		).toBe("Changes needed. Change the target to main.");
 	});
@@ -348,7 +370,7 @@ describe("PR wording", () => {
 			{
 				...input,
 				verdict: "changes_required",
-				fixes: ["Change the target to main."],
+				fixes: [{ message: "Change the target to main.", reasons: [] }],
 				reviewPending: true,
 			},
 			DEFAULT_RESPONSE_CONFIG,
@@ -404,7 +426,7 @@ describe("PR wording", () => {
 				...input,
 				verdict: "block",
 				reasons: [{ text: "Crypto address found.", remedy: "revise" }],
-				fixes: ["Change the target to main."],
+				fixes: [{ message: "Change the target to main.", reasons: [] }],
 				reviewPending: true,
 				notes: ["No description provided."],
 			},
@@ -432,6 +454,40 @@ describe("PR wording", () => {
 		expect(body.startsWith("Closed.")).toBe(true);
 		expect(body).toContain("Your account is 2 days old.");
 		expect(checkSummary("close", reasons)).toBe("Closed by Account age.");
+	});
+
+	test("a fix with no instruction uses the rule's reason, redacted like any reason", () => {
+		const fix = {
+			message: null,
+			reasons: [
+				{
+					text: "It adds 0xabc to src/DONATE.md.",
+					remedy: "revise" as const,
+					ruleId: "crypto-address",
+					ruleName: "Crypto address",
+				},
+			],
+		};
+		expect(fixText(fix)).toBe("It adds 0xabc to src/DONATE.md.");
+		const hidden = fixText(fix, 5);
+		expect(hidden).not.toContain("0xabc");
+		expect(hidden).not.toContain("DONATE");
+		expect(hidden).toBe("This rule did not pass: Crypto address.");
+		expect(fixText(fix, 8)).toBe(FIX_FALLBACK);
+		const policy = {
+			...OPEN_REDACTION,
+			level: 5,
+			surfaces: ["comment" as const, "check" as const],
+		};
+		const body = renderVerdictComment(
+			{ ...input, verdict: "changes_required", fixes: [fix] },
+			DEFAULT_RESPONSE_CONFIG,
+			policy,
+		);
+		expect(body).not.toContain("0xabc");
+		expect(
+			checkSummary("changes_required", [], false, 5, false, { fixes: [fix] }),
+		).not.toContain("0xabc");
 	});
 
 	test("the fix comment respects its comment setting", () => {

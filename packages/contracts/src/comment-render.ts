@@ -282,7 +282,11 @@ function verdictCheckSummary(
 		return stoppedSummary("Closed", reasons, level);
 	}
 	if (verdict === "changes_required") {
-		return changesLine(issues.fixes ?? [], issues.reviewPending === true);
+		return changesLine(
+			issues.fixes ?? [],
+			issues.reviewPending === true,
+			level,
+		);
 	}
 	if (verdict === "needs_review") {
 		return degraded
@@ -308,23 +312,48 @@ export function isTripwireComment(body: string): boolean {
 	return body.includes(COMMENT_MARKER) || body.includes(TRIPWIRE_MARKER_PREFIX);
 }
 
+export interface FixIssue {
+	message: string | null;
+	reasons: CommentReason[];
+}
+
 export interface OutcomeIssues {
-	fixes?: string[];
+	fixes?: FixIssue[];
 	notes?: string[];
 	reviewPending?: boolean;
 }
+
+export const FIX_FALLBACK = "Fix what this rule found.";
 
 function uniqueSentences(lines: readonly string[]): string[] {
 	return [...new Set(lines.map(asSentence))];
 }
 
+export function fixText(fix: FixIssue, level = 0): string {
+	if (fix.message) {
+		return fix.message;
+	}
+	const redacted = redactCommentReasons(fix.reasons, level);
+	if (redacted.kind === "reasons" && redacted.reasons.length > 0) {
+		return redacted.reasons.map((reason) => asSentence(reason.text)).join(" ");
+	}
+	if (redacted.kind !== "reasons") {
+		const line = redactedReasonLine(redacted);
+		if (line !== "") {
+			return line;
+		}
+	}
+	return FIX_FALLBACK;
+}
+
 export function changesLine(
-	fixes: readonly string[],
+	fixes: readonly FixIssue[],
 	reviewPending: boolean,
+	level = 0,
 ): string {
 	return [
 		CHANGES_NEEDED,
-		...uniqueSentences(fixes),
+		...uniqueSentences(fixes.map((fix) => fixText(fix, level))),
 		reviewPending ? REVIEW_PENDING : null,
 	]
 		.filter((part): part is string => part !== null)
@@ -335,7 +364,10 @@ export function notesLine(notes: readonly string[]): string | null {
 	return notes.length === 0 ? null : uniqueSentences(notes).join(" ");
 }
 
-function issueTail(input: CommentInput): {
+function issueTail(
+	input: CommentInput,
+	level: number,
+): {
 	changes: string | null;
 	notes: string | null;
 } {
@@ -346,7 +378,7 @@ function issueTail(input: CommentInput): {
 		input.verdict === "changes_required"
 			? null
 			: fixes.length > 0
-				? changesLine(fixes, reviewPending)
+				? changesLine(fixes, reviewPending, level)
 				: reviewPending
 					? REVIEW_PENDING
 					: null;
@@ -435,10 +467,10 @@ function renderBody(
 		return renderTemplate(input, config.blockComment.template, level).trim();
 	}
 	const oneLiner = stopped && config.blockComment.mode === "one-liner-link";
-	const tail = issueTail(input);
+	const tail = issueTail(input, level);
 	const baseHeadline =
 		input.verdict === "changes_required"
-			? changesLine(input.fixes ?? [], input.reviewPending === true)
+			? changesLine(input.fixes ?? [], input.reviewPending === true, level)
 			: commentHeadline(input.verdict, input.contributorLogin, {
 					degraded: input.degraded,
 					previousVerdict: input.previousVerdict,

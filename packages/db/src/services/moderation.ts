@@ -288,11 +288,25 @@ async function closeWaitingRuns(
 				inArray(moderationItems.runId, ids),
 			),
 		);
+	await db.execute(sql`
+		UPDATE runs r SET status = 'completed', completed_at = now()
+		WHERE r.status = 'paused'
+		  AND r.verdict = 'close'
+		  AND r.id IN (${sql.join(
+				ids.map((id) => sql`${id}`),
+				sql`, `,
+			)})
+		  AND NOT EXISTS (
+		    SELECT 1 FROM moderation_items m
+		    WHERE m.run_id = r.id AND m.status = 'pending'
+		  )
+	`);
 	const closed = z.array(z.object({ id: z.string() })).parse(
 		(
 			await db.execute(sql`
 				UPDATE runs r SET status = 'closed', completed_at = now()
 				WHERE r.status = 'paused'
+				  AND r.verdict IS DISTINCT FROM 'close'
 				  AND r.id IN (${sql.join(
 						ids.map((id) => sql`${id}`),
 						sql`, `,

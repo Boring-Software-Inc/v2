@@ -198,7 +198,7 @@ export function runOutcomes(
 			const step = settled.get(node.id);
 			if (
 				node.type !== "action" ||
-				!step ||
+				step?.status !== "pass" ||
 				(node.action !== "request-fix" && node.action !== "note")
 			) {
 				continue;

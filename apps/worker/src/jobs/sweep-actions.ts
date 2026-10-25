@@ -5,6 +5,7 @@ import type { ForgeAdapter } from "@tripwire/forge";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 import {
+	CLOSE_PREREQUISITES,
 	emitClosedReviewSurfaces,
 	toForgeAction,
 	VERDICT_ONLY_KINDS,
@@ -165,6 +166,22 @@ export async function sweepActions(
 				"action abandoned — stuck past the give-up window, never executed",
 			);
 			continue;
+		}
+
+		if (row.kind === "close") {
+			const siblings = await runServices.listRunActions(db, row.runId);
+			const waiting = siblings.some(
+				(sibling) =>
+					CLOSE_PREREQUISITES.has(sibling.kind) &&
+					sibling.status === "recorded",
+			);
+			if (waiting) {
+				logger.info(
+					{ actionId: row.id, runId: row.runId },
+					"close waits for its comment and check",
+				);
+				continue;
+			}
 		}
 
 		/**

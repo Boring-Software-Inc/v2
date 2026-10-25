@@ -9,8 +9,6 @@ import {
 import type { Db } from "@tripwire/db";
 import { moderationServices, runServices } from "@tripwire/db";
 
-export const FIX_FALLBACK = "Fix what this rule found.";
-
 export interface RunIssues {
 	reasons: CommentReason[];
 	issues: OutcomeIssues;
@@ -38,21 +36,21 @@ export function resolveRunIssues(
 	reviewPending: boolean,
 ): RunIssues {
 	const outcomes = runOutcomes(runSnapshotSchema.parse(snapshot), steps);
-	const textFor = (stepIds: readonly string[], fallback: string): string => {
-		const texts = reasons
-			.filter((reason) => reason.stepId && stepIds.includes(reason.stepId))
-			.map((reason) => reason.text);
-		return texts.length > 0 ? texts.join(" ") : fallback;
-	};
+	const reasonsFor = (stepIds: readonly string[]): CommentReason[] =>
+		reasons.filter(
+			(reason) =>
+				reason.stepId !== undefined && stepIds.includes(reason.stepId),
+		);
 	return {
 		reasons: reasons.filter(
 			(reason) =>
 				!(reason.stepId && outcomes.quietRuleStepIds.has(reason.stepId)),
 		),
 		issues: {
-			fixes: outcomes.fixes.map(
-				(fix) => fix.message ?? textFor(fix.ruleStepIds, FIX_FALLBACK),
-			),
+			fixes: outcomes.fixes.map((fix) => ({
+				message: fix.message,
+				reasons: fix.message === null ? reasonsFor(fix.ruleStepIds) : [],
+			})),
 			notes: outcomes.notes.map((note) => note.message ?? NOTE_FALLBACK),
 			reviewPending,
 		},

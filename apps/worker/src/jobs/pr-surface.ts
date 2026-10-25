@@ -52,6 +52,12 @@ export const VERDICT_ONLY_KINDS: ReadonlySet<string> = new Set([
 	"note",
 ]);
 
+export const CLOSE_PREREQUISITES: ReadonlySet<string> = new Set([
+	"comment",
+	"delete-comment",
+	"set-check",
+]);
+
 export interface PrSurfaceDeps {
 	db: Db;
 	adapter: ForgeAdapter | null;
@@ -315,6 +321,7 @@ export async function emitPrSurface(
 	const ordered = [...input.pendingActionRows, ...surfaceRows].sort(
 		(a, b) => Number(a.kind === "close") - Number(b.kind === "close"),
 	);
+	let surfaceFailed = false;
 	for (const row of ordered) {
 		// Outbound delivery is handled above + by the deliver-webhook job, not
 		// through the forge adapter.
@@ -338,6 +345,13 @@ export async function emitPrSurface(
 		}
 		if (VERDICT_ONLY_KINDS.has(row.kind)) {
 			await runServices.markActionExecuted(db, row.id, null);
+			continue;
+		}
+		if (row.kind === "close" && surfaceFailed) {
+			logger.warn(
+				{ runId, actionId: row.id },
+				"close waits, its comment or check did not post",
+			);
 			continue;
 		}
 		if (row.kind === "block" && verdict === "close") {
@@ -379,6 +393,9 @@ export async function emitPrSurface(
 				);
 				await runServices.markActionExecuted(db, row.id, null);
 				continue;
+			}
+			if (CLOSE_PREREQUISITES.has(row.kind)) {
+				surfaceFailed = true;
 			}
 			logger.error(
 				{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },

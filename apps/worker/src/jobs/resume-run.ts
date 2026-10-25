@@ -8,7 +8,6 @@ import type {
 } from "@tripwire/contracts";
 import {
 	isAiReviewNotRunStep,
-	standingVerdict,
 	stepLocalId,
 	verdictSchema,
 	workflowDefinitionSchema,
@@ -120,6 +119,7 @@ export async function resumeRun(
 		await resumeDegradedRun(
 			deps,
 			item.runId,
+			item.id,
 			job.decision,
 			normalized,
 			runData,
@@ -215,7 +215,7 @@ export async function resumeRun(
 			});
 		}
 	}
-	const verdict = await settleRun(db, item.runId);
+	const { verdict } = await runServices.settleRun(db, item.runId, item.id);
 
 	const customRecords = await loadCustomRecords(
 		db,
@@ -258,6 +258,7 @@ export async function resumeRun(
 async function resumeDegradedRun(
 	deps: ProcessEventDeps,
 	runId: string,
+	itemId: string,
 	decision: "approve" | "deny",
 	normalized: NormalizedEvent,
 	runData: NonNullable<Awaited<ReturnType<typeof runServices.getRunWithSteps>>>,
@@ -275,7 +276,7 @@ async function resumeDegradedRun(
 					},
 				])
 			: [];
-	const verdict = await settleRun(deps.db, runId);
+	const { verdict } = await runServices.settleRun(deps.db, runId, itemId);
 	const customRecords = await loadCustomRecords(
 		deps.db,
 		runData.run.repoFullName,
@@ -325,21 +326,6 @@ function splitNodeId(nodeId: string): [string, string | null] {
 		return [nodeId, null];
 	}
 	return [nodeId.slice(0, index), nodeId.slice(index + 1)];
-}
-
-export async function settleRun(
-	db: ProcessEventDeps["db"],
-	runId: string,
-): Promise<Verdict> {
-	const standing = await runServices.getRunStanding(db, runId);
-	const verdict = standingVerdict(standing);
-	await runServices.setRunVerdict(
-		db,
-		runId,
-		verdict,
-		standing.reviewsPending > 0 ? "paused" : "completed",
-	);
-	return verdict;
 }
 
 function resumedFrom(stored: string | null): Verdict {

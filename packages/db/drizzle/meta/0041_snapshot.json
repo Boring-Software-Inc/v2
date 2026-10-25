@@ -1,5 +1,5 @@
 {
-  "id": "3bb773bf-a8fa-449e-9c06-1d9ac5c1b3fd",
+  "id": "5053d59f-e9c8-445c-aab1-c605cefb4310",
   "prevId": "72c6c218-a156-4319-b605-9c26703ac4e7",
   "version": "7",
   "dialect": "postgresql",
@@ -1566,6 +1566,12 @@
         },
         "decided_at": {
           "name": "decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "applied_at": {
+          "name": "applied_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
