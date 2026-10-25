@@ -1,15 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import {
-	type RuleOutcomeSetting,
-	ruleUiSchema,
-	WORKFLOW_STATE_LABELS,
-} from "@tripwire/contracts";
+import { ruleUiSchema, WORKFLOW_STATE_LABELS } from "@tripwire/contracts";
 import { useId, useState } from "react";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { Icon, More } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
-import { Card } from "#/components/glaze/ui/card";
+import { Card, CardFooter } from "#/components/glaze/ui/card";
 import { Sparkline } from "#/components/glaze/ui/chart";
 import {
 	DropdownMenu,
@@ -24,11 +20,11 @@ import {
 import { Panel } from "#/components/glaze/ui/panel";
 import {
 	RULE_CARD_CLASS,
+	RULE_FOOTER_CLASS,
 	RULE_HEADER_CLASS,
 	RULE_PANEL_CLASS,
 	RULE_SENTENCE_CLASS,
 } from "#/components/rules/rule-card-frame";
-import { RuleOutcomeFooter } from "#/components/rules/rule-outcome-footer";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
 import { cn } from "#/lib/glaze/utils";
@@ -40,18 +36,12 @@ export function RuleCard({
 	rule,
 	canEdit,
 	onDelete,
-	onOutcomeChange,
-	onAddException,
-	addingException,
 }: {
 	org: string;
 	repo: string;
 	rule: RuleConfigView;
 	canEdit: boolean;
 	onDelete?: (ruleId: string) => Promise<void>;
-	onOutcomeChange?: (rule: RuleConfigView, next: RuleOutcomeSetting) => void;
-	onAddException?: (rule: RuleConfigView) => void;
-	addingException?: boolean;
 }) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const { valueFor, setField, pending } = useSaveQueue();
@@ -91,7 +81,7 @@ export function RuleCard({
 	const deletable = rule.source === "custom" && canEdit && onDelete;
 	const deleteBlocked = deletable && rule.blockingWorkflows.length > 0;
 
-	const verb = off ? "Enable rule" : "Disable rule";
+	const verb = off ? "Install" : "Uninstall";
 	const control = standalone ? (
 		<Button
 			aria-describedby={queuedId}
@@ -115,12 +105,12 @@ export function RuleCard({
 	) : unavailable ? (
 		<span className="flex items-center gap-2">
 			<Badge variant="warn">
-				{WORKFLOW_STATE_LABELS[off ? "cant-turn-on" : "cant-run"]}
+				{off ? "Can't install" : WORKFLOW_STATE_LABELS["cant-run"]}
 			</Badge>
 			<span>{rule.unavailableReason}</span>
 		</span>
 	) : off ? (
-		<span>Off</span>
+		<span>Not installed</span>
 	) : rule.matches24h > 0 ? (
 		<span className="flex items-center gap-2">
 			{hasTrend ? (
@@ -146,7 +136,6 @@ export function RuleCard({
 	return (
 		<Card
 			className={RULE_CARD_CLASS}
-			data-feedback-name="RuleCard"
 			data-off={off ? "" : undefined}
 			data-queued={queued ? "" : undefined}
 		>
@@ -167,11 +156,6 @@ export function RuleCard({
 					{rule.source === "custom" ? (
 						<Badge className="shrink-0" variant="outline">
 							Custom
-						</Badge>
-					) : null}
-					{rule.management === "managed" ? (
-						<Badge className="shrink-0" variant="outline">
-							In workflow
 						</Badge>
 					) : null}
 					<span className="ms-auto flex shrink-0 items-center gap-1">
@@ -218,6 +202,7 @@ export function RuleCard({
 												? "Remove this rule from its workflows before you delete it"
 												: undefined
 										}
+										variant="destructive"
 									>
 										Delete rule
 									</DropdownMenuItem>
@@ -266,17 +251,7 @@ export function RuleCard({
 					</div>
 				) : null}
 			</Panel>
-			<RuleOutcomeFooter
-				activity={activity}
-				addingException={addingException}
-				canEdit={canEdit}
-				onAddException={forgeBlocked ? undefined : onAddException}
-				off={off}
-				onOutcomeChange={onOutcomeChange}
-				org={org}
-				repo={repo}
-				rule={rule}
-			/>
+			<CardFooter className={RULE_FOOTER_CLASS}>{activity}</CardFooter>
 			<ConfirmDeleteDialog
 				actionLabel="Delete rule"
 				description="Its past matches stay in Activity."

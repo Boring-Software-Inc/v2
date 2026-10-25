@@ -320,7 +320,7 @@ describe("a backfill run (R7-1)", () => {
 	});
 });
 
-describe("rule outcome verdicts", () => {
+describe("changes needed and closed verdicts", () => {
 	test("get_run reads Changes needed and Closed", async () => {
 		for (const [number, verdict, label] of [
 			[95, "changes_required", "Changes needed"],
@@ -1377,7 +1377,6 @@ describe("custom rules", () => {
 			ruleId: unused.id,
 			enabled: true,
 			sentence: "require that files changed is at most 50",
-			outcome: { outcome: "block", instruction: "" },
 		});
 		const settings = await call("set_rule", {
 			repo: "mcp-api",
@@ -1429,164 +1428,5 @@ describe("custom rules", () => {
 		expect(missing.content[0]?.text).toBe(
 			"No custom rule custom-missing-000000 on this repo. Call get_repo_rules to see the repo's rules.",
 		);
-	});
-});
-
-describe("rule outcomes", () => {
-	const json = (result: { content: { text?: string }[] }) =>
-		JSON.parse(result.content[0]?.text ?? "null");
-	const rulesOn = async (repo: string) =>
-		z
-			.array(z.looseObject({ ruleId: z.string() }))
-			.parse(json(await call("get_repo_rules", { repo })));
-
-	test("set_rule saves an outcome and instruction, and get_repo_rules reads them", async () => {
-		const result = await call("set_rule", {
-			repo: "mcp-web",
-			ruleId: "crypto-address",
-			outcome: "request_fix",
-			instruction: "Remove the wallet address.",
-		});
-		expect(result.isError).toBeFalsy();
-		expect(json(result)).toEqual({
-			saved: true,
-			ruleId: "crypto-address",
-			enabled: false,
-			outcome: {
-				outcome: "request_fix",
-				instruction: "Remove the wallet address.",
-			},
-		});
-		const listed = (await rulesOn("mcp-web")).find(
-			(rule) => rule.ruleId === "crypto-address",
-		);
-		expect(listed).toMatchObject({
-			outcome: "request_fix",
-			outcomeLabel: "Ask author to fix",
-			instruction: "Remove the wallet address.",
-			setIn: [],
-		});
-	});
-
-	test("an instruction alone keeps the outcome", async () => {
-		const result = await call("set_rule", {
-			repo: "mcp-web",
-			ruleId: "crypto-address",
-			instruction: "Take out the address.",
-		});
-		expect(json(result)).toMatchObject({
-			outcome: {
-				outcome: "request_fix",
-				instruction: "Take out the address.",
-			},
-		});
-	});
-
-	test("a rule never set reads Block", async () => {
-		const listed = (await rulesOn("mcp-web")).find(
-			(rule) => rule.ruleId === "honeypot",
-		);
-		expect(listed).toMatchObject({ outcome: "block", outcomeLabel: "Block" });
-	});
-
-	test("an unknown outcome is refused and nothing is saved", async () => {
-		const result = await call("set_rule", {
-			repo: "mcp-web",
-			ruleId: "honeypot",
-			enabled: true,
-			outcome: "explode",
-		});
-		expect(result.isError).toBe(true);
-		const listed = (await rulesOn("mcp-web")).find(
-			(rule) => rule.ruleId === "honeypot",
-		);
-		expect(listed).toMatchObject({ enabled: false, outcome: "block" });
-	});
-
-	test("save_custom_rule defaults to Block and takes an outcome", async () => {
-		const created = json(
-			await call("save_custom_rule", {
-				repo: "mcp-web",
-				name: "Into main",
-				definition: {
-					when: { id: "pr.targetBranch" },
-					comparison: { kind: "oneOf", args: [["main"]] },
-				},
-			}),
-		);
-		expect(created.outcome).toEqual({ outcome: "block", instruction: "" });
-		const changed = json(
-			await call("save_custom_rule", {
-				repo: "mcp-web",
-				id: created.id,
-				name: "Into main",
-				definition: created.definition,
-				outcome: "request_fix",
-				instruction: "Change the target to main.",
-			}),
-		);
-		expect(changed.outcome).toEqual({
-			outcome: "request_fix",
-			instruction: "Change the target to main.",
-		});
-		const viaSetRule = json(
-			await call("set_rule", {
-				repo: "mcp-web",
-				ruleId: created.id,
-				outcome: "note",
-				instruction: "Targets a branch other than main.",
-			}),
-		);
-		expect(viaSetRule.outcome).toEqual({
-			outcome: "note",
-			instruction: "Targets a branch other than main.",
-		});
-	});
-
-	test("a rule a workflow owns names the workflow and refuses an outcome", async () => {
-		const definition = {
-			id: "mcp-outcome-owner",
-			name: "Age gate",
-			version: 1,
-			nodes: [
-				{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
-				{
-					id: "age",
-					type: "rule",
-					ref: "account-age@1",
-					config: { minDays: 7 },
-				},
-				{ id: "block", type: "action", action: "block" },
-			],
-			edges: [
-				{ id: "e1", from: "trigger", to: "age" },
-				{ id: "e2", from: "age", to: "block", when: "fail" },
-			],
-		};
-		await call("apply_workflow", {
-			repo: "mcp-web",
-			definitions: [definition],
-		});
-		const on = await call("set_workflow_enabled", {
-			repo: "mcp-web",
-			workflowId: "mcp-outcome-owner",
-			enabled: true,
-		});
-		expect(on.isError).toBeFalsy();
-		const listed = (await rulesOn("mcp-web")).find(
-			(rule) => rule.ruleId === "account-age",
-		);
-		expect(listed).toMatchObject({
-			management: "managed",
-			setIn: ["Age gate"],
-			exceptions: [],
-		});
-		const refused = await call("set_rule", {
-			repo: "mcp-web",
-			ruleId: "account-age",
-			outcome: "note",
-		});
-		expect(refused.isError).toBe(true);
-		expect(refused.content[0]?.text).toContain("Change it in the workflow");
 	});
 });

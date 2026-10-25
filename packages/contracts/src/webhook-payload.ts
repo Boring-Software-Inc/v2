@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { HELD_VERDICTS } from "./rule-outcome.ts";
 import { verdictSchema } from "./runs.ts";
+import { HELD_VERDICTS } from "./verdict-join.ts";
 
 /**
  * The outbound webhook payload — a STABLE, VERSIONED public contract consumers

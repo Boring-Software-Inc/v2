@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
 	compileWorkflows,
-	exceptionDraft,
 	type WorkflowDefinition,
 	workflowAuthoring,
 	workflowToCode,
 } from "@tripwire/contracts";
+import { skipWhenDraft } from "@tripwire/utils";
 import {
 	addGroupRule,
 	addSkipCheck,
@@ -302,18 +302,12 @@ describe("tripwire.ts unless loads as Skip when and a group", () => {
 	});
 });
 
-describe("the Add exception draft", () => {
-	const draft = exceptionDraft({
+describe("an empty Skip when", () => {
+	const draft = skipWhenDraft({
 		id: "wf",
 		name: "Target is main",
-		rule: {
-			ref: "custom-target-main@1",
-			config: {},
-			outcome: {
-				outcome: "request_fix",
-				instruction: "Change the target to main.",
-			},
-		},
+		ref: "custom-target-main@1",
+		config: {},
 	});
 
 	test("reads as an empty Skip when before a group of that rule", () => {

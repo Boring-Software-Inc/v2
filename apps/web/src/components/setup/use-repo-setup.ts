@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "#/components/glaze/ui/toast";
-import { useTurnOnRules } from "#/components/rules/use-turn-on-rules";
+import { useInstallRules } from "#/components/rules/use-install-rules";
 import { rerunChangeRequest } from "#/lib/activity.functions";
 import { armRepo } from "#/lib/arm.functions";
 import { setupProgress } from "#/lib/repo-setup";
@@ -51,7 +51,7 @@ export function useRunFirstCheck(org: string, repo: string) {
 			toast.fail(
 				result.status === "no-event"
 					? `Tripwire has nothing to check on #${number} yet.`
-					: "Turn on rules first.",
+					: "Install rules first.",
 			);
 		},
 		onError: () => toast.fail("Tripwire could not run rules. Try again."),
@@ -89,14 +89,14 @@ export function useTakeOver(org: string, repo: string) {
 	});
 }
 
-export function useSetupTurnOnRules(input: {
+export function useSetupInstallRules(input: {
 	org: string;
 	repo: string;
 	repoId: string;
 	armed: boolean;
 }) {
 	const invalidate = useInvalidateRepoSetup(input.org, input.repo);
-	return useTurnOnRules(input.org, input.repoId, {
+	return useInstallRules(input.org, input.repoId, {
 		prepare: async () => {
 			if (input.armed) {
 				return null;

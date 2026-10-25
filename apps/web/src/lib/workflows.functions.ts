@@ -5,7 +5,6 @@ import {
 } from "@tripwire/contracts";
 import type {
 	DraftDecisionResult,
-	ExceptionDraftResult,
 	OrgWithRole,
 	SetEnabledResult,
 	WorkflowCard,
@@ -18,12 +17,7 @@ import {
 	requireOrgRepoById,
 } from "#/lib/server/org-guard";
 
-export type {
-	DraftDecisionResult,
-	ExceptionDraftResult,
-	SetEnabledResult,
-	WorkflowCard,
-};
+export type { DraftDecisionResult, SetEnabledResult, WorkflowCard };
 
 export interface WorkflowDetail extends WorkflowWorkDetail {
 	lastTicks: Record<string, string>;
@@ -127,27 +121,6 @@ export const createRepoWorkflow = createServerFn({ method: "POST" })
 			return { workflow };
 		},
 	);
-
-export const addRuleException = createServerFn({ method: "POST" })
-	.middleware([
-		accessGuardMiddleware,
-		orgPermissionMiddleware("workflows:manage"),
-	])
-	.inputValidator(
-		(input: { org: string; repoId: string; ruleId: string }) => input,
-	)
-	.handler(async ({ data, context }): Promise<ExceptionDraftResult> => {
-		await requireOrgRepoById(
-			(context as { org: OrgWithRole }).org.id,
-			data.repoId,
-		);
-		const { ruleExceptionServices } = await import("@tripwire/db");
-		const { getDb } = await import("#/lib/server/db");
-		return await ruleExceptionServices.openRuleExceptionDraft(getDb().db, {
-			repoId: data.repoId,
-			ruleId: data.ruleId,
-		});
-	});
 
 /**
  * The editor's save. Drafts persist in ANY structural state; never enables. A

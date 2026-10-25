@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
 	DEFAULT_WORKFLOW,
-	exceptionDraft,
 	RULE_CATALOG,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
+import { skipWhenDraft } from "@tripwire/utils";
 import {
 	aiCreditsOf,
 	definitionToGraph,
@@ -365,17 +365,11 @@ describe("AI review steps while Tripwire is out of AI credits", () => {
 
 describe("Skip when on the canvas", () => {
 	test("requirement and exception roles survive definition, graph and back", () => {
-		const draft = exceptionDraft({
+		const draft = skipWhenDraft({
 			id: "wf",
 			name: "Target is main",
-			rule: {
-				ref: "account-age@1",
-				config: { minDays: 7 },
-				outcome: {
-					outcome: "request_fix",
-					instruction: "Change the target to main.",
-				},
-			},
+			ref: "account-age@1",
+			config: { minDays: 7 },
 		});
 		const graph = definitionToGraph(draft);
 		expect(

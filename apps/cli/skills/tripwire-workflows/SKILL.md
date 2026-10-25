@@ -107,16 +107,8 @@ Keep other rules in their own group so the Skip when never skips them. A run
 shows a skipped group as skipped, with the Skip when checks as evidence, never
 as passed.
 
-**Add exception.** On the rules page, a rule that runs by itself has Add
-exception. It opens a draft workflow named after the rule: the trigger, an
-empty Skip when, a group with that rule, and the rule's current outcome. Add
-the Skip when checks, then turn the workflow on. A draft changes nothing.
-Turning it on moves the rule from running by itself to the workflow in one
-step; the rule card then shows `Skip when: <checks>` and `Set in <workflow>`.
-The Skip when's own rules can stay off: a workflow runs the rules it uses. In
-code, the same draft is the `unless` above; `workflows pull` brings it down
-once it exists. `get_repo_rules` lists each rule's `setIn` workflows and its
-`exceptions`.
+The Skip when's own rules can stay uninstalled: a workflow runs the rules it
+uses.
 
 **Ids are the code's ids.** Rules: `check("<rule id>", settings)`, typed from
 the catalog; `list_rule_catalog` lists them. A repo's custom rules:
@@ -178,23 +170,11 @@ sentence. Over the MCP, the tools are `save_custom_rule`, `delete_custom_rule`
 and `get_repo_rules`. The `save_custom_rule` description lists every signal
 and comparison.
 
-A rule that runs by itself blocks when it does not pass. To change that, pass
-`--outcome` to `rules set`, `rules create` or `rules update`: `block`,
-`request_fix`, `human_review`, `note` or `close`. `request_fix` and `note`
-take `--instruction`:
-
-```sh
-npx @tripwire-sh/cli rules set <repo> <ruleId> --outcome request_fix \
-  --instruction "Change the target to main."
-```
-
-Over the MCP, `set_rule` and `save_custom_rule` take `outcome` and
-`instruction`. A rule a workflow uses takes its outcome from the workflow's
-actions, so change the workflow instead.
-
-A new rule starts off. A rule that is on and that no workflow uses runs by
-itself on every change request. To combine rules, keep them off and use them
-in `tripwire.ts`. For example, to block change requests into `release` unless
+A new rule is not installed. An installed rule that no workflow uses runs by
+itself on every change request and blocks when it does not pass. Rules are
+plain checks: Ask author to fix, Human review, Note only, Close and Skip when
+belong to workflows. To combine rules or do anything but block, leave them
+uninstalled and use them in `tripwire.ts`. For example, to block change requests into `release` unless
 the source branch comes from release-please, make a second rule
 `{"when":{"id":"pr.sourceBranch"},"comparison":{"kind":"startsWith","args":["release-please"]}}`,
 then:

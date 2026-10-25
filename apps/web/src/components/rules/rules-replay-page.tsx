@@ -24,7 +24,7 @@ import { Status } from "#/components/glaze/ui/status";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { replayRuleIds, turnableRuleIds } from "#/components/rules/rule-packs";
 import { ReplayListSkeleton } from "#/components/rules/rules-replay-page-skeleton";
-import { useSetupTurnOnRules } from "#/components/setup/use-repo-setup";
+import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import {
@@ -74,7 +74,7 @@ export function RulesReplayPage() {
 	const canEdit = useOrgPermission(org, "rules:manage");
 	const queryClient = useQueryClient();
 	const [showAll, setShowAll] = useState(false);
-	const { turnOn, pending } = useSetupTurnOnRules({
+	const { install, pending } = useSetupInstallRules({
 		org,
 		repo: repoName,
 		repoId,
@@ -117,11 +117,11 @@ export function RulesReplayPage() {
 						{replay && turnable.length > 0 ? (
 							<Button
 								disabled={!canEdit || pending !== null}
-								onClick={() => turnOn("replay", label, turnable)}
+								onClick={() => install("replay", label, turnable)}
 								pending={pending === "replay"}
 								pendingLabel="Turning on"
 							>
-								Turn on these rules
+								Install these rules
 							</Button>
 						) : null}
 					</header>

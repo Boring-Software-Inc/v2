@@ -68,17 +68,14 @@ them and carry on. They never block or change setup.
    it moves on.
 3. **Sync repos.** Poll `setup_status` until `list_repos` shows the repos.
    Pick the repo that matches this project, or ask.
-4. **Pick rules.** A new repo starts with no rules on, so the gate checks
-   nothing until you turn some on. Read this repo's README and CONTRIBUTING,
+4. **Install rules.** A new repo starts with no rules installed, so the gate
+   checks nothing until you install some. Read this repo's README and CONTRIBUTING,
    then `list_rule_catalog` and `get_repo_rules`. Propose a short starting set with
    params and say why in one line each. On yes, call `set_rule` for each.
    When no built-in rule fits, propose a custom rule and save it with
    `save_custom_rule`. Show the user the sentence it returns.
-   Each rule has an outcome for when it does not pass. Block is the
-   default. `outcome` takes `block`, `request_fix` (pass an `instruction`
-   such as Change the target to main.), `human_review`, `note` or `close`.
-   Change it only when the user asks. A rule a workflow uses takes its
-   outcome from that workflow.
+   An installed rule blocks when it does not pass. For any other outcome,
+   or a Skip when, use the rule in a workflow.
 5. **Turn on the gate.** Ask, then call `turn_on_gate`. If the user declines,
    report `turn_on_gate` skipped.
 6. **Verify.** Call `setup_status`. When it shows the check is live, report

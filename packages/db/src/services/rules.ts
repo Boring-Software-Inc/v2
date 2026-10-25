@@ -3,22 +3,15 @@ import {
 	AI_REVIEW_RULE_ID,
 	customRuleRecordSchema,
 	customRuleSentence,
-	DEFAULT_RULE_OUTCOME_SETTING,
 	type JsonValue,
 	type ModStat,
-	parseRuleOutcomeInput,
 	RULE_CATALOG,
 	type RuleManagement,
-	type RuleOutcomeSetting,
 	resolveEffectiveRuleConfig,
 	resolveRuleManagement,
 	ruleChangeNote,
-	ruleDisplayName,
-	ruleExceptionNames,
 	ruleExecutes,
 	ruleForgeBlockReason,
-	ruleIdOf,
-	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import type { Db } from "../client.ts";
 import { getAiCredits } from "./ai-provider.ts";
@@ -29,7 +22,6 @@ import {
 	listEnabledWorkflowRows,
 	listEnabledWorkflows,
 	listRuleConfigs,
-	setRuleOutcome as setRuleOutcomeRow,
 	upsertRuleConfig,
 	workflowsReferencingRule,
 } from "./repos.ts";
@@ -84,34 +76,6 @@ export interface RuleConfigView {
 	/** Workflows (enabled OR disabled) that reference a custom rule — deletion is
 	 * refused while non-empty, and the card names them. Empty for built-ins. */
 	blockingWorkflows: { id: string; name: string }[];
-	outcome: RuleOutcomeSetting;
-	owners: RuleOwner[];
-}
-
-export interface RuleOwner {
-	id: string;
-	name: string;
-	exceptions: string[];
-}
-
-export function ruleOwners(
-	ruleId: string,
-	enabledRows: readonly { id: string; definition: WorkflowDefinition }[],
-	ruleName: (ref: string) => string = ruleDisplayName,
-): RuleOwner[] {
-	return enabledRows
-		.filter((row) =>
-			row.definition.nodes.some(
-				(node) => node.type === "rule" && ruleIdOf(node.ref) === ruleId,
-			),
-		)
-		.map((row) => ({
-			id: row.id,
-			name: row.definition.name,
-			exceptions: ruleExceptionNames(row.definition, ruleId, ruleName).flatMap(
-				(name) => (name ? [name] : []),
-			),
-		}));
 }
 
 export interface RulesHeaderStats {
@@ -145,9 +109,6 @@ export async function listRuleViews(
 	const stats = repo ? await getRulesStats(db, repo.fullName) : { perRule: [] };
 	const byRef = new Map(stats.perRule.map((s) => [s.ref, s]));
 	const customRows = await listCustomRules(db, repoId);
-	const customNames = new Map(customRows.map((row) => [row.id, row.name]));
-	const nameOf = (ref: string) =>
-		customNames.get(ruleIdOf(ref)) ?? ruleDisplayName(ref);
 	// Which workflows (enabled OR disabled) reference each custom rule — the
 	// card disables delete and names them, mirroring the server guard.
 	const blockingByRuleId = new Map<string, { id: string; name: string }[]>();
@@ -197,8 +158,6 @@ export async function listRuleViews(
 			source: "custom",
 			sentence,
 			blockingWorkflows: blockingByRuleId.get(record.id) ?? [],
-			outcome: rowRaw.outcome ?? DEFAULT_RULE_OUTCOME_SETTING,
-			owners: ruleOwners(record.id, enabledRows, nameOf),
 		});
 	}
 	const aiCredits = await getAiCredits(db);
@@ -250,8 +209,6 @@ export async function listRuleViews(
 			source: "built-in",
 			sentence: null,
 			blockingWorkflows: [],
-			outcome: row?.outcome ?? DEFAULT_RULE_OUTCOME_SETTING,
-			owners: ruleOwners(entry.ruleId, enabledRows, nameOf),
 		};
 	});
 	return [...builtIns, ...customViews];
@@ -368,71 +325,5 @@ export async function setRulesEnabled(
 			return result;
 		}
 	}
-	return { ok: true };
-}
-
-export async function workflowOwnsOutcome(
-	db: Db,
-	repoId: string,
-	ruleId: string,
-): Promise<string | null> {
-	const repo = await getRepoById(db, repoId);
-	const enabledRows = repo
-		? await listEnabledWorkflowRows(db, repo.fullName, repo.forge)
-		: [];
-	const owners = ruleOwners(ruleId, enabledRows);
-	return owners.length > 0
-		? `Set in ${owners.map((owner) => owner.name).join(", ")}. Change the outcome in the workflow.`
-		: null;
-}
-
-export async function setRuleOutcome(
-	db: Db,
-	input: {
-		repoId: string;
-		ruleId: string;
-		outcome: string;
-		instruction?: string;
-	},
-): Promise<SaveRuleResult> {
-	const parsed = parseRuleOutcomeInput({
-		outcome: input.outcome,
-		instruction: input.instruction ?? "",
-	});
-	if (!parsed.ok) {
-		return { error: parsed.error };
-	}
-	const owned = await workflowOwnsOutcome(db, input.repoId, input.ruleId);
-	if (owned) {
-		return { error: owned };
-	}
-	const custom = input.ruleId.startsWith("custom-");
-	if (custom) {
-		const exists = (await listCustomRules(db, input.repoId)).some(
-			(row) => row.id === input.ruleId,
-		);
-		if (!exists) {
-			return { error: `No custom rule ${input.ruleId} on this repo.` };
-		}
-	} else {
-		const entry = RULE_CATALOG.find((r) => r.ruleId === input.ruleId);
-		if (!entry) {
-			return {
-				error: `Tripwire does not know the rule ${input.ruleId}. Reload the page and try again.`,
-			};
-		}
-		const stored = (await listRuleConfigs(db, input.repoId)).some(
-			(row) => row.ruleId === entry.ruleId,
-		);
-		if (!stored) {
-			await upsertRuleConfig(db, input.repoId, {
-				ruleId: entry.ruleId,
-				version: entry.version,
-				enabled: false,
-				config: entry.defaultConfig,
-			});
-		}
-	}
-	await setRuleOutcomeRow(db, input.repoId, input.ruleId, parsed.setting);
 	return { ok: true };
 }

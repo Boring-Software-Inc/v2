@@ -9,7 +9,6 @@ import {
 	type NamedWorkflow,
 	pushExitCode,
 	reportWorkflows,
-	ruleOutcomeSchema,
 	WORKFLOW_PUSH_STATUS_LABELS,
 	type WorkflowDefinition,
 	type WorkflowPushView,
@@ -1234,51 +1233,6 @@ interface CustomRuleOptions {
 	definition?: string;
 	enable?: boolean;
 	disable?: boolean;
-	outcome?: string;
-	instruction?: string;
-}
-
-interface OutcomeOptions {
-	outcome?: string;
-	instruction?: string;
-}
-
-const OUTCOME_HELP = `When this does not pass, --outcome picks what happens:
-  block         red check and a changes-requested review (the default)
-  request_fix   red check and the --instruction text, no review
-  human_review  pending check until a maintainer decides
-  note          green check with the --instruction text as a note
-  close         closes the change request
-A rule a workflow owns takes its outcome from the workflow.
-`;
-
-function outcomeArgs(opts: OutcomeOptions): ToolArgs {
-	const args: ToolArgs = {};
-	if (opts.outcome !== undefined) {
-		const parsed = ruleOutcomeSchema.safeParse(opts.outcome);
-		if (!parsed.success) {
-			throw new Error(
-				`--outcome must be one of ${ruleOutcomeSchema.options.join(", ")}.`,
-			);
-		}
-		args.outcome = parsed.data;
-	}
-	if (opts.instruction !== undefined) {
-		args.instruction = opts.instruction;
-	}
-	return args;
-}
-
-function outcomeFlags(command: Command): Command {
-	return command
-		.option(
-			"--outcome <outcome>",
-			"When this does not pass: block, request_fix, human_review, note or close",
-		)
-		.option(
-			"--instruction <text>",
-			"What the author must change, or the note to post",
-		);
 }
 
 const CUSTOM_RULE_HELP = `
@@ -1325,7 +1279,7 @@ function customRuleArgs(opts: CustomRuleOptions): ToolArgs {
 	if (opts.enable || opts.disable) {
 		args.enabled = opts.enable === true;
 	}
-	return { ...args, ...outcomeArgs(opts) };
+	return args;
 }
 
 const currentRulesSchema = z.array(
@@ -1381,16 +1335,16 @@ function saveCustomRule(
 }
 
 function customRuleFlags(command: Command): Command {
-	return outcomeFlags(command)
+	return command
 		.option("--name <name>", "The rule's name")
 		.option(
 			"--definition <json>",
 			"The rule as JSON, or @ and the path to a JSON file",
 		)
 		.option("--description <text>", "Why the rule exists")
-		.option("--enable", "Run the rule by itself")
-		.option("--disable", "Stop running the rule by itself")
-		.addHelpText("after", `${CUSTOM_RULE_HELP}\n${OUTCOME_HELP}`);
+		.option("--enable", "Install the rule, so it runs by itself and blocks")
+		.option("--disable", "Uninstall the rule")
+		.addHelpText("after", CUSTOM_RULE_HELP);
 }
 
 export function registerManageCommands(program: Command, deps: ManageDeps) {
@@ -1461,32 +1415,25 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 					: runTool(deps, command, "list_rule_catalog", {});
 			},
 		);
-	outcomeFlags(
-		rules
-			.command("set <repoOrRule> [ruleId]")
-			.usage("[options] [repo] <ruleId>")
-			.description(
-				"Turn a rule on or off, set its params, and set what happens when it does not pass. A custom rule has no params",
-			)
-			.option("--enable", "Turn the rule on")
-			.option("--disable", "Turn the rule off")
-			.option(
-				"--param <key=value>",
-				"Set a param, repeatable. Values parse as JSON when they can",
-				(value: string, previous: string[]) => [...previous, value],
-				[],
-			),
-	)
-		.addHelpText("after", `\n${OUTCOME_HELP}`)
+	rules
+		.command("set <repoOrRule> [ruleId]")
+		.usage("[options] [repo] <ruleId>")
+		.description(
+			"Install or uninstall a rule and set its params. A custom rule has no params",
+		)
+		.option("--enable", "Install the rule")
+		.option("--disable", "Uninstall the rule")
+		.option(
+			"--param <key=value>",
+			"Set a param, repeatable. Values parse as JSON when they can",
+			(value: string, previous: string[]) => [...previous, value],
+			[],
+		)
 		.action(
 			(
 				first: string,
 				second: string | undefined,
-				opts: {
-					enable?: boolean;
-					disable?: boolean;
-					param: string[];
-				} & OutcomeOptions,
+				opts: { enable?: boolean; disable?: boolean; param: string[] },
 				command: Command,
 			) => {
 				const [repo, ruleId] =
@@ -1499,16 +1446,8 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 					if (opts.param.length > 0) {
 						args.config = Object.fromEntries(opts.param.map(parseParam));
 					}
-					Object.assign(args, outcomeArgs(opts));
-					if (
-						args.enabled === undefined &&
-						args.config === undefined &&
-						args.outcome === undefined &&
-						args.instruction === undefined
-					) {
-						throw new Error(
-							"Pass --enable, --disable, --param, --outcome or --instruction.",
-						);
+					if (args.enabled === undefined && args.config === undefined) {
+						throw new Error("Pass --enable, --disable or --param.");
 					}
 				} catch (error) {
 					process.exitCode = fail(
@@ -1527,7 +1466,7 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 		rules
 			.command("create [repo]")
 			.description(
-				"Create a custom rule. It starts off: pass --enable, or use it in tripwire.ts with customCheck",
+				"Create a custom rule. It is not installed: pass --enable, or use it in tripwire.ts with customCheck",
 			),
 	).action(
 		(repo: string | undefined, opts: CustomRuleOptions, command: Command) => {
@@ -1570,7 +1509,7 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 				args = customRuleArgs(opts);
 				if (Object.keys(args).length === 0) {
 					throw new Error(
-						"Pass --name, --definition, --description, --enable, --disable, --outcome or --instruction.",
+						"Pass --name, --definition, --description, --enable or --disable.",
 					);
 				}
 			} catch (error) {

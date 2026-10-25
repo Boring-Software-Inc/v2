@@ -1,8 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type {
-	RuleOutcomeSetting,
-	WorkflowDefinition,
-} from "@tripwire/contracts";
+import type { WorkflowDefinition } from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createBoss,
@@ -139,23 +136,39 @@ async function freshRepo(): Promise<{
 	return { repoId, fullName: `Codertocat/${name}`, externalId };
 }
 
-async function enableRule(
-	repoId: string,
-	ruleId: string,
-	config: unknown,
-	outcome?: RuleOutcomeSetting,
-) {
+async function enableRule(repoId: string, ruleId: string, config: unknown) {
 	await repoServices.upsertRuleConfig(db, repoId, {
 		ruleId,
 		version: 1,
 		enabled: true,
 		config,
 	});
-	if (outcome) {
-		expect(await repoServices.setRuleOutcome(db, repoId, ruleId, outcome)).toBe(
-			true,
-		);
-	}
+}
+
+async function failWith(
+	repoId: string,
+	ruleId: string,
+	config: Record<string, string | number>,
+	action: "request-fix" | "note" | "send-to-moderation" | "close",
+	message?: string,
+) {
+	await repoServices.saveWorkflowDefinition(
+		db,
+		repoId,
+		workflow(
+			`${ruleId}-on-fail`,
+			[
+				{ id: "rule", type: "rule", ref: `${ruleId}@1`, config },
+				message
+					? { id: "outcome", type: "action", action, params: { message } }
+					: { id: "outcome", type: "action", action },
+			],
+			[
+				{ id: "e1", from: "t", to: "rule" },
+				{ id: "e2", from: "rule", to: "outcome", when: "fail" },
+			],
+		),
+	);
 }
 
 let delivery = 0;
@@ -289,8 +302,8 @@ async function decide(
 
 const YOUNG = { ageDays: 2 };
 
-describe("standalone rule outcomes", () => {
-	test("existing rules keep Block: red check, one changes-requested review", async () => {
+describe("rule outcomes", () => {
+	test("an installed rule blocks: red check, one changes-requested review", async () => {
 		const repo = await freshRepo();
 		await enableRule(repo.repoId, "account-age", { minDays: 7 });
 		const { run, executed } = await openPr(repo, YOUNG);
@@ -301,11 +314,12 @@ describe("standalone rule outcomes", () => {
 
 	test("Ask author to fix: red check, the instruction, no GitHub review", async () => {
 		const repo = await freshRepo();
-		await enableRule(
+		await failWith(
 			repo.repoId,
 			"account-age",
 			{ minDays: 7 },
-			{ outcome: "request_fix", instruction: "Change the target to main." },
+			"request-fix",
+			"Change the target to main.",
 		);
 		const { run, executed } = await openPr(repo, YOUNG);
 		expect(run?.verdict).toBe("changes_required");
@@ -322,12 +336,7 @@ describe("standalone rule outcomes", () => {
 
 	test("Note only: green check and a factual note", async () => {
 		const repo = await freshRepo();
-		await enableRule(
-			repo.repoId,
-			"account-age",
-			{ minDays: 7 },
-			{ outcome: "note", instruction: "" },
-		);
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "note");
 		const { run, executed } = await openPr(repo, YOUNG);
 		expect(run?.verdict).toBe("pass");
 		expect(checkOf(executed)?.conclusion).toBe("success");
@@ -339,12 +348,7 @@ describe("standalone rule outcomes", () => {
 
 	test("Note only respects the comment setting", async () => {
 		const repo = await freshRepo();
-		await enableRule(
-			repo.repoId,
-			"account-age",
-			{ minDays: 7 },
-			{ outcome: "note", instruction: "" },
-		);
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "note");
 		await repoServices.upsertResponseConfig(db, repo.repoId, {
 			...(await repoServices.getResponseConfig(db, repo.repoId)),
 			onNote: "silent",
@@ -354,13 +358,13 @@ describe("standalone rule outcomes", () => {
 		expect(kinds(executed)).not.toContain("comment");
 	});
 
-	test("Human review from a rule outcome pauses the run", async () => {
+	test("Human review pauses the run", async () => {
 		const repo = await freshRepo();
-		await enableRule(
+		await failWith(
 			repo.repoId,
 			"account-age",
 			{ minDays: 7 },
-			{ outcome: "human_review", instruction: "" },
+			"send-to-moderation",
 		);
 		const { run } = await openPr(repo, YOUNG);
 		expect(run?.verdict).toBe("needs_review");
@@ -371,12 +375,7 @@ describe("standalone rule outcomes", () => {
 describe("Close outcome", () => {
 	test("comment with the reason, red check, then close; no review", async () => {
 		const repo = await freshRepo();
-		await enableRule(
-			repo.repoId,
-			"account-age",
-			{ minDays: 7 },
-			{ outcome: "close", instruction: "" },
-		);
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
 		const { run, executed } = await openPr(repo, YOUNG);
 		expect(run?.verdict).toBe("close");
 		const order = kinds(executed);
@@ -394,10 +393,7 @@ describe("Close outcome", () => {
 		await enableRule(repo.repoId, "account-age", { minDays: 7 });
 		const first = await openPr(repo, YOUNG, { sha: "b".repeat(40) });
 		expect(first.run?.verdict).toBe("block");
-		await repoServices.setRuleOutcome(db, repo.repoId, "account-age", {
-			outcome: "close",
-			instruction: "",
-		});
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
 		const second = await openPr(repo, YOUNG, {
 			sha: "c".repeat(40),
 			action: "synchronize",
@@ -413,12 +409,7 @@ describe("Close outcome", () => {
 
 	test("a human reopen on the same head is not closed again", async () => {
 		const repo = await freshRepo();
-		await enableRule(
-			repo.repoId,
-			"account-age",
-			{ minDays: 7 },
-			{ outcome: "close", instruction: "" },
-		);
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
 		const sha = "d".repeat(40);
 		const first = await openPr(repo, YOUNG, { sha });
 		expect(kinds(first.executed)).toContain("close");
@@ -441,12 +432,7 @@ describe("Close outcome", () => {
 
 	test("never closes on a degraded run", async () => {
 		const repo = await freshRepo();
-		await enableRule(
-			repo.repoId,
-			"max-files-changed",
-			{ max: 1 },
-			{ outcome: "close", instruction: "" },
-		);
+		await failWith(repo.repoId, "max-files-changed", { max: 1 }, "close");
 		await enableRule(repo.repoId, "account-age", { minDays: 7 });
 		const { run, executed } = await openPr(repo, {
 			files: 5,
@@ -463,12 +449,7 @@ describe("Close outcome", () => {
 
 	test("never closes for an exempt contributor", async () => {
 		const repo = await freshRepo();
-		await enableRule(
-			repo.repoId,
-			"account-age",
-			{ minDays: 7 },
-			{ outcome: "close", instruction: "" },
-		);
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
 		const { run, executed } = await openPr(repo, {
 			...YOUNG,
 			maintainer: true,
@@ -479,12 +460,7 @@ describe("Close outcome", () => {
 
 	test("close outranks block in the join", async () => {
 		const repo = await freshRepo();
-		await enableRule(
-			repo.repoId,
-			"account-age",
-			{ minDays: 7 },
-			{ outcome: "close", instruction: "" },
-		);
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
 		await enableRule(repo.repoId, "max-files-changed", { max: 1 });
 		const { run, executed } = await openPr(repo, { ...YOUNG, files: 5 });
 		expect(run?.verdict).toBe("close");
@@ -770,17 +746,15 @@ describe("Except when", () => {
 describe("retries and stale runs", () => {
 	test("a retried fix request never becomes a review, and a stale close never closes", async () => {
 		const repo = await freshRepo();
-		await enableRule(
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
+		const stale = await openPr(repo, YOUNG, { sha: "7".repeat(40) });
+		await failWith(
 			repo.repoId,
 			"account-age",
 			{ minDays: 7 },
-			{ outcome: "close", instruction: "" },
+			"request-fix",
+			"Change the target to main.",
 		);
-		const stale = await openPr(repo, YOUNG, { sha: "7".repeat(40) });
-		await repoServices.setRuleOutcome(db, repo.repoId, "account-age", {
-			outcome: "request_fix",
-			instruction: "Change the target to main.",
-		});
 		const latest = await openPr(repo, YOUNG, {
 			sha: "8".repeat(40),
 			action: "synchronize",
@@ -886,12 +860,7 @@ describe("review findings", () => {
 
 	test("closing the change request keeps the Close result while a review waited", async () => {
 		const repo = await withWorkflows(FILES_REVIEW);
-		await enableRule(
-			repo.repoId,
-			"account-age",
-			{ minDays: 7 },
-			{ outcome: "close", instruction: "" },
-		);
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
 		const { run } = await openPr(repo, { ...YOUNG, files: 5 });
 		expect(run).toMatchObject({ status: "paused", verdict: "close" });
 		const closed = await moderationServices.closeReviewsForChangeRequest(
@@ -915,12 +884,7 @@ describe("review findings", () => {
 
 	test("close waits until its comment and check have posted", async () => {
 		const repo = await freshRepo();
-		await enableRule(
-			repo.repoId,
-			"account-age",
-			{ minDays: 7 },
-			{ outcome: "close", instruction: "" },
-		);
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
 		const raw = await Bun.file(
 			new URL(
 				"../../../packages/forge-github/fixtures/pull_request.opened.json",
@@ -987,12 +951,7 @@ describe("review findings", () => {
 describe("a closed change request", () => {
 	test("a manual re-run records the result and takes no PR action; a human reopen blocks", async () => {
 		const repo = await freshRepo();
-		await enableRule(
-			repo.repoId,
-			"account-age",
-			{ minDays: 7 },
-			{ outcome: "close", instruction: "" },
-		);
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
 		const sha = "9".repeat(40);
 		const first = await openPr(repo, YOUNG, { sha });
 		expect(kinds(first.executed)).toContain("close");
@@ -1043,12 +1002,7 @@ describe("a closed change request", () => {
 describe("ownership with #102 ordering", () => {
 	test("an older event processed late never closes, comments or asks for a fix", async () => {
 		const repo = await freshRepo();
-		await enableRule(
-			repo.repoId,
-			"account-age",
-			{ minDays: 7 },
-			{ outcome: "close", instruction: "" },
-		);
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
 		const olderEvent = await insertPrEvent(repo, { sha: "4".repeat(40) });
 		const newerEvent = await insertPrEvent(repo, {
 			sha: "5".repeat(40),

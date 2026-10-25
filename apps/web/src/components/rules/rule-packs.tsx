@@ -88,7 +88,7 @@ export function RulePacks({
 	repoName,
 	canEdit,
 	pending,
-	onTurnOn,
+	onInstall,
 	heading = true,
 }: {
 	heading?: boolean;
@@ -97,7 +97,7 @@ export function RulePacks({
 	repoName: string;
 	canEdit: boolean;
 	pending: string | null;
-	onTurnOn: (key: string, label: string, ruleIds: string[]) => void;
+	onInstall: (key: string, label: string, ruleIds: string[]) => void;
 }) {
 	return (
 		<section
@@ -140,19 +140,19 @@ export function RulePacks({
 									/>
 									<ItemActions className="me-0">
 										<Button
-											aria-label={`Turn on ${pack.name}`}
+											aria-label={`Install ${pack.name}`}
 											disabled={
 												!canEdit ||
 												turnable.length === 0 ||
 												(pending !== null && pending !== key)
 											}
-											onClick={() => onTurnOn(key, pack.name, turnable)}
+											onClick={() => onInstall(key, pack.name, turnable)}
 											pending={pending === key}
-											pendingLabel="Turning on"
+											pendingLabel="Installing"
 											size="sm"
 											variant={pack.recommended ? "primary" : "secondary"}
 										>
-											Turn on
+											Install pack
 										</Button>
 									</ItemActions>
 								</Item>

@@ -4,11 +4,11 @@ import {
 	type CommentReason,
 	checkSummary,
 	DEFAULT_RESPONSE_CONFIG,
-	exceptionDraft,
 	planSurfaces,
 	redactionPolicySchema,
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
+import { skipWhenDraft } from "@tripwire/utils";
 import { toFullRunView, toPublicRunView } from "#/lib/run-access";
 import {
 	branchOutcomeLabel,
@@ -1015,17 +1015,11 @@ describe("a passing AI review in the passed list", () => {
 });
 
 describe("Skip when on the run page", () => {
-	const base = exceptionDraft({
+	const base = skipWhenDraft({
 		id: "crm",
 		name: "Target is main",
-		rule: {
-			ref: "custom-target-main@1",
-			config: {},
-			outcome: {
-				outcome: "request_fix",
-				instruction: "Change the target to main.",
-			},
-		},
+		ref: "custom-target-main@1",
+		config: {},
 	});
 	const CRM: WorkflowDefinition = {
 		...base,

@@ -76,7 +76,6 @@ test("armed repos keep the rules that ran by default, unarmed repos start empty"
 		version: 1,
 		enabled: false,
 		config: { minDays: 30 },
-		outcome: { outcome: "block", instruction: "" },
 	});
 	await repoServices.upsertRuleConfig(db, tuned, {
 		ruleId: "honeypot",
@@ -106,7 +105,6 @@ test("armed repos keep the rules that ran by default, unarmed repos start empty"
 		version: 1,
 		enabled: false,
 		config: { minDays: 30 },
-		outcome: { outcome: "block", instruction: "" },
 	});
 	expect(tunedRows.find((row) => row.ruleId === "honeypot")?.config).toEqual({
 		paths: ["secrets/**"],

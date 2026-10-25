@@ -29,9 +29,4 @@ describe("the custom rule guide", () => {
 		expect(CUSTOM_RULE_SIGNALS).toContain("pr.sourceBranch (text)");
 		expect(CUSTOM_RULE_GUIDE).toContain(`Signals: ${CUSTOM_RULE_SIGNALS}.`);
 	});
-
-	test("names the outcomes and the Block default", () => {
-		expect(CUSTOM_RULE_GUIDE).toContain("block (the default)");
-		expect(CUSTOM_RULE_GUIDE).toContain("request_fix with an instruction");
-	});
 });

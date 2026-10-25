@@ -20,7 +20,7 @@ import {
 	ResponsesAction,
 } from "#/components/setup/setup-step-actions";
 import {
-	useSetupTurnOnRules,
+	useSetupInstallRules,
 	useTakeOver,
 } from "#/components/setup/use-repo-setup";
 import { useOrgPermission } from "#/hooks/use-org-permission";
@@ -160,7 +160,7 @@ function RulesStep({
 	const canEdit = useOrgPermission(org, "rules:manage");
 	const rules = useQuery(ruleConfigsQueryOptions(org, repoId));
 	const library = useQuery(ruleLibraryQueryOptions(org, repoId));
-	const { turnOn, pending } = useSetupTurnOnRules({
+	const { install, pending } = useSetupInstallRules({
 		org,
 		repo,
 		repoId,
@@ -170,7 +170,7 @@ function RulesStep({
 		<RulePacks
 			canEdit={canEdit}
 			heading={false}
-			onTurnOn={turnOn}
+			onInstall={install}
 			pending={pending}
 			preview={library.data?.preview ?? null}
 			repoName={repo}

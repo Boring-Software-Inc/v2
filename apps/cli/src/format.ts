@@ -1,7 +1,5 @@
 import { stripVTControlCharacters } from "node:util";
 import {
-	RULE_OUTCOME_LABELS,
-	ruleOutcomeSchema,
 	TRIGGER_CATALOG,
 	verdictLabel,
 	WORKFLOW_STATE_LABELS,
@@ -119,6 +117,10 @@ function onOff(on: boolean, style: Style): string {
 	return on ? style.good("on") : "off";
 }
 
+function installed(on: boolean, style: Style): string {
+	return on ? style.good("installed") : "not installed";
+}
+
 function when(iso: string): string {
 	const date = new Date(iso);
 	if (Number.isNaN(date.getTime())) {
@@ -191,36 +193,8 @@ const repoRulesSchema = z.array(
 		cannotRun: z.string().nullish(),
 		matches24h: z.number().nullish(),
 		sentence: z.string().nullish(),
-		outcome: ruleOutcomeSchema.nullish(),
-		setIn: z.array(z.string()).nullish(),
 	}),
 );
-
-const outcomeSettingSchema = z.object({
-	outcome: ruleOutcomeSchema,
-	instruction: z.string(),
-});
-
-function outcomeRows(
-	setting: z.infer<typeof outcomeSettingSchema> | undefined,
-): Row[] {
-	if (!setting) {
-		return [];
-	}
-	const rows: Row[] = [
-		[
-			"outcome",
-			`When this does not pass: ${RULE_OUTCOME_LABELS[setting.outcome]}`,
-		],
-	];
-	if (setting.outcome === "request_fix" && setting.instruction) {
-		rows.push(["fix", setting.instruction]);
-	}
-	if (setting.outcome === "note" && setting.instruction) {
-		rows.push(["note", setting.instruction]);
-	}
-	return rows;
-}
 
 const customRuleSchema = z.object({
 	id: z.string(),
@@ -229,7 +203,6 @@ const customRuleSchema = z.object({
 	sentence: z.string(),
 	use: z.string().optional(),
 	url: z.string().optional(),
-	outcome: outcomeSettingSchema.optional(),
 });
 
 const deletedRuleSchema = z.object({
@@ -378,11 +351,7 @@ function stepTitle(step: z.infer<typeof runSchema>["steps"][number]): string {
 	return step.stepId ? `${step.step} (${step.stepId})` : step.step;
 }
 
-const setRuleSchema = z.object({
-	ruleId: z.string(),
-	enabled: z.boolean(),
-	outcome: outcomeSettingSchema.optional(),
-});
+const setRuleSchema = z.object({ ruleId: z.string(), enabled: z.boolean() });
 
 const gateSchema = z.object({ repo: z.string(), url: z.string().optional() });
 
@@ -500,27 +469,24 @@ const FORMATTERS: Record<string, Formatter> = {
 	),
 	get_repo_rules: using(repoRulesSchema, (rules, style) => {
 		if (rules.length === 0) {
-			return "No rules on this repo.";
+			return "No rules installed on this repo.";
 		}
 		return table(
-			["RULE", "STATE", "WHEN THIS DOES NOT PASS", "MATCHES 24H", "NOTE"],
+			["RULE", "STATE", "MATCHES 24H", "NOTE"],
 			rules.map((rule) => [
 				rule.ruleId,
-				onOff(rule.enabled, style),
-				rule.setIn && rule.setIn.length > 0
-					? `Set in ${rule.setIn.join(", ")}`
-					: RULE_OUTCOME_LABELS[rule.outcome ?? "block"],
+				installed(rule.enabled, style),
 				String(rule.matches24h ?? 0),
-				rule.cannotRun ?? rule.sentence ?? "",
+				rule.cannotRun ??
+					(rule.management === "managed"
+						? "set by a workflow"
+						: (rule.sentence ?? "")),
 			]),
 		);
 	}),
 	set_rule: using(setRuleSchema, (value, style) =>
 		pairs(
-			[
-				["done", `${value.ruleId} is ${onOff(value.enabled, style)}`],
-				...outcomeRows(value.outcome),
-			],
+			[["done", `${value.ruleId} is ${installed(value.enabled, style)}`]],
 			style,
 		),
 	),
@@ -528,8 +494,7 @@ const FORMATTERS: Record<string, Formatter> = {
 		const rows: Row[] = [
 			["done", `${value.created ? "Created" : "Saved"} ${value.id}`],
 			["rule", value.sentence],
-			["state", onOff(value.enabled, style)],
-			...outcomeRows(value.outcome),
+			["state", installed(value.enabled, style)],
 		];
 		if (value.use) {
 			rows.push(["use", value.use]);

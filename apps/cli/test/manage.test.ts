@@ -231,26 +231,6 @@ describe("management commands over MCP", () => {
 				},
 			],
 			[
-				[
-					"rules",
-					"set",
-					"acme/web",
-					"custom-into-main-1a2b3c",
-					"--outcome",
-					"request_fix",
-					"--instruction",
-					"Change the target to main.",
-				],
-				"set_rule",
-				{
-					org: "acme",
-					repo: "acme/web",
-					ruleId: "custom-into-main-1a2b3c",
-					outcome: "request_fix",
-					instruction: "Change the target to main.",
-				},
-			],
-			[
 				["gate", "on", "acme/web"],
 				"turn_on_gate",
 				{ org: "acme", repo: "acme/web" },
@@ -326,7 +306,7 @@ describe("management commands over MCP", () => {
 		const result = await runCli(["rules", "set", "scratch", "x@1"], env());
 		expect(result.code).toBe(1);
 		expect(result.stderr).toBe(
-			"error     Pass --enable, --disable, --param, --outcome or --instruction.\n",
+			"error     Pass --enable, --disable or --param.\n",
 		);
 		expect(server.calls).toEqual([]);
 	});
@@ -1134,7 +1114,7 @@ describe("custom rules", () => {
 			[
 				`done      Created ${RULE_ID}`,
 				"rule      require that target branch is not release",
-				"state     off",
+				"state     not installed",
 				`use       customCheck("${RULE_ID}")`,
 				"open      https://app.tripwire.sh/grim/scratch/rules",
 				"",
@@ -1142,7 +1122,7 @@ describe("custom rules", () => {
 		);
 	});
 
-	test("create reads the definition from a file and can turn the rule on", async () => {
+	test("create reads the definition from a file and can install the rule", async () => {
 		const file = join(sandbox.root, "rule.json");
 		writeFileSync(file, JSON.stringify(DEFINITION));
 		const result = await runCli(
@@ -1175,47 +1155,6 @@ describe("custom rules", () => {
 			id: RULE_ID,
 			sentence: "require that target branch is not release",
 		});
-	});
-
-	test("update sends an outcome and instruction with the saved rule", async () => {
-		const result = await runCli(
-			[
-				"--json",
-				"rules",
-				"update",
-				"scratch",
-				RULE_ID,
-				"--outcome",
-				"request_fix",
-				"--instruction",
-				"Change the target to main.",
-			],
-			env(),
-		);
-		expect(result.code).toBe(0);
-		expect(server.calls[1]).toEqual({
-			name: "save_custom_rule",
-			args: {
-				repo: "scratch",
-				id: RULE_ID,
-				name: "Not into release",
-				definition: DEFINITION,
-				outcome: "request_fix",
-				instruction: "Change the target to main.",
-			},
-		});
-	});
-
-	test("an unknown outcome is refused before calling the server", async () => {
-		const result = await runCli(
-			["rules", "set", "scratch", "account-age", "--outcome", "explode"],
-			env(),
-		);
-		expect(result.code).toBe(1);
-		expect(result.stderr).toBe(
-			"error     --outcome must be one of block, request_fix, human_review, note, close.\n",
-		);
-		expect(server.calls).toEqual([]);
 	});
 
 	test("create needs a name and a definition before calling the server", async () => {
@@ -1304,7 +1243,7 @@ describe("custom rules", () => {
 		const result = await runCli(["rules", "update", "scratch", RULE_ID], env());
 		expect(result.code).toBe(1);
 		expect(result.stderr).toBe(
-			"error     Pass --name, --definition, --description, --enable, --disable, --outcome or --instruction.\n",
+			"error     Pass --name, --definition, --description, --enable or --disable.\n",
 		);
 		expect(server.calls).toEqual([]);
 	});
@@ -1322,9 +1261,9 @@ describe("custom rules", () => {
 		const result = await runCli(["rules", "list", "scratch"], env());
 		expect(result.stdout).toBe(
 			[
-				"RULE                               STATE     WHEN THIS DOES NOT PASS     MATCHES 24H     NOTE",
-				"account-age                        on        Ask author to fix           3",
-				"custom-not-into-release-1a2b3c     off       Block                       0               require that target branch is not release",
+				"RULE                               STATE             MATCHES 24H     NOTE",
+				"account-age                        installed         3",
+				"custom-not-into-release-1a2b3c     not installed     0               require that target branch is not release",
 				"",
 			].join("\n"),
 		);

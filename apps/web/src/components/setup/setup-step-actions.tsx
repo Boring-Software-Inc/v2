@@ -113,7 +113,7 @@ export function RulesLinkAction({ org, repo }: { org: string; repo: string }) {
 			render={<Link params={{ org, repo }} to="/$org/$repo/rules" />}
 			size="sm"
 		>
-			Turn on rules
+			Install rules
 		</Button>
 	);
 }
