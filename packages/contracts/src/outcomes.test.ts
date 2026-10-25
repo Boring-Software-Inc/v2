@@ -8,14 +8,9 @@ import {
 } from "./comment-render.ts";
 import { OPEN_REDACTION } from "./redaction.ts";
 import { DEFAULT_RESPONSE_CONFIG, wantsComment } from "./response.ts";
-import {
-	joinVerdicts,
-	readRuleOutcome,
-	ruleOutcomeAction,
-	standingVerdict,
-} from "./rule-outcome.ts";
 import { nonEnforcingRuleNodeIds, runOutcomes } from "./run-outcome.ts";
 import { describeRunSteps } from "./run-steps.ts";
+import { joinVerdicts, standingVerdict } from "./verdict-join.ts";
 import type { WorkflowDefinition } from "./workflow.ts";
 import { workflowAuthoring } from "./workflow-authoring-catalog.ts";
 import { compileWorkflows } from "./workflow-compile.ts";
@@ -24,33 +19,7 @@ import { lintWorkflow } from "./workflow-lint.ts";
 
 const RUN_URL = "https://tripwire.sh/runs/r1";
 
-describe("rule outcome settings", () => {
-	test("existing rows read as Block", () => {
-		expect(readRuleOutcome({})).toEqual({ outcome: "block", instruction: "" });
-		expect(readRuleOutcome({ outcome: "unknown" })).toEqual({
-			outcome: "block",
-			instruction: "",
-		});
-	});
-
-	test("each outcome maps to its action", () => {
-		expect(ruleOutcomeAction({ outcome: "block", instruction: "" })).toEqual({
-			action: "block",
-		});
-		expect(
-			ruleOutcomeAction({ outcome: "request_fix", instruction: " Do it. " }),
-		).toEqual({ action: "request-fix", params: { message: "Do it." } });
-		expect(ruleOutcomeAction({ outcome: "note", instruction: "" })).toEqual({
-			action: "note",
-		});
-		expect(ruleOutcomeAction({ outcome: "close", instruction: "" })).toEqual({
-			action: "close",
-		});
-		expect(
-			ruleOutcomeAction({ outcome: "human_review", instruction: "" }),
-		).toEqual({ action: "send-to-moderation" });
-	});
-
+describe("verdict join", () => {
 	test("join order: close > block > changes_required > needs_review > pass", () => {
 		expect(joinVerdicts(["pass", "needs_review", "changes_required"])).toBe(
 			"changes_required",

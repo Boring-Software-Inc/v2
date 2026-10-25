@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import {
-	type CustomRuleDefinition,
-	EXCEPTION_DRAFT_IDS,
-	type WorkflowDefinition,
+import type {
+	CustomRuleDefinition,
+	WorkflowDefinition,
 } from "@tripwire/contracts";
 import {
 	applyMigrations,
@@ -13,7 +12,6 @@ import {
 	type Db,
 	eventServices,
 	repoServices,
-	ruleExceptionServices,
 	ruleServices,
 	type TestDatabase,
 	workflowServices,
@@ -211,14 +209,13 @@ async function customRule(
 	repoId: string,
 	name: string,
 	definition: CustomRuleDefinition,
-	outcome?: { outcome: string; instruction: string },
+	enabled = false,
 ): Promise<string> {
 	const saved = await customRuleServices.saveCustomRule(db, {
 		repoId,
 		name,
-		enabled: outcome !== undefined,
+		enabled,
 		definition,
-		outcome,
 	});
 	if (!saved.ok) {
 		throw new Error(`custom rule ${name} did not save: ${saved.error}`);
@@ -235,6 +232,73 @@ async function ruleView(repoId: string, ruleId: string) {
 	return view;
 }
 
+function crmWorkflow(
+	targetMain: string,
+	exceptionRules: readonly string[],
+): WorkflowDefinition {
+	return {
+		id: "crm",
+		name: "Target is main",
+		version: 1,
+		nodes: [
+			{
+				id: "trigger",
+				type: "trigger",
+				kinds: ["change-request.opened", "change-request.updated"],
+			},
+			{
+				id: "requirement",
+				type: "rule",
+				ref: `${targetMain}@1`,
+				config: {},
+			},
+			{ id: "except-when", type: "gate", mode: "unless" },
+			{ id: "exception", type: "gate", mode: "all-of" },
+			{
+				id: "outcome",
+				type: "action",
+				action: "request-fix",
+				params: { message: "Change the target to main." },
+			},
+			...exceptionRules.map((ruleId) => ({
+				id: ruleId,
+				type: "rule" as const,
+				ref: `${ruleId}@1`,
+				config: {},
+			})),
+			{ id: "crypto", type: "rule", ref: "crypto-address@1", config: {} },
+			{ id: "crypto-block", type: "action", action: "block" },
+		],
+		edges: [
+			{ id: "trigger-requirement", from: "trigger", to: "requirement" },
+			{
+				id: "requirement-gate",
+				from: "requirement",
+				to: "except-when",
+				input: "requirement",
+			},
+			{
+				id: "exception-gate",
+				from: "exception",
+				to: "except-when",
+				input: "exception",
+			},
+			{ id: "gate-outcome", from: "except-when", to: "outcome", when: "fail" },
+			{ id: "in-crypto", from: "trigger", to: "crypto" },
+			{
+				id: "crypto-fails",
+				from: "crypto",
+				to: "crypto-block",
+				when: "fail",
+			},
+			...exceptionRules.flatMap((ruleId) => [
+				{ id: `in-${ruleId}`, from: "trigger", to: ruleId },
+				{ id: `group-${ruleId}`, from: ruleId, to: "exception" },
+			]),
+		],
+	};
+}
+
 async function buildCrm() {
 	const repo = await crmRepo();
 	const targetMain = await customRule(
@@ -244,7 +308,7 @@ async function buildCrm() {
 			when: { id: "pr.targetBranch" },
 			comparison: { kind: "equals", args: ["main"] },
 		},
-		{ outcome: "request_fix", instruction: "Change the target to main." },
+		true,
 	);
 	const targetRelease = await customRule(repo.repoId, "Target is release", {
 		when: { id: "pr.targetBranch" },
@@ -262,64 +326,16 @@ async function buildCrm() {
 		when: { id: "contributor.login" },
 		comparison: { kind: "equals", args: [RELEASE_ACCOUNT] },
 	});
-	const draft = await ruleExceptionServices.openRuleExceptionDraft(db, {
+	const workflow = await workflowServices.createWorkflow(db, {
 		repoId: repo.repoId,
-		ruleId: targetMain,
+		name: "Target is main",
+		definition: crmWorkflow(targetMain, [
+			targetRelease,
+			releaseSource,
+			releaseAuthor,
+		]),
 	});
-	if (!draft.ok) {
-		throw new Error(draft.error);
-	}
-	const stored = await workflowServices.getWorkflow(db, {
-		repoId: repo.repoId,
-		workflowId: draft.workflowId,
-	});
-	if (!stored) {
-		throw new Error("draft not found");
-	}
-	const exceptionRules = [targetRelease, releaseSource, releaseAuthor];
-	const edited: WorkflowDefinition = {
-		...stored.definition,
-		nodes: [
-			...stored.definition.nodes,
-			...exceptionRules.map((ruleId) => ({
-				id: ruleId,
-				type: "rule" as const,
-				ref: `${ruleId}@1`,
-				config: {},
-			})),
-			{ id: "crypto", type: "rule", ref: "crypto-address@1", config: {} },
-			{ id: "crypto-block", type: "action", action: "block" },
-		],
-		edges: [
-			...stored.definition.edges,
-			{ id: "in-crypto", from: EXCEPTION_DRAFT_IDS.trigger, to: "crypto" },
-			{
-				id: "crypto-fails",
-				from: "crypto",
-				to: "crypto-block",
-				when: "fail",
-			},
-			...exceptionRules.flatMap((ruleId) => [
-				{
-					id: `in-${ruleId}`,
-					from: EXCEPTION_DRAFT_IDS.trigger,
-					to: ruleId,
-				},
-				{
-					id: `group-${ruleId}`,
-					from: ruleId,
-					to: EXCEPTION_DRAFT_IDS.exception,
-				},
-			]),
-		],
-	};
-	const saved = await workflowServices.saveWorkflowDefinition(db, {
-		repoId: repo.repoId,
-		workflowId: draft.workflowId,
-		definition: edited,
-	});
-	expect(saved.ok).toBe(true);
-	return { repo, targetMain, workflowId: draft.workflowId, draft };
+	return { repo, targetMain, workflowId: workflow.id };
 }
 
 async function enable(repoId: string, workflowId: string) {
@@ -337,101 +353,21 @@ const RELEASE_PR: Pr = {
 	author: RELEASE_ACCOUNT,
 };
 
-describe("trycompai/crm built from Add exception", () => {
-	test("the draft wires the rule, an empty group and the rule's outcome, and refuses to turn on empty", async () => {
-		const repo = await crmRepo();
-		const ruleId = await customRule(
-			repo.repoId,
-			"Target is main",
-			{
-				when: { id: "pr.targetBranch" },
-				comparison: { kind: "equals", args: ["main"] },
-			},
-			{ outcome: "request_fix", instruction: "Change the target to main." },
-		);
-		const draft = await ruleExceptionServices.openRuleExceptionDraft(db, {
-			repoId: repo.repoId,
-			ruleId,
-		});
-		expect(draft).toMatchObject({ ok: true, created: true });
-		if (!draft.ok) {
-			return;
-		}
-		const row = await workflowServices.getWorkflow(db, {
-			repoId: repo.repoId,
-			workflowId: draft.workflowId,
-		});
-		expect(row?.enabled).toBe(false);
-		expect(row?.name).toBe("Target is main");
-		expect(row?.definition.nodes).toContainEqual({
-			id: "outcome",
-			type: "action",
-			action: "request-fix",
-			params: { message: "Change the target to main." },
-		});
-		expect(row?.definition.edges).toContainEqual({
-			id: "requirement-gate",
-			from: "requirement",
-			to: "except-when",
-			input: "requirement",
-		});
-		const again = await ruleExceptionServices.openRuleExceptionDraft(db, {
-			repoId: repo.repoId,
-			ruleId,
-		});
-		expect(again).toEqual({
-			ok: true,
-			workflowId: draft.workflowId,
-			created: false,
-		});
-		const refused = await workflowServices.setWorkflowEnabled(db, {
-			repoId: repo.repoId,
-			workflowId: draft.workflowId,
-			enabled: true,
-		});
-		expect(refused.ok).toBe(false);
-		expect((await ruleView(repo.repoId, ruleId)).management).toBe("standalone");
-	});
-
-	test("a draft changes nothing, and enabling moves authority from the standalone rule", async () => {
+describe("trycompai/crm built as a workflow", () => {
+	test("a disabled workflow changes nothing, and enabling moves authority from the installed rule", async () => {
 		const { repo, targetMain, workflowId } = await buildCrm();
 
 		const before = await openPr(repo, RELEASE_PR, 1);
-		expect(before.run.verdict).toBe("changes_required");
-		expect(commentBody(before.executed)).toContain(
-			"Changes needed. Change the target to main.",
+		expect(before.run.verdict).toBe("block");
+		expect((await ruleView(repo.repoId, targetMain)).management).toBe(
+			"standalone",
 		);
-		const standalone = await ruleView(repo.repoId, targetMain);
-		expect(standalone.management).toBe("standalone");
-		expect(standalone.owners).toEqual([]);
 
 		await enable(repo.repoId, workflowId);
 
-		const managed = await ruleView(repo.repoId, targetMain);
-		expect(managed.management).toBe("managed");
-		expect(managed.owners).toEqual([
-			{
-				id: workflowId,
-				name: "Target is main",
-				exceptions: [
-					"Target is release, Source starts with release-please, Release account",
-				],
-			},
-		]);
-		const refused = await ruleServices.setRuleOutcome(db, {
-			repoId: repo.repoId,
-			ruleId: targetMain,
-			outcome: "block",
-		});
-		expect(refused).toEqual({
-			error: "Set in Target is main. Change the outcome in the workflow.",
-		});
-		const exceptionDraft = await ruleExceptionServices.openRuleExceptionDraft(
-			db,
-			{ repoId: repo.repoId, ruleId: targetMain },
+		expect((await ruleView(repo.repoId, targetMain)).management).toBe(
+			"managed",
 		);
-		expect(exceptionDraft.ok).toBe(false);
-
 		const after = await openPr(repo, { ...RELEASE_PR, sha: "c".repeat(40) }, 2);
 		expect(after.run.verdict).toBe("pass");
 	});

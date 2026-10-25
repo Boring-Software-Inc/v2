@@ -4,7 +4,6 @@ import {
 	type CommentReason,
 	checkSummary,
 	DEFAULT_RESPONSE_CONFIG,
-	exceptionDraft,
 	planSurfaces,
 	redactionPolicySchema,
 	type WorkflowDefinition,
@@ -135,6 +134,51 @@ function view(overrides: Partial<RunView> = {}): RunView {
 		backfill: false,
 		aiReviewNotRun: false,
 		...overrides,
+	};
+}
+
+function skipWhenDraft(input: {
+	id: string;
+	name: string;
+	ref: string;
+	config: Record<string, number>;
+}): WorkflowDefinition {
+	return {
+		id: input.id,
+		name: input.name,
+		version: 1,
+		nodes: [
+			{
+				id: "trigger",
+				type: "trigger",
+				kinds: ["change-request.opened", "change-request.updated"],
+			},
+			{ id: "requirement", type: "rule", ref: input.ref, config: input.config },
+			{ id: "except-when", type: "gate", mode: "unless" },
+			{ id: "exception", type: "gate", mode: "all-of" },
+			{
+				id: "outcome",
+				type: "action",
+				action: "request-fix",
+				params: { message: "Change the target to main." },
+			},
+		],
+		edges: [
+			{ id: "trigger-requirement", from: "trigger", to: "requirement" },
+			{
+				id: "requirement-gate",
+				from: "requirement",
+				to: "except-when",
+				input: "requirement",
+			},
+			{
+				id: "exception-gate",
+				from: "exception",
+				to: "except-when",
+				input: "exception",
+			},
+			{ id: "gate-outcome", from: "except-when", to: "outcome", when: "fail" },
+		],
 	};
 }
 
@@ -1015,17 +1059,11 @@ describe("a passing AI review in the passed list", () => {
 });
 
 describe("Skip when on the run page", () => {
-	const base = exceptionDraft({
+	const base = skipWhenDraft({
 		id: "crm",
 		name: "Target is main",
-		rule: {
-			ref: "custom-target-main@1",
-			config: {},
-			outcome: {
-				outcome: "request_fix",
-				instruction: "Change the target to main.",
-			},
-		},
+		ref: "custom-target-main@1",
+		config: {},
 	});
 	const CRM: WorkflowDefinition = {
 		...base,

@@ -5,7 +5,6 @@ import {
 } from "@tripwire/contracts";
 import {
 	type BuilderState,
-	draftFromState,
 	nextStep,
 	valueIssue,
 } from "./custom-rule-builder.tsx";
@@ -38,7 +37,6 @@ function state(
 		high: fields.high ?? "",
 		values: fields.values ?? [],
 		name: "",
-		outcome: { outcome: "block", instruction: "" },
 	};
 }
 
@@ -121,33 +119,5 @@ describe("branch prefix and suffix", () => {
 		expect(nextStep(state("pr.targetBranch", "endsWith"))).toBe(
 			"Enter a value.",
 		);
-	});
-});
-
-describe("When this does not pass", () => {
-	const complete = (outcome: BuilderState["outcome"]): BuilderState => ({
-		...state("pr.targetBranch", "oneOf", { values: ["main"] }),
-		name: "Target main",
-		outcome,
-	});
-
-	test("a new rule saves Block unless another outcome is picked", () => {
-		expect(
-			draftFromState(complete({ outcome: "block", instruction: "" }))?.outcome,
-		).toEqual({ outcome: "block", instruction: "" });
-	});
-
-	test("the instruction is saved trimmed with its outcome", () => {
-		expect(
-			draftFromState(
-				complete({
-					outcome: "request_fix",
-					instruction: " Change the target to main. ",
-				}),
-			)?.outcome,
-		).toEqual({
-			outcome: "request_fix",
-			instruction: "Change the target to main.",
-		});
 	});
 });

@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
 	compileWorkflows,
-	exceptionDraft,
 	type WorkflowDefinition,
 	workflowAuthoring,
 	workflowToCode,
@@ -115,6 +114,51 @@ const PLAIN: WorkflowDefinition = {
 const MAIN = { ref: "custom-target-main@1", config: {} };
 const RELEASE = { ref: "custom-target-release@1", config: {} };
 const SOURCE = { ref: "custom-release-source@1", config: {} };
+
+function skipWhenDraft(input: {
+	id: string;
+	name: string;
+	ref: string;
+	config: Record<string, number>;
+}): WorkflowDefinition {
+	return {
+		id: input.id,
+		name: input.name,
+		version: 1,
+		nodes: [
+			{
+				id: "trigger",
+				type: "trigger",
+				kinds: ["change-request.opened", "change-request.updated"],
+			},
+			{ id: "requirement", type: "rule", ref: input.ref, config: input.config },
+			{ id: "except-when", type: "gate", mode: "unless" },
+			{ id: "exception", type: "gate", mode: "all-of" },
+			{
+				id: "outcome",
+				type: "action",
+				action: "request-fix",
+				params: { message: "Change the target to main." },
+			},
+		],
+		edges: [
+			{ id: "trigger-requirement", from: "trigger", to: "requirement" },
+			{
+				id: "requirement-gate",
+				from: "requirement",
+				to: "except-when",
+				input: "requirement",
+			},
+			{
+				id: "exception-gate",
+				from: "exception",
+				to: "except-when",
+				input: "exception",
+			},
+			{ id: "gate-outcome", from: "except-when", to: "outcome", when: "fail" },
+		],
+	};
+}
 
 describe("a group with no gate", () => {
 	test("one rule reads as a group of one and prints as a plain check", () => {
@@ -302,18 +346,12 @@ describe("tripwire.ts unless loads as Skip when and a group", () => {
 	});
 });
 
-describe("the Add exception draft", () => {
-	const draft = exceptionDraft({
+describe("an empty Skip when", () => {
+	const draft = skipWhenDraft({
 		id: "wf",
 		name: "Target is main",
-		rule: {
-			ref: "custom-target-main@1",
-			config: {},
-			outcome: {
-				outcome: "request_fix",
-				instruction: "Change the target to main.",
-			},
-		},
+		ref: "custom-target-main@1",
+		config: {},
 	});
 
 	test("reads as an empty Skip when before a group of that rule", () => {

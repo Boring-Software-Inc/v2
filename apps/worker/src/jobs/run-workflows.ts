@@ -314,15 +314,14 @@ async function runWorkflowsInner(
 	// id, so a held old version replaces — never doubles — the baseline.
 	const derived = deriveDefaultWorkflow(
 		[
-			...ruleConfigs.map((config) => ({
-				...resolveEffectiveRuleConfig({
+			...ruleConfigs.map((config) =>
+				resolveEffectiveRuleConfig({
 					ruleId: config.ruleId,
 					version: config.version,
 					enabled: config.enabled,
 					config: config.config as JsonValue,
 				}),
-				outcome: config.outcome,
-			})),
+			),
 			// Custom rules join the toggle set like any non-baseline rule: they
 			// run when enabled, and workflow ownership excludes them like any id.
 			...customRows.map((row) => ({
@@ -330,7 +329,6 @@ async function runWorkflowsInner(
 				enabled: row.enabled,
 				config: {} as JsonValue,
 				held: false,
-				outcome: row.outcome,
 			})),
 		],
 		ownedRuleIds,

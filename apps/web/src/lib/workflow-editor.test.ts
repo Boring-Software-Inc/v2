@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
 	DEFAULT_WORKFLOW,
-	exceptionDraft,
 	RULE_CATALOG,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
@@ -24,6 +23,51 @@ function stripPositions(def: WorkflowDefinition): WorkflowDefinition {
 		nodes: def.nodes.map(
 			({ position: _p, ...node }) => node,
 		) as WorkflowDefinition["nodes"],
+	};
+}
+
+function skipWhenDraft(input: {
+	id: string;
+	name: string;
+	ref: string;
+	config: Record<string, number>;
+}): WorkflowDefinition {
+	return {
+		id: input.id,
+		name: input.name,
+		version: 1,
+		nodes: [
+			{
+				id: "trigger",
+				type: "trigger",
+				kinds: ["change-request.opened", "change-request.updated"],
+			},
+			{ id: "requirement", type: "rule", ref: input.ref, config: input.config },
+			{ id: "except-when", type: "gate", mode: "unless" },
+			{ id: "exception", type: "gate", mode: "all-of" },
+			{
+				id: "outcome",
+				type: "action",
+				action: "request-fix",
+				params: { message: "Change the target to main." },
+			},
+		],
+		edges: [
+			{ id: "trigger-requirement", from: "trigger", to: "requirement" },
+			{
+				id: "requirement-gate",
+				from: "requirement",
+				to: "except-when",
+				input: "requirement",
+			},
+			{
+				id: "exception-gate",
+				from: "exception",
+				to: "except-when",
+				input: "exception",
+			},
+			{ id: "gate-outcome", from: "except-when", to: "outcome", when: "fail" },
+		],
 	};
 }
 
@@ -365,17 +409,11 @@ describe("AI review steps while Tripwire is out of AI credits", () => {
 
 describe("Skip when on the canvas", () => {
 	test("requirement and exception roles survive definition, graph and back", () => {
-		const draft = exceptionDraft({
+		const draft = skipWhenDraft({
 			id: "wf",
 			name: "Target is main",
-			rule: {
-				ref: "account-age@1",
-				config: { minDays: 7 },
-				outcome: {
-					outcome: "request_fix",
-					instruction: "Change the target to main.",
-				},
-			},
+			ref: "account-age@1",
+			config: { minDays: 7 },
 		});
 		const graph = definitionToGraph(draft);
 		expect(

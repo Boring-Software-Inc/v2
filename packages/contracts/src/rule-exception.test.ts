@@ -1,15 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
-	EXCEPTION_DRAFT_IDS,
-	exceptionDraft,
-	exceptionName,
 	exceptionRuleNodeIds,
-	ruleExceptionNames,
 	UNLESS_DECISION_WORDS,
 	unlessDecision,
 } from "./rule-exception.ts";
 import type { WorkflowDefinition } from "./workflow.ts";
-import { workflowDefinitionSchema } from "./workflow.ts";
 import { workflowToCode } from "./workflow-codegen.ts";
 import {
 	EMPTY_EXCEPTION_GROUP,
@@ -18,27 +13,49 @@ import {
 	UNLESS_EMPTY_PORT,
 } from "./workflow-lint.ts";
 
-const NAMES = new Map([
-	["custom-target-main@1", "Target is main"],
-	["custom-target-release@1", "Target is release"],
-	["custom-release-source@1", "Source starts with release-please"],
-	["custom-release-author@1", "Author is the release account"],
-]);
-const nameOf = (ref: string) => NAMES.get(ref) ?? ref;
-
 function draft(): WorkflowDefinition {
-	return exceptionDraft({
+	return {
 		id: "wf",
 		name: "Target is main",
-		rule: {
-			ref: "custom-target-main@1",
-			config: {},
-			outcome: {
-				outcome: "request_fix",
-				instruction: "Change the target to main.",
+		version: 1,
+		nodes: [
+			{
+				id: "trigger",
+				type: "trigger",
+				kinds: ["change-request.opened", "change-request.updated"],
 			},
-		},
-	});
+			{
+				id: "requirement",
+				type: "rule",
+				ref: "custom-target-main@1",
+				config: {},
+			},
+			{ id: "except-when", type: "gate", mode: "unless" },
+			{ id: "exception", type: "gate", mode: "all-of" },
+			{
+				id: "outcome",
+				type: "action",
+				action: "request-fix",
+				params: { message: "Change the target to main." },
+			},
+		],
+		edges: [
+			{ id: "trigger-requirement", from: "trigger", to: "requirement" },
+			{
+				id: "requirement-gate",
+				from: "requirement",
+				to: "except-when",
+				input: "requirement",
+			},
+			{
+				id: "exception-gate",
+				from: "exception",
+				to: "except-when",
+				input: "exception",
+			},
+			{ id: "gate-outcome", from: "except-when", to: "outcome", when: "fail" },
+		],
+	};
 }
 
 function withException(definition: WorkflowDefinition): WorkflowDefinition {
@@ -63,68 +80,26 @@ function withException(definition: WorkflowDefinition): WorkflowDefinition {
 			...refs.flatMap((_, index) => [
 				{
 					id: `tx${index}`,
-					from: EXCEPTION_DRAFT_IDS.trigger,
+					from: "trigger",
 					to: `x${index}`,
 				},
 				{
 					id: `xg${index}`,
 					from: `x${index}`,
-					to: EXCEPTION_DRAFT_IDS.exception,
+					to: "exception",
 				},
 			]),
 		],
 	};
 }
 
-describe("the exception draft", () => {
-	test("wires the rule into Requirement, an empty group into Exception, and the outcome on fail", () => {
-		const definition = draft();
-		expect(workflowDefinitionSchema.safeParse(definition).success).toBe(true);
-		expect(definition.edges).toContainEqual({
-			id: "requirement-gate",
-			from: "requirement",
-			to: "except-when",
-			input: "requirement",
-		});
-		expect(definition.edges).toContainEqual({
-			id: "exception-gate",
-			from: "exception",
-			to: "except-when",
-			input: "exception",
-		});
-		expect(definition.nodes).toContainEqual({
-			id: "outcome",
-			type: "action",
-			action: "request-fix",
-			params: { message: "Change the target to main." },
-		});
-	});
-
-	test("every outcome becomes its workflow action", () => {
-		const action = (outcome: "block" | "human_review" | "note" | "close") =>
-			exceptionDraft({
-				id: "wf",
-				name: "n",
-				rule: {
-					ref: "account-age@1",
-					config: { minDays: 7 },
-					outcome: { outcome, instruction: "" },
-				},
-			}).nodes.find((node) => node.id === "outcome");
-		expect(action("block")).toMatchObject({ action: "block" });
-		expect(action("human_review")).toMatchObject({
-			action: "send-to-moderation",
-		});
-		expect(action("note")).toMatchObject({ action: "note" });
-		expect(action("close")).toMatchObject({ action: "close" });
-	});
-
+describe("a Skip when workflow", () => {
 	test("an empty exception group cannot be turned on", () => {
 		const issues = lintWorkflow(draft());
 		expect(issues.some((issue) => issue.severity === "error")).toBe(true);
 		expect(
 			issues
-				.filter((issue) => issue.nodeId === EXCEPTION_DRAFT_IDS.exception)
+				.filter((issue) => issue.nodeId === "exception")
 				.map((issue) => [issue.message, issue.fixes]),
 		).toEqual([[EMPTY_EXCEPTION_GROUP, []]]);
 	});
@@ -144,29 +119,7 @@ describe("the exception draft", () => {
 	});
 });
 
-describe("exception names", () => {
-	test("an empty group has no name", () => {
-		expect(exceptionName(draft(), EXCEPTION_DRAFT_IDS.gate, nameOf)).toBeNull();
-	});
-
-	test("a group names its rules", () => {
-		expect(
-			exceptionName(withException(draft()), EXCEPTION_DRAFT_IDS.gate, nameOf),
-		).toBe(
-			"Target is release, Source starts with release-please, Author is the release account",
-		);
-	});
-
-	test("a rule reads the exceptions scoped to it, and only those", () => {
-		const filled = withException(draft());
-		expect(ruleExceptionNames(filled, "custom-target-main", nameOf)).toEqual([
-			"Target is release, Source starts with release-please, Author is the release account",
-		]);
-		expect(ruleExceptionNames(filled, "custom-target-release", nameOf)).toEqual(
-			[],
-		);
-	});
-
+describe("exception rules", () => {
 	test("exception rules are the group's leaves", () => {
 		expect([...exceptionRuleNodeIds(withException(draft()))].sort()).toEqual([
 			"x0",

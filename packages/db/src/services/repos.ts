@@ -3,10 +3,7 @@ import {
 	definitionReferencesRule,
 	type Forge,
 	type ResponseConfig,
-	type RuleOutcomeSetting,
-	readRuleOutcome,
 	responseConfigSchema,
-	ruleOutcomeSettingSchema,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
@@ -399,7 +396,6 @@ export interface RuleConfigRow {
 	version: number;
 	enabled: boolean;
 	config: unknown;
-	outcome?: RuleOutcomeSetting;
 }
 
 export async function listRuleConfigs(
@@ -415,10 +411,6 @@ export async function listRuleConfigs(
 		version: row.version,
 		enabled: row.enabled,
 		config: row.config,
-		outcome: readRuleOutcome({
-			outcome: row.outcome,
-			instruction: row.outcomeInstruction,
-		}),
 	}));
 }
 
@@ -548,7 +540,6 @@ export interface CustomRuleRow {
 	description: string | null;
 	enabled: boolean;
 	definition: unknown;
-	outcome?: RuleOutcomeSetting;
 }
 
 export async function listCustomRules(
@@ -565,39 +556,7 @@ export async function listCustomRules(
 		description: row.description,
 		enabled: row.enabled,
 		definition: row.definition,
-		outcome: readRuleOutcome({
-			outcome: row.outcome,
-			instruction: row.outcomeInstruction,
-		}),
 	}));
-}
-
-export async function setRuleOutcome(
-	db: Db,
-	repoId: string,
-	ruleId: string,
-	setting: RuleOutcomeSetting,
-): Promise<boolean> {
-	const parsed = ruleOutcomeSettingSchema.parse(setting);
-	const values = {
-		outcome: parsed.outcome,
-		outcomeInstruction: parsed.instruction,
-		updatedAt: new Date(),
-	};
-	const updated = ruleId.startsWith("custom-")
-		? await db
-				.update(customRules)
-				.set(values)
-				.where(and(eq(customRules.id, ruleId), eq(customRules.repoId, repoId)))
-				.returning({ id: customRules.id })
-		: await db
-				.update(ruleConfigs)
-				.set(values)
-				.where(
-					and(eq(ruleConfigs.repoId, repoId), eq(ruleConfigs.ruleId, ruleId)),
-				)
-				.returning({ id: ruleConfigs.id });
-	return updated.length > 0;
 }
 
 export async function upsertCustomRule(
@@ -609,15 +568,8 @@ export async function upsertCustomRule(
 		description?: string | null;
 		enabled: boolean;
 		definition: unknown;
-		outcome?: RuleOutcomeSetting;
 	},
 ): Promise<void> {
-	const outcome = rule.outcome
-		? {
-				outcome: rule.outcome.outcome,
-				outcomeInstruction: rule.outcome.instruction,
-			}
-		: {};
 	await db
 		.insert(customRules)
 		.values({
@@ -627,7 +579,6 @@ export async function upsertCustomRule(
 			description: rule.description ?? null,
 			enabled: rule.enabled,
 			definition: rule.definition,
-			...outcome,
 		})
 		.onConflictDoUpdate({
 			target: customRules.id,
@@ -639,7 +590,6 @@ export async function upsertCustomRule(
 						: rule.description,
 				enabled: rule.enabled,
 				definition: rule.definition,
-				...outcome,
 				updatedAt: new Date(),
 			},
 		});

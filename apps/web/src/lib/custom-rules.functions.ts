@@ -38,7 +38,6 @@ export const saveCustomRule = createServerFn({ method: "POST" })
 			name: string;
 			enabled: boolean;
 			definition: unknown;
-			outcome?: { outcome: string; instruction: string };
 		}) => input,
 	)
 	.handler(
@@ -58,7 +57,6 @@ export const saveCustomRule = createServerFn({ method: "POST" })
 				name: data.name,
 				enabled: data.enabled,
 				definition: data.definition,
-				outcome: data.outcome,
 			});
 			if (!result.ok) {
 				return { error: result.reason === "not-found" ? GONE : result.error };
