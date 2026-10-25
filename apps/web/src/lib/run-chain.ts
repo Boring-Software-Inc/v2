@@ -396,8 +396,8 @@ export function chainSkips(
 		const state = skipState(gate?.output, gate !== undefined);
 		const text = {
 			matched: `${skipLabel(ruleNames, "all-of")} skipped: ${label} matched`,
-			"not-matched": "Skip when did not match",
-			unchecked: "Skip when could not be checked",
+			"not-matched": "Exception did not match",
+			unchecked: "Exception could not be checked",
 			pending: "Checking",
 		}[state];
 		return [
@@ -670,7 +670,7 @@ function checkChip(run: RunView, action: RunActionView): ChainChip {
 	if (run.verdict === "changes_required" || run.verdict === "close") {
 		return {
 			...base,
-			label: "Check failed",
+			label: run.verdict === "close" ? "Closed" : "Changes needed",
 			glyph: "fail",
 			tone: "fail",
 		};

@@ -346,7 +346,7 @@ describe("PR wording", () => {
 		);
 		expect(
 			body.startsWith(
-				"Changes needed. Change the target to main. Human review is pending.",
+				"Changes needed. Change the target to main. Waiting for review.",
 			),
 		).toBe(true);
 	});
@@ -402,7 +402,7 @@ describe("PR wording", () => {
 			DEFAULT_RESPONSE_CONFIG,
 		);
 		expect(body).toContain(
-			"Changes needed. Change the target to main. Human review is pending.",
+			"Changes needed. Change the target to main. Waiting for review.",
 		);
 		expect(body).toContain("No description provided.");
 	});

@@ -1156,7 +1156,7 @@ describe("Skip when on the run page", () => {
 		]);
 		expect(branch?.skips[0]).toMatchObject({
 			state: "not-matched",
-			text: "Skip when did not match",
+			text: "Exception did not match",
 		});
 	});
 
@@ -1195,7 +1195,7 @@ describe("Skip when on the run page", () => {
 		const [branch] = body.branches;
 		expect(branch?.skips[0]).toMatchObject({
 			state: "unchecked",
-			text: "Skip when could not be checked",
+			text: "Exception could not be checked",
 		});
 		expect(branch?.flagged.map((entry) => entry.name)).toEqual([
 			"Target is main",

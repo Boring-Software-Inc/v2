@@ -110,7 +110,7 @@ export function commentHeadline(
 
 export const CHANGES_NEEDED = "Changes needed.";
 export const CLOSED = "Closed.";
-export const REVIEW_PENDING = "Human review is pending.";
+export const REVIEW_PENDING = "Waiting for review.";
 
 export const RERUN_NOTE = "Tripwire checked this again with the current rules.";
 

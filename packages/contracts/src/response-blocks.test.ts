@@ -137,7 +137,7 @@ describe("each block type", () => {
 			),
 		).toBe("Changes needed. Change the target to main.");
 		expect(one({ id: "c", type: "instruction" }, { reviewPending: true })).toBe(
-			"Human review is pending.",
+			"Waiting for review.",
 		);
 		expect(one({ id: "c", type: "instruction" })).toBe("");
 	});

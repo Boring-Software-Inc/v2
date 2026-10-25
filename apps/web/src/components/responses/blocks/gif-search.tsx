@@ -20,7 +20,7 @@ const MIN_QUERY = 2;
 const GRID_WIDTH = 296;
 
 const STATUS_COPY: Record<Exclude<GiphyStatus, "ok">, string> = {
-	busy: "Search is busy, try again soon.",
+	busy: "GIF search is busy. Try again shortly.",
 	unavailable: "GIFs are not available right now.",
 };
 
@@ -74,7 +74,7 @@ export function GifSearch({ org, onPick }: GifSearchProps) {
 				clearLabel="Clear search"
 				mode="search"
 				onValueChange={setText}
-				placeholder="Search GIPHY"
+				placeholder="celebration"
 				value={text}
 			/>
 			{status !== "ok" ? (

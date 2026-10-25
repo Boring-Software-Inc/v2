@@ -45,7 +45,7 @@ import { cn } from "#/lib/glaze/utils";
 import type { SkipMode } from "#/lib/rule-groups";
 
 export const GROUP_TITLE = "If any of these rules fail";
-export const SKIP_TITLE = "Skip when";
+export const SKIP_TITLE = "Except when";
 
 const MODE_ITEMS = [
 	{ value: "all-of", label: "All of" },
@@ -268,7 +268,7 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 						variant="ghost"
 					>
 						<Icon icon={Add} />
-						{SKIP_TITLE}
+						Add exception
 					</Button>
 				) : null}
 			</div>
@@ -291,7 +291,7 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				<span className="min-w-0 type-label">{SKIP_TITLE}</span>
 				{api.readOnly ? null : (
 					<Button
-						aria-label="Remove Skip when"
+						aria-label="Remove exception"
 						className="nodrag nopan ms-auto"
 						onClick={() => api.removeSkip(id)}
 						size="icon-sm"
@@ -315,7 +315,7 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 						value={card.mode}
 					>
 						<SelectTrigger
-							aria-label="Skip when match"
+							aria-label="Exception match"
 							className="w-auto"
 							size="sm"
 						>

@@ -12,11 +12,11 @@ const CHECK_STATE: Record<
 	pass: { word: "Passing", status: "ok", tone: "text-ok-text" },
 	block: { word: "Failing", status: "fail", tone: "text-fail-text" },
 	changes_required: {
-		word: "Failing",
+		word: "Changes needed",
 		status: "fail",
 		tone: "text-fail-text",
 	},
-	close: { word: "Failing", status: "fail", tone: "text-fail-text" },
+	close: { word: "Closed", status: "fail", tone: "text-fail-text" },
 	needs_review: { word: "In progress", status: "warn", tone: "text-warn-text" },
 };
 

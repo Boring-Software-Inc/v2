@@ -108,7 +108,7 @@ export const VARIABLE_LABELS: Record<ResponseVariable, string> = {
 	author: "@author",
 	"failed-rules": "Failed rules",
 	"target-branch": "Target branch",
-	title: "PR title",
+	title: "Change request title",
 	"rule-name": "Rule name",
 	"run-link": "Run link",
 };

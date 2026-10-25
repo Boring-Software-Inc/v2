@@ -176,7 +176,7 @@ export function TextBlockEditor({
 				className="min-h-5.25 whitespace-pre-wrap break-words type-body text-text-1 empty:before:text-text-3 empty:before:content-[attr(data-placeholder)] [&_[data-var]]:mx-0.5"
 				contentEditable
 				data-control=""
-				data-placeholder="Write a message"
+				data-placeholder="Thanks for the contribution."
 				onBlur={remember}
 				onInput={emit}
 				onKeyDown={onKeyDown}

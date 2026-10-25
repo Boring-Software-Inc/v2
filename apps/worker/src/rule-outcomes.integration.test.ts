@@ -594,7 +594,7 @@ describe("workflow outcomes", () => {
 		expect(run?.verdict).toBe("changes_required");
 		expect(run?.status).toBe("paused");
 		expect(commentBody(executed)).toContain(
-			"Changes needed. Change the target to main. Human review is pending.",
+			"Changes needed. Change the target to main. Waiting for review.",
 		);
 		expect(kinds(executed)).not.toContain("block");
 
@@ -612,7 +612,7 @@ describe("workflow outcomes", () => {
 			"Changes needed. Change the target to main.",
 		);
 		expect(commentBody(approved.fake.executed)).not.toContain(
-			"Human review is pending.",
+			"Waiting for review.",
 		);
 	});
 
