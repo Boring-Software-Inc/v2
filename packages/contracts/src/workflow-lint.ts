@@ -424,6 +424,16 @@ function checkNotInputs(ctx: LintContext): Finding[] {
 	});
 }
 
+export const UNLESS_EMPTY_PORT = {
+	requirement: "Connect a requirement.",
+	exception: "Connect an exception.",
+} as const;
+
+const UNLESS_EXTRA_INPUT = {
+	requirement: "It takes one requirement. Keep one.",
+	exception: "It takes one exception. Keep one.",
+} as const;
+
 function checkUnlessInputs(ctx: LintContext): Finding[] {
 	const stray = ctx.def.edges.flatMap((edge) => {
 		const target = ctx.byId.get(edge.to);
@@ -444,28 +454,40 @@ function checkUnlessInputs(ctx: LintContext): Finding[] {
 			},
 		];
 	});
-	const gates = ctx.def.nodes.flatMap((node) => {
+	const gates = ctx.def.nodes.flatMap((node): Finding[] => {
 		if (node.type !== "gate" || node.mode !== "unless") {
 			return [];
 		}
 		const incoming = ctx.incoming.get(node.id) ?? [];
-		const count = (role: "requirement" | "exception") =>
-			incoming.filter((edge) => edge.input === role).length;
 		const unnamed = incoming.filter((edge) => edge.input === undefined);
-		if (
-			count("requirement") === 1 &&
-			count("exception") === 1 &&
-			unnamed.length === 0
-		) {
-			return [];
+		const findings: Finding[] = [];
+		for (const role of ["requirement", "exception"] as const) {
+			const edges = incoming.filter((edge) => edge.input === role);
+			const [, ...extra] = edges;
+			if (edges.length === 0) {
+				findings.push({
+					nodeId: node.id,
+					message: UNLESS_EMPTY_PORT[role],
+					fixes: [],
+				});
+			}
+			if (extra.length > 0) {
+				findings.push({
+					nodeId: node.id,
+					message: UNLESS_EXTRA_INPUT[role],
+					fixes: extra.map((edge): LintFix => removeEdge(edge.id)),
+				});
+			}
 		}
-		return [
-			{
+		for (const edge of unnamed) {
+			findings.push({
 				nodeId: node.id,
-				message: "It needs one requirement and one exception.",
-				fixes: unnamed.map((edge): LintFix => removeEdge(edge.id)),
-			},
-		];
+				edgeId: edge.id,
+				message: "Connect it to Requirement or Exception.",
+				fixes: [removeEdge(edge.id)],
+			});
+		}
+		return findings;
 	});
 	return [...stray, ...gates];
 }
@@ -1238,8 +1260,9 @@ export function insertStep(
 		return def;
 	}
 	const withNode = { ...def, nodes: [...def.nodes, node] };
+	const { input, ...plain } = edge;
 	const into: WorkflowEdge = {
-		...edge,
+		...plain,
 		id: freshId(withNode, "edge"),
 		to: node.id,
 	};
@@ -1248,6 +1271,9 @@ export function insertStep(
 		from: node.id,
 		to: edge.to,
 	};
+	if (input) {
+		out.input = input;
+	}
 	return {
 		...withNode,
 		edges: [...def.edges.filter((entry) => entry.id !== edgeId), into, out],

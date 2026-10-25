@@ -709,7 +709,7 @@ export const GATE_CATALOG: GateCatalogEntry[] = [
 		name: "Except when",
 		description:
 			"Passes when the requirement passes or the exception passes. Missing exception proof does not waive the requirement.",
-		toolbox: false,
+		toolbox: true,
 	},
 ];
 
