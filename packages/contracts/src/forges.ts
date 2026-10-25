@@ -11,9 +11,10 @@ import { z } from "zod";
  *                store them on a row. These and only these widen `Forge`.
  *                It does NOT promise reads or a connect flow: open-git is live
  *                for ingest while its API still has no read endpoints, so
- *                the connect grid leaves it out.
- * - `planned`  — not built. It shows in no forge grid, and CANNOT reach the
- *                database, because `forgeSchema` never sees it.
+ *                its connect cell is disabled.
+ * - `planned`  — not built. It shows as a disabled cell in every forge grid,
+ *                and CANNOT reach the database, because `forgeSchema` never
+ *                sees it.
  *
  * Flipping a `planned` entry to `live` widens `Forge`, which breaks every
  * exhaustive `Record<Forge, …>` in the app until the new arm exists. That
@@ -61,13 +62,13 @@ export const FORGE_CATALOG = [
 	// continues; sign-in and new connections are off.
 	{ id: "opengit", label: "OpenGit", status: "live", paused: true },
 	{ id: "gitlab", label: "GitLab", status: "planned" },
-	{ id: "origin", label: "ORIGIN", status: "planned" },
+	{ id: "gitcafe", label: "GitCafe", status: "planned" },
 ] as const satisfies readonly ForgeCatalogEntry[];
 
 type CatalogEntry = (typeof FORGE_CATALOG)[number];
 type LiveEntry = Extract<CatalogEntry, { status: "live" }>;
 
-/** Every forge in the catalog, built or not. */
+/** Every forge the UI advertises, built or not. The grids iterate this. */
 export type ForgeId = CatalogEntry["id"];
 
 /**
@@ -166,5 +167,5 @@ const DEFAULT_FORGE_ORIGIN = {
 	github: "https://github.com",
 	opengit: "https://open-git.com",
 	gitlab: "https://gitlab.com",
-	origin: "https://origin.dev",
+	gitcafe: "https://gitcafe.com",
 } satisfies Record<ForgeId, string>;

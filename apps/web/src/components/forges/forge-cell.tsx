@@ -4,8 +4,7 @@ import { ForgeMark } from "#/components/common/forge-marks";
 import { Button } from "#/components/glaze/ui/button";
 import { toast } from "#/components/glaze/ui/toast";
 
-export const FORGE_GRID =
-	"grid grid-cols-2 gap-2 [&>*:last-child:nth-child(odd)]:col-span-2";
+export const FORGE_GRID = "grid grid-cols-2 gap-2";
 
 /**
  * One blocked shape, not three. Every reason a forge can't be used right now (no
@@ -15,6 +14,7 @@ export const FORGE_GRID =
  */
 export type ForgeCellState =
 	| { kind: "loading" }
+	| { kind: "unavailable" }
 	| { kind: "ready"; pending?: boolean; onSelect: () => void }
 	| { kind: "blocked"; title: string; body: string };
 
@@ -44,9 +44,22 @@ export function ForgeCell({
 			</Button>
 		);
 	}
+	if (state.kind === "unavailable") {
+		return (
+			<Button
+				className="w-full"
+				disabled
+				focusableWhenDisabled
+				variant="secondary"
+			>
+				<ForgeMark forge={id} />
+				{label}
+			</Button>
+		);
+	}
 	if (state.kind === "blocked") {
 		return (
-			<div className="flex min-w-0 flex-col gap-1">
+			<>
 				<Button
 					aria-describedby={reasonId}
 					aria-disabled="true"
@@ -62,10 +75,10 @@ export function ForgeCell({
 					<ForgeMark forge={id} />
 					{label}
 				</Button>
-				<p className="type-caption text-text-2" id={reasonId}>
-					{state.title}
-				</p>
-			</div>
+				<span className="sr-only" id={reasonId}>
+					{state.title}. {state.body}
+				</span>
+			</>
 		);
 	}
 	return (
