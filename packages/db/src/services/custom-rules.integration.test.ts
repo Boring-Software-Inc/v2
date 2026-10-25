@@ -30,7 +30,7 @@ const INTO_RELEASE = {
 
 const FROM_RELEASE_PLEASE = {
 	when: { id: "pr.sourceBranch" },
-	comparison: { kind: "has", args: ["release-please"] },
+	comparison: { kind: "oneOf", args: [["release-please--branches--release"]] },
 };
 
 function graphUsing(ruleId: string): WorkflowDefinition {

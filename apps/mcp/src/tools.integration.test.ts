@@ -31,6 +31,7 @@ import {
 import type { Pool } from "pg";
 import { z } from "zod";
 import { readConfig } from "./config.ts";
+import { RELEASE_EXAMPLE } from "./custom-rule-guide.ts";
 import { registerTools } from "./tools.ts";
 
 const config = readConfig({
@@ -1109,14 +1110,7 @@ describe("workflow push review", () => {
 });
 
 describe("custom rules", () => {
-	const intoRelease = {
-		when: { id: "pr.targetBranch" },
-		comparison: { kind: "noneOf", args: [["release"]] },
-	};
-	const fromReleasePlease = {
-		when: { id: "pr.sourceBranch" },
-		comparison: { kind: "has", args: ["release-please"] },
-	};
+	const { intoRelease, fromReleasePlease } = RELEASE_EXAMPLE;
 	const savedSchema = z.object({
 		saved: z.literal(true),
 		created: z.boolean(),
@@ -1208,7 +1202,7 @@ describe("custom rules", () => {
 			),
 		);
 		expect(second.sentence).toBe(
-			"require that source branch has release-please",
+			"require that source branch is one of release-please--branches--release",
 		);
 		fromId = second.id;
 		const { allOf, block, customCheck, workflow, workflows } =
@@ -1307,7 +1301,15 @@ describe("custom rules", () => {
 					name: "From release-please",
 					definition: {
 						when: { id: "pr.sourceBranch" },
-						comparison: { kind: "has", args: ["release-please--"] },
+						comparison: {
+							kind: "oneOf",
+							args: [
+								[
+									"release-please--branches--release",
+									"release-please--branches--release--components--crm",
+								],
+							],
+						},
 					},
 				}),
 			),
