@@ -8,16 +8,14 @@ import {
 	verbsForSignal,
 } from "@tripwire/contracts";
 import { type ReactNode, useMemo, useState } from "react";
+import {
+	GroupedPicker,
+	type PickerGroup,
+	PickerRow,
+	PickerRowAction,
+} from "#/components/common/grouped-picker";
 import { Check, Icon } from "#/components/glaze/icon";
 import { ComboboxField } from "#/components/glaze/ui/combobox";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "#/components/glaze/ui/command";
 import {
 	Dialog,
 	DialogAction,
@@ -41,6 +39,10 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/glaze/ui/popover";
+import {
+	CONDITION_GROUP_ICON,
+	conditionIcon,
+} from "#/components/rules/condition-icons";
 import { cn } from "#/lib/glaze/utils";
 import { repoSuggestionsQueryOptions } from "#/lib/rules.query";
 
@@ -60,6 +62,19 @@ const GROUPS: CustomSignalDisplay["group"][] = [
 	"The commits",
 	"The comment",
 ];
+
+const CONDITION_GROUPS: PickerGroup<CustomSignalDisplay>[] = GROUPS.map(
+	(group) => ({
+		key: group,
+		title: group,
+		icon: CONDITION_GROUP_ICON[group],
+		items: CUSTOM_SIGNALS.filter((signal) => signal.group === group),
+	}),
+);
+
+function matchesCondition(signal: CustomSignalDisplay, needle: string) {
+	return `${signal.label} ${signal.group}`.toLowerCase().includes(needle);
+}
 
 const WINDOWS = [
 	{ window: "1h", label: "1 hour" },
@@ -494,6 +509,10 @@ function wordClass(empty: boolean): string {
 	);
 }
 
+function scrollIntoView(node: HTMLElement | null) {
+	node?.scrollIntoView({ block: "nearest" });
+}
+
 function SignalWord({
 	signal,
 	onPick,
@@ -505,39 +524,52 @@ function SignalWord({
 	return (
 		<Popover onOpenChange={setOpen} open={open}>
 			<PopoverTrigger className={wordClass(!signal)}>
+				{signal ? (
+					<Icon
+						className="me-1 inline align-text-bottom text-text-2"
+						icon={conditionIcon(signal)}
+					/>
+				) : null}
 				{signal ? signal.label.toLowerCase() : "what to check"}
 			</PopoverTrigger>
 			<PopoverContent
 				align="start"
-				className="p-0"
+				aria-label="What to check"
+				className="max-h-[min(--spacing(96),var(--available-height))] w-75 gap-0 overflow-hidden p-0"
 				collisionAvoidance={DOWN}
 				side="bottom"
 			>
-				<Command label="What to check" loop>
-					<CommandInput autoFocus placeholder="Search" />
-					<CommandList>
-						<CommandEmpty />
-						{GROUPS.map((group) => (
-							<CommandGroup heading={group} key={group}>
-								{CUSTOM_SIGNALS.filter((s) => s.group === group).map((s) => (
-									<CommandItem
-										key={s.id}
-										onSelect={() => {
-											onPick(s);
-											setOpen(false);
-										}}
-										value={s.label}
-									>
-										{s.label}
-										{s.id === signal?.id ? (
-											<Icon className="ms-auto" icon={Check} />
-										) : null}
-									</CommandItem>
-								))}
-							</CommandGroup>
-						))}
-					</CommandList>
-				</Command>
+				<GroupedPicker
+					autoFocus
+					defaultOpen={[signal?.group ?? GROUPS[0]]}
+					groups={CONDITION_GROUPS}
+					matches={matchesCondition}
+					noun="conditions"
+					renderItem={(s) => {
+						const picked = s.id === signal?.id;
+						return (
+							<PickerRow
+								action={
+									<PickerRowAction
+										aria-current={picked || undefined}
+										aria-label={s.label}
+										glyph={Check}
+										reveal={picked ? "always" : "never"}
+									/>
+								}
+								icon={conditionIcon(s)}
+								key={s.id}
+								name={s.label}
+								onClick={() => {
+									onPick(s);
+									setOpen(false);
+								}}
+								ref={picked ? scrollIntoView : undefined}
+								selected={picked}
+							/>
+						);
+					}}
+				/>
 			</PopoverContent>
 		</Popover>
 	);
