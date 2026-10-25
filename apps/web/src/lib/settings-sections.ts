@@ -35,7 +35,7 @@ export const ORG_SETTINGS_SECTION_REGIONS: Partial<
 export const ACCOUNT_SECTIONS = [
 	"profile",
 	"sign-in",
-	"theme",
+	"preferences",
 	"orgs",
 ] as const;
 
@@ -44,7 +44,7 @@ export type AccountSection = (typeof ACCOUNT_SECTIONS)[number];
 export const ACCOUNT_SECTION_LABELS = {
 	profile: "Profile",
 	"sign-in": "Sign-in and GitHub",
-	theme: "Theme",
+	preferences: "Preferences",
 	orgs: "Orgs",
 } satisfies Record<AccountSection, string>;
 

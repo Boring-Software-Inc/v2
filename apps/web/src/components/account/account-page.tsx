@@ -7,6 +7,7 @@ import { DeleteAccountDialog } from "#/components/account/delete-account-dialog"
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
+import { ArrowRight, Icon } from "#/components/glaze/icon";
 import { Avatar } from "#/components/glaze/ui/avatar";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -98,8 +99,7 @@ export function AccountPage({ org, user }: { org: string; user: CurrentUser }) {
 				user={user}
 			/>
 			<SessionsSection />
-			<ThemeSection />
-			<TimezoneSection />
+			<PreferencesSection />
 			<OrgsSection />
 			<AccountFooter />
 		</>
@@ -176,13 +176,17 @@ function SignInSection({
 							<ItemTitle>App installs</ItemTitle>
 						</ItemContent>
 						<ItemActions>
-							<Link
-								className="type-label-sm text-text-1 underline underline-offset-4 hover:text-text-2"
-								params={{ org }}
-								to="/$org/settings/connections"
+							<Button
+								nativeButton={false}
+								render={
+									<Link params={{ org }} to="/$org/settings/connections" />
+								}
+								size="sm"
+								variant="secondary"
 							>
 								Open Connections
-							</Link>
+								<Icon icon={ArrowRight} />
+							</Button>
 						</ItemActions>
 					</Item>
 				</ItemGroup>
@@ -322,54 +326,22 @@ function SessionsSection() {
 	);
 }
 
-function ThemeSection() {
+function PreferencesSection() {
 	const { theme, setTheme } = useTheme();
 	const hasMounted = useHasMounted();
 	const queryClient = useQueryClient();
+	const device = useDeviceTimezone();
 	const { data: session } = useQuery(sessionInfoQueryOptions());
+	const signedIn = Boolean(session?.user);
 	const reduce = session?.user?.reduceAgentMotion ?? false;
-	const save = useMutation({
+	const saveMotion = useMutation({
 		mutationFn: (next: boolean) => setAgentMotion({ data: { reduce: next } }),
 		onError: () =>
 			toast.fail("Tripwire could not save the setting. Try again."),
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: authQueryKeys.session() }),
 	});
-	const checked = save.isPending ? (save.variables ?? reduce) : reduce;
-	return (
-		<SettingsSection id="theme" title="Theme">
-			<SegmentedControl
-				aria-labelledby="theme-heading"
-				onValueChange={setTheme}
-				value={hasMounted ? (theme ?? "system") : "system"}
-			>
-				{THEMES.map((item) => (
-					<SegmentedControlItem key={item.value} value={item.value}>
-						{item.label}
-					</SegmentedControlItem>
-				))}
-			</SegmentedControl>
-			<div className="flex max-w-90 items-center justify-between gap-3">
-				<span className="type-body" id="agent-motion-label">
-					Reduce agent animations
-				</span>
-				<Switch
-					aria-labelledby="agent-motion-label"
-					checked={checked}
-					disabled={!session?.user}
-					onCheckedChange={(next) => save.mutate(next)}
-					pending={save.isPending}
-				/>
-			</div>
-		</SettingsSection>
-	);
-}
-
-function TimezoneSection() {
-	const queryClient = useQueryClient();
-	const device = useDeviceTimezone();
-	const { data: session } = useQuery(sessionInfoQueryOptions());
-	const save = useMutation({
+	const saveTimezone = useMutation({
 		mutationFn: (next: string | null) =>
 			setAccountTimezone({ data: { timezone: next } }),
 		onSuccess: () => toast.success("Timezone saved"),
@@ -378,16 +350,65 @@ function TimezoneSection() {
 		onSettled: () =>
 			queryClient.invalidateQueries({ queryKey: authQueryKeys.session() }),
 	});
+	const checked = saveMotion.isPending
+		? (saveMotion.variables ?? reduce)
+		: reduce;
 	return (
-		<SettingsSection id="timezone" title="Timezone">
-			<div className="max-w-90">
-				<TimezonePicker
-					disabled={!session?.user || save.isPending}
-					labelledBy="timezone-heading"
-					onChange={(next) => save.mutate(next)}
-					unsetLabel={`Org timezone, or this device (${device})`}
-					value={session?.user?.timezone ?? null}
-				/>
+		<SettingsSection id="preferences" title="Preferences">
+			<div className="shell">
+				<ItemGroup aria-label="Preferences">
+					<Item className="flex-wrap">
+						<ItemContent>
+							<ItemTitle id="theme-label">Theme</ItemTitle>
+						</ItemContent>
+						<ItemActions>
+							<SegmentedControl
+								aria-labelledby="theme-label"
+								onValueChange={setTheme}
+								size="sm"
+								value={hasMounted ? (theme ?? "system") : "system"}
+							>
+								{THEMES.map((item) => (
+									<SegmentedControlItem key={item.value} value={item.value}>
+										{item.label}
+									</SegmentedControlItem>
+								))}
+							</SegmentedControl>
+						</ItemActions>
+					</Item>
+					<Item>
+						<ItemContent>
+							<ItemTitle id="agent-motion-label">
+								Reduce agent animations
+							</ItemTitle>
+						</ItemContent>
+						<ItemActions>
+							<Switch
+								aria-labelledby="agent-motion-label"
+								checked={checked}
+								disabled={!signedIn}
+								onCheckedChange={(next) => saveMotion.mutate(next)}
+								pending={saveMotion.isPending}
+							/>
+						</ItemActions>
+					</Item>
+					<Item className="flex-wrap py-2">
+						<ItemContent>
+							<ItemTitle id="timezone-label">Timezone</ItemTitle>
+						</ItemContent>
+						<ItemActions className="w-full max-w-80 @max-sm/item:me-0 @max-sm/item:max-w-none">
+							<div className="w-full">
+								<TimezonePicker
+									disabled={!signedIn || saveTimezone.isPending}
+									labelledBy="timezone-label"
+									onChange={(next) => saveTimezone.mutate(next)}
+									unsetLabel={`Org timezone, or this device (${device})`}
+									value={session?.user?.timezone ?? null}
+								/>
+							</div>
+						</ItemActions>
+					</Item>
+				</ItemGroup>
 			</div>
 		</SettingsSection>
 	);
