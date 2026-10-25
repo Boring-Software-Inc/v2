@@ -84,6 +84,16 @@ export const VERDICT_RANK = {
 	close: 4,
 } as const satisfies Record<Verdict, number>;
 
+export const HELD_VERDICTS = [
+	"block",
+	"changes_required",
+	"close",
+] as const satisfies readonly Verdict[];
+
+export function isHeldVerdict(verdict: string | null | undefined): boolean {
+	return HELD_VERDICTS.some((held) => held === verdict);
+}
+
 export function joinVerdicts(verdicts: readonly Verdict[]): Verdict {
 	return verdicts.reduce<Verdict>(
 		(worst, verdict) =>

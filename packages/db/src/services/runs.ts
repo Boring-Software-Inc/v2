@@ -1,4 +1,5 @@
 import {
+	HELD_VERDICTS,
 	type RunStanding,
 	ruleResultSchema,
 	standingVerdict,
@@ -891,6 +892,7 @@ export interface OpenBlockedRun {
 	runId: string;
 	subjectNumber: number;
 	headSha: string | null;
+	verdict: Verdict;
 }
 
 export async function listOpenBlockedRuns(
@@ -917,17 +919,19 @@ export async function listOpenBlockedRuns(
 			),
 		)
 		.orderBy(runs.subjectNumber, desc(runs.createdAt), desc(runs.id));
-	const blocked = latest.flatMap((row) =>
-		row.verdict === "block" && row.subjectNumber !== null
+	const blocked = latest.flatMap((row) => {
+		const verdict = HELD_VERDICTS.find((held) => held === row.verdict);
+		return verdict && row.subjectNumber !== null
 			? [
 					{
 						runId: row.runId,
 						subjectNumber: row.subjectNumber,
 						headSha: row.headSha,
+						verdict,
 					},
 				]
-			: [],
-	);
+			: [];
+	});
 	if (blocked.length === 0) {
 		return [];
 	}

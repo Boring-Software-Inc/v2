@@ -23,6 +23,7 @@ import {
 	VERDICT_TO_CONCLUSION,
 } from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
+import { loadRunIssues } from "./run-issues.ts";
 
 const REFRESH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -70,23 +71,30 @@ export async function refreshRepoSurfaces(
 		if (!runData || !event.success || !("changeRequest" in event.data)) {
 			continue;
 		}
-		const reasons = buildCommentReasons(runData.steps, customRecords);
+		const { reasons, issues } = await loadRunIssues(
+			db,
+			target.runId,
+			buildCommentReasons(runData.steps, customRecords),
+		);
+		const verdict = target.verdict;
 		const runUrl = `${deps.appUrl}/runs/${target.runId}`;
 		const sha = target.headSha ?? event.data.changeRequest.headSha;
-		const activeReviewId = reviews
-			? await runServices.getActiveBlockReviewId(
-					db,
-					repo.fullName,
-					target.subjectNumber,
-				)
-			: null;
+		const activeReviewId =
+			reviews && verdict === "block"
+				? await runServices.getActiveBlockReviewId(
+						db,
+						repo.fullName,
+						target.subjectNumber,
+					)
+				: null;
 		const plan = planSurfaces(
 			{
-				verdict: "block",
+				verdict,
 				contributorLogin: event.data.actor.login,
 				reasons,
 				runUrl,
-				previousVerdict: "block",
+				previousVerdict: verdict,
+				...issues,
 			},
 			config,
 			policy,
@@ -94,7 +102,7 @@ export async function refreshRepoSurfaces(
 		);
 		const review = plan.review ?? REVIEW_POINTER.block;
 		const rows = await runServices.recordActions(db, target.runId, [
-			...commentRows(plan, target.subjectNumber, "block", "block").map(
+			...commentRows(plan, target.subjectNumber, verdict, verdict).map(
 				(row) => ({
 					...row,
 					idempotencyKey: `refresh:${jobId}:${row.idempotencyKey}`,
@@ -109,18 +117,20 @@ export async function refreshRepoSurfaces(
 						},
 					]
 				: []),
-			...(wantsCheck(config, "block")
+			...(wantsCheck(config, verdict)
 				? [
 						{
 							kind: "set-check",
 							payload: {
 								sha,
-								conclusion: VERDICT_TO_CONCLUSION.block,
+								conclusion: VERDICT_TO_CONCLUSION[verdict],
 								summary: checkSummary(
-									"block",
+									verdict,
 									reasons,
 									false,
 									redactionLevelFor(policy, "check"),
+									false,
+									issues,
 								),
 								detailsUrl: runUrl,
 							},

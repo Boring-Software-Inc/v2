@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { HELD_VERDICTS } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
 import type { AnalyticsEvent } from "#/lib/analytics-events";
 import type { DateRange } from "#/lib/date-range";
@@ -59,7 +60,7 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 
 		if (data.metric === "blocked") {
 			const runs = await insightServices.listRecentRuns(db, {
-				verdicts: ["block"],
+				verdicts: [...HELD_VERDICTS],
 				repoFullName: scoped.fullName,
 				...window,
 			});

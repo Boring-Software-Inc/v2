@@ -20,6 +20,7 @@ import type { PgBoss } from "pg-boss";
 import pino from "pino";
 import { staticForge } from "./forge-runtime.ts";
 import { processEvent } from "./jobs/process-event.ts";
+import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
 
@@ -969,5 +970,61 @@ describe("review findings", () => {
 		const order = kinds(healthy.executed);
 		expect(order).toContain("close");
 		expect(order.indexOf("comment")).toBeLessThan(order.indexOf("close"));
+	});
+});
+
+describe("a closed change request", () => {
+	test("a manual re-run records the result and takes no PR action; a human reopen blocks", async () => {
+		const repo = await freshRepo();
+		await enableRule(
+			repo.repoId,
+			"account-age",
+			{ minDays: 7 },
+			{ outcome: "close", instruction: "" },
+		);
+		const sha = "9".repeat(40);
+		const first = await openPr(repo, YOUNG, { sha });
+		expect(kinds(first.executed)).toContain("close");
+		const closedEvent = await openPr(repo, YOUNG, { sha, action: "closed" });
+		expect(closedEvent.run).toBeUndefined();
+
+		const fake = fakeAdapter();
+		await rerunChangeRequest(
+			{
+				db,
+				pool,
+				logger,
+				resolveForge: staticForge({
+					reads: reads(YOUNG),
+					adapter: fake.adapter as never,
+				}),
+				makeGenerate: null,
+				appUrl: "https://tripwire.sh",
+			},
+			{ repoFullName: repo.fullName, number: 2, requestedBy: "admin-1" },
+		);
+		expect(fake.executed).toEqual([]);
+		const rerun = await pool.query(
+			"SELECT id, status, verdict FROM runs WHERE repo_full_name = $1 AND triggered_by = 'admin-1'",
+			[repo.fullName],
+		);
+		expect(rerun.rows[0]).toMatchObject({
+			status: "completed",
+			verdict: "close",
+		});
+		const actions = await pool.query(
+			"SELECT kind, status FROM run_actions WHERE run_id = $1",
+			[rerun.rows[0]?.id],
+		);
+		expect(actions.rows).toEqual([{ kind: "close", status: "suppressed" }]);
+		const step = await pool.query(
+			"SELECT node_id FROM run_steps WHERE run_id = $1 AND node_id = 'run:change-request-closed'",
+			[rerun.rows[0]?.id],
+		);
+		expect(step.rowCount).toBe(1);
+
+		const reopened = await openPr(repo, YOUNG, { sha, action: "reopened" });
+		expect(reopened.run?.verdict).toBe("block");
+		expect(kinds(reopened.executed)).not.toContain("close");
 	});
 });

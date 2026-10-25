@@ -3,6 +3,7 @@ import {
 	AI_REVIEW_RULE_ID,
 	aiReviewTraceSchema,
 	bearsVerdict,
+	isHeldVerdict,
 	RUN_RESULT_LABELS,
 	type RunResult,
 	redactionHides,
@@ -430,7 +431,7 @@ function checksNode(
 	}
 	return {
 		title: `${total} of ${total} rules passed`,
-		tone: run.verdict === "block" ? "neutral" : "ok",
+		tone: isHeldVerdict(run.verdict) ? "neutral" : "ok",
 		glyph: "pass",
 		offsetMs,
 		body,

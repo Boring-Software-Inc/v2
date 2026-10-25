@@ -160,7 +160,7 @@ export async function rerunChangeRequest(
 		event,
 		row.id,
 	);
-	if (result.runId && result.verdict) {
+	if (result.runId && result.verdict && !result.quiet) {
 		await emitPrSurface(surfaceDeps, {
 			runId: result.runId,
 			verdict: result.verdict,

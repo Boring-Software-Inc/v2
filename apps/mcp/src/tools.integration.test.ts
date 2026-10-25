@@ -320,6 +320,33 @@ describe("a backfill run (R7-1)", () => {
 	});
 });
 
+describe("rule outcome verdicts", () => {
+	test("get_run reads Changes needed and Closed", async () => {
+		for (const [number, verdict, label] of [
+			[95, "changes_required", "Changes needed"],
+			[96, "close", "Closed"],
+		] as const) {
+			const runId = await seedRun({
+				db,
+				repo: repoRows[0] ?? never(),
+				actor: { login: "someone", externalId: "4001" },
+				number,
+				title: "outcome",
+				verdict,
+				at: new Date(),
+			});
+			const got = JSON.parse(
+				(await call("get_run", { runId })).content[0]?.text ?? "",
+			);
+			expect(got).toMatchObject({
+				verdict,
+				result: verdict,
+				verdictLabel: label,
+			});
+		}
+	});
+});
+
 describe("a run whose change request closed before review", () => {
 	async function closedRun(number: number) {
 		const runId = await seedRun({

@@ -1146,7 +1146,7 @@ export function registerTools(
 			"list_runs",
 			{
 				description:
-					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A run with bearsVerdict false came from a comment or a schedule. It acts on a thread, and its verdict is not the change request's verdict. A run with backfill true is history: Tripwire checked a change request from before the gate was on and took no action. result and verdictLabel say how the run ended, in the run page's words: closed-before-review means the change request closed while the run waited for human review.",
+					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A run with bearsVerdict false came from a comment or a schedule. It acts on a thread, and its verdict is not the change request's verdict. A run with backfill true is history: Tripwire checked a change request from before the gate was on and took no action. result and verdictLabel say how the run ended, in the run page's words: closed-before-review means the change request closed while the run waited for human review. verdict is pass, block, changes_required (Changes needed: a red check and a fix instruction, no GitHub review), needs_review or close (Closed: Tripwire closed the change request).",
 				inputSchema: {
 					org: orgArg,
 					repo: anyRepoArg,
@@ -1184,7 +1184,7 @@ export function registerTools(
 			"get_run",
 			{
 				description:
-					"One run with its steps and actions. result and verdictLabel say how the run ended, in the words the run page uses. A comment or scheduled run reads ran. Steps are grouped by workflow and follow each workflow's graph. Each step names its workflow, its title and id, the gate mode for gates, and its outcome in product words. Times are ISO 8601 in UTC.",
+					"One run with its steps and actions. result and verdictLabel say how the run ended, in the words the run page uses. verdict is pass, block, changes_required (Changes needed), needs_review or close (Closed). A comment or scheduled run reads ran. Steps are grouped by workflow and follow each workflow's graph. Each step names its workflow, its title and id, the gate mode for gates, and its outcome in product words. Times are ISO 8601 in UTC.",
 				inputSchema: { org: orgArg, runId: z.string().min(1) },
 				annotations: annotate("get_run"),
 			},

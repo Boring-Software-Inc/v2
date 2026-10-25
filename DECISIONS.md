@@ -310,6 +310,21 @@ that Tripwire already closed and a person reopened is not closed again: the
 close becomes a Block for that head, and a new push evaluates again. A close
 from a run that is not the latest for the change request is superseded.
 
+**Closed change requests.** When the change request is closed now (its
+latest lifecycle event is a close), a run records its result and takes no PR
+action: no pending check, no comment, no review, no close. Its actions are
+stored as suppressed. The "Block instead of close again" path applies only
+after a person reopens it.
+
+**Held verdicts.** `changes_required` and `close` count with `block` wherever
+a count means "held" or "acted on": Home and org blocked stats, the daily
+rollup, staff stats, analytics "blocked" activity and the open-run refresh.
+
+**Public outputs.** The v1 webhook and Discord payload `verdict` can now be
+`changes_required` or `close` (an additive enum change under v1). MCP
+`list_runs`/`get_run` name every verdict value, and the CLI prints "Changes
+needed" and "Closed".
+
 **Surfaces.** One verdict comment, edited in place. Only Block submits
 CHANGES_REQUESTED. When the last Block clears, Tripwire dismisses its review
 even if a fix request remains. Wording: "Changes needed. Change the target to

@@ -34,6 +34,7 @@ import type { Db } from "@tripwire/db";
 import {
 	aiProviderServices,
 	economicsServices,
+	eventServices,
 	moderationServices,
 	repoServices,
 	runServices,
@@ -208,6 +209,7 @@ export interface RunWorkflowsResult {
 	/** True when the fail-closed floor fired (evaluation degraded). */
 	degraded: boolean;
 	aiReviewNotRun?: boolean;
+	quiet?: boolean;
 }
 
 /**
@@ -416,7 +418,18 @@ async function runWorkflowsInner(
 	}
 
 	// Hold the merge button only once evaluation is actually about to run.
-	await deps.onBeforeEvaluate?.();
+	const closedNow =
+		"changeRequest" in event &&
+		event.kind !== "change-request.closed" &&
+		deps.surface !== false &&
+		(await eventServices.changeRequestIsClosed(
+			db,
+			event.repo.fullName,
+			event.changeRequest.number,
+		));
+	if (!closedNow) {
+		await deps.onBeforeEvaluate?.();
+	}
 
 	const customSignals: CustomRuleSource = customRuleSource(
 		customRows,
@@ -485,13 +498,38 @@ async function runWorkflowsInner(
 	const skippedCount = floorSteps.filter(
 		(step) => step.status === "skipped",
 	).length;
-	const closeHeld = await holdCloses({
-		db,
-		event,
-		executions,
-		evaluationDegraded: isEvaluationDegraded(floorSteps.length, skippedCount),
-		steps,
-	});
+	if (closedNow) {
+		const at = new Date().toISOString();
+		const closedStep: StepRecord = {
+			nodeId: "run:change-request-closed",
+			nodeKind: "action",
+			status: "skipped",
+			input: { changeRequest: "closed" },
+			output: {
+				reason:
+					"The change request is closed, so Tripwire recorded the result and took no action.",
+			},
+			startedAt: at,
+			finishedAt: at,
+			durationMs: 0,
+		};
+		steps.push(closedStep);
+		if (liveRunId) {
+			await runServices.recordSteps(db, liveRunId, [closedStep]);
+		}
+	}
+	const closeHeld = closedNow
+		? false
+		: await holdCloses({
+				db,
+				event,
+				executions,
+				evaluationDegraded: isEvaluationDegraded(
+					floorSteps.length,
+					skippedCount,
+				),
+				steps,
+			});
 	if (closeHeld) {
 		verdict = worstVerdict(executions.map((e) => e.result.verdict));
 		paused = executions.some((e) => e.result.pausedAtNodeIds.length > 0);
@@ -633,7 +671,8 @@ async function runWorkflowsInner(
 					? scheduled.thread.number
 					: null;
 	const backfill = deps.surface === false;
-	const terminalStatus = paused && !backfill ? "paused" : "completed";
+	const silent = backfill || closedNow;
+	const terminalStatus = paused && !silent ? "paused" : "completed";
 	let runId: string;
 	if (liveRunId) {
 		runId = liveRunId;
@@ -665,7 +704,7 @@ async function runWorkflowsInner(
 		);
 	}
 
-	for (const execution of backfill ? [] : executions) {
+	for (const execution of silent ? [] : executions) {
 		for (const pausedNodeId of execution.result.pausedAtNodeIds) {
 			await moderationServices.createModerationItem(db, {
 				runId,
@@ -674,7 +713,7 @@ async function runWorkflowsInner(
 		}
 	}
 	if (
-		!backfill &&
+		!silent &&
 		((degraded && !heldBack) || (unrunnableFloored && failClosed))
 	) {
 		await moderationServices.createModerationItem(db, {
@@ -695,7 +734,7 @@ async function runWorkflowsInner(
 				}),
 			),
 		),
-		backfill ? "suppressed" : "recorded",
+		silent ? "suppressed" : "recorded",
 	);
 
 	const reasons = buildCommentReasons(steps, customSignals.records);
@@ -739,6 +778,7 @@ async function runWorkflowsInner(
 		reasons,
 		degraded,
 		aiReviewNotRun,
+		...(closedNow ? { quiet: true } : {}),
 	};
 }
 
