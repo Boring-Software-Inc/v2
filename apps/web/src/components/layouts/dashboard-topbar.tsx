@@ -102,6 +102,7 @@ const PLACEHOLDER_USER: CurrentUser = {
 	id: "",
 	name: "local session",
 	login: "dev",
+	forgeLogin: null,
 	email: null,
 	image: "",
 };
