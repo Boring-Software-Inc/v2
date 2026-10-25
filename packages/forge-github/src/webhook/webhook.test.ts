@@ -160,6 +160,111 @@ describe("normalizeWebhook — fixture corpus (contract layer §11)", () => {
 	});
 });
 
+function normalizeFixture(body: string, deliveryId: string) {
+	return normalizeWebhook(
+		{ deliveryId, eventName: "pull_request", body, signature: null },
+		NOW,
+	);
+}
+
+describe("normalizeWebhook — pull_request edits (self-captured fixtures)", () => {
+	test("a retarget re-runs Tripwire on the new base", async () => {
+		const event = normalizeFixture(
+			await fixture("pull_request.edited.base"),
+			"d-edit-base",
+		);
+		expect(event?.kind).toBe("change-request.updated");
+		if (event?.kind !== "change-request.updated") {
+			throw new Error("unreachable");
+		}
+		expect(event.changeRequest.baseRef).toBe("main");
+		expect(event.changeRequest.headSha).toMatch(/^[0-9a-f]{40}$/);
+		expect(normalizedEventSchema.parse(event)).toBeTruthy();
+	});
+
+	test("a retarget by a bot still re-runs, because the base is a rule input", async () => {
+		const raw = JSON.parse(await fixture("pull_request.edited.base"));
+		expect(raw.sender.type).toBe("Bot");
+		expect(normalizeFixture(JSON.stringify(raw), "d-edit-base-bot")?.kind).toBe(
+			"change-request.updated",
+		);
+	});
+
+	test("the contributor's own title edit re-runs Tripwire", async () => {
+		const event = normalizeFixture(
+			await fixture("pull_request.edited.title"),
+			"d-edit-title",
+		);
+		expect(event?.kind).toBe("change-request.updated");
+		if (event?.kind !== "change-request.updated") {
+			throw new Error("unreachable");
+		}
+		expect(event.changeRequest.title).toBe(
+			"fix: restore flat direct mail-row actions [skip release]",
+		);
+	});
+
+	test("a bot rewriting the description does not re-run Tripwire", async () => {
+		expect(
+			normalizeFixture(
+				await fixture("pull_request.edited.body-by-bot"),
+				"d-edit-body-bot",
+			),
+		).toBeNull();
+	});
+
+	test("the same description edit by a person re-runs Tripwire", async () => {
+		const raw = JSON.parse(await fixture("pull_request.edited.body-by-bot"));
+		raw.sender = raw.pull_request.user;
+		expect(normalizeFixture(JSON.stringify(raw), "d-edit-body")?.kind).toBe(
+			"change-request.updated",
+		);
+	});
+
+	test("an edit to a closed change request does not re-run Tripwire", async () => {
+		const raw = JSON.parse(await fixture("pull_request.edited.base"));
+		raw.pull_request.state = "closed";
+		expect(normalizeFixture(JSON.stringify(raw), "d-edit-closed")).toBeNull();
+	});
+
+	test("an edit that touches no rule input is not ingested", async () => {
+		const raw = JSON.parse(await fixture("pull_request.edited.title"));
+		raw.changes = {};
+		expect(normalizeFixture(JSON.stringify(raw), "d-edit-none")).toBeNull();
+	});
+});
+
+describe("normalizeWebhook — the contributor is the PR author", () => {
+	test("a bot retargeting someone else's PR leaves the author as the actor", async () => {
+		const event = normalizeFixture(
+			await fixture("pull_request.edited.base"),
+			"d-author",
+		);
+		expect(event?.actor.login).toBe("hovanessb");
+		expect(event && "repo" in event ? event.sender?.login : null).toBe(
+			"github-actions[bot]",
+		);
+	});
+
+	test("every pull_request fixture carries its author as the actor", async () => {
+		for (const name of [
+			"pull_request.opened",
+			"pull_request.synchronize",
+			"pull_request.closed",
+			"pull_request.edited.title",
+		]) {
+			const body = await fixture(name);
+			const raw = JSON.parse(body);
+			const event = normalizeFixture(body, `d-${name}`);
+			expect(event?.actor.login).toBe(raw.pull_request.user.login);
+			expect(event?.actor.externalId).toBe(String(raw.pull_request.user.id));
+			expect(event && "repo" in event ? event.sender?.login : null).toBe(
+				raw.sender.login,
+			);
+		}
+	});
+});
+
 describe("normalizeWebhook — installation sync (self-captured fixture)", () => {
 	test("installation created (OUR App's live delivery) → installation.created", async () => {
 		const body = await fixture("installation.created");

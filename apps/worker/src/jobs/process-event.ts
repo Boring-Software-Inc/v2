@@ -58,9 +58,10 @@ export function isSelfEvent(
 	if (event.kind === "schedule.matched" || "installation" in event) {
 		return false;
 	}
+	const causedBy = [event.actor, event.sender ?? event.actor];
 	return (
 		(event.kind === "comment.created" && event.comment.byTripwire === true) ||
-		selfLogins.has(event.actor.login.toLowerCase())
+		causedBy.some((account) => selfLogins.has(account.login.toLowerCase()))
 	);
 }
 
