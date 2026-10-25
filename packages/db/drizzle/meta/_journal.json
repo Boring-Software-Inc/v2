@@ -295,6 +295,13 @@
       "when": 1792922513587,
       "tag": "0041_rule_outcomes",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792926350469,
+      "tag": "0042_giphy_cache",
+      "breakpoints": true
     }
   ]
 }

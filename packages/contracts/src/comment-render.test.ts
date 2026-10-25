@@ -689,6 +689,8 @@ describe("responseConfig: defaults and surface gates", () => {
 			changesRequiredComment: { customText: "", showDetailsButton: true },
 			onNote: "comment",
 			noteComment: { customText: "", showDetailsButton: true },
+			onClose: "comment",
+			closeComment: { customText: "", showDetailsButton: true, gif: null },
 			failClosedFallback: true,
 			redaction: {
 				inherit: true,

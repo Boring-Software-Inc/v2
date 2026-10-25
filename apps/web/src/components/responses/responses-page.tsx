@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import type { RedactionPolicy, Verdict } from "@tripwire/contracts";
+import type { CloseGif, RedactionPolicy } from "@tripwire/contracts";
 import { OPEN_REDACTION, resolveRedaction } from "@tripwire/contracts";
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
@@ -17,9 +17,12 @@ import {
 } from "#/components/responses/preview-pane";
 import { RedactionSettings } from "#/components/responses/redaction-settings";
 import {
+	type DraftKey,
+	encodeGif,
 	flattenConfig,
+	OUTCOMES,
+	outcomeMeta,
 	unflattenConfig,
-	VERDICTS,
 } from "#/components/responses/responses-model";
 import {
 	PreviewSkeleton,
@@ -36,7 +39,7 @@ import {
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import { pickValue } from "#/lib/pick-value";
-import { RESPONSE_SCOPES, type ResponseScope } from "#/lib/repo-search";
+import { RESPONSE_SCOPES } from "#/lib/repo-search";
 import { saveRepoResponseConfig } from "#/lib/response.functions";
 import {
 	orgResponseDefaultsQueryOptions,
@@ -45,19 +48,6 @@ import {
 } from "#/lib/response.query";
 
 const routeApi = getRouteApi("/$org/$repo/responses");
-
-const SCOPES: { value: ResponseScope; label: string }[] = [
-	{ value: "redaction", label: "Redaction" },
-	...VERDICTS,
-];
-
-const NO_MESSAGE_CHOSEN: Record<Verdict, boolean> = {
-	pass: false,
-	block: false,
-	changes_required: false,
-	needs_review: false,
-	close: false,
-};
 
 export function ResponsesPage() {
 	const { org, repo: repoName } = routeApi.useParams();
@@ -113,6 +103,7 @@ export function ResponsesPage() {
 					<ResponsesView
 						canEdit={canEdit}
 						loaded={Boolean(savedConfig && orgDefaults)}
+						org={org}
 						orgPolicy={orgDefaults?.defaults.redaction ?? OPEN_REDACTION}
 						onDiscarded={() => setSaveError(null)}
 						saveError={saveError}
@@ -126,6 +117,7 @@ export function ResponsesPage() {
 
 function ResponsesView({
 	canEdit,
+	org,
 	loaded,
 	orgPolicy,
 	saveError,
@@ -133,13 +125,14 @@ function ResponsesView({
 	onDiscarded,
 }: {
 	canEdit: boolean;
+	org: string;
 	loaded: boolean;
 	orgPolicy: RedactionPolicy;
 	saveError: string | null;
 	savedValues: Parameters<SaveQueueCommit>[0];
 	onDiscarded: () => void;
 }) {
-	const { pending, setField, discard } = useSaveQueue();
+	const { pending, setField, discard, commit } = useSaveQueue();
 	const { scope } = routeApi.useSearch();
 	const navigate = routeApi.useNavigate();
 	const setScope = (value: string) => {
@@ -152,12 +145,11 @@ function ResponsesView({
 			});
 		}
 	};
-	const verdict: Verdict = scope === "redaction" ? "block" : scope;
+	const outcome = outcomeMeta(scope === "redaction" ? "block" : scope);
 	const [sheet, setSheet] = useState<SheetState>("closed");
 	const settingsId = useId();
-	const [messageChosen, setMessageChosen] = useState(NO_MESSAGE_CHOSEN);
 	const [editorEpoch, setEditorEpoch] = useState(0);
-	const remembered = useRef<Partial<Record<Verdict, string>>>({});
+	const [saveRequested, setSaveRequested] = useState(false);
 
 	const config = useMemo(
 		() => (loaded ? unflattenConfig({ ...savedValues, ...pending }) : null),
@@ -168,23 +160,25 @@ function ResponsesView({
 		[config, orgPolicy],
 	);
 
-	const onMessageChosen = useCallback((v: Verdict, chosen: boolean) => {
-		setMessageChosen((prev) =>
-			prev[v] === chosen ? prev : { ...prev, [v]: chosen },
-		);
-	}, []);
-	const rememberMessage = useCallback((v: Verdict, text: string) => {
-		if (text.trim() !== "") {
-			remembered.current[v] = text;
+	useEffect(() => {
+		if (saveRequested) {
+			setSaveRequested(false);
+			void commit();
 		}
-	}, []);
-	const recallMessage = useCallback(
-		(v: Verdict) => remembered.current[v] ?? "",
-		[],
+	}, [saveRequested, commit]);
+	const onSaveText = useCallback(
+		(key: DraftKey, text: string) => {
+			setField(key, text);
+			setSaveRequested(true);
+		},
+		[setField],
+	);
+	const onGifChange = useCallback(
+		(gif: CloseGif | null) => setField("closeComment.gif", encodeGif(gif)),
+		[setField],
 	);
 	const onDiscard = () => {
 		discard();
-		setMessageChosen(NO_MESSAGE_CHOSEN);
 		setEditorEpoch((n) => n + 1);
 		onDiscarded();
 	};
@@ -201,7 +195,7 @@ function ResponsesView({
 						<div className="flex min-w-0 flex-1 flex-col gap-0.5 lg:flex-none">
 							<h1 className="type-title lg:type-heading">Responses</h1>
 							<p className="type-body-sm text-text-2 max-lg:hidden">
-								What Tripwire posts on a change request for each verdict.
+								What contributors see on GitHub.
 							</p>
 						</div>
 						<div className="order-last flex w-full items-center gap-3 max-lg:overflow-x-auto lg:order-none lg:w-auto lg:flex-1">
@@ -211,11 +205,18 @@ function ResponsesView({
 								onValueChange={setScope}
 								value={scope}
 							>
-								{SCOPES.map((option) => (
+								{OUTCOMES.map((option) => (
 									<SegmentedControlItem key={option.value} value={option.value}>
 										{option.label}
 									</SegmentedControlItem>
 								))}
+								<span
+									aria-hidden
+									className="mx-1 my-1.5 w-px shrink-0 bg-line"
+								/>
+								<SegmentedControlItem value="redaction">
+									Redaction
+								</SegmentedControlItem>
 							</SegmentedControl>
 						</div>
 						<SaveState
@@ -255,15 +256,11 @@ function ResponsesView({
 										<VerdictSettings
 											canEdit={canEdit}
 											config={config}
-											policy={policy}
 											editorEpoch={editorEpoch}
-											key={verdict}
-											messageChosen={messageChosen[verdict]}
-											onMessageChosen={onMessageChosen}
-											recallMessage={recallMessage}
-											rememberMessage={rememberMessage}
+											key={outcome.value}
+											outcome={outcome}
+											policy={policy}
 											setField={setField}
-											verdict={verdict}
 										/>
 									</div>
 								) : null}
@@ -278,11 +275,15 @@ function ResponsesView({
 				<PreviewPane onSheetChange={setSheet} sheet={sheet}>
 					{config && policy ? (
 						<ResponsesPreview
+							canEdit={canEdit}
 							config={config}
-							messageChosen={messageChosen[verdict]}
+							key={scope}
+							onGifChange={onGifChange}
+							onSaveText={onSaveText}
+							org={org}
+							outcome={outcome}
 							policy={policy}
 							showRunPage={scope === "redaction"}
-							verdict={verdict}
 						/>
 					) : (
 						<PreviewSkeleton />

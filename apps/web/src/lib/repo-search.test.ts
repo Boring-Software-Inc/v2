@@ -68,8 +68,14 @@ describe("responsesSearchSchema", () => {
 	});
 
 	test("keeps unrelated keys out", () => {
-		expect(responsesSearchSchema.parse({ scope: "pass", q: "x" })).toEqual({
-			scope: "pass",
+		expect(responsesSearchSchema.parse({ scope: "close", q: "x" })).toEqual({
+			scope: "close",
+		});
+	});
+
+	test("the old passed scope opens Block", () => {
+		expect(responsesSearchSchema.parse({ scope: "pass" })).toEqual({
+			scope: "block",
 		});
 	});
 });
