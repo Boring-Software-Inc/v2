@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { ORG_SETTINGS_TABS } from "./org-search";
 import {
+	ACCOUNT_SECTION_LABELS,
+	ACCOUNT_SECTIONS,
 	activeAccountSection,
 	canSeeSettingsSection,
 	firstSettingsSection,
@@ -44,6 +46,9 @@ describe("settings sections", () => {
 		expect(activeAccountSection("")).toBe("profile");
 		expect(activeAccountSection("#sign-in")).toBe("sign-in");
 		expect(activeAccountSection("orgs")).toBe("orgs");
+		expect(activeAccountSection("#preferences")).toBe("preferences");
+		expect(ACCOUNT_SECTION_LABELS.preferences).toBe("Preferences");
+		expect(ACCOUNT_SECTIONS).not.toContain("theme");
 		expect(activeAccountSection("#nope")).toBe("profile");
 	});
 });
