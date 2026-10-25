@@ -306,7 +306,11 @@ export async function processEvent(
 			// actor leaves `tripwire` stuck in_progress forever (lifecycle E2E
 			// hang: waitForVerdict never sees a completed check).
 			onBeforeEvaluate: async () => {
-				pendingCheckPosted = await emitPendingCheck(surfaceDeps, normalized);
+				pendingCheckPosted = await emitPendingCheck(
+					surfaceDeps,
+					normalized,
+					event.id,
+				);
 			},
 		},
 		normalized,

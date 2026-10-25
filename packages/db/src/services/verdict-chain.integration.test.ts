@@ -12,6 +12,7 @@ import { runs } from "../schema/runs.ts";
 import { listActivityFeed } from "./events.ts";
 import { listRecentRuns } from "./insights.ts";
 import {
+	getLatestRunForChangeRequest,
 	getLatestRunIdForChangeRequest,
 	getPreviousVerdict,
 	listOpenBlockedRuns,
@@ -173,5 +174,76 @@ describe("a backfill run on a change request (R7-1)", () => {
 		});
 		const chain = await listRunsForChangeRequest(db, REPO, PR);
 		expect(chain.map((row) => row.id)).toEqual([live]);
+	});
+});
+
+describe("a slow run for an older event (same-head retarget)", () => {
+	const PR = 260;
+
+	async function seedEvent(at: Date): Promise<string> {
+		const eventId = generateId();
+		await db.insert(events).values({
+			id: eventId,
+			deliveryId: `d-${eventId}`,
+			rawKind: "pull_request",
+			raw: {},
+			kind: "change-request.updated",
+			repoFullName: REPO,
+			subjectNumber: PR,
+			normalized: { kind: "change-request.updated" },
+			normalizedAt: at,
+			receivedAt: at,
+		});
+		return eventId;
+	}
+
+	async function seedRunFor(
+		eventId: string,
+		verdict: "pass" | "block",
+		createdAt: Date,
+	): Promise<string> {
+		const id = generateId();
+		await db.insert(runs).values({
+			id,
+			eventId,
+			repoFullName: REPO,
+			subjectNumber: PR,
+			headSha: "same-head",
+			status: "completed",
+			verdict,
+			workflowSnapshot: [],
+			createdAt,
+		});
+		return id;
+	}
+
+	test("the run for the newer event stays latest when the older one finishes last", async () => {
+		const t0 = Date.now() - 10 * MINUTE;
+		const pushed = await seedEvent(new Date(t0));
+		const retargeted = await seedEvent(new Date(t0 + MINUTE));
+		const fresh = await seedRunFor(
+			retargeted,
+			"pass",
+			new Date(t0 + 2 * MINUTE),
+		);
+		const stale = await seedRunFor(pushed, "block", new Date(t0 + 3 * MINUTE));
+
+		expect(await getLatestRunIdForChangeRequest(db, REPO, PR)).toBe(fresh);
+		expect(await getLatestRunForChangeRequest(db, REPO, PR)).toEqual({
+			id: fresh,
+			eventId: retargeted,
+			headSha: "same-head",
+		});
+		expect(await getPreviousVerdict(db, REPO, PR, fresh)).toBe("block");
+		expect(await getPreviousVerdict(db, REPO, PR, stale)).toBe("pass");
+	});
+
+	test("a re-run of the newest event outranks the run it repeats", async () => {
+		const latest = await getLatestRunForChangeRequest(db, REPO, PR);
+		if (!latest) {
+			throw new Error("no latest run");
+		}
+		const rerun = await seedRunFor(latest.eventId, "block", new Date());
+		expect(await getLatestRunIdForChangeRequest(db, REPO, PR)).toBe(rerun);
 	});
 });
