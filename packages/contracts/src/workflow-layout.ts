@@ -77,6 +77,16 @@ export function laneDepths(
 	for (const id of lane.nodeIds) {
 		depths.set(id, depthOf(id, new Set()));
 	}
+	for (const id of lane.nodeIds) {
+		const outgoing = graph.edges.filter((edge) => edge.from === id);
+		const gateDepths = outgoing.flatMap((edge) =>
+			edge.input === "requirement" ? [depths.get(edge.to) ?? 0] : [],
+		);
+		const own = depths.get(id) ?? 0;
+		if (gateDepths.length > 0 && gateDepths.length === outgoing.length) {
+			depths.set(id, Math.max(own, Math.min(...gateDepths) - 1));
+		}
+	}
 	return depths;
 }
 
