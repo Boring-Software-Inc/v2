@@ -16,6 +16,7 @@ import {
 	branchOutcomeLabel,
 	branchSummary,
 	type ChainBranch,
+	type ChainException,
 	type ChainRule,
 	passedNote,
 	ruleReason,
@@ -135,6 +136,52 @@ function FlaggedRule({
 	);
 }
 
+const RULE_MARK_LOOK = {
+	pass: { glyph: "pass", tone: "ok" },
+	fail: { glyph: "fail", tone: "fail" },
+	skipped: { glyph: "skipped", tone: "neutral" },
+	pending: { glyph: "running", tone: "neutral" },
+} as const;
+
+function ExceptionRow({ exception }: { exception: ChainException }) {
+	return (
+		<div
+			className="rule-row flex gap-2 px-3 pt-3 pb-4"
+			data-exception={exception.decision ?? "pending"}
+		>
+			<ChainMark glyph={exception.glyph} tone={exception.tone} />
+			<div className="flex min-w-0 flex-1 flex-col gap-1">
+				<div className="flex flex-wrap items-baseline gap-x-2">
+					<span className="type-label text-text-1 [overflow-wrap:anywhere]">
+						{exception.label}
+					</span>
+					<span className={cn("type-label-sm", TONE_WORD[exception.tone])}>
+						{exception.word}
+					</span>
+				</div>
+				{exception.rules.length > 0 ? (
+					<ul className="flex flex-col gap-0.5">
+						{exception.rules.map((rule) => {
+							const look = RULE_MARK_LOOK[rule.mark];
+							return (
+								<li
+									className="flex items-baseline gap-1.5 type-body-sm text-text-2"
+									key={rule.step.id}
+								>
+									<ChainMark glyph={look.glyph} size={12} tone={look.tone} />
+									<span className="min-w-0 [overflow-wrap:anywhere]">
+										{rule.name}
+									</span>
+								</li>
+							);
+						})}
+					</ul>
+				) : null}
+			</div>
+		</div>
+	);
+}
+
 function PendingRule({ rule }: { rule: ChainRule }) {
 	return (
 		<div className="rule-row flex items-center gap-2 px-3 py-2">
@@ -164,6 +211,9 @@ function BranchBody({
 			) : null}
 			{branch.flagged.map((rule) => (
 				<FlaggedRule context={context} key={rule.step.id} rule={rule} />
+			))}
+			{branch.exceptions.map((exception) => (
+				<ExceptionRow exception={exception} key={exception.id} />
 			))}
 			{branch.pending.map((rule) => (
 				<PendingRule key={rule.step.id} rule={rule} />

@@ -4,8 +4,10 @@ import {
 	type CommentReason,
 	checkSummary,
 	DEFAULT_RESPONSE_CONFIG,
+	exceptionDraft,
 	planSurfaces,
 	redactionPolicySchema,
+	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { toFullRunView, toPublicRunView } from "#/lib/run-access";
 import {
@@ -1009,5 +1011,199 @@ describe("a passing AI review in the passed list", () => {
 			);
 			expect(ai && passedNote(ai, level, false)).toBeNull();
 		}
+	});
+});
+
+describe("Except when on the run page", () => {
+	const base = exceptionDraft({
+		id: "crm",
+		name: "Target is main",
+		rule: {
+			ref: "custom-target-main@1",
+			config: {},
+			outcome: {
+				outcome: "request_fix",
+				instruction: "Change the target to main.",
+			},
+		},
+	});
+	const CRM: WorkflowDefinition = {
+		...base,
+		nodes: [
+			...base.nodes,
+			{
+				id: "release",
+				type: "rule",
+				ref: "custom-target-release@1",
+				config: {},
+			},
+			{
+				id: "source",
+				type: "rule",
+				ref: "custom-release-source@1",
+				config: {},
+			},
+		],
+		edges: [
+			...base.edges,
+			{ id: "t1", from: "trigger", to: "release" },
+			{ id: "t2", from: "trigger", to: "source" },
+			{ id: "g1", from: "release", to: "exception" },
+			{ id: "g2", from: "source", to: "exception" },
+		],
+	};
+	const named = (
+		nodeId: string,
+		ref: string,
+		status: string,
+		name: string,
+	): RunStepView => ({ ...rule(nodeId, ref, status), ruleName: name });
+	const gate = (output: RunStepView["output"]): RunStepView => ({
+		...rule("crm:except-when", "", "pass"),
+		nodeKind: "gate",
+		ruleRef: null,
+		output,
+	});
+	const WORKFLOW: RunWorkflowView = {
+		id: "crm",
+		name: "Target is main",
+		outcome: "pass",
+	};
+
+	test("an applied exception names itself and keeps its card open", () => {
+		const body = buildBranches(
+			[{ ...RULES, outcome: "pass" }, WORKFLOW],
+			[
+				rule("default@1:age", "account-age@1", "pass"),
+				named(
+					"crm:requirement",
+					"custom-target-main@1",
+					"fail",
+					"Target is main",
+				),
+				named(
+					"crm:release",
+					"custom-target-release@1",
+					"pass",
+					"Target is release",
+				),
+				named(
+					"crm:source",
+					"custom-release-source@1",
+					"pass",
+					"Source starts with release-please",
+				),
+				gate({
+					outcome: "pass",
+					requirement: "fail",
+					exception: "pass",
+					exceptionApplied: true,
+				}),
+			],
+			false,
+			[CRM],
+		);
+		const branch = body.branches.find((entry) => entry.id === "crm");
+		expect(branch?.form).toBe("card");
+		expect(branch?.exceptions).toMatchObject([
+			{
+				label: "Except: Target is release, Source starts with release-please",
+				decision: "exception",
+				word: "Exception applied",
+				tone: "ok",
+			},
+		]);
+		expect(branch?.exceptions[0]?.rules.map((entry) => entry.name)).toEqual([
+			"Target is release",
+			"Source starts with release-please",
+		]);
+		expect(branch?.flagged.map((entry) => entry.name)).toEqual([
+			"Target is main",
+		]);
+		expect(branch?.passed).toEqual([]);
+		expect(branch && branchSummary(branch).text).toBe("Exception applied");
+	});
+
+	test("when the requirement decides, unused exception checks are not flagged", () => {
+		const body = buildBranches(
+			[WORKFLOW],
+			[
+				named(
+					"crm:requirement",
+					"custom-target-main@1",
+					"pass",
+					"Target is main",
+				),
+				named(
+					"crm:release",
+					"custom-target-release@1",
+					"fail",
+					"Target is release",
+				),
+				named(
+					"crm:source",
+					"custom-release-source@1",
+					"fail",
+					"Source starts with release-please",
+				),
+				gate({
+					outcome: "pass",
+					requirement: "pass",
+					exception: "fail",
+					exceptionApplied: false,
+				}),
+			],
+			false,
+			[CRM],
+		);
+		const [branch] = body.branches;
+		expect(branch?.flagged).toEqual([]);
+		expect(branch?.passed.map((entry) => entry.name)).toEqual([
+			"Target is main",
+		]);
+		expect(branch?.exceptions[0]).toMatchObject({
+			decision: "requirement",
+			word: "Requirement passed",
+		});
+	});
+
+	test("an exception that did not apply reads so, and a fix reads Changes needed", () => {
+		const body = buildBranches(
+			[{ ...WORKFLOW, outcome: "changes" }],
+			[
+				named(
+					"crm:requirement",
+					"custom-target-main@1",
+					"fail",
+					"Target is main",
+				),
+				named(
+					"crm:release",
+					"custom-target-release@1",
+					"fail",
+					"Target is release",
+				),
+				named(
+					"crm:source",
+					"custom-release-source@1",
+					"skipped",
+					"Source starts with release-please",
+				),
+				gate({
+					outcome: "fail",
+					requirement: "fail",
+					exception: "skipped",
+					exceptionApplied: false,
+				}),
+			],
+			false,
+			[CRM],
+		);
+		const [branch] = body.branches;
+		expect(branch?.exceptions[0]).toMatchObject({
+			decision: "unchecked",
+			word: "Exception could not be checked",
+		});
+		expect(branch && branchOutcomeLabel(branch)?.label).toBe("Changes needed");
 	});
 });

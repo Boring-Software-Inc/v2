@@ -3,6 +3,10 @@ import {
 	AI_REVIEW_RULE_ID,
 	aiReviewTraceSchema,
 	bearsVerdict,
+	exceptionLine,
+	exceptionName,
+	exceptionRuleNodeIds,
+	exceptionRuleNodes,
 	isHeldVerdict,
 	RUN_RESULT_LABELS,
 	type RunResult,
@@ -12,10 +16,15 @@ import {
 	runResult,
 	runResultLabel,
 	summaryRevealsHidden,
+	UNLESS_DECISION_WORDS,
+	type UnlessDecision,
+	unlessDecision,
+	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { z } from "zod";
 import {
 	normalizeStepStatus,
+	parseSnapshot,
 	RULES_WORKFLOW_ID,
 	RULES_WORKFLOW_NAME,
 	splitStepNode,
@@ -55,6 +64,16 @@ export interface ChainRule {
 	name: string;
 }
 
+export interface ChainException {
+	id: string;
+	label: string;
+	decision: UnlessDecision | null;
+	word: string;
+	tone: ChainTone;
+	glyph: ChainGlyph;
+	rules: ChainRule[];
+}
+
 export interface ChainBranch {
 	id: string;
 	name: string;
@@ -63,6 +82,7 @@ export interface ChainBranch {
 	passed: ChainRule[];
 	flagged: ChainRule[];
 	pending: ChainRule[];
+	exceptions: ChainException[];
 	outcome: WorkflowOutcome | null;
 }
 
@@ -215,9 +235,24 @@ function ruleName(step: RunStepView): string {
 	return step.ruleRef ? ruleDisplayName(step.ruleRef) : "A check";
 }
 
-function chainRules(steps: readonly RunStepView[]): ChainRule[] {
+function exceptionStepIds(
+	definitions: readonly WorkflowDefinition[],
+): Set<string> {
+	return new Set(
+		definitions.flatMap((definition) =>
+			[...exceptionRuleNodeIds(definition)].map(
+				(nodeId) => `${definition.id}:${nodeId}`,
+			),
+		),
+	);
+}
+
+function chainRules(
+	steps: readonly RunStepView[],
+	skip: ReadonlySet<string> = new Set(),
+): ChainRule[] {
 	return steps.flatMap((step) => {
-		if (step.nodeKind !== "rule") {
+		if (step.nodeKind !== "rule" || skip.has(step.nodeId)) {
 			return [];
 		}
 		const mark = ruleMark(step.status);
@@ -228,6 +263,7 @@ function chainRules(steps: readonly RunStepView[]): ChainRule[] {
 function branchOf(
 	workflow: { id: string; name: string; outcome: WorkflowOutcome | null },
 	rules: ChainRule[],
+	exceptions: ChainException[] = [],
 ): ChainBranch {
 	return {
 		id: workflow.id,
@@ -239,8 +275,65 @@ function branchOf(
 			(rule) => rule.mark === "fail" || rule.mark === "skipped",
 		),
 		pending: rules.filter((rule) => rule.mark === "pending"),
+		exceptions,
 		outcome: workflow.outcome,
 	};
+}
+
+const DECISION_LOOK = {
+	requirement: { tone: "ok", glyph: "pass" },
+	exception: { tone: "ok", glyph: "pass" },
+	"not-applied": { tone: "fail", glyph: "fail" },
+	unchecked: { tone: "neutral", glyph: "skipped" },
+} as const satisfies Record<
+	UnlessDecision,
+	{ tone: ChainTone; glyph: ChainGlyph }
+>;
+
+function stepRuleNames(steps: readonly RunStepView[]): Map<string, string> {
+	return new Map(
+		steps.flatMap((step) =>
+			step.ruleRef ? [[step.ruleRef, ruleName(step)] as const] : [],
+		),
+	);
+}
+
+export function chainExceptions(
+	definition: WorkflowDefinition,
+	steps: readonly RunStepView[],
+): ChainException[] {
+	const names = stepRuleNames(steps);
+	const nameOf = (ref: string) => names.get(ref) ?? ruleDisplayName(ref);
+	const byNode = new Map(steps.map((step) => [step.nodeId, step]));
+	return definition.nodes.flatMap((node): ChainException[] => {
+		if (node.type !== "gate" || node.mode !== "unless") {
+			return [];
+		}
+		const gate = byNode.get(`${definition.id}:${node.id}`);
+		const decision = gate ? unlessDecision(gate.output) : null;
+		const rules = exceptionRuleNodes(definition, node.id).flatMap(
+			(rule): ChainRule[] => {
+				const step = byNode.get(`${definition.id}:${rule.id}`);
+				const mark = step ? ruleMark(step.status) : null;
+				return step && mark ? [{ step, mark, name: ruleName(step) }] : [];
+			},
+		);
+		const name = exceptionName(definition, node.id, nameOf);
+		if (!gate && rules.length === 0) {
+			return [];
+		}
+		return [
+			{
+				id: `${definition.id}:${node.id}`,
+				label: name ? exceptionLine(name) : "Except when",
+				decision,
+				word: decision ? UNLESS_DECISION_WORDS[decision] : "Checking",
+				tone: decision ? DECISION_LOOK[decision].tone : "neutral",
+				glyph: decision ? DECISION_LOOK[decision].glyph : "running",
+				rules,
+			},
+		];
+	});
 }
 
 export function branchPassed(branch: ChainBranch): boolean {
@@ -252,13 +345,31 @@ export function branchPassed(branch: ChainBranch): boolean {
 		: branch.outcome === "pass";
 }
 
+export function exceptionApplied(branch: ChainBranch): boolean {
+	return branch.exceptions.some(
+		(exception) => exception.decision === "exception",
+	);
+}
+
+function branchQuiet(branch: ChainBranch): boolean {
+	return branchPassed(branch) && !exceptionApplied(branch);
+}
+
 export function buildBranches(
 	workflows: readonly RunWorkflowView[],
 	steps: readonly RunStepView[],
 	collapseAll: boolean,
+	definitions: readonly WorkflowDefinition[] = [],
 ): Extract<ChainChecksBody, { kind: "branches" }> {
 	const ids = workflows.map((workflow) => workflow.id);
-	const rules = chainRules(steps);
+	const rules = chainRules(steps, exceptionStepIds(definitions));
+	const definitionOf = new Map(
+		definitions.map((definition) => [definition.id, definition]),
+	);
+	const exceptionsFor = (workflowId: string): ChainException[] => {
+		const definition = definitionOf.get(workflowId);
+		return definition ? chainExceptions(definition, steps) : [];
+	};
 	const known: RunWorkflowView[] =
 		workflows.length > 0
 			? [...workflows]
@@ -271,18 +382,22 @@ export function buildBranches(
 					const owner = splitStepNode(rule.step.nodeId, ids).workflowId;
 					return (owner ?? known[0]?.id) === workflow.id;
 				}),
+				exceptionsFor(workflow.id),
 			),
 		)
 		.filter(
 			(branch) =>
 				branch.outcome === "unrunnable" ||
-				branch.passed.length + branch.flagged.length + branch.pending.length >
+				branch.passed.length +
+					branch.flagged.length +
+					branch.pending.length +
+					branch.exceptions.length >
 					0,
 		);
 	const ordered = [
 		...all.filter((branch) => branch.isRules),
-		...all.filter((branch) => !branch.isRules && !branchPassed(branch)),
-		...all.filter((branch) => !branch.isRules && branchPassed(branch)),
+		...all.filter((branch) => !branch.isRules && !branchQuiet(branch)),
+		...all.filter((branch) => !branch.isRules && branchQuiet(branch)),
 	];
 	const showBranchOutcome = ordered.length > 1;
 	if (collapseAll) {
@@ -303,7 +418,7 @@ export function buildBranches(
 			showBranchOutcome,
 		};
 	}
-	if (ordered.every(branchPassed)) {
+	if (ordered.every(branchQuiet)) {
 		return {
 			kind: "branches",
 			layout: "stack",
@@ -314,12 +429,12 @@ export function buildBranches(
 	}
 	const shown: ChainBranch[] = [];
 	const passedOthers = ordered.filter(
-		(branch) => !branch.isRules && branchPassed(branch),
+		(branch) => !branch.isRules && branchQuiet(branch),
 	);
 	for (const branch of ordered) {
 		if (branch.isRules) {
-			shown.push({ ...branch, form: branchPassed(branch) ? "row" : "card" });
-		} else if (!branchPassed(branch)) {
+			shown.push({ ...branch, form: branchQuiet(branch) ? "row" : "card" });
+		} else if (!branchQuiet(branch)) {
 			shown.push(branch);
 		}
 	}
@@ -363,7 +478,8 @@ function checksNode(
 	if (run.stepsHidden) {
 		return null;
 	}
-	const rules = chainRules(steps);
+	const definitions = parseSnapshot(run.snapshot);
+	const rules = chainRules(steps, exceptionStepIds(definitions));
 	if (rules.length === 0) {
 		return null;
 	}
@@ -391,7 +507,7 @@ function checksNode(
 	}
 	const body: ChainChecksBody = redactionHides(level, "rule-names")
 		? { kind: "marks", marks: rules.map((rule) => rule.mark) }
-		: buildBranches(run.workflows, steps, collapseAll);
+		: buildBranches(run.workflows, steps, collapseAll, definitions);
 	if (pending > 0) {
 		return {
 			title: `${total - pending} of ${total} rules checked`,
@@ -876,6 +992,12 @@ export function branchSummary(branch: ChainBranch): BranchSummary {
 	}
 	const failed = branch.flagged.filter((rule) => rule.mark === "fail");
 	const skipped = branch.flagged.filter((rule) => rule.mark === "skipped");
+	const applied = branch.exceptions.find(
+		(exception) => exception.decision === "exception",
+	);
+	if (applied && branch.outcome === "pass") {
+		return { tone: "ok", glyph: "pass", text: applied.word };
+	}
 	if (failed.length > 0) {
 		return {
 			tone: "fail",
@@ -913,6 +1035,16 @@ export function branchOutcomeLabel(
 ): BranchOutcomeLabel | null {
 	if (branch.outcome === "block") {
 		return { tone: "fail", glyph: "fail", label: "Blocked" };
+	}
+	if (branch.outcome === "close") {
+		return { tone: "fail", glyph: "blocked", label: RUN_RESULT_LABELS.close };
+	}
+	if (branch.outcome === "changes") {
+		return {
+			tone: "fail",
+			glyph: "fail",
+			label: RUN_RESULT_LABELS.changes_required,
+		};
 	}
 	if (branch.outcome === "review") {
 		return { tone: "neutral", glyph: "waiting", label: "Human review" };
