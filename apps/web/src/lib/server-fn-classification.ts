@@ -93,6 +93,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getRuleLibrary: "permission:rules:read",
 	saveRuleConfig: "permission:rules:manage",
 	setRulesEnabled: "permission:rules:manage",
+	setRuleOutcome: "permission:rules:manage",
 	upgradeRuleConfig: "permission:rules:manage",
 	saveCustomRule: "permission:rules:manage",
 	setCustomRuleEnabled: "permission:rules:manage",
