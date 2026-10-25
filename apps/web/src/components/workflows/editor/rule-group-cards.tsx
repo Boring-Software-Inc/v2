@@ -5,6 +5,7 @@ import {
 	Position,
 	useNodeConnections,
 } from "@xyflow/react";
+import { z } from "zod";
 import { Add, Close, Except, Icon, Rules } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -53,9 +54,7 @@ const MODE_ITEMS = [
 	{ value: "any-of", label: "Any of" },
 ] satisfies { value: SkipMode; label: string }[];
 
-function isSkipMode(value: unknown): value is SkipMode {
-	return value === "all-of" || value === "any-of";
-}
+const skipModeSchema = z.enum(["all-of", "any-of"]);
 
 function CardFrame({
 	id,
@@ -156,7 +155,7 @@ function MemberRow({
 	}
 	const name = stepName(node, customName);
 	return (
-		<li className="flex min-w-0 items-center gap-1">
+		<li className="nodrag nopan flex min-w-0 items-center gap-1">
 			<Button
 				aria-label={`Edit ${name}`}
 				className="h-auto min-h-7 min-w-0 flex-1 justify-start gap-2 whitespace-normal py-1 text-start"
@@ -201,7 +200,11 @@ function AddRuleMenu({
 		<DropdownMenu>
 			<DropdownMenuTrigger
 				render={
-					<Button className="mt-1 self-start" size="sm" variant="ghost" />
+					<Button
+						className="nodrag nopan mt-1 self-start"
+						size="sm"
+						variant="ghost"
+					/>
 				}
 			>
 				<Icon icon={Add} />
@@ -276,7 +279,7 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				/>
 				{card.skipId === null && !api.readOnly ? (
 					<Button
-						className="mt-1"
+						className="nodrag nopan mt-1"
 						onClick={() => api.attachSkip(id)}
 						size="sm"
 						variant="ghost"
@@ -306,7 +309,7 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				{api.readOnly ? null : (
 					<Button
 						aria-label="Remove Skip when"
-						className="ms-auto"
+						className="nodrag nopan ms-auto"
 						onClick={() => api.removeSkip(id)}
 						size="icon-sm"
 						variant="ghost"
@@ -316,13 +319,14 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				)}
 			</div>
 			{card.checkIds.length > 1 && card.gateId ? (
-				<div className="mt-1">
+				<div className="nodrag nopan mt-1">
 					<Select
 						disabled={api.readOnly}
 						items={MODE_ITEMS}
 						onValueChange={(value) => {
-							if (isSkipMode(value) && value !== card.mode) {
-								api.setMode(id, value);
+							const mode = skipModeSchema.safeParse(value);
+							if (mode.success && mode.data !== card.mode) {
+								api.setMode(id, mode.data);
 							}
 						}}
 						value={card.mode}
