@@ -6,6 +6,7 @@ import {
 	nextLabel,
 	rulesSummary,
 	setupProgress,
+	showsReviewQueue,
 	stepCompletedAt,
 } from "#/lib/repo-setup";
 
@@ -82,6 +83,29 @@ describe("setupProgress", () => {
 		expect(progress.current).toBeNull();
 		expect(progress.steps[2]?.title).toBe("First check on #509");
 		expect(nextLabel(progress)).toBeNull();
+	});
+});
+
+describe("showsReviewQueue", () => {
+	test("a new repo with nothing waiting shows only the checklist", () => {
+		expect(showsReviewQueue(NOTHING, setupProgress(NOTHING), 0)).toBe(false);
+	});
+
+	test("a change request waiting for review keeps the queue", () => {
+		expect(showsReviewQueue(NOTHING, setupProgress(NOTHING), 1)).toBe(true);
+	});
+
+	test("a repo that already ran checks keeps its queue while a step is open", () => {
+		const facts: RepoSetupFacts = {
+			...NOTHING,
+			installed: true,
+			armed: true,
+			enabledRuleIds: SPAM,
+			firstCheck: { number: 509, at: "2026-10-20T10:00:00.000Z" },
+		};
+		const progress = setupProgress(facts);
+		expect(progress.complete).toBe(false);
+		expect(showsReviewQueue(facts, progress, 0)).toBe(true);
 	});
 });
 

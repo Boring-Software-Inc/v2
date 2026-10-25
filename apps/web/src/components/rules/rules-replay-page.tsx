@@ -2,7 +2,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import {
 	type ReplayRow,
-	RULE_PACKS,
 	replayRules,
 	ruleDisplayName,
 	ruleSetLabel,
@@ -23,12 +22,11 @@ import {
 } from "#/components/glaze/ui/empty-state";
 import { Status } from "#/components/glaze/ui/status";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { turnableRuleIds } from "#/components/rules/rule-packs";
+import { replayRuleIds, turnableRuleIds } from "#/components/rules/rule-packs";
 import { ReplayListSkeleton } from "#/components/rules/rules-replay-page-skeleton";
 import { useSetupTurnOnRules } from "#/components/setup/use-repo-setup";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
-import type { RuleConfigView } from "#/lib/rules.functions";
 import {
 	ruleConfigsQueryOptions,
 	ruleLibraryQueryOptions,
@@ -38,18 +36,6 @@ import {
 const routeApi = getRouteApi("/$org/$repo/moderation_/replay");
 
 const SHOWN_ROWS = 5;
-
-export function replayRuleIds(rules: readonly RuleConfigView[]): string[] {
-	const on = rules
-		.filter((rule) => rule.enabled && rule.source === "built-in")
-		.map((rule) => rule.ruleId);
-	if (on.length > 0) {
-		return on;
-	}
-	return RULE_PACKS.filter((pack) => pack.recommended).flatMap((pack) => [
-		...pack.ruleIds,
-	]);
-}
 
 function ReplayRowView({ row }: { row: ReplayRow }) {
 	const rule = row.ruleId ? ruleDisplayName(row.ruleId) : null;

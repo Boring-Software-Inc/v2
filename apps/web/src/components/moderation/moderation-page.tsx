@@ -22,8 +22,10 @@ import { SetupDoneStrip } from "#/components/setup/setup-done-strip";
 import { useRepoSetup } from "#/components/setup/use-repo-setup";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
+import { cn } from "#/lib/glaze/utils";
 import { moderationStatsQueryOptions } from "#/lib/moderation.query";
 import type { ModStats } from "#/lib/moderation.types";
+import { showsReviewQueue } from "#/lib/repo-setup";
 
 const routeApi = getRouteApi("/$org/$repo/moderation");
 
@@ -62,17 +64,30 @@ export function ModerationPage() {
 	if (setup.query.isPending) {
 		return <ModerationPageSkeleton />;
 	}
-	if (setup.state && setup.progress && !setup.progress.complete) {
+	const checklist =
+		setup.state && setup.progress && !setup.progress.complete ? (
+			<RepoSetupChecklist
+				org={org}
+				progress={setup.progress}
+				repo={repoName}
+				state={setup.state}
+			/>
+		) : null;
+	if (
+		checklist &&
+		setup.state &&
+		setup.progress &&
+		!showsReviewQueue(
+			setup.state.facts,
+			setup.progress,
+			queueQuery.data?.items.length ?? 0,
+		)
+	) {
 		return (
 			<DashboardLayout counts={{}}>
 				<div className="px-4 py-6 md:px-8 md:py-10">
 					<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-						<RepoSetupChecklist
-							org={org}
-							progress={setup.progress}
-							repo={repoName}
-							state={setup.state}
-						/>
+						{checklist}
 					</div>
 				</div>
 			</DashboardLayout>
@@ -93,6 +108,7 @@ export function ModerationPage() {
 		<DashboardLayout counts={counts}>
 			<div className="px-4 py-6 md:px-8 md:py-10">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+					{checklist}
 					{setup.progress?.complete ? (
 						<SetupDoneStrip
 							org={org}
@@ -100,8 +116,12 @@ export function ModerationPage() {
 							repo={repoName}
 						/>
 					) : null}
-					<header className="flex flex-col gap-1">
-						<h1 className="type-title">Human review</h1>
+					<header className={cn("flex flex-col gap-1", checklist && "pt-6")}>
+						{checklist ? (
+							<h2 className="type-title">Human review</h2>
+						) : (
+							<h1 className="type-title">Human review</h1>
+						)}
 						<p className="type-body text-text-2">
 							Approve to continue the workflow, or block.
 						</p>

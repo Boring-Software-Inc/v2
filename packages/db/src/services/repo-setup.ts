@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import {
@@ -123,7 +123,7 @@ export async function getRepoSetupFacts(
 					isNotNull(runs.subjectNumber),
 					isNull(runs.subjectKind),
 					eq(runs.backfill, false),
-					eq(runs.status, "completed"),
+					inArray(runs.status, ["completed", "paused"]),
 				),
 			)
 			.orderBy(asc(runs.createdAt))

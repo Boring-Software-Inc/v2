@@ -100,6 +100,14 @@ export function setupProgress(facts: RepoSetupFacts): RepoSetupProgress {
 	};
 }
 
+export function showsReviewQueue(
+	facts: RepoSetupFacts,
+	progress: RepoSetupProgress,
+	waiting: number,
+): boolean {
+	return progress.complete || facts.firstCheck !== null || waiting > 0;
+}
+
 export function nextLabel(progress: RepoSetupProgress): string | null {
 	const title = progress.current?.title;
 	return title

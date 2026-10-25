@@ -155,8 +155,16 @@ describe("repo setup facts", () => {
 			{
 				...base,
 				id: generateId(),
-				subjectNumber: 509,
+				subjectNumber: 508,
 				status: "running",
+				createdAt: new Date(t0.getTime() - 1000),
+			},
+			{
+				...base,
+				id: generateId(),
+				subjectNumber: 509,
+				status: "paused",
+				verdict: "needs_review",
 				createdAt: t0,
 			},
 			{
@@ -181,7 +189,7 @@ describe("repo setup facts", () => {
 			workflowsOn: 0,
 			firstCheck: {
 				number: 509,
-				at: new Date(t0.getTime() + 1000).toISOString(),
+				at: t0.toISOString(),
 			},
 			nextChangeRequest: 509,
 			responsesChosen: true,

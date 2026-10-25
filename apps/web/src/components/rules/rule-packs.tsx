@@ -47,6 +47,22 @@ export function rulesCaught(
 	return tuned ? null : previewCaught(preview, ruleIds);
 }
 
+export function replayRuleIds(rules: readonly RuleConfigView[]): string[] {
+	const on = rules
+		.filter((rule) => rule.enabled && rule.source === "built-in")
+		.map((rule) => rule.ruleId);
+	const chosen =
+		on.length > 0
+			? on
+			: RULE_PACKS.filter((pack) => pack.recommended).flatMap((pack) => [
+					...pack.ruleIds,
+				]);
+	return chosen.filter((id) => {
+		const rule = rules.find((r) => r.ruleId === id);
+		return rule === undefined || sameSettings(rule.config, rule.defaultConfig);
+	});
+}
+
 export function PreviewWindow({
 	preview,
 	repoName,
