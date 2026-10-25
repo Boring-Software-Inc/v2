@@ -15,8 +15,5 @@
 		"@tripwire/sdk": "workspace:*",
 		"@tripwire/utils": "workspace:*",
 		"zod": "^4.0.0"
-	},
-	"devDependencies": {
-		"fast-check": "^4.9.0"
 	}
 }

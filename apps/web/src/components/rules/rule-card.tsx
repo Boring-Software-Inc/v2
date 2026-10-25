@@ -39,12 +39,6 @@ import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
 import { cn } from "#/lib/glaze/utils";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
-const SEVERITY_LABEL = {
-	low: "Low severity",
-	medium: "Medium severity",
-	high: "High severity",
-} satisfies Record<string, string>;
-
 export function RuleCard({
 	org,
 	repo,
@@ -295,11 +289,6 @@ export function RuleCard({
 						icon={Blocked}
 					/>
 					<span className="type-label-sm">Blocks</span>
-					{rule.severity ? (
-						<span className="ms-1">
-							{SEVERITY_LABEL[rule.severity] ?? rule.severity}
-						</span>
-					) : null}
 				</span>
 				{activity}
 			</CardFooter>

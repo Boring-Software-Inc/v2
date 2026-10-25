@@ -73,9 +73,6 @@ export interface RuleConfigView {
 	source: "built-in" | "custom";
 	/** The read-state sentence for a custom rule; null for built-ins. */
 	sentence: string | null;
-	/** A custom rule's severity — how much a failure weighs, shown on the card
-	 * (not in the sentence, which states the requirement); null for built-ins. */
-	severity: "low" | "medium" | "high" | null;
 	/** Workflows (enabled OR disabled) that reference a custom rule — deletion is
 	 * refused while non-empty, and the card names them. Empty for built-ins. */
 	blockingWorkflows: { id: string; name: string }[];
@@ -160,7 +157,6 @@ export async function listRuleViews(
 			trend: perRule?.series ?? Array(24).fill(0),
 			source: "custom",
 			sentence,
-			severity: record.definition.severity,
 			blockingWorkflows: blockingByRuleId.get(record.id) ?? [],
 		});
 	}
@@ -212,7 +208,6 @@ export async function listRuleViews(
 			trend: perRule?.series ?? Array(24).fill(0),
 			source: "built-in",
 			sentence: null,
-			severity: null,
 			blockingWorkflows: [],
 		};
 	});

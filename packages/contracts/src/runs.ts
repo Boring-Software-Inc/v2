@@ -1,11 +1,6 @@
 import { z } from "zod";
 import { threadKindSchema } from "./insights.ts";
-import {
-	actorSchema,
-	itemTypeSchema,
-	reasonSchema,
-	severitySchema,
-} from "./moderation.ts";
+import { actorSchema, itemTypeSchema, reasonSchema } from "./moderation.ts";
 
 /**
  * Runs domain (spec §4 `runs.ts`: auditable runs + steps). Extracted from the
@@ -71,7 +66,6 @@ export const runLogEntrySchema = z.object({
 	/** Safe label shown instead of the raw content, e.g. "Racial slur". */
 	label: z.string(),
 	reason: reasonSchema,
-	severity: severitySchema,
 	action: runLogActionSchema,
 	status: runLogStatusSchema,
 	author: actorSchema,

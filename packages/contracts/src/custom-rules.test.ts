@@ -22,7 +22,6 @@ const forkRate: CustomRuleRecord = {
 			transform: { kind: "lastCount", window: "24h" },
 		},
 		comparison: { kind: "atMost", args: [20] },
-		severity: "high",
 	},
 };
 
@@ -31,6 +30,14 @@ describe("stored definition schema", () => {
 		const parsed = customRuleRecordSchema.parse(
 			JSON.parse(JSON.stringify(forkRate)),
 		);
+		expect(parsed).toEqual(forkRate);
+	});
+
+	test("a stored row that still carries a severity parses and drops it", () => {
+		const parsed = customRuleRecordSchema.parse({
+			...forkRate,
+			definition: { ...forkRate.definition, severity: "high" },
+		});
 		expect(parsed).toEqual(forkRate);
 	});
 

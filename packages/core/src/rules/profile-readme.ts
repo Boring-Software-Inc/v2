@@ -28,7 +28,6 @@ export const profileReadme = defineRule({
 		const requirement = rule("profile readme", {
 			when: signals.contributor.profileText.trimmedLength,
 			comparison: atLeast(config.minLength),
-			severity: "low",
 		});
 		const { passed, resolvedValue } = evaluateSignalRule(requirement, {
 			value: read.value,

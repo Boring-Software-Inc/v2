@@ -25,9 +25,6 @@ export const reasonSchema = z.enum([
 ]);
 export type Reason = z.infer<typeof reasonSchema>;
 
-export const severitySchema = z.enum(["low", "medium", "high", "critical"]);
-export type Severity = z.infer<typeof severitySchema>;
-
 export const modStatusSchema = z.enum(["pending", "resolved"]);
 export type ModStatus = z.infer<typeof modStatusSchema>;
 
@@ -54,7 +51,6 @@ export const moderationItemSchema = z
 		bodyPreview: z.string(),
 		author: actorSchema,
 		reason: reasonSchema,
-		severity: severitySchema,
 		/** `null` when the report came from automod rather than a person. */
 		reporter: actorSchema.nullable(),
 		automodRule: z.string().optional(),

@@ -79,17 +79,14 @@ describe("github sdk surface", () => {
 		const oldEnough = rule("account age", {
 			when: signals.contributor.accountAge,
 			comparison: under(7),
-			severity: "medium",
 		});
 		const rateLimit = rule("pr rate limit", {
 			when: signals.contributor.recentChangeRequestTimes.last("24h").count,
 			comparison: atMost(5),
-			severity: "high",
 		});
 		const latinTitle = rule("latin title", {
 			when: signals.pr.title,
 			comparison: matches(/^[\p{Script=Latin}\P{L}]*$/u),
-			severity: "low",
 		});
 		expect(oldEnough.signal).toEqual({ id: "contributor.accountAge" });
 		expect(rateLimit.signal.transform).toEqual({
@@ -104,7 +101,6 @@ describe("github sdk surface", () => {
 			when: signals.pr.filesChanged,
 			// @ts-expect-error matches() is for text signals; filesChanged is a number signal
 			comparison: matches(/x/),
-			severity: "low",
 		});
 	});
 });

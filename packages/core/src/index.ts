@@ -26,13 +26,6 @@ export {
 	projectRulePublic,
 	type RulePublicProjection,
 } from "./rules/registry.ts";
-export { score } from "./scoring/score.ts";
-export {
-	clampSignalValue,
-	SIGNAL_CATEGORIES,
-	type Signal,
-	type SignalCategory,
-} from "./scoring/signals.ts";
 export {
 	deriveDefaultWorkflow,
 	type RuleToggle,

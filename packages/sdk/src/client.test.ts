@@ -32,21 +32,27 @@ describe("rule authoring", () => {
 		const oldEnough = rule("account age", {
 			when: signals.contributor.accountAge,
 			comparison: under(7),
-			severity: "medium",
 		});
 		expect(oldEnough).toEqual({
 			name: "account age",
 			signal: { id: "contributor.accountAge" },
 			comparison: { kind: "under", args: [7] },
+		});
+	});
+
+	test("a severity from an older rule file is accepted and dropped", () => {
+		const legacy = rule("account age", {
+			when: signals.contributor.accountAge,
+			comparison: under(7),
 			severity: "medium",
 		});
+		expect(legacy).not.toHaveProperty("severity");
 	});
 
 	test("a windowed count rule carries the transform in its data", () => {
 		const rateLimit = rule("pr rate limit", {
 			when: signals.contributor.recentChangeRequestTimes.last("24h").count,
 			comparison: atMost(5),
-			severity: "high",
 		});
 		expect(rateLimit.signal).toEqual({
 			id: "contributor.recentChangeRequestTimes",
@@ -86,7 +92,6 @@ describe("compile-time fences", () => {
 			rule<number>("raw signal", {
 				when: accountAge as never,
 				comparison: under(7),
-				severity: "low",
 			}),
 		).toThrow();
 	});
@@ -96,7 +101,6 @@ describe("compile-time fences", () => {
 			when: signals.contributor.accountAge,
 			// @ts-expect-error matches() is for text signals; accountAge is a number signal
 			comparison: matches(/x/),
-			severity: "low",
 		});
 	});
 
@@ -105,7 +109,6 @@ describe("compile-time fences", () => {
 			// @ts-expect-error this signal is bound to fake-full, not fake-gapped
 			when: signals.contributor.profileText,
 			comparison: matches(/hello/),
-			severity: "low",
 		});
 	});
 });

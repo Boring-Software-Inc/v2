@@ -124,7 +124,6 @@ export async function evaluateCustomRule(
 			name: record.name,
 			signal: record.definition.when as SignalRule["signal"],
 			comparison: record.definition.comparison,
-			severity: record.definition.severity,
 		};
 		const { passed, resolvedValue } = evaluateSignalRule(rule, { value, now });
 		return {

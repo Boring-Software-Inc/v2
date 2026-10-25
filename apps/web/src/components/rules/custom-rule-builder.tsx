@@ -69,8 +69,6 @@ const WINDOWS = [
 	{ window: "30d", label: "30 days" },
 ] as const;
 
-const SEVERITIES = ["low", "medium", "high"] as const;
-
 export interface CustomRuleDraft {
 	id?: string;
 	name: string;
@@ -88,7 +86,6 @@ export interface BuilderState {
 	high: string;
 	/** Committed chips for a list verb. */
 	values: string[];
-	severity: (typeof SEVERITIES)[number] | null;
 	name: string;
 }
 
@@ -100,7 +97,6 @@ const EMPTY_STATE: BuilderState = {
 	value: "",
 	high: "",
 	values: [],
-	severity: null,
 	name: "",
 };
 
@@ -174,7 +170,7 @@ function parseValue(
 
 function draftFromState(state: BuilderState): CustomRuleDraft | null {
 	const comparison = parseValue(state);
-	if (!state.signal || !comparison || !state.severity) {
+	if (!state.signal || !comparison) {
 		return null;
 	}
 	if (state.name.trim().length === 0) {
@@ -194,7 +190,6 @@ function draftFromState(state: BuilderState): CustomRuleDraft | null {
 					: {}),
 			},
 			comparison,
-			severity: state.severity,
 		} as CustomRuleDefinition,
 	};
 }
@@ -258,9 +253,6 @@ export function nextStep(state: BuilderState): string | null {
 		return isListVerb(state.verb.kind)
 			? "Add at least one value."
 			: (valueIssue(state) ?? "Enter a value.");
-	}
-	if (!state.severity) {
-		return "Pick a severity.";
 	}
 	if (state.name.trim().length === 0) {
 		return "Name the rule to save it.";
@@ -464,34 +456,13 @@ export function CustomRuleBuilder({
 								</ValueWord>
 							)
 						) : null}
-						{state.verb ? (
-							<>
-								<span>as a</span>
-								<DropdownMenu>
-									<DropdownMenuTrigger className={wordClass(!state.severity)}>
-										{state.severity ?? "severity"}
-									</DropdownMenuTrigger>
-									<DropdownMenuContent align="start" size="sm">
-										{SEVERITIES.map((severity) => (
-											<DropdownMenuItem
-												key={severity}
-												onClick={() => set({ severity })}
-											>
-												{severity}
-											</DropdownMenuItem>
-										))}
-									</DropdownMenuContent>
-								</DropdownMenu>
-								<span>signal.</span>
-							</>
-						) : null}
 					</div>
 					{valueMessage ? (
 						<output className="type-body-sm text-fail-text">
 							{valueMessage}
 						</output>
 					) : null}
-					{state.severity ? (
+					{state.verb ? (
 						<Field>
 							<FieldLabel>Rule name</FieldLabel>
 							<Input

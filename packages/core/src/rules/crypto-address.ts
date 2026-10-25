@@ -48,7 +48,6 @@ export const cryptoAddress = defineRule({
 		const requirement = rule("crypto address", {
 			when: signals.pr.textByLocation.scan(PATTERNS),
 			comparison: empty(),
-			severity: "high",
 		});
 		const { passed, resolvedValue } = evaluateSignalRule(requirement, {
 			value: read.value,

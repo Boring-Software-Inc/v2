@@ -20,7 +20,6 @@ describe("buildCommentReasons — custom rules", () => {
 						transform: { kind: "lastCount", window: "24h" },
 					},
 					comparison: { kind: "atMost", args: [50] },
-					severity: "medium",
 				},
 			},
 		],

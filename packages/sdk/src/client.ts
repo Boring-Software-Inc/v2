@@ -128,7 +128,6 @@ export interface SignalRule {
 	readonly name: string;
 	readonly signal: SignalRef;
 	readonly comparison: SerializedComparison;
-	readonly severity: Severity;
 }
 
 export type RuleFactory<F> = <T>(
@@ -136,7 +135,7 @@ export type RuleFactory<F> = <T>(
 	def: {
 		when: BoundSignal<T, ForgeIdOf<F>>;
 		comparison: NoInfer<Comparison<T>>;
-		severity: Severity;
+		severity?: Severity;
 	},
 ) => SignalRule;
 
@@ -245,7 +244,7 @@ export class Tripwire<F extends AnyForgeDefinition> {
 	}
 
 	/**
-	 * Defines a rule: a signal, a comparison, a severity. Pure data out; no
+	 * Defines a rule: a signal and a comparison. Pure data out; no
 	 * network, no key needed. Arrow property so destructuring keeps it working.
 	 */
 	readonly rule: RuleFactory<F> = (name, def) => {
@@ -256,7 +255,6 @@ export class Tripwire<F extends AnyForgeDefinition> {
 			name,
 			signal: def.when.ref,
 			comparison: { kind: def.comparison.kind, args: def.comparison.args },
-			severity: def.severity,
 		};
 	};
 }

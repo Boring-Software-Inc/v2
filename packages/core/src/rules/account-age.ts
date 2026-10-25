@@ -25,7 +25,6 @@ export const accountAge = defineRule({
 		const requirement = rule("account age", {
 			when: signals.contributor.accountAge,
 			comparison: atLeast(config.minDays),
-			severity: "medium",
 		});
 		const { passed } = evaluateSignalRule(requirement, {
 			value: read.value,
