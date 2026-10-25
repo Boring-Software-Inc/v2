@@ -1342,7 +1342,7 @@ function customRuleFlags(command: Command): Command {
 			"The rule as JSON, or @ and the path to a JSON file",
 		)
 		.option("--description <text>", "Why the rule exists")
-		.option("--enable", "Install the rule, so it runs by itself and blocks")
+		.option("--enable", "Install the rule")
 		.option("--disable", "Uninstall the rule")
 		.addHelpText("after", CUSTOM_RULE_HELP);
 }
@@ -1466,7 +1466,7 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 		rules
 			.command("create [repo]")
 			.description(
-				"Create a custom rule. It is not installed: pass --enable, or use it in tripwire.ts with customCheck",
+				"Create a custom rule. Install it with --enable or use it in tripwire.ts with customCheck",
 			),
 	).action(
 		(repo: string | undefined, opts: CustomRuleOptions, command: Command) => {

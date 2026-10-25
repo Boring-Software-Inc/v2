@@ -75,7 +75,7 @@ them and carry on. They never block or change setup.
    When no built-in rule fits, propose a custom rule and save it with
    `save_custom_rule`. Show the user the sentence it returns.
    An installed rule blocks when it does not pass. For any other outcome,
-   or a Skip when, use the rule in a workflow.
+   or an exception, use the rule in a workflow.
 5. **Turn on the gate.** Ask, then call `turn_on_gate`. If the user declines,
    report `turn_on_gate` skipped.
 6. **Verify.** Call `setup_status`. When it shows the check is live, report
