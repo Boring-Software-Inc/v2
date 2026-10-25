@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { SaveQueueProvider } from "#/components/save-queue";
 import type { RuleConfigView } from "#/lib/rules.functions";
 import { RuleCard } from "./rule-card";
+import { usedInLabel, usedInLinks } from "./rule-used-in";
 
 const qc = new QueryClient();
 // Empty savedValues: the card reads pending-or-saved and falls back to the
@@ -40,6 +41,7 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	source: "built-in",
 	sentence: null,
 	blockingWorkflows: [],
+	usedIn: [],
 	...over,
 });
 
@@ -207,5 +209,55 @@ describe("RuleCard when AI review is out of credits", () => {
 			/>,
 		);
 		expect(html).toContain("Can&#x27;t run");
+	});
+});
+
+describe("RuleCard used in", () => {
+	const gate = { id: "wf-1", name: "Release gate" };
+	const triage = { id: "wf-2", name: "Triage" };
+
+	test("the label counts workflows, singular and plural", () => {
+		expect(usedInLabel(1)).toBe("Used in 1 workflow");
+		expect(usedInLabel(2)).toBe("Used in 2 workflows");
+	});
+
+	test("a rule a workflow uses shows Used in where Install would be", () => {
+		const one = render(
+			<RuleCard
+				{...base}
+				rule={rule({ management: "managed", usedIn: [gate] })}
+			/>,
+		);
+		expect(one).toContain(">Used in 1 workflow<");
+		expect(one).toContain('aria-haspopup="menu"');
+		expect(one).not.toContain(">Install<");
+		expect(one).not.toContain(">Uninstall<");
+		const two = render(
+			<RuleCard
+				{...base}
+				rule={rule({ management: "managed", usedIn: [gate, triage] })}
+			/>,
+		);
+		expect(two).toContain(">Used in 2 workflows<");
+	});
+
+	test("a standalone rule keeps its button and no Used in", () => {
+		const html = render(<RuleCard {...base} rule={rule()} />);
+		expect(html).not.toContain("Used in");
+	});
+
+	test("the menu lists each workflow by name, linked to its editor", () => {
+		expect(usedInLinks("o", "r", [gate, triage])).toEqual([
+			{
+				key: "wf-1",
+				name: "Release gate",
+				params: { org: "o", repo: "r", workflowId: "wf-1" },
+			},
+			{
+				key: "wf-2",
+				name: "Triage",
+				params: { org: "o", repo: "r", workflowId: "wf-2" },
+			},
+		]);
 	});
 });

@@ -34,6 +34,7 @@ import {
 	RULE_PANEL_CLASS,
 	RULE_SENTENCE_CLASS,
 } from "#/components/rules/rule-card-frame";
+import { RuleUsedIn } from "#/components/rules/rule-used-in";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
 import { cn } from "#/lib/glaze/utils";
@@ -102,6 +103,13 @@ export function RuleCard({
 		>
 			{verb}
 		</Button>
+	) : rule.usedIn.length > 0 ? (
+		<RuleUsedIn
+			org={org}
+			repo={repo}
+			ruleName={rule.name}
+			workflows={rule.usedIn}
+		/>
 	) : null;
 
 	const activity = forgeBlocked ? (
