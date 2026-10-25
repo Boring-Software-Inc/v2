@@ -105,6 +105,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	listRepoReviewers: "permission:workflows:read",
 	listRepoLabels: "permission:workflows:read",
 	createRepoWorkflow: "permission:workflows:manage",
+	addRuleException: "permission:workflows:manage",
 	saveRepoWorkflow: "permission:workflows:manage",
 	renameRepoWorkflow: "permission:workflows:manage",
 	duplicateRepoWorkflow: "permission:workflows:manage",

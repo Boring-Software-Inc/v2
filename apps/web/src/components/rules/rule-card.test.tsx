@@ -232,6 +232,52 @@ describe("RuleCard outcome", () => {
 	});
 });
 
+describe("RuleCard Add exception", () => {
+	const onAddException = () => undefined;
+
+	test("a standalone rule offers Add exception to an editor", () => {
+		const html = render(
+			<RuleCard {...base} onAddException={onAddException} rule={rule()} />,
+		);
+		expect(html).toContain('aria-label="Add exception to account age"');
+		expect(html).toContain(">Add exception<");
+	});
+
+	test("a viewer, a managed rule and a forge-blocked rule get no Add exception", () => {
+		const viewer = render(
+			<RuleCard
+				{...base}
+				canEdit={false}
+				onAddException={onAddException}
+				rule={rule()}
+			/>,
+		);
+		const managed = render(
+			<RuleCard
+				{...base}
+				onAddException={onAddException}
+				rule={rule({ management: "managed" })}
+			/>,
+		);
+		const blocked = render(
+			<RuleCard
+				{...base}
+				onAddException={onAddException}
+				rule={rule({ forgeBlockReason: "GitLab does not say." })}
+			/>,
+		);
+		for (const html of [viewer, managed, blocked]) {
+			expect(html).not.toContain("Add exception");
+		}
+	});
+
+	test("without workflow access the card offers nothing", () => {
+		expect(render(<RuleCard {...base} rule={rule()} />)).not.toContain(
+			"Add exception",
+		);
+	});
+});
+
 /**
  * A rule the forge cannot feed must be INERT, not merely annotated. Leaving the
  * toggle live lets a maintainer arm account-age on a gitlab repo and believe

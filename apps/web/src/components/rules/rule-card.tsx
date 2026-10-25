@@ -50,6 +50,8 @@ export function RuleCard({
 	canEdit,
 	onDelete,
 	onOutcomeChange,
+	onAddException,
+	addingException,
 }: {
 	org: string;
 	repo: string;
@@ -57,6 +59,8 @@ export function RuleCard({
 	canEdit: boolean;
 	onDelete?: (ruleId: string) => Promise<void>;
 	onOutcomeChange?: (rule: RuleConfigView, next: RuleOutcomeSetting) => void;
+	onAddException?: (rule: RuleConfigView) => void;
+	addingException?: boolean;
 }) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const { valueFor, setField, pending } = useSaveQueue();
@@ -273,7 +277,9 @@ export function RuleCard({
 			</Panel>
 			<RuleOutcomeFooter
 				activity={activity}
+				addingException={addingException}
 				canEdit={canEdit}
+				onAddException={forgeBlocked ? undefined : onAddException}
 				off={off}
 				onOutcomeChange={onOutcomeChange}
 				org={org}
