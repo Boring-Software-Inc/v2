@@ -86,7 +86,7 @@ export function MessageEditor({
 	};
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div className="flex flex-col gap-2" data-feedback-name="MessageEditor">
 			<Field disabled={disabled}>
 				<FieldLabel>Message</FieldLabel>
 				<Textarea

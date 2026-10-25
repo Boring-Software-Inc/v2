@@ -21,7 +21,11 @@ export function SettingSection({
 	children: ReactNode;
 }) {
 	return (
-		<section aria-labelledby={id} className="flex flex-col gap-2">
+		<section
+			aria-labelledby={id}
+			className="flex flex-col gap-2"
+			data-feedback-name="SettingSection"
+		>
 			<header className="flex flex-col gap-0.5 px-3">
 				<h2 className="type-heading-sm" id={id}>
 					{title}

@@ -161,6 +161,7 @@ export function AnalyticsEvents({
 
 	return (
 		<EntityCard
+			feedbackName="AnalyticsEvents"
 			flush
 			title={
 				<>

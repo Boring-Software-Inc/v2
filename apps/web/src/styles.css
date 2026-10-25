@@ -607,3 +607,8 @@ body {
 		transition: none;
 	}
 }
+
+html.feedback-picking
+	*:not([data-feedback-chrome], [data-feedback-chrome] *) {
+	cursor: crosshair !important;
+}

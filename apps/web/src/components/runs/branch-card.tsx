@@ -201,7 +201,7 @@ export function BranchCard({
 	className?: string;
 }) {
 	return (
-		<Card className={className}>
+		<Card className={className} data-feedback-name="BranchCard">
 			<CardHeader>
 				<CardTitle className="truncate" title={branch.name}>
 					{branch.name}

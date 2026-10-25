@@ -172,7 +172,10 @@ export function AgentSetupCard({
 	const prompt = run ? setupPrompt({ org, code: run.code }) : setupPrompt();
 
 	return (
-		<Card aria-labelledby="agent-setup-heading">
+		<Card
+			aria-labelledby="agent-setup-heading"
+			data-feedback-name="AgentSetupCard"
+		>
 			<CardContent className="flex flex-col gap-4">
 				<div className="flex items-center justify-between gap-3">
 					<h2

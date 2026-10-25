@@ -11,7 +11,7 @@ import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { MascotArt } from "#/components/mascot/mascot-art";
 
 export function OrgBillingPage() {
-	const { open: openFeedback } = useFeedback();
+	const { start: openFeedback } = useFeedback();
 	return (
 		<Empty art={<MascotArt mood="billing-empty" />} variant="plain">
 			<EmptyHeader>
