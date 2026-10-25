@@ -38,7 +38,6 @@ export const RESPONSE_SCOPES = [
 	"needs_review",
 	"note",
 	"close",
-	"redaction",
 ] as const;
 
 export type ResponseScope = (typeof RESPONSE_SCOPES)[number];

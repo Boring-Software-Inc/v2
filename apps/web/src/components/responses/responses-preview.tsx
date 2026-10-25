@@ -1,209 +1,147 @@
-import type {
-	CloseGif,
-	RedactionPolicy,
-	ResponseConfig,
-} from "@tripwire/contracts";
-import { redactionLevelFor } from "@tripwire/contracts";
-import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { memo, useLayoutEffect, useMemo, useState } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import type { BlockViewer, SurfacePlan } from "@tripwire/contracts";
+import { type ReactNode, useId, useLayoutEffect } from "react";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/components/glaze/ui/segmented-control";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/glaze/ui/select";
 import { StatusMark } from "#/components/glaze/ui/status";
 import { CheckStateMock } from "#/components/responses/check-state-mock";
-import { CloseGifPicker } from "#/components/responses/close-gif-picker";
-import { CommentEditor } from "#/components/responses/comment-editor";
-import { useDrafts } from "#/components/responses/draft-store";
 import { GithubCommentMock } from "#/components/responses/github-comment-mock";
 import { usePreviewLink } from "#/components/responses/preview-link";
-import {
-	BLUR_SWAP,
-	PREVIEW_TRANSITION,
-} from "#/components/responses/preview-motion";
-import {
-	customTextKey,
-	type DraftKey,
-	type OutcomeMeta,
-	previewCheck,
-	previewPlan,
-	readDraftKey,
-	withDrafts,
+import type {
+	CheckPreview,
+	OutcomeMeta,
 } from "#/components/responses/responses-model";
 import { RunPageMock } from "#/components/responses/run-page-mock";
-import { useChangedAlone } from "#/hooks/use-changed-alone";
+import type { PreviewTab, PreviewView } from "#/lib/block-builder";
+import { pickValue } from "#/lib/pick-value";
 
-const INSTANT = { duration: 0 };
+const TABS: { value: PreviewTab; label: string }[] = [
+	{ value: "check", label: "Check run" },
+	{ value: "comment", label: "PR comment" },
+	{ value: "run-page", label: "Run page" },
+];
+
+const VIEWERS: { value: BlockViewer; label: string }[] = [
+	{ value: "outsider", label: "Outsider" },
+	{ value: "member", label: "Member" },
+];
+
+const TAB_VALUES = TABS.map((tab) => tab.value);
+const VIEWER_VALUES = VIEWERS.map((viewer) => viewer.value);
 
 export interface ResponsesPreviewProps {
-	config: ResponseConfig;
+	view: PreviewView;
 	outcome: OutcomeMeta;
-	policy: RedactionPolicy;
-	showRunPage: boolean;
-	canEdit: boolean;
-	org: string;
-	onSaveText: (key: DraftKey, text: string) => void;
-	onGifChange: (gif: CloseGif | null) => void;
+	plan: SurfacePlan;
+	check: CheckPreview;
+	runPageLevel: number;
+	canvas: ReactNode;
+	onView: (view: Partial<PreviewView>) => void;
 }
 
-function defaultFirstLine(
-	config: ResponseConfig,
-	outcome: OutcomeMeta,
-	policy: RedactionPolicy,
-): string {
-	const plain = {
-		...config,
-		[outcome.override]: { ...config[outcome.override], customText: "" },
-	};
-	const body = previewPlan(plain, outcome, policy).commentBody ?? "";
-	return body.split("\n\n")[0]?.replace(/\*\*/g, "") ?? "";
-}
-
-export const ResponsesPreview = memo(function ResponsesPreview({
-	config,
+export function ResponsesPreview({
+	view,
 	outcome,
-	policy,
-	showRunPage,
-	canEdit,
-	org,
-	onSaveText,
-	onGifChange,
+	plan,
+	check,
+	runPageLevel,
+	canvas,
+	onView,
 }: ResponsesPreviewProps) {
-	const drafts = useDrafts();
-	const effective = useMemo(() => withDrafts(config, drafts), [config, drafts]);
-	const plan = useMemo(
-		() => previewPlan(effective, outcome, policy),
-		[effective, outcome, policy],
-	);
-	const check = useMemo(
-		() => previewCheck(effective, outcome, policy),
-		[effective, outcome, policy],
-	);
-	const comment = plan.comment === "upsert" ? plan.commentBody : null;
-	const runPageLevel = redactionLevelFor(policy, "run-page");
-	const typing = useChangedAlone(drafts, config);
+	const titleId = useId();
+	const setTab = (value: string) => {
+		const tab = pickValue(TAB_VALUES, value);
+		if (tab) {
+			onView({ tab });
+		}
+	};
+	const setViewer = (value: string | null) => {
+		const viewer = pickValue(VIEWER_VALUES, value ?? "");
+		if (viewer) {
+			onView({ viewer });
+		}
+	};
 	const link = usePreviewLink();
 	useLayoutEffect(() => {
 		link.refresh();
 	});
 
-	const textKey = customTextKey(outcome);
-	const [editing, setEditing] = useState(false);
-	const editable = canEdit && textKey !== null && comment !== null;
-	const isClose = outcome.value === "close";
-	const gif = config.closeComment.gif;
-
 	return (
-		<MotionConfig
-			reducedMotion="user"
-			transition={typing ? INSTANT : PREVIEW_TRANSITION}
+		<section
+			aria-labelledby={titleId}
+			className="flex min-h-0 flex-col rounded-shell border border-line-faint bg-shell"
+			ref={link.attach}
 		>
-			<section
-				aria-label="Preview"
-				className="flex flex-col gap-6"
-				data-preview-root=""
-				ref={link.attach}
-			>
-				<AnimatePresence initial={false}>
-					{plan.review ? (
-						<motion.div
-							className="relative rounded-shell"
-							key="review"
-							{...BLUR_SWAP}
-						>
+			<header className="flex shrink-0 flex-wrap items-center gap-3 px-6 py-3">
+				<h2 className="me-auto type-label-lg text-text-1" id={titleId}>
+					Preview
+				</h2>
+				<SegmentedControl
+					aria-label="Surface"
+					onValueChange={setTab}
+					size="sm"
+					value={view.tab}
+				>
+					{TABS.map((tab) => (
+						<SegmentedControlItem key={tab.value} value={tab.value}>
+							{tab.label}
+						</SegmentedControlItem>
+					))}
+				</SegmentedControl>
+				<Select items={VIEWERS} onValueChange={setViewer} value={view.viewer}>
+					<SelectTrigger aria-label="Viewer" className="w-32" size="sm">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent size="sm">
+						{VIEWERS.map((viewer) => (
+							<SelectItem key={viewer.value} value={viewer.value}>
+								{viewer.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</header>
+			<div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+				{view.tab === "comment" ? canvas : null}
+				{view.tab === "check" ? (
+					<div className="flex flex-col gap-6">
+						{plan.review ? (
 							<GithubCommentMock action="review" body={plan.review} />
-						</motion.div>
-					) : null}
-				</AnimatePresence>
-				{comment !== null || plan.review === null ? (
-					<div className="flex flex-col gap-3">
-						<div className="relative rounded-shell" data-region="comment">
-							<GithubCommentMock
-								body={comment}
-								edited={outcome.edited}
-								editor={
-									editing && editable && textKey ? (
-										<CommentEditor
-											initial={readDraftKey(config, textKey)}
-											onCancel={() => setEditing(false)}
-											onSave={(text) => {
-												onSaveText(textKey, text);
-												setEditing(false);
-											}}
-											placeholder={defaultFirstLine(config, outcome, policy)}
-										/>
-									) : undefined
-								}
-								headerAction={
-									editable && !editing ? (
-										<Button
-											onClick={() => setEditing(true)}
-											size="sm"
-											variant="ghost"
-										>
-											Edit
-										</Button>
-									) : undefined
-								}
-								silentNote="Turn on Post a comment to preview one here."
+						) : null}
+						<div className="sm:ms-13" data-region="check">
+							<CheckStateMock
+								posted={check.posted}
+								summary={check.summary}
+								verdict={check.verdict}
 							/>
 						</div>
-						{isClose && comment !== null ? (
-							<div
-								className="flex flex-wrap items-center gap-2 sm:ms-13"
-								data-region="gif-controls"
-							>
-								<CloseGifPicker
-									disabled={!canEdit}
-									gif={gif}
-									onPick={onGifChange}
-									org={org}
-								/>
-								{gif ? (
-									<Button
-										disabled={!canEdit}
-										onClick={() => onGifChange(null)}
-										size="sm"
-										variant="ghost"
-									>
-										Remove GIF
-									</Button>
-								) : null}
-							</div>
+						{outcome.value === "close" ? (
+							<p className="flex items-center gap-2 type-body-sm text-text-2 sm:ms-13">
+								<span className="text-fail-text">
+									<StatusMark label="Closed" status="fail" />
+								</span>
+								<span>
+									<span className="font-semibold text-text-1">tripwire</span>{" "}
+									closed this change request
+								</span>
+							</p>
 						) : null}
 					</div>
 				) : null}
-				<div className="relative rounded-shell sm:ms-13" data-region="check">
-					<CheckStateMock
-						posted={check.posted}
-						summary={check.summary}
-						verdict={check.verdict}
-					/>
-				</div>
-				{isClose ? (
-					<p
-						className="flex items-center gap-2 type-body-sm text-text-2 sm:ms-13"
-						data-dim=""
-					>
-						<span className="text-fail-text">
-							<StatusMark label="Closed" status="fail" />
-						</span>
-						<span>
-							<span className="font-semibold text-text-1">tripwire</span> closed
-							this change request
-						</span>
-					</p>
+				{view.tab === "run-page" ? (
+					<div className="sm:ms-13" data-region="run-page">
+						<RunPageMock level={runPageLevel} />
+					</div>
 				) : null}
-				<AnimatePresence initial={false}>
-					{showRunPage ? (
-						<motion.div
-							className="relative rounded-shell sm:ms-13"
-							data-region="run-page"
-							key="run-page"
-							{...BLUR_SWAP}
-						>
-							<RunPageMock level={runPageLevel} />
-						</motion.div>
-					) : null}
-				</AnimatePresence>
-			</section>
-		</MotionConfig>
+			</div>
+		</section>
 	);
-});
+}

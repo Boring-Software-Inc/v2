@@ -6,7 +6,7 @@ import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { Badge } from "#/components/glaze/ui/badge";
 import {
 	Empty,
-	EmptyDescription,
+	EmptyContent,
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
@@ -242,9 +242,17 @@ function Markdown({ blocks }: { blocks: BodyBlock[] }) {
 	);
 }
 
+export function CommentMarkdown({ body }: { body: string }) {
+	return (
+		<div className="flex flex-col gap-4">
+			<Markdown blocks={parseBody(body)} />
+		</div>
+	);
+}
+
 export interface GithubCommentMockProps {
 	body: string | null;
-	silentNote?: string;
+	silentAction?: ReactNode;
 	action?: "comment" | "review";
 	edited?: boolean;
 	headerAction?: ReactNode;
@@ -253,7 +261,7 @@ export interface GithubCommentMockProps {
 
 export function GithubCommentMock({
 	body,
-	silentNote,
+	silentAction,
 	action = "comment",
 	edited = false,
 	headerAction,
@@ -264,7 +272,7 @@ export function GithubCommentMock({
 			<AnimatePresence initial={false} mode="wait">
 				{body === null ? (
 					<motion.div key="silent" {...BLUR_SWAP}>
-						<SilentComment note={silentNote} />
+						<SilentComment action={silentAction} />
 					</motion.div>
 				) : (
 					<motion.div key="comment" {...BLUR_SWAP}>
@@ -282,15 +290,15 @@ export function GithubCommentMock({
 	);
 }
 
-function SilentComment({ note }: { note?: string }) {
+function SilentComment({ action }: { action?: ReactNode }) {
 	return (
 		<div className="sm:ms-13" data-dim="">
 			<PreviewObject>
 				<Empty size="sm" variant="plain">
 					<EmptyHeader>
 						<EmptyTitle>Tripwire posts no comment</EmptyTitle>
-						{note ? <EmptyDescription>{note}</EmptyDescription> : null}
 					</EmptyHeader>
+					{action ? <EmptyContent>{action}</EmptyContent> : null}
 				</Empty>
 			</PreviewObject>
 		</div>
@@ -321,9 +329,9 @@ function PostedComment({
 				<TripwireLogo size={22} />
 			</span>
 			<article className="min-w-0 flex-1">
-				<PreviewObject>
+				<PreviewObject clip={!editor}>
 					<header
-						className="flex flex-wrap items-center gap-x-1.5 gap-y-1 bg-shell px-4 py-2"
+						className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-t-panel bg-shell px-4 py-2"
 						data-dim=""
 					>
 						<span className="type-label font-semibold text-text-1">

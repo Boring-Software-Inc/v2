@@ -1,36 +1,26 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
-import type { CloseGif, RedactionPolicy } from "@tripwire/contracts";
+import type { RedactionPolicy } from "@tripwire/contracts";
 import { OPEN_REDACTION, resolveRedaction } from "@tripwire/contracts";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
 } from "#/components/glaze/ui/segmented-control";
 import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { DraftStoreProvider } from "#/components/responses/draft-store";
+import { ResponseBuilder } from "#/components/responses/blocks/response-builder";
 import { PreviewLinkProvider } from "#/components/responses/preview-link";
-import {
-	PreviewPane,
-	type SheetState,
-} from "#/components/responses/preview-pane";
 import { RedactionSettings } from "#/components/responses/redaction-settings";
 import {
-	type DraftKey,
-	encodeGif,
 	flattenConfig,
 	OUTCOMES,
 	outcomeMeta,
 	unflattenConfig,
 } from "#/components/responses/responses-model";
-import {
-	PreviewSkeleton,
-	SettingsSkeleton,
-} from "#/components/responses/responses-page-skeleton";
-import { ResponsesPreview } from "#/components/responses/responses-preview";
+import { BuilderSkeleton } from "#/components/responses/responses-page-skeleton";
 import { SaveState } from "#/components/responses/save-state";
-import { VerdictSettings } from "#/components/responses/verdict-settings";
+import { useSaveResponseConfig } from "#/components/responses/use-save-response-config";
 import {
 	type SaveQueueCommit,
 	SaveQueueProvider,
@@ -40,11 +30,9 @@ import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import { pickValue } from "#/lib/pick-value";
 import { RESPONSE_SCOPES } from "#/lib/repo-search";
-import { saveRepoResponseConfig } from "#/lib/response.functions";
 import {
 	orgResponseDefaultsQueryOptions,
 	responseConfigQueryOptions,
-	responseQueryKeys,
 } from "#/lib/response.query";
 
 const routeApi = getRouteApi("/$org/$repo/responses");
@@ -58,8 +46,7 @@ export function ResponsesPage() {
 		responseConfigQueryOptions(org, repoId),
 	);
 	const { data: orgDefaults } = useQuery(orgResponseDefaultsQueryOptions(org));
-	const queryClient = useQueryClient();
-	const [saveError, setSaveError] = useState<string | null>(null);
+	const saveConfig = useSaveResponseConfig(org, repoId);
 
 	const savedValues = useMemo(
 		() => (savedConfig ? flattenConfig(savedConfig) : {}),
@@ -72,47 +59,37 @@ export function ResponsesPage() {
 				error: "Settings are still loading. Wait a moment and save again.",
 			};
 		}
-		const next = unflattenConfig({ ...savedValues, ...pending });
-		try {
-			const result = await saveRepoResponseConfig({
-				data: { org, repoId, config: next },
-			});
-			if (result && "error" in result) {
-				setSaveError(result.error);
-				return { error: result.error };
-			}
-		} catch {
-			setSaveError(
-				"Changes did not save. Check your connection and save again.",
-			);
-			return {
-				error: "Changes did not save. Check your connection and save again.",
-			};
-		}
-		setSaveError(null);
-		await queryClient.invalidateQueries({
-			queryKey: responseQueryKeys.config(org, repoId),
-		});
-		return { ok: true };
+		return saveConfig
+			.mutateAsync(unflattenConfig({ ...savedValues, ...pending }))
+			.then(() => ({ ok: true as const }))
+			.catch((error: Error) => ({ error: error.message }));
 	};
 
 	return (
 		<SaveQueueProvider commit={commitBatch} savedValues={savedValues}>
-			<DraftStoreProvider>
-				<PreviewLinkProvider>
-					<ResponsesView
-						canEdit={canEdit}
-						loaded={Boolean(savedConfig && orgDefaults)}
-						org={org}
-						orgPolicy={orgDefaults?.defaults.redaction ?? OPEN_REDACTION}
-						onDiscarded={() => setSaveError(null)}
-						saveError={saveError}
-						savedValues={savedValues}
-					/>
-				</PreviewLinkProvider>
-			</DraftStoreProvider>
+			<PreviewLinkProvider>
+				<ResponsesView
+					canEdit={canEdit}
+					loaded={Boolean(savedConfig && orgDefaults)}
+					onDiscarded={saveConfig.reset}
+					org={org}
+					orgPolicy={orgDefaults?.defaults.redaction ?? OPEN_REDACTION}
+					saveError={saveConfig.error?.message ?? null}
+					savedValues={savedValues}
+				/>
+			</PreviewLinkProvider>
 		</SaveQueueProvider>
 	);
+}
+
+interface ResponsesViewProps {
+	canEdit: boolean;
+	org: string;
+	loaded: boolean;
+	orgPolicy: RedactionPolicy;
+	saveError: string | null;
+	savedValues: Parameters<SaveQueueCommit>[0];
+	onDiscarded: () => void;
 }
 
 function ResponsesView({
@@ -123,18 +100,19 @@ function ResponsesView({
 	saveError,
 	savedValues,
 	onDiscarded,
-}: {
-	canEdit: boolean;
-	org: string;
-	loaded: boolean;
-	orgPolicy: RedactionPolicy;
-	saveError: string | null;
-	savedValues: Parameters<SaveQueueCommit>[0];
-	onDiscarded: () => void;
-}) {
-	const { pending, setField, discard, commit } = useSaveQueue();
+}: ResponsesViewProps) {
+	const { pending, setField, discard } = useSaveQueue();
 	const { scope } = routeApi.useSearch();
 	const navigate = routeApi.useNavigate();
+	const outcome = outcomeMeta(scope);
+	const [epoch, setEpoch] = useState(0);
+
+	const config = useMemo(
+		() => (loaded ? unflattenConfig({ ...savedValues, ...pending }) : null),
+		[loaded, savedValues, pending],
+	);
+	const policy = config ? resolveRedaction(config.redaction, orgPolicy) : null;
+
 	const setScope = (value: string) => {
 		const next = pickValue(RESPONSE_SCOPES, value);
 		if (next) {
@@ -145,150 +123,65 @@ function ResponsesView({
 			});
 		}
 	};
-	const outcome = outcomeMeta(scope === "redaction" ? "block" : scope);
-	const [sheet, setSheet] = useState<SheetState>("closed");
-	const settingsId = useId();
-	const [editorEpoch, setEditorEpoch] = useState(0);
-	const [saveRequested, setSaveRequested] = useState(false);
-
-	const config = useMemo(
-		() => (loaded ? unflattenConfig({ ...savedValues, ...pending }) : null),
-		[loaded, savedValues, pending],
-	);
-	const policy = useMemo(
-		() => (config ? resolveRedaction(config.redaction, orgPolicy) : null),
-		[config, orgPolicy],
-	);
-
-	useEffect(() => {
-		if (saveRequested) {
-			setSaveRequested(false);
-			void commit();
-		}
-	}, [saveRequested, commit]);
-	const onSaveText = useCallback(
-		(key: DraftKey, text: string) => {
-			setField(key, text);
-			setSaveRequested(true);
-		},
-		[setField],
-	);
-	const onGifChange = useCallback(
-		(gif: CloseGif | null) => setField("closeComment.gif", encodeGif(gif)),
-		[setField],
-	);
 	const onDiscard = () => {
 		discard();
-		setEditorEpoch((n) => n + 1);
+		setEpoch((n) => n + 1);
 		onDiscarded();
 	};
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div
-				className="group/responses relative flex h-full min-h-0 flex-col lg:grid lg:grid-cols-[--spacing(120)_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] xl:grid-cols-[--spacing(150)_minmax(0,1fr)] min-[96rem]:grid-cols-[--spacing(160)_minmax(0,1fr)]"
-				data-responses=""
-				data-sheet={sheet}
-			>
-				<div className="flex min-h-0 flex-1 scroll-pt-32 scroll-pb-17 flex-col overflow-y-auto group-data-[sheet=half]/responses:scroll-pb-[50%] lg:contents">
-					<header className="sticky top-0 z-(--z-sticky) flex flex-wrap items-center gap-x-10 gap-y-3 bg-paper px-4 pt-4 pb-3 md:px-6 lg:static lg:col-span-2 lg:min-h-18 lg:flex-nowrap lg:px-8 lg:py-3">
-						<div className="flex min-w-0 flex-1 flex-col gap-0.5 lg:flex-none">
-							<h1 className="type-title lg:type-heading">Responses</h1>
-							<p className="type-body-sm text-text-2 max-lg:hidden">
-								What contributors see on GitHub.
-							</p>
-						</div>
-						<div className="order-last flex w-full items-center gap-3 max-lg:overflow-x-auto lg:order-none lg:w-auto lg:flex-1">
-							<SegmentedControl
-								aria-label="Settings"
-								className="max-lg:*:shrink-0"
-								onValueChange={setScope}
-								value={scope}
-							>
-								{OUTCOMES.map((option) => (
-									<SegmentedControlItem key={option.value} value={option.value}>
-										{option.label}
-									</SegmentedControlItem>
-								))}
-								<span
-									aria-hidden
-									className="mx-1 my-1.5 w-px shrink-0 bg-line"
-								/>
-								<SegmentedControlItem value="redaction">
-									Redaction
-								</SegmentedControlItem>
-							</SegmentedControl>
-						</div>
-						<SaveState
-							canEdit={canEdit}
-							error={saveError}
-							onDiscard={onDiscard}
-						/>
-					</header>
-					<section
-						aria-labelledby={settingsId}
-						className="flex flex-col lg:col-start-1 lg:row-start-2 lg:min-h-0"
-					>
-						<h2
-							className="flex h-12 shrink-0 items-center px-6 type-label-lg text-text-1 max-lg:sr-only"
-							id={settingsId}
-						>
-							Settings
-						</h2>
-						<div className="px-1 pb-6 md:px-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:p-5">
-							<SkeletonSwap
-								fallback={<SettingsSkeleton />}
-								label="Loading response settings"
-								loading={!config}
-							>
-								{config && policy && scope === "redaction" ? (
-									<div className="max-w-140">
-										<RedactionSettings
-											canEdit={canEdit}
-											config={config}
-											effective={policy}
-											orgPolicy={orgPolicy}
-											setField={setField}
-										/>
-									</div>
-								) : config && policy ? (
-									<div className="max-w-140">
-										<VerdictSettings
-											canEdit={canEdit}
-											config={config}
-											editorEpoch={editorEpoch}
-											key={outcome.value}
-											outcome={outcome}
-											policy={policy}
-											setField={setField}
-										/>
-									</div>
-								) : null}
-							</SkeletonSwap>
-						</div>
-					</section>
-					<div
-						aria-hidden
-						className="h-17 shrink-0 group-data-[sheet=half]/responses:h-1/2 lg:hidden"
+			<div className="flex h-full min-h-0 flex-col overflow-y-auto">
+				<header className="flex flex-wrap items-center gap-x-10 gap-y-3 px-4 pt-4 pb-3 md:px-6 lg:min-h-18 lg:px-8 lg:py-3">
+					<h1 className="me-auto type-title lg:type-heading">Responses</h1>
+					<SaveState
+						canEdit={canEdit}
+						error={saveError}
+						onDiscard={onDiscard}
 					/>
+				</header>
+				<div className="px-4 pb-4 md:px-6 lg:px-8">
+					<SegmentedControl
+						aria-label="Outcome"
+						className="max-w-full overflow-x-auto"
+						onValueChange={setScope}
+						value={scope}
+					>
+						{OUTCOMES.map((option) => (
+							<SegmentedControlItem key={option.value} value={option.value}>
+								{option.label}
+							</SegmentedControlItem>
+						))}
+					</SegmentedControl>
 				</div>
-				<PreviewPane onSheetChange={setSheet} sheet={sheet}>
+				<SkeletonSwap
+					fallback={<BuilderSkeleton />}
+					label="Loading response settings"
+					loading={!(config && policy)}
+				>
 					{config && policy ? (
-						<ResponsesPreview
-							canEdit={canEdit}
-							config={config}
-							key={scope}
-							onGifChange={onGifChange}
-							onSaveText={onSaveText}
-							org={org}
-							outcome={outcome}
-							policy={policy}
-							showRunPage={scope === "redaction"}
-						/>
-					) : (
-						<PreviewSkeleton />
-					)}
-				</PreviewPane>
+						<div className="grid min-h-0 flex-1 grid-cols-1 gap-4 px-4 pb-6 md:px-6 lg:grid-cols-[auto_minmax(0,1fr)] lg:px-8 xl:grid-cols-[auto_minmax(0,1fr)_--spacing(96)]">
+							<ResponseBuilder
+								canEdit={canEdit}
+								config={config}
+								key={`${outcome.value}-${epoch}`}
+								org={org}
+								outcome={outcome}
+								policy={policy}
+								setField={setField}
+							/>
+							<div className="lg:col-span-2 xl:col-span-1">
+								<RedactionSettings
+									canEdit={canEdit}
+									config={config}
+									effective={policy}
+									orgPolicy={orgPolicy}
+									setField={setField}
+								/>
+							</div>
+						</div>
+					) : null}
+				</SkeletonSwap>
 			</div>
 		</DashboardLayout>
 	);

@@ -9,11 +9,11 @@ import {
 	encodeGif,
 	flattenConfig,
 	OUTCOMES,
+	outcomeBlocks,
 	outcomeMeta,
 	previewCheck,
 	previewPlan,
 	unflattenConfig,
-	withDrafts,
 } from "#/components/responses/responses-model";
 
 const policy = (level: number) => redactionPolicySchema.parse({ level });
@@ -101,14 +101,21 @@ describe("the Responses preview shows what lands on the change request", () => {
 		expect(plan.commentBody).not.toContain("2 days old");
 	});
 
-	test("a draft shows in the preview before it saves", () => {
-		const outcome = outcomeMeta("changes_required");
-		const drafted = withDrafts(DEFAULT_RESPONSE_CONFIG, {
-			"changesRequiredComment.customText": "Retarget to main, please.",
-		});
-		expect(previewPlan(drafted, outcome, policy(0)).commentBody).toContain(
-			"Retarget to main, please.",
-		);
+	test("an outcome without stored blocks starts from today's comment", () => {
+		expect(
+			outcomeBlocks(DEFAULT_RESPONSE_CONFIG, outcomeMeta("block")).map(
+				(block) => block.type,
+			),
+		).toEqual([
+			"headline",
+			"ai-notice",
+			"failed-rules",
+			"instruction",
+			"notes",
+			"rerun-notice",
+			"run-link",
+			"help",
+		]);
 	});
 });
 
@@ -124,6 +131,13 @@ describe("the save queue round trips every outcome setting", () => {
 			onChangesRequired: "silent",
 			changesRequiredComment: { customText: "Fix it." },
 			onNote: "silent",
+			blocks: {
+				close: [
+					{ id: "a", type: "headline" },
+					{ id: "b", type: "gif", gif: GIF },
+				],
+				note: [],
+			},
 		});
 		expect(unflattenConfig(flattenConfig(config))).toEqual(config);
 		expect(unflattenConfig(flattenConfig(DEFAULT_RESPONSE_CONFIG))).toEqual(
