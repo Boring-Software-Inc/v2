@@ -94,6 +94,7 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 		>
 			{reads("moderation") ? (
 				<NavLink
+					exact={false}
 					variant={variant}
 					icon={Moderation}
 					label="Human review"

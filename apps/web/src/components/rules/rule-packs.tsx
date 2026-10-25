@@ -47,6 +47,22 @@ export function rulesCaught(
 	return tuned ? null : previewCaught(preview, ruleIds);
 }
 
+export function replayRuleIds(rules: readonly RuleConfigView[]): string[] {
+	const on = rules
+		.filter((rule) => rule.enabled && rule.source === "built-in")
+		.map((rule) => rule.ruleId);
+	const chosen =
+		on.length > 0
+			? on
+			: RULE_PACKS.filter((pack) => pack.recommended).flatMap((pack) => [
+					...pack.ruleIds,
+				]);
+	return chosen.filter((id) => {
+		const rule = rules.find((r) => r.ruleId === id);
+		return rule === undefined || sameSettings(rule.config, rule.defaultConfig);
+	});
+}
+
 export function PreviewWindow({
 	preview,
 	repoName,
@@ -73,7 +89,9 @@ export function RulePacks({
 	canEdit,
 	pending,
 	onTurnOn,
+	heading = true,
 }: {
+	heading?: boolean;
 	rules: readonly RuleConfigView[];
 	preview: RulePreview | null;
 	repoName: string;
@@ -82,11 +100,17 @@ export function RulePacks({
 	onTurnOn: (key: string, label: string, ruleIds: string[]) => void;
 }) {
 	return (
-		<section aria-labelledby="rule-packs-title" className="flex flex-col gap-3">
+		<section
+			aria-label={heading ? undefined : "Rule packs"}
+			aria-labelledby={heading ? "rule-packs-title" : undefined}
+			className="flex flex-col gap-3"
+		>
 			<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-				<h2 className="type-heading-sm" id="rule-packs-title">
-					Start with a pack
-				</h2>
+				{heading ? (
+					<h2 className="type-heading-sm" id="rule-packs-title">
+						Start with a pack
+					</h2>
+				) : null}
 				<PreviewWindow preview={preview} repoName={repoName} />
 			</div>
 			<Card>

@@ -27,6 +27,7 @@ import {
 	OrgSwitcher,
 	RepoSwitcher,
 } from "#/components/layouts/scope-switchers";
+import { SetupPill } from "#/components/setup/setup-pill";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 import type { CurrentUser } from "#/lib/auth.functions";
@@ -37,7 +38,8 @@ interface DashboardTopbarProps {
 }
 
 export function DashboardTopbar({ user }: DashboardTopbarProps) {
-	const org = useActiveScope().org?.slug;
+	const scope = useActiveScope();
+	const org = scope.org?.slug;
 
 	return (
 		<nav
@@ -52,6 +54,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 				<>
 					<Slash />
 					<RepoSwitcher />
+					{scope.repo ? <SetupPill /> : null}
 				</>
 			) : null}
 			<div className="ms-auto flex shrink-0 items-center gap-1 sm:gap-2">
