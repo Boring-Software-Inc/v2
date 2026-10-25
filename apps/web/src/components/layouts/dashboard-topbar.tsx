@@ -1,7 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
-import { useState } from "react";
-import { AccountSettingsDialog } from "#/components/account/account-settings-dialog";
 import { TripwireWordmark } from "#/components/common/tripwire-wordmark";
 import { useFeedback } from "#/components/feedback";
 import {
@@ -20,6 +18,7 @@ import {
 	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuLabel,
+	DropdownMenuLinkItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/glaze/ui/dropdown-menu";
@@ -120,80 +119,80 @@ export function UserMenu({
 	const { resolvedTheme, setTheme } = useTheme();
 	const hasMounted = useHasMounted();
 	const isDark = hasMounted && resolvedTheme === "dark";
-	const [settingsOpen, setSettingsOpen] = useState(false);
+	const org = useActiveScope().org?.slug;
 	return (
-		<>
-			<DropdownMenu>
-				<DropdownMenuTrigger
+		<DropdownMenu>
+			<DropdownMenuTrigger
+				render={
+					<Button
+						aria-label={`Account menu for ${moderator.name}`}
+						className={showName ? "w-full min-w-0 justify-start" : undefined}
+						size={showName ? "default" : "icon"}
+						variant="ghost"
+					/>
+				}
+			>
+				<Avatar
+					decorative
+					name={moderator.name}
+					src={moderator.image || undefined}
+				/>
+				{showName ? (
+					<span className="min-w-0 truncate">{moderator.name}</span>
+				) : null}
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				align="end"
+				className="min-w-(--menu-min) max-w-popover"
+			>
+				<DropdownMenuGroup>
+					<DropdownMenuLabel className="flex-col items-start justify-center gap-0.5 py-1.5">
+						<span className="max-w-full truncate type-label text-text-1">
+							{moderator.name}
+						</span>
+						{identity ? (
+							<span className="max-w-full truncate type-caption text-text-2">
+								{identity}
+							</span>
+						) : null}
+					</DropdownMenuLabel>
+				</DropdownMenuGroup>
+				<DropdownMenuSeparator />
+				<DropdownMenuLinkItem
 					render={
-						<Button
-							aria-label={`Account menu for ${moderator.name}`}
-							className={showName ? "w-full min-w-0 justify-start" : undefined}
-							size={showName ? "default" : "icon"}
-							variant="ghost"
-						/>
+						org ? (
+							<Link params={{ org }} to="/$org/settings/account" />
+						) : (
+							<Link to="/account" />
+						)
 					}
 				>
-					<Avatar
-						decorative
-						name={moderator.name}
-						src={moderator.image || undefined}
-					/>
-					{showName ? (
-						<span className="min-w-0 truncate">{moderator.name}</span>
-					) : null}
-				</DropdownMenuTrigger>
-				<DropdownMenuContent
-					align="end"
-					className="min-w-(--menu-min) max-w-popover"
+					<Icon icon={Settings} />
+					Account settings
+				</DropdownMenuLinkItem>
+				<DropdownMenuItem onClick={openFeedback}>
+					<Icon icon={Comment} />
+					Send feedback
+				</DropdownMenuItem>
+				<DropdownMenuItem onClick={() => setTheme(isDark ? "light" : "dark")}>
+					<Icon icon={isDark ? Light : Dark} />
+					{isDark ? "Light theme" : "Dark theme"}
+				</DropdownMenuItem>
+				<DropdownMenuSeparator />
+				<DropdownMenuItem
+					onClick={() =>
+						authClient.signOut({
+							fetchOptions: {
+								onSuccess: () => window.location.assign("/login"),
+							},
+						})
+					}
 				>
-					<DropdownMenuGroup>
-						<DropdownMenuLabel className="flex-col items-start justify-center gap-0.5 py-1.5">
-							<span className="max-w-full truncate type-label text-text-1">
-								{moderator.name}
-							</span>
-							{identity ? (
-								<span className="max-w-full truncate type-caption text-text-2">
-									{identity}
-								</span>
-							) : null}
-						</DropdownMenuLabel>
-					</DropdownMenuGroup>
-					<DropdownMenuSeparator />
-					<DropdownMenuItem onClick={() => setSettingsOpen(true)}>
-						<Icon icon={Settings} />
-						Account settings
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={openFeedback}>
-						<Icon icon={Comment} />
-						Send feedback
-					</DropdownMenuItem>
-					<DropdownMenuItem onClick={() => setTheme(isDark ? "light" : "dark")}>
-						<Icon icon={isDark ? Light : Dark} />
-						{isDark ? "Light theme" : "Dark theme"}
-					</DropdownMenuItem>
-					<DropdownMenuSeparator />
-					<DropdownMenuItem
-						variant="destructive"
-						onClick={() =>
-							authClient.signOut({
-								fetchOptions: {
-									onSuccess: () => window.location.assign("/login"),
-								},
-							})
-						}
-					>
-						<Icon icon={SignOut} />
-						Sign out
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
-			<AccountSettingsDialog
-				onOpenChange={setSettingsOpen}
-				open={settingsOpen}
-				user={moderator}
-			/>
-		</>
+					<Icon icon={SignOut} />
+					Sign out
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 

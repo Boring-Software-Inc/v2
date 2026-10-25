@@ -118,13 +118,7 @@ function NoReposYet({ org }: { org: string }) {
 			<EmptyContent>
 				<Button
 					nativeButton={false}
-					render={
-						<Link
-							params={{ org }}
-							search={{ settings: "connections" }}
-							to="/$org/home"
-						/>
-					}
+					render={<Link params={{ org }} to="/$org/settings/connections" />}
 					size="sm"
 					variant="secondary"
 				>

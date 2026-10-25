@@ -11,7 +11,7 @@ import { toast } from "#/components/glaze/ui/toast";
 import { PreviewLinkProvider } from "#/components/responses/preview-link";
 import { RedactionControls } from "#/components/responses/redaction-controls";
 import { sameSurfaces } from "#/components/responses/redaction-model";
-import { SettingSection } from "#/components/responses/setting-rows";
+import { SettingsHeader } from "#/components/settings/settings-frame";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import {
 	type OrgResponseDefaultsView,
@@ -43,22 +43,25 @@ export function OrgRedactionPage({ org }: { org: string }) {
 	const { data } = useQuery(orgResponseDefaultsQueryOptions(org));
 
 	return (
-		<SkeletonSwap
-			fallback={<OrgRedactionPageSkeleton />}
-			label="Loading redaction defaults"
-			loading={!data}
-		>
-			{data ? (
-				<PreviewLinkProvider>
-					<OrgRedactionForm
-						canEdit={canEdit}
-						key={JSON.stringify(data.defaults.redaction)}
-						org={org}
-						view={data}
-					/>
-				</PreviewLinkProvider>
-			) : null}
-		</SkeletonSwap>
+		<>
+			<SettingsHeader title="Redaction" />
+			<SkeletonSwap
+				fallback={<OrgRedactionPageSkeleton />}
+				label="Loading redaction defaults"
+				loading={!data}
+			>
+				{data ? (
+					<PreviewLinkProvider>
+						<OrgRedactionForm
+							canEdit={canEdit}
+							key={JSON.stringify(data.defaults.redaction)}
+							org={org}
+							view={data}
+						/>
+					</PreviewLinkProvider>
+				) : null}
+			</SkeletonSwap>
+		</>
 	);
 }
 
@@ -96,7 +99,7 @@ function OrgRedactionForm({
 
 	return (
 		<form
-			className="flex max-w-140 flex-col gap-4"
+			className="flex flex-col gap-4"
 			onSubmit={(event) => {
 				event.preventDefault();
 				if (dirty) {
@@ -104,11 +107,7 @@ function OrgRedactionForm({
 				}
 			}}
 		>
-			<SettingSection
-				description="What people outside your org see."
-				id="org-redaction"
-				title="Redaction"
-			>
+			<div className="flex flex-col gap-0.5">
 				<RedactionControls
 					disabled={!canEdit}
 					onLevel={(level) => setDraft((prev) => ({ ...prev, level }))}
@@ -116,7 +115,7 @@ function OrgRedactionForm({
 					onSurfaces={(surfaces) => setDraft((prev) => ({ ...prev, surfaces }))}
 					policy={draft}
 				/>
-			</SettingSection>
+			</div>
 			<div className="flex items-center gap-2 px-3">
 				<span className="me-auto type-body-sm text-text-2">
 					{usageLine(view)}
@@ -147,9 +146,9 @@ function OrgRedactionForm({
 	);
 }
 
-export function OrgRedactionPageSkeleton() {
+function OrgRedactionPageSkeleton() {
 	return (
-		<div className="flex max-w-140 flex-col gap-4 px-3">
+		<div aria-hidden className="flex flex-col gap-4 px-3">
 			<SkeletonText className="w-24" />
 			<Skeleton className="h-10 w-full rounded-pill" />
 			<SkeletonText className="w-48" />

@@ -7,7 +7,7 @@ import {
 } from "./org-search";
 
 describe("orgSearchSchema", () => {
-	test("leaves the settings dialog closed and shows active invites", () => {
+	test("has no old settings tab and shows active invites", () => {
 		expect(orgSearchSchema.parse({})).toEqual({
 			settings: undefined,
 			...ORG_SEARCH_DEFAULTS,

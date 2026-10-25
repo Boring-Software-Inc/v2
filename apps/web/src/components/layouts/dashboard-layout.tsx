@@ -10,7 +10,6 @@ import {
 	FeedbackProvider,
 } from "#/components/feedback";
 import { ShellNav } from "#/components/layouts/shell-nav";
-import { OrgSettingsDialog } from "#/components/organizations/org-settings-dialog";
 import { useMediaQuery } from "#/hooks/use-media-query";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 import { cn } from "#/lib/glaze/utils";
@@ -182,7 +181,6 @@ function DashboardShell({
 				<CommandPaletteLauncher />
 				<DevScenarioSwitcher />
 			</div>
-			<OrgSettingsDialog />
 			<FeedbackOverlay />
 			<FeedbackDialog />
 		</FeedbackProvider>

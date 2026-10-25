@@ -199,11 +199,7 @@ export function UserSheetHeader({
 								Ban
 							</DropdownMenuItem>
 						)}
-						<DropdownMenuItem
-							disabled={guarded}
-							onClick={onDelete}
-							variant="destructive"
-						>
+						<DropdownMenuItem disabled={guarded} onClick={onDelete}>
 							Delete account
 						</DropdownMenuItem>
 					</DropdownMenuContent>

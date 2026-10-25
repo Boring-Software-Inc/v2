@@ -45,6 +45,10 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 		enabled: Boolean(org),
 		select: (context) => context.permissions,
 	});
+	const pathname = useLocation({ select: (location) => location.pathname });
+	const inOrgSettings =
+		pathname.startsWith(`/${org}/settings`) &&
+		!pathname.startsWith(`/${org}/settings/account`);
 	const reads = (region: OrgRegion) =>
 		permissions?.includes(`${region}:read`) ?? false;
 
@@ -71,11 +75,10 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 					/>
 				) : null}
 				<NavLink
-					activeOptions={{ exact: true, includeSearch: true }}
+					active={inOrgSettings}
 					icon={Settings}
 					label="Settings"
-					search={{ settings: "members" }}
-					to="."
+					to={`/${org}/settings`}
 					variant={variant}
 				/>
 			</nav>
@@ -152,25 +155,23 @@ function NavLink({
 	label,
 	icon,
 	value,
-	search,
 	exact = true,
-	activeOptions,
+	active,
 	variant,
 }: {
 	to: string;
 	label: string;
 	icon: GlazeIcon;
 	value?: number;
-	search?: Record<string, string>;
 	exact?: boolean;
-	activeOptions?: { exact: boolean; includeSearch?: boolean };
+	active?: boolean;
 	variant: NavVariant;
 }) {
 	return (
 		<Link
-			activeOptions={activeOptions ?? { exact }}
-			activeProps={{ "aria-current": "page" }}
-			search={search}
+			activeOptions={{ exact }}
+			activeProps={active === undefined ? { "aria-current": "page" } : {}}
+			aria-current={active ? "page" : undefined}
 			className={LINK_CLASS[variant]}
 			to={to}
 		>
