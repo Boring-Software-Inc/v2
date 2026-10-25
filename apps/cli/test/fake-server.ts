@@ -209,6 +209,10 @@ const RESULTS: Record<string, z.infer<ReturnType<typeof z.json>>> = {
 			held: false,
 			cannotRun: null,
 			matches24h: 3,
+			outcome: "request_fix",
+			outcomeLabel: "Ask author to fix",
+			instruction: "Wait until the account is a week old.",
+			setIn: [],
 		},
 		{
 			ruleId: "custom-not-into-release-1a2b3c",
@@ -221,6 +225,10 @@ const RESULTS: Record<string, z.infer<ReturnType<typeof z.json>>> = {
 			held: false,
 			cannotRun: null,
 			matches24h: 0,
+			outcome: "block",
+			outcomeLabel: "Block",
+			instruction: "",
+			setIn: [],
 			sentence: "require that target branch is not release",
 			description: null,
 			definition: {

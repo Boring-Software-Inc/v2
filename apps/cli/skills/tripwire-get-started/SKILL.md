@@ -72,6 +72,11 @@ them and carry on. They never block or change setup.
    params and say why in one line each. On yes, call `set_rule` for each.
    When no built-in rule fits, propose a custom rule and save it with
    `save_custom_rule`. Show the user the sentence it returns.
+   Each rule has an outcome for when it does not pass. Block is the
+   default. `outcome` takes `block`, `request_fix` (pass an `instruction`
+   such as Change the target to main.), `human_review`, `note` or `close`.
+   Change it only when the user asks. A rule a workflow uses takes its
+   outcome from that workflow.
 5. **Turn on the gate.** Ask, then call `turn_on_gate`. If the user declines,
    report `turn_on_gate` skipped.
 6. **Verify.** Call `setup_status`. When it shows the check is live, report
