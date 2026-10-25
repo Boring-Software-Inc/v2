@@ -248,3 +248,76 @@ where web and mcp both call them.
 evaluator applies. sdk is pure and imports only contracts, so the edge adds no
 I/O and no cycle. The other choice was to pass the check in from each caller,
 which lets a new caller skip it.
+
+## 2026-10-25: rule outcomes, Changes needed and the Except when gate
+
+**Decision (founder, 2026-10-25).** The approved design, with the Close
+addendum, is recorded here. Stage 1 ships the engine, the contracts and the PR surfaces.
+The rule card (stage 2) and the Except when editor (stage 3) come later.
+
+**Model.** Rules stay boolean requirements. A workflow decides what happens
+when a requirement does not pass. The implicit Rules workflow uses each
+rule's own outcome setting. Five outcomes:
+
+- Block: red check, one changes-requested review, and the comment.
+- Ask author to fix: red check and an editable instruction. No GitHub review.
+- Human review: pending check and a Tripwire review item.
+- Note only: green check, and a factual note when comments are on.
+- Close: the comment with the reason, red check, then Tripwire closes the
+  change request. No changes-requested review, and Tripwire's earlier review
+  is dismissed. Tripwire never reopens.
+
+"Fixable" is an outcome choice, not a rule class. Remedy hints
+(revise/wait/appeal) stay separate. Outcomes are never inferred from severity
+or remedy.
+
+**Contracts.**
+
+- Verdict adds `changes_required` ("Changes needed") and `close` ("Closed").
+- Actions add `request-fix` (`{ message }`) and `note` (`{ message? }`).
+  Close reuses the existing `close` action.
+- A per-rule outcome setting (`block | request_fix | human_review | note |
+  close`, plus an instruction) on `rule_configs` and `custom_rules`, default
+  `block` (migration 0041).
+- Gate mode `unless` with named edge inputs (`requirement`, `exception`),
+  written as `unless(requirement, exception)` in `tripwire.ts` and shown as
+  "Except when".
+- Response config adds `onChangesRequired`/`changesRequiredComment` and
+  `onNote`/`noteComment`. Close follows the block comment settings.
+
+**Resolution.**
+
+1. Every reachable, independent check runs. A human review wait pauses only
+   the steps that depend on its decision.
+2. `unless` passes when the requirement passes or the exception passes.
+   Otherwise it keeps the requirement's result, so missing or skipped
+   exception proof never waives a failed requirement. The gate records
+   `exceptionApplied` only when the exception waived a failed requirement.
+3. Join: close > block > changes_required > needs_review > pass. Notes never
+   raise the verdict. The comment keeps every active issue.
+4. Approval clears only its own review item. The run verdict is then
+   recomputed from what the run still holds: its close, block and fix actions
+   and its other pending review items. A run stays paused while any item is
+   pending.
+5. The degraded floor counts enforcing checks only. Exception probes and
+   note-only checks never create holds.
+6. A close action raises the verdict only on a change-request event. A
+   scheduled or comment run that closes keeps its old verdict.
+
+**Close guards.** Exempt contributors get no run, so no close. A degraded run
+never closes: the close is dropped and the run goes to human review. A head
+that Tripwire already closed and a person reopened is not closed again: the
+close becomes a Block for that head, and a new push evaluates again. A close
+from a run that is not the latest for the change request is superseded.
+
+**Surfaces.** One verdict comment, edited in place. Only Block submits
+CHANGES_REQUESTED. When the last Block clears, Tripwire dismisses its review
+even if a fix request remains. Wording: "Changes needed. Change the target to
+main.", with "Human review is pending." appended when both apply. Note only:
+"Tripwire passed this change request. No description provided."
+
+**Migration.** Readers before writers: the compiler, codegen, lint, run
+views, resume, replay and surfaces read the new shapes in this change.
+Nothing writes a non-Block outcome yet except `setRuleOutcome` and authored
+workflows. Existing rules stay Block and historical runs keep their
+snapshots. The replay corpus shows no new flips.
