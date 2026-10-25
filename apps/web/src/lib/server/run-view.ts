@@ -240,7 +240,12 @@ export async function loadRunView(
 					headSha: result.run.headSha,
 					at: result.run.createdAt.toISOString(),
 				},
-		workflows: workflowOutcomes(snapshot, result.steps, result.run.status),
+		workflows: workflowOutcomes(
+			snapshot,
+			result.steps,
+			result.run.status,
+			result.run.headSha !== null,
+		),
 		reviews,
 		previousRun: previous ? runLink(previous) : null,
 		nextRun:

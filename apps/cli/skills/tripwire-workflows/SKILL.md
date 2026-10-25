@@ -78,6 +78,12 @@ its Doesn't pass output, `not(passes)`, and it fits anywhere a check fits, so
 `pass: [block()]`. `not(x)` is an explicit Not gate for the same idea.
 `pass` actions run when `check` passes, `fail` actions when it does not.
 
+**Except when.** `unless(requirement, exception)` passes when the requirement
+passes or the exception passes. Otherwise it keeps the requirement's result:
+missing or skipped exception proof never waives a failed requirement. Scope an
+exception to one requirement, for example
+`unless(customCheck("custom-target-main"), allOf(isRelease, fromReleasePlease))`.
+
 **Ids are the code's ids.** Rules: `check("<rule id>", settings)`, typed from
 the catalog; `list_rule_catalog` lists them. A repo's custom rules:
 `customCheck("custom-...")`. Events: `change-request.opened`,
@@ -85,7 +91,9 @@ the catalog; `list_rule_catalog` lists them. A repo's custom rules:
 A wrong id or setting fails type-checking and validation, with the right one
 named.
 
-**Actions.** `block()`, `label({ labels })`, `removeLabel({ labels })`,
+**Actions.** `block()`, `requestFix({ message })` (red check and the
+instruction, no GitHub review), `note({ message })` (green check, the note in
+the comment), `label({ labels })`, `removeLabel({ labels })`,
 `requestReview({ reviewers, teamReviewers })`, `postComment({ message })`,
 `lock({ reason })`, `close()`, `webhook()`, `discord()`, and
 `humanReview({ approve: [...], deny: [...] })`, which waits for a maintainer.

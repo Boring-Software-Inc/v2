@@ -51,11 +51,13 @@ const SCOPES: { value: ResponseScope; label: string }[] = [
 	...VERDICTS,
 ];
 
-const NO_MESSAGE_CHOSEN = {
+const NO_MESSAGE_CHOSEN: Record<Verdict, boolean> = {
 	pass: false,
 	block: false,
+	changes_required: false,
 	needs_review: false,
-} satisfies Record<Verdict, boolean>;
+	close: false,
+};
 
 export function ResponsesPage() {
 	const { org, repo: repoName } = routeApi.useParams();

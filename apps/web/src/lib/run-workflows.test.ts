@@ -123,3 +123,42 @@ describe("actionUrl", () => {
 		expect(actionUrl({ ...base, kind: "label" })).toBeNull();
 	});
 });
+
+describe("workflowOutcomes with rule outcomes", () => {
+	const OUTCOMES: WorkflowDefinition = {
+		id: "wf-out",
+		name: "outcomes",
+		version: 1,
+		nodes: [
+			{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+			{ id: "age", type: "rule", ref: "account-age@1", config: {} },
+			{ id: "fix", type: "action", action: "request-fix" },
+			{ id: "close", type: "action", action: "close" },
+		],
+		edges: [],
+	};
+
+	test("a fix request reads as changes, a close on a change request as close", () => {
+		expect(
+			workflowOutcomes(
+				[OUTCOMES],
+				[
+					{ nodeId: "wf-out:age", nodeKind: "rule", status: "fail" },
+					{ nodeId: "wf-out:fix", nodeKind: "action", status: "pass" },
+				],
+				"completed",
+				true,
+			),
+		).toEqual([{ id: "wf-out", name: "outcomes", outcome: "changes" }]);
+		const closing = [
+			{ nodeId: "wf-out:age", nodeKind: "rule", status: "fail" },
+			{ nodeId: "wf-out:close", nodeKind: "action", status: "pass" },
+		];
+		expect(
+			workflowOutcomes([OUTCOMES], closing, "completed", true)[0]?.outcome,
+		).toBe("close");
+		expect(
+			workflowOutcomes([OUTCOMES], closing, "completed", false)[0]?.outcome,
+		).toBe("pass");
+	});
+});

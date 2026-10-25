@@ -16,6 +16,11 @@ interface OutcomeLabel {
 const OUTCOMES = {
 	pass: { status: "ok", label: RUN_RESULT_LABELS.pass },
 	block: { status: "fail", label: RUN_RESULT_LABELS.block },
+	changes_required: {
+		status: "fail",
+		label: RUN_RESULT_LABELS.changes_required,
+	},
+	close: { status: "fail", label: RUN_RESULT_LABELS.close },
 	needs_review: { status: "waiting", label: "Human review" },
 	"closed-before-review": {
 		status: "idle",

@@ -117,7 +117,7 @@ export const TOOLBOX_SECTIONS: {
 	{
 		title: "Gates",
 		kind: "gate",
-		items: GATE_CATALOG.map((entry) => ({
+		items: GATE_CATALOG.filter((entry) => entry.toolbox).map((entry) => ({
 			id: `gate-${entry.mode}`,
 			kind: "gate" as const,
 			name: entry.name,

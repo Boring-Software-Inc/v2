@@ -4,6 +4,7 @@ import {
 	GATE_CATALOG,
 	lockParamsSchema,
 	MAX_COMMENT_MESSAGE,
+	MAX_OUTCOME_MESSAGE,
 } from "@tripwire/contracts";
 import { useState } from "react";
 import { z } from "zod";
@@ -379,6 +380,17 @@ function ActionFields({
 			<CommentFields node={node} onUpdate={onUpdate} readOnly={readOnly} />
 		);
 	}
+	if (node.action === "request-fix" || node.action === "note") {
+		return (
+			<CommentFields
+				label={node.action === "request-fix" ? "Instruction" : "Note"}
+				maxLength={MAX_OUTCOME_MESSAGE}
+				node={node}
+				onUpdate={onUpdate}
+				readOnly={readOnly}
+			/>
+		);
+	}
 	if (node.action !== "label" && node.action !== "remove-label") {
 		return (
 			<p className="type-body-sm text-text-2">
@@ -408,18 +420,22 @@ function CommentFields({
 	node,
 	readOnly,
 	onUpdate,
+	label = "Message",
+	maxLength = MAX_COMMENT_MESSAGE,
 }: {
 	node: Extract<WorkflowNode, { type: "action" }>;
 	readOnly: boolean;
 	onUpdate: (next: WorkflowNode) => void;
+	label?: string;
+	maxLength?: number;
 }) {
 	const message = textParam.parse(node.params?.message);
 	return (
 		<Field data-field="message">
-			<FieldLabel className="text-text-2">Message</FieldLabel>
+			<FieldLabel className="text-text-2">{label}</FieldLabel>
 			<Textarea
 				disabled={readOnly}
-				maxLength={MAX_COMMENT_MESSAGE}
+				maxLength={maxLength}
 				onChange={(event) =>
 					onUpdate({
 						...node,
