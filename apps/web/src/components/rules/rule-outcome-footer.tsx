@@ -225,7 +225,7 @@ function ManagedBy({
 				<span className="flex min-w-0 flex-col gap-1" key={owner.id}>
 					{(owner.exceptions ?? []).map((name) => (
 						<span
-							className="type-label-sm text-text-1 [overflow-wrap:anywhere]"
+							className="whitespace-normal type-label-sm text-text-1 [overflow-wrap:anywhere]"
 							key={name}
 						>
 							{exceptionLine(name)}
