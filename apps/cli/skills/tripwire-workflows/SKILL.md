@@ -78,11 +78,13 @@ its Doesn't pass output, `not(passes)`, and it fits anywhere a check fits, so
 `pass: [block()]`. `not(x)` is an explicit Not gate for the same idea.
 `pass` actions run when `check` passes, `fail` actions when it does not.
 
-**Except when.** A matching exception skips its rule group. In code,
-`unless(group, exception)` takes the group first (one check, or `allOf(a, b)`
-for several), then the exception (a check, `allOf(...)` or `anyOf(...)`).
-If the exception errors, is skipped or has no proof, the rules run.
-Put the outcome on the `fail` side:
+**Skip when.** In the app, a rule group reads "If any of these rules fail"
+and can have a Skip when in front of it. If the Skip when matches, the group's
+rules are skipped. Otherwise they run as normal. In code that is
+`unless(group, skipWhen)`: the first argument is the group (one check, or
+`allOf(a, b)` for several), the second the Skip when (a check, `allOf(...)` or
+`anyOf(...)`). Order matters. It fails closed: if the Skip when errors, is
+skipped or has no proof, the rules run. Put the outcome on its `fail` side:
 
 ```ts
 const on = trigger("change-request.opened", "change-request.updated");
@@ -101,10 +103,11 @@ export default workflows({
 });
 ```
 
-Keep other rules in their own group so the exception never skips them.
-Runs show the group as skipped, with the exception checks as evidence.
+Keep other rules in their own group so the Skip when never skips them. A run
+shows a skipped group as skipped, with the Skip when checks as evidence, never
+as passed.
 
-The exception's rules can stay uninstalled: a workflow runs the rules it
+The Skip when's own rules can stay uninstalled: a workflow runs the rules it
 uses.
 
 **Ids are the code's ids.** Rules: `check("<rule id>", settings)`, typed from
@@ -169,7 +172,7 @@ and comparison.
 
 A new rule is not installed. An installed rule that no workflow uses runs by
 itself on every change request and blocks when it does not pass. Rules are
-plain checks: Ask author to fix, Human review, Note only, Close and Except when
+plain checks: Ask author to fix, Human review, Note only, Close and Skip when
 belong to workflows. To combine rules or do anything but block, leave them
 uninstalled and use them in `tripwire.ts`. For example, to block change requests into `release` unless
 the source branch comes from release-please, make a second rule

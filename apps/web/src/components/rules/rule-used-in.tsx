@@ -9,7 +9,7 @@ import {
 } from "#/components/glaze/ui/dropdown-menu";
 
 export function usedInLabel(count: number): string {
-	return `View ${count} ${count === 1 ? "workflow" : "workflows"}`;
+	return `Used in ${count} ${count === 1 ? "workflow" : "workflows"}`;
 }
 
 export function usedInLinks(
@@ -41,7 +41,7 @@ export function RuleUsedIn({
 			<DropdownMenuTrigger
 				render={
 					<Button
-						aria-label={`${label} using ${ruleName}`}
+						aria-label={`${ruleName}: ${label}`}
 						size="sm"
 						variant="ghost"
 					/>

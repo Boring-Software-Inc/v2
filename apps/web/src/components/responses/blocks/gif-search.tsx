@@ -74,7 +74,7 @@ export function GifSearch({ org, onPick }: GifSearchProps) {
 				clearLabel="Clear search"
 				mode="search"
 				onValueChange={setText}
-				placeholder="celebration"
+				placeholder="Search GIPHY"
 				value={text}
 			/>
 			{status !== "ok" ? (

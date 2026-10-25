@@ -396,8 +396,8 @@ export function chainSkips(
 		const state = skipState(gate?.output, gate !== undefined);
 		const text = {
 			matched: `${skipLabel(ruleNames, "all-of")} skipped: ${label} matched`,
-			"not-matched": "Exception did not match",
-			unchecked: "Exception could not be checked",
+			"not-matched": "Skip when did not match",
+			unchecked: "Skip when could not be checked",
 			pending: "Checking",
 		}[state];
 		return [

@@ -433,7 +433,7 @@ export const UNLESS_EMPTY_PORT = {
 
 const UNLESS_EXTRA_INPUT = {
 	requirement: "It takes one rule group. Keep one.",
-	exception: "Keep one exception.",
+	exception: "It takes one Skip when. Keep one.",
 } as const;
 
 function checkUnlessInputs(ctx: LintContext): Finding[] {

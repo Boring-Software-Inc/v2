@@ -217,8 +217,8 @@ describe("RuleCard used in", () => {
 	const triage = { id: "wf-2", name: "Triage" };
 
 	test("the label counts workflows, singular and plural", () => {
-		expect(usedInLabel(1)).toBe("View 1 workflow");
-		expect(usedInLabel(2)).toBe("View 2 workflows");
+		expect(usedInLabel(1)).toBe("Used in 1 workflow");
+		expect(usedInLabel(2)).toBe("Used in 2 workflows");
 	});
 
 	test("a rule a workflow uses shows Used in where Install would be", () => {
@@ -228,7 +228,7 @@ describe("RuleCard used in", () => {
 				rule={rule({ management: "managed", usedIn: [gate] })}
 			/>,
 		);
-		expect(one).toContain(">View 1 workflow<");
+		expect(one).toContain(">Used in 1 workflow<");
 		expect(one).toContain('aria-haspopup="menu"');
 		expect(one).not.toContain(">Install<");
 		expect(one).not.toContain(">Uninstall<");
@@ -238,7 +238,7 @@ describe("RuleCard used in", () => {
 				rule={rule({ management: "managed", usedIn: [gate, triage] })}
 			/>,
 		);
-		expect(two).toContain(">View 2 workflows<");
+		expect(two).toContain(">Used in 2 workflows<");
 	});
 
 	test("a standalone rule keeps its button and no Used in", () => {
