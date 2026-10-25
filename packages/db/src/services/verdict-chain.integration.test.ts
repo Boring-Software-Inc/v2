@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { WorkflowDefinition } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
+import { eq } from "drizzle-orm";
 import {
 	applyMigrations,
 	createDb,
@@ -12,6 +14,8 @@ import { runs } from "../schema/runs.ts";
 import { listActivityFeed } from "./events.ts";
 import { listRecentRuns } from "./insights.ts";
 import {
+	beginRunEvaluation,
+	finalizeRun,
 	getLatestRunForChangeRequest,
 	getLatestRunIdForChangeRequest,
 	getPreviousVerdict,
@@ -177,6 +181,14 @@ describe("a backfill run on a change request (R7-1)", () => {
 	});
 });
 
+const TRIGGER_ONLY: WorkflowDefinition = {
+	id: "wf-trigger",
+	name: "Trigger only",
+	version: 1,
+	nodes: [{ id: "t", type: "trigger", kinds: ["change-request.updated"] }],
+	edges: [],
+};
+
 describe("a slow run for an older event (same-head retarget)", () => {
 	const PR = 260;
 
@@ -236,6 +248,44 @@ describe("a slow run for an older event (same-head retarget)", () => {
 		});
 		expect(await getPreviousVerdict(db, REPO, PR, fresh)).toBe("block");
 		expect(await getPreviousVerdict(db, REPO, PR, stale)).toBe("pass");
+
+		const chain = await listRunsForChangeRequest(db, REPO, PR);
+		expect(chain.map((row) => row.id)).toEqual([stale, fresh]);
+		const open = await listOpenBlockedRuns(db, REPO, new Date(t0 - MINUTE));
+		expect(open.map((row) => row.subjectNumber)).not.toContain(PR);
+	});
+
+	test("a claimed re-run is rebound to the event it actually evaluates", async () => {
+		const t0 = Date.now() - 5 * MINUTE;
+		const enqueuedFor = await seedEvent(new Date(t0));
+		const claim = await seedRunFor(enqueuedFor, "block", new Date(t0));
+		await db
+			.update(runs)
+			.set({ status: "queued", verdict: null })
+			.where(eq(runs.id, claim));
+		const edited = await seedEvent(new Date(t0 + MINUTE));
+		const editRun = await seedRunFor(edited, "pass", new Date(t0 + MINUTE));
+		expect(await getLatestRunIdForChangeRequest(db, REPO, PR)).toBe(editRun);
+
+		await beginRunEvaluation(db, claim, {
+			snapshot: [TRIGGER_ONLY],
+			headSha: "same-head",
+			eventId: edited,
+		});
+		expect(await getLatestRunIdForChangeRequest(db, REPO, PR)).toBe(claim);
+
+		await finalizeRun(db, claim, {
+			eventId: edited,
+			headSha: "same-head",
+			snapshot: [TRIGGER_ONLY],
+			status: "completed",
+			verdict: "block",
+		});
+		expect(await getLatestRunForChangeRequest(db, REPO, PR)).toEqual({
+			id: claim,
+			eventId: edited,
+			headSha: "same-head",
+		});
 	});
 
 	test("a re-run of the newest event outranks the run it repeats", async () => {

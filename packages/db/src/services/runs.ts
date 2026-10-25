@@ -73,6 +73,7 @@ export async function createRun(db: Db, input: CreateRunInput) {
 }
 
 export interface FinalizeRunInput {
+	eventId: string;
 	headSha: string | null;
 	snapshot: WorkflowDefinition[];
 	status: "paused" | "completed" | "failed";
@@ -92,6 +93,7 @@ export async function finalizeRun(
 	await db
 		.update(runs)
 		.set({
+			eventId: input.eventId,
 			headSha: input.headSha,
 			workflowSnapshot: snapshot,
 			status: input.status,
@@ -109,7 +111,11 @@ export async function finalizeRun(
 export async function beginRunEvaluation(
 	db: Db,
 	runId: string,
-	input: { snapshot: WorkflowDefinition[]; headSha: string | null },
+	input: {
+		snapshot: WorkflowDefinition[];
+		headSha: string | null;
+		eventId: string;
+	},
 ): Promise<void> {
 	const snapshot = snapshotSchema.parse(input.snapshot);
 	await db
@@ -118,6 +124,8 @@ export async function beginRunEvaluation(
 			status: "running",
 			workflowSnapshot: snapshot,
 			headSha: input.headSha,
+			eventId: input.eventId,
+			createdAt: new Date(),
 		})
 		.where(eq(runs.id, runId));
 }
@@ -548,7 +556,7 @@ export async function listRunsForChangeRequest(
 				liveRun,
 			),
 		)
-		.orderBy(runs.createdAt, runs.id);
+		.orderBy(runs.eventId, runs.createdAt, runs.id);
 }
 
 /**
@@ -839,7 +847,7 @@ export async function listOpenBlockedRuns(
 				liveRun,
 			),
 		)
-		.orderBy(runs.subjectNumber, desc(runs.createdAt), desc(runs.id));
+		.orderBy(runs.subjectNumber, ...runRecency);
 	const blocked = latest.flatMap((row) =>
 		row.verdict === "block" && row.subjectNumber !== null
 			? [

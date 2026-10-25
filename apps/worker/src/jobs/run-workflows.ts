@@ -359,6 +359,7 @@ async function runWorkflowsInner(
 		await runServices.beginRunEvaluation(db, liveRunId, {
 			snapshot: matching,
 			headSha: headShaEarly,
+			eventId,
 		});
 	}
 
@@ -609,6 +610,7 @@ async function runWorkflowsInner(
 	if (liveRunId) {
 		runId = liveRunId;
 		await runServices.finalizeRun(db, runId, {
+			eventId,
 			headSha,
 			snapshot: matching,
 			status: terminalStatus,
