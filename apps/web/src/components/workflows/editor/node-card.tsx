@@ -1,5 +1,12 @@
-import type { WorkflowNode, WorkflowPort } from "@tripwire/contracts";
+import type {
+	GateInput,
+	PortLook,
+	WorkflowNode,
+	WorkflowPort,
+} from "@tripwire/contracts";
 import {
+	GATE_INPUT_LABELS,
+	gateInputSchema,
 	handleReason,
 	inputLook,
 	inputSummary,
@@ -116,6 +123,47 @@ function OutputPort({
 	);
 }
 
+function GateInputPort({
+	role,
+	look,
+	drop,
+	linked,
+}: {
+	role: GateInput;
+	look: PortLook;
+	drop: DropState;
+	linked: boolean;
+}) {
+	return (
+		<div
+			className="relative -mx-3 flex min-h-8 items-center px-3"
+			data-gate-input={role}
+		>
+			<Handle
+				data-drop={drop}
+				data-port-io="in"
+				data-port-linked={linked || undefined}
+				data-port-shape={look.shape}
+				data-port-slot="top"
+				data-port-tone={look.tone}
+				id={role}
+				isConnectableStart={false}
+				position={Position.Left}
+				title={GATE_INPUT_LABELS[role]}
+				type="target"
+			/>
+			<span
+				className={cn(
+					"type-caption transition-colors duration-(--dur-state)",
+					linked ? "text-text-1" : "text-text-3",
+				)}
+			>
+				{GATE_INPUT_LABELS[role]}
+			</span>
+		</div>
+	);
+}
+
 function PortCaption({
 	port,
 	linked,
@@ -182,6 +230,10 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 	const outgoing = useNodeConnections({ handleType: "source" });
 	const incoming = useNodeConnections({ handleType: "target" });
 	const topLinked = linkedFrom(outgoing, topPort);
+	const roles =
+		node.type === "gate" && node.mode === "unless"
+			? gateInputSchema.options
+			: [];
 	const cornerLinked = linkedFrom(outgoing, cornerPort);
 	const nodeDrop = verdict
 		? verdict.origin
@@ -215,7 +267,7 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 						/>
 					</ProblemPeek>
 				) : null}
-				{input ? (
+				{input && roles.length === 0 ? (
 					<Handle
 						data-drop={dropState(verdict, null, "in", direction)}
 						data-port-io="in"
@@ -233,7 +285,10 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				) : null}
 				<div className="flex items-center gap-2">
 					<Icon
-						className={cn("shrink-0 text-text-1", input && "-ms-1.5")}
+						className={cn(
+							"shrink-0 text-text-1",
+							input && roles.length === 0 && "-ms-1.5",
+						)}
 						icon={stepIcon(node)}
 					/>
 					<span className="min-w-0 type-label [overflow-wrap:anywhere]">
@@ -251,6 +306,21 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				{detail ? (
 					<div className="type-code-xs text-text-3 [overflow-wrap:anywhere]">
 						{detail}
+					</div>
+				) : null}
+				{input && roles.length > 0 ? (
+					<div className="mt-1 flex flex-col border-line-faint border-t">
+						{roles.map((role) => (
+							<GateInputPort
+								drop={dropState(verdict, role, "in", direction)}
+								key={role}
+								linked={incoming.some(
+									(connection) => connection.targetHandle === role,
+								)}
+								look={input}
+								role={role}
+							/>
+						))}
 					</div>
 				) : null}
 				{fields.length > 0 ? (

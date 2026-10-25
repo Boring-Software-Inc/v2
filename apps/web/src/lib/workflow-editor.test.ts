@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	DEFAULT_WORKFLOW,
+	exceptionDraft,
 	RULE_CATALOG,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
@@ -11,7 +12,10 @@ import {
 	type EditorEdge,
 	type EditorNode,
 	editorLint,
+	gateInputFor,
+	gateInputTaken,
 	graphToDefinition,
+	handleInput,
 } from "./workflow-editor.ts";
 
 /** Positions are layout, persisted since the editor rebuild — identity is
@@ -358,5 +362,66 @@ describe("AI review steps while Tripwire is out of AI credits", () => {
 			aiCreditsOf([{ ruleId: "ai-review", unavailableReason: null }]),
 		).toBe("ready");
 		expect(aiCreditsOf(undefined)).toBe("ready");
+	});
+});
+
+describe("Except when on the canvas", () => {
+	test("requirement and exception roles survive definition, graph and back", () => {
+		const draft = exceptionDraft({
+			id: "wf",
+			name: "Target is main",
+			rule: {
+				ref: "account-age@1",
+				config: { minDays: 7 },
+				outcome: {
+					outcome: "request_fix",
+					instruction: "Change the target to main.",
+				},
+			},
+		});
+		const graph = definitionToGraph(draft);
+		expect(
+			graph.edges.find((edge) => edge.id === "requirement-gate")?.targetHandle,
+		).toBe("requirement");
+		const result = graphToDefinition(
+			{ id: draft.id, name: draft.name, version: draft.version },
+			graph.nodes,
+			graph.edges,
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.definition.edges).toEqual(draft.edges);
+		}
+	});
+
+	test("a handle that is not a gate input stores no role", () => {
+		expect(handleInput("requirement")).toBe("requirement");
+		expect(handleInput("exception")).toBe("exception");
+		expect(handleInput(null)).toBeUndefined();
+		expect(handleInput("fail")).toBeUndefined();
+	});
+});
+
+describe("connecting into Except when", () => {
+	const gate = { id: "g", type: "gate", mode: "unless" } as const;
+	const allOf = { id: "a", type: "gate", mode: "all-of" } as const;
+
+	test("a drop on the node fills Requirement first, then Exception", () => {
+		expect(gateInputFor(gate, null, [])).toBe("requirement");
+		expect(
+			gateInputFor(gate, null, [{ target: "g", targetHandle: "requirement" }]),
+		).toBe("exception");
+	});
+
+	test("a drop on a port keeps that port, and other nodes get no role", () => {
+		expect(gateInputFor(gate, "exception", [])).toBe("exception");
+		expect(gateInputFor(allOf, "exception", [])).toBeNull();
+	});
+
+	test("a filled port refuses a second connection", () => {
+		const edges = [{ target: "g", targetHandle: "requirement" }];
+		expect(gateInputTaken(gate, "requirement", edges)).toBe(true);
+		expect(gateInputTaken(gate, "exception", edges)).toBe(false);
+		expect(gateInputTaken(allOf, "requirement", edges)).toBe(false);
 	});
 });

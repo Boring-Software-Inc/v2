@@ -138,6 +138,8 @@ import {
 	definitionToGraph,
 	edgeWhenFields,
 	editorLint,
+	gateInputFor,
+	gateInputTaken,
 	graphToCandidate,
 	graphToDefinition,
 	handleWhen,
@@ -693,10 +695,16 @@ function EditorBody({
 	const onConnect = useCallback(
 		(connection: Connection) => {
 			const when = handleWhen(connection.sourceHandle);
+			const target = nodes.find((n) => n.id === connection.target)?.data.node;
 			setEdges((current) =>
 				addEdge(
 					{
 						...connection,
+						targetHandle: gateInputFor(
+							target,
+							connection.targetHandle,
+							current,
+						),
 						id: crypto.randomUUID(),
 						...edgeWhenFields(when),
 					},
@@ -705,20 +713,31 @@ function EditorBody({
 			);
 			setDirty(true);
 		},
-		[setEdges],
+		[nodes, setEdges],
 	);
 
 	const onReconnect = useCallback(
 		(oldEdge: FlowEdge, connection: Connection) => {
 			const when = handleWhen(connection.sourceHandle);
+			const target = nodes.find((n) => n.id === connection.target)?.data.node;
 			setEdges((current) =>
 				reconnectEdge(oldEdge, connection, current).map((edge) =>
-					edge.id === oldEdge.id ? { ...edge, ...edgeWhenFields(when) } : edge,
+					edge.id === oldEdge.id
+						? {
+								...edge,
+								targetHandle: gateInputFor(
+									target,
+									connection.targetHandle,
+									current.filter((other) => other.id !== oldEdge.id),
+								),
+								...edgeWhenFields(when),
+							}
+						: edge,
 				),
 			);
 			setDirty(true);
 		},
-		[setEdges],
+		[nodes, setEdges],
 	);
 
 	const insertNode = useCallback(
@@ -780,7 +799,11 @@ function EditorBody({
 		(connection) => {
 			const source = nodes.find((n) => n.id === connection.source);
 			const target = nodes.find((n) => n.id === connection.target);
-			if (!(source && target) || source.id === target.id) {
+			if (
+				!(source && target) ||
+				source.id === target.id ||
+				gateInputTaken(target.data.node, connection.targetHandle, edges)
+			) {
 				return false;
 			}
 			return (
@@ -791,7 +814,7 @@ function EditorBody({
 				) === null
 			);
 		},
-		[nodes],
+		[nodes, edges],
 	);
 
 	const origin = useConnection(selectOrigin);

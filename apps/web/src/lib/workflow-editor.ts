@@ -1,6 +1,7 @@
 import type {
 	AiCreditsState,
 	EdgeWhen,
+	GateInput,
 	LintResult,
 	ReviewerRef,
 	ValidationCatalogEntry,
@@ -10,6 +11,7 @@ import type {
 import {
 	AI_REVIEW_RULE_ID,
 	catalogWithAiCredits,
+	gateInputSchema,
 	issuesInState,
 	lintWorkflow,
 	workflowDefinitionSchema,
@@ -38,7 +40,55 @@ export interface EditorEdge {
 	 * "approve"/"deny" on send-to-moderation nodes); pass edges leave it unset.
 	 */
 	sourceHandle?: string | null;
+	targetHandle?: string | null;
 	data?: { when?: EdgeWhen };
+}
+
+export function handleInput(
+	targetHandle: string | null | undefined,
+): GateInput | undefined {
+	const parsed = gateInputSchema.safeParse(targetHandle);
+	return parsed.success ? parsed.data : undefined;
+}
+
+export function gateInputFor(
+	target: WorkflowNode | undefined,
+	targetHandle: string | null | undefined,
+	edges: readonly { target: string; targetHandle?: string | null }[],
+): GateInput | null {
+	if (target?.type !== "gate" || target.mode !== "unless") {
+		return null;
+	}
+	const asked = handleInput(targetHandle);
+	if (asked) {
+		return asked;
+	}
+	const taken = new Set(
+		edges.flatMap((edge) =>
+			edge.target === target.id ? [handleInput(edge.targetHandle)] : [],
+		),
+	);
+	return (
+		gateInputSchema.options.find((role) => !taken.has(role)) ??
+		gateInputSchema.options[0]
+	);
+}
+
+export function gateInputTaken(
+	target: WorkflowNode | undefined,
+	targetHandle: string | null | undefined,
+	edges: readonly { target: string; targetHandle?: string | null }[],
+): boolean {
+	const role = handleInput(targetHandle);
+	return (
+		target?.type === "gate" &&
+		target.mode === "unless" &&
+		role !== undefined &&
+		edges.some(
+			(edge) =>
+				edge.target === target.id && handleInput(edge.targetHandle) === role,
+		)
+	);
 }
 
 export function edgeWhenFields(when: EdgeWhen | undefined): {
@@ -82,6 +132,7 @@ export function definitionToGraph(definition: WorkflowDefinition): {
 		target: edge.to,
 		sourceHandle:
 			edge.when && HANDLE_WHENS.has(edge.when) ? edge.when : undefined,
+		targetHandle: edge.input,
 		...edgeWhenFields(edge.when),
 	}));
 	return { nodes, edges };
@@ -102,7 +153,25 @@ export interface GraphEdgeLike {
 	source: string;
 	target: string;
 	sourceHandle?: string | null;
+	targetHandle?: string | null;
 	data?: { when?: EdgeWhen };
+}
+
+function graphEdge(edge: GraphEdgeLike): WorkflowDefinition["edges"][number] {
+	const out: WorkflowDefinition["edges"][number] = {
+		id: edge.id,
+		from: edge.source,
+		to: edge.target,
+	};
+	const when = handleWhen(edge.sourceHandle) ?? edge.data?.when;
+	if (when) {
+		out.when = when;
+	}
+	const input = handleInput(edge.targetHandle);
+	if (input) {
+		out.input = input;
+	}
+	return out;
 }
 
 export function graphToCandidate(
@@ -120,15 +189,7 @@ export function graphToCandidate(
 			...node.data.node,
 			position: node.position,
 		})),
-		edges: edges.map((edge) => ({
-			id: edge.id,
-			from: edge.source,
-			to: edge.target,
-			...(() => {
-				const when = handleWhen(edge.sourceHandle) ?? edge.data?.when;
-				return when ? { when } : {};
-			})(),
-		})),
+		edges: edges.map(graphEdge),
 	};
 }
 

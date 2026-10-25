@@ -22,6 +22,7 @@ import {
 	Converge,
 	Conversation,
 	DiscordMark,
+	Except,
 	FailedMark,
 	Files,
 	Gauge,
@@ -91,7 +92,7 @@ const GATE_ICON = {
 	"all-of": Checks,
 	"any-of": Converge,
 	not: Negate,
-	unless: Branch,
+	unless: Except,
 } satisfies Record<GateMode, GlazeIcon>;
 
 const ACTION_ICON = {
