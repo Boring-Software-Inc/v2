@@ -239,4 +239,31 @@ describe("isSelfEvent", () => {
 			),
 		).toBe(false);
 	});
+
+	test("an edit tripwire sent to someone else's change request is its own", () => {
+		const edited = {
+			id: "e",
+			forge: "github" as const,
+			deliveryId: "d",
+			repo: { owner: "o", name: "r", fullName: "o/r" },
+			occurredAt: "2026-10-01T00:00:00.000Z",
+			receivedAt: "2026-10-01T00:00:00.000Z",
+			kind: "change-request.updated" as const,
+			actor: { login: "contributor", externalId: "2" },
+			sender: { login: "Tripwire-Dev[bot]", externalId: "1" },
+			changeRequest: {
+				number: 1,
+				title: "t",
+				headSha: "a".repeat(40),
+				url: "u",
+			},
+		};
+		expect(isSelfEvent(edited, new Set([SELF]))).toBe(true);
+		expect(
+			isSelfEvent(
+				{ ...edited, sender: { login: "maintainer", externalId: "3" } },
+				new Set([SELF]),
+			),
+		).toBe(false);
+	});
 });

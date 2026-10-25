@@ -154,7 +154,7 @@ export async function rerunChangeRequest(
 			triggeredBy: job.requestedBy,
 			claimRunId: claimRunId,
 			onBeforeEvaluate: async () => {
-				pendingCheckPosted = await emitPendingCheck(surfaceDeps, event);
+				pendingCheckPosted = await emitPendingCheck(surfaceDeps, event, row.id);
 			},
 		},
 		event,

@@ -4,7 +4,11 @@ import { moderationServices, runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
-import { emitClosedReviewSurfaces, toForgeAction } from "./pr-surface.ts";
+import {
+	emitClosedReviewSurfaces,
+	supersededBy,
+	toForgeAction,
+} from "./pr-surface.ts";
 
 /**
  * §5.12 surface sweeper (live-test surprise #3): actions are recorded FIRST and
@@ -14,9 +18,10 @@ import { emitClosedReviewSurfaces, toForgeAction } from "./pr-surface.ts";
  * (idempotency keys make retries safe), with two staleness guards so it never
  * regresses the PR surface:
  *
- * 1. COMMENT OWNERSHIP — the comment is per-PR, runs are per-SHA. Only the
- *    LATEST run for the change request may post its comment; an older run's
- *    recorded comment is superseded (its per-SHA check still posts — harmless).
+ * 1. OWNERSHIP — the comment and review are per-PR, runs are per-SHA. Only
+ *    the LATEST run for the change request may post them; an older run's
+ *    recorded rows are superseded. Its check still posts unless a newer run
+ *    judged the same head.
  * 2. VERDICT MOVED ON — a completed run with a newer surface row of the same
  *    kind has already re-emitted; the older recorded row is superseded.
  *
@@ -108,22 +113,25 @@ export async function sweepActions(
 		if (DELIVERY_KINDS.has(row.kind)) {
 			continue;
 		}
-		if (
-			(row.kind === "comment" || row.kind === "delete-comment") &&
-			row.subjectNumber !== null &&
-			bearsVerdict(row.eventKind)
-		) {
-			const latest = await runServices.getLatestRunIdForChangeRequest(
+		if (row.subjectNumber !== null && bearsVerdict(row.eventKind)) {
+			const latest = await runServices.getLatestRunForChangeRequest(
 				db,
 				row.repoFullName,
 				row.subjectNumber,
 			);
-			if (latest && latest !== row.runId) {
+			if (
+				supersededBy(row.kind, { id: row.runId, headSha: row.headSha }, latest)
+			) {
 				await runServices.markActionSuperseded(db, row.id);
 				result.superseded++;
 				logger.info(
-					{ actionId: row.id, runId: row.runId, latestRunId: latest },
-					"swept comment superseded — not the latest run for this change request",
+					{
+						actionId: row.id,
+						kind: row.kind,
+						runId: row.runId,
+						latestRunId: latest?.id,
+					},
+					"swept action superseded, a newer run owns this change request",
 				);
 				continue;
 			}

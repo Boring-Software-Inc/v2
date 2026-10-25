@@ -119,6 +119,7 @@ const eventBase = {
 	 */
 	installationExternalId: z.string().optional(),
 	actor: eventActorSchema,
+	sender: eventActorSchema.optional(),
 	occurredAt: z.iso.datetime(),
 	receivedAt: z.iso.datetime(),
 };

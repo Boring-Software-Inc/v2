@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { commentRows, toForgeAction } from "./pr-surface.ts";
+import {
+	commentRows,
+	pendingCheckIsStale,
+	supersededBy,
+	toForgeAction,
+} from "./pr-surface.ts";
 
 describe("toForgeAction — request-review", () => {
 	test("carries the recorded people and teams onto the forge action", () => {
@@ -201,5 +206,80 @@ describe("toForgeAction: lock and close never become a block", () => {
 		expect(
 			toForgeAction({ kind: "close", payload: {} }, "a/b", 7, "x", "91"),
 		).toEqual({ kind: "close", repoFullName: "a/b", number: 7 });
+	});
+});
+
+describe("supersededBy — a stale run never overwrites a newer result", () => {
+	const older = { id: "run-1", headSha: "sha-a" };
+	const newerSameHead = { id: "run-2", headSha: "sha-a" };
+	const newerOtherHead = { id: "run-3", headSha: "sha-b" };
+
+	test("the latest run owns every surface", () => {
+		for (const kind of ["comment", "block", "dismiss-review", "set-check"]) {
+			expect(supersededBy(kind, older, older)).toBe(false);
+			expect(supersededBy(kind, older, null)).toBe(false);
+		}
+	});
+
+	test("a same-head re-run takes the check, comment and review", () => {
+		for (const kind of [
+			"set-check",
+			"comment",
+			"delete-comment",
+			"block",
+			"dismiss-review",
+		]) {
+			expect(supersededBy(kind, older, newerSameHead)).toBe(true);
+		}
+	});
+
+	test("a newer head takes the comment and review, the old head keeps its check", () => {
+		expect(supersededBy("comment", older, newerOtherHead)).toBe(true);
+		expect(supersededBy("block", older, newerOtherHead)).toBe(true);
+		expect(supersededBy("set-check", older, newerOtherHead)).toBe(false);
+	});
+
+	test("workflow actions are not surfaces", () => {
+		expect(supersededBy("label", older, newerSameHead)).toBe(false);
+		expect(supersededBy("request-review", older, newerSameHead)).toBe(false);
+	});
+});
+
+describe("pendingCheckIsStale", () => {
+	const latest = {
+		eventId: "01a17035-0000-7000-8000-000000000002",
+		headSha: "sha-a",
+	};
+
+	test("an older event does not reopen a check a newer event settled", () => {
+		expect(
+			pendingCheckIsStale(
+				latest,
+				"01a17035-0000-7000-8000-000000000001",
+				"sha-a",
+			),
+		).toBe(true);
+	});
+
+	test("the same or a newer event may hold the gate", () => {
+		expect(pendingCheckIsStale(latest, latest.eventId, "sha-a")).toBe(false);
+		expect(
+			pendingCheckIsStale(
+				latest,
+				"01a17035-0000-7000-8000-000000000003",
+				"sha-a",
+			),
+		).toBe(false);
+		expect(pendingCheckIsStale(null, latest.eventId, "sha-a")).toBe(false);
+	});
+
+	test("a newer run on another head leaves this head alone", () => {
+		expect(
+			pendingCheckIsStale(
+				latest,
+				"01a17035-0000-7000-8000-000000000001",
+				"sha-b",
+			),
+		).toBe(false);
 	});
 });
