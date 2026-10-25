@@ -75,6 +75,7 @@ describe("previewCaught", () => {
 			{ ruleId: "crypto-address", caught: [2, 3], examples: [] },
 			{ ruleId: "account-age", caught: null, examples: [] },
 		],
+		recent: [],
 	};
 
 	test("a pack counts each change request once", () => {

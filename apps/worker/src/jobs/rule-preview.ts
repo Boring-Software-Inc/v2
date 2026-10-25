@@ -131,6 +131,11 @@ export async function computeRulePreview(
 		windowDays: RULE_PREVIEW_WINDOW_DAYS,
 		changeRequests: inputs.changeRequests.length,
 		rules,
+		recent: inputs.changeRequests.map((cr) => ({
+			number: cr.number,
+			title: cr.title,
+			author: cr.author,
+		})),
 	};
 }
 

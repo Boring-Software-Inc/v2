@@ -129,7 +129,14 @@ test("a saved preview reads back and goes stale after an hour", async () => {
 		fullName: "acme/app",
 	});
 	expect(await previewServices.getRulePreview(db, repoId)).toBeNull();
-	const preview = { windowDays: 30, changeRequests: 1, rules: [] };
+	const preview = {
+		windowDays: 30,
+		changeRequests: 1,
+		rules: [],
+		recent: [
+			{ number: 4, title: "Add airdrop section", author: "wallet-hub-01" },
+		],
+	};
 	await previewServices.saveRulePreview(db, repoId, preview, NOW);
 	const stored = await previewServices.getRulePreview(db, repoId);
 	expect(stored?.preview).toEqual(preview);

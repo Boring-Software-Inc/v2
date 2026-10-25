@@ -94,10 +94,23 @@ export const rulePreviewRuleSchema = z.object({
 });
 export type RulePreviewRule = z.infer<typeof rulePreviewRuleSchema>;
 
+export const rulePreviewChangeRequestSchema = z.object({
+	number: z.number().int(),
+	title: z.string(),
+	author: z.string(),
+});
+export type RulePreviewChangeRequest = z.infer<
+	typeof rulePreviewChangeRequestSchema
+>;
+
 export const rulePreviewSchema = z.object({
 	windowDays: z.number().int().positive(),
 	changeRequests: z.number().int().nonnegative(),
 	rules: z.array(rulePreviewRuleSchema),
+	recent: z
+		.array(rulePreviewChangeRequestSchema)
+		.max(RULE_PREVIEW_MAX_CHANGE_REQUESTS)
+		.default([]),
 });
 export type RulePreview = z.infer<typeof rulePreviewSchema>;
 

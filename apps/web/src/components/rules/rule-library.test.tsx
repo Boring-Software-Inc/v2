@@ -35,6 +35,7 @@ const preview: RulePreview = {
 		{ ruleId: "account-age", caught: [1, 2], examples: [] },
 		{ ruleId: "honeypot", caught: [3], examples: [] },
 	],
+	recent: [],
 };
 
 describe("rulesCaught", () => {

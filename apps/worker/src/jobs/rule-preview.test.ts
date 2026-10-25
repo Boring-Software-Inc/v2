@@ -74,6 +74,24 @@ describe("computeRulePreview", () => {
 		});
 	});
 
+	test("lists every change request it evaluated, newest first", async () => {
+		const preview = await computeRulePreview(
+			{
+				changeRequests: [
+					await changeRequest(9, "Add airdrop section"),
+					await changeRequest(7, "Fix the README links"),
+				],
+				steps: [],
+			},
+			"github",
+			NOW,
+		);
+		expect(preview.recent).toEqual([
+			{ number: 9, title: "Add airdrop section", author: "user-9" },
+			{ number: 7, title: "Fix the README links", author: "user-7" },
+		]);
+	});
+
 	test("a rule that needs a live read has no count without stored runs", async () => {
 		const preview = await computeRulePreview(
 			{ changeRequests: [await changeRequest(2, "Fix typo")], steps: [] },
