@@ -3,6 +3,7 @@ import type { CloseGif } from "@tripwire/contracts";
 import { closeGifFrom } from "#/lib/giphy-gif";
 import {
 	createMemoryLayer,
+	FILL_LEASE_MS,
 	findGif,
 	GIPHY_API_BASE,
 	type GiphyDeps,
@@ -19,12 +20,17 @@ async function databaseStore(): Promise<GiphyStore> {
 		read: async (key) => {
 			const entry = await giphyServices.readGiphyCache(db, key);
 			return entry
-				? { body: entry.body as GifsResult, expiresAt: entry.expiresAt }
+				? {
+						body: entry.body as unknown as GifsResult,
+						expiresAt: entry.expiresAt,
+					}
 				: null;
 		},
 		write: (key, body, expiresAt) =>
 			giphyServices.writeGiphyCache(db, key, body, expiresAt),
 		reserve: (scope, limit) => giphyServices.reserveGiphyCall(db, scope, limit),
+		claim: (key) => giphyServices.claimGiphyFill(db, key, FILL_LEASE_MS),
+		release: (key) => giphyServices.releaseGiphyFill(db, key),
 	};
 }
 
@@ -40,6 +46,7 @@ export async function giphyDeps(): Promise<GiphyDeps> {
 		baseUrl: process.env.GIPHY_API_BASE || GIPHY_API_BASE,
 		fetch: (url, init) => fetch(url, init),
 		now: () => new Date(),
+		wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 		store: layered,
 	};
 }

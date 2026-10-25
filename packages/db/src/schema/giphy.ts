@@ -33,3 +33,8 @@ export const giphyBudget = pgTable(
 		index("giphy_budget_window_idx").on(t.windowStart),
 	],
 );
+
+export const giphyFills = pgTable("giphy_fills", {
+	key: text("key").primaryKey(),
+	until: timestamp("until", { withTimezone: true }).notNull(),
+});

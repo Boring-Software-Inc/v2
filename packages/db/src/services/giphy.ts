@@ -1,12 +1,13 @@
+import { type GiphyPageRecord, giphyPageSchema } from "@tripwire/contracts";
 import { and, eq, lt, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { giphyBudget, giphyCache } from "../schema/giphy.ts";
+import { giphyBudget, giphyCache, giphyFills } from "../schema/giphy.ts";
 
 export const GIPHY_WINDOW_MS = 60 * 60 * 1000;
 const STALE_KEEP_MS = 2 * 24 * 60 * 60 * 1000;
 
 export interface GiphyCacheEntry {
-	body: unknown;
+	body: GiphyPageRecord;
 	expiresAt: Date;
 }
 
@@ -19,16 +20,22 @@ export async function readGiphyCache(
 		.from(giphyCache)
 		.where(eq(giphyCache.key, key))
 		.limit(1);
-	return rows[0] ?? null;
+	const row = rows[0];
+	if (!row) {
+		return null;
+	}
+	const body = giphyPageSchema.safeParse(row.body);
+	return body.success ? { body: body.data, expiresAt: row.expiresAt } : null;
 }
 
 export async function writeGiphyCache(
 	db: Db,
 	key: string,
-	body: unknown,
+	page: unknown,
 	expiresAt: Date,
 	now: Date = new Date(),
 ): Promise<void> {
+	const body = giphyPageSchema.parse(page);
 	await db
 		.insert(giphyCache)
 		.values({ key, body, expiresAt, updatedAt: now })
@@ -44,7 +51,7 @@ export async function writeGiphyCache(
 export async function findCachedGiphyPage(
 	db: Db,
 	gifId: string,
-): Promise<unknown | null> {
+): Promise<GiphyPageRecord | null> {
 	const rows = await db
 		.select({ body: giphyCache.body })
 		.from(giphyCache)
@@ -52,7 +59,31 @@ export async function findCachedGiphyPage(
 			sql`${giphyCache.body} -> 'data' @> ${JSON.stringify([{ id: gifId }])}::jsonb`,
 		)
 		.limit(1);
-	return rows[0]?.body ?? null;
+	const body = giphyPageSchema.safeParse(rows[0]?.body);
+	return body.success ? body.data : null;
+}
+
+export async function claimGiphyFill(
+	db: Db,
+	key: string,
+	leaseMs: number,
+	now: Date = new Date(),
+): Promise<boolean> {
+	const until = new Date(now.getTime() + leaseMs);
+	const claimed = await db
+		.insert(giphyFills)
+		.values({ key, until })
+		.onConflictDoUpdate({
+			target: [giphyFills.key],
+			set: { until },
+			setWhere: lt(giphyFills.until, now),
+		})
+		.returning({ key: giphyFills.key });
+	return claimed.length > 0;
+}
+
+export async function releaseGiphyFill(db: Db, key: string): Promise<void> {
+	await db.delete(giphyFills).where(eq(giphyFills.key, key));
 }
 
 function windowStartOf(now: Date): Date {

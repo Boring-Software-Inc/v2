@@ -64,7 +64,18 @@ function fullPage(prefix: string, offset = 0): GifsResult {
 class FakeStore implements GiphyStore {
 	entries = new Map<string, GiphyCacheEntry>();
 	counts = new Map<string, number>();
+	fills = new Set<string>();
 	reads = 0;
+	async claim(key: string) {
+		if (this.fills.has(key)) {
+			return false;
+		}
+		this.fills.add(key);
+		return true;
+	}
+	async release(key: string) {
+		this.fills.delete(key);
+	}
 	async read(key: string) {
 		this.reads++;
 		return this.entries.get(key) ?? null;
@@ -99,7 +110,7 @@ function harness(apiKey: string | null = "test-key"): Harness {
 			url.pathname.endsWith("/trending")
 				? fullPage("t", Number(url.searchParams.get("offset")))
 				: fullPage(
-						`${url.searchParams.get("q")}-`,
+						`${(url.searchParams.get("q") ?? "").replace(/[^a-z0-9]/g, "")}x`,
 						Number(url.searchParams.get("offset")),
 					),
 		);
@@ -116,6 +127,7 @@ function harness(apiKey: string | null = "test-key"): Harness {
 			apiKey,
 			baseUrl: "https://api.giphy.test",
 			now: () => new Date(now),
+			wait: () => new Promise((resolve) => setTimeout(resolve, 0)),
 			store,
 			fetch: async (input) => {
 				const url = new URL(input);
@@ -379,7 +391,81 @@ describe("search", () => {
 			offset: 0,
 		});
 		expect(stale.status).toBe("busy");
-		expect(stale.result.data[0]?.id).toBe("cats-0");
+		expect(stale.result.data[0]?.id).toBe("catsx0");
+	});
+});
+
+describe("one fill per page", () => {
+	test("concurrent misses on one page make one GIPHY call", async () => {
+		const h = harness();
+		const pages = await Promise.all(
+			Array.from({ length: 10 }, () => trendingGiphy(h.deps, { offset: 0 })),
+		);
+		expect(h.calls).toHaveLength(1);
+		expect(h.store.counts.get("global")).toBe(1);
+		for (const result of pages) {
+			expect(result.status).toBe("ok");
+			expect(result.result.data).toHaveLength(GIPHY_PAGE_SIZE);
+		}
+		const searches = await Promise.all(
+			Array.from({ length: 10 }, (_, i) =>
+				searchGiphy(h.deps, { userId: `u${i}`, query: "cats", offset: 0 }),
+			),
+		);
+		expect(h.calls).toHaveLength(2);
+		expect(searches.every((result) => result.status === "ok")).toBe(true);
+	});
+
+	test("a fill held elsewhere: wait, then fall back without a call", async () => {
+		const h = harness();
+		h.store.fills.add("trending:0");
+		const result = await trendingGiphy(h.deps, { offset: 0 });
+		expect(result.status).toBe("busy");
+		expect(h.calls).toHaveLength(0);
+		expect(h.store.counts.size).toBe(0);
+	});
+
+	test("the fill is released after a failure", async () => {
+		const h = harness();
+		h.respond(() => new Response("", { status: 500 }));
+		await trendingGiphy(h.deps, { offset: 0 });
+		expect(h.store.fills.size).toBe(0);
+	});
+});
+
+describe("GIPHY's answer is checked", () => {
+	test("gifs without the grid renditions or off GIPHY's media hosts are dropped", async () => {
+		const h = harness();
+		const broken = gif("broken");
+		delete (broken.images as unknown as Record<string, unknown>).fixed_width;
+		const offsite = gif("offsite");
+		(
+			offsite.images as unknown as Record<string, { url: string }>
+		).fixed_height = {
+			url: "https://evil.example/a.gif",
+		};
+		const badId = gif("bad-id");
+		h.respond(() =>
+			Response.json({
+				...page([]),
+				data: [gif("good"), broken, offsite, badId],
+			}),
+		);
+		const result = await searchGiphy(h.deps, {
+			userId: "u1",
+			query: "cats",
+			offset: 0,
+		});
+		expect(result.result.data.map((g) => g.id)).toEqual(["good"]);
+	});
+
+	test("a body that is not a page is a failure and is not cached", async () => {
+		const h = harness();
+		h.respond(() => Response.json({ nope: true }));
+		const result = await trendingGiphy(h.deps, { offset: 0 });
+		expect(result.status).toBe("busy");
+		expect(result.result.data).toEqual([]);
+		expect(h.store.entries.size).toBe(0);
 	});
 });
 

@@ -1,5 +1,7 @@
 import type { GifsResult } from "@giphy/js-fetch-api";
-import { allowedRating, type GiphyGif } from "#/lib/giphy-gif";
+import { validGiphyGifs } from "@tripwire/contracts";
+import type { GiphyGif } from "#/lib/giphy-gif";
+
 export type GiphyStatus = "ok" | "busy" | "unavailable";
 
 export interface GiphyPage {
@@ -16,6 +18,8 @@ export interface GiphyStore {
 	read: (key: string) => Promise<GiphyCacheEntry | null>;
 	write: (key: string, body: GifsResult, expiresAt: Date) => Promise<void>;
 	reserve: (scope: string, limit: number) => Promise<boolean>;
+	claim: (key: string) => Promise<boolean>;
+	release: (key: string) => Promise<void>;
 }
 
 export interface GiphyDeps {
@@ -23,6 +27,7 @@ export interface GiphyDeps {
 	baseUrl: string;
 	fetch: (url: string, init?: RequestInit) => Promise<Response>;
 	now: () => Date;
+	wait: (ms: number) => Promise<void>;
 	store: GiphyStore;
 }
 
@@ -38,6 +43,9 @@ export const USER_HOURLY_LIMIT = 15;
 export const TRENDING_TTL_MS = 60 * 60 * 1000;
 export const SEARCH_TTL_MS = 24 * 60 * 60 * 1000;
 export const GLOBAL_SCOPE = "global";
+export const FILL_LEASE_MS = 10_000;
+export const FILL_WAIT_MS = 3000;
+export const FILL_POLL_MS = 250;
 
 const KEPT_RENDITIONS = [
 	"original",
@@ -112,42 +120,48 @@ function trimGif(gif: GiphyGif): GiphyGif {
 	return trimmed as unknown as GiphyGif;
 }
 
-export function cleanResult(raw: GifsResult, offset: number): GifsResult {
-	const data = (raw.data ?? []).filter((gif) => allowedRating(gif.rating));
-	const reported = raw.pagination ?? {
-		total_count: offset,
-		count: 0,
-		offset,
+export function cleanResult(raw: unknown, offset: number): GifsResult {
+	const body = (raw ?? {}) as {
+		data?: unknown;
+		pagination?: { total_count?: unknown };
+		meta?: GifsResult["meta"];
 	};
-	const count = raw.data?.length ?? 0;
+	const count = Array.isArray(body.data) ? body.data.length : 0;
+	const reported = Number(body.pagination?.total_count) || 0;
 	const end = offset + count;
 	const total =
 		end >= GIPHY_MAX_OFFSET + GIPHY_PAGE_SIZE || count < GIPHY_PAGE_SIZE
 			? end
-			: Math.max(reported.total_count, end);
+			: Math.max(reported, end);
+	const meta = body.meta;
 	return {
-		data: data.map(trimGif),
+		data: validGiphyGifs(body.data).map((gif) =>
+			trimGif(gif as unknown as GiphyGif),
+		),
 		pagination: { total_count: total, count, offset },
-		meta: raw.meta ?? { status: 200, msg: "OK", response_id: "" },
+		meta: {
+			status: typeof meta?.status === "number" ? meta.status : 200,
+			msg: typeof meta?.msg === "string" ? meta.msg : "OK",
+			response_id:
+				typeof meta?.response_id === "string" ? meta.response_id : "",
+		},
 	};
 }
 
 type Upstream =
-	| { kind: "ok"; result: GifsResult }
+	| { kind: "ok"; result: unknown }
 	| { kind: "limited" }
 	| { kind: "failed" };
 
 async function callGiphy(
 	deps: GiphyDeps,
+	apiKey: string,
 	path: "trending" | "search",
 	params: Record<string, string>,
 ): Promise<Upstream> {
-	if (!deps.apiKey) {
-		return { kind: "failed" };
-	}
 	const url = new URL(`/v1/gifs/${path}`, deps.baseUrl);
 	url.search = new URLSearchParams({
-		api_key: deps.apiKey,
+		api_key: apiKey,
 		limit: String(GIPHY_PAGE_SIZE),
 		rating: GIPHY_RATING,
 		...params,
@@ -163,7 +177,10 @@ async function callGiphy(
 		if (!response.ok) {
 			return { kind: "failed" };
 		}
-		return { kind: "ok", result: (await response.json()) as GifsResult };
+		const body = (await response.json()) as { data?: unknown } | null;
+		return Array.isArray(body?.data)
+			? { kind: "ok", result: body }
+			: { kind: "failed" };
 	} catch {
 		return { kind: "failed" };
 	}
@@ -173,8 +190,72 @@ function expiry(deps: GiphyDeps, ttl: number): Date {
 	return new Date(deps.now().getTime() + ttl);
 }
 
-function isFresh(deps: GiphyDeps, entry: GiphyCacheEntry): boolean {
-	return entry.expiresAt.getTime() > deps.now().getTime();
+function isFresh(deps: GiphyDeps, entry: GiphyCacheEntry | null): boolean {
+	return entry !== null && entry.expiresAt.getTime() > deps.now().getTime();
+}
+
+interface FillPlan {
+	key: string;
+	offset: number;
+	ttl: number;
+	budgets: [scope: string, limit: number][];
+	path: "trending" | "search";
+	params: Record<string, string>;
+	fallback: (cached: GiphyCacheEntry | null) => Promise<GiphyPage>;
+}
+
+async function waitForFill(
+	deps: GiphyDeps,
+	key: string,
+): Promise<GiphyCacheEntry | null> {
+	for (let waited = 0; waited < FILL_WAIT_MS; waited += FILL_POLL_MS) {
+		await deps.wait(FILL_POLL_MS);
+		const entry = await deps.store.read(key);
+		if (isFresh(deps, entry)) {
+			return entry;
+		}
+	}
+	return null;
+}
+
+async function fillPage(deps: GiphyDeps, plan: FillPlan): Promise<GiphyPage> {
+	const cached = await deps.store.read(plan.key);
+	if (cached && isFresh(deps, cached)) {
+		return { result: cached.body, status: "ok" };
+	}
+	if (!deps.apiKey) {
+		const fallback = await plan.fallback(cached);
+		return { ...fallback, status: "unavailable" };
+	}
+	if (!(await deps.store.claim(plan.key))) {
+		const filled = await waitForFill(deps, plan.key);
+		return filled
+			? { result: filled.body, status: "ok" }
+			: plan.fallback(cached);
+	}
+	try {
+		const latest = await deps.store.read(plan.key);
+		if (latest && isFresh(deps, latest)) {
+			return { result: latest.body, status: "ok" };
+		}
+		for (const [scope, limit] of plan.budgets) {
+			if (!(await deps.store.reserve(scope, limit))) {
+				return plan.fallback(cached);
+			}
+		}
+		const upstream = await callGiphy(deps, deps.apiKey, plan.path, {
+			...plan.params,
+			offset: String(plan.offset),
+		});
+		if (upstream.kind !== "ok") {
+			return plan.fallback(cached);
+		}
+		const result = cleanResult(upstream.result, plan.offset);
+		await deps.store.write(plan.key, result, expiry(deps, plan.ttl));
+		return { result, status: "ok" };
+	} finally {
+		await deps.store.release(plan.key);
+	}
 }
 
 export async function trendingGiphy(
@@ -185,33 +266,18 @@ export async function trendingGiphy(
 	if (offset > GIPHY_MAX_OFFSET) {
 		return { result: emptyResult(offset), status: "ok" };
 	}
-	const key = trendingKey(offset);
-	const cached = await deps.store.read(key);
-	if (cached && isFresh(deps, cached)) {
-		return { result: cached.body, status: "ok" };
-	}
-	const stale = (status: GiphyStatus): GiphyPage => ({
-		result: cached?.body ?? emptyResult(offset),
-		status,
+	return fillPage(deps, {
+		key: trendingKey(offset),
+		offset,
+		ttl: TRENDING_TTL_MS,
+		budgets: [[GLOBAL_SCOPE, TRENDING_CEILING]],
+		path: "trending",
+		params: {},
+		fallback: async (cached) => ({
+			result: cached?.body ?? emptyResult(offset),
+			status: "busy",
+		}),
 	});
-	if (!deps.apiKey) {
-		return stale(cached ? "busy" : "unavailable");
-	}
-	if (!(await deps.store.reserve(GLOBAL_SCOPE, TRENDING_CEILING))) {
-		return stale("busy");
-	}
-	const upstream = await callGiphy(deps, "trending", {
-		offset: String(offset),
-	});
-	if (upstream.kind === "limited") {
-		return stale("busy");
-	}
-	if (upstream.kind === "failed") {
-		return stale(cached ? "busy" : "unavailable");
-	}
-	const result = cleanResult(upstream.result, offset);
-	await deps.store.write(key, result, expiry(deps, TRENDING_TTL_MS));
-	return { result, status: "ok" };
 }
 
 async function busyFallback(
@@ -240,44 +306,27 @@ export async function searchGiphy(
 	if (offset > GIPHY_MAX_OFFSET) {
 		return { result: emptyResult(offset), status: "ok" };
 	}
-	const key = searchKey(query, offset);
-	const cached = await deps.store.read(key);
-	if (cached && isFresh(deps, cached)) {
-		return { result: cached.body, status: "ok" };
-	}
-	if (!deps.apiKey) {
-		const fallback = cached
-			? { result: cached.body, status: "busy" as const }
-			: await busyFallback(deps, offset);
-		return { ...fallback, status: "unavailable" };
-	}
-	if (!(await deps.store.reserve(`user:${input.userId}`, USER_HOURLY_LIMIT))) {
-		return busyFallback(deps, offset);
-	}
-	if (!(await deps.store.reserve(GLOBAL_SCOPE, SEARCH_CEILING))) {
-		return busyFallback(deps, offset);
-	}
-	const upstream = await callGiphy(deps, "search", {
-		q: query,
-		offset: String(offset),
-		lang: "en",
+	return fillPage(deps, {
+		key: searchKey(query, offset),
+		offset,
+		ttl: SEARCH_TTL_MS,
+		budgets: [
+			[`user:${input.userId}`, USER_HOURLY_LIMIT],
+			[GLOBAL_SCOPE, SEARCH_CEILING],
+		],
+		path: "search",
+		params: { q: query, lang: "en" },
+		fallback: async (cached) =>
+			cached
+				? { result: cached.body, status: "busy" }
+				: busyFallback(deps, offset),
 	});
-	if (upstream.kind !== "ok") {
-		return cached
-			? { result: cached.body, status: "busy" }
-			: busyFallback(deps, offset);
-	}
-	const result = cleanResult(upstream.result, offset);
-	await deps.store.write(key, result, expiry(deps, SEARCH_TTL_MS));
-	return { result, status: "ok" };
 }
 
 export function findGif(page: unknown, gifId: string): GiphyGif | null {
 	const data = (page as { data?: unknown } | null)?.data;
-	if (!Array.isArray(data)) {
-		return null;
-	}
-	return (data as GiphyGif[]).find((gif) => String(gif.id) === gifId) ?? null;
+	const gif = validGiphyGifs(data).find((candidate) => candidate.id === gifId);
+	return gif ? (gif as unknown as GiphyGif) : null;
 }
 
 export interface MemoryCacheOptions {
@@ -318,5 +367,7 @@ export function createMemoryLayer(
 			await inner.write(key, body, expiresAt);
 		},
 		reserve: (scope, limit) => inner.reserve(scope, limit),
+		claim: (key) => inner.claim(key),
+		release: (key) => inner.release(key),
 	};
 }

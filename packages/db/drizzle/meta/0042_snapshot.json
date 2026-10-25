@@ -1,5 +1,5 @@
 {
-  "id": "4883ded6-a3e2-455e-b1cc-0da5910e7011",
+  "id": "4bffba58-1af1-453e-9d5e-2f15c40a9499",
   "prevId": "5053d59f-e9c8-445c-aab1-c605cefb4310",
   "version": "7",
   "dialect": "postgresql",
@@ -1631,6 +1631,31 @@
           "with": {}
         }
       },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.giphy_fills": {
+      "name": "giphy_fills",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "until": {
+          "name": "until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
