@@ -1014,7 +1014,7 @@ describe("a passing AI review in the passed list", () => {
 	});
 });
 
-describe("Except when on the run page", () => {
+describe("Skip when on the run page", () => {
 	const base = exceptionDraft({
 		id: "crm",
 		name: "Target is main",
@@ -1070,7 +1070,7 @@ describe("Except when on the run page", () => {
 		outcome: "pass",
 	};
 
-	test("an applied exception names itself and keeps its card open", () => {
+	test("a matched Skip when shows the rule as skipped, never passed, with its checks", () => {
 		const body = buildBranches(
 			[{ ...RULES, outcome: "pass" }, WORKFLOW],
 			[
@@ -1105,26 +1105,25 @@ describe("Except when on the run page", () => {
 		);
 		const branch = body.branches.find((entry) => entry.id === "crm");
 		expect(branch?.form).toBe("card");
-		expect(branch?.exceptions).toMatchObject([
+		expect(branch?.skips).toMatchObject([
 			{
-				label: "Except: Target is release, Source starts with release-please",
-				decision: "exception",
-				word: "Exception applied",
-				tone: "ok",
+				state: "matched",
+				text: "Target is main skipped: Target is release and Source starts with release-please matched",
+				tone: "neutral",
+				glyph: "skipped",
 			},
 		]);
-		expect(branch?.exceptions[0]?.rules.map((entry) => entry.name)).toEqual([
+		expect(branch?.skips[0]?.checks.map((entry) => entry.name)).toEqual([
 			"Target is release",
 			"Source starts with release-please",
 		]);
-		expect(branch?.flagged.map((entry) => entry.name)).toEqual([
-			"Target is main",
-		]);
+		expect(branch?.flagged).toEqual([]);
 		expect(branch?.passed).toEqual([]);
-		expect(branch && branchSummary(branch).text).toBe("Exception applied");
+		expect(branch && branchSummary(branch).text).toBe("Target is main skipped");
+		expect(branch && branchOutcomeLabel(branch)?.label).toBe("Skipped");
 	});
 
-	test("when the requirement decides, unused exception checks are not flagged", () => {
+	test("when Skip when does not match, its checks are not flagged and the rule ran", () => {
 		const body = buildBranches(
 			[WORKFLOW],
 			[
@@ -1161,13 +1160,13 @@ describe("Except when on the run page", () => {
 		expect(branch?.passed.map((entry) => entry.name)).toEqual([
 			"Target is main",
 		]);
-		expect(branch?.exceptions[0]).toMatchObject({
-			decision: "requirement",
-			word: "Requirement passed",
+		expect(branch?.skips[0]).toMatchObject({
+			state: "not-matched",
+			text: "Skip when did not match",
 		});
 	});
 
-	test("an exception that did not apply reads so, and a fix reads Changes needed", () => {
+	test("missing proof fails closed: the rule ran and the fix reads Changes needed", () => {
 		const body = buildBranches(
 			[{ ...WORKFLOW, outcome: "changes" }],
 			[
@@ -1200,10 +1199,13 @@ describe("Except when on the run page", () => {
 			[CRM],
 		);
 		const [branch] = body.branches;
-		expect(branch?.exceptions[0]).toMatchObject({
-			decision: "unchecked",
-			word: "Exception could not be checked",
+		expect(branch?.skips[0]).toMatchObject({
+			state: "unchecked",
+			text: "Skip when could not be checked",
 		});
+		expect(branch?.flagged.map((entry) => entry.name)).toEqual([
+			"Target is main",
+		]);
 		expect(branch && branchOutcomeLabel(branch)?.label).toBe("Changes needed");
 	});
 });

@@ -16,8 +16,8 @@ import {
 	branchOutcomeLabel,
 	branchSummary,
 	type ChainBranch,
-	type ChainException,
 	type ChainRule,
+	type ChainSkip,
 	passedNote,
 	ruleReason,
 } from "#/lib/run-chain";
@@ -143,35 +143,47 @@ const RULE_MARK_LOOK = {
 	pending: { glyph: "running", tone: "neutral" },
 } as const;
 
-function ExceptionRow({ exception }: { exception: ChainException }) {
+function SkipRow({
+	skip,
+	context,
+}: {
+	skip: ChainSkip;
+	context: BranchContext;
+}) {
 	return (
-		<div
-			className="rule-row flex gap-2 px-3 pt-3 pb-4"
-			data-exception={exception.decision ?? "pending"}
-		>
-			<ChainMark glyph={exception.glyph} tone={exception.tone} />
+		<div className="rule-row flex gap-2 px-3 pt-3 pb-4" data-skip={skip.state}>
+			<ChainMark glyph={skip.glyph} tone={skip.tone} />
 			<div className="flex min-w-0 flex-1 flex-col gap-1">
-				<div className="flex flex-wrap items-baseline gap-x-2">
-					<span className="type-label text-text-1 [overflow-wrap:anywhere]">
-						{exception.label}
-					</span>
-					<span className={cn("type-label-sm", TONE_WORD[exception.tone])}>
-						{exception.word}
-					</span>
-				</div>
-				{exception.rules.length > 0 ? (
-					<ul className="flex flex-col gap-0.5">
-						{exception.rules.map((rule) => {
+				<span className="type-label text-text-1 [overflow-wrap:anywhere]">
+					{skip.text}
+				</span>
+				{skip.checks.length > 0 ? (
+					<ul className="flex flex-col gap-1">
+						{skip.checks.map((rule) => {
 							const look = RULE_MARK_LOOK[rule.mark];
+							const reason = ruleReason(rule, context.level);
 							return (
 								<li
-									className="flex items-baseline gap-1.5 type-body-sm text-text-2"
+									className="flex flex-col gap-0.5 type-body-sm text-text-2"
 									key={rule.step.id}
 								>
-									<ChainMark glyph={look.glyph} size={12} tone={look.tone} />
-									<span className="min-w-0 [overflow-wrap:anywhere]">
-										{rule.name}
+									<span className="flex items-baseline gap-1.5">
+										<ChainMark glyph={look.glyph} size={12} tone={look.tone} />
+										<span className="min-w-0 [overflow-wrap:anywhere]">
+											{rule.name}
+										</span>
 									</span>
+									{reason ? (
+										<p className="ps-5 [overflow-wrap:anywhere]">{reason}</p>
+									) : null}
+									<div className="ps-3">
+										<RuleEvidence
+											maintainer={context.maintainer}
+											repo={context.repo}
+											sha={context.sha}
+											step={rule.step}
+										/>
+									</div>
 								</li>
 							);
 						})}
@@ -212,8 +224,8 @@ function BranchBody({
 			{branch.flagged.map((rule) => (
 				<FlaggedRule context={context} key={rule.step.id} rule={rule} />
 			))}
-			{branch.exceptions.map((exception) => (
-				<ExceptionRow exception={exception} key={exception.id} />
+			{branch.skips.map((skip) => (
+				<SkipRow context={context} key={skip.id} skip={skip} />
 			))}
 			{branch.pending.map((rule) => (
 				<PendingRule key={rule.step.id} rule={rule} />

@@ -76,7 +76,7 @@ describe("passed workflows group", () => {
 			passed: [],
 			flagged: [],
 			pending: [],
-			exceptions: [],
+			skips: [],
 			outcome: null,
 		});
 		const markup = renderToString(
