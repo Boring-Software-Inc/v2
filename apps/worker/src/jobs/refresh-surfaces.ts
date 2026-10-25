@@ -94,6 +94,8 @@ export async function refreshRepoSurfaces(
 				reasons,
 				runUrl,
 				previousVerdict: verdict,
+				title: event.data.changeRequest.title,
+				targetBranch: event.data.changeRequest.baseRef ?? null,
 				...issues,
 			},
 			config,

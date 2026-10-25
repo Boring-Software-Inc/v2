@@ -698,6 +698,7 @@ describe("responseConfig: defaults and surface gates", () => {
 				surfaces: ["run-page", "check", "comment", "review"],
 				showHelp: true,
 			},
+			blocks: {},
 		});
 		expect(responseConfigSchema.parse({})).toEqual(DEFAULT_RESPONSE_CONFIG);
 	});
