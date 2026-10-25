@@ -77,7 +77,12 @@ export function gateInputFor(
 export function gateInputTaken(
 	target: WorkflowNode | undefined,
 	targetHandle: string | null | undefined,
-	edges: readonly { target: string; targetHandle?: string | null }[],
+	edges: readonly {
+		id: string;
+		target: string;
+		targetHandle?: string | null;
+	}[],
+	movingEdgeId: string | null = null,
 ): boolean {
 	const role = handleInput(targetHandle);
 	return (
@@ -86,7 +91,9 @@ export function gateInputTaken(
 		role !== undefined &&
 		edges.some(
 			(edge) =>
-				edge.target === target.id && handleInput(edge.targetHandle) === role,
+				edge.id !== movingEdgeId &&
+				edge.target === target.id &&
+				handleInput(edge.targetHandle) === role,
 		)
 	);
 }

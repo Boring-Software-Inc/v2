@@ -419,9 +419,18 @@ describe("connecting into Except when", () => {
 	});
 
 	test("a filled port refuses a second connection", () => {
-		const edges = [{ target: "g", targetHandle: "requirement" }];
+		const edges = [{ id: "e1", target: "g", targetHandle: "requirement" }];
 		expect(gateInputTaken(gate, "requirement", edges)).toBe(true);
 		expect(gateInputTaken(gate, "exception", edges)).toBe(false);
 		expect(gateInputTaken(allOf, "requirement", edges)).toBe(false);
+	});
+
+	test("moving an edge's source keeps its own port open", () => {
+		const edges = [
+			{ id: "e1", target: "g", targetHandle: "requirement" },
+			{ id: "e2", target: "g", targetHandle: "exception" },
+		];
+		expect(gateInputTaken(gate, "requirement", edges, "e1")).toBe(false);
+		expect(gateInputTaken(gate, "exception", edges, "e1")).toBe(true);
 	});
 });

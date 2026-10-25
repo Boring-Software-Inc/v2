@@ -465,7 +465,7 @@ function EditorBody({
 		issues: ValidationIssue[];
 	} | null>(null);
 	const [pending, setPending] = useState<PendingConnect | null>(null);
-	const reconnecting = useRef(false);
+	const reconnecting = useRef<string | null>(null);
 	const leave = useBlocker({
 		shouldBlockFn: ({ current, next }) =>
 			dirty && !readOnly && current.pathname !== next.pathname,
@@ -802,7 +802,12 @@ function EditorBody({
 			if (
 				!(source && target) ||
 				source.id === target.id ||
-				gateInputTaken(target.data.node, connection.targetHandle, edges)
+				gateInputTaken(
+					target.data.node,
+					connection.targetHandle,
+					edges,
+					reconnecting.current,
+				)
 			) {
 				return false;
 			}
@@ -846,7 +851,7 @@ function EditorBody({
 			const { fromHandle } = state;
 			const fromNode = nodes.find((n) => n.id === state.fromNode?.id);
 			if (
-				reconnecting.current ||
+				reconnecting.current !== null ||
 				readOnly ||
 				state.isValid ||
 				state.toHandle ||
@@ -1349,10 +1354,10 @@ function EditorBody({
 												onNodeClick={cancelPending}
 												onPaneClick={cancelPending}
 												onReconnectEnd={() => {
-													reconnecting.current = false;
+													reconnecting.current = null;
 												}}
-												onReconnectStart={() => {
-													reconnecting.current = true;
+												onReconnectStart={(_event, edge) => {
+													reconnecting.current = edge.id;
 												}}
 												onEdgesChange={onEdgesChange}
 												onNodesChange={onNodesChange}
