@@ -262,12 +262,6 @@ async function buildCrm() {
 		when: { id: "contributor.login" },
 		comparison: { kind: "equals", args: [RELEASE_ACCOUNT] },
 	});
-	await ruleServices.setRulesEnabled(db, {
-		repoId: repo.repoId,
-		ruleIds: ["crypto-address"],
-		enabled: true,
-	});
-
 	const draft = await ruleExceptionServices.openRuleExceptionDraft(db, {
 		repoId: repo.repoId,
 		ruleId: targetMain,
@@ -293,9 +287,18 @@ async function buildCrm() {
 				ref: `${ruleId}@1`,
 				config: {},
 			})),
+			{ id: "crypto", type: "rule", ref: "crypto-address@1", config: {} },
+			{ id: "crypto-block", type: "action", action: "block" },
 		],
 		edges: [
 			...stored.definition.edges,
+			{ id: "in-crypto", from: EXCEPTION_DRAFT_IDS.trigger, to: "crypto" },
+			{
+				id: "crypto-fails",
+				from: "crypto",
+				to: "crypto-block",
+				when: "fail",
+			},
 			...exceptionRules.flatMap((ruleId) => [
 				{
 					id: `in-${ruleId}`,
