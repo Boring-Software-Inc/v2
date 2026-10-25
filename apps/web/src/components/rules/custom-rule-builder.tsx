@@ -4,6 +4,9 @@ import {
 	type CustomRuleDefinition,
 	type CustomSignalDisplay,
 	customRuleSentence,
+	MAX_OUTCOME_MESSAGE,
+	type RuleOutcome,
+	type RuleOutcomeSetting,
 	valuePlaceholder,
 	verbsForSignal,
 } from "@tripwire/contracts";
@@ -40,9 +43,24 @@ import {
 	PopoverTrigger,
 } from "#/components/glaze/ui/popover";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/glaze/ui/select";
+import {
 	CONDITION_GROUP_ICON,
 	conditionIcon,
 } from "#/components/rules/condition-icons";
+import {
+	isRuleOutcome,
+	OUTCOME_LEAD,
+	outcomeLine,
+	RULE_OUTCOME_ITEMS,
+	withInstruction,
+	withOutcome,
+} from "#/components/rules/rule-outcome";
 import { cn } from "#/lib/glaze/utils";
 import { repoSuggestionsQueryOptions } from "#/lib/rules.query";
 
@@ -88,6 +106,7 @@ export interface CustomRuleDraft {
 	id?: string;
 	name: string;
 	definition: CustomRuleDefinition;
+	outcome: RuleOutcomeSetting;
 }
 
 export interface BuilderState {
@@ -102,6 +121,7 @@ export interface BuilderState {
 	/** Committed chips for a list verb. */
 	values: string[];
 	name: string;
+	outcome: RuleOutcomeSetting;
 }
 
 const EMPTY_STATE: BuilderState = {
@@ -113,6 +133,7 @@ const EMPTY_STATE: BuilderState = {
 	high: "",
 	values: [],
 	name: "",
+	outcome: { outcome: "block", instruction: "" },
 };
 
 /** Clears every value field, for when the signal or verb changes underneath. */
@@ -183,7 +204,7 @@ function parseValue(
 		: null;
 }
 
-function draftFromState(state: BuilderState): CustomRuleDraft | null {
+export function draftFromState(state: BuilderState): CustomRuleDraft | null {
 	const comparison = parseValue(state);
 	if (!state.signal || !comparison) {
 		return null;
@@ -197,6 +218,7 @@ function draftFromState(state: BuilderState): CustomRuleDraft | null {
 	}
 	return {
 		name: state.name.trim(),
+		outcome: withInstruction(state.outcome, state.outcome.instruction),
 		definition: {
 			when: {
 				id: state.signal.id,
@@ -334,6 +356,9 @@ export function CustomRuleBuilder({
 		state.signal && state.verb
 			? valuePlaceholder(state.signal, state.verb.kind)
 			: undefined;
+	const line = outcomeLine(state.outcome.outcome);
+	const setOutcome = (outcome: RuleOutcome) =>
+		set({ outcome: withOutcome(state.outcome, outcome) });
 	const textSignalIcon =
 		state.signal?.kind === "text" ? conditionIcon(state.signal) : null;
 
@@ -494,6 +519,44 @@ export function CustomRuleBuilder({
 						<output className="type-body-sm text-fail-text">
 							{valueMessage}
 						</output>
+					) : null}
+					<Field>
+						<FieldLabel>{OUTCOME_LEAD}</FieldLabel>
+						<Select
+							items={RULE_OUTCOME_ITEMS}
+							onValueChange={(value) => {
+								if (isRuleOutcome(value)) {
+									setOutcome(value);
+								}
+							}}
+							value={state.outcome.outcome}
+						>
+							<SelectTrigger>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{RULE_OUTCOME_ITEMS.map((item) => (
+									<SelectItem key={item.value} value={item.value}>
+										{item.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Field>
+					{line ? (
+						<Field>
+							<FieldLabel>{line.label}</FieldLabel>
+							<Input
+								maxLength={MAX_OUTCOME_MESSAGE}
+								onChange={(e) =>
+									set({
+										outcome: { ...state.outcome, instruction: e.target.value },
+									})
+								}
+								placeholder={line.placeholder}
+								value={state.outcome.instruction}
+							/>
+						</Field>
 					) : null}
 					{state.verb ? (
 						<Field>

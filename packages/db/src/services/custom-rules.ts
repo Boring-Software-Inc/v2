@@ -4,7 +4,10 @@ import {
 	customRuleRecordSchema,
 	customRuleRef,
 	customRuleSentence,
+	DEFAULT_RULE_OUTCOME_SETTING,
+	parseRuleOutcomeInput,
 	RULE_CATALOG,
+	type RuleOutcomeSetting,
 } from "@tripwire/contracts";
 import { storedRuleIssue } from "@tripwire/sdk";
 import { generateId } from "@tripwire/utils";
@@ -14,6 +17,7 @@ import {
 	listCustomRules,
 	upsertCustomRule,
 } from "./repos.ts";
+import { workflowOwnsOutcome } from "./rules.ts";
 
 export const CUSTOM_RULE_NAME_MAX = 80;
 export const CUSTOM_RULE_DESCRIPTION_MAX = 500;
@@ -26,6 +30,7 @@ export interface CustomRuleView {
 	enabled: boolean;
 	definition: CustomRuleDefinition;
 	sentence: string;
+	outcome: RuleOutcomeSetting;
 }
 
 export type CustomRuleFailure = {
@@ -87,6 +92,7 @@ function toView(row: {
 	description: string | null;
 	enabled: boolean;
 	definition: unknown;
+	outcome?: RuleOutcomeSetting;
 }): CustomRuleView | null {
 	const parsed = customRuleRecordSchema.safeParse(row);
 	if (!parsed.success) {
@@ -100,6 +106,7 @@ function toView(row: {
 		enabled: parsed.data.enabled,
 		definition: parsed.data.definition,
 		sentence: customRuleSentence(parsed.data.definition),
+		outcome: row.outcome ?? DEFAULT_RULE_OUTCOME_SETTING,
 	};
 }
 
@@ -144,6 +151,7 @@ export async function saveCustomRule(
 		description?: string | null;
 		enabled?: boolean;
 		definition: unknown;
+		outcome?: { outcome?: string; instruction?: string };
 	},
 ): Promise<SaveCustomRuleResult> {
 	const name = input.name.trim();
@@ -171,6 +179,23 @@ export async function saveCustomRule(
 			: rows.find((row) => row.id === input.id);
 	if (input.id !== undefined && !existing) {
 		return notFound(input.id);
+	}
+	const outcome = input.outcome
+		? parseRuleOutcomeInput({
+				outcome: input.outcome.outcome ?? existing?.outcome?.outcome,
+				instruction:
+					input.outcome.instruction ?? existing?.outcome?.instruction,
+			})
+		: null;
+	if (outcome && !outcome.ok) {
+		return invalid(outcome.error);
+	}
+	const owned =
+		outcome && existing
+			? await workflowOwnsOutcome(db, input.repoId, existing.id)
+			: null;
+	if (owned) {
+		return invalid(owned);
 	}
 	const checked = customRuleDefinitionIssue(input.definition);
 	if (!checked.ok) {
@@ -204,9 +229,14 @@ export async function saveCustomRule(
 			"This rule is missing a part. Fill in every blank and save again.",
 		);
 	}
+	const savedOutcome =
+		(outcome?.ok ? outcome.setting : null) ??
+		existing?.outcome ??
+		DEFAULT_RULE_OUTCOME_SETTING;
 	await upsertCustomRule(db, input.repoId, {
 		...record.data,
 		description,
+		outcome: outcome?.ok ? outcome.setting : undefined,
 	});
 	return {
 		ok: true,
@@ -222,6 +252,7 @@ export async function saveCustomRule(
 			enabled: record.data.enabled,
 			definition: record.data.definition,
 			sentence: customRuleSentence(record.data.definition),
+			outcome: savedOutcome,
 		},
 	};
 }

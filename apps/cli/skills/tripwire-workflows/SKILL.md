@@ -144,6 +144,20 @@ sentence. Over the MCP, the tools are `save_custom_rule`, `delete_custom_rule`
 and `get_repo_rules`. The `save_custom_rule` description lists every signal
 and comparison.
 
+A rule that runs by itself blocks when it does not pass. To change that, pass
+`--outcome` to `rules set`, `rules create` or `rules update`: `block`,
+`request_fix`, `human_review`, `note` or `close`. `request_fix` and `note`
+take `--instruction`:
+
+```sh
+npx @tripwire-sh/cli rules set <repo> <ruleId> --outcome request_fix \
+  --instruction "Change the target to main."
+```
+
+Over the MCP, `set_rule` and `save_custom_rule` take `outcome` and
+`instruction`. A rule a workflow uses takes its outcome from the workflow's
+actions, so change the workflow instead.
+
 A new rule starts off. A rule that is on and that no workflow uses runs by
 itself on every change request. To combine rules, keep them off and use them
 in `tripwire.ts`. For example, to block change requests into `release` unless

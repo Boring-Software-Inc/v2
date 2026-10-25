@@ -36,6 +36,7 @@ import {
 	type RulesTab,
 } from "#/components/rules/rules-collection";
 import { RuleGridSkeleton } from "#/components/rules/rules-page-skeleton";
+import { useRuleOutcome } from "#/components/rules/use-rule-outcome";
 import { useTurnOnRules } from "#/components/rules/use-turn-on-rules";
 import {
 	type SaveQueueCommit,
@@ -119,6 +120,7 @@ export function RulesPage() {
 	const { tab } = routeApi.useSearch();
 	const navigate = routeApi.useNavigate();
 	const { turnOn, pending } = useTurnOnRules(org, repoId);
+	const changeOutcome = useRuleOutcome(org, repoId);
 
 	const onRules = (rules ?? []).filter((r) => r.enabled);
 	const customRules = (rules ?? []).filter((r) => r.source === "custom");
@@ -268,6 +270,7 @@ export function RulesPage() {
 				name: draft.name,
 				enabled: true,
 				definition: draft.definition,
+				outcome: draft.outcome,
 			},
 		});
 		if (result && "error" in result) {
@@ -500,6 +503,7 @@ export function RulesPage() {
 																canEdit={isAdmin}
 																key={rule.ruleId}
 																onDelete={removeCustomRule}
+																onOutcomeChange={changeOutcome}
 																org={org}
 																repo={repoName}
 																rule={rule}

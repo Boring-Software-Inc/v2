@@ -8,8 +8,11 @@ import {
 	describeRunSteps,
 	isCustomRuleId,
 	matchWorkflowIds,
+	parseRuleOutcomeInput,
 	RULE_CATALOG,
+	RULE_OUTCOME_LABELS,
 	redactWorkflowSecrets,
+	ruleOutcomeSchema,
 	runResult,
 	runResultLabel,
 	runSnapshotSchema,
@@ -72,6 +75,18 @@ const repoArg = z
 	.string()
 	.min(1)
 	.describe("The repo name, or owner/name, as listed by list_repos.");
+const outcomeArg = ruleOutcomeSchema
+	.optional()
+	.describe(
+		"What happens when the rule does not pass. block: red check and a changes-requested review. request_fix: red check and your instruction, no review. human_review: pending check until a maintainer decides. note: green check with a note. close: closes the change request. Leave out to keep the current one. New rules use block.",
+	);
+const instructionArg = z
+	.string()
+	.optional()
+	.describe(
+		"For request_fix: what the author must change, as in Change the target to main. For note: the fact to state. Leave out to keep the current text.",
+	);
+
 const anyRepoArg = z
 	.string()
 	.min(1)
@@ -358,7 +373,7 @@ export function registerTools(
 			"get_repo_rules",
 			{
 				description:
-					"The rules on a repo: on or off, current settings, and whether a workflow owns them. A repo starts with no rules on, and Tripwire checks nothing until a rule is turned on. Custom rules also carry their sentence, description, definition and the workflows that use them. Use a custom rule in tripwire.ts with customCheck(ruleId).",
+					"The rules on a repo: on or off, current settings, what happens when each does not pass, and whether a workflow owns them. A repo starts with no rules on, and Tripwire checks nothing until a rule is turned on. Custom rules also carry their sentence, description, definition and the workflows that use them. Use a custom rule in tripwire.ts with customCheck(ruleId).",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("get_repo_rules"),
 			},
@@ -389,6 +404,10 @@ export function registerTools(
 								held: view.held,
 								cannotRun: view.forgeBlockReason ?? view.unavailableReason,
 								matches24h: view.matches24h,
+								outcome: view.outcome.outcome,
+								outcomeLabel: RULE_OUTCOME_LABELS[view.outcome.outcome],
+								instruction: view.outcome.instruction,
+								setIn: view.owners.map((owner) => owner.name),
 							};
 							const rule = custom.get(view.ruleId);
 							if (!rule) {
@@ -412,7 +431,7 @@ export function registerTools(
 			"set_rule",
 			{
 				description:
-					"Turn a rule on or off on a repo and save its settings. Ask the user first. A custom rule (custom-...) has no settings, only on or off; change its definition with save_custom_rule.",
+					"Turn a rule on or off on a repo, save its settings, and set what happens when it does not pass. Ask the user first. A custom rule (custom-...) has no settings, only on or off and its outcome; change its definition with save_custom_rule. A rule a workflow owns takes its outcome from the workflow.",
 				inputSchema: {
 					org: orgArg,
 					repo: repoArg,
@@ -427,10 +446,12 @@ export function registerTools(
 						.describe(
 							"Rule settings to change. Keys you leave out keep their current value. See list_rule_catalog for the schema.",
 						),
+					outcome: outcomeArg,
+					instruction: instructionArg,
 				},
 				annotations: annotate("set_rule"),
 			},
-			({ org, repo, ruleId, enabled, config }) =>
+			({ org, repo, ruleId, enabled, config, outcome, instruction }) =>
 				guard(async () => {
 					const custom = isCustomRuleId(ruleId);
 					if (
@@ -451,6 +472,31 @@ export function registerTools(
 							`A workflow runs ${ruleId} on this repo. Change it in the workflow: ${appLink(ctx, `/${resolved.slug}/${found.name}/workflows/${view.workflowId}`)}`,
 						);
 					}
+					const nextOutcome =
+						outcome === undefined && instruction === undefined
+							? null
+							: parseRuleOutcomeInput({
+									outcome: outcome ?? view?.outcome.outcome,
+									instruction: instruction ?? view?.outcome.instruction,
+								});
+					if (nextOutcome && !nextOutcome.ok) {
+						throw new ToolError(nextOutcome.error);
+					}
+					const saveOutcome = async () => {
+						if (!nextOutcome?.ok) {
+							return view?.outcome;
+						}
+						const saved = await ruleServices.setRuleOutcome(ctx.db, {
+							repoId: found.id,
+							ruleId,
+							outcome: nextOutcome.setting.outcome,
+							instruction: nextOutcome.setting.instruction,
+						});
+						if ("error" in saved) {
+							throw new ToolError(saved.error);
+						}
+						return nextOutcome.setting;
+					};
 					const nextEnabled = enabled ?? view?.enabled ?? false;
 					if (custom) {
 						if (config && Object.keys(config).length > 0) {
@@ -465,11 +511,13 @@ export function registerTools(
 						if (!changed.ok) {
 							throw new ToolError(changed.error, "list_custom_rules");
 						}
+						const savedOutcome = await saveOutcome();
 						return ok({
 							saved: true,
 							ruleId,
 							enabled: nextEnabled,
 							sentence: changed.rule.sentence,
+							...(savedOutcome ? { outcome: savedOutcome } : {}),
 						});
 					}
 					const current =
@@ -483,7 +531,13 @@ export function registerTools(
 					if ("error" in result) {
 						throw new ToolError(result.error);
 					}
-					return ok({ saved: true, ruleId, enabled: nextEnabled });
+					const savedOutcome = await saveOutcome();
+					return ok({
+						saved: true,
+						ruleId,
+						enabled: nextEnabled,
+						...(savedOutcome ? { outcome: savedOutcome } : {}),
+					});
 				}),
 		);
 	}
@@ -530,10 +584,22 @@ export function registerTools(
 						.describe(
 							"{ when: { id, transform? }, comparison: { kind, args } }, as the tool description shows.",
 						),
+					outcome: outcomeArg,
+					instruction: instructionArg,
 				},
 				annotations: annotate("save_custom_rule"),
 			},
-			({ org, repo, id, name, description, enabled, definition }) =>
+			({
+				org,
+				repo,
+				id,
+				name,
+				description,
+				enabled,
+				definition,
+				outcome,
+				instruction,
+			}) =>
 				guard(async () => {
 					const { org: resolved, repo: found } = await resolveOrgRepo(
 						ctx,
@@ -548,6 +614,10 @@ export function registerTools(
 						description,
 						enabled,
 						definition,
+						outcome:
+							outcome === undefined && instruction === undefined
+								? undefined
+								: { outcome, instruction },
 					});
 					if (!result.ok) {
 						throw new ToolError(
