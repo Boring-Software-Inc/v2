@@ -169,12 +169,19 @@ describe("trending", () => {
 		expect(h.calls).toHaveLength(0);
 	});
 
-	test("no key: nothing leaves the server", async () => {
+	test("no key: nothing leaves the server and no budget is spent", async () => {
 		const h = harness(null);
 		const result = await trendingGiphy(h.deps, { offset: 0 });
 		expect(result.status).toBe("unavailable");
 		expect(result.result.data).toEqual([]);
+		const search = await searchGiphy(h.deps, {
+			userId: "u1",
+			query: "cats",
+			offset: 0,
+		});
+		expect(search.status).toBe("unavailable");
 		expect(h.calls).toHaveLength(0);
+		expect(h.store.counts.size).toBe(0);
 	});
 });
 

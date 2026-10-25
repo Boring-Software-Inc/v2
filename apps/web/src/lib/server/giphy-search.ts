@@ -32,7 +32,6 @@ export const GIPHY_MAX_OFFSET = GIPHY_PAGE_SIZE * 4;
 export const GIPHY_MIN_QUERY = 2;
 export const GIPHY_MAX_QUERY = 50;
 export const GIPHY_RATING = "pg-13";
-export const GIPHY_HOURLY_LIMIT = 100;
 export const TRENDING_CEILING = 95;
 export const SEARCH_CEILING = 75;
 export const USER_HOURLY_LIMIT = 15;
@@ -195,6 +194,9 @@ export async function trendingGiphy(
 		result: cached?.body ?? emptyResult(offset),
 		status,
 	});
+	if (!deps.apiKey) {
+		return stale(cached ? "busy" : "unavailable");
+	}
 	if (!(await deps.store.reserve(GLOBAL_SCOPE, TRENDING_CEILING))) {
 		return stale("busy");
 	}
@@ -242,6 +244,12 @@ export async function searchGiphy(
 	const cached = await deps.store.read(key);
 	if (cached && isFresh(deps, cached)) {
 		return { result: cached.body, status: "ok" };
+	}
+	if (!deps.apiKey) {
+		const fallback = cached
+			? { result: cached.body, status: "busy" as const }
+			: await busyFallback(deps, offset);
+		return { ...fallback, status: "unavailable" };
 	}
 	if (!(await deps.store.reserve(`user:${input.userId}`, USER_HOURLY_LIMIT))) {
 		return busyFallback(deps, offset);

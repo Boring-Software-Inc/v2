@@ -15,7 +15,6 @@ import {
 	redactionLevelFor,
 	responseConfigSchema,
 	wantsCheck,
-	wantsComment,
 } from "@tripwire/contracts";
 import { z } from "zod";
 import {
@@ -387,10 +386,4 @@ export function previewCheck(
 			input,
 		),
 	};
-}
-
-export function commentWanted(config: ResponseConfig, outcome: OutcomeMeta) {
-	return wantsComment(config, outcome.verdict, {
-		notes: outcome.value === "note",
-	});
 }
