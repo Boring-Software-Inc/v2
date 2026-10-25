@@ -353,6 +353,21 @@ export async function setRulesEnabled(
 	return { ok: true };
 }
 
+export async function workflowOwnsOutcome(
+	db: Db,
+	repoId: string,
+	ruleId: string,
+): Promise<string | null> {
+	const repo = await getRepoById(db, repoId);
+	const enabledRows = repo
+		? await listEnabledWorkflowRows(db, repo.fullName, repo.forge)
+		: [];
+	const owners = ruleOwners(ruleId, enabledRows);
+	return owners.length > 0
+		? `Set in ${owners.map((owner) => owner.name).join(", ")}. Change the outcome in the workflow.`
+		: null;
+}
+
 export async function setRuleOutcome(
 	db: Db,
 	input: {
@@ -369,15 +384,9 @@ export async function setRuleOutcome(
 	if (!parsed.ok) {
 		return { error: parsed.error };
 	}
-	const repo = await getRepoById(db, input.repoId);
-	const enabledRows = repo
-		? await listEnabledWorkflowRows(db, repo.fullName, repo.forge)
-		: [];
-	const owners = ruleOwners(input.ruleId, enabledRows);
-	if (owners.length > 0) {
-		return {
-			error: `Set in ${owners.map((owner) => owner.name).join(", ")}. Change the outcome in the workflow.`,
-		};
+	const owned = await workflowOwnsOutcome(db, input.repoId, input.ruleId);
+	if (owned) {
+		return { error: owned };
 	}
 	const custom = input.ruleId.startsWith("custom-");
 	if (custom) {

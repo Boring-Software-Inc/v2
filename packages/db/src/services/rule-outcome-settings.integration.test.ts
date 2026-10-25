@@ -240,4 +240,62 @@ describe("rule outcome settings", () => {
 		});
 		expect(bad.ok).toBe(false);
 	});
+
+	test("a custom rule a workflow uses refuses an outcome on save but still saves its definition", async () => {
+		const repoId = await repo();
+		const definition = {
+			when: { id: "pr.targetBranch" },
+			comparison: { kind: "oneOf", args: [["main"]] },
+		};
+		const saved = await customRuleServices.saveCustomRule(db, {
+			repoId,
+			name: "Into main",
+			definition,
+		});
+		if (!saved.ok) {
+			throw new Error(saved.error);
+		}
+		const workflow = await createWorkflow(db, {
+			repoId,
+			name: "Release gate",
+			definition: {
+				...AGE_GATE,
+				id: "release-gate",
+				nodes: [
+					{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+					{ id: "main", type: "rule", ref: `${saved.rule.id}@1`, config: {} },
+					{ id: "block", type: "action", action: "block" },
+				],
+				edges: [
+					{ id: "e1", from: "trigger", to: "main" },
+					{ id: "e2", from: "main", to: "block", when: "fail" },
+				],
+			} as WorkflowDefinition,
+		});
+		const enabled = await setWorkflowEnabled(db, {
+			repoId,
+			workflowId: workflow.id,
+			enabled: true,
+		});
+		expect(enabled.ok).toBe(true);
+		const refused = await customRuleServices.saveCustomRule(db, {
+			repoId,
+			id: saved.rule.id,
+			name: "Into main",
+			definition,
+			outcome: { outcome: "note" },
+		});
+		expect(refused).toMatchObject({
+			ok: false,
+			error: "Set in Release gate. Change the outcome in the workflow.",
+		});
+		const renamed = await customRuleServices.saveCustomRule(db, {
+			repoId,
+			id: saved.rule.id,
+			name: "Into main only",
+			definition,
+		});
+		expect(renamed.ok).toBe(true);
+		expect((await view(repoId, saved.rule.id)).outcome.outcome).toBe("block");
+	});
 });

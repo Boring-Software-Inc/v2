@@ -17,6 +17,7 @@ import {
 	listCustomRules,
 	upsertCustomRule,
 } from "./repos.ts";
+import { workflowOwnsOutcome } from "./rules.ts";
 
 export const CUSTOM_RULE_NAME_MAX = 80;
 export const CUSTOM_RULE_DESCRIPTION_MAX = 500;
@@ -188,6 +189,13 @@ export async function saveCustomRule(
 		: null;
 	if (outcome && !outcome.ok) {
 		return invalid(outcome.error);
+	}
+	const owned =
+		outcome && existing
+			? await workflowOwnsOutcome(db, input.repoId, existing.id)
+			: null;
+	if (owned) {
+		return invalid(owned);
 	}
 	const checked = customRuleDefinitionIssue(input.definition);
 	if (!checked.ok) {
