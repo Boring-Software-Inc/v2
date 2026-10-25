@@ -349,8 +349,10 @@ pass, they fought for priority in the activity and run logs.
 - The per-rule outcome setting from the entry above is gone from contracts,
   services, the rule card, Create rule, MCP and the CLI. Add exception on the
   rule card is gone too; a Skip when is built in a workflow.
-- Migration 0041 already added `outcome` and `outcome_instruction` to
-  `rule_configs` and `custom_rules`. They stay in the schema and nothing
-  reads or writes them until the founder decides whether to drop them.
+- Migration 0041 added `outcome` and `outcome_instruction` to
+  `rule_configs` and `custom_rules`. Migration 0042 drops them; 0041 is left
+  as is because staging ran it. `moderation_items.applied_at` stays.
+- A rule that one or more live workflows use shows "Used in N workflows"
+  where Install would be, with a menu of those workflows.
 - Rules are installed and uninstalled, not turned on and off. API, DB and MCP
   names (`enabled`, `set_rule`, `setRulesEnabled`) stay.
