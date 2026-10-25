@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, Link } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
 import { ruleUiSchema } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
@@ -14,6 +14,10 @@ import {
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/components/glaze/ui/segmented-control";
 import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
@@ -23,8 +27,15 @@ import {
 } from "#/components/rules/custom-rule-builder";
 import { RuleCard } from "#/components/rules/rule-card";
 import { RuleHeaderStats } from "#/components/rules/rule-header-stats";
-import { RULES_COLLECTION } from "#/components/rules/rules-collection";
+import { libraryRules, RuleLibrary } from "#/components/rules/rule-library";
+import { RulePacks } from "#/components/rules/rule-packs";
+import {
+	RULES_COLLECTION,
+	RULES_TABS,
+	type RulesTab,
+} from "#/components/rules/rules-collection";
 import { RuleGridSkeleton } from "#/components/rules/rules-page-skeleton";
+import { useTurnOnRules } from "#/components/rules/use-turn-on-rules";
 import {
 	type SaveQueueCommit,
 	SaveQueueProvider,
@@ -45,6 +56,7 @@ import {
 } from "#/lib/rules.functions";
 import {
 	ruleConfigsQueryOptions,
+	ruleLibraryQueryOptions,
 	rulesQueryKeys,
 	rulesStatsQueryOptions,
 } from "#/lib/rules.query";
@@ -102,12 +114,36 @@ export function RulesPage() {
 	const statsQuery = useQuery(rulesStatsQueryOptions(org, repoId));
 	const queryClient = useQueryClient();
 
-	const collection = useCollection(RULES_COLLECTION, rules);
-	const show = collection.state.filters.show?.[0];
+	const libraryQuery = useQuery(ruleLibraryQueryOptions(org, repoId));
+	const { tab } = routeApi.useSearch();
+	const navigate = routeApi.useNavigate();
+	const { turnOn, pending } = useTurnOnRules(org, repoId);
+
+	const onRules = (rules ?? []).filter((r) => r.enabled);
+	const customRules = (rules ?? []).filter((r) => r.source === "custom");
+	const offered = libraryRules(rules ?? []);
+	const starting =
+		rules !== undefined &&
+		tab === undefined &&
+		onRules.length === 0 &&
+		customRules.length === 0;
+	const activeTab: RulesTab =
+		tab ??
+		(onRules.length > 0 ? "on" : customRules.length > 0 ? "custom" : "library");
+	const showTab = (next: RulesTab) =>
+		navigate({ to: ".", search: (prev) => ({ ...prev, tab: next }) });
+
+	const collection = useCollection(
+		RULES_COLLECTION,
+		rules === undefined
+			? undefined
+			: activeTab === "custom"
+				? customRules
+				: onRules,
+	);
 	const managedNames = (rules ?? [])
 		.filter((r) => r.management === "managed")
 		.map((r) => r.name);
-	const hasCustom = (rules ?? []).some((r) => r.source === "custom");
 
 	/**
 	 * One batch, N per-rule writes: group pending keys by rule, run a queued
@@ -244,6 +280,9 @@ export function RulesPage() {
 		return null;
 	};
 
+	const library = libraryQuery.data;
+	const preview = library?.preview ?? null;
+
 	return (
 		<SaveQueueProvider
 			commit={commitBatch}
@@ -257,8 +296,9 @@ export function RulesPage() {
 							<div className="flex flex-col gap-1">
 								<h1 className="type-title">Rules</h1>
 								<p className="type-body text-text-2">
-									Requirements that every contributor outside your org must meet
-									on every change request.
+									{starting
+										? "None are on. Tripwire checks nothing until you turn one on."
+										: "Requirements that every contributor outside your org must meet on every change request."}
 								</p>
 								{orgContext && !isAdmin ? (
 									<p className="type-body-sm text-text-2">
@@ -267,7 +307,10 @@ export function RulesPage() {
 								) : null}
 							</div>
 							{isAdmin ? (
-								<Button onClick={() => setBuilderOpen(true)}>
+								<Button
+									onClick={() => setBuilderOpen(true)}
+									variant="secondary"
+								>
 									<Icon icon={Add} />
 									Create rule
 								</Button>
@@ -290,116 +333,164 @@ export function RulesPage() {
 							/>
 						) : null}
 
-						<RuleHeaderStats stats={statsQuery.data} />
-
-						<Collection
-							collection={collection}
-							empty={
-								<Empty art={<MascotArt mood="rules-empty" />}>
-									<EmptyHeader>
-										<EmptyTitle>No rules yet</EmptyTitle>
-										<EmptyDescription>
-											{isAdmin
-												? "This repo has no rules. Create one to start checking change requests."
-												: "This repo has no rules. An org admin can create them."}
-										</EmptyDescription>
-									</EmptyHeader>
-									<EmptyContent>
-										{isAdmin ? (
-											<Button
-												onClick={() => setBuilderOpen(true)}
-												size="sm"
-												variant="secondary"
-											>
-												Create rule
-											</Button>
-										) : (
-											<Button
-												nativeButton={false}
-												render={
-													<Link
-														params={{ org, repo: repoName }}
-														to="/$org/$repo/activity"
-													/>
-												}
-												size="sm"
-												variant="secondary"
-											>
-												View activity
-											</Button>
-										)}
-									</EmptyContent>
-								</Empty>
-							}
-							error={rulesQuery.isError}
-							noResults={
-								show === "custom" && !hasCustom && !collection.state.q ? (
-									<Empty
-										art={<MascotArt mood="rules-custom-empty" />}
-										className="relative isolate overflow-hidden"
-									>
-										<ShaderDither
-											className="-z-10 bottom-auto h-30"
-											priority={1}
-										/>
-										<EmptyHeader>
-											<EmptyTitle>No custom rules yet</EmptyTitle>
-											<EmptyDescription>
-												{isAdmin
-													? "A custom rule checks contributors and their changes against conditions you pick."
-													: "Custom rules check for patterns specific to this repo. An org admin creates them."}
-											</EmptyDescription>
-										</EmptyHeader>
-										<EmptyContent>
-											{isAdmin ? (
-												<Button
-													onClick={() => setBuilderOpen(true)}
-													size="sm"
-													variant="secondary"
-												>
-													Create rule
-												</Button>
-											) : (
-												<Button
-													onClick={collection.clear}
-													size="sm"
-													variant="secondary"
-												>
-													Show all rules
-												</Button>
-											)}
-										</EmptyContent>
-									</Empty>
-								) : undefined
-							}
-							onRetry={async () => {
-								await rulesQuery.refetch({ throwOnError: true });
-							}}
-							skeleton={<RuleGridSkeleton />}
-						>
-							{(visible) => (
-								<>
-									{managedNames.length > 0 &&
-									(show === undefined || show === "workflows") ? (
+						{starting ? (
+							<>
+								<RulePacks
+									canEdit={isAdmin}
+									onTurnOn={turnOn}
+									pending={pending}
+									preview={preview}
+									repoName={repoName}
+									rules={rules ?? []}
+								/>
+								<section className="flex flex-wrap items-center justify-between gap-4 border-line-faint border-t pt-6">
+									<div className="flex flex-col gap-0.5">
+										<h2 className="type-heading-sm">Or pick single rules</h2>
 										<p className="type-body-sm text-text-2">
-											{workflowBannerCopy(managedNames)}
+											{offered.length} rules in the library
 										</p>
-									) : null}
-									<div className="grid items-stretch gap-3 sm:grid-cols-2">
-										{visible.map((rule) => (
-											<RuleCard
-												canEdit={isAdmin}
-												key={rule.ruleId}
-												onDelete={removeCustomRule}
-												org={org}
-												repo={repoName}
-												rule={rule}
-											/>
-										))}
 									</div>
-								</>
-							)}
-						</Collection>
+									<Button
+										onClick={() => showTab("library")}
+										size="sm"
+										variant="secondary"
+									>
+										Browse rules
+									</Button>
+								</section>
+							</>
+						) : (
+							<>
+								<SegmentedControl
+									aria-label="Rules to show"
+									onValueChange={(value) => {
+										const next = RULES_TABS.find((t) => t === value);
+										if (next) {
+											showTab(next);
+										}
+									}}
+									value={activeTab}
+								>
+									<SegmentedControlItem count={onRules.length} value="on">
+										On
+									</SegmentedControlItem>
+									<SegmentedControlItem count={offered.length} value="library">
+										Library
+									</SegmentedControlItem>
+									<SegmentedControlItem
+										count={customRules.length}
+										value="custom"
+									>
+										Custom
+									</SegmentedControlItem>
+								</SegmentedControl>
+
+								{activeTab === "library" ? (
+									rules === undefined ? (
+										<RuleGridSkeleton />
+									) : offered.length === 0 ? (
+										<Empty art={<MascotArt mood="rules-empty" />}>
+											<EmptyHeader>
+												<EmptyTitle>Every rule in the library is on</EmptyTitle>
+											</EmptyHeader>
+										</Empty>
+									) : (
+										<RuleLibrary
+											canEdit={isAdmin}
+											mostUsed={library?.mostUsed ?? []}
+											onTurnOn={turnOn}
+											pending={pending}
+											preview={preview}
+											repoName={repoName}
+											rules={rules}
+										/>
+									)
+								) : (
+									<>
+										{activeTab === "on" ? (
+											<RuleHeaderStats stats={statsQuery.data} />
+										) : null}
+										<Collection
+											collection={collection}
+											empty={
+												activeTab === "custom" ? (
+													<Empty
+														art={<MascotArt mood="rules-custom-empty" />}
+														className="relative isolate overflow-hidden"
+													>
+														<ShaderDither
+															className="-z-10 bottom-auto h-30"
+															priority={1}
+														/>
+														<EmptyHeader>
+															<EmptyTitle>No custom rules yet</EmptyTitle>
+															<EmptyDescription>
+																{isAdmin
+																	? "A custom rule checks contributors and their changes against conditions you pick."
+																	: "Custom rules check for patterns specific to this repo. An org admin creates them."}
+															</EmptyDescription>
+														</EmptyHeader>
+														{isAdmin ? (
+															<EmptyContent>
+																<Button
+																	onClick={() => setBuilderOpen(true)}
+																	size="sm"
+																	variant="secondary"
+																>
+																	Create rule
+																</Button>
+															</EmptyContent>
+														) : null}
+													</Empty>
+												) : (
+													<Empty art={<MascotArt mood="rules-empty" />}>
+														<EmptyHeader>
+															<EmptyTitle>No rules are on</EmptyTitle>
+														</EmptyHeader>
+														<EmptyContent>
+															<Button
+																onClick={() => showTab("library")}
+																size="sm"
+																variant="secondary"
+															>
+																Browse rules
+															</Button>
+														</EmptyContent>
+													</Empty>
+												)
+											}
+											error={rulesQuery.isError}
+											onRetry={async () => {
+												await rulesQuery.refetch({ throwOnError: true });
+											}}
+											skeleton={<RuleGridSkeleton />}
+										>
+											{(visible) => (
+												<>
+													{managedNames.length > 0 && activeTab === "on" ? (
+														<p className="type-body-sm text-text-2">
+															{workflowBannerCopy(managedNames)}
+														</p>
+													) : null}
+													<div className="grid items-stretch gap-3 sm:grid-cols-2">
+														{visible.map((rule) => (
+															<RuleCard
+																canEdit={isAdmin}
+																key={rule.ruleId}
+																onDelete={removeCustomRule}
+																org={org}
+																repo={repoName}
+																rule={rule}
+															/>
+														))}
+													</div>
+												</>
+											)}
+										</Collection>
+									</>
+								)}
+							</>
+						)}
 					</div>
 				</div>
 				<UnsavedChangesBar />

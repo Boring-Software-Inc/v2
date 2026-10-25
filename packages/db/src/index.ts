@@ -32,7 +32,10 @@ export {
 	type RefreshSurfacesJob,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
+	RULE_PREVIEW_QUEUE,
+	type RulePreviewJob,
 	recoverInstallationOptions,
+	rulePreviewOptions,
 	SYNC_FLAG_OVERRIDES_QUEUE,
 	SYNC_REPO_BRANCHES_QUEUE,
 	SYNC_REPO_LABELS_QUEUE,
@@ -167,6 +170,13 @@ export * as responseServices from "./services/responses.ts";
 export type { RepoReviewerList } from "./services/reviewers.ts";
 export * as reviewerServices from "./services/reviewers.ts";
 export type {
+	PreviewChangeRequest,
+	PreviewInputs,
+	PreviewStep,
+	StoredRulePreview,
+} from "./services/rule-previews.ts";
+export * as rulePreviewServices from "./services/rule-previews.ts";
+export type {
 	RuleConfigView,
 	RulesHeaderStats,
 	SaveRuleResult,
@@ -223,4 +233,8 @@ export type {
 	WorkflowRow,
 } from "./services/workflows.ts";
 export * as workflowServices from "./services/workflows.ts";
-export { createTestDatabase, type TestDatabase } from "./testing.ts";
+export {
+	createTestDatabase,
+	type TestDatabase,
+	turnOnLegacyRules,
+} from "./testing.ts";

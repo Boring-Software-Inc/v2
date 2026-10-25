@@ -9,6 +9,7 @@ import {
 	moderationServices,
 	repoServices,
 	type TestDatabase,
+	turnOnLegacyRules,
 } from "@tripwire/db";
 import { normalizeWebhook } from "@tripwire/forge-github";
 import type { Pool } from "pg";
@@ -49,6 +50,7 @@ beforeAll(async () => {
 		fullName: "Codertocat/Hello-World",
 	});
 	await repoServices.setRepoArmed(db, helloId, true);
+	await turnOnLegacyRules(db, helloId);
 }, 120_000);
 
 afterAll(async () => {

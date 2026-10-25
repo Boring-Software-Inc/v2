@@ -502,15 +502,9 @@ export const workflowDefinitionSchema = z.object({
 export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
 
 /**
- * The hand-seeded default workflow (§13.6) — the BASELINE rule set a fresh
- * repo runs (derive.ts overlays toggles onto it) and the editor's starting
- * canvas. Boring thresholds; per-repo tuning happens in the Rules UI / editor.
- *
- * `ai-review@1` is deliberately ABSENT: it is opt-in per repo (§8 owner
- * decision — it costs tokens), so it is a NON-baseline rule that only runs
- * when a maintainer explicitly enables it. Keeping it out of the baseline is
- * what makes `ruleExecutes` (the /rules display) and `deriveDefaultWorkflow`
- * (execution) agree — both read this list.
+ * The hand-seeded default workflow (§13.6): its id, name and trigger name the
+ * derived "Rules" workflow, and it stays a test fixture. Its rule nodes are
+ * NOT a baseline: no rule runs until a maintainer turns it on (derive.ts).
  */
 export const DEFAULT_WORKFLOW: WorkflowDefinition = {
 	id: "default@1",

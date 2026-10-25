@@ -133,6 +133,14 @@ export const repoSuggestions = pgTable(
 	],
 );
 
+export const rulePreviews = pgTable("rule_previews", {
+	repoId: text("repo_id")
+		.primaryKey()
+		.references(() => repos.id, { onDelete: "cascade" }),
+	preview: jsonb("preview").notNull(),
+	computedAt: timestamp("computed_at", { withTimezone: true }).notNull(),
+});
+
 export const repoReviewers = pgTable(
 	"repo_reviewers",
 	{

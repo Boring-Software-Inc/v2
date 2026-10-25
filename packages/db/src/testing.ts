@@ -1,4 +1,7 @@
+import { DEFAULT_WORKFLOW } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
+import type { Db } from "./client.ts";
+import { upsertRuleConfig } from "./services/repos.ts";
 
 /**
  * §11 integration machinery: a REAL throwaway Postgres container per test
@@ -88,4 +91,19 @@ export async function createTestDatabase(): Promise<TestDatabase> {
 			await run(["docker", "rm", "-f", name]).catch(() => undefined);
 		},
 	};
+}
+
+export async function turnOnLegacyRules(db: Db, repoId: string): Promise<void> {
+	for (const node of DEFAULT_WORKFLOW.nodes) {
+		if (node.type !== "rule") {
+			continue;
+		}
+		const [ruleId = node.ref, version = "1"] = node.ref.split("@");
+		await upsertRuleConfig(db, repoId, {
+			ruleId,
+			version: Number(version),
+			enabled: true,
+			config: node.config,
+		});
+	}
 }

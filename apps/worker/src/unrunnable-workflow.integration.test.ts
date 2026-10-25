@@ -16,6 +16,7 @@ import {
 	eventServices,
 	repoServices,
 	type TestDatabase,
+	turnOnLegacyRules,
 } from "@tripwire/db";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
@@ -193,6 +194,7 @@ describe("a live workflow the worker cannot run", () => {
 
 	test("keeps owning its rules, so they do not fall back to the toggles", async () => {
 		await repoServices.saveWorkflowDefinition(db, repoId, brokenWorkflow());
+		await turnOnLegacyRules(db, repoId);
 		await repoServices.upsertRuleConfig(db, repoId, {
 			ruleId: "account-age",
 			version: 1,

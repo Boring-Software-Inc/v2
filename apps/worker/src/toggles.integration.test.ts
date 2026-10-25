@@ -16,6 +16,7 @@ import {
 	eventServices,
 	repoServices,
 	type TestDatabase,
+	turnOnLegacyRules,
 } from "@tripwire/db";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
@@ -148,7 +149,13 @@ afterAll(async () => {
 });
 
 describe("toggles → derived default workflow", () => {
+	test("no rule turned on ⇒ the run checks nothing", async () => {
+		const eventId = await processFresh("nothing-on-1");
+		expect(await ruleSteps(eventId)).toEqual([]);
+	});
+
 	test("toggle OFF ⇒ rule absent from the derived run", async () => {
+		await turnOnLegacyRules(db, repoId);
 		await repoServices.upsertRuleConfig(db, repoId, {
 			ruleId: "account-age",
 			version: 1,
@@ -159,7 +166,7 @@ describe("toggles → derived default workflow", () => {
 		const steps = await ruleSteps(eventId);
 		const refs = steps.map((s) => s.rule_id);
 		expect(refs).not.toContain("account-age@1");
-		// baseline siblings still ran (proves it's a targeted drop, not empty).
+		// siblings still ran (proves it's a targeted drop, not empty).
 		expect(refs).toContain("crypto-address@1");
 	});
 
