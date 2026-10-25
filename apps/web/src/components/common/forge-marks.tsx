@@ -24,8 +24,8 @@ import { GithubIcon } from "#/components/icons/github";
 type MarkProps = { className?: string };
 
 /**
- * Every forge in the CATALOG mapped to its mark — planned ones included, since
- * they still render in the grids. A `Record<ForgeId, …>` and NOT a switch with a
+ * Every forge in the CATALOG mapped to its mark, planned ones included. A
+ * `Record<ForgeId, …>` and NOT a switch with a
  * default: there is no sensible fallback mark, and a default arm would quietly
  * brand an unmapped forge as whichever one it points at. Adding a catalog entry
  * breaks this line until a mark exists for it, which is the reminder we want.
