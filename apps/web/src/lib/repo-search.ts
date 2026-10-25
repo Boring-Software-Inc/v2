@@ -33,10 +33,12 @@ export const analyticsSearchSchema = z.object({
 });
 
 export const RESPONSE_SCOPES = [
-	"redaction",
-	"pass",
 	"block",
+	"changes_required",
 	"needs_review",
+	"note",
+	"close",
+	"redaction",
 ] as const;
 
 export type ResponseScope = (typeof RESPONSE_SCOPES)[number];

@@ -1,9 +1,5 @@
-import type {
-	RedactionPolicy,
-	ResponseConfig,
-	Verdict,
-} from "@tripwire/contracts";
-import { blockCommentAddsDetail } from "@tripwire/contracts";
+import type { RedactionPolicy, ResponseConfig } from "@tripwire/contracts";
+import { blockCommentAddsDetail, wantsCheck } from "@tripwire/contracts";
 import {
 	RadioGroup,
 	RadioGroupOption,
@@ -11,20 +7,20 @@ import {
 import { MessageEditor } from "#/components/responses/message-editor";
 import { PreviewLinked } from "#/components/responses/preview-link";
 import {
+	blockContentChoice,
+	blockDraftKey,
 	type ContentChoice,
-	commentKey,
-	contentChoice,
 	type DraftKey,
-	messageDraftKey,
-	overrideKey,
+	type OutcomeMeta,
 	postsComment,
 	readDraftKey,
 } from "#/components/responses/responses-model";
 import {
 	SETTING_NESTED,
 	SETTING_ROW,
+	SettingFact,
 	SettingSection,
-	SettingToggle,
+	SettingSwitch,
 } from "#/components/responses/setting-rows";
 import type { useSaveQueue } from "#/components/save-queue";
 import { cn } from "#/lib/glaze/utils";
@@ -51,82 +47,41 @@ const BLOCK_CHOICES: {
 	},
 ];
 
-const OUTCOME_CHOICES: {
-	value: ContentChoice;
-	label: string;
-	description: string;
-}[] = [
-	{
-		value: "full",
-		label: "Default",
-		description: "Tripwire's standard comment for this verdict.",
-	},
-	{
-		value: "message",
-		label: "Write your own",
-		description: "Post your text instead of the default comment.",
-	},
-];
-
 export interface VerdictSettingsProps {
-	verdict: Verdict;
+	outcome: OutcomeMeta;
 	config: ResponseConfig;
 	policy: RedactionPolicy;
 	canEdit: boolean;
-	messageChosen: boolean;
 	editorEpoch: number;
-	onMessageChosen: (verdict: Verdict, chosen: boolean) => void;
 	setField: ReturnType<typeof useSaveQueue>["setField"];
-	rememberMessage: (verdict: Verdict, text: string) => void;
-	recallMessage: (verdict: Verdict) => string;
 }
 
 export function VerdictSettings({
-	verdict,
+	outcome,
 	config,
 	policy,
 	canEdit,
-	messageChosen,
 	editorEpoch,
-	onMessageChosen,
 	setField,
-	rememberMessage,
-	recallMessage,
 }: VerdictSettingsProps) {
 	const disabled = !canEdit;
-	const commenting = postsComment(config, verdict);
-	const choice = contentChoice(config, verdict, messageChosen);
-	const override = overrideKey(verdict);
-	const draftKey = messageDraftKey(config, verdict);
-	const usesTemplate = draftKey === "blockComment.template";
-
-	const setComment = (on: boolean) => {
-		if (verdict === "pass") {
-			setField("onSuccess", on ? "comment" : "ci-check");
-			return;
-		}
-		setField(commentKey(verdict), on ? "comment" : "silent");
-	};
+	const commenting = postsComment(config, outcome);
+	const isBlock = outcome.value === "block";
+	const choice = blockContentChoice(config);
+	const draftKey = blockDraftKey(config);
+	const usesTemplate =
+		isBlock && choice === "message" && draftKey === "blockComment.template";
+	const blockReviewOnly =
+		isBlock && commenting && !blockCommentAddsDetail(config, policy);
 
 	const setChoice = (next: ContentChoice) => {
 		if (next === choice) {
 			return;
 		}
-		if (verdict === "block") {
-			setField("blockComment.mode", next === "message" ? "custom" : next);
-			if (next !== "message") {
-				setField("blockComment.customText", "");
-			}
-			return;
+		setField("blockComment.mode", next === "message" ? "custom" : next);
+		if (next !== "message") {
+			setField("blockComment.customText", "");
 		}
-		if (next === "message") {
-			onMessageChosen(verdict, true);
-			setField(`${override}.customText`, recallMessage(verdict));
-			return;
-		}
-		rememberMessage(verdict, config[override].customText);
-		onMessageChosen(verdict, false);
-		setField(`${override}.customText`, "");
 	};
 
 	const commitDraft = (key: DraftKey, value: string) => {
@@ -134,29 +89,23 @@ export function VerdictSettings({
 	};
 
 	return (
-		<div className="flex flex-col gap-7">
-			<SettingSection
-				description="What Tripwire writes on the change request."
-				id={`comment-${verdict}`}
-				title="Comment"
-			>
-				<SettingToggle
+		<div className="flex flex-col gap-6">
+			<SettingSection id={`comment-${outcome.value}`} title="Comment">
+				<SettingSwitch
 					checked={commenting}
-					description={
-						verdict === "pass"
-							? "Off by default. A pass usually needs no reply."
-							: verdict === "block" &&
-									commenting &&
-									!blockCommentAddsDetail(config, policy)
-								? "At this redaction level, Tripwire posts only the review."
-								: "Tells the contributor what happened."
-					}
 					disabled={disabled}
 					label="Post a comment"
-					onChange={setComment}
+					onChange={(on) =>
+						setField(outcome.surface, on ? "comment" : "silent")
+					}
 					setting="post-comment"
 				/>
-				{commenting ? (
+				{blockReviewOnly ? (
+					<p className="px-3 pb-1 type-body-sm text-text-2">
+						At this redaction level, Tripwire posts only the review.
+					</p>
+				) : null}
+				{commenting && isBlock ? (
 					<>
 						<RadioGroup
 							aria-label="Comment content"
@@ -165,26 +114,20 @@ export function VerdictSettings({
 							onValueChange={(value) => setChoice(value as ContentChoice)}
 							value={choice}
 						>
-							{(verdict === "block" ? BLOCK_CHOICES : OUTCOME_CHOICES).map(
-								(option) => (
-									<PreviewLinked key={option.value} setting="content">
-										<RadioGroupOption
-											className={cn(
-												SETTING_ROW,
-												SETTING_NESTED,
-												disabled && "cursor-default",
-											)}
-											description={option.description}
-											label={option.label}
-											value={option.value}
-										/>
-									</PreviewLinked>
-								),
-							)}
+							{BLOCK_CHOICES.map((option) => (
+								<PreviewLinked key={option.value} setting="content">
+									<RadioGroupOption
+										className={cn(SETTING_ROW, disabled && "cursor-default")}
+										description={option.description}
+										label={option.label}
+										value={option.value}
+									/>
+								</PreviewLinked>
+							))}
 						</RadioGroup>
 						{choice === "message" ? (
 							<PreviewLinked setting="message">
-								<div className="py-2 ps-10 pe-3">
+								<div className={cn("py-2 pe-3", SETTING_NESTED)}>
 									<MessageEditor
 										disabled={disabled}
 										draftKey={draftKey}
@@ -196,48 +139,27 @@ export function VerdictSettings({
 								</div>
 							</PreviewLinked>
 						) : null}
-						{usesTemplate && choice === "message" ? null : (
-							<SettingToggle
-								checked={config[override].showDetailsButton}
-								disabled={disabled}
-								label="Link to the run on Tripwire"
-								nested
-								onChange={(on) => setField(`${override}.showDetailsButton`, on)}
-								setting="details-button"
-							/>
-						)}
 					</>
 				) : null}
-			</SettingSection>
-
-			<SettingSection
-				description="The status Tripwire reports next to the merge button."
-				id={`check-${verdict}`}
-				title="Check run"
-			>
-				{verdict === "pass" ? (
-					<SettingToggle
-						checked={config.onSuccess !== "silent"}
-						description={
-							config.onSuccess === "comment"
-								? "Stays on while Post a comment is on."
-								: "Marks the change request as passed."
+				{commenting && !usesTemplate ? (
+					<SettingSwitch
+						checked={config[outcome.override].showDetailsButton}
+						disabled={disabled}
+						label="Link to the run"
+						onChange={(on) =>
+							setField(`${outcome.override}.showDetailsButton`, on)
 						}
-						disabled={disabled || config.onSuccess === "comment"}
-						label="Post a check run"
-						onChange={(on) => setField("onSuccess", on ? "ci-check" : "silent")}
-						setting="check-run"
+						setting="details-button"
 					/>
-				) : (
-					<SettingToggle
-						checked
-						description="Always on. Holds the merge when branch protection requires the tripwire check."
-						disabled
-						label="Post a check run"
-						onChange={() => undefined}
-						setting="check-run"
-					/>
-				)}
+				) : null}
+			</SettingSection>
+			<div aria-hidden className="mx-3 h-px bg-line" />
+			<SettingSection id={`check-${outcome.value}`} title="Check run">
+				<SettingFact
+					label="Post a check run"
+					setting="check-run"
+					value={wantsCheck(config, outcome.verdict) ? "Always on" : "Off"}
+				/>
 			</SettingSection>
 		</div>
 	);

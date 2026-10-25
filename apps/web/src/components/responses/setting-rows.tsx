@@ -1,5 +1,6 @@
 import { type ReactNode, useId } from "react";
 import { Checkbox } from "#/components/glaze/ui/checkbox";
+import { Switch } from "#/components/glaze/ui/switch";
 import {
 	PreviewLinked,
 	type PreviewSetting,
@@ -17,7 +18,7 @@ export function SettingSection({
 }: {
 	id: string;
 	title: string;
-	description: string;
+	description?: string;
 	children: ReactNode;
 }) {
 	return (
@@ -26,7 +27,9 @@ export function SettingSection({
 				<h2 className="type-heading-sm" id={id}>
 					{title}
 				</h2>
-				<p className="type-body-sm text-text-2">{description}</p>
+				{description ? (
+					<p className="type-body-sm text-text-2">{description}</p>
+				) : null}
 			</header>
 			<div className="flex flex-col gap-0.5">{children}</div>
 		</section>
@@ -95,6 +98,72 @@ export function SettingToggle({
 					) : null}
 				</span>
 			</label>
+		</PreviewLinked>
+	);
+}
+
+export function SettingSwitch({
+	label,
+	checked,
+	disabled,
+	setting,
+	onChange,
+}: {
+	label: string;
+	checked: boolean;
+	disabled: boolean;
+	setting: PreviewSetting;
+	onChange: (checked: boolean) => void;
+}) {
+	const id = useId();
+	return (
+		<PreviewLinked setting={setting}>
+			<div
+				className={cn(
+					"flex min-h-(--row) items-center justify-between gap-3",
+					SETTING_ROW,
+				)}
+			>
+				<label
+					className={cn(
+						"type-label",
+						disabled ? "text-text-disabled" : "cursor-pointer text-text-1",
+					)}
+					htmlFor={id}
+				>
+					{label}
+				</label>
+				<Switch
+					checked={checked}
+					disabled={disabled}
+					id={id}
+					onCheckedChange={(next) => onChange(next)}
+				/>
+			</div>
+		</PreviewLinked>
+	);
+}
+
+export function SettingFact({
+	label,
+	value,
+	setting,
+}: {
+	label: string;
+	value: string;
+	setting: PreviewSetting;
+}) {
+	return (
+		<PreviewLinked setting={setting}>
+			<div
+				className={cn(
+					"flex min-h-(--row) items-center justify-between gap-3",
+					SETTING_ROW,
+				)}
+			>
+				<span className="type-label text-text-2">{label}</span>
+				<span className="type-body-sm text-text-2">{value}</span>
+			</div>
 		</PreviewLinked>
 	);
 }
