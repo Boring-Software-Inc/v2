@@ -1,4 +1,5 @@
 import { ShellNav } from "#/components/layouts/shell-nav";
+import { SetupPill } from "#/components/setup/setup-pill";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { CommandPaletteButton } from "./command-palette-launcher";
@@ -12,7 +13,8 @@ export function DashboardRail({
 	user: CurrentUser | null;
 	counts: { queue?: number };
 }) {
-	const org = useActiveScope().org?.slug;
+	const scope = useActiveScope();
+	const org = scope.org?.slug;
 	return (
 		<nav
 			aria-label="Primary"
@@ -25,6 +27,7 @@ export function DashboardRail({
 			<div className="flex flex-col gap-1">
 				<OrgSwitcher appearance="rail" />
 				<RepoSwitcher appearance="rail" />
+				{scope.repo ? <SetupPill appearance="rail" /> : null}
 			</div>
 			<CommandPaletteButton wide />
 			<ShellNav counts={counts} variant="rail" />

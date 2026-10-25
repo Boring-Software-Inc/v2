@@ -1,25 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { ChartAtRest } from "#/components/analytics/chart-at-rest";
-import { ArmCallout } from "#/components/arming/arm-callout";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { Collection } from "#/components/collection/collection";
 import { Button } from "#/components/glaze/ui/button";
 import { Chart } from "#/components/glaze/ui/chart";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MODERATION_COLLECTION } from "#/components/moderation/moderation-collection";
-import { QueueSkeleton } from "#/components/moderation/moderation-page-skeleton";
+import {
+	ModerationPageSkeleton,
+	QueueSkeleton,
+} from "#/components/moderation/moderation-page-skeleton";
 import {
 	ModerationQueue,
 	ModerationQueueEmpty,
 	moderationQueueOptions,
 } from "#/components/moderation/moderation-queue";
 import { RegionGate } from "#/components/organizations/region-gate";
+import { RepoSetupChecklist } from "#/components/setup/repo-setup-checklist";
+import { SetupDoneStrip } from "#/components/setup/setup-done-strip";
+import { useRepoSetup } from "#/components/setup/use-repo-setup";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { moderationStatsQueryOptions } from "#/lib/moderation.query";
 import type { ModStats } from "#/lib/moderation.types";
-import { orgRepoQueryOptions } from "#/lib/org.query";
 
 const routeApi = getRouteApi("/$org/$repo/moderation");
 
@@ -43,7 +47,6 @@ function verdictRows(stats: ModStats) {
 
 export function ModerationPage() {
 	const { org, repo: repoName } = routeApi.useParams();
-	const repoQuery = useQuery(orgRepoQueryOptions(org, repoName));
 	const queueQuery = useQuery(moderationQueueOptions(org, repoName));
 	const collection = useCollection(
 		MODERATION_COLLECTION,
@@ -55,23 +58,20 @@ export function ModerationPage() {
 		enabled: canReadAnalytics,
 	});
 
-	const repo = repoQuery.data;
-	if (repo && !repo.armed) {
+	const setup = useRepoSetup(org, repoName);
+	if (setup.query.isPending) {
+		return <ModerationPageSkeleton />;
+	}
+	if (setup.state && setup.progress && !setup.progress.complete) {
 		return (
 			<DashboardLayout counts={{}}>
 				<div className="px-4 py-6 md:px-8 md:py-10">
 					<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-						<header className="flex flex-col gap-1">
-							<h1 className="type-title">Human review</h1>
-							<p className="type-body text-text-2">
-								The queue fills in when you turn on Tripwire for this repo.
-							</p>
-						</header>
-						<ArmCallout
+						<RepoSetupChecklist
 							org={org}
+							progress={setup.progress}
 							repo={repoName}
-							repoFullName={repo.fullName}
-							variant="hero"
+							state={setup.state}
 						/>
 					</div>
 				</div>
@@ -93,6 +93,13 @@ export function ModerationPage() {
 		<DashboardLayout counts={counts}>
 			<div className="px-4 py-6 md:px-8 md:py-10">
 				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+					{setup.progress?.complete ? (
+						<SetupDoneStrip
+							org={org}
+							progress={setup.progress}
+							repo={repoName}
+						/>
+					) : null}
 					<header className="flex flex-col gap-1">
 						<h1 className="type-title">Human review</h1>
 						<p className="type-body text-text-2">

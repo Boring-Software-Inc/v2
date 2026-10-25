@@ -73,7 +73,9 @@ export function RulePacks({
 	canEdit,
 	pending,
 	onTurnOn,
+	heading = true,
 }: {
+	heading?: boolean;
 	rules: readonly RuleConfigView[];
 	preview: RulePreview | null;
 	repoName: string;
@@ -82,11 +84,17 @@ export function RulePacks({
 	onTurnOn: (key: string, label: string, ruleIds: string[]) => void;
 }) {
 	return (
-		<section aria-labelledby="rule-packs-title" className="flex flex-col gap-3">
+		<section
+			aria-label={heading ? undefined : "Rule packs"}
+			aria-labelledby={heading ? "rule-packs-title" : undefined}
+			className="flex flex-col gap-3"
+		>
 			<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-				<h2 className="type-heading-sm" id="rule-packs-title">
-					Start with a pack
-				</h2>
+				{heading ? (
+					<h2 className="type-heading-sm" id="rule-packs-title">
+						Start with a pack
+					</h2>
+				) : null}
 				<PreviewWindow preview={preview} repoName={repoName} />
 			</div>
 			<Card>

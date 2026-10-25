@@ -5,7 +5,16 @@ import { setRulesEnabled } from "#/lib/rules.functions";
 import { rulesQueryKeys } from "#/lib/rules.query";
 import { trackEvent } from "#/lib/track";
 
-export function useTurnOnRules(org: string, repoId: string) {
+export interface TurnOnRulesOptions {
+	prepare?: () => Promise<string | null>;
+	onDone?: () => void;
+}
+
+export function useTurnOnRules(
+	org: string,
+	repoId: string,
+	options: TurnOnRulesOptions = {},
+) {
 	const queryClient = useQueryClient();
 	const [pending, setPending] = useState<string | null>(null);
 
@@ -29,8 +38,10 @@ export function useTurnOnRules(org: string, repoId: string) {
 			return;
 		}
 		setPending(key);
-		const error = await write(ruleIds, true);
+		const blocked = options.prepare ? await options.prepare() : null;
+		const error = blocked ?? (await write(ruleIds, true));
 		setPending(null);
+		options.onDone?.();
 		if (error) {
 			toast.fail(error);
 			return;

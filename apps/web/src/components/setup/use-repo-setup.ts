@@ -1,0 +1,117 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "#/components/glaze/ui/toast";
+import { useTurnOnRules } from "#/components/rules/use-turn-on-rules";
+import { rerunChangeRequest } from "#/lib/activity.functions";
+import { armRepo } from "#/lib/arm.functions";
+import { setupProgress } from "#/lib/repo-setup";
+import {
+	keepResponseDefaults,
+	takeOverAgentSetup,
+} from "#/lib/repo-setup.functions";
+import {
+	repoSetupQueryKeys,
+	repoSetupQueryOptions,
+} from "#/lib/repo-setup.query";
+import { responseQueryKeys } from "#/lib/response.query";
+
+export function useRepoSetup(org: string, repo: string) {
+	const query = useQuery(repoSetupQueryOptions(org, repo));
+	const state = query.data ?? null;
+	return {
+		query,
+		state,
+		progress: state ? setupProgress(state.facts) : null,
+	};
+}
+
+export function useInvalidateRepoSetup(org: string, repo: string) {
+	const queryClient = useQueryClient();
+	return () =>
+		queryClient.invalidateQueries({
+			queryKey: repoSetupQueryKeys.detail(org, repo),
+		});
+}
+
+export function useRunFirstCheck(org: string, repo: string) {
+	const invalidate = useInvalidateRepoSetup(org, repo);
+	return useMutation({
+		mutationFn: (number: number) =>
+			rerunChangeRequest({ data: { org, repo, number } }),
+		onSuccess: (result, number) => {
+			if (result.status === "queued") {
+				toast(`Running rules on #${number}`);
+				return;
+			}
+			if (result.status === "cooldown") {
+				toast(
+					`You can run rules on #${number} again in about ${Math.max(1, Math.ceil(result.retryInSeconds / 60))} min`,
+				);
+				return;
+			}
+			toast.fail(
+				result.status === "no-event"
+					? `Tripwire has nothing to check on #${number} yet.`
+					: "Turn on rules first.",
+			);
+		},
+		onError: () => toast.fail("Tripwire could not run rules. Try again."),
+		onSettled: invalidate,
+	});
+}
+
+export function useKeepResponseDefaults(
+	org: string,
+	repo: string,
+	repoId: string,
+) {
+	const queryClient = useQueryClient();
+	const invalidate = useInvalidateRepoSetup(org, repo);
+	return useMutation({
+		mutationFn: () => keepResponseDefaults({ data: { org, repoId } }),
+		onError: () => toast.fail("Tripwire could not save. Try again."),
+		onSettled: async () => {
+			await Promise.all([
+				invalidate(),
+				queryClient.invalidateQueries({
+					queryKey: responseQueryKeys.config(org, repoId),
+				}),
+			]);
+		},
+	});
+}
+
+export function useTakeOver(org: string, repo: string) {
+	const invalidate = useInvalidateRepoSetup(org, repo);
+	return useMutation({
+		mutationFn: (code: string) => takeOverAgentSetup({ data: { org, code } }),
+		onError: () => toast.fail("Tripwire could not take over. Try again."),
+		onSettled: invalidate,
+	});
+}
+
+export function useSetupTurnOnRules(input: {
+	org: string;
+	repo: string;
+	repoId: string;
+	armed: boolean;
+}) {
+	const invalidate = useInvalidateRepoSetup(input.org, input.repo);
+	return useTurnOnRules(input.org, input.repoId, {
+		prepare: async () => {
+			if (input.armed) {
+				return null;
+			}
+			try {
+				const result = await armRepo({
+					data: { org: input.org, repo: input.repo },
+				});
+				return result.armed ? null : "Tripwire did not turn on. Try again.";
+			} catch {
+				return "Only an org admin can turn on Tripwire for this repo.";
+			}
+		},
+		onDone: () => {
+			void invalidate();
+		},
+	});
+}
