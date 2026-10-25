@@ -424,6 +424,8 @@ function checkNotInputs(ctx: LintContext): Finding[] {
 	});
 }
 
+export const EMPTY_EXCEPTION_GROUP = "Connect the rules of this exception.";
+
 export const UNLESS_EMPTY_PORT = {
 	requirement: "Connect a requirement.",
 	exception: "Connect an exception.",
@@ -501,6 +503,20 @@ function checkOrphans(ctx: LintContext): Finding[] {
 			(ctx.incoming.get(node.id) ?? []).length > 0
 		) {
 			return [];
+		}
+		const exceptionGroup =
+			node.type === "gate" &&
+			(ctx.outgoing.get(node.id) ?? []).some(
+				(edge) => edge.input === "exception",
+			);
+		if (exceptionGroup) {
+			return [
+				{
+					nodeId: node.id,
+					message: EMPTY_EXCEPTION_GROUP,
+					fixes: [],
+				},
+			];
 		}
 		const connect: LintFix[] =
 			triggers.length === 1 && onlyTrigger && canAccept(node.type, "event")

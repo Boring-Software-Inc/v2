@@ -12,6 +12,7 @@ import type { WorkflowDefinition } from "./workflow.ts";
 import { workflowDefinitionSchema } from "./workflow.ts";
 import { workflowToCode } from "./workflow-codegen.ts";
 import {
+	EMPTY_EXCEPTION_GROUP,
 	insertStep,
 	lintWorkflow,
 	UNLESS_EMPTY_PORT,
@@ -122,8 +123,10 @@ describe("the exception draft", () => {
 		const issues = lintWorkflow(draft());
 		expect(issues.some((issue) => issue.severity === "error")).toBe(true);
 		expect(
-			issues.some((issue) => issue.nodeId === EXCEPTION_DRAFT_IDS.exception),
-		).toBe(true);
+			issues
+				.filter((issue) => issue.nodeId === EXCEPTION_DRAFT_IDS.exception)
+				.map((issue) => [issue.message, issue.fixes]),
+		).toEqual([[EMPTY_EXCEPTION_GROUP, []]]);
 	});
 
 	test("the filled draft lints clean and prints as unless in code", () => {
