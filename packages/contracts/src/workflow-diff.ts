@@ -238,7 +238,7 @@ function fieldChanges(old: WorkflowNode, node: WorkflowNode): string[] {
 }
 
 function edgeKey(edge: WorkflowEdge): string {
-	return `${edge.from}>${edge.to}>${edge.when ?? "pass"}`;
+	return `${edge.from}>${edge.to}>${edge.when ?? "pass"}>${edge.input ?? ""}`;
 }
 
 function describeEdge(
@@ -247,7 +247,8 @@ function describeEdge(
 ): string {
 	const source = byId.get(edge.from);
 	const port = source ? edgePort(source, edge.when) : "pass";
-	return `${edge.from} → ${edge.to} (${WORKFLOW_PORT_LABELS[port]})`;
+	const role = edge.input ? ` as the ${edge.input}` : "";
+	return `${edge.from} → ${edge.to} (${WORKFLOW_PORT_LABELS[port]})${role}`;
 }
 
 /**

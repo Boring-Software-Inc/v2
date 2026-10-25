@@ -13,6 +13,7 @@ import { useBlocker } from "@tanstack/react-router";
 import type {
 	AiCreditsState,
 	EdgeWhen,
+	GateInput,
 	LintFix,
 	LintIntent,
 	LintResult,
@@ -158,7 +159,11 @@ const NO_ENTERING: ReadonlyMap<string, number> = new Map();
 
 type CanvasNode = TripwireFlowNode | LaneHeadFlowNode;
 
-type FlowEdge = Edge<{ when?: EdgeWhen; port?: WorkflowPort }>;
+type FlowEdge = Edge<{
+	when?: EdgeWhen;
+	input?: GateInput;
+	port?: WorkflowPort;
+}>;
 
 export interface PendingConnect {
 	nodeId: string;
@@ -713,7 +718,17 @@ function EditorBody({
 			const when = handleWhen(connection.sourceHandle);
 			setEdges((current) =>
 				reconnectEdge(oldEdge, connection, current).map((edge) =>
-					edge.id === oldEdge.id ? { ...edge, ...edgeWhenFields(when) } : edge,
+					edge.id === oldEdge.id
+						? {
+								...edge,
+								...edgeWhenFields(
+									when,
+									connection.target === oldEdge.target
+										? oldEdge.data?.input
+										: undefined,
+								),
+							}
+						: edge,
 				),
 			);
 			setDirty(true);

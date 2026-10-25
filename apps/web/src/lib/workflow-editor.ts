@@ -1,6 +1,7 @@
 import type {
 	AiCreditsState,
 	EdgeWhen,
+	GateInput,
 	LintResult,
 	ReviewerRef,
 	ValidationCatalogEntry,
@@ -38,13 +39,26 @@ export interface EditorEdge {
 	 * "approve"/"deny" on send-to-moderation nodes); pass edges leave it unset.
 	 */
 	sourceHandle?: string | null;
-	data?: { when?: EdgeWhen };
+	data?: EditorEdgeData;
 }
 
-export function edgeWhenFields(when: EdgeWhen | undefined): {
-	data: { when?: EdgeWhen };
+export interface EditorEdgeData {
+	when?: EdgeWhen;
+	input?: GateInput;
+}
+
+export function edgeWhenFields(
+	when: EdgeWhen | undefined,
+	input?: GateInput,
+): {
+	data: EditorEdgeData;
 } {
-	return when ? { data: { when } } : { data: {} };
+	return {
+		data: {
+			...(when ? { when } : {}),
+			...(input ? { input } : {}),
+		},
+	};
 }
 
 const HANDLE_WHENS = new Set(["fail", "approve", "deny"]);
@@ -82,7 +96,7 @@ export function definitionToGraph(definition: WorkflowDefinition): {
 		target: edge.to,
 		sourceHandle:
 			edge.when && HANDLE_WHENS.has(edge.when) ? edge.when : undefined,
-		...edgeWhenFields(edge.when),
+		...edgeWhenFields(edge.when, edge.input),
 	}));
 	return { nodes, edges };
 }
@@ -102,7 +116,7 @@ export interface GraphEdgeLike {
 	source: string;
 	target: string;
 	sourceHandle?: string | null;
-	data?: { when?: EdgeWhen };
+	data?: EditorEdgeData;
 }
 
 export function graphToCandidate(
@@ -128,6 +142,7 @@ export function graphToCandidate(
 				const when = handleWhen(edge.sourceHandle) ?? edge.data?.when;
 				return when ? { when } : {};
 			})(),
+			...(edge.data?.input ? { input: edge.data.input } : {}),
 		})),
 	};
 }
