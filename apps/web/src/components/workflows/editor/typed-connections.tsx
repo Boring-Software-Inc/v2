@@ -1,6 +1,7 @@
 import type {
 	ConnectionHint,
 	EdgeWhen,
+	GateInput,
 	WorkflowPort,
 } from "@tripwire/contracts";
 import {
@@ -63,7 +64,7 @@ export function PortGlyph({ look }: { look: PortLook & { io: "in" | "out" } }) {
 }
 
 export type TypedFlowEdge = Edge<
-	{ port?: WorkflowPort; when?: EdgeWhen },
+	{ port?: WorkflowPort; when?: EdgeWhen; input?: GateInput },
 	"typed"
 >;
 

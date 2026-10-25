@@ -1225,7 +1225,12 @@ export function openPosition(
 }
 
 function withoutWhen(edge: WorkflowEdge): WorkflowEdge {
-	return { id: edge.id, from: edge.from, to: edge.to };
+	return {
+		id: edge.id,
+		from: edge.from,
+		to: edge.to,
+		...(edge.input ? { input: edge.input } : {}),
+	};
 }
 
 export function insertStep(
@@ -1238,8 +1243,9 @@ export function insertStep(
 		return def;
 	}
 	const withNode = { ...def, nodes: [...def.nodes, node] };
+	const { input, ...rest } = edge;
 	const into: WorkflowEdge = {
-		...edge,
+		...rest,
 		id: freshId(withNode, "edge"),
 		to: node.id,
 	};
@@ -1247,6 +1253,7 @@ export function insertStep(
 		id: freshId({ ...withNode, edges: [...def.edges, into] }, "edge"),
 		from: node.id,
 		to: edge.to,
+		...(input ? { input } : {}),
 	};
 	return {
 		...withNode,
