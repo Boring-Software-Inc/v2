@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "#/components/glaze/ui/button";
+import { toast } from "#/components/glaze/ui/toast";
 import { authClient } from "#/lib/auth-client";
 import { oauthAuthorizeResume } from "#/lib/oauth-resume";
 
@@ -14,6 +15,51 @@ export function switchAccountTargets(oauthQuery: string): {
 	};
 }
 
+export const SIGN_OUT_FAILED = "Tripwire could not sign you out. Try again.";
+
+export interface SwitchAccountSteps {
+	signOut: () => Promise<boolean>;
+	signIn: (callbackURL: string) => Promise<boolean>;
+	go: (url: string) => void;
+	fail: (message: string) => void;
+}
+
+export async function switchAccount(
+	oauthQuery: string,
+	steps: SwitchAccountSteps,
+): Promise<boolean> {
+	const targets = switchAccountTargets(oauthQuery);
+	if (!(await steps.signOut())) {
+		steps.fail(SIGN_OUT_FAILED);
+		return false;
+	}
+	if (!(targets.resume && (await steps.signIn(targets.resume)))) {
+		steps.go(targets.login);
+	}
+	return true;
+}
+
+const BROWSER_STEPS: SwitchAccountSteps = {
+	signOut: () =>
+		authClient.signOut().then(
+			({ error }) => !error,
+			() => false,
+		),
+	signIn: (callbackURL) =>
+		authClient.signIn
+			.social({
+				provider: "github",
+				callbackURL,
+				additionalParams: { prompt: "select_account" },
+			})
+			.then(
+				({ error }) => !error,
+				() => false,
+			),
+	go: (url) => window.location.assign(url),
+	fail: (message) => toast.fail(message),
+};
+
 export function AgentAccountRow({
 	name,
 	forgeLogin,
@@ -25,21 +71,10 @@ export function AgentAccountRow({
 }) {
 	const [pending, setPending] = useState(false);
 
-	const switchAccount = async () => {
+	const startSwitch = async () => {
 		setPending(true);
-		const targets = switchAccountTargets(oauthQuery());
-		await authClient.signOut().catch(() => undefined);
-		if (!targets.resume) {
-			window.location.assign(targets.login);
-			return;
-		}
-		const { error } = await authClient.signIn.social({
-			provider: "github",
-			callbackURL: targets.resume,
-			additionalParams: { prompt: "select_account" },
-		});
-		if (error) {
-			window.location.assign(targets.login);
+		if (!(await switchAccount(oauthQuery(), BROWSER_STEPS))) {
+			setPending(false);
 		}
 	};
 
@@ -52,7 +87,7 @@ export function AgentAccountRow({
 				</span>
 			</p>
 			<Button
-				onClick={() => void switchAccount()}
+				onClick={() => void startSwitch()}
 				pending={pending}
 				size="sm"
 				type="button"
