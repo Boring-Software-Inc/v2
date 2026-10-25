@@ -6,14 +6,10 @@ import {
 	bearsVerdict,
 	DEFAULT_SCHEDULE_TIMEZONE,
 	describeRunSteps,
-	exceptionLine,
 	isCustomRuleId,
 	matchWorkflowIds,
-	parseRuleOutcomeInput,
 	RULE_CATALOG,
-	RULE_OUTCOME_LABELS,
 	redactWorkflowSecrets,
-	ruleOutcomeSchema,
 	runResult,
 	runResultLabel,
 	runSnapshotSchema,
@@ -76,18 +72,6 @@ const repoArg = z
 	.string()
 	.min(1)
 	.describe("The repo name, or owner/name, as listed by list_repos.");
-const outcomeArg = ruleOutcomeSchema
-	.optional()
-	.describe(
-		"What happens when the rule does not pass. block: red check and a changes-requested review. request_fix: red check and your instruction, no review. human_review: pending check until a maintainer decides. note: green check with a note. close: closes the change request. Leave out to keep the current one. New rules use block.",
-	);
-const instructionArg = z
-	.string()
-	.optional()
-	.describe(
-		"For request_fix: what the author must change, as in Change the target to main. For note: the fact to state. Leave out to keep the current text.",
-	);
-
 const anyRepoArg = z
 	.string()
 	.min(1)
@@ -374,7 +358,7 @@ export function registerTools(
 			"get_repo_rules",
 			{
 				description:
-					"The rules on a repo: on or off, current settings, what happens when each does not pass, whether a workflow owns them, and the Skip when conditions scoped to each. A repo starts with no rules on, and Tripwire checks nothing until a rule is turned on. Custom rules also carry their sentence, description, definition and the workflows that use them. Use a custom rule in tripwire.ts with customCheck(ruleId).",
+					"The rules on a repo: installed or not, current settings, and whether a workflow owns them. An installed rule that no workflow uses blocks when it does not pass. A repo starts with no rules installed, and Tripwire checks nothing until a rule is installed. Custom rules also carry their sentence, description, definition and the workflows that use them. Use a custom rule in tripwire.ts with customCheck(ruleId).",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("get_repo_rules"),
 			},
@@ -405,13 +389,6 @@ export function registerTools(
 								held: view.held,
 								cannotRun: view.forgeBlockReason ?? view.unavailableReason,
 								matches24h: view.matches24h,
-								outcome: view.outcome.outcome,
-								outcomeLabel: RULE_OUTCOME_LABELS[view.outcome.outcome],
-								instruction: view.outcome.instruction,
-								setIn: view.owners.map((owner) => owner.name),
-								exceptions: view.owners.flatMap((owner) =>
-									owner.exceptions.map((name) => exceptionLine(name)),
-								),
 							};
 							const rule = custom.get(view.ruleId);
 							if (!rule) {
@@ -435,7 +412,7 @@ export function registerTools(
 			"set_rule",
 			{
 				description:
-					"Turn a rule on or off on a repo, save its settings, and set what happens when it does not pass. Ask the user first. A custom rule (custom-...) has no settings, only on or off and its outcome; change its definition with save_custom_rule. A rule a workflow owns takes its outcome from the workflow.",
+					"Install or uninstall a rule on a repo and save its settings. Ask the user first. An installed rule blocks when it does not pass; to do anything else, use the rule in a workflow. A custom rule (custom-...) has no settings, only installed or not; change its definition with save_custom_rule.",
 				inputSchema: {
 					org: orgArg,
 					repo: repoArg,
@@ -443,19 +420,19 @@ export function registerTools(
 					enabled: z
 						.boolean()
 						.optional()
-						.describe("Leave out to keep the rule on or off as it is."),
+						.describe(
+							"true installs the rule, false uninstalls it. Leave out to keep it as it is.",
+						),
 					config: z
 						.record(z.string(), z.unknown())
 						.optional()
 						.describe(
 							"Rule settings to change. Keys you leave out keep their current value. See list_rule_catalog for the schema.",
 						),
-					outcome: outcomeArg,
-					instruction: instructionArg,
 				},
 				annotations: annotate("set_rule"),
 			},
-			({ org, repo, ruleId, enabled, config, outcome, instruction }) =>
+			({ org, repo, ruleId, enabled, config }) =>
 				guard(async () => {
 					const custom = isCustomRuleId(ruleId);
 					if (
@@ -476,31 +453,6 @@ export function registerTools(
 							`A workflow runs ${ruleId} on this repo. Change it in the workflow: ${appLink(ctx, `/${resolved.slug}/${found.name}/workflows/${view.workflowId}`)}`,
 						);
 					}
-					const nextOutcome =
-						outcome === undefined && instruction === undefined
-							? null
-							: parseRuleOutcomeInput({
-									outcome: outcome ?? view?.outcome.outcome,
-									instruction: instruction ?? view?.outcome.instruction,
-								});
-					if (nextOutcome && !nextOutcome.ok) {
-						throw new ToolError(nextOutcome.error);
-					}
-					const saveOutcome = async () => {
-						if (!nextOutcome?.ok) {
-							return view?.outcome;
-						}
-						const saved = await ruleServices.setRuleOutcome(ctx.db, {
-							repoId: found.id,
-							ruleId,
-							outcome: nextOutcome.setting.outcome,
-							instruction: nextOutcome.setting.instruction,
-						});
-						if ("error" in saved) {
-							throw new ToolError(saved.error);
-						}
-						return nextOutcome.setting;
-					};
 					const nextEnabled = enabled ?? view?.enabled ?? false;
 					if (custom) {
 						if (config && Object.keys(config).length > 0) {
@@ -515,13 +467,11 @@ export function registerTools(
 						if (!changed.ok) {
 							throw new ToolError(changed.error, "list_custom_rules");
 						}
-						const savedOutcome = await saveOutcome();
 						return ok({
 							saved: true,
 							ruleId,
 							enabled: nextEnabled,
 							sentence: changed.rule.sentence,
-							...(savedOutcome ? { outcome: savedOutcome } : {}),
 						});
 					}
 					const current =
@@ -535,13 +485,7 @@ export function registerTools(
 					if ("error" in result) {
 						throw new ToolError(result.error);
 					}
-					const savedOutcome = await saveOutcome();
-					return ok({
-						saved: true,
-						ruleId,
-						enabled: nextEnabled,
-						...(savedOutcome ? { outcome: savedOutcome } : {}),
-					});
+					return ok({ saved: true, ruleId, enabled: nextEnabled });
 				}),
 		);
 	}
@@ -581,29 +525,17 @@ export function registerTools(
 						.boolean()
 						.optional()
 						.describe(
-							"Run the rule by itself. A new rule starts off. Leave out to keep it as it is.",
+							"true installs the rule, so it runs by itself and blocks when it does not pass. A new rule is not installed. Leave out to keep it as it is.",
 						),
 					definition: z
 						.record(z.string(), z.unknown())
 						.describe(
 							"{ when: { id, transform? }, comparison: { kind, args } }, as the tool description shows.",
 						),
-					outcome: outcomeArg,
-					instruction: instructionArg,
 				},
 				annotations: annotate("save_custom_rule"),
 			},
-			({
-				org,
-				repo,
-				id,
-				name,
-				description,
-				enabled,
-				definition,
-				outcome,
-				instruction,
-			}) =>
+			({ org, repo, id, name, description, enabled, definition }) =>
 				guard(async () => {
 					const { org: resolved, repo: found } = await resolveOrgRepo(
 						ctx,
@@ -618,10 +550,6 @@ export function registerTools(
 						description,
 						enabled,
 						definition,
-						outcome:
-							outcome === undefined && instruction === undefined
-								? undefined
-								: { outcome, instruction },
 					});
 					if (!result.ok) {
 						throw new ToolError(
@@ -685,7 +613,7 @@ export function registerTools(
 			"turn_on_gate",
 			{
 				description:
-					"Turn the Tripwire gate on for a repo so new pull requests get checked. Ask the user first. With no rules on, the gate checks nothing, so turn rules on with set_rule first.",
+					"Turn the Tripwire gate on for a repo so new pull requests get checked. Ask the user first. With no rules installed, the gate checks nothing, so install rules with set_rule first.",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("turn_on_gate"),
 			},

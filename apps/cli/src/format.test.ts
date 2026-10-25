@@ -112,8 +112,6 @@ describe("plain text output", () => {
 					management: "direct",
 					cannotRun: null,
 					matches24h: 3,
-					outcome: "request_fix",
-					setIn: [],
 				},
 				{
 					ruleId: "first-pr@1",
@@ -121,71 +119,37 @@ describe("plain text output", () => {
 					management: "managed",
 					cannotRun: null,
 					matches24h: 0,
-					outcome: "block",
-					setIn: ["New accounts"],
-				},
-				{
-					ruleId: "honeypot@1",
-					enabled: false,
-					cannotRun: null,
-					matches24h: 0,
 				},
 			]),
 		).toBe(
 			[
-				"RULE                          STATE     WHEN THIS DOES NOT PASS     MATCHES 24H     NOTE",
-				"account-age@1                 on        Ask author to fix           3",
-				"first-pr@1                    off       Set in New accounts         0",
-				"honeypot@1                    off       Block                       0",
+				"RULE                          STATE             MATCHES 24H     NOTE",
+				"account-age@1                 installed         3",
+				"first-pr@1                    not installed     0               set by a workflow",
 			].join("\n"),
 		);
 	});
 
-	test("set_rule and save_custom_rule say what happens when the rule does not pass", () => {
-		expect(
-			formatResult("set_rule", {
-				saved: true,
-				ruleId: "custom-into-main-1a2b3c",
-				enabled: true,
-				outcome: {
-					outcome: "request_fix",
-					instruction: "Change the target to main.",
-				},
-			}),
-		).toBe(
-			[
-				"done      custom-into-main-1a2b3c is on",
-				"outcome   When this does not pass: Ask author to fix",
-				"fix       Change the target to main.",
-			].join("\n"),
-		);
+	test("set_rule and save_custom_rule say whether the rule is installed", () => {
 		expect(
 			formatResult("set_rule", {
 				saved: true,
 				ruleId: "crypto-address",
 				enabled: true,
-				outcome: { outcome: "note", instruction: "" },
 			}),
-		).toBe(
-			[
-				"done      crypto-address is on",
-				"outcome   When this does not pass: Note only",
-			].join("\n"),
-		);
+		).toBe("done      crypto-address is installed");
 		expect(
 			formatResult("save_custom_rule", {
 				id: "custom-into-main-1a2b3c",
 				created: true,
 				enabled: false,
 				sentence: "require that target branch is one of main",
-				outcome: { outcome: "block", instruction: "" },
 			}),
 		).toBe(
 			[
 				"done      Created custom-into-main-1a2b3c",
 				"rule      require that target branch is one of main",
-				"state     off",
-				"outcome   When this does not pass: Block",
+				"state     not installed",
 			].join("\n"),
 		);
 	});
