@@ -80,9 +80,42 @@ its Doesn't pass output, `not(passes)`, and it fits anywhere a check fits, so
 
 **Except when.** `unless(requirement, exception)` passes when the requirement
 passes or the exception passes. Otherwise it keeps the requirement's result:
-missing or skipped exception proof never waives a failed requirement. Scope an
-exception to one requirement, for example
-`unless(customCheck("custom-target-main"), allOf(isRelease, fromReleasePlease))`.
+missing or skipped exception proof never waives a failed requirement. The
+first argument is the Requirement input, the second the Exception input; order
+matters. Scope an exception to one requirement and put the outcome on its
+`fail` side:
+
+```ts
+const on = trigger("change-request.opened", "change-request.updated");
+const releasePr = allOf(
+	customCheck("custom-target-release"),
+	customCheck("custom-release-source"),
+	customCheck("custom-release-author"),
+);
+export default workflows({
+	target: workflow({
+		on,
+		check: unless(customCheck("custom-target-main"), releasePr),
+		fail: [requestFix({ message: "Change the target to main." })],
+	}),
+	crypto: workflow({ on, check: check("crypto-address"), fail: [block()] }),
+});
+```
+
+Keep other checks in their own workflow so the exception never waives them.
+The run records whether the exception applied, and only when it waived a
+failed requirement.
+
+**Add exception.** On the rules page, a rule that runs by itself has Add
+exception. It opens a draft workflow named after the rule: the rule in Except
+when's Requirement, an empty All of group in Exception, and the rule's current
+outcome on the gate's Doesn't pass output. Fill the group, then turn the
+workflow on. A draft changes nothing. Turning it on moves the rule from
+running by itself to the workflow in one step; the rule card then shows
+`Except: <the exception's rules>` and `Set in <workflow>`. The exception's own
+rules can stay off: a workflow runs the rules it uses. In code, the same draft
+is the `unless` above; `workflows pull` brings it down once it exists.
+`get_repo_rules` lists each rule's `setIn` workflows and its `exceptions`.
 
 **Ids are the code's ids.** Rules: `check("<rule id>", settings)`, typed from
 the catalog; `list_rule_catalog` lists them. A repo's custom rules:

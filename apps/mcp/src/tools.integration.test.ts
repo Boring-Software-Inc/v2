@@ -1579,6 +1579,7 @@ describe("rule outcomes", () => {
 		expect(listed).toMatchObject({
 			management: "managed",
 			setIn: ["Age gate"],
+			exceptions: [],
 		});
 		const refused = await call("set_rule", {
 			repo: "mcp-web",

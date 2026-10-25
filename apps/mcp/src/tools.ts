@@ -6,6 +6,7 @@ import {
 	bearsVerdict,
 	DEFAULT_SCHEDULE_TIMEZONE,
 	describeRunSteps,
+	exceptionLine,
 	isCustomRuleId,
 	matchWorkflowIds,
 	parseRuleOutcomeInput,
@@ -373,7 +374,7 @@ export function registerTools(
 			"get_repo_rules",
 			{
 				description:
-					"The rules on a repo: on or off, current settings, what happens when each does not pass, and whether a workflow owns them. A repo starts with no rules on, and Tripwire checks nothing until a rule is turned on. Custom rules also carry their sentence, description, definition and the workflows that use them. Use a custom rule in tripwire.ts with customCheck(ruleId).",
+					"The rules on a repo: on or off, current settings, what happens when each does not pass, whether a workflow owns them, and the Except when exceptions scoped to each. A repo starts with no rules on, and Tripwire checks nothing until a rule is turned on. Custom rules also carry their sentence, description, definition and the workflows that use them. Use a custom rule in tripwire.ts with customCheck(ruleId).",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("get_repo_rules"),
 			},
@@ -408,6 +409,9 @@ export function registerTools(
 								outcomeLabel: RULE_OUTCOME_LABELS[view.outcome.outcome],
 								instruction: view.outcome.instruction,
 								setIn: view.owners.map((owner) => owner.name),
+								exceptions: view.owners.flatMap((owner) =>
+									owner.exceptions.map((name) => exceptionLine(name)),
+								),
 							};
 							const rule = custom.get(view.ruleId);
 							if (!rule) {
