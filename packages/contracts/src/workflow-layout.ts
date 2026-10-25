@@ -128,10 +128,36 @@ export function layoutWorkflow(
 		}
 		top = bottom + spacing.laneGap;
 	}
+	const bottoms = new Map<number, number>();
+	for (const node of graph.nodes) {
+		const at = placed.get(node.id);
+		if (at) {
+			bottoms.set(
+				at.x,
+				Math.max(bottoms.get(at.x) ?? 0, at.y + heightOf(node)),
+			);
+		}
+	}
 	const loose = graph.nodes.filter((node) => !placed.has(node.id));
-	loose.forEach((node, index) => {
-		placed.set(node.id, { x: index * column, y: top });
-	});
+	let next = 0;
+	for (const node of loose) {
+		const feeds = graph.edges.find(
+			(edge) =>
+				edge.from === node.id &&
+				edge.input === "exception" &&
+				placed.has(edge.to),
+		);
+		const gate = feeds ? placed.get(feeds.to) : undefined;
+		if (gate && gate.x >= column) {
+			const x = gate.x - column;
+			const y = (bottoms.get(x) ?? gate.y) + spacing.rowGap;
+			placed.set(node.id, { x, y });
+			bottoms.set(x, y + heightOf(node));
+			continue;
+		}
+		placed.set(node.id, { x: next * column, y: top });
+		next++;
+	}
 	return placed;
 }
 

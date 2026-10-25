@@ -179,4 +179,21 @@ describe("Except when layout", () => {
 		expect(placed.get("except-when")?.x).toBe(3 * column);
 		expect(placed.get("requirement")?.y).toBe(placed.get("except-when")?.y);
 	});
+
+	test("an empty exception group sits under the requirement, before the gate", () => {
+		const draft = exceptionDraft({
+			id: "wf",
+			name: "Account age",
+			rule: {
+				ref: "account-age@1",
+				config: { minDays: 7 },
+				outcome: { outcome: "block", instruction: "" },
+			},
+		});
+		const placed = layoutWorkflow(draft, { spacing: SPACING, heightOf });
+		const requirement = placed.get("requirement");
+		const group = placed.get("exception");
+		expect(group?.x).toBe(requirement?.x);
+		expect(group?.y).toBe((requirement?.y ?? 0) + 60 + SPACING.rowGap);
+	});
 });
