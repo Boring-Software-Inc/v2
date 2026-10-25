@@ -16,6 +16,7 @@ import {
 	lintWorkflow,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
+import { isViewEdge, type RuleCard, ruleGroupsView } from "#/lib/rule-groups";
 
 /**
  * Pure graph ↔ definition converters. `graphToDefinition` is THE editor
@@ -24,11 +25,19 @@ import {
  * validate→execute over a committed editor emission).
  */
 
+export type EditorNodeType = "tripwire" | "ruleGroup" | "skipWhen";
+
 export interface EditorNode {
 	id: string;
 	position: { x: number; y: number };
 	data: { node: WorkflowNode };
-	type: "tripwire";
+	type: EditorNodeType;
+	hidden?: boolean;
+}
+
+export interface EditorEdgeData {
+	when?: EdgeWhen;
+	input?: GateInput;
 }
 
 export interface EditorEdge {
@@ -41,7 +50,11 @@ export interface EditorEdge {
 	 */
 	sourceHandle?: string | null;
 	targetHandle?: string | null;
-	data?: { when?: EdgeWhen };
+	hidden?: boolean;
+	deletable?: boolean;
+	selectable?: boolean;
+	reconnectable?: boolean;
+	data?: EditorEdgeData;
 }
 
 export function handleInput(
@@ -49,53 +62,6 @@ export function handleInput(
 ): GateInput | undefined {
 	const parsed = gateInputSchema.safeParse(targetHandle);
 	return parsed.success ? parsed.data : undefined;
-}
-
-export function gateInputFor(
-	target: WorkflowNode | undefined,
-	targetHandle: string | null | undefined,
-	edges: readonly { target: string; targetHandle?: string | null }[],
-): GateInput | null {
-	if (target?.type !== "gate" || target.mode !== "unless") {
-		return null;
-	}
-	const asked = handleInput(targetHandle);
-	if (asked) {
-		return asked;
-	}
-	const taken = new Set(
-		edges.flatMap((edge) =>
-			edge.target === target.id ? [handleInput(edge.targetHandle)] : [],
-		),
-	);
-	return (
-		gateInputSchema.options.find((role) => !taken.has(role)) ??
-		gateInputSchema.options[0]
-	);
-}
-
-export function gateInputTaken(
-	target: WorkflowNode | undefined,
-	targetHandle: string | null | undefined,
-	edges: readonly {
-		id: string;
-		target: string;
-		targetHandle?: string | null;
-	}[],
-	movingEdgeId: string | null = null,
-): boolean {
-	const role = handleInput(targetHandle);
-	return (
-		target?.type === "gate" &&
-		target.mode === "unless" &&
-		role !== undefined &&
-		edges.some(
-			(edge) =>
-				edge.id !== movingEdgeId &&
-				edge.target === target.id &&
-				handleInput(edge.targetHandle) === role,
-		)
-	);
 }
 
 export function edgeWhenFields(when: EdgeWhen | undefined): {
@@ -118,31 +84,67 @@ export function handleWhen(
 		: undefined;
 }
 
+function nodeType(card: RuleCard | undefined): EditorNodeType {
+	if (card?.kind === "group") {
+		return "ruleGroup";
+	}
+	return card?.kind === "skip" ? "skipWhen" : "tripwire";
+}
+
 /**
  * Stored positions win (the user arranged them). Nodes without one get the
  * core's lane layout from `placeUnpositioned`; the origin here is a
  * placeholder it replaces.
  */
-export function definitionToGraph(definition: WorkflowDefinition): {
+export interface EditorGraph {
 	nodes: EditorNode[];
 	edges: EditorEdge[];
-} {
-	const nodes = definition.nodes.map((node) => ({
-		id: node.id,
-		position: node.position ?? { x: 0, y: 0 },
-		data: { node },
-		type: "tripwire" as const,
-	}));
-	const edges = definition.edges.map((edge) => ({
-		id: edge.id,
-		source: edge.from,
-		target: edge.to,
-		sourceHandle:
-			edge.when && HANDLE_WHENS.has(edge.when) ? edge.when : undefined,
-		targetHandle: edge.input,
-		...edgeWhenFields(edge.when),
-	}));
-	return { nodes, edges };
+}
+
+export function definitionToGraph(definition: WorkflowDefinition): EditorGraph {
+	const view = ruleGroupsView(definition);
+	const nodes = definition.nodes.map(
+		(node): EditorNode => ({
+			id: node.id,
+			position: node.position ?? { x: 0, y: 0 },
+			data: { node },
+			type: nodeType(view.cards.get(node.id)),
+			hidden: view.memberOf.has(node.id),
+		}),
+	);
+	const edges = definition.edges.map((edge): EditorEdge => {
+		const data: EditorEdgeData = edge.when ? { when: edge.when } : {};
+		if (edge.input) {
+			data.input = edge.input;
+		}
+		const shown: EditorEdge = {
+			id: edge.id,
+			source: edge.from,
+			target: edge.to,
+			sourceHandle:
+				edge.when && HANDLE_WHENS.has(edge.when) ? edge.when : undefined,
+			targetHandle: undefined,
+			hidden: view.hiddenEdges.has(edge.id),
+			data,
+		};
+		if (edge.input) {
+			shown.deletable = false;
+			shown.reconnectable = false;
+		}
+		return shown;
+	});
+	const viewEdges = view.viewEdges.map(
+		(edge): EditorEdge => ({
+			id: edge.id,
+			source: edge.from,
+			target: edge.to,
+			deletable: false,
+			selectable: false,
+			reconnectable: false,
+			data: {},
+		}),
+	);
+	return { nodes, edges: [...edges, ...viewEdges] };
 }
 
 export type GraphToDefinitionResult =
@@ -161,7 +163,7 @@ export interface GraphEdgeLike {
 	target: string;
 	sourceHandle?: string | null;
 	targetHandle?: string | null;
-	data?: { when?: EdgeWhen };
+	data?: EditorEdgeData;
 }
 
 function graphEdge(edge: GraphEdgeLike): WorkflowDefinition["edges"][number] {
@@ -174,7 +176,7 @@ function graphEdge(edge: GraphEdgeLike): WorkflowDefinition["edges"][number] {
 	if (when) {
 		out.when = when;
 	}
-	const input = handleInput(edge.targetHandle);
+	const input = handleInput(edge.targetHandle) ?? edge.data?.input;
 	if (input) {
 		out.input = input;
 	}
@@ -196,7 +198,7 @@ export function graphToCandidate(
 			...node.data.node,
 			position: node.position,
 		})),
-		edges: edges.map(graphEdge),
+		edges: edges.filter((edge) => !isViewEdge(edge.id)).map(graphEdge),
 	};
 }
 

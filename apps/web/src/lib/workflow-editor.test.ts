@@ -12,8 +12,6 @@ import {
 	type EditorEdge,
 	type EditorNode,
 	editorLint,
-	gateInputFor,
-	gateInputTaken,
 	graphToDefinition,
 	handleInput,
 } from "./workflow-editor.ts";
@@ -365,7 +363,7 @@ describe("AI review steps while Tripwire is out of AI credits", () => {
 	});
 });
 
-describe("Except when on the canvas", () => {
+describe("Skip when on the canvas", () => {
 	test("requirement and exception roles survive definition, graph and back", () => {
 		const draft = exceptionDraft({
 			id: "wf",
@@ -381,7 +379,7 @@ describe("Except when on the canvas", () => {
 		});
 		const graph = definitionToGraph(draft);
 		expect(
-			graph.edges.find((edge) => edge.id === "requirement-gate")?.targetHandle,
+			graph.edges.find((edge) => edge.id === "requirement-gate")?.data?.input,
 		).toBe("requirement");
 		const result = graphToDefinition(
 			{ id: draft.id, name: draft.name, version: draft.version },
@@ -399,38 +397,5 @@ describe("Except when on the canvas", () => {
 		expect(handleInput("exception")).toBe("exception");
 		expect(handleInput(null)).toBeUndefined();
 		expect(handleInput("fail")).toBeUndefined();
-	});
-});
-
-describe("connecting into Except when", () => {
-	const gate = { id: "g", type: "gate", mode: "unless" } as const;
-	const allOf = { id: "a", type: "gate", mode: "all-of" } as const;
-
-	test("a drop on the node fills Requirement first, then Exception", () => {
-		expect(gateInputFor(gate, null, [])).toBe("requirement");
-		expect(
-			gateInputFor(gate, null, [{ target: "g", targetHandle: "requirement" }]),
-		).toBe("exception");
-	});
-
-	test("a drop on a port keeps that port, and other nodes get no role", () => {
-		expect(gateInputFor(gate, "exception", [])).toBe("exception");
-		expect(gateInputFor(allOf, "exception", [])).toBeNull();
-	});
-
-	test("a filled port refuses a second connection", () => {
-		const edges = [{ id: "e1", target: "g", targetHandle: "requirement" }];
-		expect(gateInputTaken(gate, "requirement", edges)).toBe(true);
-		expect(gateInputTaken(gate, "exception", edges)).toBe(false);
-		expect(gateInputTaken(allOf, "requirement", edges)).toBe(false);
-	});
-
-	test("moving an edge's source keeps its own port open", () => {
-		const edges = [
-			{ id: "e1", target: "g", targetHandle: "requirement" },
-			{ id: "e2", target: "g", targetHandle: "exception" },
-		];
-		expect(gateInputTaken(gate, "requirement", edges, "e1")).toBe(false);
-		expect(gateInputTaken(gate, "exception", edges, "e1")).toBe(true);
 	});
 });
