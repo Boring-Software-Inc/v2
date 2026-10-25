@@ -46,7 +46,10 @@ them and carry on. They never block or change setup.
      `opencode mcp auth tripwire` in OpenCode, `kilo mcp auth tripwire` in Kilo
      Code, `muse mcp login tripwire` in Muse Code, `/mcp` in other terminal
      agents, or the MCP settings in an editor. If it is not installed:
-     `npx @tripwire-sh/cli install`. Wait, then call `whoami` again.
+     `npx @tripwire-sh/cli install`. If npx stops with `EBADDEVENGINES`, the
+     repo's `package.json` has a `devEngines` field: run
+     `bunx @tripwire-sh/cli install` or `npx --prefix ~ @tripwire-sh/cli install`.
+     Wait, then call `whoami` again.
    - Access pending: Tripwire is in closed beta. Give the request access link
      https://app.tripwire.sh and stop.
    - Otherwise report `connect_mcp` completed. Use the org slug from the
@@ -61,6 +64,8 @@ them and carry on. They never block or change setup.
 4. **Pick rules.** Read this repo's README and CONTRIBUTING, then
    `list_rule_catalog` and `get_repo_rules`. Propose a short starting set with
    params and say why in one line each. On yes, call `set_rule` for each.
+   When no built-in rule fits, propose a custom rule and save it with
+   `save_custom_rule`. Show the user the sentence it returns.
 5. **Turn on the gate.** Ask, then call `turn_on_gate`. If the user declines,
    report `turn_on_gate` skipped.
 6. **Verify.** Call `setup_status`. When it shows the check is live, report
@@ -76,5 +81,6 @@ returns a confirm link). Give one link, wait, and poll `setup_status`.
 Give a short summary and the repo link from `setup_status`. Then tell the user
 you can manage Tripwire later with the `tripwire` CLI (`npx @tripwire-sh/cli
 --help`): `login`, `status`, `repos`, `rules`, `gate`, `workflows`, `runs` and
-`queue`, each with `--json`.
+`queue`, each with `--json`. `rules create`, `rules update` and `rules delete`
+manage custom rules.
 To write or change workflows as code, use the `tripwire-workflows` skill.

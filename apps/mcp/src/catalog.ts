@@ -8,6 +8,8 @@ export const TOOL_NAMES = [
 	"list_rule_catalog",
 	"get_repo_rules",
 	"set_rule",
+	"save_custom_rule",
+	"delete_custom_rule",
 	"turn_on_gate",
 	"list_workflows",
 	"set_workflow_enabled",
@@ -51,6 +53,16 @@ export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
 		readOnly: true,
 	},
 	set_rule: {
+		scope: "tripwire:configure",
+		need: "rules:manage",
+		readOnly: false,
+	},
+	save_custom_rule: {
+		scope: "tripwire:configure",
+		need: "rules:manage",
+		readOnly: false,
+	},
+	delete_custom_rule: {
 		scope: "tripwire:configure",
 		need: "rules:manage",
 		readOnly: false,

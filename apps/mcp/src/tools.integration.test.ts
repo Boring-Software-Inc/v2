@@ -4,7 +4,9 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
 	AI_CREDITS_COPY,
+	compileWorkflows,
 	liveNodeTouches,
+	workflowAuthoring,
 	workflowPushProposalResultSchema,
 	workflowPushViewSchema,
 } from "@tripwire/contracts";
@@ -29,6 +31,7 @@ import {
 import type { Pool } from "pg";
 import { z } from "zod";
 import { readConfig } from "./config.ts";
+import { RELEASE_EXAMPLE } from "./custom-rule-guide.ts";
 import { registerTools } from "./tools.ts";
 
 const config = readConfig({
@@ -1103,5 +1106,224 @@ describe("workflow push review", () => {
 			push: "019f0000-0000-7000-8000-000000000000",
 		});
 		expect(result.isError).toBe(true);
+	});
+});
+
+describe("custom rules", () => {
+	const { intoRelease, fromReleasePlease } = RELEASE_EXAMPLE;
+	const savedSchema = z.object({
+		saved: z.literal(true),
+		created: z.boolean(),
+		id: z.string(),
+		ref: z.string(),
+		name: z.string(),
+		enabled: z.boolean(),
+		sentence: z.string(),
+		use: z.string(),
+		url: z.string(),
+	});
+	const json = (result: { content: { text?: string }[] }) =>
+		JSON.parse(result.content[0]?.text ?? "null");
+	let intoId = "";
+	let fromId = "";
+	const customId = z.templateLiteral(["custom-", z.string()]);
+
+	test("save creates a rule that starts off and answers with its sentence", async () => {
+		const result = await call("save_custom_rule", {
+			repo: "mcp-api",
+			name: "Not into release",
+			description: "Only release-please opens change requests into release.",
+			definition: intoRelease,
+		});
+		expect(result.isError).toBeFalsy();
+		const saved = savedSchema.parse(json(result));
+		expect(saved.id).toMatch(/^custom-not-into-release-[0-9a-f]{6}$/);
+		expect(saved).toMatchObject({
+			created: true,
+			enabled: false,
+			ref: `${saved.id}@1`,
+			sentence: "require that target branch is not release",
+			use: `customCheck("${saved.id}")`,
+			url: `http://localhost:3420/${orgSlug}/mcp-api/rules`,
+		});
+		intoId = saved.id;
+	});
+
+	test("get_repo_rules lists it with its sentence, description and definition", async () => {
+		const result = await call("get_repo_rules", { repo: "mcp-api" });
+		const rules = z
+			.array(z.looseObject({ ruleId: z.string() }))
+			.parse(json(result));
+		expect(rules.find((rule) => rule.ruleId === intoId)).toMatchObject({
+			source: "custom",
+			enabled: false,
+			sentence: "require that target branch is not release",
+			description: "Only release-please opens change requests into release.",
+			definition: intoRelease,
+			usedBy: [],
+		});
+	});
+
+	test("a bad definition is refused with the reason, and nothing is saved", async () => {
+		const result = await call("save_custom_rule", {
+			repo: "mcp-api",
+			name: "Broken",
+			definition: {
+				when: { id: "pr.targetBranch" },
+				comparison: { kind: "over", args: [3] },
+			},
+		});
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toBe("over does not apply to this signal");
+		const listed = await call("get_repo_rules", { repo: "mcp-api" });
+		expect(JSON.stringify(json(listed))).not.toContain("Broken");
+	});
+
+	test("a taken name is refused", async () => {
+		const result = await call("save_custom_rule", {
+			repo: "mcp-api",
+			name: "not into release",
+			definition: intoRelease,
+		});
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toBe(
+			"A rule named not into release already exists on this repo. Pick another name.",
+		);
+	});
+
+	test("the release example in the tool description saves, validates and applies", async () => {
+		const second = savedSchema.parse(
+			json(
+				await call("save_custom_rule", {
+					repo: "mcp-api",
+					name: "From release-please",
+					definition: fromReleasePlease,
+				}),
+			),
+		);
+		expect(second.sentence).toBe(
+			"require that source branch is one of release-please--branches--release",
+		);
+		fromId = second.id;
+		const { allOf, block, customCheck, workflow, workflows } =
+			workflowAuthoring;
+		const compiled = compileWorkflows(
+			workflows({
+				"release-branch": workflow({
+					name: "Release branch",
+					on: "change-request.opened",
+					check: allOf(
+						customCheck(customId.parse(intoId)).fails,
+						customCheck(customId.parse(fromId)).fails,
+					),
+					pass: [block()],
+				}),
+			}),
+		);
+		if (!compiled.ok) {
+			throw new Error("the documented example does not compile");
+		}
+		const definitions = z.json().parse(compiled.definitions);
+		const validated = await call("validate_workflow", {
+			repo: "mcp-api",
+			definitions,
+		});
+		expect(json(validated)).toMatchObject({
+			workflows: [{ valid: true, issues: [] }],
+		});
+		const applied = await call("apply_workflow", {
+			repo: "mcp-api",
+			definitions,
+		});
+		expect(json(applied)).toMatchObject({
+			workflows: [{ outcome: "created", enabled: false }],
+		});
+	});
+
+	test("delete is refused while a workflow uses the rule", async () => {
+		const result = await call("delete_custom_rule", {
+			repo: "mcp-api",
+			id: intoId,
+		});
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toBe(
+			"This rule is used in Release branch. Remove it from those workflows before you delete it.",
+		);
+	});
+
+	test("set_rule turns a custom rule on, and refuses settings for it", async () => {
+		const unused = savedSchema.parse(
+			json(
+				await call("save_custom_rule", {
+					repo: "mcp-api",
+					name: "Small changes",
+					definition: {
+						when: { id: "pr.filesChanged" },
+						comparison: { kind: "atMost", args: [50] },
+					},
+				}),
+			),
+		);
+		const on = await call("set_rule", {
+			repo: "mcp-api",
+			ruleId: unused.id,
+			enabled: true,
+		});
+		expect(json(on)).toEqual({
+			saved: true,
+			ruleId: unused.id,
+			enabled: true,
+			sentence: "require that files changed is at most 50",
+		});
+		const settings = await call("set_rule", {
+			repo: "mcp-api",
+			ruleId: unused.id,
+			config: { max: 3 },
+		});
+		expect(settings.isError).toBe(true);
+		const deleted = await call("delete_custom_rule", {
+			repo: "mcp-api",
+			id: unused.id,
+		});
+		expect(json(deleted)).toEqual({
+			deleted: true,
+			id: unused.id,
+			repo: fullNames[0],
+		});
+	});
+
+	test("an update keeps the id and an unknown id hints at get_repo_rules", async () => {
+		const updated = savedSchema.parse(
+			json(
+				await call("save_custom_rule", {
+					repo: "mcp-api",
+					id: fromId,
+					name: "From release-please",
+					definition: {
+						when: { id: "pr.sourceBranch" },
+						comparison: {
+							kind: "oneOf",
+							args: [
+								[
+									"release-please--branches--release",
+									"release-please--branches--release--components--crm",
+								],
+							],
+						},
+					},
+				}),
+			),
+		);
+		expect(updated).toMatchObject({ id: fromId, created: false });
+		const missing = await call("save_custom_rule", {
+			repo: "mcp-api",
+			id: "custom-missing-000000",
+			name: "Missing",
+			definition: intoRelease,
+		});
+		expect(missing.isError).toBe(true);
+		expect(missing.content[0]?.text).toBe(
+			"No custom rule custom-missing-000000 on this repo. Call get_repo_rules to see the repo's rules.",
+		);
 	});
 });

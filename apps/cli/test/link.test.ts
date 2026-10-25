@@ -217,6 +217,35 @@ describe("commands use the link when org and repo are left out", () => {
 		],
 		[["rules", "list"], "get_repo_rules", { repo: "scratch" }],
 		[["rules", "list", "--catalog"], "list_rule_catalog", {}],
+		[
+			[
+				"rules",
+				"create",
+				"--name",
+				"Not into release",
+				"--definition",
+				'{"when":{"id":"pr.targetBranch"},"comparison":{"kind":"noneOf","args":[["release"]]}}',
+			],
+			"save_custom_rule",
+			{
+				repo: "scratch",
+				name: "Not into release",
+				definition: {
+					when: { id: "pr.targetBranch" },
+					comparison: { kind: "noneOf", args: [["release"]] },
+				},
+			},
+		],
+		[
+			["rules", "delete", "custom-not-into-release-1a2b3c"],
+			"delete_custom_rule",
+			{ repo: "scratch", id: "custom-not-into-release-1a2b3c" },
+		],
+		[
+			["rules", "delete", "web", "custom-not-into-release-1a2b3c"],
+			"delete_custom_rule",
+			{ repo: "web", id: "custom-not-into-release-1a2b3c" },
+		],
 	])("%j calls %s", async (args, name, expected) => {
 		link('{"org":"acme","repo":"scratch"}');
 		const result = await runCli(args, env(), project);

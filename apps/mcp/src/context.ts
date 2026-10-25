@@ -29,6 +29,7 @@ export const ERROR_HINTS = {
 	list_runs: "Call list_runs to see recent runs.",
 	list_queue: "Call list_moderation_queue to see the items.",
 	list_rules: "Call list_rule_catalog to see the rules.",
+	list_custom_rules: "Call get_repo_rules to see the repo's rules.",
 	list_workflows: "Call list_workflows to see them.",
 } as const;
 

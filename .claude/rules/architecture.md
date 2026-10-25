@@ -18,6 +18,8 @@ forge         ← forge-github, worker  (interface + types only; imports contrac
 core          ← worker ONLY           (pure: imports contracts + utils only.
                                        NO I/O, no db, no forge, no AI SDK, no octokit.
                                        Effects are INJECTED — see review-agent.md)
+sdk           ← forge-github, worker, db, web
+                                       (signal registry; pure, imports contracts only)
 db            ← worker, api, web      (schema + services)
 auth          ← web, api              (./server sessions + posture guard,
                                        ./client browser; imports db + utils)

@@ -148,6 +148,8 @@ describe("tool access classification", () => {
 			list_rule_catalog: "none",
 			get_repo_rules: "rules:read",
 			set_rule: "rules:manage",
+			save_custom_rule: "rules:manage",
+			delete_custom_rule: "rules:manage",
 			turn_on_gate: "connections:manage",
 			list_workflows: "workflows:read",
 			set_workflow_enabled: "workflows:manage",

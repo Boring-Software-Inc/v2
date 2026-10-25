@@ -162,6 +162,9 @@ describe("management commands over MCP", () => {
 		["workflows", "diff", "--help", "[repo]"],
 		["workflows", "push", "-h", "[repo]"],
 		["rules", "set", "--help", "[repo] <ruleId>"],
+		["rules", "create", "--help", "[repo]"],
+		["rules", "update", "--help", "[repo] <ruleId>"],
+		["rules", "delete", "-h", "[repo] <ruleId>"],
 	])("%s %s %s prints that subcommand's help", async (group, sub, flag, args) => {
 		const result = await runCli([group, sub, flag], env());
 		expect(result.code).toBe(0);
@@ -1069,6 +1072,200 @@ describe("the workflows skill", () => {
 		);
 		expect(result.stdout).toContain("new-contributors can be turned on");
 		expect(result.code).toBe(0);
+	});
+});
+
+describe("custom rules", () => {
+	const RULE_ID = "custom-not-into-release-1a2b3c";
+	const DEFINITION = {
+		when: { id: "pr.targetBranch" },
+		comparison: { kind: "noneOf", args: [["release"]] },
+	};
+
+	test("create sends the rule and prints its sentence and how to use it", async () => {
+		const result = await runCli(
+			[
+				"rules",
+				"create",
+				"scratch",
+				"--name",
+				"Not into release",
+				"--description",
+				"Release branches come from release-please only.",
+				"--definition",
+				JSON.stringify(DEFINITION),
+			],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		expect(server.calls).toEqual([
+			{
+				name: "save_custom_rule",
+				args: {
+					repo: "scratch",
+					name: "Not into release",
+					description: "Release branches come from release-please only.",
+					definition: DEFINITION,
+				},
+			},
+		]);
+		expect(result.stdout).toBe(
+			[
+				`done      Created ${RULE_ID}`,
+				"rule      require that target branch is not release",
+				"state     off",
+				`use       customCheck("${RULE_ID}")`,
+				"open      https://app.tripwire.sh/grim/scratch/rules",
+				"",
+			].join("\n"),
+		);
+	});
+
+	test("create reads the definition from a file and can turn the rule on", async () => {
+		const file = join(sandbox.root, "rule.json");
+		writeFileSync(file, JSON.stringify(DEFINITION));
+		const result = await runCli(
+			[
+				"--json",
+				"rules",
+				"create",
+				"scratch",
+				"--name",
+				"Not into release",
+				"--definition",
+				`@${file}`,
+				"--enable",
+			],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		expect(server.calls).toEqual([
+			{
+				name: "save_custom_rule",
+				args: {
+					repo: "scratch",
+					name: "Not into release",
+					definition: DEFINITION,
+					enabled: true,
+				},
+			},
+		]);
+		expect(JSON.parse(result.stdout)).toMatchObject({
+			id: RULE_ID,
+			sentence: "require that target branch is not release",
+		});
+	});
+
+	test("create needs a name and a definition before calling the server", async () => {
+		const result = await runCli(
+			["rules", "create", "scratch", "--name", "Not into release"],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(result.stderr).toBe("error     Pass --name and --definition.\n");
+		expect(server.calls).toEqual([]);
+	});
+
+	test("a definition that is not JSON is refused before calling the server", async () => {
+		const result = await runCli(
+			["rules", "create", "scratch", "--name", "x", "--definition", "{when:"],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(result.stderr).toBe(
+			"error     --definition must be JSON, or @ and the path to a JSON file.\n",
+		);
+		expect(server.calls).toEqual([]);
+	});
+
+	test("update keeps the saved name and definition when they are left out", async () => {
+		const result = await runCli(
+			["--json", "rules", "update", "scratch", RULE_ID, "--enable"],
+			env(),
+		);
+		expect(result.code).toBe(0);
+		expect(server.calls).toEqual([
+			{ name: "get_repo_rules", args: { repo: "scratch" } },
+			{
+				name: "save_custom_rule",
+				args: {
+					repo: "scratch",
+					id: RULE_ID,
+					name: "Not into release",
+					definition: DEFINITION,
+					enabled: true,
+				},
+			},
+		]);
+	});
+
+	test("update with a name and a definition skips the read", async () => {
+		await runCli(
+			[
+				"rules",
+				"update",
+				"scratch",
+				RULE_ID,
+				"--name",
+				"Into release",
+				"--definition",
+				JSON.stringify(DEFINITION),
+			],
+			env(),
+		);
+		expect(server.calls).toEqual([
+			{
+				name: "save_custom_rule",
+				args: {
+					repo: "scratch",
+					id: RULE_ID,
+					name: "Into release",
+					definition: DEFINITION,
+				},
+			},
+		]);
+	});
+
+	test("update of a rule that is not custom names the way to list them", async () => {
+		const result = await runCli(
+			["rules", "update", "scratch", "account-age", "--disable"],
+			env(),
+		);
+		expect(result.code).toBe(1);
+		expect(result.stderr).toBe(
+			"error     No custom rule account-age on scratch. Run tripwire rules list scratch to see them.\n",
+		);
+		expect(server.calls.map((call) => call.name)).toEqual(["get_repo_rules"]);
+	});
+
+	test("update needs a change before calling the server", async () => {
+		const result = await runCli(["rules", "update", "scratch", RULE_ID], env());
+		expect(result.code).toBe(1);
+		expect(result.stderr).toBe(
+			"error     Pass --name, --definition, --description, --enable or --disable.\n",
+		);
+		expect(server.calls).toEqual([]);
+	});
+
+	test("delete names the rule it deleted", async () => {
+		const result = await runCli(["rules", "delete", "scratch", RULE_ID], env());
+		expect(result.code).toBe(0);
+		expect(result.stdout).toBe(`done      Deleted ${RULE_ID}\n`);
+		expect(server.calls).toEqual([
+			{ name: "delete_custom_rule", args: { repo: "scratch", id: RULE_ID } },
+		]);
+	});
+
+	test("rules list shows a custom rule's sentence", async () => {
+		const result = await runCli(["rules", "list", "scratch"], env());
+		expect(result.stdout).toBe(
+			[
+				"RULE                               STATE     MATCHES 24H     NOTE",
+				"account-age                        on        3",
+				"custom-not-into-release-1a2b3c     off       0               require that target branch is not release",
+				"",
+			].join("\n"),
+		);
 	});
 });
 

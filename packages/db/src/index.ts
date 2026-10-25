@@ -106,6 +106,11 @@ export type { AgentGrant, ConnectedAgent } from "./services/agents.ts";
 export * as agentServices from "./services/agents.ts";
 export * as aiProviderServices from "./services/ai-provider.ts";
 export type {
+	CustomRuleView,
+	SaveCustomRuleResult,
+} from "./services/custom-rules.ts";
+export * as customRuleServices from "./services/custom-rules.ts";
+export type {
 	AiReviewUsageInput,
 	BackfillUsageResult,
 	CostByOrgRow,

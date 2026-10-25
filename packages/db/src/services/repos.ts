@@ -513,6 +513,7 @@ export async function upsertRepoSuggestions(
 export interface CustomRuleRow {
 	id: string;
 	name: string;
+	description: string | null;
 	enabled: boolean;
 	definition: unknown;
 }
@@ -528,6 +529,7 @@ export async function listCustomRules(
 	return rows.map((row) => ({
 		id: row.id,
 		name: row.name,
+		description: row.description,
 		enabled: row.enabled,
 		definition: row.definition,
 	}));
@@ -536,7 +538,13 @@ export async function listCustomRules(
 export async function upsertCustomRule(
 	db: Db,
 	repoId: string,
-	rule: { id: string; name: string; enabled: boolean; definition: unknown },
+	rule: {
+		id: string;
+		name: string;
+		description?: string | null;
+		enabled: boolean;
+		definition: unknown;
+	},
 ): Promise<void> {
 	await db
 		.insert(customRules)
@@ -544,6 +552,7 @@ export async function upsertCustomRule(
 			id: rule.id,
 			repoId,
 			name: rule.name,
+			description: rule.description ?? null,
 			enabled: rule.enabled,
 			definition: rule.definition,
 		})
@@ -551,6 +560,10 @@ export async function upsertCustomRule(
 			target: customRules.id,
 			set: {
 				name: rule.name,
+				description:
+					rule.description === undefined
+						? sql`${customRules.description}`
+						: rule.description,
 				enabled: rule.enabled,
 				definition: rule.definition,
 				updatedAt: new Date(),

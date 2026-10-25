@@ -182,6 +182,7 @@ export const customRules = pgTable("custom_rules", {
 		.notNull()
 		.references(() => repos.id),
 	name: text("name").notNull(),
+	description: text("description"),
 	enabled: boolean("enabled").notNull().default(true),
 	definition: jsonb("definition").notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true })
