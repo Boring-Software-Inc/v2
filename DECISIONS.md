@@ -350,7 +350,7 @@ pass, they fought for priority in the activity and run logs.
   services, the rule card, Create rule, MCP and the CLI. Add exception on the
   rule card is gone too; a Skip when is built in a workflow.
 - Migration 0041 added `outcome` and `outcome_instruction` to
-  `rule_configs` and `custom_rules`. Migration 0042 drops them; 0041 is left
+  `rule_configs` and `custom_rules`. Migration 0043 drops them; 0041 is left
   as is because staging ran it. `moderation_items.applied_at` stays.
 - A rule that one or more live workflows use shows "Used in N workflows"
   where Install would be, with a menu of those workflows.
