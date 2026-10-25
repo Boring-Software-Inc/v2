@@ -25,6 +25,7 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	source: "built-in",
 	sentence: null,
 	blockingWorkflows: [],
+	usedIn: [],
 	...over,
 });
 
