@@ -509,6 +509,11 @@ export type EdgeWhen = z.infer<typeof edgeWhenSchema>;
 export const gateInputSchema = z.enum(["requirement", "exception"]);
 export type GateInput = z.infer<typeof gateInputSchema>;
 
+export const GATE_INPUT_LABELS = {
+	requirement: "Requirement",
+	exception: "Exception",
+} as const satisfies Record<GateInput, string>;
+
 export const workflowEdgeSchema = z.object({
 	id: z.string(),
 	from: workflowNodeIdSchema,

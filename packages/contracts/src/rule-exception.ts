@@ -207,7 +207,9 @@ const unlessOutputSchema = z
 	.nullable()
 	.catch(null);
 
-export function unlessDecision(output: unknown): UnlessDecision | null {
+export function unlessDecision(
+	output: JsonValue | undefined,
+): UnlessDecision | null {
 	const parsed = unlessOutputSchema.parse(output ?? null);
 	if (!parsed) {
 		return null;

@@ -17,13 +17,13 @@ import {
 	UNLESS_EMPTY_PORT,
 } from "./workflow-lint.ts";
 
-const NAMES: Record<string, string> = {
-	"custom-target-main@1": "Target is main",
-	"custom-target-release@1": "Target is release",
-	"custom-release-source@1": "Source starts with release-please",
-	"custom-release-author@1": "Author is the release account",
-};
-const nameOf = (ref: string) => NAMES[ref] ?? ref;
+const NAMES = new Map([
+	["custom-target-main@1", "Target is main"],
+	["custom-target-release@1", "Target is release"],
+	["custom-release-source@1", "Source starts with release-please"],
+	["custom-release-author@1", "Author is the release account"],
+]);
+const nameOf = (ref: string) => NAMES.get(ref) ?? ref;
 
 function draft(): WorkflowDefinition {
 	return exceptionDraft({
@@ -130,8 +130,7 @@ describe("the exception draft", () => {
 		const filled = withException(draft());
 		expect(
 			lintWorkflow(filled).filter(
-				(issue) =>
-					issue.severity === "error" && issue.rule !== "unknown-rule",
+				(issue) => issue.severity === "error" && issue.rule !== "unknown-rule",
 			),
 		).toEqual([]);
 		const printed = workflowToCode(filled, { key: "target" });
