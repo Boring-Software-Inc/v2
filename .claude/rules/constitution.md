@@ -25,8 +25,9 @@ don't rewrite.
 | Tone | terse, lowercase-friendly, zero exclamation marks | marketing superlatives |
 | A fix request, as a verdict | "Changes needed" | "changes requested" (GitHub's review state, which only Block submits), "fix required", "rejected" |
 | Changes needed, defined | "Fails the Tripwire check and tells the author what to change. No GitHub review." | "blocks", "requests changes" |
-| What happens when a rule does not pass | "Block", "Ask author to fix", "Human review", "Note only", "Close" | "severity", "fixable rule" (fixable is an outcome choice, not a rule class) |
+| What a workflow does when a check does not pass | "Block", "Ask author to fix", "Human review", "Note only", "Close" | "severity", "fixable rule" (fixable is an outcome choice, not a rule class) |
 | A scoped exception | "Except when" | "Allow", "allowlist", "whitelist", "bypass", "override" |
+| Adding a rule to a repo | "Install", "Uninstall", "Installed" | "Enable", "Disable", "Turn on", "On" (workflows still turn on and off) |
 
 Applies to UI strings, empty states, error copy, the PR comment, docs, and
 commit/PR descriptions written in Grim's voice.

@@ -336,3 +336,21 @@ views, resume, replay and surfaces read the new shapes in this change.
 Nothing writes a non-Block outcome yet except `setRuleOutcome` and authored
 workflows. Existing rules stay Block and historical runs keep their
 snapshots. The replay corpus shows no new flips.
+
+## 2026-10-25: rules are checks, workflows decide
+
+**Decision (founder, 2026-10-25).** A rule is a plain check. What happens on
+fail (Block, Ask author to fix, Human review, Note only, Close) and Skip when
+belong to workflows only. When a rule and a workflow could each block or
+pass, they fought for priority in the activity and run logs.
+
+- An installed rule on its own always blocks when it fails. The implicit
+  Rules workflow wires every installed rule into one all-of gate and a block.
+- The per-rule outcome setting from the entry above is gone from contracts,
+  services, the rule card, Create rule, MCP and the CLI. Add exception on the
+  rule card is gone too; a Skip when is built in a workflow.
+- Migration 0041 already added `outcome` and `outcome_instruction` to
+  `rule_configs` and `custom_rules`. They stay in the schema and nothing
+  reads or writes them until the founder decides whether to drop them.
+- Rules are installed and uninstalled, not turned on and off. API, DB and MCP
+  names (`enabled`, `set_rule`, `setRulesEnabled`) stay.

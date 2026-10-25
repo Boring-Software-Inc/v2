@@ -33,8 +33,12 @@ _Avoid_: rejected, deleted
 One boolean requirement that every non-exempt contributor must meet.
 _Avoid_: filter, check (in product copy)
 
+**Installed rule**:
+A rule that runs on its own. It blocks when it does not pass.
+_Avoid_: enabled, on
+
 **Outcome**:
-What happens when a rule does not pass: Block, Ask author to fix, Human review, Note only or Close.
+What a workflow does when its check does not pass: Block, Ask author to fix, Human review, Note only or Close.
 _Avoid_: severity, fixable rule
 
 **Note**:
@@ -46,5 +50,5 @@ A gate that waives one requirement when its exception passes. Missing exception 
 _Avoid_: allow, allowlist, bypass, override
 
 **Workflow**:
-The logic that composes rules, gates and actions. The implicit Rules workflow uses each rule's outcome.
+The logic that composes rules, gates and actions. The implicit Rules workflow blocks on every installed rule.
 _Avoid_: pipeline, automation
