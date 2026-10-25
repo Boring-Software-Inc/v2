@@ -58,9 +58,10 @@ export function isSelfEvent(
 	if (event.kind === "schedule.matched" || "installation" in event) {
 		return false;
 	}
+	const causedBy = [event.actor, event.sender ?? event.actor];
 	return (
 		(event.kind === "comment.created" && event.comment.byTripwire === true) ||
-		selfLogins.has(event.actor.login.toLowerCase())
+		causedBy.some((account) => selfLogins.has(account.login.toLowerCase()))
 	);
 }
 
@@ -305,7 +306,11 @@ export async function processEvent(
 			// actor leaves `tripwire` stuck in_progress forever (lifecycle E2E
 			// hang: waitForVerdict never sees a completed check).
 			onBeforeEvaluate: async () => {
-				pendingCheckPosted = await emitPendingCheck(surfaceDeps, normalized);
+				pendingCheckPosted = await emitPendingCheck(
+					surfaceDeps,
+					normalized,
+					event.id,
+				);
 			},
 		},
 		normalized,

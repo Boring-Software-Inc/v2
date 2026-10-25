@@ -79,6 +79,7 @@ export async function createRun(db: Db, input: CreateRunInput) {
 }
 
 export interface FinalizeRunInput {
+	eventId: string;
 	headSha: string | null;
 	snapshot: WorkflowDefinition[];
 	status: "paused" | "completed" | "failed";
@@ -98,6 +99,7 @@ export async function finalizeRun(
 	await db
 		.update(runs)
 		.set({
+			eventId: input.eventId,
 			headSha: input.headSha,
 			workflowSnapshot: snapshot,
 			status: input.status,
@@ -115,7 +117,11 @@ export async function finalizeRun(
 export async function beginRunEvaluation(
 	db: Db,
 	runId: string,
-	input: { snapshot: WorkflowDefinition[]; headSha: string | null },
+	input: {
+		snapshot: WorkflowDefinition[];
+		headSha: string | null;
+		eventId: string;
+	},
 ): Promise<void> {
 	const snapshot = snapshotSchema.parse(input.snapshot);
 	await db
@@ -124,6 +130,8 @@ export async function beginRunEvaluation(
 			status: "running",
 			workflowSnapshot: snapshot,
 			headSha: input.headSha,
+			eventId: input.eventId,
+			createdAt: new Date(),
 		})
 		.where(eq(runs.id, runId));
 }
@@ -469,7 +477,8 @@ export async function listRunActions(
 /**
  * The latest run gating a change request (§6 comment ownership): runs are
  * per-event/SHA but the PR comment is per-PR, so only the latest run may own
- * the comment. Latest by creation time (UUIDv7 id breaks ties).
+ * the comment. Latest by the triggering event's ingest order (UUIDv7), then
+ * creation time, so a slow run for an older event never outranks a newer one.
  */
 export const eventBearsVerdict = inArray(events.kind, [...VERDICT_EVENT_KINDS]);
 
@@ -481,13 +490,36 @@ export const changeRequestAuthorLogin = sql<
 
 export const runBearsVerdict = sql`EXISTS (SELECT 1 FROM events ve WHERE ve.id = ${runs.eventId} AND ${inArray(sql`ve.kind`, [...VERDICT_EVENT_KINDS])})`;
 
+export const runRecency = [
+	desc(runs.eventId),
+	desc(runs.createdAt),
+	desc(runs.id),
+] as const;
+
+export interface LatestChangeRequestRun {
+	id: string;
+	eventId: string;
+	headSha: string | null;
+}
+
 export async function getLatestRunIdForChangeRequest(
 	db: Db,
 	repoFullName: string,
 	subjectNumber: number,
 ): Promise<string | null> {
+	return (
+		(await getLatestRunForChangeRequest(db, repoFullName, subjectNumber))?.id ??
+		null
+	);
+}
+
+export async function getLatestRunForChangeRequest(
+	db: Db,
+	repoFullName: string,
+	subjectNumber: number,
+): Promise<LatestChangeRequestRun | null> {
 	const rows = await db
-		.select({ id: runs.id })
+		.select({ id: runs.id, eventId: runs.eventId, headSha: runs.headSha })
 		.from(runs)
 		.leftJoin(events, eq(events.id, runs.eventId))
 		.where(
@@ -498,9 +530,9 @@ export async function getLatestRunIdForChangeRequest(
 				liveRun,
 			),
 		)
-		.orderBy(desc(runs.createdAt), desc(runs.id))
+		.orderBy(...runRecency)
 		.limit(1);
-	return rows[0]?.id ?? null;
+	return rows[0] ?? null;
 }
 
 export async function listRunsForChangeRequest(
@@ -530,7 +562,7 @@ export async function listRunsForChangeRequest(
 				liveRun,
 			),
 		)
-		.orderBy(runs.createdAt, runs.id);
+		.orderBy(runs.eventId, runs.createdAt, runs.id);
 }
 
 /**
@@ -558,7 +590,7 @@ export async function getPreviousVerdict(
 				liveRun,
 			),
 		)
-		.orderBy(desc(runs.createdAt), desc(runs.id))
+		.orderBy(...runRecency)
 		.limit(1);
 	return (rows[0]?.verdict as Verdict | undefined) ?? null;
 }
@@ -918,7 +950,7 @@ export async function listOpenBlockedRuns(
 				liveRun,
 			),
 		)
-		.orderBy(runs.subjectNumber, desc(runs.createdAt), desc(runs.id));
+		.orderBy(runs.subjectNumber, ...runRecency);
 	const blocked = latest.flatMap((row) => {
 		const verdict = HELD_VERDICTS.find((held) => held === row.verdict);
 		return verdict && row.subjectNumber !== null

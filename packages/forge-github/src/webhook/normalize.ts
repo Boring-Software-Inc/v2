@@ -20,6 +20,7 @@ const ghAccount = z.object({
 	login: z.string(),
 	id: z.number(),
 	avatar_url: z.string().optional(),
+	type: z.string().optional(),
 });
 
 const ghRepository = z.object({
@@ -38,10 +39,19 @@ const ghPullRequest = z.object({
 	updated_at: z.string(),
 	head: z.object({ sha: z.string(), ref: z.string() }),
 	base: z.object({ ref: z.string() }),
+	user: ghAccount,
+	state: z.string().optional(),
+});
+
+const pullRequestEdits = z.object({
+	base: z.unknown().optional(),
+	title: z.unknown().optional(),
+	body: z.unknown().optional(),
 });
 
 const pullRequestPayload = z.object({
 	action: z.string(),
+	changes: pullRequestEdits.optional(),
 	pull_request: ghPullRequest,
 	repository: ghRepository,
 	sender: ghAccount,
@@ -120,6 +130,38 @@ const PR_ACTION_TO_KIND: Record<string, EventKind> = {
 	closed: "change-request.closed",
 };
 
+function rerunsOnEdit(
+	changes: z.infer<typeof pullRequestEdits> | undefined,
+	sender: z.infer<typeof ghAccount>,
+): boolean {
+	if (changes?.base !== undefined) {
+		return true;
+	}
+	const textEdited =
+		changes?.title !== undefined || changes?.body !== undefined;
+	return textEdited && sender.type !== "Bot";
+}
+
+function pullRequestKind(
+	p: z.infer<typeof pullRequestPayload>,
+): EventKind | undefined {
+	if (p.action === "edited") {
+		const open = p.pull_request.state !== "closed";
+		return open && rerunsOnEdit(p.changes, p.sender)
+			? "change-request.updated"
+			: undefined;
+	}
+	return PR_ACTION_TO_KIND[p.action];
+}
+
+function toActor(account: z.infer<typeof ghAccount>) {
+	return {
+		login: account.login,
+		externalId: String(account.id),
+		avatarUrl: account.avatar_url,
+	};
+}
+
 function toUtcIso(value: string | undefined, fallback: string): string {
 	if (!value) {
 		return fallback;
@@ -146,11 +188,7 @@ function base(
 		},
 		repoExternalId: String(repo.id),
 		installationExternalId: installationId,
-		actor: {
-			login: sender.login,
-			externalId: String(sender.id),
-			avatarUrl: sender.avatar_url,
-		},
+		actor: toActor(sender),
 		receivedAt,
 	};
 }
@@ -163,7 +201,7 @@ export function normalizeWebhook(
 
 	if (event.eventName === "pull_request") {
 		const p = pullRequestPayload.parse(payload);
-		const kind = PR_ACTION_TO_KIND[p.action];
+		const kind = pullRequestKind(p);
 		if (!kind) {
 			return null;
 		}
@@ -179,6 +217,8 @@ export function normalizeWebhook(
 				receivedAt,
 				p.installation ? String(p.installation.id) : undefined,
 			),
+			actor: toActor(p.pull_request.user),
+			sender: toActor(p.sender),
 			kind,
 			occurredAt: toUtcIso(occurred, receivedAt),
 			changeRequest: {

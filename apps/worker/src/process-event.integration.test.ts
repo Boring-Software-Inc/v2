@@ -848,3 +848,150 @@ describe("installation sync (§4 installation sync — live gap fix)", () => {
 		expect(rows.rows[0].external_id).toMatch(/^\d+$/);
 	});
 });
+
+describe("retarget without a push (pull_request edited, same head)", () => {
+	const HEAD = "37550ff859a0e3d40c9988f70b0a9e9682444f65";
+	const askedAbout: string[] = [];
+	const executed: { eventId: string; kind: string }[] = [];
+	let processing = "";
+
+	const reads = {
+		getDiff: () => Promise.resolve([]),
+		getCommits: () => Promise.resolve([]),
+		getContributorProfile: (_repo: string, login: string) => {
+			askedAbout.push(login);
+			return Promise.resolve({
+				login,
+				externalId: "999",
+				createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+				followers: 0,
+				following: 0,
+				publicRepos: 0,
+				profileText: null,
+				mergedInRepo: 0,
+				mergedElsewhere: 0,
+				recentChangeRequestTimes: [],
+				isOrgMember: false,
+				isMaintainer: login === "github-actions[bot]",
+			});
+		},
+	};
+
+	const adapter = {
+		forge: "github" as const,
+		verifyWebhook: () => true,
+		normalizeWebhook: () => null,
+		getDiff: () => Promise.resolve([]),
+		getCommits: () => Promise.resolve([]),
+		readFile: () => Promise.resolve(null),
+		getContributorProfile: () => Promise.reject(new Error("unused")),
+		execute: (action: { kind: string }) => {
+			executed.push({ eventId: processing, kind: action.kind });
+			return Promise.resolve({ externalId: `ext-${executed.length}` });
+		},
+	};
+
+	async function retargetRaw(): Promise<Record<string, unknown>> {
+		const path = new URL(
+			"../../../packages/forge-github/fixtures/pull_request.edited.base.json",
+			import.meta.url,
+		).pathname;
+		return await Bun.file(path).json();
+	}
+
+	async function ingest(deliveryId: string, raw: unknown): Promise<string> {
+		const { eventId } = await eventServices.insertRawEvent(pool, boss, {
+			deliveryId,
+			rawKind: "pull_request",
+			raw,
+		});
+		if (!eventId) {
+			throw new Error("insert failed");
+		}
+		return eventId;
+	}
+
+	async function run(eventId: string): Promise<void> {
+		processing = eventId;
+		await processEvent(
+			{
+				db,
+				pool,
+				logger,
+				resolveForge: staticForge({ adapter: adapter as never, reads }),
+				makeGenerate: null,
+				appUrl: "https://tripwire.sh",
+			},
+			{ eventId },
+		);
+	}
+
+	async function actionsFor(eventId: string) {
+		const rows = await pool.query(
+			"SELECT a.kind, a.status FROM run_actions a JOIN runs r ON r.id = a.run_id WHERE r.event_id = $1 ORDER BY a.kind",
+			[eventId],
+		);
+		return rows.rows.map((row) => [row.kind, row.status]);
+	}
+
+	beforeAll(async () => {
+		const raw = await retargetRaw();
+		const repository = raw.repository as { id: number };
+		const repoId = await repoServices.ensureRepo(db, {
+			externalId: String(repository.id),
+			owner: "trycompai",
+			name: "crm",
+			fullName: "trycompai/crm",
+		});
+		await repoServices.setRepoArmed(db, repoId, true);
+		await repoServices.upsertRuleConfig(db, repoId, {
+			ruleId: "account-age",
+			version: 1,
+			enabled: true,
+			config: { minDays: 7 },
+		});
+	});
+
+	test("a bot retargeting the PR re-runs Tripwire on the same head, judging the author", async () => {
+		const eventId = await ingest("retarget-1", await retargetRaw());
+		await run(eventId);
+
+		const runs = await pool.query(
+			"SELECT verdict, head_sha FROM runs WHERE event_id = $1",
+			[eventId],
+		);
+		expect(runs.rowCount).toBe(1);
+		expect(runs.rows[0].head_sha).toBe(HEAD);
+		expect(runs.rows[0].verdict).toBe("block");
+		expect(askedAbout).toEqual(["hovanessb"]);
+		expect(
+			executed
+				.filter((entry) => entry.eventId === eventId)
+				.map((entry) => entry.kind),
+		).toContain("set-check");
+	});
+
+	test("an older event for the same head that finishes last writes nothing", async () => {
+		const raw = await retargetRaw();
+		const pushed = await ingest("retarget-older", {
+			...raw,
+			action: "synchronize",
+			changes: undefined,
+		});
+		const retargeted = await ingest("retarget-newer", raw);
+		await run(retargeted);
+		await run(pushed);
+
+		expect(executed.filter((entry) => entry.eventId === pushed)).toEqual([]);
+		expect(await actionsFor(pushed)).toEqual([
+			["block", "superseded"],
+			["comment", "superseded"],
+			["set-check", "superseded"],
+		]);
+		expect(await actionsFor(retargeted)).toEqual([
+			["block", "executed"],
+			["comment", "executed"],
+			["set-check", "executed"],
+		]);
+	});
+});

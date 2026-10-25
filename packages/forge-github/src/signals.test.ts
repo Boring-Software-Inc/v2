@@ -7,6 +7,7 @@ import {
 } from "@tripwire/sdk";
 import { GithubHttp } from "./client/http.ts";
 import { githubForge } from "./signals.ts";
+import { normalizeWebhook } from "./webhook/normalize.ts";
 
 /**
  * The Phase 1 proof: producers share loaders, so evaluating many signals
@@ -423,6 +424,48 @@ describe("github forge signals", () => {
 			0,
 		);
 		await expect(produce("contributor.mergedElsewhere", ctx)).resolves.toBe(4);
+	});
+});
+
+describe("contributor signals read the PR author, not the sender", () => {
+	async function retargetedByBot(): Promise<RepoScopedEvent> {
+		const body = await Bun.file(
+			new URL("../fixtures/pull_request.edited.base.json", import.meta.url),
+		).text();
+		const event = normalizeWebhook(
+			{
+				deliveryId: "d-retarget",
+				eventName: "pull_request",
+				body,
+				signature: null,
+			},
+			NOW,
+		);
+		if (!event || !("repo" in event)) {
+			throw new Error("fixture did not normalize");
+		}
+		return event;
+	}
+
+	test("Username is the PR author when a bot sends the event", async () => {
+		const { ctx } = makeCtx(await retargetedByBot());
+		await expect(produce("contributor.login", ctx)).resolves.toBe("hovanessb");
+	});
+
+	test("no contributor signal asks GitHub about the sender", async () => {
+		const { ctx, calls } = makeCtx(await retargetedByBot());
+		const ids = Object.keys(githubForge.produces).filter(
+			(id) =>
+				id.startsWith("contributor.") ||
+				id.startsWith("repoRelation.") ||
+				id === "pr.allCommitsByAuthor",
+		) as (keyof typeof githubForge.produces)[];
+		await Promise.allSettled(ids.map((id) => produce(id, ctx)));
+		const decoded = calls.map((call) => decodeURIComponent(call));
+		expect(decoded.some((call) => call.includes("hovanessb"))).toBe(true);
+		expect(decoded.filter((call) => call.includes("github-actions"))).toEqual(
+			[],
+		);
 	});
 });
 

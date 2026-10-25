@@ -160,11 +160,10 @@ async function enableRule(
 
 let delivery = 0;
 
-async function openPr(
+async function insertPrEvent(
 	repo: { fullName: string; externalId: number },
-	scenario: Scenario,
 	options: { sha?: string; action?: string; number?: number } = {},
-) {
+): Promise<string> {
 	const raw = await Bun.file(
 		new URL(
 			"../../../packages/forge-github/fixtures/pull_request.opened.json",
@@ -189,6 +188,10 @@ async function openPr(
 	if (!eventId) {
 		throw new Error("insert failed");
 	}
+	return eventId;
+}
+
+async function processPrEvent(eventId: string, scenario: Scenario) {
 	const fake = fakeAdapter();
 	const resolveForge = staticForge({
 		reads: reads(scenario),
@@ -217,6 +220,14 @@ async function openPr(
 		resolveForge,
 		fake,
 	};
+}
+
+async function openPr(
+	repo: { fullName: string; externalId: number },
+	scenario: Scenario,
+	options: { sha?: string; action?: string; number?: number } = {},
+) {
+	return processPrEvent(await insertPrEvent(repo, options), scenario);
 }
 
 function kinds(executed: ForgeAction[]): string[] {
@@ -1026,5 +1037,68 @@ describe("a closed change request", () => {
 		const reopened = await openPr(repo, YOUNG, { sha, action: "reopened" });
 		expect(reopened.run?.verdict).toBe("block");
 		expect(kinds(reopened.executed)).not.toContain("close");
+	});
+});
+
+describe("ownership with #102 ordering", () => {
+	test("an older event processed late never closes, comments or asks for a fix", async () => {
+		const repo = await freshRepo();
+		await enableRule(
+			repo.repoId,
+			"account-age",
+			{ minDays: 7 },
+			{ outcome: "close", instruction: "" },
+		);
+		const olderEvent = await insertPrEvent(repo, { sha: "4".repeat(40) });
+		const newerEvent = await insertPrEvent(repo, {
+			sha: "5".repeat(40),
+			action: "synchronize",
+		});
+		const newer = await processPrEvent(newerEvent, { ageDays: 400 });
+		expect(newer.run?.verdict).toBe("pass");
+		const older = await processPrEvent(olderEvent, YOUNG);
+		expect(older.run?.verdict).toBe("close");
+		expect(kinds(older.executed)).not.toContain("close");
+		expect(kinds(older.executed)).not.toContain("comment");
+		const rows = await pool.query(
+			"SELECT kind, status FROM run_actions WHERE run_id = $1 AND kind IN ('close', 'comment') ORDER BY kind",
+			[older.run?.id],
+		);
+		expect(rows.rows.map((row) => row.status)).toEqual([
+			"superseded",
+			"superseded",
+		]);
+	});
+
+	test("approving a review on an older run leaves the newer run's surfaces alone", async () => {
+		const repo = await withWorkflows(AGE_FIX, FILES_REVIEW);
+		const scenario = { ...YOUNG, files: 5 };
+		const older = await openPr(repo, scenario, { sha: "6".repeat(40) });
+		expect(older.run?.status).toBe("paused");
+		const newer = await openPr(
+			repo,
+			{ ageDays: 400, files: 1 },
+			{ sha: "c".repeat(40), action: "synchronize" },
+		);
+		expect(newer.run?.verdict).toBe("pass");
+		const approved = await decide(
+			older.run?.id ?? "",
+			"files-review:review",
+			"approve",
+			scenario,
+		);
+		expect(approved.run.verdict).toBe("changes_required");
+		const touched = approved.fake.executed.filter(
+			(action) =>
+				action.kind === "comment" ||
+				action.kind === "block" ||
+				action.kind === "dismiss-review" ||
+				action.kind === "close",
+		);
+		expect(touched).toEqual([]);
+		const checks = approved.fake.executed.flatMap((action) =>
+			action.kind === "set-check" ? [action.check.sha] : [],
+		);
+		expect(checks.every((sha) => sha === "6".repeat(40))).toBe(true);
 	});
 });

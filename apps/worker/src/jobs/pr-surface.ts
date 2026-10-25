@@ -70,9 +70,24 @@ export interface PrSurfaceDeps {
 export async function emitPendingCheck(
 	deps: PrSurfaceDeps,
 	event: NormalizedEvent,
+	eventId?: string,
 ): Promise<boolean> {
 	if (!deps.adapter || !("changeRequest" in event)) {
 		return false;
+	}
+	if (eventId) {
+		const latest = await runServices.getLatestRunForChangeRequest(
+			deps.db,
+			event.repo.fullName,
+			event.changeRequest.number,
+		);
+		if (pendingCheckIsStale(latest, eventId, event.changeRequest.headSha)) {
+			deps.logger.info(
+				{ eventId, latestRunId: latest?.id },
+				"pending check skipped, a newer event already owns this head",
+			);
+			return false;
+		}
 	}
 	const repoRow = await repoServices.getRepoByFullName(
 		deps.db,
@@ -307,16 +322,12 @@ export async function emitPrSurface(
 	 * stale comment over the current one. Non-latest runs still emit their
 	 * per-SHA check (correct and harmless); their comment is superseded.
 	 */
-	const latestRunId = await runServices.getLatestRunIdForChangeRequest(
+	const latestRun = await runServices.getLatestRunForChangeRequest(
 		db,
 		repoFullName,
 		number,
 	);
-	const latestRun =
-		latestRunId && latestRunId !== runId
-			? await runServices.getRunById(db, latestRunId)
-			: null;
-	const checkOwnedByNewerRun = latestRun?.headSha === sha;
+	const latestRunId = latestRun?.id ?? null;
 
 	const ordered = [...input.pendingActionRows, ...surfaceRows].sort(
 		(a, b) => Number(a.kind === "close") - Number(b.kind === "close"),
@@ -328,18 +339,14 @@ export async function emitPrSurface(
 		if (row.kind === "webhook" || row.kind === "discord") {
 			continue;
 		}
-		// Ownership (§6): only the latest run writes to the shared PR — the comment
-		// AND the review dismissal. A stale run must not post a transition or
-		// dismiss the current run's review.
-		if (
-			PER_CHANGE_REQUEST_KINDS.has(row.kind) &&
-			latestRunId &&
-			latestRunId !== runId
-		) {
+		// Ownership (§6): only the latest run writes to the shared PR — the comment,
+		// the review AND the review dismissal. A stale run must not post a
+		// transition, request changes, or dismiss the current run's review.
+		if (supersededBy(row.kind, { id: runId, headSha: sha }, latestRun)) {
 			await runServices.markActionSuperseded(db, row.id);
 			logger.info(
-				{ runId, latestRunId, number, kind: row.kind },
-				"action superseded — not the latest run for this change request",
+				{ runId, latestRunId, number, sha, kind: row.kind },
+				"action superseded, a newer run owns this change request",
 			);
 			continue;
 		}
@@ -356,14 +363,6 @@ export async function emitPrSurface(
 		}
 		if (row.kind === "block" && verdict === "close") {
 			await runServices.markActionSuperseded(db, row.id);
-			continue;
-		}
-		if (row.kind === "set-check" && checkOwnedByNewerRun) {
-			await runServices.markActionSuperseded(db, row.id);
-			logger.info(
-				{ runId, latestRunId, sha },
-				"check superseded, a newer run owns this head",
-			);
 			continue;
 		}
 		const forgeAction = toForgeAction(
@@ -504,8 +503,37 @@ const PER_CHANGE_REQUEST_KINDS = new Set([
 	"comment",
 	"delete-comment",
 	"dismiss-review",
+	"block",
 	"close",
+	"request-fix",
+	"note",
 ]);
+
+export function supersededBy(
+	kind: string,
+	run: { id: string; headSha: string | null },
+	latest: { id: string; headSha: string | null } | null,
+): boolean {
+	if (!latest || latest.id === run.id) {
+		return false;
+	}
+	if (PER_CHANGE_REQUEST_KINDS.has(kind)) {
+		return true;
+	}
+	return kind === "set-check" && run.headSha !== null
+		? latest.headSha === run.headSha
+		: false;
+}
+
+export function pendingCheckIsStale(
+	latest: { eventId: string; headSha: string | null } | null,
+	eventId: string,
+	headSha: string,
+): boolean {
+	return (
+		latest !== null && latest.eventId > eventId && latest.headSha === headSha
+	);
+}
 
 export function commentRows(
 	plan: SurfacePlan,
