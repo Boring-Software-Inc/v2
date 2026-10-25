@@ -153,6 +153,7 @@ export function RuleCard({
 	return (
 		<Card
 			className={RULE_CARD_CLASS}
+			data-feedback-name="RuleCard"
 			data-off={off ? "" : undefined}
 			data-queued={queued ? "" : undefined}
 		>

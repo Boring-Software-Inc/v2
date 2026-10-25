@@ -42,6 +42,7 @@ export function DashboardTopbar({ user }: DashboardTopbarProps) {
 	return (
 		<nav
 			aria-label="Primary"
+			data-feedback-name="DashboardTopbar"
 			className="flex h-12 min-w-0 shrink-0 items-center gap-1 px-2 sm:px-3"
 		>
 			<Brand org={org} />
@@ -84,7 +85,7 @@ export function Brand({ org }: { org: string | undefined }) {
 }
 
 export function BetaTag() {
-	const { open: openFeedback } = useFeedback();
+	const { start: openFeedback } = useFeedback();
 	return (
 		<Button
 			aria-label="Tripwire is in beta. Send feedback"
@@ -115,7 +116,7 @@ export function UserMenu({
 }) {
 	const moderator = user ?? PLACEHOLDER_USER;
 	const identity = accountIdentity(moderator);
-	const { open: openFeedback } = useFeedback();
+	const { start: openFeedback } = useFeedback();
 	const { resolvedTheme, setTheme } = useTheme();
 	const hasMounted = useHasMounted();
 	const isDark = hasMounted && resolvedTheme === "dark";

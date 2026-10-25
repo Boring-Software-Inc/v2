@@ -86,7 +86,12 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 	}
 
 	return (
-		<nav aria-label="Repo" ref={navRef} className={NAV_CLASS[variant]}>
+		<nav
+			aria-label="Repo"
+			className={NAV_CLASS[variant]}
+			data-feedback-name="ShellNav"
+			ref={navRef}
+		>
 			{reads("moderation") ? (
 				<NavLink
 					variant={variant}

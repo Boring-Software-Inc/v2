@@ -10,7 +10,7 @@ import { MascotArt } from "#/components/mascot/mascot-art";
 import { SettingsHeader } from "#/components/settings/settings-frame";
 
 export function OrgBillingPage() {
-	const { open: openFeedback } = useFeedback();
+	const { start: openFeedback } = useFeedback();
 	return (
 		<>
 			<SettingsHeader title="Billing" />

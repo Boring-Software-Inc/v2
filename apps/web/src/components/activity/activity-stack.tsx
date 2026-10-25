@@ -62,6 +62,7 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 
 	return (
 		<EntityCard
+			feedbackName="ActivityStack"
 			description={<StackDescription group={group} />}
 			flush
 			footerActions={

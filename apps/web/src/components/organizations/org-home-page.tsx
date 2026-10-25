@@ -202,6 +202,7 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 	);
 	return (
 		<EntityCard
+			feedbackName="RepoCard"
 			badges={
 				repo.armed ? (
 					repo.pendingModeration > 0 || repo.blocked24h > 0 ? (

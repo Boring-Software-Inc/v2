@@ -5,8 +5,8 @@ import { FLAGS } from "@tripwire/auth/databuddy";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { DevScenarioSwitcher } from "#/components/dev/dev-scenario-switcher";
 import {
-	FeedbackDialog,
-	FeedbackOverlay,
+	FeedbackPanel,
+	FeedbackPicker,
 	FeedbackProvider,
 } from "#/components/feedback";
 import { ShellNav } from "#/components/layouts/shell-nav";
@@ -181,8 +181,8 @@ function DashboardShell({
 				<CommandPaletteLauncher />
 				<DevScenarioSwitcher />
 			</div>
-			<FeedbackOverlay />
-			<FeedbackDialog />
+			<FeedbackPicker />
+			<FeedbackPanel />
 		</FeedbackProvider>
 	);
 }

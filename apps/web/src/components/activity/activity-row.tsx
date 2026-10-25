@@ -86,7 +86,7 @@ export function ActivityRow({
 		);
 
 	return (
-		<Item>
+		<Item data-feedback-name="ActivityRow">
 			<ItemMedia>
 				<Avatar
 					decorative

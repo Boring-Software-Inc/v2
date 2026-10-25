@@ -535,6 +535,7 @@ function WorkflowRow({
 					seed={workflow.id}
 				/>
 				<EntityCard
+					feedbackName="WorkflowRow"
 					badges={
 						workflow.draftId || workflow.triggerKinds.length > 0 ? (
 							<>
