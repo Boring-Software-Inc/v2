@@ -42,6 +42,8 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	source: "built-in",
 	sentence: null,
 	blockingWorkflows: [],
+	outcome: { outcome: "block", instruction: "" },
+	owners: [],
 	...over,
 });
 
@@ -93,7 +95,8 @@ describe("RuleCard management states", () => {
 
 	test("the footer states the effect and the last 24 hours of activity", () => {
 		const fired = render(<RuleCard {...base} rule={rule({ matches24h: 3 })} />);
-		expect(fired).toContain("Blocks");
+		expect(fired).toContain("When this does not pass:");
+		expect(fired).toContain(">Block<");
 		expect(fired).toContain("matches, last 24 h");
 		expect(
 			render(<RuleCard {...base} rule={rule({ matches24h: 1 })} />),
@@ -126,9 +129,106 @@ describe("RuleCard management states", () => {
 	});
 
 	test("workflow deep-links and labels are wired (source-locked, router-free)", () => {
-		const src = readFileSync(join(import.meta.dir, "rule-card.tsx"), "utf8");
-		expect(src).toContain("Edit in workflow");
+		const src = readFileSync(
+			join(import.meta.dir, "rule-outcome-footer.tsx"),
+			"utf8",
+		);
+		expect(src).toContain("Set in {owner.name}");
+		expect(src).toContain("Edit workflow");
 		expect(src).toContain("/$org/$repo/workflows/$workflowId");
+	});
+});
+
+describe("RuleCard outcome", () => {
+	const onOutcomeChange = () => undefined;
+	const outcome = (
+		value: RuleConfigView["outcome"]["outcome"],
+		instruction = "",
+	) => rule({ outcome: { outcome: value, instruction } });
+
+	test("an editor gets the picker on the card, labelled with the rule", () => {
+		const html = render(
+			<RuleCard {...base} onOutcomeChange={onOutcomeChange} rule={rule()} />,
+		);
+		expect(html).toContain("When this does not pass:");
+		expect(html).toContain(
+			'aria-label="When this does not pass for account age"',
+		);
+		expect(html).not.toContain("Instruction:");
+	});
+
+	test("Ask author to fix shows the editable instruction with the plan's example", () => {
+		const empty = render(
+			<RuleCard
+				{...base}
+				onOutcomeChange={onOutcomeChange}
+				rule={outcome("request_fix")}
+			/>,
+		);
+		expect(empty).toContain("Instruction:");
+		expect(empty).toContain('placeholder="Change the target to main."');
+		expect(empty).toContain('aria-label="Instruction for account age"');
+		const filled = render(
+			<RuleCard
+				{...base}
+				onOutcomeChange={onOutcomeChange}
+				rule={outcome("request_fix", "Wait a week, then push again.")}
+			/>,
+		);
+		expect(filled).toContain('value="Wait a week, then push again."');
+	});
+
+	test("Note only shows an editable fact line", () => {
+		const html = render(
+			<RuleCard
+				{...base}
+				onOutcomeChange={onOutcomeChange}
+				rule={outcome("note")}
+			/>,
+		);
+		expect(html).toContain("Note:");
+		expect(html).toContain('placeholder="No description provided."');
+	});
+
+	test("Block, Human review and Close carry no extra line", () => {
+		for (const value of ["block", "human_review", "close"] as const) {
+			const html = render(
+				<RuleCard
+					{...base}
+					onOutcomeChange={onOutcomeChange}
+					rule={outcome(value)}
+				/>,
+			);
+			expect(html).not.toContain("Instruction:");
+			expect(html).not.toContain("Note:");
+		}
+	});
+
+	test("a viewer reads the outcome and instruction as text", () => {
+		const html = render(
+			<RuleCard
+				{...base}
+				canEdit={false}
+				onOutcomeChange={onOutcomeChange}
+				rule={outcome("request_fix", "Change the target to main.")}
+			/>,
+		);
+		expect(html).toContain(">Ask author to fix<");
+		expect(html).toContain("Change the target to main.");
+		expect(html).not.toContain("<input");
+		expect(html).not.toContain('aria-label="When this does not pass for');
+	});
+
+	test("a managed rule has no picker", () => {
+		const html = render(
+			<RuleCard
+				{...base}
+				onOutcomeChange={onOutcomeChange}
+				rule={rule({ management: "managed" })}
+			/>,
+		);
+		expect(html).not.toContain("When this does not pass");
+		expect(html).toContain("In workflow");
 	});
 });
 

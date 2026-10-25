@@ -9,6 +9,7 @@ type Events = {
 	workflow_created: { from_template: boolean };
 	workflow_enabled: { enabled: boolean };
 	rule_toggled: { rule: string; enabled: boolean };
+	rule_outcome_set: { rule: string; outcome: string };
 	custom_rule_created: Record<string, never>;
 	moderation_decided: { decision: "approve" | "deny" };
 	setup_prompt_copied: { has_run_code: boolean };
