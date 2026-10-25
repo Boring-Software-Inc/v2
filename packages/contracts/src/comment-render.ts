@@ -14,6 +14,7 @@ import {
 import {
 	commentOverrideFor,
 	DEFAULT_RESPONSE_CONFIG,
+	isGiphyMediaUrl,
 	type ResponseConfig,
 	wantsComment,
 } from "./response.ts";
@@ -454,11 +455,13 @@ function renderBody(
 	});
 	const button = override.showDetailsButton ? runButton(input.runUrl) : null;
 	const customText = override.customText.trim();
+	const gif = input.verdict === "close" ? closeGifMarkdown(config) : null;
 	if (customText !== "") {
 		return joinParagraphs([
 			customText,
 			input.aiReviewNotRun ? AI_CREDITS_COPY.notRunShort : null,
 			button,
+			gif,
 		]);
 	}
 	const level = redactionLevelFor(policy, surface);
@@ -466,7 +469,8 @@ function renderBody(
 	if (input.verdict === "block" && config.blockComment.mode === "custom") {
 		return renderTemplate(input, config.blockComment.template, level).trim();
 	}
-	const oneLiner = stopped && config.blockComment.mode === "one-liner-link";
+	const oneLiner =
+		input.verdict === "block" && config.blockComment.mode === "one-liner-link";
 	const tail = issueTail(input, level);
 	const baseHeadline =
 		input.verdict === "changes_required"
@@ -502,7 +506,23 @@ function renderBody(
 		input.rerun ? RERUN_NOTE : null,
 		button,
 		help,
+		gif,
 	]);
+}
+
+function gifAlt(title: string): string {
+	return title.replace(/[\\[\]\n\r]/g, " ").trim() || "GIF";
+}
+
+export function closeGifMarkdown(config: ResponseConfig): string | null {
+	const gif = config.closeComment.gif;
+	if (!gif || !isGiphyMediaUrl(gif.url)) {
+		return null;
+	}
+	const href = new URL(gif.url).href
+		.replaceAll("(", "%28")
+		.replaceAll(")", "%29");
+	return `![${gifAlt(gif.title)}](${href})`;
 }
 
 function withMarker(body: string): string {
@@ -522,6 +542,7 @@ export function renderCommentBody(
 		reviewComment: override,
 		changesRequiredComment: override,
 		noteComment: override,
+		closeComment: { ...override, gif: null },
 	};
 	return withMarker(renderBody(input, config, policy, "comment"));
 }

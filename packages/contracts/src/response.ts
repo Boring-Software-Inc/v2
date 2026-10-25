@@ -55,6 +55,35 @@ export const blockCommentConfigSchema = commentOverrideSchema.extend({
 });
 export type BlockCommentConfig = z.infer<typeof blockCommentConfigSchema>;
 
+const GIPHY_MEDIA_HOST = /^(media\d*|i)\.giphy\.com$/;
+
+export function isGiphyMediaUrl(value: string): boolean {
+	try {
+		const url = new URL(value);
+		return url.protocol === "https:" && GIPHY_MEDIA_HOST.test(url.hostname);
+	} catch {
+		return false;
+	}
+}
+
+export const closeGifSchema = z.object({
+	id: z
+		.string()
+		.min(1)
+		.max(64)
+		.regex(/^[A-Za-z0-9]+$/),
+	url: z.string().max(600).refine(isGiphyMediaUrl, "Pick a GIF from GIPHY."),
+	width: z.number().int().min(1).max(2000),
+	height: z.number().int().min(1).max(2000),
+	title: z.string().max(200).default(""),
+});
+export type CloseGif = z.infer<typeof closeGifSchema>;
+
+export const closeCommentConfigSchema = commentOverrideSchema.extend({
+	gif: closeGifSchema.nullable().default(null).catch(null),
+});
+export type CloseCommentConfig = z.infer<typeof closeCommentConfigSchema>;
+
 export const responseConfigSchema = z.object({
 	onSuccess: successSurfaceSchema.default("ci-check"),
 	/** Pass comment override — only consulted when onSuccess is "comment". */
@@ -69,6 +98,8 @@ export const responseConfigSchema = z.object({
 	changesRequiredComment: commentOverrideSchema.prefault({}),
 	onNote: commentSurfaceSchema.default("comment"),
 	noteComment: commentOverrideSchema.prefault({}),
+	onClose: commentSurfaceSchema.default("comment"),
+	closeComment: closeCommentConfigSchema.prefault({}),
 	/**
 	 * The fail-closed floor. ON by default, and it should stay on.
 	 *
@@ -111,7 +142,10 @@ export function commentOverrideFor(
 			? config.noteComment
 			: config.passComment;
 	}
-	if (verdict === "block" || verdict === "close") {
+	if (verdict === "close") {
+		return config.closeComment;
+	}
+	if (verdict === "block") {
 		return config.blockComment;
 	}
 	if (verdict === "changes_required") {
@@ -139,7 +173,10 @@ export function wantsComment(
 			(options.notes === true && config.onNote === "comment")
 		);
 	}
-	if (verdict === "block" || verdict === "close") {
+	if (verdict === "close") {
+		return config.onClose === "comment";
+	}
+	if (verdict === "block") {
 		return config.onBlock === "comment";
 	}
 	if (verdict === "changes_required") {
