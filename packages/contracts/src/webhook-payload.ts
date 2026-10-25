@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HELD_VERDICTS } from "./rule-outcome.ts";
 import { verdictSchema } from "./runs.ts";
 
 /**
@@ -48,6 +49,12 @@ function discordHeadline(payload: WebhookPayload): string {
 	if (payload.verdict === "block") {
 		return `Tripwire blocked ${subject}.`;
 	}
+	if (payload.verdict === "changes_required") {
+		return `Tripwire asked for changes on ${subject}.`;
+	}
+	if (payload.verdict === "close") {
+		return `Tripwire closed ${subject}.`;
+	}
 	return `${subject} needs human review.`;
 }
 
@@ -71,16 +78,13 @@ export const discordMessageSchema = z.object({
 export type DiscordMessage = z.infer<typeof discordMessageSchema>;
 
 export function formatDiscordMessage(payload: WebhookPayload): DiscordMessage {
+	const held = HELD_VERDICTS.some((verdict) => verdict === payload.verdict);
 	const color =
-		payload.verdict === "pass"
-			? 0x22c55e
-			: payload.verdict === "block"
-				? 0xef4444
-				: 0xf59e0b;
+		payload.verdict === "pass" ? 0x22c55e : held ? 0xef4444 : 0xf59e0b;
 	const reasons =
 		payload.firedRules.length > 0
 			? payload.firedRules.map((rule) => `- ${rule.summary}`).join("\n")
-			: payload.verdict === "block"
+			: held
 				? "Details are on the Tripwire run page."
 				: "No rule blocked this change request.";
 	return {

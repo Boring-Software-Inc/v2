@@ -29,6 +29,7 @@ import type { ForgeAdapter } from "@tripwire/forge";
 import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
+import { loadRunIssues } from "./run-issues.ts";
 
 /**
  * §5.13 + §7: the two PR artifacts — ONE upserted comment (the face) and ONE
@@ -41,8 +42,21 @@ export const VERDICT_TO_CONCLUSION: Record<Verdict, CheckState["conclusion"]> =
 	{
 		pass: "success",
 		block: "failure",
+		changes_required: "failure",
 		needs_review: "pending",
+		close: "failure",
 	};
+
+export const VERDICT_ONLY_KINDS: ReadonlySet<string> = new Set([
+	"request-fix",
+	"note",
+]);
+
+export const CLOSE_PREREQUISITES: ReadonlySet<string> = new Set([
+	"comment",
+	"delete-comment",
+	"set-check",
+]);
 
 export interface PrSurfaceDeps {
 	db: Db;
@@ -120,6 +134,7 @@ export interface EmitSurfaceInput {
 	rerun?: boolean;
 	aiReviewNotRun?: boolean;
 	resumedFrom?: Verdict;
+	surfaceKey?: string;
 	pendingCheckPosted?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
 	pendingActionRows: {
@@ -161,7 +176,7 @@ export async function emitPrSurface(
 	const number = event.changeRequest.number;
 	const sha = event.changeRequest.headSha;
 	const runUrl = `${deps.appUrl}/runs/${runId}`;
-	const { reasons } = input;
+	const { reasons, issues } = await loadRunIssues(db, runId, input.reasons);
 
 	// The verdict the PR already shows — drives the resolution copy AND whether a
 	// stale request-changes review must be dismissed (§7).
@@ -171,8 +186,8 @@ export async function emitPrSurface(
 	// A block that just cleared ⇒ dismiss its outstanding request-changes review
 	// (it can't self-edit and would keep gating merge on required-review repos).
 	const reviewToDismiss =
-		verdict !== "block" && previousVerdict === "block"
-			? await runServices.getLatestBlockReviewId(db, repoFullName, number)
+		verdict !== "block"
+			? await runServices.getActiveBlockReviewId(db, repoFullName, number)
 			: null;
 
 	// The repo's response config (customize) decides which surfaces post. A
@@ -191,9 +206,10 @@ export async function emitPrSurface(
 		db,
 		repoRow?.id ?? null,
 	);
-	const blockRows = input.pendingActionRows.filter(
-		(row) => row.kind === "block",
-	);
+	const blockRows =
+		verdict === "close"
+			? []
+			: input.pendingActionRows.filter((row) => row.kind === "block");
 	const plan = planSurfaces(
 		{
 			verdict,
@@ -204,6 +220,7 @@ export async function emitPrSurface(
 			previousVerdict,
 			rerun: input.rerun,
 			aiReviewNotRun: input.aiReviewNotRun,
+			...issues,
 		},
 		responseConfig,
 		policy,
@@ -222,7 +239,14 @@ export async function emitPrSurface(
 		wantsCheck(responseConfig, verdict) || input.pendingCheckPosted === true;
 
 	const surfaceRows = await runServices.recordActions(db, runId, [
-		...commentRows(plan, number, verdict, previousVerdict),
+		...commentRows(plan, number, verdict, previousVerdict).map((row) =>
+			input.surfaceKey
+				? {
+						...row,
+						idempotencyKey: `${row.idempotencyKey}:${input.surfaceKey}`,
+					}
+				: row,
+		),
 		...(includeCheck
 			? [
 					{
@@ -236,10 +260,13 @@ export async function emitPrSurface(
 								input.degraded,
 								redactionLevelFor(policy, "check"),
 								input.aiReviewNotRun,
+								issues,
 							),
 							detailsUrl: runUrl,
 						},
-						idempotencyKey: `check:${sha}:${verdict}`,
+						idempotencyKey: input.surfaceKey
+							? `check:${sha}:${verdict}:${input.surfaceKey}`
+							: `check:${sha}:${verdict}`,
 					},
 				]
 			: []),
@@ -302,7 +329,11 @@ export async function emitPrSurface(
 	);
 	const latestRunId = latestRun?.id ?? null;
 
-	for (const row of [...input.pendingActionRows, ...surfaceRows]) {
+	const ordered = [...input.pendingActionRows, ...surfaceRows].sort(
+		(a, b) => Number(a.kind === "close") - Number(b.kind === "close"),
+	);
+	let surfaceFailed = false;
+	for (const row of ordered) {
 		// Outbound delivery is handled above + by the deliver-webhook job, not
 		// through the forge adapter.
 		if (row.kind === "webhook" || row.kind === "discord") {
@@ -317,6 +348,21 @@ export async function emitPrSurface(
 				{ runId, latestRunId, number, sha, kind: row.kind },
 				"action superseded, a newer run owns this change request",
 			);
+			continue;
+		}
+		if (VERDICT_ONLY_KINDS.has(row.kind)) {
+			await runServices.markActionExecuted(db, row.id, null);
+			continue;
+		}
+		if (row.kind === "close" && surfaceFailed) {
+			logger.warn(
+				{ runId, actionId: row.id },
+				"close waits, its comment or check did not post",
+			);
+			continue;
+		}
+		if (row.kind === "block" && verdict === "close") {
+			await runServices.markActionSuperseded(db, row.id);
 			continue;
 		}
 		const forgeAction = toForgeAction(
@@ -346,6 +392,9 @@ export async function emitPrSurface(
 				);
 				await runServices.markActionExecuted(db, row.id, null);
 				continue;
+			}
+			if (CLOSE_PREREQUISITES.has(row.kind)) {
+				surfaceFailed = true;
 			}
 			logger.error(
 				{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
@@ -416,6 +465,10 @@ async function emitThreadActions(
 		if (row.kind === "webhook") {
 			continue;
 		}
+		if (VERDICT_ONLY_KINDS.has(row.kind)) {
+			await runServices.markActionExecuted(db, row.id, null);
+			continue;
+		}
 		if (thread.skips(row.kind)) {
 			await runServices.markActionSuperseded(db, row.id);
 			logger.info(
@@ -451,6 +504,9 @@ const PER_CHANGE_REQUEST_KINDS = new Set([
 	"delete-comment",
 	"dismiss-review",
 	"block",
+	"close",
+	"request-fix",
+	"note",
 ]);
 
 export function supersededBy(

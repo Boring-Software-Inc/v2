@@ -89,6 +89,7 @@ export function workflowOutcomes(
 	snapshot: WorkflowDefinition[],
 	steps: readonly OutcomeStep[],
 	runStatus: string,
+	closesGate = false,
 ): RunWorkflowView[] {
 	const ids = snapshot.map((definition) => definition.id);
 	const evaluating = runStatus === "queued" || runStatus === "running";
@@ -99,11 +100,18 @@ export function workflowOutcomes(
 				? [{ ...ref, status: normalizeStepStatus(step.status) }]
 				: [];
 		});
-		const blockNodes = new Set(
-			definition.nodes.flatMap((node) =>
-				node.type === "action" && node.action === "block" ? [node.id] : [],
-			),
-		);
+		const actionNodes = (action: string) =>
+			new Set(
+				definition.nodes.flatMap((node) =>
+					node.type === "action" && node.action === action ? [node.id] : [],
+				),
+			);
+		const ranAction = (action: string) => {
+			const nodes = actionNodes(action);
+			return own.some(
+				(step) => nodes.has(step.nodeId) && step.status === "pass",
+			);
+		};
 		const ruleNodes = definition.nodes.filter((node) => node.type === "rule");
 		const doneRules = new Set(
 			own.flatMap((step) =>
@@ -111,12 +119,14 @@ export function workflowOutcomes(
 			),
 		);
 		let outcome: WorkflowOutcome | null = "pass";
-		if (own.some((step) => step.status === "paused")) {
-			outcome = "review";
-		} else if (
-			own.some((step) => blockNodes.has(step.nodeId) && step.status === "pass")
-		) {
+		if (ranAction("close") && closesGate) {
+			outcome = "close";
+		} else if (ranAction("block")) {
 			outcome = "block";
+		} else if (ranAction("request-fix")) {
+			outcome = "changes";
+		} else if (own.some((step) => step.status === "paused")) {
+			outcome = "review";
 		} else if (evaluating && doneRules.size < ruleNodes.length) {
 			outcome = null;
 		}

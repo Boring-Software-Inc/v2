@@ -239,6 +239,14 @@ describe("supersededBy — a stale run never overwrites a newer result", () => {
 		expect(supersededBy("set-check", older, newerOtherHead)).toBe(false);
 	});
 
+	test("close, fix requests and notes belong to the latest run only", () => {
+		for (const kind of ["close", "request-fix", "note"]) {
+			expect(supersededBy(kind, older, older)).toBe(false);
+			expect(supersededBy(kind, older, newerSameHead)).toBe(true);
+			expect(supersededBy(kind, older, newerOtherHead)).toBe(true);
+		}
+	});
+
 	test("workflow actions are not surfaces", () => {
 		expect(supersededBy("label", older, newerSameHead)).toBe(false);
 		expect(supersededBy("request-review", older, newerSameHead)).toBe(false);

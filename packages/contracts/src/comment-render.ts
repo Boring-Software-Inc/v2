@@ -37,7 +37,9 @@ import type { Verdict } from "./runs.ts";
 export const VERDICT_WORD: Record<Verdict, string> = {
 	pass: "passed",
 	block: "blocked",
+	changes_required: "changes needed",
 	needs_review: "human review",
+	close: "closed",
 };
 
 /** What a contributor can do about a blocking rule — mirrors core's rule field. */
@@ -53,6 +55,7 @@ export interface CommentReason {
 	/** Bare rule id ("account-age"). */
 	ruleId?: string;
 	ruleName?: string;
+	stepId?: string;
 }
 
 export interface HeadlineOptions {
@@ -78,6 +81,12 @@ export function commentHeadline(
 			? `@${login}, Tripwire now passes this change request.`
 			: "Tripwire passed this change request.";
 	}
+	if (verdict === "changes_required") {
+		return CHANGES_NEEDED;
+	}
+	if (verdict === "close") {
+		return CLOSED;
+	}
 	if (verdict === "needs_review") {
 		if (degraded) {
 			return `@${login}, Tripwire could not finish checking this change request, so it needs human review. A maintainer will approve or block it.`;
@@ -90,6 +99,10 @@ export function commentHeadline(
 		? `@${login}, Tripwire now blocks this change request.`
 		: `@${login}, Tripwire blocked this change request.`;
 }
+
+export const CHANGES_NEEDED = "Changes needed.";
+export const CLOSED = "Closed.";
+export const REVIEW_PENDING = "Human review is pending.";
 
 export const RERUN_NOTE = "Tripwire checked this again with the current rules.";
 
@@ -186,7 +199,7 @@ export const CHECK_NAME = "tripwire";
 export const REVIEW_POINTER = {
 	block: "Blocked. See the comment.",
 	needs_review: "Needs human review. See the comment.",
-} as const satisfies Record<Exclude<Verdict, "pass">, string>;
+} as const satisfies Partial<Record<Verdict, string>>;
 
 function listNames(names: string[], limit = REASON_LIMIT): string {
 	const shown = names.slice(0, limit);
@@ -229,9 +242,30 @@ export function checkSummary(
 	degraded = false,
 	level = 0,
 	aiReviewNotRun = false,
+	issues: OutcomeIssues = {},
 ): string {
-	const summary = verdictCheckSummary(verdict, reasons, degraded, level);
+	const summary = verdictCheckSummary(
+		verdict,
+		reasons,
+		degraded,
+		level,
+		issues,
+	);
 	return aiReviewNotRun ? `${summary} ${AI_CREDITS_COPY.notRunShort}` : summary;
+}
+
+function stoppedSummary(
+	word: "Blocked" | "Closed",
+	reasons: CommentReason[],
+	level: number,
+): string {
+	if (reasons.length === 0 || redactionHides(level, "failed-count")) {
+		return `${word}.`;
+	}
+	if (redactionHides(level, "rule-names")) {
+		return `${word} by ${reasons.length} ${reasons.length === 1 ? "rule" : "rules"}.`;
+	}
+	return `${word} by ${listNames(reasons.map(reasonName))}.`;
 }
 
 function verdictCheckSummary(
@@ -239,15 +273,20 @@ function verdictCheckSummary(
 	reasons: CommentReason[],
 	degraded: boolean,
 	level: number,
+	issues: OutcomeIssues,
 ): string {
 	if (verdict === "block") {
-		if (reasons.length === 0 || redactionHides(level, "failed-count")) {
-			return "Blocked.";
-		}
-		if (redactionHides(level, "rule-names")) {
-			return `Blocked by ${reasons.length} ${reasons.length === 1 ? "rule" : "rules"}.`;
-		}
-		return `Blocked by ${listNames(reasons.map(reasonName))}.`;
+		return stoppedSummary("Blocked", reasons, level);
+	}
+	if (verdict === "close") {
+		return stoppedSummary("Closed", reasons, level);
+	}
+	if (verdict === "changes_required") {
+		return changesLine(
+			issues.fixes ?? [],
+			issues.reviewPending === true,
+			level,
+		);
 	}
 	if (verdict === "needs_review") {
 		return degraded
@@ -273,7 +312,80 @@ export function isTripwireComment(body: string): boolean {
 	return body.includes(COMMENT_MARKER) || body.includes(TRIPWIRE_MARKER_PREFIX);
 }
 
-export interface CommentInput {
+export interface FixIssue {
+	message: string | null;
+	reasons: CommentReason[];
+}
+
+export interface OutcomeIssues {
+	fixes?: FixIssue[];
+	notes?: string[];
+	reviewPending?: boolean;
+}
+
+export const FIX_FALLBACK = "Fix what this rule found.";
+
+function uniqueSentences(lines: readonly string[]): string[] {
+	return [...new Set(lines.map(asSentence))];
+}
+
+export function fixText(fix: FixIssue, level = 0): string {
+	if (fix.message) {
+		return fix.message;
+	}
+	const redacted = redactCommentReasons(fix.reasons, level);
+	if (redacted.kind === "reasons" && redacted.reasons.length > 0) {
+		return redacted.reasons.map((reason) => asSentence(reason.text)).join(" ");
+	}
+	if (redacted.kind !== "reasons") {
+		const line = redactedReasonLine(redacted);
+		if (line !== "") {
+			return line;
+		}
+	}
+	return FIX_FALLBACK;
+}
+
+export function changesLine(
+	fixes: readonly FixIssue[],
+	reviewPending: boolean,
+	level = 0,
+): string {
+	return [
+		CHANGES_NEEDED,
+		...uniqueSentences(fixes.map((fix) => fixText(fix, level))),
+		reviewPending ? REVIEW_PENDING : null,
+	]
+		.filter((part): part is string => part !== null)
+		.join(" ");
+}
+
+export function notesLine(notes: readonly string[]): string | null {
+	return notes.length === 0 ? null : uniqueSentences(notes).join(" ");
+}
+
+function issueTail(
+	input: CommentInput,
+	level: number,
+): {
+	changes: string | null;
+	notes: string | null;
+} {
+	const fixes = input.fixes ?? [];
+	const reviewPending =
+		input.reviewPending === true && input.verdict !== "needs_review";
+	const changes =
+		input.verdict === "changes_required"
+			? null
+			: fixes.length > 0
+				? changesLine(fixes, reviewPending, level)
+				: reviewPending
+					? REVIEW_PENDING
+					: null;
+	return { changes, notes: notesLine(input.notes ?? []) };
+}
+
+export interface CommentInput extends OutcomeIssues {
 	verdict: Verdict;
 	contributorLogin: string;
 	reasons: CommentReason[];
@@ -336,7 +448,10 @@ function renderBody(
 	policy: RedactionPolicy,
 	surface: Extract<RedactionSurface, "comment" | "review">,
 ): string {
-	const override = commentOverrideFor(config, input.verdict);
+	const hasNotes = (input.notes ?? []).length > 0;
+	const override = commentOverrideFor(config, input.verdict, {
+		notes: hasNotes,
+	});
 	const button = override.showDetailsButton ? runButton(input.runUrl) : null;
 	const customText = override.customText.trim();
 	if (customText !== "") {
@@ -347,17 +462,25 @@ function renderBody(
 		]);
 	}
 	const level = redactionLevelFor(policy, surface);
-	const block = input.verdict === "block";
-	if (block && config.blockComment.mode === "custom") {
+	const stopped = input.verdict === "block" || input.verdict === "close";
+	if (input.verdict === "block" && config.blockComment.mode === "custom") {
 		return renderTemplate(input, config.blockComment.template, level).trim();
 	}
-	const oneLiner = block && config.blockComment.mode === "one-liner-link";
-	const headline = commentHeadline(input.verdict, input.contributorLogin, {
-		degraded: input.degraded,
-		previousVerdict: input.previousVerdict,
-	});
+	const oneLiner = stopped && config.blockComment.mode === "one-liner-link";
+	const tail = issueTail(input, level);
+	const baseHeadline =
+		input.verdict === "changes_required"
+			? changesLine(input.fixes ?? [], input.reviewPending === true, level)
+			: commentHeadline(input.verdict, input.contributorLogin, {
+					degraded: input.degraded,
+					previousVerdict: input.previousVerdict,
+				});
+	const headline =
+		input.verdict === "pass" && tail.notes
+			? `${baseHeadline} ${tail.notes}`
+			: baseHeadline;
 	const limit = button ? REASON_LIMIT : Number.POSITIVE_INFINITY;
-	const detail = block
+	const detail = stopped
 		? reasonSection(
 				redactCommentReasons(input.reasons, level),
 				oneLiner ? oneLinerLine : reasonLine,
@@ -365,13 +488,17 @@ function renderBody(
 			)
 		: "";
 	const help =
-		block && policy.showHelp && (!oneLiner || surface === "review")
+		input.verdict === "block" &&
+		policy.showHelp &&
+		(!oneLiner || surface === "review")
 			? howDoIFix(input.reasons, level)
 			: null;
 	return joinParagraphs([
 		headline,
 		input.aiReviewNotRun ? AI_CREDITS_COPY.notRunShort : null,
 		detail,
+		tail.changes,
+		input.verdict === "pass" ? null : tail.notes,
 		input.rerun ? RERUN_NOTE : null,
 		button,
 		help,
@@ -393,6 +520,8 @@ export function renderCommentBody(
 		passComment: override,
 		blockComment: { ...override, mode: "full", template: "" },
 		reviewComment: override,
+		changesRequiredComment: override,
+		noteComment: override,
 	};
 	return withMarker(renderBody(input, config, policy, "comment"));
 }
@@ -467,7 +596,9 @@ export function planSurfaces(
 	const { verdict } = input;
 	const previous = input.previousVerdict ?? null;
 	const transition = previous !== null && previous !== verdict;
-	const wanted = wantsComment(config, verdict);
+	const wanted = wantsComment(config, verdict, {
+		notes: (input.notes ?? []).length > 0,
+	});
 	const reviewPosted = options.reviewPosted && verdict !== "pass";
 	const sole = () => renderSoleReview(input, config, policy);
 	const body = () => renderVerdictComment(input, config, policy);

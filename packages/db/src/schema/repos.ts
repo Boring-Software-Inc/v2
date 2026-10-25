@@ -84,6 +84,8 @@ export const ruleConfigs = pgTable(
 		enabled: boolean("enabled").notNull().default(true),
 		/** Validated against the rule's Zod config schema on write. */
 		config: jsonb("config").notNull(),
+		outcome: text("outcome").notNull().default("block"),
+		outcomeInstruction: text("outcome_instruction").notNull().default(""),
 		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
@@ -193,6 +195,8 @@ export const customRules = pgTable("custom_rules", {
 	description: text("description"),
 	enabled: boolean("enabled").notNull().default(true),
 	definition: jsonb("definition").notNull(),
+	outcome: text("outcome").notNull().default("block"),
+	outcomeInstruction: text("outcome_instruction").notNull().default(""),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),

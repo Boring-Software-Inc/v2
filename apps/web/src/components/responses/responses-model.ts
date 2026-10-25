@@ -18,7 +18,12 @@ import {
 } from "#/components/responses/redaction-model";
 import type { SaveQueueCommit } from "#/components/save-queue";
 
-export const VERDICTS: { value: Verdict; label: string }[] = [
+export type ResponseVerdict = Extract<
+	Verdict,
+	"pass" | "block" | "needs_review"
+>;
+
+export const VERDICTS: { value: ResponseVerdict; label: string }[] = [
 	{ value: "pass", label: "Passed" },
 	{ value: "block", label: "Blocked" },
 	{ value: "needs_review", label: "Human review" },
@@ -67,6 +72,14 @@ export function flattenConfig(config: ResponseConfig) {
 		"blockComment.showDetailsButton": config.blockComment.showDetailsButton,
 		"reviewComment.customText": config.reviewComment.customText,
 		"reviewComment.showDetailsButton": config.reviewComment.showDetailsButton,
+		onChangesRequired: config.onChangesRequired,
+		"changesRequiredComment.customText":
+			config.changesRequiredComment.customText,
+		"changesRequiredComment.showDetailsButton":
+			config.changesRequiredComment.showDetailsButton,
+		onNote: config.onNote,
+		"noteComment.customText": config.noteComment.customText,
+		"noteComment.showDetailsButton": config.noteComment.showDetailsButton,
 		failClosedFallback: config.failClosedFallback,
 		"redaction.inherit": config.redaction.inherit,
 		"redaction.level": config.redaction.level,
@@ -96,6 +109,16 @@ export function unflattenConfig(
 			customText: flat["reviewComment.customText"],
 			showDetailsButton: flat["reviewComment.showDetailsButton"],
 		},
+		onChangesRequired: flat.onChangesRequired,
+		changesRequiredComment: {
+			customText: flat["changesRequiredComment.customText"],
+			showDetailsButton: flat["changesRequiredComment.showDetailsButton"],
+		},
+		onNote: flat.onNote,
+		noteComment: {
+			customText: flat["noteComment.customText"],
+			showDetailsButton: flat["noteComment.showDetailsButton"],
+		},
 		failClosedFallback: flat.failClosedFallback,
 		redaction: {
 			inherit: flat["redaction.inherit"],
@@ -108,26 +131,52 @@ export function unflattenConfig(
 	});
 }
 
+export const OUTCOME_COMMENT_SETTINGS = {
+	request_fix: {
+		label: "Ask author to fix",
+		surface: "onChangesRequired",
+		override: "changesRequiredComment",
+	},
+	note: {
+		label: "Note only",
+		surface: "onNote",
+		override: "noteComment",
+	},
+} as const satisfies Record<
+	"request_fix" | "note",
+	{
+		label: string;
+		surface: keyof ResponseConfig;
+		override: keyof ResponseConfig;
+	}
+>;
+
 export function overrideKey(
 	verdict: Verdict,
-): "passComment" | "blockComment" | "reviewComment" {
+): "passComment" | "blockComment" | "reviewComment" | "changesRequiredComment" {
 	if (verdict === "pass") {
 		return "passComment";
 	}
-	if (verdict === "block") {
+	if (verdict === "block" || verdict === "close") {
 		return "blockComment";
+	}
+	if (verdict === "changes_required") {
+		return "changesRequiredComment";
 	}
 	return "reviewComment";
 }
 
 export function commentKey(
 	verdict: Verdict,
-): "onSuccess" | "onBlock" | "moderationQueued" {
+): "onSuccess" | "onBlock" | "moderationQueued" | "onChangesRequired" {
 	if (verdict === "pass") {
 		return "onSuccess";
 	}
-	if (verdict === "block") {
+	if (verdict === "block" || verdict === "close") {
 		return "onBlock";
+	}
+	if (verdict === "changes_required") {
+		return "onChangesRequired";
 	}
 	return "moderationQueued";
 }

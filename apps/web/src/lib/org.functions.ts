@@ -711,7 +711,7 @@ export const getOrgAnalyticsSummary = createServerFn({ method: "GET" })
 				(SELECT count(*) FROM events e JOIN org_repos r ON r.full_name = e.repo_full_name
 				  WHERE e.received_at > now() - interval '24 hours')::int AS "events24h",
 				(SELECT count(*) FROM runs run JOIN org_repos r ON r.full_name = run.repo_full_name
-				  WHERE run.verdict = 'block' AND run.created_at > now() - interval '24 hours')::int AS "blocked24h",
+				  WHERE run.verdict IN ('block', 'changes_required', 'close') AND run.created_at > now() - interval '24 hours')::int AS "blocked24h",
 				(SELECT count(*) FROM moderation_items mi JOIN runs run ON run.id = mi.run_id
 				  JOIN org_repos r ON r.full_name = run.repo_full_name
 				  WHERE mi.status = 'pending')::int AS "pendingModeration",
@@ -728,7 +728,7 @@ export const getOrgAnalyticsSummary = createServerFn({ method: "GET" })
 				    SELECT floor(extract(epoch FROM now() - run.created_at) / 3600)::int AS ha,
 				           count(*)::int AS n
 				    FROM runs run JOIN org_repos r ON r.full_name = run.repo_full_name
-				    WHERE run.verdict = 'block' AND run.created_at > now() - interval '24 hours'
+				    WHERE run.verdict IN ('block', 'changes_required', 'close') AND run.created_at > now() - interval '24 hours'
 				    GROUP BY 1
 				  ) bl ON bl.ha = hours.h) AS "blockedSeries"
 		`);

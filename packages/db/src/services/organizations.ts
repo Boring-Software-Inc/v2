@@ -1260,7 +1260,7 @@ export async function listOrgSwitcherRepos(
 		) pend ON pend.repo = r.full_name
 		LEFT JOIN (
 		  SELECT repo_full_name AS repo, count(*) AS n FROM runs
-		  WHERE verdict = 'block' AND created_at > now() - make_interval(hours => 24)
+		  WHERE verdict IN ('block', 'changes_required', 'close') AND created_at > now() - make_interval(hours => 24)
 		    AND ${runBearsVerdict}
 		  GROUP BY repo_full_name
 		) blk ON blk.repo = r.full_name

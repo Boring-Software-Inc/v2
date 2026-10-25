@@ -1,5 +1,8 @@
 import {
+	HELD_VERDICTS,
+	type RunStanding,
 	ruleResultSchema,
+	standingVerdict,
 	VERDICT_EVENT_KINDS,
 	type Verdict,
 	type WorkflowDefinition,
@@ -13,13 +16,16 @@ import {
 	gt,
 	inArray,
 	isNotNull,
+	isNull,
 	lt,
 	ne,
+	or,
 	sql,
 } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
+import { moderationItems } from "../schema/moderation.ts";
 import { runActions, runSteps, runs } from "../schema/runs.ts";
 
 /**
@@ -657,6 +663,102 @@ export async function completeRun(
 		.where(eq(runs.id, runId));
 }
 
+type Queryable = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+export async function getRunStanding(
+	db: Queryable,
+	runId: string,
+): Promise<RunStanding> {
+	const runRows = await db
+		.select({ headSha: runs.headSha })
+		.from(runs)
+		.where(eq(runs.id, runId));
+	const actions = await db
+		.select({ kind: runActions.kind })
+		.from(runActions)
+		.where(
+			and(
+				eq(runActions.runId, runId),
+				ne(runActions.status, "suppressed"),
+				inArray(runActions.kind, ["close", "block", "request-fix"]),
+			),
+		);
+	const outstanding = await db
+		.select({ id: moderationItems.id })
+		.from(moderationItems)
+		.where(
+			and(
+				eq(moderationItems.runId, runId),
+				or(
+					eq(moderationItems.status, "pending"),
+					and(
+						inArray(moderationItems.status, ["approved", "denied"]),
+						isNull(moderationItems.appliedAt),
+					),
+				),
+			),
+		);
+	const count = (kind: string) =>
+		actions.filter((action) => action.kind === kind).length;
+	return {
+		closes: runRows[0]?.headSha ? count("close") : 0,
+		blocks: count("block"),
+		fixes: count("request-fix"),
+		reviewsPending: outstanding.length,
+	};
+}
+
+export async function settleRun(
+	db: Db,
+	runId: string,
+	appliedItemId: string | null,
+): Promise<{ verdict: Verdict; status: "paused" | "completed" }> {
+	return await db.transaction(async (tx) => {
+		await tx.execute(sql`SELECT id FROM runs WHERE id = ${runId} FOR UPDATE`);
+		if (appliedItemId) {
+			await tx
+				.update(moderationItems)
+				.set({ appliedAt: new Date() })
+				.where(eq(moderationItems.id, appliedItemId));
+		}
+		const standing = await getRunStanding(tx, runId);
+		const verdict = standingVerdict(standing);
+		const status = standing.reviewsPending > 0 ? "paused" : "completed";
+		await tx
+			.update(runs)
+			.set(
+				status === "completed"
+					? { status, verdict, completedAt: new Date() }
+					: { status, verdict },
+			)
+			.where(eq(runs.id, runId));
+		return { verdict, status };
+	});
+}
+
+export async function closedOnHead(
+	db: Db,
+	repoFullName: string,
+	subjectNumber: number,
+	headSha: string,
+): Promise<boolean> {
+	const rows = await db
+		.select({ id: runActions.id })
+		.from(runActions)
+		.innerJoin(runs, eq(runActions.runId, runs.id))
+		.where(
+			and(
+				eq(runs.repoFullName, repoFullName),
+				eq(runs.subjectNumber, subjectNumber),
+				eq(runs.headSha, headSha),
+				eq(runActions.kind, "close"),
+				eq(runActions.status, "executed"),
+			),
+		)
+		.limit(1);
+	return rows.length > 0;
+}
+
 export async function pauseRun(db: Db, runId: string): Promise<void> {
 	await db
 		.update(runs)
@@ -822,6 +924,7 @@ export interface OpenBlockedRun {
 	runId: string;
 	subjectNumber: number;
 	headSha: string | null;
+	verdict: Verdict;
 }
 
 export async function listOpenBlockedRuns(
@@ -848,17 +951,19 @@ export async function listOpenBlockedRuns(
 			),
 		)
 		.orderBy(runs.subjectNumber, ...runRecency);
-	const blocked = latest.flatMap((row) =>
-		row.verdict === "block" && row.subjectNumber !== null
+	const blocked = latest.flatMap((row) => {
+		const verdict = HELD_VERDICTS.find((held) => held === row.verdict);
+		return verdict && row.subjectNumber !== null
 			? [
 					{
 						runId: row.runId,
 						subjectNumber: row.subjectNumber,
 						headSha: row.headSha,
+						verdict,
 					},
 				]
-			: [],
-	);
+			: [];
+	});
 	if (blocked.length === 0) {
 		return [];
 	}

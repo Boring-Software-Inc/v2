@@ -1,6 +1,7 @@
 import type { CommentReason, CustomRuleRecord } from "@tripwire/contracts";
 import { customRuleSummary, ruleDisplayName } from "@tripwire/contracts";
 import { getRule } from "@tripwire/core";
+import { reasonStepId } from "./run-issues.ts";
 
 /**
  * The failing rules' reasons for the PR comment (§7/§12). Built in the WORKER —
@@ -11,6 +12,7 @@ import { getRule } from "@tripwire/core";
  */
 
 interface ReasonStep {
+	nodeId?: string;
 	nodeKind: string;
 	status: string;
 	/** The RuleResult envelope: { ruleId, version, evidence, … }. */
@@ -67,6 +69,7 @@ export function buildCommentReasons(
 			hint,
 			ruleId: env.ruleId,
 			ruleName: custom?.name ?? ruleDisplayName(env.ruleId),
+			...(step.nodeId ? { stepId: reasonStepId(step.nodeId) } : {}),
 		});
 	}
 	return reasons;

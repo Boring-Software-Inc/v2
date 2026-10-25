@@ -85,6 +85,7 @@ const UNRUNNABLE_RULES: ReadonlySet<LintRuleId> = new Set<LintRuleId>([
 	"cycle",
 	"gate-input",
 	"not-input",
+	"unless-inputs",
 	"trigger-input",
 	"wrong-output",
 	"no-outputs",

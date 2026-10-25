@@ -1,6 +1,7 @@
 import {
 	edgePort,
 	foldGate,
+	foldUnless,
 	type NodeOutcome,
 	type NormalizedEvent,
 	portValue,
@@ -39,6 +40,7 @@ export interface ExecutionResult {
 	steps: StepRecord[];
 	/** Set when a send-to-moderation node paused the run. */
 	pausedAtNodeId: string | null;
+	pausedAtNodeIds: string[];
 	/** Action nodes that conducted, in topo order — step 7 executes these. */
 	actions: {
 		nodeId: string;
@@ -64,6 +66,7 @@ export interface ExecuteWorkflowOptions {
 		outcomes: Record<string, NodeOutcome>;
 		nodeId: string;
 		decision: "approve" | "deny";
+		decisions?: Record<string, "approve" | "deny">;
 	};
 	/**
 	 * Optional live progress hook (worker injects persist + notify). Called
@@ -108,12 +111,22 @@ export async function executeWorkflow(
 	const byId = new Map(definition.nodes.map((n) => [n.id, n]));
 	const steps: StepRecord[] = [];
 	const actions: ExecutionResult["actions"] = [];
-	let pausedAtNodeId: string | null = null;
+	const paused: string[] = [];
+	const deferred = new Set<string>();
 	let blocked = false;
+	let changesRequired = false;
+	let closed = false;
+	const gatesChangeRequest = "changeRequest" in event;
 
-	type EdgeValue = NodeOutcome | "unreached";
+	type EdgeValue = NodeOutcome | "unreached" | "pending";
+
+	const decisionFor = (nodeId: string): "approve" | "deny" | undefined =>
+		resume?.nodeId === nodeId ? resume.decision : resume?.decisions?.[nodeId];
 
 	const edgeValue = (edge: WorkflowDefinition["edges"][number]): EdgeValue => {
+		if (deferred.has(edge.from)) {
+			return "pending";
+		}
 		const source = outcomes.get(edge.from);
 		const from = byId.get(edge.from);
 		if (source === undefined || !conducted.has(edge.from) || !from) {
@@ -121,11 +134,11 @@ export async function executeWorkflow(
 		}
 		const when = edge.when ?? "pass";
 		if (when === "approve" || when === "deny") {
-			const decided =
-				resume !== undefined &&
-				edge.from === resume.nodeId &&
-				when === (resume.decision === "approve" ? "approve" : "deny");
-			return decided ? "pass" : "fail";
+			const decision = decisionFor(edge.from);
+			if (decision === undefined) {
+				return "pending";
+			}
+			return when === decision ? "pass" : "fail";
 		}
 		return portValue(edgePort(from, edge.when), source);
 	};
@@ -157,9 +170,6 @@ export async function executeWorkflow(
 	};
 
 	for (const node of topoOrder(definition)) {
-		if (pausedAtNodeId) {
-			break;
-		}
 		const startedAt = now();
 
 		if (node.type === "trigger") {
@@ -188,6 +198,13 @@ export async function executeWorkflow(
 		const isResumeTarget = resume?.nodeId === node.id;
 		if (resume && outcomes.has(node.id) && !isResumeTarget) {
 			conducted.add(node.id);
+			if (
+				node.type === "action" &&
+				node.action === "send-to-moderation" &&
+				decisionFor(node.id) === undefined
+			) {
+				paused.push(node.id);
+			}
 			continue;
 		}
 
@@ -196,6 +213,10 @@ export async function executeWorkflow(
 			value: edgeValue(edge),
 		}));
 		const values = incoming.map((input) => input.value);
+		if (values.includes("pending") && !isResumeTarget) {
+			deferred.add(node.id);
+			continue;
+		}
 		const reached =
 			node.type === "gate"
 				? values.some((value) => value !== "unreached")
@@ -243,10 +264,48 @@ export async function executeWorkflow(
 			const inputs = incoming.map(({ edge, value }) => {
 				const from = byId.get(edge.from);
 				const port = from ? edgePort(from, edge.when) : "pass";
-				return value === "unreached"
-					? { from: edge.from, port, outcome: "fail" as const, reached: false }
-					: { from: edge.from, port, outcome: value };
+				const role = edge.input ? { input: edge.input } : {};
+				return value === "unreached" || value === "pending"
+					? {
+							from: edge.from,
+							port,
+							...role,
+							outcome: "fail" as const,
+							reached: false,
+						}
+					: { from: edge.from, port, ...role, outcome: value };
 			});
+			if (node.mode === "unless") {
+				const side = (role: "requirement" | "exception") => {
+					const picked = inputs.filter(
+						(input) => (input.input ?? "requirement") === role,
+					);
+					return picked.length === 0
+						? undefined
+						: foldGate(
+								"all-of",
+								picked.map((input) => input.outcome),
+							);
+				};
+				const requirement = side("requirement");
+				const exception = side("exception");
+				const fold = foldUnless(requirement, exception);
+				outcomes.set(node.id, fold.outcome);
+				conducted.add(node.id);
+				await record(
+					node,
+					fold.outcome,
+					{ mode: node.mode, inputs },
+					{
+						outcome: fold.outcome,
+						requirement: requirement ?? null,
+						exception: exception ?? null,
+						exceptionApplied: fold.exceptionApplied,
+					},
+					startedAt,
+				);
+				continue;
+			}
 			const outcome = foldGate(
 				node.mode,
 				inputs.map((input) => input.outcome),
@@ -266,7 +325,7 @@ export async function executeWorkflow(
 		if (node.action === "send-to-moderation" && !isResumeTarget) {
 			outcomes.set(node.id, "pass");
 			conducted.add(node.id);
-			pausedAtNodeId = node.id;
+			paused.push(node.id);
 			await record(node, "paused", { action: node.action }, null, startedAt);
 			continue;
 		}
@@ -289,6 +348,12 @@ export async function executeWorkflow(
 		if (node.action === "block") {
 			blocked = true;
 		}
+		if (node.action === "request-fix") {
+			changesRequired = true;
+		}
+		if (node.action === "close" && gatesChangeRequest) {
+			closed = true;
+		}
 		actions.push({
 			nodeId: node.id,
 			action: node.action,
@@ -303,16 +368,21 @@ export async function executeWorkflow(
 		);
 	}
 
-	const verdict: Verdict = pausedAtNodeId
-		? "needs_review"
+	const verdict: Verdict = closed
+		? "close"
 		: blocked
 			? "block"
-			: "pass";
+			: changesRequired
+				? "changes_required"
+				: paused.length > 0
+					? "needs_review"
+					: "pass";
 
 	return {
 		verdict,
 		steps,
-		pausedAtNodeId,
+		pausedAtNodeId: paused[0] ?? null,
+		pausedAtNodeIds: paused,
 		actions,
 		outcomes: Object.fromEntries(outcomes),
 	};

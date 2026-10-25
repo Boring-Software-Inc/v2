@@ -367,7 +367,11 @@ function verdictWord(
 	if (result === "pass") {
 		return style.good(label);
 	}
-	if (result === "block") {
+	if (
+		result === "block" ||
+		result === "changes_required" ||
+		result === "close"
+	) {
 		return style.bad(label);
 	}
 	if (result === "needs_review") {

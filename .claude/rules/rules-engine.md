@@ -35,13 +35,17 @@ detection). Evidence is what makes the run page and appeals real instead of
 
 ## Workflow = node-based composition
 Serialized as a JSON DAG in `contracts/workflow.ts`: trigger nodes (PR opened /
-comment / push) → rule nodes → gate nodes (all-of / any-of / not) → action nodes
-(block, comment, label, request-review, send-to-moderation). The executor is a
+comment / push) → rule nodes → gate nodes (all-of / any-of / not / unless, shown
+as "Except when") → action nodes (block, request-fix, note, close, label,
+request-review, send-to-moderation, ...). Join: close > block >
+changes_required > needs_review > pass; notes never raise the verdict. The executor is a
 boring DAG walk: topo order, gate short-circuit, record every node's input/output
 as `run_steps`. The engine is validated with hand-seeded definitions long before
 the React Flow editor (built last) exists.
 
 ## Moderation queue = a paused run
-`needs_review` halts the run and creates a moderation item; approve/deny resumes
-down the corresponding edge. Audit trail, run page, and PR button behave
+A send-to-moderation node creates a moderation item and pauses only the steps
+that depend on its decision; independent checks keep running. Approve/deny
+resumes down the corresponding edge, clears only that item, and the run verdict
+is recomputed from everything the run still holds. Audit trail, run page, and PR button behave
 identically for moderated and automatic outcomes.

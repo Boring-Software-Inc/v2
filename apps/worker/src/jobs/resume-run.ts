@@ -8,6 +8,8 @@ import type {
 } from "@tripwire/contracts";
 import {
 	isAiReviewNotRunStep,
+	stepLocalId,
+	verdictSchema,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { executeWorkflow, type StepRecord } from "@tripwire/core";
@@ -117,6 +119,7 @@ export async function resumeRun(
 		await resumeDegradedRun(
 			deps,
 			item.runId,
+			item.id,
 			job.decision,
 			normalized,
 			runData,
@@ -134,7 +137,11 @@ export async function resumeRun(
 		return;
 	}
 
-	const outcomes = deriveOutcomes(definition, runData.steps, wfId);
+	const { outcomes, decisions } = deriveOutcomes(
+		definition,
+		runData.steps,
+		wfId,
+	);
 	const now = new Date().toISOString();
 	const { ctx } = await buildRuleContext(
 		normalized,
@@ -149,12 +156,15 @@ export async function resumeRun(
 		event: normalized,
 		evaluateRuleRef: makeEvaluator(ctx, logger),
 		now: () => new Date().toISOString(),
-		resume: { outcomes, nodeId: pausedNode, decision: job.decision },
+		resume: {
+			outcomes,
+			nodeId: pausedNode,
+			decision: job.decision,
+			decisions,
+		},
 	});
 
-	// The verdict is the maintainer's decision, not the graph's traversal —
-	// deny always blocks, and floors in a block action when the graph made none.
-	const { verdict, floorBlock: denyFloored } = resolveResumeOutcome(
+	const { floorBlock: denyFloored } = resolveResumeOutcome(
 		job.decision,
 		result,
 	);
@@ -172,7 +182,6 @@ export async function resumeRun(
 		);
 	}
 	await runServices.recordSteps(db, item.runId, withPublicProjection(steps));
-	await runServices.completeRun(db, item.runId, verdict);
 
 	const actionRows = await runServices.recordActions(db, item.runId, [
 		...result.actions.filter(postsSomething).map((action) => ({
@@ -192,6 +201,21 @@ export async function resumeRun(
 				]
 			: []),
 	]);
+	const known = new Set(
+		(await moderationServices.listModerationItemsForRun(db, item.runId)).map(
+			(existing) => existing.nodeId,
+		),
+	);
+	for (const nodeId of result.pausedAtNodeIds) {
+		const scoped = `${definition.id}:${nodeId}`;
+		if (!known.has(scoped)) {
+			await moderationServices.createModerationItem(db, {
+				runId: item.runId,
+				nodeId: scoped,
+			});
+		}
+	}
+	const { verdict } = await runServices.settleRun(db, item.runId, item.id);
 
 	const customRecords = await loadCustomRecords(
 		db,
@@ -213,7 +237,10 @@ export async function resumeRun(
 			aiReviewNotRun: runData.steps.some(isAiReviewNotRunStep),
 			pendingActionRows: actionRows,
 			pendingCheckPosted: true,
-			resumedFrom: "needs_review",
+			resumedFrom: resumedFrom(runData.run.verdict),
+			...(verdict === runData.run.verdict
+				? { surfaceKey: `resume:${item.id}` }
+				: {}),
 		},
 	);
 	// §9 live activity feed: the resumed run's verdict changed — announce it.
@@ -231,12 +258,11 @@ export async function resumeRun(
 async function resumeDegradedRun(
 	deps: ProcessEventDeps,
 	runId: string,
+	itemId: string,
 	decision: "approve" | "deny",
 	normalized: NormalizedEvent,
 	runData: NonNullable<Awaited<ReturnType<typeof runServices.getRunWithSteps>>>,
 ): Promise<void> {
-	const verdict = decision === "approve" ? "pass" : "block";
-	await runServices.completeRun(deps.db, runId, verdict);
 	const actionRows =
 		decision === "deny"
 			? await runServices.recordActions(deps.db, runId, [
@@ -250,6 +276,7 @@ async function resumeDegradedRun(
 					},
 				])
 			: [];
+	const { verdict } = await runServices.settleRun(deps.db, runId, itemId);
 	const customRecords = await loadCustomRecords(
 		deps.db,
 		runData.run.repoFullName,
@@ -270,7 +297,10 @@ async function resumeDegradedRun(
 			aiReviewNotRun: runData.steps.some(isAiReviewNotRunStep),
 			pendingActionRows: actionRows,
 			pendingCheckPosted: true,
-			resumedFrom: "needs_review",
+			resumedFrom: resumedFrom(runData.run.verdict),
+			...(verdict === runData.run.verdict
+				? { surfaceKey: "resume:degraded" }
+				: {}),
 		},
 	);
 	await deps.pool.query("SELECT pg_notify('runs', $1)", [runData.run.eventId]);
@@ -298,23 +328,39 @@ function splitNodeId(nodeId: string): [string, string | null] {
 	return [nodeId.slice(0, index), nodeId.slice(index + 1)];
 }
 
-function deriveOutcomes(
+function resumedFrom(stored: string | null): Verdict {
+	const parsed = verdictSchema.safeParse(stored);
+	return parsed.success ? parsed.data : "needs_review";
+}
+
+const decisionInputSchema = z
+	.object({ decision: z.enum(["approve", "deny"]) })
+	.nullable()
+	.catch(null);
+
+export function deriveOutcomes(
 	definition: WorkflowDefinition,
-	steps: { nodeId: string; status: string }[],
+	steps: { nodeId: string; status: string; input?: unknown }[],
 	wfId: string,
-): Record<string, NodeOutcome> {
+): {
+	outcomes: Record<string, NodeOutcome>;
+	decisions: Record<string, "approve" | "deny">;
+} {
 	const outcomes: Record<string, NodeOutcome> = {};
+	const decisions: Record<string, "approve" | "deny"> = {};
 	for (const step of steps) {
-		if (!step.nodeId.startsWith(`${wfId}:`)) {
+		const local = stepLocalId(step.nodeId, wfId);
+		if (local === null || !definition.nodes.some((node) => node.id === local)) {
 			continue;
 		}
-		const local = step.nodeId.slice(wfId.length + 1);
-		if (definition.nodes.some((node) => node.id === local)) {
-			outcomes[local] =
-				step.status === "fail" || step.status === "skipped"
-					? step.status
-					: "pass";
+		outcomes[local] =
+			step.status === "fail" || step.status === "skipped"
+				? step.status
+				: "pass";
+		const decision = decisionInputSchema.parse(step.input ?? null)?.decision;
+		if (decision) {
+			decisions[local] = decision;
 		}
 	}
-	return outcomes;
+	return { outcomes, decisions };
 }

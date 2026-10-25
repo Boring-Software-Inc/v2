@@ -3,7 +3,9 @@ import {
 	type Forge,
 	type JsonValue,
 	RULE_CATALOG,
+	type RuleOutcomeSetting,
 	ruleIdOf,
+	ruleOutcomeAction,
 	ruleSupportsForge,
 	type WorkflowDefinition,
 	type WorkflowEdge,
@@ -24,6 +26,7 @@ export interface RuleToggle {
 	ref: string;
 	enabled: boolean;
 	config: JsonValue;
+	outcome?: RuleOutcomeSetting;
 }
 
 const CATALOG_ORDER: readonly string[] = RULE_CATALOG.map(
@@ -70,7 +73,11 @@ export function deriveDefaultWorkflow(
 	const runsHere = (ref: string): boolean =>
 		!forge || ruleSupportsForge(ruleIdOf(ref), forge);
 
-	const included: { ref: string; config: JsonValue }[] = [];
+	const included: {
+		ref: string;
+		config: JsonValue;
+		outcome?: RuleOutcomeSetting;
+	}[] = [];
 	const seen = new Set<string>();
 	for (const toggle of toggles) {
 		const id = ruleIdOf(toggle.ref);
@@ -83,7 +90,11 @@ export function deriveDefaultWorkflow(
 			continue;
 		}
 		seen.add(id);
-		included.push({ ref: toggle.ref, config: toggle.config });
+		included.push({
+			ref: toggle.ref,
+			config: toggle.config,
+			outcome: toggle.outcome,
+		});
 	}
 	const position = (ref: string): number => {
 		const index = CATALOG_ORDER.indexOf(ruleIdOf(ref));
@@ -102,15 +113,63 @@ export function deriveDefaultWorkflow(
 		edges.push({ id: `t-${index}`, from: trigger.id, to: id });
 	});
 
-	// Every rule disabled ⇒ trigger-only workflow: nothing to gate ⇒ pass.
-	if (included.length > 0) {
-		nodes.push({ id: "gate", type: "gate", mode: "all-of" });
-		included.forEach((_rule, index) => {
-			edges.push({ id: `g-${index}`, from: `rule-${index}`, to: "gate" });
+	const grouped = (
+		outcome: "block" | "human_review" | "close",
+		gateId: string,
+		actionNode: WorkflowNode,
+	) => {
+		const members = included.flatMap((rule, index) =>
+			(rule.outcome?.outcome ?? "block") === outcome ? [index] : [],
+		);
+		if (members.length === 0) {
+			return;
+		}
+		nodes.push({ id: gateId, type: "gate", mode: "all-of" });
+		for (const index of members) {
+			edges.push({
+				id: outcome === "block" ? `g-${index}` : `${gateId}-${index}`,
+				from: `rule-${index}`,
+				to: gateId,
+			});
+		}
+		nodes.push(actionNode);
+		edges.push({
+			id: outcome === "block" ? "e-block" : `e-${actionNode.id}`,
+			from: gateId,
+			to: actionNode.id,
+			when: "fail",
 		});
-		nodes.push({ id: "block", type: "action", action: "block" });
-		edges.push({ id: "e-block", from: "gate", to: "block", when: "fail" });
-	}
+	};
+	grouped("block", "gate", { id: "block", type: "action", action: "block" });
+	grouped("close", "gate-close", {
+		id: "close",
+		type: "action",
+		action: "close",
+	});
+	grouped("human_review", "gate-review", {
+		id: "review",
+		type: "action",
+		action: "send-to-moderation",
+	});
+	included.forEach((rule, index) => {
+		const outcome = rule.outcome?.outcome;
+		if (outcome !== "request_fix" && outcome !== "note") {
+			return;
+		}
+		const { action, params } = ruleOutcomeAction(
+			rule.outcome ?? {
+				outcome,
+				instruction: "",
+			},
+		);
+		const id = `${outcome === "note" ? "note" : "fix"}-${index}`;
+		nodes.push(
+			params
+				? { id, type: "action", action, params }
+				: { id, type: "action", action },
+		);
+		edges.push({ id: `e-${id}`, from: `rule-${index}`, to: id, when: "fail" });
+	});
 
 	return {
 		id: DEFAULT_WORKFLOW.id,

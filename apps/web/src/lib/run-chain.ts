@@ -3,6 +3,7 @@ import {
 	AI_REVIEW_RULE_ID,
 	aiReviewTraceSchema,
 	bearsVerdict,
+	isHeldVerdict,
 	RUN_RESULT_LABELS,
 	type RunResult,
 	redactionHides,
@@ -430,7 +431,7 @@ function checksNode(
 	}
 	return {
 		title: `${total} of ${total} rules passed`,
-		tone: run.verdict === "block" ? "neutral" : "ok",
+		tone: isHeldVerdict(run.verdict) ? "neutral" : "ok",
 		glyph: "pass",
 		offsetMs,
 		body,
@@ -462,6 +463,14 @@ function checkChip(run: RunView, action: RunActionView): ChainChip {
 		return {
 			...base,
 			label: "Check blocked",
+			glyph: "fail",
+			tone: "fail",
+		};
+	}
+	if (run.verdict === "changes_required" || run.verdict === "close") {
+		return {
+			...base,
+			label: "Check failed",
 			glyph: "fail",
 			tone: "fail",
 		};
@@ -692,6 +701,20 @@ function verdictOutcome(run: RunView): ChainOutcome {
 						: null,
 			};
 		}
+		case "changes_required":
+			return {
+				...base,
+				...words(result),
+				tone: "fail",
+				glyph: "fail",
+			};
+		case "close":
+			return {
+				...base,
+				...words(result),
+				tone: "fail",
+				glyph: "blocked",
+			};
 		case "needs_review":
 			return {
 				...base,
@@ -754,6 +777,12 @@ function nextRunWord(next: RunLinkView): string {
 	if (next.verdict === "block") {
 		return "Newer run blocked";
 	}
+	if (next.verdict === "changes_required") {
+		return "Newer run asked for changes";
+	}
+	if (next.verdict === "close") {
+		return "Newer run closed it";
+	}
 	if (next.verdict === "needs_review") {
 		return "Newer run is waiting for human review";
 	}
@@ -781,7 +810,9 @@ function supersededOutcome(run: RunView, next: RunLinkView): ChainOutcome {
 	const tone: ChainTone =
 		next.verdict === "pass"
 			? "ok"
-			: next.verdict === "block"
+			: next.verdict === "block" ||
+					next.verdict === "changes_required" ||
+					next.verdict === "close"
 				? "fail"
 				: "neutral";
 	return {

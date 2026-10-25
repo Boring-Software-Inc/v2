@@ -288,6 +288,13 @@
       "when": 1792905692134,
       "tag": "0040_rule_previews",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792922513587,
+      "tag": "0041_rule_outcomes",
+      "breakpoints": true
     }
   ]
 }

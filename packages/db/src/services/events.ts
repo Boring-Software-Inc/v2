@@ -168,6 +168,31 @@ export async function getLatestChangeRequestEvent(
 	return rows[0] ?? null;
 }
 
+export async function changeRequestIsClosed(
+	db: Db,
+	repoFullName: string,
+	subjectNumber: number,
+): Promise<boolean> {
+	const rows = await db
+		.select({ kind: events.kind })
+		.from(events)
+		.where(
+			and(
+				eq(events.repoFullName, repoFullName),
+				eq(events.subjectNumber, subjectNumber),
+				isNotNull(events.normalizedAt),
+				inArray(events.kind, [
+					"change-request.opened",
+					"change-request.updated",
+					"change-request.closed",
+				]),
+			),
+		)
+		.orderBy(desc(events.id))
+		.limit(1);
+	return rows[0]?.kind === "change-request.closed";
+}
+
 /**
  * Cursor-paginated normalized events, newest first. UUIDv7 ids are
  * time-sortable, so the id itself is the cursor.

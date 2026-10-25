@@ -142,11 +142,14 @@ export const AUTHORING_HELPERS = [
 	"label",
 	"lock",
 	"not",
+	"note",
 	"postComment",
 	"removeLabel",
+	"requestFix",
 	"requestReview",
 	"schedule",
 	"trigger",
+	"unless",
 	"webhook",
 	"workflow",
 	"workflows",
@@ -238,6 +241,8 @@ const ACTION_HELPER = {
 	webhook: "webhook",
 	discord: "discord",
 	"send-to-moderation": "humanReview",
+	"request-fix": "requestFix",
+	note: "note",
 } as const;
 
 const TAKES_NO_PARAMS = new Set([
@@ -414,6 +419,9 @@ function stepExpression(
 				}
 				return `not(${inputs[0]})`;
 			}
+			if (node.mode === "unless") {
+				return `unless(${inputs.join(", ")})`;
+			}
 			return `${node.mode === "all-of" ? "allOf" : "anyOf"}(${inputs.join(", ")})`;
 		}
 		case "action": {
@@ -558,6 +566,10 @@ function workflowFunction(
 	for (const node of topological(definition)) {
 		const inputs = definition.edges
 			.filter((edge) => edge.to === node.id && !left.has(edge.from))
+			.sort(
+				(a, b) =>
+					Number(a.input === "exception") - Number(b.input === "exception"),
+			)
 			.map((edge) => inputText(edge, names, byId));
 		const expression = stepExpression(
 			node,

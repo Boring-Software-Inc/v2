@@ -375,6 +375,30 @@ describe("run steps and decisions in product words", () => {
 		).toContain("Closed before review");
 	});
 
+	test("changes needed and closed print in product words", () => {
+		const text = formatResult("list_runs", [
+			{
+				id: "run_6",
+				repo: "grim/scratch",
+				number: 150,
+				status: "completed",
+				verdict: "changes_required",
+				createdAt: "2026-10-25T14:15:00.000Z",
+			},
+			{
+				id: "run_7",
+				repo: "grim/scratch",
+				number: 151,
+				status: "completed",
+				verdict: "close",
+				createdAt: "2026-10-25T14:16:00.000Z",
+			},
+		]);
+		expect(text).toContain("Changes needed");
+		expect(text).toContain("Closed");
+		expect(text).not.toContain("changes_required");
+	});
+
 	test("a decided review reads its decision once, and the floor names its workflow", () => {
 		const text = formatResult("get_run", {
 			id: "run_5",

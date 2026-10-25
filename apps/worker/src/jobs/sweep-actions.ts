@@ -5,9 +5,11 @@ import type { ForgeAdapter } from "@tripwire/forge";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 import {
+	CLOSE_PREREQUISITES,
 	emitClosedReviewSurfaces,
 	supersededBy,
 	toForgeAction,
+	VERDICT_ONLY_KINDS,
 } from "./pr-surface.ts";
 
 /**
@@ -136,6 +138,10 @@ export async function sweepActions(
 				continue;
 			}
 		}
+		if (VERDICT_ONLY_KINDS.has(row.kind)) {
+			await runServices.markActionExecuted(db, row.id, null);
+			continue;
+		}
 
 		if (SURFACE_KINDS.has(row.kind) && row.runStatus === "completed") {
 			const siblings = await runServices.listRunActions(db, row.runId);
@@ -163,6 +169,22 @@ export async function sweepActions(
 				"action abandoned — stuck past the give-up window, never executed",
 			);
 			continue;
+		}
+
+		if (row.kind === "close") {
+			const siblings = await runServices.listRunActions(db, row.runId);
+			const waiting = siblings.some(
+				(sibling) =>
+					CLOSE_PREREQUISITES.has(sibling.kind) &&
+					sibling.status === "recorded",
+			);
+			if (waiting) {
+				logger.info(
+					{ actionId: row.id, runId: row.runId },
+					"close waits for its comment and check",
+				);
+				continue;
+			}
 		}
 
 		/**
