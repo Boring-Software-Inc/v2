@@ -1,21 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { ruleUiSchema, WORKFLOW_STATE_LABELS } from "@tripwire/contracts";
 import { useId, useState } from "react";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { ArrowRight, Blocked, Icon, More } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import { Card, CardFooter } from "#/components/glaze/ui/card";
 import { Sparkline } from "#/components/glaze/ui/chart";
-import {
-	Dialog,
-	DialogAction,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -233,7 +224,6 @@ export function RuleCard({
 												? "Remove this rule from its workflows before you delete it"
 												: undefined
 										}
-										variant="destructive"
 									>
 										Delete rule
 									</DropdownMenuItem>
@@ -292,31 +282,14 @@ export function RuleCard({
 				</span>
 				{activity}
 			</CardFooter>
-			<Dialog
+			<ConfirmDeleteDialog
+				actionLabel="Delete rule"
+				description="Its past matches stay in Activity."
+				onConfirm={() => onDelete?.(rule.ruleId)}
 				onOpenChange={setConfirmingDelete}
 				open={Boolean(deletable) && confirmingDelete}
-				role="alertdialog"
-			>
-				<DialogContent size="sm">
-					<DialogHeader>
-						<DialogTitle>Delete {rule.name}?</DialogTitle>
-						<DialogDescription>
-							Tripwire stops checking change requests against this rule. Its
-							past matches stay in Activity.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<DialogClose>Keep rule</DialogClose>
-						<DialogAction
-							onAction={() => onDelete?.(rule.ruleId)}
-							pendingLabel="Deleting"
-							variant="destructive"
-						>
-							Delete rule
-						</DialogAction>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+				title={`Delete ${rule.name}?`}
+			/>
 		</Card>
 	);
 }

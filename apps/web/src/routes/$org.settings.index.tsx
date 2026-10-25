@@ -1,12 +1,12 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { firstSettingsSection } from "#/lib/settings-sections";
 
-/** Settings is a dialog now — the tab lives in `?settings=`, not a page. */
 export const Route = createFileRoute("/$org/settings/")({
-	beforeLoad: ({ params }) => {
+	beforeLoad: ({ params, context }) => {
 		throw redirect({
-			to: "/$org/home",
+			to: `/$org/settings/${firstSettingsSection(context.org.permissions)}`,
 			params: { org: params.org },
-			search: { settings: "members" },
+			replace: true,
 		});
 	},
 });

@@ -119,12 +119,7 @@ export function OrgSwitcher({
 					</DropdownMenuItem>
 					{org ? (
 						<DropdownMenuLinkItem
-							render={
-								<Link
-									search={(prev) => ({ ...prev, settings: "members" as const })}
-									to="."
-								/>
-							}
+							render={<Link params={{ org: org.slug }} to="/$org/settings" />}
 						>
 							<Icon icon={Settings} />
 							Org settings

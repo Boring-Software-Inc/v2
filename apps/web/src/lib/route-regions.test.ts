@@ -4,7 +4,18 @@ import { join } from "node:path";
 import { orgRegionSchema } from "@tripwire/contracts";
 
 const ROUTES_DIR = join(import.meta.dir, "..", "routes");
-const SHELL_ROUTES = new Set(["$org.tsx", "$org.$repo.tsx", "$org.home.tsx"]);
+const SHELL_ROUTES = new Set([
+	"$org.tsx",
+	"$org.$repo.tsx",
+	"$org.home.tsx",
+	"$org.settings.tsx",
+]);
+const ACCOUNT_SETTINGS_ROUTES = new Set([
+	"$org.settings.account.tsx",
+	"$org.settings.agents.tsx",
+	"$org.settings.billing.tsx",
+	"$org.settings.connections.tsx",
+]);
 const REGION = /staticData:\s*\{\s*region:\s*"([\w-]+)"\s*\}/;
 
 const orgPages = readdirSync(ROUTES_DIR)
@@ -19,7 +30,10 @@ describe("org page regions", () => {
 
 	test("every org page outside the shell declares a known region", () => {
 		const missing = orgPages
-			.filter(({ file }) => !SHELL_ROUTES.has(file))
+			.filter(
+				({ file }) =>
+					!SHELL_ROUTES.has(file) && !ACCOUNT_SETTINGS_ROUTES.has(file),
+			)
 			.filter(({ src }) => {
 				const region = REGION.exec(src)?.[1];
 				return !orgRegionSchema.safeParse(region).success;

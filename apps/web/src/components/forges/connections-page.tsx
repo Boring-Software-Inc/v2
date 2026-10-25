@@ -1,25 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FORGE_BY_ID } from "@tripwire/contracts";
 import { useState } from "react";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import { Add, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
-	Dialog,
-	DialogAction,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
-import {
 	Empty,
-	EmptyContent,
-	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
@@ -39,6 +28,8 @@ import {
 } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
 import { MascotArt } from "#/components/mascot/mascot-art";
+import { SettingsHeader } from "#/components/settings/settings-frame";
+import { currentUserQueryOptions } from "#/lib/auth.query";
 import {
 	disconnectForge,
 	type ForgeConnection,
@@ -54,13 +45,18 @@ function tokenExpired(connection: ForgeConnection): boolean {
 	return Date.parse(connection.accessTokenExpiresAt) <= Date.now();
 }
 
-function ConnectionRow({ connection }: { connection: ForgeConnection }) {
+function ConnectionRow({
+	connection,
+	login,
+}: {
+	connection: ForgeConnection;
+	login: string | null;
+}) {
 	const queryClient = useQueryClient();
 	const [confirming, setConfirming] = useState(false);
 	const label = FORGE_BY_ID[connection.forge]?.label ?? connection.forge;
-	// Expired but refreshable is not worth showing — the next call fixes it
-	// silently. Only a dead grant needs the user.
 	const needsReauth = tokenExpired(connection) && !connection.canRefresh;
+	const confirmText = connection.forge === "github" && login ? login : label;
 
 	const disconnect = useMutation({
 		mutationFn: () =>
@@ -122,32 +118,25 @@ function ConnectionRow({ connection }: { connection: ForgeConnection }) {
 					aria-label={`Disconnect ${label}`}
 					onClick={() => setConfirming(true)}
 					size="sm"
-					variant="ghost"
+					variant="secondary"
 				>
 					Disconnect
 				</Button>
 			</ItemActions>
-			<Dialog onOpenChange={setConfirming} open={confirming} role="alertdialog">
-				<DialogContent size="sm">
-					<DialogHeader>
-						<DialogTitle>Disconnect {label}?</DialogTitle>
-						<DialogDescription>
-							Tripwire stops watching every repo that came in through {label}.
-							You can connect it again later.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<DialogClose>Cancel</DialogClose>
-						<DialogAction
-							onAction={() => disconnect.mutateAsync()}
-							pendingLabel="Disconnecting"
-							variant="destructive"
-						>
-							Disconnect {label}
-						</DialogAction>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<ConfirmDeleteDialog
+				actionLabel="Disconnect"
+				confirmText={confirmText}
+				description={
+					connection.repoCount > 0
+						? `Tripwire stops watching ${connection.repoCount} ${connection.repoCount === 1 ? "repo" : "repos"}.`
+						: undefined
+				}
+				onConfirm={() => disconnect.mutateAsync()}
+				onOpenChange={setConfirming}
+				open={confirming}
+				pendingLabel="Disconnecting"
+				title={`Disconnect ${label}?`}
+			/>
 		</Item>
 	);
 }
@@ -172,39 +161,19 @@ function ConnectionRowsSkeleton() {
 	);
 }
 
-/**
- * Connections — the forges this account is linked to, what each one brings in,
- * and the door to add or remove one. Repo counts and token health are joined in
- * so a dead grant is visible HERE rather than discovered when an import fails.
- */
 export function ConnectionsPage({ org }: { org: string | null }) {
 	const [connecting, setConnecting] = useState(false);
 	const { data: connections, isLoading } = useQuery(connectionsQueryOptions());
+	const { data: user } = useQuery(currentUserQueryOptions());
 
 	return (
-		<section
-			aria-labelledby="connections-heading"
-			className="flex flex-col gap-3"
-		>
-			<div className="flex items-start justify-between gap-3">
-				<div className="flex min-w-0 flex-col gap-0.5">
-					<h3 className="type-heading-sm" id="connections-heading">
-						Connections
-					</h3>
-					<p className="type-body-sm text-text-2">
-						The forges your account is linked to, and the repos each one brings
-						in.
-					</p>
-				</div>
-				<Button
-					onClick={() => setConnecting(true)}
-					size="sm"
-					variant="secondary"
-				>
+		<>
+			<SettingsHeader title="Connections">
+				<Button onClick={() => setConnecting(true)}>
 					<Icon icon={Add} />
 					Connect repos
 				</Button>
-			</div>
+			</SettingsHeader>
 
 			<SkeletonSwap
 				fallback={<ConnectionRowsSkeleton />}
@@ -212,14 +181,17 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 				loading={isLoading}
 			>
 				{connections?.length ? (
-					<ItemGroup variant="plain" aria-label="Connections">
-						{connections.map((connection) => (
-							<ConnectionRow
-								connection={connection}
-								key={`${connection.forge}:${connection.accountId}`}
-							/>
-						))}
-					</ItemGroup>
+					<div className="shell">
+						<ItemGroup aria-label="Connections">
+							{connections.map((connection) => (
+								<ConnectionRow
+									connection={connection}
+									key={`${connection.forge}:${connection.accountId}`}
+									login={user?.forgeLogin ?? null}
+								/>
+							))}
+						</ItemGroup>
+					</div>
 				) : (
 					<Empty
 						art={<MascotArt mood="forges-empty" size="compact" />}
@@ -228,19 +200,7 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 					>
 						<EmptyHeader>
 							<EmptyTitle>No forges connected yet</EmptyTitle>
-							<EmptyDescription>
-								Connect a forge so Tripwire can watch its repos.
-							</EmptyDescription>
 						</EmptyHeader>
-						<EmptyContent>
-							<Button
-								onClick={() => setConnecting(true)}
-								size="sm"
-								variant="secondary"
-							>
-								Connect repos
-							</Button>
-						</EmptyContent>
 					</Empty>
 				)}
 			</SkeletonSwap>
@@ -250,6 +210,6 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 				open={connecting}
 				org={org}
 			/>
-		</section>
+		</>
 	);
 }

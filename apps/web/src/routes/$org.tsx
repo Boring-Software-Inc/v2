@@ -1,12 +1,14 @@
 import {
 	createFileRoute,
 	notFound,
+	redirect,
 	stripSearchParams,
 } from "@tanstack/react-router";
 import { NotFound } from "#/components/not-found";
 import { OrgScopeOutlet } from "#/components/organizations/org-scope-outlet";
 import { orgContextQueryOptions } from "#/lib/org.query";
 import { ORG_SEARCH_DEFAULTS, orgSearchSchema } from "#/lib/org-search";
+import { sectionForSettingsTab } from "#/lib/settings-sections";
 
 /**
  * §8 — the URL is the source of truth for org scope. This layout resolves
@@ -16,7 +18,14 @@ import { ORG_SEARCH_DEFAULTS, orgSearchSchema } from "#/lib/org-search";
 export const Route = createFileRoute("/$org")({
 	validateSearch: orgSearchSchema,
 	search: { middlewares: [stripSearchParams(ORG_SEARCH_DEFAULTS)] },
-	beforeLoad: async ({ params, context }) => {
+	beforeLoad: async ({ params, context, search }) => {
+		if (search.settings) {
+			throw redirect({
+				to: `/$org/settings/${sectionForSettingsTab(search.settings)}`,
+				params: { org: params.org },
+				replace: true,
+			});
+		}
 		try {
 			const org = await context.queryClient.ensureQueryData(
 				orgContextQueryOptions(params.org),

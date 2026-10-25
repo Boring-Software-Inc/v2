@@ -260,8 +260,7 @@ function BlockedStep({
 									className={buttonVariants({ variant: "ghost", size: "sm" })}
 									onClick={onLeave}
 									params={{ org: org.slug }}
-									search={{ settings: "members" }}
-									to="/$org/home"
+									to="/$org/settings/members"
 								>
 									Members
 								</Link>
@@ -269,8 +268,7 @@ function BlockedStep({
 									className={buttonVariants({ variant: "ghost", size: "sm" })}
 									onClick={onLeave}
 									params={{ org: org.slug }}
-									search={{ settings: "settings" }}
-									to="/$org/home"
+									to="/$org/settings/general"
 								>
 									Delete org
 								</Link>

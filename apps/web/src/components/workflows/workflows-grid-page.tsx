@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { AgentOutline } from "#/components/agent/agent-outline";
 import { AgentPresence } from "#/components/agent/agent-presence";
 import { Collection } from "#/components/collection/collection";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
@@ -27,9 +28,7 @@ import {
 	DialogAction,
 	DialogBody,
 	DialogClose,
-	DialogConfirmField,
 	DialogContent,
-	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -622,10 +621,7 @@ function WorkflowRow({
 												Duplicate workflow
 											</DropdownMenuItem>
 											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												onClick={() => setDeleting(true)}
-												variant="destructive"
-											>
+											<DropdownMenuItem onClick={() => setDeleting(true)}>
 												Delete workflow
 											</DropdownMenuItem>
 										</DropdownMenuContent>
@@ -674,38 +670,13 @@ function WorkflowRow({
 				</DialogContent>
 			</Dialog>
 
-			<Dialog
-				confirmText={workflow.enabled ? workflow.name : undefined}
+			<ConfirmDeleteDialog
+				description="This can't be undone."
+				onConfirm={submitDelete}
 				onOpenChange={setDeleting}
 				open={deleting}
-				role="alertdialog"
-			>
-				<DialogContent size="sm">
-					<DialogHeader>
-						<DialogTitle>Delete {workflow.name}?</DialogTitle>
-						<DialogDescription>
-							{workflow.enabled
-								? "This workflow is on and checks change requests right now. Deleting it stops those checks, and you cannot undo it."
-								: "This draft is deleted for good. You cannot undo it."}
-						</DialogDescription>
-					</DialogHeader>
-					{workflow.enabled ? (
-						<DialogBody>
-							<DialogConfirmField />
-						</DialogBody>
-					) : null}
-					<DialogFooter>
-						<DialogClose>Cancel</DialogClose>
-						<DialogAction
-							onAction={submitDelete}
-							pendingLabel="Deleting"
-							variant="destructive"
-						>
-							Delete workflow
-						</DialogAction>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+				title={`Delete ${workflow.name}?`}
+			/>
 		</>
 	);
 }
