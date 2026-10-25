@@ -62,7 +62,22 @@ interface OutcomeStep {
 	nodeId: string;
 	nodeKind: string;
 	status: string;
+	input?: unknown;
 	output?: unknown;
+}
+
+const closeHoldSchema = z
+	.object({ hold: z.enum(["degraded", "reopened"]) })
+	.nullable()
+	.catch(null);
+
+function closeHold(
+	steps: readonly OutcomeStep[],
+): "degraded" | "reopened" | null {
+	const step = steps.find((entry) => entry.nodeId === "run:close-held");
+	return step
+		? (closeHoldSchema.parse(step.input ?? null)?.hold ?? null)
+		: null;
 }
 
 const unrunnableOutputSchema = z
@@ -93,6 +108,7 @@ export function workflowOutcomes(
 ): RunWorkflowView[] {
 	const ids = snapshot.map((definition) => definition.id);
 	const evaluating = runStatus === "queued" || runStatus === "running";
+	const held = closeHold(steps);
 	const ran = snapshot.map((definition): RunWorkflowView => {
 		const own = steps.flatMap((step) => {
 			const ref = splitStepNode(step.nodeId, ids);
@@ -119,9 +135,10 @@ export function workflowOutcomes(
 			),
 		);
 		let outcome: WorkflowOutcome | null = "pass";
-		if (ranAction("close") && closesGate) {
+		const closed = ranAction("close") && closesGate;
+		if (closed && held === null) {
 			outcome = "close";
-		} else if (ranAction("block")) {
+		} else if (ranAction("block") || (closed && held === "reopened")) {
 			outcome = "block";
 		} else if (ranAction("request-fix")) {
 			outcome = "changes";

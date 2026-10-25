@@ -161,4 +161,28 @@ describe("workflowOutcomes with rule outcomes", () => {
 			workflowOutcomes([OUTCOMES], closing, "completed", false)[0]?.outcome,
 		).toBe("pass");
 	});
+
+	test("a held close never reads Closed", () => {
+		const closing = [
+			{ nodeId: "wf-out:age", nodeKind: "rule", status: "fail" },
+			{ nodeId: "wf-out:close", nodeKind: "action", status: "pass" },
+		];
+		const heldBy = (hold: string) => [
+			...closing,
+			{
+				nodeId: "run:close-held",
+				nodeKind: "action",
+				status: "skipped",
+				input: { action: "close", hold },
+			},
+		];
+		expect(
+			workflowOutcomes([OUTCOMES], heldBy("reopened"), "completed", true)[0]
+				?.outcome,
+		).toBe("block");
+		expect(
+			workflowOutcomes([OUTCOMES], heldBy("degraded"), "paused", true)[0]
+				?.outcome,
+		).not.toBe("close");
+	});
 });
