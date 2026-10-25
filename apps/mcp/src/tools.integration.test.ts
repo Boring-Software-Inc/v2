@@ -11,6 +11,7 @@ import {
 	workflowPushViewSchema,
 } from "@tripwire/contracts";
 import {
+	agentServices,
 	agentWorkServices,
 	aiProviderServices,
 	applyMigrations,
@@ -32,7 +33,7 @@ import type { Pool } from "pg";
 import { z } from "zod";
 import { readConfig } from "./config.ts";
 import { RELEASE_EXAMPLE } from "./custom-rule-guide.ts";
-import { registerTools } from "./tools.ts";
+import { registerTools, SWITCH_ACCOUNT_STEPS } from "./tools.ts";
 
 const config = readConfig({
 	BETTER_AUTH_SECRET: "test-secret",
@@ -67,7 +68,10 @@ let repoRows: Awaited<ReturnType<typeof ensureDemoRepo>>[];
 const USER_ID = "mcp-tools-user";
 const clients: Client[] = [];
 
-async function connect(orgIds: string[]): Promise<Client> {
+async function connect(
+	orgIds: string[],
+	clientId = "test-client",
+): Promise<Client> {
 	const server = new McpServer({ name: "tripwire-test", version: "0.0.0" });
 	registerTools(
 		server,
@@ -78,7 +82,7 @@ async function connect(orgIds: string[]): Promise<Client> {
 			config,
 			agent: {
 				userId: USER_ID,
-				clientId: "test-client",
+				clientId,
 				scopes: [...SCOPES],
 				orgIds,
 			},
@@ -604,6 +608,78 @@ describe("tool errors", () => {
 			error: "No org named nope-org for this account.",
 			hint: "list_orgs",
 		});
+	});
+});
+
+describe("whoami", () => {
+	test("names the GitHub login the agent is signed in as", async () => {
+		await db
+			.insert(schema.forgeIdentities)
+			.values({
+				id: "mcp-tools-identity",
+				userId: USER_ID,
+				forge: "github",
+				externalId: "mcp-tools-4242",
+				username: "old-account",
+			})
+			.onConflictDoNothing();
+		const result = await call("whoami", {});
+		expect(result.isError).toBeFalsy();
+		expect(JSON.parse(result.content[0]?.text ?? "")).toMatchObject({
+			signedInAs: "@old-account on GitHub",
+			user: { id: USER_ID, githubLogin: "old-account" },
+		});
+	});
+});
+
+describe("switch_account", () => {
+	const agentClient = (clientId: string) => ({
+		clientId,
+		name: clientId,
+		scopes: ["tripwire:read"],
+		grantTypes: ["authorization_code", "refresh_token"],
+		resource: {
+			identifier: config.resource,
+			name: "Tripwire",
+			allowedScopes: ["tripwire:read"],
+		},
+	});
+
+	test("ends only the calling agent's sign-in and says how to reconnect", async () => {
+		const id = await orgId();
+		if (!id) {
+			never();
+		}
+		for (const clientId of ["switching-agent", "other-agent"]) {
+			await agentServices.ensurePublicAgentClient(db, agentClient(clientId));
+			await agentServices.saveAgentGrant(db, {
+				userId: USER_ID,
+				clientId,
+				orgIds: [id],
+			});
+		}
+		const switching = await connect([id], "switching-agent");
+		const result = textSchema.parse(
+			await switching.callTool({ name: "switch_account", arguments: {} }),
+		);
+		expect(result.isError).toBeFalsy();
+		const body = JSON.parse(result.content[0]?.text ?? "");
+		expect(body.reconnect).toEqual(SWITCH_ACCOUNT_STEPS);
+		expect(body.reconnect.claudeCode).toBe(
+			"Reconnect Tripwire: run /mcp, pick tripwire, then Authenticate.",
+		);
+		expect(
+			await agentServices.getAgentGrant(db, {
+				userId: USER_ID,
+				clientId: "switching-agent",
+			}),
+		).toBeNull();
+		expect(
+			await agentServices.getAgentGrant(db, {
+				userId: USER_ID,
+				clientId: "other-agent",
+			}),
+		).not.toBeNull();
 	});
 });
 

@@ -45,11 +45,13 @@ export interface FakeServer {
 
 const RESULTS: Record<string, z.infer<ReturnType<typeof z.json>>> = {
 	whoami: {
+		signedInAs: "@grim on GitHub",
 		user: {
 			id: "u1",
 			name: "grim",
 			email: "vysvisuals@gmail.com",
 			accessStatus: "approved",
+			githubLogin: "grim",
 		},
 		access: { approved: true },
 		orgs: [{ slug: "grim", name: "grim", role: "admin", agentAllowed: true }],

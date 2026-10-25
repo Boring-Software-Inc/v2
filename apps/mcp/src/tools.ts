@@ -90,6 +90,24 @@ const NEXT_STEP_GUIDE = {
 	done: "Tripwire checks pull requests on at least one repo. Open a test pull request from another account to see a check.",
 } as const;
 
+export const SWITCH_ACCOUNT_STEPS = {
+	claudeCode: "Reconnect Tripwire: run /mcp, pick tripwire, then Authenticate.",
+	otherAgents:
+		"Reconnect the tripwire MCP server in your agent and sign in again.",
+	onTripwire:
+		"On the Tripwire page, pick Use another account and sign in to GitHub with the right account.",
+} as const;
+
+function signedInAs(
+	githubLogin: string | null | undefined,
+	name: string | null | undefined,
+): string {
+	if (githubLogin) {
+		return `@${githubLogin} on GitHub`;
+	}
+	return name ?? "an account with no GitHub login";
+}
+
 function resultWords(run: {
 	status: string;
 	verdict: string | null;
@@ -147,7 +165,7 @@ export function registerTools(
 			"whoami",
 			{
 				description:
-					"Who this agent is signed in as, whether Tripwire access is approved, and which orgs the agent may use.",
+					"Who this agent is signed in as, with the GitHub login, whether Tripwire access is approved, and which orgs the agent may use. If the GitHub login is not the account the user means, call switch_account.",
 				annotations: annotate("whoami"),
 			},
 			() =>
@@ -158,6 +176,7 @@ export function registerTools(
 						ctx.agent.userId,
 					);
 					return ok({
+						signedInAs: signedInAs(user?.githubLogin, user?.name),
 						user,
 						access: ctx.accessDenied
 							? {
@@ -173,6 +192,37 @@ export function registerTools(
 							agentAllowed: ctx.agent.orgIds.includes(org.id),
 						})),
 						scopes: ctx.agent.scopes,
+					});
+				}),
+		);
+	}
+
+	if (visible("switch_account")) {
+		server.registerTool(
+			"switch_account",
+			{
+				description:
+					"Sign this agent out of Tripwire so the user can connect it again with another GitHub account. Call it when whoami shows the wrong GitHub login or a repo the user owns is missing. It ends only this agent's sign-in, not the user's browser or CLI. Then give the user the reconnect step it returns.",
+				annotations: {
+					readOnlyHint: false,
+					destructiveHint: true,
+					idempotentHint: true,
+					openWorldHint: false,
+				},
+			},
+			() =>
+				guard(async () => {
+					const user = await agentServices.getAgentUser(
+						ctx.db,
+						ctx.agent.userId,
+					);
+					await agentServices.revokeAgent(ctx.db, {
+						userId: ctx.agent.userId,
+						clientId: ctx.agent.clientId,
+					});
+					return ok({
+						signedOut: signedInAs(user?.githubLogin, user?.name),
+						reconnect: SWITCH_ACCOUNT_STEPS,
 					});
 				}),
 		);

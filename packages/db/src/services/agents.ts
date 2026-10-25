@@ -1,7 +1,7 @@
 import { generateId } from "@tripwire/utils";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { user } from "../schema/auth.ts";
+import { forgeIdentities, user } from "../schema/auth.ts";
 import {
 	agentGrants,
 	deviceCode,
@@ -82,7 +82,22 @@ export async function getAgentUser(db: Db, userId: string) {
 		.from(user)
 		.where(eq(user.id, userId))
 		.limit(1);
-	return rows[0] ?? null;
+	const found = rows[0];
+	if (!found) {
+		return null;
+	}
+	const identities = await db
+		.select({ username: forgeIdentities.username })
+		.from(forgeIdentities)
+		.where(
+			and(
+				eq(forgeIdentities.userId, userId),
+				eq(forgeIdentities.forge, "github"),
+			),
+		)
+		.orderBy(forgeIdentities.createdAt)
+		.limit(1);
+	return { ...found, githubLogin: identities[0]?.username ?? null };
 }
 
 export async function touchAgentGrant(

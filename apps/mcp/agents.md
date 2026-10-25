@@ -19,3 +19,7 @@ HARD RULES:
 - Never accept or return secrets: webhook URLs and signing secrets are set in
   the app. Destructive acts (ban) return a confirm link for a human.
 - `report_setup_progress` never errors to the agent and never blocks setup.
+- `whoami` names the GitHub login. `switch_account` revokes only the calling
+  agent's grant and tokens (`revokeAgent` for its user and client), never the
+  web session or the CLI, and returns the reconnect step. It stays listed in
+  read-only mode and for pending users.

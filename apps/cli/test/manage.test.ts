@@ -91,6 +91,7 @@ describe("management commands over MCP", () => {
 		expect(result.stdout).toBe(
 			[
 				"user      grim  vysvisuals@gmail.com",
+				"github    @grim",
 				"access    approved",
 				"orgs      grim (admin)",
 				"",

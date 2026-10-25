@@ -2,6 +2,7 @@ import type { AgentScope, OrgPermission } from "@tripwire/contracts";
 
 export const TOOL_NAMES = [
 	"whoami",
+	"switch_account",
 	"setup_status",
 	"list_repos",
 	"get_install_link",
@@ -39,6 +40,7 @@ export interface ToolSpec {
 
 export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
 	whoami: { scope: "tripwire:read", need: "none", readOnly: true },
+	switch_account: { scope: "tripwire:read", need: "none", readOnly: false },
 	setup_status: { scope: "tripwire:read", need: "org-shell", readOnly: true },
 	list_repos: { scope: "tripwire:read", need: "org-shell", readOnly: true },
 	get_install_link: {
@@ -202,7 +204,7 @@ export function toolVisible(
 	selection: ToolVisibility,
 ): boolean {
 	const spec = TOOL_SPECS[name];
-	if (name === "report_setup_progress") {
+	if (name === "report_setup_progress" || name === "switch_account") {
 		return true;
 	}
 	if (selection.readOnly && !spec.readOnly) {

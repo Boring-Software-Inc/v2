@@ -100,6 +100,14 @@ describe("tool selection", () => {
 		expect(toolVisible("get_repo_rules", selection)).toBe(true);
 	});
 
+	test("read_only still lets an agent switch account", () => {
+		const selection = selectTools(new URL("http://x/mcp?read_only=true"));
+		if (!selection.ok) {
+			throw new Error("expected a selection");
+		}
+		expect(toolVisible("switch_account", selection)).toBe(true);
+	});
+
 	test("a role sees the org shell and only the tools its region scopes allow", () => {
 		const selection = selectTools(new URL("http://x/mcp"));
 		if (!selection.ok) {
@@ -110,6 +118,7 @@ describe("tool selection", () => {
 		);
 		expect(listed).toEqual([
 			"whoami",
+			"switch_account",
 			"setup_status",
 			"list_repos",
 			"list_rule_catalog",
@@ -142,6 +151,7 @@ describe("tool access classification", () => {
 		);
 		expect(byNeed).toEqual({
 			whoami: "none",
+			switch_account: "none",
 			setup_status: "org-shell",
 			list_repos: "org-shell",
 			get_install_link: "connections:manage",
