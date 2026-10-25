@@ -140,6 +140,7 @@ export {
 	type SyncFlagResult,
 	type UserFlagOverride,
 } from "./services/flag-overrides.ts";
+export * as giphyServices from "./services/giphy.ts";
 export * as insightServices from "./services/insights.ts";
 export type {
 	InstallAccessCheck,

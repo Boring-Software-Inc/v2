@@ -123,6 +123,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getOrgResponseDefaults: "permission:responses:read",
 	saveRepoResponseConfig: "permission:responses:manage",
 	saveOrgResponseDefaults: "permission:responses:manage",
+	searchCloseGifs: "permission:responses:manage",
 
 	// ── analytics ─────────────────────────────────────────────────────────
 	getOrgAnalyticsSummary: "permission:analytics:read",

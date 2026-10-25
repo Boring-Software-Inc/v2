@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type {
+	CloseGif,
 	OrgResponseDefaults,
 	RedactionPolicy,
 	ResponseConfig,
@@ -10,6 +11,7 @@ import {
 } from "@tripwire/contracts";
 import type { RedactionUsage } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
+import type { GiphyPage } from "#/lib/server/giphy-search";
 import {
 	type OrgContext,
 	orgPermissionMiddleware,
@@ -25,6 +27,24 @@ type SaveResult = { ok: true } | { error: string };
 
 const INVALID_SETTINGS =
 	"These settings are not valid. Check the values and save again.";
+
+const STALE_GIF = Symbol("stale-gif");
+const STALE_GIF_ERROR =
+	"That GIF is no longer available. Pick it again and save.";
+
+async function settledCloseGif(
+	next: CloseGif | null,
+	saved: CloseGif | null,
+): Promise<CloseGif | null | typeof STALE_GIF> {
+	if (!next) {
+		return null;
+	}
+	if (saved && saved.id === next.id) {
+		return saved;
+	}
+	const { resolveServedGif } = await import("#/lib/server/giphy-store");
+	return (await resolveServedGif(next.id)) ?? STALE_GIF;
+}
 
 function samePolicy(a: RedactionPolicy, b: RedactionPolicy): boolean {
 	return JSON.stringify(a) === JSON.stringify(b);
@@ -60,8 +80,20 @@ export const saveRepoResponseConfig = createServerFn({ method: "POST" })
 		const { repoServices, responseServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
 		const db = getDb().db;
+		const saved = await repoServices.getResponseConfig(db, data.repoId);
+		const gif = await settledCloseGif(
+			parsed.data.closeComment.gif,
+			saved.closeComment.gif,
+		);
+		if (gif === STALE_GIF) {
+			return { error: STALE_GIF_ERROR };
+		}
+		const config: ResponseConfig = {
+			...parsed.data,
+			closeComment: { ...parsed.data.closeComment, gif },
+		};
 		const before = await responseServices.getRedactionPolicy(db, data.repoId);
-		await repoServices.upsertResponseConfig(db, data.repoId, parsed.data);
+		await repoServices.upsertResponseConfig(db, data.repoId, config);
 		const after = await responseServices.getRedactionPolicy(db, data.repoId);
 		if (!samePolicy(before, after)) {
 			const { enqueueSurfaceRefresh } = await import(
@@ -116,4 +148,26 @@ export const saveOrgResponseDefaults = createServerFn({ method: "POST" })
 			);
 		}
 		return { ok: true };
+	});
+
+export const searchCloseGifs = createServerFn({ method: "GET" })
+	.middleware([
+		accessGuardMiddleware,
+		orgPermissionMiddleware("responses:manage"),
+	])
+	.inputValidator((input: { org: string; query: string; offset: number }) => ({
+		org: String(input.org),
+		query: String(input.query ?? "").slice(0, 200),
+		offset: Number(input.offset) || 0,
+	}))
+	.handler(async ({ data }): Promise<GiphyPage> => {
+		const { readSessionState } = await import("#/lib/server/session");
+		const { giphyDeps } = await import("#/lib/server/giphy-store");
+		const { searchGiphy } = await import("#/lib/server/giphy-search");
+		const session = await readSessionState();
+		return searchGiphy(await giphyDeps(), {
+			userId: session.userId ?? "open",
+			query: data.query,
+			offset: data.offset,
+		});
 	});
