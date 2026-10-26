@@ -81,6 +81,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 
 	// ── activity (runs) ───────────────────────────────────────────────────
 	getActivityFeed: "permission:activity:read",
+	getHomeDigest: "permission:activity:read",
 	getLatestRunId: "permission:activity:read",
 	rerunChangeRequest: "permission:activity:manage",
 	getRerunPreview: "permission:activity:manage",

@@ -5,6 +5,7 @@ import {
 	type RepoScopedEvent,
 } from "@tripwire/contracts";
 import type { PreviewChangeRequest, PreviewInputs } from "@tripwire/db";
+import { generateId } from "@tripwire/utils";
 import { computeRulePreview, outsideContributors } from "./rule-preview.ts";
 
 const NOW = new Date("2026-07-12T00:00:00.000Z");
@@ -36,6 +37,7 @@ async function changeRequest(
 		throw new Error("fixture is not a change request");
 	}
 	return {
+		eventId: event.id,
 		number,
 		title,
 		author: `user-${number}`,
@@ -67,6 +69,9 @@ describe("computeRulePreview", () => {
 		expect(preview.changeRequests).toBe(2);
 		const english = ruleOf(preview, "english-only");
 		expect(english?.caught).toEqual([3]);
+		expect(english?.caughtEvents?.[0]?.eventId).toBe(
+			inputs.changeRequests[0]?.eventId,
+		);
 		expect(english?.examples[0]).toMatchObject({
 			number: 3,
 			author: "user-3",
@@ -104,6 +109,9 @@ describe("computeRulePreview", () => {
 	});
 
 	test("stored evaluations at the default settings count", async () => {
+		const historicalEventId = generateId();
+		const passingEventId = generateId();
+		const secondFailureEventId = generateId();
 		const preview = await computeRulePreview(
 			{
 				changeRequests: [
@@ -113,6 +121,7 @@ describe("computeRulePreview", () => {
 				steps: [
 					{
 						number: 5,
+						eventId: passingEventId,
 						ref: "account-age@1",
 						config: { minDays: 7 },
 						status: "pass",
@@ -120,13 +129,23 @@ describe("computeRulePreview", () => {
 					},
 					{
 						number: 5,
+						eventId: historicalEventId,
 						ref: "account-age@1",
 						config: { minDays: 7 },
 						status: "fail",
 						evidence: { accountAgeDays: 1, minDays: 7 },
 					},
 					{
+						number: 5,
+						eventId: secondFailureEventId,
+						ref: "account-age@1",
+						config: { minDays: 7 },
+						status: "fail",
+						evidence: { accountAgeDays: 2, minDays: 7 },
+					},
+					{
 						number: 4,
+						eventId: generateId(),
 						ref: "account-age@1",
 						config: { minDays: 7 },
 						status: "pass",
@@ -139,6 +158,10 @@ describe("computeRulePreview", () => {
 		);
 		const age = ruleOf(preview, "account-age");
 		expect(age?.caught).toEqual([5]);
+		expect(age?.caughtEvents).toEqual([
+			{ number: 5, eventId: historicalEventId },
+			{ number: 5, eventId: secondFailureEventId },
+		]);
 		expect(age?.examples[0]?.reason).toBe("Account 1 day old");
 	});
 
@@ -152,6 +175,7 @@ describe("computeRulePreview", () => {
 				steps: [
 					{
 						number: 5,
+						eventId: generateId(),
 						ref: "account-age@1",
 						config: { minDays: 30 },
 						status: "fail",
@@ -159,6 +183,7 @@ describe("computeRulePreview", () => {
 					},
 					{
 						number: 4,
+						eventId: generateId(),
 						ref: "account-age@1",
 						config: { minDays: 7 },
 						status: "skipped",

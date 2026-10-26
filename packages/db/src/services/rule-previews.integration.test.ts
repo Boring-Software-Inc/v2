@@ -70,10 +70,11 @@ test("loads the window's change requests and their stored rule steps", async () 
 	await opened(2, 5, "OWNER");
 	await opened(1, 45, "NONE");
 	const [event] = await db.select({ id: events.id }).from(events).limit(1);
+	if (!event) throw new Error("missing event");
 	const runId = generateId();
 	await db.insert(runs).values({
 		id: runId,
-		eventId: event?.id ?? "",
+		eventId: event.id,
 		repoFullName: "acme/app",
 		subjectNumber: 3,
 		status: "completed",
@@ -110,9 +111,11 @@ test("loads the window's change requests and their stored rule steps", async () 
 	expect(inputs.changeRequests.map((cr) => cr.number)).toEqual([3, 2]);
 	expect(inputs.changeRequests[1]?.authorAssociation).toBe("OWNER");
 	expect(inputs.changeRequests[0]?.title).toBe("Change 3");
+	expect(inputs.changeRequests[0]?.eventId).toBe(event.id);
 	expect(inputs.steps).toEqual([
 		{
 			number: 3,
+			eventId: event.id,
 			ref: "account-age@1",
 			config: { minDays: 7 },
 			status: "fail",

@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "#/components/glaze/ui/toast";
+import { homeDigestQueryKeys } from "#/lib/home-digest.query";
 import { setRulesEnabled } from "#/lib/rules.functions";
 import { rulesQueryKeys } from "#/lib/rules.query";
 import { trackEvent } from "#/lib/track";
@@ -27,9 +28,14 @@ export function useInstallRules(
 		} catch {
 			return "Tripwire could not save the change. Try again.";
 		} finally {
-			await queryClient.invalidateQueries({
-				queryKey: rulesQueryKeys.config(org, repoId),
-			});
+			await Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: rulesQueryKeys.config(org, repoId),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: homeDigestQueryKeys.all(org),
+				}),
+			]);
 		}
 	};
 
