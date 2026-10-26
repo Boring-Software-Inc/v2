@@ -11,14 +11,13 @@ export function CaughtCount({
 	count: number | null;
 	className?: string;
 }) {
-	if (count === null) {
+	if (!count) {
 		return null;
 	}
 	return (
 		<span
 			className={cn(
-				"shrink-0 type-body-sm tabular-nums",
-				count > 0 ? "text-text-1" : "text-text-2",
+				"shrink-0 type-body-sm text-text-1 tabular-nums",
 				className,
 			)}
 		>

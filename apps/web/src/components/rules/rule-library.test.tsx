@@ -66,7 +66,6 @@ describe("RuleLibrary", () => {
 				onInstall={() => undefined}
 				pending={null}
 				preview={null}
-				repoName="app"
 				rules={rules}
 			/>,
 		);

@@ -63,29 +63,9 @@ export function replayRuleIds(rules: readonly RuleConfigView[]): string[] {
 	});
 }
 
-export function PreviewWindow({
-	preview,
-	repoName,
-}: {
-	preview: RulePreview | null;
-	repoName: string;
-}) {
-	if (preview === null) {
-		return null;
-	}
-	return (
-		<p className="type-caption text-text-2">
-			Counts use {repoName}'s last {preview.windowDays} days,{" "}
-			{preview.changeRequests}{" "}
-			{preview.changeRequests === 1 ? "change request" : "change requests"}
-		</p>
-	);
-}
-
 export function RulePacks({
 	rules,
 	preview,
-	repoName,
 	canEdit,
 	pending,
 	onInstall,
@@ -94,7 +74,6 @@ export function RulePacks({
 	heading?: boolean;
 	rules: readonly RuleConfigView[];
 	preview: RulePreview | null;
-	repoName: string;
 	canEdit: boolean;
 	pending: string | null;
 	onInstall: (key: string, label: string, ruleIds: string[]) => void;
@@ -105,14 +84,11 @@ export function RulePacks({
 			aria-labelledby={heading ? "rule-packs-title" : undefined}
 			className="flex flex-col gap-3"
 		>
-			<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-				{heading ? (
-					<h2 className="type-heading-sm" id="rule-packs-title">
-						Start with a pack
-					</h2>
-				) : null}
-				<PreviewWindow preview={preview} repoName={repoName} />
-			</div>
+			{heading ? (
+				<h2 className="type-heading-sm" id="rule-packs-title">
+					Start with a pack
+				</h2>
+			) : null}
 			<Card>
 				<CardContent flush>
 					<ItemGroup variant="plain">

@@ -20,11 +20,7 @@ import {
 	ItemTitle,
 } from "#/components/glaze/ui/item";
 import { CaughtCount, caughtLabel } from "#/components/rules/caught-count";
-import {
-	PreviewWindow,
-	rulesCaught,
-	turnableRuleIds,
-} from "#/components/rules/rule-packs";
+import { rulesCaught, turnableRuleIds } from "#/components/rules/rule-packs";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
@@ -43,7 +39,6 @@ export function RuleLibrary({
 	rules,
 	preview,
 	mostUsed,
-	repoName,
 	canEdit,
 	pending,
 	onInstall,
@@ -51,7 +46,6 @@ export function RuleLibrary({
 	rules: readonly RuleConfigView[];
 	preview: RulePreview | null;
 	mostUsed: readonly string[];
-	repoName: string;
 	canEdit: boolean;
 	pending: string | null;
 	onInstall: (key: string, label: string, ruleIds: string[]) => void;
@@ -70,7 +64,6 @@ export function RuleLibrary({
 
 	return (
 		<div className="flex flex-col gap-6">
-			<PreviewWindow preview={preview} repoName={repoName} />
 			{groups.map((group) => (
 				<section className="flex flex-col gap-3" key={group.title}>
 					<h2 className="type-heading-sm">{group.title}</h2>

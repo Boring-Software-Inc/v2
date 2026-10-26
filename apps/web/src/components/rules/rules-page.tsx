@@ -342,10 +342,9 @@ export function RulesPage() {
 									onInstall={install}
 									pending={pending}
 									preview={preview}
-									repoName={repoName}
 									rules={rules ?? []}
 								/>
-								<section className="flex flex-wrap items-center justify-between gap-4 border-line-faint border-t pt-6">
+								<div>
 									<Button
 										onClick={() => showTab("library")}
 										size="sm"
@@ -353,7 +352,7 @@ export function RulesPage() {
 									>
 										Browse rules
 									</Button>
-								</section>
+								</div>
 							</>
 						) : (
 							<>
@@ -422,7 +421,6 @@ export function RulesPage() {
 											onInstall={install}
 											pending={pending}
 											preview={preview}
-											repoName={repoName}
 											rules={rules}
 										/>
 									)
