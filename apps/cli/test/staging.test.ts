@@ -154,30 +154,62 @@ test("staging install coexists with production and installs staging instructions
 	expect(JSON.parse(again.stdout).agents[0].mcp.outcome).toBe("unchanged");
 });
 
-test("Grok installs production after staging and keeps both entries on repeat installs", async () => {
+test.each([
+	["staging", "production"],
+	["production", "staging"],
+])("Grok installs %s then %s without skipping either server", async (first, second) => {
+	const order = [first, second];
 	sandbox.addBinary(
 		"grok",
-		`printf '%s\\n' "grok $*" >> "$ARGV_LOG"
+		`printf "%s\\n" "grok $*" >> "$ARGV_LOG"
 if [ "$1 $2" = "mcp list" ]; then
   if [ -f "$HOME/grok-servers" ]; then /bin/cat "$HOME/grok-servers"; fi
-elif [ "$1 $2" = "mcp add" ]; then
-  printf '%s\\n' "$5" >> "$HOME/grok-servers"
 fi
-exit 0`,
+if [ "$1 $2" = "mcp add" ]; then
+  printf '%s\\n' "$5" >> "$HOME/grok-servers"
+fi`,
 	);
-	const staging = { ...sandbox.env, TRIPWIRE_ENV: "staging" };
-	const production = { ...sandbox.env, TRIPWIRE_ENV: "production" };
-	for (const env of [staging, production, staging, production]) {
+	for (const target of order) {
+		const env = { ...sandbox.env, TRIPWIRE_ENV: target };
 		const result = await runCli(["install", "--json"], env);
 		expect(result.code).toBe(0);
+		expect(JSON.parse(result.stdout).agents[0].mcp.outcome).toBe("added");
+		const again = await runCli(["install", "--json"], env);
+		expect(again.code).toBe(0);
+		expect(JSON.parse(again.stdout).agents[0].mcp.outcome).toBe("unchanged");
 	}
-	expect(readFileSync(join(sandbox.home, "grok-servers"), "utf8")).toBe(
-		"tripwire-staging\ntripwire\n",
-	);
+	expect(
+		readFileSync(join(sandbox.home, "grok-servers"), "utf8")
+			.trim()
+			.split("\n")
+			.sort(),
+	).toEqual(["tripwire", "tripwire-staging"]);
 	expect(
 		sandbox.argv().filter((line) => line.startsWith("grok mcp add")),
-	).toEqual([
-		"grok mcp add --transport http tripwire-staging https://tripwire-mcp-preview-tripwire.unkey.app/mcp",
-		"grok mcp add --transport http tripwire https://mcp.tripwire.sh/mcp",
-	]);
+	).toEqual(
+		order.map((target) => {
+			const name = target === "staging" ? "tripwire-staging" : "tripwire";
+			const url =
+				target === "staging"
+					? "https://tripwire-mcp-preview-tripwire.unkey.app/mcp"
+					: PRODUCTION.mcpUrl;
+			return `grok mcp add --transport http ${name} ${url}`;
+		}),
+	);
+	for (const name of ["tripwire", "tripwire-staging"]) {
+		for (const skill of ["get-started", "workflows"]) {
+			expect(
+				readFileSync(
+					join(
+						sandbox.home,
+						".agents",
+						"skills",
+						`${name}-${skill}`,
+						"SKILL.md",
+					),
+					"utf8",
+				),
+			).toStartWith(`---\nname: ${name}-${skill}\n`);
+		}
+	}
 });

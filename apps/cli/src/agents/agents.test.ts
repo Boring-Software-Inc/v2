@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildAgents } from "#/agents";
-import { codexServerUrl } from "#/agents/codex";
+import { codexServerUrl, createCodex } from "#/agents/codex";
+import { createGrok } from "#/agents/grok";
 import { detectAgents, installAgent } from "#/run";
 import { realSystem, type System } from "#/system";
 import {
@@ -30,6 +31,21 @@ function detectedIds(): Promise<string[]> {
 }
 
 describe("agent detection", () => {
+	test.each([
+		["tripwire-staging", false],
+		["my-tripwire", false],
+		["tripwire.other", false],
+		["tripwire", true],
+		["tripwire-staging\ntripwire", true],
+	])("Grok detects the complete server name in %s", async (stdout, installed) => {
+		const grok = createGrok({
+			...system,
+			which: () => "grok",
+			run: async () => ({ ok: true, stdout, stderr: "" }),
+		});
+		expect((await detectAgents([grok]))[0]?.installed).toBe(installed);
+	});
+
 	test("finds nothing on an empty PATH and HOME", async () => {
 		expect(await detectedIds()).toEqual([]);
 	});
@@ -76,6 +92,34 @@ describe("agent detection", () => {
 });
 
 describe("agent install", () => {
+	test("codex: staging alone is absent; updating production removes only production", async () => {
+		const calls: string[][] = [];
+		const codex = createCodex({
+			...system,
+			run: async (_command, args) => {
+				calls.push(args);
+				return { ok: true, stdout: "", stderr: "" };
+			},
+		});
+		const dir = join(sandbox.home, ".codex");
+		mkdirSync(dir, { recursive: true });
+		const path = join(dir, "config.toml");
+		const staging =
+			'[mcp_servers.tripwire-staging]\nurl = "https://tripwire-mcp-preview-tripwire.unkey.app/mcp"\n';
+		writeFileSync(path, staging);
+		expect(await codex.hasServer()).toBe(false);
+		expect((await codex.addServer(URL)).outcome).toBe("added");
+		expect(calls).toEqual([["mcp", "add", "tripwire", "--url", URL]]);
+		calls.length = 0;
+		writeFileSync(path, `${staging}\n[mcp_servers.tripwire]\nurl = "old"\n`);
+		expect(await codex.hasServer()).toBe(true);
+		expect((await codex.addServer(URL)).outcome).toBe("updated");
+		expect(calls).toEqual([
+			["mcp", "remove", "tripwire"],
+			["mcp", "add", "tripwire", "--url", URL],
+		]);
+	});
+
 	test("claude: mcp add at user scope plus the skill", async () => {
 		sandbox.addBinary("claude", FAKE_CLAUDE);
 		const [claude] = buildAgents(system);
