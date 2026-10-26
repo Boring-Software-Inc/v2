@@ -12,7 +12,7 @@ import {
 import { type DateRange, isoDay, lastDays, rangeLabel } from "#/lib/date-range";
 
 const PRESETS = [
-	{ days: 1, label: "Last 24 hours" },
+	{ days: 1, label: "Today" },
 	{ days: 7, label: "Last 7 days" },
 	{ days: 30, label: "Last 30 days" },
 	{ days: 90, label: "Last 90 days" },
@@ -100,7 +100,7 @@ export function DateRangeFilter({
 						}
 					}}
 				>
-					<div className="grid grid-cols-2 gap-2">
+					<div className="grid grid-cols-2 gap-2 pointer-coarse:grid-cols-1">
 						<Field>
 							<FieldLabel>From</FieldLabel>
 							<Input
