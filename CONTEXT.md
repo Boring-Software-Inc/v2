@@ -41,9 +41,9 @@ _Avoid_: severity, fixable rule
 A plain fact added to the comment on a green check.
 _Avoid_: warning
 
-**Except when**:
-A gate that waives one requirement when its exception passes. Missing exception proof never waives it.
-_Avoid_: allow, allowlist, bypass, override
+**Skip when**:
+A gate before a rule group. When its checks match, the group is skipped and the run shows it as skipped, never as passed. Missing proof never skips a group. In code: `unless(group, skipWhen)`.
+_Avoid_: except when, exception, allow, allowlist, bypass, override
 
 **Workflow**:
 The logic that composes rules, gates and actions. The implicit Rules workflow uses each rule's outcome.

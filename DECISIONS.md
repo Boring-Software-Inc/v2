@@ -251,6 +251,9 @@ which lets a new caller skip it.
 
 ## 2026-10-25: rule outcomes, Changes needed and the Except when gate
 
+Superseded in part: the gate is shown as "Skip when", a card before a rule
+group. The code form `unless(...)` and the semantics below are unchanged.
+
 **Decision (founder, 2026-10-25).** The approved design, with the Close
 addendum, is recorded here. Stage 1 ships the engine, the contracts and the PR surfaces.
 The rule card (stage 2) and the Except when editor (stage 3) come later.
