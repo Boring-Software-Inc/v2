@@ -153,3 +153,31 @@ test("staging install coexists with production and installs staging instructions
 	expect(again.code).toBe(0);
 	expect(JSON.parse(again.stdout).agents[0].mcp.outcome).toBe("unchanged");
 });
+
+test("Grok installs production after staging and keeps both entries on repeat installs", async () => {
+	sandbox.addBinary(
+		"grok",
+		`printf '%s\\n' "grok $*" >> "$ARGV_LOG"
+if [ "$1 $2" = "mcp list" ]; then
+  if [ -f "$HOME/grok-servers" ]; then /bin/cat "$HOME/grok-servers"; fi
+elif [ "$1 $2" = "mcp add" ]; then
+  printf '%s\\n' "$5" >> "$HOME/grok-servers"
+fi
+exit 0`,
+	);
+	const staging = { ...sandbox.env, TRIPWIRE_ENV: "staging" };
+	const production = { ...sandbox.env, TRIPWIRE_ENV: "production" };
+	for (const env of [staging, production, staging, production]) {
+		const result = await runCli(["install", "--json"], env);
+		expect(result.code).toBe(0);
+	}
+	expect(readFileSync(join(sandbox.home, "grok-servers"), "utf8")).toBe(
+		"tripwire-staging\ntripwire\n",
+	);
+	expect(
+		sandbox.argv().filter((line) => line.startsWith("grok mcp add")),
+	).toEqual([
+		"grok mcp add --transport http tripwire-staging https://tripwire-mcp-preview-tripwire.unkey.app/mcp",
+		"grok mcp add --transport http tripwire https://mcp.tripwire.sh/mcp",
+	]);
+});
