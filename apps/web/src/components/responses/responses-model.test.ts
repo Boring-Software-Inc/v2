@@ -13,8 +13,10 @@ import {
 	outcomeMeta,
 	previewCheck,
 	previewPlan,
+	responsePreview,
 	unflattenConfig,
 } from "#/components/responses/responses-model";
+import { sampleRunFor } from "#/components/responses/sample-run";
 
 const policy = (level: number) => redactionPolicySchema.parse({ level });
 
@@ -116,6 +118,87 @@ describe("the Responses preview shows what lands on the change request", () => {
 			"run-link",
 			"help",
 		]);
+	});
+});
+
+describe("every surface renders from the unsaved builder state", () => {
+	const edited = (blocks: unknown) =>
+		unflattenConfig({
+			...flattenConfig(DEFAULT_RESPONSE_CONFIG),
+			"blocks.block": JSON.stringify(blocks),
+		});
+
+	test("at level 0 the comment holds every block and the review points at it", () => {
+		const config = edited([
+			{ id: "a", type: "headline" },
+			{ id: "b", type: "ai-notice" },
+			{ id: "c", type: "rerun-notice" },
+			{ id: "d", type: "run-link" },
+		]);
+		const preview = responsePreview(
+			config,
+			outcomeMeta("block"),
+			policy(0),
+			"outsider",
+		);
+		expect(preview.blocks.map((block) => block.id)).toEqual([
+			"a",
+			"b",
+			"c",
+			"d",
+		]);
+		expect(preview.plan.comment).toBe("upsert");
+		expect(preview.plan.review).toBe("Blocked. See the comment.");
+		for (const output of preview.outputs) {
+			if (output.body) {
+				expect(preview.plan.commentBody).toContain(output.body);
+			}
+		}
+	});
+
+	test("an added block reaches the comment, the review and the run page", () => {
+		const outcome = outcomeMeta("block");
+		const before = responsePreview(
+			edited([{ id: "a", type: "headline" }]),
+			outcome,
+			policy(6),
+			"outsider",
+		);
+		expect(before.plan.comment).toBe("delete");
+		expect(sampleRunFor(outcome, before.plan, before.check).actions).toEqual([
+			expect.objectContaining({ kind: "set-check" }),
+			expect.objectContaining({ kind: "block" }),
+		]);
+		const after = responsePreview(
+			edited([
+				{ id: "a", type: "headline" },
+				{ id: "t", type: "text", parts: [{ kind: "text", text: "Thanks." }] },
+			]),
+			outcome,
+			policy(6),
+			"outsider",
+		);
+		expect(after.plan.comment).toBe("upsert");
+		expect(after.plan.commentBody).toContain("Thanks.");
+		expect(after.plan.review).toBe("Blocked. See the comment.");
+		expect(
+			sampleRunFor(outcome, after.plan, after.check).actions.map(
+				(action) => action.kind,
+			),
+		).toEqual(["set-check", "block", "comment"]);
+	});
+
+	test("the run page follows the outcome", () => {
+		const outcome = outcomeMeta("note");
+		const preview = responsePreview(
+			DEFAULT_RESPONSE_CONFIG,
+			outcome,
+			policy(0),
+			"outsider",
+		);
+		const run = sampleRunFor(outcome, preview.plan, preview.check);
+		expect(run.verdict).toBe("pass");
+		expect(run.workflows.map((workflow) => workflow.outcome)).toEqual(["pass"]);
 	});
 });
 

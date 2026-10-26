@@ -10,6 +10,7 @@ export interface BlockRowProps {
 	block: ResponseBlock;
 	selected: boolean;
 	lifted: boolean;
+	placeholder: boolean;
 	readOnly: boolean;
 	onSelect: (id: string | null) => void;
 	children: ReactNode;
@@ -19,6 +20,7 @@ export function BlockRow({
 	block,
 	selected,
 	lifted,
+	placeholder,
 	readOnly,
 	onSelect,
 	children,
@@ -54,6 +56,7 @@ export function BlockRow({
 				lifted && "opacity-30",
 			)}
 			data-block={block.type}
+			data-placeholder={placeholder || undefined}
 			onKeyDown={leave}
 			ref={mergeRefs(drag.setNodeRef, drop.setNodeRef)}
 		>

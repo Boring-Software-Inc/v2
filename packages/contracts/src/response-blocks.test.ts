@@ -454,6 +454,68 @@ describe("stored blocks", () => {
 		});
 		expect(blockCommentAddsDetail(withText, policy)).toBe(true);
 	});
+
+	test("at level 0 the block comment renders every block in its order", () => {
+		const blocks: ResponseBlock[] = [
+			{ id: "a", type: "headline" },
+			{ id: "b", type: "verdict-line" },
+			{ id: "c", type: "ai-notice" },
+			{ id: "d", type: "failed-rules", style: "full" },
+			{ id: "e", type: "instruction" },
+			{ id: "f", type: "notes" },
+			{ id: "g", type: "rerun-notice" },
+			{ id: "h", type: "text", parts: [{ kind: "text", text: "Thanks." }] },
+			{ id: "i", type: "help" },
+			{ id: "j", type: "run-link" },
+		];
+		const config = responseConfigSchema.parse({ blocks: { block: blocks } });
+		const policy = redactionPolicySchema.parse({ level: 0 });
+		const full = input({
+			aiReviewNotRun: true,
+			rerun: true,
+			fixes: [{ message: "Change the target to main.", reasons: [] }],
+			notes: ["No description provided."],
+		});
+		const plan = planSurfaces(full, config, policy, { reviewPosted: true });
+		expect(plan.comment).toBe("upsert");
+		const bodies = renderBlockOutputs(blocks, full, {
+			level: 0,
+			showHelp: policy.showHelp,
+			viewer: "outsider",
+		}).map((output) => output.body);
+		expect(bodies.every((body) => body !== null && body !== "")).toBe(true);
+		let from = 0;
+		for (const body of bodies) {
+			const at = plan.commentBody?.indexOf(body ?? "", from) ?? -1;
+			expect(at).toBeGreaterThanOrEqual(from);
+			from = at + (body ?? "").length;
+		}
+	});
+
+	test("at level 0 a block list with no detail blocks still posts the comment", () => {
+		const config = responseConfigSchema.parse({
+			blocks: {
+				block: [
+					{ id: "a", type: "headline" },
+					{ id: "c", type: "ai-notice" },
+					{ id: "g", type: "rerun-notice" },
+					{ id: "j", type: "run-link" },
+				],
+			},
+		});
+		const policy = redactionPolicySchema.parse({ level: 0 });
+		const plan = planSurfaces(input(), config, policy, { reviewPosted: true });
+		expect(plan.comment).toBe("upsert");
+		expect(plan.commentBody).toContain(BUTTON);
+	});
+
+	test("an empty block list posts only the review", () => {
+		const config = responseConfigSchema.parse({ blocks: { block: [] } });
+		const policy = redactionPolicySchema.parse({ level: 0 });
+		expect(
+			planSurfaces(input(), config, policy, { reviewPosted: true }).comment,
+		).toBe("delete");
+	});
 });
 
 describe("the blocks schema", () => {

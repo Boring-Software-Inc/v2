@@ -1,4 +1,7 @@
 import type {
+	BlockLens,
+	BlockOutput,
+	BlockViewer,
 	CloseGif,
 	CommentInput,
 	CommentReason,
@@ -14,6 +17,7 @@ import {
 	defaultBlocks,
 	planSurfaces,
 	redactionLevelFor,
+	renderBlockOutputs,
 	responseConfigSchema,
 	wantsCheck,
 } from "@tripwire/contracts";
@@ -325,5 +329,40 @@ export function previewCheck(
 			false,
 			input,
 		),
+	};
+}
+
+export interface ResponsePreview {
+	blocks: ResponseBlock[];
+	lens: BlockLens;
+	outputs: BlockOutput[];
+	plan: SurfacePlan;
+	check: CheckPreview;
+	posting: boolean;
+	runPageLevel: number;
+}
+
+export function responsePreview(
+	config: ResponseConfig,
+	outcome: OutcomeMeta,
+	policy: RedactionPolicy,
+	viewer: BlockViewer,
+): ResponsePreview {
+	const blocks = outcomeBlocks(config, outcome);
+	const seen: RedactionPolicy =
+		viewer === "member" ? { ...policy, level: 0 } : policy;
+	const lens: BlockLens = {
+		level: redactionLevelFor(policy, "comment"),
+		showHelp: policy.showHelp,
+		viewer,
+	};
+	return {
+		blocks,
+		lens,
+		outputs: renderBlockOutputs(blocks, sampleInput(outcome), lens),
+		plan: previewPlan(config, outcome, seen),
+		check: previewCheck(config, outcome, seen),
+		posting: postsComment(config, outcome),
+		runPageLevel: redactionLevelFor(seen, "run-page"),
 	};
 }

@@ -22,6 +22,7 @@ import type {
 import { RunPageMock } from "#/components/responses/run-page-mock";
 import type { PreviewTab, PreviewView } from "#/lib/block-builder";
 import { pickValue } from "#/lib/pick-value";
+import type { RunView } from "#/lib/runs.functions";
 
 const TABS: { value: PreviewTab; label: string }[] = [
 	{ value: "check", label: "Check run" },
@@ -42,6 +43,7 @@ export interface ResponsesPreviewProps {
 	outcome: OutcomeMeta;
 	plan: SurfacePlan;
 	check: CheckPreview;
+	run: RunView;
 	runPageLevel: number;
 	canvas: ReactNode;
 	onView: (view: Partial<PreviewView>) => void;
@@ -52,6 +54,7 @@ export function ResponsesPreview({
 	outcome,
 	plan,
 	check,
+	run,
 	runPageLevel,
 	canvas,
 	onView,
@@ -138,7 +141,7 @@ export function ResponsesPreview({
 				) : null}
 				{view.tab === "run-page" ? (
 					<div className="sm:ms-13" data-region="run-page">
-						<RunPageMock level={runPageLevel} />
+						<RunPageMock level={runPageLevel} run={run} />
 					</div>
 				) : null}
 			</div>

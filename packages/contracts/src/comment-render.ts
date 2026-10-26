@@ -836,10 +836,10 @@ export function blockCommentAddsDetail(
 	const level = redactionLevelFor(policy, "comment");
 	const stored = config.blocks.block;
 	if (stored) {
-		return stored.some((block) =>
-			block.type === "failed-rules"
-				? !redactionHides(level, "reasons")
-				: DETAIL_BLOCKS.has(block.type),
+		return (
+			stored.length > 0 &&
+			(!redactionHides(level, "reasons") ||
+				stored.some((block) => DETAIL_BLOCKS.has(block.type)))
 		);
 	}
 	if (
