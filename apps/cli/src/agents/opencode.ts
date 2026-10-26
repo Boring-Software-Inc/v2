@@ -47,7 +47,7 @@ function createOpencodeFamily(system: System, family: OpencodeFamily): Agent {
 	return {
 		id: family.id,
 		name: family.name,
-		signInHint: `${family.binaries[0]} mcp auth tripwire`,
+		signInHint: `${family.binaries[0]} mcp auth ${SERVER_NAME}`,
 		detect: () =>
 			cli() !== null ||
 			appInstalled(system, macApps(system, family.apps)) ||

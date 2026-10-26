@@ -67,7 +67,7 @@ export function createCodex(system: System): Agent {
 	return {
 		id: "codex",
 		name: "Codex",
-		signInHint: "codex mcp login tripwire",
+		signInHint: `codex mcp login ${SERVER_NAME}`,
 		detect: () => system.which("codex") !== null,
 		hasServer: async () => currentUrl(system) !== null,
 		addServer: async (url) => {

@@ -45,7 +45,7 @@ export function createClaude(system: System): Agent {
 	return {
 		id: "claude",
 		name: "Claude Code",
-		signInHint: "claude mcp login tripwire, or /mcp inside Claude Code",
+		signInHint: `claude mcp login ${SERVER_NAME}, or /mcp inside Claude Code`,
 		detect: () => system.which("claude") !== null,
 		hasServer: async () =>
 			configuredUrl(userConfigFile(system), "mcpServers", SERVER_NAME) !== null,

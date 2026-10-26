@@ -23,7 +23,7 @@ export function createGemini(system: System): Agent {
 	return {
 		id: "gemini",
 		name: "Gemini CLI",
-		signInHint: "/mcp auth tripwire inside Gemini CLI",
+		signInHint: `/mcp auth ${SERVER_NAME} inside Gemini CLI`,
 		detect: () => system.which("gemini") !== null,
 		hasServer: async () => currentUrl(system) !== null,
 		addServer: (url) =>

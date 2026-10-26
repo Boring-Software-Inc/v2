@@ -4,11 +4,11 @@ import {
 	AuthUnreachableError,
 	refreshCredential,
 } from "#/auth/device";
-import { mcpUrl } from "#/config";
+import { CLI_COMMAND, environment, mcpUrl } from "#/config";
 import type { System } from "#/system";
 
 export class NotSignedInError extends Error {
-	constructor(message = "Not signed in. Run tripwire login.") {
+	constructor(message = `Not signed in. Run ${CLI_COMMAND} login.`) {
 		super(message);
 		this.name = "NotSignedInError";
 	}
@@ -27,7 +27,10 @@ export async function loadSession(
 	deps: AuthDeps,
 ): Promise<Session> {
 	const url = mcpUrl(system.env);
-	const envToken = system.env.TRIPWIRE_TOKEN;
+	const envToken =
+		environment(system.env) === "staging"
+			? system.env.TRIPWIRE_STAGING_TOKEN
+			: system.env.TRIPWIRE_TOKEN;
 	if (envToken) {
 		return { token: envToken, mcpUrl: url, source: "env" };
 	}
@@ -42,19 +45,21 @@ export async function loadSession(
 				if (error instanceof AuthUnreachableError) {
 					throw error;
 				}
-				throw new NotSignedInError("Session expired. Run tripwire login.");
+				throw new NotSignedInError(
+					`Session expired. Run ${CLI_COMMAND} login.`,
+				);
 			},
 		);
 		await store.write(fresh);
 		return {
 			token: fresh.accessToken,
-			mcpUrl: system.env.TRIPWIRE_MCP_URL || fresh.mcpUrl,
+			mcpUrl: url,
 			source: store.kind,
 		};
 	}
 	return {
 		token: credential.accessToken,
-		mcpUrl: system.env.TRIPWIRE_MCP_URL || credential.mcpUrl,
+		mcpUrl: url,
 		source: store.kind,
 	};
 }

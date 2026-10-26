@@ -6,7 +6,7 @@ import {
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { NotSignedInError, type Session } from "#/auth/session";
-import { VERSION } from "#/config";
+import { CLI_COMMAND, VERSION } from "#/config";
 
 export type ToolArgs = Record<string, z.infer<ReturnType<typeof z.json>>>;
 
@@ -64,7 +64,7 @@ export async function callTool(
 	} catch (error) {
 		if (error instanceof Error && isUnauthorized(error)) {
 			throw new NotSignedInError(
-				"The Tripwire server rejected the token. Run tripwire login.",
+				`The Tripwire server rejected the token. Run ${CLI_COMMAND} login.`,
 			);
 		}
 		throw error;

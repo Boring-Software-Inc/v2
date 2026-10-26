@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { realAuthDeps } from "#/auth/device";
-import { VERSION } from "#/config";
+import { CLI_COMMAND, IS_STAGING, VERSION } from "#/config";
 import { errorLine, styleFor } from "#/format";
 import { runInstall } from "#/install";
 import { type ManageDeps, registerManageCommands } from "#/manage";
@@ -59,7 +59,7 @@ export async function main(system: System, argv: string[]): Promise<void> {
 	if (routed.kind === "unknown") {
 		process.stderr.write(
 			`${errorLine(
-				`Unknown command ${routed.command}. Run tripwire --help.`,
+				`Unknown command ${routed.command}. Run ${CLI_COMMAND} --help.`,
 				styleFor(process.stderr.isTTY === true, system.env),
 			)}\n`,
 		);
@@ -94,7 +94,9 @@ export function buildProgram(
 	const program = new Command()
 		.name("tripwire")
 		.description(
-			"Set up Tripwire in your coding agents and manage it from the terminal",
+			IS_STAGING
+				? "Set up and manage Tripwire staging"
+				: "Set up Tripwire in your coding agents and manage it from the terminal",
 		)
 		.version(VERSION)
 		.option("--json", "Print machine-readable JSON")

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
 	chmodSync,
 	mkdirSync,
@@ -8,6 +9,13 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import {
+	authUrl,
+	environment,
+	mcpUrl,
+	PRODUCTION_AUTH_URL,
+	PRODUCTION_MCP_URL,
+} from "#/config";
 import type { System } from "#/system";
 
 const credentialSchema = z.object({
@@ -29,7 +37,21 @@ export interface CredentialStore {
 }
 
 const SERVICE = "tripwire-cli";
-const ACCOUNT = "default";
+function account(system: System): string {
+	const auth = authUrl(system.env);
+	const mcp = mcpUrl(system.env);
+	if (
+		environment(system.env) === "production" &&
+		auth === PRODUCTION_AUTH_URL &&
+		mcp === PRODUCTION_MCP_URL
+	) {
+		return "default";
+	}
+	const target = createHash("sha256")
+		.update(JSON.stringify([auth, mcp]))
+		.digest("hex");
+	return `${environment(system.env)}-${target}`;
+}
 
 function decode(text: string | null): Credential | null {
 	if (!text) {
@@ -47,7 +69,9 @@ function credentialFilePath(system: System): string {
 	return join(
 		system.env.XDG_CONFIG_HOME || join(system.home, ".config"),
 		"tripwire",
-		"credentials.json",
+		account(system) === "default"
+			? "credentials.json"
+			: `credentials-${account(system)}.json`,
 	);
 }
 
@@ -89,7 +113,7 @@ function keychainStore(system: System, security: string): CredentialStore {
 			const result = await system.run(security, [
 				"find-generic-password",
 				"-a",
-				ACCOUNT,
+				account(system),
 				"-s",
 				SERVICE,
 				"-w",
@@ -97,7 +121,7 @@ function keychainStore(system: System, security: string): CredentialStore {
 			return result.ok ? decode(result.stdout) : null;
 		},
 		write: async (credential) => {
-			const command = `add-generic-password -U -a ${ACCOUNT} -s ${SERVICE} -l Tripwire -X ${hex(JSON.stringify(credential))}\n`;
+			const command = `add-generic-password -U -a ${account(system)} -s ${SERVICE} -l Tripwire -X ${hex(JSON.stringify(credential))}\n`;
 			const result = await system.run(security, ["-i"], command);
 			if (!result.ok) {
 				throw new Error("Could not save the token to the macOS keychain");
@@ -107,7 +131,7 @@ function keychainStore(system: System, security: string): CredentialStore {
 			await system.run(security, [
 				"delete-generic-password",
 				"-a",
-				ACCOUNT,
+				account(system),
 				"-s",
 				SERVICE,
 			]);
@@ -116,7 +140,7 @@ function keychainStore(system: System, security: string): CredentialStore {
 }
 
 function secretServiceStore(system: System, tool: string): CredentialStore {
-	const attributes = ["service", SERVICE, "account", ACCOUNT];
+	const attributes = ["service", SERVICE, "account", account(system)];
 	return {
 		kind: "secret-service",
 		location: "Secret Service keyring",
@@ -157,7 +181,7 @@ function withFileFallback(
 	};
 }
 
-export function credentialStore(system: System): CredentialStore {
+function targetStore(system: System): CredentialStore {
 	if (system.env.TRIPWIRE_CREDENTIAL_STORE === "file") {
 		return fileStore(system);
 	}
@@ -174,4 +198,19 @@ export function credentialStore(system: System): CredentialStore {
 		}
 	}
 	return fileStore(system);
+}
+
+export function credentialStore(system: System): CredentialStore {
+	const store = targetStore(system);
+	return {
+		...store,
+		read: async () => {
+			const credential = await store.read();
+			return credential &&
+				credential.authUrl.replace(/\/+$/, "") === authUrl(system.env) &&
+				credential.mcpUrl.replace(/\/+$/, "") === mcpUrl(system.env)
+				? credential
+				: null;
+		},
+	};
 }

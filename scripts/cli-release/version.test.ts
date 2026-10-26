@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { compareVersions, isRelease, nextVersion } from "./version.ts";
+import {
+	compareVersions,
+	isRelease,
+	nextVersion,
+	stagingVersion,
+} from "./version.ts";
 
 describe("nextVersion", () => {
 	test("bumps patch, minor and major", () => {
@@ -35,5 +40,19 @@ describe("isRelease", () => {
 	test("only plain x.y.z counts as a release", () => {
 		expect(isRelease("1.2.3")).toBe(true);
 		expect(isRelease("0.0.0-stage")).toBe(false);
+	});
+});
+
+describe("stagingVersion", () => {
+	test("keeps staging out of the stable version space", () => {
+		expect(stagingVersion("0.1.0", "patch", "42")).toBe("0.1.1-staging.42");
+		expect(stagingVersion("0.1.0", "0.2.0", "43")).toBe("0.2.0-staging.43");
+		expect(isRelease(stagingVersion("0.1.0", "patch", "42"))).toBe(false);
+	});
+
+	test("rejects malformed sequences", () => {
+		for (const sequence of ["", "0", "01", "-1", "1.2", "42\nlatest"]) {
+			expect(() => stagingVersion("0.1.0", "patch", sequence)).toThrow();
+		}
 	});
 });
