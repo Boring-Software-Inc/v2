@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { FORGE_BY_ID } from "@tripwire/contracts";
+import { FORGE_BY_ID, type ForgeConnection } from "@tripwire/contracts";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { DeleteAccountDialog } from "#/components/account/delete-account-dialog";
@@ -49,7 +49,6 @@ import { setAgentMotion } from "#/lib/agent-motion.functions";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { authQueryKeys, sessionInfoQueryOptions } from "#/lib/auth.query";
 import { authClient } from "#/lib/auth-client";
-import type { ForgeConnection } from "#/lib/connections.functions";
 import { connectionsQueryOptions } from "#/lib/connections.query";
 import { reconnectForge } from "#/lib/forge-connect";
 import { myOrgsQueryOptions } from "#/lib/org.query";
