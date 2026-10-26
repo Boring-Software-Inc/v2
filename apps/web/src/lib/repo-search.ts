@@ -4,14 +4,24 @@ import { z } from "zod";
 export const ACTIVITY_VERDICTS = [
 	"all",
 	"block",
+	"changes_required",
 	"needs_review",
 	"pass",
 	"no-run",
-	"changes_required",
 	"close",
 ] as const;
 
 export type ActivityVerdict = (typeof ACTIVITY_VERDICTS)[number];
+
+export const ACTIVITY_VERDICT_LABELS = {
+	all: "All",
+	block: "Blocked",
+	changes_required: "Changes needed",
+	needs_review: "Human review",
+	pass: "Passed",
+	"no-run": "Not checked",
+	close: "Closed",
+} satisfies Record<ActivityVerdict, string>;
 
 export const ACTIVITY_SEARCH_DEFAULTS = { verdict: "all" } as const;
 
