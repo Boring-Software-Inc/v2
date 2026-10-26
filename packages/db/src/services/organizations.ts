@@ -894,7 +894,7 @@ export type ClaimableInstallation = z.infer<typeof claimableInstallationSchema>;
 
 export async function listClaimableInstallations(
 	db: Db,
-	input: { userId: string },
+	input: { userId: string; forge?: Forge },
 ): Promise<ClaimableInstallation[]> {
 	const result = await db.execute(sql`
 		SELECT r.installation_id AS "installationId",
@@ -905,6 +905,7 @@ export async function listClaimableInstallations(
 		LEFT JOIN organization_installations oi
 		  ON oi.installation_id = r.installation_id AND oi.forge = r.forge
 		WHERE r.installation_id IS NOT NULL
+		  ${input.forge ? sql`AND r.forge = ${input.forge}` : sql``}
 		  AND r.installation_id <> ''
 		  AND r.removed_at IS NULL
 		  AND oi.id IS NULL

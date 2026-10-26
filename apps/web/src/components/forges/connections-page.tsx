@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FORGE_BY_ID } from "@tripwire/contracts";
+import { FORGE_BY_ID, type ForgeConnection } from "@tripwire/contracts";
 import { useState } from "react";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { ForgeMark } from "#/components/common/forge-marks";
@@ -30,10 +30,7 @@ import { toast } from "#/components/glaze/ui/toast";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { SettingsHeader } from "#/components/settings/settings-frame";
 import { currentUserQueryOptions } from "#/lib/auth.query";
-import {
-	disconnectForge,
-	type ForgeConnection,
-} from "#/lib/connections.functions";
+import { disconnectForge } from "#/lib/connections.functions";
 import { connectionsQueryOptions } from "#/lib/connections.query";
 import { reconnectForge } from "#/lib/forge-connect";
 

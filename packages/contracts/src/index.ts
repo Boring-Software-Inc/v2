@@ -23,6 +23,7 @@ export * from "./custom-rules.ts";
 export * from "./custom-rules-display.ts";
 export * from "./economics.ts";
 export * from "./events.ts";
+export * from "./forge-connection.ts";
 export * from "./forges.ts";
 export * from "./giphy.ts";
 export {

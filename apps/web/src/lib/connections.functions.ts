@@ -1,42 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { type Forge, forgeSchema } from "@tripwire/contracts";
-import { z } from "zod";
+import type { Forge, ForgeConnection } from "@tripwire/contracts";
 import {
 	accessGuardMiddleware,
 	notImpersonatingMiddleware,
 } from "#/lib/server/gated-server-fn";
-
-/**
- * One row of the connections query. `accessTokenExpiresAt` accepts a Date or a
- * string because the driver returns either depending on the column type, and
- * both mean the same instant.
- */
-const connectionRowSchema = z.object({
-	forge: forgeSchema,
-	accountId: z.string(),
-	repoCount: z.number(),
-	unclaimedCount: z.number(),
-	accessTokenExpiresAt: z
-		.union([z.string(), z.date()])
-		.nullable()
-		.transform((value) => (value ? new Date(value).toISOString() : null)),
-	canRefresh: z.boolean(),
-});
-
-/** One linked forge account, as the connections pane renders it. */
-export interface ForgeConnection {
-	forge: Forge;
-	/** The forge's account id — GitLab's "installation" grouping key. */
-	accountId: string;
-	/** Repos tripwire currently sees through this connection. */
-	repoCount: number;
-	/** Repos still unbound to an org, i.e. waiting on the claim screen. */
-	unclaimedCount: number;
-	/** null ⇒ non-expiring (GitHub OAuth); past ⇒ needs a reconnect. */
-	accessTokenExpiresAt: string | null;
-	/** False ⇒ the only exit is re-authorization, not a refresh. */
-	canRefresh: boolean;
-}
 
 /**
  * Every forge the signed-in user has linked, with what tripwire can see through
@@ -53,40 +20,8 @@ export const listForgeConnections = createServerFn({ method: "GET" })
 			return [];
 		}
 		const { getDb } = await import("#/lib/server/db");
-		const { sql } = await import("drizzle-orm");
-		// Repos join on installation_id, which for OAuth forges IS the account id.
-		const result = await getDb().db.execute(sql`
-			SELECT a.provider_id AS forge,
-			       a.account_id AS "accountId",
-			       a.access_token_expires_at AS "accessTokenExpiresAt",
-			       (a.refresh_token IS NOT NULL) AS "canRefresh",
-			       COALESCE(r.total, 0)::int AS "repoCount",
-			       COALESCE(r.unclaimed, 0)::int AS "unclaimedCount"
-			FROM account a
-			LEFT JOIN (
-			  SELECT forge, installation_id,
-			         count(*) AS total,
-			         count(*) FILTER (WHERE org_id IS NULL) AS unclaimed
-			  FROM repos
-			  WHERE removed_at IS NULL
-			  GROUP BY forge, installation_id
-			) r ON r.forge = a.provider_id AND r.installation_id = a.account_id
-			WHERE a.user_id = ${userId}
-			ORDER BY a.provider_id
-		`);
-		/**
-		 * PARSED, not cast. Raw sql hands back untyped rows, so the shape is
-		 * established once here rather than coerced field by field with String(),
-		 * Number() and Boolean() that turn a wrong column into a plausible value.
-		 *
-		 * A row that fails is DROPPED, which is also how non-forge providers leave:
-		 * credential rows share this table, and `forgeSchema` refuses them, so they
-		 * never reach the pane as a markless row.
-		 */
-		return result.rows.flatMap((row) => {
-			const parsed = connectionRowSchema.safeParse(row);
-			return parsed.success ? [parsed.data] : [];
-		});
+		const { accountServices } = await import("@tripwire/db");
+		return await accountServices.listForgeConnections(getDb().db, userId);
 	});
 
 /**
