@@ -257,18 +257,18 @@
   --scrollbar-gap: 2px; /* the clear around the thumb, so it floats off the panel's edge | every scrolling region */
 }
 
-/* The dark theme redefines the colour roles. Ink and paper swap: near-white ink on a near-black page. Ink glass turns
+/** The dark theme redefines the colour roles. Ink and paper swap: near-white ink on a near-black page. Ink glass turns
    to light glass with a dark label, and paper glass to dark glass with a light one, as the approved button sheet does.
    Coral and green glass turn light with an ink label. Light glass keeps the sheen and the rim but drops the dark
    centre, which would sit as a smudge under a dark label. The flat secondary is the dark panel: --paper, a light label and
-   the panel's hairline in light ink. The surfaces keep light mode's order, read as ink added: the page darkest, the shell a step
-   up, the panel (paper) a step above the shell, the grey field a step above that, so a card's panel and a raised
-   overlay are the lightest things on screen. The scrim is pure black at 64%, because a near-black page barely
+   the panel's hairline in light ink. The dashboard uses paper for its canvas and card panels; shell is lighter so
+   card frames and footers stay distinct. The underlying page remains darkest.
+   The scrim is pure black at 64%, because a near-black page barely
    changes under the fixed dark at 56%; what it dims is the panels and the text. */
 [data-system="glaze"][data-theme="dark"], .glaze[data-theme="dark"], [data-theme="dark"] [data-system="glaze"], [data-theme="dark"] .glaze {
   --page: #0c0c0c;
-  --paper: #1f1f1f;
-  --shell: #161616;
+  --paper: #161616;
+  --shell: #1f1f1f;
   --field: #2a2a2a;
   --hover: rgb(244 244 243 / 0.06);
   --hover-row: rgb(244 244 243 / 0.04);
