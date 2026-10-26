@@ -8,7 +8,7 @@ import {
 	CardMeta,
 	CardTitle,
 } from "#/components/glaze/ui/card";
-import { useInstallRules } from "#/components/rules/use-install-rules";
+import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 
 interface DigestCaughtCardProps {
@@ -18,7 +18,13 @@ interface DigestCaughtCardProps {
 
 export function DigestCaughtCard({ org, caught }: DigestCaughtCardProps) {
 	const canInstall = useOrgPermission(org, "rules:manage");
-	const { install, pending } = useInstallRules(org, caught.repoId);
+	const canActivate = useOrgPermission(org, "connections:manage");
+	const { install, pending } = useSetupInstallRules({
+		org,
+		repo: caught.repoName,
+		repoId: caught.repoId,
+		armed: caught.armed,
+	});
 	return (
 		<Card>
 			<CardHeader>
@@ -28,6 +34,14 @@ export function DigestCaughtCard({ org, caught }: DigestCaughtCardProps) {
 				<CardDescription>
 					{caught.ruleName} would have caught it.
 				</CardDescription>
+				{!caught.armed ? (
+					<CardDescription>
+						Tripwire is off on {caught.repoName}.{" "}
+						{canActivate
+							? "Installing this rule will turn it on."
+							: "An org admin must turn on Tripwire for this repo before installing this rule."}
+					</CardDescription>
+				) : null}
 			</CardHeader>
 			<CardFooter className="flex-wrap">
 				<CardMeta className="basis-full sm:basis-auto">{caught.title}</CardMeta>
@@ -48,7 +62,7 @@ export function DigestCaughtCard({ org, caught }: DigestCaughtCardProps) {
 				>
 					Open #{caught.number}
 				</Button>
-				{canInstall ? (
+				{canInstall && (caught.armed || canActivate) ? (
 					<Button
 						onClick={() =>
 							install(caught.ruleId, caught.ruleName, [caught.ruleId])
@@ -56,7 +70,8 @@ export function DigestCaughtCard({ org, caught }: DigestCaughtCardProps) {
 						pending={pending !== null}
 						size="sm"
 					>
-						Install {caught.ruleName}
+						{caught.armed ? "Install" : "Turn on Tripwire and install"}{" "}
+						{caught.ruleName}
 					</Button>
 				) : null}
 			</CardFooter>

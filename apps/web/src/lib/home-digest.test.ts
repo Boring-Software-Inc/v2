@@ -1,22 +1,30 @@
 import { describe, expect, test } from "bun:test";
 import type { DigestRepo } from "@tripwire/contracts";
+import { generateId } from "@tripwire/utils";
 import { aggregateHomeDigest } from "#/lib/home-digest";
 
 const FROM = new Date("2026-10-17T12:00:00.000Z");
 const TO = new Date("2026-10-24T12:00:00.000Z");
+const EVENT_ID = generateId();
 
 function repo(overrides: Partial<DigestRepo> = {}): DigestRepo {
 	return {
 		id: "lumen",
 		name: "lumen",
 		fullName: "lumenhq/lumen",
+		armed: true,
 		counts: [
 			{ verdict: "block", count: 3 },
 			{ verdict: "needs_review", count: 2 },
 			{ verdict: "pass", count: 9 },
 		],
 		latestRuns: [
-			{ number: 521, verdict: "pass", createdAt: "2026-10-23T12:00:00.000Z" },
+			{
+				number: 521,
+				eventId: EVENT_ID,
+				verdict: "pass",
+				createdAt: "2026-10-23T12:00:00.000Z",
+			},
 		],
 		uninstalledRuleIds: ["crypto-address"],
 		preview: {
@@ -25,7 +33,14 @@ function repo(overrides: Partial<DigestRepo> = {}): DigestRepo {
 			recent: [
 				{ number: 521, title: "Update funding links", author: "contributor" },
 			],
-			rules: [{ ruleId: "crypto-address", caught: [521], examples: [] }],
+			rules: [
+				{
+					ruleId: "crypto-address",
+					caught: [521],
+					examples: [],
+					caughtEvents: [{ number: 521, eventId: EVENT_ID }],
+				},
+			],
 		},
 		...overrides,
 	};
@@ -75,6 +90,7 @@ describe("home digest", () => {
 		expect(aggregateHomeDigest([repo()], FROM, TO).caught).toEqual({
 			repoId: "lumen",
 			repoName: "lumen",
+			armed: true,
 			number: 521,
 			title: "Update funding links",
 			ruleId: "crypto-address",
@@ -89,7 +105,12 @@ describe("home digest", () => {
 			name: "docs",
 			fullName: "lumenhq/docs",
 			latestRuns: [
-				{ number: 521, verdict: "pass", createdAt: "2026-10-24T11:00:00.000Z" },
+				{
+					number: 521,
+					eventId: EVENT_ID,
+					verdict: "pass",
+					createdAt: "2026-10-24T11:00:00.000Z",
+				},
 			],
 		});
 		expect(aggregateHomeDigest([newest, repo()], FROM, TO).caught?.repoId).toBe(
@@ -109,7 +130,12 @@ describe("home digest", () => {
 				[
 					repo({
 						latestRuns: [
-							{ number: 521, verdict, createdAt: "2026-10-23T12:00:00.000Z" },
+							{
+								number: 521,
+								eventId: EVENT_ID,
+								verdict,
+								createdAt: "2026-10-23T12:00:00.000Z",
+							},
 						],
 					}),
 				],
@@ -117,6 +143,39 @@ describe("home digest", () => {
 				TO,
 			).caught,
 		).toBeNull();
+	});
+
+	test("omits historical catches from a different event, even for the same PR", () => {
+		const historical = repo();
+		const rule = historical.preview?.rules[0];
+		if (!rule) throw new Error("missing preview rule");
+		rule.caughtEvents = [{ number: 521, eventId: generateId() }];
+		expect(aggregateHomeDigest([historical], FROM, TO).caught).toBeNull();
+	});
+
+	test("omits legacy previews whose catch event cannot be proven", () => {
+		const legacy = repo();
+		if (!legacy.preview) throw new Error("missing preview");
+		delete legacy.preview.rules[0]?.caughtEvents;
+		expect(aggregateHomeDigest([legacy], FROM, TO).caught).toBeNull();
+	});
+
+	test("uses a proven rule even when an earlier replay rule only caught another event", () => {
+		const mixed = repo({
+			uninstalledRuleIds: ["account-age", "crypto-address"],
+			armed: false,
+		});
+		if (!mixed.preview) throw new Error("missing preview");
+		mixed.preview.rules.unshift({
+			ruleId: "account-age",
+			caught: [521],
+			examples: [],
+			caughtEvents: [{ number: 521, eventId: generateId() }],
+		});
+		expect(aggregateHomeDigest([mixed], FROM, TO).caught).toMatchObject({
+			ruleId: "crypto-address",
+			armed: false,
+		});
 	});
 
 	test("hides absent replay, unknown catches, unobserved PRs, and installed rules", () => {
@@ -151,10 +210,22 @@ describe("home digest", () => {
 	])("does not recommend a catch outside the week: %s", (createdAt) => {
 		expect(
 			aggregateHomeDigest(
-				[repo({ latestRuns: [{ number: 521, verdict: "pass", createdAt }] })],
+				[
+					repo({
+						latestRuns: [
+							{ number: 521, eventId: EVENT_ID, verdict: "pass", createdAt },
+						],
+					}),
+				],
 				FROM,
 				TO,
 			).caught,
 		).toBeNull();
 	});
+});
+
+test("carries the repo off state into the install recommendation", () => {
+	expect(
+		aggregateHomeDigest([repo({ armed: false })], FROM, TO).caught?.armed,
+	).toBe(false);
 });

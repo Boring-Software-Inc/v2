@@ -11,12 +11,14 @@ export const digestRepoSchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	fullName: z.string(),
+	armed: z.boolean(),
 	counts: z.array(
 		z.object({ verdict: verdictSchema, count: z.number().int().nonnegative() }),
 	),
 	latestRuns: z.array(
 		z.object({
 			number: z.number().int(),
+			eventId: z.string(),
 			verdict: verdictSchema.nullable(),
 			createdAt: z.string().datetime(),
 		}),
@@ -38,6 +40,7 @@ export const homeDigestSchema = z.object({
 		.object({
 			repoId: z.string(),
 			repoName: z.string(),
+			armed: z.boolean(),
 			number: z.number().int(),
 			title: z.string(),
 			ruleId: z.string(),

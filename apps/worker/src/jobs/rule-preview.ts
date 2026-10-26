@@ -62,6 +62,7 @@ async function previewRule(
 		return unknown;
 	}
 	const caught: RulePreviewCatch[] = [];
+	const caughtEvents: NonNullable<RulePreviewRule["caughtEvents"]> = [];
 	for (const cr of inputs.changeRequests) {
 		if (EVENT_ONLY_RULE_IDS.has(entry.ruleId)) {
 			const result = await evaluateRule(
@@ -70,6 +71,7 @@ async function previewRule(
 				defaults.data,
 			);
 			if (result.status === "evaluated" && !result.passed) {
+				caughtEvents.push({ number: cr.number, eventId: cr.eventId });
 				caught.push({
 					number: cr.number,
 					title: cr.title,
@@ -88,6 +90,9 @@ async function previewRule(
 		);
 		const failed = steps.find((step) => step.status === "fail");
 		if (failed) {
+			for (const step of steps.filter((step) => step.status === "fail")) {
+				caughtEvents.push({ number: cr.number, eventId: step.eventId });
+			}
 			caught.push({
 				number: cr.number,
 				title: cr.title,
@@ -103,6 +108,7 @@ async function previewRule(
 	return {
 		ruleId: entry.ruleId,
 		caught: caught.map((c) => c.number),
+		caughtEvents,
 		examples: caught.slice(0, RULE_PREVIEW_MAX_EXAMPLES),
 	};
 }

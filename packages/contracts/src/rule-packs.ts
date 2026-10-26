@@ -90,6 +90,9 @@ export type RulePreviewCatch = z.infer<typeof rulePreviewCatchSchema>;
 export const rulePreviewRuleSchema = z.object({
 	ruleId: z.string(),
 	caught: z.array(z.number().int()).nullable(),
+	caughtEvents: z
+		.array(z.object({ number: z.number().int(), eventId: z.string() }))
+		.optional(),
 	examples: z.array(rulePreviewCatchSchema).max(RULE_PREVIEW_MAX_EXAMPLES),
 });
 export type RulePreviewRule = z.infer<typeof rulePreviewRuleSchema>;

@@ -26,9 +26,30 @@ export function aggregateHomeDigest(
 		for (const row of repo.counts) {
 			totals.set(row.verdict, (totals.get(row.verdict) ?? 0) + row.count);
 		}
-		const replay = replayRules(repo.preview, repo.uninstalledRuleIds);
+		const runs = new Map(repo.latestRuns.map((run) => [run.number, run]));
+		const preview = repo.preview
+			? {
+					...repo.preview,
+					rules: repo.preview.rules.map((rule) => {
+						const proven = new Set(
+							rule.caughtEvents
+								?.filter(
+									({ number, eventId }) =>
+										runs.get(number)?.eventId === eventId,
+								)
+								.map(({ number }) => number),
+						);
+						return {
+							...rule,
+							caught:
+								rule.caught?.filter((number) => proven.has(number)) ?? null,
+						};
+					}),
+				}
+			: null;
+		const replay = replayRules(preview, repo.uninstalledRuleIds);
 		for (const row of replay?.rows ?? []) {
-			const run = repo.latestRuns.find((run) => run.number === row.number);
+			const run = runs.get(row.number);
 			if (
 				!row.ruleId ||
 				run?.verdict !== "pass" ||
@@ -42,6 +63,7 @@ export function aggregateHomeDigest(
 			caught = {
 				repoId: repo.id,
 				repoName: repo.name,
+				armed: repo.armed,
 				number: row.number,
 				title: row.title,
 				ruleId: row.ruleId,

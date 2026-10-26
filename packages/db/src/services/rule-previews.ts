@@ -18,6 +18,7 @@ export interface StoredRulePreview {
 }
 
 export interface PreviewChangeRequest {
+	eventId: string;
 	number: number;
 	title: string;
 	author: string;
@@ -26,6 +27,7 @@ export interface PreviewChangeRequest {
 }
 
 export interface PreviewStep {
+	eventId: string;
 	number: number;
 	ref: string;
 	config: unknown;
@@ -83,12 +85,14 @@ export async function saveRulePreview(
 }
 
 const eventRowSchema = z.object({
+	id: z.string(),
 	subject_number: z.coerce.number().int(),
 	normalized: z.unknown(),
 	association: z.string().nullable(),
 });
 
 const stepRowSchema = z.object({
+	event_id: z.string(),
 	subject_number: z.coerce.number().int(),
 	rule_id: z.string(),
 	status: z.enum(["pass", "fail", "skipped"]),
@@ -114,7 +118,7 @@ export async function loadPreviewInputs(
 	since: Date,
 ): Promise<PreviewInputs> {
 	const eventRows = await db.execute(sql`
-		SELECT DISTINCT ON (subject_number) subject_number, normalized,
+		SELECT DISTINCT ON (subject_number) id, subject_number, normalized,
 		       raw->'pull_request'->>'author_association' AS association
 		FROM events
 		WHERE repo_full_name = ${repo.fullName}
@@ -137,6 +141,7 @@ export async function loadPreviewInputs(
 			continue;
 		}
 		changeRequests.push({
+			eventId: row.data.id,
 			number: row.data.subject_number,
 			title: event.data.changeRequest.title,
 			author: event.data.actor.login,
@@ -149,7 +154,7 @@ export async function loadPreviewInputs(
 	}
 	const numbers = changeRequests.map((cr) => cr.number);
 	const stepRows = await db.execute(sql`
-		SELECT r.subject_number, s.rule_id, s.status, s.input, s.evidence
+		SELECT r.event_id, r.subject_number, s.rule_id, s.status, s.input, s.evidence
 		FROM run_steps s
 		JOIN runs r ON r.id = s.run_id
 		WHERE r.repo_full_name = ${repo.fullName}
@@ -170,6 +175,7 @@ export async function loadPreviewInputs(
 		}
 		const input = row.data.input as { config?: unknown } | null;
 		steps.push({
+			eventId: row.data.event_id,
 			number: row.data.subject_number,
 			ref: row.data.rule_id,
 			config: input?.config,

@@ -18,6 +18,7 @@ const countRowSchema = z.object({
 	count: z.coerce.number().int().nonnegative(),
 });
 const latestRowSchema = z.object({
+	eventId: z.string(),
 	repoId: z.string(),
 	number: z.number().int(),
 	verdict: verdictSchema.nullable(),
@@ -43,7 +44,7 @@ export async function loadHomeDigestRepos(
 			GROUP BY r.id, runs.verdict`),
 		db.execute(sql`
 			SELECT DISTINCT ON (r.id, runs.subject_number)
-			  r.id AS "repoId", runs.subject_number AS number, runs.verdict, runs.created_at AS "createdAt"
+			  r.id AS "repoId", runs.event_id AS "eventId", runs.subject_number AS number, runs.verdict, runs.created_at AS "createdAt"
 			FROM repos r JOIN runs ON runs.repo_full_name = r.full_name
 			JOIN events e ON e.id = runs.event_id AND e.forge = r.forge
 			WHERE r.org_id = ${orgId} AND r.removed_at IS NULL
@@ -69,6 +70,7 @@ export async function loadHomeDigestRepos(
 				id: repo.id,
 				name: repo.name,
 				fullName: repo.fullName,
+				armed: repo.armed,
 				counts: countRows.filter((row) => row.repoId === repo.id),
 				latestRuns: latestRows.filter((row) => row.repoId === repo.id),
 				preview: stored?.preview ?? null,

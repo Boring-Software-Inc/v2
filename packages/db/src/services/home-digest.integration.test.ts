@@ -71,6 +71,7 @@ async function addRun(input: {
 		workflowSnapshot: [],
 		createdAt: at,
 	});
+	return eventId;
 }
 
 test("reads only this org's live repos and verdict-bearing runs in the week", async () => {
@@ -112,7 +113,7 @@ test("latest run replaces an earlier pass, including a run still in progress", a
 });
 
 test("reads saved previews and excludes installed and tuned rules", async () => {
-	await addRun({ verdict: "pass", number: 524 });
+	const eventId = await addRun({ verdict: "pass", number: 524 });
 	await saveRulePreview(
 		db,
 		repoId,
@@ -127,6 +128,10 @@ test("reads saved previews and excludes installed and tuned rules", async () => 
 		TO,
 	);
 	let [repo] = await loadHomeDigestRepos(db, ORG_ID, FROM, TO);
+	expect(repo?.latestRuns.find((run) => run.number === 524)?.eventId).toBe(
+		eventId,
+	);
+	expect(repo?.armed).toBe(false);
 	expect(repo?.preview?.rules[0]?.caught).toEqual([521]);
 	expect(repo?.uninstalledRuleIds).toContain("crypto-address");
 	await upsertRuleConfig(db, repoId, {
