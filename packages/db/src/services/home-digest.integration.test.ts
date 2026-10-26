@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import type { Verdict } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
+import { eq } from "drizzle-orm";
 import {
 	applyMigrations,
 	createDb,
@@ -11,7 +12,7 @@ import {
 import { events } from "../schema/events.ts";
 import { repos } from "../schema/repos.ts";
 import { runs } from "../schema/runs.ts";
-import { loadHomeDigestRepos } from "./home-digest.ts";
+import { loadHomeDigestHistory, loadHomeDigestRepos } from "./home-digest.ts";
 import { ensureRepo, upsertRuleConfig } from "./repos.ts";
 import { saveRulePreview } from "./rule-previews.ts";
 
@@ -110,6 +111,66 @@ test("latest run replaces an earlier pass, including a run still in progress", a
 	expect(
 		repo?.latestRuns.find((run) => run.number === 521)?.verdict,
 	).toBeNull();
+});
+
+test("digest history accounts for closed reviews and repeated checks after the current verdict changes", async () => {
+	const before = await loadHomeDigestHistory(
+		db,
+		repoId,
+		FROM,
+		TO,
+		"needs_review",
+	);
+	const eventId = await addRun({ verdict: "needs_review", number: 900 });
+	await db
+		.update(runs)
+		.set({ status: "closed" })
+		.where(eq(runs.eventId, eventId));
+	await db.insert(runs).values({
+		id: generateId(),
+		eventId,
+		repoFullName: "lumenhq/lumen",
+		subjectNumber: 900,
+		status: "completed",
+		verdict: "needs_review",
+		workflowSnapshot: [],
+		createdAt: TO,
+	});
+	await addRun({ verdict: "pass", number: 900 });
+	await addRun({
+		verdict: "needs_review",
+		number: 901,
+		at: new Date(FROM.getTime() - 1),
+	});
+	await addRun({
+		verdict: "needs_review",
+		number: 902,
+		at: new Date(TO.getTime() + 1),
+	});
+	await addRun({
+		verdict: "needs_review",
+		number: 903,
+		kind: "comment.created",
+		subjectKind: "comment",
+	});
+	const history = await loadHomeDigestHistory(
+		db,
+		repoId,
+		FROM,
+		TO,
+		"needs_review",
+	);
+	const [repo] = await loadHomeDigestRepos(db, ORG_ID, FROM, TO, false);
+	expect(history.total).toBe(before.total + 2);
+	expect(history.total).toBe(
+		repo?.counts.find((row) => row.verdict === "needs_review")?.count ?? 0,
+	);
+	expect(history.runs.filter((run) => run.number === 900)).toHaveLength(2);
+	expect(history.runs.some((run) => run.status === "closed")).toBe(true);
+	expect(
+		(await loadHomeDigestHistory(db, "another-repo", FROM, TO, "needs_review"))
+			.total,
+	).toBe(0);
 });
 
 test("reads saved previews and excludes installed and tuned rules", async () => {

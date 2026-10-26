@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { ActivityHistory } from "#/components/activity/activity-history";
 import { ActivityListSkeleton } from "#/components/activity/activity-page-skeleton";
 import { ActivityRow } from "#/components/activity/activity-row";
 import { ActivityStack } from "#/components/activity/activity-stack";
@@ -41,9 +42,11 @@ type Filter = ActivityVerdict;
 const FILTERS: { key: Filter; label: string }[] = [
 	{ key: "all", label: "All" },
 	{ key: "block", label: "Blocked" },
+	{ key: "changes_required", label: "Changes needed" },
 	{ key: "needs_review", label: "Human review" },
 	{ key: "pass", label: "Passed" },
 	{ key: "no-run", label: "Not checked" },
+	{ key: "close", label: "Closed" },
 ];
 
 function matches(item: ActivityFeedItem, filter: Filter): boolean {
@@ -88,6 +91,16 @@ function segmentsOf(items: ActivityFeedItem[]): Segment[] {
 }
 
 export function ActivityPage() {
+	const { org, repo } = routeApi.useParams();
+	const { from, to, verdict } = routeApi.useSearch();
+	return from && to && verdict !== "no-run" ? (
+		<ActivityHistory input={{ org, repo, from, to, verdict }} />
+	) : (
+		<CurrentActivityPage />
+	);
+}
+
+function CurrentActivityPage() {
 	const { org, repo: repoName } = routeApi.useParams();
 	const { data, error, isSuccess } = useQuery(
 		activityQueryOptions(org, repoName),

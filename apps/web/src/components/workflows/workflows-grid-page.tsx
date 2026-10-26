@@ -535,7 +535,7 @@ function WorkflowRow({
 					seed={workflow.id}
 				/>
 				<EntityCard
-					className="[&>[data-slot=card-footer]]:flex-wrap"
+					className="[&>[data-slot=card-footer]]:flex-wrap [&_[data-slot=card-meta]]:flex-1"
 					feedbackName="WorkflowRow"
 					badges={
 						workflow.draftId || workflow.triggerKinds.length > 0 ? (

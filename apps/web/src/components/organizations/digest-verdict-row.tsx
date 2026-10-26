@@ -1,4 +1,8 @@
-import type { HomeDigest, Verdict } from "@tripwire/contracts";
+import type {
+	DigestHistoryWindow,
+	HomeDigest,
+	Verdict,
+} from "@tripwire/contracts";
 import { ItemRouterLink } from "#/components/common/router-links";
 import {
 	Blocked,
@@ -29,6 +33,7 @@ interface DigestVerdictRowProps {
 	repos: HomeDigest["repos"];
 	verdict: Verdict;
 	count: number;
+	period: DigestHistoryWindow;
 }
 
 export function DigestVerdictRow({
@@ -36,36 +41,37 @@ export function DigestVerdictRow({
 	repos,
 	verdict,
 	count,
+	period,
 }: DigestVerdictRowProps) {
 	const { label, icon, color } = VERDICTS[verdict];
 	const repo = repos[0];
-	const filter =
-		verdict === "block" || verdict === "needs_review" || verdict === "pass"
-			? verdict
-			: null;
-	const title =
-		!filter || !repo ? (
-			label
-		) : repos.length === 1 ? (
-			<ItemRouterLink
-				params={{ org, repo: repo.name }}
-				search={{ verdict: filter }}
-				to="/$org/$repo/activity"
+	const title = !repo ? (
+		label
+	) : repos.length === 1 ? (
+		<ItemRouterLink
+			params={{ org, repo: repo.name }}
+			search={{ verdict, ...period }}
+			to="/$org/$repo/activity"
+		>
+			{label}
+		</ItemRouterLink>
+	) : (
+		<DigestActivityMenu
+			org={org}
+			period={period}
+			repos={repos}
+			verdict={verdict}
+		>
+			<DropdownMenuTrigger
+				className="min-w-0 text-start hover:underline after:absolute after:inset-0 after:content-['']"
+				data-slot="item-link"
 			>
 				{label}
-			</ItemRouterLink>
-		) : (
-			<DigestActivityMenu org={org} repos={repos} verdict={filter}>
-				<DropdownMenuTrigger
-					className="min-w-0 text-start hover:underline after:absolute after:inset-0 after:content-['']"
-					data-slot="item-link"
-				>
-					{label}
-				</DropdownMenuTrigger>
-			</DigestActivityMenu>
-		);
+			</DropdownMenuTrigger>
+		</DigestActivityMenu>
+	);
 	return (
-		<Item className="min-h-11 gap-2 px-0">
+		<Item className="min-h-11 gap-2 px-2" inset>
 			<Icon className={color} icon={icon} />
 			<ItemContent>
 				<ItemTitle>{title}</ItemTitle>

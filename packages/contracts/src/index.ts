@@ -26,7 +26,13 @@ export * from "./events.ts";
 export * from "./forges.ts";
 export * from "./giphy.ts";
 export {
+	type DigestHistory,
+	type DigestHistoryInput,
+	type DigestHistoryWindow,
 	type DigestRepo,
+	digestHistoryInputSchema,
+	digestHistorySchema,
+	digestHistoryWindowSchema,
 	digestRepoSchema,
 	type HomeDigest,
 	type HomeDigestInput,

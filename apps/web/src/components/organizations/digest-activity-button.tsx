@@ -1,5 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import type { HomeDigest } from "@tripwire/contracts";
+import type {
+	DigestHistoryInput,
+	DigestHistoryWindow,
+	HomeDigest,
+} from "@tripwire/contracts";
 import type { ReactNode } from "react";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -8,16 +12,17 @@ import {
 	DropdownMenuLinkItem,
 	DropdownMenuTrigger,
 } from "#/components/glaze/ui/dropdown-menu";
-import type { ActivityVerdict } from "#/lib/repo-search";
 
 interface DigestActivityButtonProps {
 	org: string;
 	repos: HomeDigest["repos"];
+	period: DigestHistoryWindow;
 }
 
 export function DigestActivityButton({
 	org,
 	repos,
+	period,
 }: DigestActivityButtonProps) {
 	const repo = repos[0];
 	if (!repo) {
@@ -28,19 +33,23 @@ export function DigestActivityButton({
 			<Button
 				nativeButton={false}
 				render={
-					<Link params={{ org, repo: repo.name }} to="/$org/$repo/activity" />
+					<Link
+						params={{ org, repo: repo.name }}
+						search={{ verdict: "all", ...period }}
+						to="/$org/$repo/activity"
+					/>
 				}
 				size="sm"
 				variant="secondary"
 			>
-				Open activity
+				Open run history
 			</Button>
 		);
 	}
 	return (
-		<DigestActivityMenu org={org} repos={repos}>
+		<DigestActivityMenu org={org} period={period} repos={repos}>
 			<DropdownMenuTrigger render={<Button size="sm" variant="secondary" />}>
-				Open activity
+				Open run history
 			</DropdownMenuTrigger>
 		</DigestActivityMenu>
 	);
@@ -48,7 +57,7 @@ export function DigestActivityButton({
 
 interface DigestActivityMenuProps extends DigestActivityButtonProps {
 	children: ReactNode;
-	verdict?: ActivityVerdict;
+	verdict?: DigestHistoryInput["verdict"];
 }
 
 export function DigestActivityMenu({
@@ -56,6 +65,7 @@ export function DigestActivityMenu({
 	repos,
 	children,
 	verdict = "all",
+	period,
 }: DigestActivityMenuProps) {
 	return (
 		<DropdownMenu>
@@ -67,12 +77,12 @@ export function DigestActivityMenu({
 						render={
 							<Link
 								params={{ org, repo: repo.name }}
-								search={{ verdict }}
+								search={{ verdict, ...period }}
 								to="/$org/$repo/activity"
 							/>
 						}
 					>
-						Open {repo.name} activity
+						Open {repo.name} run history
 					</DropdownMenuLinkItem>
 				))}
 			</DropdownMenuContent>

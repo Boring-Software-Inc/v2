@@ -28,6 +28,10 @@ export function FirstWeekDigest({
 					{date.format(new Date(digest.from))} to{" "}
 					{date.format(new Date(digest.to))}
 				</p>
+				<p className="type-body-sm text-text-2">
+					Counts show runs recorded this week, including repeated checks and
+					closed reviews.
+				</p>
 			</header>
 			<DigestCountsCard digest={digest} org={org} />
 			{digest.caught ? (

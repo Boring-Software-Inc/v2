@@ -53,6 +53,10 @@ const itemVariants = cva(
   ],
   {
     variants: {
+      inset: {
+        true: 'rounded-tag in-data-[slot=item-group]:border-0',
+        false: '',
+      },
       size: {
         default: 'min-h-(--row) py-1.5 has-data-[slot=item-description]:py-2',
         sm: 'min-h-(--control) gap-2 py-1',
@@ -69,12 +73,12 @@ type ItemProps = useRender.ComponentProps<'div'> & VariantProps<typeof itemVaria
   disabled?: boolean;
 };
 
-function Item({className, size = 'default', selected, disabled, render, ...props}: ItemProps) {
+function Item({className, size = 'default', inset = false, selected, disabled, render, ...props}: ItemProps) {
   const inGroup = useContext(ItemGroupContext);
   return useRender({
     defaultTagName: 'div',
     props: mergeProps<'div'>(
-      {className: cn(itemVariants({size}), className)},
+      {className: cn(itemVariants({size, inset}), className)},
       {
         'data-slot': 'item',
         'data-size': size,
