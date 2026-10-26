@@ -1,3 +1,5 @@
+import { DEFAULT_RESPONSE_CONFIG } from "@tripwire/contracts";
+import { generateId } from "@tripwire/utils";
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
@@ -23,6 +25,8 @@ export interface RepoSetupFacts {
 	firstCheck: { number: number; at: string } | null;
 	nextChangeRequest: number | null;
 	responsesChosen: boolean;
+	onboardingStarted: boolean;
+	onboardingCompleted: boolean;
 }
 
 const openRowSchema = z.object({ subject_number: z.coerce.number().int() });
@@ -153,5 +157,68 @@ export async function getRepoSetupFacts(
 				: null,
 		nextChangeRequest,
 		responsesChosen: repoResponses.length > 0 || orgResponses.length > 0,
+		onboardingStarted: repo.onboardingStartedAt !== null,
+		onboardingCompleted: repo.onboardingCompletedAt !== null,
 	};
+}
+
+export async function markResponsesReviewed(
+	db: Db,
+	input: { orgId: string; repoId: string },
+): Promise<boolean> {
+	const repo = await db
+		.select({ id: repos.id })
+		.from(repos)
+		.where(
+			and(
+				eq(repos.id, input.repoId),
+				eq(repos.orgId, input.orgId),
+				isNull(repos.removedAt),
+			),
+		)
+		.limit(1);
+	if (repo.length === 0) {
+		return false;
+	}
+	const inserted = await db
+		.insert(responseConfigs)
+		.values({
+			id: generateId(),
+			repoId: input.repoId,
+			config: DEFAULT_RESPONSE_CONFIG,
+		})
+		.onConflictDoNothing({ target: [responseConfigs.repoId] })
+		.returning({ id: responseConfigs.id });
+	return inserted.length > 0;
+}
+
+export type OnboardingEvent = "started" | "completed";
+
+export async function claimOnboardingEvent(
+	db: Db,
+	input: { orgId: string; repoId: string; event: OnboardingEvent },
+): Promise<boolean> {
+	const column =
+		input.event === "started"
+			? repos.onboardingStartedAt
+			: repos.onboardingCompletedAt;
+	const scope = and(
+		eq(repos.id, input.repoId),
+		eq(repos.orgId, input.orgId),
+		isNull(column),
+	);
+	const claimed = await db
+		.update(repos)
+		.set(
+			input.event === "started"
+				? { onboardingStartedAt: new Date() }
+				: { onboardingCompletedAt: new Date() },
+		)
+		.where(
+			input.event === "completed"
+				? and(scope, isNotNull(repos.onboardingStartedAt))
+				: scope,
+		)
+		.returning({ id: repos.id });
+	return claimed.length > 0;
 }

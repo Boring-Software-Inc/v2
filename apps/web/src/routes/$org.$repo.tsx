@@ -1,4 +1,5 @@
-import { createFileRoute, notFound, Outlet } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { RepoLayout } from "#/components/layouts/repo-layout";
 import { NotFound } from "#/components/not-found";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 
@@ -15,5 +16,5 @@ export const Route = createFileRoute("/$org/$repo")({
 		}
 	},
 	notFoundComponent: NotFound,
-	component: () => <Outlet />,
+	component: RepoLayout,
 });

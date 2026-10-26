@@ -3,7 +3,7 @@ import type { RepoAgentRun, RepoSetupFacts } from "@tripwire/db";
 import {
 	agentActivity,
 	formatStepTime,
-	nextLabel,
+	onboardingDue,
 	rulesSummary,
 	setupProgress,
 	showsReviewQueue,
@@ -19,6 +19,8 @@ const NOTHING: RepoSetupFacts = {
 	firstCheck: null,
 	nextChangeRequest: null,
 	responsesChosen: false,
+	onboardingStarted: false,
+	onboardingCompleted: false,
 };
 
 const SPAM = ["account-age", "english-only", "pr-rate-limit"];
@@ -35,7 +37,6 @@ describe("setupProgress", () => {
 			"Run first check",
 			"Pick what Tripwire posts",
 		]);
-		expect(nextLabel(progress)).toBe("Next: install the GitHub App");
 	});
 
 	test("two steps done names the rules that are on and points at the check", () => {
@@ -56,7 +57,6 @@ describe("setupProgress", () => {
 			detail: "Spam protection",
 		});
 		expect(progress.current?.key).toBe("check");
-		expect(nextLabel(progress)).toBe("Next: run first check");
 		expect(progress.complete).toBe(false);
 	});
 
@@ -82,7 +82,34 @@ describe("setupProgress", () => {
 		expect(progress.complete).toBe(true);
 		expect(progress.current).toBeNull();
 		expect(progress.steps[2]?.title).toBe("First check on #509");
-		expect(nextLabel(progress)).toBeNull();
+	});
+});
+
+describe("onboardingDue", () => {
+	const DONE: RepoSetupFacts = {
+		...NOTHING,
+		installed: true,
+		armed: true,
+		customRulesOn: 1,
+		firstCheck: { number: 509, at: "2026-10-20T10:00:00.000Z" },
+		responsesChosen: true,
+	};
+
+	test("an unfinished setup starts onboarding once", () => {
+		expect(onboardingDue(NOTHING, setupProgress(NOTHING))).toBe("started");
+		const started = { ...NOTHING, onboardingStarted: true };
+		expect(onboardingDue(started, setupProgress(started))).toBeNull();
+	});
+
+	test("a finished setup completes onboarding once", () => {
+		const started = { ...DONE, onboardingStarted: true };
+		expect(onboardingDue(started, setupProgress(started))).toBe("completed");
+		const completed = { ...started, onboardingCompleted: true };
+		expect(onboardingDue(completed, setupProgress(completed))).toBeNull();
+	});
+
+	test("a repo set up before tracking sends nothing", () => {
+		expect(onboardingDue(DONE, setupProgress(DONE))).toBeNull();
 	});
 });
 

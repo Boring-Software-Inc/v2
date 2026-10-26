@@ -309,6 +309,13 @@
       "when": 1792969938960,
       "tag": "0043_drop_rule_outcomes",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792975357484,
+      "tag": "0044_repo_onboarding_events",
+      "breakpoints": true
     }
   ]
 }

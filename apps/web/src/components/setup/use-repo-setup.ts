@@ -1,11 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { toast } from "#/components/glaze/ui/toast";
 import { useInstallRules } from "#/components/rules/use-install-rules";
+import { useOrgPermission } from "#/hooks/use-org-permission";
 import { rerunChangeRequest } from "#/lib/activity.functions";
 import { armRepo } from "#/lib/arm.functions";
-import { setupProgress } from "#/lib/repo-setup";
+import { onboardingDue, setupProgress } from "#/lib/repo-setup";
 import {
+	claimOnboardingEvent,
 	keepResponseDefaults,
+	type OnboardingEvent,
 	takeOverAgentSetup,
 } from "#/lib/repo-setup.functions";
 import {
@@ -13,6 +17,7 @@ import {
 	repoSetupQueryOptions,
 } from "#/lib/repo-setup.query";
 import { responseQueryKeys } from "#/lib/response.query";
+import { trackEvent } from "#/lib/track";
 
 export function useRepoSetup(org: string, repo: string) {
 	const query = useQuery(repoSetupQueryOptions(org, repo));
@@ -22,6 +27,35 @@ export function useRepoSetup(org: string, repo: string) {
 		state,
 		progress: state ? setupProgress(state.facts) : null,
 	};
+}
+
+const ONBOARDING_EVENTS = {
+	started: "onboarding_started",
+	completed: "onboarding_completed",
+} as const;
+
+export function useOnboardingEvents(org: string, repo: string) {
+	const { state, progress } = useRepoSetup(org, repo);
+	const canClaim = useOrgPermission(org, "connections:manage");
+	const invalidate = useInvalidateRepoSetup(org, repo);
+	const { mutate } = useMutation({
+		mutationFn: (input: { repoId: string; event: OnboardingEvent }) =>
+			claimOnboardingEvent({ data: { org, ...input } }),
+		onSuccess: ({ claimed }, { event }) => {
+			if (claimed) {
+				trackEvent(ONBOARDING_EVENTS[event], {});
+			}
+		},
+		onSettled: invalidate,
+	});
+	const due =
+		canClaim && state && progress ? onboardingDue(state.facts, progress) : null;
+	const repoId = state?.repoId ?? null;
+	useEffect(() => {
+		if (due && repoId) {
+			mutate({ repoId, event: due });
+		}
+	}, [due, repoId, mutate]);
 }
 
 export function useInvalidateRepoSetup(org: string, repo: string) {

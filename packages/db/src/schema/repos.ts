@@ -62,6 +62,12 @@ export const repos = pgTable(
 			.defaultNow(),
 		/** Soft removal on uninstall — history stays interpretable. */
 		removedAt: timestamp("removed_at", { withTimezone: true }),
+		onboardingStartedAt: timestamp("onboarding_started_at", {
+			withTimezone: true,
+		}),
+		onboardingCompletedAt: timestamp("onboarding_completed_at", {
+			withTimezone: true,
+		}),
 	},
 	(t) => [
 		uniqueIndex("repos_forge_external_unique").on(t.forge, t.externalId),

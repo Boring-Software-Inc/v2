@@ -14,7 +14,12 @@ import {
 	organizationResponseDefaults,
 } from "../schema/organizations.ts";
 import { runs } from "../schema/runs.ts";
-import { getRepoSetupFacts, latestOpenChangeRequest } from "./repo-setup.ts";
+import {
+	claimOnboardingEvent,
+	getRepoSetupFacts,
+	latestOpenChangeRequest,
+	markResponsesReviewed,
+} from "./repo-setup.ts";
 import * as repoServices from "./repos.ts";
 
 let container: TestDatabase;
@@ -80,6 +85,8 @@ describe("repo setup facts", () => {
 			firstCheck: null,
 			nextChangeRequest: null,
 			responsesChosen: false,
+			onboardingStarted: false,
+			onboardingCompleted: false,
 		});
 		expect(
 			await getRepoSetupFacts(db, { orgId: otherOrgId, repoId }),
@@ -193,6 +200,8 @@ describe("repo setup facts", () => {
 			},
 			nextChangeRequest: 509,
 			responsesChosen: true,
+			onboardingStarted: false,
+			onboardingCompleted: false,
 		});
 		expect(
 			await latestOpenChangeRequest(db, {
@@ -212,5 +221,51 @@ describe("repo setup facts", () => {
 				forge: "github",
 			}),
 		).toBe(512);
+	});
+});
+
+describe("setup steps a page view completes", () => {
+	test("opening responses picks the defaults once and keeps a saved config", async () => {
+		const repoId = await repoServices.ensureRepo(db, {
+			externalId: "20",
+			owner: "other",
+			name: "viewed",
+			fullName: "other/viewed",
+			installationId: "inst-3",
+			orgId: otherOrgId,
+		});
+		expect(await markResponsesReviewed(db, { orgId, repoId })).toBe(false);
+		expect(await markResponsesReviewed(db, { orgId: otherOrgId, repoId })).toBe(
+			true,
+		);
+		expect(await markResponsesReviewed(db, { orgId: otherOrgId, repoId })).toBe(
+			false,
+		);
+		const facts = await getRepoSetupFacts(db, { orgId: otherOrgId, repoId });
+		expect(facts?.responsesChosen).toBe(true);
+	});
+});
+
+describe("onboarding events", () => {
+	test("each event is claimed once per repo, completed only after started", async () => {
+		const repoId = await repoServices.ensureRepo(db, {
+			externalId: "21",
+			owner: "lumenhq",
+			name: "funnel",
+			fullName: "lumenhq/funnel",
+			installationId: "inst-1",
+			orgId,
+		});
+		const claim = (event: "started" | "completed", org = orgId) =>
+			claimOnboardingEvent(db, { orgId: org, repoId, event });
+		expect(await claim("completed")).toBe(false);
+		expect(await claim("started", otherOrgId)).toBe(false);
+		expect(await claim("started")).toBe(true);
+		expect(await claim("started")).toBe(false);
+		expect(await claim("completed")).toBe(true);
+		expect(await claim("completed")).toBe(false);
+		const facts = await getRepoSetupFacts(db, { orgId, repoId });
+		expect(facts?.onboardingStarted).toBe(true);
+		expect(facts?.onboardingCompleted).toBe(true);
 	});
 });

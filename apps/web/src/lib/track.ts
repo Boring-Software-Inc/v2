@@ -14,6 +14,8 @@ type Events = {
 	setup_prompt_copied: { has_run_code: boolean };
 	agent_setup_prompt_dismissed: { count: 1 | 2 };
 	agent_setup_prompt_shown: { reminder: boolean };
+	onboarding_started: Record<string, never>;
+	onboarding_completed: Record<string, never>;
 };
 
 export function trackEvent<E extends keyof Events>(name: E, props: Events[E]) {

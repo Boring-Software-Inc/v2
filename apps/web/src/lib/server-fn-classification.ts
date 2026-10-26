@@ -144,6 +144,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	takeOverAgentSetup: "permission:connections:manage",
 	getRepoSetup: "permission:moderation:read",
 	keepResponseDefaults: "permission:responses:manage",
+	markResponsesReviewed: "permission:responses:manage",
+	claimOnboardingEvent: "permission:connections:manage",
 
 	// ── members + roles (manage is never grantable to a custom role) ──────
 	listOrgMembers: "permission:members:read",
