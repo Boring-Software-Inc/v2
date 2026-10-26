@@ -888,10 +888,11 @@ export function planSurfaces(
 	const body = () => renderVerdictComment(input, config, policy);
 
 	if (verdict === "block" && reviewPosted) {
-		if (wanted && blockCommentAddsDetail(config, policy)) {
+		const content = wanted ? renderBody(input, config, policy, "comment") : "";
+		if (content !== "" && blockCommentAddsDetail(config, policy)) {
 			return {
 				comment: "upsert",
-				commentBody: body(),
+				commentBody: withMarker(content),
 				review: REVIEW_POINTER.block,
 			};
 		}

@@ -25,13 +25,15 @@ export function BlockCanvas({
 	const { setNodeRef } = useDroppable({ id: CANVAS_DROP_ID });
 	const lifted =
 		builder.drag?.item.source === "canvas" ? builder.drag.item.id : null;
+	const editing =
+		builder.selectedId !== null ||
+		builder.drag !== null ||
+		outputs.every((output) => !output.body);
 
 	return (
 		<div
 			className="flex min-h-12 flex-col px-2 py-2.5 [&:not(:hover,:focus-within,[data-editing])_[data-empty-block]]:hidden"
-			data-editing={
-				builder.selectedId !== null || builder.drag !== null || undefined
-			}
+			data-editing={editing || undefined}
 			data-region="comment-body"
 			ref={setNodeRef}
 		>

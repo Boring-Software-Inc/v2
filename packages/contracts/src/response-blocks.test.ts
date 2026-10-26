@@ -509,6 +509,16 @@ describe("stored blocks", () => {
 		expect(plan.commentBody).toContain(BUTTON);
 	});
 
+	test("a block list that renders nothing posts only the review", () => {
+		const config = responseConfigSchema.parse({
+			blocks: { block: [{ id: "g", type: "rerun-notice" }] },
+		});
+		const policy = redactionPolicySchema.parse({ level: 0 });
+		const plan = planSurfaces(input(), config, policy, { reviewPosted: true });
+		expect(plan.comment).toBe("delete");
+		expect(plan.review).not.toBe("Blocked. See the comment.");
+	});
+
 	test("an empty block list posts only the review", () => {
 		const config = responseConfigSchema.parse({ blocks: { block: [] } });
 		const policy = redactionPolicySchema.parse({ level: 0 });
