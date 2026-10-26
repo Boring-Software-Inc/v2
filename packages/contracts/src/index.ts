@@ -25,6 +25,14 @@ export * from "./economics.ts";
 export * from "./events.ts";
 export * from "./forges.ts";
 export * from "./giphy.ts";
+export {
+	type DigestRepo,
+	digestRepoSchema,
+	type HomeDigest,
+	type HomeDigestInput,
+	homeDigestInputSchema,
+	homeDigestSchema,
+} from "./home-digest.ts";
 export * from "./insights.ts";
 export * from "./install-status.ts";
 export * from "./issue-copy.ts";
