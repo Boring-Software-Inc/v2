@@ -13,7 +13,7 @@ export function createMuse(system: System): Agent {
 	return {
 		id: "muse",
 		name: "Muse Code",
-		signInHint: "muse mcp login tripwire",
+		signInHint: `muse mcp login ${SERVER_NAME}`,
 		detect: () => system.which("muse") !== null,
 		hasServer: async () =>
 			configuredUrl(settingsPath(system), "mcp_servers", SERVER_NAME) !== null,

@@ -1,5 +1,5 @@
 import { parseSetupCommandArg, setupRunPrompt } from "@tripwire/contracts";
-import { SKILL_NAME } from "#/config";
+import { IS_STAGING, SKILL_NAME } from "#/config";
 
 export const DEFAULT_PROMPT = `Use the \`${SKILL_NAME}\` skill for this project.`;
 
@@ -10,7 +10,9 @@ export function buildPrompt(instruction?: string): string {
 	}
 	const run = parseSetupCommandArg(trimmed);
 	if (run) {
-		return setupRunPrompt(run);
+		return IS_STAGING
+			? `${DEFAULT_PROMPT}\n\n${setupRunPrompt(run)}`
+			: setupRunPrompt(run);
 	}
-	return `Tripwire was just installed. ${trimmed}`;
+	return `${IS_STAGING ? `${DEFAULT_PROMPT}\n\n` : ""}Tripwire was just installed. ${trimmed}`;
 }

@@ -46,3 +46,14 @@ export function compareVersions(a: string, b: string): number {
 	}
 	return 0;
 }
+
+export function stagingVersion(
+	current: string,
+	bump: Bump | string,
+	sequence: string,
+): string {
+	if (!/^[1-9]\d*$/.test(sequence)) {
+		throw new Error("Staging release sequence must be a positive integer");
+	}
+	return `${nextVersion(current, bump)}-staging.${sequence}`;
+}

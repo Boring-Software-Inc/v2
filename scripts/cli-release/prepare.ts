@@ -1,5 +1,10 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
-import { compareVersions, isRelease, nextVersion } from "./version.ts";
+import {
+	compareVersions,
+	isRelease,
+	nextVersion,
+	stagingVersion,
+} from "./version.ts";
 
 const PACKAGE = "@tripwire-sh/cli";
 const MANIFEST = new URL("../../apps/cli/package.json", import.meta.url);
@@ -18,7 +23,7 @@ async function publishedVersion(): Promise<string | null> {
 	return body["dist-tags"]?.latest ?? null;
 }
 
-const [mode, arg] = process.argv.slice(2);
+const [mode, arg, channel = "latest"] = process.argv.slice(2);
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8")) as {
 	version: string;
 };
@@ -30,11 +35,25 @@ const base =
 		? published
 		: manifest.version;
 
+if (channel !== "latest" && channel !== "staging") {
+	throw new Error("Channel must be latest or staging");
+}
+
 let version: string;
 if (mode === "bump") {
-	version = nextVersion(base, arg ?? "patch");
-} else if (mode === "tag") {
+	version =
+		channel === "staging"
+			? stagingVersion(
+					base,
+					arg ?? "patch",
+					process.env.GITHUB_RUN_NUMBER ?? String(Date.now()),
+				)
+			: nextVersion(base, arg ?? "patch");
+} else if (mode === "tag" && channel === "latest") {
 	version = (arg ?? "").replace(/^cli-v/, "");
+	if (!isRelease(version)) {
+		throw new Error(`Not a release version: ${version}`);
+	}
 	if (
 		published &&
 		isRelease(published) &&
@@ -52,7 +71,9 @@ if (mode === "bump") {
 
 manifest.version = version;
 writeFileSync(MANIFEST, `${JSON.stringify(manifest, null, "\t")}\n`);
-console.log(`published ${published ?? "none"}, releasing ${version}`);
+process.stdout.write(
+	`published ${published ?? "none"}, releasing ${version} (${channel})\n`,
+);
 if (process.env.GITHUB_OUTPUT) {
 	appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
 }
