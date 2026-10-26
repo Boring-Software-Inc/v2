@@ -25,12 +25,12 @@ interface ShellNavProps {
 }
 
 const NAV_CLASS = {
-	tabs: "flex h-10 min-w-0 shrink-0 items-stretch gap-5 overflow-x-auto border-line-faint border-b px-4 [scrollbar-width:none]",
+	tabs: "flex h-10 min-w-0 shrink-0 items-stretch gap-5 overflow-x-auto px-4 [scrollbar-width:none]",
 	rail: "flex min-w-0 flex-col gap-px",
 } satisfies Record<NavVariant, string>;
 
 const LINK_CLASS = {
-	tabs: "-mb-px flex shrink-0 items-center gap-1.5 border-transparent border-b-2 pt-0.5 type-label text-text-2 transition-colors duration-(--dur-state) ease-out hover:text-text-1 aria-[current=page]:border-ink aria-[current=page]:text-text-1",
+	tabs: "flex shrink-0 items-center gap-1.5 border-transparent border-b-2 pt-0.5 type-label text-text-2 transition-colors duration-(--dur-state) ease-out hover:text-text-1 aria-[current=page]:border-ink aria-[current=page]:text-text-1",
 	rail: "flex h-(--control) items-center gap-2 rounded-tag px-2 type-label text-text-2 hover:bg-hover hover:text-text-1 aria-[current=page]:bg-pressed aria-[current=page]:text-text-1",
 } satisfies Record<NavVariant, string>;
 
