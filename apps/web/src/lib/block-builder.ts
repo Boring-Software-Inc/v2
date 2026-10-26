@@ -14,7 +14,7 @@ export interface BlockDrag {
 	index: number | null;
 }
 
-export type PreviewTab = "check" | "comment" | "run-page";
+export type PreviewTab = "check" | "comment" | "review" | "run-page";
 
 export interface PreviewView {
 	tab: PreviewTab;

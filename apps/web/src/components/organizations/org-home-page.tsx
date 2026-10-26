@@ -93,28 +93,46 @@ export function OrgHomePage() {
 							digest={digest}
 							timeZone={display.zone}
 						/>
-					) : home && !home.hasInstallation ? (
+					) : null}
+
+					{home && !home.hasInstallation ? (
 						<InstallCta org={org} />
 					) : (
-						<Collection
-							collection={collection}
-							empty={<NoReposYet org={org} />}
-							error={homeQuery.isError}
-							onRetry={async () => {
-								await homeQuery.refetch({ throwOnError: true });
-							}}
-							skeleton={<HomeLoading />}
+						<section
+							aria-labelledby="connected-repos-title"
+							className="flex min-w-0 flex-col gap-3"
 						>
-							{(rows) => (
-								<ul aria-label="Repos" className="flex flex-col gap-3">
-									{rows.map((repo) => (
-										<li key={repo.id}>
-											<RepoCard org={org} repo={repo} />
-										</li>
-									))}
-								</ul>
-							)}
-						</Collection>
+							<h2 className="type-heading" id="connected-repos-title">
+								Connected repos
+							</h2>
+							<Collection
+								collection={collection}
+								empty={<NoReposYet org={org} />}
+								error={homeQuery.isError}
+								onRetry={async () => {
+									await homeQuery.refetch({ throwOnError: true });
+								}}
+								skeleton={<HomeLoading />}
+							>
+								{(rows) => (
+									<section
+										aria-label="Connected repo list"
+										className="flex max-h-128 flex-col gap-3 overflow-y-auto overscroll-contain rounded-shell p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-1"
+									>
+										<ul
+											aria-label="Connected repos"
+											className="flex flex-col gap-3"
+										>
+											{rows.map((repo) => (
+												<li key={repo.id}>
+													<RepoCard org={org} repo={repo} />
+												</li>
+											))}
+										</ul>
+									</section>
+								)}
+							</Collection>
+						</section>
 					)}
 				</div>
 			</div>

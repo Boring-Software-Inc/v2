@@ -351,8 +351,14 @@ export function responsePreview(
 	const blocks = outcomeBlocks(config, outcome);
 	const seen: RedactionPolicy =
 		viewer === "member" ? { ...policy, level: 0 } : policy;
+	const plan = previewPlan(config, outcome, seen);
+	const posting = postsComment(config, outcome);
+	const surface =
+		posting && plan.comment !== "upsert" && plan.review !== null
+			? "review"
+			: "comment";
 	const lens: BlockLens = {
-		level: redactionLevelFor(policy, "comment"),
+		level: redactionLevelFor(policy, surface),
 		showHelp: policy.showHelp,
 		viewer,
 	};
@@ -360,9 +366,9 @@ export function responsePreview(
 		blocks,
 		lens,
 		outputs: renderBlockOutputs(blocks, sampleInput(outcome), lens),
-		plan: previewPlan(config, outcome, seen),
+		plan,
 		check: previewCheck(config, outcome, seen),
-		posting: postsComment(config, outcome),
+		posting,
 		runPageLevel: redactionLevelFor(seen, "run-page"),
 	};
 }
