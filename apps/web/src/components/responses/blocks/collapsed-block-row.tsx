@@ -15,15 +15,15 @@ export function CollapsedBlockRow({
 	return (
 		<div
 			className={cn(
-				"flex items-center gap-2.5 rounded-panel",
-				note ? "h-8 bg-hover px-2.5" : "h-6 px-0.5",
+				"flex items-start gap-2 rounded-panel",
+				note ? "bg-hover px-2 py-2" : "min-h-6 px-0.5",
 			)}
 		>
 			<Icon className="text-text-3" icon={icon} />
-			<span className="min-w-0 flex-1 truncate type-body-sm text-text-2">
-				{label}
-			</span>
-			{note ? <span className="type-caption text-text-3">{note}</span> : null}
+			<div className="flex min-w-0 flex-1 flex-col gap-1">
+				<span className="type-body-sm text-text-2">{label}</span>
+				{note ? <span className="type-caption text-text-2">{note}</span> : null}
+			</div>
 		</div>
 	);
 }

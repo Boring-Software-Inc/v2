@@ -73,10 +73,14 @@ export function ResponseBuilder({
 					<div className="flex flex-col gap-2" data-region="comment">
 						{posting && plan.comment !== "upsert" ? (
 							<p className="type-body-sm text-text-2 sm:ms-13">
-								Tripwire posts only the review.
+								Tripwire posts no separate PR comment. These blocks appear in
+								the GitHub review.
 							</p>
 						) : null}
 						<GithubCommentMock
+							action={
+								posting && plan.comment !== "upsert" ? "review" : "comment"
+							}
 							body={posting ? "" : null}
 							edited={outcome.edited}
 							editor={

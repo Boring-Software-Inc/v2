@@ -51,7 +51,13 @@ export function BlockContent({
 		);
 	}
 	if (body === "") {
-		return <CollapsedBlockRow icon={meta.icon} label={meta.label} />;
+		return (
+			<CollapsedBlockRow
+				icon={meta.icon}
+				label={meta.label}
+				note="Empty in this sample"
+			/>
+		);
 	}
 	return <CommentMarkdown body={body} />;
 }

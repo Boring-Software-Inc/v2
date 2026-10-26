@@ -156,6 +156,61 @@ describe("every surface renders from the unsaved builder state", () => {
 		}
 	});
 
+	test("level zero leaves sample-dependent blocks empty without redacting them", () => {
+		const preview = responsePreview(
+			DEFAULT_RESPONSE_CONFIG,
+			outcomeMeta("block"),
+			policy(0),
+			"outsider",
+		);
+		expect(preview.outputs.some((output) => output.body === null)).toBe(false);
+		for (const type of ["ai-notice", "instruction", "notes", "rerun-notice"]) {
+			expect(
+				preview.outputs.find((output) => output.block.type === type)?.body,
+			).toBe("");
+		}
+		expect(
+			preview.outputs.find((output) => output.block.type === "failed-rules")
+				?.body,
+		).toContain("Account age");
+	});
+
+	test("draft redaction changes every applicable outsider surface while members retain detail", () => {
+		const config = edited([
+			{ id: "reasons", type: "failed-rules", style: "full" },
+		]);
+		const outcome = outcomeMeta("block");
+		const hidden = responsePreview(config, outcome, policy(8), "outsider");
+		expect(hidden.outputs[0]?.body).toBeNull();
+		expect(hidden.plan.review).not.toContain("Account age");
+		expect(hidden.check.summary).not.toContain("Account age");
+		expect(hidden.runPageLevel).toBe(8);
+		const member = responsePreview(config, outcome, policy(8), "member");
+		expect(member.outputs[0]?.body).toContain("Account age");
+		expect(member.plan.commentBody).toContain("Account age");
+		expect(member.check.summary).toContain("Account age");
+		expect(member.runPageLevel).toBe(0);
+	});
+
+	test("a sole review uses review redaction for its editable blocks", () => {
+		const reviewOnly = redactionPolicySchema.parse({
+			level: 8,
+			surfaces: ["comment"],
+		});
+		const preview = responsePreview(
+			DEFAULT_RESPONSE_CONFIG,
+			outcomeMeta("block"),
+			reviewOnly,
+			"outsider",
+		);
+		expect(preview.plan.comment).toBe("delete");
+		expect(preview.plan.review).toContain("Account age");
+		expect(
+			preview.outputs.find((output) => output.block.type === "failed-rules")
+				?.body,
+		).toContain("Account age");
+	});
+
 	test("an added block reaches the comment, the review and the run page", () => {
 		const outcome = outcomeMeta("block");
 		const before = responsePreview(

@@ -1,5 +1,6 @@
 import type { BlockViewer, SurfacePlan } from "@tripwire/contracts";
 import { type ReactNode, useId, useLayoutEffect } from "react";
+import { Button } from "#/components/glaze/ui/button";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
@@ -27,6 +28,7 @@ import type { RunView } from "#/lib/runs.functions";
 const TABS: { value: PreviewTab; label: string }[] = [
 	{ value: "check", label: "Check run" },
 	{ value: "comment", label: "PR comment" },
+	{ value: "review", label: "GitHub review" },
 	{ value: "run-page", label: "Run page" },
 ];
 
@@ -60,6 +62,9 @@ export function ResponsesPreview({
 	onView,
 }: ResponsesPreviewProps) {
 	const titleId = useId();
+	const tabs = TABS.filter(
+		(tab) => tab.value !== "review" || plan.review !== null,
+	);
 	const setTab = (value: string) => {
 		const tab = pickValue(TAB_VALUES, value);
 		if (tab) {
@@ -85,15 +90,16 @@ export function ResponsesPreview({
 		>
 			<header className="flex shrink-0 flex-wrap items-center gap-3 px-6 py-3">
 				<h2 className="me-auto type-label-lg text-text-1" id={titleId}>
-					Preview
+					Sample preview
 				</h2>
 				<SegmentedControl
 					aria-label="Surface"
+					className="hidden sm:inline-flex"
 					onValueChange={setTab}
 					size="sm"
 					value={view.tab}
 				>
-					{TABS.map((tab) => (
+					{tabs.map((tab) => (
 						<SegmentedControlItem key={tab.value} value={tab.value}>
 							{tab.label}
 						</SegmentedControlItem>
@@ -111,14 +117,54 @@ export function ResponsesPreview({
 						))}
 					</SelectContent>
 				</Select>
+				<div className="w-full sm:hidden">
+					<Select
+						items={tabs}
+						onValueChange={(value) => value && setTab(value)}
+						value={view.tab}
+					>
+						<SelectTrigger aria-label="Surface" className="w-full">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{tabs.map((tab) => (
+								<SelectItem key={tab.value} value={tab.value}>
+									{tab.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
 			</header>
 			<div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+				<p className="mb-4 type-body-sm text-text-2">
+					Uses your current edits and sample run data. Empty blocks have no
+					content in this sample.
+				</p>
 				{view.tab === "comment" ? canvas : null}
+				{view.tab === "review" && plan.review !== null ? (
+					<div className="flex flex-col gap-4">
+						<div className="flex flex-col items-start gap-2">
+							<p className="type-body-sm text-text-2">
+								{plan.comment === "upsert"
+									? "This GitHub review requests changes. The reasons and response blocks are in the separate PR comment."
+									: "This GitHub review requests changes and carries the response blocks. Tripwire posts no separate PR comment."}
+							</p>
+							{plan.comment === "upsert" ? (
+								<Button
+									onClick={() => onView({ tab: "comment" })}
+									size="sm"
+									variant="secondary"
+								>
+									View PR comment
+								</Button>
+							) : null}
+						</div>
+						<GithubCommentMock action="review" body={plan.review} />
+					</div>
+				) : null}
 				{view.tab === "check" ? (
 					<div className="flex flex-col gap-6">
-						{plan.review ? (
-							<GithubCommentMock action="review" body={plan.review} />
-						) : null}
 						<div className="sm:ms-13" data-region="check">
 							<CheckStateMock
 								posted={check.posted}
