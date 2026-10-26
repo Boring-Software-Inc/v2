@@ -24,7 +24,12 @@ export function DigestCountsCard({ org, digest }: DigestCountsCardProps) {
 			<CardContent className="px-3 py-1" flush>
 				<ItemGroup aria-label="This week's verdicts" variant="plain">
 					{digest.counts.map((row) => (
-						<DigestVerdictRow key={row.verdict} {...row} />
+						<DigestVerdictRow
+							key={row.verdict}
+							org={org}
+							repos={digest.repos}
+							{...row}
+						/>
 					))}
 				</ItemGroup>
 			</CardContent>

@@ -117,8 +117,7 @@ export function ActivityPage() {
 					<header className="flex flex-col gap-1">
 						<h1 className="type-title">Activity</h1>
 						<p className="type-body text-text-2">
-							Change requests, comments and pushes on this repo, with the
-							verdict Tripwire gave each one. The list updates live.
+							Filter by verdict. Open a change request to see its checks.
 						</p>
 					</header>
 
