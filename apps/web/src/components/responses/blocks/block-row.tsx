@@ -56,7 +56,7 @@ export function BlockRow({
 				lifted && "opacity-30",
 			)}
 			data-block={block.type}
-			data-placeholder={placeholder || undefined}
+			data-empty-block={placeholder || undefined}
 			onKeyDown={leave}
 			ref={mergeRefs(drag.setNodeRef, drop.setNodeRef)}
 		>
