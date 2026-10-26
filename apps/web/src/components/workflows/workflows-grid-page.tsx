@@ -535,6 +535,7 @@ function WorkflowRow({
 					seed={workflow.id}
 				/>
 				<EntityCard
+					className="[&>[data-slot=card-footer]]:flex-wrap [&_[data-slot=card-meta]]:flex-1"
 					feedbackName="WorkflowRow"
 					badges={
 						workflow.draftId || workflow.triggerKinds.length > 0 ? (
@@ -559,13 +560,15 @@ function WorkflowRow({
 					}
 					footerActions={
 						workflow.draftId && canManage ? (
-							<DraftActions
-								draftId={workflow.draftId}
-								name={workflow.name}
-								org={org}
-								replacesLive={workflow.enabled}
-								repoId={repoId}
-							/>
+							<div className="ms-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2 overflow-visible whitespace-normal">
+								<DraftActions
+									draftId={workflow.draftId}
+									name={workflow.name}
+									org={org}
+									replacesLive={workflow.enabled}
+									repoId={repoId}
+								/>
+							</div>
 						) : undefined
 					}
 					footerMeta={

@@ -26,6 +26,7 @@ import {
 	type StatusValue,
 	statusVariants,
 } from "#/components/glaze/ui/status";
+import { Truncate } from "#/components/glaze/ui/truncate";
 import { ZonedTime } from "#/components/timezones/zoned-time";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
 import { changeRequestForgeLink, eventForgeLink } from "#/lib/activity-links";
@@ -99,23 +100,28 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 }
 
 function StackTitle({ group }: { group: ActivityGroup }) {
-	const title = (
-		<>
-			#{group.subjectNumber} {group.title}
-		</>
-	);
+	const title = `#${group.subjectNumber} ${group.title}`;
 	if (group.currentRunId) {
 		return (
-			<Link
-				className="hover:underline"
-				params={{ runId: group.currentRunId }}
-				to="/runs/$runId"
+			<Truncate
+				className="-my-1 grid min-h-(--control-sm) items-center hover:underline"
+				render={
+					<Link params={{ runId: group.currentRunId }} to="/runs/$runId" />
+				}
+				treatment="fade"
 			>
 				{title}
-			</Link>
+			</Truncate>
 		);
 	}
-	return title;
+	return (
+		<Truncate
+			className="-my-1 grid min-h-(--control-sm) items-center"
+			treatment="fade"
+		>
+			{title}
+		</Truncate>
+	);
 }
 
 function StackDescription({ group }: { group: ActivityGroup }) {

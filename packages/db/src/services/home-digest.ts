@@ -1,5 +1,7 @@
 import {
+	type DigestHistory,
 	type DigestRepo,
+	digestHistorySchema,
 	digestRepoSchema,
 	sameSettings,
 	verdictSchema,
@@ -24,6 +26,34 @@ const latestRowSchema = z.object({
 	verdict: verdictSchema.nullable(),
 	createdAt: z.coerce.date().transform((date) => date.toISOString()),
 });
+
+/** Historical runs use the digest's exact window and eligibility, including reviews closed before a decision. */
+export async function loadHomeDigestHistory(
+	db: Db,
+	repoId: string,
+	from: Date,
+	to: Date,
+	verdict: string,
+): Promise<DigestHistory> {
+	const result = await db.execute(sql`
+		SELECT runs.id, runs.subject_number AS number, runs.verdict, runs.status,
+		  runs.created_at AS "createdAt", count(*) OVER ()::int AS total
+		FROM repos r JOIN runs ON runs.repo_full_name = r.full_name
+		JOIN events e ON e.id = runs.event_id AND e.forge = r.forge
+		WHERE r.id = ${repoId} AND r.removed_at IS NULL
+		  AND runs.created_at >= ${from.toISOString()} AND runs.created_at <= ${to.toISOString()}
+		  AND runs.verdict IS NOT NULL AND ${runBearsVerdict}
+		  ${verdict === "all" ? sql`` : sql`AND runs.verdict = ${verdict}`}
+		ORDER BY runs.created_at DESC, runs.id DESC LIMIT 200
+	`);
+	return digestHistorySchema.parse({
+		total: result.rows[0]?.total ?? 0,
+		runs: result.rows.map((row) => ({
+			...row,
+			createdAt: z.coerce.date().parse(row.createdAt).toISOString(),
+		})),
+	});
+}
 
 export async function loadHomeDigestRepos(
 	db: Db,

@@ -1,4 +1,9 @@
-import type { Verdict } from "@tripwire/contracts";
+import type {
+	DigestHistoryWindow,
+	HomeDigest,
+	Verdict,
+} from "@tripwire/contracts";
+import { ItemRouterLink } from "#/components/common/router-links";
 import {
 	Blocked,
 	FailedMark,
@@ -7,7 +12,9 @@ import {
 	Success,
 	Time,
 } from "#/components/glaze/icon";
+import { DropdownMenuTrigger } from "#/components/glaze/ui/dropdown-menu";
 import { Item, ItemContent, ItemTitle } from "#/components/glaze/ui/item";
+import { DigestActivityMenu } from "#/components/organizations/digest-activity-button";
 
 const VERDICTS = {
 	block: { label: "Blocked", icon: FailedMark, color: "text-text-1" },
@@ -22,17 +29,52 @@ const VERDICTS = {
 } as const;
 
 interface DigestVerdictRowProps {
+	org: string;
+	repos: HomeDigest["repos"];
 	verdict: Verdict;
 	count: number;
+	period: DigestHistoryWindow;
 }
 
-export function DigestVerdictRow({ verdict, count }: DigestVerdictRowProps) {
+export function DigestVerdictRow({
+	org,
+	repos,
+	verdict,
+	count,
+	period,
+}: DigestVerdictRowProps) {
 	const { label, icon, color } = VERDICTS[verdict];
+	const repo = repos[0];
+	const title = !repo ? (
+		label
+	) : repos.length === 1 ? (
+		<ItemRouterLink
+			params={{ org, repo: repo.name }}
+			search={{ verdict, ...period }}
+			to="/$org/$repo/activity"
+		>
+			{label}
+		</ItemRouterLink>
+	) : (
+		<DigestActivityMenu
+			org={org}
+			period={period}
+			repos={repos}
+			verdict={verdict}
+		>
+			<DropdownMenuTrigger
+				className="min-w-0 text-start hover:underline after:absolute after:inset-0 after:content-['']"
+				data-slot="item-link"
+			>
+				{label}
+			</DropdownMenuTrigger>
+		</DigestActivityMenu>
+	);
 	return (
-		<Item className="min-h-11 gap-2 px-0">
+		<Item className="min-h-11 gap-2 px-2" inset>
 			<Icon className={color} icon={icon} />
 			<ItemContent>
-				<ItemTitle>{label}</ItemTitle>
+				<ItemTitle>{title}</ItemTitle>
 			</ItemContent>
 			<span className="type-body-sm tabular-nums">{count}</span>
 		</Item>

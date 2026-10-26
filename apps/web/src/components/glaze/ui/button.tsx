@@ -166,7 +166,7 @@ function Button({className, variant, size, pending, pendingLabel, disabled, focu
     title={still ? SLOW_NOTICE : undefined}
     className={mergeClass(buttonVariants({variant: v, size: s}), className)}
     {...props}
-  >{content}</ButtonPrimitive>;
+  >{content}<span aria-hidden="true" data-slot="control-hit-area"/></ButtonPrimitive>;
 }
 
 export {Button, buttonVariants, type ButtonProps};

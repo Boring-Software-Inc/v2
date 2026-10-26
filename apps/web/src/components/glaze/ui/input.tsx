@@ -79,7 +79,7 @@ function InputRoot({size = 'default', disabled, readOnly, className, onPointerDo
       data-readonly={readOnly || undefined}
       onPointerDown={down}
       className={cn(
-        'field group/input w-full cursor-text [--field-h:max(var(--input-h),calc(1lh+var(--space-2)))]',
+        'field relative group/input w-full cursor-text [--field-h:max(var(--input-h),calc(1lh+var(--space-2)))]',
         '[--action-h:calc(var(--input-h)-2*var(--shell-inset)-2*var(--line-width))]',
         boxSize[size],
         // Read-only drops to the faint line until it takes the cursor: a value to read and copy, not to type.
@@ -87,7 +87,7 @@ function InputRoot({size = 'default', disabled, readOnly, className, onPointerDo
         className,
       )}
       {...props}
-    >{children}</div>
+    ><span aria-hidden="true" data-slot="control-hit-area"/>{children}</div>
   </SizeContext.Provider>;
 }
 
