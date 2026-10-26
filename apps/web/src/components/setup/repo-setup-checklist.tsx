@@ -1,7 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { setupPrompt } from "@tripwire/contracts";
-import { type ReactNode, useRef, useState } from "react";
-import { Check, Icon } from "#/components/glaze/icon";
+import type { ReactNode } from "react";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Card,
@@ -14,11 +12,13 @@ import {
 } from "#/components/glaze/ui/card";
 import { StatusMark } from "#/components/glaze/ui/status";
 import { RulePacks } from "#/components/rules/rule-packs";
+import { AgentSetupCard } from "#/components/setup/agent-setup-card";
 import {
 	FirstCheckAction,
 	InstallAction,
 	ResponsesAction,
 } from "#/components/setup/setup-step-actions";
+import { StepDoneMark } from "#/components/setup/step-done-mark";
 import {
 	useSetupInstallRules,
 	useTakeOver,
@@ -38,10 +38,6 @@ import {
 	ruleConfigsQueryOptions,
 	ruleLibraryQueryOptions,
 } from "#/lib/rules.query";
-import { setupRunQueryOptions } from "#/lib/setup.query";
-import { trackEvent } from "#/lib/track";
-
-const COPIED_MS = 2000;
 
 interface ChecklistProps {
 	org: string;
@@ -90,14 +86,7 @@ export function SetupStepRow({
 			className="grid grid-cols-[--spacing(8)_minmax(0,1fr)] border-line-faint border-b py-4"
 		>
 			<span className="flex h-lh items-center type-body">
-				{tone === "done" ? (
-					<Icon
-						className="text-ok-text"
-						icon={Check}
-						label="Done"
-						weight="bold"
-					/>
-				) : null}
+				{tone === "done" ? <StepDoneMark /> : null}
 			</span>
 			<div className="flex min-w-0 flex-col gap-0.5">
 				<span
@@ -116,34 +105,6 @@ export function SetupStepRow({
 				{children ? <div className="pt-3">{children}</div> : null}
 			</div>
 		</li>
-	);
-}
-
-function CopyPromptButton({ org }: { org: string }) {
-	const canManage = useOrgPermission(org, "connections:manage");
-	const { data } = useQuery({
-		...setupRunQueryOptions(org, true),
-		enabled: canManage,
-	});
-	const [copied, setCopied] = useState(false);
-	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-	const run = data?.status === "ready" ? data.run : null;
-	const prompt = run ? setupPrompt({ org, code: run.code }) : setupPrompt();
-	return (
-		<Button
-			onClick={async () => {
-				await navigator.clipboard.writeText(prompt);
-				trackEvent("setup_prompt_copied", { has_run_code: Boolean(run) });
-				setCopied(true);
-				clearTimeout(timer.current);
-				timer.current = setTimeout(() => setCopied(false), COPIED_MS);
-			}}
-			size="sm"
-			type="button"
-			variant="secondary"
-		>
-			{copied ? "Copied" : "Copy agent setup prompt"}
-		</Button>
 	);
 }
 
@@ -173,7 +134,6 @@ function RulesStep({
 			onInstall={install}
 			pending={pending}
 			preview={library.data?.preview ?? null}
-			repoName={repo}
 			rules={rules.data ?? []}
 		/>
 	);
@@ -200,10 +160,8 @@ function ManualChecklist({ org, repo, state, progress }: ChecklistProps) {
 		<>
 			<header className="flex flex-col gap-1">
 				<h1 className="type-title">Set up {repo}</h1>
-				<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-					<CopyPromptButton org={org} />
-				</div>
 			</header>
+			<AgentSetupCard org={org} setupDone={false} />
 			<SetupStepList>
 				{progress.steps.map((step) => {
 					const tone = toneOf(step, progress);

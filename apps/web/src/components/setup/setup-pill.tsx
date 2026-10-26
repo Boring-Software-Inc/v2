@@ -1,12 +1,5 @@
 import { useMatch, useParams } from "@tanstack/react-router";
 import { useState } from "react";
-import {
-	ChevronDown,
-	ChevronUp,
-	Icon,
-	Pending,
-	Success,
-} from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Popover,
@@ -14,9 +7,42 @@ import {
 	PopoverTrigger,
 } from "#/components/glaze/ui/popover";
 import { compactStepAction } from "#/components/setup/setup-step-actions";
+import { StepDoneMark } from "#/components/setup/step-done-mark";
 import { useRepoSetup } from "#/components/setup/use-repo-setup";
 import { cn } from "#/lib/glaze/utils";
-import { nextLabel } from "#/lib/repo-setup";
+
+const RING_RADIUS = 6;
+const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
+
+function ProgressRing({ done, total }: { done: number; total: number }) {
+	return (
+		<svg
+			aria-hidden="true"
+			className="-rotate-90 size-4 shrink-0"
+			viewBox="0 0 16 16"
+		>
+			<circle
+				className="stroke-line-strong"
+				cx="8"
+				cy="8"
+				fill="none"
+				r={RING_RADIUS}
+				strokeWidth="2"
+			/>
+			<circle
+				className="stroke-ok"
+				cx="8"
+				cy="8"
+				fill="none"
+				r={RING_RADIUS}
+				strokeDasharray={RING_LENGTH}
+				strokeDashoffset={RING_LENGTH * (1 - done / total)}
+				strokeLinecap="round"
+				strokeWidth="2"
+			/>
+		</svg>
+	);
+}
 
 export function SetupPill({
 	appearance = "bar",
@@ -35,33 +61,23 @@ export function SetupPill({
 	if (!(state && progress) || progress.complete || onChecklist) {
 		return null;
 	}
-	const next = nextLabel(progress);
 	return (
 		<Popover onOpenChange={setOpen} open={open}>
 			<PopoverTrigger
 				render={
 					<Button
-						aria-label={`Setup ${progress.done} of ${progress.total}. ${next ?? ""}`}
+						aria-label={`Setup, ${progress.done} of ${progress.total} done`}
 						className={cn(
-							"min-w-0 shrink-0",
-							appearance === "rail" && "w-full shrink justify-start",
+							"shrink-0 tabular-nums",
+							appearance === "rail" && "w-full justify-start",
 						)}
 						size="sm"
 						variant="secondary"
 					/>
 				}
 			>
-				<Icon className="max-sm:hidden" icon={Pending} />
-				<span className="shrink-0 font-medium">
-					<span className="max-sm:hidden">Setup </span>
-					{progress.done} of {progress.total}
-				</span>
-				{next && appearance === "bar" ? (
-					<span className="min-w-0 truncate text-text-2 max-md:hidden">
-						{next}
-					</span>
-				) : null}
-				<Icon className="max-sm:hidden" icon={open ? ChevronUp : ChevronDown} />
+				<ProgressRing done={progress.done} total={progress.total} />
+				{progress.done} of {progress.total}
 			</PopoverTrigger>
 			<PopoverContent
 				align="start"
@@ -81,14 +97,7 @@ export function SetupPill({
 								key={step.key}
 							>
 								<span className="flex h-lh items-center type-body-sm">
-									{step.done ? (
-										<Icon
-											className="text-ok-text"
-											icon={Success}
-											label="Done"
-											weight="fill"
-										/>
-									) : null}
+									{step.done ? <StepDoneMark size={16} /> : null}
 								</span>
 								<div className="flex min-w-0 flex-col gap-2">
 									<span

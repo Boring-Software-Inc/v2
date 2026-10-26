@@ -1,10 +1,11 @@
 import { useState, useSyncExternalStore } from "react";
-import { Close, Icon, Success } from "#/components/glaze/icon";
+import { Close, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	SetupStepList,
 	SetupStepRow,
 } from "#/components/setup/repo-setup-checklist";
+import { StepDoneMark } from "#/components/setup/step-done-mark";
 import type { RepoSetupProgress } from "#/lib/repo-setup";
 
 const DISMISSED_EVENT = "tripwire:setup-done-dismissed";
@@ -63,7 +64,7 @@ export function SetupDoneStrip({
 	return (
 		<section aria-label="Setup" className="flex flex-col gap-2">
 			<div className="flex items-center gap-2 rounded-shell bg-shell py-1 ps-4 pe-1">
-				<Icon className="text-ok-text" icon={Success} weight="fill" />
+				<StepDoneMark size={16} />
 				<span className="type-label text-text-1">Setup done</span>
 				<Button
 					aria-expanded={open}
