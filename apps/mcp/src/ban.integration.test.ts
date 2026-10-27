@@ -83,6 +83,36 @@ afterAll(async () => {
 	await container?.stop();
 });
 
+describe("mcp initialization", () => {
+	test("advertises the released server version", async () => {
+		const agent = await seedAgentUser();
+		const res = await appFor(agent).request("http://localhost:3421/mcp", {
+			method: "POST",
+			headers: {
+				authorization: "Bearer surviving-token",
+				"content-type": "application/json",
+				accept: "application/json, text/event-stream",
+			},
+			body: JSON.stringify({
+				jsonrpc: "2.0",
+				id: 1,
+				method: "initialize",
+				params: {
+					protocolVersion: "2025-11-25",
+					capabilities: {},
+					clientInfo: { name: "release-test", version: "1.0.0" },
+				},
+			}),
+		});
+		expect(res.status).toBe(200);
+		expect(await res.json()).toMatchObject({
+			jsonrpc: "2.0",
+			id: 1,
+			result: { serverInfo: { name: "tripwire", version: "1.1.0" } },
+		});
+	});
+});
+
 describe("a banned user's agent", () => {
 	test("a token that outlives the ban is refused at the MCP boundary", async () => {
 		const agent = await seedAgentUser();

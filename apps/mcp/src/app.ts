@@ -8,6 +8,7 @@ import { cors } from "hono/cors";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
+import pkg from "../package.json" with { type: "json" };
 import {
 	selectTools,
 	TOOL_NAMES,
@@ -150,7 +151,7 @@ export function createApp(deps: McpDeps) {
 			calledTools(body).length === 0
 				? await grantedPermissions(db, agent)
 				: undefined;
-		const server = new McpServer({ name: "tripwire", version: "1.0.0" });
+		const server = new McpServer({ name: "tripwire", version: pkg.version });
 		registerTools(
 			server,
 			{
