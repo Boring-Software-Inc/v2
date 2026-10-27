@@ -366,7 +366,17 @@ pass, they fought for priority in the activity and run logs.
 It targets TypeScript 7.1.0-beta at Microsoft commit
 `3e9236361fa97a9e6c685f4833ac457ae2d8c50a`. Platform binaries are pinned
 through its optional dependencies and `bun.lock`; CI and CLI release use
-Bun 1.3.13, matching `packageManager`.
+Bun 1.4.4, matching `packageManager`.
+
+**Runtime:** the last green CI run before this change used Bun 1.4.4
+(`latest` at the time). The initial 1.3.13 pin downgraded CI; both subsequent
+attempts timed out on the ended-ban MCP integration test, with all other
+3,838 tests passing. Pin the previously green 1.4.4 exactly to preserve a
+reproducible toolchain. Its frozen install preserves `bun.lock`, and all 15
+tsrs workspace checks pass on Linux x64. The exact timeout was not reproduced
+locally, including Linux x64 with a clean install, so the underlying runtime
+failure remains unconfirmed. The integration test retains its five-second
+deadline and also asserts a successful tools-list payload.
 
 **What it replaces:** TS5 `tsc --noEmit` in all 15 workspace `typecheck`
 scripts, including CI and the CLI release check. The founder authorized the
