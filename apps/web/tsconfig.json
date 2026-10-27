@@ -19,9 +19,9 @@
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedSideEffectImports": true,
 		"types": ["vite/client", "node"],
-		"baseUrl": ".",
 		"paths": {
-			"#/*": ["./src/*"]
+			"#/*": ["./src/*"],
+			"*": ["./*"]
 		}
 	}
 }

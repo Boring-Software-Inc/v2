@@ -39,7 +39,7 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -63,7 +63,7 @@ jobs:
 
       - name: Check
         run: |
-          bunx tsc --noEmit -p apps/cli
+          bun --filter '@tripwire-sh/cli' typecheck
           bun test apps/cli scripts/cli-release
 
       - name: Pick the version

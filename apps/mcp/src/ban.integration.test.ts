@@ -107,5 +107,14 @@ describe("a banned user's agent", () => {
 		await agentServices.saveAgentGrant(db, { ...agent, orgIds: [] });
 		const res = await listTools(appFor(agent));
 		expect(res.status).toBe(200);
+		expect(await res.json()).toMatchObject({
+			jsonrpc: "2.0",
+			id: 1,
+			result: {
+				tools: expect.arrayContaining([
+					expect.objectContaining({ name: "whoami" }),
+				]),
+			},
+		});
 	});
 });

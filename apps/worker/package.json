@@ -9,7 +9,8 @@
 	"types": "./src/index.ts",
 	"scripts": {
 		"dev": "bun --env-file=../../.env --preload ./instrument.ts --watch src/index.ts",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsrs --noEmit --checkers 4 --fast false",
+		"typecheck:ts5": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@openrouter/ai-sdk-provider": "^3.0.0",

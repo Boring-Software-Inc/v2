@@ -10,7 +10,8 @@
 	"scripts": {
 		"dev": "bun --env-file=../../.env --preload ./instrument.ts --watch src/index.ts",
 		"tunnel": "cloudflared tunnel --url http://localhost:${API_PORT:-8787}",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsrs --noEmit --checkers 4 --fast false",
+		"typecheck:ts5": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@sentry/bun": "^11.8.0",
