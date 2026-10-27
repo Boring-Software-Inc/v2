@@ -100,16 +100,16 @@ const stepRowSchema = z.object({
 	evidence: z.unknown(),
 });
 
-function innerEvidence(stored: unknown): unknown {
-	if (
-		stored !== null &&
-		typeof stored === "object" &&
-		"ruleId" in stored &&
-		"evidence" in stored
-	) {
-		return stored.evidence;
-	}
-	return stored;
+const evidenceEnvelopeSchema = z.object({
+	ruleId: z.unknown(),
+	evidence: z.unknown(),
+});
+
+function innerEvidence(
+	stored: PreviewStep["evidence"],
+): PreviewStep["evidence"] {
+	const envelope = evidenceEnvelopeSchema.safeParse(stored);
+	return envelope.success ? envelope.data.evidence : stored;
 }
 
 export async function loadPreviewInputs(

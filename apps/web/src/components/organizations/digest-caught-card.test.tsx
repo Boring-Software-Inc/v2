@@ -40,7 +40,7 @@ afterEach(() => {
 function render(armed: boolean, permissions: OrgPermission[]) {
 	const client = new QueryClient();
 	client.setQueryData(orgQueryKeys.detail("lumenhq"), { permissions });
-	const action: { click: (() => Promise<void>) | null } = { click: null };
+	const action = { click: null as (() => Promise<void>) | null };
 	function findInstall(node: ReactNode): void {
 		Children.forEach(node, (child) => {
 			if (

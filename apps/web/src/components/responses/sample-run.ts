@@ -150,13 +150,13 @@ export const SAMPLE_RUN: RunView = {
 	aiReviewNotRun: false,
 };
 
-const WORKFLOW_OUTCOMES: Record<OutcomeScope, WorkflowOutcome> = {
+const WORKFLOW_OUTCOMES = {
 	block: "block",
 	changes_required: "changes",
 	needs_review: "review",
 	note: "pass",
 	close: "close",
-};
+} satisfies Record<OutcomeScope, WorkflowOutcome>;
 
 export function sampleRunFor(
 	outcome: OutcomeMeta,

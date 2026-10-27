@@ -17,6 +17,7 @@ import {
 	rulePreviewServices,
 } from "@tripwire/db";
 import type { Logger } from "pino";
+import type { ZodType } from "zod";
 
 const DAY_MS = 86_400_000;
 
@@ -31,9 +32,9 @@ export const EVENT_ONLY_RULE_IDS: ReadonlySet<string> = new Set([
 ]);
 
 function sameConfig(
-	schema: { safeParse(value: unknown): { success: boolean; data?: unknown } },
-	stored: unknown,
-	expected: unknown,
+	schema: Pick<ZodType, "safeParse">,
+	stored: PreviewInputs["steps"][number]["config"],
+	expected: PreviewInputs["steps"][number]["config"],
 ): boolean {
 	const parsed = schema.safeParse(stored);
 	return (

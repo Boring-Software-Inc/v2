@@ -45,13 +45,13 @@ const actionInputSchema = z
 	.nullable()
 	.catch(null);
 
-export function outcomeMessage(input: unknown): string | null {
+export function outcomeMessage(input: OutcomeStep["input"]): string | null {
 	const message = actionInputSchema.parse(input ?? null)?.params?.message;
 	const trimmed = message?.trim() ?? "";
 	return trimmed === "" ? null : trimmed;
 }
 
-export function exceptionApplied(output: unknown): boolean {
+export function exceptionApplied(output: OutcomeStep["output"]): boolean {
 	return exceptionOutputSchema.parse(output ?? null)?.exceptionApplied === true;
 }
 

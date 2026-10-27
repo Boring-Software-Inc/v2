@@ -107,7 +107,7 @@ const unlessOutputSchema = z
 	.nullable()
 	.catch(null);
 
-function exceptionSummary(output: unknown): string | null {
+function exceptionSummary(output: RunStepInput["output"]): string | null {
 	const parsed = unlessOutputSchema.parse(output ?? null);
 	if (!parsed || parsed.requirement === "pass") {
 		return null;

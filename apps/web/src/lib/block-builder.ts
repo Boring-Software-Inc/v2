@@ -198,7 +198,7 @@ export function dropPosition(
 	blocks: readonly ResponseBlock[],
 	item: DragItem,
 	index: number,
-): { position: number; total: number } {
+) {
 	if (item.source === "palette") {
 		return { position: index + 1, total: blocks.length + 1 };
 	}

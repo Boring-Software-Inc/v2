@@ -372,13 +372,7 @@ export function notesLine(notes: readonly string[]): string | null {
 	return notes.length === 0 ? null : uniqueSentences(notes).join(" ");
 }
 
-function issueTail(
-	input: CommentInput,
-	level: number,
-): {
-	changes: string | null;
-	notes: string | null;
-} {
+function issueTail(input: CommentInput, level: number) {
 	const fixes = input.fixes ?? [];
 	const reviewPending =
 		input.reviewPending === true && input.verdict !== "needs_review";
@@ -445,13 +439,14 @@ export type BlockRenderSurface = Extract<
 	"comment" | "review"
 >;
 
-export const BLOCK_HIDDEN_AT: Partial<
-	Record<ResponseBlockType, RedactionItem>
-> = { "failed-rules": "failed-count" };
+export const BLOCK_HIDDEN_AT = {
+	"failed-rules": "failed-count",
+} satisfies Partial<Record<ResponseBlockType, RedactionItem>>;
 
-export const VARIABLE_HIDDEN_AT: Partial<
-	Record<ResponseVariable, RedactionItem>
-> = { "failed-rules": "rule-names", "rule-name": "rule-names" };
+export const VARIABLE_HIDDEN_AT = {
+	"failed-rules": "rule-names",
+	"rule-name": "rule-names",
+} satisfies Partial<Record<ResponseVariable, RedactionItem>>;
 
 export function lensLevel(lens: BlockLens): number {
 	return lens.viewer === "member" ? 0 : lens.level;
@@ -464,7 +459,10 @@ export function blockHidden(block: ResponseBlock, lens: BlockLens): boolean {
 	if (block.type === "help" && !lens.showHelp) {
 		return true;
 	}
-	const item = BLOCK_HIDDEN_AT[block.type];
+	const item =
+		block.type in BLOCK_HIDDEN_AT
+			? BLOCK_HIDDEN_AT[block.type as keyof typeof BLOCK_HIDDEN_AT]
+			: undefined;
 	return item !== undefined && redactionHides(lens.level, item);
 }
 
@@ -472,7 +470,10 @@ export function variableHidden(
 	name: ResponseVariable,
 	lens: BlockLens,
 ): boolean {
-	const item = VARIABLE_HIDDEN_AT[name];
+	const item =
+		name in VARIABLE_HIDDEN_AT
+			? VARIABLE_HIDDEN_AT[name as keyof typeof VARIABLE_HIDDEN_AT]
+			: undefined;
 	return item !== undefined && redactionHides(lensLevel(lens), item);
 }
 

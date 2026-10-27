@@ -136,7 +136,11 @@ async function freshRepo(): Promise<{
 	return { repoId, fullName: `Codertocat/${name}`, externalId };
 }
 
-async function enableRule(repoId: string, ruleId: string, config: unknown) {
+async function enableRule(
+	repoId: string,
+	ruleId: string,
+	config: Parameters<typeof repoServices.upsertRuleConfig>[2]["config"],
+) {
 	await repoServices.upsertRuleConfig(db, repoId, {
 		ruleId,
 		version: 1,

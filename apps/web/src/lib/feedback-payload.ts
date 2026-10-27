@@ -130,13 +130,16 @@ export function buildFeedbackEmbed(
 		kept.push(field);
 	}
 
-	return {
+	const embed: FeedbackEmbed = {
 		title,
 		description,
 		color: 0x34_a6_ff,
 		fields: kept,
-		...(hasScreenshot ? { image: { url: "attachment://screenshot.png" } } : {}),
 		footer,
 		timestamp: now.toISOString(),
 	};
+	if (hasScreenshot) {
+		embed.image = { url: "attachment://screenshot.png" };
+	}
+	return embed;
 }

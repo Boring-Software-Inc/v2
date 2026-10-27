@@ -98,13 +98,12 @@ export const claimOnboardingEvent = createServerFn({ method: "POST" })
 		orgPermissionMiddleware("connections:manage"),
 	])
 	.inputValidator(
-		(input: {
-			org: string;
-			repoId: string;
-			event: OnboardingEvent;
-		}): { org: string; repoId: string; event: OnboardingEvent } => ({
+		(input: { org: string; repoId: string; event: OnboardingEvent }) => ({
 			...input,
-			event: input.event === "started" ? "started" : "completed",
+			event:
+				input.event === "started"
+					? ("started" as const)
+					: ("completed" as const),
 		}),
 	)
 	.handler(async ({ data, context }): Promise<{ claimed: boolean }> => {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { type JsonValue, jsonValueSchema } from "./workflow.ts";
 
 export interface RulePack {
 	id: string;
@@ -137,13 +138,16 @@ export function previewCaught(
 	return numbers.size;
 }
 
-function canonical(value: unknown): unknown {
+const settingsObjectSchema = z.record(z.string(), jsonValueSchema);
+
+function canonical(value: JsonValue): JsonValue {
 	if (Array.isArray(value)) {
 		return value.map(canonical);
 	}
-	if (value !== null && typeof value === "object") {
+	const object = settingsObjectSchema.safeParse(value);
+	if (object.success) {
 		return Object.fromEntries(
-			Object.entries(value)
+			Object.entries(object.data)
 				.sort(([a], [b]) => a.localeCompare(b))
 				.map(([key, inner]) => [key, canonical(inner)]),
 		);
@@ -151,14 +155,14 @@ function canonical(value: unknown): unknown {
 	return value;
 }
 
-export function sameSettings(a: unknown, b: unknown): boolean {
+export function sameSettings(a: JsonValue, b: JsonValue): boolean {
 	return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }
 
 export function libraryGroups(
 	available: readonly string[],
 	mostUsed: readonly string[],
-): { recommended: string[]; mostUsed: string[] } {
+) {
 	const recommended = RECOMMENDED_RULE_IDS.filter((id) =>
 		available.includes(id),
 	);

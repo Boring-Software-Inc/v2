@@ -23,14 +23,12 @@ export const ORG_SETTINGS_SECTION_LABELS = {
 	billing: "Billing",
 } satisfies Record<OrgSettingsSection, string>;
 
-export const ORG_SETTINGS_SECTION_REGIONS: Partial<
-	Record<OrgSettingsSection, OrgRegion>
-> = {
+export const ORG_SETTINGS_SECTION_REGIONS = {
 	members: "members",
 	roles: "members",
 	general: "settings",
 	redaction: "responses",
-};
+} satisfies Partial<Record<OrgSettingsSection, OrgRegion>>;
 
 export const ACCOUNT_SECTIONS = [
 	"profile",
@@ -52,7 +50,12 @@ export function canSeeSettingsSection(
 	section: OrgSettingsSection,
 	permissions: readonly string[],
 ): boolean {
-	const region = ORG_SETTINGS_SECTION_REGIONS[section];
+	const region =
+		section in ORG_SETTINGS_SECTION_REGIONS
+			? ORG_SETTINGS_SECTION_REGIONS[
+					section as keyof typeof ORG_SETTINGS_SECTION_REGIONS
+				]
+			: undefined;
 	return !region || permissions.includes(`${region}:read`);
 }
 

@@ -25,7 +25,7 @@ import {
 type TextBlock = Extract<ResponseBlock, { type: "text" }>;
 
 const RULE_VARIABLES: ReadonlySet<ResponseVariable> = new Set(
-	RESPONSE_VARIABLES.filter((name) => VARIABLE_HIDDEN_AT[name] !== undefined),
+	RESPONSE_VARIABLES.filter((name) => name in VARIABLE_HIDDEN_AT),
 );
 
 export interface TextBlockEditorProps {

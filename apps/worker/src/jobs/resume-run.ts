@@ -23,7 +23,7 @@ import { z } from "zod";
 import { buildRuleContext } from "../context.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
 import { customRuleSource } from "./custom-rules.ts";
-import { emitPrSurface } from "./pr-surface.ts";
+import { type EmitSurfaceInput, emitPrSurface } from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import {
 	actionPayload,
@@ -222,6 +222,19 @@ export async function resumeRun(
 		normalized.repo.fullName,
 		normalized.forge,
 	);
+	const surface: EmitSurfaceInput = {
+		runId: item.runId,
+		verdict,
+		event: normalized,
+		reasons: buildCommentReasons(runData.steps, customRecords),
+		aiReviewNotRun: runData.steps.some(isAiReviewNotRunStep),
+		pendingActionRows: actionRows,
+		pendingCheckPosted: true,
+		resumedFrom: resumedFrom(runData.run.verdict),
+	};
+	if (verdict === runData.run.verdict) {
+		surface.surfaceKey = `resume:${item.id}`;
+	}
 	await emitPrSurface(
 		{
 			db,
@@ -229,19 +242,7 @@ export async function resumeRun(
 			logger,
 			appUrl: deps.appUrl,
 		},
-		{
-			runId: item.runId,
-			verdict,
-			event: normalized,
-			reasons: buildCommentReasons(runData.steps, customRecords),
-			aiReviewNotRun: runData.steps.some(isAiReviewNotRunStep),
-			pendingActionRows: actionRows,
-			pendingCheckPosted: true,
-			resumedFrom: resumedFrom(runData.run.verdict),
-			...(verdict === runData.run.verdict
-				? { surfaceKey: `resume:${item.id}` }
-				: {}),
-		},
+		surface,
 	);
 	// §9 live activity feed: the resumed run's verdict changed — announce it.
 	await deps.pool.query("SELECT pg_notify('runs', $1)", [runData.run.eventId]);
@@ -282,6 +283,19 @@ async function resumeDegradedRun(
 		runData.run.repoFullName,
 		normalized.forge,
 	);
+	const surface: EmitSurfaceInput = {
+		runId,
+		verdict,
+		event: normalized,
+		reasons: buildCommentReasons(runData.steps, customRecords),
+		aiReviewNotRun: runData.steps.some(isAiReviewNotRunStep),
+		pendingActionRows: actionRows,
+		pendingCheckPosted: true,
+		resumedFrom: resumedFrom(runData.run.verdict),
+	};
+	if (verdict === runData.run.verdict) {
+		surface.surfaceKey = "resume:degraded";
+	}
 	await emitPrSurface(
 		{
 			db: deps.db,
@@ -289,19 +303,7 @@ async function resumeDegradedRun(
 			logger: deps.logger,
 			appUrl: deps.appUrl,
 		},
-		{
-			runId,
-			verdict,
-			event: normalized,
-			reasons: buildCommentReasons(runData.steps, customRecords),
-			aiReviewNotRun: runData.steps.some(isAiReviewNotRunStep),
-			pendingActionRows: actionRows,
-			pendingCheckPosted: true,
-			resumedFrom: resumedFrom(runData.run.verdict),
-			...(verdict === runData.run.verdict
-				? { surfaceKey: "resume:degraded" }
-				: {}),
-		},
+		surface,
 	);
 	await deps.pool.query("SELECT pg_notify('runs', $1)", [runData.run.eventId]);
 	deps.logger.info({ runId, decision, verdict }, "degraded run resumed");
@@ -342,10 +344,7 @@ export function deriveOutcomes(
 	definition: WorkflowDefinition,
 	steps: { nodeId: string; status: string; input?: unknown }[],
 	wfId: string,
-): {
-	outcomes: Record<string, NodeOutcome>;
-	decisions: Record<string, "approve" | "deny">;
-} {
+) {
 	const outcomes: Record<string, NodeOutcome> = {};
 	const decisions: Record<string, "approve" | "deny"> = {};
 	for (const step of steps) {

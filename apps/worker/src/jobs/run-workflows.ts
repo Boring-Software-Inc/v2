@@ -770,7 +770,7 @@ async function runWorkflowsInner(
 			);
 		}
 	}
-	return {
+	const result: RunWorkflowsResult = {
 		runId,
 		verdict,
 		paused,
@@ -778,8 +778,11 @@ async function runWorkflowsInner(
 		reasons,
 		degraded,
 		aiReviewNotRun,
-		...(closedNow ? { quiet: true } : {}),
 	};
+	if (closedNow) {
+		result.quiet = true;
+	}
+	return result;
 }
 
 export type CloseHold = false | "degraded" | "reopened";

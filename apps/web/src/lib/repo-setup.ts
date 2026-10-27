@@ -30,12 +30,12 @@ export interface RepoSetupProgress {
 	complete: boolean;
 }
 
-const TODO_TITLES: Record<SetupStepKey, string> = {
+const TODO_TITLES = {
 	install: "Install the GitHub App",
 	rules: "Install rules",
 	check: "Run first check",
 	responses: "Pick what Tripwire posts",
-};
+} satisfies Record<SetupStepKey, string>;
 
 export function rulesOn(facts: RepoSetupFacts): boolean {
 	return (
@@ -118,21 +118,21 @@ export function showsReviewQueue(
 	return progress.complete || facts.firstCheck !== null || waiting > 0;
 }
 
-const STEP_STAGES: Record<SetupStepKey, readonly SetupStage[]> = {
+const STEP_STAGES = {
 	install: ["install_app"],
 	rules: ["turn_on_gate", "pick_rules"],
 	check: ["verify_check"],
 	responses: [],
-};
+} satisfies Record<SetupStepKey, readonly SetupStage[]>;
 
-const STAGE_WORDS: Record<SetupStage, string> = {
+const STAGE_WORDS = {
 	connect_mcp: "Connecting",
 	install_app: "Installing the GitHub App",
 	sync_repos: "Syncing repos",
 	pick_rules: "Picking rules",
 	turn_on_gate: "Turning on Tripwire",
 	verify_check: "Running a first check",
-};
+} satisfies Record<SetupStage, string>;
 
 export function stepCompletedAt(
 	stages: SetupStages,
@@ -169,8 +169,9 @@ export function agentActivity(run: RepoAgentRun): {
 	}
 	const found = latest;
 	const step =
-		SETUP_STEP_KEYS.find((key) => STEP_STAGES[key].includes(found.stage)) ??
-		null;
+		SETUP_STEP_KEYS.find((key) =>
+			STEP_STAGES[key].some((stage) => stage === found.stage),
+		) ?? null;
 	return { line: found.state.detail ?? STAGE_WORDS[found.stage], step };
 }
 

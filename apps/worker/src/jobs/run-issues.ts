@@ -2,6 +2,7 @@ import {
 	type CommentReason,
 	NOTE_FALLBACK,
 	type OutcomeIssues,
+	type OutcomeStep,
 	runOutcomes,
 	runSnapshotSchema,
 	stepLocalId,
@@ -24,14 +25,8 @@ export function reasonStepId(nodeId: string): string {
 }
 
 export function resolveRunIssues(
-	snapshot: unknown,
-	steps: readonly {
-		nodeId: string;
-		nodeKind: string;
-		status: string;
-		input?: unknown;
-		output?: unknown;
-	}[],
+	snapshot: Parameters<typeof runSnapshotSchema.parse>[0],
+	steps: readonly OutcomeStep[],
 	reasons: readonly CommentReason[],
 	reviewPending: boolean,
 ): RunIssues {

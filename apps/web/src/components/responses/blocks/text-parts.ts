@@ -66,7 +66,7 @@ export function fitParts(
 	parts: readonly TextPart[],
 	maxText: number,
 	maxParts: number,
-): { parts: TextPart[]; trimmed: boolean } {
+) {
 	const fitted = mergeParts(clampParts(parts.slice(0, maxParts), maxText));
 	return {
 		parts: fitted,

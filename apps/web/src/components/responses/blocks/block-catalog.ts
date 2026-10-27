@@ -31,7 +31,7 @@ export interface BlockMeta {
 	group: BlockGroupKey;
 }
 
-export const BLOCK_META: Record<ResponseBlockType, BlockMeta> = {
+export const BLOCK_META = {
 	headline: {
 		type: "headline",
 		label: "Headline",
@@ -83,7 +83,7 @@ export const BLOCK_META: Record<ResponseBlockType, BlockMeta> = {
 		group: "links",
 	},
 	gif: { type: "gif", label: "GIF", icon: FileImage, group: "media" },
-};
+} satisfies Record<ResponseBlockType, BlockMeta>;
 
 export const BLOCK_GROUPS: readonly {
 	key: BlockGroupKey;
@@ -104,14 +104,14 @@ export function offeredBlocks(outcome: BlockOutcome): BlockMeta[] {
 	);
 }
 
-export const VARIABLE_LABELS: Record<ResponseVariable, string> = {
+export const VARIABLE_LABELS = {
 	author: "@author",
 	"failed-rules": "Failed rules",
 	"target-branch": "Target branch",
 	title: "Change request title",
 	"rule-name": "Rule name",
 	"run-link": "Run link",
-};
+} satisfies Record<ResponseVariable, string>;
 
 export const INSERTABLE_VARIABLES: readonly ResponseVariable[] = [
 	"author",

@@ -4,6 +4,7 @@ import {
 	SETUP_STAGES,
 	type SetupProgressInput,
 	type SetupRunView,
+	type SetupStageState,
 	type SetupStages,
 	setupRunCodeSchema,
 	setupStagesSchema,
@@ -158,12 +159,15 @@ export async function reportSetupProgress(
 			stages[earlier] = { status: "skipped", detail: null, updatedAt: stamp };
 		}
 	}
-	stages[input.progress.stage] = {
+	const stage: SetupStageState = {
 		status: input.progress.status,
 		detail: input.progress.detail || null,
 		updatedAt: stamp,
-		...(input.progress.repo ? { repo: input.progress.repo } : {}),
 	};
+	if (input.progress.repo) {
+		stage.repo = input.progress.repo;
+	}
+	stages[input.progress.stage] = stage;
 	const finished =
 		input.progress.stage === "verify_check" &&
 		(input.progress.status === "completed" ||

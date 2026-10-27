@@ -31,10 +31,17 @@ const tabSearch = z.object({
 	tab: z.enum(RULES_TABS).optional().catch(undefined),
 });
 
-export function parseRulesSearch(search: Record<string, unknown>) {
+interface RulesSearch extends z.output<typeof collectionSearch> {
+	tab?: RulesTab;
+}
+
+export function parseRulesSearch(
+	search: Parameters<typeof tabSearch.parse>[0],
+) {
 	const { tab } = tabSearch.parse(search);
-	return {
-		...collectionSearch.parse(search),
-		...(tab ? { tab } : {}),
-	};
+	const parsed: RulesSearch = collectionSearch.parse(search);
+	if (tab) {
+		parsed.tab = tab;
+	}
+	return parsed;
 }

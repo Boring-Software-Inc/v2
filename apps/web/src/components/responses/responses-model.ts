@@ -136,12 +136,13 @@ export function encodeBlocks(blocks: readonly ResponseBlock[] | undefined) {
 	return blocks ? JSON.stringify(blocks) : "";
 }
 
-function decodeBlocks(value: unknown): unknown {
-	if (typeof value !== "string" || value === "") {
+function decodeBlocks(value: Parameters<SaveQueueCommit>[0][string]): unknown {
+	const encoded = ENCODED_SURFACES.safeParse(value);
+	if (!encoded.success || encoded.data === "") {
 		return undefined;
 	}
 	try {
-		return JSON.parse(value);
+		return JSON.parse(encoded.data);
 	} catch {
 		return undefined;
 	}
@@ -164,12 +165,15 @@ export function encodeGif(gif: CloseGif | null): string {
 	return gif ? JSON.stringify(gif) : "";
 }
 
-export function decodeGif(value: unknown): CloseGif | null {
-	if (typeof value !== "string" || value === "") {
+export function decodeGif(
+	value: Parameters<SaveQueueCommit>[0][string],
+): CloseGif | null {
+	const encoded = ENCODED_SURFACES.safeParse(value);
+	if (!encoded.success || encoded.data === "") {
 		return null;
 	}
 	try {
-		const parsed = closeGifSchema.safeParse(JSON.parse(value));
+		const parsed = closeGifSchema.safeParse(JSON.parse(encoded.data));
 		return parsed.success ? parsed.data : null;
 	} catch {
 		return null;

@@ -51,15 +51,18 @@ type Outcome = "pass" | "fail" | "skipped";
 function evaluator(results: Record<string, Outcome>) {
 	return (ref: string): Promise<RuleResult> => {
 		const outcome = results[ref.split("@")[0] ?? ref] ?? "pass";
-		return Promise.resolve({
+		const result: RuleResult = {
 			ruleId: ref.split("@")[0] ?? ref,
 			version: 1,
 			status: outcome === "skipped" ? "skipped" : "evaluated",
 			passed: outcome === "pass",
 			evidence: outcome === "skipped" ? null : {},
-			...(outcome === "skipped" ? { reason: "not available" } : {}),
 			evaluatedAt: "2026-10-25T00:00:00.000Z",
-		});
+		};
+		if (outcome === "skipped") {
+			result.reason = "not available";
+		}
+		return Promise.resolve(result);
 	};
 }
 
@@ -94,7 +97,7 @@ async function runPlan(
 	return {
 		targetRun,
 		cryptoRun,
-		gate: gate?.output as Record<string, unknown>,
+		gate: gate?.output as { exceptionApplied: boolean },
 	};
 }
 

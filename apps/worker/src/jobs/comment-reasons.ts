@@ -63,14 +63,17 @@ export function buildCommentReasons(
 		const remedy = rule?.remedy ?? "revise";
 		const hintFor = remedy === "wait" ? rule?.waitHint : rule?.fixHint;
 		const hint = hintFor && evidence ? hintFor(evidence) : null;
-		reasons.push({
+		const reason: CommentReason = {
 			text,
 			remedy,
 			hint,
 			ruleId: env.ruleId,
 			ruleName: custom?.name ?? ruleDisplayName(env.ruleId),
-			...(step.nodeId ? { stepId: reasonStepId(step.nodeId) } : {}),
-		});
+		};
+		if (step.nodeId) {
+			reason.stepId = reasonStepId(step.nodeId);
+		}
+		reasons.push(reason);
 	}
 	return reasons;
 }

@@ -1,4 +1,5 @@
 import type { BlockOutcome } from "@tripwire/contracts";
+import type { ComponentProps } from "react";
 import { ChevronLeft, ChevronRight, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "#/components/glaze/ui/tabs";
@@ -16,7 +17,9 @@ export function BlockColumn({ builder, outcome, readOnly }: BlockColumnProps) {
 	const { selected, paletteOpen } = builder;
 	const expand = () => builder.showPalette(true);
 	const collapse = () => builder.showPalette(false);
-	const showTab = (tab: unknown) => {
+	const showTab: NonNullable<ComponentProps<typeof Tabs>["onValueChange"]> = (
+		tab,
+	) => {
 		if (tab === "blocks") {
 			builder.browse();
 		}

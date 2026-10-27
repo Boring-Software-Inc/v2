@@ -314,13 +314,18 @@ class WorkflowCompiler {
 		for (let n = 2; this.edges.some((edge) => edge.id === id); n++) {
 			id = `${from}-${to}-${n}`;
 		}
-		this.edges.push({
+		const edge: WorkflowEdge = {
 			id,
 			from,
 			to,
-			...(when ? { when } : {}),
-			...(input ? { input } : {}),
-		});
+		};
+		if (when) {
+			edge.when = when;
+		}
+		if (input) {
+			edge.input = input;
+		}
+		this.edges.push(edge);
 	}
 
 	private wireInputs(

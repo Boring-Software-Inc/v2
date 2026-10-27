@@ -1,5 +1,6 @@
 import type { ResponseBlock } from "@tripwire/contracts";
 import { failedRulesStyleSchema } from "@tripwire/contracts";
+import type { ComponentProps } from "react";
 import { Icon, TrashCan } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -28,7 +29,9 @@ export function BlockSettings({
 }: BlockSettingsProps) {
 	const meta = BLOCK_META[block.type];
 	const remove = () => onRemove(block.id);
-	const setStyle = (value: unknown) => {
+	const setStyle: NonNullable<
+		ComponentProps<typeof RadioGroup>["onValueChange"]
+	> = (value) => {
 		const style = failedRulesStyleSchema.safeParse(value);
 		if (block.type === "failed-rules" && style.success) {
 			onUpdate({ ...block, style: style.data });

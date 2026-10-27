@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	DEFAULT_RESPONSE_CONFIG,
+	type ResponseBlock,
 	redactionPolicySchema,
 	responseConfigSchema,
 } from "@tripwire/contracts";
@@ -122,7 +123,7 @@ describe("the Responses preview shows what lands on the change request", () => {
 });
 
 describe("every surface renders from the unsaved builder state", () => {
-	const edited = (blocks: unknown) =>
+	const edited = (blocks: ResponseBlock[]) =>
 		unflattenConfig({
 			...flattenConfig(DEFAULT_RESPONSE_CONFIG),
 			"blocks.block": JSON.stringify(blocks),
