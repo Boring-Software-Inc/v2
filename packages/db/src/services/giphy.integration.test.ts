@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { giphyPageSchema } from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createDb,
@@ -74,7 +75,7 @@ describe("giphy cache", () => {
 		await writeGiphyCache(db, "search:cats:0", page(), at(60), at(0));
 		await writeGiphyCache(db, "search:cats:0", page("abc"), at(120), at(1));
 		const entry = await readGiphyCache(db, "search:cats:0");
-		expect(entry?.body).toEqual(page("abc"));
+		expect(entry?.body).toEqual(giphyPageSchema.parse(page("abc")));
 		expect(entry?.expiresAt.toISOString()).toBe(at(120).toISOString());
 		expect(await readGiphyCache(db, "search:dogs:0")).toBeNull();
 	});
@@ -119,7 +120,9 @@ describe("giphy cache", () => {
 
 	test("finds the page a gif was served on", async () => {
 		await writeGiphyCache(db, "search:bye:0", page("bye1"), at(60), at(0));
-		expect(await findCachedGiphyPage(db, "bye1")).toEqual(page("bye1"));
+		expect(await findCachedGiphyPage(db, "bye1")).toEqual(
+			giphyPageSchema.parse(page("bye1")),
+		);
 		expect(await findCachedGiphyPage(db, "nope")).toBeNull();
 	});
 });

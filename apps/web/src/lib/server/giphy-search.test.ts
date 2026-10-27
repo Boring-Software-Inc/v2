@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { GifsResult } from "@giphy/js-fetch-api";
+import type { GiphyPageRecord } from "@tripwire/contracts";
 import { closeGifFrom, type GiphyGif } from "#/lib/giphy-gif";
 import {
 	createMemoryLayer,
@@ -33,20 +33,20 @@ function gif(id: string, rating = "g"): GiphyGif {
 		images: {
 			fixed_height: {
 				url: `https://media2.giphy.com/media/${id}/200.gif?cid=abc&rid=200.gif`,
-				width: "356",
-				height: "200",
+				width: 356,
+				height: 200,
 			},
 			fixed_width: {
 				url: `https://media2.giphy.com/media/${id}/200w.gif`,
-				width: "200",
-				height: "112",
+				width: 200,
+				height: 112,
 			},
 			downsized_large: { url: "https://media2.giphy.com/big.gif" },
 		},
-	} as unknown as GiphyGif;
+	} as GiphyGif;
 }
 
-function page(ids: string[], offset = 0, rating = "g"): GifsResult {
+function page(ids: string[], offset = 0, rating = "g"): GiphyPageRecord {
 	return {
 		data: ids.map((id) => gif(id, rating)),
 		pagination: { total_count: 5000, count: ids.length, offset },
@@ -54,7 +54,7 @@ function page(ids: string[], offset = 0, rating = "g"): GifsResult {
 	};
 }
 
-function fullPage(prefix: string, offset = 0): GifsResult {
+function fullPage(prefix: string, offset = 0): GiphyPageRecord {
 	return page(
 		Array.from({ length: GIPHY_PAGE_SIZE }, (_, i) => `${prefix}${i}`),
 		offset,
@@ -80,7 +80,7 @@ class FakeStore implements GiphyStore {
 		this.reads++;
 		return this.entries.get(key) ?? null;
 	}
-	async write(key: string, body: GifsResult, expiresAt: Date) {
+	async write(key: string, body: GiphyPageRecord, expiresAt: Date) {
 		this.entries.set(key, { body, expiresAt });
 	}
 	async reserve(scope: string, limit: number) {
@@ -437,13 +437,9 @@ describe("GIPHY's answer is checked", () => {
 	test("gifs without the grid renditions or off GIPHY's media hosts are dropped", async () => {
 		const h = harness();
 		const broken = gif("broken");
-		delete (broken.images as unknown as Record<string, unknown>).fixed_width;
+		delete (broken.images as Partial<GiphyGif["images"]>).fixed_width;
 		const offsite = gif("offsite");
-		(
-			offsite.images as unknown as Record<string, { url: string }>
-		).fixed_height = {
-			url: "https://evil.example/a.gif",
-		};
+		offsite.images.fixed_height.url = "https://evil.example/a.gif";
 		const badId = gif("bad-id");
 		h.respond(() =>
 			Response.json({
@@ -516,11 +512,7 @@ describe("picking a gif", () => {
 	test("refuses ratings above pg-13 and media off GIPHY", () => {
 		expect(closeGifFrom(gif("abc", "r"))).toBeNull();
 		const offsite = gif("abc");
-		(
-			offsite.images as unknown as Record<string, { url: string }>
-		).fixed_height = {
-			url: "https://evil.example/a.gif",
-		};
+		offsite.images.fixed_height.url = "https://evil.example/a.gif";
 		expect(closeGifFrom(offsite)).toBeNull();
 	});
 

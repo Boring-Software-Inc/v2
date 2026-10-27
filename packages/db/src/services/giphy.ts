@@ -31,7 +31,7 @@ export async function readGiphyCache(
 export async function writeGiphyCache(
 	db: Db,
 	key: string,
-	page: unknown,
+	page: Parameters<typeof giphyPageSchema.parse>[0],
 	expiresAt: Date,
 	now: Date = new Date(),
 ): Promise<void> {

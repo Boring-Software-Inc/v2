@@ -1,13 +1,10 @@
-import type { GifsResult } from "@giphy/js-fetch-api";
-import type { CloseGif } from "@tripwire/contracts";
-import { isGiphyMediaUrl } from "@tripwire/contracts";
+import type { CloseGif, GiphyGifRecord } from "@tripwire/contracts";
+import { giphyGifSchema, isGiphyMediaUrl } from "@tripwire/contracts";
 
-export type GiphyGif = GifsResult["data"][number];
+export type GiphyGif = GiphyGifRecord;
 
-const ALLOWED_RATINGS = new Set(["y", "g", "pg", "pg-13"]);
-
-export function allowedRating(rating: unknown): boolean {
-	return typeof rating === "string" && ALLOWED_RATINGS.has(rating);
+export function allowedRating(rating: GiphyGif["rating"]): boolean {
+	return giphyGifSchema.shape.rating.safeParse(rating).success;
 }
 
 function mediaUrl(url: string): string {
@@ -18,10 +15,7 @@ function mediaUrl(url: string): string {
 }
 
 export function closeGifFrom(gif: GiphyGif): CloseGif | null {
-	const rendition = (gif.images as unknown as Record<string, unknown>)
-		.fixed_height as
-		| { url?: string; width?: unknown; height?: unknown }
-		| undefined;
+	const rendition = gif.images.fixed_height;
 	if (!rendition?.url || !isGiphyMediaUrl(rendition.url)) {
 		return null;
 	}

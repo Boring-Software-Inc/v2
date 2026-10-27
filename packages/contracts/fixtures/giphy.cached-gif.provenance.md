@@ -1,0 +1,5 @@
+Captured with the `/capture-fixture` procedure from a read-only query of the existing staging `giphy_cache`, 2026-10-27. The fixture is the first GIF of an actual cached provider response, stored before this release, with string dimensions and the legacy rendition subset. It is kept with its owning contracts schema rather than the GitHub adapter fixtures because it is a GIPHY response.
+
+Scrubbed: request tracking parameters (`cid`, `rid`) and any `api_key` query parameter from URLs. User and analytics objects were already absent in the stored cache; the scrubber also excludes them. Public GIF identity, title, provider metadata and real rendition URLs/dimensions are retained. No fields were invented or filled. The raw captured page remains outside git under `/tmp/tripwire-production-release`.
+
+Captured to verify that the unchanged GIPHY grid renders legacy cached data through the validated adapter, and that unusable renditions are rejected. Malformed regression cases are mutations of this captured payload.

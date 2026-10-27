@@ -1,22 +1,26 @@
-import type { GifsResult } from "@giphy/js-fetch-api";
-import { validGiphyGifs } from "@tripwire/contracts";
-import type { GiphyGif } from "#/lib/giphy-gif";
+import {
+	type GiphyGifRecord,
+	type GiphyPageRecord,
+	type GiphyUpstreamPage,
+	giphyUpstreamPageSchema,
+	validGiphyGifs,
+} from "@tripwire/contracts";
 
 export type GiphyStatus = "ok" | "busy" | "unavailable";
 
 export interface GiphyPage {
-	result: GifsResult;
+	result: GiphyPageRecord;
 	status: GiphyStatus;
 }
 
 export interface GiphyCacheEntry {
-	body: GifsResult;
+	body: GiphyPageRecord;
 	expiresAt: Date;
 }
 
 export interface GiphyStore {
 	read: (key: string) => Promise<GiphyCacheEntry | null>;
-	write: (key: string, body: GifsResult, expiresAt: Date) => Promise<void>;
+	write: (key: string, body: GiphyPageRecord, expiresAt: Date) => Promise<void>;
 	reserve: (scope: string, limit: number) => Promise<boolean>;
 	claim: (key: string) => Promise<boolean>;
 	release: (key: string) => Promise<void>;
@@ -47,19 +51,6 @@ export const FILL_LEASE_MS = 10_000;
 export const FILL_WAIT_MS = 3000;
 export const FILL_POLL_MS = 250;
 
-const KEPT_RENDITIONS = [
-	"original",
-	"original_still",
-	"fixed_width",
-	"fixed_width_still",
-	"fixed_height",
-	"fixed_height_still",
-	"fixed_width_small",
-	"fixed_width_small_still",
-	"fixed_height_small",
-	"fixed_height_small_still",
-] as const;
-
 export function normalizeQuery(query: string): string {
 	return query
 		.normalize("NFKC")
@@ -84,7 +75,7 @@ export function trendingKey(offset: number): string {
 	return `trending:${offset}`;
 }
 
-function emptyResult(offset: number): GifsResult {
+function emptyResult(offset: number): GiphyPageRecord {
 	return {
 		data: [],
 		pagination: { total_count: offset, count: 0, offset },
@@ -92,7 +83,7 @@ function emptyResult(offset: number): GifsResult {
 	};
 }
 
-function finalPage(result: GifsResult): GifsResult {
+function finalPage(result: GiphyPageRecord): GiphyPageRecord {
 	const count = result.data.length;
 	return {
 		...result,
@@ -100,32 +91,19 @@ function finalPage(result: GifsResult): GifsResult {
 	};
 }
 
-function trimGif(gif: GiphyGif): GiphyGif {
-	const images: Record<string, unknown> = {};
-	const source = gif.images as unknown as Record<string, unknown>;
-	for (const name of KEPT_RENDITIONS) {
-		if (source[name]) {
-			images[name] = source[name];
-		}
-	}
-	const { user: _user, ...rest } = gif as GiphyGif & {
-		analytics?: unknown;
-	};
-	const trimmed: Record<string, unknown> = {
+function trimGif(gif: GiphyGifRecord): GiphyGifRecord {
+	const { user: _user, analytics: _analytics, ...rest } = gif;
+	const trimmed = {
 		...rest,
-		images,
 		analytics_response_payload: "",
 	};
-	delete trimmed.analytics;
-	return trimmed as unknown as GiphyGif;
+	return trimmed;
 }
 
-export function cleanResult(raw: unknown, offset: number): GifsResult {
-	const body = (raw ?? {}) as {
-		data?: unknown;
-		pagination?: { total_count?: unknown };
-		meta?: GifsResult["meta"];
-	};
+export function cleanResult(
+	body: GiphyUpstreamPage,
+	offset: number,
+): GiphyPageRecord {
 	const count = Array.isArray(body.data) ? body.data.length : 0;
 	const reported = Number(body.pagination?.total_count) || 0;
 	const end = offset + count;
@@ -135,21 +113,14 @@ export function cleanResult(raw: unknown, offset: number): GifsResult {
 			: Math.max(reported, end);
 	const meta = body.meta;
 	return {
-		data: validGiphyGifs(body.data).map((gif) =>
-			trimGif(gif as unknown as GiphyGif),
-		),
+		data: validGiphyGifs(body.data).map(trimGif),
 		pagination: { total_count: total, count, offset },
-		meta: {
-			status: typeof meta?.status === "number" ? meta.status : 200,
-			msg: typeof meta?.msg === "string" ? meta.msg : "OK",
-			response_id:
-				typeof meta?.response_id === "string" ? meta.response_id : "",
-		},
+		meta,
 	};
 }
 
 type Upstream =
-	| { kind: "ok"; result: unknown }
+	| { kind: "ok"; result: GiphyUpstreamPage }
 	| { kind: "limited" }
 	| { kind: "failed" };
 
@@ -177,9 +148,9 @@ async function callGiphy(
 		if (!response.ok) {
 			return { kind: "failed" };
 		}
-		const body = (await response.json()) as { data?: unknown } | null;
-		return Array.isArray(body?.data)
-			? { kind: "ok", result: body }
+		const body = giphyUpstreamPageSchema.safeParse(await response.json());
+		return body.success
+			? { kind: "ok", result: body.data }
 			: { kind: "failed" };
 	} catch {
 		return { kind: "failed" };
@@ -323,10 +294,13 @@ export async function searchGiphy(
 	});
 }
 
-export function findGif(page: unknown, gifId: string): GiphyGif | null {
-	const data = (page as { data?: unknown } | null)?.data;
+export function findGif(
+	page: GiphyPageRecord | null,
+	gifId: string,
+): GiphyGifRecord | null {
+	const data = page?.data;
 	const gif = validGiphyGifs(data).find((candidate) => candidate.id === gifId);
-	return gif ? (gif as unknown as GiphyGif) : null;
+	return gif ?? null;
 }
 
 export interface MemoryCacheOptions {

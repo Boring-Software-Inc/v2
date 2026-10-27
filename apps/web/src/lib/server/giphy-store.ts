@@ -1,4 +1,3 @@
-import type { GifsResult } from "@giphy/js-fetch-api";
 import type { CloseGif } from "@tripwire/contracts";
 import { closeGifFrom } from "#/lib/giphy-gif";
 import {
@@ -21,7 +20,7 @@ async function databaseStore(): Promise<GiphyStore> {
 			const entry = await giphyServices.readGiphyCache(db, key);
 			return entry
 				? {
-						body: entry.body as unknown as GifsResult,
+						body: entry.body,
 						expiresAt: entry.expiresAt,
 					}
 				: null;

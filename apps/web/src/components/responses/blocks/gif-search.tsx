@@ -1,7 +1,12 @@
-import type { GifsResult } from "@giphy/js-fetch-api";
 import { useQueryClient } from "@tanstack/react-query";
-import type { CloseGif } from "@tripwire/contracts";
-import { lazy, Suspense, type SyntheticEvent, useState } from "react";
+import type { CloseGif, GiphyPageRecord } from "@tripwire/contracts";
+import {
+	type KeyboardEvent,
+	lazy,
+	Suspense,
+	type SyntheticEvent,
+	useState,
+} from "react";
 import { Input } from "#/components/glaze/ui/input";
 import { PopoverTitle } from "#/components/glaze/ui/popover";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
@@ -10,8 +15,8 @@ import { closeGifsQueryOptions } from "#/lib/response.query";
 import type { GiphyStatus } from "#/lib/server/giphy-search";
 
 const Grid = lazy(() =>
-	import("@giphy/react-components").then((module) => ({
-		default: module.Grid,
+	import("#/components/responses/blocks/giphy-grid").then((module) => ({
+		default: module.GiphyGrid,
 	})),
 );
 
@@ -19,10 +24,10 @@ const SEARCH_DELAY_MS = 400;
 const MIN_QUERY = 2;
 const GRID_WIDTH = 296;
 
-const STATUS_COPY: Record<Exclude<GiphyStatus, "ok">, string> = {
+const STATUS_COPY = {
 	busy: "GIF search is busy. Try again shortly.",
 	unavailable: "GIFs are not available right now.",
-};
+} satisfies Record<Exclude<GiphyStatus, "ok">, string>;
 
 function searchTerm(text: string): string {
 	const trimmed = text.trim();
@@ -46,7 +51,7 @@ export function GifSearch({ org, onPick }: GifSearchProps) {
 	const query = useDebouncedValue(searchTerm(text), SEARCH_DELAY_MS);
 	const [status, setStatus] = useState<GiphyStatus>("ok");
 
-	const fetchGifs = async (offset: number): Promise<GifsResult> => {
+	const fetchGifs = async (offset: number): Promise<GiphyPageRecord> => {
 		const page = await queryClient.fetchQuery(
 			closeGifsQueryOptions(org, query, offset),
 		);
@@ -98,8 +103,11 @@ export function GifSearch({ org, onPick }: GifSearchProps) {
 							</p>
 						}
 						onGifClick={pick}
-						onGifKeyPress={(picked, event) => {
-							const key = (event as unknown as KeyboardEvent).key;
+						onGifKeyPress={(
+							picked: GiphyGif,
+							event: SyntheticEvent<HTMLElement>,
+						) => {
+							const key = (event as KeyboardEvent<HTMLElement>).key;
 							if (key === "Enter" || key === " ") {
 								pick(picked, event);
 							}
