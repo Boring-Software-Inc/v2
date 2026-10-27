@@ -17,6 +17,7 @@
 		"seed": "bun run scripts/seed.ts",
 		"build": "bun --filter '*' build",
 		"typecheck": "bun --filter '*' typecheck",
+		"typecheck:ts5": "bun --filter '*' typecheck:ts5",
 		"lint": "biome lint .",
 		"lint:slop": "NODE_OPTIONS=--experimental-strip-types oxlint",
 		"lint:slop:changed": "bun run scripts/lint-slop-changed.ts main",
@@ -69,6 +70,7 @@
 		"oxlint": "1.78.0",
 		"picocolors": "^1.1.1",
 		"playwright-core": "^1.61.1",
+		"tsrs": "0.20.0-ts7.1.0-beta",
 		"turbo": "^2.6.2",
 		"typescript": "^5.7.2",
 		"ultracite": "7.8.3"

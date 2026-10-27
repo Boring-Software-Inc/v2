@@ -359,3 +359,44 @@ pass, they fought for priority in the activity and run logs.
   where Install would be, with a menu of those workflows.
 - Rules are installed and uninstalled, not turned on and off. API, DB and MCP
   names (`enabled`, `set_rule`, `setRulesEnabled`) stay.
+
+## 2026-10-26: tsrs is the primary workspace typechecker
+
+**Added:** `tsrs@0.20.0-ts7.1.0-beta` as an exact root devDependency.
+It targets TypeScript 7.1.0-beta at Microsoft commit
+`3e9236361fa97a9e6c685f4833ac457ae2d8c50a`. Platform binaries are pinned
+through its optional dependencies and `bun.lock`; CI and CLI release use
+Bun 1.3.13, matching `packageManager`.
+
+**What it replaces:** TS5 `tsc --noEmit` in all 15 workspace `typecheck`
+scripts, including CI and the CLI release check. The founder authorized the
+swap after the same-commit experiment measured full-suite medians of
+23.805s for TS5, 6.422s for matching Microsoft TS7, and 2.063s for tsrs.
+Each had one warmup followed by three measured runs, including route
+generation. Install time was excluded.
+
+**Why the stack can't do it:** Bun transpiles without checking types, Biome
+lints without semantic typechecking, and the existing TS5 JavaScript compiler
+does not provide a compiled native checker. The matching TS7 comparison also
+showed a lower full-suite median for tsrs on this checkout.
+
+**Configuration:** four checkers and `--fast false` explicitly retain the
+verified reference mode. Explicit `bun` and, where previously discovered,
+`pg` ambient types preserve TS5's inputs; web retains `vite/client` and
+`node`. Relative `paths` replace web's removed `baseUrl`, including its bare
+specifier fallback. File includes, strictness and skip flags stay intact.
+Routes are generated without a dev server before web typechecking.
+
+**Retained:** `typescript` stays at root and in web for the TS5 compiler API
+used by `@typescript-eslint/parser` and existing tooling. `bun run
+typecheck:ts5` checks every workspace with TS5 for diagnosis; `bun run
+typecheck` and CI use tsrs. No runtime imports or build emitters change.
+
+**Tradeoff:** this is an experimental compiler and a TS7 beta language/library
+upgrade. The release still documents repository conformance failures;
+matching clean diagnostics, file graphs and injected-error rejection here do
+not prove equivalent diagnostics on every future change. Compare a suspect
+case with `bun run typecheck:ts5` and the pinned Microsoft TS7 reference before
+attributing it to application code. See the release-specific
+[compatibility](https://github.com/oxc-project/tsrs/blob/v0.20.0/docs/COMPATIBILITY.md)
+and [defaults](https://github.com/oxc-project/tsrs/blob/v0.20.0/docs/DEFAULTS.md).

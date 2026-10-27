@@ -12,7 +12,8 @@
 		"preview": "vite preview",
 		"start": "node --import ./.output/server/instrument.server.mjs .output/server/index.mjs",
 		"routes:gen": "bun run scripts/generate-route-tree.ts",
-		"typecheck": "bun run routes:gen && tsc --noEmit",
+		"typecheck": "bun run routes:gen && tsrs --noEmit --checkers 4 --fast false",
+		"typecheck:ts5": "bun run routes:gen && tsc --noEmit",
 		"check:game-chunk": "vite build && bun run scripts/check-game-chunk.ts"
 	},
 	"dependencies": {

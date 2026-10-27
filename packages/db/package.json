@@ -9,7 +9,8 @@
 	},
 	"types": "./src/index.ts",
 	"scripts": {
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsrs --noEmit --checkers 4 --fast false",
+		"typecheck:ts5": "tsc --noEmit",
 		"migrate": "bun run src/migrate.ts",
 		"generate": "drizzle-kit generate",
 		"studio": "drizzle-kit studio"
