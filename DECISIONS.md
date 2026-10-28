@@ -424,3 +424,13 @@ GitCafe remains planned and unavailable for sign-in, connection, ingest, reads, 
 The owner explicitly authorized a dedicated `packages/forge-gitcafe` workspace after reviewing the initial OpenGit subpath placement. This is a scoped exception to the closed package layout and replaces `@tripwire/forge-opengit/gitcafe` with `@tripwire/forge-gitcafe`. Separate protocol ownership cannot be expressed clearly under the legacy adapter's name. No third-party dependency is added.
 
 GitCafe code and captured fixtures live in the new package. Historical OpenGit exports, issuer, credentials and data remain in `packages/forge-opengit`; neither forge package imports the other. GitCafe follows the adapter dependency boundaries: contracts, utils and forge only, with worker and API as permitted consumers. This slice contains protocol primitives only; no adapter, receiver or sign-in is activated. Captured response bytes and provenance are preserved through the move. Authenticated token and lifecycle fixtures await an authorized staging app.
+
+
+## 2026-10-27: Staging integration branch
+
+Staging work merges into `staging`. Independent staging PRs target that branch;
+stacked PRs may target their parent feature branch, with the stack root targeting
+`staging`. Production promotion is a separate PR from `staging` into `main`.
+The staging CLI release dispatches from `staging` and publishes only to the
+`staging` npm tag. The former `staging/visual` tip is preserved as
+`archive/staging-visual`.

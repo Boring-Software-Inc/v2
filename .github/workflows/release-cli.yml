@@ -56,7 +56,7 @@ jobs:
         run: |
           case "$CHANNEL:$REF_TYPE:$REF_NAME" in
             latest:branch:main|latest:tag:cli-v*) ;;
-            staging:branch:staging/visual) ;;
+            staging:branch:staging) ;;
             *) echo "Release channel does not match the selected ref" >&2; exit 1 ;;
           esac
           echo "name=$CHANNEL" >> "$GITHUB_OUTPUT"

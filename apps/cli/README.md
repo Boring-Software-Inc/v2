@@ -36,17 +36,17 @@ custom URL overrides require a fresh login rather than reusing the old singleton
 
 ## Release
 
-After this change is merged into `staging/visual`, run:
+After the changes you want to release are merged into `staging`, run:
 
 ```sh
 bun run cli:release patch --staging
 ```
 
-This dispatches the existing `release-cli.yml` workflow on `staging/visual`
+This dispatches the existing `release-cli.yml` workflow on `staging`
 with `channel=staging`. The equivalent command is:
 
 ```sh
-gh workflow run release-cli.yml --ref staging/visual -f channel=staging -f bump=patch
+gh workflow run release-cli.yml --ref staging -f channel=staging -f bump=patch
 ```
 
 The workflow checks the CLI, chooses a version such as `0.1.1-staging.42`, bundles
