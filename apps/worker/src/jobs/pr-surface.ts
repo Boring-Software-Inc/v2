@@ -395,20 +395,6 @@ export async function emitPrSurface(
 				activeReviewId = result.externalId;
 			}
 		} catch (error) {
-			// Best-effort actions: the check is the real gate, and a review dismiss
-			// or review request is a nicety — a failure warns and settles the row.
-			if (
-				row.kind === "block" ||
-				row.kind === "dismiss-review" ||
-				row.kind === "request-review"
-			) {
-				logger.warn(
-					{ actionId: row.id, kind: row.kind, error: getErrorMessage(error) },
-					"best-effort forge action failed — check remains the gate",
-				);
-				await runServices.markActionExecuted(db, row.id, null);
-				continue;
-			}
 			if (CLOSE_PREREQUISITES.has(row.kind)) {
 				surfaceFailed = true;
 			}
