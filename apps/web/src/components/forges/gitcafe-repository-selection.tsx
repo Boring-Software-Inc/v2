@@ -1,5 +1,5 @@
 /** biome-ignore assist/source/organizeImports: AGENTS requires React, external packages, lib, then feature imports. */
-import { useId } from "react";
+import { useId, useMemo } from "react";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { OrganizationForgeConnection } from "@tripwire/contracts";
@@ -15,12 +15,23 @@ import { Button } from "#/components/glaze/ui/button";
 export function GitCafeRepositorySelection({
 	org,
 	installations,
+	repositories,
 }: {
 	org: string;
 	installations: OrganizationForgeConnection["installations"];
+	repositories: OrganizationForgeConnection["repositories"];
 }) {
 	const providers = useQuery(providerAvailabilityQueryOptions());
 	const reasonId = useId();
+	const repositoryCounts = useMemo(() => {
+		const counts = new Map<string, number>();
+		for (const repo of repositories)
+			counts.set(
+				repo.installationId,
+				(counts.get(repo.installationId) ?? 0) + 1,
+			);
+		return counts;
+	}, [repositories]);
 	const availabilityReason = providers.isPending
 		? "Checking repository sync availability."
 		: providers.isError
@@ -43,19 +54,29 @@ export function GitCafeRepositorySelection({
 			{installations.map((installation) => {
 				const href = forgeInstallationSettingsUrl("gitcafe", installation);
 				if (!href) return null;
+				const count = repositoryCounts.get(installation.installationId) ?? 0;
+				const label =
+					installations.length > 1
+						? `${installation.owner}, ${count} connected ${count === 1 ? "repo" : "repos"}`
+						: installation.owner;
 				return (
 					<div
 						className="flex min-w-0 flex-wrap items-center gap-2"
 						key={installation.installationId}
 					>
-						<span className="me-auto min-w-0 type-label wrap-anywhere">
+						<span className="me-auto flex min-w-0 flex-col gap-0.5 type-label wrap-anywhere">
 							{installation.owner}
+							{installations.length > 1 ? (
+								<span className="type-caption text-text-2">
+									{count} connected {count === 1 ? "repo" : "repos"}
+								</span>
+							) : null}
 						</span>
 						<Button
 							nativeButton={false}
 							render={
 								<a
-									aria-label={`Manage repositories for ${installation.owner} on GitCafe (opens in a new tab)`}
+									aria-label={`Manage repositories for ${label} on GitCafe (opens in a new tab)`}
 									href={href}
 									target="_blank"
 									rel="noopener noreferrer"
@@ -67,7 +88,7 @@ export function GitCafeRepositorySelection({
 						/>
 						<Button
 							aria-describedby={availabilityReason ? reasonId : undefined}
-							aria-label={`Sync GitCafe repositories for ${installation.owner}`}
+							aria-label={`Sync GitCafe repositories for ${label}`}
 							disabled={availabilityReason !== null || sync.isPending}
 							onClick={() => sync.mutate(installation.installationId)}
 							pending={
