@@ -70,6 +70,9 @@ database handle. A failed or losing signup can therefore leave a committed user
 without an account or session; the personal-org after hook may not run on that
 failed signup. This fix deliberately retains the user rather than guessing
 whether another request has started using it.
+GitCafe's user after-hook checks for a committed account before provisioning an
+org: Better Auth can run that hook after account creation fails. This prevents
+the losing flow from competing with the successful flow for its personal-org slug.
 Both verified email variants of a racing subject subsequently select the one
 successful account owner. No process-local lock establishes ownership.
 

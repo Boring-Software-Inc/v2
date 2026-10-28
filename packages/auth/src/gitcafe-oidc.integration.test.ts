@@ -16,6 +16,7 @@ import {
 	createDb,
 	createTestDatabase,
 	type Db,
+	orgServices,
 	schema,
 	type TestDatabase,
 } from "@tripwire/db";
@@ -510,6 +511,16 @@ describe("GitCafe opt-in public OIDC", () => {
 		});
 		let readers = 0;
 		const mocks = [];
+		const provisionedUsers: string[] = [];
+		const provision = orgServices.ensurePersonalOrg;
+		mocks.push(
+			spyOn(orgServices, "ensurePersonalOrg").mockImplementation(
+				async (db, input) => {
+					provisionedUsers.push(input.userId);
+					return provision(db, input);
+				},
+			),
+		);
 		for (const instance of [auth, secondAuth]) {
 			const adapter = (await instance.$context).internalAdapter;
 			const original = adapter.findAccountOwnerByKey.bind(adapter);
@@ -554,6 +565,7 @@ describe("GitCafe opt-in public OIDC", () => {
 			);
 		expect(accounts).toHaveLength(1);
 		const ownerId = accounts[0]?.userId;
+		expect(provisionedUsers).toEqual([ownerId ?? ""]);
 		const identities = await db
 			.select()
 			.from(schema.forgeIdentities)
@@ -586,6 +598,12 @@ describe("GitCafe opt-in public OIDC", () => {
 				.select()
 				.from(schema.account)
 				.where(eq(schema.account.userId, rejectedUserId)),
+		).toHaveLength(0);
+		expect(
+			await db
+				.select()
+				.from(schema.member)
+				.where(eq(schema.member.userId, rejectedUserId)),
 		).toHaveLength(0);
 		expect(
 			await db

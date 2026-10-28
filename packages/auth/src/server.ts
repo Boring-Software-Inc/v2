@@ -425,7 +425,15 @@ export function createAuth(input: CreateAuthInput) {
 					},
 					/** §1: every user gets a personal org at signup (idempotent —
 					 * the migration backfill uses the same service). */
-					after: async (user) => {
+					after: async (user, context) => {
+						/** Nontransactional after-hooks also run when account creation failed. */
+						if (
+							context &&
+							gitCafeIdentities.has(context) &&
+							!(await hasGitCafeAccount(user.id))
+						) {
+							return;
+						}
 						await orgServices.ensurePersonalOrg(input.db, {
 							userId: user.id,
 							name: user.name,
