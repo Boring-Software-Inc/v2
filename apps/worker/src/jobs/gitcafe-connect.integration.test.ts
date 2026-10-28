@@ -32,7 +32,7 @@ import {
 	workflowServices,
 } from "@tripwire/db";
 import { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
-import { generateId } from "@tripwire/utils";
+import { generateId, sleep } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
@@ -342,6 +342,12 @@ test("same-org concurrent claims are idempotent and another org cannot steal ins
 	expect(
 		(await db.select().from(organizationInstallations))[0]?.organizationId,
 	).toBe(job.orgId);
+	expect(
+		await orgServices.getOrgRepo(db, {
+			orgId: job.orgId,
+			repoName: repository.name,
+		}),
+	).not.toBeNull();
 });
 
 test("GitHub rows with the same external identity and name remain isolated", async () => {
@@ -360,6 +366,267 @@ test("GitHub rows with the same external identity and name remain isolated", asy
 		(await db.select().from(repos)).map((row) => row.forge).sort(),
 	).toEqual(["gitcafe", "github"]);
 });
+
+for (const forge of ["github", "opengit", "gitcafe"] as const) {
+	test(`same-org ${forge} name collision refuses without a claim or repository mutation`, async () => {
+		const id = await repoServices.ensureRepo(db, {
+			forge,
+			externalId: generateId(),
+			owner: "other-owner",
+			name: repository.name,
+			fullName: `other-owner/${repository.name}`,
+			orgId: job.orgId,
+		});
+		await db.update(repos).set({ armed: true }).where(eq(repos.id, id));
+		const before = await db.select().from(repos);
+		expect(
+			(
+				await orgServices.getOrgRepo(db, {
+					orgId: job.orgId,
+					repoName: repository.name,
+				})
+			)?.id,
+		).toBe(id);
+		expect(await connectGitCafeInstallation(deps, job)).toEqual({
+			ok: false,
+			reason: "repository-conflict",
+		});
+		expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+		expect(await db.select().from(repos)).toEqual(before);
+		expect(
+			(
+				await orgServices.getOrgRepo(db, {
+					orgId: job.orgId,
+					repoName: repository.name,
+				})
+			)?.id,
+		).toBe(id);
+	});
+}
+
+for (const scenario of [
+	"different-org",
+	"different-name",
+	"removed",
+] as const) {
+	test(`${scenario} GitHub row allows GitCafe connection and remains untouched`, async () => {
+		const otherOrgId = generateId();
+		if (scenario === "different-org")
+			await db.insert(organization).values({
+				id: otherOrgId,
+				name: "Other tenant",
+				slug: `other-${otherOrgId}`,
+			});
+		const id = await repoServices.ensureRepo(db, {
+			forge: "github",
+			externalId: generateId(),
+			owner: repository.owner,
+			name: scenario === "different-name" ? "another-repo" : repository.name,
+			fullName: `${repository.owner}/${scenario === "different-name" ? "another-repo" : repository.name}`,
+			orgId: scenario === "different-org" ? otherOrgId : job.orgId,
+		});
+		if (scenario === "removed")
+			await db
+				.update(repos)
+				.set({ removedAt: new Date() })
+				.where(eq(repos.id, id));
+		const before = await db.select().from(repos).where(eq(repos.id, id));
+		expect(await connectGitCafeInstallation(deps, job)).toEqual({
+			ok: true,
+			repoCount: 1,
+		});
+		expect(await db.select().from(repos).where(eq(repos.id, id))).toEqual(
+			before,
+		);
+		expect(
+			(
+				await orgServices.getOrgRepo(db, {
+					orgId: job.orgId,
+					repoName: repository.name,
+				})
+			)?.forge,
+		).toBe("gitcafe");
+		if (scenario !== "removed")
+			expect(
+				(
+					await orgServices.getOrgRepo(db, {
+						orgId: scenario === "different-org" ? otherOrgId : job.orgId,
+						repoName:
+							scenario === "different-name" ? "another-repo" : repository.name,
+					})
+				)?.id,
+			).toBe(id);
+	});
+}
+
+test("queued repository-conflict output reaches setup status without a claim", async () => {
+	await repoServices.ensureRepo(db, {
+		forge: "github",
+		externalId: generateId(),
+		owner: repository.owner,
+		name: repository.name,
+		fullName: `${repository.owner}/${repository.name}`,
+		orgId: job.orgId,
+	});
+	const queued = await gitCafeConnectionServices.enqueueGitCafeConnection(
+		db,
+		boss,
+		job,
+	);
+	if (!queued.ok) throw new Error("enqueue refused");
+	const result = await connectGitCafeInstallation(deps, job);
+	expect(result).toEqual({ ok: false, reason: "repository-conflict" });
+	await boss.complete(GITCAFE_CONNECT_QUEUE, queued.jobId, result, {
+		includeQueued: true,
+	});
+	expect(
+		await gitCafeConnectionServices.getGitCafeConnectionStatus(db, boss, {
+			userId: job.userId,
+			sessionId: job.sessionId,
+			orgId: job.orgId,
+			installationId: job.installationId,
+			jobId: queued.jobId,
+		}),
+	).toEqual({ status: "refused", reason: "repository-conflict" });
+	expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+});
+
+test("a conflicting reconnect preserves the existing claim and all repository state", async () => {
+	expect(await connectGitCafeInstallation(deps, job)).toEqual({
+		ok: true,
+		repoCount: 1,
+	});
+	await repoServices.ensureRepo(db, {
+		forge: "github",
+		externalId: generateId(),
+		owner: "another-owner",
+		name: "collision",
+		fullName: "another-owner/collision",
+		orgId: job.orgId,
+	});
+	const beforeRepos = await db.select().from(repos).orderBy(repos.id);
+	const beforeClaims = await db.select().from(organizationInstallations);
+	expect(
+		await gitCafeConnectionServices.commitGitCafeConnection(db, {
+			job,
+			owner: repository.owner,
+			repositories: [
+				{ ...repository, id: generateId(), name: "available" },
+				{ ...repository, id: generateId(), name: "collision" },
+			],
+			revalidate: async () => ({ ok: true, repoCount: 2 }),
+		}),
+	).toEqual({ ok: false, reason: "repository-conflict" });
+	expect(await db.select().from(repos).orderBy(repos.id)).toEqual(beforeRepos);
+	expect(await db.select().from(organizationInstallations)).toEqual(
+		beforeClaims,
+	);
+});
+
+test("two selected GitCafe repositories with the same name refuse before any writes", async () => {
+	expect(
+		await gitCafeConnectionServices.commitGitCafeConnection(db, {
+			job,
+			owner: repository.owner,
+			repositories: [repository, { ...repository, id: generateId() }],
+			revalidate: async () => ({ ok: true, repoCount: 2 }),
+		}),
+	).toEqual({ ok: false, reason: "repository-mismatch" });
+	expect(await db.select().from(repos)).toHaveLength(0);
+	expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+});
+
+test("concurrent GitCafe installations cannot introduce the same org repository name", async () => {
+	const results = await Promise.all(
+		[repository.owner, "another-owner"].map((owner) =>
+			gitCafeConnectionServices.commitGitCafeConnection(db, {
+				job: { ...job, installationId: `installation-${owner}` },
+				owner,
+				repositories: [{ ...repository, owner, id: generateId() }],
+				revalidate: async () => ({ ok: true, repoCount: 1 }),
+			}),
+		),
+	);
+	expect(results.filter((result) => result.ok)).toHaveLength(1);
+	expect(results.filter((result) => !result.ok)).toEqual([
+		{ ok: false, reason: "repository-conflict" },
+	]);
+	expect(await db.select().from(repos)).toHaveLength(1);
+	expect(await db.select().from(organizationInstallations)).toHaveLength(1);
+});
+
+for (const mutation of ["insert", "rename", "move", "revive"] as const) {
+	test(`concurrent GitHub ${mutation} is visible before the atomic GitCafe name check`, async () => {
+		const id = generateId();
+		const values = {
+			id,
+			forge: "github" as const,
+			externalId: generateId(),
+			owner: "another-owner",
+			name: repository.name,
+			fullName: `another-owner/${repository.name}`,
+			orgId: job.orgId,
+		};
+		if (mutation !== "insert")
+			await db.insert(repos).values({
+				...values,
+				name: mutation === "rename" ? "old-name" : repository.name,
+				orgId: mutation === "move" ? null : job.orgId,
+				removedAt: mutation === "revive" ? new Date() : null,
+			});
+		let release = () => {};
+		let ready = () => {};
+		const released = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const written = new Promise<void>((resolve) => {
+			ready = resolve;
+		});
+		const writer = db.transaction(async (tx) => {
+			if (mutation === "insert") await tx.insert(repos).values(values);
+			else
+				await tx
+					.update(repos)
+					.set({ name: repository.name, orgId: job.orgId, removedAt: null })
+					.where(eq(repos.id, id));
+			ready();
+			await released;
+		});
+		let connection: ReturnType<typeof connectGitCafeInstallation> | undefined;
+		try {
+			await written;
+			connection = connectGitCafeInstallation(deps, job);
+			let waiting = false;
+			for (let attempt = 0; attempt < 100; attempt++) {
+				const result = await pool.query<{ waiting: boolean }>(
+					"SELECT EXISTS (SELECT 1 FROM pg_locks WHERE relation = 'repos'::regclass AND mode = 'ShareRowExclusiveLock' AND NOT granted) AS waiting",
+				);
+				waiting = result.rows[0]?.waiting === true;
+				if (waiting) break;
+				await sleep(10);
+			}
+			expect(waiting).toBe(true);
+		} finally {
+			release();
+			await writer;
+			await connection;
+		}
+		expect(await connection).toEqual({
+			ok: false,
+			reason: "repository-conflict",
+		});
+		expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+		expect((await db.select().from(repos)).map((row) => row.id)).toEqual([id]);
+		expect(
+			(
+				await orgServices.getOrgRepo(db, {
+					orgId: job.orgId,
+					repoName: repository.name,
+				})
+			)?.id,
+		).toBe(id);
+	});
+}
 
 test("stale and future jobs, unexpected secrets and client actor extensions are rejected before provider reads", async () => {
 	for (const input of [

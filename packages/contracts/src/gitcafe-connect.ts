@@ -152,6 +152,7 @@ export const gitCafeConnectionRefusalSchema = z.enum([
 	"not-admin",
 	"installation-mismatch",
 	"repository-mismatch",
+	"repository-conflict",
 	"ownership-conflict",
 	"queue-unavailable",
 ]);

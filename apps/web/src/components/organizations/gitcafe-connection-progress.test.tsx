@@ -87,4 +87,15 @@ describe("GitCafe setup progress", () => {
 		expect(html).not.toContain("GitCafe connected to");
 		expect(html).toContain("read connection progress. Check your connection");
 	});
+	test("name collisions explain selection and org recovery without claiming another org owns the installation", async () => {
+		const html = await renderStatus({
+			status: "refused",
+			reason: "repository-conflict",
+		});
+		expect(html).toContain("same name as another repo in this Tripwire org");
+		expect(html).toContain("Change the GitCafe repo selection");
+		expect(html).toContain("connect to a different Tripwire org");
+		expect(html).not.toContain("connected to another org");
+		expect(html).not.toContain("GitCafe connected to");
+	});
 });

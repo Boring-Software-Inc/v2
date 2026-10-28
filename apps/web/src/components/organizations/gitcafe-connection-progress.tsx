@@ -70,7 +70,9 @@ export function GitCafeConnectionProgress({
 								? "Your Tripwire session or permission to manage connections changed. Sign in and check your org access before trying again."
 								: current.reason === "ownership-conflict"
 									? "This installation is connected to another org. Ask an admin of that org to manage the connection."
-									: "Tripwire couldn't verify this installation with your current access. Authorize again to retry, or check with whoever runs this Tripwire server."
+									: current.reason === "repository-conflict"
+										? "A selected repo has the same name as another repo in this Tripwire org. Change the GitCafe repo selection or connect to a different Tripwire org."
+										: "Tripwire couldn't verify this installation with your current access. Authorize again to retry, or check with whoever runs this Tripwire server."
 						: "The connection couldn't be verified. Authorize again to retry with fresh access."
 				}
 			/>
