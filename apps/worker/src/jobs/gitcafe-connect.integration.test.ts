@@ -1182,16 +1182,16 @@ async function pendingRevocation(
 		type,
 		installation: { id: job.installationId },
 		createdAt: new Date(Date.now() + 1000).toISOString(),
-		...(type === "installation.repositories_updated"
-			? {
-					repositorySelection: "selected",
-					previousRepositorySelection: "selected",
-					repositoriesAdded: [],
-					repositoriesRemoved: [{ id: repository.id }],
-					repositoriesRemovedTruncated: false,
-				}
-			: {}),
 	};
+	if (type === "installation.repositories_updated") {
+		Object.assign(payload, {
+			repositorySelection: "selected",
+			previousRepositorySelection: "selected",
+			repositoriesAdded: [],
+			repositoriesRemoved: [{ id: repository.id }],
+			repositoriesRemovedTruncated: false,
+		});
+	}
 	const body = JSON.stringify(payload);
 	return await gitCafeLifecycleServices.insertGitCafeReceipt(
 		pool,
