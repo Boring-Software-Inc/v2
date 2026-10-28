@@ -18,7 +18,8 @@ seams for agnosticism exist from day 1, the second adapter does not.
 ```
 contracts     ← everything            (imports nothing but zod)
 utils         ← everything except contracts
-forge         ← forge-github, worker  (interface + types only; imports contracts)
+forge         ← forge-github, forge-opengit, forge-gitcafe, worker
+                                       (interface + types only; imports contracts)
 core          ← worker ONLY           (pure: imports contracts + utils only.
                                        NO I/O, no db, no forge, no AI SDK, no octokit.
                                        Effects are INJECTED)
@@ -26,6 +27,7 @@ db            ← worker, api, web, mcp (schema + services)
 auth          ← web, api, mcp         (./server sessions + posture guard,
                                        ./client browser; imports db + utils)
 forge-github  ← worker, api           (api uses webhook verify only)
+forge-gitcafe ← worker, api           (GitCafe protocol; activation remains gated)
 ui            ← web                   (primitives; no app logic, no data fetching)
 apps/cli      → contracts only        (npm @tripwire-sh/cli, bin `tripwire`; one ESM
                                        file for Node. Talks to the MCP server over HTTP)
@@ -100,6 +102,8 @@ files from it.** It contains the scope creep that killed v1.
   why the stack (§2 of the spec) can't do it. "Convenient" is not a reason.
 - NO new top-level packages, apps, or folders. The §3 layout is closed. If work
   doesn't fit, stop and flag it — do not invent a home for it.
+  Approved exception: `packages/forge-gitcafe` owns GitCafe code and fixtures
+  (2026-10-27, DECISIONS.md); historical OpenGit remains in `forge-opengit`.
 - NO abstractions for single consumers: no utils.ts used by one file, no base
   classes with one subclass, no "future-proofing" interfaces beyond ForgeAdapter.
 - NO scaffolding beyond the current build step. Finishing early means raising
@@ -120,6 +124,9 @@ signal nodes in the workflow editor (trigger/rule/gate/action nodes already exis
 — only SIGNAL nodes are deferred).
 A helpful agent scaffolding `forge-gitlab` because the sibling slot visibly
 exists is the same scope creep that killed v1, typing faster.
+
+GitCafe integration is approved as an exception to the second-forge deferral
+(2026-10-27, DECISIONS.md); other deferred forges remain out of scope.
 
 ## Governance map
 - Scoped `agents.md` files inject rules when a session touches their area.

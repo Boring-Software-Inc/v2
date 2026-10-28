@@ -27,6 +27,16 @@ export * from "./forge-connection.ts";
 export * from "./forges.ts";
 export * from "./giphy.ts";
 export {
+	type GitCafePublicBlob,
+	type GitCafePublicProfile,
+	type GitCafePublicPull,
+	type GitCafePublicRepository,
+	gitCafePublicBlobSchema,
+	gitCafePublicProfileSchema,
+	gitCafePublicPullSchema,
+	gitCafePublicRepositorySchema,
+} from "./gitcafe.ts";
+export {
 	type DigestHistory,
 	type DigestHistoryInput,
 	type DigestHistoryWindow,
