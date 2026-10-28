@@ -13,6 +13,7 @@ import { renderToString } from "react-dom/server";
 import { ForgeGrid } from "#/components/auth/forge-grid";
 import { ConnectForgeGrid } from "#/components/forges/connect-forge-grid";
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
+import { organizationConnectionsQueryOptions } from "#/lib/connections.query";
 import { orgInstallUrlQueryOptions } from "#/lib/onboarding.query";
 import { orgContextQueryOptions } from "#/lib/org.query";
 
@@ -25,6 +26,12 @@ function button(markup: string, label: string) {
 }
 
 function render(client: QueryClient, org: string | null) {
+	if (
+		org &&
+		client.getQueryData(organizationConnectionsQueryOptions(org).queryKey) ===
+			undefined
+	)
+		client.setQueryData(organizationConnectionsQueryOptions(org).queryKey, []);
 	return renderToString(
 		<QueryClientProvider client={client}>
 			<ConnectForgeGrid org={org} />
@@ -33,6 +40,121 @@ function render(client: QueryClient, org: string | null) {
 }
 
 describe("Connect uses the login availability decision", () => {
+	test("an existing GitCafe installation offers selection sync instead of repeating installation", () => {
+		const client = new QueryClient();
+		client.setQueryData(providerAvailabilityQueryOptions().queryKey, {
+			available: ["gitcafe"],
+		});
+		client.setQueryData(orgContextQueryOptions("team").queryKey, {
+			id: "org-team",
+			slug: "team",
+			name: "Team",
+			role: "connection-manager",
+			isPersonal: false,
+			avatarHue: null,
+			timezone: null,
+			permissions: ["connections:manage"],
+		});
+		client.setQueryData(orgInstallUrlQueryOptions("team", "gitcafe").queryKey, {
+			status: "ready",
+			url: "https://git.cafe/apps/tripwire-test/install",
+		});
+		client.setQueryData(organizationConnectionsQueryOptions("team").queryKey, [
+			{
+				forge: "gitcafe",
+				installations: [
+					{
+						installationId: "installed-one",
+						owner: "boring",
+						accountType: "Organization",
+					},
+				],
+				repositories: [],
+			},
+		]);
+		const markup = render(client, "team");
+		expect(markup).toContain("Manage repositories on GitCafe");
+		expect(markup).toContain(
+			"https://git.cafe/orgs/boring/settings/apps/installed-one",
+		);
+		expect(markup).toContain("Sync repositories");
+		expect(markup).toContain("Install on another GitCafe org");
+		expect(markup).not.toContain("Access expired");
+		client.clear();
+	});
+
+	test("existing native management survives provider and new-install readiness failures", () => {
+		for (const failure of [
+			"unavailable",
+			"provider-error",
+			"install-error",
+		] as const) {
+			const client = new QueryClient();
+			const providers = providerAvailabilityQueryOptions();
+			client.setQueryData(providers.queryKey, {
+				available: failure === "unavailable" ? [] : ["gitcafe"],
+			});
+			if (failure === "provider-error")
+				client
+					.getQueryCache()
+					.find({ queryKey: providers.queryKey })
+					?.setState({
+						status: "error",
+						error: new Error("Controlled provider outage"),
+					});
+			client.setQueryData(orgContextQueryOptions("team").queryKey, {
+				id: "org-team",
+				slug: "team",
+				name: "Team",
+				role: "connection-manager",
+				isPersonal: false,
+				avatarHue: null,
+				timezone: null,
+				permissions: ["connections:manage"],
+			});
+			client.setQueryData(
+				orgInstallUrlQueryOptions("team", "gitcafe").queryKey,
+				failure === "install-error"
+					? { status: "not-configured" }
+					: {
+							status: "ready",
+							url: "https://git.cafe/apps/tripwire-test/install",
+						},
+			);
+			client.setQueryData(
+				organizationConnectionsQueryOptions("team").queryKey,
+				[
+					{
+						forge: "gitcafe",
+						installations: [
+							{
+								installationId: "installed-one",
+								owner: "boring",
+								accountType: "Organization",
+							},
+							{
+								installationId: "installed-two",
+								owner: "another",
+								accountType: "Organization",
+							},
+						],
+						repositories: [],
+					},
+				],
+			);
+			const markup = render(client, "team");
+			expect(markup).toContain(
+				"https://git.cafe/orgs/boring/settings/apps/installed-one",
+			);
+			expect(markup).toContain(
+				"https://git.cafe/orgs/another/settings/apps/installed-two",
+			);
+			expect(markup.match(/Sync repositories/g)?.length).toBe(2);
+			if (failure !== "install-error")
+				expect(markup).toMatch(/<button[^>]*\sdisabled(?:=""|\s|>)/);
+			client.clear();
+		}
+	});
 	test("registered GitHub OAuth survives a missing app slug; only GitCafe needs a valid install slug", () => {
 		const result = spawnSync(
 			process.execPath,

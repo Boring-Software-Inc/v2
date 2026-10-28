@@ -1,10 +1,11 @@
 import {
 	FORGE_BY_ID,
-	type Forge,
 	type OrganizationForgeConnection,
 } from "@tripwire/contracts";
+import { forgeInstallationSettingsUrl } from "@tripwire/utils/forge-sign-in";
 import { useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
+import { GitCafeRepositorySelection } from "#/components/forges/gitcafe-repository-selection";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Collapsible,
@@ -29,30 +30,12 @@ import {
 } from "#/components/glaze/ui/item";
 
 type ConnectionRepository = OrganizationForgeConnection["repositories"][number];
-type ConnectionInstallation =
-	OrganizationForgeConnection["installations"][number];
-
-function installationSettingsUrl(
-	forge: Forge,
-	installation: ConnectionInstallation | undefined,
-): string | null {
-	if (!installation) return null;
-	const id = encodeURIComponent(installation.installationId);
-	if (forge === "gitcafe" && installation.owner)
-		return `https://git.cafe/orgs/${encodeURIComponent(installation.owner)}/settings/apps/${id}`;
-	if (forge === "github" && /^\d+$/.test(installation.installationId)) {
-		if (installation.accountType === "User")
-			return `https://github.com/settings/installations/${id}`;
-		if (installation.accountType === "Organization" && installation.owner)
-			return `https://github.com/organizations/${encodeURIComponent(installation.owner)}/settings/installations/${id}`;
-	}
-	return null;
-}
-
 export function OrganizationConnectionRow({
+	org,
 	connection,
 	onCheckAccess,
 }: {
+	org: string;
 	connection: OrganizationForgeConnection;
 	onCheckAccess: () => Promise<unknown>;
 }) {
@@ -68,7 +51,11 @@ export function OrganizationConnectionRow({
 		waiting && connection.repositories.some((repo) => repo.id === waiting.id);
 	return (
 		<Collapsible
-			disabled={connection.repositories.length === 0}
+			disabled={
+				connection.repositories.length === 0 &&
+				(connection.forge !== "gitcafe" ||
+					connection.installations.length === 0)
+			}
 			value={connection.forge}
 		>
 			<CollapsibleTrigger
@@ -83,12 +70,21 @@ export function OrganizationConnectionRow({
 				</span>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
+				{connection.forge === "gitcafe" &&
+				connection.installations.length > 0 ? (
+					<div className="pb-3">
+						<GitCafeRepositorySelection
+							installations={connection.installations}
+							org={org}
+						/>
+					</div>
+				) : null}
 				<ItemGroup aria-label={`${label} repositories`} variant="plain">
 					{connection.repositories.map((repo) => {
 						const installation = connection.installations.find(
 							(item) => item.installationId === repo.installationId,
 						);
-						const href = installationSettingsUrl(
+						const href = forgeInstallationSettingsUrl(
 							connection.forge,
 							installation,
 						);

@@ -1,12 +1,15 @@
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
 import type { ForgeId } from "@tripwire/contracts";
 import { availableForges } from "@tripwire/utils/forge-sign-in";
+import { ForgeMark } from "#/components/common/forge-marks";
 import {
 	FORGE_GRID,
 	ForgeCell,
 	type ForgeCellState,
 } from "#/components/forges/forge-cell";
+import { GitCafeRepositorySelection } from "#/components/forges/gitcafe-repository-selection";
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
+import { organizationConnectionsQueryOptions } from "#/lib/connections.query";
 import type { InstallUrlState } from "#/lib/onboarding.functions";
 import { orgInstallUrlQueryOptions } from "#/lib/onboarding.query";
 import { orgContextQueryOptions } from "#/lib/org.query";
@@ -69,6 +72,13 @@ function ConnectForgeCell({
 		...orgInstallUrlQueryOptions(org ?? "", forge.id),
 		enabled: Boolean(org) && canManage && forge.available && !providersError,
 	});
+	const connections = useQuery({
+		...organizationConnectionsQueryOptions(org ?? ""),
+		enabled: forge.id === "gitcafe" && Boolean(org) && canManage,
+	});
+	const existing = connections.data?.find(
+		(connection) => connection.forge === "gitcafe",
+	);
 	function cellState(): ForgeCellState {
 		if (providersPending) return { kind: "loading" };
 		if (providersError)
@@ -97,9 +107,43 @@ function ConnectForgeCell({
 				title: "You can't manage connections in this org",
 				body: `Ask an org admin to connect ${forge.label} repos.`,
 			};
+		if (forge.id === "gitcafe" && connections.isPending)
+			return { kind: "loading" };
+		if (forge.id === "gitcafe" && connections.isError)
+			return {
+				kind: "blocked",
+				title: "Couldn't load GitCafe connections",
+				body: "Refresh the page to check your existing installations before connecting.",
+			};
 		return installCellState(forge.id, forge.label, install, onDone);
 	}
-	return <ForgeCell id={forge.id} label={forge.label} state={cellState()} />;
+	const state = cellState();
+	if (
+		forge.id === "gitcafe" &&
+		org &&
+		canManage &&
+		!orgPending &&
+		!orgError &&
+		existing?.installations.length
+	)
+		return (
+			<div className="col-span-2 flex min-w-0 flex-col gap-3">
+				<div className="inline-flex items-center gap-2 type-label">
+					<ForgeMark className="size-(--icon) shrink-0" forge="gitcafe" />
+					GitCafe
+				</div>
+				<GitCafeRepositorySelection
+					installations={existing.installations}
+					org={org}
+				/>
+				<ForgeCell
+					id="gitcafe"
+					label="Install on another GitCafe org"
+					state={state}
+				/>
+			</div>
+		);
+	return <ForgeCell id={forge.id} label={forge.label} state={state} />;
 }
 
 function installCellState(

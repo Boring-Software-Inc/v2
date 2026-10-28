@@ -2,9 +2,11 @@ import { expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { OrganizationForgeConnection } from "@tripwire/contracts";
 import { renderToString } from "react-dom/server";
+import { GitCafeRepositorySelection } from "#/components/forges/gitcafe-repository-selection";
 import { OrganizationConnectionRow } from "#/components/forges/organization-connection-row";
 import { OrganizationConnectionsPage } from "#/components/forges/organization-connections-page";
 import { CollapsibleGroup } from "#/components/glaze/ui/collapsible";
+import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { organizationConnectionsQueryOptions } from "#/lib/connections.query";
 import { orgContextQueryOptions } from "#/lib/org.query";
 
@@ -28,6 +30,9 @@ const connection: OrganizationForgeConnection = {
 
 function createClient(canManage: boolean) {
 	const client = new QueryClient();
+	client.setQueryData(providerAvailabilityQueryOptions().queryKey, {
+		available: ["gitcafe"],
+	});
 	client.setQueryData(orgContextQueryOptions("team").queryKey, {
 		id: "org-team",
 		slug: "team",
@@ -77,26 +82,34 @@ test("a non-manager cannot see cached repository names or disconnect controls", 
 	expect(markup).not.toContain("boring/scratch");
 	expect(markup).not.toContain("Disconnect");
 	expect(markup).not.toContain("Connect repos");
+	expect(markup).not.toContain("Sync repositories");
 });
 
-test("empty installation groups are disabled and unknown installation metadata offers no disconnect", () => {
+test("empty GitCafe installations remain manageable and unknown metadata offers no disconnect", () => {
 	const empty = renderToString(
-		<CollapsibleGroup>
-			<OrganizationConnectionRow
-				connection={{ ...connection, repositories: [] }}
-				onCheckAccess={async () => undefined}
-			/>
-		</CollapsibleGroup>,
+		<QueryClientProvider client={createClient(true)}>
+			<CollapsibleGroup>
+				<OrganizationConnectionRow
+					org="team"
+					connection={{ ...connection, repositories: [] }}
+					onCheckAccess={async () => undefined}
+				/>
+			</CollapsibleGroup>
+		</QueryClientProvider>,
 	);
 	expect(empty).toContain("0 repos");
-	expect(empty).toMatch(/<button[^>]*disabled/);
+	expect(empty).toContain("Sync repositories");
+	expect(empty).not.toMatch(/<button[^>]*\sdisabled(?:=""|\s|>)/);
 	const unknown = renderToString(
-		<CollapsibleGroup defaultValue={["gitcafe"]}>
-			<OrganizationConnectionRow
-				connection={{ ...connection, installations: [] }}
-				onCheckAccess={async () => undefined}
-			/>
-		</CollapsibleGroup>,
+		<QueryClientProvider client={new QueryClient()}>
+			<CollapsibleGroup defaultValue={["gitcafe"]}>
+				<OrganizationConnectionRow
+					org="team"
+					connection={{ ...connection, installations: [] }}
+					onCheckAccess={async () => undefined}
+				/>
+			</CollapsibleGroup>
+		</QueryClientProvider>,
 	);
 	expect(unknown).toContain("boring/scratch");
 	expect(unknown).not.toContain("Disconnect");
@@ -122,6 +135,52 @@ test("a failed access refresh keeps the cached repository list and its controls"
 		);
 		expect(markup).toContain("Couldn't refresh access".replace("'", "&#x27;"));
 	} finally {
+		client.clear();
+	}
+});
+
+test("an existing GitCafe installation can change and sync its repository selection", () => {
+	const markup = page(true);
+	expect(markup).toContain("Manage repositories on GitCafe");
+	expect(markup).toContain(
+		"https://git.cafe/orgs/boring/settings/apps/installation-one",
+	);
+	expect(markup).toContain("Sync repositories");
+});
+
+test("sync shares provider availability while native repository management stays accessible", () => {
+	for (const state of ["pending", "unavailable", "error"] as const) {
+		const client = new QueryClient();
+		if (state !== "pending")
+			client.setQueryData(providerAvailabilityQueryOptions().queryKey, {
+				available: [],
+			});
+		if (state === "error")
+			client
+				.getQueryCache()
+				.find({ queryKey: providerAvailabilityQueryOptions().queryKey })
+				?.setState({
+					status: "error",
+					error: new Error("Controlled availability outage"),
+				});
+		const markup = renderToString(
+			<QueryClientProvider client={client}>
+				<GitCafeRepositorySelection
+					org="team"
+					installations={connection.installations}
+				/>
+			</QueryClientProvider>,
+		);
+		expect(markup).toContain("Manage repositories on GitCafe");
+		expect(markup).toMatch(/<button[^>]*\sdisabled(?:=""|\s|>)/);
+		expect(markup).toContain("aria-describedby=");
+		expect(markup).toContain(
+			state === "pending"
+				? "Checking repository sync availability"
+				: state === "error"
+					? "Couldn&#x27;t check repository sync availability"
+					: "GitCafe repository sync isn&#x27;t available",
+		);
 		client.clear();
 	}
 });
