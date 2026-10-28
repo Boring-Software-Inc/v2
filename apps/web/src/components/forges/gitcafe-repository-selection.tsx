@@ -1,11 +1,15 @@
+/** biome-ignore assist/source/organizeImports: AGENTS requires React, external packages, lib, then feature imports. */
+import { useId } from "react";
+
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { OrganizationForgeConnection } from "@tripwire/contracts";
 import { forgeInstallationSettingsUrl } from "@tripwire/utils/forge-sign-in";
-import { useId } from "react";
-import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
-import { Button } from "#/components/glaze/ui/button";
+
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { startGitCafeConnection } from "#/lib/gitcafe-connection.functions";
+
+import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
+import { Button } from "#/components/glaze/ui/button";
 
 /** Selection changes reuse the person-bound connection proof and complete worker discovery. */
 export function GitCafeRepositorySelection({
