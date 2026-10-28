@@ -50,6 +50,7 @@ import {
 	startGitCafeConnectionWorker,
 	workerModeSchema,
 } from "./gitcafe-connection-worker.ts";
+import { startGitCafeLifecycleWorker } from "./gitcafe-lifecycle-worker.ts";
 import {
 	AUDIT_INSTALLATION_CLAIMS_QUEUE,
 	auditInstallationClaims,
@@ -102,6 +103,10 @@ if (import.meta.main && workerMode === "gitcafe-connect") {
 	await startGitCafeConnectionWorker(
 		pino({ name: "gitcafe-connection-worker" }),
 	);
+}
+
+if (import.meta.main && workerMode === "gitcafe-lifecycle") {
+	await startGitCafeLifecycleWorker(pino({ name: "gitcafe-lifecycle-worker" }));
 }
 
 if (import.meta.main && workerMode === "standard") {

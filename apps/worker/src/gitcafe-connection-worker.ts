@@ -12,7 +12,11 @@ import {
 	GITCAFE_STAGING_APP_ID,
 } from "./jobs/gitcafe-connect.ts";
 
-export const workerModeSchema = z.enum(["standard", "gitcafe-connect"]);
+export const workerModeSchema = z.enum([
+	"standard",
+	"gitcafe-connect",
+	"gitcafe-lifecycle",
+]);
 export type WorkerMode = z.infer<typeof workerModeSchema>;
 
 export const gitCafeConnectionWorkerEnvSchema = z.object({

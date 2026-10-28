@@ -4,6 +4,7 @@ import { verifyWebhookSignature as verifyGithub } from "@tripwire/forge-github";
 import { verifyWebhookSignature as verifyOpenGit } from "@tripwire/forge-opengit";
 import { Hono } from "hono";
 import type { ApiEnv } from "../env.ts";
+import { receiveGitCafeReceipt } from "../gitcafe-receipts.ts";
 
 /**
  * Webhook ingest (§5.1–5.4): verify → tx(insert + enqueue) → 200. Nothing else
@@ -64,6 +65,7 @@ const WEBHOOKS = {
 } satisfies Record<IngestForge, ForgeWebhook>;
 
 export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
+	if (c.req.param("forge") === "gitcafe") return receiveGitCafeReceipt(c);
 	// Unknown forge ⇒ 404 before the body is touched. No default, no fallthrough.
 	const parsed = ingestForgeSchema.safeParse(c.req.param("forge"));
 	if (!parsed.success) {
