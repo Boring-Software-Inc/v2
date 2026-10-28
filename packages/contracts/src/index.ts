@@ -45,6 +45,16 @@ export {
 	gitCafePermissionSchema,
 } from "./gitcafe-installation.ts";
 export {
+	GITCAFE_ISSUER,
+	type GitCafeIdentity,
+	type GitCafeOidcClaims,
+	type GitCafeOidcClient,
+	gitCafeAuthorizationResponseSchema,
+	gitCafeIdentitySchema,
+	gitCafeOidcClaimsSchema,
+	gitCafeOidcClientSchema,
+} from "./gitcafe-identity.ts";
+export {
 	type DigestHistory,
 	type DigestHistoryInput,
 	type DigestHistoryWindow,

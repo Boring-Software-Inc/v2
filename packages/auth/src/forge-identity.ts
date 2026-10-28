@@ -1,4 +1,9 @@
-import { type Forge, forgeSchema } from "@tripwire/contracts";
+import {
+	type Forge,
+	forgeSchema,
+	type GitCafeIdentity,
+	gitCafeIdentitySchema,
+} from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { schema } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
@@ -57,6 +62,41 @@ export interface LinkedAccount {
 	providerId: string;
 	accountId: string;
 	accessToken?: string | null;
+}
+
+/** GitCafe's opt-in identity path does not enable its ingest or catalog capabilities. */
+export async function mirrorGitCafeIdentity(
+	db: Db,
+	account: LinkedAccount,
+	verifiedIdentity: GitCafeIdentity,
+): Promise<void> {
+	const identity = gitCafeIdentitySchema.parse(verifiedIdentity);
+	if (
+		account.providerId !== "gitcafe" ||
+		account.accountId !== identity.subject
+	) {
+		throw new Error(
+			"GitCafe account subject does not match its verified identity",
+		);
+	}
+	const updated = await db
+		.insert(schema.forgeIdentities)
+		.values({
+			id: generateId(),
+			userId: account.userId,
+			forge: "gitcafe",
+			externalId: identity.subject,
+			username: identity.handle,
+		})
+		.onConflictDoUpdate({
+			target: [schema.forgeIdentities.forge, schema.forgeIdentities.externalId],
+			set: { username: identity.handle },
+			setWhere: eq(schema.forgeIdentities.userId, account.userId),
+		})
+		.returning({ id: schema.forgeIdentities.id });
+	if (updated.length !== 1) {
+		throw new Error("GitCafe identity is bound to a different user");
+	}
 }
 
 export async function mirrorForgeIdentity(

@@ -1,3 +1,4 @@
+import { resolveGitCafeSignIn } from "@tripwire/auth/gitcafe-oidc";
 import {
 	type Auth,
 	createAuth,
@@ -33,6 +34,10 @@ export function getAuth(): Auth | null {
 		baseUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
 		github: clientId && clientSecret ? { clientId, clientSecret } : null,
 		opengit: null,
+		gitcafe: resolveGitCafeSignIn({
+			enabled: process.env.GITCAFE_SIGN_IN_ENABLED,
+			clientId: process.env.GITCAFE_OAUTH_CLIENT_ID,
+		}),
 		// Better Auth Infrastructure (dash) — this head mounts /api/auth/* (thus
 		// /dash/*), so the key lives here. Undefined ⇒ dash stays inert.
 		infraApiKey: process.env.BETTER_AUTH_API_KEY,
