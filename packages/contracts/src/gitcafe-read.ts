@@ -1,6 +1,20 @@
 import { z } from "zod";
+import { gitCafeInstallationFailureReasonSchema } from "./gitcafe-installation.ts";
 
 export type GitCafeReadBoundary<T> = z.ZodType<T>;
+
+export const gitCafeReadDiagnosticSchema = z.strictObject({
+	source: z.enum([
+		"merged-history",
+		"organization-membership",
+		"repository-collaborators",
+	]),
+	reason: gitCafeInstallationFailureReasonSchema.or(
+		z.enum(["changed", "incomplete", "pagination"]),
+	),
+	status: z.number().int().min(100).max(599).optional(),
+});
+export type GitCafeReadDiagnostic = z.infer<typeof gitCafeReadDiagnosticSchema>;
 
 const OID = z.string().regex(/^[0-9a-f]{40}$/);
 const COUNT = z.number().int().nonnegative().safe();

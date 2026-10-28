@@ -42,10 +42,33 @@ const privateKey = generateKeyPairSync("ec", { namedCurve: "prime256v1" })
 	.privateKey.export({ format: "pem", type: "pkcs8" })
 	.toString();
 
+type FailedRead =
+	| "diff-file"
+	| "commits"
+	| "members"
+	| "collaborators"
+	| "history";
+
+function recordingLogger() {
+	const lines: string[] = [];
+	return {
+		lines,
+		logger: pino(
+			{ level: "warn" },
+			{
+				write: (line) => {
+					lines.push(line);
+				},
+			},
+		),
+	};
+}
+
 /** Only the transport faults and current-installation binding are synthetic; successful API bodies come from captures. */
 function harness(
 	options: {
-		failure?: "diff-file" | "commits" | "members";
+		failure?: FailedRead;
+		failures?: readonly FailedRead[];
 		wrongActor?: boolean;
 	} = {},
 ) {
@@ -64,7 +87,15 @@ function harness(
 				});
 			if (url.pathname.includes("/apps/installations/"))
 				return Response.json(installation);
-			if (options.failure && url.pathname.includes(options.failure))
+			const failures =
+				options.failures ?? (options.failure ? [options.failure] : []);
+			if (
+				failures.some((failure) =>
+					failure === "history"
+						? url.pathname.endsWith("/pulls/")
+						: url.pathname.includes(failure),
+				)
+			)
 				return new Response(null, { status: 503 });
 			if (url.pathname === "/api/users/grim")
 				return Response.json({
@@ -224,4 +255,50 @@ test("a reused handle cannot substitute another contributor's facts", async () =
 	expect(degradedReads).toEqual(["contributor"]);
 	expect(ctx.contributor).toBeNull();
 	expect(ctx.diff).toHaveLength(1);
+});
+
+for (const [failure, source] of [
+	["members", "organization-membership"],
+	["history", "merged-history"],
+	["collaborators", "repository-collaborators"],
+] as const) {
+	test(`partial ${failure} failures remain auditable without discarding healthy facts`, async () => {
+		const h = harness({ failure });
+		const event = await eventFor(h.client);
+		const log = recordingLogger();
+		const { ctx, degradedReads } = await buildRuleContext(
+			event,
+			h.reads,
+			created.createdAt,
+			log.logger,
+		);
+		expect(degradedReads).toEqual(["contributor"]);
+		expect(log.lines).toHaveLength(1);
+		expect(log.lines[0]).toContain(`"source":"${source}"`);
+		expect(log.lines[0]).toContain('"reason":"http"');
+		expect(log.lines[0]).toContain('"status":503');
+		expect(log.lines[0]).not.toContain("synthetic-test-bearer");
+		expect(ctx.contributor?.profileText).toBe(profile.bio);
+		expect(ctx.diff).toHaveLength(1);
+		if (failure === "history") expect(ctx.contributor?.mergedInRepo).toBeNull();
+		if (failure === "members") expect(ctx.contributor?.isOrgMember).toBeNull();
+	});
+}
+
+test("three partial failures record the degraded contributor once and retain each bounded diagnostic", async () => {
+	const h = harness({ failures: ["history", "members", "collaborators"] });
+	const event = await eventFor(h.client);
+	const log = recordingLogger();
+	const { ctx, degradedReads } = await buildRuleContext(
+		event,
+		h.reads,
+		created.createdAt,
+		log.logger,
+	);
+	expect(degradedReads).toEqual(["contributor"]);
+	expect(log.lines).toHaveLength(3);
+	expect(ctx.contributor?.profileText).toBe(profile.bio);
+	expect(ctx.contributor?.mergedInRepo).toBeNull();
+	expect(ctx.contributor?.isOrgMember).toBeNull();
+	expect(ctx.contributor?.isMaintainer).toBeNull();
 });

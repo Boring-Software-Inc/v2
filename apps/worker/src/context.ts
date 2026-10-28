@@ -66,7 +66,20 @@ export async function buildRuleContext(
 			}
 			const result = await fn();
 			if (isReadResult(result)) {
-				if (result.ok) return result.value;
+				if (result.ok) {
+					if (result.diagnostics?.length) degradedReads.push(name);
+					for (const diagnostic of result.diagnostics ?? [])
+						logger.warn(
+							{
+								read: name,
+								source: diagnostic.source,
+								reason: diagnostic.reason,
+								status: diagnostic.status,
+							},
+							"context read partially degraded",
+						);
+					return result.value;
+				}
 				degradedReads.push(name);
 				logger.warn(
 					{ read: name, reason: result.reason },
