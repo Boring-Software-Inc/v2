@@ -235,3 +235,83 @@ scopes, and makes no claim that the OIDC subject equals an actor ID.
 
 No frontend component or visual asset changed, so before/after media is not
 applicable to this backend slice.
+
+## Connect-only authorization proof foundation
+
+The existing configured GitCafe auth client also registers the private grant
+protocol. There is no second runtime switch, UI change or catalog activation.
+`POST /api/auth/gitcafe/connect` accepts exactly `{ orgId,
+intendedInstallationId }`. It requires an explicitly same-origin request, an
+approved authoritative Tripwire session without impersonation, and fresh
+`connections:manage` permission for that org. It returns an authorization URL;
+no installation is claimed. The intended installation is a binding constraint,
+not evidence that the caller owns it.
+
+The authorization URL uses the existing registered callback, S256 PKCE, a server
+OIDC nonce, fixed `openid profile email repo:metadata:read` scopes and resource
+`https://git.cafe/api`. Request input cannot supply protocol or permission fields.
+The before-hook reads persisted server flow metadata to classify the callback,
+then calls exported `parseState` for cookie/expiry validation and rechecks the
+same session, user, approval and org permission. A separate atomic nonce prevents
+a two-reader state race from producing two grants. A classification marker lasts
+as long as Better Auth's state so replay/error handling cannot enter sign-in;
+missing markers with surviving connect server context also fail closed. Other
+provider callbacks reject connect state. Ordinary sign-in state is read without
+consumption during classification, including untrusted `additionalData` that
+attempts to impersonate server context.
+
+`verifyGitCafeClaims` is now the explicit shared signed-claim verifier; the
+sign-in nonce barrier, fixed scopes, stripped account tokens and all existing
+identity/link/failed-signup hooks remain intact. The grant additionally requires
+a live same-token userinfo subject equal to the verified ID-token subject and a
+principal response with a separate actor ID. Missing, narrowed/excess scopes,
+non-Bearer or expired tokens and unavailable/mismatched person reads fail closed.
+The callback returns only `{ proofHandle }` with `Cache-Control: no-store` and
+never redirects through or issues a login session.
+
+The encrypted proof is bounded by its original five-minute flow expiry and token
+expiry, uses no refresh token, and is stored only in Better Auth's verification
+store. `auth.api.consumeGitCafeConnectProof` is a **pathless server-only endpoint**
+with no HTTP URL. Trusted code supplies session headers and `{ proofHandle,
+orgId, intendedInstallationId }`; it rechecks approval, fresh session and current
+org permission, validates the encrypted binding and atomically consumes one
+proof. The returned credential must stay inside trusted server code. Auth uses
+Better Auth's encryption with a purpose-separated HMAC-derived key; API/worker
+transport is not implemented, and worker cannot import auth to decrypt it.
+
+Installed 1.7.12 source additionally inspected for this slice:
+`dist/api/dispatch.mjs` (before-hook short circuit and cookie/header propagation),
+`dist/api/state/oauth.mjs` (`addOAuthServerContext`/`getOAuthState`),
+`dist/oauth2/state.mjs` (`generateState`/`parseState`), `dist/state.mjs`
+(database `auth-state:` identifier and cookie/expiry checks),
+`dist/api/routes/session.mjs` (`getAuthoritativeSessionFromCtx` bypasses cached
+sessions), `@better-auth/core/dist/api/index.mjs`
+(`createAuthEndpoint.serverOnly`), and `dist/crypto/index.mjs`
+(authenticated XChaCha20-Poly1305 encryption). Classification deliberately depends
+on the installed `auth-state:` storage convention; re-audit it on library upgrade.
+Official contracts checked on 2026-10-27:
+[GitCafe OIDC](https://git.cafe/docs/integrations/sign-in-with-gitcafe.md),
+[GitCafe OpenAPI](https://git.cafe/api/openapi/json),
+[Better Auth plugins](https://better-auth.com/docs/concepts/plugins), and
+[Better Auth hooks](https://better-auth.com/docs/concepts/hooks).
+
+The suite reuses generated RSA signatures and adversarial protocol inputs, with
+explicit generated userinfo/principal responses from documented OpenAPI shapes.
+These are not provider fixtures or proof of live compatibility. Genuine
+same-token person userinfo/principal captures remain missing; do not enable
+Connect from these tests. The final claim must freshly recheck person binding,
+bot-authenticated current membership/role, expected app activity/installation,
+selected repositories, Tripwire permission and uniqueness. Worker credential
+handoff and full adapter runtime remain separate blockers. No claim endpoint,
+repository namespace, repository/action work or live authenticated probe is part
+of this slice.
+
+Local verification of the connect foundation on base `360ec498`:
+
+- Focused sign-in + connect protocol suite: 83 passed, 669 assertions, real
+  throwaway PostgreSQL with generated adversarial provider transport.
+- Full `bun test`: 4,057 passed across 338 files, 21 snapshots, zero failures.
+- Both repository typecheckers (`typecheck`, `typecheck:ts5`), Biome, package
+  boundaries and changed-line anti-slop checks pass.
+- Antislop comment gate PASS: new comments use TSDoc for security constraints.
+  Visual hard/purpose/liveliness gates are inapplicable: no UI or asset changed.

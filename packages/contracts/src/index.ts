@@ -36,6 +36,7 @@ export {
 	gitCafePublicPullSchema,
 	gitCafePublicRepositorySchema,
 } from "./gitcafe.ts";
+export * from "./gitcafe-connect.ts";
 export {
 	GITCAFE_ISSUER,
 	type GitCafeAccountBinding,

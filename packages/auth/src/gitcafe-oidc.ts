@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
 	GITCAFE_ISSUER,
+	type GitCafeOidcClaims,
 	type GitCafeOidcClient,
 	gitCafeOidcClaimsSchema,
 	gitCafeOidcClientSchema,
@@ -90,40 +91,13 @@ export function gitCafeOidc(input: GitCafeOidcClient): BetterAuthPlugin {
 						return null;
 					}
 					try {
-						const verified = await validateToken(
-							tokens.idToken,
-							`${GITCAFE_ISSUER}/api/oauth/jwks`,
-							{
-								issuer: GITCAFE_ISSUER,
-								audience: clientId,
-								algorithms: ["RS256"],
-								requiredClaims: ["iss", "sub", "aud", "exp", "iat"],
-								clockTolerance: CLOCK_TOLERANCE_SECONDS,
-							},
-						);
-						const parsed = gitCafeOidcClaimsSchema.safeParse(verified.payload);
-						if (!parsed.success) {
-							return null;
-						}
-						const claims = parsed.data;
-						const now = Date.now() / 1000;
-						const accessTokenHash = createHash("sha256")
-							.update(tokens.accessToken)
-							.digest()
-							.subarray(0, 16)
-							.toString("base64url");
-						if (
-							claims.aud !== clientId ||
-							(claims.azp !== undefined && claims.azp !== clientId) ||
-							claims.nonce !== tokens.expectedIdTokenNonce ||
-							claims.at_hash !== accessTokenHash ||
-							claims.iat > now + CLOCK_TOLERANCE_SECONDS ||
-							claims.iat <
-								now - FLOW_LIFETIME_MS / 1000 - CLOCK_TOLERANCE_SECONDS ||
-							claims.exp <= claims.iat
-						) {
-							return null;
-						}
+						const claims = await verifyGitCafeClaims({
+							clientId,
+							idToken: tokens.idToken,
+							accessToken: tokens.accessToken,
+							nonce: tokens.expectedIdTokenNonce,
+						});
+						if (!claims) return null;
 						/** OAuth state uses read-then-delete; this additional nonce is consumed atomically. */
 						if (
 							!(await ctx.internalAdapter.consumeVerificationValue(
@@ -151,4 +125,51 @@ export function gitCafeOidc(input: GitCafeOidcClient): BetterAuthPlugin {
 			};
 		},
 	};
+}
+
+/** Shared signed-claim verification for login and explicit API delegation. */
+export async function verifyGitCafeClaims(input: {
+	clientId: string;
+	idToken: string;
+	accessToken: string;
+	nonce: string;
+}): Promise<GitCafeOidcClaims | null> {
+	try {
+		const verified = await validateToken(
+			input.idToken,
+			`${GITCAFE_ISSUER}/api/oauth/jwks`,
+			{
+				issuer: GITCAFE_ISSUER,
+				audience: input.clientId,
+				algorithms: ["RS256"],
+				requiredClaims: ["iss", "sub", "aud", "exp", "iat"],
+				clockTolerance: CLOCK_TOLERANCE_SECONDS,
+			},
+		);
+		const parsed = gitCafeOidcClaimsSchema.safeParse(verified.payload);
+		if (!parsed.success) {
+			return null;
+		}
+		const claims = parsed.data;
+		const now = Date.now() / 1000;
+		const accessTokenHash = createHash("sha256")
+			.update(input.accessToken)
+			.digest()
+			.subarray(0, 16)
+			.toString("base64url");
+		if (
+			claims.aud !== input.clientId ||
+			(claims.azp !== undefined && claims.azp !== input.clientId) ||
+			claims.nonce !== input.nonce ||
+			claims.at_hash !== accessTokenHash ||
+			claims.iat > now + CLOCK_TOLERANCE_SECONDS ||
+			claims.iat < now - FLOW_LIFETIME_MS / 1000 - CLOCK_TOLERANCE_SECONDS ||
+			claims.exp <= claims.iat
+		) {
+			return null;
+		}
+		return claims;
+	} catch {
+		return null;
+	}
 }
