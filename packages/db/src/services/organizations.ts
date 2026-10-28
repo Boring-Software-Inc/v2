@@ -35,6 +35,7 @@ import {
 import { repos, ruleConfigs, workflowDefinitions } from "../schema/repos.ts";
 import { promoteUserAccess } from "./access.ts";
 import { getFreshInstallAccessCheck } from "./installation-access.ts";
+import { readObservedInstallationAccounts } from "./installation-accounts.ts";
 import { runBearsVerdict } from "./runs.ts";
 
 /**
@@ -630,6 +631,20 @@ export async function linkOrgInstallation(
 ): Promise<{ claimed: boolean }> {
 	const forge = input.forge ?? "github";
 	if (forge === "gitcafe") return { claimed: false };
+	const observed =
+		forge === "github"
+			? (
+					await readObservedInstallationAccounts(db, forge, [
+						input.installationId,
+					])
+				).get(input.installationId)
+			: undefined;
+	const sameAccount =
+		input.accountLogin === undefined ||
+		observed?.account.toLowerCase() === input.accountLogin.toLowerCase();
+	const accountType =
+		input.accountType ?? (sameAccount ? observed?.accountType : undefined);
+	const accountLogin = input.accountLogin ?? observed?.account;
 	await db
 		.insert(organizationInstallations)
 		.values({
@@ -637,8 +652,8 @@ export async function linkOrgInstallation(
 			organizationId: input.orgId,
 			forge,
 			installationId: input.installationId,
-			accountType: input.accountType,
-			accountLogin: input.accountLogin,
+			accountType,
+			accountLogin,
 		})
 		.onConflictDoNothing({
 			target: [
@@ -658,6 +673,21 @@ export async function linkOrgInstallation(
 		.limit(1);
 	const claimed = owner[0]?.organizationId === input.orgId;
 	if (claimed) {
+		if (accountType !== undefined || accountLogin !== undefined) {
+			await db
+				.update(organizationInstallations)
+				.set({
+					accountType: sql`coalesce(${organizationInstallations.accountType}, ${accountType ?? null})`,
+					accountLogin: sql`coalesce(${organizationInstallations.accountLogin}, ${accountLogin ?? null})`,
+				})
+				.where(
+					and(
+						eq(organizationInstallations.forge, forge),
+						eq(organizationInstallations.installationId, input.installationId),
+						eq(organizationInstallations.organizationId, input.orgId),
+					),
+				);
+		}
 		await db
 			.update(repos)
 			.set({ orgId: input.orgId })

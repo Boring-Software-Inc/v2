@@ -9,6 +9,7 @@ import type { Db } from "../client.ts";
 import { gitCafeInstallationLifecycle } from "../schema/gitcafe-lifecycle.ts";
 import { organizationInstallations } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
+import { readObservedInstallationAccounts } from "./installation-accounts.ts";
 
 /** Installation grants belong to an organization; sign-in account IDs and OAuth token expiry do not describe them. */
 export async function listOrganizationForgeConnections(
@@ -54,6 +55,17 @@ export async function listOrganizationForgeConnections(
 			)
 			.where(and(eq(repos.orgId, orgId), isNull(repos.removedAt))),
 	]);
+	const observedAccounts = await readObservedInstallationAccounts(
+		db,
+		"github",
+		claims
+			.filter(
+				(claim) =>
+					claim.forge === "github" &&
+					(claim.accountType === null || claim.owner === null),
+			)
+			.map((claim) => claim.installationId),
+	);
 	const grouped = new Map<Forge, OrganizationForgeConnection>();
 	for (const claim of claims) {
 		const forge = forgeSchema.safeParse(claim.forge);
@@ -70,10 +82,20 @@ export async function listOrganizationForgeConnections(
 			installations: [],
 			repositories: [],
 		};
+		const observed =
+			forge.data === "github"
+				? observedAccounts.get(claim.installationId)
+				: undefined;
+		const sameAccount =
+			claim.owner === null ||
+			observed?.account.toLowerCase() === claim.owner.toLowerCase();
 		group.installations.push({
 			installationId: claim.installationId,
-			owner: claim.owner,
-			accountType: claim.accountType,
+			owner: claim.owner ?? observed?.account ?? null,
+			accountType:
+				claim.accountType ??
+				(sameAccount ? observed?.accountType : null) ??
+				null,
 		});
 		grouped.set(forge.data, group);
 	}

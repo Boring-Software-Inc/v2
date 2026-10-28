@@ -124,6 +124,20 @@ const eventBase = {
 	receivedAt: z.iso.datetime(),
 };
 
+export const installationAccountSchema = z.object({
+	/** The App installation id, as a string. */
+	externalId: z.string(),
+	/** The org/user account the App is installed on. */
+	account: z.string(),
+	/**
+	 * GitHub's account type for `account` — decides how the install is
+	 * presented at claim time (an org install still binds to exactly ONE
+	 * platform org). Optional: older stored payloads predate the field.
+	 */
+	accountType: z.enum(["User", "Organization"]).optional(),
+});
+export type InstallationAccount = z.infer<typeof installationAccountSchema>;
+
 /** Installation events span repos, so they carry a list, not a base repo. */
 const installationBase = {
 	id: z.string(),
@@ -132,18 +146,7 @@ const installationBase = {
 	actor: eventActorSchema,
 	occurredAt: z.iso.datetime(),
 	receivedAt: z.iso.datetime(),
-	installation: z.object({
-		/** The App installation id, as a string. */
-		externalId: z.string(),
-		/** The org/user account the App is installed on. */
-		account: z.string(),
-		/**
-		 * GitHub's account type for `account` — decides how the install is
-		 * presented at claim time (an org install still binds to exactly ONE
-		 * platform org). Optional: older stored payloads predate the field.
-		 */
-		accountType: z.enum(["User", "Organization"]).optional(),
-	}),
+	installation: installationAccountSchema,
 	repositories: z.array(
 		z.object({
 			externalId: z.string(),
