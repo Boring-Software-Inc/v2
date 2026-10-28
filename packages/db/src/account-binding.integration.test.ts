@@ -1,7 +1,18 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import {
+	copyFile,
+	mkdir,
+	mkdtemp,
+	readFile,
+	rm,
+	writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { generateId } from "@tripwire/utils";
 import { and, eq, sql } from "drizzle-orm";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import journal from "../drizzle/meta/_journal.json";
 import { createDb, type Db } from "./client.ts";
 import { applyMigrations } from "./migrate.ts";
 import { account, user } from "./schema/auth.ts";
@@ -14,19 +25,24 @@ let pool: { end(): Promise<void> };
 beforeAll(async () => {
 	container = await createTestDatabase();
 	({ db, pool } = createDb(container.url));
-	await applyMigrations(db);
-	/** Restore 0044 so the OIDC index can be staged without the 0045 ingest change. */
-	await db.transaction(async (tx) => {
-		await tx.execute(sql`DROP INDEX account_gitcafe_subject_unique`);
-		await tx.execute(sql`DROP INDEX events_forge_delivery_id_unique`);
-		await tx.execute(
-			sql`CREATE UNIQUE INDEX events_delivery_id_unique ON events (delivery_id)`,
+	/** Build 0044 directly so later migrations cannot change this upgrade test's starting point. */
+	const folder = await mkdtemp(join(tmpdir(), "tripwire-account-binding-"));
+	try {
+		const entries = journal.entries.filter((entry) => entry.idx <= 44);
+		await mkdir(join(folder, "meta"));
+		await writeFile(
+			join(folder, "meta", "_journal.json"),
+			JSON.stringify({ ...journal, entries }),
 		);
-		await tx.execute(sql`
-			DELETE FROM drizzle.__drizzle_migrations
-			WHERE id IN (SELECT id FROM drizzle.__drizzle_migrations ORDER BY created_at DESC LIMIT 2)
-		`);
-	});
+		for (const entry of entries)
+			await copyFile(
+				new URL(`../drizzle/${entry.tag}.sql`, import.meta.url),
+				join(folder, `${entry.tag}.sql`),
+			);
+		await migrate(db, { migrationsFolder: folder });
+	} finally {
+		await rm(folder, { recursive: true, force: true });
+	}
 }, 120_000);
 
 afterAll(async () => {

@@ -228,3 +228,25 @@ test("large discovery checks collisions without exceeding PostgreSQL's parameter
 		.where(eq(repos.installationId, job.installationId));
 	expect(written).toHaveLength(0);
 }, 15_000);
+
+test("the lifecycle connection path fails closed without checked authority or a generation", async () => {
+	const job = await authorizedJob();
+	for (const expectedGeneration of [undefined, 1]) {
+		expect(
+			await commitGitCafeConnection(database.db, {
+				job,
+				owner: "fixture",
+				repositories: [],
+				lifecycleEnabled: true,
+				expectedGeneration,
+				revalidate: async () => ({ ok: true, repoCount: 0 }),
+			}),
+		).toEqual({ ok: false, reason: "installation-mismatch" });
+	}
+	expect(
+		await database.db
+			.select()
+			.from(repos)
+			.where(eq(repos.installationId, job.installationId)),
+	).toHaveLength(0);
+});

@@ -3,6 +3,7 @@ export * from "./auth.ts";
 export * from "./economics.ts";
 export * from "./events.ts";
 export * from "./giphy.ts";
+export * from "./gitcafe-lifecycle.ts";
 export * from "./moderation.ts";
 export * from "./oauth.ts";
 export * from "./organizations.ts";

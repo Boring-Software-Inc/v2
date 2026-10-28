@@ -1,4 +1,5 @@
 import type { Auth } from "@tripwire/auth/server";
+import type { GitCafeReceiptConfig } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
@@ -22,6 +23,7 @@ export interface ApiDeps {
 	directPool: Pool;
 	boss: PgBoss;
 	webhookSecret: string;
+	gitCafeReceipts?: GitCafeReceiptConfig | null;
 	/** Allowed CORS origin for the SSE stream (the web dashboard). */
 	webOrigin: string;
 	logger: Logger;
