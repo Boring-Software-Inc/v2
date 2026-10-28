@@ -29,7 +29,7 @@ const REFUSAL_COPY = {
 	"repository-conflict":
 		"A selected repo has the same name as another repo in this Tripwire org. Change the GitCafe repo selection or connect to a different Tripwire org.",
 	"ownership-conflict":
-		"This installation or one of its repos is already connected elsewhere. Ask that Tripwire org's admin to disconnect it first.",
+		"This installation or repo has an existing Tripwire connection. Ask your Tripwire server admin to review the conflicting connection.",
 	"queue-unavailable":
 		"Tripwire couldn't start the connection. Try again shortly.",
 } satisfies Record<GitCafeConnectionRefusal, string>;

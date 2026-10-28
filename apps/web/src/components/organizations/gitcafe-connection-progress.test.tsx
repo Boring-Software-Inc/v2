@@ -63,6 +63,7 @@ describe("GitCafe setup progress", () => {
 			["expired", "authorization expired"],
 			["configuration", "server isn&#x27;t configured"],
 			["queue-unavailable", "couldn&#x27;t start the connection"],
+			["ownership-conflict", "existing Tripwire connection"],
 		] as const) {
 			const html = await renderStatus({ status: "refused", reason });
 			expect(html).toContain(message);
@@ -70,6 +71,10 @@ describe("GitCafe setup progress", () => {
 				"verify this installation with your current access",
 			);
 			expect(html).not.toContain("GitCafe connected to");
+			if (reason === "ownership-conflict") {
+				expect(html).not.toContain("elsewhere");
+				expect(html).not.toContain("disconnect it first");
+			}
 		}
 	});
 	test("queue acceptance remains pending instead of claiming success", async () => {
