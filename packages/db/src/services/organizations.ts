@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { ForgeId } from "@tripwire/contracts";
 import {
 	type Forge,
+	type ForgeAccountType,
 	forgeSchema,
 	INSTALL_ACCESS_CHECK_TTL_SECONDS,
 	type InstallStatus,
@@ -35,7 +36,10 @@ import {
 import { repos, ruleConfigs, workflowDefinitions } from "../schema/repos.ts";
 import { promoteUserAccess } from "./access.ts";
 import { getFreshInstallAccessCheck } from "./installation-access.ts";
-import { readObservedInstallationAccounts } from "./installation-accounts.ts";
+import {
+	readObservedInstallationAccounts,
+	recordObservedInstallationAccount,
+} from "./installation-accounts.ts";
 import { runBearsVerdict } from "./runs.ts";
 
 /**
@@ -702,7 +706,7 @@ export async function linkOrgInstallation(
 }
 
 /**
- * Record webhook-observed account metadata on an already-claimed installation.
+ * Record verified account metadata independently, and update an existing claim.
  * Never creates a claim — an unclaimed GitHub-side install stays unclaimed
  * until a human binds it on the claim screen (§10: never auto-attach).
  */
@@ -711,12 +715,19 @@ export async function recordInstallationAccount(
 	input: {
 		installationId: string;
 		forge?: Forge;
-		accountType?: string;
+		accountType?: ForgeAccountType;
 		accountLogin?: string;
 	},
 ): Promise<void> {
 	if (!input.accountType && !input.accountLogin) {
 		return;
+	}
+	if ((input.forge ?? "github") === "github" && input.accountLogin) {
+		await recordObservedInstallationAccount(db, "github", {
+			externalId: input.installationId,
+			account: input.accountLogin,
+			accountType: input.accountType,
+		});
 	}
 	await db
 		.update(organizationInstallations)

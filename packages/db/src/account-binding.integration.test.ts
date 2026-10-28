@@ -16,6 +16,7 @@ import journal from "../drizzle/meta/_journal.json";
 import { createDb, type Db } from "./client.ts";
 import { applyMigrations } from "./migrate.ts";
 import { account, user } from "./schema/auth.ts";
+import { installationAccounts } from "./schema/installation-accounts.ts";
 import { createTestDatabase, type TestDatabase } from "./testing.ts";
 
 let container: TestDatabase;
@@ -119,8 +120,35 @@ test("0046 upgrades existing installs and fails closed on ambiguous GitCafe owne
 			)
 		).rows,
 	).toHaveLength(0);
+	const metadataDdl = await readFile(
+		new URL("../drizzle/0048_installation_accounts.sql", import.meta.url),
+		"utf8",
+	);
+	await db.execute(sql.raw(metadataDdl));
+	const metadataId = generateId();
+	await db.insert(installationAccounts).values({
+		id: metadataId,
+		forge: "github",
+		installationId: generateId(),
+		accountLogin: "migration-fixture",
+		accountType: "Organization",
+	});
+	await db.execute(sql.raw(metadataDdl));
+	expect(
+		(await db.execute(sql`SELECT id FROM drizzle.__drizzle_migrations`)).rows,
+	).toHaveLength(45);
+	expect(
+		(
+			await db.execute(
+				sql`SELECT indexname FROM pg_indexes WHERE indexname = 'events_delivery_id_unique'`,
+			)
+		).rows,
+	).toHaveLength(1);
 	await applyMigrations(db);
 	await applyMigrations(db);
+	expect(
+		(await db.select().from(installationAccounts)).map((row) => row.id),
+	).toEqual([metadataId]);
 	const migrated = await db.select().from(account);
 	expect(migrated).toHaveLength(5);
 	for (const row of rows.filter((row) => row.id !== duplicate.id)) {
