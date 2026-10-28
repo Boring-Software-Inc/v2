@@ -12,9 +12,31 @@ function minutesAgo(minutes: number): string {
 }
 
 describe("pr-rate-limit@1", () => {
+	test("skips unavailable history instead of counting it as no requests", async () => {
+		const ctx = await fixtureContext({
+			contributor: fixtureContributor({ recentChangeRequestTimes: null }),
+		});
+		const result = await evaluateRule(prRateLimit, ctx, {
+			maxPerWindow: 1,
+			windowHours: 24,
+		});
+		expect(result.status).toBe("skipped");
+		expect(result.evidence).toBeNull();
+		expect(result.reason).toBe(
+			"Tripwire could not read the contributor's recent change request history.",
+		);
+	});
+
 	test("passes under the window limit", async () => {
 		const ctx = await fixtureContext({
 			contributor: fixtureContributor({
+				createdAt: null,
+				followers: null,
+				publicRepos: null,
+				mergedInRepo: null,
+				mergedElsewhere: null,
+				isOrgMember: null,
+				isMaintainer: null,
 				recentChangeRequestTimes: [minutesAgo(10), minutesAgo(300)],
 			}),
 		});
