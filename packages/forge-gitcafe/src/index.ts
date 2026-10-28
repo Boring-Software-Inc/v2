@@ -6,6 +6,11 @@ export {
 } from "./app-assertion.ts";
 export { reportGitCafeCheck } from "./checks.ts";
 export {
+	type GitCafePullHydrationResult,
+	hydrateGitCafePullEvent,
+	normalizeGitCafePullEvent,
+} from "./events.ts";
+export {
 	type GitCafeAuthorizedJsonRequest,
 	GitCafeInstallationClient,
 	type GitCafeInstallationClientOptions,
