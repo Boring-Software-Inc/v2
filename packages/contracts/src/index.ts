@@ -36,6 +36,18 @@ export {
 	gitCafePublicPullSchema,
 	gitCafePublicRepositorySchema,
 } from "./gitcafe.ts";
+export {
+	type GitCafeCheckConclusion,
+	type GitCafeCheckReportInput,
+	type GitCafeCheckReportResponse,
+	type GitCafeCheckWrite,
+	type GitCafeReportedCheck,
+	gitCafeCheckConclusionSchema,
+	gitCafeCheckReportInputSchema,
+	gitCafeCheckReportResponseSchema,
+	gitCafeCheckWriteSchema,
+	gitCafeReportedCheckSchema,
+} from "./gitcafe-check.ts";
 export * from "./gitcafe-connect.ts";
 export {
 	GITCAFE_ISSUER,
