@@ -1,18 +1,29 @@
 import {
 	GITCAFE_CONNECT_QUEUE,
+	GITCAFE_LIFECYCLE_QUEUE,
 	gitCafeConnectionJobSchema,
 	gitCafeConnectionResultSchema,
 } from "@tripwire/contracts";
 import { createDb, createGitCafeConnectionBoss } from "@tripwire/db";
 import { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
+import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
 import { z } from "zod";
 import {
+	observeGitCafeQueueHealth,
+	registerGitCafeLifecycleConsumer,
+} from "./gitcafe-lifecycle-consumer.ts";
+import {
 	connectGitCafeInstallation,
 	GITCAFE_STAGING_APP_ID,
+	type GitCafeConnectionDeps,
 } from "./jobs/gitcafe-connect.ts";
 
-export const workerModeSchema = z.enum(["standard", "gitcafe-connect"]);
+export const workerModeSchema = z.enum([
+	"standard",
+	"gitcafe-connect",
+	"gitcafe-lifecycle",
+]);
 export type WorkerMode = z.infer<typeof workerModeSchema>;
 
 export const gitCafeConnectionWorkerEnvSchema = z.object({
@@ -21,6 +32,7 @@ export const gitCafeConnectionWorkerEnvSchema = z.object({
 	GITCAFE_APP_KEY_ID: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
 	GITCAFE_APP_PRIVATE_KEY: z.string().min(1),
 	DATABASE_URL: z.string().min(1),
+	GITCAFE_WEBHOOK_RECEIPTS_ENABLED: z.enum(["true", "false"]).default("false"),
 	PORT: z.coerce
 		.number()
 		.int()
@@ -30,7 +42,68 @@ export const gitCafeConnectionWorkerEnvSchema = z.object({
 		.default(8181),
 });
 
-/** No scheduler, maintenance, deployment fence, or general queue registration in staging connection mode. */
+export async function registerGitCafeConnectionConsumer(
+	deps: GitCafeConnectionDeps,
+	boss: PgBoss,
+	logger: Logger,
+	onError: () => void = () => {},
+): Promise<void> {
+	await boss.work<unknown>(
+		GITCAFE_CONNECT_QUEUE,
+		{ batchSize: 1 },
+		async (jobs) => {
+			try {
+				const job = jobs[0];
+				if (!job) return;
+				const authorization = gitCafeConnectionJobSchema.safeParse(job.data);
+				const result = gitCafeConnectionResultSchema.parse(
+					authorization.success
+						? await connectGitCafeInstallation(deps, authorization.data)
+						: { ok: false, reason: "invalid-job" },
+				);
+				logger.info(
+					{
+						jobId: job.id,
+						requestId: authorization.success
+							? authorization.data.requestId
+							: undefined,
+						ok: result.ok,
+						...(result.ok
+							? { repoCount: result.repoCount }
+							: { reason: result.reason }),
+					},
+					"GitCafe connection finished",
+				);
+				return result;
+			} catch (error) {
+				onError();
+				throw error;
+			}
+		},
+	);
+}
+
+export async function registerGitCafeConnectionQueues(
+	deps: GitCafeConnectionDeps,
+	boss: PgBoss,
+	logger: Logger,
+) {
+	const queues = [GITCAFE_CONNECT_QUEUE];
+	const health = observeGitCafeQueueHealth(boss);
+	if (deps.lifecycleEnabled) {
+		await registerGitCafeLifecycleConsumer(
+			deps.db,
+			boss,
+			logger,
+			health.degrade,
+		);
+		queues.push(GITCAFE_LIFECYCLE_QUEUE);
+	}
+	await registerGitCafeConnectionConsumer(deps, boss, logger, health.degrade);
+	return { queues, health };
+}
+
+/** General backlog stays idle when lifecycle receipt recovery shares the connection worker. */
 export async function startGitCafeConnectionWorker(
 	logger: Logger,
 ): Promise<void> {
@@ -38,8 +111,9 @@ export async function startGitCafeConnectionWorker(
 	if (!parsed.success)
 		throw new Error("Invalid staging GitCafe connection worker configuration");
 	const env = parsed.data;
-	const { db } = createDb(env.DATABASE_URL);
+	const { db, pool } = createDb(env.DATABASE_URL);
 	const boss = await createGitCafeConnectionBoss(env.DATABASE_URL, logger);
+	const lifecycleEnabled = env.GITCAFE_WEBHOOK_RECEIPTS_ENABLED === "true";
 	const client = new GitCafeInstallationClient({
 		credentials: {
 			appId: env.GITCAFE_APP_ID,
@@ -47,51 +121,47 @@ export async function startGitCafeConnectionWorker(
 			privateKey: env.GITCAFE_APP_PRIVATE_KEY.replaceAll("\\n", "\n"),
 		},
 	});
-	await boss.work<unknown>(
-		GITCAFE_CONNECT_QUEUE,
-		{ batchSize: 1 },
-		async (jobs) => {
-			const job = jobs[0];
-			if (!job) return;
-			const authorization = gitCafeConnectionJobSchema.safeParse(job.data);
-			const result = gitCafeConnectionResultSchema.parse(
-				authorization.success
-					? await connectGitCafeInstallation({ db, client }, authorization.data)
-					: { ok: false, reason: "invalid-job" },
-			);
-			logger.info(
-				{
-					jobId: job.id,
-					requestId: authorization.success
-						? authorization.data.requestId
-						: undefined,
-					ok: result.ok,
-					...(result.ok
-						? { repoCount: result.repoCount }
-						: { reason: result.reason }),
-				},
-				"GitCafe connection finished",
-			);
-			return result;
-		},
-	);
+	let registration: Awaited<ReturnType<typeof registerGitCafeConnectionQueues>>;
+	try {
+		registration = await registerGitCafeConnectionQueues(
+			{ db, client, lifecycleEnabled },
+			boss,
+			logger,
+		);
+	} catch (error) {
+		await boss.stop({ graceful: false });
+		await pool.end();
+		throw error;
+	}
+	const { queues, health: queueHealth } = registration;
 	const health = Bun.serve({
 		port: env.PORT,
 		fetch(request) {
 			return new URL(request.url).pathname === "/healthz"
-				? Response.json({
-						ok: true,
-						mode: "gitcafe-connect",
-						queues: [GITCAFE_CONNECT_QUEUE],
-					})
+				? Response.json(
+						{
+							ok: queueHealth.healthy,
+							mode: "gitcafe-connect",
+							queues,
+						},
+						{ status: queueHealth.healthy ? 200 : 503 },
+					)
 				: new Response("not found", { status: 404 });
 		},
 	});
+	const stop = async () => {
+		queueHealth.degrade();
+		health.stop(true);
+		await boss.stop({ graceful: true, timeout: 30_000 });
+		await pool.end();
+	};
+	process.once("SIGTERM", stop);
+	process.once("SIGINT", stop);
 	logger.info(
 		{
 			healthPort: health.port,
 			mode: "gitcafe-connect",
-			queues: [GITCAFE_CONNECT_QUEUE],
+			queues,
 		},
 		"connection worker up",
 	);

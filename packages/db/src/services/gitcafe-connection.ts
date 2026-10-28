@@ -18,6 +18,7 @@ import { and, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import type { Db } from "../client.ts";
 import { session, user } from "../schema/auth.ts";
+import { gitCafeInstallationLifecycle } from "../schema/gitcafe-lifecycle.ts";
 import {
 	member,
 	organizationInstallations,
@@ -25,6 +26,63 @@ import {
 } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
 import type { DbLike } from "./access.ts";
+import {
+	getGitCafeActionAuthority,
+	retireGitCafeInstallationInTransaction,
+} from "./gitcafe-lifecycle.ts";
+
+export async function getGitCafeConnectionClaim(
+	db: DbLike,
+	installationId: string,
+) {
+	const [claim] = await db
+		.select()
+		.from(organizationInstallations)
+		.where(
+			and(
+				eq(organizationInstallations.forge, "gitcafe"),
+				eq(organizationInstallations.installationId, installationId),
+			),
+		);
+	return claim;
+}
+
+/** Stored claims, rather than public owner names, bound reconnect cleanup. */
+export async function listGitCafeConnectionClaims(
+	db: DbLike,
+	orgId: string,
+	owner: string,
+) {
+	return db
+		.select()
+		.from(organizationInstallations)
+		.where(
+			and(
+				eq(organizationInstallations.forge, "gitcafe"),
+				eq(organizationInstallations.organizationId, orgId),
+				eq(organizationInstallations.accountLogin, owner),
+			),
+		);
+}
+
+export async function withdrawGitCafeConnectionClaim(
+	db: Db,
+	input: Pick<GitCafeConnectionJob, "orgId" | "installationId">,
+) {
+	return db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
+		);
+		const claim = await getGitCafeConnectionClaim(tx, input.installationId);
+		if (claim?.organizationId !== input.orgId) return false;
+		await retireGitCafeInstallationInTransaction(
+			tx,
+			{ installationId: input.installationId, reason: "reconcile-required" },
+			input.orgId,
+		);
+		return true;
+	});
+}
 
 /** Re-read the session and role at use time; the queue is not a durable membership grant. */
 export async function canManageGitCafeConnection(
@@ -125,6 +183,8 @@ export async function commitGitCafeConnection(
 		owner: string;
 		repositories: GitCafeConnectionRepository[];
 		revalidate: () => Promise<GitCafeConnectionResult>;
+		lifecycleEnabled?: boolean;
+		expectedGeneration?: number;
 	},
 ): Promise<GitCafeConnectionResult> {
 	const job = gitCafeConnectionJobSchema.safeParse(input.job);
@@ -170,7 +230,38 @@ export async function commitGitCafeConnection(
 		)
 			return { ok: false, reason: "ownership-conflict" };
 		const current = await input.revalidate();
-		if (!current.ok) return current;
+		if (!current.ok) {
+			if (
+				input.lifecycleEnabled &&
+				claim &&
+				[
+					"authority-unavailable",
+					"installation-mismatch",
+					"repository-mismatch",
+				].includes(current.reason)
+			)
+				await retireGitCafeInstallationInTransaction(
+					tx,
+					{
+						installationId: job.data.installationId,
+						reason: "reconcile-required",
+					},
+					job.data.orgId,
+				);
+			return current;
+		}
+		if (
+			input.lifecycleEnabled &&
+			(input.expectedGeneration === undefined ||
+				!(
+					await getGitCafeActionAuthority(
+						tx,
+						job.data.installationId,
+						input.expectedGeneration,
+					)
+				).allowed)
+		)
+			return { ok: false, reason: "installation-mismatch" };
 		/** Other forge writers bypass the advisory lock; fence repo writes after remote reads to avoid blocking them on network I/O. */
 		await tx.execute(sql`LOCK TABLE ${repos} IN SHARE ROW EXCLUSIVE MODE`);
 		const existing = await tx
@@ -187,12 +278,46 @@ export async function commitGitCafeConnection(
 				),
 			)
 			.for("update");
+		const withdrawnClaims = input.lifecycleEnabled
+			? await tx
+					.select({ installationId: organizationInstallations.installationId })
+					.from(organizationInstallations)
+					.innerJoin(
+						gitCafeInstallationLifecycle,
+						eq(
+							gitCafeInstallationLifecycle.installationId,
+							organizationInstallations.installationId,
+						),
+					)
+					.where(
+						and(
+							eq(organizationInstallations.forge, "gitcafe"),
+							eq(organizationInstallations.organizationId, job.data.orgId),
+							eq(organizationInstallations.accountLogin, input.owner),
+							inArray(gitCafeInstallationLifecycle.status, [
+								"reconcile-required",
+								"paused",
+								"uninstalled",
+							]),
+						),
+					)
+			: [];
+		const reclaimable = new Set(
+			withdrawnClaims.map((row) => row.installationId),
+		);
 		for (const repo of existing) {
 			const selectedRepo = selectedById.get(repo.externalId);
 			if (
 				(repo.orgId !== null && repo.orgId !== job.data.orgId) ||
 				(repo.installationId !== null &&
-					repo.installationId !== job.data.installationId) ||
+					repo.installationId !== job.data.installationId &&
+					!(
+						repo.orgId === job.data.orgId &&
+						repo.owner === input.owner &&
+						repo.removedAt !== null &&
+						selectedRepo !== undefined &&
+						reclaimable.has(repo.installationId)
+					)) ||
 				(selectedRepo === undefined && selectedFullNames.has(repo.fullName))
 			)
 				return { ok: false, reason: "ownership-conflict" };

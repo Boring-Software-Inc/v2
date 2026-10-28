@@ -6,7 +6,11 @@ import {
 	gitCafeConnectionJobSchema,
 	gitCafeConnectionRepositoriesSchema,
 } from "@tripwire/contracts";
-import { type Db, gitCafeConnectionServices } from "@tripwire/db";
+import {
+	type Db,
+	gitCafeConnectionServices,
+	gitCafeLifecycleServices,
+} from "@tripwire/db";
 import type { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
 
 export const GITCAFE_STAGING_APP_ID = "int_01m60999c0fqg841d48s29qwtv";
@@ -14,6 +18,7 @@ const SEGMENT = /^(?!\.{1,2}$)[A-Za-z0-9_.-]+$/;
 
 export interface GitCafeConnectionDeps {
 	db: Db;
+	lifecycleEnabled?: boolean;
 	client: Pick<
 		GitCafeInstallationClient,
 		"getInstallation" | "getOrganizationMembers" | "getRepositories"
@@ -169,12 +174,84 @@ export async function connectGitCafeInstallation(
 		!(await gitCafeConnectionServices.canManageGitCafeConnection(deps.db, job))
 	)
 		return { ok: false, reason: "unauthorized" };
+	let expectedGeneration: number | undefined;
+	let reconciledInstallation: GitCafeInstallation | undefined;
+	if (deps.lifecycleEnabled) {
+		const claim = await gitCafeConnectionServices.getGitCafeConnectionClaim(
+			deps.db,
+			job.installationId,
+		);
+		if (claim && claim.organizationId !== job.orgId)
+			return { ok: false, reason: "ownership-conflict" };
+		const reconciliation =
+			await gitCafeLifecycleServices.reconcileGitCafeInstallation(deps.db, {
+				installationId: job.installationId,
+				expectedAppId: GITCAFE_STAGING_APP_ID,
+				expectedOwner: claim?.accountLogin ?? undefined,
+				organizationId: job.orgId,
+				lookup: async () => {
+					const result = await deps.client.getInstallation(
+						job.installationId,
+						job.expiresAt,
+					);
+					if (result.ok) reconciledInstallation = result.value;
+					return result;
+				},
+			});
+		if (job.expiresAt <= Date.now()) return { ok: false, reason: "expired" };
+		if (!reconciliation.ok || reconciliation.status !== "active")
+			return {
+				ok: false,
+				reason:
+					reconciliation.ok && reconciliation.status === "reconcile-required"
+						? "authority-unavailable"
+						: "installation-mismatch",
+			};
+		expectedGeneration = reconciliation.generation;
+	}
 	const authority = await readAuthority(deps, job);
-	if (!authority.ok) return authority;
+	if (!authority.ok) {
+		if (deps.lifecycleEnabled)
+			await gitCafeConnectionServices.withdrawGitCafeConnectionClaim(
+				deps.db,
+				job,
+			);
+		return authority;
+	}
+	if (deps.lifecycleEnabled) {
+		if (
+			JSON.stringify(reconciledInstallation) !==
+			JSON.stringify(authority.value.installation)
+		) {
+			await gitCafeConnectionServices.withdrawGitCafeConnectionClaim(
+				deps.db,
+				job,
+			);
+			return { ok: false, reason: "installation-mismatch" };
+		}
+		const claims = await gitCafeConnectionServices.listGitCafeConnectionClaims(
+			deps.db,
+			job.orgId,
+			authority.value.installation.org,
+		);
+		for (const claim of claims) {
+			if (claim.installationId === job.installationId) continue;
+			await gitCafeLifecycleServices.reconcileGitCafeInstallation(deps.db, {
+				installationId: claim.installationId,
+				expectedAppId: GITCAFE_STAGING_APP_ID,
+				expectedOwner: authority.value.installation.org,
+				organizationId: job.orgId,
+				lookup: () =>
+					deps.client.getInstallation(claim.installationId, job.expiresAt),
+			});
+		}
+	}
 	return await gitCafeConnectionServices.commitGitCafeConnection(deps.db, {
 		job,
 		owner: authority.value.installation.org,
 		repositories: authority.value.repositories,
+		lifecycleEnabled: deps.lifecycleEnabled,
+		expectedGeneration,
 		revalidate: async () => {
 			const current = await readAuthority(deps, job);
 			if (!current.ok) return current;
