@@ -3,14 +3,63 @@ import {
 	forgeConnectable,
 	forgeEvaluates,
 	forgeSchema,
+	gitCafeConnectionConfirmationResultSchema,
 	gitCafeConnectionConfirmationSchema,
 	gitCafeConnectionJobSchema,
+	gitCafeConnectionRefusalSchema,
 	gitCafeConnectionSelectionSchema,
 	gitCafeConnectionStatusInputSchema,
+	gitCafeSetupContextSchema,
 	ingestForgeSchema,
 	providerAvailabilitySchema,
 	setupSearchSchema,
 } from "./index.ts";
+
+test("generated adversarial RPC outputs are rejected without admitting private fields", () => {
+	const context = {
+		orgs: [{ id: "org", slug: "team", name: "Team" }],
+		suggestedOrg: "team",
+	};
+	expect(gitCafeSetupContextSchema.parse(context)).toEqual(context);
+	expect(
+		gitCafeSetupContextSchema.parse({ orgs: [], suggestedOrg: null }),
+	).toEqual({ orgs: [], suggestedOrg: null });
+	for (const input of [
+		{ ...context, accessToken: "private" },
+		{ ...context, suggestedOrg: "../other" },
+		{ ...context, orgs: [{ id: "", slug: "team", name: "Team" }] },
+		{ ...context, orgs: [{ ...context.orgs[0], slug: "admin" }] },
+		{ ...context, orgs: [{ ...context.orgs[0], proofHandle: "a".repeat(48) }] },
+	])
+		expect(gitCafeSetupContextSchema.safeParse(input).success).toBe(false);
+	const success = {
+		ok: true,
+		jobId: "01900000-0000-7000-8000-000000000001",
+	} as const;
+	expect(gitCafeConnectionConfirmationResultSchema.parse(success)).toEqual(
+		success,
+	);
+	for (const reason of [
+		...gitCafeConnectionRefusalSchema.options,
+		"unavailable",
+		"refused",
+		"retry",
+	] as const) {
+		expect(
+			gitCafeConnectionConfirmationResultSchema.parse({ ok: false, reason }),
+		).toEqual({ ok: false, reason });
+	}
+	for (const input of [
+		{ ok: true },
+		{ ...success, jobId: "invalid" },
+		{ ...success, accessToken: "private" },
+		{ ok: false, reason: "unknown" },
+		{ ok: false, reason: "retry", proofHandle: "a".repeat(48) },
+	])
+		expect(
+			gitCafeConnectionConfirmationResultSchema.safeParse(input).success,
+		).toBe(false);
+});
 
 test("GitCafe admits connected storage without ingestion, reviews, or evaluation", () => {
 	expect(forgeSchema.parse("gitcafe")).toBe("gitcafe");

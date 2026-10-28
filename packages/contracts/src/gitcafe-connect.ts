@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { forgeIdSchema } from "./forges.ts";
 import { GITCAFE_ISSUER, gitCafeIdentitySchema } from "./gitcafe-identity.ts";
+import { orgSlugSchema } from "./org.ts";
 
 export const GITCAFE_API_RESOURCE = `${GITCAFE_ISSUER}/api`;
 export const GITCAFE_CONNECT_SCOPES = [
@@ -158,6 +159,26 @@ export type GitCafeConnectionRefusal = z.infer<
 	typeof gitCafeConnectionRefusalSchema
 >;
 
+export const gitCafeConnectionConfirmationResultSchema = z.discriminatedUnion(
+	"ok",
+	[
+		z.strictObject({
+			ok: z.literal(true),
+			jobId: gitCafeConnectionStatusInputSchema.shape.jobId.unwrap(),
+		}),
+		z.strictObject({
+			ok: z.literal(false),
+			reason: z.union([
+				gitCafeConnectionRefusalSchema,
+				z.enum(["unavailable", "refused", "retry"]),
+			]),
+		}),
+	],
+);
+export type GitCafeConnectionConfirmationResult = z.infer<
+	typeof gitCafeConnectionConfirmationResultSchema
+>;
+
 export const gitCafeConnectionStatusSchema = z.discriminatedUnion("status", [
 	z.strictObject({ status: z.literal("pending") }),
 	z.strictObject({
@@ -205,6 +226,18 @@ export const gitCafeSetupInputSchema = z.strictObject({
 	orgId: z.string().min(1).optional(),
 });
 export type GitCafeSetupInput = z.infer<typeof gitCafeSetupInputSchema>;
+
+export const gitCafeSetupContextSchema = z.strictObject({
+	orgs: z.array(
+		z.strictObject({
+			id: z.string().min(1),
+			slug: orgSlugSchema,
+			name: z.string().min(1),
+		}),
+	),
+	suggestedOrg: orgSlugSchema.nullable(),
+});
+export type GitCafeSetupContext = z.infer<typeof gitCafeSetupContextSchema>;
 
 export const setupSearchSchema = z.object({
 	installation_id: z

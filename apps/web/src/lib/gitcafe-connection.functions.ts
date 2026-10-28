@@ -1,20 +1,22 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
+	type GitCafeAuthorizationResponse,
+	type GitCafeConnectionConfirmationResult,
 	type GitCafeConnectionStatus,
+	type GitCafeSetupContext,
+	gitCafeAuthorizationResponseSchema,
+	gitCafeConnectionConfirmationResultSchema,
 	gitCafeConnectionConfirmationSchema,
 	gitCafeConnectionSelectionSchema,
 	gitCafeConnectionStatusInputSchema,
+	gitCafeConnectionStatusSchema,
+	gitCafeSetupContextSchema,
 	gitCafeSetupInputSchema,
 } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import { orgPermissionMiddleware } from "#/lib/server/org-guard";
 import { sameOriginMiddleware } from "#/lib/server/staff-guard";
-
-export interface GitCafeSetupContext {
-	orgs: { id: string; slug: string; name: string }[];
-	suggestedOrg: string | null;
-}
 
 /** Installation state and callback org are hints; current membership supplies the choices. */
 export const getGitCafeSetupContext = createServerFn({ method: "GET" })
@@ -27,7 +29,8 @@ export const getGitCafeSetupContext = createServerFn({ method: "GET" })
 		const current = await auth?.api.getSession({
 			headers: getStartContext().request.headers,
 		});
-		if (!current) return { orgs: [], suggestedOrg: null };
+		if (!current)
+			return gitCafeSetupContextSchema.parse({ orgs: [], suggestedOrg: null });
 		const { getDb } = await import("#/lib/server/db");
 		const { orgServices } = await import("@tripwire/db");
 		const { memberPermissions } = await import("@tripwire/auth/org-gate");
@@ -51,10 +54,10 @@ export const getGitCafeSetupContext = createServerFn({ method: "GET" })
 			hint?.forge === "gitcafe" && hint.userId === current.user.id
 				? hint.orgId
 				: data.orgId;
-		return {
+		return gitCafeSetupContextSchema.parse({
 			orgs,
 			suggestedOrg: orgs.find((org) => org.id === suggestedId)?.slug ?? null,
-		};
+		});
 	});
 
 export const startGitCafeConnection = createServerFn({ method: "POST" })
@@ -66,12 +69,14 @@ export const startGitCafeConnection = createServerFn({ method: "POST" })
 	.inputValidator((input: unknown) =>
 		gitCafeConnectionSelectionSchema.parse(input),
 	)
-	.handler(async ({ data, context }): Promise<{ url: string }> => {
+	.handler(async ({ data, context }): Promise<GitCafeAuthorizationResponse> => {
 		const org = (context as { org: OrgWithRole }).org;
 		const { startGitCafeGrant } = await import(
 			"#/lib/server/gitcafe-connection"
 		);
-		return startGitCafeGrant(org.id, data.installationId);
+		return gitCafeAuthorizationResponseSchema.parse(
+			await startGitCafeGrant(org.id, data.installationId),
+		);
 	});
 
 export const confirmGitCafeConnection = createServerFn({ method: "POST" })
@@ -83,13 +88,21 @@ export const confirmGitCafeConnection = createServerFn({ method: "POST" })
 	.inputValidator((input: unknown) =>
 		gitCafeConnectionConfirmationSchema.parse(input),
 	)
-	.handler(async ({ data, context }) => {
-		const org = (context as { org: OrgWithRole }).org;
-		const { confirmGitCafeGrant } = await import(
-			"#/lib/server/gitcafe-connection"
-		);
-		return confirmGitCafeGrant(org.id, data.installationId, data.proofHandle);
-	});
+	.handler(
+		async ({ data, context }): Promise<GitCafeConnectionConfirmationResult> => {
+			const org = (context as { org: OrgWithRole }).org;
+			const { confirmGitCafeGrant } = await import(
+				"#/lib/server/gitcafe-connection"
+			);
+			return gitCafeConnectionConfirmationResultSchema.parse(
+				await confirmGitCafeGrant(
+					org.id,
+					data.installationId,
+					data.proofHandle,
+				),
+			);
+		},
+	);
 
 export const getGitCafeConnectionStatus = createServerFn({ method: "GET" })
 	.middleware([
@@ -104,5 +117,11 @@ export const getGitCafeConnectionStatus = createServerFn({ method: "GET" })
 		const { readGitCafeConnectionStatus } = await import(
 			"#/lib/server/gitcafe-connection"
 		);
-		return readGitCafeConnectionStatus(org.id, data.installationId, data.jobId);
+		return gitCafeConnectionStatusSchema.parse(
+			await readGitCafeConnectionStatus(
+				org.id,
+				data.installationId,
+				data.jobId,
+			),
+		);
 	});

@@ -132,10 +132,11 @@ export function WorkflowEditorPage() {
 				</Empty>
 			</div>
 		);
-	} else if (!loading && workflow) {
+	} else if (!loading && workflow && repoCtx) {
 		body = (
 			<AgentWorkContext.Provider value={{ touches, motion }}>
 				<WorkflowEditor
+					forge={repoCtx.forge}
 					aiCredits={aiCreditsOf(ruleViews)}
 					customRules={customRules}
 					definition={shownDefinition(workflow)}

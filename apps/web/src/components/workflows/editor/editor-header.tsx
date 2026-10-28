@@ -1,6 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import type { WorkflowDefinition } from "@tripwire/contracts";
-import { type ReactNode, useState } from "react";
+import {
+	FORGE_BY_ID,
+	type Forge,
+	forgeEvaluates,
+	type WorkflowDefinition,
+} from "@tripwire/contracts";
+import { type ReactNode, useId, useState } from "react";
 import { ArrowLeft, Edit, Icon, More } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
@@ -35,6 +40,7 @@ import {
  */
 
 export interface EditorHeaderProps {
+	forge: Forge;
 	org: string;
 	repo: string;
 	name: string;
@@ -61,6 +67,7 @@ export interface EditorHeaderProps {
 }
 
 export function EditorHeader({
+	forge,
 	org,
 	repo,
 	name,
@@ -84,6 +91,9 @@ export function EditorHeader({
 	actions,
 }: EditorHeaderProps) {
 	const [renaming, setRenaming] = useState(false);
+	const protectionAvailable = forgeEvaluates(forge);
+	const protectionReasonId = useId();
+	const enableUnavailable = !enabled && !protectionAvailable;
 
 	const commitName = async (next: string) => {
 		const trimmed = next.trim();
@@ -107,6 +117,7 @@ export function EditorHeader({
 			onSetEnabled(false);
 			return;
 		}
+		if (!protectionAvailable) return;
 		if (blockers.length > 0) {
 			onShowProblems();
 			return;
@@ -127,7 +138,12 @@ export function EditorHeader({
 
 	const menuItems = [
 		readOnly ? null : (
-			<DropdownMenuItem key="toggle" onClick={handleToggle}>
+			<DropdownMenuItem
+				aria-describedby={enableUnavailable ? protectionReasonId : undefined}
+				disabled={enableUnavailable}
+				key="toggle"
+				onClick={handleToggle}
+			>
 				{enabled ? "Turn off workflow" : "Turn on workflow"}
 			</DropdownMenuItem>
 		),
@@ -265,7 +281,11 @@ export function EditorHeader({
 							</Button>
 						) : null}
 						<Button
+							aria-describedby={
+								enableUnavailable ? protectionReasonId : undefined
+							}
 							className="max-md:hidden"
+							disabled={enableUnavailable}
 							onClick={handleToggle}
 							pending={toggling}
 							size="sm"
@@ -294,6 +314,15 @@ export function EditorHeader({
 					</>
 				)}
 			</div>
+			{protectionAvailable ? null : (
+				<p
+					className="basis-full type-caption text-text-2"
+					id={protectionReasonId}
+				>
+					{FORGE_BY_ID[forge].label} protection is unavailable. Checks aren't
+					available yet.
+				</p>
+			)}
 		</header>
 	);
 }

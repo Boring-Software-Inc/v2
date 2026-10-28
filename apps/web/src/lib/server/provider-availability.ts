@@ -6,12 +6,13 @@ import {
 } from "@tripwire/contracts";
 import { getAuth } from "#/lib/server/auth";
 
-/** Configuration and initialized registration are evaluated together for every advertised action. */
+/** GitCafe needs installation readiness; existing OAuth providers keep their registered availability. */
 export async function readProviderAvailability(): Promise<ProviderAvailability> {
 	const auth = getAuth();
 	const registered = await configuredSignInProviderIds(auth);
 	const configured = registered.filter(
 		(forge) =>
+			forge !== "gitcafe" ||
 			installUrlFor(
 				forge,
 				"",

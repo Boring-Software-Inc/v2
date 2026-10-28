@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import {
+	FORGE_BY_ID,
+	type Forge,
+	forgeEvaluates,
 	WORKFLOW_STATE_LABELS,
 	WORKFLOW_TEMPLATES,
 	type WorkflowState,
@@ -273,18 +276,21 @@ export function WorkflowsGridPage() {
 						>
 							{(rows) => (
 								<ul aria-label="Workflows" className="flex flex-col gap-3">
-									{rows.map((workflow) => (
-										<li key={workflow.id}>
-											<WorkflowRow
-												canManage={canManage}
-												motion={motion}
-												org={org}
-												repoId={repoId}
-												repoName={repoName}
-												workflow={workflow}
-											/>
-										</li>
-									))}
+									{repo
+										? rows.map((workflow) => (
+												<li key={workflow.id}>
+													<WorkflowRow
+														canManage={canManage}
+														forge={repo.forge}
+														motion={motion}
+														org={org}
+														repoId={repoId}
+														repoName={repoName}
+														workflow={workflow}
+													/>
+												</li>
+											))
+										: null}
 								</ul>
 							)}
 						</Collection>
@@ -436,6 +442,7 @@ function WorkflowsEmpty({
 }
 
 function WorkflowRow({
+	forge,
 	org,
 	repoName,
 	repoId,
@@ -443,6 +450,7 @@ function WorkflowRow({
 	canManage,
 	motion,
 }: {
+	forge: Forge;
 	org: string;
 	repoName: string;
 	repoId: string;
@@ -450,6 +458,8 @@ function WorkflowRow({
 	canManage: boolean;
 	motion: AgentMotion;
 }) {
+	const protectionAvailable = forgeEvaluates(forge);
+	const protectionReasonId = `${workflow.id}-protection-unavailable`;
 	const now = useWorkClock(workflow.work);
 	const agents = workingAgents(workflow.work, now);
 	const draftOnly =
@@ -524,6 +534,12 @@ function WorkflowRow({
 			throw new Error("Tripwire could not delete the workflow. Try again.");
 		}
 	};
+	const description =
+		agents.length > 0 ? (
+			<AgentPresence agents={agents} motion={motion} />
+		) : workflow.triggerKinds.length === 0 ? (
+			"No trigger yet"
+		) : undefined;
 
 	return (
 		<>
@@ -552,11 +568,17 @@ function WorkflowRow({
 						) : undefined
 					}
 					description={
-						agents.length > 0 ? (
-							<AgentPresence agents={agents} motion={motion} />
-						) : workflow.triggerKinds.length === 0 ? (
-							"No trigger yet"
-						) : undefined
+						protectionAvailable ? (
+							description
+						) : (
+							<>
+								{description}
+								<span className="block" id={protectionReasonId}>
+									{FORGE_BY_ID[forge].label} protection is unavailable. Checks
+									aren't available yet.
+								</span>
+							</>
+						)
 					}
 					footerActions={
 						workflow.draftId && canManage ? (
@@ -590,10 +612,18 @@ function WorkflowRow({
 									{WORKFLOW_STATE_LABELS[workflow.state]}
 								</Status>
 								<Switch
+									aria-describedby={
+										protectionAvailable ? undefined : protectionReasonId
+									}
 									aria-label={`Run ${workflow.name} on change requests`}
 									checked={queuedEnabled}
-									disabled={!canManage}
-									onCheckedChange={setQueuedEnabled}
+									disabled={
+										!canManage || (!queuedEnabled && !protectionAvailable)
+									}
+									onCheckedChange={(enabled) => {
+										if (!enabled || protectionAvailable)
+											setQueuedEnabled(enabled);
+									}}
 									size="sm"
 								/>
 								{canManage ? (
