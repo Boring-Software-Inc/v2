@@ -1,6 +1,30 @@
-# GitCafe staging app proposal
+# GitCafe staging setup
 
-Review only. No app, OAuth client, endpoint, key, secret, or listing has been registered or enabled. This is a minimal read-and-delivery pilot, not the permissions needed for Tripwire enforcement. Confirm the publisher organization, public links, ingress, and GitCafe admission before using it.
+## Verified staging state
+
+As of 2026-10-27, the publisher registered `tripwire-staging` and installed it in `boring` with only `scratch` selected. Production has a separate app and credentials.
+
+| Setting | Staging value |
+| --- | --- |
+| App ID | `int_01m60999c0fqg841d48s29qwtv` |
+| OAuth client | `app_68092ad6b9e8e34be7af65c2e42b6d6d` |
+| Installation | `ins_01m609r46ff7j8gtjk7jt444kb` |
+| Signing key ID | `staging-2026-10-27-1` |
+| Webhook | `https://staging.api.tripwire.sh/webhooks/gitcafe` |
+| Setup | `https://staging.tripwire.sh/onboarding/setup?forge=gitcafe` |
+| OAuth callback | `https://staging.tripwire.sh/api/auth/callback/gitcafe` |
+
+The registered app revision 2 has the setup URL above. The API health endpoint returned 200, but the undeployed GitCafe webhook receiver returned 404. An authorized delivery-payload read captured `installation.created`; this is provider-held payload evidence, not a locally received and HMAC-verified request.
+
+Real app assertion requests succeeded: installation lookup returned 200 and token mint returned 201. The installed client reused a token after a fresh authority lookup. Bot-token repository metadata and organization membership reads returned 200; organization profile lookup returned 403 despite the declared metadata permission. Installation repository strings are names; repository metadata and the lifecycle payload establish stable repository IDs.
+
+The opt-in OIDC implementation uses `GITCAFE_SIGN_IN_ENABLED=true` and `GITCAFE_CLIENT_ID`. Its callback, replay, identity, and account-link behavior have local protocol tests; a real staging OAuth exchange remains unverified. Keep login, ingest, and actions gated until their separate acceptance checks pass. No private keys, webhook secrets, or bearer tokens belong in this document.
+
+Next: verify the real person userinfo/principal binding, fresh organization-admin authority, and explicit Tripwire organization confirmation before claims. Then verify raw signed receipt handling and lifecycle revocation before enabling evaluation. Team/organization reviewer actors, ongoing GitHub synchronization, and submitted-review editing still need direct evidence. Account age and global reputation remain unavailable.
+
+## Historical minimal pilot proposal
+
+The proposal below predates registration and does not describe the current manifest or permissions. Its webhook host and production callback example are not the configured endpoints. Retain it as the original review record; use the verified settings above for staging.
 
 The following candidate create body requests PR read access and two PR events. Lifecycle events are delivered independently of the event list. The URL is a proposed staging ingress, not a verified route; `/webhooks/gitcafe` currently refuses GitCafe. Replace the links only after verifying ownership and the privacy/support pages. GitCafe must admit the publisher's pilot or approve a listing before other organizations can install it.
 
