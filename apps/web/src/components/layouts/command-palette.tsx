@@ -286,7 +286,12 @@ export function CommandPalette({
 		currentOrg && currentRepo
 			? (orgHome?.repos.find((repo) => repo.name === currentRepo) ?? null)
 			: null;
-	if (currentOrg && currentRepo && scopedRepo) {
+	if (
+		currentOrg &&
+		currentRepo &&
+		scopedRepo &&
+		(scopedRepo.armed || scopedRepo.forge !== "gitcafe")
+	) {
 		actionItems.push(
 			scopedRepo.armed
 				? {

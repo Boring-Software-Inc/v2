@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import type { Forge } from "@tripwire/contracts";
+import type { ForgeId } from "@tripwire/contracts";
 import {
 	getOrgInstallUrl,
 	listApprovedInstallRequests,
@@ -13,7 +13,7 @@ export const onboardingQueryKeys = {
 	all: ["onboarding"] as const,
 	// The forge is IN the key: two forges mint different urls for the same org,
 	// and sharing a key would serve one forge's install url for the other.
-	installUrl: (org: string, forge: Forge) =>
+	installUrl: (org: string, forge: ForgeId) =>
 		[...onboardingQueryKeys.all, "install-url", org, forge] as const,
 	installStatus: (installationId: string, state: string | null) =>
 		[
@@ -29,7 +29,7 @@ export const onboardingQueryKeys = {
 /** ADMIN-only server fn — gate with `enabled` on the caller's role. */
 export const orgInstallUrlQueryOptions = (
 	org: string,
-	forge: Forge = "github",
+	forge: ForgeId = "github",
 ) =>
 	queryOptions({
 		queryKey: onboardingQueryKeys.installUrl(org, forge),

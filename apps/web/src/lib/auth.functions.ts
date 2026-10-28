@@ -1,18 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
-import type {
-	AccessStatus,
-	ConfiguredSignInProviderIds,
-} from "@tripwire/contracts";
+import type { AccessStatus, ProviderAvailability } from "@tripwire/contracts";
 
-export const getSignInProviderIds = createServerFn({ method: "GET" }).handler(
-	async (): Promise<ConfiguredSignInProviderIds> => {
-		const { getAuth } = await import("#/lib/server/auth");
-		const { configuredSignInProviderIds } = await import(
-			"@tripwire/auth/server"
-		);
-		return configuredSignInProviderIds(getAuth());
-	},
-);
+export const getProviderAvailability = createServerFn({
+	method: "GET",
+}).handler(async (): Promise<ProviderAvailability> => {
+	const { readProviderAvailability } = await import(
+		"#/lib/server/provider-availability"
+	);
+	return readProviderAvailability();
+});
 
 export interface SessionInfo {
 	/** null when signed out; "disabled" when auth env is absent (local dev). */

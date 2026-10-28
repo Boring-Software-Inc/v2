@@ -328,6 +328,7 @@ export function RulesPage() {
 
 						{repo && !repo.armed ? (
 							<ArmCallout
+								forge={repo.forge}
 								org={org}
 								repo={repoName}
 								repoFullName={repo.fullName}

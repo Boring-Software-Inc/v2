@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { signInForgeLabels } from "@tripwire/utils/forge-sign-in";
+import { availableForgeLabels } from "@tripwire/utils/forge-sign-in";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleGroup,
 	CollapsibleTrigger,
 } from "#/components/glaze/ui/collapsible";
-import { signInProviderIdsQueryOptions } from "#/lib/auth.query";
+import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { LIVE_FORGES } from "#/lib/forge-copy";
 
 const FAQ = [
@@ -34,8 +34,8 @@ const FAQ = [
  * accordion, so the card never grows past a phone screen.
  */
 export function LoginFaq() {
-	const providers = useQuery(signInProviderIdsQueryOptions());
-	const forges = signInForgeLabels(providers.data ?? []);
+	const providers = useQuery(providerAvailabilityQueryOptions());
+	const forges = availableForgeLabels(providers.data);
 	const signInCopy =
 		providers.isError || providers.isPending
 			? "Sign-in providers are unavailable right now. Refresh the page to try again."

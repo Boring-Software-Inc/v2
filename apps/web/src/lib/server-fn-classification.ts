@@ -27,7 +27,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getSessionInfo: "public", // feeds the gate, queue screen, unauth
 	getCurrentUser: "public", // caller's OWN identity; no product data
 	/** The signed-out login page needs provider IDs, never auth configuration. */
-	getSignInProviderIds: "public",
+	getProviderAvailability: "public",
 	getRun: "public", // unlisted-public run page (§10)
 	getWebviewHost: "public", // reads the caller's own user-agent; /login is signed-out
 	/**
@@ -44,6 +44,10 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	listMyOrgs: "authed", // the caller's own memberships
 	createOrg: "authed", // any approved user may found a team org
 	submitFeedback: "authed", // product feedback, not org data
+	getGitCafeSetupContext: "authed",
+	startGitCafeConnection: "permission:connections:manage",
+	confirmGitCafeConnection: "permission:connections:manage",
+	getGitCafeConnectionStatus: "permission:connections:manage",
 	getInstallPreview: "authed", // pre-claim: caller may not be an admin yet
 	recoverInstallation: "authed", // checks the caller's own access to an install
 	listClaimableInstallations: "authed", // recovery for id-less setup callbacks

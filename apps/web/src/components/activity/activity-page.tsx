@@ -136,6 +136,7 @@ function CurrentActivityPage() {
 		<>
 			{unarmed && repo ? (
 				<ArmCallout
+					forge={repo.forge}
 					org={org}
 					repo={repoName}
 					repoFullName={repo.fullName}

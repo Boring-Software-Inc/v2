@@ -49,7 +49,9 @@ export function useOnboardingEvents(org: string, repo: string) {
 		onSettled: invalidate,
 	});
 	const due =
-		canClaim && state && progress ? onboardingDue(state.facts, progress) : null;
+		canClaim && state && state.forge !== "gitcafe" && progress
+			? onboardingDue(state.facts, progress)
+			: null;
 	const repoId = state?.repoId ?? null;
 	useEffect(() => {
 		if (due && repoId) {
