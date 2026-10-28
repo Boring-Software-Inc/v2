@@ -27,6 +27,7 @@ import {
 	mirrorGitCafeIdentity,
 	refreshForgeLogin,
 } from "./forge-identity.ts";
+import { gitCafeConnect } from "./gitcafe-connect.ts";
 import { gitCafeOidc } from "./gitcafe-oidc.ts";
 import { orgAc, orgRoles } from "./org-access.ts";
 import { orgRoleGuard } from "./org-role-guard.ts";
@@ -266,7 +267,12 @@ export function createAuth(input: CreateAuthInput) {
 			},
 		},
 		plugins: [
-			...(input.gitcafe ? [gitCafeOidc(input.gitcafe)] : []),
+			...(input.gitcafe
+				? [
+						gitCafeOidc(input.gitcafe),
+						gitCafeConnect({ ...input.gitcafe, db: input.db }),
+					]
+				: []),
 			...(input.opengit
 				? [
 						genericOAuth({

@@ -434,3 +434,53 @@ stacked PRs may target their parent feature branch, with the stack root targetin
 The staging CLI release dispatches from `staging` and publishes only to the
 `staging` npm tag. The former `staging/visual` tip is preserved as
 `archive/staging-visual`.
+
+## GitCafe explicit person grant is authorization delegation (2026-10-27)
+
+The owner authorized the connect-only API grant foundation while GitCafe remains
+planned. Both the grant plugin and sign-in provider use the existing configured
+GitCafe auth client; this adds no independent enablement flag or UI availability
+rule. Repository connection remains unavailable pending the parent-owned shared
+readiness policy, genuine person-read evidence and worker adapter work.
+
+An approved Tripwire user's current session and fresh target-org
+`connections:manage` permission authorize initiation. The explicit GitCafe grant
+may represent a subject that signs into a different Tripwire account. Its API
+credential delegates external authority to the initiating user for the bound org
+and intended installation; it does not authenticate that subject into Tripwire.
+The grant never creates or reassigns `account` or `forge_identities`, issues a
+session, merges by email, approves another account or inherits its permissions.
+Proof evidence preserves both the local user/session and the remote subject/actor
+IDs. The generated protocol suite covers an existing foreign account without any
+account, identity, user or session mutation. Sign-in/linking uniqueness and failed
+signup guards retain their existing policy and regression tests.
+
+The grant reuses the registered `/api/auth/callback/gitcafe` URI, with fixed
+`openid profile email repo:metadata:read` scopes and `https://git.cafe/api` resource.
+Persisted server context classifies callbacks without consuming sign-in state;
+Better Auth's state parser still checks the signed browser cookie and expiry.
+Connect callbacks, including errors and attempts at another provider callback,
+terminate before the sign-in handler. A separate atomically consumed server nonce
+fences replay across auth instances. Login and delegation share the same signed
+claim verifier. Userinfo must match its verified subject; principal supplies a
+separate actor ID with the same access token.
+
+Only a random opaque handle leaves the callback. Better Auth's existing
+`symmetricEncrypt`/`symmetricDecrypt` encrypt the proof with HMAC-derived,
+purpose-separated key material from the auth secret. No crypto implementation or
+dependency is added. The proof is stored in the existing verification store,
+bound to purpose, forge, org, intended installation, user and session; its expiry
+is the minimum of flow expiry, five minutes and token expiry. Refresh and ID
+tokens are discarded; account token storage is untouched. Expired ciphertext is
+cleaned by Better Auth's verification-store cleanup and cannot authorize use.
+
+The narrow handoff is the pathless `auth.api.consumeGitCafeConnectProof` endpoint
+on a configured auth instance. It requires the same fresh authoritative session,
+approval, org permission and installation binding before atomic one-use consume;
+its returned credential is for trusted server code only and must never be
+serialized to a browser. No worker imports auth, and no worker transport, queue
+payload or shared decryption abstraction is invented. A future claim needs an
+explicit allowed-layer credential handoff plus fresh person binding, bot-read
+current membership/role, expected active app/installation, selected repositories,
+Tripwire permission and unique-claim verification. This proof alone is never an
+installation ownership or administrator claim, and no GET or POST claim is added.

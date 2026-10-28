@@ -1,15 +1,23 @@
 import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import {
 	createHash,
+	createHmac,
 	generateKeyPairSync,
 	type KeyObject,
 	sign,
 } from "node:crypto";
 import {
 	FORGE_CATALOG,
+	GITCAFE_API_RESOURCE,
+	GITCAFE_CONNECT_SCOPES,
 	GITCAFE_ISSUER,
+	type GitCafeConnectFlow,
+	type GitCafeConnectRequest,
 	type GitCafeOidcClaims,
 	gitCafeAuthorizationResponseSchema,
+	gitCafeConnectProofHandleSchema,
+	gitCafeConnectProofSchema,
+	gitCafeConnectStoredStateSchema,
 } from "@tripwire/contracts";
 import {
 	applyMigrations,
@@ -21,6 +29,11 @@ import {
 	type TestDatabase,
 } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
+import {
+	makeSignature,
+	symmetricDecrypt,
+	symmetricEncrypt,
+} from "better-auth/crypto";
 import { createAuthorizationURL, type OAuthProvider } from "better-auth/oauth2";
 import { and, eq } from "drizzle-orm";
 import { resolveGitCafeSignIn } from "./gitcafe-oidc.ts";
@@ -57,6 +70,15 @@ interface AuthRequestBody {
 }
 
 interface FlowOptions {
+	omitAccessToken?: boolean;
+	tokenScope?: string;
+	tokenExpiry?: number;
+	tokenType?: string;
+	userinfoSub?: string;
+	userinfoStatus?: number;
+	principalStatus?: number;
+	principal?: unknown;
+	onRead?: () => Promise<void>;
 	sub?: string;
 	email?: string;
 	handle?: string;
@@ -85,7 +107,14 @@ let disabledAuth: Auth;
 let fetchSpy: ReturnType<typeof spyOn<typeof globalThis, "fetch">>;
 const loggerMocks: { mockRestore(): void }[] = [];
 const flows = new Map<string, Flow>();
+const apiTokens = new Map<string, Flow>();
+const personReads: {
+	path: string;
+	token: string;
+	redirect: RequestInit["redirect"];
+}[] = [];
 const exchanges: {
+	resource: string | null;
 	clientId: string | null;
 	secretPresent: boolean;
 	authorizationPresent: boolean;
@@ -257,6 +286,34 @@ beforeAll(async () => {
 				if (url === `${GITCAFE_ISSUER}/api/oauth/jwks`) {
 					return Response.json({ keys: [jwk] });
 				}
+				if (
+					url === `${GITCAFE_ISSUER}/api/oauth/userinfo` ||
+					url === `${GITCAFE_ISSUER}/api/auth/principal`
+				) {
+					const token =
+						new Headers(init?.headers)
+							.get("authorization")
+							?.replace(/^Bearer /, "") ?? "";
+					const flow = apiTokens.get(token);
+					personReads.push({ path: url, token, redirect: init?.redirect });
+					if (!flow)
+						return Response.json({ error: "invalid_token" }, { status: 401 });
+					await flow.options.onRead?.();
+					if (url.endsWith("userinfo"))
+						return Response.json(
+							{ sub: flow.options.userinfoSub ?? flow.sub },
+							{ status: flow.options.userinfoStatus ?? 200 },
+						);
+					return Response.json(
+						flow.options.principal ?? {
+							actorId: `actor-${flow.sub}`,
+							handle: "generated-actor",
+							displayName: null,
+							avatarUrl: null,
+						},
+						{ status: flow.options.principalStatus ?? 200 },
+					);
+				}
 				if (url !== `${GITCAFE_ISSUER}/api/oauth/token`) {
 					throw new Error(
 						"Unexpected outbound request in GitCafe sign-in test",
@@ -269,6 +326,7 @@ beforeAll(async () => {
 				}
 				const verifier = body.get("code_verifier") ?? "";
 				exchanges.push({
+					resource: body.get("resource"),
 					clientId: body.get("client_id"),
 					secretPresent: body.has("client_secret"),
 					authorizationPresent: new Headers(init?.headers).has("authorization"),
@@ -280,11 +338,12 @@ beforeAll(async () => {
 						flow.url.searchParams.get("redirect_uri"),
 				});
 				const accessToken = generateId();
+				apiTokens.set(accessToken, flow);
 				return Response.json({
-					access_token: accessToken,
-					token_type: "Bearer",
-					expires_in: 900,
-					scope: "openid profile email",
+					access_token: flow.options.omitAccessToken ? undefined : accessToken,
+					token_type: flow.options.tokenType ?? "Bearer",
+					expires_in: flow.options.tokenExpiry ?? 900,
+					scope: flow.options.tokenScope ?? flow.url.searchParams.get("scope"),
 					refresh_token: generateId(),
 					id_token: flow.options.omitIdToken
 						? undefined
@@ -425,6 +484,7 @@ describe("GitCafe opt-in public OIDC", () => {
 			username: "protocol-test-handle",
 		});
 		expect(exchanges.at(-1)).toEqual({
+			resource: null,
 			clientId: CLIENT_ID,
 			secretPresent: false,
 			authorizationPresent: false,
@@ -478,11 +538,12 @@ describe("GitCafe opt-in public OIDC", () => {
 		for (const instance of [auth, secondAuth]) {
 			const adapter = (await instance.$context).internalAdapter;
 			const original = adapter.findVerificationValue.bind(adapter);
+			let stateReads = 0;
 			mocks.push(
 				spyOn(adapter, "findVerificationValue").mockImplementation(
 					async (identifier) => {
 						const row = await original(identifier);
-						if (identifier.startsWith("auth-state:")) {
+						if (identifier.startsWith("auth-state:") && ++stateReads === 2) {
 							readers += 1;
 							if (readers === 2) {
 								release();
@@ -1095,4 +1156,685 @@ describe("GitCafe opt-in public OIDC", () => {
 			});
 		}
 	}
+});
+
+interface ConnectCaller {
+	userId: string;
+	sessionId: string;
+	cookie: string;
+	request: GitCafeConnectRequest;
+}
+
+async function caller(): Promise<ConnectCaller> {
+	const userId = generateId();
+	await db.insert(schema.user).values({
+		id: userId,
+		email: `${userId}@example.test`,
+		name: `Generated ${userId}`,
+		accessStatus: "approved",
+		emailVerified: true,
+	});
+	await db.insert(schema.account).values({
+		id: generateId(),
+		providerId: "github",
+		accountId: generateId(),
+		userId,
+	});
+	const org = await orgServices.ensurePersonalOrg(db, {
+		userId,
+		name: `Generated ${userId}`,
+	});
+	const context = await auth.$context;
+	const session = await context.internalAdapter.createSession(userId);
+	if (!session) throw new Error("Generated session missing");
+	const cookie = `${context.authCookies.sessionToken.name}=${encodeURIComponent(`${session.token}.${await makeSignature(session.token, secret)}`)}`;
+	return {
+		userId,
+		sessionId: session.id,
+		cookie,
+		request: { orgId: org.id, intendedInstallationId: generateId() },
+	};
+}
+
+async function connectPost(
+	who: ConnectCaller,
+	body: GitCafeConnectRequest & { scopes?: string[] } = who.request,
+	origin: string | null = BASE_URL,
+	instance = auth,
+) {
+	const headers = new Headers({
+		cookie: who.cookie,
+		"content-type": "application/json",
+	});
+	if (origin !== null) headers.set("origin", origin);
+	return instance.handler(
+		new Request(`${BASE_URL}/api/auth/gitcafe/connect`, {
+			method: "POST",
+			headers,
+			body: JSON.stringify(body),
+		}),
+	);
+}
+
+async function connect(
+	who: ConnectCaller,
+	options: FlowOptions = {},
+): Promise<Flow> {
+	const response = await connectPost(who);
+	expect(response.status).toBe(200);
+	const { url } = gitCafeAuthorizationResponseSchema.parse(
+		await response.json(),
+	);
+	const sub = options.sub ?? generateId();
+	const flow: Flow = {
+		code: generateId(),
+		url: new URL(url),
+		cookie: `${who.cookie}; ${cookieHeader(response)}`,
+		sub,
+		email: options.email ?? `${sub}@example.test`,
+		options,
+	};
+	flows.set(flow.code, flow);
+	return flow;
+}
+
+async function proofHandle(flow: Flow) {
+	const response = await callback(flow);
+	expect(response.status).toBe(200);
+	expect(response.headers.get("location")).toBeNull();
+	const json: unknown = await response.json();
+	const parsed = gitCafeConnectProofHandleSchema.parse(json);
+	expect(Object.keys(Object(json))).toEqual(["proofHandle"]);
+	return parsed.proofHandle;
+}
+
+async function consume(
+	who: ConnectCaller,
+	handle: string,
+	body: Partial<GitCafeConnectRequest> = {},
+	instance = auth,
+) {
+	return instance.api.consumeGitCafeConnectProof({
+		headers: new Headers({ cookie: who.cookie }),
+		body: { ...who.request, ...body, proofHandle: handle },
+	});
+}
+
+async function connectRejected(flow: Flow, returned?: Response) {
+	const response = returned ?? (await callback(flow));
+	expect(response.status).toBe(403);
+	expect(response.headers.get("location")).toBeNull();
+	expect(await response.text()).not.toContain("proofHandle");
+	expect(
+		await db
+			.select()
+			.from(schema.account)
+			.where(
+				and(
+					eq(schema.account.providerId, "gitcafe"),
+					eq(schema.account.accountId, flow.sub),
+				),
+			),
+	).toHaveLength(0);
+	expect(
+		await db
+			.select()
+			.from(schema.forgeIdentities)
+			.where(
+				and(
+					eq(schema.forgeIdentities.forge, "gitcafe"),
+					eq(schema.forgeIdentities.externalId, flow.sub),
+				),
+			),
+	).toHaveLength(0);
+}
+
+async function storedProof(handle: string) {
+	const record = await (
+		await auth.$context
+	).internalAdapter.findVerificationValue(`gitcafe-connect-proof:${handle}`);
+	if (!record) throw new Error("Generated proof missing");
+	return record;
+}
+
+async function mutateState(
+	flow: Flow,
+	change: (binding: GitCafeConnectFlow) => void,
+) {
+	const identifier = `auth-state:${flow.url.searchParams.get("state")}`;
+	const context = await auth.$context;
+	const record =
+		await context.internalAdapter.findVerificationValue(identifier);
+	if (!record) throw new Error("Generated state missing");
+	const value = gitCafeConnectStoredStateSchema.parse(JSON.parse(record.value));
+	const binding = value.serverContext?.gitCafeConnect;
+	if (!binding) throw new Error("Generated binding missing");
+	change(binding);
+	await db
+		.update(schema.verification)
+		.set({ value: JSON.stringify(value) })
+		.where(eq(schema.verification.id, record.id));
+}
+
+describe("GitCafe connect-only generated authorization protocol (not captured provider evidence)", () => {
+	test("uses the configured auth provider and existing callback, fixed API scopes, S256 and same-token person reads", async () => {
+		const who = await caller();
+		const flow = await connect(who);
+		expect(flow.url.searchParams.get("redirect_uri")).toBe(
+			`${BASE_URL}/api/auth/callback/gitcafe`,
+		);
+		expect(flow.url.searchParams.get("scope")).toBe(
+			GITCAFE_CONNECT_SCOPES.join(" "),
+		);
+		expect(flow.url.searchParams.get("resource")).toBe(GITCAFE_API_RESOURCE);
+		expect(flow.url.searchParams.get("code_challenge_method")).toBe("S256");
+		const beforeReads = personReads.length;
+		const handle = await proofHandle(flow);
+		expect(exchanges.at(-1)).toEqual({
+			resource: GITCAFE_API_RESOURCE,
+			clientId: CLIENT_ID,
+			secretPresent: false,
+			authorizationPresent: false,
+			verifierMatches: true,
+			redirectMatches: true,
+		});
+		const reads = personReads.slice(beforeReads);
+		expect(reads).toHaveLength(2);
+		expect(reads[0]?.token).toBe(reads[1]?.token);
+		expect(reads.every((read) => read.redirect === "error")).toBe(true);
+		const record = await storedProof(handle);
+		expect(record.value).not.toContain(flow.sub);
+		expect(record.value).not.toContain(reads[0]?.token ?? "missing");
+		await expect(
+			symmetricDecrypt({ key: secret, data: record.value }),
+		).rejects.toThrow();
+		const proof = await consume(who, handle, {}, secondAuth);
+		expect(proof).toMatchObject({
+			purpose: "gitcafe-connect",
+			forge: "gitcafe",
+			userId: who.userId,
+			sessionId: who.sessionId,
+			...who.request,
+			subject: flow.sub,
+			actorId: `actor-${flow.sub}`,
+			resource: GITCAFE_API_RESOURCE,
+			scopes: [...GITCAFE_CONNECT_SCOPES],
+			accessToken: reads[0]?.token,
+		});
+		expect(proof.actorId).not.toBe(proof.subject);
+		expect(proof.expiresAt).toBeLessThanOrEqual(Date.now() + 300_000);
+		expect(proof.expiresAt).toBeLessThanOrEqual(proof.tokenExpiresAt);
+		expect(proof).not.toHaveProperty("refreshToken");
+		await expect(consume(who, handle)).rejects.toThrow();
+		await connectRejected(flow, await callback(flow));
+		expect(
+			await connectPost(who, who.request, BASE_URL, disabledAuth),
+		).toHaveProperty("status", 404);
+	});
+
+	test("requires explicit same origin, approved authoritative session and current target-org manage permission", async () => {
+		const who = await caller();
+		for (const origin of [null, "https://attacker.test"])
+			expect((await connectPost(who, who.request, origin)).status).toBe(403);
+		expect((await connectPost({ ...who, cookie: "" })).status).toBe(403);
+		expect(
+			(
+				await connectPost(who, {
+					...who.request,
+					scopes: ["repo:contents:write"],
+				})
+			).status,
+		).toBe(400);
+		for (const accessStatus of ["pending", "rejected"] as const) {
+			await db
+				.update(schema.user)
+				.set({ accessStatus })
+				.where(eq(schema.user.id, who.userId));
+			expect((await connectPost(who)).status).toBe(403);
+		}
+		await db
+			.update(schema.user)
+			.set({ accessStatus: "approved" })
+			.where(eq(schema.user.id, who.userId));
+		const other = await caller();
+		expect((await connectPost(who, other.request)).status).toBe(403);
+		await db
+			.update(schema.member)
+			.set({ role: "member" })
+			.where(eq(schema.member.userId, who.userId));
+		expect((await connectPost(who)).status).toBe(403);
+	});
+
+	test("same flow demands the original authoritative user and session, with current org and approval", async () => {
+		for (const kind of [
+			"other-user",
+			"other-session",
+			"revoked",
+			"pending",
+			"role",
+			"impersonation",
+		] as const) {
+			const who = await caller();
+			const flow = await connect(who);
+			if (kind === "other-user") {
+				const other = await caller();
+				flow.cookie = `${other.cookie}; ${flow.cookie.split("; ").slice(1).join("; ")}`;
+			} else if (kind === "other-session") {
+				const context = await auth.$context;
+				const session = await context.internalAdapter.createSession(who.userId);
+				if (!session) throw new Error("Generated session missing");
+				flow.cookie = `${context.authCookies.sessionToken.name}=${encodeURIComponent(`${session.token}.${await makeSignature(session.token, secret)}`)}; ${flow.cookie.split("; ").slice(1).join("; ")}`;
+			} else if (kind === "revoked")
+				await db
+					.delete(schema.session)
+					.where(eq(schema.session.id, who.sessionId));
+			else if (kind === "pending")
+				await db
+					.update(schema.user)
+					.set({ accessStatus: "pending" })
+					.where(eq(schema.user.id, who.userId));
+			else if (kind === "role")
+				await db
+					.update(schema.member)
+					.set({ role: "member" })
+					.where(eq(schema.member.userId, who.userId));
+			else
+				await db
+					.update(schema.session)
+					.set({ impersonatedBy: generateId() })
+					.where(eq(schema.session.id, who.sessionId));
+			await connectRejected(flow);
+		}
+	});
+
+	test("cookie, state metadata, purpose, forge, org, installation and expiry are server bound", async () => {
+		for (const kind of [
+			"cookie",
+			"purpose",
+			"forge",
+			"orgId",
+			"intendedInstallationId",
+			"nonce",
+			"expiry",
+			"marker",
+		] as const) {
+			const who = await caller();
+			const flow = await connect(who);
+			if (kind === "cookie") flow.cookie = who.cookie;
+			else if (kind === "marker")
+				await db
+					.delete(schema.verification)
+					.where(
+						eq(
+							schema.verification.identifier,
+							`gitcafe-connect-flow:${flow.url.searchParams.get("state")}`,
+						),
+					);
+			else
+				await mutateState(flow, (binding) => {
+					Object.assign(binding, {
+						[kind === "expiry" ? "expiresAt" : kind]:
+							kind === "expiry" ? 1 : generateId(),
+					});
+				});
+			await connectRejected(flow);
+		}
+	});
+
+	test("an expired or missing atomic nonce and provider callback errors terminate without sign-in", async () => {
+		for (const kind of [
+			"missing",
+			"expired",
+			"wrong",
+			"denied",
+			"issuer",
+			"code",
+		] as const) {
+			const flow = await connect(await caller());
+			const where = eq(
+				schema.verification.identifier,
+				`gitcafe-connect-nonce:${flow.url.searchParams.get("nonce")}`,
+			);
+			if (kind === "missing") await db.delete(schema.verification).where(where);
+			else if (kind === "expired")
+				await db
+					.update(schema.verification)
+					.set({ expiresAt: new Date(0) })
+					.where(where);
+			else if (kind === "wrong")
+				await db
+					.update(schema.verification)
+					.set({ value: "wrong binding" })
+					.where(where);
+			const url = new URL(`${BASE_URL}/api/auth/callback/gitcafe`);
+			url.searchParams.set("state", flow.url.searchParams.get("state") ?? "");
+			if (kind !== "code") url.searchParams.set("code", flow.code);
+			if (kind === "denied") url.searchParams.set("error", "access_denied");
+			if (kind === "issuer")
+				url.searchParams.set("iss", "https://attacker.test");
+			await connectRejected(
+				flow,
+				await auth.handler(
+					new Request(url.toString(), { headers: { cookie: flow.cookie } }),
+				),
+			);
+		}
+	});
+
+	for (const [name, options] of Object.entries({
+		"missing ID token": { omitIdToken: true },
+		"missing access token": { omitAccessToken: true },
+		"sign-in-only scope": { tokenScope: "openid profile email" },
+		"excess scope": {
+			tokenScope: `${GITCAFE_CONNECT_SCOPES.join(" ")} repo:contents:write`,
+		},
+		"expired token": { tokenExpiry: -1 },
+		"no token expiry": { tokenExpiry: 0 },
+		"wrong type": { tokenType: "Basic" },
+		"wrong nonce": { claims: { nonce: "wrong" } },
+		"wrong signed issuer": { claims: { iss: "https://attacker.test" } },
+		"wrong audience": { claims: { aud: "another-client" } },
+		"wrong hash": { claims: { at_hash: "wrong" } },
+		"unverified email": { claims: { email_verified: false } },
+		"bad signature": { signingKey: otherKey },
+		"wrong userinfo subject": { userinfoSub: "different-subject" },
+		"revoked token userinfo": { userinfoStatus: 401 },
+		"revoked token principal": { principalStatus: 401 },
+		"unavailable principal": { principalStatus: 503 },
+		"missing actor projection": { principal: { sub: "not-an-actor" } },
+	} satisfies Record<string, FlowOptions>)) {
+		test(`connect rejects ${name} without falling through to sign-in`, async () => {
+			await connectRejected(await connect(await caller(), options));
+		});
+	}
+
+	test("rechecks local revocation after provider reads", async () => {
+		const who = await caller();
+		const flow = await connect(who, {
+			onRead: async () => {
+				await db
+					.delete(schema.session)
+					.where(eq(schema.session.id, who.sessionId));
+			},
+		});
+		await connectRejected(flow);
+	});
+
+	test("proof reads require original owner, session, org, installation and permission before atomic consume", async () => {
+		const who = await caller();
+		const handle = await proofHandle(await connect(who));
+		const other = await caller();
+		await expect(
+			consume({ ...other, request: who.request }, handle),
+		).rejects.toThrow();
+		await expect(
+			consume(who, handle, { orgId: other.request.orgId }),
+		).rejects.toThrow();
+		await expect(
+			consume(who, handle, { intendedInstallationId: generateId() }),
+		).rejects.toThrow();
+		await db
+			.update(schema.member)
+			.set({ role: "member" })
+			.where(eq(schema.member.userId, who.userId));
+		await expect(consume(who, handle)).rejects.toThrow();
+		await db
+			.update(schema.member)
+			.set({ role: "admin" })
+			.where(eq(schema.member.userId, who.userId));
+		const results = await Promise.allSettled([
+			consume(who, handle),
+			consume(who, handle, {}, secondAuth),
+		]);
+		expect(
+			results.filter((result) => result.status === "fulfilled"),
+		).toHaveLength(1);
+		expect(
+			results.filter((result) => result.status === "rejected"),
+		).toHaveLength(1);
+		for (const path of [
+			"/consume-git-cafe-connect-proof",
+			"/gitcafe/connect/proof",
+			"/consumeGitCafeConnectProof",
+		]) {
+			const response = await auth.handler(
+				new Request(`${BASE_URL}/api/auth${path}`, {
+					method: "POST",
+					headers: {
+						cookie: who.cookie,
+						origin: BASE_URL,
+						"content-type": "application/json",
+					},
+					body: JSON.stringify({ ...who.request, proofHandle: handle }),
+				}),
+			);
+			expect(response.status).toBe(404);
+		}
+	});
+
+	test("proof expiry, credential expiry and tampered ciphertext fail closed", async () => {
+		for (const kind of [
+			"record-expiry",
+			"binding-expiry",
+			"token-expiry",
+			"scope",
+			"ciphertext",
+		] as const) {
+			const who = await caller();
+			const handle = await proofHandle(await connect(who, { tokenExpiry: 60 }));
+			const record = await storedProof(handle);
+			expect(record.expiresAt.getTime()).toBeLessThanOrEqual(
+				Date.now() + 60_000,
+			);
+			if (kind === "record-expiry")
+				await db
+					.update(schema.verification)
+					.set({ expiresAt: new Date(0) })
+					.where(eq(schema.verification.id, record.id));
+			else if (kind === "ciphertext")
+				await db
+					.update(schema.verification)
+					.set({
+						value: `${record.value.slice(0, -2)}${record.value.endsWith("ff") ? "00" : "ff"}`,
+					})
+					.where(eq(schema.verification.id, record.id));
+			else {
+				const proofKey = createHmac("sha256", secret)
+					.update("gitcafe-connect-proof:")
+					.digest("hex");
+				const value = gitCafeConnectProofSchema.parse(
+					JSON.parse(
+						await symmetricDecrypt({ key: proofKey, data: record.value }),
+					),
+				);
+				Object.assign(
+					value,
+					kind === "binding-expiry"
+						? { expiresAt: 1 }
+						: kind === "token-expiry"
+							? { tokenExpiresAt: 1 }
+							: { scopes: ["repo:contents:write"] },
+				);
+				await db
+					.update(schema.verification)
+					.set({
+						value: await symmetricEncrypt({
+							key: proofKey,
+							data: JSON.stringify(value),
+						}),
+					})
+					.where(eq(schema.verification.id, record.id));
+			}
+			await expect(consume(who, handle)).rejects.toThrow();
+		}
+	});
+
+	test("an explicit grant for a subject owned by another Tripwire user delegates authority without account, identity or session mutation", async () => {
+		const existing = await start();
+		const signedIn = await callback(existing);
+		const otherUser = await sessionFor(signedIn);
+		if (!otherUser) throw new Error("Generated other user missing");
+		const who = await caller();
+		const before = {
+			accounts: await db.select().from(schema.account),
+			identities: await db.select().from(schema.forgeIdentities),
+			users: await db.select().from(schema.user),
+			sessions: await db.select().from(schema.session),
+		};
+		const flow = await connect(who, {
+			sub: existing.sub,
+			email: existing.email,
+		});
+		const handle = await proofHandle(flow);
+		const proof = await consume(who, handle);
+		expect(proof.subject).toBe(existing.sub);
+		expect(proof.userId).toBe(who.userId);
+		expect(proof.userId).not.toBe(otherUser.user.id);
+		expect(await db.select().from(schema.account)).toEqual(before.accounts);
+		expect(await db.select().from(schema.forgeIdentities)).toEqual(
+			before.identities,
+		);
+		expect(await db.select().from(schema.user)).toEqual(before.users);
+		expect(await db.select().from(schema.session)).toEqual(before.sessions);
+		const current = await auth.api.getSession({
+			headers: new Headers({ cookie: who.cookie }),
+		});
+		expect(current?.user.id).toBe(who.userId);
+	});
+});
+
+describe("GitCafe connect callback separation", () => {
+	test("connect state cannot enter another provider callback and POST errors cannot sign in", async () => {
+		for (const provider of ["github", "opengit"]) {
+			const flow = await connect(await caller());
+			const url = `${BASE_URL}/api/auth/callback/${provider}?state=${flow.url.searchParams.get("state")}&code=${flow.code}`;
+			await connectRejected(
+				flow,
+				await auth.handler(
+					new Request(url, { headers: { cookie: flow.cookie } }),
+				),
+			);
+		}
+		const flow = await connect(await caller());
+		const response = await auth.handler(
+			new Request(`${BASE_URL}/api/auth/callback/gitcafe`, {
+				method: "POST",
+				headers: { cookie: flow.cookie, "content-type": "application/json" },
+				body: JSON.stringify({
+					state: flow.url.searchParams.get("state"),
+					error: "access_denied",
+				}),
+			}),
+		);
+		await connectRejected(flow, response);
+	});
+
+	test("ordinary sign-in additionalData cannot select or consume the connect branch", async () => {
+		const response = await auth.handler(
+			new Request(`${BASE_URL}/api/auth/sign-in/social`, {
+				method: "POST",
+				headers: { "content-type": "application/json", origin: BASE_URL },
+				body: JSON.stringify({
+					provider: "gitcafe",
+					callbackURL: `${BASE_URL}/complete`,
+					additionalData: {
+						serverContext: { gitCafeConnect: { purpose: "gitcafe-connect" } },
+						gitCafeConnect: { purpose: "gitcafe-connect" },
+					},
+				}),
+			}),
+		);
+		expect(response.status).toBe(200);
+		const { url } = gitCafeAuthorizationResponseSchema.parse(
+			await response.json(),
+		);
+		const flow: Flow = {
+			code: generateId(),
+			url: new URL(url),
+			cookie: cookieHeader(response),
+			sub: generateId(),
+			email: `${generateId()}@example.test`,
+			options: {},
+		};
+		flows.set(flow.code, flow);
+		const result = await callback(flow);
+		expect(result.headers.get("location")).toBe(`${BASE_URL}/complete`);
+		expect((await sessionFor(result))?.user.id).toBeDefined();
+		expect(flow.url.searchParams.get("resource")).toBeNull();
+	});
+
+	test("two state readers on separate auth instances yield one exchange and one opaque proof", async () => {
+		const flow = await connect(await caller());
+		let release = () => {};
+		const barrier = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let readers = 0;
+		const mocks = [];
+		for (const instance of [auth, secondAuth]) {
+			const adapter = (await instance.$context).internalAdapter;
+			const original = adapter.findVerificationValue.bind(adapter);
+			let stateReads = 0;
+			mocks.push(
+				spyOn(adapter, "findVerificationValue").mockImplementation(
+					async (identifier) => {
+						const row = await original(identifier);
+						if (identifier.startsWith("auth-state:") && ++stateReads === 2) {
+							readers++;
+							if (readers === 2) release();
+							await barrier;
+						}
+						return row;
+					},
+				),
+			);
+		}
+		const count = exchanges.length;
+		let results: Response[];
+		try {
+			results = await Promise.all([
+				callback(flow),
+				callback(flow, { instance: secondAuth }),
+			]);
+		} finally {
+			release();
+			for (const mock of mocks) mock.mockRestore();
+		}
+		expect(readers).toBe(2);
+		expect(exchanges).toHaveLength(count + 1);
+		expect(results.map((response) => response.status).sort()).toEqual([
+			200, 403,
+		]);
+		for (const response of results) {
+			if (response.status === 200)
+				expect(response.headers.get("cache-control")).toBe("no-store");
+			expect(response.headers.get("location")).toBeNull();
+		}
+	});
+
+	test("wrong code/state pairing cannot authorize either flow", async () => {
+		const who = await caller();
+		const first = await connect(who);
+		const second = await connect(who);
+		const crossed = { ...first, code: second.code };
+		await connectRejected(crossed);
+		await proofHandle(second);
+	});
+
+	test("a cached session cannot hide revocation on proof consumption", async () => {
+		const who = await caller();
+		const handle = await proofHandle(await connect(who));
+		const cacheResponse = await auth.handler(
+			new Request(`${BASE_URL}/api/auth/get-session`, {
+				headers: { cookie: who.cookie },
+			}),
+		);
+		expect(cacheResponse.ok).toBe(true);
+		const cached = {
+			...who,
+			cookie: `${who.cookie}; ${cookieHeader(cacheResponse)}`,
+		};
+		await db.delete(schema.session).where(eq(schema.session.id, who.sessionId));
+		await expect(consume(cached, handle)).rejects.toThrow();
+	});
 });
