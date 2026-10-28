@@ -180,4 +180,32 @@ describe("captured GitCafe check reporting", () => {
 		).toEqual({ ok: false, reason: "invalid-response" });
 		expect(h.calls).toHaveLength(0);
 	});
+
+	test("report and readback must retain requested re-run capability", async () => {
+		expect(
+			await harness({
+				report: {
+					...reportFixture,
+					checkRun: { ...reportFixture.checkRun, rerequestable: false },
+				},
+				readback: { ...readbackFixture, rerequestable: false },
+			}).run(),
+		).toEqual({ ok: false, reason: "identity-mismatch" });
+		expect(
+			await harness({
+				readback: { ...readbackFixture, rerequestable: false },
+			}).run(),
+		).toEqual({ ok: false, reason: "stale" });
+	});
+
+	test("provider-invalid check keys fail before a forge write", async () => {
+		for (const key of ["_bad", ".bad", "a".repeat(101)]) {
+			const h = harness();
+			expect(await h.run({ ...command, key })).toEqual({
+				ok: false,
+				reason: "invalid-response",
+			});
+			expect(h.calls).toHaveLength(0);
+		}
+	});
 });

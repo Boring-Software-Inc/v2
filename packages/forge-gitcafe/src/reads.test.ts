@@ -149,6 +149,34 @@ test("genuine nonempty scratch PR reads preserve provider null aggregates while 
 	).toEqual({ ok: true, value: scratchBlob.content });
 });
 
+for (const hunks of [scratchDiff.file.hunks, []]) {
+	test(`explicitly omitted hunks retain counted file metadata with ${hunks.length} supplied hunks`, async () => {
+		const h = harness((u) => {
+			if (/\/pulls\/1$/.test(u.pathname)) return Response.json(scratchPull);
+			if (u.pathname.endsWith("/changes")) return Response.json(scratchChanges);
+			if (u.pathname.endsWith("/diff-file"))
+				return Response.json({
+					...scratchDiff,
+					file: { ...scratchDiff.file, hunksOmitted: true, hunks },
+				});
+			return capturedRoute(u);
+		});
+		expect(await h.reads.getDiff(REPO, 1)).toMatchObject({
+			ok: true,
+			value: [
+				{
+					path: "tripwire-qa.txt",
+					additions: 2,
+					deletions: 0,
+					patchUnavailable: "omitted",
+				},
+			],
+		});
+		const result = await h.reads.getDiff(REPO, 1);
+		expect(result.ok && result.value[0]?.patch).toBeUndefined();
+	});
+}
+
 /** Controlled protocol peers are adversarial inputs, never captured provider fixtures. */
 const ADVERSARIAL_PULL = {
 	...publicPull,

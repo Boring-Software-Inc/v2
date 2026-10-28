@@ -48,6 +48,7 @@ export async function reportGitCafeCheck(
 		check.status !== command.check.status ||
 		check.conclusion !== (command.check.conclusion ?? null) ||
 		check.reportedAt !== command.check.reportedAt ||
+		check.rerequestable !== command.check.rerequestable ||
 		check.detailsUrl !== (command.check.detailsUrl ?? null) ||
 		check.externalId !== (command.check.externalId ?? null) ||
 		check.output.title !== command.check.output.title ||

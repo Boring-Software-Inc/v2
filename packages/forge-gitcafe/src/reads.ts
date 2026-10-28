@@ -522,6 +522,7 @@ function diffFile(
 	const unavailable =
 		binary ||
 		tooLarge ||
+		file.hunksOmitted === true ||
 		(file.hunksOmitted !== false &&
 			((file.additions ?? change.additions) === undefined ||
 				(file.deletions ?? change.deletions) === undefined)) ||

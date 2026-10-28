@@ -26,6 +26,7 @@ export const gitCafeReportedCheckSchema = z.object({
 	reporterId: z.string().min(1),
 	reportedAt: z.iso.datetime(),
 	rerequestedAt: z.iso.datetime().nullable(),
+	rerequestable: z.boolean(),
 	detailsUrl: z.string().nullable(),
 	externalId: z.string().nullable(),
 	output: z.object({
@@ -73,8 +74,8 @@ export const gitCafeCheckReportInputSchema = z.strictObject({
 	key: z
 		.string()
 		.min(1)
-		.max(255)
-		.regex(/^[A-Za-z0-9_.:-]+$/),
+		.max(100)
+		.regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/),
 	check: gitCafeCheckWriteSchema,
 });
 export type GitCafeCheckReportInput = z.infer<

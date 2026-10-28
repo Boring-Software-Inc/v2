@@ -423,7 +423,7 @@ GitCafe remains planned and unavailable for sign-in, connection, ingest, reads, 
 
 The owner explicitly authorized a dedicated `packages/forge-gitcafe` workspace after reviewing the initial OpenGit subpath placement. This is a scoped exception to the closed package layout and replaces `@tripwire/forge-opengit/gitcafe` with `@tripwire/forge-gitcafe`. Separate protocol ownership cannot be expressed clearly under the legacy adapter's name. No third-party dependency is added.
 
-GitCafe code and captured fixtures live in the new package. Historical OpenGit exports, issuer, credentials and data remain in `packages/forge-opengit`; neither forge package imports the other. GitCafe follows the adapter dependency boundaries: contracts, utils and forge only, with worker and API as permitted consumers. The concrete read client now declares the internal `@tripwire/forge` workspace dependency to reuse its existing `ChangeRequestHead`, `ForgeCommit`, `ContributorProfile`, and diff vocabulary instead of redefining the adapter seam; no external dependency is added. This slice contains protocol primitives only; no adapter, receiver or sign-in is activated. Captured response bytes and provenance are preserved through the move. Authenticated token and lifecycle fixtures await an authorized staging app.
+GitCafe code and captured fixtures live in the new package. Historical OpenGit exports, issuer, credentials and data remain in `packages/forge-opengit`; neither forge package imports the other. GitCafe follows the adapter dependency boundaries: contracts, utils and forge only, with worker and API as permitted consumers. This slice contains protocol primitives only; no adapter, receiver or sign-in is activated. Captured response bytes and provenance are preserved through the move. Authenticated token and lifecycle fixtures await an authorized staging app.
 
 
 ## 2026-10-27: Staging integration branch
@@ -553,3 +553,7 @@ and email never authorize a claim. No ingestion or protection is enabled.
 Source: [GitCafe OIDC guide](https://git.cafe/docs/integrations/sign-in-with-gitcafe),
 founder response relayed by Grim, and a read-only staging equality check. The
 equality result is live evidence, not a captured provider-response fixture.
+
+## 2026-10-28 — GitCafe read client uses the forge interface workspace
+
+The concrete GitCafe read client declares the existing internal `@tripwire/forge` workspace dependency for universal commit and contributor types. This follows the approved adapter dependency arrow and replaces duplicate local representations of those types. The existing stack already supplies the interface package; no third-party dependency is added. Historical OpenGit remains separate.
