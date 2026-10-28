@@ -701,25 +701,25 @@ export const getOrgAnalyticsSummary = createServerFn({ method: "GET" })
 		const db = getDb().db;
 		const result = await db.execute(sql`
 			WITH org_repos AS (
-				SELECT id, full_name, armed FROM repos
+				SELECT id, forge, full_name, armed FROM repos
 				WHERE org_id = ${org.id} AND removed_at IS NULL
 			),
 			hours AS (SELECT generate_series(0, 23) AS h)
 			SELECT
 				(SELECT count(*) FROM org_repos)::int AS repos,
 				(SELECT count(*) FROM org_repos WHERE armed)::int AS "armedRepos",
-				(SELECT count(*) FROM events e JOIN org_repos r ON r.full_name = e.repo_full_name
+				(SELECT count(*) FROM events e JOIN org_repos r ON r.forge = e.forge AND r.full_name = e.repo_full_name
 				  WHERE e.received_at > now() - interval '24 hours')::int AS "events24h",
-				(SELECT count(*) FROM runs run JOIN org_repos r ON r.full_name = run.repo_full_name
+				(SELECT count(*) FROM runs run JOIN events e ON e.id = run.event_id JOIN org_repos r ON r.forge = e.forge AND r.full_name = run.repo_full_name
 				  WHERE run.verdict IN ('block', 'changes_required', 'close') AND run.created_at > now() - interval '24 hours')::int AS "blocked24h",
 				(SELECT count(*) FROM moderation_items mi JOIN runs run ON run.id = mi.run_id
-				  JOIN org_repos r ON r.full_name = run.repo_full_name
+				  JOIN events e ON e.id = run.event_id JOIN org_repos r ON r.forge = e.forge AND r.full_name = run.repo_full_name
 				  WHERE mi.status = 'pending')::int AS "pendingModeration",
 				(SELECT array_agg(COALESCE(ev.n, 0) ORDER BY hours.h DESC)
 				  FROM hours LEFT JOIN (
 				    SELECT floor(extract(epoch FROM now() - e.received_at) / 3600)::int AS ha,
 				           count(*)::int AS n
-				    FROM events e JOIN org_repos r ON r.full_name = e.repo_full_name
+				    FROM events e JOIN org_repos r ON r.forge = e.forge AND r.full_name = e.repo_full_name
 				    WHERE e.received_at > now() - interval '24 hours'
 				    GROUP BY 1
 				  ) ev ON ev.ha = hours.h) AS "eventsSeries",
@@ -727,7 +727,7 @@ export const getOrgAnalyticsSummary = createServerFn({ method: "GET" })
 				  FROM hours LEFT JOIN (
 				    SELECT floor(extract(epoch FROM now() - run.created_at) / 3600)::int AS ha,
 				           count(*)::int AS n
-				    FROM runs run JOIN org_repos r ON r.full_name = run.repo_full_name
+				    FROM runs run JOIN events e ON e.id = run.event_id JOIN org_repos r ON r.forge = e.forge AND r.full_name = run.repo_full_name
 				    WHERE run.verdict IN ('block', 'changes_required', 'close') AND run.created_at > now() - interval '24 hours'
 				    GROUP BY 1
 				  ) bl ON bl.ha = hours.h) AS "blockedSeries"

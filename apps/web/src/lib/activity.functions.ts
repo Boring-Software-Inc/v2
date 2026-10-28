@@ -7,6 +7,7 @@ import {
 	activityFeedSchema,
 	DEFAULT_WORKFLOW,
 	RULE_CATALOG,
+	rerunChangeRequestJobSchema,
 	ruleDisplayName,
 	ruleExecutes,
 	ruleIdOf,
@@ -188,7 +189,7 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		}
 		const eventRow = await eventServices.getLatestChangeRequestEvent(
 			db,
-			repo.fullName,
+			repo,
 			data.number,
 		);
 		if (!eventRow) {
@@ -197,6 +198,12 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		const { requireSession } = await import("#/lib/server/session");
 		const userId = await requireSession();
 		const requestedBy = userId ?? "dev";
+		const rerunJob = rerunChangeRequestJobSchema.parse({
+			forge: repo.forge,
+			repoFullName: repo.fullName,
+			number: data.number,
+			requestedBy,
+		});
 		// Duration is env-global; exemption is a staff flag per account.
 		const cooldownSeconds = getRerunCooldownSeconds();
 		const cooldownExempt =
@@ -232,17 +239,12 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		const boss = await getBoss();
 		const jobId = await boss.send(
 			RERUN_QUEUE,
-			{
-				repoFullName: repo.fullName,
-				number: data.number,
-				requestedBy,
-				runId,
-			},
+			rerunChangeRequestJobSchema.parse({ ...rerunJob, runId }),
 			cooldownExempt || cooldownSeconds === 0
 				? // No singleton: rapid re-runs allowed (staff-flagged or env=0).
 					{}
 				: {
-						singletonKey: `${repo.fullName}#${data.number}`,
+						singletonKey: `${repo.forge}:${repo.fullName}#${data.number}`,
 						singletonSeconds: cooldownSeconds,
 					},
 		);
@@ -270,7 +272,7 @@ export const getActivityFeed = createServerFn({ method: "GET" })
 		const { eventServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
 		const feed = await eventServices.listActivityFeed(getDb().db, {
-			repoFullName: repo.fullName,
+			repo,
 			limit: 50,
 		});
 		// Parse at the boundary: a shape mismatch (a drifted normalized event, a

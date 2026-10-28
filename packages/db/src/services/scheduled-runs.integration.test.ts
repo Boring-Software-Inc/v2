@@ -87,29 +87,44 @@ afterAll(async () => {
 
 describe("a scheduled run on a change request", () => {
 	test("stays out of the change request's verdict chain", async () => {
-		const chain = await listRunsForChangeRequest(db, REPO, 60);
+		const chain = await listRunsForChangeRequest(
+			db,
+			{ forge: "github", fullName: REPO },
+			60,
+		);
 		expect(chain.map((row) => row.id)).toEqual([blockRun]);
-		expect(await getLatestRunIdForChangeRequest(db, REPO, 60)).toBe(blockRun);
+		expect(
+			await getLatestRunIdForChangeRequest(
+				db,
+				{ forge: "github", fullName: REPO },
+				60,
+			),
+		).toBe(blockRun);
 	});
 
 	test("never hides a block from the surface refresh", async () => {
 		const rows = await listOpenBlockedRuns(
 			db,
-			REPO,
+			{ forge: "github", fullName: REPO },
 			new Date(Date.now() - 24 * HOUR),
 		);
 		expect(rows.map((row) => row.runId)).toEqual([blockRun]);
 	});
 
 	test("never reads as the change request's verdict in the activity feed", async () => {
-		const feed = await listActivityFeed(db, { repoFullName: REPO });
+		const feed = await listActivityFeed(db, {
+			repo: { forge: "github", fullName: REPO },
+		});
 		const group = feed.items.find((item) => item.type === "group");
 		expect(group?.type === "group" && group.group.currentVerdict).toBe("block");
 		expect(group?.type === "group" && group.group.currentRunId).toBe(blockRun);
 	});
 
 	test("is marked as scheduled in run lists", async () => {
-		const listed = await listRepoRuns(db, { repoFullName: REPO, limit: 10 });
+		const listed = await listRepoRuns(db, {
+			repos: [{ forge: "github", fullName: REPO }],
+			limit: 10,
+		});
 		expect(listed.map((row) => [row.id, row.scheduled]).sort()).toEqual(
 			[
 				[blockRun, false],
@@ -126,7 +141,7 @@ describe("a scheduled run on a change request", () => {
 
 	test("does not count toward verdict metrics", async () => {
 		const recent = await listRecentRuns(db, {
-			repoFullName: REPO,
+			repo: { forge: "github", fullName: REPO },
 			verdicts: ["pass"],
 		});
 		expect(recent).toEqual([]);

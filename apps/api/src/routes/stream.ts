@@ -1,7 +1,7 @@
 import { assertApproved } from "@tripwire/auth/access-gate";
 import { reposWithPermission } from "@tripwire/auth/org-gate";
 import { LIVE_CHANNEL } from "@tripwire/contracts";
-import { eventServices, liveServices } from "@tripwire/db";
+import { eventServices, liveServices, repoServices } from "@tripwire/db";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { ApiEnv } from "../env.ts";
@@ -61,9 +61,8 @@ export const stream = new Hono<ApiEnv>().get(
 			const client = await directPool.connect();
 			let open = true;
 			let visibleRepos = c.get("visibleRepos");
-			const canSee = (repoFullName: string | null | undefined) =>
-				visibleRepos === null ||
-				(repoFullName != null && visibleRepos.has(repoFullName));
+			const canSee = (repoId: string | null | undefined) =>
+				visibleRepos === null || (repoId != null && visibleRepos.has(repoId));
 
 			const onNotification = async (msg: {
 				channel?: string;
@@ -86,10 +85,17 @@ export const stream = new Hono<ApiEnv>().get(
 				// joined activity row so the feed resolves "evaluating…" in place (§9).
 				if (msg.channel === "runs") {
 					const row = await eventServices.getActivityForEvent(db, msg.payload);
-					const rowRepo = (
-						row?.event as { repo?: { fullName?: string } } | undefined
-					)?.repo?.fullName;
-					if (row && canSee(rowRepo ?? null)) {
+					const event = row
+						? await eventServices.getEventById(db, msg.payload)
+						: null;
+					const repo = event?.repoFullName
+						? await repoServices.getRepoByFullName(
+								db,
+								event.repoFullName,
+								event.forge,
+							)
+						: null;
+					if (row && canSee(repo?.id)) {
 						await s.writeSSE({
 							event: "run",
 							id: `${msg.payload}:run`,
@@ -100,10 +106,14 @@ export const stream = new Hono<ApiEnv>().get(
 				}
 				const event = await eventServices.getEventById(db, msg.payload);
 				if (event?.normalized) {
-					const normalized = event.normalized as {
-						repo?: { fullName?: string };
-					};
-					if (!canSee(normalized.repo?.fullName ?? null)) {
+					const repo = event.repoFullName
+						? await repoServices.getRepoByFullName(
+								db,
+								event.repoFullName,
+								event.forge,
+							)
+						: null;
+					if (!canSee(repo?.id)) {
 						return;
 					}
 					await s.writeSSE({

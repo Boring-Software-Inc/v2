@@ -1,4 +1,9 @@
-import { DATABUDDY_WEBSITE_ID, deriveUsageSource } from "@tripwire/contracts";
+import type { Forge } from "@tripwire/contracts";
+import {
+	DATABUDDY_WEBSITE_ID,
+	deriveUsageSource,
+	rerunChangeRequestJobSchema,
+} from "@tripwire/contracts";
 import {
 	aiProviderServices,
 	BACKFILL_REPO_QUEUE,
@@ -14,11 +19,9 @@ import {
 	RESUME_RUN_QUEUE,
 	type RecoverInstallationJob,
 	type RefreshSurfacesJob,
-	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	RULE_PREVIEW_QUEUE,
 	type RulePreviewJob,
-	repoServices,
 	SYNC_FLAG_OVERRIDES_QUEUE,
 	SYNC_REPO_BRANCHES_QUEUE,
 	SYNC_REPO_LABELS_QUEUE,
@@ -146,17 +149,11 @@ if (import.meta.main) {
 		appId && privateKey
 			? new GithubInstallations({ credentials: { appId, privateKey } })
 			: null;
-	/**
-	 * The sweeper spans forges, so it resolves per repo rather than taking one
-	 * adapter. `runs` has no forge column — only `repo_full_name` — so the forge
-	 * comes from the repo row itself.
-	 */
 	const adapterFor = async (
-		repoFullName: string,
-	): Promise<ForgeAdapter | null> => {
-		const forge = await repoServices.findRepoForge(db, repoFullName);
-		return forge ? (resolveForge(forge)?.adapter ?? null) : null;
-	};
+		_repoFullName: string,
+		forge: Forge,
+	): Promise<ForgeAdapter | null> => resolveForge(forge)?.adapter ?? null;
+
 	const selfLogins = new Set<string>();
 	if (appId && privateKey) {
 		/**
@@ -300,8 +297,16 @@ if (import.meta.main) {
 			}
 		});
 
-		await work<RerunChangeRequestJob>(RERUN_QUEUE, async (jobs) => {
+		await work<unknown>(RERUN_QUEUE, async (jobs) => {
 			for (const job of jobs) {
+				const parsed = rerunChangeRequestJobSchema.safeParse(job.data);
+				if (!parsed.success) {
+					logger.error(
+						{ queue: RERUN_QUEUE, jobId: job.id, issues: parsed.error.issues },
+						"invalid re-run job",
+					);
+					continue;
+				}
 				await rerunChangeRequest(
 					{
 						db,
@@ -310,11 +315,9 @@ if (import.meta.main) {
 						makeGenerate,
 						meterSource,
 						appUrl: process.env.APP_URL ?? "http://localhost:3000",
-						logger: logger.child({
-							rerun: `${job.data.repoFullName}#${job.data.number}`,
-						}),
+						logger: logger.child({ queue: RERUN_QUEUE }),
 					},
-					job.data,
+					parsed.data,
 				);
 			}
 		});

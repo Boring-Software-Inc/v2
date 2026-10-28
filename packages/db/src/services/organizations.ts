@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { ForgeId } from "@tripwire/contracts";
 import {
 	type Forge,
 	forgeSchema,
@@ -10,7 +11,17 @@ import {
 	suffixSlug,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, eq, gt, inArray, isNull, lt, type SQL, sql } from "drizzle-orm";
+import {
+	and,
+	eq,
+	gt,
+	inArray,
+	isNull,
+	lt,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
@@ -818,13 +829,6 @@ function installationOwnedBy(
 			  AND c.result = 'granted-admin'
 			  ${fresh}
 		))
-		OR (${forge} <> 'github' AND EXISTS (
-			SELECT 1
-			FROM account a
-			WHERE a.provider_id = ${forge}
-			  AND a.user_id = ${userId}
-			  AND a.account_id = ${installationId}
-		))
 	)`;
 }
 
@@ -959,6 +963,7 @@ export async function resolveInstallStatus(
 	db: Db,
 	input: {
 		userId: string | null;
+		forge: Forge;
 		installationId: string;
 		stateOrgId: string | null;
 	},
@@ -973,11 +978,12 @@ export async function resolveInstallStatus(
 		.where(
 			and(
 				eq(repos.installationId, input.installationId),
+				eq(repos.forge, input.forge),
 				isNull(repos.removedAt),
 			),
 		)
 		.groupBy(repos.owner, repos.forge);
-	const forge = repoRows[0]?.forge ?? "github";
+	const forge = input.forge;
 	const base = { installationId: input.installationId, forge };
 	const userId = input.userId;
 	if (!userId) {
@@ -993,6 +999,9 @@ export async function resolveInstallStatus(
 		return owner
 			? { ...base, status: "claimed-by-your-org", orgSlug: owner.slug }
 			: { ...base, status: "not-yours", recoverable: false };
+	}
+	if (forge !== "github") {
+		return { ...base, status: "not-yours", recoverable: false };
 	}
 	const claimable = await userCanClaimInstallation(db, {
 		userId,
@@ -1198,15 +1207,10 @@ export async function listOrgRepos(db: Db, orgId: string): Promise<RepoLite[]> {
 		.orderBy(repos.fullName);
 }
 
-/**
- * Resolve /:org/:repo — the repo NAME within the org. Ambiguity (two
- * installations granting same-named repos under different owners) picks the
- * most recently installed; the switcher always links canonical names so this
- * is a fallback, not the norm. Null ⇒ the route 404s.
- */
+/** Resolve a unique repo within an org; ambiguous names require owner/forge qualification. */
 export async function getOrgRepo(
 	db: Db,
-	input: { orgId: string; repoName: string },
+	input: { orgId: string; repoName: string; owner?: string; forge?: ForgeId },
 ): Promise<RepoLite | null> {
 	const rows = await db
 		.select(ORG_REPO_LITE)
@@ -1215,12 +1219,23 @@ export async function getOrgRepo(
 			and(
 				eq(repos.orgId, input.orgId),
 				eq(repos.name, input.repoName),
+				input.owner
+					? or(
+							and(
+								eq(repos.forge, "github"),
+								sql`lower(${repos.owner}) = lower(${input.owner})`,
+							),
+							and(eq(repos.forge, "opengit"), eq(repos.owner, input.owner)),
+						)
+					: undefined,
+				input.forge ? sql`${repos.forge} = ${input.forge}` : undefined,
+				inArray(repos.forge, [...forgeSchema.options]),
 				isNull(repos.removedAt),
 			),
 		)
 		.orderBy(sql`${repos.installedAt} DESC`)
-		.limit(1);
-	return rows[0] ?? null;
+		.limit(2);
+	return rows.length === 1 ? (rows[0] ?? null) : null;
 }
 
 /** The org switcher list — repos with triage signal, org-scoped. */
@@ -1255,20 +1270,22 @@ export async function listOrgSwitcherRepos(
 		       act.last AS "lastActivityAt"
 		FROM repos r
 		LEFT JOIN (
-		  SELECT run.repo_full_name AS repo, count(*) AS n
+		  SELECT e.forge, run.repo_full_name AS repo, count(*) AS n
 		  FROM moderation_items mi JOIN runs run ON run.id = mi.run_id
-		  WHERE mi.status = 'pending' GROUP BY run.repo_full_name
-		) pend ON pend.repo = r.full_name
+          JOIN events e ON e.id = run.event_id
+		  WHERE mi.status = 'pending' GROUP BY e.forge, run.repo_full_name
+		) pend ON pend.forge = r.forge AND pend.repo = r.full_name
 		LEFT JOIN (
-		  SELECT repo_full_name AS repo, count(*) AS n FROM runs
+		  SELECT e.forge, runs.repo_full_name AS repo, count(*) AS n FROM runs
+          JOIN events e ON e.id = runs.event_id
 		  WHERE verdict IN ('block', 'changes_required', 'close') AND created_at > now() - make_interval(hours => 24)
 		    AND ${runBearsVerdict}
-		  GROUP BY repo_full_name
-		) blk ON blk.repo = r.full_name
+		  GROUP BY e.forge, runs.repo_full_name
+        ) blk ON blk.forge = r.forge AND blk.repo = r.full_name
 		LEFT JOIN (
-		  SELECT repo_full_name AS repo, max(received_at) AS last
-		  FROM events GROUP BY repo_full_name
-		) act ON act.repo = r.full_name
+		  SELECT forge, repo_full_name AS repo, max(received_at) AS last
+		  FROM events GROUP BY forge, repo_full_name
+		) act ON act.forge = r.forge AND act.repo = r.full_name
 		WHERE r.removed_at IS NULL AND r.org_id = ${orgId}
 		ORDER BY act.last DESC NULLS LAST, r.full_name
 	`);

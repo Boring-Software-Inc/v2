@@ -1,4 +1,6 @@
+import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
+	forgeSchema,
 	HELD_VERDICTS,
 	type RunStanding,
 	ruleResultSchema,
@@ -407,6 +409,7 @@ export async function listDeliverableActions(
 }
 
 export interface StuckAction {
+	forge: Forge;
 	id: string;
 	runId: string;
 	kind: string;
@@ -433,6 +436,7 @@ export async function listStuckActions(
 	const rows = await db
 		.select({
 			id: runActions.id,
+			forge: events.forge,
 			runId: runActions.runId,
 			kind: runActions.kind,
 			payload: runActions.payload,
@@ -447,10 +451,11 @@ export async function listStuckActions(
 		})
 		.from(runActions)
 		.innerJoin(runs, eq(runActions.runId, runs.id))
-		.leftJoin(events, eq(events.id, runs.eventId))
+		.innerJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
 				eq(runActions.status, "recorded"),
+				inArray(events.forge, [...forgeSchema.options]),
 				lt(runActions.recordedAt, recordedBefore),
 			),
 		);
@@ -504,18 +509,17 @@ export interface LatestChangeRequestRun {
 
 export async function getLatestRunIdForChangeRequest(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<string | null> {
 	return (
-		(await getLatestRunForChangeRequest(db, repoFullName, subjectNumber))?.id ??
-		null
+		(await getLatestRunForChangeRequest(db, repo, subjectNumber))?.id ?? null
 	);
 }
 
 export async function getLatestRunForChangeRequest(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<LatestChangeRequestRun | null> {
 	const rows = await db
@@ -524,7 +528,8 @@ export async function getLatestRunForChangeRequest(
 		.leftJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
-				eq(runs.repoFullName, repoFullName),
+				eq(runs.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				eq(runs.subjectNumber, subjectNumber),
 				eventBearsVerdict,
 				liveRun,
@@ -537,7 +542,7 @@ export async function getLatestRunForChangeRequest(
 
 export async function listRunsForChangeRequest(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 ) {
 	return await db
@@ -556,7 +561,8 @@ export async function listRunsForChangeRequest(
 		.leftJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
-				eq(runs.repoFullName, repoFullName),
+				eq(runs.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				eq(runs.subjectNumber, subjectNumber),
 				eventBearsVerdict,
 				liveRun,
@@ -572,7 +578,7 @@ export async function listRunsForChangeRequest(
  */
 export async function getPreviousVerdict(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 	currentRunId: string,
 ): Promise<Verdict | null> {
@@ -582,7 +588,8 @@ export async function getPreviousVerdict(
 		.leftJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
-				eq(runs.repoFullName, repoFullName),
+				eq(runs.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				eq(runs.subjectNumber, subjectNumber),
 				ne(runs.id, currentRunId),
 				isNotNull(runs.verdict),
@@ -601,16 +608,18 @@ export async function getPreviousVerdict(
  */
 export async function getLatestBlockReviewId(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<string | null> {
 	const rows = await db
 		.select({ externalId: runActions.externalId })
 		.from(runActions)
 		.innerJoin(runs, eq(runActions.runId, runs.id))
+		.innerJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
-				eq(runs.repoFullName, repoFullName),
+				eq(runs.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				eq(runs.subjectNumber, subjectNumber),
 				eq(runActions.kind, "block"),
 				eq(runActions.status, "executed"),
@@ -624,14 +633,10 @@ export async function getLatestBlockReviewId(
 
 export async function getActiveBlockReviewId(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<string | null> {
-	const reviewId = await getLatestBlockReviewId(
-		db,
-		repoFullName,
-		subjectNumber,
-	);
+	const reviewId = await getLatestBlockReviewId(db, repo, subjectNumber);
 	if (reviewId === null) {
 		return null;
 	}
@@ -639,9 +644,11 @@ export async function getActiveBlockReviewId(
 		.select({ id: runActions.id })
 		.from(runActions)
 		.innerJoin(runs, eq(runActions.runId, runs.id))
+		.innerJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
-				eq(runs.repoFullName, repoFullName),
+				eq(runs.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				eq(runs.subjectNumber, subjectNumber),
 				eq(runActions.kind, "dismiss-review"),
 				eq(runActions.status, "executed"),
@@ -738,7 +745,7 @@ export async function settleRun(
 
 export async function closedOnHead(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 	headSha: string,
 ): Promise<boolean> {
@@ -746,9 +753,11 @@ export async function closedOnHead(
 		.select({ id: runActions.id })
 		.from(runActions)
 		.innerJoin(runs, eq(runActions.runId, runs.id))
+		.innerJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
-				eq(runs.repoFullName, repoFullName),
+				eq(runs.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				eq(runs.subjectNumber, subjectNumber),
 				eq(runs.headSha, headSha),
 				eq(runActions.kind, "close"),
@@ -793,13 +802,9 @@ export async function listRuns(
 
 export async function listRepoRuns(
 	db: Db,
-	input: { repoFullName: string | readonly string[]; limit: number },
+	input: { repos: readonly RepoIdentity[]; limit: number },
 ) {
-	const names =
-		typeof input.repoFullName === "string"
-			? [input.repoFullName]
-			: input.repoFullName;
-	if (names.length === 0) {
+	if (input.repos.length === 0) {
 		return [];
 	}
 	return await db
@@ -817,7 +822,16 @@ export async function listRepoRuns(
 		})
 		.from(runs)
 		.leftJoin(events, eq(events.id, runs.eventId))
-		.where(inArray(runs.repoFullName, [...names]))
+		.where(
+			or(
+				...input.repos.map((repo) =>
+					and(
+						eq(runs.repoFullName, repo.fullName),
+						sql`${events.forge} = ${repo.forge}`,
+					),
+				),
+			),
+		)
 		.orderBy(desc(runs.id))
 		.limit(input.limit);
 }
@@ -828,12 +842,18 @@ export async function listRepoRuns(
  */
 export async function latestRunIdForRepo(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 ): Promise<string | null> {
 	const [row] = await db
 		.select({ id: runs.id })
 		.from(runs)
-		.where(eq(runs.repoFullName, repoFullName))
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.where(
+			and(
+				eq(runs.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
+			),
+		)
 		.orderBy(desc(runs.id))
 		.limit(1);
 	return row?.id ?? null;
@@ -929,7 +949,7 @@ export interface OpenBlockedRun {
 
 export async function listOpenBlockedRuns(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	since: Date,
 ): Promise<OpenBlockedRun[]> {
 	const latest = await db
@@ -943,7 +963,8 @@ export async function listOpenBlockedRuns(
 		.leftJoin(events, eq(events.id, runs.eventId))
 		.where(
 			and(
-				eq(runs.repoFullName, repoFullName),
+				eq(runs.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				isNotNull(runs.subjectNumber),
 				gt(runs.createdAt, since),
 				eventBearsVerdict,
@@ -975,7 +996,8 @@ export async function listOpenBlockedRuns(
 		.from(events)
 		.where(
 			and(
-				eq(events.repoFullName, repoFullName),
+				eq(events.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				inArray(
 					events.subjectNumber,
 					blocked.map((row) => row.subjectNumber),

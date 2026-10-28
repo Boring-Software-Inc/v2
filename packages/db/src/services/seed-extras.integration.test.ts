@@ -359,6 +359,7 @@ test("each install recovery scenario resolves to its setup page state", async ()
 		});
 		expect(
 			await orgServices.resolveInstallStatus(db, {
+				forge: "github",
 				userId,
 				installationId,
 				stateOrgId: null,

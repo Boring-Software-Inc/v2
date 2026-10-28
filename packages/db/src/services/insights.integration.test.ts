@@ -114,7 +114,10 @@ describe("getRulesStats — repo-scoped, real stored data", () => {
 		const eB = await seedEvent("evt-b", "acme/beta");
 		await seedRun(eB, "acme/beta", ["crypto-address@1"], ["block", "label"]);
 
-		const alpha = await insightServices.getRulesStats(db, "acme/alpha");
+		const alpha = await insightServices.getRulesStats(db, {
+			forge: "github",
+			fullName: "acme/alpha",
+		});
 		expect(alpha.matches24h.value).toBe(2);
 		// block executed, but the comment + set-check rows must NOT count.
 		expect(alpha.actioned24h.value).toBe(1);
@@ -126,13 +129,19 @@ describe("getRulesStats — repo-scoped, real stored data", () => {
 		// beta's rule never appears in alpha's per-rule breakdown.
 		expect(byRef.has("crypto-address@1")).toBe(false);
 
-		const beta = await insightServices.getRulesStats(db, "acme/beta");
+		const beta = await insightServices.getRulesStats(db, {
+			forge: "github",
+			fullName: "acme/beta",
+		});
 		expect(beta.matches24h.value).toBe(1);
 		expect(beta.actioned24h.value).toBe(2);
 	});
 
 	test("a repo with no runs reports honest zeros", async () => {
-		const empty = await insightServices.getRulesStats(db, "acme/nobody");
+		const empty = await insightServices.getRulesStats(db, {
+			forge: "github",
+			fullName: "acme/nobody",
+		});
 		expect(empty.matches24h.value).toBe(0);
 		expect(empty.actioned24h.value).toBe(0);
 		expect(empty.perRule).toHaveLength(0);
@@ -173,7 +182,10 @@ describe("getHomeStats — the number and its series tell one story", () => {
 			status: "pending",
 		});
 
-		const stats = await insightServices.getHomeStats(db, repo);
+		const stats = await insightServices.getHomeStats(db, {
+			forge: "github",
+			fullName: repo,
+		});
 
 		// The whole bug: the last point of the queue series equals the number.
 		expect(stats.sentToReview.value).toBe(1);
@@ -192,13 +204,16 @@ describe("getHomeStats — the number and its series tell one story", () => {
 		await seedVerdictRun(repo, "changes_required");
 		await seedVerdictRun(repo, "close");
 		await seedVerdictRun(repo, "pass");
-		const stats = await insightServices.getHomeStats(db, repo);
+		const stats = await insightServices.getHomeStats(db, {
+			forge: "github",
+			fullName: repo,
+		});
 		expect(stats.blocked.value).toBe(3);
 		expect(stats.blocked.series.reduce((sum, n) => sum + n, 0)).toBe(3);
 		expect(stats.passed.value).toBe(1);
 		const recent = await insightServices.listRecentRuns(db, {
 			verdicts: ["block", "changes_required", "close"],
-			repoFullName: repo,
+			repo: { forge: "github", fullName: repo },
 		});
 		expect(recent.map((run) => run.verdict).sort()).toEqual([
 			"block",
@@ -229,7 +244,10 @@ describe("getHomeStats — the number and its series tell one story", () => {
 	});
 
 	test("a repo with no activity reports honest zeros, not a faked line", async () => {
-		const empty = await insightServices.getHomeStats(db, "acme/quiet");
+		const empty = await insightServices.getHomeStats(db, {
+			forge: "github",
+			fullName: "acme/quiet",
+		});
 		expect(empty.sentToReview.value).toBe(0);
 		expect(empty.blocked.value).toBe(0);
 		expect(empty.passed.value).toBe(0);

@@ -380,3 +380,46 @@ describe("loadRunView, a comment run on the change request", () => {
 		expect(view?.nextRun).toBeNull();
 	});
 });
+
+test("a private run cannot inherit visibility or access from a same-name public repo on another forge", async () => {
+	const { schema } = await import("@tripwire/db");
+	const name = "collision/private-run";
+	await repoServices.ensureRepo(db, {
+		forge: "github",
+		externalId: "collision-gh",
+		owner: "collision",
+		name: "private-run",
+		fullName: name,
+		private: false,
+	});
+	await repoServices.ensureRepo(db, {
+		forge: "opengit",
+		externalId: "collision-og",
+		owner: "collision",
+		name: "private-run",
+		fullName: name,
+		private: true,
+	});
+	const { generateId } = await import("@tripwire/utils");
+	const eventId = generateId();
+	await db.insert(schema.events).values({
+		id: eventId,
+		forge: "opengit",
+		deliveryId: eventId,
+		rawKind: "database-isolation-test",
+		raw: {},
+	});
+	const runId = await runServices.createRun(db, {
+		eventId,
+		repoFullName: name,
+		subjectNumber: 7,
+		headSha: "same-head",
+		snapshot: [DEFAULT_WORKFLOW],
+		status: "completed",
+		verdict: "block",
+	});
+	expect(await loadRunView(db, runId, NO_SESSION)).toBeNull();
+	expect(await loadRunView(db, runId, SESSION)).toBeNull();
+	const open = await loadRunView(db, runId, OPEN_DEV);
+	expect(open?.forge).toBe("opengit");
+});

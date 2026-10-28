@@ -53,7 +53,7 @@ export async function backfillRepo(
 
 	const events = await eventServices.listBackfillEvents(
 		db,
-		repo.fullName,
+		repo,
 		BACKFILL_DAYS,
 		BACKFILL_CAP,
 	);

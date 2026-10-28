@@ -352,3 +352,64 @@ describe("a comment run's own reply", () => {
 		expect((await actionStatuses(commentRun))["reply:4"]).toBe("executed");
 	});
 });
+
+test("retry dispatch uses the event forge even when both repos have the same name", async () => {
+	const { repoServices } = await import("@tripwire/db");
+	const { generateId } = await import("@tripwire/utils");
+	const fullName = "same-owner/retry-target";
+	for (const forge of ["github", "opengit"] as const) {
+		await repoServices.ensureRepo(db, {
+			forge,
+			externalId: generateId(),
+			owner: "same-owner",
+			name: "retry-target",
+			fullName,
+		});
+	}
+	const deliveryId = generateId();
+	const inserted = await eventServices.insertRawEvent(pool, boss, {
+		forge: "opengit",
+		deliveryId,
+		rawKind: "database-isolation-test",
+		raw: {},
+	});
+	if (!inserted.eventId) {
+		throw new Error("missing event");
+	}
+	const runId = await runServices.createRun(db, {
+		eventId: inserted.eventId,
+		repoFullName: fullName,
+		subjectNumber: 99,
+		headSha: "same-head",
+		snapshot: SNAPSHOT,
+		status: "completed",
+		verdict: "pass",
+	});
+	await runServices.recordActions(db, runId, [
+		{
+			kind: "label",
+			payload: { number: 99, labels: ["checked"] },
+			idempotencyKey: "label",
+		},
+	]);
+	const fake = fakeAdapter();
+	const routed: { name: string; forge: string }[] = [];
+	await sweepActions(
+		{
+			db,
+			appUrl: "https://tripwire.sh",
+			logger,
+			adapterFor: (name, forge) => {
+				routed.push({ name, forge });
+				return Promise.resolve(fake.adapter);
+			},
+		},
+		{ recordedBefore: FUTURE(), giveUpBefore: new Date(0) },
+	);
+	expect(routed.filter((route) => route.name === fullName)).toEqual([
+		{ name: fullName, forge: "opengit" },
+	]);
+	expect(
+		fake.executed.filter((action) => action.kind === "label"),
+	).toHaveLength(1);
+});

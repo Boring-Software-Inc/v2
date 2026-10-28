@@ -115,7 +115,7 @@ function CurrentActivityPage() {
 		activityQueryOptions(org, repoName),
 	);
 	const { data: repo } = useQuery(orgRepoQueryOptions(org, repoName));
-	useActivityStream(org, repoName, repo?.fullName);
+	useActivityStream(org, repoName, repo);
 	const { verdict: filter } = routeApi.useSearch();
 	const navigate = routeApi.useNavigate();
 	const setFilter = (verdict: Filter) =>

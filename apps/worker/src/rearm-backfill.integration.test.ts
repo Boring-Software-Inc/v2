@@ -180,11 +180,17 @@ async function drainBackfills(): Promise<number> {
 }
 
 async function runsOfChangeRequest() {
-	return await runServices.listRunsForChangeRequest(db, REPO, NUMBER);
+	return await runServices.listRunsForChangeRequest(
+		db,
+		{ forge: "github", fullName: REPO },
+		NUMBER,
+	);
 }
 
 async function approveOnlyPendingItem(): Promise<string> {
-	const items = await moderationServices.listPendingItems(db, REPO);
+	const items = await moderationServices.listPendingItems(db, [
+		{ forge: "github", fullName: REPO },
+	]);
 	expect(items).toHaveLength(1);
 	const item = items[0];
 	if (!item) {
@@ -223,7 +229,11 @@ describe("turning on a gate that is already on", () => {
 		await repoServices.turnOnGate(db, boss, repoId);
 		expect(await drainBackfills()).toBe(0);
 		expect(await runsOfChangeRequest()).toHaveLength(1);
-		expect(await moderationServices.listPendingItems(db, REPO)).toHaveLength(1);
+		expect(
+			await moderationServices.listPendingItems(db, [
+				{ forge: "github", fullName: REPO },
+			]),
+		).toHaveLength(1);
 
 		executed.length = 0;
 		const runId = await approveOnlyPendingItem();
@@ -256,7 +266,11 @@ describe("turning a gate off and on again", () => {
 		expect(await drainBackfills()).toBe(1);
 
 		expect(await runsOfChangeRequest()).toHaveLength(1);
-		expect(await moderationServices.listPendingItems(db, REPO)).toHaveLength(1);
+		expect(
+			await moderationServices.listPendingItems(db, [
+				{ forge: "github", fullName: REPO },
+			]),
+		).toHaveLength(1);
 	});
 
 	test("an event stored while off replays as history and never takes the live run's surfaces", async () => {
@@ -280,9 +294,17 @@ describe("turning a gate off and on again", () => {
 		expect(replayed.rows).toEqual([
 			{ status: "completed", verdict: "needs_review" },
 		]);
-		expect(await moderationServices.listPendingItems(db, REPO)).toHaveLength(1);
 		expect(
-			await runServices.getLatestRunIdForChangeRequest(db, REPO, NUMBER),
+			await moderationServices.listPendingItems(db, [
+				{ forge: "github", fullName: REPO },
+			]),
+		).toHaveLength(1);
+		expect(
+			await runServices.getLatestRunIdForChangeRequest(
+				db,
+				{ forge: "github", fullName: REPO },
+				NUMBER,
+			),
 		).toBe(runs[0]?.id ?? "");
 
 		executed.length = 0;

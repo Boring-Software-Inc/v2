@@ -1,3 +1,4 @@
+import type { RepoIdentity } from "@tripwire/contracts";
 import {
 	HELD_VERDICTS,
 	type ModStat,
@@ -42,22 +43,22 @@ export async function computeRollupsBetween(
 			SELECT generate_series(${fromDay}::date, ${toDay}::date, interval '1 day')::date AS day
 		) d
 		LEFT JOIN (
-			SELECT repo_full_name, received_at::date AS day, count(*)::int AS n
+			SELECT forge, repo_full_name, received_at::date AS day, count(*)::int AS n
 			FROM events
 			WHERE received_at::date BETWEEN ${fromDay}::date AND ${toDay}::date
-			GROUP BY repo_full_name, received_at::date
-		) e ON e.repo_full_name = r.full_name AND e.day = d.day
+			GROUP BY forge, repo_full_name, received_at::date
+		) e ON e.forge = r.forge AND e.repo_full_name = r.full_name AND e.day = d.day
 		LEFT JOIN (
-			SELECT repo_full_name, created_at::date AS day,
+			SELECT ev.forge, runs.repo_full_name, runs.created_at::date AS day,
 				count(*)::int AS n,
 				count(*) FILTER (WHERE verdict = 'pass')::int AS passed,
 				count(*) FILTER (WHERE verdict IN ('block', 'changes_required', 'close'))::int AS blocked,
 				count(*) FILTER (WHERE verdict = 'needs_review')::int AS review
-			FROM runs
-			WHERE created_at::date BETWEEN ${fromDay}::date AND ${toDay}::date
+			FROM runs JOIN events ev ON ev.id = runs.event_id
+			WHERE runs.created_at::date BETWEEN ${fromDay}::date AND ${toDay}::date
 			  AND ${runBearsVerdict}
-			GROUP BY repo_full_name, created_at::date
-		) x ON x.repo_full_name = r.full_name AND x.day = d.day
+			GROUP BY ev.forge, runs.repo_full_name, runs.created_at::date
+		) x ON x.forge = r.forge AND x.repo_full_name = r.full_name AND x.day = d.day
 		ON CONFLICT (repo_id, day) DO UPDATE SET
 			events = EXCLUDED.events,
 			runs = EXCLUDED.runs,
@@ -100,7 +101,7 @@ async function rollingSeries(db: Db, query: ReturnType<typeof sql>) {
  */
 export async function getHomeStats(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 ): Promise<ModStats> {
 	const scalar = async (query: ReturnType<typeof sql>): Promise<number> => {
 		const result = await db.execute(query);
@@ -110,8 +111,8 @@ export async function getHomeStats(
 	};
 
 	// moderation_items carry no repo column — scope them through their run.
-	const inRepo = sql`run_id IN (SELECT id FROM runs WHERE repo_full_name = ${repoFullName})`;
-	const ofRepo = sql`repo_full_name = ${repoFullName}`;
+	const inRepo = sql`run_id IN (SELECT id FROM runs WHERE repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = runs.event_id AND scope_event.forge = ${repo.forge}))`;
+	const ofRepo = sql`repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = runs.event_id AND scope_event.forge = ${repo.forge})`;
 
 	// A rolling 24h flow series bucketed by hours-ago, for a run verdict.
 	const verdictIn = (verdicts: readonly string[]) =>
@@ -173,7 +174,7 @@ export async function getHomeStats(
 		           (SELECT count(*)::int FROM moderation_items mi
 		            WHERE mi.created_at <= b.t
 		              AND (mi.decided_at IS NULL OR mi.decided_at > b.t)
-		              AND mi.run_id IN (SELECT id FROM runs WHERE repo_full_name = ${repoFullName})
+		              AND mi.run_id IN (SELECT id FROM runs WHERE repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = runs.event_id AND scope_event.forge = ${repo.forge}))
 		           ) AS n
 		    FROM b`,
 	);
@@ -215,7 +216,7 @@ export async function listRecentRuns(
 	opts: {
 		verdicts?: string[];
 		limit?: number;
-		repoFullName?: string;
+		repo?: RepoIdentity;
 		since?: Date;
 		until?: Date;
 	} = {},
@@ -238,8 +239,11 @@ export async function listRecentRuns(
 				opts.verdicts ? inArray(runs.verdict, opts.verdicts) : undefined,
 				opts.verdicts ? eventBearsVerdict : undefined,
 				opts.verdicts ? ne(runs.status, "closed") : undefined,
-				opts.repoFullName
-					? eq(runs.repoFullName, opts.repoFullName)
+				opts.repo
+					? and(
+							eq(runs.repoFullName, opts.repo.fullName),
+							sql`${events.forge} = ${opts.repo.forge}`,
+						)
 					: undefined,
 				opts.since ? gte(runs.createdAt, opts.since) : undefined,
 				opts.until ? lt(runs.createdAt, opts.until) : undefined,
@@ -327,7 +331,7 @@ export interface RulesStats {
  */
 export async function getRulesStats(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 ): Promise<RulesStats> {
 	const scalar = async (query: ReturnType<typeof sql>): Promise<number> => {
 		const result = await db.execute(query);
@@ -339,13 +343,13 @@ export async function getRulesStats(
 	const matches24h = await scalar(sql`
 		SELECT count(*)::int AS n FROM run_steps s
 		JOIN runs r ON r.id = s.run_id
-		WHERE r.repo_full_name = ${repoFullName}
+		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		  AND s.node_kind = 'rule' AND s.status = 'fail'
 		  AND s.started_at > now() - interval '24 hours'`);
 	const matchesPrev = await scalar(sql`
 		SELECT count(*)::int AS n FROM run_steps s
 		JOIN runs r ON r.id = s.run_id
-		WHERE r.repo_full_name = ${repoFullName}
+		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		  AND s.node_kind = 'rule' AND s.status = 'fail'
 		  AND s.started_at BETWEEN now() - interval '48 hours' AND now() - interval '24 hours'`);
 	const matchesSeries = await rollingSeries(
@@ -353,7 +357,7 @@ export async function getRulesStats(
 		sql`SELECT floor(extract(epoch FROM (now() - s.started_at)) / 3600)::int AS h,
 		           count(*)::int AS n
 		    FROM run_steps s JOIN runs r ON r.id = s.run_id
-		    WHERE r.repo_full_name = ${repoFullName}
+		    WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		      AND s.node_kind = 'rule' AND s.status = 'fail'
 		      AND s.started_at > now() - interval '24 hours'
 		    GROUP BY 1`,
@@ -362,13 +366,13 @@ export async function getRulesStats(
 	const actioned24h = await scalar(sql`
 		SELECT count(*)::int AS n FROM run_actions a
 		JOIN runs r ON r.id = a.run_id
-		WHERE r.repo_full_name = ${repoFullName}
+		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		  AND a.status = 'executed' AND a.kind IN (${ENFORCEMENT_LIST})
 		  AND a.executed_at > now() - interval '24 hours'`);
 	const actionedPrev = await scalar(sql`
 		SELECT count(*)::int AS n FROM run_actions a
 		JOIN runs r ON r.id = a.run_id
-		WHERE r.repo_full_name = ${repoFullName}
+		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		  AND a.status = 'executed' AND a.kind IN (${ENFORCEMENT_LIST})
 		  AND a.executed_at BETWEEN now() - interval '48 hours' AND now() - interval '24 hours'`);
 	const actionedSeries = await rollingSeries(
@@ -376,7 +380,7 @@ export async function getRulesStats(
 		sql`SELECT floor(extract(epoch FROM (now() - a.executed_at)) / 3600)::int AS h,
 		           count(*)::int AS n
 		    FROM run_actions a JOIN runs r ON r.id = a.run_id
-		    WHERE r.repo_full_name = ${repoFullName}
+		    WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		      AND a.status = 'executed' AND a.kind IN (${ENFORCEMENT_LIST})
 		      AND a.executed_at > now() - interval '24 hours'
 		    GROUP BY 1`,
@@ -387,7 +391,7 @@ export async function getRulesStats(
 		       extract(hour FROM s.started_at)::int AS bucket,
 		       count(*)::int AS n
 		FROM run_steps s JOIN runs r ON r.id = s.run_id
-		WHERE r.repo_full_name = ${repoFullName}
+		WHERE r.repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = r.event_id AND scope_event.forge = ${repo.forge})
 		  AND s.node_kind = 'rule' AND s.status = 'fail'
 		  AND s.rule_id IS NOT NULL
 		  AND s.started_at > now() - interval '24 hours'

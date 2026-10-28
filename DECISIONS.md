@@ -410,3 +410,11 @@ case with `bun run typecheck:ts5` and the pinned Microsoft TS7 reference before
 attributing it to application code. See the release-specific
 [compatibility](https://github.com/oxc-project/tsrs/blob/v0.20.0/docs/COMPATIBILITY.md)
 and [defaults](https://github.com/oxc-project/tsrs/blob/v0.20.0/docs/DEFAULTS.md).
+
+## GitCafe foundation: separate identity and forge-qualified repository scope (2026-10-27)
+
+The owner authorized GitCafe integration beyond the old second-forge deferral. The first slice repairs namespace isolation before activation. `gitcafe` keeps its distinct catalog ID and canonical origin `https://git.cafe`; historical `opengit` data, origin, issuer, credentials, and paused status are preserved. No migration equates their IDs.
+
+Repository service scopes use `{ forge, fullName }`; runs derive forge from their triggering event. Org permissions remain tenant boundaries, and a Tripwire org can contain multiple forges. Ambiguous names fail closed. Event uniqueness becomes `(forge, delivery_id)` through migration 0045; deploy the targetless-conflict ingest code before replacing the old index. See [migration risks and acceptance evidence](docs/research/git-cafe-foundation.md).
+
+GitCafe remains planned and unavailable for sign-in, connection, ingest, reads, and actions. Subsequent GitCafe protocol code will use explicit subpaths in the existing `packages/forge-opengit` home, preserving legacy exports. No package or dependency is added by this decision. Account-age/global reputation features stay unavailable without invented evidence; when GitCafe is surfaced, retain disabled controls with reasons. Team/org reviewer actors and ongoing GitHub-sync webhooks remain unverified pending live tests, with no hard-coded exclusion based on the initial audit.

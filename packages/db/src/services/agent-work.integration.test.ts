@@ -742,7 +742,7 @@ describe("live channel", () => {
 		});
 		const seen = await liveMessageFor(db, payload, {
 			userId: "someone",
-			canSeeRepo: (name) => name === "g-r-i-m/live",
+			canSeeRepo: (id) => id === repoId,
 		});
 		expect(seen?.type).toBe("work");
 		const hidden = await liveMessageFor(db, payload, {

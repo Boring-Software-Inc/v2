@@ -6,6 +6,7 @@
  * Every jsonb column has a contracts schema validated ON WRITE (services).
  */
 
+export type { RerunChangeRequestJob } from "@tripwire/contracts";
 export { type BackfillReport, backfillOrgs } from "./backfill-orgs.ts";
 export type { Db } from "./client.ts";
 export { createDb, createDirectPool, schema } from "./client.ts";
@@ -30,7 +31,6 @@ export {
 	RESUME_RUN_QUEUE,
 	type RecoverInstallationJob,
 	type RefreshSurfacesJob,
-	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	RULE_PREVIEW_QUEUE,
 	type RulePreviewJob,

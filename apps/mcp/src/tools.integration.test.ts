@@ -540,7 +540,7 @@ describe("a repo argument names the repo the way people copy it", () => {
 		}
 	});
 
-	test("an org in the argument picks that org over the selected one", async () => {
+	test("a repo reference cannot silently override the requested org", async () => {
 		const otherId = await addOrg("other-team", {
 			member: true,
 			repo: "other-repo",
@@ -551,7 +551,8 @@ describe("a repo argument names the repo the way people copy it", () => {
 			org: orgSlug,
 			repo: "other-team/other-repo",
 		});
-		expect(result.isError ?? false).toBe(false);
+		expect(result.isError).toBe(true);
+		expect(result.content[0]?.text).toContain("requested org disagree");
 		const plain = await listed(both, { org: orgSlug, repo: "other-repo" });
 		expect(plain.structuredContent).toEqual({
 			error: `The org ${orgSlug} has no repo named other-repo.`,

@@ -13,7 +13,7 @@ import {
 /**
  * The append-only event store (spec §4/§5). Raw payloads are never mutated or
  * deleted — they are the fixture library, the replay corpus, and the future ML
- * dataset. `deliveryId` UNIQUE is the idempotency guarantee: redelivery = no-op.
+ * dataset. `(forge, deliveryId)` UNIQUE is the idempotency guarantee: redelivery = no-op.
  * Ids are UUIDv7 (app-generated via `generateId()`), giving index locality.
  */
 export const events = pgTable(
@@ -44,7 +44,7 @@ export const events = pgTable(
 		quarantineReason: text("quarantine_reason"),
 	},
 	(t) => [
-		uniqueIndex("events_delivery_id_unique").on(t.deliveryId),
+		uniqueIndex("events_forge_delivery_id_unique").on(t.forge, t.deliveryId),
 		index("events_repo_received_idx").on(t.repoFullName, t.receivedAt),
 		index("events_kind_idx").on(t.kind),
 	],

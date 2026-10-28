@@ -51,15 +51,11 @@ export async function loadRunView(
 	if (!result) {
 		return null;
 	}
-	// The repo row backs both the no-session privacy gate and the full view's
-	// re-run scope (org slug + repo name + the admin check).
-	/**
-	 * `runs` stores repo_full_name and no forge, so the forge comes from the repo
-	 * row. This was hardcoded to "github": an open-git run resolved NO repo, so
-	 * it lost its org, its re-run scope, and its custom rule names, and the page
-	 * quietly rendered a lesser version of itself.
-	 */
-	const forge = await repoServices.findRepoForge(db, result.run.repoFullName);
+	const eventRow = await eventServices.getEventById(db, result.run.eventId);
+	if (!eventRow) {
+		return null;
+	}
+	const forge = eventRow.forge;
 	const repo = forge
 		? await repoServices.getRepoByFullName(db, result.run.repoFullName, forge)
 		: null;
@@ -107,7 +103,6 @@ export async function loadRunView(
 	const resolveRuleName = (ref: string | null): string | null =>
 		ref ? (customNameByRef.get(ref) ?? ruleDisplayName(ref)) : null;
 	const snapshot = parseSnapshot(result.run.workflowSnapshot as JsonValue);
-	const eventRow = await eventServices.getEventById(db, result.run.eventId);
 	const eventNormalized = (eventRow?.normalized ?? null) as JsonValue | null;
 	const scheduled = eventRow?.kind === "schedule.matched";
 	const siblings =
@@ -115,7 +110,7 @@ export async function loadRunView(
 			? []
 			: await runServices.listRunsForChangeRequest(
 					db,
-					result.run.repoFullName,
+					{ forge: eventRow.forge, fullName: result.run.repoFullName },
 					result.run.subjectNumber,
 				);
 	const position = siblings.findIndex((row) => row.id === result.run.id);

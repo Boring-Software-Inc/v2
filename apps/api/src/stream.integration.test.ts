@@ -204,3 +204,62 @@ describe("GET /events/stream agent channel", () => {
 		expect(await reading).not.toContain("event: agent");
 	});
 });
+
+test("same-name repositories on different forges do not share live visibility", async () => {
+	const { generateId } = await import("@tripwire/utils");
+	const orgId = generateId();
+	const ownRepoId = generateId();
+	const foreignRepoId = generateId();
+	const fullName = "same-owner/stream-collision";
+	await db
+		.insert(schema.organization)
+		.values({ id: orgId, name: orgId, slug: orgId });
+	await db.insert(schema.member).values({
+		id: generateId(),
+		organizationId: orgId,
+		userId: "u1",
+		role: "member",
+	});
+	for (const forge of ["github", "opengit"] as const) {
+		await db.insert(schema.repos).values({
+			id: forge === "github" ? ownRepoId : foreignRepoId,
+			forge,
+			externalId: generateId(),
+			owner: "same-owner",
+			name: "stream-collision",
+			fullName,
+			orgId: forge === "github" ? orgId : null,
+		});
+	}
+	const res = await makeApp(fakeAuth({ user: { id: "u1" } })).request(
+		"/events/stream",
+	);
+	const reading = readUntil(res, "visible-workflow", 5000);
+	await new Promise((resolve) => setTimeout(resolve, 300));
+	const draft = (id: string) => ({
+		id,
+		name: id,
+		version: 1,
+		nodes: [
+			{
+				id: "trigger",
+				type: "trigger" as const,
+				kinds: ["change-request.opened" as const],
+			},
+		],
+		edges: [],
+	});
+	await agentWorkServices.saveAgentDraft(db, {
+		repoId: foreignRepoId,
+		agent: { userId: "u1", clientId: "test" },
+		definition: draft("hidden-workflow"),
+	});
+	await agentWorkServices.saveAgentDraft(db, {
+		repoId: ownRepoId,
+		agent: { userId: "u1", clientId: "test" },
+		definition: draft("visible-workflow"),
+	});
+	const text = await reading;
+	expect(text).toContain("visible-workflow");
+	expect(text).not.toContain("hidden-workflow");
+});

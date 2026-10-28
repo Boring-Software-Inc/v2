@@ -94,6 +94,7 @@ export const getInstallPreview = createServerFn({ method: "GET" })
 		const { verifyInstallState } = await import("#/lib/server/install-state");
 		const bound = data.state ? verifyInstallState(data.state) : null;
 		const status = await orgServices.resolveInstallStatus(getDb().db, {
+			forge: "github",
 			userId,
 			installationId: data.installationId,
 			stateOrgId: bound && bound.userId === userId ? bound.orgId : null,

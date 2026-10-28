@@ -15,6 +15,7 @@ import {
 	providerCostsDaily,
 	usageCounters,
 } from "../schema/economics.ts";
+import { events } from "../schema/events.ts";
 import { organization } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
 import { runSteps, runs } from "../schema/runs.ts";
@@ -259,7 +260,11 @@ export async function backfillAiReviewUsage(
 		})
 		.from(runSteps)
 		.innerJoin(runs, eq(runSteps.runId, runs.id))
-		.leftJoin(repos, eq(repos.fullName, runs.repoFullName))
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.leftJoin(
+			repos,
+			and(eq(repos.fullName, runs.repoFullName), eq(repos.forge, events.forge)),
+		)
 		.where(like(runSteps.ruleId, "ai-review@%"));
 
 	const result: BackfillUsageResult = {
@@ -730,7 +735,11 @@ export async function rollupEconomicsDay(
 			runs: sql<number>`count(*)::int`,
 		})
 		.from(runs)
-		.leftJoin(repos, eq(repos.fullName, runs.repoFullName))
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.leftJoin(
+			repos,
+			and(eq(repos.fullName, runs.repoFullName), eq(repos.forge, events.forge)),
+		)
 		.where(onDay("runs.created_at"))
 		.groupBy(repos.orgId);
 

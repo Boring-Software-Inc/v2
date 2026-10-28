@@ -53,7 +53,7 @@ export async function refreshRepoSurfaces(
 		repoServices.listCustomRules(db, repo.id),
 		runServices.listOpenBlockedRuns(
 			db,
-			repo.fullName,
+			repo,
 			new Date(Date.now() - REFRESH_WINDOW_MS),
 		),
 	]);
@@ -64,7 +64,7 @@ export async function refreshRepoSurfaces(
 		const runData = await runServices.getRunWithSteps(db, target.runId);
 		const eventRow = await eventServices.getLatestChangeRequestEvent(
 			db,
-			repo.fullName,
+			repo,
 			target.subjectNumber,
 		);
 		const event = normalizedEventSchema.safeParse(eventRow?.normalized);
@@ -83,7 +83,7 @@ export async function refreshRepoSurfaces(
 			reviews && verdict === "block"
 				? await runServices.getActiveBlockReviewId(
 						db,
-						repo.fullName,
+						repo,
 						target.subjectNumber,
 					)
 				: null;

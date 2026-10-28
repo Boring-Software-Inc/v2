@@ -148,3 +148,18 @@ describe("POST /webhooks/github", () => {
 		expect(noHeaders.status).toBe(400);
 	});
 });
+
+test("GitCafe identity alone does not enable a webhook endpoint", async () => {
+	const before = await pool.query<{ n: number }>(
+		"SELECT count(*)::int AS n FROM events",
+	);
+	const res = await app.request("/webhooks/gitcafe", {
+		method: "POST",
+		body: "not a payload",
+	});
+	expect(res.status).toBe(404);
+	const after = await pool.query<{ n: number }>(
+		"SELECT count(*)::int AS n FROM events",
+	);
+	expect(after.rows[0]?.n).toBe(before.rows[0]?.n);
+});

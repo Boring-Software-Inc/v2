@@ -1,10 +1,18 @@
 import { z } from "zod";
+import { forgeIdSchema } from "./forges.ts";
 
 /**
  * Repo domain (spec §4 `repo.ts`). Extracted from the demo's
  * `integrations.types.ts` — `Repo` was the demo's `ConnectedRepo`, `RepoRef`
  * its `Repository`. `RepoConfig` lands with the rules-UI build step.
  */
+
+/** Repository names are unique only within a forge. This scope carries no authorization. */
+export const repoIdentitySchema = z.object({
+	forge: forgeIdSchema,
+	fullName: z.string().min(1),
+});
+export type RepoIdentity = z.infer<typeof repoIdentitySchema>;
 
 /** A lightweight owner/name reference to a repo (was demo `Repository`). */
 export const repoRefSchema = z.object({

@@ -1,4 +1,4 @@
-import type { Forge } from "@tripwire/contracts";
+import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
 	type ActivityFeed,
 	type ActivityFeedItem,
@@ -30,7 +30,7 @@ export interface InsertRawEventInput {
 }
 
 export interface InsertRawEventResult {
-	/** false ⇒ redelivery; UNIQUE(delivery_id) made it a no-op (§5.3). */
+	/** false ⇒ redelivery; UNIQUE(forge, delivery_id) made it a no-op (§5.3). */
 	inserted: boolean;
 	eventId: string | null;
 }
@@ -53,7 +53,7 @@ export async function insertRawEvent(
 		const res = await client.query<{ id: string }>(
 			`INSERT INTO events (id, delivery_id, raw_kind, raw, forge)
 			 VALUES ($1, $2, $3, $4, $5)
-			 ON CONFLICT (delivery_id) DO NOTHING
+			 ON CONFLICT DO NOTHING
 			 RETURNING id`,
 			[
 				id,
@@ -107,7 +107,7 @@ export async function markEventNormalized(
 			: "push" in valid
 				? valid.push.headSha
 				: null;
-	await db
+	const updated = await db
 		.update(events)
 		.set({
 			kind: valid.kind,
@@ -118,7 +118,11 @@ export async function markEventNormalized(
 			normalized: valid,
 			normalizedAt: new Date(),
 		})
-		.where(eq(events.id, eventId));
+		.where(and(eq(events.id, eventId), eq(events.forge, valid.forge)))
+		.returning({ id: events.id });
+	if (updated.length !== 1) {
+		throw new Error("normalized event forge does not match the stored event");
+	}
 	await pool.query("SELECT pg_notify('events', $1)", [eventId]);
 }
 
@@ -146,7 +150,7 @@ export async function getEventById(db: Db, eventId: string) {
  */
 export async function getLatestChangeRequestEvent(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 ) {
 	const rows = await db
@@ -154,7 +158,8 @@ export async function getLatestChangeRequestEvent(
 		.from(events)
 		.where(
 			and(
-				eq(events.repoFullName, repoFullName),
+				eq(events.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				eq(events.subjectNumber, subjectNumber),
 				isNotNull(events.normalizedAt),
 				inArray(events.kind, [
@@ -170,7 +175,7 @@ export async function getLatestChangeRequestEvent(
 
 export async function changeRequestIsClosed(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<boolean> {
 	const rows = await db
@@ -178,7 +183,8 @@ export async function changeRequestIsClosed(
 		.from(events)
 		.where(
 			and(
-				eq(events.repoFullName, repoFullName),
+				eq(events.repoFullName, repo.fullName),
+				sql`${events.forge} = ${repo.forge}`,
 				eq(events.subjectNumber, subjectNumber),
 				isNotNull(events.normalizedAt),
 				inArray(events.kind, [
@@ -364,7 +370,7 @@ export async function getActivityForEvent(
  */
 export async function listBackfillEvents(
 	db: Db,
-	repoFullName: string,
+	repo: RepoIdentity,
 	sinceDays: number,
 	cap: number,
 ): Promise<{ id: string; normalized: NormalizedEvent }[]> {
@@ -372,7 +378,7 @@ export async function listBackfillEvents(
 		SELECT id, normalized FROM (
 			SELECT DISTINCT ON (subject_number) id, normalized, received_at
 			FROM events
-			WHERE repo_full_name = ${repoFullName}
+			WHERE forge = ${repo.forge} AND repo_full_name = ${repo.fullName}
 			  AND normalized IS NOT NULL
 			  AND subject_number IS NOT NULL
 			  AND normalized ? 'changeRequest'
@@ -474,14 +480,14 @@ function buildGroup(rows: RawRow[]): ActivityGroup {
 
 export async function listActivityFeed(
 	db: Db,
-	{ repoFullName, limit = 50 }: { repoFullName: string; limit?: number },
+	{ repo, limit = 50 }: { repo: RepoIdentity; limit?: number },
 ): Promise<ActivityFeed> {
 	const grouped = await db.execute(sql`
 		WITH grp AS (
 			SELECT repo_full_name, subject_number, max(received_at) AS latest_at
 			FROM events
 			WHERE normalized_at IS NOT NULL AND subject_number IS NOT NULL
-			  AND repo_full_name = ${repoFullName}
+			  AND forge = ${repo.forge} AND repo_full_name = ${repo.fullName}
 			GROUP BY repo_full_name, subject_number
 			ORDER BY latest_at DESC
 			LIMIT ${limit}
@@ -490,7 +496,7 @@ export async function listActivityFeed(
 		       r.id AS run_id, r.verdict, r.status, fr.summary AS reason,
 		       fr.rule_id AS failing_rule_id
 		FROM grp g
-		JOIN events e ON e.repo_full_name = g.repo_full_name
+		JOIN events e ON e.forge = ${repo.forge} AND e.repo_full_name = g.repo_full_name
 		            AND e.subject_number = g.subject_number
 		            AND e.normalized_at IS NOT NULL
 		LEFT JOIN LATERAL (
@@ -525,7 +531,7 @@ export async function listActivityFeed(
 		       fr.rule_id AS failing_rule_id, e.received_at
 		${ACTIVITY_FROM}
 		WHERE e.normalized_at IS NOT NULL AND e.subject_number IS NULL
-		  AND e.repo_full_name = ${repoFullName}
+		  AND e.forge = ${repo.forge} AND e.repo_full_name = ${repo.fullName}
 		ORDER BY e.id DESC
 		LIMIT ${limit}
 	`);
