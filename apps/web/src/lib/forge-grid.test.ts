@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { FORGE_CATALOG } from "@tripwire/contracts";
-import { connectForges, signInForges } from "#/lib/forge-grid";
+import { signInForgeLabels, signInForges } from "@tripwire/utils/forge-sign-in";
+import { connectForges } from "#/lib/forge-grid";
 
 const catalogIds = FORGE_CATALOG.map((forge) => forge.id);
 
@@ -9,16 +10,38 @@ const availability = (forges: readonly { id: string; available: boolean }[]) =>
 
 describe("sign-in grid", () => {
 	test("lists every forge in catalog order", () => {
-		expect(signInForges().map((forge) => forge.id)).toEqual(catalogIds);
+		expect(signInForges([]).map((forge) => forge.id)).toEqual(catalogIds);
 	});
 
-	test("enables only forges you can sign in with", () => {
-		expect(availability(signInForges())).toEqual({
+	test("catalog support alone cannot enable a provider", () => {
+		expect(availability(signInForges([]))).toEqual({
+			github: false,
+			opengit: false,
+			gitlab: false,
+			gitcafe: false,
+		});
+	});
+
+	test("requires server registration for GitCafe while preserving GitHub", () => {
+		expect(availability(signInForges(["github"]))).toEqual({
 			github: true,
 			opengit: false,
 			gitlab: false,
 			gitcafe: false,
 		});
+		expect(availability(signInForges(catalogIds))).toEqual({
+			github: true,
+			opengit: false,
+			gitlab: false,
+			gitcafe: true,
+		});
+		expect(availability(signInForges(["gitcafe"])).github).toBe(false);
+	});
+
+	test("sign-in copy names only configured and supported providers", () => {
+		expect(signInForgeLabels([])).toBe("");
+		expect(signInForgeLabels(["github"])).toBe("GitHub");
+		expect(signInForgeLabels(catalogIds)).toBe("GitHub and GitCafe");
 	});
 });
 

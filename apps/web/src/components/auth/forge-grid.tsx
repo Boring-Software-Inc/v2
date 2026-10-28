@@ -1,17 +1,19 @@
+import { useQuery } from "@tanstack/react-query";
+import { forgeSignIn } from "@tripwire/contracts";
+import { signInForges } from "@tripwire/utils/forge-sign-in";
 import { useState } from "react";
-import { FORGE_GRID, ForgeCell } from "#/components/forges/forge-cell";
+import {
+	FORGE_GRID,
+	ForgeCell,
+	type ForgeCellState,
+} from "#/components/forges/forge-cell";
 import { toast } from "#/components/glaze/ui/toast";
+import { signInProviderIdsQueryOptions } from "#/lib/auth.query";
 import { authClient } from "#/lib/auth-client";
-import { signInForges } from "#/lib/forge-grid";
 
 /**
- * The sign-in grid, rendered straight off `FORGE_CATALOG`: there is no list of
- * forges here. Giving a catalog entry a `signIn` enables its button, no edit to
- * this file.
- *
- * A cell is enabled when the forge can be SIGNED INTO, which is not the same as
- * `status: "live"`. A forge's OAuth can ship long before its adapter. Keying
- * this grid on `status` would disable a working login.
+ * Catalog support and initialized server registration are both required.
+ * Sign-in can ship independently of ingest and connect.
  *
  * Pending state is keyed by forge id rather than a boolean so the forges spin
  * independently. The OAuth hop is a full navigation; without it the button
@@ -19,37 +21,60 @@ import { signInForges } from "#/lib/forge-grid";
  */
 export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 	const [signingIn, setSigningIn] = useState<string | null>(null);
+	const providers = useQuery(signInProviderIdsQueryOptions());
+
+	async function signIn(forge: ReturnType<typeof signInForges>[number]) {
+		setSigningIn(forge.id);
+		const fallback = `Couldn't reach ${forge.label}. Check your connection and try again.`;
+		try {
+			const { error } = await authClient.signIn.social({
+				provider: forge.id,
+				callbackURL: redirect ?? "/",
+			});
+			if (!error) {
+				return;
+			}
+			toast.fail(error.message ?? fallback);
+		} catch {
+			toast.fail(fallback);
+		}
+		setSigningIn(null);
+	}
+
+	function cellState(
+		forge: ReturnType<typeof signInForges>[number],
+	): ForgeCellState {
+		if (forgeSignIn(forge.id) === null) {
+			return { kind: "unavailable" };
+		}
+		if (providers.isPending) {
+			return { kind: "loading" };
+		}
+		if (providers.isError) {
+			return {
+				kind: "blocked",
+				title: "Sign-in is unavailable right now",
+				body: "Tripwire couldn't load its sign-in providers. Refresh the page to try again.",
+			};
+		}
+		if (!forge.available) {
+			return { kind: "unavailable" };
+		}
+		return {
+			kind: "ready",
+			pending: signingIn === forge.id,
+			onSelect: () => void signIn(forge),
+		};
+	}
 
 	return (
 		<div className={FORGE_GRID}>
-			{signInForges().map((forge) => (
+			{signInForges(providers.data ?? []).map((forge) => (
 				<ForgeCell
 					id={forge.id}
 					key={forge.id}
 					label={forge.label}
-					state={
-						forge.available
-							? {
-									kind: "ready",
-									pending: signingIn === forge.id,
-									onSelect: async () => {
-										setSigningIn(forge.id);
-										const callbackURL = redirect ?? "/";
-										const { error } = await authClient.signIn.social({
-											provider: forge.id,
-											callbackURL,
-										});
-										if (error) {
-											setSigningIn(null);
-											toast.fail(
-												error.message ??
-													`Couldn't reach ${forge.label}. Check your connection and try again.`,
-											);
-										}
-									},
-								}
-							: { kind: "unavailable" }
-					}
+					state={cellState(forge)}
 				/>
 			))}
 		</div>
