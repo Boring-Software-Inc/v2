@@ -172,6 +172,7 @@ export * as presenceServices from "./services/presence.ts";
 export type { RepoSetupFacts } from "./services/repo-setup.ts";
 export * as repoSetupServices from "./services/repo-setup.ts";
 export * as repoServices from "./services/repos.ts";
+export * as repositoryConnectionServices from "./services/repository-connections.ts";
 export type { RedactionUsage } from "./services/responses.ts";
 export * as responseServices from "./services/responses.ts";
 export type { RepoReviewerList } from "./services/reviewers.ts";

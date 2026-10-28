@@ -5,6 +5,7 @@ import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
+import { OrganizationConnectionsPage } from "#/components/forges/organization-connections-page";
 import { Add, Icon } from "#/components/glaze/icon";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -159,6 +160,14 @@ function ConnectionRowsSkeleton() {
 }
 
 export function ConnectionsPage({ org }: { org: string | null }) {
+	return org ? (
+		<OrganizationConnectionsPage org={org} />
+	) : (
+		<AccountConnectionsPage />
+	);
+}
+
+function AccountConnectionsPage() {
 	const [connecting, setConnecting] = useState(false);
 	const { data: connections, isLoading } = useQuery(connectionsQueryOptions());
 	const { data: user } = useQuery(currentUserQueryOptions());
@@ -205,7 +214,7 @@ export function ConnectionsPage({ org }: { org: string | null }) {
 			<ConnectForgeDialog
 				onOpenChange={setConnecting}
 				open={connecting}
-				org={org}
+				org={null}
 			/>
 		</>
 	);
