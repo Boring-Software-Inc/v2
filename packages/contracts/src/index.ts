@@ -37,14 +37,6 @@ export {
 	gitCafePublicRepositorySchema,
 } from "./gitcafe.ts";
 export {
-	type GitCafeInstallation,
-	type GitCafeInstallationToken,
-	type GitCafePermission,
-	gitCafeInstallationSchema,
-	gitCafeInstallationTokenSchema,
-	gitCafePermissionSchema,
-} from "./gitcafe-installation.ts";
-export {
 	GITCAFE_ISSUER,
 	type GitCafeIdentity,
 	type GitCafeOidcClaims,
@@ -54,6 +46,14 @@ export {
 	gitCafeOidcClaimsSchema,
 	gitCafeOidcClientSchema,
 } from "./gitcafe-identity.ts";
+export {
+	type GitCafeInstallation,
+	type GitCafeInstallationToken,
+	type GitCafePermission,
+	gitCafeInstallationSchema,
+	gitCafeInstallationTokenSchema,
+	gitCafePermissionSchema,
+} from "./gitcafe-installation.ts";
 export {
 	type DigestHistory,
 	type DigestHistoryInput,
