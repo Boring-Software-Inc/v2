@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, expect, spyOn, test } from "bun:test";
 import {
 	DEFAULT_WORKFLOW,
 	GITCAFE_CONNECT_QUEUE,
@@ -7,6 +7,7 @@ import {
 	gitCafeConnectionRepositorySchema,
 	gitCafeInstallationSchema,
 	gitCafeOrganizationMembersSchema,
+	type RepoArmingResult,
 } from "@tripwire/contracts";
 import {
 	account,
@@ -140,20 +141,20 @@ beforeEach(async () => {
 				lookupCount++;
 				return { ok: true, value: changedLookup() };
 			},
-			getToken: async () => ({ ok: true, value: "test-transport-credential" }),
-		},
-		fetch: async (input) => {
-			reads++;
-			await beforeFetch();
-			const url = String(input);
-			if (url === `https://git.cafe/api/orgs/${installation.org}/members/`)
-				return Response.json(membersResponse);
-			if (
-				url ===
-				`https://git.cafe/api/repos/${installation.org}/${repository.name}`
-			)
-				return Response.json(repositoryResponse);
-			throw new Error("unexpected connection URL");
+			getOrganizationMembers: async () => {
+				reads++;
+				await beforeFetch();
+				return { ok: true, value: membersResponse };
+			},
+			getRepository: async () => {
+				reads++;
+				await beforeFetch();
+				const parsed =
+					gitCafeConnectionRepositorySchema.safeParse(repositoryResponse);
+				return parsed.success
+					? { ok: true, value: parsed.data }
+					: { ok: false, reason: "invalid-response" };
+			},
 		},
 	};
 });
@@ -185,7 +186,7 @@ test("explicit bounded action persists first-class GitCafe rows without linking 
 	).not.toBeNull();
 	expect(await orgServices.listOrgSwitcherRepos(db, job.orgId)).toHaveLength(1);
 	expect(await db.select().from(account)).toHaveLength(0);
-	expect(reads).toBe(4);
+	expect(reads).toBe(6);
 	expect(lookupCount).toBe(4);
 });
 
@@ -333,6 +334,95 @@ test("actor authority is fresh at mutation and incomplete member pages fail clos
 	});
 });
 
+for (const scenario of [
+	{
+		name: "revoked",
+		members: { ...membership, items: [] },
+		reason: "not-admin" as const,
+	},
+	{
+		name: "demoted",
+		members: {
+			...membership,
+			items: membership.items.map((entry) => ({
+				...entry,
+				role: "org-member",
+			})),
+		},
+		reason: "not-admin" as const,
+	},
+	{
+		name: "ambiguous",
+		members: {
+			...membership,
+			items: [...membership.items, ...membership.items],
+		},
+		reason: "not-admin" as const,
+	},
+	{
+		name: "incomplete",
+		members: { ...membership, next: "next-page" },
+		reason: "authority-unavailable" as const,
+	},
+]) {
+	test(`membership ${scenario.name} during the final repository read refuses without persisting ownership`, async () => {
+		let repositoryReads = 0;
+		const readRepository = deps.client.getRepository;
+		deps.client.getRepository = async (...args) => {
+			repositoryReads++;
+			if (repositoryReads === 2) membersResponse = scenario.members;
+			return readRepository(...args);
+		};
+		expect(await connectGitCafeInstallation(deps, job)).toEqual({
+			ok: false,
+			reason: scenario.reason,
+		});
+		expect(repositoryReads).toBe(2);
+		expect(reads).toBe(6);
+		expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+		expect(await db.select().from(repos)).toHaveLength(0);
+	});
+}
+
+test("a stopped queue returns queue-unavailable instead of rejecting after authorization", async () => {
+	const unavailable = await createBoss(container.url);
+	await unavailable.stop({ graceful: false });
+	expect(
+		await gitCafeConnectionServices.enqueueGitCafeConnection(
+			db,
+			unavailable,
+			job,
+		),
+	).toEqual({ ok: false, reason: "queue-unavailable" });
+	expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+	expect(await db.select().from(repos)).toHaveLength(0);
+});
+
+test("a queue outage during send returns queue-unavailable", async () => {
+	const unavailable = await createBoss(container.url);
+	const createQueue = unavailable.createQueue.bind(unavailable);
+	const create = spyOn(unavailable, "createQueue").mockImplementation(
+		async (...args) => {
+			await createQueue(...args);
+			await unavailable.stop({ graceful: false });
+		},
+	);
+	try {
+		expect(
+			await gitCafeConnectionServices.enqueueGitCafeConnection(
+				db,
+				unavailable,
+				job,
+			),
+		).toEqual({ ok: false, reason: "queue-unavailable" });
+		expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+		expect(await db.select().from(repos)).toHaveLength(0);
+	} finally {
+		create.mockRestore();
+		await unavailable.stop({ graceful: false });
+	}
+});
+
 test("inactive, wrong-app, all-selection and unstable installation evidence fail closed", async () => {
 	for (const change of [
 		{ pausedAt: new Date().toISOString() },
@@ -391,12 +481,28 @@ test("generic claims cannot bypass GitCafe fresh authority and protection remain
 	});
 	const [row] = await db.select().from(repos);
 	if (!row) throw new Error("missing connected row");
-	await expect(repoServices.setRepoArmed(db, row.id, true)).rejects.toThrow(
-		"Protection is unavailable",
-	);
-	await expect(repoServices.turnOnGate(db, boss, row.id)).rejects.toThrow(
-		"Protection is unavailable",
-	);
+	const refused: RepoArmingResult = {
+		ok: false,
+		armed: false,
+		reason: "protection-unavailable",
+	};
+	expect(await repoServices.setRepoArmed(db, row.id, true)).toEqual(refused);
+	let queueReads = 0;
+	expect(
+		await repoServices.turnOnGate(
+			db,
+			async () => {
+				queueReads++;
+				return boss;
+			},
+			row.id,
+		),
+	).toEqual(refused);
+	expect(queueReads).toBe(0);
+	expect(await repoServices.setRepoArmed(db, row.id, false)).toEqual({
+		ok: true,
+		armed: false,
+	});
 	const workflowId = await repoServices.saveWorkflowDefinition(
 		db,
 		row.id,

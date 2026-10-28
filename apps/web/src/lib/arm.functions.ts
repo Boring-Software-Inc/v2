@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { RepoArmingResult } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
 import { z } from "zod";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
@@ -14,12 +15,12 @@ import {
  * only UI paths to it), and an ADMIN act — it changes what the org enforces.
  * dev:demo has no worker/queue, so arming alone is enough there.
  */
-async function armById(repoId: string): Promise<void> {
+async function armById(repoId: string): Promise<RepoArmingResult> {
 	const { repoServices } = await import("@tripwire/db");
 	const { getBoss, getDb, isDemoMode } = await import("#/lib/server/db");
-	await repoServices.turnOnGate(
+	return await repoServices.turnOnGate(
 		getDb().db,
-		isDemoMode() ? null : await getBoss(),
+		isDemoMode() ? null : getBoss,
 		repoId,
 	);
 }
@@ -32,11 +33,13 @@ export const armRepo = createServerFn({ method: "POST" })
 	])
 	.inputValidator((input: { org: string; repo: string }) => input)
 	.handler(
-		async ({ data, context }): Promise<{ armed: boolean; repoId: string }> => {
+		async ({
+			data,
+			context,
+		}): Promise<RepoArmingResult & { repoId: string }> => {
 			const org = (context as { org: OrgWithRole }).org;
 			const repo = await resolveOrgRepo(org.id, data.repo);
-			await armById(repo.id);
-			return { armed: true, repoId: repo.id };
+			return { ...(await armById(repo.id)), repoId: repo.id };
 		},
 	);
 
@@ -52,13 +55,20 @@ export const disarmRepo = createServerFn({ method: "POST" })
 	])
 	.inputValidator((input: { org: string; repo: string }) => input)
 	.handler(
-		async ({ data, context }): Promise<{ armed: boolean; repoId: string }> => {
+		async ({
+			data,
+			context,
+		}): Promise<RepoArmingResult & { repoId: string }> => {
 			const org = (context as { org: OrgWithRole }).org;
 			const repo = await resolveOrgRepo(org.id, data.repo);
 			const { repoServices } = await import("@tripwire/db");
 			const { getDb } = await import("#/lib/server/db");
-			await repoServices.setRepoArmed(getDb().db, repo.id, false);
-			return { armed: false, repoId: repo.id };
+			const result = await repoServices.setRepoArmed(
+				getDb().db,
+				repo.id,
+				false,
+			);
+			return { ...result, repoId: repo.id };
 		},
 	);
 
@@ -69,11 +79,10 @@ export const armRepoById = createServerFn({ method: "POST" })
 		orgPermissionMiddleware("connections:manage"),
 	])
 	.inputValidator((input: { org: string; repoId: string }) => input)
-	.handler(async ({ data, context }): Promise<{ armed: boolean }> => {
+	.handler(async ({ data, context }): Promise<RepoArmingResult> => {
 		const org = (context as { org: OrgWithRole }).org;
 		await requireOrgRepoById(org.id, data.repoId);
-		await armById(data.repoId);
-		return { armed: true };
+		return await armById(data.repoId);
 	});
 
 const repoByIdInput = z.object({
@@ -89,11 +98,10 @@ export const disarmRepoById = createServerFn({ method: "POST" })
 	.inputValidator((input: { org: string; repoId: string }) =>
 		repoByIdInput.parse(input),
 	)
-	.handler(async ({ data, context }): Promise<{ armed: boolean }> => {
+	.handler(async ({ data, context }): Promise<RepoArmingResult> => {
 		const org = (context as { org: OrgWithRole }).org;
 		await requireOrgRepoById(org.id, data.repoId);
 		const { repoServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		await repoServices.setRepoArmed(getDb().db, data.repoId, false);
-		return { armed: false };
+		return await repoServices.setRepoArmed(getDb().db, data.repoId, false);
 	});

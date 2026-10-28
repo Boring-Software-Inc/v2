@@ -57,10 +57,7 @@ export async function startGitCafeConnectionWorker(
 			const authorization = gitCafeConnectionJobSchema.safeParse(job.data);
 			const result = gitCafeConnectionResultSchema.parse(
 				authorization.success
-					? await connectGitCafeInstallation(
-							{ db, client, fetch },
-							authorization.data,
-						)
+					? await connectGitCafeInstallation({ db, client }, authorization.data)
 					: { ok: false, reason: "invalid-job" },
 			);
 			logger.info(

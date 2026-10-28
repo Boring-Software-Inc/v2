@@ -1,8 +1,12 @@
 import {
+	type GitCafeConnectionRepository,
 	type GitCafeInstallation,
+	type GitCafeOrganizationMembers,
 	type GitCafePermission,
+	gitCafeConnectionRepositorySchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
+	gitCafeOrganizationMembersSchema,
 } from "@tripwire/contracts";
 import {
 	createGitCafeInstallationRequest,
@@ -15,6 +19,7 @@ export type GitCafeInstallationFailure = {
 	reason:
 		| "configuration"
 		| "invalid-installation-id"
+		| "invalid-resource-path"
 		| "network"
 		| "http"
 		| "invalid-response"
@@ -55,6 +60,7 @@ const TOKEN_SAFETY_MS = 60_000;
 const TOKEN_MAX_LIFETIME_MS = 15 * 60_000;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const PERMISSION_RANK = { read: 1, write: 2, admin: 3 };
+const PATH_SEGMENT = /^(?!\.{1,2}$)[A-Za-z0-9_.-]+$/;
 
 export class GitCafeInstallationClient {
 	private readonly fetch: NonNullable<
@@ -89,6 +95,63 @@ export class GitCafeInstallationClient {
 		return snapshot.ok
 			? { ok: true, value: snapshot.value.installation }
 			: snapshot;
+	}
+
+	async getOrganizationMembers(
+		installationId: string,
+		org: string,
+	): Promise<GitCafeInstallationResult<GitCafeOrganizationMembers>> {
+		if (!PATH_SEGMENT.test(org))
+			return { ok: false, reason: "invalid-resource-path" };
+		const response = await this.installedGet(
+			installationId,
+			`orgs/${encodeURIComponent(org)}/members/`,
+		);
+		if (!response.ok) return response;
+		const parsed = gitCafeOrganizationMembersSchema.safeParse(response.value);
+		return parsed.success
+			? { ok: true, value: parsed.data }
+			: { ok: false, reason: "invalid-response" };
+	}
+
+	async getRepository(
+		installationId: string,
+		owner: string,
+		name: string,
+	): Promise<GitCafeInstallationResult<GitCafeConnectionRepository>> {
+		if (!PATH_SEGMENT.test(owner) || !PATH_SEGMENT.test(name))
+			return { ok: false, reason: "invalid-resource-path" };
+		const response = await this.installedGet(
+			installationId,
+			`repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
+		);
+		if (!response.ok) return response;
+		const parsed = gitCafeConnectionRepositorySchema.safeParse(response.value);
+		return parsed.success
+			? { ok: true, value: parsed.data }
+			: { ok: false, reason: "invalid-response" };
+	}
+
+	private async installedGet(
+		installationId: string,
+		path: string,
+	): Promise<GitCafeInstallationResult<unknown>> {
+		const credential = await this.getToken(installationId);
+		if (!credential.ok) return credential;
+		const generation = this.generation(installationId);
+		const response = await this.send({
+			url: `https://git.cafe/api/${path}`,
+			init: {
+				method: "GET",
+				headers: {
+					accept: "application/json",
+					authorization: `Bearer ${credential.value}`,
+				},
+			},
+		});
+		return this.generation(installationId) === generation
+			? response
+			: { ok: false, reason: "stale" };
 	}
 
 	private getSnapshot(
@@ -257,6 +320,12 @@ export class GitCafeInstallationClient {
 		} catch {
 			return { ok: false, reason: "configuration" };
 		}
+		return this.send(request);
+	}
+
+	private async send(
+		request: GitCafeInstallationRequest,
+	): Promise<GitCafeInstallationResult<unknown>> {
 		let response: Response;
 		try {
 			response = await this.fetch(request.url, {
@@ -270,6 +339,10 @@ export class GitCafeInstallationClient {
 		if (!response.ok) {
 			await response.body?.cancel().catch(() => {});
 			return { ok: false, reason: "http", status: response.status };
+		}
+		if (!response.headers.get("content-type")?.includes("application/json")) {
+			await response.body?.cancel().catch(() => {});
+			return { ok: false, reason: "invalid-response" };
 		}
 		try {
 			const reader = response.body?.getReader();

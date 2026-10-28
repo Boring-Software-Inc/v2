@@ -13,7 +13,7 @@ import { moderationItems } from "../schema/moderation.ts";
 import { repos, ruleConfigs } from "../schema/repos.ts";
 import { runs } from "../schema/runs.ts";
 import { decideRepoModerationItem } from "./moderation.ts";
-import { turnOnGate } from "./repos.ts";
+import { setRepoArmed, turnOnGate } from "./repos.ts";
 import { listRuleViews, saveRuleConfig } from "./rules.ts";
 
 let container: TestDatabase;
@@ -75,13 +75,38 @@ afterAll(async () => {
 
 describe("turnOnGate", () => {
 	test("arms the repo with no queue", async () => {
-		await turnOnGate(db, null, repoId);
+		expect(await turnOnGate(db, null, repoId)).toEqual({
+			ok: true,
+			armed: true,
+		});
 		const rows = await db
 			.select({ armed: repos.armed })
 			.from(repos)
 			.where(eq(repos.id, repoId));
 		expect(rows[0]?.armed).toBe(true);
 	});
+});
+
+test("OpenGit still arms, disarms and resolves the backfill queue once", async () => {
+	const id = generateId();
+	await db.insert(repos).values({
+		id,
+		forge: "opengit",
+		externalId: id,
+		owner: "acme",
+		name: "legacy",
+		fullName: "acme/legacy",
+	});
+	expect(await setRepoArmed(db, id, true)).toEqual({ ok: true, armed: true });
+	expect(await setRepoArmed(db, id, false)).toEqual({ ok: true, armed: false });
+	let queueReads = 0;
+	const queue = async () => {
+		queueReads++;
+		return null;
+	};
+	expect(await turnOnGate(db, queue, id)).toEqual({ ok: true, armed: true });
+	expect(await turnOnGate(db, queue, id)).toEqual({ ok: true, armed: true });
+	expect(queueReads).toBe(1);
 });
 
 describe("saveRuleConfig", () => {

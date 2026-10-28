@@ -524,3 +524,12 @@ Login and Connect consume one exact public provider availability result,
 split into independent login and connection lists. Membership and repository
 schemas are grounded in the genuine authorized staging captures with independent
 original-byte/provenance/privacy validation recorded in their sidecars.
+
+### 2026-10-28 — Bounded connection failure logging in the web head
+
+The web workspace declares the existing stack's `pino@^10.3.1` dependency for
+GitCafe confirmation failures. It replaces silent catch-only handling at that
+edge; pg-boss and TanStack Start do not provide the required structured pino
+logging. Logs contain a generated request ID and a fixed failure code, never
+provider response bodies, delegated credentials, actors, or email addresses.
+No new third-party library is introduced.

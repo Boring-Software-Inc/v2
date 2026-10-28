@@ -219,14 +219,14 @@ function commentsExecuted(): string[] {
 
 describe("turning on a gate that is already on", () => {
 	test("queues no backfill, so the approved review reaches the change request", async () => {
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		expect(await drainBackfills()).toBe(1);
 
 		await deliver(pullRequestOpened);
 		expect(await runsOfChangeRequest()).toHaveLength(1);
 
-		await repoServices.turnOnGate(db, boss, repoId);
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		expect(await drainBackfills()).toBe(0);
 		expect(await runsOfChangeRequest()).toHaveLength(1);
 		expect(
@@ -257,12 +257,12 @@ describe("turning on a gate that is already on", () => {
 
 describe("turning a gate off and on again", () => {
 	test("the backfill skips an event that already has a run", async () => {
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		await drainBackfills();
 		await deliver(pullRequestOpened);
 
 		await repoServices.setRepoArmed(db, repoId, false);
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		expect(await drainBackfills()).toBe(1);
 
 		expect(await runsOfChangeRequest()).toHaveLength(1);
@@ -274,7 +274,7 @@ describe("turning a gate off and on again", () => {
 	});
 
 	test("an event stored while off replays as history and never takes the live run's surfaces", async () => {
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		await drainBackfills();
 		await deliver(pullRequestOpened);
 
@@ -282,7 +282,7 @@ describe("turning a gate off and on again", () => {
 		await deliver(pullRequestSynchronize);
 		expect(await runsOfChangeRequest()).toHaveLength(1);
 
-		await repoServices.turnOnGate(db, boss, repoId);
+		await repoServices.turnOnGate(db, async () => boss, repoId);
 		expect(await drainBackfills()).toBe(1);
 
 		const runs = await runsOfChangeRequest();

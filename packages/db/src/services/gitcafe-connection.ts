@@ -101,15 +101,19 @@ export async function enqueueGitCafeConnection(
 	if (!(await canManageGitCafeConnection(db, job)))
 		return { ok: false, reason: "unauthorized" };
 	if (!boss) return { ok: false, reason: "queue-unavailable" };
-	await boss.createQueue(GITCAFE_CONNECT_QUEUE);
-	const jobId = await boss.send(GITCAFE_CONNECT_QUEUE, job, {
-		retryLimit: 0,
-		expireInSeconds: 300,
-		retentionSeconds: 600,
-	});
-	return jobId
-		? { ok: true, jobId }
-		: { ok: false, reason: "queue-unavailable" };
+	try {
+		await boss.createQueue(GITCAFE_CONNECT_QUEUE);
+		const jobId = await boss.send(GITCAFE_CONNECT_QUEUE, job, {
+			retryLimit: 0,
+			expireInSeconds: 300,
+			retentionSeconds: 600,
+		});
+		return jobId
+			? { ok: true, jobId }
+			: { ok: false, reason: "queue-unavailable" };
+	} catch {
+		return { ok: false, reason: "queue-unavailable" };
+	}
 }
 
 /** Serialize ownership checks and their writes so concurrent claims cannot partially transfer repositories. */

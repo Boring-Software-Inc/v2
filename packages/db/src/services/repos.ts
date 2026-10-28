@@ -3,6 +3,7 @@ import {
 	definitionReferencesRule,
 	type Forge,
 	ingestForgeSchema,
+	type RepoArmingResult,
 	type ResponseConfig,
 	responseConfigSchema,
 	type WorkflowDefinition,
@@ -212,31 +213,34 @@ export async function setRepoArmed(
 	db: Db,
 	repoId: string,
 	armed: boolean,
-): Promise<void> {
+): Promise<RepoArmingResult> {
 	if (armed) {
 		const repo = await getRepoById(db, repoId);
 		if (repo && !ingestForgeSchema.safeParse(repo.forge).success)
-			throw new Error("Protection is unavailable for this forge");
+			return { ok: false, armed: false, reason: "protection-unavailable" };
 	}
 	await db.update(repos).set({ armed }).where(eq(repos.id, repoId));
+	return { ok: true, armed };
 }
 
 export async function turnOnGate(
 	db: Db,
-	boss: PgBoss | null,
+	boss: (() => Promise<PgBoss | null>) | null,
 	repoId: string,
-): Promise<void> {
+): Promise<RepoArmingResult> {
 	const repo = await getRepoById(db, repoId);
 	if (repo && !ingestForgeSchema.safeParse(repo.forge).success)
-		throw new Error("Protection is unavailable for this forge");
+		return { ok: false, armed: false, reason: "protection-unavailable" };
 	const turnedOn = await db
 		.update(repos)
 		.set({ armed: true })
 		.where(and(eq(repos.id, repoId), eq(repos.armed, false)))
 		.returning({ id: repos.id });
 	if (boss && turnedOn.length > 0) {
-		await boss.send(BACKFILL_REPO_QUEUE, { repoId });
+		const queue = await boss();
+		await queue?.send(BACKFILL_REPO_QUEUE, { repoId });
 	}
+	return { ok: true, armed: true };
 }
 
 /**

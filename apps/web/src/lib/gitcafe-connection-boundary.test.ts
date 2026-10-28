@@ -86,7 +86,7 @@ describe("GitCafe connection authorization boundary", () => {
 		);
 		const job = server.slice(
 			server.indexOf("const job ="),
-			server.indexOf("return await gitCafeConnectionServices.enqueue"),
+			server.indexOf("const result = await gitCafeConnectionServices.enqueue"),
 		);
 		expect(job).not.toContain("accessToken");
 		expect(job).toContain("proof.subject");

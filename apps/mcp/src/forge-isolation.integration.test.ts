@@ -20,6 +20,7 @@ import {
 	runServices,
 	schema,
 	type TestDatabase,
+	workflowServices,
 } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
 import { eq } from "drizzle-orm";
@@ -44,6 +45,7 @@ const scopes: AgentScope[] = [
 	"tripwire:read",
 	"tripwire:configure",
 	"tripwire:moderate",
+	"tripwire:admin",
 ];
 const fullName = "same-owner/collision";
 const resultSchema = z.object({
@@ -144,6 +146,48 @@ async function call(name: string, args: Record<string, JsonValue>) {
 		await client.callTool({ name, arguments: { org: orgSlug, ...args } }),
 	);
 }
+
+test("GitCafe gate and workflow refusals cannot reach the queue or report protection enabled", async () => {
+	const repoId = await repoServices.ensureRepo(db, {
+		forge: "gitcafe",
+		externalId: "connection-only-repo",
+		owner: "connected-owner",
+		name: "connected-repo",
+		fullName: "connected-owner/connected-repo",
+		orgId,
+	});
+	const repo = "https://git.cafe/connected-owner/connected-repo";
+	const gate = await call("turn_on_gate", { repo });
+	expect(gate.isError).toBe(true);
+	expect(gate.content[0]?.text).toStartWith("{");
+	expect(JSON.parse(gate.content[0]?.text ?? "")).toEqual({
+		ok: false,
+		armed: false,
+		reason: "protection-unavailable",
+	});
+	const workflowId = await repoServices.saveWorkflowDefinition(
+		db,
+		repoId,
+		DEFAULT_WORKFLOW,
+	);
+	const enabled = await call("set_workflow_enabled", {
+		repo,
+		workflowId,
+		enabled: true,
+	});
+	expect(enabled.isError).toBe(true);
+	expect(enabled.content[0]?.text).toContain(
+		"Protection is unavailable for this forge",
+	);
+	expect((await repoServices.getRepoById(db, repoId))?.armed).toBe(false);
+	expect(
+		(await workflowServices.getWorkflow(db, { repoId, workflowId }))?.enabled,
+	).toBe(false);
+	await db
+		.delete(schema.workflowDefinitions)
+		.where(eq(schema.workflowDefinitions.repoId, repoId));
+	await db.delete(schema.repos).where(eq(schema.repos.id, repoId));
+});
 
 test("repository URLs retain forge identity, including GitCafe's distinct host", () => {
 	for (const forge of forgeIdSchema.options) {
