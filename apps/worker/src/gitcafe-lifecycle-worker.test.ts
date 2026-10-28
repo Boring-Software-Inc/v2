@@ -9,6 +9,7 @@ test("receipt consumer is a separate preview-only mode without app credential re
 		UNKEY_ENVIRONMENT_SLUG: "preview",
 		GITCAFE_APP_ID: GITCAFE_RECEIPT_APP_ID,
 		DATABASE_URL: "postgres://test:test@localhost/test",
+		GITCAFE_WEBHOOK_RECEIPTS_ENABLED: "true",
 	};
 	const parsed = gitCafeLifecycleWorkerEnvSchema.parse(env);
 	expect(parsed.PORT).toBe(8181);
@@ -16,6 +17,8 @@ test("receipt consumer is a separate preview-only mode without app credential re
 		{ UNKEY_ENVIRONMENT_SLUG: "production" },
 		{ GITCAFE_APP_ID: "wrong-app" },
 		{ PORT: 3000 },
+		{ GITCAFE_WEBHOOK_RECEIPTS_ENABLED: "false" },
+		{ GITCAFE_WEBHOOK_RECEIPTS_ENABLED: undefined },
 	])
 		expect(
 			gitCafeLifecycleWorkerEnvSchema.safeParse({ ...env, ...change }).success,

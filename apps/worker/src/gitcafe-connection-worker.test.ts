@@ -32,3 +32,29 @@ test("isolated connection mode requires actual preview environment and dedicated
 	expect(workerModeSchema.safeParse("connections").success).toBe(false);
 	expect(normalizeFor("gitcafe")).toBeNull();
 });
+
+test("receipt rollout uses the API flag and defaults existing connection mode to disabled", () => {
+	const environment = {
+		UNKEY_ENVIRONMENT_SLUG: "preview",
+		GITCAFE_APP_ID: GITCAFE_STAGING_APP_ID,
+		GITCAFE_APP_KEY_ID: "staging-key",
+		GITCAFE_APP_PRIVATE_KEY: "test-only-no-key",
+		DATABASE_URL: "postgres://test:test@localhost/test",
+	};
+	expect(
+		gitCafeConnectionWorkerEnvSchema.parse(environment)
+			.GITCAFE_WEBHOOK_RECEIPTS_ENABLED,
+	).toBe("false");
+	expect(
+		gitCafeConnectionWorkerEnvSchema.parse({
+			...environment,
+			GITCAFE_WEBHOOK_RECEIPTS_ENABLED: "true",
+		}).GITCAFE_WEBHOOK_RECEIPTS_ENABLED,
+	).toBe("true");
+	expect(
+		gitCafeConnectionWorkerEnvSchema.safeParse({
+			...environment,
+			GITCAFE_WEBHOOK_RECEIPTS_ENABLED: "yes",
+		}).success,
+	).toBe(false);
+});

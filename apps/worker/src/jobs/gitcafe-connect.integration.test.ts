@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, beforeEach, expect, spyOn, test } from "bun:test";
-import { generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import {
 	DEFAULT_WORKFLOW,
 	GITCAFE_CONNECT_QUEUE,
+	GITCAFE_LIFECYCLE_QUEUE,
 	type GitCafeConnectionJob,
 	type GitCafeConnectionRepository,
 	type GitCafeInstallation,
@@ -12,6 +13,7 @@ import {
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
 	gitCafeOrganizationMembersSchema,
+	gitCafeReceiptSchema,
 	type RepoArmingResult,
 } from "@tripwire/contracts";
 import {
@@ -23,6 +25,9 @@ import {
 	createTestDatabase,
 	type Db,
 	gitCafeConnectionServices,
+	gitCafeInstallationLifecycle,
+	gitCafeLifecycleServices,
+	gitCafeReceipts,
 	member,
 	organization,
 	organizationInstallations,
@@ -220,10 +225,13 @@ beforeAll(async () => {
 	({ db, pool } = createDb(container.url));
 	await applyMigrations(db);
 	boss = await createBoss(container.url);
+	await boss.createQueue(GITCAFE_LIFECYCLE_QUEUE);
 }, 60_000);
 
 beforeEach(async () => {
-	await db.execute(sql`TRUNCATE repos, organization, "user" CASCADE`);
+	await db.execute(
+		sql`TRUNCATE gitcafe_receipts, gitcafe_installation_lifecycle, repos, organization, "user" CASCADE`,
+	);
 	const userId = generateId(),
 		sessionId = generateId(),
 		orgId = generateId();
@@ -1157,4 +1165,402 @@ test("isolated connection queue startup leaves unrelated backlog untouched", asy
 	} finally {
 		await isolated.stop({ graceful: false });
 	}
+});
+
+/** Negative lifecycle variations derive from captured bytes; they are not provider fixtures. */
+async function pendingRevocation(
+	type: "installation.uninstalled" | "installation.repositories_updated",
+) {
+	const captured: unknown = await Bun.file(
+		new URL("gitcafe-installation-created.json", fixtureBase),
+	).json();
+	const receiptId = generateId();
+	const original = gitCafeReceiptSchema.shape.payload.parse(captured);
+	const payload = {
+		...original,
+		id: `evt_${receiptId}`,
+		type,
+		installation: { id: job.installationId },
+		createdAt: new Date(Date.now() + 1000).toISOString(),
+		...(type === "installation.repositories_updated"
+			? {
+					repositorySelection: "selected",
+					previousRepositorySelection: "selected",
+					repositoriesAdded: [],
+					repositoriesRemoved: [{ id: repository.id }],
+					repositoriesRemovedTruncated: false,
+				}
+			: {}),
+	};
+	const body = JSON.stringify(payload);
+	return await gitCafeLifecycleServices.insertGitCafeReceipt(
+		pool,
+		boss,
+		gitCafeReceiptSchema.parse({
+			format: "gitcafe-receipt@1",
+			appId: installation.appId,
+			payload,
+			bodyBase64: Buffer.from(body).toString("base64"),
+			bodySha256: createHash("sha256").update(body).digest("hex"),
+			deliveryId: `negative-${receiptId}`,
+			keyVersion: "local-test-1",
+			signedAt: String(Math.floor(Date.now() / 1000)),
+			requestId: generateId(),
+		}),
+	);
+}
+
+test("reinstallation reclaims the same repository row while preserving its old claim and creation history", async () => {
+	deps.lifecycleEnabled = true;
+	expect(await connectGitCafeInstallation(deps, job)).toEqual({
+		ok: true,
+		repoCount: 1,
+	});
+	const [before] = await db.select().from(repos);
+	const [oldClaim] = await db.select().from(organizationInstallations);
+	if (!before || !oldClaim) throw new Error("initial connection missing");
+	await db.update(repos).set({ armed: true }).where(eq(repos.id, before.id));
+	const newInstallationId = `ins_${generateId()}`;
+	const lookups: string[] = [];
+	deps.client.getInstallation = async (id) => {
+		lookups.push(id);
+		return id === job.installationId
+			? { ok: false, reason: "http", status: 403 }
+			: { ok: true, value: { ...installation, id: newInstallationId } };
+	};
+	expect(
+		await connectGitCafeInstallation(deps, {
+			...job,
+			installationId: newInstallationId,
+		}),
+	).toEqual({ ok: true, repoCount: 1 });
+	const [after] = await db.select().from(repos);
+	expect(after).toMatchObject({
+		id: before.id,
+		installedAt: before.installedAt,
+		installationId: newInstallationId,
+		orgId: job.orgId,
+		removedAt: null,
+		armed: false,
+	});
+	expect(
+		await db
+			.select()
+			.from(organizationInstallations)
+			.where(eq(organizationInstallations.id, oldClaim.id)),
+	).toEqual([oldClaim]);
+	expect(await db.select().from(organizationInstallations)).toHaveLength(2);
+	expect(
+		(
+			await db
+				.select()
+				.from(gitCafeInstallationLifecycle)
+				.where(
+					eq(gitCafeInstallationLifecycle.installationId, job.installationId),
+				)
+		)[0]?.status,
+	).toBe("reconcile-required");
+	expect(lookups.filter((id) => id === job.installationId)).toHaveLength(1);
+});
+
+test("different-repo reinstall hides the stale known claim and leaves other orgs, owners, forges, and unclaimed rows alone", async () => {
+	deps.lifecycleEnabled = true;
+	expect((await connectGitCafeInstallation(deps, job)).ok).toBe(true);
+	const [stale] = await db.select().from(repos);
+	if (!stale) throw new Error("initial connection missing");
+	await db.update(repos).set({ armed: true }).where(eq(repos.id, stale.id));
+	const otherOrg = generateId();
+	await db
+		.insert(organization)
+		.values({ id: otherOrg, name: "Other", slug: `other-${otherOrg}` });
+	const unrelatedIds: string[] = [];
+	for (const scope of ["org", "owner", "forge", "unclaimed"] as const) {
+		const id = generateId();
+		const installationId = `ins_${generateId()}`;
+		const owner = scope === "owner" ? "other-owner" : repository.owner;
+		const forge = scope === "forge" ? "github" : "gitcafe";
+		const orgId = scope === "org" ? otherOrg : job.orgId;
+		if (scope !== "unclaimed")
+			await db.insert(organizationInstallations).values({
+				id: generateId(),
+				organizationId: orgId,
+				forge,
+				installationId,
+				accountLogin: owner,
+				accountType: "Organization",
+			});
+		await db.insert(repos).values({
+			id,
+			forge,
+			externalId: generateId(),
+			owner,
+			name: `unrelated-${scope}`,
+			fullName: `${owner}/unrelated-${scope}`,
+			orgId,
+			installationId,
+			armed: true,
+		});
+		unrelatedIds.push(id);
+	}
+	const before = (await db.select().from(repos)).filter((row) =>
+		unrelatedIds.includes(row.id),
+	);
+	const newInstallationId = `ins_${generateId()}`;
+	const scratch = {
+		...repository,
+		id: generateId(),
+		name: "different-scratch",
+	};
+	const lookups: string[] = [];
+	deps.client.getInstallation = async (id) => {
+		lookups.push(id);
+		return id === job.installationId
+			? { ok: false, reason: "http", status: 403 }
+			: {
+					ok: true,
+					value: {
+						...installation,
+						id: newInstallationId,
+						repositories: [scratch.name],
+					},
+				};
+	};
+	deps.client.getRepositories = async () => ({ ok: true, value: [scratch] });
+	expect(
+		await connectGitCafeInstallation(deps, {
+			...job,
+			installationId: newInstallationId,
+		}),
+	).toEqual({ ok: true, repoCount: 1 });
+	const [after] = await db.select().from(repos).where(eq(repos.id, stale.id));
+	expect(after?.removedAt).toBeInstanceOf(Date);
+	expect(after).toMatchObject({
+		installationId: job.installationId,
+		armed: false,
+	});
+	expect(
+		await orgServices.getOrgRepo(db, {
+			orgId: job.orgId,
+			repoName: stale.name,
+			forge: "gitcafe",
+		}),
+	).toBeNull();
+	expect(
+		(await db.select().from(repos)).filter((row) =>
+			unrelatedIds.includes(row.id),
+		),
+	).toEqual(before);
+	expect(new Set(lookups)).toEqual(
+		new Set([job.installationId, newInstallationId]),
+	);
+	expect(
+		(
+			await db
+				.select()
+				.from(gitCafeInstallationLifecycle)
+				.where(
+					eq(gitCafeInstallationLifecycle.installationId, job.installationId),
+				)
+		)[0]?.status,
+	).toBe("reconcile-required");
+});
+
+for (const mismatch of [
+	"active",
+	"foreign-org",
+	"wrong-owner",
+	"no-claim",
+] as const) {
+	test(`reclaim refuses a removed row with ${mismatch} prior ownership`, async () => {
+		deps.lifecycleEnabled = true;
+		const oldId = `ins_${generateId()}`;
+		const orgId = mismatch === "foreign-org" ? generateId() : job.orgId;
+		if (orgId !== job.orgId)
+			await db
+				.insert(organization)
+				.values({ id: orgId, name: "Other", slug: `other-${orgId}` });
+		if (mismatch !== "no-claim")
+			await db.insert(organizationInstallations).values({
+				id: generateId(),
+				organizationId: orgId,
+				forge: "gitcafe",
+				installationId: oldId,
+				accountLogin:
+					mismatch === "wrong-owner" ? "another-owner" : repository.owner,
+			});
+		await db.insert(gitCafeInstallationLifecycle).values({
+			installationId: oldId,
+			status: mismatch === "active" ? "active" : "reconcile-required",
+			authorityAt: new Date(),
+		});
+		const id = generateId();
+		await db.insert(repos).values({
+			id,
+			forge: "gitcafe",
+			externalId: repository.id,
+			owner: repository.owner,
+			name: repository.name,
+			fullName: `${repository.owner}/${repository.name}`,
+			orgId,
+			installationId: oldId,
+			removedAt: new Date(),
+			armed: false,
+		});
+		deps.client.getInstallation = async (lookupId) => ({
+			ok: true,
+			value: { ...installation, id: lookupId },
+		});
+		const before = await db.select().from(repos);
+		expect(await connectGitCafeInstallation(deps, job)).toEqual({
+			ok: false,
+			reason: "ownership-conflict",
+		});
+		expect(await db.select().from(repos)).toEqual(before);
+	});
+}
+
+for (const type of [
+	"installation.uninstalled",
+	"installation.repositories_updated",
+] as const) {
+	test(`pending ${type} admitted during discovery prevents resurrection before consumption`, async () => {
+		deps.lifecycleEnabled = true;
+		expect((await connectGitCafeInstallation(deps, job)).ok).toBe(true);
+		await gitCafeLifecycleServices.retireGitCafeInstallation(db, {
+			installationId: job.installationId,
+			reason: "reconcile-required",
+		});
+		let receiptId: string | undefined;
+		deps.client.getRepositories = async () => {
+			if (!receiptId) receiptId = (await pendingRevocation(type)).receiptId;
+			return { ok: true, value: [repository] };
+		};
+		expect(await connectGitCafeInstallation(deps, job)).toEqual({
+			ok: false,
+			reason: "installation-mismatch",
+		});
+		expect((await db.select().from(repos))[0]?.removedAt).toBeInstanceOf(Date);
+		expect((await db.select().from(gitCafeReceipts))[0]?.status).toBe(
+			"pending",
+		);
+		if (!receiptId) throw new Error("pending receipt missing");
+		expect(
+			await gitCafeLifecycleServices.processGitCafeReceipt(db, receiptId),
+		).toBe("applied");
+		expect((await db.select().from(repos))[0]?.removedAt).toBeInstanceOf(Date);
+		if (type === "installation.uninstalled") {
+			expect(await connectGitCafeInstallation(deps, job)).toEqual({
+				ok: false,
+				reason: "installation-mismatch",
+			});
+			expect((await db.select().from(repos))[0]?.removedAt).toBeInstanceOf(
+				Date,
+			);
+		}
+	});
+}
+
+test("a local lifecycle generation change during discovery fences a late connection", async () => {
+	deps.lifecycleEnabled = true;
+	let retired = false;
+	deps.client.getRepositories = async () => {
+		if (!retired) {
+			retired = true;
+			await gitCafeLifecycleServices.retireGitCafeInstallation(db, {
+				installationId: job.installationId,
+				reason: "uninstalled",
+			});
+		}
+		return { ok: true, value: [repository] };
+	};
+	expect(await connectGitCafeInstallation(deps, job)).toEqual({
+		ok: false,
+		reason: "installation-mismatch",
+	});
+	expect(await db.select().from(repos)).toHaveLength(0);
+	expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+});
+
+test("a current lookup 403 hides a known claim without an uninstall assertion", async () => {
+	deps.lifecycleEnabled = true;
+	expect((await connectGitCafeInstallation(deps, job)).ok).toBe(true);
+	deps.client.getInstallation = async () => ({
+		ok: false,
+		reason: "http",
+		status: 403,
+	});
+	expect(await connectGitCafeInstallation(deps, job)).toEqual({
+		ok: false,
+		reason: "authority-unavailable",
+	});
+	expect((await db.select().from(repos))[0]?.removedAt).toBeInstanceOf(Date);
+	expect(
+		(await db.select().from(gitCafeInstallationLifecycle))[0]?.status,
+	).toBe("reconcile-required");
+});
+
+test("failed final lookup withdraws the known claim within its transaction without a nested lock", async () => {
+	deps.lifecycleEnabled = true;
+	expect((await connectGitCafeInstallation(deps, job)).ok).toBe(true);
+	let lookups = 0;
+	deps.client.getInstallation = async () =>
+		++lookups >= 4
+			? { ok: false, reason: "http", status: 403 }
+			: { ok: true, value: installation };
+	expect(await connectGitCafeInstallation(deps, job)).toEqual({
+		ok: false,
+		reason: "authority-unavailable",
+	});
+	expect((await db.select().from(repos))[0]?.removedAt).toBeInstanceOf(Date);
+	expect(
+		(await db.select().from(gitCafeInstallationLifecycle))[0]?.status,
+	).toBe("reconcile-required");
+});
+
+for (const selection of ["all", "selected"] as const) {
+	test(`lifecycle-enabled installed client paginates complete ${selection} authority beyond 100 repos and members`, async () => {
+		const transport = paginatedTransport(selection);
+		expect(
+			await connectGitCafeInstallation(
+				{ db, client: transport.client, lifecycleEnabled: true },
+				job,
+			),
+		).toEqual({ ok: true, repoCount: 151 });
+		expect(await db.select().from(repos)).toHaveLength(151);
+	});
+}
+
+test("receipt admission serializes behind final connection writes, then uninstall retires the committed row", async () => {
+	deps.lifecycleEnabled = true;
+	let discoveries = 0;
+	let admission: ReturnType<typeof pendingRevocation> | undefined;
+	let blocked = false;
+	deps.client.getRepositories = async () => {
+		if (++discoveries === 2) {
+			admission = pendingRevocation("installation.uninstalled");
+			for (let attempt = 0; attempt < 100; attempt++) {
+				const result = await pool.query<{ waiting: boolean }>(
+					"SELECT EXISTS (SELECT 1 FROM pg_locks WHERE locktype = 'advisory' AND NOT granted) AS waiting",
+				);
+				blocked = result.rows[0]?.waiting === true;
+				if (blocked) break;
+				await sleep(10);
+			}
+		}
+		return { ok: true, value: [repository] };
+	};
+	const connection = await connectGitCafeInstallation(deps, job);
+	const receipt = await admission;
+	expect(blocked).toBe(true);
+	expect(connection).toEqual({ ok: true, repoCount: 1 });
+	if (!receipt) throw new Error("admission never started");
+	expect(
+		await gitCafeLifecycleServices.processGitCafeReceipt(db, receipt.receiptId),
+	).toBe("applied");
+	expect((await db.select().from(repos))[0]?.removedAt).toBeInstanceOf(Date);
+	expect(await connectGitCafeInstallation(deps, job)).toEqual({
+		ok: false,
+		reason: "installation-mismatch",
+	});
+	expect((await db.select().from(repos))[0]?.removedAt).toBeInstanceOf(Date);
 });

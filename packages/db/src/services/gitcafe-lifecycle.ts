@@ -26,6 +26,7 @@ import {
 	gitCafeInstallationLifecycle,
 	gitCafeReceipts,
 } from "../schema/gitcafe-lifecycle.ts";
+import { organizationInstallations } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
 import type { DbLike } from "./access.ts";
 
@@ -68,6 +69,10 @@ export async function insertGitCafeReceipt(
 	const client = await pool.connect();
 	try {
 		await client.query("BEGIN");
+		/** Linearize receipt admission with connection commits and lifecycle changes. */
+		await client.query(
+			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
+		);
 		const id = generateId();
 		const result = await client.query<{ id: string }>(
 			`INSERT INTO gitcafe_receipts (id, installation_id, event_id, delivery_id, event_type, receipt)
@@ -190,26 +195,38 @@ export async function retireGitCafeInstallation(
 	db: Db,
 	input: GitCafeRetirement,
 ) {
+	return db.transaction((tx) =>
+		retireGitCafeInstallationInTransaction(tx, input),
+	);
+}
+
+/** Reuse a connection transaction; opening another one here would deadlock on its advisory lock. */
+export async function retireGitCafeInstallationInTransaction(
+	tx: DbLike,
+	input: GitCafeRetirement,
+	organizationId?: string,
+) {
 	const retirement = gitCafeRetirementSchema.parse(input);
-	return db.transaction(async (tx) => {
-		const state = await lockLifecycle(tx, retirement.installationId);
-		const removedCount = await removeRepositories(
-			tx,
-			retirement.installationId,
+	const state = await lockLifecycle(tx, retirement.installationId);
+	const removedCount = await removeRepositories(
+		tx,
+		retirement.installationId,
+		organizationId === undefined
+			? undefined
+			: sql`${repos.orgId} = ${organizationId}`,
+	);
+	const status =
+		state.status === "uninstalled" ? "uninstalled" : retirement.reason;
+	await tx
+		.update(gitCafeInstallationLifecycle)
+		.set({ status, generation: state.generation + 1, updatedAt: new Date() })
+		.where(
+			eq(
+				gitCafeInstallationLifecycle.installationId,
+				retirement.installationId,
+			),
 		);
-		const status =
-			state.status === "uninstalled" ? "uninstalled" : retirement.reason;
-		await tx
-			.update(gitCafeInstallationLifecycle)
-			.set({ status, generation: state.generation + 1, updatedAt: new Date() })
-			.where(
-				eq(
-					gitCafeInstallationLifecycle.installationId,
-					retirement.installationId,
-				),
-			);
-		return { status, generation: state.generation + 1, removedCount };
-	});
+	return { status, generation: state.generation + 1, removedCount };
 }
 
 async function hasPendingRevocation(
@@ -280,15 +297,45 @@ export async function reconcileGitCafeInstallation(
 	input: {
 		installationId: string;
 		expectedAppId: string;
+		expectedOwner?: string;
+		organizationId?: string;
 		lookup: () => Promise<GitCafeLifecycleLookup>;
 	},
 ) {
 	const installationId = gitCafeRetirementSchema.shape.installationId.parse(
 		input.installationId,
 	);
-	const before = await db.transaction((tx) =>
-		lockLifecycle(tx, installationId),
-	);
+	const readRepositoryScope = async (tx: DbLike) => {
+		if (input.organizationId !== undefined) {
+			const [claim] = await tx
+				.select()
+				.from(organizationInstallations)
+				.where(
+					and(
+						eq(organizationInstallations.forge, "gitcafe"),
+						eq(organizationInstallations.installationId, installationId),
+					),
+				);
+			if (
+				claim &&
+				(claim.organizationId !== input.organizationId ||
+					(input.expectedOwner !== undefined &&
+						claim.accountLogin !== input.expectedOwner))
+			)
+				return null;
+			return claim ? sql`${repos.orgId} = ${input.organizationId}` : sql`false`;
+		}
+		return sql`true`;
+	};
+	const before = await db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
+		);
+		if ((await readRepositoryScope(tx)) === null) return null;
+		return lockLifecycle(tx, installationId);
+	});
+	if (before === null)
+		return { ok: false as const, reason: "identity-mismatch" as const };
 	const startedAt = new Date();
 	let lookup: GitCafeLifecycleLookup;
 	try {
@@ -301,18 +348,24 @@ export async function reconcileGitCafeInstallation(
 	}
 	return db.transaction(async (tx) => {
 		const state = await lockLifecycle(tx, installationId);
+		const repositoryScope = await readRepositoryScope(tx);
+		if (repositoryScope === null)
+			return { ok: false as const, reason: "identity-mismatch" as const };
 		if (
 			state.generation !== before.generation ||
 			(await hasPendingRevocation(tx, installationId))
 		)
 			return { ok: false as const, reason: "stale" as const };
-		const authority = lookup.ok ? lookup.value : null;
+		let authority = lookup.ok ? lookup.value : null;
+		let refusal: "identity-mismatch" | "stale" | undefined;
 		if (
 			authority &&
 			(authority.id !== installationId ||
-				authority.appId !== input.expectedAppId)
+				authority.appId !== input.expectedAppId ||
+				(input.expectedOwner !== undefined &&
+					authority.org !== input.expectedOwner))
 		)
-			return { ok: false as const, reason: "identity-mismatch" as const };
+			refusal = "identity-mismatch";
 		if (
 			authority &&
 			((state.providerVersion !== null &&
@@ -320,7 +373,8 @@ export async function reconcileGitCafeInstallation(
 				(state.providerRevision !== null &&
 					authority.revision < state.providerRevision))
 		)
-			return { ok: false as const, reason: "stale" as const };
+			refusal = "stale";
+		if (refusal) authority = null;
 		const status =
 			state.status === "uninstalled" || authority?.uninstalledAt != null
 				? "uninstalled"
@@ -338,7 +392,7 @@ export async function reconcileGitCafeInstallation(
 		const removedCount = await removeRepositories(
 			tx,
 			installationId,
-			restriction,
+			sql`${repositoryScope} AND ${restriction ?? sql`true`}`,
 		);
 		await tx
 			.update(gitCafeInstallationLifecycle)
@@ -351,6 +405,7 @@ export async function reconcileGitCafeInstallation(
 				providerRevision: authority?.revision ?? state.providerRevision,
 			})
 			.where(eq(gitCafeInstallationLifecycle.installationId, installationId));
+		if (refusal) return { ok: false as const, reason: refusal };
 		return {
 			ok: true as const,
 			status,
