@@ -1,0 +1,27 @@
+{
+	"id": "checkrun_01m6130wzse6cttdpq35c1rybe",
+	"key": "tripwire-staging-qa",
+	"headOid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+	"name": "tripwire",
+	"status": "completed",
+	"conclusion": "neutral",
+	"detailsUrl": null,
+	"externalId": null,
+	"suite": null,
+	"startedAt": "2026-10-28T11:06:15.800Z",
+	"completedAt": "2026-10-28T11:06:15.800Z",
+	"output": {
+		"title": "Tripwire staging protocol acceptance",
+		"summary": "Scratch-only protocol test. Full protection acceptance is still in progress.",
+		"text": null
+	},
+	"annotations": [],
+	"rerequestable": true,
+	"rerequestedAt": null,
+	"deadlineAt": null,
+	"reporterId": "act_01m60zef00f4fsqskxqt2w72xs",
+	"installationId": "ins_01m60zef0bfzzbx050fw4rymhr",
+	"reportedAt": "2026-10-28T11:06:15.800Z",
+	"createdAt": "2026-10-28T11:06:15.887Z",
+	"updatedAt": "2026-10-28T11:06:15.887Z"
+}

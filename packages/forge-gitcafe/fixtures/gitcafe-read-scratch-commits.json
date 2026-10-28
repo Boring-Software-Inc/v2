@@ -1,0 +1,37 @@
+{
+	"id": "pr_01m612t72sfhj9j6226knf5kqz",
+	"version": 0,
+	"headOid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+	"baseOid": "ac21bd68841290a7dddb7b8f7d7dd1657fdaba04",
+	"comparisonBaseOid": "ac21bd68841290a7dddb7b8f7d7dd1657fdaba04",
+	"items": [
+		{
+			"oid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+			"tree": "fe3f2dc8e51f0cb543a37133d5e9e78a70e4eb58",
+			"parents": ["ac21bd68841290a7dddb7b8f7d7dd1657fdaba04"],
+			"parentCount": 1,
+			"message": "test: add GitCafe adapter acceptance fixture",
+			"summary": "test: add GitCafe adapter acceptance fixture",
+			"time": 1793185347,
+			"author": {
+				"name": "Tripwire staging QA",
+				"email": "[REDACTED]",
+				"timestamp": 1793185347,
+				"timezoneOffsetMinutes": 0
+			},
+			"committer": {
+				"name": "gitcafe",
+				"email": "[REDACTED]",
+				"timestamp": 1793185347,
+				"timezoneOffsetMinutes": 0
+			},
+			"verification": {
+				"verified": false,
+				"reason": "unsigned",
+				"signer": null
+			}
+		}
+	],
+	"truncated": false,
+	"next": null
+}

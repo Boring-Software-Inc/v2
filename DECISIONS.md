@@ -553,3 +553,7 @@ and email never authorize a claim. No ingestion or protection is enabled.
 Source: [GitCafe OIDC guide](https://git.cafe/docs/integrations/sign-in-with-gitcafe),
 founder response relayed by Grim, and a read-only staging equality check. The
 equality result is live evidence, not a captured provider-response fixture.
+
+## 2026-10-28 — GitCafe read client uses the forge interface workspace
+
+The concrete GitCafe read client declares the existing internal `@tripwire/forge` workspace dependency for universal commit and contributor types. This follows the approved adapter dependency arrow and replaces duplicate local representations of those types. The existing stack already supplies the interface package; no third-party dependency is added. Historical OpenGit remains separate.
