@@ -13,6 +13,7 @@ import {
 	GITCAFE_LIFECYCLE_QUEUE,
 	GITCAFE_RECEIPT_APP_ID,
 	GITCAFE_RECEIPT_MAX_BYTES,
+	gitCafeInstallationCreatedSchema,
 	gitCafeInstallationSchema,
 } from "@tripwire/contracts";
 import {
@@ -33,11 +34,22 @@ import { eq } from "drizzle-orm";
 import type { Pool } from "pg";
 import { PgBoss } from "pg-boss";
 import pino from "pino";
-import installation from "../../../packages/forge-gitcafe/fixtures/gitcafe-installation.json";
-import created from "../../../packages/forge-gitcafe/fixtures/gitcafe-installation-created.json";
 import type { ApiDeps } from "./env.ts";
 import { resolveGitCafeReceiptConfig } from "./gitcafe-receipts.ts";
 import { createApi } from "./index.ts";
+
+const fixtureRoot = new URL(
+	"../fixtures/",
+	import.meta.resolve("@tripwire/forge-gitcafe"),
+);
+const installation = gitCafeInstallationSchema.parse(
+	await Bun.file(new URL("gitcafe-installation.json", fixtureRoot)).json(),
+);
+const created = gitCafeInstallationCreatedSchema.parse(
+	await Bun.file(
+		new URL("gitcafe-installation-created.json", fixtureRoot),
+	).json(),
+);
 
 const SECRET = "local-receipt-test-key";
 const KEY_VERSION = "local-test-1";
