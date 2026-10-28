@@ -1,8 +1,5 @@
 import { fileURLToPath } from "node:url";
-/**
- * Emit `src/routeTree.gen.ts` without booting Vite. Required for `tsc` in CI
- * where the file is gitignored and never produced by a prior dev session.
- */
+/** Generates the gitignored route tree so CI can typecheck without a dev server. */
 import { Generator, getConfig } from "@tanstack/router-generator";
 
 // `fileURLToPath`, not `.pathname`: on Windows the latter yields "/C:/..."

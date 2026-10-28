@@ -34,7 +34,7 @@ async function seedEvent(number: number, kind: string): Promise<string> {
 
 async function seedRun(
 	number: number,
-	verdict: "pass" | "block",
+	verdict: "pass" | "block" | "changes_required",
 	createdAt: Date,
 ): Promise<string> {
 	const id = generateId();
@@ -53,6 +53,7 @@ async function seedRun(
 }
 
 let openBlocked: string;
+let openFix: string;
 
 beforeAll(async () => {
 	container = await createTestDatabase();
@@ -70,6 +71,8 @@ beforeAll(async () => {
 	await seedEvent(3, "change-request.closed");
 
 	await seedRun(4, "block", new Date(Date.now() - 60 * DAY));
+
+	openFix = await seedRun(5, "changes_required", new Date(Date.now() - DAY));
 });
 
 afterAll(async () => {
@@ -85,7 +88,18 @@ describe("listOpenBlockedRuns", () => {
 			new Date(Date.now() - 30 * DAY),
 		);
 		expect(rows).toEqual([
-			{ runId: openBlocked, subjectNumber: 1, headSha: "sha-1" },
+			{
+				runId: openBlocked,
+				subjectNumber: 1,
+				headSha: "sha-1",
+				verdict: "block",
+			},
+			{
+				runId: openFix,
+				subjectNumber: 5,
+				headSha: "sha-5",
+				verdict: "changes_required",
+			},
 		]);
 	});
 
@@ -96,6 +110,6 @@ describe("listOpenBlockedRuns", () => {
 			REPO,
 			new Date(Date.now() - 30 * DAY),
 		);
-		expect(rows.map((row) => row.subjectNumber)).toEqual([1, 3]);
+		expect(rows.map((row) => row.subjectNumber)).toEqual([1, 3, 5]);
 	});
 });

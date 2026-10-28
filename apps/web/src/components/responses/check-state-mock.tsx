@@ -1,5 +1,5 @@
-import type { CommentReason, Verdict } from "@tripwire/contracts";
-import { CHECK_NAME, checkSummary } from "@tripwire/contracts";
+import type { Verdict } from "@tripwire/contracts";
+import { CHECK_NAME } from "@tripwire/contracts";
 import { AnimatePresence, motion } from "motion/react";
 import { StatusMark, type StatusValue } from "#/components/glaze/ui/status";
 import { BLUR_SWAP } from "#/components/responses/preview-motion";
@@ -11,25 +11,29 @@ const CHECK_STATE: Record<
 > = {
 	pass: { word: "Passing", status: "ok", tone: "text-ok-text" },
 	block: { word: "Failing", status: "fail", tone: "text-fail-text" },
+	changes_required: {
+		word: "Changes needed",
+		status: "fail",
+		tone: "text-fail-text",
+	},
+	close: { word: "Closed", status: "fail", tone: "text-fail-text" },
 	needs_review: { word: "In progress", status: "warn", tone: "text-warn-text" },
 };
 
 export interface CheckStateMockProps {
 	verdict: Verdict;
-	reasons: CommentReason[];
+	summary: string;
 	posted: boolean;
-	level: number;
 }
 
 export function CheckStateMock({
 	verdict,
-	reasons,
+	summary: postedSummary,
 	posted,
-	level,
 }: CheckStateMockProps) {
 	const state = posted ? CHECK_STATE[verdict] : null;
 	const summary = state
-		? checkSummary(verdict, reasons, false, level)
+		? postedSummary
 		: "Tripwire posts no check run on a pass.";
 	return (
 		<div data-dim="">

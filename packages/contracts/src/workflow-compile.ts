@@ -5,6 +5,7 @@ import { fieldIssueSentence } from "./issue-copy.ts";
 import { RULE_CATALOG } from "./rules.ts";
 import {
 	type EdgeWhen,
+	type GateInput,
 	jsonValueSchema,
 	triggerScheduleSchema,
 	type WorkflowDefinition,
@@ -288,7 +289,12 @@ class WorkflowCompiler {
 		return id;
 	}
 
-	private connect(source: Step, port: OutputPort, target: Step): void {
+	private connect(
+		source: Step,
+		port: OutputPort,
+		target: Step,
+		input?: GateInput,
+	): void {
 		if (source.kind === "trigger" && port !== "pass") {
 			this.issue(
 				"a trigger has only its event output; put a check or gate between it and this step",
@@ -299,7 +305,7 @@ class WorkflowCompiler {
 		const from = this.visit(source);
 		const to = this.idFor(target);
 		const when = portWhen(port, source);
-		const key = `${from}>${to}>${when ?? "pass"}`;
+		const key = `${from}>${to}>${when ?? "pass"}>${input ?? ""}`;
 		if (this.edgeKeys.has(key)) {
 			return;
 		}
@@ -308,11 +314,27 @@ class WorkflowCompiler {
 		for (let n = 2; this.edges.some((edge) => edge.id === id); n++) {
 			id = `${from}-${to}-${n}`;
 		}
-		this.edges.push(when ? { id, from, to, when } : { id, from, to });
+		const edge: WorkflowEdge = {
+			id,
+			from,
+			to,
+		};
+		if (when) {
+			edge.when = when;
+		}
+		if (input) {
+			edge.input = input;
+		}
+		this.edges.push(edge);
 	}
 
-	private wireInputs(step: Step, inputs: readonly Input[]): void {
-		for (const input of inputs) {
+	private wireInputs(
+		step: Step,
+		inputs: readonly Input[],
+		roles: readonly GateInput[] = [],
+	): void {
+		for (const [index, input] of inputs.entries()) {
+			const role = roles[index];
 			if (!inputShape.safeParse(input).success) {
 				this.issue("an input is not a step or a step output", step);
 				continue;
@@ -322,9 +344,9 @@ class WorkflowCompiler {
 					this.issue("an input is not a step or a step output", step);
 					continue;
 				}
-				this.connect(input.step, input.port, step);
+				this.connect(input.step, input.port, step, role);
 			} else {
-				this.connect(input, "pass", step);
+				this.connect(input, "pass", step, role);
 			}
 		}
 	}
@@ -460,8 +482,15 @@ class WorkflowCompiler {
 		if (step.mode === "not" && step.inputs.length > 1) {
 			this.issue("not takes exactly one input", step);
 		}
+		if (step.mode === "unless" && step.inputs.length !== 2) {
+			this.issue("unless takes a requirement and an exception", step);
+		}
 		this.nodes.push({ id, type: "gate", mode: step.mode });
-		this.wireInputs(step, step.inputs);
+		this.wireInputs(
+			step,
+			step.inputs,
+			step.mode === "unless" ? ["requirement", "exception"] : [],
+		);
 	}
 
 	private buildAction(step: ActionStep | ReviewStep, id: string): void {

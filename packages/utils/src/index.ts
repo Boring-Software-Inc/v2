@@ -31,6 +31,7 @@ export {
 	pickWorkflowName,
 } from "./names.ts";
 export { backoffWithJitter } from "./retry.ts";
+export { skipWhenDraft } from "./skip-when-draft.ts";
 export {
 	type DitherChartOptions,
 	encodePng,

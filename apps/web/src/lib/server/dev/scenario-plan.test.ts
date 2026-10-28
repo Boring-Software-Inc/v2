@@ -102,7 +102,7 @@ describe("resolveLanding", () => {
 			"/dev-owner/active-webapp/workflows/wf-1",
 		);
 		expect(landingFor({ ...OWNER, landing: "settings" })).toBe(
-			"/dev-owner/home?settings=settings",
+			"/dev-owner/settings/general",
 		);
 		expect(landingFor({ ...OWNER, landing: "public-run" })).toBe("/runs/run-1");
 	});

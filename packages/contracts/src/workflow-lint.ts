@@ -10,9 +10,11 @@ import {
 	labelParamsSchema,
 	missingScheduleSteps,
 	type NodePosition,
+	noteParamsSchema,
 	postCommentParamsSchema,
 	type RemovedActionKind,
 	type ReviewerRef,
+	requestFixParamsSchema,
 	requestReviewParamsSchema,
 	requestReviewTargetsSchema,
 	reviewerJson,
@@ -55,6 +57,7 @@ export const LINT_RULES = {
 	"no-outputs": { severity: "error", stage: "structure" },
 	"wrong-output": { severity: "error", stage: "structure" },
 	"not-input": { severity: "error", stage: "structure" },
+	"unless-inputs": { severity: "error", stage: "structure" },
 	"orphan-step": { severity: "error", stage: "structure" },
 	cycle: { severity: "error", stage: "structure" },
 	"no-action": { severity: "error", stage: "enable" },
@@ -421,6 +424,75 @@ function checkNotInputs(ctx: LintContext): Finding[] {
 	});
 }
 
+export const EMPTY_EXCEPTION_GROUP = "Add a check.";
+
+export const UNLESS_EMPTY_PORT = {
+	requirement: "Add a rule.",
+	exception: "Add a check.",
+} as const;
+
+const UNLESS_EXTRA_INPUT = {
+	requirement: "It takes one rule group. Keep one.",
+	exception: "It takes one Skip when. Keep one.",
+} as const;
+
+function checkUnlessInputs(ctx: LintContext): Finding[] {
+	const stray = ctx.def.edges.flatMap((edge) => {
+		const target = ctx.byId.get(edge.to);
+		if (
+			edge.input === undefined ||
+			!target ||
+			(target.type === "gate" && target.mode === "unless")
+		) {
+			return [];
+		}
+		return [
+			{
+				nodeId: edge.to,
+				edgeId: edge.id,
+				message: "This connection does nothing. Remove it.",
+				fixes: [removeEdge(edge.id)],
+			},
+		];
+	});
+	const gates = ctx.def.nodes.flatMap((node): Finding[] => {
+		if (node.type !== "gate" || node.mode !== "unless") {
+			return [];
+		}
+		const incoming = ctx.incoming.get(node.id) ?? [];
+		const unnamed = incoming.filter((edge) => edge.input === undefined);
+		const findings: Finding[] = [];
+		for (const role of ["requirement", "exception"] as const) {
+			const edges = incoming.filter((edge) => edge.input === role);
+			const [, ...extra] = edges;
+			if (edges.length === 0) {
+				findings.push({
+					nodeId: node.id,
+					message: UNLESS_EMPTY_PORT[role],
+					fixes: [],
+				});
+			}
+			if (extra.length > 0) {
+				findings.push({
+					nodeId: node.id,
+					message: UNLESS_EXTRA_INPUT[role],
+					fixes: extra.map((edge): LintFix => removeEdge(edge.id)),
+				});
+			}
+		}
+		for (const edge of unnamed) {
+			findings.push({
+				nodeId: node.id,
+				edgeId: edge.id,
+				message: "This connection does nothing. Remove it.",
+				fixes: [removeEdge(edge.id)],
+			});
+		}
+		return findings;
+	});
+	return [...stray, ...gates];
+}
+
 function checkOrphans(ctx: LintContext): Finding[] {
 	const triggers = ctx.def.nodes.filter((node) => node.type === "trigger");
 	const [onlyTrigger] = triggers;
@@ -430,6 +502,20 @@ function checkOrphans(ctx: LintContext): Finding[] {
 			(ctx.incoming.get(node.id) ?? []).length > 0
 		) {
 			return [];
+		}
+		const exceptionGroup =
+			node.type === "gate" &&
+			(ctx.outgoing.get(node.id) ?? []).some(
+				(edge) => edge.input === "exception",
+			);
+		if (exceptionGroup) {
+			return [
+				{
+					nodeId: node.id,
+					message: EMPTY_EXCEPTION_GROUP,
+					fixes: [],
+				},
+			];
 		}
 		const connect: LintFix[] =
 			triggers.length === 1 && onlyTrigger && canAccept(node.type, "event")
@@ -573,6 +659,18 @@ const ACTION_PARAM_SCHEMAS = {
 		message: "Write the message.",
 		label: "Write message",
 	},
+	"request-fix": {
+		schema: requestFixParamsSchema,
+		field: "message",
+		message: "Write what the author should change.",
+		label: "Write instruction",
+	},
+	note: {
+		schema: noteParamsSchema,
+		field: "message",
+		message: "Keep the note under 500 characters.",
+		label: "Edit note",
+	},
 } as const;
 
 const DISCORD_HOSTS: ReadonlySet<string> = new Set([
@@ -661,7 +759,10 @@ function checkActionParams(ctx: LintContext): Finding[] {
 					];
 		}
 		const spec =
-			node.action === "remove-label" || node.action === "post-comment"
+			node.action === "remove-label" ||
+			node.action === "post-comment" ||
+			node.action === "request-fix" ||
+			node.action === "note"
 				? ACTION_PARAM_SCHEMAS[node.action]
 				: null;
 		const parsed = spec?.schema.safeParse(node.params ?? {});
@@ -919,6 +1020,7 @@ const CHECKS: { rule: CheckedRule; check: (ctx: LintContext) => Finding[] }[] =
 		{ rule: "no-outputs", check: checkOutputs("no-outputs") },
 		{ rule: "wrong-output", check: checkOutputs("wrong-output") },
 		{ rule: "not-input", check: checkNotInputs },
+		{ rule: "unless-inputs", check: checkUnlessInputs },
 		{ rule: "orphan-step", check: checkOrphans },
 		{ rule: "cycle", check: checkCycles },
 		{ rule: "no-action", check: checkNoAction },
@@ -1173,8 +1275,9 @@ export function insertStep(
 		return def;
 	}
 	const withNode = { ...def, nodes: [...def.nodes, node] };
+	const { input, ...plain } = edge;
 	const into: WorkflowEdge = {
-		...edge,
+		...plain,
 		id: freshId(withNode, "edge"),
 		to: node.id,
 	};
@@ -1183,6 +1286,9 @@ export function insertStep(
 		from: node.id,
 		to: edge.to,
 	};
+	if (input) {
+		out.input = input;
+	}
 	return {
 		...withNode,
 		edges: [...def.edges.filter((entry) => entry.id !== edgeId), into, out],

@@ -1,6 +1,7 @@
 'use client';
 
 import {Tooltip} from '@base-ui/react/tooltip';
+import {useRender} from '@base-ui/react/use-render';
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {useGlazePortal} from '#/lib/glaze/portal.ts';
 import {cn, mergeRefs} from '#/lib/glaze/utils.ts';
@@ -27,7 +28,7 @@ type TextHintProps = {
   /** What the hint says. */
   content: React.ReactNode;
   /** The element the hint belongs to. It must accept a ref and props. */
-  children: React.ReactElement<Record<string, unknown>>;
+  children: React.ReactElement;
   disabled?: boolean;
   side?: 'top' | 'bottom' | 'left' | 'right';
 };
@@ -58,7 +59,7 @@ function TextHint({content, children, disabled, side = 'top'}: TextHintProps) {
       onPointerDown={(event: React.PointerEvent) => { pointer.current = event.pointerType; }}
       onKeyDown={() => { pointer.current = ''; }}
       onClickCapture={(event: React.MouseEvent) => {
-        if (!coarse()) return;
+        if (!coarse() || event.currentTarget instanceof HTMLAnchorElement) return;
         pointer.current = '';
         if (disabled) return;
         event.preventDefault();
@@ -117,11 +118,13 @@ function useClipped(ref: React.RefObject<HTMLElement | null>, text: string) {
   return clipped;
 }
 
-type TruncateProps = Omit<React.ComponentProps<'span'>, 'children'> & {
+type TruncateProps = Omit<useRender.ComponentProps<'span'>, 'children'> & {
   /** The full value. A string, so the hint can repeat it. */
   children: string;
   /** end: an ellipsis at the end of natural text. middle: keep the head and the tail of an ID or path. */
   position?: 'end' | 'middle';
+  /** End only: fade the clipped edge instead of drawing an ellipsis. Defaults to ellipsis. */
+  treatment?: 'ellipsis' | 'fade';
   /** middle only: how much of the end to keep, a character count or 'auto' (the last path segment, else 6). */
   tail?: number | 'auto';
   /** Show the full value in a hint when it is cut. On by default. */
@@ -137,7 +140,7 @@ const escapeRe = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * with a Range, so kerning counts) and puts its own ellipsis between head and tail, so the ellipsis always touches the
  * tail. A copy takes the full string.
  */
-function MiddleTruncate({children, tail, hint, focusable, className, ...props}: Omit<TruncateProps, 'position'> & {tail: number | 'auto'; hint: boolean; focusable: boolean}) {
+function MiddleTruncate({children, tail, hint, focusable, className, render, treatment: _treatment, ...props}: Omit<TruncateProps, 'position'> & {tail: number | 'auto'; hint: boolean; focusable: boolean}) {
   const outer = useRef<HTMLSpanElement>(null);
   const head = useRef<HTMLSpanElement>(null);
   const tailEl = useRef<HTMLSpanElement>(null);
@@ -194,41 +197,46 @@ function MiddleTruncate({children, tail, hint, focusable, className, ...props}: 
   };
 
   const tab = clipped && hint && focusable ? 0 : undefined;
-  const text = <span ref={outer} className="block max-w-full min-w-0">
-    <span
-      data-slot="truncate"
-      data-position="middle"
-      data-clipped={clipped || undefined}
-      dir="auto"
-      tabIndex={tab}
-      onCopy={onCopy}
-      className={cn('inline-flex max-w-full whitespace-nowrap focus-visible:rounded-tag', className)}
-      {...props}
-    >
+  const value = useRender({defaultTagName: 'span', render, props: {
+    'data-slot': 'truncate',
+    'data-position': 'middle',
+    'data-clipped': clipped || undefined,
+    dir: 'auto',
+    tabIndex: tab,
+    onCopy,
+    className: cn('inline-flex max-w-full whitespace-nowrap focus-visible:rounded-tag', className),
+    ...props,
+    children: <>
       <span ref={head} data-slot="truncate-head" className="overflow-hidden">{headText}</span>
       <span ref={dots} data-slot="truncate-ellipsis" aria-hidden="true" className="hidden shrink-0 select-none">…</span>
       <span ref={tailEl} data-slot="truncate-tail" className="shrink-0">{tailText}</span>
-    </span>
+    </>,
+  }});
+  const text = <span ref={outer} className="block max-w-full min-w-0">
+    {value}
   </span>;
   if (!hint) return text;
   return <TextHint content={children} disabled={!clipped}>{text}</TextHint>;
 }
 
-function Truncate({children, position = 'end', tail = 'auto', hint = true, focusable = true, className, ref, ...props}: TruncateProps) {
+function Truncate({children, position = 'end', treatment = 'ellipsis', tail = 'auto', hint = true, focusable = true, className, ref, render, ...props}: TruncateProps) {
   const cut = useRef<HTMLSpanElement>(null);
+  const fadeCut = useRef<HTMLSpanElement>(null);
   const cutRefs = useMemo(() => mergeRefs(cut, ref), [ref]);
-  const clipped = useClipped(cut, children);
-  if (position === 'middle') return <MiddleTruncate tail={tail} hint={hint} focusable={focusable} className={className} ref={ref} {...props}>{children}</MiddleTruncate>;
+  const clipped = useClipped(treatment === 'fade' ? fadeCut : cut, children);
   const tab = clipped && hint && focusable ? 0 : undefined;
-  const text = <span
-    ref={cutRefs}
-    data-slot="truncate"
-    data-position="end"
-    data-clipped={clipped || undefined}
-    tabIndex={tab}
-    className={cn('block min-w-0 truncate focus-visible:rounded-tag', className)}
-    {...props}
-  >{children}</span>;
+  const text = useRender({defaultTagName: 'span', render, props: {
+    ref: cutRefs,
+    'data-slot': 'truncate',
+    'data-position': 'end',
+    'data-treatment': treatment,
+    'data-clipped': clipped || undefined,
+    tabIndex: tab,
+    className: cn('block min-w-0 focus-visible:rounded-tag', treatment === 'ellipsis' && 'truncate', className),
+    ...props,
+    children: treatment === 'fade' ? <span ref={fadeCut} className={cn('block min-w-0 overflow-hidden whitespace-nowrap', clipped && '[mask-image:linear-gradient(to_right,var(--ink)_calc(100%_-_var(--space-6)),transparent)]')}>{children}</span> : children,
+  }});
+  if (position === 'middle') return <MiddleTruncate tail={tail} hint={hint} focusable={focusable} className={className} ref={ref} render={render} {...props}>{children}</MiddleTruncate>;
   if (!hint) return text;
   return <TextHint content={children} disabled={!clipped}>{text}</TextHint>;
 }

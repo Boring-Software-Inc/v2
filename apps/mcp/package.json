@@ -1,6 +1,6 @@
 {
 	"name": "@tripwire/mcp",
-	"version": "0.0.0",
+	"version": "1.1.0",
 	"private": true,
 	"type": "module",
 	"exports": {
@@ -9,7 +9,8 @@
 	"scripts": {
 		"dev": "bun --env-file=../../.env --watch src/index.ts",
 		"start": "bun src/index.ts",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "tsrs --noEmit --checkers 4 --fast false",
+		"typecheck:ts5": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@modelcontextprotocol/sdk": "^1.32.1",

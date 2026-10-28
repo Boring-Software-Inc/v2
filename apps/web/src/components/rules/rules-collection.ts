@@ -1,4 +1,5 @@
-import { defineCollection } from "#/lib/collection";
+import { z } from "zod";
+import { collectionSearchSchema, defineCollection } from "#/lib/collection";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
 const byName = (a: RuleConfigView, b: RuleConfigView) =>
@@ -11,31 +12,6 @@ export const RULES_COLLECTION = defineCollection<RuleConfigView>({
 		placeholder: "Search rules",
 		fields: (rule) => [rule.name, rule.ruleId, rule.blurb, rule.sentence],
 	},
-	filters: [
-		{
-			key: "show",
-			label: "Show rules",
-			kind: "segment",
-			allLabel: "All",
-			optionsFrom: (rules) => [
-				{ value: "active", label: "Active", match: (rule) => rule.enabled },
-				...(rules.some((rule) => rule.management === "managed")
-					? [
-							{
-								value: "workflows",
-								label: "In workflows",
-								match: (rule: RuleConfigView) => rule.management === "managed",
-							},
-						]
-					: []),
-				{
-					value: "custom",
-					label: "Custom",
-					match: (rule) => rule.source === "custom",
-				},
-			],
-		},
-	],
 	sort: [
 		{
 			key: "active",
@@ -46,3 +22,26 @@ export const RULES_COLLECTION = defineCollection<RuleConfigView>({
 	],
 	defaultSort: "active",
 });
+
+export const RULES_TABS = ["installed", "library", "custom"] as const;
+export type RulesTab = (typeof RULES_TABS)[number];
+
+const collectionSearch = collectionSearchSchema(RULES_COLLECTION);
+const tabSearch = z.object({
+	tab: z.enum(RULES_TABS).optional().catch(undefined),
+});
+
+interface RulesSearch extends z.output<typeof collectionSearch> {
+	tab?: RulesTab;
+}
+
+export function parseRulesSearch(
+	search: Parameters<typeof tabSearch.parse>[0],
+) {
+	const { tab } = tabSearch.parse(search);
+	const parsed: RulesSearch = collectionSearch.parse(search);
+	if (tab) {
+		parsed.tab = tab;
+	}
+	return parsed;
+}

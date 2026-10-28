@@ -63,7 +63,7 @@ export type JsonValue =
 export const nodePositionSchema = z.object({ x: z.number(), y: z.number() });
 export type NodePosition = z.infer<typeof nodePositionSchema>;
 
-export const gateModeSchema = z.enum(["all-of", "any-of", "not"]);
+export const gateModeSchema = z.enum(["all-of", "any-of", "not", "unless"]);
 export type GateMode = z.infer<typeof gateModeSchema>;
 
 export const workflowActionKindSchema = z.enum([
@@ -78,6 +78,8 @@ export const workflowActionKindSchema = z.enum([
 	"close",
 	"remove-label",
 	"post-comment",
+	"request-fix",
+	"note",
 ]);
 export type WorkflowActionKind = z.infer<typeof workflowActionKindSchema>;
 
@@ -214,6 +216,27 @@ export const postCommentParamsSchema = z.object({
 		),
 });
 export type PostCommentParams = z.infer<typeof postCommentParamsSchema>;
+
+export const MAX_OUTCOME_MESSAGE = 500;
+
+const outcomeMessageSchema = z
+	.string()
+	.trim()
+	.max(MAX_OUTCOME_MESSAGE, `keep it under ${MAX_OUTCOME_MESSAGE} characters`);
+
+export const requestFixParamsSchema = z.object({
+	message: outcomeMessageSchema.min(1, "write the fix instruction"),
+});
+export type RequestFixParams = z.infer<typeof requestFixParamsSchema>;
+
+export const storedRequestFixParamsSchema = z.object({
+	message: outcomeMessageSchema.optional(),
+});
+
+export const noteParamsSchema = z.object({
+	message: outcomeMessageSchema.optional(),
+});
+export type NoteParams = z.infer<typeof noteParamsSchema>;
 
 export const lockReasonSchema = z.enum([
 	"resolved",
@@ -483,12 +506,16 @@ export type WorkflowNode = z.infer<typeof workflowNodeSchema>;
 export const edgeWhenSchema = z.enum(["pass", "fail", "approve", "deny"]);
 export type EdgeWhen = z.infer<typeof edgeWhenSchema>;
 
+export const gateInputSchema = z.enum(["requirement", "exception"]);
+export type GateInput = z.infer<typeof gateInputSchema>;
+
 export const workflowEdgeSchema = z.object({
 	id: z.string(),
 	from: workflowNodeIdSchema,
 	to: workflowNodeIdSchema,
 	/** Default: conducts on "pass". */
 	when: edgeWhenSchema.optional(),
+	input: gateInputSchema.optional(),
 });
 export type WorkflowEdge = z.infer<typeof workflowEdgeSchema>;
 
@@ -502,15 +529,9 @@ export const workflowDefinitionSchema = z.object({
 export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
 
 /**
- * The hand-seeded default workflow (§13.6) — the BASELINE rule set a fresh
- * repo runs (derive.ts overlays toggles onto it) and the editor's starting
- * canvas. Boring thresholds; per-repo tuning happens in the Rules UI / editor.
- *
- * `ai-review@1` is deliberately ABSENT: it is opt-in per repo (§8 owner
- * decision — it costs tokens), so it is a NON-baseline rule that only runs
- * when a maintainer explicitly enables it. Keeping it out of the baseline is
- * what makes `ruleExecutes` (the /rules display) and `deriveDefaultWorkflow`
- * (execution) agree — both read this list.
+ * The hand-seeded default workflow (§13.6): its id, name and trigger name the
+ * derived "Rules" workflow, and it stays a test fixture. Its rule nodes are
+ * NOT a baseline: no rule runs until a maintainer turns it on (derive.ts).
  */
 export const DEFAULT_WORKFLOW: WorkflowDefinition = {
 	id: "default@1",
@@ -659,6 +680,7 @@ export interface GateCatalogEntry {
 	mode: GateMode;
 	name: string;
 	description: string;
+	toolbox: boolean;
 }
 
 export const GATE_CATALOG: GateCatalogEntry[] = [
@@ -667,17 +689,27 @@ export const GATE_CATALOG: GateCatalogEntry[] = [
 		name: "All of",
 		description:
 			"Passes only when every connected check passes. A check that was never reached does not pass.",
+		toolbox: true,
 	},
 	{
 		mode: "any-of",
 		name: "Any of",
 		description:
 			"Passes when at least one connected check passes. A check that was never reached does not pass.",
+		toolbox: true,
 	},
 	{
 		mode: "not",
 		name: "Not",
 		description: "Flips its input: pass becomes fail, and fail becomes pass.",
+		toolbox: true,
+	},
+	{
+		mode: "unless",
+		name: "Except when",
+		description:
+			"Passes when the requirement passes or the exception passes. Missing exception proof does not waive the requirement.",
+		toolbox: false,
 	},
 ];
 
@@ -693,6 +725,17 @@ export const ACTION_CATALOG: ActionCatalogEntry[] = [
 		name: "Block",
 		description:
 			"Fails the Tripwire check and requests changes. The change request stays open.",
+	},
+	{
+		action: "request-fix",
+		name: "Ask author to fix",
+		description:
+			"Fails the Tripwire check and tells the author what to change. No GitHub review.",
+	},
+	{
+		action: "note",
+		name: "Note only",
+		description: "Leaves the check green and adds a note to the comment.",
 	},
 	{
 		action: "label",

@@ -11,6 +11,7 @@ import {
 	nodeFieldValues,
 	summarizeFieldValue,
 } from "#/components/workflows/editor/node-fields";
+import { ruleGroupsView } from "#/lib/rule-groups";
 import { triggerPath, whenSentence } from "#/lib/trigger-kinds";
 
 type Graph = Pick<WorkflowDefinition, "nodes" | "edges">;
@@ -141,13 +142,32 @@ export function laneDecor(graph: Graph, boxes: readonly LaneBox[]): LaneDecor {
 	return { heads, rules };
 }
 
+const GROUP = { head: 44, row: 28, actions: 36 };
+
+export function cardHeightOf(graph: Graph): (node: WorkflowNode) => number {
+	const view = ruleGroupsView(graph);
+	return (node) => {
+		const card = view.cards.get(node.id);
+		if (card?.kind === "group") {
+			return GROUP.head + card.ruleIds.length * GROUP.row + GROUP.actions;
+		}
+		if (card?.kind === "skip") {
+			const mode = card.checkIds.length > 1 ? GROUP.row + 4 : 0;
+			return (
+				GROUP.head + mode + card.checkIds.length * GROUP.row + GROUP.actions
+			);
+		}
+		return estimateCardHeight(node);
+	};
+}
+
 export function placeUnpositioned<
 	T extends { id: string; position: { x: number; y: number } },
->(nodes: T[], definition: Graph): T[] {
+>(nodes: T[], definition: Graph, full: Graph = definition): T[] {
 	if (definition.nodes.every((node) => node.position)) {
 		return nodes;
 	}
-	const layout = laneLayout(definition);
+	const layout = laneLayout(definition, cardHeightOf(full));
 	const stored = new Set(
 		definition.nodes.filter((node) => node.position).map((node) => node.id),
 	);

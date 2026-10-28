@@ -5,7 +5,7 @@ import { hostAgentId } from "#/agents/host";
 import { formatCommand } from "#/agents/shell";
 import type { LoginCommand } from "#/agents/types";
 import { copyToClipboard } from "#/clipboard";
-import { mcpUrl } from "#/config";
+import { mcpUrl, SERVER_NAME } from "#/config";
 import type { MergeOutcome } from "#/json-config";
 import { buildPrompt } from "#/prompt";
 import {
@@ -145,7 +145,7 @@ function nextSteps(
 	}
 	const lines = done.map(({ agent }) =>
 		agent.id === host
-			? `${agent.name}, this session: do not run the login here. Ask the user to sign in with ${agent.signInHint}. Restart ${agent.name} first if tripwire is not listed.`
+			? `${agent.name}, this session: do not run the login here. Ask the user to sign in with ${agent.signInHint}. Restart ${agent.name} first if ${SERVER_NAME} is not listed.`
 			: `${agent.name}: ${agent.signInHint}`,
 	);
 	p.log.info(`Sign in to the Tripwire MCP\n${lines.join("\n")}`);

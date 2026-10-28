@@ -12,6 +12,8 @@ import {
 	ruleChangeNote,
 	ruleExecutes,
 	ruleForgeBlockReason,
+	ruleIdOf,
+	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import type { Db } from "../client.ts";
 import { getAiCredits } from "./ai-provider.ts";
@@ -76,6 +78,20 @@ export interface RuleConfigView {
 	/** Workflows (enabled OR disabled) that reference a custom rule — deletion is
 	 * refused while non-empty, and the card names them. Empty for built-ins. */
 	blockingWorkflows: { id: string; name: string }[];
+	usedIn: { id: string; name: string }[];
+}
+
+export function workflowsUsingRule(
+	ruleId: string,
+	rows: readonly { id: string; definition: WorkflowDefinition }[],
+): { id: string; name: string }[] {
+	return rows
+		.filter((row) =>
+			row.definition.nodes.some(
+				(node) => node.type === "rule" && ruleIdOf(node.ref) === ruleId,
+			),
+		)
+		.map((row) => ({ id: row.id, name: row.definition.name }));
 }
 
 export interface RulesHeaderStats {
@@ -158,6 +174,7 @@ export async function listRuleViews(
 			source: "custom",
 			sentence,
 			blockingWorkflows: blockingByRuleId.get(record.id) ?? [],
+			usedIn: workflowsUsingRule(record.id, enabledRows),
 		});
 	}
 	const aiCredits = await getAiCredits(db);
@@ -209,6 +226,7 @@ export async function listRuleViews(
 			source: "built-in",
 			sentence: null,
 			blockingWorkflows: [],
+			usedIn: workflowsUsingRule(entry.ruleId, enabledRows),
 		};
 	});
 	return [...builtIns, ...customViews];
@@ -295,5 +313,35 @@ export async function saveRuleConfig(
 		enabled: input.enabled,
 		config: parsed.data,
 	});
+	return { ok: true };
+}
+
+export async function setRulesEnabled(
+	db: Db,
+	input: { repoId: string; ruleIds: readonly string[]; enabled: boolean },
+): Promise<SaveRuleResult> {
+	const stored = await listRuleConfigs(db, input.repoId);
+	for (const ruleId of input.ruleIds) {
+		const entry = RULE_CATALOG.find((r) => r.ruleId === ruleId);
+		if (!entry) {
+			return {
+				error: `Tripwire does not know the rule ${ruleId}. Reload the page and try again.`,
+			};
+		}
+		const row = stored.find((c) => c.ruleId === ruleId);
+		const config =
+			row && entry.configSchema.safeParse(row.config).success
+				? row.config
+				: entry.defaultConfig;
+		const result = await saveRuleConfig(db, {
+			repoId: input.repoId,
+			ruleId,
+			enabled: input.enabled,
+			config,
+		});
+		if ("error" in result) {
+			return result;
+		}
+	}
 	return { ok: true };
 }

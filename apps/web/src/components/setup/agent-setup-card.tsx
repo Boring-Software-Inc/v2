@@ -28,7 +28,7 @@ const STAGE_LABELS: Record<SetupStage, string> = {
 	connect_mcp: "Connect your agent",
 	install_app: "Install the GitHub App",
 	sync_repos: "Sync repos",
-	pick_rules: "Pick rules",
+	pick_rules: "Install rules",
 	turn_on_gate: "Turn on the gate",
 	verify_check: "Check a pull request",
 };
@@ -172,7 +172,10 @@ export function AgentSetupCard({
 	const prompt = run ? setupPrompt({ org, code: run.code }) : setupPrompt();
 
 	return (
-		<Card aria-labelledby="agent-setup-heading">
+		<Card
+			aria-labelledby="agent-setup-heading"
+			data-feedback-name="AgentSetupCard"
+		>
 			<CardContent className="flex flex-col gap-4">
 				<div className="flex items-center justify-between gap-3">
 					<h2

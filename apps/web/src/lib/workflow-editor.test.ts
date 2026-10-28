@@ -5,6 +5,7 @@ import {
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
+import { skipWhenDraft } from "@tripwire/utils";
 import {
 	aiCreditsOf,
 	definitionToGraph,
@@ -12,6 +13,7 @@ import {
 	type EditorNode,
 	editorLint,
 	graphToDefinition,
+	handleInput,
 } from "./workflow-editor.ts";
 
 /** Positions are layout, persisted since the editor rebuild — identity is
@@ -358,5 +360,36 @@ describe("AI review steps while Tripwire is out of AI credits", () => {
 			aiCreditsOf([{ ruleId: "ai-review", unavailableReason: null }]),
 		).toBe("ready");
 		expect(aiCreditsOf(undefined)).toBe("ready");
+	});
+});
+
+describe("Skip when on the canvas", () => {
+	test("requirement and exception roles survive definition, graph and back", () => {
+		const draft = skipWhenDraft({
+			id: "wf",
+			name: "Target is main",
+			ref: "account-age@1",
+			config: { minDays: 7 },
+		});
+		const graph = definitionToGraph(draft);
+		expect(
+			graph.edges.find((edge) => edge.id === "requirement-gate")?.data?.input,
+		).toBe("requirement");
+		const result = graphToDefinition(
+			{ id: draft.id, name: draft.name, version: draft.version },
+			graph.nodes,
+			graph.edges,
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.definition.edges).toEqual(draft.edges);
+		}
+	});
+
+	test("a handle that is not a gate input stores no role", () => {
+		expect(handleInput("requirement")).toBe("requirement");
+		expect(handleInput("exception")).toBe("exception");
+		expect(handleInput(null)).toBeUndefined();
+		expect(handleInput("fail")).toBeUndefined();
 	});
 });

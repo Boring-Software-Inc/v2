@@ -15,7 +15,10 @@ export function createGrok(system: System): Agent {
 	];
 	const listed = async () => {
 		const result = await system.run(binary(), ["mcp", "list"]);
-		return result.ok && new RegExp(`\\b${SERVER_NAME}\\b`).test(result.stdout);
+		return (
+			result.ok &&
+			new RegExp(`(^|[^\\w.-])${SERVER_NAME}(?=$|[^\\w.-])`).test(result.stdout)
+		);
 	};
 	return {
 		id: "grok",

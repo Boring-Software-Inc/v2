@@ -1,23 +1,44 @@
+import { digestHistoryWindowSchema } from "@tripwire/contracts";
 import { z } from "zod";
 
 export const ACTIVITY_VERDICTS = [
 	"all",
 	"block",
+	"changes_required",
 	"needs_review",
 	"pass",
 	"no-run",
+	"close",
 ] as const;
 
 export type ActivityVerdict = (typeof ACTIVITY_VERDICTS)[number];
 
+export const ACTIVITY_VERDICT_LABELS = {
+	all: "All",
+	block: "Blocked",
+	changes_required: "Changes needed",
+	needs_review: "Human review",
+	pass: "Passed",
+	"no-run": "Not checked",
+	close: "Closed",
+} satisfies Record<ActivityVerdict, string>;
+
 export const ACTIVITY_SEARCH_DEFAULTS = { verdict: "all" } as const;
 
-export const activitySearchSchema = z.object({
-	verdict: z
-		.enum(ACTIVITY_VERDICTS)
-		.default(ACTIVITY_SEARCH_DEFAULTS.verdict)
-		.catch(ACTIVITY_SEARCH_DEFAULTS.verdict),
-});
+export const activitySearchSchema = z
+	.object({
+		from: z.iso.datetime().optional().catch(undefined),
+		to: z.iso.datetime().optional().catch(undefined),
+		verdict: z
+			.enum(ACTIVITY_VERDICTS)
+			.default(ACTIVITY_SEARCH_DEFAULTS.verdict)
+			.catch(ACTIVITY_SEARCH_DEFAULTS.verdict),
+	})
+	.transform((search) =>
+		digestHistoryWindowSchema.safeParse(search).success
+			? search
+			: { verdict: search.verdict },
+	);
 
 export const ANALYTICS_METRICS = ["review", "blocked", "passed"] as const;
 
@@ -33,10 +54,11 @@ export const analyticsSearchSchema = z.object({
 });
 
 export const RESPONSE_SCOPES = [
-	"redaction",
-	"pass",
 	"block",
+	"changes_required",
 	"needs_review",
+	"note",
+	"close",
 ] as const;
 
 export type ResponseScope = (typeof RESPONSE_SCOPES)[number];

@@ -78,6 +78,38 @@ its Doesn't pass output, `not(passes)`, and it fits anywhere a check fits, so
 `pass: [block()]`. `not(x)` is an explicit Not gate for the same idea.
 `pass` actions run when `check` passes, `fail` actions when it does not.
 
+**Skip when.** In the app, a rule group reads "If any of these rules fail"
+and can have a Skip when in front of it. If the Skip when matches, the group's
+rules are skipped. Otherwise they run as normal. In code that is
+`unless(group, skipWhen)`: the first argument is the group (one check, or
+`allOf(a, b)` for several), the second the Skip when (a check, `allOf(...)` or
+`anyOf(...)`). Order matters. It fails closed: if the Skip when errors, is
+skipped or has no proof, the rules run. Put the outcome on its `fail` side:
+
+```ts
+const on = trigger("change-request.opened", "change-request.updated");
+const releasePr = allOf(
+	customCheck("custom-target-release"),
+	customCheck("custom-release-source"),
+	customCheck("custom-release-author"),
+);
+export default workflows({
+	target: workflow({
+		on,
+		check: unless(customCheck("custom-target-main"), releasePr),
+		fail: [requestFix({ message: "Change the target to main." })],
+	}),
+	crypto: workflow({ on, check: check("crypto-address"), fail: [block()] }),
+});
+```
+
+Keep other rules in their own group so the Skip when never skips them. A run
+shows a skipped group as skipped, with the Skip when checks as evidence, never
+as passed.
+
+The Skip when's own rules can stay uninstalled: a workflow runs the rules it
+uses.
+
 **Ids are the code's ids.** Rules: `check("<rule id>", settings)`, typed from
 the catalog; `list_rule_catalog` lists them. A repo's custom rules:
 `customCheck("custom-...")`. Events: `change-request.opened`,
@@ -85,7 +117,9 @@ the catalog; `list_rule_catalog` lists them. A repo's custom rules:
 A wrong id or setting fails type-checking and validation, with the right one
 named.
 
-**Actions.** `block()`, `label({ labels })`, `removeLabel({ labels })`,
+**Actions.** `block()`, `requestFix({ message })` (red check and the
+instruction, no GitHub review), `note({ message })` (green check, the note in
+the comment), `label({ labels })`, `removeLabel({ labels })`,
 `requestReview({ reviewers, teamReviewers })`, `postComment({ message })`,
 `lock({ reason })`, `close()`, `webhook()`, `discord()`, and
 `humanReview({ approve: [...], deny: [...] })`, which waits for a maintainer.
@@ -136,9 +170,11 @@ sentence. Over the MCP, the tools are `save_custom_rule`, `delete_custom_rule`
 and `get_repo_rules`. The `save_custom_rule` description lists every signal
 and comparison.
 
-A new rule starts off. A rule that is on and that no workflow uses runs by
-itself on every change request. To combine rules, keep them off and use them
-in `tripwire.ts`. For example, to block change requests into `release` unless
+A new rule is not installed. An installed rule that no workflow uses runs by
+itself on every change request and blocks when it does not pass. Rules are
+plain checks: Ask author to fix, Human review, Note only, Close and Skip when
+belong to workflows. To combine rules or do anything but block, leave them
+uninstalled and use them in `tripwire.ts`. For example, to block change requests into `release` unless
 the source branch comes from release-please, make a second rule
 `{"when":{"id":"pr.sourceBranch"},"comparison":{"kind":"startsWith","args":["release-please"]}}`,
 then:

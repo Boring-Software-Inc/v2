@@ -81,6 +81,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 
 	// ── activity (runs) ───────────────────────────────────────────────────
 	getActivityFeed: "permission:activity:read",
+	getHomeDigest: "permission:activity:read",
+	getDigestHistory: "permission:activity:read",
 	getLatestRunId: "permission:activity:read",
 	rerunChangeRequest: "permission:activity:manage",
 	getRerunPreview: "permission:activity:manage",
@@ -90,7 +92,9 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	listCustomRuleViews: "permission:rules:read",
 	getRulesHeaderStats: "permission:rules:read",
 	getRepoSuggestions: "permission:rules:read",
+	getRuleLibrary: "permission:rules:read",
 	saveRuleConfig: "permission:rules:manage",
+	setRulesEnabled: "permission:rules:manage",
 	upgradeRuleConfig: "permission:rules:manage",
 	saveCustomRule: "permission:rules:manage",
 	setCustomRuleEnabled: "permission:rules:manage",
@@ -120,6 +124,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	getOrgResponseDefaults: "permission:responses:read",
 	saveRepoResponseConfig: "permission:responses:manage",
 	saveOrgResponseDefaults: "permission:responses:manage",
+	searchCloseGifs: "permission:responses:manage",
 
 	// ── analytics ─────────────────────────────────────────────────────────
 	getOrgAnalyticsSummary: "permission:analytics:read",
@@ -138,6 +143,11 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	findSetupRun: "permission:connections:manage",
 	getAgentSetupPrompt: "permission:connections:manage",
 	dismissAgentSetupPrompt: "permission:connections:manage",
+	takeOverAgentSetup: "permission:connections:manage",
+	getRepoSetup: "permission:moderation:read",
+	keepResponseDefaults: "permission:responses:manage",
+	markResponsesReviewed: "permission:responses:manage",
+	claimOnboardingEvent: "permission:connections:manage",
 
 	// ── members + roles (manage is never grantable to a custom role) ──────
 	listOrgMembers: "permission:members:read",

@@ -1,4 +1,16 @@
-import type { JsonValue, RunStepView, RunView } from "#/lib/runs.functions";
+import type { SurfacePlan } from "@tripwire/contracts";
+import type {
+	CheckPreview,
+	OutcomeMeta,
+	OutcomeScope,
+} from "#/components/responses/responses-model";
+import type {
+	JsonValue,
+	RunActionView,
+	RunStepView,
+	RunView,
+	WorkflowOutcome,
+} from "#/lib/runs.functions";
 
 function ruleStep(
 	id: string,
@@ -137,3 +149,38 @@ export const SAMPLE_RUN: RunView = {
 	backfill: false,
 	aiReviewNotRun: false,
 };
+
+const WORKFLOW_OUTCOMES = {
+	block: "block",
+	changes_required: "changes",
+	needs_review: "review",
+	note: "pass",
+	close: "close",
+} satisfies Record<OutcomeScope, WorkflowOutcome>;
+
+export function sampleRunFor(
+	outcome: OutcomeMeta,
+	plan: SurfacePlan,
+	check: CheckPreview,
+): RunView {
+	const at = SAMPLE_RUN.completedAt ?? SAMPLE_RUN.createdAt;
+	const action = (kind: string): RunActionView => ({
+		kind,
+		status: "executed",
+		recordedAt: at,
+		url: null,
+	});
+	return {
+		...SAMPLE_RUN,
+		verdict: outcome.verdict,
+		workflows: SAMPLE_RUN.workflows.map((workflow) => ({
+			...workflow,
+			outcome: WORKFLOW_OUTCOMES[outcome.value],
+		})),
+		actions: [
+			...(check.posted ? [action("set-check")] : []),
+			...(plan.review ? [action("block")] : []),
+			...(plan.comment === "upsert" ? [action("comment")] : []),
+		],
+	};
+}

@@ -2,6 +2,7 @@ export * from "./agent-work.ts";
 export * from "./auth.ts";
 export * from "./economics.ts";
 export * from "./events.ts";
+export * from "./giphy.ts";
 export * from "./moderation.ts";
 export * from "./oauth.ts";
 export * from "./organizations.ts";

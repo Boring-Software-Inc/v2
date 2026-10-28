@@ -22,6 +22,7 @@ export interface EntityCardProps {
 	selected?: boolean;
 	flush?: boolean;
 	className?: string;
+	feedbackName?: string;
 }
 
 export function EntityCard({
@@ -35,6 +36,7 @@ export function EntityCard({
 	selected,
 	flush,
 	className,
+	feedbackName = "EntityCard",
 }: EntityCardProps) {
 	return (
 		<Card
@@ -43,6 +45,7 @@ export function EntityCard({
 				className,
 			)}
 			data-entity-card=""
+			data-feedback-name={feedbackName}
 			data-selected={selected ? "" : undefined}
 		>
 			<CardHeader>

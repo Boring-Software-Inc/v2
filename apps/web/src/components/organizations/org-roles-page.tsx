@@ -9,6 +9,7 @@ import {
 	orgRoleScopesSchema,
 } from "@tripwire/contracts";
 import { useState } from "react";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
@@ -17,7 +18,6 @@ import {
 	DialogBody,
 	DialogClose,
 	DialogContent,
-	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -41,6 +41,10 @@ import {
 } from "#/components/glaze/ui/select";
 import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
+import {
+	SettingsCard,
+	SettingsHeader,
+} from "#/components/settings/settings-frame";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import type { OrgRoleView } from "#/lib/org.functions";
 import {
@@ -86,61 +90,52 @@ export function OrgRolesPage({ org }: { org: string }) {
 	const [creating, setCreating] = useState(false);
 
 	return (
-		<section
-			aria-labelledby="org-roles-heading"
-			className="flex flex-col gap-3"
-		>
-			<div className="flex items-start justify-between gap-3">
-				<div className="flex min-w-0 flex-col gap-0.5">
-					<h3 className="type-heading-sm" id="org-roles-heading">
-						Roles
-					</h3>
-					<p className="type-body-sm text-text-2">
-						A custom role sees only the areas you pick.
-					</p>
-				</div>
+		<>
+			<SettingsHeader title="Roles">
 				{canManage && !isPersonal ? (
-					<Button onClick={() => setCreating(true)} size="sm">
-						Create role
-					</Button>
+					<Button onClick={() => setCreating(true)}>Create role</Button>
 				) : null}
-			</div>
-			<ItemGroup aria-label="Roles" variant="plain">
-				<Item>
-					<ItemContent>
-						<ItemTitle>Admin</ItemTitle>
-						<ItemDescription>Every area, and members and roles</ItemDescription>
-					</ItemContent>
-					<ItemActions>
-						<Badge variant="outline">Built in</Badge>
-					</ItemActions>
-				</Item>
-				<Item>
-					<ItemContent>
-						<ItemTitle>Member</ItemTitle>
-						<ItemDescription>Reads every area</ItemDescription>
-					</ItemContent>
-					<ItemActions>
-						<Badge variant="outline">Built in</Badge>
-					</ItemActions>
-				</Item>
-				{rolesQuery.isPending ? (
-					<Item aria-hidden>
+			</SettingsHeader>
+			<SettingsCard>
+				<ItemGroup aria-label="Roles">
+					<Item>
 						<ItemContent>
-							<SkeletonText className="w-28" type="label" />
-							<SkeletonText className="w-56" type="body-sm" />
+							<ItemTitle>Admin</ItemTitle>
+							<ItemDescription>
+								Every area, and members and roles
+							</ItemDescription>
 						</ItemContent>
+						<ItemActions>
+							<Badge variant="outline">Built in</Badge>
+						</ItemActions>
 					</Item>
-				) : null}
-				{(rolesQuery.data ?? []).map((role) => (
-					<CustomRoleRow
-						canManage={canManage}
-						key={role.id}
-						org={org}
-						role={role}
-					/>
-				))}
-			</ItemGroup>
+					<Item>
+						<ItemContent>
+							<ItemTitle>Member</ItemTitle>
+							<ItemDescription>Reads every area</ItemDescription>
+						</ItemContent>
+						<ItemActions>
+							<Badge variant="outline">Built in</Badge>
+						</ItemActions>
+					</Item>
+					{rolesQuery.isPending ? (
+						<Item aria-hidden>
+							<ItemContent>
+								<SkeletonText className="w-28" type="label" />
+								<SkeletonText className="w-56" type="body-sm" />
+							</ItemContent>
+						</Item>
+					) : null}
+					{(rolesQuery.data ?? []).map((role) => (
+						<CustomRoleRow
+							canManage={canManage}
+							key={role.id}
+							org={org}
+							role={role}
+						/>
+					))}
+				</ItemGroup>
+			</SettingsCard>
 			{rolesQuery.isError ? (
 				<p className="type-body-sm text-fail-text">
 					Tripwire couldn't load the roles. Reload to try again.
@@ -149,7 +144,7 @@ export function OrgRolesPage({ org }: { org: string }) {
 			{creating ? (
 				<RoleDialog onOpenChange={setCreating} open org={org} />
 			) : null}
-		</section>
+		</>
 	);
 }
 
@@ -215,30 +210,14 @@ function CustomRoleRow({
 							org={org}
 						/>
 					) : null}
-					<Dialog
+					<ConfirmDeleteDialog
+						actionLabel="Delete role"
+						description="Give its members another role first."
+						onConfirm={() => deleteMutation.mutateAsync()}
 						onOpenChange={setConfirmDelete}
 						open={confirmDelete}
-						role="alertdialog"
-					>
-						<DialogContent size="sm">
-							<DialogHeader>
-								<DialogTitle>Delete the {role.name} role?</DialogTitle>
-								<DialogDescription>
-									Give its members another role first.
-								</DialogDescription>
-							</DialogHeader>
-							<DialogFooter>
-								<DialogClose>Cancel</DialogClose>
-								<DialogAction
-									onAction={() => deleteMutation.mutateAsync()}
-									pendingLabel="Deleting"
-									variant="destructive"
-								>
-									Delete role
-								</DialogAction>
-							</DialogFooter>
-						</DialogContent>
-					</Dialog>
+						title={`Delete the ${role.name} role?`}
+					/>
 				</ItemActions>
 			) : null}
 		</Item>

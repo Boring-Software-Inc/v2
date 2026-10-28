@@ -180,7 +180,7 @@ export function resolveLanding(
 		case "home":
 			return home;
 		case "settings":
-			return org ? `${home}?settings=settings` : "/";
+			return org ? `/${org}/settings/general` : "/";
 		case "repo":
 			return repo ?? home;
 		case "workflows":

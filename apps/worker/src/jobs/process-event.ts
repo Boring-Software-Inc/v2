@@ -316,7 +316,7 @@ export async function processEvent(
 		normalized,
 		event.id,
 	);
-	if (result.runId && result.verdict) {
+	if (result.runId && result.verdict && !result.quiet) {
 		await emitPrSurface(surfaceDeps, {
 			runId: result.runId,
 			verdict: result.verdict,

@@ -128,6 +128,42 @@ describe("detection of the wider agent set", () => {
 
 describe("CLI-driven agents", () => {
 	test.each([
+		{ id: "claude", file: ".claude.json", key: "mcpServers" },
+		{ id: "gemini", file: ".gemini/settings.json", key: "mcpServers" },
+		{ id: "copilot", file: ".copilot/mcp-config.json", key: "mcpServers" },
+		{ id: "amp", file: ".config/amp/settings.json", key: "amp.mcpServers" },
+		{ id: "droid", file: ".factory/mcp.json", key: "mcpServers" },
+	])("$id: staging alone is absent; updating production removes only production", async (row) => {
+		const calls: string[][] = [];
+		system = {
+			...system,
+			run: async (_command, args) => {
+				calls.push(args);
+				return { ok: true, stdout: "", stderr: "" };
+			},
+		};
+		const staging = {
+			url: "https://tripwire-mcp-preview-tripwire.unkey.app/mcp",
+		};
+		writeJson(home(row.file), { [row.key]: { "tripwire-staging": staging } });
+		const target = agent(row.id);
+		expect(await target.hasServer()).toBe(false);
+		expect((await target.addServer(URL)).outcome).toBe("added");
+		expect(calls).toHaveLength(1);
+		expect(calls[0]).toContain("add");
+		calls.length = 0;
+		writeJson(home(row.file), {
+			[row.key]: { "tripwire-staging": staging, tripwire: { url: OLD_URL } },
+		});
+		expect(await target.hasServer()).toBe(true);
+		expect((await target.addServer(URL)).outcome).toBe("updated");
+		expect(calls).toHaveLength(2);
+		expect(calls[0]).toContain("remove");
+		expect(calls[0]).toContain("tripwire");
+		expect(calls.flat()).not.toContain("tripwire-staging");
+	});
+
+	test.each([
 		{
 			id: "gemini",
 			binary: "gemini",

@@ -4,7 +4,7 @@ import { GithubIcon } from "#/components/icons/github";
 
 /**
  * Forge brand marks, lifted from the "new login" artboard in Paper. Icon-only —
- * the Paper source draws GitLab and ORIGIN as full lockups (mark + wordmark),
+ * the Paper source draws GitLab as a full lockup (mark + wordmark),
  * but a baked-in wordmark can't take the theme's font or color, so the letters
  * are dropped here and the label is real text in the button.
  *
@@ -24,8 +24,8 @@ import { GithubIcon } from "#/components/icons/github";
 type MarkProps = { className?: string };
 
 /**
- * Every forge in the CATALOG mapped to its mark — planned ones included, since
- * they still render in the grids. A `Record<ForgeId, …>` and NOT a switch with a
+ * Every forge in the CATALOG mapped to its mark, planned ones included. A
+ * `Record<ForgeId, …>` and NOT a switch with a
  * default: there is no sensible fallback mark, and a default arm would quietly
  * brand an unmapped forge as whichever one it points at. Adding a catalog entry
  * breaks this line until a mark exists for it, which is the reminder we want.
@@ -34,7 +34,7 @@ const FORGE_MARK = {
 	github: GithubIcon,
 	gitlab: GitlabMark,
 	opengit: OpenGitMark,
-	origin: OriginMark,
+	gitcafe: GitCafeMark,
 } satisfies Record<ForgeId, (props: MarkProps) => ReactElement>;
 
 /**
@@ -112,20 +112,15 @@ export function GitlabMark({ className }: MarkProps) {
 	);
 }
 
-export function OriginMark({ className }: MarkProps) {
+export function GitCafeMark({ className }: MarkProps) {
 	return (
 		<svg
 			aria-hidden="true"
 			className={className}
-			viewBox="47.5 299.5 121.4 134.9"
+			viewBox="0 0 14 14"
 			xmlns="http://www.w3.org/2000/svg"
 		>
-			<path
-				clipRule="evenodd"
-				d="M108.192 299.618C110.268 299.515 123.926 308.469 127.051 310.087 131.819 313.274 139.749 315.822 144.222 319.011 150.944 323.803 162.538 328.699 168.278 333.615 168.83 343.346 168.463 356.693 168.469 366.575 168.476 376.629 168.849 390.191 168.251 400.037 165.02 403.347 160.367 405.185 156.239 407.524L131.695 421.116C123.998 425.4 116.379 429.815 108.841 434.358 99.066 430.666 90.317 424.847 81.387 419.737 76.476 416.926 71.143 414.594 66.115 411.665 61.102 408.746 53.066 403.221 47.862 401.397 47.165 389.741 47.757 375.088 47.61 363.114 47.515 355.383 47.22 339.243 48.066 332.388 55.163 329.377 61.585 324.738 68.344 321.199 81.791 314.16 94.357 305.897 108.192 299.618zM54.877 335.106C84.127 335.889 113.692 334.922 142.969 335.267 149.344 335.342 156.786 334.906 163.023 335.731 161.26 340.722 157.527 346.549 154.901 351.289 146.726 366.053 136.478 380.926 128.309 395.665 125.178 401.324 122.36 405.651 119.014 411.059 114.572 418.239 112.713 422.453 107.055 428.871 107.508 408.764 107.21 387.431 107.199 367.201 104.745 364.791 99.488 362.569 96.292 360.766L73.18 347.83C67.613 344.762 62.637 340.651 56.555 338.533 55.606 338.203 54.445 337.961 53.927 337.101 53.898 336.189 54.299 335.835 54.877 335.106z"
-				fill="currentColor"
-				fillRule="evenodd"
-			/>
+			<rect fill="currentColor" height="14" rx="2" width="14" />
 		</svg>
 	);
 }

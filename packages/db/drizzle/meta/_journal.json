@@ -274,6 +274,48 @@
       "when": 1792898173240,
       "tag": "0038_custom_rule_description",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792905684888,
+      "tag": "0039_rules_off_by_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792905692134,
+      "tag": "0040_rule_previews",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792922513587,
+      "tag": "0041_rule_outcomes",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792926350469,
+      "tag": "0042_giphy_cache",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792969938960,
+      "tag": "0043_drop_rule_outcomes",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792975357484,
+      "tag": "0044_repo_onboarding_events",
+      "breakpoints": true
     }
   ]
 }

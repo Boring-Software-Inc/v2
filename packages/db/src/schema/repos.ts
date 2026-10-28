@@ -62,6 +62,12 @@ export const repos = pgTable(
 			.defaultNow(),
 		/** Soft removal on uninstall — history stays interpretable. */
 		removedAt: timestamp("removed_at", { withTimezone: true }),
+		onboardingStartedAt: timestamp("onboarding_started_at", {
+			withTimezone: true,
+		}),
+		onboardingCompletedAt: timestamp("onboarding_completed_at", {
+			withTimezone: true,
+		}),
 	},
 	(t) => [
 		uniqueIndex("repos_forge_external_unique").on(t.forge, t.externalId),
@@ -132,6 +138,14 @@ export const repoSuggestions = pgTable(
 		uniqueIndex("repo_suggestions_repo_kind_unique").on(t.repoId, t.kind),
 	],
 );
+
+export const rulePreviews = pgTable("rule_previews", {
+	repoId: text("repo_id")
+		.primaryKey()
+		.references(() => repos.id, { onDelete: "cascade" }),
+	preview: jsonb("preview").notNull(),
+	computedAt: timestamp("computed_at", { withTimezone: true }).notNull(),
+});
 
 export const repoReviewers = pgTable(
 	"repo_reviewers",

@@ -7,15 +7,11 @@ import {
 	expect,
 	test,
 } from "bun:test";
-import {
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-	statSync,
-	writeFileSync,
-} from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { credentialStore } from "../src/auth/credentials";
+import { realSystem } from "../src/system";
 import {
 	cannedResult,
 	type FakeServer,
@@ -375,58 +371,57 @@ describe("management commands over MCP", () => {
 	});
 
 	test("reads a stored token from the 0600 credentials file", async () => {
-		const dir = join(sandbox.home, ".config", "tripwire");
-		mkdirSync(dir, { recursive: true });
-		const file = join(dir, "credentials.json");
-		writeFileSync(
-			file,
-			JSON.stringify({
-				accessToken: TEST_TOKEN,
-				mcpUrl: server.url,
-				authUrl: "http://127.0.0.1:1",
-			}),
-			{ mode: 0o600 },
-		);
-		const { TRIPWIRE_TOKEN: _drop, TRIPWIRE_MCP_URL: _url, ...rest } = env();
-		const result = await runCli(["whoami"], rest);
+		const target = {
+			...sandbox.env,
+			TRIPWIRE_MCP_URL: server.url,
+			TRIPWIRE_AUTH_URL: server.authUrl,
+		};
+		const store = credentialStore(realSystem(target));
+		await store.write({
+			accessToken: TEST_TOKEN,
+			mcpUrl: server.url,
+			authUrl: server.authUrl,
+		});
+		const result = await runCli(["whoami"], target);
 		expect(result.code).toBe(0);
-		expect(statSync(file).mode & 0o777).toBe(0o600);
+		expect(statSync(store.location).mode & 0o777).toBe(0o600);
 	});
 
 	test("logout removes the stored token", async () => {
-		const dir = join(sandbox.home, ".config", "tripwire");
-		mkdirSync(dir, { recursive: true });
-		writeFileSync(
-			join(dir, "credentials.json"),
-			JSON.stringify({
-				accessToken: "x",
-				mcpUrl: server.url,
-				authUrl: "http://127.0.0.1:1",
-			}),
-		);
-		const result = await runCli(["logout"], sandbox.env);
+		const target = {
+			...sandbox.env,
+			TRIPWIRE_MCP_URL: server.url,
+			TRIPWIRE_AUTH_URL: "http://127.0.0.1:1",
+		};
+		const store = credentialStore(realSystem(target));
+		await store.write({
+			accessToken: "x",
+			mcpUrl: server.url,
+			authUrl: target.TRIPWIRE_AUTH_URL,
+		});
+		const result = await runCli(["logout"], target);
 		expect(result.stdout).toBe("done      Signed out\n");
-		const again = await runCli(["logout"], sandbox.env);
+		const again = await runCli(["logout"], target);
 		expect(again.stdout).toBe("done      Not signed in\n");
 	});
 
 	describe("an expired token that cannot refresh", () => {
-		function writeExpired(authUrl: string): string {
-			const dir = join(sandbox.home, ".config", "tripwire");
-			mkdirSync(dir, { recursive: true });
-			const file = join(dir, "credentials.json");
-			writeFileSync(
-				file,
-				JSON.stringify({
-					accessToken: "old",
-					refreshToken: "rt",
-					expiresAt: 1,
-					mcpUrl: server.url,
-					authUrl,
+		async function writeExpired(authUrl: string): Promise<string> {
+			const store = credentialStore(
+				realSystem({
+					...sandbox.env,
+					TRIPWIRE_MCP_URL: server.url,
+					TRIPWIRE_AUTH_URL: authUrl,
 				}),
-				{ mode: 0o600 },
 			);
-			return file;
+			await store.write({
+				accessToken: "old",
+				refreshToken: "rt",
+				expiresAt: 1,
+				mcpUrl: server.url,
+				authUrl,
+			});
+			return store.location;
 		}
 
 		async function withAuth(
@@ -439,10 +434,14 @@ describe("management commands over MCP", () => {
 				fetch: () => new Response(body, { status }),
 			});
 			try {
-				const file = writeExpired(`http://127.0.0.1:${auth.port}`);
+				const authUrl = `http://127.0.0.1:${auth.port}`;
+				const file = await writeExpired(authUrl);
 				const before = readFileSync(file, "utf8");
 				const { TRIPWIRE_TOKEN: _drop, ...rest } = env();
-				const result = await runCli(["whoami"], rest);
+				const result = await runCli(["whoami"], {
+					...rest,
+					TRIPWIRE_AUTH_URL: authUrl,
+				});
 				check(result, file);
 				expect(readFileSync(file, "utf8")).toBe(before);
 			} finally {
@@ -1114,7 +1113,7 @@ describe("custom rules", () => {
 			[
 				`done      Created ${RULE_ID}`,
 				"rule      require that target branch is not release",
-				"state     off",
+				"state     not installed",
 				`use       customCheck("${RULE_ID}")`,
 				"open      https://app.tripwire.sh/grim/scratch/rules",
 				"",
@@ -1122,7 +1121,7 @@ describe("custom rules", () => {
 		);
 	});
 
-	test("create reads the definition from a file and can turn the rule on", async () => {
+	test("create reads the definition from a file and can install the rule", async () => {
 		const file = join(sandbox.root, "rule.json");
 		writeFileSync(file, JSON.stringify(DEFINITION));
 		const result = await runCli(
@@ -1261,9 +1260,9 @@ describe("custom rules", () => {
 		const result = await runCli(["rules", "list", "scratch"], env());
 		expect(result.stdout).toBe(
 			[
-				"RULE                               STATE     MATCHES 24H     NOTE",
-				"account-age                        on        3",
-				"custom-not-into-release-1a2b3c     off       0               require that target branch is not release",
+				"RULE                               STATE             MATCHES 24H     NOTE",
+				"account-age                        installed         3",
+				"custom-not-into-release-1a2b3c     not installed     0               require that target branch is not release",
 				"",
 			].join("\n"),
 		);

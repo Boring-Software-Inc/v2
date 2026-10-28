@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Credential } from "#/auth/credentials";
-import { CLIENT_ID, SCOPES } from "#/config";
+import { CLI_COMMAND, CLIENT_ID, SCOPES } from "#/config";
 
 export const DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
 
@@ -31,7 +31,7 @@ const errorSchema = z.object({
 
 export class SessionExpiredError extends Error {
 	constructor() {
-		super("Session expired. Run tripwire login.");
+		super(`Session expired. Run ${CLI_COMMAND} login.`);
 		this.name = "SessionExpiredError";
 	}
 }
@@ -201,11 +201,11 @@ export async function pollForToken(
 			throw new Error("Sign-in was denied in the browser");
 		}
 		if (kind === "expired_token") {
-			throw new Error("The code expired. Run tripwire login again.");
+			throw new Error(`The code expired. Run ${CLI_COMMAND} login again.`);
 		}
 		throw oauthError(body, `Token request failed (HTTP ${status})`);
 	}
-	throw new Error("The code expired. Run tripwire login again.");
+	throw new Error(`The code expired. Run ${CLI_COMMAND} login again.`);
 }
 
 export async function refreshCredential(

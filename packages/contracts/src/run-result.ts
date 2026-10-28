@@ -17,7 +17,9 @@ export const runResultSchema = z.enum([
 	"did-not-finish",
 	"pass",
 	"block",
+	"changes_required",
 	"needs_review",
+	"close",
 	"closed-before-review",
 	"ran",
 ]);
@@ -28,7 +30,9 @@ export const RUN_RESULT_LABELS = {
 	"did-not-finish": "Did not finish",
 	pass: "Passed",
 	block: "Blocked",
+	changes_required: "Changes needed",
 	needs_review: "Waiting for human review",
+	close: "Closed",
 	"closed-before-review": "Closed before review",
 	ran: "Ran",
 } as const satisfies Record<RunResult, string>;
@@ -66,7 +70,9 @@ export function runResult(run: RunResultInput): RunResult | null {
 export const BACKFILL_RESULT_LABELS = {
 	pass: "Would pass",
 	block: "Would block",
+	changes_required: "Would ask for changes",
 	needs_review: "Would go to human review",
+	close: "Would close",
 } as const satisfies Partial<Record<RunResult, string>>;
 
 export const BACKFILL_RUN_LABEL = "History";

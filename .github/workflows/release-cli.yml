@@ -3,6 +3,11 @@ name: release cli
 on:
   workflow_dispatch:
     inputs:
+      channel:
+        description: npm release channel
+        type: choice
+        options: [latest, staging]
+        default: latest
       bump:
         description: patch, minor, major, or an exact x.y.z
         required: true
@@ -34,13 +39,32 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
       - run: npm install -g npm@latest
       - run: bun install --frozen-lockfile
+
+      - name: Select channel
+        id: channel
+        env:
+          CHANNEL: ${{ github.event.inputs.channel || 'latest' }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          case "$CHANNEL:$REF_TYPE:$REF_NAME" in
+            latest:branch:main|latest:tag:cli-v*) ;;
+            staging:branch:staging/visual) ;;
+            *) echo "Release channel does not match the selected ref" >&2; exit 1 ;;
+          esac
+          echo "name=$CHANNEL" >> "$GITHUB_OUTPUT"
+
+      - name: Check
+        run: |
+          bun --filter '@tripwire-sh/cli' typecheck
+          bun test apps/cli scripts/cli-release
 
       - name: Pick the version
         id: version
@@ -49,17 +73,13 @@ jobs:
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
           BUMP: ${{ github.event.inputs.bump }}
+          CHANNEL: ${{ steps.channel.outputs.name }}
         run: |
           if [ "$EVENT" = "push" ] && [ "$REF_TYPE" = "tag" ]; then
             bun run scripts/cli-release/prepare.ts tag "$REF_NAME"
           else
-            bun run scripts/cli-release/prepare.ts bump "${BUMP:-patch}"
+            bun run scripts/cli-release/prepare.ts bump "${BUMP:-patch}" "$CHANNEL"
           fi
-
-      - name: Check
-        run: |
-          bunx tsc --noEmit -p apps/cli
-          bun test apps/cli scripts/cli-release
 
       - name: Build
         working-directory: apps/cli
@@ -72,19 +92,26 @@ jobs:
 
       - name: Publish to npm
         working-directory: apps/cli
-        run: npm publish --provenance --access public
+        env:
+          CHANNEL: ${{ steps.channel.outputs.name }}
+        run: npm publish --provenance --access public --tag "$CHANNEL"
 
       - name: Tag and release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
+          CHANNEL: ${{ steps.channel.outputs.name }}
         run: |
           tag="cli-v$VERSION"
           if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
             git tag "$tag"
             git push origin "$tag"
           fi
-          previous=$(git tag --list 'cli-v*' --sort=-v:refname | grep -vx "$tag" | head -1)
+          if [ "$CHANNEL" = "staging" ]; then
+            gh release create "$tag" --prerelease --title "@tripwire-sh/cli $VERSION" --notes "Staging CLI: npx @tripwire-sh/cli@staging --help"
+            exit 0
+          fi
+          previous=$(git tag --list 'cli-v*' --sort=-v:refname | grep -E '^cli-v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vx "$tag" | head -1)
           range=${previous:+$previous..}$tag
           notes=$(git log --format='- %s' "$range" -- apps/cli packages/contracts/src/setup.ts)
           gh release create "$tag" --title "@tripwire-sh/cli $VERSION" --notes "${notes:-- maintenance release}" || gh release edit "$tag" --notes "${notes:-- maintenance release}"

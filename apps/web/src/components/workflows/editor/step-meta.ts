@@ -22,11 +22,13 @@ import {
 	Converge,
 	Conversation,
 	DiscordMark,
+	Except,
 	FailedMark,
 	Files,
 	Gauge,
 	type GlazeIcon,
 	Inbox,
+	Information,
 	Invite,
 	Lightning,
 	Locked,
@@ -38,6 +40,7 @@ import {
 	Subtract,
 	Tag,
 	Time,
+	Tool,
 	Translate,
 	Tree,
 	UserAvatar,
@@ -89,6 +92,7 @@ const GATE_ICON = {
 	"all-of": Checks,
 	"any-of": Converge,
 	not: Negate,
+	unless: Except,
 } satisfies Record<GateMode, GlazeIcon>;
 
 const ACTION_ICON = {
@@ -103,6 +107,8 @@ const ACTION_ICON = {
 	close: FailedMark,
 	"remove-label": Subtract,
 	"post-comment": Comment,
+	"request-fix": Tool,
+	note: Information,
 } satisfies Record<WorkflowActionKind, GlazeIcon>;
 
 export function triggerIcon(kind: EventKind): GlazeIcon {

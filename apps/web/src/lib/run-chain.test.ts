@@ -6,7 +6,9 @@ import {
 	DEFAULT_RESPONSE_CONFIG,
 	planSurfaces,
 	redactionPolicySchema,
+	type WorkflowDefinition,
 } from "@tripwire/contracts";
+import { skipWhenDraft } from "@tripwire/utils";
 import { toFullRunView, toPublicRunView } from "#/lib/run-access";
 import {
 	branchOutcomeLabel,
@@ -1009,5 +1011,195 @@ describe("a passing AI review in the passed list", () => {
 			);
 			expect(ai && passedNote(ai, level, false)).toBeNull();
 		}
+	});
+});
+
+describe("Skip when on the run page", () => {
+	const base = skipWhenDraft({
+		id: "crm",
+		name: "Target is main",
+		ref: "custom-target-main@1",
+		config: {},
+	});
+	const CRM: WorkflowDefinition = {
+		...base,
+		nodes: [
+			...base.nodes,
+			{
+				id: "release",
+				type: "rule",
+				ref: "custom-target-release@1",
+				config: {},
+			},
+			{
+				id: "source",
+				type: "rule",
+				ref: "custom-release-source@1",
+				config: {},
+			},
+		],
+		edges: [
+			...base.edges,
+			{ id: "t1", from: "trigger", to: "release" },
+			{ id: "t2", from: "trigger", to: "source" },
+			{ id: "g1", from: "release", to: "exception" },
+			{ id: "g2", from: "source", to: "exception" },
+		],
+	};
+	const named = (
+		nodeId: string,
+		ref: string,
+		status: string,
+		name: string,
+	): RunStepView => ({ ...rule(nodeId, ref, status), ruleName: name });
+	const gate = (output: RunStepView["output"]): RunStepView => ({
+		...rule("crm:except-when", "", "pass"),
+		nodeKind: "gate",
+		ruleRef: null,
+		output,
+	});
+	const WORKFLOW: RunWorkflowView = {
+		id: "crm",
+		name: "Target is main",
+		outcome: "pass",
+	};
+
+	test("a matched Skip when shows the rule as skipped, never passed, with its checks", () => {
+		const body = buildBranches(
+			[{ ...RULES, outcome: "pass" }, WORKFLOW],
+			[
+				rule("default@1:age", "account-age@1", "pass"),
+				named(
+					"crm:requirement",
+					"custom-target-main@1",
+					"fail",
+					"Target is main",
+				),
+				named(
+					"crm:release",
+					"custom-target-release@1",
+					"pass",
+					"Target is release",
+				),
+				named(
+					"crm:source",
+					"custom-release-source@1",
+					"pass",
+					"Source starts with release-please",
+				),
+				gate({
+					outcome: "pass",
+					requirement: "fail",
+					exception: "pass",
+					exceptionApplied: true,
+				}),
+			],
+			false,
+			[CRM],
+		);
+		const branch = body.branches.find((entry) => entry.id === "crm");
+		expect(branch?.form).toBe("card");
+		expect(branch?.skips).toMatchObject([
+			{
+				state: "matched",
+				text: "Target is main skipped: Target is release and Source starts with release-please matched",
+				tone: "neutral",
+				glyph: "skipped",
+			},
+		]);
+		expect(branch?.skips[0]?.checks.map((entry) => entry.name)).toEqual([
+			"Target is release",
+			"Source starts with release-please",
+		]);
+		expect(branch?.flagged).toEqual([]);
+		expect(branch?.passed).toEqual([]);
+		expect(branch && branchSummary(branch).text).toBe("Target is main skipped");
+		expect(branch && branchOutcomeLabel(branch)?.label).toBe("Skipped");
+	});
+
+	test("when Skip when does not match, its checks are not flagged and the rule ran", () => {
+		const body = buildBranches(
+			[WORKFLOW],
+			[
+				named(
+					"crm:requirement",
+					"custom-target-main@1",
+					"pass",
+					"Target is main",
+				),
+				named(
+					"crm:release",
+					"custom-target-release@1",
+					"fail",
+					"Target is release",
+				),
+				named(
+					"crm:source",
+					"custom-release-source@1",
+					"fail",
+					"Source starts with release-please",
+				),
+				gate({
+					outcome: "pass",
+					requirement: "pass",
+					exception: "fail",
+					exceptionApplied: false,
+				}),
+			],
+			false,
+			[CRM],
+		);
+		const [branch] = body.branches;
+		expect(branch?.flagged).toEqual([]);
+		expect(branch?.passed.map((entry) => entry.name)).toEqual([
+			"Target is main",
+		]);
+		expect(branch?.skips[0]).toMatchObject({
+			state: "not-matched",
+			text: "Skip when did not match",
+		});
+	});
+
+	test("missing proof fails closed: the rule ran and the fix reads Changes needed", () => {
+		const body = buildBranches(
+			[{ ...WORKFLOW, outcome: "changes" }],
+			[
+				named(
+					"crm:requirement",
+					"custom-target-main@1",
+					"fail",
+					"Target is main",
+				),
+				named(
+					"crm:release",
+					"custom-target-release@1",
+					"fail",
+					"Target is release",
+				),
+				named(
+					"crm:source",
+					"custom-release-source@1",
+					"skipped",
+					"Source starts with release-please",
+				),
+				gate({
+					outcome: "fail",
+					requirement: "fail",
+					exception: "skipped",
+					exceptionApplied: false,
+				}),
+			],
+			false,
+			[CRM],
+		);
+		const [branch] = body.branches;
+		expect(branch?.skips[0]).toMatchObject({
+			state: "unchecked",
+			text: "Skip when could not be checked",
+		});
+		expect(branch?.flagged.map((entry) => entry.name)).toEqual([
+			"Target is main",
+		]);
+		expect(branch && branchOutcomeLabel(branch)?.label).toBe("Changes needed");
 	});
 });

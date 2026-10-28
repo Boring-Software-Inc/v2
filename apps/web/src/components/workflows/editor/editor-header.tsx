@@ -144,7 +144,10 @@ export function EditorHeader({
 	].filter((item) => item !== null);
 
 	return (
-		<header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-line-faint border-b px-3 py-2">
+		<header
+			data-feedback-name="EditorHeader"
+			className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1.5 border-line-faint border-b px-3 py-2"
+		>
 			<div className="flex min-w-0 flex-1 items-center gap-2 max-md:basis-full">
 				<Button
 					nativeButton={false}

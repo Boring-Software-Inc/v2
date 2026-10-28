@@ -117,6 +117,10 @@ function onOff(on: boolean, style: Style): string {
 	return on ? style.good("on") : "off";
 }
 
+function installed(on: boolean, style: Style): string {
+	return on ? style.good("installed") : "not installed";
+}
+
 function when(iso: string): string {
 	const date = new Date(iso);
 	if (Number.isNaN(date.getTime())) {
@@ -367,7 +371,11 @@ function verdictWord(
 	if (result === "pass") {
 		return style.good(label);
 	}
-	if (result === "block") {
+	if (
+		result === "block" ||
+		result === "changes_required" ||
+		result === "close"
+	) {
 		return style.bad(label);
 	}
 	if (result === "needs_review") {
@@ -461,13 +469,13 @@ const FORMATTERS: Record<string, Formatter> = {
 	),
 	get_repo_rules: using(repoRulesSchema, (rules, style) => {
 		if (rules.length === 0) {
-			return "No rules on this repo.";
+			return "No rules installed on this repo.";
 		}
 		return table(
 			["RULE", "STATE", "MATCHES 24H", "NOTE"],
 			rules.map((rule) => [
 				rule.ruleId,
-				onOff(rule.enabled, style),
+				installed(rule.enabled, style),
 				String(rule.matches24h ?? 0),
 				rule.cannotRun ??
 					(rule.management === "managed"
@@ -478,7 +486,7 @@ const FORMATTERS: Record<string, Formatter> = {
 	}),
 	set_rule: using(setRuleSchema, (value, style) =>
 		pairs(
-			[["done", `${value.ruleId} is ${onOff(value.enabled, style)}`]],
+			[["done", `${value.ruleId} is ${installed(value.enabled, style)}`]],
 			style,
 		),
 	),
@@ -486,7 +494,7 @@ const FORMATTERS: Record<string, Formatter> = {
 		const rows: Row[] = [
 			["done", `${value.created ? "Created" : "Saved"} ${value.id}`],
 			["rule", value.sentence],
-			["state", onOff(value.enabled, style)],
+			["state", installed(value.enabled, style)],
 		];
 		if (value.use) {
 			rows.push(["use", value.use]);

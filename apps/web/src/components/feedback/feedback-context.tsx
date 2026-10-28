@@ -4,70 +4,50 @@ import {
 	useCallback,
 	useContext,
 	useMemo,
-	useState,
+	useReducer,
+	useRef,
 } from "react";
+import {
+	type FeedbackPhase,
+	feedbackReducer,
+	initialFeedbackState,
+} from "./feedback-state";
+import type { FeedbackElementSummary } from "./pick";
 
-/**
- * Feedback flow ported from ~/tripwire's `@tripwire/feedback` into apps/web
- * (web-only surface — no new package). Provider holds the open/selecting state
- * and the grabbed element context; the overlay writes into it, the form reads
- * from it. See [[feedback-overlay]] and [[feedback-form]].
- *
- * Mirrors react-grab/primitives' element context shape locally so the bundler
- * never has to resolve its deep types at this layer.
- */
-export interface ReactGrabElementContext {
-	element: Element;
-	htmlPreview: string;
-	stackString: string;
-	stack: Array<{
-		args?: unknown[];
-		columnNumber?: number;
-		lineNumber?: number;
-		fileName?: string;
-		functionName?: string;
-		source?: string;
-		isServer?: boolean;
-		isSymbolicated?: boolean;
-	}>;
-	componentName: string | null;
-	fiber: unknown;
-	selector: string | null;
-	styles: string;
+export interface PickedElement {
+	element: HTMLElement;
+	name: string;
+	summary: FeedbackElementSummary;
 }
 
 export interface FeedbackConfig {
-	/** Attached to every submission (e.g. the signed-in maintainer). */
 	metadata?: Record<string, string>;
-	ui?: {
-		title?: string;
-		description?: string;
-		placeholder?: string;
-		submitLabel?: string;
-		cancelLabel?: string;
-	};
 }
 
 export interface FeedbackContextType {
-	isOpen: boolean;
-	isSelecting: boolean;
-	elementContext: ReactGrabElementContext | null;
-	screenshotBlob: Blob | null;
-	open: () => void;
+	phase: FeedbackPhase;
+	picked: PickedElement | null;
+	draft: string;
+	session: number;
+	setDraft: (value: string) => void;
+	start: () => void;
+	pick: (picked: PickedElement | null) => void;
+	pickAgain: () => void;
+	cancelPicking: () => void;
 	close: () => void;
-	startSelection: () => void;
-	cancelSelection: () => void;
-	selectElement: (
-		context: ReactGrabElementContext,
-		screenshot?: Blob | null,
-	) => void;
-	setScreenshot: (blob: Blob | null) => void;
+	finish: (session: number) => void;
 	config: FeedbackConfig;
 }
 
 const FeedbackContext = createContext<FeedbackContextType | null>(null);
 
 const EMPTY_CONFIG: FeedbackConfig = {};
+
+function restoreFocus(target: Element | null) {
+	if (target instanceof HTMLElement && target.isConnected) {
+		target.focus({ preventScroll: true });
+	}
+}
 
 export function FeedbackProvider({
 	children,
@@ -76,72 +56,88 @@ export function FeedbackProvider({
 	children: ReactNode;
 	config?: FeedbackConfig;
 }) {
-	const [isOpen, setIsOpen] = useState(false);
-	const [isSelecting, setIsSelecting] = useState(false);
-	const [elementContext, setElementContext] =
-		useState<ReactGrabElementContext | null>(null);
-	const [screenshotBlob, setScreenshotBlob] = useState<Blob | null>(null);
+	const [state, dispatch] = useReducer(
+		feedbackReducer<PickedElement>,
+		undefined,
+		initialFeedbackState<PickedElement>,
+	);
+	const sessionRef = useRef(state.session);
+	sessionRef.current = state.session;
+	const resumableRef = useRef(state.resumable);
+	resumableRef.current = state.resumable;
+	const returnFocus = useRef<Element | null>(null);
 
-	const open = useCallback(() => {
-		setIsOpen(true);
-		setIsSelecting(false);
+	const returnFocusSoon = useCallback(() => {
+		const target = returnFocus.current;
+		returnFocus.current = null;
+		requestAnimationFrame(() => restoreFocus(target));
+	}, []);
+
+	const start = useCallback(() => {
+		returnFocus.current = document.activeElement;
+		dispatch({ type: "start" });
+	}, []);
+
+	const pick = useCallback((picked: PickedElement | null) => {
+		dispatch({ type: "pick", picked });
+	}, []);
+
+	const pickAgain = useCallback(() => {
+		dispatch({ type: "pick-again" });
+	}, []);
+
+	const setDraft = useCallback((value: string) => {
+		dispatch({ type: "draft", value });
 	}, []);
 
 	const close = useCallback(() => {
-		setIsOpen(false);
-		setElementContext(null);
-		setScreenshotBlob(null);
-		setIsSelecting(false);
-	}, []);
+		dispatch({ type: "close" });
+		returnFocusSoon();
+	}, [returnFocusSoon]);
 
-	const startSelection = useCallback(() => {
-		setIsSelecting(true);
-		setIsOpen(false);
-	}, []);
+	const cancelPicking = useCallback(() => {
+		const resumable = resumableRef.current;
+		dispatch({ type: "cancel-picking" });
+		if (!resumable) {
+			returnFocusSoon();
+		}
+	}, [returnFocusSoon]);
 
-	const cancelSelection = useCallback(() => {
-		setIsSelecting(false);
-	}, []);
-
-	const selectElement = useCallback(
-		(context: ReactGrabElementContext, screenshot?: Blob | null) => {
-			setElementContext(context);
-			setScreenshotBlob(screenshot ?? null);
-			setIsSelecting(false);
-			setIsOpen(true);
+	const finish = useCallback(
+		(session: number) => {
+			if (session !== sessionRef.current) {
+				return;
+			}
+			dispatch({ type: "finish", session });
+			returnFocusSoon();
 		},
-		[],
+		[returnFocusSoon],
 	);
-
-	const setScreenshot = useCallback((blob: Blob | null) => {
-		setScreenshotBlob(blob);
-	}, []);
 
 	const value = useMemo<FeedbackContextType>(
 		() => ({
-			isOpen,
-			isSelecting,
-			elementContext,
-			screenshotBlob,
-			open,
+			phase: state.phase,
+			picked: state.picked,
+			draft: state.draft,
+			session: state.session,
+			setDraft,
+			start,
+			pick,
+			pickAgain,
+			cancelPicking,
 			close,
-			startSelection,
-			cancelSelection,
-			selectElement,
-			setScreenshot,
+			finish,
 			config,
 		}),
 		[
-			isOpen,
-			isSelecting,
-			elementContext,
-			screenshotBlob,
-			open,
+			state,
+			setDraft,
+			start,
+			pick,
+			pickAgain,
+			cancelPicking,
 			close,
-			startSelection,
-			cancelSelection,
-			selectElement,
-			setScreenshot,
+			finish,
 			config,
 		],
 	);
@@ -159,19 +155,4 @@ export function useFeedback(): FeedbackContextType {
 		throw new Error("useFeedback must be used within <FeedbackProvider>");
 	}
 	return ctx;
-}
-
-/** The DOM/react-grab element context reduced to the server-fn payload shape. */
-export function toFeedbackElement(ctx: ReactGrabElementContext) {
-	return {
-		componentName: ctx.componentName,
-		selector: ctx.selector,
-		htmlPreview: ctx.htmlPreview,
-		stack: ctx.stack.map((frame) => ({
-			functionName: frame.functionName ?? null,
-			fileName: frame.fileName ?? null,
-			lineNumber: frame.lineNumber ?? null,
-			columnNumber: frame.columnNumber ?? null,
-		})),
-	};
 }

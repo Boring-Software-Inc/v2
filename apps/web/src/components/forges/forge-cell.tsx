@@ -7,13 +7,14 @@ import { toast } from "#/components/glaze/ui/toast";
 export const FORGE_GRID = "grid grid-cols-2 gap-2";
 
 /**
- * One blocked shape, not four. Every reason a forge can't be used right now — no
- * adapter built, no org in context, not an admin, install URL unavailable —
- * collapses to `blocked` with copy explaining which. The cell renders them
- * identically, so a user learns one affordance instead of four.
+ * One blocked shape, not three. Every reason a forge can't be used right now (no
+ * org in context, not an admin, install URL unavailable) collapses to `blocked`
+ * with copy explaining which. The cell renders them identically, so a user
+ * learns one affordance instead of three.
  */
 export type ForgeCellState =
 	| { kind: "loading" }
+	| { kind: "unavailable" }
 	| { kind: "ready"; pending?: boolean; onSelect: () => void }
 	| { kind: "blocked"; title: string; body: string };
 
@@ -29,12 +30,10 @@ export function ForgeCell({
 	id,
 	label,
 	state,
-	showReason = false,
 }: {
 	id: ForgeId;
 	label: string;
 	state: ForgeCellState;
-	showReason?: boolean;
 }) {
 	const reasonId = useId();
 	if (state.kind === "loading") {
@@ -45,31 +44,20 @@ export function ForgeCell({
 			</Button>
 		);
 	}
+	if (state.kind === "unavailable") {
+		return (
+			<Button
+				className="w-full"
+				disabled
+				focusableWhenDisabled
+				variant="secondary"
+			>
+				<ForgeMark forge={id} />
+				{label}
+			</Button>
+		);
+	}
 	if (state.kind === "blocked") {
-		if (showReason) {
-			return (
-				<div className="flex min-w-0 flex-col gap-1">
-					<Button
-						aria-describedby={reasonId}
-						aria-disabled="true"
-						className="w-full"
-						onClick={() => {
-							toast(state.title, {
-								description: state.body,
-								id: `forge-blocked:${id}`,
-							});
-						}}
-						variant="secondary"
-					>
-						<ForgeMark forge={id} />
-						{label}
-					</Button>
-					<p className="type-caption text-text-2" id={reasonId}>
-						{state.title}
-					</p>
-				</div>
-			);
-		}
 		return (
 			<>
 				<Button

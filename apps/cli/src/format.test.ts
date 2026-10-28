@@ -123,9 +123,33 @@ describe("plain text output", () => {
 			]),
 		).toBe(
 			[
-				"RULE                          STATE     MATCHES 24H     NOTE",
-				"account-age@1                 on        3",
-				"first-pr@1                    off       0               set by a workflow",
+				"RULE                          STATE             MATCHES 24H     NOTE",
+				"account-age@1                 installed         3",
+				"first-pr@1                    not installed     0               set by a workflow",
+			].join("\n"),
+		);
+	});
+
+	test("set_rule and save_custom_rule say whether the rule is installed", () => {
+		expect(
+			formatResult("set_rule", {
+				saved: true,
+				ruleId: "crypto-address",
+				enabled: true,
+			}),
+		).toBe("done      crypto-address is installed");
+		expect(
+			formatResult("save_custom_rule", {
+				id: "custom-into-main-1a2b3c",
+				created: true,
+				enabled: false,
+				sentence: "require that target branch is one of main",
+			}),
+		).toBe(
+			[
+				"done      Created custom-into-main-1a2b3c",
+				"rule      require that target branch is one of main",
+				"state     not installed",
 			].join("\n"),
 		);
 	});
@@ -373,6 +397,30 @@ describe("run steps and decisions in product words", () => {
 				},
 			]),
 		).toContain("Closed before review");
+	});
+
+	test("changes needed and closed print in product words", () => {
+		const text = formatResult("list_runs", [
+			{
+				id: "run_6",
+				repo: "grim/scratch",
+				number: 150,
+				status: "completed",
+				verdict: "changes_required",
+				createdAt: "2026-10-25T14:15:00.000Z",
+			},
+			{
+				id: "run_7",
+				repo: "grim/scratch",
+				number: 151,
+				status: "completed",
+				verdict: "close",
+				createdAt: "2026-10-25T14:16:00.000Z",
+			},
+		]);
+		expect(text).toContain("Changes needed");
+		expect(text).toContain("Closed");
+		expect(text).not.toContain("changes_required");
 	});
 
 	test("a decided review reads its decision once, and the floor names its workflow", () => {

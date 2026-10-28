@@ -129,7 +129,7 @@ export function ModerationQueue({
 	});
 
 	return (
-		<EntityCard flush title={title}>
+		<EntityCard feedbackName="ModerationQueue" flush title={title}>
 			<ScrollList label="Human review">
 				<ItemGroup aria-label="Human review" variant="plain">
 					{items.map((item) => {

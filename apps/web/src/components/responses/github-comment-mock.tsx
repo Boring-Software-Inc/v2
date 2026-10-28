@@ -6,7 +6,7 @@ import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { Badge } from "#/components/glaze/ui/badge";
 import {
 	Empty,
-	EmptyDescription,
+	EmptyContent,
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
@@ -21,13 +21,15 @@ type BodyBlock =
 	| { kind: "list"; items: string[] }
 	| { kind: "details"; summary: string; body: string }
 	| { kind: "link"; href: string; text: string }
-	| { kind: "button"; href: string; alt: string };
+	| { kind: "button"; href: string; alt: string }
+	| { kind: "image"; src: string; alt: string };
 
 const DETAILS_RE =
 	/<details><summary>(.*?)<\/summary>\n\n([\s\S]*?)\n<\/details>/;
 const LINK_RE = /<a href="([^"]*)">([^<]*)<\/a>/;
 const BUTTON_RE = /<a href="([^"]*)"><img [^>]*alt="([^"]*)" \/><\/a>/;
 const LIST_ITEM_RE = /^\s*[-*]\s+/;
+const IMAGE_RE = /^!\[([^\]]*)\]\((https:\/\/[^)\s]+)\)$/;
 
 function textBlocks(text: string): BodyBlock[] {
 	const blocks: BodyBlock[] = [];
@@ -37,6 +39,11 @@ function textBlocks(text: string): BodyBlock[] {
 			continue;
 		}
 		const lines = trimmed.split("\n");
+		const image = IMAGE_RE.exec(trimmed);
+		if (image) {
+			blocks.push({ kind: "image", alt: image[1] ?? "", src: image[2] ?? "" });
+			continue;
+		}
 		if (lines.every((line) => LIST_ITEM_RE.test(line))) {
 			blocks.push({
 				kind: "list",
@@ -136,6 +143,9 @@ function blockKey(block: BodyBlock): string {
 	if (block.kind === "button") {
 		return `button:${block.alt}`;
 	}
+	if (block.kind === "image") {
+		return `image:${block.src}`;
+	}
 	return `details:${block.summary}\n${block.body}`;
 }
 
@@ -189,6 +199,23 @@ function Markdown({ blocks }: { blocks: BodyBlock[] }) {
 						</motion.div>
 					);
 				}
+				if (block.kind === "image") {
+					return (
+						<motion.div
+							className="relative w-fit"
+							data-dim=""
+							data-region="gif"
+							key={key}
+							{...BLOCK_MOTION}
+						>
+							<img
+								alt={block.alt}
+								className="block h-auto max-h-50 max-w-full rounded-tag"
+								src={block.src}
+							/>
+						</motion.div>
+					);
+				}
 				if (block.kind === "link") {
 					return (
 						<motion.p
@@ -215,27 +242,47 @@ function Markdown({ blocks }: { blocks: BodyBlock[] }) {
 	);
 }
 
+export function CommentMarkdown({ body }: { body: string }) {
+	return (
+		<div className="flex flex-col gap-4">
+			<Markdown blocks={parseBody(body)} />
+		</div>
+	);
+}
+
 export interface GithubCommentMockProps {
 	body: string | null;
-	silentNote?: string;
+	silentAction?: ReactNode;
 	action?: "comment" | "review";
+	edited?: boolean;
+	headerAction?: ReactNode;
+	editor?: ReactNode;
 }
 
 export function GithubCommentMock({
 	body,
-	silentNote,
+	silentAction,
 	action = "comment",
+	edited = false,
+	headerAction,
+	editor,
 }: GithubCommentMockProps) {
 	return (
 		<AnimatedHeight>
 			<AnimatePresence initial={false} mode="wait">
 				{body === null ? (
 					<motion.div key="silent" {...BLUR_SWAP}>
-						<SilentComment note={silentNote} />
+						<SilentComment action={silentAction} />
 					</motion.div>
 				) : (
 					<motion.div key="comment" {...BLUR_SWAP}>
-						<PostedComment action={action} body={body} />
+						<PostedComment
+							action={action}
+							body={body}
+							edited={edited}
+							editor={editor}
+							headerAction={headerAction}
+						/>
 					</motion.div>
 				)}
 			</AnimatePresence>
@@ -243,15 +290,15 @@ export function GithubCommentMock({
 	);
 }
 
-function SilentComment({ note }: { note?: string }) {
+function SilentComment({ action }: { action?: ReactNode }) {
 	return (
 		<div className="sm:ms-13" data-dim="">
 			<PreviewObject>
 				<Empty size="sm" variant="plain">
 					<EmptyHeader>
 						<EmptyTitle>Tripwire posts no comment</EmptyTitle>
-						{note ? <EmptyDescription>{note}</EmptyDescription> : null}
 					</EmptyHeader>
+					{action ? <EmptyContent>{action}</EmptyContent> : null}
 				</Empty>
 			</PreviewObject>
 		</div>
@@ -261,9 +308,15 @@ function SilentComment({ note }: { note?: string }) {
 function PostedComment({
 	body,
 	action,
+	edited,
+	headerAction,
+	editor,
 }: {
 	body: string;
 	action: "comment" | "review";
+	edited: boolean;
+	headerAction?: ReactNode;
+	editor?: ReactNode;
 }) {
 	const blocks = parseBody(body);
 	return (
@@ -276,9 +329,9 @@ function PostedComment({
 				<TripwireLogo size={22} />
 			</span>
 			<article className="min-w-0 flex-1">
-				<PreviewObject>
+				<PreviewObject clip={!editor}>
 					<header
-						className="flex flex-wrap items-center gap-x-1.5 gap-y-1 bg-shell px-4 py-2"
+						className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-t-panel bg-shell px-4 py-2"
 						data-dim=""
 					>
 						<span className="type-label font-semibold text-text-1">
@@ -290,20 +343,30 @@ function PostedComment({
 						<span className="type-body-sm text-text-2">
 							{action === "review"
 								? "requested changes just now"
-								: "commented just now"}
+								: edited
+									? "commented 2 hours ago"
+									: "commented just now"}
 						</span>
+						{edited && action === "comment" ? (
+							<span className="type-body-sm text-text-2">edited</span>
+						) : null}
+						{headerAction ? (
+							<span className="ms-auto">{headerAction}</span>
+						) : null}
 					</header>
 					<div className="p-2">
-						<div
-							className="relative rounded-tag px-2 py-2 type-body text-text-1"
-							data-region="comment-body"
-						>
-							<AnimatedHeight>
-								<div className="flex flex-col gap-4">
-									<Markdown blocks={blocks} />
-								</div>
-							</AnimatedHeight>
-						</div>
+						{editor ?? (
+							<div
+								className="relative rounded-tag px-2 py-2 type-body text-text-1"
+								data-region="comment-body"
+							>
+								<AnimatedHeight>
+									<div className="flex flex-col gap-4">
+										<Markdown blocks={blocks} />
+									</div>
+								</AnimatedHeight>
+							</div>
+						)}
 					</div>
 				</PreviewObject>
 			</article>

@@ -248,3 +248,165 @@ where web and mcp both call them.
 evaluator applies. sdk is pure and imports only contracts, so the edge adds no
 I/O and no cycle. The other choice was to pass the check in from each caller,
 which lets a new caller skip it.
+
+## 2026-10-25: rule outcomes, Changes needed and the Except when gate
+
+Superseded in part: the gate is shown as "Skip when", a card before a rule
+group. The code form `unless(...)` and the semantics below are unchanged.
+
+**Decision (founder, 2026-10-25).** The approved design, with the Close
+addendum, is recorded here. Stage 1 ships the engine, the contracts and the PR surfaces.
+The rule card (stage 2) and the Except when editor (stage 3) come later.
+
+**Model.** Rules stay boolean requirements. A workflow decides what happens
+when a requirement does not pass. The implicit Rules workflow uses each
+rule's own outcome setting. Five outcomes:
+
+- Block: red check, one changes-requested review, and the comment.
+- Ask author to fix: red check and an editable instruction. No GitHub review.
+- Human review: pending check and a Tripwire review item.
+- Note only: green check, and a factual note when comments are on.
+- Close: the comment with the reason, red check, then Tripwire closes the
+  change request. No changes-requested review, and Tripwire's earlier review
+  is dismissed. Tripwire never reopens.
+
+"Fixable" is an outcome choice, not a rule class. Remedy hints
+(revise/wait/appeal) stay separate. Outcomes are never inferred from severity
+or remedy.
+
+**Contracts.**
+
+- Verdict adds `changes_required` ("Changes needed") and `close` ("Closed").
+- Actions add `request-fix` (`{ message }`) and `note` (`{ message? }`).
+  Close reuses the existing `close` action.
+- A per-rule outcome setting (`block | request_fix | human_review | note |
+  close`, plus an instruction) on `rule_configs` and `custom_rules`, default
+  `block` (migration 0041).
+- Gate mode `unless` with named edge inputs (`requirement`, `exception`),
+  written as `unless(requirement, exception)` in `tripwire.ts` and shown as
+  "Except when".
+- Response config adds `onChangesRequired`/`changesRequiredComment` and
+  `onNote`/`noteComment`. Close follows the block comment settings.
+
+**Resolution.**
+
+1. Every reachable, independent check runs. A human review wait pauses only
+   the steps that depend on its decision.
+2. `unless` passes when the requirement passes or the exception passes.
+   Otherwise it keeps the requirement's result, so missing or skipped
+   exception proof never waives a failed requirement. The gate records
+   `exceptionApplied` only when the exception waived a failed requirement.
+3. Join: close > block > changes_required > needs_review > pass. Notes never
+   raise the verdict. The comment keeps every active issue.
+4. Approval clears only its own review item. The run verdict is then
+   recomputed from what the run still holds: its close, block and fix actions
+   and its other pending review items. A run stays paused while any item is
+   pending.
+5. The degraded floor counts enforcing checks only. Exception probes and
+   note-only checks never create holds.
+6. A close action raises the verdict only on a change-request event. A
+   scheduled or comment run that closes keeps its old verdict.
+
+**Close guards.** Exempt contributors get no run, so no close. A degraded run
+never closes: the close is dropped and the run goes to human review. A head
+that Tripwire already closed and a person reopened is not closed again: the
+close becomes a Block for that head, and a new push evaluates again. A close
+from a run that is not the latest for the change request is superseded.
+
+**Closed change requests.** When the change request is closed now (its
+latest lifecycle event is a close), a run records its result and takes no PR
+action: no pending check, no comment, no review, no close. Its actions are
+stored as suppressed. The "Block instead of close again" path applies only
+after a person reopens it.
+
+**Held verdicts.** `changes_required` and `close` count with `block` wherever
+a count means "held" or "acted on": Home and org blocked stats, the daily
+rollup, staff stats, analytics "blocked" activity and the open-run refresh.
+
+**Public outputs.** The v1 webhook and Discord payload `verdict` can now be
+`changes_required` or `close` (an additive enum change under v1). MCP
+`list_runs`/`get_run` name every verdict value, and the CLI prints "Changes
+needed" and "Closed".
+
+**Surfaces.** One verdict comment, edited in place. Only Block submits
+CHANGES_REQUESTED. When the last Block clears, Tripwire dismisses its review
+even if a fix request remains. Wording: "Changes needed. Change the target to
+main.", with "Human review is pending." appended when both apply. Note only:
+"Tripwire passed this change request. No description provided."
+
+**Migration.** Readers before writers: the compiler, codegen, lint, run
+views, resume, replay and surfaces read the new shapes in this change.
+Nothing writes a non-Block outcome yet except `setRuleOutcome` and authored
+workflows. Existing rules stay Block and historical runs keep their
+snapshots. The replay corpus shows no new flips.
+
+## 2026-10-25: rules are checks, workflows decide
+
+**Decision (founder, 2026-10-25).** A rule is a plain check. What happens on
+fail (Block, Ask author to fix, Human review, Note only, Close) and Skip when
+belong to workflows only. When a rule and a workflow could each block or
+pass, they fought for priority in the activity and run logs.
+
+- An installed rule on its own always blocks when it fails. The implicit
+  Rules workflow wires every installed rule into one all-of gate and a block.
+- The per-rule outcome setting from the entry above is gone from contracts,
+  services, the rule card, Create rule, MCP and the CLI. Add exception on the
+  rule card is gone too; a Skip when is built in a workflow.
+- Migration 0041 added `outcome` and `outcome_instruction` to
+  `rule_configs` and `custom_rules`. Migration 0043 drops them; 0041 is left
+  as is because staging ran it. `moderation_items.applied_at` stays.
+- A rule that one or more live workflows use shows "Used in N workflows"
+  where Install would be, with a menu of those workflows.
+- Rules are installed and uninstalled, not turned on and off. API, DB and MCP
+  names (`enabled`, `set_rule`, `setRulesEnabled`) stay.
+
+## 2026-10-26: tsrs is the primary workspace typechecker
+
+**Added:** `tsrs@0.20.0-ts7.1.0-beta` as an exact root devDependency.
+It targets TypeScript 7.1.0-beta at Microsoft commit
+`3e9236361fa97a9e6c685f4833ac457ae2d8c50a`. Platform binaries are pinned
+through its optional dependencies and `bun.lock`; CI and CLI release use
+Bun 1.4.4, matching `packageManager`.
+
+**Runtime:** the last green CI run before this change used Bun 1.4.4
+(`latest` at the time). The initial 1.3.13 pin downgraded CI; both subsequent
+attempts timed out on the ended-ban MCP integration test, with all other
+3,838 tests passing. Pin the previously green 1.4.4 exactly to preserve a
+reproducible toolchain. Its frozen install preserves `bun.lock`, and all 15
+tsrs workspace checks pass on Linux x64. The exact timeout was not reproduced
+locally, including Linux x64 with a clean install, so the underlying runtime
+failure remains unconfirmed. The integration test retains its five-second
+deadline and also asserts a successful tools-list payload.
+
+**What it replaces:** TS5 `tsc --noEmit` in all 15 workspace `typecheck`
+scripts, including CI and the CLI release check. The founder authorized the
+swap after the same-commit experiment measured full-suite medians of
+23.805s for TS5, 6.422s for matching Microsoft TS7, and 2.063s for tsrs.
+Each had one warmup followed by three measured runs, including route
+generation. Install time was excluded.
+
+**Why the stack can't do it:** Bun transpiles without checking types, Biome
+lints without semantic typechecking, and the existing TS5 JavaScript compiler
+does not provide a compiled native checker. The matching TS7 comparison also
+showed a lower full-suite median for tsrs on this checkout.
+
+**Configuration:** four checkers and `--fast false` explicitly retain the
+verified reference mode. Explicit `bun` and, where previously discovered,
+`pg` ambient types preserve TS5's inputs; web retains `vite/client` and
+`node`. Relative `paths` replace web's removed `baseUrl`, including its bare
+specifier fallback. File includes, strictness and skip flags stay intact.
+Routes are generated without a dev server before web typechecking.
+
+**Retained:** `typescript` stays at root and in web for the TS5 compiler API
+used by `@typescript-eslint/parser` and existing tooling. `bun run
+typecheck:ts5` checks every workspace with TS5 for diagnosis; `bun run
+typecheck` and CI use tsrs. No runtime imports or build emitters change.
+
+**Tradeoff:** this is an experimental compiler and a TS7 beta language/library
+upgrade. The release still documents repository conformance failures;
+matching clean diagnostics, file graphs and injected-error rejection here do
+not prove equivalent diagnostics on every future change. Compare a suspect
+case with `bun run typecheck:ts5` and the pinned Microsoft TS7 reference before
+attributing it to application code. See the release-specific
+[compatibility](https://github.com/oxc-project/tsrs/blob/v0.20.0/docs/COMPATIBILITY.md)
+and [defaults](https://github.com/oxc-project/tsrs/blob/v0.20.0/docs/DEFAULTS.md).

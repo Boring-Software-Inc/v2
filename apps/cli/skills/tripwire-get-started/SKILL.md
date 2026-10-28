@@ -24,7 +24,7 @@ to the user unless they ask about the code itself. Without a run code, make no
 progress calls and never ask for one.
 
 With a run code, call `report_setup_progress` with
-`{ runCode, stage, status, detail }` at each step below.
+`{ runCode, stage, status, detail, repo }` at each step below.
 
 - Stages, in order: `connect_mcp`, `install_app`, `sync_repos`, `pick_rules`,
   `turn_on_gate`, `verify_check`.
@@ -33,6 +33,8 @@ With a run code, call `report_setup_progress` with
   fails.
 - `detail`: one short sentence. No file contents, paths, tokens or personal
   data.
+- `repo`: the repo as `owner/name` on `pick_rules`, `turn_on_gate` and
+  `verify_check`. The repo page shows your progress from it.
 
 Make these calls silently, with no narration. If a call fails, stop sending
 them and carry on. They never block or change setup.
@@ -66,11 +68,14 @@ them and carry on. They never block or change setup.
    it moves on.
 3. **Sync repos.** Poll `setup_status` until `list_repos` shows the repos.
    Pick the repo that matches this project, or ask.
-4. **Pick rules.** Read this repo's README and CONTRIBUTING, then
-   `list_rule_catalog` and `get_repo_rules`. Propose a short starting set with
+4. **Install rules.** A new repo starts with no rules installed, so the gate
+   checks nothing until you install some. Read this repo's README and CONTRIBUTING,
+   then `list_rule_catalog` and `get_repo_rules`. Propose a short starting set with
    params and say why in one line each. On yes, call `set_rule` for each.
    When no built-in rule fits, propose a custom rule and save it with
    `save_custom_rule`. Show the user the sentence it returns.
+   An installed rule blocks when it does not pass. For any other outcome,
+   or a Skip when, use the rule in a workflow.
 5. **Turn on the gate.** Ask, then call `turn_on_gate`. If the user declines,
    report `turn_on_gate` skipped.
 6. **Verify.** Call `setup_status`. When it shows the check is live, report

@@ -1,17 +1,19 @@
 import { memo, useMemo } from "react";
 import { AnimatedHeight } from "#/components/common/animated-height";
 import { PreviewObject } from "#/components/responses/preview-object";
-import { SAMPLE_RUN } from "#/components/responses/sample-run";
 import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
 import { toPublicRunView } from "#/lib/run-access";
 import { buildRunChain } from "#/lib/run-chain";
+import type { RunView } from "#/lib/runs.functions";
 
 export const RunPageMock = memo(function RunPageMock({
+	run,
 	level,
 }: {
+	run: RunView;
 	level: number;
 }) {
-	const view = useMemo(() => toPublicRunView(SAMPLE_RUN, level), [level]);
+	const view = useMemo(() => toPublicRunView(run, level), [run, level]);
 	const chain = useMemo(() => buildRunChain(view), [view]);
 	return (
 		<PreviewObject>

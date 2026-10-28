@@ -1,16 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { Button } from "#/components/glaze/ui/button";
-import {
-	Dialog,
-	DialogAction,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
 import { toast } from "#/components/glaze/ui/toast";
 import { discardRepoDraft, promoteRepoDraft } from "#/lib/workflows.functions";
 import { workflowsQueryKeys } from "#/lib/workflows.query";
@@ -81,34 +72,25 @@ export function DraftActions({
 			>
 				{replacesLive ? "Save over live version" : "Save workflow"}
 			</Button>
-			<Dialog onOpenChange={setDiscarding} open={discarding} role="alertdialog">
-				<DialogContent size="sm">
-					<DialogHeader>
-						<DialogTitle>Discard this draft?</DialogTitle>
-						<DialogDescription>
-							{replacesLive
-								? "The live version keeps running as it is."
-								: "The draft is gone for good."}
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<DialogClose>Keep draft</DialogClose>
-						<DialogAction
-							onAction={async () => {
-								const result = await discard.mutateAsync();
-								if (!result.discarded) {
-									throw new Error("This draft is already gone.");
-								}
-								onDiscarded?.();
-							}}
-							pendingLabel="Discarding"
-							variant="destructive"
-						>
-							Discard draft
-						</DialogAction>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<ConfirmDeleteDialog
+				actionLabel="Discard"
+				description={
+					replacesLive
+						? "The live version keeps running as it is."
+						: "This can't be undone."
+				}
+				onConfirm={async () => {
+					const result = await discard.mutateAsync();
+					if (!result.discarded) {
+						throw new Error("This draft is already gone.");
+					}
+					onDiscarded?.();
+				}}
+				onOpenChange={setDiscarding}
+				open={discarding}
+				pendingLabel="Discarding"
+				title="Discard this draft?"
+			/>
 		</>
 	);
 }

@@ -685,6 +685,12 @@ describe("responseConfig: defaults and surface gates", () => {
 			},
 			moderationQueued: "comment",
 			reviewComment: { customText: "", showDetailsButton: true },
+			onChangesRequired: "comment",
+			changesRequiredComment: { customText: "", showDetailsButton: true },
+			onNote: "comment",
+			noteComment: { customText: "", showDetailsButton: true },
+			onClose: "comment",
+			closeComment: { customText: "", showDetailsButton: true, gif: null },
 			failClosedFallback: true,
 			redaction: {
 				inherit: true,
@@ -692,6 +698,7 @@ describe("responseConfig: defaults and surface gates", () => {
 				surfaces: ["run-page", "check", "comment", "review"],
 				showHelp: true,
 			},
+			blocks: {},
 		});
 		expect(responseConfigSchema.parse({})).toEqual(DEFAULT_RESPONSE_CONFIG);
 	});

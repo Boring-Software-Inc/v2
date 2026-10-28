@@ -173,6 +173,12 @@ export function contributorVerdictLabel(verdict: string | null): VerdictLabel {
 	if (verdict === "block") {
 		return { label: "Blocked", tone: "fail" };
 	}
+	if (verdict === "changes_required") {
+		return { label: "Changes needed", tone: "fail" };
+	}
+	if (verdict === "close") {
+		return { label: "Closed", tone: "fail" };
+	}
 	if (verdict === "pass") {
 		return { label: "Passed", tone: "plain" };
 	}

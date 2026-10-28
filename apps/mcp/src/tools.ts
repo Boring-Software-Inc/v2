@@ -358,7 +358,7 @@ export function registerTools(
 			"get_repo_rules",
 			{
 				description:
-					"The rules on a repo: on or off, current settings, and whether a workflow owns them. Custom rules also carry their sentence, description, definition and the workflows that use them. Use a custom rule in tripwire.ts with customCheck(ruleId).",
+					"List a repo's rules, installation state, settings and workflows. Custom rules include their sentence, description and definition. Use custom rules in tripwire.ts with customCheck(ruleId).",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("get_repo_rules"),
 			},
@@ -412,7 +412,7 @@ export function registerTools(
 			"set_rule",
 			{
 				description:
-					"Turn a rule on or off on a repo and save its settings. Ask the user first. A custom rule (custom-...) has no settings, only on or off; change its definition with save_custom_rule.",
+					"Install or uninstall a rule and save its settings. Ask the user first. Standalone rules block when they do not pass. Use a workflow for other actions. Change custom rule definitions with save_custom_rule; custom rules have no settings.",
 				inputSchema: {
 					org: orgArg,
 					repo: repoArg,
@@ -420,7 +420,9 @@ export function registerTools(
 					enabled: z
 						.boolean()
 						.optional()
-						.describe("Leave out to keep the rule on or off as it is."),
+						.describe(
+							"Install with true; uninstall with false. Omit to keep its current state.",
+						),
 					config: z
 						.record(z.string(), z.unknown())
 						.optional()
@@ -523,7 +525,7 @@ export function registerTools(
 						.boolean()
 						.optional()
 						.describe(
-							"Run the rule by itself. A new rule starts off. Leave out to keep it as it is.",
+							"Install with true. New rules are uninstalled. Omit to keep an existing rule's state.",
 						),
 					definition: z
 						.record(z.string(), z.unknown())
@@ -611,7 +613,7 @@ export function registerTools(
 			"turn_on_gate",
 			{
 				description:
-					"Turn the Tripwire gate on for a repo so new pull requests get checked. Ask the user first.",
+					"Turn on Tripwire for a repo. Ask the user first. Install rules with set_rule or turn on a workflow to check change requests.",
 				inputSchema: { org: orgArg, repo: repoArg },
 				annotations: annotate("turn_on_gate"),
 			},
@@ -1146,7 +1148,7 @@ export function registerTools(
 			"list_runs",
 			{
 				description:
-					"Recent Tripwire runs on a repo, or on every repo in the org when repo is left out, newest first. A run with bearsVerdict false came from a comment or a schedule. It acts on a thread, and its verdict is not the change request's verdict. A run with backfill true is history: Tripwire checked a change request from before the gate was on and took no action. result and verdictLabel say how the run ended, in the run page's words: closed-before-review means the change request closed while the run waited for human review.",
+					"List runs newest first. Omit repo for all repos in the org. bearsVerdict false marks a comment or scheduled run, which does not set the change request's verdict. backfill true marks a historical check that took no action. result and verdictLabel describe the outcome; closed-before-review means the change request closed while waiting for review. Verdicts: pass (Passed), block (Blocked), changes_required (Changes needed), needs_review (Waiting for review), close (Closed). Changes needed fails the check and gives a fix instruction without a GitHub review.",
 				inputSchema: {
 					org: orgArg,
 					repo: anyRepoArg,
@@ -1184,7 +1186,7 @@ export function registerTools(
 			"get_run",
 			{
 				description:
-					"One run with its steps and actions. result and verdictLabel say how the run ended, in the words the run page uses. A comment or scheduled run reads ran. Steps are grouped by workflow and follow each workflow's graph. Each step names its workflow, its title and id, the gate mode for gates, and its outcome in product words. Times are ISO 8601 in UTC.",
+					"Get a run with its steps and actions. result and verdictLabel describe the outcome. Verdicts: pass (Passed), block (Blocked), changes_required (Changes needed), needs_review (Waiting for review), close (Closed). Comment and scheduled runs read ran. Steps follow each workflow's graph and include the workflow, step title and id, gate mode and outcome. Times are ISO 8601 in UTC.",
 				inputSchema: { org: orgArg, runId: z.string().min(1) },
 				annotations: annotate("get_run"),
 			},
@@ -1379,6 +1381,13 @@ export function registerTools(
 					.max(256)
 					.optional()
 					.describe("A short note. No code, paths or secrets."),
+				repo: z
+					.string()
+					.max(200)
+					.optional()
+					.describe(
+						"The repo this stage is for, as owner/name. Send it on pick_rules, turn_on_gate and verify_check so the repo page shows your progress.",
+					),
 			},
 			annotations: {
 				readOnlyHint: false,

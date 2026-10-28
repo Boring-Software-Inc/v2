@@ -59,6 +59,31 @@ describe("formatDiscordMessage — own formatter, verdict-colored", () => {
 			"Details are on the Tripwire run page.",
 		);
 	});
+	test("changes needed and closed: red, in their own words", () => {
+		const fix = formatDiscordMessage({
+			...PAYLOAD,
+			verdict: "changes_required",
+		});
+		expect(fix.content).toBe("Tripwire asked for changes on acme/web #42.");
+		expect(fix.embeds[0]?.color).toBe(0xef4444);
+		const closed = formatDiscordMessage({
+			...PAYLOAD,
+			verdict: "close",
+			firedRules: [],
+		});
+		expect(closed.content).toBe("Tripwire closed acme/web #42.");
+		expect(closed.embeds[0]?.color).toBe(0xef4444);
+		expect(closed.embeds[0]?.description).toBe(
+			"Details are on the Tripwire run page.",
+		);
+	});
+	test("the v1 payload carries the new verdicts", () => {
+		for (const verdict of ["changes_required", "close"] as const) {
+			expect(
+				webhookPayloadSchema.safeParse({ ...PAYLOAD, verdict }).success,
+			).toBe(true);
+		}
+	});
 	test("human review: amber", () => {
 		const msg = formatDiscordMessage({ ...PAYLOAD, verdict: "needs_review" });
 		expect(msg.content).toBe("acme/web #42 needs human review.");

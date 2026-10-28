@@ -1,4 +1,8 @@
-import type { ModStat, ModStats } from "@tripwire/contracts";
+import {
+	HELD_VERDICTS,
+	type ModStat,
+	type ModStats,
+} from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
@@ -47,7 +51,7 @@ export async function computeRollupsBetween(
 			SELECT repo_full_name, created_at::date AS day,
 				count(*)::int AS n,
 				count(*) FILTER (WHERE verdict = 'pass')::int AS passed,
-				count(*) FILTER (WHERE verdict = 'block')::int AS blocked,
+				count(*) FILTER (WHERE verdict IN ('block', 'changes_required', 'close'))::int AS blocked,
 				count(*) FILTER (WHERE verdict = 'needs_review')::int AS review
 			FROM runs
 			WHERE created_at::date BETWEEN ${fromDay}::date AND ${toDay}::date
@@ -110,38 +114,43 @@ export async function getHomeStats(
 	const ofRepo = sql`repo_full_name = ${repoFullName}`;
 
 	// A rolling 24h flow series bucketed by hours-ago, for a run verdict.
-	const verdictSeries = (verdict: string) =>
+	const verdictIn = (verdicts: readonly string[]) =>
+		sql`verdict IN (${sql.join(
+			verdicts.map((verdict) => sql`${verdict}`),
+			sql`, `,
+		)})`;
+	const verdictSeries = (verdicts: readonly string[]) =>
 		rollingSeries(
 			db,
 			sql`SELECT floor(extract(epoch FROM (now() - created_at)) / 3600)::int AS h,
 			           count(*)::int AS n
 			    FROM runs
-			    WHERE verdict = ${verdict} AND ${ofRepo} AND ${runBearsVerdict}
+			    WHERE ${verdictIn(verdicts)} AND ${ofRepo} AND ${runBearsVerdict}
 			      AND created_at > now() - interval '24 hours'
 			    GROUP BY 1`,
 		);
-	const count24 = (verdict: string) =>
+	const count24 = (verdicts: readonly string[]) =>
 		scalar(
 			sql`SELECT count(*)::int AS n FROM runs
-			    WHERE verdict = ${verdict} AND ${ofRepo} AND ${runBearsVerdict}
+			    WHERE ${verdictIn(verdicts)} AND ${ofRepo} AND ${runBearsVerdict}
 			      AND created_at > now() - interval '24 hours'`,
 		);
-	const countPrev = (verdict: string) =>
+	const countPrev = (verdicts: readonly string[]) =>
 		scalar(
 			sql`SELECT count(*)::int AS n FROM runs
-			    WHERE verdict = ${verdict} AND ${ofRepo} AND ${runBearsVerdict}
+			    WHERE ${verdictIn(verdicts)} AND ${ofRepo} AND ${runBearsVerdict}
 			      AND created_at BETWEEN now() - interval '48 hours' AND now() - interval '24 hours'`,
 		);
 
 	const [blocked24, blockedPrev, blockedSeries] = await Promise.all([
-		count24("block"),
-		countPrev("block"),
-		verdictSeries("block"),
+		count24(HELD_VERDICTS),
+		countPrev(HELD_VERDICTS),
+		verdictSeries(HELD_VERDICTS),
 	]);
 	const [passed24, passedPrev, passedSeries] = await Promise.all([
-		count24("pass"),
-		countPrev("pass"),
-		verdictSeries("pass"),
+		count24(["pass"]),
+		countPrev(["pass"]),
+		verdictSeries(["pass"]),
 	]);
 
 	// sentToReview: the CURRENT queue depth, with a 24h queue-depth series whose

@@ -4,14 +4,20 @@ import {
 	SETUP_STAGES,
 	type SetupProgressInput,
 	type SetupRunView,
+	type SetupStageState,
 	type SetupStages,
 	setupRunCodeSchema,
 	setupStagesSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, desc, eq, gt, isNotNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
-import { agentGrants, agentSetupPrompts, setupRuns } from "../schema/oauth.ts";
+import {
+	agentGrants,
+	agentSetupPrompts,
+	oauthClient,
+	setupRuns,
+} from "../schema/oauth.ts";
 import { notifyLive } from "./live-notify.ts";
 import type { SwitcherRepo } from "./onboarding.ts";
 import { getOrgInstallState, listOrgSwitcherRepos } from "./organizations.ts";
@@ -153,11 +159,15 @@ export async function reportSetupProgress(
 			stages[earlier] = { status: "skipped", detail: null, updatedAt: stamp };
 		}
 	}
-	stages[input.progress.stage] = {
+	const stage: SetupStageState = {
 		status: input.progress.status,
 		detail: input.progress.detail || null,
 		updatedAt: stamp,
 	};
+	if (input.progress.repo) {
+		stage.repo = input.progress.repo;
+	}
+	stages[input.progress.stage] = stage;
 	const finished =
 		input.progress.stage === "verify_check" &&
 		(input.progress.status === "completed" ||
@@ -172,6 +182,103 @@ export async function reportSetupProgress(
 		.where(eq(setupRuns.id, row.id));
 	await notifyLive(db, { type: "setup", runId: row.id });
 	return { recorded: true, continueUpdates: !finished };
+}
+
+export const SETUP_AGENT_LIVE_MS = 15 * 60 * 1000;
+
+export interface RepoAgentRun {
+	code: string;
+	stages: SetupStages;
+	agentName: string | null;
+	startedAt: string;
+	lastReportAt: string;
+}
+
+function runTouchesRepo(stages: SetupStages, repoFullName: string): boolean {
+	const wanted = repoFullName.toLowerCase();
+	return Object.values(stages).some(
+		(state) => state?.repo?.toLowerCase() === wanted,
+	);
+}
+
+export async function findRepoAgentRun(
+	db: Db,
+	input: { orgId: string; repoFullName: string; now?: Date },
+): Promise<RepoAgentRun | null> {
+	const now = input.now ?? new Date();
+	const rows = await db
+		.select()
+		.from(setupRuns)
+		.where(
+			and(
+				eq(setupRuns.orgId, input.orgId),
+				isNull(setupRuns.completedAt),
+				gt(setupRuns.expiresAt, now),
+				gt(
+					setupRuns.lastReportAt,
+					new Date(now.getTime() - SETUP_AGENT_LIVE_MS),
+				),
+			),
+		)
+		.orderBy(desc(setupRuns.lastReportAt))
+		.limit(20);
+	for (const row of rows) {
+		const stages = setupStagesSchema.safeParse(row.stages);
+		if (
+			!stages.success ||
+			!row.lastReportAt ||
+			!runTouchesRepo(stages.data, input.repoFullName)
+		) {
+			continue;
+		}
+		const stamps = Object.values(stages.data)
+			.map((state) => state?.updatedAt)
+			.filter((stamp): stamp is string => Boolean(stamp))
+			.sort();
+		const agents = await db
+			.select({ name: oauthClient.name })
+			.from(agentGrants)
+			.innerJoin(oauthClient, eq(oauthClient.clientId, agentGrants.clientId))
+			.where(
+				and(
+					eq(agentGrants.userId, row.userId),
+					sql`${input.orgId} = ANY(${agentGrants.orgIds})`,
+				),
+			)
+			.orderBy(sql`${agentGrants.lastUsedAt} desc nulls last`)
+			.limit(1);
+		return {
+			code: row.code,
+			stages: stages.data,
+			agentName: agents[0]?.name ?? null,
+			startedAt: stamps[0] ?? row.createdAt.toISOString(),
+			lastReportAt: row.lastReportAt.toISOString(),
+		};
+	}
+	return null;
+}
+
+export async function takeOverSetupRun(
+	db: Db,
+	input: { orgId: string; code: string; now?: Date },
+): Promise<boolean> {
+	const ended = await db
+		.update(setupRuns)
+		.set({ completedAt: input.now ?? new Date() })
+		.where(
+			and(
+				eq(setupRuns.orgId, input.orgId),
+				eq(setupRuns.code, input.code),
+				isNull(setupRuns.completedAt),
+			),
+		)
+		.returning({ id: setupRuns.id });
+	const row = ended[0];
+	if (!row) {
+		return false;
+	}
+	await notifyLive(db, { type: "setup", runId: row.id });
+	return true;
 }
 
 export type SetupNextStep =

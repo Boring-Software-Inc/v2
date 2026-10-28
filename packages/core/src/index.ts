@@ -19,6 +19,7 @@ export {
 	type RuleOutcome,
 	ruleRef,
 } from "./rules/define.ts";
+export { maintainerLine } from "./rules/maintainer-line.ts";
 export {
 	getRule,
 	listRules,

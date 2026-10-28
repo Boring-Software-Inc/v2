@@ -32,7 +32,10 @@ export {
 	type RefreshSurfacesJob,
 	type RerunChangeRequestJob,
 	type ResumeRunJob,
+	RULE_PREVIEW_QUEUE,
+	type RulePreviewJob,
 	recoverInstallationOptions,
+	rulePreviewOptions,
 	SYNC_FLAG_OVERRIDES_QUEUE,
 	SYNC_REPO_BRANCHES_QUEUE,
 	SYNC_REPO_LABELS_QUEUE,
@@ -137,6 +140,8 @@ export {
 	type SyncFlagResult,
 	type UserFlagOverride,
 } from "./services/flag-overrides.ts";
+export * as giphyServices from "./services/giphy.ts";
+export * as homeDigestServices from "./services/home-digest.ts";
 export * as insightServices from "./services/insights.ts";
 export type {
 	InstallAccessCheck,
@@ -161,11 +166,20 @@ export type {
 } from "./services/organizations.ts";
 export * as orgServices from "./services/organizations.ts";
 export * as presenceServices from "./services/presence.ts";
+export type { RepoSetupFacts } from "./services/repo-setup.ts";
+export * as repoSetupServices from "./services/repo-setup.ts";
 export * as repoServices from "./services/repos.ts";
 export type { RedactionUsage } from "./services/responses.ts";
 export * as responseServices from "./services/responses.ts";
 export type { RepoReviewerList } from "./services/reviewers.ts";
 export * as reviewerServices from "./services/reviewers.ts";
+export type {
+	PreviewChangeRequest,
+	PreviewInputs,
+	PreviewStep,
+	StoredRulePreview,
+} from "./services/rule-previews.ts";
+export * as rulePreviewServices from "./services/rule-previews.ts";
 export type {
 	RuleConfigView,
 	RulesHeaderStats,
@@ -177,6 +191,7 @@ export type { DueSchedule } from "./services/schedules.ts";
 export * as scheduleServices from "./services/schedules.ts";
 export type {
 	AgentSetupPromptState,
+	RepoAgentRun,
 	SetupNextStep,
 	SetupProgressResult,
 	SetupStatus,
@@ -223,4 +238,8 @@ export type {
 	WorkflowRow,
 } from "./services/workflows.ts";
 export * as workflowServices from "./services/workflows.ts";
-export { createTestDatabase, type TestDatabase } from "./testing.ts";
+export {
+	createTestDatabase,
+	type TestDatabase,
+	turnOnLegacyRules,
+} from "./testing.ts";

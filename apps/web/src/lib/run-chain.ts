@@ -3,6 +3,9 @@ import {
 	AI_REVIEW_RULE_ID,
 	aiReviewTraceSchema,
 	bearsVerdict,
+	exceptionRuleNodeIds,
+	exceptionRuleNodes,
+	isHeldVerdict,
 	RUN_RESULT_LABELS,
 	type RunResult,
 	redactionHides,
@@ -11,15 +14,19 @@ import {
 	runResult,
 	runResultLabel,
 	summaryRevealsHidden,
+	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { z } from "zod";
+import { type SkipMode, skipLabel } from "#/lib/rule-groups";
 import {
 	normalizeStepStatus,
+	parseSnapshot,
 	RULES_WORKFLOW_ID,
 	RULES_WORKFLOW_NAME,
 	splitStepNode,
 } from "#/lib/run-workflows";
 import type {
+	JsonValue,
 	RunActionView,
 	RunLinkView,
 	RunStepView,
@@ -54,6 +61,20 @@ export interface ChainRule {
 	name: string;
 }
 
+export type SkipState = "matched" | "not-matched" | "unchecked" | "pending";
+
+export interface ChainSkip {
+	id: string;
+	label: string;
+	state: SkipState;
+	text: string;
+	tone: ChainTone;
+	glyph: ChainGlyph;
+	ruleNames: string[];
+	ruleStepIds: string[];
+	checks: ChainRule[];
+}
+
 export interface ChainBranch {
 	id: string;
 	name: string;
@@ -62,6 +83,7 @@ export interface ChainBranch {
 	passed: ChainRule[];
 	flagged: ChainRule[];
 	pending: ChainRule[];
+	skips: ChainSkip[];
 	outcome: WorkflowOutcome | null;
 }
 
@@ -214,9 +236,30 @@ function ruleName(step: RunStepView): string {
 	return step.ruleRef ? ruleDisplayName(step.ruleRef) : "A check";
 }
 
-function chainRules(steps: readonly RunStepView[]): ChainRule[] {
+function exceptionStepIds(
+	definitions: readonly WorkflowDefinition[],
+	steps: readonly RunStepView[],
+): Set<string> {
+	return new Set([
+		...definitions.flatMap((definition) =>
+			[...exceptionRuleNodeIds(definition)].map(
+				(nodeId) => `${definition.id}:${nodeId}`,
+			),
+		),
+		...definitions.flatMap((definition) =>
+			chainSkips(definition, steps).flatMap((skip) =>
+				skip.state === "matched" ? skip.ruleStepIds : [],
+			),
+		),
+	]);
+}
+
+function chainRules(
+	steps: readonly RunStepView[],
+	skip: ReadonlySet<string> = new Set(),
+): ChainRule[] {
 	return steps.flatMap((step) => {
-		if (step.nodeKind !== "rule") {
+		if (step.nodeKind !== "rule" || skip.has(step.nodeId)) {
 			return [];
 		}
 		const mark = ruleMark(step.status);
@@ -227,6 +270,7 @@ function chainRules(steps: readonly RunStepView[]): ChainRule[] {
 function branchOf(
 	workflow: { id: string; name: string; outcome: WorkflowOutcome | null },
 	rules: ChainRule[],
+	skips: ChainSkip[] = [],
 ): ChainBranch {
 	return {
 		id: workflow.id,
@@ -238,8 +282,138 @@ function branchOf(
 			(rule) => rule.mark === "fail" || rule.mark === "skipped",
 		),
 		pending: rules.filter((rule) => rule.mark === "pending"),
+		skips,
 		outcome: workflow.outcome,
 	};
+}
+
+const gateOutputSchema = z
+	.object({
+		requirement: z.string().nullable(),
+		exception: z.string().nullable(),
+	})
+	.nullable()
+	.catch(null);
+
+function stepRuleNames(steps: readonly RunStepView[]): Map<string, string> {
+	return new Map(
+		steps.flatMap((step) =>
+			step.ruleRef ? [[step.ruleRef, ruleName(step)] as const] : [],
+		),
+	);
+}
+
+function requirementRules(
+	definition: WorkflowDefinition,
+	gateId: string,
+): WorkflowDefinition["nodes"] {
+	const found: WorkflowDefinition["nodes"] = [];
+	const seen = new Set<string>();
+	const visit = (id: string) => {
+		const node = definition.nodes.find((entry) => entry.id === id);
+		if (!node || seen.has(id)) {
+			return;
+		}
+		seen.add(id);
+		if (node.type === "rule") {
+			found.push(node);
+			return;
+		}
+		if (node.type === "gate") {
+			for (const edge of definition.edges) {
+				if (edge.to === id) {
+					visit(edge.from);
+				}
+			}
+		}
+	};
+	for (const edge of definition.edges) {
+		if (edge.to === gateId && edge.input === "requirement") {
+			visit(edge.from);
+		}
+	}
+	return found;
+}
+
+function skipMode(definition: WorkflowDefinition, gateId: string): SkipMode {
+	const edge = definition.edges.find(
+		(entry) => entry.to === gateId && entry.input === "exception",
+	);
+	const source = definition.nodes.find((node) => node.id === edge?.from);
+	return source?.type === "gate" && source.mode === "any-of"
+		? "any-of"
+		: "all-of";
+}
+
+const SKIP_LOOK = {
+	matched: { tone: "neutral", glyph: "skipped" },
+	"not-matched": { tone: "neutral", glyph: "ran" },
+	unchecked: { tone: "neutral", glyph: "skipped" },
+	pending: { tone: "neutral", glyph: "running" },
+} as const satisfies Record<SkipState, { tone: ChainTone; glyph: ChainGlyph }>;
+
+function skipState(output: JsonValue | undefined, ran: boolean): SkipState {
+	if (!ran) {
+		return "pending";
+	}
+	const parsed = gateOutputSchema.parse(output ?? null);
+	if (parsed?.exception === "pass") {
+		return "matched";
+	}
+	return parsed?.exception === "fail" ? "not-matched" : "unchecked";
+}
+
+export function chainSkips(
+	definition: WorkflowDefinition,
+	steps: readonly RunStepView[],
+): ChainSkip[] {
+	const names = stepRuleNames(steps);
+	const nameOf = (ref: string) => names.get(ref) ?? ruleDisplayName(ref);
+	const byNode = new Map(steps.map((step) => [step.nodeId, step]));
+	return definition.nodes.flatMap((node): ChainSkip[] => {
+		if (node.type !== "gate" || node.mode !== "unless") {
+			return [];
+		}
+		const gate = byNode.get(`${definition.id}:${node.id}`);
+		const checks = exceptionRuleNodes(definition, node.id).flatMap(
+			(rule): ChainRule[] => {
+				const step = byNode.get(`${definition.id}:${rule.id}`);
+				const mark = step ? ruleMark(step.status) : null;
+				return step && mark ? [{ step, mark, name: ruleName(step) }] : [];
+			},
+		);
+		if (!gate && checks.length === 0) {
+			return [];
+		}
+		const rules = requirementRules(definition, node.id);
+		const ruleNames = rules.flatMap((rule) =>
+			rule.type === "rule" ? [nameOf(rule.ref)] : [],
+		);
+		const checkNames = exceptionRuleNodes(definition, node.id).flatMap(
+			(rule) => (rule.type === "rule" ? [nameOf(rule.ref)] : []),
+		);
+		const label = skipLabel(checkNames, skipMode(definition, node.id));
+		const state = skipState(gate?.output, gate !== undefined);
+		const text = {
+			matched: `${skipLabel(ruleNames, "all-of")} skipped: ${label} matched`,
+			"not-matched": "Skip when did not match",
+			unchecked: "Skip when could not be checked",
+			pending: "Checking",
+		}[state];
+		return [
+			{
+				id: `${definition.id}:${node.id}`,
+				label,
+				state,
+				text,
+				tone: SKIP_LOOK[state].tone,
+				glyph: SKIP_LOOK[state].glyph,
+				ruleNames,
+				ruleStepIds: rules.map((rule) => `${definition.id}:${rule.id}`),
+				checks,
+			},
+		];
+	});
 }
 
 export function branchPassed(branch: ChainBranch): boolean {
@@ -251,13 +425,29 @@ export function branchPassed(branch: ChainBranch): boolean {
 		: branch.outcome === "pass";
 }
 
+export function skipMatched(branch: ChainBranch): boolean {
+	return branch.skips.some((skip) => skip.state === "matched");
+}
+
+function branchQuiet(branch: ChainBranch): boolean {
+	return branchPassed(branch) && !skipMatched(branch);
+}
+
 export function buildBranches(
 	workflows: readonly RunWorkflowView[],
 	steps: readonly RunStepView[],
 	collapseAll: boolean,
+	definitions: readonly WorkflowDefinition[] = [],
 ): Extract<ChainChecksBody, { kind: "branches" }> {
 	const ids = workflows.map((workflow) => workflow.id);
-	const rules = chainRules(steps);
+	const rules = chainRules(steps, exceptionStepIds(definitions, steps));
+	const definitionOf = new Map(
+		definitions.map((definition) => [definition.id, definition]),
+	);
+	const skipsFor = (workflowId: string): ChainSkip[] => {
+		const definition = definitionOf.get(workflowId);
+		return definition ? chainSkips(definition, steps) : [];
+	};
 	const known: RunWorkflowView[] =
 		workflows.length > 0
 			? [...workflows]
@@ -270,18 +460,22 @@ export function buildBranches(
 					const owner = splitStepNode(rule.step.nodeId, ids).workflowId;
 					return (owner ?? known[0]?.id) === workflow.id;
 				}),
+				skipsFor(workflow.id),
 			),
 		)
 		.filter(
 			(branch) =>
 				branch.outcome === "unrunnable" ||
-				branch.passed.length + branch.flagged.length + branch.pending.length >
+				branch.passed.length +
+					branch.flagged.length +
+					branch.pending.length +
+					branch.skips.length >
 					0,
 		);
 	const ordered = [
 		...all.filter((branch) => branch.isRules),
-		...all.filter((branch) => !branch.isRules && !branchPassed(branch)),
-		...all.filter((branch) => !branch.isRules && branchPassed(branch)),
+		...all.filter((branch) => !branch.isRules && !branchQuiet(branch)),
+		...all.filter((branch) => !branch.isRules && branchQuiet(branch)),
 	];
 	const showBranchOutcome = ordered.length > 1;
 	if (collapseAll) {
@@ -302,7 +496,7 @@ export function buildBranches(
 			showBranchOutcome,
 		};
 	}
-	if (ordered.every(branchPassed)) {
+	if (ordered.every(branchQuiet)) {
 		return {
 			kind: "branches",
 			layout: "stack",
@@ -313,12 +507,12 @@ export function buildBranches(
 	}
 	const shown: ChainBranch[] = [];
 	const passedOthers = ordered.filter(
-		(branch) => !branch.isRules && branchPassed(branch),
+		(branch) => !branch.isRules && branchQuiet(branch),
 	);
 	for (const branch of ordered) {
 		if (branch.isRules) {
-			shown.push({ ...branch, form: branchPassed(branch) ? "row" : "card" });
-		} else if (!branchPassed(branch)) {
+			shown.push({ ...branch, form: branchQuiet(branch) ? "row" : "card" });
+		} else if (!branchQuiet(branch)) {
 			shown.push(branch);
 		}
 	}
@@ -362,15 +556,22 @@ function checksNode(
 	if (run.stepsHidden) {
 		return null;
 	}
-	const rules = chainRules(steps);
-	if (rules.length === 0) {
+	const definitions = parseSnapshot(run.snapshot);
+	const rules = chainRules(steps, exceptionStepIds(definitions, steps));
+	const skippedByGate = definitions.flatMap((definition) =>
+		chainSkips(definition, steps).flatMap((skip) =>
+			skip.state === "matched" ? skip.ruleStepIds : [],
+		),
+	).length;
+	if (rules.length + skippedByGate === 0) {
 		return null;
 	}
 	const level = run.redactionLevel;
 	const failed = rules.filter((rule) => rule.mark === "fail").length;
-	const skipped = rules.filter((rule) => rule.mark === "skipped").length;
+	const skipped =
+		rules.filter((rule) => rule.mark === "skipped").length + skippedByGate;
 	const pending = rules.filter((rule) => rule.mark === "pending").length;
-	const total = rules.length;
+	const total = rules.length + skippedByGate;
 	const first = rules
 		.filter((rule) => rule.mark !== "pending")
 		.map((rule) => rule.step.startedAt)
@@ -390,7 +591,7 @@ function checksNode(
 	}
 	const body: ChainChecksBody = redactionHides(level, "rule-names")
 		? { kind: "marks", marks: rules.map((rule) => rule.mark) }
-		: buildBranches(run.workflows, steps, collapseAll);
+		: buildBranches(run.workflows, steps, collapseAll, definitions);
 	if (pending > 0) {
 		return {
 			title: `${total - pending} of ${total} rules checked`,
@@ -430,7 +631,7 @@ function checksNode(
 	}
 	return {
 		title: `${total} of ${total} rules passed`,
-		tone: run.verdict === "block" ? "neutral" : "ok",
+		tone: isHeldVerdict(run.verdict) ? "neutral" : "ok",
 		glyph: "pass",
 		offsetMs,
 		body,
@@ -462,6 +663,14 @@ function checkChip(run: RunView, action: RunActionView): ChainChip {
 		return {
 			...base,
 			label: "Check blocked",
+			glyph: "fail",
+			tone: "fail",
+		};
+	}
+	if (run.verdict === "changes_required" || run.verdict === "close") {
+		return {
+			...base,
+			label: run.verdict === "close" ? "Closed" : "Changes needed",
 			glyph: "fail",
 			tone: "fail",
 		};
@@ -692,6 +901,20 @@ function verdictOutcome(run: RunView): ChainOutcome {
 						: null,
 			};
 		}
+		case "changes_required":
+			return {
+				...base,
+				...words(result),
+				tone: "fail",
+				glyph: "fail",
+			};
+		case "close":
+			return {
+				...base,
+				...words(result),
+				tone: "fail",
+				glyph: "blocked",
+			};
 		case "needs_review":
 			return {
 				...base,
@@ -754,6 +977,12 @@ function nextRunWord(next: RunLinkView): string {
 	if (next.verdict === "block") {
 		return "Newer run blocked";
 	}
+	if (next.verdict === "changes_required") {
+		return "Newer run asked for changes";
+	}
+	if (next.verdict === "close") {
+		return "Newer run closed it";
+	}
 	if (next.verdict === "needs_review") {
 		return "Newer run is waiting for human review";
 	}
@@ -781,7 +1010,9 @@ function supersededOutcome(run: RunView, next: RunLinkView): ChainOutcome {
 	const tone: ChainTone =
 		next.verdict === "pass"
 			? "ok"
-			: next.verdict === "block"
+			: next.verdict === "block" ||
+					next.verdict === "changes_required" ||
+					next.verdict === "close"
 				? "fail"
 				: "neutral";
 	return {
@@ -845,6 +1076,17 @@ export function branchSummary(branch: ChainBranch): BranchSummary {
 	}
 	const failed = branch.flagged.filter((rule) => rule.mark === "fail");
 	const skipped = branch.flagged.filter((rule) => rule.mark === "skipped");
+	const matched = branch.skips.filter((skip) => skip.state === "matched");
+	if (matched.length > 0 && branch.outcome === "pass") {
+		return {
+			tone: "neutral",
+			glyph: "skipped",
+			text: `${skipLabel(
+				matched.flatMap((skip) => skip.ruleNames),
+				"all-of",
+			)} skipped`,
+		};
+	}
 	if (failed.length > 0) {
 		return {
 			tone: "fail",
@@ -883,8 +1125,21 @@ export function branchOutcomeLabel(
 	if (branch.outcome === "block") {
 		return { tone: "fail", glyph: "fail", label: "Blocked" };
 	}
+	if (branch.outcome === "close") {
+		return { tone: "fail", glyph: "blocked", label: RUN_RESULT_LABELS.close };
+	}
+	if (branch.outcome === "changes") {
+		return {
+			tone: "fail",
+			glyph: "fail",
+			label: RUN_RESULT_LABELS.changes_required,
+		};
+	}
 	if (branch.outcome === "review") {
 		return { tone: "neutral", glyph: "waiting", label: "Human review" };
+	}
+	if (branch.outcome === "pass" && skipMatched(branch)) {
+		return { tone: "neutral", glyph: "skipped", label: "Skipped" };
 	}
 	if (branch.outcome === "pass") {
 		return { tone: "ok", glyph: "pass", label: "Passed" };

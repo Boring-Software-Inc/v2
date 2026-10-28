@@ -75,6 +75,10 @@ export function actionEffect(
 			return "closes it";
 		case "post-comment":
 			return "posts your comment";
+		case "request-fix":
+			return "asks the author to fix it";
+		case "note":
+			return "adds a note";
 		default:
 			return action;
 	}

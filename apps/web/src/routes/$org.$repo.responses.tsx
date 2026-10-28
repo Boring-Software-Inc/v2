@@ -6,11 +6,17 @@ import {
 	responsesSearchSchema,
 } from "#/lib/repo-search";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
+import { completeResponsesStep } from "#/lib/setup-page-view";
 
 export const Route = createFileRoute("/$org/$repo/responses")({
 	staticData: { region: "responses" },
 	validateSearch: responsesSearchSchema,
 	search: { middlewares: [stripSearchParams(RESPONSES_SEARCH_DEFAULTS)] },
+	loader: ({ params, context, preload }) => {
+		if (!preload) {
+			void completeResponsesStep(context.queryClient, params.org, params.repo);
+		}
+	},
 	component: ResponsesPage,
 	pendingComponent: ResponsesPageSkeleton,
 	head: ({ params, match }) =>

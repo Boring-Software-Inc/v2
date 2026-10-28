@@ -1,7 +1,12 @@
-import type { Forge } from "@tripwire/contracts";
-import { and, eq } from "drizzle-orm";
+import {
+	type Forge,
+	type ForgeConnection,
+	forgeConnectionSchema,
+} from "@tripwire/contracts";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { account, user } from "../schema/auth.ts";
+import { listClaimableInstallations } from "./organizations.ts";
 
 /**
  * A maintainer's linked forge account (Better Auth `account` row). The provider
@@ -197,4 +202,50 @@ export async function setUserReduceAgentMotion(
 		.update(user)
 		.set({ reduceAgentMotion: input.reduce, updatedAt: new Date() })
 		.where(eq(user.id, input.userId));
+}
+
+/**
+ * GitHub repos belong to App installations, not OAuth accounts. Count member-org
+ * repos and unclaimed installs whose ownership the caller has proved.
+ */
+export async function listForgeConnections(
+	db: Db,
+	userId: string,
+): Promise<ForgeConnection[]> {
+	const claimable = await listClaimableInstallations(db, {
+		userId,
+		forge: "github",
+	});
+	const claimableGithubIds = claimable.map(
+		(installation) => installation.installationId,
+	);
+	const canClaimGithub = claimableGithubIds.length
+		? inArray(sql`r.installation_id`, claimableGithubIds)
+		: sql`false`;
+	const result = await db.execute(sql`
+		SELECT a.provider_id AS forge,
+		       a.account_id AS "accountId",
+		       a.access_token_expires_at AS "accessTokenExpiresAt",
+		       (a.refresh_token IS NOT NULL) AS "canRefresh",
+		       r.total AS "repoCount", r.unclaimed AS "unclaimedCount"
+		FROM account a
+		LEFT JOIN LATERAL (
+		  SELECT count(*)::int AS total,
+		         (count(*) FILTER (WHERE r.org_id IS NULL))::int AS unclaimed
+		  FROM repos r
+		  WHERE r.forge = a.provider_id AND r.removed_at IS NULL
+		    AND CASE WHEN a.provider_id = 'github' THEN (
+		      EXISTS (
+		        SELECT 1 FROM member m
+		        WHERE m.organization_id = r.org_id AND m.user_id = a.user_id
+		      ) OR (r.org_id IS NULL AND ${canClaimGithub})
+		    ) ELSE r.installation_id = a.account_id END
+		) r ON true
+		WHERE a.user_id = ${userId}
+		ORDER BY a.provider_id
+	`);
+	return result.rows.flatMap((row) => {
+		const parsed = forgeConnectionSchema.safeParse(row);
+		return parsed.success ? [parsed.data] : [];
+	});
 }

@@ -87,5 +87,11 @@ export type RunLogActionKind = z.infer<typeof runLogActionKindSchema>;
  * AUTHORED from spec §4/§6 — the verdict of a run. `needs_review` pauses the
  * run and creates a moderation item (§6: moderation queue = a paused run).
  */
-export const verdictSchema = z.enum(["pass", "block", "needs_review"]);
+export const verdictSchema = z.enum([
+	"pass",
+	"block",
+	"changes_required",
+	"needs_review",
+	"close",
+]);
 export type Verdict = z.infer<typeof verdictSchema>;

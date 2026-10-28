@@ -123,7 +123,12 @@ describe("every org server fn, gated on a real database", () => {
 			}
 		}
 		expect(reached.sort()).toEqual(
-			[...ORG_SHELL, "listModerationQueue", "decideModeration"].sort(),
+			[
+				...ORG_SHELL,
+				"listModerationQueue",
+				"decideModeration",
+				"getRepoSetup",
+			].sort(),
 		);
 	});
 

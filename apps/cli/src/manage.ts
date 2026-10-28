@@ -1342,8 +1342,8 @@ function customRuleFlags(command: Command): Command {
 			"The rule as JSON, or @ and the path to a JSON file",
 		)
 		.option("--description <text>", "Why the rule exists")
-		.option("--enable", "Run the rule by itself")
-		.option("--disable", "Stop running the rule by itself")
+		.option("--enable", "Install the rule")
+		.option("--disable", "Uninstall the rule")
 		.addHelpText("after", CUSTOM_RULE_HELP);
 }
 
@@ -1419,10 +1419,10 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 		.command("set <repoOrRule> [ruleId]")
 		.usage("[options] [repo] <ruleId>")
 		.description(
-			"Turn a rule on or off and set its params. A custom rule only turns on or off",
+			"Install or uninstall a rule and set its params. A custom rule has no params",
 		)
-		.option("--enable", "Turn the rule on")
-		.option("--disable", "Turn the rule off")
+		.option("--enable", "Install the rule")
+		.option("--disable", "Uninstall the rule")
 		.option(
 			"--param <key=value>",
 			"Set a param, repeatable. Values parse as JSON when they can",
@@ -1466,7 +1466,7 @@ export function registerManageCommands(program: Command, deps: ManageDeps) {
 		rules
 			.command("create [repo]")
 			.description(
-				"Create a custom rule. It starts off: pass --enable, or use it in tripwire.ts with customCheck",
+				"Create a custom rule. Install it with --enable or use it in tripwire.ts with customCheck",
 			),
 	).action(
 		(repo: string | undefined, opts: CustomRuleOptions, command: Command) => {

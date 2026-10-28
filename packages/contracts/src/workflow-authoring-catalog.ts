@@ -6,8 +6,10 @@ import {
 	githubTeamSlugSchema,
 	labelParamsSchema,
 	lockParamsSchema,
+	noteParamsSchema,
 	postCommentParamsSchema,
 	type RemovedActionKind,
+	requestFixParamsSchema,
 	reviewerRefSchema,
 	type triggerScheduleSchema,
 	type WorkflowActionKind,
@@ -47,6 +49,8 @@ export const AUTHORING_ACTION_PARAMS = {
 	webhook: noParams,
 	discord: noParams,
 	"send-to-moderation": noParams,
+	"request-fix": requestFixParamsSchema,
+	note: noteParamsSchema,
 } as const satisfies Record<
 	Exclude<WorkflowActionKind, RemovedActionKind>,
 	z.ZodType

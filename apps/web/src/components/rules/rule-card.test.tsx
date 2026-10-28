@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SaveQueueProvider } from "#/components/save-queue";
 import type { RuleConfigView } from "#/lib/rules.functions";
 import { RuleCard } from "./rule-card";
+import { usedInLabel, usedInLinks } from "./rule-used-in";
 
 const qc = new QueryClient();
 // Empty savedValues: the card reads pending-or-saved and falls back to the
@@ -42,40 +41,42 @@ const rule = (over: Partial<RuleConfigView> = {}): RuleConfigView => ({
 	source: "built-in",
 	sentence: null,
 	blockingWorkflows: [],
+	usedIn: [],
 	...over,
 });
 
 const base = { org: "o", repo: "r", canEdit: true };
 
-const ENABLE_DISABLED =
-	/<button(?=[^>]*\sdisabled="")(?=[^>]*aria-label="Enable rule account age")[^>]*>/;
+const INSTALL_DISABLED =
+	/<button(?=[^>]*\sdisabled="")(?=[^>]*aria-label="Install account age")[^>]*>/;
 
 /**
  * §6 per-rule management — workflows compose with standalone rules, so a card
  * is either standalone (its own toggle runs) or managed (a workflow node).
- * Managed fixtures use workflowId:null so the router-bound <Link> is guarded
- * out (link labels + route are locked by the source assertion below).
  */
 describe("RuleCard management states", () => {
 	test("standalone: toggle present, no management tag", () => {
 		const html = render(<RuleCard {...base} rule={rule()} />);
-		expect(html).toContain('aria-label="Disable rule account age"');
-		expect(html).toContain(">Disable rule<");
+		expect(html).toContain('aria-label="Uninstall account age"');
+		expect(html).toContain(">Uninstall<");
 		expect(html).not.toContain('role="switch"');
 		expect(html).not.toContain("In workflow");
-		expect(html).not.toContain(">off<");
+		expect(html).not.toContain("When this does not pass");
+		expect(html).not.toContain("Add exception");
 	});
 
-	test("managed: no toggle, 'in workflow' tag, and shows the NODE's config (not the stale row)", () => {
+	test("managed: no toggle, no tag, and shows the NODE's config (not the stale row)", () => {
 		const html = render(
 			<RuleCard
 				{...base}
 				rule={rule({ management: "managed", config: { minDays: 14 } })}
 			/>,
 		);
-		expect(html).toContain("In workflow");
-		expect(html).not.toContain("Disable rule");
-		expect(html).not.toContain("Enable rule");
+		expect(html).not.toContain("In workflow");
+		expect(html).not.toContain("Set in");
+		expect(html).not.toContain("Edit workflow");
+		expect(html).not.toContain(">Uninstall<");
+		expect(html).not.toContain(">Install<");
 		// what actually runs is the workflow node's 14 days, not the card's old 7
 		expect(html).toContain("14 days");
 	});
@@ -91,9 +92,8 @@ describe("RuleCard management states", () => {
 		expect(heldManaged).not.toContain("New version waiting");
 	});
 
-	test("the footer states the effect and the last 24 hours of activity", () => {
+	test("the footer shows the last 24 hours of activity", () => {
 		const fired = render(<RuleCard {...base} rule={rule({ matches24h: 3 })} />);
-		expect(fired).toContain("Blocks");
 		expect(fired).toContain("matches, last 24 h");
 		expect(
 			render(<RuleCard {...base} rule={rule({ matches24h: 1 })} />),
@@ -103,10 +103,10 @@ describe("RuleCard management states", () => {
 		).toContain("No matches, last 24 h");
 		expect(
 			render(<RuleCard {...base} rule={rule({ enabled: false })} />),
-		).toContain(">Off<");
+		).toContain(">Not installed<");
 	});
 
-	test("an opt-in-off standalone rule keeps a DISTINCT enable offer", () => {
+	test("an opt-in standalone rule that is not installed offers Install", () => {
 		const html = render(
 			<RuleCard
 				{...base}
@@ -121,14 +121,8 @@ describe("RuleCard management states", () => {
 				})}
 			/>,
 		);
-		expect(html).toContain("Enable rule");
+		expect(html).toContain(">Install<");
 		expect(html).toContain("flags slop");
-	});
-
-	test("workflow deep-links and labels are wired (source-locked, router-free)", () => {
-		const src = readFileSync(join(import.meta.dir, "rule-card.tsx"), "utf8");
-		expect(src).toContain("Edit in workflow");
-		expect(src).toContain("/$org/$repo/workflows/$workflowId");
 	});
 });
 
@@ -149,10 +143,10 @@ describe("RuleCard forge support", () => {
 			/>,
 		);
 		expect(html).toContain("not usable with gitlab");
-		expect(html).toMatch(ENABLE_DISABLED);
+		expect(html).toMatch(INSTALL_DISABLED);
 	});
 
-	test("forge-blocked: an opt-in rule's enable button is disabled", () => {
+	test("forge-blocked: an opt-in rule's Install button is disabled", () => {
 		const html = render(
 			<RuleCard
 				{...base}
@@ -163,13 +157,13 @@ describe("RuleCard forge support", () => {
 				})}
 			/>,
 		);
-		expect(html).toMatch(ENABLE_DISABLED);
+		expect(html).toMatch(INSTALL_DISABLED);
 	});
 
 	test("usable rule is untouched — no reason chip, toggle live", () => {
 		const html = render(<RuleCard {...base} rule={rule()} />);
 		expect(html).not.toContain("not usable with");
-		expect(html).toContain(">Disable rule<");
+		expect(html).toContain(">Uninstall<");
 		expect(html).not.toMatch(/<button[^>]*\sdisabled=""/);
 	});
 });
@@ -185,25 +179,25 @@ describe("RuleCard when AI review is out of credits", () => {
 			unavailableReason: "Out of AI credits",
 			...over,
 		});
-	const AI_ENABLE_DISABLED =
-		/<button(?=[^>]*\sdisabled="")(?=[^>]*aria-label="Enable rule AI review")[^>]*>/;
+	const AI_INSTALL_DISABLED =
+		/<button(?=[^>]*\sdisabled="")(?=[^>]*aria-label="Install AI review")[^>]*>/;
 
-	test("off: it can't turn on, says why, and the enable button is disabled", () => {
+	test("not installed: it can't install, says why, and Install is disabled", () => {
 		const html = render(
 			<RuleCard {...base} rule={aiRule({ enabled: false })} />,
 		);
-		expect(html).toContain("Can&#x27;t turn on");
+		expect(html).toContain("Can&#x27;t install");
 		expect(html).toContain("Out of AI credits");
-		expect(html).toMatch(AI_ENABLE_DISABLED);
+		expect(html).toMatch(AI_INSTALL_DISABLED);
 	});
 
-	test("on: it reads Can't run and can still be turned off", () => {
+	test("installed: it reads Can't run and can still be uninstalled", () => {
 		const html = render(
 			<RuleCard {...base} rule={aiRule({ enabled: true })} />,
 		);
 		expect(html).toContain("Can&#x27;t run");
 		expect(html).toContain("Out of AI credits");
-		expect(html).toContain(">Disable rule<");
+		expect(html).toContain(">Uninstall<");
 		expect(html).not.toMatch(/<button[^>]*\sdisabled=""/);
 	});
 
@@ -215,5 +209,55 @@ describe("RuleCard when AI review is out of credits", () => {
 			/>,
 		);
 		expect(html).toContain("Can&#x27;t run");
+	});
+});
+
+describe("RuleCard used in", () => {
+	const gate = { id: "wf-1", name: "Release gate" };
+	const triage = { id: "wf-2", name: "Triage" };
+
+	test("the label counts workflows, singular and plural", () => {
+		expect(usedInLabel(1)).toBe("Used in 1 workflow");
+		expect(usedInLabel(2)).toBe("Used in 2 workflows");
+	});
+
+	test("a rule a workflow uses shows Used in where Install would be", () => {
+		const one = render(
+			<RuleCard
+				{...base}
+				rule={rule({ management: "managed", usedIn: [gate] })}
+			/>,
+		);
+		expect(one).toContain(">Used in 1 workflow<");
+		expect(one).toContain('aria-haspopup="menu"');
+		expect(one).not.toContain(">Install<");
+		expect(one).not.toContain(">Uninstall<");
+		const two = render(
+			<RuleCard
+				{...base}
+				rule={rule({ management: "managed", usedIn: [gate, triage] })}
+			/>,
+		);
+		expect(two).toContain(">Used in 2 workflows<");
+	});
+
+	test("a standalone rule keeps its button and no Used in", () => {
+		const html = render(<RuleCard {...base} rule={rule()} />);
+		expect(html).not.toContain("Used in");
+	});
+
+	test("the menu lists each workflow by name, linked to its editor", () => {
+		expect(usedInLinks("o", "r", [gate, triage])).toEqual([
+			{
+				key: "wf-1",
+				name: "Release gate",
+				params: { org: "o", repo: "r", workflowId: "wf-1" },
+			},
+			{
+				key: "wf-2",
+				name: "Triage",
+				params: { org: "o", repo: "r", workflowId: "wf-2" },
+			},
+		]);
 	});
 });

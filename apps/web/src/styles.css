@@ -217,10 +217,43 @@ body {
 
 @media (pointer: coarse) {
 	html .glaze {
-		--control-sm: 44px;
-		--control: 44px;
-		--control-lg: 44px;
 		--row: 44px;
+	}
+
+	.glaze :is([data-slot="filter-bar-button"], [data-slot="filter-bar-select"], [data-slot="select-trigger"], [data-slot="segmented-control-item"]) {
+		position: relative;
+		min-width: 44px;
+	}
+
+	.glaze :is([data-slot="filter-bar-button"], [data-slot="filter-bar-select"], [data-slot="select-trigger"], [data-slot="segmented-control-item"])::after {
+		content: "";
+	}
+
+	.glaze [data-slot="control-hit-area"],
+	.glaze :is([data-slot="filter-bar-button"], [data-slot="filter-bar-select"], [data-slot="select-trigger"], [data-slot="segmented-control-item"])::after {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: max(100%, 44px);
+		min-height: 44px;
+		height: 100%;
+		transform: translate(-50%, -50%);
+	}
+
+	.glaze [data-slot="button"] {
+		min-width: 44px;
+	}
+
+	.glaze [data-slot="button-group"] > button {
+		min-width: 44px;
+	}
+
+	.glaze [data-slot="filter-bar"] {
+		row-gap: calc(44px - var(--control-sm) + var(--space-1));
+	}
+
+	.glaze [data-slot="card-footer"]:has([data-slot="button"]) {
+		min-height: 44px;
 	}
 }
 
@@ -606,4 +639,9 @@ body {
 	.glaze [data-agent-motion] .react-flow__node {
 		transition: none;
 	}
+}
+
+html.feedback-picking
+	*:not([data-feedback-chrome], [data-feedback-chrome] *) {
+	cursor: crosshair !important;
 }

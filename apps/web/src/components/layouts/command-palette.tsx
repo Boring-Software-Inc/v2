@@ -427,8 +427,8 @@ export function CommandPalette({
 			icon: glyph(Connection),
 			onSelect: () => {
 				navigate({
-					to: ".",
-					search: (prev) => ({ ...prev, settings: "connections" as const }),
+					to: "/$org/settings/connections",
+					params: { org: currentOrg },
 				});
 				close();
 			},
@@ -439,10 +439,9 @@ export function CommandPalette({
 			searchTags: ["settings", "members", "invites", "org", "admin"],
 			icon: glyph(Settings),
 			onSelect: () => {
-				// Opens the settings dialog over whatever page is showing.
 				navigate({
-					to: ".",
-					search: (prev) => ({ ...prev, settings: "members" as const }),
+					to: "/$org/settings",
+					params: { org: currentOrg },
 				});
 				close();
 			},

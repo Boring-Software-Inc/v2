@@ -236,7 +236,7 @@ function RerunRunButton({
 				);
 			} else if (result.status === "no-workflow") {
 				setUnavailable(
-					"This repo has no rules or workflows turned on, so there is nothing to check. Turn one on first.",
+					"Install a rule or turn on a workflow before running checks.",
 				);
 			} else if (result.status === "no-event") {
 				setUnavailable(

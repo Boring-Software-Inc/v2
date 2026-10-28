@@ -1,17 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { MetaRow } from "#/components/common/meta-row";
 import { Button } from "#/components/glaze/ui/button";
-import {
-	Dialog,
-	DialogAction,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
 import {
 	Empty,
 	EmptyHeader,
@@ -27,6 +18,7 @@ import {
 } from "#/components/glaze/ui/item";
 import { SkeletonSwap, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
+import { SettingsHeader } from "#/components/settings/settings-frame";
 import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	type ConnectedAgent,
@@ -79,31 +71,20 @@ function AgentRow({ agent }: { agent: ConnectedAgent }) {
 					aria-label={`Disconnect ${agent.name}`}
 					onClick={() => setConfirming(true)}
 					size="sm"
-					variant="ghost"
+					variant="secondary"
 				>
 					Disconnect
 				</Button>
 			</ItemActions>
-			<Dialog onOpenChange={setConfirming} open={confirming} role="alertdialog">
-				<DialogContent size="sm">
-					<DialogHeader>
-						<DialogTitle>Disconnect {agent.name}?</DialogTitle>
-						<DialogDescription>
-							It loses access to Tripwire now. Connect it again from the agent.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<DialogClose>Cancel</DialogClose>
-						<DialogAction
-							onAction={() => revoke.mutateAsync()}
-							pendingLabel="Disconnecting"
-							variant="destructive"
-						>
-							Disconnect
-						</DialogAction>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<ConfirmDeleteDialog
+				actionLabel="Disconnect"
+				confirmText={agent.name}
+				onConfirm={() => revoke.mutateAsync()}
+				onOpenChange={setConfirming}
+				open={confirming}
+				pendingLabel="Disconnecting"
+				title={`Disconnect ${agent.name}?`}
+			/>
 		</Item>
 	);
 }
@@ -128,21 +109,21 @@ function AgentRowsSkeleton() {
 export function ConnectedAgentsPage() {
 	const { data: agents, isLoading } = useQuery(connectedAgentsQueryOptions());
 	return (
-		<section aria-labelledby="agents-heading" className="flex flex-col gap-3">
-			<h3 className="type-heading-sm" id="agents-heading">
-				Agents
-			</h3>
+		<>
+			<SettingsHeader title="Agents" />
 			<SkeletonSwap
 				fallback={<AgentRowsSkeleton />}
 				label="Loading agents"
 				loading={isLoading}
 			>
 				{agents?.length ? (
-					<ItemGroup aria-label="Agents" variant="plain">
-						{agents.map((agent) => (
-							<AgentRow agent={agent} key={agent.clientId} />
-						))}
-					</ItemGroup>
+					<div className="shell">
+						<ItemGroup aria-label="Agents">
+							{agents.map((agent) => (
+								<AgentRow agent={agent} key={agent.clientId} />
+							))}
+						</ItemGroup>
+					</div>
 				) : (
 					<Empty size="sm" variant="plain">
 						<EmptyHeader>
@@ -151,6 +132,6 @@ export function ConnectedAgentsPage() {
 					</Empty>
 				)}
 			</SkeletonSwap>
-		</section>
+		</>
 	);
 }

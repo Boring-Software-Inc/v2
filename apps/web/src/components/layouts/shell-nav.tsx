@@ -25,12 +25,12 @@ interface ShellNavProps {
 }
 
 const NAV_CLASS = {
-	tabs: "flex h-10 min-w-0 shrink-0 items-stretch gap-5 overflow-x-auto border-line-faint border-b px-4 [scrollbar-width:none]",
+	tabs: "flex h-10 min-w-0 shrink-0 items-stretch gap-5 overflow-x-auto px-4 [scrollbar-width:none]",
 	rail: "flex min-w-0 flex-col gap-px",
 } satisfies Record<NavVariant, string>;
 
 const LINK_CLASS = {
-	tabs: "-mb-px flex shrink-0 items-center gap-1.5 border-transparent border-b-2 pt-0.5 type-label text-text-2 transition-colors duration-(--dur-state) ease-out hover:text-text-1 aria-[current=page]:border-ink aria-[current=page]:text-text-1",
+	tabs: "flex shrink-0 items-center gap-1.5 border-transparent border-b-2 pt-0.5 type-label text-text-2 transition-colors duration-(--dur-state) ease-out hover:text-text-1 aria-[current=page]:border-ink aria-[current=page]:text-text-1",
 	rail: "flex h-(--control) items-center gap-2 rounded-tag px-2 type-label text-text-2 hover:bg-hover hover:text-text-1 aria-[current=page]:bg-pressed aria-[current=page]:text-text-1",
 } satisfies Record<NavVariant, string>;
 
@@ -45,6 +45,10 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 		enabled: Boolean(org),
 		select: (context) => context.permissions,
 	});
+	const pathname = useLocation({ select: (location) => location.pathname });
+	const inOrgSettings =
+		pathname.startsWith(`/${org}/settings`) &&
+		!pathname.startsWith(`/${org}/settings/account`);
 	const reads = (region: OrgRegion) =>
 		permissions?.includes(`${region}:read`) ?? false;
 
@@ -71,11 +75,10 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 					/>
 				) : null}
 				<NavLink
-					activeOptions={{ exact: true, includeSearch: true }}
+					active={inOrgSettings}
 					icon={Settings}
 					label="Settings"
-					search={{ settings: "members" }}
-					to="."
+					to={`/${org}/settings`}
 					variant={variant}
 				/>
 			</nav>
@@ -83,9 +86,15 @@ export function ShellNav({ counts, variant = "tabs" }: ShellNavProps) {
 	}
 
 	return (
-		<nav aria-label="Repo" ref={navRef} className={NAV_CLASS[variant]}>
+		<nav
+			aria-label="Repo"
+			className={NAV_CLASS[variant]}
+			data-feedback-name="ShellNav"
+			ref={navRef}
+		>
 			{reads("moderation") ? (
 				<NavLink
+					exact={false}
 					variant={variant}
 					icon={Moderation}
 					label="Human review"
@@ -152,25 +161,23 @@ function NavLink({
 	label,
 	icon,
 	value,
-	search,
 	exact = true,
-	activeOptions,
+	active,
 	variant,
 }: {
 	to: string;
 	label: string;
 	icon: GlazeIcon;
 	value?: number;
-	search?: Record<string, string>;
 	exact?: boolean;
-	activeOptions?: { exact: boolean; includeSearch?: boolean };
+	active?: boolean;
 	variant: NavVariant;
 }) {
 	return (
 		<Link
-			activeOptions={activeOptions ?? { exact }}
-			activeProps={{ "aria-current": "page" }}
-			search={search}
+			activeOptions={{ exact }}
+			activeProps={active === undefined ? { "aria-current": "page" } : {}}
+			aria-current={active ? "page" : undefined}
 			className={LINK_CLASS[variant]}
 			to={to}
 		>

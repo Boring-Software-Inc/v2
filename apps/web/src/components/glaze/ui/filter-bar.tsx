@@ -114,13 +114,13 @@ type FilterBarButtonProps = ButtonPrimitive.Props & {
   active?: boolean;
 };
 
-function FilterBarButton({active, className, ...props}: FilterBarButtonProps) {
+function FilterBarButton({active, className, children, ...props}: FilterBarButtonProps) {
   return <ButtonPrimitive
     data-slot="filter-bar-button"
     data-active={active || undefined}
     className={mergeClass(toolbarControlClass, className)}
     {...props}
-  />;
+  >{children}<span aria-hidden="true" data-slot="control-hit-area"/></ButtonPrimitive>;
 }
 
 /** Clears everything. Render it only while something differs from its default; it hands focus to the search when it goes. */

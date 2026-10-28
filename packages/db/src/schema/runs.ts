@@ -33,7 +33,7 @@ export const runs = pgTable(
 		 * (needs_review moderation, §6) | failed (never evaluated).
 		 */
 		status: text("status").notNull().default("running"),
-		/** 'pass' | 'block' | 'needs_review' — null while running. */
+		/** 'pass' | 'block' | 'changes_required' | 'needs_review' | 'close' — null while running. */
 		verdict: text("verdict"),
 		/** SNAPSHOT of the workflow definition(s) that ran (contracts schema). */
 		workflowSnapshot: jsonb("workflow_snapshot").notNull(),

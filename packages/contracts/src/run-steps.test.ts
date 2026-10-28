@@ -308,7 +308,9 @@ describe("verdict words", () => {
 		expect(Object.keys(VERDICT_LABELS)).toEqual([
 			"pass",
 			"block",
+			"changes_required",
 			"needs_review",
+			"close",
 		]);
 	});
 

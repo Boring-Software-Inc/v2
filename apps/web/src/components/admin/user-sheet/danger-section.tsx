@@ -6,19 +6,8 @@ import {
 	errorText,
 	useStaffAction,
 } from "#/components/admin/user-sheet/use-staff-action";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { Button } from "#/components/glaze/ui/button";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogConfirmField,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
 import { Field, FieldError, FieldLabel } from "#/components/glaze/ui/field";
 import { Input } from "#/components/glaze/ui/input";
 import { Textarea } from "#/components/glaze/ui/textarea";
@@ -135,37 +124,18 @@ export function DeleteUserDialog({
 		toastErrors: false,
 	});
 	return (
-		<Dialog
+		<ConfirmDeleteDialog
+			actionLabel="Delete account"
 			confirmText={confirmText}
+			description="This also deletes their personal org."
+			onConfirm={async () => {
+				await remove.mutateAsync();
+				onDeleted();
+			}}
 			onOpenChange={onOpenChange}
 			open={open}
-			role="alertdialog"
-		>
-			<DialogContent size="sm">
-				<DialogHeader>
-					<DialogTitle>Delete {confirmText}?</DialogTitle>
-					<DialogDescription>
-						This deletes their account and personal org. It can't be undone.
-					</DialogDescription>
-				</DialogHeader>
-				<DialogBody>
-					<DialogConfirmField />
-				</DialogBody>
-				<DialogFooter>
-					<DialogClose>Cancel</DialogClose>
-					<DialogAction
-						onAction={async () => {
-							await remove.mutateAsync();
-							onDeleted();
-						}}
-						pendingLabel="Deleting"
-						variant="destructive"
-					>
-						Delete account
-					</DialogAction>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+			title={`Delete ${confirmText}?`}
+		/>
 	);
 }
 

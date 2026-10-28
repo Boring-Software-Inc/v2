@@ -9,6 +9,7 @@ import {
 	moderationServices,
 	repoServices,
 	type TestDatabase,
+	turnOnLegacyRules,
 } from "@tripwire/db";
 import { normalizeWebhook } from "@tripwire/forge-github";
 import type { Pool } from "pg";
@@ -49,6 +50,7 @@ beforeAll(async () => {
 		fullName: "Codertocat/Hello-World",
 	});
 	await repoServices.setRepoArmed(db, helloId, true);
+	await turnOnLegacyRules(db, helloId);
 }, 120_000);
 
 afterAll(async () => {
@@ -942,6 +944,12 @@ describe("retarget without a push (pull_request edited, same head)", () => {
 			fullName: "trycompai/crm",
 		});
 		await repoServices.setRepoArmed(db, repoId, true);
+		await repoServices.upsertRuleConfig(db, repoId, {
+			ruleId: "account-age",
+			version: 1,
+			enabled: true,
+			config: { minDays: 7 },
+		});
 	});
 
 	test("a bot retargeting the PR re-runs Tripwire on the same head, judging the author", async () => {

@@ -19,7 +19,7 @@ export function createCopilot(system: System): Agent {
 	return {
 		id: "copilot",
 		name: "GitHub Copilot CLI",
-		signInHint: "/mcp auth tripwire inside Copilot CLI",
+		signInHint: `/mcp auth ${SERVER_NAME} inside Copilot CLI`,
 		detect: () => system.which("copilot") !== null,
 		hasServer: async () => currentUrl(system) !== null,
 		addServer: (url) =>

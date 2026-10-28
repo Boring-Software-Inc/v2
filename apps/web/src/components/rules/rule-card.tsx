@@ -1,21 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { ruleUiSchema, WORKFLOW_STATE_LABELS } from "@tripwire/contracts";
 import { useId, useState } from "react";
-import { ArrowRight, Blocked, Icon, More } from "#/components/glaze/icon";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
+import { Icon, More } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import { Card, CardFooter } from "#/components/glaze/ui/card";
 import { Sparkline } from "#/components/glaze/ui/chart";
-import {
-	Dialog,
-	DialogAction,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -34,6 +25,7 @@ import {
 	RULE_PANEL_CLASS,
 	RULE_SENTENCE_CLASS,
 } from "#/components/rules/rule-card-frame";
+import { RuleUsedIn } from "#/components/rules/rule-used-in";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
 import { cn } from "#/lib/glaze/utils";
@@ -87,12 +79,10 @@ export function RuleCard({
 		}
 	}
 
-	const workflowLink =
-		rule.management === "managed" && rule.workflowId ? rule.workflowId : null;
 	const deletable = rule.source === "custom" && canEdit && onDelete;
 	const deleteBlocked = deletable && rule.blockingWorkflows.length > 0;
 
-	const verb = off ? "Enable rule" : "Disable rule";
+	const verb = off ? "Install" : "Uninstall";
 	const control = standalone ? (
 		<Button
 			aria-describedby={queuedId}
@@ -104,21 +94,13 @@ export function RuleCard({
 		>
 			{verb}
 		</Button>
-	) : workflowLink ? (
-		<Button
-			nativeButton={false}
-			render={
-				<Link
-					params={{ org, repo, workflowId: workflowLink }}
-					to="/$org/$repo/workflows/$workflowId"
-				/>
-			}
-			size="sm"
-			variant="secondary"
-		>
-			Edit in workflow
-			<Icon icon={ArrowRight} />
-		</Button>
+	) : rule.usedIn.length > 0 ? (
+		<RuleUsedIn
+			org={org}
+			repo={repo}
+			ruleName={rule.name}
+			workflows={rule.usedIn}
+		/>
 	) : null;
 
 	const activity = forgeBlocked ? (
@@ -131,12 +113,12 @@ export function RuleCard({
 	) : unavailable ? (
 		<span className="flex items-center gap-2">
 			<Badge variant="warn">
-				{WORKFLOW_STATE_LABELS[off ? "cant-turn-on" : "cant-run"]}
+				{off ? "Can't install" : WORKFLOW_STATE_LABELS["cant-run"]}
 			</Badge>
 			<span>{rule.unavailableReason}</span>
 		</span>
 	) : off ? (
-		<span>Off</span>
+		<span>Not installed</span>
 	) : rule.matches24h > 0 ? (
 		<span className="flex items-center gap-2">
 			{hasTrend ? (
@@ -182,11 +164,6 @@ export function RuleCard({
 					{rule.source === "custom" ? (
 						<Badge className="shrink-0" variant="outline">
 							Custom
-						</Badge>
-					) : null}
-					{rule.management === "managed" ? (
-						<Badge className="shrink-0" variant="outline">
-							In workflow
 						</Badge>
 					) : null}
 					<span className="ms-auto flex shrink-0 items-center gap-1">
@@ -282,41 +259,14 @@ export function RuleCard({
 					</div>
 				) : null}
 			</Panel>
-			<CardFooter className={RULE_FOOTER_CLASS}>
-				<span className="flex items-center gap-1.5">
-					<Icon
-						className={off ? "text-text-3" : "text-text-2"}
-						icon={Blocked}
-					/>
-					<span className="type-label-sm">Blocks</span>
-				</span>
-				{activity}
-			</CardFooter>
-			<Dialog
+			<CardFooter className={RULE_FOOTER_CLASS}>{activity}</CardFooter>
+			<ConfirmDeleteDialog
+				actionLabel="Delete rule"
+				onConfirm={() => onDelete?.(rule.ruleId)}
 				onOpenChange={setConfirmingDelete}
 				open={Boolean(deletable) && confirmingDelete}
-				role="alertdialog"
-			>
-				<DialogContent size="sm">
-					<DialogHeader>
-						<DialogTitle>Delete {rule.name}?</DialogTitle>
-						<DialogDescription>
-							Tripwire stops checking change requests against this rule. Its
-							past matches stay in Activity.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<DialogClose>Keep rule</DialogClose>
-						<DialogAction
-							onAction={() => onDelete?.(rule.ruleId)}
-							pendingLabel="Deleting"
-							variant="destructive"
-						>
-							Delete rule
-						</DialogAction>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+				title={`Delete ${rule.name}?`}
+			/>
 		</Card>
 	);
 }

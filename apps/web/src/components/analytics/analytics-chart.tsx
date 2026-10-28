@@ -38,6 +38,7 @@ export function AnalyticsChart({
 
 	return (
 		<div
+			data-feedback-name="AnalyticsChart"
 			onClickCapture={(event) => {
 				const index = pointIndex(event);
 				if (index !== null && index >= 0) onCommit(index);

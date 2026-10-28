@@ -80,7 +80,7 @@ export interface CheckStep extends StepBase, ResultOutputs {
 	after(...inputs: Input[]): CheckStep;
 }
 
-export type AuthoringGateMode = "all-of" | "any-of" | "not";
+export type AuthoringGateMode = "all-of" | "any-of" | "not" | "unless";
 
 export interface GateStep extends StepBase, ResultOutputs {
 	readonly kind: "gate";
@@ -309,6 +309,10 @@ export function authoring<C extends AuthoringCatalog>() {
 			return gate("not", [input]);
 		},
 
+		unless(requirement: ResultInput, exception: ResultInput): GateStep {
+			return gate("unless", [requirement, exception]);
+		},
+
 		/** Starts on events: `trigger("change-request.opened", "comment.created")`. */
 		trigger(...on: Event[]): TriggerStep {
 			return { kind: "trigger", on, inputs: [] };
@@ -327,6 +331,18 @@ export function authoring<C extends AuthoringCatalog>() {
 		/** Fails the Tripwire check and requests changes. */
 		block(): ActionStep {
 			return action("block", undefined);
+		},
+
+		requestFix<P = ParamsOf<C, "request-fix">>(
+			params: Checked<ParamsOf<C, "request-fix">, P>,
+		): ActionStep {
+			return action("request-fix", params);
+		},
+
+		note<P = ParamsOf<C, "note">>(
+			params?: Checked<ParamsOf<C, "note">, P>,
+		): ActionStep {
+			return action("note", params);
 		},
 
 		/** Adds labels. */

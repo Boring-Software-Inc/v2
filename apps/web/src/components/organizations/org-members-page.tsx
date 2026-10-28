@@ -2,33 +2,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { OrgRole } from "@tripwire/contracts";
 import { useState } from "react";
 import { Collection } from "#/components/collection/collection";
-import { MetaRow } from "#/components/common/meta-row";
+import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
+import { Icon, More } from "#/components/glaze/icon";
 import { Avatar } from "#/components/glaze/ui/avatar";
-import { Badge } from "#/components/glaze/ui/badge";
 import { Button } from "#/components/glaze/ui/button";
 import {
-	Dialog,
-	DialogAction,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/glaze/ui/dropdown-menu";
 import {
 	Empty,
-	EmptyContent,
-	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
 } from "#/components/glaze/ui/empty-state";
-import {
-	Field,
-	FieldDescription,
-	FieldError,
-	FieldLabel,
-} from "#/components/glaze/ui/field";
+import { Field, FieldError, FieldLabel } from "#/components/glaze/ui/field";
 import { Input } from "#/components/glaze/ui/input";
 import {
 	Item,
@@ -49,12 +38,15 @@ import {
 } from "#/components/glaze/ui/select";
 import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
-import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	INVITES_COLLECTION,
 	MEMBERS_COLLECTION,
 } from "#/components/organizations/org-members-collection";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+import {
+	SettingsCard,
+	SettingsHeader,
+	SettingsSection,
+} from "#/components/settings/settings-frame";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
@@ -84,6 +76,8 @@ const ROLE_LABEL = {
 	member: "Member",
 } satisfies Record<OrgRole, string>;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function roleLabel(role: string): string {
 	return isOrgRole(role) ? ROLE_LABEL[role] : role;
 }
@@ -92,43 +86,16 @@ function isOrgRole(value: string | null): value is OrgRole {
 	return value === "admin" || value === "member";
 }
 
-function ConfirmDialog({
-	open,
-	onOpenChange,
-	title,
-	description,
-	actionLabel,
-	pendingLabel,
-	onConfirm,
-}: {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	title: string;
-	description: string;
-	actionLabel: string;
-	pendingLabel: string;
-	onConfirm: () => Promise<unknown>;
-}) {
-	return (
-		<Dialog onOpenChange={onOpenChange} open={open} role="alertdialog">
-			<DialogContent size="sm">
-				<DialogHeader>
-					<DialogTitle>{title}</DialogTitle>
-					<DialogDescription>{description}</DialogDescription>
-				</DialogHeader>
-				<DialogFooter>
-					<DialogClose>Cancel</DialogClose>
-					<DialogAction
-						onAction={onConfirm}
-						pendingLabel={pendingLabel}
-						variant="destructive"
-					>
-						{actionLabel}
-					</DialogAction>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	);
+export function inviteExpiryLabel(
+	expiresAt: string | Date,
+	now = Date.now(),
+): string {
+	const left = new Date(expiresAt).getTime() - now;
+	if (left <= 0) {
+		return "Expired";
+	}
+	const days = Math.ceil(left / DAY_MS);
+	return days <= 1 ? "Expires today" : `Expires in ${days} days`;
 }
 
 export function OrgMembersPage({ org }: { org: string }) {
@@ -152,56 +119,64 @@ export function OrgMembersPage({ org }: { org: string }) {
 		})),
 	];
 	const isPersonal = orgContext?.isPersonal ?? true;
+	const canInvite = isAdmin && !isPersonal;
 	const callerUserId = session?.user?.id ?? null;
+	const [inviting, setInviting] = useState(false);
+	const [createdToken, setCreatedToken] = useState<string | null>(null);
 
 	return (
-		<div className="flex flex-col gap-8">
-			<section
-				aria-labelledby="org-members-heading"
-				className="flex flex-col gap-3"
-			>
-				<div className="flex items-start justify-between gap-3">
-					<div className="flex min-w-0 flex-col gap-0.5">
-						<h3 className="type-heading-sm" id="org-members-heading">
-							Members
-						</h3>
-						<p className="type-body-sm text-text-2">
-							{isAdmin
-								? "Who's in this org. Admins can change settings and members."
-								: "Who's in this org. Only admins can change roles."}
-						</p>
-					</div>
-					{isPersonal ? null : <LeaveOrgButton org={org} />}
-				</div>
-				<Collection
-					collection={members}
-					empty={null}
-					error={membersQuery.isError}
-					onRetry={async () => {
-						await membersQuery.refetch({ throwOnError: true });
+		<>
+			<SettingsHeader title="Members">
+				{canInvite ? (
+					<Button aria-expanded={inviting} onClick={() => setInviting(true)}>
+						Invite
+					</Button>
+				) : null}
+			</SettingsHeader>
+			{canInvite && inviting ? (
+				<InviteForm
+					onCancel={() => setInviting(false)}
+					onCreated={(token) => {
+						setCreatedToken(token);
+						setInviting(false);
 					}}
-					skeleton={<MemberRowsSkeleton />}
-					variant="plain"
-				>
-					{(rows) => (
-						<ItemGroup variant="plain" aria-label="Members">
+					org={org}
+				/>
+			) : null}
+			{createdToken ? <FreshInviteLink token={createdToken} /> : null}
+			<Collection
+				collection={members}
+				empty={null}
+				error={membersQuery.isError}
+				onRetry={async () => {
+					await membersQuery.refetch({ throwOnError: true });
+				}}
+				skeleton={<MemberRowsSkeleton />}
+			>
+				{(rows) => (
+					<SettingsCard>
+						<ItemGroup aria-label="Members">
 							{rows.map((member) => (
 								<MemberRow
 									callerUserId={callerUserId}
 									isAdmin={isAdmin}
 									key={member.memberId}
-									roleItems={roleItems}
 									member={member}
 									org={org}
+									roleItems={roleItems}
 								/>
 							))}
 						</ItemGroup>
-					)}
-				</Collection>
-			</section>
+					</SettingsCard>
+				)}
+			</Collection>
 
-			{isAdmin && !isPersonal ? <InviteLinksSection org={org} /> : null}
-		</div>
+			{canInvite ? <InviteLinksSection org={org} /> : null}
+
+			{isPersonal || !orgContext ? null : (
+				<LeaveOrgRow name={orgContext.name} org={org} />
+			)}
+		</>
 	);
 }
 
@@ -220,7 +195,6 @@ function MemberRow({
 }) {
 	const queryClient = useQueryClient();
 	const isSelf = callerUserId !== null && member.userId === callerUserId;
-
 	const [confirmRemove, setConfirmRemove] = useState(false);
 
 	const roleMutation = useMutation({
@@ -262,27 +236,25 @@ function MemberRow({
 		},
 	});
 
+	const manage = isAdmin && !isSelf;
+
 	return (
 		<Item className="flex-wrap">
 			<ItemMedia>
-				<Avatar decorative name={member.name} src={member.image ?? undefined} />
+				<Avatar
+					decorative
+					name={member.name}
+					size="lg"
+					src={member.image ?? undefined}
+				/>
 			</ItemMedia>
 			<ItemContent>
-				<ItemTitle>
-					<span>{member.name}</span>
-					{isSelf ? <Badge size="sm">You</Badge> : null}
-				</ItemTitle>
-				<ItemDescription>
-					<MetaRow>
-						<span>{member.email}</span>
-						<span>
-							Joined <ZonedTime at={member.joinedAt} format="short" />
-						</span>
-					</MetaRow>
-				</ItemDescription>
+				<ItemTitle>{member.name}</ItemTitle>
+				<ItemDescription>{member.email}</ItemDescription>
 			</ItemContent>
-			{isAdmin && !isSelf ? (
-				<ItemActions className="gap-2 @max-sm/item:ms-10 @max-sm/item:me-0 @max-sm/item:basis-full">
+			<ItemActions className="gap-3 @max-sm/item:ms-11 @max-sm/item:me-0 @max-sm/item:basis-full">
+				{isSelf ? <span className="type-body-sm text-text-2">You</span> : null}
+				{manage ? (
 					<Select
 						disabled={roleMutation.isPending}
 						items={roleItems}
@@ -295,7 +267,7 @@ function MemberRow({
 					>
 						<SelectTrigger
 							aria-label={`Role for ${member.name}`}
-							className="w-32"
+							className="w-28"
 							size="sm"
 						>
 							<SelectValue />
@@ -308,34 +280,49 @@ function MemberRow({
 							))}
 						</SelectContent>
 					</Select>
-					<Button
-						aria-label={`Remove ${member.name}`}
-						onClick={() => setConfirmRemove(true)}
-						size="sm"
-						variant="secondary"
-					>
-						Remove
-					</Button>
-					<ConfirmDialog
-						actionLabel="Remove member"
-						description={`${member.name} loses access to this org and its repos. You can invite them again later.`}
-						onConfirm={() => removeMutation.mutateAsync()}
-						onOpenChange={setConfirmRemove}
-						open={confirmRemove}
-						pendingLabel="Removing"
-						title={`Remove ${member.name}?`}
-					/>
-				</ItemActions>
-			) : (
-				<ItemActions>
-					<Badge variant="outline">{roleLabel(member.role)}</Badge>
-				</ItemActions>
-			)}
+				) : (
+					<span className="type-body-sm text-text-2">
+						{roleLabel(member.role)}
+					</span>
+				)}
+				{isAdmin ? (
+					<span className="flex size-(--control-sm) items-center justify-center">
+						{manage ? (
+							<DropdownMenu>
+								<DropdownMenuTrigger
+									render={
+										<Button
+											aria-label={`Actions for ${member.name}`}
+											size="icon-sm"
+											variant="ghost"
+										/>
+									}
+								>
+									<Icon icon={More} />
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end" size="sm">
+									<DropdownMenuItem onClick={() => setConfirmRemove(true)}>
+										Remove
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						) : null}
+					</span>
+				) : null}
+			</ItemActions>
+			<ConfirmDeleteDialog
+				actionLabel="Remove"
+				onConfirm={() => removeMutation.mutateAsync()}
+				onOpenChange={setConfirmRemove}
+				open={confirmRemove}
+				pendingLabel="Removing"
+				title={`Remove ${member.name}?`}
+			/>
 		</Item>
 	);
 }
 
-function LeaveOrgButton({ org }: { org: string }) {
+function LeaveOrgRow({ org, name }: { org: string; name: string }) {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const leaveMutation = useMutation({
@@ -359,41 +346,90 @@ function LeaveOrgButton({ org }: { org: string }) {
 	});
 
 	return (
-		<>
+		<div className="flex items-center justify-between gap-3 border-line-faint border-t pt-4">
+			<p className="min-w-0 truncate type-label">Leave {name}</p>
 			<Button onClick={() => setOpen(true)} size="sm" variant="secondary">
 				Leave org
 			</Button>
-			<ConfirmDialog
+			<ConfirmDeleteDialog
 				actionLabel="Leave org"
-				description="You lose access to this org and its repos. An admin has to invite you to come back."
+				description="An admin has to invite you back."
 				onConfirm={() => leaveMutation.mutateAsync()}
 				onOpenChange={setOpen}
 				open={open}
 				pendingLabel="Leaving"
-				title="Leave this org?"
+				title={`Leave ${name}?`}
 			/>
-		</>
+		</div>
 	);
 }
 
 function InviteLinksSection({ org }: { org: string }) {
-	const queryClient = useQueryClient();
 	const invitesQuery = useQuery(orgInvitesQueryOptions(org));
 	const invites = useCollection(INVITES_COLLECTION, invitesQuery.data, {
 		params: { status: "invites" },
 	});
 
+	return (
+		<SettingsSection id="invite-links" title="Invite links">
+			<Collection
+				collection={invites}
+				empty={
+					<Empty size="sm" variant="plain">
+						<EmptyHeader>
+							<EmptyTitle>No invite links yet</EmptyTitle>
+						</EmptyHeader>
+					</Empty>
+				}
+				error={invitesQuery.isError}
+				noResults={
+					invites.filtered ? undefined : (
+						<Empty reason="no-results" size="sm" variant="plain">
+							<EmptyHeader>
+								<EmptyTitle>No active invite links</EmptyTitle>
+							</EmptyHeader>
+						</Empty>
+					)
+				}
+				onRetry={async () => {
+					await invitesQuery.refetch({ throwOnError: true });
+				}}
+				skeleton={<InviteRowsSkeleton />}
+			>
+				{(rows) => (
+					<SettingsCard>
+						<ItemGroup aria-label="Invite links">
+							{rows.map((invite) => (
+								<InviteLinkRow invite={invite} key={invite.id} org={org} />
+							))}
+						</ItemGroup>
+					</SettingsCard>
+				)}
+			</Collection>
+		</SettingsSection>
+	);
+}
+
+function InviteForm({
+	org,
+	onCreated,
+	onCancel,
+}: {
+	org: string;
+	onCreated: (token: string) => void;
+	onCancel: () => void;
+}) {
+	const queryClient = useQueryClient();
 	const [role, setRole] = useState<OrgRole>("member");
 	const [maxUses, setMaxUses] = useState(1);
 	const [expiresInDays, setExpiresInDays] = useState(7);
-	const [createdToken, setCreatedToken] = useState<string | null>(null);
 
 	const createMutation = useMutation({
 		mutationFn: () =>
 			createOrgInvite({ data: { org, role, maxUses, expiresInDays } }),
 		onSuccess: (result) => {
 			if (result.token) {
-				setCreatedToken(result.token);
+				onCreated(result.token);
 			} else {
 				toast.fail(
 					result.error ??
@@ -411,23 +447,12 @@ function InviteLinksSection({ org }: { org: string }) {
 	const inputsValid = maxUsesValid && expiryValid;
 
 	return (
-		<section
-			aria-labelledby="org-invites-heading"
-			className="flex flex-col gap-3"
-		>
-			<div className="flex flex-col gap-0.5">
-				<h3 className="type-heading-sm" id="org-invites-heading">
-					Invite links
-				</h3>
-				<p className="type-body-sm text-text-2">
-					Create a link and send it to people you trust. Each link has a use
-					limit and an expiry date.
-				</p>
-			</div>
+		<SettingsCard>
 			<form
-				className="flex flex-wrap items-end gap-3"
-				onSubmit={(e) => {
-					e.preventDefault();
+				aria-label="New invite link"
+				className="panel flex flex-wrap items-start gap-3 p-4"
+				onSubmit={(event) => {
+					event.preventDefault();
 					if (inputsValid) {
 						createMutation.mutate();
 					}
@@ -477,51 +502,21 @@ function InviteLinksSection({ org }: { org: string }) {
 					/>
 					{expiryValid ? null : <FieldError>Enter 1 to 90 days.</FieldError>}
 				</Field>
-				<Button
-					disabled={!inputsValid}
-					pending={createMutation.isPending}
-					pendingLabel="Creating"
-					type="submit"
-				>
-					Create invite link
-				</Button>
+				<div className="ms-auto flex items-center gap-2 self-end">
+					<Button onClick={onCancel} type="button" variant="secondary">
+						Cancel
+					</Button>
+					<Button
+						disabled={!inputsValid}
+						pending={createMutation.isPending}
+						pendingLabel="Creating"
+						type="submit"
+					>
+						Create invite link
+					</Button>
+				</div>
 			</form>
-
-			{createdToken ? <FreshInviteLink token={createdToken} /> : null}
-
-			<Collection
-				collection={invites}
-				empty={
-					<InviteLinksEmpty
-						creating={createMutation.isPending}
-						onCreate={inputsValid ? () => createMutation.mutate() : undefined}
-					/>
-				}
-				error={invitesQuery.isError}
-				noResults={
-					invites.filtered ? undefined : (
-						<Empty reason="no-results" size="sm" variant="plain">
-							<EmptyHeader>
-								<EmptyTitle>No active invite links</EmptyTitle>
-							</EmptyHeader>
-						</Empty>
-					)
-				}
-				onRetry={async () => {
-					await invitesQuery.refetch({ throwOnError: true });
-				}}
-				skeleton={<InviteRowsSkeleton />}
-				variant="plain"
-			>
-				{(rows) => (
-					<ItemGroup variant="plain" aria-label="Invite links">
-						{rows.map((invite) => (
-							<InviteLinkRow invite={invite} key={invite.id} org={org} />
-						))}
-					</ItemGroup>
-				)}
-			</Collection>
-		</section>
+		</SettingsCard>
 	);
 }
 
@@ -529,47 +524,9 @@ function FreshInviteLink({ token }: { token: string }) {
 	const url = `${window.location.origin}/invite/${token}`;
 	return (
 		<Field>
-			<FieldLabel>New invite link</FieldLabel>
+			<FieldLabel>New invite link, shown once</FieldLabel>
 			<Input mode="copy" noun="invite link" value={url} />
-			<FieldDescription>
-				Copy this link now. Tripwire shows it only once.
-			</FieldDescription>
 		</Field>
-	);
-}
-
-function InviteLinksEmpty({
-	creating,
-	onCreate,
-}: {
-	creating: boolean;
-	onCreate?: () => void;
-}) {
-	return (
-		<Empty
-			art={<MascotArt mood="invites-empty" size="compact" />}
-			size="sm"
-			variant="plain"
-		>
-			<EmptyHeader>
-				<EmptyTitle>No invite links yet</EmptyTitle>
-				<EmptyDescription>
-					Create a link to add people to this org.
-				</EmptyDescription>
-			</EmptyHeader>
-			<EmptyContent>
-				<Button
-					disabled={!onCreate}
-					onClick={onCreate}
-					pending={creating}
-					pendingLabel="Creating"
-					size="sm"
-					variant="secondary"
-				>
-					Create invite link
-				</Button>
-			</EmptyContent>
-		</Empty>
 	);
 }
 
@@ -604,55 +561,38 @@ function InviteLinkRow({
 	});
 
 	const revoked = invite.revokedAt !== null;
-	const expiresAt = new Date(invite.expiresAt);
-	const expired = expiresAt.getTime() < Date.now();
 
 	return (
-		<Item>
+		<Item className="flex-wrap">
 			<ItemContent>
-				<ItemTitle>
-					<span>{ROLE_LABEL[invite.role]} invite</span>
-				</ItemTitle>
-				<ItemDescription>
-					<MetaRow>
-						<span>
-							<span className="tabular-nums">
-								{invite.uses}/{invite.maxUses}
-							</span>{" "}
-							uses
-						</span>
-						<span>
-							{expired ? "Expired" : "Expires"} {expiresAt.toLocaleDateString()}
-						</span>
-						{revoked ? <span>Revoked</span> : null}
-					</MetaRow>
-				</ItemDescription>
+				<ItemTitle>{ROLE_LABEL[invite.role]} invite</ItemTitle>
 			</ItemContent>
-			<ItemActions>
-				{revoked ? (
-					<Badge>Revoked</Badge>
-				) : (
-					<>
-						<Button
-							aria-label={`Revoke ${roleName} invite link`}
-							onClick={() => setConfirmRevoke(true)}
-							size="sm"
-							variant="secondary"
-						>
-							Revoke
-						</Button>
-						<ConfirmDialog
-							actionLabel="Revoke link"
-							description="Nobody can join with this link after you revoke it. People who already joined stay in the org."
-							onConfirm={() => revokeMutation.mutateAsync()}
-							onOpenChange={setConfirmRevoke}
-							open={confirmRevoke}
-							pendingLabel="Revoking"
-							title={`Revoke this ${roleName} invite link?`}
-						/>
-					</>
+			<ItemActions className="gap-6 @max-sm/item:me-0 @max-sm/item:basis-full">
+				<span className="type-body-sm text-text-2 tabular-nums">
+					{invite.uses} of {invite.maxUses} used
+				</span>
+				<span className="type-body-sm text-text-2">
+					{revoked ? "Revoked" : inviteExpiryLabel(invite.expiresAt)}
+				</span>
+				{revoked ? null : (
+					<Button
+						aria-label={`Revoke ${roleName} invite link`}
+						onClick={() => setConfirmRevoke(true)}
+						size="sm"
+						variant="secondary"
+					>
+						Revoke
+					</Button>
 				)}
 			</ItemActions>
+			<ConfirmDeleteDialog
+				actionLabel="Revoke"
+				onConfirm={() => revokeMutation.mutateAsync()}
+				onOpenChange={setConfirmRevoke}
+				open={confirmRevoke}
+				pendingLabel="Revoking"
+				title="Revoke this invite link?"
+			/>
 		</Item>
 	);
 }
@@ -661,47 +601,36 @@ const ROW_SLOTS = ["a", "b", "c"] as const;
 
 function MemberRowsSkeleton() {
 	return (
-		<ItemGroup variant="plain" aria-hidden>
-			{ROW_SLOTS.map((slot) => (
-				<Item key={slot}>
-					<ItemMedia>
-						<Skeleton className="size-6 rounded-pill" />
-					</ItemMedia>
-					<ItemContent>
-						<SkeletonText className="w-32" type="label" />
-						<SkeletonText className="w-56" type="body-sm" />
-					</ItemContent>
-				</Item>
-			))}
-		</ItemGroup>
+		<SettingsCard>
+			<ItemGroup aria-hidden>
+				{ROW_SLOTS.map((slot) => (
+					<Item key={slot}>
+						<ItemMedia>
+							<Skeleton className="size-8 rounded-pill" />
+						</ItemMedia>
+						<ItemContent>
+							<SkeletonText className="w-32" type="label" />
+							<SkeletonText className="w-44" type="body-sm" />
+						</ItemContent>
+					</Item>
+				))}
+			</ItemGroup>
+		</SettingsCard>
 	);
 }
 
 function InviteRowsSkeleton() {
 	return (
-		<ItemGroup variant="plain" aria-hidden>
-			{ROW_SLOTS.slice(0, 2).map((slot) => (
-				<Item key={slot}>
-					<ItemContent>
-						<SkeletonText className="w-28" type="label" />
-						<SkeletonText className="w-44" type="body-sm" />
-					</ItemContent>
-				</Item>
-			))}
-		</ItemGroup>
-	);
-}
-
-export function OrgMembersPageSkeleton() {
-	return (
-		<div className="flex flex-col gap-8">
-			<div className="flex flex-col gap-3">
-				<div className="flex flex-col gap-0.5">
-					<SkeletonText className="w-24" type="heading-sm" />
-					<SkeletonText className="w-64" type="body-sm" />
-				</div>
-				<MemberRowsSkeleton />
-			</div>
-		</div>
+		<SettingsCard>
+			<ItemGroup aria-hidden>
+				{ROW_SLOTS.slice(0, 2).map((slot) => (
+					<Item key={slot}>
+						<ItemContent>
+							<SkeletonText className="w-28" type="label" />
+						</ItemContent>
+					</Item>
+				))}
+			</ItemGroup>
+		</SettingsCard>
 	);
 }

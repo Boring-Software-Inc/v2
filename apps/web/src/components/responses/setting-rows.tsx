@@ -6,8 +6,8 @@ import {
 } from "#/components/responses/preview-link";
 import { cn } from "#/lib/glaze/utils";
 
-export const SETTING_ROW = "rounded-panel px-3 py-2";
-export const SETTING_NESTED = "ps-10";
+const SETTING_ROW = "rounded-panel px-3 py-2";
+const SETTING_NESTED = "ps-10";
 
 export function SettingSection({
 	id,
@@ -17,16 +17,22 @@ export function SettingSection({
 }: {
 	id: string;
 	title: string;
-	description: string;
+	description?: string;
 	children: ReactNode;
 }) {
 	return (
-		<section aria-labelledby={id} className="flex flex-col gap-2">
+		<section
+			aria-labelledby={id}
+			className="flex flex-col gap-2"
+			data-feedback-name="SettingSection"
+		>
 			<header className="flex flex-col gap-0.5 px-3">
 				<h2 className="type-heading-sm" id={id}>
 					{title}
 				</h2>
-				<p className="type-body-sm text-text-2">{description}</p>
+				{description ? (
+					<p className="type-body-sm text-text-2">{description}</p>
+				) : null}
 			</header>
 			<div className="flex flex-col gap-0.5">{children}</div>
 		</section>

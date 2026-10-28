@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { exceptionApplied, outcomeMessage } from "./run-outcome.ts";
 import { RUN_RESULT_LABELS } from "./run-result.ts";
 import { type Verdict, verdictSchema } from "./runs.ts";
 import {
@@ -36,7 +37,9 @@ export interface RunStepView {
 export const VERDICT_LABELS = {
 	pass: RUN_RESULT_LABELS.pass,
 	block: RUN_RESULT_LABELS.block,
+	changes_required: RUN_RESULT_LABELS.changes_required,
 	needs_review: RUN_RESULT_LABELS.needs_review,
+	close: RUN_RESULT_LABELS.close,
 } as const satisfies Record<Verdict, string>;
 
 const verdictWordSchema = verdictSchema.nullable().catch(null);
@@ -58,6 +61,7 @@ const GATE_WORDS = {
 	"all-of": "all of",
 	"any-of": "any of",
 	not: "not",
+	unless: "except when",
 } as const satisfies Record<GateMode, string>;
 
 const RESUME_SUFFIX = ":resume";
@@ -91,6 +95,33 @@ const denyFloorInputSchema = z
 	.catch(null);
 
 const DECISION_WORDS = { approve: "Approved", deny: "Blocked" } as const;
+
+export const EXCEPTION_APPLIED = "Exception applied";
+
+const unlessOutputSchema = z
+	.object({
+		requirement: z.string().nullable(),
+		exception: z.string().nullable(),
+		exceptionApplied: z.boolean(),
+	})
+	.nullable()
+	.catch(null);
+
+function exceptionSummary(output: RunStepInput["output"]): string | null {
+	const parsed = unlessOutputSchema.parse(output ?? null);
+	if (!parsed || parsed.requirement === "pass") {
+		return null;
+	}
+	if (parsed.exceptionApplied) {
+		return "The requirement did not pass. The exception applied, so it is waived.";
+	}
+	if (parsed.requirement === "fail") {
+		return parsed.exception === "skipped"
+			? "The requirement did not pass. The exception could not be checked, so it does not apply."
+			: "The requirement did not pass. The exception did not apply.";
+	}
+	return null;
+}
 
 function outcomeWord(kind: string, status: string, closed = false): string {
 	if (status === "skipped") {
@@ -300,6 +331,15 @@ export function describeRunSteps(
 		if (decision) {
 			decided.add(`${definition.id}:${node.id}`);
 		}
+		const unless = node.type === "gate" && node.mode === "unless";
+		const applied = unless && exceptionApplied(step.output);
+		const outcomeSummary =
+			node.type === "action" &&
+			(node.action === "request-fix" || node.action === "note")
+				? outcomeMessage(step.input)
+				: unless
+					? exceptionSummary(step.output)
+					: null;
 		return [
 			{
 				view: {
@@ -309,8 +349,11 @@ export function describeRunSteps(
 					gate: node.type === "gate" ? GATE_WORDS[node.mode] : null,
 					outcome: decision
 						? DECISION_WORDS[decision]
-						: outcomeWord(step.nodeKind, step.status, closed),
+						: applied
+							? EXCEPTION_APPLIED
+							: outcomeWord(step.nodeKind, step.status, closed),
 					...base,
+					summary: base.summary ?? outcomeSummary,
 				},
 				group: definitions.indexOf(definition),
 				rank: orders.get(definition.id)?.get(node.id) ?? 0,

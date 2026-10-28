@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { DEFAULT_WORKFLOW } from "@tripwire/contracts";
+import { eq } from "drizzle-orm";
 import {
 	applyMigrations,
 	createDb,
@@ -9,7 +10,9 @@ import {
 } from "../index.ts";
 import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
+import { rollupsDaily } from "../schema/rollups.ts";
 import * as insightServices from "./insights.ts";
+import { ensureRepo } from "./repos.ts";
 import {
 	createRun,
 	markActionExecuted,
@@ -140,7 +143,7 @@ describe("getHomeStats — the number and its series tell one story", () => {
 	let seq = 0;
 	async function seedVerdictRun(
 		repoFullName: string,
-		verdict: "block" | "pass" | "needs_review",
+		verdict: "block" | "pass" | "needs_review" | "changes_required" | "close",
 	): Promise<string> {
 		const id = `home-${seq++}`;
 		const eventId = await seedEvent(id, repoFullName);
@@ -181,6 +184,48 @@ describe("getHomeStats — the number and its series tell one story", () => {
 		expect(stats.passed.value).toBe(1);
 		expect(stats.blocked.series).toHaveLength(24);
 		expect(stats.passed.series).toHaveLength(24);
+	});
+
+	test("changes needed and closed count as held next to blocked", async () => {
+		const repo = "acme/held";
+		await seedVerdictRun(repo, "block");
+		await seedVerdictRun(repo, "changes_required");
+		await seedVerdictRun(repo, "close");
+		await seedVerdictRun(repo, "pass");
+		const stats = await insightServices.getHomeStats(db, repo);
+		expect(stats.blocked.value).toBe(3);
+		expect(stats.blocked.series.reduce((sum, n) => sum + n, 0)).toBe(3);
+		expect(stats.passed.value).toBe(1);
+		const recent = await insightServices.listRecentRuns(db, {
+			verdicts: ["block", "changes_required", "close"],
+			repoFullName: repo,
+		});
+		expect(recent.map((run) => run.verdict).sort()).toEqual([
+			"block",
+			"changes_required",
+			"close",
+		]);
+	});
+
+	test("the daily rollup counts changes needed and closed as blocked", async () => {
+		const repo = "acme/rolled";
+		const repoId = await ensureRepo(db, {
+			externalId: "rolled-1",
+			owner: "acme",
+			name: "rolled",
+			fullName: repo,
+		});
+		await seedVerdictRun(repo, "block");
+		await seedVerdictRun(repo, "changes_required");
+		await seedVerdictRun(repo, "close");
+		await seedVerdictRun(repo, "pass");
+		const today = new Date().toISOString().slice(0, 10);
+		await insightServices.computeDailyRollups(db, today);
+		const [row] = await db
+			.select({ blocked: rollupsDaily.blocked, passed: rollupsDaily.passed })
+			.from(rollupsDaily)
+			.where(eq(rollupsDaily.repoId, repoId));
+		expect(row).toEqual({ blocked: 3, passed: 1 });
 	});
 
 	test("a repo with no activity reports honest zeros, not a faked line", async () => {

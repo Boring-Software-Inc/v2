@@ -100,6 +100,16 @@ export function syncRepoBranchesOptions(repoId: string) {
 	return { singletonKey: repoId };
 }
 
+export const RULE_PREVIEW_QUEUE = "rule-preview";
+
+export interface RulePreviewJob {
+	repoId: string;
+}
+
+export function rulePreviewOptions(repoId: string) {
+	return { singletonKey: repoId };
+}
+
 export const RECOVER_INSTALLATION_QUEUE = "recover-installation";
 
 export interface RecoverInstallationJob {
@@ -176,5 +186,6 @@ export async function createBoss(
 	await boss.createQueue(REFRESH_SURFACES_QUEUE);
 	await boss.createQueue(SYNC_FLAG_OVERRIDES_QUEUE, { policy: "stately" });
 	await boss.createQueue(RECOVER_INSTALLATION_QUEUE, { policy: "stately" });
+	await boss.createQueue(RULE_PREVIEW_QUEUE, { policy: "stately" });
 	return boss;
 }

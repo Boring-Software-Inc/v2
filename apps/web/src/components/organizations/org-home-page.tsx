@@ -27,13 +27,16 @@ import {
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { ApprovedInstallBanner } from "#/components/organizations/approved-install-banner";
+import { FirstWeekDigest } from "#/components/organizations/first-week-digest";
 import { ORG_REPOS_COLLECTION } from "#/components/organizations/org-home-collection";
 import { HomeLoading } from "#/components/organizations/org-home-page-skeleton";
 import { AgentSetupCard } from "#/components/setup/agent-setup-card";
 import { ZonedTime } from "#/components/timezones/zoned-time";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
+import { useTimezones } from "#/hooks/use-timezones";
 import { LIVE_FORGES } from "#/lib/forge-copy";
+import { useHomeDigest } from "#/lib/home-digest.query";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
 import { orgContextQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 
@@ -42,6 +45,10 @@ const route = getRouteApi("/$org/home");
 export function OrgHomePage() {
 	const { org } = route.useParams();
 	const homeQuery = useQuery(orgHomeQueryOptions(org));
+	const { display } = useTimezones(org);
+	const canReadActivity = useOrgPermission(org, "activity:read");
+	const { data: digest } = useHomeDigest(org, canReadActivity);
+	const showDigest = Boolean(digest && digest.total > 0);
 	const home = homeQuery.data;
 	const collection = useCollection(ORG_REPOS_COLLECTION, home?.repos);
 
@@ -56,19 +63,23 @@ export function OrgHomePage() {
 	return (
 		<DashboardLayout counts={{}}>
 			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<h1 className="type-title">Home</h1>
-						{repos.length > 0 ? (
-							<p className="type-body text-text-2">
-								Across this org's repos,{" "}
-								<span className="text-text-1 tabular-nums">{awaiting}</span> to
-								review and{" "}
-								<span className="text-text-1 tabular-nums">{blocked}</span>{" "}
-								blocked in the last 24 hours.
-							</p>
-						) : null}
-					</header>
+				<div
+					className={`mx-auto flex w-full ${showDigest ? "max-w-160" : "max-w-3xl"} flex-col gap-6`}
+				>
+					{!showDigest ? (
+						<header className="flex flex-col gap-1">
+							<h1 className="type-title">Home</h1>
+							{repos.length > 0 ? (
+								<p className="type-body text-text-2">
+									Across this org's repos,{" "}
+									<span className="text-text-1 tabular-nums">{awaiting}</span>{" "}
+									to review and{" "}
+									<span className="text-text-1 tabular-nums">{blocked}</span>{" "}
+									blocked in the last 24 hours.
+								</p>
+							) : null}
+						</header>
+					) : null}
 
 					<ApprovedInstallBanner />
 
@@ -76,28 +87,52 @@ export function OrgHomePage() {
 						<AgentSetupCard org={org} setupDone={setupDone} />
 					) : null}
 
+					{showDigest && digest ? (
+						<FirstWeekDigest
+							org={org}
+							digest={digest}
+							timeZone={display.zone}
+						/>
+					) : null}
+
 					{home && !home.hasInstallation ? (
 						<InstallCta org={org} />
 					) : (
-						<Collection
-							collection={collection}
-							empty={<NoReposYet org={org} />}
-							error={homeQuery.isError}
-							onRetry={async () => {
-								await homeQuery.refetch({ throwOnError: true });
-							}}
-							skeleton={<HomeLoading />}
+						<section
+							aria-labelledby="connected-repos-title"
+							className="flex min-w-0 flex-col gap-3"
 						>
-							{(rows) => (
-								<ul aria-label="Repos" className="flex flex-col gap-3">
-									{rows.map((repo) => (
-										<li key={repo.id}>
-											<RepoCard org={org} repo={repo} />
-										</li>
-									))}
-								</ul>
-							)}
-						</Collection>
+							<h2 className="type-heading" id="connected-repos-title">
+								Connected repos
+							</h2>
+							<Collection
+								collection={collection}
+								empty={<NoReposYet org={org} />}
+								error={homeQuery.isError}
+								onRetry={async () => {
+									await homeQuery.refetch({ throwOnError: true });
+								}}
+								skeleton={<HomeLoading />}
+							>
+								{(rows) => (
+									<section
+										aria-label="Connected repo list"
+										className="flex max-h-128 flex-col gap-3 overflow-y-auto overscroll-contain rounded-shell p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-1"
+									>
+										<ul
+											aria-label="Connected repos"
+											className="flex flex-col gap-3"
+										>
+											{rows.map((repo) => (
+												<li key={repo.id}>
+													<RepoCard org={org} repo={repo} />
+												</li>
+											))}
+										</ul>
+									</section>
+								)}
+							</Collection>
+						</section>
 					)}
 				</div>
 			</div>
@@ -118,13 +153,7 @@ function NoReposYet({ org }: { org: string }) {
 			<EmptyContent>
 				<Button
 					nativeButton={false}
-					render={
-						<Link
-							params={{ org }}
-							search={{ settings: "connections" }}
-							to="/$org/home"
-						/>
-					}
+					render={<Link params={{ org }} to="/$org/settings/connections" />}
 					size="sm"
 					variant="secondary"
 				>
@@ -208,6 +237,7 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 	);
 	return (
 		<EntityCard
+			feedbackName="RepoCard"
 			badges={
 				repo.armed ? (
 					repo.pendingModeration > 0 || repo.blocked24h > 0 ? (
