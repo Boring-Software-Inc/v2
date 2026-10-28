@@ -20,6 +20,7 @@ export {
 	BACKFILL_REPO_QUEUE,
 	type BackfillRepoJob,
 	createBoss,
+	createGitCafeConnectionBoss,
 	DEFAULT_RERUN_COOLDOWN_SECONDS,
 	getRerunCooldownSeconds,
 	PROCESS_EVENT_QUEUE,

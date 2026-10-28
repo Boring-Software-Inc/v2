@@ -11,7 +11,7 @@ import { gitCafeConnectionServices } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
 import pino from "pino";
 import { getAuth } from "#/lib/server/auth";
-import { getBoss, getDb } from "#/lib/server/db";
+import { getDb, getGitCafeConnectionBoss } from "#/lib/server/db";
 import { readProviderAvailability } from "#/lib/server/provider-availability";
 
 const logger = pino({ name: "gitcafe-connection" });
@@ -115,7 +115,7 @@ export async function confirmGitCafeGrant(
 		});
 		const result = await gitCafeConnectionServices.enqueueGitCafeConnection(
 			getDb().db,
-			await getBoss().catch(() => null),
+			await getGitCafeConnectionBoss(requestId).catch(() => null),
 			job,
 		);
 		if (!result.ok && result.reason === "queue-unavailable")
@@ -145,15 +145,24 @@ export async function readGitCafeConnectionStatus(
 		query: { disableCookieCache: true },
 	});
 	if (!current) return { status: "retry" as const };
-	return gitCafeConnectionServices.getGitCafeConnectionStatus(
-		getDb().db,
-		await getBoss(),
-		{
-			userId: current.user.id,
-			sessionId: current.session.id,
-			orgId,
-			installationId,
-			jobId,
-		},
-	);
+	const requestId = generateId();
+	try {
+		return await gitCafeConnectionServices.getGitCafeConnectionStatus(
+			getDb().db,
+			await getGitCafeConnectionBoss(requestId),
+			{
+				userId: current.user.id,
+				sessionId: current.session.id,
+				orgId,
+				installationId,
+				jobId,
+			},
+		);
+	} catch {
+		logger.warn(
+			{ requestId, error: "status-failed" },
+			"GitCafe connection status unavailable",
+		);
+		return { status: "retry" as const };
+	}
 }

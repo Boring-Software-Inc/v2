@@ -3,9 +3,8 @@ import {
 	gitCafeConnectionJobSchema,
 	gitCafeConnectionResultSchema,
 } from "@tripwire/contracts";
-import { createDb } from "@tripwire/db";
+import { createDb, createGitCafeConnectionBoss } from "@tripwire/db";
 import { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
-import { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
 import { z } from "zod";
 import {
@@ -96,21 +95,4 @@ export async function startGitCafeConnectionWorker(
 		},
 		"connection worker up",
 	);
-}
-
-export async function createGitCafeConnectionBoss(
-	databaseUrl: string,
-	logger: Logger,
-): Promise<PgBoss> {
-	const boss = new PgBoss({
-		connectionString: databaseUrl,
-		schedule: false,
-		supervise: false,
-		migrate: false,
-		createSchema: false,
-	});
-	boss.on("error", () => logger.error("GitCafe connection queue unavailable"));
-	await boss.start();
-	await boss.createQueue(GITCAFE_CONNECT_QUEUE);
-	return boss;
 }

@@ -1,5 +1,11 @@
-import { createDb, createPgliteDb, type PgliteHandle } from "@tripwire/db";
+import {
+	createDb,
+	createGitCafeConnectionBoss,
+	createPgliteDb,
+	type PgliteHandle,
+} from "@tripwire/db";
 import type { PgBoss } from "pg-boss";
+import pino from "pino";
 
 type DbBundle = ReturnType<typeof createDb>;
 type DbPool = DbBundle["pool"];
@@ -15,7 +21,9 @@ type DbPool = DbBundle["pool"];
  */
 let instance: DbBundle | null = null;
 let boss: PgBoss | null = null;
+let gitCafeConnectionBoss: Promise<PgBoss> | null = null;
 let pglite: PgliteHandle["client"] | null = null;
+const connectionQueueLogger = pino({ name: "gitcafe-connection-queue" });
 
 /** `dev:demo` runs the web head alone against embedded PGlite. */
 export function isDemoMode(): boolean {
@@ -66,4 +74,24 @@ export async function getBoss(): Promise<PgBoss> {
 	const created = await createBoss();
 	boss = created;
 	return created;
+}
+
+export async function getGitCafeConnectionBoss(
+	requestId: string,
+): Promise<PgBoss> {
+	if (isDemoMode())
+		throw new Error("pg-boss is unavailable in demo mode (no worker/queue)");
+	const databaseUrl = process.env.DATABASE_URL;
+	if (!databaseUrl) throw new Error("DATABASE_URL is not set");
+	gitCafeConnectionBoss ??= createGitCafeConnectionBoss(
+		databaseUrl,
+		connectionQueueLogger.child({ requestId }),
+	);
+	const pending = gitCafeConnectionBoss;
+	try {
+		return await pending;
+	} catch (error) {
+		if (gitCafeConnectionBoss === pending) gitCafeConnectionBoss = null;
+		throw error;
+	}
 }

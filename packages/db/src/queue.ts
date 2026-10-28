@@ -1,3 +1,4 @@
+import { GITCAFE_CONNECT_QUEUE } from "@tripwire/contracts";
 import { PgBoss } from "pg-boss";
 
 /** Ingest → worker handoff (§5). */
@@ -133,6 +134,34 @@ export interface RefreshSurfacesJob {
 /** Minimal logger surface — satisfied by pino, console, etc. */
 export interface BossErrorLogger {
 	error(obj: unknown, msg?: string): void;
+}
+
+/** Connection producers and the isolated worker must leave general backlog maintenance stopped. */
+export async function createGitCafeConnectionBoss(
+	databaseUrl: string,
+	logger: BossErrorLogger,
+): Promise<PgBoss> {
+	const boss = new PgBoss({
+		connectionString: databaseUrl,
+		schedule: false,
+		supervise: false,
+		migrate: false,
+		createSchema: false,
+	});
+	boss.on("error", () =>
+		logger.error(
+			{ error: "queue-unavailable" },
+			"GitCafe connection queue unavailable",
+		),
+	);
+	try {
+		await boss.start();
+		await boss.createQueue(GITCAFE_CONNECT_QUEUE);
+		return boss;
+	} catch (error) {
+		await boss.stop({ graceful: false }).catch(() => undefined);
+		throw error;
+	}
 }
 
 /**

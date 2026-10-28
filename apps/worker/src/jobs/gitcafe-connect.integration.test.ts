@@ -16,6 +16,7 @@ import {
 	applyMigrations,
 	createBoss,
 	createDb,
+	createGitCafeConnectionBoss,
 	createTestDatabase,
 	type Db,
 	gitCafeConnectionServices,
@@ -36,7 +37,6 @@ import { generateId, sleep } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
-import { createGitCafeConnectionBoss } from "../gitcafe-connection-worker.ts";
 import {
 	connectGitCafeInstallation,
 	type GitCafeConnectionDeps,
