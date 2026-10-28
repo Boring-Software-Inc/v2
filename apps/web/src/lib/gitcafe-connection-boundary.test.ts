@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
 	installUrlFor,
@@ -78,6 +79,37 @@ describe("GitCafe connection authorization boundary", () => {
 			status: "ready",
 			url: "https://github.com/apps/github/installations/new?state=hint",
 		});
+	});
+	test("a valid signature cannot admit malformed or partial install bindings", () => {
+		const secret = "test-install-state-secret";
+		for (const malformed of [
+			null,
+			{ u: 1, o: "org" },
+			{ u: "user", o: "" },
+			{ u: "user", o: "org", f: "gitcafe" },
+			{
+				u: "user",
+				o: "org",
+				f: "gitcafe",
+				p: "other-purpose",
+				e: Date.now() + 60_000,
+			},
+			{
+				u: "user",
+				o: "org",
+				f: "gitcafe",
+				p: "gitcafe-install",
+				e: Number.MAX_SAFE_INTEGER + 1,
+			},
+		]) {
+			const payload = Buffer.from(JSON.stringify(malformed)).toString(
+				"base64url",
+			);
+			const mac = createHmac("sha256", secret)
+				.update(payload)
+				.digest("base64url");
+			expect(verifyInstallState(`${payload}.${mac}`, secret)).toBeNull();
+		}
 	});
 	test("browser entry imports stay server-free and queue receives metadata only", () => {
 		const server = readFileSync(

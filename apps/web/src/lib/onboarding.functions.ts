@@ -81,11 +81,10 @@ export const getOrgInstallUrl = createServerFn({ method: "GET" })
 		if (!(await readProviderAvailability()).available.includes(forge))
 			return { status: "not-configured" };
 		const { signInstallState } = await import("#/lib/server/install-state");
-		const state = signInstallState({
-			userId,
-			orgId: org.id,
-			...(forge === "gitcafe" ? { forge: "gitcafe" as const } : {}),
-		});
+		const hint = { userId, orgId: org.id };
+		const state = signInstallState(
+			forge === "gitcafe" ? { ...hint, forge: "gitcafe" } : hint,
+		);
 		const { installUrlFor } = await import("@tripwire/auth/install-state");
 		return installUrlFor(
 			data.forge ?? "github",

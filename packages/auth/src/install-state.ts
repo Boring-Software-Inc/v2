@@ -1,5 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { ForgeId } from "@tripwire/contracts";
+import {
+	type ForgeId,
+	type InstallStatePayload,
+	installStatePayloadSchema,
+} from "@tripwire/contracts";
 
 /** Signed hints suggest an org; claims still require explicit confirmation and fresh authority. Server-only. */
 
@@ -12,19 +16,15 @@ export interface InstallState {
 }
 
 export function signInstallState(state: InstallState, secret: string): string {
-	const payload = Buffer.from(
-		JSON.stringify({
-			u: state.userId,
-			o: state.orgId,
-			...(state.forge === "gitcafe"
-				? {
-						f: "gitcafe",
-						p: "gitcafe-install",
-						e: state.expiresAt ?? Date.now() + 10 * 60_000,
-					}
-				: {}),
-		}),
-	).toString("base64url");
+	let hint: InstallStatePayload = { u: state.userId, o: state.orgId };
+	if (state.forge === "gitcafe")
+		hint = {
+			...hint,
+			f: "gitcafe",
+			p: "gitcafe-install",
+			e: state.expiresAt ?? Date.now() + 10 * 60_000,
+		};
+	const payload = Buffer.from(JSON.stringify(hint)).toString("base64url");
 	const mac = createHmac("sha256", secret).update(payload).digest("base64url");
 	return `${payload}.${mac}`;
 }
@@ -50,34 +50,13 @@ export function verifyInstallState(
 		return null;
 	}
 	try {
-		const parsed = JSON.parse(Buffer.from(payload, "base64url").toString()) as {
-			u?: string;
-			o?: string;
-			f?: unknown;
-			p?: unknown;
-			e?: unknown;
-		};
-		if (
-			typeof parsed.u !== "string" ||
-			!parsed.u ||
-			typeof parsed.o !== "string" ||
-			!parsed.o
-		) {
-			return null;
-		}
-		if (
-			parsed.f !== undefined ||
-			parsed.p !== undefined ||
-			parsed.e !== undefined
-		) {
-			if (
-				parsed.f !== "gitcafe" ||
-				parsed.p !== "gitcafe-install" ||
-				typeof parsed.e !== "number" ||
-				!Number.isSafeInteger(parsed.e) ||
-				parsed.e <= Date.now()
-			)
-				return null;
+		const result = installStatePayloadSchema.safeParse(
+			JSON.parse(Buffer.from(payload, "base64url").toString()),
+		);
+		if (!result.success) return null;
+		const parsed = result.data;
+		if (parsed.f === "gitcafe") {
+			if (parsed.e <= Date.now()) return null;
 			return {
 				userId: parsed.u,
 				orgId: parsed.o,

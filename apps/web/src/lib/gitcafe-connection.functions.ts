@@ -21,7 +21,7 @@ import { sameOriginMiddleware } from "#/lib/server/staff-guard";
 /** Installation state and callback org are hints; current membership supplies the choices. */
 export const getGitCafeSetupContext = createServerFn({ method: "GET" })
 	.middleware([accessGuardMiddleware])
-	.inputValidator((input: unknown) => gitCafeSetupInputSchema.parse(input))
+	.inputValidator(gitCafeSetupInputSchema)
 	.handler(async ({ data }): Promise<GitCafeSetupContext> => {
 		const { getAuth } = await import("#/lib/server/auth");
 		const { getStartContext } = await import("@tanstack/start-storage-context");
@@ -66,9 +66,7 @@ export const startGitCafeConnection = createServerFn({ method: "POST" })
 		orgPermissionMiddleware("connections:manage"),
 		sameOriginMiddleware,
 	])
-	.inputValidator((input: unknown) =>
-		gitCafeConnectionSelectionSchema.parse(input),
-	)
+	.inputValidator(gitCafeConnectionSelectionSchema)
 	.handler(async ({ data, context }): Promise<GitCafeAuthorizationResponse> => {
 		const org = (context as { org: OrgWithRole }).org;
 		const { startGitCafeGrant } = await import(
@@ -85,9 +83,7 @@ export const confirmGitCafeConnection = createServerFn({ method: "POST" })
 		orgPermissionMiddleware("connections:manage"),
 		sameOriginMiddleware,
 	])
-	.inputValidator((input: unknown) =>
-		gitCafeConnectionConfirmationSchema.parse(input),
-	)
+	.inputValidator(gitCafeConnectionConfirmationSchema)
 	.handler(
 		async ({ data, context }): Promise<GitCafeConnectionConfirmationResult> => {
 			const org = (context as { org: OrgWithRole }).org;
@@ -109,9 +105,7 @@ export const getGitCafeConnectionStatus = createServerFn({ method: "GET" })
 		accessGuardMiddleware,
 		orgPermissionMiddleware("connections:manage"),
 	])
-	.inputValidator((input: unknown) =>
-		gitCafeConnectionStatusInputSchema.parse(input),
-	)
+	.inputValidator(gitCafeConnectionStatusInputSchema)
 	.handler(async ({ data, context }): Promise<GitCafeConnectionStatus> => {
 		const org = (context as { org: OrgWithRole }).org;
 		const { readGitCafeConnectionStatus } = await import(
