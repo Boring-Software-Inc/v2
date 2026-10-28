@@ -186,6 +186,9 @@ describe("GitCafe installation client", () => {
 
 	for (const expiresAt of [
 		new Date(NOW).toISOString(),
+		new Date(NOW + 1).toISOString(),
+		new Date(NOW + 30_000).toISOString(),
+		new Date(NOW + 60_000).toISOString(),
 		new Date(NOW + 24 * 60 * 60_000).toISOString(),
 		"not-a-date",
 	]) {
@@ -258,6 +261,41 @@ describe("GitCafe installation client", () => {
 		expect(await clientFor(h).getToken("../other-installation")).toEqual({
 			ok: false,
 			reason: "invalid-installation-id",
+		});
+		expect(h.calls).toHaveLength(0);
+	});
+
+	test("invalid private-key configuration returns a sanitized failure", async () => {
+		const h = harness();
+		const client = new GitCafeInstallationClient({
+			credentials: { ...credentials, privateKey: "sensitive-invalid-pem" },
+			now: h.now,
+			fetch: h.fetch,
+		});
+		expect(await client.getInstallation(installation.id)).toEqual({
+			ok: false,
+			reason: "configuration",
+		});
+		expect(await client.getToken(installation.id)).toEqual({
+			ok: false,
+			reason: "configuration",
+		});
+		expect(h.calls).toHaveLength(0);
+	});
+
+	test("a non-P-256 key returns a configuration failure", async () => {
+		const h = harness();
+		const privateKey = generateKeyPairSync("ec", { namedCurve: "secp384r1" })
+			.privateKey.export({ format: "pem", type: "pkcs8" })
+			.toString();
+		const client = new GitCafeInstallationClient({
+			credentials: { ...credentials, privateKey },
+			now: h.now,
+			fetch: h.fetch,
+		});
+		expect(await client.getToken(installation.id)).toEqual({
+			ok: false,
+			reason: "configuration",
 		});
 		expect(h.calls).toHaveLength(0);
 	});
@@ -350,4 +388,31 @@ describe("GitCafe installation client", () => {
 		response.resolve(Response.json({ ...token, token: "revoked-token" }));
 		expect(await older).toEqual({ ok: false, reason: "stale" });
 	});
+
+	for (const changed of [
+		{ ...installation, pausedAt: new Date(NOW).toISOString() },
+		{ ...installation, version: installation.version + 1 },
+	]) {
+		test(`metadata-only lookup fences stale mint (${changed.pausedAt ? "paused" : "version"})`, async () => {
+			const h = harness();
+			const response = deferred<Response>();
+			const started = deferred<void>();
+			const client = clientFor(h, (url, init) => {
+				if (init.method === "POST") {
+					started.resolve();
+					return response.promise;
+				}
+				return h.fetch(url, init);
+			});
+			const older = client.getToken(installation.id);
+			await started.promise;
+			h.lookup(changed);
+			expect(await client.getInstallation(installation.id)).toEqual({
+				ok: true,
+				value: changed,
+			});
+			response.resolve(Response.json({ ...token, token: "stale-mint" }));
+			expect(await older).toEqual({ ok: false, reason: "stale" });
+		});
+	}
 });

@@ -7,11 +7,13 @@ import {
 import {
 	createGitCafeInstallationRequest,
 	type GitCafeAppCredentials,
+	type GitCafeInstallationRequest,
 } from "./app-assertion.ts";
 
 export type GitCafeInstallationFailure = {
 	ok: false;
 	reason:
+		| "configuration"
 		| "invalid-installation-id"
 		| "network"
 		| "http"
@@ -44,6 +46,11 @@ interface PendingToken {
 	promise: Promise<GitCafeInstallationResult<string>>;
 }
 
+interface InstallationSnapshot {
+	installation: GitCafeInstallation;
+	generation: number;
+}
+
 const TOKEN_SAFETY_MS = 60_000;
 const TOKEN_MAX_LIFETIME_MS = 15 * 60_000;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
@@ -57,7 +64,7 @@ export class GitCafeInstallationClient {
 	private readonly tokens = new Map<string, CachedToken>();
 	private readonly lookups = new Map<
 		string,
-		Promise<GitCafeInstallationResult<GitCafeInstallation>>
+		Promise<GitCafeInstallationResult<InstallationSnapshot>>
 	>();
 	private readonly mints = new Map<string, PendingToken>();
 	private readonly generations = new Map<string, number>();
@@ -75,9 +82,18 @@ export class GitCafeInstallationClient {
 		this.mints.delete(installationId);
 	}
 
-	getInstallation(
+	async getInstallation(
 		installationId: string,
 	): Promise<GitCafeInstallationResult<GitCafeInstallation>> {
+		const snapshot = await this.getSnapshot(installationId);
+		return snapshot.ok
+			? { ok: true, value: snapshot.value.installation }
+			: snapshot;
+	}
+
+	private getSnapshot(
+		installationId: string,
+	): Promise<GitCafeInstallationResult<InstallationSnapshot>> {
 		if (!/^[A-Za-z0-9_-]+$/.test(installationId)) {
 			return Promise.resolve({ ok: false, reason: "invalid-installation-id" });
 		}
@@ -98,19 +114,17 @@ export class GitCafeInstallationClient {
 	async getToken(
 		installationId: string,
 	): Promise<GitCafeInstallationResult<string>> {
-		const observedGeneration = this.generation(installationId);
-		const lookup = await this.getInstallation(installationId);
+		const lookup = await this.getSnapshot(installationId);
 		if (!lookup.ok) return lookup;
-		if (this.generation(installationId) !== observedGeneration) {
+		const { installation, generation } = lookup.value;
+		if (this.generation(installationId) !== generation) {
 			return { ok: false, reason: "stale" };
 		}
-		const installation = lookup.value;
 		if (
 			installation.pausedAt !== null ||
 			installation.suspendedAt !== null ||
 			installation.uninstalledAt !== null
 		) {
-			this.invalidate(installationId);
 			return { ok: false, reason: "inactive" };
 		}
 		const scope = JSON.stringify(installation);
@@ -122,15 +136,7 @@ export class GitCafeInstallationClient {
 			return { ok: true, value: cached.token };
 		}
 		const pending = this.mints.get(installationId);
-		if (
-			(cached && cached.scope !== scope) ||
-			(pending && pending.scope !== scope)
-		) {
-			this.invalidate(installationId);
-		} else {
-			this.tokens.delete(installationId);
-		}
-		const generation = this.generation(installationId);
+		this.tokens.delete(installationId);
 		if (pending?.scope === scope && pending.generation === generation) {
 			return pending.promise;
 		}
@@ -153,7 +159,7 @@ export class GitCafeInstallationClient {
 	private async lookup(
 		installationId: string,
 		generation: number,
-	): Promise<GitCafeInstallationResult<GitCafeInstallation>> {
+	): Promise<GitCafeInstallationResult<InstallationSnapshot>> {
 		const response = await this.request(installationId, "lookup");
 		if (this.generation(installationId) !== generation) {
 			return { ok: false, reason: "stale" };
@@ -174,7 +180,23 @@ export class GitCafeInstallationClient {
 			this.invalidate(installationId);
 			return { ok: false, reason: "identity-mismatch" };
 		}
-		return { ok: true, value: parsed.data };
+		const installation = parsed.data;
+		const scope = JSON.stringify(installation);
+		const cached = this.tokens.get(installationId);
+		const pending = this.mints.get(installationId);
+		if (
+			installation.pausedAt !== null ||
+			installation.suspendedAt !== null ||
+			installation.uninstalledAt !== null ||
+			(cached && cached.scope !== scope) ||
+			(pending && pending.scope !== scope)
+		) {
+			this.invalidate(installationId);
+		}
+		return {
+			ok: true,
+			value: { installation, generation: this.generation(installationId) },
+		};
 	}
 
 	private async mint(
@@ -206,7 +228,7 @@ export class GitCafeInstallationClient {
 		const expiresAt = Date.parse(token.expiresAt);
 		const now = this.now();
 		if (
-			expiresAt <= now ||
+			expiresAt - TOKEN_SAFETY_MS <= now ||
 			expiresAt > now + TOKEN_MAX_LIFETIME_MS + TOKEN_SAFETY_MS ||
 			token.token === "[REDACTED]"
 		) {
@@ -224,12 +246,17 @@ export class GitCafeInstallationClient {
 		installationId: string,
 		operation: "lookup" | "mint",
 	): Promise<GitCafeInstallationResult<unknown>> {
-		const request = createGitCafeInstallationRequest(
-			this.options.credentials,
-			installationId,
-			operation,
-			this.now(),
-		);
+		let request: GitCafeInstallationRequest;
+		try {
+			request = createGitCafeInstallationRequest(
+				this.options.credentials,
+				installationId,
+				operation,
+				this.now(),
+			);
+		} catch {
+			return { ok: false, reason: "configuration" };
+		}
 		let response: Response;
 		try {
 			response = await this.fetch(request.url, {

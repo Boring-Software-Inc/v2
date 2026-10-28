@@ -4,9 +4,7 @@
 	"installationId": "ins_01m609r46ff7j8gtjk7jt444kb",
 	"actor": "act_01m609r45ze90bq5xm52ex3bqs",
 	"repositorySelection": "selected",
-	"repositories": [
-		"scratch"
-	],
+	"repositories": ["scratch"],
 	"permissions": [
 		{
 			"kind": "repo",
