@@ -30,8 +30,8 @@ import {
 import { SetupPill } from "#/components/setup/setup-pill";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useHasMounted } from "#/hooks/use-has-mounted";
+import { useSignOut } from "#/hooks/use-sign-out";
 import type { CurrentUser } from "#/lib/auth.functions";
-import { authClient } from "#/lib/auth-client";
 
 interface DashboardTopbarProps {
 	user: CurrentUser | null;
@@ -117,6 +117,7 @@ export function UserMenu({
 	user: CurrentUser | null;
 	showName?: boolean;
 }) {
+	const signOut = useSignOut();
 	const moderator = user ?? PLACEHOLDER_USER;
 	const identity = accountIdentity(moderator);
 	const { start: openFeedback } = useFeedback();
@@ -183,15 +184,7 @@ export function UserMenu({
 					{isDark ? "Light theme" : "Dark theme"}
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem
-					onClick={() =>
-						authClient.signOut({
-							fetchOptions: {
-								onSuccess: () => window.location.assign("/login"),
-							},
-						})
-					}
-				>
+				<DropdownMenuItem onClick={() => signOut.mutate()}>
 					<Icon icon={SignOut} />
 					Sign out
 				</DropdownMenuItem>

@@ -41,8 +41,8 @@ import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useFeaturePath } from "#/hooks/use-feature-path";
 import { useOrgPermission } from "#/hooks/use-org-permission";
+import { useSignOut } from "#/hooks/use-sign-out";
 import { armRepo, disarmRepo } from "#/lib/arm.functions";
-import { authClient } from "#/lib/auth-client";
 import type { SwitcherRepo } from "#/lib/onboarding.functions";
 import { myOrgsQueryOptions, orgHomeQueryOptions } from "#/lib/org.query";
 import { getLatestRunId } from "#/lib/runs.functions";
@@ -84,6 +84,7 @@ export function CommandPalette({
 	onClose: () => void;
 }) {
 	const queryClient = useQueryClient();
+	const signOut = useSignOut();
 	const navigate = useNavigate();
 	const scope = useActiveScope();
 	const currentOrg = scope.org?.slug;
@@ -335,10 +336,7 @@ export function CommandPalette({
 		label: "Sign out",
 		searchTags: ["sign out", "log out", "logout", "leave"],
 		icon: glyph(SignOut),
-		onSelect: () =>
-			authClient.signOut({
-				fetchOptions: { onSuccess: () => window.location.assign("/login") },
-			}),
+		onSelect: () => signOut.mutate(),
 	});
 
 	// ── NAVIGATION: org-scoped always; repo-scoped only with a repo in context ──
