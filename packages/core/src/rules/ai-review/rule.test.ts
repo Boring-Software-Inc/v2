@@ -165,9 +165,8 @@ describe("ai-review@1 hardening (unit 4)", () => {
 		expect(calls[0]?.prompt).toContain(
 			"not exposed by github — do not treat as suspicious",
 		);
-		expect(calls[0]?.prompt).toContain(
-			"unavailable; do not infer zero merges or treat as suspicious",
-		);
+		expect(calls[0]?.prompt).toContain("unknown merged here");
+		expect(calls[0]?.prompt).not.toContain("0 merged here");
 	});
 
 	test("available contributor facts keep their actual prompt values", async () => {

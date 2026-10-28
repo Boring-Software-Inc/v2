@@ -63,10 +63,7 @@ function renderPrompt(ctx: RuleContext): string | null {
 			)
 			.replace(
 				"{{mergedInRepo}}",
-				String(
-					ctx.contributor?.mergedInRepo ??
-						"unavailable; do not infer zero merges or treat as suspicious",
-				),
+				String(ctx.contributor?.mergedInRepo ?? "unknown"),
 			)
 			.replace("{{draft}}", String(cr.draft))
 			.replace("{{filesChanged}}", String(ctx.diff?.length ?? "unknown"))
