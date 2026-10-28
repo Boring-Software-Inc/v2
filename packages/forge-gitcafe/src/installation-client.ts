@@ -3,6 +3,7 @@ import {
 	type GitCafeInstallation,
 	type GitCafeOrganizationMembers,
 	type GitCafePermission,
+	gitCafeConnectionRepositoryPageSchema,
 	gitCafeConnectionRepositorySchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
@@ -25,6 +26,7 @@ export type GitCafeInstallationFailure = {
 		| "invalid-response"
 		| "identity-mismatch"
 		| "inactive"
+		| "expired"
 		| "stale";
 	status?: number;
 };
@@ -97,8 +99,9 @@ export class GitCafeInstallationClient {
 
 	async getInstallation(
 		installationId: string,
+		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<GitCafeInstallation>> {
-		const snapshot = await this.getSnapshot(installationId);
+		const snapshot = await this.getSnapshot(installationId, deadlineAt);
 		if (snapshot.ok) {
 			this.snapshots.set(snapshot.value.installation, {
 				scope: JSON.stringify(snapshot.value.installation),
@@ -115,21 +118,119 @@ export class GitCafeInstallationClient {
 		installationId: string,
 		org: string,
 		expectedInstallation?: GitCafeInstallation,
+		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<GitCafeOrganizationMembers>> {
 		if (!PATH_SEGMENT.test(org))
 			return { ok: false, reason: "invalid-resource-path" };
 		if (expectedInstallation && expectedInstallation.org !== org)
 			return { ok: false, reason: "identity-mismatch" };
-		const response = await this.installedGet(
-			installationId,
-			`orgs/${encodeURIComponent(org)}/members/`,
-			expectedInstallation,
+		const authority = expectedInstallation
+			? { ok: true as const, value: expectedInstallation }
+			: await this.getInstallation(installationId, deadlineAt);
+		if (!authority.ok) return authority;
+		if (authority.value.org !== org)
+			return { ok: false, reason: "identity-mismatch" };
+		const items: GitCafeOrganizationMembers["items"] = [];
+		const actors = new Set<string>();
+		const cursors = new Set<string>();
+		let after: string | null = null;
+		do {
+			const query = after === null ? "" : `?after=${encodeURIComponent(after)}`;
+			const response = await this.installedGet(
+				installationId,
+				`orgs/${encodeURIComponent(org)}/members/${query}`,
+				authority.value,
+				deadlineAt,
+			);
+			if (!response.ok) return response;
+			const parsed = gitCafeOrganizationMembersSchema.safeParse(response.value);
+			if (!parsed.success || parsed.data.items.length > 100)
+				return { ok: false, reason: "invalid-response" };
+			const page = parsed.data;
+			if (
+				page.next !== null &&
+				(page.items.length === 0 || cursors.has(page.next))
+			)
+				return { ok: false, reason: "invalid-response" };
+			for (const member of page.items) {
+				if (actors.has(member.actorId))
+					return { ok: false, reason: "invalid-response" };
+				actors.add(member.actorId);
+				items.push(member);
+			}
+			after = page.next;
+			if (after !== null) cursors.add(after);
+		} while (after !== null);
+		items.sort((a, b) =>
+			a.actorId < b.actorId ? -1 : a.actorId > b.actorId ? 1 : 0,
 		);
-		if (!response.ok) return response;
-		const parsed = gitCafeOrganizationMembersSchema.safeParse(response.value);
-		return parsed.success
-			? { ok: true, value: parsed.data }
-			: { ok: false, reason: "invalid-response" };
+		if (this.expired(deadlineAt)) return { ok: false, reason: "expired" };
+		return { ok: true, value: { items, next: null } };
+	}
+
+	/** Complete installed scope is required before ownership can be committed. */
+	async getRepositories(
+		installationId: string,
+		owner: string,
+		expectedInstallation: GitCafeInstallation,
+		deadlineAt?: number,
+	): Promise<GitCafeInstallationResult<GitCafeConnectionRepository[]>> {
+		if (!PATH_SEGMENT.test(owner))
+			return { ok: false, reason: "invalid-resource-path" };
+		if (expectedInstallation.org !== owner)
+			return { ok: false, reason: "identity-mismatch" };
+		const repositories: GitCafeConnectionRepository[] = [];
+		const ids = new Set<string>();
+		const names = new Set<string>();
+		const selected = new Set(expectedInstallation.repositories);
+		const cursors = new Set<string>();
+		let after: string | null = null;
+		do {
+			const query = new URLSearchParams({ owner, sort: "id", limit: "50" });
+			if (after !== null) query.set("after", after);
+			const response = await this.installedGet(
+				installationId,
+				`repos?${query}`,
+				expectedInstallation,
+				deadlineAt,
+			);
+			if (!response.ok) return response;
+			const parsed = gitCafeConnectionRepositoryPageSchema.safeParse(
+				response.value,
+			);
+			if (!parsed.success) return { ok: false, reason: "invalid-response" };
+			const page = parsed.data;
+			if (
+				page.next !== null &&
+				(page.items.length === 0 || cursors.has(page.next))
+			)
+				return { ok: false, reason: "invalid-response" };
+			for (const repo of page.items) {
+				if (
+					repo.owner !== owner ||
+					!PATH_SEGMENT.test(repo.name) ||
+					ids.has(repo.id) ||
+					names.has(repo.name) ||
+					(expectedInstallation.repositorySelection === "selected" &&
+						!selected.has(repo.name))
+				)
+					return { ok: false, reason: "identity-mismatch" };
+				ids.add(repo.id);
+				names.add(repo.name);
+				repositories.push(repo);
+			}
+			after = page.next;
+			if (after !== null) cursors.add(after);
+		} while (after !== null);
+		if (
+			expectedInstallation.repositorySelection === "selected" &&
+			(selected.size !== expectedInstallation.repositories.length ||
+				names.size !== selected.size)
+		)
+			return { ok: false, reason: "identity-mismatch" };
+		repositories.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+		if (this.expired(deadlineAt)) return { ok: false, reason: "expired" };
+		return { ok: true, value: repositories };
 	}
 
 	async getRepository(
@@ -137,6 +238,7 @@ export class GitCafeInstallationClient {
 		owner: string,
 		name: string,
 		expectedInstallation?: GitCafeInstallation,
+		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<GitCafeConnectionRepository>> {
 		if (!PATH_SEGMENT.test(owner) || !PATH_SEGMENT.test(name))
 			return { ok: false, reason: "invalid-resource-path" };
@@ -151,6 +253,7 @@ export class GitCafeInstallationClient {
 			installationId,
 			`repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
 			expectedInstallation,
+			deadlineAt,
 		);
 		if (!response.ok) return response;
 		const parsed = gitCafeConnectionRepositorySchema.safeParse(response.value);
@@ -163,25 +266,30 @@ export class GitCafeInstallationClient {
 		installationId: string,
 		path: string,
 		expectedInstallation?: GitCafeInstallation,
+		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<unknown>> {
 		const generation = this.generation(installationId);
 		const credential = await this.getToken(
 			installationId,
 			expectedInstallation,
+			deadlineAt,
 		);
 		if (!credential.ok) return credential;
 		if (this.generation(installationId) !== generation)
 			return { ok: false, reason: "stale" };
-		const response = await this.send({
-			url: `https://git.cafe/api/${path}`,
-			init: {
-				method: "GET",
-				headers: {
-					accept: "application/json",
-					authorization: `Bearer ${credential.value}`,
+		const response = await this.send(
+			{
+				url: `https://git.cafe/api/${path}`,
+				init: {
+					method: "GET",
+					headers: {
+						accept: "application/json",
+						authorization: `Bearer ${credential.value}`,
+					},
 				},
 			},
-		});
+			deadlineAt,
+		);
 		return this.generation(installationId) === generation
 			? response
 			: { ok: false, reason: "stale" };
@@ -189,14 +297,17 @@ export class GitCafeInstallationClient {
 
 	private getSnapshot(
 		installationId: string,
+		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<InstallationSnapshot>> {
+		if (this.expired(deadlineAt))
+			return Promise.resolve({ ok: false, reason: "expired" });
 		if (!/^[A-Za-z0-9_-]+$/.test(installationId)) {
 			return Promise.resolve({ ok: false, reason: "invalid-installation-id" });
 		}
 		const pending = this.lookups.get(installationId);
-		if (pending) return pending;
+		if (pending) return this.withDeadline(pending, deadlineAt);
 		const generation = this.generation(installationId);
-		const lookup = this.lookup(installationId, generation);
+		const lookup = this.lookup(installationId, generation, deadlineAt);
 		this.lookups.set(installationId, lookup);
 		const clear = () => {
 			if (this.lookups.get(installationId) === lookup) {
@@ -210,7 +321,9 @@ export class GitCafeInstallationClient {
 	async getToken(
 		installationId: string,
 		expectedInstallation?: GitCafeInstallation,
+		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<string>> {
+		if (this.expired(deadlineAt)) return { ok: false, reason: "expired" };
 		const expectedScope = expectedInstallation
 			? JSON.stringify(expectedInstallation)
 			: undefined;
@@ -225,7 +338,7 @@ export class GitCafeInstallationClient {
 				expected.generation !== this.generation(installationId))
 		)
 			return { ok: false, reason: "stale" };
-		const lookup = await this.getSnapshot(installationId);
+		const lookup = await this.getSnapshot(installationId, deadlineAt);
 		if (!lookup.ok) return lookup;
 		const { installation, generation } = lookup.value;
 		if (
@@ -254,9 +367,9 @@ export class GitCafeInstallationClient {
 		const pending = this.mints.get(installationId);
 		this.tokens.delete(installationId);
 		if (pending?.scope === scope && pending.generation === generation) {
-			return pending.promise;
+			return this.withDeadline(pending.promise, deadlineAt);
 		}
-		const promise = this.mint(installation, scope, generation);
+		const promise = this.mint(installation, scope, generation, deadlineAt);
 		const entry = { scope, generation, promise };
 		this.mints.set(installationId, entry);
 		try {
@@ -272,11 +385,44 @@ export class GitCafeInstallationClient {
 		return this.generations.get(installationId) ?? 0;
 	}
 
+	private expired(deadlineAt?: number): boolean {
+		return (
+			deadlineAt !== undefined &&
+			(!Number.isSafeInteger(deadlineAt) || deadlineAt <= this.now())
+		);
+	}
+
+	private async withDeadline<T>(
+		promise: Promise<GitCafeInstallationResult<T>>,
+		deadlineAt?: number,
+	): Promise<GitCafeInstallationResult<T>> {
+		if (deadlineAt === undefined) return promise;
+		if (this.expired(deadlineAt)) return { ok: false, reason: "expired" };
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		try {
+			const result = await Promise.race([
+				promise,
+				new Promise<GitCafeInstallationFailure>((resolve) => {
+					timer = setTimeout(
+						() => resolve({ ok: false, reason: "expired" }),
+						deadlineAt - this.now(),
+					);
+				}),
+			]);
+			return this.expired(deadlineAt)
+				? { ok: false, reason: "expired" }
+				: result;
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+
 	private async lookup(
 		installationId: string,
 		generation: number,
+		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<InstallationSnapshot>> {
-		const response = await this.request(installationId, "lookup");
+		const response = await this.request(installationId, "lookup", deadlineAt);
 		if (this.generation(installationId) !== generation) {
 			return { ok: false, reason: "stale" };
 		}
@@ -319,8 +465,9 @@ export class GitCafeInstallationClient {
 		installation: GitCafeInstallation,
 		scope: string,
 		generation: number,
+		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<string>> {
-		const response = await this.request(installation.id, "mint");
+		const response = await this.request(installation.id, "mint", deadlineAt);
 		if (this.generation(installation.id) !== generation) {
 			return { ok: false, reason: "stale" };
 		}
@@ -328,13 +475,12 @@ export class GitCafeInstallationClient {
 		const parsed = gitCafeInstallationTokenSchema.safeParse(response.value);
 		if (!parsed.success) return { ok: false, reason: "invalid-response" };
 		const token = parsed.data;
+		const allowedRepositories = new Set(installation.repositories);
 		if (
 			token.installationId !== installation.id ||
 			token.actor !== installation.bot.actorId ||
 			token.repositorySelection !== installation.repositorySelection ||
-			!token.repositories.every((repo) =>
-				installation.repositories.includes(repo),
-			) ||
+			!token.repositories.every((repo) => allowedRepositories.has(repo)) ||
 			!token.permissions.every((permission) =>
 				permissionWithin(permission, installation.permissions),
 			)
@@ -361,6 +507,7 @@ export class GitCafeInstallationClient {
 	private async request(
 		installationId: string,
 		operation: "lookup" | "mint",
+		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<unknown>> {
 		let request: GitCafeInstallationRequest;
 		try {
@@ -373,49 +520,94 @@ export class GitCafeInstallationClient {
 		} catch {
 			return { ok: false, reason: "configuration" };
 		}
-		return this.send(request);
+		return this.send(request, deadlineAt);
 	}
 
 	private async send(
 		request: GitCafeInstallationRequest,
+		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<unknown>> {
-		let response: Response;
-		try {
-			response = await this.fetch(request.url, {
-				...request.init,
-				redirect: "manual",
-				signal: AbortSignal.timeout(10_000),
-			});
-		} catch {
-			return { ok: false, reason: "network" };
-		}
-		if (!response.ok) {
-			await response.body?.cancel().catch(() => {});
-			return { ok: false, reason: "http", status: response.status };
-		}
-		if (!response.headers.get("content-type")?.includes("application/json")) {
-			await response.body?.cancel().catch(() => {});
-			return { ok: false, reason: "invalid-response" };
-		}
-		try {
-			const reader = response.body?.getReader();
-			if (!reader) return { ok: false, reason: "invalid-response" };
-			const chunks: Uint8Array[] = [];
-			let bytes = 0;
-			while (true) {
-				const next = await reader.read();
-				if (next.done) break;
-				bytes += next.value.byteLength;
-				if (bytes > MAX_RESPONSE_BYTES) {
-					await reader.cancel();
-					return { ok: false, reason: "invalid-response" };
-				}
-				chunks.push(next.value);
+		if (this.expired(deadlineAt)) return { ok: false, reason: "expired" };
+		const remaining =
+			deadlineAt === undefined ? Infinity : deadlineAt - this.now();
+		const deadlineLimited = remaining <= 10_000;
+		const signal = AbortSignal.timeout(
+			Math.max(1, Math.min(10_000, remaining)),
+		);
+		let cancelBody: (() => Promise<void>) | undefined;
+		let onAbort = () => {};
+		const aborted = new Promise<GitCafeInstallationFailure>((resolve) => {
+			onAbort = () => {
+				void cancelBody?.().catch(() => {});
+				resolve({ ok: false, reason: deadlineLimited ? "expired" : "network" });
+			};
+			signal.addEventListener("abort", onAbort, { once: true });
+		});
+		const read = async (): Promise<GitCafeInstallationResult<unknown>> => {
+			let response: Response;
+			try {
+				response = await this.fetch(request.url, {
+					...request.init,
+					redirect: "manual",
+					signal,
+				});
+			} catch {
+				return {
+					ok: false,
+					reason: this.expired(deadlineAt) ? "expired" : "network",
+				};
 			}
-			const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-			return { ok: true, value };
-		} catch {
-			return { ok: false, reason: "invalid-response" };
+			if (signal.aborted || this.expired(deadlineAt)) {
+				await response.body?.cancel().catch(() => {});
+				return {
+					ok: false,
+					reason:
+						deadlineLimited || this.expired(deadlineAt) ? "expired" : "network",
+				};
+			}
+			if (!response.ok) {
+				await response.body?.cancel().catch(() => {});
+				return { ok: false, reason: "http", status: response.status };
+			}
+			if (!response.headers.get("content-type")?.includes("application/json")) {
+				await response.body?.cancel().catch(() => {});
+				return { ok: false, reason: "invalid-response" };
+			}
+			try {
+				const reader = response.body?.getReader();
+				if (!reader) return { ok: false, reason: "invalid-response" };
+				cancelBody = () => reader.cancel();
+				const chunks: Uint8Array[] = [];
+				let bytes = 0;
+				while (true) {
+					const next = await reader.read();
+					if (this.expired(deadlineAt)) {
+						await reader.cancel().catch(() => {});
+						return { ok: false, reason: "expired" };
+					}
+					if (next.done) break;
+					bytes += next.value.byteLength;
+					if (bytes > MAX_RESPONSE_BYTES) {
+						await reader.cancel();
+						return { ok: false, reason: "invalid-response" };
+					}
+					chunks.push(next.value);
+				}
+				const value: unknown = JSON.parse(
+					Buffer.concat(chunks).toString("utf8"),
+				);
+				return { ok: true, value };
+			} catch {
+				return {
+					ok: false,
+					reason: this.expired(deadlineAt) ? "expired" : "invalid-response",
+				};
+			}
+		};
+		try {
+			return await Promise.race([read(), aborted]);
+		} finally {
+			signal.removeEventListener("abort", onAbort);
 		}
 	}
 }

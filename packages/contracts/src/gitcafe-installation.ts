@@ -46,7 +46,12 @@ export const gitCafeOrganizationMembersSchema = z.object({
 			role: z.string().min(1),
 		}),
 	),
-	next: z.string().nullable(),
+	next: z
+		.string()
+		.min(1)
+		.max(8192)
+		.regex(/^[A-Za-z0-9_-]+$/)
+		.nullable(),
 });
 export type GitCafeOrganizationMembers = z.infer<
 	typeof gitCafeOrganizationMembersSchema
@@ -63,9 +68,17 @@ export type GitCafeConnectionRepository = z.infer<
 	typeof gitCafeConnectionRepositorySchema
 >;
 
-export const gitCafeConnectionRepositoriesSchema = z
-	.array(gitCafeConnectionRepositorySchema)
-	.max(100);
+export const gitCafeConnectionRepositoriesSchema = z.array(
+	gitCafeConnectionRepositorySchema,
+);
 export type GitCafeConnectionRepositories = z.infer<
 	typeof gitCafeConnectionRepositoriesSchema
+>;
+
+export const gitCafeConnectionRepositoryPageSchema = z.object({
+	items: z.array(gitCafeConnectionRepositorySchema).max(50),
+	next: gitCafeOrganizationMembersSchema.shape.next,
+});
+export type GitCafeConnectionRepositoryPage = z.infer<
+	typeof gitCafeConnectionRepositoryPageSchema
 >;

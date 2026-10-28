@@ -4,6 +4,7 @@ import {
 	type GitCafeConnectionResult,
 	type GitCafeInstallation,
 	gitCafeConnectionJobSchema,
+	gitCafeConnectionRepositoriesSchema,
 } from "@tripwire/contracts";
 import { type Db, gitCafeConnectionServices } from "@tripwire/db";
 import type { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
@@ -15,7 +16,7 @@ export interface GitCafeConnectionDeps {
 	db: Db;
 	client: Pick<
 		GitCafeInstallationClient,
-		"getInstallation" | "getOrganizationMembers" | "getRepository"
+		"getInstallation" | "getOrganizationMembers" | "getRepositories"
 	>;
 }
 
@@ -32,8 +33,21 @@ async function readAuthority(
 	| Exclude<GitCafeConnectionResult, { ok: true }>
 > {
 	try {
-		const lookup = await deps.client.getInstallation(job.installationId);
-		if (!lookup.ok) return { ok: false, reason: "authority-unavailable" };
+		if (job.expiresAt <= Date.now()) return { ok: false, reason: "expired" };
+		const lookup = await deps.client.getInstallation(
+			job.installationId,
+			job.expiresAt,
+		);
+		if (!lookup.ok)
+			return {
+				ok: false,
+				reason:
+					lookup.reason === "expired"
+						? "expired"
+						: lookup.reason === "stale"
+							? "installation-mismatch"
+							: "authority-unavailable",
+			};
 		const installation = lookup.value;
 		if (
 			installation.id !== job.installationId ||
@@ -42,9 +56,6 @@ async function readAuthority(
 			installation.suspendedAt !== null ||
 			installation.uninstalledAt !== null ||
 			!SEGMENT.test(installation.org) ||
-			installation.repositorySelection !== "selected" ||
-			installation.repositories.length === 0 ||
-			installation.repositories.length > 100 ||
 			installation.repositories.some((name) => !SEGMENT.test(name)) ||
 			new Set(installation.repositories).size !==
 				installation.repositories.length
@@ -55,7 +66,15 @@ async function readAuthority(
 				job.installationId,
 				installation.org,
 				installation,
+				job.expiresAt,
 			);
+			if (
+				job.expiresAt <= Date.now() ||
+				(!members.ok && members.reason === "expired")
+			)
+				return "expired" as const;
+			if (!members.ok && members.reason === "stale")
+				return "installation-mismatch" as const;
 			if (!members.ok || members.value.next !== null)
 				return "authority-unavailable" as const;
 			const actor = members.value.items.filter(
@@ -68,28 +87,59 @@ async function readAuthority(
 		};
 		const initialAdmin = await checkAdmin();
 		if (initialAdmin) return { ok: false, reason: initialAdmin };
-		const repositories: GitCafeConnectionRepository[] = [];
-		for (const name of installation.repositories) {
-			const repo = await deps.client.getRepository(
-				job.installationId,
-				installation.org,
-				name,
-				installation,
-			);
-			if (
-				!repo.ok ||
-				repo.value.name !== name ||
-				repo.value.owner !== installation.org ||
-				repo.value.archivedAt !== null
-			)
-				return { ok: false, reason: "repository-mismatch" };
-			repositories.push(repo.value);
-		}
+		const discovery = await deps.client.getRepositories(
+			job.installationId,
+			installation.org,
+			installation,
+			job.expiresAt,
+		);
 		if (
-			new Set(repositories.map((repo) => repo.id)).size !== repositories.length
+			job.expiresAt <= Date.now() ||
+			(!discovery.ok && discovery.reason === "expired")
+		)
+			return { ok: false, reason: "expired" };
+		if (!discovery.ok)
+			return {
+				ok: false,
+				reason:
+					discovery.reason === "stale"
+						? "installation-mismatch"
+						: "repository-mismatch",
+			};
+		const parsed = gitCafeConnectionRepositoriesSchema.safeParse(
+			discovery.value,
+		);
+		if (!parsed.success) return { ok: false, reason: "repository-mismatch" };
+		const repositories = parsed.data.sort((a, b) =>
+			a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+		);
+		const selected = new Set(installation.repositories);
+		if (
+			new Set(repositories.map((repo) => repo.id)).size !==
+				repositories.length ||
+			new Set(repositories.map((repo) => repo.name)).size !==
+				repositories.length ||
+			repositories.some(
+				(repo) =>
+					repo.owner !== installation.org ||
+					!SEGMENT.test(repo.name) ||
+					repo.archivedAt !== null ||
+					(installation.repositorySelection === "selected" &&
+						!selected.has(repo.name)),
+			) ||
+			(installation.repositorySelection === "selected" &&
+				repositories.length !== selected.size)
 		)
 			return { ok: false, reason: "repository-mismatch" };
-		const current = await deps.client.getInstallation(job.installationId);
+		const current = await deps.client.getInstallation(
+			job.installationId,
+			job.expiresAt,
+		);
+		if (
+			job.expiresAt <= Date.now() ||
+			(!current.ok && current.reason === "expired")
+		)
+			return { ok: false, reason: "expired" };
 		if (
 			!current.ok ||
 			JSON.stringify(current.value) !== JSON.stringify(installation)
@@ -99,7 +149,10 @@ async function readAuthority(
 		if (finalAdmin) return { ok: false, reason: finalAdmin };
 		return { ok: true, value: { installation, repositories } };
 	} catch {
-		return { ok: false, reason: "authority-unavailable" };
+		return {
+			ok: false,
+			reason: job.expiresAt <= Date.now() ? "expired" : "authority-unavailable",
+		};
 	}
 }
 

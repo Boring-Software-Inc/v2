@@ -53,11 +53,13 @@ export {
 export {
 	type GitCafeConnectionRepositories,
 	type GitCafeConnectionRepository,
+	type GitCafeConnectionRepositoryPage,
 	type GitCafeInstallation,
 	type GitCafeInstallationToken,
 	type GitCafeOrganizationMembers,
 	type GitCafePermission,
 	gitCafeConnectionRepositoriesSchema,
+	gitCafeConnectionRepositoryPageSchema,
 	gitCafeConnectionRepositorySchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,

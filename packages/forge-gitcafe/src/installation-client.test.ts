@@ -3,6 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 import {
 	type GitCafeInstallation,
 	type GitCafeInstallationToken,
+	gitCafeConnectionRepositoryPageSchema,
 	gitCafeConnectionRepositorySchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
@@ -12,7 +13,9 @@ import {
 	GitCafeInstallationClient,
 	type GitCafeInstallationClientOptions,
 } from "@tripwire/forge-gitcafe";
+import { generateId } from "@tripwire/utils";
 import membersFixture from "../fixtures/gitcafe-connection-members.json";
+import repositoriesFixture from "../fixtures/gitcafe-connection-repositories.json";
 import repositoryFixture from "../fixtures/gitcafe-connection-repository.json";
 import installationFixture from "../fixtures/gitcafe-installation.json";
 import tokenFixture from "../fixtures/gitcafe-installation-token.json";
@@ -21,6 +24,8 @@ const installation = gitCafeInstallationSchema.parse(installationFixture);
 const token = gitCafeInstallationTokenSchema.parse(tokenFixture);
 const members = gitCafeOrganizationMembersSchema.parse(membersFixture);
 const repository = gitCafeConnectionRepositorySchema.parse(repositoryFixture);
+const repositoriesPage =
+	gitCafeConnectionRepositoryPageSchema.parse(repositoriesFixture);
 const NOW = Date.parse(token.expiresAt) - 15 * 60_000;
 const credentials = {
 	appId: installation.appId,
@@ -211,7 +216,7 @@ describe("GitCafe installation client", () => {
 			1,
 		);
 		expect(h.calls.filter((call) => call.init.method === "GET")).toHaveLength(
-			3,
+			5,
 		);
 	});
 
@@ -681,6 +686,377 @@ describe("GitCafe installation client", () => {
 			});
 			response.resolve(Response.json({ ...token, token: "stale-mint" }));
 			expect(await older).toEqual({ ok: false, reason: "stale" });
+		});
+	}
+});
+
+describe("complete installed discovery", () => {
+	for (const stalled of ["lookup", "body"] as const) {
+		test(`authorization deadline bounds a stalled ${stalled}`, async () => {
+			let cancelled = false;
+			const client = new GitCafeInstallationClient({
+				credentials,
+				fetch: async (url, init) => {
+					if (stalled === "lookup") return new Promise<Response>(() => {});
+					if (url.includes("/api/apps/"))
+						return Response.json(
+							init.method === "GET"
+								? installation
+								: {
+										...token,
+										token: "synthetic-token",
+										expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+									},
+						);
+					return new Response(
+						new ReadableStream({
+							cancel() {
+								cancelled = true;
+							},
+						}),
+						{ headers: { "content-type": "application/json" } },
+					);
+				},
+			});
+			if (stalled === "lookup") {
+				expect(
+					await client.getInstallation(installation.id, Date.now() + 25),
+				).toEqual({ ok: false, reason: "expired" });
+			} else {
+				const expected = await client.getInstallation(installation.id);
+				if (!expected.ok) throw new Error("lookup refused");
+				expect(
+					await client.getRepositories(
+						installation.id,
+						installation.org,
+						expected.value,
+						Date.now() + 25,
+					),
+				).toEqual({ ok: false, reason: "expired" });
+				expect(cancelled).toBe(true);
+			}
+		}, 1000);
+	}
+
+	test("captured scratch-only list page retains every connection field", async () => {
+		const h = harness();
+		const urls: string[] = [];
+		const client = clientFor(h, async (url, init) => {
+			if (url.includes("/api/apps/")) return h.fetch(url, init);
+			urls.push(url);
+			return Response.json(repositoriesFixture);
+		});
+		const expected = await client.getInstallation(installation.id);
+		if (!expected.ok) throw new Error("lookup refused");
+		expect(
+			await client.getRepositories(
+				installation.id,
+				installation.org,
+				expected.value,
+			),
+		).toEqual({ ok: true, value: repositoriesPage.items });
+		expect(repositoriesPage.items).toEqual([repository]);
+		expect(urls).toEqual([
+			`https://git.cafe/api/repos?owner=${installation.org}&sort=id&limit=50`,
+		]);
+	});
+
+	for (const selection of ["all", "selected"] as const) {
+		test(`synthetic ${selection} transport discovers 151 repositories in pages without per-repository reads`, async () => {
+			const h = harness();
+			const repos = Array.from({ length: 151 }, (_, i) => ({
+				...repository,
+				id: generateId(),
+				name: `synthetic-${i}`,
+			}));
+			const scope = {
+				...installation,
+				repositorySelection: selection,
+				repositories: selection === "all" ? [] : repos.map((repo) => repo.name),
+			};
+			h.lookup(scope);
+			h.token({
+				repositorySelection: selection,
+				repositories: scope.repositories,
+			});
+			const urls: string[] = [];
+			const client = clientFor(h, async (url, init) => {
+				if (url.includes("/api/apps/")) return h.fetch(url, init);
+				urls.push(url);
+				const after = new URL(url).searchParams.get("after");
+				const offset = after === null ? 0 : Number(after);
+				return Response.json({
+					items: repos.slice(offset, offset + 50).reverse(),
+					next: offset + 50 < repos.length ? String(offset + 50) : null,
+				});
+			});
+			const expected = await client.getInstallation(installation.id);
+			if (!expected.ok) throw new Error("lookup refused");
+			expect(
+				await client.getRepositories(
+					installation.id,
+					installation.org,
+					expected.value,
+					NOW + 300_000,
+				),
+			).toEqual({
+				ok: true,
+				value: [...repos].sort((a, b) => (a.id < b.id ? -1 : 1)),
+			});
+			expect(urls).toHaveLength(4);
+			expect(urls.every((url) => new URL(url).pathname === "/api/repos")).toBe(
+				true,
+			);
+		});
+		test(`complete empty ${selection} discovery is valid`, async () => {
+			const h = harness();
+			h.lookup({
+				...installation,
+				repositorySelection: selection,
+				repositories: [],
+			});
+			h.token({ repositorySelection: selection, repositories: [] });
+			const client = clientFor(h, async (url, init) =>
+				url.includes("/api/apps/")
+					? h.fetch(url, init)
+					: Response.json({ items: [], next: null }),
+			);
+			const expected = await client.getInstallation(installation.id);
+			if (!expected.ok) throw new Error("lookup refused");
+			expect(
+				await client.getRepositories(
+					installation.id,
+					installation.org,
+					expected.value,
+				),
+			).toEqual({ ok: true, value: [] });
+		});
+	}
+
+	for (const scenario of [
+		"duplicate-id",
+		"duplicate-name",
+		"empty-progress",
+		"cursor-loop",
+		"missing-cursor",
+		"bad-cursor",
+		"wrong-owner",
+		"unselected",
+		"missing-id",
+		"page-failure",
+		"selection-incomplete",
+	] as const) {
+		test(`synthetic repository pages fail closed for ${scenario}`, async () => {
+			const h = harness();
+			let pages = 0;
+			const client = clientFor(h, async (url, init) => {
+				if (url.includes("/api/apps/")) return h.fetch(url, init);
+				pages++;
+				if (pages === 1)
+					return Response.json({ items: [repository], next: "cursor-1" });
+				if (scenario === "page-failure")
+					return new Response("private-provider-error", { status: 503 });
+				const other = { ...repository, id: generateId(), name: "other" };
+				const value: unknown =
+					scenario === "duplicate-id"
+						? { ...repository, name: "other" }
+						: scenario === "duplicate-name"
+							? { ...repository, id: generateId() }
+							: scenario === "wrong-owner"
+								? { ...other, owner: "foreign" }
+								: scenario === "missing-id"
+									? { ...other, id: undefined }
+									: other;
+				if (scenario === "missing-cursor")
+					return Response.json({ items: [value] });
+				if (scenario === "selection-incomplete")
+					return Response.json({ items: [], next: null });
+				return Response.json({
+					items: scenario === "empty-progress" ? [] : [value],
+					next:
+						scenario === "cursor-loop" || scenario === "empty-progress"
+							? "cursor-1"
+							: scenario === "bad-cursor"
+								? "https://foreign.example"
+								: null,
+				});
+			});
+			if (!["unselected", "selection-incomplete"].includes(scenario)) {
+				h.lookup({
+					...installation,
+					repositorySelection: "all",
+					repositories: [],
+				});
+				h.token({ repositorySelection: "all", repositories: [] });
+			} else if (scenario === "selection-incomplete") {
+				h.lookup({
+					...installation,
+					repositories: [repository.name, "missing"],
+				});
+			}
+			const expected = await client.getInstallation(installation.id);
+			if (!expected.ok) throw new Error("lookup refused");
+			const result = await client.getRepositories(
+				installation.id,
+				installation.org,
+				expected.value,
+			);
+			expect(result.ok).toBe(false);
+			expect(pages).toBe(2);
+			expect(JSON.stringify(result)).not.toContain("private-provider-error");
+		});
+	}
+
+	for (const phase of ["lookup", "mint", "page-one", "page-two"] as const) {
+		test(`repository enumeration fences invalidation during ${phase}`, async () => {
+			const h = harness();
+			let reading = false;
+			let page = 0;
+			const client = clientFor(h, async (url, init) => {
+				if (url.includes("/api/apps/")) {
+					if (
+						reading &&
+						((phase === "lookup" && init.method === "GET") ||
+							(phase === "mint" && init.method === "POST"))
+					)
+						client.invalidate(installation.id);
+					return h.fetch(url, init);
+				}
+				page++;
+				if (
+					(phase === "page-one" && page === 1) ||
+					(phase === "page-two" && page === 2)
+				)
+					client.invalidate(installation.id);
+				return Response.json({
+					items: page === 1 ? [repository] : [],
+					next: page === 1 ? "cursor-1" : null,
+				});
+			});
+			const expected = await client.getInstallation(installation.id);
+			if (!expected.ok) throw new Error("lookup refused");
+			reading = true;
+			expect(
+				await client.getRepositories(
+					installation.id,
+					installation.org,
+					expected.value,
+				),
+			).toEqual({ ok: false, reason: "stale" });
+		});
+	}
+
+	test("membership beyond 100 is exhausted before returning authority", async () => {
+		const h = harness();
+		const extra = Array.from({ length: 100 }, () => ({
+			actorId: generateId(),
+			role: "org-member",
+		}));
+		const urls: string[] = [];
+		const client = clientFor(h, async (url, init) => {
+			if (url.includes("/api/apps/")) return h.fetch(url, init);
+			urls.push(url);
+			return Response.json(
+				urls.length === 1
+					? { items: extra, next: "members-2" }
+					: membersFixture,
+			);
+		});
+		const result = await client.getOrganizationMembers(
+			installation.id,
+			installation.org,
+		);
+		expect(result.ok && result.value.items).toHaveLength(101);
+		expect(result.ok && result.value.next).toBeNull();
+		expect(urls[1]).toBe(
+			`https://git.cafe/api/orgs/${installation.org}/members/?after=members-2`,
+		);
+	});
+
+	for (const scenario of [
+		"duplicate",
+		"loop",
+		"empty",
+		"failure",
+		"stale",
+	] as const) {
+		test(`membership pagination refuses ${scenario}`, async () => {
+			const h = harness();
+			let page = 0;
+			const client = clientFor(h, async (url, init) => {
+				if (url.includes("/api/apps/")) return h.fetch(url, init);
+				page++;
+				if (page === 1)
+					return Response.json({ ...membersFixture, next: "members-2" });
+				if (scenario === "failure") return new Response(null, { status: 403 });
+				if (scenario === "stale") client.invalidate(installation.id);
+				return Response.json({
+					items:
+						scenario === "empty"
+							? []
+							: scenario === "duplicate"
+								? members.items
+								: [{ actorId: generateId(), role: "org-member" }],
+					next:
+						scenario === "loop" || scenario === "empty" ? "members-2" : null,
+				});
+			});
+			expect(
+				(await client.getOrganizationMembers(installation.id, installation.org))
+					.ok,
+			).toBe(false);
+			expect(page).toBe(2);
+		});
+	}
+
+	for (const phase of [
+		"before",
+		"lookup",
+		"mint",
+		"page",
+		"membership",
+	] as const) {
+		test(`authorization expires precisely during ${phase}`, async () => {
+			const h = harness();
+			let reading = false;
+			let pages = 0;
+			const deadline = NOW + 100;
+			const client = clientFor(h, async (url, init) => {
+				if (url.includes("/api/apps/")) {
+					if (
+						reading &&
+						((phase === "lookup" && init.method === "GET") ||
+							(phase === "mint" && init.method === "POST"))
+					)
+						h.advance(100);
+					return h.fetch(url, init);
+				}
+				pages++;
+				h.advance(100);
+				return Response.json(
+					phase === "membership" ? membersFixture : repositoriesFixture,
+				);
+			});
+			const expected = await client.getInstallation(installation.id);
+			if (!expected.ok) throw new Error("lookup refused");
+			reading = true;
+			if (phase === "before") h.advance(100);
+			const result =
+				phase === "membership"
+					? await client.getOrganizationMembers(
+							installation.id,
+							installation.org,
+							expected.value,
+							deadline,
+						)
+					: await client.getRepositories(
+							installation.id,
+							installation.org,
+							expected.value,
+							deadline,
+						);
+			expect(result).toEqual({ ok: false, reason: "expired" });
+			expect(pages).toBe(phase === "page" || phase === "membership" ? 1 : 0);
 		});
 	}
 });
