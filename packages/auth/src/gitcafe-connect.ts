@@ -3,9 +3,11 @@ import {
 	GITCAFE_API_RESOURCE,
 	GITCAFE_CONNECT_SCOPES,
 	GITCAFE_ISSUER,
+	type GitCafeConnectFailureCode,
 	type GitCafeConnectFlow,
 	type GitCafeOidcClient,
 	gitCafeConnectCallbackSchema,
+	gitCafeConnectFailureSchema,
 	gitCafeConnectFlowSchema,
 	gitCafeConnectPrincipalSchema,
 	gitCafeConnectProofReadSchema,
@@ -44,10 +46,14 @@ const NONCE_PREFIX = "gitcafe-connect-nonce:";
 const PROOF_PREFIX = "gitcafe-connect-proof:";
 const LIFETIME_MS = 5 * 60 * 1000;
 
-function refused(): never {
-	throw new APIError("FORBIDDEN", {
-		message: "GitCafe connection authorization refused",
-	});
+function refused(code?: GitCafeConnectFailureCode): never {
+	throw new APIError(
+		"FORBIDDEN",
+		gitCafeConnectFailureSchema.parse({
+			message: "GitCafe connection authorization refused",
+			code,
+		}),
+	);
 }
 
 async function authorize(ctx: GenericEndpointContext, db: Db, orgId: string) {
@@ -213,6 +219,8 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 						ctx.setHeader("pragma", "no-cache");
 						ctx.setHeader("referrer-policy", "no-referrer");
 						if (ctx.params?.id !== "gitcafe") refused();
+						let failureCode: GitCafeConnectFailureCode =
+							"GITCAFE_CONNECT_STATE";
 						try {
 							const parsedState = await parseState(ctx);
 							const flow = gitCafeConnectFlowSchema.parse(
@@ -224,6 +232,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 								parsedState.idTokenNonce !== flow.nonce
 							)
 								refused();
+							failureCode = "GITCAFE_CONNECT_AUTHORITY";
 							const current = await authorize(ctx, input.db, flow.orgId);
 							sameOwner(flow, current);
 							const query = callback.data;
@@ -257,6 +266,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 								});
 							}
 							if (!query.code) refused();
+							failureCode = "GITCAFE_CONNECT_TOKEN_EXCHANGE";
 							const tokens = await validateAuthorizationCode({
 								code: query.code,
 								codeVerifier: parsedState.codeVerifier,
@@ -266,6 +276,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 								tokenEndpointAuth: { method: "none" },
 								resource: GITCAFE_API_RESOURCE,
 							});
+							failureCode = "GITCAFE_CONNECT_TOKEN_RESPONSE";
 							if (
 								!tokens.idToken ||
 								!tokens.accessToken ||
@@ -284,6 +295,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 								tokenExpiresAt <= Date.now()
 							)
 								refused();
+							failureCode = "GITCAFE_CONNECT_IDENTITY";
 							const claims = await verifyGitCafeClaims({
 								clientId,
 								idToken: tokens.idToken,
@@ -303,15 +315,19 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 								if (!response.ok) return refused();
 								return response.json();
 							};
+							failureCode = "GITCAFE_CONNECT_USERINFO";
 							const person = gitCafeConnectUserInfoSchema.parse(
 								await read("/api/oauth/userinfo"),
 							);
 							if (person.sub !== claims.sub) refused();
+							failureCode = "GITCAFE_CONNECT_PRINCIPAL";
 							const principal = gitCafeConnectPrincipalSchema.parse(
 								await read("/api/auth/principal"),
 							);
 							/** Provider reads can outlive revocation of the local session or org permission. */
+							failureCode = "GITCAFE_CONNECT_AUTHORITY";
 							sameOwner(flow, await authorize(ctx, input.db, flow.orgId));
+							failureCode = "GITCAFE_CONNECT_PROOF";
 							const proof = gitCafeConnectProofSchema.parse({
 								...flow,
 								subject: claims.sub,
@@ -359,7 +375,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 								},
 							});
 						} catch {
-							return refused();
+							return refused(failureCode);
 						}
 					}),
 				},
