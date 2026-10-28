@@ -1,0 +1,127 @@
+{
+	"token": "[REDACTED]",
+	"expiresAt": "2026-10-28T04:01:05.224Z",
+	"installationId": "ins_01m609r46ff7j8gtjk7jt444kb",
+	"actor": "act_01m609r45ze90bq5xm52ex3bqs",
+	"repositorySelection": "selected",
+	"repositories": [
+		"scratch"
+	],
+	"permissions": [
+		{
+			"kind": "repo",
+			"family": "contents",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "metadata",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "rulesets",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "collaborators",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "catalog",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "checks",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "contents",
+			"level": "read"
+		},
+		{
+			"kind": "pr",
+			"family": "review",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "labels",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "state",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "lock",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "verdict",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "dismiss",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "reviewers",
+			"level": "write"
+		},
+		{
+			"kind": "issue",
+			"family": "contents",
+			"level": "read"
+		},
+		{
+			"kind": "issue",
+			"family": "labels",
+			"level": "write"
+		},
+		{
+			"kind": "issue",
+			"family": "state",
+			"level": "write"
+		},
+		{
+			"kind": "issue",
+			"family": "lock",
+			"level": "write"
+		},
+		{
+			"kind": "comment",
+			"family": "contents",
+			"level": "write"
+		},
+		{
+			"kind": "org",
+			"family": "metadata",
+			"level": "read"
+		},
+		{
+			"kind": "org",
+			"family": "membership",
+			"level": "read"
+		},
+		{
+			"kind": "team",
+			"family": "metadata",
+			"level": "read"
+		},
+		{
+			"kind": "team",
+			"family": "membership",
+			"level": "read"
+		}
+	]
+}

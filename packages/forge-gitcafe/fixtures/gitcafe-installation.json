@@ -1,0 +1,154 @@
+{
+	"id": "ins_01m609r46ff7j8gtjk7jt444kb",
+	"appId": "int_01m60999c0fqg841d48s29qwtv",
+	"app": "tripwire-staging",
+	"name": "Tripwire Staging",
+	"publisher": "boring",
+	"iconUrl": "/avatars/v1/d46cb91987ecafd73700267db320b3206b171c86c122572827729b6654aa614e",
+	"org": "boring",
+	"bot": {
+		"actorId": "act_01m609r45ze90bq5xm52ex3bqs",
+		"handle": "boring-tripwire-staging",
+		"assignable": true,
+		"mentionable": true
+	},
+	"revision": 2,
+	"latestRevision": 2,
+	"version": 1,
+	"repositorySelection": "selected",
+	"repositories": [
+		"scratch"
+	],
+	"permissions": [
+		{
+			"kind": "repo",
+			"family": "contents",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "metadata",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "rulesets",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "collaborators",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "catalog",
+			"level": "read"
+		},
+		{
+			"kind": "repo",
+			"family": "checks",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "contents",
+			"level": "read"
+		},
+		{
+			"kind": "pr",
+			"family": "review",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "labels",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "state",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "lock",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "verdict",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "dismiss",
+			"level": "write"
+		},
+		{
+			"kind": "pr",
+			"family": "reviewers",
+			"level": "write"
+		},
+		{
+			"kind": "issue",
+			"family": "contents",
+			"level": "read"
+		},
+		{
+			"kind": "issue",
+			"family": "labels",
+			"level": "write"
+		},
+		{
+			"kind": "issue",
+			"family": "state",
+			"level": "write"
+		},
+		{
+			"kind": "issue",
+			"family": "lock",
+			"level": "write"
+		},
+		{
+			"kind": "comment",
+			"family": "contents",
+			"level": "write"
+		},
+		{
+			"kind": "org",
+			"family": "metadata",
+			"level": "read"
+		},
+		{
+			"kind": "org",
+			"family": "membership",
+			"level": "read"
+		},
+		{
+			"kind": "team",
+			"family": "metadata",
+			"level": "read"
+		},
+		{
+			"kind": "team",
+			"family": "membership",
+			"level": "read"
+		}
+	],
+	"user": {
+		"permissions": [
+			{
+				"kind": "repo",
+				"family": "metadata",
+				"level": "read"
+			}
+		],
+		"audiences": [
+			"api"
+		]
+	},
+	"pausedAt": null,
+	"suspendedAt": null,
+	"uninstalledAt": null
+}
