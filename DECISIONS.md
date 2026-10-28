@@ -426,7 +426,7 @@ The owner explicitly authorized a dedicated `packages/forge-gitcafe` workspace a
 GitCafe code and captured fixtures live in the new package. Historical OpenGit exports, issuer, credentials and data remain in `packages/forge-opengit`; neither forge package imports the other. GitCafe follows the adapter dependency boundaries: contracts, utils and forge only, with worker and API as permitted consumers. This slice contains protocol primitives only; no adapter, receiver or sign-in is activated. Captured response bytes and provenance are preserved through the move. Authenticated token and lifecycle fixtures await an authorized staging app.
 
 
-## Staging integration branch — 2026-10-27
+## 2026-10-27: Staging integration branch
 
 Staging work merges into `staging`. Independent staging PRs target that branch;
 stacked PRs may target their parent feature branch, with the stack root targeting
