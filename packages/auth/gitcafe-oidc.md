@@ -53,6 +53,75 @@ The handoff contract is `GitCafeIdentity` from `@tripwire/contracts`:
 not an actor ID, organization ID, or installation ID. The claims schema is a
 shape validator, not a cryptographic verifier.
 
+## Durable account binding and staging rollout
+
+Migration 0046 adds a unique account key only for `provider_id = 'gitcafe'`.
+GitHub, historical OpenGit, and credential accounts retain their current
+constraints. The GitCafe account-create hook passes its verified identity through
+private symbol metadata, which the adapter removes before storage. The adapter
+claims the identity with an owner-conditional upsert and inserts the account in
+one database transaction. A foreign identity owner stops the insert; an account
+insert failure rolls back the identity claim as well. The create-after hook no
+longer decides GitCafe ownership after the account has committed.
+
+The global Drizzle transaction setting stays off. Better Auth creates the user
+before this account-only transaction, and personal-org creation uses the original
+database handle. A failed or losing signup can therefore leave a committed user
+without an account or session; the personal-org after hook may not run on that
+failed signup. This fix deliberately retains the user rather than guessing
+whether another request has started using it.
+Both verified email variants of a racing subject subsequently select the one
+successful account owner. No process-local lock establishes ownership.
+
+Staging currently has migrations through 0044, the global events delivery index,
+and no GitCafe accounts. Its older API must keep that events index until compatible
+ingest code is deployed. Do not run the full migrator solely to test OIDC: that
+would also apply 0045. Keep GitCafe sign-in disabled until the index below and the
+reviewed auth code are both present. The parent owns staging deployment and live
+login; this implementation does not access staging credentials or production.
+
+Against the verified staging database only, preapply this exact statement from
+`packages/db/drizzle/0046_gitcafe_account_binding.sql`:
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS "account_gitcafe_subject_unique" ON "account" USING btree ("provider_id","account_id") WHERE "account"."provider_id" = 'gitcafe';
+```
+
+`IF NOT EXISTS` permits a later normal migration after preapply; it does not prove
+that an existing index has the right definition. Run this equivalence check and
+require exactly one row with `equivalent = true`:
+
+```sql
+SELECT
+  i.indisunique AND i.indisvalid AND i.indisready
+  AND i.indrelid = 'public.account'::regclass
+  AND am.amname = 'btree'
+  AND i.indnkeyatts = 2 AND i.indnatts = 2
+  AND pg_get_indexdef(i.indexrelid, 1, true) = 'provider_id'
+  AND pg_get_indexdef(i.indexrelid, 2, true) = 'account_id'
+  AND pg_get_expr(i.indpred, i.indrelid) = '(provider_id = ''gitcafe''::text)'
+  AS equivalent
+FROM pg_index i
+JOIN pg_class c ON c.oid = i.indexrelid
+JOIN pg_am am ON am.oid = c.relam
+WHERE i.indexrelid = to_regclass('public.account_gitcafe_subject_unique');
+```
+
+Do not insert a 0046 migration-journal row during preapply. Drizzle advances by
+timestamp; recording 0046 early could make it skip 0045 later. Confirm the journal
+still ends at 0044 and `events_delivery_id_unique` remains present, with
+`events_forge_delivery_id_unique` absent. Once compatible ingest code is deployed,
+the normal migrator applies 0045 and records 0046, retaining the preapplied index.
+0045 and its existing snapshot remain unchanged. The 0046 SQL, journal entry,
+snapshot, and schema are included together.
+
+An installation with duplicate GitCafe account keys fails index creation without
+changing ownership or deleting rows. Review such data before enabling sign-in;
+the migration does not choose an owner or merge users. Index creation takes a
+write lock on `account` while building it, so the parent should apply it before
+the staging login attempt. This standalone preapply and later migration sequence
+is covered against real PostgreSQL, including retained GitHub/OpenGit duplicates.
+
 ## Installed library audit
 
 Audited the installed `better-auth@1.7.12`, `@better-auth/core@1.7.12`, and
@@ -94,6 +163,13 @@ validation from documentation:
 - `better-auth/dist/api/routes/account.mjs`: direct ID-token linking has a
   separate account-create path that bypasses `user.validateUserInfo`. The
   account-create hook independently blocks adding any provider to a GitCafe user.
+- `better-auth/dist/db/with-hooks.mjs`: create-before hook data is spread before
+  adapter creation, preserving private symbol metadata. Create-after hooks run
+  after the adapter write and cannot establish rollback safety. The Drizzle
+  adapter defaults to `transaction: false`; its fallback transaction receives
+  the same adapter instance. The GitCafe wrapper changes that instance's create
+  operation only, so the account/identity write uses the real transaction while
+  other provider and user/org operations retain their existing behavior.
 
 Official references checked on 2026-10-27 Pacific:
 [GitCafe sign-in](https://git.cafe/docs/integrations/sign-in-with-gitcafe),
@@ -122,6 +198,24 @@ Local verification against parent head `66da37df`:
 - Repository `bun run typecheck` and `bun run typecheck:ts5`: all workspaces pass.
 - `bun run check`: 1,315 files checked; boundary and changed-line anti-slop gates pass.
 - Comment gate: new comments use TSDoc for protocol and security constraints.
+
+Security-review fix against parent head `569be2ee`:
+
+- The new independent-flow regression failed on the parent with two persisted
+  accounts for one subject. The strengthened foreign-identity regression also
+  failed with one persisted account after rejection.
+- Focused OIDC and migration suites: 51 passed, 304 assertions, real PostgreSQL.
+  This includes distinct valid states/nonces with different verified emails,
+  returning logins for both emails, rollback after a unique-index conflict,
+  foreign identity ownership, and unchanged GitHub/OpenGit account persistence.
+- Full `bun test`: 4,012 passed across 336 files, 21 snapshots, zero failures.
+- Repository `typecheck` and `typecheck:ts5`, Biome, boundaries, and changed-line
+  anti-slop checks pass. New comments use TSDoc for security and test constraints.
+- Drizzle regeneration reports no schema changes. Comparing 0045 and 0046
+  snapshots finds only the new partial unique index plus snapshot metadata.
+- The migration test restores 0044, checks duplicate-owner failure without data
+  loss, preapplies the exact standalone DDL twice, validates index equivalence,
+  confirms unchanged events indexing and journal, then runs normal migrations.
 
 Real staging sign-in has not been exercised. Before enabling a visible sign-in
 control, complete the exact registered redirect through the manual GitCafe

@@ -3,6 +3,7 @@ import {
 	GITCAFE_ISSUER,
 	type GitCafeIdentity,
 	type GitCafeOidcClient,
+	gitCafeAccountBindingSchema,
 	gitCafeIdentitySchema,
 	gitCafeOidcClaimsSchema,
 	orgSlugSchema,
@@ -28,6 +29,9 @@ import { gitCafeOidc } from "./gitcafe-oidc.ts";
 import { orgAc, orgRoles } from "./org-access.ts";
 import { orgRoleGuard } from "./org-role-guard.ts";
 import { staffImpersonation } from "./staff-impersonation.ts";
+
+/** Carry verified hook metadata to the adapter without adding a stored account field. */
+const GITCAFE_IDENTITY = Symbol("gitcafeIdentity");
 
 type UserValidation = NonNullable<
 	NonNullable<BetterAuthOptions["user"]>["validateUserInfo"]
@@ -117,28 +121,57 @@ export function createAuth(input: CreateAuthInput) {
 		: {};
 
 	return betterAuth({
-		database: drizzleAdapter(input.db, {
-			provider: "pg",
-			schema: {
-				user: schema.user,
-				session: schema.session,
-				account: schema.account,
-				verification: schema.verification,
-				organization: schema.organization,
-				member: schema.member,
-				invitation: schema.invitation,
-				organizationRole: schema.organizationRole,
-				jwks: schema.jwks,
-				oauthClient: schema.oauthClient,
-				oauthResource: schema.oauthResource,
-				oauthClientResource: schema.oauthClientResource,
-				oauthRefreshToken: schema.oauthRefreshToken,
-				oauthAccessToken: schema.oauthAccessToken,
-				oauthConsent: schema.oauthConsent,
-				oauthClientAssertion: schema.oauthClientAssertion,
-				deviceCode: schema.deviceCode,
-			},
-		}),
+		database(options) {
+			const config = {
+				provider: "pg" as const,
+				schema: {
+					user: schema.user,
+					session: schema.session,
+					account: schema.account,
+					verification: schema.verification,
+					organization: schema.organization,
+					member: schema.member,
+					invitation: schema.invitation,
+					organizationRole: schema.organizationRole,
+					jwks: schema.jwks,
+					oauthClient: schema.oauthClient,
+					oauthResource: schema.oauthResource,
+					oauthClientResource: schema.oauthClientResource,
+					oauthRefreshToken: schema.oauthRefreshToken,
+					oauthAccessToken: schema.oauthAccessToken,
+					oauthConsent: schema.oauthConsent,
+					oauthClientAssertion: schema.oauthClientAssertion,
+					deviceCode: schema.deviceCode,
+				},
+			};
+			const adapter = drizzleAdapter(input.db, config)(options);
+			const create = adapter.create.bind(adapter);
+			/** Keep the user/org lifecycle outside this account-only transaction. */
+			adapter.create = async (args) => {
+				if (args.model !== "account" || args.data.providerId !== "gitcafe") {
+					return create(args);
+				}
+				const data = { ...args.data };
+				if (!(GITCAFE_IDENTITY in args.data)) {
+					throw new Error("GitCafe account requires a verified identity");
+				}
+				const verified = args.data[GITCAFE_IDENTITY];
+				Reflect.deleteProperty(data, GITCAFE_IDENTITY);
+				const identity = gitCafeIdentitySchema.parse(verified);
+				const account = gitCafeAccountBindingSchema.parse(data);
+				return input.db.transaction(async (tx) => {
+					await mirrorGitCafeIdentity(tx, account, identity);
+					return drizzleAdapter(
+						tx,
+						config,
+					)(options).create({
+						...args,
+						data,
+					});
+				});
+			};
+			return adapter;
+		},
 		secret: input.secret,
 		baseURL: input.baseUrl,
 		disabledPaths: ["/token"],
@@ -421,6 +454,7 @@ export function createAuth(input: CreateAuthInput) {
 						return {
 							data: {
 								...account,
+								[GITCAFE_IDENTITY]: identity,
 								accessToken: null,
 								refreshToken: null,
 								idToken: null,
@@ -430,13 +464,8 @@ export function createAuth(input: CreateAuthInput) {
 					/** §10: mirror the forge identity into forge_identities. One row
 					 * per (forge, external id). A provider with no forge (none today)
 					 * is ignored, not guessed. */
-					after: async (account, context) => {
+					after: async (account) => {
 						if (account.providerId === "gitcafe") {
-							await mirrorGitCafeIdentity(
-								input.db,
-								account,
-								verifiedGitCafeIdentity(context),
-							);
 							return;
 						}
 						await mirrorForgeIdentity(input.db, account);

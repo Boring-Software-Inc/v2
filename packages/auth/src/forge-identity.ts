@@ -66,7 +66,7 @@ export interface LinkedAccount {
 
 /** GitCafe's opt-in identity path does not enable its ingest or catalog capabilities. */
 export async function mirrorGitCafeIdentity(
-	db: Db,
+	db: Pick<Db, "insert">,
 	account: LinkedAccount,
 	verifiedIdentity: GitCafeIdentity,
 ): Promise<void> {

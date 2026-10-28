@@ -132,6 +132,7 @@ async function start(
 	options: FlowOptions = {},
 	body: Partial<AuthRequestBody> = {},
 	cookie?: string,
+	instance = auth,
 ): Promise<Flow> {
 	const response = await post(
 		"/sign-in/social",
@@ -141,6 +142,7 @@ async function start(
 			...body,
 		},
 		cookie,
+		instance,
 	);
 	expect(response.ok).toBe(true);
 	const payload = gitCafeAuthorizationResponseSchema.parse(
@@ -490,6 +492,174 @@ describe("GitCafe opt-in public OIDC", () => {
 		expect(sessions).toHaveLength(1);
 	});
 
+	test("independent first sign-ins racing on one subject keep one durable owner", async () => {
+		const first = await start();
+		const second = await start({
+			sub: first.sub,
+			email: `${generateId()}@example.test`,
+		});
+		expect(second.url.searchParams.get("state")).not.toBe(
+			first.url.searchParams.get("state"),
+		);
+		expect(second.url.searchParams.get("nonce")).not.toBe(
+			first.url.searchParams.get("nonce"),
+		);
+		let release = () => {};
+		const barrier = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let readers = 0;
+		const mocks = [];
+		for (const instance of [auth, secondAuth]) {
+			const adapter = (await instance.$context).internalAdapter;
+			const original = adapter.findAccountOwnerByKey.bind(adapter);
+			mocks.push(
+				spyOn(adapter, "findAccountOwnerByKey").mockImplementation(
+					async (key) => {
+						const owner = await original(key);
+						if (key.providerId === "gitcafe" && key.accountId === first.sub) {
+							expect(owner).toBeNull();
+							readers += 1;
+							if (readers === 2) {
+								release();
+							}
+							await barrier;
+						}
+						return owner;
+					},
+				),
+			);
+		}
+		let responses: Response[];
+		try {
+			responses = await Promise.all([
+				callback(first),
+				callback(second, { instance: secondAuth }),
+			]);
+		} finally {
+			release();
+			for (const mock of mocks) {
+				mock.mockRestore();
+			}
+		}
+		expect(readers).toBe(2);
+		const accounts = await db
+			.select()
+			.from(schema.account)
+			.where(
+				and(
+					eq(schema.account.providerId, "gitcafe"),
+					eq(schema.account.accountId, first.sub),
+				),
+			);
+		expect(accounts).toHaveLength(1);
+		const ownerId = accounts[0]?.userId;
+		const identities = await db
+			.select()
+			.from(schema.forgeIdentities)
+			.where(
+				and(
+					eq(schema.forgeIdentities.forge, "gitcafe"),
+					eq(schema.forgeIdentities.externalId, first.sub),
+				),
+			);
+		expect(identities).toHaveLength(1);
+		expect(identities[0]?.userId).toBe(ownerId);
+		const sessions = await Promise.all(responses.map((res) => sessionFor(res)));
+		expect(sessions.filter(Boolean)).toHaveLength(1);
+		expect(sessions.find(Boolean)?.user.id).toBe(ownerId);
+		const users = await db
+			.select()
+			.from(schema.user)
+			.where(eq(schema.user.email, sessions[0] ? second.email : first.email));
+		expect(users).toHaveLength(1);
+		const rejectedUserId = users[0]?.id ?? "";
+		expect(rejectedUserId).not.toBe(ownerId);
+		expect(
+			await db
+				.select()
+				.from(schema.session)
+				.where(eq(schema.session.userId, rejectedUserId)),
+		).toHaveLength(0);
+		expect(
+			await db
+				.select()
+				.from(schema.account)
+				.where(eq(schema.account.userId, rejectedUserId)),
+		).toHaveLength(0);
+		expect(
+			await db
+				.select({ isPersonal: schema.organization.isPersonal })
+				.from(schema.member)
+				.innerJoin(
+					schema.organization,
+					eq(schema.member.organizationId, schema.organization.id),
+				)
+				.where(eq(schema.member.userId, ownerId ?? "")),
+		).toEqual([{ isPersonal: true }]);
+		for (const email of [first.email, second.email]) {
+			const returning = await start({ sub: first.sub, email });
+			const response = await callback(returning, { instance: secondAuth });
+			expect(response.headers.get("location")).toBe(`${BASE_URL}/complete`);
+			expect((await sessionFor(response))?.user.id).toBe(ownerId);
+		}
+	});
+
+	test("an account insert conflict rolls back the identity claim before a later owner login", async () => {
+		const flow = await start();
+		const ownerId = generateId();
+		const ownerEmail = `${ownerId}@example.test`;
+		await db.insert(schema.user).values({
+			id: ownerId,
+			email: ownerEmail,
+			name: "Existing account without a mirror",
+			emailVerified: true,
+		});
+		const accountId = generateId();
+		await db.insert(schema.account).values({
+			id: accountId,
+			userId: ownerId,
+			providerId: "gitcafe",
+			accountId: flow.sub,
+		});
+		const adapter = (await auth.$context).internalAdapter;
+		/** A stale lookup forces the unique-index conflict after the identity insert. */
+		const lookup = spyOn(
+			adapter,
+			"findAccountOwnerByKey",
+		).mockResolvedValueOnce(null);
+		let response: Response;
+		try {
+			response = await callback(flow);
+		} finally {
+			lookup.mockRestore();
+		}
+		expect(response.headers.get("location")).toContain("error=");
+		expect(await sessionFor(response)).toBeNull();
+		expect(
+			await db
+				.select()
+				.from(schema.forgeIdentities)
+				.where(eq(schema.forgeIdentities.externalId, flow.sub)),
+		).toHaveLength(0);
+		expect(
+			await db
+				.select()
+				.from(schema.account)
+				.where(eq(schema.account.accountId, flow.sub)),
+		).toMatchObject([{ id: accountId, userId: ownerId }]);
+		const returning = await start({ sub: flow.sub, email: ownerEmail });
+		expect((await sessionFor(await callback(returning)))?.user.id).toBe(
+			ownerId,
+		);
+		expect(
+			await db
+				.select()
+				.from(schema.forgeIdentities)
+				.where(eq(schema.forgeIdentities.externalId, flow.sub)),
+		).toMatchObject([{ userId: ownerId }]);
+	});
+
 	for (const [name, options] of Object.entries<FlowOptions>({
 		"wrong signed issuer": { claims: { iss: "https://open-git.com" } },
 		"wrong audience": { claims: { aud: "another-client" } },
@@ -570,8 +740,7 @@ describe("GitCafe opt-in public OIDC", () => {
 			username: "original-owner-handle",
 		});
 		const response = await callback(flow);
-		expect(response.headers.get("location")).toContain("error=");
-		expect(await sessionFor(response)).toBeNull();
+		await expectRejected(flow, response);
 		const identities = await db
 			.select()
 			.from(schema.forgeIdentities)
@@ -790,4 +959,88 @@ describe("GitCafe opt-in public OIDC", () => {
 		expect(response.ok).toBe(false);
 		expect(await sessionFor(response)).toBeNull();
 	});
+
+	for (const providerId of ["github", "opengit"] as const) {
+		for (const gitCafeEnabled of [false, true]) {
+			test(`${providerId} signup and returning login retain tokens with GitCafe ${gitCafeEnabled ? "enabled" : "disabled"}`, async () => {
+				const instance = gitCafeEnabled ? auth : disabledAuth;
+				const context = await instance.$context;
+				const subject = generateId();
+				const email = `${subject}@example.test`;
+				const tokens = {
+					accessToken: generateId(),
+					refreshToken: generateId(),
+					idToken: generateId(),
+				};
+				/** Isolate shared account persistence from each legacy provider's transport. */
+				const provider: OAuthProvider = {
+					id: providerId,
+					name: "Existing provider persistence test",
+					accountSubject: () => subject,
+					createAuthorizationURL: (data) =>
+						createAuthorizationURL({
+							id: providerId,
+							options: { clientId: CLIENT_ID },
+							authorizationEndpoint: "https://provider.example.test/authorize",
+							state: data.state,
+							codeVerifier: data.codeVerifier,
+							redirectURI: data.redirectURI,
+						}),
+					validateAuthorizationCode: async () => tokens,
+					getUserInfo: async () => ({
+						user: { email, emailVerified: true, name: "Legacy provider owner" },
+						data: {},
+					}),
+				};
+				context.socialProviders.push(provider);
+				let ownerId: string | undefined;
+				try {
+					for (let login = 0; login < 2; login++) {
+						const flow = await start(
+							{},
+							{ provider: providerId },
+							undefined,
+							instance,
+						);
+						const url = new URL(`${BASE_URL}/api/auth/callback/${providerId}`);
+						url.searchParams.set("code", flow.code);
+						url.searchParams.set(
+							"state",
+							flow.url.searchParams.get("state") ?? "",
+						);
+						const response = await instance.handler(
+							new Request(url.toString(), { headers: { cookie: flow.cookie } }),
+						);
+						expect(response.headers.get("location")).toBe(
+							`${BASE_URL}/complete`,
+						);
+						const session = await sessionFor(response, instance);
+						expect(session?.user.email).toBe(email);
+						if (login === 0) {
+							ownerId = session?.user.id;
+						} else {
+							expect(session?.user.id).toBe(ownerId);
+						}
+					}
+				} finally {
+					context.socialProviders.splice(
+						context.socialProviders.indexOf(provider),
+						1,
+					);
+				}
+				expect(
+					await db
+						.select()
+						.from(schema.account)
+						.where(eq(schema.account.accountId, subject)),
+				).toMatchObject([{ providerId, userId: ownerId, ...tokens }]);
+				expect(
+					await db
+						.select()
+						.from(schema.forgeIdentities)
+						.where(eq(schema.forgeIdentities.externalId, subject)),
+				).toMatchObject([{ forge: providerId, userId: ownerId }]);
+			});
+		}
+	}
 });

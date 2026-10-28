@@ -36,3 +36,10 @@ export const gitCafeIdentitySchema = z.object({
 	handle: z.string().min(1),
 });
 export type GitCafeIdentity = z.infer<typeof gitCafeIdentitySchema>;
+
+export const gitCafeAccountBindingSchema = z.object({
+	providerId: z.literal("gitcafe"),
+	accountId: gitCafeIdentitySchema.shape.subject,
+	userId: z.string().min(1),
+});
+export type GitCafeAccountBinding = z.infer<typeof gitCafeAccountBindingSchema>;
