@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import type { Auth } from "@tripwire/auth/server";
 import {
 	agentWorkServices,
@@ -10,6 +10,7 @@ import {
 	schema,
 	type TestDatabase,
 } from "@tripwire/db";
+import { generateId } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
@@ -25,6 +26,11 @@ let container: TestDatabase;
 let db: Db;
 let pool: Pool;
 let boss: PgBoss;
+let fetchSpy: ReturnType<typeof spyOn<typeof globalThis, "fetch">>;
+let previousAccessGate: string | undefined;
+let flagRequests = 0;
+const pendingUserId = generateId();
+const rejectedUserId = generateId();
 
 function fakeAuth(session: { user: { id: string } } | null): Auth {
 	return {
@@ -49,23 +55,57 @@ function makeApp(auth: Auth | null) {
 }
 
 beforeAll(async () => {
+	previousAccessGate = process.env.ACCESS_GATE_ENABLED;
+	process.env.ACCESS_GATE_ENABLED = "true";
+	const originalFetch = globalThis.fetch;
+	/** Synthetic flag outage exercises the real approval gate without network timing. */
+	fetchSpy = spyOn(globalThis, "fetch").mockImplementation(
+		Object.assign(
+			(input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+				const url = new URL(
+					input instanceof Request ? input.url : String(input),
+				);
+				const method =
+					init?.method ?? (input instanceof Request ? input.method : "GET");
+				if (
+					url.origin === "https://api.databuddy.cc" &&
+					url.pathname === "/public/v1/flags/bulk" &&
+					method.toUpperCase() === "GET"
+				) {
+					flagRequests++;
+					return Promise.resolve(new Response(null, { status: 503 }));
+				}
+				return originalFetch(input, init);
+			},
+			{ preconnect: originalFetch.preconnect },
+		),
+	);
 	container = await createTestDatabase();
 	({ db, pool } = createDb(container.url));
 	await applyMigrations(db);
 	boss = await createBoss(container.url);
-	// Hermetic gate state: assertApproved reads accessStatus fresh from the
-	// DB, and the Databuddy access-gate flag can resolve LIVE (on) in tests —
-	// so the "valid session" case must be an APPROVED user row, not a phantom
-	// id that falls back to "pending" and 403s whenever the network flag is up.
 	await db.insert(schema.user).values({
 		id: "u1",
 		name: "approved tester",
 		email: "u1@example.com",
 		accessStatus: "approved",
 	});
+	for (const [id, accessStatus] of [
+		[pendingUserId, "pending"],
+		[rejectedUserId, "rejected"],
+	] as const)
+		await db.insert(schema.user).values({
+			id,
+			name: "Gate refusal",
+			email: `${id}@example.test`,
+			accessStatus,
+		});
 }, 120_000);
 
 afterAll(async () => {
+	fetchSpy?.mockRestore();
+	if (previousAccessGate === undefined) delete process.env.ACCESS_GATE_ENABLED;
+	else process.env.ACCESS_GATE_ENABLED = previousAccessGate;
 	await boss?.stop({ close: true, graceful: false }).catch(() => undefined);
 	await pool?.end().catch(() => undefined);
 	await container?.stop();
@@ -94,7 +134,20 @@ describe("GET /events/stream gate", () => {
 		);
 		expect(res.status).toBe(200);
 		expect(await firstChunk(res)).toContain("event: heartbeat");
+		expect(flagRequests).toBeGreaterThan(0);
 	});
+
+	for (const [status, userId] of [
+		["pending", pendingUserId],
+		["rejected", rejectedUserId],
+	] as const)
+		test(`${status} users remain forbidden when the flag service is unavailable`, async () => {
+			const res = await makeApp(fakeAuth({ user: { id: userId } })).request(
+				"/events/stream",
+			);
+			expect(res.status).toBe(403);
+			expect(await res.json()).toMatchObject({ error: expect.any(String) });
+		});
 
 	test("dev open posture (auth null) ⇒ stream stays usable", async () => {
 		const res = await makeApp(null).request("/events/stream");
