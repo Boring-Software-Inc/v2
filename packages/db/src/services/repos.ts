@@ -231,13 +231,19 @@ export async function turnOnGate(
 	const repo = await getRepoById(db, repoId);
 	if (repo && !ingestForgeSchema.safeParse(repo.forge).success)
 		return { ok: false, armed: false, reason: "protection-unavailable" };
+	if (repo?.armed) return { ok: true, armed: true };
+	let queue: PgBoss | null = null;
+	try {
+		queue = boss ? await boss() : null;
+	} catch {
+		return { ok: false, armed: false, reason: "queue-unavailable" };
+	}
 	const turnedOn = await db
 		.update(repos)
 		.set({ armed: true })
 		.where(and(eq(repos.id, repoId), eq(repos.armed, false)))
 		.returning({ id: repos.id });
-	if (boss && turnedOn.length > 0) {
-		const queue = await boss();
+	if (turnedOn.length > 0) {
 		await queue?.send(BACKFILL_REPO_QUEUE, { repoId });
 	}
 	return { ok: true, armed: true };

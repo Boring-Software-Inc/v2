@@ -54,6 +54,7 @@ async function readAuthority(
 			const members = await deps.client.getOrganizationMembers(
 				job.installationId,
 				installation.org,
+				installation,
 			);
 			if (!members.ok || members.value.next !== null)
 				return "authority-unavailable" as const;
@@ -73,6 +74,7 @@ async function readAuthority(
 				job.installationId,
 				installation.org,
 				name,
+				installation,
 			);
 			if (
 				!repo.ok ||

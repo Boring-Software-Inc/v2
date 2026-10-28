@@ -43,7 +43,9 @@ function useArm(org: string, repo: string, repoFullName: string) {
 				return;
 			}
 			toast.fail(
-				`Tripwire did not turn on for ${repoFullName}. Reload the page and try again.`,
+				!result.ok && result.reason === "queue-unavailable"
+					? "Tripwire did not turn on. Try again in a moment."
+					: `Tripwire did not turn on for ${repoFullName}. Reload the page and try again.`,
 			);
 		},
 		onError: () =>

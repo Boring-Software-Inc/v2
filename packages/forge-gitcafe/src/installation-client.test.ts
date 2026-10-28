@@ -81,6 +81,94 @@ function deferred<T>() {
 }
 
 describe("GitCafe installation client", () => {
+	test("expected authority rejects an unrelated org, owner or selected repository before token acquisition", async () => {
+		const h = harness();
+		const client = clientFor(h);
+		const expected = await client.getInstallation(installation.id);
+		if (!expected.ok) throw new Error("local installation lookup failed");
+		for (const read of [
+			() =>
+				client.getOrganizationMembers(installation.id, "other", expected.value),
+			() =>
+				client.getRepository(
+					installation.id,
+					"other",
+					repository.name,
+					expected.value,
+				),
+			() =>
+				client.getRepository(
+					installation.id,
+					installation.org,
+					"other",
+					expected.value,
+				),
+		])
+			expect(await read()).toEqual({ ok: false, reason: "identity-mismatch" });
+		expect(h.calls).toHaveLength(1);
+	});
+
+	for (const phase of ["lookup", "mint", "response", "before-read"] as const) {
+		test(`expected authority refuses generation invalidation during ${phase}`, async () => {
+			const h = harness();
+			let reading = false;
+			const client = clientFor(h, async (url, init) => {
+				if (url.includes("/api/apps/")) {
+					if (
+						reading &&
+						((phase === "lookup" && init.method === "GET") ||
+							(phase === "mint" && init.method === "POST"))
+					)
+						client.invalidate(installation.id);
+					return h.fetch(url, init);
+				}
+				if (phase === "response") client.invalidate(installation.id);
+				return Response.json(membersFixture);
+			});
+			const expected = await client.getInstallation(installation.id);
+			if (!expected.ok) throw new Error("local installation lookup failed");
+			reading = true;
+			if (phase === "before-read") client.invalidate(installation.id);
+			expect(
+				await client.getOrganizationMembers(
+					installation.id,
+					installation.org,
+					expected.value,
+				),
+			).toEqual({ ok: false, reason: "stale" });
+		});
+	}
+
+	for (const operation of ["members", "repository"] as const) {
+		test(`expected ${operation} read refuses a scope change observed during its response`, async () => {
+			const h = harness();
+			const client = clientFor(h, async (url, init) => {
+				if (url.includes("/api/apps/")) return h.fetch(url, init);
+				h.lookup({ ...installation, repositories: [] });
+				await client.getInstallation(installation.id);
+				return Response.json(
+					operation === "members" ? membersFixture : repositoryFixture,
+				);
+			});
+			const expected = await client.getInstallation(installation.id);
+			if (!expected.ok) throw new Error("local installation lookup failed");
+			const result =
+				operation === "members"
+					? await client.getOrganizationMembers(
+							installation.id,
+							installation.org,
+							expected.value,
+						)
+					: await client.getRepository(
+							installation.id,
+							installation.org,
+							repository.name,
+							expected.value,
+						);
+			expect(result).toEqual({ ok: false, reason: "stale" });
+		});
+	}
+
 	test("typed installed reads use captured shapes, fixed paths and the validated token cache", async () => {
 		const h = harness();
 		const reads: { url: string; init: RequestInit }[] = [];

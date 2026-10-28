@@ -42,6 +42,37 @@ const executed: ForgeAction[] = [];
 const REPO = "Codertocat/Hello-World";
 const NUMBER = pullRequestOpened.number;
 
+test("queue initialization refusal leaves GitHub disarmed and retry queues backfill exactly once", async () => {
+	let factoryCalls = 0;
+	const queue = async () => {
+		factoryCalls++;
+		if (factoryCalls === 1)
+			throw new Error("local queue initialization failed");
+		return boss;
+	};
+	expect(await repoServices.turnOnGate(db, queue, repoId)).toEqual({
+		ok: false,
+		armed: false,
+		reason: "queue-unavailable",
+	});
+	expect((await repoServices.getRepoById(db, repoId))?.armed).toBe(false);
+	expect(await boss.fetch(BACKFILL_REPO_QUEUE)).toHaveLength(0);
+	expect(await repoServices.turnOnGate(db, queue, repoId)).toEqual({
+		ok: true,
+		armed: true,
+	});
+	expect((await repoServices.getRepoById(db, repoId))?.armed).toBe(true);
+	const queued = await boss.fetch<{ repoId: string }>(BACKFILL_REPO_QUEUE);
+	expect(queued).toHaveLength(1);
+	expect(queued[0]?.data.repoId).toBe(repoId);
+	expect(await repoServices.turnOnGate(db, queue, repoId)).toEqual({
+		ok: true,
+		armed: true,
+	});
+	expect(await boss.fetch(BACKFILL_REPO_QUEUE)).toHaveLength(0);
+	expect(factoryCalls).toBe(2);
+});
+
 const MODERATED: WorkflowDefinition = {
 	id: "moderated@1",
 	name: "moderated gate",

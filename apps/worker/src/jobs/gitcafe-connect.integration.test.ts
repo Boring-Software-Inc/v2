@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, expect, spyOn, test } from "bun:test";
+import { generateKeyPairSync } from "node:crypto";
 import {
 	DEFAULT_WORKFLOW,
 	GITCAFE_CONNECT_QUEUE,
@@ -6,6 +7,7 @@ import {
 	type GitCafeOrganizationMembers,
 	gitCafeConnectionRepositorySchema,
 	gitCafeInstallationSchema,
+	gitCafeInstallationTokenSchema,
 	gitCafeOrganizationMembersSchema,
 	type RepoArmingResult,
 } from "@tripwire/contracts";
@@ -29,6 +31,7 @@ import {
 	user,
 	workflowServices,
 } from "@tripwire/db";
+import { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
 import { generateId } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import type { PgBoss } from "pg-boss";
@@ -56,6 +59,69 @@ const repository = gitCafeConnectionRepositorySchema.parse(
 		new URL("gitcafe-connection-repository.json", fixtureBase),
 	).json(),
 );
+const token = gitCafeInstallationTokenSchema.parse(
+	await Bun.file(
+		new URL("gitcafe-installation-token.json", fixtureBase),
+	).json(),
+);
+const credentials = {
+	appId: installation.appId,
+	keyId: "local-regression-key",
+	privateKey: generateKeyPairSync("ec", { namedCurve: "prime256v1" })
+		.privateKey.export({ format: "pem", type: "pkcs8" })
+		.toString(),
+};
+
+function installedTransport(
+	change: {
+		lookup?: number;
+		installation?: Partial<typeof installation>;
+		membersAfterRepo?: GitCafeOrganizationMembers;
+	} = {},
+) {
+	let lookups = 0;
+	let repoReads = 0;
+	let memberReads = 0;
+	let mints = 0;
+	let current = installation;
+	const client = new GitCafeInstallationClient({
+		credentials,
+		fetch: async (url, init) => {
+			if (url.includes("/api/apps/")) {
+				if (init.method === "POST") {
+					mints++;
+					return Response.json({
+						...token,
+						token: "local-regression-token",
+						expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+						repositories: current.repositories,
+					});
+				}
+				lookups++;
+				if (lookups === change.lookup)
+					current = { ...installation, ...change.installation };
+				return Response.json(current);
+			}
+			if (url.endsWith("/members/")) {
+				memberReads++;
+				return Response.json(
+					repoReads === 2 && change.membersAfterRepo
+						? change.membersAfterRepo
+						: membership,
+				);
+			}
+			if (
+				url ===
+				`https://git.cafe/api/repos/${repository.owner}/${repository.name}`
+			) {
+				repoReads++;
+				return Response.json(repository);
+			}
+			throw new Error("Unexpected local fixture transport path");
+		},
+	});
+	return { client, counts: () => ({ lookups, repoReads, memberReads, mints }) };
+}
 const actorId = membership.items[0]?.actorId;
 if (!actorId) throw new Error("captured staging actor missing");
 let container: TestDatabase;
@@ -188,6 +254,62 @@ test("explicit bounded action persists first-class GitCafe rows without linking 
 	expect(await db.select().from(account)).toHaveLength(0);
 	expect(reads).toBe(6);
 	expect(lookupCount).toBe(4);
+});
+
+test("actual installed client connects captured authority through the real PostgreSQL job", async () => {
+	const transport = installedTransport();
+	expect(
+		await connectGitCafeInstallation({ db, client: transport.client }, job),
+	).toEqual({ ok: true, repoCount: 1 });
+	expect(transport.counts()).toEqual({
+		lookups: 10,
+		repoReads: 2,
+		memberReads: 4,
+		mints: 1,
+	});
+	expect(await db.select().from(organizationInstallations)).toHaveLength(1);
+	expect((await db.select().from(repos))[0]).toMatchObject({
+		forge: "gitcafe",
+		name: repository.name,
+		armed: false,
+	});
+});
+
+for (const lookup of [5, 10]) {
+	for (const change of [
+		{ name: "selection revoked", value: { repositories: [] } },
+		{
+			name: "revision changed",
+			value: { revision: installation.revision + 1 },
+		},
+	]) {
+		test(`actual client refuses ${change.name} at final membership token lookup ${lookup} without claiming`, async () => {
+			const transport = installedTransport({
+				lookup,
+				installation: change.value,
+			});
+			expect(
+				await connectGitCafeInstallation({ db, client: transport.client }, job),
+			).toEqual({ ok: false, reason: "authority-unavailable" });
+			expect(transport.counts().lookups).toBe(lookup);
+			expect(transport.counts().memberReads).toBe(lookup === 5 ? 1 : 3);
+			expect(transport.counts().mints).toBe(1);
+			expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+			expect(await db.select().from(repos)).toHaveLength(0);
+		});
+	}
+}
+
+test("actual client refuses membership revoked after the final repository response", async () => {
+	const transport = installedTransport({
+		membersAfterRepo: { ...membership, items: [] },
+	});
+	expect(
+		await connectGitCafeInstallation({ db, client: transport.client }, job),
+	).toEqual({ ok: false, reason: "not-admin" });
+	expect(transport.counts().memberReads).toBe(4);
+	expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+	expect(await db.select().from(repos)).toHaveLength(0);
 });
 
 test("same-org concurrent claims are idempotent and another org cannot steal installation or repositories", async () => {

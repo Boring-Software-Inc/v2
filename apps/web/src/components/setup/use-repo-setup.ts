@@ -141,7 +141,10 @@ export function useSetupInstallRules(input: {
 				const result = await armRepo({
 					data: { org: input.org, repo: input.repo },
 				});
-				return result.armed ? null : "Tripwire did not turn on. Try again.";
+				if (result.armed) return null;
+				return !result.ok && result.reason === "queue-unavailable"
+					? "Tripwire did not turn on. Try again in a moment."
+					: "Tripwire did not turn on. Try again.";
 			} catch {
 				return "Only an org admin can turn on Tripwire for this repo.";
 			}

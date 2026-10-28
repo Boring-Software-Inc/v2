@@ -19,7 +19,7 @@ export const repoArmingResultSchema = z.discriminatedUnion("ok", [
 	z.strictObject({
 		ok: z.literal(false),
 		armed: z.literal(false),
-		reason: z.literal("protection-unavailable"),
+		reason: z.enum(["protection-unavailable", "queue-unavailable"]),
 	}),
 ]);
 export type RepoArmingResult = z.infer<typeof repoArmingResultSchema>;
