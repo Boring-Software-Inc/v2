@@ -9,9 +9,10 @@ import type { NormalizedEvent } from "@tripwire/contracts";
 
 export interface ContextDiffFile {
 	path: string;
-	status: "added" | "modified" | "removed" | "renamed";
-	additions: number;
-	deletions: number;
+	status: "added" | "modified" | "removed" | "renamed" | null;
+	additions: number | null;
+	deletions: number | null;
+	patchUnavailable?: "binary" | "too-large" | "omitted" | "unavailable" | null;
 	patch?: string;
 }
 

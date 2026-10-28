@@ -77,8 +77,9 @@ export class GitCafeReads {
 	getContributorProfile(
 		repo: string,
 		login: string,
+		expectedActorId?: string,
 	): Promise<GitCafeReadResult<ContributorProfile>> {
-		return this.fenced(() => this.contributor(repo, login));
+		return this.fenced(() => this.contributor(repo, login, expectedActorId));
 	}
 
 	private async fenced<T>(
@@ -337,6 +338,7 @@ export class GitCafeReads {
 	private async contributor(
 		repo: string,
 		login: string,
+		expectedActorId?: string,
 	): Promise<GitCafeReadResult<ContributorProfile>> {
 		const profile = await this.get(
 			repo,
@@ -344,7 +346,11 @@ export class GitCafeReads {
 			gitCafeReadProfileSchema,
 		);
 		if (!profile.ok) return profile;
-		if (profile.value.handle !== login)
+		if (
+			profile.value.handle !== login ||
+			(expectedActorId !== undefined &&
+				profile.value.actorId !== expectedActorId)
+		)
 			return { ok: false, reason: "identity-mismatch" };
 		const actor = profile.value.actorId;
 		const [merged, members, collaborators] = await Promise.all([

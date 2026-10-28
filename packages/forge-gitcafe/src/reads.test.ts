@@ -67,6 +67,23 @@ function capturedRoute(url: URL): Response {
 }
 
 describe("GitCafeReads captured reads", () => {
+	test("an expected event actor binds the profile before history or privilege reads", async () => {
+		const h = harness(capturedRoute);
+		expect(
+			await h.reads.getContributorProfile(REPO, "grim", "different-actor"),
+		).toEqual({ ok: false, reason: "identity-mismatch" });
+		expect(
+			h.calls
+				.filter((url) => !url.pathname.includes("/apps/installations/"))
+				.map((url) => url.pathname),
+		).toEqual(["/api/users/grim"]);
+		const verified = await h.reads.getContributorProfile(
+			REPO,
+			"grim",
+			profile.actorId,
+		);
+		expect(verified.ok && verified.value.externalId).toBe(profile.actorId);
+	});
 	test("uses real profile bio and stable actor ID, with unavailable global facts null", async () => {
 		const h = harness(capturedRoute);
 		expect(await h.reads.getContributorProfile(REPO, "grim")).toEqual({

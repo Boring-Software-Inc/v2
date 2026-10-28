@@ -39,9 +39,11 @@ export interface ChangeRequestHead {
 /** One file in a change request's diff. */
 export interface DiffFile {
 	path: string;
-	status: "added" | "modified" | "removed" | "renamed";
-	additions: number;
-	deletions: number;
+	/** Missing per-file metadata must not erase a complete file list. */
+	status: "added" | "modified" | "removed" | "renamed" | null;
+	additions: number | null;
+	deletions: number | null;
+	patchUnavailable?: "binary" | "too-large" | "omitted" | "unavailable" | null;
 	/** Unified diff hunk text, when the forge provides it. */
 	patch?: string;
 	previousPath?: string;
