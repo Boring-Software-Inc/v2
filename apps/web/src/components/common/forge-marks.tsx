@@ -120,7 +120,7 @@ export function GitCafeMark({ className }: MarkProps) {
 			viewBox="0 0 14 14"
 			xmlns="http://www.w3.org/2000/svg"
 		>
-			<rect fill="currentColor" height="14" rx="2" width="14" />
+			<rect fill="var(--brand-gitcafe)" height="14" rx="2" width="14" />
 		</svg>
 	);
 }
