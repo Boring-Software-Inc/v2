@@ -57,6 +57,21 @@ async function renderStatus(value: GitCafeConnectionStatus, error = false) {
 }
 
 describe("GitCafe setup progress", () => {
+	test("installation changes, expiry and server setup failures identify different recovery steps", async () => {
+		for (const [reason, message] of [
+			["installation-mismatch", "repository access changed"],
+			["expired", "authorization expired"],
+			["configuration", "server isn&#x27;t configured"],
+			["queue-unavailable", "couldn&#x27;t start the connection"],
+		] as const) {
+			const html = await renderStatus({ status: "refused", reason });
+			expect(html).toContain(message);
+			expect(html).not.toContain(
+				"verify this installation with your current access",
+			);
+			expect(html).not.toContain("GitCafe connected to");
+		}
+	});
 	test("queue acceptance remains pending instead of claiming success", async () => {
 		const html = await renderStatus({ status: "pending" });
 		expect(html).toContain("Connection pending");
