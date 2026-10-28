@@ -61,7 +61,8 @@ export async function listOrganizationForgeConnections(
 			!forge.success ||
 			(forge.data === "gitcafe" &&
 				claim.lifecycle !== null &&
-				claim.lifecycle !== "active")
+				claim.lifecycle !== "active" &&
+				claim.lifecycle !== "reconcile-required")
 		)
 			continue;
 		const group = grouped.get(forge.data) ?? {
@@ -80,7 +81,8 @@ export async function listOrganizationForgeConnections(
 		if (
 			repo.forge === "gitcafe" &&
 			repo.lifecycle !== null &&
-			repo.lifecycle !== "active"
+			repo.lifecycle !== "active" &&
+			repo.lifecycle !== "reconcile-required"
 		)
 			continue;
 		const group = grouped.get(repo.forge) ?? {

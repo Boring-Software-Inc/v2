@@ -26,7 +26,7 @@ const connection: OrganizationForgeConnection = {
 	],
 };
 
-function page(canManage: boolean) {
+function createClient(canManage: boolean) {
 	const client = new QueryClient();
 	client.setQueryData(orgContextQueryOptions("team").queryKey, {
 		id: "org-team",
@@ -41,11 +41,20 @@ function page(canManage: boolean) {
 	client.setQueryData(organizationConnectionsQueryOptions("team").queryKey, [
 		connection,
 	]);
-	const markup = renderToString(
+	return client;
+}
+
+function renderPage(client: QueryClient) {
+	return renderToString(
 		<QueryClientProvider client={client}>
 			<OrganizationConnectionsPage org="team" />
 		</QueryClientProvider>,
 	);
+}
+
+function page(canManage: boolean) {
+	const client = createClient(canManage);
+	const markup = renderPage(client);
 	client.clear();
 	return markup;
 }
@@ -91,4 +100,28 @@ test("empty installation groups are disabled and unknown installation metadata o
 	);
 	expect(unknown).toContain("boring/scratch");
 	expect(unknown).not.toContain("Disconnect");
+});
+
+test("a failed access refresh keeps the cached repository list and its controls", async () => {
+	const client = createClient(true);
+	try {
+		await expect(
+			client.fetchQuery({
+				...organizationConnectionsQueryOptions("team"),
+				staleTime: 0,
+				retry: false,
+				queryFn: async () => {
+					throw new Error("Controlled refresh outage");
+				},
+			}),
+		).rejects.toThrow("Controlled refresh outage");
+		const markup = renderPage(client);
+		expect(markup).toContain("boring/scratch");
+		expect(markup).toContain(
+			'aria-label="Disconnect boring/scratch from GitCafe"',
+		);
+		expect(markup).toContain("Couldn't refresh access".replace("'", "&#x27;"));
+	} finally {
+		client.clear();
+	}
 });

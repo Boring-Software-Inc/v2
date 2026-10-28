@@ -11,6 +11,7 @@ import {
 	type TestDatabase,
 } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
+import { eq } from "drizzle-orm";
 import { listOrganizationForgeConnections } from "./repository-connections.ts";
 
 let container: TestDatabase;
@@ -160,4 +161,27 @@ test("empty and unrelated organizations cannot see another tenant's connections"
 		result.flatMap((group) => group.repositories).map((repo) => repo.fullName),
 	).toEqual(["private-tenant/hidden"]);
 	expect(result.flatMap((group) => group.installations)).toEqual([]);
+});
+
+test("selection reconciliation retains unremoved siblings and their installation settings", async () => {
+	await db
+		.update(gitCafeInstallationLifecycle)
+		.set({ status: "reconcile-required" })
+		.where(eq(gitCafeInstallationLifecycle.installationId, activeInstallation));
+	try {
+		const result = await listOrganizationForgeConnections(db, orgId);
+		const gitcafe = result.find((group) => group.forge === "gitcafe");
+		expect(gitcafe?.repositories.map((repo) => repo.id)).toEqual([repoId]);
+		expect(gitcafe?.installations.map((item) => item.installationId)).toEqual([
+			activeInstallation,
+		]);
+		expect(JSON.stringify(result)).not.toContain("boring/removed");
+	} finally {
+		await db
+			.update(gitCafeInstallationLifecycle)
+			.set({ status: "active" })
+			.where(
+				eq(gitCafeInstallationLifecycle.installationId, activeInstallation),
+			);
+	}
 });
