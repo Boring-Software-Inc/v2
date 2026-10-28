@@ -74,12 +74,7 @@ function ConnectForgeCell({
 	});
 	const connections = useQuery({
 		...organizationConnectionsQueryOptions(org ?? ""),
-		enabled:
-			forge.id === "gitcafe" &&
-			Boolean(org) &&
-			canManage &&
-			forge.available &&
-			!providersError,
+		enabled: forge.id === "gitcafe" && Boolean(org) && canManage,
 	});
 	const existing = connections.data?.find(
 		(connection) => connection.forge === "gitcafe",
@@ -125,8 +120,10 @@ function ConnectForgeCell({
 	const state = cellState();
 	if (
 		forge.id === "gitcafe" &&
-		state.kind === "ready" &&
 		org &&
+		canManage &&
+		!orgPending &&
+		!orgError &&
 		existing?.installations.length
 	)
 		return (
