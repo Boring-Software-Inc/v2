@@ -168,6 +168,7 @@ test("sync shares provider availability while native repository management stays
 				<GitCafeRepositorySelection
 					org="team"
 					installations={connection.installations}
+					repositories={connection.repositories}
 				/>
 			</QueryClientProvider>,
 		);
@@ -183,4 +184,45 @@ test("sync shares provider availability while native repository management stays
 		);
 		client.clear();
 	}
+});
+
+test("same-owner installations identify the current repository selection separately from the empty one", () => {
+	const client = createClient(true);
+	client.setQueryData(organizationConnectionsQueryOptions("team").queryKey, [
+		{
+			...connection,
+			repositories: [
+				...connection.repositories,
+				{
+					id: "unassigned-repo",
+					fullName: "boring/unassigned",
+					installationId: null,
+				},
+			],
+			installations: [
+				{
+					installationId: "older-empty-installation",
+					owner: "boring",
+					accountType: "Organization",
+				},
+				...connection.installations,
+			],
+		},
+	]);
+	const markup = renderPage(client);
+	expect(markup).toContain(
+		'aria-label="Sync GitCafe repositories for boring, 0 connected repos"',
+	);
+	expect(markup).toContain(
+		'aria-label="Sync GitCafe repositories for boring, 1 connected repo"',
+	);
+	expect(markup).toContain("0 connected");
+	expect(markup).toContain("1 connected");
+	expect(markup).toContain(
+		"https://git.cafe/orgs/boring/settings/apps/older-empty-installation",
+	);
+	expect(markup).toContain(
+		"https://git.cafe/orgs/boring/settings/apps/installation-one",
+	);
+	client.clear();
 });

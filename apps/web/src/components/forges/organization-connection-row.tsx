@@ -75,6 +75,7 @@ export function OrganizationConnectionRow({
 					<div className="pb-3">
 						<GitCafeRepositorySelection
 							installations={connection.installations}
+							repositories={connection.repositories}
 							org={org}
 						/>
 					</div>

@@ -134,6 +134,7 @@ function ConnectForgeCell({
 				</div>
 				<GitCafeRepositorySelection
 					installations={existing.installations}
+					repositories={existing.repositories}
 					org={org}
 				/>
 				<ForgeCell
