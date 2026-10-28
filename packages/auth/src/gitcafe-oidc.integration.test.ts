@@ -1367,6 +1367,35 @@ async function mutateState(
 }
 
 describe("GitCafe connect-only generated authorization protocol (not captured provider evidence)", () => {
+	test("callback failures identify only the failed boundary without exposing authorization material", async () => {
+		for (const [options, code] of [
+			[
+				{ tokenScope: "openid profile email" },
+				"GITCAFE_CONNECT_TOKEN_RESPONSE",
+			],
+			[{ claims: { at_hash: "wrong" } }, "GITCAFE_CONNECT_IDENTITY"],
+			[{ userinfoStatus: 401 }, "GITCAFE_CONNECT_USERINFO"],
+			[{ principalStatus: 403 }, "GITCAFE_CONNECT_PRINCIPAL"],
+		] satisfies [FlowOptions, string][]) {
+			const flow = await connect(await caller(), options);
+			const response = await callback(flow);
+			expect(response.status).toBe(403);
+			const body = await response.text();
+			expect(JSON.parse(body)).toEqual({
+				message: "GitCafe connection authorization refused",
+				code,
+			});
+			for (const privateValue of [
+				flow.code,
+				flow.sub,
+				flow.email,
+				flow.url.searchParams.get("state"),
+				flow.url.searchParams.get("nonce"),
+			])
+				if (privateValue) expect(body).not.toContain(privateValue);
+			await noConnectedIdentity(flow);
+		}
+	});
 	test("uses the configured auth provider and existing callback, fixed API scopes, S256 and same-token person reads", async () => {
 		const who = await caller();
 		const flow = await connect(who);

@@ -11,6 +11,26 @@ export const GITCAFE_CONNECT_SCOPES = [
 	"repo:metadata:read",
 ] as const;
 
+export const gitCafeConnectFailureCodeSchema = z.enum([
+	"GITCAFE_CONNECT_STATE",
+	"GITCAFE_CONNECT_AUTHORITY",
+	"GITCAFE_CONNECT_TOKEN_EXCHANGE",
+	"GITCAFE_CONNECT_TOKEN_RESPONSE",
+	"GITCAFE_CONNECT_IDENTITY",
+	"GITCAFE_CONNECT_USERINFO",
+	"GITCAFE_CONNECT_PRINCIPAL",
+	"GITCAFE_CONNECT_PROOF",
+]);
+export type GitCafeConnectFailureCode = z.infer<
+	typeof gitCafeConnectFailureCodeSchema
+>;
+
+export const gitCafeConnectFailureSchema = z.strictObject({
+	message: z.literal("GitCafe connection authorization refused"),
+	code: gitCafeConnectFailureCodeSchema.optional(),
+});
+export type GitCafeConnectFailure = z.infer<typeof gitCafeConnectFailureSchema>;
+
 export const gitCafeConnectRequestSchema = z.strictObject({
 	orgId: z.string().min(1),
 	intendedInstallationId: z.string().min(1).max(255),
