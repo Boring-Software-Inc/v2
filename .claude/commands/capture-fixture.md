@@ -1,5 +1,5 @@
 ---
-description: Take a raw payload (events table, quarantined parse failure, or pasted), scrub PII/tokens, file it under the appropriate existing forge fixture home with provenance, and wire it into the contract-test corpus.
+description: Take a raw payload (events table, quarantined parse failure, or pasted), scrub PII/tokens, file it under the appropriate forge fixture home with provenance, and wire it into the contract-test corpus.
 argument-hint: <source>
 ---
 
@@ -26,8 +26,8 @@ Steps:
 
 ### GitCafe public API responses
 
-For GitCafe, use `packages/forge-opengit/fixtures/` as the existing forge package
-home. Capture only an authorized response; for public reads record the exact GET
+For GitCafe, use `packages/forge-gitcafe/fixtures/`. Capture only an authorized
+response; for public reads record the exact GET
 URL, UTC capture time, HTTP status, response content type, and SHA-256 of the
 original bytes. Save the original bytes outside the repository for validation.
 Scrub secrets and private personal data without changing fields consumed by a

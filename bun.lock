@@ -230,6 +230,14 @@
         "@tripwire/contracts": "workspace:*",
       },
     },
+    "packages/forge-gitcafe": {
+      "name": "@tripwire/forge-gitcafe",
+      "version": "0.0.0",
+      "dependencies": {
+        "@tripwire/contracts": "workspace:*",
+        "@tripwire/utils": "workspace:*",
+      },
+    },
     "packages/forge-github": {
       "name": "@tripwire/forge-github",
       "version": "0.0.0",
@@ -936,6 +944,8 @@
     "@tripwire/db": ["@tripwire/db@workspace:packages/db"],
 
     "@tripwire/forge": ["@tripwire/forge@workspace:packages/forge"],
+
+    "@tripwire/forge-gitcafe": ["@tripwire/forge-gitcafe@workspace:packages/forge-gitcafe"],
 
     "@tripwire/forge-github": ["@tripwire/forge-github@workspace:packages/forge-github"],
 

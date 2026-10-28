@@ -10,7 +10,7 @@ import {
 import {
 	createGitCafeInstallationRequest,
 	verifyGitCafeWebhook,
-} from "@tripwire/forge-opengit/gitcafe";
+} from "@tripwire/forge-gitcafe";
 
 describe("GitCafe protocol primitives", () => {
 	const { privateKey, publicKey } = generateKeyPairSync("ec", {
@@ -128,7 +128,7 @@ describe("GitCafe protocol primitives", () => {
 	test("parses the captured public repository response", () => {
 		const raw: unknown = JSON.parse(
 			readFileSync(
-				new URL("../../fixtures/gitcafe-repository.json", import.meta.url),
+				new URL("../fixtures/gitcafe-repository.json", import.meta.url),
 				"utf8",
 			),
 		);
@@ -144,7 +144,7 @@ describe("GitCafe protocol primitives", () => {
 		] as const) {
 			const value: unknown = JSON.parse(
 				readFileSync(
-					new URL(`../../fixtures/gitcafe-${name}.json`, import.meta.url),
+					new URL(`../fixtures/gitcafe-${name}.json`, import.meta.url),
 					"utf8",
 				),
 			);

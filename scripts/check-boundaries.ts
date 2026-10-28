@@ -12,12 +12,13 @@ import { Glob } from "bun";
  * Derived verbatim from the arrows:
  *   contracts    ← everything            (imports nothing but zod)
  *   utils        ← everything except contracts
- *   forge        ← forge-github, forge-opengit, worker
+ *   forge        ← forge-github, forge-opengit, forge-gitcafe, worker
  *   core         ← worker ONLY
  *   sdk          ← forge-github, worker, db, web  (signal registry + defineForge; pure)
  *   db           ← worker, api, web, mcp
  *   forge-github ← worker, api
  *   forge-opengit ← worker, api           (no sdk yet — no signals of its own)
+ *   forge-gitcafe ← worker, api
  *   ui           ← web
  * apps import packages; packages never import apps; nothing imports core but worker.
  */
@@ -31,11 +32,20 @@ const ALLOWED: Record<string, readonly string[]> = {
 	sdk: ["contracts"],
 	"forge-github": ["contracts", "utils", "forge", "sdk"],
 	"forge-opengit": ["contracts", "utils", "forge"],
+	"forge-gitcafe": ["contracts", "utils", "forge"],
 	db: ["contracts", "utils", "sdk"],
 	ui: [],
 	// apps
 	web: ["auth", "contracts", "utils", "db", "ui", "sdk"],
-	api: ["auth", "contracts", "utils", "db", "forge-github", "forge-opengit"],
+	api: [
+		"auth",
+		"contracts",
+		"utils",
+		"db",
+		"forge-github",
+		"forge-opengit",
+		"forge-gitcafe",
+	],
 	mcp: ["auth", "contracts", "utils", "db"],
 	worker: [
 		"contracts",
@@ -45,6 +55,7 @@ const ALLOWED: Record<string, readonly string[]> = {
 		"forge",
 		"forge-github",
 		"forge-opengit",
+		"forge-gitcafe",
 		"sdk",
 	],
 	cli: ["contracts"],
