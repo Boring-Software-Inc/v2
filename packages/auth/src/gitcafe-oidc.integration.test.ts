@@ -98,6 +98,10 @@ interface Flow {
 	options: FlowOptions;
 }
 
+interface ConnectFlow extends Flow {
+	request: GitCafeConnectRequest;
+}
+
 let container: TestDatabase;
 let db: Db;
 let pool: { end(): Promise<void> };
@@ -1219,14 +1223,15 @@ async function connectPost(
 async function connect(
 	who: ConnectCaller,
 	options: FlowOptions = {},
-): Promise<Flow> {
+): Promise<ConnectFlow> {
 	const response = await connectPost(who);
 	expect(response.status).toBe(200);
 	const { url } = gitCafeAuthorizationResponseSchema.parse(
 		await response.json(),
 	);
 	const sub = options.sub ?? generateId();
-	const flow: Flow = {
+	const flow: ConnectFlow = {
+		request: who.request,
 		code: generateId(),
 		url: new URL(url),
 		cookie: `${who.cookie}; ${cookieHeader(response)}`,
@@ -1238,14 +1243,31 @@ async function connect(
 	return flow;
 }
 
-async function proofHandle(flow: Flow) {
+async function proofHandle(flow: ConnectFlow) {
 	const response = await callback(flow);
-	expect(response.status).toBe(200);
-	expect(response.headers.get("location")).toBeNull();
-	const json: unknown = await response.json();
-	const parsed = gitCafeConnectProofHandleSchema.parse(json);
-	expect(Object.keys(Object(json))).toEqual(["proofHandle"]);
-	return parsed.proofHandle;
+	expect(response.status).toBe(303);
+	const location = response.headers.get("location");
+	if (!location) throw new Error("Connect continuation missing");
+	const continuation = new URL(location);
+	expect(continuation.origin).toBe(BASE_URL);
+	expect(continuation.pathname).toBe("/onboarding/setup");
+	expect(continuation.searchParams.get("forge")).toBe("gitcafe");
+	expect(continuation.searchParams.get("installation_id")).toBe(
+		flow.request.intendedInstallationId,
+	);
+	expect(continuation.searchParams.get("org")).toBe(flow.request.orgId);
+	expect([...continuation.searchParams.keys()].sort()).toEqual([
+		"forge",
+		"installation_id",
+		"org",
+		"proofHandle",
+	]);
+	expect(response.headers.get("cache-control")).toBe("no-store");
+	expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+	expect(await response.text()).toBe("");
+	return gitCafeConnectProofHandleSchema.parse({
+		proofHandle: continuation.searchParams.get("proofHandle"),
+	}).proofHandle;
 }
 
 async function consume(
@@ -1265,6 +1287,10 @@ async function connectRejected(flow: Flow, returned?: Response) {
 	expect(response.status).toBe(403);
 	expect(response.headers.get("location")).toBeNull();
 	expect(await response.text()).not.toContain("proofHandle");
+	await noConnectedIdentity(flow);
+}
+
+async function noConnectedIdentity(flow: Flow) {
 	expect(
 		await db
 			.select()
@@ -1287,6 +1313,30 @@ async function connectRejected(flow: Flow, returned?: Response) {
 				),
 			),
 	).toHaveLength(0);
+}
+
+async function connectCancelled(flow: ConnectFlow, response: Response) {
+	expect(response.status).toBe(303);
+	const location = response.headers.get("location");
+	if (!location) throw new Error("Connect cancellation continuation missing");
+	const continuation = new URL(location);
+	expect(continuation.origin).toBe(BASE_URL);
+	expect(continuation.pathname).toBe("/onboarding/setup");
+	expect(Object.fromEntries(continuation.searchParams)).toEqual({
+		forge: "gitcafe",
+		installation_id: flow.request.intendedInstallationId,
+		org: flow.request.orgId,
+		connect_error: "refused",
+	});
+	expect(response.headers.get("cache-control")).toBe("no-store");
+	expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+	expect(await response.text()).toBe("");
+	expect(
+		await (await auth.$context).internalAdapter.findVerificationValue(
+			`gitcafe-connect-nonce:${flow.url.searchParams.get("nonce")}`,
+		),
+	).toBeNull();
+	await noConnectedIdentity(flow);
 }
 
 async function storedProof(handle: string) {
@@ -1486,7 +1536,6 @@ describe("GitCafe connect-only generated authorization protocol (not captured pr
 			"missing",
 			"expired",
 			"wrong",
-			"denied",
 			"issuer",
 			"code",
 		] as const) {
@@ -1509,7 +1558,6 @@ describe("GitCafe connect-only generated authorization protocol (not captured pr
 			const url = new URL(`${BASE_URL}/api/auth/callback/gitcafe`);
 			url.searchParams.set("state", flow.url.searchParams.get("state") ?? "");
 			if (kind !== "code") url.searchParams.set("code", flow.code);
-			if (kind === "denied") url.searchParams.set("error", "access_denied");
 			if (kind === "issuer")
 				url.searchParams.set("iss", "https://attacker.test");
 			await connectRejected(
@@ -1704,7 +1752,7 @@ describe("GitCafe connect-only generated authorization protocol (not captured pr
 });
 
 describe("GitCafe connect callback separation", () => {
-	test("connect state cannot enter another provider callback and POST errors cannot sign in", async () => {
+	test("connect state cannot enter another provider callback and valid denials never sign in", async () => {
 		for (const provider of ["github", "opengit"]) {
 			const flow = await connect(await caller());
 			const url = `${BASE_URL}/api/auth/callback/${provider}?state=${flow.url.searchParams.get("state")}&code=${flow.code}`;
@@ -1715,18 +1763,27 @@ describe("GitCafe connect callback separation", () => {
 				),
 			);
 		}
-		const flow = await connect(await caller());
-		const response = await auth.handler(
-			new Request(`${BASE_URL}/api/auth/callback/gitcafe`, {
-				method: "POST",
-				headers: { cookie: flow.cookie, "content-type": "application/json" },
-				body: JSON.stringify({
-					state: flow.url.searchParams.get("state"),
-					error: "access_denied",
+		for (const method of ["GET", "POST"] as const) {
+			const flow = await connect(await caller());
+			const url = new URL(`${BASE_URL}/api/auth/callback/gitcafe`);
+			const denial = {
+				state: flow.url.searchParams.get("state"),
+				error: "access_denied",
+			};
+			if (method === "GET") {
+				url.searchParams.set("state", denial.state ?? "");
+				url.searchParams.set("error", denial.error);
+			}
+			const response = await auth.handler(
+				new Request(url.toString(), {
+					method,
+					headers: { cookie: flow.cookie, "content-type": "application/json" },
+					body: method === "POST" ? JSON.stringify(denial) : undefined,
 				}),
-			}),
-		);
-		await connectRejected(flow, response);
+			);
+			await connectCancelled(flow, response);
+			await connectRejected(flow);
+		}
 	});
 
 	test("ordinary sign-in additionalData cannot select or consume the connect branch", async () => {
@@ -1764,7 +1821,8 @@ describe("GitCafe connect callback separation", () => {
 	});
 
 	test("two state readers on separate auth instances yield one exchange and one opaque proof", async () => {
-		const flow = await connect(await caller());
+		const who = await caller();
+		const flow = await connect(who);
 		let release = () => {};
 		const barrier = new Promise<void>((resolve) => {
 			release = resolve;
@@ -1803,12 +1861,21 @@ describe("GitCafe connect callback separation", () => {
 		expect(readers).toBe(2);
 		expect(exchanges).toHaveLength(count + 1);
 		expect(results.map((response) => response.status).sort()).toEqual([
-			200, 403,
+			303, 403,
 		]);
 		for (const response of results) {
-			if (response.status === 200)
+			if (response.status === 303) {
 				expect(response.headers.get("cache-control")).toBe("no-store");
-			expect(response.headers.get("location")).toBeNull();
+				expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+				const location = response.headers.get("location");
+				if (!location) throw new Error("Concurrent continuation missing");
+				const continuation = new URL(location);
+				expect(continuation.origin).toBe(BASE_URL);
+				const { proofHandle } = gitCafeConnectProofHandleSchema.parse({
+					proofHandle: continuation.searchParams.get("proofHandle"),
+				});
+				expect((await consume(who, proofHandle)).subject).toBe(flow.sub);
+			} else expect(response.headers.get("location")).toBeNull();
 		}
 	});
 

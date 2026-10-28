@@ -83,21 +83,28 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
  * and white-screen; hashed assets stay immutable via their own filenames.
  */
 const securityHeadersMiddleware = createMiddleware({ type: "request" }).server(
-	async ({ next }) => {
+	async ({ next, request }) => {
 		const response = (await next()) as unknown as Response;
 		if (response && typeof response.headers?.set === "function") {
 			const h = response.headers;
 			h.set("X-Content-Type-Options", "nosniff");
 			h.set("X-Frame-Options", "DENY");
 			h.set("Content-Security-Policy", "frame-ancestors 'none'");
-			h.set("Referrer-Policy", "strict-origin-when-cross-origin");
+			const setup = new URL(request.url).pathname === "/onboarding/setup";
+			if (!h.has("Referrer-Policy"))
+				h.set("Referrer-Policy", "strict-origin-when-cross-origin");
+			if (setup) {
+				h.set("Referrer-Policy", "no-referrer");
+				h.set("Cache-Control", "no-store");
+				h.set("Pragma", "no-cache");
+			}
 			if (import.meta.env.PROD) {
 				h.set(
 					"Strict-Transport-Security",
 					"max-age=63072000; includeSubDomains; preload",
 				);
 			}
-			if ((h.get("content-type") ?? "").includes("text/html")) {
+			if (!setup && (h.get("content-type") ?? "").includes("text/html")) {
 				h.set("Cache-Control", "no-cache");
 			}
 		}

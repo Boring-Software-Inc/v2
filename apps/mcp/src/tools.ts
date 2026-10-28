@@ -48,6 +48,7 @@ import { z } from "zod";
 import { TOOL_SPECS, type ToolName, toolVisible } from "./catalog.ts";
 import {
 	appLink,
+	fail,
 	guard,
 	ok,
 	requireAccess,
@@ -625,7 +626,16 @@ export function registerTools(
 						repo,
 						"turn_on_gate",
 					);
-					await repoServices.turnOnGate(ctx.db, await ctx.getBoss(), found.id);
+					const result = await repoServices.turnOnGate(
+						ctx.db,
+						ctx.getBoss,
+						found.id,
+					);
+					if (!result.ok)
+						return {
+							...ok(result),
+							isError: true,
+						};
 					return ok({
 						gateOn: true,
 						repo: found.fullName,
@@ -723,7 +733,7 @@ export function registerTools(
 							})
 						: null;
 					if (!(row && result)) {
-						throw new ToolError(
+						return fail(
 							`No workflow ${workflowId} on ${found.fullName}.`,
 							"list_workflows",
 						);
@@ -733,12 +743,12 @@ export function registerTools(
 							(issue) => issue.message === "workflow not found",
 						);
 						if (missing) {
-							throw new ToolError(
+							return fail(
 								`No workflow ${workflowId} on ${found.fullName}.`,
 								"list_workflows",
 							);
 						}
-						throw new ToolError(
+						return fail(
 							`Workflow ${workflowId} cannot be turned on. ${result.issues.map(validationIssueText).join(" ")}`,
 						);
 					}

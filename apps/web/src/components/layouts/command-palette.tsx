@@ -142,7 +142,13 @@ export function CommandPalette({
 				toast.success(
 					"Tripwire is on for this repo. It is loading past change requests.",
 				);
+				return;
 			}
+			toast.fail(
+				!result.ok && result.reason === "queue-unavailable"
+					? "Tripwire did not turn on. Try again in a moment."
+					: "Tripwire did not turn on for this repo. Reload the page and try again.",
+			);
 		},
 		onError: () =>
 			toast.fail(
@@ -286,7 +292,12 @@ export function CommandPalette({
 		currentOrg && currentRepo
 			? (orgHome?.repos.find((repo) => repo.name === currentRepo) ?? null)
 			: null;
-	if (currentOrg && currentRepo && scopedRepo) {
+	if (
+		currentOrg &&
+		currentRepo &&
+		scopedRepo &&
+		(scopedRepo.armed || scopedRepo.forge !== "gitcafe")
+	) {
 		actionItems.push(
 			scopedRepo.armed
 				? {

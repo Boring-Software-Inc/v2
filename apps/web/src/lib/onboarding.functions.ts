@@ -3,6 +3,7 @@ import type { InstallUrlState } from "@tripwire/auth/install-state";
 import {
 	type ClaimableInstallStatus,
 	type Forge,
+	type ForgeId,
 	forgeConnectable,
 	type InstallStatus,
 } from "@tripwire/contracts";
@@ -65,7 +66,7 @@ export const getOrgInstallUrl = createServerFn({ method: "GET" })
 		accessGuardMiddleware,
 		orgPermissionMiddleware("connections:manage"),
 	])
-	.inputValidator((input: { org: string; forge?: Forge }) => input)
+	.inputValidator((input: { org: string; forge?: ForgeId }) => input)
 	.handler(async ({ context, data }): Promise<InstallUrlState> => {
 		const org = (context as { org: OrgWithRole }).org;
 		const { requireSession } = await import("#/lib/server/session");
@@ -73,13 +74,23 @@ export const getOrgInstallUrl = createServerFn({ method: "GET" })
 		if (!userId) {
 			return { status: "no-session" };
 		}
+		const { readProviderAvailability } = await import(
+			"#/lib/server/provider-availability"
+		);
+		const forge = data.forge ?? "github";
+		if (!(await readProviderAvailability()).available.includes(forge))
+			return { status: "not-configured" };
 		const { signInstallState } = await import("#/lib/server/install-state");
-		const state = signInstallState({ userId, orgId: org.id });
+		const hint = { userId, orgId: org.id };
+		const state = signInstallState(
+			forge === "gitcafe" ? { ...hint, forge: "gitcafe" } : hint,
+		);
 		const { installUrlFor } = await import("@tripwire/auth/install-state");
 		return installUrlFor(
 			data.forge ?? "github",
 			state,
 			process.env.GITHUB_APP_SLUG,
+			process.env.GITCAFE_APP_SLUG,
 		);
 	});
 
@@ -97,7 +108,8 @@ export const getInstallPreview = createServerFn({ method: "GET" })
 			forge: "github",
 			userId,
 			installationId: data.installationId,
-			stateOrgId: bound && bound.userId === userId ? bound.orgId : null,
+			stateOrgId:
+				bound && !bound.forge && bound.userId === userId ? bound.orgId : null,
 		});
 		if (forgeConnectable(status.forge)) {
 			return status;

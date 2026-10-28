@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { forgeSignIn } from "@tripwire/contracts";
-import { signInForges } from "@tripwire/utils/forge-sign-in";
+import { availableForges } from "@tripwire/utils/forge-sign-in";
 import { useState } from "react";
 import {
 	FORGE_GRID,
@@ -8,7 +7,7 @@ import {
 	type ForgeCellState,
 } from "#/components/forges/forge-cell";
 import { toast } from "#/components/glaze/ui/toast";
-import { signInProviderIdsQueryOptions } from "#/lib/auth.query";
+import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { authClient } from "#/lib/auth-client";
 
 /**
@@ -21,9 +20,9 @@ import { authClient } from "#/lib/auth-client";
  */
 export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 	const [signingIn, setSigningIn] = useState<string | null>(null);
-	const providers = useQuery(signInProviderIdsQueryOptions());
+	const providers = useQuery(providerAvailabilityQueryOptions());
 
-	async function signIn(forge: ReturnType<typeof signInForges>[number]) {
+	async function signIn(forge: ReturnType<typeof availableForges>[number]) {
 		setSigningIn(forge.id);
 		const fallback = `Couldn't reach ${forge.label}. Check your connection and try again.`;
 		try {
@@ -42,11 +41,8 @@ export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 	}
 
 	function cellState(
-		forge: ReturnType<typeof signInForges>[number],
+		forge: ReturnType<typeof availableForges>[number],
 	): ForgeCellState {
-		if (forgeSignIn(forge.id) === null) {
-			return { kind: "unavailable" };
-		}
 		if (providers.isPending) {
 			return { kind: "loading" };
 		}
@@ -69,7 +65,7 @@ export function ForgeGrid({ redirect }: { redirect: string | undefined }) {
 
 	return (
 		<div className={FORGE_GRID}>
-			{signInForges(providers.data ?? []).map((forge) => (
+			{availableForges(providers.data).map((forge) => (
 				<ForgeCell
 					id={forge.id}
 					key={forge.id}

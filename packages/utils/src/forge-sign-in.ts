@@ -1,17 +1,22 @@
-import { FORGE_CATALOG, type ForgeId, forgeSignIn } from "@tripwire/contracts";
+import { FORGE_CATALOG, type ProviderAvailability } from "@tripwire/contracts";
 
 const LIST = new Intl.ListFormat("en", { style: "long", type: "conjunction" });
 
-export function signInForges(providerIds: readonly ForgeId[]) {
+/** Both grids consume the same server decision; action-specific access is checked separately. */
+export function availableForges(
+	availability: ProviderAvailability | undefined,
+) {
 	return FORGE_CATALOG.map((forge) => ({
 		...forge,
-		available: forgeSignIn(forge.id) !== null && providerIds.includes(forge.id),
+		available: availability?.available.includes(forge.id) ?? false,
 	}));
 }
 
-export function signInForgeLabels(providerIds: readonly ForgeId[]) {
+export function availableForgeLabels(
+	availability: ProviderAvailability | undefined,
+) {
 	return LIST.format(
-		signInForges(providerIds)
+		availableForges(availability)
 			.filter((forge) => forge.available)
 			.map((forge) => forge.label),
 	);

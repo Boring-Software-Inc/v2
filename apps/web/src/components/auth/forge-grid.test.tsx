@@ -8,7 +8,7 @@ import {
 import type { ConfiguredSignInProviderIds } from "@tripwire/contracts";
 import { renderToString } from "react-dom/server";
 import { ForgeGrid } from "#/components/auth/forge-grid";
-import { signInProviderIdsQueryOptions } from "#/lib/auth.query";
+import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 
 function renderGrid(client: QueryClient) {
 	return renderToString(
@@ -35,7 +35,9 @@ describe("sign-in provider SSR", () => {
 	for (const ids of providerCases) {
 		test(`initial paint and hydrated cache agree for ${ids.join(",") || "no providers"}`, () => {
 			const server = new QueryClient();
-			server.setQueryData(signInProviderIdsQueryOptions().queryKey, ids);
+			server.setQueryData(providerAvailabilityQueryOptions().queryKey, {
+				available: ids,
+			});
 			const markup = renderGrid(server);
 			const client = new QueryClient();
 			hydrate(client, dehydrate(server));
@@ -56,23 +58,19 @@ describe("sign-in provider SSR", () => {
 		});
 	}
 
-	test("provider lookup pending keeps supported cells busy and deferred forges disabled", () => {
+	test("provider lookup pending keeps all cells busy until the one result arrives", () => {
 		const client = new QueryClient();
 		const markup = renderGrid(client);
-		for (const label of ["GitHub", "GitCafe"]) {
+		for (const label of ["GitHub", "GitCafe", "OpenGit", "GitLab"]) {
 			expect(button(markup, label)).toContain('aria-busy="true"');
-		}
-		for (const label of ["OpenGit", "GitLab"]) {
-			expect(button(markup, label)).not.toContain('aria-busy="true"');
-			expect(button(markup, label)).toContain('aria-disabled="true"');
 		}
 		client.clear();
 	});
 
 	test("lookup errors block even previously configured providers with an accessible explanation", () => {
 		const client = new QueryClient();
-		const options = signInProviderIdsQueryOptions();
-		client.setQueryData(options.queryKey, ["github", "gitcafe"]);
+		const options = providerAvailabilityQueryOptions();
+		client.setQueryData(options.queryKey, { available: ["github", "gitcafe"] });
 		client
 			.getQueryCache()
 			.find({ queryKey: options.queryKey })

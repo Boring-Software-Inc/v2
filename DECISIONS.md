@@ -484,3 +484,52 @@ explicit allowed-layer credential handoff plus fresh person binding, bot-read
 current membership/role, expected active app/installation, selected repositories,
 Tripwire permission and unique-claim verification. This proof alone is never an
 installation ownership or administrator claim, and no GET or POST claim is added.
+
+### 2026-10-28 — GitCafe connection storage and isolated staging verification
+
+The current build step connects the dedicated GitCafe staging installation after
+explicit confirmation. `Forge`/`forgeSchema` now admit GitCafe repository rows via
+the catalog's `connection` status, independently of `IngestForge`/
+`ingestForgeSchema`. This permits forge-qualified repository ownership, org
+routing, Home, and the picker without claiming an evaluation adapter exists.
+GitCafe's worker runtime and normalizer are explicitly null; webhook ingest,
+re-runs, action retries, repository arming, and workflow protection enabling
+remain unavailable. GitHub and historical OpenGit retain their current behavior.
+
+A consumed server-only person proof becomes a strict, five-minute action job
+containing user/session/org/installation, verified subject/actor, authorization
+and expiry timestamps, and request ID. No bearer credential, private key, or
+reusable authorization secret enters pg-boss. The worker rechecks current local
+session posture and target-org connections:manage, fresh bot-read org-owner or
+org-admin membership for that actor, active expected app/installation, selected
+repository stable identities, and unique installation/repository ownership. It
+revalidates remote authority immediately before the atomic ownership mutation;
+new and refreshed GitCafe rows stay unarmed. Generic claim/move paths refuse
+GitCafe. No GET claims an installation, and no account or identity is linked.
+
+`WORKER_MODE=gitcafe-connect` is an operational staging verification mode. It
+requires Unkey's actual `preview` environment slug and the captured dedicated
+Tripwire Staging app ID `int_01m60999c0fqg841d48s29qwtv`; this concrete pin excludes
+production and is not a general integration activation flag. It starts only the
+connection queue and health endpoint, without the general deployment fence,
+normal queue registration/consumption, pg-boss scheduling, schema migration, or
+maintenance. Existing queue schema must already exist. The stopped staging
+worker's event/action/schedule backlog must remain untouched. No deployment or
+production enablement is authorized by this code change.
+
+The worker uses the existing `@tripwire/forge-gitcafe` installed-client package;
+no new external dependency, package, adapter, or deployment SDK is introduced.
+Login and Connect consume one exact public provider availability result,
+`{ available: ConfiguredSignInProviderIds }`, so advertised availability cannot
+split into independent login and connection lists. Membership and repository
+schemas are grounded in the genuine authorized staging captures with independent
+original-byte/provenance/privacy validation recorded in their sidecars.
+
+### 2026-10-28 — Bounded connection failure logging in the web head
+
+The web workspace declares the existing stack's `pino@^10.3.1` dependency for
+GitCafe confirmation failures. It replaces silent catch-only handling at that
+edge; pg-boss and TanStack Start do not provide the required structured pino
+logging. Logs contain a generated request ID and a fixed failure code, never
+provider response bodies, delegated credentials, actors, or email addresses.
+No new third-party library is introduced.

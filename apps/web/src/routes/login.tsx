@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { signInForgeLabels } from "@tripwire/utils/forge-sign-in";
+import { availableForgeLabels } from "@tripwire/utils/forge-sign-in";
 import { LoginPage } from "#/components/auth/login-page";
 import { LoginPageSkeleton } from "#/components/auth/login-page-skeleton";
-import { signInProviderIdsQueryOptions } from "#/lib/auth.query";
+import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { oauthAuthorizeResume } from "#/lib/oauth-resume";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 import { type TrackingSearch, trackingSearch } from "#/lib/track";
@@ -27,16 +27,16 @@ export const Route = createFileRoute("/login")({
 	},
 	/** Keep provider availability and browser detection in the SSR query cache. */
 	loader: async ({ context }) => {
-		const [signInProviderIds] = await Promise.all([
-			context.queryClient.ensureQueryData(signInProviderIdsQueryOptions()),
+		const [providerAvailability] = await Promise.all([
+			context.queryClient.ensureQueryData(providerAvailabilityQueryOptions()),
 			context.queryClient.ensureQueryData(webviewHostQueryOptions()),
 		]);
-		return { signInProviderIds };
+		return { providerAvailability };
 	},
 	component: LoginPage,
 	pendingComponent: LoginPageSkeleton,
 	head: ({ match, loaderData }) => {
-		const forges = signInForgeLabels(loaderData?.signInProviderIds ?? []);
+		const forges = availableForgeLabels(loaderData?.providerAvailability);
 		return buildSeo({
 			path: match.pathname,
 			title: formatPageTitle("Sign in"),

@@ -14,6 +14,16 @@ export const repoIdentitySchema = z.object({
 });
 export type RepoIdentity = z.infer<typeof repoIdentitySchema>;
 
+export const repoArmingResultSchema = z.discriminatedUnion("ok", [
+	z.strictObject({ ok: z.literal(true), armed: z.boolean() }),
+	z.strictObject({
+		ok: z.literal(false),
+		armed: z.literal(false),
+		reason: z.enum(["protection-unavailable", "queue-unavailable"]),
+	}),
+]);
+export type RepoArmingResult = z.infer<typeof repoArmingResultSchema>;
+
 /** A lightweight owner/name reference to a repo (was demo `Repository`). */
 export const repoRefSchema = z.object({
 	owner: z.string(),

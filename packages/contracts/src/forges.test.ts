@@ -58,7 +58,7 @@ describe("paused forges", () => {
 	});
 });
 
-test("GitCafe supports sign-in independently of ingest and connect", async () => {
+test("GitCafe supports sign-in and connection independently of ingest", async () => {
 	const {
 		DEFAULT_FORGE_ORIGIN,
 		forgeIdSchema,
@@ -66,9 +66,9 @@ test("GitCafe supports sign-in independently of ingest and connect", async () =>
 		forgePostsReviews,
 	} = await import("./forges.ts");
 	expect(forgeIdSchema.parse("gitcafe")).toBe("gitcafe");
-	expect(forgeSchema.safeParse("gitcafe").success).toBe(false);
+	expect(forgeSchema.safeParse("gitcafe").success).toBe(true);
 	expect(forgeSignIn("gitcafe")).toBe("social");
-	expect(forgeConnectable("gitcafe")).toBe(false);
+	expect(forgeConnectable("gitcafe")).toBe(true);
 	expect(forgePostsReviews("gitcafe")).toBe(false);
 	expect(DEFAULT_FORGE_ORIGIN.gitcafe).toBe("https://git.cafe");
 	expect(DEFAULT_FORGE_ORIGIN.opengit).toBe("https://open-git.com");

@@ -114,6 +114,23 @@ test("a refused activation never installs or announces success", async () => {
 	);
 });
 
+test("a queue initialization refusal offers retry without installing or announcing success", async () => {
+	arm.mockResolvedValue({
+		ok: false,
+		armed: false,
+		reason: "queue-unavailable",
+		repoId: CAUGHT.repoId,
+	});
+	fail.mockImplementation(() => "toast");
+	const { click } = render(false, ["rules:manage", "connections:manage"]);
+	await click?.();
+	expect(save).not.toHaveBeenCalled();
+	expect(success).not.toHaveBeenCalled();
+	expect(fail).toHaveBeenCalledWith(
+		"Tripwire did not turn on. Try again in a moment.",
+	);
+});
+
 test("rule managers without activation permission see why an admin is required", () => {
 	const { html, click } = render(false, ["rules:manage"]);
 	expect(click).toBeNull();

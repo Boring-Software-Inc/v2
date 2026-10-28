@@ -2,6 +2,7 @@ import {
 	catalogWithAiCredits,
 	customRuleRecordSchema,
 	diffWorkflow,
+	ingestForgeSchema,
 	issuesInState,
 	lintWorkflow,
 	mergeForPush,
@@ -597,6 +598,15 @@ export async function setWorkflowEnabled(
 		}
 		let warnings: ValidationIssue[] = [];
 		if (input.enabled) {
+			const [repo] = await tx
+				.select({ forge: repos.forge })
+				.from(repos)
+				.where(eq(repos.id, input.repoId));
+			if (!repo || !ingestForgeSchema.safeParse(repo.forge).success)
+				return {
+					ok: false,
+					issues: [{ message: "Protection is unavailable for this forge" }],
+				};
 			const result = validateWorkflowForEnable(row.definition, catalog);
 			if (!result.valid) {
 				return { ok: false, issues: result.issues };

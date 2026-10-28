@@ -259,7 +259,9 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 					<span>
 						{repo.armed
 							? attentionLine(repo)
-							: "Open the repo to turn Tripwire on"}
+							: repo.forge === "gitcafe"
+								? "Connected. GitCafe checks aren't available yet."
+								: "Open the repo to turn Tripwire on"}
 					</span>
 					{repo.lastActivityAt ? (
 						<ZonedTime at={repo.lastActivityAt} format="short" />

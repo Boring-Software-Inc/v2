@@ -1,6 +1,24 @@
 import { z } from "zod";
 import { forgeSchema } from "./forges.ts";
 
+export const installStatePayloadSchema = z.union([
+	z.object({
+		u: z.string().min(1),
+		o: z.string().min(1),
+		f: z.never().optional(),
+		p: z.never().optional(),
+		e: z.never().optional(),
+	}),
+	z.object({
+		u: z.string().min(1),
+		o: z.string().min(1),
+		f: z.literal("gitcafe"),
+		p: z.literal("gitcafe-install"),
+		e: z.number().int().max(Number.MAX_SAFE_INTEGER),
+	}),
+]);
+export type InstallStatePayload = z.infer<typeof installStatePayloadSchema>;
+
 export const installAccessResultSchema = z.enum([
 	"pending",
 	"granted-admin",

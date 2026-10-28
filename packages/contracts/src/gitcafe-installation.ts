@@ -38,3 +38,34 @@ export const gitCafeInstallationTokenSchema = z.object({
 export type GitCafeInstallationToken = z.infer<
 	typeof gitCafeInstallationTokenSchema
 >;
+
+export const gitCafeOrganizationMembersSchema = z.object({
+	items: z.array(
+		z.object({
+			actorId: z.string().min(1),
+			role: z.string().min(1),
+		}),
+	),
+	next: z.string().nullable(),
+});
+export type GitCafeOrganizationMembers = z.infer<
+	typeof gitCafeOrganizationMembersSchema
+>;
+
+export const gitCafeConnectionRepositorySchema = z.object({
+	id: z.string().min(1),
+	name: z.string().min(1),
+	owner: z.string().min(1),
+	visibility: z.enum(["public", "private"]),
+	archivedAt: z.string().nullable(),
+});
+export type GitCafeConnectionRepository = z.infer<
+	typeof gitCafeConnectionRepositorySchema
+>;
+
+export const gitCafeConnectionRepositoriesSchema = z
+	.array(gitCafeConnectionRepositorySchema)
+	.max(100);
+export type GitCafeConnectionRepositories = z.infer<
+	typeof gitCafeConnectionRepositoriesSchema
+>;

@@ -3,18 +3,24 @@ import { generateKeyPairSync } from "node:crypto";
 import {
 	type GitCafeInstallation,
 	type GitCafeInstallationToken,
+	gitCafeConnectionRepositorySchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
+	gitCafeOrganizationMembersSchema,
 } from "@tripwire/contracts";
 import {
 	GitCafeInstallationClient,
 	type GitCafeInstallationClientOptions,
 } from "@tripwire/forge-gitcafe";
+import membersFixture from "../fixtures/gitcafe-connection-members.json";
+import repositoryFixture from "../fixtures/gitcafe-connection-repository.json";
 import installationFixture from "../fixtures/gitcafe-installation.json";
 import tokenFixture from "../fixtures/gitcafe-installation-token.json";
 
 const installation = gitCafeInstallationSchema.parse(installationFixture);
 const token = gitCafeInstallationTokenSchema.parse(tokenFixture);
+const members = gitCafeOrganizationMembersSchema.parse(membersFixture);
+const repository = gitCafeConnectionRepositorySchema.parse(repositoryFixture);
 const NOW = Date.parse(token.expiresAt) - 15 * 60_000;
 const credentials = {
 	appId: installation.appId,
@@ -75,6 +81,268 @@ function deferred<T>() {
 }
 
 describe("GitCafe installation client", () => {
+	test("expected authority rejects an unrelated org, owner or selected repository before token acquisition", async () => {
+		const h = harness();
+		const client = clientFor(h);
+		const expected = await client.getInstallation(installation.id);
+		if (!expected.ok) throw new Error("local installation lookup failed");
+		for (const read of [
+			() =>
+				client.getOrganizationMembers(installation.id, "other", expected.value),
+			() =>
+				client.getRepository(
+					installation.id,
+					"other",
+					repository.name,
+					expected.value,
+				),
+			() =>
+				client.getRepository(
+					installation.id,
+					installation.org,
+					"other",
+					expected.value,
+				),
+		])
+			expect(await read()).toEqual({ ok: false, reason: "identity-mismatch" });
+		expect(h.calls).toHaveLength(1);
+	});
+
+	for (const phase of ["lookup", "mint", "response", "before-read"] as const) {
+		test(`expected authority refuses generation invalidation during ${phase}`, async () => {
+			const h = harness();
+			let reading = false;
+			const client = clientFor(h, async (url, init) => {
+				if (url.includes("/api/apps/")) {
+					if (
+						reading &&
+						((phase === "lookup" && init.method === "GET") ||
+							(phase === "mint" && init.method === "POST"))
+					)
+						client.invalidate(installation.id);
+					return h.fetch(url, init);
+				}
+				if (phase === "response") client.invalidate(installation.id);
+				return Response.json(membersFixture);
+			});
+			const expected = await client.getInstallation(installation.id);
+			if (!expected.ok) throw new Error("local installation lookup failed");
+			reading = true;
+			if (phase === "before-read") client.invalidate(installation.id);
+			expect(
+				await client.getOrganizationMembers(
+					installation.id,
+					installation.org,
+					expected.value,
+				),
+			).toEqual({ ok: false, reason: "stale" });
+		});
+	}
+
+	for (const operation of ["members", "repository"] as const) {
+		test(`expected ${operation} read refuses a scope change observed during its response`, async () => {
+			const h = harness();
+			const client = clientFor(h, async (url, init) => {
+				if (url.includes("/api/apps/")) return h.fetch(url, init);
+				h.lookup({ ...installation, repositories: [] });
+				await client.getInstallation(installation.id);
+				return Response.json(
+					operation === "members" ? membersFixture : repositoryFixture,
+				);
+			});
+			const expected = await client.getInstallation(installation.id);
+			if (!expected.ok) throw new Error("local installation lookup failed");
+			const result =
+				operation === "members"
+					? await client.getOrganizationMembers(
+							installation.id,
+							installation.org,
+							expected.value,
+						)
+					: await client.getRepository(
+							installation.id,
+							installation.org,
+							repository.name,
+							expected.value,
+						);
+			expect(result).toEqual({ ok: false, reason: "stale" });
+		});
+	}
+
+	test("typed installed reads use captured shapes, fixed paths and the validated token cache", async () => {
+		const h = harness();
+		const reads: { url: string; init: RequestInit }[] = [];
+		const client = clientFor(h, (url, init) => {
+			if (url.includes("/api/apps/")) return h.fetch(url, init);
+			reads.push({ url, init });
+			return Promise.resolve(
+				Response.json(
+					url.includes("/members/") ? membersFixture : repositoryFixture,
+				),
+			);
+		});
+		expect(
+			await client.getOrganizationMembers(installation.id, installation.org),
+		).toEqual({ ok: true, value: members });
+		expect(
+			await client.getRepository(
+				installation.id,
+				installation.org,
+				repository.name,
+			),
+		).toEqual({ ok: true, value: repository });
+		expect(
+			await client.getOrganizationMembers(installation.id, installation.org),
+		).toEqual({ ok: true, value: members });
+		expect(reads.map((read) => read.url)).toEqual([
+			`https://git.cafe/api/orgs/${installation.org}/members/`,
+			`https://git.cafe/api/repos/${installation.org}/${repository.name}`,
+			`https://git.cafe/api/orgs/${installation.org}/members/`,
+		]);
+		for (const read of reads) {
+			expect(read.init.method).toBe("GET");
+			expect(read.init.redirect).toBe("manual");
+			expect(read.init.signal).toBeInstanceOf(AbortSignal);
+			expect(new Headers(read.init.headers).get("authorization")).toBe(
+				"Bearer opaque-unit-test-token",
+			);
+		}
+		expect(h.calls.filter((call) => call.init.method === "POST")).toHaveLength(
+			1,
+		);
+		expect(h.calls.filter((call) => call.init.method === "GET")).toHaveLength(
+			3,
+		);
+	});
+
+	test("installed read paths reject traversal before credentials or HTTP", async () => {
+		const h = harness();
+		const client = clientFor(h);
+		for (const segment of [
+			"..",
+			".",
+			"../other",
+			"org/repo",
+			"org?token=secret",
+			"https://evil.example",
+		]) {
+			expect(
+				await client.getOrganizationMembers(installation.id, segment),
+			).toEqual({ ok: false, reason: "invalid-resource-path" });
+			expect(
+				await client.getRepository(installation.id, installation.org, segment),
+			).toEqual({ ok: false, reason: "invalid-resource-path" });
+			expect(
+				await client.getRepository(installation.id, segment, repository.name),
+			).toEqual({ ok: false, reason: "invalid-resource-path" });
+		}
+		expect(h.calls).toHaveLength(0);
+	});
+
+	for (const operation of ["members", "repository"] as const) {
+		for (const failure of [
+			"network",
+			"http",
+			"redirect",
+			"json",
+			"oversize",
+			"content-type",
+			"schema",
+			"stream",
+		] as const) {
+			test(`${operation} returns a bounded sanitized value for ${failure}`, async () => {
+				const h = harness();
+				const client = clientFor(h, (url, init) => {
+					if (url.includes("/api/apps/")) return h.fetch(url, init);
+					if (failure === "network")
+						throw new Error("secret-provider-network-detail");
+					if (failure === "http" || failure === "redirect")
+						return Promise.resolve(
+							new Response("secret-provider-body", {
+								status: failure === "http" ? 403 : 302,
+							}),
+						);
+					if (failure === "stream")
+						return Promise.resolve(
+							new Response(
+								new ReadableStream({
+									start(controller) {
+										controller.error(new Error("secret-stream-detail"));
+									},
+								}),
+								{ headers: { "content-type": "application/json" } },
+							),
+						);
+					if (failure === "schema")
+						return Promise.resolve(
+							Response.json(
+								operation === "members"
+									? {
+											...membersFixture,
+											items: [{ ...membersFixture.items[0], role: null }],
+										}
+									: { ...repositoryFixture, id: null },
+							),
+						);
+					const body =
+						failure === "oversize"
+							? " ".repeat(1024 * 1024 + 1)
+							: failure === "json"
+								? "{"
+								: JSON.stringify(repositoryFixture);
+					return Promise.resolve(
+						new Response(body, {
+							headers: {
+								"content-type":
+									failure === "content-type" ? "text/html" : "application/json",
+							},
+						}),
+					);
+				});
+				const result =
+					operation === "members"
+						? await client.getOrganizationMembers(
+								installation.id,
+								installation.org,
+							)
+						: await client.getRepository(
+								installation.id,
+								installation.org,
+								repository.name,
+							);
+				expect(result).toEqual(
+					failure === "network"
+						? { ok: false, reason: "network" }
+						: failure === "http" || failure === "redirect"
+							? {
+									ok: false,
+									reason: "http",
+									status: failure === "http" ? 403 : 302,
+								}
+							: { ok: false, reason: "invalid-response" },
+				);
+			});
+		}
+	}
+
+	test("invalidation during an installed read refuses the stale resource", async () => {
+		const h = harness();
+		const started = deferred<void>();
+		const response = deferred<Response>();
+		const client = clientFor(h, (url, init) => {
+			if (url.includes("/api/apps/")) return h.fetch(url, init);
+			started.resolve();
+			return response.promise;
+		});
+		const read = client.getOrganizationMembers(
+			installation.id,
+			installation.org,
+		);
+		await started.promise;
+		client.invalidate(installation.id);
+		response.resolve(Response.json(membersFixture));
+		expect(await read).toEqual({ ok: false, reason: "stale" });
+	});
 	test("captured installation names and redacted token responses parse", () => {
 		expect(installation.repositories).toEqual(["scratch"]);
 		expect(installation.bot.handle).toBe("boring-tripwire-staging");

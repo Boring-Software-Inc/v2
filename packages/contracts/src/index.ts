@@ -51,11 +51,17 @@ export {
 	gitCafeOidcClientSchema,
 } from "./gitcafe-identity.ts";
 export {
+	type GitCafeConnectionRepositories,
+	type GitCafeConnectionRepository,
 	type GitCafeInstallation,
 	type GitCafeInstallationToken,
+	type GitCafeOrganizationMembers,
 	type GitCafePermission,
+	gitCafeConnectionRepositoriesSchema,
+	gitCafeConnectionRepositorySchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
+	gitCafeOrganizationMembersSchema,
 	gitCafePermissionSchema,
 } from "./gitcafe-installation.ts";
 export {

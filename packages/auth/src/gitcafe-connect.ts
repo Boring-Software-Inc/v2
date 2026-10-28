@@ -8,7 +8,6 @@ import {
 	gitCafeConnectCallbackSchema,
 	gitCafeConnectFlowSchema,
 	gitCafeConnectPrincipalSchema,
-	gitCafeConnectProofHandleSchema,
 	gitCafeConnectProofReadSchema,
 	gitCafeConnectProofSchema,
 	gitCafeConnectRequestSchema,
@@ -228,17 +227,36 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 							const current = await authorize(ctx, input.db, flow.orgId);
 							sameOwner(flow, current);
 							const query = callback.data;
-							if (
-								query?.error ||
-								!query.code ||
-								(query.iss !== undefined && query.iss !== GITCAFE_ISSUER)
-							)
+							if (query.iss !== undefined && query.iss !== GITCAFE_ISSUER)
 								refused();
 							const nonce =
 								await ctx.context.internalAdapter.consumeVerificationValue(
 									NONCE_PREFIX + flow.nonce,
 								);
 							if (!nonce || nonce.value !== marker.value) refused();
+							if (query.error) {
+								const continuation = new URL(
+									"/onboarding/setup",
+									ctx.context.baseURL,
+								);
+								continuation.searchParams.set("forge", "gitcafe");
+								continuation.searchParams.set(
+									"installation_id",
+									flow.intendedInstallationId,
+								);
+								continuation.searchParams.set("org", flow.orgId);
+								continuation.searchParams.set("connect_error", "refused");
+								return new Response(null, {
+									status: 303,
+									headers: {
+										location: continuation.toString(),
+										"cache-control": "no-store",
+										pragma: "no-cache",
+										"referrer-policy": "no-referrer",
+									},
+								});
+							}
+							if (!query.code) refused();
 							const tokens = await validateAuthorizationCode({
 								code: query.code,
 								codeVerifier: parsedState.codeVerifier,
@@ -320,9 +338,26 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 								}),
 								expiresAt: new Date(proof.expiresAt),
 							});
-							return ctx.json(
-								gitCafeConnectProofHandleSchema.parse({ proofHandle }),
+							const continuation = new URL(
+								"/onboarding/setup",
+								ctx.context.baseURL,
 							);
+							continuation.searchParams.set("forge", "gitcafe");
+							continuation.searchParams.set(
+								"installation_id",
+								flow.intendedInstallationId,
+							);
+							continuation.searchParams.set("org", flow.orgId);
+							continuation.searchParams.set("proofHandle", proofHandle);
+							return new Response(null, {
+								status: 303,
+								headers: {
+									location: continuation.toString(),
+									"cache-control": "no-store",
+									pragma: "no-cache",
+									"referrer-policy": "no-referrer",
+								},
+							});
 						} catch {
 							return refused();
 						}

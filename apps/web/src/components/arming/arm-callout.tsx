@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { Forge } from "@tripwire/contracts";
 import {
 	Alert,
 	AlertAction,
@@ -20,6 +21,7 @@ import { orgContextQueryOptions } from "#/lib/org.query";
 import { trackEvent } from "#/lib/track";
 
 interface ArmCalloutProps {
+	forge: Forge;
 	org: string;
 	repo: string;
 	repoFullName: string;
@@ -41,7 +43,9 @@ function useArm(org: string, repo: string, repoFullName: string) {
 				return;
 			}
 			toast.fail(
-				`Tripwire did not turn on for ${repoFullName}. Reload the page and try again.`,
+				!result.ok && result.reason === "queue-unavailable"
+					? "Tripwire did not turn on. Try again in a moment."
+					: `Tripwire did not turn on for ${repoFullName}. Reload the page and try again.`,
 			);
 		},
 		onError: () =>
@@ -52,6 +56,7 @@ function useArm(org: string, repo: string, repoFullName: string) {
 }
 
 export function ArmCallout({
+	forge,
 	org,
 	repo,
 	repoFullName,
@@ -62,6 +67,15 @@ export function ArmCallout({
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const canArm = useOrgPermission(org, "connections:manage");
 
+	if (forge === "gitcafe")
+		return (
+			<Alert announce={false} className={className} status="neutral">
+				<AlertTitle>GitCafe protection is off</AlertTitle>
+				<AlertDescription>
+					This repo is connected. GitCafe checks aren't available yet.
+				</AlertDescription>
+			</Alert>
+		);
 	if (variant === "hero") {
 		return (
 			<Card className={className}>

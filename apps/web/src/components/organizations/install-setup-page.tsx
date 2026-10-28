@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { FORGE_CATALOG, type Forge } from "@tripwire/contracts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { BrandLockup } from "#/components/auth/brand-lockup";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
@@ -25,7 +24,12 @@ import {
 } from "#/components/glaze/ui/skeleton";
 import { toast } from "#/components/glaze/ui/toast";
 import { MascotArt } from "#/components/mascot/mascot-art";
+import { GitCafeInstallSetup } from "#/components/organizations/gitcafe-install-setup";
 import { InstallSetupPageSkeleton } from "#/components/organizations/install-setup-page-skeleton";
+import {
+	InstallSetupHeader as SetupHeader,
+	InstallSetupShell as SetupShell,
+} from "#/components/organizations/install-setup-shell";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import { authClient } from "#/lib/auth-client";
 import {
@@ -45,6 +49,8 @@ const route = getRouteApi("/onboarding/setup");
 export function InstallSetupPage() {
 	const search = route.useSearch();
 	const installationId = search.installation_id;
+	if (search.forge === "gitcafe")
+		return <GitCafeInstallSetup search={search} />;
 
 	if (!installationId) {
 		if (search.setup_action === "request") {
@@ -635,19 +641,6 @@ function OrgRowsSkeleton() {
 	);
 }
 
-function SetupHeader({ title, body }: { title: string; body?: string }) {
-	return (
-		<header className="flex flex-col items-center gap-2 text-center">
-			<h1 className="type-title text-balance">{title}</h1>
-			{body ? (
-				<p className="max-w-measure-hint type-body text-pretty text-text-2">
-					{body}
-				</p>
-			) : null}
-		</header>
-	);
-}
-
 function LoadError({ title, onRetry }: { title: string; onRetry: () => void }) {
 	return (
 		<SetupShell>
@@ -677,19 +670,6 @@ function BackHome() {
 			<Button nativeButton={false} render={<Link to="/" />} variant="secondary">
 				Back home
 			</Button>
-		</div>
-	);
-}
-
-function SetupShell({ children }: { children: ReactNode }) {
-	return (
-		<div className="flex min-h-dvh w-full justify-center bg-page px-4 py-10 md:items-center">
-			<div className="flex w-full max-w-md flex-col gap-6">
-				<div className="flex justify-center">
-					<BrandLockup />
-				</div>
-				{children}
-			</div>
 		</div>
 	);
 }

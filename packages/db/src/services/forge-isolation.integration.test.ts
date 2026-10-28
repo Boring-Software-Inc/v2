@@ -259,7 +259,7 @@ test("a close on another forge cannot close the queue, hide a held run, or fence
 	).toEqual([itemIds.get("gitcafe") ?? "missing"]);
 });
 
-test("planned GitCafe rows never enter live repo routing or action retries", async () => {
+test("connected GitCafe rows enter routing but never action retries", async () => {
 	await db.insert(runActions).values({
 		id: generateId(),
 		runId: runIds.get("gitcafe") ?? "missing",
@@ -274,7 +274,7 @@ test("planned GitCafe rows never enter live repo routing or action retries", asy
 			repoName: "same-repo",
 			forge: "gitcafe",
 		}),
-	).toBeNull();
+	).not.toBeNull();
 	expect(
 		(await listStuckActions(db, new Date())).some(
 			(action) => action.runId === runIds.get("gitcafe"),

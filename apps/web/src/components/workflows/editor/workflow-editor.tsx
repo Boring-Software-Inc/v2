@@ -13,6 +13,7 @@ import { useBlocker } from "@tanstack/react-router";
 import type {
 	AiCreditsState,
 	EdgeWhen,
+	Forge,
 	GateInput,
 	LintFix,
 	LintIntent,
@@ -345,6 +346,7 @@ export interface WorkflowEditorLive {
 }
 
 export interface WorkflowEditorProps {
+	forge: Forge;
 	live?: WorkflowEditorLive;
 	headerLeading?: ReactNode;
 	headerActions?: ReactNode;
@@ -391,6 +393,7 @@ export function WorkflowEditor(props: WorkflowEditorProps) {
 }
 
 function EditorBody({
+	forge,
 	live,
 	headerLeading,
 	headerActions,
@@ -1494,6 +1497,7 @@ function EditorBody({
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			<EditorHeader
+				forge={forge}
 				blockers={blockers}
 				customRules={customRules}
 				onViewChange={onViewChange}

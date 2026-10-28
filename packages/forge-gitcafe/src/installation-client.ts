@@ -1,8 +1,12 @@
 import {
+	type GitCafeConnectionRepository,
 	type GitCafeInstallation,
+	type GitCafeOrganizationMembers,
 	type GitCafePermission,
+	gitCafeConnectionRepositorySchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
+	gitCafeOrganizationMembersSchema,
 } from "@tripwire/contracts";
 import {
 	createGitCafeInstallationRequest,
@@ -15,6 +19,7 @@ export type GitCafeInstallationFailure = {
 	reason:
 		| "configuration"
 		| "invalid-installation-id"
+		| "invalid-resource-path"
 		| "network"
 		| "http"
 		| "invalid-response"
@@ -55,6 +60,7 @@ const TOKEN_SAFETY_MS = 60_000;
 const TOKEN_MAX_LIFETIME_MS = 15 * 60_000;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const PERMISSION_RANK = { read: 1, write: 2, admin: 3 };
+const PATH_SEGMENT = /^(?!\.{1,2}$)[A-Za-z0-9_.-]+$/;
 
 export class GitCafeInstallationClient {
 	private readonly fetch: NonNullable<
@@ -68,6 +74,13 @@ export class GitCafeInstallationClient {
 	>();
 	private readonly mints = new Map<string, PendingToken>();
 	private readonly generations = new Map<string, number>();
+	private readonly snapshots = new WeakMap<
+		GitCafeInstallation,
+		{
+			scope: string;
+			generation: number;
+		}
+	>();
 
 	constructor(private readonly options: GitCafeInstallationClientOptions) {
 		this.fetch = options.fetch ?? fetch;
@@ -86,9 +99,92 @@ export class GitCafeInstallationClient {
 		installationId: string,
 	): Promise<GitCafeInstallationResult<GitCafeInstallation>> {
 		const snapshot = await this.getSnapshot(installationId);
+		if (snapshot.ok) {
+			this.snapshots.set(snapshot.value.installation, {
+				scope: JSON.stringify(snapshot.value.installation),
+				generation: snapshot.value.generation,
+			});
+		}
 		return snapshot.ok
 			? { ok: true, value: snapshot.value.installation }
 			: snapshot;
+	}
+
+	/** Expected authority must come from this client's installation lookup. */
+	async getOrganizationMembers(
+		installationId: string,
+		org: string,
+		expectedInstallation?: GitCafeInstallation,
+	): Promise<GitCafeInstallationResult<GitCafeOrganizationMembers>> {
+		if (!PATH_SEGMENT.test(org))
+			return { ok: false, reason: "invalid-resource-path" };
+		if (expectedInstallation && expectedInstallation.org !== org)
+			return { ok: false, reason: "identity-mismatch" };
+		const response = await this.installedGet(
+			installationId,
+			`orgs/${encodeURIComponent(org)}/members/`,
+			expectedInstallation,
+		);
+		if (!response.ok) return response;
+		const parsed = gitCafeOrganizationMembersSchema.safeParse(response.value);
+		return parsed.success
+			? { ok: true, value: parsed.data }
+			: { ok: false, reason: "invalid-response" };
+	}
+
+	async getRepository(
+		installationId: string,
+		owner: string,
+		name: string,
+		expectedInstallation?: GitCafeInstallation,
+	): Promise<GitCafeInstallationResult<GitCafeConnectionRepository>> {
+		if (!PATH_SEGMENT.test(owner) || !PATH_SEGMENT.test(name))
+			return { ok: false, reason: "invalid-resource-path" };
+		if (
+			expectedInstallation &&
+			(expectedInstallation.org !== owner ||
+				(expectedInstallation.repositorySelection === "selected" &&
+					!expectedInstallation.repositories.includes(name)))
+		)
+			return { ok: false, reason: "identity-mismatch" };
+		const response = await this.installedGet(
+			installationId,
+			`repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
+			expectedInstallation,
+		);
+		if (!response.ok) return response;
+		const parsed = gitCafeConnectionRepositorySchema.safeParse(response.value);
+		return parsed.success
+			? { ok: true, value: parsed.data }
+			: { ok: false, reason: "invalid-response" };
+	}
+
+	private async installedGet(
+		installationId: string,
+		path: string,
+		expectedInstallation?: GitCafeInstallation,
+	): Promise<GitCafeInstallationResult<unknown>> {
+		const generation = this.generation(installationId);
+		const credential = await this.getToken(
+			installationId,
+			expectedInstallation,
+		);
+		if (!credential.ok) return credential;
+		if (this.generation(installationId) !== generation)
+			return { ok: false, reason: "stale" };
+		const response = await this.send({
+			url: `https://git.cafe/api/${path}`,
+			init: {
+				method: "GET",
+				headers: {
+					accept: "application/json",
+					authorization: `Bearer ${credential.value}`,
+				},
+			},
+		});
+		return this.generation(installationId) === generation
+			? response
+			: { ok: false, reason: "stale" };
 	}
 
 	private getSnapshot(
@@ -113,11 +209,31 @@ export class GitCafeInstallationClient {
 
 	async getToken(
 		installationId: string,
+		expectedInstallation?: GitCafeInstallation,
 	): Promise<GitCafeInstallationResult<string>> {
+		const expectedScope = expectedInstallation
+			? JSON.stringify(expectedInstallation)
+			: undefined;
+		const expected = expectedInstallation
+			? this.snapshots.get(expectedInstallation)
+			: undefined;
+		if (
+			expectedInstallation &&
+			(expectedInstallation.id !== installationId ||
+				!expected ||
+				expected.scope !== expectedScope ||
+				expected.generation !== this.generation(installationId))
+		)
+			return { ok: false, reason: "stale" };
 		const lookup = await this.getSnapshot(installationId);
 		if (!lookup.ok) return lookup;
 		const { installation, generation } = lookup.value;
-		if (this.generation(installationId) !== generation) {
+		if (
+			this.generation(installationId) !== generation ||
+			(expected &&
+				(expected.generation !== generation ||
+					expectedScope !== JSON.stringify(installation)))
+		) {
 			return { ok: false, reason: "stale" };
 		}
 		if (
@@ -257,6 +373,12 @@ export class GitCafeInstallationClient {
 		} catch {
 			return { ok: false, reason: "configuration" };
 		}
+		return this.send(request);
+	}
+
+	private async send(
+		request: GitCafeInstallationRequest,
+	): Promise<GitCafeInstallationResult<unknown>> {
 		let response: Response;
 		try {
 			response = await this.fetch(request.url, {
@@ -270,6 +392,10 @@ export class GitCafeInstallationClient {
 		if (!response.ok) {
 			await response.body?.cancel().catch(() => {});
 			return { ok: false, reason: "http", status: response.status };
+		}
+		if (!response.headers.get("content-type")?.includes("application/json")) {
+			await response.body?.cancel().catch(() => {});
+			return { ok: false, reason: "invalid-response" };
 		}
 		try {
 			const reader = response.body?.getReader();
