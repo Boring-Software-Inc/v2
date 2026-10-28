@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { AiReviewOutput } from "@tripwire/contracts";
 import { evaluateRule } from "../define.ts";
-import { fixtureContext } from "../test-context.ts";
+import { fixtureContext, fixtureContributor } from "../test-context.ts";
 import { aiReview, aiReviewV2 } from "./rule.ts";
 
 const CONFIG = { model: "claude-fable-5", maxSteps: 12 };
@@ -145,6 +145,43 @@ describe("ai-review@1", () => {
 });
 
 describe("ai-review@1 hardening (unit 4)", () => {
+	test.each([
+		aiReview,
+		aiReviewV2,
+	])("unavailable contributor facts are explicit in the prompt for @$version", async (rule) => {
+		const { generate, calls } = mockGenerate(PASS_OUTPUT);
+		const result = await evaluateRule(
+			rule,
+			await fixtureContext({
+				generate,
+				contributor: fixtureContributor({
+					createdAt: null,
+					mergedInRepo: null,
+				}),
+			}),
+			CONFIG,
+		);
+		expect(result.status).toBe("evaluated");
+		expect(calls[0]?.prompt).toContain(
+			"not exposed by github — do not treat as suspicious",
+		);
+		expect(calls[0]?.prompt).toContain("unknown merged here");
+		expect(calls[0]?.prompt).not.toContain("0 merged here");
+	});
+
+	test("available contributor facts keep their actual prompt values", async () => {
+		const { generate, calls } = mockGenerate(PASS_OUTPUT);
+		const contributor = fixtureContributor({ mergedInRepo: 0 });
+		await evaluateRule(
+			aiReviewV2,
+			await fixtureContext({ generate, contributor }),
+			CONFIG,
+		);
+		expect(calls[0]?.prompt).toContain("2020-01-01T00:00:00.000Z");
+		expect(calls[0]?.prompt).toContain("0 merged here");
+		expect(calls[0]?.prompt).not.toContain("unavailable;");
+	});
+
 	test("instructions passed to generate carry the trust + truncation rules", async () => {
 		const { generate, calls } = mockGenerate(PASS_OUTPUT);
 		await evaluateRule(aiReview, await fixtureContext({ generate }), CONFIG);

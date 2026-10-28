@@ -53,7 +53,10 @@ export const contextForge = defineForge<RuleContext>()({
 	produces: {
 		[accountAge.id]: (ctx) => {
 			const contributor = requireContributor(ctx.forge);
-			const created = Date.parse(contributor.createdAt);
+			const created =
+				contributor.createdAt === null
+					? NaN
+					: Date.parse(contributor.createdAt);
 			if (Number.isNaN(created)) {
 				signalUnavailable(
 					"Tripwire could not read when the contributor's account was created.",
@@ -61,7 +64,15 @@ export const contextForge = defineForge<RuleContext>()({
 			}
 			return Math.floor((Date.parse(ctx.now) - created) / DAY_MS);
 		},
-		[mergedInRepo.id]: (ctx) => requireContributor(ctx.forge).mergedInRepo,
+		[mergedInRepo.id]: (ctx) => {
+			const merged = requireContributor(ctx.forge).mergedInRepo;
+			if (merged === null) {
+				signalUnavailable(
+					"Tripwire could not read the contributor's merge history in this repository.",
+				);
+			}
+			return merged;
+		},
 		[mergedElsewhere.id]: (ctx) => {
 			const merged = requireContributor(ctx.forge).mergedElsewhere;
 			if (merged === null) {
@@ -71,8 +82,15 @@ export const contextForge = defineForge<RuleContext>()({
 			}
 			return merged;
 		},
-		[recentChangeRequestTimes.id]: (ctx) =>
-			requireContributor(ctx.forge).recentChangeRequestTimes,
+		[recentChangeRequestTimes.id]: (ctx) => {
+			const times = requireContributor(ctx.forge).recentChangeRequestTimes;
+			if (times === null) {
+				signalUnavailable(
+					"Tripwire could not read the contributor's recent change request history.",
+				);
+			}
+			return times;
+		},
 		[profileText.id]: (ctx) => requireContributor(ctx.forge).profileText ?? "",
 		[title.id]: (ctx) => {
 			if ("changeRequest" in ctx.forge.event) {

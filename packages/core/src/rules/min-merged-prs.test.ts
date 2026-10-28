@@ -4,6 +4,24 @@ import { minMergedPrs, minMergedPrsV2 } from "./min-merged-prs.ts";
 import { fixtureContext, fixtureContributor } from "./test-context.ts";
 
 describe("min-merged-prs@1 (frozen)", () => {
+	test("available local history evaluates without global or profile metadata", async () => {
+		const ctx = await fixtureContext({
+			contributor: fixtureContributor({
+				createdAt: null,
+				followers: null,
+				publicRepos: null,
+				mergedElsewhere: null,
+				recentChangeRequestTimes: null,
+				isOrgMember: null,
+				isMaintainer: null,
+			}),
+		});
+		const result = await evaluateRule(minMergedPrs, ctx, { min: 3 });
+		expect(result.status).toBe("evaluated");
+		expect(result.passed).toBe(true);
+		expect(result.evidence).toEqual({ mergedInRepo: 3, min: 3 });
+	});
+
 	test("passes at or above the threshold", async () => {
 		const ctx = await fixtureContext({
 			contributor: fixtureContributor({ mergedInRepo: 3 }),
@@ -19,6 +37,18 @@ describe("min-merged-prs@1 (frozen)", () => {
 		});
 		const result = await evaluateRule(minMergedPrs, ctx, { min: 1 });
 		expect(result.passed).toBe(false);
+	});
+
+	test("skips unavailable local history even with a zero threshold", async () => {
+		const ctx = await fixtureContext({
+			contributor: fixtureContributor({ mergedInRepo: null }),
+		});
+		const result = await evaluateRule(minMergedPrs, ctx, { min: 0 });
+		expect(result.status).toBe("skipped");
+		expect(result.evidence).toBeNull();
+		expect(result.reason).toBe(
+			"Tripwire could not read the contributor's merge history in this repository.",
+		);
 	});
 
 	test("skips without a contributor profile", async () => {
@@ -70,6 +100,25 @@ describe("min-merged-prs@2 (global, with local exemption)", () => {
 		});
 		const result = await evaluateRule(minMergedPrsV2, ctx, config);
 		expect(result.status).toBe("skipped");
+		expect(result.reason).toBe(
+			"Tripwire could not read the contributor's merge history in other repositories.",
+		);
+		expect(result.evidence).toBeNull();
+	});
+
+	test("skips when local history is unavailable independently of global history", async () => {
+		const ctx = await fixtureContext({
+			contributor: fixtureContributor({
+				mergedInRepo: null,
+				mergedElsewhere: 10,
+			}),
+		});
+		const result = await evaluateRule(minMergedPrsV2, ctx, config);
+		expect(result.status).toBe("skipped");
+		expect(result.reason).toBe(
+			"Tripwire could not read the contributor's merge history in this repository.",
+		);
+		expect(result.evidence).toBeNull();
 	});
 
 	test("skips without a contributor profile", async () => {

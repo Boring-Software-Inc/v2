@@ -59,14 +59,15 @@ export interface ForgeCommit {
 export interface ContributorProfile {
 	login: string;
 	externalId: string;
-	createdAt: string;
-	followers: number;
-	following: number;
-	publicRepos: number;
+	/** Null facts are unavailable, never evidence of an empty or new account. */
+	createdAt: string | null;
+	followers: number | null;
+	following: number | null;
+	publicRepos: number | null;
 	/** Profile README / bio text, when the forge exposes one. */
 	profileText: string | null;
 	/** Merged change requests by this contributor in the subject repo. */
-	mergedInRepo: number;
+	mergedInRepo: number | null;
 	/**
 	 * Merged change requests by this contributor in repos they do NOT own — the
 	 * "someone else accepted their work" signal (min-merged-prs@2). null when the
@@ -74,11 +75,11 @@ export interface ContributorProfile {
 	 */
 	mergedElsewhere: number | null;
 	/** ISO timestamps of the contributor's recent change requests, newest first. */
-	recentChangeRequestTimes: string[];
+	recentChangeRequestTimes: string[] | null;
 	/** Whether the contributor is a member/owner of the repo's org. */
-	isOrgMember: boolean;
+	isOrgMember: boolean | null;
 	/** Whether the contributor has write access to the repo (maintainer). */
-	isMaintainer: boolean;
+	isMaintainer: boolean | null;
 }
 
 export type ForgeAction =

@@ -28,6 +28,13 @@ export const minMergedPrs = defineRule({
 				reason: "Tripwire could not read the contributor's profile.",
 			};
 		}
+		if (ctx.contributor.mergedInRepo === null) {
+			return {
+				status: "skipped",
+				reason:
+					"Tripwire could not read the contributor's merge history in this repository.",
+			};
+		}
 		return {
 			status: "evaluated",
 			passed: ctx.contributor.mergedInRepo >= config.min,

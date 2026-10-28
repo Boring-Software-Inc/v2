@@ -30,6 +30,22 @@ describe("account-age@1", () => {
 		expect(result.evidence).toMatchObject({ accountAgeDays: 2 });
 	});
 
+	test.each([
+		null,
+		"not-a-date",
+	])("skips an unavailable or invalid creation date: %s", async (createdAt) => {
+		const ctx = await fixtureContext({
+			contributor: fixtureContributor({ createdAt }),
+		});
+		const result = await evaluateRule(accountAge, ctx, { minDays: 0 });
+		expect(result.status).toBe("skipped");
+		expect(result.passed).toBe(false);
+		expect(result.evidence).toBeNull();
+		expect(result.reason).toBe(
+			"Tripwire could not read when the contributor's account was created.",
+		);
+	});
+
 	test("skips (never throws) without a contributor profile", async () => {
 		const ctx = await fixtureContext({ contributor: null });
 		const result = await evaluateRule(accountAge, ctx, { minDays: 30 });
