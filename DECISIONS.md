@@ -533,3 +533,23 @@ edge; pg-boss and TanStack Start do not provide the required structured pino
 logging. Logs contain a generated request ID and a fixed failure code, never
 provider response bodies, delegated credentials, actors, or email addresses.
 No new third-party library is introduced.
+
+## GitCafe delegated subject is the membership actor (2026-10-28)
+
+GitCafe's founder confirmed that the signed OIDC `sub` is the permanent,
+non-reused person account key. Staging independently matched the authenticated
+account subject to the same person's organization-membership `actorId`. The
+API-resource OAuth token succeeds at userinfo but receives 403 at
+`/api/auth/principal`; that endpoint is not required for the connection flow.
+
+This supersedes the separate-principal requirement above. The signed ID-token
+subject, checked against live same-token userinfo, supplies both proof `subject`
+and membership `actorId`. Confirmation rechecks userinfo and rejects differing
+proof IDs before enqueueing. The worker still requires current complete-page
+org-owner/admin membership, installation snapshot fencing, selected-repository
+validation, local permissions and atomic claim uniqueness. Handles, profile data
+and email never authorize a claim. No ingestion or protection is enabled.
+
+Source: [GitCafe OIDC guide](https://git.cafe/docs/integrations/sign-in-with-gitcafe),
+founder response relayed by Grim, and a read-only staging equality check. The
+equality result is live evidence, not a captured provider-response fixture.

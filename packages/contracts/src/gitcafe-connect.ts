@@ -48,7 +48,7 @@ export const gitCafeConnectFlowSchema = gitCafeConnectRequestSchema.extend({
 });
 export type GitCafeConnectFlow = z.infer<typeof gitCafeConnectFlowSchema>;
 
-/** Documented OpenAPI projections; genuine person-read evidence is still missing. */
+/** Userinfo revalidates the signed subject with the delegated access token. */
 export const gitCafeConnectUserInfoSchema = z.object({
 	sub: gitCafeIdentitySchema.shape.subject,
 });
@@ -56,19 +56,9 @@ export type GitCafeConnectUserInfo = z.infer<
 	typeof gitCafeConnectUserInfoSchema
 >;
 
-export const gitCafeConnectPrincipalSchema = z.object({
-	actorId: z.string().min(1),
-	handle: z.string(),
-	displayName: z.string().nullable(),
-	avatarUrl: z.string().nullable(),
-});
-export type GitCafeConnectPrincipal = z.infer<
-	typeof gitCafeConnectPrincipalSchema
->;
-
 export const gitCafeConnectProofSchema = gitCafeConnectFlowSchema.extend({
 	subject: gitCafeIdentitySchema.shape.subject,
-	actorId: gitCafeConnectPrincipalSchema.shape.actorId,
+	actorId: gitCafeIdentitySchema.shape.subject,
 	resource: z.literal(GITCAFE_API_RESOURCE),
 	scopes: z.tuple([
 		z.literal("openid"),
@@ -129,7 +119,7 @@ export const gitCafeConnectionJobSchema = z
 			.regex(/^[A-Za-z0-9_-]+$/)
 			.max(255),
 		subject: gitCafeIdentitySchema.shape.subject,
-		actorId: gitCafeConnectPrincipalSchema.shape.actorId,
+		actorId: gitCafeIdentitySchema.shape.subject,
 		authorizedAt: z.number().int().positive().safe(),
 		expiresAt: z.number().int().positive().safe(),
 		requestId: z.string().min(1).max(255),

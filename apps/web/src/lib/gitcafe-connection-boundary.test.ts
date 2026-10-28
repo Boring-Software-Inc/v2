@@ -126,9 +126,8 @@ describe("GitCafe connection authorization boundary", () => {
 		expect(server.indexOf('await read("/api/oauth/userinfo")')).toBeLessThan(
 			server.indexOf("const job ="),
 		);
-		expect(server.indexOf('await read("/api/auth/principal")')).toBeLessThan(
-			server.indexOf("const job ="),
-		);
+		expect(server).not.toContain("/api/auth/principal");
+		expect(server).toContain("person.sub !== proof.actorId");
 		const browser = readFileSync(
 			new URL(
 				"../../../../packages/utils/src/forge-sign-in.ts",

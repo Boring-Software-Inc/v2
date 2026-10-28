@@ -228,10 +228,11 @@ live tokens in evidence or fixtures.
 
 Installation claims need a separate API-linking grant. The parent has identified
 `repo:metadata:read` with resource `https://git.cafe/api`, followed by a
-same-person `userinfo.sub` check, `/api/auth/principal` actor resolution, and
-installation/org membership proof. No person userinfo/principal pair has been
-captured yet. This slice requests no API resource, invents no organization
-scopes, and makes no claim that the OIDC subject equals an actor ID.
+same-person `userinfo.sub` check and installation/org membership proof. The
+founder's 2026-10-28 guidance and a staging account/membership equality check
+establish the subject as the person membership actor. No principal request is
+required; API OAuth receives 403 there. The sign-in slice itself requests no API
+resource and invents no organization scopes.
 
 No frontend component or visual asset changed, so before/after media is not
 applicable to this backend slice.
@@ -263,11 +264,12 @@ attempts to impersonate server context.
 `verifyGitCafeClaims` is now the explicit shared signed-claim verifier; the
 sign-in nonce barrier, fixed scopes, stripped account tokens and all existing
 identity/link/failed-signup hooks remain intact. The grant additionally requires
-a live same-token userinfo subject equal to the verified ID-token subject and a
-principal response with a separate actor ID. Missing, narrowed/excess scopes,
+a live same-token userinfo subject equal to the verified ID-token subject. That
+immutable subject supplies the membership actor ID. Missing, narrowed/excess scopes,
 non-Bearer or expired tokens and unavailable/mismatched person reads fail closed.
-The callback returns only `{ proofHandle }` with `Cache-Control: no-store` and
-never redirects through or issues a login session.
+The callback redirects to same-origin setup with an opaque `proofHandle`,
+`Cache-Control: no-store` and `Referrer-Policy: no-referrer`. It issues no login
+session.
 
 The encrypted proof is bounded by its original five-minute flow expiry and token
 expiry, uses no refresh token, and is stored only in Better Auth's verification
@@ -296,10 +298,10 @@ Official contracts checked on 2026-10-27:
 [Better Auth hooks](https://better-auth.com/docs/concepts/hooks).
 
 The suite reuses generated RSA signatures and adversarial protocol inputs, with
-explicit generated userinfo/principal responses from documented OpenAPI shapes.
+explicit generated userinfo responses and a principal-refusal regression.
 These are not provider fixtures or proof of live compatibility. Genuine
-same-token person userinfo/principal captures remain missing; do not enable
-Connect from these tests. The final claim must freshly recheck person binding,
+same-token userinfo response captures remain missing. The final claim must
+freshly recheck person binding,
 bot-authenticated current membership/role, expected app activity/installation,
 selected repositories, Tripwire permission and uniqueness. Worker credential
 handoff and full adapter runtime remain separate blockers. No claim endpoint,
