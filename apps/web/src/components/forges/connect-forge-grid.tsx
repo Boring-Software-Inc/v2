@@ -132,7 +132,7 @@ function ConnectForgeCell({
 		return (
 			<div className="col-span-2 flex min-w-0 flex-col gap-3">
 				<div className="inline-flex items-center gap-2 type-label">
-					<ForgeMark forge="gitcafe" />
+					<ForgeMark className="size-(--icon) shrink-0" forge="gitcafe" />
 					GitCafe
 				</div>
 				<GitCafeRepositorySelection
