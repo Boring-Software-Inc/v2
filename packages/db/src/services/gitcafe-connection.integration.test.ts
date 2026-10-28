@@ -183,9 +183,9 @@ test("an installation spans SQL batches and reconnect preserves stable row ident
 	const retained = after.filter((row) => row.removedAt === null);
 	expect(retained).toHaveLength(3);
 	for (const row of retained) {
-		expect(row.id).toBe(
-			before.find((old) => old.externalId === row.externalId)?.id,
-		);
+		const old = before.find((old) => old.externalId === row.externalId);
+		if (!old) throw new Error("Retained repository lost its original identity");
+		expect(row.id).toBe(old.id);
 		expect(row.name).toStartWith("renamed-");
 		expect(row.private).toBe(false);
 		expect(row.armed).toBe(false);
