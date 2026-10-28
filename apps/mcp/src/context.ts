@@ -136,6 +136,7 @@ export interface RepoRef {
 	scope?: string;
 	name: string;
 	forge?: ForgeId;
+	appPath?: boolean;
 }
 
 export function parseRepoRef(input: string, appUrl?: string): RepoRef {
@@ -174,9 +175,14 @@ export function parseRepoRef(input: string, appUrl?: string): RepoRef {
 	if (!first || (!appPath && parts.length > 2) || (forge && !second)) {
 		throw new ToolError("Use a repo name, owner/repo, or full repository URL.");
 	}
-	return second
-		? { scope: first, name: second.replace(/\.git$/i, ""), forge }
-		: { name: first.replace(/\.git$/i, "") };
+	if (!second) return { name: first.replace(/\.git$/i, "") };
+	const ref: RepoRef = {
+		scope: first,
+		name: second.replace(/\.git$/i, ""),
+		forge,
+	};
+	if (appPath) ref.appPath = true;
+	return ref;
 }
 
 export class RepoNotFoundError extends ToolError {
@@ -228,14 +234,18 @@ export async function resolveOrgRepo(
 		ref.forge === undefined
 			? orgs.find((org) => org.slug.toLowerCase() === scope)
 			: undefined;
-	if (named) {
-		if (requested && requested.toLowerCase() !== named.slug.toLowerCase()) {
-			throw new ToolError(
-				"The repo reference and requested org disagree.",
-				"pick_org",
-			);
-		}
-		const org = await resolveOrg(ctx, named.slug, tool);
+	if (
+		named &&
+		requested &&
+		requested.toLowerCase() !== named.slug.toLowerCase()
+	) {
+		throw new ToolError(
+			"The repo reference and requested org disagree.",
+			"pick_org",
+		);
+	}
+	if (ref.appPath) {
+		const org = await resolveOrg(ctx, ref.scope, tool);
 		const found = await findRepo(ctx, org, ref.name);
 		if (!found) {
 			throw new RepoNotFoundError(
@@ -245,36 +255,45 @@ export async function resolveOrgRepo(
 		}
 		return { org, repo: found };
 	}
-	const candidates = orgs.filter((org) =>
-		requested
-			? org.slug.toLowerCase() === requested.toLowerCase()
-			: ctx.agent.orgIds.includes(org.id),
+	const candidates = orgs.filter(
+		(org) =>
+			ctx.agent.orgIds.includes(org.id) &&
+			(!requested || org.slug.toLowerCase() === requested.toLowerCase()),
 	);
-	const matches: { org: OrgWithRole; repo: RepoLite }[] = [];
+	const matches: { org: OrgWithPermissions; repo: RepoLite }[] = [];
 	for (const candidate of candidates) {
-		const found = await findRepo(
-			ctx,
-			candidate,
-			ref.name,
-			ref.scope,
-			ref.forge,
-		);
-		if (found) {
-			matches.push({ org: candidate, repo: found });
+		let org: OrgWithPermissions;
+		try {
+			org = await resolveOrg(ctx, candidate.slug, tool);
+		} catch (error) {
+			if (error instanceof ToolError) continue;
+			throw error;
+		}
+		const ownerMatch = await findRepo(ctx, org, ref.name, ref.scope, ref.forge);
+		const orgMatch =
+			named?.id === org.id && !ref.forge
+				? await findRepo(ctx, org, ref.name)
+				: null;
+		for (const found of [ownerMatch, orgMatch]) {
+			if (found && !matches.some((match) => match.repo.id === found.id)) {
+				matches.push({ org, repo: found });
+			}
 		}
 	}
 	if (matches.length > 1) {
 		throw new ToolError(
-			"That repo belongs to more than one accessible org. Pass org explicitly.",
+			"That repo reference is ambiguous. Use a qualified repository URL.",
 			"pick_org",
 		);
 	}
 	const match = matches[0];
-	if (match) {
-		return {
-			org: await resolveOrg(ctx, match.org.slug, tool),
-			repo: match.repo,
-		};
+	if (match) return match;
+	if (named) {
+		const org = await resolveOrg(ctx, named.slug, tool);
+		throw new RepoNotFoundError(
+			`The org ${org.slug} has no repo named ${ref.name}.`,
+			org.slug,
+		);
 	}
 
 	const org = await resolveOrg(ctx, requested, tool);

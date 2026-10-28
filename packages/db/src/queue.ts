@@ -1,4 +1,5 @@
-import type { Forge } from "@tripwire/contracts";
+export type { RerunChangeRequestJob } from "@tripwire/contracts";
+
 import { PgBoss } from "pg-boss";
 
 /** Ingest → worker handoff (§5). */
@@ -51,20 +52,6 @@ export function getRerunCooldownSeconds(): number {
  * that still import the name; evaluates the env at module load only.
  */
 export const RERUN_COOLDOWN_SECONDS = getRerunCooldownSeconds();
-
-export interface RerunChangeRequestJob {
-	/** Legacy jobs recover the forge from their claimed run event, never a repository name. */
-	forge?: Forge;
-	repoFullName: string;
-	number: number;
-	/** The admin who triggered it — lands on runs.triggered_by. */
-	requestedBy: string;
-	/**
-	 * Pre-materialized run id (created at enqueue in `queued` status). The
-	 * worker claims and finalizes this row; missing only for legacy jobs.
-	 */
-	runId?: string;
-}
 
 /** Arming → arm-time backfill (§4): replay stored events into real runs. */
 export const BACKFILL_REPO_QUEUE = "backfill-repo";

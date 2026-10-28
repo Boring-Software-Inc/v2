@@ -1,6 +1,9 @@
 import type { RepoScopedEvent } from "@tripwire/contracts";
-import { normalizedEventSchema } from "@tripwire/contracts";
-import type { RerunChangeRequestJob } from "@tripwire/db";
+import {
+	forgeSchema,
+	normalizedEventSchema,
+	rerunChangeRequestJobSchema,
+} from "@tripwire/contracts";
 import { eventServices, runServices } from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import { normalizeFor } from "../forge-runtime.ts";
@@ -24,9 +27,15 @@ import { runWorkflows } from "./run-workflows.ts";
  */
 export async function rerunChangeRequest(
 	deps: ProcessEventDeps,
-	job: RerunChangeRequestJob,
+	input: unknown,
 ): Promise<void> {
 	const { db, pool, logger } = deps;
+	const parsed = rerunChangeRequestJobSchema.safeParse(input);
+	if (!parsed.success) {
+		logger.error({ issues: parsed.error.issues }, "invalid re-run job");
+		return;
+	}
+	const job = parsed.data;
 	const claimRunId = job.runId;
 
 	const claimedRun = claimRunId
@@ -38,6 +47,7 @@ export async function rerunChangeRequest(
 	const forge = job.forge ?? claimedEvent?.forge;
 	if (
 		!forge ||
+		!forgeSchema.safeParse(forge).success ||
 		(claimedRun &&
 			(claimedRun.repoFullName !== job.repoFullName ||
 				claimedEvent?.forge !== forge))

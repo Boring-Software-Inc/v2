@@ -7,6 +7,7 @@ import {
 	activityFeedSchema,
 	DEFAULT_WORKFLOW,
 	RULE_CATALOG,
+	rerunChangeRequestJobSchema,
 	ruleDisplayName,
 	ruleExecutes,
 	ruleIdOf,
@@ -197,6 +198,12 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		const { requireSession } = await import("#/lib/server/session");
 		const userId = await requireSession();
 		const requestedBy = userId ?? "dev";
+		const rerunJob = rerunChangeRequestJobSchema.parse({
+			forge: repo.forge,
+			repoFullName: repo.fullName,
+			number: data.number,
+			requestedBy,
+		});
 		// Duration is env-global; exemption is a staff flag per account.
 		const cooldownSeconds = getRerunCooldownSeconds();
 		const cooldownExempt =
@@ -232,13 +239,7 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		const boss = await getBoss();
 		const jobId = await boss.send(
 			RERUN_QUEUE,
-			{
-				forge: repo.forge,
-				repoFullName: repo.fullName,
-				number: data.number,
-				requestedBy,
-				runId,
-			},
+			rerunChangeRequestJobSchema.parse({ ...rerunJob, runId }),
 			cooldownExempt || cooldownSeconds === 0
 				? // No singleton: rapid re-runs allowed (staff-flagged or env=0).
 					{}

@@ -12,6 +12,12 @@ One Tripwire org may contain repos from both forges. An unqualified duplicate re
 
 The non-GitHub installation-claim fallback that equated an OAuth person ID with an installation ID is removed. New non-GitHub claims remain denied pending real administrator proof. Existing claimed installations remain linked. GitHub installer/requester proofs, fresh administrator checks, expiry, wrong-user, and state-only rejection tests remain in place. Installation previews now require an explicit forge.
 
+## PR review corrections
+
+Analytics activity now uses the authorized repository's forge for blocked, passed, and review results. The MCP resolver compares accessible org-slug and forge-owner interpretations and rejects competing targets; explicit dashboard and forge URLs preserve their respective scopes. GitHub owner matching is case-insensitive, while OpenGit matching remains case-sensitive and case-colliding candidates fail closed. Re-run queue payloads are validated at enqueue and consumption; older jobs without a forge require a claimed run whose event provides an active forge.
+
+The analytics regression uses controlled private GitHub and OpenGit database records with the same full name. The PR-head before and fixed after handler outputs were captured separately with freshly generated IDs; they are test evidence, not deployed GitCafe data. A separate capture ran the main-branch handler and its name-only service alongside the fixed handler against the same controlled database; main returned both forge records and the fix returned only the authorized forge.
+
 ## Migration and rollout
 
 Migration `0045_forge_delivery_isolation` replaces the global delivery uniqueness index with `(forge, delivery_id)`. It changes no identity values or raw payloads. Same-forge redelivery remains atomic and enqueues once; different forges may reuse a delivery ID. GitCafe's eventual installation-plus-body-event-ID deduplication is a separate protocol requirement, not implemented by this index.
@@ -29,6 +35,8 @@ Assertions cover separate history/verdict/review receipts, no cross-forge modera
 Source research: `git-cafe-parity.md`, local research commit `8c438a82a49a30c5c79e527c39d0f24bfb45a82c`, with official captures under `/tmp/gitcafe-parity` during this session. `spec.md` and `docs/spec.md` are absent from this baseline; the historical specification is available as `653d82bb:docs/spec.md`. Current root/scoped rules and the user's explicit GitCafe authorization govern this slice.
 
 ## Validation
+
+Review corrections: `bun test` passed 3,921 tests across 332 files (21 snapshots). The MCP integration suites passed 51 tests after the final parser cleanup, and the queue validation test passed after its missing-forge/no-run assertion was added. Biome, both TypeScript checks, boundary checks, the web production build, and worker/MCP bundles passed. The changed-line anti-slop command reports findings inherited from the stale local main comparison and flags the worker's deliberately untrusted queue input, which is parsed at entry.
 
 - `bun test`: 3,917 passed, zero failures, 21 snapshots across 330 files; includes real PostgreSQL integration tests and the existing committed replay corpus.
 - `bun run check`, primary `bun run typecheck` (tsrs), `bun run typecheck:ts5`, `bun run check:boundaries`, and changed-line anti-slop passed.

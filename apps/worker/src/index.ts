@@ -15,7 +15,6 @@ import {
 	RESUME_RUN_QUEUE,
 	type RecoverInstallationJob,
 	type RefreshSurfacesJob,
-	type RerunChangeRequestJob,
 	type ResumeRunJob,
 	RULE_PREVIEW_QUEUE,
 	type RulePreviewJob,
@@ -294,7 +293,7 @@ if (import.meta.main) {
 			}
 		});
 
-		await work<RerunChangeRequestJob>(RERUN_QUEUE, async (jobs) => {
+		await work<unknown>(RERUN_QUEUE, async (jobs) => {
 			for (const job of jobs) {
 				await rerunChangeRequest(
 					{
@@ -304,9 +303,7 @@ if (import.meta.main) {
 						makeGenerate,
 						meterSource,
 						appUrl: process.env.APP_URL ?? "http://localhost:3000",
-						logger: logger.child({
-							rerun: `${job.data.repoFullName}#${job.data.number}`,
-						}),
+						logger: logger.child({ queue: RERUN_QUEUE }),
 					},
 					job.data,
 				);

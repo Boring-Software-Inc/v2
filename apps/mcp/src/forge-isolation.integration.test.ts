@@ -223,3 +223,107 @@ test("one org can contain both forges, requiring a qualified target for duplicat
 		).isError,
 	).toBeFalsy();
 });
+
+test("owner and Tripwire org interpretations cannot silently select different repos", async () => {
+	const otherId = generateId();
+	await db
+		.insert(schema.organization)
+		.values({ id: otherId, name: "Collision scope", slug: "collision-scope" });
+	await db.insert(schema.member).values({
+		id: generateId(),
+		organizationId: otherId,
+		userId,
+		role: "admin",
+	});
+	const githubId = await repoServices.ensureRepo(db, {
+		forge: "github",
+		externalId: generateId(),
+		owner: "collision-scope",
+		name: "widget",
+		fullName: "collision-scope/widget",
+		orgId,
+	});
+	const openId = await repoServices.ensureRepo(db, {
+		forge: "opengit",
+		externalId: generateId(),
+		owner: "different-owner",
+		name: "widget",
+		fullName: "different-owner/widget",
+		orgId: otherId,
+	});
+	const server = new McpServer({ name: "collision-test", version: "0.0.0" });
+	registerTools(
+		server,
+		{
+			db,
+			pool,
+			getBoss: () => Promise.reject(new Error("unexpected queue")),
+			config: readConfig({
+				BETTER_AUTH_SECRET: "test",
+				APP_URL: "http://localhost:3420",
+				MCP_PUBLIC_URL: "http://localhost:3421/mcp",
+			}),
+			agent: { userId, clientId: "test", scopes, orgIds: [orgId, otherId] },
+			accessDenied: null,
+		},
+		{ scopes, readOnly: false },
+	);
+	const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
+	await server.connect(serverSide);
+	const otherClient = new Client({ name: "test", version: "0.0.0" });
+	await otherClient.connect(clientSide);
+	const set = async (repo: string, org?: string) =>
+		resultSchema.parse(
+			await otherClient.callTool({
+				name: "set_rule",
+				arguments: {
+					repo,
+					org,
+					ruleId: "account-age",
+					enabled: true,
+					config: { minDays: 30 },
+				},
+			}),
+		);
+	try {
+		expect((await set("collision-scope/widget")).isError).toBe(true);
+		expect(await repoServices.listRuleConfigs(db, githubId)).toEqual([]);
+		expect(await repoServices.listRuleConfigs(db, openId)).toEqual([]);
+		expect(
+			(await set("https://github.com/Collision-Scope/widget")).isError,
+		).toBeFalsy();
+		expect((await repoServices.listRuleConfigs(db, githubId)).length).toBe(1);
+		expect(
+			(
+				await set(
+					"https://github.com/collision-scope/widget",
+					"collision-scope",
+				)
+			).isError,
+		).toBe(true);
+		expect(
+			(await set("https://github.com/collision-scope/widget", orgSlug)).isError,
+		).toBeFalsy();
+		expect(await repoServices.listRuleConfigs(db, openId)).toEqual([]);
+		expect(
+			(await set("https://open-git.com/Different-Owner/widget")).isError,
+		).toBe(true);
+		expect(
+			(await set("http://localhost:3420/collision-scope/widget/rules")).isError,
+		).toBeFalsy();
+		expect((await repoServices.listRuleConfigs(db, openId)).length).toBe(1);
+		await repoServices.ensureRepo(db, {
+			forge: "github",
+			externalId: generateId(),
+			owner: "COLLISION-SCOPE",
+			name: "widget",
+			fullName: "COLLISION-SCOPE/widget",
+			orgId,
+		});
+		expect(
+			(await set("https://github.com/Collision-Scope/widget", orgSlug)).isError,
+		).toBe(true);
+	} finally {
+		await otherClient.close();
+	}
+});

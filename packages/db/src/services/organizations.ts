@@ -11,7 +11,17 @@ import {
 	suffixSlug,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
-import { and, eq, gt, inArray, isNull, lt, type SQL, sql } from "drizzle-orm";
+import {
+	and,
+	eq,
+	gt,
+	inArray,
+	isNull,
+	lt,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../client.ts";
 import { user } from "../schema/auth.ts";
@@ -1209,7 +1219,15 @@ export async function getOrgRepo(
 			and(
 				eq(repos.orgId, input.orgId),
 				eq(repos.name, input.repoName),
-				input.owner ? eq(repos.owner, input.owner) : undefined,
+				input.owner
+					? or(
+							and(
+								eq(repos.forge, "github"),
+								sql`lower(${repos.owner}) = lower(${input.owner})`,
+							),
+							and(eq(repos.forge, "opengit"), eq(repos.owner, input.owner)),
+						)
+					: undefined,
 				input.forge ? sql`${repos.forge} = ${input.forge}` : undefined,
 				inArray(repos.forge, [...forgeSchema.options]),
 				isNull(repos.removedAt),
