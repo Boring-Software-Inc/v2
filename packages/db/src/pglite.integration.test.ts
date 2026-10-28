@@ -34,12 +34,17 @@ test("prod migrations + services run on PGlite; the seeded story is coherent", a
 	});
 	await seedStory(db, repo, new Date());
 
-	const stats = await insightServices.getHomeStats(db, repo.fullName);
+	const stats = await insightServices.getHomeStats(db, {
+		forge: "github",
+		fullName: repo.fullName,
+	});
 	// The queue series' last point IS the number (the §13.10 invariant), on PGlite too.
 	expect(stats.sentToReview.series[23]).toBe(stats.sentToReview.value);
 	expect(stats.blocked.series).toHaveLength(24);
 
-	const pending = await moderationServices.listPendingItems(db, repo.fullName);
+	const pending = await moderationServices.listPendingItems(db, [
+		{ forge: "github", fullName: repo.fullName },
+	]);
 	expect(pending.length).toBe(stats.sentToReview.value);
 	expect(pending.length).toBeGreaterThan(0);
 	const item = pending[0];
@@ -54,7 +59,9 @@ test("prod migrations + services run on PGlite; the seeded story is coherent", a
 		decidedBy: null,
 	});
 	expect(decided).toBe(true);
-	const after = await moderationServices.listPendingItems(db, repo.fullName);
+	const after = await moderationServices.listPendingItems(db, [
+		{ forge: "github", fullName: repo.fullName },
+	]);
 	expect(after.length).toBe(pending.length - 1);
 	// seedStory + the insight aggregations run ~5s on in-memory PGlite and
 	// flake past bun's 5s default under load; give it the same headroom the

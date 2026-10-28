@@ -74,16 +74,38 @@ test("getPreviousVerdict + getLatestBlockReviewId drive the transition & dismiss
 	await markActionExecuted(db, blockAction.id, "91");
 
 	// Before the second run exists, the block run is the first-time verdict.
-	expect(await getPreviousVerdict(db, REPO, 1, blockRun)).toBeNull();
+	expect(
+		await getPreviousVerdict(
+			db,
+			{ forge: "github", fullName: REPO },
+			1,
+			blockRun,
+		),
+	).toBeNull();
 
 	// Second run: the fix passes. The PR currently shows "block" (a transition),
 	// and the review to dismiss is the block run's review 91.
 	const passRun = await seedRun("evt-pass", "pass");
-	expect(await getPreviousVerdict(db, REPO, 1, passRun)).toBe("block");
-	expect(await getLatestBlockReviewId(db, REPO, 1)).toBe("91");
+	expect(
+		await getPreviousVerdict(
+			db,
+			{ forge: "github", fullName: REPO },
+			1,
+			passRun,
+		),
+	).toBe("block");
+	expect(
+		await getLatestBlockReviewId(db, { forge: "github", fullName: REPO }, 1),
+	).toBe("91");
 
 	// A different change request shares nothing.
-	expect(await getLatestBlockReviewId(db, "acme/other", 1)).toBeNull();
+	expect(
+		await getLatestBlockReviewId(
+			db,
+			{ forge: "github", fullName: "acme/other" },
+			1,
+		),
+	).toBeNull();
 });
 
 test("getActiveBlockReviewId: live until dismissed", async () => {
@@ -95,7 +117,9 @@ test("getActiveBlockReviewId: live until dismissed", async () => {
 		throw new Error("expected a recorded block action");
 	}
 	await markActionExecuted(db, block.id, "95");
-	expect(await getActiveBlockReviewId(db, REPO, 1)).toBe("95");
+	expect(
+		await getActiveBlockReviewId(db, { forge: "github", fullName: REPO }, 1),
+	).toBe("95");
 
 	const passRun = await seedRun("evt-active-pass", "pass");
 	const [dismiss] = await recordActions(db, passRun, [
@@ -108,8 +132,18 @@ test("getActiveBlockReviewId: live until dismissed", async () => {
 	if (!dismiss) {
 		throw new Error("expected a recorded dismissal");
 	}
-	expect(await getActiveBlockReviewId(db, REPO, 1)).toBe("95");
+	expect(
+		await getActiveBlockReviewId(db, { forge: "github", fullName: REPO }, 1),
+	).toBe("95");
 	await markActionExecuted(db, dismiss.id, "95");
-	expect(await getActiveBlockReviewId(db, REPO, 1)).toBeNull();
-	expect(await getActiveBlockReviewId(db, "acme/other", 1)).toBeNull();
+	expect(
+		await getActiveBlockReviewId(db, { forge: "github", fullName: REPO }, 1),
+	).toBeNull();
+	expect(
+		await getActiveBlockReviewId(
+			db,
+			{ forge: "github", fullName: "acme/other" },
+			1,
+		),
+	).toBeNull();
 });

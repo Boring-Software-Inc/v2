@@ -423,7 +423,7 @@ async function runWorkflowsInner(
 		deps.surface !== false &&
 		(await eventServices.changeRequestIsClosed(
 			db,
-			event.repo.fullName,
+			{ forge: event.forge, fullName: event.repo.fullName },
 			event.changeRequest.number,
 		));
 	if (!closedNow) {
@@ -852,7 +852,7 @@ async function holdCloses(input: {
 		: changeRequest &&
 				(await runServices.closedOnHead(
 					input.db,
-					event.repo.fullName,
+					{ forge: event.forge, fullName: event.repo.fullName },
 					changeRequest.number,
 					changeRequest.headSha,
 				))

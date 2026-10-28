@@ -1,3 +1,4 @@
+import type { Forge } from "@tripwire/contracts";
 import { PgBoss } from "pg-boss";
 
 /** Ingest → worker handoff (§5). */
@@ -52,6 +53,8 @@ export function getRerunCooldownSeconds(): number {
 export const RERUN_COOLDOWN_SECONDS = getRerunCooldownSeconds();
 
 export interface RerunChangeRequestJob {
+	/** Legacy jobs recover the forge from their claimed run event, never a repository name. */
+	forge?: Forge;
 	repoFullName: string;
 	number: number;
 	/** The admin who triggered it — lands on runs.triggered_by. */

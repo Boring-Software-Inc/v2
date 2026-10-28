@@ -141,18 +141,18 @@ export function registerTools(
 		org: string | undefined,
 		repo: string | undefined,
 		tool: ToolName,
-	): Promise<{ org: OrgWithRole; repo?: RepoLite; names: string[] }> => {
+	): Promise<{ org: OrgWithRole; repo?: RepoLite; names: RepoLite[] }> => {
 		if (repo) {
 			const found = await resolveOrgRepo(ctx, org, repo, tool);
 			return {
 				org: found.org,
 				repo: found.repo,
-				names: [found.repo.fullName],
+				names: [found.repo],
 			};
 		}
 		const resolved = await resolveOrg(ctx, org, tool);
 		const repos = await orgServices.listOrgRepos(ctx.db, resolved.id);
-		return { org: resolved, names: repos.map((item) => item.fullName) };
+		return { org: resolved, names: repos };
 	};
 	const annotate = (name: ToolName) => ({
 		readOnlyHint: TOOL_SPECS[name].readOnly,
@@ -1160,7 +1160,7 @@ export function registerTools(
 				guard(async () => {
 					const { names } = await scoped(org, repo, "list_runs");
 					const runs = await runServices.listRepoRuns(ctx.db, {
-						repoFullName: names,
+						repos: names,
 						limit: limit ?? 20,
 					});
 					return ok(
@@ -1198,10 +1198,17 @@ export function registerTools(
 						ctx.db,
 						resolved.id,
 					);
+					const event = found
+						? await eventServices.getEventById(ctx.db, found.run.eventId)
+						: null;
 					if (
 						!(
 							found &&
-							repos.some((repo) => repo.fullName === found.run.repoFullName)
+							repos.some(
+								(repo) =>
+									repo.fullName === found.run.repoFullName &&
+									repo.forge === event?.forge,
+							)
 						)
 					) {
 						throw new ToolError(
@@ -1210,10 +1217,7 @@ export function registerTools(
 						);
 					}
 					const snapshot = runSnapshotSchema.parse(found.run.workflowSnapshot);
-					const event = await eventServices.getEventById(
-						ctx.db,
-						found.run.eventId,
-					);
+
 					return ok({
 						note: UNTRUSTED_NOTE,
 						id: found.run.id,
@@ -1322,7 +1326,16 @@ export function registerTools(
 					const run = item
 						? await runServices.getRunById(ctx.db, item.runId)
 						: null;
-					if (!(item && run?.repoFullName === found.fullName)) {
+					const event = run
+						? await eventServices.getEventById(ctx.db, run.eventId)
+						: null;
+					if (
+						!(
+							item &&
+							run?.repoFullName === found.fullName &&
+							event?.forge === found.forge
+						)
+					) {
 						throw new ToolError(
 							`No review item ${itemId} on ${found.fullName}.`,
 							"list_queue",
@@ -1341,7 +1354,7 @@ export function registerTools(
 						ctx.db,
 						{ pool: ctx.pool, boss: await ctx.getBoss() },
 						{
-							repoFullName: found.fullName,
+							repo: found,
 							itemId,
 							decision: decision === "approve" ? "approve" : "deny",
 							decidedBy: ctx.agent.userId,

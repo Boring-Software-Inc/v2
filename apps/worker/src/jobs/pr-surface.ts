@@ -1,3 +1,4 @@
+import type { Forge } from "@tripwire/contracts";
 import {
 	type CheckState,
 	type CommentReason,
@@ -78,7 +79,7 @@ export async function emitPendingCheck(
 	if (eventId) {
 		const latest = await runServices.getLatestRunForChangeRequest(
 			deps.db,
-			event.repo.fullName,
+			{ forge: event.forge, fullName: event.repo.fullName },
 			event.changeRequest.number,
 		);
 		if (pendingCheckIsStale(latest, eventId, event.changeRequest.headSha)) {
@@ -182,12 +183,21 @@ export async function emitPrSurface(
 	// stale request-changes review must be dismissed (§7).
 	const previousVerdict =
 		input.resumedFrom ??
-		(await runServices.getPreviousVerdict(db, repoFullName, number, runId));
+		(await runServices.getPreviousVerdict(
+			db,
+			{ forge: event.forge, fullName: repoFullName },
+			number,
+			runId,
+		));
 	// A block that just cleared ⇒ dismiss its outstanding request-changes review
 	// (it can't self-edit and would keep gating merge on required-review repos).
 	const reviewToDismiss =
 		verdict !== "block"
-			? await runServices.getActiveBlockReviewId(db, repoFullName, number)
+			? await runServices.getActiveBlockReviewId(
+					db,
+					{ forge: event.forge, fullName: repoFullName },
+					number,
+				)
 			: null;
 
 	// The repo's response config (customize) decides which surfaces post. A
@@ -235,7 +245,11 @@ export async function emitPrSurface(
 	}
 	let activeReviewId =
 		blockRows.length > 0
-			? await runServices.getActiveBlockReviewId(db, repoFullName, number)
+			? await runServices.getActiveBlockReviewId(
+					db,
+					{ forge: event.forge, fullName: repoFullName },
+					number,
+				)
 			: null;
 	const includeCheck =
 		wantsCheck(responseConfig, verdict) || input.pendingCheckPosted === true;
@@ -326,7 +340,7 @@ export async function emitPrSurface(
 	 */
 	const latestRun = await runServices.getLatestRunForChangeRequest(
 		db,
-		repoFullName,
+		{ forge: event.forge, fullName: repoFullName },
 		number,
 	);
 	const latestRunId = latestRun?.id ?? null;
@@ -596,7 +610,10 @@ export function firedRulesFor(
 export async function emitClosedReviewSurfaces(
 	deps: {
 		db: Db;
-		adapterFor: (repoFullName: string) => Promise<ForgeAdapter | null>;
+		adapterFor: (
+			repoFullName: string,
+			forge: Forge,
+		) => Promise<ForgeAdapter | null>;
 		logger: Logger;
 	},
 	closed: readonly moderationServices.ClosedReview[],
@@ -612,7 +629,7 @@ export async function emitClosedReviewSurfaces(
 		if (rows.length === 0) {
 			continue;
 		}
-		const adapter = await deps.adapterFor(review.repoFullName);
+		const adapter = await deps.adapterFor(review.repoFullName, review.forge);
 		if (!adapter) {
 			continue;
 		}

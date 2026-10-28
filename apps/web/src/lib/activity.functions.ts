@@ -188,7 +188,7 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		}
 		const eventRow = await eventServices.getLatestChangeRequestEvent(
 			db,
-			repo.fullName,
+			repo,
 			data.number,
 		);
 		if (!eventRow) {
@@ -233,6 +233,7 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 		const jobId = await boss.send(
 			RERUN_QUEUE,
 			{
+				forge: repo.forge,
 				repoFullName: repo.fullName,
 				number: data.number,
 				requestedBy,
@@ -242,7 +243,7 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 				? // No singleton: rapid re-runs allowed (staff-flagged or env=0).
 					{}
 				: {
-						singletonKey: `${repo.fullName}#${data.number}`,
+						singletonKey: `${repo.forge}:${repo.fullName}#${data.number}`,
 						singletonSeconds: cooldownSeconds,
 					},
 		);
@@ -270,7 +271,7 @@ export const getActivityFeed = createServerFn({ method: "GET" })
 		const { eventServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
 		const feed = await eventServices.listActivityFeed(getDb().db, {
-			repoFullName: repo.fullName,
+			repo,
 			limit: 50,
 		});
 		// Parse at the boundary: a shape mismatch (a drifted normalized event, a

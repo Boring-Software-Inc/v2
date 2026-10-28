@@ -1,3 +1,4 @@
+import type { Forge } from "@tripwire/contracts";
 import { DATABUDDY_WEBSITE_ID, deriveUsageSource } from "@tripwire/contracts";
 import {
 	aiProviderServices,
@@ -18,7 +19,6 @@ import {
 	type ResumeRunJob,
 	RULE_PREVIEW_QUEUE,
 	type RulePreviewJob,
-	repoServices,
 	SYNC_FLAG_OVERRIDES_QUEUE,
 	SYNC_REPO_BRANCHES_QUEUE,
 	SYNC_REPO_LABELS_QUEUE,
@@ -146,17 +146,11 @@ if (import.meta.main) {
 		appId && privateKey
 			? new GithubInstallations({ credentials: { appId, privateKey } })
 			: null;
-	/**
-	 * The sweeper spans forges, so it resolves per repo rather than taking one
-	 * adapter. `runs` has no forge column — only `repo_full_name` — so the forge
-	 * comes from the repo row itself.
-	 */
 	const adapterFor = async (
-		repoFullName: string,
-	): Promise<ForgeAdapter | null> => {
-		const forge = await repoServices.findRepoForge(db, repoFullName);
-		return forge ? (resolveForge(forge)?.adapter ?? null) : null;
-	};
+		_repoFullName: string,
+		forge: Forge,
+	): Promise<ForgeAdapter | null> => resolveForge(forge)?.adapter ?? null;
+
 	const selfLogins = new Set<string>();
 	if (appId && privateKey) {
 		/**

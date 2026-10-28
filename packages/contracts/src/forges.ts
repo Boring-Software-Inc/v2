@@ -71,6 +71,10 @@ type LiveEntry = Extract<CatalogEntry, { status: "live" }>;
 /** Every forge the UI advertises, built or not. The grids iterate this. */
 export type ForgeId = CatalogEntry["id"];
 
+export const forgeIdSchema = z.enum(
+	FORGE_CATALOG.map((entry) => entry.id) as [ForgeId, ...ForgeId[]],
+);
+
 /**
  * The forges Tripwire can actually ingest. A discriminant carried on every event
  * and stored on the row — NOT a routing dimension (see architecture: one app
@@ -163,9 +167,9 @@ export function changeRequestUrl(input: {
  * Public host per forge. A self-hosted deployment overrides this by passing an
  * origin; a planned forge still needs an entry so the Record stays exhaustive.
  */
-const DEFAULT_FORGE_ORIGIN = {
+export const DEFAULT_FORGE_ORIGIN = {
 	github: "https://github.com",
 	opengit: "https://open-git.com",
 	gitlab: "https://gitlab.com",
-	gitcafe: "https://gitcafe.com",
+	gitcafe: "https://git.cafe",
 } satisfies Record<ForgeId, string>;

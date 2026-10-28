@@ -2,8 +2,8 @@ import type { RepoScopedEvent } from "@tripwire/contracts";
 import { normalizedEventSchema } from "@tripwire/contracts";
 import type { RerunChangeRequestJob } from "@tripwire/db";
 import { eventServices, runServices } from "@tripwire/db";
-import { normalizeWebhook } from "@tripwire/forge-github";
 import { getErrorMessage } from "@tripwire/utils";
+import { normalizeFor } from "../forge-runtime.ts";
 import { emitPendingCheck, emitPrSurface } from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import { runWorkflows } from "./run-workflows.ts";
@@ -29,6 +29,23 @@ export async function rerunChangeRequest(
 	const { db, pool, logger } = deps;
 	const claimRunId = job.runId;
 
+	const claimedRun = claimRunId
+		? await runServices.getRunById(db, claimRunId)
+		: null;
+	const claimedEvent = claimedRun
+		? await eventServices.getEventById(db, claimedRun.eventId)
+		: null;
+	const forge = job.forge ?? claimedEvent?.forge;
+	if (
+		!forge ||
+		(claimedRun &&
+			(claimedRun.repoFullName !== job.repoFullName ||
+				claimedEvent?.forge !== forge))
+	) {
+		logger.error({ claimRunId }, "re-run has no verified repository scope");
+		return;
+	}
+
 	const failClaimed = async () => {
 		if (claimRunId) {
 			await runServices.failRun(db, claimRunId);
@@ -37,7 +54,7 @@ export async function rerunChangeRequest(
 
 	const row = await eventServices.getLatestChangeRequestEvent(
 		db,
-		job.repoFullName,
+		{ forge, fullName: job.repoFullName },
 		job.number,
 	);
 	if (!row) {
@@ -49,31 +66,26 @@ export async function rerunChangeRequest(
 		return;
 	}
 
-	// Idempotent claim: a completed/failed row means a prior attempt finished.
-	if (claimRunId) {
-		const existing = await runServices.getRunById(db, claimRunId);
-		if (!existing) {
-			logger.warn(
-				{ claimRunId },
-				"claimed re-run row missing — creating fresh",
-			);
-		} else if (
-			existing.status === "completed" ||
-			existing.status === "paused" ||
-			existing.status === "closed" ||
-			existing.status === "failed"
-		) {
-			logger.info(
-				{ claimRunId, status: existing.status },
-				"re-run already terminal — no-op",
-			);
-			return;
-		}
+	if (claimRunId && !claimedRun) {
+		logger.warn({ claimRunId }, "claimed re-run row missing — creating fresh");
+	}
+	if (
+		claimedRun &&
+		(claimedRun.status === "completed" ||
+			claimedRun.status === "paused" ||
+			claimedRun.status === "closed" ||
+			claimedRun.status === "failed")
+	) {
+		logger.info(
+			{ claimRunId, status: claimedRun.status },
+			"re-run already terminal — no-op",
+		);
+		return;
 	}
 
 	let event: RepoScopedEvent;
 	try {
-		const renormalized = normalizeWebhook(
+		const renormalized = normalizeFor(row.forge)(
 			{
 				deliveryId: row.deliveryId,
 				eventName: row.rawKind,
@@ -99,6 +111,12 @@ export async function rerunChangeRequest(
 			return;
 		}
 		event = stored.data as RepoScopedEvent;
+	}
+
+	if (event.forge !== row.forge || event.repo.fullName !== row.repoFullName) {
+		logger.error({ eventId: row.id }, "stored event scope mismatch");
+		await failClaimed();
+		return;
 	}
 
 	/**

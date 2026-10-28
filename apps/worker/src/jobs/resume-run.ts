@@ -113,6 +113,13 @@ export async function resumeRun(
 		logger.error({ runId: item.runId }, "run event is not repo-scoped");
 		return;
 	}
+	if (
+		parsed.forge !== event.forge ||
+		parsed.repo.fullName !== runData.run.repoFullName
+	) {
+		logger.error({ runId: item.runId }, "run event repository scope mismatch");
+		return;
+	}
 	const normalized: RepoScopedEvent = parsed;
 
 	if (item.nodeId === "run:degraded") {

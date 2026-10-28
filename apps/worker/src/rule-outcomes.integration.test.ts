@@ -919,7 +919,7 @@ describe("review findings", () => {
 		const closed = await moderationServices.closeReviewsForChangeRequest(
 			db,
 			"https://tripwire.sh",
-			repo.fullName,
+			{ forge: "github", fullName: repo.fullName },
 			2,
 		);
 		expect(closed).toEqual([]);
@@ -1024,7 +1024,12 @@ describe("a closed change request", () => {
 				makeGenerate: null,
 				appUrl: "https://tripwire.sh",
 			},
-			{ repoFullName: repo.fullName, number: 2, requestedBy: "admin-1" },
+			{
+				forge: "github",
+				repoFullName: repo.fullName,
+				number: 2,
+				requestedBy: "admin-1",
+			},
 		);
 		expect(fake.executed).toEqual([]);
 		const rerun = await pool.query(

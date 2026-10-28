@@ -348,7 +348,7 @@ export async function getStaffOverview(db: Db): Promise<StaffOverview> {
 			.select({
 				total: count(),
 				blocked:
-					sql<number>`count(distinct (${runs.repoFullName}, ${runs.subjectNumber})) filter (where ${runs.verdict} in ('block', 'changes_required', 'close') and ${runs.subjectNumber} is not null and ${runBearsVerdict})`.mapWith(
+					sql<number>`count(distinct ((SELECT forge FROM events WHERE id = ${runs.eventId}), ${runs.repoFullName}, ${runs.subjectNumber})) filter (where ${runs.verdict} in ('block', 'changes_required', 'close') and ${runs.subjectNumber} is not null and ${runBearsVerdict})`.mapWith(
 						Number,
 					),
 			})

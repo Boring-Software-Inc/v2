@@ -173,5 +173,5 @@ export const getLatestRunId = createServerFn({ method: "GET" })
 		const repo = await resolveOrgRepo(org.id, data.repo);
 		const { runServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		return await runServices.latestRunIdForRepo(getDb().db, repo.fullName);
+		return await runServices.latestRunIdForRepo(getDb().db, repo);
 	});

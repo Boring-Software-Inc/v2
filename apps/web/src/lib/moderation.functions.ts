@@ -34,5 +34,5 @@ export const getModerationStats = createServerFn({ method: "GET" })
 		}
 		const { insightServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		return await insightServices.getHomeStats(getDb().db, repo.fullName);
+		return await insightServices.getHomeStats(getDb().db, repo);
 	});

@@ -1,5 +1,9 @@
 import { queryOptions, useQueryClient } from "@tanstack/react-query";
-import { changeRequestAuthor, type NormalizedEvent } from "@tripwire/contracts";
+import {
+	changeRequestAuthor,
+	type NormalizedEvent,
+	type RepoIdentity,
+} from "@tripwire/contracts";
 import { useEffect } from "react";
 import {
 	type ActivityFeedData,
@@ -209,9 +213,12 @@ function mergeRun(
 	};
 }
 
-/** An event belongs to this feed when it targets the scoped repo (or has none). */
-function belongsTo(event: NormalizedEvent, repoFullName: string): boolean {
-	return !("repo" in event) || event.repo.fullName === repoFullName;
+/** Forge-qualified events alone can update a repository's cached feed. */
+export function belongsTo(
+	event: Pick<NormalizedEvent, "forge"> & { repo?: { fullName: string } },
+	repo: RepoIdentity,
+): boolean {
+	return event.forge === repo.forge && event.repo?.fullName === repo.fullName;
 }
 
 /**
@@ -226,16 +233,18 @@ function belongsTo(event: NormalizedEvent, repoFullName: string): boolean {
 export function useActivityStream(
 	org: string,
 	repo: string,
-	repoFullName: string | undefined,
+	identity: RepoIdentity | undefined,
 ): void {
 	const queryClient = useQueryClient();
+	const forge = identity?.forge;
+	const repoFullName = identity?.fullName;
 	useEffect(() => {
-		if (!repoFullName) {
+		if (!repoFullName || !forge) {
 			return;
 		}
 		const offEvent = subscribeLive("event", (data) => {
 			const event = JSON.parse(data) as NormalizedEvent;
-			if (!belongsTo(event, repoFullName)) {
+			if (!belongsTo(event, { forge, fullName: repoFullName })) {
 				return;
 			}
 			queryClient.setQueryData<ActivityFeedData>(
@@ -245,7 +254,7 @@ export function useActivityStream(
 		});
 		const offRun = subscribeLive("run", (data) => {
 			const resolved = JSON.parse(data) as ActivityItem;
-			if (!belongsTo(resolved.event, repoFullName)) {
+			if (!belongsTo(resolved.event, { forge, fullName: repoFullName })) {
 				return;
 			}
 			queryClient.setQueryData<ActivityFeedData>(
@@ -263,5 +272,5 @@ export function useActivityStream(
 			offEvent();
 			offRun();
 		};
-	}, [org, repo, repoFullName, queryClient]);
+	}, [org, repo, forge, repoFullName, queryClient]);
 }

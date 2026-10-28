@@ -204,7 +204,7 @@ export async function processEvent(
 			await moderationServices.closeReviewsForChangeRequest(
 				db,
 				deps.appUrl,
-				normalized.repo.fullName,
+				{ forge: normalized.forge, fullName: normalized.repo.fullName },
 				normalized.changeRequest.number,
 			),
 		);

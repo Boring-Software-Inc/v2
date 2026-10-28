@@ -61,7 +61,7 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 		if (data.metric === "blocked") {
 			const runs = await insightServices.listRecentRuns(db, {
 				verdicts: [...HELD_VERDICTS],
-				repoFullName: scoped.fullName,
+				repo: { forge: "github", fullName: scoped.fullName },
 				...window,
 			});
 			return runs.map((r) => ({
@@ -80,7 +80,7 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 		if (data.metric === "passed") {
 			const runs = await insightServices.listRecentRuns(db, {
 				verdicts: ["pass"],
-				repoFullName: scoped.fullName,
+				repo: { forge: "github", fullName: scoped.fullName },
 				...window,
 			});
 			return runs.map((r) => ({
@@ -95,7 +95,7 @@ export const getAnalyticsActivity = createServerFn({ method: "GET" })
 		// "review" (default): runs awaiting a maintainer's decision.
 		const runs = await insightServices.listRecentRuns(db, {
 			verdicts: ["needs_review"],
-			repoFullName: scoped.fullName,
+			repo: { forge: "github", fullName: scoped.fullName },
 			...window,
 		});
 		return runs.map((r) => ({

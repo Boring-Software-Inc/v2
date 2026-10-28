@@ -56,3 +56,26 @@ describe("paused forges", () => {
 		expect(LIVE_FORGE_LABELS).toEqual(["GitHub"]);
 	});
 });
+
+test("GitCafe has a distinct canonical origin and stays disabled", async () => {
+	const {
+		DEFAULT_FORGE_ORIGIN,
+		forgeIdSchema,
+		forgeSchema,
+		forgePostsReviews,
+	} = await import("./forges.ts");
+	expect(forgeIdSchema.parse("gitcafe")).toBe("gitcafe");
+	expect(forgeSchema.safeParse("gitcafe").success).toBe(false);
+	expect(forgeSignIn("gitcafe")).toBeNull();
+	expect(forgeConnectable("gitcafe")).toBe(false);
+	expect(forgePostsReviews("gitcafe")).toBe(false);
+	expect(DEFAULT_FORGE_ORIGIN.gitcafe).toBe("https://git.cafe");
+	expect(DEFAULT_FORGE_ORIGIN.opengit).toBe("https://open-git.com");
+	expect(
+		changeRequestUrl({
+			forge: "gitcafe",
+			repoFullName: "owner/repo",
+			number: 7,
+		}),
+	).toBe("https://git.cafe/owner/repo/pulls/7");
+});

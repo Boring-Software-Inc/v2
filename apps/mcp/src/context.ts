@@ -4,7 +4,11 @@ import {
 	type OrgWithPermissions,
 	resolveOrgAccess,
 } from "@tripwire/auth/org-gate";
-import type { OrgPermission } from "@tripwire/contracts";
+import {
+	DEFAULT_FORGE_ORIGIN,
+	type ForgeId,
+	type OrgPermission,
+} from "@tripwire/contracts";
 import type { Db, OrgWithRole, RepoLite } from "@tripwire/db";
 import { orgServices } from "@tripwire/db";
 import type { Pool } from "pg";
@@ -131,24 +135,48 @@ export async function resolveOrg(
 export interface RepoRef {
 	scope?: string;
 	name: string;
+	forge?: ForgeId;
 }
 
-export function parseRepoRef(input: string): RepoRef {
+export function parseRepoRef(input: string, appUrl?: string): RepoRef {
 	const trimmed = input.trim();
-	const path = /^https?:\/\//i.test(trimmed)
-		? URL.canParse(trimmed)
-			? new URL(trimmed).pathname
-			: trimmed
-		: trimmed;
-	const parts = path.split("/").filter((part) => part.length > 0);
+	let path = trimmed;
+	let forge: ForgeId | undefined;
+	let appPath = false;
+	if (/^https?:\/\//i.test(trimmed)) {
+		if (!URL.canParse(trimmed)) {
+			throw new ToolError("Invalid repository URL.");
+		}
+		const url = new URL(trimmed);
+		forge = (Object.keys(DEFAULT_FORGE_ORIGIN) as ForgeId[]).find(
+			(id) => DEFAULT_FORGE_ORIGIN[id] === url.origin,
+		);
+		appPath = [
+			"https://tripwire.sh",
+			"https://staging.tripwire.sh",
+			appUrl,
+		].includes(url.origin);
+		if (
+			(!forge && !appPath) ||
+			url.username ||
+			url.password ||
+			url.search ||
+			url.hash
+		) {
+			throw new ToolError(
+				"Use a repository URL on a known forge, without credentials or query parameters.",
+			);
+		}
+		path = url.pathname;
+	}
+	const parts = path.replace(/\/$/, "").replace(/^\//, "").split("/");
 	const [first, second] = parts;
-	if (first === undefined) {
-		return { name: trimmed };
+	if (!first || (!appPath && parts.length > 2) || (forge && !second)) {
+		throw new ToolError("Use a repo name, owner/repo, or full repository URL.");
 	}
-	if (second === undefined) {
-		return { name: first.replace(/\.git$/i, "") };
-	}
-	return { scope: first, name: second.replace(/\.git$/i, "") };
+	return second
+		? { scope: first, name: second.replace(/\.git$/i, ""), forge }
+		: { name: first.replace(/\.git$/i, "") };
 }
 
 export class RepoNotFoundError extends ToolError {
@@ -165,21 +193,14 @@ async function findRepo(
 	org: OrgWithRole,
 	name: string,
 	owner?: string,
+	forge?: ForgeId,
 ): Promise<RepoLite | null> {
-	const found = await orgServices.getOrgRepo(ctx.db, {
+	return await orgServices.getOrgRepo(ctx.db, {
 		orgId: org.id,
 		repoName: name,
+		owner,
+		forge,
 	});
-	if (!found) {
-		return null;
-	}
-	if (
-		owner !== undefined &&
-		found.owner.toLowerCase() !== owner.toLowerCase()
-	) {
-		return null;
-	}
-	return found;
 }
 
 export async function resolveOrgRepo(
@@ -188,7 +209,7 @@ export async function resolveOrgRepo(
 	repo: string,
 	tool: ToolName,
 ): Promise<{ org: OrgWithPermissions; repo: RepoLite }> {
-	const ref = parseRepoRef(repo);
+	const ref = parseRepoRef(repo, ctx.config.appUrl);
 	if (ref.scope === undefined) {
 		const org = await resolveOrg(ctx, requested, tool);
 		const found = await findRepo(ctx, org, ref.name);
@@ -203,8 +224,17 @@ export async function resolveOrgRepo(
 	requireAccess(ctx);
 	const scope = ref.scope.toLowerCase();
 	const orgs = await orgServices.listUserOrgs(ctx.db, ctx.agent.userId);
-	const named = orgs.find((org) => org.slug.toLowerCase() === scope);
+	const named =
+		ref.forge === undefined
+			? orgs.find((org) => org.slug.toLowerCase() === scope)
+			: undefined;
 	if (named) {
+		if (requested && requested.toLowerCase() !== named.slug.toLowerCase()) {
+			throw new ToolError(
+				"The repo reference and requested org disagree.",
+				"pick_org",
+			);
+		}
 		const org = await resolveOrg(ctx, named.slug, tool);
 		const found = await findRepo(ctx, org, ref.name);
 		if (!found) {
@@ -220,12 +250,33 @@ export async function resolveOrgRepo(
 			? org.slug.toLowerCase() === requested.toLowerCase()
 			: ctx.agent.orgIds.includes(org.id),
 	);
+	const matches: { org: OrgWithRole; repo: RepoLite }[] = [];
 	for (const candidate of candidates) {
-		const found = await findRepo(ctx, candidate, ref.name, ref.scope);
+		const found = await findRepo(
+			ctx,
+			candidate,
+			ref.name,
+			ref.scope,
+			ref.forge,
+		);
 		if (found) {
-			return { org: await resolveOrg(ctx, candidate.slug, tool), repo: found };
+			matches.push({ org: candidate, repo: found });
 		}
 	}
+	if (matches.length > 1) {
+		throw new ToolError(
+			"That repo belongs to more than one accessible org. Pass org explicitly.",
+			"pick_org",
+		);
+	}
+	const match = matches[0];
+	if (match) {
+		return {
+			org: await resolveOrg(ctx, match.org.slug, tool),
+			repo: match.repo,
+		};
+	}
+
 	const org = await resolveOrg(ctx, requested, tool);
 	throw new RepoNotFoundError(
 		`The org ${org.slug} has no repo ${ref.scope}/${ref.name}, and ${ref.scope} is not a Tripwire org you are in.`,

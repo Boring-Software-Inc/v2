@@ -716,6 +716,7 @@ describe("claim ownership — only the installer, requester or account owner", (
 		);
 		expect(
 			await resolveInstallStatus(db, {
+				forge: "github",
 				userId: "salt",
 				installationId: "8001",
 				stateOrgId: null,
@@ -734,6 +735,7 @@ describe("claim ownership — only the installer, requester or account owner", (
 		const saltOrg = await seedTeamOrg("salt-team", "salt");
 		expect(
 			await resolveInstallStatus(db, {
+				forge: "github",
 				userId: "salt",
 				installationId: "8001",
 				stateOrgId: saltOrg,
@@ -744,6 +746,7 @@ describe("claim ownership — only the installer, requester or account owner", (
 	test("anonymous callers get a sealed preview", async () => {
 		expect(
 			await resolveInstallStatus(db, {
+				forge: "github",
 				userId: null,
 				installationId: "8001",
 				stateOrgId: null,
@@ -765,6 +768,7 @@ describe("claim ownership — only the installer, requester or account owner", (
 		]);
 		expect(
 			await resolveInstallStatus(db, {
+				forge: "github",
 				userId: "kolfadser1",
 				installationId: "8001",
 				stateOrgId: kolfOrg,
@@ -790,6 +794,7 @@ describe("claim ownership — only the installer, requester or account owner", (
 		await linkOrgInstallation(db, { orgId: kolfOrg, installationId: "8001" });
 		expect(
 			await resolveInstallStatus(db, {
+				forge: "github",
 				userId: "kolfadser1",
 				installationId: "8001",
 				stateOrgId: null,
@@ -797,6 +802,7 @@ describe("claim ownership — only the installer, requester or account owner", (
 		).toMatchObject({ status: "claimed-by-your-org", orgSlug: "kolf-team" });
 		expect(
 			await resolveInstallStatus(db, {
+				forge: "github",
 				userId: "salt",
 				installationId: "8001",
 				stateOrgId: null,
@@ -888,7 +894,7 @@ describe("claim ownership — only the installer, requester or account owner", (
 		).toBe(false);
 	});
 
-	test("an OAuth forge connection is claimable by the user whose account it is", async () => {
+	test("a matching OAuth person id is not proof of installation ownership", async () => {
 		await seedUser("og-user");
 		await db.insert(account).values({
 			id: generateId(),
@@ -913,22 +919,24 @@ describe("claim ownership — only the installer, requester or account owner", (
 			"opengit",
 		);
 		expect(await listClaimableInstallations(db, { userId: "og-user" })).toEqual(
-			[
-				{
-					installationId: "og-acct-1",
-					forge: "opengit",
-					account: "og-user",
-					repoCount: 1,
-				},
-			],
+			[],
 		);
 		expect(
+			await userCanClaimInstallation(db, {
+				userId: "og-user",
+				forge: "opengit",
+				installationId: "og-acct-1",
+			}),
+		).toBe(false);
+		expect(
 			await resolveInstallStatus(db, {
+				forge: "opengit",
 				userId: "og-user",
 				installationId: "og-acct-1",
 				stateOrgId: null,
 			}),
-		).toMatchObject({ forge: "opengit", status: "claimable", repoCount: 1 });
+		).toMatchObject({ status: "not-yours" });
+
 		expect(
 			await userCanClaimInstallation(db, {
 				userId: "salt",
@@ -984,6 +992,7 @@ describe("install status — what the setup page shows", () => {
 
 	function status(userId: string | null, installationId: string) {
 		return resolveInstallStatus(db, {
+			forge: "github",
 			userId,
 			installationId,
 			stateOrgId: null,
@@ -1175,6 +1184,7 @@ describe("access checks — GitHub's own answer as ownership proof", () => {
 		expect(await canClaim("check-admin", "9102")).toBe(false);
 		expect(
 			await resolveInstallStatus(db, {
+				forge: "github",
 				userId: "check-admin",
 				installationId: "9102",
 				stateOrgId: null,
@@ -1204,6 +1214,7 @@ describe("access checks — GitHub's own answer as ownership proof", () => {
 		expect(await canClaim("check-stranger", "9104")).toBe(false);
 		expect(
 			await resolveInstallStatus(db, {
+				forge: "github",
 				userId: "check-stranger",
 				installationId: "9104",
 				stateOrgId: null,

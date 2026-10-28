@@ -229,7 +229,9 @@ describe("listActivityFeed — grouped by change request", () => {
 			verdict: "block",
 			triggeredBy: "admin-1",
 		});
-		const feed = await listActivityFeed(db, { repoFullName: "acme/y" });
+		const feed = await listActivityFeed(db, {
+			repo: { forge: "github", fullName: "acme/y" },
+		});
 		const group = feed.items.find(
 			(i) => i.type === "group" && i.group.subjectNumber === 42,
 		);
@@ -297,7 +299,7 @@ describe("listActivityFeed — grouped by change request", () => {
 		});
 
 		const feed = await listActivityFeed(db, {
-			repoFullName: "acme/y",
+			repo: { forge: "github", fullName: "acme/y" },
 			limit: 50,
 		});
 

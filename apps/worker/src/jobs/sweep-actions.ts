@@ -1,3 +1,4 @@
+import type { Forge } from "@tripwire/contracts";
 import { bearsVerdict, REVIEW_POINTER } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { moderationServices, runServices } from "@tripwire/db";
@@ -45,7 +46,10 @@ export interface SweepDeps {
 	 * A single adapter cannot serve a sweep: the rows span every forge tripwire
 	 * ingests, and `runs` carries no forge to pick one from.
 	 */
-	adapterFor: (repoFullName: string) => Promise<ForgeAdapter | null>;
+	adapterFor: (
+		repoFullName: string,
+		forge: Forge,
+	) => Promise<ForgeAdapter | null>;
 	logger: Logger;
 	appUrl: string;
 }
@@ -118,7 +122,7 @@ export async function sweepActions(
 		if (row.subjectNumber !== null && bearsVerdict(row.eventKind)) {
 			const latest = await runServices.getLatestRunForChangeRequest(
 				db,
-				row.repoFullName,
+				{ forge: row.forge, fullName: row.repoFullName },
 				row.subjectNumber,
 			);
 			if (
@@ -194,7 +198,7 @@ export async function sweepActions(
 		 * confusing "no installation for <repo>" every minute until the give-up
 		 * window abandoned the row.
 		 */
-		const adapter = await adapterFor(row.repoFullName);
+		const adapter = await adapterFor(row.repoFullName, row.forge);
 		if (!adapter) {
 			logger.warn(
 				{ actionId: row.id, repo: row.repoFullName },
@@ -215,7 +219,7 @@ export async function sweepActions(
 				row.kind === "block"
 					? await runServices.getActiveBlockReviewId(
 							db,
-							row.repoFullName,
+							{ forge: row.forge, fullName: row.repoFullName },
 							row.subjectNumber,
 						)
 					: null,

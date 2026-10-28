@@ -516,10 +516,9 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 			}),
 		};
 		await processEvent(deps, { eventId });
-		const before = await moderationServices.listPendingItems(
-			db,
-			"Codertocat/Hello-World",
-		);
+		const before = await moderationServices.listPendingItems(db, [
+			{ forge: "github", fullName: "Codertocat/Hello-World" },
+		]);
 		expect(before.length).toBeGreaterThan(0);
 
 		const closed = await eventServices.insertRawEvent(pool, boss, {
@@ -538,7 +537,9 @@ describe("runWorkflows via processEvent (§13.6 done-when)", () => {
 		await processEvent(deps, { eventId: closed.eventId });
 
 		expect(
-			await moderationServices.listPendingItems(db, "Codertocat/Hello-World"),
+			await moderationServices.listPendingItems(db, [
+				{ forge: "github", fullName: "Codertocat/Hello-World" },
+			]),
 		).toEqual([]);
 		const statuses = await pool.query(
 			"SELECT DISTINCT m.status FROM moderation_items m JOIN runs r ON r.id = m.run_id WHERE r.subject_number = 2",

@@ -41,7 +41,7 @@ export const listModerationQueue = createServerFn({ method: "GET" })
 		const limit = moderationServices.PENDING_ITEMS_LIMIT;
 		const rows = await moderationServices.listPendingItems(
 			getDb().db,
-			repo.fullName,
+			[repo],
 			limit + 1,
 		);
 		const items = rows.slice(0, limit).map((item) => ({
@@ -83,7 +83,7 @@ export const decideModeration = createServerFn({ method: "POST" })
 			getDb().db,
 			isDemoMode() ? null : { pool: getDb().pool, boss: await getBoss() },
 			{
-				repoFullName: repo.fullName,
+				repo,
 				itemId: data.itemId,
 				decision: data.decision,
 				decidedBy,

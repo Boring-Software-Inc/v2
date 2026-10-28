@@ -127,7 +127,7 @@ describe("decideRepoModerationItem", () => {
 	test("a foreign repo's item reads as missing", async () => {
 		const itemId = await seedPendingItem("other/repo");
 		const result = await decideRepoModerationItem(db, null, {
-			repoFullName: "acme/web",
+			repo: { forge: "github", fullName: "acme/web" },
 			itemId,
 			decision: "approve",
 			decidedBy: null,
@@ -138,7 +138,7 @@ describe("decideRepoModerationItem", () => {
 	test("decides an item on its own repo once", async () => {
 		const itemId = await seedPendingItem("acme/web");
 		const input = {
-			repoFullName: "acme/web",
+			repo: { forge: "github" as const, fullName: "acme/web" },
 			itemId,
 			decision: "deny" as const,
 			decidedBy: null,
@@ -160,7 +160,7 @@ describe("decideRepoModerationItem", () => {
 			.where(eq(moderationItems.id, itemId));
 		expect(
 			await decideRepoModerationItem(db, null, {
-				repoFullName: "acme/web",
+				repo: { forge: "github", fullName: "acme/web" },
 				itemId,
 				decision: "approve",
 				decidedBy: null,

@@ -123,6 +123,7 @@ function run(github: InstallationLookup | null, userId: string, id: string) {
 
 function status(userId: string, installationId: string) {
 	return orgServices.resolveInstallStatus(db, {
+		forge: "github",
 		userId,
 		installationId,
 		stateOrgId: null,
