@@ -1,0 +1,8 @@
+{
+	"commit": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+	"oid": "cf3417e85e2c6f5266adac229d0918d4ea213f39",
+	"path": "tripwire-qa.txt",
+	"size": 83,
+	"binary": false,
+	"content": "Tripwire staging adapter acceptance fixture.\nThis file is safe to remove after QA.\n"
+}

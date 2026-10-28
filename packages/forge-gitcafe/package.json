@@ -13,6 +13,7 @@
 	},
 	"dependencies": {
 		"@tripwire/contracts": "workspace:*",
-		"@tripwire/utils": "workspace:*"
+		"@tripwire/utils": "workspace:*",
+		"@tripwire/forge": "workspace:*"
 	}
 }

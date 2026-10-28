@@ -5,11 +5,20 @@ export {
 	type GitCafeInstallationRequest,
 } from "./app-assertion.ts";
 export {
+	type GitCafeAuthorizedJsonRequest,
 	GitCafeInstallationClient,
 	type GitCafeInstallationClientOptions,
 	type GitCafeInstallationFailure,
 	type GitCafeInstallationResult,
+	type GitCafeReadResource,
 } from "./installation-client.ts";
+export {
+	type GitCafeDiffFile,
+	type GitCafeReadFailure,
+	type GitCafeReadResult,
+	GitCafeReads,
+	type GitCafeReadsOptions,
+} from "./reads.ts";
 export {
 	type GitCafeWebhookVerification,
 	verifyGitCafeWebhook,
