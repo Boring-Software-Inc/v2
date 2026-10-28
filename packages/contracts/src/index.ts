@@ -37,6 +37,19 @@ export {
 	gitCafePublicRepositorySchema,
 } from "./gitcafe.ts";
 export {
+	GITCAFE_ISSUER,
+	type GitCafeAccountBinding,
+	type GitCafeAuthorizationResponse,
+	type GitCafeIdentity,
+	type GitCafeOidcClaims,
+	type GitCafeOidcClient,
+	gitCafeAccountBindingSchema,
+	gitCafeAuthorizationResponseSchema,
+	gitCafeIdentitySchema,
+	gitCafeOidcClaimsSchema,
+	gitCafeOidcClientSchema,
+} from "./gitcafe-identity.ts";
+export {
 	type GitCafeInstallation,
 	type GitCafeInstallationToken,
 	type GitCafePermission,
