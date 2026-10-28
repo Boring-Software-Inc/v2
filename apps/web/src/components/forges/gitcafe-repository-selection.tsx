@@ -25,11 +25,13 @@ export function GitCafeRepositorySelection({
 	const reasonId = useId();
 	const repositoryCounts = useMemo(() => {
 		const counts = new Map<string, number>();
-		for (const repo of repositories)
-			counts.set(
-				repo.installationId,
-				(counts.get(repo.installationId) ?? 0) + 1,
-			);
+		for (const repo of repositories) {
+			if (repo.installationId !== null)
+				counts.set(
+					repo.installationId,
+					(counts.get(repo.installationId) ?? 0) + 1,
+				);
+		}
 		return counts;
 	}, [repositories]);
 	const availabilityReason = providers.isPending

@@ -191,6 +191,14 @@ test("same-owner installations identify the current repository selection separat
 	client.setQueryData(organizationConnectionsQueryOptions("team").queryKey, [
 		{
 			...connection,
+			repositories: [
+				...connection.repositories,
+				{
+					id: "unassigned-repo",
+					fullName: "boring/unassigned",
+					installationId: null,
+				},
+			],
 			installations: [
 				{
 					installationId: "older-empty-installation",
