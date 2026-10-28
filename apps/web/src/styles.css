@@ -86,6 +86,7 @@ body {
 }
 
 .glaze {
+	--brand-gitcafe: #a88bfa;
 	--density-row: calc(var(--row) + var(--space-2));
 	--density-head: var(--row);
 	--density-cell-x: var(--space-4);
