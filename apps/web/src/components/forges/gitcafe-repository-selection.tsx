@@ -1,8 +1,10 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type { OrganizationForgeConnection } from "@tripwire/contracts";
 import { forgeInstallationSettingsUrl } from "@tripwire/utils/forge-sign-in";
+import { useId } from "react";
 import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
 import { Button } from "#/components/glaze/ui/button";
+import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { startGitCafeConnection } from "#/lib/gitcafe-connection.functions";
 
 /** Selection changes reuse the person-bound connection proof and complete worker discovery. */
@@ -13,6 +15,15 @@ export function GitCafeRepositorySelection({
 	org: string;
 	installations: OrganizationForgeConnection["installations"];
 }) {
+	const providers = useQuery(providerAvailabilityQueryOptions());
+	const reasonId = useId();
+	const availabilityReason = providers.isPending
+		? "Checking repository sync availability."
+		: providers.isError
+			? "Couldn't check repository sync availability. Refresh the page to try again."
+			: !providers.data.available.includes("gitcafe")
+				? "GitCafe repository sync isn't available on this Tripwire server."
+				: null;
 	const sync = useMutation({
 		mutationFn: (installationId: string) =>
 			startGitCafeConnection({ data: { org, installationId } }),
@@ -51,8 +62,9 @@ export function GitCafeRepositorySelection({
 							variant="secondary"
 						/>
 						<Button
+							aria-describedby={availabilityReason ? reasonId : undefined}
 							aria-label={`Sync GitCafe repositories for ${installation.owner}`}
-							disabled={sync.isPending}
+							disabled={availabilityReason !== null || sync.isPending}
 							onClick={() => sync.mutate(installation.installationId)}
 							pending={
 								sync.isPending && sync.variables === installation.installationId
@@ -64,6 +76,11 @@ export function GitCafeRepositorySelection({
 					</div>
 				);
 			})}
+			{availabilityReason ? (
+				<output className="type-body-sm text-text-2" id={reasonId}>
+					{availabilityReason}
+				</output>
+			) : null}
 			{sync.isError ? (
 				<Alert status="fail">
 					<AlertTitle>
