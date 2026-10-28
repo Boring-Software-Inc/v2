@@ -24,7 +24,11 @@ import { generateId } from "@tripwire/utils";
 import { createAuthorizationURL, type OAuthProvider } from "better-auth/oauth2";
 import { and, eq } from "drizzle-orm";
 import { resolveGitCafeSignIn } from "./gitcafe-oidc.ts";
-import { type Auth, createAuth } from "./server.ts";
+import {
+	type Auth,
+	configuredSignInProviderIds,
+	createAuth,
+} from "./server.ts";
 
 const BASE_URL = "https://tripwire.test";
 const CLIENT_ID = "gitcafe-protocol-test";
@@ -314,7 +318,7 @@ afterAll(async () => {
 });
 
 describe("GitCafe opt-in public OIDC", () => {
-	test("runtime gate requires explicit enablement and a client ID; catalog stays unavailable", async () => {
+	test("runtime gate requires explicit enablement and a client ID independently of catalog support", async () => {
 		expect(
 			resolveGitCafeSignIn({ enabled: undefined, clientId: CLIENT_ID }),
 		).toBeNull();
@@ -332,7 +336,13 @@ describe("GitCafe opt-in public OIDC", () => {
 		).toEqual({ clientId: CLIENT_ID });
 		expect(
 			FORGE_CATALOG.find((forge) => forge.id === "gitcafe"),
-		).not.toHaveProperty("signIn");
+		).toHaveProperty("signIn", "social");
+		expect(await configuredSignInProviderIds(auth)).toEqual(["gitcafe"]);
+		expect(await configuredSignInProviderIds(disabledAuth)).toEqual([]);
+		expect(await configuredSignInProviderIds(null)).toEqual([]);
+		expect(
+			(await auth.$context).options.account?.accountLinking?.trustedProviders,
+		).not.toContain("gitcafe");
 		expect(
 			(
 				await post(
@@ -343,6 +353,30 @@ describe("GitCafe opt-in public OIDC", () => {
 				)
 			).ok,
 		).toBe(false);
+	});
+
+	test("public availability comes from real registered providers and discloses no configuration", async () => {
+		const instance = createAuth({
+			db,
+			secret,
+			baseUrl: BASE_URL,
+			github: { clientId: CLIENT_ID, clientSecret: secret },
+			opengit: null,
+			gitcafe: resolveGitCafeSignIn({ enabled: "true", clientId: CLIENT_ID }),
+		});
+		const ids = await configuredSignInProviderIds(instance);
+		expect(ids).toEqual(["github", "gitcafe"]);
+		const serialized = JSON.stringify(ids);
+		expect(serialized).not.toContain(CLIENT_ID);
+		expect(serialized).not.toContain(secret);
+		const context = await instance.$context;
+		context.socialProviders.splice(
+			context.socialProviders.findIndex(
+				(provider) => provider.id === "gitcafe",
+			),
+			1,
+		);
+		expect(await configuredSignInProviderIds(instance)).toEqual(["github"]);
 	});
 
 	test("S256, nonce, exact redirect and public token auth; stable subject/handle, no persisted tokens", async () => {

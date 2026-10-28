@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	changeRequestUrl,
+	configuredSignInProviderIdsSchema,
 	forgeConnectable,
 	forgeSignIn,
 	LIVE_FORGE_LABELS,
@@ -52,12 +53,12 @@ describe("paused forges", () => {
 		expect(forgeConnectable("github")).toBe(true);
 		expect(forgeConnectable("opengit")).toBe(false);
 		expect(forgeSignIn("opengit")).toBeNull();
-		expect(SIGN_IN_FORGE_IDS).toEqual(["github"]);
+		expect(SIGN_IN_FORGE_IDS).toEqual(["github", "gitcafe"]);
 		expect(LIVE_FORGE_LABELS).toEqual(["GitHub"]);
 	});
 });
 
-test("GitCafe has a distinct canonical origin and stays disabled", async () => {
+test("GitCafe supports sign-in independently of ingest and connect", async () => {
 	const {
 		DEFAULT_FORGE_ORIGIN,
 		forgeIdSchema,
@@ -66,7 +67,7 @@ test("GitCafe has a distinct canonical origin and stays disabled", async () => {
 	} = await import("./forges.ts");
 	expect(forgeIdSchema.parse("gitcafe")).toBe("gitcafe");
 	expect(forgeSchema.safeParse("gitcafe").success).toBe(false);
-	expect(forgeSignIn("gitcafe")).toBeNull();
+	expect(forgeSignIn("gitcafe")).toBe("social");
 	expect(forgeConnectable("gitcafe")).toBe(false);
 	expect(forgePostsReviews("gitcafe")).toBe(false);
 	expect(DEFAULT_FORGE_ORIGIN.gitcafe).toBe("https://git.cafe");
@@ -78,4 +79,20 @@ test("GitCafe has a distinct canonical origin and stays disabled", async () => {
 			number: 7,
 		}),
 	).toBe("https://git.cafe/owner/repo/pulls/7");
+});
+
+test("configured sign-in providers contain only known IDs, never credentials", () => {
+	expect(configuredSignInProviderIdsSchema.parse([])).toEqual([]);
+	expect(
+		configuredSignInProviderIdsSchema.parse(["github", "gitcafe"]),
+	).toEqual(["github", "gitcafe"]);
+	for (const value of [
+		["unknown"],
+		[{ id: "gitcafe", clientId: "private" }],
+		{ providerIds: ["github"], clientSecret: "private" },
+	]) {
+		expect(configuredSignInProviderIdsSchema.safeParse(value).success).toBe(
+			false,
+		);
+	}
 });

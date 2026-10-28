@@ -1,5 +1,7 @@
 import { dash } from "@better-auth/infra";
 import {
+	type ConfiguredSignInProviderIds,
+	configuredSignInProviderIdsSchema,
 	GITCAFE_ISSUER,
 	type GitCafeIdentity,
 	type GitCafeOidcClient,
@@ -62,7 +64,7 @@ export interface CreateAuthInput {
 	 * cannot own a repo (see FORGE_CATALOG: `status: planned`, `signIn: oauth2`).
 	 */
 	opengit: { clientId: string; clientSecret: string; origin?: string } | null;
-	/** Backend-only opt-in until the real staging exchange is verified. No client secret. */
+	/** Deployment opt-in for public GitCafe OIDC. No client secret. */
 	gitcafe?: GitCafeOidcClient | null;
 	/**
 	 * Better Auth Infrastructure API key (BETTER_AUTH_API_KEY). Lets the dash()
@@ -512,6 +514,18 @@ export function createAuth(input: CreateAuthInput) {
 }
 
 export type Auth = ReturnType<typeof createAuth>;
+
+/** Read initialized providers so plugin registration and deployment gates agree. */
+export async function configuredSignInProviderIds(
+	auth: Auth | null,
+): Promise<ConfiguredSignInProviderIds> {
+	const context = auth ? await auth.$context : null;
+	return configuredSignInProviderIdsSchema.parse(
+		SIGN_IN_FORGE_IDS.filter((id) =>
+			context?.socialProviders.some((provider) => provider.id === id),
+		),
+	);
+}
 
 export type AuthPosture = "enabled" | "open-dev";
 

@@ -13,6 +13,7 @@ export {
 	type DatabuddyProfileActivity,
 } from "./databuddy-api.ts";
 export { getErrorMessage, toError } from "./errors.ts";
+export { signInForgeLabels, signInForges } from "./forge-sign-in.ts";
 export {
 	type GuardedFetchDeps,
 	type GuardedFetchResult,

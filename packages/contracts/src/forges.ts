@@ -12,9 +12,8 @@ import { z } from "zod";
  *                It does NOT promise reads or a connect flow: open-git is live
  *                for ingest while its API still has no read endpoints, so
  *                its connect cell is disabled.
- * - `planned`  — not built. It shows as a disabled cell in every forge grid,
- *                and CANNOT reach the database, because `forgeSchema` never
- *                sees it.
+ * - `planned`  — unavailable for ingest and connect. Sign-in can ship
+ *                independently, enabled only when registered on the server.
  *
  * Flipping a `planned` entry to `live` widens `Forge`, which breaks every
  * exhaustive `Record<Forge, …>` in the app until the new arm exists. That
@@ -42,7 +41,7 @@ export interface ForgeCatalogEntry {
 	 * Sign-in is a SEPARATE capability from `status`, because the two arrive at
 	 * different times. A forge's OAuth can exist long before its adapter does:
 	 * you can authenticate with it, but there is nothing to read a repo with, so
-	 * it must not widen `Forge` or reach a row. Absent ⇒ no sign-in button.
+	 * it must not widen `Forge` or reach a row. Absent ⇒ disabled sign-in cell.
 	 */
 	readonly signIn?: ForgeSignIn;
 	readonly reviews?: boolean;
@@ -62,7 +61,7 @@ export const FORGE_CATALOG = [
 	// continues; sign-in and new connections are off.
 	{ id: "opengit", label: "OpenGit", status: "live", paused: true },
 	{ id: "gitlab", label: "GitLab", status: "planned" },
-	{ id: "gitcafe", label: "GitCafe", status: "planned" },
+	{ id: "gitcafe", label: "GitCafe", status: "planned", signIn: "social" },
 ] as const satisfies readonly ForgeCatalogEntry[];
 
 type CatalogEntry = (typeof FORGE_CATALOG)[number];
@@ -104,16 +103,21 @@ export const LIVE_FORGE_LABELS: readonly string[] = FORGE_CATALOG.filter(
 ).map((entry) => entry.label);
 
 /**
- * Every forge you can authenticate with, adapter or not. This — NOT
- * `forgeSchema.options` — is what better-auth trusts for same-email account
- * linking: a sign-in-only forge still has to link to an existing user, and
- * gating that on the persisted enum would reject it.
+ * Forges with sign-in support, adapter or not. Deployment availability also
+ * requires server registration. Auth applies its own account-linking policy;
+ * GitCafe must never become trusted for same-email linking.
  */
 export const SIGN_IN_FORGE_IDS: readonly ForgeId[] = FORGE_CATALOG.filter(
 	// `in`, not a property read: the catalog is `as const`, so entries without a
 	// sign-in do not carry the key at all and the union has no such property.
 	(entry) => "signIn" in entry,
 ).map((entry) => entry.id);
+
+/** Public auth availability contains only provider IDs, never configuration. */
+export const configuredSignInProviderIdsSchema = z.array(forgeIdSchema);
+export type ConfiguredSignInProviderIds = z.infer<
+	typeof configuredSignInProviderIdsSchema
+>;
 
 /** How to sign in with a forge, or null when it offers no sign-in. */
 export function forgeSignIn(id: ForgeId): ForgeSignIn | null {

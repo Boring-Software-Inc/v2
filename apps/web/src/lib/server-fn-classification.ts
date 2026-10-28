@@ -26,6 +26,8 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	// ── public (deliberately reachable without the beta gate) ───────────
 	getSessionInfo: "public", // feeds the gate, queue screen, unauth
 	getCurrentUser: "public", // caller's OWN identity; no product data
+	/** The signed-out login page needs provider IDs, never auth configuration. */
+	getSignInProviderIds: "public",
 	getRun: "public", // unlisted-public run page (§10)
 	getWebviewHost: "public", // reads the caller's own user-agent; /login is signed-out
 	/**
