@@ -3,6 +3,7 @@ import {
 	type GitCafeReadChange,
 	type GitCafeReadChanges,
 	type GitCafeReadCommits,
+	type GitCafeReadDiagnostic,
 	type GitCafeReadDiffFile,
 	type GitCafeReadPull,
 	gitCafeOrganizationMembersSchema,
@@ -10,6 +11,7 @@ import {
 	gitCafeReadChangesSchema,
 	gitCafeReadCollaboratorsSchema,
 	gitCafeReadCommitsSchema,
+	gitCafeReadDiagnosticSchema,
 	gitCafeReadDiffFileSchema,
 	gitCafeReadProfileSchema,
 	gitCafeReadPullPageSchema,
@@ -30,7 +32,9 @@ import type {
 export type GitCafeReadFailure =
 	| GitCafeInstallationFailure
 	| { ok: false; reason: "changed" | "incomplete" | "pagination" };
-export type GitCafeReadResult<T> = { ok: true; value: T } | GitCafeReadFailure;
+export type GitCafeReadResult<T> =
+	| { ok: true; value: T; diagnostics?: GitCafeReadDiagnostic[] }
+	| GitCafeReadFailure;
 export interface GitCafeDiffFile
 	extends Omit<DiffFile, "status" | "additions" | "deletions"> {
 	status: DiffFile["status"] | null;
@@ -77,8 +81,9 @@ export class GitCafeReads {
 	getContributorProfile(
 		repo: string,
 		login: string,
+		expectedActorId?: string,
 	): Promise<GitCafeReadResult<ContributorProfile>> {
-		return this.fenced(() => this.contributor(repo, login));
+		return this.fenced(() => this.contributor(repo, login, expectedActorId));
 	}
 
 	private async fenced<T>(
@@ -337,6 +342,7 @@ export class GitCafeReads {
 	private async contributor(
 		repo: string,
 		login: string,
+		expectedActorId?: string,
 	): Promise<GitCafeReadResult<ContributorProfile>> {
 		const profile = await this.get(
 			repo,
@@ -344,7 +350,11 @@ export class GitCafeReads {
 			gitCafeReadProfileSchema,
 		);
 		if (!profile.ok) return profile;
-		if (profile.value.handle !== login)
+		if (
+			profile.value.handle !== login ||
+			(expectedActorId !== undefined &&
+				profile.value.actorId !== expectedActorId)
+		)
 			return { ok: false, reason: "identity-mismatch" };
 		const actor = profile.value.actorId;
 		const [merged, members, collaborators] = await Promise.all([
@@ -367,6 +377,30 @@ export class GitCafeReads {
 				(item) => item.actorId,
 			),
 		]);
+		const diagnostics: GitCafeReadDiagnostic[] = [];
+		for (const [source, read] of [
+			["merged-history", merged],
+			["organization-membership", members],
+			["repository-collaborators", collaborators],
+		] as const) {
+			if (!read.ok)
+				diagnostics.push(
+					gitCafeReadDiagnosticSchema.parse({
+						source,
+						reason: read.reason,
+						status: "status" in read ? read.status : undefined,
+					}),
+				);
+		}
+		const validHistory =
+			merged.ok && merged.value.every((p) => p.state === "merged");
+		if (merged.ok && !validHistory)
+			diagnostics.push(
+				gitCafeReadDiagnosticSchema.parse({
+					source: "merged-history",
+					reason: "invalid-response",
+				}),
+			);
 		const membership = members.ok
 			? members.value.find((m) => m.actorId === actor)
 			: undefined;
@@ -391,7 +425,7 @@ export class GitCafeReads {
 		const inheritedMaintainer =
 			membership && ["org-owner", "org-admin"].includes(membership.role);
 		const isMaintainer = directMaintainer || inheritedMaintainer ? true : null;
-		return {
+		const result: GitCafeReadResult<ContributorProfile> = {
 			ok: true,
 			value: {
 				login,
@@ -402,7 +436,7 @@ export class GitCafeReads {
 				publicRepos: null,
 				profileText: profile.value.bio,
 				mergedInRepo:
-					merged.ok && merged.value.every((p) => p.state === "merged")
+					merged.ok && validHistory
 						? merged.value.filter((p) => p.authorActorId === actor).length
 						: null,
 				mergedElsewhere: null,
@@ -411,6 +445,8 @@ export class GitCafeReads {
 				isMaintainer,
 			},
 		};
+		if (diagnostics.length > 0) result.diagnostics = diagnostics;
+		return result;
 	}
 
 	private async pages<T>(

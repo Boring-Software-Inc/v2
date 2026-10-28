@@ -6,6 +6,7 @@ import type {
 	DiffFile,
 	ForgeCommit,
 } from "@tripwire/forge";
+import type { GitCafeReadResult } from "@tripwire/forge-gitcafe";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { forcedReadFailures } from "./reads-injection.ts";
@@ -21,16 +22,17 @@ export interface WorkerReads {
 		repoFullName: string,
 		number: number,
 		head?: ChangeRequestHead,
-	): Promise<DiffFile[]>;
+	): Promise<DiffFile[] | GitCafeReadResult<DiffFile[]>>;
 	getCommits(
 		repoFullName: string,
 		number: number,
 		head?: ChangeRequestHead,
-	): Promise<ForgeCommit[]>;
+	): Promise<ForgeCommit[] | GitCafeReadResult<ForgeCommit[]>>;
 	getContributorProfile(
 		repoFullName: string,
 		login: string,
-	): Promise<ContributorProfile>;
+		expectedActorId?: string,
+	): Promise<ContributorProfile | GitCafeReadResult<ContributorProfile>>;
 }
 
 export interface BuiltRuleContext {
@@ -52,14 +54,40 @@ export async function buildRuleContext(
 	const degradedReads: string[] = [];
 	const forcedFailures = forcedReadFailures();
 
-	const guard = async <T>(name: string, fn: () => Promise<T>) => {
+	const guard = async <T extends object>(
+		name: string,
+		fn: () => Promise<T | GitCafeReadResult<T>>,
+	) => {
 		try {
 			if (forcedFailures.has(name)) {
 				throw new Error(
 					`TRIPWIRE_FAIL_READS: forced failure of "${name}" read`,
 				);
 			}
-			return await fn();
+			const result = await fn();
+			if (isReadResult(result)) {
+				if (result.ok) {
+					if (result.diagnostics?.length) degradedReads.push(name);
+					for (const diagnostic of result.diagnostics ?? [])
+						logger.warn(
+							{
+								read: name,
+								source: diagnostic.source,
+								reason: diagnostic.reason,
+								status: diagnostic.status,
+							},
+							"context read partially degraded",
+						);
+					return result.value;
+				}
+				degradedReads.push(name);
+				logger.warn(
+					{ read: name, reason: result.reason },
+					"context read degraded",
+				);
+				return null;
+			}
+			return result;
 		} catch (error) {
 			degradedReads.push(name);
 			logger.warn(
@@ -70,19 +98,44 @@ export async function buildRuleContext(
 		}
 	};
 
-	const [diff, commits, contributor] = await Promise.all([
+	const [diff, commits, readContributor] = await Promise.all([
 		reads && number !== null
-			? guard("diff", () => reads.getDiff(repo, number, head))
+			? guard<DiffFile[]>("diff", () => reads.getDiff(repo, number, head))
 			: Promise.resolve(null),
 		reads && number !== null
-			? guard("commits", () => reads.getCommits(repo, number, head))
+			? guard<ForgeCommit[]>("commits", () =>
+					reads.getCommits(repo, number, head),
+				)
 			: Promise.resolve(null),
 		reads
-			? guard("contributor", () =>
-					reads.getContributorProfile(repo, event.actor.login),
+			? guard<ContributorProfile>("contributor", () =>
+					reads.getContributorProfile(
+						repo,
+						event.actor.login,
+						event.actor.externalId,
+					),
 				)
 			: Promise.resolve(null),
 	]);
+	const contributor =
+		event.forge === "gitcafe" &&
+		readContributor?.externalId !== event.actor.externalId
+			? null
+			: readContributor;
+	if (readContributor !== null && contributor === null) {
+		degradedReads.push("contributor");
+		logger.warn(
+			{ read: "contributor", reason: "identity-mismatch" },
+			"context read degraded",
+		);
+	}
+	if (diff?.some((file) => file.patchUnavailable != null)) {
+		degradedReads.push("diff");
+		logger.warn(
+			{ read: "diff", reason: "partial-evidence" },
+			"context read degraded",
+		);
+	}
 
 	const ctx: RuleContext = {
 		event,
@@ -95,6 +148,7 @@ export async function buildRuleContext(
 				additions: file.additions,
 				deletions: file.deletions,
 				patch: file.patch,
+				patchUnavailable: file.patchUnavailable,
 			})) ?? null,
 		commits:
 			commits?.map((commit) => ({
@@ -119,6 +173,12 @@ export async function buildRuleContext(
 			: null,
 	};
 	return { ctx, degradedReads };
+}
+
+function isReadResult<T extends object>(
+	value: T | GitCafeReadResult<T>,
+): value is GitCafeReadResult<T> {
+	return "ok" in value;
 }
 
 export function changeRequestHead(

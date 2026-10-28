@@ -1,5 +1,21 @@
 import { z } from "zod";
 
+export const gitCafeInstallationFailureReasonSchema = z.enum([
+	"configuration",
+	"invalid-installation-id",
+	"invalid-resource-path",
+	"network",
+	"http",
+	"invalid-response",
+	"identity-mismatch",
+	"inactive",
+	"expired",
+	"stale",
+]);
+export type GitCafeInstallationFailureReason = z.infer<
+	typeof gitCafeInstallationFailureReasonSchema
+>;
+
 export const gitCafePermissionSchema = z.object({
 	kind: z.enum(["repo", "branch", "pr", "issue", "comment", "org", "team"]),
 	family: z.string().min(1),

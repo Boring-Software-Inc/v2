@@ -129,6 +129,7 @@ export function createGenerate(options: {
 								? await options.reads.getContributorProfile(
 										repo,
 										options.event.actor.login,
+										options.event.actor.externalId,
 									)
 								: "(unavailable)",
 					}),

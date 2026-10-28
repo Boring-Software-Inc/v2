@@ -144,10 +144,17 @@ export async function rerunChangeRequest(
 	const adapter = runtime?.adapter ?? null;
 	if (reads && "changeRequest" in event) {
 		try {
-			const commits = await reads.getCommits(
+			const read = await reads.getCommits(
 				event.repo.fullName,
 				event.changeRequest.number,
 			);
+			if (!Array.isArray(read) && !read.ok) {
+				logger.warn(
+					{ reason: read.reason },
+					"fresh head read refused — re-run targets the stored head",
+				);
+			}
+			const commits = Array.isArray(read) ? read : read.ok ? read.value : [];
 			const freshSha = commits.at(-1)?.sha;
 			if (freshSha && freshSha !== event.changeRequest.headSha) {
 				logger.info(

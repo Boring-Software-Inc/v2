@@ -1,6 +1,7 @@
 import {
 	type GitCafeConnectionRepository,
 	type GitCafeInstallation,
+	type GitCafeInstallationFailureReason,
 	type GitCafeOrganizationMembers,
 	type GitCafePermission,
 	gitCafeConnectionRepositoryPageSchema,
@@ -17,17 +18,7 @@ import {
 
 export type GitCafeInstallationFailure = {
 	ok: false;
-	reason:
-		| "configuration"
-		| "invalid-installation-id"
-		| "invalid-resource-path"
-		| "network"
-		| "http"
-		| "invalid-response"
-		| "identity-mismatch"
-		| "inactive"
-		| "expired"
-		| "stale";
+	reason: GitCafeInstallationFailureReason;
 	status?: number;
 };
 
