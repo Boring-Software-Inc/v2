@@ -63,6 +63,7 @@ export function OrganizationConnectionsPage({ org }: { org: string }) {
 								<CollapsibleGroup aria-label="Connected forges" variant="plain">
 									{query.data.map((connection) => (
 										<OrganizationConnectionRow
+											org={org}
 											connection={connection}
 											key={`${org}:${connection.forge}`}
 											onCheckAccess={async () => {

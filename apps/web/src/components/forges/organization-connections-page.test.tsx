@@ -77,26 +77,34 @@ test("a non-manager cannot see cached repository names or disconnect controls", 
 	expect(markup).not.toContain("boring/scratch");
 	expect(markup).not.toContain("Disconnect");
 	expect(markup).not.toContain("Connect repos");
+	expect(markup).not.toContain("Sync repositories");
 });
 
-test("empty installation groups are disabled and unknown installation metadata offers no disconnect", () => {
+test("empty GitCafe installations remain manageable and unknown metadata offers no disconnect", () => {
 	const empty = renderToString(
-		<CollapsibleGroup>
-			<OrganizationConnectionRow
-				connection={{ ...connection, repositories: [] }}
-				onCheckAccess={async () => undefined}
-			/>
-		</CollapsibleGroup>,
+		<QueryClientProvider client={new QueryClient()}>
+			<CollapsibleGroup>
+				<OrganizationConnectionRow
+					org="team"
+					connection={{ ...connection, repositories: [] }}
+					onCheckAccess={async () => undefined}
+				/>
+			</CollapsibleGroup>
+		</QueryClientProvider>,
 	);
 	expect(empty).toContain("0 repos");
-	expect(empty).toMatch(/<button[^>]*disabled/);
+	expect(empty).toContain("Sync repositories");
+	expect(empty).not.toMatch(/<button[^>]*\sdisabled(?:=""|\s|>)/);
 	const unknown = renderToString(
-		<CollapsibleGroup defaultValue={["gitcafe"]}>
-			<OrganizationConnectionRow
-				connection={{ ...connection, installations: [] }}
-				onCheckAccess={async () => undefined}
-			/>
-		</CollapsibleGroup>,
+		<QueryClientProvider client={new QueryClient()}>
+			<CollapsibleGroup defaultValue={["gitcafe"]}>
+				<OrganizationConnectionRow
+					org="team"
+					connection={{ ...connection, installations: [] }}
+					onCheckAccess={async () => undefined}
+				/>
+			</CollapsibleGroup>
+		</QueryClientProvider>,
 	);
 	expect(unknown).toContain("boring/scratch");
 	expect(unknown).not.toContain("Disconnect");
@@ -124,4 +132,13 @@ test("a failed access refresh keeps the cached repository list and its controls"
 	} finally {
 		client.clear();
 	}
+});
+
+test("an existing GitCafe installation can change and sync its repository selection", () => {
+	const markup = page(true);
+	expect(markup).toContain("Manage repositories on GitCafe");
+	expect(markup).toContain(
+		"https://git.cafe/orgs/boring/settings/apps/installation-one",
+	);
+	expect(markup).toContain("Sync repositories");
 });
