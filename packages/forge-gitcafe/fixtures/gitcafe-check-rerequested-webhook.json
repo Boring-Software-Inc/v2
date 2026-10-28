@@ -1,0 +1,30 @@
+{
+	"id": "evt_01m6146kchen8rx5ra6fcktw8d",
+	"bot": {
+		"id": "act_01m60zef00f4fsqskxqt2w72xs"
+	},
+	"type": "check.rerequested",
+	"actor": {
+		"id": "act_01m08gfttrfw3ba3xpz50vq38h"
+	},
+	"version": "1",
+	"checkRun": {
+		"id": "checkrun_01m6130wzse6cttdpq35c1rybe",
+		"key": "tripwire-staging-qa",
+		"name": "tripwire",
+		"headOid": "2bff66c45a9e2241fc2482bc63bac23281a7377f",
+		"conclusion": "neutral",
+		"detailsUrl": null,
+		"externalId": null
+	},
+	"createdAt": "2026-10-28T11:26:51.281Z",
+	"repository": {
+		"id": "repo_01m608d2crfqzt2vc8akngqsc0",
+		"name": "scratch",
+		"orgId": "org_01m601398vfdztay7fh3vaenpn",
+		"owner": "boring"
+	},
+	"installation": {
+		"id": "ins_01m60zef0bfzzbx050fw4rymhr"
+	}
+}

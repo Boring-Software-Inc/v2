@@ -50,6 +50,20 @@ export {
 } from "./gitcafe-check.ts";
 export * from "./gitcafe-connect.ts";
 export {
+	type GitCafeCheckRerequestedEvent,
+	type GitCafeHydratedPullEvent,
+	type GitCafePullEvent,
+	type GitCafePullIdentity,
+	type GitCafePushEvent,
+	type GitCafeRepositoryEvent,
+	gitCafeCheckRerequestedEventSchema,
+	gitCafeHydratedPullEventSchema,
+	gitCafePullEventSchema,
+	gitCafePullIdentitySchema,
+	gitCafePushEventSchema,
+	gitCafeRepositoryEventSchema,
+} from "./gitcafe-events.ts";
+export {
 	GITCAFE_ISSUER,
 	type GitCafeAccountBinding,
 	type GitCafeAuthorizationResponse,
