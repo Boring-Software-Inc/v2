@@ -238,6 +238,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@tripwire/contracts": "workspace:*",
+        "@tripwire/forge": "workspace:*",
         "@tripwire/utils": "workspace:*",
       },
     },

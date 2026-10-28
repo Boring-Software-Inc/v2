@@ -36,6 +36,18 @@ export {
 	gitCafePublicPullSchema,
 	gitCafePublicRepositorySchema,
 } from "./gitcafe.ts";
+export {
+	type GitCafeCheckConclusion,
+	type GitCafeCheckReportInput,
+	type GitCafeCheckReportResponse,
+	type GitCafeCheckWrite,
+	type GitCafeReportedCheck,
+	gitCafeCheckConclusionSchema,
+	gitCafeCheckReportInputSchema,
+	gitCafeCheckReportResponseSchema,
+	gitCafeCheckWriteSchema,
+	gitCafeReportedCheckSchema,
+} from "./gitcafe-check.ts";
 export * from "./gitcafe-connect.ts";
 export {
 	GITCAFE_ISSUER,
@@ -66,6 +78,27 @@ export {
 	gitCafeOrganizationMembersSchema,
 	gitCafePermissionSchema,
 } from "./gitcafe-installation.ts";
+export {
+	type GitCafeReadBlob,
+	type GitCafeReadBoundary,
+	type GitCafeReadChange,
+	type GitCafeReadChanges,
+	type GitCafeReadCollaborators,
+	type GitCafeReadCommits,
+	type GitCafeReadDiffFile,
+	type GitCafeReadProfile,
+	type GitCafeReadPull,
+	type GitCafeReadPullPage,
+	gitCafeReadBlobSchema,
+	gitCafeReadChangeSchema,
+	gitCafeReadChangesSchema,
+	gitCafeReadCollaboratorsSchema,
+	gitCafeReadCommitsSchema,
+	gitCafeReadDiffFileSchema,
+	gitCafeReadProfileSchema,
+	gitCafeReadPullPageSchema,
+	gitCafeReadPullSchema,
+} from "./gitcafe-read.ts";
 export * from "./gitcafe-receipt.ts";
 export {
 	type DigestHistory,

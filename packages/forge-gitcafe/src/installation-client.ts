@@ -39,6 +39,29 @@ export interface GitCafeInstallationClientOptions {
 	credentials: GitCafeAppCredentials;
 	fetch?: (url: string, init: RequestInit) => Promise<Response>;
 	now?: () => number;
+	/** Local persisted lifecycle authority is checked before credentials and token use. */
+	lifecycleGuard?: (installationId: string) => Promise<boolean>;
+}
+
+export type GitCafeReadResource =
+	| { kind: "pull"; number: number }
+	| {
+			kind: "changes" | "commits";
+			number: number;
+			version: number;
+			after?: string;
+	  }
+	| { kind: "diff-file"; number: number; version: number; path: string }
+	| { kind: "blob"; oid: string; path: string }
+	| { kind: "profile"; login: string }
+	| { kind: "members" | "collaborators"; after?: string }
+	| { kind: "merged-pulls"; after?: string };
+
+export interface GitCafeAuthorizedJsonRequest {
+	method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+	resourcePath: string;
+	/** The typed caller validates its contracts payload before serialization. */
+	body?: string;
 }
 
 interface CachedToken {
@@ -136,7 +159,7 @@ export class GitCafeInstallationClient {
 		let after: string | null = null;
 		do {
 			const query = after === null ? "" : `?after=${encodeURIComponent(after)}`;
-			const response = await this.installedGet(
+			const response = await this.installedRequest(
 				installationId,
 				`orgs/${encodeURIComponent(org)}/members/${query}`,
 				authority.value,
@@ -188,7 +211,7 @@ export class GitCafeInstallationClient {
 		do {
 			const query = new URLSearchParams({ owner, sort: "id", limit: "50" });
 			if (after !== null) query.set("after", after);
-			const response = await this.installedGet(
+			const response = await this.installedRequest(
 				installationId,
 				`repos?${query}`,
 				expectedInstallation,
@@ -249,7 +272,7 @@ export class GitCafeInstallationClient {
 					!expectedInstallation.repositories.includes(name)))
 		)
 			return { ok: false, reason: "identity-mismatch" };
-		const response = await this.installedGet(
+		const response = await this.installedRequest(
 			installationId,
 			`repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
 			expectedInstallation,
@@ -262,12 +285,217 @@ export class GitCafeInstallationClient {
 			: { ok: false, reason: "invalid-response" };
 	}
 
-	private async installedGet(
+	async readResource(
+		installationId: string,
+		repoFullName: string,
+		resource: GitCafeReadResource,
+	): Promise<GitCafeInstallationResult<unknown>> {
+		if (!this.options.lifecycleGuard)
+			return { ok: false, reason: "configuration" };
+		const parts = repoFullName.split("/");
+		const [owner, repo] = parts;
+		if (
+			parts.length !== 2 ||
+			!owner ||
+			!repo ||
+			owner.length > 39 ||
+			repo.length > 104 ||
+			!PATH_SEGMENT.test(owner) ||
+			!PATH_SEGMENT.test(repo)
+		)
+			return { ok: false, reason: "invalid-resource-path" };
+		const query = new URLSearchParams();
+		let path = `repos/${owner}/${repo}`;
+		if ("number" in resource) {
+			if (
+				!Number.isSafeInteger(resource.number) ||
+				resource.number < 1 ||
+				resource.number > 2147483647
+			)
+				return { ok: false, reason: "invalid-resource-path" };
+			path += `/pulls/${resource.number}`;
+			if (resource.kind !== "pull") {
+				if (!Number.isSafeInteger(resource.version) || resource.version < 0)
+					return { ok: false, reason: "invalid-resource-path" };
+				query.set("expectedVersion", String(resource.version));
+				path += `/${resource.kind}`;
+			}
+		}
+		if ("after" in resource && resource.after !== undefined) {
+			if (!/^[A-Za-z0-9_-]{1,8192}$/.test(resource.after))
+				return { ok: false, reason: "invalid-resource-path" };
+			query.set("after", resource.after);
+		}
+		if ("path" in resource) {
+			if (
+				!resource.path ||
+				resource.path.length > 4096 ||
+				resource.path.startsWith("/") ||
+				resource.path.includes("\\") ||
+				resource.path.includes("\0") ||
+				resource.path
+					.split("/")
+					.some((part) => !part || part === "." || part === "..")
+			)
+				return { ok: false, reason: "invalid-resource-path" };
+			query.set("path", resource.path);
+		}
+		switch (resource.kind) {
+			case "blob":
+				if (!/^[0-9a-f]{40}$/.test(resource.oid))
+					return { ok: false, reason: "invalid-resource-path" };
+				path += "/blob";
+				query.set("oid", resource.oid);
+				break;
+			case "profile":
+				if (!/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,99}$/.test(resource.login))
+					return { ok: false, reason: "invalid-resource-path" };
+				path = `users/${resource.login}`;
+				break;
+			case "members":
+				path = `orgs/${owner}/members/`;
+				query.set("limit", "100");
+				break;
+			case "collaborators":
+				path += "/collaborators/";
+				query.set("limit", "50");
+				break;
+			case "merged-pulls":
+				path += "/pulls/";
+				query.set("state", "merged");
+				query.set("limit", "100");
+				break;
+			case "changes":
+				query.set("limit", "500");
+				break;
+			case "commits":
+				query.set("limit", "100");
+				break;
+			case "pull":
+			case "diff-file":
+				break;
+		}
+		const authority = await this.getInstallation(installationId);
+		if (!authority.ok) return authority;
+		if (
+			authority.value.org !== owner ||
+			(authority.value.repositorySelection === "selected" &&
+				!authority.value.repositories.includes(repo))
+		)
+			return { ok: false, reason: "identity-mismatch" };
+		return this.request(
+			installationId,
+			{
+				method: "GET",
+				resourcePath: `${path}${query.size ? `?${query}` : ""}`,
+			},
+			authority.value,
+		);
+	}
+
+	async request(
+		installationId: string,
+		request: GitCafeAuthorizedJsonRequest,
+		expectedInstallation: GitCafeInstallation,
+		deadlineAt?: number,
+	): Promise<GitCafeInstallationResult<unknown>> {
+		if (!this.options.lifecycleGuard)
+			return { ok: false, reason: "configuration" };
+		if (
+			!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(request.method) ||
+			(request.method === "GET" && request.body !== undefined)
+		)
+			return { ok: false, reason: "configuration" };
+		const rawPath = request.resourcePath.split("?")[0];
+		if (
+			!rawPath ||
+			rawPath.startsWith("/") ||
+			request.resourcePath.includes("#") ||
+			request.resourcePath.includes("\\") ||
+			Array.from(request.resourcePath).some(
+				(char) => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127,
+			)
+		)
+			return { ok: false, reason: "invalid-resource-path" };
+		let segments: string[];
+		try {
+			segments = rawPath.replace(/\/$/, "").split("/").map(decodeURIComponent);
+		} catch {
+			return { ok: false, reason: "invalid-resource-path" };
+		}
+		if (
+			segments.some(
+				(segment) =>
+					!segment ||
+					segment === "." ||
+					segment === ".." ||
+					segment.includes("/") ||
+					segment.includes("\\") ||
+					Array.from(segment).some(
+						(char) => char.charCodeAt(0) <= 32 || char.charCodeAt(0) === 127,
+					),
+			)
+		)
+			return { ok: false, reason: "invalid-resource-path" };
+		const [kind, owner, repo] = segments;
+		if (kind === "repos") {
+			if (
+				!owner ||
+				!repo ||
+				owner.length > 39 ||
+				repo.length > 104 ||
+				!PATH_SEGMENT.test(owner) ||
+				!PATH_SEGMENT.test(repo) ||
+				owner !== expectedInstallation.org ||
+				(expectedInstallation.repositorySelection === "selected" &&
+					!expectedInstallation.repositories.includes(repo))
+			)
+				return { ok: false, reason: "identity-mismatch" };
+		} else if (
+			request.method !== "GET" ||
+			!(
+				(kind === "orgs" &&
+					owner === expectedInstallation.org &&
+					repo === "members" &&
+					segments.length === 3) ||
+				(kind === "users" &&
+					owner &&
+					/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,99}$/.test(owner) &&
+					segments.length === 2)
+			)
+		)
+			return { ok: false, reason: "invalid-resource-path" };
+		return this.installedRequest(
+			installationId,
+			request.resourcePath,
+			expectedInstallation,
+			deadlineAt,
+			request,
+		);
+	}
+
+	private async permitted(installationId: string): Promise<boolean> {
+		try {
+			if (!this.options.lifecycleGuard) return true;
+			const active =
+				(await this.options.lifecycleGuard(installationId)) === true;
+			if (!active) this.invalidate(installationId);
+			return active;
+		} catch {
+			this.invalidate(installationId);
+			return false;
+		}
+	}
+
+	private async installedRequest(
 		installationId: string,
 		path: string,
 		expectedInstallation?: GitCafeInstallation,
 		deadlineAt?: number,
+		request?: GitCafeAuthorizedJsonRequest,
 	): Promise<GitCafeInstallationResult<unknown>> {
+		if (this.options.lifecycleGuard && !(await this.permitted(installationId)))
+			return { ok: false, reason: "inactive" };
 		const generation = this.generation(installationId);
 		const credential = await this.getToken(
 			installationId,
@@ -275,27 +503,35 @@ export class GitCafeInstallationClient {
 			deadlineAt,
 		);
 		if (!credential.ok) return credential;
+		if (this.options.lifecycleGuard && !(await this.permitted(installationId)))
+			return { ok: false, reason: "inactive" };
 		if (this.generation(installationId) !== generation)
 			return { ok: false, reason: "stale" };
+		const headers = new Headers({
+			accept: "application/json",
+			authorization: `Bearer ${credential.value}`,
+		});
+		if (request?.body !== undefined)
+			headers.set("content-type", "application/json");
 		const response = await this.send(
 			{
 				url: `https://git.cafe/api/${path}`,
 				init: {
-					method: "GET",
-					headers: {
-						accept: "application/json",
-						authorization: `Bearer ${credential.value}`,
-					},
+					method: request?.method ?? "GET",
+					headers,
+					body: request?.body,
 				},
 			},
 			deadlineAt,
 		);
+		if (this.options.lifecycleGuard && !(await this.permitted(installationId)))
+			return { ok: false, reason: "inactive" };
 		return this.generation(installationId) === generation
 			? response
 			: { ok: false, reason: "stale" };
 	}
 
-	private getSnapshot(
+	private async getSnapshot(
 		installationId: string,
 		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<InstallationSnapshot>> {
@@ -304,9 +540,13 @@ export class GitCafeInstallationClient {
 		if (!/^[A-Za-z0-9_-]+$/.test(installationId)) {
 			return Promise.resolve({ ok: false, reason: "invalid-installation-id" });
 		}
+		const generation = this.generation(installationId);
+		if (this.options.lifecycleGuard && !(await this.permitted(installationId)))
+			return { ok: false, reason: "inactive" };
+		if (generation !== this.generation(installationId))
+			return { ok: false, reason: "stale" };
 		const pending = this.lookups.get(installationId);
 		if (pending) return this.withDeadline(pending, deadlineAt);
-		const generation = this.generation(installationId);
 		const lookup = this.lookup(installationId, generation, deadlineAt);
 		this.lookups.set(installationId, lookup);
 		const clear = () => {
@@ -381,7 +621,7 @@ export class GitCafeInstallationClient {
 		}
 	}
 
-	private generation(installationId: string): number {
+	generation(installationId: string): number {
 		return this.generations.get(installationId) ?? 0;
 	}
 
@@ -422,7 +662,11 @@ export class GitCafeInstallationClient {
 		generation: number,
 		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<InstallationSnapshot>> {
-		const response = await this.request(installationId, "lookup", deadlineAt);
+		const response = await this.requestInstallation(
+			installationId,
+			"lookup",
+			deadlineAt,
+		);
 		if (this.generation(installationId) !== generation) {
 			return { ok: false, reason: "stale" };
 		}
@@ -467,7 +711,11 @@ export class GitCafeInstallationClient {
 		generation: number,
 		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<string>> {
-		const response = await this.request(installation.id, "mint", deadlineAt);
+		const response = await this.requestInstallation(
+			installation.id,
+			"mint",
+			deadlineAt,
+		);
 		if (this.generation(installation.id) !== generation) {
 			return { ok: false, reason: "stale" };
 		}
@@ -504,11 +752,13 @@ export class GitCafeInstallationClient {
 		return { ok: true, value: token.token };
 	}
 
-	private async request(
+	private async requestInstallation(
 		installationId: string,
 		operation: "lookup" | "mint",
 		deadlineAt?: number,
 	): Promise<GitCafeInstallationResult<unknown>> {
+		if (this.options.lifecycleGuard && !(await this.permitted(installationId)))
+			return { ok: false, reason: "inactive" };
 		let request: GitCafeInstallationRequest;
 		try {
 			request = createGitCafeInstallationRequest(
@@ -520,7 +770,10 @@ export class GitCafeInstallationClient {
 		} catch {
 			return { ok: false, reason: "configuration" };
 		}
-		return this.send(request, deadlineAt);
+		const response = await this.send(request, deadlineAt);
+		return (await this.permitted(installationId))
+			? response
+			: { ok: false, reason: "inactive" };
 	}
 
 	private async send(
