@@ -14,6 +14,7 @@ import {
 	runServices,
 	type TestDatabase,
 } from "@tripwire/db";
+import type { ForgeAdapter } from "@tripwire/forge";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
@@ -110,6 +111,92 @@ afterAll(async () => {
 });
 
 describe("sweepActions", () => {
+	for (const kind of ["block", "dismiss-review", "request-review"] as const) {
+		test(`failed ${kind} remains recorded until delivery recovers`, async () => {
+			const base = normalizedEventSchema.parse(
+				await Bun.file(
+					new URL(
+						"../../../packages/core/fixtures/change-request.opened.event.json",
+						import.meta.url,
+					),
+				).json(),
+			);
+			if (!("changeRequest" in base)) throw new Error("expected PR fixture");
+			const repoFullName = `acme/recover-${kind}`;
+			const event = normalizedEventSchema.parse({
+				...base,
+				repo: { ...base.repo, fullName: repoFullName },
+			});
+			const runId = await runServices.createRun(db, {
+				eventId: await insertEvent(`surface-recover-${kind}`),
+				repoFullName,
+				subjectNumber: base.changeRequest.number,
+				headSha: base.changeRequest.headSha,
+				snapshot: SNAPSHOT,
+				status: "completed",
+				verdict: "block",
+			});
+			const rows = await runServices.recordActions(db, runId, [
+				{
+					kind,
+					payload: {
+						number: base.changeRequest.number,
+						reviewId: "review-to-dismiss",
+						reviewers: ["maintainer"],
+					},
+					idempotencyKey: `recover:${kind}`,
+				},
+			]);
+			const fake = fakeAdapter();
+			let available = false;
+			let attempts = 0;
+			const adapter: ForgeAdapter = {
+				...fake.adapter,
+				execute: async (action) => {
+					if (action.kind === kind) {
+						attempts++;
+						if (!available) throw new Error("synthetic forge outage");
+					}
+					return fake.adapter.execute(action);
+				},
+			};
+			await emitPrSurface(
+				{ db, adapter, logger, appUrl: "https://tripwire.sh" },
+				{
+					runId,
+					verdict: "block",
+					event,
+					reasons: [],
+					pendingActionRows: rows,
+				},
+			);
+			expect(attempts).toBe(1);
+			expect((await actionStatuses(runId))[`recover:${kind}`]).toBe("recorded");
+			const sweep = () =>
+				sweepActions(
+					{
+						db,
+						adapterFor: async () => adapter,
+						logger,
+						appUrl: "https://tripwire.sh",
+					},
+					{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
+				);
+			await sweep();
+			expect(attempts).toBe(2);
+			expect((await actionStatuses(runId))[`recover:${kind}`]).toBe("recorded");
+			available = true;
+			await sweep();
+			expect(attempts).toBe(3);
+			expect((await actionStatuses(runId))[`recover:${kind}`]).toBe("executed");
+			expect(
+				fake.executed.filter((action) => action.kind === kind),
+			).toHaveLength(1);
+			await sweep();
+			expect(attempts).toBe(3);
+		});
+	}
+
 	test("recorded under a failing adapter ⇒ recovers ⇒ executed", async () => {
 		const eventId = await insertEvent("sweep-recover");
 		const sha = "a".repeat(40);
