@@ -36,7 +36,7 @@ Source research: `git-cafe-parity.md`, local research commit `8c438a82a49a30c5c7
 
 ## Validation
 
-Review corrections: `bun test` passed 3,921 tests across 332 files (21 snapshots). The MCP integration suites passed 51 tests after the final parser cleanup, and the queue validation test passed after its missing-forge/no-run assertion was added. Biome, both TypeScript checks, boundary checks, the web production build, and worker/MCP bundles passed. The changed-line anti-slop command reports findings inherited from the stale local main comparison and flags the worker's deliberately untrusted queue input, which is parsed at entry.
+Review corrections: `bun test` passed 3,921 tests across 332 files (21 snapshots). The MCP integration suites passed 51 tests after the final parser cleanup, and the queue validation test passed after its missing-forge/no-run assertion was added. Biome, both TypeScript checks, boundary checks, the web production build, and worker/MCP bundles passed. The parent repeated the full suite successfully, moved raw job decoding to the queue consumer, and verified changed-line anti-slop against the pinned PR base. All 78 changed TypeScript files pass that gate. The re-run type is exported from the database barrel; the queue module does not re-export it.
 
 - `bun test`: 3,917 passed, zero failures, 21 snapshots across 330 files; includes real PostgreSQL integration tests and the existing committed replay corpus.
 - `bun run check`, primary `bun run typecheck` (tsrs), `bun run typecheck:ts5`, `bun run check:boundaries`, and changed-line anti-slop passed.

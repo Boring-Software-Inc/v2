@@ -1,4 +1,7 @@
-import type { RepoScopedEvent } from "@tripwire/contracts";
+import type {
+	RepoScopedEvent,
+	RerunChangeRequestJob,
+} from "@tripwire/contracts";
 import {
 	forgeSchema,
 	normalizedEventSchema,
@@ -27,7 +30,7 @@ import { runWorkflows } from "./run-workflows.ts";
  */
 export async function rerunChangeRequest(
 	deps: ProcessEventDeps,
-	input: unknown,
+	input: RerunChangeRequestJob,
 ): Promise<void> {
 	const { db, pool, logger } = deps;
 	const parsed = rerunChangeRequestJobSchema.safeParse(input);

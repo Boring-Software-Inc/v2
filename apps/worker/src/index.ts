@@ -1,5 +1,9 @@
 import type { Forge } from "@tripwire/contracts";
-import { DATABUDDY_WEBSITE_ID, deriveUsageSource } from "@tripwire/contracts";
+import {
+	DATABUDDY_WEBSITE_ID,
+	deriveUsageSource,
+	rerunChangeRequestJobSchema,
+} from "@tripwire/contracts";
 import {
 	aiProviderServices,
 	BACKFILL_REPO_QUEUE,
@@ -295,6 +299,14 @@ if (import.meta.main) {
 
 		await work<unknown>(RERUN_QUEUE, async (jobs) => {
 			for (const job of jobs) {
+				const parsed = rerunChangeRequestJobSchema.safeParse(job.data);
+				if (!parsed.success) {
+					logger.error(
+						{ queue: RERUN_QUEUE, jobId: job.id, issues: parsed.error.issues },
+						"invalid re-run job",
+					);
+					continue;
+				}
 				await rerunChangeRequest(
 					{
 						db,
@@ -305,7 +317,7 @@ if (import.meta.main) {
 						appUrl: process.env.APP_URL ?? "http://localhost:3000",
 						logger: logger.child({ queue: RERUN_QUEUE }),
 					},
-					job.data,
+					parsed.data,
 				);
 			}
 		});

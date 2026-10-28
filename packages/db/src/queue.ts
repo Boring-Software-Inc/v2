@@ -1,5 +1,3 @@
-export type { RerunChangeRequestJob } from "@tripwire/contracts";
-
 import { PgBoss } from "pg-boss";
 
 /** Ingest → worker handoff (§5). */

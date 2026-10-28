@@ -11,6 +11,7 @@ import {
 	type TestDatabase,
 } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
+import type { AnalyticsEvent } from "#/lib/analytics-events";
 import { analyticsActivityHandler } from "#/lib/server/analytics-activity";
 import { getDb } from "#/lib/server/db";
 
@@ -91,7 +92,9 @@ test("analytics activity handler keeps the authorized forge for every metric", a
 	});
 	expect(access.ok).toBe(true);
 	if (!access.ok) throw new Error("test org access denied");
-	const output: Record<string, unknown> = {};
+	const output: Partial<
+		Record<"blocked" | "passed" | "review", AnalyticsEvent[]>
+	> = {};
 	for (const metric of ["blocked", "passed", "review"] as const) {
 		const result = await analyticsActivityHandler({
 			data: { org: orgSlug, repo: "widget", metric },
