@@ -37,6 +37,14 @@ export {
 	gitCafePublicRepositorySchema,
 } from "./gitcafe.ts";
 export {
+	type GitCafeInstallation,
+	type GitCafeInstallationToken,
+	type GitCafePermission,
+	gitCafeInstallationSchema,
+	gitCafeInstallationTokenSchema,
+	gitCafePermissionSchema,
+} from "./gitcafe-installation.ts";
+export {
 	type DigestHistory,
 	type DigestHistoryInput,
 	type DigestHistoryWindow,

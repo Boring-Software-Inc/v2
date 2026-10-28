@@ -24,18 +24,24 @@ Steps:
 5. Run `bun test` for the contract layer and report. Never mutate an existing
    raw payload — append-only.
 
-### GitCafe public API responses
+### GitCafe API responses and app deliveries
 
-For GitCafe, use `packages/forge-gitcafe/fixtures/`. Capture only an authorized
-response; for public reads record the exact GET
-URL, UTC capture time, HTTP status, response content type, and SHA-256 of the
-original bytes. Save the original bytes outside the repository for validation.
+For GitCafe, use `packages/forge-gitcafe/fixtures/`. Capture an authorized
+response or delivery from the staging app. Record the exact method and URL,
+UTC capture time, HTTP status, content type, and SHA-256 of the original bytes.
+Retain originals outside the repository with owner-only permissions.
 Scrub secrets and private personal data without changing fields consumed by a
 schema, record each edit in the sidecar, and retain public attribution only
 when appropriate. Never commit credentials, signed delivery secrets, or tokens.
 Add the captured response and sidecar; add a boundary schema and corpus test for
 fields actually consumed. A public response is not evidence of authenticated
-behavior or a webhook delivery.
+behavior or a webhook delivery. Authenticated installation lookups and token
+exchanges require the dedicated staging app and its selected test repository.
+Replace issued token values with `[REDACTED]` in fixtures and document that
+exact change; retain the original only in private capture storage. Never save
+assertion request bodies, authorization headers, or private keys in fixtures.
+An app delivery downloaded from GitCafe proves its payload shape, not receipt
+or signature verification at Tripwire; record those separately.
 
 After capture, run `/validate-fixture` independently of these steps. It must
 compare the fixture to the saved original and inspect provenance and scrubbing;
