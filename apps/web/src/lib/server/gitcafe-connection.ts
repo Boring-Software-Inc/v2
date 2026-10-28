@@ -4,7 +4,6 @@ import {
 	GITCAFE_ISSUER,
 	gitCafeAuthorizationResponseSchema,
 	gitCafeConnectionJobSchema,
-	gitCafeConnectPrincipalSchema,
 	gitCafeConnectUserInfoSchema,
 } from "@tripwire/contracts";
 import { gitCafeConnectionServices } from "@tripwire/db";
@@ -80,9 +79,6 @@ export async function confirmGitCafeGrant(
 		const person = gitCafeConnectUserInfoSchema.parse(
 			await read("/api/oauth/userinfo"),
 		);
-		const principal = gitCafeConnectPrincipalSchema.parse(
-			await read("/api/auth/principal"),
-		);
 		const current = await auth.api.getSession({
 			headers,
 			query: { disableCookieCache: true },
@@ -90,7 +86,7 @@ export async function confirmGitCafeGrant(
 		const now = Date.now();
 		if (
 			person.sub !== proof.subject ||
-			principal.actorId !== proof.actorId ||
+			person.sub !== proof.actorId ||
 			!current ||
 			current.user.id !== proof.userId ||
 			current.session.id !== proof.sessionId ||

@@ -96,7 +96,9 @@ async function snapshot() {
 }
 
 /** Synthetic auth responses isolate queue behavior; they are not provider authority evidence. */
-function runWeb(action: "confirm" | "status" | "recover") {
+function runWeb(
+	action: "confirm" | "status" | "recover" | "mismatched-subject",
+) {
 	return spawnSync(
 		process.execPath,
 		[
@@ -118,14 +120,15 @@ function runWeb(action: "confirm" | "status" | "recover") {
 			api: {
 				getSession: async () => current,
 				consumeGitCafeConnectProof: async () => ({
-					userId, sessionId, subject: "queue-subject", actorId: "queue-actor",
+					userId, sessionId, subject: "queue-subject", actorId: action === "mismatched-subject" ? "different-actor" : "queue-subject",
 					accessToken: "synthetic-queue-test-only", expiresAt: now + 60_000, tokenExpiresAt: now + 60_000,
 				}),
 			},
 		}) }));
-		globalThis.fetch = async (url) => Response.json(String(url).endsWith("userinfo")
-			? { sub: "queue-subject" }
-			: { actorId: "queue-actor", handle: "queue-test", displayName: null, avatarUrl: null });
+		globalThis.fetch = async (url) => {
+			assert.equal(String(url), "https://git.cafe/api/oauth/userinfo");
+			return Response.json({ sub: "queue-subject" });
+		};
 		const { confirmGitCafeGrant, readGitCafeConnectionStatus } = await import("#/lib/server/gitcafe-connection");
 		const { getDb, getGitCafeConnectionBoss } = await import("#/lib/server/db");
 		let starts = 0;
@@ -136,8 +139,14 @@ function runWeb(action: "confirm" | "status" | "recover") {
 			assert.deepEqual({ schedule, supervise, migrate, createSchema }, { schedule: false, supervise: false, migrate: false, createSchema: false });
 			return start.call(this);
 		};
+		async function exercise() {
 		let client;
 		try {
+			if (action === "mismatched-subject") {
+				assert.deepEqual(await confirmGitCafeGrant(orgId, "queue-installation", "opaque-test-handle"), { ok: false, reason: "refused" });
+				assert.equal(starts, 0);
+				return;
+			}
 			if (action === "recover") {
 				assert.deepEqual(await confirmGitCafeGrant(orgId, "queue-installation", "opaque-test-handle"), { ok: false, reason: "queue-unavailable" });
 				assert.deepEqual(await readGitCafeConnectionStatus(orgId, "queue-installation", generateId()), { status: "retry" });
@@ -170,6 +179,8 @@ function runWeb(action: "confirm" | "status" | "recover") {
 			await client?.stop({ graceful: false });
 			await getDb().pool.end();
 		}
+		}
+		await exercise();
 		`,
 		],
 		{
@@ -188,6 +199,19 @@ function runWeb(action: "confirm" | "status" | "recover") {
 		},
 	);
 }
+
+test("confirmation refuses a proof whose membership actor differs from its live OIDC subject", async () => {
+	const before = await snapshot();
+	const result = runWeb("mismatched-subject");
+	expect(result.stderr).toBe("");
+	expect(result.status).toBe(0);
+	expect(await snapshot()).toEqual(before);
+	const jobs = await database.pool.query(
+		"SELECT count(*)::int AS count FROM pgboss.job WHERE name = $1",
+		[GITCAFE_CONNECT_QUEUE],
+	);
+	expect(jobs.rows[0]?.count).toBe(0);
+});
 
 for (const action of ["confirm", "status"] as const) {
 	test(`web ${action} startup preserves unrelated backlog without general registration or maintenance`, async () => {

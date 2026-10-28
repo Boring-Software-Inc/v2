@@ -9,7 +9,6 @@ import {
 	gitCafeConnectCallbackSchema,
 	gitCafeConnectFailureSchema,
 	gitCafeConnectFlowSchema,
-	gitCafeConnectPrincipalSchema,
 	gitCafeConnectProofReadSchema,
 	gitCafeConnectProofSchema,
 	gitCafeConnectRequestSchema,
@@ -327,10 +326,6 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 								await read("/api/oauth/userinfo"),
 							);
 							if (person.sub !== claims.sub) refused();
-							failureCode = "GITCAFE_CONNECT_PRINCIPAL";
-							const principal = gitCafeConnectPrincipalSchema.parse(
-								await read("/api/auth/principal"),
-							);
 							/** Provider reads can outlive revocation of the local session or org permission. */
 							providerStatus = undefined;
 							failureCode = "GITCAFE_CONNECT_AUTHORITY";
@@ -339,7 +334,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 							const proof = gitCafeConnectProofSchema.parse({
 								...flow,
 								subject: claims.sub,
-								actorId: principal.actorId,
+								actorId: claims.sub,
 								resource: GITCAFE_API_RESOURCE,
 								scopes: [...GITCAFE_CONNECT_SCOPES],
 								accessToken: tokens.accessToken,

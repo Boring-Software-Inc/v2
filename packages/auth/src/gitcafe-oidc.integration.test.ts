@@ -76,8 +76,8 @@ interface FlowOptions {
 	tokenType?: string;
 	userinfoSub?: string;
 	userinfoStatus?: number;
+	userinfo?: unknown;
 	principalStatus?: number;
-	principal?: unknown;
 	onRead?: () => Promise<void>;
 	sub?: string;
 	email?: string;
@@ -305,11 +305,13 @@ beforeAll(async () => {
 					await flow.options.onRead?.();
 					if (url.endsWith("userinfo"))
 						return Response.json(
-							{ sub: flow.options.userinfoSub ?? flow.sub },
+							flow.options.userinfo ?? {
+								sub: flow.options.userinfoSub ?? flow.sub,
+							},
 							{ status: flow.options.userinfoStatus ?? 200 },
 						);
 					return Response.json(
-						flow.options.principal ?? {
+						{
 							actorId: `actor-${flow.sub}`,
 							handle: "generated-actor",
 							displayName: null,
@@ -1367,12 +1369,25 @@ async function mutateState(
 }
 
 describe("GitCafe connect-only generated authorization protocol (not captured provider evidence)", () => {
+	test("connect uses the verified OIDC subject when the API principal endpoint refuses OAuth", async () => {
+		const who = await caller();
+		const flow = await connect(who, { principalStatus: 403 });
+		const beforeReads = personReads.length;
+		const handle = await proofHandle(flow);
+		const proof = await consume(who, handle);
+		expect(proof.subject).toBe(flow.sub);
+		expect(proof.actorId).toBe(flow.sub);
+		expect(personReads.slice(beforeReads).map((read) => read.path)).toEqual([
+			`${GITCAFE_ISSUER}/api/oauth/userinfo`,
+		]);
+		await noConnectedIdentity(flow);
+	});
 	test("person-read failure status distinguishes provider rejection from a response-shape failure", async () => {
 		for (const options of [
-			{ principalStatus: 401 },
-			{ principalStatus: 403 },
-			{ principalStatus: 503 },
-			{ principal: { unexpected: "private-provider-content" } },
+			{ userinfoStatus: 401 },
+			{ userinfoStatus: 403 },
+			{ userinfoStatus: 503 },
+			{ userinfo: { unexpected: "private-provider-content" } },
 		] satisfies FlowOptions[]) {
 			const flow = await connect(await caller(), options);
 			const response = await callback(flow);
@@ -1380,25 +1395,24 @@ describe("GitCafe connect-only generated authorization protocol (not captured pr
 			const body = await response.text();
 			expect(JSON.parse(body)).toEqual({
 				message: "GitCafe connection authorization refused",
-				code: "GITCAFE_CONNECT_PRINCIPAL",
-				providerStatus: options.principalStatus ?? 200,
+				code: "GITCAFE_CONNECT_USERINFO",
+				providerStatus: options.userinfoStatus ?? 200,
 			});
 			expect(body).not.toContain("private-provider-content");
 			await noConnectedIdentity(flow);
 		}
 	});
-	test("a principal network failure does not reuse userinfo's successful HTTP status", async () => {
-		let reads = 0;
+	test("a userinfo network failure does not report an HTTP status", async () => {
 		const flow = await connect(await caller(), {
 			onRead: async () => {
-				if (++reads === 2) throw new Error("private-provider-error");
+				throw new Error("private-provider-error");
 			},
 		});
 		const response = await callback(flow);
 		expect(response.status).toBe(403);
 		expect(await response.json()).toEqual({
 			message: "GitCafe connection authorization refused",
-			code: "GITCAFE_CONNECT_PRINCIPAL",
+			code: "GITCAFE_CONNECT_USERINFO",
 		});
 		await noConnectedIdentity(flow);
 	});
@@ -1410,7 +1424,6 @@ describe("GitCafe connect-only generated authorization protocol (not captured pr
 			],
 			[{ claims: { at_hash: "wrong" } }, "GITCAFE_CONNECT_IDENTITY"],
 			[{ userinfoStatus: 401 }, "GITCAFE_CONNECT_USERINFO"],
-			[{ principalStatus: 403 }, "GITCAFE_CONNECT_PRINCIPAL"],
 		] satisfies [FlowOptions, string][]) {
 			const flow = await connect(await caller(), options);
 			const response = await callback(flow);
@@ -1419,7 +1432,7 @@ describe("GitCafe connect-only generated authorization protocol (not captured pr
 			expect(JSON.parse(body)).toEqual({
 				message: "GitCafe connection authorization refused",
 				code,
-				providerStatus: options.userinfoStatus ?? options.principalStatus,
+				providerStatus: options.userinfoStatus,
 			});
 			for (const privateValue of [
 				flow.code,
@@ -1454,8 +1467,8 @@ describe("GitCafe connect-only generated authorization protocol (not captured pr
 			redirectMatches: true,
 		});
 		const reads = personReads.slice(beforeReads);
-		expect(reads).toHaveLength(2);
-		expect(reads[0]?.token).toBe(reads[1]?.token);
+		expect(reads).toHaveLength(1);
+		expect(reads[0]?.path).toBe(`${GITCAFE_ISSUER}/api/oauth/userinfo`);
 		expect(reads.every((read) => read.redirect === "error")).toBe(true);
 		const record = await storedProof(handle);
 		expect(record.value).not.toContain(flow.sub);
@@ -1471,12 +1484,12 @@ describe("GitCafe connect-only generated authorization protocol (not captured pr
 			sessionId: who.sessionId,
 			...who.request,
 			subject: flow.sub,
-			actorId: `actor-${flow.sub}`,
+			actorId: flow.sub,
 			resource: GITCAFE_API_RESOURCE,
 			scopes: [...GITCAFE_CONNECT_SCOPES],
 			accessToken: reads[0]?.token,
 		});
-		expect(proof.actorId).not.toBe(proof.subject);
+		expect(proof.actorId).toBe(proof.subject);
 		expect(proof.expiresAt).toBeLessThanOrEqual(Date.now() + 300_000);
 		expect(proof.expiresAt).toBeLessThanOrEqual(proof.tokenExpiresAt);
 		expect(proof).not.toHaveProperty("refreshToken");
@@ -1652,9 +1665,6 @@ describe("GitCafe connect-only generated authorization protocol (not captured pr
 		"bad signature": { signingKey: otherKey },
 		"wrong userinfo subject": { userinfoSub: "different-subject" },
 		"revoked token userinfo": { userinfoStatus: 401 },
-		"revoked token principal": { principalStatus: 401 },
-		"unavailable principal": { principalStatus: 503 },
-		"missing actor projection": { principal: { sub: "not-an-actor" } },
 	} satisfies Record<string, FlowOptions>)) {
 		test(`connect rejects ${name} without falling through to sign-in`, async () => {
 			await connectRejected(await connect(await caller(), options));
