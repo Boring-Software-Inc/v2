@@ -35,6 +35,7 @@ import {
 import { TimezonePicker } from "#/components/timezones/timezone-picker";
 import { ZonedTime } from "#/components/timezones/zoned-time";
 import { useHasMounted } from "#/hooks/use-has-mounted";
+import { useSignOut } from "#/hooks/use-sign-out";
 import { useDeviceTimezone } from "#/hooks/use-timezones";
 import {
 	type AccountSession,
@@ -48,7 +49,6 @@ import {
 import { setAgentMotion } from "#/lib/agent-motion.functions";
 import type { CurrentUser } from "#/lib/auth.functions";
 import { authQueryKeys, sessionInfoQueryOptions } from "#/lib/auth.query";
-import { authClient } from "#/lib/auth-client";
 import { connectionsQueryOptions } from "#/lib/connections.query";
 import { reconnectForge } from "#/lib/forge-connect";
 import { myOrgsQueryOptions } from "#/lib/org.query";
@@ -456,20 +456,11 @@ function OrgsSection() {
 }
 
 function AccountFooter() {
+	const signOut = useSignOut();
 	const [deleting, setDeleting] = useState(false);
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-3 border-line-faint border-t pt-4">
-			<Button
-				onClick={() =>
-					authClient.signOut({
-						fetchOptions: {
-							onSuccess: () => window.location.assign("/login"),
-						},
-					})
-				}
-				size="sm"
-				variant="secondary"
-			>
+			<Button onClick={() => signOut.mutate()} size="sm" variant="secondary">
 				Sign out
 			</Button>
 			<Button onClick={() => setDeleting(true)} size="sm" variant="secondary">

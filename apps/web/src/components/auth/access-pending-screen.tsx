@@ -2,7 +2,7 @@ import type { AccessStatus } from "@tripwire/contracts";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { Avatar } from "#/components/glaze/ui/avatar";
 import { Button } from "#/components/glaze/ui/button";
-import { authClient } from "#/lib/auth-client";
+import { useSignOut } from "#/hooks/use-sign-out";
 
 /**
  * Minimal full-screen waitlist / access-status screen. Shared by the `/queue`
@@ -24,6 +24,7 @@ export function AccessPendingScreen({
 	onCheck?: () => void;
 	checking?: boolean;
 }) {
+	const signOut = useSignOut();
 	const rejected = status === "rejected";
 
 	return (
@@ -70,7 +71,7 @@ export function AccessPendingScreen({
 						</>
 					) : null}
 					<Button
-						onClick={() => authClient.signOut()}
+						onClick={() => signOut.mutate()}
 						size="sm"
 						type="button"
 						variant="ghost"
