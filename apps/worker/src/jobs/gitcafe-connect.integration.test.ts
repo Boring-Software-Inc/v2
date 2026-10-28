@@ -4,7 +4,10 @@ import {
 	DEFAULT_WORKFLOW,
 	GITCAFE_CONNECT_QUEUE,
 	type GitCafeConnectionJob,
+	type GitCafeConnectionRepository,
+	type GitCafeInstallation,
 	type GitCafeOrganizationMembers,
+	gitCafeConnectionRepositoryPageSchema,
 	gitCafeConnectionRepositorySchema,
 	gitCafeInstallationSchema,
 	gitCafeInstallationTokenSchema,
@@ -95,6 +98,7 @@ function installedTransport(
 						token: "local-regression-token",
 						expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
 						repositories: current.repositories,
+						repositorySelection: current.repositorySelection,
 					});
 				}
 				lookups++;
@@ -102,7 +106,7 @@ function installedTransport(
 					current = { ...installation, ...change.installation };
 				return Response.json(current);
 			}
-			if (url.endsWith("/members/")) {
+			if (url.includes("/members/")) {
 				memberReads++;
 				return Response.json(
 					repoReads === 2 && change.membersAfterRepo
@@ -112,15 +116,89 @@ function installedTransport(
 			}
 			if (
 				url ===
-				`https://git.cafe/api/repos/${repository.owner}/${repository.name}`
+				`https://git.cafe/api/repos?owner=${repository.owner}&sort=id&limit=50`
 			) {
 				repoReads++;
-				return Response.json(repository);
+				return Response.json({ items: [repository], next: null });
 			}
 			throw new Error("Unexpected local fixture transport path");
 		},
 	});
 	return { client, counts: () => ({ lookups, repoReads, memberReads, mints }) };
+}
+
+/** Synthetic transport variations exercise pagination beyond the single captured scratch page. */
+function paginatedTransport(
+	selection: "all" | "selected",
+	change?: (
+		kind: "lookup" | "mint" | "members" | "repos",
+		count: number,
+		state: {
+			installation: GitCafeInstallation;
+			repositories: GitCafeConnectionRepository[];
+		},
+	) => Response | undefined,
+) {
+	const repositories = Array.from({ length: 151 }, (_, index) => ({
+		...repository,
+		id: generateId(),
+		name: `synthetic-${index}`,
+	}));
+	const state = {
+		installation: {
+			...installation,
+			repositorySelection: selection,
+			repositories:
+				selection === "selected" ? repositories.map((repo) => repo.name) : [],
+		},
+		repositories,
+	};
+	const counts = { lookup: 0, mint: 0, members: 0, repos: 0 };
+	const calls: string[] = [];
+	const extraMembers = Array.from({ length: 100 }, () => ({
+		actorId: generateId(),
+		role: "org-member",
+	}));
+	const client = new GitCafeInstallationClient({
+		credentials,
+		fetch: async (url, init) => {
+			calls.push(url);
+			const kind = url.includes("/api/apps/")
+				? init.method === "POST"
+					? "mint"
+					: "lookup"
+				: url.includes("/members/")
+					? "members"
+					: "repos";
+			counts[kind]++;
+			const override = change?.(kind, counts[kind], state);
+			if (override) return override;
+			if (kind === "lookup") return Response.json(state.installation);
+			if (kind === "mint")
+				return Response.json({
+					...token,
+					token: "synthetic-installed-token",
+					expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+					repositorySelection: selection,
+					repositories: state.installation.repositories,
+				});
+			const after = new URL(url).searchParams.get("after");
+			if (kind === "members")
+				return Response.json(
+					after === null
+						? { items: extraMembers, next: "members-final" }
+						: membership,
+				);
+			const offset = after === null ? 0 : Number(after);
+			const page = state.repositories.slice(offset, offset + 50);
+			return Response.json({
+				items: counts.repos > 4 ? page.reverse() : page,
+				next:
+					offset + 50 < state.repositories.length ? String(offset + 50) : null,
+			});
+		},
+	});
+	return { client, state, counts, calls };
 }
 const actorId = membership.items[0]?.actorId;
 if (!actorId) throw new Error("captured staging actor missing");
@@ -212,13 +290,15 @@ beforeEach(async () => {
 				await beforeFetch();
 				return { ok: true, value: membersResponse };
 			},
-			getRepository: async () => {
+			getRepositories: async () => {
 				reads++;
 				await beforeFetch();
-				const parsed =
-					gitCafeConnectionRepositorySchema.safeParse(repositoryResponse);
+				const parsed = gitCafeConnectionRepositoryPageSchema.safeParse({
+					items: [repositoryResponse],
+					next: null,
+				});
 				return parsed.success
-					? { ok: true, value: parsed.data }
+					? { ok: true, value: parsed.data.items }
 					: { ok: false, reason: "invalid-response" };
 			},
 		},
@@ -275,6 +355,94 @@ test("actual installed client connects captured authority through the real Postg
 	});
 });
 
+for (const selection of ["all", "selected"] as const) {
+	test(`actual worker connects synthetic multi-page ${selection} authority beyond 100 repos and members`, async () => {
+		const transport = paginatedTransport(selection);
+		expect(
+			await connectGitCafeInstallation({ db, client: transport.client }, job),
+		).toEqual({ ok: true, repoCount: 151 });
+		expect(await db.select().from(repos)).toHaveLength(151);
+		expect(transport.counts).toEqual({
+			lookup: 20,
+			mint: 1,
+			members: 8,
+			repos: 8,
+		});
+		expect(
+			transport.calls.filter((url) =>
+				new URL(url).pathname.startsWith("/api/repos/"),
+			),
+		).toHaveLength(0);
+		expect(await db.select().from(organizationInstallations)).toHaveLength(1);
+	});
+}
+
+for (const page of [2, 6]) {
+	for (const scenario of [
+		"failure",
+		"selection",
+		"generation",
+		"changed-set",
+		"membership",
+	] as const) {
+		if (scenario === "changed-set" && page === 2) continue;
+		test(`actual worker refuses ${scenario} at repository page ${page} with no claims`, async () => {
+			let revoked = false;
+			const transport = paginatedTransport("selected", (kind, count, state) => {
+				if (kind === "members" && revoked)
+					return Response.json({ items: [], next: null });
+				if (kind !== "repos" || count !== page) return;
+				if (scenario === "failure")
+					return new Response("private-detail", { status: 503 });
+				if (scenario === "selection")
+					state.installation = { ...state.installation, repositories: [] };
+				if (scenario === "generation")
+					transport.client.invalidate(installation.id);
+				if (scenario === "changed-set")
+					state.repositories = state.repositories.map((repo, index) =>
+						index === 50 ? { ...repo, visibility: "private" } : repo,
+					);
+				if (scenario === "membership") revoked = true;
+			});
+			const result = await connectGitCafeInstallation(
+				{ db, client: transport.client },
+				job,
+			);
+			expect(result).toEqual({
+				ok: false,
+				reason:
+					scenario === "failure"
+						? "repository-mismatch"
+						: scenario === "membership"
+							? "not-admin"
+							: "installation-mismatch",
+			});
+			expect(await db.select().from(repos)).toHaveLength(0);
+			expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+		});
+	}
+}
+
+for (const phase of ["lookup", "mint", "members", "repos"] as const) {
+	test(`actual worker reports expired authorization during ${phase} without claiming`, async () => {
+		let now = Date.now();
+		const clock = spyOn(Date, "now").mockImplementation(() => now);
+		try {
+			const transport = paginatedTransport("all", (kind) => {
+				if (kind === phase) now = job.expiresAt;
+				return undefined;
+			});
+			expect(
+				await connectGitCafeInstallation({ db, client: transport.client }, job),
+			).toEqual({ ok: false, reason: "expired" });
+			expect(await db.select().from(repos)).toHaveLength(0);
+			expect(await db.select().from(organizationInstallations)).toHaveLength(0);
+		} finally {
+			clock.mockRestore();
+		}
+	});
+}
+
 for (const lookup of [5, 10]) {
 	for (const change of [
 		{ name: "selection revoked", value: { repositories: [] } },
@@ -290,7 +458,7 @@ for (const lookup of [5, 10]) {
 			});
 			expect(
 				await connectGitCafeInstallation({ db, client: transport.client }, job),
-			).toEqual({ ok: false, reason: "authority-unavailable" });
+			).toEqual({ ok: false, reason: "installation-mismatch" });
 			expect(transport.counts().lookups).toBe(lookup);
 			expect(transport.counts().memberReads).toBe(lookup === 5 ? 1 : 3);
 			expect(transport.counts().mints).toBe(1);
@@ -756,8 +924,8 @@ for (const scenario of [
 ]) {
 	test(`membership ${scenario.name} during the final repository read refuses without persisting ownership`, async () => {
 		let repositoryReads = 0;
-		const readRepository = deps.client.getRepository;
-		deps.client.getRepository = async (...args) => {
+		const readRepository = deps.client.getRepositories;
+		deps.client.getRepositories = async (...args) => {
 			repositoryReads++;
 			if (repositoryReads === 2) membersResponse = scenario.members;
 			return readRepository(...args);
@@ -812,11 +980,10 @@ test("a queue outage during send returns queue-unavailable", async () => {
 	}
 });
 
-test("inactive, wrong-app, all-selection and unstable installation evidence fail closed", async () => {
+test("inactive, wrong-app and unstable installation evidence fail closed", async () => {
 	for (const change of [
 		{ pausedAt: new Date().toISOString() },
 		{ appId: "wrong-app" },
-		{ repositorySelection: "all" as const },
 		{ repositories: [repository.name, repository.name] },
 	]) {
 		changedLookup = () => ({ ...installation, ...change });
@@ -837,6 +1004,7 @@ test("wrong owner, selected name, missing stable id, and disappearing repository
 	for (const response of [
 		{ ...repository, owner: "other" },
 		{ ...repository, name: "other" },
+		{ ...repository, archivedAt: new Date().toISOString() },
 		{ ...repository, id: undefined },
 		null,
 	]) {

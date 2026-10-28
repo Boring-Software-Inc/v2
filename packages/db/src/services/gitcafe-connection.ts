@@ -131,17 +131,20 @@ export async function commitGitCafeConnection(
 	const selected = gitCafeConnectionRepositoriesSchema.safeParse(
 		input.repositories,
 	);
-	if (!job.success || !selected.success || selected.data.length === 0)
+	if (!job.success || !selected.success)
 		return { ok: false, reason: "invalid-job" };
 	const repositoryRows = selected.data;
+	const selectedById = new Map(repositoryRows.map((repo) => [repo.id, repo]));
+	const selectedFullNames = new Set(
+		repositoryRows.map((repo) => `${repo.owner}/${repo.name}`),
+	);
+	const selectedNames = repositoryRows.map((repo) => repo.name);
 	if (
 		repositoryRows.some(
 			(repo) => repo.owner !== input.owner || repo.archivedAt !== null,
 		) ||
-		new Set(repositoryRows.map((repo) => repo.id)).size !==
-			repositoryRows.length ||
-		new Set(repositoryRows.map((repo) => repo.name)).size !==
-			repositoryRows.length
+		selectedById.size !== repositoryRows.length ||
+		new Set(selectedNames).size !== repositoryRows.length
 	)
 		return { ok: false, reason: "repository-mismatch" };
 	return await db.transaction(async (tx): Promise<GitCafeConnectionResult> => {
@@ -177,32 +180,20 @@ export async function commitGitCafeConnection(
 				and(
 					eq(repos.forge, "gitcafe"),
 					or(
-						inArray(
-							repos.externalId,
-							repositoryRows.map((repo) => repo.id),
-						),
-						inArray(
-							repos.fullName,
-							repositoryRows.map((repo) => `${repo.owner}/${repo.name}`),
-						),
+						sql`${repos.externalId} = ANY(${sql.param([...selectedById.keys()])}::text[])`,
+						sql`${repos.fullName} = ANY(${sql.param([...selectedFullNames])}::text[])`,
 						eq(repos.installationId, job.data.installationId),
 					),
 				),
 			)
 			.for("update");
 		for (const repo of existing) {
-			const selectedRepo = repositoryRows.find(
-				(selectedRepo) => selectedRepo.id === repo.externalId,
-			);
+			const selectedRepo = selectedById.get(repo.externalId);
 			if (
 				(repo.orgId !== null && repo.orgId !== job.data.orgId) ||
 				(repo.installationId !== null &&
 					repo.installationId !== job.data.installationId) ||
-				(selectedRepo === undefined &&
-					repositoryRows.some(
-						(selectedRepo) =>
-							`${selectedRepo.owner}/${selectedRepo.name}` === repo.fullName,
-					))
+				(selectedRepo === undefined && selectedFullNames.has(repo.fullName))
 			)
 				return { ok: false, reason: "ownership-conflict" };
 		}
@@ -213,19 +204,14 @@ export async function commitGitCafeConnection(
 			.where(
 				and(
 					eq(repos.orgId, job.data.orgId),
-					inArray(
-						repos.name,
-						repositoryRows.map((repo) => repo.name),
-					),
+					sql`${repos.name} = ANY(${sql.param(selectedNames)}::text[])`,
 					inArray(repos.forge, [...forgeSchema.options]),
 					isNull(repos.removedAt),
 				),
 			);
 		if (
 			namesakes.some(
-				(row) =>
-					row.forge !== "gitcafe" ||
-					!repositoryRows.some((repo) => repo.id === row.externalId),
+				(row) => row.forge !== "gitcafe" || !selectedById.has(row.externalId),
 			)
 		)
 			return { ok: false, reason: "repository-conflict" };
@@ -244,28 +230,33 @@ export async function commitGitCafeConnection(
 				accountLogin: input.owner,
 			})
 			.onConflictDoNothing();
-		for (const repo of repositoryRows) {
+		/** Bound SQL parameters per statement without imposing an installation-size limit. */
+		for (let offset = 0; offset < repositoryRows.length; offset += 500) {
 			await tx
 				.insert(repos)
-				.values({
-					id: generateId(),
-					forge: "gitcafe",
-					externalId: repo.id,
-					owner: repo.owner,
-					name: repo.name,
-					fullName: `${repo.owner}/${repo.name}`,
-					private: repo.visibility === "private",
-					installationId: job.data.installationId,
-					orgId: job.data.orgId,
-					armed: false,
-				})
+				.values(
+					repositoryRows
+						.slice(offset, offset + 500)
+						.map((repo): typeof repos.$inferInsert => ({
+							id: generateId(),
+							forge: "gitcafe",
+							externalId: repo.id,
+							owner: repo.owner,
+							name: repo.name,
+							fullName: `${repo.owner}/${repo.name}`,
+							private: repo.visibility === "private",
+							installationId: job.data.installationId,
+							orgId: job.data.orgId,
+							armed: false,
+						})),
+				)
 				.onConflictDoUpdate({
 					target: [repos.forge, repos.externalId],
 					set: {
-						owner: repo.owner,
-						name: repo.name,
-						fullName: `${repo.owner}/${repo.name}`,
-						private: repo.visibility === "private",
+						owner: sql`excluded.owner`,
+						name: sql`excluded.name`,
+						fullName: sql`excluded.full_name`,
+						private: sql`excluded.private`,
 						installationId: job.data.installationId,
 						orgId: job.data.orgId,
 						removedAt: null,
@@ -273,13 +264,14 @@ export async function commitGitCafeConnection(
 					},
 				});
 		}
-		for (const row of existing) {
-			if (!repositoryRows.some((repo) => repo.id === row.externalId))
-				await tx
-					.update(repos)
-					.set({ removedAt: new Date(), armed: false })
-					.where(eq(repos.id, row.id));
-		}
+		const removedIds = existing
+			.filter((row) => !selectedById.has(row.externalId))
+			.map((row) => row.id);
+		if (removedIds.length)
+			await tx
+				.update(repos)
+				.set({ removedAt: new Date(), armed: false })
+				.where(sql`${repos.id} = ANY(${sql.param(removedIds)}::text[])`);
 		return { ok: true, repoCount: repositoryRows.length };
 	});
 }
