@@ -50,7 +50,7 @@ const run = spawnSync(
 		"run",
 		"release-cli.yml",
 		"--ref",
-		channel === "staging" ? "staging/visual" : "main",
+		channel === "staging" ? "staging" : "main",
 		"-f",
 		`bump=${bump}`,
 		...(channel === "staging" ? ["-f", "channel=staging"] : []),
