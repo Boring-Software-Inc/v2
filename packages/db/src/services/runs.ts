@@ -1,7 +1,7 @@
 import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
-	forgeSchema,
 	HELD_VERDICTS,
+	ingestForgeSchema,
 	type RunStanding,
 	ruleResultSchema,
 	standingVerdict,
@@ -455,7 +455,7 @@ export async function listStuckActions(
 		.where(
 			and(
 				eq(runActions.status, "recorded"),
-				inArray(events.forge, [...forgeSchema.options]),
+				inArray(events.forge, [...ingestForgeSchema.options]),
 				lt(runActions.recordedAt, recordedBefore),
 			),
 		);

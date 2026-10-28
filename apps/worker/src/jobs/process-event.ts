@@ -1,6 +1,7 @@
 import {
 	type Forge,
 	type InstallationEvent,
+	ingestForgeSchema,
 	type NormalizedEvent,
 	normalizedEventSchema,
 	type RepoScopedEvent,
@@ -82,18 +83,21 @@ export async function processEvent(
 		logger.error({ eventId: job.eventId }, "event not found for job");
 		return;
 	}
-	if (event.normalizedAt || event.quarantined) {
+	if (
+		!ingestForgeSchema.safeParse(event.forge).success ||
+		event.normalizedAt ||
+		event.quarantined
+	) {
 		return;
 	}
 
 	let normalized: NormalizedEvent | null;
 	try {
-		// Normalization is pure and chosen by the stored forge — always available
-		// even when that forge's reads/actions runtime is offline.
+		/** Ingestible forges normalize even when their credential-gated runtime is offline. */
 		normalized =
 			event.rawKind === "schedule.matched"
 				? normalizedEventSchema.parse(event.raw)
-				: normalizeFor(event.forge)(
+				: (normalizeFor(event.forge)?.(
 						{
 							deliveryId: event.deliveryId,
 							eventName: event.rawKind,
@@ -101,7 +105,7 @@ export async function processEvent(
 							signature: null,
 						},
 						event.receivedAt.toISOString(),
-					);
+					) ?? null);
 	} catch (error) {
 		const reason = getErrorMessage(error);
 		await eventServices.quarantineEvent(db, event.id, reason);

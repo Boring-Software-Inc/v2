@@ -629,6 +629,7 @@ export async function linkOrgInstallation(
 	},
 ): Promise<{ claimed: boolean }> {
 	const forge = input.forge ?? "github";
+	if (forge === "gitcafe") return { claimed: false };
 	await db
 		.insert(organizationInstallations)
 		.values({
@@ -711,6 +712,7 @@ export async function moveInstallation(
 	input: { installationId: string; toOrgId: string; forge?: Forge },
 ): Promise<{ moved: boolean }> {
 	const forge = input.forge ?? "github";
+	if (forge === "gitcafe") return { moved: false };
 	return await db.transaction(async (tx) => {
 		const updated = await tx
 			.update(organizationInstallations)
@@ -1184,15 +1186,7 @@ const ORG_REPO_LITE = {
 	backfillDone: repos.backfillDone,
 } as const;
 
-/**
- * Every non-removed repo the org owns, ON A FORGE THIS BUILD SUPPORTS.
- *
- * The `forge` column is `$type<Forge>()` — a compile-time cast, not a runtime
- * check — so a row written while another forge was live would flow out of here
- * wearing a type it does not satisfy. Filtering in SQL keeps the cast honest and
- * matches `listOrgSwitcherRepos`: an unsupported repo has no adapter, no token
- * and no reads, so there is nothing truthful to show for it.
- */
+/** Connected repositories are visible independently of their evaluation capability. */
 export async function listOrgRepos(db: Db, orgId: string): Promise<RepoLite[]> {
 	return await db
 		.select(ORG_REPO_LITE)
@@ -1225,7 +1219,10 @@ export async function getOrgRepo(
 								eq(repos.forge, "github"),
 								sql`lower(${repos.owner}) = lower(${input.owner})`,
 							),
-							and(eq(repos.forge, "opengit"), eq(repos.owner, input.owner)),
+							and(
+								sql`${repos.forge} <> 'github'`,
+								eq(repos.owner, input.owner),
+							),
 						)
 					: undefined,
 				input.forge ? sql`${repos.forge} = ${input.forge}` : undefined,
@@ -1289,19 +1286,7 @@ export async function listOrgSwitcherRepos(
 		WHERE r.removed_at IS NULL AND r.org_id = ${orgId}
 		ORDER BY act.last DESC NULLS LAST, r.full_name
 	`);
-	// SKIP rows whose forge this build does not support — do not coerce, do not
-	// throw. Raw SQL hands back untyped text, and a database outlives any one
-	// build: rows written while another forge was live (a branch, a rollback, a
-	// half-finished migration) are still sitting there.
-	//
-	// Coercing to github was the original bug — it mislabels someone else's repo.
-	// Throwing was the overcorrection — one unsupported row took down every
-	// org-scoped page. Skipping is the honest third option: without an adapter
-	// there is no token, no reads and no actions for that repo, so listing it
-	// would promise something this build cannot do.
-	//
-	// The parse below is what performs that skip: `forgeSchema` refuses an
-	// unknown forge, the row fails, and it never reaches the page.
+	/** Unknown stored forge IDs are excluded without relabeling their repositories. */
 	return result.rows.flatMap((row) => {
 		const parsed = switcherRepoRowSchema.safeParse(row);
 		return parsed.success ? [parsed.data] : [];

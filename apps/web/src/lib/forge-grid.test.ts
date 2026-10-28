@@ -57,7 +57,7 @@ describe("connect grid", () => {
 			github: true,
 			opengit: false,
 			gitlab: false,
-			gitcafe: false,
+			gitcafe: true,
 		});
 	});
 

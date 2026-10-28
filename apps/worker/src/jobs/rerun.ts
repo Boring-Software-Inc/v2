@@ -3,7 +3,7 @@ import type {
 	RerunChangeRequestJob,
 } from "@tripwire/contracts";
 import {
-	forgeSchema,
+	ingestForgeSchema,
 	normalizedEventSchema,
 	rerunChangeRequestJobSchema,
 } from "@tripwire/contracts";
@@ -50,7 +50,7 @@ export async function rerunChangeRequest(
 	const forge = job.forge ?? claimedEvent?.forge;
 	if (
 		!forge ||
-		!forgeSchema.safeParse(forge).success ||
+		!ingestForgeSchema.safeParse(forge).success ||
 		(claimedRun &&
 			(claimedRun.repoFullName !== job.repoFullName ||
 				claimedEvent?.forge !== forge))
@@ -98,7 +98,7 @@ export async function rerunChangeRequest(
 
 	let event: RepoScopedEvent;
 	try {
-		const renormalized = normalizeFor(row.forge)(
+		const renormalized = normalizeFor(row.forge)?.(
 			{
 				deliveryId: row.deliveryId,
 				eventName: row.rawKind,

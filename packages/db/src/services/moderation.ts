@@ -1,6 +1,7 @@
 import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
 	forgeSchema,
+	ingestForgeSchema,
 	RUN_RESULT_LABELS,
 	renderClosedBeforeReviewComment,
 	VERDICT_EVENT_KINDS,
@@ -276,7 +277,7 @@ async function closeWaitingRuns(
 				FROM runs r
 				LEFT JOIN events e ON e.id = r.event_id
 				WHERE r.status = 'paused' AND e.forge IN (${sql.join(
-					forgeSchema.options.map((forge) => sql`${forge}`),
+					ingestForgeSchema.options.map((forge) => sql`${forge}`),
 					sql`, `,
 				)}) AND ${scope}
 			`)

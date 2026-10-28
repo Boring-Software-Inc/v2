@@ -34,14 +34,17 @@ import type { WorkerReads } from "./context.ts";
 const NORMALIZERS = {
 	github: normalizeGithub,
 	opengit: normalizeOpenGit,
+	gitcafe: null,
 } satisfies Record<
 	Forge,
-	(event: RawForgeEvent, receivedAt: string) => NormalizedEvent | null
+	((event: RawForgeEvent, receivedAt: string) => NormalizedEvent | null) | null
 >;
 
 export function normalizeFor(
 	forge: Forge,
-): (event: RawForgeEvent, receivedAt: string) => NormalizedEvent | null {
+):
+	| ((event: RawForgeEvent, receivedAt: string) => NormalizedEvent | null)
+	| null {
 	return NORMALIZERS[forge];
 }
 
@@ -145,6 +148,7 @@ export function buildResolveForge(
 		opengit: input.opengit
 			? buildOpenGitRuntime(input.db, input.opengit, input.onCall)
 			: null,
+		gitcafe: null,
 	} satisfies Record<Forge, ForgeRuntime | null>;
 	return (forge: Forge): ForgeRuntime | null => runtimes[forge];
 }

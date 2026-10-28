@@ -47,6 +47,10 @@ import { captureJobFailures } from "./capture-job-failures.ts";
 import { resolveDeploymentId, startFence } from "./fence.ts";
 import { buildResolveForge } from "./forge-runtime.ts";
 import {
+	startGitCafeConnectionWorker,
+	workerModeSchema,
+} from "./gitcafe-connection-worker.ts";
+import {
 	AUDIT_INSTALLATION_CLAIMS_QUEUE,
 	auditInstallationClaims,
 } from "./jobs/audit-installation-claims.ts";
@@ -90,7 +94,17 @@ import { reportAiCreditsToSentry } from "./report-unrunnable.ts";
  * @tripwire/worker — pg-boss consumers, where I/O meets the pure core. Request
  * ids (the event id) thread through every log line.
  */
-if (import.meta.main) {
+const workerMode = workerModeSchema.parse(
+	process.env.WORKER_MODE ?? "standard",
+);
+
+if (import.meta.main && workerMode === "gitcafe-connect") {
+	await startGitCafeConnectionWorker(
+		pino({ name: "gitcafe-connection-worker" }),
+	);
+}
+
+if (import.meta.main && workerMode === "standard") {
 	const logger = pino({
 		name: "worker",
 		// Outbound-delivery secrets never reach the logs — the url and signing

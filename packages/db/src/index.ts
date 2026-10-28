@@ -141,6 +141,7 @@ export {
 	type UserFlagOverride,
 } from "./services/flag-overrides.ts";
 export * as giphyServices from "./services/giphy.ts";
+export * as gitCafeConnectionServices from "./services/gitcafe-connection.ts";
 export * as homeDigestServices from "./services/home-digest.ts";
 export * as insightServices from "./services/insights.ts";
 export type {

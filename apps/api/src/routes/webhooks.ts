@@ -1,4 +1,4 @@
-import { type Forge, forgeSchema } from "@tripwire/contracts";
+import { type IngestForge, ingestForgeSchema } from "@tripwire/contracts";
 import { eventServices } from "@tripwire/db";
 import { verifyWebhookSignature as verifyGithub } from "@tripwire/forge-github";
 import { verifyWebhookSignature as verifyOpenGit } from "@tripwire/forge-opengit";
@@ -10,16 +10,16 @@ import type { ApiEnv } from "../env.ts";
  * in the request path; normalization, matching and everything downstream is the
  * worker's job.
  *
- * ONE param route, `POST /webhooks/:forge`, over a `Record<Forge, …>` registry
+ * ONE param route, `POST /webhooks/:forge`, over a `Record<IngestForge, …>` registry
  * rather than a hand-written route per forge.
  *
  * Verification is security-critical, and a param route invites two classic
  * holes: an unknown `:forge` falling through to a default, and a new forge
  * shipping with no verifier at all. Both are shut by construction:
  *
- *   - `:forge` is parsed with `forgeSchema`. Anything outside the enum 404s
+ *   - `:forge` is parsed with `ingestForgeSchema`. Anything outside the enum 404s
  *     before a byte of body is read — there is no default branch.
- *   - The registry is `Record<Forge, ForgeWebhook>`, so adding a forge to the
+ *   - The registry is `Record<IngestForge, ForgeWebhook>`, so adding a forge to the
  *     catalog fails to COMPILE until it has a verifier and its headers. You
  *     cannot forget one; the type demands it.
  *
@@ -61,11 +61,11 @@ const WEBHOOKS = {
 		// non-GitHub forge needs a secret here.
 		secret: () => process.env.OPEN_GIT_BOT_WEBHOOK_SECRET ?? "",
 	},
-} satisfies Record<Forge, ForgeWebhook>;
+} satisfies Record<IngestForge, ForgeWebhook>;
 
 export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 	// Unknown forge ⇒ 404 before the body is touched. No default, no fallthrough.
-	const parsed = forgeSchema.safeParse(c.req.param("forge"));
+	const parsed = ingestForgeSchema.safeParse(c.req.param("forge"));
 	if (!parsed.success) {
 		return c.json({ error: "unknown forge" }, 404);
 	}

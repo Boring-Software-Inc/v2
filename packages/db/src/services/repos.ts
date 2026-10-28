@@ -2,6 +2,7 @@ import {
 	DEFAULT_RESPONSE_CONFIG,
 	definitionReferencesRule,
 	type Forge,
+	ingestForgeSchema,
 	type ResponseConfig,
 	responseConfigSchema,
 	type WorkflowDefinition,
@@ -212,6 +213,11 @@ export async function setRepoArmed(
 	repoId: string,
 	armed: boolean,
 ): Promise<void> {
+	if (armed) {
+		const repo = await getRepoById(db, repoId);
+		if (repo && !ingestForgeSchema.safeParse(repo.forge).success)
+			throw new Error("Protection is unavailable for this forge");
+	}
 	await db.update(repos).set({ armed }).where(eq(repos.id, repoId));
 }
 
@@ -220,6 +226,9 @@ export async function turnOnGate(
 	boss: PgBoss | null,
 	repoId: string,
 ): Promise<void> {
+	const repo = await getRepoById(db, repoId);
+	if (repo && !ingestForgeSchema.safeParse(repo.forge).success)
+		throw new Error("Protection is unavailable for this forge");
 	const turnedOn = await db
 		.update(repos)
 		.set({ armed: true })
@@ -362,11 +371,13 @@ export async function saveWorkflowDefinition(
 		return match.id;
 	}
 	const id = generateId();
+	const repo = await getRepoById(db, repoId);
 	await db.insert(workflowDefinitions).values({
 		id,
 		repoId,
 		name: valid.name,
 		definition: valid,
+		enabled: repo !== null && ingestForgeSchema.safeParse(repo.forge).success,
 	});
 	return id;
 }
