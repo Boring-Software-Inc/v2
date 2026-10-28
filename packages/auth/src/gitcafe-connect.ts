@@ -46,12 +46,16 @@ const NONCE_PREFIX = "gitcafe-connect-nonce:";
 const PROOF_PREFIX = "gitcafe-connect-proof:";
 const LIFETIME_MS = 5 * 60 * 1000;
 
-function refused(code?: GitCafeConnectFailureCode): never {
+function refused(
+	code?: GitCafeConnectFailureCode,
+	providerStatus?: number,
+): never {
 	throw new APIError(
 		"FORBIDDEN",
 		gitCafeConnectFailureSchema.parse({
 			message: "GitCafe connection authorization refused",
 			code,
+			providerStatus,
 		}),
 	);
 }
@@ -221,6 +225,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 						if (ctx.params?.id !== "gitcafe") refused();
 						let failureCode: GitCafeConnectFailureCode =
 							"GITCAFE_CONNECT_STATE";
+						let providerStatus: number | undefined;
 						try {
 							const parsedState = await parseState(ctx);
 							const flow = gitCafeConnectFlowSchema.parse(
@@ -304,6 +309,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 							});
 							if (!claims) return refused();
 							const read = async (path: string): Promise<unknown> => {
+								providerStatus = undefined;
 								const response = await fetch(`${GITCAFE_ISSUER}${path}`, {
 									headers: {
 										authorization: `Bearer ${tokens.accessToken}`,
@@ -312,6 +318,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 									redirect: "error",
 									signal: AbortSignal.timeout(10_000),
 								});
+								providerStatus = response.status;
 								if (!response.ok) return refused();
 								return response.json();
 							};
@@ -325,6 +332,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 								await read("/api/auth/principal"),
 							);
 							/** Provider reads can outlive revocation of the local session or org permission. */
+							providerStatus = undefined;
 							failureCode = "GITCAFE_CONNECT_AUTHORITY";
 							sameOwner(flow, await authorize(ctx, input.db, flow.orgId));
 							failureCode = "GITCAFE_CONNECT_PROOF";
@@ -375,7 +383,7 @@ export function gitCafeConnect(input: GitCafeOidcClient & { db: Db }) {
 								},
 							});
 						} catch {
-							return refused(failureCode);
+							return refused(failureCode, providerStatus);
 						}
 					}),
 				},
