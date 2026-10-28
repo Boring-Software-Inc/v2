@@ -378,6 +378,90 @@ describe("empty states", () => {
 });
 
 describe("stored blocks", () => {
+	for (const outcome of [
+		"block",
+		"close",
+		"changes_required",
+		"needs_review",
+		"note",
+	] as const) {
+		for (const blocks of [
+			[],
+			[
+				{ id: "notice", type: "rerun-notice" },
+				{ id: "ai", type: "ai-notice" },
+				{ id: "text", type: "text", parts: [{ kind: "text", text: " \n " }] },
+			],
+		] satisfies ResponseBlock[][]) {
+			for (const reviewPosted of [false, true]) {
+				for (const silent of [false, true]) {
+					test(`${outcome}: ${blocks.length} empty blocks, review ${reviewPosted}, silent ${silent}`, () => {
+						const config = responseConfigSchema.parse({
+							onBlock: silent ? "silent" : "comment",
+							onClose: silent ? "silent" : "comment",
+							onChangesRequired: silent ? "silent" : "comment",
+							moderationQueued: silent ? "silent" : "comment",
+							onSuccess: "silent",
+							onNote: silent ? "silent" : "comment",
+							blocks: { [outcome]: blocks },
+						});
+						for (const previousVerdict of [null, "block", "pass"] as const) {
+							const verdict = outcome === "note" ? "pass" : outcome;
+							const plan = planSurfaces(
+								input({
+									verdict,
+									previousVerdict,
+									notes: outcome === "note" ? ["Docs only."] : [],
+								}),
+								config,
+								redactionPolicySchema.parse({}),
+								{ reviewPosted },
+							);
+							const transition =
+								previousVerdict !== null && previousVerdict !== verdict;
+							if (outcome === "note" && silent && transition) {
+								expect(plan.comment).toBe("if-present");
+								expect(plan.commentBody).toContain("Tripwire now passes");
+								expect(plan.review).toBeNull();
+								continue;
+							}
+							expect(plan.comment).toBe(
+								!silent || transition || (verdict === "block" && reviewPosted)
+									? "delete"
+									: "none",
+							);
+							expect(plan.commentBody).toBeNull();
+							expect(plan.review ?? "").not.toContain("See the comment");
+							if (verdict === "pass" || !reviewPosted) {
+								expect(plan.review).toBeNull();
+							}
+							if (verdict === "block" && reviewPosted) {
+								expect(plan.review).not.toBeNull();
+							}
+						}
+					});
+				}
+			}
+		}
+	}
+
+	test("redaction can empty a comment even when no review is posted", () => {
+		const config = responseConfigSchema.parse({
+			blocks: { block: [{ id: "reasons", type: "failed-rules" }] },
+		});
+		const plan = planSurfaces(
+			input(),
+			config,
+			redactionPolicySchema.parse({ level: REDACTION_MAX_LEVEL }),
+			{ reviewPosted: false },
+		);
+		expect(plan).toEqual({
+			comment: "delete",
+			commentBody: null,
+			review: null,
+		});
+	});
+
 	test("win over the old settings for their outcome", () => {
 		const config = responseConfigSchema.parse({
 			blockComment: { customText: "old text" },

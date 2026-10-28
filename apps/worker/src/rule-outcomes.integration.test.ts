@@ -374,9 +374,58 @@ describe("rule outcomes", () => {
 		expect(run?.verdict).toBe("needs_review");
 		expect(run?.status).toBe("paused");
 	});
+
+	test("clearing a block into an empty silent fix request deletes the stale comment", async () => {
+		const repo = await freshRepo();
+		await enableRule(repo.repoId, "account-age", { minDays: 7 });
+		await failWith(repo.repoId, "max-files-changed", { max: 1 }, "request-fix");
+		const first = await openPr(repo, { ...YOUNG, files: 2 });
+		expect(first.run?.verdict).toBe("block");
+		expect(kinds(first.executed)).toContain("comment");
+		await repoServices.upsertResponseConfig(db, repo.repoId, {
+			...(await repoServices.getResponseConfig(db, repo.repoId)),
+			onChangesRequired: "silent",
+			blocks: { changes_required: [] },
+		});
+		const { run, executed } = await openPr(
+			repo,
+			{ ageDays: 30, files: 2 },
+			{
+				sha: "c".repeat(40),
+				action: "synchronize",
+			},
+		);
+		expect(run?.verdict).toBe("changes_required");
+		expect(kinds(executed)).not.toContain("comment");
+		expect(kinds(executed)).toContain("delete-comment");
+		expect(kinds(executed)).toContain("dismiss-review");
+	});
 });
 
 describe("Close outcome", () => {
+	test("an empty close comment deletes the old comment and still closes", async () => {
+		const repo = await freshRepo();
+		await enableRule(repo.repoId, "account-age", { minDays: 7 });
+		const first = await openPr(repo, YOUNG, { sha: "b".repeat(40) });
+		expect(kinds(first.executed)).toContain("comment");
+		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");
+		await repoServices.upsertResponseConfig(db, repo.repoId, {
+			...(await repoServices.getResponseConfig(db, repo.repoId)),
+			blocks: { close: [] },
+		});
+		const { run, executed } = await openPr(repo, YOUNG, {
+			sha: "c".repeat(40),
+			action: "synchronize",
+		});
+		expect(run?.verdict).toBe("close");
+		const order = kinds(executed);
+		expect(order).not.toContain("comment");
+		expect(order).toContain("delete-comment");
+		expect(order).toContain("dismiss-review");
+		expect(order.at(-1)).toBe("close");
+		expect(checkOf(executed)?.conclusion).toBe("failure");
+	});
+
 	test("comment with the reason, red check, then close; no review", async () => {
 		const repo = await freshRepo();
 		await failWith(repo.repoId, "account-age", { minDays: 7 }, "close");

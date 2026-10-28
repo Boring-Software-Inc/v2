@@ -886,11 +886,11 @@ export function planSurfaces(
 	});
 	const reviewPosted = options.reviewPosted && verdict !== "pass";
 	const sole = () => renderSoleReview(input, config, policy);
-	const body = () => renderVerdictComment(input, config, policy);
+	const content =
+		wanted || transition ? renderBody(input, config, policy, "comment") : "";
 
 	if (verdict === "block" && reviewPosted) {
-		const content = wanted ? renderBody(input, config, policy, "comment") : "";
-		if (content !== "" && blockCommentAddsDetail(config, policy)) {
+		if (wanted && content !== "" && blockCommentAddsDetail(config, policy)) {
 			return {
 				comment: "upsert",
 				commentBody: withMarker(content),
@@ -899,10 +899,17 @@ export function planSurfaces(
 		}
 		return { comment: "delete", commentBody: null, review: sole() };
 	}
+	if ((wanted || transition) && content === "") {
+		return {
+			comment: "delete",
+			commentBody: null,
+			review: reviewPosted ? sole() : null,
+		};
+	}
 	if (wanted) {
 		return {
 			comment: "upsert",
-			commentBody: body(),
+			commentBody: withMarker(content),
 			review:
 				reviewPosted && verdict === "needs_review"
 					? REVIEW_POINTER.needs_review
@@ -911,7 +918,7 @@ export function planSurfaces(
 	}
 	return {
 		comment: transition ? "if-present" : "none",
-		commentBody: transition ? body() : null,
+		commentBody: transition ? withMarker(content) : null,
 		review: reviewPosted ? sole() : null,
 	};
 }
