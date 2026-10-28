@@ -6,7 +6,7 @@ establish installation ownership. Historical OpenGit keeps its provider ID,
 issuer, and configuration.
 
 The web auth head registers the provider only when `GITCAFE_SIGN_IN_ENABLED=true`
-and `GITCAFE_OAUTH_CLIENT_ID` is nonempty. A client ID alone does not enable it.
+and `GITCAFE_CLIENT_ID` is nonempty. A client ID alone does not enable it.
 Invalid enablement or a missing enabled client ID refuses auth initialization.
 No client secret is accepted. The API head only reads shared sessions and needs
 no GitCafe OAuth configuration; MCP continues to verify Tripwire-issued grants.

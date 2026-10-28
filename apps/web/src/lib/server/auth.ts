@@ -36,7 +36,7 @@ export function getAuth(): Auth | null {
 		opengit: null,
 		gitcafe: resolveGitCafeSignIn({
 			enabled: process.env.GITCAFE_SIGN_IN_ENABLED,
-			clientId: process.env.GITCAFE_OAUTH_CLIENT_ID,
+			clientId: process.env.GITCAFE_CLIENT_ID,
 		}),
 		// Better Auth Infrastructure (dash) — this head mounts /api/auth/* (thus
 		// /dash/*), so the key lives here. Undefined ⇒ dash stays inert.

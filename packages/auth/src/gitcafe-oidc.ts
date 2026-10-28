@@ -31,7 +31,7 @@ export function resolveGitCafeSignIn(input: {
 		clientId: input.clientId,
 	});
 	if (!parsed.success) {
-		throw new Error("GitCafe sign-in requires GITCAFE_OAUTH_CLIENT_ID");
+		throw new Error("GitCafe sign-in requires GITCAFE_CLIENT_ID");
 	}
 	return parsed.data;
 }
