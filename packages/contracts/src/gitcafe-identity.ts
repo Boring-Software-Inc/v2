@@ -8,6 +8,9 @@ export const gitCafeOidcClientSchema = z.strictObject({
 export type GitCafeOidcClient = z.infer<typeof gitCafeOidcClientSchema>;
 
 export const gitCafeAuthorizationResponseSchema = z.object({ url: z.url() });
+export type GitCafeAuthorizationResponse = z.infer<
+	typeof gitCafeAuthorizationResponseSchema
+>;
 
 /** Parsed only after signature and request binding checks in @tripwire/auth. */
 export const gitCafeOidcClaimsSchema = z.object({

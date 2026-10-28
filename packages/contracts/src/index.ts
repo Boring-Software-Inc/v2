@@ -38,6 +38,7 @@ export {
 } from "./gitcafe.ts";
 export {
 	GITCAFE_ISSUER,
+	type GitCafeAuthorizationResponse,
 	type GitCafeIdentity,
 	type GitCafeOidcClaims,
 	type GitCafeOidcClient,
