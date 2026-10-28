@@ -1367,6 +1367,41 @@ async function mutateState(
 }
 
 describe("GitCafe connect-only generated authorization protocol (not captured provider evidence)", () => {
+	test("person-read failure status distinguishes provider rejection from a response-shape failure", async () => {
+		for (const options of [
+			{ principalStatus: 401 },
+			{ principalStatus: 403 },
+			{ principalStatus: 503 },
+			{ principal: { unexpected: "private-provider-content" } },
+		] satisfies FlowOptions[]) {
+			const flow = await connect(await caller(), options);
+			const response = await callback(flow);
+			expect(response.status).toBe(403);
+			const body = await response.text();
+			expect(JSON.parse(body)).toEqual({
+				message: "GitCafe connection authorization refused",
+				code: "GITCAFE_CONNECT_PRINCIPAL",
+				providerStatus: options.principalStatus ?? 200,
+			});
+			expect(body).not.toContain("private-provider-content");
+			await noConnectedIdentity(flow);
+		}
+	});
+	test("a principal network failure does not reuse userinfo's successful HTTP status", async () => {
+		let reads = 0;
+		const flow = await connect(await caller(), {
+			onRead: async () => {
+				if (++reads === 2) throw new Error("private-provider-error");
+			},
+		});
+		const response = await callback(flow);
+		expect(response.status).toBe(403);
+		expect(await response.json()).toEqual({
+			message: "GitCafe connection authorization refused",
+			code: "GITCAFE_CONNECT_PRINCIPAL",
+		});
+		await noConnectedIdentity(flow);
+	});
 	test("callback failures identify only the failed boundary without exposing authorization material", async () => {
 		for (const [options, code] of [
 			[
@@ -1384,6 +1419,7 @@ describe("GitCafe connect-only generated authorization protocol (not captured pr
 			expect(JSON.parse(body)).toEqual({
 				message: "GitCafe connection authorization refused",
 				code,
+				providerStatus: options.userinfoStatus ?? options.principalStatus,
 			});
 			for (const privateValue of [
 				flow.code,

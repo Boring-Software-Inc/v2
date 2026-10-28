@@ -28,6 +28,7 @@ export type GitCafeConnectFailureCode = z.infer<
 export const gitCafeConnectFailureSchema = z.strictObject({
 	message: z.literal("GitCafe connection authorization refused"),
 	code: gitCafeConnectFailureCodeSchema.optional(),
+	providerStatus: z.number().int().min(100).max(599).optional(),
 });
 export type GitCafeConnectFailure = z.infer<typeof gitCafeConnectFailureSchema>;
 
