@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { ForgeId } from "@tripwire/contracts";
 import {
 	type Forge,
+	type ForgeAccountType,
 	forgeSchema,
 	INSTALL_ACCESS_CHECK_TTL_SECONDS,
 	type InstallStatus,
@@ -35,6 +36,10 @@ import {
 import { repos, ruleConfigs, workflowDefinitions } from "../schema/repos.ts";
 import { promoteUserAccess } from "./access.ts";
 import { getFreshInstallAccessCheck } from "./installation-access.ts";
+import {
+	readObservedInstallationAccounts,
+	recordObservedInstallationAccount,
+} from "./installation-accounts.ts";
 import { runBearsVerdict } from "./runs.ts";
 
 /**
@@ -630,6 +635,20 @@ export async function linkOrgInstallation(
 ): Promise<{ claimed: boolean }> {
 	const forge = input.forge ?? "github";
 	if (forge === "gitcafe") return { claimed: false };
+	const observed =
+		forge === "github"
+			? (
+					await readObservedInstallationAccounts(db, forge, [
+						input.installationId,
+					])
+				).get(input.installationId)
+			: undefined;
+	const sameAccount =
+		input.accountLogin === undefined ||
+		observed?.account.toLowerCase() === input.accountLogin.toLowerCase();
+	const accountType =
+		input.accountType ?? (sameAccount ? observed?.accountType : undefined);
+	const accountLogin = input.accountLogin ?? observed?.account;
 	await db
 		.insert(organizationInstallations)
 		.values({
@@ -637,8 +656,8 @@ export async function linkOrgInstallation(
 			organizationId: input.orgId,
 			forge,
 			installationId: input.installationId,
-			accountType: input.accountType,
-			accountLogin: input.accountLogin,
+			accountType,
+			accountLogin,
 		})
 		.onConflictDoNothing({
 			target: [
@@ -658,6 +677,21 @@ export async function linkOrgInstallation(
 		.limit(1);
 	const claimed = owner[0]?.organizationId === input.orgId;
 	if (claimed) {
+		if (accountType !== undefined || accountLogin !== undefined) {
+			await db
+				.update(organizationInstallations)
+				.set({
+					accountType: sql`coalesce(${organizationInstallations.accountType}, ${accountType ?? null})`,
+					accountLogin: sql`coalesce(${organizationInstallations.accountLogin}, ${accountLogin ?? null})`,
+				})
+				.where(
+					and(
+						eq(organizationInstallations.forge, forge),
+						eq(organizationInstallations.installationId, input.installationId),
+						eq(organizationInstallations.organizationId, input.orgId),
+					),
+				);
+		}
 		await db
 			.update(repos)
 			.set({ orgId: input.orgId })
@@ -672,7 +706,7 @@ export async function linkOrgInstallation(
 }
 
 /**
- * Record webhook-observed account metadata on an already-claimed installation.
+ * Record verified account metadata independently, and update an existing claim.
  * Never creates a claim — an unclaimed GitHub-side install stays unclaimed
  * until a human binds it on the claim screen (§10: never auto-attach).
  */
@@ -681,12 +715,19 @@ export async function recordInstallationAccount(
 	input: {
 		installationId: string;
 		forge?: Forge;
-		accountType?: string;
+		accountType?: ForgeAccountType;
 		accountLogin?: string;
 	},
 ): Promise<void> {
 	if (!input.accountType && !input.accountLogin) {
 		return;
+	}
+	if ((input.forge ?? "github") === "github" && input.accountLogin) {
+		await recordObservedInstallationAccount(db, "github", {
+			externalId: input.installationId,
+			account: input.accountLogin,
+			accountType: input.accountType,
+		});
 	}
 	await db
 		.update(organizationInstallations)

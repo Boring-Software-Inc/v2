@@ -1,5 +1,6 @@
 import type { ForgeId } from "@tripwire/contracts";
 import type { ReactElement } from "react";
+import { GitCafeIcon } from "#/components/icons/gitcafe";
 import { GithubIcon } from "#/components/icons/github";
 
 /**
@@ -34,7 +35,7 @@ const FORGE_MARK = {
 	github: GithubIcon,
 	gitlab: GitlabMark,
 	opengit: OpenGitMark,
-	gitcafe: GitCafeMark,
+	gitcafe: GitCafeIcon,
 } satisfies Record<ForgeId, (props: MarkProps) => ReactElement>;
 
 /**
@@ -108,19 +109,6 @@ export function GitlabMark({ className }: MarkProps) {
 				fill="currentColor"
 				fillOpacity={0.7}
 			/>
-		</svg>
-	);
-}
-
-export function GitCafeMark({ className }: MarkProps) {
-	return (
-		<svg
-			aria-hidden="true"
-			className={className}
-			viewBox="0 0 14 14"
-			xmlns="http://www.w3.org/2000/svg"
-		>
-			<rect fill="var(--brand-gitcafe)" height="14" rx="2" width="14" />
 		</svg>
 	);
 }

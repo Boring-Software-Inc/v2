@@ -59,6 +59,7 @@ export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
 	 * would lock a user out of managing a connection they own.
 	 */
 	listForgeConnections: "authed",
+	listOrganizationForgeConnections: "permission:connections:manage",
 	disconnectForge: "authed",
 	getConsentRequest: "authed", // the caller's own agent consent
 	grantConsentOrgs: "authed", // grants only orgs the caller belongs to

@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
+import { FORGE_BY_ID } from "@tripwire/contracts";
 import { useState } from "react";
 import { Collection } from "#/components/collection/collection";
 import { EntityCard } from "#/components/common/entity-card";
+import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
@@ -292,8 +294,17 @@ function RepoCard({ org, repo }: { org: string; repo: SwitcherRepo }) {
 				) : undefined
 			}
 			title={
-				<CardRouterLink params={{ org, repo: repo.name }} to="/$org/$repo">
-					{repo.fullName}
+				<CardRouterLink
+					aria-label={`${FORGE_BY_ID[repo.forge].label} repository ${repo.fullName}`}
+					className="inline-flex min-w-0 items-start gap-1.5"
+					params={{ org, repo: repo.name }}
+					to="/$org/$repo"
+				>
+					<ForgeMark
+						className="mt-0.5 size-(--icon) shrink-0"
+						forge={repo.forge}
+					/>
+					<span className="min-w-0">{repo.fullName}</span>
 				</CardRouterLink>
 			}
 		/>
