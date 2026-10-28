@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { FORGE_CATALOG } from "@tripwire/contracts";
-import { signInForgeLabels, signInForges } from "@tripwire/utils";
+import { signInForgeLabels, signInForges } from "@tripwire/utils/forge-sign-in";
 import { connectForges } from "#/lib/forge-grid";
 
 const catalogIds = FORGE_CATALOG.map((forge) => forge.id);

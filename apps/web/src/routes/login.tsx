@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { signInForgeLabels } from "@tripwire/utils";
+import { signInForgeLabels } from "@tripwire/utils/forge-sign-in";
 import { LoginPage } from "#/components/auth/login-page";
 import { LoginPageSkeleton } from "#/components/auth/login-page-skeleton";
 import { signInProviderIdsQueryOptions } from "#/lib/auth.query";

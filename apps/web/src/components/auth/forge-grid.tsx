@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { forgeSignIn } from "@tripwire/contracts";
-import { signInForges } from "@tripwire/utils";
+import { signInForges } from "@tripwire/utils/forge-sign-in";
 import { useState } from "react";
 import {
 	FORGE_GRID,

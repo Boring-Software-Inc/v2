@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { signInForgeLabels } from "@tripwire/utils";
+import { signInForgeLabels } from "@tripwire/utils/forge-sign-in";
 import {
 	Collapsible,
 	CollapsibleContent,
