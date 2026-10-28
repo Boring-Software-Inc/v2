@@ -35,12 +35,14 @@ export async function registerGitCafeLifecycleConsumer(
 	await boss.createQueue(GITCAFE_LIFECYCLE_QUEUE);
 	/** The installed supervise(name) API scopes expiry and retention to this queue; global supervision stays disabled. */
 	await boss.supervise(GITCAFE_LIFECYCLE_QUEUE);
+	await gitCafeLifecycleServices.recoverPendingGitCafeReceipts(db, boss);
 	let recovering = false;
 	const recovery = setInterval(async () => {
 		if (recovering) return;
 		recovering = true;
 		try {
 			await boss.supervise(GITCAFE_LIFECYCLE_QUEUE);
+			await gitCafeLifecycleServices.recoverPendingGitCafeReceipts(db, boss);
 		} catch {
 			onError();
 			logger.error(

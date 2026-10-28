@@ -132,6 +132,56 @@ export async function insertGitCafeReceipt(
 	}
 }
 
+/** Pending receipts outlive queue retry exhaustion and retention; only their missing lifecycle work is restored. */
+export async function recoverPendingGitCafeReceipts(
+	db: Db,
+	boss: PgBoss,
+): Promise<number> {
+	const client = await db.$client.connect();
+	try {
+		await client.query("BEGIN");
+		await client.query(
+			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
+		);
+		const pending = await client.query<{ id: string; receipt: unknown }>(
+			`SELECT r.id, r.receipt FROM gitcafe_receipts r
+			 WHERE r.status = 'pending' AND NOT EXISTS (
+			   SELECT 1 FROM pgboss.job j WHERE j.name = $1
+			   AND j.data->>'receiptId' = r.id AND j.state IN ('created', 'retry', 'active')
+			 ) ORDER BY r.received_at, r.id LIMIT 100 FOR UPDATE OF r`,
+			[GITCAFE_LIFECYCLE_QUEUE],
+		);
+		if (pending.rows.length > 0) {
+			const jobs = pending.rows.map((row) => ({
+				id: generateId(),
+				data: gitCafeReceiptJobSchema.parse({
+					receiptId: row.id,
+					requestId: gitCafeReceiptSchema.parse(row.receipt).requestId,
+				}),
+				retryLimit: 5,
+				retryDelay: 15,
+				retryBackoff: true,
+			}));
+			const inserted = await boss.insert(GITCAFE_LIFECYCLE_QUEUE, jobs, {
+				returnId: true,
+				db: {
+					executeSql: (text: string, values?: unknown[]) =>
+						client.query(text, values),
+				},
+			});
+			if (inserted?.length !== jobs.length)
+				throw new Error("GitCafe receipt recovery did not restore its jobs");
+		}
+		await client.query("COMMIT");
+		return pending.rows.length;
+	} catch (error) {
+		await client.query("ROLLBACK");
+		throw error;
+	} finally {
+		client.release();
+	}
+}
+
 function receiptBytesMatch(receipt: GitCafeReceipt): boolean {
 	try {
 		const bytes = Buffer.from(receipt.bodyBase64, "base64");
