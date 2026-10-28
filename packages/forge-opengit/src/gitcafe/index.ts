@@ -14,12 +14,17 @@ export interface GitCafeAppCredentials {
 
 export type GitCafeInstallationOperation = "lookup" | "mint";
 
+export interface GitCafeInstallationRequest {
+	url: string;
+	init: RequestInit;
+}
+
 export function createGitCafeInstallationRequest(
 	credentials: GitCafeAppCredentials,
 	installationId: string,
 	operation: GitCafeInstallationOperation,
 	now = Date.now(),
-): { url: string; init: RequestInit } {
+): GitCafeInstallationRequest {
 	if (
 		(operation !== "lookup" && operation !== "mint") ||
 		!/^[A-Za-z0-9_-]+$/.test(installationId) ||
