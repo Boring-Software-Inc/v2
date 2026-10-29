@@ -141,6 +141,7 @@ for (const change of [
 	{ name: "another-name" },
 	{ rerequestable: false },
 	{ rerequestedAt: null },
+	{ rerequestedAt: "2026-10-29T00:00:00.000Z" },
 	{ reportedAt: "2026-10-29T00:00:00.000Z" },
 ]) {
 	test(`re-run refuses changed current ${Object.keys(change).join()}`, async () => {

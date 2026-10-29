@@ -61,7 +61,8 @@ export async function verifyGitCafeCheckRerequest(
 	if (
 		!check.data.rerequestable ||
 		check.data.rerequestedAt === null ||
-		Date.parse(check.data.rerequestedAt) <= Date.parse(check.data.reportedAt)
+		Date.parse(check.data.rerequestedAt) <= Date.parse(check.data.reportedAt) ||
+		Date.parse(check.data.rerequestedAt) > Date.parse(event.createdAt)
 	)
 		return { ok: false, reason: "stale" };
 	return { ok: true, value: check.data };
