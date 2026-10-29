@@ -12,8 +12,11 @@ export {
 } from "./app-assertion.ts";
 export { reportGitCafeCheck } from "./checks.ts";
 export {
+	type GitCafeCommentHydrationResult,
 	type GitCafePullHydrationResult,
+	hydrateGitCafeCommentEvent,
 	hydrateGitCafePullEvent,
+	normalizeGitCafeCommentEvent,
 	normalizeGitCafePullEvent,
 } from "./events.ts";
 export {

@@ -117,7 +117,12 @@ export async function processEvent(
 
 	let normalized: NormalizedEvent | null;
 	try {
-		if (event.normalizedAt && deps.resumeNormalized) {
+		/** A saved projection is not current comment evidence until a run has committed its evaluation. */
+		const rehydrateComment =
+			event.forge === "gitcafe" &&
+			(event.rawKind === "pull.comment_created" ||
+				event.rawKind === "issue.comment_created");
+		if (event.normalizedAt && deps.resumeNormalized && !rehydrateComment) {
 			normalized = normalizedEventSchema.parse(event.normalized);
 		} else if (runtime?.prepareEvent && event.rawKind !== "schedule.matched") {
 			const prepared = await runtime.prepareEvent(
@@ -149,6 +154,11 @@ export async function processEvent(
 				return;
 			}
 			normalized = prepared.value;
+			if (normalized && event.normalizedAt && deps.resumeNormalized)
+				normalized = normalizedEventSchema.parse({
+					...normalized,
+					id: normalizedEventSchema.parse(event.normalized).id,
+				});
 		} else
 			normalized =
 				event.rawKind === "schedule.matched"

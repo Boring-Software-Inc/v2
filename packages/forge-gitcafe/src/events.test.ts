@@ -2,12 +2,15 @@ import { expect, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
 import {
 	gitCafeCheckRerequestedEventSchema,
+	gitCafeCommentEventSchema,
 	gitCafePullEventSchema,
 	gitCafePushEventSchema,
 } from "@tripwire/contracts";
 import {
 	GitCafeInstallationClient,
+	hydrateGitCafeCommentEvent,
 	hydrateGitCafePullEvent,
+	normalizeGitCafeCommentEvent,
 	normalizeGitCafePullEvent,
 } from "@tripwire/forge-gitcafe";
 import rerequested from "../fixtures/gitcafe-check-rerequested-webhook.json";
@@ -15,7 +18,12 @@ import repository from "../fixtures/gitcafe-connection-repository.json";
 import push from "../fixtures/gitcafe-git-push-webhook.json";
 import installation from "../fixtures/gitcafe-installation.json";
 import token from "../fixtures/gitcafe-installation-token.json";
+import issueComment from "../fixtures/gitcafe-issue-comment-created-webhook.json";
+import pullComment from "../fixtures/gitcafe-pull-comment-created-webhook.json";
 import created from "../fixtures/gitcafe-pull-created-webhook.json";
+import issue from "../fixtures/gitcafe-read-issue.json";
+import issueComments from "../fixtures/gitcafe-read-issue-comments.json";
+import commentDetail from "../fixtures/gitcafe-read-pull-comment-detail.json";
 import pull from "../fixtures/gitcafe-read-scratch-pull.json";
 
 const credentials = {
@@ -25,6 +33,339 @@ const credentials = {
 		.privateKey.export({ format: "pem", type: "pkcs8" })
 		.toString(),
 };
+
+/** Synthetic transport changes captured responses; pagination mutations are adversarial cases, not provider fixtures. */
+function commentHarness(
+	options: {
+		detail?: unknown;
+		page?: (url: URL) => unknown;
+		subject?: unknown;
+		guard?: () => Promise<boolean>;
+		onRead?: (url: string) => void;
+	} = {},
+) {
+	const calls: string[] = [];
+	const expected = { ...installation, id: pullComment.installation.id };
+	const client = new GitCafeInstallationClient({
+		credentials,
+		now: () => Date.parse(token.expiresAt) - 900_000,
+		lifecycleGuard: options.guard ?? (async () => true),
+		fetch: async (url, init) => {
+			calls.push(url);
+			options.onRead?.(url);
+			expect(init.redirect).toBe("manual");
+			if (url.endsWith("/access_tokens"))
+				return Response.json({
+					...token,
+					token: "synthetic-test-bearer",
+					installationId: expected.id,
+					actor: expected.bot.actorId,
+				});
+			if (url.includes("/apps/installations/")) return Response.json(expected);
+			if (url.endsWith("/repos/boring/scratch"))
+				return Response.json(repository);
+			if (url.endsWith("/pulls/1"))
+				return Response.json(options.subject ?? pull);
+			if (url.endsWith("/issues/2"))
+				return Response.json(options.subject ?? issue);
+			if (url.endsWith("/detail"))
+				return Response.json(options.detail ?? commentDetail);
+			if (url.includes("/issues/2/comments/?"))
+				return Response.json(options.page?.(new URL(url)) ?? issueComments);
+			throw new Error("Unexpected comment transport request");
+		},
+	});
+	return { client, calls, expected };
+}
+
+for (const captured of [pullComment, issueComment]) {
+	test(`captured ${captured.type} binds its live author and preserves raw evidence`, async () => {
+		const h = commentHarness();
+		const lookup = await h.client.getInstallation(captured.installation.id);
+		if (!lookup.ok) throw new Error("lookup failed");
+		const before = JSON.stringify(captured);
+		const result = await hydrateGitCafeCommentEvent(
+			h.client,
+			lookup.value,
+			gitCafeCommentEventSchema.parse(captured),
+		);
+		if (!result.ok)
+			throw new Error(`comment hydration failed: ${result.reason}`);
+		const normalized = normalizeGitCafeCommentEvent(
+			result.value,
+			captured.createdAt,
+		);
+		expect(normalized).toMatchObject({
+			kind: "comment.created",
+			forge: "gitcafe",
+			repoExternalId: repository.id,
+			actor: { login: "grim", externalId: captured.comment.authorActorId },
+			comment: {
+				externalId: captured.comment.id,
+				body: captured.comment.body,
+				subjectKind:
+					captured.type === "pull.comment_created" ? "change-request" : "issue",
+				subjectNumber: captured.type === "pull.comment_created" ? 1 : 2,
+				byTripwire: false,
+			},
+		});
+		expect(normalized?.deliveryId).toBe(
+			JSON.stringify([captured.installation.id, captured.id]),
+		);
+		expect(JSON.stringify(captured)).toBe(before);
+	});
+}
+
+test("comment hydration remains valid when its PR head, version or author differs", async () => {
+	const h = commentHarness({
+		subject: {
+			...pull,
+			headOid: "a".repeat(40),
+			version: 9,
+			authorActorId: "another-author",
+		},
+	});
+	const lookup = await h.client.getInstallation(pullComment.installation.id);
+	if (!lookup.ok) throw new Error("lookup failed");
+	const event = gitCafeCommentEventSchema.parse({
+		...pullComment,
+		actor: { id: "unrelated-sender" },
+	});
+	const result = await hydrateGitCafeCommentEvent(
+		h.client,
+		lookup.value,
+		event,
+	);
+	if (!result.ok) throw new Error(`comment hydration failed: ${result.reason}`);
+	const normalized = normalizeGitCafeCommentEvent(
+		result.value,
+		event.createdAt,
+	);
+	if (!normalized || !("comment" in normalized))
+		throw new Error("Missing comment");
+	if (event.comment.authorActorId === null)
+		throw new Error("Missing captured author");
+	expect(normalized.actor.externalId).toBe(event.comment.authorActorId);
+	expect(normalized.sender).toBeUndefined();
+	expect(normalized.comment.url).toBe("https://git.cafe/boring/scratch/pull/1");
+});
+
+for (const change of [
+	{ hiddenAt: "2026-10-29T02:00:00.000Z" },
+	{ deletedAt: "2026-10-29T02:00:00.000Z" },
+	{ body: "changed" },
+	{ version: 7 },
+	{ authorActorId: "another-actor" },
+	{ author: { ...commentDetail.author, actorId: "another-actor" } },
+	{ author: { ...commentDetail.author, handle: null } },
+	{ id: "another-comment" },
+]) {
+	test(`refuses changed or unavailable comment evidence ${Object.keys(change).join()}`, async () => {
+		const h = commentHarness({ detail: { ...commentDetail, ...change } });
+		const lookup = await h.client.getInstallation(pullComment.installation.id);
+		if (!lookup.ok) throw new Error("lookup failed");
+		expect(
+			(
+				await hydrateGitCafeCommentEvent(
+					h.client,
+					lookup.value,
+					gitCafeCommentEventSchema.parse(pullComment),
+				)
+			).ok,
+		).toBe(false);
+	});
+}
+
+test("signed truncated, hidden, deleted or missing comment bodies never become rule evidence", async () => {
+	const h = commentHarness();
+	const lookup = await h.client.getInstallation(pullComment.installation.id);
+	if (!lookup.ok) throw new Error("lookup failed");
+	for (const change of [
+		{ bodyTruncated: true },
+		{ hidden: true },
+		{ deleted: true },
+		{ body: null },
+	]) {
+		expect(
+			await hydrateGitCafeCommentEvent(
+				h.client,
+				lookup.value,
+				gitCafeCommentEventSchema.parse({
+					...pullComment,
+					comment: { ...pullComment.comment, ...change },
+				}),
+			),
+		).toEqual({ ok: false, reason: "stale-event" });
+	}
+	expect(h.calls.some((url) => url.includes("/repos/"))).toBe(false);
+});
+
+test("issue hydration exhausts pages even when the matching comment was on the first page", async () => {
+	const h = commentHarness({
+		page: (url) =>
+			url.searchParams.has("after")
+				? { items: [], next: null }
+				: { ...issueComments, next: "next-page" },
+	});
+	const lookup = await h.client.getInstallation(issueComment.installation.id);
+	if (!lookup.ok) throw new Error("lookup failed");
+	const result = await hydrateGitCafeCommentEvent(
+		h.client,
+		lookup.value,
+		gitCafeCommentEventSchema.parse(issueComment),
+	);
+	expect(result.ok).toBe(true);
+	expect(
+		h.calls.filter((url) => url.includes("/issues/2/comments/?")),
+	).toHaveLength(2);
+});
+
+for (const page of [
+	() => ({ ...issueComments, next: "loop" }),
+	(url: URL) =>
+		url.searchParams.has("after")
+			? issueComments
+			: { ...issueComments, next: "next-page" },
+	() => ({
+		items: issueComments.items.map((comment) => ({
+			...comment,
+			issueId: "another-issue",
+		})),
+		next: null,
+	}),
+	() => ({ items: [], next: null }),
+	() => ({ items: issueComments.items }),
+]) {
+	test("incomplete, missing, repeated or misbound issue comment pages refuse", async () => {
+		const h = commentHarness({ page });
+		const lookup = await h.client.getInstallation(issueComment.installation.id);
+		if (!lookup.ok) throw new Error("lookup failed");
+		expect(
+			(
+				await hydrateGitCafeCommentEvent(
+					h.client,
+					lookup.value,
+					gitCafeCommentEventSchema.parse(issueComment),
+				)
+			).ok,
+		).toBe(false);
+	});
+}
+
+test("comment authority revoked during detail read refuses the resulting evidence", async () => {
+	let allowed = true;
+	const h = commentHarness({
+		guard: async () => allowed,
+		onRead: (url) => {
+			if (url.endsWith("/detail")) allowed = false;
+		},
+	});
+	const lookup = await h.client.getInstallation(pullComment.installation.id);
+	if (!lookup.ok) throw new Error("lookup failed");
+	expect(
+		(
+			await hydrateGitCafeCommentEvent(
+				h.client,
+				lookup.value,
+				gitCafeCommentEventSchema.parse(pullComment),
+			)
+		).ok,
+	).toBe(false);
+});
+
+test("Tripwire bot comments are identified by the bound actor, not a marker in their body", async () => {
+	const expected = commentHarness().expected;
+	const author = {
+		...commentDetail.author,
+		actorId: expected.bot.actorId,
+		handle: expected.bot.handle,
+	};
+	const h = commentHarness({
+		detail: { ...commentDetail, author, authorActorId: expected.bot.actorId },
+	});
+	const lookup = await h.client.getInstallation(pullComment.installation.id);
+	if (!lookup.ok) throw new Error("lookup failed");
+	const event = gitCafeCommentEventSchema.parse({
+		...pullComment,
+		actor: { id: expected.bot.actorId },
+		comment: { ...pullComment.comment, authorActorId: expected.bot.actorId },
+	});
+	const result = await hydrateGitCafeCommentEvent(
+		h.client,
+		lookup.value,
+		event,
+	);
+	if (!result.ok) throw new Error(`comment hydration failed: ${result.reason}`);
+	const normalized = normalizeGitCafeCommentEvent(
+		result.value,
+		event.createdAt,
+	);
+	if (!normalized || !("comment" in normalized))
+		throw new Error("Missing comment");
+	expect(normalized.comment.byTripwire).toBe(true);
+	expect(normalized.sender?.externalId).toBe(expected.bot.actorId);
+});
+
+for (const subject of [
+	{ ...pull, id: "another-subject" },
+	{ ...pull, repoId: "another-repository" },
+	{ ...pull, number: 2 },
+]) {
+	test("comment subject identity is bound before reading the comment", async () => {
+		const h = commentHarness({ subject });
+		const lookup = await h.client.getInstallation(pullComment.installation.id);
+		if (!lookup.ok) throw new Error("lookup failed");
+		expect(
+			await hydrateGitCafeCommentEvent(
+				h.client,
+				lookup.value,
+				gitCafeCommentEventSchema.parse(pullComment),
+			),
+		).toEqual({ ok: false, reason: "identity-mismatch" });
+		expect(h.calls.some((url) => url.endsWith("/detail"))).toBe(false);
+	});
+}
+
+test("comment hydration requires an original snapshot and an unexpired deadline", async () => {
+	const h = commentHarness();
+	const lookup = await h.client.getInstallation(pullComment.installation.id);
+	if (!lookup.ok) throw new Error("lookup failed");
+	const event = gitCafeCommentEventSchema.parse(pullComment);
+	expect(
+		(await hydrateGitCafeCommentEvent(h.client, { ...lookup.value }, event)).ok,
+	).toBe(false);
+	expect(
+		await hydrateGitCafeCommentEvent(h.client, lookup.value, event, 0),
+	).toEqual({ ok: false, reason: "expired" });
+	expect(h.calls.some((url) => url.includes("/repos/"))).toBe(false);
+});
+
+test("comment normalization rejects identities not bound to the signed event", () => {
+	const event = gitCafeCommentEventSchema.parse(pullComment);
+	const hydrated = {
+		event,
+		author: { login: "grim", externalId: pullComment.comment.authorActorId },
+		botActorId: installation.bot.actorId,
+	};
+	expect(() =>
+		normalizeGitCafeCommentEvent(
+			{ ...hydrated, author: { login: "wrong", externalId: "wrong-actor" } },
+			event.createdAt,
+		),
+	).toThrow();
+	expect(() =>
+		normalizeGitCafeCommentEvent(
+			{ ...hydrated, sender: { login: "wrong", externalId: "wrong-actor" } },
+			event.createdAt,
+		),
+	).toThrow();
+	expect(
+		gitCafeCommentEventSchema.safeParse({
+			...event,
+			commentId: "another-comment",
+		}).success,
+	).toBe(false);
+});
 
 /** Synthetic transport mutates captured evidence to exercise refusal paths; it is not a provider fixture. */
 function harness(

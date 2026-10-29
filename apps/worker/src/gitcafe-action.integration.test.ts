@@ -5,8 +5,10 @@ import {
 	GITCAFE_PROCESS_EVENT_QUEUE,
 	GITCAFE_RECEIPT_APP_ID,
 	type GitCafeActionOperation,
+	type GitCafeDispatchableRepositoryEvent,
 	gitCafeActionOperationSchema,
 	gitCafeActionPayloadSchema,
+	gitCafeCommentEventSchema,
 	gitCafeInstallationSchema,
 	gitCafePullEventSchema,
 	gitCafeReceiptSchema,
@@ -31,6 +33,8 @@ import {
 	repos,
 	runServices,
 	type TestDatabase,
+	workflowDefinitions,
+	workflowServices,
 } from "@tripwire/db";
 import { normalizeGitCafePullEvent } from "@tripwire/forge-gitcafe";
 import { generateId } from "@tripwire/utils";
@@ -447,8 +451,10 @@ test("a recorded comment command cannot authorize close or another payload", asy
 	expect(writes).toBe(0);
 });
 
-async function admitPullReceipt() {
-	const payload = { ...event, id: `evt_${generateId()}` };
+async function admitPullReceipt(
+	source: GitCafeDispatchableRepositoryEvent = event,
+) {
+	const payload = { ...source, id: `evt_${generateId()}` };
 	const body = JSON.stringify(payload);
 	const receipt = gitCafeReceiptSchema.parse({
 		format: "gitcafe-receipt@1",
@@ -467,6 +473,318 @@ async function admitPullReceipt() {
 		receipt,
 	);
 	return { ...inserted, receipt, payload };
+}
+
+for (const kind of ["pull", "issue"] as const) {
+	for (const scenario of [
+		"healthy",
+		"self",
+		"edited",
+		"deleted",
+		"unchanged-retry",
+	] as const) {
+		test(`signed ${kind} comment across ${scenario}`, async () => {
+			const self = scenario === "self";
+			const fixture = (name: string): Promise<unknown> =>
+				Bun.file(new URL(`${name}.json`, base)).json();
+			const [
+				raw,
+				subjectRead,
+				detailRead,
+				issuePage,
+				repository,
+				token,
+				profile,
+				members,
+				collaborators,
+				merged,
+			] = await Promise.all([
+				fixture(`gitcafe-${kind}-comment-created-webhook`),
+				fixture(
+					kind === "pull" ? "gitcafe-read-scratch-pull" : "gitcafe-read-issue",
+				),
+				fixture("gitcafe-read-pull-comment-detail"),
+				fixture("gitcafe-read-issue-comments"),
+				fixture("gitcafe-connection-repository"),
+				fixture("gitcafe-action-token-current"),
+				fixture("gitcafe-read-profile"),
+				fixture("gitcafe-connection-members"),
+				fixture("gitcafe-read-collaborators"),
+				fixture("gitcafe-read-pulls"),
+			]);
+			const {
+				gitCafeActionSubjectSchema,
+				gitCafeCommentSubjectSchema,
+				gitCafeCommentDetailSchema,
+				gitCafeIssueCommentPageSchema,
+				gitCafeInstallationTokenSchema,
+			} = await import("@tripwire/contracts");
+			const captured = gitCafeCommentEventSchema.parse(raw);
+			const author = self
+				? installation.bot.actorId
+				: captured.comment.authorActorId;
+			const source = gitCafeCommentEventSchema.parse({
+				...captured,
+				actor: { id: author },
+				comment: { ...captured.comment, authorActorId: author },
+			});
+			let subject = {
+				...gitCafeActionSubjectSchema.parse(subjectRead),
+				...gitCafeCommentSubjectSchema.parse(subjectRead),
+			};
+			const detail = gitCafeCommentDetailSchema.parse(detailRead);
+			const comments = gitCafeIssueCommentPageSchema.parse(issuePage);
+			const tokenData = gitCafeInstallationTokenSchema.parse(token);
+			const target = `/api/repos/boring/scratch/${kind === "pull" ? "pulls/1" : "issues/2"}`;
+			const writes: string[] = [];
+			let lockOutage = true;
+			let changed = false;
+			const runtime = buildGitCafeRuntime(
+				database.db,
+				{
+					appId: installation.appId,
+					keyId: "local-comment-test",
+					privateKey: generateKeyPairSync("ec", { namedCurve: "prime256v1" })
+						.privateKey.export({ format: "pem", type: "pkcs8" })
+						.toString(),
+				},
+				async (url, init) => {
+					const path = new URL(url).pathname;
+					if (path.includes("/api/apps/"))
+						return Response.json(
+							init.method === "GET"
+								? installation
+								: {
+										...tokenData,
+										token: "local-comment-token",
+										expiresAt: new Date(Date.now() + 900_000).toISOString(),
+									},
+						);
+					if (path === "/api/repos/boring/scratch")
+						return Response.json(repository);
+					if (path === target) return Response.json(subject);
+					if (path.endsWith("/detail"))
+						return Response.json({
+							...detail,
+							body:
+								changed && scenario === "edited"
+									? "edited after normalization"
+									: detail.body,
+							deletedAt:
+								changed && scenario === "deleted"
+									? new Date().toISOString()
+									: detail.deletedAt,
+							authorActorId: author,
+							author: {
+								...detail.author,
+								actorId: author,
+								handle: self ? installation.bot.handle : detail.author.handle,
+							},
+						});
+					if (path === `${target}/comments/`)
+						return Response.json({
+							...comments,
+							items:
+								changed && scenario === "deleted"
+									? []
+									: comments.items.map((comment) => ({
+											...comment,
+											body:
+												changed && scenario === "edited"
+													? "edited after normalization"
+													: comment.body,
+											authorActorId: author,
+											author: {
+												...comment.author,
+												actorId: author,
+												handle: self
+													? installation.bot.handle
+													: comment.author.handle,
+											},
+										})),
+						});
+					if (path === "/api/users/grim") return Response.json(profile);
+					if (path === "/api/orgs/boring/members/")
+						return Response.json(members);
+					if (path.endsWith("/collaborators/"))
+						return Response.json(collaborators);
+					if (path.endsWith("/pulls/")) return Response.json(merged);
+					if (path === `${target}/lock`) {
+						if (lockOutage) {
+							lockOutage = false;
+							return new Response(null, { status: 503 });
+						}
+						expect(init.method).toBe(kind === "pull" ? "POST" : "PUT");
+						writes.push(path);
+						subject = {
+							...subject,
+							lockedAt: new Date().toISOString(),
+							version: subject.version + 1,
+						};
+						return Response.json(subject);
+					}
+					if (path === `${target}/close`) {
+						expect(init.method).toBe("POST");
+						writes.push(path);
+						subject = {
+							...subject,
+							state: "closed",
+							stateType: "completed",
+							version: subject.version + 1,
+						};
+						return Response.json(subject);
+					}
+					throw new Error(`Unexpected synthetic comment path: ${path}`);
+				},
+			);
+			const definition = workflowDefinitionSchema.parse({
+				id: generateId(),
+				name: "Comment thread action test",
+				version: 1,
+				nodes: [
+					{ id: "comment", type: "trigger", kinds: ["comment.created"] },
+					{
+						id: "lock",
+						type: "action",
+						action: "lock",
+						params: { reason: "spam" },
+					},
+					{ id: "close", type: "action", action: "close", params: {} },
+				],
+				edges: [
+					{ id: "lock-edge", from: "comment", to: "lock" },
+					{ id: "close-edge", from: "comment", to: "close" },
+				],
+			});
+			const workflow = await workflowServices.createWorkflow(database.db, {
+				repoId,
+				definition,
+			});
+			await database.db
+				.update(workflowDefinitions)
+				.set({ enabled: true })
+				.where(eq(workflowDefinitions.id, workflow.id));
+			const admitted = await admitPullReceipt(source);
+			expect(
+				await Promise.all(
+					Array.from({ length: 4 }, () =>
+						gitCafeLifecycleServices.dispatchGitCafeRepositoryReceipt(
+							database.db,
+							boss,
+							admitted.receiptId,
+						),
+					),
+				),
+			).toEqual(Array(4).fill("dispatched"));
+			const [row] = (
+				await database.pool.query<{ id: string }>(
+					"SELECT id FROM events WHERE delivery_id=$1",
+					[JSON.stringify([source.installation.id, admitted.payload.id])],
+				)
+			).rows;
+			if (!row) throw new Error("Missing dispatched comment event");
+			expect(
+				(
+					await database.pool.query(
+						"SELECT id FROM pgboss.job WHERE name=$1 AND data->>'eventId'=$2",
+						[GITCAFE_PROCESS_EVENT_QUEUE, row.id],
+					)
+				).rowCount,
+			).toBe(1);
+			const deps = {
+				db: database.db,
+				pool: database.pool,
+				logger: pino({ level: "silent" }),
+				resolveForge: () => runtime,
+				makeGenerate: null,
+				appUrl: "https://staging.tripwire.sh",
+				resumeNormalized: true,
+			};
+			const previous = process.env.TRIPWIRE_DISABLE_EXEMPTION;
+			process.env.TRIPWIRE_DISABLE_EXEMPTION = "true";
+			try {
+				if (["edited", "deleted", "unchanged-retry"].includes(scenario)) {
+					const original = eventServices.markEventNormalized;
+					const interrupted = spyOn(
+						eventServices,
+						"markEventNormalized",
+					).mockImplementationOnce(async (...args) => {
+						await original(...args);
+						throw new Error("Interrupted after comment normalization");
+					});
+					try {
+						await expect(
+							processEvent(deps, { eventId: row.id }),
+						).rejects.toThrow("Interrupted after comment normalization");
+					} finally {
+						interrupted.mockRestore();
+					}
+					expect(
+						(await eventServices.getEventById(database.db, row.id))
+							?.normalizedAt,
+					).not.toBeNull();
+					expect(
+						await runServices.getRunForEvent(database.db, row.id),
+					).toBeNull();
+					changed = true;
+				}
+				await processEvent(deps, { eventId: row.id });
+				expect(
+					(await eventServices.getEventById(database.db, row.id))?.normalized,
+				).toMatchObject({
+					kind: "comment.created",
+					actor: { externalId: author },
+					comment: { byTripwire: self },
+				});
+				const saved = await runServices.getRunForEvent(database.db, row.id);
+				if (scenario === "edited" || scenario === "deleted") {
+					expect(saved).toBeNull();
+					expect(writes).toEqual([]);
+					return;
+				}
+				if (self) {
+					expect(saved).toBeNull();
+					expect(writes).toEqual([]);
+					return;
+				}
+				if (!saved) throw new Error("Missing comment run");
+				const first = await runServices.getRunWithSteps(database.db, saved.id);
+				expect(
+					first?.actions.find((action) => action.kind === "lock")?.status,
+				).toBe("recorded");
+				const pendingLock = first?.actions.find(
+					(action) => action.kind === "lock",
+				);
+				if (!pendingLock) throw new Error("Missing recorded lock");
+				expect(
+					(
+						await gitCafeActionServices.getGitCafeActionBinding(
+							database.db,
+							pendingLock.id,
+						)
+					)?.subject,
+				).toBe(kind === "pull" ? "change-request" : "issue");
+				await processEvent(deps, { eventId: row.id });
+				await processEvent(deps, { eventId: row.id });
+				const final = await runServices.getRunWithSteps(database.db, saved.id);
+				expect(final?.run.status).toBe("completed");
+				expect(
+					final?.actions.map((action) => [action.kind, action.status]).sort(),
+				).toEqual([
+					["close", "executed"],
+					["lock", "executed"],
+				]);
+				expect(writes.sort()).toEqual([`${target}/close`, `${target}/lock`]);
+				expect(
+					(await eventServices.getEventById(database.db, row.id))?.raw,
+				).toEqual(admitted.payload);
+			} finally {
+				if (previous === undefined)
+					delete process.env.TRIPWIRE_DISABLE_EXEMPTION;
+				else process.env.TRIPWIRE_DISABLE_EXEMPTION = previous;
+			}
+		});
+	}
 }
 
 test("concurrent signed receipt dispatch commits one raw event and one scoped job", async () => {
