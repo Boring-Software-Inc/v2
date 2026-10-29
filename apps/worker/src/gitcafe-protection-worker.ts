@@ -143,6 +143,8 @@ export async function registerGitCafeProtectionQueues(
 						"SELECT pg_advisory_lock(hashtext('gitcafe-process'), hashtext($1))",
 						[event.id],
 					);
+					const current = await eventServices.getEventById(deps.db, event.id);
+					if (current?.forge !== "gitcafe" || current.processedAt) continue;
 					const eventDeps = {
 						...deps,
 						resumeNormalized: true,

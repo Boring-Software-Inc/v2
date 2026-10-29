@@ -547,6 +547,78 @@ test("exhausted and deleted local schedule jobs recover once without replaying c
 	expect(writes).toEqual(["/api/repos/boring/scratch/issues/2/lock"]);
 });
 
+test("a waiting consumer rechecks completed no-run work after acquiring the event lock", async () => {
+	const d = deps();
+	expect((await scheduleTick(d)).events).toBe(1);
+	const id = await eventId();
+	const lock = await database.pool.connect();
+	await lock.query(
+		"SELECT pg_advisory_lock(hashtext('gitcafe-process'), hashtext($1))",
+		[id],
+	);
+	const isolated = await createGitCafeConnectionBoss(container.url, logger);
+	let unlocked = false;
+	try {
+		const forge = runtime();
+		await registerGitCafeProtectionQueues(
+			d,
+			isolated,
+			forge.prepareCheckRerequest,
+			forge,
+		);
+		let waiting = false;
+		const until = Date.now() + 10_000;
+		while (!waiting && Date.now() < until) {
+			waiting =
+				(
+					await database.pool.query(
+						"SELECT count(*)::int AS count FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND wait_event = 'advisory' AND query LIKE '%gitcafe-process%'",
+					)
+				).rows[0].count > 0;
+			if (!waiting) await sleep(10);
+		}
+		expect(waiting).toBe(true);
+		await database.db
+			.update(workflowDefinitions)
+			.set({ enabled: false })
+			.where(eq(workflowDefinitions.id, workflowId));
+		await processEvent({ ...d, resumeNormalized: true }, { eventId: id });
+		expect(await runServices.getRunForEvent(database.db, id)).toBeNull();
+		await gitCafeLifecycleServices.finishGitCafeEvent(database.db, id);
+		await database.db
+			.update(workflowDefinitions)
+			.set({ enabled: true })
+			.where(eq(workflowDefinitions.id, workflowId));
+		await lock.query(
+			"SELECT pg_advisory_unlock(hashtext('gitcafe-process'), hashtext($1))",
+			[id],
+		);
+		unlocked = true;
+		let state: string | undefined;
+		const doneBy = Date.now() + 10_000;
+		while (state !== "completed" && Date.now() < doneBy) {
+			state = (
+				await database.pool.query(
+					"SELECT state FROM pgboss.job WHERE name=$1 AND data->>'eventId'=$2",
+					[GITCAFE_PROCESS_EVENT_QUEUE, id],
+				)
+			).rows[0]?.state;
+			if (state !== "completed") await sleep(10);
+		}
+		expect(state).toBe("completed");
+		expect(writes).toEqual([]);
+		expect(await runServices.getRunForEvent(database.db, id)).toBeNull();
+	} finally {
+		if (!unlocked)
+			await lock.query(
+				"SELECT pg_advisory_unlock(hashtext('gitcafe-process'), hashtext($1))",
+				[id],
+			);
+		lock.release();
+		await isolated.stop({ graceful: false });
+	}
+}, 25_000);
+
 test("isolated tick registration processes its own tick without maintaining general backlog or schedules", async () => {
 	await boss.stop({ graceful: false });
 	await database.db
