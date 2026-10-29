@@ -1040,6 +1040,7 @@ for (const { verdict, scenario } of [
 	{ verdict: "pass", scenario: "native-rerequest-write-outage" },
 	{ verdict: "pass", scenario: "native-rerequest-refresh-outage" },
 	{ verdict: "pass", scenario: "native-rerequest-refresh-generation" },
+	{ verdict: "pass", scenario: "native-rerequest-refresh-revision" },
 	{ verdict: "pass", scenario: "native-rerequest-unbound" },
 	{ verdict: "pass", scenario: "native-rerequest-generation" },
 	{ verdict: "pass", scenario: "native-rerequest-stale-head" },
@@ -1107,6 +1108,9 @@ for (const { verdict, scenario } of [
 		let rerequestReadStatus = 200;
 		let pullReadStatus = 200;
 		let changeGenerationOnPull = false;
+		let installationRevision = installation.revision;
+		let driftInstallation = false;
+		let driftLookups = 0;
 		let changeHead = false;
 		let checkReads = 0;
 		let lostReview = false;
@@ -1124,16 +1128,19 @@ for (const { verdict, scenario } of [
 			credentials,
 			async (url, init) => {
 				const path = new URL(url).pathname;
-				if (path.includes("/api/apps/"))
+				if (path.includes("/api/apps/")) {
+					if (init.method === "GET" && driftInstallation && ++driftLookups >= 2)
+						installationRevision = installation.revision + 1;
 					return Response.json(
 						init.method === "GET"
-							? installation
+							? { ...installation, revision: installationRevision }
 							: {
 									...tokenData,
 									token: "local-runtime-token",
 									expiresAt: new Date(Date.now() + 900_000).toISOString(),
 								},
 					);
+				}
 				if (path === "/api/repos/boring/scratch")
 					return Response.json(repository);
 				if (path === "/api/users/grim") {
@@ -1541,8 +1548,13 @@ for (const { verdict, scenario } of [
 						])
 					).rowCount,
 				).toBe(1);
-				if (scenario === "native-rerequest-refresh-generation") {
-					changeGenerationOnPull = true;
+				if (
+					scenario === "native-rerequest-refresh-generation" ||
+					scenario === "native-rerequest-refresh-revision"
+				) {
+					changeGenerationOnPull =
+						scenario === "native-rerequest-refresh-generation";
+					driftInstallation = scenario === "native-rerequest-refresh-revision";
 					await expect(
 						rerunChangeRequest(deps, prepared.value),
 					).rejects.toThrow("GitCafe re-run evidence temporarily unavailable");
@@ -1556,6 +1568,8 @@ for (const { verdict, scenario } of [
 					expect(await runtime.prepareCheckRerequest(requestRow.id)).toEqual(
 						prepared,
 					);
+					if (scenario === "native-rerequest-refresh-revision")
+						expect(driftLookups).toBeGreaterThanOrEqual(2);
 				}
 				if (scenario === "native-rerequest-refresh-outage") {
 					const ordinaryQueued = await runServices.createRun(database.db, {
