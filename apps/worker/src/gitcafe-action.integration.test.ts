@@ -11,6 +11,7 @@ import {
 	gitCafeReceiptSchema,
 	normalizedEventSchema,
 	responseConfigSchema,
+	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { deriveDefaultWorkflow } from "@tripwire/core";
 import {
@@ -37,6 +38,7 @@ import pino from "pino";
 import { buildGitCafeRuntime } from "./gitcafe-runtime.ts";
 import { emitPrSurface } from "./jobs/pr-surface.ts";
 import { processEvent } from "./jobs/process-event.ts";
+import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
 
@@ -542,6 +544,10 @@ for (const { verdict, scenario } of [
 	{ verdict: "pass", scenario: "resume-cleanup" },
 	{ verdict: "pass", scenario: "cleanup-expired" },
 	{ verdict: "pass", scenario: "late-review" },
+	{ verdict: "pass", scenario: "resume-race" },
+	{ verdict: "pass", scenario: "resume-dispatch-race" },
+	{ verdict: "pass", scenario: "rerun-outage" },
+	{ verdict: "block", scenario: "rerun-outage" },
 ] as const) {
 	test(`actual GitCafe runtime persists ${verdict} and owned surfaces across ${scenario}`, async () => {
 		const fixture = async (name: string): Promise<unknown> =>
@@ -812,6 +818,185 @@ for (const { verdict, scenario } of [
 				logger: deps.logger,
 				appUrl: deps.appUrl,
 			};
+			if (scenario === "resume-race" || scenario === "resume-dispatch-race") {
+				const definition = workflowDefinitionSchema.parse({
+					id: "race@1",
+					name: "Two moderation branches",
+					version: 1,
+					nodes: [
+						{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+						{ id: "a", type: "action", action: "send-to-moderation" },
+						{ id: "b", type: "action", action: "send-to-moderation" },
+						{ id: "block", type: "action", action: "block" },
+					],
+					edges: [
+						{ id: "ta", from: "t", to: "a" },
+						{ id: "tb", from: "t", to: "b" },
+						{ id: "bb", from: "b", to: "block", when: "deny" },
+					],
+				});
+				const runId = await runServices.createRun(database.db, {
+					eventId: saved.eventId,
+					repoFullName: saved.repoFullName,
+					subjectNumber: 1,
+					headSha: saved.headSha,
+					snapshot: [definition],
+					status: "paused",
+					verdict: "needs_review",
+				});
+				const now = new Date().toISOString();
+				await runServices.recordSteps(
+					database.db,
+					runId,
+					["t", "a", "b"].map((node) => ({
+						nodeId: `race@1:${node}`,
+						nodeKind: node === "t" ? "trigger" : "action",
+						status: node === "t" ? "pass" : "paused",
+						input: null,
+						output: null,
+						startedAt: now,
+						finishedAt: now,
+						durationMs: 0,
+					})),
+				);
+				const a = await moderationServices.createModerationItem(database.db, {
+					runId,
+					nodeId: "race@1:a",
+				});
+				const b = await moderationServices.createModerationItem(database.db, {
+					runId,
+					nodeId: "race@1:b",
+				});
+				await database.pool.query(
+					"UPDATE moderation_items SET status='approved' WHERE id=$1",
+					[a],
+				);
+				await database.pool.query(
+					"UPDATE moderation_items SET status='denied' WHERE id=$1",
+					[b],
+				);
+				let arrived: (() => void) | undefined;
+				let release: (() => void) | undefined;
+				const paused = new Promise<void>((resolve) => {
+					arrived = resolve;
+				});
+				const barrier = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				const original = runServices.recordGitCafeSurfaceActions;
+				let intercepted = false;
+				if (!runtime.adapter) throw new Error("Missing runtime adapter");
+				const originalExecute = runtime.adapter.execute.bind(runtime.adapter);
+				const spy =
+					scenario === "resume-race"
+						? spyOn(
+								runServices,
+								"recordGitCafeSurfaceActions",
+							).mockImplementation(
+								async (db, id, phase, actions, pendingIds, bodies) => {
+									if (
+										!intercepted &&
+										id === runId &&
+										phase.verdict === "needs_review"
+									) {
+										intercepted = true;
+										arrived?.();
+										await barrier;
+									}
+									return original(db, id, phase, actions, pendingIds, bodies);
+								},
+							)
+						: spyOn(runtime.adapter, "execute").mockImplementation(
+								async (action, context) => {
+									if (!intercepted && action.kind === "dismiss-review") {
+										intercepted = true;
+										arrived?.();
+										await barrier;
+									}
+									return originalExecute(action, context);
+								},
+							);
+				const older = resumeRun(deps, { itemId: a, decision: "approve" });
+				try {
+					await paused;
+					await resumeRun(deps, { itemId: b, decision: "deny" });
+					expect(reviews[0]?.dismissedAt).toBeNull();
+					expect(checks.at(-1)?.conclusion).toBe("failure");
+				} finally {
+					release?.();
+					await older;
+					spy.mockRestore();
+				}
+				expect(
+					(await runServices.getRunById(database.db, runId))?.verdict,
+				).toBe("block");
+				expect(reviews).toHaveLength(1);
+				expect(reviews[0]?.dismissedAt).toBeNull();
+				expect(checks.at(-1)?.conclusion).toBe("failure");
+				return;
+			}
+			if (scenario === "rerun-outage") {
+				if (verdict === "block")
+					await repoServices.upsertRuleConfig(database.db, repoId, {
+						ruleId: "profile-readme",
+						version: 1,
+						enabled: true,
+						config: { minLength: 1 },
+					});
+				const queuedId = await runServices.createRun(database.db, {
+					eventId: saved.eventId,
+					repoFullName: saved.repoFullName,
+					subjectNumber: 1,
+					headSha: saved.headSha,
+					snapshot: [deriveDefaultWorkflow([])],
+					status: "queued",
+					verdict: null,
+					triggeredBy: "local-reviewer",
+				});
+				const job = {
+					forge: "gitcafe" as const,
+					repoFullName: saved.repoFullName,
+					number: 1,
+					requestedBy: "local-reviewer",
+					runId: queuedId,
+				};
+				await database.pool.query(
+					"CREATE FUNCTION fail_rerun_surface() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.kind='set-check' THEN RAISE EXCEPTION 'rerun surface outage'; END IF; RETURN NEW; END $$",
+				);
+				await database.pool.query(
+					"CREATE TRIGGER fail_rerun_surface BEFORE INSERT ON run_actions FOR EACH ROW EXECUTE FUNCTION fail_rerun_surface()",
+				);
+				try {
+					await expect(rerunChangeRequest(deps, job)).rejects.toMatchObject({
+						cause: { message: "rerun surface outage" },
+					});
+				} finally {
+					await database.pool.query(
+						"DROP TRIGGER fail_rerun_surface ON run_actions",
+					);
+					await database.pool.query("DROP FUNCTION fail_rerun_surface()");
+				}
+				expect(
+					(await runServices.getRunById(database.db, queuedId))?.verdict,
+				).toBe("pass");
+				const previousReads = profileReads;
+				await rerunChangeRequest(deps, job);
+				expect(profileReads).toBe(previousReads);
+				expect(checks.at(-1)?.conclusion).toBe("success");
+				if (verdict === "block") expect(reviews[0]?.dismissedAt).not.toBeNull();
+				const actions = await runServices.getRunWithSteps(
+					database.db,
+					queuedId,
+				);
+				expect(
+					actions?.actions.filter((action) => action.kind === "dismiss-review"),
+				).toHaveLength(1);
+				await rerunChangeRequest(deps, job);
+				expect(
+					(await runServices.getRunWithSteps(database.db, queuedId))?.actions,
+				).toEqual(actions?.actions);
+				return;
+			}
 			if (scenario === "resume-outage" || scenario === "resume-cleanup") {
 				reviews.push(reviewData);
 				refuseCleanup = scenario === "resume-cleanup";

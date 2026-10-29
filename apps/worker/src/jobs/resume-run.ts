@@ -137,7 +137,6 @@ export async function resumeRun(
 				},
 				item.runId,
 				normalized,
-				`resume:${item.id}`,
 			))
 		)
 			throw new Error("Committed GitCafe resume cannot recover its surfaces");
@@ -260,7 +259,6 @@ export async function resumeRun(
 				},
 				item.runId,
 				normalized,
-				`resume:${item.id}`,
 			))
 		)
 			throw new Error("Committed GitCafe resume cannot recover its surfaces");
@@ -365,7 +363,6 @@ async function resumeDegradedRun(
 				},
 				runId,
 				normalized,
-				`resume:${itemId}`,
 			))
 		)
 			throw new Error("Committed GitCafe resume cannot recover its surfaces");

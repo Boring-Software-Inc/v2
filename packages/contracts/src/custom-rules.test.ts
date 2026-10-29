@@ -146,6 +146,28 @@ describe("enable-time validation over the runtime catalog", () => {
 		expect(result.valid).toBe(true);
 	});
 
+	for (const ref of [
+		"ai-review@1",
+		"ai-review@2",
+		"ai-review@3",
+		"crypto-address@1",
+		"crypto-address@2",
+	]) {
+		test(`saved ${ref} remains valid after the catalog advances`, () => {
+			expect(
+				validateWorkflowForEnable(workflow(ref), resolveCatalog([])).valid,
+			).toBe(true);
+		});
+	}
+	test("an unregistered historical version cannot borrow the current schema", () => {
+		expect(
+			validateWorkflowForEnable(
+				workflow("crypto-address@99"),
+				resolveCatalog([]),
+			).valid,
+		).toBe(false);
+	});
+
 	test("the same ref fails against the static catalog alone", () => {
 		const result = validateWorkflowForEnable(
 			workflow(customRuleRef(forkRate.id)),

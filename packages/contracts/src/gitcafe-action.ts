@@ -100,8 +100,27 @@ export type GitCafeActionOperation = z.infer<
 	typeof gitCafeActionOperationSchema
 >;
 
+export const gitCafeEvaluationPhaseSchema = z.strictObject({
+	verdict: verdictSchema,
+	headSha: OID.nullable(),
+	appliedItems: z.array(z.uuid()),
+});
+export type GitCafeEvaluationPhase = z.infer<
+	typeof gitCafeEvaluationPhaseSchema
+>;
+
+export const GITCAFE_VERDICT_ACTION_KINDS: ReadonlySet<string> = new Set([
+	"block",
+	"close",
+	"comment",
+	"delete-comment",
+	"set-check",
+	"dismiss-review",
+]);
+
 export const gitCafeActionPayloadSchema = z.looseObject({
 	gitCafeOperation: gitCafeActionOperationSchema.optional(),
+	gitCafePhase: gitCafeEvaluationPhaseSchema.optional(),
 	reason: z.string().optional(),
 	verdict: verdictSchema.optional(),
 });

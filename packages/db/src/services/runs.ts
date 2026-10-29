@@ -1,5 +1,8 @@
 import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
+	GITCAFE_VERDICT_ACTION_KINDS,
+	type GitCafeEvaluationPhase,
+	gitCafeEvaluationPhaseSchema,
 	HELD_VERDICTS,
 	ingestForgeSchema,
 	type RunStanding,
@@ -288,11 +291,15 @@ export async function recordActions(
 	if (actions.length === 0) {
 		return [];
 	}
+	const gitCafePhase = await getGitCafeEvaluationPhase(db, runId);
 	const rows = actions.map((action) => ({
 		id: generateId(),
 		runId,
 		kind: action.kind,
-		payload: action.payload,
+		payload:
+			gitCafePhase && GITCAFE_VERDICT_ACTION_KINDS.has(action.kind)
+				? { ...action.payload, gitCafePhase }
+				: action.payload,
 		idempotencyKey: action.idempotencyKey,
 		status: initialStatus,
 	}));
@@ -312,6 +319,63 @@ export async function recordActions(
 		kind: row.kind,
 		payload: row.payload as Record<string, unknown>,
 	}));
+}
+
+/** One statement binds the verdict to every moderation decision already applied to it. */
+export async function getGitCafeEvaluationPhase(
+	db: DbLike,
+	runId: string,
+): Promise<GitCafeEvaluationPhase | null> {
+	const result = await db.execute(sql`
+		SELECT r.verdict, r.head_sha AS "headSha",
+			COALESCE((SELECT jsonb_agg(m.id ORDER BY m.id) FROM moderation_items m WHERE m.run_id=r.id AND m.applied_at IS NOT NULL),'[]'::jsonb) AS "appliedItems"
+		FROM runs r JOIN events e ON e.id=r.event_id
+		WHERE r.id=${runId} AND e.forge='gitcafe' AND r.status IN ('paused','completed')
+	`);
+	const parsed = gitCafeEvaluationPhaseSchema.safeParse(result.rows[0]);
+	return parsed.success ? parsed.data : null;
+}
+
+/** The run lock makes the recovered audit and its phase one consistent committed view. */
+export async function getGitCafeRunSurfaceState(db: Db, runId: string) {
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`SELECT id FROM runs WHERE id=${runId} FOR UPDATE`);
+		const phase = await getGitCafeEvaluationPhase(tx, runId);
+		const saved = await getRunWithSteps(tx, runId);
+		return phase && saved ? { phase, saved } : null;
+	});
+}
+
+/** A delayed planner may only insert or restamp intents for the evaluation it actually read. */
+export async function recordGitCafeSurfaceActions(
+	db: Db,
+	runId: string,
+	phase: GitCafeEvaluationPhase,
+	actions: RecordActionInput[],
+	pendingIds: string[],
+	reviewBodies: { id: string; body: string }[],
+) {
+	const expected = gitCafeEvaluationPhaseSchema.parse(phase);
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`SELECT id FROM runs WHERE id=${runId} FOR UPDATE`);
+		const current = await getGitCafeEvaluationPhase(tx, runId);
+		if (JSON.stringify(current) !== JSON.stringify(expected)) return null;
+		for (const row of reviewBodies) await stampReviewBody(tx, row.id, row.body);
+		if (pendingIds.length)
+			await tx
+				.update(runActions)
+				.set({
+					payload: sql`${runActions.payload} || jsonb_build_object('gitCafePhase', ${JSON.stringify(expected)}::jsonb)`,
+				})
+				.where(
+					and(
+						eq(runActions.runId, runId),
+						inArray(runActions.id, pendingIds),
+						eq(runActions.status, "recorded"),
+					),
+				);
+		return recordActions(tx, runId, actions);
+	});
 }
 
 export async function markActionExecuted(
@@ -407,7 +471,7 @@ export async function attachDeliveryPayload(
 }
 
 export async function stampReviewBody(
-	db: Db,
+	db: DbLike,
 	actionId: string,
 	reason: string,
 ): Promise<void> {
@@ -857,10 +921,19 @@ export async function persistRunResume(
 					nodeId,
 				})),
 			);
-		return {
-			...(await settleRunInTransaction(tx, input.runId, input.itemId)),
-			actionRows,
-		};
+		const settled = await settleRunInTransaction(tx, input.runId, input.itemId);
+		const phase = await getGitCafeEvaluationPhase(tx, input.runId);
+		const verdictIds = actionRows
+			.filter((row) => GITCAFE_VERDICT_ACTION_KINDS.has(row.kind))
+			.map((row) => row.id);
+		if (phase && verdictIds.length)
+			await tx
+				.update(runActions)
+				.set({
+					payload: sql`${runActions.payload} || jsonb_build_object('gitCafePhase', ${JSON.stringify(phase)}::jsonb)`,
+				})
+				.where(inArray(runActions.id, verdictIds));
+		return { ...settled, actionRows };
 	});
 }
 
@@ -922,7 +995,7 @@ export async function pauseRun(db: Db, runId: string): Promise<void> {
 		.where(eq(runs.id, runId));
 }
 
-export async function getRunWithSteps(db: Db, runId: string) {
+export async function getRunWithSteps(db: DbLike, runId: string) {
 	const runRows = await db.select().from(runs).where(eq(runs.id, runId));
 	const run = runRows[0];
 	if (!run) {

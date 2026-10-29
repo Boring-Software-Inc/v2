@@ -1,9 +1,12 @@
+import { createHash } from "node:crypto";
 import type { Forge } from "@tripwire/contracts";
 import {
 	type CheckState,
 	type CommentReason,
 	checkSummary,
 	forgePostsReviews,
+	GITCAFE_VERDICT_ACTION_KINDS,
+	type GitCafeEvaluationPhase,
 	gitCafeActionPayloadSchema,
 	isAiReviewNotRunStep,
 	labelParamsSchema,
@@ -47,12 +50,14 @@ export async function recoverGitCafeRunSurface(
 	deps: PrSurfaceDeps,
 	runId: string,
 	event: NormalizedEvent,
-	surfaceKey?: string,
+	options?: Pick<EmitSurfaceInput, "pendingCheckPosted" | "rerun">,
 ): Promise<boolean> {
-	const saved = await runServices.getRunWithSteps(deps.db, runId);
+	const state = await runServices.getGitCafeRunSurfaceState(deps.db, runId);
+	const saved = state?.saved;
 	const verdict = verdictSchema.safeParse(saved?.run.verdict);
 	if (
 		!saved ||
+		!state ||
 		!verdict.success ||
 		event.forge !== "gitcafe" ||
 		!("repo" in event) ||
@@ -60,6 +65,7 @@ export async function recoverGitCafeRunSurface(
 		!["completed", "paused"].includes(saved.run.status)
 	)
 		return false;
+	const surfaceKey = `evaluation:${createHash("sha256").update(JSON.stringify(state.phase)).digest("hex")}`;
 	const repo = await repoServices.getRepoByFullName(
 		deps.db,
 		event.repo.fullName,
@@ -104,6 +110,7 @@ export async function recoverGitCafeRunSurface(
 			verdict: verdict.data,
 			reasons: [],
 			pendingActionRows: recorded,
+			gitCafePhase: state.phase,
 		});
 		return true;
 	}
@@ -115,10 +122,12 @@ export async function recoverGitCafeRunSurface(
 		degraded: items.some((item) => item.nodeId === "run:degraded"),
 		aiReviewNotRun: saved.steps.some(isAiReviewNotRunStep),
 		pendingActionRows: recorded,
-		pendingCheckPosted: saved.actions.some(
-			(action) => action.kind === "set-check",
-		),
+		pendingCheckPosted:
+			options?.pendingCheckPosted ||
+			saved.actions.some((action) => action.kind === "set-check"),
 		surfaceKey,
+		gitCafePhase: state.phase,
+		rerun: options?.rerun || saved.run.triggeredBy !== null,
 		resumedFrom: [...saved.actions].reverse().flatMap((action) => {
 			const parsed = verdictSchema.safeParse(
 				gitCafeActionPayloadSchema.parse(action.payload).verdict,
@@ -244,6 +253,7 @@ export interface EmitSurfaceInput {
 	resumedFrom?: Verdict;
 	surfaceKey?: string;
 	pendingCheckPosted?: boolean;
+	gitCafePhase?: GitCafeEvaluationPhase;
 	/** Workflow-emitted action rows still awaiting execution. */
 	pendingActionRows: {
 		id: string;
@@ -258,6 +268,13 @@ export async function emitPrSurface(
 ): Promise<void> {
 	const { db, adapter, logger } = deps;
 	const { event, runId, verdict } = input;
+	if (event.forge === "gitcafe" && !input.gitCafePhase) {
+		if (!(await recoverGitCafeRunSurface(deps, runId, event, input)))
+			throw new Error(
+				"Committed GitCafe evaluation cannot recover its surfaces",
+			);
+		return;
+	}
 	if (event.kind === "schedule.matched") {
 		const { thread } = event;
 		await emitThreadActions(deps, input, {
@@ -347,13 +364,22 @@ export async function emitPrSurface(
 	);
 	const review = plan.review ?? REVIEW_POINTER.block;
 	for (const row of blockRows) {
-		row.payload = { ...row.payload, reason: review };
-		await runServices.stampReviewBody(db, row.id, review);
+		const operation =
+			event.forge === "gitcafe"
+				? gitCafeActionPayloadSchema.parse(row.payload).gitCafeOperation
+				: undefined;
+		const body =
+			operation?.command.kind === "review"
+				? operation.command.input.body
+				: review;
+		row.payload = { ...row.payload, reason: body };
+		if (event.forge !== "gitcafe")
+			await runServices.stampReviewBody(db, row.id, body);
 	}
 	const includeCheck =
 		wantsCheck(responseConfig, verdict) || input.pendingCheckPosted === true;
 
-	const surfaceRows = await runServices.recordActions(db, runId, [
+	const intents: runServices.RecordActionInput[] = [
 		...commentRows(plan, number, verdict, previousVerdict).map((row) =>
 			input.surfaceKey
 				? {
@@ -401,7 +427,23 @@ export async function emitPrSurface(
 					},
 				]
 			: []),
-	]);
+	];
+	const surfaceRows = input.gitCafePhase
+		? await runServices.recordGitCafeSurfaceActions(
+				db,
+				runId,
+				input.gitCafePhase,
+				intents,
+				input.pendingActionRows
+					.filter((row) => GITCAFE_VERDICT_ACTION_KINDS.has(row.kind))
+					.map((row) => row.id),
+				blockRows.map((row) => ({
+					id: row.id,
+					body: String(row.payload.reason),
+				})),
+			)
+		: await runServices.recordActions(db, runId, intents);
+	if (surfaceRows === null) return;
 
 	// Outbound delivery (webhook/discord) is independent of GitHub — build and
 	// attach each row's payload here (we have the run context + appUrl), leave

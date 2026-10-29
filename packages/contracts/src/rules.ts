@@ -332,15 +332,14 @@ export const RULE_CATALOG = [
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
 		forges: ["github", "gitcafe"],
-		// @2 — findings quote code in backticks. @1 stays registered for stored
-		// runs, but a repo enabling ai-review now pins the current version.
+		/** @3 requires available patches; stored @1 and @2 retain their semantics. */
 		version: 3,
 		name: "AI review",
 		blurb: "reads the change like a reviewer and flags slop.",
 		configSchema: aiReviewConfigSchema,
 		defaultConfig: { maxSteps: 12 },
 		optIn: true,
-		/** §6 (b) — what @2 changed vs the pinned prior version. */
+		/** §6 (b) — the current upgrade's behavior change. */
 		changeNote: "skips review when patch evidence is explicitly unavailable",
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Reads the change like a reviewer and flags slop.",
@@ -374,6 +373,13 @@ export const RULE_CATALOG = [
 }>;
 
 export type RuleCatalogEntry = (typeof RULE_CATALOG)[number];
+
+/** Frozen schemas keep saved workflow references valid after the current catalog advances. */
+export const HISTORICAL_RULE_CONFIG_SCHEMAS = {
+	"ai-review@1": aiReviewConfigSchema,
+	"ai-review@2": aiReviewConfigSchema,
+	"crypto-address@1": cryptoAddressConfigSchema,
+} satisfies Readonly<Record<string, z.ZodType>>;
 
 /**
  * Which forges a rule can actually run on. Absent ⇒ every forge — the common

@@ -10,7 +10,11 @@ import {
 import { eventServices, runServices } from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import { normalizeFor } from "../forge-runtime.ts";
-import { emitPendingCheck, emitPrSurface } from "./pr-surface.ts";
+import {
+	emitPendingCheck,
+	emitPrSurface,
+	recoverGitCafeRunSurface,
+} from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import { runWorkflows } from "./run-workflows.ts";
 
@@ -90,6 +94,30 @@ export async function rerunChangeRequest(
 			claimedRun.status === "closed" ||
 			claimedRun.status === "failed")
 	) {
+		if (
+			forge === "gitcafe" &&
+			(claimedRun.status === "completed" || claimedRun.status === "paused")
+		) {
+			const normalized = normalizedEventSchema.safeParse(
+				claimedEvent?.normalized,
+			);
+			if (
+				!normalized.success ||
+				!(await recoverGitCafeRunSurface(
+					{
+						db,
+						adapter: deps.resolveForge(forge)?.adapter ?? null,
+						logger,
+						appUrl: deps.appUrl,
+					},
+					claimedRun.id,
+					normalized.data,
+					{ rerun: true },
+				))
+			)
+				throw new Error("Committed GitCafe rerun cannot recover its surfaces");
+			return;
+		}
 		logger.info(
 			{ claimRunId, status: claimedRun.status },
 			"re-run already terminal — no-op",

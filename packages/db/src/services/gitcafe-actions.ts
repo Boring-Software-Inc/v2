@@ -1,5 +1,6 @@
 import {
 	bearsVerdict,
+	GITCAFE_VERDICT_ACTION_KINDS,
 	type GitCafeActionBinding,
 	type GitCafeActionOperation,
 	gitCafeActionBindingSchema,
@@ -16,7 +17,10 @@ import { repos } from "../schema/repos.ts";
 import { runActions, runs } from "../schema/runs.ts";
 import type { DbLike } from "./access.ts";
 import { getGitCafeActionAuthority } from "./gitcafe-lifecycle.ts";
-import { getLatestRunForChangeRequest } from "./runs.ts";
+import {
+	getGitCafeEvaluationPhase,
+	getLatestRunForChangeRequest,
+} from "./runs.ts";
 
 export async function getPendingGitCafeReviewCleanup(db: Db, runId: string) {
 	const rows = await db
@@ -288,6 +292,16 @@ export async function getGitCafeActionBinding(
 			),
 		);
 	if (!row || row.run.backfill) return null;
+	if (GITCAFE_VERDICT_ACTION_KINDS.has(row.action.kind)) {
+		const payload = gitCafeActionPayloadSchema.safeParse(row.action.payload);
+		const phase = await getGitCafeEvaluationPhase(db, row.run.id);
+		if (
+			!payload.success ||
+			!phase ||
+			JSON.stringify(payload.data.gitCafePhase) !== JSON.stringify(phase)
+		)
+			return null;
+	}
 	const normalized = normalizedEventSchema.safeParse(row.event.normalized);
 	if (
 		!normalized.success ||

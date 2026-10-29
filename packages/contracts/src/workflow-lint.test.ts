@@ -508,7 +508,7 @@ describe("no-action", () => {
 
 describe("unknown-rule", () => {
 	const def = graph(
-		[TRIGGER, { ...RULE, ref: "ai-review@1", config: {} }, GATE, BLOCK],
+		[TRIGGER, { ...RULE, ref: "ai-review@99", config: {} }, GATE, BLOCK],
 		CLEAN.edges,
 	);
 
