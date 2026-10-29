@@ -239,3 +239,22 @@ export const gitCafePushEventSchema = gitCafeRepositoryEventSchema.extend({
 	}),
 });
 export type GitCafePushEvent = z.infer<typeof gitCafePushEventSchema>;
+
+export const gitCafePushRefDeliverySchema = z.tuple([
+	gitCafeEventEnvelopeSchema.shape.installation.shape.id,
+	gitCafeEventEnvelopeSchema.shape.id,
+	z.string().min(1).max(4096),
+]);
+export type GitCafePushRefDelivery = z.infer<
+	typeof gitCafePushRefDeliverySchema
+>;
+
+export const gitCafeHydratedPushRefSchema = z.strictObject({
+	event: gitCafePushEventSchema,
+	ref: z.string().min(1),
+	author: eventActorSchema,
+	sender: eventActorSchema.optional(),
+});
+export type GitCafeHydratedPushRef = z.infer<
+	typeof gitCafeHydratedPushRefSchema
+>;

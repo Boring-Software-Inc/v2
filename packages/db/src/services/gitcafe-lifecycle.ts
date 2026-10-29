@@ -4,6 +4,7 @@ import {
 	GITCAFE_LIFECYCLE_QUEUE,
 	GITCAFE_PROCESS_EVENT_QUEUE,
 	GITCAFE_RECEIPT_MAX_BYTES,
+	GITCAFE_REFRESH_CATALOGS_QUEUE,
 	type GitCafeCatalogValues,
 	type GitCafeLifecycleLookup,
 	type GitCafeReceipt,
@@ -17,8 +18,11 @@ import {
 	gitCafeLifecycleEventTypeSchema,
 	gitCafeLifecycleLookupSchema,
 	gitCafeProcessEventJobSchema,
+	gitCafePushEventSchema,
+	gitCafePushRefDeliverySchema,
 	gitCafeReceiptJobSchema,
 	gitCafeReceiptSchema,
+	gitCafeRefreshCatalogsJobSchema,
 	gitCafeRepositoriesUpdatedSchema,
 	gitCafeRepositoryBindingSchema,
 	gitCafeRetirementSchema,
@@ -432,50 +436,110 @@ export async function dispatchGitCafeRepositoryReceipt(
 			if (
 				!gitCafeDispatchableRepositoryEventTypeSchema.safeParse(row.event_type)
 					.success &&
-				row.event_type !== "check.rerequested"
+				row.event_type !== "check.rerequested" &&
+				row.event_type !== "git.push"
 			)
 				status = "parked";
 			else {
-				const eventId = generateId();
-				const inserted = await client.query<{ id: string }>(
-					`INSERT INTO events (id, forge, delivery_id, raw_kind, raw, received_at)
+				const push =
+					row.event_type === "git.push"
+						? gitCafePushEventSchema.safeParse(receipt.payload)
+						: null;
+				const validPush =
+					push?.success &&
+					!push.data.git.refUpdatesTruncated &&
+					push.data.git.refUpdatesCount === push.data.git.refUpdates.length &&
+					new Set(push.data.git.refUpdates.map((ref) => ref.ref)).size ===
+						push.data.git.refUpdates.length;
+				const deliveries =
+					push?.success && validPush
+						? push.data.git.refUpdates.map((update) =>
+								JSON.stringify(
+									gitCafePushRefDeliverySchema.parse([
+										row.installation_id,
+										row.event_id,
+										update.ref,
+									]),
+								),
+							)
+						: [JSON.stringify([row.installation_id, row.event_id])];
+				if (push !== null && !validPush) status = "malformed";
+				else {
+					for (const delivery of deliveries) {
+						const eventId = generateId();
+						const inserted = await client.query<{ id: string }>(
+							`INSERT INTO events (id, forge, delivery_id, raw_kind, raw, received_at)
 					 VALUES ($1, 'gitcafe', $2, $3, $4, $5)
 					 ON CONFLICT (forge, delivery_id) DO NOTHING RETURNING id`,
-					[
-						eventId,
-						JSON.stringify([row.installation_id, row.event_id]),
-						row.event_type,
-						JSON.stringify(receipt.payload),
-						row.received_at,
-					],
-				);
-				if (inserted.rowCount === 1) {
-					const queued = await boss.insert(
-						GITCAFE_PROCESS_EVENT_QUEUE,
-						[
-							{
-								id: generateId(),
-								data: gitCafeProcessEventJobSchema.parse({
-									eventId,
-									requestId: receipt.requestId,
-								}),
-								retryLimit: 10,
-								retryDelay: 15,
-								retryBackoff: true,
-							},
-						],
-						{
-							returnId: true,
-							db: {
-								executeSql: (text: string, values?: unknown[]) =>
-									client.query(text, values),
-							},
-						},
-					);
-					if (queued?.length !== 1)
-						throw new Error("GitCafe event enqueue did not insert one job");
+							[
+								eventId,
+								delivery,
+								row.event_type,
+								JSON.stringify(receipt.payload),
+								row.received_at,
+							],
+						);
+						if (inserted.rowCount === 1) {
+							const queued = await boss.insert(
+								GITCAFE_PROCESS_EVENT_QUEUE,
+								[
+									{
+										id: generateId(),
+										data: gitCafeProcessEventJobSchema.parse({
+											eventId,
+											requestId: receipt.requestId,
+										}),
+										retryLimit: 10,
+										retryDelay: 15,
+										retryBackoff: true,
+									},
+								],
+								{
+									returnId: true,
+									db: {
+										executeSql: (text: string, values?: unknown[]) =>
+											client.query(text, values),
+									},
+								},
+							);
+							if (queued?.length !== 1)
+								throw new Error("GitCafe event enqueue did not insert one job");
+						}
+					}
+					if (push?.success && deliveries.length) {
+						const [repo] = (
+							await client.query<{ id: string }>(
+								`SELECT r.id FROM repos r JOIN organization_installations i ON i.forge=r.forge AND i.installation_id=r.installation_id AND i.organization_id=r.org_id WHERE r.forge='gitcafe' AND r.external_id=$1 AND r.installation_id=$2 AND r.full_name=$3 AND r.removed_at IS NULL`,
+								[
+									push.data.repository.id,
+									row.installation_id,
+									`${push.data.repository.owner}/${push.data.repository.name}`,
+								],
+							)
+						).rows;
+						if (repo)
+							await boss.insert(
+								GITCAFE_REFRESH_CATALOGS_QUEUE,
+								[
+									{
+										id: generateId(),
+										data: gitCafeRefreshCatalogsJobSchema.parse({
+											repoId: repo.id,
+											requestId: receipt.requestId,
+										}),
+										singletonKey: repo.id,
+									},
+								],
+								{
+									db: {
+										executeSql: (text: string, values?: unknown[]) =>
+											client.query(text, values),
+									},
+								},
+							);
+					}
+					status = deliveries.length ? "dispatched" : "applied";
 				}
-				status = "dispatched";
 			}
 		}
 		await client.query(

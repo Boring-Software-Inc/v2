@@ -3,16 +3,20 @@ import {
 	type GitCafeCommentIdentity,
 	type GitCafeHydratedCommentEvent,
 	type GitCafeHydratedPullEvent,
+	type GitCafeHydratedPushRef,
 	type GitCafeInstallation,
 	type GitCafePullEvent,
+	type GitCafePushEvent,
 	gitCafeCommentDetailSchema,
 	gitCafeCommentEventSchema,
 	gitCafeCommentSubjectSchema,
 	gitCafeHydratedCommentEventSchema,
 	gitCafeHydratedPullEventSchema,
+	gitCafeHydratedPushRefSchema,
 	gitCafeIssueCommentPageSchema,
 	gitCafePullEventSchema,
 	gitCafePullIdentitySchema,
+	gitCafePushEventSchema,
 	type NormalizedEvent,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
@@ -21,6 +25,101 @@ import type {
 	GitCafeInstallationClient,
 	GitCafeInstallationFailure,
 } from "./installation-client.ts";
+import { type GitCafeReadFailure, GitCafeReads } from "./reads.ts";
+
+/** Each signed ref update remains independent; a later head or missing actor cannot become current push evidence. */
+export async function hydrateGitCafePushRef(
+	client: GitCafeInstallationClient,
+	expectedInstallation: GitCafeInstallation,
+	input: GitCafePushEvent,
+	ref: string,
+): Promise<
+	| { ok: true; value: GitCafeHydratedPushRef }
+	| GitCafeReadFailure
+	| { ok: false; reason: "stale-event" }
+> {
+	const parsed = gitCafePushEventSchema.safeParse(input);
+	if (!parsed.success) return { ok: false, reason: "invalid-response" };
+	const event = parsed.data;
+	const updates = event.git.refUpdates;
+	if (
+		event.git.refUpdatesTruncated ||
+		event.git.refUpdatesCount !== updates.length ||
+		new Set(updates.map((item) => item.ref)).size !== updates.length
+	)
+		return { ok: false, reason: "invalid-response" };
+	const update = updates.find((item) => item.ref === ref);
+	if (
+		!update ||
+		update.deleted !== (update.afterOid === null) ||
+		update.created !== (update.beforeOid === null) ||
+		(update.created && update.deleted)
+	)
+		return { ok: false, reason: "invalid-response" };
+	if (
+		event.installation.id !== expectedInstallation.id ||
+		event.repository.owner !== expectedInstallation.org
+	)
+		return { ok: false, reason: "identity-mismatch" };
+	if (!event.actor?.id) return { ok: false, reason: "author-unavailable" };
+	const generation = client.generation(expectedInstallation.id);
+	const reads = new GitCafeReads({
+		client,
+		installationId: expectedInstallation.id,
+		expectedInstallation,
+	});
+	const repo = `${event.repository.owner}/${event.repository.name}`;
+	const author = await reads.getActor(
+		repo,
+		event.repository.id,
+		event.actor.id,
+	);
+	if (!author.ok) return author;
+	const current = await reads.getRef(repo, event.repository.id, ref);
+	if (!current.ok) return current;
+	if (client.generation(expectedInstallation.id) !== generation)
+		return { ok: false, reason: "stale" };
+	if ((current.value?.oid ?? null) !== update.afterOid)
+		return { ok: false, reason: "stale-event" };
+	return {
+		ok: true,
+		value: gitCafeHydratedPushRefSchema.parse({
+			event,
+			ref,
+			author: author.value,
+			sender: author.value,
+		}),
+	};
+}
+
+export function normalizeGitCafePushRef(
+	input: GitCafeHydratedPushRef,
+	receivedAt: string,
+): NormalizedEvent | null {
+	const parsed = gitCafeHydratedPushRefSchema.safeParse(input);
+	if (!parsed.success) return null;
+	const { event, ref, author, sender } = parsed.data;
+	const update = event.git.refUpdates.find((item) => item.ref === ref);
+	if (!update) return null;
+	return normalizedEventSchema.parse({
+		id: generateId(),
+		forge: "gitcafe",
+		deliveryId: JSON.stringify([event.installation.id, event.id, ref]),
+		repo: {
+			owner: event.repository.owner,
+			name: event.repository.name,
+			fullName: `${event.repository.owner}/${event.repository.name}`,
+		},
+		repoExternalId: event.repository.id,
+		installationExternalId: event.installation.id,
+		actor: author,
+		sender,
+		occurredAt: event.createdAt,
+		receivedAt,
+		kind: "push",
+		push: { ref, headSha: update.afterOid, commitCount: null },
+	});
+}
 
 export type GitCafePullHydrationResult =
 	| { ok: true; value: GitCafeHydratedPullEvent }

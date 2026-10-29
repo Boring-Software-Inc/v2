@@ -69,8 +69,8 @@ export type CommentPayload = z.infer<typeof commentPayloadSchema>;
 
 export const pushPayloadSchema = z.object({
 	ref: z.string(),
-	headSha: z.string(),
-	commitCount: z.number().int(),
+	headSha: z.string().nullable(),
+	commitCount: z.number().int().nullable(),
 	/** The forge's compare view for the pushed range (§9 deep link). */
 	url: z.string().optional(),
 });

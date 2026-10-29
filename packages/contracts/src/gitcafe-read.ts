@@ -12,7 +12,7 @@ export const gitCafeReadDiagnosticSchema = z.strictObject({
 		"repository-collaborators",
 	]),
 	reason: gitCafeInstallationFailureReasonSchema.or(
-		z.enum(["changed", "incomplete", "pagination"]),
+		z.enum(["changed", "incomplete", "pagination", "author-unavailable"]),
 	),
 	status: z.number().int().min(100).max(599).optional(),
 });
@@ -170,6 +170,20 @@ export const gitCafeReadRefPageSchema = z.object({
 	next: CURSOR,
 });
 export type GitCafeReadRefPage = z.infer<typeof gitCafeReadRefPageSchema>;
+
+export const gitCafeReadActorPageSchema = z.object({
+	items: z
+		.array(
+			z.object({
+				actorId: z.string().min(1),
+				handle: z.string().min(1).max(100).nullable().optional(),
+				avatarUrl: z.string().nullable().optional(),
+			}),
+		)
+		.max(100),
+	next: CURSOR,
+});
+export type GitCafeReadActorPage = z.infer<typeof gitCafeReadActorPageSchema>;
 
 export const gitCafeReadLabelPageSchema = z.object({
 	items: z
