@@ -630,6 +630,7 @@ export function registerTools(
 						ctx.db,
 						() => ctx.getBoss(found.forge),
 						found.id,
+						resolved.id,
 					);
 					if (!result.ok)
 						return {
@@ -729,6 +730,7 @@ export function registerTools(
 						? await workflowServices.setWorkflowEnabled(ctx.db, {
 								repoId: found.id,
 								workflowId: row.id,
+								organizationId: resolved.id,
 								enabled,
 							})
 						: null;

@@ -367,6 +367,47 @@ for (const drift of ["none", "pickup", "commit"] as const) {
 					true,
 				);
 			}
+			if (drift === "none") {
+				const stored = await eventServices.getEventById(database.db, validId);
+				const normalized = normalizedEventSchema.parse(stored?.normalized);
+				let hydrated = 0;
+				await processEvent(
+					{
+						db: database.db,
+						pool: database.pool,
+						logger,
+						makeGenerate: null,
+						appUrl: "https://staging.tripwire.sh",
+						resumeNormalized: true,
+						resolveForge: () => ({
+							adapter: null,
+							reads: null,
+							signalHttp: null,
+							installationRepos: null,
+							isRepoPublic: null,
+							listThreads: null,
+							prepareEvent: async () => {
+								hydrated++;
+								return { ok: true, value: normalized };
+							},
+						}),
+					},
+					{ eventId: validId },
+				);
+				expect(hydrated).toBe(1);
+				const live = await runServices.getRunForEvent(database.db, validId, {
+					includeBackfill: false,
+				});
+				expect(live).toMatchObject({ backfill: false });
+				expect(live?.id).not.toBe(run?.id);
+				const historyActions = await database.pool.query<{ status: string }>(
+					"SELECT status FROM run_actions WHERE run_id=$1",
+					[run?.id],
+				);
+				expect(
+					historyActions.rows.every((row) => row.status === "suppressed"),
+				).toBe(true);
+			}
 			expect(
 				await runServices.getRunForEvent(database.db, foreignId),
 			).toBeNull();

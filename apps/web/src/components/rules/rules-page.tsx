@@ -336,9 +336,10 @@ export function RulesPage() {
 							/>
 						) : null}
 
-						{starting ? (
+						{starting && repo ? (
 							<>
 								<RulePacks
+									forge={repo.forge}
 									canEdit={isAdmin}
 									onInstall={install}
 									pending={pending}

@@ -186,6 +186,7 @@ export async function matchesGitCafeRepositoryBinding(
 export async function lockGitCafeRepositoryAuthority(
 	db: DbLike,
 	repoId: string,
+	organizationId?: string,
 ): Promise<{ binding: GitCafeRepositoryBinding; armed: boolean } | null> {
 	await db.execute(
 		sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
@@ -200,7 +201,8 @@ export async function lockGitCafeRepositoryAuthority(
 		repo.forge !== "gitcafe" ||
 		repo.removedAt ||
 		!repo.installationId ||
-		!repo.orgId
+		!repo.orgId ||
+		(organizationId !== undefined && repo.orgId !== organizationId)
 	)
 		return null;
 	const [claim] = await db

@@ -1,4 +1,5 @@
 import {
+	type Forge,
 	ruleSetNames,
 	type SetupStage,
 	type SetupStageState,
@@ -78,9 +79,20 @@ function step(
 	};
 }
 
-export function setupProgress(facts: RepoSetupFacts): RepoSetupProgress {
+export function setupProgress(
+	facts: RepoSetupFacts,
+	forge: Forge = "github",
+): RepoSetupProgress {
+	const install = step(
+		"install",
+		facts.installed,
+		"GitHub App installed",
+		null,
+	);
+	if (forge === "gitcafe")
+		install.title = facts.installed ? "GitCafe connected" : "Connect GitCafe";
 	const steps = [
-		step("install", facts.installed, "GitHub App installed", null),
+		install,
 		step("rules", rulesOn(facts), "Checks ready", rulesSummary(facts) || null),
 		step(
 			"check",
@@ -147,7 +159,10 @@ export function stepCompletedAt(
 	return null;
 }
 
-export function agentActivity(run: RepoAgentRun): {
+export function agentActivity(
+	run: RepoAgentRun,
+	forge: Forge = "github",
+): {
 	line: string;
 	step: SetupStepKey | null;
 } | null {
@@ -172,7 +187,14 @@ export function agentActivity(run: RepoAgentRun): {
 		SETUP_STEP_KEYS.find((key) =>
 			STEP_STAGES[key].some((stage) => stage === found.stage),
 		) ?? null;
-	return { line: found.state.detail ?? STAGE_WORDS[found.stage], step };
+	return {
+		line:
+			found.state.detail ??
+			(forge === "gitcafe" && found.stage === "install_app"
+				? "Connecting GitCafe"
+				: STAGE_WORDS[found.stage]),
+		step,
+	};
 }
 
 export function formatStepTime(iso: string, zone: string): string {

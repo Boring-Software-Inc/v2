@@ -130,6 +130,7 @@ function RulesStep({
 	});
 	return (
 		<RulePacks
+			forge={state.forge}
 			canEdit={canEdit}
 			heading={false}
 			onInstall={install}
@@ -146,7 +147,7 @@ function currentAction(
 ): ReactNode {
 	switch (step.key) {
 		case "install":
-			return <InstallAction org={props.org} />;
+			return <InstallAction org={props.org} forge={props.state.forge} />;
 		case "rules":
 			return <RulesStep {...props} />;
 		case "check":
@@ -192,7 +193,7 @@ function AgentChecklist({ org, repo, state, progress }: ChecklistProps) {
 	if (!agent) {
 		return null;
 	}
-	const activity = agentActivity(agent);
+	const activity = agentActivity(agent, state.forge);
 	const line = activity?.line ?? null;
 	return (
 		<>

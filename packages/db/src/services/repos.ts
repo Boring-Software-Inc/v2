@@ -214,6 +214,7 @@ async function armGitCafeRepository(
 	db: Db,
 	repoId: string,
 	queue: PgBoss | null,
+	organizationId?: string,
 ): Promise<RepoArmingResult> {
 	const client = await db.$client.connect();
 	try {
@@ -222,7 +223,11 @@ async function armGitCafeRepository(
 				const { lockGitCafeRepositoryAuthority } = await import(
 					"./gitcafe-lifecycle.ts"
 				);
-				const authority = await lockGitCafeRepositoryAuthority(tx, repoId);
+				const authority = await lockGitCafeRepositoryAuthority(
+					tx,
+					repoId,
+					organizationId,
+				);
 				if (!authority)
 					return { ok: false, armed: false, reason: "protection-unavailable" };
 				if (authority.armed) return { ok: true, armed: true };
@@ -265,15 +270,34 @@ export async function setRepoArmed(
 	db: Db,
 	repoId: string,
 	armed: boolean,
+	organizationId?: string,
 ): Promise<RepoArmingResult> {
 	if (armed) {
 		const repo = await getRepoById(db, repoId);
 		if (repo && !ingestForgeSchema.safeParse(repo.forge).success)
 			return { ok: false, armed: false, reason: "protection-unavailable" };
 		if (repo?.forge === "gitcafe")
-			return armGitCafeRepository(db, repoId, null);
+			return armGitCafeRepository(
+				db,
+				repoId,
+				null,
+				organizationId ?? repo.orgId ?? undefined,
+			);
 	}
-	await db.update(repos).set({ armed }).where(eq(repos.id, repoId));
+	const changed = await db
+		.update(repos)
+		.set({ armed })
+		.where(
+			and(
+				eq(repos.id, repoId),
+				organizationId === undefined
+					? undefined
+					: eq(repos.orgId, organizationId),
+			),
+		)
+		.returning({ id: repos.id });
+	if (organizationId !== undefined && changed.length === 0)
+		return { ok: false, armed: false, reason: "protection-unavailable" };
 	return { ok: true, armed };
 }
 
@@ -281,6 +305,7 @@ export async function turnOnGate(
 	db: Db,
 	boss: (() => Promise<PgBoss | null>) | null,
 	repoId: string,
+	organizationId?: string,
 ): Promise<RepoArmingResult> {
 	const repo = await getRepoById(db, repoId);
 	if (repo && !ingestForgeSchema.safeParse(repo.forge).success)
@@ -295,7 +320,12 @@ export async function turnOnGate(
 		} catch {
 			return { ok: false, armed: false, reason: "queue-unavailable" };
 		}
-		return armGitCafeRepository(db, repoId, queue);
+		return armGitCafeRepository(
+			db,
+			repoId,
+			queue,
+			organizationId ?? repo.orgId,
+		);
 	}
 	if (repo?.armed) return { ok: true, armed: true };
 	let queue: PgBoss | null = null;

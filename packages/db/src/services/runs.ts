@@ -86,11 +86,22 @@ export async function createRun(db: DbLike, input: CreateRunInput) {
 	return id;
 }
 
-export async function getRunForEvent(db: Db, eventId: string) {
+export async function getRunForEvent(
+	db: Db,
+	eventId: string,
+	options: { includeBackfill?: boolean } = {},
+) {
 	const [run] = await db
 		.select()
 		.from(runs)
-		.where(eq(runs.eventId, eventId))
+		.where(
+			and(
+				eq(runs.eventId, eventId),
+				options.includeBackfill === false
+					? eq(runs.backfill, false)
+					: undefined,
+			),
+		)
 		.limit(1);
 	return run ?? null;
 }
@@ -458,6 +469,7 @@ export async function persistRunEvaluation(
 			const authority = await lockGitCafeRepositoryAuthority(
 				tx,
 				input.gitCafeHistoryBinding.repoId,
+				input.gitCafeHistoryBinding.organizationId,
 			);
 			if (
 				!authority?.armed ||

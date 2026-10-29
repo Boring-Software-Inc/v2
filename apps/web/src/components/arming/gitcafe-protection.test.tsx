@@ -1,8 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
 import { renderToString } from "react-dom/server";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { RepoSetupChecklist } from "#/components/setup/repo-setup-checklist";
+import { InstallAction } from "#/components/setup/setup-step-actions";
 import { orgContextQueryOptions } from "#/lib/org.query";
 import { setupProgress } from "#/lib/repo-setup";
 import type { RepoSetupState } from "#/lib/repo-setup.functions";
@@ -39,7 +47,7 @@ describe("GitCafe protection controls", () => {
 			client.clear();
 		}
 	});
-	test("a connection manager can explicitly arm through the callout", () => {
+	test("a connection manager can explicitly arm through the callout", async () => {
 		const client = new QueryClient();
 		client.setQueryData(orgContextQueryOptions("team").queryKey, {
 			id: "org-team",
@@ -71,6 +79,24 @@ describe("GitCafe protection controls", () => {
 			expect(html).toContain("Turn on Tripwire");
 			expect(html).toContain("<button");
 		}
+		const root = createRootRoute({
+			component: () => (
+				<QueryClientProvider client={client}>
+					<InstallAction org="team" forge="gitcafe" />
+				</QueryClientProvider>
+			),
+		});
+		const home = createRoute({ getParentRoute: () => root, path: "/" });
+		const router = createRouter({
+			isServer: true,
+			origin: "https://tripwire.test",
+			routeTree: root.addChildren([home]),
+			history: createMemoryHistory({ initialEntries: ["/"] }),
+		});
+		await router.load();
+		const install = renderToString(<RouterProvider router={router} />);
+		expect(install).toContain("Manage GitCafe connection");
+		expect(install).not.toContain("Choose repos on GitHub");
 		client.clear();
 	});
 	test("the repo setup checklist retains its normal setup and mirror notice", () => {
@@ -98,12 +124,17 @@ describe("GitCafe protection controls", () => {
 					org="team"
 					repo="scratch"
 					state={state}
-					progress={setupProgress(state.facts)}
+					progress={setupProgress(state.facts, state.forge)}
 				/>
 			</QueryClientProvider>,
 		);
 		expect(html).not.toContain("GitCafe checks aren&#x27;t available yet");
 		expect(html).toContain("connect Tripwire on GitHub too");
+		expect(html).toContain("GitCafe connected");
+		expect(html).not.toContain("GitHub App installed");
+		expect(html).not.toContain("Account age");
+		expect(html).not.toContain("Rate limit");
+		expect(html).not.toContain("Merged change requests");
 		expect(html).toContain("<button");
 		client.clear();
 	});

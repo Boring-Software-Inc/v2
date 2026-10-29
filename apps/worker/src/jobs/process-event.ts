@@ -96,7 +96,9 @@ export async function processEvent(
 		return;
 	}
 	if (event.normalizedAt && deps.resumeNormalized) {
-		const saved = await runServices.getRunForEvent(db, event.id);
+		const saved = await runServices.getRunForEvent(db, event.id, {
+			includeBackfill: event.forge !== "gitcafe",
+		});
 		if (saved) {
 			if (
 				!(await recoverGitCafeRunSurface(

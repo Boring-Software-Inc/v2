@@ -25,7 +25,7 @@ export function useRepoSetup(org: string, repo: string) {
 	return {
 		query,
 		state,
-		progress: state ? setupProgress(state.facts) : null,
+		progress: state ? setupProgress(state.facts, state.forge) : null,
 	};
 }
 

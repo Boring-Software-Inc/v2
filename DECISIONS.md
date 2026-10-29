@@ -628,3 +628,6 @@ Arming and admission of one `gitcafe-backfill-repo` job commit in one transactio
 GitCafe retains authenticated hydration and timestamped receipt ingress rather than the shared pure normalizer or HMAC path. The mirror warning remains beside the normal controls: upstream-imported subjects do not imply GitCafe events or GitHub merge enforcement. Existing rule capability declarations remain authoritative; GitHub-only account age, global merged history and rate signals are not advertised for GitCafe. Historical rule versions and prompts are unchanged.
 
 This change adds no dependency, permission or migration. Staging activation is separate from live external-contributor and required-check acceptance. The production application configuration and release remain a separate rollout; staging success alone is not a production-readiness claim.
+
+
+Activation retains the request-authorized organization ID through web and MCP entry points and compares it to the locked claim. A retained repository or workflow rebound to another organization cannot be activated by the old organization's request. Historical evaluations remain separate from live-event recovery: only a committed live run can bypass hydration, and backfill runs cannot acquire live surface intents. Setup labels name GitCafe, and rule packs list and install only rules supported by the repository's forge.

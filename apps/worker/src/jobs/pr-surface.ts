@@ -68,7 +68,7 @@ export async function recoverGitCafeRunSurface(
 		!["completed", "paused", "closed"].includes(saved.run.status)
 	)
 		return false;
-	if (saved.run.status === "closed") return true;
+	if (saved.run.status === "closed" || saved.run.backfill) return true;
 	const surfaceKey = `evaluation:${createHash("sha256").update(JSON.stringify(state.phase)).digest("hex")}${options?.refreshId ? `:refresh:${options.refreshId}` : ""}`;
 	const repo = await repoServices.getRepoByFullName(
 		deps.db,
