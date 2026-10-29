@@ -344,6 +344,13 @@
       "when": 1793193502856,
       "tag": "0048_installation_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793248499493,
+      "tag": "0049_gitcafe_event_completion",
+      "breakpoints": true
     }
   ]
 }

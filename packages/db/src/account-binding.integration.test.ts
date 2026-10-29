@@ -144,6 +144,34 @@ test("0046 upgrades existing installs and fails closed on ambiguous GitCafe owne
 			)
 		).rows,
 	).toHaveLength(1);
+	const eventCompletionDdl = await readFile(
+		new URL("../drizzle/0049_gitcafe_event_completion.sql", import.meta.url),
+		"utf8",
+	);
+	const indexesBeforeCompletion = (
+		await db.execute(
+			sql`SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' ORDER BY indexname`,
+		)
+	).rows;
+	await db.execute(sql.raw(eventCompletionDdl));
+	await db.execute(sql.raw(eventCompletionDdl));
+	expect(
+		(
+			await db.execute(
+				sql`SELECT data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'events' AND column_name = 'processed_at'`,
+			)
+		).rows,
+	).toEqual([{ data_type: "timestamp with time zone", is_nullable: "YES" }]);
+	expect(
+		(
+			await db.execute(
+				sql`SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' ORDER BY indexname`,
+			)
+		).rows,
+	).toEqual(indexesBeforeCompletion);
+	expect(
+		(await db.execute(sql`SELECT id FROM drizzle.__drizzle_migrations`)).rows,
+	).toHaveLength(45);
 	await applyMigrations(db);
 	await applyMigrations(db);
 	expect(

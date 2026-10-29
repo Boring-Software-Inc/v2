@@ -39,6 +39,8 @@ export const events = pgTable(
 		/** The full NormalizedEvent (contracts schema, validated on write). */
 		normalized: jsonb("normalized"),
 		normalizedAt: timestamp("normalized_at", { withTimezone: true }),
+		/** Normalization may precede a crash; completion prevents already settled events from being replayed. */
+		processedAt: timestamp("processed_at", { withTimezone: true }),
 		/** §5.5: parse failure ⇒ quarantine + fixture candidate. */
 		quarantined: boolean("quarantined").notNull().default(false),
 		quarantineReason: text("quarantine_reason"),

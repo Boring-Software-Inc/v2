@@ -32,6 +32,7 @@ import issuePage from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-issues-list
 import { generateId, sleep } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import pino from "pino";
+import { staticForge } from "./forge-runtime.ts";
 import { registerGitCafeProtectionQueues } from "./gitcafe-protection-worker.ts";
 import { buildGitCafeRuntime } from "./gitcafe-runtime.ts";
 import { processEvent } from "./jobs/process-event.ts";
@@ -429,6 +430,300 @@ test("a committed scheduled action recovers without re-evaluating changed eviden
 	expect((await runServices.getRunForEvent(database.db, id))?.id).toBe(run.id);
 	expect(writes).toEqual(["/api/repos/boring/scratch/issues/2/lock"]);
 });
+
+test("identical code-defined workflow IDs in different repositories cannot collide", async () => {
+	const original = await repoServices.getRepoById(database.db, repoId);
+	if (!original) throw new Error("Missing test repository");
+	const secondId = generateId();
+	await database.db.insert(repos).values({
+		id: secondId,
+		forge: "gitcafe",
+		externalId: "synthetic-second-repo",
+		owner: "boring",
+		name: "second",
+		fullName: "boring/second",
+		installationId: installation.id,
+		orgId: original.orgId,
+		armed: true,
+	});
+	await database.db.insert(workflowDefinitions).values({
+		id: generateId(),
+		repoId: secondId,
+		name: definition.name,
+		enabled: true,
+		definition,
+	});
+	const resolveForge = staticForge({
+		listThreads: async (repo) => ({
+			threads: [
+				{
+					externalId: `synthetic-thread-${repo}`,
+					kind: "issue",
+					number: 2,
+					title: subject.title,
+					url: `https://git.cafe/${repo}/issues/2`,
+					state: "open",
+					author: subject.author.handle ?? "grim",
+					authorExternalId: subject.authorActorId ?? "synthetic-actor",
+					labels: [],
+					locked: false,
+					updatedAt: subject.updatedAt,
+				},
+			],
+			stopped: null,
+		}),
+	});
+	expect(await scheduleTick({ ...deps(), resolveForge })).toEqual({
+		schedules: 2,
+		events: 2,
+		errors: 0,
+	});
+	expect(
+		(
+			await database.pool.query(
+				"SELECT count(DISTINCT delivery_id)::int AS count FROM events",
+			)
+		).rows[0].count,
+	).toBe(2);
+});
+
+test("exhausted and deleted local schedule jobs recover once without replaying completed work", async () => {
+	const d = deps();
+	expect((await scheduleTick(d)).events).toBe(1);
+	const id = await eventId();
+	await database.pool.query(
+		"UPDATE pgboss.job SET retry_delay = 0, retry_backoff = false WHERE name = $1",
+		[GITCAFE_PROCESS_EVENT_QUEUE],
+	);
+	for (let attempt = 0; attempt <= 10; attempt++) {
+		expect(await boss.fetch(GITCAFE_PROCESS_EVENT_QUEUE)).toHaveLength(1);
+		await database.pool.query(
+			"UPDATE pgboss.job SET started_on = now() - interval '1 hour', expire_seconds = 1 WHERE name = $1",
+			[GITCAFE_PROCESS_EVENT_QUEUE],
+		);
+		await database.pool.query(
+			"UPDATE pgboss.queue SET monitor_on = now() - interval '1 hour' WHERE name = $1",
+			[GITCAFE_PROCESS_EVENT_QUEUE],
+		);
+		await boss.supervise(GITCAFE_PROCESS_EVENT_QUEUE);
+		await database.pool.query(
+			"UPDATE pgboss.job SET start_after = now() - interval '1 second' WHERE name = $1",
+			[GITCAFE_PROCESS_EVENT_QUEUE],
+		);
+	}
+	expect(
+		(
+			await database.pool.query(
+				"SELECT state, retry_count FROM pgboss.job WHERE name = $1",
+				[GITCAFE_PROCESS_EVENT_QUEUE],
+			)
+		).rows[0],
+	).toEqual({ state: "failed", retry_count: 10 });
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(1);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	await database.pool.query("DELETE FROM pgboss.job WHERE name = $1", [
+		GITCAFE_PROCESS_EVENT_QUEUE,
+	]);
+	const restored = await Promise.all([
+		gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+		gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	]);
+	expect(restored.sort()).toEqual([0, 1]);
+	await processEvent({ ...d, resumeNormalized: true }, { eventId: id });
+	await gitCafeLifecycleServices.finishGitCafeEvent(database.db, id);
+	expect(
+		(await eventServices.getEventById(database.db, id))?.processedAt,
+	).not.toBeNull();
+	await database.pool.query("DELETE FROM pgboss.job WHERE name = $1", [
+		GITCAFE_PROCESS_EVENT_QUEUE,
+	]);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	expect(writes).toEqual(["/api/repos/boring/scratch/issues/2/lock"]);
+});
+
+test("pre-upgrade completed no-run schedules retain completion after job retention", async () => {
+	const d = deps();
+	expect((await scheduleTick(d)).events).toBe(1);
+	const id = await eventId();
+	await database.db
+		.update(workflowDefinitions)
+		.set({ enabled: false })
+		.where(eq(workflowDefinitions.id, workflowId));
+	const [job] = await boss.fetch(GITCAFE_PROCESS_EVENT_QUEUE);
+	if (!job) throw new Error("Scheduled job missing");
+	await processEvent({ ...d, resumeNormalized: true }, { eventId: id });
+	await boss.complete(GITCAFE_PROCESS_EVENT_QUEUE, job.id);
+	expect(
+		(await eventServices.getEventById(database.db, id))?.processedAt,
+	).toBeNull();
+	expect(await runServices.getRunForEvent(database.db, id)).toBeNull();
+	await database.db
+		.update(workflowDefinitions)
+		.set({ enabled: true })
+		.where(eq(workflowDefinitions.id, workflowId));
+	const general = await generalJobs();
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	expect(
+		(await eventServices.getEventById(database.db, id))?.processedAt,
+	).not.toBeNull();
+	await database.pool.query("DELETE FROM pgboss.job WHERE name=$1", [
+		GITCAFE_PROCESS_EVENT_QUEUE,
+	]);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	expect(await generalJobs()).toEqual(general);
+	expect(writes).toEqual([]);
+});
+
+test("legacy job completion between recovery snapshots cannot recreate settled work", async () => {
+	const d = deps();
+	expect((await scheduleTick(d)).events).toBe(1);
+	const id = await eventId();
+	await database.db
+		.update(workflowDefinitions)
+		.set({ enabled: false })
+		.where(eq(workflowDefinitions.id, workflowId));
+	const [job] = await boss.fetch(GITCAFE_PROCESS_EVENT_QUEUE);
+	if (!job) throw new Error("Scheduled job missing");
+	await processEvent({ ...d, resumeNormalized: true }, { eventId: id });
+	await database.db
+		.update(workflowDefinitions)
+		.set({ enabled: true })
+		.where(eq(workflowDefinitions.id, workflowId));
+	const lock = await database.pool.connect();
+	await lock.query(
+		"SELECT pg_advisory_lock(hashtext('legacy-completion-test'))",
+	);
+	await database.pool.query(
+		`CREATE FUNCTION pause_completion_adoption() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(hashtext('legacy-completion-test')); RETURN NULL; END $$`,
+	);
+	await database.pool.query(
+		"CREATE TRIGGER pause_completion_adoption AFTER UPDATE ON events FOR EACH STATEMENT EXECUTE FUNCTION pause_completion_adoption()",
+	);
+	const recovery = gitCafeLifecycleServices.recoverGitCafeEvents(
+		database.db,
+		boss,
+	);
+	try {
+		let waiting = false;
+		const deadline = Date.now() + 10_000;
+		while (!waiting && Date.now() < deadline) {
+			waiting =
+				(
+					await database.pool.query(
+						"SELECT count(*)::int AS count FROM pg_stat_activity WHERE wait_event_type='Lock' AND wait_event='advisory' AND query LIKE '%UPDATE events e SET%'",
+					)
+				).rows[0].count > 0;
+			if (!waiting) await sleep(10);
+		}
+		expect(waiting).toBe(true);
+		await boss.complete(GITCAFE_PROCESS_EVENT_QUEUE, job.id);
+	} finally {
+		await lock.query(
+			"SELECT pg_advisory_unlock(hashtext('legacy-completion-test'))",
+		);
+		lock.release();
+	}
+	let restored: number;
+	try {
+		restored = await recovery;
+	} finally {
+		await database.pool.query(
+			"DROP TRIGGER pause_completion_adoption ON events",
+		);
+		await database.pool.query("DROP FUNCTION pause_completion_adoption()");
+	}
+	expect(restored).toBe(0);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	expect(
+		(await eventServices.getEventById(database.db, id))?.processedAt,
+	).not.toBeNull();
+	expect(await runServices.getRunForEvent(database.db, id)).toBeNull();
+	expect(writes).toEqual([]);
+}, 20_000);
+
+test("a waiting consumer rechecks completed no-run work after acquiring the event lock", async () => {
+	const d = deps();
+	expect((await scheduleTick(d)).events).toBe(1);
+	const id = await eventId();
+	const lock = await database.pool.connect();
+	await lock.query(
+		"SELECT pg_advisory_lock(hashtext('gitcafe-process'), hashtext($1))",
+		[id],
+	);
+	const isolated = await createGitCafeConnectionBoss(container.url, logger);
+	let unlocked = false;
+	try {
+		const forge = runtime();
+		await registerGitCafeProtectionQueues(
+			d,
+			isolated,
+			forge.prepareCheckRerequest,
+			forge,
+		);
+		let waiting = false;
+		const until = Date.now() + 10_000;
+		while (!waiting && Date.now() < until) {
+			waiting =
+				(
+					await database.pool.query(
+						"SELECT count(*)::int AS count FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND wait_event = 'advisory' AND query LIKE '%gitcafe-process%'",
+					)
+				).rows[0].count > 0;
+			if (!waiting) await sleep(10);
+		}
+		expect(waiting).toBe(true);
+		await database.db
+			.update(workflowDefinitions)
+			.set({ enabled: false })
+			.where(eq(workflowDefinitions.id, workflowId));
+		await processEvent({ ...d, resumeNormalized: true }, { eventId: id });
+		expect(await runServices.getRunForEvent(database.db, id)).toBeNull();
+		await gitCafeLifecycleServices.finishGitCafeEvent(database.db, id);
+		await database.db
+			.update(workflowDefinitions)
+			.set({ enabled: true })
+			.where(eq(workflowDefinitions.id, workflowId));
+		await lock.query(
+			"SELECT pg_advisory_unlock(hashtext('gitcafe-process'), hashtext($1))",
+			[id],
+		);
+		unlocked = true;
+		let state: string | undefined;
+		const doneBy = Date.now() + 10_000;
+		while (state !== "completed" && Date.now() < doneBy) {
+			state = (
+				await database.pool.query(
+					"SELECT state FROM pgboss.job WHERE name=$1 AND data->>'eventId'=$2",
+					[GITCAFE_PROCESS_EVENT_QUEUE, id],
+				)
+			).rows[0]?.state;
+			if (state !== "completed") await sleep(10);
+		}
+		expect(state).toBe("completed");
+		expect(writes).toEqual([]);
+		expect(await runServices.getRunForEvent(database.db, id)).toBeNull();
+	} finally {
+		if (!unlocked)
+			await lock.query(
+				"SELECT pg_advisory_unlock(hashtext('gitcafe-process'), hashtext($1))",
+				[id],
+			);
+		lock.release();
+		await isolated.stop({ graceful: false });
+	}
+}, 25_000);
 
 test("isolated tick registration processes its own tick without maintaining general backlog or schedules", async () => {
 	await boss.stop({ graceful: false });
