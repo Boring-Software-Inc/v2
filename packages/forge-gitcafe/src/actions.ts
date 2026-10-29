@@ -39,6 +39,8 @@ export type GitCafeActionResult<T> =
 			ok: false;
 			reason:
 				| "permission"
+				| "upstream-managed"
+				| "unsupported-merge-route"
 				| "uncertain"
 				| "incomplete"
 				| "conflict"
@@ -88,7 +90,10 @@ export class GitCafeActions {
 			("number" in action && action.number !== binding.number)
 		)
 			return { ok: false, reason: "identity-mismatch" };
-		const subject = await this.subject(binding);
+		const subject = await this.subject(
+			binding,
+			action.kind === "dismiss-review" || action.kind === "delete-comment",
+		);
 		if (!subject.ok) return subject;
 		switch (action.kind) {
 			case "set-check": {
@@ -202,7 +207,7 @@ export class GitCafeActions {
 		return { ok: true, value: items };
 	}
 
-	private async subject(binding: GitCafeActionBinding) {
+	private async subject(binding: GitCafeActionBinding, cleanup = false) {
 		const result = await this.get(
 			this.root(binding),
 			gitCafeActionSubjectSchema,
@@ -216,6 +221,15 @@ export class GitCafeActions {
 			result.value.headOid !== binding.headOid
 		)
 			return { ok: false as const, reason: "stale" as const };
+		if (!cleanup) {
+			if (result.value.github != null || result.value.mergeRoute === "provider")
+				return { ok: false as const, reason: "upstream-managed" as const };
+			if (result.value.mergeRoute === "unsupported")
+				return {
+					ok: false as const,
+					reason: "unsupported-merge-route" as const,
+				};
+		}
 		return result;
 	}
 
@@ -422,7 +436,7 @@ export class GitCafeActions {
 			return { ok: false as const, reason: "identity-mismatch" as const };
 		if (review.value.dismissedAt !== null)
 			return { ok: true as const, value: { externalId: reviewId } };
-		const pull = await this.subject(binding);
+		const pull = await this.subject(binding, true);
 		if (!pull.ok) return pull;
 		const result = await this.options.client.request(
 			binding.installationId,
@@ -802,7 +816,7 @@ export class GitCafeActions {
 		if (!active) return { ok: true as const, value: { externalId: null } };
 		if (!active.capabilities.delete)
 			return { ok: false as const, reason: "permission" as const };
-		const current = await this.subject(binding);
+		const current = await this.subject(binding, true);
 		if (!current.ok) return current;
 		const deleted = await this.options.client.request(
 			binding.installationId,

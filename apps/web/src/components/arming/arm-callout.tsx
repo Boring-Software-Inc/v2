@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Forge } from "@tripwire/contracts";
+import { GitCafeMirrorNotice } from "#/components/forges/gitcafe-mirror-notice";
 import {
 	Alert,
 	AlertAction,
@@ -73,6 +74,7 @@ export function ArmCallout({
 				<AlertTitle>GitCafe protection is off</AlertTitle>
 				<AlertDescription>
 					This repo is connected. GitCafe checks aren't available yet.
+					<GitCafeMirrorNotice />
 				</AlertDescription>
 			</Alert>
 		);
