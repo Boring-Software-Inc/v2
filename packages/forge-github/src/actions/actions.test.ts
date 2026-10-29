@@ -613,6 +613,21 @@ describe("executeAction: delete-comment removes the active comment", () => {
 });
 
 describe("executeAction — request-review asks named people and teams", () => {
+	test("foreign exact actor IDs cannot be dropped while submitting the remaining people", async () => {
+		const { http, calls } = fakeHttp({});
+		const { executeAction } = await import("./execute.ts");
+		await expect(
+			executeAction(http, {
+				kind: "request-review",
+				repoFullName: "a/b",
+				number: 7,
+				reviewers: ["octocat"],
+				reviewerIds: ["act_foreign"],
+				teamReviewers: [],
+			}),
+		).rejects.toThrow("GitHub review requests require GitHub usernames");
+		expect(calls).toEqual([]);
+	});
 	test("POSTs reviewers and team_reviewers to requested_reviewers", async () => {
 		const { http, calls } = fakeHttp({
 			"POST /repos/a/b/pulls/7/requested_reviewers": { number: 7 },

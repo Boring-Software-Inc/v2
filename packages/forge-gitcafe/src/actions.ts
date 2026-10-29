@@ -144,7 +144,12 @@ export class GitCafeActions {
 					action.kind === "remove-label",
 				);
 			case "request-review":
-				return this.reviewers(binding, action.reviewers, action.teamReviewers);
+				return this.reviewers(
+					binding,
+					action.reviewers,
+					action.teamReviewers,
+					action.reviewerIds ?? [],
+				);
 			case "close":
 				return this.close(binding);
 			case "lock":
@@ -644,6 +649,7 @@ export class GitCafeActions {
 		binding: GitCafeActionBinding,
 		people: string[],
 		teams: string[],
+		exactIds: string[],
 	) {
 		if (binding.subject !== "change-request")
 			return { ok: false as const, reason: "target-unavailable" as const };
@@ -660,10 +666,15 @@ export class GitCafeActions {
 		);
 		if (!candidates.ok) return candidates;
 		const desired = new Set(current.value.map((person) => person.id));
+		for (const id of exactIds) {
+			if (!candidates.value.some((candidate) => candidate.id === id))
+				return { ok: false as const, reason: "target-unavailable" as const };
+			desired.add(id);
+		}
 		for (const name of [...people, ...teams]) {
-			const person = candidates.value.find(
-				(candidate) => candidate.id === name || candidate.handle === name,
-			);
+			const person =
+				candidates.value.find((candidate) => candidate.id === name) ??
+				candidates.value.find((candidate) => candidate.handle === name);
 			if (!person)
 				return { ok: false as const, reason: "target-unavailable" as const };
 			desired.add(person.id);

@@ -16,7 +16,11 @@ describe("toForgeAction — request-review", () => {
 				1,
 				"stamp",
 			),
-		).toMatchObject({ reviewers: ["act_stable-reviewer"], teamReviewers: [] });
+		).toMatchObject({
+			reviewers: [],
+			reviewerIds: ["act_stable-reviewer"],
+			teamReviewers: [],
+		});
 	});
 	test("carries the recorded people and teams onto the forge action", () => {
 		expect(
