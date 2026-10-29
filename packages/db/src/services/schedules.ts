@@ -40,6 +40,7 @@ export function isScheduleDue(
 export async function listDueSchedules(
 	db: Db,
 	now: Date,
+	forge?: Forge,
 ): Promise<DueSchedule[]> {
 	const rows = await db
 		.select({
@@ -57,6 +58,7 @@ export async function listDueSchedules(
 		.innerJoin(repos, eq(repos.id, workflowDefinitions.repoId))
 		.where(
 			and(
+				forge === undefined ? undefined : eq(repos.forge, forge),
 				eq(workflowDefinitions.enabled, true),
 				eq(repos.armed, true),
 				isNull(repos.removedAt),

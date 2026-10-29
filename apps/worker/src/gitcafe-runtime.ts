@@ -11,6 +11,8 @@ import {
 	REVIEW_POINTER,
 	type RepoLabel,
 	type RerunChangeRequestJob,
+	scheduledEventSchema,
+	scheduledThreadSchema,
 } from "@tripwire/contracts";
 import {
 	type Db,
@@ -490,6 +492,46 @@ export function buildGitCafeRuntime(
 				: bound;
 		},
 		prepareEvent: async (raw, receivedAt) => {
+			if (raw.eventName === "schedule.matched") {
+				const scheduled = parseJson(raw.body, scheduledEventSchema);
+				if (
+					!scheduled ||
+					scheduled.forge !== "gitcafe" ||
+					!scheduled.thread.externalId
+				)
+					return { ok: false, reason: "invalid-response" };
+				const bound = await bind(scheduled.repo.fullName);
+				if (!bound.ok) return bound;
+				if (
+					scheduled.repoExternalId !== bound.repositoryId ||
+					scheduled.installationExternalId !== bound.installation.id
+				)
+					return { ok: false, reason: "identity-mismatch" };
+				const current = await bound.reads.getThread(
+					scheduled.repo.fullName,
+					bound.repositoryId,
+					scheduled.thread.kind,
+					scheduled.thread.number,
+					scheduled.thread.externalId,
+				);
+				if (!current.ok)
+					return current.reason === "changed"
+						? { ok: false, reason: "stale-event" }
+						: current;
+				const thread = scheduledThreadSchema.parse(current.value);
+				if (
+					current.value.authorExternalId !== scheduled.actor.externalId ||
+					!isDeepStrictEqual(
+						{ ...thread, labels: [...thread.labels].sort() },
+						{
+							...scheduled.thread,
+							labels: [...scheduled.thread.labels].sort(),
+						},
+					)
+				)
+					return { ok: false, reason: "stale-event" };
+				return { ok: true, value: scheduled };
+			}
 			const event = parseJson(
 				raw.body,
 				gitCafeDispatchableRepositoryEventSchema,

@@ -117,14 +117,18 @@ export async function processEvent(
 
 	let normalized: NormalizedEvent | null;
 	try {
-		/** A saved projection is not current comment evidence until a run has committed its evaluation. */
-		const rehydrateComment =
+		/** Uncommitted comment and schedule projections must still match current provider evidence on retry. */
+		const rehydrateEvidence =
 			event.forge === "gitcafe" &&
 			(event.rawKind === "pull.comment_created" ||
-				event.rawKind === "issue.comment_created");
-		if (event.normalizedAt && deps.resumeNormalized && !rehydrateComment) {
+				event.rawKind === "issue.comment_created" ||
+				event.rawKind === "schedule.matched");
+		if (event.normalizedAt && deps.resumeNormalized && !rehydrateEvidence) {
 			normalized = normalizedEventSchema.parse(event.normalized);
-		} else if (runtime?.prepareEvent && event.rawKind !== "schedule.matched") {
+		} else if (
+			runtime?.prepareEvent &&
+			(event.rawKind !== "schedule.matched" || event.forge === "gitcafe")
+		) {
 			const prepared = await runtime.prepareEvent(
 				{
 					deliveryId: event.deliveryId,

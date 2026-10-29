@@ -22,6 +22,8 @@ import {
 	gitCafeRepositoriesUpdatedSchema,
 	gitCafeRepositoryBindingSchema,
 	gitCafeRetirementSchema,
+	type ScheduledEvent,
+	scheduledEventSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, eq, inArray, ne, notExists, sql } from "drizzle-orm";
@@ -38,6 +40,102 @@ import { repos } from "../schema/repos.ts";
 import type { DbLike } from "./access.ts";
 import { replaceRepoLabels } from "./labels.ts";
 import { upsertRepoSuggestions } from "./repos.ts";
+
+/** Scheduled events originate locally; admission and their dedicated job commit under current claimed authority. */
+export async function insertGitCafeScheduledEvent(
+	db: Db,
+	boss: PgBoss,
+	input: {
+		event: ScheduledEvent;
+		binding: GitCafeRepositoryBinding;
+		requestId: string;
+	},
+): Promise<
+	{ ok: true; inserted: boolean } | { ok: false; reason: "inactive" }
+> {
+	const event = scheduledEventSchema.parse(input.event);
+	const binding = gitCafeRepositoryBindingSchema.parse(input.binding);
+	const job = gitCafeProcessEventJobSchema.parse({
+		eventId: generateId(),
+		requestId: input.requestId,
+	});
+	if (
+		event.forge !== "gitcafe" ||
+		event.repoExternalId !== binding.repositoryId ||
+		event.installationExternalId !== binding.installationId ||
+		event.repo.fullName !== binding.fullName ||
+		`${event.repo.owner}/${event.repo.name}` !== binding.fullName ||
+		!event.thread.externalId
+	)
+		return { ok: false, reason: "inactive" };
+	const client = await db.$client.connect();
+	try {
+		await client.query("BEGIN");
+		await client.query(
+			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
+		);
+		const owned = await client.query(
+			`SELECT r.id FROM repos r JOIN organization_installations i ON i.forge = r.forge AND i.installation_id = r.installation_id AND i.organization_id = r.org_id
+			WHERE r.id = $1 AND r.forge = 'gitcafe' AND r.external_id = $2 AND r.full_name = $3 AND r.org_id = $4 AND r.installation_id = $5 AND r.removed_at IS NULL AND r.armed = true FOR UPDATE OF r, i`,
+			[
+				binding.repoId,
+				binding.repositoryId,
+				binding.fullName,
+				binding.organizationId,
+				binding.installationId,
+			],
+		);
+		if (
+			!owned.rowCount ||
+			!(
+				await getGitCafeActionAuthority(
+					db,
+					binding.installationId,
+					binding.generation,
+				)
+			).allowed
+		) {
+			await client.query("ROLLBACK");
+			return { ok: false, reason: "inactive" };
+		}
+		const inserted = await client.query(
+			`INSERT INTO events (id, forge, delivery_id, raw_kind, raw) VALUES ($1, 'gitcafe', $2, 'schedule.matched', $3) ON CONFLICT (forge, delivery_id) DO NOTHING RETURNING id`,
+			[job.eventId, event.deliveryId, JSON.stringify(event)],
+		);
+		if (inserted.rowCount === 1) {
+			const queued = await boss.insert(
+				GITCAFE_PROCESS_EVENT_QUEUE,
+				[
+					{
+						id: generateId(),
+						data: job,
+						retryLimit: 10,
+						retryDelay: 15,
+						retryBackoff: true,
+					},
+				],
+				{
+					returnId: true,
+					db: {
+						executeSql: (text: string, values?: unknown[]) =>
+							client.query(text, values),
+					},
+				},
+			);
+			if (queued?.length !== 1)
+				throw new Error(
+					"GitCafe scheduled event enqueue did not insert one job",
+				);
+		}
+		await client.query("COMMIT");
+		return { ok: true, inserted: inserted.rowCount === 1 };
+	} catch (error) {
+		await client.query("ROLLBACK");
+		throw error;
+	} finally {
+		client.release();
+	}
+}
 
 /** A lifecycle generation alone cannot authorize a repository whose ownership claim has disappeared. */
 export async function matchesGitCafeRepositoryBinding(

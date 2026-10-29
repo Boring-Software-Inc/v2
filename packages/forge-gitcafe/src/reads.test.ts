@@ -108,6 +108,35 @@ test("captured installed branches and empty label catalog retain their actual va
 	});
 });
 
+test("a targeted thread read pins its immutable identity and refuses change across label pagination", async () => {
+	let changed = false;
+	const h = harness((url) => {
+		if (url.pathname.endsWith("/labels")) changed = true;
+		if (url.pathname.endsWith("/issues/2") && changed)
+			return Response.json({ ...threadIssues.items[0], version: 100 });
+		return catalogRoute(url);
+	});
+	const thread = threadIssues.items[0];
+	if (!thread) throw new Error("Captured issue missing");
+	expect(
+		await h.reads.getThread(REPO, repository.id, "issue", 2, thread.id),
+	).toEqual({ ok: false, reason: "changed" });
+	const healthy = harness(catalogRoute);
+	expect(
+		(await healthy.reads.getThread(REPO, repository.id, "issue", 2, thread.id))
+			.ok,
+	).toBe(true);
+	expect(
+		await healthy.reads.getThread(
+			REPO,
+			repository.id,
+			"issue",
+			2,
+			"different-thread",
+		),
+	).toEqual({ ok: false, reason: "identity-mismatch" });
+});
+
 test("captured issue and PR pages hydrate complete thread identity, locks and labels", async () => {
 	const h = harness(catalogRoute);
 	const result = await h.reads.listThreads(REPO, repository.id, THREAD_QUERY);
