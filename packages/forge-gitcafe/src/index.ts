@@ -1,4 +1,10 @@
 export {
+	type GitCafeActionResult,
+	type GitCafeActionStore,
+	GitCafeActions,
+	type GitCafeActionsOptions,
+} from "./actions.ts";
+export {
 	createGitCafeInstallationRequest,
 	type GitCafeAppCredentials,
 	type GitCafeInstallationOperation,

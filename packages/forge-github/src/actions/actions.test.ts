@@ -224,7 +224,7 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 			"block",
 			true,
 		);
-		expect(result.externalId).toBe("61");
+		expect(result).toMatchObject({ externalId: "61" });
 		expect(calls.map((c) => c.method)).toEqual(["GET", "PATCH", "POST"]);
 	});
 
@@ -431,7 +431,7 @@ describe("executeAction — block files a request-changes review", () => {
 			number: 7,
 			reason: REVIEW_POINTER.block,
 		});
-		expect(result.externalId).toBe("91");
+		expect(result).toMatchObject({ externalId: "91" });
 		const post = calls.find((c) => c.method === "POST");
 		expect(post?.path).toBe("/repos/a/b/pulls/7/reviews");
 		expect(post?.body).toEqual({
@@ -461,7 +461,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		});
 		const { executeAction } = await import("./execute.ts");
 		const result = await executeAction(http, update);
-		expect(result.externalId).toBe("91");
+		expect(result).toMatchObject({ externalId: "91" });
 		expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
 			"GET /repos/a/b/pulls/7/reviews/91",
 			"PUT /repos/a/b/pulls/7/reviews/91",
@@ -479,7 +479,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		});
 		const { executeAction } = await import("./execute.ts");
 		const result = await executeAction(http, update);
-		expect(result.externalId).toBe("91");
+		expect(result).toMatchObject({ externalId: "91" });
 		expect(calls.map((c) => c.method)).toEqual(["GET"]);
 	});
 
@@ -490,7 +490,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		});
 		const { executeAction } = await import("./execute.ts");
 		const result = await executeAction(http, update);
-		expect(result.externalId).toBe("92");
+		expect(result).toMatchObject({ externalId: "92" });
 		expect(calls.find((c) => c.method === "POST")?.body).toEqual({
 			event: "REQUEST_CHANGES",
 			body: REVIEW_POINTER.block,
@@ -521,7 +521,7 @@ describe("executeAction: update-review edits the live review, never stacks", () 
 		const { http, calls } = statusHttp(404);
 		const { executeAction } = await import("./execute.ts");
 		const result = await executeAction(http, update);
-		expect(result.externalId).toBe("93");
+		expect(result).toMatchObject({ externalId: "93" });
 		expect(calls).toEqual(["GET", "POST"]);
 	});
 
@@ -545,7 +545,7 @@ describe("executeAction — dismiss-review clears a stale request-changes", () =
 			number: 7,
 			reviewId: "91",
 		});
-		expect(result.externalId).toBe("91");
+		expect(result).toMatchObject({ externalId: "91" });
 		const put = calls.find((c) => c.method === "PUT");
 		expect(put?.path).toBe("/repos/a/b/pulls/7/reviews/91/dismissals");
 		expect(put?.body).toMatchObject({ event: "DISMISS" });
@@ -567,7 +567,7 @@ describe("executeAction: delete-comment removes the active comment", () => {
 			repoFullName: "a/b",
 			number: 7,
 		});
-		expect(result.externalId).toBe("4");
+		expect(result).toMatchObject({ externalId: "4" });
 		expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
 			"GET /repos/a/b/issues/7/comments?per_page=100",
 			"DELETE /repos/a/b/issues/comments/4",
@@ -584,7 +584,7 @@ describe("executeAction: delete-comment removes the active comment", () => {
 			repoFullName: "a/b",
 			number: 7,
 		});
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 		expect(calls.map((c) => c.method)).toEqual(["GET"]);
 	});
 
@@ -608,7 +608,7 @@ describe("executeAction: delete-comment removes the active comment", () => {
 			repoFullName: "a/b",
 			number: 7,
 		});
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 	});
 });
 
@@ -625,7 +625,7 @@ describe("executeAction — request-review asks named people and teams", () => {
 			reviewers: ["octocat", "hubot"],
 			teamReviewers: ["core"],
 		});
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 		expect(calls).toEqual([
 			{
 				method: "POST",
@@ -750,7 +750,7 @@ describe("only objects this app created are ever touched", () => {
 			"block",
 			"block",
 		);
-		expect(result.externalId).toBe("70");
+		expect(result).toMatchObject({ externalId: "70" });
 		expect(calls.some((c) => c.method === "PATCH")).toBe(false);
 	});
 
@@ -799,7 +799,7 @@ describe("only objects this app created are ever touched", () => {
 			repoFullName: "a/b",
 			number: 7,
 		});
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 		expect(calls.some((c) => c.method === "DELETE")).toBe(false);
 	});
 

@@ -3,10 +3,12 @@ import type { RepoScopedEvent } from "@tripwire/contracts";
 import {
 	aiReviewOutputSchema,
 	boundAiReviewTrace,
+	forgeFileReadResultSchema,
 	isAiOutOfCreditsError,
 	providerErrorSchema,
 } from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
+import type { ForgeReadResult } from "@tripwire/forge";
 import { generateText, hasToolCall, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { changeRequestHead, type WorkerReads } from "../context.ts";
@@ -47,7 +49,11 @@ export function createGenerate(options: {
 	/** AI_REVIEW_MODEL env — explicit rule config wins over this. */
 	defaultModel: string;
 	reads: WorkerReads | null;
-	readFile: (repo: string, path: string, ref: string) => Promise<string | null>;
+	readFile: (
+		repo: string,
+		path: string,
+		ref: string,
+	) => Promise<string | null | ForgeReadResult<string>>;
 	event: RepoScopedEvent;
 	/** Best-effort metering of request bytes sent to OpenRouter. Optional. */
 	countBytesOut?: (bytes: number) => void;
@@ -105,9 +111,16 @@ export function createGenerate(options: {
 						description:
 							"read a file from the change request's head for context",
 						inputSchema: z.object({ path: z.string() }),
-						execute: async ({ path }) =>
-							(await options.readFile(repo, path, headRef)) ??
-							"(file not found)",
+						execute: async ({ path }) => {
+							const read = await options.readFile(repo, path, headRef);
+							if (read === null) return "(file not found)";
+							const parsed = forgeFileReadResultSchema.safeParse(read);
+							if (!parsed.success)
+								return "(file unavailable: invalid-response)";
+							return parsed.data.ok
+								? parsed.data.value
+								: `(file unavailable: ${parsed.data.reason})`;
+						},
 					}),
 					get_commits: tool({
 						description: "list the change request's commits",

@@ -5,8 +5,10 @@ import {
 	customSignalDisplay,
 	type RuleResult,
 } from "@tripwire/contracts";
+import { contextForge, type RuleContext } from "@tripwire/core";
 import { type GithubHttp, githubForge } from "@tripwire/forge-github";
 import {
+	createForgeSignalCtx,
 	evaluateSignalRule,
 	type ForgeSignalCtx,
 	SignalEvaluationError,
@@ -81,20 +83,20 @@ export async function evaluateCustomRule(
 	now: string,
 	/** Named only so a skip can say WHICH forge could not feed the rule. */
 	forge?: string,
+	context?: RuleContext,
 ): Promise<RuleResult> {
-	/**
-	 * GitHub's producers, for every forge. This is safe only because a forge
-	 * without a signal surface resolves `signalCtx` to null and skips below,
-	 * before a producer is ever called.
-	 *
-	 * The day a second forge exposes signals, this must become a per-forge
-	 * lookup. Until then a wrong producer cannot run, because there is no
-	 * context to run it with.
-	 */
+	/** GitCafe uses pre-fetched facts, never GitHub's network producers. */
 	const producers: Record<string, (ctx: CustomSignalCtx) => unknown> =
 		githubForge.produces;
-	const producer = producers[record.definition.when.id];
-	if (!producer) {
+	const contextProducer =
+		forge === "gitcafe" && context
+			? Object.entries(contextForge.produces).find(
+					([id]) => id === record.definition.when.id,
+				)?.[1]
+			: undefined;
+	const producer =
+		forge === "gitcafe" ? undefined : producers[record.definition.when.id];
+	if (!producer && !contextProducer) {
 		const label = customSignalDisplay(record.definition.when.id)?.label;
 		return skipped(
 			record,
@@ -104,7 +106,7 @@ export async function evaluateCustomRule(
 			now,
 		);
 	}
-	if (!signalCtx) {
+	if ((!signalCtx || !producer) && (!contextProducer || !context)) {
 		/**
 		 * "unavailable" used to be the whole message, and it reads as an outage
 		 * that will clear. On a forge with no signal surface at all it never
@@ -119,13 +121,37 @@ export async function evaluateCustomRule(
 		);
 	}
 	try {
-		const value = await producer(signalCtx);
+		const value =
+			contextProducer && context
+				? await contextProducer(
+						createForgeSignalCtx({
+							forge: context,
+							event: context.event as Parameters<
+								typeof createForgeSignalCtx
+							>[0]["event"],
+							now,
+						}),
+					)
+				: producer && signalCtx
+					? await producer(signalCtx)
+					: undefined;
 		const rule: SignalRule = {
 			name: record.name,
 			signal: record.definition.when as SignalRule["signal"],
 			comparison: record.definition.comparison,
 		};
 		const { passed, resolvedValue } = evaluateSignalRule(rule, { value, now });
+		if (
+			passed &&
+			context?.diff?.some((file) => file.patchUnavailable != null) &&
+			record.definition.when.id === "pr.textByLocation"
+		) {
+			return skipped(
+				record,
+				"Tripwire could not read every patch in this change request.",
+				now,
+			);
+		}
 		return {
 			ruleId: record.id,
 			version: 1,

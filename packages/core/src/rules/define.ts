@@ -100,14 +100,14 @@ export async function evaluateRule(
 	// cannot feed would otherwise skip on whatever happened to be missing
 	// ("contributor createdAt unparseable"), which reads as a parse bug rather
 	// than a capability gap and hides that the rule can NEVER fire here.
-	if (!ruleSupportsForge(rule.id, ctx.event.forge)) {
+	if (!ruleSupportsForge(rule.id, ctx.event.forge, rule.version)) {
 		return {
 			...base,
 			status: "skipped",
 			passed: false,
 			evidence: null,
 			reason:
-				ruleForgeBlockReason(rule.id, ctx.event.forge) ??
+				ruleForgeBlockReason(rule.id, ctx.event.forge, rule.version) ??
 				`This rule cannot run on ${FORGE_BY_ID[ctx.event.forge]?.label ?? ctx.event.forge}.`,
 		};
 	}

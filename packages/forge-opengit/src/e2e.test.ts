@@ -230,7 +230,7 @@ describe("outbound — the credential chain, end to end", () => {
 				detailsUrl: "https://tripwire.sh/runs/1",
 			},
 		});
-		expect(result.externalId).toBe("check_1");
+		expect(result).toMatchObject({ externalId: "check_1" });
 
 		// Two calls, in order: mint, then act.
 		expect(calls.map((call) => call.path.split("/").pop())).toEqual([
@@ -271,7 +271,7 @@ describe("outbound — the credential chain, end to end", () => {
 			previousVerdict: "block",
 		});
 		expect(calls).toHaveLength(0);
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 	});
 
 	/**

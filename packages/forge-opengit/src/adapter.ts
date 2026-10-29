@@ -37,9 +37,7 @@ function noReadSurface(what: string): never {
 	throw new Error(`OpenGit does not give Tripwire access to ${what}.`);
 }
 
-export function createOpenGitAdapter(
-	options: OpenGitHttpOptions,
-): ForgeAdapter {
+export function createOpenGitAdapter(options: OpenGitHttpOptions) {
 	const http = new OpenGitHttp(options);
 	return {
 		forge: "opengit",
@@ -64,5 +62,5 @@ export function createOpenGitAdapter(
 		execute(action: ForgeAction): Promise<ForgeActionResult> {
 			return executeAction(http, action);
 		},
-	};
+	} satisfies ForgeAdapter;
 }

@@ -5,8 +5,8 @@ import type {
 	ContributorProfile,
 	DiffFile,
 	ForgeCommit,
+	ForgeReadResult,
 } from "@tripwire/forge";
-import type { GitCafeReadResult } from "@tripwire/forge-gitcafe";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { forcedReadFailures } from "./reads-injection.ts";
@@ -22,17 +22,17 @@ export interface WorkerReads {
 		repoFullName: string,
 		number: number,
 		head?: ChangeRequestHead,
-	): Promise<DiffFile[] | GitCafeReadResult<DiffFile[]>>;
+	): Promise<DiffFile[] | ForgeReadResult<DiffFile[]>>;
 	getCommits(
 		repoFullName: string,
 		number: number,
 		head?: ChangeRequestHead,
-	): Promise<ForgeCommit[] | GitCafeReadResult<ForgeCommit[]>>;
+	): Promise<ForgeCommit[] | ForgeReadResult<ForgeCommit[]>>;
 	getContributorProfile(
 		repoFullName: string,
 		login: string,
 		expectedActorId?: string,
-	): Promise<ContributorProfile | GitCafeReadResult<ContributorProfile>>;
+	): Promise<ContributorProfile | ForgeReadResult<ContributorProfile>>;
 }
 
 export interface BuiltRuleContext {
@@ -56,7 +56,7 @@ export async function buildRuleContext(
 
 	const guard = async <T extends object>(
 		name: string,
-		fn: () => Promise<T | GitCafeReadResult<T>>,
+		fn: () => Promise<T | ForgeReadResult<T>>,
 	) => {
 		try {
 			if (forcedFailures.has(name)) {
@@ -176,8 +176,8 @@ export async function buildRuleContext(
 }
 
 function isReadResult<T extends object>(
-	value: T | GitCafeReadResult<T>,
-): value is GitCafeReadResult<T> {
+	value: T | ForgeReadResult<T>,
+): value is ForgeReadResult<T> {
 	return "ok" in value;
 }
 

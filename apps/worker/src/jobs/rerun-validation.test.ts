@@ -25,7 +25,7 @@ test("malformed re-run jobs are refused before database or forge access", async 
 			throw new Error("forge accessed");
 		},
 	} as never;
-	for (const forge of ["unknown", "gitcafe", [], 1, null]) {
+	for (const forge of ["unknown", "gitlab", [], 1, null]) {
 		await expect(
 			rerunChangeRequest(deps, {
 				forge,
@@ -45,14 +45,14 @@ test("malformed re-run jobs are refused before database or forge access", async 
 	).resolves.toBeUndefined();
 });
 
-test("the queue contract admits active forges and legacy claims only", async () => {
+test("the queue contract admits stored forges and legacy claims only", async () => {
 	const { rerunChangeRequestJobSchema } = await import("@tripwire/contracts");
 	const job = {
 		repoFullName: "owner/repo",
 		number: 1,
 		requestedBy: "legacy-user",
 	};
-	for (const forge of ["github", "opengit"]) {
+	for (const forge of ["github", "opengit", "gitcafe"]) {
 		expect(
 			rerunChangeRequestJobSchema.safeParse({ ...job, forge }).success,
 		).toBe(true);
@@ -64,7 +64,7 @@ test("the queue contract admits active forges and legacy claims only", async () 
 	for (const invalid of [
 		job,
 		{ ...job, forge: null },
-		{ ...job, forge: "gitcafe" },
+		{ ...job, forge: "gitlab" },
 		{ ...job, forge: "github", number: 0 },
 		{ ...job, forge: "github", repoFullName: "repo" },
 		{ ...job, forge: "github", requestedBy: "" },

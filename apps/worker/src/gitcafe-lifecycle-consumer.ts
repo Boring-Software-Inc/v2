@@ -29,6 +29,7 @@ export async function registerGitCafeLifecycleConsumer(
 	boss: PgBoss,
 	logger: Logger,
 	onError: () => void = () => {},
+	dispatchRepositoryEvents = false,
 ): Promise<void> {
 	await db.select().from(gitCafeReceipts).limit(0);
 	await db.select().from(gitCafeInstallationLifecycle).limit(0);
@@ -64,10 +65,20 @@ export async function registerGitCafeLifecycleConsumer(
 					const parsedJob = gitCafeReceiptJobSchema.safeParse(job.data);
 					if (!parsedJob.success)
 						throw new Error("Invalid GitCafe lifecycle job");
-					const status = await gitCafeLifecycleServices.processGitCafeReceipt(
-						db,
-						parsedJob.data.receiptId,
-					);
+					const dispatched = dispatchRepositoryEvents
+						? await gitCafeLifecycleServices.dispatchGitCafeRepositoryReceipt(
+								db,
+								boss,
+								parsedJob.data.receiptId,
+							)
+						: "lifecycle";
+					const status =
+						dispatched === "lifecycle"
+							? await gitCafeLifecycleServices.processGitCafeReceipt(
+									db,
+									parsedJob.data.receiptId,
+								)
+							: dispatched;
 					logger.info(
 						{
 							jobId: job.id,

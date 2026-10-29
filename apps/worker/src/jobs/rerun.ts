@@ -10,7 +10,11 @@ import {
 import { eventServices, runServices } from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import { normalizeFor } from "../forge-runtime.ts";
-import { emitPendingCheck, emitPrSurface } from "./pr-surface.ts";
+import {
+	emitPendingCheck,
+	emitPrSurface,
+	recoverGitCafeRunSurface,
+} from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import { runWorkflows } from "./run-workflows.ts";
 
@@ -50,7 +54,8 @@ export async function rerunChangeRequest(
 	const forge = job.forge ?? claimedEvent?.forge;
 	if (
 		!forge ||
-		!ingestForgeSchema.safeParse(forge).success ||
+		(!ingestForgeSchema.safeParse(forge).success &&
+			!deps.resolveForge(forge)?.prepareEvent) ||
 		(claimedRun &&
 			(claimedRun.repoFullName !== job.repoFullName ||
 				claimedEvent?.forge !== forge))
@@ -89,6 +94,30 @@ export async function rerunChangeRequest(
 			claimedRun.status === "closed" ||
 			claimedRun.status === "failed")
 	) {
+		if (
+			forge === "gitcafe" &&
+			(claimedRun.status === "completed" || claimedRun.status === "paused")
+		) {
+			const normalized = normalizedEventSchema.safeParse(
+				claimedEvent?.normalized,
+			);
+			if (
+				!normalized.success ||
+				!(await recoverGitCafeRunSurface(
+					{
+						db,
+						adapter: deps.resolveForge(forge)?.adapter ?? null,
+						logger,
+						appUrl: deps.appUrl,
+					},
+					claimedRun.id,
+					normalized.data,
+					{ rerun: true },
+				))
+			)
+				throw new Error("Committed GitCafe rerun cannot recover its surfaces");
+			return;
+		}
 		logger.info(
 			{ claimRunId, status: claimedRun.status },
 			"re-run already terminal — no-op",
@@ -142,7 +171,18 @@ export async function rerunChangeRequest(
 	const runtime = deps.resolveForge(event.forge);
 	const reads = runtime?.reads ?? null;
 	const adapter = runtime?.adapter ?? null;
-	if (reads && "changeRequest" in event) {
+	if (runtime?.refreshEvent) {
+		const refreshed = await runtime.refreshEvent(event);
+		if (!refreshed.ok) {
+			logger.warn(
+				{ reason: refreshed.reason, status: refreshed.status },
+				"fresh change request read refused",
+			);
+			await failClaimed();
+			return;
+		}
+		event = refreshed.value;
+	} else if (reads && "changeRequest" in event) {
 		try {
 			const read = await reads.getCommits(
 				event.repo.fullName,

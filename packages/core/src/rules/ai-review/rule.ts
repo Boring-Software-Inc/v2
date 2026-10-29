@@ -71,8 +71,12 @@ function renderPrompt(ctx: RuleContext): string | null {
 	);
 }
 
-/** The rule is identical across versions except for its instruction prompt. */
-function defineAiReview(version: number, instructions: string) {
+/** Stored versions retain their prompt and evidence-availability policy. */
+function defineAiReview(
+	version: number,
+	instructions: string,
+	requireAvailablePatches = false,
+) {
 	return defineRule({
 		id: "ai-review",
 		version,
@@ -83,6 +87,15 @@ function defineAiReview(version: number, instructions: string) {
 			trace: z.unknown(),
 		}),
 		async evaluate(ctx, config) {
+			if (
+				requireAvailablePatches &&
+				ctx.diff?.some((file) => file.patchUnavailable != null)
+			) {
+				return {
+					status: "skipped",
+					reason: "Tripwire could not read every patch in this change request.",
+				};
+			}
 			if (!ctx.generate) {
 				return {
 					status: "skipped",
@@ -135,5 +148,7 @@ function defineAiReview(version: number, instructions: string) {
 
 /** @1 — unchanged prompt; stored @1 runs stay interpretable (versioning law). */
 export const aiReview = defineAiReview(1, instructionsV1);
-/** @2 — the current version; findings quote code in backticks. */
+/** @2 keeps its original evaluation and backticked findings. */
 export const aiReviewV2 = defineAiReview(2, instructionsV2);
+/** @3 refuses explicitly unavailable patches; its instruction and prompt bytes remain @2's. */
+export const aiReviewV3 = defineAiReview(3, instructionsV2, true);

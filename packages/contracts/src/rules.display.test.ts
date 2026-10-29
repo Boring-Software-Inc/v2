@@ -45,11 +45,16 @@ describe("ruleDisplayName — single source of truth", () => {
 });
 
 describe("ruleChangeNote — the versioning-law upgrade summary (§6 b)", () => {
-	test("the two bumped rules carry a real note", () => {
+	test("bumped rules carry their current upgrade note", () => {
 		expect(ruleChangeNote("min-merged-prs@2")).toBe(
 			"counts merges globally, not per-repo",
 		);
-		expect(ruleChangeNote("ai-review@2")).toBe("findings must quote code");
+		expect(ruleChangeNote("ai-review@3")).toBe(
+			"skips review when patch evidence is explicitly unavailable",
+		);
+		expect(ruleChangeNote("crypto-address@2")).toBe(
+			"skips clean verdicts when patch evidence is explicitly unavailable",
+		);
 	});
 
 	test("a note resolves by id, so a frozen ref sees the current note", () => {

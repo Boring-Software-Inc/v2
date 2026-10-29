@@ -243,7 +243,7 @@ export const RULE_CATALOG = [
 		ruleId: "max-files-changed",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		version: 1,
 		name: "Max files changed",
 		blurb: "caps the number of files a change request may touch.",
@@ -272,8 +272,10 @@ export const RULE_CATALOG = [
 		ruleId: "crypto-address",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
-		version: 1,
+		forges: ["github", "gitcafe"],
+		version: 2,
+		changeNote:
+			"skips clean verdicts when patch evidence is explicitly unavailable",
 		name: "Crypto address",
 		blurb: "blocks cryptocurrency addresses in titles, comments, and diffs.",
 		configSchema: cryptoAddressConfigSchema,
@@ -294,7 +296,7 @@ export const RULE_CATALOG = [
 		ruleId: "honeypot",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		version: 1,
 		name: "Honeypot paths",
 		blurb: "no legitimate change request touches these paths.",
@@ -312,7 +314,7 @@ export const RULE_CATALOG = [
 		ruleId: "profile-readme",
 		/** needs the contributor's profile text; open-git exposes no users endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		version: 1,
 		name: "Profile README",
 		blurb:
@@ -329,17 +331,16 @@ export const RULE_CATALOG = [
 		ruleId: "ai-review",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
-		// @2 — findings quote code in backticks. @1 stays registered for stored
-		// runs, but a repo enabling ai-review now pins the current version.
-		version: 2,
+		forges: ["github", "gitcafe"],
+		/** @3 requires available patches; stored @1 and @2 retain their semantics. */
+		version: 3,
 		name: "AI review",
 		blurb: "reads the change like a reviewer and flags slop.",
 		configSchema: aiReviewConfigSchema,
 		defaultConfig: { maxSteps: 12 },
 		optIn: true,
-		/** §6 (b) — what @2 changed vs the pinned prior version. */
-		changeNote: "findings must quote code",
+		/** §6 (b) — the current upgrade's behavior change. */
+		changeNote: "skips review when patch evidence is explicitly unavailable",
 		/** Toolbox one-liner (§editor rebuild, approved copy). */
 		description: "Reads the change like a reviewer and flags slop.",
 		contributorLabel: "this change request has problems a reviewer would flag.",
@@ -373,6 +374,13 @@ export const RULE_CATALOG = [
 
 export type RuleCatalogEntry = (typeof RULE_CATALOG)[number];
 
+/** Frozen schemas keep saved workflow references valid after the current catalog advances. */
+export const HISTORICAL_RULE_CONFIG_SCHEMAS = {
+	"ai-review@1": aiReviewConfigSchema,
+	"ai-review@2": aiReviewConfigSchema,
+	"crypto-address@1": cryptoAddressConfigSchema,
+} satisfies Readonly<Record<string, z.ZodType>>;
+
 /**
  * Which forges a rule can actually run on. Absent ⇒ every forge — the common
  * case, so only rules with a real forge-side gap carry the field.
@@ -386,7 +394,18 @@ export type RuleCatalogEntry = (typeof RULE_CATALOG)[number];
  * core: the engine reads it to skip with a named reason, the rules page reads it
  * to disable the card and say why.
  */
-export function ruleSupportsForge(ruleId: string, forge: ForgeId): boolean {
+export function ruleSupportsForge(
+	ruleId: string,
+	forge: ForgeId,
+	version?: number,
+): boolean {
+	if (
+		forge === "gitcafe" &&
+		version !== undefined &&
+		((ruleId === "ai-review" && version < 3) ||
+			(ruleId === "crypto-address" && version < 2))
+	)
+		return false;
 	const entry = RULE_CATALOG.find((rule) => rule.ruleId === ruleId) as
 		| { forges?: readonly string[] }
 		| undefined;
@@ -397,9 +416,23 @@ export function ruleSupportsForge(ruleId: string, forge: ForgeId): boolean {
 export function ruleForgeBlockReason(
 	ruleId: string,
 	forge: ForgeId,
+	version?: number,
 ): string | null {
-	if (ruleSupportsForge(ruleId, forge)) {
+	if (ruleSupportsForge(ruleId, forge, version)) {
 		return null;
+	}
+	if (forge === "gitcafe") {
+		if (
+			(ruleId === "ai-review" || ruleId === "crypto-address") &&
+			version !== undefined
+		)
+			return "Update this rule to its current version for GitCafe.";
+		if (ruleId === "account-age")
+			return "GitCafe does not expose account creation dates.";
+		if (ruleId === "min-merged-prs")
+			return "GitCafe does not expose complete contributor history across repositories.";
+		if (ruleId === "pr-rate-limit")
+			return "GitCafe does not expose complete recent history across repositories.";
 	}
 	return `This rule cannot run on ${FORGE_BY_ID[forge]?.label ?? forge}.`;
 }

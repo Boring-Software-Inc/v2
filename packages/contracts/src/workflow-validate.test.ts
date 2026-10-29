@@ -190,7 +190,7 @@ describe("validateWorkflowForEnable (the two enable-time invariants)", () => {
 		const g = graph({});
 		const rule = g.nodes.find((n) => n.type === "rule");
 		if (rule?.type === "rule") {
-			rule.ref = "ai-review@1"; // frozen: absent from RULE_CATALOG
+			rule.ref = "ai-review@99";
 			rule.config = {};
 		}
 		expect(validateWorkflow(g).valid).toBe(true); // base: structural only

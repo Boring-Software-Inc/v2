@@ -41,7 +41,13 @@ export const FORGE_CATALOG = [
 	// continues; sign-in and new connections are off.
 	{ id: "opengit", label: "OpenGit", status: "live", paused: true },
 	{ id: "gitlab", label: "GitLab", status: "planned" },
-	{ id: "gitcafe", label: "GitCafe", status: "connection", signIn: "social" },
+	{
+		id: "gitcafe",
+		label: "GitCafe",
+		status: "connection",
+		signIn: "social",
+		reviews: true,
+	},
 ] as const satisfies readonly ForgeCatalogEntry[];
 
 type CatalogEntry = (typeof FORGE_CATALOG)[number];

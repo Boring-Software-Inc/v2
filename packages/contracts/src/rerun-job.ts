@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { ingestForgeSchema } from "./forges.ts";
+import { forgeSchema } from "./forges.ts";
 
 export const rerunChangeRequestJobSchema = z
 	.object({
-		forge: ingestForgeSchema.optional(),
+		forge: forgeSchema.optional(),
 		repoFullName: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
 		number: z.number().int().positive(),
 		requestedBy: z.string().min(1),

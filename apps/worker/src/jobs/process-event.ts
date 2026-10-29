@@ -14,6 +14,7 @@ import {
 	moderationServices,
 	orgServices,
 	repoServices,
+	runServices,
 } from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Pool } from "pg";
@@ -26,11 +27,13 @@ import {
 	emitClosedReviewSurfaces,
 	emitPendingCheck,
 	emitPrSurface,
+	recoverGitCafeRunSurface,
 } from "./pr-surface.ts";
 import { refreshBranchSuggestions } from "./refresh-suggestions.ts";
 import { runWorkflows } from "./run-workflows.ts";
 
 export interface ProcessEventDeps {
+	resumeNormalized?: boolean;
 	db: Db;
 	pool: Pool;
 	logger: Logger;
@@ -76,36 +79,89 @@ export function isSelfEvent(
 export async function processEvent(
 	deps: ProcessEventDeps,
 	job: { eventId: string },
-): Promise<void> {
+): Promise<undefined | { retry: true; reason: string }> {
 	const { db, pool, logger } = deps;
 	const event = await eventServices.getEventById(db, job.eventId);
 	if (!event) {
 		logger.error({ eventId: job.eventId }, "event not found for job");
 		return;
 	}
+	const runtime = deps.resolveForge(event.forge);
 	if (
-		!ingestForgeSchema.safeParse(event.forge).success ||
-		event.normalizedAt ||
+		(!ingestForgeSchema.safeParse(event.forge).success &&
+			!runtime?.prepareEvent) ||
+		(event.normalizedAt && !deps.resumeNormalized) ||
 		event.quarantined
 	) {
 		return;
 	}
+	if (event.normalizedAt && deps.resumeNormalized) {
+		const saved = await runServices.getRunForEvent(db, event.id);
+		if (saved) {
+			if (
+				!(await recoverGitCafeRunSurface(
+					{
+						db,
+						logger,
+						adapter: runtime?.adapter ?? null,
+						appUrl: deps.appUrl,
+					},
+					saved.id,
+					normalizedEventSchema.parse(event.normalized),
+				))
+			)
+				throw new Error("GitCafe run has no committed evaluation to recover");
+			return;
+		}
+	}
 
 	let normalized: NormalizedEvent | null;
 	try {
-		/** Ingestible forges normalize even when their credential-gated runtime is offline. */
-		normalized =
-			event.rawKind === "schedule.matched"
-				? normalizedEventSchema.parse(event.raw)
-				: (normalizeFor(event.forge)?.(
-						{
-							deliveryId: event.deliveryId,
-							eventName: event.rawKind,
-							body: JSON.stringify(event.raw),
-							signature: null,
-						},
-						event.receivedAt.toISOString(),
-					) ?? null);
+		if (event.normalizedAt && deps.resumeNormalized) {
+			normalized = normalizedEventSchema.parse(event.normalized);
+		} else if (runtime?.prepareEvent && event.rawKind !== "schedule.matched") {
+			const prepared = await runtime.prepareEvent(
+				{
+					deliveryId: event.deliveryId,
+					eventName: event.rawKind,
+					body: JSON.stringify(event.raw),
+					signature: null,
+				},
+				event.receivedAt.toISOString(),
+			);
+			if (!prepared.ok) {
+				logger.warn(
+					{
+						eventId: event.id,
+						reason: prepared.reason,
+						status: prepared.status,
+					},
+					"event preparation refused",
+				);
+				if (
+					["network", "expired", "inactive"].includes(prepared.reason) ||
+					(prepared.reason === "http" &&
+						(prepared.status === 429 || (prepared.status ?? 0) >= 500))
+				)
+					return { retry: true, reason: prepared.reason };
+				if (prepared.reason !== "stale-event")
+					await eventServices.quarantineEvent(db, event.id, prepared.reason);
+				return;
+			}
+			normalized = prepared.value;
+		} else
+			normalized =
+				event.rawKind === "schedule.matched"
+					? normalizedEventSchema.parse(event.raw)
+					: (normalizeFor(event.forge)?.(
+							{
+								deliveryId: event.deliveryId,
+								eventName: event.rawKind,
+								body: JSON.stringify(event.raw),
+								signature: null,
+							},
+							event.receivedAt.toISOString(),
+						) ?? null);
 	} catch (error) {
 		const reason = getErrorMessage(error);
 		await eventServices.quarantineEvent(db, event.id, reason);
@@ -154,7 +210,8 @@ export async function processEvent(
 		return;
 	}
 
-	await eventServices.markEventNormalized(db, pool, event.id, normalized);
+	if (!event.normalizedAt)
+		await eventServices.markEventNormalized(db, pool, event.id, normalized);
 	logger.info(
 		{
 			eventId: event.id,
@@ -166,7 +223,6 @@ export async function processEvent(
 
 	// Pick this forge's runtime ONCE; every read/action below uses it. A null
 	// runtime degrades exactly like the old missing-credentials path.
-	const runtime = deps.resolveForge(event.forge);
 	const adapter = runtime?.adapter ?? null;
 	const reads = runtime?.reads ?? null;
 	const signalHttp = runtime?.signalHttp ?? null;

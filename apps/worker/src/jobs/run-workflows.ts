@@ -41,7 +41,7 @@ import {
 } from "@tripwire/db";
 import type { CommentReason, GithubHttp } from "@tripwire/forge-github";
 import { createForgeSignalCtx } from "@tripwire/sdk";
-import { getErrorMessage } from "@tripwire/utils";
+import { generateId, getErrorMessage } from "@tripwire/utils";
 import type { Logger } from "pino";
 import { buildRuleContext, type WorkerReads } from "../context.ts";
 import {
@@ -449,20 +449,21 @@ async function runWorkflowsInner(
 					now: () => new Date().toISOString(),
 					// Stream each finished step onto the pre-materialized run so the
 					// run page can list completed checks as the DAG walks.
-					onStep: liveRunId
-						? async (step) => {
-								const projected = withPublicProjection(
-									[
-										{
-											...step,
-											nodeId: `${definition.id}:${step.nodeId}`,
-										},
-									],
-									customSignals.records,
-								);
-								await runServices.recordSteps(db, liveRunId, projected);
-							}
-						: undefined,
+					onStep:
+						liveRunId && event.forge !== "gitcafe"
+							? async (step) => {
+									const projected = withPublicProjection(
+										[
+											{
+												...step,
+												nodeId: `${definition.id}:${step.nodeId}`,
+											},
+										],
+										customSignals.records,
+									);
+									await runServices.recordSteps(db, liveRunId, projected);
+								}
+							: undefined,
 				}),
 			});
 		}
@@ -673,69 +674,114 @@ async function runWorkflowsInner(
 	const silent = backfill || closedNow;
 	const terminalStatus = paused && !silent ? "paused" : "completed";
 	let runId: string;
-	if (liveRunId) {
-		runId = liveRunId;
-		await runServices.finalizeRun(db, runId, {
-			eventId,
-			headSha,
-			snapshot: matching,
-			status: terminalStatus,
-			verdict,
-		});
-		// Steps already streamed via onStep — do not insert them again.
-	} else {
-		// Missing claim row (legacy job or race) — create as a normal run.
-		runId = await runServices.createRun(db, {
-			eventId,
-			repoFullName: event.repo.fullName,
-			subjectNumber,
-			subjectKind: scheduled ? scheduled.thread.kind : null,
-			headSha,
-			snapshot: matching,
-			status: terminalStatus,
-			verdict,
-			triggeredBy: deps.triggeredBy ?? null,
-			backfill,
-		});
-		await runServices.recordSteps(
-			db,
-			runId,
-			withPublicProjection(steps, customSignals.records),
+	let actionRows: Awaited<ReturnType<typeof runServices.recordActions>>;
+	if (event.forge === "gitcafe") {
+		const id = liveRunId ?? generateId();
+		const moderationNodeIds = (silent ? [] : executions).flatMap((execution) =>
+			execution.result.pausedAtNodeIds.map(
+				(node) => `${execution.definition.id}:${node}`,
+			),
 		);
-	}
+		if (
+			!silent &&
+			((degraded && !heldBack) || (unrunnableFloored && failClosed))
+		)
+			moderationNodeIds.push("run:degraded");
+		const persisted = await runServices.persistRunEvaluation(db, {
+			run: {
+				id,
+				eventId,
+				repoFullName: event.repo.fullName,
+				subjectNumber,
+				subjectKind: scheduled ? scheduled.thread.kind : null,
+				headSha,
+				snapshot: matching,
+				status: terminalStatus,
+				verdict,
+				triggeredBy: deps.triggeredBy ?? null,
+				backfill,
+			},
+			existingRunId: liveRunId ?? undefined,
+			steps: withPublicProjection(steps, customSignals.records),
+			moderationNodeIds,
+			actions: executions.flatMap((execution) =>
+				(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
+					(action) => ({
+						kind: action.action,
+						payload: actionPayload(action, execution.definition.id, id),
+						idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
+					}),
+				),
+			),
+			suppressed: silent,
+		});
+		runId = persisted.runId;
+		actionRows = persisted.actionRows;
+	} else {
+		if (liveRunId) {
+			runId = liveRunId;
+			await runServices.finalizeRun(db, runId, {
+				eventId,
+				headSha,
+				snapshot: matching,
+				status: terminalStatus,
+				verdict,
+			});
+			// Steps already streamed via onStep — do not insert them again.
+		} else {
+			// Missing claim row (legacy job or race) — create as a normal run.
+			runId = await runServices.createRun(db, {
+				eventId,
+				repoFullName: event.repo.fullName,
+				subjectNumber,
+				subjectKind: scheduled ? scheduled.thread.kind : null,
+				headSha,
+				snapshot: matching,
+				status: terminalStatus,
+				verdict,
+				triggeredBy: deps.triggeredBy ?? null,
+				backfill,
+			});
+			await runServices.recordSteps(
+				db,
+				runId,
+				withPublicProjection(steps, customSignals.records),
+			);
+		}
 
-	for (const execution of silent ? [] : executions) {
-		for (const pausedNodeId of execution.result.pausedAtNodeIds) {
+		for (const execution of silent ? [] : executions) {
+			for (const pausedNodeId of execution.result.pausedAtNodeIds) {
+				await moderationServices.createModerationItem(db, {
+					runId,
+					nodeId: `${execution.definition.id}:${pausedNodeId}`,
+				});
+			}
+		}
+		if (
+			!silent &&
+			((degraded && !heldBack) || (unrunnableFloored && failClosed))
+		) {
 			await moderationServices.createModerationItem(db, {
 				runId,
-				nodeId: `${execution.definition.id}:${pausedNodeId}`,
+				nodeId: "run:degraded",
 			});
 		}
-	}
-	if (
-		!silent &&
-		((degraded && !heldBack) || (unrunnableFloored && failClosed))
-	) {
-		await moderationServices.createModerationItem(db, {
-			runId,
-			nodeId: "run:degraded",
-		});
-	}
 
-	const actionRows = await runServices.recordActions(
-		db,
-		runId,
-		executions.flatMap((execution) =>
-			(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
-				(action) => ({
-					kind: action.action,
-					payload: actionPayload(action, execution.definition.id, runId),
-					idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
-				}),
+		actionRows = await runServices.recordActions(
+			db,
+			runId,
+			executions.flatMap((execution) =>
+				(heldBack ? [] : execution.result.actions.filter(postsSomething)).map(
+					(action) => ({
+						kind: action.action,
+						payload: actionPayload(action, execution.definition.id, runId),
+						idempotencyKey: `${action.action}:${execution.definition.id}:${action.nodeId}`,
+					}),
+				),
 			),
-		),
-		silent ? "suppressed" : "recorded",
-	);
+			silent ? "suppressed" : "recorded",
+		);
+	}
 
 	const reasons = buildCommentReasons(steps, customSignals.records);
 	logger.info({ runId, verdict, paused, steps: steps.length }, "run persisted");
@@ -1031,6 +1077,7 @@ export function makeEvaluator(
 					custom.signalCtx,
 					ctx.now,
 					ctx.event.forge,
+					ctx,
 				);
 			} catch (error) {
 				logger.error(

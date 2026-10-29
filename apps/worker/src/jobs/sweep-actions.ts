@@ -3,12 +3,11 @@ import { bearsVerdict, REVIEW_POINTER } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { moderationServices, runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
-import { getErrorMessage } from "@tripwire/utils";
+import { getErrorMessage, supersededBy } from "@tripwire/utils";
 import type { Logger } from "pino";
 import {
 	CLOSE_PREREQUISITES,
 	emitClosedReviewSurfaces,
-	supersededBy,
 	toForgeAction,
 	VERDICT_ONLY_KINDS,
 } from "./pr-surface.ts";
@@ -55,6 +54,7 @@ export interface SweepDeps {
 }
 
 export interface SweepOptions {
+	forge?: Forge;
 	/** Only sweep rows recorded before this instant (default: 2 min ago). */
 	recordedBefore?: Date;
 	/** Rows older than this are abandoned, not retried (default: 60 min ago). */
@@ -86,6 +86,7 @@ export async function sweepActions(
 	const stuckQueued = await runServices.listStuckQueuedRuns(
 		db,
 		new Date(now - QUEUED_RUN_STUCK_MS),
+		options.forge,
 	);
 	for (const row of stuckQueued) {
 		await runServices.failRun(db, row.id);
@@ -104,10 +105,15 @@ export async function sweepActions(
 		await moderationServices.closeReviewsOfClosedChangeRequests(
 			db,
 			deps.appUrl,
+			options.forge,
 		),
 	);
 
-	const stuck = await runServices.listStuckActions(db, recordedBefore);
+	const stuck = await runServices.listStuckActions(
+		db,
+		recordedBefore,
+		options.forge,
+	);
 	const result: SweepResult = {
 		swept: stuck.length,
 		executed: 0,
@@ -165,7 +171,17 @@ export async function sweepActions(
 			}
 		}
 
-		if (row.recordedAt < giveUpBefore) {
+		if (
+			row.forge === "gitcafe" &&
+			row.kind === "set-check" &&
+			row.payload.conclusion === "success" &&
+			!(await runServices.isReviewCleanupComplete(db, row.runId))
+		)
+			continue;
+		if (
+			row.recordedAt < giveUpBefore &&
+			!(row.forge === "gitcafe" && row.kind === "dismiss-review")
+		) {
 			await runServices.markActionSuperseded(db, row.id);
 			result.abandoned++;
 			logger.error(
@@ -224,7 +240,19 @@ export async function sweepActions(
 						)
 					: null,
 			);
-			const executed = await adapter.execute(forgeAction);
+			const executed = await adapter.execute(forgeAction, { actionId: row.id });
+			if ("refused" in executed) {
+				logger.warn(
+					{
+						actionId: row.id,
+						kind: row.kind,
+						reason: executed.reason,
+						status: executed.status,
+					},
+					"swept action refused, row stays recorded for retry",
+				);
+				continue;
+			}
 			await runServices.markActionExecuted(db, row.id, executed.externalId);
 			result.executed++;
 			logger.info(

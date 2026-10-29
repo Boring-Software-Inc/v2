@@ -1,12 +1,18 @@
-import type { Forge, NormalizedEvent } from "@tripwire/contracts";
+import type {
+	Forge,
+	NormalizedEvent,
+	RepoScopedEvent,
+} from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { repoServices } from "@tripwire/db";
 import type {
 	ForgeAdapter,
+	ForgeReadResult,
 	RawForgeEvent,
 	ThreadListQuery,
 	ThreadListResult,
 } from "@tripwire/forge";
+import type { GitCafeAppCredentials } from "@tripwire/forge-gitcafe";
 import {
 	createGithubAdapter,
 	GithubHttp,
@@ -23,8 +29,10 @@ import {
 	type OpenGitBotCredentials,
 	OpenGitTokenCache,
 } from "@tripwire/forge-opengit";
+import type { Pool } from "pg";
 import { z } from "zod";
 import type { WorkerReads } from "./context.ts";
+import { buildGitCafeRuntime } from "./gitcafe-runtime.ts";
 
 /**
  * Normalization is PURE (no credentials), so it is chosen per forge separately
@@ -55,6 +63,13 @@ export function normalizeFor(
  * `processEvent` forge-agnostic — it never names a forge, it names the event's.
  */
 export interface ForgeRuntime {
+	refreshEvent?: (
+		event: RepoScopedEvent,
+	) => Promise<ForgeReadResult<RepoScopedEvent>>;
+	prepareEvent?: (
+		event: RawForgeEvent,
+		receivedAt: string,
+	) => Promise<ForgeReadResult<NormalizedEvent | null>>;
 	/** null ⇒ actions record but do not execute (no credentials). */
 	adapter: ForgeAdapter | null;
 	/** null ⇒ rules skip on missing context (§6). */
@@ -131,6 +146,8 @@ export interface ResolveForgeInput {
 	github: { appId: string; privateKey: string } | null;
 	/** open-git bot credentials, or null when the bot env is absent. */
 	opengit: (OpenGitBotCredentials & { apiBase?: string }) | null;
+	gitcafe?: GitCafeAppCredentials | null;
+	gitCafeActionPool?: Pool;
 }
 
 /**
@@ -148,7 +165,14 @@ export function buildResolveForge(
 		opengit: input.opengit
 			? buildOpenGitRuntime(input.db, input.opengit, input.onCall)
 			: null,
-		gitcafe: null,
+		gitcafe: input.gitcafe
+			? buildGitCafeRuntime(
+					input.db,
+					input.gitcafe,
+					undefined,
+					input.gitCafeActionPool,
+				)
+			: null,
 	} satisfies Record<Forge, ForgeRuntime | null>;
 	return (forge: Forge): ForgeRuntime | null => runtimes[forge];
 }

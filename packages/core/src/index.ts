@@ -12,6 +12,7 @@ export type {
 	ContextDiffFile,
 	RuleContext,
 } from "./context.ts";
+export { contextForge } from "./rules/context-forge.ts";
 export {
 	defineRule,
 	evaluateRule,

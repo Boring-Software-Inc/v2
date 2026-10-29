@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
 	GITCAFE_LIFECYCLE_QUEUE,
+	GITCAFE_PROCESS_EVENT_QUEUE,
 	GITCAFE_RECEIPT_MAX_BYTES,
 	type GitCafeLifecycleLookup,
 	type GitCafeReceipt,
@@ -11,6 +12,8 @@ import {
 	gitCafeLifecycleEventSchema,
 	gitCafeLifecycleEventTypeSchema,
 	gitCafeLifecycleLookupSchema,
+	gitCafeProcessEventJobSchema,
+	gitCafePullEventSchema,
 	gitCafeReceiptJobSchema,
 	gitCafeReceiptSchema,
 	gitCafeRepositoriesUpdatedSchema,
@@ -195,6 +198,167 @@ function receiptBytesMatch(receipt: GitCafeReceipt): boolean {
 		);
 	} catch {
 		return false;
+	}
+}
+
+/** Dispatch only freshly admitted signed receipts; historical parked deliveries remain inert. */
+export async function dispatchGitCafeRepositoryReceipt(
+	db: Db,
+	boss: PgBoss,
+	receiptId: string,
+): Promise<GitCafeReceiptStatus | "lifecycle"> {
+	const client = await db.$client.connect();
+	try {
+		await client.query("BEGIN");
+		await client.query(
+			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
+		);
+		const found = await client.query<{
+			installation_id: string;
+			event_id: string;
+			event_type: string;
+			receipt: unknown;
+			status: GitCafeReceiptStatus;
+			received_at: Date;
+		}>(
+			"SELECT installation_id, event_id, event_type, receipt, status, received_at FROM gitcafe_receipts WHERE id = $1 FOR UPDATE",
+			[receiptId],
+		);
+		const row = found.rows[0];
+		if (!row) throw new Error("GitCafe receipt not found");
+		if (row.status !== "pending") {
+			await client.query("COMMIT");
+			return row.status;
+		}
+		if (gitCafeLifecycleEventTypeSchema.safeParse(row.event_type).success) {
+			await client.query("COMMIT");
+			return "lifecycle";
+		}
+		const parsed = gitCafeReceiptSchema.safeParse(row.receipt);
+		let status: GitCafeReceiptStatus = "malformed";
+		if (
+			parsed.success &&
+			receiptBytesMatch(parsed.data) &&
+			parsed.data.payload.installation.id === row.installation_id &&
+			parsed.data.payload.id === row.event_id &&
+			parsed.data.payload.type === row.event_type
+		) {
+			const receipt = parsed.data;
+			if (!gitCafePullEventSchema.shape.type.safeParse(row.event_type).success)
+				status = "parked";
+			else {
+				const eventId = generateId();
+				const inserted = await client.query<{ id: string }>(
+					`INSERT INTO events (id, forge, delivery_id, raw_kind, raw, received_at)
+					 VALUES ($1, 'gitcafe', $2, $3, $4, $5)
+					 ON CONFLICT (forge, delivery_id) DO NOTHING RETURNING id`,
+					[
+						eventId,
+						JSON.stringify([row.installation_id, row.event_id]),
+						row.event_type,
+						JSON.stringify(receipt.payload),
+						row.received_at,
+					],
+				);
+				if (inserted.rowCount === 1) {
+					const queued = await boss.insert(
+						GITCAFE_PROCESS_EVENT_QUEUE,
+						[
+							{
+								id: generateId(),
+								data: gitCafeProcessEventJobSchema.parse({
+									eventId,
+									requestId: receipt.requestId,
+								}),
+								retryLimit: 10,
+								retryDelay: 15,
+								retryBackoff: true,
+							},
+						],
+						{
+							returnId: true,
+							db: {
+								executeSql: (text: string, values?: unknown[]) =>
+									client.query(text, values),
+							},
+						},
+					);
+					if (queued?.length !== 1)
+						throw new Error("GitCafe event enqueue did not insert one job");
+				}
+				status = "dispatched";
+			}
+		}
+		await client.query(
+			"UPDATE gitcafe_receipts SET status = $2, processed_at = now() WHERE id = $1",
+			[receiptId, status],
+		);
+		await client.query("COMMIT");
+		return status;
+	} catch (error) {
+		await client.query("ROLLBACK");
+		throw error;
+	} finally {
+		client.release();
+	}
+}
+
+export async function finishGitCafeEvent(
+	db: Db,
+	eventId: string,
+): Promise<void> {
+	await db.execute(sql`UPDATE gitcafe_receipts r SET status = 'applied', processed_at = now()
+		FROM events e WHERE e.id = ${eventId} AND e.forge = 'gitcafe' AND r.status = 'dispatched'
+		AND e.raw->>'id' = r.event_id AND e.raw#>>'{installation,id}' = r.installation_id`);
+}
+
+/** A durable dispatched receipt survives expired, exhausted, or retained-away process jobs. */
+export async function recoverGitCafeEvents(
+	db: Db,
+	boss: PgBoss,
+): Promise<number> {
+	const client = await db.$client.connect();
+	try {
+		await client.query("BEGIN");
+		await client.query(
+			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
+		);
+		const pending = await client.query<{ id: string; receipt: unknown }>(
+			`SELECT e.id, r.receipt FROM gitcafe_receipts r JOIN events e ON e.forge = 'gitcafe'
+			 AND e.raw->>'id' = r.event_id AND e.raw#>>'{installation,id}' = r.installation_id
+			 WHERE r.status = 'dispatched' AND NOT EXISTS (
+			 SELECT 1 FROM pgboss.job j WHERE j.name = $1 AND j.data->>'eventId' = e.id
+			 AND j.state IN ('created','retry','active')) ORDER BY r.received_at, r.id LIMIT 100 FOR UPDATE OF r`,
+			[GITCAFE_PROCESS_EVENT_QUEUE],
+		);
+		if (pending.rows.length) {
+			const jobs = pending.rows.map((row) => ({
+				id: generateId(),
+				data: gitCafeProcessEventJobSchema.parse({
+					eventId: row.id,
+					requestId: gitCafeReceiptSchema.parse(row.receipt).requestId,
+				}),
+				retryLimit: 10,
+				retryDelay: 15,
+				retryBackoff: true,
+			}));
+			const inserted = await boss.insert(GITCAFE_PROCESS_EVENT_QUEUE, jobs, {
+				returnId: true,
+				db: {
+					executeSql: (text: string, values?: unknown[]) =>
+						client.query(text, values),
+				},
+			});
+			if (inserted?.length !== jobs.length)
+				throw new Error("GitCafe event recovery did not restore its jobs");
+		}
+		await client.query("COMMIT");
+		return pending.rows.length;
+	} catch (error) {
+		await client.query("ROLLBACK");
+		throw error;
+	} finally {
+		client.release();
 	}
 }
 

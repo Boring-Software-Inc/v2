@@ -204,6 +204,6 @@ describe("a live workflow the worker cannot run", () => {
 		const eventId = await processFresh("unrunnable-2");
 		const refs = (await ruleSteps(eventId)).map((step) => step.rule_id);
 		expect(refs).not.toContain("account-age@1");
-		expect(refs).toContain("crypto-address@1");
+		expect(refs).toContain("crypto-address@2");
 	});
 });

@@ -169,9 +169,9 @@ test("the actual GitCafe reader feeds verified diff, commits and contributor fac
 	});
 	const maxFiles = getRule("max-files-changed@1");
 	if (!maxFiles) throw new Error("missing rule");
-	/** Data evaluation is exercised separately from the catalog gate, which must still refuse GitCafe activation. */
 	expect(await evaluateRule(maxFiles, ctx, { max: 1 })).toMatchObject({
-		status: "skipped",
+		status: "evaluated",
+		passed: true,
 	});
 	expect(await maxFiles.evaluate(ctx, { max: 1 })).toMatchObject({
 		status: "evaluated",

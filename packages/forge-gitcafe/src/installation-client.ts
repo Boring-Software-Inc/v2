@@ -813,6 +813,7 @@ export class GitCafeInstallationClient {
 				await response.body?.cancel().catch(() => {});
 				return { ok: false, reason: "http", status: response.status };
 			}
+			if (response.status === 204) return { ok: true, value: null };
 			if (!response.headers.get("content-type")?.includes("application/json")) {
 				await response.body?.cancel().catch(() => {});
 				return { ok: false, reason: "invalid-response" };

@@ -1,5 +1,9 @@
 import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
+	GITCAFE_VERDICT_ACTION_KINDS,
+	type GitCafeEvaluationPhase,
+	gitCafeActionPayloadSchema,
+	gitCafeEvaluationPhaseSchema,
 	HELD_VERDICTS,
 	ingestForgeSchema,
 	type RunStanding,
@@ -29,6 +33,7 @@ import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
 import { runActions, runSteps, runs } from "../schema/runs.ts";
+import type { DbLike } from "./access.ts";
 
 /**
  * Run persistence (§5.10–5.12). The workflow definition is SNAPSHOT onto the
@@ -60,7 +65,7 @@ export interface CreateRunInput {
 	backfill?: boolean;
 }
 
-export async function createRun(db: Db, input: CreateRunInput) {
+export async function createRun(db: DbLike, input: CreateRunInput) {
 	const snapshot = snapshotSchema.parse(input.snapshot);
 	const id = input.id ?? generateId();
 	await db.insert(runs).values({
@@ -80,6 +85,30 @@ export async function createRun(db: Db, input: CreateRunInput) {
 	return id;
 }
 
+export async function getRunForEvent(db: Db, eventId: string) {
+	const [run] = await db
+		.select()
+		.from(runs)
+		.where(eq(runs.eventId, eventId))
+		.limit(1);
+	return run ?? null;
+}
+
+export async function isReviewCleanupComplete(
+	db: Db,
+	runId: string,
+): Promise<boolean> {
+	const [row] = await db
+		.select({ status: runActions.status })
+		.from(runActions)
+		.where(
+			and(eq(runActions.runId, runId), eq(runActions.kind, "dismiss-review")),
+		)
+		.orderBy(desc(runActions.recordedAt), desc(runActions.id))
+		.limit(1);
+	return row?.status === "executed";
+}
+
 export interface FinalizeRunInput {
 	eventId: string;
 	headSha: string | null;
@@ -93,7 +122,7 @@ export interface FinalizeRunInput {
  * mark it terminal. Steps/actions are recorded separately against the same id.
  */
 export async function finalizeRun(
-	db: Db,
+	db: DbLike,
 	runId: string,
 	input: FinalizeRunInput,
 ): Promise<void> {
@@ -162,7 +191,7 @@ export async function failRun(db: Db, runId: string): Promise<void> {
 		.where(eq(runs.id, runId));
 }
 
-export async function getRunById(db: Db, runId: string) {
+export async function getRunById(db: DbLike, runId: string) {
 	const rows = await db.select().from(runs).where(eq(runs.id, runId)).limit(1);
 	return rows[0] ?? null;
 }
@@ -175,6 +204,7 @@ export async function getRunById(db: Db, runId: string) {
 export async function listStuckQueuedRuns(
 	db: Db,
 	createdBefore: Date,
+	forge?: Forge,
 ): Promise<{ id: string; eventId: string; repoFullName: string }[]> {
 	const rows = await db
 		.select({
@@ -183,7 +213,14 @@ export async function listStuckQueuedRuns(
 			repoFullName: runs.repoFullName,
 		})
 		.from(runs)
-		.where(and(eq(runs.status, "queued"), lt(runs.createdAt, createdBefore)));
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.where(
+			and(
+				eq(runs.status, "queued"),
+				lt(runs.createdAt, createdBefore),
+				forge === undefined ? undefined : eq(events.forge, forge),
+			),
+		);
 	return rows;
 }
 
@@ -203,7 +240,7 @@ export interface RecordStepInput {
 }
 
 export async function recordSteps(
-	db: Db,
+	db: DbLike,
 	runId: string,
 	steps: RecordStepInput[],
 ): Promise<void> {
@@ -242,7 +279,7 @@ export interface RecordActionInput {
 }
 
 export async function recordActions(
-	db: Db,
+	db: DbLike,
 	runId: string,
 	actions: RecordActionInput[],
 	/**
@@ -255,11 +292,15 @@ export async function recordActions(
 	if (actions.length === 0) {
 		return [];
 	}
+	const gitCafePhase = await getGitCafeEvaluationPhase(db, runId);
 	const rows = actions.map((action) => ({
 		id: generateId(),
 		runId,
 		kind: action.kind,
-		payload: action.payload,
+		payload:
+			gitCafePhase && GITCAFE_VERDICT_ACTION_KINDS.has(action.kind)
+				? { ...action.payload, gitCafePhase }
+				: action.payload,
 		idempotencyKey: action.idempotencyKey,
 		status: initialStatus,
 	}));
@@ -281,6 +322,92 @@ export async function recordActions(
 	}));
 }
 
+/** One statement binds the verdict to every moderation decision already applied to it. */
+export async function getGitCafeEvaluationPhase(
+	db: DbLike,
+	runId: string,
+): Promise<GitCafeEvaluationPhase | null> {
+	const result = await db.execute(sql`
+		SELECT r.status, r.verdict, r.head_sha AS "headSha",
+			COALESCE((SELECT jsonb_agg(m.id ORDER BY m.id) FROM moderation_items m WHERE m.run_id=r.id AND m.applied_at IS NOT NULL),'[]'::jsonb) AS "appliedItems"
+		FROM runs r JOIN events e ON e.id=r.event_id
+		WHERE r.id=${runId} AND e.forge='gitcafe' AND r.status IN ('paused','completed','closed')
+	`);
+	const parsed = gitCafeEvaluationPhaseSchema.safeParse(result.rows[0]);
+	return parsed.success ? parsed.data : null;
+}
+
+/** The run lock makes the recovered audit and its phase one consistent committed view. */
+export async function getGitCafeRunSurfaceState(db: Db, runId: string) {
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`SELECT id FROM runs WHERE id=${runId} FOR UPDATE`);
+		const phase = await getGitCafeEvaluationPhase(tx, runId);
+		const saved = await getRunWithSteps(tx, runId);
+		return phase && saved ? { phase, saved } : null;
+	});
+}
+
+/** Supersession never promotes an old clearance intent into a newer evaluation phase. */
+export async function recordGitCafeSurfaceActions(
+	db: Db,
+	runId: string,
+	phase: GitCafeEvaluationPhase,
+	actions: RecordActionInput[],
+	pendingIds: string[],
+	reviewBodies: { id: string; body: string }[],
+) {
+	const expected = gitCafeEvaluationPhaseSchema.parse(phase);
+	return db.transaction(async (tx) => {
+		await tx.execute(sql`SELECT id FROM runs WHERE id=${runId} FOR UPDATE`);
+		const current = await getGitCafeEvaluationPhase(tx, runId);
+		if (JSON.stringify(current) !== JSON.stringify(expected)) return null;
+		const recorded = await tx
+			.select()
+			.from(runActions)
+			.where(
+				and(eq(runActions.runId, runId), eq(runActions.status, "recorded")),
+			);
+		const continued: RecordActionInput[] = [];
+		for (const row of recorded) {
+			if (!GITCAFE_VERDICT_ACTION_KINDS.has(row.kind)) continue;
+			const payload = gitCafeActionPayloadSchema.parse(row.payload);
+			if (JSON.stringify(payload.gitCafePhase) === JSON.stringify(expected)) {
+				const review = reviewBodies.find((body) => body.id === row.id);
+				if (review && !payload.gitCafeOperation)
+					await stampReviewBody(tx, row.id, review.body);
+				continue;
+			}
+			await tx
+				.update(runActions)
+				.set({ status: "superseded" })
+				.where(eq(runActions.id, row.id));
+			if (
+				(row.kind === "block" || row.kind === "close") &&
+				expected.verdict === row.kind &&
+				pendingIds.includes(row.id)
+			) {
+				const body =
+					payload.gitCafeOperation?.command.kind === "review"
+						? payload.gitCafeOperation.command.input.body
+						: reviewBodies.find((body) => body.id === row.id)?.body;
+				delete payload.gitCafeOperation;
+				delete payload.gitCafePhase;
+				if (body !== undefined) payload.reason = body;
+				continued.push({
+					kind: row.kind,
+					payload,
+					idempotencyKey: JSON.stringify([
+						"continued-action",
+						row.id,
+						expected,
+					]),
+				});
+			}
+		}
+		return recordActions(tx, runId, [...continued, ...actions]);
+	});
+}
+
 export async function markActionExecuted(
 	db: Db,
 	actionId: string,
@@ -290,6 +417,49 @@ export async function markActionExecuted(
 		.update(runActions)
 		.set({ status: "executed", executedAt: new Date(), externalId })
 		.where(eq(runActions.id, actionId));
+}
+
+export interface PersistRunEvaluationInput {
+	run: Omit<CreateRunInput, "status"> & { status: FinalizeRunInput["status"] };
+	existingRunId?: string;
+	steps: RecordStepInput[];
+	moderationNodeIds: string[];
+	actions: RecordActionInput[];
+	suppressed: boolean;
+}
+
+/** A run is reusable on recovery only after its evaluation audit and action intents commit together. */
+export async function persistRunEvaluation(
+	db: Db,
+	input: PersistRunEvaluationInput,
+) {
+	return db.transaction(async (tx) => {
+		const runId = input.existingRunId ?? (await createRun(tx, input.run));
+		if (input.existingRunId)
+			await finalizeRun(tx, runId, {
+				eventId: input.run.eventId,
+				headSha: input.run.headSha,
+				snapshot: input.run.snapshot,
+				status: input.run.status,
+				verdict: input.run.verdict,
+			});
+		await recordSteps(tx, runId, input.steps);
+		if (input.moderationNodeIds.length)
+			await tx.insert(moderationItems).values(
+				input.moderationNodeIds.map((nodeId) => ({
+					id: generateId(),
+					runId,
+					nodeId,
+				})),
+			);
+		const actionRows = await recordActions(
+			tx,
+			runId,
+			input.actions,
+			input.suppressed ? "suppressed" : "recorded",
+		);
+		return { runId, actionRows };
+	});
 }
 
 /**
@@ -331,7 +501,7 @@ export async function attachDeliveryPayload(
 }
 
 export async function stampReviewBody(
-	db: Db,
+	db: DbLike,
 	actionId: string,
 	reason: string,
 ): Promise<void> {
@@ -432,6 +602,7 @@ export interface StuckAction {
 export async function listStuckActions(
 	db: Db,
 	recordedBefore: Date,
+	forge?: Forge,
 ): Promise<StuckAction[]> {
 	const rows = await db
 		.select({
@@ -455,7 +626,9 @@ export async function listStuckActions(
 		.where(
 			and(
 				eq(runActions.status, "recorded"),
-				inArray(events.forge, [...ingestForgeSchema.options]),
+				forge === undefined
+					? inArray(events.forge, [...ingestForgeSchema.options])
+					: eq(events.forge, forge),
 				lt(runActions.recordedAt, recordedBefore),
 			),
 		);
@@ -508,7 +681,7 @@ export interface LatestChangeRequestRun {
 }
 
 export async function getLatestRunIdForChangeRequest(
-	db: Db,
+	db: DbLike,
 	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<string | null> {
@@ -518,7 +691,7 @@ export async function getLatestRunIdForChangeRequest(
 }
 
 export async function getLatestRunForChangeRequest(
-	db: Db,
+	db: DbLike,
 	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<LatestChangeRequestRun | null> {
@@ -720,27 +893,104 @@ export async function settleRun(
 	runId: string,
 	appliedItemId: string | null,
 ): Promise<{ verdict: Verdict; status: "paused" | "completed" }> {
-	return await db.transaction(async (tx) => {
-		await tx.execute(sql`SELECT id FROM runs WHERE id = ${runId} FOR UPDATE`);
-		if (appliedItemId) {
+	return db.transaction((tx) =>
+		settleRunInTransaction(tx, runId, appliedItemId),
+	);
+}
+
+/** Resume decisions and their evaluation audit commit together before remote surfaces are attempted. */
+export async function persistRunResume(
+	db: Db,
+	input: {
+		runId: string;
+		itemId: string;
+		decision: "approve" | "deny";
+		steps: RecordStepInput[];
+		actions: RecordActionInput[];
+		moderationNodeIds: string[];
+	},
+) {
+	return db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT id FROM runs WHERE id = ${input.runId} FOR UPDATE`,
+		);
+		const [item] = await tx
+			.select()
+			.from(moderationItems)
+			.where(
+				and(
+					eq(moderationItems.id, input.itemId),
+					eq(moderationItems.runId, input.runId),
+				),
+			);
+		if (
+			!item ||
+			item.status !== (input.decision === "approve" ? "approved" : "denied")
+		)
+			throw new Error("Resume decision is missing");
+		if (item.appliedAt)
+			return {
+				...(await settleRunInTransaction(tx, input.runId, null)),
+				actionRows: [],
+			};
+		await recordSteps(tx, input.runId, input.steps);
+		const actionRows = await recordActions(tx, input.runId, input.actions);
+		const existing = await tx
+			.select({ nodeId: moderationItems.nodeId })
+			.from(moderationItems)
+			.where(eq(moderationItems.runId, input.runId));
+		const known = new Set(existing.map((row) => row.nodeId));
+		const missing = input.moderationNodeIds.filter(
+			(nodeId) => !known.has(nodeId),
+		);
+		if (missing.length)
+			await tx.insert(moderationItems).values(
+				missing.map((nodeId) => ({
+					id: generateId(),
+					runId: input.runId,
+					nodeId,
+				})),
+			);
+		const settled = await settleRunInTransaction(tx, input.runId, input.itemId);
+		const phase = await getGitCafeEvaluationPhase(tx, input.runId);
+		const verdictIds = actionRows
+			.filter((row) => GITCAFE_VERDICT_ACTION_KINDS.has(row.kind))
+			.map((row) => row.id);
+		if (phase && verdictIds.length)
 			await tx
-				.update(moderationItems)
-				.set({ appliedAt: new Date() })
-				.where(eq(moderationItems.id, appliedItemId));
-		}
-		const standing = await getRunStanding(tx, runId);
-		const verdict = standingVerdict(standing);
-		const status = standing.reviewsPending > 0 ? "paused" : "completed";
-		await tx
-			.update(runs)
-			.set(
-				status === "completed"
-					? { status, verdict, completedAt: new Date() }
-					: { status, verdict },
-			)
-			.where(eq(runs.id, runId));
-		return { verdict, status };
+				.update(runActions)
+				.set({
+					payload: sql`${runActions.payload} || jsonb_build_object('gitCafePhase', ${JSON.stringify(phase)}::jsonb)`,
+				})
+				.where(inArray(runActions.id, verdictIds));
+		return { ...settled, actionRows };
 	});
+}
+
+async function settleRunInTransaction(
+	tx: DbLike,
+	runId: string,
+	appliedItemId: string | null,
+): Promise<{ verdict: Verdict; status: "paused" | "completed" }> {
+	await tx.execute(sql`SELECT id FROM runs WHERE id = ${runId} FOR UPDATE`);
+	if (appliedItemId) {
+		await tx
+			.update(moderationItems)
+			.set({ appliedAt: new Date() })
+			.where(eq(moderationItems.id, appliedItemId));
+	}
+	const standing = await getRunStanding(tx, runId);
+	const verdict = standingVerdict(standing);
+	const status = standing.reviewsPending > 0 ? "paused" : "completed";
+	await tx
+		.update(runs)
+		.set(
+			status === "completed"
+				? { status, verdict, completedAt: new Date() }
+				: { status, verdict },
+		)
+		.where(eq(runs.id, runId));
+	return { verdict, status };
 }
 
 export async function closedOnHead(
@@ -775,7 +1025,7 @@ export async function pauseRun(db: Db, runId: string): Promise<void> {
 		.where(eq(runs.id, runId));
 }
 
-export async function getRunWithSteps(db: Db, runId: string) {
+export async function getRunWithSteps(db: DbLike, runId: string) {
 	const runRows = await db.select().from(runs).where(eq(runs.id, runId));
 	const run = runRows[0];
 	if (!run) {

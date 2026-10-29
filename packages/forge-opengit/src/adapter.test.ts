@@ -143,7 +143,7 @@ describe("open-git check — the whole merge gate", () => {
 		expect(call?.url).toContain("/api/v1/repos/acme/api/commits/abc123/checks");
 		expect(call?.authorization).toBe("Bearer ogi_token");
 		expect(call?.body).toMatchObject({ name: CHECK_NAME, status: "failed" });
-		expect(result.externalId).toBe("check-uuid");
+		expect(result).toMatchObject({ externalId: "check-uuid" });
 	});
 
 	test.each([
@@ -272,7 +272,7 @@ describe("comments — append on a transition, never on a repeat", () => {
 		expect(calls[0]?.body).toMatchObject({
 			body: "**tripwire** blocked this change",
 		});
-		expect(result.externalId).toBe("c-1");
+		expect(result).toMatchObject({ externalId: "c-1" });
 	});
 
 	test("a flip posts a new comment", async () => {
@@ -292,6 +292,6 @@ describe("comments — append on a transition, never on a repeat", () => {
 			comment("block", "block") as never,
 		);
 		expect(calls).toHaveLength(0);
-		expect(result.externalId).toBeNull();
+		expect(result).toMatchObject({ externalId: null });
 	});
 });

@@ -1,9 +1,14 @@
+import { createHash } from "node:crypto";
 import type { Forge } from "@tripwire/contracts";
 import {
 	type CheckState,
 	type CommentReason,
 	checkSummary,
 	forgePostsReviews,
+	GITCAFE_VERDICT_ACTION_KINDS,
+	type GitCafeEvaluationPhase,
+	gitCafeActionPayloadSchema,
+	isAiReviewNotRunStep,
 	labelParamsSchema,
 	lockParamsSchema,
 	type NormalizedEvent,
@@ -16,21 +21,134 @@ import {
 	type ScheduledThread,
 	type SurfacePlan,
 	type Verdict,
+	verdictSchema,
 	type WebhookPayload,
 	wantsCheck,
 } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import {
-	type moderationServices,
+	gitCafeActionServices,
+	moderationServices,
 	repoServices,
 	responseServices,
 	runServices,
 } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
 import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
-import { getErrorMessage } from "@tripwire/utils";
+import {
+	getErrorMessage,
+	pendingCheckIsStale,
+	supersededBy,
+} from "@tripwire/utils";
 import type { Logger } from "pino";
+import { buildCommentReasons } from "./comment-reasons.ts";
+import { customRuleSource } from "./custom-rules.ts";
 import { loadRunIssues } from "./run-issues.ts";
+
+/** Recovery uses the committed evaluation, never a new verdict or a second AI call. */
+export async function recoverGitCafeRunSurface(
+	deps: PrSurfaceDeps,
+	runId: string,
+	event: NormalizedEvent,
+	options?: Pick<EmitSurfaceInput, "pendingCheckPosted" | "rerun"> & {
+		refreshId?: string;
+	},
+): Promise<boolean> {
+	const state = await runServices.getGitCafeRunSurfaceState(deps.db, runId);
+	const saved = state?.saved;
+	const verdict = verdictSchema.safeParse(saved?.run.verdict);
+	if (
+		!saved ||
+		!state ||
+		!verdict.success ||
+		event.forge !== "gitcafe" ||
+		!("repo" in event) ||
+		saved.run.repoFullName !== event.repo.fullName ||
+		!["completed", "paused", "closed"].includes(saved.run.status)
+	)
+		return false;
+	if (saved.run.status === "closed") return true;
+	const surfaceKey = `evaluation:${createHash("sha256").update(JSON.stringify(state.phase)).digest("hex")}${options?.refreshId ? `:refresh:${options.refreshId}` : ""}`;
+	const repo = await repoServices.getRepoByFullName(
+		deps.db,
+		event.repo.fullName,
+		event.forge,
+	);
+	const records = customRuleSource(
+		repo ? await repoServices.listCustomRules(deps.db, repo.id) : [],
+		null,
+	).records;
+	const items = await moderationServices.listModerationItemsForRun(
+		deps.db,
+		runId,
+	);
+	const restoredEvent =
+		"changeRequest" in event && saved.run.headSha
+			? {
+					...event,
+					changeRequest: { ...event.changeRequest, headSha: saved.run.headSha },
+				}
+			: event;
+	const recorded = saved.actions
+		.filter((action) => action.status === "recorded")
+		.map((action) => ({
+			id: action.id,
+			kind: action.kind,
+			payload: gitCafeActionPayloadSchema.parse(action.payload),
+		}));
+	const hasCurrentSurface = saved.actions.some((action) => {
+		if (surfaceKey && !action.idempotencyKey.endsWith(`:${surfaceKey}`))
+			return false;
+		const payload = gitCafeActionPayloadSchema.parse(action.payload);
+		return action.kind === "set-check"
+			? payload.conclusion === VERDICT_TO_CONCLUSION[verdict.data] &&
+					payload.sha === saved.run.headSha
+			: (action.kind === "comment" || action.kind === "dismiss-review") &&
+					payload.verdict === verdict.data;
+	});
+	if (hasCurrentSurface && "changeRequest" in restoredEvent) {
+		await executeRecordedPrActions(deps, {
+			runId,
+			event: restoredEvent,
+			verdict: verdict.data,
+			reasons: [],
+			pendingActionRows: recorded,
+			gitCafePhase: state.phase,
+		});
+		return true;
+	}
+	await emitPrSurface(deps, {
+		runId,
+		event: restoredEvent,
+		verdict: verdict.data,
+		reasons: buildCommentReasons(saved.steps, records),
+		degraded: items.some((item) => item.nodeId === "run:degraded"),
+		aiReviewNotRun: saved.steps.some(isAiReviewNotRunStep),
+		pendingActionRows: recorded,
+		pendingCheckPosted:
+			options?.pendingCheckPosted ||
+			saved.actions.some((action) => action.kind === "set-check"),
+		surfaceKey,
+		gitCafePhase: state.phase,
+		refreshReview:
+			options?.refreshId !== undefined &&
+			verdict.data === "block" &&
+			saved.run.subjectNumber !== null &&
+			(await runServices.getActiveBlockReviewId(
+				deps.db,
+				{ forge: "gitcafe", fullName: saved.run.repoFullName },
+				saved.run.subjectNumber,
+			)) !== null,
+		rerun: options?.rerun || saved.run.triggeredBy !== null,
+		resumedFrom: [...saved.actions].reverse().flatMap((action) => {
+			const parsed = verdictSchema.safeParse(
+				gitCafeActionPayloadSchema.parse(action.payload).verdict,
+			);
+			return parsed.success ? [parsed.data] : [];
+		})[0],
+	});
+	return true;
+}
 
 /**
  * §5.13 + §7: the two PR artifacts — ONE upserted comment (the face) and ONE
@@ -103,16 +221,26 @@ export async function emitPendingCheck(
 		return false;
 	}
 	try {
-		await deps.adapter.execute({
-			kind: "set-check",
-			repoFullName: event.repo.fullName,
-			check: {
-				sha: event.changeRequest.headSha,
-				conclusion: "pending",
-				summary: PENDING_CHECK_SUMMARY,
-				detailsUrl: deps.appUrl,
+		const result = await deps.adapter.execute(
+			{
+				kind: "set-check",
+				repoFullName: event.repo.fullName,
+				check: {
+					sha: event.changeRequest.headSha,
+					conclusion: "pending",
+					summary: PENDING_CHECK_SUMMARY,
+					detailsUrl: deps.appUrl,
+				},
 			},
-		});
+			{ eventId: eventId ?? event.id },
+		);
+		if ("refused" in result) {
+			deps.logger.warn(
+				{ eventId, reason: result.reason, status: result.status },
+				"pending check refused",
+			);
+			return false;
+		}
 		return true;
 	} catch (error) {
 		deps.logger.warn(
@@ -137,6 +265,8 @@ export interface EmitSurfaceInput {
 	resumedFrom?: Verdict;
 	surfaceKey?: string;
 	pendingCheckPosted?: boolean;
+	gitCafePhase?: GitCafeEvaluationPhase;
+	refreshReview?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
 	pendingActionRows: {
 		id: string;
@@ -151,6 +281,13 @@ export async function emitPrSurface(
 ): Promise<void> {
 	const { db, adapter, logger } = deps;
 	const { event, runId, verdict } = input;
+	if (event.forge === "gitcafe" && !input.gitCafePhase) {
+		if (!(await recoverGitCafeRunSurface(deps, runId, event, input)))
+			throw new Error(
+				"Committed GitCafe evaluation cannot recover its surfaces",
+			);
+		return;
+	}
 	if (event.kind === "schedule.matched") {
 		const { thread } = event;
 		await emitThreadActions(deps, input, {
@@ -236,25 +373,39 @@ export async function emitPrSurface(
 		},
 		responseConfig,
 		policy,
-		{ reviewPosted: blockRows.length > 0 && forgePostsReviews(event.forge) },
+		{
+			reviewPosted:
+				(blockRows.length > 0 || input.refreshReview === true) &&
+				forgePostsReviews(event.forge),
+		},
 	);
 	const review = plan.review ?? REVIEW_POINTER.block;
 	for (const row of blockRows) {
-		row.payload = { ...row.payload, reason: review };
-		await runServices.stampReviewBody(db, row.id, review);
+		const operation =
+			event.forge === "gitcafe"
+				? gitCafeActionPayloadSchema.parse(row.payload).gitCafeOperation
+				: undefined;
+		const body =
+			operation?.command.kind === "review"
+				? operation.command.input.body
+				: review;
+		row.payload = { ...row.payload, reason: body };
+		if (event.forge !== "gitcafe")
+			await runServices.stampReviewBody(db, row.id, body);
 	}
-	let activeReviewId =
-		blockRows.length > 0
-			? await runServices.getActiveBlockReviewId(
-					db,
-					{ forge: event.forge, fullName: repoFullName },
-					number,
-				)
-			: null;
 	const includeCheck =
 		wantsCheck(responseConfig, verdict) || input.pendingCheckPosted === true;
 
-	const surfaceRows = await runServices.recordActions(db, runId, [
+	const intents: runServices.RecordActionInput[] = [
+		...(input.refreshReview && verdict === "block"
+			? [
+					{
+						kind: "block",
+						payload: { reason: review },
+						idempotencyKey: `refresh-review:${input.surfaceKey}`,
+					},
+				]
+			: []),
 		...commentRows(plan, number, verdict, previousVerdict).map((row) =>
 			input.surfaceKey
 				? {
@@ -286,16 +437,39 @@ export async function emitPrSurface(
 					},
 				]
 			: []),
-		...(reviewToDismiss
+		...(reviewToDismiss || (event.forge === "gitcafe" && verdict !== "block")
 			? [
 					{
 						kind: "dismiss-review",
-						payload: { number, reviewId: reviewToDismiss },
-						idempotencyKey: `dismiss-review:${reviewToDismiss}`,
+						payload: {
+							number,
+							reviewId: reviewToDismiss,
+							verdict: event.forge === "gitcafe" ? verdict : undefined,
+						},
+						idempotencyKey:
+							event.forge === "gitcafe"
+								? `dismiss-review:${reviewToDismiss ?? "all-owned"}:${verdict}:${input.surfaceKey ?? "initial"}`
+								: `dismiss-review:${reviewToDismiss}`,
 					},
 				]
 			: []),
-	]);
+	];
+	const surfaceRows = input.gitCafePhase
+		? await runServices.recordGitCafeSurfaceActions(
+				db,
+				runId,
+				input.gitCafePhase,
+				intents,
+				input.pendingActionRows
+					.filter((row) => GITCAFE_VERDICT_ACTION_KINDS.has(row.kind))
+					.map((row) => row.id),
+				blockRows.map((row) => ({
+					id: row.id,
+					body: String(row.payload.reason),
+				})),
+			)
+		: await runServices.recordActions(db, runId, intents);
+	if (surfaceRows === null) return;
 
 	// Outbound delivery (webhook/discord) is independent of GitHub — build and
 	// attach each row's payload here (we have the run context + appUrl), leave
@@ -330,6 +504,32 @@ export async function emitPrSurface(
 		);
 		return;
 	}
+	await executeRecordedPrActions(
+		deps,
+		{
+			...input,
+			pendingActionRows: [...input.pendingActionRows, ...surfaceRows],
+		},
+		review,
+	);
+}
+
+async function executeRecordedPrActions(
+	deps: PrSurfaceDeps,
+	input: EmitSurfaceInput,
+	review: string = REVIEW_POINTER.block,
+): Promise<void> {
+	const { db, adapter, logger } = deps;
+	const { event, runId, verdict } = input;
+	if (!adapter || !("changeRequest" in event)) return;
+	const repoFullName = event.repo.fullName;
+	const number = event.changeRequest.number;
+	const sha = event.changeRequest.headSha;
+	let activeReviewId = await runServices.getActiveBlockReviewId(
+		db,
+		{ forge: event.forge, fullName: repoFullName },
+		number,
+	);
 
 	/**
 	 * Comment ownership (§6 — live finding): the comment is per-PR but runs are
@@ -345,11 +545,34 @@ export async function emitPrSurface(
 	);
 	const latestRunId = latestRun?.id ?? null;
 
-	const ordered = [...input.pendingActionRows, ...surfaceRows].sort(
-		(a, b) => Number(a.kind === "close") - Number(b.kind === "close"),
+	const cleanup =
+		event.forge === "gitcafe"
+			? await gitCafeActionServices.getPendingGitCafeReviewCleanup(db, runId)
+			: [];
+	const unique = new Map(
+		[...cleanup, ...input.pendingActionRows].map((row) => [row.id, row]),
+	);
+	const ordered = [...unique.values()].sort(
+		(a, b) =>
+			(event.forge === "gitcafe"
+				? Number(b.kind === "dismiss-review") -
+					Number(a.kind === "dismiss-review")
+				: 0) || Number(a.kind === "close") - Number(b.kind === "close"),
 	);
 	let surfaceFailed = false;
 	for (const row of ordered) {
+		if (
+			event.forge === "gitcafe" &&
+			((row.kind === "set-check" &&
+				row.payload.conclusion !== VERDICT_TO_CONCLUSION[verdict]) ||
+				((row.kind === "comment" || row.kind === "dismiss-review") &&
+					row.payload.verdict !== undefined &&
+					row.payload.verdict !== verdict) ||
+				(row.kind === "block" && verdict !== "block"))
+		) {
+			await runServices.markActionSuperseded(db, row.id);
+			continue;
+		}
 		// Outbound delivery is handled above + by the deliver-webhook job, not
 		// through the forge adapter.
 		if (row.kind === "webhook" || row.kind === "discord") {
@@ -377,6 +600,13 @@ export async function emitPrSurface(
 			);
 			continue;
 		}
+		if (
+			event.forge === "gitcafe" &&
+			row.kind === "set-check" &&
+			row.payload.conclusion === "success" &&
+			!(await runServices.isReviewCleanupComplete(db, runId))
+		)
+			continue;
 		if (row.kind === "block" && verdict === "close") {
 			await runServices.markActionSuperseded(db, row.id);
 			continue;
@@ -389,7 +619,20 @@ export async function emitPrSurface(
 			activeReviewId,
 		);
 		try {
-			const result = await adapter.execute(forgeAction);
+			const result = await adapter.execute(forgeAction, { actionId: row.id });
+			if ("refused" in result) {
+				if (CLOSE_PREREQUISITES.has(row.kind)) surfaceFailed = true;
+				logger.warn(
+					{
+						actionId: row.id,
+						kind: row.kind,
+						reason: result.reason,
+						status: result.status,
+					},
+					"forge action refused, row stays recorded for retry",
+				);
+				continue;
+			}
 			await runServices.markActionExecuted(db, row.id, result.externalId);
 			if (row.kind === "block" && result.externalId) {
 				activeReviewId = result.externalId;
@@ -482,7 +725,20 @@ async function emitThreadActions(
 		try {
 			const result = await adapter.execute(
 				toForgeAction(row, repoFullName, thread.number, REVIEW_POINTER.block),
+				{ actionId: row.id },
 			);
+			if ("refused" in result) {
+				logger.warn(
+					{
+						actionId: row.id,
+						kind: row.kind,
+						reason: result.reason,
+						status: result.status,
+					},
+					"thread action refused, row stays recorded for retry",
+				);
+				continue;
+			}
 			await runServices.markActionExecuted(db, row.id, result.externalId);
 		} catch (error) {
 			logger.error(
@@ -499,42 +755,6 @@ interface CommentPayload {
 	previousVerdict: Verdict | null;
 	body: string;
 	onlyIfPresent?: boolean;
-}
-
-const PER_CHANGE_REQUEST_KINDS = new Set([
-	"comment",
-	"delete-comment",
-	"dismiss-review",
-	"block",
-	"close",
-	"request-fix",
-	"note",
-]);
-
-export function supersededBy(
-	kind: string,
-	run: { id: string; headSha: string | null },
-	latest: { id: string; headSha: string | null } | null,
-): boolean {
-	if (!latest || latest.id === run.id) {
-		return false;
-	}
-	if (PER_CHANGE_REQUEST_KINDS.has(kind)) {
-		return true;
-	}
-	return kind === "set-check" && run.headSha !== null
-		? latest.headSha === run.headSha
-		: false;
-}
-
-export function pendingCheckIsStale(
-	latest: { eventId: string; headSha: string | null } | null,
-	eventId: string,
-	headSha: string,
-): boolean {
-	return (
-		latest !== null && latest.eventId > eventId && latest.headSha === headSha
-	);
 }
 
 export function commentRows(
@@ -628,7 +848,15 @@ export async function emitClosedReviewSurfaces(
 						review.subjectNumber,
 						REVIEW_POINTER.block,
 					),
+					{ actionId: row.id },
 				);
+				if ("refused" in result) {
+					deps.logger.warn(
+						{ actionId: row.id, reason: result.reason, status: result.status },
+						"closed review surface refused, row stays recorded for retry",
+					);
+					continue;
+				}
 				await runServices.markActionExecuted(
 					deps.db,
 					row.id,
@@ -678,7 +906,7 @@ export function toForgeAction(
 				kind: "dismiss-review" as const,
 				repoFullName,
 				number: (row.payload.number as number) ?? number,
-				reviewId: row.payload.reviewId as string,
+				reviewId: (row.payload.reviewId as string | null) ?? null,
 			};
 		case "set-check":
 			return {

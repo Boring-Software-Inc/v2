@@ -557,3 +557,27 @@ equality result is live evidence, not a captured provider-response fixture.
 ## 2026-10-28 — GitCafe read client uses the forge interface workspace
 
 The concrete GitCafe read client declares the existing internal `@tripwire/forge` workspace dependency for universal commit and contributor types. This follows the approved adapter dependency arrow and replaces duplicate local representations of those types. The existing stack already supplies the interface package; no third-party dependency is added. Historical OpenGit remains separate.
+
+## 2026-10-28 — GitCafe staging protection execution and action receipts
+
+Grim requested completion of GitCafe protection, beyond repository connections. The first executable path stays isolated to Unkey preview and the dedicated Tripwire Staging app. Its process, resume, rerun and refresh queues are separate from the ordinary worker queues; queue-scoped supervision and durable receipt recovery leave general backlog and schedules untouched. Historical parked deliveries are not activated during rollout.
+
+Signed receipts retain their exact raw bytes. Dispatch atomically creates the GitCafe event and its job; a dispatched receipt remains recoverable until processing finishes. Installation lifecycle authority and fresh installed-client scope fences apply to reads and actions. A persisted action, current claimed repository and installation establish the write binding. Review creation retains its immutable request ID and input in the existing validated action JSON; comment creation retains an operation marker and permits one dispatch, reconciling uncertain results rather than blindly resending. Only the installation bot's artifacts may be edited or dismissed.
+
+GitCafe supplies diff, commit, profile-text and repository-local evidence. Account age, complete contributor-wide history and global merge history remain unavailable. Their controls remain disabled with source-specific reasons. Explicitly omitted patches cannot establish a clean text scan or an AI verdict; existing AI prompts remain unchanged. Capability declarations describe these reads without enabling the catalog's protection gate. Catalog activation, staging rollout and required-check enforcement require separate scratch acceptance evidence.
+
+## 2026-10-28 — GitCafe clearance waits for settled review submissions
+
+GitCafe actions serialize by installation, repository and subject through a dedicated PostgreSQL session-lock pool. A dispatched blocking review retains its immutable request ID until a verified receipt is stored. Clearance replays uncertain submissions with that same input before enumerating and dismissing owned reviews; a lost response or an expired cleanup retry cannot release a successful check. Definitive first-attempt refusals do not leave an uncertain submission behind. General worker queues remain unchanged.
+
+Initial and resumed GitCafe evaluations commit audit steps, moderation state and workflow action intents atomically. Recovery uses the committed evaluation and exact recorded surface intents, with a separate surface key for each applied moderation decision. It never reruns evaluation to repair remote delivery.
+
+The omitted-patch policy is versioned as `crypto-address@2` and `ai-review@3`. Older versions retain their original evaluation behavior; GitCafe requires the versions that distinguish unavailable patches. AI instruction and prompt bytes are unchanged from `ai-review@2`. Declaring GitCafe review delivery enables correct surface planning only; the catalog protection gate remains closed pending live acceptance.
+
+Saved AI and crypto workflow references remain enableable through an explicit map of their frozen config schemas after the current catalog advances. Unknown versions remain invalid; validation does not rewrite stored definitions or audit snapshots. The existing standalone-rule policy still advances compatible configs to the current version. This avoids making an existing GitHub workflow unrunnable solely because GitCafe needs a new evidence policy.
+
+Surface intents also bind the committed verdict, head and complete sorted set of applied moderation decisions. Planning reads a consistent audit under the run lock; insertion and review-body stamping compare that phase under the same lock. Dispatch rechecks it alongside installation authority. An older approval cannot clear a later denial within the same run. Terminal GitCafe rerun retries recover committed surfaces without reevaluating rules.
+
+An action's originating phase is immutable. A newer surface transaction supersedes obsolete intents before they can dispatch; it records a new action when a previously undelivered block or close remains required. Uncertain old review commands remain retained for later clearance reconciliation. Run status participates in the phase, including `closed`; closing moderation and recording its neutral check/comment commit together, leaving the scoped sweeper able to recover delivery after a crash.
+
+GitCafe response refresh uses that same committed-evaluation planner and phase-fenced insertion. Its stable queue job ID identifies refresh intents; retrying a refresh reuses those intents. A refresh captured before moderation closes cannot overwrite the neutral closure check. Configured sole-review changes retain the owned replacement-before-dismissal protocol.
