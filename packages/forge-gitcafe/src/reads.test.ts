@@ -123,6 +123,10 @@ for (const mutation of [
 	"outage",
 	"changed",
 	"invalid-avatar",
+	"actor-id",
+	"actor-handle",
+	"actor-avatar",
+	"actor-name",
 	"repeated-cursor",
 ] as const) {
 	test(`synthetic reviewer ${mutation} refuses an incomplete suggestion set`, async () => {
@@ -138,6 +142,32 @@ for (const mutation of [
 			}
 			if (url.pathname.endsWith("/reviewer-candidates")) {
 				if (mutation === "outage") return new Response(null, { status: 503 });
+				if (mutation.startsWith("actor-"))
+					return Response.json({
+						...reviewerCandidates,
+						items: reviewerCandidates.items.map((item) => ({
+							...item,
+							actor: {
+								...item.actor,
+								actorId:
+									mutation === "actor-id"
+										? "synthetic-other"
+										: item.actor.actorId,
+								handle:
+									mutation === "actor-handle"
+										? "synthetic-other"
+										: item.actor.handle,
+								avatarUrl:
+									mutation === "actor-avatar"
+										? "/avatars/other"
+										: item.actor.avatarUrl,
+								displayName:
+									mutation === "actor-name"
+										? "Synthetic other"
+										: item.actor.displayName,
+							},
+						})),
+					});
 				if (mutation === "invalid-avatar")
 					return Response.json({
 						...reviewerCandidates,
@@ -169,6 +199,10 @@ test("reviewer suggestions paginate without an aggregate cap and empty open-PR s
 					(_, i) => ({
 						...first,
 						id: `synthetic-reviewer-${url.searchParams.has("after") ? 100 : i}`,
+						actor: {
+							...first.actor,
+							actorId: `synthetic-reviewer-${url.searchParams.has("after") ? 100 : i}`,
+						},
 					}),
 				),
 				next: url.searchParams.has("after") ? null : "synthetic-next",

@@ -173,6 +173,11 @@ export const repoReviewersViewSchema = z.strictObject({
 });
 export type RepoReviewersView = z.infer<typeof repoReviewersViewSchema>;
 
+export const repoReviewersRefreshSchema = z.strictObject({
+	queued: z.boolean(),
+});
+export type RepoReviewersRefresh = z.infer<typeof repoReviewersRefreshSchema>;
+
 export const repoSuggestionStringsSchema = z.array(z.string());
 export type RepoSuggestionStrings = z.infer<typeof repoSuggestionStringsSchema>;
 export const repoSuggestionValuesSchema = z.union([

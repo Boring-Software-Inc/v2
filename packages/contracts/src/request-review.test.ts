@@ -50,6 +50,17 @@ test("GitCafe reviewer references preserve immutable string IDs and provider han
 	).toBe(false);
 });
 
+test("empty PR-specific suggestions do not revoke a saved GitCafe reviewer", () => {
+	const def = withReviewParams({
+		reviewers: [{ id: "act_stable", login: "saved_person" }],
+	});
+	expect(
+		lintWorkflow(def, { reviewers: [] }).filter(
+			(finding) => finding.rule === "stale-reviewer",
+		),
+	).toEqual([]);
+});
+
 function messagesOf(result: ReturnType<typeof validateWorkflow>): string[] {
 	return result.valid ? [] : result.issues.map((issue) => issue.message);
 }

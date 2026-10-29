@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
+	type RepoReviewersRefresh,
 	type RepoReviewersView,
 	repoReviewersInputSchema,
+	repoReviewersRefreshSchema,
 	repoReviewersViewSchema,
 } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
@@ -66,10 +68,12 @@ export const refreshRepoReviewers = createServerFn({ method: "POST" })
 		orgPermissionMiddleware("workflows:manage"),
 	])
 	.inputValidator(repoReviewersInputSchema)
-	.handler(async ({ data, context }): Promise<{ queued: boolean }> => {
+	.handler(async ({ data, context }): Promise<RepoReviewersRefresh> => {
 		await requireOrgRepoById(
 			(context as { org: OrgWithRole }).org.id,
 			data.repoId,
 		);
-		return { queued: await queueReviewerSync(data.repoId) };
+		return repoReviewersRefreshSchema.parse({
+			queued: await queueReviewerSync(data.repoId),
+		});
 	});

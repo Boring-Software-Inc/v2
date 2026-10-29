@@ -68,6 +68,15 @@ test("an empty GitCafe list explains how to load reviewers without changing GitH
 	expect(github).not.toContain("Open a pull request on GitCafe");
 });
 
+test("missing GitCafe suggestions do not assert that saved actors lost access", () => {
+	const html = render("gitcafe", [], {
+		reviewers: [{ id: "act_stable", login: "saved_person" }],
+	});
+	expect(html).toContain("saved_person");
+	expect(html).toContain("Suggestions come from open pull requests");
+	expect(html).not.toContain("can no longer review");
+});
+
 test("read-only reviewer selection keeps its disabled refresh control", () => {
 	const html = render("gitcafe", [], {}, true);
 	expect(html).toContain("disabled");

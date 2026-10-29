@@ -78,7 +78,7 @@ export function ReviewerPicker({
 			synced.find((entry) => sameReviewer(entry, reviewer)) ?? {
 				...reviewer,
 				avatarUrl: "",
-				stale: known,
+				stale: known && !gitCafe,
 			},
 	);
 	const choose = (next: PickedReviewer[]) =>

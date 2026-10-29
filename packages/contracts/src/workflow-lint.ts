@@ -4,6 +4,7 @@ import { HISTORICAL_RULE_CONFIG_SCHEMAS, RULE_CATALOG } from "./rules.ts";
 import {
 	ACTION_CATALOG,
 	GATE_CATALOG,
+	gitCafeReviewerRefSchema,
 	isRemovedAction,
 	isScheduleTrigger,
 	type JsonValue,
@@ -974,7 +975,11 @@ function checkStaleReviewers(ctx: LintContext): Finding[] {
 			return [];
 		}
 		return parsed.data.reviewers
-			.filter((chosen) => !synced.some((known) => sameReviewer(known, chosen)))
+			.filter(
+				(chosen) =>
+					!gitCafeReviewerRefSchema.safeParse(chosen).success &&
+					!synced.some((known) => sameReviewer(known, chosen)),
+			)
 			.map((reviewer) => ({
 				nodeId: node.id,
 				message: `Remove ${reviewer.login}. They can no longer review this repo.`,
