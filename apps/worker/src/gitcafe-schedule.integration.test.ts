@@ -233,6 +233,11 @@ test("a GitCafe tick admits one atomic dedicated job and cannot advance another 
 		enabled: true,
 		definition,
 	});
+	expect(
+		(await scheduleServices.listDueSchedules(database.db, new Date())).map(
+			(row) => row.workflowRowId,
+		),
+	).toEqual([ghWorkflowId]);
 	const before = await generalJobs();
 	expect(await scheduleTick(deps())).toEqual({
 		schedules: 1,

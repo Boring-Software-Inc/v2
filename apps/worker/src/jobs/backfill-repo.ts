@@ -1,7 +1,15 @@
-import type { RepoScopedEvent, UsageSource } from "@tripwire/contracts";
+import type {
+	GitCafeRepositoryBinding,
+	RepoScopedEvent,
+	UsageSource,
+} from "@tripwire/contracts";
 import type { AiReviewGenerate } from "@tripwire/core";
 import type { BackfillRepoJob, Db } from "@tripwire/db";
-import { eventServices, repoServices } from "@tripwire/db";
+import {
+	eventServices,
+	gitCafeLifecycleServices,
+	repoServices,
+} from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { Logger } from "pino";
@@ -32,6 +40,7 @@ export interface BackfillDeps {
 	logger: Logger;
 	/** Derived COGS source, threaded to runWorkflows for best-effort metering. */
 	meterSource?: UsageSource;
+	gitCafeHistoryBinding?: GitCafeRepositoryBinding;
 }
 
 const sleep = (ms: number): Promise<void> =>
@@ -68,6 +77,14 @@ export async function backfillRepo(
 
 	let done = 0;
 	for (const event of events) {
+		if (
+			deps.gitCafeHistoryBinding &&
+			!(await gitCafeLifecycleServices.matchesGitCafeRepositoryBinding(
+				db,
+				deps.gitCafeHistoryBinding,
+			))
+		)
+			break;
 		try {
 			const result = await runWorkflows(
 				{
@@ -77,6 +94,7 @@ export async function backfillRepo(
 					makeGenerate,
 					meterSource: deps.meterSource,
 					surface: false,
+					gitCafeHistoryBinding: deps.gitCafeHistoryBinding,
 				},
 				event.normalized as RepoScopedEvent,
 				event.id,

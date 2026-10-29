@@ -286,7 +286,8 @@ export async function turnOnGate(
 	if (repo && !ingestForgeSchema.safeParse(repo.forge).success)
 		return { ok: false, armed: false, reason: "protection-unavailable" };
 	if (repo?.forge === "gitcafe") {
-		if (repo.armed) return armGitCafeRepository(db, repoId, null);
+		if (!repo.installationId || !repo.orgId)
+			return { ok: false, armed: false, reason: "protection-unavailable" };
 		let queue: PgBoss | null;
 		try {
 			queue = boss ? await boss() : null;
@@ -452,7 +453,10 @@ export async function saveWorkflowDefinition(
 		repoId,
 		name: valid.name,
 		definition: valid,
-		enabled: repo !== null && ingestForgeSchema.safeParse(repo.forge).success,
+		enabled:
+			repo !== null &&
+			repo.forge !== "gitcafe" &&
+			ingestForgeSchema.safeParse(repo.forge).success,
 	});
 	return id;
 }

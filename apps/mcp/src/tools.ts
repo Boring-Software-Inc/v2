@@ -628,7 +628,7 @@ export function registerTools(
 					);
 					const result = await repoServices.turnOnGate(
 						ctx.db,
-						ctx.getBoss,
+						() => ctx.getBoss(found.forge),
 						found.id,
 					);
 					if (!result.ok)
@@ -1362,7 +1362,7 @@ export function registerTools(
 					}
 					const result = await moderationServices.decideRepoModerationItem(
 						ctx.db,
-						{ pool: ctx.pool, boss: await ctx.getBoss() },
+						{ pool: ctx.pool, boss: await ctx.getBoss(found.forge) },
 						{
 							repo: found,
 							itemId,

@@ -100,6 +100,7 @@ export async function registerGitCafeProtectionQueues(
 						pool: deps.pool,
 						reads: deps.resolveForge("gitcafe")?.reads ?? null,
 						makeGenerate: deps.makeGenerate,
+						gitCafeHistoryBinding: binding,
 						logger: deps.logger.child({ requestId, repoId: parsed.repoId }),
 					},
 					parsed,

@@ -2,6 +2,7 @@ import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
 	GITCAFE_VERDICT_ACTION_KINDS,
 	type GitCafeEvaluationPhase,
+	type GitCafeRepositoryBinding,
 	gitCafeActionPayloadSchema,
 	gitCafeEvaluationPhaseSchema,
 	HELD_VERDICTS,
@@ -218,7 +219,9 @@ export async function listStuckQueuedRuns(
 			and(
 				eq(runs.status, "queued"),
 				lt(runs.createdAt, createdBefore),
-				forge === undefined ? undefined : eq(events.forge, forge),
+				forge === undefined
+					? ne(events.forge, "gitcafe")
+					: eq(events.forge, forge),
 				/** Native requests have durable event recovery through evidence outages. */
 				sql`NOT EXISTS (
 					SELECT 1 FROM events request
@@ -434,6 +437,7 @@ export interface PersistRunEvaluationInput {
 	moderationNodeIds: string[];
 	actions: RecordActionInput[];
 	suppressed: boolean;
+	gitCafeHistoryBinding?: GitCafeRepositoryBinding;
 }
 
 /** A run is reusable on recovery only after its evaluation audit and action intents commit together. */
@@ -442,6 +446,28 @@ export async function persistRunEvaluation(
 	input: PersistRunEvaluationInput,
 ) {
 	return db.transaction(async (tx) => {
+		if (input.gitCafeHistoryBinding) {
+			if (!input.run.backfill || !input.suppressed)
+				throw new Error(
+					"A history binding requires suppressed backfill persistence",
+				);
+			const {
+				lockGitCafeRepositoryAuthority,
+				matchesGitCafeRepositoryBinding,
+			} = await import("./gitcafe-lifecycle.ts");
+			const authority = await lockGitCafeRepositoryAuthority(
+				tx,
+				input.gitCafeHistoryBinding.repoId,
+			);
+			if (
+				!authority?.armed ||
+				!(await matchesGitCafeRepositoryBinding(
+					tx,
+					input.gitCafeHistoryBinding,
+				))
+			)
+				return null;
+		}
 		const runId = input.existingRunId ?? (await createRun(tx, input.run));
 		if (input.existingRunId)
 			await finalizeRun(tx, runId, {
@@ -635,7 +661,10 @@ export async function listStuckActions(
 			and(
 				eq(runActions.status, "recorded"),
 				forge === undefined
-					? inArray(events.forge, [...ingestForgeSchema.options])
+					? inArray(
+							events.forge,
+							ingestForgeSchema.options.filter((item) => item !== "gitcafe"),
+						)
 					: eq(events.forge, forge),
 				lt(runActions.recordedAt, recordedBefore),
 			),

@@ -213,8 +213,8 @@ test("GitCafe arming queues one isolated backfill and preserves ordinary queues"
 	).toEqual(before.rows);
 });
 
-for (const generationChanged of [false, true]) {
-	test(`GitCafe arming backfill ${generationChanged ? "refuses changed authority" : "evaluates only claimed history without forge writes or general consumers"}`, async () => {
+for (const drift of ["none", "pickup", "commit"] as const) {
+	test(`GitCafe arming backfill ${drift === "none" ? "evaluates only claimed history without forge writes or general consumers" : `refuses authority changed at ${drift}`}`, async () => {
 		const definition = workflowDefinitionSchema.parse({
 			id: generateId(),
 			name: "Historical block",
@@ -290,13 +290,31 @@ for (const generationChanged of [false, true]) {
 		expect(
 			await repoServices.turnOnGate(database.db, async () => boss, repoId),
 		).toEqual({ ok: true, armed: true });
-		if (generationChanged)
+		if (drift === "pickup")
 			await database.db
 				.update(gitCafeInstallationLifecycle)
 				.set({ generation: 2 })
 				.where(
 					eq(gitCafeInstallationLifecycle.installationId, installation.id),
 				);
+		const persist = runServices.persistRunEvaluation;
+		const changed =
+			drift === "commit"
+				? spyOn(runServices, "persistRunEvaluation").mockImplementationOnce(
+						async (...args) => {
+							await database.db
+								.update(gitCafeInstallationLifecycle)
+								.set({ generation: 2 })
+								.where(
+									eq(
+										gitCafeInstallationLifecycle.installationId,
+										installation.id,
+									),
+								);
+							return persist(...args);
+						},
+					)
+				: null;
 		const logger = pino({ level: "silent" });
 		const isolated = await createGitCafeConnectionBoss(container.url, logger);
 		try {
@@ -333,7 +351,7 @@ for (const generationChanged of [false, true]) {
 				).rows[0]?.state,
 			).toBe("completed");
 			const run = await runServices.getRunForEvent(database.db, validId);
-			if (generationChanged) expect(run).toBeNull();
+			if (drift !== "none") expect(run).toBeNull();
 			else {
 				expect(run).toMatchObject({
 					backfill: true,
@@ -364,10 +382,46 @@ for (const generationChanged of [false, true]) {
 				(await repoServices.getRepoById(database.db, repoId))?.backfillTotal,
 			).toBeNull();
 		} finally {
+			changed?.mockRestore();
 			await isolated.stop();
 		}
 	}, 20_000);
 }
+
+test("GitCafe arming admits backfill after a concurrent disarm", async () => {
+	const lock = await database.pool.connect();
+	await lock.query("SELECT pg_advisory_lock(hashtext('gitcafe-connection'))");
+	const arming = repoServices.turnOnGate(database.db, async () => boss, repoId);
+	try {
+		const until = Date.now() + 3000;
+		let waiting = false;
+		while (Date.now() < until) {
+			waiting =
+				(
+					await database.pool.query(
+						"SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory'",
+					)
+				).rows.length > 0;
+			if (waiting) break;
+			await Bun.sleep(10);
+		}
+		expect(waiting).toBe(true);
+		expect(await repoServices.setRepoArmed(database.db, repoId, false)).toEqual(
+			{ ok: true, armed: false },
+		);
+	} finally {
+		await lock.query(
+			"SELECT pg_advisory_unlock(hashtext('gitcafe-connection'))",
+		);
+		lock.release();
+	}
+	expect(await arming).toEqual({ ok: true, armed: true });
+	const jobs = await database.pool.query(
+		"SELECT id FROM pgboss.job WHERE name=$1 AND data->>'repoId'=$2",
+		[GITCAFE_BACKFILL_REPO_QUEUE, repoId],
+	);
+	expect(jobs.rows).toHaveLength(1);
+});
 
 test("GitCafe workflow enable refuses withdrawn authority while disabling remains possible", async () => {
 	const workflow = await workflowServices.createWorkflow(database.db, {

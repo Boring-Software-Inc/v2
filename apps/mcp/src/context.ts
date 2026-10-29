@@ -6,6 +6,7 @@ import {
 } from "@tripwire/auth/org-gate";
 import {
 	DEFAULT_FORGE_ORIGIN,
+	type Forge,
 	type ForgeId,
 	type OrgPermission,
 } from "@tripwire/contracts";
@@ -20,7 +21,7 @@ import type { VerifiedAgent } from "./token.ts";
 export interface ToolContext {
 	db: Db;
 	pool: Pool;
-	getBoss: () => Promise<PgBoss>;
+	getBoss: (forge?: Forge) => Promise<PgBoss>;
 	config: McpConfig;
 	agent: VerifiedAgent;
 	accessDenied: string | null;

@@ -7,11 +7,14 @@ import {
 	DEFAULT_FORGE_ORIGIN,
 	DEFAULT_WORKFLOW,
 	forgeIdSchema,
+	GITCAFE_BACKFILL_REPO_QUEUE,
 	type JsonValue,
 } from "@tripwire/contracts";
 import {
 	applyMigrations,
+	createBoss,
 	createDb,
+	createGitCafeConnectionBoss,
 	createTestDatabase,
 	type Db,
 	ensureTeamOrg,
@@ -24,6 +27,8 @@ import {
 } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
 import { eq } from "drizzle-orm";
+import type { PgBoss } from "pg-boss";
+import pino from "pino";
 import { z } from "zod";
 import { readConfig } from "./config.ts";
 import { parseRepoRef } from "./context.ts";
@@ -40,6 +45,8 @@ let foreignRunId: string;
 let foreignItemId: string;
 let ownRepoId: string;
 let ownRunId: string;
+let gitCafeBoss: Promise<PgBoss> | null = null;
+const queueRequests: string[] = [];
 const userId = generateId();
 const scopes: AgentScope[] = [
 	"tripwire:read",
@@ -57,6 +64,8 @@ beforeAll(async () => {
 	database = await createTestDatabase();
 	({ db, pool } = createDb(database.url));
 	await applyMigrations(db);
+	const bootstrap = await createBoss(database.url);
+	await bootstrap.stop({ graceful: false, close: true });
 	await db
 		.insert(schema.user)
 		.values({ id: userId, name: "isolation", email: `${userId}@example.com` });
@@ -117,8 +126,19 @@ beforeAll(async () => {
 		{
 			db,
 			pool,
-			getBoss: () =>
-				Promise.reject(new Error("a denied request must not reach the queue")),
+			getBoss: (forge) => {
+				queueRequests.push(forge ?? "general");
+				if (forge === "gitcafe") {
+					gitCafeBoss ??= createGitCafeConnectionBoss(
+						database.url,
+						pino({ level: "silent" }),
+					);
+					return gitCafeBoss;
+				}
+				return Promise.reject(
+					new Error("a denied request must not reach the queue"),
+				);
+			},
 			config: readConfig({
 				BETTER_AUTH_SECRET: "test",
 				APP_URL: "http://localhost:3420",
@@ -137,6 +157,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await client?.close();
+	if (gitCafeBoss) await (await gitCafeBoss).stop();
 	await pool?.end();
 	await database?.stop();
 });
@@ -147,7 +168,7 @@ async function call(name: string, args: Record<string, JsonValue>) {
 	);
 }
 
-test("GitCafe gate and workflow refusals cannot reach the queue or report protection enabled", async () => {
+test("GitCafe tools require lifecycle authority and arm through the isolated queue", async () => {
 	const repoId = await repoServices.ensureRepo(db, {
 		forge: "gitcafe",
 		externalId: "connection-only-repo",
@@ -177,12 +198,43 @@ test("GitCafe gate and workflow refusals cannot reach the queue or report protec
 	});
 	expect(enabled.isError).toBe(true);
 	expect(enabled.content[0]?.text).toContain(
-		"Protection is unavailable for this forge",
+		"GitCafe installation access is unavailable",
 	);
 	expect((await repoServices.getRepoById(db, repoId))?.armed).toBe(false);
 	expect(
 		(await workflowServices.getWorkflow(db, { repoId, workflowId }))?.enabled,
 	).toBe(false);
+	expect(queueRequests).toEqual([]);
+	const installationId = `ins_${generateId()}`;
+	await db.insert(schema.organizationInstallations).values({
+		id: generateId(),
+		forge: "gitcafe",
+		installationId,
+		organizationId: orgId,
+		accountLogin: "connected-owner",
+	});
+	await db.insert(schema.gitCafeInstallationLifecycle).values({
+		installationId,
+		status: "active",
+		generation: 1,
+		authorityAt: new Date(),
+	});
+	await db
+		.update(schema.repos)
+		.set({ installationId })
+		.where(eq(schema.repos.id, repoId));
+	const armed = await call("turn_on_gate", { repo });
+	expect(armed.isError).not.toBe(true);
+	expect(JSON.parse(armed.content[0]?.text ?? "")).toMatchObject({
+		gateOn: true,
+	});
+	expect(queueRequests).toEqual(["gitcafe"]);
+	expect((await repoServices.getRepoById(db, repoId))?.armed).toBe(true);
+	const jobs = await pool.query<{ name: string }>(
+		"SELECT name FROM pgboss.job WHERE data->>'repoId'=$1",
+		[repoId],
+	);
+	expect(jobs.rows).toEqual([{ name: GITCAFE_BACKFILL_REPO_QUEUE }]);
 	await db
 		.delete(schema.workflowDefinitions)
 		.where(eq(schema.workflowDefinitions.repoId, repoId));
