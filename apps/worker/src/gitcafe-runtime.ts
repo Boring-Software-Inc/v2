@@ -370,17 +370,28 @@ export function buildGitCafeRuntime(
 				db,
 				{ ...input, mode: "existing" },
 			);
-			if (existing) return { ok: true, value: existing };
+			if (existing.ok) return existing;
+			if (existing.reason !== "missing")
+				return {
+					ok: false,
+					reason:
+						existing.reason === "unbound" ? "identity-mismatch" : "inactive",
+				};
 			const target = await gitCafeActionServices.prepareGitCafeCheckRerun(db, {
 				...input,
 				mode: "preview",
 			});
-			if (!target) return { ok: false, reason: "inactive" };
+			if (!target.ok)
+				return {
+					ok: false,
+					reason:
+						target.reason === "unbound" ? "identity-mismatch" : "inactive",
+				};
 			const verified = await verifyGitCafeCheckRerequest(
 				bound.client,
 				bound.installation,
 				event,
-				target.number,
+				target.value.number,
 				Date.now() + 300_000,
 			);
 			if (!verified.ok) return verified;
@@ -388,7 +399,12 @@ export function buildGitCafeRuntime(
 				...input,
 				mode: "create",
 			});
-			return job ? { ok: true, value: job } : { ok: false, reason: "inactive" };
+			return job.ok
+				? job
+				: {
+						ok: false,
+						reason: job.reason === "unbound" ? "identity-mismatch" : "inactive",
+					};
 		},
 		refreshEvent: async (event) => {
 			if (!("changeRequest" in event))

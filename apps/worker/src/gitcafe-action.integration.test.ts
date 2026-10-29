@@ -25,6 +25,7 @@ import {
 	applyMigrations,
 	createBoss,
 	createDb,
+	createGitCafeConnectionBoss,
 	createTestDatabase,
 	eventServices,
 	gitCafeActionServices,
@@ -44,6 +45,7 @@ import { normalizeGitCafePullEvent } from "@tripwire/forge-gitcafe";
 import { generateId } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import pino from "pino";
+import { registerGitCafeProtectionQueues } from "./gitcafe-protection-worker.ts";
 import { buildGitCafeRuntime } from "./gitcafe-runtime.ts";
 import {
 	emitClosedReviewSurfaces,
@@ -1037,6 +1039,7 @@ for (const { verdict, scenario } of [
 	{ verdict: "pass", scenario: "native-rerequest-read-outage" },
 	{ verdict: "pass", scenario: "native-rerequest-write-outage" },
 	{ verdict: "pass", scenario: "native-rerequest-refresh-outage" },
+	{ verdict: "pass", scenario: "native-rerequest-unbound" },
 	{ verdict: "pass", scenario: "native-rerequest-generation" },
 	{ verdict: "pass", scenario: "native-rerequest-stale-head" },
 	{ verdict: "pass", scenario: "native-rerequest-head-change" },
@@ -1358,7 +1361,10 @@ for (const { verdict, scenario } of [
 						key: check.key,
 						name: check.name,
 						headOid: check.headOid,
-						externalId: check.externalId,
+						externalId:
+							scenario === "native-rerequest-unbound"
+								? row.id
+								: check.externalId,
 						detailsUrl: check.detailsUrl,
 					},
 				});
@@ -1377,6 +1383,58 @@ for (const { verdict, scenario } of [
 					)
 				).rows;
 				if (!requestRow) throw new Error("Missing re-run event");
+				if (scenario === "native-rerequest-unbound") {
+					expect(await runtime.prepareCheckRerequest(requestRow.id)).toEqual({
+						ok: false,
+						reason: "identity-mismatch",
+					});
+					await gitCafeLifecycleServices.finishGitCafeEvent(
+						database.db,
+						row.id,
+					);
+					await database.pool.query(
+						"DELETE FROM pgboss.job WHERE name=$1 AND data->>'eventId'<>$2",
+						[GITCAFE_PROCESS_EVENT_QUEUE, requestRow.id],
+					);
+					const isolated = await createGitCafeConnectionBoss(
+						container.url,
+						deps.logger,
+					);
+					try {
+						await registerGitCafeProtectionQueues(
+							deps,
+							isolated,
+							runtime.prepareCheckRerequest,
+							runtime,
+						);
+						const until = Date.now() + 10_000;
+						while (
+							!(await eventServices.getEventById(database.db, requestRow.id))
+								?.processedAt &&
+							Date.now() < until
+						)
+							await Bun.sleep(20);
+						expect(
+							(await eventServices.getEventById(database.db, requestRow.id))
+								?.processedAt,
+						).not.toBeNull();
+					} finally {
+						await isolated.stop();
+					}
+					expect(
+						await runServices.getRunById(database.db, requestRow.id),
+					).toBeNull();
+					await database.pool.query("DELETE FROM pgboss.job WHERE name=$1", [
+						GITCAFE_PROCESS_EVENT_QUEUE,
+					]);
+					expect(
+						await gitCafeLifecycleServices.recoverGitCafeEvents(
+							database.db,
+							boss,
+						),
+					).toBe(0);
+					return;
+				}
 				if (scenario === "native-rerequest-read-outage") {
 					rerequestReadStatus = 503;
 					expect(
@@ -1469,6 +1527,17 @@ for (const { verdict, scenario } of [
 					).rowCount,
 				).toBe(1);
 				if (scenario === "native-rerequest-refresh-outage") {
+					const ordinaryQueued = await runServices.createRun(database.db, {
+						eventId: row.id,
+						repoFullName: saved.repoFullName,
+						subjectNumber: saved.subjectNumber,
+						headSha: saved.headSha,
+						snapshot: workflowDefinitionSchema
+							.array()
+							.parse(saved.workflowSnapshot),
+						status: "queued",
+						verdict: null,
+					});
 					pullReadStatus = 503;
 					await expect(
 						rerunChangeRequest(deps, prepared.value),
@@ -1476,6 +1545,20 @@ for (const { verdict, scenario } of [
 					expect(
 						(await runServices.getRunById(database.db, requestRow.id))?.status,
 					).toBe("queued");
+					await database.pool.query(
+						"UPDATE runs SET created_at=now()-interval '4 minutes' WHERE id=ANY($1::text[])",
+						[[requestRow.id, ordinaryQueued]],
+					);
+					await sweepActions(
+						{ ...deps, adapterFor: async () => runtime.adapter },
+						{ forge: "gitcafe" },
+					);
+					expect(
+						(await runServices.getRunById(database.db, requestRow.id))?.status,
+					).toBe("queued");
+					expect(
+						(await runServices.getRunById(database.db, ordinaryQueued))?.status,
+					).toBe("failed");
 					pullReadStatus = 200;
 				}
 				if (scenario === "native-rerequest-head-change") {
@@ -2189,5 +2272,5 @@ for (const { verdict, scenario } of [
 			expect(actions.rows.every((action) => action.status === "executed")).toBe(
 				true,
 			);
-	});
+	}, 20_000);
 }
