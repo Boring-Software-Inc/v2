@@ -145,6 +145,7 @@ export {
 	type GitCafeReadPullThreadItem,
 	type GitCafeReadPullThreadPage,
 	type GitCafeReadRefPage,
+	type GitCafeReadReviewerPage,
 	type GitCafeRepositoryBinding,
 	gitCafeCatalogValuesSchema,
 	gitCafeReadActorPageSchema,
@@ -165,6 +166,7 @@ export {
 	gitCafeReadPullThreadPageSchema,
 	gitCafeReadPullThreadSchema,
 	gitCafeReadRefPageSchema,
+	gitCafeReadReviewerPageSchema,
 	gitCafeRepositoryBindingSchema,
 } from "./gitcafe-read.ts";
 export * from "./gitcafe-receipt.ts";

@@ -10,6 +10,7 @@ import {
 	gitCafeReadPullPageSchema,
 	gitCafeReadPullSchema,
 	gitCafeReadPullThreadPageSchema,
+	gitCafeReadPullThreadSchema,
 	gitCafeReadRefPageSchema,
 } from "@tripwire/contracts";
 import publicProfile from "../fixtures/gitcafe-profile.json";
@@ -26,9 +27,18 @@ import scratchChanges from "../fixtures/gitcafe-read-scratch-changes.json";
 import scratchCommits from "../fixtures/gitcafe-read-scratch-commits.json";
 import scratchDiff from "../fixtures/gitcafe-read-scratch-diff-0.json";
 import scratchPull from "../fixtures/gitcafe-read-scratch-pull.json";
+import currentScratchPull from "../fixtures/gitcafe-read-scratch-pull-current.json";
 import blob from "../fixtures/gitcafe-source.json";
 
 describe("captured GitCafe read boundaries", () => {
+	test("the current scratch detail retains its captured version and immutable identity", () => {
+		const current = gitCafeReadPullThreadSchema.parse(currentScratchPull);
+		const listed = pullThreads.items[0];
+		if (!listed) throw new Error("Captured PR list is empty");
+		expect(current.id).toBe(listed.id);
+		expect(current.version).toBe(listed.version);
+		expect(current.version).toBe(1);
+	});
 	test("parses installed branch and thread pages without inventing missing detail", () => {
 		expect(
 			gitCafeReadRefPageSchema.parse(refs).items.map((item) => item.name),

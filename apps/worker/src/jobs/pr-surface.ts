@@ -8,6 +8,7 @@ import {
 	GITCAFE_VERDICT_ACTION_KINDS,
 	type GitCafeEvaluationPhase,
 	gitCafeActionPayloadSchema,
+	gitCafeReviewerRefSchema,
 	isAiReviewNotRunStep,
 	labelParamsSchema,
 	lockParamsSchema,
@@ -961,7 +962,10 @@ export function toForgeAction(
 				repoFullName,
 				number,
 				reviewers: targets.success
-					? targets.data.reviewers.map((reviewer) => reviewer.login)
+					? targets.data.reviewers.map((reviewer) => {
+							const gitCafe = gitCafeReviewerRefSchema.safeParse(reviewer);
+							return gitCafe.success ? gitCafe.data.id : reviewer.login;
+						})
 					: [],
 				teamReviewers: targets.success ? targets.data.teamReviewers : [],
 			};

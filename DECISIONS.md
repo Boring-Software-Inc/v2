@@ -585,3 +585,9 @@ GitCafe response refresh uses that same committed-evaluation planner and phase-f
 ## 2026-10-28 — GitCafe pushes retain per-ref evidence
 
 Complete signed GitCafe pushes fan out atomically by installation, event and ref, retaining the original raw payload on every event. Each ref must still match current installed reads before evaluation; uncommitted projections are rehydrated on retry. Deleted refs have a null head, and unavailable push commit counts stay null rather than borrowing a ref count. Installed bot identities suppress self-generated activity by immutable actor ID. Push-triggered catalog refresh uses the existing isolated queue; completed refs remain completed while unfinished siblings recover.
+
+## 2026-10-28 — GitCafe reviewer selections retain actor IDs
+
+Typed GitCafe reviewer selections store immutable string actor IDs alongside display handles; GitHub keeps its numeric IDs and legacy handle references. GitCafe delivery uses the stored actor ID, while GitHub delivery retains its existing login mapping. Both boundaries keep their own validated formats.
+
+GitCafe supplies reviewer candidates per pull request. Its repository suggestions therefore collect complete candidate lists from current open PRs, fencing each detail read before and after enumeration. The picker names that source; these suggestions grant no authority, and action delivery rechecks the target PR's current candidate list. Ordinary source failures retain the previous reviewer cache; installation or claim invalidation refuses the whole catalog bundle. GitCafe's typed reviewer array uses the existing `repo_suggestions` JSON column, with a contracts schema validated on write; the GitHub numeric reviewer table and physical SQL schema remain unchanged. This avoids introducing a parallel cache or inventing organization-wide reviewer eligibility.

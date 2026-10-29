@@ -5,6 +5,7 @@ import {
 	ingestForgeSchema,
 	type RepoArmingResult,
 	type ResponseConfig,
+	repoSuggestionStringsSchema,
 	responseConfigSchema,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
@@ -506,7 +507,10 @@ export async function getRepoSuggestionList(
 			and(eq(repoSuggestions.repoId, repoId), eq(repoSuggestions.kind, kind)),
 		);
 	const row = rows[0];
-	return { values: row?.values ?? [], updatedAt: row?.updatedAt ?? null };
+	return {
+		values: repoSuggestionStringsSchema.parse(row?.values ?? []),
+		updatedAt: row?.updatedAt ?? null,
+	};
 }
 
 /**
@@ -527,12 +531,19 @@ export async function upsertRepoSuggestions(
 	kind: string,
 	values: string[],
 ): Promise<void> {
+	const parsed = repoSuggestionStringsSchema.parse(values);
 	await db
 		.insert(repoSuggestions)
-		.values({ id: generateId(), repoId, kind, values, updatedAt: new Date() })
+		.values({
+			id: generateId(),
+			repoId,
+			kind,
+			values: parsed,
+			updatedAt: new Date(),
+		})
 		.onConflictDoUpdate({
 			target: [repoSuggestions.repoId, repoSuggestions.kind],
-			set: { values, updatedAt: new Date() },
+			set: { values: parsed, updatedAt: new Date() },
 		});
 }
 

@@ -638,7 +638,10 @@ function EditorBody({
 	const syncedReviewers = reviewerData?.syncedAt
 		? reviewerData.reviewers
 		: undefined;
-	const reviewerScope = useMemo(() => ({ org, repoId }), [org, repoId]);
+	const reviewerScope = useMemo(
+		() => ({ org, repoId, forge }),
+		[org, repoId, forge],
+	);
 
 	const candidate = useMemo(
 		() => graphToCandidate(meta, nodes, edges),

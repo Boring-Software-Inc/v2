@@ -13,6 +13,7 @@ import { repoReviewers, repos } from "../schema/repos.ts";
 import {
 	lastReviewerSync,
 	listRepoReviewers,
+	replaceGitCafeReviewerSuggestions,
 	replaceRepoReviewers,
 } from "./reviewers.ts";
 import {
@@ -62,6 +63,38 @@ const HUBOT = {
 };
 
 describe("repo reviewers", () => {
+	test("GitCafe cache preserves stable string IDs, empty syncs and other repositories", async () => {
+		const repoId = await newRepo();
+		await db
+			.update(repos)
+			.set({ forge: "gitcafe" })
+			.where(eq(repos.id, repoId));
+		const other = await newRepo();
+		await replaceRepoReviewers(db, other, [OCTOCAT]);
+		const person = {
+			id: "act_synthetic-stable",
+			login: "provider_handle",
+			avatarUrl: "",
+			permission: "review-candidate",
+		};
+		await replaceGitCafeReviewerSuggestions(db, repoId, [person, person]);
+		expect((await listRepoReviewers(db, repoId)).reviewers).toEqual([person]);
+		await replaceGitCafeReviewerSuggestions(db, repoId, [
+			{ ...person, login: "renamed_handle" },
+		]);
+		expect((await listRepoReviewers(db, repoId)).reviewers).toEqual([
+			{ ...person, login: "renamed_handle" },
+		]);
+		await expect(
+			replaceGitCafeReviewerSuggestions(db, repoId, [OCTOCAT]),
+		).rejects.toThrow();
+		expect((await listRepoReviewers(db, repoId)).reviewers).toHaveLength(1);
+		await replaceGitCafeReviewerSuggestions(db, repoId, []);
+		const empty = await listRepoReviewers(db, repoId);
+		expect(empty.reviewers).toEqual([]);
+		expect(empty.syncedAt).not.toBeNull();
+		expect((await listRepoReviewers(db, other)).reviewers).toEqual([OCTOCAT]);
+	});
 	test("an unsynced repo lists nothing and has no sync time", async () => {
 		const repoId = await newRepo();
 		expect(await listRepoReviewers(db, repoId)).toEqual({
