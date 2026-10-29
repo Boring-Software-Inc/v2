@@ -497,6 +497,7 @@ for (const kind of ["pull", "issue"] as const) {
 		| "block-outage"
 		| "block-head-change"
 		| "thread-head-change"
+		| "head-race"
 	> = [...COMMENT_SCENARIOS];
 	if (kind === "pull")
 		scenarios.push(
@@ -504,6 +505,7 @@ for (const kind of ["pull", "issue"] as const) {
 			"block-outage",
 			"block-head-change",
 			"thread-head-change",
+			"head-race",
 		);
 	for (const scenario of scenarios) {
 		test(`signed ${kind} comment across ${scenario}`, async () => {
@@ -563,6 +565,7 @@ for (const kind of ["pull", "issue"] as const) {
 			const writes: string[] = [];
 			let lockOutage = true;
 			let closeOutage = scenario === "thread-head-change";
+			let subjectReads = 0;
 			let changed = false;
 			let reviewAttempts = 0;
 			let reviewPosted = false;
@@ -600,7 +603,15 @@ for (const kind of ["pull", "issue"] as const) {
 						);
 					if (path === "/api/repos/boring/scratch")
 						return Response.json(repository);
-					if (path === target) return Response.json(subject);
+					if (path === target) {
+						if (scenario === "head-race" && ++subjectReads === 2)
+							subject = {
+								...subject,
+								headOid: "b".repeat(40),
+								version: subject.version + 1,
+							};
+						return Response.json(subject);
+					}
 					if (path === `${target}/reviews`) {
 						if (init.method === "POST") {
 							reviewAttempts++;
@@ -798,7 +809,66 @@ for (const kind of ["pull", "issue"] as const) {
 					).toBeNull();
 					changed = true;
 				}
-				await processEvent(deps, { eventId: row.id });
+				if (scenario === "head-race") {
+					await database.pool.query(
+						"DELETE FROM pgboss.job WHERE name=$1 AND data->>'eventId'<>$2",
+						[GITCAFE_PROCESS_EVENT_QUEUE, row.id],
+					);
+					const isolated = await createGitCafeConnectionBoss(
+						container.url,
+						deps.logger,
+					);
+					try {
+						await registerGitCafeProtectionQueues(
+							deps,
+							isolated,
+							runtime.prepareCheckRerequest,
+							runtime,
+						);
+						const until = Date.now() + 10_000;
+						let state: string | undefined;
+						while (Date.now() < until) {
+							state = (
+								await database.pool.query<{ state: string }>(
+									"SELECT state FROM pgboss.job WHERE name=$1 AND data->>'eventId'=$2",
+									[GITCAFE_PROCESS_EVENT_QUEUE, row.id],
+								)
+							).rows[0]?.state;
+							if (
+								state === "retry" ||
+								(await eventServices.getEventById(database.db, row.id))
+									?.processedAt
+							)
+								break;
+							await Bun.sleep(20);
+						}
+						expect(
+							(await eventServices.getEventById(database.db, row.id))
+								?.processedAt,
+						).toBeNull();
+						expect(
+							await runServices.getRunForEvent(database.db, row.id),
+						).toBeNull();
+						expect(state).toBe("retry");
+						expect(writes).toEqual([]);
+						await database.pool.query(
+							"UPDATE pgboss.job SET start_after=now() WHERE name=$1 AND data->>'eventId'=$2 AND state='retry'",
+							[GITCAFE_PROCESS_EVENT_QUEUE, row.id],
+						);
+						while (
+							!(await eventServices.getEventById(database.db, row.id))
+								?.processedAt &&
+							Date.now() < until
+						)
+							await Bun.sleep(20);
+						expect(
+							(await eventServices.getEventById(database.db, row.id))
+								?.processedAt,
+						).not.toBeNull();
+					} finally {
+						await isolated.stop();
+					}
+				} else await processEvent(deps, { eventId: row.id });
 				expect(
 					(await eventServices.getEventById(database.db, row.id))?.normalized,
 				).toMatchObject({
@@ -818,6 +888,8 @@ for (const kind of ["pull", "issue"] as const) {
 					return;
 				}
 				if (!saved) throw new Error("Missing comment run");
+				if (scenario === "head-race")
+					expect(saved.headSha).toBe("b".repeat(40));
 				if (blocking) {
 					expect(saved.headSha).toBe(reviewData.commitOid);
 					if (scenario === "block-head-change")
@@ -889,7 +961,7 @@ for (const kind of ["pull", "issue"] as const) {
 					delete process.env.TRIPWIRE_DISABLE_EXEMPTION;
 				else process.env.TRIPWIRE_DISABLE_EXEMPTION = previous;
 			}
-		});
+		}, 20_000);
 	}
 }
 
