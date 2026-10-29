@@ -12,13 +12,13 @@ import {
 	type GitCafeRepositoryBinding,
 	type GitCafeRetirement,
 	gitCafeCatalogValuesSchema,
+	gitCafeCompletePushEventSchema,
 	gitCafeDispatchableRepositoryEventTypeSchema,
 	gitCafeInstallationCreatedSchema,
 	gitCafeLifecycleEventSchema,
 	gitCafeLifecycleEventTypeSchema,
 	gitCafeLifecycleLookupSchema,
 	gitCafeProcessEventJobSchema,
-	gitCafePushEventSchema,
 	gitCafePushRefDeliverySchema,
 	gitCafeReceiptJobSchema,
 	gitCafeReceiptSchema,
@@ -443,14 +443,9 @@ export async function dispatchGitCafeRepositoryReceipt(
 			else {
 				const push =
 					row.event_type === "git.push"
-						? gitCafePushEventSchema.safeParse(receipt.payload)
+						? gitCafeCompletePushEventSchema.safeParse(receipt.payload)
 						: null;
-				const validPush =
-					push?.success &&
-					!push.data.git.refUpdatesTruncated &&
-					push.data.git.refUpdatesCount === push.data.git.refUpdates.length &&
-					new Set(push.data.git.refUpdates.map((ref) => ref.ref)).size ===
-						push.data.git.refUpdates.length;
+				const validPush = push?.success;
 				const deliveries =
 					push?.success && validPush
 						? push.data.git.refUpdates.map((update) =>

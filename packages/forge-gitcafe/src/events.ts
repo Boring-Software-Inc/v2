@@ -10,13 +10,13 @@ import {
 	gitCafeCommentDetailSchema,
 	gitCafeCommentEventSchema,
 	gitCafeCommentSubjectSchema,
+	gitCafeCompletePushEventSchema,
 	gitCafeHydratedCommentEventSchema,
 	gitCafeHydratedPullEventSchema,
 	gitCafeHydratedPushRefSchema,
 	gitCafeIssueCommentPageSchema,
 	gitCafePullEventSchema,
 	gitCafePullIdentitySchema,
-	gitCafePushEventSchema,
 	type NormalizedEvent,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
@@ -38,17 +38,10 @@ export async function hydrateGitCafePushRef(
 	| GitCafeReadFailure
 	| { ok: false; reason: "stale-event" }
 > {
-	const parsed = gitCafePushEventSchema.safeParse(input);
+	const parsed = gitCafeCompletePushEventSchema.safeParse(input);
 	if (!parsed.success) return { ok: false, reason: "invalid-response" };
 	const event = parsed.data;
-	const updates = event.git.refUpdates;
-	if (
-		event.git.refUpdatesTruncated ||
-		event.git.refUpdatesCount !== updates.length ||
-		new Set(updates.map((item) => item.ref)).size !== updates.length
-	)
-		return { ok: false, reason: "invalid-response" };
-	const update = updates.find((item) => item.ref === ref);
+	const update = event.git.refUpdates.find((item) => item.ref === ref);
 	if (
 		!update ||
 		update.deleted !== (update.afterOid === null) ||
