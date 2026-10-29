@@ -16,8 +16,10 @@ export {
 	type GitCafePullHydrationResult,
 	hydrateGitCafeCommentEvent,
 	hydrateGitCafePullEvent,
+	hydrateGitCafePushRef,
 	normalizeGitCafeCommentEvent,
 	normalizeGitCafePullEvent,
+	normalizeGitCafePushRef,
 } from "./events.ts";
 export {
 	type GitCafeAuthorizedJsonRequest,

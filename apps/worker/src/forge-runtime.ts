@@ -63,6 +63,7 @@ export function normalizeFor(
  * `processEvent` forge-agnostic — it never names a forge, it names the event's.
  */
 export interface ForgeRuntime {
+	isSelfEvent?: (event: NormalizedEvent) => boolean;
 	refreshEvent?: (
 		event: RepoScopedEvent,
 	) => Promise<ForgeReadResult<RepoScopedEvent>>;

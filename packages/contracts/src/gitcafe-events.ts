@@ -239,3 +239,34 @@ export const gitCafePushEventSchema = gitCafeRepositoryEventSchema.extend({
 	}),
 });
 export type GitCafePushEvent = z.infer<typeof gitCafePushEventSchema>;
+
+export const gitCafeCompletePushEventSchema = gitCafePushEventSchema.refine(
+	(event) =>
+		!event.git.refUpdatesTruncated &&
+		event.git.refUpdatesCount === event.git.refUpdates.length &&
+		new Set(event.git.refUpdates.map((update) => update.ref)).size ===
+			event.git.refUpdates.length,
+	{ message: "Incomplete GitCafe push" },
+);
+export type GitCafeCompletePushEvent = z.infer<
+	typeof gitCafeCompletePushEventSchema
+>;
+
+export const gitCafePushRefDeliverySchema = z.tuple([
+	gitCafeEventEnvelopeSchema.shape.installation.shape.id,
+	gitCafeEventEnvelopeSchema.shape.id,
+	z.string().min(1).max(4096),
+]);
+export type GitCafePushRefDelivery = z.infer<
+	typeof gitCafePushRefDeliverySchema
+>;
+
+export const gitCafeHydratedPushRefSchema = z.strictObject({
+	event: gitCafeCompletePushEventSchema,
+	ref: z.string().min(1),
+	author: eventActorSchema,
+	sender: eventActorSchema.optional(),
+});
+export type GitCafeHydratedPushRef = z.infer<
+	typeof gitCafeHydratedPushRefSchema
+>;

@@ -7,6 +7,8 @@ import {
 	gitCafeHydratedCommentEventSchema,
 	gitCafeHydratedPullEventSchema,
 	gitCafePullIdentitySchema,
+	gitCafePushEventSchema,
+	gitCafePushRefDeliverySchema,
 	normalizedEventSchema,
 	REVIEW_POINTER,
 	type RepoLabel,
@@ -38,8 +40,10 @@ import {
 	GitCafeReads,
 	hydrateGitCafeCommentEvent,
 	hydrateGitCafePullEvent,
+	hydrateGitCafePushRef,
 	normalizeGitCafeCommentEvent,
 	normalizeGitCafePullEvent,
+	normalizeGitCafePushRef,
 	verifyGitCafeCheckRerequest,
 	verifyGitCafeWebhook,
 } from "@tripwire/forge-gitcafe";
@@ -68,6 +72,7 @@ export function buildGitCafeRuntime(
 	fetch?: GitCafeInstallationClientOptions["fetch"],
 	actionPool: Pool = db.$client,
 ): GitCafeRuntime {
+	const selfActors = new Set<string>();
 	const bind = async (repoFullName: string, context?: ForgeActionContext) => {
 		const [row] = await db
 			.select()
@@ -163,6 +168,7 @@ export function buildGitCafeRuntime(
 			repository.value.archivedAt !== null
 		)
 			return { ok: false as const, reason: "identity-mismatch" as const };
+		selfActors.add(installation.value.bot.actorId);
 		return {
 			ok: true as const,
 			client,
@@ -330,6 +336,13 @@ export function buildGitCafeRuntime(
 		return comment ? normalizeGitCafeCommentEvent(comment, receivedAt) : null;
 	};
 	return {
+		isSelfEvent: (event) =>
+			event.forge === "gitcafe" &&
+			"repo" in event &&
+			event.kind !== "schedule.matched" &&
+			[event.actor, event.sender ?? event.actor].some((actor) =>
+				selfActors.has(actor.externalId),
+			),
 		prepareCheckRerequest: async (eventId) => {
 			const stored = await eventServices.getEventById(db, eventId);
 			const parsed = gitCafeCheckRerequestedEventSchema.safeParse(stored?.raw);
@@ -492,6 +505,41 @@ export function buildGitCafeRuntime(
 				: bound;
 		},
 		prepareEvent: async (raw, receivedAt) => {
+			if (raw.eventName === "git.push") {
+				const source = parseJson(raw.body, gitCafePushEventSchema);
+				const delivery = parseJson(
+					raw.deliveryId,
+					gitCafePushRefDeliverySchema,
+				);
+				if (
+					!source ||
+					!delivery ||
+					delivery[0] !== source.installation.id ||
+					delivery[1] !== source.id
+				)
+					return { ok: false, reason: "invalid-response" };
+				const bound = await bind(
+					`${source.repository.owner}/${source.repository.name}`,
+				);
+				if (!bound.ok) return bound;
+				if (
+					source.repository.id !== bound.repositoryId ||
+					source.installation.id !== bound.installation.id
+				)
+					return { ok: false, reason: "identity-mismatch" };
+				const hydrated = await hydrateGitCafePushRef(
+					bound.client,
+					bound.installation,
+					source,
+					delivery[2],
+				);
+				return hydrated.ok
+					? {
+							ok: true,
+							value: normalizeGitCafePushRef(hydrated.value, receivedAt),
+						}
+					: hydrated;
+			}
 			if (raw.eventName === "schedule.matched") {
 				const scheduled = parseJson(raw.body, scheduledEventSchema);
 				if (

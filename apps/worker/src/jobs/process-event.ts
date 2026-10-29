@@ -117,12 +117,8 @@ export async function processEvent(
 
 	let normalized: NormalizedEvent | null;
 	try {
-		/** Uncommitted comment and schedule projections must still match current provider evidence on retry. */
-		const rehydrateEvidence =
-			event.forge === "gitcafe" &&
-			(event.rawKind === "pull.comment_created" ||
-				event.rawKind === "issue.comment_created" ||
-				event.rawKind === "schedule.matched");
+		/** A GitCafe projection becomes frozen evidence only after its run has committed. */
+		const rehydrateEvidence = event.forge === "gitcafe";
 		if (event.normalizedAt && deps.resumeNormalized && !rehydrateEvidence) {
 			normalized = normalizedEventSchema.parse(event.normalized);
 		} else if (
@@ -284,7 +280,10 @@ export async function processEvent(
 		);
 	}
 
-	if (isSelfEvent(normalized, deps.selfLogins)) {
+	if (
+		isSelfEvent(normalized, deps.selfLogins) ||
+		runtime?.isSelfEvent?.(normalized)
+	) {
 		logger.info(
 			{
 				eventId: event.id,

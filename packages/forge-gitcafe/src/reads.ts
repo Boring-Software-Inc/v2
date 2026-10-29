@@ -1,4 +1,5 @@
 import {
+	type EventActor,
 	type GitCafeConnectionRepository,
 	type GitCafeInstallation,
 	type GitCafeReadBoundary,
@@ -11,6 +12,7 @@ import {
 	gitCafeActionLabelPageSchema,
 	gitCafeCheckReportInputSchema,
 	gitCafeOrganizationMembersSchema,
+	gitCafeReadActorPageSchema,
 	gitCafeReadBlobSchema,
 	gitCafeReadChangesSchema,
 	gitCafeReadCollaboratorsSchema,
@@ -45,7 +47,10 @@ import type {
 
 export type GitCafeReadFailure =
 	| GitCafeInstallationFailure
-	| { ok: false; reason: "changed" | "incomplete" | "pagination" };
+	| {
+			ok: false;
+			reason: "changed" | "incomplete" | "pagination" | "author-unavailable";
+	  };
 export type GitCafeReadResult<T> =
 	| { ok: true; value: T; diagnostics?: GitCafeReadDiagnostic[] }
 	| GitCafeReadFailure;
@@ -78,6 +83,100 @@ interface RepositoryReadContext {
 
 export class GitCafeReads {
 	constructor(private readonly options: GitCafeReadsOptions) {}
+
+	getRef(
+		repo: string,
+		expectedRepositoryId: string,
+		ref: string,
+	): Promise<GitCafeReadResult<{ ref: string; oid: string } | null>> {
+		const kind = ref.startsWith("refs/heads/")
+			? "branches"
+			: ref.startsWith("refs/tags/")
+				? "tags"
+				: null;
+		const name = ref.slice(kind === "branches" ? 11 : 10);
+		if (!kind || !name || name.length > 255)
+			return Promise.resolve({ ok: false, reason: "invalid-response" });
+		return this.browse(repo, expectedRepositoryId, async (context) => {
+			const page = await this.resourcePages(
+				context,
+				"refs",
+				gitCafeReadRefPageSchema,
+				(item) => item.name,
+				{ kind },
+			);
+			if (!page.ok) return page;
+			const current = page.value.find((item) => item.name === name);
+			return { ok: true, value: current ? { ref, oid: current.oid } : null };
+		});
+	}
+
+	getActor(
+		repo: string,
+		expectedRepositoryId: string,
+		actorId: string,
+	): Promise<GitCafeReadResult<EventActor>> {
+		if (!actorId)
+			return Promise.resolve({ ok: false, reason: "author-unavailable" });
+		return this.browse<EventActor>(
+			repo,
+			expectedRepositoryId,
+			async (context) => {
+				if (actorId === context.installation.bot.actorId)
+					return {
+						ok: true,
+						value: {
+							login: context.installation.bot.handle,
+							externalId: actorId,
+						},
+					};
+				const members = await this.resourcePages(
+					{ ...context, root: `orgs/${context.installation.org}` },
+					"members/",
+					gitCafeReadActorPageSchema,
+					(item) => item.actorId,
+				);
+				let candidate = members.ok
+					? members.value.find((item) => item.actorId === actorId)
+					: undefined;
+				if (!candidate) {
+					const collaborators = await this.resourcePages(
+						context,
+						"collaborators/",
+						gitCafeReadActorPageSchema,
+						(item) => item.actorId,
+					);
+					if (!collaborators.ok) return collaborators;
+					candidate = collaborators.value.find(
+						(item) => item.actorId === actorId,
+					);
+				}
+				if (!candidate?.handle)
+					return members.ok
+						? { ok: false, reason: "author-unavailable" }
+						: members;
+				const profile = await this.resource(
+					{ ...context, root: "users" },
+					encodeURIComponent(candidate.handle),
+					gitCafeReadProfileSchema,
+				);
+				if (!profile.ok) return profile;
+				if (
+					profile.value.actorId !== actorId ||
+					profile.value.handle !== candidate.handle
+				)
+					return { ok: false, reason: "identity-mismatch" };
+				return {
+					ok: true,
+					value: {
+						login: profile.value.handle,
+						externalId: actorId,
+						avatarUrl: candidate.avatarUrl ?? undefined,
+					},
+				};
+			},
+		);
+	}
 
 	getThread(
 		repo: string,
