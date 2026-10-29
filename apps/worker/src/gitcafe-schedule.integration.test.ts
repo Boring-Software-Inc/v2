@@ -584,6 +584,75 @@ test("pre-upgrade completed no-run schedules retain completion after job retenti
 	expect(writes).toEqual([]);
 });
 
+test("legacy job completion between recovery snapshots cannot recreate settled work", async () => {
+	const d = deps();
+	expect((await scheduleTick(d)).events).toBe(1);
+	const id = await eventId();
+	await database.db
+		.update(workflowDefinitions)
+		.set({ enabled: false })
+		.where(eq(workflowDefinitions.id, workflowId));
+	const [job] = await boss.fetch(GITCAFE_PROCESS_EVENT_QUEUE);
+	if (!job) throw new Error("Scheduled job missing");
+	await processEvent({ ...d, resumeNormalized: true }, { eventId: id });
+	await database.db
+		.update(workflowDefinitions)
+		.set({ enabled: true })
+		.where(eq(workflowDefinitions.id, workflowId));
+	const lock = await database.pool.connect();
+	await lock.query(
+		"SELECT pg_advisory_lock(hashtext('legacy-completion-test'))",
+	);
+	await database.pool.query(
+		`CREATE FUNCTION pause_completion_adoption() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN PERFORM pg_advisory_xact_lock(hashtext('legacy-completion-test')); RETURN NULL; END $$`,
+	);
+	await database.pool.query(
+		"CREATE TRIGGER pause_completion_adoption AFTER UPDATE ON events FOR EACH STATEMENT EXECUTE FUNCTION pause_completion_adoption()",
+	);
+	const recovery = gitCafeLifecycleServices.recoverGitCafeEvents(
+		database.db,
+		boss,
+	);
+	try {
+		let waiting = false;
+		const deadline = Date.now() + 10_000;
+		while (!waiting && Date.now() < deadline) {
+			waiting =
+				(
+					await database.pool.query(
+						"SELECT count(*)::int AS count FROM pg_stat_activity WHERE wait_event_type='Lock' AND wait_event='advisory' AND query LIKE '%UPDATE events e SET%'",
+					)
+				).rows[0].count > 0;
+			if (!waiting) await sleep(10);
+		}
+		expect(waiting).toBe(true);
+		await boss.complete(GITCAFE_PROCESS_EVENT_QUEUE, job.id);
+	} finally {
+		await lock.query(
+			"SELECT pg_advisory_unlock(hashtext('legacy-completion-test'))",
+		);
+		lock.release();
+	}
+	let restored: number;
+	try {
+		restored = await recovery;
+	} finally {
+		await database.pool.query(
+			"DROP TRIGGER pause_completion_adoption ON events",
+		);
+		await database.pool.query("DROP FUNCTION pause_completion_adoption()");
+	}
+	expect(restored).toBe(0);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	expect(
+		(await eventServices.getEventById(database.db, id))?.processedAt,
+	).not.toBeNull();
+	expect(await runServices.getRunForEvent(database.db, id)).toBeNull();
+	expect(writes).toEqual([]);
+}, 20_000);
+
 test("a waiting consumer rechecks completed no-run work after acquiring the event lock", async () => {
 	const d = deps();
 	expect((await scheduleTick(d)).events).toBe(1);

@@ -522,26 +522,25 @@ export async function recoverGitCafeEvents(
 		await client.query(
 			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
 		);
-		/** Older local consumers settled only the queue job; retain that durable completion before recovery. */
-		await client.query(
-			`UPDATE events e SET processed_at = completed.at FROM (
-			 SELECT data->>'eventId' AS event_id, max(completed_on) AS at FROM pgboss.job
-			 WHERE name = $1 AND state = 'completed' GROUP BY data->>'eventId'
-			) completed WHERE e.id = completed.event_id AND e.forge = 'gitcafe'
-			 AND e.processed_at IS NULL AND e.raw_kind = 'schedule.matched'
-			 AND e.raw#>>'{thread,externalId}' IS NOT NULL AND completed.at IS NOT NULL
-			 AND NOT EXISTS (SELECT 1 FROM gitcafe_receipts r WHERE e.raw->>'id' = r.event_id
-			 AND e.raw#>>'{installation,id}' = r.installation_id)`,
-			[GITCAFE_PROCESS_EVENT_QUEUE],
-		);
+		/** Completion adoption and eligibility share one snapshot, including legacy workers settling queue jobs. */
 		const pending = await client.query<{
 			id: string;
 			receipt: unknown;
 			raw: unknown;
 		}>(
-			`SELECT e.id, r.receipt, e.raw FROM events e LEFT JOIN gitcafe_receipts r
+			`WITH adopted AS (
+			 UPDATE events e SET processed_at = completed.at FROM (
+			 SELECT data->>'eventId' AS event_id, max(completed_on) AS at FROM pgboss.job
+			 WHERE name = $1 AND state = 'completed' GROUP BY data->>'eventId'
+			 ) completed WHERE e.id = completed.event_id AND e.forge = 'gitcafe'
+			 AND e.processed_at IS NULL AND e.raw_kind = 'schedule.matched'
+			 AND e.raw#>>'{thread,externalId}' IS NOT NULL AND completed.at IS NOT NULL
+			 AND NOT EXISTS (SELECT 1 FROM gitcafe_receipts r WHERE e.raw->>'id' = r.event_id
+			 AND e.raw#>>'{installation,id}' = r.installation_id) RETURNING e.id
+			) SELECT e.id, r.receipt, e.raw FROM events e LEFT JOIN gitcafe_receipts r
 			 ON e.raw->>'id' = r.event_id AND e.raw#>>'{installation,id}' = r.installation_id
 			 WHERE e.forge = 'gitcafe' AND e.processed_at IS NULL AND
+			 NOT EXISTS (SELECT 1 FROM adopted WHERE adopted.id = e.id) AND
 			 (r.status = 'dispatched' OR (r.id IS NULL AND e.raw_kind = 'schedule.matched' AND e.raw#>>'{thread,externalId}' IS NOT NULL)) AND NOT EXISTS (
 			 SELECT 1 FROM pgboss.job j WHERE j.name = $1 AND j.data->>'eventId' = e.id
 			 AND j.state IN ('created','retry','active')) ORDER BY e.received_at, e.id LIMIT 100 FOR UPDATE OF e`,
