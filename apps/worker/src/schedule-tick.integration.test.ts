@@ -491,6 +491,32 @@ describe("schedule tick", () => {
 		expect(state?.lastError).toContain("502");
 	});
 
+	test("a refused read envelope preserves the due tick and creates no events", async () => {
+		const before = await scheduleServices.getScheduleState(
+			db,
+			scheduledRowId,
+			"every-12h",
+		);
+		const result = await scheduleTick({
+			db,
+			pool,
+			boss,
+			resolveForge: staticForge({
+				listThreads: async () => ({ ok: false, reason: "incomplete" }),
+			}),
+			logger,
+			now: () => new Date(T0.getTime() + 40 * HOUR),
+		});
+		expect(result).toEqual({ schedules: 1, events: 0, errors: 1 });
+		const after = await scheduleServices.getScheduleState(
+			db,
+			scheduledRowId,
+			"every-12h",
+		);
+		expect(after?.lastTickAt).toEqual(before?.lastTickAt);
+		expect(after?.lastError).toBe("thread listing unavailable: incomplete");
+	});
+
 	test("the sweeper retries a stuck lock and close against the thread", async () => {
 		await pool.query(
 			`UPDATE run_actions SET status = 'recorded', executed_at = NULL

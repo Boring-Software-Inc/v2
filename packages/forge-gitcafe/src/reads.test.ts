@@ -1,17 +1,24 @@
 import { describe, expect, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
+import type { ThreadListQuery } from "@tripwire/forge";
 import type { GitCafeReadResource } from "@tripwire/forge-gitcafe";
 import {
 	GitCafeInstallationClient,
 	GitCafeReads,
 } from "@tripwire/forge-gitcafe";
+import labels from "../fixtures/gitcafe-action-labels-current.json";
 import members from "../fixtures/gitcafe-connection-members.json";
+import repository from "../fixtures/gitcafe-connection-repository.json";
 import installation from "../fixtures/gitcafe-installation.json";
 import token from "../fixtures/gitcafe-installation-token.json";
 import publicPull from "../fixtures/gitcafe-pull.json";
 import collaborators from "../fixtures/gitcafe-read-collaborators.json";
+import threadIssues from "../fixtures/gitcafe-read-issues-list.json";
+import emptyIssues from "../fixtures/gitcafe-read-issues-list-empty.json";
 import profile from "../fixtures/gitcafe-read-profile.json";
 import pulls from "../fixtures/gitcafe-read-pulls.json";
+import threadPulls from "../fixtures/gitcafe-read-pulls-list.json";
+import refs from "../fixtures/gitcafe-read-refs.json";
 import scratchBlob from "../fixtures/gitcafe-read-scratch-blob-0.json";
 import scratchChanges from "../fixtures/gitcafe-read-scratch-changes.json";
 import scratchCommits from "../fixtures/gitcafe-read-scratch-commits.json";
@@ -65,6 +72,332 @@ function capturedRoute(url: URL): Response {
 	if (url.pathname.endsWith("/blob")) return Response.json(blob);
 	return new Response("unexpected request", { status: 500 });
 }
+
+const THREAD_QUERY: ThreadListQuery = {
+	subjects: ["issue", "change-request"],
+	state: "any",
+	updatedBefore: null,
+	labels: [],
+	excludeLabels: [],
+	skipLocked: false,
+	cap: 100,
+};
+
+function catalogRoute(url: URL): Response {
+	if (url.pathname === "/api/repos/boring/scratch")
+		return Response.json(repository);
+	if (url.pathname.endsWith("/refs")) return Response.json(refs);
+	if (url.pathname.endsWith("/pulls/")) return Response.json(threadPulls);
+	if (url.pathname.endsWith("/issues/")) return Response.json(threadIssues);
+	if (url.pathname.endsWith("/pulls/1")) return Response.json(scratchPull);
+	if (url.pathname.endsWith("/issues/2"))
+		return Response.json(threadIssues.items[0]);
+	if (url.pathname.endsWith("/labels")) return Response.json(labels);
+	return capturedRoute(url);
+}
+
+test("captured installed branches and empty label catalog retain their actual values", async () => {
+	const h = harness(catalogRoute);
+	expect(await h.reads.getBranches(REPO, repository.id)).toEqual({
+		ok: true,
+		value: ["main", "tripwire-qa/adapter-20261028"],
+	});
+	expect(await h.reads.getLabels(REPO, repository.id)).toEqual({
+		ok: true,
+		value: [],
+	});
+});
+
+test("captured issue and PR pages hydrate complete thread identity, locks and labels", async () => {
+	const h = harness(catalogRoute);
+	const result = await h.reads.listThreads(REPO, repository.id, THREAD_QUERY);
+	if (!result.ok) throw new Error(`Thread read refused: ${result.reason}`);
+	const issueAuthor = threadIssues.items[0]?.authorActorId;
+	if (!issueAuthor) throw new Error("Captured issue author is missing");
+	expect(result.value.stopped).toBeNull();
+	expect(
+		result.value.threads.map((thread) => [
+			thread.kind,
+			thread.number,
+			thread.authorExternalId,
+		]),
+	).toEqual([
+		["change-request", 1, scratchPull.authorActorId],
+		["issue", 2, issueAuthor],
+	]);
+	expect(result.value.threads.map((thread) => thread.url)).toEqual([
+		"https://git.cafe/boring/scratch/pull/1",
+		"https://git.cafe/boring/scratch/issues/2",
+	]);
+	expect(
+		result.value.threads.every(
+			(thread) => !thread.locked && thread.labels.length === 0,
+		),
+	).toBe(true);
+	expect(h.calls.some((url) => url.pathname.endsWith("/issues/2/labels"))).toBe(
+		true,
+	);
+	expect(h.calls.some((url) => url.pathname.endsWith("/pulls/1/labels"))).toBe(
+		true,
+	);
+});
+
+test("synthetic label pages preserve complete metadata and refuse a foreign repository", async () => {
+	const first = {
+		id: "synthetic-label-a",
+		repoId: repository.id,
+		name: "bug",
+		color: "#ABCDEF",
+		description: null,
+	};
+	for (const foreign of [false, true]) {
+		const h = harness((url) =>
+			url.pathname.endsWith("/labels")
+				? Response.json(
+						url.searchParams.has("after")
+							? {
+									items: [
+										{
+											...first,
+											id: "synthetic-label-b",
+											repoId: foreign ? "other-repository" : repository.id,
+											name: "enhancement",
+											color: "123456",
+											description: "Synthetic HTTP test",
+										},
+									],
+									next: null,
+								}
+							: { items: [first], next: "second" },
+					)
+				: catalogRoute(url),
+		);
+		const result = await h.reads.getLabels(REPO, repository.id);
+		if (foreign)
+			expect(result).toEqual({ ok: false, reason: "identity-mismatch" });
+		else
+			expect(result).toEqual({
+				ok: true,
+				value: [
+					{ name: "bug", color: "abcdef", description: null },
+					{
+						name: "enhancement",
+						color: "123456",
+						description: "Synthetic HTTP test",
+					},
+				],
+			});
+	}
+});
+
+test("the schedule cap is applied after complete enumeration and oldest-updated ordering", async () => {
+	const h = harness(catalogRoute);
+	const result = await h.reads.listThreads(REPO, repository.id, {
+		...THREAD_QUERY,
+		cap: 1,
+	});
+	expect(
+		result.ok && result.value.threads.map((thread) => thread.kind),
+	).toEqual(["change-request"]);
+	expect(h.calls.some((url) => url.pathname.endsWith("/issues/2/labels"))).toBe(
+		true,
+	);
+	const inactive = await h.reads.listThreads(REPO, repository.id, {
+		...THREAD_QUERY,
+		updatedBefore: "2026-10-29T00:00:00.000Z",
+	});
+	expect(
+		inactive.ok && inactive.value.threads.map((thread) => thread.kind),
+	).toEqual(["change-request"]);
+});
+
+test("a complete empty issue page is an empty result, not unavailable evidence", async () => {
+	const h = harness((url) =>
+		url.pathname.endsWith("/issues/")
+			? Response.json(emptyIssues)
+			: catalogRoute(url),
+	);
+	expect(
+		await h.reads.listThreads(REPO, repository.id, {
+			...THREAD_QUERY,
+			subjects: ["issue"],
+		}),
+	).toEqual({ ok: true, value: { threads: [], stopped: null } });
+});
+
+/** Nonempty labels and extra transport pages are controlled mutations, not new provider fixtures. */
+test("thread matching uses complete label pages rather than truncated list-item labels", async () => {
+	const h = harness((url) => {
+		if (url.pathname.endsWith("/issues/2/labels"))
+			return Response.json(
+				url.searchParams.has("after")
+					? { items: [{ id: "local-label-2", name: "review" }], next: null }
+					: {
+							items: [{ id: "local-label-1", name: "triage" }],
+							next: "next-page",
+						},
+			);
+		return catalogRoute(url);
+	});
+	const included = await h.reads.listThreads(REPO, repository.id, {
+		...THREAD_QUERY,
+		labels: ["REVIEW", "triage"],
+	});
+	expect(
+		included.ok && included.value.threads.map((thread) => thread.kind),
+	).toEqual(["issue"]);
+	const excluded = await h.reads.listThreads(REPO, repository.id, {
+		...THREAD_QUERY,
+		labels: ["triage"],
+		excludeLabels: ["REVIEW"],
+	});
+	expect(excluded.ok && excluded.value.threads).toEqual([]);
+});
+
+test("fresh detail state and lock evidence govern schedule matching", async () => {
+	const item = threadIssues.items[0];
+	if (!item) throw new Error("Missing captured issue");
+	const h = harness((url) =>
+		url.pathname.endsWith("/issues/2")
+			? Response.json({
+					...item,
+					stateType: "completed",
+					lockedAt: "2026-10-29T04:00:00.000Z",
+				})
+			: catalogRoute(url),
+	);
+	const locked = await h.reads.listThreads(REPO, repository.id, {
+		...THREAD_QUERY,
+		subjects: ["issue"],
+		skipLocked: true,
+	});
+	expect(locked.ok && locked.value.threads).toEqual([]);
+	const open = await h.reads.listThreads(REPO, repository.id, {
+		...THREAD_QUERY,
+		subjects: ["issue"],
+		state: "open",
+	});
+	expect(open.ok && open.value.threads).toEqual([]);
+	const closed = await h.reads.listThreads(REPO, repository.id, {
+		...THREAD_QUERY,
+		subjects: ["issue"],
+		state: "closed",
+	});
+	expect(closed.ok && closed.value.threads).toHaveLength(1);
+});
+
+test("branch pagination preserves every page without an aggregate cutoff", async () => {
+	const h = harness((url) =>
+		url.pathname.endsWith("/refs")
+			? Response.json(
+					url.searchParams.has("after")
+						? {
+								items: [{ ...refs.items[0], name: "additional-branch" }],
+								next: null,
+							}
+						: { ...refs, next: "next-page" },
+				)
+			: catalogRoute(url),
+	);
+	expect(await h.reads.getBranches(REPO, repository.id)).toEqual({
+		ok: true,
+		value: ["additional-branch", "main", "tripwire-qa/adapter-20261028"],
+	});
+});
+
+for (const response of [
+	{ ...refs, next: "repeated" },
+	{ items: [], next: "nonterminal" },
+	{ items: refs.items },
+	{ ...refs, next: "https://evil.test" },
+]) {
+	test("incomplete or repeated catalog pages return no partial catalog", async () => {
+		const h = harness((url) =>
+			url.pathname.endsWith("/refs")
+				? Response.json(response)
+				: catalogRoute(url),
+		);
+		expect((await h.reads.getBranches(REPO, repository.id)).ok).toBe(false);
+	});
+}
+
+test("repository name reuse after catalog enumeration refuses the result", async () => {
+	let repositoryReads = 0;
+	const h = harness((url) => {
+		if (url.pathname === "/api/repos/boring/scratch")
+			return Response.json({
+				...repository,
+				id: ++repositoryReads === 1 ? repository.id : "replacement-repository",
+			});
+		return catalogRoute(url);
+	});
+	expect(await h.reads.getBranches(REPO, repository.id)).toEqual({
+		ok: false,
+		reason: "identity-mismatch",
+	});
+});
+
+test("revocation while a catalog page is read refuses its evidence", async () => {
+	let allowed = true;
+	const h = harness(
+		(url) => {
+			if (url.pathname.endsWith("/refs")) allowed = false;
+			return catalogRoute(url);
+		},
+		async () => allowed,
+	);
+	expect((await h.reads.getBranches(REPO, repository.id)).ok).toBe(false);
+});
+
+for (const change of [
+	{ id: "another-pull" },
+	{ repoId: "another-repository" },
+	{ authorActorId: "another-actor" },
+	{ author: { ...scratchPull.author, handle: null } },
+]) {
+	test("thread hydration never substitutes another subject or contributor identity", async () => {
+		const h = harness((url) =>
+			url.pathname.endsWith("/pulls/1")
+				? Response.json({ ...scratchPull, ...change })
+				: catalogRoute(url),
+		);
+		expect(
+			(await h.reads.listThreads(REPO, repository.id, THREAD_QUERY)).ok,
+		).toBe(false);
+	});
+}
+
+test("invalid catalog scope and schedule limits refuse before credentials", async () => {
+	const h = harness(catalogRoute);
+	expect(
+		(await h.reads.getBranches("boring/../scratch", repository.id)).ok,
+	).toBe(false);
+	expect(
+		(
+			await h.reads.listThreads(REPO, repository.id, {
+				...THREAD_QUERY,
+				cap: -1,
+			})
+		).ok,
+	).toBe(false);
+	expect(
+		await h.reads.listThreads(REPO, repository.id, { ...THREAD_QUERY, cap: 0 }),
+	).toEqual({ ok: true, value: { threads: [], stopped: null } });
+	expect(h.calls).toHaveLength(0);
+});
+
+test("a catalog rate limit is a bounded failure value", async () => {
+	const h = harness((url) =>
+		url.pathname.endsWith("/labels")
+			? new Response(null, { status: 429 })
+			: catalogRoute(url),
+	);
+	expect(await h.reads.getLabels(REPO, repository.id)).toEqual({
+		ok: false,
+		reason: "http",
+		status: 429,
+	});
+});
 
 describe("GitCafeReads captured reads", () => {
 	test("an expected event actor binds the profile before history or privilege reads", async () => {

@@ -93,7 +93,7 @@ async function tickOne(
 		return { events: 0, error: "this forge cannot list threads" };
 	}
 	const { match } = due.schedule;
-	const result = await listThreads(due.repoFullName, {
+	const listed = await listThreads(due.repoFullName, {
 		subjects: match.subjects,
 		state: match.state,
 		updatedBefore: new Date(
@@ -104,6 +104,10 @@ async function tickOne(
 		skipLocked: match.skipLocked,
 		cap: MAX_THREADS_PER_TICK,
 	});
+	if ("ok" in listed && !listed.ok) {
+		return { events: 0, error: `thread listing unavailable: ${listed.reason}` };
+	}
+	const result = "ok" in listed ? listed.value : listed;
 	const tickId = scheduleTickId(due, now);
 	let events = 0;
 	const failures: string[] = [];

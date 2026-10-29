@@ -1,4 +1,6 @@
 import {
+	type GitCafeConnectionRepository,
+	type GitCafeInstallation,
 	type GitCafeReadBoundary,
 	type GitCafeReadChange,
 	type GitCafeReadChanges,
@@ -6,6 +8,8 @@ import {
 	type GitCafeReadDiagnostic,
 	type GitCafeReadDiffFile,
 	type GitCafeReadPull,
+	gitCafeActionLabelPageSchema,
+	gitCafeCheckReportInputSchema,
 	gitCafeOrganizationMembersSchema,
 	gitCafeReadBlobSchema,
 	gitCafeReadChangesSchema,
@@ -13,15 +17,25 @@ import {
 	gitCafeReadCommitsSchema,
 	gitCafeReadDiagnosticSchema,
 	gitCafeReadDiffFileSchema,
+	gitCafeReadIssueThreadPageSchema,
+	gitCafeReadIssueThreadSchema,
+	gitCafeReadLabelPageSchema,
 	gitCafeReadProfileSchema,
 	gitCafeReadPullPageSchema,
 	gitCafeReadPullSchema,
+	gitCafeReadPullThreadPageSchema,
+	gitCafeReadPullThreadSchema,
+	gitCafeReadRefPageSchema,
+	type RepoLabel,
 } from "@tripwire/contracts";
 import type {
 	ChangeRequestHead,
 	ContributorProfile,
 	DiffFile,
 	ForgeCommit,
+	ForgeThread,
+	ThreadListQuery,
+	ThreadListResult,
 } from "@tripwire/forge";
 import type {
 	GitCafeInstallationClient,
@@ -54,8 +68,274 @@ type Snapshot = Pick<
 	"id" | "version" | "headOid" | "baseOid" | "comparisonBaseOid"
 >;
 
+interface RepositoryReadContext {
+	installation: GitCafeInstallation;
+	repository: GitCafeConnectionRepository;
+	root: string;
+	deadlineAt: number;
+}
+
 export class GitCafeReads {
 	constructor(private readonly options: GitCafeReadsOptions) {}
+
+	getBranches(
+		repo: string,
+		expectedRepositoryId: string,
+	): Promise<GitCafeReadResult<string[]>> {
+		return this.browse(repo, expectedRepositoryId, async (context) => {
+			const page = await this.resourcePages(
+				context,
+				"refs",
+				gitCafeReadRefPageSchema,
+				(item) => item.name,
+				{ kind: "branches" },
+			);
+			return page.ok
+				? { ok: true, value: page.value.map((item) => item.name).sort() }
+				: page;
+		});
+	}
+
+	getLabels(
+		repo: string,
+		expectedRepositoryId: string,
+	): Promise<GitCafeReadResult<RepoLabel[]>> {
+		return this.browse(repo, expectedRepositoryId, async (context) => {
+			const page = await this.resourcePages(
+				context,
+				"labels",
+				gitCafeReadLabelPageSchema,
+				(item) => item.id,
+			);
+			if (!page.ok) return page;
+			const labels: RepoLabel[] = [];
+			for (const item of page.value) {
+				if (item.repoId !== context.repository.id)
+					return { ok: false, reason: "identity-mismatch" };
+				const color = /^#?([a-fA-F0-9]{6})$/.exec(item.color)?.[1];
+				if (!color) return { ok: false, reason: "invalid-response" };
+				labels.push({
+					name: item.name,
+					color: color.toLowerCase(),
+					description: item.description,
+				});
+			}
+			return {
+				ok: true,
+				value: labels.sort((a, b) => a.name.localeCompare(b.name)),
+			};
+		});
+	}
+
+	listThreads(
+		repo: string,
+		expectedRepositoryId: string,
+		query: ThreadListQuery,
+	): Promise<GitCafeReadResult<ThreadListResult>> {
+		if (
+			!Number.isSafeInteger(query.cap) ||
+			query.cap < 0 ||
+			(query.updatedBefore !== null &&
+				!Number.isFinite(Date.parse(query.updatedBefore)))
+		)
+			return Promise.resolve({ ok: false, reason: "invalid-response" });
+		if (query.cap === 0)
+			return Promise.resolve({
+				ok: true,
+				value: { threads: [], stopped: null },
+			});
+		return this.browse(repo, expectedRepositoryId, async (context) => {
+			const threads: ForgeThread[] = [];
+			for (const kind of new Set(query.subjects)) {
+				const isPull = kind === "change-request";
+				const path = isPull ? "pulls" : "issues";
+				const listed = isPull
+					? await this.resourcePages(
+							context,
+							`${path}/`,
+							gitCafeReadPullThreadPageSchema,
+							(item) => item.id,
+							{ sort: "oldest" },
+						)
+					: await this.resourcePages(
+							context,
+							`${path}/`,
+							gitCafeReadIssueThreadPageSchema,
+							(item) => item.id,
+							{ sort: "updated" },
+						);
+				if (!listed.ok) return listed;
+				const numbers = new Set<number>();
+				for (const item of listed.value) {
+					if (numbers.has(item.number))
+						return { ok: false, reason: "identity-mismatch" };
+					numbers.add(item.number);
+					const current = isPull
+						? await this.resource(
+								context,
+								`${path}/${item.number}`,
+								gitCafeReadPullThreadSchema,
+							)
+						: await this.resource(
+								context,
+								`${path}/${item.number}`,
+								gitCafeReadIssueThreadSchema,
+							);
+					if (!current.ok) return current;
+					const detail = current.value;
+					if (
+						detail.id !== item.id ||
+						detail.number !== item.number ||
+						detail.repoId !== context.repository.id ||
+						detail.authorActorId !== item.authorActorId ||
+						!detail.authorActorId ||
+						detail.author.actorId !== detail.authorActorId ||
+						!detail.author.handle
+					)
+						return { ok: false, reason: "identity-mismatch" };
+					const labels = await this.resourcePages(
+						context,
+						`${path}/${item.number}/labels`,
+						gitCafeActionLabelPageSchema,
+						(label) => label.id,
+					);
+					if (!labels.ok) return labels;
+					const names = labels.value.map((label) => label.name);
+					const labelSet = new Set(names.map((name) => name.toLowerCase()));
+					const state =
+						"state" in detail
+							? detail.state === "open"
+								? "open"
+								: "closed"
+							: ["completed", "canceled"].includes(detail.stateType)
+								? "closed"
+								: "open";
+					if (
+						(query.state !== "any" && state !== query.state) ||
+						(query.skipLocked && detail.lockedAt !== null) ||
+						(query.updatedBefore !== null &&
+							Date.parse(detail.updatedAt) >=
+								Date.parse(query.updatedBefore)) ||
+						!query.labels.every((name) => labelSet.has(name.toLowerCase())) ||
+						query.excludeLabels.some((name) => labelSet.has(name.toLowerCase()))
+					)
+						continue;
+					threads.push({
+						kind,
+						number: detail.number,
+						title: detail.title,
+						state,
+						url: `https://git.cafe/${repo}/${isPull ? "pull" : "issues"}/${detail.number}`,
+						author: detail.author.handle,
+						authorExternalId: detail.authorActorId,
+						authorAvatarUrl: detail.author.avatarUrl ?? undefined,
+						labels: names,
+						locked: detail.lockedAt !== null,
+						updatedAt: detail.updatedAt,
+					});
+				}
+			}
+			threads.sort(
+				(a, b) =>
+					Date.parse(a.updatedAt) - Date.parse(b.updatedAt) ||
+					a.kind.localeCompare(b.kind) ||
+					a.number - b.number,
+			);
+			return {
+				ok: true,
+				value: { threads: threads.slice(0, query.cap), stopped: null },
+			};
+		});
+	}
+
+	/** Every page shares one installation snapshot; name reuse cannot redirect a completed catalog read. */
+	private browse<T>(
+		repo: string,
+		expectedRepositoryId: string,
+		read: (context: RepositoryReadContext) => Promise<GitCafeReadResult<T>>,
+	): Promise<GitCafeReadResult<T>> {
+		return this.fenced(async () => {
+			if (
+				!gitCafeCheckReportInputSchema.shape.repoFullName.safeParse(repo)
+					.success ||
+				!expectedRepositoryId
+			)
+				return { ok: false, reason: "invalid-response" };
+			const owner = repo.split("/")[0];
+			const name = repo.split("/")[1];
+			if (!owner || !name) return { ok: false, reason: "invalid-response" };
+			const deadlineAt = Date.now() + 300_000;
+			const installation = await this.options.client.getInstallation(
+				this.options.installationId,
+				deadlineAt,
+			);
+			if (!installation.ok) return installation;
+			const repository = await this.options.client.getRepository(
+				this.options.installationId,
+				owner,
+				name,
+				installation.value,
+				deadlineAt,
+			);
+			if (!repository.ok) return repository;
+			if (
+				repository.value.id !== expectedRepositoryId ||
+				repository.value.archivedAt !== null
+			)
+				return { ok: false, reason: "identity-mismatch" };
+			const result = await read({
+				installation: installation.value,
+				repository: repository.value,
+				root: `repos/${repo}`,
+				deadlineAt,
+			});
+			if (!result.ok) return result;
+			const current = await this.options.client.getRepository(
+				this.options.installationId,
+				owner,
+				name,
+				installation.value,
+				deadlineAt,
+			);
+			if (!current.ok) return current;
+			return current.value.id === repository.value.id &&
+				current.value.archivedAt === null
+				? result
+				: { ok: false, reason: "identity-mismatch" };
+		});
+	}
+
+	private async resource<T>(
+		context: RepositoryReadContext,
+		path: string,
+		schema: GitCafeReadBoundary<T>,
+	): Promise<GitCafeReadResult<T>> {
+		const response = await this.options.client.request(
+			this.options.installationId,
+			{ method: "GET", resourcePath: `${context.root}/${path}` },
+			context.installation,
+			context.deadlineAt,
+		);
+		if (!response.ok) return response;
+		const parsed = schema.safeParse(response.value);
+		return parsed.success
+			? { ok: true, value: parsed.data }
+			: { ok: false, reason: "invalid-response" };
+	}
+
+	private resourcePages<T>(
+		context: RepositoryReadContext,
+		path: string,
+		schema: GitCafeReadBoundary<{ items: T[]; next: string | null }>,
+		identity: (item: T) => string,
+		parameters: Record<string, string> = {},
+	): Promise<GitCafeReadResult<T[]>> {
+		return readPages((after) => {
+			const query = new URLSearchParams({ ...parameters, limit: "100" });
+			if (after !== undefined) query.set("after", after);
+			return this.resource(context, `${path}?${query}`, schema);
+		}, identity);
+	}
 
 	getDiff(
 		repo: string,
@@ -449,33 +729,45 @@ export class GitCafeReads {
 		return result;
 	}
 
-	private async pages<T>(
+	private pages<T>(
 		repo: string,
 		kind: "merged-pulls" | "members" | "collaborators",
 		schema: GitCafeReadBoundary<{ items: T[]; next: string | null }>,
 		identity: (item: T) => string,
 	): Promise<GitCafeReadResult<T[]>> {
-		const items: T[] = [];
-		const cursors = new Set<string>();
-		const ids = new Set<string>();
-		let after: string | undefined;
-		do {
-			const result = await this.get(repo, { kind, after }, schema);
-			if (!result.ok) return result;
-			const page = result.value;
-			if (page.next !== null && (!page.items.length || cursors.has(page.next)))
-				return { ok: false, reason: "pagination" };
-			for (const item of page.items) {
-				const id = identity(item);
-				if (ids.has(id)) return { ok: false, reason: "pagination" };
-				ids.add(id);
-				items.push(item);
-			}
-			after = page.next ?? undefined;
-			if (after) cursors.add(after);
-		} while (after);
-		return { ok: true, value: items };
+		return readPages(
+			(after) => this.get(repo, { kind, after }, schema),
+			identity,
+		);
 	}
+}
+
+async function readPages<T>(
+	fetchPage: (
+		after: string | undefined,
+	) => Promise<GitCafeReadResult<{ items: T[]; next: string | null }>>,
+	identity: (item: T) => string,
+): Promise<GitCafeReadResult<T[]>> {
+	const items: T[] = [];
+	const cursors = new Set<string>();
+	const ids = new Set<string>();
+	let after: string | undefined;
+	do {
+		const result = await fetchPage(after);
+		if (!result.ok) return result;
+		const page = result.value;
+		if (page.next !== null && (!page.items.length || cursors.has(page.next)))
+			return { ok: false, reason: "pagination" };
+		for (const item of page.items) {
+			const id = identity(item);
+			if (ids.has(id)) return { ok: false, reason: "pagination" };
+			ids.add(id);
+			items.push(item);
+		}
+		after = page.next ?? undefined;
+		if (after) cursors.add(after);
+	} while (after);
+	return { ok: true, value: items };
 }
 
 function matchesPull(snapshot: Snapshot, pull: GitCafeReadPull): boolean {

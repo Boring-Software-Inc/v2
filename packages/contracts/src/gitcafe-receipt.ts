@@ -6,6 +6,14 @@ export const GITCAFE_PROCESS_EVENT_QUEUE = "gitcafe-process-event";
 export const GITCAFE_RESUME_RUN_QUEUE = "gitcafe-resume-run";
 export const GITCAFE_RERUN_QUEUE = "gitcafe-rerun-change-request";
 export const GITCAFE_REFRESH_SURFACES_QUEUE = "gitcafe-refresh-surfaces";
+export const GITCAFE_REFRESH_CATALOGS_QUEUE = "gitcafe-refresh-catalogs";
+export const gitCafeRefreshCatalogsJobSchema = z.strictObject({
+	repoId: z.uuid(),
+	requestId: z.uuid(),
+});
+export type GitCafeRefreshCatalogsJob = z.infer<
+	typeof gitCafeRefreshCatalogsJobSchema
+>;
 export const gitCafeProcessEventJobSchema = z.strictObject({
 	eventId: z.uuid(),
 	requestId: z.uuid(),

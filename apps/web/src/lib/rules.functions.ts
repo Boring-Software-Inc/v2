@@ -22,13 +22,18 @@ import {
 export type { RuleConfigView, RulesHeaderStats };
 
 async function queueBranchSync(repoId: string): Promise<void> {
-	const { getBoss, isDemoMode } = await import("#/lib/server/db");
+	const { getBoss, getDb, isDemoMode, queueGitCafeCatalogRefresh } =
+		await import("#/lib/server/db");
 	if (isDemoMode()) {
 		return;
 	}
-	const { SYNC_REPO_BRANCHES_QUEUE, syncRepoBranchesOptions } = await import(
-		"@tripwire/db"
-	);
+	const { repoServices, SYNC_REPO_BRANCHES_QUEUE, syncRepoBranchesOptions } =
+		await import("@tripwire/db");
+	const repo = await repoServices.getRepoById(getDb().db, repoId);
+	if (repo?.forge === "gitcafe") {
+		await queueGitCafeCatalogRefresh(repoId);
+		return;
+	}
 	const boss = await getBoss();
 	await boss.send(
 		SYNC_REPO_BRANCHES_QUEUE,

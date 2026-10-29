@@ -3,10 +3,12 @@ import {
 	GITCAFE_CONNECT_QUEUE,
 	GITCAFE_LIFECYCLE_QUEUE,
 	GITCAFE_PROCESS_EVENT_QUEUE,
+	GITCAFE_REFRESH_CATALOGS_QUEUE,
 	GITCAFE_REFRESH_SURFACES_QUEUE,
 	GITCAFE_RERUN_QUEUE,
 	GITCAFE_RESUME_RUN_QUEUE,
 	gitCafeProcessEventJobSchema,
+	gitCafeRefreshCatalogsJobSchema,
 	gitCafeRefreshSurfacesJobSchema,
 	gitCafeResumeRunJobSchema,
 	rerunChangeRequestJobSchema,
@@ -35,6 +37,7 @@ import {
 } from "./gitcafe-lifecycle-consumer.ts";
 import { buildGitCafeRuntime, type GitCafeRuntime } from "./gitcafe-runtime.ts";
 import { type ProcessEventDeps, processEvent } from "./jobs/process-event.ts";
+import { refreshGitCafeCatalogs } from "./jobs/refresh-suggestions.ts";
 import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
@@ -45,6 +48,7 @@ const PROTECTION_QUEUES = [
 	GITCAFE_RESUME_RUN_QUEUE,
 	GITCAFE_RERUN_QUEUE,
 	GITCAFE_REFRESH_SURFACES_QUEUE,
+	GITCAFE_REFRESH_CATALOGS_QUEUE,
 ];
 
 /** Dedicated queues and scoped supervision keep every legacy forge backlog idle. */
@@ -52,12 +56,33 @@ export async function registerGitCafeProtectionQueues(
 	deps: ProcessEventDeps,
 	boss: PgBoss,
 	prepareCheckRerequest: GitCafeRuntime["prepareCheckRerequest"],
+	catalogRuntime: Pick<GitCafeRuntime, "getBranches" | "getLabels">,
 ) {
 	for (const name of PROTECTION_QUEUES) {
-		await boss.createQueue(name);
+		await boss.createQueue(
+			name,
+			name === GITCAFE_REFRESH_CATALOGS_QUEUE
+				? { policy: "stately" }
+				: undefined,
+		);
 		await boss.supervise(name);
 	}
 	await gitCafeLifecycleServices.recoverGitCafeEvents(deps.db, boss);
+	await boss.work<unknown>(
+		GITCAFE_REFRESH_CATALOGS_QUEUE,
+		{ batchSize: 1 },
+		async (jobs) => {
+			for (const job of jobs) {
+				const parsed = gitCafeRefreshCatalogsJobSchema.safeParse(job.data);
+				if (!parsed.success) throw new Error("Invalid GitCafe catalog job");
+				const result = await refreshGitCafeCatalogs(
+					{ db: deps.db, runtime: catalogRuntime, logger: deps.logger },
+					parsed.data,
+				);
+				if (!result.ok) throw new Error("GitCafe catalog refresh unavailable");
+			}
+		},
+	);
 	await boss.work<unknown>(
 		GITCAFE_PROCESS_EVENT_QUEUE,
 		{ batchSize: 1 },
@@ -250,6 +275,7 @@ export async function startGitCafeProtectionWorker(
 			},
 			boss,
 			runtime.prepareCheckRerequest,
+			runtime,
 		);
 		await registerGitCafeLifecycleConsumer(
 			db,

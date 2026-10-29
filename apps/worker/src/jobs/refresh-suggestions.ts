@@ -1,6 +1,60 @@
-import { type Db, repoServices, type SyncRepoBranchesJob } from "@tripwire/db";
+import type { GitCafeRefreshCatalogsJob } from "@tripwire/contracts";
+import {
+	type Db,
+	labelServices,
+	repoServices,
+	type SyncRepoBranchesJob,
+} from "@tripwire/db";
 import { type GithubHttp, githubForge } from "@tripwire/forge-github";
 import type { Logger } from "pino";
+import type { GitCafeRuntime } from "../gitcafe-runtime.ts";
+
+/** Only complete catalog reads replace caches; one unavailable source preserves its previous values. */
+export async function refreshGitCafeCatalogs(
+	deps: {
+		db: Db;
+		runtime: Pick<GitCafeRuntime, "getBranches" | "getLabels">;
+		logger: Logger;
+	},
+	job: GitCafeRefreshCatalogsJob,
+): Promise<{ ok: boolean }> {
+	const repo = await repoServices.getRepoById(deps.db, job.repoId);
+	if (!repo || repo.removedAt || repo.forge !== "gitcafe") return { ok: true };
+	const branches = await deps.runtime.getBranches(repo.fullName);
+	const labels = await deps.runtime.getLabels(repo.fullName);
+	if (branches.ok)
+		await repoServices.upsertRepoSuggestions(
+			deps.db,
+			repo.id,
+			"branches",
+			branches.value,
+		);
+	else
+		deps.logger.warn(
+			{
+				requestId: job.requestId,
+				repoId: repo.id,
+				source: "branches",
+				reason: branches.reason,
+				status: branches.status,
+			},
+			"GitCafe catalog unavailable; kept previous values",
+		);
+	if (labels.ok)
+		await labelServices.replaceRepoLabels(deps.db, repo.id, labels.value);
+	else
+		deps.logger.warn(
+			{
+				requestId: job.requestId,
+				repoId: repo.id,
+				source: "labels",
+				reason: labels.reason,
+				status: labels.status,
+			},
+			"GitCafe catalog unavailable; kept previous values",
+		);
+	return { ok: branches.ok && labels.ok };
+}
 
 /**
  * Refreshes the cached branch suggestions for a repo. The worker holds the

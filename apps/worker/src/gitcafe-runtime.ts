@@ -8,6 +8,7 @@ import {
 	gitCafePullIdentitySchema,
 	normalizedEventSchema,
 	REVIEW_POINTER,
+	type RepoLabel,
 	type RerunChangeRequestJob,
 } from "@tripwire/contracts";
 import {
@@ -45,6 +46,8 @@ import type { ForgeRuntime } from "./forge-runtime.ts";
 import { toForgeAction } from "./jobs/pr-surface.ts";
 
 export interface GitCafeRuntime extends ForgeRuntime {
+	getBranches(repo: string): Promise<ForgeReadResult<string[]>>;
+	getLabels(repo: string): Promise<ForgeReadResult<RepoLabel[]>>;
 	prepareCheckRerequest(
 		eventId: string,
 	): Promise<ForgeReadResult<RerunChangeRequestJob>>;
@@ -402,7 +405,22 @@ export function buildGitCafeRuntime(
 		signalHttp: null,
 		installationRepos: null,
 		isRepoPublic: null,
-		listThreads: null,
+		getBranches: async (repo) => {
+			const bound = await bind(repo);
+			return bound.ok
+				? bound.reads.getBranches(repo, bound.repositoryId)
+				: bound;
+		},
+		getLabels: async (repo) => {
+			const bound = await bind(repo);
+			return bound.ok ? bound.reads.getLabels(repo, bound.repositoryId) : bound;
+		},
+		listThreads: async (repo, query) => {
+			const bound = await bind(repo);
+			return bound.ok
+				? bound.reads.listThreads(repo, bound.repositoryId, query)
+				: bound;
+		},
 		prepareEvent: async (raw, receivedAt) => {
 			const event = parseJson(
 				raw.body,

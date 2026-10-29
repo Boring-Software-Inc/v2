@@ -1,9 +1,15 @@
 import {
+	GITCAFE_REFRESH_CATALOGS_QUEUE,
+	gitCafeRefreshCatalogsJobSchema,
+} from "@tripwire/contracts";
+import {
 	createDb,
 	createGitCafeConnectionBoss,
 	createPgliteDb,
 	type PgliteHandle,
+	repoServices,
 } from "@tripwire/db";
+import { generateId } from "@tripwire/utils";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
 
@@ -94,4 +100,25 @@ export async function getGitCafeConnectionBoss(
 		if (gitCafeConnectionBoss === pending) gitCafeConnectionBoss = null;
 		throw error;
 	}
+}
+
+/** Forge-specific producers must not start supervision or consumption of the general backlog. */
+export async function queueGitCafeCatalogRefresh(
+	repoId: string,
+): Promise<boolean> {
+	if (isDemoMode()) return false;
+	const repo = await repoServices.getRepoById(getDb().db, repoId);
+	if (repo?.forge !== "gitcafe" || repo.removedAt) return false;
+	const job = gitCafeRefreshCatalogsJobSchema.parse({
+		repoId,
+		requestId: generateId(),
+	});
+	const queue = await getGitCafeConnectionBoss(job.requestId);
+	await queue.createQueue(GITCAFE_REFRESH_CATALOGS_QUEUE, {
+		policy: "stately",
+	});
+	await queue.send(GITCAFE_REFRESH_CATALOGS_QUEUE, job, {
+		singletonKey: repoId,
+	});
+	return true;
 }
