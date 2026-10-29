@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import {
 	type GitCafeReadBoundary,
+	type GitCafeRepositoryBinding,
 	gitCafeCheckRerequestedEventSchema,
 	gitCafeDispatchableRepositoryEventSchema,
 	gitCafeHydratedCommentEventSchema,
@@ -8,6 +9,7 @@ import {
 	gitCafePullIdentitySchema,
 	normalizedEventSchema,
 	REVIEW_POINTER,
+	type RepoLabel,
 	type RerunChangeRequestJob,
 } from "@tripwire/contracts";
 import {
@@ -16,6 +18,7 @@ import {
 	gitCafeActionServices,
 	gitCafeLifecycleServices,
 	organizationInstallations,
+	repoServices,
 	repos,
 	runServices,
 } from "@tripwire/db";
@@ -45,6 +48,13 @@ import type { ForgeRuntime } from "./forge-runtime.ts";
 import { toForgeAction } from "./jobs/pr-surface.ts";
 
 export interface GitCafeRuntime extends ForgeRuntime {
+	getCatalogs(repoId: string): Promise<
+		ForgeReadResult<{
+			binding: GitCafeRepositoryBinding;
+			branches: ForgeReadResult<string[]>;
+			labels: ForgeReadResult<RepoLabel[]>;
+		}>
+	>;
 	prepareCheckRerequest(
 		eventId: string,
 	): Promise<ForgeReadResult<RerunChangeRequestJob>>;
@@ -84,10 +94,25 @@ export function buildGitCafeRuntime(
 		);
 		if (!authority.allowed)
 			return { ok: false as const, reason: "inactive" as const };
+		const binding: GitCafeRepositoryBinding = {
+			repoId: row.repos.id,
+			organizationId: row.organization_installations.organizationId,
+			installationId,
+			repositoryId: row.repos.externalId,
+			fullName: row.repos.fullName,
+			generation: authority.generation,
+		};
 		const client = new GitCafeInstallationClient({
 			credentials,
 			fetch,
 			lifecycleGuard: async (id) => {
+				if (
+					!(await gitCafeLifecycleServices.matchesGitCafeRepositoryBinding(
+						db,
+						binding,
+					))
+				)
+					return false;
 				if (
 					context &&
 					!("actionId" in context
@@ -117,6 +142,13 @@ export function buildGitCafeRuntime(
 			installation.value.org !== row.repos.owner
 		)
 			return { ok: false as const, reason: "identity-mismatch" as const };
+		if (
+			(authority.providerVersion !== null &&
+				installation.value.version < authority.providerVersion) ||
+			(authority.providerRevision !== null &&
+				installation.value.revision < authority.providerRevision)
+		)
+			return { ok: false as const, reason: "stale" as const };
 		const repository = await client.getRepository(
 			installationId,
 			row.repos.owner,
@@ -132,10 +164,15 @@ export function buildGitCafeRuntime(
 		return {
 			ok: true as const,
 			client,
+			binding,
 			generation: authority.generation,
 			installation: installation.value,
 			repositoryId: row.repos.externalId,
-			reads: new GitCafeReads({ client, installationId }),
+			reads: new GitCafeReads({
+				client,
+				installationId,
+				expectedInstallation: installation.value,
+			}),
 		};
 	};
 	const reads = {
@@ -402,7 +439,56 @@ export function buildGitCafeRuntime(
 		signalHttp: null,
 		installationRepos: null,
 		isRepoPublic: null,
-		listThreads: null,
+		getCatalogs: async (repoId) => {
+			const repo = await repoServices.getRepoById(db, repoId);
+			if (!repo || repo.forge !== "gitcafe" || repo.removedAt)
+				return { ok: false, reason: "inactive" };
+			const bound = await bind(repo.fullName);
+			if (!bound.ok) return bound;
+			if (
+				bound.binding.repoId !== repo.id ||
+				bound.binding.repositoryId !== repo.externalId ||
+				bound.binding.installationId !== repo.installationId ||
+				bound.binding.organizationId !== repo.orgId
+			)
+				return { ok: false, reason: "identity-mismatch" };
+			const branches = await bound.reads.getBranches(
+				repo.fullName,
+				repo.externalId,
+			);
+			const labels = await bound.reads.getLabels(
+				repo.fullName,
+				repo.externalId,
+			);
+			for (const read of [branches, labels]) {
+				if (
+					!read.ok &&
+					["stale", "inactive", "identity-mismatch", "expired"].includes(
+						read.reason,
+					)
+				)
+					return read;
+			}
+			const current = await bound.client.getToken(
+				bound.installation.id,
+				bound.installation,
+			);
+			if (!current.ok) return current;
+			if (
+				!(await gitCafeLifecycleServices.matchesGitCafeRepositoryBinding(
+					db,
+					bound.binding,
+				))
+			)
+				return { ok: false, reason: "inactive" };
+			return { ok: true, value: { binding: bound.binding, branches, labels } };
+		},
+		listThreads: async (repo, query) => {
+			const bound = await bind(repo);
+			return bound.ok
+				? bound.reads.listThreads(repo, bound.repositoryId, query)
+				: bound;
+		},
 		prepareEvent: async (raw, receivedAt) => {
 			const event = parseJson(
 				raw.body,

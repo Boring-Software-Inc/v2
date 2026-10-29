@@ -522,7 +522,7 @@ export async function getRepoSuggestions(
 }
 
 export async function upsertRepoSuggestions(
-	db: Db,
+	db: DbLike,
 	repoId: string,
 	kind: string,
 	values: string[],

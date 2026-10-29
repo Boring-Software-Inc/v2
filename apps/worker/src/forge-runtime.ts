@@ -109,7 +109,7 @@ export interface ForgeRuntime {
 		| ((
 				repoFullName: string,
 				query: ThreadListQuery,
-		  ) => Promise<ThreadListResult>)
+		  ) => Promise<ThreadListResult | ForgeReadResult<ThreadListResult>>)
 		| null;
 }
 

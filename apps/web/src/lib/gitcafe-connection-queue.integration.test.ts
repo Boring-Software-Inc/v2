@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { GITCAFE_CONNECT_QUEUE } from "@tripwire/contracts";
+import {
+	GITCAFE_CONNECT_QUEUE,
+	GITCAFE_REFRESH_CATALOGS_QUEUE,
+} from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createDb,
@@ -16,6 +19,7 @@ let database: ReturnType<typeof createDb>;
 const userId = generateId();
 const sessionId = generateId();
 const orgId = generateId();
+const catalogRepoId = generateId();
 
 beforeAll(async () => {
 	container = await createTestDatabase();
@@ -36,6 +40,10 @@ beforeAll(async () => {
 	await database.pool.query(
 		`INSERT INTO member (id, user_id, organization_id, role) VALUES ($1, $2, $3, 'admin')`,
 		[generateId(), userId, orgId],
+	);
+	await database.pool.query(
+		`INSERT INTO repos (id, forge, external_id, owner, name, full_name, org_id, installation_id) VALUES ($1, 'gitcafe', 'synthetic-catalog-repository', 'synthetic', 'catalog', 'synthetic/catalog', $2, 'synthetic-installation')`,
+		[catalogRepoId, orgId],
 	);
 }, 60_000);
 
@@ -82,22 +90,22 @@ afterAll(async () => {
 async function snapshot() {
 	const result = await database.pool.query(
 		`SELECT
-			(SELECT jsonb_agg(to_jsonb(j) ORDER BY id) FROM pgboss.job j WHERE name <> $1) AS jobs,
-			(SELECT jsonb_agg(to_jsonb(q) ORDER BY name) FROM pgboss.queue q WHERE name <> $1) AS queues,
+			(SELECT jsonb_agg(to_jsonb(j) ORDER BY id) FROM pgboss.job j WHERE name <> ALL($1::text[])) AS jobs,
+			(SELECT jsonb_agg(to_jsonb(q) ORDER BY name) FROM pgboss.queue q WHERE name <> ALL($1::text[])) AS queues,
 			(SELECT jsonb_agg(to_jsonb(s) ORDER BY name) FROM pgboss.schedule s) AS schedules,
 			(SELECT jsonb_agg(to_jsonb(v)) FROM pgboss.version v) AS version,
 			(SELECT jsonb_agg(to_jsonb(w)) FROM worker_deployments w) AS deployments,
 			(SELECT jsonb_agg(to_jsonb(b)) FROM pgboss.bam b) AS migrations,
 			(SELECT jsonb_agg(to_jsonb(w)) FROM pgboss.warning w) AS warnings,
 			(SELECT jsonb_agg(to_jsonb(s)) FROM pgboss.queue_stats s) AS stats`,
-		[GITCAFE_CONNECT_QUEUE],
+		[[GITCAFE_CONNECT_QUEUE, GITCAFE_REFRESH_CATALOGS_QUEUE]],
 	);
 	return result.rows;
 }
 
 /** Synthetic auth responses isolate queue behavior; they are not provider authority evidence. */
 function runWeb(
-	action: "confirm" | "status" | "recover" | "mismatched-subject",
+	action: "confirm" | "status" | "recover" | "mismatched-subject" | "catalog",
 ) {
 	return spawnSync(
 		process.execPath,
@@ -130,7 +138,7 @@ function runWeb(
 			return Response.json({ sub: "queue-subject" });
 		};
 		const { confirmGitCafeGrant, readGitCafeConnectionStatus } = await import("#/lib/server/gitcafe-connection");
-		const { getDb, getGitCafeConnectionBoss } = await import("#/lib/server/db");
+		const { getDb, getGitCafeConnectionBoss, queueGitCafeCatalogRefresh } = await import("#/lib/server/db");
 		let starts = 0;
 		const start = PgBoss.prototype.start;
 		PgBoss.prototype.start = function () {
@@ -159,6 +167,13 @@ function runWeb(
 				await bootstrap.stop({ graceful: false });
 				starts = 0;
 				PgBoss.prototype.start = function () { starts++; return start.call(this); };
+			} else if (action === "catalog") {
+				assert.equal(await queueGitCafeCatalogRefresh(process.env.TEST_REPO), true);
+				assert.equal(await queueGitCafeCatalogRefresh(process.env.TEST_REPO), true);
+				const {rows} = await getDb().pool.query("SELECT name, data FROM pgboss.job WHERE name = 'gitcafe-refresh-catalogs'");
+				assert.equal(rows.length, 1);
+				assert.equal(rows[0].data.repoId, process.env.TEST_REPO);
+				assert.match(rows[0].data.requestId, /^[0-9a-f-]{36}$/);
 			} else if (action === "status") {
 				assert.deepEqual(await readGitCafeConnectionStatus(orgId, "queue-installation", generateId()), { status: "retry" });
 			} else {
@@ -193,6 +208,7 @@ function runWeb(
 				TEST_SESSION: sessionId,
 				TEST_ORG: orgId,
 				TEST_ACTION: action,
+				TEST_REPO: catalogRepoId,
 			},
 			encoding: "utf8",
 			timeout: 20_000,
@@ -212,6 +228,14 @@ test("confirmation refuses a proof whose membership actor differs from its live 
 	);
 	expect(jobs.rows[0]?.count).toBe(0);
 });
+
+test("catalog producer deduplicates work and preserves unrelated queue data and schedules", async () => {
+	const before = await snapshot();
+	const result = runWeb("catalog");
+	expect(result.stderr).toBe("");
+	expect(result.status).toBe(0);
+	expect(await snapshot()).toEqual(before);
+}, 30_000);
 
 for (const action of ["confirm", "status"] as const) {
 	test(`web ${action} startup preserves unrelated backlog without general registration or maintenance`, async () => {

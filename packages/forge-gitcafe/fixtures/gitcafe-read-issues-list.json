@@ -1,0 +1,44 @@
+{
+	"items": [
+		{
+			"author": {
+				"kind": "local",
+				"actorId": "act_01m08gfttrfw3ba3xpz50vq38h",
+				"handle": "grim",
+				"displayName": "grim",
+				"avatarUrl": null
+			},
+			"id": "issue_01m62kwbc9ewtrxfnn7v8p70mr",
+			"repoId": "repo_01m608d2crfqzt2vc8akngqsc0",
+			"number": 2,
+			"title": "Tripwire staging issue-event acceptance",
+			"description": "Reversible scratch fixture for the GitCafe adapter. <!-- tripwire-qa:01a1853e-0f5b-77e4-937b-99dd5a679b6c -->",
+			"version": 0,
+			"stateType": "backlog",
+			"priority": 0,
+			"authorActorId": "act_01m08gfttrfw3ba3xpz50vq38h",
+			"authorDelegatorActorId": null,
+			"authorViaInstallationId": null,
+			"dueDate": null,
+			"closedAt": null,
+			"closedByActorId": null,
+			"closedByDelegatorActorId": null,
+			"closedByViaInstallationId": null,
+			"closedReason": null,
+			"milestoneId": null,
+			"lockedAt": null,
+			"lockedByActorId": null,
+			"lockReason": null,
+			"pinnedAt": null,
+			"pinnedByActorId": null,
+			"pinSlot": null,
+			"createdAt": "2026-10-29T01:20:07.012Z",
+			"updatedAt": "2026-10-29T01:20:07.012Z",
+			"labels": [],
+			"assignees": [],
+			"milestone": null
+		}
+	],
+	"next": null,
+	"total": 1
+}

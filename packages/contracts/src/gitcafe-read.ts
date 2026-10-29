@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { gitCafePullIdentitySchema } from "./gitcafe-events.ts";
 import { gitCafeInstallationFailureReasonSchema } from "./gitcafe-installation.ts";
+import { repoLabelSchema } from "./workflow.ts";
 
 export type GitCafeReadBoundary<T> = z.ZodType<T>;
 
@@ -15,6 +17,24 @@ export const gitCafeReadDiagnosticSchema = z.strictObject({
 	status: z.number().int().min(100).max(599).optional(),
 });
 export type GitCafeReadDiagnostic = z.infer<typeof gitCafeReadDiagnosticSchema>;
+
+export const gitCafeRepositoryBindingSchema = z.strictObject({
+	repoId: z.uuid(),
+	organizationId: z.string().min(1),
+	installationId: z.string().min(1),
+	repositoryId: z.string().min(1),
+	fullName: z.string().min(1),
+	generation: z.number().int().nonnegative().safe(),
+});
+export type GitCafeRepositoryBinding = z.infer<
+	typeof gitCafeRepositoryBindingSchema
+>;
+
+export const gitCafeCatalogValuesSchema = z.strictObject({
+	branches: z.array(z.string().min(1)).optional(),
+	labels: z.array(repoLabelSchema).optional(),
+});
+export type GitCafeCatalogValues = z.infer<typeof gitCafeCatalogValuesSchema>;
 
 const OID = z.string().regex(/^[0-9a-f]{40}$/);
 const COUNT = z.number().int().nonnegative().safe();
@@ -142,6 +162,83 @@ export const gitCafeReadProfileSchema = z.object({
 	bio: z.string().nullable(),
 });
 export type GitCafeReadProfile = z.infer<typeof gitCafeReadProfileSchema>;
+
+export const gitCafeReadRefPageSchema = z.object({
+	items: z
+		.array(z.object({ name: z.string().min(1).max(255), oid: OID }))
+		.max(200),
+	next: CURSOR,
+});
+export type GitCafeReadRefPage = z.infer<typeof gitCafeReadRefPageSchema>;
+
+export const gitCafeReadLabelPageSchema = z.object({
+	items: z
+		.array(
+			z.object({
+				id: z.string().min(1),
+				repoId: z.string().min(1),
+				name: z.string().min(1),
+				color: z.string(),
+				description: z.string().nullable(),
+			}),
+		)
+		.max(100),
+	next: CURSOR,
+});
+export type GitCafeReadLabelPage = z.infer<typeof gitCafeReadLabelPageSchema>;
+
+export const gitCafeReadPullThreadItemSchema = z.object({
+	id: z.string().min(1),
+	number: z.number().int().positive().max(2147483647),
+	title: z.string(),
+	version: COUNT,
+	state: z.enum(["open", "closed", "merged"]),
+	updatedAt: z.iso.datetime(),
+	authorActorId: z.string().min(1).nullable(),
+	author: gitCafePullIdentitySchema.shape.author,
+});
+export type GitCafeReadPullThreadItem = z.infer<
+	typeof gitCafeReadPullThreadItemSchema
+>;
+
+export const gitCafeReadPullThreadPageSchema = z.object({
+	items: z.array(gitCafeReadPullThreadItemSchema).max(100),
+	next: CURSOR,
+});
+export type GitCafeReadPullThreadPage = z.infer<
+	typeof gitCafeReadPullThreadPageSchema
+>;
+
+export const gitCafeReadPullThreadSchema =
+	gitCafeReadPullThreadItemSchema.extend({
+		repoId: z.string().min(1),
+		lockedAt: z.iso.datetime().nullable(),
+	});
+export type GitCafeReadPullThread = z.infer<typeof gitCafeReadPullThreadSchema>;
+
+export const gitCafeReadIssueThreadSchema = gitCafeReadPullThreadSchema
+	.omit({ state: true })
+	.extend({
+		stateType: z.enum([
+			"triage",
+			"backlog",
+			"unstarted",
+			"started",
+			"completed",
+			"canceled",
+		]),
+	});
+export type GitCafeReadIssueThread = z.infer<
+	typeof gitCafeReadIssueThreadSchema
+>;
+
+export const gitCafeReadIssueThreadPageSchema = z.object({
+	items: z.array(gitCafeReadIssueThreadSchema).max(100),
+	next: CURSOR,
+});
+export type GitCafeReadIssueThreadPage = z.infer<
+	typeof gitCafeReadIssueThreadPageSchema
+>;
 
 export const gitCafeReadPullPageSchema = z.object({
 	items: z

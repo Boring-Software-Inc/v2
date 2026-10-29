@@ -14,13 +14,15 @@ export interface RepoLabelsView {
 }
 
 async function queueLabelSync(repoId: string): Promise<boolean> {
-	const { getBoss, isDemoMode } = await import("#/lib/server/db");
+	const { getBoss, getDb, isDemoMode, queueGitCafeCatalogRefresh } =
+		await import("#/lib/server/db");
 	if (isDemoMode()) {
 		return false;
 	}
-	const { SYNC_REPO_LABELS_QUEUE, syncRepoLabelsOptions } = await import(
-		"@tripwire/db"
-	);
+	const { repoServices, SYNC_REPO_LABELS_QUEUE, syncRepoLabelsOptions } =
+		await import("@tripwire/db");
+	const repo = await repoServices.getRepoById(getDb().db, repoId);
+	if (repo?.forge === "gitcafe") return queueGitCafeCatalogRefresh(repoId);
 	const boss = await getBoss();
 	await boss.send(
 		SYNC_REPO_LABELS_QUEUE,
