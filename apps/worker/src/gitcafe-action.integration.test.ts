@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, expect, spyOn, test } from "bun:test";
 import { createHash, generateKeyPairSync } from "node:crypto";
 import {
+	GITCAFE_BACKFILL_REPO_QUEUE,
 	GITCAFE_LIFECYCLE_QUEUE,
 	GITCAFE_PROCESS_EVENT_QUEUE,
 	GITCAFE_RECEIPT_APP_ID,
@@ -178,6 +179,257 @@ afterAll(async () => {
 	await boss?.stop({ graceful: false, close: true });
 	await database?.pool.end();
 	await container?.stop();
+});
+
+test("GitCafe arming queues one isolated backfill and preserves ordinary queues", async () => {
+	await database.db
+		.update(repos)
+		.set({ armed: false })
+		.where(eq(repos.id, repoId));
+	const before = await database.pool.query(
+		"SELECT name,cron,timezone FROM pgboss.schedule ORDER BY name",
+	);
+	expect(
+		await repoServices.turnOnGate(database.db, async () => boss, repoId),
+	).toEqual({ ok: true, armed: true });
+	expect(
+		await repoServices.turnOnGate(database.db, async () => boss, repoId),
+	).toEqual({ ok: true, armed: true });
+	const jobs = await database.pool.query<{ name: string; data: unknown }>(
+		"SELECT name,data FROM pgboss.job WHERE data->>'repoId'=$1",
+		[repoId],
+	);
+	expect(jobs.rows).toHaveLength(1);
+	expect(jobs.rows[0]).toMatchObject({
+		name: "gitcafe-backfill-repo",
+		data: { repoId },
+	});
+	expect(
+		(
+			await database.pool.query(
+				"SELECT name,cron,timezone FROM pgboss.schedule ORDER BY name",
+			)
+		).rows,
+	).toEqual(before.rows);
+});
+
+for (const generationChanged of [false, true]) {
+	test(`GitCafe arming backfill ${generationChanged ? "refuses changed authority" : "evaluates only claimed history without forge writes or general consumers"}`, async () => {
+		const definition = workflowDefinitionSchema.parse({
+			id: generateId(),
+			name: "Historical block",
+			version: 1,
+			nodes: [
+				{ id: "trigger", type: "trigger", kinds: ["change-request.opened"] },
+				{ id: "block", type: "action", action: "block", params: {} },
+			],
+			edges: [{ id: "edge", from: "trigger", to: "block" }],
+		});
+		const workflow = await workflowServices.createWorkflow(database.db, {
+			repoId,
+			definition,
+		});
+		expect(
+			await workflowServices.setWorkflowEnabled(database.db, {
+				repoId,
+				workflowId: workflow.id,
+				enabled: true,
+			}),
+		).toMatchObject({ ok: true, enabled: true });
+		const source = normalizeGitCafePullEvent(
+			{
+				event,
+				author: {
+					login: "grim",
+					externalId: event.pull.authorActorId ?? "unavailable",
+				},
+			},
+			new Date().toISOString(),
+		);
+		if (!source || !("changeRequest" in source))
+			throw new Error("Missing captured pull projection");
+		const ids: string[] = [];
+		for (const repositoryId of [event.repository.id, `repo_${generateId()}`]) {
+			const normalized = normalizedEventSchema.parse({
+				...source,
+				deliveryId: generateId(),
+				repoExternalId: repositoryId,
+				changeRequest: { ...source.changeRequest, number: 987 },
+			});
+			const inserted = await eventServices.insertRawEvent(database.pool, boss, {
+				deliveryId: normalized.deliveryId,
+				forge: "gitcafe",
+				rawKind: event.type,
+				raw: event,
+			});
+			if (!inserted.eventId) throw new Error("Missing backfill source");
+			ids.push(inserted.eventId);
+			await eventServices.markEventNormalized(
+				database.db,
+				database.pool,
+				inserted.eventId,
+				normalized,
+			);
+		}
+		const [validId, foreignId] = ids;
+		if (!validId || !foreignId) throw new Error("Missing backfill source IDs");
+		const repo = await repoServices.getRepoById(database.db, repoId);
+		if (!repo) throw new Error("Missing claimed repository");
+		expect(
+			(await eventServices.listBackfillEvents(database.db, repo, 30, 50)).map(
+				(row) => row.id,
+			),
+		).toEqual([validId]);
+		await database.db
+			.update(repos)
+			.set({ armed: false })
+			.where(eq(repos.id, repoId));
+		await database.pool.query("DELETE FROM pgboss.job WHERE name=$1", [
+			GITCAFE_BACKFILL_REPO_QUEUE,
+		]);
+		expect(
+			await repoServices.turnOnGate(database.db, async () => boss, repoId),
+		).toEqual({ ok: true, armed: true });
+		if (generationChanged)
+			await database.db
+				.update(gitCafeInstallationLifecycle)
+				.set({ generation: 2 })
+				.where(
+					eq(gitCafeInstallationLifecycle.installationId, installation.id),
+				);
+		const logger = pino({ level: "silent" });
+		const isolated = await createGitCafeConnectionBoss(container.url, logger);
+		try {
+			await registerGitCafeProtectionQueues(
+				{
+					db: database.db,
+					pool: database.pool,
+					logger,
+					resolveForge: () => null,
+					makeGenerate: null,
+					appUrl: "https://staging.tripwire.sh",
+				},
+				isolated,
+				async () => ({ ok: false, reason: "identity-mismatch" }),
+				{
+					getCatalogs: async () => ({ ok: false, reason: "inactive" }),
+				},
+			);
+			const until = Date.now() + 10_000;
+			while (Date.now() < until) {
+				const job = await database.pool.query<{ state: string }>(
+					"SELECT state FROM pgboss.job WHERE name=$1 AND data->>'repoId'=$2",
+					[GITCAFE_BACKFILL_REPO_QUEUE, repoId],
+				);
+				if (job.rows[0]?.state === "completed") break;
+				await Bun.sleep(20);
+			}
+			expect(
+				(
+					await database.pool.query<{ state: string }>(
+						"SELECT state FROM pgboss.job WHERE name=$1 AND data->>'repoId'=$2",
+						[GITCAFE_BACKFILL_REPO_QUEUE, repoId],
+					)
+				).rows[0]?.state,
+			).toBe("completed");
+			const run = await runServices.getRunForEvent(database.db, validId);
+			if (generationChanged) expect(run).toBeNull();
+			else {
+				expect(run).toMatchObject({
+					backfill: true,
+					verdict: "block",
+					status: "completed",
+				});
+				const actions = await database.pool.query<{ status: string }>(
+					"SELECT status FROM run_actions WHERE run_id=$1",
+					[run?.id],
+				);
+				expect(actions.rows.length).toBeGreaterThan(0);
+				expect(actions.rows.every((row) => row.status === "suppressed")).toBe(
+					true,
+				);
+			}
+			expect(
+				await runServices.getRunForEvent(database.db, foreignId),
+			).toBeNull();
+			const general = await database.pool.query<{ state: string }>(
+				"SELECT state FROM pgboss.job WHERE name='process-event' AND data->>'eventId'=ANY($1::text[])",
+				[ids],
+			);
+			expect(general.rows).toEqual([
+				{ state: "created" },
+				{ state: "created" },
+			]);
+			expect(
+				(await repoServices.getRepoById(database.db, repoId))?.backfillTotal,
+			).toBeNull();
+		} finally {
+			await isolated.stop();
+		}
+	}, 20_000);
+}
+
+test("GitCafe workflow enable refuses withdrawn authority while disabling remains possible", async () => {
+	const workflow = await workflowServices.createWorkflow(database.db, {
+		repoId,
+		definition: deriveDefaultWorkflow([]),
+	});
+	await gitCafeLifecycleServices.retireGitCafeInstallation(database.db, {
+		installationId: installation.id,
+		reason: "paused",
+	});
+	expect(
+		await workflowServices.setWorkflowEnabled(database.db, {
+			repoId,
+			workflowId: workflow.id,
+			enabled: true,
+		}),
+	).toMatchObject({ ok: false });
+	expect(
+		await workflowServices.setWorkflowEnabled(database.db, {
+			repoId,
+			workflowId: workflow.id,
+			enabled: false,
+		}),
+	).toMatchObject({ ok: true, enabled: false });
+});
+
+test("GitCafe arming refuses withdrawn authority", async () => {
+	await gitCafeLifecycleServices.retireGitCafeInstallation(database.db, {
+		installationId: installation.id,
+		reason: "paused",
+	});
+	expect(
+		await repoServices.turnOnGate(database.db, async () => boss, repoId),
+	).toEqual({ ok: false, armed: false, reason: "protection-unavailable" });
+	expect((await repoServices.getRepoById(database.db, repoId))?.armed).toBe(
+		false,
+	);
+});
+
+test("GitCafe arming rolls back when isolated backfill admission fails", async () => {
+	await database.db
+		.update(repos)
+		.set({ armed: false })
+		.where(eq(repos.id, repoId));
+	await boss.createQueue("gitcafe-backfill-repo");
+	await database.pool.query(
+		"CREATE FUNCTION fail_gitcafe_arm() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.name='gitcafe-backfill-repo' THEN RAISE EXCEPTION 'arming queue outage'; END IF; RETURN NEW; END $$",
+	);
+	await database.pool.query(
+		"CREATE TRIGGER fail_gitcafe_arm BEFORE INSERT ON pgboss.job FOR EACH ROW EXECUTE FUNCTION fail_gitcafe_arm()",
+	);
+	try {
+		await expect(
+			repoServices.turnOnGate(database.db, async () => boss, repoId),
+		).rejects.toThrow("arming queue outage");
+	} finally {
+		await database.pool.query("DROP TRIGGER fail_gitcafe_arm ON pgboss.job");
+		await database.pool.query("DROP FUNCTION fail_gitcafe_arm()");
+	}
+	expect((await repoServices.getRepoById(database.db, repoId))?.armed).toBe(
+		false,
+	);
 });
 
 test("resume settlement rolls back its audit on failure and concurrent retries apply one decision", async () => {

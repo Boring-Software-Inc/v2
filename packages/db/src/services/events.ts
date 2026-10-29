@@ -370,7 +370,7 @@ export async function getActivityForEvent(
  */
 export async function listBackfillEvents(
 	db: Db,
-	repo: RepoIdentity,
+	repo: RepoIdentity & { externalId?: string },
 	sinceDays: number,
 	cap: number,
 ): Promise<{ id: string; normalized: NormalizedEvent }[]> {
@@ -379,6 +379,7 @@ export async function listBackfillEvents(
 			SELECT DISTINCT ON (subject_number) id, normalized, received_at
 			FROM events
 			WHERE forge = ${repo.forge} AND repo_full_name = ${repo.fullName}
+			  AND (${repo.forge} <> 'gitcafe' OR normalized->>'repoExternalId' = ${repo.externalId ?? null})
 			  AND normalized IS NOT NULL
 			  AND subject_number IS NOT NULL
 			  AND normalized ? 'changeRequest'

@@ -68,16 +68,6 @@ export function ArmCallout({
 	const { data: orgContext } = useQuery(orgContextQueryOptions(org));
 	const canArm = useOrgPermission(org, "connections:manage");
 
-	if (forge === "gitcafe")
-		return (
-			<Alert announce={false} className={className} status="neutral">
-				<AlertTitle>GitCafe protection is off</AlertTitle>
-				<AlertDescription>
-					This repo is connected. GitCafe checks aren't available yet.
-					<GitCafeMirrorNotice />
-				</AlertDescription>
-			</Alert>
-		);
 	if (variant === "hero") {
 		return (
 			<Card className={className}>
@@ -91,6 +81,7 @@ export function ArmCallout({
 						each change request against your rules and block the ones that break
 						them.
 						{orgContext && !canArm ? " An org admin can turn it on." : null}
+						{forge === "gitcafe" ? <GitCafeMirrorNotice /> : null}
 					</CardDescription>
 				</CardHeader>
 				{canArm ? (
@@ -116,6 +107,7 @@ export function ArmCallout({
 				{canArm || !orgContext
 					? "Tripwire ignores every change request here until you turn it on."
 					: "Tripwire ignores every change request here until an org admin turns it on."}
+				{forge === "gitcafe" ? <GitCafeMirrorNotice /> : null}
 			</AlertDescription>
 			{canArm ? (
 				<AlertAction>

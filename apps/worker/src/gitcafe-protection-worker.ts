@@ -1,5 +1,6 @@
 import {
 	type Forge,
+	GITCAFE_BACKFILL_REPO_QUEUE,
 	GITCAFE_CONNECT_QUEUE,
 	GITCAFE_LIFECYCLE_QUEUE,
 	GITCAFE_PROCESS_EVENT_QUEUE,
@@ -8,6 +9,7 @@ import {
 	GITCAFE_RERUN_QUEUE,
 	GITCAFE_RESUME_RUN_QUEUE,
 	GITCAFE_SCHEDULE_TICK_QUEUE,
+	gitCafeBackfillRepoJobSchema,
 	gitCafeProcessEventJobSchema,
 	gitCafeRefreshCatalogsJobSchema,
 	gitCafeRefreshSurfacesJobSchema,
@@ -40,6 +42,7 @@ import {
 	registerGitCafeLifecycleConsumer,
 } from "./gitcafe-lifecycle-consumer.ts";
 import { buildGitCafeRuntime, type GitCafeRuntime } from "./gitcafe-runtime.ts";
+import { backfillRepo } from "./jobs/backfill-repo.ts";
 import { type ProcessEventDeps, processEvent } from "./jobs/process-event.ts";
 import { refreshGitCafeCatalogs } from "./jobs/refresh-suggestions.ts";
 import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
@@ -55,6 +58,7 @@ const PROTECTION_QUEUES = [
 	GITCAFE_REFRESH_SURFACES_QUEUE,
 	GITCAFE_REFRESH_CATALOGS_QUEUE,
 	GITCAFE_SCHEDULE_TICK_QUEUE,
+	GITCAFE_BACKFILL_REPO_QUEUE,
 ];
 
 /** Dedicated queues and scoped supervision keep every legacy forge backlog idle. */
@@ -76,6 +80,33 @@ export async function registerGitCafeProtectionQueues(
 		await boss.supervise(name);
 	}
 	await gitCafeLifecycleServices.recoverGitCafeEvents(deps.db, boss);
+	await boss.work<unknown>(
+		GITCAFE_BACKFILL_REPO_QUEUE,
+		{ batchSize: 1 },
+		async (jobs) => {
+			for (const job of jobs) {
+				const parsed = gitCafeBackfillRepoJobSchema.parse(job.data);
+				const { requestId, ...binding } = parsed;
+				if (
+					!(await gitCafeLifecycleServices.matchesGitCafeRepositoryBinding(
+						deps.db,
+						binding,
+					))
+				)
+					continue;
+				await backfillRepo(
+					{
+						db: deps.db,
+						pool: deps.pool,
+						reads: deps.resolveForge("gitcafe")?.reads ?? null,
+						makeGenerate: deps.makeGenerate,
+						logger: deps.logger.child({ requestId, repoId: parsed.repoId }),
+					},
+					parsed,
+				);
+			}
+		},
+	);
 	await boss.work<unknown>(
 		GITCAFE_SCHEDULE_TICK_QUEUE,
 		{ batchSize: 1 },

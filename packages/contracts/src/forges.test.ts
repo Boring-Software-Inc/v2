@@ -54,11 +54,11 @@ describe("paused forges", () => {
 		expect(forgeConnectable("opengit")).toBe(false);
 		expect(forgeSignIn("opengit")).toBeNull();
 		expect(SIGN_IN_FORGE_IDS).toEqual(["github", "gitcafe"]);
-		expect(LIVE_FORGE_LABELS).toEqual(["GitHub"]);
+		expect(LIVE_FORGE_LABELS).toEqual(["GitHub", "GitCafe"]);
 	});
 });
 
-test("GitCafe supports sign-in and connection independently of ingest", async () => {
+test("GitCafe supports sign-in, connection and native pull links", async () => {
 	const {
 		DEFAULT_FORGE_ORIGIN,
 		forgeIdSchema,
@@ -78,7 +78,7 @@ test("GitCafe supports sign-in and connection independently of ingest", async ()
 			repoFullName: "owner/repo",
 			number: 7,
 		}),
-	).toBe("https://git.cafe/owner/repo/pulls/7");
+	).toBe("https://git.cafe/owner/repo/pull/7");
 });
 
 test("configured sign-in providers contain only known IDs, never credentials", () => {

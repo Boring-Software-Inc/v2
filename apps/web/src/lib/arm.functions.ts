@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { RepoArmingResult } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
+import { generateId } from "@tripwire/utils";
 import { z } from "zod";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
@@ -17,10 +18,19 @@ import {
  */
 async function armById(repoId: string): Promise<RepoArmingResult> {
 	const { repoServices } = await import("@tripwire/db");
-	const { getBoss, getDb, isDemoMode } = await import("#/lib/server/db");
+	const { getBoss, getGitCafeConnectionBoss, getDb, isDemoMode } = await import(
+		"#/lib/server/db"
+	);
+	const repo = await repoServices.getRepoById(getDb().db, repoId);
+	if (!repo)
+		return { ok: false, armed: false, reason: "protection-unavailable" };
 	return await repoServices.turnOnGate(
 		getDb().db,
-		isDemoMode() ? null : getBoss,
+		isDemoMode()
+			? null
+			: repo.forge === "gitcafe"
+				? () => getGitCafeConnectionBoss(generateId())
+				: getBoss,
 		repoId,
 	);
 }

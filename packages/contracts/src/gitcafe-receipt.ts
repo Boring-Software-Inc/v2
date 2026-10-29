@@ -8,6 +8,7 @@ export const GITCAFE_RERUN_QUEUE = "gitcafe-rerun-change-request";
 export const GITCAFE_REFRESH_SURFACES_QUEUE = "gitcafe-refresh-surfaces";
 export const GITCAFE_REFRESH_CATALOGS_QUEUE = "gitcafe-refresh-catalogs";
 export const GITCAFE_SCHEDULE_TICK_QUEUE = "gitcafe-schedule-tick";
+export const GITCAFE_BACKFILL_REPO_QUEUE = "gitcafe-backfill-repo";
 export const gitCafeScheduleTickJobSchema = z.strictObject({
 	requestId: z.uuid(),
 });

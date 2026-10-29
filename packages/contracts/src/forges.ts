@@ -3,8 +3,8 @@ import { z } from "zod";
 /**
  * Forge storage and capability catalog. `live` admits storage and ingest;
  * `connection` admits verified connections and storage only; `planned` admits neither.
- * Display order follows this array. Runtime registries remain exhaustive and
- * explicitly return null for connection-only forges.
+ * Display order follows this array. Runtime registries remain exhaustive;
+ * GitCafe normalization requires authenticated hydration in its isolated worker.
  */
 export type ForgeStatus = "live" | "connection" | "planned";
 
@@ -44,7 +44,7 @@ export const FORGE_CATALOG = [
 	{
 		id: "gitcafe",
 		label: "GitCafe",
-		status: "connection",
+		status: "live",
 		signIn: "social",
 		reviews: true,
 	},
@@ -161,7 +161,8 @@ export function changeRequestUrl(input: {
 		/\/$/,
 		"",
 	);
-	const segment = input.forge === "github" ? "pull" : "pulls";
+	const segment =
+		input.forge === "github" || input.forge === "gitcafe" ? "pull" : "pulls";
 	return `${base}/${input.repoFullName}/${segment}/${input.number}`;
 }
 

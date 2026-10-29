@@ -188,7 +188,7 @@ describe("workflow activation follows the loaded repository capability", () => {
 			await router.load();
 			const html = renderToString(<RouterProvider router={router} />);
 			expect(control(html, "Save workflow")).not.toContain('disabled=""');
-			expect(control(html, "Turn on workflow")).toContain('disabled=""');
+			expect(control(html, "Turn on workflow")).not.toContain('disabled=""');
 			expect(html).toContain('aria-label="Rename Check contributions"');
 		}
 	});
@@ -204,7 +204,7 @@ describe("workflow activation follows the loaded repository capability", () => {
 							enabled,
 							editor,
 						});
-						const blocked = !canManage || (!enabled && forge === "gitcafe");
+						const blocked = !canManage;
 						if (editor && !canManage) {
 							expect(html).toContain("Read only");
 							expect(html).not.toContain("Turn on workflow");
@@ -221,12 +221,8 @@ describe("workflow activation follows the loaded repository capability", () => {
 							expect(/(?:aria-)?disabled="(?:true)?"/.test(toggle)).toBe(
 								blocked,
 							);
-							if (forge === "gitcafe" && !enabled)
-								expect(toggle).toContain("aria-describedby=");
 						}
-						if (forge === "gitcafe")
-							expect(html).toContain("GitCafe protection is unavailable");
-						else expect(html).not.toContain("protection is unavailable");
+						expect(html).not.toContain("protection is unavailable");
 						if (editor && canManage) {
 							expect(html).toContain('aria-label="Rename Check contributions"');
 							expect(html).toContain("Save workflow");

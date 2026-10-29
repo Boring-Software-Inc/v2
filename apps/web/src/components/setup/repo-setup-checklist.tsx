@@ -254,21 +254,14 @@ function AgentChecklist({ org, repo, state, progress }: ChecklistProps) {
 }
 
 export function RepoSetupChecklist(props: ChecklistProps) {
-	if (props.state.forge === "gitcafe")
-		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>GitCafe protection is off</CardTitle>
-					<CardDescription>
-						This repo is connected. GitCafe checks aren't available yet.
-						<GitCafeMirrorNotice />
-					</CardDescription>
-				</CardHeader>
-			</Card>
-		);
-	return props.state.agent ? (
-		<AgentChecklist {...props} />
-	) : (
-		<ManualChecklist {...props} />
+	return (
+		<>
+			{props.state.agent ? (
+				<AgentChecklist {...props} />
+			) : (
+				<ManualChecklist {...props} />
+			)}
+			{props.state.forge === "gitcafe" ? <GitCafeMirrorNotice /> : null}
+		</>
 	);
 }

@@ -7,8 +7,39 @@ import { orgContextQueryOptions } from "#/lib/org.query";
 import { setupProgress } from "#/lib/repo-setup";
 import type { RepoSetupState } from "#/lib/repo-setup.functions";
 
-describe("GitCafe connection keeps runtime off", () => {
-	test("even a connection manager cannot arm through the callout", () => {
+describe("GitCafe protection controls", () => {
+	test("permission loading and non-managers expose no arm button", () => {
+		for (const permissions of [null, []]) {
+			const client = new QueryClient();
+			if (permissions)
+				client.setQueryData(orgContextQueryOptions("team").queryKey, {
+					id: "org-team",
+					slug: "team",
+					name: "Team",
+					role: "member",
+					isPersonal: false,
+					avatarHue: null,
+					timezone: null,
+					permissions,
+				});
+			const html = renderToString(
+				<QueryClientProvider client={client}>
+					<ArmCallout
+						forge="gitcafe"
+						org="team"
+						repo="scratch"
+						repoFullName="team/scratch"
+					/>
+				</QueryClientProvider>,
+			);
+			expect(html).not.toContain("<button");
+			expect(html).toContain(
+				"Imported pull requests and issues do not send GitCafe events",
+			);
+			client.clear();
+		}
+	});
+	test("a connection manager can explicitly arm through the callout", () => {
 		const client = new QueryClient();
 		client.setQueryData(orgContextQueryOptions("team").queryKey, {
 			id: "org-team",
@@ -32,17 +63,17 @@ describe("GitCafe connection keeps runtime off", () => {
 					/>
 				</QueryClientProvider>,
 			);
-			expect(html).toContain("GitCafe protection is off");
+			expect(html).not.toContain("GitCafe checks aren&#x27;t available yet");
 			expect(html).toContain(
 				"Imported pull requests and issues do not send GitCafe events",
 			);
 			expect(html).toContain("GitCafe checks do not block merges on GitHub");
-			expect(html).not.toContain("Turn on Tripwire");
-			expect(html).not.toContain("<button");
+			expect(html).toContain("Turn on Tripwire");
+			expect(html).toContain("<button");
 		}
 		client.clear();
 	});
-	test("the repo setup checklist shows connected-only status without actions", () => {
+	test("the repo setup checklist retains its normal setup and mirror notice", () => {
 		const state: RepoSetupState = {
 			forge: "gitcafe",
 			repoId: "repo-test",
@@ -60,17 +91,20 @@ describe("GitCafe connection keeps runtime off", () => {
 				onboardingCompleted: false,
 			},
 		};
+		const client = new QueryClient();
 		const html = renderToString(
-			<RepoSetupChecklist
-				org="team"
-				repo="scratch"
-				state={state}
-				progress={setupProgress(state.facts)}
-			/>,
+			<QueryClientProvider client={client}>
+				<RepoSetupChecklist
+					org="team"
+					repo="scratch"
+					state={state}
+					progress={setupProgress(state.facts)}
+				/>
+			</QueryClientProvider>,
 		);
-		expect(html).toContain("GitCafe protection is off");
+		expect(html).not.toContain("GitCafe checks aren&#x27;t available yet");
 		expect(html).toContain("connect Tripwire on GitHub too");
-		expect(html).not.toContain("<button");
-		expect(html).not.toContain("Install");
+		expect(html).toContain("<button");
+		client.clear();
 	});
 });

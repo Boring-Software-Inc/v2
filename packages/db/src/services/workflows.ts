@@ -592,6 +592,22 @@ export async function setWorkflowEnabled(
 		? await listRepoReviewers(db, input.repoId)
 		: null;
 	return await db.transaction(async (tx): Promise<SetEnabledResult> => {
+		if (input.enabled) {
+			const [repo] = await tx
+				.select({ forge: repos.forge })
+				.from(repos)
+				.where(eq(repos.id, input.repoId));
+			if (repo?.forge === "gitcafe") {
+				const { lockGitCafeRepositoryAuthority } = await import(
+					"./gitcafe-lifecycle.ts"
+				);
+				if (!(await lockGitCafeRepositoryAuthority(tx, input.repoId)))
+					return {
+						ok: false,
+						issues: [{ message: "GitCafe installation access is unavailable" }],
+					};
+			}
+		}
 		const row = await lockWorkflowRow(tx, input);
 		if (!row) {
 			return { ok: false, issues: [{ message: "workflow not found" }] };

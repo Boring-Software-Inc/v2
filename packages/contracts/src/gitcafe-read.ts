@@ -31,6 +31,14 @@ export type GitCafeRepositoryBinding = z.infer<
 	typeof gitCafeRepositoryBindingSchema
 >;
 
+export const gitCafeBackfillRepoJobSchema =
+	gitCafeRepositoryBindingSchema.extend({
+		requestId: z.uuid(),
+	});
+export type GitCafeBackfillRepoJob = z.infer<
+	typeof gitCafeBackfillRepoJobSchema
+>;
+
 export const gitCafeCatalogValuesSchema = z.strictObject({
 	branches: z.array(z.string().min(1)).optional(),
 	labels: z.array(repoLabelSchema).optional(),
