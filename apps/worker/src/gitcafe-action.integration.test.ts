@@ -494,9 +494,15 @@ for (const kind of ["pull", "issue"] as const) {
 		| "block"
 		| "block-outage"
 		| "block-head-change"
+		| "thread-head-change"
 	> = [...COMMENT_SCENARIOS];
 	if (kind === "pull")
-		scenarios.push("block", "block-outage", "block-head-change");
+		scenarios.push(
+			"block",
+			"block-outage",
+			"block-head-change",
+			"thread-head-change",
+		);
 	for (const scenario of scenarios) {
 		test(`signed ${kind} comment across ${scenario}`, async () => {
 			const self = scenario === "self";
@@ -554,6 +560,7 @@ for (const kind of ["pull", "issue"] as const) {
 			const target = `/api/repos/boring/scratch/${kind === "pull" ? "pulls/1" : "issues/2"}`;
 			const writes: string[] = [];
 			let lockOutage = true;
+			let closeOutage = scenario === "thread-head-change";
 			let changed = false;
 			let reviewAttempts = 0;
 			let reviewPosted = false;
@@ -674,6 +681,10 @@ for (const kind of ["pull", "issue"] as const) {
 						return Response.json(subject);
 					}
 					if (path === `${target}/close`) {
+						if (closeOutage) {
+							closeOutage = false;
+							return new Response(null, { status: 503 });
+						}
 						expect(init.method).toBe("POST");
 						writes.push(path);
 						subject = {
@@ -840,6 +851,15 @@ for (const kind of ["pull", "issue"] as const) {
 					(action) => action.kind === "lock",
 				);
 				if (!pendingLock) throw new Error("Missing recorded lock");
+				if (scenario === "thread-head-change") {
+					expect(writes).toEqual([]);
+					expect(saved.headSha).toBe(subject.headOid ?? null);
+					subject = {
+						...subject,
+						headOid: "b".repeat(40),
+						version: subject.version + 1,
+					};
+				}
 				expect(
 					(
 						await gitCafeActionServices.getGitCafeActionBinding(
