@@ -7,26 +7,12 @@ import type { ApiEnv } from "../env.ts";
 import { receiveGitCafeReceipt } from "../gitcafe-receipts.ts";
 
 /**
- * Webhook ingest (§5.1–5.4): verify → tx(insert + enqueue) → 200. Nothing else
- * in the request path; normalization, matching and everything downstream is the
- * worker's job.
- *
- * ONE param route, `POST /webhooks/:forge`, over a `Record<IngestForge, …>` registry
- * rather than a hand-written route per forge.
- *
- * Verification is security-critical, and a param route invites two classic
- * holes: an unknown `:forge` falling through to a default, and a new forge
- * shipping with no verifier at all. Both are shut by construction:
- *
- *   - `:forge` is parsed with `ingestForgeSchema`. Anything outside the enum 404s
- *     before a byte of body is read — there is no default branch.
- *   - The registry is `Record<IngestForge, ForgeWebhook>`, so adding a forge to the
- *     catalog fails to COMPILE until it has a verifier and its headers. You
- *     cannot forget one; the type demands it.
- *
- * That is stricter than N copy-pasted routes, where a missing route is silent
- * and a subtly different one is invisible.
+ * GitHub and OpenGit share raw-body HMAC admission; GitCafe uses its timestamped
+ * receipt protocol before this registry. Unknown forges fail before body reads.
+ * The registry stays exhaustive for the shared protocol, preventing a new forge
+ * from silently inheriting another forge's verifier or headers.
  */
+
 interface ForgeWebhook {
 	/** Header carrying the forge's delivery id — the idempotency key (§5.3). */
 	deliveryHeader: string;
@@ -62,13 +48,13 @@ const WEBHOOKS = {
 		// non-GitHub forge needs a secret here.
 		secret: () => process.env.OPEN_GIT_BOT_WEBHOOK_SECRET ?? "",
 	},
-} satisfies Record<IngestForge, ForgeWebhook>;
+} satisfies Record<Exclude<IngestForge, "gitcafe">, ForgeWebhook>;
 
 export const webhooks = new Hono<ApiEnv>().post("/:forge", async (c) => {
 	if (c.req.param("forge") === "gitcafe") return receiveGitCafeReceipt(c);
 	// Unknown forge ⇒ 404 before the body is touched. No default, no fallthrough.
 	const parsed = ingestForgeSchema.safeParse(c.req.param("forge"));
-	if (!parsed.success) {
+	if (!parsed.success || parsed.data === "gitcafe") {
 		return c.json({ error: "unknown forge" }, 404);
 	}
 	const forge = parsed.data;

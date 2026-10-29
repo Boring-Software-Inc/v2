@@ -304,9 +304,10 @@ async function closeWaitingRunsInTransaction(
 				FROM runs r
 				LEFT JOIN events e ON e.id = r.event_id
 				WHERE r.status = 'paused' AND e.forge IN (${sql.join(
-					(forge === undefined ? ingestForgeSchema.options : [forge]).map(
-						(item) => sql`${item}`,
-					),
+					(forge === undefined
+						? ingestForgeSchema.options.filter((item) => item !== "gitcafe")
+						: [forge]
+					).map((item) => sql`${item}`),
 					sql`, `,
 				)}) AND ${scope}
 				ORDER BY r.id FOR UPDATE OF r

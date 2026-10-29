@@ -182,6 +182,55 @@ export async function matchesGitCafeRepositoryBinding(
 	);
 }
 
+/** Configuration changes share lifecycle and ownership locks; callers must hold a transaction. */
+export async function lockGitCafeRepositoryAuthority(
+	db: DbLike,
+	repoId: string,
+	organizationId?: string,
+): Promise<{ binding: GitCafeRepositoryBinding; armed: boolean } | null> {
+	await db.execute(
+		sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
+	);
+	const [repo] = await db
+		.select()
+		.from(repos)
+		.where(eq(repos.id, repoId))
+		.for("update");
+	if (
+		!repo ||
+		repo.forge !== "gitcafe" ||
+		repo.removedAt ||
+		!repo.installationId ||
+		!repo.orgId ||
+		(organizationId !== undefined && repo.orgId !== organizationId)
+	)
+		return null;
+	const [claim] = await db
+		.select({ id: organizationInstallations.id })
+		.from(organizationInstallations)
+		.where(
+			and(
+				eq(organizationInstallations.forge, "gitcafe"),
+				eq(organizationInstallations.installationId, repo.installationId),
+				eq(organizationInstallations.organizationId, repo.orgId),
+			),
+		)
+		.for("update");
+	const authority = await getGitCafeActionAuthority(db, repo.installationId);
+	if (!claim || !authority.allowed) return null;
+	return {
+		armed: repo.armed,
+		binding: gitCafeRepositoryBindingSchema.parse({
+			repoId,
+			organizationId: repo.orgId,
+			installationId: repo.installationId,
+			repositoryId: repo.externalId,
+			fullName: repo.fullName,
+			generation: authority.generation,
+		}),
+	};
+}
+
 /** Reconciliation and cache commits share a lock, so withdrawn or rebound authority cannot publish old reads. */
 export async function commitGitCafeCatalogs(
 	db: Db,

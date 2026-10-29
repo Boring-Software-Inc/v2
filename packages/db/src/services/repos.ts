@@ -2,6 +2,8 @@ import {
 	DEFAULT_RESPONSE_CONFIG,
 	definitionReferencesRule,
 	type Forge,
+	GITCAFE_BACKFILL_REPO_QUEUE,
+	gitCafeBackfillRepoJobSchema,
 	ingestForgeSchema,
 	type RepoArmingResult,
 	type ResponseConfig,
@@ -12,8 +14,9 @@ import {
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 import type { PgBoss } from "pg-boss";
-import type { Db } from "../client.ts";
+import { type Db, schema } from "../client.ts";
 import { BACKFILL_REPO_QUEUE } from "../queue.ts";
 import { organizationInstallations } from "../schema/organizations.ts";
 import {
@@ -206,6 +209,58 @@ export async function getRepoById(db: Db, repoId: string) {
 	return rows[0] ?? null;
 }
 
+/** Arming and historical backfill admission share the lifecycle fence and transaction. */
+async function armGitCafeRepository(
+	db: Db,
+	repoId: string,
+	queue: PgBoss | null,
+	organizationId?: string,
+): Promise<RepoArmingResult> {
+	const client = await db.$client.connect();
+	try {
+		return await drizzle(client, { schema }).transaction(
+			async (tx): Promise<RepoArmingResult> => {
+				const { lockGitCafeRepositoryAuthority } = await import(
+					"./gitcafe-lifecycle.ts"
+				);
+				const authority = await lockGitCafeRepositoryAuthority(
+					tx,
+					repoId,
+					organizationId,
+				);
+				if (!authority)
+					return { ok: false, armed: false, reason: "protection-unavailable" };
+				if (authority.armed) return { ok: true, armed: true };
+				await tx.update(repos).set({ armed: true }).where(eq(repos.id, repoId));
+				if (queue) {
+					const job = gitCafeBackfillRepoJobSchema.parse({
+						...authority.binding,
+						requestId: generateId(),
+					});
+					const queued = await queue.insert(
+						GITCAFE_BACKFILL_REPO_QUEUE,
+						[{ id: generateId(), data: job }],
+						{
+							returnId: true,
+							db: {
+								executeSql: (text: string, values?: unknown[]) =>
+									client.query(text, values),
+							},
+						},
+					);
+					if (queued?.length !== 1)
+						throw new Error(
+							"GitCafe backfill admission did not insert one job",
+						);
+				}
+				return { ok: true, armed: true };
+			},
+		);
+	} finally {
+		client.release();
+	}
+}
+
 /**
  * §4 arming — this and turnOnGate are the only writers of `armed`. Arming is
  * an explicit act (the Unit 2 ARM button, or tests); installation sync and
@@ -215,13 +270,34 @@ export async function setRepoArmed(
 	db: Db,
 	repoId: string,
 	armed: boolean,
+	organizationId?: string,
 ): Promise<RepoArmingResult> {
 	if (armed) {
 		const repo = await getRepoById(db, repoId);
 		if (repo && !ingestForgeSchema.safeParse(repo.forge).success)
 			return { ok: false, armed: false, reason: "protection-unavailable" };
+		if (repo?.forge === "gitcafe")
+			return armGitCafeRepository(
+				db,
+				repoId,
+				null,
+				organizationId ?? repo.orgId ?? undefined,
+			);
 	}
-	await db.update(repos).set({ armed }).where(eq(repos.id, repoId));
+	const changed = await db
+		.update(repos)
+		.set({ armed })
+		.where(
+			and(
+				eq(repos.id, repoId),
+				organizationId === undefined
+					? undefined
+					: eq(repos.orgId, organizationId),
+			),
+		)
+		.returning({ id: repos.id });
+	if (organizationId !== undefined && changed.length === 0)
+		return { ok: false, armed: false, reason: "protection-unavailable" };
 	return { ok: true, armed };
 }
 
@@ -229,10 +305,28 @@ export async function turnOnGate(
 	db: Db,
 	boss: (() => Promise<PgBoss | null>) | null,
 	repoId: string,
+	organizationId?: string,
 ): Promise<RepoArmingResult> {
 	const repo = await getRepoById(db, repoId);
 	if (repo && !ingestForgeSchema.safeParse(repo.forge).success)
 		return { ok: false, armed: false, reason: "protection-unavailable" };
+	if (repo?.forge === "gitcafe") {
+		if (!repo.installationId || !repo.orgId)
+			return { ok: false, armed: false, reason: "protection-unavailable" };
+		let queue: PgBoss | null;
+		try {
+			queue = boss ? await boss() : null;
+			await queue?.createQueue(GITCAFE_BACKFILL_REPO_QUEUE);
+		} catch {
+			return { ok: false, armed: false, reason: "queue-unavailable" };
+		}
+		return armGitCafeRepository(
+			db,
+			repoId,
+			queue,
+			organizationId ?? repo.orgId,
+		);
+	}
 	if (repo?.armed) return { ok: true, armed: true };
 	let queue: PgBoss | null = null;
 	try {
@@ -389,7 +483,10 @@ export async function saveWorkflowDefinition(
 		repoId,
 		name: valid.name,
 		definition: valid,
-		enabled: repo !== null && ingestForgeSchema.safeParse(repo.forge).success,
+		enabled:
+			repo !== null &&
+			repo.forge !== "gitcafe" &&
+			ingestForgeSchema.safeParse(repo.forge).success,
 	});
 	return id;
 }

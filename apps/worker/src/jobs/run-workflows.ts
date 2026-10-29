@@ -1,4 +1,5 @@
 import type {
+	GitCafeRepositoryBinding,
 	JsonValue,
 	RepoScopedEvent,
 	RuleResult,
@@ -182,6 +183,7 @@ export interface RunWorkflowsDeps {
 	 * owns the change request's surfaces. Default true.
 	 */
 	surface?: boolean;
+	gitCafeHistoryBinding?: GitCafeRepositoryBinding;
 	/** Manual re-run: the triggering admin's user id, stamped on the run. */
 	triggeredBy?: string;
 	/**
@@ -255,6 +257,12 @@ async function runWorkflowsInner(
 		event.repo.fullName,
 		event.forge,
 	);
+	if (
+		deps.gitCafeHistoryBinding &&
+		(repo?.id !== deps.gitCafeHistoryBinding.repoId ||
+			event.repoExternalId !== deps.gitCafeHistoryBinding.repositoryId)
+	)
+		return none;
 
 	/**
 	 * §4 arming gate — an unarmed repo is skipped ENTIRELY: no run, no check, no
@@ -694,6 +702,7 @@ async function runWorkflowsInner(
 		)
 			moderationNodeIds.push("run:degraded");
 		const persisted = await runServices.persistRunEvaluation(db, {
+			gitCafeHistoryBinding: deps.gitCafeHistoryBinding,
 			run: {
 				id,
 				eventId,
@@ -721,6 +730,7 @@ async function runWorkflowsInner(
 			),
 			suppressed: silent,
 		});
+		if (!persisted) return none;
 		runId = persisted.runId;
 		actionRows = persisted.actionRows;
 	} else {

@@ -61,12 +61,12 @@ test("generated adversarial RPC outputs are rejected without admitting private f
 		).toBe(false);
 });
 
-test("GitCafe admits connected storage without ingestion, reviews, or evaluation", () => {
+test("GitCafe admits explicit protection alongside verified connections", () => {
 	expect(forgeSchema.parse("gitcafe")).toBe("gitcafe");
-	expect(ingestForgeSchema.safeParse("gitcafe").success).toBe(false);
+	expect(ingestForgeSchema.safeParse("gitcafe").success).toBe(true);
 	expect(forgeConnectable("gitcafe")).toBe(true);
-	expect(forgeEvaluates("gitcafe")).toBe(false);
-	expect(ingestForgeSchema.options).toEqual(["github", "opengit"]);
+	expect(forgeEvaluates("gitcafe")).toBe(true);
+	expect(ingestForgeSchema.options).toEqual(["github", "opengit", "gitcafe"]);
 });
 
 test("provider availability has one exact public list", () => {

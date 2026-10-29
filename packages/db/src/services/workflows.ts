@@ -585,13 +585,54 @@ export type SetEnabledResult =
  */
 export async function setWorkflowEnabled(
 	db: Db,
-	input: { repoId: string; workflowId: string; enabled: boolean },
+	input: {
+		repoId: string;
+		workflowId: string;
+		enabled: boolean;
+		organizationId?: string;
+	},
 ): Promise<SetEnabledResult> {
+	const [target] = await db
+		.select({ orgId: repos.orgId })
+		.from(repos)
+		.where(eq(repos.id, input.repoId));
+	const organizationId = input.organizationId ?? target?.orgId ?? undefined;
 	const catalog = input.enabled ? await repoRuleCatalog(db, input.repoId) : [];
 	const synced = input.enabled
 		? await listRepoReviewers(db, input.repoId)
 		: null;
 	return await db.transaction(async (tx): Promise<SetEnabledResult> => {
+		if (!input.enabled && organizationId !== undefined) {
+			const [repo] = await tx
+				.select({ orgId: repos.orgId })
+				.from(repos)
+				.where(eq(repos.id, input.repoId))
+				.for("update");
+			if (repo?.orgId !== organizationId)
+				return { ok: false, issues: [{ message: "workflow not found" }] };
+		}
+		if (input.enabled) {
+			const [repo] = await tx
+				.select({ forge: repos.forge })
+				.from(repos)
+				.where(eq(repos.id, input.repoId));
+			if (repo?.forge === "gitcafe") {
+				const { lockGitCafeRepositoryAuthority } = await import(
+					"./gitcafe-lifecycle.ts"
+				);
+				if (
+					!(await lockGitCafeRepositoryAuthority(
+						tx,
+						input.repoId,
+						organizationId,
+					))
+				)
+					return {
+						ok: false,
+						issues: [{ message: "GitCafe installation access is unavailable" }],
+					};
+			}
+		}
 		const row = await lockWorkflowRow(tx, input);
 		if (!row) {
 			return { ok: false, issues: [{ message: "workflow not found" }] };

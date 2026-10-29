@@ -617,3 +617,17 @@ During re-request preparation, installed-transport snapshot staleness is a retry
 ## 2026-10-29 — Uncommitted GitCafe evidence can retry snapshot conflicts
 
 A PR push between comment hydration reads does not invalidate an unchanged comment's author, body, or version. Hydration refuses that attempt with snapshot `stale`; the dedicated consumer retains the event and retries after the head stabilizes. Edited, hidden, deleted, or mismatched comment evidence keeps its terminal refusal. Once a run commits, recovery retains its saved head and command identity. GitCafe installed-snapshot conflicts during preparation use the same retry path; native GitHub normalization is unchanged.
+
+
+## 2026-10-29 — GitCafe protection uses explicit arming and isolated history
+
+GitCafe enters the live capability catalog on staging after the protocol and runtime slices. Connection and installation sync still leave repositories unarmed. Existing manager-only Arm and workflow-enable controls become available; enabling a workflow checks the current installation lifecycle and exact organization claim under the connection lock. Disabling and disarming remain available after access is withdrawn.
+
+Arming and admission of one `gitcafe-backfill-repo` job commit in one transaction under the same authority fence. The job carries the exact repository, installation, organization and lifecycle generation. The isolated worker rechecks that binding before each evaluation and under the authority lock when committing history, refusing changed bindings. Admission is determined from the locked arming state so a concurrent disarm cannot bypass it. Historical evaluation uses the existing bounded backfill engine with suppressed actions and no review items. Stored GitCafe events must match the claimed immutable repository ID before subject deduplication. The dedicated worker neither consumes nor supervises the general forge backlog. Web and MCP entry points select the isolated queue factory for GitCafe arming and moderation instead of starting the general queue supervisor. Default general sweeps and schedule discovery exclude GitCafe; the isolated worker passes its explicit forge scope.
+
+GitCafe retains authenticated hydration and timestamped receipt ingress rather than the shared pure normalizer or HMAC path. The mirror warning remains beside the normal controls: upstream-imported subjects do not imply GitCafe events or GitHub merge enforcement. Existing rule capability declarations remain authoritative; GitHub-only account age, global merged history and rate signals are not advertised for GitCafe. Historical rule versions and prompts are unchanged.
+
+This change adds no dependency, permission or migration. Staging activation is separate from live external-contributor and required-check acceptance. The production application configuration and release remain a separate rollout; staging success alone is not a production-readiness claim.
+
+
+Activation retains the request-authorized organization ID through web and MCP entry points and compares it to the locked claim. A retained repository or workflow rebound to another organization cannot be activated by the old organization's request. Historical evaluations remain separate from live-event recovery: only a committed live run can bypass hydration, and backfill runs cannot acquire live surface intents. Setup labels name GitCafe, and rule packs list and install only rules supported by the repository's forge.

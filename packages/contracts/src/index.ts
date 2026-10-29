@@ -125,6 +125,7 @@ export {
 	gitCafePermissionSchema,
 } from "./gitcafe-installation.ts";
 export {
+	type GitCafeBackfillRepoJob,
 	type GitCafeCatalogValues,
 	type GitCafeReadActorPage,
 	type GitCafeReadBlob,
@@ -147,6 +148,7 @@ export {
 	type GitCafeReadRefPage,
 	type GitCafeReadReviewerPage,
 	type GitCafeRepositoryBinding,
+	gitCafeBackfillRepoJobSchema,
 	gitCafeCatalogValuesSchema,
 	gitCafeReadActorPageSchema,
 	gitCafeReadBlobSchema,

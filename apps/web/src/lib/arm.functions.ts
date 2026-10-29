@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { RepoArmingResult } from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
+import { generateId } from "@tripwire/utils";
 import { z } from "zod";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
@@ -15,13 +16,26 @@ import {
  * only UI paths to it), and an ADMIN act — it changes what the org enforces.
  * dev:demo has no worker/queue, so arming alone is enough there.
  */
-async function armById(repoId: string): Promise<RepoArmingResult> {
+async function armById(
+	repoId: string,
+	organizationId: string,
+): Promise<RepoArmingResult> {
 	const { repoServices } = await import("@tripwire/db");
-	const { getBoss, getDb, isDemoMode } = await import("#/lib/server/db");
+	const { getBoss, getGitCafeConnectionBoss, getDb, isDemoMode } = await import(
+		"#/lib/server/db"
+	);
+	const repo = await repoServices.getRepoById(getDb().db, repoId);
+	if (!repo)
+		return { ok: false, armed: false, reason: "protection-unavailable" };
 	return await repoServices.turnOnGate(
 		getDb().db,
-		isDemoMode() ? null : getBoss,
+		isDemoMode()
+			? null
+			: repo.forge === "gitcafe"
+				? () => getGitCafeConnectionBoss(generateId())
+				: getBoss,
 		repoId,
+		organizationId,
 	);
 }
 
@@ -39,7 +53,7 @@ export const armRepo = createServerFn({ method: "POST" })
 		}): Promise<RepoArmingResult & { repoId: string }> => {
 			const org = (context as { org: OrgWithRole }).org;
 			const repo = await resolveOrgRepo(org.id, data.repo);
-			return { ...(await armById(repo.id)), repoId: repo.id };
+			return { ...(await armById(repo.id, org.id)), repoId: repo.id };
 		},
 	);
 
@@ -67,6 +81,7 @@ export const disarmRepo = createServerFn({ method: "POST" })
 				getDb().db,
 				repo.id,
 				false,
+				org.id,
 			);
 			return { ...result, repoId: repo.id };
 		},
@@ -82,7 +97,7 @@ export const armRepoById = createServerFn({ method: "POST" })
 	.handler(async ({ data, context }): Promise<RepoArmingResult> => {
 		const org = (context as { org: OrgWithRole }).org;
 		await requireOrgRepoById(org.id, data.repoId);
-		return await armById(data.repoId);
+		return await armById(data.repoId, org.id);
 	});
 
 const repoByIdInput = z.object({
@@ -103,5 +118,10 @@ export const disarmRepoById = createServerFn({ method: "POST" })
 		await requireOrgRepoById(org.id, data.repoId);
 		const { repoServices } = await import("@tripwire/db");
 		const { getDb } = await import("#/lib/server/db");
-		return await repoServices.setRepoArmed(getDb().db, data.repoId, false);
+		return await repoServices.setRepoArmed(
+			getDb().db,
+			data.repoId,
+			false,
+			org.id,
+		);
 	});

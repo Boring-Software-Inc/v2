@@ -7,11 +7,15 @@ import {
 	DEFAULT_FORGE_ORIGIN,
 	DEFAULT_WORKFLOW,
 	forgeIdSchema,
+	GITCAFE_BACKFILL_REPO_QUEUE,
 	type JsonValue,
+	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import {
 	applyMigrations,
+	createBoss,
 	createDb,
+	createGitCafeConnectionBoss,
 	createTestDatabase,
 	type Db,
 	ensureTeamOrg,
@@ -24,6 +28,8 @@ import {
 } from "@tripwire/db";
 import { generateId } from "@tripwire/utils";
 import { eq } from "drizzle-orm";
+import type { PgBoss } from "pg-boss";
+import pino from "pino";
 import { z } from "zod";
 import { readConfig } from "./config.ts";
 import { parseRepoRef } from "./context.ts";
@@ -40,6 +46,9 @@ let foreignRunId: string;
 let foreignItemId: string;
 let ownRepoId: string;
 let ownRunId: string;
+let gitCafeBoss: Promise<PgBoss> | null = null;
+const queueRequests: string[] = [];
+let beforeGitCafeQueue: (() => Promise<void>) | null = null;
 const userId = generateId();
 const scopes: AgentScope[] = [
 	"tripwire:read",
@@ -57,6 +66,8 @@ beforeAll(async () => {
 	database = await createTestDatabase();
 	({ db, pool } = createDb(database.url));
 	await applyMigrations(db);
+	const bootstrap = await createBoss(database.url);
+	await bootstrap.stop({ graceful: false, close: true });
 	await db
 		.insert(schema.user)
 		.values({ id: userId, name: "isolation", email: `${userId}@example.com` });
@@ -117,8 +128,20 @@ beforeAll(async () => {
 		{
 			db,
 			pool,
-			getBoss: () =>
-				Promise.reject(new Error("a denied request must not reach the queue")),
+			getBoss: async (forge) => {
+				queueRequests.push(forge ?? "general");
+				if (forge === "gitcafe") {
+					await beforeGitCafeQueue?.();
+					gitCafeBoss ??= createGitCafeConnectionBoss(
+						database.url,
+						pino({ level: "silent" }),
+					);
+					return gitCafeBoss;
+				}
+				return Promise.reject(
+					new Error("a denied request must not reach the queue"),
+				);
+			},
 			config: readConfig({
 				BETTER_AUTH_SECRET: "test",
 				APP_URL: "http://localhost:3420",
@@ -137,6 +160,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await client?.close();
+	if (gitCafeBoss) await (await gitCafeBoss).stop();
 	await pool?.end();
 	await database?.stop();
 });
@@ -147,7 +171,7 @@ async function call(name: string, args: Record<string, JsonValue>) {
 	);
 }
 
-test("GitCafe gate and workflow refusals cannot reach the queue or report protection enabled", async () => {
+test("GitCafe tools require lifecycle authority and arm through the isolated queue", async () => {
 	const repoId = await repoServices.ensureRepo(db, {
 		forge: "gitcafe",
 		externalId: "connection-only-repo",
@@ -177,17 +201,177 @@ test("GitCafe gate and workflow refusals cannot reach the queue or report protec
 	});
 	expect(enabled.isError).toBe(true);
 	expect(enabled.content[0]?.text).toContain(
-		"Protection is unavailable for this forge",
+		"GitCafe installation access is unavailable",
 	);
 	expect((await repoServices.getRepoById(db, repoId))?.armed).toBe(false);
 	expect(
 		(await workflowServices.getWorkflow(db, { repoId, workflowId }))?.enabled,
 	).toBe(false);
+	expect(queueRequests).toEqual([]);
+	const installationId = `ins_${generateId()}`;
+	await db.insert(schema.organizationInstallations).values({
+		id: generateId(),
+		forge: "gitcafe",
+		installationId,
+		organizationId: orgId,
+		accountLogin: "connected-owner",
+	});
+	await db.insert(schema.gitCafeInstallationLifecycle).values({
+		installationId,
+		status: "active",
+		generation: 1,
+		authorityAt: new Date(),
+	});
+	await db
+		.update(schema.repos)
+		.set({ installationId })
+		.where(eq(schema.repos.id, repoId));
+	const armed = await call("turn_on_gate", { repo });
+	expect(armed.isError).not.toBe(true);
+	expect(JSON.parse(armed.content[0]?.text ?? "")).toMatchObject({
+		gateOn: true,
+	});
+	expect(queueRequests).toEqual(["gitcafe"]);
+	expect((await repoServices.getRepoById(db, repoId))?.armed).toBe(true);
+	const jobs = await pool.query<{ name: string }>(
+		"SELECT name FROM pgboss.job WHERE data->>'repoId'=$1",
+		[repoId],
+	);
+	expect(jobs.rows).toEqual([{ name: GITCAFE_BACKFILL_REPO_QUEUE }]);
 	await db
 		.delete(schema.workflowDefinitions)
 		.where(eq(schema.workflowDefinitions.repoId, repoId));
 	await db.delete(schema.repos).where(eq(schema.repos.id, repoId));
 });
+
+for (const action of ["arming", "workflow"] as const) {
+	test(`GitCafe ${action} refuses an organization rebind after request authorization`, async () => {
+		const otherOrg = generateId();
+		await db
+			.insert(schema.organization)
+			.values({ id: otherOrg, name: "Other tenant", slug: otherOrg });
+		const installationId = `ins_${generateId()}`;
+		const name = `rebind-${generateId()}`;
+		const repoId = await repoServices.ensureRepo(db, {
+			forge: "gitcafe",
+			externalId: generateId(),
+			owner: "owner",
+			name,
+			fullName: `owner/${name}`,
+			installationId,
+			orgId,
+		});
+		await db.insert(schema.organizationInstallations).values({
+			id: generateId(),
+			forge: "gitcafe",
+			installationId,
+			organizationId: orgId,
+			accountLogin: "owner",
+		});
+		await db.insert(schema.gitCafeInstallationLifecycle).values({
+			installationId,
+			status: "active",
+			generation: 1,
+			authorityAt: new Date(),
+		});
+		const workflow = await workflowServices.createWorkflow(db, {
+			repoId,
+			definition: workflowDefinitionSchema.parse({
+				id: generateId(),
+				name: "Tenant fence",
+				version: 1,
+				nodes: [
+					{ id: "t", type: "trigger", kinds: ["change-request.opened"] },
+					{ id: "a", type: "action", action: "block", params: {} },
+				],
+				edges: [{ id: "e", from: "t", to: "a" }],
+			}),
+		});
+		const rebind = async () => {
+			await db
+				.update(schema.organizationInstallations)
+				.set({ organizationId: otherOrg })
+				.where(
+					eq(schema.organizationInstallations.installationId, installationId),
+				);
+			await db
+				.update(schema.repos)
+				.set({ orgId: otherOrg })
+				.where(eq(schema.repos.id, repoId));
+		};
+		const lock = await pool.connect();
+		let locked = false;
+		try {
+			if (action === "arming") beforeGitCafeQueue = rebind;
+			else {
+				await lock.query(
+					"SELECT pg_advisory_lock(hashtext('gitcafe-connection'))",
+				);
+				locked = true;
+			}
+			const pending =
+				action === "arming"
+					? call("turn_on_gate", { repo: `https://git.cafe/owner/${name}` })
+					: call("set_workflow_enabled", {
+							repo: `https://git.cafe/owner/${name}`,
+							workflowId: workflow.id,
+							enabled: true,
+						});
+			if (locked) {
+				let waiting = false;
+				const until = Date.now() + 3000;
+				while (Date.now() < until) {
+					waiting =
+						(
+							await pool.query(
+								"SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory'",
+							)
+						).rows.length > 0;
+					if (waiting) break;
+					await Bun.sleep(10);
+				}
+				expect(waiting).toBe(true);
+				await rebind();
+				await lock.query(
+					"SELECT pg_advisory_unlock(hashtext('gitcafe-connection'))",
+				);
+				locked = false;
+			}
+			expect((await pending).isError).toBe(true);
+			expect((await repoServices.getRepoById(db, repoId))?.armed).toBe(false);
+			expect(
+				(
+					await workflowServices.getWorkflow(db, {
+						repoId,
+						workflowId: workflow.id,
+					})
+				)?.enabled,
+			).toBe(false);
+			expect(
+				(
+					await pool.query(
+						"SELECT id FROM pgboss.job WHERE data->>'repoId'=$1",
+						[repoId],
+					)
+				).rowCount,
+			).toBe(0);
+		} finally {
+			beforeGitCafeQueue = null;
+			if (locked)
+				await lock.query(
+					"SELECT pg_advisory_unlock(hashtext('gitcafe-connection'))",
+				);
+			lock.release();
+			await db
+				.delete(schema.workflowDefinitions)
+				.where(eq(schema.workflowDefinitions.repoId, repoId));
+			await db.delete(schema.repos).where(eq(schema.repos.id, repoId));
+			await db
+				.delete(schema.organization)
+				.where(eq(schema.organization.id, otherOrg));
+		}
+	}, 10_000);
+}
 
 test("repository URLs retain forge identity, including GitCafe's distinct host", () => {
 	for (const forge of forgeIdSchema.options) {

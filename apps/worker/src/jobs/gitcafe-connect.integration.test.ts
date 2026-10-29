@@ -1025,7 +1025,7 @@ test("wrong owner, selected name, missing stable id, and disappearing repository
 	expect(await db.select().from(repos)).toHaveLength(0);
 });
 
-test("generic claims cannot bypass GitCafe fresh authority and protection remains off", async () => {
+test("generic claims and arming cannot bypass missing GitCafe lifecycle authority", async () => {
 	expect(
 		await orgServices.linkOrgInstallation(db, {
 			forge: "gitcafe",
@@ -1063,7 +1063,7 @@ test("generic claims cannot bypass GitCafe fresh authority and protection remain
 			row.id,
 		),
 	).toEqual(refused);
-	expect(queueReads).toBe(0);
+	expect(queueReads).toBe(1);
 	expect(await repoServices.setRepoArmed(db, row.id, false)).toEqual({
 		ok: true,
 		armed: false,
@@ -1081,7 +1081,7 @@ test("generic claims cannot bypass GitCafe fresh authority and protection remain
 		}),
 	).toEqual({
 		ok: false,
-		issues: [{ message: "Protection is unavailable for this forge" }],
+		issues: [{ message: "GitCafe installation access is unavailable" }],
 	});
 	expect((await repoServices.getRepoById(db, row.id))?.armed).toBe(false);
 });

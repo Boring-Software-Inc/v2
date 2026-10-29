@@ -259,7 +259,7 @@ test("a close on another forge cannot close the queue, hide a held run, or fence
 	).toEqual([itemIds.get("gitcafe") ?? "missing"]);
 });
 
-test("connected GitCafe rows enter routing but never action retries", async () => {
+test("GitCafe retries require an explicit forge scope and stay out of general sweeping", async () => {
 	await db.insert(runActions).values({
 		id: generateId(),
 		runId: runIds.get("gitcafe") ?? "missing",
@@ -280,6 +280,11 @@ test("connected GitCafe rows enter routing but never action retries", async () =
 			(action) => action.runId === runIds.get("gitcafe"),
 		),
 	).toBe(false);
+	expect(
+		(await listStuckActions(db, new Date(), "gitcafe")).some(
+			(action) => action.runId === runIds.get("gitcafe"),
+		),
+	).toBe(true);
 });
 
 test("ingest deduplicates within a forge, without swallowing another forge's delivery", async () => {

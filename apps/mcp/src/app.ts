@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { assertApproved } from "@tripwire/auth/access-gate";
-import type { AgentScope } from "@tripwire/contracts";
+import type { AgentScope, Forge } from "@tripwire/contracts";
 import { agentServices, type Db } from "@tripwire/db";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -28,7 +28,7 @@ import { registerTools } from "./tools.ts";
 export interface McpDeps {
 	db: Db;
 	pool: Pool;
-	getBoss: () => Promise<PgBoss>;
+	getBoss: (forge?: Forge) => Promise<PgBoss>;
 	config: McpConfig;
 	logger: Logger;
 	verifyToken?: typeof verifyAgentToken;
