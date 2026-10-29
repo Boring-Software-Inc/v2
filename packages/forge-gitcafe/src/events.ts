@@ -247,6 +247,26 @@ export async function hydrateGitCafeCommentEvent(
 		return { ok: false, reason: "stale-event" };
 	if (!detail.authorActorId || !detail.author.handle)
 		return { ok: false, reason: "author-unavailable" };
+	const finalResponse = await client.request(
+		expectedInstallation.id,
+		{ method: "GET", resourcePath: root },
+		expectedInstallation,
+		deadlineAt,
+	);
+	if (!finalResponse.ok) return finalResponse;
+	const final = gitCafeCommentSubjectSchema.safeParse(finalResponse.value);
+	if (!final.success) return { ok: false, reason: "invalid-response" };
+	if (
+		final.data.id !== current.data.id ||
+		final.data.number !== current.data.number ||
+		final.data.repoId !== current.data.repoId
+	)
+		return { ok: false, reason: "identity-mismatch" };
+	if (
+		event.type === "pull.comment_created" &&
+		final.data.headOid !== current.data.headOid
+	)
+		return { ok: false, reason: "stale-event" };
 	const author = {
 		login: detail.author.handle,
 		externalId: detail.authorActorId,
@@ -268,6 +288,10 @@ export async function hydrateGitCafeCommentEvent(
 			author,
 			sender,
 			botActorId: expectedInstallation.bot.actorId,
+			headOid:
+				event.type === "pull.comment_created"
+					? (current.data.headOid ?? null)
+					: null,
 		}),
 	};
 }
@@ -306,6 +330,10 @@ export function normalizeGitCafeCommentEvent(
 			body: event.comment.body,
 			subjectNumber: subject.number,
 			subjectKind,
+			subjectHeadSha:
+				subjectKind === "change-request"
+					? (hydrated.headOid ?? undefined)
+					: undefined,
 			url: `https://git.cafe/${fullName}/${subjectKind === "issue" ? "issues" : "pull"}/${subject.number}`,
 			byTripwire: author.externalId === hydrated.botActorId,
 		},

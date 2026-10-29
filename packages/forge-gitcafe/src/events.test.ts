@@ -106,6 +106,8 @@ for (const captured of [pullComment, issueComment]) {
 				subjectKind:
 					captured.type === "pull.comment_created" ? "change-request" : "issue",
 				subjectNumber: captured.type === "pull.comment_created" ? 1 : 2,
+				subjectHeadSha:
+					captured.type === "pull.comment_created" ? pull.headOid : undefined,
 				byTripwire: false,
 			},
 		});
@@ -148,6 +150,43 @@ test("comment hydration remains valid when its PR head, version or author differ
 	expect(normalized.actor.externalId).toBe(event.comment.authorActorId);
 	expect(normalized.sender).toBeUndefined();
 	expect(normalized.comment.url).toBe("https://git.cafe/boring/scratch/pull/1");
+	expect(normalized.comment.subjectHeadSha).toBe("a".repeat(40));
+});
+
+test("a PR head changing during comment hydration refuses before evaluation", async () => {
+	const subject = { ...pull };
+	let reads = 0;
+	const h = commentHarness({
+		subject,
+		onRead: (url) => {
+			if (url.endsWith("/pulls/1") && ++reads === 2)
+				subject.headOid = "b".repeat(40);
+		},
+	});
+	const lookup = await h.client.getInstallation(pullComment.installation.id);
+	if (!lookup.ok) throw new Error("lookup failed");
+	expect(
+		await hydrateGitCafeCommentEvent(
+			h.client,
+			lookup.value,
+			gitCafeCommentEventSchema.parse(pullComment),
+		),
+	).toEqual({ ok: false, reason: "stale-event" });
+});
+
+test("an unavailable PR head stays unavailable on the normalized comment", async () => {
+	const h = commentHarness({ subject: { ...pull, headOid: null } });
+	const lookup = await h.client.getInstallation(pullComment.installation.id);
+	if (!lookup.ok) throw new Error("lookup failed");
+	const hydrated = await hydrateGitCafeCommentEvent(
+		h.client,
+		lookup.value,
+		gitCafeCommentEventSchema.parse(pullComment),
+	);
+	if (!hydrated.ok) throw new Error("hydration failed");
+	expect(
+		normalizeGitCafeCommentEvent(hydrated.value, pullComment.createdAt),
+	).toMatchObject({ comment: { subjectHeadSha: undefined } });
 });
 
 for (const change of [
@@ -346,6 +385,7 @@ test("comment normalization rejects identities not bound to the signed event", (
 		event,
 		author: { login: "grim", externalId: pullComment.comment.authorActorId },
 		botActorId: installation.bot.actorId,
+		headOid: pull.headOid,
 	};
 	expect(() =>
 		normalizeGitCafeCommentEvent(
