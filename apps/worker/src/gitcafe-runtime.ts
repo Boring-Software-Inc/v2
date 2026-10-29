@@ -142,6 +142,13 @@ export function buildGitCafeRuntime(
 			installation.value.org !== row.repos.owner
 		)
 			return { ok: false as const, reason: "identity-mismatch" as const };
+		if (
+			(authority.providerVersion !== null &&
+				installation.value.version < authority.providerVersion) ||
+			(authority.providerRevision !== null &&
+				installation.value.revision < authority.providerRevision)
+		)
+			return { ok: false as const, reason: "stale" as const };
 		const repository = await client.getRepository(
 			installationId,
 			row.repos.owner,
@@ -453,6 +460,20 @@ export function buildGitCafeRuntime(
 				repo.fullName,
 				repo.externalId,
 			);
+			for (const read of [branches, labels]) {
+				if (
+					!read.ok &&
+					["stale", "inactive", "identity-mismatch", "expired"].includes(
+						read.reason,
+					)
+				)
+					return read;
+			}
+			const current = await bound.client.getToken(
+				bound.installation.id,
+				bound.installation,
+			);
+			if (!current.ok) return current;
 			if (
 				!(await gitCafeLifecycleServices.matchesGitCafeRepositoryBinding(
 					db,

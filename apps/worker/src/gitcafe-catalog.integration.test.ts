@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, expect, spyOn, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
+import { gitCafeInstallationSchema } from "@tripwire/contracts";
 import {
 	applyMigrations,
 	createDb,
@@ -33,6 +34,7 @@ let failure: "refs" | "labels" | null;
 let reads: string[];
 let onRead: ((path: string) => Promise<void>) | null;
 let repositoryResponse = { ...repository };
+let installationResponse = gitCafeInstallationSchema.parse(installation);
 const messages: string[] = [];
 const logger = pino(
 	{ level: "warn" },
@@ -65,6 +67,7 @@ beforeEach(async () => {
 	reads = [];
 	onRead = null;
 	repositoryResponse = { ...repository };
+	installationResponse = gitCafeInstallationSchema.parse(installation);
 	messages.length = 0;
 	await database.db
 		.insert(organization)
@@ -113,7 +116,7 @@ function runtime() {
 		if (path.includes("/apps/installations/"))
 			return Response.json(
 				init.method === "GET"
-					? installation
+					? installationResponse
 					: {
 							...token,
 							token: "synthetic-catalog-token",
@@ -365,3 +368,53 @@ test("name reuse before binding cannot put replacement catalogs into the origina
 		lookup.mockRestore();
 	}
 });
+
+for (const change of ["paused", "revision"] as const)
+	test(`provider ${change} after branches completes invalidates the catalog bundle`, async () => {
+		onRead = async (path) => {
+			if (!path.endsWith("/labels")) return;
+			onRead = null;
+			installationResponse =
+				change === "paused"
+					? { ...installationResponse, pausedAt: new Date().toISOString() }
+					: {
+							...installationResponse,
+							revision: installationResponse.revision + 1,
+						};
+		};
+		expect(
+			await refreshGitCafeCatalogs(
+				{ db: database.db, runtime: runtime(), logger },
+				{ repoId, requestId: generateId() },
+			),
+		).toEqual({ ok: false });
+		expect(
+			await repoServices.getRepoSuggestions(database.db, repoId, "branches"),
+		).toEqual(["previous"]);
+		expect(
+			(await labelServices.listRepoLabels(database.db, repoId)).labels,
+		).toHaveLength(1);
+	});
+
+for (const field of ["providerVersion", "providerRevision"] as const)
+	test(`a provider response older than persisted ${field} cannot publish catalogs`, async () => {
+		await database.db
+			.update(gitCafeInstallationLifecycle)
+			.set({ [field]: 3 })
+			.where(eq(gitCafeInstallationLifecycle.installationId, installation.id));
+		expect(
+			await refreshGitCafeCatalogs(
+				{ db: database.db, runtime: runtime(), logger },
+				{ repoId, requestId: generateId() },
+			),
+		).toEqual({ ok: false });
+		expect(
+			await repoServices.getRepoSuggestions(database.db, repoId, "branches"),
+		).toEqual(["previous"]);
+		expect(
+			(await labelServices.listRepoLabels(database.db, repoId)).labels,
+		).toHaveLength(1);
+		expect(
+			reads.some((path) => path.endsWith("/refs") || path.endsWith("/labels")),
+		).toBe(false);
+	});

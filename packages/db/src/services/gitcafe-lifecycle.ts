@@ -592,6 +592,7 @@ export async function getGitCafeActionAuthority(
 				allowed: true as const,
 				generation: state.generation,
 				providerVersion: state.providerVersion,
+				providerRevision: state.providerRevision,
 			}
 		: { allowed: false as const };
 }
