@@ -266,7 +266,8 @@ export async function hydrateGitCafeCommentEvent(
 		event.type === "pull.comment_created" &&
 		final.data.headOid !== current.data.headOid
 	)
-		return { ok: false, reason: "stale-event" };
+		/** The unchanged comment can acquire a stable head on retry before its run commits. */
+		return { ok: false, reason: "stale" };
 	const author = {
 		login: detail.author.handle,
 		externalId: detail.authorActorId,

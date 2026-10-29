@@ -613,3 +613,7 @@ A queued run materialized for an unfinished native check re-request belongs to t
 Re-request preparation distinguishes an absent or contradictory recorded check reference from a temporary installation-authority change. Check writes with an action reference are recorded before dispatch; an event ID from the initial pending check cannot acquire such a reference later. These unbound requests settle without evaluation or recovery churn. Generation changes and transient provider failures remain retryable, and already committed runs retain their recovery path.
 
 During re-request preparation, installed-transport snapshot staleness is a retryable authority fence. The verifier distinguishes it at each transport boundary from an obsolete pending check, timestamp, or PR head; those semantic refusals remain terminal. Binding, check readback, and PR readback can each lose their installation snapshot without consuming the durable request.
+
+## 2026-10-29 — Uncommitted GitCafe evidence can retry snapshot conflicts
+
+A PR push between comment hydration reads does not invalidate an unchanged comment's author, body, or version. Hydration refuses that attempt with snapshot `stale`; the dedicated consumer retains the event and retries after the head stabilizes. Edited, hidden, deleted, or mismatched comment evidence keeps its terminal refusal. Once a run commits, recovery retains its saved head and command identity. GitCafe installed-snapshot conflicts during preparation use the same retry path; native GitHub normalization is unchanged.

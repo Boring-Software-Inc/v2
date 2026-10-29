@@ -153,7 +153,7 @@ test("comment hydration remains valid when its PR head, version or author differ
 	expect(normalized.comment.subjectHeadSha).toBe("a".repeat(40));
 });
 
-test("a PR head changing during comment hydration refuses before evaluation", async () => {
+test("a PR head changing during comment hydration retries before evaluation", async () => {
 	const subject = { ...pull };
 	let reads = 0;
 	const h = commentHarness({
@@ -171,7 +171,14 @@ test("a PR head changing during comment hydration refuses before evaluation", as
 			lookup.value,
 			gitCafeCommentEventSchema.parse(pullComment),
 		),
-	).toEqual({ ok: false, reason: "stale-event" });
+	).toEqual({ ok: false, reason: "stale" });
+	expect(
+		await hydrateGitCafeCommentEvent(
+			h.client,
+			lookup.value,
+			gitCafeCommentEventSchema.parse(pullComment),
+		),
+	).toMatchObject({ ok: true, value: { headOid: "b".repeat(40) } });
 });
 
 test("an unavailable PR head stays unavailable on the normalized comment", async () => {

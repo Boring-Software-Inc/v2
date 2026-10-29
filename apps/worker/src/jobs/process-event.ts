@@ -145,6 +145,7 @@ export async function processEvent(
 				);
 				if (
 					["network", "expired", "inactive"].includes(prepared.reason) ||
+					(event.forge === "gitcafe" && prepared.reason === "stale") ||
 					(prepared.reason === "http" &&
 						(prepared.status === 429 || (prepared.status ?? 0) >= 500))
 				)
