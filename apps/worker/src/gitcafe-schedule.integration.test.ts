@@ -32,6 +32,7 @@ import issuePage from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-issues-list
 import { generateId, sleep } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import pino from "pino";
+import { staticForge } from "./forge-runtime.ts";
 import { registerGitCafeProtectionQueues } from "./gitcafe-protection-worker.ts";
 import { buildGitCafeRuntime } from "./gitcafe-runtime.ts";
 import { processEvent } from "./jobs/process-event.ts";
@@ -427,6 +428,122 @@ test("a committed scheduled action recovers without re-evaluating changed eviden
 		{ forge: "gitcafe" },
 	);
 	expect((await runServices.getRunForEvent(database.db, id))?.id).toBe(run.id);
+	expect(writes).toEqual(["/api/repos/boring/scratch/issues/2/lock"]);
+});
+
+test("identical code-defined workflow IDs in different repositories cannot collide", async () => {
+	const original = await repoServices.getRepoById(database.db, repoId);
+	if (!original) throw new Error("Missing test repository");
+	const secondId = generateId();
+	await database.db.insert(repos).values({
+		id: secondId,
+		forge: "gitcafe",
+		externalId: "synthetic-second-repo",
+		owner: "boring",
+		name: "second",
+		fullName: "boring/second",
+		installationId: installation.id,
+		orgId: original.orgId,
+		armed: true,
+	});
+	await database.db.insert(workflowDefinitions).values({
+		id: generateId(),
+		repoId: secondId,
+		name: definition.name,
+		enabled: true,
+		definition,
+	});
+	const resolveForge = staticForge({
+		listThreads: async (repo) => ({
+			threads: [
+				{
+					externalId: `synthetic-thread-${repo}`,
+					kind: "issue",
+					number: 2,
+					title: subject.title,
+					url: `https://git.cafe/${repo}/issues/2`,
+					state: "open",
+					author: subject.author.handle ?? "grim",
+					authorExternalId: subject.authorActorId ?? "synthetic-actor",
+					labels: [],
+					locked: false,
+					updatedAt: subject.updatedAt,
+				},
+			],
+			stopped: null,
+		}),
+	});
+	expect(await scheduleTick({ ...deps(), resolveForge })).toEqual({
+		schedules: 2,
+		events: 2,
+		errors: 0,
+	});
+	expect(
+		(
+			await database.pool.query(
+				"SELECT count(DISTINCT delivery_id)::int AS count FROM events",
+			)
+		).rows[0].count,
+	).toBe(2);
+});
+
+test("exhausted and deleted local schedule jobs recover once without replaying completed work", async () => {
+	const d = deps();
+	expect((await scheduleTick(d)).events).toBe(1);
+	const id = await eventId();
+	await database.pool.query(
+		"UPDATE pgboss.job SET retry_delay = 0, retry_backoff = false WHERE name = $1",
+		[GITCAFE_PROCESS_EVENT_QUEUE],
+	);
+	for (let attempt = 0; attempt <= 10; attempt++) {
+		expect(await boss.fetch(GITCAFE_PROCESS_EVENT_QUEUE)).toHaveLength(1);
+		await database.pool.query(
+			"UPDATE pgboss.job SET started_on = now() - interval '1 hour', expire_seconds = 1 WHERE name = $1",
+			[GITCAFE_PROCESS_EVENT_QUEUE],
+		);
+		await database.pool.query(
+			"UPDATE pgboss.queue SET monitor_on = now() - interval '1 hour' WHERE name = $1",
+			[GITCAFE_PROCESS_EVENT_QUEUE],
+		);
+		await boss.supervise(GITCAFE_PROCESS_EVENT_QUEUE);
+		await database.pool.query(
+			"UPDATE pgboss.job SET start_after = now() - interval '1 second' WHERE name = $1",
+			[GITCAFE_PROCESS_EVENT_QUEUE],
+		);
+	}
+	expect(
+		(
+			await database.pool.query(
+				"SELECT state, retry_count FROM pgboss.job WHERE name = $1",
+				[GITCAFE_PROCESS_EVENT_QUEUE],
+			)
+		).rows[0],
+	).toEqual({ state: "failed", retry_count: 10 });
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(1);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	await database.pool.query("DELETE FROM pgboss.job WHERE name = $1", [
+		GITCAFE_PROCESS_EVENT_QUEUE,
+	]);
+	const restored = await Promise.all([
+		gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+		gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	]);
+	expect(restored.sort()).toEqual([0, 1]);
+	await processEvent({ ...d, resumeNormalized: true }, { eventId: id });
+	await gitCafeLifecycleServices.finishGitCafeEvent(database.db, id);
+	expect(
+		(await eventServices.getEventById(database.db, id))?.processedAt,
+	).not.toBeNull();
+	await database.pool.query("DELETE FROM pgboss.job WHERE name = $1", [
+		GITCAFE_PROCESS_EVENT_QUEUE,
+	]);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
 	expect(writes).toEqual(["/api/repos/boring/scratch/issues/2/lock"]);
 });
 

@@ -159,7 +159,16 @@ async function tickOne(
 						{
 							event: {
 								...event,
-								deliveryId: `${event.deliveryId}:${thread.kind}`,
+								deliveryId: JSON.stringify([
+									"gitcafe-schedule",
+									binding.installationId,
+									binding.repoId,
+									due.workflowRowId,
+									due.nodeId,
+									thread.kind,
+									thread.number,
+									tickId,
+								]),
 							},
 							binding,
 							requestId: deps.requestId ?? generateId(),

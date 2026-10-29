@@ -496,9 +496,19 @@ export async function finishGitCafeEvent(
 	db: Db,
 	eventId: string,
 ): Promise<void> {
-	await db.execute(sql`UPDATE gitcafe_receipts r SET status = 'applied', processed_at = now()
-		FROM events e WHERE e.id = ${eventId} AND e.forge = 'gitcafe' AND r.status = 'dispatched'
-		AND e.raw->>'id' = r.event_id AND e.raw#>>'{installation,id}' = r.installation_id`);
+	await db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
+		);
+		await tx.execute(
+			sql`UPDATE events SET processed_at = now() WHERE id = ${eventId} AND forge = 'gitcafe' AND processed_at IS NULL`,
+		);
+		await tx.execute(sql`UPDATE gitcafe_receipts r SET status = 'applied', processed_at = now()
+			FROM events e WHERE e.id = ${eventId} AND e.forge = 'gitcafe' AND r.status = 'dispatched'
+			AND e.raw->>'id' = r.event_id AND e.raw#>>'{installation,id}' = r.installation_id
+			AND NOT EXISTS (SELECT 1 FROM events pending WHERE pending.forge = 'gitcafe'
+			AND pending.raw->>'id' = r.event_id AND pending.raw#>>'{installation,id}' = r.installation_id AND pending.processed_at IS NULL)`);
+	});
 }
 
 /** A durable dispatched receipt survives expired, exhausted, or retained-away process jobs. */
@@ -512,25 +522,40 @@ export async function recoverGitCafeEvents(
 		await client.query(
 			"SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))",
 		);
-		const pending = await client.query<{ id: string; receipt: unknown }>(
-			`SELECT e.id, r.receipt FROM gitcafe_receipts r JOIN events e ON e.forge = 'gitcafe'
-			 AND e.raw->>'id' = r.event_id AND e.raw#>>'{installation,id}' = r.installation_id
-			 WHERE r.status = 'dispatched' AND NOT EXISTS (
+		const pending = await client.query<{
+			id: string;
+			receipt: unknown;
+			raw: unknown;
+		}>(
+			`SELECT e.id, r.receipt, e.raw FROM events e LEFT JOIN gitcafe_receipts r
+			 ON e.raw->>'id' = r.event_id AND e.raw#>>'{installation,id}' = r.installation_id
+			 WHERE e.forge = 'gitcafe' AND e.processed_at IS NULL AND
+			 (r.status = 'dispatched' OR (r.id IS NULL AND e.raw_kind = 'schedule.matched' AND e.raw#>>'{thread,externalId}' IS NOT NULL)) AND NOT EXISTS (
 			 SELECT 1 FROM pgboss.job j WHERE j.name = $1 AND j.data->>'eventId' = e.id
-			 AND j.state IN ('created','retry','active')) ORDER BY r.received_at, r.id LIMIT 100 FOR UPDATE OF r`,
+			 AND j.state IN ('created','retry','active')) ORDER BY e.received_at, e.id LIMIT 100 FOR UPDATE OF e`,
 			[GITCAFE_PROCESS_EVENT_QUEUE],
 		);
 		if (pending.rows.length) {
-			const jobs = pending.rows.map((row) => ({
-				id: generateId(),
-				data: gitCafeProcessEventJobSchema.parse({
-					eventId: row.id,
-					requestId: gitCafeReceiptSchema.parse(row.receipt).requestId,
-				}),
-				retryLimit: 10,
-				retryDelay: 15,
-				retryBackoff: true,
-			}));
+			const jobs = pending.rows.map((row) => {
+				if (row.receipt == null) {
+					const event = scheduledEventSchema.parse(row.raw);
+					if (event.forge !== "gitcafe" || !event.thread.externalId)
+						throw new Error("Invalid GitCafe scheduled recovery source");
+				}
+				return {
+					id: generateId(),
+					data: gitCafeProcessEventJobSchema.parse({
+						eventId: row.id,
+						requestId:
+							row.receipt == null
+								? generateId()
+								: gitCafeReceiptSchema.parse(row.receipt).requestId,
+					}),
+					retryLimit: 10,
+					retryDelay: 15,
+					retryBackoff: true,
+				};
+			});
 			const inserted = await boss.insert(GITCAFE_PROCESS_EVENT_QUEUE, jobs, {
 				returnId: true,
 				db: {

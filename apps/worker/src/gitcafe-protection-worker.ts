@@ -136,7 +136,7 @@ export async function registerGitCafeProtectionQueues(
 					deps.db,
 					parsed.data.eventId,
 				);
-				if (event?.forge !== "gitcafe") continue;
+				if (event?.forge !== "gitcafe" || event.processedAt) continue;
 				const lock = await deps.pool.connect();
 				try {
 					await lock.query(
