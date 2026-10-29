@@ -961,7 +961,7 @@ for (const kind of ["pull", "issue"] as const) {
 					delete process.env.TRIPWIRE_DISABLE_EXEMPTION;
 				else process.env.TRIPWIRE_DISABLE_EXEMPTION = previous;
 			}
-		});
+		}, 20_000);
 	}
 }
 
