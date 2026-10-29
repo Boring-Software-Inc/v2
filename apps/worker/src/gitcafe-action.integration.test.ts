@@ -1039,6 +1039,7 @@ for (const { verdict, scenario } of [
 	{ verdict: "pass", scenario: "native-rerequest-read-outage" },
 	{ verdict: "pass", scenario: "native-rerequest-write-outage" },
 	{ verdict: "pass", scenario: "native-rerequest-refresh-outage" },
+	{ verdict: "pass", scenario: "native-rerequest-refresh-generation" },
 	{ verdict: "pass", scenario: "native-rerequest-unbound" },
 	{ verdict: "pass", scenario: "native-rerequest-generation" },
 	{ verdict: "pass", scenario: "native-rerequest-stale-head" },
@@ -1105,6 +1106,7 @@ for (const { verdict, scenario } of [
 		let profileReads = 0;
 		let rerequestReadStatus = 200;
 		let pullReadStatus = 200;
+		let changeGenerationOnPull = false;
 		let changeHead = false;
 		let checkReads = 0;
 		let lostReview = false;
@@ -1142,7 +1144,19 @@ for (const { verdict, scenario } of [
 				if (path.endsWith("/collaborators/"))
 					return Response.json(collaborators);
 				if (path.endsWith("/pulls/")) return Response.json(merged);
-				if (path.endsWith("/pulls/1"))
+				if (path.endsWith("/pulls/1")) {
+					if (changeGenerationOnPull) {
+						changeGenerationOnPull = false;
+						await database.db
+							.update(gitCafeInstallationLifecycle)
+							.set({ generation: 2 })
+							.where(
+								eq(
+									gitCafeInstallationLifecycle.installationId,
+									installation.id,
+								),
+							);
+					}
 					return Response.json(
 						changeHead
 							? {
@@ -1153,6 +1167,7 @@ for (const { verdict, scenario } of [
 							: pull,
 						{ status: pullReadStatus },
 					);
+				}
 				if (path.endsWith("/pulls/1/changes")) return Response.json(changes);
 				if (path.includes("/pulls/1/diff/")) return Response.json(diff);
 				if (path.endsWith("/pulls/1/commits")) return Response.json(commits);
@@ -1526,6 +1541,22 @@ for (const { verdict, scenario } of [
 						])
 					).rowCount,
 				).toBe(1);
+				if (scenario === "native-rerequest-refresh-generation") {
+					changeGenerationOnPull = true;
+					await expect(
+						rerunChangeRequest(deps, prepared.value),
+					).rejects.toThrow("GitCafe re-run evidence temporarily unavailable");
+					expect(
+						(await runServices.getRunById(database.db, requestRow.id))?.status,
+					).toBe("queued");
+					expect(
+						(await eventServices.getEventById(database.db, requestRow.id))
+							?.processedAt,
+					).toBeNull();
+					expect(await runtime.prepareCheckRerequest(requestRow.id)).toEqual(
+						prepared,
+					);
+				}
 				if (scenario === "native-rerequest-refresh-outage") {
 					const ordinaryQueued = await runServices.createRun(database.db, {
 						eventId: row.id,

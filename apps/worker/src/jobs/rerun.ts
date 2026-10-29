@@ -180,7 +180,7 @@ export async function rerunChangeRequest(
 			);
 			if (
 				event.forge === "gitcafe" &&
-				(["network", "expired"].includes(refreshed.reason) ||
+				(["network", "expired", "inactive"].includes(refreshed.reason) ||
 					(refreshed.reason === "http" &&
 						(refreshed.status === 429 || (refreshed.status ?? 0) >= 500)))
 			)
