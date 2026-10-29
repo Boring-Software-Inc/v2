@@ -8,12 +8,12 @@ import {
 	type GitCafeReceipt,
 	type GitCafeReceiptStatus,
 	type GitCafeRetirement,
+	gitCafeDispatchableRepositoryEventTypeSchema,
 	gitCafeInstallationCreatedSchema,
 	gitCafeLifecycleEventSchema,
 	gitCafeLifecycleEventTypeSchema,
 	gitCafeLifecycleLookupSchema,
 	gitCafeProcessEventJobSchema,
-	gitCafePullEventSchema,
 	gitCafeReceiptJobSchema,
 	gitCafeReceiptSchema,
 	gitCafeRepositoriesUpdatedSchema,
@@ -244,7 +244,10 @@ export async function dispatchGitCafeRepositoryReceipt(
 			parsed.data.payload.type === row.event_type
 		) {
 			const receipt = parsed.data;
-			if (!gitCafePullEventSchema.shape.type.safeParse(row.event_type).success)
+			if (
+				!gitCafeDispatchableRepositoryEventTypeSchema.safeParse(row.event_type)
+					.success
+			)
 				status = "parked";
 			else {
 				const eventId = generateId();

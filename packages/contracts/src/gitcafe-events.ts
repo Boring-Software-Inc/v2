@@ -55,6 +55,128 @@ export const gitCafePullIdentitySchema =
 	});
 export type GitCafePullIdentity = z.infer<typeof gitCafePullIdentitySchema>;
 
+export const gitCafePullCommentEventSchema =
+	gitCafeRepositoryEventSchema.extend({
+		type: z.literal("pull.comment_created"),
+		pull: gitCafePullEventSchema.shape.pull,
+		commentId: z.string().min(1).max(255),
+		comment: z.object({
+			id: z.string().min(1).max(255),
+			authorActorId: z.string().min(1).nullable(),
+			body: z.string().max(261120).nullable(),
+			version: z.number().int().nonnegative().safe(),
+			hidden: z.boolean(),
+			deleted: z.boolean(),
+			bodyTruncated: z.boolean(),
+		}),
+	});
+export type GitCafePullCommentEvent = z.infer<
+	typeof gitCafePullCommentEventSchema
+>;
+
+export const gitCafeIssueCommentEventSchema =
+	gitCafeRepositoryEventSchema.extend({
+		type: z.literal("issue.comment_created"),
+		issue: z.object({
+			id: z.string().min(1).max(255),
+			number: z.number().int().positive().max(2147483647),
+			version: z.number().int().nonnegative().safe(),
+		}),
+		commentId: gitCafePullCommentEventSchema.shape.commentId,
+		comment: gitCafePullCommentEventSchema.shape.comment.pick({
+			id: true,
+			authorActorId: true,
+			body: true,
+			version: true,
+		}),
+	});
+export type GitCafeIssueCommentEvent = z.infer<
+	typeof gitCafeIssueCommentEventSchema
+>;
+
+export const gitCafeCommentEventSchema = z
+	.discriminatedUnion("type", [
+		gitCafePullCommentEventSchema,
+		gitCafeIssueCommentEventSchema,
+	])
+	.refine((event) => event.commentId === event.comment.id);
+export type GitCafeCommentEvent = z.infer<typeof gitCafeCommentEventSchema>;
+
+export const gitCafeCommentIdentitySchema = z.object({
+	id: gitCafePullCommentEventSchema.shape.commentId,
+	authorActorId: z.string().min(1).nullable(),
+	author: gitCafePullIdentitySchema.shape.author,
+	body: gitCafePullCommentEventSchema.shape.comment.shape.body,
+	version: gitCafePullCommentEventSchema.shape.comment.shape.version,
+});
+export type GitCafeCommentIdentity = z.infer<
+	typeof gitCafeCommentIdentitySchema
+>;
+
+export const gitCafeCommentDetailSchema = gitCafeCommentIdentitySchema.extend({
+	hiddenAt: z.iso.datetime().nullable(),
+	deletedAt: z.iso.datetime().nullable(),
+});
+export type GitCafeCommentDetail = z.infer<typeof gitCafeCommentDetailSchema>;
+
+export const gitCafeCommentSubjectSchema =
+	gitCafeIssueCommentEventSchema.shape.issue
+		.omit({ version: true })
+		.extend({ repoId: z.string().min(1).max(255) });
+export type GitCafeCommentSubject = z.infer<typeof gitCafeCommentSubjectSchema>;
+
+export const gitCafeIssueCommentPageSchema = z.object({
+	items: z.array(
+		gitCafeCommentIdentitySchema.extend({
+			repoId: z.string().min(1).max(255),
+			issueId: z.string().min(1).max(255),
+		}),
+	),
+	next: z
+		.string()
+		.regex(/^[A-Za-z0-9_-]{1,8192}$/)
+		.nullable(),
+});
+export type GitCafeIssueCommentPage = z.infer<
+	typeof gitCafeIssueCommentPageSchema
+>;
+
+export const gitCafeHydratedCommentEventSchema = z
+	.strictObject({
+		event: gitCafeCommentEventSchema,
+		author: eventActorSchema.extend({ login: z.string().min(1) }),
+		sender: eventActorSchema.optional(),
+		botActorId: z.string().min(1),
+	})
+	.refine(
+		(value) => value.author.externalId === value.event.comment.authorActorId,
+	)
+	.refine(
+		(value) =>
+			value.sender === undefined ||
+			value.sender.externalId === value.event.actor?.id,
+	);
+export type GitCafeHydratedCommentEvent = z.infer<
+	typeof gitCafeHydratedCommentEventSchema
+>;
+
+export const gitCafeDispatchableRepositoryEventTypeSchema = z.enum([
+	...gitCafePullEventSchema.shape.type.options,
+	"pull.comment_created",
+	"issue.comment_created",
+]);
+export type GitCafeDispatchableRepositoryEventType = z.infer<
+	typeof gitCafeDispatchableRepositoryEventTypeSchema
+>;
+
+export const gitCafeDispatchableRepositoryEventSchema = z.union([
+	gitCafePullEventSchema,
+	gitCafeCommentEventSchema,
+]);
+export type GitCafeDispatchableRepositoryEvent = z.infer<
+	typeof gitCafeDispatchableRepositoryEventSchema
+>;
+
 /** Hydrated identity is separate from the immutable signed receipt. */
 export const gitCafeHydratedPullEventSchema = z
 	.strictObject({

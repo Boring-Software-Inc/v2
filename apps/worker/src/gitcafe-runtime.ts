@@ -1,8 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
 import {
 	type GitCafeReadBoundary,
+	gitCafeDispatchableRepositoryEventSchema,
+	gitCafeHydratedCommentEventSchema,
 	gitCafeHydratedPullEventSchema,
-	gitCafePullEventSchema,
 	gitCafePullIdentitySchema,
 	normalizedEventSchema,
 	REVIEW_POINTER,
@@ -26,7 +27,9 @@ import {
 	GitCafeInstallationClient,
 	type GitCafeInstallationClientOptions,
 	GitCafeReads,
+	hydrateGitCafeCommentEvent,
 	hydrateGitCafePullEvent,
+	normalizeGitCafeCommentEvent,
 	normalizeGitCafePullEvent,
 	verifyGitCafeWebhook,
 } from "@tripwire/forge-gitcafe";
@@ -271,7 +274,9 @@ export function buildGitCafeRuntime(
 	};
 	const normalize = (raw: RawForgeEvent, receivedAt: string) => {
 		const parsed = parseJson(raw.body, gitCafeHydratedPullEventSchema);
-		return parsed ? normalizeGitCafePullEvent(parsed, receivedAt) : null;
+		if (parsed) return normalizeGitCafePullEvent(parsed, receivedAt);
+		const comment = parseJson(raw.body, gitCafeHydratedCommentEventSchema);
+		return comment ? normalizeGitCafeCommentEvent(comment, receivedAt) : null;
 	};
 	return {
 		refreshEvent: async (event) => {
@@ -342,7 +347,10 @@ export function buildGitCafeRuntime(
 		isRepoPublic: null,
 		listThreads: null,
 		prepareEvent: async (raw, receivedAt) => {
-			const event = parseJson(raw.body, gitCafePullEventSchema);
+			const event = parseJson(
+				raw.body,
+				gitCafeDispatchableRepositoryEventSchema,
+			);
 			if (!event) return { ok: false, reason: "invalid-response" };
 			const bound = await bind(
 				`${event.repository.owner}/${event.repository.name}`,
@@ -353,6 +361,23 @@ export function buildGitCafeRuntime(
 				event.repository.id !== bound.repositoryId
 			)
 				return { ok: false, reason: "identity-mismatch" };
+			if (
+				event.type === "pull.comment_created" ||
+				event.type === "issue.comment_created"
+			) {
+				const hydrated = await hydrateGitCafeCommentEvent(
+					bound.client,
+					bound.installation,
+					event,
+					Date.now() + 300_000,
+				);
+				return hydrated.ok
+					? {
+							ok: true,
+							value: normalizeGitCafeCommentEvent(hydrated.value, receivedAt),
+						}
+					: hydrated;
+			}
 			const hydrated = await hydrateGitCafePullEvent(
 				bound.client,
 				bound.installation,
