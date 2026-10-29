@@ -5,6 +5,26 @@ import {
 } from "@tripwire/contracts";
 import report from "../fixtures/gitcafe-check-neutral.json";
 import readback from "../fixtures/gitcafe-check-readback.json";
+import pending from "../fixtures/gitcafe-check-rerequest-pending.json";
+
+test("a genuine person-requested re-run clears the conclusion and retains a pending timestamp", () => {
+	const check = gitCafeReportedCheckSchema.parse(pending);
+	expect(check).toMatchObject({
+		id: readback.id,
+		installationId: readback.installationId,
+		reporterId: readback.reporterId,
+		key: readback.key,
+		headOid: readback.headOid,
+		status: "queued",
+		conclusion: null,
+		rerequestable: true,
+	});
+	if (check.rerequestedAt === null)
+		throw new Error("Missing captured pending timestamp");
+	expect(Date.parse(check.rerequestedAt)).toBeGreaterThan(
+		Date.parse(check.reportedAt),
+	);
+});
 
 test("authenticated staging check report agrees with its ownership readback", () => {
 	const response = gitCafeCheckReportResponseSchema.parse(report);

@@ -13,6 +13,8 @@ import {
 	gitCafeCommentEventSchema,
 	gitCafeInstallationSchema,
 	gitCafePullEventSchema,
+	gitCafePullIdentitySchema,
+	gitCafeReadPullSchema,
 	gitCafeReceiptSchema,
 	normalizedEventSchema,
 	responseConfigSchema,
@@ -958,6 +960,8 @@ for (const { verdict, scenario } of [
 	{ verdict: "pass", scenario: "native-rerequest-write-outage" },
 	{ verdict: "pass", scenario: "native-rerequest-refresh-outage" },
 	{ verdict: "pass", scenario: "native-rerequest-generation" },
+	{ verdict: "pass", scenario: "native-rerequest-stale-head" },
+	{ verdict: "pass", scenario: "native-rerequest-head-change" },
 ] as const) {
 	test(`actual GitCafe runtime persists ${verdict} and owned surfaces across ${scenario}`, async () => {
 		const fixture = async (name: string): Promise<unknown> =>
@@ -1020,6 +1024,7 @@ for (const { verdict, scenario } of [
 		let profileReads = 0;
 		let rerequestReadStatus = 200;
 		let pullReadStatus = 200;
+		let changeHead = false;
 		let checkReads = 0;
 		let lostReview = false;
 		let refuseCleanup = false;
@@ -1057,7 +1062,16 @@ for (const { verdict, scenario } of [
 					return Response.json(collaborators);
 				if (path.endsWith("/pulls/")) return Response.json(merged);
 				if (path.endsWith("/pulls/1"))
-					return Response.json(pull, { status: pullReadStatus });
+					return Response.json(
+						changeHead
+							? {
+									...gitCafePullIdentitySchema.parse(pull),
+									...gitCafeReadPullSchema.parse(pull),
+									headOid: "a".repeat(40),
+								}
+							: pull,
+						{ status: pullReadStatus },
+					);
 				if (path.endsWith("/pulls/1/changes")) return Response.json(changes);
 				if (path.includes("/pulls/1/diff/")) return Response.json(diff);
 				if (path.endsWith("/pulls/1/commits")) return Response.json(commits);
@@ -1322,7 +1336,7 @@ for (const { verdict, scenario } of [
 						gitCafeActionServices,
 						"prepareGitCafeCheckRerun",
 					).mockImplementation(async (db, input) => {
-						if (input.create)
+						if (input.mode === "create")
 							await database.db
 								.update(gitCafeInstallationLifecycle)
 								.set({ generation: 2 })
@@ -1345,6 +1359,17 @@ for (const { verdict, scenario } of [
 					expect(
 						await runServices.getRunById(database.db, requestRow.id),
 					).toBeNull();
+				}
+				if (scenario === "native-rerequest-stale-head") {
+					changeHead = true;
+					expect(await runtime.prepareCheckRerequest(requestRow.id)).toEqual({
+						ok: false,
+						reason: "stale",
+					});
+					expect(
+						await runServices.getRunById(database.db, requestRow.id),
+					).toBeNull();
+					return;
 				}
 				const preparations = await Promise.all(
 					Array.from({ length: 5 }, () =>
@@ -1374,6 +1399,18 @@ for (const { verdict, scenario } of [
 						(await runServices.getRunById(database.db, requestRow.id))?.status,
 					).toBe("queued");
 					pullReadStatus = 200;
+				}
+				if (scenario === "native-rerequest-head-change") {
+					changeHead = true;
+					const previousReads = profileReads;
+					const previousChecks = checks.length;
+					await rerunChangeRequest(deps, prepared.value);
+					expect(
+						(await runServices.getRunById(database.db, requestRow.id))?.status,
+					).toBe("failed");
+					expect(profileReads).toBe(previousReads);
+					expect(checks).toHaveLength(previousChecks);
+					return;
 				}
 				await rerunChangeRequest(deps, prepared.value);
 				expect(

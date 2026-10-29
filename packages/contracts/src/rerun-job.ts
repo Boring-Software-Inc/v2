@@ -8,6 +8,10 @@ export const rerunChangeRequestJobSchema = z
 		number: z.number().int().positive(),
 		requestedBy: z.string().min(1),
 		runId: z.string().min(1).optional(),
+		expectedHeadSha: z
+			.string()
+			.regex(/^[0-9a-f]{40}$/)
+			.optional(),
 	})
 	.refine((job) => job.forge !== undefined || job.runId !== undefined);
 

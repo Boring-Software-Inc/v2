@@ -29,7 +29,11 @@ import {
 /** The request event's UUID also identifies its one re-run, so job replacement cannot create another evaluation. */
 export async function prepareGitCafeCheckRerun(
 	db: Db,
-	input: { eventId: string; generation: number; create: boolean },
+	input: {
+		eventId: string;
+		generation: number;
+		mode: "existing" | "preview" | "create";
+	},
 ) {
 	return db.transaction(async (tx) => {
 		await tx.execute(
@@ -154,24 +158,25 @@ export async function prepareGitCafeCheckRerun(
 				return null;
 		}
 		if (!existing) {
-			if (!input.create) return null;
+			if (input.mode === "existing") return null;
 			const snapshot = workflowDefinitionSchema
 				.array()
 				.min(1)
 				.safeParse(reference.run.workflowSnapshot);
 			if (!snapshot.success) return null;
-			await createRun(tx, {
-				id: input.eventId,
-				eventId: reference.event.id,
-				repoFullName: reference.run.repoFullName,
-				subjectNumber: reference.run.subjectNumber,
-				subjectKind: "change-request",
-				headSha: event.checkRun.headOid,
-				snapshot: snapshot.data,
-				status: "queued",
-				verdict: null,
-				triggeredBy: requestedBy,
-			});
+			if (input.mode === "create")
+				await createRun(tx, {
+					id: input.eventId,
+					eventId: reference.event.id,
+					repoFullName: reference.run.repoFullName,
+					subjectNumber: reference.run.subjectNumber,
+					subjectKind: "change-request",
+					headSha: event.checkRun.headOid,
+					snapshot: snapshot.data,
+					status: "queued",
+					verdict: null,
+					triggeredBy: requestedBy,
+				});
 		}
 		return rerunChangeRequestJobSchema.parse({
 			forge: "gitcafe",
@@ -179,6 +184,7 @@ export async function prepareGitCafeCheckRerun(
 			number: reference.run.subjectNumber,
 			requestedBy,
 			runId: input.eventId,
+			expectedHeadSha: event.checkRun.headOid,
 		});
 	});
 }

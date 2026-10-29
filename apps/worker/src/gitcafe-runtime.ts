@@ -311,22 +311,28 @@ export function buildGitCafeRuntime(
 				bound.installation.id !== event.installation.id
 			)
 				return { ok: false, reason: "identity-mismatch" };
-			const input = { eventId, generation: bound.generation, create: false };
+			const input = { eventId, generation: bound.generation };
 			const existing = await gitCafeActionServices.prepareGitCafeCheckRerun(
 				db,
-				input,
+				{ ...input, mode: "existing" },
 			);
 			if (existing) return { ok: true, value: existing };
+			const target = await gitCafeActionServices.prepareGitCafeCheckRerun(db, {
+				...input,
+				mode: "preview",
+			});
+			if (!target) return { ok: false, reason: "inactive" };
 			const verified = await verifyGitCafeCheckRerequest(
 				bound.client,
 				bound.installation,
 				event,
+				target.number,
 				Date.now() + 300_000,
 			);
 			if (!verified.ok) return verified;
 			const job = await gitCafeActionServices.prepareGitCafeCheckRerun(db, {
 				...input,
-				create: true,
+				mode: "create",
 			});
 			return job ? { ok: true, value: job } : { ok: false, reason: "inactive" };
 		},

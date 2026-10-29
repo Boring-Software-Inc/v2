@@ -4,6 +4,7 @@ import {
 	type GitCafeCheckRerequestedEvent,
 	type GitCafeInstallation,
 	type GitCafeReportedCheck,
+	gitCafeCheckPullSchema,
 	gitCafeCheckReportInputSchema,
 	gitCafeCheckReportResponseSchema,
 	gitCafeCheckRerequestedEventSchema,
@@ -19,10 +20,15 @@ export async function verifyGitCafeCheckRerequest(
 	client: GitCafeInstallationClient,
 	expectedInstallation: GitCafeInstallation,
 	input: GitCafeCheckRerequestedEvent,
+	number: number,
 	deadlineAt?: number,
 ): Promise<GitCafeInstallationResult<GitCafeReportedCheck>> {
 	const parsed = gitCafeCheckRerequestedEventSchema.safeParse(input);
-	if (!parsed.success) return { ok: false, reason: "invalid-response" };
+	if (
+		!parsed.success ||
+		!gitCafeCheckPullSchema.shape.number.safeParse(number).success
+	)
+		return { ok: false, reason: "invalid-response" };
 	const event = parsed.data;
 	if (
 		event.installation.id !== expectedInstallation.id ||
@@ -59,10 +65,31 @@ export async function verifyGitCafeCheckRerequest(
 	)
 		return { ok: false, reason: "identity-mismatch" };
 	if (
+		check.data.status !== "queued" ||
+		check.data.conclusion !== null ||
 		!check.data.rerequestable ||
 		check.data.rerequestedAt === null ||
 		Date.parse(check.data.rerequestedAt) <= Date.parse(check.data.reportedAt) ||
 		Date.parse(check.data.rerequestedAt) > Date.parse(event.createdAt)
+	)
+		return { ok: false, reason: "stale" };
+	const pullResponse = await client.request(
+		expectedInstallation.id,
+		{
+			method: "GET",
+			resourcePath: `repos/${event.repository.owner}/${event.repository.name}/pulls/${number}`,
+		},
+		expectedInstallation,
+		deadlineAt,
+	);
+	if (!pullResponse.ok) return pullResponse;
+	const pull = gitCafeCheckPullSchema.safeParse(pullResponse.value);
+	if (!pull.success) return { ok: false, reason: "invalid-response" };
+	if (pull.data.repoId !== event.repository.id || pull.data.number !== number)
+		return { ok: false, reason: "identity-mismatch" };
+	if (
+		pull.data.headOid !== event.checkRun.headOid ||
+		pull.data.state !== "open"
 	)
 		return { ok: false, reason: "stale" };
 	return { ok: true, value: check.data };

@@ -13,9 +13,11 @@ import {
 import { generateId } from "@tripwire/utils";
 import reportFixture from "../fixtures/gitcafe-check-neutral.json";
 import readbackFixture from "../fixtures/gitcafe-check-readback.json";
+import pendingFixture from "../fixtures/gitcafe-check-rerequest-pending.json";
 import rerequestFixture from "../fixtures/gitcafe-check-rerequested-webhook.json";
 import installationFixture from "../fixtures/gitcafe-installation.json";
 import tokenFixture from "../fixtures/gitcafe-installation-token.json";
+import pullFixture from "../fixtures/gitcafe-read-scratch-pull.json";
 
 const command = gitCafeCheckReportInputSchema.parse({
 	repoFullName: "boring/scratch",
@@ -51,6 +53,7 @@ function harness(
 	options: {
 		report?: unknown;
 		readback?: unknown;
+		pull?: unknown;
 		status?: number;
 		revokeAfterWrite?: boolean;
 	} = {},
@@ -81,6 +84,8 @@ function harness(
 				method: String(init.method),
 				body: String(init.body ?? ""),
 			});
+			if (url.endsWith("/pulls/1"))
+				return Response.json(options.pull ?? pullFixture);
 			if (init.method === "PUT") {
 				if (options.revokeAfterWrite) active = false;
 				return Response.json(options.report ?? reportFixture, {
@@ -103,6 +108,7 @@ function harness(
 
 const rerequest = gitCafeCheckRerequestedEventSchema.parse({
 	...rerequestFixture,
+	createdAt: pendingFixture.rerequestedAt,
 	checkRun: {
 		...rerequestFixture.checkRun,
 		key: "tripwire",
@@ -110,12 +116,9 @@ const rerequest = gitCafeCheckRerequestedEventSchema.parse({
 	},
 });
 const requestedCheck = {
-	...readbackFixture,
+	...pendingFixture,
 	key: "tripwire",
-	status: "queued",
-	conclusion: null,
 	externalId: rerequest.checkRun.externalId,
-	rerequestedAt: rerequest.createdAt,
 };
 
 test("a re-run request binds the signed check to current installed ownership", async () => {
@@ -123,12 +126,12 @@ test("a re-run request binds the signed check to current installed ownership", a
 	const expected = await h.client.getInstallation(installation.id);
 	if (!expected.ok) throw new Error("lookup failed");
 	expect(
-		await verifyGitCafeCheckRerequest(h.client, expected.value, rerequest),
+		await verifyGitCafeCheckRerequest(h.client, expected.value, rerequest, 1),
 	).toMatchObject({
 		ok: true,
 		value: { externalId: rerequest.checkRun.externalId },
 	});
-	expect(h.calls.map((call) => call.method)).toEqual(["GET"]);
+	expect(h.calls.map((call) => call.method)).toEqual(["GET", "GET"]);
 });
 
 for (const change of [
@@ -141,16 +144,33 @@ for (const change of [
 	{ name: "another-name" },
 	{ rerequestable: false },
 	{ rerequestedAt: null },
-	{ rerequestedAt: "2026-10-29T00:00:00.000Z" },
-	{ reportedAt: "2026-10-29T00:00:00.000Z" },
+	{
+		rerequestedAt: new Date(
+			Date.parse(pendingFixture.rerequestedAt) + 86_400_000,
+		).toISOString(),
+	},
+	{ status: "completed", conclusion: "timed_out" },
+	{ status: "in_progress", conclusion: null },
+	{ status: "queued", conclusion: "failure" },
+	{
+		reportedAt: new Date(
+			Date.parse(pendingFixture.rerequestedAt) + 1,
+		).toISOString(),
+	},
 ]) {
 	test(`re-run refuses changed current ${Object.keys(change).join()}`, async () => {
 		const h = harness({ readback: { ...requestedCheck, ...change } });
 		const expected = await h.client.getInstallation(installation.id);
 		if (!expected.ok) throw new Error("lookup failed");
 		expect(
-			(await verifyGitCafeCheckRerequest(h.client, expected.value, rerequest))
-				.ok,
+			(
+				await verifyGitCafeCheckRerequest(
+					h.client,
+					expected.value,
+					rerequest,
+					1,
+				)
+			).ok,
 		).toBe(false);
 	});
 }
@@ -174,10 +194,38 @@ for (const change of [
 					h.client,
 					expected.value,
 					gitCafeCheckRerequestedEventSchema.parse({ ...rerequest, ...change }),
+					1,
 				)
 			).ok,
 		).toBe(false);
 		expect(h.calls).toHaveLength(0);
+	});
+}
+
+for (const change of [
+	{ headOid: "a".repeat(40) },
+	{ repoId: "another-repository" },
+	{ number: 2 },
+	{ state: "closed" },
+	{ headOid: null },
+]) {
+	test("native re-run cannot target a different current PR or head", async () => {
+		const h = harness({
+			readback: requestedCheck,
+			pull: { ...pullFixture, ...change },
+		});
+		const expected = await h.client.getInstallation(installation.id);
+		if (!expected.ok) throw new Error("lookup failed");
+		expect(
+			(
+				await verifyGitCafeCheckRerequest(
+					h.client,
+					expected.value,
+					rerequest,
+					1,
+				)
+			).ok,
+		).toBe(false);
 	});
 }
 
