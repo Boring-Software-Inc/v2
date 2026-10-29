@@ -79,6 +79,90 @@ interface RepositoryReadContext {
 export class GitCafeReads {
 	constructor(private readonly options: GitCafeReadsOptions) {}
 
+	getThread(
+		repo: string,
+		expectedRepositoryId: string,
+		kind: ForgeThread["kind"],
+		number: number,
+		expectedThreadId: string,
+	): Promise<GitCafeReadResult<ForgeThread>> {
+		if (
+			!Number.isSafeInteger(number) ||
+			number < 1 ||
+			number > 2147483647 ||
+			!expectedThreadId
+		)
+			return Promise.resolve({ ok: false, reason: "invalid-response" });
+		return this.browse(repo, expectedRepositoryId, (context) =>
+			this.thread(context, kind, number, expectedThreadId),
+		);
+	}
+
+	private async thread(
+		context: RepositoryReadContext,
+		kind: ForgeThread["kind"],
+		number: number,
+		expectedThreadId: string,
+		expectedActorId?: string | null,
+	): Promise<GitCafeReadResult<ForgeThread>> {
+		const isPull = kind === "change-request";
+		const path = `${isPull ? "pulls" : "issues"}/${number}`;
+		const current = isPull
+			? await this.resource(context, path, gitCafeReadPullThreadSchema)
+			: await this.resource(context, path, gitCafeReadIssueThreadSchema);
+		if (!current.ok) return current;
+		const detail = current.value;
+		if (
+			detail.id !== expectedThreadId ||
+			detail.number !== number ||
+			detail.repoId !== context.repository.id ||
+			!detail.authorActorId ||
+			(expectedActorId !== undefined &&
+				detail.authorActorId !== expectedActorId) ||
+			detail.author.actorId !== detail.authorActorId ||
+			!detail.author.handle
+		)
+			return { ok: false, reason: "identity-mismatch" };
+		const labels = await this.resourcePages(
+			context,
+			`${path}/labels`,
+			gitCafeActionLabelPageSchema,
+			(label) => label.id,
+		);
+		if (!labels.ok) return labels;
+		const after = isPull
+			? await this.resource(context, path, gitCafeReadPullThreadSchema)
+			: await this.resource(context, path, gitCafeReadIssueThreadSchema);
+		if (!after.ok) return after;
+		if (JSON.stringify(after.value) !== JSON.stringify(detail))
+			return { ok: false, reason: "changed" };
+		const state =
+			"state" in detail
+				? detail.state === "open"
+					? "open"
+					: "closed"
+				: ["completed", "canceled"].includes(detail.stateType)
+					? "closed"
+					: "open";
+		return {
+			ok: true,
+			value: {
+				externalId: detail.id,
+				kind,
+				number,
+				title: detail.title,
+				state,
+				url: `https://git.cafe/${context.repository.owner}/${context.repository.name}/${isPull ? "pull" : "issues"}/${number}`,
+				author: detail.author.handle,
+				authorExternalId: detail.authorActorId,
+				authorAvatarUrl: detail.author.avatarUrl ?? undefined,
+				labels: labels.value.map((label) => label.name),
+				locked: detail.lockedAt !== null,
+				updatedAt: detail.updatedAt,
+			},
+		};
+	}
+
 	getBranches(
 		repo: string,
 		expectedRepositoryId: string,
@@ -171,69 +255,29 @@ export class GitCafeReads {
 					if (numbers.has(item.number))
 						return { ok: false, reason: "identity-mismatch" };
 					numbers.add(item.number);
-					const current = isPull
-						? await this.resource(
-								context,
-								`${path}/${item.number}`,
-								gitCafeReadPullThreadSchema,
-							)
-						: await this.resource(
-								context,
-								`${path}/${item.number}`,
-								gitCafeReadIssueThreadSchema,
-							);
-					if (!current.ok) return current;
-					const detail = current.value;
-					if (
-						detail.id !== item.id ||
-						detail.number !== item.number ||
-						detail.repoId !== context.repository.id ||
-						detail.authorActorId !== item.authorActorId ||
-						!detail.authorActorId ||
-						detail.author.actorId !== detail.authorActorId ||
-						!detail.author.handle
-					)
-						return { ok: false, reason: "identity-mismatch" };
-					const labels = await this.resourcePages(
+					const current = await this.thread(
 						context,
-						`${path}/${item.number}/labels`,
-						gitCafeActionLabelPageSchema,
-						(label) => label.id,
+						kind,
+						item.number,
+						item.id,
+						item.authorActorId,
 					);
-					if (!labels.ok) return labels;
-					const names = labels.value.map((label) => label.name);
-					const labelSet = new Set(names.map((name) => name.toLowerCase()));
-					const state =
-						"state" in detail
-							? detail.state === "open"
-								? "open"
-								: "closed"
-							: ["completed", "canceled"].includes(detail.stateType)
-								? "closed"
-								: "open";
+					if (!current.ok) return current;
+					const thread = current.value;
+					const labelSet = new Set(
+						thread.labels.map((name) => name.toLowerCase()),
+					);
 					if (
-						(query.state !== "any" && state !== query.state) ||
-						(query.skipLocked && detail.lockedAt !== null) ||
+						(query.state !== "any" && thread.state !== query.state) ||
+						(query.skipLocked && thread.locked) ||
 						(query.updatedBefore !== null &&
-							Date.parse(detail.updatedAt) >=
+							Date.parse(thread.updatedAt) >=
 								Date.parse(query.updatedBefore)) ||
 						!query.labels.every((name) => labelSet.has(name.toLowerCase())) ||
 						query.excludeLabels.some((name) => labelSet.has(name.toLowerCase()))
 					)
 						continue;
-					threads.push({
-						kind,
-						number: detail.number,
-						title: detail.title,
-						state,
-						url: `https://git.cafe/${repo}/${isPull ? "pull" : "issues"}/${detail.number}`,
-						author: detail.author.handle,
-						authorExternalId: detail.authorActorId,
-						authorAvatarUrl: detail.author.avatarUrl ?? undefined,
-						labels: names,
-						locked: detail.lockedAt !== null,
-						updatedAt: detail.updatedAt,
-					});
+					threads.push(thread);
 				}
 			}
 			threads.sort(

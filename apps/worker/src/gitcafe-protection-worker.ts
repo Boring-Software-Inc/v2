@@ -7,11 +7,14 @@ import {
 	GITCAFE_REFRESH_SURFACES_QUEUE,
 	GITCAFE_RERUN_QUEUE,
 	GITCAFE_RESUME_RUN_QUEUE,
+	GITCAFE_SCHEDULE_TICK_QUEUE,
 	gitCafeProcessEventJobSchema,
 	gitCafeRefreshCatalogsJobSchema,
 	gitCafeRefreshSurfacesJobSchema,
 	gitCafeResumeRunJobSchema,
+	gitCafeScheduleTickJobSchema,
 	rerunChangeRequestJobSchema,
+	scheduleTickSlot,
 } from "@tripwire/contracts";
 import {
 	createDb,
@@ -24,6 +27,7 @@ import {
 	runServices,
 } from "@tripwire/db";
 import { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
+import { generateId } from "@tripwire/utils";
 import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
 import { createGenerate } from "./ai/generate.ts";
@@ -41,6 +45,7 @@ import { refreshGitCafeCatalogs } from "./jobs/refresh-suggestions.ts";
 import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
+import { scheduleTick } from "./jobs/schedule-tick.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
 
 const PROTECTION_QUEUES = [
@@ -49,6 +54,7 @@ const PROTECTION_QUEUES = [
 	GITCAFE_RERUN_QUEUE,
 	GITCAFE_REFRESH_SURFACES_QUEUE,
 	GITCAFE_REFRESH_CATALOGS_QUEUE,
+	GITCAFE_SCHEDULE_TICK_QUEUE,
 ];
 
 /** Dedicated queues and scoped supervision keep every legacy forge backlog idle. */
@@ -61,13 +67,49 @@ export async function registerGitCafeProtectionQueues(
 	for (const name of PROTECTION_QUEUES) {
 		await boss.createQueue(
 			name,
-			name === GITCAFE_REFRESH_CATALOGS_QUEUE
+			[GITCAFE_REFRESH_CATALOGS_QUEUE, GITCAFE_SCHEDULE_TICK_QUEUE].includes(
+				name,
+			)
 				? { policy: "stately" }
 				: undefined,
 		);
 		await boss.supervise(name);
 	}
 	await gitCafeLifecycleServices.recoverGitCafeEvents(deps.db, boss);
+	await boss.work<unknown>(
+		GITCAFE_SCHEDULE_TICK_QUEUE,
+		{ batchSize: 1 },
+		async (jobs) => {
+			for (const job of jobs) {
+				const parsed = gitCafeScheduleTickJobSchema.safeParse(job.data);
+				if (!parsed.success)
+					throw new Error("Invalid GitCafe schedule tick job");
+				const lock = await deps.pool.connect();
+				try {
+					await lock.query(
+						"SELECT pg_advisory_lock(hashtext('gitcafe-schedule-tick'))",
+					);
+					const result = await scheduleTick({
+						...deps,
+						boss,
+						forge: "gitcafe",
+						requestId: parsed.data.requestId,
+						logger: deps.logger.child({ requestId: parsed.data.requestId }),
+					});
+					if (result.errors)
+						throw new Error("GitCafe scheduled discovery unavailable");
+				} finally {
+					try {
+						await lock.query(
+							"SELECT pg_advisory_unlock(hashtext('gitcafe-schedule-tick'))",
+						);
+					} finally {
+						lock.release();
+					}
+				}
+			}
+		},
+	);
 	await boss.work<unknown>(
 		GITCAFE_REFRESH_CATALOGS_QUEUE,
 		{ batchSize: 1 },
@@ -191,6 +233,22 @@ export async function registerGitCafeProtectionQueues(
 			}
 		},
 	);
+	let lastTickSlot: string | undefined;
+	const queueTick = async () => {
+		const slot = scheduleTickSlot(new Date()).toISOString();
+		if (slot === lastTickSlot) return;
+		const job = gitCafeScheduleTickJobSchema.parse({ requestId: generateId() });
+		if (
+			await boss.send(GITCAFE_SCHEDULE_TICK_QUEUE, job, {
+				singletonKey: "tick",
+				retryLimit: 10,
+				retryDelay: 15,
+				retryBackoff: true,
+			})
+		)
+			lastTickSlot = slot;
+	};
+	await queueTick();
 	let recovering = false;
 	const recover = setInterval(async () => {
 		if (recovering) return;
@@ -198,6 +256,7 @@ export async function registerGitCafeProtectionQueues(
 		try {
 			for (const name of PROTECTION_QUEUES) await boss.supervise(name);
 			await gitCafeLifecycleServices.recoverGitCafeEvents(deps.db, boss);
+			await queueTick();
 			await sweepActions(
 				{
 					db: deps.db,

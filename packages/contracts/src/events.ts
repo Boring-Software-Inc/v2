@@ -80,6 +80,7 @@ export const threadSubjectSchema = z.enum(["issue", "change-request"]);
 export type ThreadSubject = z.infer<typeof threadSubjectSchema>;
 
 export const scheduledThreadSchema = z.object({
+	externalId: z.string().min(1).optional(),
 	kind: threadSubjectSchema,
 	number: z.number().int(),
 	title: z.string(),
@@ -159,6 +160,13 @@ const installationBase = {
 	),
 };
 
+export const scheduledEventSchema = z.object({
+	...eventBase,
+	kind: z.literal("schedule.matched"),
+	schedule: scheduleMatchSchema,
+	thread: scheduledThreadSchema,
+});
+
 export const normalizedEventSchema = z.discriminatedUnion("kind", [
 	z.object({
 		...eventBase,
@@ -185,12 +193,7 @@ export const normalizedEventSchema = z.discriminatedUnion("kind", [
 		kind: z.literal("push"),
 		push: pushPayloadSchema,
 	}),
-	z.object({
-		...eventBase,
-		kind: z.literal("schedule.matched"),
-		schedule: scheduleMatchSchema,
-		thread: scheduledThreadSchema,
-	}),
+	scheduledEventSchema,
 	z.object({ ...installationBase, kind: z.literal("installation.created") }),
 	z.object({ ...installationBase, kind: z.literal("installation.deleted") }),
 	z.object({
@@ -222,11 +225,7 @@ export function bearsVerdict(
 	return verdictEventKindSchema.safeParse(kind).success;
 }
 
-/** Installation-sync events (no single base repo). */
-export type ScheduledEvent = Extract<
-	NormalizedEvent,
-	{ kind: "schedule.matched" }
->;
+export type ScheduledEvent = z.infer<typeof scheduledEventSchema>;
 
 export type InstallationEvent = Extract<
 	NormalizedEvent,
