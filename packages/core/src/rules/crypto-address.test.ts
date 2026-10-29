@@ -4,6 +4,33 @@ import { evaluateRule } from "./define.ts";
 import { fixtureContext, fixtureDiff, fixtureEvent } from "./test-context.ts";
 
 describe("crypto-address@1", () => {
+	for (const positive of [true, false]) {
+		test(`an omitted patch ${positive ? "preserves a known match" : "cannot establish a clean scan"}`, async () => {
+			const ctx = await fixtureContext({
+				diff: [
+					{
+						path: "hidden.txt",
+						status: null,
+						additions: null,
+						deletions: null,
+						patchUnavailable: "omitted",
+					},
+					{
+						path: "visible.txt",
+						status: "added",
+						additions: 1,
+						deletions: 0,
+						patch: positive
+							? "+0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"
+							: "+ordinary text",
+					},
+				],
+			});
+			const result = await evaluateRule(cryptoAddress, ctx, {});
+			expect(result.status).toBe(positive ? "evaluated" : "skipped");
+			expect(result.passed).toBe(false);
+		});
+	}
 	test("passes a clean change request", async () => {
 		const result = await evaluateRule(
 			cryptoAddress,

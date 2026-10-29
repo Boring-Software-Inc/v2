@@ -29,6 +29,8 @@ export interface RawForgeEvent {
 	body: string;
 	/** Signature header for HMAC verification, when present. */
 	signature: string | null;
+	timestamp?: string | null;
+	keyVersion?: string | null;
 }
 
 export interface ChangeRequestHead {
@@ -83,6 +85,14 @@ export interface ContributorProfile {
 	/** Whether the contributor has write access to the repo (maintainer). */
 	isMaintainer: boolean | null;
 }
+
+export type ForgeReadResult<T> =
+	| {
+			ok: true;
+			value: T;
+			diagnostics?: { source: string; reason: string; status?: number }[];
+	  }
+	| { ok: false; reason: string; status?: number };
 
 export type ForgeAction =
 	| { kind: "block"; repoFullName: string; number: number; reason: string }
@@ -173,9 +183,11 @@ export interface ThreadListResult {
 }
 
 /** The result of executing an action — the forge-side artifact id, if any. */
-export interface ForgeActionResult {
-	externalId: string | null;
-}
+export type ForgeActionResult =
+	| { externalId: string | null }
+	| { refused: true; reason: string; status?: number };
+
+export type ForgeActionContext = { actionId: string } | { eventId: string };
 
 export interface ForgeAdapter {
 	/**
@@ -202,24 +214,28 @@ export interface ForgeAdapter {
 		repoFullName: string,
 		number: number,
 		head?: ChangeRequestHead,
-	): Promise<DiffFile[]>;
+	): Promise<DiffFile[] | ForgeReadResult<DiffFile[]>>;
 	getCommits(
 		repoFullName: string,
 		number: number,
 		head?: ChangeRequestHead,
-	): Promise<ForgeCommit[]>;
+	): Promise<ForgeCommit[] | ForgeReadResult<ForgeCommit[]>>;
 	readFile(
 		repoFullName: string,
 		path: string,
 		ref: string,
-	): Promise<string | null>;
+	): Promise<string | null | ForgeReadResult<string>>;
 	getContributorProfile(
 		repoFullName: string,
 		login: string,
-	): Promise<ContributorProfile>;
+		expectedActorId?: string,
+	): Promise<ContributorProfile | ForgeReadResult<ContributorProfile>>;
 
 	/** Actions — idempotent; comment/check upsert their existing artifact. */
-	execute(action: ForgeAction): Promise<ForgeActionResult>;
+	execute(
+		action: ForgeAction,
+		context?: ForgeActionContext,
+	): Promise<ForgeActionResult>;
 }
 
 export type { CheckState, Forge, NormalizedEvent, Verdict };

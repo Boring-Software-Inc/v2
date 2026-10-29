@@ -103,16 +103,26 @@ export async function emitPendingCheck(
 		return false;
 	}
 	try {
-		await deps.adapter.execute({
-			kind: "set-check",
-			repoFullName: event.repo.fullName,
-			check: {
-				sha: event.changeRequest.headSha,
-				conclusion: "pending",
-				summary: PENDING_CHECK_SUMMARY,
-				detailsUrl: deps.appUrl,
+		const result = await deps.adapter.execute(
+			{
+				kind: "set-check",
+				repoFullName: event.repo.fullName,
+				check: {
+					sha: event.changeRequest.headSha,
+					conclusion: "pending",
+					summary: PENDING_CHECK_SUMMARY,
+					detailsUrl: deps.appUrl,
+				},
 			},
-		});
+			{ eventId: eventId ?? event.id },
+		);
+		if ("refused" in result) {
+			deps.logger.warn(
+				{ eventId, reason: result.reason, status: result.status },
+				"pending check refused",
+			);
+			return false;
+		}
 		return true;
 	} catch (error) {
 		deps.logger.warn(
@@ -389,7 +399,20 @@ export async function emitPrSurface(
 			activeReviewId,
 		);
 		try {
-			const result = await adapter.execute(forgeAction);
+			const result = await adapter.execute(forgeAction, { actionId: row.id });
+			if ("refused" in result) {
+				if (CLOSE_PREREQUISITES.has(row.kind)) surfaceFailed = true;
+				logger.warn(
+					{
+						actionId: row.id,
+						kind: row.kind,
+						reason: result.reason,
+						status: result.status,
+					},
+					"forge action refused, row stays recorded for retry",
+				);
+				continue;
+			}
 			await runServices.markActionExecuted(db, row.id, result.externalId);
 			if (row.kind === "block" && result.externalId) {
 				activeReviewId = result.externalId;
@@ -482,7 +505,20 @@ async function emitThreadActions(
 		try {
 			const result = await adapter.execute(
 				toForgeAction(row, repoFullName, thread.number, REVIEW_POINTER.block),
+				{ actionId: row.id },
 			);
+			if ("refused" in result) {
+				logger.warn(
+					{
+						actionId: row.id,
+						kind: row.kind,
+						reason: result.reason,
+						status: result.status,
+					},
+					"thread action refused, row stays recorded for retry",
+				);
+				continue;
+			}
 			await runServices.markActionExecuted(db, row.id, result.externalId);
 		} catch (error) {
 			logger.error(
@@ -628,7 +664,15 @@ export async function emitClosedReviewSurfaces(
 						review.subjectNumber,
 						REVIEW_POINTER.block,
 					),
+					{ actionId: row.id },
 				);
+				if ("refused" in result) {
+					deps.logger.warn(
+						{ actionId: row.id, reason: result.reason, status: result.status },
+						"closed review surface refused, row stays recorded for retry",
+					);
+					continue;
+				}
 				await runServices.markActionExecuted(
 					deps.db,
 					row.id,

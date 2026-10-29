@@ -1,0 +1,6 @@
+{
+	"type": "https://cafe.sh/errors/forbidden",
+	"title": "Forbidden",
+	"status": 403,
+	"detail": "The authenticated principal cannot perform this operation."
+}

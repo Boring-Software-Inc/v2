@@ -61,6 +61,7 @@ export const commentPayloadSchema = z.object({
 	url: z.string(),
 	/** The change request / issue number the comment belongs to. */
 	subjectNumber: z.number().int(),
+	subjectKind: z.enum(["change-request", "issue"]).optional(),
 	/** True when this is Tripwire's own comment (carries the run marker, §7). */
 	byTripwire: z.boolean().optional(),
 });

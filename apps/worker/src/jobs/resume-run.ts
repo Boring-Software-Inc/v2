@@ -19,6 +19,7 @@ import {
 	repoServices,
 	runServices,
 } from "@tripwire/db";
+import { createForgeSignalCtx } from "@tripwire/sdk";
 import { z } from "zod";
 import { buildRuleContext } from "../context.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
@@ -157,11 +158,21 @@ export async function resumeRun(
 		logger,
 		deps.makeGenerate?.(normalized),
 	);
+	const repo = await repoServices.getRepoByFullName(
+		db,
+		normalized.repo.fullName,
+		normalized.forge,
+	);
+	const http = deps.resolveForge(normalized.forge)?.signalHttp;
+	const custom = customRuleSource(
+		repo ? await repoServices.listCustomRules(db, repo.id) : [],
+		http ? createForgeSignalCtx({ forge: http, event: normalized, now }) : null,
+	);
 
 	const result = await executeWorkflow({
 		definition,
 		event: normalized,
-		evaluateRuleRef: makeEvaluator(ctx, logger),
+		evaluateRuleRef: makeEvaluator(ctx, logger, custom),
 		now: () => new Date().toISOString(),
 		resume: {
 			outcomes,

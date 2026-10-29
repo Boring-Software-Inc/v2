@@ -83,6 +83,12 @@ function defineAiReview(version: number, instructions: string) {
 			trace: z.unknown(),
 		}),
 		async evaluate(ctx, config) {
+			if (ctx.diff?.some((file) => file.patchUnavailable != null)) {
+				return {
+					status: "skipped",
+					reason: "Tripwire could not read every patch in this change request.",
+				};
+			}
 			if (!ctx.generate) {
 				return {
 					status: "skipped",

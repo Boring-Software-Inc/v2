@@ -557,3 +557,11 @@ equality result is live evidence, not a captured provider-response fixture.
 ## 2026-10-28 — GitCafe read client uses the forge interface workspace
 
 The concrete GitCafe read client declares the existing internal `@tripwire/forge` workspace dependency for universal commit and contributor types. This follows the approved adapter dependency arrow and replaces duplicate local representations of those types. The existing stack already supplies the interface package; no third-party dependency is added. Historical OpenGit remains separate.
+
+## 2026-10-28 — GitCafe staging protection execution and action receipts
+
+Grim requested completion of GitCafe protection, beyond repository connections. The first executable path stays isolated to Unkey preview and the dedicated Tripwire Staging app. Its process, resume, rerun and refresh queues are separate from the ordinary worker queues; queue-scoped supervision and durable receipt recovery leave general backlog and schedules untouched. Historical parked deliveries are not activated during rollout.
+
+Signed receipts retain their exact raw bytes. Dispatch atomically creates the GitCafe event and its job; a dispatched receipt remains recoverable until processing finishes. Installation lifecycle authority and fresh installed-client scope fences apply to reads and actions. A persisted action, current claimed repository and installation establish the write binding. Review creation retains its immutable request ID and input in the existing validated action JSON; comment creation retains an operation marker and permits one dispatch, reconciling uncertain results rather than blindly resending. Only the installation bot's artifacts may be edited or dismissed.
+
+GitCafe supplies diff, commit, profile-text and repository-local evidence. Account age, complete contributor-wide history and global merge history remain unavailable. Their controls remain disabled with source-specific reasons. Explicitly omitted patches cannot establish a clean text scan or an AI verdict; existing AI prompts remain unchanged. Capability declarations describe these reads without enabling the catalog's protection gate. Catalog activation, staging rollout and required-check enforcement require separate scratch acceptance evidence.

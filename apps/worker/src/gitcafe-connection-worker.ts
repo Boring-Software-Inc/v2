@@ -23,6 +23,7 @@ export const workerModeSchema = z.enum([
 	"standard",
 	"gitcafe-connect",
 	"gitcafe-lifecycle",
+	"gitcafe-protection",
 ]);
 export type WorkerMode = z.infer<typeof workerModeSchema>;
 

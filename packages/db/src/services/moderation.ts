@@ -1,6 +1,7 @@
 import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
 	forgeSchema,
+	GITCAFE_RESUME_RUN_QUEUE,
 	ingestForgeSchema,
 	RUN_RESULT_LABELS,
 	renderClosedBeforeReviewComment,
@@ -135,8 +136,16 @@ export async function decideModerationItem(
 		);
 		const decided = updated.rowCount === 1;
 		if (decided) {
+			const [scope] = (
+				await client.query<{ forge: Forge }>(
+					"SELECT e.forge FROM moderation_items m JOIN runs r ON r.id = m.run_id JOIN events e ON e.id = r.event_id WHERE m.id = $1",
+					[input.itemId],
+				)
+			).rows;
 			await boss.insert(
-				RESUME_RUN_QUEUE,
+				scope?.forge === "gitcafe"
+					? GITCAFE_RESUME_RUN_QUEUE
+					: RESUME_RUN_QUEUE,
 				[{ data: { itemId: input.itemId, decision: input.decision } }],
 				{
 					db: {
@@ -239,17 +248,21 @@ export async function closeReviewsForChangeRequest(
 		db,
 		appUrl,
 		sql`e.forge = ${repo.forge} AND r.repo_full_name = ${repo.fullName} AND r.subject_number = ${subjectNumber}`,
+		forgeSchema.safeParse(repo.forge).success
+			? forgeSchema.parse(repo.forge)
+			: undefined,
 	);
 }
 
 export async function closeReviewsOfClosedChangeRequests(
 	db: Db,
 	appUrl: string,
+	forge?: Forge,
 ): Promise<ClosedReview[]> {
 	return await closeWaitingRuns(
 		db,
 		appUrl,
-		sql`r.subject_number IS NOT NULL AND (
+		sql`${forge === undefined ? sql`true` : sql`e.forge = ${forge}`} AND r.subject_number IS NOT NULL AND (
 			SELECT lifecycle.kind FROM events lifecycle
             WHERE lifecycle.forge = e.forge AND lifecycle.repo_full_name = r.repo_full_name
 			  AND lifecycle.subject_number = r.subject_number
@@ -260,6 +273,7 @@ export async function closeReviewsOfClosedChangeRequests(
 			ORDER BY lifecycle.received_at DESC, lifecycle.id DESC
 			LIMIT 1
 		) = 'change-request.closed'`,
+		forge,
 	);
 }
 
@@ -267,6 +281,7 @@ async function closeWaitingRuns(
 	db: Db,
 	appUrl: string,
 	scope: SQL,
+	forge?: Forge,
 ): Promise<ClosedReview[]> {
 	const waiting = z.array(waitingRunRow).parse(
 		(
@@ -277,7 +292,9 @@ async function closeWaitingRuns(
 				FROM runs r
 				LEFT JOIN events e ON e.id = r.event_id
 				WHERE r.status = 'paused' AND e.forge IN (${sql.join(
-					ingestForgeSchema.options.map((forge) => sql`${forge}`),
+					(forge === undefined ? ingestForgeSchema.options : [forge]).map(
+						(item) => sql`${item}`,
+					),
 					sql`, `,
 				)}) AND ${scope}
 			`)

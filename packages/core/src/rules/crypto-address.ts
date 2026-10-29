@@ -55,6 +55,12 @@ export const cryptoAddress = defineRule({
 		});
 		// The scan transform yields the match list by construction.
 		const matches = resolvedValue as readonly ScanMatch[];
+		if (passed && ctx.diff?.some((file) => file.patchUnavailable != null)) {
+			return {
+				status: "skipped",
+				reason: "Tripwire could not read every patch in this change request.",
+			};
+		}
 		return {
 			status: "evaluated",
 			passed,

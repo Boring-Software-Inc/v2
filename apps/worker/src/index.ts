@@ -51,6 +51,7 @@ import {
 	workerModeSchema,
 } from "./gitcafe-connection-worker.ts";
 import { startGitCafeLifecycleWorker } from "./gitcafe-lifecycle-worker.ts";
+import { startGitCafeProtectionWorker } from "./gitcafe-protection-worker.ts";
 import {
 	AUDIT_INSTALLATION_CLAIMS_QUEUE,
 	auditInstallationClaims,
@@ -107,6 +108,11 @@ if (import.meta.main && workerMode === "gitcafe-connect") {
 
 if (import.meta.main && workerMode === "gitcafe-lifecycle") {
 	await startGitCafeLifecycleWorker(pino({ name: "gitcafe-lifecycle-worker" }));
+}
+if (import.meta.main && workerMode === "gitcafe-protection") {
+	await startGitCafeProtectionWorker(
+		pino({ name: "gitcafe-protection-worker" }),
+	);
 }
 
 if (import.meta.main && workerMode === "standard") {

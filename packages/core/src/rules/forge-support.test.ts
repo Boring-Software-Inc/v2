@@ -45,12 +45,12 @@ const AUDITED_BLOCKS = new Map<string, readonly string[]>(
 	Object.entries({
 		// GitLab exposes `created_at` only to the account itself or an admin;
 		// open-git exposes no users endpoint at all.
-		"account-age": ["gitlab", "opengit"],
+		"account-age": ["gitlab", "opengit", "gitcafe"],
 		// open-git's API is actions-only — no files/diff, no commits, no contents,
 		// no users — so every rule that reads more than the webhook payload is inert
 		// there. Verified against its openapi.json, which has 8 paths and no reads.
-		"min-merged-prs": ["opengit"],
-		"pr-rate-limit": ["opengit"],
+		"min-merged-prs": ["opengit", "gitcafe"],
+		"pr-rate-limit": ["opengit", "gitcafe"],
 		"profile-readme": ["opengit"],
 		"crypto-address": ["opengit"],
 		honeypot: ["opengit"],
@@ -71,7 +71,7 @@ describe("rule forge support", () => {
 				).toBeUndefined();
 				continue;
 			}
-			const live = FORGE_CATALOG.filter((f) => f.status === "live").map(
+			const live = FORGE_CATALOG.filter((f) => f.status !== "planned").map(
 				(f) => f.id,
 			);
 			expect(

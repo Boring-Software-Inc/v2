@@ -2,6 +2,24 @@ import { z } from "zod";
 import { gitCafeInstallationSchema } from "./gitcafe-installation.ts";
 
 export const GITCAFE_LIFECYCLE_QUEUE = "gitcafe-lifecycle";
+export const GITCAFE_PROCESS_EVENT_QUEUE = "gitcafe-process-event";
+export const GITCAFE_RESUME_RUN_QUEUE = "gitcafe-resume-run";
+export const GITCAFE_RERUN_QUEUE = "gitcafe-rerun-change-request";
+export const GITCAFE_REFRESH_SURFACES_QUEUE = "gitcafe-refresh-surfaces";
+export const gitCafeProcessEventJobSchema = z.strictObject({
+	eventId: z.uuid(),
+	requestId: z.uuid(),
+});
+export type GitCafeProcessEventJob = z.infer<
+	typeof gitCafeProcessEventJobSchema
+>;
+export const gitCafeResumeRunJobSchema = z.strictObject({
+	itemId: z.uuid(),
+	decision: z.enum(["approve", "deny"]),
+});
+export const gitCafeRefreshSurfacesJobSchema = z.strictObject({
+	repoId: z.uuid(),
+});
 export const GITCAFE_RECEIPT_APP_ID = "int_01m60999c0fqg841d48s29qwtv";
 export const GITCAFE_RECEIPT_MAX_BYTES = 1024 * 1024;
 
@@ -92,6 +110,7 @@ export type GitCafeReceiptJob = z.infer<typeof gitCafeReceiptJobSchema>;
 
 export const gitCafeReceiptStatusSchema = z.enum([
 	"pending",
+	"dispatched",
 	"applied",
 	"stale",
 	"parked",

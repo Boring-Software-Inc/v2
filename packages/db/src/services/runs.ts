@@ -80,6 +80,15 @@ export async function createRun(db: Db, input: CreateRunInput) {
 	return id;
 }
 
+export async function getRunForEvent(db: Db, eventId: string) {
+	const [run] = await db
+		.select()
+		.from(runs)
+		.where(eq(runs.eventId, eventId))
+		.limit(1);
+	return run ?? null;
+}
+
 export interface FinalizeRunInput {
 	eventId: string;
 	headSha: string | null;
@@ -175,6 +184,7 @@ export async function getRunById(db: Db, runId: string) {
 export async function listStuckQueuedRuns(
 	db: Db,
 	createdBefore: Date,
+	forge?: Forge,
 ): Promise<{ id: string; eventId: string; repoFullName: string }[]> {
 	const rows = await db
 		.select({
@@ -183,7 +193,14 @@ export async function listStuckQueuedRuns(
 			repoFullName: runs.repoFullName,
 		})
 		.from(runs)
-		.where(and(eq(runs.status, "queued"), lt(runs.createdAt, createdBefore)));
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.where(
+			and(
+				eq(runs.status, "queued"),
+				lt(runs.createdAt, createdBefore),
+				forge === undefined ? undefined : eq(events.forge, forge),
+			),
+		);
 	return rows;
 }
 
@@ -432,6 +449,7 @@ export interface StuckAction {
 export async function listStuckActions(
 	db: Db,
 	recordedBefore: Date,
+	forge?: Forge,
 ): Promise<StuckAction[]> {
 	const rows = await db
 		.select({
@@ -455,7 +473,9 @@ export async function listStuckActions(
 		.where(
 			and(
 				eq(runActions.status, "recorded"),
-				inArray(events.forge, [...ingestForgeSchema.options]),
+				forge === undefined
+					? inArray(events.forge, [...ingestForgeSchema.options])
+					: eq(events.forge, forge),
 				lt(runActions.recordedAt, recordedBefore),
 			),
 		);

@@ -243,7 +243,7 @@ export const RULE_CATALOG = [
 		ruleId: "max-files-changed",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		version: 1,
 		name: "Max files changed",
 		blurb: "caps the number of files a change request may touch.",
@@ -272,7 +272,7 @@ export const RULE_CATALOG = [
 		ruleId: "crypto-address",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		version: 1,
 		name: "Crypto address",
 		blurb: "blocks cryptocurrency addresses in titles, comments, and diffs.",
@@ -294,7 +294,7 @@ export const RULE_CATALOG = [
 		ruleId: "honeypot",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		version: 1,
 		name: "Honeypot paths",
 		blurb: "no legitimate change request touches these paths.",
@@ -312,7 +312,7 @@ export const RULE_CATALOG = [
 		ruleId: "profile-readme",
 		/** needs the contributor's profile text; open-git exposes no users endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		version: 1,
 		name: "Profile README",
 		blurb:
@@ -329,7 +329,7 @@ export const RULE_CATALOG = [
 		ruleId: "ai-review",
 		/** reads the diff; open-git exposes no files endpoint — see the forge-capability audit in
 		 * `core/src/rules/forge-support.test.ts`. */
-		forges: ["github"],
+		forges: ["github", "gitcafe"],
 		// @2 — findings quote code in backticks. @1 stays registered for stored
 		// runs, but a repo enabling ai-review now pins the current version.
 		version: 2,
@@ -400,6 +400,14 @@ export function ruleForgeBlockReason(
 ): string | null {
 	if (ruleSupportsForge(ruleId, forge)) {
 		return null;
+	}
+	if (forge === "gitcafe") {
+		if (ruleId === "account-age")
+			return "GitCafe does not expose account creation dates.";
+		if (ruleId === "min-merged-prs")
+			return "GitCafe does not expose complete contributor history across repositories.";
+		if (ruleId === "pr-rate-limit")
+			return "GitCafe does not expose complete recent history across repositories.";
 	}
 	return `This rule cannot run on ${FORGE_BY_ID[forge]?.label ?? forge}.`;
 }

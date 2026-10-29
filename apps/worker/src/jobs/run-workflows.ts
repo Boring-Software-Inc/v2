@@ -1031,6 +1031,7 @@ export function makeEvaluator(
 					custom.signalCtx,
 					ctx.now,
 					ctx.event.forge,
+					ctx,
 				);
 			} catch (error) {
 				logger.error(

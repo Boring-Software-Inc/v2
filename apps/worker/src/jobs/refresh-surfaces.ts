@@ -151,7 +151,20 @@ export async function refreshRepoSurfaces(
 						review,
 						activeReviewId,
 					),
+					{ actionId: row.id },
 				);
+				if ("refused" in result) {
+					logger.warn(
+						{
+							actionId: row.id,
+							kind: row.kind,
+							reason: result.reason,
+							status: result.status,
+						},
+						"refresh action refused, row stays recorded for retry",
+					);
+					continue;
+				}
 				await runServices.markActionExecuted(db, row.id, result.externalId);
 			} catch (error) {
 				logger.error(

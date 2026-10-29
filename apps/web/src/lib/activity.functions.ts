@@ -6,6 +6,7 @@ import {
 	type ActivityTimelineEntry,
 	activityFeedSchema,
 	DEFAULT_WORKFLOW,
+	GITCAFE_RERUN_QUEUE,
 	RULE_CATALOG,
 	rerunChangeRequestJobSchema,
 	ruleDisplayName,
@@ -171,7 +172,9 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 			RERUN_QUEUE,
 			getRerunCooldownSeconds,
 		} = await import("@tripwire/db");
-		const { getDb, getBoss } = await import("#/lib/server/db");
+		const { getDb, getBoss, getGitCafeConnectionBoss } = await import(
+			"#/lib/server/db"
+		);
 		const { db, pool } = getDb();
 		if (!repo.armed) {
 			return { status: "not-armed" };
@@ -236,9 +239,13 @@ export const rerunChangeRequest = createServerFn({ method: "POST" })
 			triggeredBy: requestedBy,
 		});
 
-		const boss = await getBoss();
+		const boss =
+			repo.forge === "gitcafe"
+				? await getGitCafeConnectionBoss(runId)
+				: await getBoss();
+		if (repo.forge === "gitcafe") await boss.createQueue(GITCAFE_RERUN_QUEUE);
 		const jobId = await boss.send(
-			RERUN_QUEUE,
+			repo.forge === "gitcafe" ? GITCAFE_RERUN_QUEUE : RERUN_QUEUE,
 			rerunChangeRequestJobSchema.parse({ ...rerunJob, runId }),
 			cooldownExempt || cooldownSeconds === 0
 				? // No singleton: rapid re-runs allowed (staff-flagged or env=0).

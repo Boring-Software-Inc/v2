@@ -50,7 +50,8 @@ export async function rerunChangeRequest(
 	const forge = job.forge ?? claimedEvent?.forge;
 	if (
 		!forge ||
-		!ingestForgeSchema.safeParse(forge).success ||
+		(!ingestForgeSchema.safeParse(forge).success &&
+			!deps.resolveForge(forge)?.prepareEvent) ||
 		(claimedRun &&
 			(claimedRun.repoFullName !== job.repoFullName ||
 				claimedEvent?.forge !== forge))
@@ -142,7 +143,18 @@ export async function rerunChangeRequest(
 	const runtime = deps.resolveForge(event.forge);
 	const reads = runtime?.reads ?? null;
 	const adapter = runtime?.adapter ?? null;
-	if (reads && "changeRequest" in event) {
+	if (runtime?.refreshEvent) {
+		const refreshed = await runtime.refreshEvent(event);
+		if (!refreshed.ok) {
+			logger.warn(
+				{ reason: refreshed.reason, status: refreshed.status },
+				"fresh change request read refused",
+			);
+			await failClaimed();
+			return;
+		}
+		event = refreshed.value;
+	} else if (reads && "changeRequest" in event) {
 		try {
 			const read = await reads.getCommits(
 				event.repo.fullName,

@@ -22,6 +22,27 @@ const PASS_OUTPUT: AiReviewOutput = {
 	findings: [],
 };
 
+for (const rule of [aiReview, aiReviewV2]) {
+	test(`AI review @${rule.version} skips explicitly unavailable patches without changing its prompt`, async () => {
+		const { generate, calls } = mockGenerate(PASS_OUTPUT);
+		const ctx = await fixtureContext({
+			generate,
+			diff: [
+				{
+					path: "omitted.txt",
+					status: null,
+					additions: null,
+					deletions: null,
+					patchUnavailable: "omitted",
+				},
+			],
+		});
+		const result = await evaluateRule(rule, ctx, CONFIG);
+		expect(result.status).toBe("skipped");
+		expect(calls).toHaveLength(0);
+	});
+}
+
 describe("ai-review@1", () => {
 	test("pass verdict ⇒ passed, evidence carries output + trace", async () => {
 		const { generate, calls } = mockGenerate(PASS_OUTPUT);
