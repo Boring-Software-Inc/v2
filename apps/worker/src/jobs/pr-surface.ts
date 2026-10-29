@@ -50,7 +50,9 @@ export async function recoverGitCafeRunSurface(
 	deps: PrSurfaceDeps,
 	runId: string,
 	event: NormalizedEvent,
-	options?: Pick<EmitSurfaceInput, "pendingCheckPosted" | "rerun">,
+	options?: Pick<EmitSurfaceInput, "pendingCheckPosted" | "rerun"> & {
+		refreshId?: string;
+	},
 ): Promise<boolean> {
 	const state = await runServices.getGitCafeRunSurfaceState(deps.db, runId);
 	const saved = state?.saved;
@@ -66,7 +68,7 @@ export async function recoverGitCafeRunSurface(
 	)
 		return false;
 	if (saved.run.status === "closed") return true;
-	const surfaceKey = `evaluation:${createHash("sha256").update(JSON.stringify(state.phase)).digest("hex")}`;
+	const surfaceKey = `evaluation:${createHash("sha256").update(JSON.stringify(state.phase)).digest("hex")}${options?.refreshId ? `:refresh:${options.refreshId}` : ""}`;
 	const repo = await repoServices.getRepoByFullName(
 		deps.db,
 		event.repo.fullName,
@@ -128,6 +130,15 @@ export async function recoverGitCafeRunSurface(
 			saved.actions.some((action) => action.kind === "set-check"),
 		surfaceKey,
 		gitCafePhase: state.phase,
+		refreshReview:
+			options?.refreshId !== undefined &&
+			verdict.data === "block" &&
+			saved.run.subjectNumber !== null &&
+			(await runServices.getActiveBlockReviewId(
+				deps.db,
+				{ forge: "gitcafe", fullName: saved.run.repoFullName },
+				saved.run.subjectNumber,
+			)) !== null,
 		rerun: options?.rerun || saved.run.triggeredBy !== null,
 		resumedFrom: [...saved.actions].reverse().flatMap((action) => {
 			const parsed = verdictSchema.safeParse(
@@ -255,6 +266,7 @@ export interface EmitSurfaceInput {
 	surfaceKey?: string;
 	pendingCheckPosted?: boolean;
 	gitCafePhase?: GitCafeEvaluationPhase;
+	refreshReview?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
 	pendingActionRows: {
 		id: string;
@@ -361,7 +373,11 @@ export async function emitPrSurface(
 		},
 		responseConfig,
 		policy,
-		{ reviewPosted: blockRows.length > 0 && forgePostsReviews(event.forge) },
+		{
+			reviewPosted:
+				(blockRows.length > 0 || input.refreshReview === true) &&
+				forgePostsReviews(event.forge),
+		},
 	);
 	const review = plan.review ?? REVIEW_POINTER.block;
 	for (const row of blockRows) {
@@ -381,6 +397,15 @@ export async function emitPrSurface(
 		wantsCheck(responseConfig, verdict) || input.pendingCheckPosted === true;
 
 	const intents: runServices.RecordActionInput[] = [
+		...(input.refreshReview && verdict === "block"
+			? [
+					{
+						kind: "block",
+						payload: { reason: review },
+						idempotencyKey: `refresh-review:${input.surfaceKey}`,
+					},
+				]
+			: []),
 		...commentRows(plan, number, verdict, previousVerdict).map((row) =>
 			input.surfaceKey
 				? {

@@ -44,6 +44,7 @@ import {
 	toForgeAction,
 } from "./jobs/pr-surface.ts";
 import { processEvent } from "./jobs/process-event.ts";
+import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
 import { sweepActions } from "./jobs/sweep-actions.ts";
@@ -626,6 +627,8 @@ for (const { verdict, scenario } of [
 	{ verdict: "pass", scenario: "resume-restamp-race" },
 	{ verdict: "pass", scenario: "closed-phase" },
 	{ verdict: "block", scenario: "block-phase-retry" },
+	{ verdict: "block", scenario: "refresh-review" },
+	{ verdict: "block", scenario: "refresh-closure-race" },
 	{ verdict: "pass", scenario: "rerun-outage" },
 	{ verdict: "block", scenario: "rerun-outage" },
 ] as const) {
@@ -795,31 +798,42 @@ for (const { verdict, scenario } of [
 						return new Response(null, { status: 403 });
 					}
 					await reviewBarrier?.();
+					const receipt = { ...createdData, id: `review_${generateId()}` };
 					reviewRequests.set(body.requestId, {
 						input: JSON.stringify(body),
-						receipt: createdData,
+						receipt,
 					});
 					reviews.push(
-						gitCafeActionReviewSchema.parse({ ...reviewData, body: body.body }),
+						gitCafeActionReviewSchema.parse({
+							...reviewData,
+							id: receipt.id,
+							body: body.body,
+						}),
 					);
 					if (scenario === "lost-review" && !lostReview) {
 						lostReview = true;
 						throw new Error("Local lost review response");
 					}
-					return Response.json({ ...createdData, body: body.body });
+					return Response.json(receipt);
 				}
 				if (path.endsWith("/dismiss") && init.method === "POST") {
 					if (refuseCleanup) return new Response(null, { status: 503 });
-					const current = reviews[0];
+					const index = reviews.findIndex((review) =>
+						path.endsWith(`${review.id}/dismiss`),
+					);
+					const current = reviews[index];
 					if (!current) throw new Error("Missing local review");
-					reviews[0] = {
+					reviews[index] = {
 						...current,
 						dismissedAt: new Date().toISOString(),
 						version: current.version + 1,
 					};
-					return Response.json(reviews[0]);
+					return Response.json(reviews[index]);
 				}
-				if (path.includes("/reviews/")) return Response.json(reviews.at(-1));
+				if (path.includes("/reviews/"))
+					return Response.json(
+						reviews.find((review) => path.endsWith(review.id)),
+					);
 				return new Response("Unexpected local runtime path", { status: 500 });
 			},
 		);
@@ -902,6 +916,94 @@ for (const { verdict, scenario } of [
 				logger: deps.logger,
 				appUrl: deps.appUrl,
 			};
+			if (scenario === "refresh-review") {
+				await repoServices.upsertResponseConfig(
+					database.db,
+					repoId,
+					responseConfigSchema.parse({
+						onBlock: "silent",
+						blocks: {
+							block: [
+								{
+									id: "updated",
+									type: "text",
+									parts: [
+										{ kind: "text", text: "Updated staging review content." },
+									],
+								},
+							],
+						},
+					}),
+				);
+				const jobId = generateId();
+				await refreshRepoSurfaces(deps, { repoId }, jobId);
+				expect(reviews).toHaveLength(2);
+				expect(reviews[0]?.dismissedAt).not.toBeNull();
+				expect(reviews[1]?.dismissedAt).toBeNull();
+				expect(reviews[1]?.body).toContain("Updated staging review content.");
+				await refreshRepoSurfaces(deps, { repoId }, jobId);
+				expect(reviews).toHaveLength(2);
+				expect(checks.at(-1)?.conclusion).toBe("failure");
+				return;
+			}
+			if (scenario === "refresh-closure-race") {
+				await database.pool.query(
+					"UPDATE runs SET status='paused' WHERE id=$1",
+					[saved.id],
+				);
+				await moderationServices.createModerationItem(database.db, {
+					runId: saved.id,
+					nodeId: "run:degraded",
+				});
+				let arrived: (() => void) | undefined;
+				let release: (() => void) | undefined;
+				const paused = new Promise<void>((resolve) => {
+					arrived = resolve;
+				});
+				const barrier = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				const original = runServices.recordGitCafeSurfaceActions;
+				let intercepted = false;
+				const spy = spyOn(
+					runServices,
+					"recordGitCafeSurfaceActions",
+				).mockImplementation(
+					async (db, id, phase, actions, pendingIds, bodies) => {
+						if (!intercepted && id === saved.id) {
+							intercepted = true;
+							arrived?.();
+							await barrier;
+						}
+						return original(db, id, phase, actions, pendingIds, bodies);
+					},
+				);
+				const refresh = refreshRepoSurfaces(deps, { repoId }, generateId());
+				try {
+					await paused;
+					const closed = await moderationServices.closeReviewsForChangeRequest(
+						database.db,
+						deps.appUrl,
+						{ forge: "gitcafe", fullName: saved.repoFullName },
+						1,
+					);
+					await emitClosedReviewSurfaces(
+						{ ...surfaceDeps, adapterFor: async () => runtime.adapter },
+						closed,
+					);
+					expect(checks.at(-1)?.conclusion).toBe("neutral");
+				} finally {
+					release?.();
+					await refresh;
+					spy.mockRestore();
+				}
+				expect(
+					(await runServices.getRunById(database.db, saved.id))?.status,
+				).toBe("closed");
+				expect(checks.at(-1)?.conclusion).toBe("neutral");
+				expect(reviews).toHaveLength(1);
+				return;
+			}
 			if (scenario === "closed-phase") {
 				const runId = await runServices.createRun(database.db, {
 					eventId: saved.eventId,
