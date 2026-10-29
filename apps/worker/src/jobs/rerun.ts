@@ -178,6 +178,13 @@ export async function rerunChangeRequest(
 				{ reason: refreshed.reason, status: refreshed.status },
 				"fresh change request read refused",
 			);
+			if (
+				event.forge === "gitcafe" &&
+				(["network", "expired"].includes(refreshed.reason) ||
+					(refreshed.reason === "http" &&
+						(refreshed.status === 429 || (refreshed.status ?? 0) >= 500)))
+			)
+				throw new Error("GitCafe re-run evidence temporarily unavailable");
 			await failClaimed();
 			return;
 		}

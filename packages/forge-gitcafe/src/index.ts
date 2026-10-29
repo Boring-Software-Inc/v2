@@ -10,7 +10,7 @@ export {
 	type GitCafeInstallationOperation,
 	type GitCafeInstallationRequest,
 } from "./app-assertion.ts";
-export { reportGitCafeCheck } from "./checks.ts";
+export { reportGitCafeCheck, verifyGitCafeCheckRerequest } from "./checks.ts";
 export {
 	type GitCafeCommentHydrationResult,
 	type GitCafePullHydrationResult,

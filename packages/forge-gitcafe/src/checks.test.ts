@@ -2,14 +2,18 @@ import { describe, expect, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
 import {
 	gitCafeCheckReportInputSchema,
+	gitCafeCheckRerequestedEventSchema,
 	gitCafeInstallationSchema,
 } from "@tripwire/contracts";
 import {
 	GitCafeInstallationClient,
 	reportGitCafeCheck,
+	verifyGitCafeCheckRerequest,
 } from "@tripwire/forge-gitcafe";
+import { generateId } from "@tripwire/utils";
 import reportFixture from "../fixtures/gitcafe-check-neutral.json";
 import readbackFixture from "../fixtures/gitcafe-check-readback.json";
+import rerequestFixture from "../fixtures/gitcafe-check-rerequested-webhook.json";
 import installationFixture from "../fixtures/gitcafe-installation.json";
 import tokenFixture from "../fixtures/gitcafe-installation-token.json";
 
@@ -95,6 +99,85 @@ function harness(
 			return reportGitCafeCheck(client, installation.id, expected.value, input);
 		},
 	};
+}
+
+const rerequest = gitCafeCheckRerequestedEventSchema.parse({
+	...rerequestFixture,
+	checkRun: {
+		...rerequestFixture.checkRun,
+		key: "tripwire",
+		externalId: generateId(),
+	},
+});
+const requestedCheck = {
+	...readbackFixture,
+	key: "tripwire",
+	status: "queued",
+	conclusion: null,
+	externalId: rerequest.checkRun.externalId,
+	rerequestedAt: rerequest.createdAt,
+};
+
+test("a re-run request binds the signed check to current installed ownership", async () => {
+	const h = harness({ readback: requestedCheck });
+	const expected = await h.client.getInstallation(installation.id);
+	if (!expected.ok) throw new Error("lookup failed");
+	expect(
+		await verifyGitCafeCheckRerequest(h.client, expected.value, rerequest),
+	).toMatchObject({
+		ok: true,
+		value: { externalId: rerequest.checkRun.externalId },
+	});
+	expect(h.calls.map((call) => call.method)).toEqual(["GET"]);
+});
+
+for (const change of [
+	{ installationId: "another-installation" },
+	{ reporterId: "another-bot" },
+	{ id: "another-check" },
+	{ headOid: "a".repeat(40) },
+	{ externalId: generateId() },
+	{ key: "another-key" },
+	{ name: "another-name" },
+	{ rerequestable: false },
+	{ rerequestedAt: null },
+	{ reportedAt: "2026-10-29T00:00:00.000Z" },
+]) {
+	test(`re-run refuses changed current ${Object.keys(change).join()}`, async () => {
+		const h = harness({ readback: { ...requestedCheck, ...change } });
+		const expected = await h.client.getInstallation(installation.id);
+		if (!expected.ok) throw new Error("lookup failed");
+		expect(
+			(await verifyGitCafeCheckRerequest(h.client, expected.value, rerequest))
+				.ok,
+		).toBe(false);
+	});
+}
+
+for (const change of [
+	{ installation: { id: "another-installation" } },
+	{ bot: { id: "another-bot" } },
+	{ actor: { id: installation.bot.actorId } },
+	{ actor: undefined },
+	{ checkRun: { ...rerequest.checkRun, key: "another-key" } },
+	{ checkRun: { ...rerequest.checkRun, externalId: null } },
+	{ checkRun: { ...rerequest.checkRun, id: "../another-check" } },
+]) {
+	test("unbound re-run commands refuse before protected reads", async () => {
+		const h = harness({ readback: requestedCheck });
+		const expected = await h.client.getInstallation(installation.id);
+		if (!expected.ok) throw new Error("lookup failed");
+		expect(
+			(
+				await verifyGitCafeCheckRerequest(
+					h.client,
+					expected.value,
+					gitCafeCheckRerequestedEventSchema.parse({ ...rerequest, ...change }),
+				)
+			).ok,
+		).toBe(false);
+		expect(h.calls).toHaveLength(0);
+	});
 }
 
 describe("captured GitCafe check reporting", () => {

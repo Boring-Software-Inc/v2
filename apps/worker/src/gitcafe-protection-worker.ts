@@ -1,4 +1,5 @@
 import {
+	type Forge,
 	GITCAFE_CONNECT_QUEUE,
 	GITCAFE_LIFECYCLE_QUEUE,
 	GITCAFE_PROCESS_EVENT_QUEUE,
@@ -24,7 +25,6 @@ import { GitCafeInstallationClient } from "@tripwire/forge-gitcafe";
 import type { PgBoss } from "pg-boss";
 import type { Logger } from "pino";
 import { createGenerate } from "./ai/generate.ts";
-import { buildResolveForge } from "./forge-runtime.ts";
 import {
 	gitCafeConnectionWorkerEnvSchema,
 	registerGitCafeConnectionConsumer,
@@ -33,6 +33,7 @@ import {
 	observeGitCafeQueueHealth,
 	registerGitCafeLifecycleConsumer,
 } from "./gitcafe-lifecycle-consumer.ts";
+import { buildGitCafeRuntime, type GitCafeRuntime } from "./gitcafe-runtime.ts";
 import { type ProcessEventDeps, processEvent } from "./jobs/process-event.ts";
 import { refreshRepoSurfaces } from "./jobs/refresh-surfaces.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
@@ -50,6 +51,7 @@ const PROTECTION_QUEUES = [
 export async function registerGitCafeProtectionQueues(
 	deps: ProcessEventDeps,
 	boss: PgBoss,
+	prepareCheckRerequest: GitCafeRuntime["prepareCheckRerequest"],
 ) {
 	for (const name of PROTECTION_QUEUES) {
 		await boss.createQueue(name);
@@ -74,19 +76,33 @@ export async function registerGitCafeProtectionQueues(
 						"SELECT pg_advisory_lock(hashtext('gitcafe-process'), hashtext($1))",
 						[event.id],
 					);
-					const result = await processEvent(
-						{
-							...deps,
-							resumeNormalized: true,
-							logger: deps.logger.child({
-								requestId: parsed.data.requestId,
-								eventId: event.id,
-							}),
-						},
-						parsed.data,
-					);
-					if (result?.retry)
-						throw new Error(`GitCafe event retry: ${result.reason}`);
+					const eventDeps = {
+						...deps,
+						resumeNormalized: true,
+						logger: deps.logger.child({
+							requestId: parsed.data.requestId,
+							eventId: event.id,
+						}),
+					};
+					if (event.rawKind === "check.rerequested") {
+						const prepared = await prepareCheckRerequest(event.id);
+						if (!prepared.ok) {
+							eventDeps.logger.warn(
+								{ reason: prepared.reason, status: prepared.status },
+								"GitCafe check re-run refused",
+							);
+							if (
+								["network", "expired", "inactive"].includes(prepared.reason) ||
+								(prepared.reason === "http" &&
+									(prepared.status === 429 || (prepared.status ?? 0) >= 500))
+							)
+								throw new Error("GitCafe check re-run preparation unavailable");
+						} else await rerunChangeRequest(eventDeps, prepared.value);
+					} else {
+						const result = await processEvent(eventDeps, parsed.data);
+						if (result?.retry)
+							throw new Error(`GitCafe event retry: ${result.reason}`);
+					}
 					await gitCafeLifecycleServices.finishGitCafeEvent(deps.db, event.id);
 				} finally {
 					try {
@@ -201,14 +217,8 @@ export async function startGitCafeProtectionWorker(
 		keyId: env.GITCAFE_APP_KEY_ID,
 		privateKey: env.GITCAFE_APP_PRIVATE_KEY.replaceAll("\\n", "\n"),
 	};
-	const resolveForge = buildResolveForge({
-		db,
-		onCall: () => {},
-		github: null,
-		opengit: null,
-		gitcafe: credentials,
-		gitCafeActionPool: actionPool,
-	});
+	const runtime = buildGitCafeRuntime(db, credentials, undefined, actionPool);
+	const resolveForge = (forge: Forge) => (forge === "gitcafe" ? runtime : null);
 	const inferenceKey =
 		process.env.OPENROUTER_API_KEY_PROD ?? process.env.OPENROUTER_API_KEY;
 	const makeGenerate: ProcessEventDeps["makeGenerate"] = inferenceKey
@@ -239,6 +249,7 @@ export async function startGitCafeProtectionWorker(
 				appUrl: "https://staging.tripwire.sh",
 			},
 			boss,
+			runtime.prepareCheckRerequest,
 		);
 		await registerGitCafeLifecycleConsumer(
 			db,

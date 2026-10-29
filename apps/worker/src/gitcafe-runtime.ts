@@ -1,15 +1,18 @@
 import { isDeepStrictEqual } from "node:util";
 import {
 	type GitCafeReadBoundary,
+	gitCafeCheckRerequestedEventSchema,
 	gitCafeDispatchableRepositoryEventSchema,
 	gitCafeHydratedCommentEventSchema,
 	gitCafeHydratedPullEventSchema,
 	gitCafePullIdentitySchema,
 	normalizedEventSchema,
 	REVIEW_POINTER,
+	type RerunChangeRequestJob,
 } from "@tripwire/contracts";
 import {
 	type Db,
+	eventServices,
 	gitCafeActionServices,
 	gitCafeLifecycleServices,
 	organizationInstallations,
@@ -19,6 +22,7 @@ import {
 import type {
 	ForgeAction,
 	ForgeActionContext,
+	ForgeReadResult,
 	RawForgeEvent,
 } from "@tripwire/forge";
 import {
@@ -31,6 +35,7 @@ import {
 	hydrateGitCafePullEvent,
 	normalizeGitCafeCommentEvent,
 	normalizeGitCafePullEvent,
+	verifyGitCafeCheckRerequest,
 	verifyGitCafeWebhook,
 } from "@tripwire/forge-gitcafe";
 import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
@@ -39,12 +44,18 @@ import type { Pool } from "pg";
 import type { ForgeRuntime } from "./forge-runtime.ts";
 import { toForgeAction } from "./jobs/pr-surface.ts";
 
+export interface GitCafeRuntime extends ForgeRuntime {
+	prepareCheckRerequest(
+		eventId: string,
+	): Promise<ForgeReadResult<RerunChangeRequestJob>>;
+}
+
 export function buildGitCafeRuntime(
 	db: Db,
 	credentials: GitCafeAppCredentials,
 	fetch?: GitCafeInstallationClientOptions["fetch"],
 	actionPool: Pool = db.$client,
-): ForgeRuntime {
+): GitCafeRuntime {
 	const bind = async (repoFullName: string, context?: ForgeActionContext) => {
 		const [row] = await db
 			.select()
@@ -121,6 +132,7 @@ export function buildGitCafeRuntime(
 		return {
 			ok: true as const,
 			client,
+			generation: authority.generation,
 			installation: installation.value,
 			repositoryId: row.repos.externalId,
 			reads: new GitCafeReads({ client, installationId }),
@@ -279,6 +291,45 @@ export function buildGitCafeRuntime(
 		return comment ? normalizeGitCafeCommentEvent(comment, receivedAt) : null;
 	};
 	return {
+		prepareCheckRerequest: async (eventId) => {
+			const stored = await eventServices.getEventById(db, eventId);
+			const parsed = gitCafeCheckRerequestedEventSchema.safeParse(stored?.raw);
+			if (
+				!parsed.success ||
+				stored?.forge !== "gitcafe" ||
+				stored.rawKind !== "check.rerequested" ||
+				stored.quarantined
+			)
+				return { ok: false, reason: "invalid-response" };
+			const event = parsed.data;
+			const bound = await bind(
+				`${event.repository.owner}/${event.repository.name}`,
+			);
+			if (!bound.ok) return bound;
+			if (
+				bound.repositoryId !== event.repository.id ||
+				bound.installation.id !== event.installation.id
+			)
+				return { ok: false, reason: "identity-mismatch" };
+			const input = { eventId, generation: bound.generation, create: false };
+			const existing = await gitCafeActionServices.prepareGitCafeCheckRerun(
+				db,
+				input,
+			);
+			if (existing) return { ok: true, value: existing };
+			const verified = await verifyGitCafeCheckRerequest(
+				bound.client,
+				bound.installation,
+				event,
+				Date.now() + 300_000,
+			);
+			if (!verified.ok) return verified;
+			const job = await gitCafeActionServices.prepareGitCafeCheckRerun(db, {
+				...input,
+				create: true,
+			});
+			return job ? { ok: true, value: job } : { ok: false, reason: "inactive" };
+		},
 		refreshEvent: async (event) => {
 			if (!("changeRequest" in event))
 				return { ok: false, reason: "invalid-response" };
