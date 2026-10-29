@@ -297,7 +297,10 @@ export class GitCafeReads {
 				{ sort: "oldest" },
 			);
 			if (!pulls.ok) return pulls;
-			const reviewers = new Map<string, GitCafeRepoReviewer>();
+			const reviewers = new Map<
+				string,
+				{ reviewer: GitCafeRepoReviewer; evidence: string }
+			>();
 			for (const pull of pulls.value) {
 				if (pull.state !== "open") continue;
 				const path = `pulls/${pull.number}`;
@@ -333,12 +336,10 @@ export class GitCafeReads {
 					});
 					if (!parsed.success) return { ok: false, reason: "invalid-response" };
 					const existing = reviewers.get(item.id);
-					if (
-						existing &&
-						JSON.stringify(existing) !== JSON.stringify(parsed.data)
-					)
+					const evidence = JSON.stringify(item);
+					if (existing && existing.evidence !== evidence)
 						return { ok: false, reason: "changed" };
-					reviewers.set(item.id, parsed.data);
+					reviewers.set(item.id, { reviewer: parsed.data, evidence });
 				}
 				const after = await this.resource(
 					context,
@@ -351,9 +352,9 @@ export class GitCafeReads {
 			}
 			return {
 				ok: true,
-				value: [...reviewers.values()].sort((a, b) =>
-					a.login.localeCompare(b.login),
-				),
+				value: [...reviewers.values()]
+					.map((entry) => entry.reviewer)
+					.sort((a, b) => a.login.localeCompare(b.login)),
 			};
 		});
 	}

@@ -119,6 +119,41 @@ test("captured GitCafe reviewer suggestions retain immutable IDs and absolute av
 	expect(result.value[1]?.avatarUrl).toStartWith("https://git.cafe/avatars/");
 });
 
+for (const conflicting of [false, true]) {
+	test(`cross-PR reviewer names ${conflicting ? "refuse contradictions" : "deduplicate consistent evidence"}`, async () => {
+		const first = threadPulls.items[0];
+		if (!first) throw new Error("Captured pull missing");
+		const h = harness((url) => {
+			if (url.pathname.endsWith("/pulls/"))
+				return Response.json({
+					items: [first, { ...first, id: "synthetic-second-pull", number: 2 }],
+					next: null,
+				});
+			if (url.pathname.endsWith("/pulls/2"))
+				return Response.json({
+					...currentScratchPull,
+					id: "synthetic-second-pull",
+					number: 2,
+				});
+			if (conflicting && url.pathname.endsWith("/pulls/2/reviewer-candidates"))
+				return Response.json({
+					...reviewerCandidates,
+					items: reviewerCandidates.items.map((item) => ({
+						...item,
+						displayName: "Synthetic different name",
+						actor: { ...item.actor, displayName: "Synthetic different name" },
+					})),
+				});
+			return reviewerRoute(url);
+		});
+		const result = await h.reads.getReviewers(REPO, repository.id);
+		expect(result.ok).toBe(!conflicting);
+		if (conflicting) expect(result).toEqual({ ok: false, reason: "changed" });
+		else if (result.ok)
+			expect(result.value).toHaveLength(reviewerCandidates.items.length);
+	});
+}
+
 for (const mutation of [
 	"outage",
 	"changed",
