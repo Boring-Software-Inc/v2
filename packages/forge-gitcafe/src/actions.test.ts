@@ -179,6 +179,87 @@ test("upstream-managed subjects still permit reconciliation of owned cleanup", a
 		});
 });
 
+for (const source of ["github", "provider", "unsupported"] as const) {
+	for (const kind of ["close", "lock"] as const) {
+		test(`synthetic ${source} transition on the fresh ${kind} read refuses without writing`, async () => {
+			let reads = 0;
+			let writes = 0;
+			const h = await harness(async (url, init) => {
+				if (init.method !== "GET") writes++;
+				if (url === root) {
+					reads++;
+					return Response.json(
+						reads === 1
+							? pullFixture
+							: {
+									...pullFixture,
+									version: pullFixture.version + 1,
+									github: source === "github" ? {} : null,
+									mergeRoute: source === "github" ? "native" : source,
+								},
+					);
+				}
+				throw new Error("Unexpected synthetic source transition request");
+			});
+			expect(
+				await h.actions.execute(
+					{ kind, repoFullName: "boring/scratch", number: 1 },
+					h.binding,
+				),
+			).toEqual({
+				ok: false,
+				reason:
+					source === "unsupported"
+						? "unsupported-merge-route"
+						: "upstream-managed",
+			});
+			expect(reads).toBe(2);
+			expect(writes).toBe(0);
+		});
+	}
+}
+
+test("owned comment cleanup still deletes after an upstream source transition", async () => {
+	let deleted = false;
+	const h = await harness(async (url, init) => {
+		if (url === root)
+			return Response.json({
+				...pullFixture,
+				github: {},
+				mergeRoute: "provider",
+			});
+		if (init.method === "DELETE") {
+			expect(JSON.parse(String(init.body))).toEqual({
+				expectedVersion: commentCreated.version,
+			});
+			deleted = true;
+			return new Response(null, { status: 204 });
+		}
+		return Response.json({
+			...commentsPopulated,
+			items: deleted
+				? []
+				: [
+						{
+							...commentCreated,
+							body: COMMENT_MARKER,
+							capabilities: { edit: true, delete: true },
+						},
+					],
+		});
+	});
+	expect(
+		await h.actions.execute(
+			{ kind: "delete-comment", repoFullName: "boring/scratch", number: 1 },
+			h.binding,
+		),
+	).toEqual({
+		ok: true,
+		value: { externalId: commentCreated.id },
+	});
+	expect(deleted).toBe(true);
+});
+
 test("genuine installed comment and review captures retain ownership, head and dismissal", () => {
 	const comment = gitCafeActionCommentSchema.parse(commentCreated);
 	const comments = gitCafeActionCommentPageSchema.parse(commentsPopulated);
