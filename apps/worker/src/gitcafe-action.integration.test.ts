@@ -476,8 +476,15 @@ async function admitPullReceipt(
 }
 
 for (const kind of ["pull", "issue"] as const) {
-	for (const self of [false, true]) {
-		test(`signed ${kind} comment ${self ? "from Tripwire is ignored" : "retries its own thread actions without duplication"}`, async () => {
+	for (const scenario of [
+		"healthy",
+		"self",
+		"edited",
+		"deleted",
+		"unchanged-retry",
+	] as const) {
+		test(`signed ${kind} comment across ${scenario}`, async () => {
+			const self = scenario === "self";
 			const fixture = (name: string): Promise<unknown> =>
 				Bun.file(new URL(`${name}.json`, base)).json();
 			const [
@@ -531,6 +538,7 @@ for (const kind of ["pull", "issue"] as const) {
 			const target = `/api/repos/boring/scratch/${kind === "pull" ? "pulls/1" : "issues/2"}`;
 			const writes: string[] = [];
 			let lockOutage = true;
+			let changed = false;
 			const runtime = buildGitCafeRuntime(
 				database.db,
 				{
@@ -558,6 +566,14 @@ for (const kind of ["pull", "issue"] as const) {
 					if (path.endsWith("/detail"))
 						return Response.json({
 							...detail,
+							body:
+								changed && scenario === "edited"
+									? "edited after normalization"
+									: detail.body,
+							deletedAt:
+								changed && scenario === "deleted"
+									? new Date().toISOString()
+									: detail.deletedAt,
 							authorActorId: author,
 							author: {
 								...detail.author,
@@ -568,17 +584,24 @@ for (const kind of ["pull", "issue"] as const) {
 					if (path === `${target}/comments/`)
 						return Response.json({
 							...comments,
-							items: comments.items.map((comment) => ({
-								...comment,
-								authorActorId: author,
-								author: {
-									...comment.author,
-									actorId: author,
-									handle: self
-										? installation.bot.handle
-										: comment.author.handle,
-								},
-							})),
+							items:
+								changed && scenario === "deleted"
+									? []
+									: comments.items.map((comment) => ({
+											...comment,
+											body:
+												changed && scenario === "edited"
+													? "edited after normalization"
+													: comment.body,
+											authorActorId: author,
+											author: {
+												...comment.author,
+												actorId: author,
+												handle: self
+													? installation.bot.handle
+													: comment.author.handle,
+											},
+										})),
 						});
 					if (path === "/api/users/grim") return Response.json(profile);
 					if (path === "/api/orgs/boring/members/")
@@ -680,6 +703,31 @@ for (const kind of ["pull", "issue"] as const) {
 			const previous = process.env.TRIPWIRE_DISABLE_EXEMPTION;
 			process.env.TRIPWIRE_DISABLE_EXEMPTION = "true";
 			try {
+				if (["edited", "deleted", "unchanged-retry"].includes(scenario)) {
+					const original = eventServices.markEventNormalized;
+					const interrupted = spyOn(
+						eventServices,
+						"markEventNormalized",
+					).mockImplementationOnce(async (...args) => {
+						await original(...args);
+						throw new Error("Interrupted after comment normalization");
+					});
+					try {
+						await expect(
+							processEvent(deps, { eventId: row.id }),
+						).rejects.toThrow("Interrupted after comment normalization");
+					} finally {
+						interrupted.mockRestore();
+					}
+					expect(
+						(await eventServices.getEventById(database.db, row.id))
+							?.normalizedAt,
+					).not.toBeNull();
+					expect(
+						await runServices.getRunForEvent(database.db, row.id),
+					).toBeNull();
+					changed = true;
+				}
 				await processEvent(deps, { eventId: row.id });
 				expect(
 					(await eventServices.getEventById(database.db, row.id))?.normalized,
@@ -689,6 +737,11 @@ for (const kind of ["pull", "issue"] as const) {
 					comment: { byTripwire: self },
 				});
 				const saved = await runServices.getRunForEvent(database.db, row.id);
+				if (scenario === "edited" || scenario === "deleted") {
+					expect(saved).toBeNull();
+					expect(writes).toEqual([]);
+					return;
+				}
 				if (self) {
 					expect(saved).toBeNull();
 					expect(writes).toEqual([]);
