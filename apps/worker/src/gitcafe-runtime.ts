@@ -359,7 +359,10 @@ export function buildGitCafeRuntime(
 			const bound = await bind(
 				`${event.repository.owner}/${event.repository.name}`,
 			);
-			if (!bound.ok) return bound;
+			if (!bound.ok)
+				return bound.reason === "stale"
+					? { ok: false, reason: "inactive" }
+					: bound;
 			if (
 				bound.repositoryId !== event.repository.id ||
 				bound.installation.id !== event.installation.id

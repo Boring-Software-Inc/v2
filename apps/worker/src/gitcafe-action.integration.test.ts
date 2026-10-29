@@ -1061,6 +1061,9 @@ for (const { verdict, scenario } of [
 	{ verdict: "pass", scenario: "native-rerequest-refresh-outage" },
 	{ verdict: "pass", scenario: "native-rerequest-refresh-generation" },
 	{ verdict: "pass", scenario: "native-rerequest-refresh-revision" },
+	{ verdict: "pass", scenario: "native-rerequest-prepare-binding-revision" },
+	{ verdict: "pass", scenario: "native-rerequest-prepare-check-revision" },
+	{ verdict: "pass", scenario: "native-rerequest-prepare-pull-revision" },
 	{ verdict: "pass", scenario: "native-rerequest-unbound" },
 	{ verdict: "pass", scenario: "native-rerequest-generation" },
 	{ verdict: "pass", scenario: "native-rerequest-stale-head" },
@@ -1131,6 +1134,7 @@ for (const { verdict, scenario } of [
 		let installationRevision = installation.revision;
 		let driftInstallation = false;
 		let driftLookups = 0;
+		let changeRevisionAfterCheck = false;
 		let changeHead = false;
 		let checkReads = 0;
 		let lostReview = false;
@@ -1218,6 +1222,10 @@ for (const { verdict, scenario } of [
 					return Response.json({ outcome: "updated", checkRun: check });
 				}
 				if (path.includes("/check-runs/")) {
+					if (changeRevisionAfterCheck) {
+						changeRevisionAfterCheck = false;
+						installationRevision = installation.revision + 1;
+					}
 					checkReads++;
 					return Response.json(checks.at(-1), { status: rerequestReadStatus });
 				}
@@ -1425,6 +1433,39 @@ for (const { verdict, scenario } of [
 					)
 				).rows;
 				if (!requestRow) throw new Error("Missing re-run event");
+				if (scenario.startsWith("native-rerequest-prepare-")) {
+					const original = gitCafeActionServices.prepareGitCafeCheckRerun;
+					const drift = spyOn(
+						gitCafeActionServices,
+						"prepareGitCafeCheckRerun",
+					).mockImplementation(async (db, input) => {
+						const result = await original(db, input);
+						if (input.mode === "preview" && result.ok) {
+							if (scenario === "native-rerequest-prepare-check-revision")
+								installationRevision = installation.revision + 1;
+							if (scenario === "native-rerequest-prepare-pull-revision")
+								changeRevisionAfterCheck = true;
+						}
+						return result;
+					});
+					driftInstallation =
+						scenario === "native-rerequest-prepare-binding-revision";
+					try {
+						expect(await runtime.prepareCheckRerequest(requestRow.id)).toEqual({
+							ok: false,
+							reason: "inactive",
+						});
+					} finally {
+						drift.mockRestore();
+					}
+					expect(
+						await runServices.getRunById(database.db, requestRow.id),
+					).toBeNull();
+					expect(
+						(await eventServices.getEventById(database.db, requestRow.id))
+							?.processedAt,
+					).toBeNull();
+				}
 				if (scenario === "native-rerequest-unbound") {
 					expect(await runtime.prepareCheckRerequest(requestRow.id)).toEqual({
 						ok: false,
