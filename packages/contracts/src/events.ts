@@ -62,6 +62,8 @@ export const commentPayloadSchema = z.object({
 	/** The change request / issue number the comment belongs to. */
 	subjectNumber: z.number().int(),
 	subjectKind: z.enum(["change-request", "issue"]).optional(),
+	/** A verified subject head pins commit-bound actions; comments still judge their own body. */
+	subjectHeadSha: z.string().min(1).optional(),
 	/** True when this is Tripwire's own comment (carries the run marker, §7). */
 	byTripwire: z.boolean().optional(),
 });

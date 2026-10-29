@@ -120,9 +120,10 @@ export const gitCafeCommentDetailSchema = gitCafeCommentIdentitySchema.extend({
 export type GitCafeCommentDetail = z.infer<typeof gitCafeCommentDetailSchema>;
 
 export const gitCafeCommentSubjectSchema =
-	gitCafeIssueCommentEventSchema.shape.issue
-		.omit({ version: true })
-		.extend({ repoId: z.string().min(1).max(255) });
+	gitCafeIssueCommentEventSchema.shape.issue.omit({ version: true }).extend({
+		repoId: z.string().min(1).max(255),
+		headOid: OID.nullable().optional(),
+	});
 export type GitCafeCommentSubject = z.infer<typeof gitCafeCommentSubjectSchema>;
 
 export const gitCafeIssueCommentPageSchema = z.object({
@@ -147,7 +148,12 @@ export const gitCafeHydratedCommentEventSchema = z
 		author: eventActorSchema.extend({ login: z.string().min(1) }),
 		sender: eventActorSchema.optional(),
 		botActorId: z.string().min(1),
+		headOid: OID.nullable().default(null),
 	})
+	.refine(
+		(value) =>
+			value.event.type !== "issue.comment_created" || value.headOid === null,
+	)
 	.refine(
 		(value) => value.author.externalId === value.event.comment.authorActorId,
 	)

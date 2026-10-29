@@ -361,7 +361,13 @@ async function runWorkflowsInner(
 	}
 
 	const headShaEarly =
-		"changeRequest" in event ? event.changeRequest.headSha : null;
+		"changeRequest" in event
+			? event.changeRequest.headSha
+			: event.forge === "gitcafe" &&
+					event.kind === "comment.created" &&
+					event.comment.subjectKind === "change-request"
+				? (event.comment.subjectHeadSha ?? null)
+				: null;
 	/**
 	 * Live progress: pin the real definition set and flip to running before
 	 * the DAG walk so the run page can list planned rules and stream steps.
@@ -648,7 +654,7 @@ async function runWorkflowsInner(
 		);
 	}
 
-	const headSha = "changeRequest" in event ? event.changeRequest.headSha : null;
+	const headSha = headShaEarly;
 	/**
 	 * A COMMENT names its change request too, in `comment.subjectNumber`. Taking
 	 * it only from a change-request event stored null for every comment-triggered
@@ -660,7 +666,7 @@ async function runWorkflowsInner(
 	 *     recorded block or comment was never delivered and the give-up window
 	 *     eventually abandoned it
 	 *
-	 * There is no head sha on a comment: it judges the thread, not a commit.
+	 * GitCafe additionally pins a verified PR head for commit-bound review actions.
 	 */
 	const subjectNumber =
 		"changeRequest" in event

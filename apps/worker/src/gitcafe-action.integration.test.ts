@@ -481,16 +481,26 @@ async function admitPullReceipt(
 	return { ...inserted, receipt, payload };
 }
 
+const COMMENT_SCENARIOS = [
+	"healthy",
+	"self",
+	"edited",
+	"deleted",
+	"unchanged-retry",
+] as const;
 for (const kind of ["pull", "issue"] as const) {
-	for (const scenario of [
-		"healthy",
-		"self",
-		"edited",
-		"deleted",
-		"unchanged-retry",
-	] as const) {
+	const scenarios: Array<
+		| (typeof COMMENT_SCENARIOS)[number]
+		| "block"
+		| "block-outage"
+		| "block-head-change"
+	> = [...COMMENT_SCENARIOS];
+	if (kind === "pull")
+		scenarios.push("block", "block-outage", "block-head-change");
+	for (const scenario of scenarios) {
 		test(`signed ${kind} comment across ${scenario}`, async () => {
 			const self = scenario === "self";
+			const blocking = scenario.startsWith("block");
 			const fixture = (name: string): Promise<unknown> =>
 				Bun.file(new URL(`${name}.json`, base)).json();
 			const [
@@ -545,6 +555,19 @@ for (const kind of ["pull", "issue"] as const) {
 			const writes: string[] = [];
 			let lockOutage = true;
 			let changed = false;
+			let reviewAttempts = 0;
+			let reviewPosted = false;
+			let reviewBody = "";
+			const reviewRead = await fixture("gitcafe-action-review-readback");
+			const reviewCreated = await fixture("gitcafe-action-review-created");
+			const {
+				gitCafeActionReviewSchema,
+				gitCafeActionCreatedReviewSchema,
+				gitCafeActionReviewCreateSchema,
+			} = await import("@tripwire/contracts");
+			const reviewData = gitCafeActionReviewSchema.parse(reviewRead);
+			const createdData = gitCafeActionCreatedReviewSchema.parse(reviewCreated);
+			const reviewCommands: string[] = [];
 			const runtime = buildGitCafeRuntime(
 				database.db,
 				{
@@ -569,6 +592,27 @@ for (const kind of ["pull", "issue"] as const) {
 					if (path === "/api/repos/boring/scratch")
 						return Response.json(repository);
 					if (path === target) return Response.json(subject);
+					if (path === `${target}/reviews`) {
+						if (init.method === "POST") {
+							reviewAttempts++;
+							const command = gitCafeActionReviewCreateSchema.parse(
+								JSON.parse(String(init.body)),
+							);
+							reviewCommands.push(JSON.stringify(command));
+							expect(command.commitOid).toBe(reviewData.commitOid);
+							if (scenario !== "block" && reviewAttempts === 1)
+								return new Response(null, { status: 503 });
+							reviewPosted = true;
+							reviewBody = command.body;
+							return Response.json(createdData);
+						}
+						return Response.json({
+							items: reviewPosted ? [{ ...reviewData, body: reviewBody }] : [],
+							next: null,
+						});
+					}
+					if (path === `${target}/reviews/${reviewData.id}`)
+						return Response.json({ ...reviewData, body: reviewBody });
 					if (path.endsWith("/detail"))
 						return Response.json({
 							...detail,
@@ -647,20 +691,27 @@ for (const kind of ["pull", "issue"] as const) {
 				id: generateId(),
 				name: "Comment thread action test",
 				version: 1,
-				nodes: [
-					{ id: "comment", type: "trigger", kinds: ["comment.created"] },
-					{
-						id: "lock",
-						type: "action",
-						action: "lock",
-						params: { reason: "spam" },
-					},
-					{ id: "close", type: "action", action: "close", params: {} },
-				],
-				edges: [
-					{ id: "lock-edge", from: "comment", to: "lock" },
-					{ id: "close-edge", from: "comment", to: "close" },
-				],
+				nodes: blocking
+					? [
+							{ id: "comment", type: "trigger", kinds: ["comment.created"] },
+							{ id: "block", type: "action", action: "block", params: {} },
+						]
+					: [
+							{ id: "comment", type: "trigger", kinds: ["comment.created"] },
+							{
+								id: "lock",
+								type: "action",
+								action: "lock",
+								params: { reason: "spam" },
+							},
+							{ id: "close", type: "action", action: "close", params: {} },
+						],
+				edges: blocking
+					? [{ id: "block-edge", from: "comment", to: "block" }]
+					: [
+							{ id: "lock-edge", from: "comment", to: "lock" },
+							{ id: "close-edge", from: "comment", to: "close" },
+						],
 			});
 			const workflow = await workflowServices.createWorkflow(database.db, {
 				repoId,
@@ -754,6 +805,33 @@ for (const kind of ["pull", "issue"] as const) {
 					return;
 				}
 				if (!saved) throw new Error("Missing comment run");
+				if (blocking) {
+					expect(saved.headSha).toBe(reviewData.commitOid);
+					if (scenario === "block-head-change")
+						subject = {
+							...subject,
+							headOid: "b".repeat(40),
+							version: subject.version + 1,
+						};
+					await processEvent(deps, { eventId: row.id });
+					await processEvent(deps, { eventId: row.id });
+					const final = await runServices.getRunWithSteps(
+						database.db,
+						saved.id,
+					);
+					expect(final?.run.headSha).toBe(reviewData.commitOid);
+					expect(
+						final?.actions.find((action) => action.kind === "block")?.status,
+					).toBe(scenario === "block-head-change" ? "recorded" : "executed");
+					expect(reviewAttempts).toBe(scenario === "block-outage" ? 2 : 1);
+					expect(reviewPosted).toBe(scenario !== "block-head-change");
+					if (scenario === "block-outage")
+						expect(reviewCommands[1]).toBe(reviewCommands[0]);
+					expect(
+						(await eventServices.getEventById(database.db, row.id))?.raw,
+					).toEqual(admitted.payload);
+					return;
+				}
 				const first = await runServices.getRunWithSteps(database.db, saved.id);
 				expect(
 					first?.actions.find((action) => action.kind === "lock")?.status,
