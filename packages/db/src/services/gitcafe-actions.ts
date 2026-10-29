@@ -550,7 +550,12 @@ export async function getGitCafeActionBinding(
 		repoFullName: row.run.repoFullName,
 		subject,
 		number: row.run.subjectNumber,
-		headOid: row.run.headSha,
+		/** Comment thread actions survive pushes; reviews and checks retain their commit pin. */
+		headOid:
+			event.kind === "comment.created" &&
+			!["block", "dismiss-review", "set-check"].includes(row.action.kind)
+				? null
+				: row.run.headSha,
 		recordedAt: row.action.recordedAt.toISOString(),
 	});
 }
