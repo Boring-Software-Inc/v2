@@ -138,7 +138,8 @@ export type ForgeAction =
 			kind: "dismiss-review";
 			repoFullName: string;
 			number: number;
-			reviewId: string;
+			/** Null reconciles every owned blocking review, including submissions with lost receipts. */
+			reviewId: string | null;
 	  }
 	| { kind: "set-check"; repoFullName: string; check: CheckState }
 	| {

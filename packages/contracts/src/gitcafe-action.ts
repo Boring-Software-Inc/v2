@@ -100,6 +100,7 @@ export type GitCafeActionOperation = z.infer<
 
 export const gitCafeActionPayloadSchema = z.looseObject({
 	gitCafeOperation: gitCafeActionOperationSchema.optional(),
+	reason: z.string().optional(),
 });
 export type GitCafeActionPayload = z.infer<typeof gitCafeActionPayloadSchema>;
 

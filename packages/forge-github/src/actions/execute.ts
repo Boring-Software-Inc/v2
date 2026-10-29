@@ -65,6 +65,8 @@ export async function executeAction(
 			};
 		}
 		case "dismiss-review": {
+			if (action.reviewId === null)
+				return { refused: true, reason: "unsupported-review-selection" };
 			// The block clears ⇒ drop the stale request-changes review so it stops
 			// gating merge. Idempotent: re-dismissing an already-dismissed review is
 			// a harmless no-op the caller treats as best-effort.

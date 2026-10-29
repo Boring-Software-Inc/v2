@@ -52,6 +52,7 @@ export interface GitCafeActionStore {
 	): Promise<GitCafeActionOperation | null>;
 	/** Exactly one dispatcher may attempt a comment create; all later attempts reconcile its marker. */
 	claimComment(actionId: string): Promise<boolean>;
+	releaseComment(actionId: string): Promise<void>;
 }
 
 export interface GitCafeActionsOptions {
@@ -301,14 +302,19 @@ export class GitCafeActions {
 		return { ok: true as const, value: { externalId: current.id } };
 	}
 
-	private async dismissAll(binding: GitCafeActionBinding, reviewId: string) {
-		const target = await this.get(
-			`${this.root(binding)}/reviews/${encodeURIComponent(reviewId)}`,
-			gitCafeActionReviewSchema,
-		);
-		if (!target.ok) return target;
-		if (!this.ownsReview(target.value))
-			return { ok: false as const, reason: "identity-mismatch" as const };
+	private async dismissAll(
+		binding: GitCafeActionBinding,
+		reviewId: string | null,
+	) {
+		if (reviewId !== null) {
+			const target = await this.get(
+				`${this.root(binding)}/reviews/${encodeURIComponent(reviewId)}`,
+				gitCafeActionReviewSchema,
+			);
+			if (!target.ok) return target;
+			if (!this.ownsReview(target.value))
+				return { ok: false as const, reason: "identity-mismatch" as const };
+		}
 		const reviews = await this.list(
 			`${this.root(binding)}/reviews`,
 			gitCafeActionReviewPageSchema,
@@ -444,7 +450,14 @@ export class GitCafeActions {
 			this.options.installation,
 			this.deadlineAt,
 		);
-		if (!result.ok) return result;
+		if (!result.ok) {
+			if (
+				result.reason === "http" &&
+				[400, 401, 403, 404, 409, 422, 429].includes(result.status ?? 0)
+			)
+				await this.options.store.releaseComment(binding.actionId);
+			return result;
+		}
 		const created = gitCafeActionCommentSchema.safeParse(result.value);
 		if (
 			!created.success ||

@@ -3,12 +3,11 @@ import { bearsVerdict, REVIEW_POINTER } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { moderationServices, runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
-import { getErrorMessage } from "@tripwire/utils";
+import { getErrorMessage, supersededBy } from "@tripwire/utils";
 import type { Logger } from "pino";
 import {
 	CLOSE_PREREQUISITES,
 	emitClosedReviewSurfaces,
-	supersededBy,
 	toForgeAction,
 	VERDICT_ONLY_KINDS,
 } from "./pr-surface.ts";
@@ -123,6 +122,13 @@ export async function sweepActions(
 	};
 
 	for (const row of stuck) {
+		if (
+			row.forge === "gitcafe" &&
+			row.kind === "set-check" &&
+			row.payload.conclusion === "success" &&
+			(await runServices.hasPendingReviewCleanup(db, row.runId))
+		)
+			continue;
 		if (DELIVERY_KINDS.has(row.kind)) {
 			continue;
 		}

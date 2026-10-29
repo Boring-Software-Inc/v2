@@ -4,6 +4,7 @@
  * moves here.
  */
 
+export { pendingCheckIsStale, supersededBy } from "./action-supersession.ts";
 export {
 	createDatabuddyApi,
 	DATABUDDY_API_URL,

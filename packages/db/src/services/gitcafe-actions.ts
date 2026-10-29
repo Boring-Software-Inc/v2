@@ -1,4 +1,5 @@
 import {
+	bearsVerdict,
 	type GitCafeActionBinding,
 	type GitCafeActionOperation,
 	gitCafeActionBindingSchema,
@@ -6,6 +7,7 @@ import {
 	gitCafeActionPayloadSchema,
 	normalizedEventSchema,
 } from "@tripwire/contracts";
+import { pendingCheckIsStale, supersededBy } from "@tripwire/utils";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
@@ -14,6 +16,16 @@ import { repos } from "../schema/repos.ts";
 import { runActions, runs } from "../schema/runs.ts";
 import type { DbLike } from "./access.ts";
 import { getGitCafeActionAuthority } from "./gitcafe-lifecycle.ts";
+import { getLatestRunForChangeRequest } from "./runs.ts";
+
+export async function getGitCafeRecordedAction(db: DbLike, actionId: string) {
+	const [row] = await db
+		.select({ kind: runActions.kind, payload: runActions.payload })
+		.from(runActions)
+		.where(and(eq(runActions.id, actionId), eq(runActions.status, "recorded")));
+	if (!row) return null;
+	return { ...row, payload: gitCafeActionPayloadSchema.parse(row.payload) };
+}
 
 export async function readGitCafeAction(
 	db: DbLike,
@@ -45,6 +57,13 @@ export async function getGitCafePendingCheckBinding(
 	)
 		return null;
 	const event = normalized.data;
+	const latest = await getLatestRunForChangeRequest(
+		db,
+		{ forge: "gitcafe", fullName: event.repo.fullName },
+		event.changeRequest.number,
+	);
+	if (pendingCheckIsStale(latest, eventId, event.changeRequest.headSha))
+		return null;
 	if (!event.repoExternalId || !event.installationExternalId) return null;
 	const [repo] = await db
 		.select()
@@ -113,6 +132,21 @@ export async function getGitCafeActionBinding(
 	)
 		return null;
 	const event = normalized.data;
+	if ("changeRequest" in event && bearsVerdict(event.kind)) {
+		const latest = await getLatestRunForChangeRequest(
+			db,
+			{ forge: "gitcafe", fullName: row.run.repoFullName },
+			event.changeRequest.number,
+		);
+		if (
+			supersededBy(
+				row.action.kind,
+				{ id: row.run.id, headSha: row.run.headSha },
+				latest,
+			)
+		)
+			return null;
+	}
 	if (
 		!event.repoExternalId ||
 		!event.installationExternalId ||
@@ -259,4 +293,41 @@ function bindingKey(binding: GitCafeActionBinding): string {
 		binding.headOid,
 		binding.recordedAt,
 	]);
+}
+
+/** A definitive provider refusal permits retry; uncertain writes retain their dispatch fence. */
+export async function releaseGitCafeComment(
+	db: Db,
+	actionId: string,
+): Promise<void> {
+	await db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
+		);
+		if (!(await getGitCafeActionBinding(tx, actionId))) return;
+		const [row] = await tx
+			.select({ payload: runActions.payload })
+			.from(runActions)
+			.where(eq(runActions.id, actionId))
+			.for("update");
+		const operation = gitCafeActionPayloadSchema.parse(
+			row?.payload,
+		).gitCafeOperation;
+		if (
+			!operation ||
+			operation.command.kind !== "comment" ||
+			operation.actionId !== actionId
+		)
+			return;
+		const released = gitCafeActionOperationSchema.parse({
+			...operation,
+			dispatched: false,
+		});
+		await tx
+			.update(runActions)
+			.set({
+				payload: sql`${runActions.payload} || jsonb_build_object('gitCafeOperation', ${JSON.stringify(released)}::jsonb)`,
+			})
+			.where(eq(runActions.id, actionId));
+	});
 }

@@ -17,9 +17,13 @@ export const gitCafeResumeRunJobSchema = z.strictObject({
 	itemId: z.uuid(),
 	decision: z.enum(["approve", "deny"]),
 });
+export type GitCafeResumeRunJob = z.infer<typeof gitCafeResumeRunJobSchema>;
 export const gitCafeRefreshSurfacesJobSchema = z.strictObject({
 	repoId: z.uuid(),
 });
+export type GitCafeRefreshSurfacesJob = z.infer<
+	typeof gitCafeRefreshSurfacesJobSchema
+>;
 export const GITCAFE_RECEIPT_APP_ID = "int_01m60999c0fqg841d48s29qwtv";
 export const GITCAFE_RECEIPT_MAX_BYTES = 1024 * 1024;
 

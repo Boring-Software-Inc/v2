@@ -94,6 +94,9 @@ async function harness(
 			operation = { ...operation, dispatched: true };
 			return true;
 		},
+		releaseComment: async () => {
+			if (operation) operation = { ...operation, dispatched: false };
+		},
 	};
 	return {
 		binding,
@@ -323,7 +326,7 @@ test("reviewer union retains human requests and resolves stable candidate IDs", 
 	const added = candidates[0];
 	if (!added) throw new Error("Missing captured candidate");
 	const unrelated = { id: "act_existing_human", handle: "existing" };
-	let current = [unrelated];
+	let current: typeof candidates = [unrelated];
 	const h = await harness(async (url, init) => {
 		if (url === root) return Response.json(pullFixture);
 		if (init.method === "PUT") {
@@ -355,7 +358,7 @@ test("reviewer union retains human requests and resolves stable candidate IDs", 
 
 for (const kind of ["close", "lock"] as const) {
 	test(`${kind} uses a fresh subject version and checks resulting state`, async () => {
-		let subject = { ...pullFixture };
+		let subject = gitCafeActionSubjectSchema.parse(pullFixture);
 		let writes = 0;
 		const h = await harness(async (url, init) => {
 			if (init.method === "GET") return Response.json(subject);
@@ -447,4 +450,81 @@ test("an issue comment deletion accepts a 204 and still requires complete readba
 			{ ...h.binding, subject: "issue", headOid: null },
 		),
 	).toEqual({ ok: true, value: { externalId: commentCreated.id } });
+});
+
+for (const status of [403, 429, 500]) {
+	test(`comment transport ${status} ${status === 500 ? "retains uncertainty" : "permits retry after a definitive refusal"}`, async () => {
+		let posts = 0;
+		const h = await harness(async (url, init) => {
+			if (url === root) return Response.json(pullFixture);
+			if (init.method === "GET") return Response.json(commentsBefore);
+			posts++;
+			if (posts === 1) return new Response(null, { status });
+			const input = gitCafeActionCommentWriteSchema.parse(
+				JSON.parse(String(init.body)),
+			);
+			return Response.json({ ...commentCreated, body: input.body });
+		});
+		const action = {
+			kind: "post-comment" as const,
+			repoFullName: "boring/scratch",
+			number: 1,
+			body: "Local retry probe",
+			marker: "<!-- local-retry-probe -->",
+		};
+		expect(await h.actions.execute(action, h.binding)).toEqual({
+			ok: false,
+			reason: "http",
+			status,
+		});
+		expect(await h.actions.execute(action, h.binding)).toEqual(
+			status === 500
+				? { ok: false, reason: "uncertain" }
+				: { ok: true, value: { externalId: commentCreated.id } },
+		);
+		expect(posts).toBe(status === 500 ? 1 : 2);
+	});
+}
+
+test("a lost supersession response retains the replacement intent when the active marker has disappeared", async () => {
+	let old = { ...commentCreated, body: `Old verdict ${COMMENT_MARKER}` };
+	let posts = 0;
+	const replacementId = `prcomment_${generateId()}`;
+	const h = await harness(async (url, init) => {
+		if (url === root) return Response.json(pullFixture);
+		if (init.method === "GET")
+			return Response.json({ items: [old], next: null });
+		const input = gitCafeActionCommentWriteSchema.parse(
+			JSON.parse(String(init.body)),
+		);
+		if (init.method === "PATCH") {
+			old = { ...old, body: input.body, version: old.version + 1 };
+			throw new Error("Local lost edit response");
+		}
+		posts++;
+		return Response.json({
+			...commentCreated,
+			id: replacementId,
+			body: input.body,
+		});
+	});
+	const action = {
+		kind: "comment" as const,
+		repoFullName: "boring/scratch",
+		number: 1,
+		body: `New verdict ${COMMENT_MARKER}`,
+		previousVerdict: "block" as const,
+		verdict: "pass" as const,
+		onlyIfPresent: true,
+	};
+	expect(await h.actions.execute(action, h.binding)).toEqual({
+		ok: false,
+		reason: "network",
+	});
+	expect(old.body).not.toContain(COMMENT_MARKER);
+	expect(await h.actions.execute(action, h.binding)).toEqual({
+		ok: true,
+		value: { externalId: replacementId },
+	});
+	expect(posts).toBe(1);
 });

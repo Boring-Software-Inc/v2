@@ -29,6 +29,7 @@ import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
 import { runActions, runSteps, runs } from "../schema/runs.ts";
+import type { DbLike } from "./access.ts";
 
 /**
  * Run persistence (§5.10–5.12). The workflow definition is SNAPSHOT onto the
@@ -60,7 +61,7 @@ export interface CreateRunInput {
 	backfill?: boolean;
 }
 
-export async function createRun(db: Db, input: CreateRunInput) {
+export async function createRun(db: DbLike, input: CreateRunInput) {
 	const snapshot = snapshotSchema.parse(input.snapshot);
 	const id = input.id ?? generateId();
 	await db.insert(runs).values({
@@ -89,6 +90,24 @@ export async function getRunForEvent(db: Db, eventId: string) {
 	return run ?? null;
 }
 
+export async function hasPendingReviewCleanup(
+	db: Db,
+	runId: string,
+): Promise<boolean> {
+	const [row] = await db
+		.select({ id: runActions.id })
+		.from(runActions)
+		.where(
+			and(
+				eq(runActions.runId, runId),
+				eq(runActions.kind, "dismiss-review"),
+				eq(runActions.status, "recorded"),
+			),
+		)
+		.limit(1);
+	return row !== undefined;
+}
+
 export interface FinalizeRunInput {
 	eventId: string;
 	headSha: string | null;
@@ -102,7 +121,7 @@ export interface FinalizeRunInput {
  * mark it terminal. Steps/actions are recorded separately against the same id.
  */
 export async function finalizeRun(
-	db: Db,
+	db: DbLike,
 	runId: string,
 	input: FinalizeRunInput,
 ): Promise<void> {
@@ -220,7 +239,7 @@ export interface RecordStepInput {
 }
 
 export async function recordSteps(
-	db: Db,
+	db: DbLike,
 	runId: string,
 	steps: RecordStepInput[],
 ): Promise<void> {
@@ -259,7 +278,7 @@ export interface RecordActionInput {
 }
 
 export async function recordActions(
-	db: Db,
+	db: DbLike,
 	runId: string,
 	actions: RecordActionInput[],
 	/**
@@ -307,6 +326,49 @@ export async function markActionExecuted(
 		.update(runActions)
 		.set({ status: "executed", executedAt: new Date(), externalId })
 		.where(eq(runActions.id, actionId));
+}
+
+export interface PersistRunEvaluationInput {
+	run: Omit<CreateRunInput, "status"> & { status: FinalizeRunInput["status"] };
+	existingRunId?: string;
+	steps: RecordStepInput[];
+	moderationNodeIds: string[];
+	actions: RecordActionInput[];
+	suppressed: boolean;
+}
+
+/** A run is reusable on recovery only after its evaluation audit and action intents commit together. */
+export async function persistRunEvaluation(
+	db: Db,
+	input: PersistRunEvaluationInput,
+) {
+	return db.transaction(async (tx) => {
+		const runId = input.existingRunId ?? (await createRun(tx, input.run));
+		if (input.existingRunId)
+			await finalizeRun(tx, runId, {
+				eventId: input.run.eventId,
+				headSha: input.run.headSha,
+				snapshot: input.run.snapshot,
+				status: input.run.status,
+				verdict: input.run.verdict,
+			});
+		await recordSteps(tx, runId, input.steps);
+		if (input.moderationNodeIds.length)
+			await tx.insert(moderationItems).values(
+				input.moderationNodeIds.map((nodeId) => ({
+					id: generateId(),
+					runId,
+					nodeId,
+				})),
+			);
+		const actionRows = await recordActions(
+			tx,
+			runId,
+			input.actions,
+			input.suppressed ? "suppressed" : "recorded",
+		);
+		return { runId, actionRows };
+	});
 }
 
 /**
@@ -538,7 +600,7 @@ export async function getLatestRunIdForChangeRequest(
 }
 
 export async function getLatestRunForChangeRequest(
-	db: Db,
+	db: DbLike,
 	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<LatestChangeRequestRun | null> {

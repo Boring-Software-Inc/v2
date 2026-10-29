@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import {
-	commentRows,
-	pendingCheckIsStale,
-	supersededBy,
-	toForgeAction,
-} from "./pr-surface.ts";
+import { pendingCheckIsStale, supersededBy } from "@tripwire/utils";
+import { commentRows, toForgeAction } from "./pr-surface.ts";
 
 describe("toForgeAction — request-review", () => {
 	test("carries the recorded people and teams onto the forge action", () => {

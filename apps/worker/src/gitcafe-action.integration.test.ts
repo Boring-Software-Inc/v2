@@ -219,6 +219,68 @@ test("a claimed installation cannot authorize another repository identity", asyn
 	).toBe(false);
 });
 
+test("a recorded comment command cannot authorize close or another payload", async () => {
+	const { gitCafeInstallationTokenSchema, gitCafeActionSubjectSchema } =
+		await import("@tripwire/contracts");
+	const token = gitCafeInstallationTokenSchema.parse(
+		await Bun.file(new URL("gitcafe-action-token-current.json", base)).json(),
+	);
+	const pull = gitCafeActionSubjectSchema.parse(
+		await Bun.file(new URL("gitcafe-read-scratch-pull.json", base)).json(),
+	);
+	const repository: unknown = await Bun.file(
+		new URL("gitcafe-connection-repository.json", base),
+	).json();
+	let writes = 0;
+	const runtime = buildGitCafeRuntime(
+		database.db,
+		{
+			appId: installation.appId,
+			keyId: "local-binding-test",
+			privateKey: generateKeyPairSync("ec", { namedCurve: "prime256v1" })
+				.privateKey.export({ format: "pem", type: "pkcs8" })
+				.toString(),
+		},
+		async (url, init) => {
+			if (url.includes("/api/apps/"))
+				return Response.json(
+					init.method === "GET"
+						? installation
+						: {
+								...token,
+								token: "local-binding-token",
+								expiresAt: new Date(Date.now() + 900000).toISOString(),
+							},
+				);
+			if (new URL(url).pathname === "/api/repos/boring/scratch")
+				return Response.json(repository);
+			if (init.method !== "GET") writes++;
+			return Response.json({ ...pull, state: writes ? "closed" : "open" });
+		},
+	);
+	if (!runtime.adapter) throw new Error("Missing adapter");
+	expect(
+		await runtime.adapter.execute(
+			{ kind: "close", repoFullName: "boring/scratch", number: 1 },
+			{ actionId },
+		),
+	).toEqual({ refused: true, reason: "command-mismatch" });
+	expect(
+		await runtime.adapter.execute(
+			{
+				kind: "comment",
+				repoFullName: "boring/scratch",
+				number: 1,
+				body: "different body",
+				verdict: "pass",
+				previousVerdict: null,
+			},
+			{ actionId },
+		),
+	).toEqual({ refused: true, reason: "command-mismatch" });
+	expect(writes).toBe(0);
+});
+
 async function admitPullReceipt() {
 	const payload = { ...event, id: `evt_${generateId()}` };
 	const body = JSON.stringify(payload);
@@ -381,8 +443,16 @@ test("dispatched receipts restore exhausted or missing process jobs once and sto
 	expect(receipt.rows[0]?.status).toBe("applied");
 });
 
-for (const verdict of ["pass", "block"] as const) {
-	test(`actual GitCafe runtime carries a signed receipt through persisted ${verdict} and owned surfaces`, async () => {
+for (const { verdict, scenario } of [
+	{ verdict: "pass", scenario: "healthy" },
+	{ verdict: "block", scenario: "healthy" },
+	{ verdict: "pass", scenario: "step-outage" },
+	{ verdict: "block", scenario: "step-outage" },
+	{ verdict: "pass", scenario: "surface-outage" },
+	{ verdict: "block", scenario: "surface-outage" },
+	{ verdict: "block", scenario: "lost-review" },
+] as const) {
+	test(`actual GitCafe runtime persists ${verdict} and owned surfaces across ${scenario}`, async () => {
 		const fixture = async (name: string): Promise<unknown> =>
 			Bun.file(new URL(`${name}.json`, base)).json();
 		const [
@@ -425,6 +495,8 @@ for (const verdict of ["pass", "block"] as const) {
 			gitCafeActionCreatedReviewSchema,
 			gitCafeCheckReportInputSchema,
 			gitCafeCheckReportResponseSchema,
+			gitCafeActionCommentWriteSchema,
+			gitCafeActionReviewCreateSchema,
 		} = await import("@tripwire/contracts");
 		const tokenData = gitCafeInstallationTokenSchema.parse(token);
 		const commentData = gitCafeActionCommentSchema.parse(comment);
@@ -434,6 +506,8 @@ for (const verdict of ["pass", "block"] as const) {
 		const checks: (typeof reportData.checkRun)[] = [];
 		const comments: (typeof commentData)[] = [];
 		const reviews: (typeof reviewData)[] = [];
+		let profileReads = 0;
+		let lostReview = false;
 		const credentials = {
 			appId: installation.appId,
 			keyId: "local-runtime-test",
@@ -458,7 +532,10 @@ for (const verdict of ["pass", "block"] as const) {
 					);
 				if (path === "/api/repos/boring/scratch")
 					return Response.json(repository);
-				if (path === "/api/users/grim") return Response.json(profile);
+				if (path === "/api/users/grim") {
+					profileReads++;
+					return Response.json(profile);
+				}
 				if (path === "/api/orgs/boring/members/") return Response.json(members);
 				if (path.endsWith("/collaborators/"))
 					return Response.json(collaborators);
@@ -490,22 +567,59 @@ for (const verdict of ["pass", "block"] as const) {
 				if (path.endsWith("/comments/")) {
 					if (init.method === "GET")
 						return Response.json({ items: comments, next: null });
-					const body = JSON.parse(String(init.body));
+					const body = gitCafeActionCommentWriteSchema.parse(
+						JSON.parse(String(init.body)),
+					);
 					const posted = gitCafeActionCommentSchema.parse({
 						...commentData,
+						id: `prcomment_${generateId()}`,
 						body: body.body,
 					});
 					comments.push(posted);
 					return Response.json(posted);
 				}
+				if (path.includes("/comments/") && init.method === "PATCH") {
+					const index = comments.findIndex((comment) =>
+						path.endsWith(comment.id),
+					);
+					if (index < 0) return new Response(null, { status: 404 });
+					const comment = comments[index];
+					if (!comment) throw new Error("Missing local comment");
+					const input = gitCafeActionCommentWriteSchema.parse(
+						JSON.parse(String(init.body)),
+					);
+					const updated = {
+						...comment,
+						body: input.body,
+						version: comment.version + 1,
+					};
+					comments[index] = updated;
+					return Response.json(updated);
+				}
 				if (path.endsWith("/reviews")) {
 					if (init.method === "GET")
 						return Response.json({ items: reviews, next: null });
-					const body = JSON.parse(String(init.body));
+					const body = gitCafeActionReviewCreateSchema.parse(
+						JSON.parse(String(init.body)),
+					);
 					reviews.push(
 						gitCafeActionReviewSchema.parse({ ...reviewData, body: body.body }),
 					);
+					if (scenario === "lost-review" && !lostReview) {
+						lostReview = true;
+						throw new Error("Local lost review response");
+					}
 					return Response.json({ ...createdData, body: body.body });
+				}
+				if (path.endsWith("/dismiss") && init.method === "POST") {
+					const current = reviews[0];
+					if (!current) throw new Error("Missing local review");
+					reviews[0] = {
+						...current,
+						dismissedAt: new Date().toISOString(),
+						version: current.version + 1,
+					};
+					return Response.json(reviews[0]);
 				}
 				if (path.includes("/reviews/")) return Response.json(reviews.at(-1));
 				return new Response("Unexpected local runtime path", { status: 500 });
@@ -533,18 +647,79 @@ for (const verdict of ["pass", "block"] as const) {
 		const previous = process.env.TRIPWIRE_DISABLE_EXEMPTION;
 		process.env.TRIPWIRE_DISABLE_EXEMPTION = "true";
 		try {
-			await processEvent(
-				{
-					db: database.db,
-					pool: database.pool,
-					logger: pino({ level: "silent" }),
-					resolveForge: (forge) => (forge === "gitcafe" ? runtime : null),
-					makeGenerate: null,
-					appUrl: "https://staging.tripwire.sh",
-					resumeNormalized: true,
-				},
-				{ eventId: row.id },
-			);
+			const deps = {
+				db: database.db,
+				pool: database.pool,
+				logger: pino({ level: "silent" }),
+				resolveForge: (forge: "github" | "opengit" | "gitcafe") =>
+					forge === "gitcafe" ? runtime : null,
+				makeGenerate: null,
+				appUrl: "https://staging.tripwire.sh",
+				resumeNormalized: true,
+			};
+			if (scenario === "step-outage" || scenario === "surface-outage") {
+				const table = scenario === "step-outage" ? "run_steps" : "run_actions";
+				const condition =
+					scenario === "surface-outage"
+						? "IF NEW.kind <> 'set-check' THEN RETURN NEW; END IF;"
+						: "";
+				await database.pool.query(
+					`CREATE FUNCTION fail_local_persistence() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN ${condition} RAISE EXCEPTION 'local persistence outage'; END $$`,
+				);
+				await database.pool.query(
+					`CREATE TRIGGER fail_local_persistence BEFORE INSERT ON ${table} FOR EACH ROW EXECUTE FUNCTION fail_local_persistence()`,
+				);
+				try {
+					await expect(
+						processEvent(deps, { eventId: row.id }),
+					).rejects.toMatchObject({
+						cause: { message: "local persistence outage" },
+					});
+				} finally {
+					await database.pool.query(
+						`DROP TRIGGER fail_local_persistence ON ${table}`,
+					);
+					await database.pool.query("DROP FUNCTION fail_local_persistence()");
+				}
+				if (scenario === "step-outage")
+					expect(
+						await runServices.getRunForEvent(database.db, row.id),
+					).toBeNull();
+			}
+			const previousReads = profileReads;
+			await processEvent(deps, { eventId: row.id });
+			if (scenario === "surface-outage")
+				expect(profileReads).toBe(previousReads);
+			if (scenario === "lost-review") {
+				const initial = await runServices.getRunForEvent(database.db, row.id);
+				expect(initial?.verdict).toBe("block");
+				expect(reviews[0]?.dismissedAt).toBeNull();
+				await repoServices.upsertRuleConfig(database.db, repoId, {
+					ruleId: "profile-readme",
+					version: 1,
+					enabled: true,
+					config: { minLength: 1 },
+				});
+				const next = await admitPullReceipt();
+				await gitCafeLifecycleServices.dispatchGitCafeRepositoryReceipt(
+					database.db,
+					boss,
+					next.receiptId,
+				);
+				const [current] = (
+					await database.pool.query<{ id: string }>(
+						"SELECT id FROM events WHERE delivery_id=$1",
+						[JSON.stringify([event.installation.id, next.payload.id])],
+					)
+				).rows;
+				if (!current) throw new Error("Missing next event");
+				await processEvent(deps, { eventId: current.id });
+				expect(
+					(await runServices.getRunForEvent(database.db, current.id))?.verdict,
+				).toBe("pass");
+				expect(reviews[0]?.dismissedAt).not.toBeNull();
+				expect(checks.at(-1)?.conclusion).toBe("success");
+			}
 		} finally {
 			if (previous === undefined) delete process.env.TRIPWIRE_DISABLE_EXEMPTION;
 			else process.env.TRIPWIRE_DISABLE_EXEMPTION = previous;
@@ -552,18 +727,21 @@ for (const verdict of ["pass", "block"] as const) {
 		const run = await runServices.getRunForEvent(database.db, row.id);
 		expect(run?.verdict).toBe(verdict);
 		expect(run?.status).toBe("completed");
-		expect(checks.at(-1)?.conclusion).toBe(
-			verdict === "pass" ? "success" : "failure",
-		);
-		expect(comments).toHaveLength(verdict === "block" ? 1 : 0);
+		if (scenario !== "lost-review")
+			expect(checks.at(-1)?.conclusion).toBe(
+				verdict === "pass" ? "success" : "failure",
+			);
+		if (scenario !== "lost-review")
+			expect(comments).toHaveLength(verdict === "block" ? 1 : 0);
 		if (verdict === "block") expect(reviews).toHaveLength(1);
 		const actions = await database.pool.query<{ kind: string; status: string }>(
 			"SELECT kind,status FROM run_actions WHERE run_id = $1",
 			[run?.id],
 		);
 		expect(actions.rows.length).toBeGreaterThan(0);
-		expect(actions.rows.every((action) => action.status === "executed")).toBe(
-			true,
-		);
+		if (scenario !== "lost-review")
+			expect(actions.rows.every((action) => action.status === "executed")).toBe(
+				true,
+			);
 	});
 }

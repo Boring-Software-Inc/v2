@@ -27,6 +27,7 @@ import {
 	emitClosedReviewSurfaces,
 	emitPendingCheck,
 	emitPrSurface,
+	recoverGitCafeRunSurface,
 } from "./pr-surface.ts";
 import { refreshBranchSuggestions } from "./refresh-suggestions.ts";
 import { runWorkflows } from "./run-workflows.ts";
@@ -94,8 +95,25 @@ export async function processEvent(
 	) {
 		return;
 	}
-	if (event.normalizedAt && (await runServices.getRunForEvent(db, event.id)))
-		return;
+	if (event.normalizedAt && deps.resumeNormalized) {
+		const saved = await runServices.getRunForEvent(db, event.id);
+		if (saved) {
+			if (
+				!(await recoverGitCafeRunSurface(
+					{
+						db,
+						logger,
+						adapter: runtime?.adapter ?? null,
+						appUrl: deps.appUrl,
+					},
+					saved.id,
+					normalizedEventSchema.parse(event.normalized),
+				))
+			)
+				throw new Error("GitCafe run has no committed evaluation to recover");
+			return;
+		}
+	}
 
 	let normalized: NormalizedEvent | null;
 	try {

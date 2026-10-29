@@ -1,9 +1,11 @@
+import { isDeepStrictEqual } from "node:util";
 import {
 	type GitCafeReadBoundary,
 	gitCafeHydratedPullEventSchema,
 	gitCafePullEventSchema,
 	gitCafePullIdentitySchema,
 	normalizedEventSchema,
+	REVIEW_POINTER,
 } from "@tripwire/contracts";
 import {
 	type Db,
@@ -11,6 +13,7 @@ import {
 	gitCafeLifecycleServices,
 	organizationInstallations,
 	repos,
+	runServices,
 } from "@tripwire/db";
 import type {
 	ForgeAction,
@@ -27,15 +30,17 @@ import {
 	normalizeGitCafePullEvent,
 	verifyGitCafeWebhook,
 } from "@tripwire/forge-gitcafe";
+import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
 import { and, eq, isNull } from "drizzle-orm";
 import type { ForgeRuntime } from "./forge-runtime.ts";
+import { toForgeAction } from "./jobs/pr-surface.ts";
 
 export function buildGitCafeRuntime(
 	db: Db,
 	credentials: GitCafeAppCredentials,
 	fetch?: GitCafeInstallationClientOptions["fetch"],
 ): ForgeRuntime {
-	const bind = async (repoFullName: string) => {
+	const bind = async (repoFullName: string, context?: ForgeActionContext) => {
 		const [row] = await db
 			.select()
 			.from(repos)
@@ -66,14 +71,28 @@ export function buildGitCafeRuntime(
 		const client = new GitCafeInstallationClient({
 			credentials,
 			fetch,
-			lifecycleGuard: async (id) =>
-				(
+			lifecycleGuard: async (id) => {
+				if (
+					context &&
+					!("actionId" in context
+						? await gitCafeActionServices.getGitCafeActionBinding(
+								db,
+								context.actionId,
+							)
+						: await gitCafeActionServices.getGitCafePendingCheckBinding(
+								db,
+								context.eventId,
+							))
+				)
+					return false;
+				return (
 					await gitCafeLifecycleServices.getGitCafeActionAuthority(
 						db,
 						id,
 						authority.generation,
 					)
-				).allowed,
+				).allowed;
+			},
 		});
 		const installation = await client.getInstallation(installationId);
 		if (!installation.ok) return installation;
@@ -145,7 +164,34 @@ export function buildGitCafeRuntime(
 						)
 					: null);
 		if (!binding) return { refused: true as const, reason: "inactive" };
-		const bound = await bind(action.repoFullName);
+		if (context && "actionId" in context) {
+			const row = await gitCafeActionServices.getGitCafeRecordedAction(
+				db,
+				context.actionId,
+			);
+			if (!row) return { refused: true as const, reason: "inactive" };
+			const review = await runServices.getActiveBlockReviewId(
+				db,
+				{ forge: "gitcafe", fullName: binding.repoFullName },
+				binding.number,
+			);
+			const expected = toForgeAction(
+				row,
+				binding.repoFullName,
+				binding.number,
+				row.payload.reason ?? REVIEW_POINTER.block,
+				review,
+			);
+			if (!isDeepStrictEqual(action, expected))
+				return { refused: true as const, reason: "command-mismatch" };
+		} else if (
+			action.kind !== "set-check" ||
+			action.check.conclusion !== "pending" ||
+			action.check.summary !== PENDING_CHECK_SUMMARY ||
+			action.check.detailsUrl !== "https://staging.tripwire.sh"
+		)
+			return { refused: true as const, reason: "command-mismatch" };
+		const bound = await bind(action.repoFullName, context);
 		if (!bound.ok)
 			return {
 				refused: true as const,
@@ -160,6 +206,8 @@ export function buildGitCafeRuntime(
 				prepare: (operation) =>
 					gitCafeActionServices.prepareGitCafeAction(db, operation),
 				claimComment: (id) => gitCafeActionServices.claimGitCafeComment(db, id),
+				releaseComment: (id) =>
+					gitCafeActionServices.releaseGitCafeComment(db, id),
 			},
 		});
 		const result = await actions.execute(action, binding);
