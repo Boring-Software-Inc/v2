@@ -547,6 +547,43 @@ test("exhausted and deleted local schedule jobs recover once without replaying c
 	expect(writes).toEqual(["/api/repos/boring/scratch/issues/2/lock"]);
 });
 
+test("pre-upgrade completed no-run schedules retain completion after job retention", async () => {
+	const d = deps();
+	expect((await scheduleTick(d)).events).toBe(1);
+	const id = await eventId();
+	await database.db
+		.update(workflowDefinitions)
+		.set({ enabled: false })
+		.where(eq(workflowDefinitions.id, workflowId));
+	const [job] = await boss.fetch(GITCAFE_PROCESS_EVENT_QUEUE);
+	if (!job) throw new Error("Scheduled job missing");
+	await processEvent({ ...d, resumeNormalized: true }, { eventId: id });
+	await boss.complete(GITCAFE_PROCESS_EVENT_QUEUE, job.id);
+	expect(
+		(await eventServices.getEventById(database.db, id))?.processedAt,
+	).toBeNull();
+	expect(await runServices.getRunForEvent(database.db, id)).toBeNull();
+	await database.db
+		.update(workflowDefinitions)
+		.set({ enabled: true })
+		.where(eq(workflowDefinitions.id, workflowId));
+	const general = await generalJobs();
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	expect(
+		(await eventServices.getEventById(database.db, id))?.processedAt,
+	).not.toBeNull();
+	await database.pool.query("DELETE FROM pgboss.job WHERE name=$1", [
+		GITCAFE_PROCESS_EVENT_QUEUE,
+	]);
+	expect(
+		await gitCafeLifecycleServices.recoverGitCafeEvents(database.db, boss),
+	).toBe(0);
+	expect(await generalJobs()).toEqual(general);
+	expect(writes).toEqual([]);
+});
+
 test("a waiting consumer rechecks completed no-run work after acquiring the event lock", async () => {
 	const d = deps();
 	expect((await scheduleTick(d)).events).toBe(1);
