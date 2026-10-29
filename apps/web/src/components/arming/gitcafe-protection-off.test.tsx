@@ -33,6 +33,10 @@ describe("GitCafe connection keeps runtime off", () => {
 				</QueryClientProvider>,
 			);
 			expect(html).toContain("GitCafe protection is off");
+			expect(html).toContain(
+				"Imported pull requests and issues do not send GitCafe events",
+			);
+			expect(html).toContain("GitCafe checks do not block merges on GitHub");
 			expect(html).not.toContain("Turn on Tripwire");
 			expect(html).not.toContain("<button");
 		}
@@ -65,6 +69,7 @@ describe("GitCafe connection keeps runtime off", () => {
 			/>,
 		);
 		expect(html).toContain("GitCafe protection is off");
+		expect(html).toContain("connect Tripwire on GitHub too");
 		expect(html).not.toContain("<button");
 		expect(html).not.toContain("Install");
 	});

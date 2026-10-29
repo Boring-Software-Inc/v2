@@ -39,6 +39,8 @@ export type GitCafeActionResult<T> =
 			ok: false;
 			reason:
 				| "permission"
+				| "upstream-managed"
+				| "unsupported-merge-route"
 				| "uncertain"
 				| "incomplete"
 				| "conflict"
@@ -90,6 +92,15 @@ export class GitCafeActions {
 			return { ok: false, reason: "identity-mismatch" };
 		const subject = await this.subject(binding);
 		if (!subject.ok) return subject;
+		if (action.kind !== "dismiss-review" && action.kind !== "delete-comment") {
+			if (
+				subject.value.github != null ||
+				subject.value.mergeRoute === "provider"
+			)
+				return { ok: false, reason: "upstream-managed" };
+			if (subject.value.mergeRoute === "unsupported")
+				return { ok: false, reason: "unsupported-merge-route" };
+		}
 		switch (action.kind) {
 			case "set-check": {
 				if (

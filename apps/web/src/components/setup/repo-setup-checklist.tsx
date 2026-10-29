@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { GitCafeMirrorNotice } from "#/components/forges/gitcafe-mirror-notice";
 import { Button } from "#/components/glaze/ui/button";
 import {
 	Card,
@@ -260,6 +261,7 @@ export function RepoSetupChecklist(props: ChecklistProps) {
 					<CardTitle>GitCafe protection is off</CardTitle>
 					<CardDescription>
 						This repo is connected. GitCafe checks aren't available yet.
+						<GitCafeMirrorNotice />
 					</CardDescription>
 				</CardHeader>
 			</Card>

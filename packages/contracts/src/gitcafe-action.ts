@@ -143,6 +143,8 @@ export const gitCafeActionSubjectSchema = z.object({
 	state: z.string().optional(),
 	stateType: z.string().optional(),
 	lockedAt: z.iso.datetime().nullable(),
+	github: z.object({}).nullable().optional(),
+	mergeRoute: z.enum(["native", "provider", "unsupported"]).optional(),
 });
 export type GitCafeActionSubject = z.infer<typeof gitCafeActionSubjectSchema>;
 
