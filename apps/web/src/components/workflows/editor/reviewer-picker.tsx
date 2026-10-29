@@ -1,4 +1,9 @@
-import type { RepoReviewer, WorkflowNode } from "@tripwire/contracts";
+import type {
+	Forge,
+	RepoReviewer,
+	ReviewerRef,
+	WorkflowNode,
+} from "@tripwire/contracts";
 import {
 	requestReviewTargetsSchema,
 	reviewerJson,
@@ -29,20 +34,17 @@ import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
 export const ReviewerScopeContext = createContext<{
 	org: string;
 	repoId: string;
+	forge?: Forge;
 } | null>(null);
 
-interface PickedReviewer {
-	id?: number;
-	login: string;
+type PickedReviewer = ReviewerRef & {
 	avatarUrl: string;
 	stale: boolean;
-}
+};
 
 function picked(reviewer: RepoReviewer): PickedReviewer {
 	return {
-		id: reviewer.id,
-		login: reviewer.login,
-		avatarUrl: reviewer.avatarUrl,
+		...reviewer,
 		stale: false,
 	};
 }
@@ -61,6 +63,7 @@ export function ReviewerPicker({
 	const scope = useContext(ReviewerScopeContext);
 	const org = scope?.org ?? "";
 	const repoId = scope?.repoId ?? "";
+	const gitCafe = scope?.forge === "gitcafe";
 	const anchor = useComboboxAnchor();
 	const { data, loading, syncing, refresh } = useSyncedList(
 		repoReviewersQueryOptions(org, repoId),
@@ -73,10 +76,9 @@ export function ReviewerPicker({
 	const chosen = (parsed.success ? parsed.data.reviewers : []).map(
 		(reviewer): PickedReviewer =>
 			synced.find((entry) => sameReviewer(entry, reviewer)) ?? {
-				id: reviewer.id,
-				login: reviewer.login,
+				...reviewer,
 				avatarUrl: "",
-				stale: known,
+				stale: known && !gitCafe,
 			},
 	);
 	const choose = (next: PickedReviewer[]) =>
@@ -84,9 +86,7 @@ export function ReviewerPicker({
 			...node,
 			params: {
 				...node.params,
-				reviewers: reviewerJson(
-					next.map((reviewer) => ({ id: reviewer.id, login: reviewer.login })),
-				),
+				reviewers: reviewerJson(next),
 			},
 		});
 
@@ -117,7 +117,11 @@ export function ReviewerPicker({
 		}
 		return (
 			<div className="flex flex-col gap-2" data-field="reviewers">
-				<p className="type-body-sm text-text-2">No reviewers found</p>
+				<p className="type-body-sm text-text-2">
+					{gitCafe
+						? "Open a pull request on GitCafe, then refresh to load reviewers."
+						: "No reviewers found"}
+				</p>
 				{refreshButton}
 			</div>
 		);
@@ -125,6 +129,12 @@ export function ReviewerPicker({
 
 	return (
 		<div className="flex flex-col gap-2">
+			{gitCafe && (
+				<p className="type-body-sm text-text-2">
+					Suggestions come from open pull requests. GitCafe checks access again
+					when requesting review.
+				</p>
+			)}
 			<Field data-field="reviewers">
 				<FieldLabel>Reviewers</FieldLabel>
 				<Combobox<PickedReviewer, true>
@@ -141,7 +151,7 @@ export function ReviewerPicker({
 							{(selected: PickedReviewer[]) => (
 								<>
 									{selected.map((reviewer) => (
-										<ComboboxChip key={reviewer.login}>
+										<ComboboxChip key={reviewer.id ?? reviewer.login}>
 											{reviewer.stale ? (
 												<span className="inline-flex items-center gap-1 text-warn-text">
 													<Icon className="text-warn-text" icon={Warning} />
@@ -168,7 +178,10 @@ export function ReviewerPicker({
 						</ComboboxEmpty>
 						<ComboboxList>
 							{(reviewer: PickedReviewer) => (
-								<ComboboxItem key={reviewer.login} value={reviewer}>
+								<ComboboxItem
+									key={reviewer.id ?? reviewer.login}
+									value={reviewer}
+								>
 									<span className="flex min-w-0 items-center gap-2">
 										<Avatar
 											decorative

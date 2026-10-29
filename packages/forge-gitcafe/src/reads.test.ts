@@ -7,6 +7,7 @@ import {
 	GitCafeReads,
 } from "@tripwire/forge-gitcafe";
 import labels from "../fixtures/gitcafe-action-labels-current.json";
+import reviewerCandidates from "../fixtures/gitcafe-action-reviewer-candidates.json";
 import members from "../fixtures/gitcafe-connection-members.json";
 import repository from "../fixtures/gitcafe-connection-repository.json";
 import installation from "../fixtures/gitcafe-installation.json";
@@ -24,6 +25,7 @@ import scratchChanges from "../fixtures/gitcafe-read-scratch-changes.json";
 import scratchCommits from "../fixtures/gitcafe-read-scratch-commits.json";
 import scratchDiff from "../fixtures/gitcafe-read-scratch-diff-0.json";
 import scratchPull from "../fixtures/gitcafe-read-scratch-pull.json";
+import currentScratchPull from "../fixtures/gitcafe-read-scratch-pull-current.json";
 import blob from "../fixtures/gitcafe-source.json";
 
 const credentials = {
@@ -84,6 +86,8 @@ const THREAD_QUERY: ThreadListQuery = {
 };
 
 function catalogRoute(url: URL): Response {
+	if (url.pathname.endsWith("/reviewer-candidates"))
+		return Response.json(reviewerCandidates);
 	if (url.pathname === "/api/repos/boring/scratch")
 		return Response.json(repository);
 	if (url.pathname.endsWith("/refs")) return Response.json(refs);
@@ -95,6 +99,163 @@ function catalogRoute(url: URL): Response {
 	if (url.pathname.endsWith("/labels")) return Response.json(labels);
 	return capturedRoute(url);
 }
+
+function reviewerRoute(url: URL): Response {
+	return url.pathname.endsWith("/pulls/1")
+		? Response.json(currentScratchPull)
+		: catalogRoute(url);
+}
+
+test("captured GitCafe reviewer suggestions retain immutable IDs and absolute avatars", async () => {
+	const h = harness(reviewerRoute);
+	const result = await h.reads.getReviewers(REPO, repository.id);
+	if (!result.ok) throw new Error(`Reviewer read refused: ${result.reason}`);
+	expect(result.value.map((person) => person.id)).toEqual(
+		reviewerCandidates.items.map((person) => person.id),
+	);
+	expect(result.value.map((person) => person.login)).toEqual(
+		reviewerCandidates.items.map((person) => person.handle),
+	);
+	expect(result.value[1]?.avatarUrl).toStartWith("https://git.cafe/avatars/");
+});
+
+for (const conflicting of [false, true]) {
+	test(`cross-PR reviewer names ${conflicting ? "refuse contradictions" : "deduplicate consistent evidence"}`, async () => {
+		const first = threadPulls.items[0];
+		if (!first) throw new Error("Captured pull missing");
+		const h = harness((url) => {
+			if (url.pathname.endsWith("/pulls/"))
+				return Response.json({
+					items: [first, { ...first, id: "synthetic-second-pull", number: 2 }],
+					next: null,
+				});
+			if (url.pathname.endsWith("/pulls/2"))
+				return Response.json({
+					...currentScratchPull,
+					id: "synthetic-second-pull",
+					number: 2,
+				});
+			if (conflicting && url.pathname.endsWith("/pulls/2/reviewer-candidates"))
+				return Response.json({
+					...reviewerCandidates,
+					items: reviewerCandidates.items.map((item) => ({
+						...item,
+						displayName: "Synthetic different name",
+						actor: { ...item.actor, displayName: "Synthetic different name" },
+					})),
+				});
+			return reviewerRoute(url);
+		});
+		const result = await h.reads.getReviewers(REPO, repository.id);
+		expect(result.ok).toBe(!conflicting);
+		if (conflicting) expect(result).toEqual({ ok: false, reason: "changed" });
+		else if (result.ok)
+			expect(result.value).toHaveLength(reviewerCandidates.items.length);
+	});
+}
+
+for (const mutation of [
+	"outage",
+	"changed",
+	"invalid-avatar",
+	"actor-id",
+	"actor-handle",
+	"actor-avatar",
+	"actor-name",
+	"repeated-cursor",
+] as const) {
+	test(`synthetic reviewer ${mutation} refuses an incomplete suggestion set`, async () => {
+		let detailReads = 0;
+		const h = harness((url) => {
+			if (url.pathname.endsWith("/pulls/1")) {
+				detailReads++;
+				if (mutation === "changed" && detailReads > 1)
+					return Response.json({
+						...currentScratchPull,
+						version: currentScratchPull.version + 1,
+					});
+			}
+			if (url.pathname.endsWith("/reviewer-candidates")) {
+				if (mutation === "outage") return new Response(null, { status: 503 });
+				if (mutation.startsWith("actor-"))
+					return Response.json({
+						...reviewerCandidates,
+						items: reviewerCandidates.items.map((item) => ({
+							...item,
+							actor: {
+								...item.actor,
+								actorId:
+									mutation === "actor-id"
+										? "synthetic-other"
+										: item.actor.actorId,
+								handle:
+									mutation === "actor-handle"
+										? "synthetic-other"
+										: item.actor.handle,
+								avatarUrl:
+									mutation === "actor-avatar"
+										? "/avatars/other"
+										: item.actor.avatarUrl,
+								displayName:
+									mutation === "actor-name"
+										? "Synthetic other"
+										: item.actor.displayName,
+							},
+						})),
+					});
+				if (mutation === "invalid-avatar")
+					return Response.json({
+						...reviewerCandidates,
+						items: reviewerCandidates.items.map((item) => ({
+							...item,
+							avatarUrl: "https://[invalid",
+						})),
+					});
+				if (mutation === "repeated-cursor")
+					return Response.json({
+						...reviewerCandidates,
+						next: "synthetic-repeat",
+					});
+			}
+			return reviewerRoute(url);
+		});
+		expect((await h.reads.getReviewers(REPO, repository.id)).ok).toBe(false);
+	});
+}
+
+test("reviewer suggestions paginate without an aggregate cap and empty open-PR sets stay empty", async () => {
+	const first = reviewerCandidates.items[0];
+	if (!first) throw new Error("Captured reviewer missing");
+	const h = harness((url) => {
+		if (url.pathname.endsWith("/reviewer-candidates"))
+			return Response.json({
+				items: Array.from(
+					{ length: url.searchParams.has("after") ? 1 : 100 },
+					(_, i) => ({
+						...first,
+						id: `synthetic-reviewer-${url.searchParams.has("after") ? 100 : i}`,
+						actor: {
+							...first.actor,
+							actorId: `synthetic-reviewer-${url.searchParams.has("after") ? 100 : i}`,
+						},
+					}),
+				),
+				next: url.searchParams.has("after") ? null : "synthetic-next",
+			});
+		return reviewerRoute(url);
+	});
+	const result = await h.reads.getReviewers(REPO, repository.id);
+	expect(result.ok && result.value.length).toBe(101);
+	const empty = harness((url) =>
+		url.pathname.endsWith("/pulls/")
+			? Response.json({ items: [], next: null })
+			: reviewerRoute(url),
+	);
+	expect(await empty.reads.getReviewers(REPO, repository.id)).toEqual({
+		ok: true,
+		value: [],
+	});
+});
 
 test("captured installed branches and empty label catalog retain their actual values", async () => {
 	const h = harness(catalogRoute);

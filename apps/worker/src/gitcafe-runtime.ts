@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import {
 	type GitCafeReadBoundary,
+	type GitCafeRepoReviewer,
 	type GitCafeRepositoryBinding,
 	gitCafeCheckRerequestedEventSchema,
 	gitCafeDispatchableRepositoryEventSchema,
@@ -59,6 +60,7 @@ export interface GitCafeRuntime extends ForgeRuntime {
 			binding: GitCafeRepositoryBinding;
 			branches: ForgeReadResult<string[]>;
 			labels: ForgeReadResult<RepoLabel[]>;
+			reviewers: ForgeReadResult<GitCafeRepoReviewer[]>;
 		}>
 	>;
 	prepareCheckRerequest(
@@ -475,7 +477,11 @@ export function buildGitCafeRuntime(
 				repo.fullName,
 				repo.externalId,
 			);
-			for (const read of [branches, labels]) {
+			const reviewers = await bound.reads.getReviewers(
+				repo.fullName,
+				repo.externalId,
+			);
+			for (const read of [branches, labels, reviewers]) {
 				if (
 					!read.ok &&
 					["stale", "inactive", "identity-mismatch", "expired"].includes(
@@ -496,7 +502,10 @@ export function buildGitCafeRuntime(
 				))
 			)
 				return { ok: false, reason: "inactive" };
-			return { ok: true, value: { binding: bound.binding, branches, labels } };
+			return {
+				ok: true,
+				value: { binding: bound.binding, branches, labels, reviewers },
+			};
 		},
 		listThreads: async (repo, query) => {
 			const bound = await bind(repo);

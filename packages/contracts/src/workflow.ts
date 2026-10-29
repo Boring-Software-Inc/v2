@@ -127,19 +127,64 @@ export const githubTeamSlugSchema = z
 		error: (issue) => `${String(issue.input)} is not a team slug`,
 	});
 
-export const reviewerRefSchema = z.object({
+export const githubReviewerRefSchema = z.object({
 	id: z.number().int().positive().optional(),
 	login: githubLoginSchema,
 });
+export type GithubReviewerRef = z.infer<typeof githubReviewerRefSchema>;
+export const gitCafeReviewerRefSchema = z.object({
+	id: z.string().min(1).max(1024),
+	login: z.string().min(1).max(100),
+});
+export type GitCafeReviewerRef = z.infer<typeof gitCafeReviewerRefSchema>;
+export const reviewerRefSchema = z.union([
+	githubReviewerRefSchema,
+	gitCafeReviewerRefSchema,
+]);
 export type ReviewerRef = z.infer<typeof reviewerRefSchema>;
 
-export const repoReviewerSchema = z.object({
-	id: z.number().int().positive(),
-	login: githubLoginSchema,
+const REVIEWER_DETAILS = {
 	avatarUrl: z.string(),
 	permission: z.string().min(1),
+};
+export const githubRepoReviewerSchema = githubReviewerRefSchema.extend({
+	...REVIEWER_DETAILS,
+	id: githubReviewerRefSchema.shape.id.unwrap(),
 });
+export type GithubRepoReviewer = z.infer<typeof githubRepoReviewerSchema>;
+export const gitCafeRepoReviewerSchema =
+	gitCafeReviewerRefSchema.extend(REVIEWER_DETAILS);
+export type GitCafeRepoReviewer = z.infer<typeof gitCafeRepoReviewerSchema>;
+export const repoReviewerSchema = z.union([
+	githubRepoReviewerSchema,
+	gitCafeRepoReviewerSchema,
+]);
 export type RepoReviewer = z.infer<typeof repoReviewerSchema>;
+
+export const repoReviewersInputSchema = z.strictObject({
+	org: z.string().min(1),
+	repoId: z.string().min(1),
+});
+export type RepoReviewersInput = z.infer<typeof repoReviewersInputSchema>;
+export const repoReviewersViewSchema = z.strictObject({
+	reviewers: z.array(repoReviewerSchema),
+	syncedAt: z.iso.datetime().nullable(),
+	syncing: z.boolean(),
+});
+export type RepoReviewersView = z.infer<typeof repoReviewersViewSchema>;
+
+export const repoReviewersRefreshSchema = z.strictObject({
+	queued: z.boolean(),
+});
+export type RepoReviewersRefresh = z.infer<typeof repoReviewersRefreshSchema>;
+
+export const repoSuggestionStringsSchema = z.array(z.string());
+export type RepoSuggestionStrings = z.infer<typeof repoSuggestionStringsSchema>;
+export const repoSuggestionValuesSchema = z.union([
+	repoSuggestionStringsSchema,
+	z.array(gitCafeRepoReviewerSchema),
+]);
+export type RepoSuggestionValues = z.infer<typeof repoSuggestionValuesSchema>;
 
 export const repoLabelSchema = z.object({
 	name: z.string().min(1),

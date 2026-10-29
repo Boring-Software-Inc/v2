@@ -12,15 +12,17 @@ import {
 	organizationInstallations,
 	repoServices,
 	repos,
+	reviewerServices,
 	type TestDatabase,
 } from "@tripwire/db";
 import installation from "@tripwire/forge-gitcafe/fixtures/gitcafe-action-installation-current.json";
+import reviewerCandidates from "@tripwire/forge-gitcafe/fixtures/gitcafe-action-reviewer-candidates.json";
 import token from "@tripwire/forge-gitcafe/fixtures/gitcafe-action-token-current.json";
 import repository from "@tripwire/forge-gitcafe/fixtures/gitcafe-connection-repository.json";
 import issues from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-issues-list.json";
 import pullThreads from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-pulls-list.json";
 import refs from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-refs.json";
-import pull from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-scratch-pull.json";
+import pull from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-scratch-pull-current.json";
 import { generateId } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import pino from "pino";
@@ -30,7 +32,7 @@ import { refreshGitCafeCatalogs } from "./jobs/refresh-suggestions.ts";
 let container: TestDatabase;
 let database: ReturnType<typeof createDb>;
 let repoId: string;
-let failure: "refs" | "labels" | null;
+let failure: "refs" | "labels" | "reviewer-candidates" | null;
 let reads: string[];
 let onRead: ((path: string) => Promise<void>) | null;
 let repositoryResponse = { ...repository };
@@ -102,6 +104,18 @@ beforeEach(async () => {
 	await labelServices.replaceRepoLabels(database.db, repoId, [
 		{ name: "previous", color: "123456", description: null },
 	]);
+	await reviewerServices.replaceGitCafeReviewerSuggestions(
+		database.db,
+		repoId,
+		[
+			{
+				id: "act_previous-synthetic",
+				login: "previous",
+				avatarUrl: "",
+				permission: "review-candidate",
+			},
+		],
+	);
 });
 afterAll(async () => {
 	await database?.pool.end();
@@ -128,6 +142,8 @@ function runtime() {
 		if (path === "/api/repos/boring/scratch")
 			return Response.json(repositoryResponse);
 		if (path.endsWith("/refs")) return Response.json(refs);
+		if (path.endsWith("/reviewer-candidates"))
+			return Response.json(reviewerCandidates);
 		if (path.endsWith("/labels"))
 			return Response.json({ items: [], next: null });
 		if (path.endsWith("/pulls/")) return Response.json(pullThreads);
@@ -151,12 +167,17 @@ test("claimed unarmed repositories can refresh complete catalogs without enablin
 	expect(
 		(await labelServices.listRepoLabels(database.db, repoId)).labels,
 	).toEqual([]);
+	expect(
+		(
+			await reviewerServices.listRepoReviewers(database.db, repoId)
+		).reviewers.map((person) => person.id),
+	).toEqual(reviewerCandidates.items.map((person) => person.id));
 	expect((await repoServices.getRepoById(database.db, repoId))?.armed).toBe(
 		false,
 	);
 });
 
-for (const source of ["refs", "labels"] as const)
+for (const source of ["refs", "labels", "reviewer-candidates"] as const)
 	test(`${source} failure preserves that cache while healthy sources refresh and retry recovers`, async () => {
 		failure = source;
 		const requestId = generateId();
@@ -178,6 +199,15 @@ for (const source of ["refs", "labels"] as const)
 				(label) => label.name,
 			),
 		).toEqual(source === "labels" ? ["previous"] : []);
+		expect(
+			(
+				await reviewerServices.listRepoReviewers(database.db, repoId)
+			).reviewers.map((person) => person.id),
+		).toEqual(
+			source === "reviewer-candidates"
+				? ["act_previous-synthetic"]
+				: reviewerCandidates.items.map((person) => person.id),
+		);
 		expect(messages.join("")).toContain(requestId);
 		expect(messages.join("")).not.toContain("private-provider-body");
 		failure = null;

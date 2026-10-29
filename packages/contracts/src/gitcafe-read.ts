@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { gitCafeActionReviewerSchema } from "./gitcafe-action.ts";
 import { gitCafePullIdentitySchema } from "./gitcafe-events.ts";
 import { gitCafeInstallationFailureReasonSchema } from "./gitcafe-installation.ts";
-import { repoLabelSchema } from "./workflow.ts";
+import { gitCafeRepoReviewerSchema, repoLabelSchema } from "./workflow.ts";
 
 export type GitCafeReadBoundary<T> = z.ZodType<T>;
 
@@ -33,6 +34,7 @@ export type GitCafeRepositoryBinding = z.infer<
 export const gitCafeCatalogValuesSchema = z.strictObject({
 	branches: z.array(z.string().min(1)).optional(),
 	labels: z.array(repoLabelSchema).optional(),
+	reviewers: z.array(gitCafeRepoReviewerSchema).optional(),
 });
 export type GitCafeCatalogValues = z.infer<typeof gitCafeCatalogValuesSchema>;
 
@@ -200,6 +202,43 @@ export const gitCafeReadLabelPageSchema = z.object({
 	next: CURSOR,
 });
 export type GitCafeReadLabelPage = z.infer<typeof gitCafeReadLabelPageSchema>;
+
+export const gitCafeReadReviewerPageSchema = z.object({
+	items: z
+		.array(
+			gitCafeActionReviewerSchema
+				.extend({
+					actor: gitCafePullIdentitySchema.shape.author.extend({
+						displayName: z.string().nullable(),
+					}),
+					displayName: z.string().nullable(),
+					avatarUrl: z
+						.string()
+						.refine((value) => {
+							try {
+								return new URL(value, "https://git.cafe").protocol === "https:";
+							} catch {
+								return false;
+							}
+						})
+						.nullable()
+						.optional(),
+				})
+				.refine(
+					(candidate) =>
+						candidate.actor.actorId === candidate.id &&
+						candidate.actor.handle === candidate.handle &&
+						candidate.actor.displayName === candidate.displayName &&
+						candidate.actor.avatarUrl === candidate.avatarUrl,
+					{ message: "Reviewer identity and display evidence disagree" },
+				),
+		)
+		.max(100),
+	next: CURSOR,
+});
+export type GitCafeReadReviewerPage = z.infer<
+	typeof gitCafeReadReviewerPageSchema
+>;
 
 export const gitCafeReadPullThreadItemSchema = z.object({
 	id: z.string().min(1),

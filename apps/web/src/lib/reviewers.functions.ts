@@ -1,5 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { RepoReviewer } from "@tripwire/contracts";
+import {
+	type RepoReviewersRefresh,
+	type RepoReviewersView,
+	repoReviewersInputSchema,
+	repoReviewersRefreshSchema,
+	repoReviewersViewSchema,
+} from "@tripwire/contracts";
 import type { OrgWithRole } from "@tripwire/db";
 import { accessGuardMiddleware } from "#/lib/server/gated-server-fn";
 import {
@@ -7,20 +13,16 @@ import {
 	requireOrgRepoById,
 } from "#/lib/server/org-guard";
 
-export interface RepoReviewersView {
-	reviewers: RepoReviewer[];
-	syncedAt: string | null;
-	syncing: boolean;
-}
-
 async function queueReviewerSync(repoId: string): Promise<boolean> {
-	const { getBoss, isDemoMode } = await import("#/lib/server/db");
+	const { getBoss, getDb, isDemoMode, queueGitCafeCatalogRefresh } =
+		await import("#/lib/server/db");
 	if (isDemoMode()) {
 		return false;
 	}
-	const { SYNC_REPO_REVIEWERS_QUEUE, syncRepoReviewersOptions } = await import(
-		"@tripwire/db"
-	);
+	const { repoServices, SYNC_REPO_REVIEWERS_QUEUE, syncRepoReviewersOptions } =
+		await import("@tripwire/db");
+	const repo = await repoServices.getRepoById(getDb().db, repoId);
+	if (repo?.forge === "gitcafe") return queueGitCafeCatalogRefresh(repoId);
 	const boss = await getBoss();
 	await boss.send(
 		SYNC_REPO_REVIEWERS_QUEUE,
@@ -35,7 +37,7 @@ export const listRepoReviewers = createServerFn({ method: "GET" })
 		accessGuardMiddleware,
 		orgPermissionMiddleware("workflows:read"),
 	])
-	.inputValidator((input: { org: string; repoId: string }) => input)
+	.inputValidator(repoReviewersInputSchema)
 	.handler(async ({ data, context }): Promise<RepoReviewersView> => {
 		await requireOrgRepoById(
 			(context as { org: OrgWithRole }).org.id,
@@ -53,11 +55,11 @@ export const listRepoReviewers = createServerFn({ method: "GET" })
 		)
 			? await queueReviewerSync(data.repoId)
 			: false;
-		return {
+		return repoReviewersViewSchema.parse({
 			reviewers: list.reviewers,
 			syncedAt: list.syncedAt?.toISOString() ?? null,
 			syncing,
-		};
+		});
 	});
 
 export const refreshRepoReviewers = createServerFn({ method: "POST" })
@@ -65,11 +67,13 @@ export const refreshRepoReviewers = createServerFn({ method: "POST" })
 		accessGuardMiddleware,
 		orgPermissionMiddleware("workflows:manage"),
 	])
-	.inputValidator((input: { org: string; repoId: string }) => input)
-	.handler(async ({ data, context }): Promise<{ queued: boolean }> => {
+	.inputValidator(repoReviewersInputSchema)
+	.handler(async ({ data, context }): Promise<RepoReviewersRefresh> => {
 		await requireOrgRepoById(
 			(context as { org: OrgWithRole }).org.id,
 			data.repoId,
 		);
-		return { queued: await queueReviewerSync(data.repoId) };
+		return repoReviewersRefreshSchema.parse({
+			queued: await queueReviewerSync(data.repoId),
+		});
 	});

@@ -1,4 +1,4 @@
-import type { Forge } from "@tripwire/contracts";
+import type { Forge, RepoSuggestionValues } from "@tripwire/contracts";
 import {
 	bigint,
 	boolean,
@@ -129,7 +129,7 @@ export const repoSuggestions = pgTable(
 			.notNull()
 			.references(() => repos.id),
 		kind: text("kind").notNull(),
-		values: jsonb("values").$type<string[]>().notNull(),
+		values: jsonb("values").$type<RepoSuggestionValues>().notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

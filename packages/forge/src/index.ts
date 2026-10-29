@@ -127,6 +127,8 @@ export type ForgeAction =
 			repoFullName: string;
 			number: number;
 			reviewers: string[];
+			/** Exact forge actor IDs must never fall back to mutable handle lookup. */
+			reviewerIds?: string[];
 			teamReviewers: string[];
 	  }
 	| {

@@ -34,6 +34,33 @@ function withReviewParams(
 	};
 }
 
+test("GitCafe reviewer references preserve immutable string IDs and provider handles", () => {
+	const reviewer = {
+		id: "act_stable-reviewer",
+		login: "person_with_a_provider_handle",
+	};
+	const parsed = requestReviewParamsSchema.parse({ reviewers: [reviewer] });
+	expect(reviewerJson(parsed.reviewers)).toEqual([reviewer]);
+	expect(sameReviewer(reviewer, { ...reviewer, login: "renamed" })).toBe(true);
+	expect(sameReviewer(reviewer, { ...reviewer, id: "act_other" })).toBe(false);
+	expect(
+		requestReviewParamsSchema.safeParse({
+			reviewers: [{ id: 123, login: reviewer.login }],
+		}).success,
+	).toBe(false);
+});
+
+test("empty PR-specific suggestions do not revoke a saved GitCafe reviewer", () => {
+	const def = withReviewParams({
+		reviewers: [{ id: "act_stable", login: "saved_person" }],
+	});
+	expect(
+		lintWorkflow(def, { reviewers: [] }).filter(
+			(finding) => finding.rule === "stale-reviewer",
+		),
+	).toEqual([]);
+});
+
 function messagesOf(result: ReturnType<typeof validateWorkflow>): string[] {
 	return result.valid ? [] : result.issues.map((issue) => issue.message);
 }

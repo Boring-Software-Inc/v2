@@ -3,6 +3,25 @@ import { pendingCheckIsStale, supersededBy } from "@tripwire/utils";
 import { commentRows, toForgeAction } from "./pr-surface.ts";
 
 describe("toForgeAction — request-review", () => {
+	test("GitCafe string identities reach the forge without mutable-handle substitution", () => {
+		expect(
+			toForgeAction(
+				{
+					kind: "request-review",
+					payload: {
+						reviewers: [{ id: "act_stable-reviewer", login: "renamed_handle" }],
+					},
+				},
+				"boring/scratch",
+				1,
+				"stamp",
+			),
+		).toMatchObject({
+			reviewers: [],
+			reviewerIds: ["act_stable-reviewer"],
+			teamReviewers: [],
+		});
+	});
 	test("carries the recorded people and teams onto the forge action", () => {
 		expect(
 			toForgeAction(

@@ -78,6 +78,10 @@ export async function executeAction(
 			return { externalId: action.reviewId };
 		}
 		case "request-review": {
+			if (action.reviewerIds?.length)
+				throw new Error(
+					"GitHub review requests require GitHub usernames, not foreign actor IDs.",
+				);
 			if (action.reviewers.length === 0 && action.teamReviewers.length === 0) {
 				throw new Error("request-review has no people or teams to ask.");
 			}

@@ -357,6 +357,78 @@ for (const remove of [false, true]) {
 	});
 }
 
+test("an exact reviewer ID cannot fall back to another actor's matching handle", async () => {
+	const original = candidatesFixture.items[0];
+	if (!original) throw new Error("Missing captured candidate");
+	let writes = 0;
+	const h = await harness(async (url, init) => {
+		if (url === root) return Response.json(pullFixture);
+		if (init.method === "PUT") writes++;
+		return Response.json({
+			items: url.includes("reviewer-candidates")
+				? [
+						{
+							...original,
+							id: "act_synthetic_replacement",
+							handle: original.id,
+						},
+					]
+				: [],
+			next: null,
+		});
+	});
+	expect(
+		await h.actions.execute(
+			{
+				kind: "request-review",
+				repoFullName: "boring/scratch",
+				number: 1,
+				reviewers: [],
+				reviewerIds: [original.id],
+				teamReviewers: [],
+			},
+			h.binding,
+		),
+	).toEqual({ ok: false, reason: "target-unavailable" });
+	expect(writes).toBe(0);
+});
+
+test("exact reviewer IDs survive renames and preserve unrelated human requests", async () => {
+	const original = candidatesFixture.items[0];
+	if (!original) throw new Error("Missing captured candidate");
+	const renamed = { ...original, handle: "synthetic_new_handle" };
+	const unrelated = { id: "act_synthetic_existing", handle: "existing" };
+	let current = [unrelated];
+	const h = await harness(async (url, init) => {
+		if (url === root) return Response.json(pullFixture);
+		if (init.method === "PUT") {
+			const input = gitCafeActionReviewerInputSchema.parse(
+				JSON.parse(String(init.body)),
+			);
+			expect(input.actorIds).toEqual([unrelated.id, original.id]);
+			current = [unrelated, renamed];
+			return Response.json({ version: 1, items: current });
+		}
+		return Response.json({
+			items: url.includes("reviewer-candidates") ? [renamed] : current,
+			next: null,
+		});
+	});
+	expect(
+		await h.actions.execute(
+			{
+				kind: "request-review",
+				repoFullName: "boring/scratch",
+				number: 1,
+				reviewers: [],
+				reviewerIds: [original.id],
+				teamReviewers: [],
+			},
+			h.binding,
+		),
+	).toEqual({ ok: true, value: { externalId: null } });
+});
+
 test("reviewer union retains human requests and resolves stable candidate IDs", async () => {
 	const candidates =
 		gitCafeActionReviewerPageSchema.parse(candidatesFixture).items;

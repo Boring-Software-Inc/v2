@@ -44,6 +44,7 @@ import { repos } from "../schema/repos.ts";
 import type { DbLike } from "./access.ts";
 import { replaceRepoLabels } from "./labels.ts";
 import { upsertRepoSuggestions } from "./repos.ts";
+import { replaceGitCafeReviewerSuggestions } from "./reviewers.ts";
 
 /** Scheduled events originate locally; admission and their dedicated job commit under current claimed authority. */
 export async function insertGitCafeScheduledEvent(
@@ -218,6 +219,12 @@ export async function commitGitCafeCatalogs(
 			);
 		if (values.labels !== undefined)
 			await replaceRepoLabels(tx, binding.repoId, values.labels);
+		if (values.reviewers !== undefined)
+			await replaceGitCafeReviewerSuggestions(
+				tx,
+				binding.repoId,
+				values.reviewers,
+			);
 		return true;
 	});
 }

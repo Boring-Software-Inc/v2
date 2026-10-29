@@ -8,6 +8,7 @@ import {
 	GITCAFE_VERDICT_ACTION_KINDS,
 	type GitCafeEvaluationPhase,
 	gitCafeActionPayloadSchema,
+	gitCafeReviewerRefSchema,
 	isAiReviewNotRunStep,
 	labelParamsSchema,
 	lockParamsSchema,
@@ -33,7 +34,7 @@ import {
 	responseServices,
 	runServices,
 } from "@tripwire/db";
-import type { ForgeAdapter } from "@tripwire/forge";
+import type { ForgeAction, ForgeAdapter } from "@tripwire/forge";
 import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
 import {
 	getErrorMessage,
@@ -956,15 +957,24 @@ export function toForgeAction(
 		}
 		case "request-review": {
 			const targets = requestReviewTargetsSchema.safeParse(row.payload);
-			return {
-				kind: "request-review" as const,
+			const reviewers: string[] = [];
+			const reviewerIds: string[] = [];
+			if (targets.success) {
+				for (const reviewer of targets.data.reviewers) {
+					const gitCafe = gitCafeReviewerRefSchema.safeParse(reviewer);
+					if (gitCafe.success) reviewerIds.push(gitCafe.data.id);
+					else reviewers.push(reviewer.login);
+				}
+			}
+			const action: Extract<ForgeAction, { kind: "request-review" }> = {
+				kind: "request-review",
 				repoFullName,
 				number,
-				reviewers: targets.success
-					? targets.data.reviewers.map((reviewer) => reviewer.login)
-					: [],
+				reviewers,
 				teamReviewers: targets.success ? targets.data.teamReviewers : [],
 			};
+			if (reviewerIds.length) action.reviewerIds = reviewerIds;
+			return action;
 		}
 		default: {
 			const reason = (row.payload.reason as string | undefined) ?? reviewText;

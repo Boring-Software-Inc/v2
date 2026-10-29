@@ -33,35 +33,31 @@ export async function refreshGitCafeCatalogs(
 		);
 		return { ok: false };
 	}
-	const { binding, branches, labels } = result.value;
-	if (!branches.ok)
-		deps.logger.warn(
-			{
-				requestId: job.requestId,
-				repoId: repo.id,
-				source: "branches",
-				reason: branches.reason,
-				status: branches.status,
-			},
-			"GitCafe catalog unavailable; kept previous values",
-		);
-	if (!labels.ok)
-		deps.logger.warn(
-			{
-				requestId: job.requestId,
-				repoId: repo.id,
-				source: "labels",
-				reason: labels.reason,
-				status: labels.status,
-			},
-			"GitCafe catalog unavailable; kept previous values",
-		);
+	const { binding, branches, labels, reviewers } = result.value;
+	for (const [source, read] of [
+		["branches", branches],
+		["labels", labels],
+		["reviewers", reviewers],
+	] as const) {
+		if (!read.ok)
+			deps.logger.warn(
+				{
+					requestId: job.requestId,
+					repoId: repo.id,
+					source,
+					reason: read.reason,
+					status: read.status,
+				},
+				"GitCafe catalog unavailable; kept previous values",
+			);
+	}
 	const committed = await gitCafeLifecycleServices.commitGitCafeCatalogs(
 		deps.db,
 		binding,
 		{
 			branches: branches.ok ? branches.value : undefined,
 			labels: labels.ok ? labels.value : undefined,
+			reviewers: reviewers.ok ? reviewers.value : undefined,
 		},
 	);
 	if (!committed)
@@ -69,7 +65,7 @@ export async function refreshGitCafeCatalogs(
 			{ requestId: job.requestId, repoId: repo.id, reason: "stale" },
 			"GitCafe catalog authority changed; kept previous values",
 		);
-	return { ok: committed && branches.ok && labels.ok };
+	return { ok: committed && branches.ok && labels.ok && reviewers.ok };
 }
 
 /**

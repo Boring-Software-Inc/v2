@@ -9,6 +9,7 @@ import {
 	type GitCafeReadDiagnostic,
 	type GitCafeReadDiffFile,
 	type GitCafeReadPull,
+	type GitCafeRepoReviewer,
 	gitCafeActionLabelPageSchema,
 	gitCafeCheckReportInputSchema,
 	gitCafeOrganizationMembersSchema,
@@ -28,6 +29,8 @@ import {
 	gitCafeReadPullThreadPageSchema,
 	gitCafeReadPullThreadSchema,
 	gitCafeReadRefPageSchema,
+	gitCafeReadReviewerPageSchema,
+	gitCafeRepoReviewerSchema,
 	type RepoLabel,
 } from "@tripwire/contracts";
 import type {
@@ -277,6 +280,82 @@ export class GitCafeReads {
 			return page.ok
 				? { ok: true, value: page.value.map((item) => item.name).sort() }
 				: page;
+		});
+	}
+
+	/** Suggestions come from current open PRs; dispatch still checks each target's own candidate list. */
+	getReviewers(
+		repo: string,
+		expectedRepositoryId: string,
+	): Promise<GitCafeReadResult<GitCafeRepoReviewer[]>> {
+		return this.browse(repo, expectedRepositoryId, async (context) => {
+			const pulls = await this.resourcePages(
+				context,
+				"pulls/",
+				gitCafeReadPullThreadPageSchema,
+				(item) => item.id,
+				{ sort: "oldest" },
+			);
+			if (!pulls.ok) return pulls;
+			const reviewers = new Map<
+				string,
+				{ reviewer: GitCafeRepoReviewer; evidence: string }
+			>();
+			for (const pull of pulls.value) {
+				if (pull.state !== "open") continue;
+				const path = `pulls/${pull.number}`;
+				const before = await this.resource(
+					context,
+					path,
+					gitCafeReadPullThreadSchema,
+				);
+				if (!before.ok) return before;
+				if (
+					before.value.id !== pull.id ||
+					before.value.number !== pull.number ||
+					before.value.repoId !== context.repository.id ||
+					before.value.version !== pull.version ||
+					before.value.state !== "open"
+				)
+					return { ok: false, reason: "changed" };
+				const candidates = await this.resourcePages(
+					context,
+					`${path}/reviewer-candidates`,
+					gitCafeReadReviewerPageSchema,
+					(item) => item.id,
+				);
+				if (!candidates.ok) return candidates;
+				for (const item of candidates.value) {
+					const parsed = gitCafeRepoReviewerSchema.safeParse({
+						id: item.id,
+						login: item.handle ?? item.id,
+						avatarUrl: item.avatarUrl
+							? new URL(item.avatarUrl, "https://git.cafe").href
+							: "",
+						permission: "review-candidate",
+					});
+					if (!parsed.success) return { ok: false, reason: "invalid-response" };
+					const existing = reviewers.get(item.id);
+					const evidence = JSON.stringify(item);
+					if (existing && existing.evidence !== evidence)
+						return { ok: false, reason: "changed" };
+					reviewers.set(item.id, { reviewer: parsed.data, evidence });
+				}
+				const after = await this.resource(
+					context,
+					path,
+					gitCafeReadPullThreadSchema,
+				);
+				if (!after.ok) return after;
+				if (JSON.stringify(before.value) !== JSON.stringify(after.value))
+					return { ok: false, reason: "changed" };
+			}
+			return {
+				ok: true,
+				value: [...reviewers.values()]
+					.map((entry) => entry.reviewer)
+					.sort((a, b) => a.login.localeCompare(b.login)),
+			};
 		});
 	}
 
