@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { gitCafePullIdentitySchema } from "./gitcafe-events.ts";
 import { gitCafeInstallationFailureReasonSchema } from "./gitcafe-installation.ts";
+import { repoLabelSchema } from "./workflow.ts";
 
 export type GitCafeReadBoundary<T> = z.ZodType<T>;
 
@@ -16,6 +17,24 @@ export const gitCafeReadDiagnosticSchema = z.strictObject({
 	status: z.number().int().min(100).max(599).optional(),
 });
 export type GitCafeReadDiagnostic = z.infer<typeof gitCafeReadDiagnosticSchema>;
+
+export const gitCafeRepositoryBindingSchema = z.strictObject({
+	repoId: z.uuid(),
+	organizationId: z.string().min(1),
+	installationId: z.string().min(1),
+	repositoryId: z.string().min(1),
+	fullName: z.string().min(1),
+	generation: z.number().int().nonnegative().safe(),
+});
+export type GitCafeRepositoryBinding = z.infer<
+	typeof gitCafeRepositoryBindingSchema
+>;
+
+export const gitCafeCatalogValuesSchema = z.strictObject({
+	branches: z.array(z.string().min(1)).optional(),
+	labels: z.array(repoLabelSchema).optional(),
+});
+export type GitCafeCatalogValues = z.infer<typeof gitCafeCatalogValuesSchema>;
 
 const OID = z.string().regex(/^[0-9a-f]{40}$/);
 const COUNT = z.number().int().nonnegative().safe();

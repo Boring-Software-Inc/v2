@@ -1,7 +1,7 @@
 import type { GitCafeRefreshCatalogsJob } from "@tripwire/contracts";
 import {
 	type Db,
-	labelServices,
+	gitCafeLifecycleServices,
 	repoServices,
 	type SyncRepoBranchesJob,
 } from "@tripwire/db";
@@ -13,23 +13,28 @@ import type { GitCafeRuntime } from "../gitcafe-runtime.ts";
 export async function refreshGitCafeCatalogs(
 	deps: {
 		db: Db;
-		runtime: Pick<GitCafeRuntime, "getBranches" | "getLabels">;
+		runtime: Pick<GitCafeRuntime, "getCatalogs">;
 		logger: Logger;
 	},
 	job: GitCafeRefreshCatalogsJob,
 ): Promise<{ ok: boolean }> {
 	const repo = await repoServices.getRepoById(deps.db, job.repoId);
 	if (!repo || repo.removedAt || repo.forge !== "gitcafe") return { ok: true };
-	const branches = await deps.runtime.getBranches(repo.fullName);
-	const labels = await deps.runtime.getLabels(repo.fullName);
-	if (branches.ok)
-		await repoServices.upsertRepoSuggestions(
-			deps.db,
-			repo.id,
-			"branches",
-			branches.value,
+	const result = await deps.runtime.getCatalogs(repo.id);
+	if (!result.ok) {
+		deps.logger.warn(
+			{
+				requestId: job.requestId,
+				repoId: repo.id,
+				reason: result.reason,
+				status: result.status,
+			},
+			"GitCafe catalog binding unavailable; kept previous values",
 		);
-	else
+		return { ok: false };
+	}
+	const { binding, branches, labels } = result.value;
+	if (!branches.ok)
 		deps.logger.warn(
 			{
 				requestId: job.requestId,
@@ -40,9 +45,7 @@ export async function refreshGitCafeCatalogs(
 			},
 			"GitCafe catalog unavailable; kept previous values",
 		);
-	if (labels.ok)
-		await labelServices.replaceRepoLabels(deps.db, repo.id, labels.value);
-	else
+	if (!labels.ok)
 		deps.logger.warn(
 			{
 				requestId: job.requestId,
@@ -53,7 +56,20 @@ export async function refreshGitCafeCatalogs(
 			},
 			"GitCafe catalog unavailable; kept previous values",
 		);
-	return { ok: branches.ok && labels.ok };
+	const committed = await gitCafeLifecycleServices.commitGitCafeCatalogs(
+		deps.db,
+		binding,
+		{
+			branches: branches.ok ? branches.value : undefined,
+			labels: labels.ok ? labels.value : undefined,
+		},
+	);
+	if (!committed)
+		deps.logger.warn(
+			{ requestId: job.requestId, repoId: repo.id, reason: "stale" },
+			"GitCafe catalog authority changed; kept previous values",
+		);
+	return { ok: committed && branches.ok && labels.ok };
 }
 
 /**

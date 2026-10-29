@@ -4,10 +4,13 @@ import {
 	GITCAFE_LIFECYCLE_QUEUE,
 	GITCAFE_PROCESS_EVENT_QUEUE,
 	GITCAFE_RECEIPT_MAX_BYTES,
+	type GitCafeCatalogValues,
 	type GitCafeLifecycleLookup,
 	type GitCafeReceipt,
 	type GitCafeReceiptStatus,
+	type GitCafeRepositoryBinding,
 	type GitCafeRetirement,
+	gitCafeCatalogValuesSchema,
 	gitCafeDispatchableRepositoryEventTypeSchema,
 	gitCafeInstallationCreatedSchema,
 	gitCafeLifecycleEventSchema,
@@ -17,6 +20,7 @@ import {
 	gitCafeReceiptJobSchema,
 	gitCafeReceiptSchema,
 	gitCafeRepositoriesUpdatedSchema,
+	gitCafeRepositoryBindingSchema,
 	gitCafeRetirementSchema,
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
@@ -32,6 +36,89 @@ import {
 import { organizationInstallations } from "../schema/organizations.ts";
 import { repos } from "../schema/repos.ts";
 import type { DbLike } from "./access.ts";
+import { replaceRepoLabels } from "./labels.ts";
+import { upsertRepoSuggestions } from "./repos.ts";
+
+/** A lifecycle generation alone cannot authorize a repository whose ownership claim has disappeared. */
+export async function matchesGitCafeRepositoryBinding(
+	db: DbLike,
+	input: GitCafeRepositoryBinding,
+): Promise<boolean> {
+	const binding = gitCafeRepositoryBindingSchema.parse(input);
+	const [row] = await db
+		.select({ id: repos.id })
+		.from(repos)
+		.innerJoin(
+			organizationInstallations,
+			and(
+				eq(organizationInstallations.forge, repos.forge),
+				eq(organizationInstallations.installationId, repos.installationId),
+				eq(organizationInstallations.organizationId, repos.orgId),
+			),
+		)
+		.where(
+			and(
+				eq(repos.id, binding.repoId),
+				eq(repos.forge, "gitcafe"),
+				eq(repos.externalId, binding.repositoryId),
+				eq(repos.fullName, binding.fullName),
+				eq(repos.orgId, binding.organizationId),
+				eq(repos.installationId, binding.installationId),
+				sql`${repos.removedAt} IS NULL`,
+			),
+		);
+	return (
+		row !== undefined &&
+		(
+			await getGitCafeActionAuthority(
+				db,
+				binding.installationId,
+				binding.generation,
+			)
+		).allowed
+	);
+}
+
+/** Reconciliation and cache commits share a lock, so withdrawn or rebound authority cannot publish old reads. */
+export async function commitGitCafeCatalogs(
+	db: Db,
+	binding: GitCafeRepositoryBinding,
+	input: GitCafeCatalogValues,
+): Promise<boolean> {
+	gitCafeRepositoryBindingSchema.parse(binding);
+	const values = gitCafeCatalogValuesSchema.parse(input);
+	return db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
+		);
+		await tx
+			.select({ id: repos.id })
+			.from(repos)
+			.where(eq(repos.id, binding.repoId))
+			.for("update");
+		await tx
+			.select({ id: organizationInstallations.id })
+			.from(organizationInstallations)
+			.where(
+				and(
+					eq(organizationInstallations.forge, "gitcafe"),
+					eq(organizationInstallations.installationId, binding.installationId),
+				),
+			)
+			.for("update");
+		if (!(await matchesGitCafeRepositoryBinding(tx, binding))) return false;
+		if (values.branches !== undefined)
+			await upsertRepoSuggestions(
+				tx,
+				binding.repoId,
+				"branches",
+				values.branches,
+			);
+		if (values.labels !== undefined)
+			await replaceRepoLabels(tx, binding.repoId, values.labels);
+		return true;
+	});
+}
 
 /** No general queues, schema migration, scheduler, or backlog maintenance in this process. */
 export async function createGitCafeLifecycleBoss(

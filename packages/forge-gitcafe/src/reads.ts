@@ -61,6 +61,7 @@ export interface GitCafeDiffFile
 export interface GitCafeReadsOptions {
 	client: GitCafeInstallationClient;
 	installationId: string;
+	expectedInstallation?: GitCafeInstallation;
 }
 
 type Snapshot = Pick<
@@ -265,10 +266,12 @@ export class GitCafeReads {
 			const name = repo.split("/")[1];
 			if (!owner || !name) return { ok: false, reason: "invalid-response" };
 			const deadlineAt = Date.now() + 300_000;
-			const installation = await this.options.client.getInstallation(
-				this.options.installationId,
-				deadlineAt,
-			);
+			const installation = this.options.expectedInstallation
+				? { ok: true as const, value: this.options.expectedInstallation }
+				: await this.options.client.getInstallation(
+						this.options.installationId,
+						deadlineAt,
+					);
 			if (!installation.ok) return installation;
 			const repository = await this.options.client.getRepository(
 				this.options.installationId,

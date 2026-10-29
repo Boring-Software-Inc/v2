@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, expect, spyOn, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
 import {
 	applyMigrations,
 	createDb,
 	createTestDatabase,
 	gitCafeInstallationLifecycle,
+	gitCafeLifecycleServices,
 	labelServices,
 	organization,
 	organizationInstallations,
@@ -12,16 +13,16 @@ import {
 	repos,
 	type TestDatabase,
 } from "@tripwire/db";
+import installation from "@tripwire/forge-gitcafe/fixtures/gitcafe-action-installation-current.json";
+import token from "@tripwire/forge-gitcafe/fixtures/gitcafe-action-token-current.json";
+import repository from "@tripwire/forge-gitcafe/fixtures/gitcafe-connection-repository.json";
+import issues from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-issues-list.json";
+import pullThreads from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-pulls-list.json";
+import refs from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-refs.json";
+import pull from "@tripwire/forge-gitcafe/fixtures/gitcafe-read-scratch-pull.json";
 import { generateId } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import pino from "pino";
-import installation from "../../../packages/forge-gitcafe/fixtures/gitcafe-action-installation-current.json";
-import token from "../../../packages/forge-gitcafe/fixtures/gitcafe-action-token-current.json";
-import repository from "../../../packages/forge-gitcafe/fixtures/gitcafe-connection-repository.json";
-import issues from "../../../packages/forge-gitcafe/fixtures/gitcafe-read-issues-list.json";
-import pullThreads from "../../../packages/forge-gitcafe/fixtures/gitcafe-read-pulls-list.json";
-import refs from "../../../packages/forge-gitcafe/fixtures/gitcafe-read-refs.json";
-import pull from "../../../packages/forge-gitcafe/fixtures/gitcafe-read-scratch-pull.json";
 import { buildGitCafeRuntime } from "./gitcafe-runtime.ts";
 import { refreshGitCafeCatalogs } from "./jobs/refresh-suggestions.ts";
 
@@ -30,6 +31,8 @@ let database: ReturnType<typeof createDb>;
 let repoId: string;
 let failure: "refs" | "labels" | null;
 let reads: string[];
+let onRead: ((path: string) => Promise<void>) | null;
+let repositoryResponse = { ...repository };
 const messages: string[] = [];
 const logger = pino(
 	{ level: "warn" },
@@ -60,6 +63,8 @@ beforeEach(async () => {
 	repoId = generateId();
 	failure = null;
 	reads = [];
+	onRead = null;
+	repositoryResponse = { ...repository };
 	messages.length = 0;
 	await database.db
 		.insert(organization)
@@ -104,6 +109,7 @@ function runtime() {
 	return buildGitCafeRuntime(database.db, credentials, async (url, init) => {
 		const path = new URL(url).pathname;
 		reads.push(path);
+		await onRead?.(path);
 		if (path.includes("/apps/installations/"))
 			return Response.json(
 				init.method === "GET"
@@ -116,7 +122,8 @@ function runtime() {
 			);
 		if (failure && path.endsWith(`/${failure}`))
 			return new Response("private-provider-body", { status: 503 });
-		if (path === "/api/repos/boring/scratch") return Response.json(repository);
+		if (path === "/api/repos/boring/scratch")
+			return Response.json(repositoryResponse);
 		if (path.endsWith("/refs")) return Response.json(refs);
 		if (path.endsWith("/labels"))
 			return Response.json({ items: [], next: null });
@@ -238,4 +245,123 @@ test("a general forge job cannot make the isolated catalog consumer call GitCafe
 		),
 	).toEqual({ ok: true });
 	expect(reads).toEqual([]);
+});
+
+for (const change of ["pause", "disconnect"] as const)
+	test(`${change} during enumeration refuses all cache writes`, async () => {
+		onRead = async (path) => {
+			if (!path.endsWith(change === "pause" ? "/labels" : "/refs")) return;
+			onRead = null;
+			if (change === "pause")
+				await gitCafeLifecycleServices.retireGitCafeInstallation(database.db, {
+					installationId: installation.id,
+					reason: "paused",
+				});
+			else
+				await repoServices.removeInstallation(
+					database.db,
+					"gitcafe",
+					installation.id,
+				);
+		};
+		expect(
+			await refreshGitCafeCatalogs(
+				{ db: database.db, runtime: runtime(), logger },
+				{ repoId, requestId: generateId() },
+			),
+		).toEqual({ ok: false });
+		expect(
+			await repoServices.getRepoSuggestions(database.db, repoId, "branches"),
+		).toEqual(["previous"]);
+		expect(
+			(await labelServices.listRepoLabels(database.db, repoId)).labels.map(
+				(label) => label.name,
+			),
+		).toEqual(["previous"]);
+	});
+
+test("a valid read cannot commit after its installation generation is retired", async () => {
+	const result = await runtime().getCatalogs(repoId);
+	if (!result.ok) throw new Error("Expected healthy catalogs");
+	await gitCafeLifecycleServices.retireGitCafeInstallation(database.db, {
+		installationId: installation.id,
+		reason: "paused",
+	});
+	expect(
+		await gitCafeLifecycleServices.commitGitCafeCatalogs(
+			database.db,
+			result.value.binding,
+			{ branches: ["must-not-publish"], labels: [] },
+		),
+	).toBe(false);
+	expect(
+		await repoServices.getRepoSuggestions(database.db, repoId, "branches"),
+	).toEqual(["previous"]);
+	expect(
+		(await labelServices.listRepoLabels(database.db, repoId)).labels,
+	).toHaveLength(1);
+});
+
+test("a changed repository identity cannot commit a previously valid catalog read", async () => {
+	const result = await runtime().getCatalogs(repoId);
+	if (!result.ok) throw new Error("Expected healthy catalogs");
+	await database.db
+		.update(repos)
+		.set({ externalId: "replacement-repository", fullName: "boring/renamed" })
+		.where(eq(repos.id, repoId));
+	expect(
+		await gitCafeLifecycleServices.commitGitCafeCatalogs(
+			database.db,
+			result.value.binding,
+			{ branches: ["must-not-publish"], labels: [] },
+		),
+	).toBe(false);
+	expect(
+		await repoServices.getRepoSuggestions(database.db, repoId, "branches"),
+	).toEqual(["previous"]);
+});
+
+test("name reuse before binding cannot put replacement catalogs into the original row", async () => {
+	const read = repoServices.getRepoById;
+	let changed = false;
+	const lookup = spyOn(repoServices, "getRepoById").mockImplementation(
+		async (...args) => {
+			const row = await read(...args);
+			if (!changed && row?.id === repoId) {
+				changed = true;
+				await database.db
+					.update(repos)
+					.set({ name: "renamed", fullName: "boring/renamed" })
+					.where(eq(repos.id, repoId));
+				repositoryResponse = { ...repository, id: "synthetic-replacement-id" };
+				await database.db.insert(repos).values({
+					id: generateId(),
+					forge: "gitcafe",
+					externalId: repositoryResponse.id,
+					owner: "boring",
+					name: "scratch",
+					fullName: "boring/scratch",
+					installationId: installation.id,
+					orgId: row.orgId,
+				});
+			}
+			return row;
+		},
+	);
+	try {
+		expect(
+			await refreshGitCafeCatalogs(
+				{ db: database.db, runtime: runtime(), logger },
+				{ repoId, requestId: generateId() },
+			),
+		).toEqual({ ok: false });
+		expect(
+			await repoServices.getRepoSuggestions(database.db, repoId, "branches"),
+		).toEqual(["previous"]);
+		expect(
+			(await labelServices.listRepoLabels(database.db, repoId)).labels,
+		).toHaveLength(1);
+	} finally {
+		lookup.mockRestore();
+	}
 });

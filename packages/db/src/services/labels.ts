@@ -3,6 +3,7 @@ import { generateId } from "@tripwire/utils";
 import { asc, eq, sql } from "drizzle-orm";
 import type { Db } from "../client.ts";
 import { repoLabels } from "../schema/repos.ts";
+import type { DbLike } from "./access.ts";
 import { syncIsStale } from "./sync-age.ts";
 
 export interface RepoLabelList {
@@ -40,7 +41,7 @@ export async function listRepoLabels(
 }
 
 export async function replaceRepoLabels(
-	db: Db,
+	db: DbLike,
 	repoId: string,
 	labels: readonly RepoLabel[],
 	syncedAt: Date = new Date(),

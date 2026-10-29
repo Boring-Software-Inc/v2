@@ -56,7 +56,7 @@ export async function registerGitCafeProtectionQueues(
 	deps: ProcessEventDeps,
 	boss: PgBoss,
 	prepareCheckRerequest: GitCafeRuntime["prepareCheckRerequest"],
-	catalogRuntime: Pick<GitCafeRuntime, "getBranches" | "getLabels">,
+	catalogRuntime: Pick<GitCafeRuntime, "getCatalogs">,
 ) {
 	for (const name of PROTECTION_QUEUES) {
 		await boss.createQueue(

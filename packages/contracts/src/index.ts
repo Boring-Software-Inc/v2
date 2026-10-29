@@ -119,6 +119,7 @@ export {
 	gitCafePermissionSchema,
 } from "./gitcafe-installation.ts";
 export {
+	type GitCafeCatalogValues,
 	type GitCafeReadBlob,
 	type GitCafeReadBoundary,
 	type GitCafeReadChange,
@@ -137,6 +138,8 @@ export {
 	type GitCafeReadPullThreadItem,
 	type GitCafeReadPullThreadPage,
 	type GitCafeReadRefPage,
+	type GitCafeRepositoryBinding,
+	gitCafeCatalogValuesSchema,
 	gitCafeReadBlobSchema,
 	gitCafeReadChangeSchema,
 	gitCafeReadChangesSchema,
@@ -154,6 +157,7 @@ export {
 	gitCafeReadPullThreadPageSchema,
 	gitCafeReadPullThreadSchema,
 	gitCafeReadRefPageSchema,
+	gitCafeRepositoryBindingSchema,
 } from "./gitcafe-read.ts";
 export * from "./gitcafe-receipt.ts";
 export {
