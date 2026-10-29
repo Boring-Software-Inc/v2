@@ -101,6 +101,7 @@ export type GitCafeActionOperation = z.infer<
 >;
 
 export const gitCafeEvaluationPhaseSchema = z.strictObject({
+	status: z.enum(["paused", "completed", "closed"]),
 	verdict: verdictSchema,
 	headSha: OID.nullable(),
 	appliedItems: z.array(z.uuid()),

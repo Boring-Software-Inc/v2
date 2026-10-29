@@ -26,6 +26,7 @@ import { RESUME_RUN_QUEUE } from "../queue.ts";
 import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
 import { runActions, runs } from "../schema/runs.ts";
+import type { DbLike } from "./access.ts";
 import { getRepoByFullName, getResponseConfig } from "./repos.ts";
 import {
 	getLatestRunIdForChangeRequest,
@@ -283,6 +284,17 @@ async function closeWaitingRuns(
 	scope: SQL,
 	forge?: Forge,
 ): Promise<ClosedReview[]> {
+	return db.transaction((tx) =>
+		closeWaitingRunsInTransaction(tx, appUrl, scope, forge),
+	);
+}
+
+async function closeWaitingRunsInTransaction(
+	db: DbLike,
+	appUrl: string,
+	scope: SQL,
+	forge?: Forge,
+): Promise<ClosedReview[]> {
 	const waiting = z.array(waitingRunRow).parse(
 		(
 			await db.execute(sql`
@@ -297,6 +309,7 @@ async function closeWaitingRuns(
 					),
 					sql`, `,
 				)}) AND ${scope}
+				ORDER BY r.id FOR UPDATE OF r
 			`)
 		).rows,
 	);
@@ -377,7 +390,7 @@ async function closeWaitingRuns(
 const SURFACE_KINDS = ["comment", "delete-comment", "set-check"];
 
 async function retireWaitingSurfaces(
-	db: Db,
+	db: DbLike,
 	runId: string,
 	keep: readonly string[],
 ): Promise<void> {
@@ -395,7 +408,7 @@ async function retireWaitingSurfaces(
 }
 
 async function closedComment(
-	db: Db,
+	db: DbLike,
 	appUrl: string,
 	run: z.infer<typeof waitingRunRow>,
 ): Promise<ClosedReview["comment"]> {
@@ -423,7 +436,7 @@ async function closedComment(
 }
 
 async function closedCheck(
-	db: Db,
+	db: DbLike,
 	run: z.infer<typeof waitingRunRow>,
 	latestId: string | null,
 ): Promise<ClosedReview["check"]> {

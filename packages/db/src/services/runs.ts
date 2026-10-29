@@ -2,6 +2,7 @@ import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
 	GITCAFE_VERDICT_ACTION_KINDS,
 	type GitCafeEvaluationPhase,
+	gitCafeActionPayloadSchema,
 	gitCafeEvaluationPhaseSchema,
 	HELD_VERDICTS,
 	ingestForgeSchema,
@@ -190,7 +191,7 @@ export async function failRun(db: Db, runId: string): Promise<void> {
 		.where(eq(runs.id, runId));
 }
 
-export async function getRunById(db: Db, runId: string) {
+export async function getRunById(db: DbLike, runId: string) {
 	const rows = await db.select().from(runs).where(eq(runs.id, runId)).limit(1);
 	return rows[0] ?? null;
 }
@@ -327,10 +328,10 @@ export async function getGitCafeEvaluationPhase(
 	runId: string,
 ): Promise<GitCafeEvaluationPhase | null> {
 	const result = await db.execute(sql`
-		SELECT r.verdict, r.head_sha AS "headSha",
+		SELECT r.status, r.verdict, r.head_sha AS "headSha",
 			COALESCE((SELECT jsonb_agg(m.id ORDER BY m.id) FROM moderation_items m WHERE m.run_id=r.id AND m.applied_at IS NOT NULL),'[]'::jsonb) AS "appliedItems"
 		FROM runs r JOIN events e ON e.id=r.event_id
-		WHERE r.id=${runId} AND e.forge='gitcafe' AND r.status IN ('paused','completed')
+		WHERE r.id=${runId} AND e.forge='gitcafe' AND r.status IN ('paused','completed','closed')
 	`);
 	const parsed = gitCafeEvaluationPhaseSchema.safeParse(result.rows[0]);
 	return parsed.success ? parsed.data : null;
@@ -346,7 +347,7 @@ export async function getGitCafeRunSurfaceState(db: Db, runId: string) {
 	});
 }
 
-/** A delayed planner may only insert or restamp intents for the evaluation it actually read. */
+/** Supersession never promotes an old clearance intent into a newer evaluation phase. */
 export async function recordGitCafeSurfaceActions(
 	db: Db,
 	runId: string,
@@ -360,21 +361,50 @@ export async function recordGitCafeSurfaceActions(
 		await tx.execute(sql`SELECT id FROM runs WHERE id=${runId} FOR UPDATE`);
 		const current = await getGitCafeEvaluationPhase(tx, runId);
 		if (JSON.stringify(current) !== JSON.stringify(expected)) return null;
-		for (const row of reviewBodies) await stampReviewBody(tx, row.id, row.body);
-		if (pendingIds.length)
+		const recorded = await tx
+			.select()
+			.from(runActions)
+			.where(
+				and(eq(runActions.runId, runId), eq(runActions.status, "recorded")),
+			);
+		const continued: RecordActionInput[] = [];
+		for (const row of recorded) {
+			if (!GITCAFE_VERDICT_ACTION_KINDS.has(row.kind)) continue;
+			const payload = gitCafeActionPayloadSchema.parse(row.payload);
+			if (JSON.stringify(payload.gitCafePhase) === JSON.stringify(expected)) {
+				const review = reviewBodies.find((body) => body.id === row.id);
+				if (review && !payload.gitCafeOperation)
+					await stampReviewBody(tx, row.id, review.body);
+				continue;
+			}
 			await tx
 				.update(runActions)
-				.set({
-					payload: sql`${runActions.payload} || jsonb_build_object('gitCafePhase', ${JSON.stringify(expected)}::jsonb)`,
-				})
-				.where(
-					and(
-						eq(runActions.runId, runId),
-						inArray(runActions.id, pendingIds),
-						eq(runActions.status, "recorded"),
-					),
-				);
-		return recordActions(tx, runId, actions);
+				.set({ status: "superseded" })
+				.where(eq(runActions.id, row.id));
+			if (
+				(row.kind === "block" || row.kind === "close") &&
+				expected.verdict === row.kind &&
+				pendingIds.includes(row.id)
+			) {
+				const body =
+					payload.gitCafeOperation?.command.kind === "review"
+						? payload.gitCafeOperation.command.input.body
+						: reviewBodies.find((body) => body.id === row.id)?.body;
+				delete payload.gitCafeOperation;
+				delete payload.gitCafePhase;
+				if (body !== undefined) payload.reason = body;
+				continued.push({
+					kind: row.kind,
+					payload,
+					idempotencyKey: JSON.stringify([
+						"continued-action",
+						row.id,
+						expected,
+					]),
+				});
+			}
+		}
+		return recordActions(tx, runId, [...continued, ...actions]);
 	});
 }
 
@@ -651,7 +681,7 @@ export interface LatestChangeRequestRun {
 }
 
 export async function getLatestRunIdForChangeRequest(
-	db: Db,
+	db: DbLike,
 	repo: RepoIdentity,
 	subjectNumber: number,
 ): Promise<string | null> {

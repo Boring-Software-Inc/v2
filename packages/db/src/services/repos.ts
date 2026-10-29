@@ -23,6 +23,7 @@ import {
 	ruleConfigs,
 	workflowDefinitions,
 } from "../schema/repos.ts";
+import type { DbLike } from "./access.ts";
 import { syncIsStale } from "./sync-age.ts";
 
 /** Repo + config persistence (§4): installation sync, config CRUD, workflows. */
@@ -268,7 +269,7 @@ export async function setBackfillProgress(
 }
 
 export async function getRepoByFullName(
-	db: Db,
+	db: DbLike,
 	fullName: string,
 	forge: Forge,
 ) {
@@ -448,7 +449,7 @@ export async function upsertRuleConfig(
  * /customize behaves exactly as before the table existed.
  */
 export async function getResponseConfig(
-	db: Db,
+	db: DbLike,
 	repoId: string | null,
 ): Promise<ResponseConfig> {
 	if (!repoId) {

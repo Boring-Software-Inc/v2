@@ -62,9 +62,10 @@ export async function recoverGitCafeRunSurface(
 		event.forge !== "gitcafe" ||
 		!("repo" in event) ||
 		saved.run.repoFullName !== event.repo.fullName ||
-		!["completed", "paused"].includes(saved.run.status)
+		!["completed", "paused", "closed"].includes(saved.run.status)
 	)
 		return false;
+	if (saved.run.status === "closed") return true;
 	const surfaceKey = `evaluation:${createHash("sha256").update(JSON.stringify(state.phase)).digest("hex")}`;
 	const repo = await repoServices.getRepoByFullName(
 		deps.db,

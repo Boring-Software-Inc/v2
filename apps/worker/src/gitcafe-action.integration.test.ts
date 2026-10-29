@@ -6,6 +6,7 @@ import {
 	GITCAFE_RECEIPT_APP_ID,
 	type GitCafeActionOperation,
 	gitCafeActionOperationSchema,
+	gitCafeActionPayloadSchema,
 	gitCafeInstallationSchema,
 	gitCafePullEventSchema,
 	gitCafeReceiptSchema,
@@ -36,7 +37,12 @@ import { generateId } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import pino from "pino";
 import { buildGitCafeRuntime } from "./gitcafe-runtime.ts";
-import { emitPrSurface } from "./jobs/pr-surface.ts";
+import {
+	emitClosedReviewSurfaces,
+	emitPrSurface,
+	recoverGitCafeRunSurface,
+	toForgeAction,
+} from "./jobs/pr-surface.ts";
 import { processEvent } from "./jobs/process-event.ts";
 import { rerunChangeRequest } from "./jobs/rerun.ts";
 import { resumeRun } from "./jobs/resume-run.ts";
@@ -241,6 +247,77 @@ test("resume settlement rolls back its audit on failure and concurrent retries a
 		(await moderationServices.getModerationItem(database.db, itemId))
 			?.appliedAt,
 	).not.toBeNull();
+});
+
+test("a still-required close gets a new phase intent without rewriting its predecessor", async () => {
+	const [source] = (
+		await database.pool.query<{ run_id: string }>(
+			"SELECT run_id FROM run_actions WHERE id=$1",
+			[actionId],
+		)
+	).rows;
+	if (!source) throw new Error("Missing source run");
+	await runServices.pauseRun(database.db, source.run_id);
+	const [close] = await runServices.recordActions(database.db, source.run_id, [
+		{
+			kind: "close",
+			payload: { nodeId: "close" },
+			idempotencyKey: "close-origin",
+		},
+	]);
+	if (!close) throw new Error("Missing close intent");
+	const origin = gitCafeActionPayloadSchema.parse(close.payload).gitCafePhase;
+	const itemId = await moderationServices.createModerationItem(database.db, {
+		runId: source.run_id,
+		nodeId: "run:degraded",
+	});
+	await database.pool.query(
+		"UPDATE moderation_items SET status='approved' WHERE id=$1",
+		[itemId],
+	);
+	await runServices.persistRunResume(database.db, {
+		runId: source.run_id,
+		itemId,
+		decision: "approve",
+		steps: [],
+		actions: [],
+		moderationNodeIds: [],
+	});
+	const phase = await runServices.getGitCafeEvaluationPhase(
+		database.db,
+		source.run_id,
+	);
+	if (!phase) throw new Error("Missing settled phase");
+	expect(phase.verdict).toBe("close");
+	const continued = await runServices.recordGitCafeSurfaceActions(
+		database.db,
+		source.run_id,
+		phase,
+		[],
+		[close.id],
+		[],
+	);
+	expect(continued).toHaveLength(1);
+	expect(continued?.[0]?.kind).toBe("close");
+	expect(
+		gitCafeActionPayloadSchema.parse(continued?.[0]?.payload).gitCafePhase,
+	).toEqual(phase);
+	const saved = await runServices.getRunWithSteps(database.db, source.run_id);
+	const old = saved?.actions.find((action) => action.id === close.id);
+	expect(old?.status).toBe("superseded");
+	expect(gitCafeActionPayloadSchema.parse(old?.payload).gitCafePhase).toEqual(
+		origin,
+	);
+	expect(
+		await runServices.recordGitCafeSurfaceActions(
+			database.db,
+			source.run_id,
+			phase,
+			[],
+			[close.id],
+			[],
+		),
+	).toHaveLength(0);
 });
 
 test("concurrent create claims permit one dispatch and preserve the first command", async () => {
@@ -546,6 +623,9 @@ for (const { verdict, scenario } of [
 	{ verdict: "pass", scenario: "late-review" },
 	{ verdict: "pass", scenario: "resume-race" },
 	{ verdict: "pass", scenario: "resume-dispatch-race" },
+	{ verdict: "pass", scenario: "resume-restamp-race" },
+	{ verdict: "pass", scenario: "closed-phase" },
+	{ verdict: "block", scenario: "block-phase-retry" },
 	{ verdict: "pass", scenario: "rerun-outage" },
 	{ verdict: "block", scenario: "rerun-outage" },
 ] as const) {
@@ -710,6 +790,10 @@ for (const { verdict, scenario } of [
 						return previous.input === JSON.stringify(body)
 							? Response.json(previous.receipt)
 							: new Response(null, { status: 409 });
+					if (scenario === "block-phase-retry" && !lostReview) {
+						lostReview = true;
+						return new Response(null, { status: 403 });
+					}
 					await reviewBarrier?.();
 					reviewRequests.set(body.requestId, {
 						input: JSON.stringify(body),
@@ -818,7 +902,126 @@ for (const { verdict, scenario } of [
 				logger: deps.logger,
 				appUrl: deps.appUrl,
 			};
-			if (scenario === "resume-race" || scenario === "resume-dispatch-race") {
+			if (scenario === "closed-phase") {
+				const runId = await runServices.createRun(database.db, {
+					eventId: saved.eventId,
+					repoFullName: saved.repoFullName,
+					subjectNumber: 1,
+					headSha: saved.headSha,
+					snapshot: [deriveDefaultWorkflow([])],
+					status: "paused",
+					verdict: "needs_review",
+				});
+				const itemId = await moderationServices.createModerationItem(
+					database.db,
+					{ runId, nodeId: "run:degraded" },
+				);
+				const normalized = normalizedEventSchema.parse(
+					(await eventServices.getEventById(database.db, saved.eventId))
+						?.normalized,
+				);
+				await emitPrSurface(surfaceDeps, {
+					runId,
+					event: normalized,
+					verdict: "needs_review",
+					reasons: [],
+					pendingActionRows: [],
+					pendingCheckPosted: true,
+				});
+				expect(checks.at(-1)?.conclusion).toBe("action_required");
+				await database.pool.query(
+					"CREATE FUNCTION fail_closed_surface() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.kind='set-check' AND NEW.payload->>'conclusion'='neutral' THEN RAISE EXCEPTION 'closed surface outage'; END IF; RETURN NEW; END $$",
+				);
+				await database.pool.query(
+					"CREATE TRIGGER fail_closed_surface BEFORE INSERT ON run_actions FOR EACH ROW EXECUTE FUNCTION fail_closed_surface()",
+				);
+				try {
+					await expect(
+						moderationServices.closeReviewsForChangeRequest(
+							database.db,
+							deps.appUrl,
+							{ forge: "gitcafe", fullName: saved.repoFullName },
+							1,
+						),
+					).rejects.toMatchObject({
+						cause: { message: "closed surface outage" },
+					});
+				} finally {
+					await database.pool.query(
+						"DROP TRIGGER fail_closed_surface ON run_actions",
+					);
+					await database.pool.query("DROP FUNCTION fail_closed_surface()");
+				}
+				expect((await runServices.getRunById(database.db, runId))?.status).toBe(
+					"paused",
+				);
+				expect(
+					(await moderationServices.getModerationItem(database.db, itemId))
+						?.status,
+				).toBe("pending");
+				const closed = await moderationServices.closeReviewsForChangeRequest(
+					database.db,
+					deps.appUrl,
+					{ forge: "gitcafe", fullName: saved.repoFullName },
+					1,
+				);
+				expect(closed).toHaveLength(1);
+				await emitClosedReviewSurfaces(
+					{ ...surfaceDeps, adapterFor: async () => runtime.adapter },
+					closed,
+				);
+				expect(checks.at(-1)?.conclusion).toBe("neutral");
+				expect((await runServices.getRunById(database.db, runId))?.status).toBe(
+					"closed",
+				);
+				const audit = await runServices.getRunWithSteps(database.db, runId);
+				expect(
+					audit?.actions.filter((action) =>
+						action.idempotencyKey.endsWith(":closed"),
+					),
+				).toHaveLength(2);
+				expect(
+					audit?.actions
+						.filter((action) => action.idempotencyKey.endsWith(":closed"))
+						.every((action) => action.status === "executed"),
+				).toBe(true);
+				expect(
+					await recoverGitCafeRunSurface(surfaceDeps, runId, normalized),
+				).toBe(true);
+				return;
+			}
+			if (scenario === "block-phase-retry") {
+				expect(reviews).toHaveLength(0);
+				await runServices.pauseRun(database.db, saved.id);
+				const itemId = await moderationServices.createModerationItem(
+					database.db,
+					{ runId: saved.id, nodeId: "run:degraded" },
+				);
+				await database.pool.query(
+					"UPDATE moderation_items SET status='approved' WHERE id=$1",
+					[itemId],
+				);
+				await resumeRun(deps, { itemId, decision: "approve" });
+				expect(
+					(await runServices.getRunById(database.db, saved.id))?.verdict,
+				).toBe("block");
+				expect(reviews).toHaveLength(1);
+				expect(reviews[0]?.dismissedAt).toBeNull();
+				expect(checks.at(-1)?.conclusion).toBe("failure");
+				const audit = await runServices.getRunWithSteps(database.db, saved.id);
+				expect(
+					audit?.actions
+						.filter((action) => action.kind === "block")
+						.map((action) => action.status)
+						.sort(),
+				).toEqual(["executed", "superseded"]);
+				return;
+			}
+			if (
+				scenario === "resume-race" ||
+				scenario === "resume-dispatch-race" ||
+				scenario === "resume-restamp-race"
+			) {
 				const definition = workflowDefinitionSchema.parse({
 					id: "race@1",
 					name: "Two moderation branches",
@@ -916,7 +1119,60 @@ for (const { verdict, scenario } of [
 									return originalExecute(action, context);
 								},
 							);
-				const older = resumeRun(deps, { itemId: a, decision: "approve" });
+				let older: Promise<void>;
+				const restampSpy =
+					scenario === "resume-restamp-race"
+						? spyOn(
+								runServices,
+								"recordGitCafeSurfaceActions",
+							).mockImplementation(
+								async (db, id, phase, actions, pendingIds, bodies) => {
+									const result = await original(
+										db,
+										id,
+										phase,
+										actions,
+										pendingIds,
+										bodies,
+									);
+									if (id === runId && phase.verdict === "block") {
+										const audit = await runServices.getRunWithSteps(
+											database.db,
+											runId,
+										);
+										const block = audit?.actions.find(
+											(row) =>
+												row.kind === "block" && row.status === "recorded",
+										);
+										if (!block) throw new Error("Missing denial block intent");
+										const payload = gitCafeActionPayloadSchema.parse(
+											block.payload,
+										);
+										const sent = await originalExecute(
+											toForgeAction(
+												{ ...block, payload },
+												saved.repoFullName,
+												1,
+												payload.reason ?? "Blocked.",
+												null,
+											),
+											{ actionId: block.id },
+										);
+										expect("refused" in sent).toBe(false);
+										if (!("refused" in sent))
+											await runServices.markActionExecuted(
+												database.db,
+												block.id,
+												sent.externalId,
+											);
+										release?.();
+										await older;
+									}
+									return result;
+								},
+							)
+						: undefined;
+				older = resumeRun(deps, { itemId: a, decision: "approve" });
 				try {
 					await paused;
 					await resumeRun(deps, { itemId: b, decision: "deny" });
@@ -926,7 +1182,10 @@ for (const { verdict, scenario } of [
 					release?.();
 					await older;
 					spy.mockRestore();
+					restampSpy?.mockRestore();
 				}
+				if (scenario === "resume-restamp-race")
+					await resumeRun(deps, { itemId: b, decision: "deny" });
 				expect(
 					(await runServices.getRunById(database.db, runId))?.verdict,
 				).toBe("block");
