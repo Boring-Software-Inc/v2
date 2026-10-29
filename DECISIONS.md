@@ -605,3 +605,11 @@ Action delivery rejects a current subject marked as GitHub-managed or using a pr
 A comment still evaluates its own author and body. GitCafe hydration may additionally observe the parent PR's head, verify it did not change while reading the comment, and retain it separately as `comment.subjectHeadSha`. That head is saved with the run's atomic evaluation and supplies the review command's commit binding. Recovery reuses the committed head and request ID; a later head cannot inherit the old comment's blocking review. Issue comments remain headless, and GitHub comment normalization and behavior remain unchanged. Existing headless history is not retroactively attached to a new commit.
 
 For comment-triggered runs, the observed head binds review creation, review cleanup, and checks. Thread actions such as close, lock, labels, and comments remain head-independent: an unrelated push must not strand their recorded retry. They still revalidate current subject identity, source eligibility, installation authority, and optimistic version before writing. The saved run head is retained unchanged for audit and commit-bound commands.
+
+## 2026-10-29 — Native GitCafe re-requests retain durable retry ownership
+
+A queued run materialized for an unfinished native check re-request belongs to that request's durable event recovery. The general three-minute queued-run timeout must not fail it during a temporary evidence outage. Ordinary queued runs keep their existing expiry.
+
+Re-request preparation distinguishes an absent or contradictory recorded check reference from a temporary installation-authority change. Check writes with an action reference are recorded before dispatch; an event ID from the initial pending check cannot acquire such a reference later. These unbound requests settle without evaluation or recovery churn. Generation changes and transient provider failures remain retryable, and already committed runs retain their recovery path.
+
+During re-request preparation, installed-transport snapshot staleness is a retryable authority fence. The verifier distinguishes it at each transport boundary from an obsolete pending check, timestamp, or PR head; those semantic refusals remain terminal. Binding, check readback, and PR readback can each lose their installation snapshot without consuming the durable request.

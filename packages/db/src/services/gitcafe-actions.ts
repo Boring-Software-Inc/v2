@@ -8,6 +8,7 @@ import {
 	gitCafeActionPayloadSchema,
 	gitCafeCheckRerequestedEventSchema,
 	normalizedEventSchema,
+	type RerunChangeRequestJob,
 	rerunChangeRequestJobSchema,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
@@ -26,6 +27,10 @@ import {
 	getLatestRunForChangeRequest,
 } from "./runs.ts";
 
+type CheckRerunPreparation =
+	| { ok: true; value: RerunChangeRequestJob }
+	| { ok: false; reason: "unbound" | "inactive" | "missing" };
+
 /** The request event's UUID also identifies its one re-run, so job replacement cannot create another evaluation. */
 export async function prepareGitCafeCheckRerun(
 	db: Db,
@@ -34,7 +39,7 @@ export async function prepareGitCafeCheckRerun(
 		generation: number;
 		mode: "existing" | "preview" | "create";
 	},
-) {
+): Promise<CheckRerunPreparation> {
 	return db.transaction(async (tx) => {
 		await tx.execute(
 			sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
@@ -49,7 +54,7 @@ export async function prepareGitCafeCheckRerun(
 			request?.rawKind !== "check.rerequested" ||
 			request.quarantined
 		)
-			return null;
+			return { ok: false, reason: "unbound" };
 		const event = parsed.data;
 		if (
 			!event.actor ||
@@ -57,7 +62,7 @@ export async function prepareGitCafeCheckRerun(
 			event.checkRun.key !== "tripwire" ||
 			event.checkRun.name !== "tripwire"
 		)
-			return null;
+			return { ok: false, reason: "unbound" };
 		const [reference] = await tx
 			.select({ action: runActions, run: runs, event: events })
 			.from(runActions)
@@ -70,7 +75,7 @@ export async function prepareGitCafeCheckRerun(
 					eq(events.forge, "gitcafe"),
 				),
 			);
-		if (!reference) return null;
+		if (!reference) return { ok: false, reason: "unbound" };
 		const normalized = normalizedEventSchema.safeParse(
 			reference.event.normalized,
 		);
@@ -91,7 +96,7 @@ export async function prepareGitCafeCheckRerun(
 			payload.data.sha !== event.checkRun.headOid ||
 			reference.run.headSha !== event.checkRun.headOid
 		)
-			return null;
+			return { ok: false, reason: "unbound" };
 		const [repo] = await tx
 			.select({ id: repos.id })
 			.from(repos)
@@ -123,7 +128,7 @@ export async function prepareGitCafeCheckRerun(
 				)
 			).allowed
 		)
-			return null;
+			return { ok: false, reason: "inactive" };
 		const [existing] = await tx
 			.select()
 			.from(runs)
@@ -135,7 +140,7 @@ export async function prepareGitCafeCheckRerun(
 				existing.subjectNumber !== reference.run.subjectNumber ||
 				existing.triggeredBy !== requestedBy)
 		)
-			return null;
+			return { ok: false, reason: "unbound" };
 		if (existing) {
 			const [source] = await tx
 				.select()
@@ -155,15 +160,15 @@ export async function prepareGitCafeCheckRerun(
 				normalizedSource.data.changeRequest.number !==
 					reference.run.subjectNumber
 			)
-				return null;
+				return { ok: false, reason: "unbound" };
 		}
 		if (!existing) {
-			if (input.mode === "existing") return null;
+			if (input.mode === "existing") return { ok: false, reason: "missing" };
 			const snapshot = workflowDefinitionSchema
 				.array()
 				.min(1)
 				.safeParse(reference.run.workflowSnapshot);
-			if (!snapshot.success) return null;
+			if (!snapshot.success) return { ok: false, reason: "unbound" };
 			if (input.mode === "create")
 				await createRun(tx, {
 					id: input.eventId,
@@ -178,14 +183,17 @@ export async function prepareGitCafeCheckRerun(
 					triggeredBy: requestedBy,
 				});
 		}
-		return rerunChangeRequestJobSchema.parse({
-			forge: "gitcafe",
-			repoFullName: reference.run.repoFullName,
-			number: reference.run.subjectNumber,
-			requestedBy,
-			runId: input.eventId,
-			expectedHeadSha: event.checkRun.headOid,
-		});
+		return {
+			ok: true,
+			value: rerunChangeRequestJobSchema.parse({
+				forge: "gitcafe",
+				repoFullName: reference.run.repoFullName,
+				number: reference.run.subjectNumber,
+				requestedBy,
+				runId: input.eventId,
+				expectedHeadSha: event.checkRun.headOid,
+			}),
+		};
 	});
 }
 

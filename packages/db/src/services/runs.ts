@@ -219,6 +219,14 @@ export async function listStuckQueuedRuns(
 				eq(runs.status, "queued"),
 				lt(runs.createdAt, createdBefore),
 				forge === undefined ? undefined : eq(events.forge, forge),
+				/** Native requests have durable event recovery through evidence outages. */
+				sql`NOT EXISTS (
+					SELECT 1 FROM events request
+					WHERE request.id = ${runs.id}
+					AND request.forge = 'gitcafe'
+					AND request.raw_kind = 'check.rerequested'
+					AND request.processed_at IS NULL
+				)`,
 			),
 		);
 	return rows;

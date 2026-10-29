@@ -51,7 +51,11 @@ export async function verifyGitCafeCheckRerequest(
 		expectedInstallation,
 		deadlineAt,
 	);
-	if (!result.ok) return result;
+	/** Transport staleness is an installation fence, distinct from an obsolete check below. */
+	if (!result.ok)
+		return result.reason === "stale"
+			? { ok: false, reason: "inactive" }
+			: result;
 	const check = gitCafeReportedCheckSchema.safeParse(result.value);
 	if (!check.success) return { ok: false, reason: "invalid-response" };
 	if (
@@ -82,7 +86,10 @@ export async function verifyGitCafeCheckRerequest(
 		expectedInstallation,
 		deadlineAt,
 	);
-	if (!pullResponse.ok) return pullResponse;
+	if (!pullResponse.ok)
+		return pullResponse.reason === "stale"
+			? { ok: false, reason: "inactive" }
+			: pullResponse;
 	const pull = gitCafeCheckPullSchema.safeParse(pullResponse.value);
 	if (!pull.success) return { ok: false, reason: "invalid-response" };
 	if (pull.data.repoId !== event.repository.id || pull.data.number !== number)

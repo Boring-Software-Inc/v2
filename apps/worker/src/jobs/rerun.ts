@@ -178,9 +178,12 @@ export async function rerunChangeRequest(
 				{ reason: refreshed.reason, status: refreshed.status },
 				"fresh change request read refused",
 			);
+			/** Refresh staleness fences installation snapshots; obsolete PR heads are checked below. */
 			if (
 				event.forge === "gitcafe" &&
-				(["network", "expired"].includes(refreshed.reason) ||
+				(["network", "expired", "inactive", "stale"].includes(
+					refreshed.reason,
+				) ||
 					(refreshed.reason === "http" &&
 						(refreshed.status === 429 || (refreshed.status ?? 0) >= 500)))
 			)
