@@ -246,7 +246,8 @@ export async function dispatchGitCafeRepositoryReceipt(
 			const receipt = parsed.data;
 			if (
 				!gitCafeDispatchableRepositoryEventTypeSchema.safeParse(row.event_type)
-					.success
+					.success &&
+				row.event_type !== "check.rerequested"
 			)
 				status = "parked";
 			else {

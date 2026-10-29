@@ -6,7 +6,10 @@ import {
 	gitCafeActionBindingSchema,
 	gitCafeActionOperationSchema,
 	gitCafeActionPayloadSchema,
+	gitCafeCheckRerequestedEventSchema,
 	normalizedEventSchema,
+	rerunChangeRequestJobSchema,
+	workflowDefinitionSchema,
 } from "@tripwire/contracts";
 import { pendingCheckIsStale, supersededBy } from "@tripwire/utils";
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -18,9 +21,173 @@ import { runActions, runs } from "../schema/runs.ts";
 import type { DbLike } from "./access.ts";
 import { getGitCafeActionAuthority } from "./gitcafe-lifecycle.ts";
 import {
+	createRun,
 	getGitCafeEvaluationPhase,
 	getLatestRunForChangeRequest,
 } from "./runs.ts";
+
+/** The request event's UUID also identifies its one re-run, so job replacement cannot create another evaluation. */
+export async function prepareGitCafeCheckRerun(
+	db: Db,
+	input: {
+		eventId: string;
+		generation: number;
+		mode: "existing" | "preview" | "create";
+	},
+) {
+	return db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
+		);
+		const [request] = await tx
+			.select()
+			.from(events)
+			.where(and(eq(events.id, input.eventId), eq(events.forge, "gitcafe")));
+		const parsed = gitCafeCheckRerequestedEventSchema.safeParse(request?.raw);
+		if (
+			!parsed.success ||
+			request?.rawKind !== "check.rerequested" ||
+			request.quarantined
+		)
+			return null;
+		const event = parsed.data;
+		if (
+			!event.actor ||
+			!event.checkRun.externalId ||
+			event.checkRun.key !== "tripwire" ||
+			event.checkRun.name !== "tripwire"
+		)
+			return null;
+		const [reference] = await tx
+			.select({ action: runActions, run: runs, event: events })
+			.from(runActions)
+			.innerJoin(runs, eq(runs.id, runActions.runId))
+			.innerJoin(events, eq(events.id, runs.eventId))
+			.where(
+				and(
+					eq(runActions.id, event.checkRun.externalId),
+					eq(runActions.kind, "set-check"),
+					eq(events.forge, "gitcafe"),
+				),
+			);
+		if (!reference) return null;
+		const normalized = normalizedEventSchema.safeParse(
+			reference.event.normalized,
+		);
+		const payload = gitCafeActionPayloadSchema.safeParse(
+			reference.action.payload,
+		);
+		if (
+			!normalized.success ||
+			!("changeRequest" in normalized.data) ||
+			!payload.success ||
+			normalized.data.forge !== "gitcafe" ||
+			normalized.data.repoExternalId !== event.repository.id ||
+			normalized.data.installationExternalId !== event.installation.id ||
+			normalized.data.repo.fullName !==
+				`${event.repository.owner}/${event.repository.name}` ||
+			reference.run.repoFullName !== normalized.data.repo.fullName ||
+			reference.run.subjectNumber !== normalized.data.changeRequest.number ||
+			payload.data.sha !== event.checkRun.headOid ||
+			reference.run.headSha !== event.checkRun.headOid
+		)
+			return null;
+		const [repo] = await tx
+			.select({ id: repos.id })
+			.from(repos)
+			.innerJoin(
+				organizationInstallations,
+				and(
+					eq(organizationInstallations.forge, repos.forge),
+					eq(organizationInstallations.installationId, repos.installationId),
+					eq(organizationInstallations.organizationId, repos.orgId),
+				),
+			)
+			.where(
+				and(
+					eq(repos.forge, "gitcafe"),
+					eq(repos.externalId, event.repository.id),
+					eq(repos.installationId, event.installation.id),
+					eq(repos.fullName, normalized.data.repo.fullName),
+					eq(repos.armed, true),
+					isNull(repos.removedAt),
+				),
+			);
+		if (
+			!repo ||
+			!(
+				await getGitCafeActionAuthority(
+					tx,
+					event.installation.id,
+					input.generation,
+				)
+			).allowed
+		)
+			return null;
+		const [existing] = await tx
+			.select()
+			.from(runs)
+			.where(eq(runs.id, input.eventId));
+		const requestedBy = `gitcafe:${event.actor.id}`;
+		if (
+			existing &&
+			(existing.repoFullName !== reference.run.repoFullName ||
+				existing.subjectNumber !== reference.run.subjectNumber ||
+				existing.triggeredBy !== requestedBy)
+		)
+			return null;
+		if (existing) {
+			const [source] = await tx
+				.select()
+				.from(events)
+				.where(
+					and(eq(events.id, existing.eventId), eq(events.forge, "gitcafe")),
+				);
+			const normalizedSource = normalizedEventSchema.safeParse(
+				source?.normalized,
+			);
+			if (
+				!normalizedSource.success ||
+				!("changeRequest" in normalizedSource.data) ||
+				normalizedSource.data.repoExternalId !== event.repository.id ||
+				normalizedSource.data.installationExternalId !==
+					event.installation.id ||
+				normalizedSource.data.changeRequest.number !==
+					reference.run.subjectNumber
+			)
+				return null;
+		}
+		if (!existing) {
+			if (input.mode === "existing") return null;
+			const snapshot = workflowDefinitionSchema
+				.array()
+				.min(1)
+				.safeParse(reference.run.workflowSnapshot);
+			if (!snapshot.success) return null;
+			if (input.mode === "create")
+				await createRun(tx, {
+					id: input.eventId,
+					eventId: reference.event.id,
+					repoFullName: reference.run.repoFullName,
+					subjectNumber: reference.run.subjectNumber,
+					subjectKind: "change-request",
+					headSha: event.checkRun.headOid,
+					snapshot: snapshot.data,
+					status: "queued",
+					verdict: null,
+					triggeredBy: requestedBy,
+				});
+		}
+		return rerunChangeRequestJobSchema.parse({
+			forge: "gitcafe",
+			repoFullName: reference.run.repoFullName,
+			number: reference.run.subjectNumber,
+			requestedBy,
+			runId: input.eventId,
+			expectedHeadSha: event.checkRun.headOid,
+		});
+	});
+}
 
 export async function getPendingGitCafeReviewCleanup(db: Db, runId: string) {
 	const rows = await db

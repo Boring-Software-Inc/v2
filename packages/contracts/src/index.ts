@@ -40,11 +40,13 @@ export {
 export * from "./gitcafe-action.ts";
 export {
 	type GitCafeCheckConclusion,
+	type GitCafeCheckPull,
 	type GitCafeCheckReportInput,
 	type GitCafeCheckReportResponse,
 	type GitCafeCheckWrite,
 	type GitCafeReportedCheck,
 	gitCafeCheckConclusionSchema,
+	gitCafeCheckPullSchema,
 	gitCafeCheckReportInputSchema,
 	gitCafeCheckReportResponseSchema,
 	gitCafeCheckWriteSchema,

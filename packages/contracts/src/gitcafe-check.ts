@@ -37,6 +37,14 @@ export const gitCafeReportedCheckSchema = z.object({
 });
 export type GitCafeReportedCheck = z.infer<typeof gitCafeReportedCheckSchema>;
 
+export const gitCafeCheckPullSchema = z.object({
+	repoId: z.string().min(1),
+	number: z.number().int().positive().max(2147483647),
+	headOid: gitCafeReportedCheckSchema.shape.headOid.nullable(),
+	state: z.enum(["open", "closed", "merged"]),
+});
+export type GitCafeCheckPull = z.infer<typeof gitCafeCheckPullSchema>;
+
 export const gitCafeCheckReportResponseSchema = z.object({
 	outcome: z.enum(["created", "updated", "unchanged", "ignored_stale"]),
 	checkRun: gitCafeReportedCheckSchema,

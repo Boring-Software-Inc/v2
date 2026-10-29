@@ -5,12 +5,16 @@ import {
 	GITCAFE_PROCESS_EVENT_QUEUE,
 	GITCAFE_RECEIPT_APP_ID,
 	type GitCafeActionOperation,
+	type GitCafeCheckRerequestedEvent,
 	type GitCafeDispatchableRepositoryEvent,
 	gitCafeActionOperationSchema,
 	gitCafeActionPayloadSchema,
+	gitCafeCheckRerequestedEventSchema,
 	gitCafeCommentEventSchema,
 	gitCafeInstallationSchema,
 	gitCafePullEventSchema,
+	gitCafePullIdentitySchema,
+	gitCafeReadPullSchema,
 	gitCafeReceiptSchema,
 	normalizedEventSchema,
 	responseConfigSchema,
@@ -452,7 +456,9 @@ test("a recorded comment command cannot authorize close or another payload", asy
 });
 
 async function admitPullReceipt(
-	source: GitCafeDispatchableRepositoryEvent = event,
+	source:
+		| GitCafeDispatchableRepositoryEvent
+		| GitCafeCheckRerequestedEvent = event,
 ) {
 	const payload = { ...source, id: `evt_${generateId()}` };
 	const body = JSON.stringify(payload);
@@ -949,6 +955,13 @@ for (const { verdict, scenario } of [
 	{ verdict: "block", scenario: "refresh-closure-race" },
 	{ verdict: "pass", scenario: "rerun-outage" },
 	{ verdict: "block", scenario: "rerun-outage" },
+	{ verdict: "pass", scenario: "native-rerequest" },
+	{ verdict: "pass", scenario: "native-rerequest-read-outage" },
+	{ verdict: "pass", scenario: "native-rerequest-write-outage" },
+	{ verdict: "pass", scenario: "native-rerequest-refresh-outage" },
+	{ verdict: "pass", scenario: "native-rerequest-generation" },
+	{ verdict: "pass", scenario: "native-rerequest-stale-head" },
+	{ verdict: "pass", scenario: "native-rerequest-head-change" },
 ] as const) {
 	test(`actual GitCafe runtime persists ${verdict} and owned surfaces across ${scenario}`, async () => {
 		const fixture = async (name: string): Promise<unknown> =>
@@ -1009,6 +1022,10 @@ for (const { verdict, scenario } of [
 			{ input: string; receipt: typeof createdData }
 		>();
 		let profileReads = 0;
+		let rerequestReadStatus = 200;
+		let pullReadStatus = 200;
+		let changeHead = false;
+		let checkReads = 0;
 		let lostReview = false;
 		let refuseCleanup = false;
 		let reviewBarrier: (() => Promise<void>) | null = null;
@@ -1044,7 +1061,17 @@ for (const { verdict, scenario } of [
 				if (path.endsWith("/collaborators/"))
 					return Response.json(collaborators);
 				if (path.endsWith("/pulls/")) return Response.json(merged);
-				if (path.endsWith("/pulls/1")) return Response.json(pull);
+				if (path.endsWith("/pulls/1"))
+					return Response.json(
+						changeHead
+							? {
+									...gitCafePullIdentitySchema.parse(pull),
+									...gitCafeReadPullSchema.parse(pull),
+									headOid: "a".repeat(40),
+								}
+							: pull,
+						{ status: pullReadStatus },
+					);
 				if (path.endsWith("/pulls/1/changes")) return Response.json(changes);
 				if (path.includes("/pulls/1/diff/")) return Response.json(diff);
 				if (path.endsWith("/pulls/1/commits")) return Response.json(commits);
@@ -1067,7 +1094,10 @@ for (const { verdict, scenario } of [
 					checks.push(check);
 					return Response.json({ outcome: "updated", checkRun: check });
 				}
-				if (path.includes("/check-runs/")) return Response.json(checks.at(-1));
+				if (path.includes("/check-runs/")) {
+					checkReads++;
+					return Response.json(checks.at(-1), { status: rerequestReadStatus });
+				}
 				if (path.endsWith("/comments/")) {
 					if (init.method === "GET")
 						return Response.json({ items: comments, next: null });
@@ -1227,6 +1257,176 @@ for (const { verdict, scenario } of [
 			const previousReads = profileReads;
 			await processEvent(deps, { eventId: row.id });
 			const saved = await runServices.getRunForEvent(database.db, row.id);
+			if (scenario.startsWith("native-rerequest")) {
+				if (!saved) throw new Error("Missing initial run");
+				const check = checks.at(-1);
+				if (!check?.externalId) throw new Error("Missing owned check");
+				const requestedAt = new Date(
+					Date.parse(check.reportedAt) + 1,
+				).toISOString();
+				checks.push({
+					...check,
+					status: "queued",
+					conclusion: null,
+					rerequestedAt: requestedAt,
+				});
+				const source = gitCafeCheckRerequestedEventSchema.parse({
+					...gitCafeCheckRerequestedEventSchema.parse(
+						await fixture("gitcafe-check-rerequested-webhook"),
+					),
+					createdAt: requestedAt,
+					checkRun: {
+						id: check.id,
+						key: check.key,
+						name: check.name,
+						headOid: check.headOid,
+						externalId: check.externalId,
+						detailsUrl: check.detailsUrl,
+					},
+				});
+				const requested = await admitPullReceipt(source);
+				expect(
+					await gitCafeLifecycleServices.dispatchGitCafeRepositoryReceipt(
+						database.db,
+						boss,
+						requested.receiptId,
+					),
+				).toBe("dispatched");
+				const [requestRow] = (
+					await database.pool.query<{ id: string }>(
+						"SELECT id FROM events WHERE delivery_id=$1",
+						[JSON.stringify([source.installation.id, requested.payload.id])],
+					)
+				).rows;
+				if (!requestRow) throw new Error("Missing re-run event");
+				if (scenario === "native-rerequest-read-outage") {
+					rerequestReadStatus = 503;
+					expect(
+						await runtime.prepareCheckRerequest(requestRow.id),
+					).toMatchObject({ ok: false, reason: "http", status: 503 });
+					expect(
+						await runServices.getRunById(database.db, requestRow.id),
+					).toBeNull();
+					rerequestReadStatus = 200;
+				}
+				if (scenario === "native-rerequest-write-outage") {
+					await database.pool.query(
+						"CREATE FUNCTION fail_check_rerun() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.status='queued' THEN RAISE EXCEPTION 're-run storage outage'; END IF; RETURN NEW; END $$",
+					);
+					await database.pool.query(
+						"CREATE TRIGGER fail_check_rerun BEFORE INSERT ON runs FOR EACH ROW EXECUTE FUNCTION fail_check_rerun()",
+					);
+					try {
+						await expect(
+							runtime.prepareCheckRerequest(requestRow.id),
+						).rejects.toMatchObject({
+							cause: { message: "re-run storage outage" },
+						});
+					} finally {
+						await database.pool.query("DROP TRIGGER fail_check_rerun ON runs");
+						await database.pool.query("DROP FUNCTION fail_check_rerun()");
+					}
+					expect(
+						await runServices.getRunById(database.db, requestRow.id),
+					).toBeNull();
+				}
+				if (scenario === "native-rerequest-generation") {
+					const original = gitCafeActionServices.prepareGitCafeCheckRerun;
+					const drift = spyOn(
+						gitCafeActionServices,
+						"prepareGitCafeCheckRerun",
+					).mockImplementation(async (db, input) => {
+						if (input.mode === "create")
+							await database.db
+								.update(gitCafeInstallationLifecycle)
+								.set({ generation: 2 })
+								.where(
+									eq(
+										gitCafeInstallationLifecycle.installationId,
+										installation.id,
+									),
+								);
+						return original(db, input);
+					});
+					try {
+						expect(await runtime.prepareCheckRerequest(requestRow.id)).toEqual({
+							ok: false,
+							reason: "inactive",
+						});
+					} finally {
+						drift.mockRestore();
+					}
+					expect(
+						await runServices.getRunById(database.db, requestRow.id),
+					).toBeNull();
+				}
+				if (scenario === "native-rerequest-stale-head") {
+					changeHead = true;
+					expect(await runtime.prepareCheckRerequest(requestRow.id)).toEqual({
+						ok: false,
+						reason: "stale",
+					});
+					expect(
+						await runServices.getRunById(database.db, requestRow.id),
+					).toBeNull();
+					return;
+				}
+				const preparations = await Promise.all(
+					Array.from({ length: 5 }, () =>
+						runtime.prepareCheckRerequest(requestRow.id),
+					),
+				);
+				const prepared = preparations[0];
+				if (!prepared?.ok)
+					throw new Error(
+						`Missing prepared re-run: ${JSON.stringify(prepared)}`,
+					);
+				expect(preparations).toEqual(Array(5).fill(prepared));
+				expect(prepared.value.runId).toBe(requestRow.id);
+				expect(
+					(
+						await database.pool.query("SELECT id FROM runs WHERE id=$1", [
+							requestRow.id,
+						])
+					).rowCount,
+				).toBe(1);
+				if (scenario === "native-rerequest-refresh-outage") {
+					pullReadStatus = 503;
+					await expect(
+						rerunChangeRequest(deps, prepared.value),
+					).rejects.toThrow("GitCafe re-run evidence temporarily unavailable");
+					expect(
+						(await runServices.getRunById(database.db, requestRow.id))?.status,
+					).toBe("queued");
+					pullReadStatus = 200;
+				}
+				if (scenario === "native-rerequest-head-change") {
+					changeHead = true;
+					const previousReads = profileReads;
+					const previousChecks = checks.length;
+					await rerunChangeRequest(deps, prepared.value);
+					expect(
+						(await runServices.getRunById(database.db, requestRow.id))?.status,
+					).toBe("failed");
+					expect(profileReads).toBe(previousReads);
+					expect(checks).toHaveLength(previousChecks);
+					return;
+				}
+				await rerunChangeRequest(deps, prepared.value);
+				expect(
+					(await runServices.getRunById(database.db, requestRow.id))?.status,
+				).toBe("completed");
+				expect(checks.at(-1)?.conclusion).toBe("success");
+				const beforeReads = profileReads;
+				const beforeChecks = checkReads;
+				const replay = await runtime.prepareCheckRerequest(requestRow.id);
+				expect(replay).toEqual(prepared);
+				expect(checkReads).toBe(beforeChecks);
+				if (!replay.ok) throw new Error("Missing retry");
+				await rerunChangeRequest(deps, replay.value);
+				expect(profileReads).toBe(beforeReads);
+				return;
+			}
 			if (!saved) throw new Error("Missing evaluated run");
 			const surfaceDeps = {
 				db: database.db,
