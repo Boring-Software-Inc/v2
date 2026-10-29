@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { verdictSchema } from "./runs.ts";
 
 const ID = z.string().min(1).max(255);
 const VERSION = z.number().int().min(0).max(2147483646);
@@ -93,6 +94,7 @@ export const gitCafeActionOperationSchema = z.strictObject({
 	recordedAt: z.iso.datetime(),
 	command: gitCafeActionCreateCommandSchema,
 	dispatched: z.boolean(),
+	reviewReceipt: ID.nullable().default(null),
 });
 export type GitCafeActionOperation = z.infer<
 	typeof gitCafeActionOperationSchema
@@ -101,6 +103,7 @@ export type GitCafeActionOperation = z.infer<
 export const gitCafeActionPayloadSchema = z.looseObject({
 	gitCafeOperation: gitCafeActionOperationSchema.optional(),
 	reason: z.string().optional(),
+	verdict: verdictSchema.optional(),
 });
 export type GitCafeActionPayload = z.infer<typeof gitCafeActionPayloadSchema>;
 
@@ -108,6 +111,7 @@ export const gitCafeActionBindingSchema = gitCafeActionOperationSchema.omit({
 	format: true,
 	command: true,
 	dispatched: true,
+	reviewReceipt: true,
 });
 export type GitCafeActionBinding = z.infer<typeof gitCafeActionBindingSchema>;
 

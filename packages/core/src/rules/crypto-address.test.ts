@@ -1,9 +1,25 @@
 import { describe, expect, test } from "bun:test";
-import { cryptoAddress } from "./crypto-address.ts";
+import { cryptoAddress, cryptoAddressV2 } from "./crypto-address.ts";
 import { evaluateRule } from "./define.ts";
 import { fixtureContext, fixtureDiff, fixtureEvent } from "./test-context.ts";
 
 describe("crypto-address@1", () => {
+	test("stored @1 retains its clean result for an omitted patch", async () => {
+		const ctx = await fixtureContext({
+			diff: [
+				{
+					path: "omitted.txt",
+					status: null,
+					additions: null,
+					deletions: null,
+					patchUnavailable: "omitted",
+				},
+			],
+		});
+		const result = await evaluateRule(cryptoAddress, ctx, {});
+		expect(result.status).toBe("evaluated");
+		expect(result.passed).toBe(true);
+	});
 	for (const positive of [true, false]) {
 		test(`an omitted patch ${positive ? "preserves a known match" : "cannot establish a clean scan"}`, async () => {
 			const ctx = await fixtureContext({
@@ -26,7 +42,7 @@ describe("crypto-address@1", () => {
 					},
 				],
 			});
-			const result = await evaluateRule(cryptoAddress, ctx, {});
+			const result = await evaluateRule(cryptoAddressV2, ctx, {});
 			expect(result.status).toBe(positive ? "evaluated" : "skipped");
 			expect(result.passed).toBe(false);
 		});

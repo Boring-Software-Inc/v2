@@ -31,64 +31,77 @@ const PATTERNS: readonly ScanPattern[] = [
  * patterns, compared with empty(). The verdict and the match evidence come
  * from ONE evaluation: passed from empty(), matches from resolvedValue.
  */
-export const cryptoAddress = defineRule({
-	id: "crypto-address",
-	version: 1,
-	configSchema: cryptoAddressConfigSchema,
-	resultSchema: z.object({
-		matches: z.array(
-			z.object({ kind: z.string(), value: z.string(), location: z.string() }),
-		),
-	}),
-	async evaluate(ctx) {
-		const read = await readContextSignal("pr.textByLocation", ctx);
-		if (!read.ok) {
-			return { status: "skipped", reason: read.reason };
-		}
-		const requirement = rule("crypto address", {
-			when: signals.pr.textByLocation.scan(PATTERNS),
-			comparison: empty(),
-		});
-		const { passed, resolvedValue } = evaluateSignalRule(requirement, {
-			value: read.value,
-			now: ctx.now,
-		});
-		// The scan transform yields the match list by construction.
-		const matches = resolvedValue as readonly ScanMatch[];
-		if (passed && ctx.diff?.some((file) => file.patchUnavailable != null)) {
+function defineCryptoAddress(
+	version: number,
+	requireAvailablePatches: boolean,
+) {
+	return defineRule({
+		id: "crypto-address",
+		version,
+		configSchema: cryptoAddressConfigSchema,
+		resultSchema: z.object({
+			matches: z.array(
+				z.object({ kind: z.string(), value: z.string(), location: z.string() }),
+			),
+		}),
+		async evaluate(ctx) {
+			const read = await readContextSignal("pr.textByLocation", ctx);
+			if (!read.ok) {
+				return { status: "skipped", reason: read.reason };
+			}
+			const requirement = rule("crypto address", {
+				when: signals.pr.textByLocation.scan(PATTERNS),
+				comparison: empty(),
+			});
+			const { passed, resolvedValue } = evaluateSignalRule(requirement, {
+				value: read.value,
+				now: ctx.now,
+			});
+			// The scan transform yields the match list by construction.
+			const matches = resolvedValue as readonly ScanMatch[];
+			if (
+				requireAvailablePatches &&
+				passed &&
+				ctx.diff?.some((file) => file.patchUnavailable != null)
+			) {
+				return {
+					status: "skipped",
+					reason: "Tripwire could not read every patch in this change request.",
+				};
+			}
 			return {
-				status: "skipped",
-				reason: "Tripwire could not read every patch in this change request.",
+				status: "evaluated",
+				passed,
+				evidence: { matches: [...matches] },
 			};
-		}
-		return {
-			status: "evaluated",
-			passed,
-			evidence: { matches: [...matches] },
-		};
-	},
-	// The matches are the contributor's own content — all public.
-	publicEvidence: (e) => ({ matches: e.matches }),
-	summarize: (e) => {
-		if (e.matches.length === 0) {
-			return "No crypto wallet addresses found.";
-		}
-		const locations = [...new Set(e.matches.map((m) => m.location))].map(
-			(location) =>
-				location === "title" || location === "comment"
-					? `the ${location}`
-					: location,
-		);
-		const where =
-			locations.length === 0
-				? ""
-				: locations.length === 1
-					? ` to ${locations[0]}`
-					: ` to ${locations.slice(0, -1).join(", ")} and ${locations.at(-1)}`;
-		return `It adds ${e.matches.length} crypto wallet ${e.matches.length === 1 ? "address" : "addresses"}${where}.`;
-	},
-	// Fixable in the change itself — remove the address(es).
-	remedy: "revise",
-	fixHint: (e) =>
-		e.matches.length === 1 ? "Remove the address." : "Remove the addresses.",
-});
+		},
+		// The matches are the contributor's own content — all public.
+		publicEvidence: (e) => ({ matches: e.matches }),
+		summarize: (e) => {
+			if (e.matches.length === 0) {
+				return "No crypto wallet addresses found.";
+			}
+			const locations = [...new Set(e.matches.map((m) => m.location))].map(
+				(location) =>
+					location === "title" || location === "comment"
+						? `the ${location}`
+						: location,
+			);
+			const where =
+				locations.length === 0
+					? ""
+					: locations.length === 1
+						? ` to ${locations[0]}`
+						: ` to ${locations.slice(0, -1).join(", ")} and ${locations.at(-1)}`;
+			return `It adds ${e.matches.length} crypto wallet ${e.matches.length === 1 ? "address" : "addresses"}${where}.`;
+		},
+		// Fixable in the change itself — remove the address(es).
+		remedy: "revise",
+		fixHint: (e) =>
+			e.matches.length === 1 ? "Remove the address." : "Remove the addresses.",
+	});
+}
+
+export const cryptoAddress = defineCryptoAddress(1, false);
+/** @2 cannot establish a clean scan from explicitly omitted patches. */
+export const cryptoAddressV2 = defineCryptoAddress(2, true);

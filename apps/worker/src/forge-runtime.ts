@@ -29,6 +29,7 @@ import {
 	type OpenGitBotCredentials,
 	OpenGitTokenCache,
 } from "@tripwire/forge-opengit";
+import type { Pool } from "pg";
 import { z } from "zod";
 import type { WorkerReads } from "./context.ts";
 import { buildGitCafeRuntime } from "./gitcafe-runtime.ts";
@@ -146,6 +147,7 @@ export interface ResolveForgeInput {
 	/** open-git bot credentials, or null when the bot env is absent. */
 	opengit: (OpenGitBotCredentials & { apiBase?: string }) | null;
 	gitcafe?: GitCafeAppCredentials | null;
+	gitCafeActionPool?: Pool;
 }
 
 /**
@@ -164,7 +166,12 @@ export function buildResolveForge(
 			? buildOpenGitRuntime(input.db, input.opengit, input.onCall)
 			: null,
 		gitcafe: input.gitcafe
-			? buildGitCafeRuntime(input.db, input.gitcafe)
+			? buildGitCafeRuntime(
+					input.db,
+					input.gitcafe,
+					undefined,
+					input.gitCafeActionPool,
+				)
 			: null,
 	} satisfies Record<Forge, ForgeRuntime | null>;
 	return (forge: Forge): ForgeRuntime | null => runtimes[forge];

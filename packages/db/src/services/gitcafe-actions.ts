@@ -18,6 +18,170 @@ import type { DbLike } from "./access.ts";
 import { getGitCafeActionAuthority } from "./gitcafe-lifecycle.ts";
 import { getLatestRunForChangeRequest } from "./runs.ts";
 
+export async function getPendingGitCafeReviewCleanup(db: Db, runId: string) {
+	const rows = await db
+		.select({
+			id: runActions.id,
+			kind: runActions.kind,
+			payload: runActions.payload,
+		})
+		.from(runActions)
+		.innerJoin(runs, eq(runs.id, runActions.runId))
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.where(
+			and(
+				eq(events.forge, "gitcafe"),
+				eq(runActions.runId, runId),
+				eq(runActions.kind, "dismiss-review"),
+				eq(runActions.status, "recorded"),
+			),
+		)
+		.orderBy(runActions.recordedAt, runActions.id);
+	return rows.map((row) => ({
+		...row,
+		payload: gitCafeActionPayloadSchema.parse(row.payload),
+	}));
+}
+
+export async function dispatchGitCafeReview(
+	db: Db,
+	actionId: string,
+): Promise<boolean> {
+	return db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtext('gitcafe-connection'))`,
+		);
+		if (!(await getGitCafeActionBinding(tx, actionId))) return false;
+		const [row] = await tx
+			.select({ payload: runActions.payload })
+			.from(runActions)
+			.where(eq(runActions.id, actionId))
+			.for("update");
+		const operation = gitCafeActionPayloadSchema.parse(
+			row?.payload,
+		).gitCafeOperation;
+		if (!operation || operation.command.kind !== "review") return false;
+		const dispatched = gitCafeActionOperationSchema.parse({
+			...operation,
+			dispatched: true,
+		});
+		await tx
+			.update(runActions)
+			.set({
+				payload: sql`${runActions.payload} || jsonb_build_object('gitCafeOperation', ${JSON.stringify(dispatched)}::jsonb)`,
+			})
+			.where(eq(runActions.id, actionId));
+		return true;
+	});
+}
+
+/** Only a definitive first-attempt refusal proves that no remote submission needs reconciliation. */
+export async function releaseGitCafeReview(
+	db: Db,
+	actionId: string,
+): Promise<void> {
+	await db.transaction(async (tx) => {
+		const [row] = await tx
+			.select({ payload: runActions.payload })
+			.from(runActions)
+			.where(eq(runActions.id, actionId))
+			.for("update");
+		const operation = gitCafeActionPayloadSchema.parse(
+			row?.payload,
+		).gitCafeOperation;
+		if (
+			!operation ||
+			operation.command.kind !== "review" ||
+			operation.reviewReceipt !== null
+		)
+			return;
+		const released = gitCafeActionOperationSchema.parse({
+			...operation,
+			dispatched: false,
+		});
+		await tx
+			.update(runActions)
+			.set({
+				payload: sql`${runActions.payload} || jsonb_build_object('gitCafeOperation', ${JSON.stringify(released)}::jsonb)`,
+			})
+			.where(eq(runActions.id, actionId));
+	});
+}
+
+/** Receipt persistence records an observed effect even if its originating run has become obsolete. */
+export async function recordGitCafeReviewReceipt(
+	db: Db,
+	actionId: string,
+	reviewId: string,
+): Promise<boolean> {
+	return db.transaction(async (tx) => {
+		const [row] = await tx
+			.select({ payload: runActions.payload })
+			.from(runActions)
+			.where(eq(runActions.id, actionId))
+			.for("update");
+		const operation = gitCafeActionPayloadSchema.parse(
+			row?.payload,
+		).gitCafeOperation;
+		if (
+			!operation ||
+			operation.command.kind !== "review" ||
+			!operation.dispatched ||
+			(operation.reviewReceipt !== null && operation.reviewReceipt !== reviewId)
+		)
+			return false;
+		const settled = gitCafeActionOperationSchema.parse({
+			...operation,
+			reviewReceipt: reviewId,
+		});
+		await tx
+			.update(runActions)
+			.set({
+				payload: sql`${runActions.payload} || jsonb_build_object('gitCafeOperation', ${JSON.stringify(settled)}::jsonb)`,
+			})
+			.where(eq(runActions.id, actionId));
+		return true;
+	});
+}
+
+export async function getPendingGitCafeReviewSubmissions(
+	db: Db,
+	cleanupActionId: string,
+): Promise<GitCafeActionOperation[] | null> {
+	const binding = await getGitCafeActionBinding(db, cleanupActionId);
+	const current = await getGitCafeRecordedAction(db, cleanupActionId);
+	if (!binding || current?.kind !== "dismiss-review") return null;
+	const rows = await db
+		.select({ payload: runActions.payload })
+		.from(runActions)
+		.innerJoin(runs, eq(runs.id, runActions.runId))
+		.innerJoin(events, eq(events.id, runs.eventId))
+		.where(
+			and(
+				eq(events.forge, "gitcafe"),
+				eq(runs.repoFullName, binding.repoFullName),
+				eq(runs.subjectNumber, binding.number),
+				eq(runActions.kind, "block"),
+			),
+		);
+	const operations: GitCafeActionOperation[] = [];
+	for (const row of rows) {
+		const parsed = gitCafeActionPayloadSchema.safeParse(row.payload);
+		if (!parsed.success) return null;
+		const operation = parsed.data.gitCafeOperation;
+		if (
+			operation?.command.kind === "review" &&
+			operation.dispatched &&
+			operation.reviewReceipt === null &&
+			operation.installationId === binding.installationId &&
+			operation.repositoryId === binding.repositoryId &&
+			operation.number === binding.number
+		)
+			operations.push(operation);
+	}
+	return operations;
+}
+
 export async function getGitCafeRecordedAction(db: DbLike, actionId: string) {
 	const [row] = await db
 		.select({ kind: runActions.kind, payload: runActions.payload })

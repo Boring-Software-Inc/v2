@@ -1,6 +1,6 @@
 import { accountAge } from "./account-age.ts";
-import { aiReview, aiReviewV2 } from "./ai-review/rule.ts";
-import { cryptoAddress } from "./crypto-address.ts";
+import { aiReview, aiReviewV2, aiReviewV3 } from "./ai-review/rule.ts";
+import { cryptoAddress, cryptoAddressV2 } from "./crypto-address.ts";
 import { type RuleDefinition, ruleRef } from "./define.ts";
 import { englishOnly } from "./english-only.ts";
 import { honeypot } from "./honeypot.ts";
@@ -32,10 +32,12 @@ register(prRateLimit);
 register(maxFilesChanged);
 register(englishOnly);
 register(cryptoAddress);
+register(cryptoAddressV2);
 register(honeypot);
 register(profileReadme);
 register(aiReview);
 register(aiReviewV2);
+register(aiReviewV3);
 
 /** Looks up `account-age@1`-style refs. Unknown refs are the caller's skipped case. */
 export function getRule(ref: string): RuleDefinition | null {

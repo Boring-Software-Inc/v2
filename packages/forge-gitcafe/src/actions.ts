@@ -53,6 +53,12 @@ export interface GitCafeActionStore {
 	/** Exactly one dispatcher may attempt a comment create; all later attempts reconcile its marker. */
 	claimComment(actionId: string): Promise<boolean>;
 	releaseComment(actionId: string): Promise<void>;
+	dispatchReview(actionId: string): Promise<boolean>;
+	releaseReview(actionId: string): Promise<void>;
+	recordReviewReceipt(actionId: string, reviewId: string): Promise<boolean>;
+	pendingReviews(
+		cleanupActionId: string,
+	): Promise<GitCafeActionOperation[] | null>;
 }
 
 export interface GitCafeActionsOptions {
@@ -229,9 +235,14 @@ export class GitCafeActions {
 				review.dismissedAt === null &&
 				review.verdict === "request_changes",
 		);
-		let current = active.find(
-			(review) => review.commitOid === binding.headOid && review.body === body,
-		);
+		const pending = await this.options.store.read(binding.actionId);
+		let current =
+			pending?.dispatched && pending.reviewReceipt === null
+				? undefined
+				: active.find(
+						(review) =>
+							review.commitOid === binding.headOid && review.body === body,
+					);
 		if (!current) {
 			const pull = await this.subject(binding);
 			if (!pull.ok) return pull;
@@ -259,6 +270,8 @@ export class GitCafeActions {
 				prepared.command.input.commitOid !== binding.headOid
 			)
 				return { ok: false as const, reason: "identity-mismatch" as const };
+			if (!(await this.options.store.dispatchReview(binding.actionId)))
+				return { ok: false as const, reason: "inactive" as const };
 			const created = await this.options.client.request(
 				binding.installationId,
 				{
@@ -269,7 +282,15 @@ export class GitCafeActions {
 				this.options.installation,
 				this.deadlineAt,
 			);
-			if (!created.ok) return created;
+			if (!created.ok) {
+				if (
+					!pending?.dispatched &&
+					"status" in created &&
+					[400, 401, 403, 404, 409, 422, 429].includes(created.status ?? 0)
+				)
+					await this.options.store.releaseReview(binding.actionId);
+				return created;
+			}
 			const receipt = gitCafeActionCreatedReviewSchema.safeParse(created.value);
 			if (!receipt.success)
 				return { ok: false as const, reason: "invalid-response" as const };
@@ -293,6 +314,13 @@ export class GitCafeActions {
 			)
 				return { ok: false as const, reason: "identity-mismatch" as const };
 			current = readback.value;
+			if (
+				!(await this.options.store.recordReviewReceipt(
+					binding.actionId,
+					current.id,
+				))
+			)
+				return { ok: false as const, reason: "identity-mismatch" as const };
 		}
 		for (const previous of active) {
 			if (previous.id === current.id) continue;
@@ -306,6 +334,52 @@ export class GitCafeActions {
 		binding: GitCafeActionBinding,
 		reviewId: string | null,
 	) {
+		const unsettled = await this.options.store.pendingReviews(binding.actionId);
+		if (unsettled === null)
+			return { ok: false as const, reason: "inactive" as const };
+		for (const operation of unsettled) {
+			if (operation.command.kind !== "review")
+				return { ok: false as const, reason: "invalid-response" as const };
+			const response = await this.options.client.request(
+				binding.installationId,
+				{
+					method: "POST",
+					resourcePath: `${this.root(binding)}/reviews`,
+					body: JSON.stringify(operation.command.input),
+				},
+				this.options.installation,
+				this.deadlineAt,
+			);
+			if (!response.ok) return response;
+			const receipt = gitCafeActionCreatedReviewSchema.safeParse(
+				response.value,
+			);
+			if (
+				!receipt.success ||
+				receipt.data.author.actorId !== this.options.installation.bot.actorId ||
+				receipt.data.commitOid !== operation.command.input.commitOid ||
+				receipt.data.verdict !== operation.command.input.verdict
+			)
+				return { ok: false as const, reason: "identity-mismatch" as const };
+			const readback = await this.get(
+				`${this.root(binding)}/reviews/${encodeURIComponent(receipt.data.id)}`,
+				gitCafeActionReviewSchema,
+			);
+			if (!readback.ok) return readback;
+			if (
+				!this.ownsReview(readback.value) ||
+				readback.value.body !== operation.command.input.body ||
+				readback.value.commitOid !== operation.command.input.commitOid
+			)
+				return { ok: false as const, reason: "identity-mismatch" as const };
+			if (
+				!(await this.options.store.recordReviewReceipt(
+					operation.actionId,
+					receipt.data.id,
+				))
+			)
+				return { ok: false as const, reason: "identity-mismatch" as const };
+		}
 		if (reviewId !== null) {
 			const target = await this.get(
 				`${this.root(binding)}/reviews/${encodeURIComponent(reviewId)}`,

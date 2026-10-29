@@ -167,7 +167,7 @@ describe("toggles → derived default workflow", () => {
 		const refs = steps.map((s) => s.rule_id);
 		expect(refs).not.toContain("account-age@1");
 		// siblings still ran (proves it's a targeted drop, not empty).
-		expect(refs).toContain("crypto-address@1");
+		expect(refs).toContain("crypto-address@2");
 	});
 
 	test("ai-review is opt-in: absent ⇒ not in the run; enabled but keyless ⇒ skipped step (§8)", async () => {
@@ -180,7 +180,7 @@ describe("toggles → derived default workflow", () => {
 		).toBe(false);
 
 		// Opted in at version 1, but §6 (b) auto-advances a lossless config to the
-		// current version — so this runs as ai-review@2 (config {maxSteps} carries
+		// current version — so this runs as ai-review@3 (config {maxSteps} carries
 		// forward), NOT @1. processFresh runs with makeGenerate: null (no key) ⇒
 		// the node evaluates and SKIPS (counts toward the floor).
 		await repoServices.upsertRuleConfig(db, repoId, {
@@ -191,9 +191,9 @@ describe("toggles → derived default workflow", () => {
 		});
 		const optedIn = await processFresh("aireview-optin-nokey");
 		const steps = await ruleSteps(optedIn);
-		expect(steps.map((s) => s.rule_id)).toContain("ai-review@2");
+		expect(steps.map((s) => s.rule_id)).toContain("ai-review@3");
 		expect(steps.map((s) => s.rule_id)).not.toContain("ai-review@1");
-		const ai = steps.find((s) => s.rule_id === "ai-review@2");
+		const ai = steps.find((s) => s.rule_id === "ai-review@3");
 		expect(ai?.status).toBe("skipped");
 	});
 

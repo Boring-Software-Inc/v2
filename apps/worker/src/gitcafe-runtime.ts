@@ -32,6 +32,7 @@ import {
 } from "@tripwire/forge-gitcafe";
 import { PENDING_CHECK_SUMMARY } from "@tripwire/forge-github";
 import { and, eq, isNull } from "drizzle-orm";
+import type { Pool } from "pg";
 import type { ForgeRuntime } from "./forge-runtime.ts";
 import { toForgeAction } from "./jobs/pr-surface.ts";
 
@@ -39,6 +40,7 @@ export function buildGitCafeRuntime(
 	db: Db,
 	credentials: GitCafeAppCredentials,
 	fetch?: GitCafeInstallationClientOptions["fetch"],
+	actionPool: Pool = db.$client,
 ): ForgeRuntime {
 	const bind = async (repoFullName: string, context?: ForgeActionContext) => {
 		const [row] = await db
@@ -149,7 +151,10 @@ export function buildGitCafeRuntime(
 		const bound = await bind(repo);
 		return bound.ok ? bound.reads.readFile(repo, path, oid) : bound;
 	};
-	const execute = async (action: ForgeAction, context?: ForgeActionContext) => {
+	const executeBound = async (
+		action: ForgeAction,
+		context?: ForgeActionContext,
+	) => {
 		const binding =
 			context &&
 			("actionId" in context
@@ -206,6 +211,14 @@ export function buildGitCafeRuntime(
 				prepare: (operation) =>
 					gitCafeActionServices.prepareGitCafeAction(db, operation),
 				claimComment: (id) => gitCafeActionServices.claimGitCafeComment(db, id),
+				dispatchReview: (id) =>
+					gitCafeActionServices.dispatchGitCafeReview(db, id),
+				releaseReview: (id) =>
+					gitCafeActionServices.releaseGitCafeReview(db, id),
+				recordReviewReceipt: (id, reviewId) =>
+					gitCafeActionServices.recordGitCafeReviewReceipt(db, id, reviewId),
+				pendingReviews: (id) =>
+					gitCafeActionServices.getPendingGitCafeReviewSubmissions(db, id),
 				releaseComment: (id) =>
 					gitCafeActionServices.releaseGitCafeComment(db, id),
 			},
@@ -218,6 +231,43 @@ export function buildGitCafeRuntime(
 					reason: result.reason,
 					status: "status" in result ? result.status : undefined,
 				};
+	};
+	const execute = async (action: ForgeAction, context?: ForgeActionContext) => {
+		const binding =
+			context &&
+			("actionId" in context
+				? await gitCafeActionServices.getGitCafeActionBinding(
+						db,
+						context.actionId,
+					)
+				: await gitCafeActionServices.getGitCafePendingCheckBinding(
+						db,
+						context.eventId,
+					));
+		if (!binding) return { refused: true as const, reason: "inactive" };
+		const lock = await actionPool.connect();
+		const key = JSON.stringify([
+			binding.installationId,
+			binding.repositoryId,
+			binding.subject,
+			binding.number,
+		]);
+		try {
+			await lock.query(
+				"SELECT pg_advisory_lock(hashtext('gitcafe-subject'),hashtext($1))",
+				[key],
+			);
+			return await executeBound(action, context);
+		} finally {
+			try {
+				await lock.query(
+					"SELECT pg_advisory_unlock(hashtext('gitcafe-subject'),hashtext($1))",
+					[key],
+				);
+			} finally {
+				lock.release();
+			}
+		}
 	};
 	const normalize = (raw: RawForgeEvent, receivedAt: string) => {
 		const parsed = parseJson(raw.body, gitCafeHydratedPullEventSchema);

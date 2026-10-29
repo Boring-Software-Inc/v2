@@ -193,6 +193,7 @@ export async function startGitCafeProtectionWorker(
 	const env = parsed.data;
 	const { db, pool } = createDb(env.DATABASE_URL);
 	const directPool = createDirectPool();
+	const actionPool = createDirectPool();
 	const boss = await createGitCafeConnectionBoss(env.DATABASE_URL, logger);
 	const health = observeGitCafeQueueHealth(boss);
 	const credentials = {
@@ -206,6 +207,7 @@ export async function startGitCafeProtectionWorker(
 		github: null,
 		opengit: null,
 		gitcafe: credentials,
+		gitCafeActionPool: actionPool,
 	});
 	const inferenceKey =
 		process.env.OPENROUTER_API_KEY_PROD ?? process.env.OPENROUTER_API_KEY;
@@ -255,6 +257,7 @@ export async function startGitCafeProtectionWorker(
 	} catch (error) {
 		await boss.stop({ graceful: false });
 		await directPool.end();
+		await actionPool.end();
 		await pool.end();
 		throw error;
 	}
@@ -274,6 +277,7 @@ export async function startGitCafeProtectionWorker(
 		server.stop(true);
 		await boss.stop({ graceful: true, timeout: 30_000 });
 		await directPool.end();
+		await actionPool.end();
 		await pool.end();
 	};
 	process.once("SIGTERM", stop);

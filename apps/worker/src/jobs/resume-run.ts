@@ -24,7 +24,11 @@ import { z } from "zod";
 import { buildRuleContext } from "../context.ts";
 import { buildCommentReasons } from "./comment-reasons.ts";
 import { customRuleSource } from "./custom-rules.ts";
-import { type EmitSurfaceInput, emitPrSurface } from "./pr-surface.ts";
+import {
+	type EmitSurfaceInput,
+	emitPrSurface,
+	recoverGitCafeRunSurface,
+} from "./pr-surface.ts";
 import type { ProcessEventDeps } from "./process-event.ts";
 import {
 	actionPayload,
@@ -100,7 +104,7 @@ export async function resumeRun(
 		return;
 	}
 	const runData = await runServices.getRunWithSteps(db, item.runId);
-	if (!runData || runData.run.status !== "paused") {
+	if (!runData) {
 		logger.warn({ runId: item.runId }, "run not paused — resume is a no-op");
 		return;
 	}
@@ -122,6 +126,24 @@ export async function resumeRun(
 		return;
 	}
 	const normalized: RepoScopedEvent = parsed;
+	if (normalized.forge === "gitcafe" && item.appliedAt) {
+		if (
+			!(await recoverGitCafeRunSurface(
+				{
+					db,
+					adapter: deps.resolveForge(normalized.forge)?.adapter ?? null,
+					logger,
+					appUrl: deps.appUrl,
+				},
+				item.runId,
+				normalized,
+				`resume:${item.id}`,
+			))
+		)
+			throw new Error("Committed GitCafe resume cannot recover its surfaces");
+		return;
+	}
+	if (runData.run.status !== "paused") return;
 
 	if (item.nodeId === "run:degraded") {
 		await resumeDegradedRun(
@@ -199,9 +221,7 @@ export async function resumeRun(
 			"deny produced no block action — verdict floored to block",
 		);
 	}
-	await runServices.recordSteps(db, item.runId, withPublicProjection(steps));
-
-	const actionRows = await runServices.recordActions(db, item.runId, [
+	const actions = [
 		...result.actions.filter(postsSomething).map((action) => ({
 			kind: action.action,
 			payload: actionPayload(action, definition.id, item.runId),
@@ -218,7 +238,39 @@ export async function resumeRun(
 					},
 				]
 			: []),
-	]);
+	];
+	if (normalized.forge === "gitcafe") {
+		await runServices.persistRunResume(db, {
+			runId: item.runId,
+			itemId: item.id,
+			decision: job.decision,
+			steps: withPublicProjection(steps),
+			actions,
+			moderationNodeIds: result.pausedAtNodeIds.map(
+				(nodeId) => `${definition.id}:${nodeId}`,
+			),
+		});
+		if (
+			!(await recoverGitCafeRunSurface(
+				{
+					db,
+					adapter: deps.resolveForge(normalized.forge)?.adapter ?? null,
+					logger,
+					appUrl: deps.appUrl,
+				},
+				item.runId,
+				normalized,
+				`resume:${item.id}`,
+			))
+		)
+			throw new Error("Committed GitCafe resume cannot recover its surfaces");
+		await deps.pool.query("SELECT pg_notify('runs', $1)", [
+			runData.run.eventId,
+		]);
+		return;
+	}
+	await runServices.recordSteps(db, item.runId, withPublicProjection(steps));
+	const actionRows = await runServices.recordActions(db, item.runId, actions);
 	const known = new Set(
 		(await moderationServices.listModerationItemsForRun(db, item.runId)).map(
 			(existing) => existing.nodeId,
@@ -282,6 +334,46 @@ async function resumeDegradedRun(
 	normalized: NormalizedEvent,
 	runData: NonNullable<Awaited<ReturnType<typeof runServices.getRunWithSteps>>>,
 ): Promise<void> {
+	if (normalized.forge === "gitcafe") {
+		await runServices.persistRunResume(deps.db, {
+			runId,
+			itemId,
+			decision,
+			steps: [],
+			actions:
+				decision === "deny"
+					? [
+							{
+								kind: "block",
+								payload: {
+									reason:
+										"Tripwire could not finish checking this. A maintainer reviewed it and blocked it.",
+								},
+								idempotencyKey: "block:degraded:deny",
+							},
+						]
+					: [],
+			moderationNodeIds: [],
+		});
+		if (
+			!(await recoverGitCafeRunSurface(
+				{
+					db: deps.db,
+					adapter: deps.resolveForge(normalized.forge)?.adapter ?? null,
+					logger: deps.logger,
+					appUrl: deps.appUrl,
+				},
+				runId,
+				normalized,
+				`resume:${itemId}`,
+			))
+		)
+			throw new Error("Committed GitCafe resume cannot recover its surfaces");
+		await deps.pool.query("SELECT pg_notify('runs', $1)", [
+			runData.run.eventId,
+		]);
+		return;
+	}
 	const actionRows =
 		decision === "deny"
 			? await runServices.recordActions(deps.db, runId, [

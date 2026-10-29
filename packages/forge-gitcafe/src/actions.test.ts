@@ -84,6 +84,20 @@ async function harness(
 	});
 	let operation: GitCafeActionOperation | undefined;
 	const store = {
+		dispatchReview: async () => {
+			if (!operation) return false;
+			operation = { ...operation, dispatched: true };
+			return true;
+		},
+		releaseReview: async () => {
+			if (operation) operation = { ...operation, dispatched: false };
+		},
+		recordReviewReceipt: async (_id: string, reviewId: string) => {
+			if (!operation) return false;
+			operation = { ...operation, reviewReceipt: reviewId };
+			return true;
+		},
+		pendingReviews: async () => [],
 		read: async () => operation ?? null,
 		prepare: async (candidate: GitCafeActionOperation) => {
 			operation ??= candidate;
@@ -280,6 +294,29 @@ test("a stale head prevents all writes", async () => {
 	).toEqual({ ok: false, reason: "stale" });
 	expect(writes).toBe(0);
 });
+
+for (const status of [403, 409, 429, 500]) {
+	test(`review HTTP ${status} ${status === 500 ? "retains uncertainty" : "does not strand a refused submission"}`, async () => {
+		const h = await harness(async (url, init) => {
+			if (url === root) return Response.json(pullFixture);
+			if (init.method === "GET")
+				return Response.json({ items: [], next: null });
+			return new Response(null, { status });
+		});
+		const result = await h.actions.execute(
+			{
+				kind: "block",
+				repoFullName: "boring/scratch",
+				number: 1,
+				reason: reviewReadback.body,
+			},
+			h.binding,
+		);
+		expect(result.ok).toBe(false);
+		expect(h.operation()?.dispatched).toBe(status === 500);
+		expect(h.operation()?.reviewReceipt).toBeNull();
+	});
+}
 
 for (const remove of [false, true]) {
 	test(`label ${remove ? "subtraction" : "union"} preserves unrelated labels and verifies readback`, async () => {

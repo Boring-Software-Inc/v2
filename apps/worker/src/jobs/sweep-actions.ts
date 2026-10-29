@@ -122,13 +122,6 @@ export async function sweepActions(
 	};
 
 	for (const row of stuck) {
-		if (
-			row.forge === "gitcafe" &&
-			row.kind === "set-check" &&
-			row.payload.conclusion === "success" &&
-			(await runServices.hasPendingReviewCleanup(db, row.runId))
-		)
-			continue;
 		if (DELIVERY_KINDS.has(row.kind)) {
 			continue;
 		}
@@ -178,7 +171,17 @@ export async function sweepActions(
 			}
 		}
 
-		if (row.recordedAt < giveUpBefore) {
+		if (
+			row.forge === "gitcafe" &&
+			row.kind === "set-check" &&
+			row.payload.conclusion === "success" &&
+			!(await runServices.isReviewCleanupComplete(db, row.runId))
+		)
+			continue;
+		if (
+			row.recordedAt < giveUpBefore &&
+			!(row.forge === "gitcafe" && row.kind === "dismiss-review")
+		) {
 			await runServices.markActionSuperseded(db, row.id);
 			result.abandoned++;
 			logger.error(

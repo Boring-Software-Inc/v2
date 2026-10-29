@@ -9,6 +9,8 @@ import {
 	gitCafeInstallationSchema,
 	gitCafePullEventSchema,
 	gitCafeReceiptSchema,
+	normalizedEventSchema,
+	responseConfigSchema,
 } from "@tripwire/contracts";
 import { deriveDefaultWorkflow } from "@tripwire/core";
 import {
@@ -20,6 +22,7 @@ import {
 	gitCafeActionServices,
 	gitCafeInstallationLifecycle,
 	gitCafeLifecycleServices,
+	moderationServices,
 	organization,
 	organizationInstallations,
 	repoServices,
@@ -32,7 +35,10 @@ import { generateId } from "@tripwire/utils";
 import { eq, sql } from "drizzle-orm";
 import pino from "pino";
 import { buildGitCafeRuntime } from "./gitcafe-runtime.ts";
+import { emitPrSurface } from "./jobs/pr-surface.ts";
 import { processEvent } from "./jobs/process-event.ts";
+import { resumeRun } from "./jobs/resume-run.ts";
+import { sweepActions } from "./jobs/sweep-actions.ts";
 
 const base = new URL(
 	"../../../packages/forge-gitcafe/fixtures/",
@@ -153,6 +159,86 @@ afterAll(async () => {
 	await boss?.stop({ graceful: false, close: true });
 	await database?.pool.end();
 	await container?.stop();
+});
+
+test("resume settlement rolls back its audit on failure and concurrent retries apply one decision", async () => {
+	const binding = await gitCafeActionServices.getGitCafeActionBinding(
+		database.db,
+		actionId,
+	);
+	if (!binding) throw new Error("Missing bound action");
+	const [row] = (
+		await database.pool.query<{ run_id: string }>(
+			"SELECT run_id FROM run_actions WHERE id=$1",
+			[actionId],
+		)
+	).rows;
+	if (!row) throw new Error("Missing bound run");
+	await runServices.pauseRun(database.db, row.run_id);
+	const itemId = await moderationServices.createModerationItem(database.db, {
+		runId: row.run_id,
+		nodeId: "run:degraded",
+	});
+	await database.pool.query(
+		"UPDATE moderation_items SET status='approved' WHERE id=$1",
+		[itemId],
+	);
+	const now = new Date().toISOString();
+	const input = {
+		runId: row.run_id,
+		itemId,
+		decision: "approve" as const,
+		steps: [
+			{
+				nodeId: "decision:resume",
+				nodeKind: "gate",
+				status: "pass",
+				input: { decision: "approve" },
+				output: null,
+				startedAt: now,
+				finishedAt: now,
+				durationMs: 0,
+			},
+		],
+		actions: [{ kind: "note", payload: {}, idempotencyKey: "decision-note" }],
+		moderationNodeIds: [],
+	};
+	await database.pool.query(
+		"CREATE FUNCTION fail_resume_settle() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.status='completed' THEN RAISE EXCEPTION 'resume settle outage'; END IF; RETURN NEW; END $$",
+	);
+	await database.pool.query(
+		"CREATE TRIGGER fail_resume_settle BEFORE UPDATE ON runs FOR EACH ROW EXECUTE FUNCTION fail_resume_settle()",
+	);
+	try {
+		await expect(
+			runServices.persistRunResume(database.db, input),
+		).rejects.toMatchObject({ cause: { message: "resume settle outage" } });
+	} finally {
+		await database.pool.query("DROP TRIGGER fail_resume_settle ON runs");
+		await database.pool.query("DROP FUNCTION fail_resume_settle()");
+	}
+	expect(
+		(await runServices.getRunWithSteps(database.db, row.run_id))?.steps,
+	).toHaveLength(0);
+	expect(
+		(await moderationServices.getModerationItem(database.db, itemId))
+			?.appliedAt,
+	).toBeNull();
+	await Promise.all(
+		Array.from({ length: 3 }, () =>
+			runServices.persistRunResume(database.db, input),
+		),
+	);
+	const saved = await runServices.getRunWithSteps(database.db, row.run_id);
+	expect(saved?.steps).toHaveLength(1);
+	expect(
+		saved?.actions.filter((action) => action.kind === "note"),
+	).toHaveLength(1);
+	expect(saved?.run.verdict).toBe("pass");
+	expect(
+		(await moderationServices.getModerationItem(database.db, itemId))
+			?.appliedAt,
+	).not.toBeNull();
 });
 
 test("concurrent create claims permit one dispatch and preserve the first command", async () => {
@@ -451,6 +537,11 @@ for (const { verdict, scenario } of [
 	{ verdict: "pass", scenario: "surface-outage" },
 	{ verdict: "block", scenario: "surface-outage" },
 	{ verdict: "block", scenario: "lost-review" },
+	{ verdict: "block", scenario: "review-only" },
+	{ verdict: "pass", scenario: "resume-outage" },
+	{ verdict: "pass", scenario: "resume-cleanup" },
+	{ verdict: "pass", scenario: "cleanup-expired" },
+	{ verdict: "pass", scenario: "late-review" },
 ] as const) {
 	test(`actual GitCafe runtime persists ${verdict} and owned surfaces across ${scenario}`, async () => {
 		const fixture = async (name: string): Promise<unknown> =>
@@ -506,8 +597,14 @@ for (const { verdict, scenario } of [
 		const checks: (typeof reportData.checkRun)[] = [];
 		const comments: (typeof commentData)[] = [];
 		const reviews: (typeof reviewData)[] = [];
+		const reviewRequests = new Map<
+			string,
+			{ input: string; receipt: typeof createdData }
+		>();
 		let profileReads = 0;
 		let lostReview = false;
+		let refuseCleanup = false;
+		let reviewBarrier: (() => Promise<void>) | null = null;
 		const credentials = {
 			appId: installation.appId,
 			keyId: "local-runtime-test",
@@ -602,6 +699,16 @@ for (const { verdict, scenario } of [
 					const body = gitCafeActionReviewCreateSchema.parse(
 						JSON.parse(String(init.body)),
 					);
+					const previous = reviewRequests.get(body.requestId);
+					if (previous)
+						return previous.input === JSON.stringify(body)
+							? Response.json(previous.receipt)
+							: new Response(null, { status: 409 });
+					await reviewBarrier?.();
+					reviewRequests.set(body.requestId, {
+						input: JSON.stringify(body),
+						receipt: createdData,
+					});
 					reviews.push(
 						gitCafeActionReviewSchema.parse({ ...reviewData, body: body.body }),
 					);
@@ -612,6 +719,7 @@ for (const { verdict, scenario } of [
 					return Response.json({ ...createdData, body: body.body });
 				}
 				if (path.endsWith("/dismiss") && init.method === "POST") {
+					if (refuseCleanup) return new Response(null, { status: 503 });
 					const current = reviews[0];
 					if (!current) throw new Error("Missing local review");
 					reviews[0] = {
@@ -631,6 +739,14 @@ for (const { verdict, scenario } of [
 			enabled: true,
 			config: verdict === "pass" ? { max: 1 } : { minLength: 100000 },
 		});
+		if (scenario === "review-only")
+			await repoServices.upsertResponseConfig(
+				database.db,
+				repoId,
+				responseConfigSchema.parse({
+					onBlock: "silent",
+				}),
+			);
 		const admitted = await admitPullReceipt();
 		await gitCafeLifecycleServices.dispatchGitCafeRepositoryReceipt(
 			database.db,
@@ -688,6 +804,186 @@ for (const { verdict, scenario } of [
 			}
 			const previousReads = profileReads;
 			await processEvent(deps, { eventId: row.id });
+			const saved = await runServices.getRunForEvent(database.db, row.id);
+			if (!saved) throw new Error("Missing evaluated run");
+			const surfaceDeps = {
+				db: database.db,
+				adapter: runtime.adapter,
+				logger: deps.logger,
+				appUrl: deps.appUrl,
+			};
+			if (scenario === "resume-outage" || scenario === "resume-cleanup") {
+				reviews.push(reviewData);
+				refuseCleanup = scenario === "resume-cleanup";
+				await runServices.pauseRun(database.db, saved.id);
+				await emitPrSurface(surfaceDeps, {
+					runId: saved.id,
+					event: normalizedEventSchema.parse(
+						(await eventServices.getEventById(database.db, row.id))?.normalized,
+					),
+					verdict: "needs_review",
+					reasons: [],
+					pendingActionRows: [],
+					pendingCheckPosted: true,
+				});
+				const itemId = await moderationServices.createModerationItem(
+					database.db,
+					{ runId: saved.id, nodeId: "run:degraded" },
+				);
+				await database.pool.query(
+					"UPDATE moderation_items SET status='approved' WHERE id=$1",
+					[itemId],
+				);
+				if (scenario === "resume-outage") {
+					await database.pool.query(
+						"CREATE FUNCTION fail_resume_surface() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.kind = 'set-check' THEN RAISE EXCEPTION 'resume surface outage'; END IF; RETURN NEW; END $$",
+					);
+					await database.pool.query(
+						"CREATE TRIGGER fail_resume_surface BEFORE INSERT ON run_actions FOR EACH ROW EXECUTE FUNCTION fail_resume_surface()",
+					);
+					try {
+						await expect(
+							resumeRun(deps, { itemId, decision: "approve" }),
+						).rejects.toMatchObject({
+							cause: { message: "resume surface outage" },
+						});
+					} finally {
+						await database.pool.query(
+							"DROP TRIGGER fail_resume_surface ON run_actions",
+						);
+						await database.pool.query("DROP FUNCTION fail_resume_surface()");
+					}
+					expect(
+						(await runServices.getRunById(database.db, saved.id))?.status,
+					).toBe("completed");
+				}
+				await resumeRun(deps, { itemId, decision: "approve" });
+				if (scenario === "resume-cleanup") {
+					expect(reviews[0]?.dismissedAt).toBeNull();
+					expect(checks.at(-1)?.conclusion).not.toBe("success");
+					refuseCleanup = false;
+					await resumeRun(deps, { itemId, decision: "approve" });
+				}
+				expect(reviews[0]?.dismissedAt).not.toBeNull();
+				expect(checks.at(-1)?.conclusion).toBe("success");
+				const beforeReplay = await runServices.listRunActions(
+					database.db,
+					saved.id,
+				);
+				const commentCount = comments.length;
+				await resumeRun(deps, { itemId, decision: "approve" });
+				expect(await runServices.listRunActions(database.db, saved.id)).toEqual(
+					beforeReplay,
+				);
+				expect(comments).toHaveLength(commentCount);
+				return;
+			}
+			if (scenario === "cleanup-expired") {
+				reviews.push(reviewData);
+				refuseCleanup = true;
+				const [cleanup] = await runServices.recordActions(
+					database.db,
+					saved.id,
+					[
+						{
+							kind: "dismiss-review",
+							payload: { number: 1, reviewId: null, verdict: "pass" },
+							idempotencyKey: "retry-cleanup",
+						},
+						{
+							kind: "set-check",
+							payload: {
+								sha: saved.headSha,
+								conclusion: "success",
+								summary: "passed",
+								detailsUrl: deps.appUrl,
+							},
+							idempotencyKey: "retry-green",
+						},
+					],
+				);
+				if (!cleanup) throw new Error("Missing cleanup");
+				await database.pool.query(
+					"UPDATE run_actions SET recorded_at=now()-interval '61 minutes' WHERE run_id=$1",
+					[saved.id],
+				);
+				const priorChecks = checks.length;
+				for (let attempt = 0; attempt < 2; attempt++)
+					await sweepActions(
+						{ ...surfaceDeps, adapterFor: async () => runtime.adapter },
+						{ forge: "gitcafe", recordedBefore: new Date(Date.now() + 1000) },
+					);
+				expect(checks).toHaveLength(priorChecks);
+				expect(reviews[0]?.dismissedAt).toBeNull();
+				expect(
+					(
+						await runServices.getRunWithSteps(database.db, saved.id)
+					)?.actions.find((action) => action.id === cleanup.id)?.status,
+				).toBe("recorded");
+				return;
+			}
+			if (scenario === "late-review") {
+				const [block] = await runServices.recordActions(database.db, saved.id, [
+					{
+						kind: "block",
+						payload: { reason: "old block" },
+						idempotencyKey: "late-block",
+					},
+				]);
+				if (!block || !runtime.adapter)
+					throw new Error("Missing block adapter");
+				let arrived: (() => void) | undefined;
+				let release: (() => void) | undefined;
+				const atPost = new Promise<void>((resolve) => {
+					arrived = resolve;
+				});
+				const barrier = new Promise<void>((resolve) => {
+					release = resolve;
+				});
+				reviewBarrier = async () => {
+					arrived?.();
+					await barrier;
+				};
+				const older = runtime.adapter.execute(
+					{
+						kind: "block",
+						repoFullName: "boring/scratch",
+						number: 1,
+						reason: "old block",
+					},
+					{ actionId: block.id },
+				);
+				await atPost;
+				const nextRun = await runServices.createRun(database.db, {
+					eventId: saved.eventId,
+					repoFullName: saved.repoFullName,
+					subjectNumber: 1,
+					headSha: saved.headSha,
+					snapshot: [deriveDefaultWorkflow([])],
+					status: "completed",
+					verdict: "pass",
+				});
+				const before = checks.length;
+				const clearing = emitPrSurface(surfaceDeps, {
+					runId: nextRun,
+					event: normalizedEventSchema.parse(
+						(await eventServices.getEventById(database.db, row.id))?.normalized,
+					),
+					verdict: "pass",
+					reasons: [],
+					pendingActionRows: [],
+					pendingCheckPosted: true,
+				});
+				await new Promise<void>((resolve) => setTimeout(resolve, 50));
+				expect(checks).toHaveLength(before);
+				release?.();
+				await older;
+				await clearing;
+				expect(reviews).toHaveLength(1);
+				expect(reviews[0]?.dismissedAt).not.toBeNull();
+				expect(checks.at(-1)?.conclusion).toBe("success");
+				return;
+			}
 			if (scenario === "surface-outage")
 				expect(profileReads).toBe(previousReads);
 			if (scenario === "lost-review") {
@@ -732,7 +1028,15 @@ for (const { verdict, scenario } of [
 				verdict === "pass" ? "success" : "failure",
 			);
 		if (scenario !== "lost-review")
-			expect(comments).toHaveLength(verdict === "block" ? 1 : 0);
+			expect(comments).toHaveLength(
+				verdict === "block" && scenario !== "review-only" ? 1 : 0,
+			);
+		if (scenario === "review-only") {
+			expect(reviews[0]?.body).toContain("https://staging.tripwire.sh/runs/");
+			expect(reviews[0]?.body).not.toBe(
+				"Blocked. See the Tripwire comment for details.",
+			);
+		}
 		if (verdict === "block") expect(reviews).toHaveLength(1);
 		const actions = await database.pool.query<{ kind: string; status: string }>(
 			"SELECT kind,status FROM run_actions WHERE run_id = $1",

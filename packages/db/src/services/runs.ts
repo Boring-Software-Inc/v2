@@ -90,22 +90,19 @@ export async function getRunForEvent(db: Db, eventId: string) {
 	return run ?? null;
 }
 
-export async function hasPendingReviewCleanup(
+export async function isReviewCleanupComplete(
 	db: Db,
 	runId: string,
 ): Promise<boolean> {
 	const [row] = await db
-		.select({ id: runActions.id })
+		.select({ status: runActions.status })
 		.from(runActions)
 		.where(
-			and(
-				eq(runActions.runId, runId),
-				eq(runActions.kind, "dismiss-review"),
-				eq(runActions.status, "recorded"),
-			),
+			and(eq(runActions.runId, runId), eq(runActions.kind, "dismiss-review")),
 		)
+		.orderBy(desc(runActions.recordedAt), desc(runActions.id))
 		.limit(1);
-	return row !== undefined;
+	return row?.status === "executed";
 }
 
 export interface FinalizeRunInput {
@@ -802,27 +799,95 @@ export async function settleRun(
 	runId: string,
 	appliedItemId: string | null,
 ): Promise<{ verdict: Verdict; status: "paused" | "completed" }> {
-	return await db.transaction(async (tx) => {
-		await tx.execute(sql`SELECT id FROM runs WHERE id = ${runId} FOR UPDATE`);
-		if (appliedItemId) {
-			await tx
-				.update(moderationItems)
-				.set({ appliedAt: new Date() })
-				.where(eq(moderationItems.id, appliedItemId));
-		}
-		const standing = await getRunStanding(tx, runId);
-		const verdict = standingVerdict(standing);
-		const status = standing.reviewsPending > 0 ? "paused" : "completed";
-		await tx
-			.update(runs)
-			.set(
-				status === "completed"
-					? { status, verdict, completedAt: new Date() }
-					: { status, verdict },
-			)
-			.where(eq(runs.id, runId));
-		return { verdict, status };
+	return db.transaction((tx) =>
+		settleRunInTransaction(tx, runId, appliedItemId),
+	);
+}
+
+/** Resume decisions and their evaluation audit commit together before remote surfaces are attempted. */
+export async function persistRunResume(
+	db: Db,
+	input: {
+		runId: string;
+		itemId: string;
+		decision: "approve" | "deny";
+		steps: RecordStepInput[];
+		actions: RecordActionInput[];
+		moderationNodeIds: string[];
+	},
+) {
+	return db.transaction(async (tx) => {
+		await tx.execute(
+			sql`SELECT id FROM runs WHERE id = ${input.runId} FOR UPDATE`,
+		);
+		const [item] = await tx
+			.select()
+			.from(moderationItems)
+			.where(
+				and(
+					eq(moderationItems.id, input.itemId),
+					eq(moderationItems.runId, input.runId),
+				),
+			);
+		if (
+			!item ||
+			item.status !== (input.decision === "approve" ? "approved" : "denied")
+		)
+			throw new Error("Resume decision is missing");
+		if (item.appliedAt)
+			return {
+				...(await settleRunInTransaction(tx, input.runId, null)),
+				actionRows: [],
+			};
+		await recordSteps(tx, input.runId, input.steps);
+		const actionRows = await recordActions(tx, input.runId, input.actions);
+		const existing = await tx
+			.select({ nodeId: moderationItems.nodeId })
+			.from(moderationItems)
+			.where(eq(moderationItems.runId, input.runId));
+		const known = new Set(existing.map((row) => row.nodeId));
+		const missing = input.moderationNodeIds.filter(
+			(nodeId) => !known.has(nodeId),
+		);
+		if (missing.length)
+			await tx.insert(moderationItems).values(
+				missing.map((nodeId) => ({
+					id: generateId(),
+					runId: input.runId,
+					nodeId,
+				})),
+			);
+		return {
+			...(await settleRunInTransaction(tx, input.runId, input.itemId)),
+			actionRows,
+		};
 	});
+}
+
+async function settleRunInTransaction(
+	tx: DbLike,
+	runId: string,
+	appliedItemId: string | null,
+): Promise<{ verdict: Verdict; status: "paused" | "completed" }> {
+	await tx.execute(sql`SELECT id FROM runs WHERE id = ${runId} FOR UPDATE`);
+	if (appliedItemId) {
+		await tx
+			.update(moderationItems)
+			.set({ appliedAt: new Date() })
+			.where(eq(moderationItems.id, appliedItemId));
+	}
+	const standing = await getRunStanding(tx, runId);
+	const verdict = standingVerdict(standing);
+	const status = standing.reviewsPending > 0 ? "paused" : "completed";
+	await tx
+		.update(runs)
+		.set(
+			status === "completed"
+				? { status, verdict, completedAt: new Date() }
+				: { status, verdict },
+		)
+		.where(eq(runs.id, runId));
+	return { verdict, status };
 }
 
 export async function closedOnHead(

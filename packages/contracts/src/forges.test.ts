@@ -69,7 +69,7 @@ test("GitCafe supports sign-in and connection independently of ingest", async ()
 	expect(forgeSchema.safeParse("gitcafe").success).toBe(true);
 	expect(forgeSignIn("gitcafe")).toBe("social");
 	expect(forgeConnectable("gitcafe")).toBe(true);
-	expect(forgePostsReviews("gitcafe")).toBe(false);
+	expect(forgePostsReviews("gitcafe")).toBe(true);
 	expect(DEFAULT_FORGE_ORIGIN.gitcafe).toBe("https://git.cafe");
 	expect(DEFAULT_FORGE_ORIGIN.opengit).toBe("https://open-git.com");
 	expect(

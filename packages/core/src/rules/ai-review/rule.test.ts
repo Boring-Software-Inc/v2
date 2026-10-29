@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { AiReviewOutput } from "@tripwire/contracts";
 import { evaluateRule } from "../define.ts";
 import { fixtureContext, fixtureContributor } from "../test-context.ts";
-import { aiReview, aiReviewV2 } from "./rule.ts";
+import { aiReview, aiReviewV2, aiReviewV3 } from "./rule.ts";
 
 const CONFIG = { model: "claude-fable-5", maxSteps: 12 };
 
@@ -22,7 +22,7 @@ const PASS_OUTPUT: AiReviewOutput = {
 	findings: [],
 };
 
-for (const rule of [aiReview, aiReviewV2]) {
+for (const rule of [aiReviewV3]) {
 	test(`AI review @${rule.version} skips explicitly unavailable patches without changing its prompt`, async () => {
 		const { generate, calls } = mockGenerate(PASS_OUTPUT);
 		const ctx = await fixtureContext({
@@ -42,6 +42,47 @@ for (const rule of [aiReview, aiReviewV2]) {
 		expect(calls).toHaveLength(0);
 	});
 }
+
+for (const rule of [aiReview, aiReviewV2]) {
+	test(`stored AI review @${rule.version} retains its omitted-patch behavior`, async () => {
+		const { generate, calls } = mockGenerate(PASS_OUTPUT);
+		const result = await evaluateRule(
+			rule,
+			await fixtureContext({
+				generate,
+				diff: [
+					{
+						path: "omitted.txt",
+						status: null,
+						additions: null,
+						deletions: null,
+						patchUnavailable: "omitted",
+					},
+				],
+			}),
+			CONFIG,
+		);
+		expect(result.status).toBe("evaluated");
+		expect(result.passed).toBe(true);
+		expect(calls).toHaveLength(1);
+	});
+}
+
+test("AI review @3 retains @2 prompt bytes when patches are available", async () => {
+	const old = mockGenerate(PASS_OUTPUT);
+	const current = mockGenerate(PASS_OUTPUT);
+	await evaluateRule(
+		aiReviewV2,
+		await fixtureContext({ generate: old.generate }),
+		CONFIG,
+	);
+	await evaluateRule(
+		aiReviewV3,
+		await fixtureContext({ generate: current.generate }),
+		CONFIG,
+	);
+	expect(current.calls).toEqual(old.calls);
+});
 
 describe("ai-review@1", () => {
 	test("pass verdict ⇒ passed, evidence carries output + trace", async () => {
