@@ -1,0 +1,23 @@
+apps/web/src/components/rules/rule-card.tsx
+  s_6eb1b4f8309b70::t_2dec7f850dd604 98,187
+apps/web/src/components/rules/rules-page.tsx
+  s_6eb1b4f8309b70::t_da96fb6dd90d5d 352
+apps/web/src/components/workflows/workflows-grid-page.tsx
+  s_6eb1b4f8309b70::t_15dd55091734a2 387,497-500
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a4adb95f6805f305d34c3e0993b32066eddcb31",
+  "prompts": {},
+  "sessions": {
+    "s_6eb1b4f8309b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_6eb1b4f8309b70",
+        "model": "unknown"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}

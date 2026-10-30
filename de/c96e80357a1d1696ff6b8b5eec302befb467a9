@@ -1,0 +1,185 @@
+.env.example
+  s_e84332c81b7d9c::t_8404ebff2aab39 34
+.github/workflows/ci.yml
+  s_e84332c81b7d9c::t_4e58f288bf7e33 13-15,21-26,39-47
+.gitignore
+  s_e84332c81b7d9c::t_3e472b28ed51ff 18-20
+.oxlintrc.json
+  s_e84332c81b7d9c::t_9b96f70edfb5de 1-50
+apps/api/src/routes/webhooks.ts
+  s_e84332c81b7d9c::t_32f703ec00b00c 7-12,14-20,22-24,26-29,31-36,38-48
+apps/api/src/webhooks.integration.test.ts
+  s_e84332c81b7d9c::t_09c28fa7731fa3 2,70-77
+apps/web/package.json
+  s_e84332c81b7d9c::t_a8b4b2c3ebb607 9
+apps/web/scripts/generate-route-tree.ts
+  s_e84332c81b7d9c::t_7f723bc304d87f 1,8-10
+apps/web/src/components/auth/forge-grid.tsx
+  s_e84332c81b7d9c::t_7a23b885ff3e69 1-62
+apps/web/src/components/auth/login-faq.tsx
+  s_e84332c81b7d9c::t_ede17a8b04b5fc 1-141
+apps/web/src/components/auth/login-page-skeleton.tsx
+  s_e84332c81b7d9c::t_8eda33b1e5ee32 1,4-5,8-40
+apps/web/src/components/auth/login-page.tsx
+  s_e84332c81b7d9c::t_189f0d20b535a9 2-4,16-32,34,39,43-45
+apps/web/src/components/common/forge-marks.tsx
+  s_e84332c81b7d9c::t_7c69efe28af737 1-128
+apps/web/src/components/forges/connect-forge-dialog.tsx
+  s_e84332c81b7d9c::t_12f77eb84fced9 1-42
+apps/web/src/components/forges/connect-forge-grid.tsx
+  s_e84332c81b7d9c::t_3df2c395d2f29f 1-107
+apps/web/src/components/forges/connections-page.tsx
+  s_e84332c81b7d9c::t_b99bf38cd27fda 1-169
+apps/web/src/components/forges/forge-cell.tsx
+  s_e84332c81b7d9c::t_27ad8071b6464e 1-72
+apps/web/src/components/layouts/command-palette.tsx
+  s_e84332c81b7d9c::t_e703a51d217a0b 17-22,25-26,28-34,53,59-67,73-76,120-129,137-139,206,218,224-234,242-250,252-255,257-260,267-286,298,306,380-400,421,432-436,438-460,467-485,488-560,562-563,565-575,586,624,718,777-812
+apps/web/src/components/organizations/install-setup-page.tsx
+  s_e84332c81b7d9c::t_2b175739b83435 3,5,64-69,96-98,117,127-130,132,209,247,297,302,331-334,336
+apps/web/src/components/organizations/org-general-settings-page.tsx
+  s_e84332c81b7d9c::t_20102033edbe1f 17,213,224-253,256
+apps/web/src/components/organizations/org-home-page.tsx
+  s_e84332c81b7d9c::t_b60a01452b0915 7,13-14,114-117,121,130-131,134-147
+apps/web/src/components/organizations/org-settings-dialog.tsx
+  s_e84332c81b7d9c::t_ff9d08a068ff40 6,23-28,135
+apps/web/src/components/organizations/org-settings-tab.ts
+  s_e84332c81b7d9c::t_9829575d958d32 1-8,13
+apps/web/src/components/rules/rule-card.test.tsx
+  s_e84332c81b7d9c::t_75a2d9f1f66e8a 27,122-163
+apps/web/src/components/rules/rule-card.tsx
+  s_e84332c81b7d9c::t_1995a42df35201 61-66,68,89,144-151,187-193
+apps/web/src/lib/activity.functions.ts
+  s_e84332c81b7d9c::t_88365df75382b2 134,174
+apps/web/src/lib/connections.functions.ts
+  s_e84332c81b7d9c::t_4c8ef5feccda24 1-120
+apps/web/src/lib/connections.query.ts
+  s_e84332c81b7d9c::t_95255662ccaf8b 1-10
+apps/web/src/lib/forge-connect.ts
+  s_e84332c81b7d9c::t_d5a3db836a51f2 1-56
+apps/web/src/lib/forge-copy.ts
+  s_e84332c81b7d9c::t_c0c21bfb1dd8a2 1-15
+apps/web/src/lib/onboarding.functions.ts
+  s_e84332c81b7d9c::t_e6b800366ceab4 2,74-76,109,119,121,144,157,172-174,186,195,247-249,269,279
+apps/web/src/lib/rules.functions.ts
+  s_e84332c81b7d9c::t_3e6e15238af02c 10,25-30,104-108,145-152,193,236
+apps/web/src/lib/server/run-view.ts
+  s_e84332c81b7d9c::t_ac6c2530f777c1 33-35
+apps/web/src/routes/$org.tsx
+  s_e84332c81b7d9c::t_ede0950ba7df95 12-13
+apps/worker/src/forge-runtime.ts
+  s_e84332c81b7d9c::t_e84b5c4c0042ae 1-108
+apps/worker/src/index.ts
+  s_e84332c81b7d9c::t_301b46cbf76372 15,19,66-75,97,115-131,148,165,182,201,221,274
+apps/worker/src/jobs/pr-surface.ts
+  s_e84332c81b7d9c::t_503cd3aa20a9de 123-127
+apps/worker/src/jobs/process-event.ts
+  s_e84332c81b7d9c::t_f045d622fa4513 2,4,14,23-29,59,61-63,100-106,112,117-121,125,138-142,173,182-183,211,215,220,235
+apps/worker/src/jobs/rerun.ts
+  s_e84332c81b7d9c::t_9c26fdcba85613 109-113,115,140,149
+apps/worker/src/jobs/resume-run.ts
+  s_e84332c81b7d9c::t_b291262d878327 2,104,172-176,180,226,231,253,255
+apps/worker/src/jobs/run-workflows.ts
+  s_e84332c81b7d9c::t_cfcdb984a0df4c 187-191,222
+apps/worker/src/moderation.integration.test.ts
+  s_e84332c81b7d9c::t_d03cf889fb15d9 17,91,363-366
+apps/worker/src/process-event.integration.test.ts
+  s_e84332c81b7d9c::t_4d54fd470c4b18 16,97,136,163,197,247,268,352,408-421,423,455-461,516-531,597-618,694,739,772
+apps/worker/src/rerun.integration.test.ts
+  s_e84332c81b7d9c::t_9c67cb9919261b 19,135,218,320,394-397
+apps/worker/src/toggles.integration.test.ts
+  s_e84332c81b7d9c::t_4478fd1348d588 23,91
+bun.lock
+  s_e84332c81b7d9c::t_613bdbeb6b5429 16,21,26,42,122,205-214,499,501,503,505,507,509,511,513,515,517,519,521,523,525,527,529,531,533,535-537,757-758,1225
+package.json
+  s_e84332c81b7d9c::t_adb78fab9222b8 20-21,54,66
+packages/auth/src/server.ts
+  s_e84332c81b7d9c::t_8a4763379ba0ca 2,66-77,83-92,272-274,276-282,295
+packages/contracts/src/events.ts
+  s_e84332c81b7d9c::t_6a57ed1133e89b 2,70-71,84
+packages/contracts/src/forges.ts
+  s_e84332c81b7d9c::t_f2723eb965206a 1-81
+packages/contracts/src/index.ts
+  s_e84332c81b7d9c::t_910db0552fc236 22
+packages/contracts/src/rules.ts
+  s_e84332c81b7d9c::t_1e22d8318b68a5 2,164-171,307-312,317-347
+packages/core/src/rules/ai-review/rule.ts
+  s_e84332c81b7d9c::t_50efdd93593efc 47-70
+packages/core/src/rules/define.ts
+  s_e84332c81b7d9c::t_3e353c93352e43 1-5,96-110
+packages/core/src/rules/forge-support.test.ts
+  s_e84332c81b7d9c::t_514a0a943cb0da 1-100
+packages/core/src/rules/test-context.ts
+  s_e84332c81b7d9c::t_3d8f41bbb920b3 1,24-28
+packages/db/src/index.ts
+  s_e84332c81b7d9c::t_771b031ef2a8ea 45
+packages/db/src/migrate.ts
+  s_e84332c81b7d9c::t_a0658ccb44b715 1,5-8
+packages/db/src/pglite.ts
+  s_e84332c81b7d9c::t_bc015063912de3 2,16-18
+packages/db/src/schema/events.ts
+  s_e84332c81b7d9c::t_6dd641ab77753c 1,23
+packages/db/src/schema/repos.ts
+  s_e84332c81b7d9c::t_c1fec49eadfccc 1,23
+packages/db/src/services/accounts.ts
+  s_e84332c81b7d9c::t_c20e5d032c9a27 1-180
+packages/db/src/services/events.ts
+  s_e84332c81b7d9c::t_ed0256b0c84ce6 22-24,49-50,53-59
+packages/db/src/services/onboarding.ts
+  s_e84332c81b7d9c::t_874471d74ebb0f 1,14-16,28
+packages/db/src/services/organizations.ts
+  s_e84332c81b7d9c::t_781e0fb9b06c6f 3-4,525,581,610,643,777,827,851-856
+packages/db/src/services/repo-revive.integration.test.ts
+  s_e84332c81b7d9c::t_c63b5e665486bd 1-165
+packages/db/src/services/repos.ts
+  s_e84332c81b7d9c::t_9e2beae660cd69 4,11,26-27,34-35,39,43-71,76,83,161,163-164,168-174,179,183,227-231,237,249,251,277,279,571-595
+packages/forge-github/src/webhook/webhook.test.ts
+  s_e84332c81b7d9c::t_6eb92654f402b2 2,10-14
+packages/forge/src/index.ts
+  s_e84332c81b7d9c::t_68dbfa6b82f619 1-6,10,114-119,150
+scripts/check-boundaries.ts
+  s_e84332c81b7d9c::t_c9a2e87c926bca 37-45
+scripts/lint-slop-changed.ts
+  s_e84332c81b7d9c::t_8dafa651aeee37 1-95
+scripts/oxlint/anti-slop/index.ts
+  s_e84332c81b7d9c::t_d65a98c8e4b791 1-31
+scripts/oxlint/anti-slop/package.json
+  s_e84332c81b7d9c::t_71461ce9a68de8 1
+scripts/oxlint/anti-slop/rules/no-chained-type-assertions.ts
+  s_e84332c81b7d9c::t_28087cd475174d 1-77
+scripts/oxlint/anti-slop/rules/no-conditional-empty-object-spread.ts
+  s_e84332c81b7d9c::t_5d5d3ec2ce8ba5 1-49
+scripts/oxlint/anti-slop/rules/no-known-value-widening.ts
+  s_e84332c81b7d9c::t_ba92c1d5ea888f 1-247
+scripts/oxlint/anti-slop/rules/no-object-parameters.ts
+  s_e84332c81b7d9c::t_de296a7e5ecbca 1-112
+scripts/oxlint/anti-slop/rules/no-runtime-typeof.ts
+  s_e84332c81b7d9c::t_2e59c3f88ddc22 1-25
+scripts/oxlint/anti-slop/rules/no-shape-in-symbol-names.ts
+  s_e84332c81b7d9c::t_36c9b541b85717 1-39
+scripts/oxlint/anti-slop/rules/no-unknown-parameters.ts
+  s_e84332c81b7d9c::t_e7efa2abc78b8a 1-83
+scripts/oxlint/anti-slop/rules/no-unknown-type-aliases.ts
+  s_e84332c81b7d9c::t_fee2f3a16216fd 1-69
+scripts/oxlint/anti-slop/rules/no-unsafe-dictionary-type.ts
+  s_e84332c81b7d9c::t_c85b23263ce566 1-94
+scripts/oxlint/anti-slop/rules/no-widen-then-assert.ts
+  s_e84332c81b7d9c::t_5a39f40a1d973e 1-363
+scripts/oxlint/anti-slop/shared/dictionary-types.ts
+  s_e84332c81b7d9c::t_5917f0cd27807f 1-448
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dec96e80357a1d1696ff6b8b5eec302befb467a9",
+  "prompts": {},
+  "sessions": {
+    "s_e84332c81b7d9c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_e84332c81b7d9c",
+        "model": "unknown"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
