@@ -322,7 +322,7 @@ describe("comment ownership (§6 — decide older run after newer)", () => {
 				new URL(
 					"../../../packages/core/fixtures/change-request.opened.event.json",
 					import.meta.url,
-				).pathname,
+				),
 			).json(),
 		) as NormalizedEvent & {
 			repo: { fullName: string };

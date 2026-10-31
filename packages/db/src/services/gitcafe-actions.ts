@@ -169,7 +169,7 @@ export async function prepareGitCafeCheckRerun(
 				.min(1)
 				.safeParse(reference.run.workflowSnapshot);
 			if (!snapshot.success) return { ok: false, reason: "unbound" };
-			if (input.mode === "create")
+			if (input.mode === "create") {
 				await createRun(tx, {
 					id: input.eventId,
 					eventId: reference.event.id,
@@ -182,6 +182,8 @@ export async function prepareGitCafeCheckRerun(
 					verdict: null,
 					triggeredBy: requestedBy,
 				});
+				await tx.execute(sql`SELECT pg_notify('runs', ${reference.event.id})`);
+			}
 		}
 		return {
 			ok: true,

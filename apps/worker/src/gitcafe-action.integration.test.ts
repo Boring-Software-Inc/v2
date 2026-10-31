@@ -2009,11 +2009,37 @@ for (const { verdict, scenario } of [
 					).toBeNull();
 					return;
 				}
+				const runNotification =
+					scenario === "native-rerequest"
+						? await (async () => {
+								const client = await database.pool.connect();
+								const received = new Promise<string | null>((resolve) => {
+									client.once("notification", (message) =>
+										resolve(message.payload ?? null),
+									);
+								});
+								await client.query("LISTEN runs");
+								return { client, received };
+							})()
+						: null;
 				const preparations = await Promise.all(
 					Array.from({ length: 5 }, () =>
 						runtime.prepareCheckRerequest(requestRow.id),
 					),
 				);
+				if (runNotification) {
+					try {
+						expect(
+							await Promise.race([
+								runNotification.received,
+								Bun.sleep(2_000).then(() => null),
+							]),
+						).toBe(row.id);
+					} finally {
+						await runNotification.client.query("UNLISTEN runs");
+						runNotification.client.release();
+					}
+				}
 				const prepared = preparations[0];
 				if (!prepared?.ok)
 					throw new Error(
