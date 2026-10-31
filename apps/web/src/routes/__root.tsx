@@ -39,7 +39,7 @@ const SKULLET_THEME = {
 		highlight: "rgb(244 244 243 / 0.14)",
 	},
 	radius: "var(--radius-tag)",
-	animation: "group-shimmer",
+	animation: "shimmer",
 	speed: "slow",
 } satisfies SkulletTheme;
 
