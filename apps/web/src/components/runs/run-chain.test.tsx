@@ -131,14 +131,18 @@ describe("superseded run chain", () => {
 		},
 	];
 
-	test("opens with every run linked and the current run marked", async () => {
+	test("is collapsed by default behind the predecessor label", async () => {
 		const root = createRootRoute();
 		const route = createRoute({
 			getParentRoute: () => root,
 			path: "runs/$runId",
 			component: () => (
 				<QueryClientProvider client={new QueryClient()}>
-					<SupersededRunChain runs={runs} selectedRunId="run-1" />
+					<SupersededRunChain
+						replaces={runs[1] ?? null}
+						runs={runs}
+						selectedRunId="run-3"
+					/>
 				</QueryClientProvider>
 			),
 		});
@@ -150,13 +154,9 @@ describe("superseded run chain", () => {
 		});
 		await router.load();
 		const markup = renderToStaticMarkup(<RouterProvider router={router} />);
-		expect(markup).toContain("3 runs in chain");
-		expect(markup).toContain('aria-current="page"');
-		for (const run of runs) {
-			expect(markup).toContain(`/runs/${run.id}`);
-		}
-		expect(markup).toContain("Runs in this superseded chain");
-		expect(markup).toContain("overflow-visible");
+		expect(markup).toContain("Replaces the run from");
+		expect(markup).toContain('aria-expanded="false"');
+		expect(markup).not.toContain("Runs in this superseded chain");
 	});
 
 	test("replaces the newest run's single predecessor link at the event node", async () => {
@@ -193,10 +193,9 @@ describe("superseded run chain", () => {
 		});
 		await router.load();
 		const markup = renderToStaticMarkup(<RouterProvider router={router} />);
-		expect(markup).toContain("3 runs in chain");
-		expect(markup).not.toContain("Replaces the run from");
-		expect(markup).toContain('aria-current="page"');
-		expect(markup).toContain("Blocked");
+		expect(markup).toContain("Replaces the run from");
+		expect(markup).toContain('aria-expanded="false"');
+		expect(markup).not.toContain("Runs in this superseded chain");
 	});
 });
 

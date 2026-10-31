@@ -152,6 +152,7 @@ export interface RunChain {
 	history: {
 		runs: RunLinkView[];
 		selectedRunId: string;
+		replaces: RunLinkView | null;
 		placement: "event" | "outcome";
 	} | null;
 }
@@ -1071,6 +1072,7 @@ export function buildRunChain(
 				? {
 						runs: run.relatedRuns,
 						selectedRunId: run.id,
+						replaces: run.previousRun,
 						placement: superseded ? "outcome" : "event",
 					}
 				: null,

@@ -777,6 +777,7 @@ describe("re-runs and superseded runs", () => {
 		expect(chain.history).toEqual({
 			runs: [current, newer],
 			selectedRunId: "run-1",
+			replaces: null,
 			placement: "outcome",
 		});
 	});
@@ -820,6 +821,7 @@ describe("re-runs and superseded runs", () => {
 		expect(chain.history).toEqual({
 			runs: [previous, current],
 			selectedRunId: "run-1",
+			replaces: previous,
 			placement: "event",
 		});
 	});

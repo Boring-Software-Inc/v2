@@ -109,23 +109,35 @@ function RunStatus({ tone }: { tone: RunHistoryTone }) {
 }
 
 export function SupersededRunChain({
+	replaces,
 	runs,
 	selectedRunId,
 	selectedRunIsSuperseded = true,
 }: {
+	replaces: RunLinkView | null;
 	runs: RunLinkView[];
 	selectedRunId: string;
 	selectedRunIsSuperseded?: boolean;
 }) {
 	const railHeight = Math.max(0, runs.length - 1) * 36;
 	return (
-		<Collapsible className="relative mt-3 w-full max-w-80" defaultOpen>
+		<Collapsible className="relative mt-1 w-full max-w-80">
 			<CollapsibleTrigger
 				caret={false}
-				className="h-7 min-h-7 gap-0 rounded-none p-0 type-caption font-medium text-[#A8A8A8] hover:bg-transparent active:bg-transparent"
+				className="h-7 min-h-7 gap-0 rounded-none p-0 type-body-sm font-normal text-text-2 hover:bg-transparent active:bg-transparent"
 			>
 				<span className="flex items-center gap-1.5">
-					{runs.length} runs in chain
+					<Icon icon={Undo} size={12} />
+					{replaces ? (
+						<>
+							Replaces the run from
+							<span className="text-text-1 underline decoration-1 underline-offset-4">
+								<ZonedTime at={replaces.createdAt} format="clock" />
+							</span>
+						</>
+					) : (
+						`${runs.length} runs in chain`
+					)}
 					<Icon
 						className="text-[#777777] transition-transform duration-(--dur-state) ease-out group-data-panel-open/collapsible-trigger:rotate-180 motion-reduce:transition-none"
 						icon={ChevronDown}

@@ -10,7 +10,6 @@ import {
 	Pending,
 	Send,
 	Success,
-	Undo,
 	Workflow,
 } from "#/components/glaze/icon";
 import { Badge } from "#/components/glaze/ui/badge";
@@ -292,6 +291,7 @@ function OutcomeBody({
 			) : null}
 			{history ? (
 				<SupersededRunChain
+					replaces={history.replaces}
 					runs={history.runs}
 					selectedRunId={history.selectedRunId}
 				/>
@@ -330,22 +330,11 @@ export function RunChainView({
 				) : null}
 				{eventHistory ? (
 					<SupersededRunChain
+						replaces={eventHistory.replaces}
 						runs={eventHistory.runs}
 						selectedRunId={eventHistory.selectedRunId}
 						selectedRunIsSuperseded={false}
 					/>
-				) : event.replaces ? (
-					<p className="flex items-center gap-1.5 type-body-sm text-text-2">
-						<Icon icon={Undo} size={12} />
-						Replaces the run from
-						<Link
-							className="text-text-1 underline decoration-1 underline-offset-4"
-							params={{ runId: event.replaces.id }}
-							to="/runs/$runId"
-						>
-							<ClockTime at={event.replaces.createdAt} />
-						</Link>
-					</p>
 				) : null}
 			</ChainRow>
 			{checks ? (
