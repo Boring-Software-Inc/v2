@@ -1,0 +1,27 @@
+apps/web/src/components/runs/run-chain.tsx
+  s_bab54381f7211a::t_ac26eada3ca0f7 294,333
+apps/web/src/components/runs/run-chain.test.tsx
+  s_bab54381f7211a::t_ac26eada3ca0f7 134,141-145,157-159,196-198
+apps/web/src/lib/run-chain.test.ts
+  s_bab54381f7211a::t_6b37e802baed95 780,824
+apps/web/src/lib/run-chain.ts
+  s_bab54381f7211a::t_ac26eada3ca0f7 155,1075
+apps/web/src/components/runs/superseded-run-chain.tsx
+  s_bab54381f7211a::t_ac26eada3ca0f7 112,117,124,127,130-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1092ec6db9ee2ea7e1e863c7fdc814d2bfc37967",
+  "prompts": {},
+  "sessions": {
+    "s_bab54381f7211a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18f3d-7434-7f62-9a7b-bf3706772769",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
