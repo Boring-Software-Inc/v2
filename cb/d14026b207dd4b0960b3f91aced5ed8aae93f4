@@ -1,0 +1,23 @@
+packages/db/src/services/gitcafe-actions.ts
+  s_bab54381f7211a::t_f0cb13a1fb42db 172,185-186
+apps/worker/src/gitcafe-action.integration.test.ts
+  s_bab54381f7211a::t_f0cb13a1fb42db 2012-2024,2030-2042
+apps/worker/src/sweep-actions.integration.test.ts
+  s_bab54381f7211a::t_dde9ac541b0c01 325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cbd14026b207dd4b0960b3f91aced5ed8aae93f4",
+  "prompts": {},
+  "sessions": {
+    "s_bab54381f7211a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18f3d-7434-7f62-9a7b-bf3706772769",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
