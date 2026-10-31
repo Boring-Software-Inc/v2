@@ -1,0 +1,19 @@
+apps/web/src/routes/__root.tsx
+  s_bab54381f7211a::t_0e26bb5261fe6a 43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6cc40d6df6b74be04ddb0964b00d70afd467f779",
+  "prompts": {},
+  "sessions": {
+    "s_bab54381f7211a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18f3d-7434-7f62-9a7b-bf3706772769",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
