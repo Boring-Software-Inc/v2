@@ -1,0 +1,50 @@
+apps/web/src/components/responses/sample-run.ts
+  s_bab54381f7211a::t_749b881f24dfa5 149
+apps/web/src/lib/run-markdown.test.ts
+  s_bab54381f7211a::t_749b881f24dfa5 34
+apps/web/src/lib/run-og.test.ts
+  s_bab54381f7211a::t_749b881f24dfa5 64
+apps/web/src/lib/server/run-view.integration.test.ts
+  s_bab54381f7211a::t_2cd4865742761a 309-312,323-326,389
+apps/web/src/lib/server/run-view.ts
+  s_bab54381f7211a::t_749b881f24dfa5 250
+apps/web/src/lib/run-chain.test.ts
+  s_bab54381f7211a::t_0cb4f2db79a7ce 738-757,760-761,777-780
+  s_bab54381f7211a::t_749b881f24dfa5 135
+apps/web/src/components/runs/superseded-run-chain.tsx
+  s_bab54381f7211a::t_e92f72403a7019 97
+  s_bab54381f7211a::t_36fb96f6069bed 1-94,99-100,102-173
+  s_bab54381f7211a::t_c056d3596b2aad 95-96,101
+  s_bab54381f7211a::t_d5cea36c6837a9 98
+apps/web/src/components/runs/run-chain.test.tsx
+  s_bab54381f7211a::t_0cb4f2db79a7ce 14,17,100-133,153-161
+  s_bab54381f7211a::t_c056d3596b2aad 3-9,134-152
+apps/web/src/lib/server/og/run-og-response.test.ts
+  s_bab54381f7211a::t_749b881f24dfa5 65
+apps/web/src/lib/run-chain.ts
+  s_bab54381f7211a::t_749b881f24dfa5 152,1065-1068
+apps/web/src/components/runs/run-chain.tsx
+  s_bab54381f7211a::t_97eb87175ca8e2 31,268-274,278-280,293-299,317,373-384,393
+apps/web/src/lib/runs.functions.ts
+  s_bab54381f7211a::t_749b881f24dfa5 145
+apps/web/src/lib/run-access.test.ts
+  s_bab54381f7211a::t_749b881f24dfa5 223
+apps/web/src/components/runs/chain-mark.tsx
+  s_bab54381f7211a::t_97eb87175ca8e2 127,133,141-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2125ab7b1be0a1694c0a600855316db33fefa5ca",
+  "prompts": {},
+  "sessions": {
+    "s_bab54381f7211a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18f3d-7434-7f62-9a7b-bf3706772769",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
