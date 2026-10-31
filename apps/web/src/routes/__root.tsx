@@ -40,7 +40,7 @@ const SKULLET_THEME = {
 	},
 	radius: "var(--radius-tag)",
 	animation: "group-shimmer",
-	speed: "fast",
+	speed: "slow",
 } satisfies SkulletTheme;
 
 export const Route = createRootRouteWithContext<{
