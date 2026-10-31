@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
 import { ThemeProvider, useTheme } from "next-themes";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { type SkulletMode, type SkulletTheme, together } from "skullet";
 import { SkulletProvider } from "skullet/react";
 import { AnalyticsIdentity } from "#/components/common/analytics-identity";
@@ -197,8 +197,10 @@ function RootComponent() {
 
 function TripwireSkulletProvider({ children }: { children: React.ReactNode }) {
 	const { resolvedTheme } = useTheme();
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => setMounted(true), []);
 	const mode: SkulletMode =
-		resolvedTheme === "dark" || resolvedTheme === "light"
+		mounted && (resolvedTheme === "dark" || resolvedTheme === "light")
 			? resolvedTheme
 			: "system";
 	return (
