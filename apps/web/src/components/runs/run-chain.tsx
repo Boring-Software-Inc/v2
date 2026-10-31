@@ -28,6 +28,7 @@ import {
 	ChainRow,
 	TONE_WORD,
 } from "#/components/runs/chain-mark";
+import { SupersededRunChain } from "#/components/runs/superseded-run-chain";
 import { ZonedTime } from "#/components/timezones/zoned-time";
 import {
 	type ChainBranch,
@@ -264,11 +265,19 @@ function OutcomeChip({ chip }: { chip: ChainChip }) {
 	);
 }
 
-function OutcomeBody({ outcome }: { outcome: ChainOutcome }) {
+function OutcomeBody({
+	outcome,
+	history,
+}: {
+	outcome: ChainOutcome;
+	history: RunChain["history"];
+}) {
 	return (
 		<>
 			{outcome.detail ? (
-				<p className="type-body-sm text-text-2">{outcome.detail}</p>
+				<p className={cn("type-body-sm text-text-2", history && "mt-1")}>
+					{outcome.detail}
+				</p>
 			) : null}
 			{outcome.openReview ? (
 				<div className="flex items-baseline gap-2 pt-2">
@@ -281,7 +290,13 @@ function OutcomeBody({ outcome }: { outcome: ChainOutcome }) {
 					) : null}
 				</div>
 			) : null}
-			{outcome.chips.length > 0 ? (
+			{history ? (
+				<SupersededRunChain
+					runs={history.runs}
+					selectedRunId={history.selectedRunId}
+				/>
+			) : null}
+			{!history && outcome.chips.length > 0 ? (
 				<div className="flex flex-wrap gap-2 pt-2">
 					{outcome.chips.map((chip) => (
 						<OutcomeChip chip={chip} key={chip.key} />
@@ -299,7 +314,7 @@ export function RunChainView({
 	chain: RunChain;
 	context: BranchContext;
 }) {
-	const { event, checks, steps, outcome } = chain;
+	const { event, checks, steps, outcome, history } = chain;
 	const side =
 		checks?.body.kind === "branches" && checks.body.layout === "side"
 			? checks.body
@@ -355,9 +370,18 @@ export function RunChainView({
 				</ChainRow>
 			))}
 			<ChainRow
-				className="gap-2 pb-0"
-				line={false}
-				node={<ChainNode glyph={outcome.glyph} solid tone={outcome.tone} />}
+				className={history ? "gap-0 pb-0" : "gap-2 pb-0"}
+				line={history !== null}
+				lineClassName={history ? "h-[66px] grow-0 bg-[#45484B]" : undefined}
+				node={
+					history ? (
+						<span className="pt-0.5">
+							<ChainNode glyph={outcome.glyph} solid tone={outcome.tone} />
+						</span>
+					) : (
+						<ChainNode glyph={outcome.glyph} solid tone={outcome.tone} />
+					)
+				}
 			>
 				<NodeTitle
 					at={outcome.at}
@@ -366,7 +390,7 @@ export function RunChainView({
 					size="outcome"
 					title={outcome.title}
 				/>
-				<OutcomeBody outcome={outcome} />
+				<OutcomeBody history={history} outcome={outcome} />
 			</ChainRow>
 		</ol>
 	);

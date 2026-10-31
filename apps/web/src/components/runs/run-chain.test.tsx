@@ -1,12 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { SAMPLE_RUN } from "#/components/responses/sample-run";
 import { PassedGroup } from "#/components/runs/branch-card";
 import { RunChainView } from "#/components/runs/run-chain";
+import { SupersededRunChain } from "#/components/runs/superseded-run-chain";
 import { toPublicRunView } from "#/lib/run-access";
 import { buildRunChain, type ChainBranch } from "#/lib/run-chain";
-import type { RunView } from "#/lib/runs.functions";
+import type { RunLinkView, RunView } from "#/lib/runs.functions";
 
 const WITH_REVIEW: RunView = {
 	...SAMPLE_RUN,
@@ -86,6 +94,68 @@ describe("passed workflows group", () => {
 			/>,
 		);
 		expect(markup).toContain(">2 workflows passed<");
+	});
+});
+
+describe("superseded run chain", () => {
+	const runs: RunLinkView[] = [
+		{
+			id: "run-1",
+			createdAt: "2026-10-21T14:02:07.000Z",
+			status: "superseded",
+			verdict: "block",
+			eventKind: "change-request.opened",
+			actor: "g-r-i-m",
+			headSha: "aaa",
+			rerun: false,
+		},
+		{
+			id: "run-2",
+			createdAt: "2026-10-21T14:07:43.000Z",
+			status: "completed",
+			verdict: "block",
+			eventKind: "change-request.updated",
+			actor: "g-r-i-m",
+			headSha: "bbb",
+			rerun: false,
+		},
+		{
+			id: "run-3",
+			createdAt: "2026-10-21T14:12:40.000Z",
+			status: "completed",
+			verdict: "pass",
+			eventKind: "change-request.updated",
+			actor: "g-r-i-m",
+			headSha: "ccc",
+			rerun: false,
+		},
+	];
+
+	test("opens with every run linked and the current run marked", async () => {
+		const root = createRootRoute();
+		const route = createRoute({
+			getParentRoute: () => root,
+			path: "runs/$runId",
+			component: () => (
+				<QueryClientProvider client={new QueryClient()}>
+					<SupersededRunChain runs={runs} selectedRunId="run-1" />
+				</QueryClientProvider>
+			),
+		});
+		const router = createRouter({
+			isServer: true,
+			origin: "http://localhost",
+			routeTree: root.addChildren([route]),
+			history: createMemoryHistory({ initialEntries: ["/runs/run-1"] }),
+		});
+		await router.load();
+		const markup = renderToStaticMarkup(<RouterProvider router={router} />);
+		expect(markup).toContain("3 runs in chain");
+		expect(markup).toContain('aria-current="page"');
+		for (const run of runs) {
+			expect(markup).toContain(`/runs/${run.id}`);
+		}
+		expect(markup).toContain("Runs in this superseded chain");
 	});
 });
 

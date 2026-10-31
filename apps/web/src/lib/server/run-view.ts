@@ -247,6 +247,7 @@ export async function loadRunView(
 			latest && position >= 0 && latest.id !== result.run.id
 				? runLink(latest)
 				: null,
+		relatedRuns: siblings.map(runLink),
 		backfill: result.run.backfill,
 		aiReviewNotRun: result.steps.some(isAiReviewNotRunStep),
 	};

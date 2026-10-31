@@ -146,6 +146,7 @@ export const SAMPLE_RUN: RunView = {
 	reviews: [],
 	previousRun: null,
 	nextRun: null,
+	relatedRuns: [],
 	backfill: false,
 	aiReviewNotRun: false,
 };

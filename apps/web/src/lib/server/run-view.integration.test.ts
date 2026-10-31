@@ -306,6 +306,10 @@ describe("loadRunView, the chain of events", () => {
 		expect(view?.event?.title).toBe("Add a wallet");
 		expect(view?.nextRun?.id).toBe(secondRunId);
 		expect(view?.previousRun).toBeNull();
+		expect(view?.relatedRuns.map((run) => run.id)).toEqual([
+			firstRunId,
+			secondRunId,
+		]);
 		expect(view?.actions[0]?.url).toBe("https://github.com/acme/pub/runs/9001");
 		expect(view?.workflows).toEqual([
 			{ id: "default@1", name: "Rules", outcome: "pass" },
@@ -316,6 +320,10 @@ describe("loadRunView, the chain of events", () => {
 		const view = await loadRunView(db, secondRunId, NO_SESSION);
 		expect(view?.previousRun?.id).toBe(firstRunId);
 		expect(view?.nextRun).toBeNull();
+		expect(view?.relatedRuns.map((run) => run.id)).toEqual([
+			firstRunId,
+			secondRunId,
+		]);
 	});
 
 	test("members see who decided a review, the public sees only the decision", async () => {
@@ -378,6 +386,7 @@ describe("loadRunView, a comment run on the change request", () => {
 		const view = await loadRunView(db, commentRunId, SESSION);
 		expect(view?.previousRun).toBeNull();
 		expect(view?.nextRun).toBeNull();
+		expect(view?.relatedRuns).toEqual([]);
 	});
 });
 

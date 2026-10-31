@@ -149,6 +149,7 @@ export interface RunChain {
 	checks: ChainChecks | null;
 	steps: ChainStep[];
 	outcome: ChainOutcome;
+	history: { runs: RunLinkView[]; selectedRunId: string } | null;
 }
 
 function shortSha(sha: string | null): string {
@@ -1061,6 +1062,10 @@ export function buildRunChain(
 		checks: checksNode(run, steps, collapseAll),
 		steps: chainSteps,
 		outcome: superseded ? supersededOutcome(run, superseded) : verdict,
+		history:
+			superseded && run.relatedRuns.length > 1
+				? { runs: run.relatedRuns, selectedRunId: run.id }
+				: null,
 	};
 }
 

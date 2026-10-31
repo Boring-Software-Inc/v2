@@ -220,6 +220,7 @@ const fullView: RunView = {
 	],
 	previousRun: null,
 	nextRun: null,
+	relatedRuns: [],
 	backfill: false,
 	aiReviewNotRun: false,
 };
