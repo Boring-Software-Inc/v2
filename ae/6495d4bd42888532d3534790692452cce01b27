@@ -1,0 +1,35 @@
+apps/web/src/components/runs/run-chain.test.tsx
+  s_bab54381f7211a::t_20635394b7d4d5 159
+apps/web/src/components/glaze/ui/skeleton.test.tsx
+  s_bab54381f7211a::t_33e46cfe7b1e75 1-40
+apps/web/package.json
+  s_bab54381f7211a::t_6149bdc25888c3 58
+apps/web/src/routes/__root.tsx
+  s_bab54381f7211a::t_90c484596593e5 12,14-15,32-45,169-170,173-180,182-193,197-209
+apps/web/src/components/glaze/ui/skeleton.tsx
+  s_bab54381f7211a::t_20635394b7d4d5 3-4,10-11,36,44,47,51-52,69-74,76-79
+  s_bab54381f7211a::t_46e773e105960f 8
+  s_bab54381f7211a::t_33e46cfe7b1e75 13,16-25
+apps/web/src/components/runs/superseded-run-chain.tsx
+  s_bab54381f7211a::t_20635394b7d4d5 136
+DECISIONS.md
+  s_bab54381f7211a::t_2e55128d097e39 634-648
+bun.lock
+  s_bab54381f7211a::t_d543e2dccff5c7 74,133,1841-1842
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ae6495d4bd42888532d3534790692452cce01b27",
+  "prompts": {},
+  "sessions": {
+    "s_bab54381f7211a": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a18f3d-7434-7f62-9a7b-bf3706772769",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
