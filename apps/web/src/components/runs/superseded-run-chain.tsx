@@ -18,13 +18,7 @@ import { cn } from "#/lib/utils";
 
 type RunHistoryTone = "superseded" | "pass" | "fail" | "pending";
 
-function runHistoryTone(
-	run: RunLinkView,
-	selectedRunId: string,
-): RunHistoryTone {
-	if (run.id === selectedRunId) {
-		return "superseded";
-	}
+function runHistoryTone(run: RunLinkView): RunHistoryTone {
 	if (run.status === "queued" || run.status === "running") {
 		return "pending";
 	}
@@ -48,20 +42,28 @@ const TONE_LABEL = {
 	pending: "Checking",
 } satisfies Record<RunHistoryTone, string>;
 
-function RunMarker({ tone }: { tone: RunHistoryTone }) {
+function RunMarker({
+	selected,
+	tone,
+}: {
+	selected: boolean;
+	tone: RunHistoryTone;
+}) {
 	return (
 		<span className="flex h-9 w-6 shrink-0 items-center justify-center">
 			<span
 				aria-hidden
 				className={cn(
 					"relative z-10 rounded-pill",
-					tone === "superseded" &&
-						"size-2.5 border-2 border-[#F4F4F3] bg-[#0C0C0C]",
-					tone === "fail" &&
+					selected && "size-2.5 border-2 border-[#F4F4F3] bg-[#0C0C0C]",
+					!selected &&
+						tone === "fail" &&
 						"size-2 border-[1.5px] border-[#EC6F5A] bg-[#2C1714]",
-					tone === "pass" &&
+					!selected &&
+						tone === "pass" &&
 						"size-2 border-[1.5px] border-[#60C98C] bg-[#102419]",
-					tone === "pending" &&
+					!selected &&
+						tone === "pending" &&
 						"size-2 border-[1.5px] border-[#777777] bg-[#1F1F1F]",
 				)}
 			/>
@@ -109,9 +111,11 @@ function RunStatus({ tone }: { tone: RunHistoryTone }) {
 export function SupersededRunChain({
 	runs,
 	selectedRunId,
+	selectedRunIsSuperseded = true,
 }: {
 	runs: RunLinkView[];
 	selectedRunId: string;
+	selectedRunIsSuperseded?: boolean;
 }) {
 	const railHeight = Math.max(0, runs.length - 1) * 36;
 	return (
@@ -142,13 +146,16 @@ export function SupersededRunChain({
 				<ol aria-label="Runs in this superseded chain">
 					{runs.map((run) => {
 						const selected = run.id === selectedRunId;
-						const tone = runHistoryTone(run, selectedRunId);
+						const tone =
+							selected && selectedRunIsSuperseded
+								? "superseded"
+								: runHistoryTone(run);
 						return (
 							<li
 								className="relative z-10 flex h-9 w-full max-w-[284px] items-center"
 								key={run.id}
 							>
-								<RunMarker tone={tone} />
+								<RunMarker selected={selected} tone={tone} />
 								<Link
 									aria-current={selected ? "page" : undefined}
 									className={cn(

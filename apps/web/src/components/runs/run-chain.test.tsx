@@ -157,6 +157,46 @@ describe("superseded run chain", () => {
 		}
 		expect(markup).toContain("Runs in this superseded chain");
 	});
+
+	test("replaces the newest run's single predecessor link at the event node", async () => {
+		const latest: RunView = {
+			...SAMPLE_RUN,
+			id: "run-3",
+			previousRun: runs[1] ?? null,
+			relatedRuns: runs,
+		};
+		const view = toPublicRunView(latest, 0);
+		const root = createRootRoute();
+		const route = createRoute({
+			getParentRoute: () => root,
+			path: "runs/$runId",
+			component: () => (
+				<QueryClientProvider client={new QueryClient()}>
+					<RunChainView
+						chain={buildRunChain(view)}
+						context={{
+							level: 0,
+							maintainer: false,
+							repo: view.repoFullName,
+							sha: view.headSha,
+						}}
+					/>
+				</QueryClientProvider>
+			),
+		});
+		const router = createRouter({
+			isServer: true,
+			origin: "http://localhost",
+			routeTree: root.addChildren([route]),
+			history: createMemoryHistory({ initialEntries: ["/runs/run-3"] }),
+		});
+		await router.load();
+		const markup = renderToStaticMarkup(<RouterProvider router={router} />);
+		expect(markup).toContain("3 runs in chain");
+		expect(markup).not.toContain("Replaces the run from");
+		expect(markup).toContain('aria-current="page"');
+		expect(markup).toContain("Blocked");
+	});
 });
 
 describe("a passing AI review in the passed list", () => {

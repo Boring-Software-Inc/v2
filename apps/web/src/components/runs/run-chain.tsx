@@ -315,6 +315,8 @@ export function RunChainView({
 	context: BranchContext;
 }) {
 	const { event, checks, steps, outcome, history } = chain;
+	const eventHistory = history?.placement === "event" ? history : null;
+	const outcomeHistory = history?.placement === "outcome" ? history : null;
 	const side =
 		checks?.body.kind === "branches" && checks.body.layout === "side"
 			? checks.body
@@ -326,7 +328,13 @@ export function RunChainView({
 				{event.detail ? (
 					<p className="type-body-sm text-text-2">{event.detail}</p>
 				) : null}
-				{event.replaces ? (
+				{eventHistory ? (
+					<SupersededRunChain
+						runs={eventHistory.runs}
+						selectedRunId={eventHistory.selectedRunId}
+						selectedRunIsSuperseded={false}
+					/>
+				) : event.replaces ? (
 					<p className="flex items-center gap-1.5 type-body-sm text-text-2">
 						<Icon icon={Undo} size={12} />
 						Replaces the run from
@@ -370,11 +378,13 @@ export function RunChainView({
 				</ChainRow>
 			))}
 			<ChainRow
-				className={history ? "gap-0 pb-0" : "gap-2 pb-0"}
-				line={history !== null}
-				lineClassName={history ? "h-[66px] grow-0 bg-[#45484B]" : undefined}
+				className={outcomeHistory ? "gap-0 pb-0" : "gap-2 pb-0"}
+				line={outcomeHistory !== null}
+				lineClassName={
+					outcomeHistory ? "h-[66px] grow-0 bg-[#45484B]" : undefined
+				}
 				node={
-					history ? (
+					outcomeHistory ? (
 						<span className="pt-0.5">
 							<ChainNode glyph={outcome.glyph} solid tone={outcome.tone} />
 						</span>
@@ -390,7 +400,7 @@ export function RunChainView({
 					size="outcome"
 					title={outcome.title}
 				/>
-				<OutcomeBody history={history} outcome={outcome} />
+				<OutcomeBody history={outcomeHistory} outcome={outcome} />
 			</ChainRow>
 		</ol>
 	);

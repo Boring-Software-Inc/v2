@@ -777,6 +777,7 @@ describe("re-runs and superseded runs", () => {
 		expect(chain.history).toEqual({
 			runs: [current, newer],
 			selectedRunId: "run-1",
+			placement: "outcome",
 		});
 	});
 
@@ -791,9 +792,20 @@ describe("re-runs and superseded runs", () => {
 			headSha: "aaaa",
 			rerun: false,
 		};
+		const current = {
+			id: "run-1",
+			createdAt: AT,
+			status: "completed",
+			verdict: "block" as const,
+			eventKind: "change-request.updated" as const,
+			actor: "g-r-i-m",
+			headSha: "3f9a2c1aa",
+			rerun: false,
+		};
 		const chain = buildRunChain(
 			view({
 				previousRun: previous,
+				relatedRuns: [previous, current],
 				event: {
 					kind: "change-request.updated",
 					actor: "g-r-i-m",
@@ -805,6 +817,11 @@ describe("re-runs and superseded runs", () => {
 		);
 		expect(chain.event.title).toBe("g-r-i-m pushed 3f9a2c1 to #91");
 		expect(chain.event.replaces?.id).toBe("run-0");
+		expect(chain.history).toEqual({
+			runs: [previous, current],
+			selectedRunId: "run-1",
+			placement: "event",
+		});
 	});
 
 	test("a manual re-run names the admin only for members", () => {
