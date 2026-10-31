@@ -9,8 +9,10 @@ import {
 	useRouterState,
 } from "@tanstack/react-router";
 import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider, useTheme } from "next-themes";
 import { lazy, Suspense } from "react";
+import { type SkulletMode, type SkulletTheme, together } from "skullet";
+import { SkulletProvider } from "skullet/react";
 import { AnalyticsIdentity } from "#/components/common/analytics-identity";
 import { ImpersonationBanner } from "#/components/common/impersonation-banner";
 import glazeCss from "#/components/glaze/styles.css?url";
@@ -26,6 +28,20 @@ import appCss from "../styles.css?url";
 const Databuddy = lazy(() =>
 	import("@databuddy/sdk/react").then((m) => ({ default: m.Databuddy })),
 );
+
+const SKULLET_THEME = {
+	light: {
+		base: "rgb(5 5 5 / 0.06)",
+		highlight: "rgb(255 255 255 / 0.86)",
+	},
+	dark: {
+		base: "rgb(244 244 243 / 0.06)",
+		highlight: "rgb(244 244 243 / 0.14)",
+	},
+	radius: "var(--radius-tag)",
+	animation: "group-shimmer",
+	speed: "fast",
+} satisfies SkulletTheme;
 
 export const Route = createRootRouteWithContext<{
 	queryClient: QueryClient;
@@ -150,29 +166,44 @@ function RootComponent() {
 			enableSystem
 			disableTransitionOnChange
 		>
-			{/* Above the Outlet, not inside DashboardLayout: pages own their own
+			<TripwireSkulletProvider>
+				{/* Above the Outlet, not inside DashboardLayout: pages own their own
 				    layout wrap, so a provider down there would remount — and re-read
 				    storage — on every navigation. */}
-			<ImpersonationBanner />
-			<FlagsProvider clientId={DATABUDDY_CLIENT_ID}>
-				<RepoTabsProvider>
-					<Outlet />
-				</RepoTabsProvider>
-			</FlagsProvider>
-			<Toaster />
-			{/* Global product analytics — one mount covers every route (pageviews,
+				<ImpersonationBanner />
+				<FlagsProvider clientId={DATABUDDY_CLIENT_ID}>
+					<RepoTabsProvider>
+						<Outlet />
+					</RepoTabsProvider>
+				</FlagsProvider>
+				<Toaster />
+				{/* Global product analytics — one mount covers every route (pageviews,
 			    interactions, outgoing links, hash changes, web vitals). */}
-			<Suspense fallback={null}>
-				<Databuddy
-					clientId={DATABUDDY_CLIENT_ID}
-					trackHashChanges
-					trackAttributes
-					trackOutgoingLinks
-					trackInteractions
-					trackWebVitals
-				/>
-			</Suspense>
-			<AnalyticsIdentity />
+				<Suspense fallback={null}>
+					<Databuddy
+						clientId={DATABUDDY_CLIENT_ID}
+						trackHashChanges
+						trackAttributes
+						trackOutgoingLinks
+						trackInteractions
+						trackWebVitals
+					/>
+				</Suspense>
+				<AnalyticsIdentity />
+			</TripwireSkulletProvider>
 		</ThemeProvider>
+	);
+}
+
+function TripwireSkulletProvider({ children }: { children: React.ReactNode }) {
+	const { resolvedTheme } = useTheme();
+	const mode: SkulletMode =
+		resolvedTheme === "dark" || resolvedTheme === "light"
+			? resolvedTheme
+			: "system";
+	return (
+		<SkulletProvider mode={mode} reveal={together} theme={SKULLET_THEME}>
+			{children}
+		</SkulletProvider>
 	);
 }

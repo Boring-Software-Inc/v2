@@ -156,6 +156,7 @@ describe("superseded run chain", () => {
 			expect(markup).toContain(`/runs/${run.id}`);
 		}
 		expect(markup).toContain("Runs in this superseded chain");
+		expect(markup).toContain("overflow-visible");
 	});
 
 	test("replaces the newest run's single predecessor link at the event node", async () => {

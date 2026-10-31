@@ -133,7 +133,7 @@ export function SupersededRunChain({
 					/>
 				</span>
 			</CollapsibleTrigger>
-			<CollapsibleContent className="relative w-full max-w-80">
+			<CollapsibleContent className="relative w-full max-w-80 overflow-visible">
 				<span
 					aria-hidden
 					className="pointer-events-none absolute top-0 -left-7 z-0 h-[18px] w-[41px] rounded-bl-[16px] border-b-[1.5px] border-l-[1.5px] border-[#45484B]"

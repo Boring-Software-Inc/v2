@@ -631,3 +631,18 @@ This change adds no dependency, permission or migration. Staging activation is s
 
 
 Activation retains the request-authorized organization ID through web and MCP entry points and compares it to the locked claim. A retained repository or workflow rebound to another organization cannot be activated by the old organization's request. Historical evaluations remain separate from live-event recovery: only a committed live run can bypass hydration, and backfill runs cannot acquire live surface intents. Setup labels name GitCafe, and rule packs list and install only rules supported by the repository's forge.
+
+## 2026-10-31 — Skullet owns web skeleton rendering
+
+`skullet@0.0.3` replaces the custom timing and box-rendering engine behind the
+existing Glaze skeleton facade. Page-specific skeleton layouts remain the source
+of their own geometry, while the shared facade supplies Skullet boxes and one
+coordinated `together` reveal. The root provider follows Tripwire's resolved
+light or dark theme and uses the existing neutral ink palette.
+
+React, TanStack Query, and Glaze can render fixed placeholders but do not supply
+Skullet's measured-content fallback, coordinated animation, reveal lifecycle,
+reduced-motion handling, or accessible loading region as one maintained unit.
+Keeping the dependency behind the existing Glaze primitive prevents package API
+from spreading through feature code. Skullet is MIT licensed and introduces no
+new service, permission, storage boundary, or production credential.
