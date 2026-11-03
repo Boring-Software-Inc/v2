@@ -12,7 +12,7 @@
 ## Ownership
 
 - Coordinator and integrator: lead Pi session.
-- Product-direction owner: user, through the moderation variant selection.
+- Product-direction owner: user. The moderation pilot resolved to the Focus direction; later route work applies that accepted direction without reopening the picker.
 - Route writer: lead Pi session in the product-route-redesign worktree.
 - Cleanup writer: delegated subagent in the antislop-cleanup worktree.
 - Verifier: a separate delegated read-only agent where available; otherwise the lead records self-verification explicitly.

@@ -33,6 +33,7 @@ Where older Tripwire or Quartz documents conflict with this file, this file and 
 - Avoid equal stat-card grids, nested cards, decorative icon tiles, colored side rails, status dots, and eyebrow labels.
 - Keep route declarations thin. Loading, empty, error, populated, permission, pending, and overflow states share the same structural hierarchy.
 - Responsive layouts must remain reachable at 320px and 200% text zoom; actions wrap without detaching from their subject.
+- Daily decision routes use a task-first single column: evidence and actions lead, while analytics and secondary context follow instead of competing beside the queue.
 
 ## Typography and copy
 
@@ -58,4 +59,4 @@ Where older Tripwire or Quartz documents conflict with this file, this file and 
 
 ## Redesign method
 
-Moderation establishes the route language first. Three temporary variants may differ on one composition/density axis while sharing the same accessibility, behavior, data, and state floor. After selection, the chosen direction moves into shared component-family composition; the picker and rejected variants are deleted before fan-out.
+Moderation established the route language through three temporary operational-density variants. The selected Focus direction is now the accepted pilot: a relaxed single task column, review evidence and actions with room to wrap, and analytics below the queue. The picker and rejected Split and Scan implementations are removed before route-family fan-out.

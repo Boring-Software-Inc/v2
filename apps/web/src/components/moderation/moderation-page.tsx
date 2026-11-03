@@ -5,6 +5,7 @@ import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { Collection } from "#/components/collection/collection";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MODERATION_COLLECTION } from "#/components/moderation/moderation-collection";
+import { ModerationPageFrame } from "#/components/moderation/moderation-page-frame";
 import {
 	ModerationPageSkeleton,
 	QueueSkeleton,
@@ -14,10 +15,6 @@ import {
 	ModerationQueueEmpty,
 	moderationQueueOptions,
 } from "#/components/moderation/moderation-queue";
-import {
-	type ModerationVariant,
-	ModerationVariantPicker,
-} from "#/components/moderation/moderation-variant-picker";
 import { RegionGate } from "#/components/organizations/region-gate";
 import { RepoSetupChecklist } from "#/components/setup/repo-setup-checklist";
 import { SetupDoneStrip } from "#/components/setup/setup-done-strip";
@@ -58,9 +55,6 @@ function verdictRows(stats: ModStats) {
 
 export function ModerationPage() {
 	const { org, repo: repoName } = routeApi.useParams();
-	const search = routeApi.useSearch();
-	const variant: ModerationVariant =
-		import.meta.env.DEV && search.__variant ? search.__variant : "focus";
 	const queueQuery = useQuery(moderationQueueOptions(org, repoName));
 	const collection = useCollection(
 		MODERATION_COLLECTION,
@@ -97,11 +91,7 @@ export function ModerationPage() {
 	) {
 		return (
 			<DashboardLayout counts={{}}>
-				<div className="px-4 py-6 md:px-8 md:py-10">
-					<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-						{checklist}
-					</div>
-				</div>
+				<ModerationPageFrame>{checklist}</ModerationPageFrame>
 			</DashboardLayout>
 		);
 	}
@@ -221,8 +211,7 @@ export function ModerationPage() {
 
 	return (
 		<DashboardLayout counts={counts}>
-			{import.meta.env.DEV ? <ModerationVariantPicker /> : null}
-			<div data-layout-role="moderation-page" data-moderation-variant={variant}>
+			<ModerationPageFrame>
 				{checklist}
 				{setup.progress?.complete ? (
 					<SetupDoneStrip org={org} progress={setup.progress} repo={repoName} />
@@ -244,7 +233,7 @@ export function ModerationPage() {
 					</div>
 					<div data-layout-role="moderation-secondary">{analyticsContent}</div>
 				</div>
-			</div>
+			</ModerationPageFrame>
 		</DashboardLayout>
 	);
 }
