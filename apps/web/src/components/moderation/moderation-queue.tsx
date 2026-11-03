@@ -163,7 +163,7 @@ export function ModerationQueue({
 										) : null}
 									</ItemTitle>
 									<ItemDescription>
-										<MetaRow>
+										<MetaRow wrap>
 											<span>{item.actorLogin ?? "Unknown contributor"}</span>
 											<ZonedTime at={item.createdAt} format="short" />
 											{item.reason ? <span>{item.reason}</span> : null}
