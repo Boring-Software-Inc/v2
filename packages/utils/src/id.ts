@@ -7,8 +7,8 @@
  * is Node, so a portable RFC 9562 v7 fallback lives beside it.
  */
 export function generateId(): string {
-	if (typeof Bun !== "undefined") {
-		return Bun.randomUUIDv7();
+	if (globalThis.Bun !== undefined) {
+		return globalThis.Bun.randomUUIDv7();
 	}
 	const bytes = new Uint8Array(16);
 	crypto.getRandomValues(bytes);
@@ -16,8 +16,9 @@ export function generateId(): string {
 	for (let i = 0; i < 6; i++) {
 		bytes[i] = Number((ts >> BigInt(8 * (5 - i))) & 0xffn);
 	}
-	bytes[6] = ((bytes[6] as number) & 0x0f) | 0x70;
-	bytes[8] = ((bytes[8] as number) & 0x3f) | 0x80;
+	const view = new DataView(bytes.buffer);
+	view.setUint8(6, (view.getUint8(6) & 0x0f) | 0x70);
+	view.setUint8(8, (view.getUint8(8) & 0x3f) | 0x80);
 	const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
 		"",
 	);

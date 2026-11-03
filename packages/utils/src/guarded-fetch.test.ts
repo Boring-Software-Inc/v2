@@ -2,11 +2,21 @@ import { describe, expect, test } from "bun:test";
 import { createHmac } from "node:crypto";
 import {
 	guardedPost,
+	guardedPostMultipart,
 	isBlockedAddress,
 	isBlockedIpv4,
 	isBlockedIpv6,
 	isDeliverableUrl,
 } from "./guarded-fetch.ts";
+
+function requestFromFetch(
+	input: Parameters<typeof fetch>[0],
+	init?: RequestInit,
+) {
+	return input instanceof Request
+		? new Request(input, init)
+		: new Request(String(input), init);
+}
 
 /**
  * The SSRF guard's proof. The happy path never touches these branches, so this
@@ -147,23 +157,21 @@ describe("guardedPost — the delivery gate", () => {
 	});
 
 	test("refuses a hostname that resolves only to loopback (TOCTOU gate)", async () => {
-		// localhost resolves to 127.0.0.1 / ::1 — the resolved-IP check, not the
-		// string, is what refuses it.
-		const result = await guardedPost("https://localhost/hook", { a: 1 });
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			// unresolvable in some CI sandboxes is also an acceptable refusal —
-			// either way it never reached a socket to a private host.
-			expect(["blocked-destination", "unresolvable-host"]).toContain(
-				result.failure,
-			);
-		}
+		const result = await guardedPost(
+			"https://localhost/hook",
+			{ a: 1 },
+			{ lookupImpl: async () => [{ address: "127.0.0.1" }] },
+		);
+		expect(result).toEqual({ ok: false, failure: "blocked-destination" });
 	});
 
 	test("refuses an unresolvable host", async () => {
 		const result = await guardedPost(
 			"https://nonexistent.invalid.tld.example/hook",
 			{},
+			{
+				lookupImpl: () => Promise.reject(new Error("unresolvable")),
+			},
 		);
 		expect(result).toEqual({ ok: false, failure: "unresolvable-host" });
 	});
@@ -271,14 +279,17 @@ describe("guardedPost — delivery headers + HMAC sign-once", () => {
 
 	/** Capture the exact body string + headers the transport received. */
 	function capture() {
-		const seen: { body?: string; headers: Record<string, string> } = {
-			headers: {},
-		};
-		const fetchImpl = (async (_url: URL, init: RequestInit) => {
-			seen.body = init.body as string;
-			seen.headers = init.headers as Record<string, string>;
-			return new Response(null, { status: 200 });
-		}) as unknown as typeof fetch;
+		const seen = { body: "", headers: new Headers(), redirect: "" };
+		const fetchImpl = Object.assign(
+			async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+				const request = requestFromFetch(input, init);
+				seen.body = await request.text();
+				seen.headers = request.headers;
+				seen.redirect = request.redirect;
+				return new Response(null, { status: 200 });
+			},
+			{ preconnect: fetch.preconnect },
+		);
 		return { seen, fetchImpl };
 	}
 
@@ -289,9 +300,12 @@ describe("guardedPost — delivery headers + HMAC sign-once", () => {
 			{ a: 1 },
 			{ lookupImpl: publicDns, fetchImpl, deliveryId: "row-123" },
 		);
-		expect(seen.headers["x-delivery-id"]).toBe("row-123");
-		expect(seen.headers["idempotency-key"]).toBe("row-123");
-		expect(seen.headers["x-webhook-timestamp"]).toBeDefined();
+		expect(seen.headers.get("x-delivery-id")).toBe("row-123");
+		expect(seen.headers.get("idempotency-key")).toBe("row-123");
+		expect(seen.headers.get("x-webhook-timestamp")).toMatch(/^\d+$/);
+		expect(seen.headers.get("content-type")).toBe("application/json");
+		expect(seen.headers.get("authorization")).toBeNull();
+		expect(seen.redirect).toBe("manual");
 	});
 
 	test("no signature header when no secret is set", async () => {
@@ -301,7 +315,7 @@ describe("guardedPost — delivery headers + HMAC sign-once", () => {
 			{ a: 1 },
 			{ lookupImpl: publicDns, fetchImpl, deliveryId: "row-1" },
 		);
-		expect(seen.headers["x-webhook-signature"]).toBeUndefined();
+		expect(seen.headers.get("x-webhook-signature")).toBeNull();
 	});
 
 	test("the signature verifies against the EXACT wire body (sign-once)", async () => {
@@ -317,7 +331,7 @@ describe("guardedPost — delivery headers + HMAC sign-once", () => {
 				signingSecret: secret,
 			},
 		);
-		const header = seen.headers["x-webhook-signature"] ?? "";
+		const header = seen.headers.get("x-webhook-signature") ?? "";
 		const match = /^t=(\d+),v1=([0-9a-f]+)$/.exec(header);
 		expect(match).not.toBeNull();
 		const ts = match?.[1];
@@ -327,5 +341,303 @@ describe("guardedPost — delivery headers + HMAC sign-once", () => {
 			.update(`${ts}.${seen.body}`)
 			.digest("hex");
 		expect(sig).toBe(expected);
+	});
+
+	test("serializes toJSON exactly once before signing and sending", async () => {
+		const { seen, fetchImpl } = capture();
+		let calls = 0;
+		const result = await guardedPost(
+			"https://hook.example/x",
+			{
+				toJSON() {
+					calls += 1;
+					return { calls, omitted: undefined };
+				},
+			},
+			{ lookupImpl: publicDns, fetchImpl, signingSecret: "secret" },
+		);
+		expect(result).toEqual({ ok: true, status: 200 });
+		expect(calls).toBe(1);
+		expect(seen.body).toBe('{"calls":1}');
+		const header = seen.headers.get("x-webhook-signature") ?? "";
+		const timestamp = /^t=(\d+),/.exec(header)?.[1];
+		expect(header).toBe(
+			`t=${timestamp},v1=${createHmac("sha256", "secret").update(`${timestamp}.${seen.body}`).digest("hex")}`,
+		);
+	});
+
+	test("keeps delivery identifiers stable across retry attempts", async () => {
+		const first = capture();
+		const second = capture();
+		for (const { seen, fetchImpl } of [first, second]) {
+			expect(
+				await guardedPost(
+					"https://hook.example/x",
+					{ a: 1 },
+					{
+						lookupImpl: publicDns,
+						fetchImpl,
+						deliveryId: "logical-delivery",
+					},
+				),
+			).toEqual({ ok: true, status: 200 });
+			expect(seen.headers.get("x-delivery-id")).toBe("logical-delivery");
+			expect(seen.headers.get("idempotency-key")).toBe("logical-delivery");
+		}
+		expect(first.seen.body).toBe(second.seen.body);
+	});
+
+	test("invalid header bytes remain a network-error value", async () => {
+		const { fetchImpl } = capture();
+		expect(
+			await guardedPost(
+				"https://hook.example/x",
+				{},
+				{
+					lookupImpl: publicDns,
+					fetchImpl,
+					deliveryId: "invalid\nheader",
+				},
+			),
+		).toEqual({ ok: false, failure: "network-error" });
+	});
+});
+
+describe("guarded JSON serialization semantics", () => {
+	const publicDns = async () => [{ address: "8.8.8.8" }];
+
+	test("POST preserves native top-level omissions as TypeError before fetch", async () => {
+		let fetched = false;
+		const fetchImpl = Object.assign(
+			async () => {
+				fetched = true;
+				return new Response(null, { status: 200 });
+			},
+			{ preconnect: fetch.preconnect },
+		);
+		for (const body of [undefined, () => 1, Symbol("body")]) {
+			await expect(
+				guardedPost("https://hook.example/x", body, {
+					lookupImpl: publicDns,
+					fetchImpl,
+				}),
+			).rejects.toThrow(TypeError);
+		}
+		expect(fetched).toBe(false);
+	});
+
+	test("multipart retains native coercion of an omitted payload", async () => {
+		const payloads: ReturnType<FormData["getAll"]> = [];
+		const fetchImpl = Object.assign(
+			async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+				const form = await requestFromFetch(input, init).formData();
+				payloads.push(...form.getAll("payload_json"));
+				return new Response(null, { status: 200 });
+			},
+			{ preconnect: fetch.preconnect },
+		);
+		for (const body of [undefined, () => 1, Symbol("body")]) {
+			expect(
+				await guardedPostMultipart("https://hook.example/x", body, [], {
+					lookupImpl: publicDns,
+					fetchImpl,
+				}),
+			).toEqual({ ok: true, status: 200 });
+		}
+		expect(payloads).toEqual(["undefined", "undefined", "undefined"]);
+	});
+
+	test("both POST paths propagate native serialization errors unchanged", async () => {
+		const cause = new Error("serialization");
+		const cycle = {};
+		Object.defineProperty(cycle, "self", { value: cycle, enumerable: true });
+		for (const body of [
+			{
+				get field() {
+					throw cause;
+				},
+			},
+			{
+				toJSON() {
+					throw cause;
+				},
+			},
+		]) {
+			for (const send of [
+				() =>
+					guardedPost("https://hook.example/x", body, {
+						lookupImpl: publicDns,
+					}),
+				() =>
+					guardedPostMultipart("https://hook.example/x", body, [], {
+						lookupImpl: publicDns,
+					}),
+			]) {
+				let caught: unknown;
+				try {
+					await send();
+				} catch (error) {
+					caught = error;
+				}
+				expect(caught).toBe(cause);
+			}
+		}
+		for (const body of [cycle, 1n]) {
+			await expect(
+				guardedPost("https://hook.example/x", body, { lookupImpl: publicDns }),
+			).rejects.toThrow(TypeError);
+			await expect(
+				guardedPostMultipart("https://hook.example/x", body, [], {
+					lookupImpl: publicDns,
+				}),
+			).rejects.toThrow(TypeError);
+		}
+	});
+
+	test("POST retains Date, nonfinite and undefined-field wire semantics", async () => {
+		const bodies: string[] = [];
+		const fetchImpl = Object.assign(
+			async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+				bodies.push(await requestFromFetch(input, init).text());
+				return new Response(null, { status: 200 });
+			},
+			{ preconnect: fetch.preconnect },
+		);
+		for (const body of [
+			null,
+			true,
+			42,
+			"message",
+			new Date("2026-10-01T00:00:00.000Z"),
+			{ kept: 1, omitted: undefined, notFinite: Number.NaN },
+			[undefined, Number.POSITIVE_INFINITY],
+		]) {
+			expect(
+				await guardedPost("https://hook.example/x", body, {
+					lookupImpl: publicDns,
+					fetchImpl,
+				}),
+			).toEqual({ ok: true, status: 200 });
+			expect(bodies.at(-1)).toBe(JSON.stringify(body));
+		}
+	});
+
+	test("both paths refuse destinations before evaluating the payload", async () => {
+		let serialized = false;
+		const body = {
+			toJSON() {
+				serialized = true;
+				throw new Error("must not serialize");
+			},
+		};
+		const blocked = {
+			lookupImpl: async () => [
+				{ address: "8.8.8.8" },
+				{ address: "127.0.0.1" },
+			],
+		};
+		expect(await guardedPost("https://hook.example/x", body, blocked)).toEqual({
+			ok: false,
+			failure: "blocked-destination",
+		});
+		expect(
+			await guardedPostMultipart("https://hook.example/x", body, [], blocked),
+		).toEqual({ ok: false, failure: "blocked-destination" });
+		expect(serialized).toBe(false);
+	});
+
+	test("multipart file cap is applied before payload serialization or fetch", async () => {
+		let serialized = false;
+		expect(
+			await guardedPostMultipart(
+				"https://hook.example/x",
+				{
+					toJSON() {
+						serialized = true;
+						throw new Error("must not serialize");
+					},
+				},
+				[
+					{
+						field: "files[0]",
+						filename: "large.png",
+						contentType: "image/png",
+						bytes: new Uint8Array(256 * 1024 + 1),
+					},
+				],
+				{ lookupImpl: publicDns },
+			),
+		).toEqual({ ok: false, failure: "body-too-large" });
+		expect(serialized).toBe(false);
+	});
+
+	test("outbound cap counts UTF-8 bytes and never calls fetch", async () => {
+		let fetched = false;
+		const fetchImpl = Object.assign(
+			async () => {
+				fetched = true;
+				return new Response(null, { status: 200 });
+			},
+			{ preconnect: fetch.preconnect },
+		);
+		expect(
+			await guardedPost("https://hook.example/x", "é".repeat(128 * 1024), {
+				lookupImpl: publicDns,
+				fetchImpl,
+			}),
+		).toEqual({ ok: false, failure: "body-too-large" });
+		expect(fetched).toBe(false);
+	});
+
+	test("multipart preserves payload, file parts and manual redirect protection", async () => {
+		let calls = 0;
+		const fetchImpl = Object.assign(
+			async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+				calls += 1;
+				const request = requestFromFetch(input, init);
+				expect(request.redirect).toBe("manual");
+				expect(request.signal).toBeInstanceOf(AbortSignal);
+				expect(request.headers.get("authorization")).toBeNull();
+				const form = await request.formData();
+				expect(form.get("payload_json")).toBe('{"calls":1}');
+				const file = form.get("files[0]");
+				expect(file).toBeInstanceOf(File);
+				if (!(file instanceof File)) throw new Error("missing attachment");
+				expect(file.name).toBe("chart.png");
+				expect(file.type).toBe("image/png");
+				expect(new Uint8Array(await file.arrayBuffer())).toEqual(
+					new Uint8Array([1, 2, 3]),
+				);
+				return new Response(null, {
+					status: 302,
+					headers: { location: "https://127.0.0.1/" },
+				});
+			},
+			{ preconnect: fetch.preconnect },
+		);
+		let serialized = 0;
+		const payload = {
+			toJSON() {
+				serialized += 1;
+				return { calls: serialized };
+			},
+		};
+		expect(
+			await guardedPostMultipart(
+				"https://hook.example/x",
+				payload,
+				[
+					{
+						field: "files[0]",
+						filename: "chart.png",
+						contentType: "image/png",
+						bytes: new Uint8Array([1, 2, 3]),
+					},
+				],
+				{ lookupImpl: publicDns, fetchImpl },
+			),
+		).toEqual({ ok: false, failure: "redirected", status: 302 });
+		expect(serialized).toBe(1);
+		expect(calls).toBe(1);
 	});
 });

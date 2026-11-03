@@ -209,6 +209,7 @@ export * from "./run-outcome.ts";
 export * from "./run-result.ts";
 export * from "./run-steps.ts";
 export * from "./runs.ts";
+export * from "./serialization.ts";
 export * from "./setup.ts";
 export * from "./staff-user.ts";
 export * from "./verdict-join.ts";
