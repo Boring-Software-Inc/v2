@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
+	type CustomRuleDefinition,
 	type CustomSignalDisplay,
 	customSignalDisplay,
 } from "@tripwire/contracts";
 import {
 	type BuilderState,
+	draftFromState,
 	nextStep,
 	valueIssue,
 } from "./custom-rule-builder.tsx";
@@ -103,6 +105,145 @@ describe("valueIssue", () => {
 
 	test("boolean signals take no value", () => {
 		expect(valueIssue(state("contributor.hireable", "equals"))).toBeNull();
+	});
+});
+
+describe("draftFromState", () => {
+	test("scalar and list comparisons keep their exact serialized output", () => {
+		const cases = [
+			{
+				id: "contributor.accountAge",
+				verb: "under",
+				fields: { value: " 7 " },
+				args: [7],
+			},
+			{
+				id: "contributor.accountAge",
+				verb: "between",
+				fields: { value: "2", high: "10" },
+				args: [2, 10],
+			},
+			{
+				id: "pr.sourceBranch",
+				verb: "startsWith",
+				fields: { value: " release- " },
+				args: ["release-"],
+			},
+			{
+				id: "pr.targetBranch",
+				verb: "endsWith",
+				fields: { value: " -stable " },
+				args: ["-stable"],
+			},
+			{
+				id: "pr.body",
+				verb: "containsAny",
+				fields: { values: ["first", "second"] },
+				args: [["first", "second"]],
+			},
+			{
+				id: "pr.changedPaths",
+				verb: "noneMatch",
+				fields: { values: ["src/**"] },
+				args: [["src/**"]],
+			},
+		] satisfies {
+			id: string;
+			verb: CustomRuleDefinition["comparison"]["kind"];
+			fields: Parameters<typeof state>[2];
+			args: CustomRuleDefinition["comparison"]["args"];
+		}[];
+		for (const entry of cases) {
+			const draft = draftFromState({
+				...state(entry.id, entry.verb, entry.fields),
+				name: "  My rule  ",
+			});
+			expect(draft).toEqual({
+				name: "My rule",
+				definition: {
+					when: { id: entry.id },
+					comparison: { kind: entry.verb, args: entry.args },
+				},
+			});
+			expect(draft?.definition.when).not.toHaveProperty("transform");
+		}
+	});
+
+	test("boolean presence and absence retain the nested comparison shape", () => {
+		expect(
+			draftFromState({
+				...state("contributor.hireable", "equals"),
+				name: "Present",
+			})?.definition.comparison,
+		).toEqual({ kind: "equals", args: [true] });
+		expect(
+			draftFromState({
+				...state("contributor.hireable", "not"),
+				name: "Absent",
+			})?.definition.comparison,
+		).toEqual({ kind: "not", args: [{ kind: "equals", args: [true] }] });
+	});
+
+	test("only timestamp signals emit the lastCount transform", () => {
+		const timestampState = {
+			...state("contributor.recentForkTimes", "atMost", { value: "3" }),
+			name: "Fork rate",
+		};
+		expect(draftFromState(timestampState)).toBeNull();
+		expect(draftFromState({ ...timestampState, window: "7d" })).toEqual({
+			name: "Fork rate",
+			definition: {
+				when: {
+					id: "contributor.recentForkTimes",
+					transform: { kind: "lastCount", window: "7d" },
+				},
+				comparison: { kind: "atMost", args: [3] },
+			},
+		});
+		const scalarDraft = draftFromState({
+			...state("contributor.accountAge", "under", { value: "3" }),
+			window: "7d",
+			name: "Account age",
+		});
+		expect(scalarDraft?.definition.when).toEqual({
+			id: "contributor.accountAge",
+		});
+	});
+
+	test("invalid and incomplete state is not mutated or emitted", () => {
+		const incomplete = state("pr.title", "has");
+		expect(draftFromState(incomplete)).toBeNull();
+		const invalid = {
+			...state("contributor.accountAge", "under", { value: "abc" }),
+			name: "Invalid",
+		};
+		expect(draftFromState(invalid)).toBeNull();
+		expect(invalid.value).toBe("abc");
+		expect(nextStep(invalid)).toBe("Enter a number.");
+		expect(
+			draftFromState({ ...state("pr.body", "containsAny"), name: "No chips" }),
+		).toBeNull();
+		expect(
+			draftFromState({
+				...state("pr.title", "has", { value: "title" }),
+				name: "  ",
+			}),
+		).toBeNull();
+	});
+
+	test("the existing empty-number conversion and percentage units are unchanged", () => {
+		expect(
+			draftFromState({
+				...state("contributor.accountAge", "under"),
+				name: "Zero",
+			})?.definition.comparison,
+		).toEqual({ kind: "under", args: [0] });
+		expect(
+			draftFromState({
+				...state("contributor.mergeRatioGlobal", "under", { value: "30" }),
+				name: "Ratio",
+			})?.definition.comparison,
+		).toEqual({ kind: "under", args: [30] });
 	});
 });
 

@@ -183,7 +183,7 @@ function parseValue(
 		: null;
 }
 
-function draftFromState(state: BuilderState): CustomRuleDraft | null {
+export function draftFromState(state: BuilderState): CustomRuleDraft | null {
 	const comparison = parseValue(state);
 	if (!state.signal || !comparison) {
 		return null;
@@ -195,17 +195,13 @@ function draftFromState(state: BuilderState): CustomRuleDraft | null {
 	if (needsWindow && !state.window) {
 		return null;
 	}
+	const when: CustomRuleDefinition["when"] = { id: state.signal.id };
+	if (needsWindow && state.window) {
+		when.transform = { kind: "lastCount", window: state.window };
+	}
 	return {
 		name: state.name.trim(),
-		definition: {
-			when: {
-				id: state.signal.id,
-				...(needsWindow && state.window
-					? { transform: { kind: "lastCount", window: state.window } }
-					: {}),
-			},
-			comparison,
-		} as CustomRuleDefinition,
+		definition: { when, comparison },
 	};
 }
 
@@ -458,8 +454,7 @@ export function CustomRuleBuilder({
 											? `${state.value}${isPercentSignal ? "%" : ""}`
 											: "value"
 									}
-								>
-									{(close) => (
+									render={(close) => (
 										<>
 											<Input
 												aria-invalid={valueMessage !== null}
@@ -486,7 +481,7 @@ export function CustomRuleBuilder({
 											) : null}
 										</>
 									)}
-								</ValueWord>
+								/>
 							)
 						) : null}
 					</div>
@@ -641,11 +636,14 @@ function ValueWord({
 	label,
 	empty,
 	children,
+	render,
 }: {
 	label: string;
 	empty: boolean;
-	children: ReactNode | ((close: () => void) => ReactNode);
-}) {
+} & (
+	| { children: ReactNode; render?: never }
+	| { children?: never; render: (close: () => void) => ReactNode }
+)) {
 	const [open, setOpen] = useState(false);
 	const close = () => setOpen(false);
 	return (
@@ -658,7 +656,7 @@ function ValueWord({
 						close();
 					}}
 				>
-					{typeof children === "function" ? children(close) : children}
+					{render ? render(close) : children}
 				</form>
 			</PopoverContent>
 		</Popover>
