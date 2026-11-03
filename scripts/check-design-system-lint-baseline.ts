@@ -1,13 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
-
-interface OxlintDiagnostic {
-	code: string;
-}
-
-interface OxlintOutput {
-	diagnostics: OxlintDiagnostic[];
-}
+import { z } from "zod";
 
 const BASELINE_PATH = ".design-system/design-system-lint-baseline.json";
 const RULES = [
@@ -21,34 +14,56 @@ const RULES = [
 type Rule = (typeof RULES)[number];
 type RuleCounts = Record<Rule, number>;
 
+const countSchema = z.number().refine(Number.isInteger).nonnegative();
+const baselineSchema = z.strictObject({
+	"no-arbitrary-tailwind-values": countSchema,
+	"no-direct-implementation-imports": countSchema,
+	"no-inline-visual-styles": countSchema,
+	"no-raw-color": countSchema,
+	"no-raw-spacing": countSchema,
+	"no-raw-typography": countSchema,
+});
+const outputSchema = z.object({
+	diagnostics: z.array(z.object({ code: z.string() })),
+});
+
 function emptyCounts(): RuleCounts {
-	return Object.fromEntries(RULES.map((rule) => [rule, 0])) as RuleCounts;
+	return {
+		"no-arbitrary-tailwind-values": 0,
+		"no-direct-implementation-imports": 0,
+		"no-inline-visual-styles": 0,
+		"no-raw-color": 0,
+		"no-raw-spacing": 0,
+		"no-raw-typography": 0,
+	};
 }
 
-function parseBaseline(value: unknown): RuleCounts {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
+function parseBaseline(value: Parameters<typeof baselineSchema.safeParse>[0]) {
+	const parsed = baselineSchema.safeParse(value);
+	if (parsed.success) return parsed.data;
+	if (
+		parsed.error.issues.some(
+			(issue) => issue.code === "invalid_type" && issue.path.length === 0,
+		)
+	) {
 		throw new Error(`${BASELINE_PATH} must contain an object.`);
 	}
-	const record = value as Record<string, unknown>;
-	const unexpected = Object.keys(record).filter(
-		(key) => !RULES.includes(key as Rule),
+	const unexpected = parsed.error.issues.find(
+		(issue) => issue.code === "unrecognized_keys",
 	);
-	if (unexpected.length > 0) {
+	if (unexpected?.code === "unrecognized_keys") {
 		throw new Error(
-			`${BASELINE_PATH} contains unknown rules: ${unexpected.join(", ")}`,
+			`${BASELINE_PATH} contains unknown rules: ${unexpected.keys.join(", ")}`,
 		);
 	}
-	const counts = emptyCounts();
 	for (const rule of RULES) {
-		const count = record[rule];
-		if (!Number.isInteger(count) || (count as number) < 0) {
+		if (parsed.error.issues.some((issue) => issue.path[0] === rule)) {
 			throw new Error(
 				`${BASELINE_PATH} must contain a non-negative integer for ${rule}.`,
 			);
 		}
-		counts[rule] = count as number;
 	}
-	return counts;
+	throw new Error(`${BASELINE_PATH} must contain an object.`);
 }
 
 const result = spawnSync(
@@ -67,20 +82,23 @@ if (result.status !== 0 && result.status !== 1) {
 	);
 }
 
-let output: OxlintOutput;
+let decoded: unknown;
 try {
-	output = JSON.parse(result.stdout) as OxlintOutput;
+	decoded = JSON.parse(result.stdout);
 } catch {
 	throw new Error(
 		`Oxlint did not return JSON diagnostics:\n${result.stdout ?? ""}${result.stderr ?? ""}`,
 	);
 }
-if (!Array.isArray(output.diagnostics)) {
-	throw new Error("Oxlint JSON output did not contain a diagnostics array.");
+const output = outputSchema.safeParse(decoded);
+if (!output.success) {
+	throw new Error(
+		"Oxlint JSON output did not contain a valid diagnostics array.",
+	);
 }
 
 const counts = emptyCounts();
-for (const diagnostic of output.diagnostics) {
+for (const diagnostic of output.data.diagnostics) {
 	const match = /^design-system\(([^)]+)\)$/.exec(diagnostic.code);
 	if (!match?.[1] || !RULES.includes(match[1] as Rule)) continue;
 	counts[match[1] as Rule] += 1;
@@ -92,9 +110,7 @@ if (process.argv.includes("--update")) {
 	process.exit(0);
 }
 
-const baseline = parseBaseline(
-	JSON.parse(readFileSync(BASELINE_PATH, "utf8")) as unknown,
-);
+const baseline = parseBaseline(JSON.parse(readFileSync(BASELINE_PATH, "utf8")));
 const regressions = RULES.filter((rule) => counts[rule] > baseline[rule]);
 const stale = RULES.filter((rule) => counts[rule] < baseline[rule]);
 if (regressions.length > 0) {

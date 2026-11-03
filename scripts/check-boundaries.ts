@@ -22,46 +22,48 @@ import { Glob } from "bun";
  *   ui           ← web
  * apps import packages; packages never import apps; nothing imports core but worker.
  */
-const ALLOWED: Record<string, readonly string[]> = {
-	// packages
-	auth: ["contracts", "utils", "db"],
-	contracts: [],
-	utils: ["contracts"],
-	forge: ["contracts"],
-	core: ["contracts", "utils", "sdk"],
-	sdk: ["contracts"],
-	"forge-github": ["contracts", "utils", "forge", "sdk"],
-	"forge-opengit": ["contracts", "utils", "forge"],
-	"forge-gitcafe": ["contracts", "utils", "forge"],
-	db: ["contracts", "utils", "sdk"],
-	ui: [],
-	// apps
-	web: ["auth", "contracts", "utils", "db", "ui", "sdk"],
-	api: [
-		"auth",
-		"contracts",
-		"utils",
-		"db",
-		"forge-github",
-		"forge-opengit",
-		"forge-gitcafe",
-	],
-	mcp: ["auth", "contracts", "utils", "db"],
-	worker: [
-		"contracts",
-		"utils",
-		"core",
-		"db",
-		"forge",
-		"forge-github",
-		"forge-opengit",
-		"forge-gitcafe",
-		"sdk",
-	],
-	cli: ["contracts"],
-};
+const ALLOWED = new Map(
+	Object.entries({
+		// packages
+		auth: ["contracts", "utils", "db"],
+		contracts: [],
+		utils: ["contracts"],
+		forge: ["contracts"],
+		core: ["contracts", "utils", "sdk"],
+		sdk: ["contracts"],
+		"forge-github": ["contracts", "utils", "forge", "sdk"],
+		"forge-opengit": ["contracts", "utils", "forge"],
+		"forge-gitcafe": ["contracts", "utils", "forge"],
+		db: ["contracts", "utils", "sdk"],
+		ui: [],
+		// apps
+		web: ["auth", "contracts", "utils", "db", "ui", "sdk"],
+		api: [
+			"auth",
+			"contracts",
+			"utils",
+			"db",
+			"forge-github",
+			"forge-opengit",
+			"forge-gitcafe",
+		],
+		mcp: ["auth", "contracts", "utils", "db"],
+		worker: [
+			"contracts",
+			"utils",
+			"core",
+			"db",
+			"forge",
+			"forge-github",
+			"forge-opengit",
+			"forge-gitcafe",
+			"sdk",
+		],
+		cli: ["contracts"],
+	} satisfies Record<string, readonly string[]>),
+);
 
-const KNOWN = new Set(Object.keys(ALLOWED));
+const KNOWN = new Set(ALLOWED.keys());
 
 /** Matches `from "@tripwire/<name>"` and bare `import "@tripwire/<name>"`. */
 const IMPORT_RE =
@@ -87,7 +89,7 @@ for (const root of ["packages", "apps"]) {
 			continue;
 		}
 		const source = await Bun.file(file).text();
-		const allowed = ALLOWED[importer] ?? [];
+		const allowed = ALLOWED.get(importer) ?? [];
 		for (const match of source.matchAll(IMPORT_RE)) {
 			const target = match[1];
 			if (!target || target === importer) {

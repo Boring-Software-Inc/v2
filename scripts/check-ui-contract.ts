@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import type { JsonValue } from "@tripwire/contracts";
 import { chromium } from "playwright-core";
 
 const args = new Map<string, string>();
@@ -15,7 +16,7 @@ const executablePath =
 const outputRoot = ".design-system/ui-contract";
 await mkdir(outputRoot, { recursive: true });
 
-const expectedTypeSizes: Record<string, number> = {
+const expectedTypeSizes = {
 	"page-title": 28,
 	"section-heading": 20,
 	subheading: 16,
@@ -24,16 +25,16 @@ const expectedTypeSizes: Record<string, number> = {
 	label: 13,
 	caption: 12,
 	"code-text": 11.2,
-};
-const expectedGaps: Record<string, number> = {
+} satisfies Record<string, number>;
+const expectedGaps = {
 	"page-body": 24,
 	section: 12,
 	"section-body": 12,
 	"action-row": 8,
-};
+} satisfies Record<string, number>;
 
 const browser = await chromium.launch({ executablePath, headless: true });
-const reports: Record<string, unknown> = {};
+const reports: Record<string, JsonValue> = {};
 let failed = false;
 for (const width of [320, 768, 1280]) {
 	for (const theme of ["light", "dark"] as const) {
@@ -50,7 +51,7 @@ for (const width of [320, 768, 1280]) {
 			await page.addInitScript((activeTheme) => {
 				localStorage.setItem("theme", activeTheme);
 			}, theme);
-			await page.goto(`http://localhost:3000${route}`, {
+			await page.goto(`http://localhost:3001${route}`, {
 				waitUntil: "domcontentloaded",
 			});
 			await page.locator("body").waitFor();
@@ -107,7 +108,9 @@ for (const width of [320, 768, 1280]) {
 					for (const element of roleElements) {
 						const role = element.dataset.typeRole ?? "";
 						roleCounts[role] = (roleCounts[role] ?? 0) + 1;
-						const expected = sizes[role];
+						const expected = Object.entries(sizes).find(
+							([name]) => name === role,
+						)?.[1];
 						if (applyScaleAudit && expected !== undefined) {
 							const actual = Number.parseFloat(
 								getComputedStyle(element).fontSize,
@@ -135,7 +138,9 @@ for (const width of [320, 768, 1280]) {
 					)) {
 						if (!visible(element)) continue;
 						const role = element.dataset.layoutRole ?? "";
-						const expected = gaps[role];
+						const expected = Object.entries(gaps).find(
+							([name]) => name === role,
+						)?.[1];
 						if (applyScaleAudit && expected !== undefined) {
 							const style = getComputedStyle(element);
 							const actual = Number.parseFloat(style.rowGap || style.gap);

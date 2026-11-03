@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import type { JsonValue } from "@tripwire/contracts";
 import { chromium } from "playwright-core";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Button } from "../apps/web/src/components/glaze/ui/button";
@@ -112,7 +113,7 @@ function contrast(foreground: string, background: string) {
 }
 
 const browser = await chromium.launch({ executablePath, headless: true });
-const reports: Record<string, unknown> = {};
+const reports: Record<string, { state: JsonValue; failures: string[] }> = {};
 await mkdir(".design-system/state-matrix", { recursive: true });
 
 for (const theme of ["light", "dark"] as const) {
@@ -120,13 +121,13 @@ for (const theme of ["light", "dark"] as const) {
 		viewport: { width: 800, height: 900 },
 	});
 	const page = await context.newPage();
-	await page.goto("http://localhost:3000/login", {
+	await page.goto("http://localhost:3001/login", {
 		waitUntil: "domcontentloaded",
 	});
 	await page.setContent(`<!doctype html><html class="${theme === "dark" ? "dark" : ""}" data-theme="${theme}"><head>
-		<link rel="stylesheet" href="http://localhost:3000/src/styles.css">
-		<link rel="stylesheet" href="http://localhost:3000/src/components/glaze/styles.css">
-		<link rel="stylesheet" href="http://localhost:3000/src/design-system/color-contract.css">
+		<link rel="stylesheet" href="http://localhost:3001/src/styles.css">
+		<link rel="stylesheet" href="http://localhost:3001/src/components/glaze/styles.css">
+		<link rel="stylesheet" href="http://localhost:3001/src/design-system/color-contract.css">
 	</head><body class="glaze">${markup}</body></html>`);
 	await page.waitForFunction(
 		() =>
@@ -184,9 +185,10 @@ for (const theme of ["light", "dark"] as const) {
 				disabled: styleOf("#button-disabled"),
 				pending: {
 					...styleOf("#button-pending"),
-					ariaBusy: document
-						.querySelector("#button-pending")
-						?.getAttribute("aria-busy"),
+					ariaBusy:
+						document
+							.querySelector("#button-pending")
+							?.getAttribute("aria-busy") ?? null,
 				},
 				reduced: styleOf("#button-reduced"),
 			},
@@ -202,18 +204,11 @@ for (const theme of ["light", "dark"] as const) {
 		};
 	}, buttonFocus);
 
-	const typed = state as {
-		semanticVariables: [string, string][];
-		button: Record<string, Record<string, string | null>>;
-		field: Record<string, Record<string, string>>;
-		overlay: Record<string, string>;
-		feedback: Record<string, string>;
-		pageBackground: string;
-	};
+	const typed = state;
 	const failures: string[] = [];
 	const differs = (
-		a: Record<string, unknown>,
-		b: Record<string, unknown>,
+		a: Record<string, string>,
+		b: Record<string, string>,
 		keys: string[],
 	) => keys.some((key) => a[key] !== b[key]);
 	if (typed.semanticVariables.some(([, value]) => !value))
@@ -291,10 +286,6 @@ for (const theme of ["light", "dark"] as const) {
 
 await browser.close();
 console.log(JSON.stringify(reports, null, 2));
-if (
-	Object.values(reports).some(
-		(report) => (report as { failures: string[] }).failures.length > 0,
-	)
-) {
+if (Object.values(reports).some((report) => report.failures.length > 0)) {
 	process.exitCode = 1;
 }
