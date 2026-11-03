@@ -46,12 +46,12 @@ export function LoginFaq() {
 		<Collapsible>
 			<CollapsibleTrigger size="sm">Not sure which to pick?</CollapsibleTrigger>
 			<CollapsibleContent>
-				<CollapsibleGroup className="pt-1" variant="plain">
+				<CollapsibleGroup className="login-faq-group" variant="plain">
 					{FAQ.map((item) => (
 						<Collapsible key={item.id} value={item.id}>
 							<CollapsibleTrigger>{item.question}</CollapsibleTrigger>
 							<CollapsibleContent>
-								<p className="type-body-sm text-text-2">
+								<p data-layout-role="login-faq-answer">
 									{item.id === "which-supported"
 										? `Tripwire watches ${LIVE_FORGES} today. ${signInCopy}`
 										: item.answer}

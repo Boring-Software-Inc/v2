@@ -1,0 +1,22 @@
+- text: Tripwire
+- banner:
+  - heading "Sign in" [level=1]
+  - paragraph: Continue with the account that hosts your repos.
+- group "Sign in":
+  - button "GitHub"
+  - button "OpenGit" [disabled]
+  - button "GitLab" [disabled]
+  - button "GitCafe" [disabled]
+  - button "Not sure which to pick?" [expanded]
+  - heading "What is a forge?" [level=3]:
+    - button "What is a forge?" [expanded]
+  - region "What is a forge?":
+    - paragraph: The service that hosts your code, such as GitHub or GitLab. Tripwire checks change requests on the forge you connect.
+  - heading "Does it matter which one I pick?" [level=3]:
+    - button "Does it matter which one I pick?"
+  - region "Does it matter which one I pick?"
+  - heading "Which forges are supported?" [level=3]:
+    - button "Which forges are supported?"
+  - region "Which forges are supported?"
+- button "Dev scenarios"
+- region "Notifications"

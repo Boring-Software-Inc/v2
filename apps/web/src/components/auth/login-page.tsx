@@ -12,19 +12,17 @@ const route = getRouteApi("/login");
 export function LoginPage() {
 	const { redirect } = route.useSearch();
 	return (
-		<div className="relative isolate flex min-h-dvh flex-col items-center justify-start bg-page px-4 pt-[max(2.5rem,calc(50svh-13rem))] pb-40">
-			<ShaderDither className="-z-10 top-auto h-40" mask="bottom" />
-			<div className="flex w-full max-w-sm flex-col items-center gap-6">
+		<div data-layout-role="login-shell">
+			<ShaderDither className="login-dither" mask="bottom" />
+			<div data-layout-role="login-content">
 				<BrandLockup />
 
-				<div className="flex flex-col items-center gap-1.5 text-center">
-					<h1 className="type-heading text-balance">Sign in</h1>
-					<p className="type-body-sm text-pretty text-text-2">
-						Continue with the account that hosts your repos.
-					</p>
-				</div>
+				<header data-layout-role="login-header">
+					<h1>Sign in</h1>
+					<p>Continue with the account that hosts your repos.</p>
+				</header>
 
-				<Card aria-label="Sign in" className="w-full" role="group">
+				<Card aria-label="Sign in" data-layout-role="login-card" role="group">
 					<CardContent>
 						<ForgeGrid redirect={redirect} />
 						<LoginFaq />
