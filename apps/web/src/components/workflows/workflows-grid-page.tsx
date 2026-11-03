@@ -24,6 +24,7 @@ import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	SaveQueueProvider,
+	type SaveQueueValues,
 	UnsavedChangesBar,
 	useSaveQueueField,
 } from "#/components/save-queue";
@@ -185,7 +186,7 @@ export function WorkflowsGridPage() {
 	 * validator server-side and can refuse — that workflow's key stays queued
 	 * (so its toggle keeps the user's intent on screen) while the rest clear.
 	 */
-	const commitEnabled = async (pending: Record<string, unknown>) => {
+	const commitEnabled = async (pending: SaveQueueValues) => {
 		const failedKeys: string[] = [];
 		const refusals: string[] = [];
 		let succeeded = 0;

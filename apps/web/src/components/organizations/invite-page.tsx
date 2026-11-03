@@ -108,15 +108,12 @@ export function InvitePage() {
 	);
 }
 
-const INVALID_COPY: Record<
-	"not-found" | "revoked" | "expired" | "exhausted",
-	string
-> = {
+const INVALID_COPY = {
 	"not-found": "This invite link does not work",
 	revoked: "An admin withdrew this invite",
 	expired: "This invite has expired",
 	exhausted: "This invite has no uses left",
-};
+} satisfies Record<"not-found" | "revoked" | "expired" | "exhausted", string>;
 
 function InviteCopy({ title, body }: { title: string; body: string }) {
 	return (

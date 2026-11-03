@@ -80,6 +80,21 @@ function ReadOnlyCard({ orgContext }: { orgContext: OrgWithRole }) {
 	);
 }
 
+export function orgRenamePatch(
+	org: string,
+	previous: Pick<OrgWithRole, "name" | "slug">,
+	next: Pick<OrgWithRole, "name" | "slug">,
+) {
+	const data: Parameters<typeof updateOrg>[0]["data"] = { org };
+	if (next.name !== previous.name) {
+		data.name = next.name;
+	}
+	if (next.slug !== previous.slug) {
+		data.slug = next.slug;
+	}
+	return data;
+}
+
 function RenameCard({
 	org,
 	orgContext,
@@ -106,11 +121,7 @@ function RenameCard({
 	const saveMutation = useMutation({
 		mutationFn: () =>
 			updateOrg({
-				data: {
-					org,
-					...(name !== orgContext.name ? { name } : {}),
-					...(slug !== orgContext.slug ? { slug } : {}),
-				},
+				data: orgRenamePatch(org, orgContext, { name, slug }),
 			}),
 		onSuccess: (result) => {
 			if ("error" in result) {

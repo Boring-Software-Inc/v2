@@ -24,25 +24,22 @@ import {
 } from "#/lib/setup.query";
 import { trackEvent } from "#/lib/track";
 
-const STAGE_LABELS: Record<SetupStage, string> = {
+const STAGE_LABELS = {
 	connect_mcp: "Connect your agent",
 	install_app: "Install the GitHub App",
 	sync_repos: "Sync repos",
 	pick_rules: "Install rules",
 	turn_on_gate: "Turn on the gate",
 	verify_check: "Check a pull request",
-};
+} satisfies Record<SetupStage, string>;
 
-const STATUS_VIEW: Record<
-	SetupStageStatus,
-	{ status: StatusValue; word: string }
-> = {
+const STATUS_VIEW = {
 	active: { status: "running", word: "In progress" },
 	waiting: { status: "waiting", word: "Waiting on you" },
 	completed: { status: "ok", word: "Done" },
 	skipped: { status: "idle", word: "Skipped" },
 	failed: { status: "fail", word: "Stopped" },
-};
+} satisfies Record<SetupStageStatus, { status: StatusValue; word: string }>;
 
 const COPIED_MS = 2000;
 

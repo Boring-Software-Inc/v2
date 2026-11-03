@@ -183,7 +183,7 @@ function NavLink({
 		>
 			{variant === "rail" ? <Icon icon={icon} /> : null}
 			<span>{label}</span>
-			{typeof value === "number" ? (
+			{value !== undefined ? (
 				<span
 					className={cn(
 						"text-text-3 tabular-nums",

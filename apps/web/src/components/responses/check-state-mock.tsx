@@ -5,10 +5,7 @@ import { BLUR_SWAP } from "#/components/responses/preview-motion";
 import { PreviewObject } from "#/components/responses/preview-object";
 import { StatusMark, type StatusValue } from "#/design-system/ui/status";
 
-const CHECK_STATE: Record<
-	Verdict,
-	{ word: string; status: StatusValue; tone: string }
-> = {
+const CHECK_STATE = {
 	pass: { word: "Passing", status: "ok", tone: "text-ok-text" },
 	block: { word: "Failing", status: "fail", tone: "text-fail-text" },
 	changes_required: {
@@ -18,7 +15,10 @@ const CHECK_STATE: Record<
 	},
 	close: { word: "Closed", status: "fail", tone: "text-fail-text" },
 	needs_review: { word: "In progress", status: "warn", tone: "text-warn-text" },
-};
+} satisfies Record<
+	Verdict,
+	{ word: string; status: StatusValue; tone: string }
+>;
 
 export interface CheckStateMockProps {
 	verdict: Verdict;
