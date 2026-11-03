@@ -124,7 +124,7 @@ function tripwireComment(body: string) {
 async function deliver(
 	deliveryId: string,
 	rawKind: string,
-	raw: unknown,
+	raw: typeof issueComment | typeof pullRequestClosed,
 ): Promise<number> {
 	const { eventId } = await eventServices.insertRawEvent(pool, boss, {
 		deliveryId,

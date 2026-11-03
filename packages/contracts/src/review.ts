@@ -28,6 +28,18 @@ export const aiReviewOutputSchema = z.object({
 });
 export type AiReviewOutput = z.infer<typeof aiReviewOutputSchema>;
 
+/** Only finite numeric per-request costs participate in review metering. */
+export const openRouterStepCostSchema = z.object(
+	{
+		usage: z.object(
+			{ cost: z.number({ error: "Invalid step cost" }) },
+			{ error: "Invalid step usage" },
+		),
+	},
+	{ error: "Invalid step metadata" },
+);
+export type OpenRouterStepCost = z.infer<typeof openRouterStepCostSchema>;
+
 /**
  * Config for ai-review@1 — the model is a config string (§8). When omitted,
  * the worker's AI_REVIEW_MODEL env supplies the default (explicit config

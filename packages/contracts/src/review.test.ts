@@ -4,6 +4,7 @@ import {
 	AI_REVIEW_TRACE_STEP_CHARS,
 	aiReviewTraceSchema,
 	boundAiReviewTrace,
+	openRouterStepCostSchema,
 } from "./review.ts";
 
 /**
@@ -138,5 +139,52 @@ describe("boundAiReviewTrace", () => {
 			usage: { inputTokens: 1, outputTokens: 1 },
 		});
 		expect(aiReviewTraceSchema.safeParse(t).success).toBe(true);
+	});
+});
+
+describe("openRouterStepCostSchema", () => {
+	test("preserves finite numbers without coercing or constraining their sign", () => {
+		for (const cost of [0, -0, -0.5, 0.125]) {
+			expect(
+				openRouterStepCostSchema.parse({
+					usage: { cost, tokens: 4 },
+					extra: true,
+				}).usage.cost,
+			).toBe(cost);
+		}
+	});
+
+	test("ignores absent, malformed and non-finite costs", () => {
+		for (const metadata of [
+			undefined,
+			null,
+			{},
+			[],
+			{ usage: null },
+			{ usage: {} },
+			...["0.2", null, NaN, Infinity, -Infinity].map((cost) => ({
+				usage: { cost },
+			})),
+		]) {
+			expect(openRouterStepCostSchema.safeParse(metadata).success).toBe(false);
+		}
+	});
+
+	test("reads inherited usage and cost like the provider property projection", () => {
+		const usage = Object.create({ cost: 0.25 });
+		expect(
+			openRouterStepCostSchema.parse(Object.create({ usage })).usage.cost,
+		).toBe(0.25);
+	});
+
+	test("invalid cost formatting does not inspect hostile values", () => {
+		const hostile = {
+			get toJSON() {
+				throw new Error("unexpected property read");
+			},
+		};
+		expect(
+			openRouterStepCostSchema.safeParse({ usage: { cost: hostile } }).success,
+		).toBe(false);
 	});
 });

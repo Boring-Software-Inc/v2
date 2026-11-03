@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { actionCommentMarker } from "@tripwire/contracts";
 import { pendingCheckIsStale, supersededBy } from "@tripwire/utils";
 import { commentRows, toForgeAction } from "./pr-surface.ts";
+import { actionPayload } from "./run-workflows.ts";
 
 describe("toForgeAction — request-review", () => {
 	test("GitCafe string identities reach the forge without mutable-handle substitution", () => {
@@ -304,5 +306,40 @@ describe("pendingCheckIsStale", () => {
 				"sha-b",
 			),
 		).toBe(false);
+	});
+});
+
+describe("actionPayload", () => {
+	test("post-comment markers use the original node identity and override supplied metadata", () => {
+		const action = {
+			nodeId: "message",
+			action: "post-comment",
+			params: { message: "hello", marker: "untrusted", nodeId: "untrusted" },
+		};
+		const payload = actionPayload(action, "workflow", "run");
+		expect(payload).toEqual({
+			message: "hello",
+			nodeId: "workflow:message",
+			marker: actionCommentMarker({
+				workflowId: "workflow",
+				nodeId: "message",
+				runId: "run",
+			}),
+		});
+		expect(action.params).toEqual({
+			message: "hello",
+			marker: "untrusted",
+			nodeId: "untrusted",
+		});
+	});
+
+	test("other actions preserve their params without adding a comment marker", () => {
+		expect(
+			actionPayload(
+				{ nodeId: "label", action: "label", params: { labels: ["triage"] } },
+				"workflow",
+				"run",
+			),
+		).toEqual({ nodeId: "workflow:label", labels: ["triage"] });
 	});
 });

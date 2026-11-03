@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { AI_CREDITS_COPY } from "./ai-provider.ts";
 import {
 	type RedactedReasons,
@@ -40,6 +41,30 @@ import type { Verdict } from "./runs.ts";
  * file is string-in string-out; the adapter keeps the posting (upsert,
  * supersede) and the check-side copy.
  */
+
+/** Stored partial envelopes remain readable without unrelated RuleResult fields. */
+export const commentRuleEnvelopeSchema = z.object(
+	{
+		ruleId: z.string({ error: "Invalid rule id" }).optional().catch(undefined),
+		version: z.unknown().optional(),
+		evidence: z.unknown().optional(),
+		reason: z
+			.string({ error: "Invalid rule reason" })
+			.optional()
+			.catch(undefined),
+	},
+	{ error: "Invalid rule envelope" },
+);
+export type CommentRuleEnvelope = z.infer<typeof commentRuleEnvelopeSchema>;
+
+/** Custom rule thresholds stay private; only their observed value is projected. */
+export const commentObservedEvidenceSchema = z.object(
+	{ observed: z.unknown() },
+	{ error: "Invalid observed evidence" },
+);
+export type CommentObservedEvidence = z.infer<
+	typeof commentObservedEvidenceSchema
+>;
 
 /** The verdict as a bare word — the bold line and the check summary. */
 export const VERDICT_WORD = {

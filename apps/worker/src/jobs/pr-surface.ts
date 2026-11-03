@@ -158,14 +158,13 @@ export async function recoverGitCafeRunSurface(
  * rows FIRST (§5.12) and marked executed after.
  */
 
-export const VERDICT_TO_CONCLUSION: Record<Verdict, CheckState["conclusion"]> =
-	{
-		pass: "success",
-		block: "failure",
-		changes_required: "failure",
-		needs_review: "pending",
-		close: "failure",
-	};
+export const VERDICT_TO_CONCLUSION = {
+	pass: "success",
+	block: "failure",
+	changes_required: "failure",
+	needs_review: "pending",
+	close: "failure",
+} as const satisfies Record<Verdict, CheckState["conclusion"]>;
 
 export const VERDICT_ONLY_KINDS: ReadonlySet<string> = new Set([
 	"request-fix",
@@ -269,11 +268,7 @@ export interface EmitSurfaceInput {
 	gitCafePhase?: GitCafeEvaluationPhase;
 	refreshReview?: boolean;
 	/** Workflow-emitted action rows still awaiting execution. */
-	pendingActionRows: {
-		id: string;
-		kind: string;
-		payload: Record<string, unknown>;
-	}[];
+	pendingActionRows: Awaited<ReturnType<typeof runServices.recordActions>>;
 }
 
 export async function emitPrSurface(
@@ -295,7 +290,7 @@ export async function emitPrSurface(
 			number: thread.number,
 			title: thread.title,
 			author: thread.author,
-			skips: (kind) => SCHEDULED_SKIPS[kind]?.(thread) === true,
+			skips: (kind) => SCHEDULED_SKIPS.get(kind)?.(thread) === true,
 		});
 		return;
 	}
@@ -650,10 +645,10 @@ async function executeRecordedPrActions(
 	}
 }
 
-const SCHEDULED_SKIPS: Record<string, (thread: ScheduledThread) => boolean> = {
-	block: () => true,
-	"request-review": (thread) => thread.kind !== "change-request",
-};
+const SCHEDULED_SKIPS = new Map<string, (thread: ScheduledThread) => boolean>([
+	["block", () => true],
+	["request-review", (thread) => thread.kind !== "change-request"],
+]);
 
 async function emitThreadActions(
 	deps: PrSurfaceDeps,
@@ -878,7 +873,10 @@ export async function emitClosedReviewSurfaces(
 }
 
 export function toForgeAction(
-	row: { kind: string; payload: Record<string, unknown> },
+	row: Pick<
+		Awaited<ReturnType<typeof runServices.recordActions>>[number],
+		"kind" | "payload"
+	>,
 	repoFullName: string,
 	number: number,
 	reviewText: string,

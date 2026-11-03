@@ -11,6 +11,8 @@ import {
 	AI_REVIEW_RULE_ID,
 	actionCommentMarker,
 	type CustomRuleRecord,
+	commentObservedEvidenceSchema,
+	commentRuleEnvelopeSchema,
 	customRuleRef,
 	customRuleSummary,
 	isAiReviewNotRunStep,
@@ -24,6 +26,7 @@ import {
 import {
 	type AiReviewGenerate,
 	deriveDefaultWorkflow,
+	type ExecutionResult,
 	evaluateRule,
 	executeWorkflow,
 	getRule,
@@ -72,23 +75,25 @@ import {
  */
 
 export function actionPayload(
-	action: { nodeId: string; action: string; params: Record<string, unknown> },
+	action: ExecutionResult["actions"][number],
 	definitionId: string,
 	runId: string,
-): Record<string, unknown> {
-	return {
+): ExecutionResult["actions"][number]["params"] & { nodeId: string } {
+	const payload = {
 		...action.params,
 		nodeId: `${definitionId}:${action.nodeId}`,
-		...(action.action === "post-comment"
-			? {
-					marker: actionCommentMarker({
-						workflowId: definitionId,
-						nodeId: action.nodeId,
-						runId,
-					}),
-				}
-			: {}),
 	};
+	if (action.action === "post-comment") {
+		return {
+			...payload,
+			marker: actionCommentMarker({
+				workflowId: definitionId,
+				nodeId: action.nodeId,
+				runId,
+			}),
+		};
+	}
+	return payload;
 }
 
 export function postsSomething(action: { action: string }): boolean {
@@ -205,7 +210,7 @@ export interface RunWorkflowsResult {
 	runId: string | null;
 	verdict: Verdict | null;
 	paused: boolean;
-	actionRows: { id: string; kind: string; payload: Record<string, unknown> }[];
+	actionRows: Awaited<ReturnType<typeof runServices.recordActions>>;
 	/** The failing rules' reasons for the PR comment (§7/§12). */
 	reasons: CommentReason[];
 	/** True when the fail-closed floor fired (evaluation degraded). */
@@ -621,20 +626,22 @@ async function runWorkflowsInner(
 		}
 	}
 	if (degraded) {
+		const degradationOutput = {
+			degradedReads,
+			skippedRules: skippedCount,
+			ruleNodes: floorSteps.length,
+			/** false means the run passed with a partial evaluation, on purpose. */
+			enforced: failClosed,
+		};
 		const startedAt = new Date().toISOString();
 		const degradationStep: StepRecord = {
 			nodeId: "run:degradation",
 			nodeKind: "gate",
 			status: "skipped",
 			input: { rule: "fail-closed floor", enforced: failClosed },
-			output: {
-				degradedReads,
-				skippedRules: skippedCount,
-				ruleNodes: floorSteps.length,
-				/** false ⇒ the run passed with a partial evaluation, on purpose. */
-				enforced: failClosed,
-				...(heldBack ? { tookNoAction: true } : {}),
-			},
+			output: heldBack
+				? { ...degradationOutput, tookNoAction: true }
+				: degradationOutput,
 			startedAt,
 			finishedAt: startedAt,
 			durationMs: 0,
@@ -1016,15 +1023,9 @@ export function withPublicProjection(
 		if (step.nodeKind !== "rule" || !step.ruleRef) {
 			return step;
 		}
-		const envelope = step.output;
-		const inner =
-			envelope && typeof envelope === "object" && "evidence" in envelope
-				? (envelope as { evidence: unknown }).evidence
-				: null;
-		const reason =
-			envelope && typeof envelope === "object" && "reason" in envelope
-				? (envelope as { reason?: unknown }).reason
-				: undefined;
+		const envelope = commentRuleEnvelopeSchema.safeParse(step.output);
+		const inner = envelope.success ? envelope.data.evidence : null;
+		const reason = envelope.success ? envelope.data.reason : undefined;
 		const stored = customRecords?.get(step.ruleRef);
 		let publicEvidence: unknown;
 		let summary: string | null;
@@ -1032,10 +1033,8 @@ export function withPublicProjection(
 			// Custom rules project generically: the observed value is public
 			// (it is the contributor's own footprint); the configured threshold
 			// lives in comparison args and never reaches evidence (§10).
-			const observed =
-				inner && typeof inner === "object" && "observed" in inner
-					? (inner as { observed: unknown }).observed
-					: null;
+			const parsed = commentObservedEvidenceSchema.safeParse(inner);
+			const observed = parsed.success ? parsed.data.observed : null;
 			publicEvidence = observed === null ? null : { observed };
 			summary =
 				observed === null
@@ -1052,11 +1051,7 @@ export function withPublicProjection(
 		// is invisible failure — the class that let custom rules sit inert). The
 		// reason is sanitized so a thrown-rule stack trace or a schema error never
 		// reaches a contributor (§10); the raw reason stays on the gated output.
-		if (
-			summary === null &&
-			step.status === "skipped" &&
-			typeof reason === "string"
-		) {
+		if (summary === null && step.status === "skipped" && reason !== undefined) {
 			summary = publicSkipReason(reason);
 		}
 		return { ...step, publicEvidence, summary };
@@ -1084,7 +1079,7 @@ export function makeEvaluator(
 	logger: Logger,
 	custom?: CustomRuleSource,
 ) {
-	return async (ref: string, config: unknown): Promise<RuleResult> => {
+	return async (ref: string, config: JsonValue): Promise<RuleResult> => {
 		const stored = custom?.records.get(ref);
 		if (stored && custom) {
 			try {

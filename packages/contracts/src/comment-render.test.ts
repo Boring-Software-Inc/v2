@@ -5,6 +5,8 @@ import {
 	type CommentInput,
 	type CommentReason,
 	checkSummary,
+	commentObservedEvidenceSchema,
+	commentRuleEnvelopeSchema,
 	planSurfaces,
 	REASON_LIMIT,
 	REVIEW_POINTER,
@@ -779,5 +781,47 @@ describe("a run whose AI review did not run", () => {
 			"AI review did not run",
 		);
 		expect(checkSummary("pass", [])).toBe("Passed.");
+	});
+});
+
+describe("stored comment projections", () => {
+	test("partial envelopes keep evidence and ignore unrelated fields", () => {
+		const evidence = { observed: 0, threshold: "private" };
+		expect(
+			commentRuleEnvelopeSchema.parse({
+				ruleId: "custom-test",
+				evidence,
+				extra: "ignored",
+				reason: 12,
+			}),
+		).toEqual({ ruleId: "custom-test", evidence, reason: undefined });
+		expect(commentObservedEvidenceSchema.parse(evidence)).toEqual({
+			observed: 0,
+		});
+	});
+
+	test("inherited envelope and observed properties remain readable", () => {
+		const evidence = Object.create({ observed: false });
+		const parsed = commentRuleEnvelopeSchema.parse(
+			Object.create({ ruleId: "custom-test", version: 1, evidence }),
+		);
+		expect(parsed.ruleId).toBe("custom-test");
+		expect(parsed.evidence).toBe(evidence);
+		expect(commentObservedEvidenceSchema.parse(parsed.evidence)).toEqual({
+			observed: false,
+		});
+	});
+
+	test("malformed envelopes and missing observations keep their fallback distinction", () => {
+		for (const output of [null, undefined, 4, "rule", []]) {
+			expect(commentRuleEnvelopeSchema.safeParse(output).success).toBe(false);
+		}
+		expect(
+			commentRuleEnvelopeSchema.parse({ ruleId: 4, evidence: null }).ruleId,
+		).toBeUndefined();
+		expect(commentObservedEvidenceSchema.safeParse({}).success).toBe(false);
+		expect(
+			commentObservedEvidenceSchema.parse({ observed: undefined }),
+		).toEqual({ observed: undefined });
 	});
 });

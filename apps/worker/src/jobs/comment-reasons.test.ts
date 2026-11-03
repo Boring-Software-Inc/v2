@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { buildCommentReasons } from "./comment-reasons.ts";
 import { customRuleSource } from "./custom-rules.ts";
+import { withPublicProjection } from "./run-workflows.ts";
 
 /**
  * A failed custom rule speaks its evidence one-liner in the comment, the same
@@ -45,6 +46,53 @@ describe("buildCommentReasons — custom rules", () => {
 		expect(reasons[0]?.ruleName).toBe("spam forks");
 		expect(reasons[0]?.text).not.toContain("custom-spam-forks");
 		expect(reasons[0]?.text).not.toContain("50"); // the threshold never leaks
+	});
+
+	test("zero observations stay public while custom thresholds stay private", () => {
+		const output = {
+			ruleId: "custom-spam-forks-019f8c",
+			version: 1,
+			evidence: { observed: 0, threshold: 50 },
+		};
+		const [step] = withPublicProjection(
+			[
+				{
+					nodeId: "forks",
+					nodeKind: "rule",
+					ruleRef: "custom-spam-forks-019f8c@1",
+					status: "fail",
+					input: {},
+					output,
+					startedAt: "2026-01-01T00:00:00.000Z",
+					finishedAt: "2026-01-01T00:00:00.000Z",
+					durationMs: 0,
+				},
+			],
+			records,
+		);
+		expect(step?.output).toBe(output);
+		expect(step?.publicEvidence).toEqual({ observed: 0 });
+		expect(step?.summary).toBe("Fork rate in the last 24 hours is 0.");
+		expect(
+			buildCommentReasons(
+				[{ nodeKind: "rule", status: "fail", output }],
+				records,
+			)[0]?.text,
+		).toBe("Fork rate in the last 24 hours is 0.");
+	});
+
+	test("inherited rule identities and observations keep their existing summaries", () => {
+		const output = Object.create({
+			ruleId: "custom-spam-forks-019f8c",
+			version: 1,
+			evidence: Object.create({ observed: 87 }),
+		});
+		expect(
+			buildCommentReasons(
+				[{ nodeKind: "rule", status: "fail", output }],
+				records,
+			)[0]?.text,
+		).toBe("Fork rate in the last 24 hours is 87.");
 	});
 
 	test("without the record it still names the rule, never a raw ref crash", () => {
@@ -104,5 +152,80 @@ describe("buildCommentReasons — names and next steps", () => {
 				ruleName: "Account age",
 			},
 		]);
+	});
+});
+
+describe("stored rule comment projections", () => {
+	test("malformed envelopes do not erase the neighboring valid reason", () => {
+		const steps = [
+			null,
+			[],
+			"bad",
+			{ ruleId: 12 },
+			{
+				ruleId: "account-age",
+				version: 1,
+				evidence: { accountAgeDays: 2, minDays: 7 },
+				reason: false,
+			},
+		].map((output) => ({ nodeKind: "rule", status: "fail", output }));
+		expect(buildCommentReasons(steps)).toEqual([
+			{
+				text: "Your account is 2 days old.",
+				remedy: "wait",
+				hint: "This clears in 5 days.",
+				ruleId: "account-age",
+				ruleName: "Account age",
+			},
+		]);
+	});
+
+	test("public evidence and summary do not leak private rule fields", () => {
+		const output = {
+			ruleId: "account-age",
+			evidence: { accountAgeDays: 2, minDays: 777 },
+			reason: 4,
+			extra: "private",
+		};
+		const [step] = withPublicProjection([
+			{
+				nodeId: "age",
+				nodeKind: "rule",
+				ruleRef: "account-age@1",
+				status: "fail",
+				input: {},
+				output,
+				startedAt: "2026-01-01T00:00:00.000Z",
+				finishedAt: "2026-01-01T00:00:00.000Z",
+				durationMs: 0,
+			},
+		]);
+		expect(step?.output).toBe(output);
+		expect(step?.summary).toBe("Your account is 2 days old.");
+		expect(step?.publicEvidence).toEqual({ accountAgeDays: 2 });
+		expect(JSON.stringify(step?.publicEvidence)).not.toContain("777");
+	});
+
+	test("skipped partial envelopes sanitize internal reasons and preserve operational reasons", () => {
+		const steps = withPublicProjection(
+			["rule threw: private stack", "contributor profile unavailable"].map(
+				(reason) => ({
+					nodeId: "age",
+					nodeKind: "rule" as const,
+					ruleRef: "account-age@1",
+					status: "skipped" as const,
+					input: {},
+					output: { reason },
+					startedAt: "2026-01-01T00:00:00.000Z",
+					finishedAt: "2026-01-01T00:00:00.000Z",
+					durationMs: 0,
+				}),
+			),
+		);
+		expect(steps.map((step) => step.summary)).toEqual([
+			"Tripwire could not check this rule.",
+			"contributor profile unavailable",
+		]);
+		expect(steps.map((step) => step.publicEvidence)).toEqual([null, null]);
 	});
 });

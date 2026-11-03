@@ -1,5 +1,10 @@
 import type { CommentReason, CustomRuleRecord } from "@tripwire/contracts";
-import { customRuleSummary, ruleDisplayName } from "@tripwire/contracts";
+import {
+	commentObservedEvidenceSchema,
+	commentRuleEnvelopeSchema,
+	customRuleSummary,
+	ruleDisplayName,
+} from "@tripwire/contracts";
 import { getRule } from "@tripwire/core";
 import { reasonStepId } from "./run-issues.ts";
 
@@ -19,16 +24,6 @@ interface ReasonStep {
 	output: unknown;
 }
 
-interface RuleEnvelope {
-	ruleId?: unknown;
-	version?: unknown;
-	evidence?: unknown;
-}
-
-function asEnvelope(output: unknown): RuleEnvelope | null {
-	return output && typeof output === "object" ? (output as RuleEnvelope) : null;
-}
-
 export function buildCommentReasons(
 	steps: ReasonStep[],
 	customRecords?: Map<string, CustomRuleRecord>,
@@ -38,10 +33,11 @@ export function buildCommentReasons(
 		if (step.nodeKind !== "rule" || step.status !== "fail") {
 			continue;
 		}
-		const env = asEnvelope(step.output);
-		if (!env || typeof env.ruleId !== "string") {
+		const parsed = commentRuleEnvelopeSchema.safeParse(step.output);
+		if (!parsed.success || parsed.data.ruleId === undefined) {
 			continue;
 		}
+		const env = parsed.data;
 		const ref = `${env.ruleId}@${env.version}`;
 		const rule = getRule(ref);
 		const evidence = env.evidence;
@@ -50,10 +46,10 @@ export function buildCommentReasons(
 		// threshold), same slot a built-in's summarize() fills. The fallback names
 		// the rule, never the bare generated ref.
 		const custom = customRecords?.get(ref);
-		const observed =
-			evidence && typeof evidence === "object" && "observed" in evidence
-				? (evidence as { observed: unknown }).observed
-				: null;
+		const observedEvidence = commentObservedEvidenceSchema.safeParse(evidence);
+		const observed = observedEvidence.success
+			? observedEvidence.data.observed
+			: null;
 		const text =
 			(rule?.summarize && evidence ? rule.summarize(evidence, false) : null) ??
 			(custom && observed !== null
@@ -67,8 +63,8 @@ export function buildCommentReasons(
 			text,
 			remedy,
 			hint,
-			ruleId: env.ruleId,
-			ruleName: custom?.name ?? ruleDisplayName(env.ruleId),
+			ruleId: parsed.data.ruleId,
+			ruleName: custom?.name ?? ruleDisplayName(parsed.data.ruleId),
 		};
 		if (step.nodeId) {
 			reason.stepId = reasonStepId(step.nodeId);

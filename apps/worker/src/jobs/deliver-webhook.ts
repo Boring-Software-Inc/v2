@@ -1,4 +1,8 @@
-import { formatDiscordMessage, type WebhookPayload } from "@tripwire/contracts";
+import {
+	formatDiscordMessage,
+	type WebhookPayload,
+	webhookDeliveryUrlSchema,
+} from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { runServices } from "@tripwire/db";
 import { type GuardedFetchDeps, guardedPost } from "@tripwire/utils";
@@ -54,7 +58,8 @@ export async function deliverWebhooks(
 	const giveUpBefore = new Date(now - GIVE_UP_MS);
 
 	for (const row of rows) {
-		const url = typeof row.payload.url === "string" ? row.payload.url : null;
+		const destination = webhookDeliveryUrlSchema.safeParse(row.payload.url);
+		const url = destination.success ? destination.data : null;
 		const delivery = row.payload.delivery as WebhookPayload | undefined;
 		if (!url || !delivery) {
 			// Malformed row (no destination or unbuilt payload) — abandon it
