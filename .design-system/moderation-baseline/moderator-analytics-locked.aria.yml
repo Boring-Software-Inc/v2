@@ -1,0 +1,70 @@
+- main:
+  - region "Setup":
+    - img "Done"
+    - text: Setup done
+    - button "Show steps"
+    - button "Dismiss"
+  - heading "Human review" [level=1]
+  - paragraph: Approve to continue the workflow, or block.
+  - search "Filter items":
+    - searchbox "Search items"
+    - 'button "Kind: All"': Kind
+    - 'button "Sort: Newest"'
+  - text: Waiting 6
+  - region "Human review":
+    - list "Human review":
+      - listitem:
+        - link "#2533 large refactor of the core engine":
+          - /url: /runs/01a1a022-55d9-77b8-bbc0-01a5f39f2a5c
+        - paragraph:
+          - text: contributor-1
+          - time: 2:42 PM PST
+          - text: broad dependency bump touches auth; worth a human glance.
+        - 'button "Block #2533 in tripwire-demo/solo-webapp"': Block
+        - 'button "Approve #2533 in tripwire-demo/solo-webapp"': Approve
+      - listitem:
+        - link "#2516 vendor a third-party api client":
+          - /url: /runs/01a1a022-55d8-7d74-865f-9bccb437a759
+        - paragraph:
+          - text: day-one
+          - time: Nov 1, 12:02 PM PST
+          - text: you have no merged changes in this repo yet
+        - 'button "Block #2516 in tripwire-demo/solo-webapp"': Block
+        - 'button "Approve #2516 in tripwire-demo/solo-webapp"': Approve
+      - listitem:
+        - link "#2521 large refactor of the core engine":
+          - /url: /runs/01a1a022-55d8-7df7-bfd9-d005178dabc8
+        - paragraph:
+          - text: day-one
+          - time: Nov 1, 11:20 AM PST
+          - text: you have no merged changes in this repo yet
+        - 'button "Block #2521 in tripwire-demo/solo-webapp"': Block
+        - 'button "Approve #2521 in tripwire-demo/solo-webapp"': Approve
+      - listitem:
+        - link "#2506 vendor a third-party api client":
+          - /url: /runs/01a1a022-55d7-7804-ac9c-e84c32fe9c9c
+        - paragraph:
+          - text: new-here
+          - time: Oct 30, 10:37 PM PDT
+          - text: you have no merged changes in this repo yet
+        - 'button "Block #2506 in tripwire-demo/solo-webapp"': Block
+        - 'button "Approve #2506 in tripwire-demo/solo-webapp"': Approve
+      - listitem:
+        - link "#2490 rewrite the queue consumer":
+          - /url: /runs/01a1a022-55d6-7b18-a526-b0b9d9b098de
+        - paragraph:
+          - text: contributor-7
+          - time: Oct 28, 8:11 AM PDT
+          - text: you have no merged changes in this repo yet
+        - 'button "Block #2490 in tripwire-demo/solo-webapp"': Block
+        - 'button "Approve #2490 in tripwire-demo/solo-webapp"': Approve
+      - listitem:
+        - link "#2484 add a new storage backend":
+          - /url: /runs/01a1a022-55d6-7bd4-8701-e9a7ee294081
+        - paragraph:
+          - text: contributor-12
+          - time: Oct 27, 2:03 PM PDT
+          - text: broad dependency bump touches auth; worth a human glance.
+        - 'button "Block #2484 in tripwire-demo/solo-webapp"': Block
+        - 'button "Approve #2484 in tripwire-demo/solo-webapp"': Approve
+  - paragraph: Your role has no access to analytics.
