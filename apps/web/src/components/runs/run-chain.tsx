@@ -77,8 +77,9 @@ function NodeTitle({
 	className?: string;
 }) {
 	return (
-		<div className="flex flex-wrap items-baseline gap-x-2">
+		<div data-layout-role="run-node-heading">
 			<h2
+				data-layout-role="run-node-title"
 				className={cn(
 					size === "outcome" ? "type-heading" : "type-label-lg",
 					className ?? "text-text-1",
@@ -326,7 +327,7 @@ export function RunChainView({
 			<ChainRow node={<ChainNode glyph={event.glyph} tone="neutral" />}>
 				<NodeTitle at={event.at} offsetMs={null} title={event.title} />
 				{event.detail ? (
-					<p className="type-body-sm text-text-2">{event.detail}</p>
+					<p data-layout-role="run-node-detail">{event.detail}</p>
 				) : null}
 				{eventHistory ? (
 					<SupersededRunChain

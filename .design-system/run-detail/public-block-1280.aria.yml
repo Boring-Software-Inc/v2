@@ -1,0 +1,21 @@
+- main:
+  - 'heading "Run on #2532" [level=1]'
+  - text: Blocked tripwire-demo/solo-webapp 4h ago
+  - time: Nov 2, 2026, 6:42 PM PST
+  - button "Copy run as Markdown"
+  - status
+  - button "View on GitHub"
+  - list:
+    - listitem:
+      - 'heading "contributor-10 opened #2532" [level=2]'
+      - time: 18:42:00 PST
+      - paragraph: import upstream wholesale
+    - listitem:
+      - heading "1 of 5 rules did not pass" [level=2]
+      - text: +0ms Rules
+      - button "4 passed"
+      - text: Account age, Crypto address, Honeypot paths, English only Max files changed Did not pass 26ms
+      - paragraph: This change touches 201 files.
+    - listitem:
+      - heading "Blocked by Rules" [level=2]
+      - text: +0ms Check blocked Requested changes Verdict comment

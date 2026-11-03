@@ -14,6 +14,7 @@ interface PageProps {
 interface PageHeaderProps {
 	title: string;
 	description?: string;
+	metadata?: ReactNode;
 	actions?: ReactNode;
 }
 
@@ -62,7 +63,12 @@ export function Page({ children, purpose = "overview" }: PageProps) {
 	);
 }
 
-export function PageHeader({ title, description, actions }: PageHeaderProps) {
+export function PageHeader({
+	title,
+	description,
+	metadata,
+	actions,
+}: PageHeaderProps) {
 	return (
 		<header data-layout-role="page-header">
 			<div>
@@ -71,6 +77,9 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
 					<div>
 						<SupportingText>{description}</SupportingText>
 					</div>
+				) : null}
+				{metadata ? (
+					<div data-layout-role="page-metadata">{metadata}</div>
 				) : null}
 			</div>
 			{actions ? <div>{actions}</div> : null}
