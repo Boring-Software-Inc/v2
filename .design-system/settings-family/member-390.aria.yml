@@ -1,0 +1,54 @@
+- link "Skip to content":
+  - /url: "#main-content"
+- navigation "Primary":
+  - link "Tripwire, go to org home":
+    - /url: /demo-team/home
+    - img "Tripwire"
+  - 'button "Org: Demo team. Switch org"'
+  - button "Pick a repo"
+  - button "Search"
+  - button "Tripwire is in beta. Send feedback": Beta
+  - button "Account menu for Dev member"
+- navigation "Org":
+  - link "Home":
+    - /url: /demo-team/home
+  - link "Analytics":
+    - /url: /demo-team/analytics
+  - link "Settings":
+    - /url: /demo-team/settings
+- main:
+  - navigation "Settings":
+    - link "Members":
+      - /url: /demo-team/settings/members
+    - link "Roles":
+      - /url: /demo-team/settings/roles
+    - link "General":
+      - /url: /demo-team/settings/general
+    - link "Redaction":
+      - /url: /demo-team/settings/redaction
+    - link "Connections":
+      - /url: /demo-team/settings/connections
+    - link "Agents":
+      - /url: /demo-team/settings/agents
+    - link "Billing":
+      - /url: /demo-team/settings/billing
+    - link "Profile":
+      - /url: /demo-team/settings/account#profile
+    - link "Sign-in and GitHub":
+      - /url: /demo-team/settings/account#sign-in
+    - link "Preferences":
+      - /url: /demo-team/settings/account#preferences
+    - link "Orgs":
+      - /url: /demo-team/settings/account#orgs
+  - heading "General" [level=1]
+  - term: Name
+  - definition: Demo team
+  - term: Slug
+  - definition: /demo-team
+  - region "Timezone":
+    - heading "Timezone" [level=2]
+    - group:
+      - combobox "Timezone" [disabled]: UTC, the default
+      - button "Show options" [disabled]
+- button "Dev"
+- region "Notifications"

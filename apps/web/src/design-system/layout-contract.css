@@ -30,6 +30,134 @@
 	block-size: var(--control-sm);
 }
 
+[data-layout-role="settings-frame"] {
+	padding-block: var(--space-6);
+	padding-inline: var(--space-4);
+}
+
+[data-layout-role="settings-grid"] {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--space-6);
+	inline-size: 100%;
+	max-inline-size: 65rem;
+	margin-inline: auto;
+}
+
+[data-layout-role="settings-page"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-6);
+	min-inline-size: 0;
+}
+
+[data-layout-role="settings-card"] {
+	display: grid;
+	min-inline-size: 0;
+	padding: var(--shell-inset);
+	background-color: var(--shell);
+	border: var(--line-width) solid var(--line-faint);
+	border-radius: var(--radius-shell);
+}
+
+[data-layout-role="settings-nav"] {
+	display: flex;
+	gap: var(--space-1);
+	overflow-x: auto;
+	margin-inline: calc(var(--space-4) * -1);
+	padding-inline: var(--space-4);
+	scrollbar-width: none;
+}
+
+[data-layout-role="settings-nav-group"] {
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--space-1);
+}
+
+[data-layout-role="settings-nav-item"] {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	block-size: var(--control);
+	padding-inline: var(--space-3);
+	border-radius: var(--radius-tag);
+	color: var(--tw-content-primary);
+	font: var(--type-label);
+	text-decoration: none;
+	transition: background-color var(--dur-state) ease-out;
+}
+
+[data-layout-role="settings-nav-item"]:hover {
+	background-color: var(--hover);
+}
+
+[data-layout-role="settings-nav-item"][aria-current="page"] {
+	background-color: var(--pressed);
+}
+
+[data-layout-role="settings-nav-skeleton"] {
+	display: none;
+}
+
+[data-layout-role="settings-nav-skeleton-item"] {
+	display: flex;
+	align-items: center;
+	block-size: var(--control);
+	padding-inline: var(--space-3);
+}
+
+[data-layout-role="settings-content-skeleton-heading"] {
+	display: flex;
+	align-items: center;
+	min-block-size: var(--control-lg);
+}
+
+[data-layout-role="settings-content-skeleton-card"] {
+	block-size: 9rem;
+	border-radius: var(--radius-shell);
+}
+
+[data-layout-role="settings-content-skeleton-card"] > [data-slot="skeleton"] {
+	inline-size: 100%;
+	block-size: 100%;
+	border-radius: inherit;
+}
+
+@media (min-width: 48rem) {
+	[data-layout-role="settings-frame"] {
+		padding-block: calc(var(--space-1) * 10);
+		padding-inline: var(--space-8);
+	}
+
+	[data-layout-role="settings-grid"] {
+		grid-template-columns: 12.5rem minmax(0, 1fr);
+		gap: calc(var(--space-1) * 12);
+	}
+
+	[data-layout-role="settings-nav"] {
+		position: sticky;
+		inset-block-start: var(--space-6);
+		align-self: start;
+		flex-direction: column;
+		gap: var(--space-6);
+		overflow: visible;
+		margin-inline: 0;
+		padding-inline: 0;
+	}
+
+	[data-layout-role="settings-nav-group"] {
+		flex-direction: column;
+		gap: calc(var(--space-1) / 2);
+	}
+
+	[data-layout-role="settings-nav-skeleton"] {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+}
+
 [data-layout-role="settings-danger-row"] {
 	display: flex;
 	align-items: center;
