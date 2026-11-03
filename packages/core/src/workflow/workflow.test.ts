@@ -72,6 +72,38 @@ let tick = 0;
 const clock = () => new Date(1_752_000_000_000 + tick++ * 10).toISOString();
 
 describe("executeWorkflow", () => {
+	test("rule traces retain injected envelopes and workflow config values", async () => {
+		const evidence = { callback: () => "trace", unavailable: undefined };
+		const output: RuleResult = {
+			ruleId: "account-age",
+			version: 1,
+			status: "evaluated",
+			passed: true,
+			evidence,
+			evaluatedAt: "2026-07-11T00:00:00.000Z",
+		};
+		const calls: string[] = [];
+		const result = await executeWorkflow({
+			definition: GATED,
+			event: await fixtureEvent("change-request.opened.event"),
+			evaluateRuleRef: (ref, config) => {
+				calls.push(ref);
+				expect(config).toEqual(ref === "account-age@1" ? { minDays: 30 } : {});
+				return Promise.resolve(output);
+			},
+			now: clock,
+		});
+		expect(calls).toEqual(["account-age@1", "crypto-address@1"]);
+		expect(result.steps.find((step) => step.nodeId === "r1")?.output).toBe(
+			output,
+		);
+		expect(result.steps.find((step) => step.nodeId === "r1")?.input).toEqual({
+			ref: "account-age@1",
+			config: { minDays: 30 },
+		});
+		expect(result.verdict).toBe("pass");
+	});
+
 	test("onStep fires once per recorded step in order", async () => {
 		const seen: string[] = [];
 		await executeWorkflow({

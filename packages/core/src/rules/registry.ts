@@ -1,3 +1,8 @@
+import {
+	type JsonValue,
+	type RuleResult,
+	ruleEvidenceObjectSchema,
+} from "@tripwire/contracts";
 import { accountAge } from "./account-age.ts";
 import { aiReview, aiReviewV2, aiReviewV3 } from "./ai-review/rule.ts";
 import { cryptoAddress, cryptoAddressV2 } from "./crypto-address.ts";
@@ -58,7 +63,7 @@ export const PUBLIC_VIEW_OPT_OUT: Record<string, string> = {};
 
 export interface RulePublicProjection {
 	/** Contributor-facing evidence subset, or null when none is safe. */
-	publicEvidence: Record<string, unknown> | null;
+	publicEvidence: Record<string, JsonValue> | null;
 	/** Plain-English outcome, or null when it can't be derived. */
 	summary: string | null;
 }
@@ -71,19 +76,18 @@ export interface RulePublicProjection {
  */
 export function projectRulePublic(
 	ref: string,
-	evidence: unknown,
+	evidence: RuleResult["evidence"],
 	passed: boolean,
 ): RulePublicProjection {
 	const rule = getRule(ref);
-	if (
-		!rule ||
-		typeof evidence !== "object" ||
-		evidence === null ||
-		Array.isArray(evidence)
-	) {
+	if (!rule) {
 		return { publicEvidence: null, summary: null };
 	}
-	const ev = evidence as Record<string, unknown>;
+	const parsed = ruleEvidenceObjectSchema.safeParse(evidence);
+	if (!parsed.success) {
+		return { publicEvidence: null, summary: null };
+	}
+	const ev = parsed.data;
 	return {
 		publicEvidence: rule.publicEvidence ? rule.publicEvidence(ev) : null,
 		summary: rule.summarize ? rule.summarize(ev, passed) : null,

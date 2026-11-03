@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
+import { accountAge } from "./account-age.ts";
 import { defineRule, evaluateRule, ruleRef } from "./define.ts";
 import { fixtureContext } from "./test-context.ts";
 
@@ -55,6 +56,32 @@ describe("evaluateRule envelope law (§6)", () => {
 		expect(result.status).toBe("skipped");
 		expect(result.passed).toBe(false);
 		expect(result.reason).toContain("invalid config");
+	});
+
+	test.each(
+		[undefined, null, [], false, 1, "config", () => ({ want: true })].map(
+			(config) => ({ config }),
+		),
+	)("malformed config %p remains a skipped value", async ({ config }) => {
+		const result = await evaluateRule(echo, await fixtureContext(), config);
+		expect(result).toMatchObject({
+			status: "skipped",
+			passed: false,
+			evidence: null,
+		});
+		expect(result.reason).toContain("invalid config");
+	});
+
+	test("unsupported forge is skipped before config validation", async () => {
+		const ctx = await fixtureContext();
+		const result = await evaluateRule(
+			accountAge,
+			{ ...ctx, event: { ...ctx.event, forge: "opengit" } },
+			undefined,
+		);
+		expect(result.status).toBe("skipped");
+		expect(result.reason).not.toContain("invalid config");
+		expect(result.reason).toContain("OpenGit");
 	});
 
 	test("evidence schema failure ⇒ skipped envelope — a rule cannot lie about its shape", async () => {

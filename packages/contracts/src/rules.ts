@@ -105,6 +105,15 @@ export const ruleResultSchema = z.object({
 });
 export type RuleResult = z.infer<typeof ruleResultSchema>;
 
+/** Public projectors accept object evidence without cloning or validating its fields. */
+export const ruleEvidenceObjectSchema = z.custom<object>(
+	(value) =>
+		Object(value) === value &&
+		!Array.isArray(value) &&
+		!z.function().safeParse(value).success,
+);
+export type RuleEvidenceObject = z.infer<typeof ruleEvidenceObjectSchema>;
+
 const stepRuleSchema = ruleResultSchema.pick({ ruleId: true });
 
 /**
