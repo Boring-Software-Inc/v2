@@ -18,6 +18,7 @@ describe("semantic layout molecules", () => {
 					actions={<button type="button">Invite</button>}
 					description="Manage access to this organization."
 					metadata={<span>12 active</span>}
+					navigation={<a href="/activity">Back to activity</a>}
 					title="Members"
 				/>
 				<PageBody>Content</PageBody>
@@ -26,6 +27,12 @@ describe("semantic layout molecules", () => {
 		expect(markup).toContain('<h1 data-type-role="page-title">Members</h1>');
 		expect(markup).toContain('data-type-role="supporting-text"');
 		expect(markup).toContain('data-layout-role="page-metadata"');
+		expect(markup).toContain(
+			'<nav aria-label="Back" data-layout-role="page-navigation">',
+		);
+		expect(markup.indexOf("Back to activity")).toBeLessThan(
+			markup.indexOf("Members"),
+		);
 		expect(markup.indexOf("Members")).toBeLessThan(markup.indexOf("Invite"));
 		expect(markup.indexOf("Invite")).toBeLessThan(markup.indexOf("Content"));
 	});

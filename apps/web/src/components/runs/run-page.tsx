@@ -10,7 +10,7 @@ import { MascotArt } from "#/components/mascot/mascot-art";
 import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
 import { ZonedTime, ZoneOrgScope } from "#/components/timezones/zoned-time";
-import { GithubMark, Icon, Retry } from "#/design-system/icon";
+import { ArrowLeft, GithubMark, Icon, Retry } from "#/design-system/icon";
 import { Button } from "#/design-system/ui/button";
 import { CopyButton } from "#/design-system/ui/copy-button";
 import {
@@ -150,6 +150,17 @@ function RunBody({ run }: { run: RunView }) {
 								/>
 							) : null}
 						</>
+					}
+					navigation={
+						run.access === "full" && run.orgSlug && run.repoName ? (
+							<Link
+								params={{ org: run.orgSlug, repo: run.repoName }}
+								to="/$org/$repo/activity"
+							>
+								<Icon icon={ArrowLeft} />
+								Back to activity
+							</Link>
+						) : undefined
 					}
 					metadata={
 						<MetaRow wrap>

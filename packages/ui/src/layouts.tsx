@@ -14,6 +14,7 @@ interface PageProps {
 interface PageHeaderProps {
 	title: string;
 	description?: string;
+	navigation?: ReactNode;
 	metadata?: ReactNode;
 	actions?: ReactNode;
 }
@@ -66,12 +67,18 @@ export function Page({ children, purpose = "overview" }: PageProps) {
 export function PageHeader({
 	title,
 	description,
+	navigation,
 	metadata,
 	actions,
 }: PageHeaderProps) {
 	return (
 		<header data-layout-role="page-header">
 			<div>
+				{navigation ? (
+					<nav aria-label="Back" data-layout-role="page-navigation">
+						{navigation}
+					</nav>
+				) : null}
 				<PageTitle>{title}</PageTitle>
 				{description ? (
 					<div>
