@@ -3,6 +3,7 @@ import {
 	forgeSchema,
 	type GitCafeIdentity,
 	gitCafeIdentitySchema,
+	githubLoginResponseSchema,
 } from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { schema } from "@tripwire/db";
@@ -33,17 +34,8 @@ export async function githubLogin(
 		if (!res.ok) {
 			return null;
 		}
-		const body: unknown = await res.json();
-		if (
-			typeof body === "object" &&
-			body !== null &&
-			"login" in body &&
-			typeof body.login === "string" &&
-			body.login.length > 0
-		) {
-			return body.login;
-		}
-		return null;
+		const body = githubLoginResponseSchema.safeParse(await res.json());
+		return body.success ? body.data.login : null;
 	} catch {
 		return null;
 	}

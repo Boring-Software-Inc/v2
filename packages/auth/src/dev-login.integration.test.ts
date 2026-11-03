@@ -88,7 +88,7 @@ test("without devLogin (production) email sign-up is refused", async () => {
 		opengit: null,
 		devLogin: false,
 	});
-	const res = await auth.api
+	const res: unknown = await auth.api
 		.signUpEmail({
 			body: {
 				email: "nope@tripwire.demo",
@@ -97,7 +97,7 @@ test("without devLogin (production) email sign-up is refused", async () => {
 			},
 			asResponse: true,
 		})
-		.catch((err: unknown) => err as { status?: number });
+		.catch((error) => error);
 	// Either a rejection or a non-ok Response — never a successful sign-up.
 	const ok = res instanceof Response && res.ok;
 	expect(ok).toBe(false);

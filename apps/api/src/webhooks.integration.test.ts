@@ -54,14 +54,17 @@ afterAll(async () => {
 });
 
 async function deliver(body: string, deliveryId: string, sign = true) {
+	const headers = new Headers({
+		"x-github-delivery": deliveryId,
+		"x-github-event": "pull_request",
+		"content-type": "application/json",
+	});
+	if (sign) {
+		headers.set("x-hub-signature-256", signWebhookBody(body, SECRET));
+	}
 	return await app.request("/webhooks/github", {
 		method: "POST",
-		headers: {
-			"x-github-delivery": deliveryId,
-			"x-github-event": "pull_request",
-			...(sign ? { "x-hub-signature-256": signWebhookBody(body, SECRET) } : {}),
-			"content-type": "application/json",
-		},
+		headers,
 		body,
 	});
 }
