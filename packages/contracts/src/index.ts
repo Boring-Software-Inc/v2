@@ -190,6 +190,7 @@ export * from "./insights.ts";
 export * from "./install-status.ts";
 export * from "./issue-copy.ts";
 export * from "./moderation.ts";
+export * from "./oauth-search.ts";
 export * from "./org.ts";
 export * from "./org-roles.ts";
 export * from "./redact.ts";

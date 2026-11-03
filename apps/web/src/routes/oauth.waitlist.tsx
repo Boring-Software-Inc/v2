@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { oauthWaitlistSearchSchema } from "@tripwire/contracts";
 import { useEffect, useRef } from "react";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
 import { Status } from "#/design-system/ui/status";
@@ -15,12 +16,15 @@ import { type TrackingSearch, trackingSearch } from "#/lib/track";
 export const Route = createFileRoute("/oauth/waitlist")({
 	component: WaitlistEntryPage,
 	validateSearch: (
-		search: Record<string, unknown>,
-	): { opener?: string; mode?: string } & TrackingSearch => ({
-		opener: typeof search.opener === "string" ? search.opener : undefined,
-		mode: typeof search.mode === "string" ? search.mode : undefined,
-		...trackingSearch(search),
-	}),
+		search: Parameters<typeof oauthWaitlistSearchSchema.parse>[0],
+	) => {
+		const parsed = oauthWaitlistSearchSchema.parse(search);
+		return {
+			opener: parsed.opener,
+			mode: parsed.mode,
+			...trackingSearch(search),
+		};
+	},
 	head: ({ match }) =>
 		buildSeo({
 			path: match.pathname,
