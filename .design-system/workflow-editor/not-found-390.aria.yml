@@ -1,0 +1,36 @@
+- link "Skip to content":
+  - /url: "#main-content"
+- navigation "Primary":
+  - link "Tripwire, go to org home":
+    - /url: /dev-owner/home
+    - img "Tripwire"
+  - 'button "Org: Dev owner. Switch org"'
+  - 'button "Repo: active-webapp. Switch repo"'
+  - button "Search"
+  - button "Tripwire is in beta. Send feedback": Beta
+  - button "Account menu for Dev owner"
+- navigation "Repo":
+  - link "Human review":
+    - /url: /dev-owner/active-webapp/moderation
+  - link "Activity":
+    - /url: /dev-owner/active-webapp/activity
+  - link "Rules":
+    - /url: /dev-owner/active-webapp/rules
+  - link "Workflows":
+    - /url: /dev-owner/active-webapp/workflows
+  - link "Responses":
+    - /url: /dev-owner/active-webapp/responses
+  - link "Analytics":
+    - /url: /dev-owner/active-webapp/analytics
+- main:
+  - button "Poke the ghost"
+  - heading "Workflow not found" [level=1]
+  - paragraph: Someone may have deleted it, or the link is out of date.
+  - link "Back to workflows":
+    - /url: /dev-owner/active-webapp/workflows
+- navigation "Open repos":
+  - link "dev-owner/active-webapp":
+    - /url: /dev-owner/active-webapp/workflows/00000000-0000-7000-8000-000000000000
+  - button "Close dev-owner/active-webapp tab"
+- button "Dev"
+- region "Notifications"

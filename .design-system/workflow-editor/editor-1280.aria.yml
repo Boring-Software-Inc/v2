@@ -1,0 +1,112 @@
+- link "Skip to content":
+  - /url: "#main-content"
+- navigation "Primary":
+  - link "Tripwire, go to org home":
+    - /url: /dev-owner/home
+    - img "Tripwire"
+  - 'button "Org: Dev owner. Switch org"': Dev owner
+  - 'button "Repo: active-webapp. Switch repo"': active-webapp
+  - button "Search Control K"
+  - button "Tripwire is in beta. Send feedback": Beta
+  - button "Account menu for Dev owner"
+- navigation "Repo":
+  - link "Human review":
+    - /url: /dev-owner/active-webapp/moderation
+  - link "Activity":
+    - /url: /dev-owner/active-webapp/activity
+  - link "Rules":
+    - /url: /dev-owner/active-webapp/rules
+  - link "Workflows":
+    - /url: /dev-owner/active-webapp/workflows
+  - link "Responses":
+    - /url: /dev-owner/active-webapp/responses
+  - link "Analytics":
+    - /url: /dev-owner/active-webapp/analytics
+- main:
+  - link "Back to workflows":
+    - /url: /dev-owner/active-webapp/workflows
+    - text: Workflows
+  - 'button "Rename rule: Account age"': "rule: Account age"
+  - radiogroup "Workflow view":
+    - radio "Canvas" [checked]
+    - radio "Code"
+  - button "Copy workflow as Markdown"
+  - status
+  - button "Auto-arrange"
+  - button "Turn on workflow"
+  - button "Save workflow" [disabled]
+  - application:
+    - img:
+      - group "Edge from t to r"
+    - img:
+      - group "Edge from r to block"
+    - group:
+      - text: On an event
+      - button "Edit When": When A change request opens or gets new commits
+    - group:
+      - text: If any of these rules fail
+      - list:
+        - listitem:
+          - button "Edit Account age": Account age
+      - button "Add rule"
+      - button "Skip when"
+    - group: Block
+    - group "Zoom":
+      - button "Zoom in"
+      - button "Zoom out"
+      - button "Fit to view"
+  - tablist "Sidebar":
+    - tab "Toolbox" [selected]
+    - tab "Properties" [disabled]
+  - button "Hide sidebar"
+  - searchbox "Search steps"
+  - heading "Triggers" [level=3]:
+    - button "Triggers" [expanded]
+  - region "Triggers":
+    - text: Change request opened
+    - button "Add Change request opened"
+    - text: Change request updated
+    - button "Add Change request updated"
+    - text: Change request closed
+    - button "Add Change request closed"
+    - text: Comment created
+    - button "Add Comment created"
+    - text: Push
+    - button "Add Push"
+    - text: On a schedule
+    - button "Add On a schedule"
+  - heading "Rules" [level=3]:
+    - button "Rules" [expanded]
+  - region "Rules":
+    - text: Account age
+    - button "Add Account age"
+    - text: Merged change requests
+    - button "Add Merged change requests"
+    - text: Rate limit
+    - button "Add Rate limit"
+    - text: Max files changed
+    - button "Add Max files changed"
+    - text: English only
+    - button "Add English only"
+    - text: Crypto address
+    - button "Add Crypto address"
+    - text: Honeypot paths
+    - button "Add Honeypot paths"
+    - text: Profile README
+    - button "Add Profile README"
+    - text: AI review
+    - button "Add AI review"
+    - text: Fork spray
+    - button "Add Fork spray"
+    - text: Thin following
+    - button "Add Thin following"
+    - button "Create rule"
+  - heading "Gates 3" [level=3]:
+    - button "Gates 3"
+  - region "Gates 3"
+  - heading "Actions 12" [level=3]:
+    - button "Actions 12"
+  - region "Actions 12"
+  - status
+- button "Dev"
+- region "Notifications"

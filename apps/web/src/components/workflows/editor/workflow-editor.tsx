@@ -303,18 +303,6 @@ function fitViewOptions() {
 	} as const;
 }
 
-const CANVAS_TOKENS = {
-	"--xy-background-color": "var(--page)",
-	"--xy-edge-stroke": "var(--ink-45)",
-	"--xy-edge-stroke-selected": "var(--ink)",
-	"--xy-connectionline-stroke": "var(--ink-45)",
-	"--xy-handle-background-color": "var(--ink-32)",
-	"--xy-handle-border-color": "var(--paper)",
-	"--xy-node-color": "var(--text-1)",
-	"--xy-selection-background-color": "var(--ink-06)",
-	"--xy-selection-border": "var(--line-width) dashed var(--line-strong)",
-} as React.CSSProperties;
-
 /**
  * The droppable MUST be a child of <DndContext> — a useDroppable call in the
  * same component that renders the provider registers into dnd-kit's DEFAULT
@@ -332,7 +320,11 @@ function CanvasDropzone({
 }) {
 	const { setNodeRef } = useDroppable({ id: CANVAS_DROP_ID });
 	return (
-		<div className="relative min-h-0 flex-1" hidden={hidden} ref={setNodeRef}>
+		<div
+			data-layout-role="workflow-editor-canvas-region"
+			hidden={hidden}
+			ref={setNodeRef}
+		>
 			{mounted ? children : null}
 		</div>
 	);
@@ -1498,7 +1490,7 @@ function EditorBody({
 	};
 
 	return (
-		<div className="flex h-full min-h-0 flex-col">
+		<div data-layout-role="workflow-editor">
 			<EditorHeader
 				forge={forge}
 				blockers={blockers}
@@ -1546,6 +1538,7 @@ function EditorBody({
 													connectionLineComponent={TypedConnectionLine}
 													data-agent-live={live ? "" : undefined}
 													data-agent-motion={live?.motion}
+													data-layout-role="workflow-editor-canvas"
 													data-drag-tone={
 														plan?.port
 															? WORKFLOW_PORT_TONE[plan.port]
@@ -1581,7 +1574,6 @@ function EditorBody({
 													onNodesChange={onNodesChange}
 													onReconnect={readOnly ? undefined : onReconnect}
 													proOptions={{ hideAttribution: true }}
-													style={CANVAS_TOKENS}
 												>
 													<CanvasZoom />
 													<LaneRules ys={decor.rules.map((rule) => rule.y)} />
@@ -1622,8 +1614,8 @@ function EditorBody({
 						/>
 					</ReviewerScopeContext.Provider>
 					{nodes.length === 0 ? (
-						<div className="pointer-events-none absolute inset-0 grid place-items-center">
-							<p className="type-body-sm text-text-2">
+						<div data-layout-role="workflow-editor-empty-canvas">
+							<p>
 								{live
 									? "No steps yet"
 									: "Drag a step from the toolbox, or press its add button"}
@@ -1633,7 +1625,7 @@ function EditorBody({
 				</CanvasDropzone>
 				<DragOverlay dropAnimation={null}>
 					{dragged ? (
-						<div className="overlay rounded-panel px-2 py-1 type-label-sm">
+						<div data-layout-role="workflow-editor-drag-preview">
 							{dragged.name}
 						</div>
 					) : null}

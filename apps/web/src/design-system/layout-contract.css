@@ -392,3 +392,347 @@
 	block-size: 100%;
 	border-radius: inherit;
 }
+
+[data-layout-role="workflow-editor-frame"],
+[data-layout-role="workflow-editor-frame"] > [data-slot="skeleton-swap"],
+[data-layout-role="workflow-editor"],
+[data-layout-role="workflow-editor-skeleton"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	inline-size: 100%;
+	block-size: 100%;
+	min-block-size: 0;
+}
+
+[data-layout-role="workflow-editor-frame"] {
+	min-block-size: calc(100dvh - 7rem);
+	overflow: hidden;
+	background-color: var(--tw-surface-container);
+	border: var(--line-width) solid var(--tw-boundary-subtle);
+	border-radius: var(--radius-panel);
+}
+
+[data-layout-role="workflow-editor-not-found"] {
+	display: grid;
+	flex: 1;
+	place-items: center;
+	padding: var(--space-4);
+}
+
+[data-layout-role="workflow-editor-back-link"],
+[data-layout-role="workflow-editor-header-back"] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--space-1);
+	min-block-size: calc(var(--space-1) * 11);
+	padding-inline: var(--space-2);
+	border-radius: var(--radius-pill);
+	color: var(--tw-content-primary);
+	font: var(--type-label-sm);
+	text-decoration: none;
+}
+
+[data-layout-role="workflow-editor-back-link"]:hover,
+[data-layout-role="workflow-editor-header-back"]:hover {
+	background-color: var(--tw-interaction-hover);
+}
+
+[data-layout-role="workflow-editor-header-back"] {
+	min-inline-size: calc(var(--space-1) * 11);
+}
+
+[data-layout-role="workflow-editor-header-back"] svg,
+[data-layout-role="workflow-editor-back-link"] svg {
+	inline-size: var(--icon-sm);
+	block-size: var(--icon-sm);
+}
+
+[data-layout-role="workflow-editor-header"],
+[data-layout-role="workflow-editor-skeleton-header"] {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	flex-wrap: wrap;
+	column-gap: var(--space-2);
+	row-gap: calc(var(--space-1) * 1.5);
+	padding-block: var(--space-2);
+	padding-inline: var(--space-3);
+	border-block-end: var(--line-width) solid var(--tw-boundary-subtle);
+}
+
+[data-layout-role="workflow-editor-identity"] {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	gap: var(--space-2);
+	min-inline-size: 0;
+}
+
+[data-layout-role="workflow-editor-name"],
+[data-layout-role="workflow-editor-rename"] {
+	min-inline-size: 0;
+	max-inline-size: calc(var(--space-1) * 56);
+}
+
+[data-layout-role="workflow-editor-name"] {
+	overflow: hidden;
+	font: var(--type-label);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+[data-layout-role="workflow-editor-name-input"] {
+	inline-size: calc(var(--space-1) * 56);
+	min-inline-size: 0;
+}
+
+[data-layout-role="workflow-editor-rename"] {
+	justify-content: flex-start;
+}
+
+[data-layout-role="workflow-editor-rename"] svg {
+	color: var(--tw-content-tertiary);
+}
+
+[data-layout-role="workflow-editor-controls"],
+[data-layout-role="workflow-editor-skeleton-actions"] {
+	display: flex;
+	align-items: center;
+	gap: var(--space-2);
+	min-inline-size: 0;
+	margin-inline-start: auto;
+}
+
+[data-layout-role="workflow-editor-mobile-menu"] {
+	margin-inline-start: auto;
+}
+
+[data-layout-role="workflow-editor-save-hint"],
+[data-layout-role="workflow-editor-protection-note"] {
+	color: var(--tw-content-secondary);
+	font: var(--type-caption);
+}
+
+[data-layout-role="workflow-editor-protection-note"] {
+	flex-basis: 100%;
+}
+
+[data-layout-role="workflow-editor-canvas-region"],
+[data-layout-role="workflow-editor-skeleton-workspace"] {
+	position: relative;
+	flex: 1;
+	min-block-size: 0;
+}
+
+[data-layout-role="workflow-editor-canvas"] {
+	--xy-background-color: var(--page);
+	--xy-edge-stroke: var(--ink-45);
+	--xy-edge-stroke-selected: var(--ink);
+	--xy-connectionline-stroke: var(--ink-45);
+	--xy-handle-background-color: var(--ink-32);
+	--xy-handle-border-color: var(--paper);
+	--xy-node-color: var(--text-1);
+	--xy-selection-background-color: var(--ink-06);
+	--xy-selection-border: var(--line-width) dashed var(--line-strong);
+}
+
+[data-layout-role="workflow-editor-empty-canvas"] {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	pointer-events: none;
+}
+
+[data-layout-role="workflow-editor-empty-canvas"] p {
+	color: var(--tw-content-secondary);
+	font: var(--type-body-sm);
+}
+
+[data-layout-role="workflow-editor-drag-preview"] {
+	padding-block: var(--space-1);
+	padding-inline: var(--space-2);
+	font: var(--type-label-sm);
+	background-color: var(--tw-surface-overlay);
+	border: var(--line-width) solid var(--tw-boundary-default);
+	border-radius: var(--radius-panel);
+}
+
+[data-layout-role="workflow-editor-skeleton-header"] > div,
+[data-layout-role="workflow-editor-skeleton-tabs"] > div,
+[data-layout-role="workflow-editor-skeleton-actions"] > div {
+	block-size: var(--control-sm);
+	border-radius: var(--radius-pill);
+}
+
+[data-layout-role="workflow-editor-skeleton-header"] [data-slot="skeleton"],
+[data-layout-role="workflow-editor-skeleton-tabs"] [data-slot="skeleton"],
+[data-layout-role="workflow-editor-skeleton-actions"] [data-slot="skeleton"] {
+	inline-size: 100%;
+	block-size: 100%;
+	border-radius: inherit;
+}
+
+[data-layout-role="workflow-editor-skeleton-back"] {
+	inline-size: calc(var(--space-1) * 24);
+}
+
+[data-layout-role="workflow-editor-skeleton-name"] {
+	inline-size: calc(var(--space-1) * 48);
+}
+
+[data-layout-role="workflow-editor-skeleton-actions"]
+	> [data-layout-size="wide"] {
+	inline-size: calc(var(--space-1) * 20);
+}
+
+[data-layout-role="workflow-editor-skeleton-actions"]
+	> [data-layout-size="medium"] {
+	inline-size: calc(var(--space-1) * 16);
+}
+
+[data-layout-role="workflow-editor-skeleton-actions"]
+	> [data-layout-size="narrow"] {
+	inline-size: calc(var(--space-1) * 14);
+}
+
+[data-layout-role="workflow-editor-skeleton-workspace"] {
+	background-color: var(--tw-surface-page);
+}
+
+[data-layout-role="workflow-editor-skeleton-sidebar"] {
+	position: absolute;
+	z-index: var(--z-raised);
+	inset-block: var(--space-3);
+	inset-inline-start: var(--space-3);
+	display: flex;
+	flex-direction: column;
+	gap: var(--shell-inset);
+	inline-size: calc(var(--space-1) * 64);
+}
+
+[data-layout-role="workflow-editor-skeleton-tabs"] {
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--space-2);
+	padding-block-start: var(--space-1);
+	padding-inline: var(--space-1);
+}
+
+[data-layout-role="workflow-editor-skeleton-tabs"] > div {
+	inline-size: calc(var(--space-1) * 20);
+}
+
+[data-layout-role="workflow-editor-skeleton-palette"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: var(--space-3);
+	min-block-size: 0;
+	overflow: hidden;
+	padding: var(--space-3);
+	background-color: var(--tw-surface-container);
+	border: var(--line-width) solid var(--tw-boundary-subtle);
+	border-radius: var(--radius-panel);
+}
+
+[data-layout-role="workflow-editor-skeleton-palette"] > div {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+}
+
+[data-layout-role="workflow-editor-skeleton-node"] {
+	min-inline-size: calc(var(--space-1) * 44);
+	max-inline-size: calc(var(--space-1) * 64);
+	padding-block: var(--space-2);
+	padding-inline: var(--space-3);
+	background-color: var(--tw-surface-container);
+	border: var(--line-width) solid var(--tw-boundary-subtle);
+	border-radius: var(--radius-panel);
+}
+
+[data-layout-role="workflow-editor-skeleton-node-code"] {
+	inline-size: calc(var(--space-1) * 20);
+}
+
+[data-layout-role="workflow-editor-skeleton-node-meta"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	margin-block-start: var(--space-2);
+	padding-block-start: var(--space-2);
+	border-block-start: var(--line-width) solid var(--tw-boundary-subtle);
+}
+
+[data-layout-role="workflow-editor-skeleton-node-meta"] > div {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--space-2);
+}
+
+[data-layout-role="workflow-editor-skeleton-canvas-node"] {
+	display: none;
+	position: absolute;
+}
+
+@media (max-width: 47.999rem) {
+	[data-layout-role="workflow-editor-frame"] {
+		min-block-size: calc(100dvh - 5.5rem);
+	}
+
+	[data-layout-role="workflow-editor-header-back"] {
+		inline-size: calc(var(--space-1) * 11);
+		padding-inline: 0;
+	}
+
+	[data-layout-role="workflow-editor-back-label"] {
+		display: none;
+	}
+
+	[data-layout-role="workflow-editor-identity"] {
+		flex-basis: 100%;
+	}
+
+	[data-layout-role="workflow-editor-controls"] {
+		inline-size: 100%;
+	}
+
+	[data-layout-role="workflow-editor-agent-presence"],
+	[data-layout-role="workflow-editor-copy"],
+	[data-layout-role="workflow-editor-desktop-action"],
+	[data-layout-role="workflow-editor-save-hint"] {
+		display: none;
+	}
+
+	[data-layout-role="workflow-editor-rename"] {
+		max-inline-size: 100%;
+	}
+}
+
+@media (min-width: 48rem) {
+	[data-layout-role="workflow-editor-mobile-menu"] {
+		display: none;
+	}
+
+	[data-layout-role="workflow-editor-skeleton-canvas-node"] {
+		display: block;
+	}
+
+	[data-layout-role="workflow-editor-skeleton-canvas-node"][data-layout-position="start"] {
+		inset-block-start: calc(var(--space-1) * 16);
+		inset-inline-start: calc(var(--space-1) * 80);
+	}
+
+	[data-layout-role="workflow-editor-skeleton-canvas-node"][data-layout-position="middle"] {
+		inset-block-start: calc(var(--space-1) * 52);
+		inset-inline-start: calc(var(--space-1) * 136);
+	}
+
+	[data-layout-role="workflow-editor-skeleton-canvas-node"][data-layout-position="end"] {
+		inset-block-start: calc(var(--space-1) * 88);
+		inset-inline-start: calc(var(--space-1) * 188);
+	}
+}

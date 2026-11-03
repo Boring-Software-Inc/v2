@@ -7,21 +7,17 @@ import { MascotArt } from "#/components/mascot/mascot-art";
 import { DraftActions } from "#/components/workflows/draft-actions";
 import { AgentWorkContext } from "#/components/workflows/editor/agent-work-context";
 import { WorkflowEditor } from "#/components/workflows/editor/workflow-editor";
-import {
-	EditorFrameSkeleton,
-	PAGE_FRAME,
-} from "#/components/workflows/editor/workflow-editor-page-skeleton";
+import { EditorFrameSkeleton } from "#/components/workflows/editor/workflow-editor-page-skeleton";
 import { ArrowLeft, Icon } from "#/design-system/icon";
 import { Badge } from "#/design-system/ui/badge";
-import { Button } from "#/design-system/ui/button";
 import {
 	Empty,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
-	EmptyTitle,
 } from "#/design-system/ui/empty-state";
 import { SkeletonSwap } from "#/design-system/ui/skeleton";
+import { PageTitle } from "#/design-system/ui/typography";
 import { useAgentMotion } from "#/hooks/use-agent-motion";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useWorkClock } from "#/hooks/use-work-clock";
@@ -105,29 +101,27 @@ export function WorkflowEditorPage() {
 	let body: React.ReactNode = null;
 	if (!(loading || workflow)) {
 		body = (
-			<div className="grid flex-1 place-items-center p-4">
+			<div data-layout-role="workflow-editor-not-found">
 				<Empty
 					art={<MascotArt mood="workflow-not-found" />}
 					reason="no-results"
 				>
 					<EmptyHeader>
-						<EmptyTitle>Workflow not found</EmptyTitle>
+						<PageTitle>Workflow not found</PageTitle>
 						<EmptyDescription>
 							Someone may have deleted it, or the link is out of date.
 						</EmptyDescription>
 					</EmptyHeader>
 					<EmptyContent>
-						<Button
-							nativeButton={false}
-							render={
-								<Link params={{ org, repo }} to="/$org/$repo/workflows" />
-							}
-							size="sm"
-							variant="secondary"
+						<Link
+							aria-label="Back to workflows"
+							data-layout-role="workflow-editor-back-link"
+							params={{ org, repo }}
+							to="/$org/$repo/workflows"
 						>
 							<Icon icon={ArrowLeft} />
 							Back to workflows
-						</Button>
+						</Link>
 					</EmptyContent>
 				</Empty>
 			</div>
@@ -167,11 +161,9 @@ export function WorkflowEditorPage() {
 					headerLeading={
 						<>
 							{draftId ? <Badge variant="outline">Draft</Badge> : null}
-							<AgentPresence
-								agents={agents}
-								className="max-md:hidden"
-								motion={motion}
-							/>
+							<span data-layout-role="workflow-editor-agent-presence">
+								<AgentPresence agents={agents} motion={motion} />
+							</span>
 						</>
 					}
 					key={`${workflow.id}:${draftId ?? "saved"}`}
@@ -221,9 +213,8 @@ export function WorkflowEditorPage() {
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className={PAGE_FRAME}>
+			<div data-layout-role="workflow-editor-frame">
 				<SkeletonSwap
-					className="flex min-h-0 flex-1 flex-col"
 					fallback={<EditorFrameSkeleton />}
 					label="Loading workflow"
 					loading={loading}
