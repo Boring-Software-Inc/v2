@@ -232,6 +232,20 @@ function newId(): string {
 	return crypto.randomUUID();
 }
 
+/** dnd-kit reports movement from the activator, not a final pointer event. */
+export function dragEndScreenPosition(
+	event: Pick<DragEndEvent, "activatorEvent" | "delta">,
+) {
+	const activator = event.activatorEvent;
+	if (!(activator instanceof MouseEvent)) {
+		return null;
+	}
+	return {
+		x: activator.clientX + event.delta.x,
+		y: activator.clientY + event.delta.y,
+	};
+}
+
 function handlePoint(position: { x: number; y: number }) {
 	return {
 		x: position.x + INPUT_HANDLE_OFFSET.x,
@@ -257,9 +271,9 @@ function serverProblem(
 	names: ReadonlyMap<string, string> = new Map(),
 ): Problem {
 	const step =
-		"step" in issue && typeof issue.step === "string"
-			? issue.step
-			: ((issue.nodeId ? names.get(issue.nodeId) : undefined) ?? "Workflow");
+		issue.step ??
+		(issue.nodeId ? names.get(issue.nodeId) : undefined) ??
+		"Workflow";
 	return {
 		step,
 		key: `server:${issue.rule ?? ""}:${issue.nodeId ?? ""}:${issue.edgeId ?? ""}:${issue.message}`,
@@ -1362,20 +1376,11 @@ function EditorBody({
 			return;
 		}
 		const item = event.active.data.current as ToolboxItem | undefined;
-		const activator = event.activatorEvent as Partial<PointerEvent>;
-		if (
-			!item ||
-			typeof activator.clientX !== "number" ||
-			typeof activator.clientY !== "number"
-		) {
+		const screenPosition = dragEndScreenPosition(event);
+		if (!item || !screenPosition) {
 			return;
 		}
-		// pointer position = where the drag STARTED (activatorEvent) plus how
-		// far it travelled (delta) — dnd-kit has no per-move pointer on end.
-		const position = screenToFlowPosition({
-			x: activator.clientX + event.delta.x,
-			y: activator.clientY + event.delta.y,
-		});
+		const position = screenToFlowPosition(screenPosition);
 		const hit = getIntersectingNodes({ ...position, width: 1, height: 1 })
 			.map((node) => groups.cards.get(node.id))
 			.find((card) => card !== undefined);

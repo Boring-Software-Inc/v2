@@ -2,6 +2,7 @@ import type { GateMode, JsonValue, WorkflowNode } from "@tripwire/contracts";
 import {
 	actionTakesSettings,
 	GATE_CATALOG,
+	jsonValueSchema,
 	lockParamsSchema,
 	MAX_COMMENT_MESSAGE,
 	MAX_OUTCOME_MESSAGE,
@@ -13,6 +14,7 @@ import {
 	type FieldSpec,
 	fieldsForSchema,
 	ruleCatalogEntryForRef,
+	ruleConfigFieldsSchema,
 } from "#/components/workflows/editor/node-fields";
 import { ReviewerPicker } from "#/components/workflows/editor/reviewer-picker";
 import { TriggerFlow } from "#/components/workflows/editor/schedule-flow";
@@ -175,9 +177,7 @@ function RuleFields({
 			</p>
 		);
 	}
-	const config = (
-		typeof node.config === "object" && node.config !== null ? node.config : {}
-	) as Record<string, JsonValue>;
+	const config = ruleConfigFieldsSchema.parse(node.config);
 	const setField = (key: string, value: JsonValue) => {
 		onUpdate({ ...node, config: { ...config, [key]: value } });
 	};
@@ -198,7 +198,7 @@ function RuleFields({
 	);
 }
 
-function ConfigField({
+export function ConfigField({
 	field,
 	value,
 	readOnly,
@@ -241,12 +241,12 @@ function ConfigField({
 					<Select
 						disabled={readOnly}
 						items={field.options.map((option) => ({
-							value: option,
+							value: String(option),
 							label: option,
 						}))}
 						native
 						onValueChange={(next) => onChange(next ?? "")}
-						value={typeof value === "string" ? value : ""}
+						value={textParam.parse(value)}
 					/>
 				</Field>
 			);
@@ -254,13 +254,12 @@ function ConfigField({
 			return (
 				<Field>
 					<FieldLabel>{field.label} (one per line)</FieldLabel>
-					{/* uncontrolled: normalizing on change would eat typed newlines */}
+					{/** Normalizing on change would eat typed newlines. */}
 					<Textarea
-						defaultValue={
-							Array.isArray(value)
-								? value.filter((v) => typeof v === "string").join("\n")
-								: ""
-						}
+						defaultValue={labelList
+							.parse(value)
+							.filter((item) => item !== undefined)
+							.join("\n")}
 						disabled={readOnly}
 						onChange={(event) =>
 							onChange(
@@ -282,12 +281,11 @@ function ConfigField({
 						autoComplete="off"
 						disabled={readOnly}
 						onChange={(event) => onChange(event.target.value)}
-						value={typeof value === "string" ? value : ""}
+						value={textParam.parse(value)}
 					/>
 				</Field>
 			);
 		case "json":
-			// Fallback for shapes introspection can't name — raw JSON per field.
 			return (
 				<Field>
 					<FieldLabel>{field.label} (JSON)</FieldLabel>
@@ -296,9 +294,9 @@ function ConfigField({
 						disabled={readOnly}
 						onBlur={(event) => {
 							try {
-								onChange(JSON.parse(event.target.value) as JsonValue);
+								onChange(jsonValueSchema.parse(JSON.parse(event.target.value)));
 							} catch {
-								// keep the previous value; validation flags bad config anyway
+								/** Keep the previous value while the JSON draft is incomplete. */
 							}
 						}}
 						rows={3}
@@ -488,12 +486,12 @@ function DeliveryFields({
 		kind: "webhook" | "discord",
 	) => Promise<{ ok: boolean; status?: number; failure?: string }>;
 }) {
-	const params = (node.params ?? {}) as Record<string, JsonValue>;
+	const params = node.params ?? {};
 	const setParam = (key: string, value: string) =>
 		onUpdate({ ...node, params: { ...params, [key]: value } });
 	const urlSet = params.urlSet === true;
 	const secretSet = params.signingSecretSet === true;
-	const url = typeof params.url === "string" ? params.url : "";
+	const url = textParam.parse(params.url);
 	const [testing, setTesting] = useState(false);
 	const [testResult, setTestResult] = useState<{
 		ok: boolean;
