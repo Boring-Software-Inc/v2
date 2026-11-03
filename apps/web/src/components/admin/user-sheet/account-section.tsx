@@ -149,7 +149,7 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 		<SheetSectionBlock id="account" title="Account">
 			<FieldRows>
 				<FieldRow label={<span id={timezoneLabel}>Timezone</span>}>
-					<div className="w-full sm:w-55">
+					<div data-layout-role="user-sheet-timezone">
 						<TimezonePicker
 							disabled={timezone.isPending}
 							labelledBy={timezoneLabel}
@@ -171,7 +171,7 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 				<PlatformAdminRow view={view} />
 			</FieldRows>
 
-			<div className="flex flex-col pt-2">
+			<div data-layout-role="user-sheet-subsection">
 				<SubHeading
 					action={
 						view.sessions.length > 0 ? (
@@ -193,23 +193,21 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 					<ListRows label="Sessions">
 						{view.sessions.map((entry) => (
 							<ListRow key={entry.id}>
-								<span className="flex min-w-0 flex-1 items-center gap-2 text-text-1">
-									<span className="truncate">
-										{describeUserAgent(entry.userAgent)}
-									</span>
+								<span data-layout-role="user-sheet-list-main">
+									<span>{describeUserAgent(entry.userAgent)}</span>
 									{entry.impersonatedBy ? (
 										<Badge size="sm" variant="warn">
 											Impersonation
 										</Badge>
 									) : null}
 								</span>
-								<span className="text-text-2 sm:w-30 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-meta">
 									{entry.ipAddress ?? "No IP"}
 								</span>
-								<span className="text-text-2 sm:w-30 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-meta">
 									<RelativeTime date={entry.updatedAt} />
 								</span>
-								<span className="flex justify-end sm:w-20 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-action">
 									<Button
 										aria-label={`Sign out ${describeUserAgent(entry.userAgent)}`}
 										disabled={revokeSession.isPending}
@@ -226,7 +224,7 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 				)}
 			</div>
 
-			<div className="flex flex-col pt-2">
+			<div data-layout-role="user-sheet-subsection">
 				<SubHeading title="Connected agents" />
 				{view.agents.length === 0 ? (
 					<QuietLine>No connected agents.</QuietLine>
@@ -234,22 +232,22 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 					<ListRows label="Connected agents">
 						{view.agents.map((agent) => (
 							<ListRow key={agent.clientId}>
-								<span className="min-w-0 flex-1 truncate text-text-1">
+								<span data-layout-role="user-sheet-list-main">
 									{agent.name}
 								</span>
-								<span className="truncate text-text-2 sm:w-30 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-meta">
 									{agent.orgs.length === 1
 										? agent.orgs[0]?.slug
 										: `${agent.orgs.length} orgs`}
 								</span>
-								<span className="text-text-2 sm:w-30 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-meta">
 									{agent.lastUsedAt ? (
 										<RelativeTime date={agent.lastUsedAt} />
 									) : (
 										"Not used yet"
 									)}
 								</span>
-								<span className="flex justify-end sm:w-20 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-action">
 									<Button
 										aria-label={`Revoke ${agent.name}`}
 										disabled={revokeAgent.isPending}
@@ -266,7 +264,7 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 				)}
 			</div>
 
-			<div className="flex flex-col pt-2">
+			<div data-layout-role="user-sheet-subsection">
 				<SubHeading title="Forge identities" />
 				{view.forgeIdentities.length === 0 ? (
 					<QuietLine>No forge identities.</QuietLine>
@@ -274,20 +272,20 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 					<ListRows label="Forge identities">
 						{view.forgeIdentities.map((identity) => (
 							<ListRow key={`${identity.forge}:${identity.externalId}`}>
-								<span className="min-w-0 flex-1 text-text-1">
+								<span data-layout-role="user-sheet-list-main">
 									{identity.forge === "github" ? "GitHub" : identity.forge}
 								</span>
-								<span className="truncate text-text-2 sm:w-30 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-meta">
 									{identity.username}
 								</span>
-								<span className="text-text-2 sm:w-30 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-meta">
 									Linked {formatStaffDate(identity.createdAt)}
 								</span>
-								<span className="flex justify-end sm:w-20 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-action">
 									{identity.forge === "github" ? (
 										<a
 											aria-label={`Open ${identity.username} on GitHub`}
-											className="inline-flex size-8 items-center justify-center rounded-pill text-text-2 hover:bg-hover focus-visible:focus-ring"
+											data-layout-role="user-sheet-row-link"
 											href={`https://github.com/${identity.username}`}
 											rel="noreferrer"
 											target="_blank"
@@ -302,7 +300,7 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 				)}
 			</div>
 
-			<div className="flex flex-col pt-2">
+			<div data-layout-role="user-sheet-subsection">
 				<SubHeading title="Orgs" />
 				{view.orgs.length === 0 ? (
 					<QuietLine>Not in any org.</QuietLine>
@@ -310,13 +308,9 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 					<ListRows label="Orgs">
 						{view.orgs.map((org) => (
 							<ListRow key={org.id}>
-								<span className="min-w-0 flex-1 truncate text-text-1">
-									{org.name}
-								</span>
-								<span className="truncate text-text-2 sm:w-30 sm:shrink-0">
-									{org.slug}
-								</span>
-								<span className="text-text-1 sm:w-30 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-main">{org.name}</span>
+								<span data-layout-role="user-sheet-list-meta">{org.slug}</span>
+								<span data-layout-role="user-sheet-list-value">
 									{org.isPersonal
 										? "Personal"
 										: org.role === "admin"
@@ -325,10 +319,10 @@ export function AccountSection({ view }: { view: AdminUserView }) {
 												? "Member"
 												: org.role}
 								</span>
-								<span className="flex justify-end sm:w-20 sm:shrink-0">
+								<span data-layout-role="user-sheet-list-action">
 									<Link
 										aria-label={`Open ${org.name} in staff orgs`}
-										className="inline-flex size-8 items-center justify-center rounded-pill text-text-2 hover:bg-hover focus-visible:focus-ring"
+										data-layout-role="user-sheet-row-link"
 										to="/admin/orgs"
 									>
 										<Icon icon={ChevronRight} />

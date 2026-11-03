@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { AdminPagination } from "#/components/admin/admin-pagination";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { Button } from "#/design-system/ui/button";
-import { PaginationInfo } from "#/design-system/ui/pagination";
 import {
 	Table,
 	TableBody,
@@ -16,10 +17,8 @@ import {
 	TableLoading,
 	TableRow,
 } from "#/design-system/ui/table";
-import {
-	ADMIN_PAGE_SIZE,
-	adminInstallationsQueryOptions,
-} from "#/lib/admin.query";
+import { CodeText, Label } from "#/design-system/ui/typography";
+import { adminInstallationsQueryOptions } from "#/lib/admin.query";
 
 const COLUMN_COUNT = 4;
 
@@ -32,61 +31,37 @@ export function AdminInstallationsPage() {
 	const installations = data?.installations ?? [];
 	const total = data?.total ?? 0;
 
-	const footer = (
-		<>
-			{total === 0 ? (
-				<span>0 installations</span>
-			) : (
-				<PaginationInfo
-					from={offset + 1}
-					noun="installations"
-					to={Math.min(offset + ADMIN_PAGE_SIZE, total)}
-					total={total}
-				/>
-			)}
-			<div className="flex gap-2">
-				<Button
-					disabled={offset === 0}
-					onClick={() => setOffset(Math.max(0, offset - ADMIN_PAGE_SIZE))}
-					size="sm"
-					variant="secondary"
-				>
-					Previous
-				</Button>
-				<Button
-					disabled={offset + ADMIN_PAGE_SIZE >= total}
-					onClick={() => setOffset(offset + ADMIN_PAGE_SIZE)}
-					size="sm"
-					variant="secondary"
-				>
-					Next
-				</Button>
-			</div>
-		</>
-	);
-
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-312 flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<h1 className="type-title">Installations</h1>
-						<p className="type-body text-text-2">
-							Every account the app is installed on.
-						</p>
-					</header>
-
+			<Page>
+				<PageHeader
+					description="Every forge account where the Tripwire app is installed."
+					title="Installations"
+				/>
+				<PageBody>
 					<Table
 						aria-busy={isLoading || undefined}
 						aria-label="Installations"
-						footer={footer}
+						data-admin-table="installations"
+						footer={
+							<AdminPagination
+								noun="installations"
+								offset={offset}
+								onOffsetChange={setOffset}
+								total={total}
+							/>
+						}
 					>
 						<TableHeader>
 							<TableRow>
 								<TableHead>Account</TableHead>
-								<TableHead>Org</TableHead>
-								<TableHead numeric>Repos</TableHead>
-								<TableHead numeric>Protected</TableHead>
+								<TableHead data-admin-column="installation-org">Org</TableHead>
+								<TableHead data-admin-column="installation-repos" numeric>
+									Repos
+								</TableHead>
+								<TableHead data-admin-column="installation-protected" numeric>
+									Protected
+								</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -112,11 +87,6 @@ export function AdminInstallationsPage() {
 								/>
 							) : installations.length === 0 ? (
 								<TableEmpty
-									art={<MascotArt mood="admin-table-empty" size="compact" />}
-									colSpan={COLUMN_COUNT}
-									description="Installations show up here when someone installs the app."
-									reason="empty"
-									title="No installations yet"
 									action={
 										<Button
 											nativeButton={false}
@@ -127,41 +97,46 @@ export function AdminInstallationsPage() {
 											View orgs
 										</Button>
 									}
+									art={<MascotArt mood="admin-table-empty" size="compact" />}
+									colSpan={COLUMN_COUNT}
+									description="Installations appear after someone installs the app on a forge account."
+									reason="empty"
+									title="No installations yet"
 								/>
 							) : (
 								installations.map((row) => (
 									<TableRow key={`${row.forge}-${row.installationId}`}>
 										<TableCell>
-											<span className="flex min-w-0 items-center gap-2">
-												<ForgeMark
-													className="size-(--icon-sm) shrink-0 text-text-2"
-													forge={row.forge}
-												/>
-												<span className="flex min-w-0 flex-col">
-													<span className="truncate type-label">
-														{row.accountLogin ?? "Unknown account"}
-													</span>
-													<span className="truncate mono type-caption text-text-2">
-														{row.installationId}
-													</span>
+											<span data-layout-role="admin-forge-account">
+												<ForgeMark forge={row.forge} />
+												<span>
+													<Label>{row.accountLogin ?? "Unknown account"}</Label>
+													<CodeText as="span">{row.installationId}</CodeText>
 												</span>
 											</span>
 										</TableCell>
 										<TableCell
-											className="text-text-2"
+											data-admin-column="installation-org"
 											mono={row.orgSlug !== null}
 										>
 											{row.orgSlug ?? "Not claimed"}
 										</TableCell>
-										<TableCell numeric>{row.repoCount}</TableCell>
-										<TableCell numeric>{row.protectedRepoCount}</TableCell>
+										<TableCell data-admin-column="installation-repos" numeric>
+											{row.repoCount}
+										</TableCell>
+										<TableCell
+											data-admin-column="installation-protected"
+											numeric
+										>
+											{row.protectedRepoCount}
+										</TableCell>
 									</TableRow>
 								))
 							)}
 						</TableBody>
 					</Table>
-				</div>
-			</div>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }

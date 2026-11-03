@@ -1,4 +1,5 @@
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody } from "#/components/layouts/page";
 import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 import {
 	Table,
@@ -12,36 +13,37 @@ import {
 export function AdminReposPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-312 flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<SkeletonText className="w-16" type="heading" />
-						<SkeletonText className="w-80 max-w-full" type="body" />
-					</header>
+			<Page>
+				<header aria-hidden data-layout-role="admin-page-header-skeleton">
+					<SkeletonText data-layout-size="page-title" type="heading" />
+					<SkeletonText data-layout-size="page-description" type="body" />
+				</header>
+				<PageBody>
 					<Table
 						aria-busy
 						aria-label="Repos"
+						data-admin-table="repos"
 						toolbar={
-							<>
-								<Skeleton className="h-(--control-sm) w-64 rounded-pill" />
-								<Skeleton className="ms-auto h-(--control-sm) w-56 rounded-pill" />
-							</>
+							<div aria-hidden data-layout-role="admin-table-toolbar-skeleton">
+								<Skeleton data-layout-size="filter-wide" />
+								<Skeleton data-layout-size="search" />
+							</div>
 						}
 					>
 						<TableHeader>
 							<TableRow>
 								<TableHead>Repo</TableHead>
-								<TableHead>Org</TableHead>
+								<TableHead data-admin-column="repo-org">Org</TableHead>
 								<TableHead>Tripwire</TableHead>
-								<TableHead>Added</TableHead>
+								<TableHead data-admin-column="repo-added">Added</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
 							<TableLoading columns={[{}, {}, {}, {}]} rows={6} />
 						</TableBody>
 					</Table>
-				</div>
-			</div>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }

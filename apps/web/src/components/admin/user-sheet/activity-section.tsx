@@ -11,6 +11,7 @@ import {
 } from "#/components/admin/user-sheet/sheet-parts";
 import { Button } from "#/design-system/ui/button";
 import { SkeletonText } from "#/design-system/ui/skeleton";
+import { Body, SupportingText } from "#/design-system/ui/typography";
 import { formatWait } from "#/lib/admin-user-sheet";
 import { adminUserActivityQueryOptions } from "#/lib/staff-users.query";
 
@@ -31,7 +32,7 @@ export function ActivitySection({ userId }: { userId: string }) {
 			{isLoading ? (
 				<SkeletonText lines={3} type="body-sm" />
 			) : error || !data ? (
-				<div className="flex flex-wrap items-center gap-3">
+				<div data-layout-role="user-sheet-inline-state">
 					<QuietLine>Tripwire couldn't load Databuddy activity.</QuietLine>
 					<Button
 						disabled={isFetching}
@@ -45,7 +46,7 @@ export function ActivitySection({ userId }: { userId: string }) {
 			) : !data.connected ? (
 				<QuietLine>Databuddy is not connected.</QuietLine>
 			) : data.error !== null ? (
-				<div className="flex flex-wrap items-center gap-3">
+				<div data-layout-role="user-sheet-inline-state">
 					<QuietLine>Databuddy did not answer: {data.error}</QuietLine>
 					<Button
 						disabled={isFetching}
@@ -86,7 +87,7 @@ export function ActivitySection({ userId }: { userId: string }) {
 						</FieldRows>
 					) : null}
 					{data.sessions.length > 0 ? (
-						<div className="flex flex-col">
+						<div data-layout-role="user-sheet-subsection">
 							<SubHeading
 								count={data.sessions.length}
 								title="Recent sessions"
@@ -94,22 +95,20 @@ export function ActivitySection({ userId }: { userId: string }) {
 							<ListRows label="Recent sessions">
 								{data.sessions.map((entry) => (
 									<ListRow key={entry.id}>
-										<span className="min-w-0 flex-1 basis-full text-text-1 sm:basis-0">
-											{when(entry.startedAt)}
-										</span>
-										<span className="text-text-2 sm:w-24 sm:shrink-0">
+										<Body as="span">{when(entry.startedAt)}</Body>
+										<SupportingText as="span">
 											{entry.durationSeconds === null
 												? "No duration"
 												: formatWait(entry.durationSeconds * 1000)}
-										</span>
-										<span className="text-text-2 tabular-nums sm:w-24 sm:shrink-0">
+										</SupportingText>
+										<SupportingText as="span">
 											{entry.pageviews === null
 												? "No pageviews"
 												: `${entry.pageviews} ${entry.pageviews === 1 ? "page" : "pages"}`}
-										</span>
-										<span className="min-w-0 truncate text-text-2 sm:w-40 sm:shrink-0">
+										</SupportingText>
+										<SupportingText as="span">
 											{entry.entryPage ?? "Unknown page"}
-										</span>
+										</SupportingText>
 									</ListRow>
 								))}
 							</ListRows>

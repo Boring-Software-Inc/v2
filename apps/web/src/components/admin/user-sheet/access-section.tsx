@@ -73,7 +73,7 @@ export function AccessSection({
 				<FieldRow label="Requested">{formatStaffDateTime(requested)}</FieldRow>
 				{pending ? (
 					<FieldRow label="Waiting">
-						<span className="text-warn-text">
+						<span data-state-tone="warning">
 							{formatWait(now - new Date(requested).getTime())}
 						</span>
 					</FieldRow>
@@ -88,7 +88,7 @@ export function AccessSection({
 				{pending && user.login ? (
 					<FieldRow label="GitHub">
 						<a
-							className="inline-flex items-center gap-1 rounded-tag text-text-1 underline decoration-line-control underline-offset-3 hover:decoration-ink focus-visible:focus-ring"
+							data-layout-role="user-sheet-external-link"
 							href={`https://github.com/${user.login}`}
 							rel="noreferrer"
 							target="_blank"

@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
+import { AdminPagination } from "#/components/admin/admin-pagination";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { Button } from "#/design-system/ui/button";
-import { FilterBarSearch } from "#/design-system/ui/filter-bar";
-import { PaginationInfo } from "#/design-system/ui/pagination";
+import { FilterBar, FilterBarSearch } from "#/design-system/ui/filter-bar";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
@@ -23,8 +24,9 @@ import {
 	TableLoading,
 	TableRow,
 } from "#/design-system/ui/table";
+import { CodeText } from "#/design-system/ui/typography";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
-import { ADMIN_PAGE_SIZE, adminReposQueryOptions } from "#/lib/admin.query";
+import { adminReposQueryOptions } from "#/lib/admin.query";
 import { ADMIN_REPO_STATUSES, type AdminReposSearch } from "#/lib/admin-search";
 import { pickValue } from "#/lib/pick-value";
 
@@ -70,89 +72,63 @@ export function AdminReposPage() {
 		});
 	};
 
-	const toolbar = (
-		<>
-			<SegmentedControl
-				size="sm"
-				aria-label="Protection"
-				onValueChange={setStatus}
-				value={status}
-			>
-				{STATUS_FILTERS.map((f) => (
-					<SegmentedControlItem key={f.key} value={f.key}>
-						{f.label}
-					</SegmentedControlItem>
-				))}
-			</SegmentedControl>
-			<FilterBarSearch
-				aria-label="Search repos"
-				className="ms-auto w-full sm:w-56 sm:flex-none"
-				onValueChange={(value) => {
-					setSearch(value);
-					setOffset(0);
-				}}
-				placeholder="Owner or name"
-				value={search}
-			/>
-		</>
-	);
-
-	const footer = (
-		<>
-			{total === 0 ? (
-				<span>0 repos</span>
-			) : (
-				<PaginationInfo
-					from={offset + 1}
-					noun="repos"
-					to={Math.min(offset + ADMIN_PAGE_SIZE, total)}
-					total={total}
-				/>
-			)}
-			<div className="flex gap-2">
-				<Button
-					disabled={offset === 0}
-					onClick={() => setOffset(Math.max(0, offset - ADMIN_PAGE_SIZE))}
-					size="sm"
-					variant="secondary"
-				>
-					Previous
-				</Button>
-				<Button
-					disabled={offset + ADMIN_PAGE_SIZE >= total}
-					onClick={() => setOffset(offset + ADMIN_PAGE_SIZE)}
-					size="sm"
-					variant="secondary"
-				>
-					Next
-				</Button>
-			</div>
-		</>
-	);
+	const clearFilters = () => {
+		setSearch("");
+		setStatus("all");
+	};
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-312 flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<h1 className="type-title">Repos</h1>
-						<p className="type-body text-text-2">
-							Every connected repo on this Tripwire server.
-						</p>
-					</header>
-
+			<Page>
+				<PageHeader
+					description="Every connected repo and whether Tripwire is protecting it."
+					title="Repos"
+				/>
+				<PageBody>
 					<Table
 						aria-busy={isLoading || undefined}
 						aria-label="Repos"
-						footer={footer}
-						toolbar={toolbar}
+						data-admin-table="repos"
+						footer={
+							<AdminPagination
+								noun="repos"
+								offset={offset}
+								onOffsetChange={setOffset}
+								total={total}
+							/>
+						}
+						toolbar={
+							<FilterBar aria-label="Filter repos">
+								<SegmentedControl
+									aria-label="Protection"
+									onValueChange={setStatus}
+									size="sm"
+									value={status}
+								>
+									{STATUS_FILTERS.map((filter) => (
+										<SegmentedControlItem key={filter.key} value={filter.key}>
+											{filter.label}
+										</SegmentedControlItem>
+									))}
+								</SegmentedControl>
+								<FilterBarSearch
+									aria-label="Search repos"
+									onValueChange={(value) => {
+										setSearch(value);
+										setOffset(0);
+									}}
+									placeholder="Owner or name"
+									value={search}
+								/>
+							</FilterBar>
+						}
 					>
 						<TableHeader>
 							<TableRow>
 								<TableHead>Repo</TableHead>
-								<TableHead>Org</TableHead>
+								<TableHead data-admin-column="repo-org">Org</TableHead>
 								<TableHead>Tripwire</TableHead>
-								<TableHead>Added</TableHead>
+								<TableHead data-admin-column="repo-added">Added</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -176,24 +152,10 @@ export function AdminReposPage() {
 								/>
 							) : repos.length === 0 ? (
 								<TableEmpty
-									art={<MascotArt mood="admin-table-empty" size="compact" />}
-									colSpan={COLUMN_COUNT}
-									description={
-										filtered
-											? "Try another filter or search."
-											: "Repos show up here when someone installs the app."
-									}
-									reason={filtered ? "no-results" : "empty"}
-									title={
-										filtered ? "No repos match this filter" : "No repos yet"
-									}
 									action={
 										filtered ? (
 											<Button
-												onClick={() => {
-													setSearch("");
-													setStatus("all");
-												}}
+												onClick={clearFilters}
 												size="sm"
 												variant="secondary"
 											>
@@ -210,23 +172,29 @@ export function AdminReposPage() {
 											</Button>
 										)
 									}
+									art={<MascotArt mood="admin-table-empty" size="compact" />}
+									colSpan={COLUMN_COUNT}
+									description={
+										filtered
+											? "Try another protection filter or search."
+											: "Repos appear after someone installs the app."
+									}
+									reason={filtered ? "no-results" : "empty"}
+									title={
+										filtered ? "No repos match this filter" : "No repos yet"
+									}
 								/>
 							) : (
 								repos.map((repo) => (
 									<TableRow key={repo.id}>
 										<TableCell>
-											<span className="flex min-w-0 items-center gap-2">
-												<ForgeMark
-													className="size-(--icon-sm) shrink-0 text-text-2"
-													forge={repo.forge}
-												/>
-												<span className="truncate mono type-label">
-													{repo.fullName}
-												</span>
+											<span data-layout-role="admin-forge-repo">
+												<ForgeMark forge={repo.forge} />
+												<CodeText as="span">{repo.fullName}</CodeText>
 											</span>
 										</TableCell>
 										<TableCell
-											className="text-text-2"
+											data-admin-column="repo-org"
 											mono={repo.orgSlug !== null}
 										>
 											{repo.orgSlug ?? "Not claimed"}
@@ -236,7 +204,7 @@ export function AdminReposPage() {
 												{repo.protected ? "Protected" : "Not protected"}
 											</Status>
 										</TableCell>
-										<TableCell className="text-text-2">
+										<TableCell data-admin-column="repo-added">
 											{formatAdminDate(repo.installedAt)}
 										</TableCell>
 									</TableRow>
@@ -244,8 +212,8 @@ export function AdminReposPage() {
 							)}
 						</TableBody>
 					</Table>
-				</div>
-			</div>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }

@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
-import { cn } from "#/design-system/lib/utils";
+import {
+	Caption,
+	SectionHeading,
+	Subheading,
+	SupportingText,
+} from "#/design-system/ui/typography";
 
 export function SheetSectionBlock({
 	id,
@@ -15,19 +20,18 @@ export function SheetSectionBlock({
 	return (
 		<section
 			aria-labelledby={`user-sheet-${id}-title`}
-			className="flex scroll-mt-14 flex-col gap-4"
+			data-layout-role="user-sheet-section"
 			data-section={id}
 			id={`user-sheet-${id}`}
 		>
-			<div className="flex min-h-7 items-center justify-between gap-3">
-				<h3
-					className="type-heading-sm text-text-1"
-					id={`user-sheet-${id}-title`}
-				>
+			<header data-layout-role="user-sheet-section-header">
+				<SectionHeading id={`user-sheet-${id}-title`} level={3}>
 					{title}
-				</h3>
-				{action}
-			</div>
+				</SectionHeading>
+				{action ? (
+					<div data-layout-role="user-sheet-section-action">{action}</div>
+				) : null}
+			</header>
 			{children}
 		</section>
 	);
@@ -43,40 +47,30 @@ export function SubHeading({
 	action?: ReactNode;
 }) {
 	return (
-		<div className="flex min-h-8 items-center justify-between gap-3">
-			<h4 className="type-label text-text-1">{title}</h4>
-			{action ??
-				(count !== undefined ? (
-					<span className="type-caption text-text-2 tabular-nums">{count}</span>
-				) : null)}
+		<div data-layout-role="user-sheet-subheading">
+			<Subheading level={4}>{title}</Subheading>
+			{action ?? (count !== undefined ? <Caption>{count}</Caption> : null)}
 		</div>
 	);
 }
 
 export function FieldRows({ children }: { children: ReactNode }) {
-	return <dl className="flex flex-col">{children}</dl>;
+	return <dl data-layout-role="user-sheet-fields">{children}</dl>;
 }
 
 export function FieldRow({
 	label,
 	children,
-	className,
 }: {
 	label: ReactNode;
 	children: ReactNode;
-	className?: string;
 }) {
 	return (
-		<div
-			className={cn(
-				"flex min-h-9 flex-col gap-1 border-line-faint border-b py-2 last:border-b-0 sm:flex-row sm:items-center sm:gap-4",
-				className,
-			)}
-		>
-			<dt className="shrink-0 type-body-sm text-text-2 sm:w-35">{label}</dt>
-			<dd className="flex min-w-0 flex-1 items-center gap-2 type-body-sm text-text-1">
-				{children}
-			</dd>
+		<div data-layout-role="user-sheet-field">
+			<dt>
+				<SupportingText as="span">{label}</SupportingText>
+			</dt>
+			<dd>{children}</dd>
 		</div>
 	);
 }
@@ -89,31 +83,16 @@ export function ListRows({
 	children: ReactNode;
 }) {
 	return (
-		<ul aria-label={label} className="flex flex-col">
+		<ul aria-label={label} data-layout-role="user-sheet-list">
 			{children}
 		</ul>
 	);
 }
 
-export function ListRow({
-	children,
-	className,
-}: {
-	children: ReactNode;
-	className?: string;
-}) {
-	return (
-		<li
-			className={cn(
-				"flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 border-line-faint border-b py-2 type-body-sm sm:flex-nowrap",
-				className,
-			)}
-		>
-			{children}
-		</li>
-	);
+export function ListRow({ children }: { children: ReactNode }) {
+	return <li data-layout-role="user-sheet-list-row">{children}</li>;
 }
 
 export function QuietLine({ children }: { children: ReactNode }) {
-	return <p className="type-body-sm text-text-2">{children}</p>;
+	return <SupportingText>{children}</SupportingText>;
 }

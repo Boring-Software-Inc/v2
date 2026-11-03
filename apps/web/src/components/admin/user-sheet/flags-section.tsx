@@ -148,14 +148,8 @@ function SyncCell({
 				: tone === "fail"
 					? Failed
 					: null;
-	const color =
-		tone === "warn"
-			? "text-warn-text"
-			: tone === "fail"
-				? "text-fail-text"
-				: "text-text-2";
 	return (
-		<span className={`flex items-center gap-1.5 type-caption ${color}`}>
+		<span data-layout-role="user-sheet-sync" data-state-tone={tone}>
 			{glyph ? <Icon icon={glyph} size={12} /> : null}
 			<span>{label}</span>
 			{tone === "fail" ? (
@@ -197,25 +191,19 @@ function FlagRow({
 }) {
 	const choice = row.override?.choice ?? "default";
 	return (
-		<ListRow className="sm:min-h-13">
-			<span className="mono min-w-0 flex-1 basis-full truncate text-text-1 sm:basis-0">
-				{row.key}
-			</span>
-			<span className="flex items-baseline gap-2 sm:w-30 sm:shrink-0 sm:flex-col sm:items-start sm:gap-0">
+		<ListRow>
+			<span data-layout-role="user-sheet-flag-name">{row.key}</span>
+			<span data-layout-role="user-sheet-flag-value">
 				{row.evaluated ? (
 					<>
-						<span className="type-label text-text-1">
-							{row.evaluated.enabled ? "On" : "Off"}
-						</span>
-						<span className="type-caption text-text-2">
-							{flagSourceLabel(row.evaluated.source, row.override)}
-						</span>
+						<strong>{row.evaluated.enabled ? "On" : "Off"}</strong>
+						<small>{flagSourceLabel(row.evaluated.source, row.override)}</small>
 					</>
 				) : (
-					<span className="type-caption text-text-2">Not evaluated</span>
+					<small>Not evaluated</small>
 				)}
 			</span>
-			<span className="order-last w-full sm:order-none sm:w-52 sm:shrink-0">
+			<span data-layout-role="user-sheet-flag-control">
 				<SegmentedControl
 					aria-label={`Override for ${row.key}`}
 					disabled={!connected}
@@ -236,7 +224,7 @@ function FlagRow({
 					))}
 				</SegmentedControl>
 			</span>
-			<span className="ms-auto sm:ms-0 sm:w-28 sm:shrink-0">
+			<span data-layout-role="user-sheet-flag-sync">
 				<SyncCell
 					connected={connected}
 					onRetry={onRetry}
@@ -285,7 +273,7 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 			{isLoading ? (
 				<SkeletonText lines={3} type="body-sm" />
 			) : error || !data ? (
-				<div className="flex items-center gap-3">
+				<div data-layout-role="user-sheet-inline-state">
 					<QuietLine>Tripwire couldn't load the flags.</QuietLine>
 					<Button onClick={() => void refetch()} size="sm" variant="secondary">
 						Load flags again
@@ -293,11 +281,11 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 				</div>
 			) : (
 				<>
-					<div className="hidden min-h-7 items-center gap-4 border-line-faint border-b type-label-sm text-text-2 sm:flex">
-						<span className="flex-1">Flag</span>
-						<span className="w-30 shrink-0">For them</span>
-						<span className="w-52 shrink-0">Override</span>
-						<span className="w-28 shrink-0">Databuddy</span>
+					<div data-layout-role="user-sheet-flag-head">
+						<span>Flag</span>
+						<span>For them</span>
+						<span>Override</span>
+						<span>Databuddy</span>
 					</div>
 					<ListRows label="Flags">
 						{data.rows.map((row) => (
@@ -322,14 +310,14 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 			)}
 			<FieldRows>
 				<FieldRow label="Databuddy profile">
-					<span className="mono min-w-0 truncate">{user.id}</span>
+					<span data-layout-role="user-sheet-mono-value">{user.id}</span>
 					<CopyButton
 						label="Copy Databuddy profile id"
 						size="icon-sm"
 						value={user.id}
 					/>
 					<a
-						className="inline-flex shrink-0 items-center gap-1 rounded-tag text-text-1 underline decoration-line-control underline-offset-3 hover:decoration-ink focus-visible:focus-ring"
+						data-layout-role="user-sheet-external-link"
 						href={databuddyUserUrl(user.id)}
 						rel="noreferrer"
 						target="_blank"
@@ -341,7 +329,7 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 				<FieldRow label="Last anonymous id">
 					{user.databuddyAnonId ? (
 						<>
-							<span className="mono min-w-0 truncate">
+							<span data-layout-role="user-sheet-mono-value">
 								{user.databuddyAnonId}
 							</span>
 							<CopyButton
@@ -351,20 +339,20 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 							/>
 						</>
 					) : (
-						<span className="text-text-2">None yet</span>
+						<span data-layout-role="user-sheet-muted-value">None yet</span>
 					)}
 				</FieldRow>
 			</FieldRows>
 			{data && data.history.length > 0 ? (
-				<div className="flex flex-col">
+				<div data-layout-role="user-sheet-subsection">
 					<SubHeading title="History" />
 					<ListRows label="Flag history">
 						{data.history.map((entry) => (
 							<ListRow key={entry.id}>
-								<span className="min-w-0 flex-1 text-text-1">
+								<span data-layout-role="user-sheet-list-main">
 									{historySentence(entry)}
 								</span>
-								<span className="shrink-0 type-caption text-text-2">
+								<span data-layout-role="user-sheet-list-meta">
 									{formatStaffDateTime(entry.createdAt)}
 								</span>
 							</ListRow>

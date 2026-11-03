@@ -1,30 +1,43 @@
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody } from "#/components/layouts/page";
+import {
+	Section,
+	SectionBody,
+	SectionHeader,
+} from "#/components/layouts/section";
 import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 export function EconomicsPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div
-					aria-hidden
-					className="mx-auto flex w-full max-w-3xl flex-col gap-8"
-				>
-					<header className="flex flex-col gap-1">
-						<SkeletonText className="w-32" type="heading" />
-						<SkeletonText className="max-w-measure" lines={2} type="body" />
-					</header>
-					<div className="flex flex-col gap-4">
-						<SkeletonText className="w-96 max-w-full" type="heading-sm" />
-						<Skeleton className="h-36 w-full rounded-panel" />
+			<Page purpose="task">
+				<header aria-hidden data-layout-role="admin-page-header-skeleton">
+					<SkeletonText data-layout-size="page-title" type="heading" />
+					<SkeletonText
+						data-layout-size="page-description-long"
+						lines={2}
+						type="body"
+					/>
+				</header>
+				<PageBody>
+					<Section id="economics-month-skeleton">
+						<SectionHeader title="This month" />
+						<SectionBody>
+							<SkeletonText
+								data-layout-size="economics-lead"
+								type="heading-sm"
+							/>
+							<Skeleton data-layout-role="economics-summary-skeleton" />
+						</SectionBody>
+					</Section>
+					<div data-layout-role="economics-charts">
+						<Skeleton data-layout-role="economics-chart-skeleton" />
+						<Skeleton data-layout-role="economics-chart-skeleton" />
 					</div>
-					<div className="grid gap-4 md:grid-cols-2">
-						<Skeleton className="h-60 w-full rounded-shell" />
-						<Skeleton className="h-60 w-full rounded-shell" />
-					</div>
-					<Skeleton className="h-48 w-full rounded-shell" />
-					<Skeleton className="h-48 w-full rounded-shell" />
-				</div>
-			</div>
+					<Skeleton data-layout-role="economics-table-skeleton" />
+					<Skeleton data-layout-role="economics-table-skeleton" />
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }

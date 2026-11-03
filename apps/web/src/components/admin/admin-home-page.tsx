@@ -1,81 +1,123 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
-import { EntityCard } from "#/components/common/entity-card";
-import { CardRouterLink } from "#/components/common/router-links";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { SkeletonText } from "#/design-system/ui/skeleton";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
+import {
+	Section,
+	SectionBody,
+	SectionHeader,
+} from "#/components/layouts/section";
+import {
+	Alert,
+	AlertAction,
+	AlertDescription,
+	AlertTitle,
+} from "#/design-system/ui/alert";
+import { Button } from "#/design-system/ui/button";
+import {
+	Item,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemTitle,
+} from "#/design-system/ui/item";
 import { adminOverviewQueryOptions } from "#/lib/admin.query";
 
 const SECTIONS = [
 	{
 		to: "/admin/users",
 		title: "Users",
-		description:
-			"Review beta access. Approve or decline, one at a time or in bulk.",
+		description: "Review beta access and manage individual account controls.",
 	},
 	{
 		to: "/admin/orgs",
 		title: "Orgs",
-		description: "See every org and its members, and change member roles.",
+		description: "Inspect every org, its members and member roles.",
 	},
 	{
 		to: "/admin/repos",
 		title: "Repos",
-		description: "Every connected repo, its org, and whether Tripwire is on.",
+		description:
+			"Check connected repos and whether Tripwire is protecting them.",
 	},
 	{
 		to: "/admin/installations",
 		title: "Installations",
-		description: "Every account the app is installed on, and who claimed it.",
+		description: "See installed forge accounts and which org claimed each one.",
 	},
 	{
 		to: "/admin/economics",
 		title: "Economics",
-		description:
-			"Cost per run, drift from invoices, remaining credit, and cost by org.",
+		description: "Review run cost, provider drift, credit and spend by org.",
 	},
 ] as const;
 
 export function AdminHomePage() {
-	const { data } = useQuery(adminOverviewQueryOptions());
+	const { data, error, refetch, isFetching } = useQuery(
+		adminOverviewQueryOptions(),
+	);
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<h1 className="type-title">Admin</h1>
-						{data ? (
-							<p className="type-body text-text-2">
-								<span className="text-text-1 tabular-nums">
-									{data.pendingUsers}
-								</span>{" "}
-								{data.pendingUsers === 1 ? "user is" : "users are"} waiting for
-								access.
-							</p>
-						) : (
-							<SkeletonText className="w-64 max-w-full" type="body" />
-						)}
-					</header>
+			<Page purpose="task">
+				<PageHeader
+					description={
+						data
+							? `${data.pendingUsers} ${data.pendingUsers === 1 ? "user is" : "users are"} waiting for access.`
+							: "Platform access, connected resources and operating cost."
+					}
+					title="Admin"
+				/>
+				<PageBody>
+					{error ? (
+						<Alert status="fail">
+							<AlertTitle>Tripwire couldn't load the admin summary</AlertTitle>
+							<AlertDescription>{error.message}</AlertDescription>
+							<AlertAction>
+								<Button
+									disabled={isFetching}
+									onClick={() => void refetch()}
+									size="sm"
+									variant="secondary"
+								>
+									Load summary again
+								</Button>
+							</AlertAction>
+						</Alert>
+					) : null}
 
-					<AdminOverviewStats overview={data} />
+					<Section id="admin-summary">
+						<SectionHeader title="Product at a glance" />
+						<SectionBody>
+							<AdminOverviewStats overview={data} />
+						</SectionBody>
+					</Section>
 
-					<ul aria-label="Admin sections" className="flex flex-col gap-3">
-						{SECTIONS.map((section) => (
-							<li key={section.to}>
-								<EntityCard
-									description={section.description}
-									title={
-										<CardRouterLink to={section.to}>
-											{section.title}
-										</CardRouterLink>
-									}
-								/>
-							</li>
-						))}
-					</ul>
-				</div>
-			</div>
+					<Section id="admin-sections">
+						<SectionHeader title="Staff tools" />
+						<SectionBody>
+							<ItemGroup aria-label="Admin sections">
+								{SECTIONS.map((section) => (
+									<Item key={section.to}>
+										<ItemContent>
+											<ItemTitle>
+												<Link
+													data-layout-role="admin-section-link"
+													to={section.to}
+												>
+													{section.title}
+												</Link>
+											</ItemTitle>
+											<ItemDescription>{section.description}</ItemDescription>
+										</ItemContent>
+									</Item>
+								))}
+							</ItemGroup>
+						</SectionBody>
+					</Section>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }
