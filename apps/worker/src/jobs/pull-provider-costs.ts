@@ -1,4 +1,7 @@
-import { PLANETSCALE_MONTHLY } from "@tripwire/contracts";
+import {
+	openRouterAnalyticsSchema,
+	PLANETSCALE_MONTHLY,
+} from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { economicsServices } from "@tripwire/db";
 import { getErrorMessage } from "@tripwire/utils";
@@ -19,7 +22,9 @@ export interface ProviderCostRow {
 	provider: "railway" | "openrouter" | "planetscale";
 	service: string;
 	costUsd: number;
-	usageJson: unknown;
+	usageJson: Parameters<
+		typeof economicsServices.upsertProviderCost
+	>[1]["usageJson"];
 	estimated: boolean;
 }
 
@@ -50,55 +55,15 @@ function monthStartUtc(day: string): string {
 	return `${day.slice(0, 7)}-01`;
 }
 
-function firstFiniteNumber(obj: unknown, keys: string[]): number | null {
-	if (!obj || typeof obj !== "object") {
-		return null;
-	}
-	for (const key of keys) {
-		const v = (obj as Record<string, unknown>)[key];
-		if (typeof v === "number" && Number.isFinite(v)) {
-			return v;
-		}
-	}
-	return null;
-}
-
-/**
- * Sum OpenRouter spend from an analytics/query response. The endpoint returns
- * `{ data: { data: [ { total_usage, tokens_total, ... } ], metadata } }`. The
- * time window is already applied by the request, so we sum every row's
- * `total_usage` (USD) and `tokens_total`. Tolerant of the shape: unknown records
- * contribute zero, never throw. `tokens_total` can arrive as a string.
- */
-function analyticsRecords(json: unknown): unknown[] {
-	const outer = (json as { data?: unknown })?.data;
-	return Array.isArray((outer as { data?: unknown[] })?.data)
-		? ((outer as { data: unknown[] }).data ?? [])
-		: Array.isArray(outer)
-			? (outer as unknown[])
-			: Array.isArray(json)
-				? (json as unknown[])
-				: [];
-}
-
-function recordTokens(rec: object): number {
-	const tk = (rec as { tokens_total?: unknown; tokens?: unknown }).tokens_total;
-	const n = typeof tk === "string" ? Number(tk) : tk;
-	return typeof n === "number" && Number.isFinite(n) ? n : 0;
-}
-
-export function extractOpenRouterDailyCost(json: unknown): {
-	costUsd: number;
-	tokens: number;
-} {
+/** Sum the response's rows after independently decoding each metric. */
+export function extractOpenRouterDailyCost(
+	json: Parameters<typeof openRouterAnalyticsSchema.parse>[0],
+) {
 	let costUsd = 0;
 	let tokens = 0;
-	for (const rec of analyticsRecords(json)) {
-		if (!rec || typeof rec !== "object") {
-			continue;
-		}
-		costUsd += firstFiniteNumber(rec, ["total_usage", "usage", "cost"]) ?? 0;
-		tokens += recordTokens(rec);
+	for (const rec of openRouterAnalyticsSchema.parse(json)) {
+		costUsd += rec.costUsd;
+		tokens += rec.tokens;
 	}
 	return { costUsd, tokens };
 }
@@ -110,20 +75,16 @@ export function extractOpenRouterDailyCost(json: unknown): {
  * as a filter value.
  */
 export function extractOpenRouterByKey(
-	json: unknown,
+	json: Parameters<typeof openRouterAnalyticsSchema.parse>[0],
 ): Map<string, { costUsd: number; tokens: number }> {
 	const byKey = new Map<string, { costUsd: number; tokens: number }>();
-	for (const rec of analyticsRecords(json)) {
-		if (!rec || typeof rec !== "object") {
+	for (const rec of openRouterAnalyticsSchema.parse(json)) {
+		if (rec.keyName === null) {
 			continue;
 		}
-		const name = (rec as { api_key_id?: unknown }).api_key_id;
-		if (typeof name !== "string") {
-			continue;
-		}
-		byKey.set(name, {
-			costUsd: firstFiniteNumber(rec, ["total_usage", "usage", "cost"]) ?? 0,
-			tokens: recordTokens(rec),
+		byKey.set(rec.keyName, {
+			costUsd: rec.costUsd,
+			tokens: rec.tokens,
 		});
 	}
 	return byKey;
@@ -184,7 +145,7 @@ async function pullOpenRouter(
 	// names are set).
 	const body = JSON.stringify({
 		metrics: ["total_usage", "tokens_total"],
-		...(split ? { dimensions: ["api_key_id"] } : {}),
+		dimensions: split ? ["api_key_id"] : undefined,
 		time_range: { start: `${day}T00:00:00Z`, end: `${nextDay}T00:00:00Z` },
 	});
 	const res = await fetchImpl("https://openrouter.ai/api/v1/analytics/query", {
@@ -289,7 +250,9 @@ async function pullPlanetScale(
 	// invoice for audit and credit tracking; the interpolated cost stands either
 	// way so the page never blocks on the invoice API.
 	const daily = PLANETSCALE_MONTHLY / daysInUtcMonth(day);
-	let usageJson: unknown = { note: "interpolated from PLANETSCALE_MONTHLY" };
+	let usageJson: ProviderCostRow["usageJson"] = {
+		note: "interpolated from PLANETSCALE_MONTHLY",
+	};
 	if (cfg.tokenId && cfg.token && cfg.org) {
 		const res = await fetchImpl(
 			`https://api.planetscale.com/v1/organizations/${cfg.org}/invoices`,

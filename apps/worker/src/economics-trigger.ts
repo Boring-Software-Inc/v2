@@ -1,6 +1,10 @@
 import { createDb, economicsServices } from "@tripwire/db";
 import pino from "pino";
-import { economicsDigest, postMonthlyReport } from "./jobs/economics-digest.ts";
+import {
+	type DigestPayload,
+	economicsDigest,
+	postMonthlyReport,
+} from "./jobs/economics-digest.ts";
 import {
 	previousUtcDay,
 	pullProviderCosts,
@@ -38,11 +42,7 @@ const COMMANDS = [
 ] as const;
 type Command = (typeof COMMANDS)[number];
 
-function parseArgs(argv: string[]): {
-	cmd: Command;
-	day: string;
-	dryRun: boolean;
-} {
+function parseArgs(argv: string[]) {
 	const cmd = argv[2] as Command | undefined;
 	if (!cmd || !COMMANDS.includes(cmd)) {
 		process.stderr.write(
@@ -75,7 +75,7 @@ const { db, pool } = createDb();
 
 /** In dry-run, print what the digest would post instead of hitting Discord. */
 const dryPost = dryRun
-	? (_url: string, body: unknown) => {
+	? (_url: string, body: DigestPayload) => {
 			// Embeds carry no top-level content, so print the whole payload.
 			process.stdout.write(
 				`\n--- digest (dry-run, not posted) ---\n${JSON.stringify(
@@ -92,7 +92,7 @@ const dryPost = dryRun
 const dryPostMultipart = dryRun
 	? (
 			_url: string,
-			payloadJson: unknown,
+			payloadJson: DigestPayload,
 			files: { filename: string; bytes: Uint8Array }[],
 		) => {
 			const attached = files

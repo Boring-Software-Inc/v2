@@ -298,10 +298,10 @@ export function formatMonthlyReport(s: MonthlySummary): string {
 	].join("\n");
 }
 
-type PostFn = (url: string, body: unknown) => Promise<{ ok: boolean }>;
+type PostFn = (url: string, body: DigestPayload) => Promise<{ ok: boolean }>;
 type MultipartFn = (
 	url: string,
-	payloadJson: unknown,
+	payloadJson: DigestPayload,
 	files: MultipartFile[],
 ) => Promise<{ ok: boolean }>;
 
