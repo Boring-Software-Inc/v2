@@ -1,0 +1,613 @@
+apps/web/package.json
+  h_3279d55133f19f 13
+  h_3279d55133f19f 6-9,49
+.design-system/color-contract.md
+  h_3279d55133f19f 1-106
+.design-system/complaint.md
+  h_3279d55133f19f 1-60
+.design-system/decisions.tsv
+  h_3279d55133f19f 1-4
+.design-system/design-system-lint-baseline.json
+  h_3279d55133f19f 1-8
+.design-system/members-parity/report.md
+  h_3279d55133f19f 1-56
+.design-system/molecule-contract.md
+  h_3279d55133f19f 1-115
+.design-system/ownership.md
+  h_3279d55133f19f 1-58
+.design-system/rollout.md
+  h_3279d55133f19f 1-47
+.design-system/semantic-baseline-manifest.md
+  h_3279d55133f19f 1-298
+.design-system/semantic-baseline-paths.txt
+  h_3279d55133f19f 1-278
+.design-system/semantic-inventory.md
+  h_3279d55133f19f 1-97
+.design-system/typography-contract.md
+  h_3279d55133f19f 1-77
+.oxlintrc.json
+  h_3279d55133f19f 7-10,24,40-46
+DECISIONS.md
+  h_3279d55133f19f 649-752
+PLAN.md
+  h_3279d55133f19f 1-268
+apps/web/src/components/account/account-page.tsx
+  h_3279d55133f19f 10-19,28,32-36
+apps/web/src/components/account/delete-account-dialog.tsx
+  h_3279d55133f19f 4-6,18,27-29,38
+apps/web/src/components/activity/activity-filters.tsx
+  h_3279d55133f19f 3,7
+apps/web/src/components/activity/activity-history.tsx
+  h_3279d55133f19f 8,15
+apps/web/src/components/activity/activity-page-skeleton.tsx
+  h_3279d55133f19f 1-2,8-9
+apps/web/src/components/activity/activity-page.tsx
+  h_3279d55133f19f 12-14,22-24
+apps/web/src/components/activity/activity-row.tsx
+  h_3279d55133f19f 6-8,17-18
+apps/web/src/components/activity/activity-stack.tsx
+  h_3279d55133f19f 13-15,23,29-30
+apps/web/src/components/activity/verdict-chip.tsx
+  h_3279d55133f19f 9
+apps/web/src/components/admin/access-status-dot.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/admin/admin-home-page-skeleton.tsx
+  h_3279d55133f19f 4
+apps/web/src/components/admin/admin-home-page.tsx
+  h_3279d55133f19f 6
+apps/web/src/components/admin/admin-installations-page-skeleton.tsx
+  h_3279d55133f19f 1-2,10
+apps/web/src/components/admin/admin-installations-page.tsx
+  h_3279d55133f19f 5-8,18
+apps/web/src/components/admin/admin-orgs-page-skeleton.tsx
+  h_3279d55133f19f 1-2,10
+apps/web/src/components/admin/admin-orgs-page.tsx
+  h_3279d55133f19f 6-12,22-23,27,34-35,45-46
+apps/web/src/components/admin/admin-overview-stats.tsx
+  h_3279d55133f19f 3-5
+apps/web/src/components/admin/admin-repos-page-skeleton.tsx
+  h_3279d55133f19f 1-2,10
+apps/web/src/components/admin/admin-repos-page.tsx
+  h_3279d55133f19f 6-10,14-15,25
+apps/web/src/components/admin/admin-users-page-skeleton.tsx
+  h_3279d55133f19f 1-2,10
+apps/web/src/components/admin/admin-users-page.tsx
+  h_3279d55133f19f 7-16,20-21,31-32
+apps/web/src/components/admin/economics-page-skeleton.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/admin/economics-page.tsx
+  h_3279d55133f19f 4-9,15,20-21,31
+apps/web/src/components/admin/user-sheet/access-section.tsx
+  h_3279d55133f19f 8-10
+apps/web/src/components/admin/user-sheet/account-section.tsx
+  h_3279d55133f19f 14-17,29-31
+apps/web/src/components/admin/user-sheet/activity-section.tsx
+  h_3279d55133f19f 12-13
+apps/web/src/components/admin/user-sheet/danger-section.tsx
+  h_3279d55133f19f 10-13
+apps/web/src/components/admin/user-sheet/details-rail.tsx
+  h_3279d55133f19f 4
+apps/web/src/components/admin/user-sheet/flags-section.tsx
+  h_3279d55133f19f 25-27,33,37-39,44
+apps/web/src/components/admin/user-sheet/moderation-section.tsx
+  h_3279d55133f19f 9-10
+apps/web/src/components/admin/user-sheet/sheet-parts.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/admin/user-sheet/use-staff-action.ts
+  h_3279d55133f19f 2
+apps/web/src/components/admin/user-sheet/user-sheet-header.tsx
+  h_3279d55133f19f 10-13,20-22,27
+apps/web/src/components/admin/user-sheet/user-sheet-skeleton.tsx
+  h_3279d55133f19f 1-2
+apps/web/src/components/admin/user-sheet/user-sheet.tsx
+  h_3279d55133f19f 17-19,25
+apps/web/src/components/agent/agent-outline.tsx
+  h_3279d55133f19f 16
+apps/web/src/components/agent/agent-presence.tsx
+  h_3279d55133f19f 3
+apps/web/src/components/agent/agent-rain.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/agents/agent-account-row.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/agents/agent-client-logo.tsx
+  h_3279d55133f19f 1-2
+apps/web/src/components/agents/agent-code-boxes.tsx
+  h_3279d55133f19f 11
+apps/web/src/components/agents/agent-consent-page.tsx
+  h_3279d55133f19f 10
+apps/web/src/components/agents/agent-device-page.tsx
+  h_3279d55133f19f 17-20
+apps/web/src/components/agents/agent-request-card.tsx
+  h_3279d55133f19f 11-14
+apps/web/src/components/agents/agent-request-skeleton.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/agents/agent-scopes.ts
+  h_3279d55133f19f 7
+apps/web/src/components/agents/connected-agents-page.tsx
+  h_3279d55133f19f 5-8,16-18
+apps/web/src/components/analytics/analytics-chart.tsx
+  h_3279d55133f19f 4
+apps/web/src/components/analytics/analytics-event-filters.tsx
+  h_3279d55133f19f 9
+apps/web/src/components/analytics/analytics-events.tsx
+  h_3279d55133f19f 14-15,26-28,35-36,44,49
+apps/web/src/components/analytics/analytics-page-skeleton.tsx
+  h_3279d55133f19f 1-2,8-9
+apps/web/src/components/analytics/analytics-page.tsx
+  h_3279d55133f19f 11-14,18-19
+apps/web/src/components/analytics/chart-at-rest.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/arming/arm-callout.tsx
+  h_3279d55133f19f 9-10,17-18
+apps/web/src/components/arming/backfill-progress.tsx
+  h_3279d55133f19f 6
+apps/web/src/components/auth/access-pending-screen.tsx
+  h_3279d55133f19f 3-4
+apps/web/src/components/auth/forge-grid.tsx
+  h_3279d55133f19f 9
+apps/web/src/components/auth/login-faq.tsx
+  h_3279d55133f19f 8
+apps/web/src/components/auth/login-page-skeleton.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/auth/login-page.tsx
+  h_3279d55133f19f 8
+apps/web/src/components/auth/webview-notice.tsx
+  h_3279d55133f19f 3-4
+apps/web/src/components/code/code-controls.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/code/code-header.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/code/tripwire-code-diff.tsx
+  h_3279d55133f19f 5-6,10
+apps/web/src/components/code/tripwire-code-file.tsx
+  h_3279d55133f19f 10-11
+apps/web/src/components/collection/collection.tsx
+  h_3279d55133f19f 2,10,18,22-23
+apps/web/src/components/common/animated-height.tsx
+  h_3279d55133f19f 3
+apps/web/src/components/common/confirm-delete-dialog.tsx
+  h_3279d55133f19f 13
+apps/web/src/components/common/date-range-filter.tsx
+  h_3279d55133f19f 2-6,11
+apps/web/src/components/common/entity-card-skeleton.tsx
+  h_3279d55133f19f 7-8
+apps/web/src/components/common/entity-card.tsx
+  h_3279d55133f19f 2,12
+apps/web/src/components/common/forge-link-button.tsx
+  h_3279d55133f19f 3-4,9
+apps/web/src/components/common/grouped-picker.tsx
+  h_3279d55133f19f 2-4,10-11,18
+apps/web/src/components/common/impersonation-banner.tsx
+  h_3279d55133f19f 3-5
+apps/web/src/components/common/meta-row.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/common/route-error.tsx
+  h_3279d55133f19f 8-9,17
+apps/web/src/components/common/router-links.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/common/scroll-list.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/dev/dev-custom-scenario.tsx
+  h_3279d55133f19f 2,7-8,15
+apps/web/src/components/dev/dev-identity.tsx
+  h_3279d55133f19f 3
+apps/web/src/components/dev/dev-preset-list.tsx
+  h_3279d55133f19f 2,10
+apps/web/src/components/dev/dev-scenario-disclosure.tsx
+  h_3279d55133f19f 6
+apps/web/src/components/dev/dev-scenario-panel.tsx
+  h_3279d55133f19f 7-9
+apps/web/src/components/dev/dev-scenario-switcher.tsx
+  h_3279d55133f19f 3,8
+apps/web/src/components/dev/use-dev-actions.ts
+  h_3279d55133f19f 4
+apps/web/src/components/dither/dither-avatar.tsx
+  h_3279d55133f19f 12
+apps/web/src/components/dither/shader-dither.tsx
+  h_3279d55133f19f 18
+apps/web/src/components/feedback/feedback-outline.tsx
+  h_3279d55133f19f 80
+apps/web/src/components/feedback/feedback-panel.tsx
+  h_3279d55133f19f 3-9
+apps/web/src/components/feedback/feedback-picker.tsx
+  h_3279d55133f19f 3-4
+apps/web/src/components/forges/connect-forge-dialog.tsx
+  h_3279d55133f19f 9
+apps/web/src/components/forges/connections-page.tsx
+  h_3279d55133f19f 9-13,22,27-28
+apps/web/src/components/forges/forge-cell.tsx
+  h_3279d55133f19f 4-5
+apps/web/src/components/forges/gitcafe-repository-selection.tsx
+  h_3279d55133f19f 11-12
+apps/web/src/components/forges/organization-connection-row.tsx
+  h_3279d55133f19f 9,14,23,30
+apps/web/src/components/forges/organization-connections-page.test.tsx
+  h_3279d55133f19f 8
+apps/web/src/components/forges/organization-connections-page.tsx
+  h_3279d55133f19f 6-9
+apps/web/src/components/glaze/styles.css
+  h_3279d55133f19f 61-67,220-224
+apps/web/src/components/glaze/tokens.css
+  h_3279d55133f19f 78-79
+apps/web/src/components/glaze/ui/button.tsx
+  h_3279d55133f19f 33
+apps/web/src/components/layouts/collection-row.tsx
+  h_3279d55133f19f 1-116
+apps/web/src/components/layouts/command-palette-launcher.tsx
+  h_3279d55133f19f 2-4
+apps/web/src/components/layouts/command-palette.tsx
+  h_3279d55133f19f 8-9,25-26,39-40,191
+apps/web/src/components/layouts/dashboard-layout.tsx
+  h_3279d55133f19f 13
+apps/web/src/components/layouts/dashboard-rail.tsx
+  h_3279d55133f19f 6-7,26
+apps/web/src/components/layouts/dashboard-side-panel.tsx
+  h_3279d55133f19f 8-9
+apps/web/src/components/layouts/dashboard-topbar.tsx
+  h_3279d55133f19f 5-11,19-21,31,61,63
+apps/web/src/components/layouts/header-feedback-control.tsx
+  h_3279d55133f19f 1-2,4-6,8-14,16-17
+apps/web/src/components/layouts/page.tsx
+  h_3279d55133f19f 1
+apps/web/src/components/layouts/route-progress.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/layouts/scope-switchers.tsx
+  h_3279d55133f19f 6-10,19,27,32,67
+apps/web/src/components/layouts/section.tsx
+  h_3279d55133f19f 1-8
+apps/web/src/components/layouts/shell-nav.tsx
+  h_3279d55133f19f 16-17
+apps/web/src/components/mascot/mascot-art.tsx
+  h_3279d55133f19f 16-20
+apps/web/src/components/mascot/mascot-controls.tsx
+  h_3279d55133f19f 2-5,11-12,18-20
+apps/web/src/components/mascot/mascot-figure.tsx
+  h_3279d55133f19f 13
+apps/web/src/components/mascot/mascot-machine-card.tsx
+  h_3279d55133f19f 1-7,13,19,27
+apps/web/src/components/mascot/mascot-page-skeleton.tsx
+  h_3279d55133f19f 1-2
+apps/web/src/components/mascot/mascot-page.tsx
+  h_3279d55133f19f 19-23
+apps/web/src/components/mascot/runner/runner-page-skeleton.tsx
+  h_3279d55133f19f 1
+apps/web/src/components/mascot/runner/runner-page.tsx
+  h_3279d55133f19f 1,7
+apps/web/src/components/moderation/moderation-page-skeleton.tsx
+  h_3279d55133f19f 1,7,14-15
+apps/web/src/components/moderation/moderation-page.tsx
+  h_3279d55133f19f 21-23
+apps/web/src/components/moderation/moderation-queue.tsx
+  h_3279d55133f19f 12-14,21-23,34,41,50-51
+apps/web/src/components/not-found.tsx
+  h_3279d55133f19f 4-5,12
+apps/web/src/components/organizations/approved-install-banner.tsx
+  h_3279d55133f19f 8-9
+apps/web/src/components/organizations/create-org-dialog.tsx
+  h_3279d55133f19f 4,15,21-22
+apps/web/src/components/organizations/digest-activity-button.tsx
+  h_3279d55133f19f 8,14
+apps/web/src/components/organizations/digest-caught-card.test.tsx
+  h_3279d55133f19f 8
+apps/web/src/components/organizations/digest-caught-card.tsx
+  h_3279d55133f19f 2-3,11
+apps/web/src/components/organizations/digest-counts-card.tsx
+  h_3279d55133f19f 2-3,9-10
+apps/web/src/components/organizations/digest-verdict-row.tsx
+  h_3279d55133f19f 7,15-17
+apps/web/src/components/organizations/gitcafe-connection-progress.tsx
+  h_3279d55133f19f 8-9
+apps/web/src/components/organizations/gitcafe-install-setup.tsx
+  h_3279d55133f19f 6-15,24
+apps/web/src/components/organizations/install-setup-page-skeleton.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/organizations/install-setup-page.tsx
+  h_3279d55133f19f 7-18,27,32-33
+apps/web/src/components/organizations/invite-page-skeleton.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/organizations/invite-page.tsx
+  h_3279d55133f19f 5-7
+apps/web/src/components/organizations/no-orgs-page-skeleton.tsx
+  h_3279d55133f19f 1-2
+apps/web/src/components/organizations/no-orgs-page.tsx
+  h_3279d55133f19f 4-5,11,17-18
+apps/web/src/components/organizations/org-analytics-page-skeleton.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/organizations/org-analytics-page.tsx
+  h_3279d55133f19f 9-11
+apps/web/src/components/organizations/org-avatar.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/organizations/org-billing-page.tsx
+  h_3279d55133f19f 2-4,10
+apps/web/src/components/organizations/org-general-settings-page.tsx
+  h_3279d55133f19f 12-20
+apps/web/src/components/organizations/org-home-page-skeleton.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/organizations/org-home-page.tsx
+  h_3279d55133f19f 11-18,27-29,36
+apps/web/src/components/organizations/org-members-page.tsx
+  h_3279d55133f19f 6-28,34-37,44-45,52-54,247-260,262-328,356-363,373,461,470,493,503,514-531,579-615
+apps/web/src/components/organizations/org-redaction-page.tsx
+  h_3279d55133f19f 8-14
+apps/web/src/components/organizations/org-roles-page.tsx
+  h_3279d55133f19f 13-18,28-30,38,45-47
+apps/web/src/components/organizations/region-blocked-page.tsx
+  h_3279d55133f19f 3
+apps/web/src/components/organizations/region-gate.tsx
+  h_3279d55133f19f 3
+apps/web/src/components/responses/blocks/block-catalog.ts
+  h_3279d55133f19f 23
+apps/web/src/components/responses/blocks/block-column.tsx
+  h_3279d55133f19f 6-8
+apps/web/src/components/responses/blocks/block-content.tsx
+  h_3279d55133f19f 7
+apps/web/src/components/responses/blocks/block-drag-preview.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/responses/blocks/block-palette-item.tsx
+  h_3279d55133f19f 6-7
+apps/web/src/components/responses/blocks/block-row.tsx
+  h_3279d55133f19f 6-7
+apps/web/src/components/responses/blocks/block-settings.tsx
+  h_3279d55133f19f 5-7
+apps/web/src/components/responses/blocks/collapsed-block-row.tsx
+  h_3279d55133f19f 1-2
+apps/web/src/components/responses/blocks/gif-block-popover.tsx
+  h_3279d55133f19f 3-4,9
+apps/web/src/components/responses/blocks/gif-search.tsx
+  h_3279d55133f19f 10-11
+apps/web/src/components/responses/blocks/response-builder.tsx
+  h_3279d55133f19f 25-26
+apps/web/src/components/responses/blocks/text-block-editor.tsx
+  h_3279d55133f19f 23
+apps/web/src/components/responses/blocks/variable-chip.tsx
+  h_3279d55133f19f 4-5
+apps/web/src/components/responses/check-state-mock.tsx
+  h_3279d55133f19f 6
+apps/web/src/components/responses/github-comment-mock.tsx
+  h_3279d55133f19f 11-17
+apps/web/src/components/responses/redaction-controls.tsx
+  h_3279d55133f19f 13-18
+apps/web/src/components/responses/redaction-tally.tsx
+  h_3279d55133f19f 10
+apps/web/src/components/responses/responses-page-skeleton.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/responses/responses-page.tsx
+  h_3279d55133f19f 24-28
+apps/web/src/components/responses/responses-preview.tsx
+  h_3279d55133f19f 3-11,15,22-23
+apps/web/src/components/responses/save-state.tsx
+  h_3279d55133f19f 7-8
+apps/web/src/components/responses/setting-rows.tsx
+  h_3279d55133f19f 6-7
+apps/web/src/components/rules-params/param-editor.tsx
+  h_3279d55133f19f 3-6
+apps/web/src/components/rules-params/param-sentence.tsx
+  h_3279d55133f19f 8
+apps/web/src/components/rules/caught-count.tsx
+  h_3279d55133f19f 1
+apps/web/src/components/rules/condition-icons.ts
+  h_3279d55133f19f 63
+apps/web/src/components/rules/custom-rule-builder.tsx
+  h_3279d55133f19f 17-23,33,39-41,46
+apps/web/src/components/rules/rule-card.tsx
+  h_3279d55133f19f 15-31
+apps/web/src/components/rules/rule-header-stats.tsx
+  h_3279d55133f19f 2,8-10
+apps/web/src/components/rules/rule-library.tsx
+  h_3279d55133f19f 6-10,15,24
+apps/web/src/components/rules/rule-packs.tsx
+  h_3279d55133f19f 11-14,22
+apps/web/src/components/rules/rule-used-in.tsx
+  h_3279d55133f19f 2-3,9
+apps/web/src/components/rules/rules-page-skeleton.tsx
+  h_3279d55133f19f 8-11
+apps/web/src/components/rules/rules-page.tsx
+  h_3279d55133f19f 30-44
+apps/web/src/components/rules/rules-replay-page-skeleton.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/rules/rules-replay-page.tsx
+  h_3279d55133f19f 10-14,20,26-27
+apps/web/src/components/rules/use-install-rules.ts
+  h_3279d55133f19f 3
+apps/web/src/components/runs/ai-findings.tsx
+  h_3279d55133f19f 12
+apps/web/src/components/runs/ai-trace.tsx
+  h_3279d55133f19f 6
+apps/web/src/components/runs/branch-card.tsx
+  h_3279d55133f19f 1-2,9,14
+apps/web/src/components/runs/chain-mark.tsx
+  h_3279d55133f19f 21
+apps/web/src/components/runs/evidence-parts.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/runs/rule-evidence.tsx
+  h_3279d55133f19f 9-11,16-17
+apps/web/src/components/runs/run-chain.tsx
+  h_3279d55133f19f 18-31
+apps/web/src/components/runs/run-page-skeleton.tsx
+  h_3279d55133f19f 3
+apps/web/src/components/runs/run-page.tsx
+  h_3279d55133f19f 7-14,26,33-34
+apps/web/src/components/runs/superseded-run-chain.tsx
+  h_3279d55133f19f 2,10,15
+apps/web/src/components/save-queue/save-queue-context.tsx
+  h_3279d55133f19f 11,21
+apps/web/src/components/save-queue/unsaved-changes-bar.tsx
+  h_3279d55133f19f 6
+apps/web/src/components/settings/settings-frame.tsx
+  h_3279d55133f19f 2-9,22-27,40,55-58,65-113
+apps/web/src/components/settings/settings-layout-skeleton.tsx
+  h_3279d55133f19f 2-6,9
+apps/web/src/components/settings/settings-pages.tsx
+  h_3279d55133f19f 12
+apps/web/src/components/setup/agent-setup-card.tsx
+  h_3279d55133f19f 10-13
+apps/web/src/components/setup/repo-setup-checklist.tsx
+  h_3279d55133f19f 16-27
+apps/web/src/components/setup/setup-done-strip.tsx
+  h_3279d55133f19f 7-8
+apps/web/src/components/setup/setup-pill.tsx
+  h_3279d55133f19f 3-7,12
+apps/web/src/components/setup/setup-step-actions.tsx
+  h_3279d55133f19f 8
+apps/web/src/components/setup/step-done-mark.tsx
+  h_3279d55133f19f 1
+apps/web/src/components/setup/use-repo-setup.ts
+  h_3279d55133f19f 4
+apps/web/src/components/tabs/repo-tab-bar.tsx
+  h_3279d55133f19f 5-7
+apps/web/src/components/timezones/timezone-picker.tsx
+  h_3279d55133f19f 9
+apps/web/src/components/workflows/draft-actions.tsx
+  h_3279d55133f19f 4-5
+apps/web/src/components/workflows/editor/canvas-zoom.tsx
+  h_3279d55133f19f 2-3
+apps/web/src/components/workflows/editor/copy-workflow-button.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/workflows/editor/editor-header.tsx
+  h_3279d55133f19f 9-14,20-21,25-26
+apps/web/src/components/workflows/editor/editor-sidebar.tsx
+  h_3279d55133f19f 41-49
+apps/web/src/components/workflows/editor/label-picker.tsx
+  h_3279d55133f19f 2-4,16-17
+apps/web/src/components/workflows/editor/node-card.tsx
+  h_3279d55133f19f 46-49
+apps/web/src/components/workflows/editor/problems-list.tsx
+  h_3279d55133f19f 7-14
+apps/web/src/components/workflows/editor/properties-panel.tsx
+  h_3279d55133f19f 19-32
+apps/web/src/components/workflows/editor/reviewer-picker.tsx
+  h_3279d55133f19f 13-15,27-29
+apps/web/src/components/workflows/editor/rule-group-cards.tsx
+  h_3279d55133f19f 28-44
+apps/web/src/components/workflows/editor/schedule-flow.tsx
+  h_3279d55133f19f 26-32
+apps/web/src/components/workflows/editor/schedule-input.tsx
+  h_3279d55133f19f 20,26,31-32
+apps/web/src/components/workflows/editor/step-meta.ts
+  h_3279d55133f19f 50
+apps/web/src/components/workflows/editor/typed-connections.tsx
+  h_3279d55133f19f 40-41
+apps/web/src/components/workflows/editor/workflow-code.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/workflows/editor/workflow-editor-page-skeleton.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/workflows/editor/workflow-editor-page.tsx
+  h_3279d55133f19f 14-24
+apps/web/src/components/workflows/editor/workflow-editor.tsx
+  h_3279d55133f19f 135-145
+apps/web/src/components/workflows/review/workflow-push-review-page-skeleton.tsx
+  h_3279d55133f19f 2
+apps/web/src/components/workflows/review/workflow-push-review-page.tsx
+  h_3279d55133f19f 5-6,8-14,21-23
+apps/web/src/components/workflows/workflow-protection.test.tsx
+  h_3279d55133f19f 18
+apps/web/src/components/workflows/workflows-grid-page-skeleton.tsx
+  h_3279d55133f19f 3
+apps/web/src/components/workflows/workflows-grid-page.tsx
+  h_3279d55133f19f 22-30,32-39,49,58,65-67,75-78
+apps/web/src/design-system/README.md
+  h_3279d55133f19f 1-76
+apps/web/src/design-system/color-contract.css
+  h_3279d55133f19f 1
+apps/web/src/design-system/layout-contract.css
+  h_3279d55133f19f 1-68
+apps/web/src/design-system/root.tsx
+  h_3279d55133f19f 1-36
+apps/web/src/design-system/state-contract.ts
+  h_3279d55133f19f 1-24
+apps/web/src/design-system/typography.css
+  h_3279d55133f19f 1
+apps/web/src/design-system/ui/typography.tsx
+  h_3279d55133f19f 1-11
+apps/web/src/hooks/use-sign-out.ts
+  h_3279d55133f19f 7
+apps/web/src/routes/__root.tsx
+  h_3279d55133f19f 14,19-26,120,142-143,197-201
+apps/web/src/routes/oauth.popup-callback.tsx
+  h_3279d55133f19f 7-8
+apps/web/src/routes/oauth.waitlist.tsx
+  h_3279d55133f19f 4
+apps/web/src/routes/queue.tsx
+  h_3279d55133f19f 5-6
+apps/web/tsconfig.json
+  h_3279d55133f19f 23-28
+bun.lock
+  h_3279d55133f19f 119,280-288,1896,2042-2043,2056-2057
+packages/ui/README.md
+  h_3279d55133f19f 1-15
+packages/ui/agents.md
+  h_3279d55133f19f 2,4-5,8-13
+packages/ui/package.json
+  h_3279d55133f19f 7-12,18-26
+packages/ui/src/index.ts
+  h_3279d55133f19f 1-22
+packages/ui/src/layouts.test.tsx
+  h_3279d55133f19f 1-54
+packages/ui/src/layouts.tsx
+  h_3279d55133f19f 1-140
+packages/ui/src/styles/color.css
+  h_3279d55133f19f 1-49
+packages/ui/src/styles/layout.css
+  h_3279d55133f19f 1-116
+packages/ui/src/styles/typography.css
+  h_3279d55133f19f 1-66
+packages/ui/src/typography.test.tsx
+  h_3279d55133f19f 1-62
+packages/ui/src/typography.tsx
+  h_3279d55133f19f 1-70
+packages/ui/tsconfig.json
+  h_3279d55133f19f 3-7
+scripts/check-component-states.tsx
+  h_3279d55133f19f 1-300
+scripts/check-design-system-lint-baseline.ts
+  h_3279d55133f19f 1-2,4-5,8-9,12-22,24-25,28-30,32-39,41-51,54-66,70-79,82-86,89-92,95-104,106-112,114-117,119-120
+scripts/check-ui-contract.ts
+  h_3279d55133f19f 1-205
+scripts/lint-slop-changed.ts
+  h_3279d55133f19f 2-5,17-30,71,75-76,109,114
+scripts/oxlint/design-system/fixtures/no-arbitrary-tailwind-values.tsx.fixture
+  h_3279d55133f19f 1-19
+scripts/oxlint/design-system/fixtures/no-direct-implementation-imports.tsx.fixture
+  h_3279d55133f19f 1-12
+scripts/oxlint/design-system/fixtures/no-inline-visual-styles.tsx.fixture
+  h_3279d55133f19f 1-8
+scripts/oxlint/design-system/fixtures/no-raw-color.tsx.fixture
+  h_3279d55133f19f 1-23
+scripts/oxlint/design-system/fixtures/no-raw-spacing.tsx.fixture
+  h_3279d55133f19f 1-19
+scripts/oxlint/design-system/fixtures/no-raw-typography.tsx.fixture
+  h_3279d55133f19f 1-22
+scripts/oxlint/design-system/index.ts
+  h_3279d55133f19f 1-22
+scripts/oxlint/design-system/package.json
+  h_3279d55133f19f 1-3
+scripts/oxlint/design-system/rules/no-arbitrary-tailwind-values.ts
+  h_3279d55133f19f 1-59
+scripts/oxlint/design-system/rules/no-direct-implementation-imports.ts
+  h_3279d55133f19f 1-69
+scripts/oxlint/design-system/rules/no-inline-visual-styles.ts
+  h_3279d55133f19f 1-80
+scripts/oxlint/design-system/rules/no-raw-color.ts
+  h_3279d55133f19f 1-127
+scripts/oxlint/design-system/rules/no-raw-spacing.ts
+  h_3279d55133f19f 1-60
+scripts/oxlint/design-system/rules/no-raw-typography.ts
+  h_3279d55133f19f 1-59
+scripts/oxlint/design-system/shared/class-values.ts
+  h_3279d55133f19f 1-239
+scripts/oxlint/design-system/shared/scope.ts
+  h_3279d55133f19f 1-25
+scripts/oxlint/design-system/test-fixtures.ts
+  h_3279d55133f19f 1-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1f5f5e6700a3d5328e011bd7f8fbbea6159400f9",
+  "prompts": {},
+  "humans": {
+    "h_3279d55133f19f": {
+      "author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
