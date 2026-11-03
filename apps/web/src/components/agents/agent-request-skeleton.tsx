@@ -7,23 +7,31 @@ const ROW_SLOTS = ["a", "b", "c", "d"] as const;
 export function AgentRequestSkeleton() {
 	return (
 		<AgentRequestShell>
-			<div aria-busy className="flex flex-col items-center gap-1.5">
-				<SkeletonText className="w-56" type="heading" />
-				<SkeletonText className="w-64" type="body" />
+			<div aria-busy data-layout-role="agent-request-skeleton-header">
+				<SkeletonText data-layout-size="wide" type="heading" />
+				<SkeletonText data-layout-size="wider" type="body" />
 			</div>
-			<Card aria-hidden className="w-full">
+			<Card aria-hidden data-layout-role="agent-request-card">
 				<CardContent>
-					<Skeleton className="h-16 rounded-tag" />
-					<div className="flex flex-col gap-2 px-1 pt-1">
-						<SkeletonText className="w-12" type="caption" />
+					<div data-layout-role="agent-request-skeleton-lead">
+						<Skeleton />
+					</div>
+					<div data-layout-role="agent-request-skeleton-permissions">
+						<SkeletonText data-layout-size="short" type="caption" />
 						{ROW_SLOTS.map((slot) => (
-							<SkeletonText className="w-56" key={slot} type="body" />
+							<SkeletonText data-layout-size="wide" key={slot} type="body" />
 						))}
 					</div>
-					<Skeleton className="h-(--row) rounded-overlay" />
-					<div className="flex gap-2 pt-1">
-						<Skeleton className="h-(--control) flex-1 rounded-pill" />
-						<Skeleton className="h-(--control) flex-1 rounded-pill" />
+					<div data-layout-role="agent-request-skeleton-org">
+						<Skeleton />
+					</div>
+					<div data-layout-role="agent-request-skeleton-actions">
+						<div>
+							<Skeleton />
+						</div>
+						<div>
+							<Skeleton />
+						</div>
 					</div>
 				</CardContent>
 			</Card>

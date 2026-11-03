@@ -40,14 +40,12 @@ export function AgentConsentPage() {
 				) : null
 			}
 			lead={
-				<div className="flex items-center gap-3 px-1 pt-1.5 pb-0.5">
+				<div data-layout-role="agent-client-summary">
 					<AgentClientLogo clientName={data.clientName} />
-					<div className="flex min-w-0 flex-1 flex-col gap-0.5">
-						<span className="truncate type-label-lg text-text-1">
-							{data.clientName}
-						</span>
+					<div>
+						<span data-layout-role="agent-client-name">{data.clientName}</span>
 						{data.redirectHost ? (
-							<span className="truncate font-mono text-[12px] text-text-2 leading-4">
+							<span data-layout-role="agent-client-detail">
 								Returns to {data.redirectHost}
 							</span>
 						) : null}

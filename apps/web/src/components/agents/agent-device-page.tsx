@@ -45,10 +45,10 @@ function EnterCode() {
 				subtitle="Enter the code from your terminal."
 				title={TITLE}
 			/>
-			<Card className="w-full">
+			<Card data-layout-role="agent-request-card">
 				<CardContent>
 					<form
-						className="flex flex-col gap-3"
+						data-layout-role="agent-code-form"
 						onSubmit={(event) => {
 							event.preventDefault();
 							if (!complete) {
@@ -95,19 +95,25 @@ function SignedIn({
 				subtitle="Go back to your terminal. You can close this tab."
 				title="You're signed in"
 			/>
-			<Card className="w-full">
+			<Card data-layout-role="agent-request-card">
 				<CardContent>
-					<div className="flex items-center gap-3 px-1 pt-1.5 pb-1">
-						<AgentClientLogo className="size-9" clientName={clientName} />
-						<div className="flex min-w-0 flex-1 flex-col gap-0.5">
-							<span className="truncate type-label-lg text-text-1">
-								{clientName}
-							</span>
-							<span className="truncate type-caption text-text-2">
+					<div data-layout-role="agent-client-summary">
+						<AgentClientLogo
+							className="agent-client-logo-large"
+							clientName={clientName}
+						/>
+						<div>
+							<span data-layout-role="agent-client-name">{clientName}</span>
+							<span data-layout-role="agent-client-detail">
 								Signed in to {orgPhrase(orgs)} for 30 days
 							</span>
 						</div>
-						<Icon className="text-ok" icon={Success} size={20} weight="fill" />
+						<Icon
+							className="agent-request-success"
+							icon={Success}
+							size={20}
+							weight="fill"
+						/>
 					</div>
 				</CardContent>
 			</Card>

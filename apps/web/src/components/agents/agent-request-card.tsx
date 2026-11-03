@@ -63,41 +63,37 @@ export function AgentRequestCard({
 	return (
 		<AgentRequestShell>
 			<AgentRequestHeader subtitle={subtitle} title={title} />
-			<Card className="w-full">
+			<Card data-layout-role="agent-request-card">
 				<CardContent>
 					{lead}
 					{permissions.length > 0 ? (
-						<div className="flex flex-col px-1 pt-1">
-							<h2 className="pb-1.5 type-label-sm text-text-2">It can</h2>
-							<ul className="flex flex-col">
+						<div data-layout-role="agent-permissions">
+							<h2>It can</h2>
+							<ul>
 								{permissions.map((permission) => (
 									<li
-										className="flex h-7 items-center gap-2.5 type-body-sm text-text-1"
+										data-layout-role="agent-permission"
 										key={permission.scope}
 									>
-										<Icon className="text-text-2" icon={permission.icon} />
+										<Icon icon={permission.icon} />
 										{permission.label}
 									</li>
 								))}
 							</ul>
 						</div>
 					) : null}
-					<fieldset className="flex flex-col gap-1.5 px-1 pt-1">
-						<legend className="type-label-sm text-text-2">
-							{orgs.length > 1 ? "Orgs" : "Org"}
-						</legend>
+					<fieldset data-layout-role="agent-org-picker">
+						<legend>{orgs.length > 1 ? "Orgs" : "Org"}</legend>
 						{orgs.map((org) => {
 							const checked = picked.includes(org.id);
 							return (
 								<label
-									className="flex h-(--row) cursor-pointer items-center gap-2.5 rounded-overlay border border-line bg-hover-row px-2.5"
+									data-layout-role="agent-org-option"
 									htmlFor={`agent-org-${org.id}`}
 									key={org.id}
 								>
 									<OrgAvatar hue={org.avatarHue} name={org.name} />
-									<span className="min-w-0 flex-1 truncate type-label text-text-1">
-										{org.name}
-									</span>
+									<span>{org.name}</span>
 									<Checkbox
 										checked={checked}
 										id={`agent-org-${org.id}`}
@@ -113,9 +109,8 @@ export function AgentRequestCard({
 							);
 						})}
 					</fieldset>
-					<div className="flex gap-2 pt-1">
+					<div data-layout-role="agent-request-actions">
 						<Button
-							className="flex-1"
 							disabled={pending !== null}
 							onClick={() => void decide(false)}
 							pending={pending === "deny"}
@@ -125,7 +120,6 @@ export function AgentRequestCard({
 							Deny
 						</Button>
 						<Button
-							className="flex-1"
 							disabled={picked.length === 0 || pending !== null}
 							onClick={() => void decide(true)}
 							pending={pending === "allow"}
@@ -135,7 +129,7 @@ export function AgentRequestCard({
 						</Button>
 					</div>
 					{staysSignedIn(scopes) ? (
-						<p className="self-center py-0.5 type-caption text-text-2">
+						<p data-layout-role="agent-request-duration">
 							Stays signed in for 30 days.
 						</p>
 					) : null}

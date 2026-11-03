@@ -1,0 +1,17 @@
+- text: Tripwire
+- banner:
+  - heading "Sign in the Tripwire CLI" [level=1]
+  - paragraph: Check that this code matches your terminal.
+- img "MWDL-LWYS": M W D L L W Y S
+- heading "It can" [level=2]
+- list:
+  - listitem: See repos, rules, workflows and runs
+- group "Orgs":
+  - text: Orgs Dev team admin
+  - checkbox "Dev team admin" [checked]
+  - text: Demo team
+  - checkbox "Demo team"
+- button "Deny"
+- button "Allow"
+- paragraph: Stays signed in for 30 days.
+- region "Notifications"
