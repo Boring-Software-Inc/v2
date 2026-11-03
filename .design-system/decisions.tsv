@@ -1,4 +1,7 @@
 time	phase	decision	why	evidence	result
 2026-11-02T16:25:00-08:00	frame	Use the existing quartz branch	The user said the checkout is already on a new branch	git branch --show-current	quartz
 2026-11-02T16:25:00-08:00	frame	Target Quartz from design.how	The user explicitly requested a full design-system swap	https://design.how/systems/quartz/llms.txt	accepted
-2026-11-02T16:25:00-08:00	verification	Use fresh-read self-verification until another reviewer is available	This harness has no child-agent launcher exposed	.design-system/roles.md	active
+2026-11-02T16:25:00-08:00	verification	Use fresh-read self-verification until another reviewer is available	This harness has no child-agent launcher exposed	.design-system/roles.md	superseded
+2026-11-03T02:00:00-08:00	direction	Use Glaze and the @tripwire/ui semantic contract; Quartz is historical	The completed semantic-system decision removed the mixed implementation and the user approved route polish on that foundation	.design-system/taste.md	accepted
+2026-11-03T02:00:00-08:00	migration	Use isolated product-route-redesign and antislop-cleanup worktrees	One writer per worktree prevents the cleanup lane from colliding with route-family redesign	.design-system/roles.md	accepted
+2026-11-03T02:00:00-08:00	pilot	Use moderation to select route composition before fan-out	It is the daily decision surface and exercises the broadest state and permission set	plans/route-redesign-and-deslop.md	accepted
