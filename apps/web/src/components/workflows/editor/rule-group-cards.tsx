@@ -6,27 +6,15 @@ import {
 	useNodeConnections,
 } from "@xyflow/react";
 import { z } from "zod";
-import {
-	NodeAgentOutline,
-	NodeEnterDissolve,
-} from "#/components/workflows/editor/agent-work-context";
 import type { TripwireFlowNode } from "#/components/workflows/editor/node-card";
-import {
-	useCustomRuleName,
-	useNodeProblems,
-	useProblems,
-} from "#/components/workflows/editor/node-issues";
-import {
-	ProblemPeek,
-	severityStatus,
-} from "#/components/workflows/editor/problems-list";
+import { useCustomRuleName } from "#/components/workflows/editor/node-issues";
 import {
 	type RuleChoice,
 	useRuleGroups,
 } from "#/components/workflows/editor/rule-groups-context";
 import { ruleIcon, stepName } from "#/components/workflows/editor/step-meta";
+import { WorkflowNodeFrame } from "#/components/workflows/editor/workflow-node-frame";
 import { Add, Close, Except, Icon, Rules } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
 import { Button } from "#/design-system/ui/button";
 import {
 	DropdownMenu,
@@ -41,7 +29,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/design-system/ui/select";
-import { StatusMark } from "#/design-system/ui/status";
 import type { SkipMode } from "#/lib/rule-groups";
 
 export const GROUP_TITLE = "If any of these rules fail";
@@ -53,48 +40,6 @@ const MODE_ITEMS = [
 ] satisfies { value: SkipMode; label: string }[];
 
 const skipModeSchema = z.enum(["all-of", "any-of"]);
-
-function CardFrame({
-	id,
-	selected,
-	children,
-}: {
-	id: string;
-	selected: boolean;
-	children: React.ReactNode;
-}) {
-	const problems = useNodeProblems(id);
-	const { onFix } = useProblems();
-	const status = problems.length > 0 ? severityStatus(problems) : null;
-	return (
-		<>
-			<div
-				className={cn(
-					"relative w-56 rounded-panel border border-line-faint bg-paper px-3 py-2 text-text-1 transition-colors duration-(--dur-state)",
-					selected && "border-ink",
-					status === "fail" && !selected && "border-fail",
-					status === "warn" && !selected && "border-warn",
-				)}
-			>
-				<NodeAgentOutline nodeId={id} />
-				{status ? (
-					<ProblemPeek
-						className="absolute -top-2 -right-2 flex rounded-pill bg-paper"
-						onFix={onFix}
-						problems={problems}
-					>
-						<StatusMark
-							label={problems.map((problem) => problem.message).join(". ")}
-							status={status}
-						/>
-					</ProblemPeek>
-				) : null}
-				{children}
-			</div>
-			<NodeEnterDissolve nodeId={id} />
-		</>
-	);
-}
 
 function InputPort({ title }: { title: string }) {
 	const look = inputLook("rule");
@@ -238,7 +183,7 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 	}
 	const removable = card.ruleIds.length > 1;
 	return (
-		<CardFrame id={id} selected={selected}>
+		<WorkflowNodeFrame nodeId={id} selected={selected}>
 			<InputPort title={GROUP_TITLE} />
 			<div className="flex items-center gap-2">
 				<Icon className="-ms-1.5 shrink-0 text-text-1" icon={Rules} />
@@ -273,7 +218,7 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				) : null}
 			</div>
 			<OutputPort port="fail" />
-		</CardFrame>
+		</WorkflowNodeFrame>
 	);
 }
 
@@ -284,7 +229,7 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 		return null;
 	}
 	return (
-		<CardFrame id={id} selected={selected}>
+		<WorkflowNodeFrame nodeId={id} selected={selected}>
 			<InputPort title={SKIP_TITLE} />
 			<div className="flex items-center gap-2">
 				<Icon className="-ms-1.5 shrink-0 text-text-1" icon={Except} />
@@ -349,6 +294,6 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				onPick={(choice) => api.addCheck(id, choice)}
 			/>
 			<OutputPort port="pass" />
-		</CardFrame>
+		</WorkflowNodeFrame>
 	);
 }

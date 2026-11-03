@@ -20,10 +20,6 @@ import {
 } from "@xyflow/react";
 import { Fragment } from "react";
 import {
-	NodeAgentOutline,
-	NodeEnterDissolve,
-} from "#/components/workflows/editor/agent-work-context";
-import {
 	fieldListItems,
 	nodeFieldValues,
 	summarizeFieldValue,
@@ -31,22 +27,16 @@ import {
 import {
 	useCustomRuleName,
 	useEditField,
-	useNodeProblems,
-	useProblems,
 } from "#/components/workflows/editor/node-issues";
-import {
-	ProblemPeek,
-	severityStatus,
-} from "#/components/workflows/editor/problems-list";
 import { stepIcon, stepName } from "#/components/workflows/editor/step-meta";
 import {
 	useDragPlan,
 	useNodeVerdict,
 } from "#/components/workflows/editor/typed-connections";
+import { WorkflowNodeFrame } from "#/components/workflows/editor/workflow-node-frame";
 import { Icon } from "#/design-system/icon";
-import { cn } from "#/design-system/lib/utils";
 import { Button } from "#/design-system/ui/button";
-import { StatusMark } from "#/design-system/ui/status";
+import { Caption, CodeText, Label } from "#/design-system/ui/typography";
 import { triggerPath } from "#/lib/trigger-kinds";
 
 /** The one node data shape the canvas renders. */
@@ -125,16 +115,12 @@ function PortCaption({
 }) {
 	const tone = linked ? WORKFLOW_PORT_TONE[port] : "neutral";
 	return (
-		<span
-			className={cn(
-				"shrink-0 type-caption transition-colors duration-(--dur-state)",
-				tone === "ok" && "text-ok-text",
-				tone === "fail" && "text-fail-text",
-				tone === "neutral" && "text-text-3",
-			)}
+		<Caption
+			data-layout-role="workflow-node-port-caption"
+			data-port-tone={tone}
 		>
 			{WORKFLOW_PORT_LABELS[port]}
-		</span>
+		</Caption>
 	);
 }
 
@@ -168,9 +154,6 @@ function dropState(
 
 export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 	const { node } = data;
-	const problems = useNodeProblems(node.id);
-	const { onFix } = useProblems();
-	const status = problems.length > 0 ? severityStatus(problems) : null;
 	const editField = useEditField();
 	const customName = useCustomRuleName(node.type === "rule" ? node.ref : "");
 	const detail = nodeDetail(node);
@@ -191,140 +174,114 @@ export function TripwireNode({ data, selected }: NodeProps<TripwireFlowNode>) {
 				: "open"
 		: undefined;
 	return (
-		<>
-			<div
-				data-drop-node={nodeDrop}
-				className={cn(
-					"relative w-56 rounded-panel border border-line-faint bg-paper px-3 py-2 text-text-1 transition-colors duration-(--dur-state)",
-					cornerPort && "min-h-16",
-					selected && "border-ink",
-					status === "fail" && !selected && "border-fail",
-					status === "warn" && !selected && "border-warn",
-				)}
-			>
-				<NodeAgentOutline nodeId={node.id} />
-				{status ? (
-					<ProblemPeek
-						className="absolute -top-2 -right-2 flex rounded-pill bg-paper"
-						onFix={onFix}
-						problems={problems}
-					>
-						<StatusMark
-							label={problems.map((problem) => problem.message).join(". ")}
-							status={status}
-						/>
-					</ProblemPeek>
+		<WorkflowNodeFrame
+			nodeId={node.id}
+			selected={selected}
+			cornerOutput={Boolean(cornerPort)}
+			dropState={nodeDrop}
+		>
+			{input ? (
+				<Handle
+					data-drop={dropState(verdict, null, "in", direction)}
+					data-port-io="in"
+					data-port-linked={incoming.length > 0 || undefined}
+					data-port-shape={input.shape}
+					data-port-slot="top"
+					data-port-tone={input.tone}
+					isConnectableStart={false}
+					position={Position.Left}
+					title={inputSummary(node.type)
+						.map((entry) => entry.label)
+						.join(", ")}
+					type="target"
+				/>
+			) : null}
+			<div data-layout-role="workflow-node-heading">
+				<Icon
+					data-layout-role="workflow-node-icon"
+					data-has-input={Boolean(input) || undefined}
+					icon={stepIcon(node)}
+				/>
+				<Label data-layout-role="workflow-node-title">
+					{faceTitle(node, customName)}
+				</Label>
+				{node.type === "gate" ? (
+					<Caption data-layout-role="workflow-node-kind">Gate</Caption>
 				) : null}
-				{input ? (
-					<Handle
-						data-drop={dropState(verdict, null, "in", direction)}
-						data-port-io="in"
-						data-port-linked={incoming.length > 0 || undefined}
-						data-port-shape={input.shape}
-						data-port-slot="top"
-						data-port-tone={input.tone}
-						isConnectableStart={false}
-						position={Position.Left}
-						title={inputSummary(node.type)
-							.map((entry) => entry.label)
-							.join(", ")}
-						type="target"
-					/>
-				) : null}
-				<div className="flex items-center gap-2">
-					<Icon
-						className={cn("shrink-0 text-text-1", input && "-ms-1.5")}
-						icon={stepIcon(node)}
-					/>
-					<span className="min-w-0 type-label [overflow-wrap:anywhere]">
-						{faceTitle(node, customName)}
+				{topPort && node.type !== "trigger" ? (
+					<span data-layout-role="workflow-node-top-output">
+						<PortCaption linked={topLinked} port={topPort} />
 					</span>
-					{node.type === "gate" ? (
-						<span className="shrink-0 type-caption text-text-2">Gate</span>
-					) : null}
-					{topPort && node.type !== "trigger" ? (
-						<span className="ms-auto flex">
-							<PortCaption linked={topLinked} port={topPort} />
-						</span>
-					) : null}
-				</div>
-				{detail ? (
-					<div className="type-code-xs text-text-3 [overflow-wrap:anywhere]">
-						{detail}
-					</div>
-				) : null}
-				{fields.length > 0 ? (
-					<div className="mt-2 flex flex-col border-line-faint border-t pt-1">
-						{fields.map(({ field, value }) => {
-							const unset = value === undefined || value === null;
-							const bare = field.key === "message" && !unset;
-							const items = fieldListItems(field, value);
-							return (
-								<div className="-mx-2.5" key={field.key}>
-									<Button
-										aria-label={`Edit ${field.label}`}
-										className="h-auto min-h-7 w-full items-start justify-between gap-x-3 whitespace-normal py-1 text-start"
-										onClick={() => editField(node.id, field.key)}
-										size="sm"
-										variant="ghost"
-									>
-										{bare ? null : (
-											<span className="shrink-0 whitespace-nowrap text-text-2">
-												{field.label}
-											</span>
-										)}
-										<span
-											className={cn(
-												"min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]",
-												bare ? "w-full" : "text-end",
-												unset && "text-text-3",
-											)}
-										>
-											{items
-												? items.map((item, index) => (
-														<Fragment key={item}>
-															{index > 0 ? " " : null}
-															<span className="inline-block max-w-full">
-																{index < items.length - 1 ? `${item},` : item}
-															</span>
-														</Fragment>
-													))
-												: summarizeFieldValue(field, value)}
-										</span>
-									</Button>
-								</div>
-							);
-						})}
-					</div>
-				) : null}
-				{cornerPort ? (
-					<div className="mt-1 flex justify-end">
-						<PortCaption linked={cornerLinked} port={cornerPort} />
-					</div>
-				) : null}
-				{topPort ? (
-					<OutputPort
-						corner={false}
-						drop={dropState(verdict, portHandleId(topPort), "out", direction)}
-						linked={topLinked}
-						port={topPort}
-					/>
-				) : null}
-				{cornerPort ? (
-					<OutputPort
-						corner
-						drop={dropState(
-							verdict,
-							portHandleId(cornerPort),
-							"out",
-							direction,
-						)}
-						linked={cornerLinked}
-						port={cornerPort}
-					/>
 				) : null}
 			</div>
-			<NodeEnterDissolve nodeId={node.id} />
-		</>
+			{detail ? (
+				<CodeText as="span" data-layout-role="workflow-node-detail">
+					{detail}
+				</CodeText>
+			) : null}
+			{fields.length > 0 ? (
+				<div data-layout-role="workflow-node-fields">
+					{fields.map(({ field, value }) => {
+						const unset = value === undefined || value === null;
+						const bare = field.key === "message" && !unset;
+						const items = fieldListItems(field, value);
+						return (
+							<div data-layout-role="workflow-node-field" key={field.key}>
+								<Button
+									aria-label={`Edit ${field.label}`}
+									data-layout-role="workflow-node-field-action"
+									onClick={() => editField(node.id, field.key)}
+									size="sm"
+									variant="ghost"
+								>
+									{bare ? null : (
+										<span data-layout-role="workflow-node-field-label">
+											{field.label}
+										</span>
+									)}
+									<span
+										data-layout-role="workflow-node-field-value"
+										data-message={bare || undefined}
+										data-unset={unset || undefined}
+									>
+										{items
+											? items.map((item, index) => (
+													<Fragment key={item}>
+														{index > 0 ? " " : null}
+														<span data-layout-role="workflow-node-field-item">
+															{index < items.length - 1 ? `${item},` : item}
+														</span>
+													</Fragment>
+												))
+											: summarizeFieldValue(field, value)}
+									</span>
+								</Button>
+							</div>
+						);
+					})}
+				</div>
+			) : null}
+			{cornerPort ? (
+				<div data-layout-role="workflow-node-corner-output">
+					<PortCaption linked={cornerLinked} port={cornerPort} />
+				</div>
+			) : null}
+			{topPort ? (
+				<OutputPort
+					corner={false}
+					drop={dropState(verdict, portHandleId(topPort), "out", direction)}
+					linked={topLinked}
+					port={topPort}
+				/>
+			) : null}
+			{cornerPort ? (
+				<OutputPort
+					corner
+					drop={dropState(verdict, portHandleId(cornerPort), "out", direction)}
+					linked={cornerLinked}
+					port={cornerPort}
+				/>
+			) : null}
+		</WorkflowNodeFrame>
 	);
 }
