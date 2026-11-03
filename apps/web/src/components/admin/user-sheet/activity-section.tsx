@@ -9,8 +9,8 @@ import {
 	SheetSectionBlock,
 	SubHeading,
 } from "#/components/admin/user-sheet/sheet-parts";
-import { Button } from "#/components/glaze/ui/button";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
+import { Button } from "#/design-system/ui/button";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 import { formatWait } from "#/lib/admin-user-sheet";
 import { adminUserActivityQueryOptions } from "#/lib/staff-users.query";
 

@@ -7,10 +7,10 @@ import {
 	setupPrompt,
 } from "@tripwire/contracts";
 import { useEffect, useRef, useState } from "react";
-import { Bot, Close, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import { Status, type StatusValue } from "#/components/glaze/ui/status";
+import { Bot, Close, Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardContent } from "#/design-system/ui/card";
+import { Status, type StatusValue } from "#/design-system/ui/status";
 import {
 	type AgentSetupPromptState,
 	dismissAgentSetupPrompt,

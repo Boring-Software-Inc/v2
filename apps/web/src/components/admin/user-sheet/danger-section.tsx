@@ -7,10 +7,10 @@ import {
 	useStaffAction,
 } from "#/components/admin/user-sheet/use-staff-action";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { Button } from "#/components/glaze/ui/button";
-import { Field, FieldError, FieldLabel } from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import { Textarea } from "#/components/glaze/ui/textarea";
+import { Button } from "#/design-system/ui/button";
+import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
+import { Textarea } from "#/design-system/ui/textarea";
 import {
 	type AdminUserView,
 	banAdminUser,

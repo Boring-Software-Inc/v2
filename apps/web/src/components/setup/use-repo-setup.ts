@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { toast } from "#/components/glaze/ui/toast";
 import { useInstallRules } from "#/components/rules/use-install-rules";
+import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { rerunChangeRequest } from "#/lib/activity.functions";
 import { armRepo } from "#/lib/arm.functions";

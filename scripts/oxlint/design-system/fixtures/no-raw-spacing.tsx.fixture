@@ -1,0 +1,19 @@
+declare const planted: boolean;
+
+const ROW_CLASSES = {
+	root: ["md:!px-4", planted && "gap-3"],
+} as const;
+
+const rowRecipe = cva("contract-row", {
+	variants: {
+		compact: { true: "hover:space-y-2" },
+	},
+});
+
+export function RawSpacingFixture({ active }: { active: boolean }) {
+	return (
+		<div className={active && "focus:-mt-2"} data-recipe={rowRecipe}>
+			{ROW_CLASSES.root}
+		</div>
+	);
+}

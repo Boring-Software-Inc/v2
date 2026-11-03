@@ -47,7 +47,7 @@ import {
 	Waiting,
 	Wallet,
 	Webhook,
-} from "#/components/glaze/icon";
+} from "#/design-system/icon";
 
 export type StepKind = WorkflowNode["type"];
 

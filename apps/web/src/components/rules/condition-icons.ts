@@ -60,7 +60,7 @@ import {
 	UserList,
 	Verified,
 	Waiting,
-} from "#/components/glaze/icon";
+} from "#/design-system/icon";
 
 export const CONDITION_GROUP_ICON = {
 	"The account": UserAvatar,

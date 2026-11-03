@@ -1,5 +1,5 @@
 import { TripwireCodeDiff, TripwireCodeFile } from "#/components/code";
-import { Card } from "#/components/glaze/ui/card";
+import { Card } from "#/design-system/ui/card";
 import type { WorkflowCodeView } from "#/lib/workflow-code-view";
 
 const FILE_NAME = "tripwire.ts";

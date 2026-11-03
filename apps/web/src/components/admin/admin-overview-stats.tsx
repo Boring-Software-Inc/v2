@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { ArrowUpRight, Icon } from "#/components/glaze/icon";
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
+import { ArrowUpRight, Icon } from "#/design-system/icon";
+import { Card, CardContent } from "#/design-system/ui/card";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 import type { StaffOverview } from "#/lib/admin.functions";
 
 const STAT_LINK_CLASS =

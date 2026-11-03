@@ -8,7 +8,7 @@ import {
 	formatCode,
 	typeAt,
 } from "#/components/agents/device-code";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
 
 const BOX =
 	"flex h-12 w-9 min-w-0 shrink items-center justify-center rounded-tag border border-line bg-shell font-medium font-mono text-[22px] text-text-1 leading-7";

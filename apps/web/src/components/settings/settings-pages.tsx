@@ -3,17 +3,13 @@ import { getRouteApi } from "@tanstack/react-router";
 import { AccountPage } from "#/components/account/account-page";
 import { ConnectedAgentsPage } from "#/components/agents/connected-agents-page";
 import { ConnectionsPage } from "#/components/forges/connections-page";
-import {
-	Empty,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
 import { OrgBillingPage } from "#/components/organizations/org-billing-page";
 import { OrgGeneralSettingsPage } from "#/components/organizations/org-general-settings-page";
 import { OrgMembersPage } from "#/components/organizations/org-members-page";
 import { OrgRedactionPage } from "#/components/organizations/org-redaction-page";
 import { OrgRolesPage } from "#/components/organizations/org-roles-page";
 import { SettingsSectionSkeleton } from "#/components/settings/settings-layout-skeleton";
+import { Empty, EmptyHeader, EmptyTitle } from "#/design-system/ui/empty-state";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 
 const orgRoute = getRouteApi("/$org");

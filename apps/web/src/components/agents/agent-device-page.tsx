@@ -14,10 +14,10 @@ import {
 	formatCode,
 	isComplete,
 } from "#/components/agents/device-code";
-import { Icon, Success } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import { toast } from "#/components/glaze/ui/toast";
+import { Icon, Success } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardContent } from "#/design-system/ui/card";
+import { toast } from "#/design-system/ui/toast";
 import { answerDevice } from "#/lib/agent-auth-endpoints";
 import type { AgentRequestOrg } from "#/lib/agents.functions";
 import { grantDeviceOrgs } from "#/lib/agents.functions";

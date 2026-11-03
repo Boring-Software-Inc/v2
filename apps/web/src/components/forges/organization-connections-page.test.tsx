@@ -5,7 +5,7 @@ import { renderToString } from "react-dom/server";
 import { GitCafeRepositorySelection } from "#/components/forges/gitcafe-repository-selection";
 import { OrganizationConnectionRow } from "#/components/forges/organization-connection-row";
 import { OrganizationConnectionsPage } from "#/components/forges/organization-connections-page";
-import { CollapsibleGroup } from "#/components/glaze/ui/collapsible";
+import { CollapsibleGroup } from "#/design-system/ui/collapsible";
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { organizationConnectionsQueryOptions } from "#/lib/connections.query";
 import { orgContextQueryOptions } from "#/lib/org.query";

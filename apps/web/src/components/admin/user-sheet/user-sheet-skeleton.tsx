@@ -1,5 +1,5 @@
-import { SheetTitle } from "#/components/glaze/ui/sheet";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+import { SheetTitle } from "#/design-system/ui/sheet";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 export function UserSheetSkeleton() {
 	return (

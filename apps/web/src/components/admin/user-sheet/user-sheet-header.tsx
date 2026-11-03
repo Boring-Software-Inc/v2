@@ -7,24 +7,24 @@ import {
 	unwrapStaffAction,
 	useStaffAction,
 } from "#/components/admin/user-sheet/use-staff-action";
-import { Check, Failed, Icon, More, Time } from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
+import { Check, Failed, Icon, More, Time } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import { SheetTitle } from "#/components/glaze/ui/sheet";
-import { toast } from "#/components/glaze/ui/toast";
+} from "#/design-system/ui/dropdown-menu";
+import { SheetTitle } from "#/design-system/ui/sheet";
+import { toast } from "#/design-system/ui/toast";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/glaze/ui/tooltip";
+} from "#/design-system/ui/tooltip";
 import {
 	type AdminUserView,
 	impersonateAdminUser,

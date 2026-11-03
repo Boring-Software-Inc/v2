@@ -58,6 +58,13 @@
 @custom-variant focus-visible { &:focus-visible { @slot; } &[data-force-focus-visible] { @slot; } }
 @custom-variant active { &:active { @slot; } &[data-force-active] { @slot; } }
 
+/* Skullet's reveal wrappers must disappear from loaded layout so an h-full child receives the height of its real
+   flex/grid parent. Keep the wrappers while loading because Skullet positions its measured skeleton layers on them. */
+[data-slot="skeleton-swap"] > [skullet-reveal]:not([aria-busy="true"]),
+[data-slot="skeleton-swap"] > [skullet-reveal]:not([aria-busy="true"]) > [skullet-pane] {
+  display: contents;
+}
+
 /* The same goes for reduced motion: data-force-reduced-motion on a wrapper. motion-reduce: answers to it as well as
    the media query, and motion-safe: stands down under it. */
 @custom-variant motion-reduce { @media (prefers-reduced-motion: reduce) { @slot; } &:where([data-force-reduced-motion], [data-force-reduced-motion] *) { @slot; } }
@@ -210,6 +217,11 @@
    edge, where a container would clip an offset ring (rows, menu items). */
 @utility focus-ring { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
 @utility focus-ring-inset { outline: var(--focus-width) solid var(--focus); outline-offset: calc(var(--focus-width) * -1); }
+@utility feedback-selection-outline {
+  outline: 2px solid var(--tw-boundary-feedback-inner);
+  outline-offset: 0;
+  box-shadow: 0 0 0 2px var(--tw-boundary-feedback-outer), 0 0 0 3px var(--tw-boundary-feedback-inner);
+}
 /* focus-ring-row: the ring on a row in a rounded panel that clips (an item, a data grid row). The panel's overflow
    would cut a square inset ring at its corners, so the ring is the thin focus-sm width, drawn wholly inside the row a
    --focus-offset-sm gap in, and the row takes the panel's inner radius while focused, so on the first and last row

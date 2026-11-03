@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Icon, UserAvatar } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { toast } from "#/components/glaze/ui/toast";
+import { Icon, UserAvatar } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { toast } from "#/design-system/ui/toast";
 import { minutesLeft } from "#/lib/admin-user-sheet";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
 import { stopImpersonating } from "#/lib/staff-users.functions";

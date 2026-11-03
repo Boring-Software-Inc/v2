@@ -4,19 +4,21 @@ import { useState } from "react";
 import { AccessStatusMark } from "#/components/admin/access-status-dot";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
 import { UserSheet } from "#/components/admin/user-sheet/user-sheet";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import { Checkbox, CheckboxGroup } from "#/components/glaze/ui/checkbox";
-import { Chip } from "#/components/glaze/ui/chip";
-import { FilterBarSearch } from "#/components/glaze/ui/filter-bar";
-import { PaginationInfo } from "#/components/glaze/ui/pagination";
-import { RelativeTime } from "#/components/glaze/ui/relative-time";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { Checkbox, CheckboxGroup } from "#/design-system/ui/checkbox";
+import { Chip } from "#/design-system/ui/chip";
+import { FilterBarSearch } from "#/design-system/ui/filter-bar";
+import { PaginationInfo } from "#/design-system/ui/pagination";
+import { RelativeTime } from "#/design-system/ui/relative-time";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { Switch } from "#/components/glaze/ui/switch";
+} from "#/design-system/ui/segmented-control";
+import { Switch } from "#/design-system/ui/switch";
 import {
 	Table,
 	TableBody,
@@ -26,10 +28,8 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/components/glaze/ui/table";
-import { toast } from "#/components/glaze/ui/toast";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { MascotArt } from "#/components/mascot/mascot-art";
+} from "#/design-system/ui/table";
+import { toast } from "#/design-system/ui/toast";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import {
 	reviewUserAccess,

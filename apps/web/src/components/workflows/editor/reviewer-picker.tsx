@@ -10,9 +10,9 @@ import {
 	sameReviewer,
 } from "@tripwire/contracts";
 import { createContext, useContext } from "react";
-import { Icon, Retry, Warning } from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
+import { Icon, Retry, Warning } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
 import {
 	Combobox,
 	ComboboxChip,
@@ -24,9 +24,9 @@ import {
 	ComboboxList,
 	ComboboxValue,
 	useComboboxAnchor,
-} from "#/components/glaze/ui/combobox";
-import { Field, FieldLabel } from "#/components/glaze/ui/field";
-import { Status } from "#/components/glaze/ui/status";
+} from "#/design-system/ui/combobox";
+import { Field, FieldLabel } from "#/design-system/ui/field";
+import { Status } from "#/design-system/ui/status";
 import { useSyncedList } from "#/hooks/use-synced-list";
 import { refreshRepoReviewers } from "#/lib/reviewers.functions";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";

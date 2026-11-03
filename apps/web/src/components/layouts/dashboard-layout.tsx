@@ -10,9 +10,9 @@ import {
 	FeedbackProvider,
 } from "#/components/feedback";
 import { ShellNav } from "#/components/layouts/shell-nav";
+import { cn } from "#/design-system/lib/utils";
 import { useMediaQuery } from "#/hooks/use-media-query";
 import { currentUserQueryOptions } from "#/lib/auth.query";
-import { cn } from "#/lib/glaze/utils";
 import { CommandPaletteLauncher } from "./command-palette-launcher";
 import { DashboardRail } from "./dashboard-rail";
 import {

@@ -6,12 +6,12 @@ import { forgeInstallationSettingsUrl } from "@tripwire/utils/forge-sign-in";
 import { useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { GitCafeRepositorySelection } from "#/components/forges/gitcafe-repository-selection";
-import { Button } from "#/components/glaze/ui/button";
+import { Button } from "#/design-system/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
+} from "#/design-system/ui/collapsible";
 import {
 	Dialog,
 	DialogBody,
@@ -20,14 +20,14 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 import {
 	Item,
 	ItemActions,
 	ItemContent,
 	ItemGroup,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
+} from "#/design-system/ui/item";
 
 type ConnectionRepository = OrganizationForgeConnection["repositories"][number];
 export function OrganizationConnectionRow({

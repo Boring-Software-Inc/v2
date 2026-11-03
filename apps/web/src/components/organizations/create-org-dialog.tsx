@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { orgSlugSchema, slugifyOrgName } from "@tripwire/contracts";
 import { useId, useState } from "react";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import {
 	Dialog,
 	DialogAction,
@@ -11,15 +12,14 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 import {
 	Field,
 	FieldDescription,
 	FieldError,
 	FieldLabel,
-} from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+} from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
 import { createOrg } from "#/lib/org.functions";
 import { orgQueryKeys } from "#/lib/org.query";
 

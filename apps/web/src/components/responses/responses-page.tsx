@@ -3,11 +3,6 @@ import { getRouteApi } from "@tanstack/react-router";
 import type { RedactionPolicy } from "@tripwire/contracts";
 import { OPEN_REDACTION, resolveRedaction } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { ResponseBuilder } from "#/components/responses/blocks/response-builder";
 import { PreviewLinkProvider } from "#/components/responses/preview-link";
@@ -26,6 +21,11 @@ import {
 	SaveQueueProvider,
 	useSaveQueue,
 } from "#/components/save-queue";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/design-system/ui/segmented-control";
+import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import { pickValue } from "#/lib/pick-value";

@@ -14,17 +14,6 @@ import {
 	NEW_SCHEDULE_DRAFT,
 } from "@tripwire/contracts";
 import { type ReactNode, useId, useRef, useState } from "react";
-import { Checkbox } from "#/components/glaze/ui/checkbox";
-import {
-	Field,
-	FieldLabel,
-	FieldTitle,
-	Label,
-} from "#/components/glaze/ui/field";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
 import {
 	LabelPicker,
 	RefreshLabels,
@@ -34,8 +23,14 @@ import {
 	useScheduleDraft,
 } from "#/components/workflows/editor/node-issues";
 import { ScheduleTextField } from "#/components/workflows/editor/schedule-input";
+import { cn } from "#/design-system/lib/utils";
+import { Checkbox } from "#/design-system/ui/checkbox";
+import { Field, FieldLabel, FieldTitle, Label } from "#/design-system/ui/field";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/design-system/ui/segmented-control";
 import { useTimezones } from "#/hooks/use-timezones";
-import { cn } from "#/lib/glaze/utils";
 import { UNIT_LABEL } from "#/lib/schedule-summary";
 import {
 	EVENT_KIND_OPTIONS,

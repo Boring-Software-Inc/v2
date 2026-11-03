@@ -1,0 +1,23 @@
+declare const planted: boolean;
+
+const STATUS_CLASSES = {
+	failure: ["dark:bg-red-500", planted && "md:!text-white/50"],
+} as const;
+
+const statusRecipe = cva("contract-status", {
+	variants: {
+		active: { true: "hover:border-line-faint" },
+	},
+});
+
+const visual = { borderColor: "#ff0000" };
+
+export function RawColorFixture({ active }: { active: boolean }) {
+	return (
+		<div className={active && "focus:text-blue-600"} data-recipe={statusRecipe}>
+			<span color="rgb(1, 2, 3)" style={visual}>
+				{STATUS_CLASSES.failure}
+			</span>
+		</div>
+	);
+}

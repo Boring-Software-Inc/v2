@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Button } from "#/components/glaze/ui/button";
-import { Status } from "#/components/glaze/ui/status";
 import {
 	DiscardChangesButton,
 	SaveQueueNavGuard,
 	useSaveQueue,
 } from "#/components/save-queue";
+import { Button } from "#/design-system/ui/button";
+import { Status } from "#/design-system/ui/status";
 
 const WAIT_SHOW_MS = 150;
 

@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { GitCafeConnectionRefusal } from "@tripwire/contracts";
-import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
-import { Button } from "#/components/glaze/ui/button";
 import {
 	InstallSetupHeader,
 	InstallSetupShell,
 } from "#/components/organizations/install-setup-shell";
+import { Alert, AlertTitle } from "#/design-system/ui/alert";
+import { Button } from "#/design-system/ui/button";
 import { gitCafeConnectionStatusQueryOptions } from "#/lib/gitcafe-connection.query";
 
 const REFUSAL_COPY = {

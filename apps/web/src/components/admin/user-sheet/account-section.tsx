@@ -11,9 +11,10 @@ import {
 	SubHeading,
 } from "#/components/admin/user-sheet/sheet-parts";
 import { useStaffAction } from "#/components/admin/user-sheet/use-staff-action";
-import { ChevronRight, External, Icon } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
+import { TimezonePicker } from "#/components/timezones/timezone-picker";
+import { ChevronRight, External, Icon } from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	Dialog,
 	DialogAction,
@@ -25,10 +26,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/glaze/ui/dialog";
-import { RelativeTime } from "#/components/glaze/ui/relative-time";
-import { Switch } from "#/components/glaze/ui/switch";
-import { TimezonePicker } from "#/components/timezones/timezone-picker";
+} from "#/design-system/ui/dialog";
+import { RelativeTime } from "#/design-system/ui/relative-time";
+import { Switch } from "#/design-system/ui/switch";
 import { setUserRerunCooldownExempt } from "#/lib/admin.functions";
 import {
 	type AdminUserView,

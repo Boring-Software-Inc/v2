@@ -1,17 +1,17 @@
 import type { LintFix } from "@tripwire/contracts";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/components/glaze/ui/popover";
-import { Status } from "#/components/glaze/ui/status";
 import {
 	type Problem,
 	problemCount,
 	problemSections,
 } from "#/components/workflows/editor/node-issues";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/design-system/ui/popover";
+import { Status } from "#/design-system/ui/status";
 
 export function severityStatus(problems: readonly Problem[]): "fail" | "warn" {
 	return problems.some((problem) => problem.severity === "error")

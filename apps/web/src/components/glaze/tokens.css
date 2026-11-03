@@ -75,6 +75,8 @@
   --line-focus: rgb(5 5 5 / 0.32); /* a field's hairline with the cursor in it: darker, never black | input, select, textarea, prompt input */
   --line-strong: rgb(5 5 5 / 0.45); /* the edge of an empty control, 3.3:1 on paper (WCAG 1.4.11) | checkbox, radio, switch off */
   --focus: rgb(5 5 5 / 0.80); /* the focus ring: ink at the text's 80%, so focus never reads as an error | every focusable */
+  --feedback-outline-inner: var(--ink); /* the inner edge of element selection, paired with paper so one edge survives any ground | feedback picker */
+  --feedback-outline-outer: var(--paper); /* the outer edge of element selection, paired with ink so one edge survives any ground | feedback picker */
 
   /* == Status: green, amber and coral, each a mark, a word and a tint == */
   --ok: #2c9a59; /* done: a status mark | status mark, progress done */

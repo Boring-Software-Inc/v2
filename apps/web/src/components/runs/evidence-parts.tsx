@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { DocumentBlank, Icon } from "#/components/glaze/icon";
+import { DocumentBlank, Icon } from "#/design-system/icon";
 
 export function renderBackticks(text: string): ReactNode {
 	return text.split(/(`[^`]+`)/g).map((part, i) => {

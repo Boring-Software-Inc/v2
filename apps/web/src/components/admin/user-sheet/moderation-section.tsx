@@ -6,8 +6,8 @@ import {
 	SheetSectionBlock,
 	SubHeading,
 } from "#/components/admin/user-sheet/sheet-parts";
-import { ChevronRight, Icon } from "#/components/glaze/icon";
-import { RelativeTime } from "#/components/glaze/ui/relative-time";
+import { ChevronRight, Icon } from "#/design-system/icon";
+import { RelativeTime } from "#/design-system/ui/relative-time";
 import {
 	changeRequestLabel,
 	contributorVerdictLabel,

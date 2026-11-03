@@ -15,7 +15,7 @@ import {
 	shaderSlotWinner,
 	subscribeShaderSlot,
 } from "#/components/dither/shader-slot";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
 
 const ShaderDitherCanvas = lazy(
 	() => import("#/components/dither/shader-dither-canvas"),

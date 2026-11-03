@@ -18,7 +18,7 @@ import {
 	Undo,
 	Waiting,
 	Warning,
-} from "#/components/glaze/icon";
+} from "#/design-system/icon";
 import type { ChainGlyph, ChainTone } from "#/lib/run-chain";
 import { cn } from "#/lib/utils";
 

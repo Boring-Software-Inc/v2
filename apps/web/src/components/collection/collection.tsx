@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { Button } from "#/design-system/ui/button";
 import {
 	Empty,
 	EmptyContent,
@@ -7,7 +7,7 @@ import {
 	EmptyHeader,
 	EmptyRetry,
 	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
+} from "#/design-system/ui/empty-state";
 import {
 	FilterBar,
 	FilterBarClear,
@@ -15,12 +15,12 @@ import {
 	FilterBarSearch,
 	FilterBarSelect,
 	FilterToggle,
-} from "#/components/glaze/ui/filter-bar";
+} from "#/design-system/ui/filter-bar";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
+} from "#/design-system/ui/segmented-control";
+import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import type { CollectionController } from "#/hooks/use-collection";
 import {
 	type CollectionFilter,

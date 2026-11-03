@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Status } from "#/components/glaze/ui/status";
+import { Status } from "#/design-system/ui/status";
 import { authClient } from "#/lib/auth-client";
 import { buildSeo, formatPageTitle } from "#/lib/seo";
 import { type TrackingSearch, trackingSearch } from "#/lib/track";

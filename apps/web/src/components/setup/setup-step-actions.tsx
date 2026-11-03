@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { Forge } from "@tripwire/contracts";
-import { Button } from "#/components/glaze/ui/button";
 import {
 	useKeepResponseDefaults,
 	useRunFirstCheck,
 } from "#/components/setup/use-repo-setup";
+import { Button } from "#/design-system/ui/button";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgInstallUrlQueryOptions } from "#/lib/onboarding.query";
 import type { SetupStepKey } from "#/lib/repo-setup";

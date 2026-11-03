@@ -1,13 +1,10 @@
 import type { ResponseBlock } from "@tripwire/contracts";
 import { failedRulesStyleSchema } from "@tripwire/contracts";
 import type { ComponentProps } from "react";
-import { Icon, TrashCan } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	RadioGroup,
-	RadioGroupOption,
-} from "#/components/glaze/ui/radio-group";
 import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
+import { Icon, TrashCan } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { RadioGroup, RadioGroupOption } from "#/design-system/ui/radio-group";
 
 export interface BlockSettingsProps {
 	block: ResponseBlock;

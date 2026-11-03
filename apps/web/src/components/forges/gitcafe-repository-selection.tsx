@@ -8,8 +8,8 @@ import { forgeInstallationSettingsUrl } from "@tripwire/utils/forge-sign-in";
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { startGitCafeConnection } from "#/lib/gitcafe-connection.functions";
 
-import { Alert, AlertTitle } from "#/components/glaze/ui/alert";
-import { Button } from "#/components/glaze/ui/button";
+import { Alert, AlertTitle } from "#/design-system/ui/alert";
+import { Button } from "#/design-system/ui/button";
 
 /** Selection changes reuse the person-bound connection proof and complete worker discovery. */
 export function GitCafeRepositorySelection({

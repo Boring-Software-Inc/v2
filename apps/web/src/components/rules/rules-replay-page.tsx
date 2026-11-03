@@ -7,24 +7,24 @@ import {
 	ruleSetLabel,
 } from "@tripwire/contracts";
 import { useState } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { replayRuleIds, turnableRuleIds } from "#/components/rules/rule-packs";
+import { ReplayListSkeleton } from "#/components/rules/rules-replay-page-skeleton";
+import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
+import { Button } from "#/design-system/ui/button";
 import {
 	Card,
 	CardContent,
 	CardFooter,
 	CardMeta,
-} from "#/components/glaze/ui/card";
+} from "#/design-system/ui/card";
 import {
 	Empty,
 	EmptyHeader,
 	EmptyRetry,
 	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { Status } from "#/components/glaze/ui/status";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { replayRuleIds, turnableRuleIds } from "#/components/rules/rule-packs";
-import { ReplayListSkeleton } from "#/components/rules/rules-replay-page-skeleton";
-import { useSetupInstallRules } from "#/components/setup/use-repo-setup";
+} from "#/design-system/ui/empty-state";
+import { Status } from "#/design-system/ui/status";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { orgRepoQueryOptions } from "#/lib/org.query";
 import {

@@ -4,7 +4,10 @@
 	"categories": {
 		"correctness": "off"
 	},
-	"jsPlugins": ["./scripts/oxlint/anti-slop/index.ts"],
+	"jsPlugins": [
+		"./scripts/oxlint/anti-slop/index.ts",
+		"./scripts/oxlint/design-system/index.ts"
+	],
 	"ignorePatterns": [
 		"**/node_modules/**",
 		"**/dist/**",
@@ -18,6 +21,7 @@
 		".agents/**",
 		".claude/**",
 		"scripts/oxlint/anti-slop/**",
+		"scripts/oxlint/design-system/**",
 		"**/components/glaze/ui/**",
 		"**/components/glaze/ai/**",
 		"**/components/glaze/icon.tsx",
@@ -33,7 +37,13 @@
 		"anti-slop/no-unknown-parameters": "error",
 		"anti-slop/no-unknown-type-aliases": "error",
 		"anti-slop/no-unsafe-dictionary-type": "error",
-		"anti-slop/no-widen-then-assert": "error"
+		"anti-slop/no-widen-then-assert": "error",
+		"design-system/no-arbitrary-tailwind-values": "error",
+		"design-system/no-direct-implementation-imports": "error",
+		"design-system/no-inline-visual-styles": "error",
+		"design-system/no-raw-color": "error",
+		"design-system/no-raw-spacing": "error",
+		"design-system/no-raw-typography": "error"
 	},
 	"overrides": [
 		{

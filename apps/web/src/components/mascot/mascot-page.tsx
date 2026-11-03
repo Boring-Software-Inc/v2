@@ -6,11 +6,6 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
-import { Dark, Icon, Light } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import { Kbd } from "#/components/glaze/ui/kbd";
 import {
 	DEFAULT_SETTINGS,
 	MascotEngine,
@@ -21,6 +16,11 @@ import { MascotControls } from "#/components/mascot/mascot-controls";
 import { MascotFigure } from "#/components/mascot/mascot-figure";
 import { MascotMachineCard } from "#/components/mascot/mascot-machine-card";
 import { useReducedMotion } from "#/components/mascot/use-reduced-motion";
+import { Dark, Icon, Light } from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardContent } from "#/design-system/ui/card";
+import { Kbd } from "#/design-system/ui/kbd";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 
 const REACH = 260;

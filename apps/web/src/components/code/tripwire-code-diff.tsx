@@ -2,13 +2,13 @@ import { lazy, type ReactNode, Suspense, useState } from "react";
 import { useCodeDark, WrapToggle } from "#/components/code/code-controls";
 import { CodeHeader, type DiffStats } from "#/components/code/code-header";
 import { PlainCode } from "#/components/code/plain-code";
-import { CopyButton } from "#/components/glaze/ui/copy-button";
+import { cn } from "#/design-system/lib/utils";
+import { CopyButton } from "#/design-system/ui/copy-button";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
+} from "#/design-system/ui/segmented-control";
 import { useMediaQuery } from "#/hooks/use-media-query";
-import { cn } from "#/lib/glaze/utils";
 
 const PierreDiff = lazy(() =>
 	import("#/components/code/pierre-code").then((module) => ({

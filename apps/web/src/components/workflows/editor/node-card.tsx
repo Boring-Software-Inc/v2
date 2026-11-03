@@ -19,9 +19,6 @@ import {
 	useNodeConnections,
 } from "@xyflow/react";
 import { Fragment } from "react";
-import { Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { StatusMark } from "#/components/glaze/ui/status";
 import {
 	NodeAgentOutline,
 	NodeEnterDissolve,
@@ -46,7 +43,10 @@ import {
 	useDragPlan,
 	useNodeVerdict,
 } from "#/components/workflows/editor/typed-connections";
-import { cn } from "#/lib/glaze/utils";
+import { Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
+import { StatusMark } from "#/design-system/ui/status";
 import { triggerPath } from "#/lib/trigger-kinds";
 
 /** The one node data shape the canvas renders. */

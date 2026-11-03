@@ -2,17 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { liveNodeTouches, workingAgents } from "@tripwire/contracts";
 import { AgentPresence } from "#/components/agent/agent-presence";
-import { ArrowLeft, Icon } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { DraftActions } from "#/components/workflows/draft-actions";
@@ -22,6 +11,17 @@ import {
 	EditorFrameSkeleton,
 	PAGE_FRAME,
 } from "#/components/workflows/editor/workflow-editor-page-skeleton";
+import { ArrowLeft, Icon } from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
+import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import { useAgentMotion } from "#/hooks/use-agent-motion";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useWorkClock } from "#/hooks/use-work-clock";

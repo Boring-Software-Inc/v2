@@ -20,6 +20,12 @@
 		"noUncheckedSideEffectImports": true,
 		"types": ["vite/client", "node"],
 		"paths": {
+			"#/design-system/icon": ["./src/components/glaze/icon.tsx"],
+			"#/design-system/ui/typography": [
+				"./src/design-system/ui/typography.tsx"
+			],
+			"#/design-system/ui/*": ["./src/components/glaze/ui/*"],
+			"#/design-system/lib/*": ["./src/lib/glaze/*"],
 			"#/*": ["./src/*"],
 			"*": ["./*"]
 		}

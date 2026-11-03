@@ -9,7 +9,9 @@ import { ActivityStack } from "#/components/activity/activity-stack";
 import { groupResult } from "#/components/activity/verdict-chip";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
-import { Button } from "#/components/glaze/ui/button";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { Button } from "#/design-system/ui/button";
 import {
 	Empty,
 	EmptyCode,
@@ -17,11 +19,9 @@ import {
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { ItemGroup } from "#/components/glaze/ui/item";
-import { SkeletonSwap } from "#/components/glaze/ui/skeleton";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { MascotArt } from "#/components/mascot/mascot-art";
+} from "#/design-system/ui/empty-state";
+import { ItemGroup } from "#/design-system/ui/item";
+import { SkeletonSwap } from "#/design-system/ui/skeleton";
 import type {
 	ActivityFeedItem,
 	ActivityGroup,

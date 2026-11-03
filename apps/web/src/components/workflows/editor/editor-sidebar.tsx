@@ -24,14 +24,6 @@ import {
 	PickerRow,
 	PickerRowAction,
 } from "#/components/common/grouped-picker";
-import { Add, Close, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "#/components/glaze/ui/tabs";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/glaze/ui/tooltip";
 import {
 	hasEditableParams,
 	PropertiesPanel,
@@ -46,7 +38,15 @@ import {
 	triggerIcon,
 } from "#/components/workflows/editor/step-meta";
 import { PortGlyph } from "#/components/workflows/editor/typed-connections";
-import { cn } from "#/lib/glaze/utils";
+import { Add, Close, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "#/design-system/ui/tabs";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/design-system/ui/tooltip";
 
 /**
  * The floating left sidebar. With nothing selected it is the toolbox

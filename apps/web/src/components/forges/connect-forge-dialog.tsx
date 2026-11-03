@@ -6,7 +6,7 @@ import {
 	DialogDescription,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 
 /**
  * The single "connect repos" surface. One entry point, one grid, the forge

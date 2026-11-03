@@ -10,8 +10,9 @@ import { EntityCard } from "#/components/common/entity-card";
 import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
+import { ZonedTime } from "#/components/timezones/zoned-time";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	Item,
 	ItemActions,
@@ -19,15 +20,14 @@ import {
 	ItemGroup,
 	ItemMeta,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
+} from "#/design-system/ui/item";
 import {
 	Status,
 	StatusMark,
 	type StatusValue,
 	statusVariants,
-} from "#/components/glaze/ui/status";
-import { Truncate } from "#/components/glaze/ui/truncate";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/status";
+import { Truncate } from "#/design-system/ui/truncate";
 import type { ActivityGroup, ActivityItem } from "#/lib/activity.functions";
 import { changeRequestForgeLink, eventForgeLink } from "#/lib/activity-links";
 

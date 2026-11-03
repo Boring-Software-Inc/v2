@@ -1,12 +1,12 @@
 import type { CloseGif } from "@tripwire/contracts";
 import { useState } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { GifSearch } from "#/components/responses/blocks/gif-search";
+import { Button } from "#/design-system/ui/button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "#/components/glaze/ui/popover";
-import { GifSearch } from "#/components/responses/blocks/gif-search";
+} from "#/design-system/ui/popover";
 
 export interface GifBlockPopoverProps {
 	org: string;

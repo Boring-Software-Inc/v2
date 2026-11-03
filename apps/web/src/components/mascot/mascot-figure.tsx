@@ -10,7 +10,7 @@ import {
 	VIEW_BOX,
 	ZZ_PATH,
 } from "#/components/mascot/geometry";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
 
 export type MascotFigureProps = {
 	engine: MascotEngine;

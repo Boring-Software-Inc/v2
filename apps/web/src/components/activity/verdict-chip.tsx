@@ -6,7 +6,7 @@ import {
 	type RunResult,
 	runResult,
 } from "@tripwire/contracts";
-import { Status, type StatusValue } from "#/components/glaze/ui/status";
+import { Status, type StatusValue } from "#/design-system/ui/status";
 
 interface OutcomeLabel {
 	status: StatusValue;

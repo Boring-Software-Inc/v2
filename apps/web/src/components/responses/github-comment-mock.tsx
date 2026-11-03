@@ -3,18 +3,18 @@ import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
 import { AnimatedHeight } from "#/components/common/animated-height";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Badge } from "#/components/glaze/ui/badge";
-import {
-	Empty,
-	EmptyContent,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
 import {
 	BLUR_SWAP,
 	keyedByContent,
 } from "#/components/responses/preview-motion";
 import { PreviewObject } from "#/components/responses/preview-object";
+import { Badge } from "#/design-system/ui/badge";
+import {
+	Empty,
+	EmptyContent,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
 
 type BodyBlock =
 	| { kind: "paragraph"; text: string }

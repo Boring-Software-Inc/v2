@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { formatStaffDate } from "#/components/admin/user-sheet/format";
-import { RelativeTime } from "#/components/glaze/ui/relative-time";
+import { RelativeTime } from "#/design-system/ui/relative-time";
 import { providerLabel } from "#/lib/admin-user-sheet";
 import type { AdminUserView } from "#/lib/staff-users.functions";
 

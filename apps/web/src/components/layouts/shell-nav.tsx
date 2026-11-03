@@ -13,8 +13,8 @@ import {
 	Rules,
 	Settings,
 	Workflow,
-} from "#/components/glaze/icon";
-import { cn } from "#/lib/glaze/utils";
+} from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
 import { orgContextQueryOptions } from "#/lib/org.query";
 
 type NavVariant = "tabs" | "rail";

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "#/design-system/lib/utils";
 import {
 	Card,
 	CardAction,
@@ -8,8 +9,7 @@ import {
 	CardHeader,
 	CardMeta,
 	CardTitle,
-} from "#/components/glaze/ui/card";
-import { cn } from "#/lib/glaze/utils";
+} from "#/design-system/ui/card";
 
 export interface EntityCardProps {
 	title: ReactNode;

@@ -22,26 +22,26 @@ import {
 	Icon,
 	Retry,
 	Time,
-} from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { CopyButton } from "#/components/glaze/ui/copy-button";
+} from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { CopyButton } from "#/design-system/ui/copy-button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
+} from "#/design-system/ui/dropdown-menu";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
+} from "#/design-system/ui/segmented-control";
+import { SkeletonText } from "#/design-system/ui/skeleton";
+import { toast } from "#/design-system/ui/toast";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "#/components/glaze/ui/tooltip";
+} from "#/design-system/ui/tooltip";
 import {
 	databuddyUserUrl,
 	flagSourceLabel,

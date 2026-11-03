@@ -1,5 +1,5 @@
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 export function BuilderSkeleton() {
 	return (

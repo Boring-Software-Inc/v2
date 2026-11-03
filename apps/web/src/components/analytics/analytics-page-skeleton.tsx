@@ -1,12 +1,12 @@
-import { Chart } from "#/components/glaze/ui/chart";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Chart } from "#/design-system/ui/chart";
 import {
 	Item,
 	ItemContent,
 	ItemGroup,
 	ItemMedia,
-} from "#/components/glaze/ui/item";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+} from "#/design-system/ui/item";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const EVENT_SLOTS = ["a", "b", "c", "d", "e"] as const;
 

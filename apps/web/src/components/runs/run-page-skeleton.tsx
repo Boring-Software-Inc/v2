@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 import { currentUserQueryOptions } from "#/lib/auth.query";
 
 const NODE_SLOTS = [

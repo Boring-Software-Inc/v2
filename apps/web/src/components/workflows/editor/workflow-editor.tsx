@@ -70,17 +70,6 @@ import {
 	useState,
 } from "react";
 import {
-	Dialog,
-	DialogAction,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
-import { toast } from "#/components/glaze/ui/toast";
-import {
 	AGENT_SETTLE_SLACK_MS,
 	decorateLive,
 	freshOnMount,
@@ -143,6 +132,17 @@ import {
 	type TypedFlowEdge,
 } from "#/components/workflows/editor/typed-connections";
 import { WorkflowCode } from "#/components/workflows/editor/workflow-code";
+import {
+	Dialog,
+	DialogAction,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/design-system/ui/dialog";
+import { toast } from "#/design-system/ui/toast";
 import type { AgentMotion } from "#/hooks/use-agent-motion";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
 import {

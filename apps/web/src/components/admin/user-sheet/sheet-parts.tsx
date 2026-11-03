@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
 
 export function SheetSectionBlock({
 	id,

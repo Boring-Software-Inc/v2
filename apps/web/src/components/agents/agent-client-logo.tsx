@@ -1,5 +1,5 @@
-import { Bot, Icon, Prompt } from "#/components/glaze/icon";
-import { cn } from "#/lib/glaze/utils";
+import { Bot, Icon, Prompt } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
 
 export type ClientLogoKind =
 	| "claude"

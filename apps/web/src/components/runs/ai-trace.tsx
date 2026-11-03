@@ -3,7 +3,7 @@ import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
+} from "#/design-system/ui/collapsible";
 
 const count = new Intl.NumberFormat("en-US");
 

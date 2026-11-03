@@ -4,6 +4,7 @@ import type {
 	Verdict,
 } from "@tripwire/contracts";
 import { ItemRouterLink } from "#/components/common/router-links";
+import { DigestActivityMenu } from "#/components/organizations/digest-activity-button";
 import {
 	Blocked,
 	FailedMark,
@@ -11,10 +12,9 @@ import {
 	Icon,
 	Success,
 	Time,
-} from "#/components/glaze/icon";
-import { DropdownMenuTrigger } from "#/components/glaze/ui/dropdown-menu";
-import { Item, ItemContent, ItemTitle } from "#/components/glaze/ui/item";
-import { DigestActivityMenu } from "#/components/organizations/digest-activity-button";
+} from "#/design-system/icon";
+import { DropdownMenuTrigger } from "#/design-system/ui/dropdown-menu";
+import { Item, ItemContent, ItemTitle } from "#/design-system/ui/item";
 
 const VERDICTS = {
 	block: { label: "Blocked", icon: FailedMark, color: "text-text-1" },

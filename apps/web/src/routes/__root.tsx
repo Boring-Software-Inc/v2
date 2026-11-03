@@ -11,16 +11,20 @@ import {
 import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
 import { ThemeProvider, useTheme } from "next-themes";
 import { lazy, Suspense, useEffect, useState } from "react";
-import { type SkulletMode, type SkulletTheme, together } from "skullet";
+import { type SkulletMode, together } from "skullet";
 import { SkulletProvider } from "skullet/react";
 import { AnalyticsIdentity } from "#/components/common/analytics-identity";
 import { ImpersonationBanner } from "#/components/common/impersonation-banner";
-import glazeCss from "#/components/glaze/styles.css?url";
-import { useSlowWait } from "#/components/glaze/ui/slow-notice";
-import { Toaster } from "#/components/glaze/ui/toast";
 import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
+import {
+	DesignSystemRoot,
+	designSystemBodyClass,
+	designSystemSkulletTheme,
+	designSystemStyles,
+} from "#/design-system/root";
+import { useSlowWait } from "#/design-system/ui/slow-notice";
+import { Toaster } from "#/design-system/ui/toast";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
-import { GlazePortalProvider } from "#/lib/glaze/portal";
 import { isPublicPath } from "#/lib/run-access";
 import { siteConfig } from "#/lib/site-config";
 import appCss from "../styles.css?url";
@@ -28,20 +32,6 @@ import appCss from "../styles.css?url";
 const Databuddy = lazy(() =>
 	import("@databuddy/sdk/react").then((m) => ({ default: m.Databuddy })),
 );
-
-const SKULLET_THEME = {
-	light: {
-		base: "rgb(5 5 5 / 0.06)",
-		highlight: "rgb(255 255 255 / 0.86)",
-	},
-	dark: {
-		base: "rgb(244 244 243 / 0.06)",
-		highlight: "rgb(244 244 243 / 0.14)",
-	},
-	radius: "var(--radius-tag)",
-	animation: "shimmer",
-	speed: "slow",
-} satisfies SkulletTheme;
 
 export const Route = createRootRouteWithContext<{
 	queryClient: QueryClient;
@@ -127,7 +117,7 @@ export const Route = createRootRouteWithContext<{
 		],
 		links: [
 			{ rel: "stylesheet", href: appCss },
-			{ rel: "stylesheet", href: glazeCss },
+			...designSystemStyles.map((href) => ({ rel: "stylesheet", href })),
 			// Global favicon so every page (signed-out login included) shows the mark,
 			// not the browser's generic globe. SVG favicon, modern browsers only.
 			// White mark in prod; the green variant marks a dev tab at a glance
@@ -149,8 +139,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			<head>
 				<HeadContent />
 			</head>
-			<body className="glaze min-h-dvh">
-				<GlazePortalProvider>{children}</GlazePortalProvider>
+			<body className={`${designSystemBodyClass} min-h-dvh`}>
+				<DesignSystemRoot>{children}</DesignSystemRoot>
 				<Scripts />
 			</body>
 		</html>
@@ -204,7 +194,11 @@ function TripwireSkulletProvider({ children }: { children: React.ReactNode }) {
 			? resolvedTheme
 			: "system";
 	return (
-		<SkulletProvider mode={mode} reveal={together} theme={SKULLET_THEME}>
+		<SkulletProvider
+			mode={mode}
+			reveal={together}
+			theme={designSystemSkulletTheme}
+		>
 			{children}
 		</SkulletProvider>
 	);

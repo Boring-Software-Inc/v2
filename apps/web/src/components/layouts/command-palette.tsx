@@ -5,6 +5,8 @@ import { FORGE_CATALOG } from "@tripwire/contracts";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
+import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
 import {
 	Activity,
 	Add,
@@ -20,8 +22,8 @@ import {
 	Settings,
 	SignOut,
 	Workflow,
-} from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
+} from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
 import {
 	Command,
 	CommandDialog,
@@ -34,10 +36,8 @@ import {
 	CommandLabel,
 	CommandList,
 	CommandLoading,
-} from "#/components/glaze/ui/command";
-import { toast } from "#/components/glaze/ui/toast";
-import { CreateOrgDialog } from "#/components/organizations/create-org-dialog";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+} from "#/design-system/ui/command";
+import { toast } from "#/design-system/ui/toast";
 import { useActiveScope } from "#/hooks/use-active-scope";
 import { useFeaturePath } from "#/hooks/use-feature-path";
 import { useOrgPermission } from "#/hooks/use-org-permission";
@@ -188,7 +188,7 @@ export function CommandPalette({
 					org.isPersonal ? "personal" : "team",
 					org.slug === currentOrg ? "current active" : "",
 				],
-				icon: <OrgAvatar eyes hue={org.avatarHue} name={org.name} size="xs" />,
+				icon: <OrgAvatar hue={org.avatarHue} name={org.name} size="xs" />,
 				onSelect: () => go(`/${org.slug}/home`),
 				hint: (
 					<>

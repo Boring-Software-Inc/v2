@@ -1,6 +1,7 @@
 import { useContext } from "react";
-import { Icon, Retry } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { ReviewerScopeContext } from "#/components/workflows/editor/reviewer-picker";
+import { Icon, Retry } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
 import {
 	Combobox,
 	ComboboxChip,
@@ -12,9 +13,8 @@ import {
 	ComboboxList,
 	ComboboxValue,
 	useComboboxAnchor,
-} from "#/components/glaze/ui/combobox";
-import { Status } from "#/components/glaze/ui/status";
-import { ReviewerScopeContext } from "#/components/workflows/editor/reviewer-picker";
+} from "#/design-system/ui/combobox";
+import { Status } from "#/design-system/ui/status";
 import { useSyncedList } from "#/hooks/use-synced-list";
 import { labelColor, labelOptions } from "#/lib/label-options";
 import { refreshRepoLabels } from "#/lib/labels.functions";

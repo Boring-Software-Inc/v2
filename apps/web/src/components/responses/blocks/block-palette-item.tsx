@@ -1,10 +1,10 @@
 import { useDraggable } from "@dnd-kit/core";
 import type { ResponseBlockType } from "@tripwire/contracts";
 import { PickerRow, PickerRowAction } from "#/components/common/grouped-picker";
-import { Add } from "#/components/glaze/icon";
 import type { BlockMeta } from "#/components/responses/blocks/block-catalog";
 import type { BlockDragData } from "#/components/responses/blocks/use-block-dnd";
-import { cn } from "#/lib/glaze/utils";
+import { Add } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
 
 export interface BlockPaletteItemProps {
 	meta: BlockMeta;

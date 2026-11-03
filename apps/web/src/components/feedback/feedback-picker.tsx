@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Button } from "#/components/glaze/ui/button";
-import { Kbd } from "#/components/glaze/ui/kbd";
+import { Button } from "#/design-system/ui/button";
+import { Kbd } from "#/design-system/ui/kbd";
 import { useFeedback } from "./feedback-context";
 import { PickOutline, useViewportBox } from "./feedback-outline";
 import {

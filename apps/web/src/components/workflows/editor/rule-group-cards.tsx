@@ -6,22 +6,6 @@ import {
 	useNodeConnections,
 } from "@xyflow/react";
 import { z } from "zod";
-import { Add, Close, Except, Icon, Rules } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/glaze/ui/select";
-import { StatusMark } from "#/components/glaze/ui/status";
 import {
 	NodeAgentOutline,
 	NodeEnterDissolve,
@@ -41,7 +25,23 @@ import {
 	useRuleGroups,
 } from "#/components/workflows/editor/rule-groups-context";
 import { ruleIcon, stepName } from "#/components/workflows/editor/step-meta";
-import { cn } from "#/lib/glaze/utils";
+import { Add, Close, Except, Icon, Rules } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/design-system/ui/dropdown-menu";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/design-system/ui/select";
+import { StatusMark } from "#/design-system/ui/status";
 import type { SkipMode } from "#/lib/rule-groups";
 
 export const GROUP_TITLE = "If any of these rules fail";

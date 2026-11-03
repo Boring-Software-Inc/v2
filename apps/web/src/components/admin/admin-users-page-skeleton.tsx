@@ -1,4 +1,5 @@
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -6,8 +7,7 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/components/glaze/ui/table";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+} from "#/design-system/ui/table";
 
 export function AdminUsersPageSkeleton() {
 	return (

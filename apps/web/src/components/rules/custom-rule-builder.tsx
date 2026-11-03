@@ -14,8 +14,13 @@ import {
 	PickerRow,
 	PickerRowAction,
 } from "#/components/common/grouped-picker";
-import { Check, type GlazeIcon, Icon } from "#/components/glaze/icon";
-import { ComboboxField } from "#/components/glaze/ui/combobox";
+import {
+	CONDITION_GROUP_ICON,
+	conditionIcon,
+} from "#/components/rules/condition-icons";
+import { Check, type GlazeIcon, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { ComboboxField } from "#/design-system/ui/combobox";
 import {
 	Dialog,
 	DialogAction,
@@ -25,25 +30,20 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import { Field, FieldLabel } from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
+} from "#/design-system/ui/dropdown-menu";
+import { Field, FieldLabel } from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "#/components/glaze/ui/popover";
-import {
-	CONDITION_GROUP_ICON,
-	conditionIcon,
-} from "#/components/rules/condition-icons";
-import { cn } from "#/lib/glaze/utils";
+} from "#/design-system/ui/popover";
 import { repoSuggestionsQueryOptions } from "#/lib/rules.query";
 
 /**

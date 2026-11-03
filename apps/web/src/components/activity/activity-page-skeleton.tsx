@@ -1,12 +1,12 @@
-import { Card, CardContent, CardHeader } from "#/components/glaze/ui/card";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Card, CardContent, CardHeader } from "#/design-system/ui/card";
 import {
 	Item,
 	ItemContent,
 	ItemGroup,
 	ItemMedia,
-} from "#/components/glaze/ui/item";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+} from "#/design-system/ui/item";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const STACK_SLOTS = [
 	{ key: "stack-a", rows: ["r1", "r2", "r3"] },

@@ -5,13 +5,13 @@ import type {
 	HomeDigest,
 } from "@tripwire/contracts";
 import type { ReactNode } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { Button } from "#/design-system/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuLinkItem,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
+} from "#/design-system/ui/dropdown-menu";
 
 interface DigestActivityButtonProps {
 	org: string;

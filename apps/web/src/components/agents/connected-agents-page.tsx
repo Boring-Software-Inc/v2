@@ -2,12 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import { MetaRow } from "#/components/common/meta-row";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Empty,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
+import { SettingsHeader } from "#/components/settings/settings-frame";
+import { ZonedTime } from "#/components/timezones/zoned-time";
+import { Button } from "#/design-system/ui/button";
+import { Empty, EmptyHeader, EmptyTitle } from "#/design-system/ui/empty-state";
 import {
 	Item,
 	ItemActions,
@@ -15,11 +13,9 @@ import {
 	ItemDescription,
 	ItemGroup,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { SkeletonSwap, SkeletonText } from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
-import { SettingsHeader } from "#/components/settings/settings-frame";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/item";
+import { SkeletonSwap, SkeletonText } from "#/design-system/ui/skeleton";
+import { toast } from "#/design-system/ui/toast";
 import {
 	type ConnectedAgent,
 	revokeConnectedAgent,

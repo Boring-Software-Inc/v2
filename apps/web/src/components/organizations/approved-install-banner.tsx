@@ -5,8 +5,8 @@ import {
 	AlertAction,
 	AlertDescription,
 	AlertTitle,
-} from "#/components/glaze/ui/alert";
-import { Button } from "#/components/glaze/ui/button";
+} from "#/design-system/ui/alert";
+import { Button } from "#/design-system/ui/button";
 import { approvedInstallRequestsQueryOptions } from "#/lib/onboarding.query";
 
 export function ApprovedInstallBanner() {

@@ -8,24 +8,6 @@ import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
-import {
-	Activity,
-	Add,
-	Analytics,
-	Icon,
-	Moderation,
-	Rules,
-	Workflow,
-} from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { ApprovedInstallBanner } from "#/components/organizations/approved-install-banner";
@@ -34,6 +16,24 @@ import { ORG_REPOS_COLLECTION } from "#/components/organizations/org-home-collec
 import { HomeLoading } from "#/components/organizations/org-home-page-skeleton";
 import { AgentSetupCard } from "#/components/setup/agent-setup-card";
 import { ZonedTime } from "#/components/timezones/zoned-time";
+import {
+	Activity,
+	Add,
+	Analytics,
+	Icon,
+	Moderation,
+	Rules,
+	Workflow,
+} from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useTimezones } from "#/hooks/use-timezones";

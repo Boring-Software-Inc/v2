@@ -4,10 +4,10 @@ import { DevIdentity } from "#/components/dev/dev-identity";
 import { DevPresetList } from "#/components/dev/dev-preset-list";
 import { useDevActions } from "#/components/dev/use-dev-actions";
 import { useDevScenario } from "#/components/dev/use-dev-scenario";
-import { Command } from "#/components/glaze/ui/command";
-import { toast } from "#/components/glaze/ui/toast";
+import { cn } from "#/design-system/lib/utils";
+import { Command } from "#/design-system/ui/command";
+import { toast } from "#/design-system/ui/toast";
 import { DEV_LATENCY_LABELS, type DevLatency } from "#/lib/dev/scenarios";
-import { cn } from "#/lib/glaze/utils";
 
 interface DevScenarioPanelProps {
 	className?: string;

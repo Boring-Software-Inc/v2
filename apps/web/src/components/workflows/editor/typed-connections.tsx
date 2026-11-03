@@ -27,8 +27,6 @@ import {
 	ViewportPortal,
 } from "@xyflow/react";
 import { createContext, useContext } from "react";
-import { StatusMark } from "#/components/glaze/ui/status";
-import { tooltipPopupClass } from "#/components/glaze/ui/tooltip";
 import { previewPath } from "#/components/workflows/editor/connection-plan";
 import type { TripwireFlowNode } from "#/components/workflows/editor/node-card";
 import {
@@ -39,6 +37,8 @@ import {
 	ProblemPeek,
 	severityStatus,
 } from "#/components/workflows/editor/problems-list";
+import { StatusMark } from "#/design-system/ui/status";
+import { tooltipPopupClass } from "#/design-system/ui/tooltip";
 
 export const DragPlanContext = createContext<DragPlan | null>(null);
 

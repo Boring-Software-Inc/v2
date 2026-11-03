@@ -1,4 +1,4 @@
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
 
 export function caughtLabel(count: number): string {
 	return `Would have caught ${count}`;

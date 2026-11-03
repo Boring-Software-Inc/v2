@@ -8,20 +8,6 @@ import {
 } from "@tripwire/contracts";
 import { useState } from "react";
 import { z } from "zod";
-import { Alert, AlertDescription } from "#/components/glaze/ui/alert";
-import { Button } from "#/components/glaze/ui/button";
-import { Checkbox } from "#/components/glaze/ui/checkbox";
-import {
-	Field,
-	FieldDescription,
-	FieldLabel,
-	Label,
-} from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import { NumberInput } from "#/components/glaze/ui/number-input";
-import { Select } from "#/components/glaze/ui/select";
-import { Status } from "#/components/glaze/ui/status";
-import { Textarea } from "#/components/glaze/ui/textarea";
 import { LabelPicker } from "#/components/workflows/editor/label-picker";
 import {
 	type FieldSpec,
@@ -30,6 +16,20 @@ import {
 } from "#/components/workflows/editor/node-fields";
 import { ReviewerPicker } from "#/components/workflows/editor/reviewer-picker";
 import { TriggerFlow } from "#/components/workflows/editor/schedule-flow";
+import { Alert, AlertDescription } from "#/design-system/ui/alert";
+import { Button } from "#/design-system/ui/button";
+import { Checkbox } from "#/design-system/ui/checkbox";
+import {
+	Field,
+	FieldDescription,
+	FieldLabel,
+	Label,
+} from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
+import { NumberInput } from "#/design-system/ui/number-input";
+import { Select } from "#/design-system/ui/select";
+import { Status } from "#/design-system/ui/status";
+import { Textarea } from "#/design-system/ui/textarea";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);

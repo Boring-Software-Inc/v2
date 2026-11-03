@@ -5,9 +5,9 @@ import {
 	motion,
 	type Variants,
 } from "motion/react";
-import { Hide, Icon } from "#/components/glaze/icon";
 import { PREVIEW_TRANSITION } from "#/components/responses/preview-motion";
 import { REDACTION_ITEM_LABELS } from "#/components/responses/redaction-model";
+import { Hide, Icon } from "#/design-system/icon";
 import { usePreviousValue } from "#/hooks/use-previous-value";
 
 const STAGGER_S = 0.04;

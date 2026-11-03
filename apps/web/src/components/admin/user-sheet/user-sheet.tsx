@@ -14,21 +14,21 @@ import { QuietLine } from "#/components/admin/user-sheet/sheet-parts";
 import { useActiveSection } from "#/components/admin/user-sheet/use-active-section";
 import { UserSheetHeader } from "#/components/admin/user-sheet/user-sheet-header";
 import { UserSheetSkeleton } from "#/components/admin/user-sheet/user-sheet-skeleton";
-import { ChevronDown, ChevronUp, Close, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { ChevronDown, ChevronUp, Close, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
 import {
 	Sheet,
 	SheetClose,
 	SheetContent,
 	SheetTitle,
-} from "#/components/glaze/ui/sheet";
+} from "#/design-system/ui/sheet";
 import {
 	SHEET_SECTIONS,
 	type SheetPosition,
 	type SheetSectionId,
 	type SheetStep,
 } from "#/lib/admin-user-sheet";
-import { cn } from "#/lib/glaze/utils";
 import type { AdminUserView } from "#/lib/staff-users.functions";
 import { adminUserQueryOptions } from "#/lib/staff-users.query";
 

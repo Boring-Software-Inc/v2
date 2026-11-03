@@ -5,7 +5,7 @@ import {
 	ruleUiSchema,
 } from "@tripwire/contracts";
 import { Fragment, type ReactNode, useState } from "react";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
 import { ParamEditor } from "./param-editor";
 import { ParamValue } from "./param-value";
 

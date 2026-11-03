@@ -5,7 +5,7 @@ import {
 	CollapsibleContent,
 	CollapsibleGroup,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
+} from "#/design-system/ui/collapsible";
 import { providerAvailabilityQueryOptions } from "#/lib/auth.query";
 import { LIVE_FORGES } from "#/lib/forge-copy";
 

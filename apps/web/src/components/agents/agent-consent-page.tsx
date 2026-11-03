@@ -7,7 +7,7 @@ import {
 	AgentRequestShell,
 } from "#/components/agents/agent-request-shell";
 import { AgentRequestSkeleton } from "#/components/agents/agent-request-skeleton";
-import { toast } from "#/components/glaze/ui/toast";
+import { toast } from "#/design-system/ui/toast";
 import { answerConsent } from "#/lib/agent-auth-endpoints";
 import { grantConsentOrgs } from "#/lib/agents.functions";
 import { consentRequestQueryOptions, rawOAuthQuery } from "#/lib/agents.query";

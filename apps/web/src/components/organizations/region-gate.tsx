@@ -1,6 +1,6 @@
 import type { OrgRegion } from "@tripwire/contracts";
 import type { ReactNode } from "react";
-import { Icon, NoAccess } from "#/components/glaze/icon";
+import { Icon, NoAccess } from "#/design-system/icon";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { noAccessLine } from "#/lib/region-access";
 

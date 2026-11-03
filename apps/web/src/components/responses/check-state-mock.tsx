@@ -1,9 +1,9 @@
 import type { Verdict } from "@tripwire/contracts";
 import { CHECK_NAME } from "@tripwire/contracts";
 import { AnimatePresence, motion } from "motion/react";
-import { StatusMark, type StatusValue } from "#/components/glaze/ui/status";
 import { BLUR_SWAP } from "#/components/responses/preview-motion";
 import { PreviewObject } from "#/components/responses/preview-object";
+import { StatusMark, type StatusValue } from "#/design-system/ui/status";
 
 const CHECK_STATE: Record<
 	Verdict,

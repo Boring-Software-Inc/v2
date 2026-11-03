@@ -5,7 +5,7 @@ import { LoginFaq } from "#/components/auth/login-faq";
 import { WebviewNotice } from "#/components/auth/webview-notice";
 import { DevScenarioDisclosure } from "#/components/dev/dev-scenario-disclosure";
 import { ShaderDither } from "#/components/dither/shader-dither";
-import { Card, CardContent } from "#/components/glaze/ui/card";
+import { Card, CardContent } from "#/design-system/ui/card";
 
 const route = getRouteApi("/login");
 

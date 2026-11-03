@@ -1,18 +1,18 @@
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import {
 	Card,
 	CardContent,
 	CardHeader,
 	CardTitle,
-} from "#/components/glaze/ui/card";
+} from "#/design-system/ui/card";
 import {
 	Item,
 	ItemActions,
 	ItemContent,
 	ItemGroup,
 	ItemMedia,
-} from "#/components/glaze/ui/item";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+} from "#/design-system/ui/item";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const QUEUE_SLOTS = ["a", "b", "c", "d", "e", "f"];
 

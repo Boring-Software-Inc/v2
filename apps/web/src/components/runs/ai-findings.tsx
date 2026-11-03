@@ -3,13 +3,13 @@ import type {
 	Finding,
 	FindingSeverity,
 } from "@tripwire/contracts";
-import { External, Icon } from "#/components/glaze/icon";
 import {
 	blobUrl,
 	FileIcon,
 	FilePath,
 	renderBackticks,
 } from "#/components/runs/evidence-parts";
+import { External, Icon } from "#/design-system/icon";
 import { cn } from "#/lib/utils";
 
 const SEVERITY = {

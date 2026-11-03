@@ -19,52 +19,6 @@ import { EntityCard } from "#/components/common/entity-card";
 import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
 import { ShaderDither } from "#/components/dither/shader-dither";
-import { Add, Icon, MoreVertical } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	ButtonGroup,
-	ButtonGroupMenu,
-} from "#/components/glaze/ui/button-group";
-import {
-	Dialog,
-	DialogAction,
-	DialogBody,
-	DialogClose,
-	DialogContent,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/glaze/ui/dialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { Field, FieldLabel } from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import {
-	Item,
-	ItemActions,
-	ItemContent,
-	ItemDescription,
-	ItemGroup,
-	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { Status, type StatusValue } from "#/components/glaze/ui/status";
-import { Switch } from "#/components/glaze/ui/switch";
-import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import {
@@ -79,6 +33,49 @@ import {
 	WORKFLOWS_COLLECTION,
 } from "#/components/workflows/workflows-collection";
 import { GridSkeleton } from "#/components/workflows/workflows-grid-page-skeleton";
+import { Add, Icon, MoreVertical } from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { ButtonGroup, ButtonGroupMenu } from "#/design-system/ui/button-group";
+import {
+	Dialog,
+	DialogAction,
+	DialogBody,
+	DialogClose,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "#/design-system/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/design-system/ui/dropdown-menu";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
+import { Field, FieldLabel } from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
+import {
+	Item,
+	ItemActions,
+	ItemContent,
+	ItemDescription,
+	ItemGroup,
+	ItemTitle,
+} from "#/design-system/ui/item";
+import { Status, type StatusValue } from "#/design-system/ui/status";
+import { Switch } from "#/design-system/ui/switch";
+import { toast } from "#/design-system/ui/toast";
 import { type AgentMotion, useAgentMotion } from "#/hooks/use-agent-motion";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";

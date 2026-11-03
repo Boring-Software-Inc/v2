@@ -1,6 +1,6 @@
 import { EntityCardSkeleton } from "#/components/common/entity-card-skeleton";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const ROW_SLOTS = ["a", "b", "c", "d"] as const;
 

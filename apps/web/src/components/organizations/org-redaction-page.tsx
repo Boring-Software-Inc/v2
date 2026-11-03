@@ -1,17 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { RedactionPolicy } from "@tripwire/contracts";
 import { useState } from "react";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Skeleton,
-	SkeletonSwap,
-	SkeletonText,
-} from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
 import { PreviewLinkProvider } from "#/components/responses/preview-link";
 import { RedactionControls } from "#/components/responses/redaction-controls";
 import { sameSurfaces } from "#/components/responses/redaction-model";
 import { SettingsHeader } from "#/components/settings/settings-frame";
+import { Button } from "#/design-system/ui/button";
+import {
+	Skeleton,
+	SkeletonSwap,
+	SkeletonText,
+} from "#/design-system/ui/skeleton";
+import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import {
 	type OrgResponseDefaultsView,

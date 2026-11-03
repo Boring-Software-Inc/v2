@@ -4,7 +4,7 @@ import {
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
-import { toast } from "#/components/glaze/ui/toast";
+import { toast } from "#/design-system/ui/toast";
 import { authClient } from "#/lib/auth-client";
 
 interface SignOutEffects {

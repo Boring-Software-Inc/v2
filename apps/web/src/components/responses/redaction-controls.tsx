@@ -2,12 +2,6 @@ import type { RedactionPolicy, RedactionSurface } from "@tripwire/contracts";
 import { REDACTION_SURFACES } from "@tripwire/contracts";
 import { useId } from "react";
 import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import { StepSlider } from "#/components/glaze/ui/step-slider";
-import {
 	REDACTION_MAJOR_STEPS,
 	REDACTION_STEPS,
 	REDACTION_SURFACE_LABELS,
@@ -16,6 +10,12 @@ import {
 } from "#/components/responses/redaction-model";
 import { RedactionTally } from "#/components/responses/redaction-tally";
 import { SettingToggle } from "#/components/responses/setting-rows";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "#/design-system/ui/collapsible";
+import { StepSlider } from "#/design-system/ui/step-slider";
 
 export interface RedactionControlsProps {
 	policy: RedactionPolicy;

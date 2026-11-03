@@ -1,7 +1,7 @@
 import type { AccessStatus } from "@tripwire/contracts";
 import { TripwireLogo } from "#/components/common/tripwire-logo";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
 import { useSignOut } from "#/hooks/use-sign-out";
 
 /**

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "#/components/glaze/ui/toast";
+import { toast } from "#/design-system/ui/toast";
 import { adminQueryKeys } from "#/lib/admin.query";
 import type { StaffActionResult } from "#/lib/staff-users.functions";
 import { staffUserQueryKeys } from "#/lib/staff-users.query";

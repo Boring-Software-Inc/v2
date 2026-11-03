@@ -1,5 +1,5 @@
-import { type GlazeIcon, Icon } from "#/components/glaze/icon";
-import { cn } from "#/lib/glaze/utils";
+import { type GlazeIcon, Icon } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
 
 export interface CollapsedBlockRowProps {
 	icon: GlazeIcon;

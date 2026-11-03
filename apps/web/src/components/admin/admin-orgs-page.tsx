@@ -3,10 +3,13 @@ import { getRouteApi, Link } from "@tanstack/react-router";
 import type { OrgRole } from "@tripwire/contracts";
 import { useId, useState } from "react";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
-import { ChevronDown, ChevronRight, Icon } from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
-import { FilterBarSearch } from "#/components/glaze/ui/filter-bar";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { ChevronDown, ChevronRight, Icon } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
+import { FilterBarSearch } from "#/design-system/ui/filter-bar";
 import {
 	Item,
 	ItemActions,
@@ -16,20 +19,20 @@ import {
 	ItemMedia,
 	ItemMeta,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { PaginationInfo } from "#/components/glaze/ui/pagination";
+} from "#/design-system/ui/item";
+import { PaginationInfo } from "#/design-system/ui/pagination";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
+} from "#/design-system/ui/segmented-control";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "#/components/glaze/ui/select";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
+} from "#/design-system/ui/select";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -39,11 +42,8 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/components/glaze/ui/table";
-import { toast } from "#/components/glaze/ui/toast";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { OrgAvatar } from "#/components/organizations/org-avatar";
+} from "#/design-system/ui/table";
+import { toast } from "#/design-system/ui/toast";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { adminUpdateOrgMemberRole } from "#/lib/admin.functions";
 import {

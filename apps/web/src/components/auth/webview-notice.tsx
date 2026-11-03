@@ -1,11 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
-import {
-	Alert,
-	AlertDescription,
-	AlertTitle,
-} from "#/components/glaze/ui/alert";
-import { Input } from "#/components/glaze/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "#/design-system/ui/alert";
+import { Input } from "#/design-system/ui/input";
 import { webviewHostQueryOptions } from "#/lib/webview.query";
 
 /**

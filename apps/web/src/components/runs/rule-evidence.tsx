@@ -6,15 +6,15 @@ import {
 	ruleIdOf,
 } from "@tripwire/contracts";
 import { z } from "zod";
+import { AiFindings } from "#/components/runs/ai-findings";
+import { AiTraceMeta } from "#/components/runs/ai-trace";
+import { CryptoMatches, FileRows } from "#/components/runs/evidence-parts";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
-} from "#/components/glaze/ui/collapsible";
-import { JsonView } from "#/components/glaze/ui/json-view";
-import { AiFindings } from "#/components/runs/ai-findings";
-import { AiTraceMeta } from "#/components/runs/ai-trace";
-import { CryptoMatches, FileRows } from "#/components/runs/evidence-parts";
+} from "#/design-system/ui/collapsible";
+import { JsonView } from "#/design-system/ui/json-view";
 import type { JsonValue, RunStepView } from "#/lib/runs.functions";
 
 const envelopeSchema = z.object({ evidence: z.json() });

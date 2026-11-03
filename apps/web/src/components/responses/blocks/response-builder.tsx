@@ -5,8 +5,6 @@ import type {
 	ResponseConfig,
 } from "@tripwire/contracts";
 import { variableHidden } from "@tripwire/contracts";
-import { Button } from "#/components/glaze/ui/button";
-import { Switch } from "#/components/glaze/ui/switch";
 import { BlockCanvas } from "#/components/responses/blocks/block-canvas";
 import { BLOCK_META } from "#/components/responses/blocks/block-catalog";
 import { BlockColumn } from "#/components/responses/blocks/block-column";
@@ -24,6 +22,8 @@ import {
 import { ResponsesPreview } from "#/components/responses/responses-preview";
 import { sampleRunFor } from "#/components/responses/sample-run";
 import type { useSaveQueue } from "#/components/save-queue";
+import { Button } from "#/design-system/ui/button";
+import { Switch } from "#/design-system/ui/switch";
 
 export interface ResponseBuilderProps {
 	outcome: OutcomeMeta;

@@ -8,9 +8,10 @@ import {
 	sameSettings,
 } from "@tripwire/contracts";
 import { useMemo } from "react";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardContent } from "#/components/glaze/ui/card";
+import { CaughtCount } from "#/components/rules/caught-count";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardContent } from "#/design-system/ui/card";
 import {
 	Item,
 	ItemActions,
@@ -18,8 +19,7 @@ import {
 	ItemDescription,
 	ItemGroup,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { CaughtCount } from "#/components/rules/caught-count";
+} from "#/design-system/ui/item";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
 export function turnableRuleIds(

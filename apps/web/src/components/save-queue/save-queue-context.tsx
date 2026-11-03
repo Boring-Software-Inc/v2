@@ -8,7 +8,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Button } from "#/components/glaze/ui/button";
+import { Button } from "#/design-system/ui/button";
 import {
 	Dialog,
 	DialogAction,
@@ -18,7 +18,7 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 
 /**
  * The batched save queue: pending changes collect here instead of hitting the

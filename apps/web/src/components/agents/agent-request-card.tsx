@@ -7,11 +7,11 @@ import {
 	permissionsFor,
 	staysSignedIn,
 } from "#/components/agents/agent-scopes";
-import { Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import { Checkbox } from "#/components/glaze/ui/checkbox";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
+import { Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardContent } from "#/design-system/ui/card";
+import { Checkbox } from "#/design-system/ui/checkbox";
 import type { AgentRequestOrg } from "#/lib/agents.functions";
 
 export function initialOrgPick(

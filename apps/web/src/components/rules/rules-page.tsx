@@ -5,21 +5,6 @@ import { useMemo, useState } from "react";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { Collection } from "#/components/collection/collection";
 import { ShaderDither } from "#/components/dither/shader-dither";
-import { Add, Icon } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyRetry,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import {
-	SegmentedControl,
-	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { toast } from "#/components/glaze/ui/toast";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import {
@@ -42,6 +27,21 @@ import {
 	SaveQueueProvider,
 	UnsavedChangesBar,
 } from "#/components/save-queue";
+import { Add, Icon } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyRetry,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
+import {
+	SegmentedControl,
+	SegmentedControlItem,
+} from "#/design-system/ui/segmented-control";
+import { toast } from "#/design-system/ui/toast";
 import { useCollection } from "#/hooks/use-collection";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import {

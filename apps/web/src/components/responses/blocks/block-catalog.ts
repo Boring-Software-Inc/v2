@@ -20,7 +20,7 @@ import {
 	Protected,
 	Retry,
 	Sparkle,
-} from "#/components/glaze/icon";
+} from "#/design-system/icon";
 
 export type BlockGroupKey = "text" | "run" | "links" | "media";
 

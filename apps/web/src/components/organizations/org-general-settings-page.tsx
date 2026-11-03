@@ -3,21 +3,21 @@ import { useNavigate } from "@tanstack/react-router";
 import { orgSlugSchema } from "@tripwire/contracts";
 import { useState } from "react";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { Button } from "#/components/glaze/ui/button";
-import { Field, FieldError, FieldLabel } from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
-import {
-	Skeleton,
-	SkeletonSwap,
-	SkeletonText,
-} from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
 import { OrgAvatar } from "#/components/organizations/org-avatar";
 import {
 	SettingsHeader,
 	SettingsSection,
 } from "#/components/settings/settings-frame";
 import { TimezonePicker } from "#/components/timezones/timezone-picker";
+import { Button } from "#/design-system/ui/button";
+import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
+import {
+	Skeleton,
+	SkeletonSwap,
+	SkeletonText,
+} from "#/design-system/ui/skeleton";
+import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { authQueryKeys } from "#/lib/auth.query";
 import type { OrgWithRole } from "#/lib/org.functions";

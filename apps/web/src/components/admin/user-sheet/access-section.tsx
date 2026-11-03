@@ -5,9 +5,9 @@ import {
 	SheetSectionBlock,
 } from "#/components/admin/user-sheet/sheet-parts";
 import { useStaffAction } from "#/components/admin/user-sheet/use-staff-action";
-import { External, Icon } from "#/components/glaze/icon";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Button } from "#/components/glaze/ui/button";
+import { External, Icon } from "#/design-system/icon";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Button } from "#/design-system/ui/button";
 import { reviewUserAccess } from "#/lib/admin.functions";
 import { formatWait } from "#/lib/admin-user-sheet";
 import type { AdminUserView } from "#/lib/staff-users.functions";

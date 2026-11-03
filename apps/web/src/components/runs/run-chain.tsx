@@ -1,20 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-	ArrowUpRight,
-	Comment,
-	Document,
-	FailedMark,
-	type GlazeIcon,
-	Icon,
-	Pending,
-	Send,
-	Success,
-	Workflow,
-} from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import {
 	BranchCard,
 	type BranchContext,
 	BranchRow,
@@ -29,6 +15,20 @@ import {
 } from "#/components/runs/chain-mark";
 import { SupersededRunChain } from "#/components/runs/superseded-run-chain";
 import { ZonedTime } from "#/components/timezones/zoned-time";
+import {
+	ArrowUpRight,
+	Comment,
+	Document,
+	FailedMark,
+	type GlazeIcon,
+	Icon,
+	Pending,
+	Send,
+	Success,
+	Workflow,
+} from "#/design-system/icon";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	type ChainBranch,
 	type ChainChecks,

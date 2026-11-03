@@ -1,9 +1,9 @@
 import type { RuleParam } from "@tripwire/contracts";
 import { useRef, useState } from "react";
-import { Checkbox } from "#/components/glaze/ui/checkbox";
-import { Chip, ChipGroup } from "#/components/glaze/ui/chip";
-import { Input } from "#/components/glaze/ui/input";
-import { NativeSelect } from "#/components/glaze/ui/select";
+import { Checkbox } from "#/design-system/ui/checkbox";
+import { Chip, ChipGroup } from "#/design-system/ui/chip";
+import { Input } from "#/design-system/ui/input";
+import { NativeSelect } from "#/design-system/ui/select";
 import { coerceParamInput } from "./coerce";
 
 /**

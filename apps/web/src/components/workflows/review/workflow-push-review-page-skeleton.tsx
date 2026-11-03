@@ -1,5 +1,5 @@
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 export const REVIEW_FRAME =
 	"mx-auto flex w-full max-w-7xl flex-col gap-6 px-3 pt-6 pb-24 sm:px-6";

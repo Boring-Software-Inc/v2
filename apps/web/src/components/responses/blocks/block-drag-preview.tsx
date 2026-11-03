@@ -1,5 +1,5 @@
-import { DragHandle, type GlazeIcon, Icon } from "#/components/glaze/icon";
 import { CommentMarkdown } from "#/components/responses/github-comment-mock";
+import { DragHandle, type GlazeIcon, Icon } from "#/design-system/icon";
 
 export type BlockDragPreviewProps =
 	| { source: "canvas"; label: string; body: string | null }

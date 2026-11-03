@@ -3,8 +3,9 @@ import { runOutcome } from "#/components/activity/verdict-chip";
 import { ForgeLinkButton } from "#/components/common/forge-link-button";
 import { MetaRow } from "#/components/common/meta-row";
 import { ItemRouterLink } from "#/components/common/router-links";
-import { Avatar } from "#/components/glaze/ui/avatar";
-import { Badge } from "#/components/glaze/ui/badge";
+import { ZonedTime } from "#/components/timezones/zoned-time";
+import { Avatar } from "#/design-system/ui/avatar";
+import { Badge } from "#/design-system/ui/badge";
 import {
 	Item,
 	ItemActions,
@@ -13,9 +14,8 @@ import {
 	ItemMedia,
 	ItemMeta,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
-import { Status } from "#/components/glaze/ui/status";
-import { ZonedTime } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/item";
+import { Status } from "#/design-system/ui/status";
 import type { ActivityItem } from "#/lib/activity.functions";
 import { eventForgeLink } from "#/lib/activity-links";
 

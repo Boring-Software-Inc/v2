@@ -2,29 +2,25 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { WORKFLOW_PUSH_STATUS_LABELS } from "@tripwire/contracts";
 import { TripwireCodeDiff } from "#/components/code";
-import { ArrowLeft, Icon } from "#/components/glaze/icon";
-import {
-	Alert,
-	AlertDescription,
-	AlertTitle,
-} from "#/components/glaze/ui/alert";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Empty,
-	EmptyContent,
-	EmptyDescription,
-	EmptyHeader,
-	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { RelativeTime } from "#/components/glaze/ui/relative-time";
-import { Status, type StatusValue } from "#/components/glaze/ui/status";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	REVIEW_FRAME,
 	ReviewSkeleton,
 } from "#/components/workflows/review/workflow-push-review-page-skeleton";
+import { ArrowLeft, Icon } from "#/design-system/icon";
+import { Alert, AlertDescription, AlertTitle } from "#/design-system/ui/alert";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyTitle,
+} from "#/design-system/ui/empty-state";
+import { RelativeTime } from "#/design-system/ui/relative-time";
+import { Status, type StatusValue } from "#/design-system/ui/status";
 import {
 	canAccept,
 	canDecide,

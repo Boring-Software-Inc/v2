@@ -10,8 +10,12 @@ import {
 } from "@tripwire/contracts";
 import { useState } from "react";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
+import {
+	SettingsCard,
+	SettingsHeader,
+} from "#/components/settings/settings-frame";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	Dialog,
 	DialogAction,
@@ -21,9 +25,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "#/components/glaze/ui/dialog";
-import { Field, FieldError, FieldLabel } from "#/components/glaze/ui/field";
-import { Input } from "#/components/glaze/ui/input";
+} from "#/design-system/ui/dialog";
+import { Field, FieldError, FieldLabel } from "#/design-system/ui/field";
+import { Input } from "#/design-system/ui/input";
 import {
 	Item,
 	ItemActions,
@@ -31,20 +35,16 @@ import {
 	ItemDescription,
 	ItemGroup,
 	ItemTitle,
-} from "#/components/glaze/ui/item";
+} from "#/design-system/ui/item";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "#/components/glaze/ui/select";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
-import { toast } from "#/components/glaze/ui/toast";
-import {
-	SettingsCard,
-	SettingsHeader,
-} from "#/components/settings/settings-frame";
+} from "#/design-system/ui/select";
+import { SkeletonText } from "#/design-system/ui/skeleton";
+import { toast } from "#/design-system/ui/toast";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import type { OrgRoleView } from "#/lib/org.functions";
 import {

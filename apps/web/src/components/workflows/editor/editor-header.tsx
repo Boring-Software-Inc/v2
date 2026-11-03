@@ -6,24 +6,24 @@ import {
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { type ReactNode, useId, useState } from "react";
-import { ArrowLeft, Edit, Icon, More } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
+import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
+import type { Problem } from "#/components/workflows/editor/node-issues";
+import { ArrowLeft, Edit, Icon, More } from "#/design-system/icon";
+import { controlHeight } from "#/design-system/lib/utils";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import { Input } from "#/components/glaze/ui/input";
+} from "#/design-system/ui/dropdown-menu";
+import { Input } from "#/design-system/ui/input";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { toast } from "#/components/glaze/ui/toast";
-import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
-import type { Problem } from "#/components/workflows/editor/node-issues";
-import { controlHeight } from "#/lib/glaze/utils";
+} from "#/design-system/ui/segmented-control";
+import { toast } from "#/design-system/ui/toast";
 import {
 	WORKFLOW_EDITOR_VIEWS,
 	type WorkflowEditorView,

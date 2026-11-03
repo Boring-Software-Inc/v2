@@ -1,6 +1,6 @@
-import { Chart } from "#/components/glaze/ui/chart";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Chart } from "#/design-system/ui/chart";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 
 export function OrgAnalyticsBodySkeleton() {
 	return (

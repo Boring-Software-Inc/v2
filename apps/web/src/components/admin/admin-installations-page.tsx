@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
-import { Button } from "#/components/glaze/ui/button";
-import { PaginationInfo } from "#/components/glaze/ui/pagination";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { Button } from "#/design-system/ui/button";
+import { PaginationInfo } from "#/design-system/ui/pagination";
 import {
 	Table,
 	TableBody,
@@ -13,9 +15,7 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/components/glaze/ui/table";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { MascotArt } from "#/components/mascot/mascot-art";
+} from "#/design-system/ui/table";
 import {
 	ADMIN_PAGE_SIZE,
 	adminInstallationsQueryOptions,

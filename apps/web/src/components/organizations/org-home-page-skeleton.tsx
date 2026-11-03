@@ -1,6 +1,6 @@
-import { Icon, Pending } from "#/components/glaze/icon";
-import { useSlowWait } from "#/components/glaze/ui/slow-notice";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Icon, Pending } from "#/design-system/icon";
+import { useSlowWait } from "#/design-system/ui/slow-notice";
 
 export function HomeLoading() {
 	useSlowWait(true);

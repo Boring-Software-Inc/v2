@@ -1,6 +1,6 @@
 import { AgentRequestShell } from "#/components/agents/agent-request-shell";
-import { Card, CardContent } from "#/components/glaze/ui/card";
-import { Skeleton, SkeletonText } from "#/components/glaze/ui/skeleton";
+import { Card, CardContent } from "#/design-system/ui/card";
+import { Skeleton, SkeletonText } from "#/design-system/ui/skeleton";
 
 const ROW_SLOTS = ["a", "b", "c", "d"] as const;
 

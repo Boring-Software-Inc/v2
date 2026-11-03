@@ -1,26 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { CostByOrgRow, RailwayBreakdown } from "@tripwire/db";
-import {
-	Alert,
-	AlertDescription,
-	AlertTitle,
-} from "#/components/glaze/ui/alert";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import { Chart } from "#/components/glaze/ui/chart";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { Alert, AlertDescription, AlertTitle } from "#/design-system/ui/alert";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { Chart } from "#/design-system/ui/chart";
 import {
 	DataList,
 	DataListItem,
 	DataListLabel,
 	DataListValue,
-} from "#/components/glaze/ui/data-list";
+} from "#/design-system/ui/data-list";
 import {
 	Progress,
 	ProgressLabel,
 	ProgressValue,
-} from "#/components/glaze/ui/progress";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
+} from "#/design-system/ui/progress";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -30,9 +28,7 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/components/glaze/ui/table";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { MascotArt } from "#/components/mascot/mascot-art";
+} from "#/design-system/ui/table";
 import {
 	economicsCostByOrgQueryOptions,
 	economicsOverviewQueryOptions,

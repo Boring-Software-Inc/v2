@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
 import { EntityCard } from "#/components/common/entity-card";
 import { CardRouterLink } from "#/components/common/router-links";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 import { adminOverviewQueryOptions } from "#/lib/admin.query";
 
 const SECTIONS = [

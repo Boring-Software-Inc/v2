@@ -3,14 +3,16 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { formatAdminDate } from "#/components/admin/format-admin-date";
 import { ForgeMark } from "#/components/common/forge-marks";
-import { Button } from "#/components/glaze/ui/button";
-import { FilterBarSearch } from "#/components/glaze/ui/filter-bar";
-import { PaginationInfo } from "#/components/glaze/ui/pagination";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { Button } from "#/design-system/ui/button";
+import { FilterBarSearch } from "#/design-system/ui/filter-bar";
+import { PaginationInfo } from "#/design-system/ui/pagination";
 import {
 	SegmentedControl,
 	SegmentedControlItem,
-} from "#/components/glaze/ui/segmented-control";
-import { Status } from "#/components/glaze/ui/status";
+} from "#/design-system/ui/segmented-control";
+import { Status } from "#/design-system/ui/status";
 import {
 	Table,
 	TableBody,
@@ -20,9 +22,7 @@ import {
 	TableHeader,
 	TableLoading,
 	TableRow,
-} from "#/components/glaze/ui/table";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { MascotArt } from "#/components/mascot/mascot-art";
+} from "#/design-system/ui/table";
 import { useDebouncedValue } from "#/hooks/use-debounced-value";
 import { ADMIN_PAGE_SIZE, adminReposQueryOptions } from "#/lib/admin.query";
 import { ADMIN_REPO_STATUSES, type AdminReposSearch } from "#/lib/admin-search";

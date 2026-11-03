@@ -1,6 +1,6 @@
 import { useTheme } from "next-themes";
-import { Icon, Wrap } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
+import { Icon, Wrap } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
 import { useHasMounted } from "#/hooks/use-has-mounted";
 
 export interface WrapToggleProps {

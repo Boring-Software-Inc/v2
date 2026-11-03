@@ -1,7 +1,7 @@
 import { AdminOverviewStats } from "#/components/admin/admin-overview-stats";
 import { EntityCardSkeleton } from "#/components/common/entity-card-skeleton";
-import { SkeletonText } from "#/components/glaze/ui/skeleton";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { SkeletonText } from "#/design-system/ui/skeleton";
 
 const ROW_SLOTS = [
 	"users",

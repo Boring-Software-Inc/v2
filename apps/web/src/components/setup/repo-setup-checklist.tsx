@@ -1,17 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { GitCafeMirrorNotice } from "#/components/forges/gitcafe-mirror-notice";
-import { Button } from "#/components/glaze/ui/button";
-import {
-	Card,
-	CardAction,
-	CardDescription,
-	CardFooter,
-	CardHeader,
-	CardMeta,
-	CardTitle,
-} from "#/components/glaze/ui/card";
-import { StatusMark } from "#/components/glaze/ui/status";
 import { RulePacks } from "#/components/rules/rule-packs";
 import { AgentSetupCard } from "#/components/setup/agent-setup-card";
 import {
@@ -24,9 +13,20 @@ import {
 	useSetupInstallRules,
 	useTakeOver,
 } from "#/components/setup/use-repo-setup";
+import { cn } from "#/design-system/lib/utils";
+import { Button } from "#/design-system/ui/button";
+import {
+	Card,
+	CardAction,
+	CardDescription,
+	CardFooter,
+	CardHeader,
+	CardMeta,
+	CardTitle,
+} from "#/design-system/ui/card";
+import { StatusMark } from "#/design-system/ui/status";
 import { useOrgPermission } from "#/hooks/use-org-permission";
 import { useTimezones } from "#/hooks/use-timezones";
-import { cn } from "#/lib/glaze/utils";
 import {
 	agentActivity,
 	formatStepTime,

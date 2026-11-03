@@ -1,6 +1,6 @@
 import { DitherAvatar } from "#/components/dither/dither-avatar";
-import { avatarVariants } from "#/components/glaze/ui/avatar";
-import { cn } from "#/lib/glaze/utils";
+import { cn } from "#/design-system/lib/utils";
+import { avatarVariants } from "#/design-system/ui/avatar";
 
 type OrgAvatarSize = "xs" | "sm" | "default" | "lg" | "xl";
 
@@ -10,7 +10,6 @@ export function OrgAvatar({
 	size = "sm",
 	animate = false,
 	replayToken,
-	eyes = false,
 	decorative = true,
 	className,
 }: {
@@ -19,7 +18,6 @@ export function OrgAvatar({
 	size?: OrgAvatarSize;
 	animate?: boolean;
 	replayToken?: number;
-	eyes?: boolean;
 	decorative?: boolean;
 	className?: string;
 }) {
@@ -27,7 +25,6 @@ export function OrgAvatar({
 	return (
 		<DitherAvatar
 			animate={animate}
-			eyes={eyes}
 			className={cn(
 				size === "xl"
 					? cn(

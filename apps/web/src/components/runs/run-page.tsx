@@ -4,9 +4,14 @@ import { BACKFILL_RUN_LABEL, FORGE_BY_ID } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
 import { MetaRow } from "#/components/common/meta-row";
-import { GithubMark, Icon, Retry } from "#/components/glaze/icon";
-import { Button } from "#/components/glaze/ui/button";
-import { CopyButton } from "#/components/glaze/ui/copy-button";
+import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
+import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
+import { ZonedTime, ZoneOrgScope } from "#/components/timezones/zoned-time";
+import { GithubMark, Icon, Retry } from "#/design-system/icon";
+import { Button } from "#/design-system/ui/button";
+import { CopyButton } from "#/design-system/ui/copy-button";
 import {
 	Dialog,
 	DialogAction,
@@ -18,20 +23,15 @@ import {
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
-} from "#/components/glaze/ui/dialog";
+} from "#/design-system/ui/dialog";
 import {
 	Empty,
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyTitle,
-} from "#/components/glaze/ui/empty-state";
-import { toast } from "#/components/glaze/ui/toast";
-import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { MascotArt } from "#/components/mascot/mascot-art";
-import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
-import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
-import { ZonedTime, ZoneOrgScope } from "#/components/timezones/zoned-time";
+} from "#/design-system/ui/empty-state";
+import { toast } from "#/design-system/ui/toast";
 import {
 	getRerunPreview,
 	rerunChangeRequest,

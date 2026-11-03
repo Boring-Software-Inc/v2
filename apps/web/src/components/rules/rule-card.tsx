@@ -2,22 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { ruleUiSchema, WORKFLOW_STATE_LABELS } from "@tripwire/contracts";
 import { useId, useState } from "react";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
-import { Icon, More } from "#/components/glaze/icon";
-import { Badge } from "#/components/glaze/ui/badge";
-import { Button } from "#/components/glaze/ui/button";
-import { Card, CardFooter } from "#/components/glaze/ui/card";
-import { Sparkline } from "#/components/glaze/ui/chart";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuLinkItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "#/components/glaze/ui/dropdown-menu";
-import { Panel } from "#/components/glaze/ui/panel";
 import {
 	RULE_CARD_CLASS,
 	RULE_FOOTER_CLASS,
@@ -28,7 +12,23 @@ import {
 import { RuleUsedIn } from "#/components/rules/rule-used-in";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
-import { cn } from "#/lib/glaze/utils";
+import { Icon, More } from "#/design-system/icon";
+import { cn } from "#/design-system/lib/utils";
+import { Badge } from "#/design-system/ui/badge";
+import { Button } from "#/design-system/ui/button";
+import { Card, CardFooter } from "#/design-system/ui/card";
+import { Sparkline } from "#/design-system/ui/chart";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuLinkItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/design-system/ui/dropdown-menu";
+import { Panel } from "#/design-system/ui/panel";
 import type { RuleConfigView } from "#/lib/rules.functions";
 
 export function RuleCard({
