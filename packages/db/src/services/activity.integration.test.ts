@@ -185,7 +185,7 @@ describe("listActivityFeed — grouped by change request", () => {
 
 	async function seedGrouped(
 		id: string,
-		normalized: Record<string, unknown>,
+		normalized: ReturnType<typeof changeRequest | typeof push>,
 		opts: { subjectNumber: number | null; repoFullName: string | null },
 	): Promise<void> {
 		await db.insert(events).values({
@@ -316,7 +316,7 @@ describe("listActivityFeed — grouped by change request", () => {
 		expect(group.group.currentVerdict).toBe("block");
 		expect(group.group.eventCount).toBe(2);
 		// The timestamp is a real ISO string, not a Date coerced to "[object …]".
-		expect(typeof group.group.latestActivityAt).toBe("string");
+		expect(group.group.latestActivityAt).toBeString();
 		expect(Number.isNaN(Date.parse(group.group.latestActivityAt))).toBe(false);
 		const reason = group.group.timeline.find((t) => t.run)?.run?.reason;
 		expect(reason).toBe("your account is 2 days old");

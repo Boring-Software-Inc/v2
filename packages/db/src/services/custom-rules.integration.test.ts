@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { WorkflowDefinition } from "@tripwire/contracts";
+import type {
+	CustomRuleDefinition,
+	WorkflowDefinition,
+} from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import {
 	applyMigrations,
@@ -10,6 +13,7 @@ import {
 } from "../index.ts";
 import { repos } from "../schema/repos.ts";
 import {
+	customRuleDefinitionIssue,
 	deleteCustomRule,
 	listCustomRuleViews,
 	saveCustomRule,
@@ -26,7 +30,7 @@ let otherRepoId: string;
 const INTO_RELEASE = {
 	when: { id: "pr.targetBranch" },
 	comparison: { kind: "noneOf", args: [["release"]] },
-};
+} satisfies CustomRuleDefinition;
 
 const FROM_RELEASE_PLEASE = {
 	when: { id: "pr.sourceBranch" },
@@ -76,6 +80,51 @@ afterAll(async () => {
 });
 
 describe("saveCustomRule", () => {
+	test("the definition boundary rejects non-domain inputs without throwing", () => {
+		for (const definition of [undefined, null, false, 42, "release", [], {}]) {
+			expect(customRuleDefinitionIssue(definition)).toMatchObject({
+				ok: false,
+			});
+		}
+		expect(customRuleDefinitionIssue(INTO_RELEASE)).toEqual({
+			ok: true,
+			definition: INTO_RELEASE,
+		});
+	});
+
+	test("description limits apply after trimming and permit omitted or cleared descriptions", async () => {
+		const name = "Description boundary";
+		const tooLong = await saveCustomRule(db, {
+			repoId,
+			name,
+			definition: INTO_RELEASE,
+			description: "x".repeat(501),
+		});
+		expect(tooLong).toMatchObject({ ok: false, reason: "invalid" });
+		const created = await saveCustomRule(db, {
+			repoId,
+			name,
+			definition: INTO_RELEASE,
+			description: ` ${"x".repeat(500)} `,
+		});
+		if (!created.ok) throw new Error(created.error);
+		expect(created.rule.description).toBe("x".repeat(500));
+		for (const description of [undefined, null, "   "]) {
+			const edited = await saveCustomRule(db, {
+				repoId,
+				id: created.rule.id,
+				name,
+				definition: INTO_RELEASE,
+				description,
+			});
+			if (!edited.ok) throw new Error(edited.error);
+			expect(edited.rule.description).toBe(
+				description === undefined ? "x".repeat(500) : null,
+			);
+		}
+		await deleteCustomRule(db, { repoId, id: created.rule.id });
+	});
+
 	test("a new rule gets a custom-<slug>-<6> id, starts off and reads as a sentence", async () => {
 		const result = await saveCustomRule(db, {
 			repoId,

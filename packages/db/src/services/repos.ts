@@ -149,7 +149,7 @@ export async function syncInstallationRepos(
 					fullName: repo.fullName,
 					private: repo.private,
 					installationId,
-					...(orgId ? { orgId } : {}),
+					orgId: orgId || undefined,
 					removedAt: null,
 				},
 			});

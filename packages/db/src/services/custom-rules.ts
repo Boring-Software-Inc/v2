@@ -115,7 +115,7 @@ export async function listCustomRuleViews(
 }
 
 export function customRuleDefinitionIssue(
-	definition: unknown,
+	definition: Parameters<typeof customRuleDefinitionSchema.safeParse>[0],
 ):
 	| { ok: true; definition: CustomRuleDefinition }
 	| { ok: false; error: string } {
@@ -156,10 +156,7 @@ export async function saveCustomRule(
 		input.description === undefined || input.description === null
 			? input.description
 			: input.description.trim() || null;
-	if (
-		typeof description === "string" &&
-		description.length > CUSTOM_RULE_DESCRIPTION_MAX
-	) {
+	if (description != null && description.length > CUSTOM_RULE_DESCRIPTION_MAX) {
 		return invalid(
 			`Keep the description to ${CUSTOM_RULE_DESCRIPTION_MAX} characters.`,
 		);
