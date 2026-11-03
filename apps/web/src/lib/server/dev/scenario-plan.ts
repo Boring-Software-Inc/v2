@@ -45,6 +45,7 @@ export interface ScenarioPlan {
 	approvedRequest: boolean;
 	workflows: DevWorkflows;
 	publicRun: boolean;
+	platformAdmin: boolean;
 }
 
 const USERS = {
@@ -52,6 +53,10 @@ const USERS = {
 	member: { email: "member@tripwire.demo", name: "Dev member" },
 	moderator: { email: "moderator@tripwire.demo", name: "Dev moderator" },
 	"team-admin": { email: "team-admin@tripwire.demo", name: "Dev team admin" },
+	"platform-admin": {
+		email: "platform-admin@tripwire.demo",
+		name: "Dev platform admin",
+	},
 	outsider: { email: "outsider@tripwire.demo", name: "Dev outsider" },
 } satisfies Record<Exclude<DevAccount, "anonymous">, DevUserPlan>;
 
@@ -113,6 +118,7 @@ const TEAM_ROLES = {
 	member: "member",
 	moderator: "moderator",
 	"team-admin": "admin",
+	"platform-admin": null,
 	outsider: null,
 	anonymous: null,
 } satisfies Record<DevAccount, ScenarioPlan["teamRole"]>;
@@ -126,7 +132,10 @@ export function planScenario(scenario: DevScenario): ScenarioPlan {
 			: { kind: scenario.repos, ...REPOS[scenario.repos] };
 	return {
 		user,
-		orgKind: scenario.account === "owner" ? "personal" : "team",
+		orgKind:
+			scenario.account === "owner" || scenario.account === "platform-admin"
+				? "personal"
+				: "team",
 		teamRole: TEAM_ROLES[scenario.account],
 		repos,
 		unclaimed: unclaimedFor(scenario),
@@ -137,6 +146,7 @@ export function planScenario(scenario: DevScenario): ScenarioPlan {
 		workflows: scenario.workflows,
 		publicRun:
 			scenario.account === "anonymous" || scenario.landing === "public-run",
+		platformAdmin: scenario.account === "platform-admin",
 	};
 }
 
@@ -175,6 +185,8 @@ export function resolveLanding(
 	const home = org ? `/${org}/home` : "/";
 	const repo = org && seeded.repoName ? `/${org}/${seeded.repoName}` : null;
 	switch (scenario.landing) {
+		case "admin":
+			return "/admin";
 		case "public-run":
 			return seeded.publicRunId ? `/runs/${seeded.publicRunId}` : "/";
 		case "home":
