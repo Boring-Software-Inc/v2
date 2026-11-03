@@ -155,6 +155,46 @@ describe("the public summary (§10)", () => {
 		expect(windowed).not.toContain("20");
 	});
 
+	test("scalar display preserves malformed and nonfinite observations", () => {
+		for (const value of [NaN, Infinity, -Infinity]) {
+			expect(customRuleSummary(accountAge, value)).toBe(
+				`Account age is ${String(value)} days.`,
+			);
+		}
+		expect(customRuleSummary(accountAge, "3")).toBe("Account age is 3.");
+		expect(customRuleSummary(accountAge, null)).toBe("Account age is null.");
+		expect(customRuleSummary(accountAge, undefined)).toBe(
+			"Account age is undefined.",
+		);
+		expect(customRuleSummary(accountAge, {})).toBe(
+			"Account age is [object Object].",
+		);
+		expect(customRuleSummary(accountAge, ["a", null, {}, 3])).toBe(
+			"Account age is a, null, [object Object], 3.",
+		);
+		expect(customRuleSummary(accountAge, new Array(2))).toBe(
+			"Account age is , .",
+		);
+		expect(
+			customRuleSummary({ ...accountAge, when: { id: "unknown" } }, 3),
+		).toBeNull();
+	});
+
+	test("path counts accept arbitrary arrays but not non-arrays", () => {
+		const definition: CustomRuleDefinition = {
+			when: { id: "pr.changedPaths" },
+			comparison: { kind: "noneMatch", args: [[".github/**"]] },
+		};
+		for (const value of [null, undefined, "a.ts", {}, 3]) {
+			expect(customRuleSummary(definition, value)).toBeNull();
+		}
+		expect(customRuleSummary(definition, [null, {}, 3])).toBe(
+			"It changes 3 paths.",
+		);
+		expect(customRuleSummary(definition, [])).toBe("It changes 0 paths.");
+		expect(customRuleSummary(definition, [null])).toBe("It changes 1 path.");
+	});
+
 	test("boolean and path signals summarize without config", () => {
 		expect(
 			customRuleSummary(

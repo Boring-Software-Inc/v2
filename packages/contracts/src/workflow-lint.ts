@@ -1105,6 +1105,7 @@ function lintParsed(
 		: results;
 }
 
+const rawWorkflowEnvelopeSchema = z.looseObject({});
 const rawGraphSchema = z.object({
 	nodes: z.array(
 		z.looseObject({
@@ -1164,7 +1165,7 @@ export interface LintReport {
 }
 
 export function lintWorkflowReport(
-	definition: WorkflowDefinition,
+	definition: Parameters<typeof workflowDefinitionSchema.safeParse>[0],
 	options: LintOptions = {},
 ): LintReport {
 	const catalog = options.catalog ?? RULE_CATALOG;
@@ -1188,12 +1189,16 @@ export function lintWorkflowReport(
 	const silent = rawNodes.filter(
 		(node) => node.type === "trigger" && node.kinds?.length === 0,
 	);
-	const patched = workflowDefinitionSchema.safeParse({
-		...definition,
-		nodes: rawNodes.map((node) =>
-			silent.includes(node) ? { ...node, kinds: ["push"] } : node,
-		),
-	});
+	const envelope = rawWorkflowEnvelopeSchema.safeParse(definition);
+	const patched =
+		envelope.success && raw.success
+			? workflowDefinitionSchema.safeParse({
+					...envelope.data,
+					nodes: rawNodes.map((node) =>
+						silent.includes(node) ? { ...node, kinds: ["push"] } : node,
+					),
+				})
+			: parsed;
 	if (silent.length === 0 || !patched.success) {
 		return {
 			definition: null,

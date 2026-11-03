@@ -10,7 +10,7 @@ import {
 	ruleUiSchema,
 } from "./rules.ts";
 
-function shapeKeys(schema: unknown): string[] {
+function shapeKeys(schema: z.ZodType): string[] {
 	return schema instanceof z.ZodObject ? Object.keys(schema.shape) : [];
 }
 
@@ -45,14 +45,13 @@ describe("rule params ↔ config schema stay in sync", () => {
 		});
 
 		test(`${entry.ruleId}: param defaults match defaultConfig and pass the schema`, () => {
-			const cfg: Record<string, unknown> = {};
+			const cfg: Record<string, RuleParam["default"]> = {};
+			const defaults = new Map(Object.entries(entry.defaultConfig));
 			for (const p of ui.params) {
 				if ("default" in p && p.default !== undefined) {
 					cfg[p.key] = p.default;
 					if (p.key in entry.defaultConfig) {
-						expect(
-							(entry.defaultConfig as Record<string, unknown>)[p.key],
-						).toEqual(p.default as never);
+						expect(defaults.get(p.key)).toEqual(p.default);
 					}
 				}
 			}
@@ -109,6 +108,59 @@ describe("formatParamValue renders units and percent", () => {
 		expect(
 			formatParamValue(num({ unit: "files", default: 200 }), undefined),
 		).toBe("200 files");
+	});
+
+	test("malformed scalar values keep their display defaults without coercion", () => {
+		const number = num({ unit: "days", default: 7 });
+		for (const value of [null, "3", false, [], {}, Symbol("value")]) {
+			expect(formatParamValue(number, value)).toBe("7 days");
+		}
+		const text: RuleParam = {
+			key: "model",
+			label: "model",
+			kind: "string",
+			default: "default",
+		};
+		for (const value of [null, undefined, "", 3, [], {}]) {
+			expect(formatParamValue(text, value)).toBe("default");
+		}
+		expect(formatParamValue(text, " ")).toBe(" ");
+		expect(
+			formatParamValue(
+				{ key: "enabled", label: "enabled", kind: "boolean", default: true },
+				"true",
+			),
+		).toBe("off");
+	});
+
+	test("nonfinite numeric display remains distinct from config validation", () => {
+		for (const value of [NaN, Infinity, -Infinity]) {
+			expect(formatParamValue(num({ unit: "days" }), value)).toBe(
+				`${String(value)} days`,
+			);
+			expect(formatParamValue(num({ percent: true }), value)).toBe(
+				`${String(value)}%`,
+			);
+			expect(accountAgeConfigSchema.safeParse({ minDays: value }).success).toBe(
+				false,
+			);
+		}
+	});
+
+	test("string-list keeps arbitrary array formatting and non-array fallback", () => {
+		const param: RuleParam = {
+			key: "paths",
+			label: "paths",
+			kind: "string-list",
+			default: ["default/**"],
+		};
+		expect(
+			formatParamValue(param, ["a", null, undefined, 3, false, {}, ["b", "c"]]),
+		).toBe("a, , , 3, false, [object Object], b,c");
+		expect(formatParamValue(param, new Array(2))).toBe(", ");
+		for (const value of [null, undefined, "a", {}, 3]) {
+			expect(formatParamValue(param, value)).toBe("default/**");
+		}
 	});
 
 	test("string-list joins entries", () => {

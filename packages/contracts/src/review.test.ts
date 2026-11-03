@@ -48,6 +48,47 @@ describe("boundAiReviewTrace", () => {
 		expect(t.steps[0]?.excerpt).toContain("a.ts");
 	});
 
+	test("tool input serialization keeps raw strings and JSON fallback", () => {
+		const inputs = [
+			"",
+			"plain text",
+			null,
+			undefined,
+			3,
+			false,
+			["a", null, {}],
+		];
+		const trace = boundAiReviewTrace({
+			model: "m",
+			maxSteps: 12,
+			rawSteps: [
+				{ toolCalls: inputs.map((input) => ({ toolName: "tool", input })) },
+			],
+			usage: undefined,
+		});
+		expect(trace.steps.map((step) => step.excerpt)).toEqual([
+			"",
+			"plain text",
+			"{}",
+			"{}",
+			"3",
+			"false",
+			'["a",null,{}]',
+		]);
+	});
+
+	test("cached usage preserves zero and numeric values without coercion", () => {
+		for (const cachedInputTokens of [0, NaN, Infinity, -Infinity]) {
+			const trace = boundAiReviewTrace({
+				model: "m",
+				maxSteps: 12,
+				rawSteps: [],
+				usage: { cachedInputTokens },
+			});
+			expect(trace.usage.cached).toBe(cachedInputTokens);
+		}
+	});
+
 	test("display steps beyond the cap are dropped and trimmed is marked", () => {
 		const raw = Array.from(
 			{ length: AI_REVIEW_TRACE_MAX_STEPS + 6 },

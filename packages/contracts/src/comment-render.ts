@@ -42,13 +42,13 @@ import type { Verdict } from "./runs.ts";
  */
 
 /** The verdict as a bare word — the bold line and the check summary. */
-export const VERDICT_WORD: Record<Verdict, string> = {
+export const VERDICT_WORD = {
 	pass: "passed",
 	block: "blocked",
 	changes_required: "changes needed",
 	needs_review: "human review",
 	close: "closed",
-};
+} satisfies Record<Verdict, string>;
 
 /** What a contributor can do about a blocking rule — mirrors core's rule field. */
 export type Remedy = "revise" | "wait" | "appeal";

@@ -41,26 +41,24 @@ export type ValidationResult =
  * core is worker-only by the §3 arrows; this is pure zod+graph logic, which is
  * exactly what contracts may hold. Core re-exports it unchanged.
  */
-export function validateWorkflow(input: unknown): ValidationResult {
-	return toResult(input as WorkflowDefinition, RULE_CATALOG, "structure");
+export function validateWorkflow(
+	input: Parameters<typeof lintWorkflowReport>[0],
+): ValidationResult {
+	return toResult(
+		lintWorkflowReport(input, { catalog: RULE_CATALOG, stage: "structure" }),
+	);
 }
 
 export function validateWorkflowForEnable(
-	input: unknown,
+	input: Parameters<typeof lintWorkflowReport>[0],
 	catalog: readonly ValidationCatalogEntry[] = RULE_CATALOG,
 ): ValidationResult {
-	return toResult(input as WorkflowDefinition, catalog, "enable");
+	return toResult(lintWorkflowReport(input, { catalog, stage: "enable" }));
 }
 
 function toResult(
-	input: WorkflowDefinition,
-	catalog: readonly ValidationCatalogEntry[],
-	stage: "structure" | "enable",
+	report: ReturnType<typeof lintWorkflowReport>,
 ): ValidationResult {
-	const report = lintWorkflowReport(input, {
-		catalog,
-		stage,
-	});
 	const errors = report.results.filter((issue) => issue.severity === "error");
 	if (errors.length > 0 || !report.definition) {
 		return { valid: false, issues: errors };
