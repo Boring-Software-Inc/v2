@@ -14,13 +14,7 @@ import {
 } from "#/design-system/ui/item";
 import { SkeletonText } from "#/design-system/ui/skeleton";
 
-const ROW_SLOTS = [
-	"users",
-	"orgs",
-	"repos",
-	"installations",
-	"economics",
-] as const;
+const ROW_SLOTS = ["users", "orgs", "repos", "installations"] as const;
 
 export function AdminHomePageSkeleton() {
 	return (

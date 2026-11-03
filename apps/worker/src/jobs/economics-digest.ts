@@ -231,7 +231,7 @@ export function buildAlerts(t: DailyTotals, th: AlertThresholds): string[] {
 			`[ALERT] OpenRouter spend hit ${money(or)} today, over the ${money(
 				th.orDailyCapUsd,
 				2,
-			)} cap. Check /admin/economics.`,
+			)} cap.`,
 		);
 	}
 	if (t.driftPct != null && Math.abs(t.driftPct) > th.driftAlertPct) {

@@ -1457,52 +1457,6 @@
 	outline-offset: var(--space-1);
 }
 
-[data-layout-role="economics-lead"] {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: var(--space-2);
-}
-
-[data-layout-size="economics-lead"] {
-	inline-size: min(100%, calc(var(--space-1) * 128));
-}
-
-[data-layout-role="economics-value"] {
-	display: flex;
-	align-items: flex-end;
-	flex-direction: column;
-	gap: calc(var(--space-1) / 2);
-	max-inline-size: 28rem;
-	text-align: end;
-}
-
-[data-layout-role="economics-charts"] {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr);
-	gap: var(--space-3);
-	min-inline-size: 0;
-}
-
-[data-layout-role="economics-summary-skeleton"] {
-	block-size: calc(var(--space-1) * 34);
-	border-radius: var(--radius-panel);
-}
-
-[data-layout-role="economics-chart-skeleton"],
-[data-layout-role="economics-table-skeleton"] {
-	block-size: calc(var(--space-1) * 48);
-	border-radius: var(--radius-panel);
-}
-
-[data-layout-role="economics-summary-skeleton"] > [data-slot="skeleton"],
-[data-layout-role="economics-chart-skeleton"] > [data-slot="skeleton"],
-[data-layout-role="economics-table-skeleton"] > [data-slot="skeleton"] {
-	inline-size: 100%;
-	block-size: 100%;
-	border-radius: inherit;
-}
-
 [data-slot="sheet-content"][data-layout-role="user-sheet"][data-side="right"],
 [data-slot="sheet-content"][data-layout-role="user-sheet"][data-side="left"] {
 	inline-size: min(calc(var(--space-1) * 250), calc(100% - var(--space-10)));
@@ -1608,8 +1562,11 @@
 	inset-block-start: 0;
 	z-index: var(--z-sticky);
 	display: flex;
+	flex-shrink: 0;
 	gap: calc(var(--space-1) / 2);
+	min-inline-size: 0;
 	overflow-x: auto;
+	overflow-y: hidden;
 	padding: var(--space-2) var(--space-4);
 	background-color: var(--tw-surface-container);
 	border-block-end: var(--line-width) solid var(--tw-boundary-subtle);
@@ -2038,11 +1995,6 @@
 		margin-inline-start: 0;
 	}
 
-	[data-layout-role="economics-value"] {
-		align-items: flex-start;
-		text-align: start;
-	}
-
 	[data-slot="sheet-content"][data-layout-role="user-sheet"][data-side="right"],
 	[data-slot="sheet-content"][data-layout-role="user-sheet"][data-side="left"] {
 		inline-size: calc(100% - var(--space-2));
@@ -2105,17 +2057,8 @@
 	[data-admin-table="users"] [data-admin-column="user-joined"],
 	[data-admin-table="users"] [data-admin-column="user-last-seen"],
 	[data-admin-table="users"] :is(th, td):nth-child(8),
-	[data-admin-table="users"] :is(th, td):nth-child(9),
-	[data-admin-table="railway"] [data-admin-column="railway-memory"],
-	[data-admin-table="railway"] [data-admin-column="railway-egress"],
-	[data-admin-table="org-cost"] [data-admin-column="org-cost-ai-reviews"] {
+	[data-admin-table="users"] :is(th, td):nth-child(9) {
 		display: none;
-	}
-}
-
-@media (min-width: 48rem) {
-	[data-layout-role="economics-charts"] {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
 

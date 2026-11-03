@@ -381,7 +381,7 @@ export const DEV_PRESETS: readonly DevPreset[] = [
 			account: "platform-admin",
 			landing: "admin",
 		},
-		{ keywords: ["staff", "operations", "economics", "users"] },
+		{ keywords: ["staff", "operations", "users"] },
 	),
 	preset(
 		"outsider",

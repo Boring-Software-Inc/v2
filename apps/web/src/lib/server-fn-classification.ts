@@ -203,8 +203,4 @@ export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	unbanAdminUser: "staff",
 	deleteAdminUser: "staff",
 	impersonateAdminUser: "staff",
-	getEconomicsOverview: "staff", // platform-wide cost data
-	getEconomicsSeries: "staff",
-	getCostByOrg: "staff",
-	getRailwayBreakdown: "staff",
 };

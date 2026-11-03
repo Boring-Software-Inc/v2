@@ -46,11 +46,6 @@ const SECTIONS = [
 		title: "Installations",
 		description: "See installed forge accounts and which org claimed each one.",
 	},
-	{
-		to: "/admin/economics",
-		title: "Economics",
-		description: "Review run cost, provider drift, credit and spend by org.",
-	},
 ] as const;
 
 export function AdminHomePage() {
@@ -65,7 +60,7 @@ export function AdminHomePage() {
 					description={
 						data
 							? `${data.pendingUsers} ${data.pendingUsers === 1 ? "user is" : "users are"} waiting for access.`
-							: "Platform access, connected resources and operating cost."
+							: "Platform access and connected resources."
 					}
 					title="Admin"
 				/>
