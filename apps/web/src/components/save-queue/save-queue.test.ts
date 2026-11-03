@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { nextPending, pendingAfterCommit } from "./save-queue-context.tsx";
+import {
+	nextPending,
+	pendingAfterCommit,
+	type SaveQueueValue,
+} from "./save-queue-context.tsx";
 
 const SAVED = { onSuccess: "ci-check", "blockComment.mode": "full" };
 
@@ -44,7 +48,7 @@ describe("save queue — pending transitions", () => {
 
 	test("injected equality: object-valued keys noop-clear with JSON equality", () => {
 		const saved = { config: { minDays: 7 } };
-		const jsonEqual = (a: unknown, b: unknown) =>
+		const jsonEqual = (a: SaveQueueValue, b: SaveQueueValue) =>
 			JSON.stringify(a) === JSON.stringify(b);
 		const dirty = nextPending({}, saved, "config", { minDays: 10 }, jsonEqual);
 		expect(Object.keys(dirty)).toHaveLength(1);

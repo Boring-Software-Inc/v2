@@ -1,4 +1,4 @@
-import type { RuleParam } from "@tripwire/contracts";
+import type { JsonValue, RuleParam } from "@tripwire/contracts";
 import { useRef, useState } from "react";
 import { Checkbox } from "#/design-system/ui/checkbox";
 import { Chip, ChipGroup } from "#/design-system/ui/chip";
@@ -20,8 +20,8 @@ export function ParamEditor({
 	onCancel,
 }: {
 	param: RuleParam;
-	value: unknown;
-	onSave: (value: unknown) => void;
+	value: JsonValue | undefined;
+	onSave: (value: JsonValue) => void;
 	onCancel: () => void;
 }) {
 	if (param.kind === "string-list") {
@@ -72,8 +72,8 @@ function ScalarEditor({
 	onCancel,
 }: {
 	param: Extract<RuleParam, { kind: "number" | "string" }>;
-	value: unknown;
-	onSave: (value: unknown) => void;
+	value: JsonValue | undefined;
+	onSave: (value: JsonValue) => void;
 	onCancel: () => void;
 }) {
 	const initial =
@@ -163,8 +163,8 @@ function StringListEditor({
 	onSave,
 }: {
 	param: Extract<RuleParam, { kind: "string-list" }>;
-	value: unknown;
-	onSave: (value: unknown) => void;
+	value: JsonValue | undefined;
+	onSave: (value: JsonValue) => void;
 }) {
 	const items = Array.isArray(value) ? (value as string[]) : [...param.default];
 	const [draft, setDraft] = useState("");

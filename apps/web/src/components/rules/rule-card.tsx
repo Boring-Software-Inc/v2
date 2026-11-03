@@ -1,5 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { ruleUiSchema, WORKFLOW_STATE_LABELS } from "@tripwire/contracts";
+import {
+	type JsonValue,
+	ruleUiSchema,
+	WORKFLOW_STATE_LABELS,
+} from "@tripwire/contracts";
 import { useId, useState } from "react";
 import { ConfirmDeleteDialog } from "#/components/common/confirm-delete-dialog";
 import {
@@ -13,6 +17,9 @@ import { RuleUsedIn } from "#/components/rules/rule-used-in";
 import { ParamSentence } from "#/components/rules-params/param-sentence";
 import { useSaveQueue, useSaveQueueField } from "#/components/save-queue";
 import { Icon, More } from "#/design-system/icon";
+
+type RuleConfigValues = Record<string, JsonValue>;
+
 import { cn } from "#/design-system/lib/utils";
 import { Badge } from "#/design-system/ui/badge";
 import { Button } from "#/design-system/ui/button";
@@ -68,10 +75,14 @@ export function RuleCard({
 	const params = ruleUiSchema(rule.ruleId)?.params ?? [];
 	const showParams = params.length > 0 && !offering;
 
-	const asObject = (c: unknown): Record<string, unknown> =>
-		typeof c === "object" && c !== null ? (c as Record<string, unknown>) : {};
+	const asObject = (config: JsonValue): Record<string, JsonValue> =>
+		config === null || Array.isArray(config) || Object(config) !== config
+			? {}
+			: (config as Record<string, JsonValue>);
 
-	const effectiveConfig: Record<string, unknown> = { ...asObject(rule.config) };
+	const effectiveConfig: RuleConfigValues = {
+		...asObject(rule.config),
+	};
 	for (const param of params) {
 		const pending = valueFor(`${rule.ruleId}:param:${param.key}`);
 		if (pending !== undefined) {

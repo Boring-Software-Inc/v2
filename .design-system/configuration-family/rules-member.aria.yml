@@ -1,0 +1,442 @@
+- main:
+  - heading "Rules" [level=1]
+  - paragraph: Requirements that every contributor outside your org must meet. Your role can view rules but not change them.
+  - radiogroup "Rules to show":
+    - radio "Installed" [checked]
+    - radio "Library"
+    - radio "Custom"
+  - group "Rule activity":
+    - link "Matches":
+      - /url: /demo-team/solo-webapp/analytics
+    - text: "15"
+    - 'table "Matches per hour, last 24 hours: flat from 0 to 0, low 0, high 6"':
+      - caption: "Matches per hour, last 24 hours: flat from 0 to 0, low 0, high 6"
+      - rowgroup:
+        - row "Point Matches per hour, last 24 hours":
+          - columnheader "Point"
+          - columnheader "Matches per hour, last 24 hours"
+      - rowgroup:
+        - row "Point 1 0":
+          - rowheader "Point 1"
+          - cell "0"
+        - row "Point 2 0":
+          - rowheader "Point 2"
+          - cell "0"
+        - row "Point 3 0":
+          - rowheader "Point 3"
+          - cell "0"
+        - row "Point 4 0":
+          - rowheader "Point 4"
+          - cell "0"
+        - row "Point 5 0":
+          - rowheader "Point 5"
+          - cell "0"
+        - row "Point 6 0":
+          - rowheader "Point 6"
+          - cell "0"
+        - row "Point 7 0":
+          - rowheader "Point 7"
+          - cell "0"
+        - row "Point 8 0":
+          - rowheader "Point 8"
+          - cell "0"
+        - row "Point 9 1":
+          - rowheader "Point 9"
+          - cell "1"
+        - row "Point 10 0":
+          - rowheader "Point 10"
+          - cell "0"
+        - row "Point 11 0":
+          - rowheader "Point 11"
+          - cell "0"
+        - row "Point 12 0":
+          - rowheader "Point 12"
+          - cell "0"
+        - row "Point 13 0":
+          - rowheader "Point 13"
+          - cell "0"
+        - row "Point 14 3":
+          - rowheader "Point 14"
+          - cell "3"
+        - row "Point 15 0":
+          - rowheader "Point 15"
+          - cell "0"
+        - row "Point 16 6":
+          - rowheader "Point 16"
+          - cell "6"
+        - row "Point 17 0":
+          - rowheader "Point 17"
+          - cell "0"
+        - row "Point 18 1":
+          - rowheader "Point 18"
+          - cell "1"
+        - row "Point 19 3":
+          - rowheader "Point 19"
+          - cell "3"
+        - row "Point 20 1":
+          - rowheader "Point 20"
+          - cell "1"
+        - row "Point 21 0":
+          - rowheader "Point 21"
+          - cell "0"
+        - row "Point 22 0":
+          - rowheader "Point 22"
+          - cell "0"
+        - row "Point 23 0":
+          - rowheader "Point 23"
+          - cell "0"
+        - row "Point 24 0":
+          - rowheader "Point 24"
+          - cell "0"
+    - link "Actions taken":
+      - /url: /demo-team/solo-webapp/analytics?metric=blocked
+    - text: "12"
+    - 'table "Actions taken per hour, last 24 hours: flat from 0 to 0, low 0, high 5"':
+      - caption: "Actions taken per hour, last 24 hours: flat from 0 to 0, low 0, high 5"
+      - rowgroup:
+        - row "Point Actions taken per hour, last 24 hours":
+          - columnheader "Point"
+          - columnheader "Actions taken per hour, last 24 hours"
+      - rowgroup:
+        - row "Point 1 0":
+          - rowheader "Point 1"
+          - cell "0"
+        - row "Point 2 0":
+          - rowheader "Point 2"
+          - cell "0"
+        - row "Point 3 0":
+          - rowheader "Point 3"
+          - cell "0"
+        - row "Point 4 0":
+          - rowheader "Point 4"
+          - cell "0"
+        - row "Point 5 0":
+          - rowheader "Point 5"
+          - cell "0"
+        - row "Point 6 0":
+          - rowheader "Point 6"
+          - cell "0"
+        - row "Point 7 0":
+          - rowheader "Point 7"
+          - cell "0"
+        - row "Point 8 0":
+          - rowheader "Point 8"
+          - cell "0"
+        - row "Point 9 1":
+          - rowheader "Point 9"
+          - cell "1"
+        - row "Point 10 0":
+          - rowheader "Point 10"
+          - cell "0"
+        - row "Point 11 0":
+          - rowheader "Point 11"
+          - cell "0"
+        - row "Point 12 0":
+          - rowheader "Point 12"
+          - cell "0"
+        - row "Point 13 0":
+          - rowheader "Point 13"
+          - cell "0"
+        - row "Point 14 2":
+          - rowheader "Point 14"
+          - cell "2"
+        - row "Point 15 0":
+          - rowheader "Point 15"
+          - cell "0"
+        - row "Point 16 5":
+          - rowheader "Point 16"
+          - cell "5"
+        - row "Point 17 0":
+          - rowheader "Point 17"
+          - cell "0"
+        - row "Point 18 1":
+          - rowheader "Point 18"
+          - cell "1"
+        - row "Point 19 2":
+          - rowheader "Point 19"
+          - cell "2"
+        - row "Point 20 1":
+          - rowheader "Point 20"
+          - cell "1"
+        - row "Point 21 0":
+          - rowheader "Point 21"
+          - cell "0"
+        - row "Point 22 0":
+          - rowheader "Point 22"
+          - cell "0"
+        - row "Point 23 0":
+          - rowheader "Point 23"
+          - cell "0"
+        - row "Point 24 0":
+          - rowheader "Point 24"
+          - cell "0"
+    - text: Last 24 hours
+  - search "Filter rules":
+    - searchbox "Search rules"
+    - 'button "Sort: Most active"'
+  - heading "Account age" [level=2]
+  - button "Uninstall Account age" [disabled]: Uninstall
+  - text: blocks accounts younger than 7 days
+  - 'table "Account age matches per hour, last 24 hours: up from 0 to 1, low 0, high 1"':
+    - caption: "Account age matches per hour, last 24 hours: up from 0 to 1, low 0, high 1"
+    - rowgroup:
+      - row "Point Account age matches per hour, last 24 hours":
+        - columnheader "Point"
+        - columnheader "Account age matches per hour, last 24 hours"
+    - rowgroup:
+      - row "Point 1 0":
+        - rowheader "Point 1"
+        - cell "0"
+      - row "Point 2 1":
+        - rowheader "Point 2"
+        - cell "1"
+      - row "Point 3 1":
+        - rowheader "Point 3"
+        - cell "1"
+      - row "Point 4 0":
+        - rowheader "Point 4"
+        - cell "0"
+      - row "Point 5 0":
+        - rowheader "Point 5"
+        - cell "0"
+      - row "Point 6 0":
+        - rowheader "Point 6"
+        - cell "0"
+      - row "Point 7 0":
+        - rowheader "Point 7"
+        - cell "0"
+      - row "Point 8 0":
+        - rowheader "Point 8"
+        - cell "0"
+      - row "Point 9 0":
+        - rowheader "Point 9"
+        - cell "0"
+      - row "Point 10 0":
+        - rowheader "Point 10"
+        - cell "0"
+      - row "Point 11 0":
+        - rowheader "Point 11"
+        - cell "0"
+      - row "Point 12 0":
+        - rowheader "Point 12"
+        - cell "0"
+      - row "Point 13 0":
+        - rowheader "Point 13"
+        - cell "0"
+      - row "Point 14 0":
+        - rowheader "Point 14"
+        - cell "0"
+      - row "Point 15 0":
+        - rowheader "Point 15"
+        - cell "0"
+      - row "Point 16 0":
+        - rowheader "Point 16"
+        - cell "0"
+      - row "Point 17 0":
+        - rowheader "Point 17"
+        - cell "0"
+      - row "Point 18 0":
+        - rowheader "Point 18"
+        - cell "0"
+      - row "Point 19 0":
+        - rowheader "Point 19"
+        - cell "0"
+      - row "Point 20 0":
+        - rowheader "Point 20"
+        - cell "0"
+      - row "Point 21 0":
+        - rowheader "Point 21"
+        - cell "0"
+      - row "Point 22 1":
+        - rowheader "Point 22"
+        - cell "1"
+      - row "Point 23 0":
+        - rowheader "Point 23"
+        - cell "0"
+      - row "Point 24 1":
+        - rowheader "Point 24"
+        - cell "1"
+  - text: 4 matches, last 24 h
+  - heading "Max files changed" [level=2]
+  - button "Uninstall Max files changed" [disabled]: Uninstall
+  - text: blocks change requests that touch more than 200 files
+  - 'table "Max files changed matches per hour, last 24 hours: up from 0 to 1, low 0, high 1"':
+    - caption: "Max files changed matches per hour, last 24 hours: up from 0 to 1, low 0, high 1"
+    - rowgroup:
+      - row "Point Max files changed matches per hour, last 24 hours":
+        - columnheader "Point"
+        - columnheader "Max files changed matches per hour, last 24 hours"
+    - rowgroup:
+      - row "Point 1 0":
+        - rowheader "Point 1"
+        - cell "0"
+      - row "Point 2 1":
+        - rowheader "Point 2"
+        - cell "1"
+      - row "Point 3 1":
+        - rowheader "Point 3"
+        - cell "1"
+      - row "Point 4 0":
+        - rowheader "Point 4"
+        - cell "0"
+      - row "Point 5 0":
+        - rowheader "Point 5"
+        - cell "0"
+      - row "Point 6 0":
+        - rowheader "Point 6"
+        - cell "0"
+      - row "Point 7 0":
+        - rowheader "Point 7"
+        - cell "0"
+      - row "Point 8 0":
+        - rowheader "Point 8"
+        - cell "0"
+      - row "Point 9 0":
+        - rowheader "Point 9"
+        - cell "0"
+      - row "Point 10 0":
+        - rowheader "Point 10"
+        - cell "0"
+      - row "Point 11 0":
+        - rowheader "Point 11"
+        - cell "0"
+      - row "Point 12 0":
+        - rowheader "Point 12"
+        - cell "0"
+      - row "Point 13 0":
+        - rowheader "Point 13"
+        - cell "0"
+      - row "Point 14 0":
+        - rowheader "Point 14"
+        - cell "0"
+      - row "Point 15 0":
+        - rowheader "Point 15"
+        - cell "0"
+      - row "Point 16 0":
+        - rowheader "Point 16"
+        - cell "0"
+      - row "Point 17 1":
+        - rowheader "Point 17"
+        - cell "1"
+      - row "Point 18 0":
+        - rowheader "Point 18"
+        - cell "0"
+      - row "Point 19 0":
+        - rowheader "Point 19"
+        - cell "0"
+      - row "Point 20 0":
+        - rowheader "Point 20"
+        - cell "0"
+      - row "Point 21 0":
+        - rowheader "Point 21"
+        - cell "0"
+      - row "Point 22 0":
+        - rowheader "Point 22"
+        - cell "0"
+      - row "Point 23 0":
+        - rowheader "Point 23"
+        - cell "0"
+      - row "Point 24 1":
+        - rowheader "Point 24"
+        - cell "1"
+  - text: 4 matches, last 24 h
+  - heading "English only" [level=2]
+  - button "Uninstall English only" [disabled]: Uninstall
+  - text: blocks when more than 50% of the text is non-latin script
+  - 'table "English only matches per hour, last 24 hours: up from 0 to 1, low 0, high 2"':
+    - caption: "English only matches per hour, last 24 hours: up from 0 to 1, low 0, high 2"
+    - rowgroup:
+      - row "Point English only matches per hour, last 24 hours":
+        - columnheader "Point"
+        - columnheader "English only matches per hour, last 24 hours"
+    - rowgroup:
+      - row "Point 1 0":
+        - rowheader "Point 1"
+        - cell "0"
+      - row "Point 2 0":
+        - rowheader "Point 2"
+        - cell "0"
+      - row "Point 3 0":
+        - rowheader "Point 3"
+        - cell "0"
+      - row "Point 4 0":
+        - rowheader "Point 4"
+        - cell "0"
+      - row "Point 5 0":
+        - rowheader "Point 5"
+        - cell "0"
+      - row "Point 6 0":
+        - rowheader "Point 6"
+        - cell "0"
+      - row "Point 7 0":
+        - rowheader "Point 7"
+        - cell "0"
+      - row "Point 8 0":
+        - rowheader "Point 8"
+        - cell "0"
+      - row "Point 9 0":
+        - rowheader "Point 9"
+        - cell "0"
+      - row "Point 10 0":
+        - rowheader "Point 10"
+        - cell "0"
+      - row "Point 11 0":
+        - rowheader "Point 11"
+        - cell "0"
+      - row "Point 12 0":
+        - rowheader "Point 12"
+        - cell "0"
+      - row "Point 13 0":
+        - rowheader "Point 13"
+        - cell "0"
+      - row "Point 14 0":
+        - rowheader "Point 14"
+        - cell "0"
+      - row "Point 15 0":
+        - rowheader "Point 15"
+        - cell "0"
+      - row "Point 16 0":
+        - rowheader "Point 16"
+        - cell "0"
+      - row "Point 17 0":
+        - rowheader "Point 17"
+        - cell "0"
+      - row "Point 18 0":
+        - rowheader "Point 18"
+        - cell "0"
+      - row "Point 19 0":
+        - rowheader "Point 19"
+        - cell "0"
+      - row "Point 20 0":
+        - rowheader "Point 20"
+        - cell "0"
+      - row "Point 21 0":
+        - rowheader "Point 21"
+        - cell "0"
+      - row "Point 22 2":
+        - rowheader "Point 22"
+        - cell "2"
+      - row "Point 23 0":
+        - rowheader "Point 23"
+        - cell "0"
+      - row "Point 24 1":
+        - rowheader "Point 24"
+        - cell "1"
+  - text: 3 matches, last 24 h
+  - heading "Crypto address" [level=2]
+  - 'button "Crypto address: Used in 1 workflow"': Used in 1 workflow
+  - paragraph: blocks cryptocurrency addresses in titles, comments, and diffs.
+  - text: No matches, last 24 h
+  - heading "Fork spray" [level=2]
+  - text: Custom
+  - button "Uninstall Fork spray" [disabled]: Uninstall
+  - paragraph: require that fork rate in the last 24 hours is at most 20
+  - text: No matches, last 24 h
+  - heading "Honeypot paths" [level=2]
+  - button "Uninstall Honeypot paths" [disabled]: Uninstall
+  - text: blocks any change request that touches
+  - code: .github/workflows/**
+  - text: ", which no legitimate change should need No matches, last 24 h"
+  - heading "Merged change requests" [level=2]
+  - button "Uninstall Merged change requests" [disabled]: Uninstall
+  - text: blocks contributors with fewer than 1 merged change request elsewhere; trusts returning contributors after 1 merge here No matches, last 24 h

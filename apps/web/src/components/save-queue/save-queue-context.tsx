@@ -1,4 +1,5 @@
 import { useBlocker } from "@tanstack/react-router";
+import type { JsonValue } from "@tripwire/contracts";
 import {
 	createContext,
 	type ReactNode,
@@ -44,25 +45,28 @@ export type SaveQueueCommitResult =
 	| { ok: true }
 	| { error: string; failedKeys?: string[] };
 
+export type SaveQueueValue = JsonValue | undefined;
+export type SaveQueueValues = Record<string, SaveQueueValue>;
+
 export type SaveQueueCommit = (
-	pending: Record<string, unknown>,
+	pending: SaveQueueValues,
 ) => Promise<SaveQueueCommitResult>;
 
-interface SaveQueueValue {
-	pending: Record<string, unknown>;
+interface SaveQueueState {
+	pending: SaveQueueValues;
 	isDirty: boolean;
 	count: number;
 	isCommitting: boolean;
 	/** Pending-or-saved for a key — what a control renders. */
-	valueFor: (key: string) => unknown;
+	valueFor: (key: string) => SaveQueueValue;
 	/** Queue a change. A value equal to the saved one CLEARS the key (no
 	 * queued noop); a later change to the same key replaces the earlier. */
-	setField: (key: string, value: unknown) => void;
+	setField: (key: string, value: SaveQueueValue) => void;
 	commit: () => Promise<void>;
 	discard: () => void;
 }
 
-const SaveQueueContext = createContext<SaveQueueValue | null>(null);
+const SaveQueueContext = createContext<SaveQueueState | null>(null);
 
 /**
  * The queue transition, pure: equal-to-saved clears the key, anything else
@@ -70,12 +74,12 @@ const SaveQueueContext = createContext<SaveQueueValue | null>(null);
  * DOM.
  */
 export function nextPending(
-	prev: Record<string, unknown>,
-	savedValues: Record<string, unknown>,
+	prev: SaveQueueValues,
+	savedValues: SaveQueueValues,
 	key: string,
-	value: unknown,
-	isEqual: (a: unknown, b: unknown) => boolean,
-): Record<string, unknown> {
+	value: SaveQueueValue,
+	isEqual: (a: SaveQueueValue, b: SaveQueueValue) => boolean,
+): SaveQueueValues {
 	if (isEqual(value, savedValues[key])) {
 		if (!(key in prev)) {
 			return prev;
@@ -92,16 +96,16 @@ export function nextPending(
  * stays honest about what actually persisted.
  */
 export function pendingAfterCommit(
-	pending: Record<string, unknown>,
+	pending: SaveQueueValues,
 	result: SaveQueueCommitResult,
-): Record<string, unknown> {
+): SaveQueueValues {
 	if ("ok" in result) {
 		return {};
 	}
 	if (!result.failedKeys) {
 		return pending;
 	}
-	const kept: Record<string, unknown> = {};
+	const kept: SaveQueueValues = {};
 	for (const key of result.failedKeys) {
 		if (key in pending) {
 			kept[key] = pending[key];
@@ -113,14 +117,14 @@ export function pendingAfterCommit(
 export interface SaveQueueProviderProps {
 	/** Last-saved values per key — the noop-clearing baseline and the
 	 * fallback `valueFor` reads through to. */
-	savedValues: Record<string, unknown>;
+	savedValues: SaveQueueValues;
 	/** One batch, one persisted action, one success signal. The consumer owns
 	 * invalidation and the toast; on failure it must NOT invalidate, so the
 	 * pending overlay keeps the user's edits on screen. */
 	commit: SaveQueueCommit;
 	/** Per-key equality for noop-clearing. Object.is suits primitive values;
 	 * a page with object-valued keys passes its own (e.g. JSON equality). */
-	isEqual?: (a: unknown, b: unknown) => boolean;
+	isEqual?: (a: SaveQueueValue, b: SaveQueueValue) => boolean;
 	children: ReactNode;
 }
 
@@ -130,13 +134,13 @@ export function SaveQueueProvider({
 	isEqual = Object.is,
 	children,
 }: SaveQueueProviderProps) {
-	const [pending, setPending] = useState<Record<string, unknown>>({});
+	const [pending, setPending] = useState<SaveQueueValues>({});
 	const [isCommitting, setIsCommitting] = useState(false);
 	const count = Object.keys(pending).length;
 	const isDirty = count > 0;
 
 	const setField = useCallback(
-		(key: string, value: unknown) => {
+		(key: string, value: SaveQueueValue) => {
 			setPending((prev) => nextPending(prev, savedValues, key, value, isEqual));
 		},
 		[isEqual, savedValues],
@@ -166,7 +170,7 @@ export function SaveQueueProvider({
 
 	const discard = useCallback(() => setPending({}), []);
 
-	const value = useMemo<SaveQueueValue>(
+	const value = useMemo<SaveQueueState>(
 		() => ({
 			pending,
 			isDirty,
@@ -196,7 +200,7 @@ export function SaveQueueProvider({
 	);
 }
 
-export function useSaveQueue(): SaveQueueValue {
+export function useSaveQueue(): SaveQueueState {
 	const context = useContext(SaveQueueContext);
 	if (!context) {
 		throw new Error("useSaveQueue requires a SaveQueueProvider");
@@ -297,7 +301,7 @@ export function DiscardChangesButton({
 }
 
 /** The uniform control binding: read pending-or-saved, write to the queue. */
-export function useSaveQueueField<T>(
+export function useSaveQueueField<T extends SaveQueueValue>(
 	key: string,
 ): readonly [T, (next: T) => void] {
 	const { valueFor, setField } = useSaveQueue();
