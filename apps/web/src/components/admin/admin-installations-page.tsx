@@ -17,7 +17,7 @@ import {
 	TableLoading,
 	TableRow,
 } from "#/design-system/ui/table";
-import { CodeText, Label } from "#/design-system/ui/typography";
+import { CodeText, Label, SupportingText } from "#/design-system/ui/typography";
 import { adminInstallationsQueryOptions } from "#/lib/admin.query";
 
 const COLUMN_COUNT = 4;
@@ -112,6 +112,15 @@ export function AdminInstallationsPage() {
 												<span>
 													<Label>{row.accountLogin ?? "Unknown account"}</Label>
 													<CodeText as="span">{row.installationId}</CodeText>
+													<span data-layout-role="admin-installation-mobile-details">
+														<SupportingText as="span">
+															{row.orgSlug ?? "Not claimed"}
+														</SupportingText>
+														<SupportingText as="span">
+															{row.repoCount} repos · {row.protectedRepoCount}{" "}
+															protected
+														</SupportingText>
+													</span>
 												</span>
 											</span>
 										</TableCell>

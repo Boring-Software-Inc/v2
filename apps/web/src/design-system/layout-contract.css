@@ -1400,6 +1400,10 @@
 	min-inline-size: 0;
 }
 
+[data-layout-role="admin-installation-mobile-details"] {
+	display: none;
+}
+
 [data-layout-role="admin-org-members-cell"] {
 	padding: 0;
 }
@@ -1600,6 +1604,9 @@
 }
 
 [data-layout-role="user-sheet-nav"] {
+	position: sticky;
+	inset-block-start: 0;
+	z-index: var(--z-sticky);
 	display: flex;
 	gap: calc(var(--space-1) / 2);
 	overflow-x: auto;
@@ -2045,6 +2052,13 @@
 		padding: var(--space-4);
 	}
 
+	[data-layout-role="admin-installation-mobile-details"] {
+		display: flex;
+		flex-direction: column;
+		gap: calc(var(--space-1) / 2);
+		padding-block-start: var(--space-1);
+	}
+
 	[data-layout-role="user-sheet-identity"],
 	[data-layout-role="user-sheet-header-actions"] {
 		inline-size: 100%;
@@ -2103,7 +2117,9 @@
 	[data-layout-role="economics-charts"] {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
+}
 
+@media (min-width: 52rem) {
 	[data-layout-role="user-sheet-scroll"] {
 		overflow: hidden;
 	}

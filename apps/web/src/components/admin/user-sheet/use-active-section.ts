@@ -27,7 +27,21 @@ export function useActiveSection(
 						.querySelector(`[data-section="${section.id}"]`)
 						?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY,
 			}));
-			setActive(activeSectionAt(tops, line));
+			const sections = root.querySelector<HTMLElement>(
+				'[data-layout-role="user-sheet-sections-scroll"]',
+			);
+			const scrollPort =
+				sections && sections.scrollHeight > sections.clientHeight
+					? sections
+					: root;
+			const atEnd =
+				scrollPort.scrollTop + scrollPort.clientHeight >=
+				scrollPort.scrollHeight - 1;
+			setActive(
+				atEnd
+					? (SHEET_SECTIONS[SHEET_SECTIONS.length - 1]?.id ?? "access")
+					: activeSectionAt(tops, line),
+			);
 		};
 		const onScroll = () => {
 			if (frame === 0) {
