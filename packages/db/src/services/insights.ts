@@ -6,6 +6,7 @@ import {
 } from "@tripwire/contracts";
 import { generateId } from "@tripwire/utils";
 import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { z } from "zod";
 import type { Db } from "../client.ts";
 import { events } from "../schema/events.ts";
 import { moderationItems } from "../schema/moderation.ts";
@@ -68,9 +69,27 @@ export async function computeRollupsBetween(
 	`);
 }
 
-interface AgoRow {
-	h: number;
-	n: number;
+const hourlyCountRowsSchema = z.array(
+	z.object({
+		h: z.coerce.number(),
+		n: z.coerce.number(),
+	}),
+);
+const countRowSchema = z.object({ n: z.coerce.number().nullish() }).optional();
+const ruleCountRowsSchema = z.array(
+	z.object({
+		ref: z.string(),
+		bucket: z.coerce.number(),
+		n: z.coerce.number(),
+	}),
+);
+
+async function scalarCount(
+	db: Db,
+	query: ReturnType<typeof sql>,
+): Promise<number> {
+	const result = await db.execute(query);
+	return countRowSchema.parse(result.rows[0])?.n ?? 0;
 }
 
 /**
@@ -81,7 +100,7 @@ interface AgoRow {
  */
 async function rollingSeries(db: Db, query: ReturnType<typeof sql>) {
 	const result = await db.execute(query);
-	const rows = result.rows as unknown as AgoRow[];
+	const rows = hourlyCountRowsSchema.parse(result.rows);
 	const series = Array.from({ length: 24 }, () => 0);
 	for (const row of rows) {
 		const h = Number(row.h);
@@ -103,12 +122,7 @@ export async function getHomeStats(
 	db: Db,
 	repo: RepoIdentity,
 ): Promise<ModStats> {
-	const scalar = async (query: ReturnType<typeof sql>): Promise<number> => {
-		const result = await db.execute(query);
-		return Number(
-			(result.rows[0] as Record<string, unknown> | undefined)?.n ?? 0,
-		);
-	};
+	const scalar = (query: ReturnType<typeof sql>) => scalarCount(db, query);
 
 	// moderation_items carry no repo column — scope them through their run.
 	const inRepo = sql`run_id IN (SELECT id FROM runs WHERE repo_full_name = ${repo.fullName} AND EXISTS (SELECT 1 FROM events scope_event WHERE scope_event.id = runs.event_id AND scope_event.forge = ${repo.forge}))`;
@@ -333,12 +347,7 @@ export async function getRulesStats(
 	db: Db,
 	repo: RepoIdentity,
 ): Promise<RulesStats> {
-	const scalar = async (query: ReturnType<typeof sql>): Promise<number> => {
-		const result = await db.execute(query);
-		return Number(
-			(result.rows[0] as Record<string, unknown> | undefined)?.n ?? 0,
-		);
-	};
+	const scalar = (query: ReturnType<typeof sql>) => scalarCount(db, query);
 
 	const matches24h = await scalar(sql`
 		SELECT count(*)::int AS n FROM run_steps s
@@ -397,11 +406,7 @@ export async function getRulesStats(
 		  AND s.started_at > now() - interval '24 hours'
 		GROUP BY 1, 2`);
 	const perRuleMap = new Map<string, RuleStat>();
-	for (const row of perRuleResult.rows as unknown as {
-		ref: string;
-		bucket: number;
-		n: number;
-	}[]) {
+	for (const row of ruleCountRowsSchema.parse(perRuleResult.rows)) {
 		let stat = perRuleMap.get(row.ref);
 		if (!stat) {
 			stat = { ref: row.ref, matches24h: 0, series: Array(24).fill(0) };
