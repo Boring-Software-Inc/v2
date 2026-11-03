@@ -37,16 +37,13 @@ export function isDemoMode(): boolean {
 }
 
 // Any attempt to use a pg pool in demo mode is a bug — fail loudly, never hang.
-const DEMO_POOL = new Proxy(
-	{},
-	{
-		get() {
-			throw new Error(
-				"No Postgres pool in demo mode. The web app runs alone, with no worker or queue.",
-			);
-		},
+const DEMO_POOL = new Proxy<DbPool>({} as DbPool, {
+	get() {
+		throw new Error(
+			"No Postgres pool in demo mode. The web app runs alone, with no worker or queue.",
+		);
 	},
-) as unknown as DbPool;
+});
 
 export function getDb() {
 	if (instance) {

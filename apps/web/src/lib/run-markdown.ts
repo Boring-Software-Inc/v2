@@ -17,19 +17,19 @@ import type { RunStepView, RunView } from "#/lib/runs.functions";
  * time-independent (the component supplies `formatRelativeTime(run.createdAt)`).
  */
 
-const VERDICT_LABEL: Record<string, string> = {
-	pass: "passed",
-	block: "blocked",
-	needs_review: "human review",
-};
+const VERDICT_LABEL = new Map([
+	["pass", "passed"],
+	["block", "blocked"],
+	["needs_review", "human review"],
+]);
 
-const STATUS_LABEL: Record<string, string> = {
-	pass: "passed",
-	fail: "did not pass",
-	skipped: "skipped",
-	paused: "human review",
-	pending: "queued",
-};
+const STATUS_LABEL = new Map([
+	["pass", "passed"],
+	["fail", "did not pass"],
+	["skipped", "skipped"],
+	["paused", "human review"],
+	["pending", "queued"],
+]);
 
 function stepLabel(step: RunStepView): string {
 	if (step.ruleRef) {
@@ -41,7 +41,7 @@ function stepLabel(step: RunStepView): string {
 
 /** The human status word the page shows; unknown statuses pass through raw. */
 function statusLabel(status: string): string {
-	return STATUS_LABEL[status] ?? status;
+	return STATUS_LABEL.get(status) ?? status;
 }
 
 /** Quote a possibly-multiline string, one `> ` per line (never just line one). */
@@ -70,7 +70,8 @@ export function runToMarkdown(run: RunView, relativeTime: string): string {
 			? run.status
 			: run.backfill
 				? (runResultLabel(result, { backfill: true }) ?? result).toLowerCase()
-				: (VERDICT_LABEL[result] ?? RUN_RESULT_LABELS[result].toLowerCase());
+				: (VERDICT_LABEL.get(result) ??
+					RUN_RESULT_LABELS[result].toLowerCase());
 	const lines: string[] = [`# Run: ${verdict}`];
 
 	// Header meta: repo, optional #pr, relative time, optional short sha.

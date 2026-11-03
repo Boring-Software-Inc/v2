@@ -15,15 +15,16 @@ function packageFile(name: string, file: string): string {
 
 const context = {
 	resolve: async (source: string) => {
-		const ids: Record<string, string> = {
-			"shiki/langs": packageFile("shiki", "dist/langs.mjs"),
-			"@pierre/theming/themes": packageFile(
-				"@pierre/theming",
-				"dist/themes.js",
-			),
-			"@pierre/highlights/themes/loader": "/highlights/themes/loader.js",
-		};
-		return ids[source] ? { id: ids[source] } : null;
+		const ids = new Map([
+			["shiki/langs", packageFile("shiki", "dist/langs.mjs")],
+			[
+				"@pierre/theming/themes",
+				packageFile("@pierre/theming", "dist/themes.js"),
+			],
+			["@pierre/highlights/themes/loader", "/highlights/themes/loader.js"],
+		]);
+		const id = ids.get(source);
+		return id ? { id } : null;
 	},
 };
 

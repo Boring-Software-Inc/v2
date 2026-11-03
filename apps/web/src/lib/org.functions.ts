@@ -34,6 +34,18 @@ export type {
 	RedeemResult,
 };
 
+interface OrganizationBody {
+	name: string;
+	slug: string;
+	avatarHue?: number;
+}
+
+interface OrganizationUpdate {
+	name?: string;
+	slug?: string;
+	avatarHue?: number;
+}
+
 /**
  * Org surface (§org-model). Membership/role mutations go through the Better
  * Auth plugin API (its hooks enforce the personal-org + last-admin
@@ -119,14 +131,15 @@ export const createOrg = createServerFn({ method: "POST" })
 		}
 		const { getStartContext } = await import("@tanstack/start-storage-context");
 		try {
+			const body: OrganizationBody = {
+				name: data.name,
+				slug: data.slug,
+			};
+			if (data.avatarHue !== undefined) {
+				body.avatarHue = data.avatarHue;
+			}
 			const org = await auth.api.createOrganization({
-				body: {
-					name: data.name,
-					slug: data.slug,
-					...(data.avatarHue !== undefined
-						? { avatarHue: data.avatarHue }
-						: {}),
-				},
+				body,
 				headers: getStartContext().request.headers,
 			});
 			return { slug: org?.slug ?? data.slug };
@@ -172,16 +185,20 @@ export const updateOrg = createServerFn({ method: "POST" })
 				"@tanstack/start-storage-context"
 			);
 			try {
+				const update: OrganizationUpdate = {};
+				if (data.name !== undefined) {
+					update.name = data.name;
+				}
+				if (data.slug !== undefined) {
+					update.slug = data.slug;
+				}
+				if (data.avatarHue !== undefined) {
+					update.avatarHue = data.avatarHue;
+				}
 				const updated = await auth.api.updateOrganization({
 					body: {
 						organizationId: org.id,
-						data: {
-							...(data.name !== undefined ? { name: data.name } : {}),
-							...(data.slug !== undefined ? { slug: data.slug } : {}),
-							...(data.avatarHue !== undefined
-								? { avatarHue: data.avatarHue }
-								: {}),
-						},
+						data: update,
 					},
 					headers: getStartContext().request.headers,
 				});

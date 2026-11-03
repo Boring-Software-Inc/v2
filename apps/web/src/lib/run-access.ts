@@ -1,8 +1,10 @@
 import {
+	jsonValueSchema,
 	redactEvidence,
 	redactionHides,
 	redactSummary,
 } from "@tripwire/contracts";
+import { z } from "zod";
 import type { JsonValue, RunStepView, RunView } from "#/lib/runs.functions";
 
 /**
@@ -52,8 +54,10 @@ export function isPublicPath(pathname: string): boolean {
 	);
 }
 
+const jsonRecordSchema = z.record(z.string(), jsonValueSchema);
+
 function isJsonRecord(value: JsonValue): value is { [key: string]: JsonValue } {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return jsonRecordSchema.safeParse(value).success;
 }
 
 /**

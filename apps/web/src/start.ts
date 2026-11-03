@@ -84,8 +84,8 @@ const authRequestMiddleware = createMiddleware({ type: "request" }).server(
  */
 const securityHeadersMiddleware = createMiddleware({ type: "request" }).server(
 	async ({ next, request }) => {
-		const response = (await next()) as unknown as Response;
-		if (response && typeof response.headers?.set === "function") {
+		const response = await next();
+		if (response instanceof Response) {
 			const h = response.headers;
 			h.set("X-Content-Type-Options", "nosniff");
 			h.set("X-Frame-Options", "DENY");
@@ -108,7 +108,7 @@ const securityHeadersMiddleware = createMiddleware({ type: "request" }).server(
 				h.set("Cache-Control", "no-cache");
 			}
 		}
-		return response as never;
+		return response;
 	},
 );
 

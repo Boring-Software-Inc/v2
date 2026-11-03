@@ -22,7 +22,11 @@ export type ServerFnClass =
 	| "staff"
 	| `permission:${OrgPermission}`;
 
-export const SERVER_FN_CLASSIFICATION: Record<string, ServerFnClass> = {
+export interface ServerFnClassification {
+	[name: string]: ServerFnClass;
+}
+
+export const SERVER_FN_CLASSIFICATION: ServerFnClassification = {
 	// ── public (deliberately reachable without the beta gate) ───────────
 	getSessionInfo: "public", // feeds the gate, queue screen, unauth
 	getCurrentUser: "public", // caller's OWN identity; no product data

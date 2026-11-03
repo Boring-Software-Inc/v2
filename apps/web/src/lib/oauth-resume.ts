@@ -1,17 +1,24 @@
-const SIGNATURE_KEYS = new Set(["sig", "exp"]);
+import { z } from "zod";
 
-export function oauthAuthorizeResume(
-	search: Record<string, unknown>,
+const SIGNATURE_KEYS = new Set(["sig", "exp"]);
+const oauthResumeSearchSchema = z
+	.record(z.string(), z.unknown())
+	.refine(
+		(search) =>
+			z.string().safeParse(search.client_id).success &&
+			search.response_type === "code" &&
+			search.sig !== undefined,
+	);
+
+export function oauthAuthorizeResume<SearchInput>(
+	search: SearchInput,
 ): string | null {
-	if (
-		typeof search.client_id !== "string" ||
-		search.response_type !== "code" ||
-		search.sig === undefined
-	) {
+	const parsed = oauthResumeSearchSchema.safeParse(search);
+	if (!parsed.success) {
 		return null;
 	}
 	const params = new URLSearchParams();
-	for (const [key, value] of Object.entries(search)) {
+	for (const [key, value] of Object.entries(parsed.data)) {
 		if (
 			SIGNATURE_KEYS.has(key) ||
 			key.startsWith("ba_") ||
