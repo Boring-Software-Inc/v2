@@ -2,12 +2,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { WORKFLOW_PUSH_STATUS_LABELS } from "@tripwire/contracts";
 import { TripwireCodeDiff } from "#/components/code";
+import { MetaRow } from "#/components/common/meta-row";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
-import { MascotArt } from "#/components/mascot/mascot-art";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import {
-	REVIEW_FRAME,
-	ReviewSkeleton,
-} from "#/components/workflows/review/workflow-push-review-page-skeleton";
+	Section,
+	SectionBody,
+	SectionHeader,
+} from "#/components/layouts/section";
+import { MascotArt } from "#/components/mascot/mascot-art";
+import { ReviewSkeleton } from "#/components/workflows/review/workflow-push-review-page-skeleton";
 import { ArrowLeft, Icon } from "#/design-system/icon";
 import { Alert, AlertDescription, AlertTitle } from "#/design-system/ui/alert";
 import { Badge } from "#/design-system/ui/badge";
@@ -17,10 +21,10 @@ import {
 	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
-	EmptyTitle,
 } from "#/design-system/ui/empty-state";
 import { RelativeTime } from "#/design-system/ui/relative-time";
 import { Status, type StatusValue } from "#/design-system/ui/status";
+import { PageTitle } from "#/design-system/ui/typography";
 import {
 	canAccept,
 	canDecide,
@@ -97,10 +101,10 @@ export function WorkflowPushReviewPage() {
 
 function ReviewNotFound({ org, repo }: { org: string; repo: string }) {
 	return (
-		<div className="grid flex-1 place-items-center p-4">
+		<div data-layout-role="workflow-review-not-found">
 			<Empty art={<MascotArt mood="workflow-not-found" />} reason="no-results">
 				<EmptyHeader>
-					<EmptyTitle>Push not found</EmptyTitle>
+					<PageTitle>Push not found</PageTitle>
 					<EmptyDescription>
 						The link is wrong, or your role cannot change workflows here.
 					</EmptyDescription>
@@ -132,53 +136,61 @@ function ReviewBody({ data, busy, failure, onDecide }: ReviewBodyProps) {
 	const { org, repo } = routeApi.useParams();
 	const state = pushReviewState(data.status, data.blocked);
 	return (
-		<div className={REVIEW_FRAME}>
-			<header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-				<div className="flex min-w-0 flex-col gap-1">
-					<h1 className="type-title">Review push</h1>
-					<p className="type-body-sm text-text-2">
-						{data.authorName} pushed {workflowCount(data.workflows.length)} to{" "}
-						{data.repoFullName} <RelativeTime date={data.createdAt} />
-					</p>
-				</div>
-				<Status className="shrink-0" status={STATE_STATUS[state]}>
-					{state === "blocked"
-						? "Blocked"
-						: WORKFLOW_PUSH_STATUS_LABELS[data.status]}
-				</Status>
-			</header>
-			<StateNote data={data} org={org} repo={repo} state={state} />
-			{data.workflows.map((workflow) => (
-				<WorkflowSection key={workflow.id} workflow={workflow} />
-			))}
-			{failure ? (
-				<Alert status="fail">
-					<AlertDescription>{failure}</AlertDescription>
-				</Alert>
-			) : null}
-			{canDecide(state) ? (
-				<footer className="sticky bottom-0 z-(--z-sticky) -mx-3 flex flex-wrap items-center justify-end gap-2 border-line-faint border-t bg-page px-3 py-3 sm:-mx-6 sm:px-6">
-					<p className="me-auto type-body-sm text-text-2">
-						Expires <RelativeTime date={data.expiresAt} format="long" />
-					</p>
-					<Button
-						disabled={busy}
-						onClick={() => onDecide("reject")}
-						size="sm"
-						variant="secondary"
-					>
-						Decline
-					</Button>
-					<Button
-						disabled={busy || !canAccept(state)}
-						onClick={() => onDecide("accept")}
-						size="sm"
-					>
-						Accept changes
-					</Button>
-				</footer>
-			) : null}
-		</div>
+		<Page>
+			<PageHeader
+				actions={
+					<Status status={STATE_STATUS[state]}>
+						{state === "blocked"
+							? "Blocked"
+							: WORKFLOW_PUSH_STATUS_LABELS[data.status]}
+					</Status>
+				}
+				metadata={
+					<MetaRow wrap>
+						<span>{data.authorName}</span>
+						<span>pushed {workflowCount(data.workflows.length)}</span>
+						<span>{data.repoFullName}</span>
+						<RelativeTime date={data.createdAt} />
+					</MetaRow>
+				}
+				title="Review push"
+			/>
+			<PageBody>
+				<StateNote data={data} org={org} repo={repo} state={state} />
+				{data.workflows.map((workflow) => (
+					<WorkflowSection key={workflow.id} workflow={workflow} />
+				))}
+				{failure ? (
+					<Alert status="fail">
+						<AlertDescription>{failure}</AlertDescription>
+					</Alert>
+				) : null}
+				{canDecide(state) ? (
+					<footer data-layout-role="workflow-review-actions">
+						<p>
+							Expires <RelativeTime date={data.expiresAt} format="long" />
+						</p>
+						<div>
+							<Button
+								disabled={busy}
+								onClick={() => onDecide("reject")}
+								size="sm"
+								variant="secondary"
+							>
+								Decline
+							</Button>
+							<Button
+								disabled={busy || !canAccept(state)}
+								onClick={() => onDecide("accept")}
+								size="sm"
+							>
+								Accept changes
+							</Button>
+						</div>
+					</footer>
+				) : null}
+			</PageBody>
+		</Page>
 	);
 }
 
@@ -232,7 +244,7 @@ function StateNote({ data, state, org, repo }: StateNoteProps) {
 						Accepted{data.decidedByName ? ` by ${data.decidedByName}` : ""}
 					</AlertTitle>
 					<AlertDescription>
-						<ul className="flex flex-col gap-1">
+						<ul data-layout-role="workflow-review-outcomes">
 							{data.outcomes.map((outcome) => (
 								<li key={outcome.id}>
 									<Link
@@ -256,33 +268,36 @@ function StateNote({ data, state, org, repo }: StateNoteProps) {
 
 function WorkflowSection({ workflow }: { workflow: PushReviewWorkflow }) {
 	return (
-		<section
-			aria-labelledby={`push-${workflow.id}`}
-			className="flex min-w-0 flex-col gap-3"
-		>
-			<div className="flex flex-wrap items-center gap-2">
-				<h2 className="type-heading-sm" id={`push-${workflow.id}`}>
-					{workflow.name}
-				</h2>
-				<Badge variant={workflow.change === "new" ? "ok" : "neutral"}>
-					{workflow.change === "new" ? "New" : "Changed"}
-				</Badge>
-				{workflow.enabled ? <Badge variant="outline">On</Badge> : null}
-				{workflow.stale ? (
-					<Badge variant="warn">Changed since push</Badge>
-				) : null}
-			</div>
-			<IssueList workflow={workflow} />
-			{workflow.code.kind === "code" ? (
-				<TripwireCodeDiff
-					after={workflow.code.after}
-					before={workflow.code.before}
-					name="tripwire.ts"
-				/>
-			) : (
-				<p className="type-body-sm text-text-2">{workflow.code.reason}</p>
-			)}
-		</section>
+		<Section id={`push-${workflow.id}`}>
+			<SectionHeader
+				actions={
+					<>
+						<Badge variant={workflow.change === "new" ? "ok" : "neutral"}>
+							{workflow.change === "new" ? "New" : "Changed"}
+						</Badge>
+						{workflow.enabled ? <Badge variant="outline">On</Badge> : null}
+						{workflow.stale ? (
+							<Badge variant="warn">Changed since push</Badge>
+						) : null}
+					</>
+				}
+				title={workflow.name}
+			/>
+			<SectionBody>
+				<IssueList workflow={workflow} />
+				{workflow.code.kind === "code" ? (
+					<TripwireCodeDiff
+						after={workflow.code.after}
+						before={workflow.code.before}
+						name="tripwire.ts"
+					/>
+				) : (
+					<p data-layout-role="workflow-review-code-note">
+						{workflow.code.reason}
+					</p>
+				)}
+			</SectionBody>
+		</Section>
 	);
 }
 
@@ -308,7 +323,7 @@ function IssueList({ workflow }: { workflow: PushReviewWorkflow }) {
 		return null;
 	}
 	return (
-		<ul className="flex flex-col gap-1">
+		<ul data-layout-role="workflow-review-issues">
 			{rows.map((row) => (
 				<li key={row.key}>
 					<Status status={row.status}>{row.text}</Status>

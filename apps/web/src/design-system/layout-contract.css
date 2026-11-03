@@ -315,3 +315,80 @@
 	color: var(--tw-content-secondary);
 	font: var(--type-body-sm);
 }
+
+[data-layout-role="workflow-review-not-found"] {
+	display: grid;
+	flex: 1;
+	place-items: center;
+	padding: var(--space-4);
+}
+
+[data-layout-role="workflow-review-outcomes"],
+[data-layout-role="workflow-review-issues"],
+[data-layout-role="workflow-review-skeleton-section"] {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-1);
+	min-inline-size: 0;
+}
+
+[data-layout-role="workflow-review-outcomes"] li,
+[data-layout-role="workflow-review-issues"] li,
+[data-layout-role="workflow-review-code-note"] {
+	overflow-wrap: anywhere;
+}
+
+[data-layout-role="workflow-review-code-note"] {
+	color: var(--tw-content-secondary);
+	font: var(--type-body-sm);
+}
+
+[data-layout-role="workflow-review-actions"] {
+	position: sticky;
+	z-index: var(--z-sticky);
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+	padding-block: var(--space-3);
+	background-color: var(--tw-surface-page);
+	border-block-start: var(--line-width) solid var(--tw-boundary-subtle);
+}
+
+[data-layout-role="workflow-review-actions"] > p {
+	margin-inline-end: auto;
+	color: var(--tw-content-secondary);
+	font: var(--type-body-sm);
+}
+
+[data-layout-role="workflow-review-actions"] > div {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+}
+
+[data-layout-role="workflow-review-skeleton-section"] {
+	gap: var(--space-3);
+}
+
+[data-layout-role="workflow-review-skeleton-metadata"] {
+	inline-size: min(100%, calc(var(--space-1) * 72));
+}
+
+[data-layout-role="workflow-review-skeleton-title"] {
+	inline-size: calc(var(--space-1) * 32);
+}
+
+[data-layout-role="workflow-review-skeleton-diff"] {
+	inline-size: 100%;
+	block-size: calc(var(--space-1) * 72);
+	border-radius: var(--radius-panel);
+}
+
+[data-layout-role="workflow-review-skeleton-diff"] > [data-slot="skeleton"] {
+	inline-size: 100%;
+	block-size: 100%;
+	border-radius: inherit;
+}
