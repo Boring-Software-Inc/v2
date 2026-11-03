@@ -1,0 +1,20 @@
+.design-system/decisions.tsv
+  h_3279d55133f19f 4-7
+.design-system/roles.md
+  h_3279d55133f19f 1-29
+.design-system/taste.md
+  h_3279d55133f19f 1-61
+plans/route-redesign-and-deslop.md
+  h_3279d55133f19f 1-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3fbde42d3f9541e7bec4bebb1c41698b9e0fa5da",
+  "prompts": {},
+  "humans": {
+    "h_3279d55133f19f": {
+      "author": "grim <75869731+ripgrim@users.noreply.github.com>"
+    }
+  }
+}
