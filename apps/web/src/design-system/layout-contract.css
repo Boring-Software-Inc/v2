@@ -420,31 +420,38 @@
 	padding: var(--space-4);
 }
 
-[data-layout-role="workflow-editor-back-link"],
-[data-layout-role="workflow-editor-header-back"] {
+[data-layout-role="workflow-editor-recovery-link"],
+[data-layout-role="workflow-editor-identity"]
+	> [data-layout-role="history-back-control"] {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	gap: var(--space-1);
 	min-block-size: calc(var(--space-1) * 11);
 	padding-inline: var(--space-2);
+	background-color: transparent;
+	border: 0;
 	border-radius: var(--radius-pill);
+	cursor: pointer;
 	color: var(--tw-content-primary);
 	font: var(--type-label-sm);
 	text-decoration: none;
 }
 
-[data-layout-role="workflow-editor-back-link"]:hover,
-[data-layout-role="workflow-editor-header-back"]:hover {
+[data-layout-role="workflow-editor-recovery-link"]:hover,
+[data-layout-role="workflow-editor-identity"]
+	> [data-layout-role="history-back-control"]:hover {
 	background-color: var(--tw-interaction-hover);
 }
 
-[data-layout-role="workflow-editor-header-back"] {
+[data-layout-role="workflow-editor-identity"]
+	> [data-layout-role="history-back-control"] {
 	min-inline-size: calc(var(--space-1) * 11);
 }
 
-[data-layout-role="workflow-editor-header-back"] svg,
-[data-layout-role="workflow-editor-back-link"] svg {
+[data-layout-role="workflow-editor-identity"]
+	> [data-layout-role="history-back-control"]
+	svg {
 	inline-size: var(--icon-sm);
 	block-size: var(--icon-sm);
 }
@@ -516,6 +523,19 @@
 }
 
 [data-layout-role="workflow-editor-protection-note"] {
+	flex-basis: 100%;
+}
+
+[data-layout-role="rules-replay-header"] {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: var(--space-4);
+}
+
+[data-layout-role="rules-replay-header"]
+	> [data-layout-role="page-navigation"] {
 	flex-basis: 100%;
 }
 
@@ -683,12 +703,14 @@
 		min-block-size: calc(100dvh - 5.5rem);
 	}
 
-	[data-layout-role="workflow-editor-header-back"] {
+	[data-layout-role="workflow-editor-identity"]
+		> [data-layout-role="history-back-control"] {
 		inline-size: calc(var(--space-1) * 11);
 		padding-inline: 0;
 	}
 
-	[data-layout-role="workflow-editor-back-label"] {
+	[data-layout-role="workflow-editor-identity"]
+		[data-layout-role="history-back-label"] {
 		display: none;
 	}
 

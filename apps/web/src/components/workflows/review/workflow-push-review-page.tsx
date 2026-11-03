@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { WORKFLOW_PUSH_STATUS_LABELS } from "@tripwire/contracts";
 import { TripwireCodeDiff } from "#/components/code";
+import {
+	HistoryBackControl,
+	useCanGoBack,
+} from "#/components/common/history-back-control";
 import { MetaRow } from "#/components/common/meta-row";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
@@ -12,7 +16,6 @@ import {
 } from "#/components/layouts/section";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { ReviewSkeleton } from "#/components/workflows/review/workflow-push-review-page-skeleton";
-import { ArrowLeft, Icon } from "#/design-system/icon";
 import { Alert, AlertDescription, AlertTitle } from "#/design-system/ui/alert";
 import { Badge } from "#/design-system/ui/badge";
 import { Button } from "#/design-system/ui/button";
@@ -116,8 +119,7 @@ function ReviewNotFound({ org, repo }: { org: string; repo: string }) {
 						size="sm"
 						variant="secondary"
 					>
-						<Icon icon={ArrowLeft} />
-						Back to workflows
+						View workflows
 					</Button>
 				</EmptyContent>
 			</Empty>
@@ -134,6 +136,7 @@ interface ReviewBodyProps {
 
 function ReviewBody({ data, busy, failure, onDecide }: ReviewBodyProps) {
 	const { org, repo } = routeApi.useParams();
+	const canGoBack = useCanGoBack();
 	const state = pushReviewState(data.status, data.blocked);
 	return (
 		<Page>
@@ -145,6 +148,7 @@ function ReviewBody({ data, busy, failure, onDecide }: ReviewBodyProps) {
 							: WORKFLOW_PUSH_STATUS_LABELS[data.status]}
 					</Status>
 				}
+				navigation={canGoBack ? <HistoryBackControl /> : undefined}
 				metadata={
 					<MetaRow wrap>
 						<span>{data.authorName}</span>

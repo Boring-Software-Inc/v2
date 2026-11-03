@@ -26,7 +26,7 @@
   - button "Poke the ghost"
   - heading "Workflow not found" [level=1]
   - paragraph: Someone may have deleted it, or the link is out of date.
-  - link "Back to workflows":
+  - link "View workflows":
     - /url: /dev-owner/active-webapp/workflows
 - navigation "Open repos":
   - link "dev-owner/active-webapp":

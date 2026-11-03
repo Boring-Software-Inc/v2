@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import {
 	FORGE_BY_ID,
 	type Forge,
@@ -6,9 +5,10 @@ import {
 	type WorkflowDefinition,
 } from "@tripwire/contracts";
 import { type ReactNode, useId, useState } from "react";
+import { HistoryBackControl } from "#/components/common/history-back-control";
 import { CopyWorkflowButton } from "#/components/workflows/editor/copy-workflow-button";
 import type { Problem } from "#/components/workflows/editor/node-issues";
-import { ArrowLeft, Edit, Icon, More } from "#/design-system/icon";
+import { Edit, Icon, More } from "#/design-system/icon";
 import { Badge } from "#/design-system/ui/badge";
 import { Button } from "#/design-system/ui/button";
 import {
@@ -40,8 +40,6 @@ import {
 
 export interface EditorHeaderProps {
 	forge: Forge;
-	org: string;
-	repo: string;
 	name: string;
 	/** The loaded (secret-redacted) definition — for the copy-markdown action. */
 	definition: WorkflowDefinition;
@@ -67,8 +65,6 @@ export interface EditorHeaderProps {
 
 export function EditorHeader({
 	forge,
-	org,
-	repo,
 	name,
 	definition,
 	customRules,
@@ -164,16 +160,7 @@ export function EditorHeader({
 			data-layout-role="workflow-editor-header"
 		>
 			<div data-layout-role="workflow-editor-identity">
-				<Link
-					activeOptions={{ exact: true }}
-					aria-label="Back to workflows"
-					data-layout-role="workflow-editor-header-back"
-					params={{ org, repo }}
-					to="/$org/$repo/workflows"
-				>
-					<Icon icon={ArrowLeft} />
-					<span data-layout-role="workflow-editor-back-label">Workflows</span>
-				</Link>
+				<HistoryBackControl />
 				{readOnly ? (
 					<span data-layout-role="workflow-editor-name">{name}</span>
 				) : renaming ? (

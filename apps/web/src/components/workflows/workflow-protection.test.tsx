@@ -156,8 +156,6 @@ describe("workflow activation follows the loaded repository capability", () => {
 				component: () => (
 					<EditorHeader
 						forge="gitcafe"
-						org="team"
-						repo="scratch"
 						name="Check contributions"
 						definition={DEFAULT_WORKFLOW}
 						customRules={[]}

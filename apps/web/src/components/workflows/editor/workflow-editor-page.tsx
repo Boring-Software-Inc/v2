@@ -8,7 +8,6 @@ import { DraftActions } from "#/components/workflows/draft-actions";
 import { AgentWorkContext } from "#/components/workflows/editor/agent-work-context";
 import { WorkflowEditor } from "#/components/workflows/editor/workflow-editor";
 import { EditorFrameSkeleton } from "#/components/workflows/editor/workflow-editor-page-skeleton";
-import { ArrowLeft, Icon } from "#/design-system/icon";
 import { Badge } from "#/design-system/ui/badge";
 import {
 	Empty,
@@ -114,13 +113,11 @@ export function WorkflowEditorPage() {
 					</EmptyHeader>
 					<EmptyContent>
 						<Link
-							aria-label="Back to workflows"
-							data-layout-role="workflow-editor-back-link"
+							data-layout-role="workflow-editor-recovery-link"
 							params={{ org, repo }}
 							to="/$org/$repo/workflows"
 						>
-							<Icon icon={ArrowLeft} />
-							Back to workflows
+							View workflows
 						</Link>
 					</EmptyContent>
 				</Empty>

@@ -23,11 +23,12 @@ Verified against the disposable dev scenarios on `localhost:3001`:
 - Owner, populated canvas and code view at 390px with no document-level horizontal overflow.
 - Narrow action menu in canvas mode: activation, auto-arrange, and Markdown copy.
 - Narrow action menu in code mode: activation.
+- Contextual back control appears after navigation from the workflow collection, returns to that exact entry, and remains absent on a direct editor entry.
 - Member/read-only editor: read-only badge present; save and rename controls absent.
 - Invalid workflow: `2 to fix` problem panel opens and exposes both blocking fixes.
 - Unsaved graph change: save becomes available and back navigation opens the leave-without-saving alert dialog.
 - Save pending state: `Saving` appeared and the save action returned to disabled after completion.
-- Route not found: semantic level-one heading and scoped `/dev-owner/active-webapp/workflows` back link.
+- Route not found: semantic level-one heading and scoped `/dev-owner/active-webapp/workflows` recovery link without implying browser history.
 - Loading frame: editor skeleton is visible before the resolved editor mounts.
 
 The current editor implementation does not expose a distinct save-conflict UI state; the inventory's generic `conflict` entry was not fabricated for this migration.
@@ -51,6 +52,7 @@ The remaining diagnostics are concentrated in node cards, sidebar/property edito
 - `loading-390.png`
 - `editor-1280.png` and `editor-1280.aria.yml`
 - `editor-390.png` and `editor-390.aria.yml`
+- `history-back-390.png` and `history-back-390.aria.yml`
 - `code-390.png`
 - `member-390.png` and `member-390.aria.yml`
 - `issues-1280.png`

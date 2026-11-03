@@ -3,6 +3,10 @@ import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { BACKFILL_RUN_LABEL, FORGE_BY_ID } from "@tripwire/contracts";
 import { useMemo, useState } from "react";
 import { ForgeMark } from "#/components/common/forge-marks";
+import {
+	HistoryBackControl,
+	useCanGoBack,
+} from "#/components/common/history-back-control";
 import { MetaRow } from "#/components/common/meta-row";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
 import { Page, PageBody, PageHeader } from "#/components/layouts/page";
@@ -10,7 +14,7 @@ import { MascotArt } from "#/components/mascot/mascot-art";
 import { RunChainView, RunStatusMark } from "#/components/runs/run-chain";
 import { RunPageSkeleton } from "#/components/runs/run-page-skeleton";
 import { ZonedTime, ZoneOrgScope } from "#/components/timezones/zoned-time";
-import { ArrowLeft, GithubMark, Icon, Retry } from "#/design-system/icon";
+import { GithubMark, Icon, Retry } from "#/design-system/icon";
 import { Button } from "#/design-system/ui/button";
 import { CopyButton } from "#/design-system/ui/copy-button";
 import {
@@ -117,6 +121,7 @@ export function RunPage() {
 }
 
 function RunBody({ run }: { run: RunView }) {
+	const canGoBack = useCanGoBack();
 	const chain = useMemo(
 		() =>
 			buildRunChain(run, mergeLiveSteps(run.status, run.snapshot, run.steps)),
@@ -151,17 +156,7 @@ function RunBody({ run }: { run: RunView }) {
 							) : null}
 						</>
 					}
-					navigation={
-						run.access === "full" && run.orgSlug && run.repoName ? (
-							<Link
-								params={{ org: run.orgSlug, repo: run.repoName }}
-								to="/$org/$repo/activity"
-							>
-								<Icon icon={ArrowLeft} />
-								Back to activity
-							</Link>
-						) : undefined
-					}
+					navigation={canGoBack ? <HistoryBackControl /> : undefined}
 					metadata={
 						<MetaRow wrap>
 							<RunStatusMark outcome={chain.outcome} />

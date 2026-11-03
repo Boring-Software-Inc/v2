@@ -1506,9 +1506,7 @@ function EditorBody({
 				onSave={handleSave}
 				onSetEnabled={handleSetEnabled}
 				onShowProblems={() => setProblemsOpen(true)}
-				org={org}
 				readOnly={readOnly}
-				repo={repo}
 				saving={saving}
 				toggling={toggling}
 				zeroNodes={nodes.length === 0}

@@ -1,4 +1,8 @@
 import type { ReactNode } from "react";
+import {
+	HistoryBackControl,
+	useCanGoBack,
+} from "#/components/common/history-back-control";
 import { PageHeader } from "#/components/layouts/page";
 import {
 	Section,
@@ -37,7 +41,14 @@ export function SettingsHeader({
 	title: string;
 	children?: ReactNode;
 }) {
-	return <PageHeader actions={children} title={title} />;
+	const canGoBack = useCanGoBack();
+	return (
+		<PageHeader
+			actions={children}
+			navigation={canGoBack ? <HistoryBackControl /> : undefined}
+			title={title}
+		/>
+	);
 }
 
 export function SettingsSection({

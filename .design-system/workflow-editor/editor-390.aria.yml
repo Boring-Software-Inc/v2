@@ -23,8 +23,6 @@
   - link "Analytics":
     - /url: /dev-owner/active-webapp/analytics
 - main:
-  - link "Back to workflows":
-    - /url: /dev-owner/active-webapp/workflows
   - 'button "Rename rule: Account age"': "rule: Account age"
   - radiogroup "Workflow view":
     - radio "Canvas" [checked]
@@ -55,7 +53,7 @@
   - status
 - navigation "Open repos":
   - link "dev-owner/active-webapp":
-    - /url: /dev-owner/active-webapp/workflows/01a1a0b2-d47b-7302-9ca4-dd1d0f8927a1
+    - /url: /dev-owner/active-webapp/workflows/01a1a0c0-a0bc-7719-9f7f-f1ed7a9a8f67
   - button "Close dev-owner/active-webapp tab"
 - button "Dev"
 - region "Notifications"

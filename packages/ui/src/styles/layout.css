@@ -48,24 +48,27 @@
 	margin-block-end: var(--space-2);
 }
 
-[data-layout-role="page-navigation"] > a {
+[data-layout-role="page-navigation"] > :is(a, button) {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	gap: var(--space-1);
 	min-block-size: calc(var(--space-1) * 11);
 	padding-inline: var(--space-2);
+	background-color: transparent;
+	border: 0;
 	border-radius: var(--radius-pill);
+	cursor: pointer;
 	color: var(--tw-content-primary);
 	font: var(--type-label-sm);
 	text-decoration: none;
 }
 
-[data-layout-role="page-navigation"] > a:hover {
+[data-layout-role="page-navigation"] > :is(a, button):hover {
 	background-color: var(--tw-interaction-hover);
 }
 
-[data-layout-role="page-navigation"] > a svg {
+[data-layout-role="page-navigation"] > :is(a, button) svg {
 	inline-size: var(--icon-sm);
 	block-size: var(--icon-sm);
 }
