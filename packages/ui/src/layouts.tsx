@@ -8,6 +8,7 @@ import { PageTitle, SectionHeading, SupportingText } from "./typography";
 
 interface PageProps {
 	children: ReactNode;
+	purpose?: "overview" | "task";
 }
 
 interface PageHeaderProps {
@@ -53,8 +54,12 @@ function useSectionContext() {
 	return context;
 }
 
-export function Page({ children }: PageProps) {
-	return <div data-layout-role="page">{children}</div>;
+export function Page({ children, purpose = "overview" }: PageProps) {
+	return (
+		<div data-layout-purpose={purpose} data-layout-role="page">
+			{children}
+		</div>
+	);
 }
 
 export function PageHeader({ title, description, actions }: PageHeaderProps) {

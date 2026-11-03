@@ -1,4 +1,5 @@
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageHeader } from "#/components/layouts/page";
 import { Icon, Pending } from "#/design-system/icon";
 import { useSlowWait } from "#/design-system/ui/slow-notice";
 
@@ -17,13 +18,9 @@ export function HomeLoading() {
 export function OrgHomePageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<h1 className="type-title">Home</h1>
-					</header>
-				</div>
-			</div>
+			<Page purpose="task">
+				<PageHeader title="Home" />
+			</Page>
 		</DashboardLayout>
 	);
 }

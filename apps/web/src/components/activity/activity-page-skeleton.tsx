@@ -1,4 +1,5 @@
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody } from "#/components/layouts/page";
 import { Card, CardContent, CardHeader } from "#/design-system/ui/card";
 import {
 	Item,
@@ -57,16 +58,18 @@ export function ActivityListSkeleton() {
 export function ActivityPageSkeleton() {
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<header className="flex flex-col gap-1">
+			<Page purpose="task">
+				<header data-layout-role="page-header">
+					<div>
 						<SkeletonText className="w-28" type="heading" />
 						<SkeletonText className="w-80" type="body" />
-					</header>
+					</div>
+				</header>
+				<PageBody>
 					<Skeleton className="h-(--control-sm) w-80 max-w-full rounded-pill" />
 					<ActivityListSkeleton />
-				</div>
-			</div>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }

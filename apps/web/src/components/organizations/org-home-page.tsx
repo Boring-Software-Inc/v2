@@ -9,6 +9,12 @@ import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
 import { ConnectForgeDialog } from "#/components/forges/connect-forge-dialog";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
+import {
+	Section,
+	SectionBody,
+	SectionHeader,
+} from "#/components/layouts/section";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { ApprovedInstallBanner } from "#/components/organizations/approved-install-banner";
 import { FirstWeekDigest } from "#/components/organizations/first-week-digest";
@@ -64,25 +70,18 @@ export function OrgHomePage() {
 
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div
-					className={`mx-auto flex w-full ${showDigest ? "max-w-160" : "max-w-3xl"} flex-col gap-6`}
-				>
-					{!showDigest ? (
-						<header className="flex flex-col gap-1">
-							<h1 className="type-title">Home</h1>
-							{repos.length > 0 ? (
-								<p className="type-body text-text-2">
-									Across this org's repos,{" "}
-									<span className="text-text-1 tabular-nums">{awaiting}</span>{" "}
-									to review and{" "}
-									<span className="text-text-1 tabular-nums">{blocked}</span>{" "}
-									blocked in the last 24 hours.
-								</p>
-							) : null}
-						</header>
-					) : null}
-
+			<Page purpose="task">
+				{!showDigest ? (
+					<PageHeader
+						description={
+							repos.length > 0
+								? `Across this org's repos, ${awaiting} to review and ${blocked} blocked in the last 24 hours.`
+								: undefined
+						}
+						title="Home"
+					/>
+				) : null}
+				<PageBody>
 					<ApprovedInstallBanner />
 
 					{home && canSetUp ? (
@@ -100,44 +99,41 @@ export function OrgHomePage() {
 					{home && !home.hasInstallation ? (
 						<InstallCta org={org} />
 					) : (
-						<section
-							aria-labelledby="connected-repos-title"
-							className="flex min-w-0 flex-col gap-3"
-						>
-							<h2 className="type-heading" id="connected-repos-title">
-								Connected repos
-							</h2>
-							<Collection
-								collection={collection}
-								empty={<NoReposYet org={org} />}
-								error={homeQuery.isError}
-								onRetry={async () => {
-									await homeQuery.refetch({ throwOnError: true });
-								}}
-								skeleton={<HomeLoading />}
-							>
-								{(rows) => (
-									<section
-										aria-label="Connected repo list"
-										className="flex max-h-128 flex-col gap-3 overflow-y-auto overscroll-contain rounded-shell p-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-1"
-									>
-										<ul
-											aria-label="Connected repos"
-											className="flex flex-col gap-3"
+						<Section id="connected-repos">
+							<SectionHeader title="Connected repos" />
+							<SectionBody>
+								<Collection
+									collection={collection}
+									empty={<NoReposYet org={org} />}
+									error={homeQuery.isError}
+									onRetry={async () => {
+										await homeQuery.refetch({ throwOnError: true });
+									}}
+									skeleton={<HomeLoading />}
+								>
+									{(rows) => (
+										<section
+											aria-label="Connected repo list"
+											data-layout-role="repo-list-scroll"
 										>
-											{rows.map((repo) => (
-												<li key={repo.id}>
-													<RepoCard org={org} repo={repo} />
-												</li>
-											))}
-										</ul>
-									</section>
-								)}
-							</Collection>
-						</section>
+											<ul
+												aria-label="Connected repos"
+												data-layout-role="repo-list"
+											>
+												{rows.map((repo) => (
+													<li key={repo.id}>
+														<RepoCard org={org} repo={repo} />
+													</li>
+												))}
+											</ul>
+										</section>
+									)}
+								</Collection>
+							</SectionBody>
+						</Section>
 					)}
-				</div>
-			</div>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }

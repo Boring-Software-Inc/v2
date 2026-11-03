@@ -1,0 +1,613 @@
+- main:
+  - heading "Activity" [level=1]
+  - paragraph: Filter by verdict. Open a change request to see its checks.
+  - search "Activity filters":
+    - radiogroup "Filter by verdict":
+      - radio "All" [checked]
+      - radio "Blocked"
+      - radio "Changes needed"
+      - radio "Human review"
+      - radio "Passed"
+      - radio "Not checked"
+      - radio "Closed"
+    - 'button "Date: Any date"': Any date
+  - 'link "#2530 fix: debounce the file watcher"':
+    - /url: /runs/01a1a042-b03b-7670-bbb6-cb3c788e1349
+  - text: contributor-11 tripwire-demo/solo-webapp
+  - time: 8:00 PM PST
+  - text: Passed
+  - 'link "Open #2530 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2530
+  - 'list "Timeline of #2530"':
+    - listitem:
+      - link "contributor-11 opened":
+        - /url: /runs/01a1a042-b03b-7670-bbb6-cb3c788e1349
+      - img "Passed"
+  - link "#2532 import upstream wholesale":
+    - /url: /runs/01a1a042-b03b-7a79-9a9f-03eaf5851aa0
+  - text: contributor-10 tripwire-demo/solo-webapp
+  - time: 6:42 PM PST
+  - text: Blocked
+  - 'link "Open #2532 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2532
+  - 'list "Timeline of #2532"':
+    - listitem:
+      - link "contributor-10 opened this change touches 201 files":
+        - /url: /runs/01a1a042-b03b-7a79-9a9f-03eaf5851aa0
+      - img "Blocked"
+  - link "#2529 great project!! merge":
+    - /url: /runs/01a1a042-b03b-70ec-97bd-684000b1d7ef
+  - text: drive-by tripwire-demo/solo-webapp
+  - time: 6:01 PM PST
+  - text: Blocked
+  - 'link "Open #2529 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2529
+  - 'list "Timeline of #2529"':
+    - listitem:
+      - link "drive-by opened your account is 6 days old":
+        - /url: /runs/01a1a042-b03b-70ec-97bd-684000b1d7ef
+      - img "Blocked"
+  - link "#2536 import upstream wholesale":
+    - /url: /runs/01a1a042-b03b-7f47-84f8-9d37e9a0b291
+  - text: contributor-2 tripwire-demo/solo-webapp
+  - time: 5:35 PM PST
+  - text: Blocked
+  - 'link "Open #2536 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2536
+  - 'list "Timeline of #2536"':
+    - listitem:
+      - link "contributor-2 opened your account is 3 days old":
+        - /url: /runs/01a1a042-b03b-7f47-84f8-9d37e9a0b291
+      - img "Blocked"
+  - link "#2531 support crypto tips":
+    - /url: /runs/01a1a042-b03b-729f-ac55-6597dcf5a841
+  - text: rug-puller tripwire-demo/solo-webapp
+  - time: 5:07 PM PST
+  - text: Blocked
+  - 'link "Open #2531 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2531
+  - 'list "Timeline of #2531"':
+    - listitem:
+      - link "rug-puller opened workflow change exfiltrates an npm token and disables the origin allowlist.":
+        - /url: /runs/01a1a042-b03b-729f-ac55-6597dcf5a841
+      - img "Blocked"
+  - link "#2534 actualizar la configuración":
+    - /url: /runs/01a1a042-b03b-7093-9df5-f5d75d28115a
+  - text: contributor-12 tripwire-demo/solo-webapp
+  - time: 3:20 PM PST
+  - text: Blocked
+  - 'link "Open #2534 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2534
+  - 'list "Timeline of #2534"':
+    - listitem:
+      - link "contributor-12 opened the title isn't in latin script":
+        - /url: /runs/01a1a042-b03b-7093-9df5-f5d75d28115a
+      - img "Blocked"
+  - link "#2538 add 400 generated files":
+    - /url: /runs/01a1a042-b03b-730d-806d-3a0575136889
+  - text: new-here tripwire-demo/solo-webapp
+  - time: 3:20 PM PST
+  - text: Blocked
+  - 'link "Open #2538 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2538
+  - 'list "Timeline of #2538"':
+    - listitem:
+      - link "new-here opened your account is 3 days old":
+        - /url: /runs/01a1a042-b03b-730d-806d-3a0575136889
+      - img "Blocked"
+  - link "#2526 import upstream wholesale":
+    - /url: /runs/01a1a042-b03b-7ad1-a1f9-f9afba9111bb
+  - text: contributor-14 tripwire-demo/solo-webapp
+  - time: 2:46 PM PST
+  - text: Blocked
+  - 'link "Open #2526 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2526
+  - 'list "Timeline of #2526"':
+    - listitem:
+      - link "contributor-14 opened adds a postinstall script that curls and pipes a remote payload.":
+        - /url: /runs/01a1a042-b03b-7ad1-a1f9-f9afba9111bb
+      - img "Blocked"
+  - link "#2533 large refactor of the core engine":
+    - /url: /runs/01a1a042-b03b-75a3-b42d-8b90e2c0b499
+  - text: contributor-1 tripwire-demo/solo-webapp
+  - time: 2:42 PM PST
+  - text: Human review
+  - 'link "Open #2533 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2533
+  - 'list "Timeline of #2533"':
+    - listitem:
+      - link "contributor-1 opened broad dependency bump touches auth; worth a human glance.":
+        - /url: /runs/01a1a042-b03b-75a3-b42d-8b90e2c0b499
+      - img "Human review"
+  - link "#2539 add donation wallet to README":
+    - /url: /runs/01a1a042-b03b-70d6-86eb-e27aca9a84aa
+  - text: free-nft-99 tripwire-demo/solo-webapp
+  - time: 2:31 PM PST
+  - text: Blocked
+  - 'link "Open #2539 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2539
+  - 'list "Timeline of #2539"':
+    - listitem:
+      - link "free-nft-99 opened adds a postinstall script that curls and pipes a remote payload.":
+        - /url: /runs/01a1a042-b03b-70d6-86eb-e27aca9a84aa
+      - img "Blocked"
+  - link "#2525 actualizar la configuración":
+    - /url: /runs/01a1a042-b03b-7251-8be3-eee56cfa647c
+  - text: contributor-7 tripwire-demo/solo-webapp
+  - time: 1:17 PM PST
+  - text: Blocked
+  - 'link "Open #2525 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2525
+  - 'list "Timeline of #2525"':
+    - listitem:
+      - link "contributor-7 opened your account is 0 days old":
+        - /url: /runs/01a1a042-b03b-7251-8be3-eee56cfa647c
+      - img "Blocked"
+  - link "#2527 actualizar la configuración":
+    - /url: /runs/01a1a042-b03b-75de-8b77-e4a2801921e2
+  - text: contributor-10 tripwire-demo/solo-webapp
+  - time: 1:08 PM PST
+  - text: Blocked
+  - 'link "Open #2527 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2527
+  - 'list "Timeline of #2527"':
+    - listitem:
+      - link "contributor-10 opened the title isn't in latin script":
+        - /url: /runs/01a1a042-b03b-75de-8b77-e4a2801921e2
+      - img "Blocked"
+  - 'link "#2535 perf: memoize the rule registry"':
+    - /url: /runs/01a1a042-b03b-72a9-9319-4dfd8fb6a952
+  - text: james-g tripwire-demo/solo-webapp
+  - time: 12:30 PM PST
+  - text: Passed
+  - 'link "Open #2535 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2535
+  - 'list "Timeline of #2535"':
+    - listitem:
+      - link "james-g opened":
+        - /url: /runs/01a1a042-b03b-72a9-9319-4dfd8fb6a952
+      - img "Passed"
+  - 'link "#2540 refactor: extract the config loader"':
+    - /url: /runs/01a1a042-b03c-7d61-997d-20ddaa8f6904
+  - text: contributor-15 tripwire-demo/solo-webapp
+  - time: 12:11 PM PST
+  - text: Passed
+  - 'link "Open #2540 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2540
+  - 'list "Timeline of #2540"':
+    - listitem:
+      - link "contributor-15 opened":
+        - /url: /runs/01a1a042-b03c-7d61-997d-20ddaa8f6904
+      - img "Passed"
+  - 'link "#2541 fix: off-by-one in pagination"':
+    - /url: /runs/01a1a042-b03c-75ea-9d1d-0ab1820b410f
+  - text: margaret-j tripwire-demo/solo-webapp
+  - time: 8:43 AM PST
+  - text: Passed
+  - 'link "Open #2541 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2541
+  - 'list "Timeline of #2541"':
+    - listitem:
+      - link "margaret-j opened":
+        - /url: /runs/01a1a042-b03c-75ea-9d1d-0ab1820b410f
+      - img "Passed"
+  - 'link "#2528 chore: bump dependencies"':
+    - /url: /runs/01a1a042-b03b-750d-965c-2b1abf37ec26
+  - text: alan-k tripwire-demo/solo-webapp
+  - time: 8:39 AM PST
+  - text: Passed
+  - 'link "Open #2528 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2528
+  - 'list "Timeline of #2528"':
+    - listitem:
+      - link "alan-k opened":
+        - /url: /runs/01a1a042-b03b-750d-965c-2b1abf37ec26
+      - img "Passed"
+  - link "#2537 import upstream wholesale":
+    - /url: /runs/01a1a042-b03b-7bcc-a9f8-3695b74aae62
+  - text: contributor-7 tripwire-demo/solo-webapp
+  - time: 8:00 AM PST
+  - text: Blocked
+  - 'link "Open #2537 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2537
+  - 'list "Timeline of #2537"':
+    - listitem:
+      - link "contributor-7 opened this change touches 240 files":
+        - /url: /runs/01a1a042-b03b-7bcc-a9f8-3695b74aae62
+      - img "Blocked"
+  - 'link "#2514 docs: document the rule catalog"':
+    - /url: /runs/01a1a042-b03a-78c6-9d92-6261376fdf4d
+  - text: guido-v tripwire-demo/solo-webapp
+  - time: Nov 1, 10:44 PM PST
+  - text: Passed
+  - 'link "Open #2514 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2514
+  - 'list "Timeline of #2514"':
+    - listitem:
+      - link "guido-v opened":
+        - /url: /runs/01a1a042-b03a-78c6-9d92-6261376fdf4d
+      - img "Passed"
+  - 'link "#2515 chore: drop the unused polyfill"':
+    - /url: /runs/01a1a042-b03a-745e-90f6-7a995758f027
+  - text: contributor-22 tripwire-demo/solo-webapp
+  - time: Nov 1, 9:32 PM PST
+  - text: Passed
+  - 'link "Open #2515 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2515
+  - 'list "Timeline of #2515"':
+    - listitem:
+      - link "contributor-22 opened":
+        - /url: /runs/01a1a042-b03a-745e-90f6-7a995758f027
+      - img "Passed"
+  - link "#2512 update CI workflow":
+    - /url: /runs/01a1a042-b03a-7c85-93f0-e2f8a3f4106a
+  - text: day-one tripwire-demo/solo-webapp
+  - time: Nov 1, 9:28 PM PST
+  - text: Blocked
+  - 'link "Open #2512 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2512
+  - 'list "Timeline of #2512"':
+    - listitem:
+      - link "day-one opened your account is 2 days old":
+        - /url: /runs/01a1a042-b03a-7c85-93f0-e2f8a3f4106a
+      - img "Blocked"
+  - 'link "#2524 chore: bump dependencies"':
+    - /url: /runs/01a1a042-b03b-77b1-8a8a-950dea4cba3a
+  - text: edsger-d tripwire-demo/solo-webapp
+  - time: Nov 1, 7:59 PM PST
+  - text: Passed
+  - 'link "Open #2524 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2524
+  - 'list "Timeline of #2524"':
+    - listitem:
+      - link "edsger-d opened":
+        - /url: /runs/01a1a042-b03b-77b1-8a8a-950dea4cba3a
+      - img "Passed"
+  - link "#2518 great project!! merge":
+    - /url: /runs/01a1a042-b03a-7b1c-b608-b386ebcb0708
+  - text: drive-by tripwire-demo/solo-webapp
+  - time: Nov 1, 7:21 PM PST
+  - text: Blocked
+  - 'link "Open #2518 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2518
+  - 'list "Timeline of #2518"':
+    - listitem:
+      - link "drive-by opened your account is 5 days old":
+        - /url: /runs/01a1a042-b03a-7b1c-b608-b386ebcb0708
+      - img "Blocked"
+  - link "#2520 actualizar la configuración":
+    - /url: /runs/01a1a042-b03a-7cff-a84e-ac77e4508b21
+  - text: contributor-18 tripwire-demo/solo-webapp
+  - time: Nov 1, 6:15 PM PST
+  - text: Blocked
+  - 'link "Open #2520 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2520
+  - 'list "Timeline of #2520"':
+    - listitem:
+      - link "contributor-18 opened the title isn't in latin script":
+        - /url: /runs/01a1a042-b03a-7cff-a84e-ac77e4508b21
+      - img "Blocked"
+  - link "#2513 add donation wallet to README":
+    - /url: /runs/01a1a042-b03a-754a-b08f-387a05ce5271
+  - text: free-nft-99 tripwire-demo/solo-webapp
+  - time: Nov 1, 12:38 PM PST
+  - text: Blocked
+  - 'link "Open #2513 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2513
+  - 'list "Timeline of #2513"':
+    - listitem:
+      - link "free-nft-99 opened your account is 1 day old":
+        - /url: /runs/01a1a042-b03a-754a-b08f-387a05ce5271
+      - img "Blocked"
+  - link "#2516 vendor a third-party api client":
+    - /url: /runs/01a1a042-b03a-78ab-a42f-4ef4aea929d6
+  - text: day-one tripwire-demo/solo-webapp
+  - time: Nov 1, 12:02 PM PST
+  - text: Human review
+  - 'link "Open #2516 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2516
+  - 'list "Timeline of #2516"':
+    - listitem:
+      - link "day-one opened you have no merged changes in this repo yet":
+        - /url: /runs/01a1a042-b03a-78ab-a42f-4ef4aea929d6
+      - img "Human review"
+  - link "#2521 large refactor of the core engine":
+    - /url: /runs/01a1a042-b03a-7a73-86dc-2b2f02bb00c6
+  - text: day-one tripwire-demo/solo-webapp
+  - time: Nov 1, 11:20 AM PST
+  - text: Human review
+  - 'link "Open #2521 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2521
+  - 'list "Timeline of #2521"':
+    - listitem:
+      - link "day-one opened you have no merged changes in this repo yet":
+        - /url: /runs/01a1a042-b03a-7a73-86dc-2b2f02bb00c6
+      - img "Human review"
+  - link "#2523 URGENT please merge":
+    - /url: /runs/01a1a042-b03b-711c-ac6e-4e74fe544d14
+  - text: first-timer tripwire-demo/solo-webapp
+  - time: Nov 1, 11:17 AM PST
+  - text: Blocked
+  - 'link "Open #2523 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2523
+  - 'list "Timeline of #2523"':
+    - listitem:
+      - link "first-timer opened your account is 3 days old":
+        - /url: /runs/01a1a042-b03b-711c-ac6e-4e74fe544d14
+      - img "Blocked"
+  - link "#2519 URGENT please merge":
+    - /url: /runs/01a1a042-b03a-7cf1-a72b-b67c8ed3e082
+  - text: hello-world tripwire-demo/solo-webapp
+  - time: Nov 1, 8:38 AM PST
+  - text: Blocked
+  - 'link "Open #2519 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2519
+  - 'list "Timeline of #2519"':
+    - listitem:
+      - link "hello-world opened your account is 5 days old":
+        - /url: /runs/01a1a042-b03a-7cf1-a72b-b67c8ed3e082
+      - img "Blocked"
+  - link "#2522 add a deploy workflow":
+    - /url: /runs/01a1a042-b03b-73e6-a65e-81434fd03f90
+  - text: just-joined tripwire-demo/solo-webapp
+  - time: Nov 1, 7:50 AM PST
+  - text: Blocked
+  - 'link "Open #2522 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2522
+  - 'list "Timeline of #2522"':
+    - listitem:
+      - link "just-joined opened it touches 2 protected paths":
+        - /url: /runs/01a1a042-b03b-73e6-a65e-81434fd03f90
+      - img "Blocked"
+  - 'link "#2517 fix: respect NO_COLOR"':
+    - /url: /runs/01a1a042-b03a-78f0-a9ce-ee19765524b4
+  - text: barbara-l tripwire-demo/solo-webapp
+  - time: Nov 1, 7:38 AM PST
+  - text: Passed
+  - 'link "Open #2517 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2517
+  - 'list "Timeline of #2517"':
+    - listitem:
+      - link "barbara-l opened":
+        - /url: /runs/01a1a042-b03a-78f0-a9ce-ee19765524b4
+      - img "Passed"
+  - 'link "#2507 refactor: extract the config loader"':
+    - /url: /runs/01a1a042-b03a-7b35-8ef7-4222f18d51e0
+  - text: contributor-18 tripwire-demo/solo-webapp
+  - time: Oct 31, 11:45 PM PDT
+  - text: Passed
+  - 'link "Open #2507 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2507
+  - 'list "Timeline of #2507"':
+    - listitem:
+      - link "contributor-18 opened":
+        - /url: /runs/01a1a042-b03a-7b35-8ef7-4222f18d51e0
+      - img "Passed"
+  - 'link "#2511 perf: memoize the rule registry"':
+    - /url: /runs/01a1a042-b03a-7a3a-a048-33f1c00133ea
+  - text: contributor-11 tripwire-demo/solo-webapp
+  - time: Oct 31, 4:40 PM PDT
+  - text: Passed
+  - 'link "Open #2511 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2511
+  - 'list "Timeline of #2511"':
+    - listitem:
+      - link "contributor-11 opened":
+        - /url: /runs/01a1a042-b03a-7a3a-a048-33f1c00133ea
+      - img "Passed"
+  - 'link "#2509 perf: memoize the rule registry"':
+    - /url: /runs/01a1a042-b03a-746e-9dc9-6df6515ff88e
+  - text: katherine-j tripwire-demo/solo-webapp
+  - time: Oct 31, 2:49 PM PDT
+  - text: Passed
+  - 'link "Open #2509 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2509
+  - 'list "Timeline of #2509"':
+    - listitem:
+      - link "katherine-j opened":
+        - /url: /runs/01a1a042-b03a-746e-9dc9-6df6515ff88e
+      - img "Passed"
+  - 'link "#2508 docs: clarify install steps"':
+    - /url: /runs/01a1a042-b03a-7031-97ac-56f893f16dd9
+  - text: dennis-r tripwire-demo/solo-webapp
+  - time: Oct 31, 9:34 AM PDT
+  - text: Passed
+  - 'link "Open #2508 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2508
+  - 'list "Timeline of #2508"':
+    - listitem:
+      - link "dennis-r opened":
+        - /url: /runs/01a1a042-b03a-7031-97ac-56f893f16dd9
+      - img "Passed"
+  - 'link "#2510 chore: bump dependencies"':
+    - /url: /runs/01a1a042-b03a-7ded-8378-b599c590689d
+  - text: rob-pike tripwire-demo/solo-webapp
+  - time: Oct 31, 8:33 AM PDT
+  - text: Passed
+  - 'link "Open #2510 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2510
+  - 'list "Timeline of #2510"':
+    - listitem:
+      - link "rob-pike opened":
+        - /url: /runs/01a1a042-b03a-7ded-8378-b599c590689d
+      - img "Passed"
+  - link "#2506 vendor a third-party api client":
+    - /url: /runs/01a1a042-b03a-7a29-b8df-b119f86b50b7
+  - text: new-here tripwire-demo/solo-webapp
+  - time: Oct 30, 10:37 PM PDT
+  - text: Human review
+  - 'link "Open #2506 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2506
+  - 'list "Timeline of #2506"':
+    - listitem:
+      - link "new-here opened you have no merged changes in this repo yet":
+        - /url: /runs/01a1a042-b03a-7a29-b8df-b119f86b50b7
+      - img "Human review"
+  - link "#2500 update FUNDING.yml with an eth address":
+    - /url: /runs/01a1a042-b039-7259-9849-80b717cbcd2a
+  - text: airdrop-bot tripwire-demo/solo-webapp
+  - time: Oct 30, 9:17 PM PDT
+  - text: Blocked
+  - 'link "Open #2500 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2500
+  - 'list "Timeline of #2500"':
+    - listitem:
+      - link "airdrop-bot opened your account is 0 days old":
+        - /url: /runs/01a1a042-b039-7259-9849-80b717cbcd2a
+      - img "Blocked"
+  - 'link "#2505 perf: memoize the rule registry"':
+    - /url: /runs/01a1a042-b03a-7343-85bd-b8e1d1307302
+  - text: margaret-j tripwire-demo/solo-webapp
+  - time: Oct 30, 7:38 PM PDT
+  - text: Passed
+  - 'link "Open #2505 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2505
+  - 'list "Timeline of #2505"':
+    - listitem:
+      - link "margaret-j opened":
+        - /url: /runs/01a1a042-b03a-7343-85bd-b8e1d1307302
+      - img "Passed"
+  - 'link "#2503 fix: correct typo in README"':
+    - /url: /runs/01a1a042-b039-7978-9f26-5aa16f4fecd2
+  - text: alan-k tripwire-demo/solo-webapp
+  - time: Oct 30, 2:41 PM PDT
+  - text: Passed
+  - 'link "Open #2503 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2503
+  - 'list "Timeline of #2503"':
+    - listitem:
+      - link "alan-k opened":
+        - /url: /runs/01a1a042-b039-7978-9f26-5aa16f4fecd2
+      - img "Passed"
+  - link "#2504 vendor the entire sdk":
+    - /url: /runs/01a1a042-b03a-7ab0-9267-d8ed2cb263f5
+  - text: contributor-5 tripwire-demo/solo-webapp
+  - time: Oct 30, 2:23 PM PDT
+  - text: Blocked
+  - 'link "Open #2504 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2504
+  - 'list "Timeline of #2504"':
+    - listitem:
+      - link "contributor-5 opened this change touches 431 files":
+        - /url: /runs/01a1a042-b03a-7ab0-9267-d8ed2cb263f5
+      - img "Blocked"
+  - link "#2502 add donation wallet to README":
+    - /url: /runs/01a1a042-b039-7c25-86ff-a2613ba86f26
+  - text: gm-frens tripwire-demo/solo-webapp
+  - time: Oct 30, 1:57 PM PDT
+  - text: Blocked
+  - 'link "Open #2502 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2502
+  - 'list "Timeline of #2502"':
+    - listitem:
+      - link "gm-frens opened your account is 2 days old":
+        - /url: /runs/01a1a042-b039-7c25-86ff-a2613ba86f26
+      - img "Blocked"
+  - link "#2501 update FUNDING.yml with an eth address":
+    - /url: /runs/01a1a042-b039-79f2-afd2-2af81f091b41
+  - text: rug-puller tripwire-demo/solo-webapp
+  - time: Oct 30, 11:41 AM PDT
+  - text: Blocked
+  - 'link "Open #2501 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2501
+  - 'list "Timeline of #2501"':
+    - listitem:
+      - link "rug-puller opened it adds 1 crypto address in FUNDING.yml":
+        - /url: /runs/01a1a042-b039-79f2-afd2-2af81f091b41
+      - img "Blocked"
+  - link "#2493 import upstream wholesale":
+    - /url: /runs/01a1a042-b039-721f-99e8-727ea0c27dba
+  - text: contributor-3 tripwire-demo/solo-webapp
+  - time: Oct 29, 11:12 PM PDT
+  - text: Blocked
+  - 'link "Open #2493 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2493
+  - 'list "Timeline of #2493"':
+    - listitem:
+      - link "contributor-3 opened this change touches 429 files":
+        - /url: /runs/01a1a042-b039-721f-99e8-727ea0c27dba
+      - img "Blocked"
+  - 'link "#2495 docs: document the rule catalog"':
+    - /url: /runs/01a1a042-b039-70d9-ba3f-66156436bcae
+  - text: contributor-11 tripwire-demo/solo-webapp
+  - time: Oct 29, 7:23 PM PDT
+  - text: Passed
+  - 'link "Open #2495 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2495
+  - 'list "Timeline of #2495"':
+    - listitem:
+      - link "contributor-11 opened":
+        - /url: /runs/01a1a042-b039-70d9-ba3f-66156436bcae
+      - img "Passed"
+  - link "#2499 vendor the entire sdk":
+    - /url: /runs/01a1a042-b039-780f-83ab-86552e7fec9e
+  - text: contributor-15 tripwire-demo/solo-webapp
+  - time: Oct 29, 6:08 PM PDT
+  - text: Blocked
+  - 'link "Open #2499 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2499
+  - 'list "Timeline of #2499"':
+    - listitem:
+      - link "contributor-15 opened this change touches 754 files":
+        - /url: /runs/01a1a042-b039-780f-83ab-86552e7fec9e
+      - img "Blocked"
+  - link "#2497 update CI workflow":
+    - /url: /runs/01a1a042-b039-7b81-bd43-7584c6dfb845
+  - text: defi-degen tripwire-demo/solo-webapp
+  - time: Oct 29, 5:23 PM PDT
+  - text: Blocked
+  - 'link "Open #2497 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2497
+  - 'list "Timeline of #2497"':
+    - listitem:
+      - link "defi-degen opened it touches 2 protected paths":
+        - /url: /runs/01a1a042-b039-7b81-bd43-7584c6dfb845
+      - img "Blocked"
+  - link "#2498 great project!! merge":
+    - /url: /runs/01a1a042-b039-7d21-a6f9-9fea7918e10d
+  - text: day-one tripwire-demo/solo-webapp
+  - time: Oct 29, 5:07 PM PDT
+  - text: Blocked
+  - 'link "Open #2498 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2498
+  - 'list "Timeline of #2498"':
+    - listitem:
+      - link "day-one opened your account is 6 days old":
+        - /url: /runs/01a1a042-b039-7d21-a6f9-9fea7918e10d
+      - img "Blocked"
+  - 'link "#2496 test: cover the parser edge cases"':
+    - /url: /runs/01a1a042-b039-7ff8-b71c-137255eb197e
+  - text: grace-h tripwire-demo/solo-webapp
+  - time: Oct 29, 4:13 PM PDT
+  - text: Passed
+  - 'link "Open #2496 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2496
+  - 'list "Timeline of #2496"':
+    - listitem:
+      - link "grace-h opened":
+        - /url: /runs/01a1a042-b039-7ff8-b71c-137255eb197e
+      - img "Passed"
+  - link "#2494 great project!! merge":
+    - /url: /runs/01a1a042-b039-7d4d-8ea6-9799449039f3
+  - text: just-joined tripwire-demo/solo-webapp
+  - time: Oct 29, 8:21 AM PDT
+  - text: Blocked
+  - 'link "Open #2494 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2494
+  - 'list "Timeline of #2494"':
+    - listitem:
+      - link "just-joined opened your account is 0 days old":
+        - /url: /runs/01a1a042-b039-7d4d-8ea6-9799449039f3
+      - img "Blocked"
+  - 'link "#2487 fix: handle null repo in the loader"':
+    - /url: /runs/01a1a042-b038-78bf-80d4-8e9466146382
+  - text: james-g tripwire-demo/solo-webapp
+  - time: Oct 28, 9:09 PM PDT
+  - text: Passed
+  - 'link "Open #2487 on GitHub"':
+    - /url: https://github.com/tripwire-demo/solo-webapp/pull/2487
+  - 'list "Timeline of #2487"':
+    - listitem:
+      - link "james-g opened":
+        - /url: /runs/01a1a042-b038-78bf-80d4-8e9466146382
+      - img "Passed"

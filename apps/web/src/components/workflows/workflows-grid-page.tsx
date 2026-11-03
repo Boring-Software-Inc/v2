@@ -20,6 +20,7 @@ import { MetaRow } from "#/components/common/meta-row";
 import { CardRouterLink } from "#/components/common/router-links";
 import { ShaderDither } from "#/components/dither/shader-dither";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import {
 	SaveQueueProvider,
@@ -234,25 +235,21 @@ export function WorkflowsGridPage() {
 	return (
 		<SaveQueueProvider commit={commitEnabled} savedValues={savedValues}>
 			<DashboardLayout counts={{}}>
-				<div className="px-4 py-6 md:px-8 md:py-10">
-					<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-						<header className="flex flex-wrap items-start justify-between gap-4">
-							<div className="flex min-w-0 flex-col gap-1">
-								<h1 className="type-title">Workflows</h1>
-								<p className="type-body text-text-2">
-									What this repo runs against change requests: triggers, rules,
-									gates and actions.
-								</p>
-							</div>
-							{canManage && hasWorkflows ? (
+				<Page purpose="task">
+					<PageHeader
+						actions={
+							canManage && hasWorkflows ? (
 								<CreateSplitButton
 									creating={createMutation.isPending}
 									onBlank={createBlank}
 									onTemplate={createFromTemplate}
 								/>
-							) : null}
-						</header>
-
+							) : undefined
+						}
+						description="What this repo runs against change requests: triggers, rules, gates and actions."
+						title="Workflows"
+					/>
+					<PageBody>
 						<Collection
 							collection={collection}
 							empty={
@@ -291,9 +288,9 @@ export function WorkflowsGridPage() {
 								</ul>
 							)}
 						</Collection>
-					</div>
+					</PageBody>
 					<UnsavedChangesBar />
-				</div>
+				</Page>
 			</DashboardLayout>
 		</SaveQueueProvider>
 	);
@@ -663,6 +660,7 @@ function WorkflowRow({
 					}
 					title={
 						<CardRouterLink
+							data-layout-role="workflow-name"
 							params={{ org, repo: repoName, workflowId: workflow.id }}
 							to="/$org/$repo/workflows/$workflowId"
 						>

@@ -1,0 +1,22 @@
+- main:
+  - heading "Home" [level=1]
+  - paragraph: Across this org's repos, 0 to review and 0 blocked in the last 24 hours.
+  - region "Connected repos":
+    - heading "Connected repos" [level=2]
+    - search "Filter repos":
+      - searchbox "Search repos"
+      - button "Needs attention 0"
+      - 'button "Sort: Attention"'
+    - region "Connected repo list":
+      - list "Connected repos":
+        - listitem:
+          - link "GitHub repository tripwire-demo/empty-repo":
+            - /url: /dev-owner/empty-repo
+            - text: tripwire-demo/empty-repo
+          - text: Nothing to review
+          - navigation "Shortcuts for tripwire-demo/empty-repo":
+            - button "Human review"
+            - button "Rules"
+            - button "Workflows"
+            - button "Activity"
+            - button "Analytics"

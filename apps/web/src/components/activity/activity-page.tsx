@@ -10,6 +10,7 @@ import { groupResult } from "#/components/activity/verdict-chip";
 import { ArmCallout } from "#/components/arming/arm-callout";
 import { BackfillProgress } from "#/components/arming/backfill-progress";
 import { DashboardLayout } from "#/components/layouts/dashboard-layout";
+import { Page, PageBody, PageHeader } from "#/components/layouts/page";
 import { MascotArt } from "#/components/mascot/mascot-art";
 import { Button } from "#/design-system/ui/button";
 import {
@@ -85,26 +86,24 @@ export function ActivityPage() {
 	const history = from && to && verdict !== "no-run";
 	return (
 		<DashboardLayout counts={{}}>
-			<div className="px-4 py-6 md:px-8 md:py-10">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-					<header className="flex flex-col gap-1">
-						<h1 className="type-title">
-							{history ? "Activity history" : "Activity"}
-						</h1>
-						{history ? null : (
-							<p className="type-body text-text-2">
-								Filter by verdict. Open a change request to see its checks.
-							</p>
-						)}
-					</header>
+			<Page purpose="task">
+				<PageHeader
+					description={
+						history
+							? undefined
+							: "Filter by verdict. Open a change request to see its checks."
+					}
+					title={history ? "Activity history" : "Activity"}
+				/>
+				<PageBody>
 					<ActivityFilters />
 					{history ? (
 						<ActivityHistory input={{ org, repo, from, to, verdict }} />
 					) : (
 						<CurrentActivityPage />
 					)}
-				</div>
-			</div>
+				</PageBody>
+			</Page>
 		</DashboardLayout>
 	);
 }

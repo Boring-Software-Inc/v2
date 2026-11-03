@@ -19,7 +19,7 @@ import { Status } from "#/design-system/ui/status";
 import type { ActivityItem } from "#/lib/activity.functions";
 import { eventForgeLink } from "#/lib/activity-links";
 
-const KIND_LABEL: Record<EventKind, string> = {
+const KIND_LABEL = {
 	"change-request.opened": "opened",
 	"change-request.updated": "updated",
 	"change-request.closed": "closed",
@@ -30,7 +30,7 @@ const KIND_LABEL: Record<EventKind, string> = {
 	"installation.deleted": "uninstalled Tripwire from",
 	"installation-repositories.added": "gave Tripwire access to",
 	"installation-repositories.removed": "took Tripwire access from",
-};
+} satisfies Record<EventKind, string>;
 
 function subjectLine(event: NormalizedEvent): string {
 	if ("installation" in event) {

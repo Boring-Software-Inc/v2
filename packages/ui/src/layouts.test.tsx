@@ -28,6 +28,12 @@ describe("semantic layout molecules", () => {
 		expect(markup.indexOf("Invite")).toBeLessThan(markup.indexOf("Content"));
 	});
 
+	test("marks task pages without exposing geometry controls", () => {
+		const markup = renderToStaticMarkup(<Page purpose="task">Queue</Page>);
+		expect(markup).toContain('data-layout-purpose="task"');
+		expect(markup).toContain('data-layout-role="page"');
+	});
+
 	test("binds a section heading to its region", () => {
 		const markup = renderToStaticMarkup(
 			<Section id="active-members">
