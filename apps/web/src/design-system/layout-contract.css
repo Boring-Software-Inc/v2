@@ -424,7 +424,7 @@
 	cursor: pointer;
 }
 
-[data-layout-role="agent-org-option"] > span {
+[data-layout-role="agent-org-name"] {
 	flex: 1;
 	min-inline-size: 0;
 	overflow: hidden;

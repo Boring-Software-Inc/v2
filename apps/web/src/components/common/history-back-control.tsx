@@ -1,4 +1,4 @@
-import { useRouter, useRouterState } from "@tanstack/react-router";
+import { useHydrated, useRouter, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft, Icon } from "#/design-system/icon";
 
 interface HistoryBackControlProps {
@@ -6,10 +6,12 @@ interface HistoryBackControlProps {
 }
 
 export function useCanGoBack() {
+	const hydrated = useHydrated();
 	const router = useRouter();
-	return useRouterState({
+	const canGoBack = useRouterState({
 		select: () => router.history.canGoBack(),
 	});
+	return hydrated && canGoBack;
 }
 
 export function HistoryBackControl({

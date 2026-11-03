@@ -35,10 +35,8 @@ describe("HistoryBackControl", () => {
 		);
 	});
 
-	test("is present after an in-app navigation", async () => {
+	test("stays absent from server markup when browser history will exist", async () => {
 		const markup = await renderBackControl(["/", "/?detail=run-1"]);
-		expect(markup).toContain('data-layout-role="history-back-control"');
-		expect(markup).toContain('aria-label="Back"');
-		expect(markup).toContain(">Back<");
+		expect(markup).not.toContain("history-back-control");
 	});
 });

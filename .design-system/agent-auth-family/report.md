@@ -20,6 +20,7 @@ Verified on `localhost:3001` with disposable state and a real Better Auth device
 
 - Empty device-code entry at 390px.
 - Ready device request with scopes and two organization choices.
+- Organization avatars and checkboxes retain intrinsic widths while only the organization name flexes.
 - Organization selection enables approval.
 - Real approval mutation reaches the signed-in success state.
 - Expired device code.

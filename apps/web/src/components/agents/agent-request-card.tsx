@@ -93,7 +93,7 @@ export function AgentRequestCard({
 									key={org.id}
 								>
 									<OrgAvatar hue={org.avatarHue} name={org.name} />
-									<span>{org.name}</span>
+									<span data-layout-role="agent-org-name">{org.name}</span>
 									<Checkbox
 										checked={checked}
 										id={`agent-org-${org.id}`}
