@@ -25,7 +25,6 @@ function toApiFields(state: CheckState) {
 	if (state.conclusion === "pending") {
 		return {
 			status: "in_progress" as const,
-			conclusion: undefined,
 		};
 	}
 	return { status: "completed" as const, conclusion: state.conclusion };
@@ -36,12 +35,11 @@ export async function setCheck(
 	repoFullName: string,
 	state: CheckState,
 ): Promise<{ externalId: string; created: boolean }> {
-	const { status, conclusion } = toApiFields(state);
+	const apiFields = toApiFields(state);
 	const payload = {
 		name: CHECK_NAME,
 		head_sha: state.sha,
-		status,
-		...(conclusion ? { conclusion } : {}),
+		...apiFields,
 		details_url: state.detailsUrl,
 		output: {
 			title:
@@ -63,7 +61,7 @@ export async function setCheck(
 			null,
 		);
 	const reopensCompleted =
-		status !== "completed" && found?.status === "completed";
+		apiFields.status !== "completed" && found?.status === "completed";
 	if (found && !reopensCompleted) {
 		await http.patch(
 			repoFullName,

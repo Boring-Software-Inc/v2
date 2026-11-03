@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
 	CHECK_NAME,
 	COMMENT_MARKER,
+	type JsonValue,
+	jsonValueSchema,
 	REVIEW_POINTER,
 	renderCommentBody,
 } from "@tripwire/contracts";
@@ -25,10 +27,10 @@ function ours(id: number, body: string) {
 interface RecordedCall {
 	method: string;
 	path: string;
-	body: unknown;
+	body: JsonValue | undefined;
 }
 
-function fakeHttp(responses: Record<string, unknown>) {
+function fakeHttp(responses: Record<string, JsonValue>) {
 	const calls: RecordedCall[] = [];
 	const http = new GithubHttp({
 		tokenFor: () => Promise.resolve("test-token"),
@@ -40,7 +42,9 @@ function fakeHttp(responses: Record<string, unknown>) {
 			calls.push({
 				method: init?.method ?? "GET",
 				path,
-				body: init?.body ? JSON.parse(String(init.body)) : undefined,
+				body: init?.body
+					? jsonValueSchema.parse(JSON.parse(String(init.body)))
+					: undefined,
 			});
 			const match = Object.entries(responses).find(([pattern]) =>
 				key.startsWith(pattern),
@@ -95,6 +99,9 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 			supersededId: null,
 		});
 		expect(calls.map((c) => c.method)).toEqual(["GET", "POST"]);
+		expect(calls.find((c) => c.method === "POST")?.body).toEqual({
+			body: BLOCK_COMMENT,
+		});
 	});
 
 	test("SAME verdict edits in place — never a new comment", async () => {
@@ -118,6 +125,9 @@ describe("upsertComment — verdict-aware lifecycle (§7)", () => {
 		expect(calls.find((c) => c.method === "PATCH")?.path).toBe(
 			"/repos/a/b/issues/comments/9",
 		);
+		expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({
+			body: BLOCK_COMMENT,
+		});
 	});
 
 	test("ten same-verdict re-runs = ONE comment (ten edits, zero posts)", async () => {
@@ -333,6 +343,13 @@ describe("setCheck", () => {
 		});
 		expect(result).toEqual({ externalId: "56", created: false });
 		expect(calls.some((c) => c.method === "POST")).toBe(false);
+		expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({
+			name: CHECK_NAME,
+			head_sha: state.sha,
+			status: "in_progress",
+			details_url: state.detailsUrl,
+			output: { title: "Blocked", summary: state.summary },
+		});
 	});
 
 	test("a queued check counts as not completed", async () => {
@@ -415,7 +432,7 @@ describe("setCheck", () => {
 		await setCheck(http, "a/b", { ...state, conclusion: "pending" });
 		const post = calls.find((c) => c.method === "POST");
 		expect(post?.body).toMatchObject({ status: "in_progress" });
-		expect((post?.body as Record<string, unknown>).conclusion).toBeUndefined();
+		expect(post?.body).not.toHaveProperty("conclusion");
 	});
 });
 

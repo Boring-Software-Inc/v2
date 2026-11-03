@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { JsonValue } from "@tripwire/contracts";
 import type { ThreadListQuery } from "@tripwire/forge";
 import issueComment from "../../fixtures/issue_comment.created.json";
 import pullRequestOpened from "../../fixtures/pull_request.opened.json";
@@ -12,7 +13,7 @@ const PR = pullRequestOpened.pull_request;
 function issue(
 	number: number,
 	updatedAt: string,
-	extra: Record<string, unknown> = {},
+	extra: Record<string, JsonValue> = {},
 ) {
 	return {
 		...ISSUE,
@@ -134,6 +135,65 @@ describe("listThreads", () => {
 				url: "https://github.com/Codertocat/Hello-World/pull/2",
 			}),
 		]);
+	});
+
+	test("preserves string labels, named objects and missing-name fallback", async () => {
+		const { http } = fakeHttp([
+			{
+				body: [
+					issue(1, "2025-01-01T00:00:00Z", {
+						labels: ["bug", "", { name: "help" }, {}, { name: "" }],
+					}),
+				],
+			},
+		]);
+		const result = await listThreads(http, "Codertocat/Hello-World", QUERY);
+		expect(result.threads[0]?.labels).toEqual(["bug", "", "help"]);
+	});
+
+	test("label discrimination never inspects an object's constructor or other fields", async () => {
+		const accesses: string[] = [];
+		const label = new Proxy(
+			Object.defineProperty({ name: "bug" }, "constructor", {
+				get() {
+					throw new Error("constructor must not be read");
+				},
+			}),
+			{
+				get(target, key, receiver) {
+					accesses.push(String(key));
+					return Reflect.get(target, key, receiver);
+				},
+			},
+		);
+		const { http } = fakeHttp([]);
+		http.getPage = async () => ({
+			body: [issue(1, "2025-01-01T00:00:00Z", { labels: [label] })],
+			next: null,
+		});
+		const result = await listThreads(http, "Codertocat/Hello-World", QUERY);
+		expect(result.threads[0]?.labels).toEqual(["bug"]);
+		expect(accesses).toEqual(["name", "name"]);
+	});
+
+	test("a malformed label name still throws during exclusion filtering", async () => {
+		const { http } = fakeHttp([
+			{
+				body: [issue(1, "2025-01-01T00:00:00Z", { labels: [{ name: 42 }] })],
+			},
+		]);
+		await expect(
+			listThreads(http, "Codertocat/Hello-World", QUERY),
+		).rejects.toBeInstanceOf(TypeError);
+	});
+
+	test("a null label still throws instead of silently dropping malformed data", async () => {
+		const { http } = fakeHttp([
+			{ body: [issue(1, "2025-01-01T00:00:00Z", { labels: [null] })] },
+		]);
+		await expect(
+			listThreads(http, "Codertocat/Hello-World", QUERY),
+		).rejects.toBeInstanceOf(TypeError);
 	});
 
 	test("follows the Link header and stops at the inactivity cutoff", async () => {

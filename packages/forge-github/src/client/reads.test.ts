@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { jsonSerializationSchema } from "@tripwire/contracts";
 import { GithubReads } from "./reads.ts";
 
 /**
@@ -8,8 +9,11 @@ import { GithubReads } from "./reads.ts";
  * fails, so the rule skips rather than treats a flaky read as "no reputation".
  */
 
-function jsonResponse(body: unknown, status = 200): Response {
-	return new Response(JSON.stringify(body), { status });
+function jsonResponse(
+	body: Parameters<typeof jsonSerializationSchema.parse>[0],
+	status = 200,
+): Response {
+	return new Response(jsonSerializationSchema.parse(body), { status });
 }
 
 const USER = {
@@ -91,6 +95,41 @@ const COMPARE_COMMIT = {
 	commit: { message: "add d1b", author: { date: "2026-10-23T17:40:00Z" } },
 	author: { login: "octocat" },
 };
+
+describe("getDiff status mapping", () => {
+	test("maps every declared status and falls back for unknown and prototype keys", async () => {
+		const statuses = [
+			"added",
+			"modified",
+			"removed",
+			"renamed",
+			"changed",
+			"copied",
+			"unchanged",
+			"future-status",
+			"constructor",
+			"toString",
+			"__proto__",
+		];
+		const reads = readsWith(() =>
+			jsonResponse(statuses.map((status) => ({ ...COMPARE_FILE, status }))),
+		);
+		const files = await reads.getDiff("acme/app", 151);
+		expect(files.map((file) => file.status)).toEqual([
+			"added",
+			"modified",
+			"removed",
+			"renamed",
+			"modified",
+			"added",
+			"modified",
+			"modified",
+			"modified",
+			"modified",
+			"modified",
+		]);
+	});
+});
 
 describe("getDiff and getCommits read the event's own head", () => {
 	test("with a head, the diff comes from the compare of base and that SHA", async () => {

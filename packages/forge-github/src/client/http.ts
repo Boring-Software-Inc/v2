@@ -1,3 +1,5 @@
+import { jsonSerializationSchema } from "@tripwire/contracts";
+
 /**
  * Minimal authenticated GitHub REST client shared by reads and actions.
  * No octokit — the surface Tripwire touches stays small and visible.
@@ -30,7 +32,7 @@ export class GithubHttp {
 		repoFullName: string,
 		method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
 		path: string,
-		body?: unknown,
+		body?: Parameters<GithubHttp["send"]>[3],
 	): Promise<unknown> {
 		return (await this.send(repoFullName, method, path, body)).body;
 	}
@@ -54,18 +56,22 @@ export class GithubHttp {
 		repoFullName: string,
 		method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
 		path: string,
-		body?: unknown,
+		body?: Parameters<typeof jsonSerializationSchema.parse>[0],
 	): Promise<{ body: unknown; headers: Headers }> {
 		const token = await this.options.tokenFor(repoFullName);
-		const sentBody = body === undefined ? undefined : JSON.stringify(body);
+		const sentBody =
+			body === undefined ? undefined : jsonSerializationSchema.parse(body);
+		const headers: RequestInit["headers"] = {
+			authorization: `Bearer ${token}`,
+			accept: "application/vnd.github+json",
+			"x-github-api-version": "2022-11-28",
+		};
+		if (body !== undefined) {
+			headers["content-type"] = "application/json";
+		}
 		const res = await this.fetchImpl(`${this.apiBase}${path}`, {
 			method,
-			headers: {
-				authorization: `Bearer ${token}`,
-				accept: "application/vnd.github+json",
-				"x-github-api-version": "2022-11-28",
-				...(body === undefined ? {} : { "content-type": "application/json" }),
-			},
+			headers,
 			body: sentBody,
 		});
 		// One text read serves both the byte count and the parse, so metering adds
@@ -95,13 +101,25 @@ export class GithubHttp {
 	get(repo: string, path: string): Promise<unknown> {
 		return this.request(repo, "GET", path);
 	}
-	post(repo: string, path: string, body: unknown): Promise<unknown> {
+	post(
+		repo: string,
+		path: string,
+		body: Parameters<GithubHttp["send"]>[3],
+	): Promise<unknown> {
 		return this.request(repo, "POST", path, body);
 	}
-	patch(repo: string, path: string, body: unknown): Promise<unknown> {
+	patch(
+		repo: string,
+		path: string,
+		body: Parameters<GithubHttp["send"]>[3],
+	): Promise<unknown> {
 		return this.request(repo, "PATCH", path, body);
 	}
-	put(repo: string, path: string, body: unknown): Promise<unknown> {
+	put(
+		repo: string,
+		path: string,
+		body: Parameters<GithubHttp["send"]>[3],
+	): Promise<unknown> {
 		return this.request(repo, "PUT", path, body);
 	}
 	delete(repo: string, path: string): Promise<unknown> {

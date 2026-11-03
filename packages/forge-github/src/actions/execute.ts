@@ -109,17 +109,16 @@ export async function executeAction(
 		}
 		case "remove-label": {
 			for (const label of action.labels) {
-				await http
-					.delete(
+				try {
+					await http.delete(
 						action.repoFullName,
 						`/repos/${action.repoFullName}/issues/${action.number}/labels/${encodeURIComponent(label)}`,
-					)
-					.catch((error: unknown) => {
-						if (error instanceof GithubHttpError && error.status === 404) {
-							return null;
-						}
+					);
+				} catch (error) {
+					if (!(error instanceof GithubHttpError && error.status === 404)) {
 						throw error;
-					});
+					}
+				}
 			}
 			return { externalId: null };
 		}

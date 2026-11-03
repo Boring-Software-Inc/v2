@@ -83,6 +83,42 @@ describe("remove-label", () => {
 		).resolves.toEqual({ externalId: null });
 	});
 
+	test("a missing label does not prevent removing later labels", async () => {
+		const { http, calls } = fakeHttp((_, path) => ({
+			status: path.endsWith("/missing") ? 404 : 204,
+		}));
+		await expect(
+			executeAction(http, {
+				kind: "remove-label",
+				repoFullName: "a/b",
+				number: 4,
+				labels: ["missing", "stale"],
+			}),
+		).resolves.toEqual({ externalId: null });
+		expect(calls.map((call) => call.path)).toEqual([
+			"/repos/a/b/issues/4/labels/missing",
+			"/repos/a/b/issues/4/labels/stale",
+		]);
+	});
+
+	test("a non-Error rejection with status 404 is rethrown unchanged", async () => {
+		const failure = { name: "GithubHttpError", status: 404 };
+		const { http, calls } = fakeHttp(() => {
+			throw failure;
+		});
+		await expect(
+			executeAction(http, {
+				kind: "remove-label",
+				repoFullName: "a/b",
+				number: 4,
+				labels: ["stale", "later"],
+			}),
+		).rejects.toBe(failure);
+		expect(calls.map((call) => call.path)).toEqual([
+			"/repos/a/b/issues/4/labels/stale",
+		]);
+	});
+
 	test("other failures throw so the row stays recorded", async () => {
 		const { http } = fakeHttp(() => ({ status: 500, body: {} }));
 		await expect(
