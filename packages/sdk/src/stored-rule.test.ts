@@ -188,3 +188,89 @@ describe("storedRuleIssue", () => {
 		).toContain("needs a text signal");
 	});
 });
+
+describe("stored rule raw argument compatibility", () => {
+	test("rejected numeric arguments return issues without reading object metadata", () => {
+		const reads: string[] = [];
+		const values = [
+			Object.create({
+				get constructor() {
+					reads.push("constructor");
+					throw new Error("constructor read");
+				},
+			}),
+			new Proxy(
+				{},
+				{
+					getPrototypeOf() {
+						reads.push("getPrototypeOf");
+						throw new Error("prototype read");
+					},
+				},
+			),
+		];
+		for (const value of values) {
+			expect(
+				storedRuleIssue({
+					when: { id: "contributor.accountAge" },
+					comparison: { kind: "under", args: [value] },
+				}),
+			).toBe("this signal takes a number");
+			expect(
+				storedRuleIssue({
+					when: { id: "contributor.accountAge" },
+					comparison: { kind: "between", args: [0, value] },
+				}),
+			).toBe("this comparison needs a low and a high number");
+			expect(
+				storedRuleIssue({
+					when: { id: "contributor.accountAge" },
+					comparison: { kind: "oneOf", args: [[value]] },
+				}),
+			).toBe("each value must be a number");
+		}
+		expect(reads).toEqual([]);
+	});
+
+	test("nonfinite numeric arguments and sparse nonempty lists remain valid", () => {
+		for (const value of [NaN, Infinity, -Infinity]) {
+			expect(
+				storedRuleIssue({
+					when: { id: "contributor.accountAge" },
+					comparison: { kind: "under", args: [value] },
+				}),
+			).toBeNull();
+		}
+		expect(
+			storedRuleIssue({
+				when: { id: "pr.title" },
+				comparison: { kind: "oneOf", args: [new Array<string>(2)] },
+			}),
+		).toBeNull();
+	});
+
+	test("not checks the inner argument shape without rechecking verb applicability", () => {
+		const inner = Object.assign([], { kind: "has", args: [7] });
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.accountAge" },
+				comparison: { kind: "not", args: [inner] },
+			}),
+		).toBeNull();
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.accountAge" },
+				comparison: {
+					kind: "not",
+					args: [Object.create({ kind: "under", args: ["7"] })],
+				},
+			}),
+		).toBe("this signal takes a number");
+		expect(
+			storedRuleIssue({
+				when: { id: "contributor.accountAge" },
+				comparison: { kind: "not", args: [{ kind: "under" }] },
+			}),
+		).toBe("this rule is missing the comparison it negates");
+	});
+});

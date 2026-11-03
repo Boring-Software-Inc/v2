@@ -5,7 +5,7 @@
  *
  * Deterministic and dumb on purpose. A heuristic gate, not a language model.
  */
-export function nonLatinScan(text: string): { ratio: number; letters: number } {
+export function nonLatinScan(text: string) {
 	let letters = 0;
 	let nonLatin = 0;
 	for (const ch of text) {
