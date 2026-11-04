@@ -29,6 +29,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/design-system/ui/select";
+import { Label } from "#/design-system/ui/typography";
 import type { SkipMode } from "#/lib/rule-groups";
 
 export const GROUP_TITLE = "If any of these rules fail";
@@ -98,16 +99,19 @@ function MemberRow({
 	}
 	const name = stepName(node, customName);
 	return (
-		<li className="nodrag nopan flex min-w-0 items-center gap-1">
+		<li className="nodrag nopan" data-layout-role="rule-card-member">
 			<Button
 				aria-label={`Edit ${name}`}
-				className="h-auto min-h-7 min-w-0 flex-1 justify-start gap-2 whitespace-normal py-1 text-start"
+				data-layout-role="rule-card-member-select"
 				onClick={() => select(nodeId)}
 				size="sm"
 				variant="ghost"
 			>
-				<Icon className="shrink-0" icon={ruleIcon(node.ref)} />
-				<span className="min-w-0 [overflow-wrap:anywhere]">{name}</span>
+				<Icon
+					data-layout-role="rule-card-member-icon"
+					icon={ruleIcon(node.ref)}
+				/>
+				<span data-layout-role="rule-card-member-name">{name}</span>
 			</Button>
 			{removable && !readOnly ? (
 				<Button
@@ -142,7 +146,8 @@ function AddRuleMenu({
 			<DropdownMenuTrigger
 				render={
 					<Button
-						className="nodrag nopan mt-1 self-start"
+						className="nodrag nopan"
+						data-layout-role="rule-card-add"
 						size="sm"
 						variant="ghost"
 					/>
@@ -185,11 +190,11 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 	return (
 		<WorkflowNodeFrame nodeId={id} selected={selected}>
 			<InputPort title={GROUP_TITLE} />
-			<div className="flex items-center gap-2">
-				<Icon className="-ms-1.5 shrink-0 text-text-1" icon={Rules} />
-				<span className="min-w-0 type-label">{GROUP_TITLE}</span>
+			<div data-layout-role="rule-card-header">
+				<Icon data-layout-role="rule-card-icon" icon={Rules} />
+				<Label data-layout-role="rule-card-title">{GROUP_TITLE}</Label>
 			</div>
-			<ul className="mt-2 flex flex-col border-line-faint border-t pt-1">
+			<ul data-layout-role="rule-card-members">
 				{card.ruleIds.map((ruleId) => (
 					<MemberRow
 						key={ruleId}
@@ -199,7 +204,7 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 					/>
 				))}
 			</ul>
-			<div className="flex flex-wrap items-center gap-1">
+			<div data-layout-role="rule-card-actions">
 				<AddRuleMenu
 					exclude={refsOf(api.nodes, card.ruleIds)}
 					label="Add rule"
@@ -207,7 +212,8 @@ export function RuleGroupNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				/>
 				{card.skipId === null && !api.readOnly ? (
 					<Button
-						className="nodrag nopan mt-1"
+						className="nodrag nopan"
+						data-layout-role="rule-card-attach-skip"
 						onClick={() => api.attachSkip(id)}
 						size="sm"
 						variant="ghost"
@@ -231,13 +237,14 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 	return (
 		<WorkflowNodeFrame nodeId={id} selected={selected}>
 			<InputPort title={SKIP_TITLE} />
-			<div className="flex items-center gap-2">
-				<Icon className="-ms-1.5 shrink-0 text-text-1" icon={Except} />
-				<span className="min-w-0 type-label">{SKIP_TITLE}</span>
+			<div data-layout-role="rule-card-header">
+				<Icon data-layout-role="rule-card-icon" icon={Except} />
+				<Label data-layout-role="rule-card-title">{SKIP_TITLE}</Label>
 				{api.readOnly ? null : (
 					<Button
 						aria-label="Remove Skip when"
-						className="nodrag nopan ms-auto"
+						className="nodrag nopan"
+						data-layout-role="rule-card-remove-skip"
 						onClick={() => api.removeSkip(id)}
 						size="icon-sm"
 						variant="ghost"
@@ -247,7 +254,7 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				)}
 			</div>
 			{card.checkIds.length > 1 && card.gateId ? (
-				<div className="nodrag nopan mt-1">
+				<div className="nodrag nopan" data-layout-role="rule-card-mode">
 					<Select
 						disabled={api.readOnly}
 						items={MODE_ITEMS}
@@ -261,7 +268,7 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 					>
 						<SelectTrigger
 							aria-label="Skip when match"
-							className="w-auto"
+							data-layout-role="rule-card-mode-trigger"
 							size="sm"
 						>
 							<SelectValue />
@@ -277,7 +284,7 @@ export function SkipWhenNode({ id, selected }: NodeProps<TripwireFlowNode>) {
 				</div>
 			) : null}
 			{card.checkIds.length > 0 ? (
-				<ul className="mt-2 flex flex-col border-line-faint border-t pt-1">
+				<ul data-layout-role="rule-card-members">
 					{card.checkIds.map((checkId) => (
 						<MemberRow
 							key={checkId}
