@@ -65,26 +65,26 @@ describe("toForgeAction — request-review", () => {
 		).toMatchObject({ reviewers: ["octocat", "hubot"], teamReviewers: [] });
 	});
 
-	test("a row recorded before targets existed maps to empty lists", () => {
-		expect(
+	test("a row without review targets cannot execute", () => {
+		expect(() =>
 			toForgeAction(
 				{ kind: "request-review", payload: { nodeId: "w:review" } },
 				"a/b",
 				7,
 				"stamp",
 			),
-		).toMatchObject({ reviewers: [], teamReviewers: [] });
+		).toThrow();
 	});
 
-	test("a malformed payload maps to empty lists, never a bad request", () => {
-		expect(
+	test("malformed review targets cannot execute", () => {
+		expect(() =>
 			toForgeAction(
 				{ kind: "request-review", payload: { reviewers: ["bad name"] } },
 				"a/b",
 				7,
 				"stamp",
 			),
-		).toMatchObject({ reviewers: [], teamReviewers: [] });
+		).toThrow();
 	});
 });
 
@@ -211,12 +211,28 @@ describe("toForgeAction: lock and close never become a block", () => {
 		).toEqual({ kind: "lock", repoFullName: "a/b", number: 7, reason: "spam" });
 	});
 
-	test("lock with no or a bad reason locks without one", () => {
-		for (const payload of [{ nodeId: "w:l" }, { reason: "boring" }]) {
-			expect(
-				toForgeAction({ kind: "lock", payload }, "a/b", 7, "x", "91"),
-			).toEqual({ kind: "lock", repoFullName: "a/b", number: 7 });
-		}
+	test("lock without a reason locks without one", () => {
+		expect(
+			toForgeAction(
+				{ kind: "lock", payload: { nodeId: "w:l" } },
+				"a/b",
+				7,
+				"x",
+				"91",
+			),
+		).toEqual({ kind: "lock", repoFullName: "a/b", number: 7 });
+	});
+
+	test("lock with an invalid reason cannot execute", () => {
+		expect(() =>
+			toForgeAction(
+				{ kind: "lock", payload: { reason: "boring" } },
+				"a/b",
+				7,
+				"x",
+				"91",
+			),
+		).toThrow();
 	});
 
 	test("close", () => {

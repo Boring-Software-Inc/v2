@@ -92,7 +92,7 @@ export function ActivityStack({ group }: { group: ActivityGroup }) {
 				variant="plain"
 			>
 				{visible.map((entry) => (
-					<EntryRow entry={entry} groupUrl={group.url} key={entry.event.id} />
+					<EntryRow entry={entry} groupUrl={group.url} key={entry.eventId} />
 				))}
 			</ItemGroup>
 		</EntityCard>
@@ -136,7 +136,7 @@ function StackDescription({ group }: { group: ActivityGroup }) {
 
 function StackStatus({ group }: { group: ActivityGroup }) {
 	const evaluating = group.currentRunId != null && group.currentVerdict == null;
-	const forge = group.timeline[0]?.event.forge;
+	const forge = group.timeline.find((entry) => entry.event)?.event?.forge;
 	const forgeLink = forge
 		? changeRequestForgeLink(forge, group.subjectNumber, group.url)
 		: null;
@@ -164,6 +164,17 @@ function EntryRow({
 	groupUrl: string | null;
 }) {
 	const { event, run, pending } = entry;
+	if (!event) {
+		return (
+			<Item size="sm">
+				<ItemContent>
+					<ItemTitle>
+						{entry.unavailableReason ?? "Historical event data is unavailable"}
+					</ItemTitle>
+				</ItemContent>
+			</Item>
+		);
+	}
 	const ours = isTripwireComment(event);
 	const runId = run?.runId ?? null;
 	const eventLink = runId ? null : eventForgeLink(event);

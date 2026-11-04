@@ -85,6 +85,7 @@ function group(status: string, verdict: string): ActivityGroup {
 		eventCount: 1,
 		timeline: [
 			{
+				eventId: OPENED.id,
 				event: OPENED,
 				run: { runId: "run-1", verdict, status, reason: null },
 			},

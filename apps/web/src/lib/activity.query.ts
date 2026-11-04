@@ -1,8 +1,10 @@
 import { queryOptions, useQueryClient } from "@tanstack/react-query";
 import {
+	activityTimelineEntrySchema,
 	changeRequestAuthor,
 	type NormalizedEvent,
 	type RepoIdentity,
+	storedNormalizedEventSchema,
 } from "@tripwire/contracts";
 import { useEffect } from "react";
 import {
@@ -32,10 +34,19 @@ export const activityQueryOptions = (org: string, repo: string) =>
 function groupOf(
 	event: NormalizedEvent,
 ): { repo: string; subjectNumber: number } | null {
-	if (!("repo" in event)) {
+	if (
+		event.kind === "installation.created" ||
+		event.kind === "installation.deleted" ||
+		event.kind === "installation-repositories.added" ||
+		event.kind === "installation-repositories.removed"
+	) {
 		return null;
 	}
-	if ("changeRequest" in event) {
+	if (
+		event.kind === "change-request.opened" ||
+		event.kind === "change-request.updated" ||
+		event.kind === "change-request.closed"
+	) {
 		return {
 			repo: event.repo.fullName,
 			subjectNumber: event.changeRequest.number,
@@ -51,7 +62,11 @@ function groupOf(
 }
 
 function eventUrl(event: NormalizedEvent): string | null {
-	if ("changeRequest" in event) {
+	if (
+		event.kind === "change-request.opened" ||
+		event.kind === "change-request.updated" ||
+		event.kind === "change-request.closed"
+	) {
 		return event.changeRequest.url;
 	}
 	if (event.kind === "comment.created") {
@@ -63,12 +78,14 @@ function eventUrl(event: NormalizedEvent): string | null {
 	return null;
 }
 
-function isTripwireComment(event: NormalizedEvent): boolean {
-	return event.kind === "comment.created" && event.comment.byTripwire === true;
+function isTripwireComment(event: NormalizedEvent | null): boolean {
+	return event?.kind === "comment.created" && event.comment.byTripwire === true;
 }
 
 function groupTitle(event: NormalizedEvent, subjectNumber: number): string {
-	return "changeRequest" in event
+	return event.kind === "change-request.opened" ||
+		event.kind === "change-request.updated" ||
+		event.kind === "change-request.closed"
 		? event.changeRequest.title
 		: `#${subjectNumber}`;
 }
@@ -76,8 +93,8 @@ function groupTitle(event: NormalizedEvent, subjectNumber: number): string {
 function isPresent(items: ActivityFeedItem[], eventId: string): boolean {
 	return items.some((item) =>
 		item.type === "group"
-			? item.group.timeline.some((t) => t.event.id === eventId)
-			: item.entry.event.id === eventId,
+			? item.group.timeline.some((t) => t.eventId === eventId)
+			: item.entry.eventId === eventId,
 	);
 }
 
@@ -121,6 +138,7 @@ function mergeEvent(
 		return data ?? { items };
 	}
 	const entry: ActivityItem = {
+		eventId: event.id,
 		event,
 		run: null,
 		pending: event.kind.startsWith("change-request."),
@@ -143,7 +161,9 @@ function mergeEvent(
 				: [...group.timeline, entry];
 		const updated: ActivityGroup = {
 			...group,
-			actor: changeRequestAuthor(timeline.map((t) => t.event)),
+			actor: changeRequestAuthor(
+				timeline.flatMap((t) => (t.event ? [t.event] : [])),
+			),
 			timeline,
 			eventCount: oursIdx >= 0 ? group.eventCount : group.eventCount + 1,
 			latestActivityAt: event.receivedAt,
@@ -180,11 +200,12 @@ function mergeRun(
 	const items = data?.items ?? [];
 	const { event } = resolved;
 	const settled: ActivityItem = { ...resolved, pending: false };
+	if (!event) return data ?? { items };
 	const key = groupOf(event);
 	if (!key) {
 		return {
 			items: items.map((item) =>
-				item.type === "event" && item.entry.event.id === event.id
+				item.type === "event" && item.entry.eventId === event.id
 					? { type: "event", entry: settled }
 					: item,
 			),
@@ -196,9 +217,9 @@ function mergeRun(
 		return mergeRun(mergeEvent({ items }, event), resolved);
 	}
 	const group = (items[idx] as { group: ActivityGroup }).group;
-	const has = group.timeline.some((t) => t.event.id === event.id);
+	const has = group.timeline.some((t) => t.eventId === event.id);
 	const timeline = has
-		? group.timeline.map((t) => (t.event.id === event.id ? settled : t))
+		? group.timeline.map((t) => (t.eventId === event.id ? settled : t))
 		: [...group.timeline, settled];
 	const updated = withCurrentVerdict({
 		...group,
@@ -243,7 +264,7 @@ export function useActivityStream(
 			return;
 		}
 		const offEvent = subscribeLive("event", (data) => {
-			const event = JSON.parse(data) as NormalizedEvent;
+			const event = storedNormalizedEventSchema.parse(JSON.parse(data));
 			if (!belongsTo(event, { forge, fullName: repoFullName })) {
 				return;
 			}
@@ -253,7 +274,13 @@ export function useActivityStream(
 			);
 		});
 		const offRun = subscribeLive("run", (data) => {
-			const resolved = JSON.parse(data) as ActivityItem;
+			const resolved = activityTimelineEntrySchema.parse(JSON.parse(data));
+			if (!resolved.event) {
+				queryClient.invalidateQueries({
+					queryKey: activityQueryKeys.feed(org, repo),
+				});
+				return;
+			}
 			if (!belongsTo(resolved.event, { forge, fullName: repoFullName })) {
 				return;
 			}

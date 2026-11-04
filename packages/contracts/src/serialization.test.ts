@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
+	gitCafeActionOperationSchema,
+	gitCafeActionPayloadSchema,
+} from "./gitcafe-action.ts";
+import {
 	jsonSerializationSchema,
 	prettyJsonSerializationSchema,
+	storedJsonValueSchema,
 	thrownStringSchema,
 } from "./serialization.ts";
 
@@ -151,5 +156,84 @@ describe("thrownStringSchema", () => {
 		for (const cause of [undefined, null, 1, false, new Error("message")]) {
 			expect(thrownStringSchema.safeParse(cause).success).toBe(false);
 		}
+	});
+});
+
+describe("storedJsonValueSchema", () => {
+	test("preserves identity and original own prototype-named JSON fields", () => {
+		const value = {
+			["__proto__"]: { kept: true },
+			nested: [{ ["__proto__"]: null, constructor: { prototype: "kept" } }],
+		};
+		expect(storedJsonValueSchema.parse(value)).toBe(value);
+		expect(JSON.stringify(storedJsonValueSchema.parse(value))).toBe(
+			JSON.stringify(value),
+		);
+	});
+
+	test("checks original own fields that record parsing omits", () => {
+		const value = { nested: {} };
+		Object.defineProperty(value.nested, "__proto__", {
+			value: 1n,
+			enumerable: true,
+		});
+		expect(storedJsonValueSchema.safeParse(value).success).toBe(false);
+		for (const invalid of [
+			undefined,
+			() => null,
+			new Date(),
+			{ nested: undefined },
+			[undefined],
+			Number.NaN,
+			Infinity,
+		]) {
+			expect(storedJsonValueSchema.safeParse(invalid).success).toBe(false);
+		}
+		expect(storedJsonValueSchema.safeParse(new Array(1)).success).toBe(false);
+	});
+
+	test("rejects cycles, accepts shared subtrees and does not recurse the JS stack", () => {
+		const cycle: object[] = [];
+		cycle.push(cycle);
+		expect(storedJsonValueSchema.safeParse(cycle).success).toBe(false);
+		const shared = { retained: true };
+		const aliases = { first: shared, second: shared };
+		expect(storedJsonValueSchema.parse(aliases)).toBe(aliases);
+		let deep: ReturnType<typeof storedJsonValueSchema.parse> = null;
+		for (let index = 0; index < 8000; index++) deep = { nested: deep };
+		expect(storedJsonValueSchema.parse(deep)).toBe(deep);
+	});
+
+	test("does not swallow getter exceptions, including RangeError instances", () => {
+		for (const sentinel of [
+			new Error("getter sentinel"),
+			new RangeError("getter sentinel"),
+		]) {
+			let observed = false;
+			try {
+				storedJsonValueSchema.safeParse({
+					get field() {
+						throw sentinel;
+					},
+				});
+			} catch (error) {
+				observed = true;
+				expect(error).toBe(sentinel);
+			}
+			expect(observed).toBe(true);
+		}
+	});
+
+	test("GitCafe payload parsing retains nested JSON metadata and existing operation defaults", () => {
+		const extra = {
+			["__proto__"]: { retained: true },
+			nested: { constructor: "kept" },
+		};
+		const parsed = gitCafeActionPayloadSchema.parse({ extra });
+		expect(parsed.extra).toBe(extra);
+		expect(JSON.stringify(parsed)).toBe(JSON.stringify({ extra }));
+		expect(
+			gitCafeActionOperationSchema.shape.reviewReceipt.parse(undefined),
+		).toBeNull();
 	});
 });

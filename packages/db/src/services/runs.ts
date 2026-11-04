@@ -1,5 +1,6 @@
 import type { Forge, RepoIdentity } from "@tripwire/contracts";
 import {
+	deliveryActionPayloadSchema,
 	GITCAFE_VERDICT_ACTION_KINDS,
 	type GitCafeEvaluationPhase,
 	type GitCafeRepositoryBinding,
@@ -7,11 +8,16 @@ import {
 	gitCafeEvaluationPhaseSchema,
 	HELD_VERDICTS,
 	ingestForgeSchema,
+	type JsonValue,
 	type RunStanding,
 	ruleResultSchema,
+	type StoredActionPayload,
 	standingVerdict,
+	storedActionPayloadSchema,
+	storedJsonValueSchema,
 	VERDICT_EVENT_KINDS,
 	type Verdict,
+	type WebhookPayload,
 	type WorkflowDefinition,
 	workflowDefinitionSchema,
 } from "@tripwire/contracts";
@@ -296,7 +302,7 @@ export async function recordSteps(
 
 export interface RecordActionInput {
 	kind: string;
-	payload: Record<string, unknown>;
+	payload: StoredActionPayload;
 	idempotencyKey: string;
 }
 
@@ -310,7 +316,7 @@ export async function recordActions(
 	 * run never posts a comment/check on a historical change request.
 	 */
 	initialStatus: "recorded" | "suppressed" = "recorded",
-): Promise<{ id: string; kind: string; payload: Record<string, unknown> }[]> {
+): Promise<{ id: string; kind: string; payload: StoredActionPayload }[]> {
 	if (actions.length === 0) {
 		return [];
 	}
@@ -321,8 +327,8 @@ export async function recordActions(
 		kind: action.kind,
 		payload:
 			gitCafePhase && GITCAFE_VERDICT_ACTION_KINDS.has(action.kind)
-				? { ...action.payload, gitCafePhase }
-				: action.payload,
+				? storedActionPayloadSchema.parse({ ...action.payload, gitCafePhase })
+				: storedActionPayloadSchema.parse(action.payload),
 		idempotencyKey: action.idempotencyKey,
 		status: initialStatus,
 	}));
@@ -340,7 +346,7 @@ export async function recordActions(
 	return inserted.map((row) => ({
 		id: row.id,
 		kind: row.kind,
-		payload: row.payload as Record<string, unknown>,
+		payload: storedActionPayloadSchema.parse(row.payload),
 	}));
 }
 
@@ -392,8 +398,15 @@ export async function recordGitCafeSurfaceActions(
 		const continued: RecordActionInput[] = [];
 		for (const row of recorded) {
 			if (!GITCAFE_VERDICT_ACTION_KINDS.has(row.kind)) continue;
-			const payload = gitCafeActionPayloadSchema.parse(row.payload);
-			if (JSON.stringify(payload.gitCafePhase) === JSON.stringify(expected)) {
+			const parsed = gitCafeActionPayloadSchema.safeParse(row.payload);
+			if (!parsed.success) {
+				await markActionInvalid(tx, row.id);
+				continue;
+			}
+			const payload = storedActionPayloadSchema.parse(row.payload);
+			if (
+				JSON.stringify(parsed.data.gitCafePhase) === JSON.stringify(expected)
+			) {
 				const review = reviewBodies.find((body) => body.id === row.id);
 				if (review && !payload.gitCafeOperation)
 					await stampReviewBody(tx, row.id, review.body);
@@ -409,8 +422,8 @@ export async function recordGitCafeSurfaceActions(
 				pendingIds.includes(row.id)
 			) {
 				const body =
-					payload.gitCafeOperation?.command.kind === "review"
-						? payload.gitCafeOperation.command.input.body
+					parsed.data.gitCafeOperation?.command.kind === "review"
+						? parsed.data.gitCafeOperation.command.input.body
 						: reviewBodies.find((body) => body.id === row.id)?.body;
 				delete payload.gitCafeOperation;
 				delete payload.gitCafePhase;
@@ -533,16 +546,27 @@ export async function markActionSuperseded(
 export async function attachDeliveryPayload(
 	db: Db,
 	actionId: string,
-	delivery: unknown,
+	delivery: WebhookPayload,
 ): Promise<void> {
 	const rows = await db
 		.select({ payload: runActions.payload })
 		.from(runActions)
 		.where(eq(runActions.id, actionId));
-	const current = (rows[0]?.payload ?? {}) as Record<string, unknown>;
+	if (!rows[0]) return;
+	const parsed = storedActionPayloadSchema.safeParse(rows[0].payload);
+	if (!parsed.success) {
+		await markActionInvalid(db, actionId);
+		return;
+	}
+	const current = parsed.data;
 	await db
 		.update(runActions)
-		.set({ payload: { ...current, delivery } })
+		.set({
+			payload: {
+				...current,
+				delivery: deliveryActionPayloadSchema.shape.delivery.parse(delivery),
+			},
+		})
 		.where(eq(runActions.id, actionId));
 }
 
@@ -551,12 +575,19 @@ export async function stampReviewBody(
 	actionId: string,
 	reason: string,
 ): Promise<void> {
-	await db
+	const updated = await db
 		.update(runActions)
 		.set({
 			payload: sql`${runActions.payload} || jsonb_build_object('reason', ${reason}::text)`,
 		})
-		.where(eq(runActions.id, actionId));
+		.where(
+			and(
+				eq(runActions.id, actionId),
+				sql`jsonb_typeof(${runActions.payload}) = 'object'`,
+			),
+		)
+		.returning({ id: runActions.id });
+	if (updated.length === 0) await markActionInvalid(db, actionId);
 }
 
 /**
@@ -574,25 +605,50 @@ export async function recordDeliveryFailure(
 		.select({ payload: runActions.payload })
 		.from(runActions)
 		.where(eq(runActions.id, actionId));
-	const current = (rows[0]?.payload ?? {}) as Record<string, unknown>;
-	const attempts =
-		typeof current.deliveryAttempts === "number" ? current.deliveryAttempts : 0;
+	if (!rows[0]) return;
+	const parsed = storedActionPayloadSchema.safeParse(rows[0].payload);
+	if (!parsed.success) {
+		await markActionInvalid(db, actionId);
+		return;
+	}
+	const current = parsed.data;
+	const attempts = z.number().safeParse(current.deliveryAttempts);
+	if (current.deliveryAttempts !== undefined && !attempts.success) {
+		await markActionInvalid(db, actionId);
+		return;
+	}
 	await db
 		.update(runActions)
 		.set({
 			payload: {
 				...current,
 				deliveryFailure: failure,
-				deliveryAttempts: attempts + 1,
+				deliveryAttempts: (attempts.success ? attempts.data : 0) + 1,
 			},
 		})
 		.where(eq(runActions.id, actionId));
 }
 
+/** Invalid intents are terminal and retain their original JSON alongside a sanitized audit reason. */
+export async function markActionInvalid(
+	db: DbLike,
+	actionId: string,
+): Promise<void> {
+	await db
+		.update(runActions)
+		.set({
+			status: "superseded",
+			payload: sql`CASE WHEN jsonb_typeof(${runActions.payload}) = 'object'
+			THEN ${runActions.payload} || jsonb_build_object('actionFailure', 'invalid-payload')
+			ELSE jsonb_build_object('invalidPayload', ${runActions.payload}, 'actionFailure', 'invalid-payload') END`,
+		})
+		.where(and(eq(runActions.id, actionId), eq(runActions.status, "recorded")));
+}
+
 export interface DeliverableAction {
 	id: string;
 	kind: string;
-	payload: Record<string, unknown>;
+	payload: JsonValue;
 	recordedAt: Date;
 }
 
@@ -620,7 +676,7 @@ export async function listDeliverableActions(
 		);
 	return rows.map((row) => ({
 		...row,
-		payload: row.payload as Record<string, unknown>,
+		payload: storedJsonValueSchema.parse(row.payload),
 	}));
 }
 
@@ -629,7 +685,7 @@ export interface StuckAction {
 	id: string;
 	runId: string;
 	kind: string;
-	payload: Record<string, unknown>;
+	payload: JsonValue;
 	idempotencyKey: string;
 	recordedAt: Date;
 	runStatus: string;
@@ -683,7 +739,7 @@ export async function listStuckActions(
 		);
 	return rows.map((row) => ({
 		...row,
-		payload: row.payload as Record<string, unknown>,
+		payload: storedJsonValueSchema.parse(row.payload),
 	}));
 }
 

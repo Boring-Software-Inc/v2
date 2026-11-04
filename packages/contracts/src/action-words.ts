@@ -1,13 +1,108 @@
 import { z } from "zod";
+import { checkStateSchema } from "./check.ts";
+import { verdictSchema } from "./runs.ts";
+import { storedJsonValueSchema } from "./serialization.ts";
+import {
+	webhookDeliveryUrlSchema,
+	webhookPayloadSchema,
+} from "./webhook-payload.ts";
 import {
 	type JsonValue,
 	jsonValueSchema,
 	labelParamsSchema,
+	lockParamsSchema,
+	postCommentParamsSchema,
+	requestReviewParamsSchema,
 	requestReviewTargetsSchema,
 	type WorkflowActionKind,
 } from "./workflow.ts";
 
 export type ActionParams = Record<string, JsonValue>;
+
+const actionPayloadRecordSchema = z.record(z.string(), storedJsonValueSchema);
+export const storedActionPayloadSchema = z.custom<
+	z.infer<typeof actionPayloadRecordSchema>
+>(
+	(value) =>
+		storedJsonValueSchema.safeParse(value).success &&
+		actionPayloadRecordSchema.safeParse(value).success,
+);
+export type StoredActionPayload = z.infer<typeof storedActionPayloadSchema>;
+
+export const deliveryFailureProjectionSchema = z.object({
+	deliveryFailure: z.string().optional().catch(undefined),
+});
+export type DeliveryFailureProjection = z.infer<
+	typeof deliveryFailureProjectionSchema
+>;
+
+export const deliveryActionPayloadSchema = z.object({
+	url: webhookDeliveryUrlSchema,
+	delivery: z.custom<z.infer<typeof webhookPayloadSchema>>(
+		(value) =>
+			storedActionPayloadSchema.safeParse(value).success &&
+			webhookPayloadSchema.safeParse(value).success,
+	),
+	signingSecret: z.string().min(1).optional(),
+	deliveryAttempts: z.number().optional(),
+});
+export type DeliveryActionPayload = z.infer<typeof deliveryActionPayloadSchema>;
+
+/** Discord never consumes a signing secret or sends signature headers. */
+export const discordDeliveryPayloadSchema = deliveryActionPayloadSchema
+	.omit({ signingSecret: true })
+	.transform((payload) => ({ ...payload, signingSecret: undefined }));
+export type DiscordDeliveryPayload = z.infer<
+	typeof discordDeliveryPayloadSchema
+>;
+
+const subjectPayloadSchema = z.object({
+	number: z.number().int().positive().optional(),
+});
+
+/** Only consumed fields determine whether a persisted intent may execute. */
+export const persistedForgeActionSchema = z.discriminatedUnion("kind", [
+	z.object({
+		kind: z.literal("comment"),
+		payload: subjectPayloadSchema.extend({
+			body: z.string(),
+			verdict: verdictSchema,
+			previousVerdict: verdictSchema.nullish(),
+			onlyIfPresent: z.boolean().optional(),
+		}),
+	}),
+	z.object({
+		kind: z.literal("delete-comment"),
+		payload: subjectPayloadSchema,
+	}),
+	z.object({
+		kind: z.literal("dismiss-review"),
+		payload: subjectPayloadSchema.extend({
+			reviewId: z.string().nullable().optional(),
+		}),
+	}),
+	z.object({ kind: z.literal("set-check"), payload: checkStateSchema }),
+	z.object({
+		kind: z.literal("label"),
+		payload: z.object({ labels: z.array(z.string()) }),
+	}),
+	z.object({ kind: z.literal("remove-label"), payload: labelParamsSchema }),
+	z.object({ kind: z.literal("lock"), payload: lockParamsSchema }),
+	z.object({ kind: z.literal("close"), payload: z.object({}) }),
+	z.object({
+		kind: z.literal("post-comment"),
+		payload: postCommentParamsSchema.extend({ marker: z.string() }),
+	}),
+	z.object({
+		kind: z.literal("request-review"),
+		payload: requestReviewParamsSchema,
+	}),
+	z.object({
+		kind: z.literal("block"),
+		payload: z.object({ reason: z.string().optional() }),
+	}),
+]);
+export type PersistedForgeAction = z.infer<typeof persistedForgeActionSchema>;
 
 export const actionParamsSchema = z
 	.record(z.string(), jsonValueSchema)

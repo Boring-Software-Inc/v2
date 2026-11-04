@@ -14,7 +14,11 @@ export function forgeLabel(forge: ForgeId): string {
 }
 
 function eventForgeSubject(event: NormalizedEvent): string | null {
-	if ("changeRequest" in event) {
+	if (
+		event.kind === "change-request.opened" ||
+		event.kind === "change-request.updated" ||
+		event.kind === "change-request.closed"
+	) {
 		return `#${event.changeRequest.number}`;
 	}
 	if (event.kind === "comment.created") {
@@ -30,7 +34,11 @@ function eventForgeSubject(event: NormalizedEvent): string | null {
 }
 
 function eventForgeUrl(event: NormalizedEvent): string | null {
-	if ("changeRequest" in event) {
+	if (
+		event.kind === "change-request.opened" ||
+		event.kind === "change-request.updated" ||
+		event.kind === "change-request.closed"
+	) {
 		return event.changeRequest.url;
 	}
 	if (event.kind === "comment.created") {

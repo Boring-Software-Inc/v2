@@ -33,7 +33,12 @@ const KIND_LABEL = {
 } satisfies Record<EventKind, string>;
 
 function subjectLine(event: NormalizedEvent): string {
-	if ("installation" in event) {
+	if (
+		event.kind === "installation.created" ||
+		event.kind === "installation.deleted" ||
+		event.kind === "installation-repositories.added" ||
+		event.kind === "installation-repositories.removed"
+	) {
 		return event.repositories.map((repo) => repo.fullName).join(", ");
 	}
 	if (event.kind === "comment.created") {
@@ -68,6 +73,17 @@ export function ActivityRow({
 	unarmed?: boolean;
 }) {
 	const { event, run, pending } = item;
+	if (!event) {
+		return (
+			<Item>
+				<ItemContent>
+					<ItemTitle>
+						{item.unavailableReason ?? "Historical event data is unavailable"}
+					</ItemTitle>
+				</ItemContent>
+			</Item>
+		);
+	}
 	const hasRun = run !== null;
 	const forgeLink = eventForgeLink(event);
 
@@ -111,9 +127,12 @@ export function ActivityRow({
 				<ItemDescription>
 					<MetaRow>
 						<span>
-							{"repo" in event
-								? event.repo.fullName
-								: event.installation.account}
+							{event.kind === "installation.created" ||
+							event.kind === "installation.deleted" ||
+							event.kind === "installation-repositories.added" ||
+							event.kind === "installation-repositories.removed"
+								? event.installation.account
+								: event.repo.fullName}
 						</span>
 						{hasRun && run.reason ? <span>{run.reason}</span> : null}
 					</MetaRow>

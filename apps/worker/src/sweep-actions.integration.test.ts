@@ -15,6 +15,7 @@ import {
 	type TestDatabase,
 } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
+import { generateId } from "@tripwire/utils";
 import type { Pool } from "pg";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
@@ -212,7 +213,7 @@ describe("sweepActions", () => {
 		await runServices.recordActions(db, runId, [
 			{
 				kind: "comment",
-				payload: { number: 1, body: "**tripwire: blocked**" },
+				payload: { number: 1, body: "**tripwire: blocked**", verdict: "block" },
 				idempotencyKey: "comment:1:block",
 			},
 			{
@@ -259,7 +260,7 @@ describe("sweepActions", () => {
 		await runServices.recordActions(db, runId, [
 			{
 				kind: "comment",
-				payload: { number: 2, body: "sent to review" },
+				payload: { number: 2, body: "sent to review", verdict: "needs_review" },
 				idempotencyKey: "comment:2:needs_review",
 			},
 			{
@@ -278,7 +279,7 @@ describe("sweepActions", () => {
 		const blockRows = await runServices.recordActions(db, runId, [
 			{
 				kind: "comment",
-				payload: { number: 2, body: "**tripwire: blocked**" },
+				payload: { number: 2, body: "**tripwire: blocked**", verdict: "block" },
 				idempotencyKey: "comment:2:block",
 			},
 			{
@@ -411,7 +412,7 @@ describe("a comment run's own reply", () => {
 		await runServices.recordActions(db, commentRun, [
 			{
 				kind: "comment",
-				payload: { number: 4, body: "thanks for the ping" },
+				payload: { number: 4, body: "thanks for the ping", verdict: "pass" },
 				idempotencyKey: "reply:4",
 			},
 		]);
@@ -499,4 +500,77 @@ test("retry dispatch uses the event forge even when both repos have the same nam
 	expect(
 		fake.executed.filter((action) => action.kind === "label"),
 	).toHaveLength(1);
+});
+
+test("one malformed intent cannot execute or prevent the valid neighboring action", async () => {
+	const eventId = await insertEvent("mixed-invalid-history");
+	const runId = await runServices.createRun(db, {
+		eventId,
+		repoFullName: "history/mixed-actions",
+		subjectNumber: 2,
+		headSha: "head",
+		snapshot: SNAPSHOT,
+		status: "completed",
+		verdict: "block",
+	});
+	const malformed = [
+		null,
+		false,
+		3,
+		"scalar",
+		[],
+		{ body: 42, verdict: "block" },
+	];
+	const invalidIds: string[] = [];
+	for (const [index, payload] of malformed.entries()) {
+		const id = generateId();
+		await pool.query(
+			"INSERT INTO run_actions (id, run_id, kind, payload, idempotency_key) VALUES ($1, $2, 'comment', $3::jsonb, $4)",
+			[id, runId, JSON.stringify(payload), `invalid-${index}`],
+		);
+		invalidIds.push(id);
+	}
+	const payload = { reason: "stored review", extra: [null, { keep: true }] };
+	const [valid] = await runServices.recordActions(db, runId, [
+		{ kind: "block", payload, idempotencyKey: "stable-valid" },
+	]);
+	if (!valid) throw new Error("valid action not recorded");
+	const fake = fakeAdapter();
+	let adapterCalls = 0;
+	await sweepActions(
+		{
+			db,
+			logger,
+			appUrl: "https://tripwire.sh",
+			adapterFor: async (repo) => {
+				if (repo !== "history/mixed-actions") return null;
+				adapterCalls++;
+				return fake.adapter;
+			},
+		},
+		{ recordedBefore: FUTURE(), giveUpBefore: PAST() },
+	);
+	expect(adapterCalls).toBe(1);
+	expect(fake.executed).toHaveLength(1);
+	expect(fake.executed[0]?.kind).toBe("block");
+	for (const id of invalidIds) {
+		const row = await pool.query(
+			"SELECT status, payload FROM run_actions WHERE id = $1",
+			[id],
+		);
+		expect(row.rows[0]).toMatchObject({
+			status: "superseded",
+			payload: { actionFailure: "invalid-payload" },
+		});
+	}
+	const row = await pool.query(
+		"SELECT id, status, idempotency_key, payload FROM run_actions WHERE id = $1",
+		[valid.id],
+	);
+	expect(row.rows[0]).toMatchObject({
+		id: valid.id,
+		status: "executed",
+		idempotency_key: "stable-valid",
+		payload,
+	});
 });

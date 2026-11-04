@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { verdictSchema } from "./runs.ts";
+import { storedJsonValueSchema } from "./serialization.ts";
 
 const ID = z.string().min(1).max(255);
 const VERSION = z.number().int().min(0).max(2147483646);
@@ -119,12 +120,14 @@ export const GITCAFE_VERDICT_ACTION_KINDS: ReadonlySet<string> = new Set([
 	"dismiss-review",
 ]);
 
-export const gitCafeActionPayloadSchema = z.looseObject({
-	gitCafeOperation: gitCafeActionOperationSchema.optional(),
-	gitCafePhase: gitCafeEvaluationPhaseSchema.optional(),
-	reason: z.string().optional(),
-	verdict: verdictSchema.optional(),
-});
+export const gitCafeActionPayloadSchema = z
+	.object({
+		gitCafeOperation: gitCafeActionOperationSchema.optional(),
+		gitCafePhase: gitCafeEvaluationPhaseSchema.optional(),
+		reason: z.string().optional(),
+		verdict: verdictSchema.optional(),
+	})
+	.catchall(storedJsonValueSchema);
 export type GitCafeActionPayload = z.infer<typeof gitCafeActionPayloadSchema>;
 
 export const gitCafeActionBindingSchema = gitCafeActionOperationSchema.omit({

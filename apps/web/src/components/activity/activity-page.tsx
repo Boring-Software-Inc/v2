@@ -72,7 +72,7 @@ function segmentsOf(items: ActivityFeedItem[]): Segment[] {
 		} else {
 			out.push({
 				type: "rows",
-				key: item.entry.event.id,
+				key: item.entry.eventId,
 				entries: [item.entry],
 			});
 		}
@@ -232,7 +232,7 @@ function CurrentActivityPage() {
 										{segment.entries.map((entry) => (
 											<ActivityRow
 												item={entry}
-												key={entry.event.id}
+												key={entry.eventId}
 												unarmed={unarmed}
 											/>
 										))}

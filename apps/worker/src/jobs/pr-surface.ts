@@ -10,17 +10,16 @@ import {
 	gitCafeActionPayloadSchema,
 	gitCafeReviewerRefSchema,
 	isAiReviewNotRunStep,
-	labelParamsSchema,
-	lockParamsSchema,
+	type JsonValue,
 	type NormalizedEvent,
+	persistedForgeActionSchema,
 	planSurfaces,
-	postCommentParamsSchema,
 	REVIEW_POINTER,
 	redactCommentReasons,
 	redactionLevelFor,
-	requestReviewTargetsSchema,
 	type ScheduledThread,
 	type SurfacePlan,
+	storedActionPayloadSchema,
 	type Verdict,
 	verdictSchema,
 	type WebhookPayload,
@@ -90,17 +89,27 @@ export async function recoverGitCafeRunSurface(
 					changeRequest: { ...event.changeRequest, headSha: saved.run.headSha },
 				}
 			: event;
-	const recorded = saved.actions
-		.filter((action) => action.status === "recorded")
-		.map((action) => ({
-			id: action.id,
-			kind: action.kind,
-			payload: gitCafeActionPayloadSchema.parse(action.payload),
-		}));
+	const recorded: Awaited<ReturnType<typeof runServices.recordActions>> = [];
+	for (const action of saved.actions) {
+		if (action.status !== "recorded") continue;
+		const payload = storedActionPayloadSchema.safeParse(action.payload);
+		const gitCafe = gitCafeActionPayloadSchema.safeParse(action.payload);
+		if (!payload.success || !gitCafe.success) {
+			await runServices.markActionInvalid(deps.db, action.id);
+			deps.logger.error(
+				{ actionId: action.id, kind: action.kind },
+				"invalid action payload, abandoned",
+			);
+			continue;
+		}
+		recorded.push({ id: action.id, kind: action.kind, payload: payload.data });
+	}
 	const hasCurrentSurface = saved.actions.some((action) => {
 		if (surfaceKey && !action.idempotencyKey.endsWith(`:${surfaceKey}`))
 			return false;
-		const payload = gitCafeActionPayloadSchema.parse(action.payload);
+		const parsed = gitCafeActionPayloadSchema.safeParse(action.payload);
+		if (!parsed.success) return false;
+		const payload = parsed.data;
 		return action.kind === "set-check"
 			? payload.conclusion === VERDICT_TO_CONCLUSION[verdict.data] &&
 					payload.sha === saved.run.headSha
@@ -143,7 +152,7 @@ export async function recoverGitCafeRunSurface(
 		rerun: options?.rerun || saved.run.triggeredBy !== null,
 		resumedFrom: [...saved.actions].reverse().flatMap((action) => {
 			const parsed = verdictSchema.safeParse(
-				gitCafeActionPayloadSchema.parse(action.payload).verdict,
+				gitCafeActionPayloadSchema.safeParse(action.payload).data?.verdict,
 			);
 			return parsed.success ? [parsed.data] : [];
 		})[0],
@@ -377,6 +386,14 @@ export async function emitPrSurface(
 	);
 	const review = plan.review ?? REVIEW_POINTER.block;
 	for (const row of blockRows) {
+		if (!persistedForgeActionSchema.safeParse(row).success) {
+			await runServices.markActionInvalid(db, row.id);
+			logger.error(
+				{ actionId: row.id, kind: row.kind },
+				"invalid action payload, abandoned",
+			);
+			continue;
+		}
 		const operation =
 			event.forge === "gitcafe"
 				? gitCafeActionPayloadSchema.parse(row.payload).gitCafeOperation
@@ -437,11 +454,10 @@ export async function emitPrSurface(
 			? [
 					{
 						kind: "dismiss-review",
-						payload: {
-							number,
-							reviewId: reviewToDismiss,
-							verdict: event.forge === "gitcafe" ? verdict : undefined,
-						},
+						payload:
+							event.forge === "gitcafe"
+								? { number, reviewId: reviewToDismiss, verdict }
+								: { number, reviewId: reviewToDismiss },
 						idempotencyKey:
 							event.forge === "gitcafe"
 								? `dismiss-review:${reviewToDismiss ?? "all-owned"}:${verdict}:${input.surfaceKey ?? "initial"}`
@@ -546,7 +562,13 @@ async function executeRecordedPrActions(
 			? await gitCafeActionServices.getPendingGitCafeReviewCleanup(db, runId)
 			: [];
 	const unique = new Map(
-		[...cleanup, ...input.pendingActionRows].map((row) => [row.id, row]),
+		[
+			...cleanup.map((row) => ({
+				...row,
+				payload: storedActionPayloadSchema.parse(row.payload),
+			})),
+			...input.pendingActionRows,
+		].map((row) => [row.id, row]),
 	);
 	const ordered = [...unique.values()].sort(
 		(a, b) =>
@@ -557,6 +579,20 @@ async function executeRecordedPrActions(
 	);
 	let surfaceFailed = false;
 	for (const row of ordered) {
+		if (
+			row.kind !== "webhook" &&
+			row.kind !== "discord" &&
+			!VERDICT_ONLY_KINDS.has(row.kind) &&
+			!persistedForgeActionSchema.safeParse(row).success
+		) {
+			await runServices.markActionInvalid(db, row.id);
+			logger.error(
+				{ actionId: row.id, kind: row.kind },
+				"invalid action payload, abandoned",
+			);
+			if (CLOSE_PREREQUISITES.has(row.kind)) surfaceFailed = true;
+			continue;
+		}
 		if (
 			event.forge === "gitcafe" &&
 			((row.kind === "set-check" &&
@@ -873,49 +909,46 @@ export async function emitClosedReviewSurfaces(
 }
 
 export function toForgeAction(
-	row: Pick<
-		Awaited<ReturnType<typeof runServices.recordActions>>[number],
-		"kind" | "payload"
-	>,
+	input: { kind: string; payload: JsonValue },
 	repoFullName: string,
 	number: number,
 	reviewText: string,
 	activeReviewId: string | null = null,
 ) {
+	const row = persistedForgeActionSchema.parse(input);
 	switch (row.kind) {
 		case "comment":
 			return {
 				kind: "comment" as const,
 				repoFullName,
-				number: (row.payload.number as number) ?? number,
-				body: row.payload.body as string,
-				verdict: row.payload.verdict as Verdict,
-				previousVerdict:
-					(row.payload.previousVerdict as Verdict | null | undefined) ?? null,
+				number: row.payload.number ?? number,
+				body: row.payload.body,
+				verdict: row.payload.verdict,
+				previousVerdict: row.payload.previousVerdict ?? null,
 				onlyIfPresent: row.payload.onlyIfPresent === true,
 			};
 		case "delete-comment":
 			return {
 				kind: "delete-comment" as const,
 				repoFullName,
-				number: (row.payload.number as number) ?? number,
+				number: row.payload.number ?? number,
 			};
 		case "dismiss-review":
 			return {
 				kind: "dismiss-review" as const,
 				repoFullName,
-				number: (row.payload.number as number) ?? number,
-				reviewId: (row.payload.reviewId as string | null) ?? null,
+				number: row.payload.number ?? number,
+				reviewId: row.payload.reviewId ?? null,
 			};
 		case "set-check":
 			return {
 				kind: "set-check" as const,
 				repoFullName,
 				check: {
-					sha: row.payload.sha as string,
-					conclusion: row.payload.conclusion as CheckState["conclusion"],
-					summary: row.payload.summary as string,
-					detailsUrl: row.payload.detailsUrl as string,
+					sha: row.payload.sha,
+					conclusion: row.payload.conclusion,
+					summary: row.payload.summary,
+					detailsUrl: row.payload.detailsUrl,
 				},
 			};
 		case "label":
@@ -923,11 +956,10 @@ export function toForgeAction(
 				kind: "label" as const,
 				repoFullName,
 				number,
-				labels: (row.payload.labels as string[]) ?? [],
+				labels: row.payload.labels ?? [],
 			};
 		case "lock": {
-			const params = lockParamsSchema.safeParse(row.payload);
-			const reason = params.success ? params.data.reason : undefined;
+			const reason = row.payload.reason;
 			return reason
 				? { kind: "lock" as const, repoFullName, number, reason }
 				: { kind: "lock" as const, repoFullName, number };
@@ -935,47 +967,42 @@ export function toForgeAction(
 		case "close":
 			return { kind: "close" as const, repoFullName, number };
 		case "remove-label": {
-			const params = labelParamsSchema.safeParse(row.payload);
 			return {
 				kind: "remove-label" as const,
 				repoFullName,
 				number,
-				labels: params.success ? params.data.labels : [],
+				labels: row.payload.labels,
 			};
 		}
 		case "post-comment": {
-			const params = postCommentParamsSchema.safeParse(row.payload);
 			return {
 				kind: "post-comment" as const,
 				repoFullName,
 				number,
-				body: params.success ? params.data.message : "",
-				marker: String(row.payload.marker ?? ""),
+				body: row.payload.message,
+				marker: row.payload.marker,
 			};
 		}
 		case "request-review": {
-			const targets = requestReviewTargetsSchema.safeParse(row.payload);
 			const reviewers: string[] = [];
 			const reviewerIds: string[] = [];
-			if (targets.success) {
-				for (const reviewer of targets.data.reviewers) {
-					const gitCafe = gitCafeReviewerRefSchema.safeParse(reviewer);
-					if (gitCafe.success) reviewerIds.push(gitCafe.data.id);
-					else reviewers.push(reviewer.login);
-				}
+			for (const reviewer of row.payload.reviewers) {
+				const gitCafe = gitCafeReviewerRefSchema.safeParse(reviewer);
+				if (gitCafe.success) reviewerIds.push(gitCafe.data.id);
+				else reviewers.push(reviewer.login);
 			}
 			const action: Extract<ForgeAction, { kind: "request-review" }> = {
 				kind: "request-review",
 				repoFullName,
 				number,
 				reviewers,
-				teamReviewers: targets.success ? targets.data.teamReviewers : [],
+				teamReviewers: row.payload.teamReviewers,
 			};
 			if (reviewerIds.length) action.reviewerIds = reviewerIds;
 			return action;
 		}
-		default: {
-			const reason = (row.payload.reason as string | undefined) ?? reviewText;
+		case "block": {
+			const reason = row.payload.reason ?? reviewText;
 			return activeReviewId
 				? {
 						kind: "update-review" as const,

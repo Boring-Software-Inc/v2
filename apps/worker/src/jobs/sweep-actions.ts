@@ -1,5 +1,10 @@
 import type { Forge } from "@tripwire/contracts";
-import { bearsVerdict, REVIEW_POINTER } from "@tripwire/contracts";
+import {
+	bearsVerdict,
+	persistedForgeActionSchema,
+	REVIEW_POINTER,
+	storedActionPayloadSchema,
+} from "@tripwire/contracts";
 import type { Db } from "@tripwire/db";
 import { moderationServices, runServices } from "@tripwire/db";
 import type { ForgeAdapter } from "@tripwire/forge";
@@ -125,6 +130,23 @@ export async function sweepActions(
 		if (DELIVERY_KINDS.has(row.kind)) {
 			continue;
 		}
+		const payload = storedActionPayloadSchema.safeParse(row.payload);
+		if (
+			!payload.success ||
+			(!VERDICT_ONLY_KINDS.has(row.kind) &&
+				!persistedForgeActionSchema.safeParse({
+					kind: row.kind,
+					payload: row.payload,
+				}).success)
+		) {
+			await runServices.markActionInvalid(db, row.id);
+			result.abandoned++;
+			logger.error(
+				{ actionId: row.id, kind: row.kind },
+				"invalid action payload, abandoned",
+			);
+			continue;
+		}
 		if (row.subjectNumber !== null && bearsVerdict(row.eventKind)) {
 			const latest = await runServices.getLatestRunForChangeRequest(
 				db,
@@ -174,7 +196,7 @@ export async function sweepActions(
 		if (
 			row.forge === "gitcafe" &&
 			row.kind === "set-check" &&
-			row.payload.conclusion === "success" &&
+			payload.data.conclusion === "success" &&
 			!(await runServices.isReviewCleanupComplete(db, row.runId))
 		)
 			continue;
