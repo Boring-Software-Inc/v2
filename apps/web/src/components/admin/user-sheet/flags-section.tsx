@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getRouteApi } from "@tanstack/react-router";
 import type { FlagOverrideChoice } from "@tripwire/contracts";
 import { formatStaffDateTime } from "#/components/admin/user-sheet/format";
 import {
@@ -249,6 +250,7 @@ function FlagRow({
 }
 
 export function FlagsSection({ view }: { view: AdminUserView }) {
+	const { databuddyWebsiteId } = getRouteApi("__root__").useLoaderData();
 	const { user } = view;
 	const { data, isLoading, error, refetch } = useQuery(
 		adminUserFlagsQueryOptions(user.id),
@@ -330,7 +332,7 @@ export function FlagsSection({ view }: { view: AdminUserView }) {
 					/>
 					<a
 						className="inline-flex shrink-0 items-center gap-1 rounded-tag text-text-1 underline decoration-line-control underline-offset-3 hover:decoration-ink focus-visible:focus-ring"
-						href={databuddyUserUrl(user.id)}
+						href={databuddyUserUrl(user.id, databuddyWebsiteId)}
 						rel="noreferrer"
 						target="_blank"
 					>

@@ -5,7 +5,8 @@
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
-		"./forge-sign-in": "./src/forge-sign-in.ts"
+		"./forge-sign-in": "./src/forge-sign-in.ts",
+		"./databuddy-server": "./src/databuddy.server.ts"
 	},
 	"types": "./src/index.ts",
 	"scripts": {

@@ -21,6 +21,8 @@ const PUBLIC_ALLOWLIST = new Set([
 	"getCurrentUser", // caller's OWN identity (name/login/avatar); no product data
 	/** The signed-out login page needs provider IDs, never auth configuration. */
 	"getProviderAvailability",
+	/** Public analytics ID is needed on signed-out pages; no secret configuration. */
+	"getPublicDatabuddyConfig",
 	"getRun", // the unlisted-public run page — readable without a session by design
 	"getWebviewHost", // echoes the caller's own user-agent; /login is signed-out
 	"redeemOrgInvite", // §6: redemption APPROVES pending users — gating it deadlocks

@@ -8,26 +8,23 @@ import {
 	Scripts,
 	useRouterState,
 } from "@tanstack/react-router";
-import { DATABUDDY_CLIENT_ID } from "@tripwire/auth/databuddy";
 import { ThemeProvider, useTheme } from "next-themes";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { type SkulletMode, type SkulletTheme, together } from "skullet";
 import { SkulletProvider } from "skullet/react";
 import { AnalyticsIdentity } from "#/components/common/analytics-identity";
+import { DatabuddyAnalytics } from "#/components/common/databuddy-analytics";
 import { ImpersonationBanner } from "#/components/common/impersonation-banner";
 import glazeCss from "#/components/glaze/styles.css?url";
 import { useSlowWait } from "#/components/glaze/ui/slow-notice";
 import { Toaster } from "#/components/glaze/ui/toast";
 import { RepoTabsProvider } from "#/components/tabs/repo-tabs-provider";
 import { sessionInfoQueryOptions } from "#/lib/auth.query";
+import { getPublicDatabuddyConfig } from "#/lib/databuddy.functions";
 import { GlazePortalProvider } from "#/lib/glaze/portal";
 import { isPublicPath } from "#/lib/run-access";
 import { siteConfig } from "#/lib/site-config";
 import appCss from "../styles.css?url";
-
-const Databuddy = lazy(() =>
-	import("@databuddy/sdk/react").then((m) => ({ default: m.Databuddy })),
-);
 
 const SKULLET_THEME = {
 	light: {
@@ -46,6 +43,7 @@ const SKULLET_THEME = {
 export const Route = createRootRouteWithContext<{
 	queryClient: QueryClient;
 }>()({
+	loader: () => getPublicDatabuddyConfig(),
 	/**
 	 * §10 — Better Auth gates the dashboard, then onboarding gates it again: a
 	 * signed-in user with no active repo goes to /onboarding (same shape as the
@@ -158,6 +156,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+	const { databuddyWebsiteId } = Route.useLoaderData();
 	useSlowWait(useRouterState({ select: (state) => state.isLoading }));
 	return (
 		<ThemeProvider
@@ -171,7 +170,7 @@ function RootComponent() {
 				    layout wrap, so a provider down there would remount — and re-read
 				    storage — on every navigation. */}
 				<ImpersonationBanner />
-				<FlagsProvider clientId={DATABUDDY_CLIENT_ID}>
+				<FlagsProvider clientId={databuddyWebsiteId}>
 					<RepoTabsProvider>
 						<Outlet />
 					</RepoTabsProvider>
@@ -179,16 +178,7 @@ function RootComponent() {
 				<Toaster />
 				{/* Global product analytics — one mount covers every route (pageviews,
 			    interactions, outgoing links, hash changes, web vitals). */}
-				<Suspense fallback={null}>
-					<Databuddy
-						clientId={DATABUDDY_CLIENT_ID}
-						trackHashChanges
-						trackAttributes
-						trackOutgoingLinks
-						trackInteractions
-						trackWebVitals
-					/>
-				</Suspense>
+				<DatabuddyAnalytics websiteId={databuddyWebsiteId} />
 				<AnalyticsIdentity />
 			</TripwireSkulletProvider>
 		</ThemeProvider>

@@ -1,6 +1,6 @@
 import { createServerFlagsManager } from "@databuddy/sdk/node";
 import { type FlagSource, flagSourceFromReason } from "@tripwire/contracts";
-import { DATABUDDY_CLIENT_ID } from "./databuddy.ts";
+import { getDatabuddyWebsiteId } from "@tripwire/utils/databuddy-server";
 
 export interface EvaluatedFlag {
 	key: string;
@@ -18,7 +18,7 @@ export function createFlagEvaluator(
 	input: { apiUrl?: string } = {},
 ): FlagEvaluator {
 	const manager = createServerFlagsManager({
-		clientId: DATABUDDY_CLIENT_ID,
+		clientId: getDatabuddyWebsiteId(),
 		apiUrl: input.apiUrl,
 		cacheTtl: 1,
 	});

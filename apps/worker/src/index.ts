@@ -1,6 +1,5 @@
 import type { Forge } from "@tripwire/contracts";
 import {
-	DATABUDDY_WEBSITE_ID,
 	deriveUsageSource,
 	rerunChangeRequestJobSchema,
 } from "@tripwire/contracts";
@@ -40,6 +39,7 @@ import {
 	GithubInstallations,
 } from "@tripwire/forge-github";
 import { createDatabuddyApi, getErrorMessage } from "@tripwire/utils";
+import { getDatabuddyApiConfig } from "@tripwire/utils/databuddy-server";
 import type { WorkHandler } from "pg-boss";
 import pino from "pino";
 import { createGenerate } from "./ai/generate.ts";
@@ -247,13 +247,9 @@ if (import.meta.main && workerMode === "standard") {
 		);
 	}
 
-	const databuddyKey = process.env.DATABUDDY_API_KEY;
-	const databuddyApi = databuddyKey
-		? createDatabuddyApi({
-				apiKey: databuddyKey,
-				websiteId: DATABUDDY_WEBSITE_ID,
-				baseUrl: process.env.DATABUDDY_API_URL,
-			})
+	const databuddyConfig = getDatabuddyApiConfig();
+	const databuddyApi = databuddyConfig
+		? createDatabuddyApi(databuddyConfig)
 		: null;
 	if (!databuddyApi) {
 		logger.warn("DATABUDDY_API_KEY missing: flag overrides will not sync");
