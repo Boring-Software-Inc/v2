@@ -150,6 +150,121 @@ describe("mcp initialization", () => {
 	});
 });
 
+describe("MCP scope inspection and SDK transport", () => {
+	async function post(
+		agent: { userId: string; clientId: string },
+		body: string,
+	) {
+		return appFor(agent).request("http://localhost:3421/mcp", {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				accept: "application/json, text/event-stream",
+				origin: "https://agent.example",
+			},
+			body,
+		});
+	}
+
+	test("checks every known call's scope even in malformed envelopes and batches", async () => {
+		const agent = await seedAgentUser();
+		for (const body of [
+			{ method: "tools/call", params: { name: "set_rule", arguments: null } },
+			[
+				null,
+				{ jsonrpc: "2.0", id: "read", method: "tools/list" },
+				{ method: "tools/call", params: { name: "set_rule" } },
+				{ method: "tools/call", params: { name: "turn_on_gate" } },
+				{ method: "tools/call", params: { name: "set_rule" } },
+			],
+		]) {
+			const res = await post(agent, JSON.stringify(body));
+			expect(res.status).toBe(403);
+			expect(res.headers.get("www-authenticate")).toContain(
+				"insufficient_scope",
+			);
+			expect(await res.json()).toMatchObject({
+				jsonrpc: "2.0",
+				id: null,
+				error: { code: -32001 },
+			});
+			if (Array.isArray(body)) {
+				expect(res.headers.get("www-authenticate")).toContain(
+					"tripwire:configure tripwire:admin",
+				);
+			}
+		}
+	});
+
+	test("keeps native parse errors and SDK invalid-envelope errors distinct", async () => {
+		const agent = await seedAgentUser();
+		const invalidJson = await post(agent, "[");
+		expect(invalidJson.status).toBe(400);
+		expect(await invalidJson.json()).toEqual({
+			jsonrpc: "2.0",
+			id: null,
+			error: { code: -32700, message: "Parse error" },
+		});
+		for (const body of [
+			null,
+			{ method: "tools/call", params: { name: "unknown_tool" } },
+			[null, { jsonrpc: "2.0", id: 1, method: "tools/list" }],
+		]) {
+			const res = await post(agent, JSON.stringify(body));
+			expect(res.status).toBe(400);
+			expect(await res.json()).toEqual({
+				jsonrpc: "2.0",
+				id: null,
+				error: {
+					code: -32700,
+					message: "Parse error: Invalid JSON-RPC message",
+				},
+			});
+		}
+	});
+
+	test("preserves IDs, unknown-tool errors, batching and sessionless CORS", async () => {
+		const agent = await seedAgentUser();
+		const res = await post(
+			agent,
+			JSON.stringify([
+				{
+					jsonrpc: "2.0",
+					id: "unknown",
+					method: "tools/call",
+					params: { name: "unknown_tool" },
+				},
+				{ jsonrpc: "2.0", id: 42, method: "tools/list" },
+			]),
+		);
+		expect(res.status).toBe(200);
+		expect(res.headers.get("mcp-session-id")).toBeNull();
+		expect(res.headers.get("access-control-allow-origin")).toBe("*");
+		expect(await res.json()).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					jsonrpc: "2.0",
+					id: "unknown",
+					result: {
+						isError: true,
+						content: [
+							{
+								type: "text",
+								text: "MCP error -32602: Tool unknown_tool not found",
+							},
+						],
+					},
+				}),
+				expect.objectContaining({
+					jsonrpc: "2.0",
+					id: 42,
+					result: expect.objectContaining({ tools: expect.any(Array) }),
+				}),
+			]),
+		);
+	});
+});
+
 describe("a banned user's agent", () => {
 	test("a token that outlives the ban is refused at the MCP boundary", async () => {
 		const agent = await seedAgentUser();

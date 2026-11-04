@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	jsonSerializationSchema,
+	prettyJsonSerializationSchema,
 	thrownStringSchema,
 } from "./serialization.ts";
 
@@ -65,6 +66,77 @@ describe("jsonSerializationSchema", () => {
 			let caught: unknown;
 			try {
 				jsonSerializationSchema.parse(value);
+			} catch (error) {
+				caught = error;
+			}
+			expect(caught).toBe(cause);
+		}
+	});
+});
+
+describe("prettyJsonSerializationSchema", () => {
+	test("matches native pretty text, dates, omissions and top-level undefined", () => {
+		for (const value of [
+			undefined,
+			null,
+			Symbol("omitted"),
+			() => 1,
+			Number.NaN,
+			Number.POSITIVE_INFINITY,
+			{ date: new Date("2026-10-01T02:03:04.000Z"), omitted: undefined },
+			[undefined, Number.NaN, { nested: [1, 2] }],
+		]) {
+			expect(prettyJsonSerializationSchema.parse(value)).toBe(
+				JSON.stringify(value, null, 2),
+			);
+		}
+		expect(prettyJsonSerializationSchema.parse({ saved: true })).toBe(
+			'{\n  "saved": true\n}',
+		);
+	});
+
+	test("calls getters and toJSON exactly once", () => {
+		let getters = 0;
+		let conversions = 0;
+		const value = {
+			get field() {
+				getters++;
+				return {
+					toJSON() {
+						conversions++;
+						return { conversions };
+					},
+				};
+			},
+		};
+		expect(prettyJsonSerializationSchema.parse(value)).toBe(
+			'{\n  "field": {\n    "conversions": 1\n  }\n}',
+		);
+		expect(getters).toBe(1);
+		expect(conversions).toBe(1);
+	});
+
+	test("preserves native failures and thrown causes", () => {
+		const cycle = {};
+		Object.defineProperty(cycle, "self", { value: cycle, enumerable: true });
+		expect(() => prettyJsonSerializationSchema.parse(cycle)).toThrow(TypeError);
+		expect(() => prettyJsonSerializationSchema.parse(1n)).toThrow(TypeError);
+		const cause = new Error("serialization failed");
+		for (const value of [
+			{
+				get field() {
+					throw cause;
+				},
+			},
+			{
+				toJSON() {
+					throw cause;
+				},
+			},
+		]) {
+			let caught: unknown;
+			try {
+				prettyJsonSerializationSchema.parse(value);
 			} catch (error) {
 				caught = error;
 			}

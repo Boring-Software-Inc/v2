@@ -28,12 +28,10 @@ const getBoss = async (forge?: Forge) => {
 			throw error;
 		}
 	}
-	boss ??= createBoss(process.env.DATABASE_URL, logger).catch(
-		(error: unknown) => {
-			boss = null;
-			throw error;
-		},
-	);
+	boss ??= createBoss(process.env.DATABASE_URL, logger).catch((error) => {
+		boss = null;
+		throw error;
+	});
 	return boss;
 };
 

@@ -38,7 +38,7 @@ export interface ToolSpec {
 	readOnly: boolean;
 }
 
-export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
+export const TOOL_SPECS = {
 	whoami: { scope: "tripwire:read", need: "none", readOnly: true },
 	switch_account: { scope: "tripwire:read", need: "none", readOnly: false },
 	setup_status: { scope: "tripwire:read", need: "org-shell", readOnly: true },
@@ -136,14 +136,14 @@ export const TOOL_SPECS: Record<ToolName, ToolSpec> = {
 		need: "none",
 		readOnly: false,
 	},
-};
+} satisfies Record<ToolName, ToolSpec>;
 
-const SKILL_SCOPES: Record<string, AgentScope> = {
+const SKILL_SCOPES = {
 	read: "tripwire:read",
 	configure: "tripwire:configure",
 	moderate: "tripwire:moderate",
 	admin: "tripwire:admin",
-};
+} satisfies Record<string, AgentScope>;
 
 export type ToolSelection =
 	| { ok: true; scopes: AgentScope[]; readOnly: boolean }
@@ -165,7 +165,7 @@ export function selectTools(url: URL): ToolSelection {
 	const readOnlyParam = url.searchParams.get("read_only");
 	const readOnly = readOnlyParam === "1" || readOnlyParam === "true";
 	const named = [...(skills ?? []), ...disabled];
-	const unknown = named.filter((name) => !(name in SKILL_SCOPES));
+	const unknown = named.filter((name) => !Object.hasOwn(SKILL_SCOPES, name));
 	if (unknown.length > 0) {
 		return {
 			ok: false,
@@ -185,7 +185,13 @@ export function selectTools(url: URL): ToolSelection {
 		};
 	}
 	const scopes = [
-		...new Set(chosen.map((name) => SKILL_SCOPES[name] as AgentScope)),
+		...new Set(
+			chosen.flatMap((name) =>
+				Object.entries(SKILL_SCOPES)
+					.filter(([skill]) => skill === name)
+					.map(([, scope]) => scope),
+			),
+		),
 	];
 	if (!scopes.includes("tripwire:read")) {
 		scopes.unshift("tripwire:read");
