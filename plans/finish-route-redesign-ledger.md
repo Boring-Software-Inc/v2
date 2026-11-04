@@ -1,0 +1,339 @@
+# Frozen cleanup ledger
+
+Checkpoint: `5b1b613b`. Full scan: **284 anti-slop + 1,102 design-system errors**. Source evidence: `/tmp/tripwire-finish-evidence/inventory-full.log` and `inventory.json`. This is a finite file allowlist, not authorization for new features.
+
+Latest accepted checkpoint: `95022483`. Non-UI findings are **zero**; **1,102 design-system findings remain**. Approved plan step4 is complete. The final verification and local integration gates remain open.
+
+## Acceptance for every group
+
+- Parent reviews source and test diffs, scoped lint reaches zero for the owned plugin, no new diagnostics, owning typechecks/tests and Biome/boundaries pass.
+- Shared boundary changes require consumer typechecks and malformed-input regression tests. Security-sensitive groups require independent review.
+- UI groups additionally require reachable-state and actual browser/differential evidence, no arbitrary visual override API, and downward baseline update.
+- Exact file ownership is assigned before writers start. Shared CSS/package contracts have one owner at a time.
+
+## Non-UI and route-boundary groups
+
+- [x] **apps/mcp** — 12 findings cleared in `7eb049b1`, including operator-approved inherited skill-name rejection. Independent security review `6d7e51f3` clear; parent117MCP/seam tests, all16types, scopedBiome/boundaries/changedlint pass. Check owner tests/typecheck; HTTP/auth/shell/worker/persistence groups need explicit security and failure-path review.
+  - `apps/mcp/src/app.ts` (6): no-runtime-typeof, no-unknown-parameters.
+  - `apps/mcp/src/catalog.ts` (2): no-known-value-widening.
+  - `apps/mcp/src/context.ts` (1): no-unknown-parameters.
+  - `apps/mcp/src/index.ts` (1): no-unknown-parameters.
+  - `apps/mcp/src/tools.integration.test.ts` (1): no-unsafe-dictionary-type.
+  - `apps/mcp/src/tools.ts` (1): no-runtime-typeof.
+- [x] **apps/web** — 10 original anti-slop findings cleared in `e29a52e1`; actual route-validator baseline controls and isolated browser popup checks pass; independent auth review clear. Check owner tests/typecheck; HTTP/auth/shell/worker/persistence groups need explicit security and failure-path review.
+  - `apps/web/src/routes/login.tsx` (2): no-runtime-typeof, no-unsafe-dictionary-type.
+  - `apps/web/src/routes/oauth.popup-callback.tsx` (5): no-runtime-typeof, no-unknown-parameters, no-unsafe-dictionary-type.
+  - `apps/web/src/routes/oauth.waitlist.tsx` (3): no-runtime-typeof, no-unsafe-dictionary-type.
+- [x] **apps/worker** — 62 original findings cleared in `da627513` and `9b1f0b25`; independent security reviews clear, parent focused/integration suites pass. Recheck after coordinated historical-row consumer changes. Check owner tests/typecheck; HTTP/auth/shell/worker/persistence groups need explicit security and failure-path review.
+  - `apps/worker/src/ai/generate.ts` (5): no-conditional-empty-object-spread, no-known-value-widening, no-runtime-typeof, no-unsafe-dictionary-type.
+  - `apps/worker/src/economics-trigger.ts` (3): no-known-value-widening, no-unknown-parameters.
+  - `apps/worker/src/jobs/comment-reasons.ts` (4): no-runtime-typeof, no-unknown-parameters.
+  - `apps/worker/src/jobs/custom-rules.test.ts` (1): no-unsafe-dictionary-type.
+  - `apps/worker/src/jobs/deliver-webhook.ts` (1): no-runtime-typeof.
+  - `apps/worker/src/jobs/economics-digest.ts` (2): no-unknown-parameters.
+  - `apps/worker/src/jobs/pr-surface.ts` (4): no-known-value-widening, no-unsafe-dictionary-type.
+  - `apps/worker/src/jobs/pull-provider-costs.test.ts` (1): no-unknown-parameters.
+  - `apps/worker/src/jobs/pull-provider-costs.ts` (16): no-conditional-empty-object-spread, no-known-value-widening, no-object-parameters, no-runtime-typeof, no-unknown-parameters, no-unsafe-dictionary-type.
+  - `apps/worker/src/jobs/railway-cost.ts` (4): no-known-value-widening, no-runtime-typeof, no-unsafe-dictionary-type.
+  - `apps/worker/src/jobs/replay.ts` (2): no-unknown-parameters.
+  - `apps/worker/src/jobs/resume-run.ts` (2): no-known-value-widening.
+  - `apps/worker/src/jobs/run-workflows.ts` (11): no-conditional-empty-object-spread, no-known-value-widening, no-runtime-typeof, no-unknown-parameters, no-unsafe-dictionary-type.
+  - `apps/worker/src/jobs/schedule-tick.ts` (3): no-conditional-empty-object-spread, no-known-value-widening.
+  - `apps/worker/src/process-event.integration.test.ts` (2): no-unknown-parameters, no-unsafe-dictionary-type.
+  - `apps/worker/src/self-events.integration.test.ts` (1): no-unknown-parameters.
+- [x] **packages/core** — 17 findings cleared in `8e3672dc`; independent security review clear, parent combined tests/typechecks pass. Check owner tests/typecheck; HTTP/auth/shell/worker/persistence groups need explicit security and failure-path review.
+  - `packages/core/src/rules/ai-review/rule.test.ts` (2): no-unknown-parameters.
+  - `packages/core/src/rules/define.ts` (2): no-unknown-parameters, no-unsafe-dictionary-type.
+  - `packages/core/src/rules/public-view.test.ts` (5): no-known-value-widening, no-unsafe-dictionary-type.
+  - `packages/core/src/rules/registry.ts` (4): no-runtime-typeof, no-unknown-parameters, no-unsafe-dictionary-type.
+  - `packages/core/src/workflow/executor.ts` (4): no-unknown-parameters, no-unsafe-dictionary-type.
+- [x] **packages/db** — 65 original findings cleared across the accepted economics, service/seed, driver and historical-row batches. Final history/shared-owner commit `23347da5`; independent security review `ddd25c7e` clear. Combined1,894tests/all16types pass; no historical deletion or migration.
+  - `packages/db/src/pglite.ts` (1): no-chained-type-assertions.
+  - `packages/db/src/queue.ts` (1): no-unknown-parameters.
+  - `packages/db/src/seed.ts` (11): no-known-value-widening, no-unknown-parameters.
+  - `packages/db/src/services/activity.integration.test.ts` (2): no-runtime-typeof, no-unsafe-dictionary-type.
+  - `packages/db/src/services/custom-rules.ts` (2): no-runtime-typeof, no-unknown-parameters.
+  - `packages/db/src/services/economics.integration.test.ts` (1): no-unknown-parameters.
+  - `packages/db/src/services/economics.ts` (21): no-known-value-widening, no-runtime-typeof, no-unknown-parameters, no-unsafe-dictionary-type.
+  - `packages/db/src/services/events.ts` (8): no-runtime-typeof, no-unknown-parameters, no-unsafe-dictionary-type.
+  - `packages/db/src/services/insights.ts` (4): no-chained-type-assertions, no-unsafe-dictionary-type.
+  - `packages/db/src/services/organizations.ts` (2): no-conditional-empty-object-spread.
+  - `packages/db/src/services/repos.ts` (1): no-conditional-empty-object-spread.
+  - `packages/db/src/services/runs.ts` (11): no-runtime-typeof, no-unknown-parameters, no-unsafe-dictionary-type.
+- [x] **packages/forge-github** — 18 findings cleared in `a79d64ed`; independent security review clear, native transport/prototype-key regression tests pass. Check owner tests/typecheck; HTTP/auth/shell/worker/persistence groups need explicit security and failure-path review.
+  - `packages/forge-github/src/actions/actions.test.ts` (2): no-unsafe-dictionary-type.
+  - `packages/forge-github/src/actions/check.ts` (1): no-conditional-empty-object-spread.
+  - `packages/forge-github/src/actions/execute.ts` (1): no-unknown-parameters.
+  - `packages/forge-github/src/client/http.ts` (6): no-conditional-empty-object-spread, no-unknown-parameters.
+  - `packages/forge-github/src/client/reads.test.ts` (1): no-unknown-parameters.
+  - `packages/forge-github/src/client/reads.ts` (1): no-known-value-widening.
+  - `packages/forge-github/src/client/threads.test.ts` (1): no-unsafe-dictionary-type.
+  - `packages/forge-github/src/client/threads.ts` (1): no-runtime-typeof.
+  - `packages/forge-github/src/signals.test.ts` (3): no-known-value-widening, no-unknown-parameters, no-unsafe-dictionary-type.
+  - `packages/forge-github/src/webhook/normalize.ts` (1): no-known-value-widening.
+- [x] **packages/forge-opengit** — 2 findings cleared in `8e3672dc`; local doubles only, parent combined tests pass. Check owner tests/typecheck; HTTP/auth/shell/worker/persistence groups need explicit security and failure-path review.
+  - `packages/forge-opengit/src/e2e.test.ts` (2): no-runtime-typeof, no-unknown-parameters.
+- [x] **packages/sdk** — 57 findings cleared in `b393cd4b`, including SDK error-formatting correction and targeted independent re-review. Check owner tests/typecheck; HTTP/auth/shell/worker/persistence groups need explicit security and failure-path review.
+  - `packages/sdk/src/client.ts` (11): no-known-value-widening, no-unsafe-dictionary-type.
+  - `packages/sdk/src/comparison.ts` (3): no-known-value-widening.
+  - `packages/sdk/src/evaluate.ts` (33): no-known-value-widening, no-runtime-typeof, no-unknown-parameters.
+  - `packages/sdk/src/stored-rule.ts` (9): no-known-value-widening, no-runtime-typeof.
+  - `packages/sdk/src/text-metrics.ts` (1): no-known-value-widening.
+- [x] **packages/utils** — 9 findings cleared in `5c1437ee`; independent security review clear, parent combined tests/typechecks pass. Check owner tests/typecheck; HTTP/auth/shell/worker/persistence groups need explicit security and failure-path review.
+  - `packages/utils/src/errors.ts` (3): no-runtime-typeof, no-unknown-parameters.
+  - `packages/utils/src/guarded-fetch.test.ts` (1): no-known-value-widening.
+  - `packages/utils/src/guarded-fetch.ts` (3): no-known-value-widening, no-unknown-parameters.
+  - `packages/utils/src/id.ts` (1): no-runtime-typeof.
+  - `packages/utils/src/sparkline-png.test.ts` (1): no-known-value-widening.
+- [x] **tooling** — 32 original findings cleared in `712170fa` and `95022483`. Independent review `2a084757` clear; shared-owner dependency accepted in `23347da5`. Actual parent consumer controls and strict script types pass; no live CLI/forge/model E2E claim.
+  - `commitlint.config.ts` (1): no-runtime-typeof.
+  - `scripts/backfill-public-projection.ts` (1): no-runtime-typeof.
+  - `scripts/check-boundaries.ts` (1): no-known-value-widening.
+  - `scripts/check-component-states.tsx` (3): no-unsafe-dictionary-type.
+  - `scripts/check-design-system-lint-baseline.ts` (3): no-runtime-typeof, no-unknown-parameters, no-unsafe-dictionary-type.
+  - `scripts/check-ui-contract.ts` (3): no-known-value-widening, no-unsafe-dictionary-type.
+  - `scripts/e2e/lib/assert.ts` (4): no-runtime-typeof, no-unknown-parameters.
+  - `scripts/e2e/lib/runner.ts` (1): no-known-value-widening.
+  - `scripts/e2e/scenarios.ts` (4): no-runtime-typeof, no-unknown-parameters, no-unsafe-dictionary-type.
+  - `scripts/eval/config.ts` (1): no-known-value-widening.
+  - `scripts/eval/run.ts` (1): no-unknown-parameters.
+  - `scripts/rule-check.core.ts` (2): no-known-value-widening.
+  - `scripts/rule-check.ts` (5): no-known-value-widening, no-runtime-typeof.
+  - `spike/fixture.ts` (2): no-known-value-widening, no-unsafe-dictionary-type.
+
+## Semantic UI groups
+
+Cross-check with `.design-system/route-surface-inventory.md`: completed route shells do not imply that nested components are migrated. Preserve existing loading/error/empty/read-only states and server behavior.
+
+- [ ] **apps/web/src/components/account** — 26 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/account/account-page.tsx` (15).
+  - `apps/web/src/components/account/delete-account-dialog.tsx` (11).
+- [ ] **apps/web/src/components/activity** — 12 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/activity/activity-history.tsx` (4).
+  - `apps/web/src/components/activity/activity-page-skeleton.tsx` (1).
+  - `apps/web/src/components/activity/activity-page.tsx` (1).
+  - `apps/web/src/components/activity/activity-row.tsx` (2).
+  - `apps/web/src/components/activity/activity-stack.tsx` (4).
+- [ ] **apps/web/src/components/agent** — 7 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/agent/agent-outline.tsx` (1).
+  - `apps/web/src/components/agent/agent-presence.tsx` (3).
+  - `apps/web/src/components/agent/agent-rain.tsx` (3).
+- [ ] **apps/web/src/components/agents** — 15 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/agents/agent-account-row.tsx` (4).
+  - `apps/web/src/components/agents/agent-client-logo.tsx` (8).
+  - `apps/web/src/components/agents/agent-code-boxes.tsx` (3).
+- [ ] **apps/web/src/components/analytics** — 25 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/analytics/analytics-events.tsx` (10).
+  - `apps/web/src/components/analytics/analytics-page-skeleton.tsx` (5).
+  - `apps/web/src/components/analytics/analytics-page.tsx` (10).
+- [ ] **apps/web/src/components/arming** — 1 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/arming/arm-callout.tsx` (1).
+- [ ] **apps/web/src/components/code** — 18 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/code/code-controls.tsx` (1).
+  - `apps/web/src/components/code/code-header.tsx` (8).
+  - `apps/web/src/components/code/pierre-code.tsx` (2).
+  - `apps/web/src/components/code/plain-code.tsx` (5).
+  - `apps/web/src/components/code/tripwire-code-diff.tsx` (1).
+  - `apps/web/src/components/code/tripwire-code-file.tsx` (1).
+- [ ] **apps/web/src/components/collection** — 1 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/collection/collection.tsx` (1).
+- [ ] **apps/web/src/components/common** — 47 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/common/animated-height.tsx` (1).
+  - `apps/web/src/components/common/confirm-delete-dialog.tsx` (8).
+  - `apps/web/src/components/common/date-range-filter.tsx` (6).
+  - `apps/web/src/components/common/entity-card-skeleton.tsx` (1).
+  - `apps/web/src/components/common/entity-card.tsx` (3).
+  - `apps/web/src/components/common/grouped-picker.tsx` (13).
+  - `apps/web/src/components/common/impersonation-banner.tsx` (7).
+  - `apps/web/src/components/common/meta-row.tsx` (1).
+  - `apps/web/src/components/common/route-error-shell.tsx` (1).
+  - `apps/web/src/components/common/route-error.tsx` (2).
+  - `apps/web/src/components/common/section-heading.tsx` (4).
+- [ ] **apps/web/src/components/dev** — 16 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/dev/dev-custom-scenario.tsx` (7).
+  - `apps/web/src/components/dev/dev-identity.tsx` (4).
+  - `apps/web/src/components/dev/dev-preset-list.tsx` (2).
+  - `apps/web/src/components/dev/dev-scenario-disclosure.tsx` (1).
+  - `apps/web/src/components/dev/dev-scenario-switcher.tsx` (2).
+- [ ] **apps/web/src/components/dither** — 1 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/dither/dither-avatar.tsx` (1).
+- [ ] **apps/web/src/components/feedback** — 19 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/feedback/feedback-outline.tsx` (4).
+  - `apps/web/src/components/feedback/feedback-panel.tsx` (10).
+  - `apps/web/src/components/feedback/feedback-picker.tsx` (5).
+- [ ] **apps/web/src/components/forges** — 33 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/forges/connect-forge-grid.tsx` (3).
+  - `apps/web/src/components/forges/gitcafe-repository-selection.tsx` (10).
+  - `apps/web/src/components/forges/organization-connection-row.tsx` (9).
+  - `apps/web/src/components/forges/organization-connections-page.tsx` (11).
+- [ ] **apps/web/src/components/icons** — 1 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/icons/gitcafe.tsx` (1).
+- [ ] **apps/web/src/components/layouts** — 28 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/layouts/command-palette.tsx` (7).
+  - `apps/web/src/components/layouts/dashboard-layout.tsx` (4).
+  - `apps/web/src/components/layouts/dashboard-topbar.tsx` (7).
+  - `apps/web/src/components/layouts/scope-switchers.tsx` (7).
+  - `apps/web/src/components/layouts/shell-nav.tsx` (3).
+- [ ] **apps/web/src/components/mascot** — 32 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/mascot/mascot-controls.tsx` (4).
+  - `apps/web/src/components/mascot/mascot-figure.tsx` (2).
+  - `apps/web/src/components/mascot/mascot-machine-card.tsx` (3).
+  - `apps/web/src/components/mascot/mascot-page-skeleton.tsx` (5).
+  - `apps/web/src/components/mascot/mascot-page.tsx` (14).
+  - `apps/web/src/components/mascot/runner/runner-page-skeleton.tsx` (2).
+  - `apps/web/src/components/mascot/runner/runner-page.tsx` (2).
+- [ ] **apps/web/src/components/moderation** — 4 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/moderation/moderation-page-skeleton.tsx` (1).
+  - `apps/web/src/components/moderation/moderation-queue.tsx` (3).
+- [ ] **apps/web/src/components/not-found-shell.tsx** — 1 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/not-found-shell.tsx` (1).
+- [ ] **apps/web/src/components/not-found.tsx** — 2 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/not-found.tsx` (2).
+- [ ] **apps/web/src/components/organizations** — 135 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/organizations/approved-install-banner.tsx` (1).
+  - `apps/web/src/components/organizations/create-org-dialog.tsx` (5).
+  - `apps/web/src/components/organizations/digest-caught-card.tsx` (1).
+  - `apps/web/src/components/organizations/digest-counts-card.tsx` (2).
+  - `apps/web/src/components/organizations/digest-verdict-row.tsx` (3).
+  - `apps/web/src/components/organizations/first-week-digest.tsx` (7).
+  - `apps/web/src/components/organizations/gitcafe-connection-progress.tsx` (3).
+  - `apps/web/src/components/organizations/gitcafe-install-setup.tsx` (4).
+  - `apps/web/src/components/organizations/install-setup-page-skeleton.tsx` (6).
+  - `apps/web/src/components/organizations/install-setup-page.tsx` (11).
+  - `apps/web/src/components/organizations/install-setup-shell.tsx` (7).
+  - `apps/web/src/components/organizations/invite-page-skeleton.tsx` (5).
+  - `apps/web/src/components/organizations/invite-page.tsx` (8).
+  - `apps/web/src/components/organizations/no-orgs-page-skeleton.tsx` (7).
+  - `apps/web/src/components/organizations/no-orgs-page.tsx` (9).
+  - `apps/web/src/components/organizations/org-analytics-page-skeleton.tsx` (4).
+  - `apps/web/src/components/organizations/org-analytics-page.tsx` (10).
+  - `apps/web/src/components/organizations/org-avatar.tsx` (1).
+  - `apps/web/src/components/organizations/org-general-settings-page.tsx` (17).
+  - `apps/web/src/components/organizations/org-home-page-skeleton.tsx` (2).
+  - `apps/web/src/components/organizations/org-home-page.tsx` (3).
+  - `apps/web/src/components/organizations/org-redaction-page.tsx` (7).
+  - `apps/web/src/components/organizations/org-roles-page.tsx` (6).
+  - `apps/web/src/components/organizations/region-blocked-page.tsx` (2).
+  - `apps/web/src/components/organizations/region-gate.tsx` (4).
+- [ ] **apps/web/src/components/responses** — 158 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/responses/blocks/block-canvas.tsx` (6).
+  - `apps/web/src/components/responses/blocks/block-column.tsx` (2).
+  - `apps/web/src/components/responses/blocks/block-content.tsx` (1).
+  - `apps/web/src/components/responses/blocks/block-drag-preview.tsx` (3).
+  - `apps/web/src/components/responses/blocks/block-row.tsx` (4).
+  - `apps/web/src/components/responses/blocks/block-settings.tsx` (3).
+  - `apps/web/src/components/responses/blocks/collapsed-block-row.tsx` (8).
+  - `apps/web/src/components/responses/blocks/drop-line.tsx` (4).
+  - `apps/web/src/components/responses/blocks/gif-search.tsx` (12).
+  - `apps/web/src/components/responses/blocks/response-builder.tsx` (4).
+  - `apps/web/src/components/responses/blocks/text-block-editor.tsx` (11).
+  - `apps/web/src/components/responses/blocks/variable-chip.tsx` (5).
+  - `apps/web/src/components/responses/check-state-mock.tsx` (7).
+  - `apps/web/src/components/responses/github-comment-mock.tsx` (22).
+  - `apps/web/src/components/responses/preview-object.tsx` (4).
+  - `apps/web/src/components/responses/redaction-controls.tsx` (8).
+  - `apps/web/src/components/responses/redaction-tally.tsx` (4).
+  - `apps/web/src/components/responses/responses-page-skeleton.tsx` (5).
+  - `apps/web/src/components/responses/responses-preview.tsx` (21).
+  - `apps/web/src/components/responses/run-page-mock.tsx` (4).
+  - `apps/web/src/components/responses/save-state.tsx` (8).
+  - `apps/web/src/components/responses/setting-rows.tsx` (12).
+- [ ] **apps/web/src/components/rules** — 99 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/rules/caught-count.tsx` (2).
+  - `apps/web/src/components/rules/custom-rule-builder.tsx` (14).
+  - `apps/web/src/components/rules/rule-card-frame.ts` (12).
+  - `apps/web/src/components/rules/rule-card.tsx` (11).
+  - `apps/web/src/components/rules/rule-header-stats.tsx` (11).
+  - `apps/web/src/components/rules/rule-library.tsx` (9).
+  - `apps/web/src/components/rules/rule-packs.tsx` (4).
+  - `apps/web/src/components/rules/rules-page-skeleton.tsx` (8).
+  - `apps/web/src/components/rules/rules-page.tsx` (1).
+  - `apps/web/src/components/rules/rules-replay-page-skeleton.tsx` (7).
+  - `apps/web/src/components/rules/rules-replay-page.tsx` (20).
+- [ ] **apps/web/src/components/rules-params** — 12 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/rules-params/param-editor.tsx` (4).
+  - `apps/web/src/components/rules-params/param-sentence.tsx` (4).
+  - `apps/web/src/components/rules-params/param-value.tsx` (4).
+- [ ] **apps/web/src/components/runs** — 166 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/runs/ai-findings.tsx` (18).
+  - `apps/web/src/components/runs/ai-trace.tsx` (14).
+  - `apps/web/src/components/runs/branch-card.tsx` (67).
+  - `apps/web/src/components/runs/branch-connector.tsx` (1).
+  - `apps/web/src/components/runs/chain-mark.tsx` (3).
+  - `apps/web/src/components/runs/evidence-parts.tsx` (13).
+  - `apps/web/src/components/runs/rule-evidence.tsx` (3).
+  - `apps/web/src/components/runs/run-chain.tsx` (23).
+  - `apps/web/src/components/runs/run-page.tsx` (2).
+  - `apps/web/src/components/runs/superseded-run-chain.tsx` (22).
+- [ ] **apps/web/src/components/save-queue** — 3 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/save-queue/unsaved-changes-bar.tsx` (3).
+- [ ] **apps/web/src/components/setup** — 47 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/setup/agent-setup-card.tsx` (11).
+  - `apps/web/src/components/setup/repo-setup-checklist.tsx` (15).
+  - `apps/web/src/components/setup/setup-done-strip.tsx` (6).
+  - `apps/web/src/components/setup/setup-pill.tsx` (11).
+  - `apps/web/src/components/setup/setup-step-actions.tsx` (2).
+  - `apps/web/src/components/setup/step-done-mark.tsx` (2).
+- [ ] **apps/web/src/components/tabs** — 6 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/tabs/repo-tab-bar.tsx` (6).
+- [ ] **apps/web/src/components/workflows** — 154 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/components/workflows/editor/canvas-zoom.tsx` (2).
+  - `apps/web/src/components/workflows/editor/editor-sidebar.tsx` (12).
+  - `apps/web/src/components/workflows/editor/label-picker.tsx` (5).
+  - `apps/web/src/components/workflows/editor/lane-nodes.tsx` (7).
+  - `apps/web/src/components/workflows/editor/problems-list.tsx` (18).
+  - `apps/web/src/components/workflows/editor/properties-panel.tsx` (15).
+  - `apps/web/src/components/workflows/editor/reviewer-picker.tsx` (10).
+  - `apps/web/src/components/workflows/editor/rule-group-cards.tsx` (20).
+  - `apps/web/src/components/workflows/editor/schedule-flow.tsx` (25).
+  - `apps/web/src/components/workflows/editor/schedule-input.tsx` (18).
+  - `apps/web/src/components/workflows/editor/typed-connections.tsx` (6).
+  - `apps/web/src/components/workflows/editor/workflow-code.tsx` (9).
+  - `apps/web/src/components/workflows/workflows-grid-page-skeleton.tsx` (1).
+  - `apps/web/src/components/workflows/workflows-grid-page.tsx` (6).
+- [ ] **apps/web/src/lib** — 19 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/lib/server/og/render-run-og.tsx` (19).
+- [ ] **apps/web/src/routes** — 14 findings. Existing feature tests, semantics/state checks and affected browser interactions required.
+  - `apps/web/src/routes/oauth.popup-callback.tsx` (10).
+  - `apps/web/src/routes/oauth.waitlist.tsx` (3).
+  - `apps/web/src/routes/queue.tsx` (1).
+
+## Accepted before this inventory
+
+- [x] W3 web component contracts: `22edf1cf`, independent review clear, 102 parent tests pass.
+- [x] Auth/API parsing: `58d60cff`, independent security review clear, 72 parent tests pass including disposable DB and loopback guards.
+- [x] CLI lookups/parsing: `5b1b613b`, independent security review clear, supported-runtime full suite383 pass.
+
+## Execution notes
+
+- **Operator decision:** approve safe invalid-historical-row handling instead of unchecked compatibility: validate consumed fields, show an explicit unavailable-data state for invalid history, and skip invalid pending actions with an audit reason. Preserve valid rows and extra JSON fields; no deletion/migration. This authorizes a narrow coordinated DB owner/consumer change for remaining events/runs findings, not broad cleanup of historical data.
+- Wave2 accepted: GitHub18 (`a79d64ed`), provider costs26 (`da627513`), execution36 (`9b1f0b25`), DB safe19 (`ed979b28`), OAuth10 (`e29a52e1`). Independent reviews clear. Parent focused382 and combined disposable worker/DB integration148 pass, all16 types pass.
+- SDK57 accepted after bounded correction/re-review (`b393cd4b`). Parent corrected SDK+contract+OAuth tests87pass; original108,450-case hostile-object parity probe has0differences.
+- Current full scan: **53 anti-slop +1,102 design-system errors**, `/tmp/tripwire-finish-evidence/post-wave2-lint.log`. Remaining anti-slop: DB20, MCP12, tools/spike21.
+- Broad worker+forge invocation reached150s timeout during GitCafe lifecycle cases and is not green. Its three contributor-exemption failures are now **explained and cleared by controlled environment**, not code changes: parent Bun autoloaded local `.env` with `TRIPWIRE_DISABLE_EXEMPTION=true`, baseline seed had no such flag. Exact baseline `b92fbb9e` has33/33pass; current explicit false + `--no-env-file --isolate` has33/33pass with original assertions. A first standalone attempt hit disposable PG readiness failure; one infrastructure retry completed. Evidence: `rule-outcomes-{baseline-b92,controlled-env}.log`. Final whole-suite gate remains open; use isolated test environment without local dev/provider settings.
+- Removed only the disposable container leaked by that timed-out parent invocation (`tripwire-test-01a1a174-89af`), verified by its creation time inside the invocation, UUID timestamp, PostgreSQL image and test-only environment. Saved logs first. All older/other containers left untouched.
+- DBdriver seam accepted `80d58c1c`: parent11focused driver/runtime tests, all16types, boundaries and changed-line lint pass; worker fullDB393/393pass. Independent security review `54d2d8fd` clear. Full rescan **52 anti-slop +1,102 design-system**, no new errors (`post-driver-lint.log`). No whole-repository suite claim.
+- MCP accepted `7eb049b1`; full rescan **40 anti-slop +1,102 design-system** (`post-mcp-lint.log`), no new errors. Remaining40: DBhistorical19 andtools21.
+- Wave3 historical-row (`b148d29e`) andtools (`e4e04cb4`) workers hit30min runtime limits. No acceptance claimed. Preserved explicit source/index snapshots and metadata in `/tmp/tripwire-finish-evidence/recovery/`, excluded `.unipi` from source patches but left its staged recovery state untouched. Both reported resumable. One approved bounded20min same-worker recovery started in workflow `327c75c4`; no alternative CLI/newscope/second infrastructure retry. Final evidence or precise blockers required.
+- Recovery workflow `327c75c4` expired at20min. Historical-row child `1371bb96` stopped, process terminal observed, not resumable. No further infrastructure retry authorized. Captured26source-path snapshot `recovery/rows-after-recovery-partial.patch`; staged harness state preserved. Saved final26-file candidate `/tmp/tripwire-wave3-rows/final.patch` and self-review exist despite absent completion handoff. FullDB log394/394pass before final serializer catch guard; subsequent80consumer+4runs tests claimed in artifacts, not parent-accepted.
+- **Parent findings blocking recovered candidate:** GitCafe `.catchall(jsonValueSchema)` loses nested prototype-named JSON extras (actual baseline/candidate reproducer); latest shared storedJSON validator broadly catches all errors, conflicting with tooling's thrown-getter identity control. Need bounded parent corrective-pass decision; no new implementation worker/retry launched. Tools21 independent review `2a084757` clear and actual parent18tests/strictscript/all16types pass against earlier non-swallowing owner; its commit waits on final shared-owner acceptance. Current working fullscan19anti+1102design (`working-tooling-lint.log`), not finalacceptedzero.
+- Operator explicitly approved MCP catalog prototype-name correction: `constructor`, `toString`, `__proto__` must receive existing400 unknown-skill response. Valid skill order/dedup/scopes/toolaccess unchanged. This does not authorize changing eval-pricing prototype behavior.
+
+- Wave1 parent integrated tests: **1,749 pass** across contracts/utils/core/SDK/OpenGit; all16 workspace typechecks pass. SDK remains uncommitted pending one corrective pass for Zod error formatting that can read hostile object constructors; independent review caught the issue before acceptance.
+- DB cost/insight26 findings cleared in `e1c1d4df`; independent review clear, parent disposable integration20pass. Confirmed malformed-rate false-positive fix and required JSON write validation recorded in patch self-review.
+- Tooling11 findings cleared in `712170fa`; independent review found one script type error, corrected/re-reviewed. Parent strict script typecheck,17 positive/negative tests, light/dark component matrix and12login browser scenarios pass. No validator rules were weakened.
+- Fresh integrated working scan: **162 anti-slop +1,102 design-system errors** (`/tmp/tripwire-finish-evidence/post-wave1-lint.log`). Includes unaccepted SDK patch; committed-only counts are not claimed.
+- Wave2 active: remaining DB persistence/seed, worker execution, worker provider costs, GitHub transport/actions/normalization. Each has isolated file ownership and explicit boundary expansion approval requirements.
+
+## Parent strict-invalidation pass
+
+- The operator approved a parent-only correction after the stopped recovery. Nested prototype-named GitCafe JSON extras now survive, and the stored JSON owner uses an iterative ancestor stack without swallowing getter errors.
+- Independent review found two further regressions: phase comparison used raw JSONB key order, and the record owner reintroduced recursive validation. Both were corrected and independently confirmed. Added tests cover repeated same-phase persistence and 8,000-level extras through record and delivery owners; existing mutation assertions remain intact.
+- The broader GitCafe suite then exposed an unguarded runtime conversion of a body-only historical comment. The operator explicitly chose strict invalidation and authorized one further parent correction, one controlled verification run up to10min, and one targeted review; no implementation worker or infrastructure retry.
+- The recorded-action boundary now validates consumed fields non-throwingly and uses the existing conditional invalid-payload audit before returning a refusal. The malformed seed remains unchanged. Separate valid-row coverage retains both exact command-mismatch assertions and verifies no action mutation or forge writes.
+- The authorized combined run completed: **1,894pass/0fail,112files,20snapshots,95,593expectations,309.10s**. It includes all contracts, affected UI/tool controls, all DB suites, delivery/sweep, and the full GitCafe action suite. Environment was stripped; Bun1.4.4 used `--no-env-file --isolate` with contributor exemptions explicitly enabled. Disposable container names match before/after; older containers remain untouched. Evidence: `/tmp/tripwire-finish-evidence/strict-invalidation-combined-tests.log` and its explicit test-path manifest. The earlier180s timeout remains historical, not a green result.
+- All16 workspace typechecks, strict script types,41-file Biome, boundaries and diff whitespace pass. Current working full lint: **0anti-slop +1,102design-system errors** (`strict-invalidation-lint.log`). Full lint is not green.
+- Browser evidence covers48 rendered real-component workbench states: unavailable/mixed/long escaped RTL title, light/dark,320/390/768/1280,100/200% emulated text and line-height scaling. No viewport overflow, page/console errors, failed local requests, or fabricated unavailable actions. This is SSR rendering with live local CSS, not application hydration/native zoom/live-data behavior. The temporary harness was removed; source and screenshots remain in `/tmp/tripwire-finish-evidence/activity-history/`.
+- Final27-path history/shared-owner patch: `strict-invalidation-final.patch`, SHA256 `31556d2a82cd8ca14bb2083f797057079c3c354164f87de5f3831115731db9c4`. Independent targeted review `ddd25c7e` cleared all findings and the GitCafe consumer dependency. Accepted history/shared owners in `23347da5` and tooling14 in `95022483`, after verifying exact reviewed source/blob identities. Committed-source rescan `non-ui-accepted-lint.log` confirms0anti-slop +1,102design-system errors. Approved plan step4 is complete; overall merge remains blocked by the remaining semantic and final gates.
+
+Ledger updates record accepted commits, exact tests and unresolved blockers. Full repository zero lint, final build/tests/browser gates and safe integration remain mandatory.
