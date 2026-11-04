@@ -2468,3 +2468,204 @@
 		margin-inline-start: 0;
 	}
 }
+
+[data-layout-role="schedule-text-gap"] {
+	color: var(--tw-content-primary);
+}
+
+[data-layout-role="schedule-token"] {
+	margin-inline: calc(-1 * var(--line-width));
+	padding-inline: var(--line-width);
+	border-radius: var(--radius-tag);
+	transition-property:
+		color, background-color, border-color, outline-color, text-decoration-color,
+		fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to;
+	transition-duration: var(--dur-state);
+	transition-timing-function: var(--default-transition-timing-function);
+}
+
+[data-layout-role="schedule-token"][data-token-tone="ok"] {
+	background-color: var(--tw-interaction-hover);
+	color: var(--tw-content-primary);
+}
+
+[data-layout-role="schedule-token"][data-token-tone="ok"][data-active] {
+	background-color: var(--tw-interaction-pressed);
+}
+
+[data-layout-role="schedule-token"][data-token-tone="warn"] {
+	background-color: var(--tw-warning-wash);
+	color: var(--tw-warning-text);
+}
+
+[data-layout-role="schedule-token"][data-token-tone="fail"] {
+	background-color: var(--tw-danger-wash);
+	color: var(--tw-danger-text);
+}
+
+[data-layout-role="schedule-completion"],
+[data-layout-role="schedule-timezone"] {
+	color: var(--tw-content-tertiary);
+}
+
+[data-layout-role="schedule-field-heading"] {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--space-2);
+}
+
+[data-slot="input"][data-layout-role="schedule-input"][data-schedule-problem="ambiguous"] {
+	border-color: var(--tw-warning-border);
+}
+
+[data-layout-role="schedule-native-input"] {
+	position: relative;
+	color: transparent;
+	caret-color: var(--tw-content-primary);
+	text-overflow: clip;
+}
+
+[data-layout-role="schedule-native-input"]::selection {
+	background-color: var(--tw-interaction-selected);
+}
+
+[data-layout-role="schedule-token-hint"] {
+	position: absolute;
+	z-index: var(--z-raised);
+	top: 100%;
+	margin-top: var(--space-1);
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+[data-layout-role="schedule-token-hint"][data-has-problem] {
+	top: auto;
+	bottom: 100%;
+	margin-top: 0;
+	margin-bottom: var(--space-1);
+}
+
+[data-layout-role="schedule-problem"] {
+	margin-top: var(--space-1-5);
+}
+
+[data-layout-role="schedule-problem"][data-schedule-problem="ambiguous"] {
+	color: var(--tw-warning-text);
+}
+
+[data-layout-role="schedule-fixes"] {
+	display: flex;
+	flex-wrap: wrap;
+	column-gap: var(--space-3);
+	row-gap: var(--space-1);
+	margin-top: var(--space-1);
+}
+
+[data-layout-role="schedule-fix"] {
+	border-radius: var(--radius-tag);
+	color: var(--tw-content-primary);
+	font: var(--type-caption);
+	font-variant-numeric: tabular-nums;
+	letter-spacing: var(--tracking-body);
+	text-decoration-line: underline;
+	text-decoration-thickness: var(--line-width);
+	text-underline-offset: var(--space-0-5);
+}
+
+@media (hover: hover) {
+	[data-layout-role="schedule-fix"]:hover {
+		color: var(--tw-content-secondary);
+	}
+
+	[data-layout-role="workflow-problem-row"][data-revealable]:hover {
+		background-color: var(--tw-interaction-hover);
+	}
+}
+
+[data-layout-role="workflow-problem-row"] {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: var(--space-3);
+	padding: var(--space-2);
+	border-radius: var(--radius-tag);
+	transition-property:
+		color, background-color, border-color, outline-color, text-decoration-color,
+		fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to;
+	transition-duration: var(--dur-state);
+	transition-timing-function: var(--default-transition-timing-function);
+}
+
+[data-layout-role="workflow-problem-copy"] {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: var(--space-0-5);
+	min-width: 0;
+}
+
+[data-layout-role="workflow-problem-step"] {
+	overflow-wrap: anywhere;
+}
+
+[data-layout-role="workflow-problem-message"] {
+	color: var(--tw-content-secondary);
+	font: var(--type-body-sm);
+	letter-spacing: var(--tracking-body);
+	overflow-wrap: anywhere;
+}
+
+[data-layout-role="workflow-problem-fixes"] {
+	position: relative;
+	display: flex;
+	flex-shrink: 0;
+	gap: var(--space-1-5);
+}
+
+[data-layout-role="workflow-problem-section"] {
+	display: flex;
+	flex-direction: column;
+}
+
+[data-layout-role="workflow-problem-section"][data-after-section] {
+	margin-inline: calc(-1 * var(--space-1));
+	margin-top: var(--space-1);
+	padding-inline: var(--space-1);
+	padding-top: var(--space-1);
+	border-top: var(--line-width) solid var(--tw-boundary-subtle);
+}
+
+[data-layout-role="workflow-problem-section-heading"] {
+	padding: var(--space-2) var(--space-2) var(--space-1);
+	color: var(--tw-content-secondary);
+	font: var(--type-caption);
+	font-variant-numeric: tabular-nums;
+	letter-spacing: var(--tracking-body);
+}
+
+[data-layout-role="workflow-problems-trigger"] {
+	position: absolute;
+	z-index: var(--z-raised);
+	top: var(--space-3);
+	inset-inline-end: var(--space-3);
+	border-radius: var(--radius-pill);
+}
+
+[data-layout-role="workflow-problems-trigger"][data-blocking] {
+	background-color: var(--tw-danger-wash);
+}
+
+[data-slot="popover-content"][data-layout-role="workflow-problems-popup"],
+[data-slot="popover-content"][data-layout-role="workflow-problem-peek"] {
+	gap: 0;
+	padding: var(--space-1);
+}
+
+[data-slot="popover-content"][data-layout-role="workflow-problems-popup"] {
+	width: calc(var(--space-1) * 96);
+}
+
+[data-slot="popover-content"][data-layout-role="workflow-problem-peek"] {
+	width: calc(var(--space-1) * 80);
+}

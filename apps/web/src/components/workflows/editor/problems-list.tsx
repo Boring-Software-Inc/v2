@@ -12,6 +12,7 @@ import {
 	PopoverTrigger,
 } from "#/design-system/ui/popover";
 import { Status } from "#/design-system/ui/status";
+import { Label } from "#/design-system/ui/typography";
 
 export function severityStatus(problems: readonly Problem[]): "fail" | "warn" {
 	return problems.some((problem) => problem.severity === "error")
@@ -34,10 +35,9 @@ function ProblemRow({
 		: [];
 	return (
 		<div
-			className={cn(
-				"group/problem relative flex items-center gap-3 rounded-md p-2 transition-colors duration-(--dur-state)",
-				target && onReveal && "hover:bg-hover",
-			)}
+			className="group/problem"
+			data-layout-role="workflow-problem-row"
+			data-revealable={Boolean(target && onReveal) || undefined}
 			data-problem-rule={problem.rule}
 		>
 			{target && onReveal ? (
@@ -48,16 +48,14 @@ function ProblemRow({
 					type="button"
 				/>
 			) : null}
-			<div className="flex min-w-0 flex-1 flex-col gap-0.5">
-				<span className="type-label text-text-1 [overflow-wrap:anywhere]">
-					{problem.step}
-				</span>
-				<span className="type-body-sm text-text-2 [overflow-wrap:anywhere]">
+			<div data-layout-role="workflow-problem-copy">
+				<Label data-layout-role="workflow-problem-step">{problem.step}</Label>
+				<span data-layout-role="workflow-problem-message">
 					{problem.message}
 				</span>
 			</div>
 			{fixes.length > 0 ? (
-				<div className="relative flex shrink-0 gap-1.5">
+				<div data-layout-role="workflow-problem-fixes">
 					{fixes.map((fix, index) => (
 						<Button
 							key={fix.label}
@@ -89,13 +87,11 @@ export function ProblemRows({
 			{sections.map((section, index) => (
 				<section
 					aria-label={section.title}
-					className={cn(
-						"flex flex-col",
-						index > 0 && "-mx-1 mt-1 border-line-faint border-t px-1 pt-1",
-					)}
+					data-layout-role="workflow-problem-section"
+					data-after-section={index > 0 || undefined}
 					key={section.key}
 				>
-					<h3 className="px-2 pt-2 pb-1 type-caption text-text-2">
+					<h3 data-layout-role="workflow-problem-section-heading">
 						{section.title}
 					</h3>
 					{section.problems.map((problem) => (
@@ -132,10 +128,8 @@ export function ProblemsButton({
 	return (
 		<Popover onOpenChange={onOpenChange} open={open}>
 			<div
-				className={cn(
-					"absolute end-3 top-3 z-(--z-raised) rounded-pill",
-					blocking && "bg-fail-tint",
-				)}
+				data-layout-role="workflow-problems-trigger"
+				data-blocking={blocking || undefined}
 			>
 				<PopoverTrigger
 					render={
@@ -151,7 +145,11 @@ export function ProblemsButton({
 					)}
 				</PopoverTrigger>
 			</div>
-			<PopoverContent align="end" className="w-96 gap-0 p-1" finalFocus={false}>
+			<PopoverContent
+				align="end"
+				data-layout-role="workflow-problems-popup"
+				finalFocus={false}
+			>
 				<ProblemRows onFix={onFix} onReveal={onReveal} problems={problems} />
 			</PopoverContent>
 		</Popover>
@@ -180,7 +178,7 @@ export function ProblemPeek({
 			>
 				{children}
 			</PopoverTrigger>
-			<PopoverContent className="w-80 gap-0 p-1" side="top">
+			<PopoverContent data-layout-role="workflow-problem-peek" side="top">
 				<ProblemRows onFix={onFix} problems={problems} />
 			</PopoverContent>
 		</Popover>

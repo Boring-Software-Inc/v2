@@ -17,7 +17,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { cn } from "#/design-system/lib/utils";
 import {
 	Field,
 	FieldDescription,
@@ -30,6 +29,7 @@ import {
 	InputTrailing,
 } from "#/design-system/ui/input";
 import { TooltipChip } from "#/design-system/ui/tooltip";
+import { Caption } from "#/design-system/ui/typography";
 import { useMinuteClock } from "#/hooks/use-minute-clock";
 import type { Timezones } from "#/hooks/use-timezones";
 import {
@@ -47,21 +47,11 @@ export interface CadenceValue {
 
 const LIVE_PROBLEMS = new Set(["floor", "ambiguous", "unstorable", "invalid"]);
 
-const TOKEN_TONE = {
-	ok: "bg-hover text-text-1",
-	warn: "bg-warn-tint text-warn-text",
-	fail: "bg-fail-tint text-fail-text",
-} as const;
-
 function NextRun({ next, display }: { next: Date | null; display: string }) {
 	if (!next) {
 		return null;
 	}
-	return (
-		<span className="type-caption text-text-2 tabular-nums">
-			Next {formatNextRun(next, display)}
-		</span>
-	);
+	return <Caption>Next {formatNextRun(next, display)}</Caption>;
 }
 
 function Segments({
@@ -82,18 +72,16 @@ function Segments({
 	tokens.forEach((token, index) => {
 		if (token.from > cursor) {
 			parts.push(
-				<span className="text-text-1" key={`gap-${cursor}`}>
+				<span data-layout-role="schedule-text-gap" key={`gap-${cursor}`}>
 					{text.slice(cursor, token.from)}
 				</span>,
 			);
 		}
 		parts.push(
 			<span
-				className={cn(
-					"-mx-px rounded-tag px-px transition-colors duration-(--dur-state)",
-					TOKEN_TONE[token.tone],
-					active === index && token.tone === "ok" && "bg-pressed",
-				)}
+				data-active={(active === index && token.tone === "ok") || undefined}
+				data-layout-role="schedule-token"
+				data-token-tone={token.tone}
 				data-token={token.kind}
 				key={`token-${token.from}`}
 				ref={(element) => {
@@ -107,7 +95,7 @@ function Segments({
 	});
 	if (cursor < text.length) {
 		parts.push(
-			<span className="text-text-1" key={`gap-${cursor}`}>
+			<span data-layout-role="schedule-text-gap" key={`gap-${cursor}`}>
 				{text.slice(cursor)}
 			</span>,
 		);
@@ -115,7 +103,9 @@ function Segments({
 	return (
 		<>
 			{parts}
-			{ghost ? <span className="text-text-3">{ghost}</span> : null}
+			{ghost ? (
+				<span data-layout-role="schedule-completion">{ghost}</span>
+			) : null}
 		</>
 	);
 }
@@ -258,7 +248,7 @@ export function ScheduleTextField({
 
 	return (
 		<Field className="relative" data-field="every" invalid={problem !== null}>
-			<div className="flex items-baseline justify-between gap-2">
+			<div data-layout-role="schedule-field-heading">
 				<FieldLabel>When</FieldLabel>
 				{parsed.ok || problem === null ? (
 					<NextRun display={timezones.display.zone} next={next} />
@@ -266,10 +256,9 @@ export function ScheduleTextField({
 			</div>
 			<div className="relative" ref={box}>
 				<InputRoot
-					className={cn(
-						problem?.reason === "ambiguous" && "border-warn!",
-						"relative",
-					)}
+					className="relative"
+					data-layout-role="schedule-input"
+					data-schedule-problem={problem?.reason}
 					disabled={readOnly}
 					onPointerLeave={() => setHovered(null)}
 					onPointerMove={onPointerMove}
@@ -293,7 +282,7 @@ export function ScheduleTextField({
 							autoCapitalize="off"
 							autoComplete="off"
 							autoCorrect="off"
-							className="relative text-clip text-transparent caret-text-1 selection:bg-pressed"
+							data-layout-role="schedule-native-input"
 							onBlur={() => {
 								setFocused(false);
 								setCaret(null);
@@ -324,7 +313,7 @@ export function ScheduleTextField({
 					{showZone ? (
 						<InputTrailing
 							aria-hidden
-							className="text-text-3"
+							data-layout-role="schedule-timezone"
 							title={zoneLabel}
 						>
 							{scheduleZoneWord(zone)}
@@ -333,10 +322,8 @@ export function ScheduleTextField({
 				</InputRoot>
 				{activeToken && activeToken.kind !== "unknown" ? (
 					<TooltipChip
-						className={cn(
-							"pointer-events-none absolute z-(--z-raised) whitespace-nowrap",
-							problem ? "bottom-full mb-1" : "top-full mt-1",
-						)}
+						data-layout-role="schedule-token-hint"
+						data-has-problem={problem !== null || undefined}
 						style={chipPlace}
 					>
 						{activeToken.label}
@@ -345,20 +332,19 @@ export function ScheduleTextField({
 				<output aria-live="polite" className="block">
 					{problem ? (
 						<FieldError
-							className={cn(
-								"mt-1.5",
-								problem.reason === "ambiguous" && "text-warn-text",
-							)}
+							data-layout-role="schedule-problem"
+							data-schedule-problem={problem.reason}
 						>
 							{problem.message}
 						</FieldError>
 					) : null}
 				</output>
 				{problem && problem.fixes.length > 0 && !readOnly ? (
-					<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+					<div data-layout-role="schedule-fixes">
 						{problem.fixes.map((fix) => (
 							<button
-								className="type-caption font-medium text-text-1 underline decoration-1 underline-offset-2 rounded-tag hover:text-text-2 focus-sm"
+								className="focus-sm"
+								data-layout-role="schedule-fix"
 								key={fix.label}
 								onClick={() => accept(fix.text)}
 								type="button"

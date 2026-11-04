@@ -1,8 +1,8 @@
 {
-	"no-arbitrary-tailwind-values": 52,
+	"no-arbitrary-tailwind-values": 50,
 	"no-direct-implementation-imports": 0,
 	"no-inline-visual-styles": 34,
-	"no-raw-color": 322,
-	"no-raw-spacing": 432,
-	"no-raw-typography": 216
+	"no-raw-color": 307,
+	"no-raw-spacing": 420,
+	"no-raw-typography": 211
 }
