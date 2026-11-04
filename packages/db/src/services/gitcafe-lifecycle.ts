@@ -33,7 +33,7 @@ import { generateId } from "@tripwire/utils";
 import { and, eq, inArray, ne, notExists, sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import { PgBoss } from "pg-boss";
-import type { Db } from "../client.ts";
+import { type Db, requirePostgresPool } from "../client.ts";
 import type { BossErrorLogger } from "../queue.ts";
 import {
 	gitCafeInstallationLifecycle,
@@ -73,7 +73,7 @@ export async function insertGitCafeScheduledEvent(
 		!event.thread.externalId
 	)
 		return { ok: false, reason: "inactive" };
-	const client = await db.$client.connect();
+	const client = await requirePostgresPool(db).connect();
 	try {
 		await client.query("BEGIN");
 		await client.query(
@@ -385,7 +385,7 @@ export async function recoverPendingGitCafeReceipts(
 	db: Db,
 	boss: PgBoss,
 ): Promise<number> {
-	const client = await db.$client.connect();
+	const client = await requirePostgresPool(db).connect();
 	try {
 		await client.query("BEGIN");
 		await client.query(
@@ -452,7 +452,7 @@ export async function dispatchGitCafeRepositoryReceipt(
 	boss: PgBoss,
 	receiptId: string,
 ): Promise<GitCafeReceiptStatus | "lifecycle"> {
-	const client = await db.$client.connect();
+	const client = await requirePostgresPool(db).connect();
 	try {
 		await client.query("BEGIN");
 		await client.query(
@@ -631,7 +631,7 @@ export async function recoverGitCafeEvents(
 	db: Db,
 	boss: PgBoss,
 ): Promise<number> {
-	const client = await db.$client.connect();
+	const client = await requirePostgresPool(db).connect();
 	try {
 		await client.query("BEGIN");
 		await client.query(

@@ -6,6 +6,7 @@ import {
 	createDb,
 	createGitCafeConnectionBoss,
 	createPgliteDb,
+	type Db,
 	type PgliteHandle,
 	repoServices,
 } from "@tripwire/db";
@@ -13,8 +14,8 @@ import { generateId } from "@tripwire/utils";
 import type { PgBoss } from "pg-boss";
 import pino from "pino";
 
-type DbBundle = ReturnType<typeof createDb>;
-type DbPool = DbBundle["pool"];
+type DbPool = ReturnType<typeof createDb>["pool"];
+type DbBundle = { db: Db; pool: DbPool };
 
 /**
  * Server-only database access for TanStack server functions. Import this

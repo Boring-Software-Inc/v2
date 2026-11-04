@@ -13,14 +13,14 @@ import { generateId } from "@tripwire/utils";
 import { and, eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import journal from "../drizzle/meta/_journal.json";
-import { createDb, type Db } from "./client.ts";
+import { createDb } from "./client.ts";
 import { applyMigrations } from "./migrate.ts";
 import { account, user } from "./schema/auth.ts";
 import { installationAccounts } from "./schema/installation-accounts.ts";
 import { createTestDatabase, type TestDatabase } from "./testing.ts";
 
 let container: TestDatabase;
-let db: Db;
+let db: ReturnType<typeof createDb>["db"];
 let pool: { end(): Promise<void> };
 
 beforeAll(async () => {

@@ -74,7 +74,8 @@ export async function backfillOrgs(db: Db): Promise<BackfillReport> {
 	return {
 		users: users.length,
 		personalOrgsEnsured,
-		reposLinked: linked.rowCount ?? 0,
+		reposLinked:
+			("rowCount" in linked ? linked.rowCount : linked.affectedRows) ?? 0,
 		claimedButNullRepos: claimedNull?.n ?? 0,
 		unclaimedRepos: unclaimed?.n ?? 0,
 	};

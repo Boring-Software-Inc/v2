@@ -16,7 +16,7 @@ import { generateId } from "@tripwire/utils";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { PgBoss } from "pg-boss";
-import { type Db, schema } from "../client.ts";
+import { type Db, requirePostgresPool, schema } from "../client.ts";
 import { BACKFILL_REPO_QUEUE } from "../queue.ts";
 import { organizationInstallations } from "../schema/organizations.ts";
 import {
@@ -216,7 +216,7 @@ async function armGitCafeRepository(
 	queue: PgBoss | null,
 	organizationId?: string,
 ): Promise<RepoArmingResult> {
-	const client = await db.$client.connect();
+	const client = await requirePostgresPool(db).connect();
 	try {
 		return await drizzle(client, { schema }).transaction(
 			async (tx): Promise<RepoArmingResult> => {

@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import type { Db } from "./client.ts";
 import * as schema from "./schema/index.ts";
 
 /**
@@ -18,16 +17,13 @@ import * as schema from "./schema/index.ts";
 const MIGRATIONS_FOLDER = fileURLToPath(new URL("../drizzle", import.meta.url));
 
 export interface PgliteHandle {
-	db: Db;
+	db: ReturnType<typeof drizzle<typeof schema, PGlite>>;
 	client: PGlite;
 }
 
 /**
  * Open (or create) a PGlite database at `dataDir` (omit for in-memory). The
- * returned `db` is the drizzle instance the service layer consumes: PGlite is
- * the pg dialect and API-compatible with our node-postgres `Db`, so one
- * documented cast keeps `Db` single-driver rather than widening the shared type
- * across the whole services package.
+ * returned `db` retains PGlite's driver types and shares the service-layer schema.
  */
 export function createPgliteDb(dataDir?: string): PgliteHandle {
 	if (dataDir) {
@@ -36,7 +32,7 @@ export function createPgliteDb(dataDir?: string): PgliteHandle {
 		mkdirSync(dataDir, { recursive: true });
 	}
 	const client = new PGlite(dataDir);
-	const db = drizzle(client, { schema }) as unknown as Db;
+	const db = drizzle(client, { schema });
 	return { db, client };
 }
 
