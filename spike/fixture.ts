@@ -221,13 +221,13 @@ export interface RuleOutput {
 	readonly severity: Severity;
 }
 
-function narrowTree(produces: Record<string, unknown>) {
-	const out: Record<string, Record<string, AnySignal>> = {};
-	const tree = signalTree as Record<string, Record<string, AnySignal>>;
-	for (const [scope, group] of Object.entries(tree)) {
-		out[scope] = {};
+function narrowTree(produces: ProducerMap<never>) {
+	const out: Record<string, Record<string, Registry[keyof Registry]>> = {};
+	for (const [scope, group] of Object.entries(signalTree)) {
+		const supported: Record<string, Registry[keyof Registry]> = {};
+		out[scope] = supported;
 		for (const [key, sig] of Object.entries(group)) {
-			if (sig.id in produces) out[scope][key] = sig;
+			if (sig.id in produces) supported[key] = sig;
 		}
 	}
 	return out;

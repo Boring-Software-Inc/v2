@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { commentRuleEnvelopeSchema } from "@tripwire/contracts";
 import { projectRulePublic } from "@tripwire/core";
 import { createDb, schema } from "@tripwire/db";
 import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
@@ -17,6 +18,10 @@ import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
  *   bun run scripts/backfill-public-projection.ts          # apply
  *   bun run scripts/backfill-public-projection.ts --dry    # count only
  */
+
+const evidenceEnvelopeSchema = commentRuleEnvelopeSchema.pick({
+	evidence: true,
+});
 
 const DRY = process.argv.includes("--dry");
 const { runSteps } = schema;
@@ -51,12 +56,12 @@ for (const step of stale) {
 	// whole backfill on one malformed row.
 	// run_steps.evidence stores the RuleResult envelope; the projection wants the
 	// inner typed evidence — unwrap exactly like the worker's withPublicProjection.
-	const envelope = step.evidence;
+	const envelope = evidenceEnvelopeSchema.safeParse(step.evidence);
 	const inner =
-		envelope && typeof envelope === "object" && "evidence" in envelope
-			? (envelope as { evidence: unknown }).evidence
-			: envelope;
-	let projection: { publicEvidence: unknown; summary: string | null };
+		envelope.success && "evidence" in envelope.data
+			? envelope.data.evidence
+			: step.evidence;
+	let projection: ReturnType<typeof projectRulePublic>;
 	try {
 		projection = projectRulePublic(step.ruleId, inner, step.status === "pass");
 	} catch (err) {
