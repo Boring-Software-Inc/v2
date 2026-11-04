@@ -53,6 +53,60 @@ test("rule panel renders partial and malformed drafts without applying defaults"
 	}
 });
 
+test("action properties keep saved-secret markers blank and controls disabled", () => {
+	const html = renderToStaticMarkup(
+		<PropertiesPanel
+			node={{
+				id: "delivery",
+				type: "action",
+				action: "webhook",
+				params: { urlSet: true, signingSecretSet: true, extra: "retained" },
+			}}
+			onUpdate={() => undefined}
+			readOnly
+		/>,
+	);
+	expect(html.match(/Saved\. Leave blank to keep it/g)).toHaveLength(2);
+	expect(html.match(/value=""/g)).toHaveLength(2);
+	expect(html).toContain('data-layout-role="workflow-delivery-test"');
+	expect(html).toContain("Test connection");
+	for (const type of ["url", "password"]) {
+		const inputs = html.match(
+			new RegExp(`<input\\b[^>]*\\btype="${type}"[^>]*>`, "g"),
+		);
+		expect(inputs).toHaveLength(1);
+		expect(inputs?.[0]).toContain('disabled=""');
+	}
+});
+
+test.each([
+	false,
+	true,
+])("delivery test button honors read-only=%s with a nonempty URL", (readOnly) => {
+	const html = renderToStaticMarkup(
+		<PropertiesPanel
+			node={{
+				id: "delivery",
+				type: "action",
+				action: "webhook",
+				params: { url: "https://example.com/hook" },
+			}}
+			onUpdate={() => undefined}
+			readOnly={readOnly}
+		/>,
+	);
+	const buttons = html
+		.match(/<button\b[^>]*>[\s\S]*?<\/button>/g)
+		?.filter((button) => button.includes("Test connection"));
+	expect(buttons).toHaveLength(1);
+	const attributes = buttons?.[0]?.match(/^<button\b[^>]*>/)?.[0];
+	if (readOnly) {
+		expect(attributes).toContain('disabled=""');
+	} else {
+		expect(attributes).not.toContain('disabled=""');
+	}
+});
+
 test("text and enum fields retain incomplete text and string-only read fallbacks", () => {
 	const changes: JsonValue[] = [];
 	const onChange = (next: JsonValue) => changes.push(next);

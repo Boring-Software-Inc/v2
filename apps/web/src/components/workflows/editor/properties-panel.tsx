@@ -32,6 +32,7 @@ import { NumberInput } from "#/design-system/ui/number-input";
 import { Select } from "#/design-system/ui/select";
 import { Status } from "#/design-system/ui/status";
 import { Textarea } from "#/design-system/ui/textarea";
+import { SupportingText } from "#/design-system/ui/typography";
 
 const numberOrNull = z.number().nullable().catch(null);
 const labelList = z.array(z.string().optional().catch(undefined)).catch([]);
@@ -132,8 +133,8 @@ function LockFields({
 	const parsed = lockParamsSchema.safeParse(node.params ?? {});
 	const reason = parsed.success ? (parsed.data.reason ?? "") : "";
 	return (
-		<Field data-field="reason">
-			<FieldLabel className="text-text-2">Reason</FieldLabel>
+		<Field data-field="reason" data-layout-role="workflow-action-property">
+			<FieldLabel>Reason</FieldLabel>
 			<Select
 				disabled={readOnly}
 				items={LOCK_REASON_OPTIONS}
@@ -163,18 +164,16 @@ function RuleFields({
 	const entry = ruleCatalogEntryForRef(node.ref);
 	if (!entry) {
 		return (
-			<p className="type-body-sm text-text-2">
+			<SupportingText>
 				Unknown rule <span className="mono">{node.ref}</span>. It is not in the
 				catalog.
-			</p>
+			</SupportingText>
 		);
 	}
 	const fields = fieldsForSchema(entry.configSchema) ?? [];
 	if (fields.length === 0) {
 		return (
-			<p className="type-body-sm text-text-2">
-				This rule has no settings to change.
-			</p>
+			<SupportingText>This rule has no settings to change.</SupportingText>
 		);
 	}
 	const config = ruleConfigFieldsSchema.parse(node.config);
@@ -182,8 +181,8 @@ function RuleFields({
 		onUpdate({ ...node, config: { ...config, [key]: value } });
 	};
 	return (
-		<div className="flex flex-col gap-3">
-			<p className="type-body-sm text-text-2">{entry.blurb}</p>
+		<div data-layout-role="workflow-rule-properties">
+			<SupportingText>{entry.blurb}</SupportingText>
 			{fields.map((field) => (
 				<div data-field={field.key} key={field.key}>
 					<ConfigField
@@ -225,7 +224,7 @@ export function ConfigField({
 			);
 		case "boolean":
 			return (
-				<Label className="flex items-center gap-2">
+				<Label data-layout-role="workflow-boolean-property">
 					<Checkbox
 						checked={value === true}
 						disabled={readOnly}
@@ -391,17 +390,15 @@ function ActionFields({
 	}
 	if (node.action !== "label" && node.action !== "remove-label") {
 		return (
-			<p className="type-body-sm text-text-2">
-				This step has no settings to change.
-			</p>
+			<SupportingText>This step has no settings to change.</SupportingText>
 		);
 	}
 	const labels = labelList
 		.parse(node.params?.labels)
 		.filter((label) => label !== undefined);
 	return (
-		<Field data-field="labels">
-			<FieldLabel className="text-text-2">Labels</FieldLabel>
+		<Field data-field="labels" data-layout-role="workflow-action-property">
+			<FieldLabel>Labels</FieldLabel>
 			<LabelPicker
 				creatable
 				onChange={(next) =>
@@ -429,8 +426,8 @@ function CommentFields({
 }) {
 	const message = textParam.parse(node.params?.message);
 	return (
-		<Field data-field="message">
-			<FieldLabel className="text-text-2">{label}</FieldLabel>
+		<Field data-field="message" data-layout-role="workflow-action-property">
+			<FieldLabel>{label}</FieldLabel>
 			<Textarea
 				disabled={readOnly}
 				maxLength={maxLength}
@@ -520,7 +517,7 @@ function DeliveryFields({
 		}
 	};
 	return (
-		<div className="flex flex-col gap-3">
+		<div data-layout-role="workflow-delivery-properties">
 			<Field>
 				<FieldLabel>
 					{node.action === "discord" ? "Discord webhook URL" : "Webhook URL"}
@@ -552,7 +549,7 @@ function DeliveryFields({
 					</AlertDescription>
 				</Alert>
 			) : null}
-			<div className="flex flex-wrap items-center gap-2">
+			<div data-layout-role="workflow-delivery-test">
 				<Button
 					disabled={readOnly || url === ""}
 					onClick={runTest}

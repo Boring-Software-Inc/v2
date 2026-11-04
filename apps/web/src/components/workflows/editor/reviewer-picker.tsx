@@ -27,6 +27,7 @@ import {
 } from "#/design-system/ui/combobox";
 import { Field, FieldLabel } from "#/design-system/ui/field";
 import { Status } from "#/design-system/ui/status";
+import { SupportingText } from "#/design-system/ui/typography";
 import { useSyncedList } from "#/hooks/use-synced-list";
 import { refreshRepoReviewers } from "#/lib/reviewers.functions";
 import { repoReviewersQueryOptions } from "#/lib/reviewers.query";
@@ -92,7 +93,7 @@ export function ReviewerPicker({
 
 	const refreshButton = (
 		<Button
-			className="self-start"
+			data-layout-role="workflow-reviewers-refresh"
 			disabled={readOnly || repoId === ""}
 			onClick={refresh}
 			pending={syncing}
@@ -116,24 +117,24 @@ export function ReviewerPicker({
 			);
 		}
 		return (
-			<div className="flex flex-col gap-2" data-field="reviewers">
-				<p className="type-body-sm text-text-2">
+			<div data-layout-role="workflow-reviewers" data-field="reviewers">
+				<SupportingText>
 					{gitCafe
 						? "Open a pull request on GitCafe, then refresh to load reviewers."
 						: "No reviewers found"}
-				</p>
+				</SupportingText>
 				{refreshButton}
 			</div>
 		);
 	}
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div data-layout-role="workflow-reviewers">
 			{gitCafe && (
-				<p className="type-body-sm text-text-2">
+				<SupportingText>
 					Suggestions come from open pull requests. GitCafe checks access again
 					when requesting review.
-				</p>
+				</SupportingText>
 			)}
 			<Field data-field="reviewers">
 				<FieldLabel>Reviewers</FieldLabel>
@@ -153,8 +154,8 @@ export function ReviewerPicker({
 									{selected.map((reviewer) => (
 										<ComboboxChip key={reviewer.id ?? reviewer.login}>
 											{reviewer.stale ? (
-												<span className="inline-flex items-center gap-1 text-warn-text">
-													<Icon className="text-warn-text" icon={Warning} />
+												<span data-layout-role="workflow-reviewer-stale">
+													<Icon icon={Warning} />
 													{reviewer.login}
 													<span className="sr-only">
 														, can no longer review this repo
@@ -182,7 +183,7 @@ export function ReviewerPicker({
 									key={reviewer.id ?? reviewer.login}
 									value={reviewer}
 								>
-									<span className="flex min-w-0 items-center gap-2">
+									<span data-layout-role="workflow-reviewer-option">
 										<Avatar
 											decorative
 											name={reviewer.login}
